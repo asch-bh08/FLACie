@@ -7,8 +7,9 @@ try
 {
     switch (cmd)
     {
-        case "detect": return Detect();
-        case "dump":   return Dump(args.Skip(1).ToArray());
+        case "detect":    return Detect();
+        case "dump":      return Dump(args.Skip(1).ToArray());
+        case "roundtrip": return RoundTripCmd(args.Skip(1).ToArray());
         default:
             Console.Error.WriteLine($"Unknown command '{cmd}'.");
             Usage();
@@ -29,6 +30,9 @@ static void Usage()
           detect              find connected iPods
           dump [path] [-n N]  dump database (path = iPod drive, or an iTunesDB file)
                               -n limits how many tracks are printed (default 25, 0 = all)
+          roundtrip [path]    read a database, rebuild it, and diff against the original bytes.
+                              Read-only -- never writes to the device. This is the writer's
+                              safety gate: it must pass before anything is allowed to write.
         """);
 }
 
@@ -114,6 +118,66 @@ static int Dump(string[] rest)
     }
 
     return 0;
+}
+
+static int RoundTripCmd(string[] rest)
+{
+    string? outPath = null;
+    string? path = null;
+    for (int i = 0; i < rest.Length; i++)
+    {
+        if (rest[i] == "-o" && i + 1 < rest.Length) outPath = rest[++i];
+        else path ??= rest[i];
+    }
+
+    if (path is null)
+    {
+        var devices = IpodDevice.Detect();
+        if (devices.Count == 0) { Console.Error.WriteLine("No iPod found. Pass a path explicitly."); return 1; }
+        path = devices[0].RootPath;
+        Console.WriteLine($"Using {path}");
+    }
+
+    string dbPath = Directory.Exists(path) ? IpodDevice.Open(path).ItunesDbPath : path;
+    if (!File.Exists(dbPath)) { Console.Error.WriteLine($"No iTunesDB at {dbPath}"); return 1; }
+
+    byte[] original = File.ReadAllBytes(dbPath);
+    var result = RoundTrip.Run(original);
+
+    Console.WriteLine();
+    Console.WriteLine($"file                {dbPath}");
+    Console.WriteLine($"on disk             {(result.WasCompressed ? "iTunesCDB (zlib-compressed)" : "iTunesDB (plain)")}, {result.OriginalCompressedLength:N0} bytes");
+    Console.WriteLine($"inflated length     original {result.OriginalInflatedLength:N0}  reconstructed {result.ReconstructedLength:N0}");
+    if (result.UnknownMagics.Count > 0)
+        Console.WriteLine($"opaque chunk types  {string.Join(", ", result.UnknownMagics.OrderBy(x => x))}  (preserved verbatim, not decoded)");
+
+    Console.WriteLine();
+    if (result.StructureMatches)
+    {
+        Console.WriteLine("STRUCTURE: byte-identical  -- PASS");
+    }
+    else
+    {
+        Console.WriteLine($"STRUCTURE: mismatch, first differing byte at 0x{result.FirstDiffOffset:X}  -- FAIL");
+        Console.WriteLine(result.DiffContext);
+    }
+
+    if (result.CompressionRoundTripOk is bool ok)
+    {
+        Console.WriteLine(ok
+            ? "compression         our re-deflated bytes reinflate back to the same content"
+            : "compression         FAILED to reinflate back to the same content");
+        Console.WriteLine("                    (compressed bytes are not expected to match Apple's zlib output byte for byte -- only the inflated content is)");
+    }
+
+    if (outPath is not null)
+    {
+        File.WriteAllBytes(outPath, result.ReconstructedInflated);
+        Console.WriteLine();
+        Console.WriteLine($"wrote reconstructed inflated bytes to {outPath}");
+    }
+
+    return result.StructureMatches ? 0 : 1;
 }
 
 static string Gb(long bytes) => $"{bytes / 1024.0 / 1024 / 1024:F1} GB";

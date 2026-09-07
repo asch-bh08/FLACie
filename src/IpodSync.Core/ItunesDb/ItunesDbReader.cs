@@ -1,6 +1,5 @@
-using System.Buffers.Binary;
-using System.IO.Compression;
 using System.Text;
+using static IpodSync.Core.ItunesDb.BinaryIo;
 
 namespace IpodSync.Core.ItunesDb;
 
@@ -260,55 +259,9 @@ public static class ItunesDbReader
         catch (DecoderFallbackException) { return Encoding.Unicode.GetString(d, start, len); }
     }
 
-    /// <summary>
-    /// Later iPods ship the database as iTunesCDB: the same mhbd header, plain,
-    /// followed by a zlib stream holding the datasets. Expands that into the
-    /// uncompressed layout the rest of this reader expects, and returns the input
-    /// untouched when it is already a plain iTunesDB.
-    /// </summary>
-    private static byte[] Inflate(byte[] d)
-    {
-        int hdrLen = I32(d, 0x04);
-        if (hdrLen < 0x20 || hdrLen + 2 > d.Length) return d;
-
-        // zlib header: low nibble 8 means deflate, and the two bytes together are
-        // a multiple of 31. Cheap and specific enough to use as the marker.
-        int cmf = d[hdrLen], flg = d[hdrLen + 1];
-        if ((cmf & 0x0F) != 8 || ((cmf << 8) | flg) % 31 != 0) return d;
-
-        byte[] body;
-        try
-        {
-            using var input = new MemoryStream(d, hdrLen, d.Length - hdrLen, writable: false);
-            using var zlib = new ZLibStream(input, CompressionMode.Decompress);
-            using var expanded = new MemoryStream();
-            zlib.CopyTo(expanded);
-            body = expanded.ToArray();
-        }
-        catch (InvalidDataException)
-        {
-            return d;   // looked like zlib but was not; let the caller parse it raw
-        }
-
-        var result = new byte[hdrLen + body.Length];
-        Array.Copy(d, 0, result, 0, hdrLen);
-        Array.Copy(body, 0, result, hdrLen, body.Length);
-
-        // The stored total length describes the compressed file, so correct it.
-        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(0x08), result.Length);
-        return result;
-    }
-
     // --- primitives -------------------------------------------------------
-
-    private static string Magic(byte[] d, int p) =>
-        p + 4 <= d.Length ? Encoding.ASCII.GetString(d, p, 4) : "";
-
-    private static int I32(byte[] d, int p) =>
-        p + 4 <= d.Length ? BinaryPrimitives.ReadInt32LittleEndian(d.AsSpan(p, 4)) : 0;
-
-    private static ulong U64(byte[] d, int p) =>
-        p + 8 <= d.Length ? BinaryPrimitives.ReadUInt64LittleEndian(d.AsSpan(p, 8)) : 0;
+    // Magic/I32/U64/Inflate come from BinaryIo (shared with the raw chunk tree
+    // the writer round-trips through) via the `using static` import above.
 
     /// <summary>Read a field only if the chunk's declared header is long enough to contain it.</summary>
     private static int Fld(byte[] d, int chunk, int off, int hdrLen) =>

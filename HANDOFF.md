@@ -39,13 +39,16 @@ transparent transcode, incremental, no account, no cloud.
 
 ## Current state
 
-**Reading works and is verified against two of the user's real iPods.** Nothing
-writes to a device. That is deliberate — see Safety below.
+**Reading works and is verified against two of the user's real iPods.** The
+database writer's round-trip test also passes byte-identically against both of
+those same devices. Nothing writes to a device. That is deliberate — see
+Safety below; round-trip passing is necessary but not sufficient for that.
 
 ```
 dotnet build
 dotnet run --project src/IpodSync.Cli -- detect
 dotnet run --project src/IpodSync.Cli -- dump G:/ -n 20
+dotnet run --project src/IpodSync.Cli -- roundtrip G:/
 ```
 
 Verified output: 614 tracks / 11 playlists on one device, 635 / 11 on the other.
@@ -53,10 +56,24 @@ Titles, artists, albums, playlist names and membership, smart-playlist flags,
 star ratings, play counts, durations, bitrates, and the scrambled `F##/XXXX.m4a`
 paths all read correctly.
 
+`roundtrip` reads a real database, parses it into a lossless chunk tree
+(`RawChunk`, `src/IpodSync.Core/ItunesDb/RawChunk.cs`), serialises that tree
+straight back to bytes, and diffs the result against the original — on both
+`G:\` and `H:\` the inflated bytes match exactly, including the undecoded
+`mhla`/`mhli` chunks and every header field the semantic reader doesn't model.
+See "Decisions and why" below for how that tree is built and why it's a
+separate parse from the verified reader rather than a rewrite of it.
+
 ### What is NOT done
 
-- No writer. No signing. No sync engine. No transcode. No UI. No Android.
-- `mhla` (albums) and `mhli` (unknown) chunks are skipped, not decoded.
+- **No mutation API yet.** The round-trip proves we can reproduce an
+  *unmodified* database byte-for-byte. There is no code path yet that changes
+  a field, adds/removes a track, or edits a playlist and re-serialises —
+  building one and round-tripping *that* is the next real gate before any
+  write, not what has been proven so far.
+- No signing. No sync engine. No transcode. No UI. No Android.
+- `mhla` (albums) and `mhli` (unknown) chunks are preserved verbatim by the
+  writer but still not semantically decoded by the reader.
 - Artwork (`ithmb`) untouched.
 - Model identification does not work — see the SysInfo gotcha below.
 
@@ -100,6 +117,25 @@ the Android phase.
 **Parse by chunk magic, never by type number.** Published `mhsd` type tables are
 wrong for the DB version these devices write. See README.
 
+**The writer parses independently of the reader, into a lossless tree, rather
+than re-deriving bytes from `ItunesDatabase`.** `ItunesDatabase`/`Track`/
+`Playlist` (the semantic model `ItunesDbReader` builds) throw away everything
+they don't model — unhandled `mhod` types, `mhla`/`mhli`, header bytes past
+what's parsed, exact chunk ordering. Regenerating a file from that model would
+mean *reconstructing* those bytes, which is exactly the risk the task called
+out ("must be preserved verbatim, not regenerated"). Instead `RawChunk` is a
+second, independent parse of the same file into a tree that keeps every byte:
+each node holds its own header bytes and payload/children, `Serialize()`
+recomputes only the handful of structural fields this format ties to the tree
+shape (a chunk's own total length, its children's count), and anything it
+doesn't have a named field for is copied through unchanged — including entire
+chunk types it doesn't understand, like `mhla`/`mhli`, which it captures as a
+named leaf and never touches. Keeping this as a second parse rather than
+rebuilding `ItunesDbReader` on top of it means a bug in the tree can't corrupt
+the already-verified reader; unifying them (so field edits made through the
+semantic model flow into the tree) is future work once the round-trip needed
+to prove that is in place.
+
 **Sync manifest lives off-device**, on the PC/phone, keyed by the iPod's serial.
 Never store our state on the iPod. This is what makes an iTunes wipe harmless.
 
@@ -113,9 +149,13 @@ path broke `dotnet run` with MAX_PATH errors.
 
 The user's iPods hold their actual music library. Treat them as production.
 
-1. **Never write to a connected iPod until the writer round-trips.** The gate is:
-   read a real database, rebuild it from our model, and produce a byte-identical
-   file. Until that passes, a write is a guess.
+1. **Never write to a connected iPod until a *modified* database round-trips.**
+   The identity case (parse a real file, re-serialise it unchanged, compare) now
+   passes on both `G:\` and `H:\` — that only proves the tree faithfully
+   captures what's already there. The real gate is round-tripping a database
+   with an actual change made through code (a field edited, a track added or
+   removed) and confirming the rest of the file is still untouched. Until a
+   mutation path exists and passes that, a write is still a guess.
 2. **Back up before the first real write.** Copy the whole `iPod_Control/iTunes/`
    directory off the device first.
 3. **Prefer `H:\` for experiments** over `G:\` if a sacrificial device is needed —
@@ -127,11 +167,11 @@ The user's iPods hold their actual music library. Treat them as production.
 
 ## Next steps, in order
 
-1. **Writer + round-trip test.** Serialise `ItunesDatabase` back to bytes and
-   compare against the original file. This is the single highest-value next
-   task and the safety gate for everything after it. Expect to have to preserve
-   bytes we do not understand verbatim (smart-playlist rule blobs, `mhla`,
-   `mhli`, unknown header fields).
+1. **Mutation API + round-trip on modified content.** The writer can currently
+   only reproduce a database unchanged (see Current state). Add a way to edit a
+   field (start with something low-risk and real, like play count or rating,
+   since two-way sync will need exactly that) and prove the round-trip still
+   holds for everything *except* the field that was intentionally changed.
 2. **Signing.** Only needed once writing is proven. See the signature-region
    notes in the README, and check them against libgpod's implementation rather
    than trusting the dumps — libgpod is LGPL, so a port makes this project LGPL.

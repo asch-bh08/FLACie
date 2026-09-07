@@ -8,22 +8,28 @@ working alongside it, and our own sync state never lives on the iPod.
 ## Status
 
 Reading works, verified against two real devices. The writer's round-trip test
-also passes byte-identically against both. Nothing writes to a device yet — see
-[HANDOFF.md](HANDOFF.md) for why round-tripping an *unmodified* file isn't the
-same thing as being ready to write.
+passes byte-identically against both, for two cases: reproducing a database
+unchanged, and editing one real field (play count, star rating) and proving
+everything else stayed untouched. Nothing writes to a device yet — see
+[HANDOFF.md](HANDOFF.md) for exactly what is and isn't covered by that before
+trusting it for anything that changes a file's length.
 
 ```
 dotnet build
 ./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe detect
 ./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe dump G:/ -n 20
 ./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe roundtrip G:/
+./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe mutate-test G:/
 ```
 
-`dump` and `roundtrip` both accept an iPod drive root or a path to a database
-file directly. `roundtrip` is read-only: it parses the database, serialises it
-straight back to bytes, and diffs against the original — it never writes
-anything, to the device or otherwise (pass `-o <path>` to also save the
-reconstructed bytes locally for inspection).
+All three read commands accept an iPod drive root or a path to a database file
+directly, and are read-only — none of them ever write to the device.
+`roundtrip` parses the database and serialises it straight back to bytes,
+unchanged, and diffs against the original (pass `-o <path>` to also save the
+reconstructed bytes locally for inspection). `mutate-test` does the same but
+edits one track's play count and star rating first, then proves — via a raw
+byte diff *and* an independent re-read through the already-verified reader —
+that nothing else in the file moved.
 
 ## Format notes
 
@@ -127,9 +133,24 @@ different zlib encoders legitimately produce different compressed output for
 identical input, so that's checked separately (recompress, reinflate, confirm
 the content still matches) rather than compared byte-for-byte.
 
-This round-trip only proves the tree faithfully captures a file *unchanged*.
-There is no mutation API yet — nothing edits a field or adds/removes a chunk
-and re-serialises. That's the next task, not this one.
+A second command, `mutate-test`, proves more than that: it edits one track's
+play count and star rating (`TrackFields`, `TrackMutation.cs`) — both
+fixed-size fields living inside the mhit chunk's own header, so patching one
+never changes that chunk's byte length and nothing upstream needs its
+total/count fields recomputed as a result — then serialises and checks two
+independent ways that nothing else moved: a raw byte diff confirming every
+changed byte falls inside the one mhit chunk that was targeted
+(`RawChunkNavigation.ByteRangeOf`), and a full re-read of the result through
+`ItunesDbReader` (the already-verified reader, untouched by any of this)
+confirming every other track and every playlist is field-for-field identical.
+
+That covers exactly the edit two-way sync needs (writing play counts/ratings
+back to the device). It does **not** cover anything that resizes a chunk —
+renaming a track, adding or removing a track or playlist entry. Those cascade
+into ancestors' total-length and count fields, which `Serialize()` already
+recomputes generically, but that path has only been exercised where sizes
+don't change. A resizing edit needs its own round-trip proof before it's
+trusted for a real write.
 
 ### Miscellaneous
 
@@ -151,7 +172,10 @@ src/IpodSync.Core/
     ItunesDbReader.cs    the verified reader: bytes -> semantic model
     BinaryIo.cs          shared magic/int/inflate/deflate primitives
     RawChunk.cs          the lossless chunk tree + parser: bytes -> tree -> bytes
-    RoundTrip.cs         orchestrates RawChunk parse+serialize+diff for the writer's proof
+    RoundTrip.cs         orchestrates RawChunk parse+serialize+diff for the identity proof
+    TrackMutation.cs     RawChunkNavigation (find/locate chunks) + TrackFields (get/set
+                          play count and stars in place on a parsed mhit chunk)
+    MutationRoundTrip.cs proves one field edit round-trips without touching anything else
   Device/       volume detection, SysInfo, database location
 src/IpodSync.Cli/
 tools/          make_fixture.py - synthetic DB generator for tests
@@ -169,14 +193,17 @@ pointing it at a device.
 1. ~~Read `iTunesDB` / `iTunesCDB`~~ — done
 2. ~~Writer round-trip: reproduce an unmodified database byte-for-byte~~ — done,
    verified against both real devices
-3. Writer mutation API: edit a field, add/remove a track or playlist entry, and
-   round-trip *that* — the actual gate before any real write
-4. Artwork (`ithmb`), album (`mhla`) and `mhli` decoding
-5. hash58 / hash72 signing
-6. Sync engine: content-hash manifest kept off-device, keyed by serial
-7. Transcode FLAC to ALAC/AAC on copy
-8. Android: USB mass storage via SCSI + FAT32, or the Storage Access Framework
-9. iPod Touch (jailbroken): `MediaLibrary.sqlitedb` over afc2 — designed for, not built
+3. ~~Writer mutation: edit a real field (play count, stars) and round-trip
+   *that*~~ — done, verified against both real devices; covers fixed-size
+   field edits only
+4. Writer resizing edits: rename a track, add/remove a track or playlist entry
+   — the actual gate before any real write that changes a file's length
+5. Artwork (`ithmb`), album (`mhla`) and `mhli` decoding
+6. hash58 / hash72 signing
+7. Sync engine: content-hash manifest kept off-device, keyed by serial
+8. Transcode FLAC to ALAC/AAC on copy
+9. Android: USB mass storage via SCSI + FAT32, or the Storage Access Framework
+10. iPod Touch (jailbroken): `MediaLibrary.sqlitedb` over afc2 — designed for, not built
 
 ## Notes
 

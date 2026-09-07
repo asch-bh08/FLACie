@@ -49,6 +49,7 @@ dotnet build
 dotnet run --project src/IpodSync.Cli -- detect
 dotnet run --project src/IpodSync.Cli -- dump G:/ -n 20
 dotnet run --project src/IpodSync.Cli -- roundtrip G:/
+dotnet run --project src/IpodSync.Cli -- mutate-test G:/
 ```
 
 Verified output: 614 tracks / 11 playlists on one device, 635 / 11 on the other.
@@ -66,11 +67,10 @@ separate parse from the verified reader rather than a rewrite of it.
 
 ### What is NOT done
 
-- **No mutation API yet.** The round-trip proves we can reproduce an
-  *unmodified* database byte-for-byte. There is no code path yet that changes
-  a field, adds/removes a track, or edits a playlist and re-serialises —
-  building one and round-tripping *that* is the next real gate before any
-  write, not what has been proven so far.
+- **Only fixed-size field edits are proven.** `mutate-test` proves a real
+  play-count/star-rating edit round-trips cleanly (see Safety below). Nothing
+  that changes a chunk's byte length — renaming a track, adding/removing a
+  track or playlist entry — has been attempted or proven yet.
 - No signing. No sync engine. No transcode. No UI. No Android.
 - `mhla` (albums) and `mhli` (unknown) chunks are preserved verbatim by the
   writer but still not semantically decoded by the reader.
@@ -150,36 +150,51 @@ path broke `dotnet run` with MAX_PATH errors.
 The user's iPods hold their actual music library. Treat them as production.
 
 1. **Never write to a connected iPod until a *modified* database round-trips.**
-   The identity case (parse a real file, re-serialise it unchanged, compare) now
-   passes on both `G:\` and `H:\` — that only proves the tree faithfully
-   captures what's already there. The real gate is round-tripping a database
-   with an actual change made through code (a field edited, a track added or
-   removed) and confirming the rest of the file is still untouched. Until a
-   mutation path exists and passes that, a write is still a guess.
+   Two things are proven now, both in-memory only, against both `G:\` and
+   `H:\`: the identity case (parse, re-serialise unchanged, compare — see
+   `roundtrip`), and a real field edit (bump one track's play count and star
+   rating, re-serialise, prove every other byte in the file is untouched — see
+   `mutate-test`, `MutationRoundTrip.cs`). That covers fixed-size scalar field
+   edits — exactly what two-way sync needs to write play counts/ratings back.
+   It does **not** cover resizing edits: renaming a track, adding or removing
+   one, adding a playlist entry. Those change a chunk's length, which cascades
+   into every ancestor's total-length and count fields — unproven, and not the
+   same class of risk as patching a fixed-size field in place. Do not treat
+   "the mutation gate passed" as "any writer capability now exists" — check
+   which specific edit is in the two commands above before trusting it for
+   something that changes a file's length.
 2. **Back up before the first real write.** Copy the whole `iPod_Control/iTunes/`
    directory off the device first.
 3. **Prefer `H:\` for experiments** over `G:\` if a sacrificial device is needed —
    but ask the user first, do not assume either is expendable.
 4. Do not delete files from a device to "clean up". Orphaned audio files are
    harmless; a deleted library is not.
+5. **Ask before the first actual write to a device**, even once a specific edit
+   is proven in-memory. Proving the bytes are right is not the same decision as
+   touching the hardware.
 
 ---
 
 ## Next steps, in order
 
-1. **Mutation API + round-trip on modified content.** The writer can currently
-   only reproduce a database unchanged (see Current state). Add a way to edit a
-   field (start with something low-risk and real, like play count or rating,
-   since two-way sync will need exactly that) and prove the round-trip still
-   holds for everything *except* the field that was intentionally changed.
-2. **Signing.** Only needed once writing is proven. See the signature-region
+1. **A real first write, scoped to what's proven.** Play count/star rating are
+   the only edits with a passing round-trip (see Safety above). A sensible
+   first real write is: back up `iPod_Control/iTunes/`, write a database with
+   one of those fields changed, and confirm the device (not just our own
+   reader) still shows the library correctly. Ask the user first regardless.
+2. **Resizing edits.** Renaming a track (payload grows/shrinks), adding or
+   removing a track or playlist entry. Requires cascading total-length/count
+   recomputation up the tree — `RawChunk.Serialize()` already does this
+   generically, but it has only been exercised where sizes don't change; a
+   resizing edit needs its own round-trip proof before it's trusted.
+3. **Signing.** Only needed once writing is proven. See the signature-region
    notes in the README, and check them against libgpod's implementation rather
    than trusting the dumps — libgpod is LGPL, so a port makes this project LGPL.
    Flag that to the user before porting any of it.
-3. **Sync engine.** Content-hash manifest, off-device, keyed by serial.
-4. **Transcode.** FLAC to ALAC or AAC on copy, recording the source so re-syncs
+4. **Sync engine.** Content-hash manifest, off-device, keyed by serial.
+5. **Transcode.** FLAC to ALAC or AAC on copy, recording the source so re-syncs
    do not re-transcode.
-5. **Android.** Decide libaums-binding vs native C# SCSI/FAT32 at this point,
+6. **Android.** Decide libaums-binding vs native C# SCSI/FAT32 at this point,
    not before.
 
 ---

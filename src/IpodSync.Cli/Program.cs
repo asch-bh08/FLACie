@@ -7,9 +7,10 @@ try
 {
     switch (cmd)
     {
-        case "detect":    return Detect();
-        case "dump":      return Dump(args.Skip(1).ToArray());
-        case "roundtrip": return RoundTripCmd(args.Skip(1).ToArray());
+        case "detect":         return Detect();
+        case "dump":           return Dump(args.Skip(1).ToArray());
+        case "roundtrip":      return RoundTripCmd(args.Skip(1).ToArray());
+        case "mutate-test":    return MutateTestCmd(args.Skip(1).ToArray());
         default:
             Console.Error.WriteLine($"Unknown command '{cmd}'.");
             Usage();
@@ -33,6 +34,10 @@ static void Usage()
           roundtrip [path]    read a database, rebuild it, and diff against the original bytes.
                               Read-only -- never writes to the device. This is the writer's
                               safety gate: it must pass before anything is allowed to write.
+          mutate-test [path]  bump one track's play count and star rating, rebuild the database,
+                              and prove nothing else in the file changed. Read-only -- runs
+                              entirely in memory, never writes to the device. This is the gate
+                              before any real write is attempted.
         """);
 }
 
@@ -178,6 +183,44 @@ static int RoundTripCmd(string[] rest)
     }
 
     return result.StructureMatches ? 0 : 1;
+}
+
+static int MutateTestCmd(string[] rest)
+{
+    string? path = rest.FirstOrDefault();
+    if (path is null)
+    {
+        var devices = IpodDevice.Detect();
+        if (devices.Count == 0) { Console.Error.WriteLine("No iPod found. Pass a path explicitly."); return 1; }
+        path = devices[0].RootPath;
+        Console.WriteLine($"Using {path}");
+    }
+
+    string dbPath = Directory.Exists(path) ? IpodDevice.Open(path).ItunesDbPath : path;
+    if (!File.Exists(dbPath)) { Console.Error.WriteLine($"No iTunesDB at {dbPath}"); return 1; }
+
+    byte[] original = File.ReadAllBytes(dbPath);
+    var result = MutationRoundTrip.Run(original);
+
+    Console.WriteLine();
+    Console.WriteLine($"file                {dbPath}");
+    Console.WriteLine($"mutated track       id {result.MutatedTrackId}");
+    Console.WriteLine($"  play count        {result.OldPlayCount} -> {result.NewPlayCount}");
+    Console.WriteLine($"  stars             {result.OldStars} -> {result.NewStars}");
+    Console.WriteLine();
+    Console.WriteLine($"semantic check      {(result.SemanticMatch ? "every other track and playlist unchanged -- PASS" : "FAIL")}");
+    Console.WriteLine($"byte containment    {(result.BytesContained ? "every changed byte is inside the mutated track's chunk -- PASS" : "FAIL")}");
+
+    if (result.Problems.Count > 0)
+    {
+        Console.WriteLine();
+        Console.WriteLine("problems:");
+        foreach (var p in result.Problems) Console.WriteLine($"  - {p}");
+    }
+
+    Console.WriteLine();
+    Console.WriteLine(result.Passed ? "MUTATION ROUND-TRIP: PASS" : "MUTATION ROUND-TRIP: FAIL");
+    return result.Passed ? 0 : 1;
 }
 
 static string Gb(long bytes) => $"{bytes / 1024.0 / 1024 / 1024:F1} GB";

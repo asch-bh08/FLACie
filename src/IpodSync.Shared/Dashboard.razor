@@ -215,7 +215,7 @@
         _deviceError = null;
         StateHasChanged();
         try { _devices = await Backend.DetectDevicesAsync(); }
-        catch (Exception ex) { _deviceError = ex.Message; }
+        catch (Exception ex) { _deviceError = FormatError(ex); }
         if (_activeDeviceRoot is null && _devices.Count > 0) _activeDeviceRoot = _devices[0].RootPath;
         _scanningDevices = false;
     }
@@ -233,13 +233,19 @@
             _deviceLibraries[d.RootPath] = await Backend.LoadLibraryAsync(d.RootPath);
             _activeDeviceRoot = d.RootPath;
         }
-        catch (Exception ex) { _deviceError = ex.Message; }
+        catch (Exception ex) { _deviceError = FormatError(ex); }
         finally
         {
             _loadingLibrary = false;
             _loadingLibraryRoot = null;
         }
     }
+
+    /// <summary>Includes the exception type, not just the message -- generic
+    /// exceptions (NullReferenceException, etc.) have unhelpful default messages,
+    /// and the type alone often narrows down which layer failed.</summary>
+    private static string FormatError(Exception ex) =>
+        $"{ex.GetType().Name}: {ex.Message}" + (ex.InnerException is { } inner ? $" (inner: {inner.GetType().Name}: {inner.Message})" : "");
 
     private async Task ScanLocal()
     {

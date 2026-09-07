@@ -1,0 +1,306 @@
+@page "/"
+@rendermode InteractiveServer
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>ipodsync</PageTitle>
+
+<div class="app">
+    <header class="app-header">
+        <h1>ipodsync</h1>
+        <p class="subtitle">your iPods, your library, your Jellyfin — no iTunes required</p>
+    </header>
+
+    <section class="panel">
+        <div class="panel-header">
+            <h2>Connected iPods</h2>
+            <button class="btn" @onclick="RefreshDevices">@(_scanningDevices ? "Scanning…" : "Refresh")</button>
+        </div>
+
+        @if (_devices.Count == 0)
+        {
+            <p class="muted">No iPod detected. Plug one in (disk mode enabled) and click Refresh.</p>
+        }
+        else
+        {
+            <div class="device-grid">
+                @foreach (var d in _devices)
+                {
+                    var isActive = d.RootPath == _activeDeviceRoot;
+                    <div class="device-card @(isActive ? "active" : "")" @onclick="() => SelectDevice(d)">
+                        <div class="device-card-top">
+                            <strong>@d.RootPath</strong>
+                            <span class="badge @(d.IsFat32 ? "ok" : "warn")">@(d.FileSystem ?? "?")</span>
+                        </div>
+                        <div class="muted small">@d.VolumeLabel</div>
+                        @if (_deviceLibraries.TryGetValue(d.RootPath, out var db))
+                        {
+                            <div class="stat-row">@db.Tracks.Count tracks · @db.Playlists.Count(p => !p.IsMaster) playlists</div>
+                        }
+                        else
+                        {
+                            <button class="btn small" @onclick:stopPropagation="true" @onclick="() => LoadDeviceLibrary(d)" disabled="@_loadingLibrary">
+                                @(_loadingLibrary && _loadingLibraryRoot == d.RootPath ? "Loading…" : "Load library")
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        @if (ActiveDb is not null)
+        {
+            var activeDb = ActiveDb;
+            <div class="sub-panel">
+                <h3>Playlists on @_activeDeviceRoot</h3>
+                <table class="data-table">
+                    <thead><tr><th>Name</th><th>Tracks</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var p in activeDb.Playlists.Where(p => !p.IsMaster).OrderBy(p => p.Name))
+                        {
+                            <tr>
+                                <td>@p.Name @(p.IsSmart ? "★" : "")</td>
+                                <td>@p.TrackIds.Count</td>
+                                <td></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <section class="panel">
+        <div class="panel-header">
+            <h2>Local library</h2>
+        </div>
+        <div class="row">
+            <input class="text-input" @bind="_localFolder" @bind:event="oninput" placeholder="Folder to scan" />
+            <button class="btn" @onclick="ScanLocal" disabled="@_scanningLocal">@(_scanningLocal ? "Scanning…" : "Scan")</button>
+        </div>
+        @if (_localTracks is not null)
+        {
+            <p class="muted small">@_localTracks.Count file(s) found under @_localFolder</p>
+            <div class="scroll-table">
+                <table class="data-table">
+                    <thead><tr><th>Title</th><th>Artist</th><th>Album</th><th>Fmt</th></tr></thead>
+                    <tbody>
+                        @foreach (var t in _localTracks.Take(200))
+                        {
+                            <tr><td>@t.DisplayTitle</td><td>@t.Artist</td><td>@t.Album</td><td>@t.Extension</td></tr>
+                        }
+                    </tbody>
+                </table>
+                @if (_localTracks.Count > 200)
+                {
+                    <p class="muted small">…and @(_localTracks.Count - 200) more</p>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="panel">
+        <div class="panel-header">
+            <h2>Sync preview</h2>
+            <button class="btn" @onclick="RunSyncPreview" disabled="@(ActiveDb is null || _localTracks is null)">Compare</button>
+        </div>
+        <p class="muted small">Read-only. Nothing here writes to the device — matches local files against the selected iPod's library by title + artist.</p>
+        @if (ActiveDb is null || _localTracks is null)
+        {
+            <p class="muted">Load a device library and scan a local folder first.</p>
+        }
+        else if (_syncPreview is not null)
+        {
+            var localOnly = _syncPreview.Count(i => i.Status == SyncStatus.LocalOnly);
+            var deviceOnly = _syncPreview.Count(i => i.Status == SyncStatus.DeviceOnly);
+            var both = _syncPreview.Count(i => i.Status == SyncStatus.OnBoth);
+            <div class="stat-row">@both matched · @localOnly local-only · @deviceOnly device-only</div>
+            <div class="scroll-table">
+                <table class="data-table">
+                    <thead><tr><th>Title</th><th>Artist</th><th>Status</th></tr></thead>
+                    <tbody>
+                        @foreach (var item in _syncPreview.Take(300))
+                        {
+                            <tr>
+                                <td>@item.Title</td>
+                                <td>@item.Artist</td>
+                                <td><span class="badge @StatusClass(item.Status)">@StatusLabel(item.Status)</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <section class="panel">
+        <div class="panel-header">
+            <h2>Jellyfin</h2>
+        </div>
+        <div class="row">
+            <input class="text-input" @bind="_jellyfinUrl" placeholder="http://192.168.1.183:8096" />
+            <input class="text-input" type="password" @bind="_jellyfinApiKey" placeholder="API key" />
+            <button class="btn" @onclick="TestJellyfin" disabled="@_testingJellyfin">@(_testingJellyfin ? "Connecting…" : "Connect")</button>
+        </div>
+        @if (_jellyfinStatus is not null)
+        {
+            <p class="@(_jellyfinConnected ? "ok-text" : "error-text") small">@_jellyfinStatus</p>
+        }
+        @if (_jellyfinUsers is { Count: > 0 })
+        {
+            <div class="row">
+                <label class="muted small">Sync as user:</label>
+                <select class="text-input" @bind="_jellyfinUserId">
+                    @foreach (var u in _jellyfinUsers)
+                    {
+                        <option value="@u.Id">@u.Name</option>
+                    }
+                </select>
+                <button class="btn" @onclick="SyncPlaylistsToJellyfin" disabled="@(_syncingJellyfin || ActiveDb is null || _jellyfinUserId is null)">
+                    @(_syncingJellyfin ? "Syncing…" : "Sync playlists to Jellyfin")
+                </button>
+            </div>
+        }
+        @if (_jellyfinReports is { Count: > 0 })
+        {
+            <table class="data-table">
+                <thead><tr><th>Playlist</th><th>Matched</th><th>Unmatched</th><th>Action</th></tr></thead>
+                <tbody>
+                    @foreach (var r in _jellyfinReports)
+                    {
+                        <tr><td>@r.PlaylistName</td><td>@r.Matched</td><td>@r.Unmatched</td><td>@r.Action</td></tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+</div>
+
+@code {
+    private List<IpodDevice> _devices = [];
+    private bool _scanningDevices;
+    private string? _activeDeviceRoot;
+    private readonly Dictionary<string, ItunesDatabase> _deviceLibraries = new();
+    private bool _loadingLibrary;
+    private string? _loadingLibraryRoot;
+
+    private ItunesDatabase? ActiveDb =>
+        _activeDeviceRoot is not null && _deviceLibraries.TryGetValue(_activeDeviceRoot, out var db) ? db : null;
+
+    private string _localFolder = System.IO.Directory.Exists(@"X:\Music") ? @"X:\Music" : @"X:\music";
+    private List<LocalTrack>? _localTracks;
+    private bool _scanningLocal;
+
+    private List<SyncPreviewItem>? _syncPreview;
+
+    private string _jellyfinUrl = "http://192.168.1.183:8096";
+    private string _jellyfinApiKey = "";
+    private bool _testingJellyfin;
+    private bool _jellyfinConnected;
+    private string? _jellyfinStatus;
+    private List<JellyfinUser>? _jellyfinUsers;
+    private string? _jellyfinUserId;
+    private bool _syncingJellyfin;
+    private List<PlaylistSyncReport>? _jellyfinReports;
+
+    protected override async Task OnInitializedAsync() => await RefreshDevices();
+
+    private async Task RefreshDevices()
+    {
+        _scanningDevices = true;
+        StateHasChanged();
+        _devices = await Task.Run(IpodDevice.Detect);
+        if (_activeDeviceRoot is null && _devices.Count > 0) _activeDeviceRoot = _devices[0].RootPath;
+        _scanningDevices = false;
+    }
+
+    private void SelectDevice(IpodDevice d) => _activeDeviceRoot = d.RootPath;
+
+    private async Task LoadDeviceLibrary(IpodDevice d)
+    {
+        _loadingLibrary = true;
+        _loadingLibraryRoot = d.RootPath;
+        StateHasChanged();
+        try
+        {
+            var db = await Task.Run(() => ItunesDbReader.Read(d.ItunesDbPath));
+            _deviceLibraries[d.RootPath] = db;
+            _activeDeviceRoot = d.RootPath;
+        }
+        finally
+        {
+            _loadingLibrary = false;
+            _loadingLibraryRoot = null;
+        }
+    }
+
+    private async Task ScanLocal()
+    {
+        _scanningLocal = true;
+        _syncPreview = null;
+        StateHasChanged();
+        try { _localTracks = await Task.Run(() => LocalLibraryScanner.Scan(_localFolder)); }
+        finally { _scanningLocal = false; }
+    }
+
+    private void RunSyncPreview()
+    {
+        if (_activeDeviceRoot is null || !_deviceLibraries.TryGetValue(_activeDeviceRoot, out var db) || _localTracks is null) return;
+        _syncPreview = SyncPreview.Compare(_localTracks, db.Tracks);
+    }
+
+    private static string StatusClass(SyncStatus s) => s switch
+    {
+        SyncStatus.OnBoth => "ok",
+        SyncStatus.LocalOnly => "info",
+        _ => "warn",
+    };
+
+    private static string StatusLabel(SyncStatus s) => s switch
+    {
+        SyncStatus.OnBoth => "on both",
+        SyncStatus.LocalOnly => "local only",
+        _ => "device only",
+    };
+
+    private async Task TestJellyfin()
+    {
+        _testingJellyfin = true;
+        _jellyfinUsers = null;
+        _jellyfinReports = null;
+        StateHasChanged();
+        try
+        {
+            var client = new JellyfinClient(HttpClientFactory.CreateClient(), _jellyfinUrl, _jellyfinApiKey);
+            var (ok, serverName, error) = await client.TestConnectionAsync();
+            _jellyfinConnected = ok;
+            _jellyfinStatus = ok ? $"Connected to {serverName}" : $"Could not connect: {error}";
+            if (ok) _jellyfinUsers = await client.GetUsersAsync();
+            if (_jellyfinUsers is { Count: > 0 }) _jellyfinUserId = _jellyfinUsers[0].Id;
+        }
+        catch (Exception ex)
+        {
+            _jellyfinConnected = false;
+            _jellyfinStatus = $"Could not connect: {ex.Message}";
+        }
+        finally { _testingJellyfin = false; }
+    }
+
+    private async Task SyncPlaylistsToJellyfin()
+    {
+        if (_activeDeviceRoot is null || !_deviceLibraries.TryGetValue(_activeDeviceRoot, out var db) || _jellyfinUserId is null) return;
+        _syncingJellyfin = true;
+        _jellyfinReports = [];
+        StateHasChanged();
+        try
+        {
+            var client = new JellyfinClient(HttpClientFactory.CreateClient(), _jellyfinUrl, _jellyfinApiKey);
+            foreach (var playlist in db.Playlists.Where(p => !p.IsMaster && p.TrackIds.Count > 0))
+            {
+                var report = await JellyfinPlaylistSync.SyncAsync(client, _jellyfinUserId, playlist, db.Tracks);
+                _jellyfinReports.Add(report);
+                StateHasChanged();
+            }
+        }
+        finally { _syncingJellyfin = false; }
+    }
+}

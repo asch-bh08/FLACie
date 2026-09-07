@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/IpodSync.Web", "--urls", "http://localhost:5070"],
+      "port": 5070
+    }
+  ]
+}

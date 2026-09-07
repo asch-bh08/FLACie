@@ -17,13 +17,16 @@ working alongside it, and our own sync state never lives on the iPod.
 
 The three differ only in which `IIpodSyncBackend` is registered
 (`IpodSync.Shared/Backend/`): `LocalIpodSyncBackend` (web, Windows) reads a
-mounted drive letter directly; `UsbIpodSyncBackend`
+mounted drive letter directly; `SafIpodSyncBackend`
 (`IpodSync.Maui/Platforms/Android/`) reads an iPod attached over USB-OTG
-through a hand-written SCSI/FAT32 stack (`IpodSync.Core/UsbStorage/`, see
-below), then hands the resulting bytes to the same `ItunesDbReader` everything
-else uses. **That USB stack has not been tested against real hardware** — see
-[HANDOFF.md](HANDOFF.md) for what "tested" means for everything else in this
-project and why this piece is the exception so far.
+through Android's own Storage Access Framework, then hands the resulting bytes
+to the same `ItunesDbReader` everything else uses. **Verified on real
+hardware** (a Samsung Galaxy Z Fold 7 and a real iPod) after three iterations —
+see "The Android read path" in [HANDOFF.md](HANDOFF.md) for the full story,
+including why the first approach (a hand-written SCSI/FAT32 stack claiming the
+raw USB interface directly, `UsbIpodSyncBackend` — still in the tree, just not
+wired up) fought the OS's own USB-storage auto-mount instead of working with
+it.
 
 Also wired up: local-folder library scanning with real tag reads
 (`IpodSync.Core/LocalLibrary/`, via TagLibSharp), a read-only local-vs-device
@@ -234,43 +237,48 @@ path picked the way the device does, real duration/bitrate/size read off an
 actual audio file, and copying that file onto the device — none of which
 exists yet.
 
-### USB Mass Storage: reading an iPod plugged straight into the phone
+### Reading an iPod plugged straight into the phone
 
-Android gives an app no mounted filesystem for an arbitrary attached USB mass-
-storage device — reaching one means speaking its protocol directly. That
-protocol, USB Mass Storage Class Bulk-Only Transport (BOT), plus FAT32, is
-implemented from scratch in `IpodSync.Core/UsbStorage/`:
+**Verified on real hardware** (Samsung Galaxy Z Fold 7, a real iPod): tap Load
+library, pick the iPod's folder in the standard Android document picker, real
+playlists and track counts display.
 
-- `ScsiBulkOnlyTransport.cs` — BOT framing (31-byte Command Block Wrapper out,
-  optional data phase, 13-byte Command Status Wrapper in) and the handful of
-  SCSI commands a block-level reader needs: INQUIRY, TEST UNIT READY, READ
-  CAPACITY(10), READ(10)/WRITE(10).
-- `ScsiBlockDevice.cs` — a sector-addressable block device on top of that,
-  chunking large reads since a single USB bulk transfer has practical size
-  limits well below READ(10)'s 16-bit block-count field.
-- `Fat32Volume.cs` — read-only: MBR + partition table (falling back to
-  treating the device itself as the volume for "superfloppy"-formatted media
-  with no partition table), FAT32 BPB, 8.3 and long-filename directory
-  entries, FAT cluster-chain following. Enough to find and read one file by
-  path (`iPod_Control/iTunes/iTunesDB` or `iTunesCDB`).
+The path there took two real-device rounds to find. First attempt: Android
+gives an app no mounted filesystem for an arbitrary attached USB mass-storage
+device, so `IpodSync.Core/UsbStorage/` implemented the device's own protocol
+from scratch — USB Mass Storage Class Bulk-Only Transport (`ScsiBulkOnlyTransport.cs`:
+CBW/CSW framing, INQUIRY, TEST UNIT READY, READ CAPACITY(10), READ(10)/WRITE(10)),
+a block-device wrapper (`ScsiBlockDevice.cs`), and a read-only FAT32 reader
+(`Fat32Volume.cs`: MBR + BPB, 8.3/LFN directory entries, cluster chains) — via
+the plain `Android.Hardware.Usb` APIs, confirmed present in the standard
+`net9.0-android` bindings by loading `Mono.Android.dll` through
+`System.Reflection.MetadataLoadContext` and reading the real member signatures
+rather than assuming them. No libaums binding, no JDK needed for that (a JDK
+was still needed to package the APK at all — see "Building the app" below).
 
-None of this binds or ports libaums (the usual Java library for this on
-Android) — `IpodSync.Maui/Platforms/Android/` wraps the stack above with the
-plain `Android.Hardware.Usb` APIs (`UsbManager`, `UsbDeviceConnection.
-BulkTransfer`/`ClaimInterface`/`ControlTransfer`), which are already part of
-the standard `net9.0-android` bindings. That was confirmed by loading
-`Mono.Android.dll` through `System.Reflection.MetadataLoadContext` and reading
-the actual member signatures off it, not by assuming the API shape — the same
-principle as everything else in this file, just applied to Android's SDK
-surface instead of Apple's database format.
+On real hardware this got past permission and initial SCSI commands, then
+failed mid-transfer with Android reporting *"a USB storage device was removed
+unsafely"* despite nothing being unplugged. The reason: Android (at least
+Samsung's One UI) auto-mounts a recognised USB Mass Storage device as
+browsable storage the moment it's attached, and force-claiming the raw
+interface (`UsbDeviceConnection.ClaimInterface(force: true)`) yanks it out
+from under that mount mid-operation.
 
-**Unverified against real hardware.** Every offset and protocol detail here
-comes from the public USB MSC BOT and Microsoft FAT32 specifications, not from
-a working reference implementation, and there is no iPod-over-USB-OTG rig
-available where this was written. This is the one piece of the project that
-hasn't been through the real-device check that caught the wrong assumptions in
-the database format work — treat it as "should work" until someone plugs a
-real iPod into a real Android phone and reports what happens.
+Since the OS already mounts the device, reading through Android's **Storage
+Access Framework** works with that instead of against it —
+`SafBridge.cs` opens the standard folder picker, `SafDocumentReader.cs` walks
+to the target file one path segment at a time via `DocumentsContract`'s
+child-listing query (document IDs are provider-specific, not something to
+construct by hand), and `ContentResolver.OpenInputStream` reads it. That's
+what `SafIpodSyncBackend` (the one actually wired up) uses; the resulting
+bytes go through the same `ItunesDbReader` everything else does.
+
+The original USB/SCSI/FAT32 stack is still in the tree
+(`UsbIpodSyncBackend`) — not deleted, since it's real, working code (the
+permission-handling fix in it was correct and proven) and `DocumentsContract`
+supports writes too (`OpenOutputStream`), so SAF may end up being the whole
+Android story rather than a workaround. It just isn't registered in
+`MauiProgram.cs` since SAF is what actually works today.
 
 ### Miscellaneous
 
@@ -301,8 +309,8 @@ src/IpodSync.Core/
     ResizeRoundTrip.cs   proves each resizing edit round-trips (semantic + idempotency
                           checks, since output no longer lines up byte-for-byte)
   Device/         volume detection, SysInfo, database location
-  UsbStorage/     BOT + SCSI + FAT32, for reading an iPod over USB-OTG (unverified,
-                  see "USB Mass Storage" above)
+  UsbStorage/     BOT + SCSI + FAT32 for reading an iPod over raw USB -- retained,
+                  correct, but not what's wired up; see "Reading an iPod" above
   LocalLibrary/   scans a folder for audio files, reads real tags via TagLibSharp
   Jellyfin/       Jellyfin REST API client + playlist sync orchestrator
 src/IpodSync.Cli/    the CLI: detect/dump/roundtrip/mutate-test/resize-test
@@ -310,7 +318,9 @@ src/IpodSync.Shared/ the app's actual UI (Dashboard.razor) and IIpodSyncBackend,
                       referenced by all three app hosts below
 src/IpodSync.Web/    hosts Dashboard.razor as a local web app (Blazor Server)
 src/IpodSync.Maui/   hosts Dashboard.razor as a real Windows app and Android APK
-                      (Blazor Hybrid); Platforms/Android/ has the USB-specific glue
+                      (Blazor Hybrid); Platforms/Android/ has the Android-specific
+                      glue -- SafBridge.cs/SafDocumentReader.cs/SafIpodSyncBackend.cs
+                      (what's actually used) plus the retained USB/SCSI classes
 tools/          make_fixture.py - synthetic DB generator for tests
 ```
 
@@ -345,19 +355,24 @@ piped license acceptance to actually work).
    playlist, rename a track~~ — done, verified against both real devices
 5. ~~App UI (Blazor, shared across web/Windows/Android hosts), local library
    scanning, sync preview, Jellyfin playlist sync~~ — done; web host verified
-   end-to-end in a browser against real devices, Windows/Android hosts build
-   and the Windows one launches, Jellyfin untested pending an API key
-6. ~~Android: USB mass storage via SCSI + FAT32~~ — written, builds into a
-   real APK, but **unverified against real hardware** — the next real gate
-7. Construct a brand-new track (fresh ids, scrambled path, real audio
+   end-to-end in a browser against real devices, Jellyfin untested pending an
+   API key
+6. ~~Android: read an iPod plugged into the phone~~ — done, **verified on real
+   hardware** (Z Fold 7 + a real iPod) after three test rounds; ended up as
+   Storage Access Framework, not the originally-planned raw USB/SCSI/FAT32
+   stack — see "Reading an iPod" above for why
+7. Visually check the Windows app's UI (builds and launches; not yet eyeballed)
+8. Writing from Android via SAF (`OpenOutputStream`) — plausibly more direct
+   now than porting the raw USB stack forward
+9. Construct a brand-new track (fresh ids, scrambled path, real audio
    metadata, file copy) — the remaining gate before any real write that adds
    content rather than editing/removing what's already there
-8. Writing over USB (the stack above is read-only so far)
-9. Artwork (`ithmb`), album (`mhla`) and `mhli` decoding
-10. hash58 / hash72 signing
-11. Sync engine: content-hash manifest kept off-device, keyed by serial
-12. Transcode FLAC to ALAC/AAC on copy
-13. iPod Touch (jailbroken): `MediaLibrary.sqlitedb` over afc2 — designed for, not built
+10. Writing over raw USB, if the SAF write path turns out to need it after all
+11. Artwork (`ithmb`), album (`mhla`) and `mhli` decoding
+12. hash58 / hash72 signing
+13. Sync engine: content-hash manifest kept off-device, keyed by serial
+14. Transcode FLAC to ALAC/AAC on copy
+15. iPod Touch (jailbroken): `MediaLibrary.sqlitedb` over afc2 — designed for, not built
 
 ## Notes
 

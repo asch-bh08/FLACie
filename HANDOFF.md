@@ -61,11 +61,14 @@ component shared across three hosts) rather than just a CLI:
   Builds clean, launches, stays running. Its *rendered content* has not been
   visually checked (no way to screenshot a native window from here the way the
   browser version could be) — check it looks right when you get a chance.
-- `IpodSync.Maui`, Android target — a genuine installed APK (built and
-  signed: `dev.ashley.ipodsync-Signed.apk`, ~14 MB). This is the one the user
-  actually asked for: plug the phone into an iPod via USB-OTG and use it like
-  a PC would. **The USB/SCSI/FAT32 code this depends on has never touched real
-  hardware** — see the dedicated section below before trusting it.
+- `IpodSync.Maui`, Android target — a genuine installed APK. **This is the one
+  the user actually asked for, and it now works, verified on the real Z Fold
+  7 + a real iPod:** plug the iPod in via USB-OTG, tap Load library, pick its
+  folder in the standard Android document picker that opens, and real
+  playlists with real track counts show up. This took three real-hardware
+  iterations to get right — see "The Android read path" below for what each
+  one found and why the final approach (Storage Access Framework, not raw
+  USB/SCSI) is what actually works.
 
 Jellyfin playlist sync is wired up (`IpodSync.Core/Jellyfin/`) but not yet
 exercised against the user's real server — needs an API key.
@@ -73,11 +76,12 @@ exercised against the user's real server — needs an API key.
 The three hosts differ only in which `IIpodSyncBackend` is registered
 (`src/IpodSync.Shared/Backend/`): `LocalIpodSyncBackend` (web, Windows) reads a
 mounted drive letter directly through the already-verified
-`IpodSync.Core.ItunesDb` code; `UsbIpodSyncBackend`
+`IpodSync.Core.ItunesDb` code; `SafIpodSyncBackend`
 (`IpodSync.Maui/Platforms/Android/`) reads an iPod attached over USB-OTG
-through a new `IpodSync.Core.UsbStorage` stack, then hands the resulting bytes
-to that exact same `ItunesDbReader` — so everything already proven about the
-database format applies unchanged once real bytes are actually in hand.
+through Android's Storage Access Framework, then hands the resulting bytes to
+that exact same `ItunesDbReader` — so everything already proven about the
+database format applies unchanged once real bytes are actually in hand, which
+is exactly what just got proven end to end.
 
 ```
 dotnet build
@@ -116,12 +120,11 @@ separate parse from the verified reader rather than a rewrite of it.
   `F##/XXXX.ext` path picked the same way the device does, reading real
   duration/bitrate/size off an actual audio file, and copying that file onto
   the device — none of which exists yet.
-- **The Android USB stack is unverified against real hardware** — see below.
-  Until it's tested, treat `UsbIpodSyncBackend` as "should work, per the spec"
-  rather than "works."
-- No signing. No sync engine. No transcode. No writing over USB (the
-  USB/SCSI/FAT32 stack is read-only, matching the project's own rule of never
-  attempting a write before reading is solid).
+- **Writing from the phone.** Reading through the Storage Access Framework is
+  verified (see below); nothing writes anywhere from Android yet. SAF does
+  support writes (`ContentResolver.OpenOutputStream`), so this is plausibly a
+  smaller step than it sounds, but it hasn't been attempted.
+- No signing. No sync engine. No transcode.
 - `mhla` (albums) and `mhli` (unknown) chunks are preserved verbatim by the
   writer but still not semantically decoded by the reader.
 - Artwork (`ithmb`) untouched.
@@ -131,44 +134,76 @@ separate parse from the verified reader rather than a rewrite of it.
 
 ---
 
-## The Android USB/SCSI/FAT32 stack — needs a real hardware test
+## The Android read path — verified, after three real-hardware rounds
 
-This is the piece HANDOFF has called "the largest unknown in the project"
-since before any of this code existed, and it is the one piece in the whole
-project that could not be checked against real bytes from here — there is no
-iPod-over-USB-OTG rig attached to this dev machine. Everything else in this
-project only became trustworthy after a real-device pass; this hasn't had one
-yet. Treat it accordingly.
+This was called "the largest unknown in the project" before any of this code
+existed. It took three real-device test cycles to get right — recorded here
+because each one found a genuinely different class of bug, and the pattern
+(real hardware surfaces things no amount of spec-reading would have caught) is
+the same lesson the database format taught earlier in the project, just at a
+different layer.
 
-What it is: `src/IpodSync.Core/UsbStorage/` implements USB Mass Storage Class
-Bulk-Only Transport (`ScsiBulkOnlyTransport.cs`: CBW/CSW framing, INQUIRY, TEST
-UNIT READY, READ CAPACITY(10), READ(10)/WRITE(10)), a block-device wrapper
-(`ScsiBlockDevice.cs`), and a minimal read-only FAT32 reader
-(`Fat32Volume.cs`: MBR + BPB parsing, 8.3 and LFN directory entries, cluster
-chain following) — enough to find and read one file by path. Built from the
-public USB MSC BOT and Microsoft FAT32 specs, not from libaums or any other
-implementation. `src/IpodSync.Maui/Platforms/Android/` wraps this with the
-actual Android USB host APIs (`UsbManager`/`UsbDeviceConnection`, confirmed
-present in the standard `net9.0-android` bindings via direct reflection on
-`Mono.Android.dll` — no libaums binding needed, no JDK needed for that part).
+**Round 1 — wouldn't even open.** The first APK was a Debug build. Debug
+config isn't self-contained outside Visual Studio's own deploy pipeline (it
+expects the IDE to push assemblies separately over ADB), so it crashed
+immediately when sideloaded standalone. Fixed by building `-c Release`. See
+the Gotchas section.
 
-**Why C# instead of binding libaums**: bindings need a JDK to run the binding
-tool, and this machine only had a JRE (see "C# / .NET 9" below) — that
-constraint doesn't touch the code, just the tooling. Separately, actually
-*packaging an Android APK* (dexing, apksigner) also needs a JDK regardless of
-language — that one's now installed (Microsoft OpenJDK 17), see the
-Environment section.
+**Round 2 — opened, but "unhandled error has occurred" + a stuck white
+screen.** `Dashboard.razor` (shared across all three app hosts) had
+`@rendermode InteractiveServer` on it — an ASP.NET Core Blazor *Server*
+concept (SignalR circuits) that doesn't exist in MAUI's BlazorWebView. Fixed
+by moving that directive to only `IpodSync.Web/Components/App.razor`, where
+it's actually meaningful, and leaving the shared component render-mode-
+agnostic (correct for BlazorWebView, where everything is already interactive).
 
-**To actually test this**: install the APK
-(`src/IpodSync.Maui/bin/{Debug,Release}/net9.0-android/dev.ashley.ipodsync-Signed.apk`)
-on the Z Fold 7, plug an iPod in via a USB-OTG cable, open the app, hit
-Refresh, grant the USB permission prompt, and try loading the library. If it
-fails, the exception message and where it throws (device discovery, permission,
-opening the connection, INQUIRY, READ CAPACITY, partition parsing, FAT32
-parsing, or the file walk) narrows down which layer has the bug — this is
-exactly the same "get a real error from real hardware" loop that fixed the
-database format's wrong assumptions earlier in the project, just one level
-lower in the stack.
+**Round 3 — opened, detected the iPod, USB permission dialog appeared, user
+tapped Allow, and the app still reported permission denied** — then had to be
+force-closed. Two things came out of this round:
+
+1. The immediate bug: the `PendingIntent` used for
+   `UsbManager.RequestPermission()` was flagged `Immutable`. On this device,
+   the system couldn't attach its own result extras
+   (`EXTRA_PERMISSION_GRANTED`) to an immutable `PendingIntent` when firing the
+   result broadcast, so it read back as denied regardless of what the user
+   chose. Fixed by using `Mutable`, plus (belt-and-suspenders) re-querying
+   `UsbManager.HasPermission()` directly once the broadcast fires at all,
+   rather than trusting its extras alone.
+2. The bigger discovery, one retest later: with permission actually granted,
+   `INQUIRY`/`TEST UNIT READY`/`READ CAPACITY` all succeeded, but a `READ(10)`
+   data transfer failed with a malformed status response, and Android showed
+   *"A USB storage device was removed unsafely"* — despite nothing being
+   physically unplugged. That notification is the tell: **Android (Samsung's
+   One UI, at least, on the device this was tested against) auto-mounts a
+   recognised USB Mass Storage device as browsable storage the moment it's
+   attached.** `UsbIpodSyncBackend`'s approach — force-claiming the raw USB
+   interface via `UsbDeviceConnection.ClaimInterface(force: true)` — doesn't
+   coexist with that; it yanks the interface out from under the OS's own
+   driver mid-mount, which explains both the "unsafe removal" notice and the
+   failed transfer.
+
+**The fix was a real pivot, not a patch: read through Android's Storage
+Access Framework instead of raw USB/SCSI**, working with the OS's own mount
+instead of fighting it. `SafIpodSyncBackend`
+(`src/IpodSync.Maui/Platforms/Android/`) opens the standard
+`ACTION_OPEN_DOCUMENT_TREE` folder picker (`SafBridge.cs`), walks to
+`iPod_Control/iTunes/iTunesDB`/`iTunesCDB` one path segment at a time via
+`DocumentsContract`'s child-listing query (`SafDocumentReader.cs` — document
+IDs are provider-specific, not meant to be constructed by hand), and reads the
+file through `ContentResolver.OpenInputStream`. The bytes then go through the
+exact same `ItunesDbReader` everything else uses.
+
+**This is now verified**: on the fourth real-device round, the user picked
+the iPod's folder in the picker and real playlists with real track counts
+displayed correctly.
+
+The original raw USB/SCSI/FAT32 stack (`src/IpodSync.Core/UsbStorage/`,
+`UsbIpodSyncBackend`) is still in the tree, not deleted — it's real work, the
+permission fix in it was correct and proven, and Android's `DocumentsContract`
+supports writes too (`OpenOutputStream`), so SAF may end up being the whole
+story for Android rather than just a stopgap. It just isn't wired up
+(`MauiProgram.cs` registers `SafIpodSyncBackend`) since SAF is what actually
+works today.
 
 ---
 
@@ -304,27 +339,26 @@ The user's iPods hold their actual music library. Treat them as production.
 5. **Ask before the first actual write to a device**, even once a specific edit
    is proven in-memory. Proving the bytes are right is not the same decision as
    touching the hardware.
-6. **The Android USB stack is read-only by construction** — there is no
-   `Write10`-calling code path anywhere in the app yet, so testing it against a
-   real iPod (see the dedicated section above) cannot corrupt anything on the
-   device even though the code itself is unverified. That said, it's still real
-   hardware the user is plugging in themselves to test; if you're ever the one
-   about to trigger a write path over USB, the same ask-first rule applies.
+6. **The Android read path is read-only by construction** — nothing in
+   `SafIpodSyncBackend` or the retained `UsbIpodSyncBackend` writes anywhere,
+   so using either against a real iPod (see the dedicated section above)
+   cannot corrupt anything on the device. If you're ever the one adding a
+   write path from Android (SAF supports it via `OpenOutputStream`, but
+   nothing does it yet), the same ask-first rule applies as any other write.
 
 ---
 
 ## Next steps, in order
 
-1. **Test the Android USB stack on real hardware.** This is the single
-   highest-value next step — nothing about it is provable from a dev machine.
-   Install the APK on the Z Fold 7, plug in an iPod via USB-OTG, and report
-   back what happens (or what exception, and where). See the dedicated section
-   above.
-2. **Visually check the Windows app's rendered UI.** It builds and launches
+1. **Visually check the Windows app's rendered UI.** It builds and launches
    without crashing but hasn't been eyeballed for correctness.
-3. **Get a Jellyfin API key and exercise the sync path for real** — the client
+2. **Get a Jellyfin API key and exercise the sync path for real** — the client
    code is written but has never made a real request against
    `192.168.1.183:8096`.
+3. **Writing from Android via SAF** (`ContentResolver.OpenOutputStream`) —
+   now that reading works, this is plausibly the more direct path to a real
+   Android write than porting the raw USB/SCSI stack forward. Still needs the
+   same round-trip proof discipline as the PC-side writer before it's trusted.
 4. **A real first write, scoped to what's proven.** Play count/star rating,
    track removal, adding an existing track to a playlist, and renaming a track
    all have a passing round-trip now (see Safety above). A sensible first real

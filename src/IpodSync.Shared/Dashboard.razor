@@ -1,6 +1,7 @@
 @page "/"
 @rendermode InteractiveServer
 @inject IHttpClientFactory HttpClientFactory
+@inject IIpodSyncBackend Backend
 
 <PageTitle>ipodsync</PageTitle>
 
@@ -16,6 +17,10 @@
             <button class="btn" @onclick="RefreshDevices">@(_scanningDevices ? "Scanning…" : "Refresh")</button>
         </div>
 
+        @if (_deviceError is not null)
+        {
+            <p class="error-text small">@_deviceError</p>
+        }
         @if (_devices.Count == 0)
         {
             <p class="muted">No iPod detected. Plug one in (disk mode enabled) and click Refresh.</p>
@@ -176,12 +181,13 @@
 </div>
 
 @code {
-    private List<IpodDevice> _devices = [];
+    private List<DeviceSummary> _devices = [];
     private bool _scanningDevices;
     private string? _activeDeviceRoot;
     private readonly Dictionary<string, ItunesDatabase> _deviceLibraries = new();
     private bool _loadingLibrary;
     private string? _loadingLibraryRoot;
+    private string? _deviceError;
 
     private ItunesDatabase? ActiveDb =>
         _activeDeviceRoot is not null && _deviceLibraries.TryGetValue(_activeDeviceRoot, out var db) ? db : null;
@@ -207,25 +213,28 @@
     private async Task RefreshDevices()
     {
         _scanningDevices = true;
+        _deviceError = null;
         StateHasChanged();
-        _devices = await Task.Run(IpodDevice.Detect);
+        try { _devices = await Backend.DetectDevicesAsync(); }
+        catch (Exception ex) { _deviceError = ex.Message; }
         if (_activeDeviceRoot is null && _devices.Count > 0) _activeDeviceRoot = _devices[0].RootPath;
         _scanningDevices = false;
     }
 
-    private void SelectDevice(IpodDevice d) => _activeDeviceRoot = d.RootPath;
+    private void SelectDevice(DeviceSummary d) => _activeDeviceRoot = d.RootPath;
 
-    private async Task LoadDeviceLibrary(IpodDevice d)
+    private async Task LoadDeviceLibrary(DeviceSummary d)
     {
         _loadingLibrary = true;
         _loadingLibraryRoot = d.RootPath;
+        _deviceError = null;
         StateHasChanged();
         try
         {
-            var db = await Task.Run(() => ItunesDbReader.Read(d.ItunesDbPath));
-            _deviceLibraries[d.RootPath] = db;
+            _deviceLibraries[d.RootPath] = await Backend.LoadLibraryAsync(d.RootPath);
             _activeDeviceRoot = d.RootPath;
         }
+        catch (Exception ex) { _deviceError = ex.Message; }
         finally
         {
             _loadingLibrary = false;
@@ -238,7 +247,7 @@
         _scanningLocal = true;
         _syncPreview = null;
         StateHasChanged();
-        try { _localTracks = await Task.Run(() => LocalLibraryScanner.Scan(_localFolder)); }
+        try { _localTracks = await Backend.ScanLocalAsync(_localFolder); }
         finally { _scanningLocal = false; }
     }
 

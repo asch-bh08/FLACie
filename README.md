@@ -1,9 +1,34 @@
 # ipodsync
 
-Sync classic iPods without iTunes, from Windows and (later) Android.
+Sync classic iPods without iTunes, from Windows and from Android — the phone
+plugs directly into the iPod over USB-OTG and works like a PC would.
 
 Non-destructive by design: the device keeps stock Apple firmware, iTunes keeps
 working alongside it, and our own sync state never lives on the iPod.
+
+## The app
+
+`IpodSync.Shared` is one Blazor UI (`Dashboard.razor`) shared by three hosts:
+
+- `IpodSync.Web` — runs it as a local web app. Used mainly as a way to actually
+  see and click through the UI in a browser during development.
+- `IpodSync.Maui`, Windows target — a real installed WinUI 3 app.
+- `IpodSync.Maui`, Android target — a real installed APK.
+
+The three differ only in which `IIpodSyncBackend` is registered
+(`IpodSync.Shared/Backend/`): `LocalIpodSyncBackend` (web, Windows) reads a
+mounted drive letter directly; `UsbIpodSyncBackend`
+(`IpodSync.Maui/Platforms/Android/`) reads an iPod attached over USB-OTG
+through a hand-written SCSI/FAT32 stack (`IpodSync.Core/UsbStorage/`, see
+below), then hands the resulting bytes to the same `ItunesDbReader` everything
+else uses. **That USB stack has not been tested against real hardware** — see
+[HANDOFF.md](HANDOFF.md) for what "tested" means for everything else in this
+project and why this piece is the exception so far.
+
+Also wired up: local-folder library scanning with real tag reads
+(`IpodSync.Core/LocalLibrary/`, via TagLibSharp), a read-only local-vs-device
+sync preview, and Jellyfin playlist sync (`IpodSync.Core/Jellyfin/`, a
+server-API-key client that only ever adds to Jellyfin, never deletes).
 
 ## Status
 
@@ -23,6 +48,10 @@ dotnet build
 ./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe roundtrip G:/
 ./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe mutate-test G:/
 ./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe resize-test G:/
+
+dotnet run --project src/IpodSync.Web                          # app, http://localhost:5070
+dotnet build src/IpodSync.Maui -f net9.0-windows10.0.19041.0    # Windows app
+dotnet build src/IpodSync.Maui -f net9.0-android                # Android APK
 ```
 
 All four read/test commands accept an iPod drive root or a path to a database
@@ -202,6 +231,44 @@ path picked the way the device does, real duration/bitrate/size read off an
 actual audio file, and copying that file onto the device — none of which
 exists yet.
 
+### USB Mass Storage: reading an iPod plugged straight into the phone
+
+Android gives an app no mounted filesystem for an arbitrary attached USB mass-
+storage device — reaching one means speaking its protocol directly. That
+protocol, USB Mass Storage Class Bulk-Only Transport (BOT), plus FAT32, is
+implemented from scratch in `IpodSync.Core/UsbStorage/`:
+
+- `ScsiBulkOnlyTransport.cs` — BOT framing (31-byte Command Block Wrapper out,
+  optional data phase, 13-byte Command Status Wrapper in) and the handful of
+  SCSI commands a block-level reader needs: INQUIRY, TEST UNIT READY, READ
+  CAPACITY(10), READ(10)/WRITE(10).
+- `ScsiBlockDevice.cs` — a sector-addressable block device on top of that,
+  chunking large reads since a single USB bulk transfer has practical size
+  limits well below READ(10)'s 16-bit block-count field.
+- `Fat32Volume.cs` — read-only: MBR + partition table (falling back to
+  treating the device itself as the volume for "superfloppy"-formatted media
+  with no partition table), FAT32 BPB, 8.3 and long-filename directory
+  entries, FAT cluster-chain following. Enough to find and read one file by
+  path (`iPod_Control/iTunes/iTunesDB` or `iTunesCDB`).
+
+None of this binds or ports libaums (the usual Java library for this on
+Android) — `IpodSync.Maui/Platforms/Android/` wraps the stack above with the
+plain `Android.Hardware.Usb` APIs (`UsbManager`, `UsbDeviceConnection.
+BulkTransfer`/`ClaimInterface`/`ControlTransfer`), which are already part of
+the standard `net9.0-android` bindings. That was confirmed by loading
+`Mono.Android.dll` through `System.Reflection.MetadataLoadContext` and reading
+the actual member signatures off it, not by assuming the API shape — the same
+principle as everything else in this file, just applied to Android's SDK
+surface instead of Apple's database format.
+
+**Unverified against real hardware.** Every offset and protocol detail here
+comes from the public USB MSC BOT and Microsoft FAT32 specifications, not from
+a working reference implementation, and there is no iPod-over-USB-OTG rig
+available where this was written. This is the one piece of the project that
+hasn't been through the real-device check that caught the wrong assumptions in
+the database format work — treat it as "should work" until someone plugs a
+real iPod into a real Android phone and reports what happens.
+
 ### Miscellaneous
 
 - `iPod_Control/Device/SysInfo` is **0 bytes** on both test devices, so model,
@@ -230,8 +297,17 @@ src/IpodSync.Core/
                           playlist, rename a track
     ResizeRoundTrip.cs   proves each resizing edit round-trips (semantic + idempotency
                           checks, since output no longer lines up byte-for-byte)
-  Device/       volume detection, SysInfo, database location
-src/IpodSync.Cli/
+  Device/         volume detection, SysInfo, database location
+  UsbStorage/     BOT + SCSI + FAT32, for reading an iPod over USB-OTG (unverified,
+                  see "USB Mass Storage" above)
+  LocalLibrary/   scans a folder for audio files, reads real tags via TagLibSharp
+  Jellyfin/       Jellyfin REST API client + playlist sync orchestrator
+src/IpodSync.Cli/    the CLI: detect/dump/roundtrip/mutate-test/resize-test
+src/IpodSync.Shared/ the app's actual UI (Dashboard.razor) and IIpodSyncBackend,
+                      referenced by all three app hosts below
+src/IpodSync.Web/    hosts Dashboard.razor as a local web app (Blazor Server)
+src/IpodSync.Maui/   hosts Dashboard.razor as a real Windows app and Android APK
+                      (Blazor Hybrid); Platforms/Android/ has the USB-specific glue
 tools/          make_fixture.py - synthetic DB generator for tests
 ```
 
@@ -241,6 +317,18 @@ deliberately not layered on each other yet — see "The writer" above.
 `make_fixture.py` only proves the reader is self-consistent with the spec it was
 written against; both sides encode the same assumptions. Real verification means
 pointing it at a device.
+
+### Building the Android/Windows app
+
+Needs the MAUI Android and Windows workloads (`dotnet workload install
+maui-android maui-windows`), a JDK (Android APK packaging needs one regardless
+of language — this project uses Microsoft OpenJDK 17), and the Android SDK
+command-line tools with `platform-tools`, `platforms;android-35`, and
+`build-tools;35.0.0` installed via `sdkmanager`. `JAVA_HOME`/`ANDROID_HOME` set
+as environment variables covers it; see HANDOFF.md's "Toolchain additions"
+section for the exact versions and paths used so far, and its gotchas section
+for a `sdkmanager --licenses` quirk (must run from Bash, not PowerShell, for
+piped license acceptance to actually work).
 
 ## Roadmap
 
@@ -252,15 +340,21 @@ pointing it at a device.
    field edits only
 4. ~~Writer resizing edits: remove a track, add an existing track to a
    playlist, rename a track~~ — done, verified against both real devices
-5. Construct a brand-new track (fresh ids, scrambled path, real audio
+5. ~~App UI (Blazor, shared across web/Windows/Android hosts), local library
+   scanning, sync preview, Jellyfin playlist sync~~ — done; web host verified
+   end-to-end in a browser against real devices, Windows/Android hosts build
+   and the Windows one launches, Jellyfin untested pending an API key
+6. ~~Android: USB mass storage via SCSI + FAT32~~ — written, builds into a
+   real APK, but **unverified against real hardware** — the next real gate
+7. Construct a brand-new track (fresh ids, scrambled path, real audio
    metadata, file copy) — the remaining gate before any real write that adds
    content rather than editing/removing what's already there
-6. Artwork (`ithmb`), album (`mhla`) and `mhli` decoding
-7. hash58 / hash72 signing
-8. Sync engine: content-hash manifest kept off-device, keyed by serial
-9. Transcode FLAC to ALAC/AAC on copy
-10. Android: USB mass storage via SCSI + FAT32, or the Storage Access Framework
-11. iPod Touch (jailbroken): `MediaLibrary.sqlitedb` over afc2 — designed for, not built
+8. Writing over USB (the stack above is read-only so far)
+9. Artwork (`ithmb`), album (`mhla`) and `mhli` decoding
+10. hash58 / hash72 signing
+11. Sync engine: content-hash manifest kept off-device, keyed by serial
+12. Transcode FLAC to ALAC/AAC on copy
+13. iPod Touch (jailbroken): `MediaLibrary.sqlitedb` over afc2 — designed for, not built
 
 ## Notes
 

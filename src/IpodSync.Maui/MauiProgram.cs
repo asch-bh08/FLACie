@@ -19,13 +19,17 @@ public static class MauiProgram
 		builder.Services.AddHttpClient();
 
 		// Windows runs on the same PC the iPod is plugged into, so it can talk to
-		// IpodSync.Core directly, exactly like the web host. Android has no such
-		// thing -- a classic iPod only speaks USB, so the phone reaches it (when
-		// plugged in via USB-OTG) through the SCSI/FAT32 stack instead. See
-		// HANDOFF.md for why these are genuinely different, not two skins on the
-		// same code path.
+		// IpodSync.Core directly, exactly like the web host. Android reads through
+		// the Storage Access Framework instead (SafIpodSyncBackend): real-hardware
+		// testing showed the OS (Samsung One UI, at least) auto-mounts a USB Mass
+		// Storage device the moment it's attached, and the original approach --
+		// claiming the raw USB interface directly (UsbIpodSyncBackend, still in the
+		// tree) -- fights that mount rather than using it, which is what caused a
+		// "USB storage device was removed unsafely" notification and a failed
+		// transfer during testing. See HANDOFF.md and SafIpodSyncBackend's class
+		// comment for the full story.
 #if ANDROID
-		builder.Services.AddSingleton<IIpodSyncBackend, IpodSync.Maui.Platforms.Android.UsbIpodSyncBackend>();
+		builder.Services.AddSingleton<IIpodSyncBackend, IpodSync.Maui.Platforms.Android.SafIpodSyncBackend>();
 #else
 		builder.Services.AddSingleton<IIpodSyncBackend, LocalIpodSyncBackend>();
 #endif

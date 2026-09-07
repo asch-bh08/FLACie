@@ -26,6 +26,11 @@ internal static class BinaryIo
         if (p + 4 <= d.Length) BinaryPrimitives.WriteInt32LittleEndian(d.AsSpan(p, 4), value);
     }
 
+    public static void WriteU64(byte[] d, int p, ulong value)
+    {
+        if (p + 8 <= d.Length) BinaryPrimitives.WriteUInt64LittleEndian(d.AsSpan(p, 8), value);
+    }
+
     public static byte[] Slice(byte[] d, int start, int len)
     {
         if (len <= 0 || start < 0 || start >= d.Length) return [];

@@ -11,6 +11,7 @@ try
         case "dump":           return Dump(args.Skip(1).ToArray());
         case "roundtrip":      return RoundTripCmd(args.Skip(1).ToArray());
         case "mutate-test":    return MutateTestCmd(args.Skip(1).ToArray());
+        case "resize-test":    return ResizeTestCmd(args.Skip(1).ToArray());
         default:
             Console.Error.WriteLine($"Unknown command '{cmd}'.");
             Usage();
@@ -38,6 +39,9 @@ static void Usage()
                               and prove nothing else in the file changed. Read-only -- runs
                               entirely in memory, never writes to the device. This is the gate
                               before any real write is attempted.
+          resize-test [path]  remove a track, add an existing track to a playlist, and rename a
+                              track -- three edits that change a chunk's byte length, unlike
+                              mutate-test. Read-only, entirely in memory.
         """);
 }
 
@@ -221,6 +225,48 @@ static int MutateTestCmd(string[] rest)
     Console.WriteLine();
     Console.WriteLine(result.Passed ? "MUTATION ROUND-TRIP: PASS" : "MUTATION ROUND-TRIP: FAIL");
     return result.Passed ? 0 : 1;
+}
+
+static int ResizeTestCmd(string[] rest)
+{
+    string? path = rest.FirstOrDefault();
+    if (path is null)
+    {
+        var devices = IpodDevice.Detect();
+        if (devices.Count == 0) { Console.Error.WriteLine("No iPod found. Pass a path explicitly."); return 1; }
+        path = devices[0].RootPath;
+        Console.WriteLine($"Using {path}");
+    }
+
+    string dbPath = Directory.Exists(path) ? IpodDevice.Open(path).ItunesDbPath : path;
+    if (!File.Exists(dbPath)) { Console.Error.WriteLine($"No iTunesDB at {dbPath}"); return 1; }
+
+    byte[] original = File.ReadAllBytes(dbPath);
+    Console.WriteLine();
+    Console.WriteLine($"file  {dbPath}");
+
+    var results = new[]
+    {
+        ResizeRoundTrip.RemoveTrack(original),
+        ResizeRoundTrip.AddTrackToPlaylist(original),
+        ResizeRoundTrip.RenameTrack(original),
+    };
+
+    bool allPassed = true;
+    foreach (var r in results)
+    {
+        Console.WriteLine();
+        Console.WriteLine($"{r.Operation}");
+        Console.WriteLine($"  {r.Detail}");
+        Console.WriteLine($"  semantic check    {(r.SemanticOk ? "PASS" : "FAIL")}");
+        Console.WriteLine($"  idempotent check  {(r.IdempotentOk ? "PASS" : "FAIL")}");
+        foreach (var p in r.Problems) Console.WriteLine($"    - {p}");
+        allPassed &= r.Passed;
+    }
+
+    Console.WriteLine();
+    Console.WriteLine(allPassed ? "RESIZE ROUND-TRIP: PASS (all three)" : "RESIZE ROUND-TRIP: FAIL");
+    return allPassed ? 0 : 1;
 }
 
 static string Gb(long bytes) => $"{bytes / 1024.0 / 1024 / 1024:F1} GB";

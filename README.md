@@ -7,12 +7,14 @@ working alongside it, and our own sync state never lives on the iPod.
 
 ## Status
 
-Reading works, verified against two real devices. The writer's round-trip test
-passes byte-identically against both, for two cases: reproducing a database
-unchanged, and editing one real field (play count, star rating) and proving
-everything else stayed untouched. Nothing writes to a device yet — see
-[HANDOFF.md](HANDOFF.md) for exactly what is and isn't covered by that before
-trusting it for anything that changes a file's length.
+Reading works, verified against two real devices. The writer's round-trip
+proof passes against both, for: reproducing a database unchanged, editing a
+real field in place (play count, star rating), and three edits that change a
+chunk's byte length (removing a track, adding an *existing* track to a
+playlist, renaming a track). Nothing writes to a device yet — see
+[HANDOFF.md](HANDOFF.md) for exactly what is and isn't covered before trusting
+this for anything not listed there (constructing a brand-new track, notably,
+is not — see below).
 
 ```
 dotnet build
@@ -20,16 +22,22 @@ dotnet build
 ./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe dump G:/ -n 20
 ./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe roundtrip G:/
 ./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe mutate-test G:/
+./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe resize-test G:/
 ```
 
-All three read commands accept an iPod drive root or a path to a database file
-directly, and are read-only — none of them ever write to the device.
+All four read/test commands accept an iPod drive root or a path to a database
+file directly, and are read-only — none of them ever write to the device.
 `roundtrip` parses the database and serialises it straight back to bytes,
 unchanged, and diffs against the original (pass `-o <path>` to also save the
-reconstructed bytes locally for inspection). `mutate-test` does the same but
-edits one track's play count and star rating first, then proves — via a raw
-byte diff *and* an independent re-read through the already-verified reader —
-that nothing else in the file moved.
+reconstructed bytes locally for inspection). `mutate-test` edits one track's
+play count and star rating, then proves — via a raw byte diff *and* an
+independent re-read through the already-verified reader — that nothing else
+in the file moved. `resize-test` runs the three chunk-length-changing edits
+and, since output no longer lines up byte-for-byte with the original, checks
+each two different ways: semantically (re-read through the verified reader,
+assert only the intended change appears) and for internal self-consistency
+(parse the writer's own output a second time, serialize it again, and require
+that reproduces the first pass's bytes exactly).
 
 ## Format notes
 
@@ -145,12 +153,54 @@ changed byte falls inside the one mhit chunk that was targeted
 confirming every other track and every playlist is field-for-field identical.
 
 That covers exactly the edit two-way sync needs (writing play counts/ratings
-back to the device). It does **not** cover anything that resizes a chunk —
-renaming a track, adding or removing a track or playlist entry. Those cascade
-into ancestors' total-length and count fields, which `Serialize()` already
-recomputes generically, but that path has only been exercised where sizes
-don't change. A resizing edit needs its own round-trip proof before it's
-trusted for a real write.
+back to the device). Three further edits (`LibraryMutation.cs`) exercise the
+part `mutate-test` deliberately avoids — resizing a chunk, which cascades into
+every ancestor's total-length and count fields:
+
+- **Remove a track.** Deletes its `mhit` from `mhlt` and every `mhip`
+  referencing it from every playlist. Pure deletion, so it carries none of the
+  risk a field we don't fully understand the semantics of would.
+- **Add an existing track to a playlist.** Clones a real sibling `mhip` in
+  that playlist (rather than building one from a guessed layout) and patches
+  only the fields confirmed against real bytes: the referenced track id, that
+  track's persistent id (duplicated into the entry for integrity), and a
+  "date added" timestamp. One field is left deliberately conservative — see
+  `LibraryMutation.AddTrackToPlaylist`'s doc comment for what real-byte
+  comparison did and didn't confirm about it.
+- **Rename a track.** Builds a brand-new `mhod` string chunk from scratch,
+  since there's no existing one of the right size to clone. Every fixed field
+  (`position=1`, the encoding word `=1` despite UTF-16LE content, `reserved=0`)
+  matches what six real Title `mhod`s across two devices actually contain.
+
+Two structural discoveries from decoding real `mhip` bytes before writing any
+of this, beyond the mhlt/mhlp quirk above:
+
+- **`mhip` is not a pure leaf.** It embeds a nested `mhod` (type 100,
+  playlist column info) inside what looks like flat payload. Harmless for
+  reading and for the byte-preserving round-trip (it's copied verbatim either
+  way), but it matters the moment you *construct* a new `mhip`: a field at the
+  entry's own header +0x14 is duplicated inside that embedded `mhod`'s payload
+  at its relative +0x18, and both copies have to be kept in sync or the entry
+  is inconsistent.
+- **A track's persistent id is duplicated into every playlist entry that
+  references it**, 8 bytes at the entry's +0x2C. Confirmed by comparing two
+  real entries in the same playlist and matching those bytes against each
+  referenced track's own persistent id field.
+
+Each of the three is checked two ways, since resizing means the output no
+longer lines up byte-for-byte against the original the way `mutate-test`'s
+does: semantically, by re-reading the result through `ItunesDbReader` and
+asserting only the intended change appears; and for internal consistency, by
+parsing the writer's own output a second time and serializing it again — if
+that doesn't reproduce the first pass exactly, the writer disagrees with
+itself regardless of whether the first pass happened to look right.
+
+None of this constructs a track from nothing. "Add to playlist" specifically
+sidesteps that by referencing a track that already exists. Building a new one
+needs a collision-free persistent id and track id, a scrambled `F##/XXXX.ext`
+path picked the way the device does, real duration/bitrate/size read off an
+actual audio file, and copying that file onto the device — none of which
+exists yet.
 
 ### Miscellaneous
 
@@ -176,6 +226,10 @@ src/IpodSync.Core/
     TrackMutation.cs     RawChunkNavigation (find/locate chunks) + TrackFields (get/set
                           play count and stars in place on a parsed mhit chunk)
     MutationRoundTrip.cs proves one field edit round-trips without touching anything else
+    LibraryMutation.cs   resizing edits: remove a track, add an existing track to a
+                          playlist, rename a track
+    ResizeRoundTrip.cs   proves each resizing edit round-trips (semantic + idempotency
+                          checks, since output no longer lines up byte-for-byte)
   Device/       volume detection, SysInfo, database location
 src/IpodSync.Cli/
 tools/          make_fixture.py - synthetic DB generator for tests
@@ -196,14 +250,17 @@ pointing it at a device.
 3. ~~Writer mutation: edit a real field (play count, stars) and round-trip
    *that*~~ — done, verified against both real devices; covers fixed-size
    field edits only
-4. Writer resizing edits: rename a track, add/remove a track or playlist entry
-   — the actual gate before any real write that changes a file's length
-5. Artwork (`ithmb`), album (`mhla`) and `mhli` decoding
-6. hash58 / hash72 signing
-7. Sync engine: content-hash manifest kept off-device, keyed by serial
-8. Transcode FLAC to ALAC/AAC on copy
-9. Android: USB mass storage via SCSI + FAT32, or the Storage Access Framework
-10. iPod Touch (jailbroken): `MediaLibrary.sqlitedb` over afc2 — designed for, not built
+4. ~~Writer resizing edits: remove a track, add an existing track to a
+   playlist, rename a track~~ — done, verified against both real devices
+5. Construct a brand-new track (fresh ids, scrambled path, real audio
+   metadata, file copy) — the remaining gate before any real write that adds
+   content rather than editing/removing what's already there
+6. Artwork (`ithmb`), album (`mhla`) and `mhli` decoding
+7. hash58 / hash72 signing
+8. Sync engine: content-hash manifest kept off-device, keyed by serial
+9. Transcode FLAC to ALAC/AAC on copy
+10. Android: USB mass storage via SCSI + FAT32, or the Storage Access Framework
+11. iPod Touch (jailbroken): `MediaLibrary.sqlitedb` over afc2 — designed for, not built
 
 ## Notes
 

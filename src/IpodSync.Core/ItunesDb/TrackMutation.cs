@@ -9,6 +9,18 @@ public static class RawChunkNavigation
     public static IReadOnlyList<RawChunk> TrackChunks(RawChunk root) =>
         FindTrackList(root)?.Children.Where(c => c.Magic == "mhit").ToList() ?? [];
 
+    /// <summary>Every mhyp (one playlist) across every mhlp dataset in the file.
+    /// There can be more than one mhlp (e.g. the real playlists and the built-in
+    /// smart ones live in separate datasets), so this does not assume just one.</summary>
+    public static IEnumerable<RawChunk> AllPlaylists(RawChunk root) =>
+        root.Children.SelectMany(mhsd => mhsd.Children)
+            .Where(c => c.Magic == "mhlp")
+            .SelectMany(mhlp => mhlp.Children)
+            .Where(c => c.Magic == "mhyp");
+
+    public static IEnumerable<RawChunk> AllPlaylistItems(RawChunk root) =>
+        AllPlaylists(root).SelectMany(mhyp => mhyp.Children).Where(c => c.Magic == "mhip");
+
     /// <summary>Absolute byte range [start, start+length) the given descendant
     /// chunk occupies when <paramref name="root"/> is serialized. Used to prove a
     /// mutation's effect on the output stayed within the chunk it targeted.</summary>
@@ -43,7 +55,12 @@ public static class TrackFields
     private const int PlayCountOffset = 0x50;
     private const int StarsOffset = 0x1C + 3;
 
+    private const int PersistentIdOffset = 0x70;
+
     public static int GetId(RawChunk mhit) => BinaryIo.I32(mhit.Header, IdOffset);
+
+    public static ulong GetPersistentId(RawChunk mhit) =>
+        mhit.Header.Length >= PersistentIdOffset + 8 ? BinaryIo.U64(mhit.Header, PersistentIdOffset) : 0;
 
     public static int GetPlayCount(RawChunk mhit) => BinaryIo.I32(mhit.Header, PlayCountOffset);
 

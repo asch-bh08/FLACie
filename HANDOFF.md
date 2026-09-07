@@ -40,9 +40,11 @@ transparent transcode, incremental, no account, no cloud.
 ## Current state
 
 **Reading works and is verified against two of the user's real iPods.** The
-database writer's round-trip test also passes byte-identically against both of
-those same devices. Nothing writes to a device. That is deliberate — see
-Safety below; round-trip passing is necessary but not sufficient for that.
+writer's round-trip proof now covers, against both devices: reproducing a
+database unchanged, editing a real field in place (play count, star rating),
+and three edits that change a chunk's byte length (removing a track,
+adding an *existing* track to a playlist, renaming a track). Nothing writes to
+a device. That is deliberate — see Safety below.
 
 ```
 dotnet build
@@ -50,6 +52,7 @@ dotnet run --project src/IpodSync.Cli -- detect
 dotnet run --project src/IpodSync.Cli -- dump G:/ -n 20
 dotnet run --project src/IpodSync.Cli -- roundtrip G:/
 dotnet run --project src/IpodSync.Cli -- mutate-test G:/
+dotnet run --project src/IpodSync.Cli -- resize-test G:/
 ```
 
 Verified output: 614 tracks / 11 playlists on one device, 635 / 11 on the other.
@@ -67,10 +70,14 @@ separate parse from the verified reader rather than a rewrite of it.
 
 ### What is NOT done
 
-- **Only fixed-size field edits are proven.** `mutate-test` proves a real
-  play-count/star-rating edit round-trips cleanly (see Safety below). Nothing
-  that changes a chunk's byte length — renaming a track, adding/removing a
-  track or playlist entry — has been attempted or proven yet.
+- **Adding a brand-new track is not built.** `resize-test` proves removing a
+  track, adding an *existing* track to a playlist, and renaming a track — all
+  by editing or cloning real chunks already in the file. None of that
+  constructs a track from scratch: that additionally needs a fresh persistent
+  id and track id that can't collide with anything on the device, a scrambled
+  `F##/XXXX.ext` path picked the same way the device does, reading real
+  duration/bitrate/size off an actual audio file, and copying that file onto
+  the device — none of which exists yet.
 - No signing. No sync engine. No transcode. No UI. No Android.
 - `mhla` (albums) and `mhli` (unknown) chunks are preserved verbatim by the
   writer but still not semantically decoded by the reader.
@@ -150,19 +157,21 @@ path broke `dotnet run` with MAX_PATH errors.
 The user's iPods hold their actual music library. Treat them as production.
 
 1. **Never write to a connected iPod until a *modified* database round-trips.**
-   Two things are proven now, both in-memory only, against both `G:\` and
-   `H:\`: the identity case (parse, re-serialise unchanged, compare — see
-   `roundtrip`), and a real field edit (bump one track's play count and star
-   rating, re-serialise, prove every other byte in the file is untouched — see
-   `mutate-test`, `MutationRoundTrip.cs`). That covers fixed-size scalar field
-   edits — exactly what two-way sync needs to write play counts/ratings back.
-   It does **not** cover resizing edits: renaming a track, adding or removing
-   one, adding a playlist entry. Those change a chunk's length, which cascades
-   into every ancestor's total-length and count fields — unproven, and not the
-   same class of risk as patching a fixed-size field in place. Do not treat
-   "the mutation gate passed" as "any writer capability now exists" — check
-   which specific edit is in the two commands above before trusting it for
-   something that changes a file's length.
+   Four things are proven now, all in-memory only, against both `G:\` and
+   `H:\`: the identity case (`roundtrip`), a fixed-size field edit — play
+   count and star rating (`mutate-test`) — and three resizing edits: remove a
+   track, add an *existing* track to a playlist, rename a track
+   (`resize-test`, `LibraryMutation.cs`/`ResizeRoundTrip.cs`). Every offset
+   `LibraryMutation.cs` writes to was read directly off real bytes via a
+   throwaway `inspect` command (since removed), not assumed from docs — see
+   its class comment and README's "The writer" section for two specific things
+   that would have been easy to get wrong (mhip embeds a nested mhod rather
+   than being flat, and one of its fields is duplicated in two places that
+   both need patching together).
+   This does **not** cover constructing a brand-new track — see "What is NOT
+   done" above. Do not treat "the round-trip gate passed" as "arbitrary writer
+   capability now exists" — check which specific edit is in the commands above
+   before trusting it for something not listed there.
 2. **Back up before the first real write.** Copy the whole `iPod_Control/iTunes/`
    directory off the device first.
 3. **Prefer `H:\` for experiments** over `G:\` if a sacrificial device is needed —
@@ -177,16 +186,19 @@ The user's iPods hold their actual music library. Treat them as production.
 
 ## Next steps, in order
 
-1. **A real first write, scoped to what's proven.** Play count/star rating are
-   the only edits with a passing round-trip (see Safety above). A sensible
-   first real write is: back up `iPod_Control/iTunes/`, write a database with
-   one of those fields changed, and confirm the device (not just our own
-   reader) still shows the library correctly. Ask the user first regardless.
-2. **Resizing edits.** Renaming a track (payload grows/shrinks), adding or
-   removing a track or playlist entry. Requires cascading total-length/count
-   recomputation up the tree — `RawChunk.Serialize()` already does this
-   generically, but it has only been exercised where sizes don't change; a
-   resizing edit needs its own round-trip proof before it's trusted.
+1. **A real first write, scoped to what's proven.** Play count/star rating,
+   track removal, adding an existing track to a playlist, and renaming a track
+   all have a passing round-trip now (see Safety above). A sensible first real
+   write is one of those — back up `iPod_Control/iTunes/` first, write it,
+   and confirm the device (not just our own reader) still shows the library
+   correctly. Ask the user first regardless of what's proven in memory.
+2. **Constructing a brand-new track.** Needs: a persistent id and track id
+   guaranteed not to collide with anything already on the device, a scrambled
+   `F##/XXXX.ext` path picked the way the device expects, real
+   duration/bitrate/size read off an actual audio file, and copying that file
+   onto the device. None of the existing mutation code creates content from
+   nothing — `resize-test`'s "add to playlist" specifically avoids this by
+   referencing a track that already exists.
 3. **Signing.** Only needed once writing is proven. See the signature-region
    notes in the README, and check them against libgpod's implementation rather
    than trusting the dumps — libgpod is LGPL, so a port makes this project LGPL.

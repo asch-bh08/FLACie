@@ -89,7 +89,8 @@ dotnet run --project src/IpodSync.Cli -- resize-test G:/
 
 dotnet run --project src/IpodSync.Web            # app in a browser, http://localhost:5070
 dotnet build src/IpodSync.Maui -f net9.0-windows10.0.19041.0   # Windows app
-dotnet build src/IpodSync.Maui -f net9.0-android               # Android APK
+dotnet build src/IpodSync.Maui -f net9.0-android -c Release    # Android APK -- Release,
+                                                                # not Debug; see gotchas
 ```
 
 Verified output: 614 tracks / 11 playlists on one device, 635 / 11 on the other.
@@ -362,6 +363,19 @@ The user's iPods hold their actual music library. Treat them as production.
   same assumptions as the reader, so it only catches crashes and structural
   bugs. Real verification means a real device.
 - Passing a Windows drive path through Git Bash needs quoting: `"G:/"`, not `G:\`.
+- **A Debug-configuration Android APK crashes immediately on launch when
+  sideloaded outside Visual Studio's own deploy pipeline.** Debug config isn't
+  self-contained: it expects the IDE to push the app's managed assemblies
+  separately over ADB at debug-attach time, so a Debug APK built via plain
+  `dotnet build src/IpodSync.Maui -f net9.0-android` and installed by itself
+  (as happens sideloading to a real phone, or attaching to a GitHub release)
+  opens and immediately dies with nothing useful surfaced in the UI. Fix: build
+  `-c Release` instead (`dotnet build src/IpodSync.Maui -f net9.0-android -c
+  Release`) — noticeably slower (assemblies get compiled to native `.so`
+  files, ~4-5 min) and a larger APK (~30 MB vs ~14 MB), but self-contained and
+  actually launchable standalone. Learned the hard way on the first real
+  install attempt (v0.1.0-alpha's first uploaded APK was Debug and crashed;
+  replaced with a Release build).
 - **`sdkmanager --licenses` piped `y` answers only work from Git Bash (`yes |
   sdkmanager ...`), not PowerShell.** PowerShell's non-interactive stdin
   (attached to the null device in this environment) swallows piped input to

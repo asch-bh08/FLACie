@@ -51,7 +51,10 @@ dotnet build
 
 dotnet run --project src/IpodSync.Web                          # app, http://localhost:5070
 dotnet build src/IpodSync.Maui -f net9.0-windows10.0.19041.0    # Windows app
-dotnet build src/IpodSync.Maui -f net9.0-android                # Android APK
+dotnet build src/IpodSync.Maui -f net9.0-android -c Release     # Android APK -- Release,
+                                                                 # not Debug (see HANDOFF.md:
+                                                                 # a Debug APK crashes on launch
+                                                                 # when installed standalone)
 ```
 
 All four read/test commands accept an iPod drive root or a path to a database

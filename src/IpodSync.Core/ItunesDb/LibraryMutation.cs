@@ -170,24 +170,32 @@ public static class LibraryMutation
     {
         bool IsSmart(RawChunk p) => p.Children.Any(c => c.Magic == "mhod" &&
             ((MhodType)I32(c.Header, 0x0C) is MhodType.SmartPlaylistData or MhodType.SmartPlaylistRules));
-        var template = RawChunkNavigation.AllPlaylists(root).FirstOrDefault(p =>
-                p.Header.Length > 0x14 && I32(p.Header, 0x14) == 0 && !IsSmart(p) &&
-                p.Children.Any(c => c.Magic == "mhod" && (MhodType)I32(c.Header, 0x0C) == MhodType.Title))
-            ?? throw new InvalidOperationException("No ordinary user playlist to use as a template.");
-        var mhlp = root.Children.SelectMany(m => m.Children)
-                       .First(c => c.Magic == "mhlp" && c.Children.Contains(template));
+        bool HasTitle(RawChunk p) => p.Children.Any(c => c.Magic == "mhod" && (MhodType)I32(c.Header, 0x0C) == MhodType.Title);
+        bool UserPl(RawChunk p) => p.Header.Length > 0x14 && I32(p.Header, 0x14) == 0 && !IsSmart(p) && HasTitle(p);
 
-        var pl = new RawChunk { Magic = "mhyp", Header = (byte[])template.Header.Clone(), Payload = (byte[])template.Payload.Clone() };
-        ulong maxPid = RawChunkNavigation.AllPlaylists(root).Select(p => U64(p.Header, 0x1C)).DefaultIfEmpty(0UL).Max();
-        WriteU64(pl.Header, 0x1C, maxPid + 1);          // fresh, non-colliding persistent id
-        SetPlaylistName(pl, name);                       // pl has no children yet -> inserts the name mhod
-        foreach (var id in trackIds)
+        ulong newPid = RawChunkNavigation.AllPlaylists(root).Select(p => U64(p.Header, 0x1C)).DefaultIfEmpty(0UL).Max() + 1;
+        var tracks = trackIds
+            .Select(id => RawChunkNavigation.TrackChunks(root).FirstOrDefault(t => (uint)TrackFields.GetId(t) == id))
+            .Where(t => t != null).Select(t => t!).ToList();
+
+        // iTunes keeps playlists in more than one mhlp dataset and the device only shows
+        // one of them -- which one isn't guaranteed -- so a new playlist must exist in
+        // EVERY dataset that holds user playlists, exactly like the real ones (a
+        // first attempt that added it to a single dataset didn't appear on the iPod).
+        var datasets = root.Children.SelectMany(mhsd => mhsd.Children).Where(c => c.Magic == "mhlp").ToList();
+        RawChunk? firstCopy = null;
+        foreach (var mhlp in datasets)
         {
-            var track = RawChunkNavigation.TrackChunks(root).FirstOrDefault(t => (uint)TrackFields.GetId(t) == id);
-            if (track != null) AddTrackToPlaylist(root, pl, track);
+            var template = mhlp.Children.FirstOrDefault(m => m.Magic == "mhyp" && UserPl(m));
+            if (template is null) continue;   // e.g. the built-in-smart dataset -- nothing to base on
+            var pl = new RawChunk { Magic = "mhyp", Header = (byte[])template.Header.Clone(), Payload = (byte[])template.Payload.Clone() };
+            WriteU64(pl.Header, 0x1C, newPid);            // same fresh id in each dataset copy
+            SetPlaylistName(pl, name);
+            foreach (var track in tracks) AddTrackToPlaylist(root, pl, track);
+            mhlp.Children.Add(pl);
+            firstCopy ??= pl;
         }
-        mhlp.Children.Add(pl);
-        return pl;
+        return firstCopy ?? throw new InvalidOperationException("No dataset with a user playlist to base a new one on.");
     }
 
     /// <summary>

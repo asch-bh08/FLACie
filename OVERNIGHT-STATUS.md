@@ -36,3 +36,38 @@ report. Every device write is listed with its pre-write backup folder.
   edits only touch `Library.itdb` / `Dynamic.itdb`, which are not checksummed.
 - Music source found at `\raspberrypi\CS-1\Music` (≈700 MP3, 287 FLAC, 44 M4A,
   41 WAV, 255 WMA).
+
+### 00:40–01:05 — two-database write pipeline + first live SQLite write
+
+Built (commit `d868d02`):
+- `itlp-diff` (`ItlpCompare`): read-only CDB-vs-SQLite verifier keyed by
+  persistent id. On the untouched device it matched all 635 shared tracks and
+  all 6 original playlists' memberships exactly; the only differences were the
+  four CDB-only edits from last session (1 added track, 1 renamed track's
+  title/artist/album, the `iPodSync Test` playlist, master 636 vs 635).
+- `ItlpSync`: playlist mirror onto a **staged copy** of the bundle.
+  Real-row findings encoded: `item_to_container.shuffle_order` is NULL;
+  `Dynamic.itdb` has a `container_ui` row (1,0,1,0,0,0) per playlist;
+  `container.name_order` = master 100, then every CDB playlist *including the
+  built-in smart ones that have no container row* sorted case-insensitively,
+  ×100 (reproduces all 7 existing values; re-proven on every run, write refused
+  if it ever doesn't).
+- `WritePipeline` (`apply-edits`, new `itlp-sync`): integrity_check, per-table
+  content hashes (only declared tables may change), refuses any write that adds
+  new track divergence, SHA-1-verified backup, read-back verify, full device
+  re-verify, automatic verified restore on failure. Restore path proven with a
+  fault-injected write on a fake device root.
+
+**LIVE WRITE #1 — 00:30 — `itlp-sync D:/ --yes`** (mirror `iPodSync Test` into SQLite)
+- Pre-write backup: `C:\IPODAPP\ipodsync\ipod-backups\itlpsync-20260914-003002`
+- Changed: `Library.itdb` (container row for `iPodSync Test`, name_order 800;
+  `pop(LAC)` re-ranked 1000→1100; 1 membership row), `Dynamic.itdb`
+  (container_ui row). Device verify: all PASS. Independent Python sqlite3 dump
+  of a read-back copy vs baseline: exactly those 5 rows differ; SHA-1 of the
+  whole `iTunes/` + `Artwork/` tree vs baseline: exactly those 2 files differ.
+- Confidence: high at the file level. **Not yet seen on the iPod screen** — the
+  device must stay mounted all night (no eject), so the firmware won't reload
+  its databases until Ashley ejects it. Morning check: Playlists menu should
+  show `iPodSync Test`.
+- Note: new playlist persistent ids are "max existing + 1"
+  (`0xF906EE395DA00876` = `AA`'s id + 1). Unique, just adjacent.

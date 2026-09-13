@@ -189,7 +189,12 @@ public static class LibraryMutation
             var template = mhlp.Children.FirstOrDefault(m => m.Magic == "mhyp" && UserPl(m));
             if (template is null) continue;   // e.g. the built-in-smart dataset -- nothing to base on
             var pl = new RawChunk { Magic = "mhyp", Header = (byte[])template.Header.Clone(), Payload = (byte[])template.Payload.Clone() };
-            WriteU64(pl.Header, 0x1C, newPid);            // same fresh id in each dataset copy
+            // The playlist's persistent id lives in TWO places in the mhyp header: 0x1C
+            // and 0x44 (confirmed by decoding real playlists on-device -- 0x40..0x43 is a
+            // constant, the id repeats at 0x44). Patch both -- if 0x44 keeps the template
+            // playlist's id, the device treats the new playlist as a duplicate and hides it.
+            WriteU64(pl.Header, 0x1C, newPid);
+            if (pl.Header.Length >= 0x4C) WriteU64(pl.Header, 0x44, newPid);
             // Keep the template's playlist-level mhods (type 1 name, plus type 100/102
             // display/column settings). Real playlists carry all three; a created one with
             // only the name mhod parses fine but the device refuses to display it.

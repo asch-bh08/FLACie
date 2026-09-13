@@ -352,10 +352,15 @@ static int PlInspectCmd(string[] rest)
             }
             if (filter != null && !name.Contains(filter, StringComparison.OrdinalIgnoreCase)) continue;
 
-            var mhodTypes = pl.Children.Where(c => c.Magic == "mhod").Select(c => i32(c.Header, 0x0C).ToString());
+            var mhodTypes = pl.Children.Where(c => c.Magic == "mhod")
+                .Select(c => $"{i32(c.Header, 0x0C)}(hdr{c.Header.Length}/pay{c.Payload.Length})");
             int mhips = pl.Children.Count(c => c.Magic == "mhip");
-            Console.WriteLine($"[ds{ds}] '{name}'  master={i32(pl.Header, 0x14)}  hdrLen={i32(pl.Header, 0x04)}  numMhods={i32(pl.Header, 0x0C)}  numItems={i32(pl.Header, 0x10)}  actualMhips={mhips}");
-            Console.WriteLine($"        pid=0x{(ulong)BitConverter.ToInt64(pl.Header, 0x1C):X16}  mhodTypes=[{string.Join(",", mhodTypes)}]  hdrBytes14-2B={BitConverter.ToString(pl.Header, 0x14, Math.Min(24, pl.Header.Length - 0x14))}");
+            Console.WriteLine($"[ds{ds}] '{name}'  master={i32(pl.Header, 0x14)}  numItems={i32(pl.Header, 0x10)}  mhips={mhips}  mhods=[{string.Join(" ", mhodTypes)}]");
+            if (filter != null)
+            {
+                ulong u64(int o) => o + 8 <= pl.Header.Length ? BitConverter.ToUInt64(pl.Header, o) : 0;
+                Console.WriteLine($"        pid@0x1C=0x{u64(0x1C):X16}  val@0x40=0x{u64(0x40):X16}  const@0x38=0x{u64(0x38):X16}");
+            }
         }
     }
     return 0;

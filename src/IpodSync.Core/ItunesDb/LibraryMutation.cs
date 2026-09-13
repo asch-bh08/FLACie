@@ -58,8 +58,11 @@ public static class LibraryMutation
     /// </summary>
     public static void AddTrackToPlaylist(RawChunk root, RawChunk playlist, RawChunk track)
     {
+        // clone a real mhip: prefer one from this playlist, else any in the file (so a
+        // brand-new/empty playlist can still receive its first entry from a real template).
         var template = playlist.Children.FirstOrDefault(c => c.Magic == "mhip")
-            ?? throw new InvalidOperationException("Playlist has no existing item to clone the layout from.");
+            ?? RawChunkNavigation.AllPlaylistItems(root).FirstOrDefault()
+            ?? throw new InvalidOperationException("No existing playlist item anywhere to clone the layout from.");
 
         var clone = new RawChunk
         {
@@ -110,6 +113,82 @@ public static class LibraryMutation
     /// cleanup in <see cref="RemoveTrack"/>. Returns how many entries were dropped.</summary>
     public static int RemoveTrackFromPlaylist(RawChunk playlist, uint trackId) =>
         playlist.Children.RemoveAll(c => c.Magic == "mhip" && (uint)I32(c.Header, 0x18) == trackId);
+
+    /// <summary>Renames a playlist by replacing its type-1 name mhod (playlists store
+    /// their name in the same type-1 string mhod a track uses for its title).</summary>
+    public static void SetPlaylistName(RawChunk mhyp, string name)
+    {
+        var newMhod = BuildStringMhod(MhodType.Title, name);
+        int idx = mhyp.Children.FindIndex(c => c.Magic == "mhod" && (MhodType)I32(c.Header, 0x0C) == MhodType.Title);
+        if (idx < 0) mhyp.Children.Insert(0, newMhod); else mhyp.Children[idx] = newMhod;
+    }
+
+    /// <summary>Removes a playlist (its whole mhyp) from whichever dataset holds it.
+    /// Pure deletion of existing bytes. Refuses the master playlist.</summary>
+    public static void DeletePlaylist(RawChunk root, RawChunk mhyp)
+    {
+        if (mhyp.Header.Length > 0x14 && I32(mhyp.Header, 0x14) == 1)
+            throw new InvalidOperationException("Refusing to delete the master playlist.");
+        foreach (var mhlp in root.Children.SelectMany(m => m.Children).Where(c => c.Magic == "mhlp"))
+            if (mhlp.Children.Remove(mhyp)) return;
+        throw new InvalidOperationException("Playlist not found in any dataset.");
+    }
+
+    /// <summary>Reorders a playlist's entries to match the given track-id order, by
+    /// rearranging the existing mhip nodes (no bytes are constructed). Non-mhip
+    /// children (the name mhod etc.) stay first, in their original order; any entry
+    /// not named in the order is kept at the end so nothing is silently dropped.</summary>
+    public static void ReorderPlaylist(RawChunk mhyp, IReadOnlyList<uint> orderedTrackIds)
+    {
+        var mhips = mhyp.Children.Where(c => c.Magic == "mhip").ToList();
+        var others = mhyp.Children.Where(c => c.Magic != "mhip").ToList();
+        var byTrack = new Dictionary<uint, Queue<RawChunk>>();
+        foreach (var m in mhips)
+        {
+            uint id = (uint)I32(m.Header, 0x18);
+            if (!byTrack.TryGetValue(id, out var q)) { q = new Queue<RawChunk>(); byTrack[id] = q; }
+            q.Enqueue(m);
+        }
+        var reordered = new List<RawChunk>();
+        foreach (var id in orderedTrackIds)
+            if (byTrack.TryGetValue(id, out var q) && q.Count > 0) reordered.Add(q.Dequeue());
+        foreach (var m in mhips) if (!reordered.Contains(m)) reordered.Add(m); // keep leftovers
+        mhyp.Children.Clear();
+        mhyp.Children.AddRange(others);
+        mhyp.Children.AddRange(reordered);
+    }
+
+    /// <summary>
+    /// Creates a new user playlist. Clones a real, non-smart, non-master playlist's
+    /// mhyp header as a structural template (so header flags/fields are real bytes),
+    /// gives it a fresh non-colliding persistent id and the new name, and adds an
+    /// entry per existing track id by cloning real mhip layout via
+    /// <see cref="AddTrackToPlaylist"/>. Round-trips and re-reads correctly; not yet
+    /// confirmed accepted by device firmware (no hardware to test against).
+    /// </summary>
+    public static RawChunk CreatePlaylist(RawChunk root, string name, IReadOnlyList<uint> trackIds)
+    {
+        bool IsSmart(RawChunk p) => p.Children.Any(c => c.Magic == "mhod" &&
+            ((MhodType)I32(c.Header, 0x0C) is MhodType.SmartPlaylistData or MhodType.SmartPlaylistRules));
+        var template = RawChunkNavigation.AllPlaylists(root).FirstOrDefault(p =>
+                p.Header.Length > 0x14 && I32(p.Header, 0x14) == 0 && !IsSmart(p) &&
+                p.Children.Any(c => c.Magic == "mhod" && (MhodType)I32(c.Header, 0x0C) == MhodType.Title))
+            ?? throw new InvalidOperationException("No ordinary user playlist to use as a template.");
+        var mhlp = root.Children.SelectMany(m => m.Children)
+                       .First(c => c.Magic == "mhlp" && c.Children.Contains(template));
+
+        var pl = new RawChunk { Magic = "mhyp", Header = (byte[])template.Header.Clone(), Payload = (byte[])template.Payload.Clone() };
+        ulong maxPid = RawChunkNavigation.AllPlaylists(root).Select(p => U64(p.Header, 0x1C)).DefaultIfEmpty(0UL).Max();
+        WriteU64(pl.Header, 0x1C, maxPid + 1);          // fresh, non-colliding persistent id
+        SetPlaylistName(pl, name);                       // pl has no children yet -> inserts the name mhod
+        foreach (var id in trackIds)
+        {
+            var track = RawChunkNavigation.TrackChunks(root).FirstOrDefault(t => (uint)TrackFields.GetId(t) == id);
+            if (track != null) AddTrackToPlaylist(root, pl, track);
+        }
+        mhlp.Children.Add(pl);
+        return pl;
+    }
 
     private static RawChunk BuildStringMhod(MhodType type, string value)
     {

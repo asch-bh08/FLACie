@@ -58,9 +58,16 @@ already surfaces); playlists by **name** (or persistent id when available).
 | `removeTrack` | `trackId` | **Implemented**, proven (removes `mhit` + every referencing `mhip`). |
 | `addTrackToPlaylist` | `playlist`, `trackId`, `position?` | **Implemented**, proven for tracks already on the device. |
 | `removeTrackFromPlaylist` | `playlist`, `trackId` | **Implemented**; same `mhip`-deletion mechanism as `removeTrack`, passes the reparse + idempotent checks — dry-run verified on a real device. |
-| `reorderPlaylist` | `playlist`, `trackIds[]` | To build (reorder `mhip`s; round-trip first). |
-| `createPlaylist` | `name`, `trackIds[]` | To build (new `mhyp` + `mhip`s; round-trip first). |
-| `renamePlaylist` / `deletePlaylist` | `playlist`, (`name`) | To build. |
+| `reorderPlaylist` | `playlist`, `trackIds[]` | **Implemented**; rearranges existing `mhip`s (no bytes built). Round-trip verified. |
+| `createPlaylist` | `name`, `trackIds[]` | **Implemented**; clones a real user-playlist `mhyp` as a template + real `mhip`s, fresh persistent id. Round-trips and re-reads correctly — **on-device acceptance not yet verified** (no hardware). |
+| `renamePlaylist` / `deletePlaylist` | `playlist`, (`name`) | **Implemented**; round-trip verified. |
+
+> **Playlists live in more than one dataset.** iTunes writes each playlist into
+> two `mhlp` datasets on these devices; the reader de-dups by persistent id. So a
+> per-playlist edit (rename/reorder/delete/add/remove-entry) is applied to **every
+> copy** with that persistent id, or the de-dup can resurface a stale one. (A first
+> cut of delete edited only one copy and the playlist "came back" — the round-trip
+> test caught it.) `removeTrack` already spans all playlists.
 | `addTrackFromFile` | `sourcePath`, `playlist?`, `transcodeTo?` | **Hardest, not built in either app.** Needs a collision-free persistent id + track id, a scrambled `F##/XXXX.ext` path picked the way the device does, real duration/bitrate/size read off the audio file, and copying the file onto the device. See HANDOFF.md "Constructing a brand-new track". |
 
 The implemented ops live in `IpodSync.Core/ItunesDb/EditApplier.cs`, invoked by `IpodSync.Cli apply-edits`. Every apply (dry-run or `--yes`) re-reads its result through the verified `ItunesDbReader` and re-serializes it to confirm the writer agrees with itself; `--yes` refuses unless all checks pass and it backs up `iPod_Control/iTunes/` first.

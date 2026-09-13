@@ -13,6 +13,7 @@ try
         case "roundtrip":      return RoundTripCmd(args.Skip(1).ToArray());
         case "mutate-test":    return MutateTestCmd(args.Skip(1).ToArray());
         case "resize-test":    return ResizeTestCmd(args.Skip(1).ToArray());
+        case "playlist-test":  return PlaylistTestCmd(args.Skip(1).ToArray());
         case "apply-edits":    return ApplyEditsCmd(args.Skip(1).ToArray());
         default:
             Console.Error.WriteLine($"Unknown command '{cmd}'.");
@@ -274,6 +275,48 @@ static int ResizeTestCmd(string[] rest)
 
     Console.WriteLine();
     Console.WriteLine(allPassed ? "RESIZE ROUND-TRIP: PASS (all three)" : "RESIZE ROUND-TRIP: FAIL");
+    return allPassed ? 0 : 1;
+}
+
+static int PlaylistTestCmd(string[] rest)
+{
+    string? path = rest.FirstOrDefault();
+    if (path is null)
+    {
+        var devices = IpodDevice.Detect();
+        if (devices.Count == 0) { Console.Error.WriteLine("No iPod found. Pass a path explicitly."); return 1; }
+        path = devices[0].RootPath;
+        Console.WriteLine($"Using {path}");
+    }
+    string dbPath = Directory.Exists(path) ? IpodDevice.Open(path).ItunesDbPath : path;
+    if (!File.Exists(dbPath)) { Console.Error.WriteLine($"No iTunesDB at {dbPath}"); return 1; }
+
+    byte[] original = File.ReadAllBytes(dbPath);
+    Console.WriteLine();
+    Console.WriteLine($"file  {dbPath}");
+
+    var results = new[]
+    {
+        PlaylistRoundTrip.Rename(original),
+        PlaylistRoundTrip.Reorder(original),
+        PlaylistRoundTrip.Delete(original),
+        PlaylistRoundTrip.Create(original),
+    };
+
+    bool allPassed = true;
+    foreach (var r in results)
+    {
+        Console.WriteLine();
+        Console.WriteLine($"{r.Operation}");
+        Console.WriteLine($"  {r.Detail}");
+        Console.WriteLine($"  semantic check    {(r.SemanticOk ? "PASS" : "FAIL")}");
+        Console.WriteLine($"  idempotent check  {(r.IdempotentOk ? "PASS" : "FAIL")}");
+        foreach (var p in r.Problems) Console.WriteLine($"    - {p}");
+        allPassed &= r.Passed;
+    }
+
+    Console.WriteLine();
+    Console.WriteLine(allPassed ? "PLAYLIST ROUND-TRIP: PASS (all four)" : "PLAYLIST ROUND-TRIP: FAIL");
     return allPassed ? 0 : 1;
 }
 

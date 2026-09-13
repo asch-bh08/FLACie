@@ -91,26 +91,49 @@ public static class EditApplier
             }
             case "addTrackToPlaylist":
             {
-                var playlist = FindPlaylist(root, before, RequireStr(op.Playlist, "playlist"));
+                var copies = FindPlaylistCopies(root, before, RequireStr(op.Playlist, "playlist"));
                 var track = FindTrack(root, Require(op.TrackId, "trackId"));
-                LibraryMutation.AddTrackToPlaylist(root, playlist, track);
-                return new OpResult(op.Op!, true, $"added track {op.TrackId} to playlist '{op.Playlist}'");
+                foreach (var pl in copies) LibraryMutation.AddTrackToPlaylist(root, pl, track);
+                return new OpResult(op.Op!, true, $"added track {op.TrackId} to playlist '{op.Playlist}'{CopyNote(copies.Count)}");
             }
             case "removeTrackFromPlaylist":
             {
-                var playlist = FindPlaylist(root, before, RequireStr(op.Playlist, "playlist"));
+                var copies = FindPlaylistCopies(root, before, RequireStr(op.Playlist, "playlist"));
                 uint id = Require(op.TrackId, "trackId");
-                int n = LibraryMutation.RemoveTrackFromPlaylist(playlist, id);
+                int n = copies.Sum(pl => LibraryMutation.RemoveTrackFromPlaylist(pl, id));
                 if (n == 0) throw new InvalidOperationException($"track {id} was not in playlist '{op.Playlist}'.");
-                return new OpResult(op.Op!, true, $"removed track {id} from playlist '{op.Playlist}' ({n} entr{(n == 1 ? "y" : "ies")})");
+                return new OpResult(op.Op!, true, $"removed track {id} from playlist '{op.Playlist}'{CopyNote(copies.Count)}");
+            }
+            case "renamePlaylist":
+            {
+                var copies = FindPlaylistCopies(root, before, RequireStr(op.Playlist, "playlist"));
+                var nm = RequireStr(op.Name, "name");
+                foreach (var pl in copies) LibraryMutation.SetPlaylistName(pl, nm);
+                return new OpResult(op.Op!, true, $"renamed playlist '{op.Playlist}' -> '{nm}'{CopyNote(copies.Count)}");
+            }
+            case "deletePlaylist":
+            {
+                var copies = FindPlaylistCopies(root, before, RequireStr(op.Playlist, "playlist"));
+                foreach (var pl in copies) LibraryMutation.DeletePlaylist(root, pl);
+                return new OpResult(op.Op!, true, $"deleted playlist '{op.Playlist}'{CopyNote(copies.Count)}");
             }
             case "reorderPlaylist":
+            {
+                var copies = FindPlaylistCopies(root, before, RequireStr(op.Playlist, "playlist"));
+                var ids = op.TrackIds ?? throw new InvalidOperationException("reorderPlaylist needs 'trackIds'.");
+                foreach (var pl in copies) LibraryMutation.ReorderPlaylist(pl, ids);
+                return new OpResult(op.Op!, true, $"reordered playlist '{op.Playlist}' ({ids.Length} entries){CopyNote(copies.Count)}");
+            }
             case "createPlaylist":
-            case "renamePlaylist":
-            case "deletePlaylist":
+            {
+                var nm = RequireStr(op.Name, "name");
+                var ids = op.TrackIds ?? Array.Empty<uint>();
+                LibraryMutation.CreatePlaylist(root, nm, ids);
+                return new OpResult(op.Op!, true, $"created playlist '{nm}' with {ids.Length} track(s)");
+            }
             case "addTrackFromFile":
                 throw new NotSupportedException(
-                    $"op '{op.Op}' is not implemented yet and has no round-trip proof — see EDIT-PROTOCOL.md.");
+                    $"op '{op.Op}' is not implemented yet — see EDIT-PROTOCOL.md.");
             default:
                 throw new NotSupportedException($"unknown op '{op.Op}'.");
         }
@@ -120,16 +143,21 @@ public static class EditApplier
         RawChunkNavigation.TrackChunks(root).FirstOrDefault(t => (uint)TrackFields.GetId(t) == id)
         ?? throw new InvalidOperationException($"track {id} not found on the device.");
 
-    // Playlists are addressed by name in the protocol; resolve the name through the
-    // verified reader's model, then match the raw mhyp by its persistent id (header
-    // +0x1C) so we edit the exact same playlist the name referred to.
-    private static RawChunk FindPlaylist(RawChunk root, ItunesDatabase before, string name)
+    // Playlists are addressed by name; resolve the name through the verified reader's
+    // model, then match EVERY raw mhyp with that persistent id (header +0x1C). iTunes
+    // writes playlists into more than one dataset, so a per-playlist edit must touch
+    // all copies or the reader's de-dup can surface a stale one (this is what made an
+    // early delete leave the playlist behind).
+    private static List<RawChunk> FindPlaylistCopies(RawChunk root, ItunesDatabase before, string name)
     {
         var model = before.Playlists.FirstOrDefault(p => !p.IsMaster && p.Name == name)
             ?? throw new InvalidOperationException($"playlist '{name}' not found.");
-        return RawChunkNavigation.AllPlaylists(root).FirstOrDefault(m => BinaryIo.U64(m.Header, 0x1C) == model.PersistentId)
-            ?? throw new InvalidOperationException($"playlist '{name}' could not be located in the raw tree.");
+        var copies = RawChunkNavigation.AllPlaylists(root)
+            .Where(m => BinaryIo.U64(m.Header, 0x1C) == model.PersistentId).ToList();
+        if (copies.Count == 0) throw new InvalidOperationException($"playlist '{name}' could not be located in the raw tree.");
+        return copies;
     }
+    private static string CopyNote(int n) => n > 1 ? $" (across {n} dataset copies)" : "";
 
     private static T Require<T>(T? v, string field) where T : struct =>
         v ?? throw new InvalidOperationException($"missing required field '{field}'.");

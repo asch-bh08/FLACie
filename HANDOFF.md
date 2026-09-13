@@ -57,7 +57,18 @@ unchanged, and `roundtrip` on the written file byte-identical. This is the first
 time the project has written to hardware — the read→edit→backup→write→re-read
 chain now works end to end. Writes remain gated per Safety below (backup +
 ask-first still apply to every future write, and constructing a brand-new track
-is still unbuilt).
+is no longer unbuilt, but its on-device playback acceptance is still being
+verified separately).
+
+**Current hardware verification (2026-09-13):** a second device, `D:\`
+(`ASHLEY'S IP`, iTunesCDB/zlib-compressed), accepts the re-compressed database
+without losing its library. A safe rating write survived device re-read. The
+first from-scratch playlist was parsed by the computer but invisible on the
+iPod, which exposed two hardware-specific requirements in `mhyp`: preserve
+type-100/type-102 playlist settings objects, and write the fresh persistent id
+at both header offsets `0x1C` and `0x44`. The corrected test playlist and a
+real AAC add-from-file are now on the device, waiting for the user's iPod-screen
+confirmation before more device features are stacked on top.
 
 **There is now a real app** (`src/IpodSync.Shared/Dashboard.razor`, a Blazor
 component shared across three hosts) rather than just a CLI:

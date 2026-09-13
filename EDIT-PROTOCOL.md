@@ -59,7 +59,7 @@ already surfaces); playlists by **name** (or persistent id when available).
 | `addTrackToPlaylist` | `playlist`, `trackId`, `position?` | **Implemented**, proven for tracks already on the device. |
 | `removeTrackFromPlaylist` | `playlist`, `trackId` | **Implemented**; same `mhip`-deletion mechanism as `removeTrack`, passes the reparse + idempotent checks — dry-run verified on a real device. |
 | `reorderPlaylist` | `playlist`, `trackIds[]` | **Implemented**; rearranges existing `mhip`s (no bytes built). Round-trip verified. |
-| `createPlaylist` | `name`, `trackIds[]` | **Implemented**; clones a real user-playlist `mhyp` as a template + real `mhip`s, fresh persistent id. Round-trips and re-reads correctly — **on-device acceptance not yet verified** (no hardware). |
+| `createPlaylist` | `name`, `trackIds[]` | **Implemented and under hardware verification.** Clones a real user-playlist `mhyp` + `mhip`s, retains the required type-100/102 settings objects, and writes the fresh playlist persistent id to both confirmed header locations (`0x1C`, `0x44`). A first hardware attempt exposed both of those missing details; the corrected playlist is now written and awaits the iPod-screen visibility check. |
 | `renamePlaylist` / `deletePlaylist` | `playlist`, (`name`) | **Implemented**; round-trip verified. |
 
 > **Playlists live in more than one dataset.** iTunes writes each playlist into
@@ -68,7 +68,7 @@ already surfaces); playlists by **name** (or persistent id when available).
 > copy** with that persistent id, or the de-dup can resurface a stale one. (A first
 > cut of delete edited only one copy and the playlist "came back" — the round-trip
 > test caught it.) `removeTrack` already spans all playlists.
-| `addTrackFromFile` | `sourcePath`, `playlist?` | **Implemented.** Reads real duration/bitrate/tags (TagLibSharp); fresh track id + collision-free persistent id; a scrambled `F##/XXXX.ext` path; clones a same-extension `mhit` as a template then patches numeric fields + clean string mhods; adds to the track list and every master-playlist copy. `apply-edits --yes` copies the file onto the device after the DB write. Round-trips + re-reads correctly (`addtrack-test`); on-device firmware acceptance unverified (no hardware). Transcode-on-add (for FLAC etc.) is future work — for now the source must already be an iPod-playable format (MP3/AAC/ALAC/AIFF/WAV). |
+| `addTrackFromFile` | `sourcePath`, `playlist?` | **Implemented and under hardware verification.** Reads real duration/bitrate/tags (TagLibSharp); fresh track id + collision-free persistent id; a scrambled `F##/XXXX.ext` path; clones a same-extension `mhit` as a template then patches numeric fields + clean string mhods; adds to the track list and every master-playlist copy. `apply-edits --yes` copies the file onto the device after the DB write. The device DB re-read confirmed a real AAC file was copied and indexed (635 → 636); final firmware playback confirmation is still pending. Transcode-on-add (for FLAC etc.) is future work — for now the source must already be an iPod-playable format (MP3/AAC/ALAC/AIFF/WAV). |
 
 The implemented ops live in `IpodSync.Core/ItunesDb/EditApplier.cs`, invoked by `IpodSync.Cli apply-edits`. Every apply (dry-run or `--yes`) re-reads its result through the verified `ItunesDbReader` and re-serializes it to confirm the writer agrees with itself; `--yes` refuses unless all checks pass and it backs up `iPod_Control/iTunes/` first.
 

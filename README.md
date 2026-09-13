@@ -51,9 +51,12 @@ volume limit. See [`ipod-player/README.md`](ipod-player/README.md).
 
 **It is read-only today.** Editing an iPod's contents in the player is intended
 to go through this project's *verified* database writer rather than a second,
-unproven writer in JavaScript — the same safety gate applies (see
-[HANDOFF.md](HANDOFF.md)): nothing writes to a real device until a modified
-database round-trips byte-identically, a backup is taken, and the user is asked.
+unproven writer in JavaScript — the player emits a JSON **change-set** that the
+C# engine applies through the round-trip-proven writer. The contract and its
+per-operation writer status are in [EDIT-PROTOCOL.md](EDIT-PROTOCOL.md). The same
+safety gate applies (see [HANDOFF.md](HANDOFF.md)): nothing writes to a real
+device until a modified database round-trips byte-identically, a backup is taken,
+and the user is asked.
 
 ## Status
 

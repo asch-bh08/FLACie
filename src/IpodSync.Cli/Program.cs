@@ -15,6 +15,7 @@ try
         case "resize-test":    return ResizeTestCmd(args.Skip(1).ToArray());
         case "playlist-test":  return PlaylistTestCmd(args.Skip(1).ToArray());
         case "addtrack-test":  return AddTrackTestCmd(args.Skip(1).ToArray());
+        case "pl-inspect":     return PlInspectCmd(args.Skip(1).ToArray());
         case "apply-edits":    return ApplyEditsCmd(args.Skip(1).ToArray());
         default:
             Console.Error.WriteLine($"Unknown command '{cmd}'.");
@@ -319,6 +320,45 @@ static int PlaylistTestCmd(string[] rest)
     Console.WriteLine();
     Console.WriteLine(allPassed ? "PLAYLIST ROUND-TRIP: PASS (all four)" : "PLAYLIST ROUND-TRIP: FAIL");
     return allPassed ? 0 : 1;
+}
+
+static int PlInspectCmd(string[] rest)
+{
+    string? path = rest.ElementAtOrDefault(0);
+    string? filter = rest.ElementAtOrDefault(1);
+    if (path is null) { Console.Error.WriteLine("usage: pl-inspect <db-or-ipod> [name-filter]"); return 2; }
+    string dbPath = Directory.Exists(path) ? IpodDevice.Open(path).ItunesDbPath : path;
+    if (!File.Exists(dbPath)) { Console.Error.WriteLine($"No iTunesDB at {dbPath}"); return 1; }
+
+    var root = RawChunkParser.ParseDatabase(File.ReadAllBytes(dbPath));
+    int i32(byte[] h, int o) => o + 4 <= h.Length ? BitConverter.ToInt32(h, o) : -1;
+
+    int ds = 0;
+    foreach (var mhsd in root.Children.Where(c => c.Magic == "mhsd"))
+    {
+        var mhlp = mhsd.Children.FirstOrDefault(c => c.Magic == "mhlp");
+        if (mhlp is null) continue;
+        ds++;
+        foreach (var pl in mhlp.Children.Where(c => c.Magic == "mhyp"))
+        {
+            // name from the first type-1 mhod
+            string name = "(none)";
+            foreach (var c in pl.Children.Where(c => c.Magic == "mhod" && i32(c.Header, 0x0C) == 1))
+            {
+                int len = c.Payload.Length >= 8 ? BitConverter.ToInt32(c.Payload, 4) : 0;
+                if (len > 0 && 16 + len <= c.Payload.Length)
+                    name = (len % 2 == 0 ? System.Text.Encoding.Unicode : System.Text.Encoding.UTF8).GetString(c.Payload, 16, len);
+                break;
+            }
+            if (filter != null && !name.Contains(filter, StringComparison.OrdinalIgnoreCase)) continue;
+
+            var mhodTypes = pl.Children.Where(c => c.Magic == "mhod").Select(c => i32(c.Header, 0x0C).ToString());
+            int mhips = pl.Children.Count(c => c.Magic == "mhip");
+            Console.WriteLine($"[ds{ds}] '{name}'  master={i32(pl.Header, 0x14)}  hdrLen={i32(pl.Header, 0x04)}  numMhods={i32(pl.Header, 0x0C)}  numItems={i32(pl.Header, 0x10)}  actualMhips={mhips}");
+            Console.WriteLine($"        pid=0x{(ulong)BitConverter.ToInt64(pl.Header, 0x1C):X16}  mhodTypes=[{string.Join(",", mhodTypes)}]  hdrBytes14-2B={BitConverter.ToString(pl.Header, 0x14, Math.Min(24, pl.Header.Length - 0x14))}");
+        }
+    }
+    return 0;
 }
 
 static int AddTrackTestCmd(string[] rest)

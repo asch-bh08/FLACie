@@ -190,7 +190,12 @@ public static class LibraryMutation
             if (template is null) continue;   // e.g. the built-in-smart dataset -- nothing to base on
             var pl = new RawChunk { Magic = "mhyp", Header = (byte[])template.Header.Clone(), Payload = (byte[])template.Payload.Clone() };
             WriteU64(pl.Header, 0x1C, newPid);            // same fresh id in each dataset copy
-            SetPlaylistName(pl, name);
+            // Keep the template's playlist-level mhods (type 1 name, plus type 100/102
+            // display/column settings). Real playlists carry all three; a created one with
+            // only the name mhod parses fine but the device refuses to display it.
+            foreach (var c in template.Children.Where(c => c.Magic == "mhod"))
+                pl.Children.Add(new RawChunk { Magic = c.Magic, Header = (byte[])c.Header.Clone(), Payload = (byte[])c.Payload.Clone() });
+            SetPlaylistName(pl, name);                    // replaces the cloned name mhod with ours
             foreach (var track in tracks) AddTrackToPlaylist(root, pl, track);
             mhlp.Children.Add(pl);
             firstCopy ??= pl;

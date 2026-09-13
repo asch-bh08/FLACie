@@ -97,6 +97,9 @@ public sealed class RawChunk
 /// extracting fields.</summary>
 public static class RawChunkParser
 {
+    /// <summary>Inflate (if it's an iTunesCDB) then parse into a chunk tree.</summary>
+    public static RawChunk ParseDatabase(byte[] fileBytes) => ParseRoot(BinaryIo.Inflate(fileBytes));
+
     public static RawChunk ParseRoot(byte[] d)
     {
         if (d.Length < 0x20 || Magic(d, 0) != "mhbd")

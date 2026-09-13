@@ -100,3 +100,28 @@ and should *not* show `iPodSync Temp`.
 Playlist features — create, rename, delete, add/remove track, reorder — are
 now written to **both** databases in one operation and verified on the device
 files. Remaining playlist caveat: firmware display not yet eyeballed.
+
+### 01:35–02:05 — database signatures: hash72 + hash58 reproduced exactly
+
+Why this matters: the device is an **iPod nano 5G** (USB `VID_05AC&PID_1265`).
+Its iTunesCDB header carries hash58 (scheme 1) *and* a hash72 signature, and
+`Locations.itdb.cbk` carries hash72. **Every CDB ipodsync has written since
+Sep 13 kept iTunes' old signature bytes**, so the device's CDB signatures are
+currently stale (`hash72-verify D:/` → "does NOT validate"). Whether the
+firmware rejects that is unknown (can't eject tonight), but it is not what
+iTunes produces. Adding/removing tracks also needs Locations.itdb → cbk re-signing.
+
+Implemented (independent C#, not LGPL code: hash72's generate/extract is
+WTFPL, hash58's reference is BSD-licensed; the S-boxes are the FIPS-197 AES
+tables, generated rather than copied, and compared equal to libgpod's in all
+256 entries):
+- `Signing/Hash72.cs` + `hash72-verify`: on the original iTunes CDBs of **both**
+  nano 5Gs seen (D: `3dcaf899…` from Sep 7, and the G: backup) the header
+  hash72 validates; every `Locations.itdb.cbk` validates, and **rebuilding the
+  cbk from Locations.itdb with the recovered (iv, random) pair is
+  byte-identical** to the iTunes-written file.
+- `Signing/Hash58.cs` + `hash58-verify`: with FirewireGuid = USB serial
+  `000A27001E7D86AB`, HMAC over the compressed CDB with db id / 0x32 / hash58
+  zeroed **reproduces the original iTunes hash58 exactly**
+  (`322B2633BB46E313…`). hash72 is computed with hash58 zeroed, hash58 with
+  hash72 in place → sign hash72 first, hash58 last.

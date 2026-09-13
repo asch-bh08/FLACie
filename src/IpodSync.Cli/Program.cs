@@ -20,6 +20,8 @@ try
         case "pid-refs":       return PlaylistPidRefsCmd(args.Skip(1).ToArray());
         case "itlp-sync":      return ItlpSyncCmd(args.Skip(1).ToArray());
         case "itlp-diff":      return ItlpDiffCmd(args.Skip(1).ToArray());
+        case "hash72-verify":  return Hash72VerifyCmd(args.Skip(1).ToArray());
+        case "hash58-verify":  return Hash58VerifyCmd(args.Skip(1).ToArray());
         case "apply-edits":    return ApplyEditsCmd(args.Skip(1).ToArray());
         default:
             Console.Error.WriteLine($"Unknown command '{cmd}'.");
@@ -476,6 +478,73 @@ static int ItlpDiffCmd(string[] rest)
     foreach (var n in diff.Notes) Console.WriteLine("note: " + n);
     Console.WriteLine(diff.InSync ? "IN SYNC" : $"OUT OF SYNC (playlists {(diff.PlaylistsInSync ? "in sync" : "differ")}, tracks {(diff.TracksInSync ? "in sync" : "differ")})");
     return diff.InSync ? 0 : 3;
+}
+
+// Read-only: validates the hash72 implementation against signatures iTunes wrote.
+static int Hash72VerifyCmd(string[] rest)
+{
+    if (rest.Length == 0) { Console.Error.WriteLine("usage: hash72-verify <ipod-root | itunes-dir> [more itunes-dirs or db files...]"); return 2; }
+    var keys = new List<(string Source, IpodSync.Core.Signing.Hash72.DeviceKey Key)>();
+    int bad = 0;
+    foreach (var arg in rest)
+    {
+        if (File.Exists(arg))
+        {
+            var k = IpodSync.Core.Signing.Hash72.ExtractFromDatabase(File.ReadAllBytes(arg));
+            Console.WriteLine($"{arg}: header hash72 {(k is null ? "does NOT validate for this content" : "valid")}");
+            if (k is not null) keys.Add((arg, k));
+            continue;
+        }
+        var (cdbPath, itlp) = ResolveItunesDir(arg);
+        if (File.Exists(cdbPath))
+        {
+            var k = IpodSync.Core.Signing.Hash72.ExtractFromDatabase(File.ReadAllBytes(cdbPath));
+            Console.WriteLine($"{cdbPath}: header hash72 {(k is null ? "does NOT validate for this content" : "valid")}");
+            if (k is not null) keys.Add((cdbPath, k));
+        }
+        string loc = Path.Combine(itlp, "Locations.itdb"), cbkPath = loc + ".cbk";
+        if (File.Exists(loc) && File.Exists(cbkPath))
+        {
+            byte[] locations = File.ReadAllBytes(loc), cbk = File.ReadAllBytes(cbkPath);
+            var (k, problems) = IpodSync.Core.Signing.Hash72.VerifyCbk(locations, cbk);
+            Console.WriteLine($"{cbkPath}: {(problems.Count == 0 ? "checksums + signature valid" : string.Join("; ", problems))}");
+            if (k is not null)
+            {
+                keys.Add((cbkPath, k));
+                bool regen = IpodSync.Core.Signing.Hash72.BuildCbk(locations, k).AsSpan().SequenceEqual(cbk);
+                Console.WriteLine($"  regenerate cbk from Locations.itdb + recovered key: {(regen ? "byte-identical PASS" : "DIFFERS FAIL")}");
+                if (!regen) bad++;
+            }
+            bad += problems.Count;
+        }
+    }
+    for (int i = 1; i < keys.Count; i++)
+    {
+        bool same = keys[i].Key.SameAs(keys[0].Key);
+        Console.WriteLine($"device key from {Path.GetFileName(keys[i].Source)} == key from {Path.GetFileName(keys[0].Source)}: {(same ? "yes" : "NO")}");
+    }
+    if (keys.Count > 0) Console.WriteLine($"device key iv {Convert.ToHexString(keys[0].Key.Iv)[..8]}.. (from {keys[0].Source})");
+    return bad == 0 && keys.Count > 0 ? 0 : 1;
+}
+
+// Read-only: checks the hash58 implementation against a database iTunes signed.
+static int Hash58VerifyCmd(string[] rest)
+{
+    if (rest.Length < 2) { Console.Error.WriteLine("usage: hash58-verify <iTunesCDB|iTunesDB file> <FirewireGuid hex>"); return 2; }
+    Console.WriteLine($"S-box self-test     {(IpodSync.Core.Signing.Hash58.SelfTest() ? "PASS" : "FAIL")}");
+    byte[] file = File.ReadAllBytes(rest[0]);
+    byte[] fw = IpodSync.Core.Signing.Hash58.ParseFirewireGuid(rest[1]);
+    bool ok = IpodSync.Core.Signing.Hash58.Verify(fw, file);
+    Console.WriteLine($"stored hash58       {Convert.ToHexString(file.AsSpan(0x58, 20))}");
+    Console.WriteLine($"computed (file, db id/0x32/hash58 zeroed): {(ok ? "MATCH" : "no match")}");
+    if (!ok)
+    {
+        // Research variants, reported but never used for signing.
+        byte[] z = IpodSync.Core.Signing.Hash58.ZeroedForHash(file);
+        byte[] z72 = (byte[])z.Clone(); Array.Clear(z72, 0x72, 46);
+        Console.WriteLine($"variant hash72 also zeroed: {(IpodSync.Core.Signing.Hash58.Compute(fw, z72).AsSpan().SequenceEqual(file.AsSpan(0x58, 20)) ? "MATCH" : "no match")}");
+    }
+    return ok ? 0 : 1;
 }
 
 static int AddTrackTestCmd(string[] rest)

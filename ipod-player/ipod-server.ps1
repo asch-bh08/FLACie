@@ -15,6 +15,18 @@ function Show-Msg($text){ try{ (New-Object -ComObject WScript.Shell).Popup($text
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $htmlPath  = Join-Path $scriptDir "ipod-player.html"
 
+# Locate the verified ipodsync editor engine (built CLI). Editing routes through
+# this, never through JS -- see EDIT-PROTOCOL.md. Absent = the player stays read-only.
+$cliExe = $null
+foreach ($c in @(
+  (Join-Path $scriptDir 'ipodsync\src\IpodSync.Cli\bin\Release\net9.0\IpodSync.Cli.exe'),
+  (Join-Path $scriptDir 'ipodsync\src\IpodSync.Cli\bin\Debug\net9.0\IpodSync.Cli.exe'),
+  (Join-Path $scriptDir '..\src\IpodSync.Cli\bin\Release\net9.0\IpodSync.Cli.exe'),
+  (Join-Path $scriptDir '..\src\IpodSync.Cli\bin\Debug\net9.0\IpodSync.Cli.exe')
+)) { if (Test-Path $c) { $cliExe = [System.IO.Path]::GetFullPath($c); break } }
+if ($cliExe) { Write-Host "  Editor engine found: $cliExe" -ForegroundColor Green }
+else { Write-Host "  Editor engine not built - the player stays read-only (build ipodsync to enable editing)." -ForegroundColor Yellow }
+
 function Find-iPod {
   foreach ($d in (Get-CimInstance Win32_LogicalDisk)) {
     $root = $d.DeviceID + "\"
@@ -148,8 +160,8 @@ while ($listener.IsListening) {
     $path = [System.Uri]::UnescapeDataString($req.Url.AbsolutePath)
 
     if ($req.HttpMethod -eq "OPTIONS") {
-      $res.Headers.Add("Access-Control-Allow-Methods","GET,OPTIONS")
-      $res.Headers.Add("Access-Control-Allow-Headers","Range")
+      $res.Headers.Add("Access-Control-Allow-Methods","GET,POST,OPTIONS")
+      $res.Headers.Add("Access-Control-Allow-Headers","Range,Content-Type")
       $res.StatusCode = 204; $res.Close(); continue
     }
 
@@ -162,10 +174,34 @@ while ($listener.IsListening) {
 
     if ($path -eq "/api/info") {
       $ff = if ($ffmpeg) { "true" } else { "false" }
-      $json = "{""label"":""$($label -replace '"','\"')"",""sub"":""$($controlFolder)"",""control"":""$controlFolder"",""ffmpeg"":$ff}"
+      $ed = if ($cliExe) { "true" } else { "false" }
+      $json = "{""label"":""$($label -replace '"','\"')"",""sub"":""$($controlFolder)"",""control"":""$controlFolder"",""ffmpeg"":$ff,""editor"":$ed}"
       $b=[System.Text.Encoding]::UTF8.GetBytes($json)
       $res.ContentType="application/json"; $res.ContentLength64=$b.Length
       $res.OutputStream.Write($b,0,$b.Length); $res.Close(); continue
+    }
+
+    # Apply a JSON change-set from the player through the verified engine.
+    # Dry-run by default (writes nothing); ?commit=1 performs the real, backed-up write.
+    if ($path -eq "/api/apply-edits" -and $req.HttpMethod -eq "POST") {
+      $reader = New-Object System.IO.StreamReader($req.InputStream, [System.Text.Encoding]::UTF8)
+      $body = $reader.ReadToEnd(); $reader.Close()
+      $commit = ($req.Url.Query -match "commit=1")
+      if (-not $cliExe) {
+        $b=[Text.Encoding]::UTF8.GetBytes('{"ok":false,"error":"Editor engine not built. Build ipodsync (dotnet build src/IpodSync.Cli) to enable editing."}')
+        $res.ContentType="application/json"; $res.ContentLength64=$b.Length; $res.OutputStream.Write($b,0,$b.Length); $res.Close(); continue
+      }
+      $tmp = Join-Path $env:TEMP ("ipod-edits-" + [Guid]::NewGuid().ToString("N") + ".json")
+      [System.IO.File]::WriteAllText($tmp, $body, [System.Text.Encoding]::UTF8)
+      $cliArgs = @("apply-edits", $ipodRootFull, "--changes", $tmp)
+      if ($commit) { $cliArgs += "--yes" }
+      $out = ""
+      try { $out = (& $cliExe @cliArgs 2>&1 | Out-String) } catch { $out = "error running editor: $_" }
+      $exit = $LASTEXITCODE
+      Remove-Item -Force $tmp -ErrorAction SilentlyContinue
+      $payload = @{ ok = ($exit -eq 0); commit = [bool]$commit; exit = $exit; output = $out } | ConvertTo-Json -Compress
+      $b=[Text.Encoding]::UTF8.GetBytes($payload)
+      $res.ContentType="application/json"; $res.ContentLength64=$b.Length; $res.OutputStream.Write($b,0,$b.Length); $res.Close(); continue
     }
 
     if ($path.StartsWith("/ipod/")) {

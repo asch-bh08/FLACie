@@ -382,6 +382,50 @@
   .eqband .hz{font-size:10px;color:var(--muted)}
   .eqband .db{font-size:10px;color:var(--ink2);font-variant-numeric:tabular-nums;min-height:12px}
 
+  /* ============ EDIT MODE ============ */
+  .iconbtn.on{background:var(--active);color:var(--accent);border-color:var(--line2)}
+  .edit-banner{display:flex;align-items:center;gap:10px;background:var(--active);border:1px solid var(--line2);
+    border-radius:10px;padding:10px 14px;margin:0 0 14px;font-size:13px;color:var(--ink2)}
+  .edit-banner svg{width:18px;height:18px;fill:var(--accent);flex:none}
+  .trow{position:relative}
+  .rowedit{position:absolute;right:10px;top:50%;transform:translateY(-50%);display:none;gap:4px;
+    align-items:center;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:3px}
+  body.editing .trow:not(.dead) .rowedit{display:flex}
+  body.editing .trow .dur{visibility:hidden}
+  .rowbtn{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+  .rowbtn:hover{background:var(--hover);color:var(--ink)}
+  .rowbtn.del:hover{color:#ff6b6b}
+  .rowbtn svg{width:16px;height:16px;fill:currentColor}
+  .trow.staged-del{opacity:.45}
+  .trow.staged-del .tmeta .tt{text-decoration:line-through}
+  .trow.staged-edit .tt::after{content:"edited";color:var(--accent2);font-size:10px;margin-left:8px;
+    font-weight:700;text-transform:uppercase;letter-spacing:.04em;vertical-align:1px}
+  #editbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--player-h) + 14px);z-index:55;
+    display:flex;align-items:center;gap:16px;background:var(--card);border:1px solid var(--line2);
+    border-radius:12px;box-shadow:var(--shadow);padding:10px 12px 10px 16px}
+  #editbar[hidden]{display:none}
+  .eb-left{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:600}
+  .eb-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+  .eb-btn{padding:8px 15px;border-radius:9px;background:var(--accent);color:#fff;font-weight:600;font-size:13px}
+  .eb-btn:hover{filter:brightness(1.08)}
+  .eb-btn.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--ink)}
+  .eb-btn.ghost:hover{background:var(--hover);filter:none}
+  .field{margin:12px 0}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600}
+  .field input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:9px;color:var(--ink);padding:10px 12px;font:inherit}
+  .field input:focus{outline:none;border-color:var(--accent)}
+  .dlg-actions{display:flex;gap:10px;margin-top:20px}
+  .btn2{flex:1;padding:11px;border-radius:10px;font-weight:600;text-align:center;font-size:14px}
+  .btn2.primary{background:var(--accent);color:#fff}.btn2.primary:hover{filter:brightness(1.08)}
+  .btn2.primary:disabled{opacity:.5;cursor:not-allowed;filter:none}
+  .btn2.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--ink)}.btn2.ghost:hover{background:var(--hover)}
+  .btn2.danger{background:#3a1620;color:#ff7a7a;border:1px solid #5a2130}.btn2.danger:hover{background:#4a1a28}
+  .revlist{max-height:38vh;overflow:auto;margin:4px 0}
+  .revop{padding:9px 12px;border:1px solid var(--line);border-radius:9px;margin-bottom:7px;font-size:13px;background:var(--panel2)}
+  .revout{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:var(--bg2);
+    border:1px solid var(--line);border-radius:9px;padding:12px;margin-top:12px;max-height:34vh;overflow:auto}
+  .revout[hidden]{display:none}
+
   #selftest{position:fixed;inset:0;background:var(--bg);color:var(--ink);padding:26px;overflow:auto;
     font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;white-space:pre-wrap;z-index:100}
   .pass{color:#4ade80}.fail{color:#ff6b6b}
@@ -464,6 +508,7 @@
       <span class="grow"></span>
       <label class="search"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 5 1.5-1.5-5-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
         <input id="search" type="search" placeholder="Search songs, artists, albums"></label>
+      <button class="iconbtn" id="editBtn" title="Edit library"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zM20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
       <button class="iconbtn" id="eqBtn" title="Equalizer"><svg viewBox="0 0 24 24"><path d="M7 20V10H4v10h3zm6 0V4h-3v16h3zm6 0v-7h-3v7h3z"/></svg></button>
       <button class="iconbtn" id="settingsBtn" title="Settings"><svg viewBox="0 0 24 24"><path d="M19.4 13a7.5 7.5 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.3 7.3 0 0 0-1.7-1L14 3h-4l-.3 2.5a7.3 7.3 0 0 0-1.7 1l-2.4-1-2 3.4L3.6 11a7.5 7.5 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.3 7.3 0 0 0 1.7 1L10 21h4l.3-2.5a7.3 7.3 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg></button>
       <button class="iconbtn" id="themeBtn" title="Toggle theme"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36A5.5 5.5 0 0 1 12.36 3.1 9.05 9.05 0 0 0 12 3z"/></svg></button>
@@ -552,6 +597,29 @@
   <div class="sheet">
     <div class="sh-head"><h3>Settings</h3><button class="xbtn" id="settingsClose"><svg viewBox="0 0 24 24"><path d="M18.3 5.7L12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3z"/></svg></button></div>
     <div class="sh-body" id="settingsBody"></div>
+  </div>
+</div>
+
+<!-- ============ EDIT MODE: pending-changes bar ============ -->
+<div id="editbar" hidden>
+  <div class="eb-left"><span class="eb-dot"></span><span id="editCount">0 pending changes</span></div>
+  <button class="eb-btn ghost" id="editDiscard">Discard</button>
+  <button class="eb-btn" id="editReview">Review &amp; apply</button>
+</div>
+
+<!-- edit dialog -->
+<div class="modal" id="editModal">
+  <div class="sheet" style="max-width:460px">
+    <div class="sh-head"><h3 id="editDlgTitle">Edit track</h3><button class="xbtn" id="editClose"><svg viewBox="0 0 24 24"><path d="M18.3 5.7L12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3z"/></svg></button></div>
+    <div class="sh-body" id="editDlgBody"></div>
+  </div>
+</div>
+
+<!-- review & apply -->
+<div class="modal" id="reviewModal">
+  <div class="sheet">
+    <div class="sh-head"><h3>Review changes</h3><button class="xbtn" id="reviewClose"><svg viewBox="0 0 24 24"><path d="M18.3 5.7L12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3z"/></svg></button></div>
+    <div class="sh-body" id="reviewBody"></div>
   </div>
 </div>
 
@@ -900,26 +968,51 @@ function render(){
 function header(title,sub){$('#viewTitle').textContent=title;$('#viewSub').textContent=sub;$('#viewTitle').style.display=title?'':'none';}
 function applyFilter(list){const f=filter.trim().toLowerCase();if(!f)return list;return list.filter(t=>((t.title+' '+t.artist+' '+t.album).toLowerCase().includes(f)));}
 
+const EDIT_ICO='<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zM20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
+const DEL_ICO='<svg viewBox="0 0 24 24"><path d="M6 7h12l-1 14H7L6 7zm3-3h6l1 2H8l1-2z"/></svg>';
+const MINUS_ICO='<svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>';
 function trackTable(list,showAlbum){
   const wrap=document.createElement('div');
   if(!list.length){wrap.innerHTML='<div class="empty"><svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg><div>Nothing to show here.</div></div>';return wrap;}
+  if(editMode){const bn=document.createElement('div');bn.className='edit-banner';
+    bn.innerHTML=EDIT_ICO+'Edit mode — changes are staged and applied by the verified engine. Nothing is written to the iPod until you review &amp; apply.';
+    wrap.appendChild(bn);}
   const head=document.createElement('div');head.className='thead';
   head.innerHTML=`<div class="r">#</div><div>Title</div><div>${showAlbum?'Album':'Artist'}</div><div class="r">Time</div>`;
   wrap.appendChild(head);
+  const inPl=view.type==='playlist';
   const frag=document.createDocumentFragment();
   list.forEach((t,i)=>{
     const r=document.createElement('div');
     const playing=QUEUE[qi]===t;
-    r.className='trow'+(t.playable===false?' dead':'')+(playing?' playing':'');
+    const ov=stagedEdits.get(t.id)||{};
+    const dTitle=(ov.title!=null?ov.title:t.title)||'(untitled)';
+    const dArtist=(ov.artist!=null?ov.artist:t.artist)||'Unknown Artist';
+    const dAlbum=(ov.album!=null?ov.album:t.album)||'';
+    r.className='trow'+(t.playable===false?' dead':'')+(playing?' playing':'')
+      +(stagedDeletes.has(t.id)?' staged-del':'')+(stagedEdits.has(t.id)?' staged-edit':'');
     r.innerHTML=
       `<div class="idx"><span class="num">${i+1}</span>`+
         `<span class="pl"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span>`+
         `<span class="bars"><i></i><i></i><i></i></span></div>`+
       `<div class="tcell"><div class="mini" ${artAttr(t.dbid,1055)} style="background:${gradient(t.album||t.title)}">${esc(initial(t.album||t.title))}</div>`+
-        `<div class="tmeta"><div class="tt">${esc(t.title||'(untitled)')}</div><div class="ta">${esc(t.artist||'Unknown Artist')}</div></div></div>`+
-      `<div class="cell">${esc(showAlbum?(t.album||''):(t.artist||''))}</div>`+
+        `<div class="tmeta"><div class="tt">${esc(dTitle)}</div><div class="ta">${esc(dArtist)}</div></div></div>`+
+      `<div class="cell">${esc(showAlbum?dAlbum:dArtist)}</div>`+
       `<div class="r dur">${t.duration?fmt(t.duration/1000):''}</div>`;
-    if(t.playable!==false)r.onclick=()=>{QUEUE=list.filter(x=>x.playable!==false);playAt(QUEUE.indexOf(t));};
+    if(editMode){
+      const ed=document.createElement('div');ed.className='rowedit';
+      ed.innerHTML=`<button class="rowbtn" title="Edit tags">${EDIT_ICO}</button>`
+        +(inPl?`<button class="rowbtn" title="Remove from this playlist">${MINUS_ICO}</button>`:'')
+        +`<button class="rowbtn del" title="Delete from iPod">${DEL_ICO}</button>`;
+      const b=ed.querySelectorAll('.rowbtn');
+      b[0].onclick=e=>{e.stopPropagation();openEditDialog(t);};
+      if(inPl){b[1].onclick=e=>{e.stopPropagation();stagePlaylistRemove(t);};b[2].onclick=e=>{e.stopPropagation();toggleDelete(t);};}
+      else{b[1].onclick=e=>{e.stopPropagation();toggleDelete(t);};}
+      r.appendChild(ed);
+      r.onclick=()=>openEditDialog(t);
+    } else if(t.playable!==false){
+      r.onclick=()=>{QUEUE=list.filter(x=>x.playable!==false);playAt(QUEUE.indexOf(t));};
+    }
     frag.appendChild(r);
   });
   wrap.appendChild(frag);
@@ -1137,7 +1230,13 @@ audio.addEventListener('timeupdate',()=>{
 });
 
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){if($('#settingsModal').classList.contains('open'))closeSettings();else if($('#npView').classList.contains('open'))closeNP();return;}
+  if(e.key==='Escape'){
+    if($('#editModal').classList.contains('open'))return closeEdit();
+    if($('#reviewModal').classList.contains('open'))return closeModal('reviewModal');
+    if($('#settingsModal').classList.contains('open'))return closeSettings();
+    if($('#npView').classList.contains('open'))return closeNP();
+    return;
+  }
   if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
   if(e.code==='Space'){e.preventDefault();togglePlay();}
   else if(e.code==='ArrowRight')next();
@@ -1258,10 +1357,22 @@ function avgColor(url){return new Promise(res=>{const im=new Image();
   im.onload=()=>{try{const c=document.createElement('canvas');c.width=c.height=1;const x=c.getContext('2d');
     x.drawImage(im,0,0,1,1);const d=x.getImageData(0,0,1,1).data;res([d[0],d[1],d[2]]);}catch(e){res(null);}};
   im.onerror=()=>res(null);im.src=url;});}
-function setNpBg(rgb,seed){const bg=document.querySelector('.npbg');if(!bg)return;
-  if(rgb){const[r,g,b]=rgb,dk=(f)=>Math.round(f*0.32);
-    bg.style.background='radial-gradient(120% 130% at 30% 0%,rgb('+r+','+g+','+b+') 0%,rgb('+dk(r)+','+dk(g)+','+dk(b)+') 52%,#09090b 100%)';}
-  else bg.style.background=gradient(seed);}
+function boostColor(rgb){
+  let[r,g,b]=rgb.map(v=>v/255);
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0,s=0,l=(mx+mn)/2;
+  if(d){s=l>0.5?d/(2-mx-mn):d/(mx+mn);
+    h=mx===r?((g-b)/d+(g<b?6:0)):mx===g?((b-r)/d+2):((r-g)/d+4);h/=6;}
+  // push toward a rich, visible tint even when the artwork is dark or desaturated
+  s=Math.min(1,Math.max(s,0.55)); l=Math.min(0.56,Math.max(l,0.40));
+  return {h:Math.round(h*360),s:Math.round(s*100),l:Math.round(l*100)};
+}
+function setNpBg(rgb,seed){
+  const c=rgb?boostColor(rgb):null;
+  const bg=c?`radial-gradient(135% 130% at 28% -12%,hsl(${c.h} ${c.s}% ${c.l}%) 0%,hsl(${c.h} ${Math.round(c.s*0.7)}% 14%) 52%,#08080a 100%)`
+            :gradient(seed);
+  const el=document.querySelector('.npbg'); if(el)el.style.background=bg;
+  const view=document.getElementById('npView'); if(view)view.style.background=bg; // paints in fullscreen too
+}
 function updateNP(t){
   if(!t){$('#npTtl').textContent='Not playing';$('#npArtst').textContent='';$('#npBadges').innerHTML='';renderStats(null);return;}
   $('#npTtl').textContent=t.title||'(untitled)';
@@ -1317,7 +1428,10 @@ function toggleFullscreen(){
   else if(el.requestFullscreen){if(!$('#npView').classList.contains('open'))openNP();el.requestFullscreen().catch(()=>{});}
 }
 document.addEventListener('fullscreenchange',()=>{
-  const on=!!document.fullscreenElement,ico=$('#npFullIco');if(!ico)return;
+  const on=!!document.fullscreenElement;
+  // when leaving fullscreen, move the settings modal back to <body> so it isn't stranded inside #npView
+  if(!on){const m=$('#settingsModal');if(m&&m.parentElement!==document.body)document.body.appendChild(m);}
+  const ico=$('#npFullIco');if(!ico)return;
   ico.innerHTML=on?'<path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/>'
                   :'<path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>';
 });
@@ -1406,8 +1520,12 @@ $('#lyrBtn').onclick=toggleLyrics;
 /* =========================================================================
    5e) Settings + Equalizer sheet
    ========================================================================= */
-function openSettings(){buildSettings();$('#settingsModal').classList.add('open');}
-function closeSettings(){$('#settingsModal').classList.remove('open');}
+function openSettings(){buildSettings();const m=$('#settingsModal');
+  const host=document.fullscreenElement||document.body;   // fullscreen only renders the fullscreen element's subtree
+  if(m.parentElement!==host)host.appendChild(m);
+  m.classList.add('open');}
+function closeSettings(){const m=$('#settingsModal');m.classList.remove('open');
+  if(m.parentElement!==document.body)document.body.appendChild(m);}
 $('#settingsBtn').onclick=openSettings; $('#eqBtn').onclick=openSettings; $('#npEq').onclick=openSettings;
 $('#settingsClose').onclick=closeSettings;
 $('#settingsModal').addEventListener('click',e=>{if(e.target===$('#settingsModal'))closeSettings();});
@@ -1468,6 +1586,97 @@ function wireSettings(){
 }
 
 /* =========================================================================
+   5f) Edit interface — stages edits into a change-set, applied by the C# engine
+   ========================================================================= */
+let editMode=false, editingTrack=null, SERVER_EDITOR=false;
+const stagedEdits=new Map();      // trackId -> {title?,artist?,album?}
+const stagedDeletes=new Set();    // trackId
+const stagedPlAdds=[];            // {playlist,trackId}
+const stagedPlRemoves=[];         // {playlist,trackId}
+function pendingCount(){return stagedEdits.size+stagedDeletes.size+stagedPlAdds.length+stagedPlRemoves.length;}
+function clearStaged(){stagedEdits.clear();stagedDeletes.clear();stagedPlAdds.length=0;stagedPlRemoves.length=0;updateEditBar();}
+function updateEditBar(){const n=pendingCount();$('#editCount').textContent=n+' pending change'+(n===1?'':'s');$('#editbar').hidden=!(editMode&&n>0);}
+function toggleEdit(){editMode=!editMode;document.body.classList.toggle('editing',editMode);$('#editBtn').classList.toggle('on',editMode);updateEditBar();render();}
+function toggleDelete(t){if(stagedDeletes.has(t.id))stagedDeletes.delete(t.id);else stagedDeletes.add(t.id);updateEditBar();render();}
+function currentPlaylistName(){if(view.type!=='playlist')return null;const p=L.playlists.filter(p=>!p.isMaster&&p.trackIds.length&&p.name)[view.i];return p?p.name:null;}
+function stagePlaylistAdd(t,pl){if(!pl)return;if(!stagedPlAdds.some(x=>x.trackId===t.id&&x.playlist===pl))stagedPlAdds.push({playlist:pl,trackId:t.id});updateEditBar();}
+function stagePlaylistRemove(t){const pl=currentPlaylistName();if(!pl)return;if(!stagedPlRemoves.some(x=>x.trackId===t.id&&x.playlist===pl))stagedPlRemoves.push({playlist:pl,trackId:t.id});updateEditBar();toast('Staged: remove from “'+pl+'”');}
+function buildChangeSet(){const ops=[];
+  for(const [id,f] of stagedEdits)ops.push({op:'setTrackFields',trackId:id,fields:f});
+  for(const id of stagedDeletes)ops.push({op:'removeTrack',trackId:id});
+  for(const a of stagedPlAdds)ops.push({op:'addTrackToPlaylist',playlist:a.playlist,trackId:a.trackId});
+  for(const r of stagedPlRemoves)ops.push({op:'removeTrackFromPlaylist',playlist:r.playlist,trackId:r.trackId});
+  return {version:1,ops};}
+function openModal(id){$('#'+id).classList.add('open');}
+function closeModal(id){$('#'+id).classList.remove('open');}
+function closeEdit(){closeModal('editModal');}
+function openEditDialog(t){
+  editingTrack=t;const ov=stagedEdits.get(t.id)||{};
+  const plOpts=L.playlists.filter(p=>!p.isMaster&&p.name&&p.trackIds.length).map(p=>'<option>'+esc(p.name)+'</option>').join('');
+  $('#editDlgTitle').textContent='Edit “'+esc(t.title||'track')+'”';
+  $('#editDlgBody').innerHTML=
+    '<div class="field"><label>Title</label><input id="edTitle"></div>'+
+    '<div class="field"><label>Artist</label><input id="edArtist"></div>'+
+    '<div class="field"><label>Album</label><input id="edAlbum"></div>'+
+    (plOpts?'<div class="field"><label>Add to playlist</label><div style="display:flex;gap:8px"><select id="edPl" style="flex:1;max-width:none">'+plOpts+'</select><button class="btn2 ghost" id="edAddPl" style="flex:none;padding:9px 14px">Add</button></div></div>':'')+
+    '<div class="dlg-actions"><button class="btn2 danger" id="edDelete">'+(stagedDeletes.has(t.id)?'Undo delete':'Delete track')+'</button><button class="btn2 primary" id="edSave">Save</button></div>';
+  $('#edTitle').value=(ov.title!=null?ov.title:t.title)||'';
+  $('#edArtist').value=(ov.artist!=null?ov.artist:t.artist)||'';
+  $('#edAlbum').value=(ov.album!=null?ov.album:t.album)||'';
+  $('#edSave').onclick=saveEditDialog;
+  $('#edDelete').onclick=()=>{toggleDelete(t);closeEdit();};
+  const ab=$('#edAddPl');if(ab)ab.onclick=()=>{stagePlaylistAdd(t,$('#edPl').value);toast('Staged: add to “'+$('#edPl').value+'”');};
+  openModal('editModal');
+}
+function saveEditDialog(){
+  const t=editingTrack;if(!t)return;const f={};
+  const nt=$('#edTitle').value,na=$('#edArtist').value,nl=$('#edAlbum').value;
+  if(nt!==(t.title||''))f.title=nt;
+  if(na!==(t.artist||''))f.artist=na;
+  if(nl!==(t.album||''))f.album=nl;
+  if(Object.keys(f).length)stagedEdits.set(t.id,f);else stagedEdits.delete(t.id);
+  closeEdit();updateEditBar();render();
+}
+function opLabel(o){
+  if(o.op==='setTrackFields')return 'Edit tags of #'+o.trackId+' — '+Object.entries(o.fields).map(([k,v])=>k+': “'+v+'”').join(', ');
+  if(o.op==='removeTrack')return 'Delete track #'+o.trackId+' from the iPod';
+  if(o.op==='addTrackToPlaylist')return 'Add #'+o.trackId+' to playlist “'+o.playlist+'”';
+  if(o.op==='removeTrackFromPlaylist')return 'Remove #'+o.trackId+' from playlist “'+o.playlist+'”';
+  return o.op;}
+function openReview(){
+  const cs=buildChangeSet();
+  if(!cs.ops.length){toast('No changes to review.');return;}
+  $('#reviewBody').innerHTML=
+    '<div class="edit-banner">'+EDIT_ICO+'Applied by the verified ipodsync engine. “Check” dry-runs and verifies the edits; “Write” backs up the iPod’s database first, then writes.</div>'+
+    '<div class="revlist">'+cs.ops.map(o=>'<div class="revop">'+esc(opLabel(o))+'</div>').join('')+'</div>'+
+    '<div class="revout" id="revOut" hidden></div>'+
+    '<div class="dlg-actions"><button class="btn2 ghost" id="revDry">Check (dry run)</button><button class="btn2 primary" id="revWrite" disabled>Write to iPod</button></div>';
+  $('#revDry').onclick=()=>runApply(false);
+  $('#revWrite').onclick=()=>{if(confirm('Write these changes to the iPod now?\n\nA full backup of the database is made automatically first.'))runApply(true);};
+  if(!SERVER_EDITOR){const o=$('#revOut');o.hidden=false;o.textContent='Editing needs the helper server with the ipodsync engine built. Launch the app via “iPod Player.vbs”.';}
+  openModal('reviewModal');
+}
+async function runApply(commit){
+  const out=$('#revOut');out.hidden=false;
+  if(!SERVER_EDITOR){out.textContent='Editing needs the helper server + engine (launch via iPod Player.vbs).';return;}
+  out.textContent='Running…';
+  try{
+    const r=await fetch('/api/apply-edits'+(commit?'?commit=1':''),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(buildChangeSet())});
+    const j=await r.json();
+    out.textContent=(j.output||j.error||'(no output)').trim();
+    if(j.ok&&!commit)$('#revWrite').disabled=false;
+    if(j.ok&&commit){toast('Written to the iPod. Safely eject, then reconnect to see it.',4500);clearStaged();closeModal('reviewModal');if(editMode)toggleEdit();}
+  }catch(e){out.textContent='Error: '+e.message;}
+}
+$('#editBtn').onclick=toggleEdit;
+$('#editClose').onclick=closeEdit;
+$('#editModal').addEventListener('click',e=>{if(e.target===$('#editModal'))closeEdit();});
+$('#editDiscard').onclick=()=>{if(pendingCount()&&confirm('Discard all staged changes?')){clearStaged();render();}};
+$('#editReview').onclick=openReview;
+$('#reviewClose').onclick=()=>closeModal('reviewModal');
+$('#reviewModal').addEventListener('click',e=>{if(e.target===$('#reviewModal'))closeModal('reviewModal');});
+
+/* =========================================================================
    5b) Auto-connect when launched via the local helper server (Start iPod Player.cmd)
    ========================================================================= */
 async function tryAutoConnect(){
@@ -1479,6 +1688,7 @@ async function tryAutoConnect(){
   try{
     const src=await makeWifiSource(location.origin+'/ipod');
     src.label=info.label||'iPod'; src.sub='Auto-detected'; src.transcodeAlac=!!info.ffmpeg;
+    SERVER_EDITOR=!!info.editor;
     await connect(src);
     status('');
   }catch(e){status('Auto-detect failed: '+e.message+' — you can still use "Open a folder".','err');}

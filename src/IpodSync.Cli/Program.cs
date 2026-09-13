@@ -18,7 +18,8 @@ try
         case "addtrack-test":  return AddTrackTestCmd(args.Skip(1).ToArray());
         case "pl-inspect":     return PlInspectCmd(args.Skip(1).ToArray());
         case "pid-refs":       return PlaylistPidRefsCmd(args.Skip(1).ToArray());
-        case "itlp-preview":   return ItlpPreviewCmd(args.Skip(1).ToArray());
+        case "itlp-sync":      return ItlpSyncCmd(args.Skip(1).ToArray());
+        case "itlp-diff":      return ItlpDiffCmd(args.Skip(1).ToArray());
         case "apply-edits":    return ApplyEditsCmd(args.Skip(1).ToArray());
         default:
             Console.Error.WriteLine($"Unknown command '{cmd}'.");
@@ -50,12 +51,20 @@ static void Usage()
           resize-test [path]  remove a track, add an existing track to a playlist, and rename a
                               track -- three edits that change a chunk's byte length, unlike
                               mutate-test. Read-only, entirely in memory.
-          apply-edits [path] --changes <file.json> [--yes]
+          itlp-diff <root|itunes-dir> [--all]
+                              compare iTunesCDB against the SQLite bundle (iTunes Library.itlp).
+                              Read-only.
+          itlp-sync <root> [--yes]
+                              bring the SQLite bundle's playlists into line with the CDB.
+                              Dry run by default (works on a staged copy); --yes backs up,
+                              writes, re-verifies from the device, restores on failure.
+          apply-edits [path] --changes <file.json> [--yes] [--backup-root dir]
                               apply a JSON change-set (see EDIT-PROTOCOL.md) from the iPod Player.
                               Default is a DRY RUN: applies in memory, runs the reader re-parse
                               and idempotent-write checks, prints what would change, writes NOTHING.
                               --yes performs the real device write -- but only if every check
-                              passed, and it backs up iPod_Control/iTunes/ first.
+                              passed, and it backs up iPod_Control/iTunes/ first. Mirrors every
+                              edit into the SQLite bundle in the same operation.
         """);
 }
 
@@ -417,18 +426,56 @@ static int PlaylistPidRefsCmd(string[] rest)
     return 0;
 }
 
-static int ItlpPreviewCmd(string[] rest)
+static int ItlpSyncCmd(string[] rest)
 {
-    string? path = rest.ElementAtOrDefault(0);
-    if (path is null) { Console.Error.WriteLine("usage: itlp-preview <ipod-root>"); return 2; }
-    var device = IpodDevice.Open(path);
-    string library = Path.Combine(device.RootPath, "iPod_Control", "iTunes", "iTunes Library.itlp", "Library.itdb");
-    if (!File.Exists(library)) { Console.Error.WriteLine($"No Library.itdb at {library}"); return 1; }
-    var cdb = ItunesDbReader.Read(File.ReadAllBytes(device.ItunesDbPath));
-    var result = ItlpPlaylistSync.Preview(library, cdb);
-    Console.WriteLine($"SQLite playlist preview: created {result.Created}, updated {result.Updated}, memberships {result.Memberships}");
-    foreach (var problem in result.Problems) Console.WriteLine("  - " + problem);
-    return result.Ok ? 0 : 1;
+    string? path = null, backupRoot = null;
+    bool commit = false;
+    for (int i = 0; i < rest.Length; i++)
+    {
+        if (rest[i] == "--yes") commit = true;
+        else if (rest[i] == "--backup-root" && i + 1 < rest.Length) backupRoot = rest[++i];
+        else path ??= rest[i];
+    }
+    if (path is null) { Console.Error.WriteLine("usage: itlp-sync <ipod-root> [--yes] [--backup-root dir]"); return 2; }
+    return WritePipeline.Run(new WritePipeline.Options
+    {
+        Root = path, Commit = commit, Label = "itlpsync",
+        BackupRoot = backupRoot ?? Path.Combine(Directory.GetCurrentDirectory(), "ipod-backups"),
+    });
+}
+
+// Resolves an iPod root, or an iTunes directory (e.g. a backup copy holding
+// iTunesCDB + "iTunes Library.itlp"), to its CDB file and itlp directory.
+static (string Cdb, string Itlp) ResolveItunesDir(string path)
+{
+    string itunesDir = Directory.Exists(Path.Combine(path, "iPod_Control"))
+        ? Path.GetDirectoryName(IpodDevice.Open(path).ItunesDbPath)!
+        : path;
+    string cdb = File.Exists(Path.Combine(itunesDir, "iTunesDB"))
+        ? Path.Combine(itunesDir, "iTunesDB")
+        : Path.Combine(itunesDir, "iTunesCDB");
+    return (cdb, Path.Combine(itunesDir, "iTunes Library.itlp"));
+}
+
+static int ItlpDiffCmd(string[] rest)
+{
+    string? path = rest.FirstOrDefault(a => !a.StartsWith("--"));
+    bool verbose = rest.Contains("--all");
+    if (path is null) { Console.Error.WriteLine("usage: itlp-diff <ipod-root | itunes-dir> [--all]"); return 2; }
+    var (cdbPath, itlp) = ResolveItunesDir(path);
+    var cdb = ItunesDbReader.Read(File.ReadAllBytes(cdbPath));
+    var diff = ItlpCompare.Compare(itlp, cdb);
+    Console.WriteLine($"CDB     {cdbPath}  ({cdb.Tracks.Count} tracks, {cdb.Playlists.Count} playlists incl. master/smart)");
+    Console.WriteLine($"SQLite  {itlp}");
+    foreach (var (section, lines) in diff.Sections())
+    {
+        Console.WriteLine($"{section,-44} {lines.Count}");
+        foreach (var l in verbose ? lines : lines.Take(15)) Console.WriteLine("    " + l);
+        if (!verbose && lines.Count > 15) Console.WriteLine($"    ... {lines.Count - 15} more (--all)");
+    }
+    foreach (var n in diff.Notes) Console.WriteLine("note: " + n);
+    Console.WriteLine(diff.InSync ? "IN SYNC" : $"OUT OF SYNC (playlists {(diff.PlaylistsInSync ? "in sync" : "differ")}, tracks {(diff.TracksInSync ? "in sync" : "differ")})");
+    return diff.InSync ? 0 : 3;
 }
 
 static int AddTrackTestCmd(string[] rest)
@@ -456,12 +503,13 @@ static int AddTrackTestCmd(string[] rest)
 
 static int ApplyEditsCmd(string[] rest)
 {
-    string? path = null, changesPath = null;
+    string? path = null, changesPath = null, backupRoot = null;
     bool commit = false;
     for (int i = 0; i < rest.Length; i++)
     {
         string a = rest[i];
         if (a == "--changes" && i + 1 < rest.Length) changesPath = rest[++i];
+        else if (a == "--backup-root" && i + 1 < rest.Length) backupRoot = rest[++i];
         else if (a is "--yes" or "--commit") commit = true;
         else if (a == "--dry-run") commit = false;
         else path ??= a;
@@ -495,66 +543,12 @@ static int ApplyEditsCmd(string[] rest)
 
     if (cs?.Ops is null || cs.Ops.Count == 0) { Console.Error.WriteLine("change-set has no ops."); return 1; }
 
-    byte[] bytes = File.ReadAllBytes(dbPath);
-    var report = EditApplier.Apply(bytes, cs);
-
-    Console.WriteLine();
-    Console.WriteLine($"file                {dbPath}");
-    Console.WriteLine($"format              {(report.WasCompressed ? "iTunesCDB (zlib-compressed)" : "iTunesDB (plain)")}");
-    Console.WriteLine($"tracks              {report.TracksBefore} -> {report.TracksAfter}");
-    Console.WriteLine($"playlists           {report.PlaylistsBefore} -> {report.PlaylistsAfter}");
-    Console.WriteLine();
-    Console.WriteLine("OPERATIONS");
-    foreach (var o in report.Ops)
-        Console.WriteLine($"  [{(o.Ok ? "ok" : "FAIL")}] {o.Op}: {o.Detail}");
-    Console.WriteLine();
-    Console.WriteLine($"reader re-parse     {(report.Parseable ? "PASS" : "FAIL")}");
-    Console.WriteLine($"idempotent write    {(report.Idempotent ? "PASS" : "FAIL")}");
-    foreach (var p in report.Problems) Console.WriteLine($"  - {p}");
-    if (report.FileCopies.Count > 0)
+    return WritePipeline.Run(new WritePipeline.Options
     {
-        Console.WriteLine();
-        Console.WriteLine($"new files           {report.FileCopies.Count} to copy onto the device:");
-        foreach (var fc in report.FileCopies) Console.WriteLine($"  + {fc.DestRel}");
-    }
-    Console.WriteLine();
-
-    if (!commit)
-    {
-        Console.WriteLine(report.AllOk
-            ? "DRY RUN: all checks passed. Nothing written. Re-run with --yes to write to the device."
-            : "DRY RUN: checks did NOT all pass. Nothing written (and --yes would refuse).");
-        return report.AllOk ? 0 : 1;
-    }
-
-    if (!report.AllOk) { Console.Error.WriteLine("refusing to write: not all checks passed."); return 1; }
-
-    // Back up iPod_Control/iTunes/ before the real write (non-negotiable, per HANDOFF.md).
-    string itunesDir = Path.GetDirectoryName(dbPath)!;
-    string backupDir = Path.Combine(Directory.GetCurrentDirectory(), "ipod-backups",
-        $"applyedits-{DateTime.Now:yyyyMMdd-HHmmss}", "iTunes");
-    CopyDir(itunesDir, backupDir);
-    Console.WriteLine($"backed up           {itunesDir}  ->  {backupDir}");
-
-    File.WriteAllBytes(dbPath, report.ModifiedOnDisk);
-    Console.WriteLine($"WROTE               {report.ModifiedOnDisk.Length:N0} bytes to {dbPath}");
-
-    // Copy any new audio files onto the device (destRel is relative to the drive root:
-    // iTunes/ -> iPod_Control/ -> <root>).
-    if (report.FileCopies.Count > 0)
-    {
-        string deviceRoot = Path.GetDirectoryName(Path.GetDirectoryName(itunesDir))!;
-        foreach (var (srcF, destRel) in report.FileCopies)
-        {
-            string dest = Path.Combine(deviceRoot, destRel.Replace('/', Path.DirectorySeparatorChar));
-            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-            File.Copy(srcF, dest, overwrite: false);
-            Console.WriteLine($"copied file         {destRel}");
-        }
-    }
-    Console.WriteLine();
-    Console.WriteLine("Done. Safely eject the iPod, then confirm the device itself still shows the library.");
-    return 0;
+        Root = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(dbPath)))!,
+        Changes = cs, Commit = commit, Label = "applyedits",
+        BackupRoot = backupRoot ?? Path.Combine(Directory.GetCurrentDirectory(), "ipod-backups"),
+    });
 }
 
 static void CopyDir(string src, string dst)

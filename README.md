@@ -33,6 +33,28 @@ Also wired up: local-folder library scanning with real tag reads
 sync preview, and Jellyfin playlist sync (`IpodSync.Core/Jellyfin/`, a
 server-API-key client that only ever adds to Jellyfin, never deletes).
 
+## iPod Player
+
+[`ipod-player/`](ipod-player/) is a zero-install, single-file browser player —
+the lightweight **read-and-play** companion to the sync engine above. Double-click
+`iPod Player.vbs`, a borderless app window opens with the iPod already loaded, and
+a helper PowerShell server runs hidden. It has its own standalone JavaScript
+`iTunesDB`/`iTunesCDB` parser (same format findings as below, validated by an
+in-file `?selftest`), decodes real `.ithmb` album art, and plays AAC/MP3 plus
+**Apple Lossless transcoded to FLAC on the fly**.
+
+Its player UI is a full-screen, YouTube-Music-style "Now Playing" with artwork-
+derived colour, a live spectrum visualizer, an up-next queue, **time-synced
+lyrics** (from [lrclib.net](https://lrclib.net), no API key), a **10-band
+equalizer** with the classic iPod presets, Sound Check, a sleep timer and a
+volume limit. See [`ipod-player/README.md`](ipod-player/README.md).
+
+**It is read-only today.** Editing an iPod's contents in the player is intended
+to go through this project's *verified* database writer rather than a second,
+unproven writer in JavaScript — the same safety gate applies (see
+[HANDOFF.md](HANDOFF.md)): nothing writes to a real device until a modified
+database round-trips byte-identically, a backup is taken, and the user is asked.
+
 ## Status
 
 Reading works, verified against two real devices. The writer's round-trip

@@ -125,3 +125,20 @@ tables, generated rather than copied, and compared equal to libgpod's in all
   zeroed **reproduces the original iTunes hash58 exactly**
   (`322B2633BB46E313…`). hash72 is computed with hash58 zeroed, hash58 with
   hash72 in place → sign hash72 first, hash58 last.
+- Wired into the write pipeline (`DeviceSigning`): every CDB write is signed
+  (hash72 then hash58; a check proves only the 66 signature bytes differ),
+  `Locations.itdb.cbk` is rebuilt whenever `Locations.itdb` changes, and the
+  device must pass signature validation after the write or it is restored. Key
+  material is discovered, never stored: hash72 pair from the device's valid
+  cbk; FirewireGuid candidates from the Windows USB registry, accepted only if
+  one reproduces the hash58 of the device CDB or of an iTunes-written backup
+  with the same library id. Without proof, writes to a signed database are
+  refused (`--allow-unsigned` to override). Tested on the fake root incl. a
+  fault-injected restore.
+
+**LIVE WRITE #6 — 00:43 — `itlp-sync D:/ --resign --yes`** (fix stale CDB signatures)
+- Pre-write backup: `C:\IPODAPP\ipodsync\ipod-backups\itlpsync-20260914-004335`
+- Only the CDB header's hash58 (0x58–0x6B) and hash72 body (0x74–0x9F) changed.
+  Device verify all PASS; `hash72-verify D:/` → CDB hash72 valid, cbk valid;
+  `hash58-verify` → MATCH. The device's databases now carry the signatures
+  iTunes would have written for this content.

@@ -1,13 +1,14 @@
 using IpodSync.Core.Device;
 using IpodSync.Core.ItunesDb;
 using IpodSync.Core.Itlp;
+using IpodSync.Core.Signing;
 
 /// <summary>
 /// The one write path for both databases. Dry run by default; with commit=true it
 /// follows HANDOFF.md's rules exactly: prove everything off-device (CDB in memory,
-/// SQLite on a staged copy), back up and verify the backup, write, read back, then
-/// re-verify the device from scratch — and restore from the backup if anything
-/// about the result is not as proven.
+/// SQLite on a staged copy, signatures regenerated and re-validated), back up and
+/// verify the backup, write, read back, then re-verify the device from scratch —
+/// and restore from the backup if anything about the result is not as proven.
 /// </summary>
 static class WritePipeline
 {
@@ -18,6 +19,11 @@ static class WritePipeline
         public bool Commit { get; init; }
         public string BackupRoot { get; init; } = Path.Combine(Directory.GetCurrentDirectory(), "ipod-backups");
         public string Label { get; init; } = "applyedits";
+        /// <summary>Re-sign the current CDB even when no edit changes it.</summary>
+        public bool ResignCdb { get; init; }
+        public bool AllowUnsigned { get; init; }
+        public IReadOnlyList<string> FirewireCandidates { get; init; } = [];
+        public IReadOnlyList<string> SigningReferences { get; init; } = [];
     }
 
     public static int Run(Options o)
@@ -56,7 +62,44 @@ static class WritePipeline
             if (!report.AllOk) ok = false;
             else after = ItunesDbReader.Read(report.ModifiedInflated);
         }
-        else Say($"CDB         {cdbPath} (unchanged; SQLite reconcile only)");
+        else Say($"CDB         {cdbPath} (content unchanged)");
+
+        // ---------------------------------------------------------------- 1b. signatures
+        DeviceSigning? signer = null;
+        if (DeviceSigning.RequiresSigning(originalCdb))
+        {
+            var problems = new List<string>();
+            signer = DeviceSigning.Resolve(itunesDir, cdbName, o.FirewireCandidates, o.SigningReferences, problems);
+            if (signer is null)
+            {
+                foreach (var p in problems) Say($"  SIGNING: {p}");
+                if (o.AllowUnsigned) Say("signing     UNAVAILABLE -- continuing unsigned because --allow-unsigned was given");
+                else { Say("signing     UNAVAILABLE -- refusing (pass --firewire-guid / --signing-reference, or --allow-unsigned)"); ok = false; }
+            }
+            else
+            {
+                Say("signing     device key material proven:");
+                foreach (var e in signer.Evidence) Say($"  - {e}");
+                var current = signer.VerifyDatabase(originalCdb);
+                Say($"current CDB signatures {(current.Count == 0 ? "valid" : "STALE (" + string.Join("; ", current) + ")")}");
+            }
+        }
+
+        byte[]? cdbToWrite = report?.ModifiedOnDisk ?? (o.ResignCdb ? originalCdb : null);
+        if (ok && cdbToWrite is not null && signer is not null)
+        {
+            byte[] unsigned = cdbToWrite;
+            byte[] signedCdb = signer.SignDatabase(unsigned);
+            var sigProblems = signer.VerifyDatabase(signedCdb);
+            // Signing may only change the two signature fields.
+            bool onlySigBytes = signedCdb.Length == unsigned.Length && Enumerable.Range(0, signedCdb.Length)
+                .All(i => signedCdb[i] == unsigned[i] || (i >= 0x58 && i < 0x6C) || (i >= 0x72 && i < 0xA0));
+            Say($"CDB signed          {(sigProblems.Count == 0 && onlySigBytes ? "PASS" : "FAIL")} (hash72 + hash58 regenerated; only signature bytes differ: {onlySigBytes})");
+            foreach (var p in sigProblems) Say($"  - {p}");
+            ok &= sigProblems.Count == 0 && onlySigBytes;
+            cdbToWrite = signedCdb;
+        }
+        if (cdbToWrite is not null && cdbToWrite.AsSpan().SequenceEqual(originalCdb)) cdbToWrite = null;
 
         // ---------------------------------------------------------------- 2. SQLite, on a staged copy
         string? staged = null;
@@ -66,8 +109,7 @@ static class WritePipeline
         else if (ok)
         {
             var diffBefore = ItlpCompare.Compare(itlpDir, before);
-            string stagingRoot = Path.Combine(Path.GetTempPath(), "ipodsync-stage");
-            staged = ItlpSync.Stage(itlpDir, stagingRoot);
+            staged = ItlpSync.Stage(itlpDir, Path.Combine(Path.GetTempPath(), "ipodsync-stage"));
             foreach (var f in ItlpSync.BundleFiles)
                 if (File.Exists(Path.Combine(itlpDir, f))) deviceBundleSha[f] = DeviceWriteTransaction.Sha1(Path.Combine(itlpDir, f));
 
@@ -83,6 +125,21 @@ static class WritePipeline
             foreach (var c in checks.Lines) Say(c);
             ok &= checks.Ok;
 
+            // Locations.itdb is covered by the hash72-signed cbk: rebuild it if it changed.
+            string stagedLoc = Path.Combine(staged, "Locations.itdb");
+            if (File.Exists(stagedLoc) && deviceBundleSha.TryGetValue("Locations.itdb", out var locSha) && DeviceWriteTransaction.Sha1(stagedLoc) != locSha)
+            {
+                if (signer is null) { Say("Locations.itdb changed but no signing key is available to rebuild Locations.itdb.cbk -- refusing"); ok = false; }
+                else
+                {
+                    byte[] cbk = signer.BuildCbk(File.ReadAllBytes(stagedLoc));
+                    File.WriteAllBytes(Path.Combine(staged, "Locations.itdb.cbk"), cbk);
+                    var cbkProblems = Hash72.VerifyCbk(File.ReadAllBytes(stagedLoc), cbk).Problems;
+                    Say($"cbk rebuilt         {(cbkProblems.Count == 0 ? "PASS" : "FAIL")} ({cbk.Length} bytes)");
+                    ok &= cbkProblems.Count == 0;
+                }
+            }
+
             foreach (var f in ItlpSync.BundleFiles)
             {
                 string s = Path.Combine(staged, f);
@@ -91,8 +148,8 @@ static class WritePipeline
             }
             Say($"bundle files that will change: {(changedBundleFiles.Count == 0 ? "none" : string.Join(", ", changedBundleFiles))}");
         }
+        Say($"CDB will change     {(cdbToWrite is null ? "no" : "yes")}");
 
-        bool cdbChanges = report is not null;
         if (!o.Commit)
         {
             Say(ok ? "DRY RUN: all checks passed. Nothing written. Re-run with --yes to write to the device."
@@ -100,10 +157,9 @@ static class WritePipeline
             return ok ? 0 : 1;
         }
         if (!ok) { Say("refusing to write: not all checks passed."); return 1; }
-        if (!cdbChanges && changedBundleFiles.Count == 0) { Say("nothing to write."); return 0; }
+        if (cdbToWrite is null && changedBundleFiles.Count == 0 && (report?.FileCopies.Count ?? 0) == 0) { Say("nothing to write."); return 0; }
 
         // ---------------------------------------------------------------- 3. write
-        // Guard against the device having changed since we read it.
         if (DeviceWriteTransaction.Sha1(cdbPath) != originalCdbSha ||
             deviceBundleSha.Any(kv => DeviceWriteTransaction.Sha1(Path.Combine(itlpDir, kv.Key)) != kv.Value))
         {
@@ -113,18 +169,19 @@ static class WritePipeline
 
         var tx = DeviceWriteTransaction.Begin(itunesDir, o.BackupRoot, o.Label);
         Say(tx.Log[^1]);
-        bool restoreNeeded = false;
+        bool restoreNeeded;
         try
         {
-            if (cdbChanges) tx.WriteDatabaseFile(cdbName, report!.ModifiedOnDisk);
-            foreach (var f in changedBundleFiles)
-                tx.WriteDatabaseFile(Path.Combine("iTunes Library.itlp", f), File.ReadAllBytes(Path.Combine(staged!, f)));
+            // Audio first (harmless if orphaned), then the SQLite bundle, then the CDB.
             foreach (var (src, destRel) in report?.FileCopies ?? [])
                 tx.CopyAudioFile(src, Path.Combine(deviceRoot, destRel.Replace('/', Path.DirectorySeparatorChar)));
+            foreach (var f in changedBundleFiles)
+                tx.WriteDatabaseFile(Path.Combine("iTunes Library.itlp", f), File.ReadAllBytes(Path.Combine(staged!, f)));
+            if (cdbToWrite is not null) tx.WriteDatabaseFile(cdbName, cdbToWrite);
             foreach (var l in tx.Log.Skip(1)) Say(l);
 
             // ------------------------------------------------------------ 4. verify from the device
-            var post = VerifyDevice(itunesDir, cdbName, report, staged, changedBundleFiles, after, deviceRoot);
+            var post = VerifyDevice(itunesDir, cdbName, cdbToWrite, staged, changedBundleFiles, after, deviceRoot, signer);
             foreach (var l in post.Lines) Say(l);
             restoreNeeded = !post.Ok;
             // Test hook: proves the restore path end to end on a fake device root.
@@ -182,7 +239,7 @@ static class WritePipeline
         foreach (var (section, l) in diffAfter.Sections().Skip(3)) foreach (var x in l) lines.Add($"  - {section}: {x}");
         ok &= diffAfter.PlaylistsInSync;
 
-        // Track mirror: a write may never add divergence between the databases.
+        // A write may never add divergence between the databases.
         var newDivergence = TrackLines(diffAfter).Except(TrackLines(diffBefore)).ToList();
         lines.Add($"no new track divergence {(newDivergence.Count == 0 ? "PASS" : "FAIL")} (tracks {(diffAfter.TracksInSync ? "fully in sync" : $"still differ in {TrackLines(diffAfter).Count()} pre-existing place(s)")})");
         foreach (var x in newDivergence) lines.Add("  - " + x);
@@ -193,8 +250,8 @@ static class WritePipeline
     private static IEnumerable<string> TrackLines(ItlpCompare.Diff d) =>
         d.TracksOnlyInCdb.Concat(d.ItemsOnlyInSqlite).Concat(d.TrackFieldMismatches);
 
-    private static Checks VerifyDevice(string itunesDir, string cdbName, ApplyReport? report, string? staged,
-        List<string> changedBundleFiles, ItunesDatabase expected, string deviceRoot)
+    private static Checks VerifyDevice(string itunesDir, string cdbName, byte[]? cdbWritten, string? staged,
+        List<string> changedBundleFiles, ItunesDatabase expected, string deviceRoot, DeviceSigning? signer)
     {
         var lines = new List<string>();
         bool ok = true;
@@ -204,14 +261,19 @@ static class WritePipeline
             ok &= pass;
         }
 
-        // CDB: exact bytes, parses, identity round-trip, same counts as proven in memory.
+        // CDB: exact bytes, parses, identity round-trip, signatures, same counts as proven in memory.
         byte[] cdb = File.ReadAllBytes(Path.Combine(itunesDir, cdbName));
-        if (report is not null) Check("CDB bytes", cdb.AsSpan().SequenceEqual(report.ModifiedOnDisk));
+        if (cdbWritten is not null) Check("CDB bytes", cdb.AsSpan().SequenceEqual(cdbWritten));
         ItunesDatabase? reread = null;
         try { reread = ItunesDbReader.Read(cdb); Check("CDB re-read", true, $"{reread.Tracks.Count} tracks, {reread.Playlists.Count} playlists"); }
         catch (Exception ex) { Check("CDB re-read", false, ex.Message); }
         var rt = RoundTrip.Run(cdb);
         Check("CDB round-trip", rt.StructureMatches && rt.CompressionRoundTripOk != false, "byte-identical");
+        if (signer is not null && cdbWritten is not null)
+        {
+            var sig = signer.VerifyDatabase(cdb);
+            Check("CDB signatures", sig.Count == 0, sig.Count == 0 ? "hash72 + hash58 valid" : string.Join("; ", sig));
+        }
         if (reread is not null)
         {
             Check("track count", reread.Tracks.Count == expected.Tracks.Count, $"{reread.Tracks.Count} (expected {expected.Tracks.Count})");
@@ -229,6 +291,12 @@ static class WritePipeline
             string readBack = ItlpSync.Stage(itlp, Path.Combine(Path.GetTempPath(), "ipodsync-verify"));
             var integrity = ItlpSync.IntegrityCheck(readBack);
             Check("sqlite integrity", integrity.Count == 0, string.Join("; ", integrity));
+            string loc = Path.Combine(readBack, "Locations.itdb"), cbk = loc + ".cbk";
+            if (File.Exists(loc) && File.Exists(cbk))
+            {
+                var cbkProblems = Hash72.VerifyCbk(File.ReadAllBytes(loc), File.ReadAllBytes(cbk)).Problems;
+                Check("Locations cbk valid", cbkProblems.Count == 0, string.Join("; ", cbkProblems));
+            }
             if (reread is not null)
             {
                 var diff = ItlpCompare.Compare(readBack, reread);

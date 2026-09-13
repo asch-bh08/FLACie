@@ -56,10 +56,15 @@ static void Usage()
           itlp-diff <root|itunes-dir> [--all]
                               compare iTunesCDB against the SQLite bundle (iTunes Library.itlp).
                               Read-only.
-          itlp-sync <root> [--yes]
+          itlp-sync <root> [--yes] [--resign]
                               bring the SQLite bundle's playlists into line with the CDB.
                               Dry run by default (works on a staged copy); --yes backs up,
                               writes, re-verifies from the device, restores on failure.
+                              --resign re-signs the CDB (hash72 + hash58) even if unchanged.
+          hash72-verify / hash58-verify   read-only signature checks (see OVERNIGHT-STATUS.md)
+        Writes to signed databases (nano 5G) are signed automatically once the device's key
+        material is proven against an existing iTunes signature; --firewire-guid,
+        --signing-reference and --allow-unsigned override discovery.
           apply-edits [path] --changes <file.json> [--yes] [--backup-root dir]
                               apply a JSON change-set (see EDIT-PROTOCOL.md) from the iPod Player.
                               Default is a DRY RUN: applies in memory, runs the reader re-parse
@@ -430,20 +435,38 @@ static int PlaylistPidRefsCmd(string[] rest)
 
 static int ItlpSyncCmd(string[] rest)
 {
-    string? path = null, backupRoot = null;
-    bool commit = false;
-    for (int i = 0; i < rest.Length; i++)
+    string? path = rest.FirstOrDefault(a => !a.StartsWith("--") && !IsOptionValue(rest, a));
+    if (path is null) { Console.Error.WriteLine("usage: itlp-sync <ipod-root> [--yes] [--resign] [--backup-root dir] [--firewire-guid hex] [--signing-reference file] [--allow-unsigned]"); return 2; }
+    return WritePipeline.Run(PipelineOptions(path, rest, null, "itlpsync"));
+}
+
+static bool IsOptionValue(string[] rest, string a)
+{
+    int i = Array.IndexOf(rest, a);
+    return i > 0 && rest[i - 1] is "--backup-root" or "--firewire-guid" or "--signing-reference" or "--changes";
+}
+
+static WritePipeline.Options PipelineOptions(string root, string[] rest, ChangeSet? changes, string label)
+{
+    string? backupRoot = null;
+    var fw = new List<string>();
+    var refs = new List<string>();
+    for (int i = 0; i < rest.Length - 1; i++)
     {
-        if (rest[i] == "--yes") commit = true;
-        else if (rest[i] == "--backup-root" && i + 1 < rest.Length) backupRoot = rest[++i];
-        else path ??= rest[i];
+        if (rest[i] == "--backup-root") backupRoot = rest[i + 1];
+        else if (rest[i] == "--firewire-guid") fw.Add(rest[i + 1]);
+        else if (rest[i] == "--signing-reference") refs.Add(rest[i + 1]);
     }
-    if (path is null) { Console.Error.WriteLine("usage: itlp-sync <ipod-root> [--yes] [--backup-root dir]"); return 2; }
-    return WritePipeline.Run(new WritePipeline.Options
+    backupRoot ??= Path.Combine(Directory.GetCurrentDirectory(), "ipod-backups");
+    return new WritePipeline.Options
     {
-        Root = path, Commit = commit, Label = "itlpsync",
-        BackupRoot = backupRoot ?? Path.Combine(Directory.GetCurrentDirectory(), "ipod-backups"),
-    });
+        Root = root, Changes = changes, Label = label, BackupRoot = backupRoot,
+        Commit = rest.Contains("--yes") || rest.Contains("--commit"),
+        ResignCdb = rest.Contains("--resign"),
+        AllowUnsigned = rest.Contains("--allow-unsigned"),
+        FirewireCandidates = SigningInputs.FirewireCandidates(fw),
+        SigningReferences = SigningInputs.References(backupRoot, refs),
+    };
 }
 
 // Resolves an iPod root, or an iTunes directory (e.g. a backup copy holding
@@ -572,21 +595,12 @@ static int AddTrackTestCmd(string[] rest)
 
 static int ApplyEditsCmd(string[] rest)
 {
-    string? path = null, changesPath = null, backupRoot = null;
-    bool commit = false;
-    for (int i = 0; i < rest.Length; i++)
-    {
-        string a = rest[i];
-        if (a == "--changes" && i + 1 < rest.Length) changesPath = rest[++i];
-        else if (a == "--backup-root" && i + 1 < rest.Length) backupRoot = rest[++i];
-        else if (a is "--yes" or "--commit") commit = true;
-        else if (a == "--dry-run") commit = false;
-        else path ??= a;
-    }
+    string? changesPath = null;
+    for (int i = 0; i < rest.Length - 1; i++) if (rest[i] == "--changes") changesPath = rest[i + 1];
+    string? path = rest.FirstOrDefault(a => !a.StartsWith("--") && !IsOptionValue(rest, a));
 
     if (changesPath is null) { Console.Error.WriteLine("apply-edits needs --changes <file.json>"); return 2; }
     if (!File.Exists(changesPath)) { Console.Error.WriteLine($"change-set not found: {changesPath}"); return 1; }
-
     if (path is null)
     {
         var devices = IpodDevice.Detect();
@@ -594,9 +608,6 @@ static int ApplyEditsCmd(string[] rest)
         path = devices[0].RootPath;
         Console.WriteLine($"Using {path}");
     }
-
-    string dbPath = Directory.Exists(path) ? IpodDevice.Open(path).ItunesDbPath : path;
-    if (!File.Exists(dbPath)) { Console.Error.WriteLine($"No iTunesDB at {dbPath}"); return 1; }
 
     ChangeSet? cs;
     try
@@ -609,15 +620,9 @@ static int ApplyEditsCmd(string[] rest)
         });
     }
     catch (JsonException ex) { Console.Error.WriteLine($"invalid change-set JSON: {ex.Message}"); return 1; }
-
     if (cs?.Ops is null || cs.Ops.Count == 0) { Console.Error.WriteLine("change-set has no ops."); return 1; }
 
-    return WritePipeline.Run(new WritePipeline.Options
-    {
-        Root = Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(dbPath)))!,
-        Changes = cs, Commit = commit, Label = "applyedits",
-        BackupRoot = backupRoot ?? Path.Combine(Directory.GetCurrentDirectory(), "ipod-backups"),
-    });
+    return WritePipeline.Run(PipelineOptions(path, rest, cs, "applyedits"));
 }
 
 static void CopyDir(string src, string dst)

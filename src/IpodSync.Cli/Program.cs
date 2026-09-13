@@ -22,6 +22,7 @@ try
         case "itlp-diff":      return ItlpDiffCmd(args.Skip(1).ToArray());
         case "hash72-verify":  return Hash72VerifyCmd(args.Skip(1).ToArray());
         case "hash58-verify":  return Hash58VerifyCmd(args.Skip(1).ToArray());
+        case "itlp-orders-check": return ItlpOrdersCheckCmd(args.Skip(1).ToArray());
         case "apply-edits":    return ApplyEditsCmd(args.Skip(1).ToArray());
         default:
             Console.Error.WriteLine($"Unknown command '{cmd}'.");
@@ -568,6 +569,62 @@ static int Hash58VerifyCmd(string[] rest)
         Console.WriteLine($"variant hash72 also zeroed: {(IpodSync.Core.Signing.Hash58.Compute(fw, z72).AsSpan().SequenceEqual(file.AsSpan(0x58, 20)) ? "MATCH" : "no match")}");
     }
     return ok ? 0 : 1;
+}
+
+// Read-only: checks ItlpSorting's sort-name rule and collation against every row iTunes wrote.
+static int ItlpOrdersCheckCmd(string[] rest)
+{
+    if (rest.Length == 0) { Console.Error.WriteLine("usage: itlp-orders-check <ipod-root | itunes-dir>"); return 2; }
+    var (_, itlp) = ResolveItunesDir(rest[0]);
+    using var db = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={Path.Combine(itlp, "Library.itdb")};Mode=ReadOnly;Pooling=False");
+    db.Open();
+    List<object?[]> Rows(string sql)
+    {
+        using var c = db.CreateCommand(); c.CommandText = sql;
+        using var r = c.ExecuteReader(); var list = new List<object?[]>();
+        while (r.Read()) { var row = new object?[r.FieldCount]; for (int i = 0; i < r.FieldCount; i++) row[i] = r.IsDBNull(i) ? null : r.GetValue(i); list.Add(row); }
+        return list;
+    }
+    int failures = 0;
+    foreach (var col in new[] { "title", "artist", "album", "album_artist", "composer" })
+    {
+        var bad = Rows($"SELECT {col}, sort_{col} FROM item").Where(r => IpodSync.Core.Itlp.ItlpSorting.SortName((string?)r[0]) != (string?)r[1]).ToList();
+        Console.WriteLine($"sort_{col,-13} rule mismatches {bad.Count}");
+        foreach (var b in bad.Take(5)) Console.WriteLine($"    '{b[0]}' -> device '{b[1]}' rule '{IpodSync.Core.Itlp.ItlpSorting.SortName((string?)b[0])}'");
+        failures += bad.Count;
+    }
+    foreach (var (label, sql) in new[] {
+        ("item.title_order", "SELECT sort_title, title_order FROM item"),
+        ("item.artist_order", "SELECT sort_artist, artist_order FROM item"),
+        ("item.album_order", "SELECT sort_album, album_order FROM item WHERE album IS NOT NULL"),
+        ("item.album_artist_order", "SELECT sort_album_artist, album_artist_order FROM item WHERE album_artist IS NOT NULL"),
+        ("album.name_order", "SELECT sort_name, name_order FROM album WHERE is_unknown = 0"),
+        ("artist.name_order", "SELECT sort_name, name_order FROM artist WHERE is_unknown = 0"),
+        ("track_artist.name_order", "SELECT sort_name, name_order FROM track_artist WHERE is_unknown = 0"),
+        ("composer.name_order", "SELECT sort_name, name_order FROM composer WHERE is_unknown = 0"),
+    })
+    {
+        var rows = Rows(sql).Where(r => r[0] is not null && r[1] is not null).Select(r => ((string)r[0]!, Convert.ToInt64(r[1]))).ToList();
+        var sorted = rows.OrderBy(r => r.Item2).ToList();
+        // Pairs of rank-adjacent distinct ranks whose keys the collation orders the other way.
+        var byRank = sorted.GroupBy(r => r.Item2).Select(g => (Rank: g.Key, Key: g.First().Item1)).ToList();
+        var inversions = new List<string>();
+        for (int i = 0; i + 1 < byRank.Count; i++)
+            if (IpodSync.Core.Itlp.ItlpSorting.Collation.Compare(byRank[i].Key, byRank[i + 1].Key) > 0)
+                inversions.Add($"'{byRank[i].Key}' ({byRank[i].Rank}) > '{byRank[i + 1].Key}' ({byRank[i + 1].Rank})");
+        // Leave-one-out: does NeighbourRank put each key back between its true neighbours?
+        int misplaced = 0;
+        for (int i = 0; i < byRank.Count; i++)
+        {
+            var others = byRank.Where((_, j) => j != i).Select(x => (x.Key, x.Rank));
+            long r = IpodSync.Core.Itlp.ItlpSorting.NeighbourRank(others, byRank[i].Key);
+            long lo = i > 0 ? byRank[i - 1].Rank : 0, hi = i + 1 < byRank.Count ? byRank[i + 1].Rank : long.MaxValue;
+            if (!(r > lo && r < hi)) misplaced++;
+        }
+        Console.WriteLine($"{label,-24} {byRank.Count} ranks, adjacent inversions {inversions.Count}, leave-one-out misplaced {misplaced}");
+        foreach (var x in inversions.Take(6)) Console.WriteLine("    " + x);
+    }
+    return failures == 0 ? 0 : 1;
 }
 
 static int AddTrackTestCmd(string[] rest)

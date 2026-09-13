@@ -1,3 +1,4 @@
+using System.Text.Json;
 using IpodSync.Core.Device;
 using IpodSync.Core.ItunesDb;
 
@@ -12,6 +13,7 @@ try
         case "roundtrip":      return RoundTripCmd(args.Skip(1).ToArray());
         case "mutate-test":    return MutateTestCmd(args.Skip(1).ToArray());
         case "resize-test":    return ResizeTestCmd(args.Skip(1).ToArray());
+        case "apply-edits":    return ApplyEditsCmd(args.Skip(1).ToArray());
         default:
             Console.Error.WriteLine($"Unknown command '{cmd}'.");
             Usage();
@@ -42,6 +44,12 @@ static void Usage()
           resize-test [path]  remove a track, add an existing track to a playlist, and rename a
                               track -- three edits that change a chunk's byte length, unlike
                               mutate-test. Read-only, entirely in memory.
+          apply-edits [path] --changes <file.json> [--yes]
+                              apply a JSON change-set (see EDIT-PROTOCOL.md) from the iPod Player.
+                              Default is a DRY RUN: applies in memory, runs the reader re-parse
+                              and idempotent-write checks, prints what would change, writes NOTHING.
+                              --yes performs the real device write -- but only if every check
+                              passed, and it backs up iPod_Control/iTunes/ first.
         """);
 }
 
@@ -267,6 +275,98 @@ static int ResizeTestCmd(string[] rest)
     Console.WriteLine();
     Console.WriteLine(allPassed ? "RESIZE ROUND-TRIP: PASS (all three)" : "RESIZE ROUND-TRIP: FAIL");
     return allPassed ? 0 : 1;
+}
+
+static int ApplyEditsCmd(string[] rest)
+{
+    string? path = null, changesPath = null;
+    bool commit = false;
+    for (int i = 0; i < rest.Length; i++)
+    {
+        string a = rest[i];
+        if (a == "--changes" && i + 1 < rest.Length) changesPath = rest[++i];
+        else if (a is "--yes" or "--commit") commit = true;
+        else if (a == "--dry-run") commit = false;
+        else path ??= a;
+    }
+
+    if (changesPath is null) { Console.Error.WriteLine("apply-edits needs --changes <file.json>"); return 2; }
+    if (!File.Exists(changesPath)) { Console.Error.WriteLine($"change-set not found: {changesPath}"); return 1; }
+
+    if (path is null)
+    {
+        var devices = IpodDevice.Detect();
+        if (devices.Count == 0) { Console.Error.WriteLine("No iPod found. Pass a path explicitly."); return 1; }
+        path = devices[0].RootPath;
+        Console.WriteLine($"Using {path}");
+    }
+
+    string dbPath = Directory.Exists(path) ? IpodDevice.Open(path).ItunesDbPath : path;
+    if (!File.Exists(dbPath)) { Console.Error.WriteLine($"No iTunesDB at {dbPath}"); return 1; }
+
+    ChangeSet? cs;
+    try
+    {
+        cs = JsonSerializer.Deserialize<ChangeSet>(File.ReadAllText(changesPath), new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            ReadCommentHandling = JsonCommentHandling.Skip,
+            AllowTrailingCommas = true,
+        });
+    }
+    catch (JsonException ex) { Console.Error.WriteLine($"invalid change-set JSON: {ex.Message}"); return 1; }
+
+    if (cs?.Ops is null || cs.Ops.Count == 0) { Console.Error.WriteLine("change-set has no ops."); return 1; }
+
+    byte[] bytes = File.ReadAllBytes(dbPath);
+    var report = EditApplier.Apply(bytes, cs);
+
+    Console.WriteLine();
+    Console.WriteLine($"file                {dbPath}");
+    Console.WriteLine($"format              {(report.WasCompressed ? "iTunesCDB (zlib-compressed)" : "iTunesDB (plain)")}");
+    Console.WriteLine($"tracks              {report.TracksBefore} -> {report.TracksAfter}");
+    Console.WriteLine($"playlists           {report.PlaylistsBefore} -> {report.PlaylistsAfter}");
+    Console.WriteLine();
+    Console.WriteLine("OPERATIONS");
+    foreach (var o in report.Ops)
+        Console.WriteLine($"  [{(o.Ok ? "ok" : "FAIL")}] {o.Op}: {o.Detail}");
+    Console.WriteLine();
+    Console.WriteLine($"reader re-parse     {(report.Parseable ? "PASS" : "FAIL")}");
+    Console.WriteLine($"idempotent write    {(report.Idempotent ? "PASS" : "FAIL")}");
+    foreach (var p in report.Problems) Console.WriteLine($"  - {p}");
+    Console.WriteLine();
+
+    if (!commit)
+    {
+        Console.WriteLine(report.AllOk
+            ? "DRY RUN: all checks passed. Nothing written. Re-run with --yes to write to the device."
+            : "DRY RUN: checks did NOT all pass. Nothing written (and --yes would refuse).");
+        return report.AllOk ? 0 : 1;
+    }
+
+    if (!report.AllOk) { Console.Error.WriteLine("refusing to write: not all checks passed."); return 1; }
+
+    // Back up iPod_Control/iTunes/ before the real write (non-negotiable, per HANDOFF.md).
+    string itunesDir = Path.GetDirectoryName(dbPath)!;
+    string backupDir = Path.Combine(Directory.GetCurrentDirectory(), "ipod-backups",
+        $"applyedits-{DateTime.Now:yyyyMMdd-HHmmss}", "iTunes");
+    CopyDir(itunesDir, backupDir);
+    Console.WriteLine($"backed up           {itunesDir}  ->  {backupDir}");
+
+    File.WriteAllBytes(dbPath, report.ModifiedOnDisk);
+    Console.WriteLine($"WROTE               {report.ModifiedOnDisk.Length:N0} bytes to {dbPath}");
+    Console.WriteLine();
+    Console.WriteLine("Done. Safely eject the iPod, then confirm the device itself still shows the library.");
+    return 0;
+}
+
+static void CopyDir(string src, string dst)
+{
+    Directory.CreateDirectory(dst);
+    foreach (var file in Directory.EnumerateFiles(src))
+        File.Copy(file, Path.Combine(dst, Path.GetFileName(file)), overwrite: true);
+    foreach (var dir in Directory.EnumerateDirectories(src))
+        CopyDir(dir, Path.Combine(dst, Path.GetFileName(dir)));
 }
 
 static string Gb(long bytes) => $"{bytes / 1024.0 / 1024 / 1024:F1} GB";

@@ -86,13 +86,30 @@ public static class LibraryMutation
     /// the payload being UTF-16LE, reserved=0) matches what six real Title mhods
     /// across two devices actually contain -- not what published docs describe.
     /// </summary>
-    public static void RenameTrack(RawChunk mhit, string newTitle)
+    public static void RenameTrack(RawChunk mhit, string newTitle) =>
+        SetTrackString(mhit, MhodType.Title, newTitle);
+
+    /// <summary>
+    /// Sets any string field on a track (title, artist, album, ...) by replacing
+    /// the existing mhod of that type, or appending one if the track has none.
+    /// Uses the exact same freshly-built mhod layout <see cref="RenameTrack"/>
+    /// proved for Title -- the string mhod structure is identical across types.
+    /// Artist/Album share Title's layout but have their own round-trip test gate
+    /// before being trusted for a real write (see EDIT-PROTOCOL.md).
+    /// </summary>
+    public static void SetTrackString(RawChunk mhit, MhodType type, string value)
     {
-        var newMhod = BuildStringMhod(MhodType.Title, newTitle);
-        int idx = mhit.Children.FindIndex(c => c.Magic == "mhod" && (MhodType)I32(c.Header, 0x0C) == MhodType.Title);
+        var newMhod = BuildStringMhod(type, value);
+        int idx = mhit.Children.FindIndex(c => c.Magic == "mhod" && (MhodType)I32(c.Header, 0x0C) == type);
         if (idx < 0) mhit.Children.Add(newMhod);
         else mhit.Children[idx] = newMhod;
     }
+
+    /// <summary>Removes every playlist entry (mhip) in the given playlist that
+    /// references the track id. Same pure-deletion mechanism as the playlist
+    /// cleanup in <see cref="RemoveTrack"/>. Returns how many entries were dropped.</summary>
+    public static int RemoveTrackFromPlaylist(RawChunk playlist, uint trackId) =>
+        playlist.Children.RemoveAll(c => c.Magic == "mhip" && (uint)I32(c.Header, 0x18) == trackId);
 
     private static RawChunk BuildStringMhod(MhodType type, string value)
     {

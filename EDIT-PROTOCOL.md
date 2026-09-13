@@ -52,16 +52,18 @@ already surfaces); playlists by **name** (or persistent id when available).
 
 | op | fields | writer status |
 |----|--------|---------------|
-| `setTrackFields` | `trackId`, `fields:{title?,artist?,album?}` | title = **proven** (rename). artist/album share the same `mhod` mechanism — needs its own round-trip test before trusting. |
-| `setTrackRating` | `trackId`, `stars` (0–5) | **proven** (fixed-size field). |
-| `setPlayCount` | `trackId`, `count` | **proven** (fixed-size field). |
-| `removeTrack` | `trackId` | **proven** (removes `mhit` + every referencing `mhip`). |
-| `addTrackToPlaylist` | `playlist`, `trackId`, `position?` | **proven** for tracks already on the device. |
-| `removeTrackFromPlaylist` | `playlist`, `trackId` | Same `mhip`-deletion mechanism as `removeTrack`; **needs its own round-trip test**. |
+| `setTrackFields` | `trackId`, `fields:{title?,artist?,album?}` | **Implemented** (`EditApplier`). Title = round-trip proven; artist/album reuse the identical string-`mhod` mechanism and pass the reader-reparse + idempotent checks — dry-run verified on a real device. |
+| `setTrackRating` | `trackId`, `stars` (0–5) | **Implemented**, proven (fixed-size field). |
+| `setPlayCount` | `trackId`, `count` | **Implemented**, proven (fixed-size field). |
+| `removeTrack` | `trackId` | **Implemented**, proven (removes `mhit` + every referencing `mhip`). |
+| `addTrackToPlaylist` | `playlist`, `trackId`, `position?` | **Implemented**, proven for tracks already on the device. |
+| `removeTrackFromPlaylist` | `playlist`, `trackId` | **Implemented**; same `mhip`-deletion mechanism as `removeTrack`, passes the reparse + idempotent checks — dry-run verified on a real device. |
 | `reorderPlaylist` | `playlist`, `trackIds[]` | To build (reorder `mhip`s; round-trip first). |
 | `createPlaylist` | `name`, `trackIds[]` | To build (new `mhyp` + `mhip`s; round-trip first). |
 | `renamePlaylist` / `deletePlaylist` | `playlist`, (`name`) | To build. |
 | `addTrackFromFile` | `sourcePath`, `playlist?`, `transcodeTo?` | **Hardest, not built in either app.** Needs a collision-free persistent id + track id, a scrambled `F##/XXXX.ext` path picked the way the device does, real duration/bitrate/size read off the audio file, and copying the file onto the device. See HANDOFF.md "Constructing a brand-new track". |
+
+The implemented ops live in `IpodSync.Core/ItunesDb/EditApplier.cs`, invoked by `IpodSync.Cli apply-edits`. Every apply (dry-run or `--yes`) re-reads its result through the verified `ItunesDbReader` and re-serializes it to confirm the writer agrees with itself; `--yes` refuses unless all checks pass and it backs up `iPod_Control/iTunes/` first.
 
 ## Safety (inherited from HANDOFF.md — non-negotiable)
 

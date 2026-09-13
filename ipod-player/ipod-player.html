@@ -396,6 +396,8 @@
   .rowbtn:hover{background:var(--hover);color:var(--ink)}
   .rowbtn.del:hover{color:#ff6b6b}
   .rowbtn svg{width:16px;height:16px;fill:currentColor}
+  body.editing .trow[draggable="true"]{cursor:grab}
+  body.editing .trow.dragging{opacity:.5;background:var(--active)}
   .trow.staged-del{opacity:.45}
   .trow.staged-del .tmeta .tt{text-decoration:line-through}
   .trow.staged-edit .tt::after{content:"edited";color:var(--accent2);font-size:10px;margin-left:8px;
@@ -951,7 +953,12 @@ function setActiveNav(key){document.querySelectorAll('#nav .it').forEach(e=>e.cl
 function go(v){view=v;render();closeSidebar();}
 function tracksForView(v){
   if(v.type==='songs')return L.order.map(id=>L.tracks.get(id));
-  if(v.type==='playlist'){const p=L.playlists.filter(p=>!p.isMaster&&p.trackIds.length&&p.name)[v.i];return p?p.trackIds.map(id=>L.tracks.get(id)).filter(Boolean):[];}
+  if(v.type==='playlist'){const p=L.playlists.filter(p=>!p.isMaster&&p.trackIds.length&&p.name)[v.i];
+    if(!p)return [];
+    let list=p.trackIds.map(id=>L.tracks.get(id)).filter(Boolean);
+    const ord=stagedPlOrder.get(p.name);
+    if(ord){const pos=new Map(ord.map((id,i)=>[id,i]));list=[...list].sort((a,b)=>(pos.has(a.id)?pos.get(a.id):1e9)-(pos.has(b.id)?pos.get(b.id):1e9));}
+    return list;}
   if(v.type==='album')return v.ref.tracks;
   if(v.type==='artist')return v.ref.tracks;
   return [];
@@ -1016,6 +1023,13 @@ function trackTable(list,showAlbum){
       else{b[1].onclick=e=>{e.stopPropagation();toggleDelete(t);};}
       r.appendChild(ed);
       r.onclick=()=>openEditDialog(t);
+      if(inPl){
+        r.draggable=true;
+        r.addEventListener('dragstart',()=>{dragId=t.id;r.classList.add('dragging');});
+        r.addEventListener('dragend',()=>r.classList.remove('dragging'));
+        r.addEventListener('dragover',e=>e.preventDefault());
+        r.addEventListener('drop',e=>{e.preventDefault();onRowDrop(list,t.id);});
+      }
     } else if(t.playable!==false){
       r.onclick=()=>{QUEUE=list.filter(x=>x.playable!==false);playAt(QUEUE.indexOf(t));};
     }
@@ -1603,8 +1617,19 @@ const stagedPlRenames=new Map();  // oldName -> newName
 const stagedPlDeletes=new Set();  // playlist name
 const stagedPlCreates=[];         // {name, trackIds:[]}
 const stagedFileAdds=[];          // {name, sourcePath, playlist?}
-function pendingCount(){return stagedEdits.size+stagedDeletes.size+stagedPlAdds.length+stagedPlRemoves.length+stagedPlRenames.size+stagedPlDeletes.size+stagedPlCreates.length+stagedFileAdds.length;}
-function clearStaged(){stagedEdits.clear();stagedDeletes.clear();stagedPlAdds.length=0;stagedPlRemoves.length=0;stagedPlRenames.clear();stagedPlDeletes.clear();stagedPlCreates.length=0;stagedFileAdds.length=0;updateEditBar();}
+const stagedPlOrder=new Map();    // playlist name -> [trackId,...] (drag reorder)
+function pendingCount(){return stagedEdits.size+stagedDeletes.size+stagedPlAdds.length+stagedPlRemoves.length+stagedPlRenames.size+stagedPlDeletes.size+stagedPlCreates.length+stagedFileAdds.length+stagedPlOrder.size;}
+function clearStaged(){stagedEdits.clear();stagedDeletes.clear();stagedPlAdds.length=0;stagedPlRemoves.length=0;stagedPlRenames.clear();stagedPlDeletes.clear();stagedPlCreates.length=0;stagedFileAdds.length=0;stagedPlOrder.clear();updateEditBar();}
+let dragId=null;
+function onRowDrop(list,dropId){
+  if(dragId==null||dragId===dropId)return;
+  const ids=list.map(t=>t.id);
+  const from=ids.indexOf(dragId), to=ids.indexOf(dropId);
+  if(from<0||to<0)return;
+  ids.splice(to,0,ids.splice(from,1)[0]);
+  const pl=currentPlaylistName(); if(pl)stagedPlOrder.set(pl,ids);
+  dragId=null; updateEditBar(); render();
+}
 async function addSongsFromFiles(fileList){
   if(!SERVER_EDITOR){toast('Adding songs needs the helper server — launch via iPod Player.vbs.',3500);return;}
   const files=[...fileList];if(!files.length)return;
@@ -1639,6 +1664,7 @@ function buildChangeSet(){const ops=[];
   for(const c of stagedPlCreates)ops.push({op:'createPlaylist',name:c.name,trackIds:c.trackIds});
   for(const n of stagedPlDeletes)ops.push({op:'deletePlaylist',playlist:n});
   for(const f of stagedFileAdds)ops.push(f.playlist?{op:'addTrackFromFile',sourcePath:f.sourcePath,playlist:f.playlist}:{op:'addTrackFromFile',sourcePath:f.sourcePath});
+  for(const [pl,ids] of stagedPlOrder)ops.push({op:'reorderPlaylist',playlist:pl,trackIds:ids});
   return {version:1,ops};}
 function openModal(id){$('#'+id).classList.add('open');}
 function closeModal(id){$('#'+id).classList.remove('open');}
@@ -1679,6 +1705,7 @@ function opLabel(o){
   if(o.op==='createPlaylist')return 'Create playlist “'+o.name+'” ('+(o.trackIds?o.trackIds.length:0)+' tracks)';
   if(o.op==='deletePlaylist')return 'Delete playlist “'+o.playlist+'”';
   if(o.op==='addTrackFromFile')return 'Add song from file: '+(o.sourcePath||'').split(/[\\/]/).pop()+(o.playlist?' → “'+o.playlist+'”':'');
+  if(o.op==='reorderPlaylist')return 'Reorder playlist “'+o.playlist+'” ('+(o.trackIds?o.trackIds.length:0)+' tracks)';
   return o.op;}
 function openReview(){
   const cs=buildChangeSet();

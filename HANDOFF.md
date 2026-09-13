@@ -46,8 +46,18 @@ transparent transcode, incremental, no account, no cloud.
 writer's round-trip proof now covers, against both devices: reproducing a
 database unchanged, editing a real field in place (play count, star rating),
 and three edits that change a chunk's byte length (removing a track,
-adding an *existing* track to a playlist, renaming a track). Nothing writes to
-a device. That is deliberate — see Safety below.
+adding an *existing* track to a playlist, renaming a track).
+
+**First real device write done and verified (2026-09-13).** With the user's
+explicit go-ahead, `apply-edits --yes` set a star rating on one track of the
+`D:\` device ("ASH'S IPOD", 635 tracks), after auto-backing-up
+`iPod_Control/iTunes/`. Re-reading the device afterwards showed the rating
+applied (5 stars), the track's other fields and every other track/playlist
+unchanged, and `roundtrip` on the written file byte-identical. This is the first
+time the project has written to hardware — the read→edit→backup→write→re-read
+chain now works end to end. Writes remain gated per Safety below (backup +
+ask-first still apply to every future write, and constructing a brand-new track
+is still unbuilt).
 
 **There is now a real app** (`src/IpodSync.Shared/Dashboard.razor`, a Blazor
 component shared across three hosts) rather than just a CLI:

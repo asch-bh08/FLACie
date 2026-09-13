@@ -64,10 +64,13 @@ Reading works, verified against two real devices. The writer's round-trip
 proof passes against both, for: reproducing a database unchanged, editing a
 real field in place (play count, star rating), and three edits that change a
 chunk's byte length (removing a track, adding an *existing* track to a
-playlist, renaming a track). Nothing writes to a device yet — see
-[HANDOFF.md](HANDOFF.md) for exactly what is and isn't covered before trusting
-this for anything not listed there (constructing a brand-new track, notably,
-is not — see below).
+playlist, renaming a track). **The first real write to hardware is done and
+verified** (2026-09-13): `apply-edits --yes` set a track's star rating on a real
+635-track device after auto-backing-up, and re-reading the device confirmed the
+change applied with nothing else moved. See [HANDOFF.md](HANDOFF.md) for exactly
+what is and isn't covered before trusting this for anything not listed there
+(constructing a brand-new track, notably, is not — see below); every write still
+backs up first and asks before touching a device.
 
 ```
 dotnet build

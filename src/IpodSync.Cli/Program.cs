@@ -146,7 +146,7 @@ static int Dump(string[] rest)
         string stars = t.Stars > 0 ? new string('*', t.Stars) : "";
         Console.WriteLine($"  {t.Duration:mm\\:ss}  {t.Artist ?? "?"} - {t.Title ?? "?"}");
         Console.WriteLine($"           {t.Album ?? "?"}  |  {t.Bitrate}kbps  |  plays {t.PlayCount}  {stars}");
-        Console.WriteLine($"           {t.RelativePath ?? "(no location)"}");
+        Console.WriteLine($"           {t.RelativePath ?? "(no location)"}  #{t.Id} pid 0x{t.PersistentId:X16}");
     }
 
     return 0;

@@ -71,3 +71,32 @@ Built (commit `d868d02`):
   show `iPodSync Test`.
 - Note: new playlist persistent ids are "max existing + 1"
   (`0xF906EE395DA00876` = `AA`'s id + 1). Unique, just adjacent.
+
+### 01:05–01:35 — playlist features re-verified through both databases (live)
+
+Each op tested first on a fake device root (copy of the live bundle +
+zero-byte audio placeholders), then run live on `D:` one feature per write,
+each gated on a passing dry run. All device checks PASS on every write
+(CDB bytes, re-read, byte-identical round-trip, track/playlist counts, all 636
+audio files present, SQLite bytes == staged proof, integrity_check, playlists
+in sync between CDB and SQLite). A track-metadata edit (`setTrackFields`) is
+correctly **refused** by the pipeline until the track mirror exists.
+
+| # | time | change-set | pre-write backup (`C:\IPODAPP\ipodsync\ipod-backups\…`) |
+|---|------|------------|------------------|
+| 2 | 00:31 | `iPodSync Test`: add 3 tracks, reorder, remove 1 → Smack That, Lights (renamed test track), Rolling in the Deep | `applyedits-20260914-003149` |
+| 3 | 00:32 | rename `iPodSync Test` → `iPodSync Playlist Test` | `applyedits-20260914-003204` |
+| 4 | 00:32 | create `iPodSync Temp` (2 tracks) — container, container_ui, name_order 900, pop(LAC) re-ranked | `applyedits-20260914-003207` |
+| 5 | 00:32 | delete `iPodSync Temp` | `applyedits-20260914-003210` |
+
+Evidence the pair #4/#5 is an exact inverse: the device CDB after #5 is
+byte-identical to after #3 (SHA-1 `228D4A27…`), and `Dynamic.itdb`'s SQL
+content after #5 equals its content before #4.
+
+**Morning on-screen check (after ejecting):** Playlists menu should show
+`iPodSync Playlist Test` (3 songs: Smack That, Lights…, Rolling in the Deep),
+and should *not* show `iPodSync Temp`.
+
+Playlist features — create, rename, delete, add/remove track, reorder — are
+now written to **both** databases in one operation and verified on the device
+files. Remaining playlist caveat: firmware display not yet eyeballed.

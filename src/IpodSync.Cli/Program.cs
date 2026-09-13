@@ -1,6 +1,7 @@
 using System.Text.Json;
 using IpodSync.Core.Device;
 using IpodSync.Core.ItunesDb;
+using IpodSync.Core.Itlp;
 
 string cmd = args.Length > 0 ? args[0].ToLowerInvariant() : "detect";
 
@@ -17,6 +18,7 @@ try
         case "addtrack-test":  return AddTrackTestCmd(args.Skip(1).ToArray());
         case "pl-inspect":     return PlInspectCmd(args.Skip(1).ToArray());
         case "pid-refs":       return PlaylistPidRefsCmd(args.Skip(1).ToArray());
+        case "itlp-preview":   return ItlpPreviewCmd(args.Skip(1).ToArray());
         case "apply-edits":    return ApplyEditsCmd(args.Skip(1).ToArray());
         default:
             Console.Error.WriteLine($"Unknown command '{cmd}'.");
@@ -413,6 +415,20 @@ static int PlaylistPidRefsCmd(string[] rest)
     Walk(root, "root");
     Console.WriteLine($"hits {hits}");
     return 0;
+}
+
+static int ItlpPreviewCmd(string[] rest)
+{
+    string? path = rest.ElementAtOrDefault(0);
+    if (path is null) { Console.Error.WriteLine("usage: itlp-preview <ipod-root>"); return 2; }
+    var device = IpodDevice.Open(path);
+    string library = Path.Combine(device.RootPath, "iPod_Control", "iTunes", "iTunes Library.itlp", "Library.itdb");
+    if (!File.Exists(library)) { Console.Error.WriteLine($"No Library.itdb at {library}"); return 1; }
+    var cdb = ItunesDbReader.Read(File.ReadAllBytes(device.ItunesDbPath));
+    var result = ItlpPlaylistSync.Preview(library, cdb);
+    Console.WriteLine($"SQLite playlist preview: created {result.Created}, updated {result.Updated}, memberships {result.Memberships}");
+    foreach (var problem in result.Problems) Console.WriteLine("  - " + problem);
+    return result.Ok ? 0 : 1;
 }
 
 static int AddTrackTestCmd(string[] rest)

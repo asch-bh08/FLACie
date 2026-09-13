@@ -16,6 +16,7 @@ try
         case "playlist-test":  return PlaylistTestCmd(args.Skip(1).ToArray());
         case "addtrack-test":  return AddTrackTestCmd(args.Skip(1).ToArray());
         case "pl-inspect":     return PlInspectCmd(args.Skip(1).ToArray());
+        case "pid-refs":       return PlaylistPidRefsCmd(args.Skip(1).ToArray());
         case "apply-edits":    return ApplyEditsCmd(args.Skip(1).ToArray());
         default:
             Console.Error.WriteLine($"Unknown command '{cmd}'.");
@@ -360,9 +361,57 @@ static int PlInspectCmd(string[] rest)
             {
                 ulong u64(int o) => o + 8 <= pl.Header.Length ? BitConverter.ToUInt64(pl.Header, o) : 0;
                 Console.WriteLine($"        pid@0x1C=0x{u64(0x1C):X16}  val@0x40=0x{u64(0x40):X16}  const@0x38=0x{u64(0x38):X16}");
+                var firstItem = pl.Children.FirstOrDefault(c => c.Magic == "mhip");
+                if (firstItem is not null)
+                    Console.WriteLine($"        first-mhip hdr={BitConverter.ToString(firstItem.Header)} payload={BitConverter.ToString(firstItem.Payload)}");
             }
         }
     }
+    return 0;
+}
+
+/// <summary>Diagnostic only: finds every occurrence of a playlist's persistent
+/// id across the lossless raw tree. Used to discover secondary playlist indexes
+/// that the firmware may rely on but the semantic reader deliberately ignores.</summary>
+static int PlaylistPidRefsCmd(string[] rest)
+{
+    if (rest.Length < 2) { Console.Error.WriteLine("usage: pid-refs <db-or-ipod> <playlist-name>"); return 2; }
+    string path = rest[0], name = rest[1];
+    string dbPath = Directory.Exists(path) ? IpodDevice.Open(path).ItunesDbPath : path;
+    if (!File.Exists(dbPath)) { Console.Error.WriteLine($"No iTunesDB at {dbPath}"); return 1; }
+
+    var root = RawChunkParser.ParseDatabase(File.ReadAllBytes(dbPath));
+    string? PlaylistName(RawChunk p)
+    {
+        foreach (var c in p.Children.Where(c => c.Magic == "mhod" && c.Header.Length >= 0x10 && BitConverter.ToInt32(c.Header, 0x0C) == 1))
+        {
+            int len = c.Payload.Length >= 8 ? BitConverter.ToInt32(c.Payload, 4) : 0;
+            if (len > 0 && 16 + len <= c.Payload.Length)
+                return (len % 2 == 0 ? System.Text.Encoding.Unicode : System.Text.Encoding.UTF8).GetString(c.Payload, 16, len);
+        }
+        return null;
+    }
+    var target = RawChunkNavigation.AllPlaylists(root).FirstOrDefault(p => string.Equals(PlaylistName(p), name, StringComparison.OrdinalIgnoreCase));
+    if (target is null) { Console.Error.WriteLine($"Playlist '{name}' not found."); return 1; }
+    ulong pid = BitConverter.ToUInt64(target.Header, 0x1C);
+    byte[] needle = BitConverter.GetBytes(pid);
+    Console.WriteLine($"playlist '{name}', pid 0x{pid:X16}");
+
+    int hits = 0;
+    void Scan(byte[] bytes, string label)
+    {
+        for (int i = 0; i <= bytes.Length - needle.Length; i++)
+            if (bytes.AsSpan(i, needle.Length).SequenceEqual(needle))
+            { Console.WriteLine($"  {label}+0x{i:X}"); hits++; }
+    }
+    void Walk(RawChunk n, string pathLabel)
+    {
+        Scan(n.Header, $"{pathLabel}/{n.Magic}.header");
+        Scan(n.Payload, $"{pathLabel}/{n.Magic}.payload");
+        for (int i = 0; i < n.Children.Count; i++) Walk(n.Children[i], $"{pathLabel}/{n.Magic}[{i}]");
+    }
+    Walk(root, "root");
+    Console.WriteLine($"hits {hits}");
     return 0;
 }
 

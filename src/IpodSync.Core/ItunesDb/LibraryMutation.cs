@@ -20,7 +20,10 @@ namespace IpodSync.Core.ItunesDb;
 public static class LibraryMutation
 {
     private static readonly DateTimeOffset MacEpoch = new(1904, 1, 1, 0, 0, 0, TimeSpan.Zero);
-    private static int NowAsMacSeconds() => (int)(DateTimeOffset.UtcNow - MacEpoch).TotalSeconds;
+    // iPod dates are unsigned 32-bit seconds since 1904. In 2026 that value is
+    // above Int32.MaxValue; preserve its raw bit pattern when writing the signed
+    // primitive rather than allowing the double-to-int conversion to saturate.
+    private static int NowAsMacSeconds() => unchecked((int)(uint)(DateTimeOffset.UtcNow - MacEpoch).TotalSeconds);
 
     /// <summary>Removes one track from the library and every playlist entry that
     /// references it. Pure deletion -- no new bytes are constructed, so this
@@ -56,11 +59,12 @@ public static class LibraryMutation
     /// the file -- safe under a uniqueness requirement, and no worse than the
     /// alternatives if it turns out not to matter.
     /// </summary>
-    public static void AddTrackToPlaylist(RawChunk root, RawChunk playlist, RawChunk track)
+    public static void AddTrackToPlaylist(RawChunk root, RawChunk playlist, RawChunk track, RawChunk? fallbackTemplate = null)
     {
         // clone a real mhip: prefer one from this playlist, else any in the file (so a
         // brand-new/empty playlist can still receive its first entry from a real template).
         var template = playlist.Children.FirstOrDefault(c => c.Magic == "mhip")
+            ?? fallbackTemplate
             ?? RawChunkNavigation.AllPlaylistItems(root).FirstOrDefault()
             ?? throw new InvalidOperationException("No existing playlist item anywhere to clone the layout from.");
 
@@ -201,7 +205,11 @@ public static class LibraryMutation
             foreach (var c in template.Children.Where(c => c.Magic == "mhod"))
                 pl.Children.Add(new RawChunk { Magic = c.Magic, Header = (byte[])c.Header.Clone(), Payload = (byte[])c.Payload.Clone() });
             SetPlaylistName(pl, name);                    // replaces the cloned name mhod with ours
-            foreach (var track in tracks) AddTrackToPlaylist(root, pl, track);
+            // A playlist's first mhip must follow the normal user-playlist layout.
+            // Without this explicit seed, AddTrackToPlaylist finds the first mhip in
+            // the database -- normally the master-library entry -- whose flags differ.
+            var userEntryTemplate = template.Children.FirstOrDefault(c => c.Magic == "mhip");
+            foreach (var track in tracks) AddTrackToPlaylist(root, pl, track, userEntryTemplate);
             mhlp.Children.Add(pl);
             firstCopy ??= pl;
         }

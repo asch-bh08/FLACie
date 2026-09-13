@@ -181,6 +181,22 @@ while ($listener.IsListening) {
       $res.OutputStream.Write($b,0,$b.Length); $res.Close(); continue
     }
 
+    # Receive an audio file uploaded from the player (browsers can't hand us a real
+    # path). Saved to a temp dir; the returned path is used as an addTrackFromFile source.
+    if ($path -eq "/api/upload" -and $req.HttpMethod -eq "POST") {
+      $name = [System.IO.Path]::GetFileName([System.Uri]::UnescapeDataString(($req.QueryString["name"] + "")))
+      if ([string]::IsNullOrWhiteSpace($name)) { $name = "upload.bin" }
+      $updir = Join-Path $env:TEMP "ipod-uploads"
+      if (-not (Test-Path $updir)) { New-Item -ItemType Directory -Path $updir | Out-Null }
+      $ms = New-Object System.IO.MemoryStream
+      $req.InputStream.CopyTo($ms)
+      $dest = Join-Path $updir ([Guid]::NewGuid().ToString("N") + "-" + $name)
+      [System.IO.File]::WriteAllBytes($dest, $ms.ToArray())
+      $payload = @{ ok = $true; path = $dest; name = $name } | ConvertTo-Json -Compress
+      $b=[Text.Encoding]::UTF8.GetBytes($payload)
+      $res.ContentType="application/json"; $res.ContentLength64=$b.Length; $res.OutputStream.Write($b,0,$b.Length); $res.Close(); continue
+    }
+
     # Apply a JSON change-set from the player through the verified engine.
     # Dry-run by default (writes nothing); ?commit=1 performs the real, backed-up write.
     if ($path -eq "/api/apply-edits" -and $req.HttpMethod -eq "POST") {

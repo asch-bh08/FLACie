@@ -190,6 +190,112 @@ public static class LibraryMutation
         return pl;
     }
 
+    /// <summary>
+    /// Constructs a brand-new track from an audio file and adds it to the library.
+    /// Reads real duration/bitrate/tags via TagLibSharp; assigns a fresh track id and
+    /// a collision-free persistent id; picks a scrambled <c>F##/XXXX.ext</c> path the
+    /// way the device lays music out; clones a real same-extension mhit as a template
+    /// (so media-type/format header fields stay real bytes) then patches the numeric
+    /// fields and gives it a clean set of string mhods (title/artist/album/genre/
+    /// filetype/location); appends it to the track list and to every master-playlist
+    /// copy. Returns the new mhit and the device-relative path its file must be copied
+    /// to (the caller does the copy on a real write). Round-trips + re-reads correctly;
+    /// on-device acceptance unverified (no hardware).
+    /// </summary>
+    public static (RawChunk mhit, string destRel) AddTrackFromFile(RawChunk root, string sourcePath)
+    {
+        if (!File.Exists(sourcePath)) throw new FileNotFoundException("source audio file not found", sourcePath);
+        string ext = Path.GetExtension(sourcePath).TrimStart('.').ToLowerInvariant();
+        long size = new FileInfo(sourcePath).Length;
+
+        string? title = null, artist = null, album = null, genre = null;
+        int durationMs = 0, bitrate = 0, year = 0, trackNo = 0;
+        try
+        {
+            using var tf = TagLib.File.Create(sourcePath);
+            title = Nz(tf.Tag.Title); artist = Nz(tf.Tag.FirstPerformer); album = Nz(tf.Tag.Album); genre = Nz(tf.Tag.FirstGenre);
+            durationMs = (int)tf.Properties.Duration.TotalMilliseconds;
+            bitrate = tf.Properties.AudioBitrate;
+            year = (int)tf.Tag.Year; trackNo = (int)tf.Tag.Track;
+        }
+        catch { /* unreadable tags -> fall back to the filename for the title */ }
+        title ??= Path.GetFileNameWithoutExtension(sourcePath);
+
+        var mhlt = RawChunkNavigation.FindTrackList(root) ?? throw new InvalidOperationException("No track list in this database.");
+        var existing = RawChunkNavigation.TrackChunks(root).ToList();
+        if (existing.Count == 0) throw new InvalidOperationException("No existing track to use as a template.");
+
+        uint newId = (uint)(existing.Select(TrackFields.GetId).DefaultIfEmpty(0).Max() + 1);
+        var pids = new HashSet<ulong>(existing.Select(TrackFields.GetPersistentId));
+        var rnd = new Random();
+        ulong newPid; do { newPid = ((ulong)(uint)rnd.Next() << 32) | (uint)rnd.Next(); } while (newPid == 0 || pids.Contains(newPid));
+
+        string control = existing.Select(GetLocation).FirstOrDefault(l => l != null)?.Contains("iTunes_Control") == true
+            ? "iTunes_Control" : "iPod_Control";
+        var used = new HashSet<string>(existing.Select(GetLocation).Where(l => l != null)
+            .Select(l => l!.Replace(':', '/').TrimStart('/').ToLowerInvariant()));
+        const string A = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        string destRel, destColon;
+        do
+        {
+            string dir = $"F{rnd.Next(0, 50):00}";
+            string name = new string(Enumerable.Range(0, 4).Select(_ => A[rnd.Next(A.Length)]).ToArray());
+            destRel = $"{control}/Music/{dir}/{name}.{ext}";
+            destColon = $":{control}:Music:{dir}:{name}.{ext}";
+        } while (used.Contains(destRel.ToLowerInvariant()));
+
+        var template = existing.FirstOrDefault(t => GetLocation(t)?.ToLowerInvariant().EndsWith("." + ext) == true) ?? existing[0];
+        var mhit = new RawChunk { Magic = "mhit", Header = (byte[])template.Header.Clone(), Payload = (byte[])template.Payload.Clone() };
+        WriteI32(mhit.Header, 0x10, (int)newId);
+        WriteI32(mhit.Header, 0x24, (int)Math.Min(size, int.MaxValue));   // size bytes
+        WriteI32(mhit.Header, 0x28, durationMs);                          // length ms
+        WriteI32(mhit.Header, 0x2C, trackNo);
+        WriteI32(mhit.Header, 0x34, year);
+        if (bitrate > 0) WriteI32(mhit.Header, 0x38, bitrate);
+        WriteI32(mhit.Header, 0x50, 0);                                   // play count
+        WriteI32(mhit.Header, 0x58, 0);                                   // last played
+        if (mhit.Header.Length > 0x1C + 3) mhit.Header[0x1C + 3] = 0;     // stars
+        WriteI32(mhit.Header, 0x20, NowAsMacSeconds());                   // last modified / added
+        WriteU64(mhit.Header, 0x70, newPid);
+
+        mhit.Children.Clear();
+        mhit.Children.Add(BuildStringMhod(MhodType.Title, title));
+        if (artist != null) mhit.Children.Add(BuildStringMhod(MhodType.Artist, artist));
+        if (album != null) mhit.Children.Add(BuildStringMhod(MhodType.Album, album));
+        if (genre != null) mhit.Children.Add(BuildStringMhod(MhodType.Genre, genre));
+        mhit.Children.Add(BuildStringMhod(MhodType.FileType, FileTypeDesc(ext)));
+        mhit.Children.Add(BuildStringMhod(MhodType.Location, destColon));
+
+        mhlt.Children.Add(mhit);
+        foreach (var master in RawChunkNavigation.AllPlaylists(root).Where(m => m.Header.Length > 0x14 && I32(m.Header, 0x14) == 1))
+            AddTrackToPlaylist(root, master, mhit);
+
+        return (mhit, destRel);
+    }
+
+    private static string? Nz(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    private static string? GetLocation(RawChunk mhit)
+    {
+        var m = mhit.Children.FirstOrDefault(c => c.Magic == "mhod" && (MhodType)I32(c.Header, 0x0C) == MhodType.Location);
+        if (m is null || m.Payload.Length < 16) return null;
+        int len = I32(m.Payload, 4);
+        if (len <= 0 || 16 + len > m.Payload.Length) return null;
+        var bytes = m.Payload.AsSpan(16, len).ToArray();
+        return (len % 2 == 0 ? System.Text.Encoding.Unicode : System.Text.Encoding.UTF8).GetString(bytes);
+    }
+
+    private static string FileTypeDesc(string ext) => ext switch
+    {
+        "mp3" => "MPEG audio file",
+        "m4a" or "aac" or "mp4" => "AAC audio file",
+        "m4b" => "AAC audio book",
+        "wav" => "WAV audio file",
+        "aif" or "aiff" => "AIFF audio file",
+        "alac" => "Apple Lossless audio file",
+        _ => ext.ToUpperInvariant() + " audio file",
+    };
+
     private static RawChunk BuildStringMhod(MhodType type, string value)
     {
         byte[] strBytes = Encoding.Unicode.GetBytes(value); // UTF-16LE, matching every real sample seen

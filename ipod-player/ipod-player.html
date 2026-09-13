@@ -623,6 +623,8 @@
   </div>
 </div>
 
+<input id="addFilesInput" type="file" multiple accept="audio/*,.mp3,.m4a,.aac,.flac,.wav,.aiff,.alac" hidden>
+
 <div class="scrim" id="scrim"></div>
 <div id="toast"></div>
 <div id="selftest" hidden></div>
@@ -977,6 +979,7 @@ function trackTable(list,showAlbum){
   if(editMode){const bn=document.createElement('div');bn.className='edit-banner';
     bn.innerHTML=EDIT_ICO+'<span style="flex:1">Edit mode — staged until you review &amp; apply.</span>';
     const mk=(label,fn)=>{const b=document.createElement('button');b.className='eb-btn ghost';b.style.padding='6px 12px';b.style.fontSize='12px';b.textContent=label;b.onclick=fn;return b;};
+    bn.appendChild(mk('＋ Add songs',()=>$('#addFilesInput').click()));
     bn.appendChild(mk('＋ New playlist',promptNewPlaylist));
     if(view.type==='playlist'){bn.appendChild(mk('Rename',promptRenamePlaylist));bn.appendChild(mk('Delete',stagePlDelete));}
     wrap.appendChild(bn);}
@@ -1599,8 +1602,25 @@ const stagedPlRemoves=[];         // {playlist,trackId}
 const stagedPlRenames=new Map();  // oldName -> newName
 const stagedPlDeletes=new Set();  // playlist name
 const stagedPlCreates=[];         // {name, trackIds:[]}
-function pendingCount(){return stagedEdits.size+stagedDeletes.size+stagedPlAdds.length+stagedPlRemoves.length+stagedPlRenames.size+stagedPlDeletes.size+stagedPlCreates.length;}
-function clearStaged(){stagedEdits.clear();stagedDeletes.clear();stagedPlAdds.length=0;stagedPlRemoves.length=0;stagedPlRenames.clear();stagedPlDeletes.clear();stagedPlCreates.length=0;updateEditBar();}
+const stagedFileAdds=[];          // {name, sourcePath, playlist?}
+function pendingCount(){return stagedEdits.size+stagedDeletes.size+stagedPlAdds.length+stagedPlRemoves.length+stagedPlRenames.size+stagedPlDeletes.size+stagedPlCreates.length+stagedFileAdds.length;}
+function clearStaged(){stagedEdits.clear();stagedDeletes.clear();stagedPlAdds.length=0;stagedPlRemoves.length=0;stagedPlRenames.clear();stagedPlDeletes.clear();stagedPlCreates.length=0;stagedFileAdds.length=0;updateEditBar();}
+async function addSongsFromFiles(fileList){
+  if(!SERVER_EDITOR){toast('Adding songs needs the helper server — launch via iPod Player.vbs.',3500);return;}
+  const files=[...fileList];if(!files.length)return;
+  const pl=currentPlaylistName();
+  toast('<span class="spin"></span>Uploading '+files.length+' file'+(files.length===1?'':'s')+'…',0);
+  let done=0;
+  for(const f of files){
+    try{
+      const r=await fetch('/api/upload?name='+encodeURIComponent(f.name),{method:'POST',body:f});
+      const j=await r.json();
+      if(j.ok&&j.path){stagedFileAdds.push({name:f.name,sourcePath:j.path,playlist:pl||undefined});done++;}
+    }catch(e){console.warn('upload failed',f.name,e);}
+  }
+  hideToast();updateEditBar();
+  toast('Staged '+done+' song'+(done===1?'':'s')+' to add'+(pl?' → “'+pl+'”':'')+'.',2600);
+}
 function promptNewPlaylist(){const n=prompt('New playlist name:');if(n&&n.trim()){stagedPlCreates.push({name:n.trim(),trackIds:[]});updateEditBar();toast('Staged: new playlist “'+n.trim()+'”');}}
 function promptRenamePlaylist(){const cur=currentPlaylistName();if(!cur)return;const n=prompt('Rename playlist to:',cur);if(n&&n.trim()&&n.trim()!==cur){stagedPlRenames.set(cur,n.trim());updateEditBar();render();toast('Staged: rename → “'+n.trim()+'”');}}
 function stagePlDelete(){const cur=currentPlaylistName();if(!cur)return;if(confirm('Delete the playlist “'+cur+'” from the iPod?\n\n(The songs themselves stay on the device.)')){stagedPlDeletes.add(cur);updateEditBar();toast('Staged: delete playlist “'+cur+'”');}}
@@ -1618,6 +1638,7 @@ function buildChangeSet(){const ops=[];
   for(const [oldN,newN] of stagedPlRenames)ops.push({op:'renamePlaylist',playlist:oldN,name:newN});
   for(const c of stagedPlCreates)ops.push({op:'createPlaylist',name:c.name,trackIds:c.trackIds});
   for(const n of stagedPlDeletes)ops.push({op:'deletePlaylist',playlist:n});
+  for(const f of stagedFileAdds)ops.push(f.playlist?{op:'addTrackFromFile',sourcePath:f.sourcePath,playlist:f.playlist}:{op:'addTrackFromFile',sourcePath:f.sourcePath});
   return {version:1,ops};}
 function openModal(id){$('#'+id).classList.add('open');}
 function closeModal(id){$('#'+id).classList.remove('open');}
@@ -1657,6 +1678,7 @@ function opLabel(o){
   if(o.op==='renamePlaylist')return 'Rename playlist “'+o.playlist+'” → “'+o.name+'”';
   if(o.op==='createPlaylist')return 'Create playlist “'+o.name+'” ('+(o.trackIds?o.trackIds.length:0)+' tracks)';
   if(o.op==='deletePlaylist')return 'Delete playlist “'+o.playlist+'”';
+  if(o.op==='addTrackFromFile')return 'Add song from file: '+(o.sourcePath||'').split(/[\\/]/).pop()+(o.playlist?' → “'+o.playlist+'”':'');
   return o.op;}
 function openReview(){
   const cs=buildChangeSet();
@@ -1688,6 +1710,7 @@ $('#editClose').onclick=closeEdit;
 $('#editModal').addEventListener('click',e=>{if(e.target===$('#editModal'))closeEdit();});
 $('#editDiscard').onclick=()=>{if(pendingCount()&&confirm('Discard all staged changes?')){clearStaged();render();}};
 $('#editReview').onclick=openReview;
+$('#addFilesInput').onchange=e=>{addSongsFromFiles(e.target.files);e.target.value='';};
 $('#reviewClose').onclick=()=>closeModal('reviewModal');
 $('#reviewModal').addEventListener('click',e=>{if(e.target===$('#reviewModal'))closeModal('reviewModal');});
 

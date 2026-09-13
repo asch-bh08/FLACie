@@ -14,6 +14,7 @@ try
         case "mutate-test":    return MutateTestCmd(args.Skip(1).ToArray());
         case "resize-test":    return ResizeTestCmd(args.Skip(1).ToArray());
         case "playlist-test":  return PlaylistTestCmd(args.Skip(1).ToArray());
+        case "addtrack-test":  return AddTrackTestCmd(args.Skip(1).ToArray());
         case "apply-edits":    return ApplyEditsCmd(args.Skip(1).ToArray());
         default:
             Console.Error.WriteLine($"Unknown command '{cmd}'.");
@@ -320,6 +321,29 @@ static int PlaylistTestCmd(string[] rest)
     return allPassed ? 0 : 1;
 }
 
+static int AddTrackTestCmd(string[] rest)
+{
+    if (rest.Length < 2) { Console.Error.WriteLine("usage: addtrack-test <db-or-ipod> <audiofile>"); return 2; }
+    string path = rest[0], audio = rest[1];
+    string dbPath = Directory.Exists(path) ? IpodDevice.Open(path).ItunesDbPath : path;
+    if (!File.Exists(dbPath)) { Console.Error.WriteLine($"No iTunesDB at {dbPath}"); return 1; }
+    if (!File.Exists(audio)) { Console.Error.WriteLine($"No audio file at {audio}"); return 1; }
+
+    var r = AddTrackRoundTrip.Run(File.ReadAllBytes(dbPath), audio);
+    Console.WriteLine();
+    Console.WriteLine($"file  {dbPath}");
+    Console.WriteLine($"audio {audio}");
+    Console.WriteLine();
+    Console.WriteLine(r.Operation);
+    Console.WriteLine($"  {r.Detail}");
+    Console.WriteLine($"  semantic check    {(r.SemanticOk ? "PASS" : "FAIL")}");
+    Console.WriteLine($"  idempotent check  {(r.IdempotentOk ? "PASS" : "FAIL")}");
+    foreach (var p in r.Problems) Console.WriteLine($"    - {p}");
+    Console.WriteLine();
+    Console.WriteLine(r.Passed ? "ADD-TRACK ROUND-TRIP: PASS" : "ADD-TRACK ROUND-TRIP: FAIL");
+    return r.Passed ? 0 : 1;
+}
+
 static int ApplyEditsCmd(string[] rest)
 {
     string? path = null, changesPath = null;
@@ -377,6 +401,12 @@ static int ApplyEditsCmd(string[] rest)
     Console.WriteLine($"reader re-parse     {(report.Parseable ? "PASS" : "FAIL")}");
     Console.WriteLine($"idempotent write    {(report.Idempotent ? "PASS" : "FAIL")}");
     foreach (var p in report.Problems) Console.WriteLine($"  - {p}");
+    if (report.FileCopies.Count > 0)
+    {
+        Console.WriteLine();
+        Console.WriteLine($"new files           {report.FileCopies.Count} to copy onto the device:");
+        foreach (var fc in report.FileCopies) Console.WriteLine($"  + {fc.DestRel}");
+    }
     Console.WriteLine();
 
     if (!commit)
@@ -398,6 +428,20 @@ static int ApplyEditsCmd(string[] rest)
 
     File.WriteAllBytes(dbPath, report.ModifiedOnDisk);
     Console.WriteLine($"WROTE               {report.ModifiedOnDisk.Length:N0} bytes to {dbPath}");
+
+    // Copy any new audio files onto the device (destRel is relative to the drive root:
+    // iTunes/ -> iPod_Control/ -> <root>).
+    if (report.FileCopies.Count > 0)
+    {
+        string deviceRoot = Path.GetDirectoryName(Path.GetDirectoryName(itunesDir))!;
+        foreach (var (srcF, destRel) in report.FileCopies)
+        {
+            string dest = Path.Combine(deviceRoot, destRel.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+            File.Copy(srcF, dest, overwrite: false);
+            Console.WriteLine($"copied file         {destRel}");
+        }
+    }
     Console.WriteLine();
     Console.WriteLine("Done. Safely eject the iPod, then confirm the device itself still shows the library.");
     return 0;

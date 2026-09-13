@@ -27,7 +27,7 @@ public static class EditApplier
 
         foreach (var op in changeSet.Ops ?? [])
         {
-            try { report.Ops.Add(ApplyOne(root, before, op)); }
+            try { report.Ops.Add(ApplyOne(root, before, op, report)); }
             catch (Exception ex) { report.Ops.Add(new OpResult(op.Op ?? "(missing op)", false, ex.Message)); }
         }
 
@@ -54,7 +54,7 @@ public static class EditApplier
         return report;
     }
 
-    private static OpResult ApplyOne(RawChunk root, ItunesDatabase before, EditOp op)
+    private static OpResult ApplyOne(RawChunk root, ItunesDatabase before, EditOp op, ApplyReport report)
     {
         switch ((op.Op ?? "").Trim())
         {
@@ -132,8 +132,17 @@ public static class EditApplier
                 return new OpResult(op.Op!, true, $"created playlist '{nm}' with {ids.Length} track(s)");
             }
             case "addTrackFromFile":
-                throw new NotSupportedException(
-                    $"op '{op.Op}' is not implemented yet — see EDIT-PROTOCOL.md.");
+            {
+                var src = RequireStr(op.SourcePath, "sourcePath");
+                var (mhit, destRel) = LibraryMutation.AddTrackFromFile(root, src);
+                report.FileCopies.Add((src, destRel));
+                uint newId = (uint)TrackFields.GetId(mhit);
+                if (op.Playlist is not null)
+                    foreach (var pl in FindPlaylistCopies(root, before, op.Playlist))
+                        LibraryMutation.AddTrackToPlaylist(root, pl, mhit);
+                return new OpResult(op.Op!, true, $"added '{System.IO.Path.GetFileName(src)}' as track #{newId} -> {destRel}"
+                    + (op.Playlist is not null ? $", and to playlist '{op.Playlist}'" : ""));
+            }
             default:
                 throw new NotSupportedException($"unknown op '{op.Op}'.");
         }
@@ -176,6 +185,7 @@ public sealed class EditOp
 {
     [JsonPropertyName("op")] public string? Op { get; set; }
     [JsonPropertyName("trackId")] public uint? TrackId { get; set; }
+    [JsonPropertyName("sourcePath")] public string? SourcePath { get; set; }
     [JsonPropertyName("playlist")] public string? Playlist { get; set; }
     [JsonPropertyName("name")] public string? Name { get; set; }
     [JsonPropertyName("stars")] public int? Stars { get; set; }
@@ -197,6 +207,9 @@ public sealed record OpResult(string Op, bool Ok, string Detail);
 public sealed class ApplyReport
 {
     public List<OpResult> Ops { get; } = [];
+    /// <summary>Files to copy onto the device (source path, device-relative dest) for
+    /// addTrackFromFile ops. Done only on a real --yes write, after the DB is written.</summary>
+    public List<(string Source, string DestRel)> FileCopies { get; } = [];
     public int TracksBefore { get; set; }
     public int TracksAfter { get; set; }
     public int PlaylistsBefore { get; set; }

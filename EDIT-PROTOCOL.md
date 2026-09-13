@@ -68,7 +68,7 @@ already surfaces); playlists by **name** (or persistent id when available).
 > copy** with that persistent id, or the de-dup can resurface a stale one. (A first
 > cut of delete edited only one copy and the playlist "came back" — the round-trip
 > test caught it.) `removeTrack` already spans all playlists.
-| `addTrackFromFile` | `sourcePath`, `playlist?`, `transcodeTo?` | **Hardest, not built in either app.** Needs a collision-free persistent id + track id, a scrambled `F##/XXXX.ext` path picked the way the device does, real duration/bitrate/size read off the audio file, and copying the file onto the device. See HANDOFF.md "Constructing a brand-new track". |
+| `addTrackFromFile` | `sourcePath`, `playlist?` | **Implemented.** Reads real duration/bitrate/tags (TagLibSharp); fresh track id + collision-free persistent id; a scrambled `F##/XXXX.ext` path; clones a same-extension `mhit` as a template then patches numeric fields + clean string mhods; adds to the track list and every master-playlist copy. `apply-edits --yes` copies the file onto the device after the DB write. Round-trips + re-reads correctly (`addtrack-test`); on-device firmware acceptance unverified (no hardware). Transcode-on-add (for FLAC etc.) is future work — for now the source must already be an iPod-playable format (MP3/AAC/ALAC/AIFF/WAV). |
 
 The implemented ops live in `IpodSync.Core/ItunesDb/EditApplier.cs`, invoked by `IpodSync.Cli apply-edits`. Every apply (dry-run or `--yes`) re-reads its result through the verified `ItunesDbReader` and re-serializes it to confirm the writer agrees with itself; `--yes` refuses unless all checks pass and it backs up `iPod_Control/iTunes/` first.
 

@@ -142,3 +142,34 @@ tables, generated rather than copied, and compared equal to libgpod's in all
   Device verify all PASS; `hash72-verify D:/` → CDB hash72 valid, cbk valid;
   `hash58-verify` → MATCH. The device's databases now carry the signatures
   iTunes would have written for this content.
+
+### 02:05–02:55 — track mirror (Library/Dynamic/Locations.itdb) + live sync to full parity
+
+Research against the device's own rows (all encoded in code, all re-checkable):
+- `ItlpSorting` sort-name rule reproduces `sort_title/artist/album/album_artist/composer`
+  for all 635 items; the collation reproduces title/artist/album-artist/composer
+  ranks with 0 inversions (1 album pair of ~2,800 differs). `itlp-orders-check`.
+- Entities: `track_artist` (small int pid) ↔ `item.artist`; `artist` (64-bit pid)
+  named by album artist, else track artist, else the is_unknown row; `album`
+  keyed by name + artist pid; unknown album/composer/genre rows carry
+  name_order 4294967295; item.genre_order = 100 × case-insensitive genre rank;
+  `item.physical_order` == master-playlist position; `location` uses 4CC
+  `'FILE'` / `'M4A '` / `'MP3 '`, `kind_id` → `location_kind_map`;
+  `avformat_info` 301 MP3 / 502 AAC / 601 ALAC with duration in samples.
+
+`ItlpTrackSync` mirrors removed / changed / new tracks (item, avformat_info,
+location, item_stats, lyrics/chapters on removal, entity rows created with
+neighbour-placed ranks). The pipeline now requires **tracks fully in sync**
+(not just "no new divergence") and rebuilds + verifies the cbk. Master
+playlist appends insert only the new rows.
+
+**LIVE WRITE #7 — 00:51 — `itlp-sync D:/ --yes`** (mirror last session's CDB-only track edits)
+- Pre-write backup: `C:\IPODAPP\ipodsync\ipod-backups\itlpsync-20260914-005144`
+- Library.itdb: renamed test track (`iPodSync – ipodsync RENAMED TEST`, album
+  `Edit Test`, new track_artist/artist/album rows); added `EsDeeKid – Century`
+  (item, avformat_info, master membership). Dynamic.itdb: item_stats.
+  **Locations.itdb: location row → Locations.itdb.cbk re-signed** (first cbk
+  write on the device; generation proven byte-identical against iTunes' file).
+- Device verify all PASS incl. `tracks in sync`, `Locations cbk valid`.
+  `itlp-diff D:/` → **IN SYNC**. `hash72-verify D:/` → CDB + cbk valid.
+- The device's CDB and SQLite library now agree completely, both signed.

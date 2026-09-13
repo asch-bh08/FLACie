@@ -195,6 +195,18 @@ public static class ItlpSync
             var have = ItlpCompare.Members(db, pid, tx);
             if (have.SequenceEqual(wanted)) continue;
 
+            // Appending to the end (e.g. a new track in the master playlist): insert only
+            // the new tail, leaving every existing row untouched.
+            if (have.Count < wanted.Count && wanted.Take(have.Count).SequenceEqual(have))
+            {
+                for (int i = have.Count; i < wanted.Count; i++)
+                    Exec(db, tx, "INSERT INTO item_to_container (item_pid, container_pid, physical_order, shuffle_order) VALUES ($i, $p, $o, NULL)",
+                        ("$i", wanted[i]), ("$p", pid), ("$o", i));
+                result.Actions.Add($"membership '{p.Name}': appended {wanted.Count - have.Count} entr{(wanted.Count - have.Count == 1 ? "y" : "ies")} ({have.Count} -> {wanted.Count})");
+                result.TouchedTables.Add("Library.itdb:item_to_container");
+                continue;
+            }
+
             Exec(db, tx, "DELETE FROM item_to_container WHERE container_pid = $p", ("$p", pid));
             for (int i = 0; i < wanted.Count; i++)
             {

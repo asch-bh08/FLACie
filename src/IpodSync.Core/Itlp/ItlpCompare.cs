@@ -70,13 +70,19 @@ public static class ItlpCompare
         using var db = OpenReadOnly(library);
 
         // ---- tracks ----
-        var items = new Dictionary<long, (string? Title, string? Artist, string? Album)>();
+        var items = new Dictionary<long, (string? Title, string? Artist, string? Album, string? AlbumArtist, string? Genre, string? Composer)>();
         using (var cmd = db.CreateCommand())
         {
-            cmd.CommandText = "SELECT pid, title, artist, album FROM item";
+            // Unknown-genre/composer rows (is_unknown = 1) stand for "no value".
+            cmd.CommandText = """
+                SELECT i.pid, i.title, i.artist, i.album, i.album_artist,
+                       CASE WHEN g.is_unknown = 1 THEN NULL ELSE g.genre END,
+                       i.composer
+                FROM item i LEFT JOIN genre_map g ON g.id = i.genre_id
+                """;
             using var r = cmd.ExecuteReader();
             while (r.Read())
-                items[r.GetInt64(0)] = (Str(r, 1), Str(r, 2), Str(r, 3));
+                items[r.GetInt64(0)] = (Str(r, 1), Str(r, 2), Str(r, 3), Str(r, 4), Str(r, 5), Str(r, 6));
         }
 
         var tracksByPid = new Dictionary<long, Track>();
@@ -92,6 +98,9 @@ public static class ItlpCompare
             Field(diff, t, "title", t.Title, it.Title);
             Field(diff, t, "artist", t.Artist, it.Artist);
             Field(diff, t, "album", t.Album, it.Album);
+            Field(diff, t, "album_artist", t.AlbumArtist, it.AlbumArtist);
+            Field(diff, t, "genre", t.Genre, it.Genre);
+            Field(diff, t, "composer", t.Composer, it.Composer);
         }
         foreach (var (pid, it) in items)
             if (!tracksByPid.ContainsKey(pid))

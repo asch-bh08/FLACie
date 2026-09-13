@@ -114,14 +114,25 @@ static class WritePipeline
                 if (File.Exists(Path.Combine(itlpDir, f))) deviceBundleSha[f] = DeviceWriteTransaction.Sha1(Path.Combine(itlpDir, f));
 
             var hashesBefore = ItlpSync.TableHashes(staged);
-            var sync = ItlpSync.SyncPlaylists(staged, after, DateTimeOffset.UtcNow);
+            var now = DateTimeOffset.UtcNow;
             Say($"SQLite      staged copy {staged}");
-            foreach (var a in sync.Actions) Say($"  sqlite: {a}");
-            foreach (var p in sync.Problems) Say($"  SQLITE PROBLEM: {p}");
-            if (sync.Actions.Count == 0) Say("  sqlite: no changes needed");
-            ok &= sync.Ok;
+            var touched = new HashSet<string>();
+            var trackSync = ItlpTrackSync.Sync(staged, after, now);
+            foreach (var a in trackSync.Actions) Say($"  sqlite: {a}");
+            foreach (var p in trackSync.Problems) Say($"  SQLITE PROBLEM: {p}");
+            touched.UnionWith(trackSync.TouchedTables);
+            ok &= trackSync.Ok;
+            if (trackSync.Ok)
+            {
+                var sync = ItlpSync.SyncPlaylists(staged, after, now);
+                foreach (var a in sync.Actions) Say($"  sqlite: {a}");
+                foreach (var p in sync.Problems) Say($"  SQLITE PROBLEM: {p}");
+                if (sync.Actions.Count + trackSync.Actions.Count == 0) Say("  sqlite: no changes needed");
+                touched.UnionWith(sync.TouchedTables);
+                ok &= sync.Ok;
+            }
 
-            var checks = VerifyStaged(staged, after, diffBefore, hashesBefore, sync.TouchedTables);
+            var checks = VerifyStaged(staged, after, diffBefore, hashesBefore, touched);
             foreach (var c in checks.Lines) Say(c);
             ok &= checks.Ok;
 
@@ -239,11 +250,9 @@ static class WritePipeline
         foreach (var (section, l) in diffAfter.Sections().Skip(3)) foreach (var x in l) lines.Add($"  - {section}: {x}");
         ok &= diffAfter.PlaylistsInSync;
 
-        // A write may never add divergence between the databases.
-        var newDivergence = TrackLines(diffAfter).Except(TrackLines(diffBefore)).ToList();
-        lines.Add($"no new track divergence {(newDivergence.Count == 0 ? "PASS" : "FAIL")} (tracks {(diffAfter.TracksInSync ? "fully in sync" : $"still differ in {TrackLines(diffAfter).Count()} pre-existing place(s)")})");
-        foreach (var x in newDivergence) lines.Add("  - " + x);
-        ok &= newDivergence.Count == 0;
+        lines.Add($"tracks in sync      {(diffAfter.TracksInSync ? "PASS" : "FAIL")} ({TrackLines(diffBefore).Count()} difference(s) before, {TrackLines(diffAfter).Count()} after)");
+        foreach (var x in TrackLines(diffAfter)) lines.Add("  - " + x);
+        ok &= diffAfter.TracksInSync;
         return new Checks(ok, lines);
     }
 
@@ -301,6 +310,7 @@ static class WritePipeline
             {
                 var diff = ItlpCompare.Compare(readBack, reread);
                 Check("playlists in sync", diff.PlaylistsInSync);
+                Check("tracks in sync", diff.TracksInSync);
             }
         }
         return new Checks(ok, lines);

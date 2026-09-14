@@ -16,6 +16,23 @@ public sealed class ItunesDatabase
     public HashSet<string> UnknownChunks { get; } = new();
 
     public Playlist? MasterPlaylist => Playlists.FirstOrDefault(p => p.IsMaster);
+
+    /// <summary>Album list (mhla) entries by list id.</summary>
+    public Dictionary<uint, ListEntity> Albums { get; } = new();
+
+    /// <summary>Artist list (mhli) entries by list id.</summary>
+    public Dictionary<uint, ListEntity> Artists { get; } = new();
+}
+
+/// <summary>An mhia (album) or mhii (artist) entry. PersistentId is the id the
+/// SQLite library uses for the same album/artist.</summary>
+public sealed class ListEntity
+{
+    public uint Id { get; set; }
+    public ulong PersistentId { get; set; }
+    public string? Album { get; set; }
+    public string? Artist { get; set; }
+    public string? AlbumArtist { get; set; }
 }
 
 public sealed class Track
@@ -54,6 +71,15 @@ public sealed class Track
     public int Stars { get; set; }
 
     public bool Compilation { get; set; }
+
+    /// <summary>mhit +0x120 / +0x1E0: ids of this track's album (mhia) and artist (mhii).</summary>
+    public uint AlbumListId { get; set; }
+    public uint ArtistListId { get; set; }
+    /// <summary>Resolved from the lists; 0 when the link doesn't resolve.</summary>
+    public ulong AlbumPersistentId { get; set; }
+    public ulong ArtistPersistentId { get; set; }
+    public bool HasArtwork { get; set; }
+    public uint ArtworkId { get; set; }
     public DateTimeOffset? LastPlayed { get; set; }
     public DateTimeOffset? LastModified { get; set; }
 

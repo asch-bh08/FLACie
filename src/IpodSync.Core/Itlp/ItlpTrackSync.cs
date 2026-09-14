@@ -121,6 +121,29 @@ public static class ItlpTrackSync
                 }
             }
             result.TouchedTables.UnionWith(entities.Touched);
+
+            // Album/artist rows that no item uses AND that the CDB's album/artist lists
+            // don't contain were created by an earlier out-of-step sync; iTunes' own
+            // orphan rows are all still listed in the CDB, so they are kept.
+            if (cdb.Albums.Count > 0 && cdb.Artists.Count > 0)
+            {
+                var cdbAlbums = cdb.Albums.Values.Select(a => unchecked((long)a.PersistentId)).ToHashSet();
+                var cdbArtists = cdb.Artists.Values.Select(a => unchecked((long)a.PersistentId)).ToHashSet();
+                foreach (var r in L.Rows("SELECT pid, name FROM album WHERE is_unknown = 0 AND pid NOT IN (SELECT album_pid FROM item)"))
+                    if (!cdbAlbums.Contains((long)r[0]!))
+                    {
+                        L.Exec("DELETE FROM album WHERE pid = $p", ("$p", r[0]));
+                        result.Actions.Add($"prune unlisted, unused album row '{r[1]}' 0x{unchecked((ulong)(long)r[0]!):X16}");
+                        result.TouchedTables.Add("Library.itdb:album");
+                    }
+                foreach (var r in L.Rows("SELECT pid, name FROM artist WHERE is_unknown = 0 AND pid NOT IN (SELECT artist_pid FROM item) AND pid NOT IN (SELECT artist_pid FROM album)"))
+                    if (!cdbArtists.Contains((long)r[0]!))
+                    {
+                        L.Exec("DELETE FROM artist WHERE pid = $p", ("$p", r[0]));
+                        result.Actions.Add($"prune unlisted, unused artist row '{r[1]}' 0x{unchecked((ulong)(long)r[0]!):X16}");
+                        result.TouchedTables.Add("Library.itdb:artist");
+                    }
+            }
         }
 
         if (!result.Ok) { tl.Rollback(); td.Rollback(); tlo.Rollback(); te.Rollback(); return result; }
@@ -131,7 +154,10 @@ public static class ItlpTrackSync
     private static bool Same(ItemRow cur, Track t, Entities e) =>
         (cur.Title ?? "") == (t.Title ?? "") && (cur.Artist ?? "") == (t.Artist ?? "") && (cur.Album ?? "") == (t.Album ?? "") &&
         (cur.AlbumArtist ?? "") == (t.AlbumArtist ?? "") && (cur.Composer ?? "") == (t.Composer ?? "") &&
-        (e.GenreName(cur.GenreId) ?? "") == (t.Genre ?? "");
+        (e.GenreName(cur.GenreId) ?? "") == (t.Genre ?? "") &&
+        // Entity identity comes from the CDB's album/artist list links.
+        (string.IsNullOrEmpty(t.Album) || t.AlbumPersistentId == 0 || cur.AlbumPid == unchecked((long)t.AlbumPersistentId)) &&
+        ((t.AlbumArtist ?? t.Artist) is null || t.ArtistPersistentId == 0 || cur.ArtistPid == unchecked((long)t.ArtistPersistentId));
 
     private static bool AddItem(Db L, Db D, Db Lo, Track t, long pid, Entities.Links m, int stamp,
         Dictionary<long, int> masterOrder, ItlpSync.Result result)
@@ -266,10 +292,12 @@ public static class ItlpTrackSync
 
             // ---- album-artist entity: named by album artist, else by track artist
             string entityArtist = t.AlbumArtist ?? t.Artist ?? "";
-            var (apPid, apOrder) = t.AlbumArtist is null && t.Artist is null ? Unknown("artist") : Artist(entityArtist, result);
+            var (apPid, apOrder) = t.AlbumArtist is null && t.Artist is null ? Unknown("artist")
+                                 : Artist(entityArtist, unchecked((long)t.ArtistPersistentId), result);
 
             // ---- album
-            var (alPid, alOrder) = string.IsNullOrEmpty(t.Album) ? UnknownAlbumForItems() : Album(t.Album!, apPid, apOrder, pid, result);
+            var (alPid, alOrder) = string.IsNullOrEmpty(t.Album) ? UnknownAlbumForItems()
+                                 : Album(t.Album!, apPid, apOrder, pid, unchecked((long)t.AlbumPersistentId), result);
 
             // ---- genre
             var (gId, gOrder) = Genre(t.Genre, result);
@@ -317,11 +345,15 @@ public static class ItlpTrackSync
             return (pid, order);
         }
 
-        private (long, long) Artist(string name, ItlpSync.Result result)
+        // cdbPid: the artist's persistent id from the CDB's artist list (0 if unlinked).
+        // The SQLite row must carry the same pid; name lookup is only a fallback.
+        private (long, long) Artist(string name, long cdbPid, ItlpSync.Result result)
         {
-            var r = L.Rows("SELECT pid, name_order FROM artist WHERE name = $n AND is_unknown = 0", ("$n", name)).FirstOrDefault();
+            var r = cdbPid != 0
+                ? L.Rows("SELECT pid, name_order FROM artist WHERE pid = $p", ("$p", cdbPid)).FirstOrDefault()
+                : L.Rows("SELECT pid, name_order FROM artist WHERE name = $n AND is_unknown = 0", ("$n", name)).FirstOrDefault();
             if (r is not null) return ((long)r[0]!, (long)r[1]!);
-            long pid = FreshPid("artist");
+            long pid = cdbPid != 0 ? cdbPid : FreshPid("artist");
             string sort = ItlpSorting.SortName(name)!;
             long order = EntityRank("artist", sort);
             L.Exec("""
@@ -333,11 +365,13 @@ public static class ItlpTrackSync
             return (pid, order);
         }
 
-        private (long, long) Album(string name, long artistPid, long artistOrder, long itemPid, ItlpSync.Result result)
+        private (long, long) Album(string name, long artistPid, long artistOrder, long itemPid, long cdbPid, ItlpSync.Result result)
         {
-            var r = L.Rows("SELECT pid, name_order FROM album WHERE name = $n AND artist_pid = $a AND is_unknown = 0", ("$n", name), ("$a", artistPid)).FirstOrDefault();
+            var r = cdbPid != 0
+                ? L.Rows("SELECT pid, name_order FROM album WHERE pid = $p", ("$p", cdbPid)).FirstOrDefault()
+                : L.Rows("SELECT pid, name_order FROM album WHERE name = $n AND artist_pid = $a AND is_unknown = 0", ("$n", name), ("$a", artistPid)).FirstOrDefault();
             if (r is not null) return ((long)r[0]!, (long)r[1]!);
-            long pid = FreshPid("album");
+            long pid = cdbPid != 0 ? cdbPid : FreshPid("album");
             string sort = ItlpSorting.SortName(name)!;
             long order = EntityRank("album", sort);
             L.Exec("""

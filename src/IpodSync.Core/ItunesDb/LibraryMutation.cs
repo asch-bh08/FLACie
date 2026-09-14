@@ -234,15 +234,19 @@ public static class LibraryMutation
         string ext = Path.GetExtension(sourcePath).TrimStart('.').ToLowerInvariant();
         long size = new FileInfo(sourcePath).Length;
 
-        string? title = null, artist = null, album = null, genre = null;
-        int durationMs = 0, bitrate = 0, year = 0, trackNo = 0;
+        string? title = null, artist = null, album = null, genre = null, albumArtist = null, composer = null, codec = null;
+        int durationMs = 0, bitrate = 0, year = 0, trackNo = 0, trackCount = 0, discNo = 0, discCount = 0, sampleRate = 0;
         try
         {
             using var tf = TagLib.File.Create(sourcePath);
             title = Nz(tf.Tag.Title); artist = Nz(tf.Tag.FirstPerformer); album = Nz(tf.Tag.Album); genre = Nz(tf.Tag.FirstGenre);
+            albumArtist = Nz(tf.Tag.FirstAlbumArtist); composer = Nz(tf.Tag.FirstComposer);
             durationMs = (int)tf.Properties.Duration.TotalMilliseconds;
             bitrate = tf.Properties.AudioBitrate;
-            year = (int)tf.Tag.Year; trackNo = (int)tf.Tag.Track;
+            sampleRate = tf.Properties.AudioSampleRate;
+            year = (int)tf.Tag.Year; trackNo = (int)tf.Tag.Track; trackCount = (int)tf.Tag.TrackCount;
+            discNo = (int)tf.Tag.Disc; discCount = (int)tf.Tag.DiscCount;
+            codec = tf.Properties.Codecs.FirstOrDefault(c => c is not null)?.Description;
         }
         catch { /* unreadable tags -> fall back to the filename for the title */ }
         title ??= Path.GetFileNameWithoutExtension(sourcePath);
@@ -251,7 +255,8 @@ public static class LibraryMutation
         var existing = RawChunkNavigation.TrackChunks(root).ToList();
         if (existing.Count == 0) throw new InvalidOperationException("No existing track to use as a template.");
 
-        uint newId = (uint)(existing.Select(TrackFields.GetId).DefaultIfEmpty(0).Max() + 1);
+        // Track ids share a counter with album/artist list ids and mhit +0x1F4 (= id + 3).
+        uint newId = EntityLinks.NextId(root);
         var pids = new HashSet<ulong>(existing.Select(TrackFields.GetPersistentId));
         var rnd = new Random();
         ulong newPid; do { newPid = ((ulong)(uint)rnd.Next() << 32) | (uint)rnd.Next(); } while (newPid == 0 || pids.Contains(newPid));
@@ -270,7 +275,11 @@ public static class LibraryMutation
             destColon = $":{control}:Music:{dir}:{name}.{ext}";
         } while (used.Contains(destRel.ToLowerInvariant()));
 
-        var template = existing.FirstOrDefault(t => GetLocation(t)?.ToLowerInvariant().EndsWith("." + ext) == true) ?? existing[0];
+        // Prefer a same-extension template without artwork (mhit +0xA4 == 2) so no
+        // artwork count/size/link bytes are inherited from an unrelated track.
+        bool SameExt(RawChunk t) => GetLocation(t)?.ToLowerInvariant().EndsWith("." + ext) == true;
+        bool NoArt(RawChunk t) => t.Header.Length > 0xA4 && t.Header[0xA4] == 2;
+        var template = existing.FirstOrDefault(t => SameExt(t) && NoArt(t)) ?? existing.FirstOrDefault(SameExt) ?? existing[0];
         var mhit = new RawChunk { Magic = "mhit", Header = (byte[])template.Header.Clone(), Payload = (byte[])template.Payload.Clone() };
         WriteI32(mhit.Header, 0x10, (int)newId);
         WriteI32(mhit.Header, 0x24, (int)Math.Min(size, int.MaxValue));   // size bytes
@@ -283,16 +292,34 @@ public static class LibraryMutation
         if (mhit.Header.Length > 0x1C + 3) mhit.Header[0x1C + 3] = 0;     // stars
         WriteI32(mhit.Header, 0x20, NowAsMacSeconds());                   // last modified / added
         WriteU64(mhit.Header, 0x70, newPid);
+        // Per-track fields a template clone would otherwise carry over from another
+        // track (each offset confirmed across every track on a real nano 5G):
+        WriteI32(mhit.Header, 0x30, trackCount);
+        WriteI32(mhit.Header, 0x5C, discNo);
+        WriteI32(mhit.Header, 0x60, discCount);
+        if (mhit.Header.Length > 0x1C + 2) mhit.Header[0x1C + 2] = 0;     // compilation flag
+        if (sampleRate > 0) WriteI32(mhit.Header, 0x3C, sampleRate << 16);
+        WriteI32(mhit.Header, 0x68, NowAsMacSeconds());                   // date added
+        if (mhit.Header.Length >= 0xB0) WriteU64(mhit.Header, 0xA8, newPid); // persistent id, second copy
+        if (mhit.Header.Length >= 0xC4 && sampleRate > 0)
+            WriteU64(mhit.Header, 0xBC, (ulong)((long)durationMs * sampleRate / 1000)); // sample count
+        if (mhit.Header.Length >= 0x130) WriteI32(mhit.Header, 0x12C, (int)Math.Min(size, int.MaxValue)); // size, second copy
+        if (mhit.Header.Length >= 0x1F8) WriteI32(mhit.Header, 0x1F4, (int)newId + 3);
+        if (mhit.Header.Length > 0xA4) mhit.Header[0xA4] = 2;              // no artwork
+        if (mhit.Header.Length >= 0x164) WriteI32(mhit.Header, 0x160, 0);  // artwork link
 
         mhit.Children.Clear();
         mhit.Children.Add(BuildStringMhod(MhodType.Title, title));
         if (artist != null) mhit.Children.Add(BuildStringMhod(MhodType.Artist, artist));
         if (album != null) mhit.Children.Add(BuildStringMhod(MhodType.Album, album));
         if (genre != null) mhit.Children.Add(BuildStringMhod(MhodType.Genre, genre));
-        mhit.Children.Add(BuildStringMhod(MhodType.FileType, FileTypeDesc(ext)));
+        if (albumArtist != null) mhit.Children.Add(BuildStringMhod(MhodType.AlbumArtist, albumArtist));
+        if (composer != null) mhit.Children.Add(BuildStringMhod(MhodType.Composer, composer));
+        mhit.Children.Add(BuildStringMhod(MhodType.FileType, FileTypeDesc(ext, codec)));
         mhit.Children.Add(BuildStringMhod(MhodType.Location, destColon));
 
         mhlt.Children.Add(mhit);
+        EntityLinks.Relink(root, mhit);
         foreach (var master in RawChunkNavigation.AllPlaylists(root).Where(m => m.Header.Length > 0x14 && I32(m.Header, 0x14) == 1))
             AddTrackToPlaylist(root, master, mhit);
 
@@ -311,8 +338,10 @@ public static class LibraryMutation
         return (len % 2 == 0 ? System.Text.Encoding.Unicode : System.Text.Encoding.UTF8).GetString(bytes);
     }
 
-    private static string FileTypeDesc(string ext) => ext switch
+    private static string FileTypeDesc(string ext, string? codec) => ext switch
     {
+        "m4a" when codec?.Contains("Lossless", StringComparison.OrdinalIgnoreCase) == true
+                || codec?.Contains("ALAC", StringComparison.OrdinalIgnoreCase) == true => "Apple Lossless audio file",
         "mp3" => "MPEG audio file",
         "m4a" or "aac" or "mp4" => "AAC audio file",
         "m4b" => "AAC audio book",
@@ -322,7 +351,7 @@ public static class LibraryMutation
         _ => ext.ToUpperInvariant() + " audio file",
     };
 
-    private static RawChunk BuildStringMhod(MhodType type, string value)
+    internal static RawChunk BuildStringMhod(MhodType type, string value)
     {
         byte[] strBytes = Encoding.Unicode.GetBytes(value); // UTF-16LE, matching every real sample seen
         byte[] payload = new byte[16 + strBytes.Length];

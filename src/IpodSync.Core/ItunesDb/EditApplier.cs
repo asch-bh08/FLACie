@@ -67,7 +67,16 @@ public static class EditApplier
                 if (f.Artist is not null) { LibraryMutation.SetTrackString(mhit, MhodType.Artist, f.Artist); changed.Add("artist"); }
                 if (f.Album is not null) { LibraryMutation.SetTrackString(mhit, MhodType.Album, f.Album); changed.Add("album"); }
                 if (changed.Count == 0) throw new InvalidOperationException("setTrackFields had no title/artist/album to set.");
+                // Artist/album changes move the track to a different album/artist entry.
+                if (f.Artist is not null || f.Album is not null) EntityLinks.Relink(root, mhit);
                 return new OpResult(op.Op!, true, $"track {op.TrackId}: set {string.Join(", ", changed)}");
+            }
+            case "relinkTrack":
+            {
+                var mhit = FindTrack(root, Require(op.TrackId, "trackId"));
+                uint oldAlbum = (uint)BinaryIo.I32(mhit.Header, 0x120), oldArtist = (uint)BinaryIo.I32(mhit.Header, 0x1E0);
+                EntityLinks.Relink(root, mhit);
+                return new OpResult(op.Op!, true, $"track {op.TrackId}: album link {oldAlbum} -> {(uint)BinaryIo.I32(mhit.Header, 0x120)}, artist link {oldArtist} -> {(uint)BinaryIo.I32(mhit.Header, 0x1E0)}");
             }
             case "setTrackRating":
             {

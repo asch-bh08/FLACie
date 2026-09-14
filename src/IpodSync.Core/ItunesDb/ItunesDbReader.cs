@@ -65,11 +65,23 @@ public static class ItunesDbReader
                 case "mhlp":
                     playlistSets.Add(ReadPlaylistList(d, inner, db));
                     break;
+                case "mhla":
+                case "mhli":
+                    ReadEntityList(d, inner, db);
+                    break;
                 default:
                     db.UnknownChunks.Add($"{Magic(d, inner)} (mhsd type {sType})");
                     break;
             }
             pos += sTotal;
+        }
+
+        // Resolve each track's album/artist list links to the entities' persistent ids
+        // (the same ids the SQLite library uses for album.pid / artist.pid).
+        foreach (var t in db.Tracks)
+        {
+            if (db.Albums.TryGetValue(t.AlbumListId, out var al)) t.AlbumPersistentId = al.PersistentId;
+            if (db.Artists.TryGetValue(t.ArtistListId, out var ar)) t.ArtistPersistentId = ar.PersistentId;
         }
 
         var seen = new HashSet<ulong>();
@@ -126,6 +138,13 @@ public static class ItunesDbReader
             t.Stars = d[p + 0x1C + 3] / 20;   // stored 0-100 in steps of 20
         }
         if (0x70 + 8 <= hdrLen) t.PersistentId = U64(d, p + 0x70);
+        // Album/artist list links and artwork state (offsets confirmed against every
+        // track on a real nano 5G: 0x120 -> mhia id, 0x1E0 -> mhii id, 0xA4 is 1 with
+        // artwork / 2 without, 0x160 == the SQLite artwork_cache_id).
+        if (0x124 <= hdrLen) t.AlbumListId = (uint)I32(d, p + 0x120);
+        if (0x1E4 <= hdrLen) t.ArtistListId = (uint)I32(d, p + 0x1E0);
+        if (0xA5 <= hdrLen) t.HasArtwork = d[p + 0xA4] == 1;
+        if (0x164 <= hdrLen) t.ArtworkId = (uint)I32(d, p + 0x160);
 
         int pos = p + hdrLen;
         for (int i = 0; i < numMhods && pos + 0x10 <= d.Length; i++)
@@ -151,6 +170,42 @@ public static class ItunesDbReader
             pos += total;
         }
         return t;
+    }
+
+    // mhla (albums) / mhli (artists): count at +0x08 like mhlt; each mhia/mhii holds
+    // id (+0x10), persistent id (+0x14), then mhod strings (200 album, 201 artist,
+    // 202 album artist; 300 artist name).
+    private static void ReadEntityList(byte[] d, int start, ItunesDatabase db)
+    {
+        string list = Magic(d, start);
+        int hdrLen = I32(d, start + 0x04);
+        int count = I32(d, start + 0x08);
+        int pos = start + hdrLen;
+        for (int i = 0; i < count && pos + 0x1C <= d.Length; i++)
+        {
+            string magic = Magic(d, pos);
+            if (magic is not ("mhia" or "mhii")) { db.UnknownChunks.Add(magic); break; }
+            int h = I32(d, pos + 0x04), total = I32(d, pos + 0x08), mhods = I32(d, pos + 0x0C);
+            if (total <= 0) break;
+            var e = new ListEntity { Id = (uint)I32(d, pos + 0x10), PersistentId = U64(d, pos + 0x14) };
+            int m = pos + h;
+            for (int j = 0; j < mhods && m + 0x10 <= pos + total; j++)
+            {
+                int mt = I32(d, m + 0x08);
+                if (mt <= 0) break;
+                string? s = ReadMhodString(d, m);
+                switch (I32(d, m + 0x0C))
+                {
+                    case 200: e.Album = s; break;
+                    case 201: e.Artist = s; break;
+                    case 202: e.AlbumArtist = s; break;
+                    case 300: e.Artist = s; break;
+                }
+                m += mt;
+            }
+            (list == "mhla" ? db.Albums : db.Artists)[e.Id] = e;
+            pos += total;
+        }
     }
 
     private static List<Playlist> ReadPlaylistList(byte[] d, int start, ItunesDatabase db)

@@ -43,8 +43,9 @@ public static class EntityLinks
 
     /// <summary>Points the track at the album and artist entries its strings call for,
     /// creating entries when none exist. No-op for databases without the lists.</summary>
-    public static void Relink(RawChunk root, RawChunk mhit)
+    public static void Relink(RawChunk root, RawChunk mhit, Random? random = null)
     {
+        var rnd = random ?? Random.Shared;
         if (mhit.Header.Length < 0x1E4) return;
         var albums = AlbumList(root);
         var artists = ArtistList(root);
@@ -55,14 +56,14 @@ public static class EntityLinks
         string? entityArtist = albumArtist ?? artist;
 
         uint artistId = 0;
-        if (entityArtist is not null) artistId = FindOrCreateArtist(root, artists, entityArtist);
-        uint albumId = FindOrCreateAlbum(root, albums, string.IsNullOrEmpty(album) ? null : album, artist, albumArtist, TrackFields.GetPersistentId(mhit));
+        if (entityArtist is not null) artistId = FindOrCreateArtist(root, artists, entityArtist, rnd);
+        uint albumId = FindOrCreateAlbum(root, albums, string.IsNullOrEmpty(album) ? null : album, artist, albumArtist, TrackFields.GetPersistentId(mhit), rnd);
 
         WriteI32(mhit.Header, 0x120, (int)albumId);
         WriteI32(mhit.Header, 0x1E0, (int)artistId);
     }
 
-    private static uint FindOrCreateArtist(RawChunk root, RawChunk artists, string name)
+    private static uint FindOrCreateArtist(RawChunk root, RawChunk artists, string name, Random rnd)
     {
         foreach (var e in artists.Children.Where(c => c.Magic == "mhii"))
             if (EntryStr(e, 300) == name) return (uint)I32(e.Header, 0x10);
@@ -72,7 +73,7 @@ public static class EntityLinks
         var entry = new RawChunk { Magic = "mhii", Header = (byte[])template.Header.Clone() };
         uint id = NextId(root);
         WriteI32(entry.Header, 0x10, (int)id);
-        WriteU64(entry.Header, 0x14, FreshPid(artists));
+        WriteU64(entry.Header, 0x14, FreshPid(artists, rnd));
         entry.Children.Add(LibraryMutation.BuildStringMhod((MhodType)300, name));
         string sort = SortName(name);
         if (sort != name) entry.Children.Add(LibraryMutation.BuildStringMhod((MhodType)301, sort));
@@ -80,7 +81,7 @@ public static class EntityLinks
         return id;
     }
 
-    private static uint FindOrCreateAlbum(RawChunk root, RawChunk albums, string? album, string? artist, string? albumArtist, ulong trackPid)
+    private static uint FindOrCreateAlbum(RawChunk root, RawChunk albums, string? album, string? artist, string? albumArtist, ulong trackPid, Random rnd)
     {
         string? entityArtist = albumArtist ?? artist;
         foreach (var e in albums.Children.Where(c => c.Magic == "mhia"))
@@ -95,7 +96,7 @@ public static class EntityLinks
         var entry = new RawChunk { Magic = "mhia", Header = (byte[])template.Header.Clone() };
         uint id = NextId(root);
         WriteI32(entry.Header, 0x10, (int)id);
-        WriteU64(entry.Header, 0x14, FreshPid(albums));
+        WriteU64(entry.Header, 0x14, FreshPid(albums, rnd));
         WriteU64(entry.Header, 0x20, trackPid);
         if (album is not null) entry.Children.Add(LibraryMutation.BuildStringMhod((MhodType)200, album));
         if (artist is not null) entry.Children.Add(LibraryMutation.BuildStringMhod((MhodType)201, artist));
@@ -104,12 +105,12 @@ public static class EntityLinks
         return id;
     }
 
-    private static ulong FreshPid(RawChunk list)
+    private static ulong FreshPid(RawChunk list, Random rnd)
     {
         var used = list.Children.Where(c => c.Header.Length >= 0x1C).Select(c => U64(c.Header, 0x14)).ToHashSet();
         while (true)
         {
-            ulong pid = (ulong)Random.Shared.NextInt64(long.MinValue, long.MaxValue);
+            ulong pid = (ulong)rnd.NextInt64(long.MinValue, long.MaxValue);
             if (pid != 0 && !used.Contains(pid)) return pid;
         }
     }

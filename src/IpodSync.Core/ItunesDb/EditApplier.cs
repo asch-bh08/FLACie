@@ -25,9 +25,13 @@ public static class EditApplier
         report.WasCompressed = !ReferenceEquals(inflated, fileBytes);
         var root = RawChunkParser.ParseRoot(inflated);
 
+        // Every "random" choice (new persistent ids, scrambled file names) is seeded
+        // from the database bytes and the change-set, so a dry run produces exactly the
+        // bytes a later --yes run against the same device state will write.
+        var rng = new Random(Seed(fileBytes, changeSet));
         foreach (var op in changeSet.Ops ?? [])
         {
-            try { report.Ops.Add(ApplyOne(root, before, op, report)); }
+            try { report.Ops.Add(ApplyOne(root, before, op, report, rng)); }
             catch (Exception ex) { report.Ops.Add(new OpResult(op.Op ?? "(missing op)", false, ex.Message)); }
         }
 
@@ -54,7 +58,14 @@ public static class EditApplier
         return report;
     }
 
-    private static OpResult ApplyOne(RawChunk root, ItunesDatabase before, EditOp op, ApplyReport report)
+    private static int Seed(byte[] fileBytes, ChangeSet changeSet)
+    {
+        byte[] json = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(changeSet);
+        byte[] hash = System.Security.Cryptography.SHA256.HashData([.. System.Security.Cryptography.SHA256.HashData(fileBytes), .. json]);
+        return BitConverter.ToInt32(hash, 0);
+    }
+
+    private static OpResult ApplyOne(RawChunk root, ItunesDatabase before, EditOp op, ApplyReport report, Random rng)
     {
         switch ((op.Op ?? "").Trim())
         {
@@ -68,14 +79,14 @@ public static class EditApplier
                 if (f.Album is not null) { LibraryMutation.SetTrackString(mhit, MhodType.Album, f.Album); changed.Add("album"); }
                 if (changed.Count == 0) throw new InvalidOperationException("setTrackFields had no title/artist/album to set.");
                 // Artist/album changes move the track to a different album/artist entry.
-                if (f.Artist is not null || f.Album is not null) EntityLinks.Relink(root, mhit);
+                if (f.Artist is not null || f.Album is not null) EntityLinks.Relink(root, mhit, rng);
                 return new OpResult(op.Op!, true, $"track {op.TrackId}: set {string.Join(", ", changed)}");
             }
             case "relinkTrack":
             {
                 var mhit = FindTrack(root, Require(op.TrackId, "trackId"));
                 uint oldAlbum = (uint)BinaryIo.I32(mhit.Header, 0x120), oldArtist = (uint)BinaryIo.I32(mhit.Header, 0x1E0);
-                EntityLinks.Relink(root, mhit);
+                EntityLinks.Relink(root, mhit, rng);
                 return new OpResult(op.Op!, true, $"track {op.TrackId}: album link {oldAlbum} -> {(uint)BinaryIo.I32(mhit.Header, 0x120)}, artist link {oldArtist} -> {(uint)BinaryIo.I32(mhit.Header, 0x1E0)}");
             }
             case "setTrackRating":
@@ -143,7 +154,7 @@ public static class EditApplier
             case "addTrackFromFile":
             {
                 var src = RequireStr(op.SourcePath, "sourcePath");
-                var (mhit, destRel) = LibraryMutation.AddTrackFromFile(root, src);
+                var (mhit, destRel) = LibraryMutation.AddTrackFromFile(root, src, rng);
                 report.FileCopies.Add((src, destRel));
                 uint newId = (uint)TrackFields.GetId(mhit);
                 if (op.Playlist is not null)

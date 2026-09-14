@@ -173,3 +173,47 @@ playlist appends insert only the new rows.
 - Device verify all PASS incl. `tracks in sync`, `Locations cbk valid`.
   `itlp-diff D:/` → **IN SYNC**. `hash72-verify D:/` → CDB + cbk valid.
 - The device's CDB and SQLite library now agree completely, both signed.
+
+### 02:55–03:25 — CDB album/artist links, add-from-file fixes, live track feature pass
+
+Found while checking what add-from-file writes: last session's
+`AddTrackFromFile` cloned a template track's whole mhit header, so the added
+EsDeeKid track carried the template's **second persistent-id copy (+0xA8)**,
+sample count (+0xBC), size copy (+0x12C), date added (+0x68), and its
+**album/artist list links** (+0x120 / +0x1E0 → the template's `????????`
+album/artist). Each offset was confirmed across all 636 tracks (e.g. +0xA8 ==
+persistent id for every iTunes-written track; +0x120 → mhia whose persistent id
+== SQLite `item.album_pid` for all 596 tracks with an album).
+
+Fixed (commit `8ecdae2` + determinism follow-up):
+- `RawChunk` parses mhla/mhli/mhia/mhii structurally; **all 21 databases on
+  hand still round-trip byte-identically**. Reader exposes the lists + links.
+- `EntityLinks` finds/creates album & artist entries (ids from the shared
+  track/list counter, mhod layout identical to every real entry).
+- `AddTrackFromFile` sets every per-track field itself, prefers a no-artwork
+  template, reads album artist / composer / track+disc counts / codec (ALAC vs
+  AAC) from tags, and picks an **existing** `F##` folder (device has F00–F13).
+- `setTrackFields` re-links on artist/album changes; `relinkTrack` op.
+- SQLite sync reuses the CDB entity pids; verifier checks album_pid/artist_pid.
+- Random choices (persistent ids, file names) are seeded from the CDB bytes +
+  change-set, so **a dry run now previews exactly what `--yes` writes** (before
+  this fix, live #9's dry run showed a different path/pid than the real run —
+  harmless, since every write re-proves its own bytes, but not a true preview).
+
+| # | time | change-set | pre-write backup (`ipod-backups\…`) |
+|---|------|------------|------------------|
+| 8 | 01:00 | `relinkTrack` ×2: repair the two test tracks' album/artist links (CDB) → SQLite re-pointed to the same pids, 2 stray rows pruned | `applyedits-20260914-010021` |
+| 9 | 01:02 | `addTrackFromFile` test tone MP3 (ffmpeg-generated, tagged) → +playlist `iPodSync Playlist Test` | `applyedits-20260914-010216` |
+| 10 | 01:02 | `setTrackFields` retag title + album of that track (relinks album) | `applyedits-20260914-010218` |
+| 11 | 01:02 | `removeTrack` that track | `applyedits-20260914-010220` |
+
+All four: every device check PASS (incl. CDB signatures, cbk valid, tracks +
+playlists in sync); after #11 `itlp-diff D:/` → IN SYNC, `hash72-verify` valid.
+Side effect of #9 (pre-fix code): the tone's audio was copied to a new folder
+`D:\iPod_Control\Music\F33\RB76.mp3` (481,649 bytes). After #11 it is an
+unreferenced file — left in place per the no-deleting rule; harmless.
+
+**HANDOFF step 2 status:** create-playlist, playlist rename/delete,
+add/remove/reorder playlist tracks, rename/retag track, add track from file and
+delete track now all write CDB + SQLite in one verified operation, confirmed on
+the device's files. Not yet confirmed on the iPod's screen (no eject tonight).

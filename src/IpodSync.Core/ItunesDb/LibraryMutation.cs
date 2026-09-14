@@ -228,7 +228,7 @@ public static class LibraryMutation
     /// to (the caller does the copy on a real write). Round-trips + re-reads correctly;
     /// on-device acceptance unverified (no hardware).
     /// </summary>
-    public static (RawChunk mhit, string destRel) AddTrackFromFile(RawChunk root, string sourcePath)
+    public static (RawChunk mhit, string destRel) AddTrackFromFile(RawChunk root, string sourcePath, Random? random = null)
     {
         if (!File.Exists(sourcePath)) throw new FileNotFoundException("source audio file not found", sourcePath);
         string ext = Path.GetExtension(sourcePath).TrimStart('.').ToLowerInvariant();
@@ -258,7 +258,7 @@ public static class LibraryMutation
         // Track ids share a counter with album/artist list ids and mhit +0x1F4 (= id + 3).
         uint newId = EntityLinks.NextId(root);
         var pids = new HashSet<ulong>(existing.Select(TrackFields.GetPersistentId));
-        var rnd = new Random();
+        var rnd = random ?? Random.Shared;
         ulong newPid; do { newPid = ((ulong)(uint)rnd.Next() << 32) | (uint)rnd.Next(); } while (newPid == 0 || pids.Contains(newPid));
 
         string control = existing.Select(GetLocation).FirstOrDefault(l => l != null)?.Contains("iTunes_Control") == true
@@ -267,9 +267,14 @@ public static class LibraryMutation
             .Select(l => l!.Replace(':', '/').TrimStart('/').ToLowerInvariant()));
         const string A = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         string destRel, destColon;
+        // Use the F## folders the device already has (iTunes sizes this per device:
+        // F00-F13 on the 8 GB nano 5G); only fall back to F00-F49 on an empty device.
+        var folders = used.Select(u => u.Split('/')).Where(parts => parts.Length >= 4 && parts[^2].Length == 3 && parts[^2][0] == 'f')
+            .Select(parts => parts[^2].ToUpperInvariant()).Distinct().OrderBy(f => f).ToList();
+        if (folders.Count == 0) folders = Enumerable.Range(0, 50).Select(i => $"F{i:00}").ToList();
         do
         {
-            string dir = $"F{rnd.Next(0, 50):00}";
+            string dir = folders[rnd.Next(folders.Count)];
             string name = new string(Enumerable.Range(0, 4).Select(_ => A[rnd.Next(A.Length)]).ToArray());
             destRel = $"{control}/Music/{dir}/{name}.{ext}";
             destColon = $":{control}:Music:{dir}:{name}.{ext}";
@@ -319,7 +324,7 @@ public static class LibraryMutation
         mhit.Children.Add(BuildStringMhod(MhodType.Location, destColon));
 
         mhlt.Children.Add(mhit);
-        EntityLinks.Relink(root, mhit);
+        EntityLinks.Relink(root, mhit, rnd);
         foreach (var master in RawChunkNavigation.AllPlaylists(root).Where(m => m.Header.Length > 0x14 && I32(m.Header, 0x14) == 1))
             AddTrackToPlaylist(root, master, mhit);
 

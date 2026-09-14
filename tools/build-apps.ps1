@@ -49,6 +49,15 @@ if ($Android) {
   $props = @()
   if (Test-Path (Join-Path $Toolchain "jdk")) { $props += "-p:JavaSdkDirectory=$(Join-Path $Toolchain 'jdk')"; $env:JAVA_HOME = Join-Path $Toolchain "jdk" }
   if (Test-Path (Join-Path $Toolchain "android-sdk")) { $props += "-p:AndroidSdkDirectory=$(Join-Path $Toolchain 'android-sdk')" }
+  # One permanent signing key, so each new APK installs as an update. Kept only on this PC
+  # (never committed): <Toolchain>\signing\ipodsync-release.keystore + keystore-password.txt.
+  # A different key (e.g. the old per-machine debug key) makes Android say "App not installed".
+  $keystore = Join-Path $Toolchain "signing\ipodsync-release.keystore"
+  $pwFile = Join-Path $Toolchain "signing\keystore-password.txt"
+  if (Test-Path $keystore) {
+    $props += "-p:AndroidKeyStore=true", "-p:AndroidSigningKeyStore=$keystore", "-p:AndroidSigningKeyAlias=ipodsync",
+              "-p:AndroidSigningStorePass=file:$pwFile", "-p:AndroidSigningKeyPass=file:$pwFile"
+  } else { Write-Warning "no release keystore at $keystore; the APK gets this PC's debug key" }
   & $dotnet build $project -f net9.0-android -c Release -p:AcceptAndroidSDKLicenses=True @props
   if ($LASTEXITCODE -ne 0) { throw "Android build failed" }
   $apk = Get-ChildItem (Join-Path $repo "src\IpodSync.Maui\bin\Release\net9.0-android") -Filter "*-Signed.apk" | Sort-Object LastWriteTime -Descending | Select-Object -First 1

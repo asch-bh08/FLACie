@@ -625,7 +625,7 @@
   </div>
 </div>
 
-<input id="addFilesInput" type="file" multiple accept="audio/*,.mp3,.m4a,.aac,.flac,.wav,.aiff,.alac" hidden>
+<input id="addFilesInput" type="file" multiple accept="audio/*,.mp3,.m4a,.aac,.flac,.wav,.aif,.aiff,.alac,.ogg,.oga,.opus,.wma,.ape,.wv" hidden>
 
 <div class="scrim" id="scrim"></div>
 <div id="toast"></div>
@@ -672,6 +672,7 @@ function parseTrack(dv,buf,pos){
   if(hlen>=52)t.trackNumber=u32(dv,pos+44);
   if(hlen>=60)t.year=u32(dv,pos+52);
   if(hlen>=64)t.bitrate=u32(dv,pos+56);
+  if(hlen>=32)t.stars=Math.round(dv.getUint8(pos+0x1F)/20);   // 0-100 in steps of 20
   let p=pos+hlen;
   for(let i=0;i<nmhod;i++){
     if(fourcc(dv,p)!=='mhod')break;
@@ -1618,8 +1619,10 @@ const stagedPlDeletes=new Set();  // playlist name
 const stagedPlCreates=[];         // {name, trackIds:[]}
 const stagedFileAdds=[];          // {name, sourcePath, playlist?}
 const stagedPlOrder=new Map();    // playlist name -> [trackId,...] (drag reorder)
-function pendingCount(){return stagedEdits.size+stagedDeletes.size+stagedPlAdds.length+stagedPlRemoves.length+stagedPlRenames.size+stagedPlDeletes.size+stagedPlCreates.length+stagedFileAdds.length+stagedPlOrder.size;}
-function clearStaged(){stagedEdits.clear();stagedDeletes.clear();stagedPlAdds.length=0;stagedPlRemoves.length=0;stagedPlRenames.clear();stagedPlDeletes.clear();stagedPlCreates.length=0;stagedFileAdds.length=0;stagedPlOrder.clear();updateEditBar();}
+const stagedRatings=new Map();    // trackId -> stars 0-5
+const stagedArtwork=[];           // {trackIds:[...], imagePath, name}
+function pendingCount(){return stagedEdits.size+stagedDeletes.size+stagedPlAdds.length+stagedPlRemoves.length+stagedPlRenames.size+stagedPlDeletes.size+stagedPlCreates.length+stagedFileAdds.length+stagedPlOrder.size+stagedRatings.size+stagedArtwork.length;}
+function clearStaged(){stagedEdits.clear();stagedDeletes.clear();stagedPlAdds.length=0;stagedPlRemoves.length=0;stagedPlRenames.clear();stagedPlDeletes.clear();stagedPlCreates.length=0;stagedFileAdds.length=0;stagedPlOrder.clear();stagedRatings.clear();stagedArtwork.length=0;updateEditBar();}
 let dragId=null;
 function onRowDrop(list,dropId){
   if(dragId==null||dragId===dropId)return;
@@ -1665,6 +1668,8 @@ function buildChangeSet(){const ops=[];
   for(const n of stagedPlDeletes)ops.push({op:'deletePlaylist',playlist:n});
   for(const f of stagedFileAdds)ops.push(f.playlist?{op:'addTrackFromFile',sourcePath:f.sourcePath,playlist:f.playlist}:{op:'addTrackFromFile',sourcePath:f.sourcePath});
   for(const [pl,ids] of stagedPlOrder)ops.push({op:'reorderPlaylist',playlist:pl,trackIds:ids});
+  for(const [id,stars] of stagedRatings)ops.push({op:'setTrackRating',trackId:id,stars});
+  for(const a of stagedArtwork)ops.push({op:'setTrackArtwork',trackIds:a.trackIds,imagePath:a.imagePath});
   return {version:1,ops};}
 function openModal(id){$('#'+id).classList.add('open');}
 function closeModal(id){$('#'+id).classList.remove('open');}
@@ -1677,11 +1682,15 @@ function openEditDialog(t){
     '<div class="field"><label>Title</label><input id="edTitle"></div>'+
     '<div class="field"><label>Artist</label><input id="edArtist"></div>'+
     '<div class="field"><label>Album</label><input id="edAlbum"></div>'+
+    '<div class="field"><label>Rating</label><select id="edStars" style="max-width:none">'+[0,1,2,3,4,5].map(n=>'<option value="'+n+'">'+(n?'★'.repeat(n)+'☆'.repeat(5-n):'No rating')+'</option>').join('')+'</select></div>'+
+    '<div class="field"><label>Cover art</label><div style="display:flex;gap:8px;align-items:center"><input id="edArt" type="file" accept="image/*" style="flex:1">'+
+      '<label style="display:flex;gap:6px;align-items:center;white-space:nowrap;font-size:12px"><input id="edArtAlbum" type="checkbox" checked>whole album</label></div></div>'+
     (plOpts?'<div class="field"><label>Add to playlist</label><div style="display:flex;gap:8px"><select id="edPl" style="flex:1;max-width:none">'+plOpts+'</select><button class="btn2 ghost" id="edAddPl" style="flex:none;padding:9px 14px">Add</button></div></div>':'')+
     '<div class="dlg-actions"><button class="btn2 danger" id="edDelete">'+(stagedDeletes.has(t.id)?'Undo delete':'Delete track')+'</button><button class="btn2 primary" id="edSave">Save</button></div>';
   $('#edTitle').value=(ov.title!=null?ov.title:t.title)||'';
   $('#edArtist').value=(ov.artist!=null?ov.artist:t.artist)||'';
   $('#edAlbum').value=(ov.album!=null?ov.album:t.album)||'';
+  $('#edStars').value=String(stagedRatings.has(t.id)?stagedRatings.get(t.id):(t.stars||0));
   $('#edSave').onclick=saveEditDialog;
   $('#edDelete').onclick=()=>{toggleDelete(t);closeEdit();};
   const ab=$('#edAddPl');if(ab)ab.onclick=()=>{stagePlaylistAdd(t,$('#edPl').value);toast('Staged: add to “'+$('#edPl').value+'”');};
@@ -1694,7 +1703,20 @@ function saveEditDialog(){
   if(na!==(t.artist||''))f.artist=na;
   if(nl!==(t.album||''))f.album=nl;
   if(Object.keys(f).length)stagedEdits.set(t.id,f);else stagedEdits.delete(t.id);
+  const ns=+$('#edStars').value;
+  if(ns!==(t.stars||0))stagedRatings.set(t.id,ns);else stagedRatings.delete(t.id);
+  const art=$('#edArt').files&&$('#edArt').files[0];
+  if(art)stageArtwork(t,art,$('#edArtAlbum').checked);
   closeEdit();updateEditBar();render();
+}
+async function stageArtwork(t,file,wholeAlbum){
+  if(!SERVER_EDITOR){toast('Cover art needs the helper server — launch via iPod Player.vbs.',3500);return;}
+  const ids=wholeAlbum&&t.album?[...L.tracks.values()].filter(x=>x.album===t.album&&x.artist===t.artist).map(x=>x.id):[t.id];
+  try{
+    const r=await fetch('/api/upload?name='+encodeURIComponent(file.name),{method:'POST',body:file});
+    const j=await r.json();
+    if(j.ok&&j.path){stagedArtwork.push({trackIds:ids,imagePath:j.path,name:file.name});updateEditBar();toast('Staged: cover art for '+ids.length+' track'+(ids.length===1?'':'s'));}
+  }catch(e){toast('Upload failed: '+e.message,3500);}
 }
 function opLabel(o){
   if(o.op==='setTrackFields')return 'Edit tags of #'+o.trackId+' — '+Object.entries(o.fields).map(([k,v])=>k+': “'+v+'”').join(', ');
@@ -1706,6 +1728,8 @@ function opLabel(o){
   if(o.op==='deletePlaylist')return 'Delete playlist “'+o.playlist+'”';
   if(o.op==='addTrackFromFile')return 'Add song from file: '+(o.sourcePath||'').split(/[\\/]/).pop()+(o.playlist?' → “'+o.playlist+'”':'');
   if(o.op==='reorderPlaylist')return 'Reorder playlist “'+o.playlist+'” ('+(o.trackIds?o.trackIds.length:0)+' tracks)';
+  if(o.op==='setTrackRating')return 'Rate #'+o.trackId+' '+(o.stars?'★'.repeat(o.stars):'(no rating)');
+  if(o.op==='setTrackArtwork')return 'Cover art '+(o.imagePath||'').split(/[\\/]/).pop().replace(/^[0-9a-f]{32}-/,'')+' → '+o.trackIds.length+' track'+(o.trackIds.length===1?'':'s');
   return o.op;}
 function openReview(){
   const cs=buildChangeSet();

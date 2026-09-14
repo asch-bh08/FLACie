@@ -1,82 +1,112 @@
 # Edit protocol — the bridge between the iPod Player and the ipodsync writer
 
-The [iPod Player](ipod-player/) is a read-only browser app. To let it *edit* an
-iPod's contents **without** growing a second, unproven database writer in
-JavaScript, the player never writes the `iTunesDB` itself. Instead it emits a
-**change-set** — a plain JSON description of the edits the user made — and hands
-it to the verified C# engine (`IpodSync`), which applies it through the
-round-trip-proven writer, backing up first and only touching the device after an
-explicit confirmation.
+The [iPod Player](ipod-player/) is a browser app. To let it *edit* an iPod's
+contents **without** growing a second, unproven database writer in JavaScript, the
+player never writes device files itself. Instead it emits a **change-set** — a
+plain JSON description of the edits the user made — and hands it to the verified
+C# engine (`IpodSync`), which applies it through the round-trip-proven writer.
 
 ```
- iPod Player (JS)                 ipodsync engine (C#)
- ┌────────────────┐   change-set  ┌───────────────────────────┐   gated write
- │ edit UI, stages│──── JSON ────▶│ apply-edits:              │──────────────▶ iPod
- │ ops in memory  │               │  1. back up iTunes/       │  (only after
- │ (no DB write)  │               │  2. apply ops on RawChunk │   user confirms)
- └────────────────┘               │  3. round-trip self-check │
-                                   │  4. write DB back         │
-                                   └───────────────────────────┘
+ iPod Player (JS)                 ipodsync engine (C#) — WritePipeline
+ ┌────────────────┐   change-set  ┌────────────────────────────────────────┐   verified write
+ │ edit UI, stages│──── JSON ────▶│ 1. CDB edit in memory (+ re-parse,      │──────────────▶ iPod
+ │ ops in memory  │               │    idempotent re-serialize)             │  (only with --yes,
+ │ (no DB write)  │               │ 2. SQLite bundle synced on a STAGED copy│   only if every
+ └────────────────┘               │ 3. artwork / transcode / Play Counts    │   check passed)
+                                   │ 4. signatures regenerated + validated   │
+                                   │ 5. backup (SHA-1 verified) → write →    │
+                                   │    read back → re-verify the device →   │
+                                   │    restore the backup on any failure    │
+                                   └────────────────────────────────────────┘
 ```
+
+## Two databases (nano 5G and similar)
+
+These iPods keep the classic `iPod_Control/iTunes/iTunesCDB` **and** a SQLite
+bundle `iPod_Control/iTunes/iTunes Library.itlp/` (`Library.itdb`, `Dynamic.itdb`,
+`Locations.itdb` + signed `Locations.itdb.cbk`, `Extras.itdb`). The firmware's
+menus, search, and Now Playing stats come from the SQLite side. **Every op below
+writes both in one operation**; a write is refused unless, afterwards,
+`itlp-diff` finds the two in sync (tracks, fields, album/artist identity,
+artwork links, playlists, memberships). Rating/play-count differences are
+reported separately because the iPod updates `item_stats` itself.
+
+The CDB header's hash58 + hash72 and the cbk's hash72 are regenerated on every
+write, using key material proven against an existing iTunes signature for that
+device (see `OVERNIGHT-STATUS.md`). Writes to a signed database are refused
+without that proof (`--allow-unsigned` overrides).
 
 ## Transport
 
-For now the player writes the change-set to
-`iPod_Control/.ipodsync/pending-edits.json` (or a path chosen by the helper
-server), and the engine is invoked as:
-
 ```
-IpodSync.Cli apply-edits <ipod-root> --changes pending-edits.json [--dry-run] [--yes]
+IpodSync.Cli apply-edits <ipod-root> --changes <file.json> [--yes] [--backup-root dir]
 ```
 
-- `--dry-run` (default): apply in memory, run every round-trip check, report what
-  *would* change. **Never writes to the device.**
-- `--yes`: perform the real device write. Refuses unless a fresh backup of
-  `iPod_Control/iTunes/` exists. This is the only mode that touches hardware.
+- default: **dry run** — everything above except the write. Random choices (new
+  persistent ids, file names) are seeded from the database + change-set, and
+  transcodes are cached, so a dry run shows exactly what `--yes` will write.
+- `--yes`: backs up `iPod_Control/iTunes/` (plus `Artwork/` when artwork changes) to
+  `<backup-root>/<label>-yyyyMMdd-HHmmss/`, verifies the backup, writes, reads every
+  file back, re-verifies the device, and **restores the backup automatically** if
+  any check fails. `write-log.txt` is saved next to the backup.
+- The player's helper server (`ipod-server.ps1`) exposes the same command as
+  `POST /api/apply-edits` (`?commit=1` for `--yes`); the JSON contract is identical.
 
-Later this same command can be exposed over the helper server's HTTP API so the
-player can call it directly; the JSON contract stays identical either way.
+Related commands: `itlp-sync <root> [--yes] [--resign]` (bring SQLite in line with
+the CDB / re-sign), `itlp-diff`, `art-check`, `hash72-verify`, `hash58-verify`,
+`sync-folder` (below). All read-only unless `--yes`.
 
 ## Change-set schema (v1)
 
 ```jsonc
-{
-  "version": 1,
-  "dbPath": "D:/iPod_Control/iTunes/iTunesDB",
-  "ops": [ /* applied in order */ ]
-}
+{ "version": 1, "ops": [ /* applied in order */ ] }
 ```
 
-Tracks are addressed by their existing **track id** (the `mhit` id the reader
-already surfaces); playlists by **name** (or persistent id when available).
+Tracks are addressed by **track id** (`dump` prints `#id`); playlists by **name**.
 
-| op | fields | writer status |
-|----|--------|---------------|
-| `setTrackFields` | `trackId`, `fields:{title?,artist?,album?}` | **Implemented** (`EditApplier`). Title = round-trip proven; artist/album reuse the identical string-`mhod` mechanism and pass the reader-reparse + idempotent checks — dry-run verified on a real device. |
-| `setTrackRating` | `trackId`, `stars` (0–5) | **Implemented**, proven (fixed-size field). |
-| `setPlayCount` | `trackId`, `count` | **Implemented**, proven (fixed-size field). |
-| `removeTrack` | `trackId` | **Implemented**, proven (removes `mhit` + every referencing `mhip`). |
-| `addTrackToPlaylist` | `playlist`, `trackId`, `position?` | **Implemented**, proven for tracks already on the device. |
-| `removeTrackFromPlaylist` | `playlist`, `trackId` | **Implemented**; same `mhip`-deletion mechanism as `removeTrack`, passes the reparse + idempotent checks — dry-run verified on a real device. |
-| `reorderPlaylist` | `playlist`, `trackIds[]` | **Implemented**; rearranges existing `mhip`s (no bytes built). Round-trip verified. |
-| `createPlaylist` | `name`, `trackIds[]` | **Implemented and under hardware verification.** Clones a real user-playlist `mhyp` + `mhip`s, retains the required type-100/102 settings objects, and writes the fresh playlist persistent id to both confirmed header locations (`0x1C`, `0x44`). A first hardware attempt exposed both of those missing details; the corrected playlist is now written and awaits the iPod-screen visibility check. |
-| `renamePlaylist` / `deletePlaylist` | `playlist`, (`name`) | **Implemented**; round-trip verified. |
+| op | fields | status (2026-09-14) |
+|----|--------|--------|
+| `setTrackFields` | `trackId`, `fields:{title?,artist?,album?}` | ✅ both DBs; artist/album changes re-link the CDB album/artist lists and the SQLite entities. Live-verified on device files. |
+| `setTrackRating` | `trackId`, `stars` 0–5 | ✅ CDB +0x1F **and** `Dynamic.itdb item_stats.user_rating` (20/star). Live-verified on files; on-screen check pending. |
+| `setPlayCount` | `trackId`, `count` | ✅ CDB + `item_stats.play_count_user`. Fake-root verified. |
+| `removeTrack` | `trackId` | ✅ both DBs (item, stats, location + cbk), releases artwork, realigns `Play Counts`. Audio file left on disk. Live-verified. |
+| `addTrackFromFile` | `sourcePath`, `playlist?`, `transcode?` (`auto`\|`alac`\|`aac`\|`never`), `artwork?` (default true) | ✅ both DBs + album/artist entries + embedded cover art; non-iPod formats transcoded (lossless → ALAC 16-bit, lossy → AAC 256k). Live-verified (MP3, FLAC, Opus, M4A). |
+| `setTrackArtwork` | `trackId` or `trackIds[]`, `imagePath` (image, or audio file with a cover) | ✅ ArtworkDB + ithmb thumbnails + CDB + SQLite; one image shared by all listed tracks. Live-verified on files (thumbnails decoded back). |
+| `removeTrackArtwork` | `trackId` | ✅ Fake-root verified. |
+| `relinkTrack` | `trackId` | ✅ repairs a track's album/artist list links from its strings. Live-verified. |
+| `addTrackToPlaylist` | `playlist`, `trackId`, `position?` | ✅ both DBs. Live-verified. |
+| `removeTrackFromPlaylist` | `playlist`, `trackId` | ✅ both DBs. Live-verified. |
+| `reorderPlaylist` | `playlist`, `trackIds[]` | ✅ both DBs. Live-verified. |
+| `createPlaylist` | `name`, `trackIds[]` | ✅ both DBs (container, container_ui, name_order rank). Live-verified. |
+| `renamePlaylist` | `playlist`, `name` | ✅ both DBs. Live-verified. |
+| `deletePlaylist` | `playlist` | ✅ both DBs. Live-verified. |
 
-> **Playlists live in more than one dataset.** iTunes writes each playlist into
-> two `mhlp` datasets on these devices; the reader de-dups by persistent id. So a
-> per-playlist edit (rename/reorder/delete/add/remove-entry) is applied to **every
-> copy** with that persistent id, or the de-dup can resurface a stale one. (A first
-> cut of delete edited only one copy and the playlist "came back" — the round-trip
-> test caught it.) `removeTrack` already spans all playlists.
-| `addTrackFromFile` | `sourcePath`, `playlist?` | **Implemented and under hardware verification.** Reads real duration/bitrate/tags (TagLibSharp); fresh track id + collision-free persistent id; a scrambled `F##/XXXX.ext` path; clones a same-extension `mhit` as a template then patches numeric fields + clean string mhods; adds to the track list and every master-playlist copy. `apply-edits --yes` copies the file onto the device after the DB write. The device DB re-read confirmed a real AAC file was copied and indexed (635 → 636); final firmware playback confirmation is still pending. Transcode-on-add (for FLAC etc.) is future work — for now the source must already be an iPod-playable format (MP3/AAC/ALAC/AIFF/WAV). |
+"Live-verified" = written to the real nano 5G and re-verified from its files
+(both databases, signatures, artwork). **None of it has been eyeballed on the
+iPod's own screen yet** — see `OVERNIGHT-STATUS.md` for the morning checklist.
 
-The implemented ops live in `IpodSync.Core/ItunesDb/EditApplier.cs`, invoked by `IpodSync.Cli apply-edits`. Every apply (dry-run or `--yes`) re-reads its result through the verified `ItunesDbReader` and re-serializes it to confirm the writer agrees with itself; `--yes` refuses unless all checks pass and it backs up `iPod_Control/iTunes/` first.
+> **Playlists live in more than one CDB dataset.** A per-playlist edit is applied
+> to every copy with that persistent id, or the reader's de-dup can resurface a
+> stale one.
+
+## Folder / NAS sync
+
+```
+IpodSync.Cli sync-folder <ipod-root> <music-folder> [--yes] [--batch N] [--limit N]
+                         [--playlist name] [--remove-missing]
+```
+
+Plans against an off-device manifest (`%LOCALAPPDATA%\ipodsync\manifests\`, per
+device library + folder): files already synced, files **already on the iPod**
+(adopted without copying), duplicates inside the folder (keeps lossless), and
+files to add. Checks free space, then adds in batches of `addTrackFromFile` ops
+through the same pipeline. `--remove-missing` only removes tracks the sync added.
 
 ## Safety (inherited from HANDOFF.md — non-negotiable)
 
-1. **No device write until the edit round-trips.** Every op must pass the same
-   two-way proof the existing mutations do (semantic re-read + idempotent
-   re-serialize) before `--yes` will write it.
-2. **Back up `iPod_Control/iTunes/` first.** `--yes` refuses without a fresh backup.
-3. **Ask the user before the first real write to a device**, even for a proven edit.
-4. The player's staging/preview is always safe; only `apply-edits --yes` is not.
+1. Back up before every write (automatic, verified) — never skipped.
+2. Dry-run first; `--yes` refuses unless every check passes.
+3. Verify after every write; restore the backup on any failure.
+4. Never write bytes that weren't proven off-device first (staged copy / in memory).
+5. `tools/fake-root-regression.sh <ipod-or-backup>` runs every op above against a
+   fake root and must pass before changing the write path.

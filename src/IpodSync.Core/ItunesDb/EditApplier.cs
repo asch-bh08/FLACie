@@ -60,6 +60,55 @@ public static class EditApplier
         return report;
     }
 
+    // ---------------------------------------------------------------- artwork
+
+    private static Artwork.ArtworkSession? ArtworkFor(ApplyReport report, string? deviceRoot, bool required)
+    {
+        if (report.Artwork is not null) return report.Artwork;
+        string? dir = deviceRoot is null ? null : System.IO.Path.Combine(deviceRoot, "iPod_Control", "Artwork");
+        report.Artwork = dir is null ? null : Artwork.ArtworkSession.Open(dir);
+        if (report.Artwork is null && required)
+            throw new InvalidOperationException("this device has no ArtworkDB to add artwork to");
+        return report.Artwork;
+    }
+
+    private static bool HasArt(RawChunk mhit) => mhit.Header.Length > 0x164 && mhit.Header[0xA4] == 1;
+
+    /// <summary>Points tracks at one new image (reference count = number of tracks),
+    /// releasing whatever image each had before.</summary>
+    private static int SetArtwork(IReadOnlyList<RawChunk> tracks, string imagePath, Artwork.ArtworkSession art)
+    {
+        foreach (var t in tracks) if (HasArt(t)) art.AddReference(BinaryIo.I32(t.Header, 0x160), -1);
+        int id = art.AddImage(imagePath, TrackFields.GetPersistentId(tracks[0]), tracks.Count);
+        int size = (int)Math.Min(new FileInfo(imagePath).Length, int.MaxValue);
+        foreach (var t in tracks)
+        {
+            t.Header[0xA4] = 1;                                   // has artwork
+            BinaryIo.WriteI32(t.Header, 0x160, id);               // image id (== SQLite artwork_cache_id)
+            t.Header[0x7C] = 1; t.Header[0x7D] = 0;               // artwork count (u16)
+            BinaryIo.WriteI32(t.Header, 0x80, size);              // source artwork size
+        }
+        return id;
+    }
+
+    private static void ClearArtwork(RawChunk t, Artwork.ArtworkSession? art)
+    {
+        if (!HasArt(t)) return;
+        art?.AddReference(BinaryIo.I32(t.Header, 0x160), -1);
+        t.Header[0xA4] = 2;
+        BinaryIo.WriteI32(t.Header, 0x160, 0);
+        t.Header[0x7C] = 0; t.Header[0x7D] = 0;
+        BinaryIo.WriteI32(t.Header, 0x80, 0);
+    }
+
+    private static string ResolveImage(string path)
+    {
+        if (!File.Exists(path)) throw new FileNotFoundException("artwork source not found", path);
+        string ext = System.IO.Path.GetExtension(path).ToLowerInvariant();
+        if (ext is ".jpg" or ".jpeg" or ".png" or ".bmp" or ".gif" or ".webp") return path;
+        return Artwork.Thumbnailer.ExtractCover(path) ?? throw new InvalidOperationException($"'{System.IO.Path.GetFileName(path)}' has no embedded cover art");
+    }
+
     private static int Seed(byte[] fileBytes, ChangeSet changeSet)
     {
         byte[] json = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(changeSet);
@@ -91,6 +140,22 @@ public static class EditApplier
                 EntityLinks.Relink(root, mhit, rng);
                 return new OpResult(op.Op!, true, $"track {op.TrackId}: album link {oldAlbum} -> {(uint)BinaryIo.I32(mhit.Header, 0x120)}, artist link {oldArtist} -> {(uint)BinaryIo.I32(mhit.Header, 0x1E0)}");
             }
+            case "setTrackArtwork":
+            {
+                var ids = op.TrackIds is { Length: > 0 } list ? list : [Require(op.TrackId, "trackId")];
+                var tracks = ids.Select(i => FindTrack(root, i)).ToList();
+                string image = ResolveImage(RequireStr(op.ImagePath ?? op.SourcePath, "imagePath"));
+                var art = ArtworkFor(report, deviceRoot, required: true)!;
+                int id = SetArtwork(tracks, image, art);
+                return new OpResult(op.Op!, true, $"artwork image #{id} from '{System.IO.Path.GetFileName(image)}' -> track(s) {string.Join(", ", ids)}");
+            }
+            case "removeTrackArtwork":
+            {
+                var t = FindTrack(root, Require(op.TrackId, "trackId"));
+                if (!HasArt(t)) throw new InvalidOperationException($"track {op.TrackId} has no artwork.");
+                ClearArtwork(t, ArtworkFor(report, deviceRoot, required: true));
+                return new OpResult(op.Op!, true, $"removed artwork from track {op.TrackId}");
+            }
             case "setTrackRating":
             {
                 var mhit = FindTrack(root, Require(op.TrackId, "trackId"));
@@ -108,6 +173,8 @@ public static class EditApplier
             case "removeTrack":
             {
                 uint id = Require(op.TrackId, "trackId");
+                var gone = FindTrack(root, id);
+                if (HasArt(gone)) ClearArtwork(gone, ArtworkFor(report, deviceRoot, required: false));
                 LibraryMutation.RemoveTrack(root, id);
                 return new OpResult(op.Op!, true, $"removed track {id} (and any playlist entries referencing it)");
             }
@@ -179,9 +246,16 @@ public static class EditApplier
                 if (op.Playlist is not null)
                     foreach (var pl in FindPlaylistCopies(root, before, op.Playlist))
                         LibraryMutation.AddTrackToPlaylist(root, pl, mhit);
+                // Embedded cover from the file the user chose (a transcode drops pictures).
+                string? artNote = null;
+                if (op.Artwork != false && ArtworkFor(report, deviceRoot, required: false) is { } art)
+                {
+                    string? cover = Artwork.Thumbnailer.ExtractCover(original);
+                    if (cover is not null) artNote = $", artwork image #{SetArtwork([mhit], cover, art)}";
+                }
                 return new OpResult(op.Op!, true, $"added '{System.IO.Path.GetFileName(original)}' as track #{newId} -> {destRel}"
                     + (transcodeNote is not null ? $" [transcoded: {transcodeNote}]" : "")
-                    + (op.Playlist is not null ? $", and to playlist '{op.Playlist}'" : ""));
+                    + (op.Playlist is not null ? $", and to playlist '{op.Playlist}'" : "") + (artNote ?? ""));
             }
             default:
                 throw new NotSupportedException($"unknown op '{op.Op}'.");
@@ -228,6 +302,10 @@ public sealed class EditOp
     [JsonPropertyName("sourcePath")] public string? SourcePath { get; set; }
     /// <summary>addTrackFromFile: "auto" (default: convert only non-iPod formats), "alac", "aac", or "never".</summary>
     [JsonPropertyName("transcode")] public string? Transcode { get; set; }
+    /// <summary>addTrackFromFile: false skips copying the file's embedded cover.</summary>
+    [JsonPropertyName("artwork")] public bool? Artwork { get; set; }
+    /// <summary>setTrackArtwork: an image file, or an audio file with an embedded cover.</summary>
+    [JsonPropertyName("imagePath")] public string? ImagePath { get; set; }
     [JsonPropertyName("playlist")] public string? Playlist { get; set; }
     [JsonPropertyName("name")] public string? Name { get; set; }
     [JsonPropertyName("stars")] public int? Stars { get; set; }
@@ -262,6 +340,8 @@ public sealed class ApplyReport
     public List<string> Problems { get; } = [];
     public byte[] ModifiedInflated { get; set; } = [];
     public byte[] ModifiedOnDisk { get; set; } = [];
+    /// <summary>Artwork edits (ArtworkDB + ithmb appends), when any op touched artwork.</summary>
+    public Artwork.ArtworkSession? Artwork { get; set; }
 
     /// <summary>Safe to write to a device only when every op succeeded, the result
     /// re-reads through the verified reader, the writer is self-consistent, and no

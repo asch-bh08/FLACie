@@ -165,6 +165,39 @@ public static class ArtworkDb
     public static List<(int Format, int Size)> Formats(ArtChunk root) =>
         FileList(root).Children.Where(c => c.Magic == "mhif").Select(c => (ArtChunk.R(c.Header, 0x10), ArtChunk.R(c.Header, 0x14))).ToList();
 
+    /// <summary>Structural checks used before and after every artwork write: every
+    /// CDB track with artwork points at an existing image, every image's reference
+    /// count equals the tracks using it, and every thumbnail lies inside its ithmb.</summary>
+    public static List<string> Check(ArtChunk root, ItunesDb.ItunesDatabase cdb, IReadOnlyDictionary<int, long> ithmbLengths)
+    {
+        var problems = new List<string>();
+        var images = Images(root).ToList();
+        var byId = new Dictionary<int, ArtChunk>();
+        foreach (var m in images)
+            if (!byId.TryAdd(ImageId(m), m)) problems.Add($"duplicate image id {ImageId(m)}");
+        if (images.Count > 0 && NextImageId(root) <= byId.Keys.Max()) problems.Add($"next image id {NextImageId(root)} is not above the highest id {byId.Keys.Max()}");
+        var formats = Formats(root).ToDictionary(f => f.Format, f => f.Size);
+        foreach (var m in images)
+        {
+            var thumbs = Thumbs(m).ToList();
+            if (thumbs.Select(t => t.Format).Distinct().Count() != formats.Count) problems.Add($"image {ImageId(m)} has {thumbs.Count} thumbnails for {formats.Count} formats");
+            foreach (var t in thumbs)
+            {
+                if (!formats.TryGetValue(t.Format, out int size) || t.Size != size) problems.Add($"image {ImageId(m)} format {t.Format}: size {t.Size}");
+                long len = ithmbLengths.TryGetValue(t.Format, out var l) ? l : -1;
+                if (t.Offset < 0 || t.Offset + (long)t.Size > len)
+                    problems.Add($"image {ImageId(m)} format {t.Format}: offset {t.Offset} + {t.Size} outside ithmb ({len})");
+            }
+        }
+        var withArt = cdb.Tracks.Where(t => t.HasArtwork).ToList();
+        foreach (var t in withArt)
+            if (!byId.ContainsKey((int)t.ArtworkId)) problems.Add($"track #{t.Id} points at missing image {t.ArtworkId}");
+        var refs = withArt.GroupBy(t => (int)t.ArtworkId).ToDictionary(g => g.Key, g => g.Count());
+        foreach (var (id, m) in byId)
+            if (RefCount(m) != refs.GetValueOrDefault(id)) problems.Add($"image {id} reference count {RefCount(m)} but {refs.GetValueOrDefault(id)} track(s) use it");
+        return problems;
+    }
+
     private static string Magic(byte[] d, int p) => p + 4 <= d.Length ? Encoding.ASCII.GetString(d, p, 4) : "";
     private static int I(byte[] d, int p) => BitConverter.ToInt32(d, p);
     private static void Expect(byte[] d, int p, string m)

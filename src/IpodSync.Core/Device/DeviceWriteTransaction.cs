@@ -23,6 +23,10 @@ public sealed class DeviceWriteTransaction
     private readonly string _itunesDir;
     private readonly List<string> _writtenRel = [];   // relative to the iTunes dir
     private readonly List<string> _audioCopied = [];  // absolute device paths
+    private readonly List<string> _artworkWritten = [];                       // file names in Artwork/
+    private readonly List<(string Name, long OriginalLength)> _artworkAppended = [];
+    private string ArtworkDir => Path.Combine(Path.GetDirectoryName(_itunesDir)!, "Artwork");
+    private string ArtworkBackupDir => Path.Combine(Path.GetDirectoryName(BackupDir)!, "Artwork");
     public string BackupDir { get; }
     public List<string> Log { get; } = [];
 
@@ -34,7 +38,7 @@ public sealed class DeviceWriteTransaction
 
     /// <summary>Back up <paramref name="itunesDir"/> into
     /// <c>&lt;backupRoot&gt;/&lt;label&gt;-yyyyMMdd-HHmmss/iTunes</c> and verify it.</summary>
-    public static DeviceWriteTransaction Begin(string itunesDir, string backupRoot, string label)
+    public static DeviceWriteTransaction Begin(string itunesDir, string backupRoot, string label, bool includeArtwork = false)
     {
         string dir = Path.Combine(backupRoot, $"{label}-{DateTime.Now:yyyyMMdd-HHmmss}");
         if (Directory.Exists(dir)) dir += "-" + Guid.NewGuid().ToString("N")[..6];
@@ -51,7 +55,19 @@ public sealed class DeviceWriteTransaction
                 throw new IOException($"backup verification failed for {rel}; nothing was written");
             files++;
         }
-        tx.Log.Add($"backup      {files} files -> {backup} (SHA-1 verified)");
+        if (includeArtwork)
+        {
+            string art = tx.ArtworkDir, artBackup = tx.ArtworkBackupDir;
+            CopyDir(art, artBackup);
+            foreach (var file in Directory.EnumerateFiles(art))
+            {
+                string copy = Path.Combine(artBackup, Path.GetFileName(file));
+                if (!File.Exists(copy) || Sha1(file) != Sha1(copy))
+                    throw new IOException($"artwork backup verification failed for {Path.GetFileName(file)}; nothing was written");
+                files++;
+            }
+        }
+        tx.Log.Add($"backup      {files} files -> {Path.GetDirectoryName(backup)} (SHA-1 verified{(includeArtwork ? ", incl. Artwork" : "")})");
         return tx;
     }
 
@@ -67,6 +83,39 @@ public sealed class DeviceWriteTransaction
         if (!back.AsSpan().SequenceEqual(bytes))
             throw new IOException($"read-back mismatch after writing {relPath}");
         Log.Add($"wrote       {relPath}  {bytes.Length:N0} bytes, SHA-1 {Convert.ToHexString(SHA1.HashData(bytes))[..12]}.. read back identical");
+    }
+
+    /// <summary>Appends bytes to an Artwork/ file, refusing unless the file is exactly
+    /// <paramref name="expectedLength"/> long first; reads the appended range back.</summary>
+    public void AppendArtworkFile(string name, byte[] bytes, long expectedLength)
+    {
+        string path = Path.Combine(ArtworkDir, name);
+        long before = File.Exists(path) ? new FileInfo(path).Length : 0;
+        if (before != expectedLength) throw new IOException($"{name} is {before} bytes, expected {expectedLength}; refusing to append");
+        _artworkAppended.Add((name, before));
+        using (var fs = new FileStream(path, FileMode.Append, FileAccess.Write))
+        {
+            fs.Write(bytes);
+            fs.Flush(flushToDisk: true);
+        }
+        using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read))
+        {
+            if (fs.Length != before + bytes.Length) throw new IOException($"{name} length after append is {fs.Length}, expected {before + bytes.Length}");
+            fs.Seek(before, SeekOrigin.Begin);
+            byte[] back = new byte[bytes.Length];
+            fs.ReadExactly(back);
+            if (!back.AsSpan().SequenceEqual(bytes)) throw new IOException($"read-back mismatch after appending to {name}");
+        }
+        Log.Add($"appended    Artwork/{name}  +{bytes.Length:N0} bytes at offset {before:N0}, read back identical");
+    }
+
+    public void WriteArtworkFile(string name, byte[] bytes)
+    {
+        string path = Path.Combine(ArtworkDir, name);
+        _artworkWritten.Add(name);
+        File.WriteAllBytes(path, bytes);
+        if (!File.ReadAllBytes(path).AsSpan().SequenceEqual(bytes)) throw new IOException($"read-back mismatch after writing {name}");
+        Log.Add($"wrote       Artwork/{name}  {bytes.Length:N0} bytes, read back identical");
     }
 
     public void CopyAudioFile(string source, string deviceDest)
@@ -104,6 +153,30 @@ public sealed class DeviceWriteTransaction
                 }
             }
             catch (Exception ex) { ok = false; Log.Add($"RESTORE FAILED {rel}: {ex.Message}"); }
+        }
+        foreach (var (name, originalLength) in _artworkAppended)
+        {
+            string path = Path.Combine(ArtworkDir, name), copy = Path.Combine(ArtworkBackupDir, name);
+            try
+            {
+                using (var fs = new FileStream(path, FileMode.Open, FileAccess.Write)) fs.SetLength(originalLength);
+                bool same = File.Exists(copy) && Sha1(path) == Sha1(copy);
+                ok &= same;
+                Log.Add($"RESTORED    Artwork/{name} truncated to {originalLength:N0} bytes{(same ? " (verified against backup)" : " -- VERIFY FAILED")}");
+            }
+            catch (Exception ex) { ok = false; Log.Add($"RESTORE FAILED Artwork/{name}: {ex.Message}"); }
+        }
+        foreach (var name in _artworkWritten.Distinct())
+        {
+            string path = Path.Combine(ArtworkDir, name), copy = Path.Combine(ArtworkBackupDir, name);
+            try
+            {
+                File.Copy(copy, path, overwrite: true);
+                bool same = Sha1(path) == Sha1(copy);
+                ok &= same;
+                Log.Add($"RESTORED    Artwork/{name} from backup{(same ? " (verified)" : " -- VERIFY FAILED")}");
+            }
+            catch (Exception ex) { ok = false; Log.Add($"RESTORE FAILED Artwork/{name}: {ex.Message}"); }
         }
         foreach (var a in _audioCopied)
             Log.Add($"note        audio file {a} was copied and is now unreferenced (left in place; harmless)");

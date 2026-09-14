@@ -40,8 +40,9 @@ public static class ItlpTrackSync
         var L = new Db(lib, tl);
 
         var existing = new Dictionary<long, ItemRow>();
-        foreach (var r in L.Rows("SELECT pid, title, artist, album, album_artist, genre_id, composer, track_artist_pid, artist_pid, album_pid, composer_pid FROM item"))
-            existing[(long)r[0]!] = new ItemRow((string?)r[1], (string?)r[2], (string?)r[3], (string?)r[4], (long)r[5]!, (string?)r[6], (long)r[7]!, (long)r[8]!, (long)r[9]!, (long)r[10]!);
+        foreach (var r in L.Rows("SELECT pid, title, artist, album, album_artist, genre_id, composer, track_artist_pid, artist_pid, album_pid, composer_pid, artwork_status, artwork_cache_id FROM item"))
+            existing[(long)r[0]!] = new ItemRow((string?)r[1], (string?)r[2], (string?)r[3], (string?)r[4], (long)r[5]!, (string?)r[6], (long)r[7]!, (long)r[8]!, (long)r[9]!, (long)r[10]!,
+                r[11] as long? ?? 0, r[12] as long? ?? 0);
 
         var cdbByPid = cdb.Tracks.ToDictionary(t => unchecked((long)t.PersistentId));
         var entities = new Entities(L);
@@ -99,9 +100,11 @@ public static class ItlpTrackSync
                       album = $album, sort_album = $sal, album_order = $alo, album_pid = $alp,
                       genre_id = $gid, genre_order = $go,
                       composer = $composer, sort_composer = $sc, composer_order = $co, composer_pid = $cp,
+                      artwork_status = $as, artwork_cache_id = $ac,
                       date_modified = $now
                     WHERE pid = $pid
-                    """, [.. m.Params(), ("$now", stamp), ("$pid", pid), ("$composer", (object?)t.Composer ?? DBNull.Value)]);
+                    """, [.. m.Params(), ("$now", stamp), ("$pid", pid), ("$composer", (object?)t.Composer ?? DBNull.Value),
+                          ("$as", ArtworkOf(t).Status), ("$ac", ArtworkOf(t).CacheId)]);
                 result.Actions.Add($"update item 0x{t.PersistentId:X16}: '{cur!.Artist} - {cur.Title}' -> '{t.Artist} - {t.Title}' (album '{cur.Album}' -> '{t.Album}')");
                 result.TouchedTables.Add("Library.itdb:item");
             }
@@ -157,7 +160,8 @@ public static class ItlpTrackSync
         (e.GenreName(cur.GenreId) ?? "") == (t.Genre ?? "") &&
         // Entity identity comes from the CDB's album/artist list links.
         (string.IsNullOrEmpty(t.Album) || t.AlbumPersistentId == 0 || cur.AlbumPid == unchecked((long)t.AlbumPersistentId)) &&
-        ((t.AlbumArtist ?? t.Artist) is null || t.ArtistPersistentId == 0 || cur.ArtistPid == unchecked((long)t.ArtistPersistentId));
+        ((t.AlbumArtist ?? t.Artist) is null || t.ArtistPersistentId == 0 || cur.ArtistPid == unchecked((long)t.ArtistPersistentId)) &&
+        (cur.ArtworkStatus, cur.ArtworkCacheId) == ArtworkOf(t);
 
     private static bool AddItem(Db L, Db D, Db Lo, Track t, long pid, Entities.Links m, int stamp,
         Dictionary<long, int> masterOrder, ItlpSync.Result result)
@@ -205,7 +209,7 @@ public static class ItlpTrackSync
               ($pid, NULL, 1, 1, 0, 0, 0, 0, 0,
                0, 0, 0, 0, 0, 0, 0, 0,
                $now, $year, 0, 0, $comp, 0, 0,
-               0, 0, 0, 2, 0,
+               0, 0, 0, $as, $ac,
                0, 0, $len, NULL, $tn, $tc, $dn, $dc,
                0, 0, NULL, NULL, 0, $gid, 0, $alp, $ap,
                $cp, $title, $artist, $album, $aa, $composer, $st, $sa, $sal,
@@ -214,7 +218,8 @@ public static class ItlpTrackSync
                NULL, NULL, NULL, $tap, $phys, 0, 0)
             """, [.. m.Params(), ("$pid", pid), ("$now", stamp), ("$year", t.Year), ("$comp", t.Compilation ? 1 : 0),
                   ("$len", (double)t.LengthMs), ("$tn", t.TrackNumber), ("$tc", t.TotalTracks), ("$dn", t.DiscNumber),
-                  ("$dc", t.TotalDiscs), ("$composer", (object?)t.Composer ?? DBNull.Value), ("$phys", physical)]);
+                  ("$dc", t.TotalDiscs), ("$composer", (object?)t.Composer ?? DBNull.Value), ("$phys", physical),
+                  ("$as", ArtworkOf(t).Status), ("$ac", ArtworkOf(t).CacheId)]);
 
         int sampleRate = t.SampleRate > 0 ? t.SampleRate : 44100;
         L.Exec("""
@@ -249,7 +254,11 @@ public static class ItlpTrackSync
     // ================================================================ entities
 
     private sealed record ItemRow(string? Title, string? Artist, string? Album, string? AlbumArtist, long GenreId,
-        string? Composer, long TrackArtistPid, long ArtistPid, long AlbumPid, long ComposerPid);
+        string? Composer, long TrackArtistPid, long ArtistPid, long AlbumPid, long ComposerPid, long ArtworkStatus, long ArtworkCacheId);
+
+    // On the device: artwork_status 1 + artwork_cache_id == ArtworkDB image id when the
+    // CDB track has art (mhit +0xA4 == 1, id at +0x160); 2 and 0 when it doesn't.
+    private static (long Status, long CacheId) ArtworkOf(Track t) => t.HasArtwork ? (1, t.ArtworkId) : (2, 0);
 
     private sealed class Entities(Db L)
     {

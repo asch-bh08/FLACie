@@ -1,3 +1,4 @@
+using IpodSync.Core.Artwork;
 using IpodSync.Core.Device;
 using IpodSync.Core.ItunesDb;
 using IpodSync.Core.Itlp;
@@ -161,6 +162,23 @@ static class WritePipeline
         }
         Say($"CDB will change     {(cdbToWrite is null ? "no" : "yes")}");
 
+        // ---------------------------------------------------------------- 2b. artwork, in memory
+        var art = report?.Artwork is { Changed: true } artSession ? artSession : null;
+        byte[]? artDbBytes = null, originalArtDb = null;
+        var artLengthsAfter = new Dictionary<int, long>();
+        if (art is not null && ok)
+        {
+            originalArtDb = File.ReadAllBytes(Path.Combine(art.ArtworkDir, "ArtworkDB"));
+            artDbBytes = art.SerializeDb();
+            foreach (var (fmt, len) in art.OriginalLengths) artLengthsAfter[fmt] = len + art.Appends[fmt].Length;
+            bool rt = ArtworkDb.Parse(artDbBytes).Serialize().AsSpan().SequenceEqual(artDbBytes);
+            var artProblems = ArtworkDb.Check(ArtworkDb.Parse(artDbBytes), after, artLengthsAfter);
+            Say($"ArtworkDB           {(rt && artProblems.Count == 0 ? "PASS" : "FAIL")} (re-parse identical: {rt}; {ArtworkDb.Images(art.Root).Count()} images; " +
+                $"appends {string.Join(", ", art.Appends.Select(kv => $"F{kv.Key}+{kv.Value.Length:N0}"))})");
+            foreach (var p in artProblems.Take(10)) Say($"  - {p}");
+            ok &= rt && artProblems.Count == 0;
+        }
+
         if (!o.Commit)
         {
             Say(ok ? "DRY RUN: all checks passed. Nothing written. Re-run with --yes to write to the device."
@@ -168,7 +186,7 @@ static class WritePipeline
             return ok ? 0 : 1;
         }
         if (!ok) { Say("refusing to write: not all checks passed."); return 1; }
-        if (cdbToWrite is null && changedBundleFiles.Count == 0 && (report?.FileCopies.Count ?? 0) == 0) { Say("nothing to write."); return 0; }
+        if (cdbToWrite is null && changedBundleFiles.Count == 0 && (report?.FileCopies.Count ?? 0) == 0 && art is null) { Say("nothing to write."); return 0; }
 
         // ---------------------------------------------------------------- 3. write
         if (DeviceWriteTransaction.Sha1(cdbPath) != originalCdbSha ||
@@ -178,7 +196,14 @@ static class WritePipeline
             return 1;
         }
 
-        var tx = DeviceWriteTransaction.Begin(itunesDir, o.BackupRoot, o.Label);
+        if (art is not null && (!File.ReadAllBytes(Path.Combine(art.ArtworkDir, "ArtworkDB")).AsSpan().SequenceEqual(originalArtDb) ||
+            art.OriginalLengths.Any(kv => new FileInfo(Path.Combine(art.ArtworkDir, $"F{kv.Key}_1.ithmb")).Length != kv.Value)))
+        {
+            Say("refusing to write: device artwork changed while the change-set was being prepared.");
+            return 1;
+        }
+
+        var tx = DeviceWriteTransaction.Begin(itunesDir, o.BackupRoot, o.Label, includeArtwork: art is not null);
         Say(tx.Log[^1]);
         bool restoreNeeded;
         try
@@ -186,6 +211,14 @@ static class WritePipeline
             // Audio first (harmless if orphaned), then the SQLite bundle, then the CDB.
             foreach (var (src, destRel) in report?.FileCopies ?? [])
                 tx.CopyAudioFile(src, Path.Combine(deviceRoot, destRel.Replace('/', Path.DirectorySeparatorChar)));
+            // Artwork pixels are appended (never overwriting another image), then the
+            // ArtworkDB that references them, then the databases that point at it.
+            if (art is not null)
+            {
+                foreach (var (fmt, buffer) in art.Appends.Where(kv => kv.Value.Length > 0))
+                    tx.AppendArtworkFile($"F{fmt}_1.ithmb", buffer.ToArray(), art.OriginalLengths[fmt]);
+                tx.WriteArtworkFile("ArtworkDB", artDbBytes!);
+            }
             foreach (var f in changedBundleFiles)
                 tx.WriteDatabaseFile(Path.Combine("iTunes Library.itlp", f), File.ReadAllBytes(Path.Combine(staged!, f)));
             if (cdbToWrite is not null) tx.WriteDatabaseFile(cdbName, cdbToWrite);
@@ -195,6 +228,19 @@ static class WritePipeline
             var post = VerifyDevice(itunesDir, cdbName, cdbToWrite, staged, changedBundleFiles, after, deviceRoot, signer);
             foreach (var l in post.Lines) Say(l);
             restoreNeeded = !post.Ok;
+            if (art is not null)
+            {
+                byte[] deviceArtDb = File.ReadAllBytes(Path.Combine(art.ArtworkDir, "ArtworkDB"));
+                bool same = deviceArtDb.AsSpan().SequenceEqual(artDbBytes);
+                var lengths = art.OriginalLengths.Keys.ToDictionary(f => f, f => new FileInfo(Path.Combine(art.ArtworkDir, $"F{f}_1.ithmb")).Length);
+                var deviceCdb = ItunesDbReader.Read(File.ReadAllBytes(Path.Combine(itunesDir, cdbName)));
+                var problems = ArtworkDb.Check(ArtworkDb.Parse(deviceArtDb), deviceCdb, lengths);
+                bool lengthsOk = lengths.All(kv => kv.Value == artLengthsAfter[kv.Key]);
+                Say($"device ArtworkDB bytes         {(same ? "PASS" : "FAIL")}");
+                Say($"device artwork integrity       {(problems.Count == 0 && lengthsOk ? "PASS" : "FAIL")}  ithmb lengths as planned: {lengthsOk}");
+                foreach (var p in problems.Take(10)) Say($"  - {p}");
+                restoreNeeded |= !same || problems.Count > 0 || !lengthsOk;
+            }
             // Test hook: proves the restore path end to end on a fake device root.
             if (Environment.GetEnvironmentVariable("IPODSYNC_FAULT_INJECT") == "postverify")
             {

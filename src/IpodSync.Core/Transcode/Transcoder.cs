@@ -145,6 +145,23 @@ public static class Transcoder
             tags, onStream);
     }
 
+    public static (int Code, string Error) RunFfmpeg(IEnumerable<string> args) => Run(Tool("ffmpeg"), args);
+
+    /// <summary>First video stream (an image file, or an audio file's attached cover).</summary>
+    public static (string Codec, int Width, int Height)? ProbeVideo(string path)
+    {
+        var (code, output) = Run(Tool("ffprobe"),
+            ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,width,height", "-of", "json", path],
+            captureStdout: true);
+        if (code != 0) return null;
+        using var doc = JsonDocument.Parse(output);
+        var stream = doc.RootElement.TryGetProperty("streams", out var ss) ? ss.EnumerateArray().FirstOrDefault() : default;
+        if (stream.ValueKind != JsonValueKind.Object) return null;
+        return (stream.GetProperty("codec_name").GetString() ?? "",
+                stream.TryGetProperty("width", out var w) ? w.GetInt32() : 0,
+                stream.TryGetProperty("height", out var h) ? h.GetInt32() : 0);
+    }
+
     private static string Tool(string name)
     {
         string? env = Environment.GetEnvironmentVariable(name == "ffmpeg" ? "IPODSYNC_FFMPEG" : "IPODSYNC_FFPROBE");

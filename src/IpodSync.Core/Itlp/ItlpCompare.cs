@@ -70,19 +70,20 @@ public static class ItlpCompare
         using var db = OpenReadOnly(library);
 
         // ---- tracks ----
-        var items = new Dictionary<long, (string? Title, string? Artist, string? Album, string? AlbumArtist, string? Genre, string? Composer, long AlbumPid, long ArtistPid)>();
+        var items = new Dictionary<long, (string? Title, string? Artist, string? Album, string? AlbumArtist, string? Genre, string? Composer, long AlbumPid, long ArtistPid, long ArtStatus, long ArtId)>();
         using (var cmd = db.CreateCommand())
         {
             // Unknown-genre/composer rows (is_unknown = 1) stand for "no value".
             cmd.CommandText = """
                 SELECT i.pid, i.title, i.artist, i.album, i.album_artist,
                        CASE WHEN g.is_unknown = 1 THEN NULL ELSE g.genre END,
-                       i.composer, i.album_pid, i.artist_pid
+                       i.composer, i.album_pid, i.artist_pid, i.artwork_status, i.artwork_cache_id
                 FROM item i LEFT JOIN genre_map g ON g.id = i.genre_id
                 """;
             using var r = cmd.ExecuteReader();
             while (r.Read())
-                items[r.GetInt64(0)] = (Str(r, 1), Str(r, 2), Str(r, 3), Str(r, 4), Str(r, 5), Str(r, 6), r.GetInt64(7), r.GetInt64(8));
+                items[r.GetInt64(0)] = (Str(r, 1), Str(r, 2), Str(r, 3), Str(r, 4), Str(r, 5), Str(r, 6), r.GetInt64(7), r.GetInt64(8),
+                    r.IsDBNull(9) ? 0 : r.GetInt64(9), r.IsDBNull(10) ? 0 : r.GetInt64(10));
         }
 
         var tracksByPid = new Dictionary<long, Track>();
@@ -108,6 +109,9 @@ public static class ItlpCompare
                 diff.TrackFieldMismatches.Add($"#{t.Id} pid 0x{t.PersistentId:X16} album_pid: CDB 0x{t.AlbumPersistentId:X16} vs SQLite 0x{unchecked((ulong)it.AlbumPid):X16}");
             if ((t.AlbumArtist ?? t.Artist) is not null && t.ArtistPersistentId != 0 && it.ArtistPid != unchecked((long)t.ArtistPersistentId))
                 diff.TrackFieldMismatches.Add($"#{t.Id} pid 0x{t.PersistentId:X16} artist_pid: CDB 0x{t.ArtistPersistentId:X16} vs SQLite 0x{unchecked((ulong)it.ArtistPid):X16}");
+            var wantArt = t.HasArtwork ? (1L, (long)t.ArtworkId) : (2L, 0L);
+            if ((it.ArtStatus, it.ArtId) != wantArt)
+                diff.TrackFieldMismatches.Add($"#{t.Id} pid 0x{t.PersistentId:X16} artwork: CDB {wantArt} vs SQLite ({it.ArtStatus}, {it.ArtId})");
         }
         foreach (var (pid, it) in items)
             if (!tracksByPid.ContainsKey(pid))

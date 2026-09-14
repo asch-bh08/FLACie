@@ -1,5 +1,12 @@
 # Handoff brief
 
+> **Read [OVERNIGHT-STATUS.md](OVERNIGHT-STATUS.md) first (2026-09-14).** It supersedes the
+> "Current state" and "Next steps" below: every edit now writes the CDB **and** the SQLite
+> library bundle, signed (hash72/hash58), with artwork, transcode-on-add, folder sync and
+> playlist import, all through `WritePipeline` (backup, dry run, write, re-verify, restore).
+> Before changing any write path, run `tools/fake-root-regression.sh <ipod-or-backup>`.
+> The sections below are the original 2026-09-07 brief, kept for context.
+
 For an agent or developer picking this up cold. Written 2026-09-07.
 
 Read this, then [README.md](README.md) for the binary-format findings. The

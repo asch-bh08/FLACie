@@ -4,6 +4,8 @@ using IpodSync.Core.ItunesDb;
 using IpodSync.Core.Itlp;
 using IpodSync.Core.Signing;
 
+namespace IpodSync.Core.Sync;
+
 /// <summary>
 /// The one write path for both databases. Dry run by default; with commit=true it
 /// follows HANDOFF.md's rules exactly: prove everything off-device (CDB in memory,
@@ -11,7 +13,7 @@ using IpodSync.Core.Signing;
 /// verify the backup, write, read back, then re-verify the device from scratch —
 /// and restore from the backup if anything about the result is not as proven.
 /// </summary>
-static class WritePipeline
+public static class WritePipeline
 {
     public sealed class Options
     {
@@ -27,19 +29,32 @@ static class WritePipeline
         public IReadOnlyList<string> SigningReferences { get; init; } = [];
         /// <summary>Called only after a write has passed every device check.</summary>
         public Action<ApplyReport?>? OnVerified { get; init; }
+        /// <summary>Where progress lines go (default: the console).</summary>
+        public Action<string>? Log { get; init; }
 
         public Options WithCallback(Action<ApplyReport?> onVerified) => new()
         {
             Root = Root, Changes = Changes, Commit = Commit, BackupRoot = BackupRoot, Label = Label,
             ResignCdb = ResignCdb, AllowUnsigned = AllowUnsigned, FirewireCandidates = FirewireCandidates,
-            SigningReferences = SigningReferences, OnVerified = onVerified,
+            SigningReferences = SigningReferences, OnVerified = onVerified, Log = Log,
         };
     }
 
-    public static int Run(Options o)
+    /// <param name="ExitCode">0 = dry run passed / write verified / nothing to write.</param>
+    /// <param name="Written">True only when a write happened and passed every device check.</param>
+    /// <param name="Restored">A write happened, failed verification, and the backup was put back.</param>
+    public sealed record Result(int ExitCode, IReadOnlyList<string> Log, string? BackupDir, ApplyReport? Report, bool Written, bool Restored);
+
+    public static int Run(Options o) => Execute(o).ExitCode;
+
+    public static Result Execute(Options o)
     {
         var log = new List<string>();
-        void Say(string s) { Console.WriteLine(s); log.Add(s); }
+        void Say(string s) { (o.Log ?? Console.WriteLine)(s); log.Add(s); }
+        string? backupDirOut = null;
+        ApplyReport? reportOut = null;
+        bool writtenOut = false, restoredOut = false;
+        Result Finish(int code) => new(code, log, backupDirOut, reportOut, writtenOut, restoredOut);
 
         string itunesDir = Directory.Exists(Path.Combine(o.Root, "iPod_Control"))
             ? Path.GetDirectoryName(IpodDevice.Open(o.Root).ItunesDbPath)!
@@ -60,7 +75,7 @@ static class WritePipeline
 
         if (o.Changes?.Ops is { Count: > 0 })
         {
-            report = EditApplier.Apply(originalCdb, o.Changes, deviceRoot);
+            report = reportOut = EditApplier.Apply(originalCdb, o.Changes, deviceRoot);
             Say($"CDB         {cdbPath}");
             Say($"tracks      {report.TracksBefore} -> {report.TracksAfter}");
             Say($"playlists   {report.PlaylistsBefore} -> {report.PlaylistsAfter}");
@@ -209,10 +224,10 @@ static class WritePipeline
         {
             Say(ok ? "DRY RUN: all checks passed. Nothing written. Re-run with --yes to write to the device."
                    : "DRY RUN: checks did NOT all pass. Nothing written (and --yes would refuse).");
-            return ok ? 0 : 1;
+            return Finish(ok ? 0 : 1);
         }
-        if (!ok) { Say("refusing to write: not all checks passed."); return 1; }
-        if (cdbToWrite is null && changedBundleFiles.Count == 0 && (report?.FileCopies.Count ?? 0) == 0 && art is null && playCountsToWrite is null) { Say("nothing to write."); return 0; }
+        if (!ok) { Say("refusing to write: not all checks passed."); return Finish(1); }
+        if (cdbToWrite is null && changedBundleFiles.Count == 0 && (report?.FileCopies.Count ?? 0) == 0 && art is null && playCountsToWrite is null) { Say("nothing to write."); return Finish(0); }
 
         // ---------------------------------------------------------------- 3. write
         if (DeviceWriteTransaction.Sha1(cdbPath) != originalCdbSha ||
@@ -220,17 +235,18 @@ static class WritePipeline
             (playCountsSha is not null && DeviceWriteTransaction.Sha1(playCountsPath) != playCountsSha))
         {
             Say("refusing to write: device database changed while the change-set was being prepared.");
-            return 1;
+            return Finish(1);
         }
 
         if (art is not null && (!File.ReadAllBytes(Path.Combine(art.ArtworkDir, "ArtworkDB")).AsSpan().SequenceEqual(originalArtDb) ||
             art.OriginalLengths.Any(kv => new FileInfo(Path.Combine(art.ArtworkDir, $"F{kv.Key}_1.ithmb")).Length != kv.Value)))
         {
             Say("refusing to write: device artwork changed while the change-set was being prepared.");
-            return 1;
+            return Finish(1);
         }
 
         var tx = DeviceWriteTransaction.Begin(itunesDir, o.BackupRoot, o.Label, includeArtwork: art is not null);
+        backupDirOut = tx.BackupDir;
         Say(tx.Log[^1]);
         bool restoreNeeded;
         try
@@ -291,13 +307,15 @@ static class WritePipeline
             Say(restored ? $"Device restored to its pre-write state (backup {tx.BackupDir})."
                          : $"RESTORE INCOMPLETE -- device state uncertain; backup is {tx.BackupDir}");
             WriteLog(tx.BackupDir, log);
-            return 1;
+            restoredOut = restored;
+            return Finish(1);
         }
 
+        writtenOut = true;
         Say($"WRITE VERIFIED. Backup of the pre-write state: {tx.BackupDir}");
         o.OnVerified?.Invoke(report);
         WriteLog(tx.BackupDir, log);
-        return 0;
+        return Finish(0);
     }
 
     private sealed record Checks(bool Ok, List<string> Lines);

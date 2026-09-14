@@ -1,3 +1,4 @@
+using IpodSync.Core.Sync;
 using System.Text.Json;
 using IpodSync.Core.Device;
 using IpodSync.Core.ItunesDb;
@@ -686,38 +687,15 @@ static int ImportPlaylistCmd(string[] rest)
     var device = IpodDevice.Open(root);
     var cdb = ItunesDbReader.Read(File.ReadAllBytes(device.ItunesDbPath));
     var entries = PlaylistImport.Read(file);
-    var target = cdb.Playlists.FirstOrDefault(p => !p.IsMaster && p.Name == name);
-    var match = PlaylistImport.Match(entries, cdb, target?.TrackIds.ToHashSet());
+    var prepared = PlaylistImportJob.Prepare(cdb, entries, name, replace);
+    var match = prepared.Match;
+    var ops = prepared.Ops;
     Console.WriteLine($"playlist file  {file} ({entries.Count} entries)");
     Console.WriteLine($"matched        {match.Matched.Count} to tracks on the iPod");
     Console.WriteLine($"not on iPod    {match.Unmatched.Count}");
     foreach (var e in match.Unmatched.Take(20)) Console.WriteLine($"    ? line {e.Line}: {e.Artist} - {e.Title} ({e.Seconds:F0}s)");
     if (match.Unmatched.Count > 20) Console.WriteLine($"    ... {match.Unmatched.Count - 20} more");
-
-    var wanted = match.Matched.Select(m => m.Track.Id).Distinct().ToList();
-    var existing = target;
-    var ops = new List<EditOp>();
-    if (existing is null)
-    {
-        Console.WriteLine($"target         new playlist '{name}' with {wanted.Count} track(s)");
-        if (wanted.Count > 0) ops.Add(new EditOp { Op = "createPlaylist", Name = name, TrackIds = wanted.ToArray() });
-    }
-    else
-    {
-        var have = existing.TrackIds.ToList();
-        var missing = wanted.Where(id => !have.Contains(id)).ToList();
-        foreach (var id in missing.Take(10)) { var t = cdb.Tracks.First(x => x.Id == id); Console.WriteLine($"    + #{id} {t.Artist} - {t.Title} ({t.LengthMs / 1000}s, {t.Bitrate} kbps)"); }
-        var extra = have.Where(id => !wanted.Contains(id)).Distinct().ToList();
-        Console.WriteLine($"target         existing playlist '{name}' ({have.Count} tracks): {wanted.Count - missing.Count} already in it, {missing.Count} missing, {extra.Count} not in the file");
-        ops.AddRange(missing.Select(id => new EditOp { Op = "addTrackToPlaylist", Playlist = name, TrackId = id }));
-        if (replace)
-        {
-            ops.AddRange(extra.Select(id => new EditOp { Op = "removeTrackFromPlaylist", Playlist = name, TrackId = id }));
-            ops.Add(new EditOp { Op = "reorderPlaylist", Playlist = name, TrackIds = wanted.ToArray() });
-            Console.WriteLine("mode           --replace: playlist becomes exactly the file's order (tracks not in the file are removed from the playlist, not from the iPod)");
-        }
-        else Console.WriteLine("mode           append missing tracks (use --replace to mirror the file exactly)");
-    }
+    foreach (var l in prepared.Summary) Console.WriteLine($"target         {l}");
     if (ops.Count == 0) { Console.WriteLine("nothing to change."); return 0; }
     return WritePipeline.Run(PipelineOptions(root, rest, new ChangeSet { Ops = ops }, "importplaylist"));
 }
@@ -759,16 +737,9 @@ static int SyncFolderCmd(string[] rest)
     var removals = plan.RemoveCandidates.Where(r => r.Entry.Origin == "added").ToList();
     if (removeMissing) Console.WriteLine($"to remove   {removals.Count} (source file gone; only tracks this sync added)");
 
-    // Space: lossless sources become ALAC (about their own size), lossy ones 256k AAC.
-    long estimate = toAdd.Sum(f =>
-    {
-        string ext = Path.GetExtension(f.Path).ToLowerInvariant();
-        if (ext is ".flac" or ".wav" or ".ape" or ".wv" or ".aif" or ".aiff") return (long)(f.Size * 1.1);
-        if (ext is ".ogg" or ".oga" or ".opus" or ".wma") return Math.Max(f.Size, (long)(f.Seconds * 32000));
-        return f.Size;
-    });
+    long estimate = FolderSyncJob.EstimateDeviceBytes(toAdd);
     var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(root))!);
-    const long reserve = 200L * 1024 * 1024;
+    const long reserve = FolderSyncJob.SpaceReserve;
     Console.WriteLine($"space       need ~{estimate / 1048576.0:F1} MB, device free {drive.AvailableFreeSpace / 1048576.0:F1} MB (keeping {reserve / 1048576} MB spare)");
     if (estimate > drive.AvailableFreeSpace - reserve) { Console.Error.WriteLine("refusing: not enough free space on the device for this sync (use --limit)."); return 1; }
 
@@ -777,7 +748,7 @@ static int SyncFolderCmd(string[] rest)
         // Prove the first batch end to end (transcode, CDB, SQLite, artwork, signing) without writing.
         if (toAdd.Count > 0)
         {
-            var cs = BatchChangeSet(toAdd.Take(batch), playlist);
+            var cs = FolderSyncJob.BatchChangeSet(toAdd.Take(batch), playlist);
             Console.WriteLine();
             Console.WriteLine($"DRY RUN of the first batch ({cs.Ops!.Count} op(s)):");
             int rc = WritePipeline.Run(PipelineOptions(root, rest, cs, "syncfolder"));
@@ -787,50 +758,10 @@ static int SyncFolderCmd(string[] rest)
         return 0;
     }
 
-    foreach (var (f, t) in plan.Adopt)
-        manifest.Entries.Add(new FolderSync.ManifestEntry { RelativePath = f.RelativePath, Size = f.Size, MtimeTicks = f.MtimeTicks, PersistentId = t.PersistentId, Origin = "adopted" });
-    manifest.Save();
-    Console.WriteLine($"manifest    adopted {plan.Adopt.Count} existing track(s)");
-
-    int done = 0;
-    foreach (var chunk in toAdd.Chunk(batch))
-    {
-        var cs = BatchChangeSet(chunk, playlist);
-        Console.WriteLine();
-        Console.WriteLine($"=== batch {done / batch + 1}: {chunk.Length} file(s)");
-        var bySource = chunk.ToDictionary(f => Path.GetFullPath(f.Path), StringComparer.OrdinalIgnoreCase);
-        int rc = WritePipeline.Run(PipelineOptions(root, rest, cs, "syncfolder").WithCallback(report =>
-        {
-            foreach (var (src, pid) in report?.AddedTracks ?? [])
-                if (bySource.TryGetValue(Path.GetFullPath(src), out var f))
-                    manifest.Entries.Add(new FolderSync.ManifestEntry { RelativePath = f.RelativePath, Size = f.Size, MtimeTicks = f.MtimeTicks, PersistentId = pid, Origin = "added" });
-            manifest.Save();
-        }));
-        if (rc != 0) { Console.Error.WriteLine($"batch failed (exit {rc}); stopping. {done} file(s) added before it."); return rc; }
-        done += chunk.Length;
-    }
-
-    if (removeMissing && removals.Count > 0)
-    {
-        var cs = new ChangeSet { Ops = removals.Select(r => new EditOp { Op = "removeTrack", TrackId = r.Track.Id }).ToList() };
-        Console.WriteLine();
-        Console.WriteLine($"=== removing {removals.Count} track(s) whose source file is gone");
-        var gone = removals.Select(r => r.Entry).ToHashSet();
-        int rc = WritePipeline.Run(PipelineOptions(root, rest, cs, "syncfolder").WithCallback(_ =>
-        {
-            manifest.Entries.RemoveAll(gone.Contains);
-            manifest.Save();
-        }));
-        if (rc != 0) return rc;
-    }
-    Console.WriteLine($"SYNC COMPLETE: {done} added, {plan.Adopt.Count} adopted, {plan.Unchanged.Count} already in sync.");
-    return 0;
+    var outcome = FolderSyncJob.Commit(plan, manifest, toAdd, batch, playlist, removeMissing,
+        cs => PipelineOptions(root, rest, cs, "syncfolder"), Console.WriteLine);
+    return outcome.ExitCode;
 }
-
-static ChangeSet BatchChangeSet(IEnumerable<FolderSync.SourceFile> files, string? playlist) => new()
-{
-    Ops = files.Select(f => new EditOp { Op = "addTrackFromFile", SourcePath = f.Path, Playlist = playlist }).ToList(),
-};
 
 static bool IsSyncOptionValue(string[] rest, string a)
 {

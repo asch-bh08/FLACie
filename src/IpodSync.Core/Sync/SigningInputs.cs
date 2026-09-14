@@ -2,12 +2,14 @@ using System.Runtime.Versioning;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
+namespace IpodSync.Core.Sync;
+
 /// <summary>
 /// Gathers candidate signing inputs. Candidates are never trusted as-is:
 /// DeviceSigning only accepts a FirewireGuid that reproduces an existing hash58
 /// and a hash72 key that reproduces an existing signature.
 /// </summary>
-static class SigningInputs
+public static class SigningInputs
 {
     /// <summary>16-hex-digit serials of Apple USB devices Windows has seen
     /// (USB\VID_05AC&amp;PID_xxxx\&lt;serial&gt;). For iPods this serial is the FirewireGuid.</summary>

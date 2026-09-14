@@ -39,14 +39,21 @@ public static class FolderSync
         public string SourceFolder { get; set; } = "";
         public List<ManifestEntry> Entries { get; set; } = [];
 
-        public static string PathFor(ulong libraryId) => System.IO.Path.Combine(
-            Environment.GetEnvironmentVariable("IPODSYNC_MANIFEST_DIR")
-                ?? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ipodsync", "manifests"),
-            $"{libraryId:X16}.json");
+        /// <summary>One manifest per device library and source folder, so syncing a second
+        /// folder never replaces the first folder's entries.</summary>
+        public static string PathFor(ulong libraryId, string folder)
+        {
+            string folderKey = Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(
+                Encoding.UTF8.GetBytes(System.IO.Path.GetFullPath(folder).TrimEnd('\\', '/').ToLowerInvariant())))[..10];
+            return System.IO.Path.Combine(
+                Environment.GetEnvironmentVariable("IPODSYNC_MANIFEST_DIR")
+                    ?? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ipodsync", "manifests"),
+                $"{libraryId:X16}-{folderKey}.json");
+        }
 
         public static Manifest Load(ulong libraryId, string folder)
         {
-            string p = PathFor(libraryId);
+            string p = PathFor(libraryId, folder);
             if (File.Exists(p))
             {
                 var m = JsonSerializer.Deserialize<Manifest>(File.ReadAllText(p));
@@ -57,7 +64,7 @@ public static class FolderSync
 
         public void Save()
         {
-            string p = PathFor(LibraryId);
+            string p = PathFor(LibraryId, SourceFolder);
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(p)!);
             string tmp = p + ".tmp";
             File.WriteAllText(tmp, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
@@ -143,8 +150,9 @@ public static class FolderSync
         var kept = new List<SourceFile>();
         foreach (var f in plan.Add)
         {
-            var adopted = plan.Adopt.FirstOrDefault(a => Same(a.File, f));
-            if (adopted.File is not null) { plan.SourceDuplicates.Add((f, adopted.File)); continue; }
+            // Covered by a copy that is already synced (manifest) or adopted this run.
+            var covering = plan.Adopt.Select(a => a.File).Concat(plan.Unchanged).FirstOrDefault(c => Same(c, f));
+            if (covering is not null) { plan.SourceDuplicates.Add((f, covering)); continue; }
             int i = kept.FindIndex(k => Same(k, f));
             if (i < 0) { kept.Add(f); continue; }
             var (better, worse) = Rank(f).CompareTo(Rank(kept[i])) > 0 ? (f, kept[i]) : (kept[i], f);

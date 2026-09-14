@@ -686,7 +686,7 @@ static int SyncFolderCmd(string[] rest)
     var manifest = FolderSync.Manifest.Load(cdb.LibraryPersistentId, folder);
     Console.WriteLine($"device      {root}  library 0x{cdb.LibraryPersistentId:X16}, {cdb.Tracks.Count} tracks");
     Console.WriteLine($"source      {folder}");
-    Console.WriteLine($"manifest    {FolderSync.Manifest.PathFor(cdb.LibraryPersistentId)} ({manifest.Entries.Count} entries)");
+    Console.WriteLine($"manifest    {FolderSync.Manifest.PathFor(cdb.LibraryPersistentId, folder)} ({manifest.Entries.Count} entries)");
 
     var files = FolderSync.Scan(folder);
     Console.WriteLine($"scanned     {files.Count} audio files");

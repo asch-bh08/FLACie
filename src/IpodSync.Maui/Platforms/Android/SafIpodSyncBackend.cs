@@ -31,6 +31,8 @@ public sealed class SafIpodSyncBackend : IIpodSyncBackend
 {
     private const string DeviceToken = "saf-ipod";
 
+    public bool LoadNeedsUserAction => true;
+
     public Task<List<DeviceSummary>> DetectDevicesAsync(CancellationToken ct = default) =>
         Task.FromResult(new List<DeviceSummary>
         {

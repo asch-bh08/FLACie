@@ -11,6 +11,8 @@ builder.Services.AddHttpClient();
 // The web host always runs on the PC the iPod is physically plugged into, so it
 // talks to IpodSync.Core directly -- see MauiProgram.cs for why Android can't.
 builder.Services.AddScoped<IIpodSyncBackend, LocalIpodSyncBackend>();
+builder.Services.AddScoped<IpodSync.Shared.State.AppState>();
+builder.Services.AddSingleton<IHostPickers, NoHostPickers>();
 
 var app = builder.Build();
 

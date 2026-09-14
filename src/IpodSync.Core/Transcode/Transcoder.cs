@@ -162,6 +162,18 @@ public static class Transcoder
                 stream.TryGetProperty("height", out var h) ? h.GetInt32() : 0);
     }
 
+    private static bool? _available;
+
+    /// <summary>True when ffmpeg and ffprobe can be started (PATH or IPODSYNC_FFMPEG/IPODSYNC_FFPROBE).
+    /// Without them, adds are limited to iPod-native files and covers can't be converted.</summary>
+    public static bool FfmpegAvailable()
+    {
+        if (_available is bool known) return known;
+        try { _available = Run(Tool("ffmpeg"), ["-version"]).Code == 0 && Run(Tool("ffprobe"), ["-version"]).Code == 0; }
+        catch { _available = false; }
+        return _available.Value;
+    }
+
     private static string Tool(string name)
     {
         string? env = Environment.GetEnvironmentVariable(name == "ffmpeg" ? "IPODSYNC_FFMPEG" : "IPODSYNC_FFPROBE");

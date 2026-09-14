@@ -1,4 +1,4 @@
-﻿using IpodSync.Shared.Backend;
+using IpodSync.Shared.Backend;
 using Microsoft.Extensions.Logging;
 
 namespace IpodSync.Maui;
@@ -30,9 +30,17 @@ public static class MauiProgram
 		// comment for the full story.
 #if ANDROID
 		builder.Services.AddSingleton<IIpodSyncBackend, IpodSync.Maui.Platforms.Android.SafIpodSyncBackend>();
+		builder.Services.AddSingleton<IHostPickers, NoHostPickers>();
 #else
 		builder.Services.AddSingleton<IIpodSyncBackend, LocalIpodSyncBackend>();
+#if WINDOWS
+		builder.Services.AddSingleton<IHostPickers, IpodSync.Maui.Platforms.Windows.WindowsHostPickers>();
+#else
+		builder.Services.AddSingleton<IHostPickers, NoHostPickers>();
 #endif
+#endif
+		// One app window, one state: the pending-changes queue survives tab switches.
+		builder.Services.AddSingleton<IpodSync.Shared.State.AppState>();
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();

@@ -1,0 +1,122 @@
+@inherits StateComponent
+@inject IHostPickers Pickers
+
+@if (Wide) { <h2>Changes</h2> }
+else { <h3 style="margin-top:0">Pending changes (@State.Pending.Count)</h3> }
+
+@if (State.Pending.Count == 0 && !State.Busy && State.LastResult is null)
+{
+    <div class="muted small">No pending changes. Edits you make in Library, Playlists, Add music and Import playlist collect here, and nothing touches the iPod until you check and write them.</div>
+}
+
+@if (State.Pending.Count > 0)
+{
+    <div class="@(Wide ? "panel" : "")">
+        @for (int i = 0; i < State.Pending.Count; i++)
+        {
+            var c = State.Pending[i];
+            <div class="change-item">
+                <span class="idx">@(i + 1)</span>
+                <span class="label">@c.Label</span>
+                <button class="btn icon" title="Remove this change" disabled="@State.Busy" @onclick="() => State.RemovePending(c)">✕</button>
+            </div>
+        }
+        <div class="row" style="margin-top:10px">
+            <button class="btn" disabled="@State.Busy" @onclick="DryRun">Check changes</button>
+            <button class="btn primary" disabled="@(State.Busy || !State.DryRunPassed)" @onclick="() => _confirm = true"
+                    title="@(State.DryRunPassed ? "" : "Check these exact changes first")">Write to iPod</button>
+            <button class="linkish" disabled="@State.Busy" @onclick="() => { State.ClearPending(); _confirm = false; }">clear all</button>
+        </div>
+        @if (!State.DryRunPassed && !State.Busy)
+        {
+            <div class="muted small">Writing is enabled after a check (dry run) of exactly these changes passes.</div>
+        }
+        @if (_confirm && State.DryRunPassed && !State.Busy)
+        {
+            <div class="confirm">
+                Write @State.Pending.Count change(s) to <strong>@(State.ActiveDevice?.VolumeLabel ?? State.ActiveRoot)</strong>?
+                <div class="small muted" style="margin:6px 0">The iPod's databases are backed up first and checked again after the write; if anything doesn't match, the backup is put back automatically. Keep the iPod connected until this finishes.</div>
+                <div class="row">
+                    <button class="btn primary" @onclick="Write">Yes, write</button>
+                    <button class="btn" @onclick="() => _confirm = false">Cancel</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (State.Busy)
+{
+    <div class="banner"><strong>@State.BusyText</strong> <span class="muted small">— keep the iPod connected.</span></div>
+}
+else if (State.LastResult is { } r)
+{
+    if (State.LastWasCommit)
+    {
+        if (r.Written)
+        {
+            <div class="banner ok"><strong>Written and verified.</strong> Eject the iPod from Windows before unplugging so it picks up the changes.
+                @if (r.BackupDir is not null) { <div class="small muted mono">Backup: @r.BackupDir</div> }
+            </div>
+        }
+        else if (r.Restored)
+        {
+            <div class="banner bad"><strong>The write didn't verify, so the backup was restored.</strong> The iPod is back how it was. The log below says what failed.</div>
+        }
+        else if (r.ExitCode == 0)
+        {
+            <div class="banner ok"><strong>Nothing needed writing.</strong></div>
+        }
+        else
+        {
+            <div class="banner bad"><strong>Not written.</strong> A check failed before anything touched the iPod; see the log.
+                @if (r.BackupDir is not null) { <div class="small mono">Backup: @r.BackupDir</div> }
+            </div>
+        }
+    }
+    else
+    {
+        <div class="banner @(r.ExitCode == 0 ? "ok" : "bad")">
+            <strong>@(r.ExitCode == 0 ? "Check passed." : "Check failed.")</strong>
+            @(r.ExitCode == 0 ? " Nothing was written. You can write these changes now." : " Nothing was written. Fix or remove the failing change (see the log).")
+        </div>
+    }
+}
+
+@if (State.Log.Count > 0)
+{
+    <div class="row" style="justify-content:space-between; margin-top:10px">
+        <h3 style="margin:0">Log</h3>
+        <label class="check small"><input type="checkbox" @bind="_problemsOnly" /> problems only</label>
+    </div>
+    <div class="log">
+        @foreach (var line in VisibleLog())
+        {
+            <div class="@LineClass(line)">@line</div>
+        }
+    </div>
+    @if (State.LastResult?.BackupDir is { } dir && Pickers.Available)
+    {
+        <button class="linkish" @onclick="() => Pickers.OpenFolderAsync(Path.GetDirectoryName(dir) ?? dir)">open backup folder</button>
+    }
+}
+
+@code {
+    [Parameter] public bool Wide { get; set; }
+    private bool _confirm;
+    private bool _problemsOnly;
+
+    private async Task DryRun() { _confirm = false; await State.DryRunAsync(); }
+    private async Task Write() { _confirm = false; await State.WriteAsync(); }
+
+    private IEnumerable<string> VisibleLog()
+    {
+        List<string> copy;
+        lock (State.Log) copy = [.. State.Log];
+        return _problemsOnly ? copy.Where(l => LineClass(l) == "fail") : copy.TakeLast(Wide ? 2000 : 400);
+    }
+
+    private static string LineClass(string l) =>
+        l.Contains("FAIL") || l.Contains("refusing") || l.Contains("PROBLEM") || l.StartsWith("ERROR") || l.Contains("[FAIL]") || l.Contains("UNAVAILABLE") ? "fail"
+        : l.Contains("PASS") || l.StartsWith("WRITE VERIFIED") || l.Contains("[ok]") ? "pass" : "";
+}

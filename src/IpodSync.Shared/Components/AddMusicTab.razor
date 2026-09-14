@@ -1,0 +1,108 @@
+@inherits StateComponent
+@inject IHostPickers Pickers
+
+<h2>Add music</h2>
+<div class="panel">
+    <p class="muted small" style="margin-top:0">
+        MP3, AAC/M4A, Apple Lossless and WAV go on as they are. FLAC, Opus, Ogg, WMA and other formats the iPod can't play are
+        converted first (lossless → Apple Lossless, lossy → 256 kbps AAC). Tags and embedded cover art come along.
+        Files are queued as changes; nothing is copied until you write.
+    </p>
+
+    <div class="row">
+        @if (Pickers.Available)
+        {
+            <button class="btn primary" @onclick="Pick">Choose files…</button>
+        }
+    </div>
+    <label class="field">
+        @(Pickers.Available ? "…or paste file paths, one per line" : "File paths, one per line")
+        <textarea class="text-input" @bind="_paths" placeholder="C:\Music\Artist\Album\01 Song.flac"></textarea>
+    </label>
+
+    <div class="row">
+        <label class="field" style="min-width:220px">
+            Conversion
+            <select class="text-input" @bind="_transcode">
+                <option value="auto">Automatic (only when needed)</option>
+                <option value="alac" disabled="@(!State.Backend.Capabilities.CanTranscode)">Always Apple Lossless</option>
+                <option value="aac" disabled="@(!State.Backend.Capabilities.CanTranscode)">Always AAC 256 kbps</option>
+                <option value="never">Never (skip unplayable files)</option>
+            </select>
+        </label>
+        <label class="field" style="min-width:220px">
+            Also add to playlist
+            <select class="text-input" @bind="_playlist">
+                <option value="">(none)</option>
+                @foreach (var p in (State.Db?.Playlists ?? []).Where(p => !p.IsMaster && !p.IsSmart && !p.IsPodcast).OrderBy(p => p.Name))
+                {
+                    <option value="@p.Name">@p.Name</option>
+                }
+            </select>
+        </label>
+    </div>
+    @if (!State.Backend.Capabilities.CanTranscode)
+    {
+        <div class="banner warn small">ffmpeg wasn't found on this PC, so only iPod-native files (MP3, AAC, ALAC, WAV) can be added. Install it with <span class="mono">winget install Gyan.FFmpeg</span> and restart the app.</div>
+    }
+    <button class="btn primary" @onclick="Queue" disabled="@string.IsNullOrWhiteSpace(_paths)">Queue @PathList().Count file(s)</button>
+    @if (_message is not null)
+    {
+        <div class="small @(_messageOk ? "ok-text" : "warn-text")" style="margin-top:8px">@_message</div>
+    }
+</div>
+
+@{
+    var queued = State.Pending.Where(p => p.Op.Op == "addTrackFromFile").ToList();
+}
+@if (queued.Count > 0)
+{
+    <h3>Queued adds (@queued.Count)</h3>
+    <div class="panel">
+        @foreach (var c in queued)
+        {
+            <div class="change-item">
+                <span class="label">@c.Label <span class="muted mono">@c.Op.SourcePath</span></span>
+                <button class="btn icon" @onclick="() => State.RemovePending(c)">✕</button>
+            </div>
+        }
+        <p class="muted small">Open <strong>Changes</strong> to check them (dry run) and write.</p>
+    </div>
+}
+
+@code {
+    private static readonly HashSet<string> Audio = [.. FolderSync.AudioExtensions];
+    private string _paths = "";
+    private string _transcode = "auto";
+    private string _playlist = "";
+    private string? _message;
+    private bool _messageOk;
+
+    private List<string> PathList() => _paths.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Select(p => p.Trim('"')).Where(p => p.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+    private async Task Pick()
+    {
+        var files = await Pickers.PickFilesAsync(PickKind.Audio, true);
+        if (files.Count == 0) return;
+        _paths = string.Join("\n", PathList().Concat(files).Distinct(StringComparer.OrdinalIgnoreCase));
+    }
+
+    private void Queue()
+    {
+        var paths = PathList();
+        var missing = paths.Where(p => !File.Exists(p)).ToList();
+        var notAudio = paths.Where(p => File.Exists(p) && !Audio.Contains(Path.GetExtension(p).ToLowerInvariant())).ToList();
+        var ok = paths.Except(missing).Except(notAudio).ToList();
+        int before = State.Pending.Count;
+        State.AddFiles(ok, _transcode, _playlist.Length == 0 ? null : _playlist);
+        int added = State.Pending.Count - before;
+        var notes = new List<string> { $"Queued {added} file(s)." };
+        if (ok.Count > added) notes.Add($"{ok.Count - added} already queued.");
+        if (missing.Count > 0) notes.Add($"Not found: {string.Join(", ", missing.Take(3))}{(missing.Count > 3 ? "…" : "")}.");
+        if (notAudio.Count > 0) notes.Add($"Not audio: {string.Join(", ", notAudio.Select(Path.GetFileName).Take(3))}.");
+        _message = string.Join(" ", notes);
+        _messageOk = missing.Count == 0 && notAudio.Count == 0;
+        if (added > 0) _paths = string.Join("\n", missing.Concat(notAudio));
+    }
+}

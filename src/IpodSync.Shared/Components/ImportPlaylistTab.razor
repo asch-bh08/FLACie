@@ -1,0 +1,117 @@
+@inherits StateComponent
+@inject IHostPickers Pickers
+
+<h2>Import a playlist</h2>
+<div class="panel">
+    <p class="muted small" style="margin-top:0">
+        Reads an iTunes “Export Playlist” text file or an M3U/M3U8 and matches each entry to a song already on the iPod
+        (by title, artist and length). Songs that aren't on the iPod are listed; add them first with Add music or Sync a folder.
+    </p>
+    <div class="row">
+        <input class="text-input grow" placeholder="Playlist file (.txt, .m3u, .m3u8)" @bind="_file" />
+        @if (Pickers.Available)
+        {
+            <button class="btn" @onclick="Pick">Browse…</button>
+        }
+    </div>
+    <div class="row">
+        <input class="text-input grow" placeholder="Playlist name on the iPod (default: file name)" @bind="_name" />
+        <label class="check small"><input type="checkbox" @bind="_replace" /> If it exists, make it match the file exactly</label>
+        <button class="btn primary" @onclick="Preview" disabled="@(string.IsNullOrWhiteSpace(_file) || _loading)">@(_loading ? "Matching…" : "Preview")</button>
+    </div>
+</div>
+
+@if (_preview is { } p)
+{
+    var m = p.Prepared.Match;
+    <div class="stat-grid">
+        <div class="stat"><div class="v">@p.Entries</div><div class="k">entries</div></div>
+        <div class="stat"><div class="v">@m.Matched.Count</div><div class="k">matched</div></div>
+        <div class="stat"><div class="v">@m.Unmatched.Count</div><div class="k">not on iPod</div></div>
+        <div class="stat"><div class="v">@p.Prepared.Ops.Count</div><div class="k">changes</div></div>
+    </div>
+    <div class="panel">
+        @foreach (var l in p.Prepared.Summary) { <div class="small">@l</div> }
+        <div class="row" style="margin-top:10px">
+            <button class="btn primary" disabled="@(p.Prepared.Ops.Count == 0 || State.Busy)" @onclick="() => Queue(p)">Queue @p.Prepared.Ops.Count change(s)</button>
+        </div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
+        <div>
+            <h3>Matched</h3>
+            <div class="table-wrap medium">
+                <table class="data-table">
+                    <tbody>
+                        @foreach (var (e, t) in m.Matched)
+                        {
+                            <tr><td title="line @e.Line: @e.Artist - @e.Title">@t.Artist – @t.Title</td><td class="num muted" style="width:60px">@Time(t.LengthMs)</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div>
+            <h3>Not on the iPod</h3>
+            <div class="table-wrap medium">
+                <table class="data-table">
+                    <tbody>
+                        @foreach (var e in m.Unmatched)
+                        {
+                            <tr><td title="@e.Location">@e.Artist – @e.Title</td><td class="num muted" style="width:60px">@(e.Seconds > 0 ? Time((int)(e.Seconds * 1000)) : "")</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public EventCallback OnQueued { get; set; }
+    private string _file = "";
+    private string _name = "";
+    private bool _replace;
+    private bool _loading;
+    private ImportPreview? _preview;
+
+    private async Task Pick()
+    {
+        var files = await Pickers.PickFilesAsync(PickKind.Playlist, false);
+        if (files.Count > 0) { _file = files[0]; if (_name.Length == 0) _name = Path.GetFileNameWithoutExtension(files[0]); }
+    }
+
+    private async Task Preview()
+    {
+        if (State.ActiveRoot is null) return;
+        string file = _file.Trim().Trim('"');
+        if (!File.Exists(file)) { State.Error = $"File not found: {file}"; return; }
+        string name = string.IsNullOrWhiteSpace(_name) ? Path.GetFileNameWithoutExtension(file) : _name.Trim();
+        if (State.Pending.Any(c => c.Op.Playlist == name || c.Op.Name == name))
+        {
+            State.Error = $"There are already pending changes for “{name}”. Write or clear them first.";
+            return;
+        }
+        _loading = true;
+        try { _preview = await State.Backend.PreviewImportAsync(State.ActiveRoot, file, name, _replace); }
+        catch (Exception ex) { State.Error = AppState.Format(ex); _preview = null; }
+        finally { _loading = false; }
+    }
+
+    private async Task Queue(ImportPreview p)
+    {
+        foreach (var op in p.Prepared.Ops)
+        {
+            string label = op.Op switch
+            {
+                "createPlaylist" => $"New playlist “{op.Name}” ({op.TrackIds?.Length ?? 0} tracks, imported from {Path.GetFileName(p.File)})",
+                "addTrackToPlaylist" => $"Add {State.TrackName(op.TrackId ?? 0)} to “{op.Playlist}”",
+                "removeTrackFromPlaylist" => $"Remove {State.TrackName(op.TrackId ?? 0)} from “{op.Playlist}”",
+                "reorderPlaylist" => $"Reorder “{op.Playlist}” to match {Path.GetFileName(p.File)}",
+                _ => op.Op ?? "",
+            };
+            State.Enqueue(op, label);
+        }
+        _preview = null;
+        await OnQueued.InvokeAsync();
+    }
+}

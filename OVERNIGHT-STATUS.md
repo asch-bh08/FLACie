@@ -273,3 +273,41 @@ Decoded from the real device (`ArtworkDB` + 4 `.ithmb` files, 529 images):
 - `ArtChunk` / `ArtworkDb` lossless tree + read-only `art-check`: **ArtworkDB
   round-trips byte-identical**; all 2,116 thumbnails in range; 0 dangling track
   links; 0 reference-count mismatches.
+
+### 04:45–05:30 — HANDOFF step 4: album artwork — writer (done, live)
+
+New ops: `setTrackArtwork` (`trackId` or `trackIds` + `imagePath`: an image, or an
+audio file with an embedded cover; one image shared by all listed tracks),
+`removeTrackArtwork`; `addTrackFromFile` copies the source file's embedded cover
+automatically (also when transcoding; `"artwork": false` to skip); `removeTrack`
+releases its image. Implementation (`Artwork/`):
+- New image = clone of a real `mhii`/`mhni` layout; id from mhfd next-id; thumbnails
+  appended at the end of each ithmb; reference count kept (replaced/removed art
+  decrements, an image at 0 references is removed; its slots stay unused).
+- Thumbnails via ffmpeg (bit-exact): fit + centred letterbox for 1056/1073/1074;
+  **centre-crop for 1078** — found by noticing iTunes never pads that format
+  (decoded the iTunes 80×80 of a wide image: it is cropped, not letterboxed).
+- CDB mhit +0xA4/+0x160/+0x7C/+0x80 and SQLite artwork_status/artwork_cache_id
+  written together; `itlp-diff` now cross-checks artwork links.
+- Pipeline: backs up `Artwork/` as well (85 MB, SHA-1 verified), re-validates the
+  new ArtworkDB before writing, appends only after confirming each ithmb length,
+  verifies ArtworkDB bytes + integrity on the device, and restores by truncating
+  each ithmb to its backed-up length. Fault-injected test on the fake root
+  restored all 7 files SHA-1-identical. Every new thumbnail was decoded back to
+  PNG and inspected (letterbox, crop, square, embedded cover).
+
+| # | time | change-set | pre-write backup (`ipod-backups\…`, incl. Artwork) |
+|---|------|------------|------------------|
+| 14 | 01:29 | `setTrackArtwork` test pattern (600×600 PNG) → both transcode tones (image #817, 2 refs) | `applyedits-20260914-012917` |
+| 15 | 01:29 | replace the Opus tone's art with a wide 800×450 JPEG (image #818; #817 → 1 ref) | `applyedits-20260914-012929` |
+| 16 | 01:29 | add `test-cover.flac` (embedded PNG cover) → ALAC `F10/DEIN.m4a` + image #819 | `applyedits-20260914-012941` |
+
+All PASS incl. `device artwork integrity`; afterwards `art-check D:/`: ArtworkDB
+round-trips, 532 images, all thumbnails in range, 592 tracks with art, 0 dangling
+links, 0 reference-count mismatches; `itlp-diff` IN SYNC; signatures valid. A
+thumbnail read straight back off the iPod decodes to the right cover.
+
+**Morning on-screen check:** Now Playing art for `iPodSync Transcode Tone FLAC`
+(colour test pattern), `…Tone Opus` (SMPTE bars, letterboxed; 80×80 list thumb
+cropped), `iPodSync Cover Art Tone` (test pattern). Existing albums' art should be
+unchanged.

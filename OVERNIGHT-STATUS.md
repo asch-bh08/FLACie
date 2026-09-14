@@ -51,8 +51,24 @@ After each write I checked independently with the CLI: `itlp-diff` IN SYNC,
 The Windows app's backup folder on this PC is set to `C:\IPODAPP\ipodsync\ipod-backups`
 (in `%LOCALAPPDATA%\ipodsync\app-settings.json`), so it lists the overnight backups.
 
+**First real write from the app (13:15), done.** With the iPod plugged back in:
+- **Before:** read-only checks were clean (IN SYNC, hash72/cbk valid, art-check clean, CDB round-trip
+  byte-identical). I also took an extra SHA-1-verified copy of `iTunes` + `Artwork`:
+  `ipod-backups/app-first-write-baseline-20260914-131300`.
+- **The edit:** the app ran with Ashley's real settings and no test overrides. It was driven through
+  the web host, which runs the same UI and backend as the Windows app. I created playlist
+  **"iPodSync App Test"** with Fur Elise, Air on a G String and Scarborough Fair.
+- **Dry run:** passed. It touched only `iTunesCDB`, `Library.itdb` (container, item_to_container)
+  and `Dynamic.itdb` (container_ui).
+- **Write:** verified (every device check PASS). The app's own backup is
+  `ipod-backups/app-20260914-131509`.
+- **After:** re-checked with the CLI: IN SYNC, signatures and cbk valid, art-check clean, round-trip
+  byte-identical, 643 tracks, the new playlist has 3 songs. Against the baseline, exactly those 3
+  files changed. The plays the iPod recorded for the test tones are preserved.
+- **Still to do:** confirm "iPodSync App Test" appears on the iPod screen after ejecting.
+
 **Not done / next.**
-1. **First real write from the app.** Plug the iPod in, open the Windows app, make one
+1. ~~**First real write from the app.**~~ Done (above). Plug the iPod in, open the Windows app, make one
    small edit, then Check → Write. Every write path is the same code already proven
    overnight, but the app itself has only written to fake roots.
 2. **Android writes.** A likely route is "All files access" (`MANAGE_EXTERNAL_STORAGE`)

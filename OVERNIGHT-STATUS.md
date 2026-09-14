@@ -1,5 +1,67 @@
 # Overnight session status — 2026-09-14
 
+## Afternoon session (13:10): the app
+
+**On-device check done by Ashley:** the playlists show up on the iPod and the transcoded
+test tracks play. That confirms the overnight write path on the iPod itself.
+
+**What was built.** `IpodSync.Shared` was a read-only dashboard. It is now a full library
+manager on the same verified write pipeline as the CLI. Tabs: Library (edit tags,
+rating, cover art, delete), Playlists (create, rename, delete, add, remove, reorder),
+Add music (with conversion), Sync a folder, Import playlist, Changes, Backups, Device
+health, Jellyfin. See README.md → "The app" for the tour.
+
+**Safety model in the UI.** Nothing reaches the iPod until you press Write. Before that:
+- Every edit is queued first.
+- Write stays disabled until a dry run of exactly that queue, against the same loaded
+  library, has passed. Any edit after the check disables it again.
+- Write asks for confirmation.
+
+The write itself is `WritePipeline` unchanged: verified backup, write, read-back
+re-verify, automatic restore. Folder sync requires the first batch to pass a dry run,
+then writes in verified batches.
+
+**Refactor.** `WritePipeline` and `SigningInputs` moved from the CLI into
+`IpodSync.Core.Sync`, with a structured result. Folder-sync and playlist-import
+orchestration moved into `FolderSyncJob` / `PlaylistImportJob`. The CLI calls them.
+`tools/fake-root-regression.sh` passes after the move.
+
+**Tested, all against a fake root** (the iPod was unplugged), through the UI in a browser:
+| Flow | Result |
+|---|---|
+| Rating, retitle, new playlist with 9 songs, reorder and remove on an existing playlist | written and verified |
+| FLAC add (converted to ALAC, embedded cover) into a playlist, plus a cover on another song | written and verified |
+| Sync a folder: recognised the FLAC added before, skipped a duplicate copy, added MP3 + Opus (→ AAC) | written and verified; re-preview adds nothing |
+| Import an M3U: 2 of 3 matched, the missing song listed | written and verified |
+| Write with `IPODSYNC_FAULT_INJECT=postverify` | restored automatically; all 20 database/artwork files SHA-1-identical to before |
+
+After each write I checked independently with the CLI: `itlp-diff` IN SYNC,
+`hash72-verify` valid (CDB + cbk), `art-check` clean.
+
+**Builds.**
+- **Windows:** `C:\IPODAPP\ipodsync\app-windows\IpodSync.Maui.exe`. Self-contained, so no
+  .NET or Windows App SDK install is needed. I launched it and captured its window: it
+  renders the library with covers and green health chips.
+- **Android:** `C:\IPODAPP\ipodsync\ipodsync.apk`, signed Release. It builds and is still
+  read-only (SAF), and it no longer pops the folder picker at start-up. It has **not**
+  been installed on the phone this session.
+- `tools/build-apps.ps1` rebuilds both. The toolchain was installed without admin rights
+  in `%LOCALAPPDATA%\ipodsync-toolchain` (.NET 9.0.318 + MAUI workloads, JDK 17, Android SDK).
+
+The Windows app's backup folder on this PC is set to `C:\IPODAPP\ipodsync\ipod-backups`
+(in `%LOCALAPPDATA%\ipodsync\app-settings.json`), so it lists the overnight backups.
+
+**Not done / next.**
+1. **First real write from the app.** Plug the iPod in, open the Windows app, make one
+   small edit, then Check → Write. Every write path is the same code already proven
+   overnight, but the app itself has only written to fake roots.
+2. **Android writes.** A likely route is "All files access" (`MANAGE_EXTERNAL_STORAGE`)
+   so the unchanged pipeline can run on the mounted USB volume path. It needs the phone
+   to test. Transcoding and cover conversion would also need ffmpeg on Android.
+3. Nice-to-haves: play a track inside the app; edit album artist, genre and year (the
+   engine currently edits title, artist and album).
+
+
 ## End-of-session report (05:20)
 
 **TL;DR** — All six HANDOFF build-order steps are implemented and were written to the

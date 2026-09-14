@@ -39,7 +39,7 @@ else
                     <tr title="@b.Path">
                         <td>@b.Created.ToString("yyyy-MM-dd HH:mm:ss")</td>
                         <td>@b.Kind@(b.HasArtwork ? " + art" : "")</td>
-                        <td class="@(b.Outcome?.StartsWith("WRITE VERIFIED") == true ? "ok-text" : b.Outcome?.StartsWith("Device restored") == true ? "warn-text" : "muted")">@(b.Outcome ?? "(no log: taken before a write that didn't finish, or a manual copy)")</td>
+                        <td class="@(b.Outcome == "Write verified" ? "ok-text" : b.Outcome?.StartsWith("Write failed") == true ? "warn-text" : "muted")">@(b.Outcome ?? "(no log: taken before a write that didn't finish, or a manual copy)")</td>
                         <td>@if (Pickers.Available) { <button class="btn small" @onclick="() => Pickers.OpenFolderAsync(b.Path)">Open</button> }</td>
                     </tr>
                 }

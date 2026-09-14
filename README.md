@@ -8,30 +8,38 @@ working alongside it, and our own sync state never lives on the iPod.
 
 ## The app
 
-`IpodSync.Shared` is one Blazor UI (`Dashboard.razor`) shared by three hosts:
+`IpodSync.Shared` is one Blazor UI shared by three hosts:
 
-- `IpodSync.Web` — runs it as a local web app. Used mainly as a way to actually
-  see and click through the UI in a browser during development.
-- `IpodSync.Maui`, Windows target — a real installed WinUI 3 app.
-- `IpodSync.Maui`, Android target — a real installed APK.
+- `IpodSync.Maui`, Windows target: the real desktop app (WinUI 3), with native file/folder pickers.
+- `IpodSync.Web`: the same UI in a browser (`dotnet run --project src/IpodSync.Web`, http://localhost:5070). Handy for development.
+- `IpodSync.Maui`, Android target: an installed APK that reads an iPod plugged into the phone over USB-OTG. **Read-only for now.**
 
-The three differ only in which `IIpodSyncBackend` is registered
-(`IpodSync.Shared/Backend/`): `LocalIpodSyncBackend` (web, Windows) reads a
-mounted drive letter directly; `SafIpodSyncBackend`
-(`IpodSync.Maui/Platforms/Android/`) reads an iPod attached over USB-OTG
-through Android's own Storage Access Framework, then hands the resulting bytes
-to the same `ItunesDbReader` everything else uses. **Verified on real
-hardware** (a Samsung Galaxy Z Fold 7 and a real iPod) after three iterations —
-see "The Android read path" in [HANDOFF.md](HANDOFF.md) for the full story,
-including why the first approach (a hand-written SCSI/FAT32 stack claiming the
-raw USB interface directly, `UsbIpodSyncBackend` — still in the tree, just not
-wired up) fought the OS's own USB-storage auto-mount instead of working with
-it.
+On Windows (and the web host) the app manages the iPod through `IpodSync.Core.Sync.WritePipeline`, the same verified write path the CLI uses:
 
-Also wired up: local-folder library scanning with real tag reads
-(`IpodSync.Core/LocalLibrary/`, via TagLibSharp), a read-only local-vs-device
-sync preview, and Jellyfin playlist sync (`IpodSync.Core/Jellyfin/`, a
-server-API-key client that only ever adds to Jellyfin, never deletes).
+| Tab | What it does |
+|---|---|
+| Library | Search/sort every song; covers are read straight from the iPod's `ithmb` files. Edit title/artist/album, set the star rating, set or remove cover art (one song or the whole album), add to a playlist, delete from the iPod. |
+| Playlists | Create, rename, delete; add songs, remove, reorder. Smart playlists are shown read-only. |
+| Add music | Add files. FLAC/Opus/Ogg/WMA are converted (lossless → ALAC, lossy → 256k AAC); tags and embedded covers come along. |
+| Sync a folder | Preview a music folder against the iPod (already synced / on the iPod already / to add / duplicates), then add in verified batches. Sync state lives on the PC (`%LOCALAPPDATA%\ipodsync\manifests`). |
+| Import playlist | Match an iTunes "Export Playlist" `.txt` or an M3U to songs on the iPod, and queue it as a playlist. |
+| Changes | Every edit is queued first. **Write to iPod** stays disabled until a dry run of exactly that queue passes; then there's a confirmation, a verified backup, the write, a read-back re-verify of both databases, signatures and artwork, and an automatic restore if anything doesn't match. |
+| Backups / Device health | Pre-write backups with their write logs, and read-only checks: signatures, CDB ↔ SQLite agreement, artwork integrity. |
+| Jellyfin | Copy the iPod's playlists to a Jellyfin server (writes only to Jellyfin). |
+
+Backups default to `Documents\ipodsync\ipod-backups`; change the folder in the Backups tab. Settings live in `%LOCALAPPDATA%\ipodsync\app-settings.json`.
+
+The hosts differ only in which `IIpodSyncBackend` is registered (`IpodSync.Shared/Backend/`):
+
+- `LocalIpodSyncBackend` (web, Windows) works on a mounted drive letter.
+- `SafIpodSyncBackend` (`IpodSync.Maui/Platforms/Android/`) reads through Android's Storage Access Framework. Reading was verified on a Z Fold 7; see HANDOFF.md.
+
+`AppState` (`IpodSync.Shared/State/`) holds the queue and turns UI actions into EDIT-PROTOCOL ops.
+
+**Testing without an iPod.** Set these environment variables before starting the web host or the app:
+
+- `IPODSYNC_EXTRA_ROOTS=<folder>` lists a folder laid out like an iPod (e.g. the fake root that `tools/fake-root-regression.sh` builds) as a device.
+- `IPODSYNC_APP_SETTINGS=<file>` keeps test backups and settings out of your real ones.
 
 ## iPod Player
 

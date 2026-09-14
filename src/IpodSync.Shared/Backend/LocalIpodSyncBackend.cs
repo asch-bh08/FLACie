@@ -199,6 +199,8 @@ public sealed class LocalIpodSyncBackend : IIpodSyncBackend
                 var lines = File.ReadAllLines(logPath);
                 outcome = lines.LastOrDefault(l => l.StartsWith("WRITE VERIFIED") || l.StartsWith("Device restored") || l.StartsWith("RESTORE INCOMPLETE"))
                     ?? lines.LastOrDefault(l => l.Trim().Length > 0);
+                if (outcome?.StartsWith("WRITE VERIFIED") == true) outcome = "Write verified";
+                else if (outcome?.StartsWith("Device restored") == true) outcome = "Write failed verification; restored from this backup";
             }
             string kind = name.Contains('-') ? name[..name.IndexOf('-')] : name;
             list.Add(new BackupInfo(dir, name, Directory.GetCreationTime(dir), kind, Directory.Exists(Path.Combine(dir, "Artwork")), outcome,

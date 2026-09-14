@@ -10,6 +10,11 @@
             {
                 <strong>@State.BusyText</strong> <span class="muted">keep the iPod connected</span>
             }
+            else if (r is not null && State.LastWasCommit && !r.Written && r.ExitCode != 0)
+            {
+                <strong class="error-text">@(r.Restored ? "The write didn't verify, so the backup was put back — the iPod is unchanged." : "Not written: a check failed before anything touched the iPod.")</strong>
+                <span class="muted"> Your @State.Pending.Count change(s) are still queued; see the log.</span>
+            }
             else if (State.Pending.Count > 0)
             {
                 <strong>@State.Pending.Count pending change(s)</strong>

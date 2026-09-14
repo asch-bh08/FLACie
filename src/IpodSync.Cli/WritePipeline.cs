@@ -127,7 +127,7 @@ static class WritePipeline
             var now = DateTimeOffset.UtcNow;
             Say($"SQLite      staged copy {staged}");
             var touched = new HashSet<string>();
-            var trackSync = ItlpTrackSync.Sync(staged, after, now);
+            var trackSync = ItlpTrackSync.Sync(staged, after, now, report?.StatsChanged);
             foreach (var a in trackSync.Actions) Say($"  sqlite: {a}");
             foreach (var p in trackSync.Problems) Say($"  SQLITE PROBLEM: {p}");
             touched.UnionWith(trackSync.TouchedTables);

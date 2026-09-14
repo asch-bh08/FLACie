@@ -502,6 +502,8 @@ static int ItlpDiffCmd(string[] rest)
         foreach (var l in verbose ? lines : lines.Take(15)) Console.WriteLine("    " + l);
         if (!verbose && lines.Count > 15) Console.WriteLine($"    ... {lines.Count - 15} more (--all)");
     }
+    Console.WriteLine($"{"rating/play-count differences (info only)",-44} {diff.StatsDifferences.Count}");
+    foreach (var l in verbose ? diff.StatsDifferences : diff.StatsDifferences.Take(15)) Console.WriteLine("    " + l);
     foreach (var n in diff.Notes) Console.WriteLine("note: " + n);
     Console.WriteLine(diff.InSync ? "IN SYNC" : $"OUT OF SYNC (playlists {(diff.PlaylistsInSync ? "in sync" : "differ")}, tracks {(diff.TracksInSync ? "in sync" : "differ")})");
     return diff.InSync ? 0 : 3;

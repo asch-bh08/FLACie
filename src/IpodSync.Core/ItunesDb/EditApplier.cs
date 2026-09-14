@@ -161,6 +161,7 @@ public static class EditApplier
                 var mhit = FindTrack(root, Require(op.TrackId, "trackId"));
                 int stars = Require(op.Stars, "stars");
                 TrackFields.SetStars(mhit, stars);
+                report.StatsChanged.Add(TrackFields.GetPersistentId(mhit));
                 return new OpResult(op.Op!, true, $"track {op.TrackId}: rating -> {stars} star(s)");
             }
             case "setPlayCount":
@@ -168,6 +169,7 @@ public static class EditApplier
                 var mhit = FindTrack(root, Require(op.TrackId, "trackId"));
                 int count = Require(op.Count, "count");
                 TrackFields.SetPlayCount(mhit, count);
+                report.StatsChanged.Add(TrackFields.GetPersistentId(mhit));
                 return new OpResult(op.Op!, true, $"track {op.TrackId}: play count -> {count}");
             }
             case "removeTrack":
@@ -333,6 +335,9 @@ public sealed class ApplyReport
     public List<(string Source, string DestRel)> FileCopies { get; } = [];
     /// <summary>addTrackFromFile results: the file the user chose and the new track's persistent id.</summary>
     public List<(string Source, ulong PersistentId)> AddedTracks { get; } = [];
+    /// <summary>Tracks whose rating or play count this change-set set explicitly; only
+    /// these are pushed into Dynamic.itdb (the iPod keeps its own stats there).</summary>
+    public HashSet<ulong> StatsChanged { get; } = [];
     public int TracksBefore { get; set; }
     public int TracksAfter { get; set; }
     public int PlaylistsBefore { get; set; }

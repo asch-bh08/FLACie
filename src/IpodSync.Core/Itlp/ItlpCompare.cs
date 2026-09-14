@@ -30,6 +30,9 @@ public static class ItlpCompare
         public List<string> MembershipMismatches { get; } = [];
         public List<string> ContainerUiMissing { get; } = [];
         public List<string> Notes { get; } = [];
+        /// <summary>Rating / play-count differences between the CDB and Dynamic.itdb.
+        /// Informational, not divergence: the iPod updates item_stats itself.</summary>
+        public List<string> StatsDifferences { get; } = [];
 
         public bool PlaylistsInSync =>
             PlaylistsOnlyInCdb.Count == 0 && ContainersOnlyInSqlite.Count == 0 &&
@@ -136,6 +139,19 @@ public static class ItlpCompare
             while (r.Read()) ui.Add(r.GetInt64(0));
         }
         else diff.Notes.Add("Dynamic.itdb not found; container_ui not checked");
+
+        if (File.Exists(dynamic))
+        {
+            using var dyn = OpenReadOnly(dynamic);
+            using var cmd = dyn.CreateCommand();
+            cmd.CommandText = "SELECT item_pid, user_rating, play_count_user FROM item_stats";
+            using var r = cmd.ExecuteReader();
+            var stats = new Dictionary<long, (long Rating, long Plays)>();
+            while (r.Read()) stats[r.GetInt64(0)] = (r.GetInt64(1), r.GetInt64(2));
+            foreach (var t in cdb.Tracks)
+                if (stats.TryGetValue(unchecked((long)t.PersistentId), out var st) && (st.Rating != t.Stars * 20 || st.Plays != t.PlayCount))
+                    diff.StatsDifferences.Add($"#{t.Id} '{t.Title}': CDB {t.Stars}* / {t.PlayCount} plays vs item_stats rating {st.Rating} / {st.Plays} plays");
+        }
 
         var idToPid = cdb.Tracks.ToDictionary(t => t.Id, t => unchecked((long)t.PersistentId));
         var mirrored = cdb.Playlists.Where(p => p.IsMaster || IsMirroredPlaylist(p)).ToList();

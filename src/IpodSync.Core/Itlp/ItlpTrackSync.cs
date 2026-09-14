@@ -24,7 +24,11 @@ public static class ItlpTrackSync
 {
     private const int FourCcFile = 0x46494C45;   // 'FILE' -- location_type on every real row
 
-    public static ItlpSync.Result Sync(string stagedItlpDir, ItunesDatabase cdb, DateTimeOffset now)
+    /// <param name="pushStats">Persistent ids whose rating/play count were set by the
+    /// current change-set: their CDB values are written to Dynamic.itdb item_stats.
+    /// Everything else keeps the device's own stats (the iPod rates and counts plays
+    /// there itself, so a CDB value is not necessarily newer).</param>
+    public static ItlpSync.Result Sync(string stagedItlpDir, ItunesDatabase cdb, DateTimeOffset now, ISet<ulong>? pushStats = null)
     {
         var result = new ItlpSync.Result();
         int stamp = ItlpSync.AppleSeconds(now);
@@ -109,6 +113,26 @@ public static class ItlpTrackSync
                 result.TouchedTables.Add("Library.itdb:item");
             }
             entities.RecordItem(m);
+        }
+
+        // Ratings / play counts set by this change-set. On the device, item_stats.play_count_user
+        // equals the CDB play count for all 643 tracks and user_rating holds 20 per star
+        // (libgpod convention); the Now Playing rating is read from here, not the CDB.
+        if (result.Ok && pushStats is { Count: > 0 })
+        {
+            var D = new Db(dyn, td);
+            foreach (var t in cdb.Tracks.Where(t => pushStats.Contains(t.PersistentId)))
+            {
+                long pid = unchecked((long)t.PersistentId);
+                var cur = D.Rows("SELECT user_rating, play_count_user FROM item_stats WHERE item_pid = $p", ("$p", pid)).FirstOrDefault();
+                if (cur is null) { result.Problems.Add($"track #{t.Id} has no item_stats row to update"); continue; }
+                long rating = t.Stars * 20;
+                if ((long)cur[0]! == rating && (long)cur[1]! == t.PlayCount) continue;
+                D.Exec("UPDATE item_stats SET user_rating = $r, play_count_user = $c, has_been_played = CASE WHEN $c > 0 THEN 1 ELSE has_been_played END WHERE item_pid = $p",
+                    ("$r", rating), ("$c", t.PlayCount), ("$p", pid));
+                result.Actions.Add($"item_stats #{t.Id} '{t.Title}': rating {cur[0]} -> {rating}, plays {cur[1]} -> {t.PlayCount}");
+                result.TouchedTables.Add("Dynamic.itdb:item_stats");
+            }
         }
 
         // item.physical_order == position in the master playlist on every real row.
@@ -246,8 +270,8 @@ public static class ItlpTrackSync
               (item_pid, has_been_played, date_played, play_count_user, play_count_recent, date_skipped, skip_count_user,
                skip_count_recent, bookmark_time_ms, bookmark_time_ms_common, user_rating, user_rating_common, rental_expired,
                play_count_user_original, skip_count_user_original)
-            VALUES ($pid, 0, 0, 0, 0, 0, 0, 0, 0.0, 0.0, 0, 0, 0, 0, 0)
-            """, ("$pid", pid));
+            VALUES ($pid, $played, 0, $plays, 0, 0, 0, 0, 0.0, 0.0, $rating, 0, 0, 0, 0)
+            """, ("$pid", pid), ("$played", t.PlayCount > 0 ? 1 : 0), ("$plays", t.PlayCount), ("$rating", t.Stars * 20));
         return true;
     }
 

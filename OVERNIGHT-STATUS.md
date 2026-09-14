@@ -422,3 +422,27 @@ needed (harmless), but note it.
 state; it passed.) Verified; IN SYNC; signatures valid. Note: the new playlist got
 persistent id `0xF906EE395DA00877`, the id the deleted `iPodSync Temp` used
 earlier (ids are "max + 1"); SQLite has no trace of the old one.
+
+### 02:00–05:15 — gapless fields, cloned-header repair (usage-limit pause in between)
+
+- Gapless mapping confirmed for all 634 iTunes tracks: mhit +0xB8 delay, +0xC8
+  drain, +0xCC heuristic, +0xF8 last-frame resync == SQLite avformat_info. Added
+  tracks now always get 0s (play the whole file) instead of a template's values
+  (`d3a2d99`). All tracks added tonight already had 0s.
+- Audit of every added track for per-track header values copied from another track:
+  clean for tonight's tracks. **Last session's EsDeeKid "Century" (#41618) still
+  carried its template's data: a duplicate persistent-id copy (+0xA8 = the renamed
+  test track's id), a duplicate +0x1F4, wrong size copy / sample count, a 48 kHz
+  sample rate for a 44.1 kHz file, and a saturated last-modified (0x7FFFFFFF).**
+  New op `repairTrack` (`4ef469f`) re-derives those from the file on the device;
+  date added / gapless are only reset when a stale id copy proves cloning. The fake-
+  root test first caught two flaws in my own repair (it would have reset an iTunes
+  track's genuine date-added/gapless values, and trusted a 0-byte placeholder file);
+  both fixed before any live use. Device-wide scan: #41618 was the only such track.
+
+| # | time | change-set | pre-write backup |
+|---|------|------------|------------------|
+| 21 | 05:14 | `repairTrack` #41618 (EsDeeKid – Century) — CDB header only | `applyedits-20260914-051437` |
+
+Verified; afterwards 0 stale id copies and 0 duplicate +0x1F4 ids across all 643
+tracks; IN SYNC; signatures valid.

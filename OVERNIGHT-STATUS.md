@@ -217,3 +217,38 @@ unreferenced file — left in place per the no-deleting rule; harmless.
 add/remove/reorder playlist tracks, rename/retag track, add track from file and
 delete track now all write CDB + SQLite in one verified operation, confirmed on
 the device's files. Not yet confirmed on the iPod's screen (no eject tonight).
+
+### 03:25–04:15 — HANDOFF step 3: transcode-on-add (done, live)
+
+`addTrackFromFile` now takes `"transcode": "auto" | "alac" | "aac" | "never"`
+(default auto = convert only what the iPod can't play). `Transcode/Transcoder.cs`:
+- lossless sources (FLAC/APE/WavPack/PCM…) → **ALAC 16-bit stereo**, lossy
+  (Opus/Ogg/WMA…) → **AAC 256k**; 44.1 kHz family → 44100, 48 kHz family → 48000
+  (the device already holds iTunes-synced ALAC at both rates).
+- SHA-256-keyed cache (`%LOCALAPPDATA%\ipodsync\transcode`), ffmpeg bit-exact:
+  two transcodes of the same source are byte-identical, so the dry run and the
+  write use the same file. Output probed (codec, channels, rate, duration ±0.25 s)
+  and rejected otherwise. Tags from format or stream metadata (Ogg/Opus).
+
+Bugs found and fixed on the way (all caught on the fake root, never live):
+- **Reader:** sample rate of every 48 kHz track read as negative (signed shift of
+  `rate << 16`) → SQLite mirror would have written 44100 Hz / wrong sample count.
+- ALAC bitrate: TagLib reports 0; now iTunes' nominal rate×bits×channels
+  (matches all 146 existing ALAC rows: 1536/2304/1411/2116).
+- Deterministic file names could collide with an orphan already on disk (a
+  fake-root write failed safely on this and restored); names now avoid existing
+  files. Untagged titles no longer fall back to the cache file name.
+
+| # | time | change-set | pre-write backup (`ipod-backups\…`) |
+|---|------|------------|------------------|
+| 12 | 01:14 | add 24-bit/96 kHz **FLAC** test tone → ALAC 16/48 → `F01/08X8.m4a`, album `iPodSync Transcode Test`, playlist `iPodSync Playlist Test` | `applyedits-20260914-011427` |
+| 13 | 01:14 | add **Opus** test tone → AAC 256k → `F08/SV6N.m4a`, same album/playlist | `applyedits-20260914-011430` |
+
+Both: all device checks PASS; dry run and write identical; `itlp-diff` IN SYNC;
+CDB + cbk signatures valid. Device now 638 tracks.
+
+**Morning on-screen check (after ejecting):** Playlists → `iPodSync Playlist Test`
+should list Smack That, Lights → now titled `ipodsync RENAMED TEST`, Rolling in the
+Deep, `iPodSync Transcode Tone FLAC` (15 s two-tone chord), `iPodSync Transcode
+Tone Opus` (12 s tone). Both tones should play. Artists → iPodSync; Albums →
+`iPodSync Transcode Test`.

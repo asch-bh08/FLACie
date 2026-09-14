@@ -343,6 +343,80 @@ public static class LibraryMutation
         return (mhit, destRel);
     }
 
+    /// <summary>
+    /// Re-derives a track's per-track header fields from its audio file on the device:
+    /// sample rate and sample count (from the file), the second copies of the persistent
+    /// id (+0xA8) and size (+0x12C), +0x1F4 (= id + 3), gapless fields (zeroed), and the
+    /// album/artist links. For tracks added by an older build that cloned these from a
+    /// template track. Returns a description of what changed.
+    /// </summary>
+    public static List<string> RepairTrack(RawChunk root, RawChunk mhit, string audioPath, Random? random = null)
+    {
+        var changes = new List<string>();
+        void Set32(int off, int value, string what)
+        {
+            if (mhit.Header.Length < off + 4) return;
+            int old = I32(mhit.Header, off);
+            if (old != value) { WriteI32(mhit.Header, off, value); changes.Add($"{what} {unchecked((uint)old)} -> {unchecked((uint)value)}"); }
+        }
+        ulong pid = TrackFields.GetPersistentId(mhit);
+        // A second persistent-id copy that isn't this track's id is proof the header was
+        // cloned from another track; only then are fields with no ground truth in the file
+        // (date added, gapless info) reset. iTunes-written tracks keep theirs.
+        bool cloned = mhit.Header.Length >= 0xB0 && U64(mhit.Header, 0xA8) != pid;
+        if (cloned)
+        {
+            changes.Add($"persistent id copy 0x{U64(mhit.Header, 0xA8):X16} -> 0x{pid:X16}");
+            WriteU64(mhit.Header, 0xA8, pid);
+        }
+        int size = I32(mhit.Header, 0x24);
+        var file = new FileInfo(audioPath);
+        if (file.Exists && file.Length > 0)
+        {
+            if (file.Length != size) { Set32(0x24, (int)Math.Min(file.Length, int.MaxValue), "size"); size = (int)Math.Min(file.Length, int.MaxValue); }
+            int sampleRate = 0, durationMs = I32(mhit.Header, 0x28);
+            try
+            {
+                using var tf = TagLib.File.Create(audioPath);
+                sampleRate = tf.Properties.AudioSampleRate;
+                if (tf.Properties.Duration.TotalMilliseconds > 0) durationMs = (int)tf.Properties.Duration.TotalMilliseconds;
+            }
+            catch { /* unreadable: keep what the database has */ }
+            if (sampleRate > 0)
+            {
+                Set32(0x3C, sampleRate << 16, "sample rate field");
+                if (mhit.Header.Length >= 0xC4)
+                {
+                    ulong samples = (ulong)((long)durationMs * sampleRate / 1000);
+                    ulong have = U64(mhit.Header, 0xBC);
+                    // iTunes' own counts differ from ms x rate by a few samples; only fix real mismatches.
+                    if (have > samples + (ulong)sampleRate / 10 || have + (ulong)sampleRate / 10 < samples)
+                    { changes.Add($"sample count {have} -> {samples}"); WriteU64(mhit.Header, 0xBC, samples); }
+                }
+            }
+        }
+        else changes.Add("audio file missing or empty: size/sample fields not re-derived");
+        Set32(0x12C, size, "size copy");
+        Set32(0x1F4, TrackFields.GetId(mhit) + 3, "+0x1F4");
+        if (cloned)
+        {
+            foreach (int off in new[] { 0xB8, 0xC8, 0xCC, 0xF8 }) Set32(off, 0, $"gapless +0x{off:X}");
+            // When the file was copied onto the device stands in for "date added"; the old
+            // add-from-file also saturated +0x20 (last modified) at 0x7FFFFFFF.
+            if (file.Exists)
+            {
+                int copied = unchecked((int)(uint)Math.Clamp((file.CreationTimeUtc - MacEpoch.UtcDateTime).TotalSeconds, 0, uint.MaxValue));
+                Set32(0x68, copied, "date added");
+                if (I32(mhit.Header, 0x20) == int.MaxValue) Set32(0x20, copied, "last modified");
+            }
+        }
+        uint albumBefore = (uint)I32(mhit.Header, 0x120), artistBefore = (uint)I32(mhit.Header, 0x1E0);
+        EntityLinks.Relink(root, mhit, random);
+        if ((uint)I32(mhit.Header, 0x120) != albumBefore) changes.Add($"album link {albumBefore} -> {(uint)I32(mhit.Header, 0x120)}");
+        if ((uint)I32(mhit.Header, 0x1E0) != artistBefore) changes.Add($"artist link {artistBefore} -> {(uint)I32(mhit.Header, 0x1E0)}");
+        return changes;
+    }
+
     private static string? Nz(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
     private static string? GetLocation(RawChunk mhit)

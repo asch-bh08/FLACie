@@ -133,6 +133,18 @@ public static class EditApplier
                 if (f.Artist is not null || f.Album is not null) EntityLinks.Relink(root, mhit, rng);
                 return new OpResult(op.Op!, true, $"track {op.TrackId}: set {string.Join(", ", changed)}");
             }
+            case "repairTrack":
+            {
+                var mhit = FindTrack(root, Require(op.TrackId, "trackId"));
+                if (deviceRoot is null) throw new InvalidOperationException("repairTrack needs the device root (to read the track's audio file).");
+                string rel = before.Tracks.First(t => t.Id == op.TrackId).RelativePath
+                    ?? throw new InvalidOperationException($"track {op.TrackId} has no file location.");
+                string audio = System.IO.Path.Combine(deviceRoot, rel.Replace('/', System.IO.Path.DirectorySeparatorChar));
+                if (!File.Exists(audio)) throw new FileNotFoundException("track's audio file is not on the device", audio);
+                var changes = LibraryMutation.RepairTrack(root, mhit, audio, rng);
+                report.FormatChanged.Add(TrackFields.GetPersistentId(mhit));
+                return new OpResult(op.Op!, true, changes.Count == 0 ? $"track {op.TrackId}: nothing to repair" : $"track {op.TrackId}: " + string.Join("; ", changes));
+            }
             case "relinkTrack":
             {
                 var mhit = FindTrack(root, Require(op.TrackId, "trackId"));
@@ -338,6 +350,9 @@ public sealed class ApplyReport
     /// <summary>Tracks whose rating or play count this change-set set explicitly; only
     /// these are pushed into Dynamic.itdb (the iPod keeps its own stats there).</summary>
     public HashSet<ulong> StatsChanged { get; } = [];
+    /// <summary>Tracks whose format fields were re-derived (repairTrack): their SQLite
+    /// avformat_info sample rate / duration are re-checked against the CDB.</summary>
+    public HashSet<ulong> FormatChanged { get; } = [];
     public int TracksBefore { get; set; }
     public int TracksAfter { get; set; }
     public int PlaylistsBefore { get; set; }

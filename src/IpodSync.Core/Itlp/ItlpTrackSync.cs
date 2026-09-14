@@ -28,7 +28,7 @@ public static class ItlpTrackSync
     /// current change-set: their CDB values are written to Dynamic.itdb item_stats.
     /// Everything else keeps the device's own stats (the iPod rates and counts plays
     /// there itself, so a CDB value is not necessarily newer).</param>
-    public static ItlpSync.Result Sync(string stagedItlpDir, ItunesDatabase cdb, DateTimeOffset now, ISet<ulong>? pushStats = null)
+    public static ItlpSync.Result Sync(string stagedItlpDir, ItunesDatabase cdb, DateTimeOffset now, ISet<ulong>? pushStats = null, ISet<ulong>? pushFormat = null)
     {
         var result = new ItlpSync.Result();
         int stamp = ItlpSync.AppleSeconds(now);
@@ -132,6 +132,23 @@ public static class ItlpTrackSync
                     ("$r", rating), ("$c", t.PlayCount), ("$p", pid));
                 result.Actions.Add($"item_stats #{t.Id} '{t.Title}': rating {cur[0]} -> {rating}, plays {cur[1]} -> {t.PlayCount}");
                 result.TouchedTables.Add("Dynamic.itdb:item_stats");
+            }
+        }
+
+        // Format fields re-derived by repairTrack: sample rate / duration (in samples) / size.
+        if (result.Ok && pushFormat is { Count: > 0 })
+        {
+            foreach (var t in cdb.Tracks.Where(t => pushFormat.Contains(t.PersistentId) && t.SampleRate > 0))
+            {
+                long pid = unchecked((long)t.PersistentId);
+                var cur = L.Rows("SELECT sample_rate, duration FROM avformat_info WHERE item_pid = $p AND sub_id = 0", ("$p", pid)).FirstOrDefault();
+                long samples = (long)t.LengthMs * t.SampleRate / 1000;
+                if (cur is not null && (Convert.ToDouble(cur[0]) != t.SampleRate || Math.Abs(Convert.ToInt64(cur[1]) - samples) > t.SampleRate / 10))
+                {
+                    L.Exec("UPDATE avformat_info SET sample_rate = $r, duration = $d WHERE item_pid = $p AND sub_id = 0", ("$r", (double)t.SampleRate), ("$d", samples), ("$p", pid));
+                    result.Actions.Add($"avformat_info #{t.Id}: sample rate {cur[0]} -> {t.SampleRate}, duration {cur[1]} -> {samples}");
+                    result.TouchedTables.Add("Library.itdb:avformat_info");
+                }
             }
         }
 

@@ -7,13 +7,15 @@ namespace IpodSync.Shared.Backend;
 /// <summary>Enough about a detected iPod to show in a list and pick one, without
 /// pulling in Device.IpodDevice directly -- that type models a mounted drive
 /// letter, which only makes sense for <see cref="LocalIpodSyncBackend"/>.</summary>
+/// <param name="NeedsUserAction">Loading it needs the user to act first (e.g. Android's folder picker),
+/// so the app must not load it automatically at start-up.</param>
 public sealed record DeviceSummary(string RootPath, string? VolumeLabel, string? FileSystem, bool IsFat32, bool HasDatabase,
-    long TotalBytes = 0, long FreeBytes = 0);
+    long TotalBytes = 0, long FreeBytes = 0, bool NeedsUserAction = false);
 
 /// <summary>What a backend can do. Writes need the full verified pipeline (backup,
 /// staged SQLite, signing, read-back verification), which only runs where the iPod
 /// is a real filesystem path.</summary>
-public sealed record BackendCapabilities(bool CanWrite, bool CanTranscode, bool CanScanFolders, string? ReadOnlyReason = null);
+public sealed record BackendCapabilities(bool CanWrite, bool CanTranscode, bool CanScanFolders, string? ReadOnlyReason = null, bool CanArtwork = false);
 
 /// <summary>Read-only health of a device: are both databases consistent and signed?</summary>
 public sealed record DeviceHealth(
@@ -43,9 +45,9 @@ public interface IIpodSyncBackend
 {
     BackendCapabilities Capabilities => new(false, false, true, "This platform can read an iPod but not write to it yet.");
 
-    /// <summary>True when loading a library needs the user to act first (e.g. Android's folder
-    /// picker), so the app must not load it automatically at start-up.</summary>
-    bool LoadNeedsUserAction => false;
+    /// <summary>A one-tap fix for why writing isn't available (e.g. grant a permission).</summary>
+    string? SetupActionLabel => null;
+    Task RunSetupActionAsync() => Task.CompletedTask;
 
     Task<List<DeviceSummary>> DetectDevicesAsync(CancellationToken ct = default);
     Task<ItunesDatabase> LoadLibraryAsync(string deviceRoot, CancellationToken ct = default);

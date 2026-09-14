@@ -24,6 +24,7 @@ public static class Thumbnailer
         foreach (var ext in new[] { ".jpg", ".png" })
             if (File.Exists(Path.Combine(dir, key + ext))) return Path.Combine(dir, key + ext);
 
+        if (!Transcoder.FfmpegAvailable()) return ExtractCoverWithTagLib(audioPath, dir, key);
         var video = Transcoder.ProbeVideo(audioPath);
         if (video is null) return null;
         string outPath = Path.Combine(dir, key + (video.Value.Codec == "png" ? ".png" : ".jpg"));
@@ -34,32 +35,80 @@ public static class Thumbnailer
         return outPath;
     }
 
-    public static Thumbnail Make(string imagePath, int format, int width, int height, bool fill = false)
+    /// <summary>Without ffmpeg (Android): the first embedded picture, via TagLib.</summary>
+    private static string? ExtractCoverWithTagLib(string audioPath, string dir, string key)
     {
-        var probe = Transcoder.ProbeVideo(imagePath) ?? throw new InvalidOperationException($"not an image: {imagePath}");
-        if (probe.Width <= 0 || probe.Height <= 0) throw new InvalidOperationException($"image has no dimensions: {imagePath}");
-        double scale = fill ? Math.Max((double)width / probe.Width, (double)height / probe.Height)
-                            : Math.Min((double)width / probe.Width, (double)height / probe.Height);
-        int sw = Math.Max(1, (int)Math.Round(probe.Width * scale)), sh = Math.Max(1, (int)Math.Round(probe.Height * scale));
-        int cw = Math.Min(sw, width), ch = Math.Min(sh, height);
-        int padLeft = (width - cw) / 2, padTop = (height - ch) / 2;
-        string filter = fill
-            ? $"scale={Math.Max(sw, width)}:{Math.Max(sh, height)},crop={width}:{height},format=rgb565le"
-            : $"scale={cw}:{ch},pad={width}:{height}:{padLeft}:{padTop}:black,format=rgb565le";
-
-        string tmp = Path.Combine(Path.GetTempPath(), "ipodsync-thumb-" + Guid.NewGuid().ToString("N") + ".raw");
         try
         {
-            var (code, err) = Transcoder.RunFfmpeg(["-hide_banner", "-loglevel", "error", "-y", "-i", imagePath,
-                "-frames:v", "1", "-sws_flags", "lanczos+accurate_rnd+full_chroma_int+bitexact",
-                "-vf", filter,
-                "-fflags", "+bitexact", "-f", "rawvideo", tmp]);
-            if (code != 0 || !File.Exists(tmp)) throw new InvalidOperationException($"ffmpeg thumbnail failed: {err.Trim()}");
-            byte[] px = File.ReadAllBytes(tmp);
-            if (px.Length != width * height * 2)
-                throw new InvalidOperationException($"thumbnail {format} is {px.Length} bytes, expected {width * height * 2}");
-            return new Thumbnail(format, width, height, padTop, padLeft, ch, cw, px);
+            using var tf = TagLib.File.Create(audioPath);
+            var pic = tf.Tag.Pictures?.FirstOrDefault(p => p.Type == TagLib.PictureType.FrontCover) ?? tf.Tag.Pictures?.FirstOrDefault();
+            if (pic is null || pic.Data.Count == 0) return null;
+            string outPath = Path.Combine(dir, key + (pic.MimeType?.Contains("png", StringComparison.OrdinalIgnoreCase) == true ? ".png" : ".jpg"));
+            File.WriteAllBytes(outPath + ".partial", pic.Data.Data);
+            File.Move(outPath + ".partial", outPath, overwrite: true);
+            return outPath;
         }
-        finally { try { File.Delete(tmp); } catch { } }
+        catch { return null; }
+    }
+
+    /// <summary>Turns an image file into RGB565LE pixels at a given size. The default uses
+    /// ffmpeg; hosts without it (Android) register their own.</summary>
+    public interface IRasterizer
+    {
+        bool Available { get; }
+        (int Width, int Height)? Measure(string imagePath);
+        /// <summary>Scale the image to <paramref name="scaledW"/>x<paramref name="scaledH"/>, place it
+        /// with its top-left at (<paramref name="offsetX"/>, <paramref name="offsetY"/>) on a black
+        /// <paramref name="width"/>x<paramref name="height"/> canvas (negative offsets crop), return
+        /// width*height*2 bytes of RGB565LE.</summary>
+        byte[] Render(string imagePath, int width, int height, int scaledW, int scaledH, int offsetX, int offsetY, bool fill);
+    }
+
+    public static IRasterizer Rasterizer { get; set; } = new FfmpegRasterizer();
+
+    public static bool Available => Rasterizer.Available;
+
+    public static Thumbnail Make(string imagePath, int format, int width, int height, bool fill = false)
+    {
+        var size = Rasterizer.Measure(imagePath) ?? throw new InvalidOperationException($"not an image: {imagePath}");
+        if (size.Width <= 0 || size.Height <= 0) throw new InvalidOperationException($"image has no dimensions: {imagePath}");
+        double scale = fill ? Math.Max((double)width / size.Width, (double)height / size.Height)
+                            : Math.Min((double)width / size.Width, (double)height / size.Height);
+        int sw = Math.Max(1, (int)Math.Round(size.Width * scale)), sh = Math.Max(1, (int)Math.Round(size.Height * scale));
+        int cw = Math.Min(sw, width), ch = Math.Min(sh, height);
+        int padLeft = (width - cw) / 2, padTop = (height - ch) / 2;
+        int offX = fill ? -(Math.Max(sw, width) - width) / 2 : padLeft;
+        int offY = fill ? -(Math.Max(sh, height) - height) / 2 : padTop;
+        byte[] px = Rasterizer.Render(imagePath, width, height, fill ? Math.Max(sw, width) : cw, fill ? Math.Max(sh, height) : ch, offX, offY, fill);
+        if (px.Length != width * height * 2)
+            throw new InvalidOperationException($"thumbnail {format} is {px.Length} bytes, expected {width * height * 2}");
+        return new Thumbnail(format, width, height, padTop, padLeft, ch, cw, px);
+    }
+
+    /// <summary>The original ffmpeg path (bit-exact scaler), unchanged in output.</summary>
+    public sealed class FfmpegRasterizer : IRasterizer
+    {
+        public bool Available => Transcoder.FfmpegAvailable();
+
+        public (int Width, int Height)? Measure(string imagePath) =>
+            Transcoder.ProbeVideo(imagePath) is { } p ? (p.Width, p.Height) : null;
+
+        public byte[] Render(string imagePath, int width, int height, int scaledW, int scaledH, int offsetX, int offsetY, bool fill)
+        {
+            string filter = fill
+                ? $"scale={scaledW}:{scaledH},crop={width}:{height},format=rgb565le"
+                : $"scale={scaledW}:{scaledH},pad={width}:{height}:{offsetX}:{offsetY}:black,format=rgb565le";
+            string tmp = Path.Combine(Path.GetTempPath(), "ipodsync-thumb-" + Guid.NewGuid().ToString("N") + ".raw");
+            try
+            {
+                var (code, err) = Transcoder.RunFfmpeg(["-hide_banner", "-loglevel", "error", "-y", "-i", imagePath,
+                    "-frames:v", "1", "-sws_flags", "lanczos+accurate_rnd+full_chroma_int+bitexact",
+                    "-vf", filter,
+                    "-fflags", "+bitexact", "-f", "rawvideo", tmp]);
+                if (code != 0 || !File.Exists(tmp)) throw new InvalidOperationException($"ffmpeg thumbnail failed: {err.Trim()}");
+                return File.ReadAllBytes(tmp);
+            }
+            finally { try { File.Delete(tmp); } catch { } }
+        }
     }
 }

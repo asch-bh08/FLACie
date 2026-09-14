@@ -43,7 +43,11 @@
     </div>
     @if (!State.Backend.Capabilities.CanTranscode)
     {
-        <div class="banner warn small">ffmpeg wasn't found on this PC, so only iPod-native files (MP3, AAC, ALAC, WAV) can be added. Install it with <span class="mono">winget install Gyan.FFmpeg</span> and restart the app.</div>
+        <div class="banner warn small">
+            Only iPod-native files (MP3, AAC/M4A, Apple Lossless, WAV, AIFF) can be added here; FLAC, Opus, Ogg and WMA need converting first.
+            @if (OperatingSystem.IsWindows()) { <span>Install ffmpeg with <span class="mono">winget install Gyan.FFmpeg</span> and restart the app to convert them.</span> }
+            else { <span>Convert them with the Windows app, or sync them from a PC.</span> }
+        </div>
     }
     <button class="btn primary" @onclick="Queue" disabled="@string.IsNullOrWhiteSpace(_paths)">Queue @PathList().Count file(s)</button>
     @if (_message is not null)
@@ -93,6 +97,8 @@
         var paths = PathList();
         var missing = paths.Where(p => !File.Exists(p)).ToList();
         var notAudio = paths.Where(p => File.Exists(p) && !Audio.Contains(Path.GetExtension(p).ToLowerInvariant())).ToList();
+        if (!State.Backend.Capabilities.CanTranscode)
+            notAudio.AddRange(paths.Where(p => File.Exists(p) && Audio.Contains(Path.GetExtension(p).ToLowerInvariant()) && !FolderSyncFilters.IsNative(p)));
         var ok = paths.Except(missing).Except(notAudio).ToList();
         int before = State.Pending.Count;
         State.AddFiles(ok, _transcode, _playlist.Length == 0 ? null : _playlist);
@@ -100,7 +106,7 @@
         var notes = new List<string> { $"Queued {added} file(s)." };
         if (ok.Count > added) notes.Add($"{ok.Count - added} already queued.");
         if (missing.Count > 0) notes.Add($"Not found: {string.Join(", ", missing.Take(3))}{(missing.Count > 3 ? "…" : "")}.");
-        if (notAudio.Count > 0) notes.Add($"Not audio: {string.Join(", ", notAudio.Select(Path.GetFileName).Take(3))}.");
+        if (notAudio.Count > 0) notes.Add($"Can't add here: {string.Join(", ", notAudio.Select(Path.GetFileName).Take(3))}{(notAudio.Count > 3 ? "…" : "")}.");
         _message = string.Join(" ", notes);
         _messageOk = missing.Count == 0 && notAudio.Count == 0;
         if (added > 0) _paths = string.Join("\n", missing.Concat(notAudio));

@@ -63,6 +63,10 @@
             Needs about @Size(need) on the iPod; @Size(p.FreeBytes) free (keeping @Size(FolderSyncJob.SpaceReserve) spare).
             @if (!fits) { <span> Lower “add at most”.</span> }
         </div>
+        @if (!State.Backend.Capabilities.CanTranscode && p.Plan.Add.Count > Addable(p).Count())
+        {
+            <div class="small warn-text">@(p.Plan.Add.Count - Addable(p).Count()) file(s) need converting (FLAC, Opus, …), which isn't available here, so they're skipped.</div>
+        }
         @if (p.Plan.Unreadable.Count > 0)
         {
             <div class="small warn-text">@p.Plan.Unreadable.Count file(s) couldn't be read and are skipped.</div>
@@ -101,7 +105,7 @@
         }
     </div>
 
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px">
+    <div class="two-col">
         <div>
             <h3>To add (@p.Plan.Add.Count)</h3>
             <div class="table-wrap medium">
@@ -169,7 +173,11 @@
 
     private List<string> LogTail() { lock (State.Log) return State.Log.TakeLast(600).ToList(); }
 
-    private List<FolderSync.SourceFile> ToAdd(FolderSyncPreview p) => p.Plan.Add.Take(Math.Max(0, _limit)).ToList();
+    private List<FolderSync.SourceFile> ToAdd(FolderSyncPreview p) => Addable(p).Take(Math.Max(0, _limit)).ToList();
+
+    /// <summary>Without a converter, files the iPod can't play are left out (and counted).</summary>
+    private IEnumerable<FolderSync.SourceFile> Addable(FolderSyncPreview p) =>
+        State.Backend.Capabilities.CanTranscode ? p.Plan.Add : p.Plan.Add.Where(f => FolderSyncFilters.IsNative(f.Path));
 
     private async Task PickFolder()
     {
@@ -185,7 +193,7 @@
         {
             _preview = await State.Backend.PreviewFolderSyncAsync(State.ActiveRoot, _folder.Trim().Trim('"'), _removeMissing,
                 n => { _scanned = n; _ = InvokeAsync(StateHasChanged); });
-            _limit = Math.Max(1, _preview.Plan.Add.Count);
+            _limit = Math.Max(1, Addable(_preview).Count());
         }
         catch (Exception ex) { State.Error = AppState.Format(ex); }
         finally { _scanning = false; }

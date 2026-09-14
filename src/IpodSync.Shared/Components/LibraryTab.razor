@@ -3,7 +3,7 @@
 
 @if (State.Db is { } db)
 {
-    <div style="display:grid; grid-template-columns: minmax(0,1fr) 320px; gap:16px; align-items:start;">
+    <div class="lib-grid">
         <div>
             <div class="row">
                 <input class="text-input grow" placeholder="Search title, artist, album…" @bind="_query" @bind:event="oninput" />
@@ -48,7 +48,7 @@
             </div>
         </div>
 
-        <div class="panel detail" style="position:sticky; top:0;">
+        <div class="panel detail">
             @if (Selected is { } t)
             {
                 var removing = State.IsPendingRemoval(t.Id);
@@ -118,7 +118,7 @@
                     <div class="row">
                         @if (Pickers.Available)
                         {
-                            <button class="btn small" @onclick="PickCover" disabled="@(!State.Backend.Capabilities.CanTranscode)">Choose image…</button>
+                            <button class="btn small" @onclick="PickCover" disabled="@(!State.Backend.Capabilities.CanArtwork)">Choose image…</button>
                         }
                         @if (t.HasArtwork)
                         {
@@ -133,9 +133,9 @@
                         </div>
                     }
                     <label class="check small"><input type="checkbox" @bind="_wholeAlbum" /> Apply to the whole album (@AlbumTracks(t).Count songs)</label>
-                    @if (!State.Backend.Capabilities.CanTranscode)
+                    @if (!State.Backend.Capabilities.CanArtwork)
                     {
-                        <div class="muted small">Cover art needs ffmpeg, which wasn't found on this PC.</div>
+                        <div class="muted small">Setting cover art isn't available here@(OperatingSystem.IsWindows() ? " (it needs ffmpeg, which wasn't found on this PC)" : "").</div>
                     }
 
                     <h3>Playlists</h3>

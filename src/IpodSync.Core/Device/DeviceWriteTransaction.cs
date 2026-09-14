@@ -40,6 +40,7 @@ public sealed class DeviceWriteTransaction
     /// <c>&lt;backupRoot&gt;/&lt;label&gt;-yyyyMMdd-HHmmss/iTunes</c> and verify it.</summary>
     public static DeviceWriteTransaction Begin(string itunesDir, string backupRoot, string label, bool includeArtwork = false)
     {
+        ProbeWritable(itunesDir, includeArtwork);
         string dir = Path.Combine(backupRoot, $"{label}-{DateTime.Now:yyyyMMdd-HHmmss}");
         if (Directory.Exists(dir)) dir += "-" + Guid.NewGuid().ToString("N")[..6];
         string backup = Path.Combine(dir, "iTunes");
@@ -78,7 +79,7 @@ public sealed class DeviceWriteTransaction
     {
         string dest = Path.Combine(_itunesDir, relPath);
         _writtenRel.Add(relPath);
-        File.WriteAllBytes(dest, bytes);
+        WriteDurably(dest, bytes);
         byte[] back = File.ReadAllBytes(dest);
         if (!back.AsSpan().SequenceEqual(bytes))
             throw new IOException($"read-back mismatch after writing {relPath}");
@@ -113,7 +114,7 @@ public sealed class DeviceWriteTransaction
     {
         string path = Path.Combine(ArtworkDir, name);
         _artworkWritten.Add(name);
-        File.WriteAllBytes(path, bytes);
+        WriteDurably(path, bytes);
         if (!File.ReadAllBytes(path).AsSpan().SequenceEqual(bytes)) throw new IOException($"read-back mismatch after writing {name}");
         Log.Add($"wrote       Artwork/{name}  {bytes.Length:N0} bytes, read back identical");
     }
@@ -121,8 +122,13 @@ public sealed class DeviceWriteTransaction
     public void CopyAudioFile(string source, string deviceDest)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(deviceDest)!);
-        File.Copy(source, deviceDest, overwrite: false);
-        _audioCopied.Add(deviceDest);
+        using (var src = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read))
+        using (var dst = new FileStream(deviceDest, FileMode.CreateNew, FileAccess.Write))
+        {
+            _audioCopied.Add(deviceDest);
+            src.CopyTo(dst, 1 << 20);
+            dst.Flush(flushToDisk: true);
+        }
         if (Sha1(source) != Sha1(deviceDest))
             throw new IOException($"read-back mismatch after copying audio to {deviceDest}");
         Log.Add($"copied      {deviceDest}  {new FileInfo(deviceDest).Length:N0} bytes, read back identical");
@@ -181,6 +187,34 @@ public sealed class DeviceWriteTransaction
         foreach (var a in _audioCopied)
             Log.Add($"note        audio file {a} was copied and is now unreferenced (left in place; harmless)");
         return ok;
+    }
+
+    /// <summary>Writes and asks the OS to flush to the device before returning, so a
+    /// "read back identical" means the bytes left the page cache (matters on removable
+    /// storage, and on Android's FUSE-backed USB volumes in particular).</summary>
+    private static void WriteDurably(string path, byte[] bytes)
+    {
+        using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read);
+        fs.Write(bytes);
+        fs.Flush(flushToDisk: true);
+    }
+
+    /// <summary>Fails before the backup (so before anything is written) when the database
+    /// files can't be opened for writing: e.g. a read-only mount, or on Android without
+    /// "All files access". Opening for read/write without writing changes nothing.</summary>
+    public static void ProbeWritable(string itunesDir, bool includeArtwork)
+    {
+        var targets = Directory.EnumerateFiles(itunesDir, "iTunes*DB").Take(1).ToList();
+        string artDb = Path.Combine(Path.GetDirectoryName(itunesDir)!, "Artwork", "ArtworkDB");
+        if (includeArtwork && File.Exists(artDb)) targets.Add(artDb);
+        foreach (var t in targets)
+        {
+            try { using var _ = new FileStream(t, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite); }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+            {
+                throw new IOException($"the iPod is not writable here ({Path.GetFileName(t)}: {ex.Message}); nothing was written", ex);
+            }
+        }
     }
 
     public static string Sha1(string path)

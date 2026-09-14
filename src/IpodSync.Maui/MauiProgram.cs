@@ -1,4 +1,4 @@
-using IpodSync.Shared.Backend;
+﻿using IpodSync.Shared.Backend;
 using Microsoft.Extensions.Logging;
 
 namespace IpodSync.Maui;
@@ -29,8 +29,11 @@ public static class MauiProgram
 		// transfer during testing. See HANDOFF.md and SafIpodSyncBackend's class
 		// comment for the full story.
 #if ANDROID
-		builder.Services.AddSingleton<IIpodSyncBackend, IpodSync.Maui.Platforms.Android.SafIpodSyncBackend>();
-		builder.Services.AddSingleton<IHostPickers, NoHostPickers>();
+		// Writes through the mounted USB volume once "All files access" is granted; read-only
+		// document-picker (SAF) fallback otherwise. See AndroidIpodSyncBackend.
+		IpodSync.Core.Artwork.Thumbnailer.Rasterizer = new IpodSync.Maui.Platforms.Android.AndroidRasterizer();
+		builder.Services.AddSingleton<IIpodSyncBackend, IpodSync.Maui.Platforms.Android.AndroidIpodSyncBackend>();
+		builder.Services.AddSingleton<IHostPickers>(new InAppPickers(IpodSync.Maui.Platforms.Android.AndroidIpodSyncBackend.PickerRoots));
 #else
 		builder.Services.AddSingleton<IIpodSyncBackend, LocalIpodSyncBackend>();
 #if WINDOWS

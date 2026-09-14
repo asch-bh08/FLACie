@@ -70,7 +70,7 @@ public sealed class AppState(IIpodSyncBackend backend)
             {
                 ActiveRoot = null; Db = null; Health = null; Pending.Clear(); _dryRunFingerprint = null;
             }
-            if (ActiveRoot is null && !Backend.LoadNeedsUserAction && Devices.FirstOrDefault(d => d.HasDatabase) is { } first) await SelectDeviceAsync(first.RootPath);
+            if (ActiveRoot is null && Devices.FirstOrDefault(d => d.HasDatabase && !d.NeedsUserAction) is { } first) await SelectDeviceAsync(first.RootPath);
         }
         catch (Exception ex) { Error = Format(ex); }
         finally { Scanning = false; Notify(); }

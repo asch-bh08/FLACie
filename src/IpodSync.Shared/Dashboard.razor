@@ -2,6 +2,7 @@
 @inherits StateComponent
 
 <PageTitle>ipodsync</PageTitle>
+<PickerHost />
 
 <div class="shell">
     <header class="topbar">
@@ -79,17 +80,22 @@
             }
             @if (!State.CanWrite && State.Backend.Capabilities.ReadOnlyReason is { } why)
             {
-                <div class="banner warn">Read-only: @why</div>
+                <div class="banner warn">Read-only: @why
+                    @if (State.Backend.SetupActionLabel is { } fix)
+                    {
+                        <button class="btn small primary" style="margin-left:8px" @onclick="State.Backend.RunSetupActionAsync">@fix</button>
+                    }
+                </div>
             }
 
             @if (State.ActiveRoot is null && _tab is not (Tab.Jellyfin or Tab.Backups))
             {
                 <div class="empty">
                     <div class="big">🎵</div>
-                    @if (State.Backend.LoadNeedsUserAction && State.Devices.Count > 0)
+                    @if (State.Devices.FirstOrDefault(d => d.NeedsUserAction) is { } manual && !State.Scanning)
                     {
-                        <p>@State.Devices[0].VolumeLabel</p>
-                        <button class="btn primary" @onclick="() => State.SelectDeviceAsync(State.Devices[0].RootPath)">Load library</button>
+                        <p>@manual.VolumeLabel</p>
+                        <button class="btn primary" @onclick="() => State.SelectDeviceAsync(manual.RootPath)">Load library</button>
                     }
                     else
                     {

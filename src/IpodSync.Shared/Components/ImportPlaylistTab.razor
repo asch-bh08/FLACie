@@ -36,7 +36,7 @@
             <button class="btn primary" disabled="@(p.Prepared.Ops.Count == 0 || State.Busy)" @onclick="() => Queue(p)">Queue @p.Prepared.Ops.Count change(s)</button>
         </div>
     </div>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px">
+    <div class="two-col">
         <div>
             <h3>Matched</h3>
             <div class="table-wrap medium">

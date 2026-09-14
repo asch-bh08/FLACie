@@ -1,4 +1,4 @@
-using IpodSync.Shared.Backend;
+﻿using IpodSync.Shared.Backend;
 using IpodSync.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,7 +12,7 @@ builder.Services.AddHttpClient();
 // talks to IpodSync.Core directly -- see MauiProgram.cs for why Android can't.
 builder.Services.AddScoped<IIpodSyncBackend, LocalIpodSyncBackend>();
 builder.Services.AddScoped<IpodSync.Shared.State.AppState>();
-builder.Services.AddSingleton<IHostPickers, NoHostPickers>();
+builder.Services.AddScoped<IHostPickers>(_ => new InAppPickers());
 
 var app = builder.Build();
 

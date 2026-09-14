@@ -43,7 +43,12 @@ public static class WritePipeline
     /// <param name="ExitCode">0 = dry run passed / write verified / nothing to write.</param>
     /// <param name="Written">True only when a write happened and passed every device check.</param>
     /// <param name="Restored">A write happened, failed verification, and the backup was put back.</param>
-    public sealed record Result(int ExitCode, IReadOnlyList<string> Log, string? BackupDir, ApplyReport? Report, bool Written, bool Restored);
+    public sealed record Result(int ExitCode, IReadOnlyList<string> Log, string? BackupDir, ApplyReport? Report, bool Written, bool Restored)
+    {
+        /// <summary>The FirewireGuid (hex) that reproduced the device's hash58, when signing was resolved.
+        /// Lets hosts without a registry to read it from (Android) remember it off-device.</summary>
+        public string? ProvenFirewireGuid { get; init; }
+    }
 
     public static int Run(Options o) => Execute(o).ExitCode;
 
@@ -54,7 +59,8 @@ public static class WritePipeline
         string? backupDirOut = null;
         ApplyReport? reportOut = null;
         bool writtenOut = false, restoredOut = false;
-        Result Finish(int code) => new(code, log, backupDirOut, reportOut, writtenOut, restoredOut);
+        string? fwOut = null;
+        Result Finish(int code) => new(code, log, backupDirOut, reportOut, writtenOut, restoredOut) { ProvenFirewireGuid = fwOut };
 
         string itunesDir = Directory.Exists(Path.Combine(o.Root, "iPod_Control"))
             ? Path.GetDirectoryName(IpodDevice.Open(o.Root).ItunesDbPath)!
@@ -103,6 +109,7 @@ public static class WritePipeline
             }
             else
             {
+                fwOut = Convert.ToHexString(signer.FirewireId);
                 Say("signing     device key material proven:");
                 foreach (var e in signer.Evidence) Say($"  - {e}");
                 var current = signer.VerifyDatabase(originalCdb);

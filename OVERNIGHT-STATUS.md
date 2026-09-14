@@ -67,6 +67,58 @@ The Windows app's backup folder on this PC is set to `C:\IPODAPP\ipodsync\ipod-b
   files changed. The plays the iPod recorded for the test tones are preserved.
 - **Still to do:** confirm "iPodSync App Test" appears on the iPod screen after ejecting.
 
+**On-screen confirmation, then cleanup (13:22).**
+- **iPod screen:** Ashley confirmed "iPodSync App Test" shows up on the iPod.
+- **Test playlists removed:** at Ashley's request I deleted "iPodSync App Test", "iPodSync Import Test" and
+  "iPodSync Playlist Test" with `apply-edits`. The dry run passed, then the write was verified; the
+  backup is `ipod-backups/applyedits-20260914-132204`.
+- **After:** a CLI re-check was clean. 643 tracks remain; the original six playlists plus the 5 built-in
+  smart ones.
+- **Not removed:** the test *songs* (tones etc.) are still on the iPod, because only the playlists were asked for.
+
+**Android writes (13:35): built, not yet tested on a phone.**
+- **Approach:** Android mounts the iPod as a removable USB volume (`/storage/XXXX-XXXX`). With "All files
+  access" (`MANAGE_EXTERNAL_STORAGE`) that volume is an ordinary path. So `AndroidIpodSyncBackend` runs
+  the **unchanged WritePipeline** (backup, staged SQLite, signing, write, read-back, re-verify, restore).
+  It doesn't use a second writer.
+- **No permission yet:** the app stays read-only (SAF) and shows an "Allow access" button that opens
+  Android's settings page for that permission.
+- **hash58 FirewireGuid:** on the phone it is the iPod's USB serial. The app asks Android's USB permission
+  prompt once, reads only the serial (it does not claim the interface, which is what broke the old raw-USB
+  attempt), and signing still only accepts it if it reproduces the device's existing hash58. Proven IDs
+  are remembered in the app settings on that phone or PC (never on the iPod, never committed).
+- **Covers without ffmpeg:** `Thumbnailer` now takes a pluggable rasterizer. ffmpeg is unchanged on
+  Windows (same filter strings); Android uses `AndroidRasterizer` (BitmapFactory, RGB565). Without ffmpeg,
+  embedded covers are read with TagLib.
+- **No transcoding on Android:** Add music and Sync a folder skip FLAC/Opus/etc. there, and say so.
+- **File picking on the phone:** an in-app file/folder browser (`InAppPickers` + `PickerHost`), also used
+  by the web host.
+- **Layout:** stacks on narrow screens.
+- **Write path, both platforms:**
+  - database/artwork/audio writes now fsync before read-back;
+  - `DeviceWriteTransaction.ProbeWritable` refuses up front, before the backup and before anything is
+    written, when the iPod can't be opened for writing.
+- **Checks:** `fake-root-regression.sh` passes after these changes. Web, CLI and Android Release builds are
+  clean. The APK is at `C:\IPODAPP\ipodsync\ipodsync.apk`.
+
+**Android test plan (not done, I ran out of session budget):**
+1. **Emulator (optional):** it is ready on this PC. WHPX works, and `emulator` plus
+   `system-images;android-34;google_apis;x86_64` are installed in `%LOCALAPPDATA%\ipodsync-toolchainndroid-sdk`.
+   Create an AVD, install the APK, grant the permission with
+   `adb shell appops set --uid dev.ashley.ipodsync MANAGE_EXTERNAL_STORAGE allow`, push a fake root to
+   `/sdcard`, and point `IPODSYNC_EXTRA_ROOTS` at it. (Environment variables don't reach an Android app, so
+   this needs a small debug hook, or test via the phone instead.)
+2. **On the Z Fold 7:** install the APK, plug in the iPod, tap "Allow access", grant it, and come back to ⟳.
+   The iPod should then appear as a device with green health chips. The health check triggers the USB
+   permission prompt for the serial.
+3. **First phone write:** one small playlist edit, then Check changes → Write to iPod. Then eject from
+   Android and check the result on the PC with `itlp-diff`, `hash72-verify` and `art-check` (backups live in
+   `Documents/ipodsync/ipod-backups` on the phone).
+- **Risks to watch:**
+  - whether One UI's FUSE mount allows writes to the USB volume with this permission (if not,
+    `ProbeWritable` stops before anything is written);
+  - whether the USB permission prompt disturbs the mount.
+
 **Not done / next.**
 1. ~~**First real write from the app.**~~ Done (above). Plug the iPod in, open the Windows app, make one
    small edit, then Check → Write. Every write path is the same code already proven

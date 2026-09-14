@@ -17,12 +17,56 @@ namespace IpodSync.Shared.Backend;
 /// Every write goes through <see cref="WritePipeline"/>, the same code path the CLI
 /// uses: dry run, verified backup, write, read-back, device re-verify, auto-restore.
 /// Only one pipeline runs at a time.</summary>
-public sealed class LocalIpodSyncBackend : IIpodSyncBackend
+public class LocalIpodSyncBackend : IIpodSyncBackend
 {
     private static readonly SemaphoreSlim WriteLock = new(1, 1);
-    private readonly AppSettings _settings = AppSettings.Load();
+    private readonly AppSettings _settings;
 
-    public BackendCapabilities Capabilities => new(true, Core.Transcode.Transcoder.FfmpegAvailable(), true);
+    public LocalIpodSyncBackend() : this(null) { }
+
+    /// <param name="defaultBackupRoot">Used when the settings file doesn't name one.</param>
+    protected LocalIpodSyncBackend(string? defaultBackupRoot) => _settings = AppSettings.Load(defaultBackupRoot);
+
+    public virtual BackendCapabilities Capabilities =>
+        new(true, Core.Transcode.Transcoder.FfmpegAvailable(), true, null, Thumbnailer.Available);
+
+    public virtual string? SetupActionLabel => null;
+    public virtual Task RunSetupActionAsync() => Task.CompletedTask;
+
+    // ------------------------------------------------------------------ host hooks
+
+    /// <summary>iPods mounted as a filesystem path.</summary>
+    protected virtual List<DeviceSummary> DetectMounted() => IpodDevice.Detect()
+        .Select(d => new DeviceSummary(d.RootPath, d.VolumeLabel, d.FileSystem, d.IsFat32, d.HasDatabase, d.TotalBytes, d.FreeBytes))
+        .ToList();
+
+    protected virtual (long Free, long Total) Space(string deviceRoot)
+    {
+        try { var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(deviceRoot))!); return (drive.AvailableFreeSpace, drive.TotalSize); }
+        catch { return (0, 0); }
+    }
+
+    /// <summary>FirewireGuid candidates for hash58. Never trusted as-is: signing only accepts
+    /// one that reproduces the device's existing hash58. Windows: USB serials from the
+    /// registry. Every host: ones this app already proved (settings) and SysInfo.</summary>
+    protected virtual Task<List<string>> FirewireCandidatesAsync(string deviceRoot, CancellationToken ct) =>
+        Task.FromResult(SigningInputs.FirewireCandidates(KnownFirewireCandidates(deviceRoot)));
+
+    protected List<string> KnownFirewireCandidates(string deviceRoot)
+    {
+        var list = new List<string>(_settings.KnownFirewireGuids);
+        try { if (IpodDevice.Open(deviceRoot).FirewireGuid is { Length: > 0 } fw) list.Add(fw); } catch { }
+        return list;
+    }
+
+    /// <summary>Remembers a FirewireGuid that reproduced a device's signature, so hosts
+    /// without a registry to read it from only have to ask the device once.</summary>
+    protected void RememberFirewireGuid(string? hex)
+    {
+        if (string.IsNullOrEmpty(hex) || _settings.KnownFirewireGuids.Contains(hex, StringComparer.OrdinalIgnoreCase)) return;
+        _settings.KnownFirewireGuids.Add(hex);
+        _settings.Save();
+    }
 
     public string BackupRoot
     {
@@ -30,38 +74,40 @@ public sealed class LocalIpodSyncBackend : IIpodSyncBackend
         set { _settings.BackupRoot = value; _settings.Save(); }
     }
 
-    public Task<List<DeviceSummary>> DetectDevicesAsync(CancellationToken ct = default) => Task.Run(() =>
+    public virtual Task<List<DeviceSummary>> DetectDevicesAsync(CancellationToken ct = default) => Task.Run(() =>
     {
-        var list = IpodDevice.Detect()
-            .Select(d => new DeviceSummary(d.RootPath, d.VolumeLabel, d.FileSystem, d.IsFat32, d.HasDatabase, d.TotalBytes, d.FreeBytes))
-            .ToList();
+        var list = DetectMounted();
         // Testing aid: IPODSYNC_EXTRA_ROOTS=path;path lists folders laid out like an iPod
         // (e.g. the fake roots tools/fake-root-regression.sh builds) as extra devices.
         foreach (var extra in (Environment.GetEnvironmentVariable("IPODSYNC_EXTRA_ROOTS") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             if (!Directory.Exists(Path.Combine(extra, "iPod_Control"))) continue;
             var d = IpodDevice.Open(extra);
-            long free = 0, total = 0;
-            try { var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(extra))!); free = drive.AvailableFreeSpace; total = drive.TotalSize; } catch { }
+            var (free, total) = Space(extra);
             list.Add(new DeviceSummary(extra, "(folder)", "FAT32", true, d.HasDatabase, total, free));
         }
         return list;
     }, ct);
 
-    public Task<ItunesDatabase> LoadLibraryAsync(string deviceRoot, CancellationToken ct = default) =>
+    public virtual Task<ItunesDatabase> LoadLibraryAsync(string deviceRoot, CancellationToken ct = default) =>
         Task.Run(() => ItunesDbReader.Read(File.ReadAllBytes(IpodDevice.Open(deviceRoot).ItunesDbPath)), ct);
 
     public Task<List<LocalTrack>> ScanLocalAsync(string folder, CancellationToken ct = default) =>
         Task.Run(() => LocalLibraryScanner.Scan(folder), ct);
 
-    public Task<DeviceHealth?> CheckHealthAsync(string deviceRoot, CancellationToken ct = default) => Task.Run<DeviceHealth?>(() =>
+    public virtual async Task<DeviceHealth?> CheckHealthAsync(string deviceRoot, CancellationToken ct = default)
+    {
+        var candidates = await FirewireCandidatesAsync(deviceRoot, ct);
+        return await Task.Run(() => CheckHealth(deviceRoot, candidates), ct);
+    }
+
+    private DeviceHealth CheckHealth(string deviceRoot, List<string> firewireCandidates)
     {
         var device = IpodDevice.Open(deviceRoot);
         string itunesDir = Path.GetDirectoryName(device.ItunesDbPath)!;
         byte[] cdbBytes = File.ReadAllBytes(device.ItunesDbPath);
         var cdb = ItunesDbReader.Read(cdbBytes);
-        long free = 0, total = 0;
-        try { var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(deviceRoot))!); free = drive.AvailableFreeSpace; total = drive.TotalSize; } catch { }
+        var (free, total) = Space(deviceRoot);
 
         // Signatures: hash72 must validate on the CDB and the Locations cbk; hash58 is
         // valid when a FirewireGuid candidate reproduces it (DeviceSigning.Resolve).
@@ -74,8 +120,9 @@ public sealed class LocalIpodSyncBackend : IIpodSyncBackend
             parts.Add(h72 ? "hash72 valid" : "hash72 INVALID");
             var problems = new List<string>();
             var signer = DeviceSigning.Resolve(itunesDir, Path.GetFileName(device.ItunesDbPath),
-                SigningInputs.FirewireCandidates([]), SigningInputs.References(BackupRoot, []), problems);
+                firewireCandidates, SigningInputs.References(BackupRoot, []), problems);
             bool h58 = signer is not null && signer.VerifyDatabase(cdbBytes).Count == 0;
+            if (h58) RememberFirewireGuid(Convert.ToHexString(signer!.FirewireId));
             parts.Add(h58 ? "hash58 valid" : "hash58 not proven");
             bool cbkOk = true;
             string loc = Path.Combine(itunesDir, "iTunes Library.itlp", "Locations.itdb");
@@ -113,7 +160,7 @@ public sealed class LocalIpodSyncBackend : IIpodSyncBackend
         }
 
         return new DeviceHealth(cdb.Tracks.Count, cdb.Playlists.Count(p => !p.IsMaster), free, total, sigOk, sigDetail, inSync, syncDetail, artOk, artDetail);
-    }, ct);
+    }
 
     public Task<string?> GetArtworkDataUrlAsync(string deviceRoot, uint artworkId, CancellationToken ct = default) => Task.Run(() =>
     {
@@ -125,18 +172,24 @@ public sealed class LocalIpodSyncBackend : IIpodSyncBackend
 
     public async Task<WritePipeline.Result> RunChangesAsync(string deviceRoot, ChangeSet changes, bool commit, string label, Action<string> log, CancellationToken ct = default)
     {
+        var candidates = await FirewireCandidatesAsync(deviceRoot, ct);
         await WriteLock.WaitAsync(ct);
-        try { return await Task.Run(() => WritePipeline.Execute(Options(deviceRoot, changes, commit, label, log)), ct); }
+        try
+        {
+            var result = await Task.Run(() => WritePipeline.Execute(Options(deviceRoot, changes, commit, label, log, candidates)), ct);
+            RememberFirewireGuid(result.ProvenFirewireGuid);
+            return result;
+        }
         finally { WriteLock.Release(); ArtworkCache.Clear(); }
     }
 
-    private WritePipeline.Options Options(string root, ChangeSet? changes, bool commit, string label, Action<string> log)
+    private WritePipeline.Options Options(string root, ChangeSet? changes, bool commit, string label, Action<string> log, List<string> firewireCandidates)
     {
         Directory.CreateDirectory(BackupRoot);
         return new WritePipeline.Options
         {
             Root = root, Changes = changes, Commit = commit, Label = label, BackupRoot = BackupRoot, Log = log,
-            FirewireCandidates = SigningInputs.FirewireCandidates([]),
+            FirewireCandidates = firewireCandidates,
             SigningReferences = SigningInputs.References(BackupRoot, []),
         };
     }
@@ -149,8 +202,7 @@ public sealed class LocalIpodSyncBackend : IIpodSyncBackend
         var manifest = FolderSync.Manifest.Load(cdb.LibraryPersistentId, folder);
         var files = FolderSync.Scan(folder, progress);
         var plan = FolderSync.MakePlan(files, cdb, manifest, removeMissing);
-        long free = 0;
-        try { free = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(deviceRoot))!).AvailableFreeSpace; } catch { }
+        long free = Space(deviceRoot).Free;
         return new FolderSyncPreview(deviceRoot, folder, files, plan, manifest, FolderSyncJob.EstimateDeviceBytes(plan.Add), free,
             FolderSync.Manifest.PathFor(cdb.LibraryPersistentId, folder));
     }, ct);
@@ -158,20 +210,21 @@ public sealed class LocalIpodSyncBackend : IIpodSyncBackend
     public async Task<FolderSyncJob.Outcome> CommitFolderSyncAsync(FolderSyncPreview preview, IReadOnlyList<FolderSync.SourceFile> toAdd, int batch,
         string? playlist, bool removeMissing, Action<string> log, CancellationToken ct = default)
     {
+        var candidates = await FirewireCandidatesAsync(preview.DeviceRoot, ct);
         await WriteLock.WaitAsync(ct);
         try
         {
             return await Task.Run(() =>
             {
                 long need = FolderSyncJob.EstimateDeviceBytes(toAdd);
-                long free = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(preview.DeviceRoot))!).AvailableFreeSpace;
+                long free = Space(preview.DeviceRoot).Free;
                 if (need > free - FolderSyncJob.SpaceReserve)
                 {
                     log($"refusing: need ~{need / 1048576.0:F0} MB but the iPod has {free / 1048576.0:F0} MB free (keeping {FolderSyncJob.SpaceReserve / 1048576} MB spare).");
                     return new FolderSyncJob.Outcome(1, 0, 0, 0, null);
                 }
                 return FolderSyncJob.Commit(preview.Plan, preview.Manifest, toAdd, batch, playlist, removeMissing,
-                    cs => Options(preview.DeviceRoot, cs, true, "syncfolder", log), log, ct);
+                    cs => Options(preview.DeviceRoot, cs, true, "syncfolder", log, candidates), log, ct);
             }, CancellationToken.None);
         }
         finally { WriteLock.Release(); ArtworkCache.Clear(); }
@@ -213,17 +266,23 @@ public sealed class LocalIpodSyncBackend : IIpodSyncBackend
 /// <summary>Per-user app settings, stored off-device.</summary>
 public sealed class AppSettings
 {
-    public string BackupRoot { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "ipodsync", "ipod-backups");
+    public string BackupRoot { get; set; } = "";
     public string? LastSyncFolder { get; set; }
+    /// <summary>FirewireGuids that reproduced a device's hash58 (stored only on this computer/phone).</summary>
+    public List<string> KnownFirewireGuids { get; set; } = [];
 
     private static string FilePath => Environment.GetEnvironmentVariable("IPODSYNC_APP_SETTINGS") is { Length: > 0 } custom ? custom
         : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ipodsync", "app-settings.json");
 
-    public static AppSettings Load()
+    public static AppSettings Load(string? defaultBackupRoot = null)
     {
-        try { if (File.Exists(FilePath)) return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath)) ?? new(); }
+        AppSettings s = new();
+        try { if (File.Exists(FilePath)) s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath)) ?? new(); }
         catch { }
-        return new();
+        if (string.IsNullOrWhiteSpace(s.BackupRoot))
+            s.BackupRoot = defaultBackupRoot ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "ipodsync", "ipod-backups");
+        s.KnownFirewireGuids ??= [];
+        return s;
     }
 
     public void Save()

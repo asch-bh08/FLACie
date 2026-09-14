@@ -1,0 +1,108 @@
+@implements IDisposable
+@inject IHostPickers Pickers
+
+@if (Picker?.Current is { } req)
+{
+    <div class="picker-backdrop" @onclick="Cancel">
+        <div class="picker" @onclick:stopPropagation="true">
+            <div class="row" style="justify-content:space-between">
+                <strong>@(req.Kind is null ? "Choose a folder" : req.Multiple ? "Choose files" : "Choose a file")</strong>
+                <button class="btn icon" @onclick="Cancel">✕</button>
+            </div>
+            <div class="row">
+                @foreach (var (label, path) in Picker.Roots())
+                {
+                    <button class="btn small" @onclick="() => Go(path)">@label</button>
+                }
+            </div>
+            <div class="row">
+                <button class="btn small" disabled="@(Parent is null)" @onclick="() => Go(Parent!)">↑ Up</button>
+                <span class="mono small grow" style="overflow-wrap:anywhere">@(_dir ?? "")</span>
+            </div>
+            @if (_error is not null) { <div class="small error-text">@_error</div> }
+            <div class="picker-list">
+                @foreach (var d in _dirs)
+                {
+                    <button class="picker-item" @onclick="() => Go(d)">📁 @Path.GetFileName(d)</button>
+                }
+                @foreach (var f in _files)
+                {
+                    bool on = _selected.Contains(f);
+                    <button class="picker-item @(on ? "on" : "")" @onclick="() => Toggle(req, f)">@(on ? "☑" : "♪") @Path.GetFileName(f)</button>
+                }
+                @if (_dirs.Count == 0 && _files.Count == 0 && _dir is not null) { <div class="muted small" style="padding:8px">Empty</div> }
+            </div>
+            <div class="row" style="justify-content:flex-end; margin-top:10px">
+                @if (req.Kind is null)
+                {
+                    <button class="btn primary" disabled="@(_dir is null)" @onclick="() => Picker.Complete([_dir!])">Use this folder</button>
+                }
+                else
+                {
+                    @if (req.Multiple && _files.Count > 0)
+                    {
+                        <button class="btn" @onclick="() => { foreach (var f in _files) _selected.Add(f); }">Select all here</button>
+                    }
+                    <button class="btn primary" disabled="@(_selected.Count == 0)" @onclick="() => Picker.Complete(_selected.ToList())">Choose @(_selected.Count > 1 ? $"{_selected.Count} files" : "")</button>
+                }
+                <button class="btn" @onclick="Cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private InAppPickers? Picker => Pickers as InAppPickers;
+    private string? _dir;
+    private List<string> _dirs = [], _files = [];
+    private readonly HashSet<string> _selected = [];
+    private string? _error;
+    private static string? _lastDir;
+
+    private string? Parent => _dir is null ? null : Path.GetDirectoryName(_dir.TrimEnd('/', '\\')) is { Length: > 0 } p && p != _dir ? p : null;
+
+    protected override void OnInitialized()
+    {
+        if (Picker is not null) Picker.Changed += OnChanged;
+    }
+
+    private InAppPickers.Request? _shown;
+
+    private void OnChanged() => _ = InvokeAsync(() =>
+    {
+        var current = Picker?.Current;
+        if (current is not null && !ReferenceEquals(current, _shown))
+        {
+            _selected.Clear();
+            Go(_lastDir is not null && Directory.Exists(_lastDir) ? _lastDir : Picker!.Roots().FirstOrDefault().Path);
+        }
+        _shown = current;
+        if (current is null) _selected.Clear();
+        StateHasChanged();
+    });
+
+    private void Go(string? dir)
+    {
+        if (dir is null || Picker?.Current is not { } req) return;
+        try
+        {
+            var exts = req.Kind is { } k ? InAppPickers.Extensions(k).ToHashSet(StringComparer.OrdinalIgnoreCase) : null;
+            _dirs = Directory.EnumerateDirectories(dir).Where(d => !Path.GetFileName(d).StartsWith('.')).OrderBy(d => d, StringComparer.OrdinalIgnoreCase).ToList();
+            _files = exts is null ? [] : Directory.EnumerateFiles(dir).Where(f => exts.Contains(Path.GetExtension(f))).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
+            _dir = dir;
+            _lastDir = dir;
+            _error = null;
+        }
+        catch (Exception ex) { _error = $"Can't open {dir}: {ex.Message}"; }
+    }
+
+    private void Toggle(InAppPickers.Request req, string f)
+    {
+        if (!req.Multiple) { _selected.Clear(); _selected.Add(f); return; }
+        if (!_selected.Remove(f)) _selected.Add(f);
+    }
+
+    private void Cancel() { _selected.Clear(); Picker?.Complete([]); }
+
+    public void Dispose() { if (Picker is not null) Picker.Changed -= OnChanged; }
+}

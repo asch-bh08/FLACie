@@ -6,7 +6,12 @@ report. Every device write is listed with its pre-write backup folder.
 
 ## Session log
 
-### 00:03–00:40 — setup, baseline, read-only survey
+> Correction (01:45): the time ranges in these headings were first written as
+> rough estimates and were wrong; they now reflect the real clock (git commit
+> times). Times in the write tables were always real — they come from the backup
+> folder timestamps.
+
+### 00:03–00:21 — setup, baseline, read-only survey
 
 - Local repo lives at `C:\IPODAPP\ipodsync\ipodsync` (the outer `C:\IPODAPP`
   folders are the NAS copy without git). `git fetch`: local `main` ==
@@ -37,7 +42,7 @@ report. Every device write is listed with its pre-write backup folder.
 - Music source found at `\raspberrypi\CS-1\Music` (≈700 MP3, 287 FLAC, 44 M4A,
   41 WAV, 255 WMA).
 
-### 00:40–01:05 — two-database write pipeline + first live SQLite write
+### 00:21–00:30 — two-database write pipeline + first live SQLite write
 
 Built (commit `d868d02`):
 - `itlp-diff` (`ItlpCompare`): read-only CDB-vs-SQLite verifier keyed by
@@ -72,7 +77,7 @@ Built (commit `d868d02`):
 - Note: new playlist persistent ids are "max existing + 1"
   (`0xF906EE395DA00876` = `AA`'s id + 1). Unique, just adjacent.
 
-### 01:05–01:35 — playlist features re-verified through both databases (live)
+### 00:30–00:32 — playlist features re-verified through both databases (live)
 
 Each op tested first on a fake device root (copy of the live bundle +
 zero-byte audio placeholders), then run live on `D:` one feature per write,
@@ -101,7 +106,7 @@ Playlist features — create, rename, delete, add/remove track, reorder — are
 now written to **both** databases in one operation and verified on the device
 files. Remaining playlist caveat: firmware display not yet eyeballed.
 
-### 01:35–02:05 — database signatures: hash72 + hash58 reproduced exactly
+### 00:32–00:44 — database signatures: hash72 + hash58 reproduced exactly
 
 Why this matters: the device is an **iPod nano 5G** (USB `VID_05AC&PID_1265`).
 Its iTunesCDB header carries hash58 (scheme 1) *and* a hash72 signature, and
@@ -143,7 +148,7 @@ tables, generated rather than copied, and compared equal to libgpod's in all
   `hash58-verify` → MATCH. The device's databases now carry the signatures
   iTunes would have written for this content.
 
-### 02:05–02:55 — track mirror (Library/Dynamic/Locations.itdb) + live sync to full parity
+### 00:44–00:52 — track mirror (Library/Dynamic/Locations.itdb) + live sync to full parity
 
 Research against the device's own rows (all encoded in code, all re-checkable):
 - `ItlpSorting` sort-name rule reproduces `sort_title/artist/album/album_artist/composer`
@@ -174,7 +179,7 @@ playlist appends insert only the new rows.
   `itlp-diff D:/` → **IN SYNC**. `hash72-verify D:/` → CDB + cbk valid.
 - The device's CDB and SQLite library now agree completely, both signed.
 
-### 02:55–03:25 — CDB album/artist links, add-from-file fixes, live track feature pass
+### 00:52–01:03 — CDB album/artist links, add-from-file fixes, live track feature pass
 
 Found while checking what add-from-file writes: last session's
 `AddTrackFromFile` cloned a template track's whole mhit header, so the added
@@ -218,7 +223,7 @@ add/remove/reorder playlist tracks, rename/retag track, add track from file and
 delete track now all write CDB + SQLite in one verified operation, confirmed on
 the device's files. Not yet confirmed on the iPod's screen (no eject tonight).
 
-### 03:25–04:15 — HANDOFF step 3: transcode-on-add (done, live)
+### 01:03–01:14 — HANDOFF step 3: transcode-on-add (done, live)
 
 `addTrackFromFile` now takes `"transcode": "auto" | "alac" | "aac" | "never"`
 (default auto = convert only what the iPod can't play). `Transcode/Transcoder.cs`:
@@ -253,7 +258,7 @@ Deep, `iPodSync Transcode Tone FLAC` (15 s two-tone chord), `iPodSync Transcode
 Tone Opus` (12 s tone). Both tones should play. Artists → iPodSync; Albums →
 `iPodSync Transcode Test`.
 
-### 04:15–04:45 — HANDOFF step 4: album artwork — research pass (read-only)
+### 01:14–01:21 — HANDOFF step 4: album artwork — research pass (read-only)
 
 Decoded from the real device (`ArtworkDB` + 4 `.ithmb` files, 529 images):
 - Structure: `mhfd` (next image id @0x1C = 817) → `mhsd` 1 images (`mhli`),
@@ -274,7 +279,7 @@ Decoded from the real device (`ArtworkDB` + 4 `.ithmb` files, 529 images):
   round-trips byte-identical**; all 2,116 thumbnails in range; 0 dangling track
   links; 0 reference-count mismatches.
 
-### 04:45–05:30 — HANDOFF step 4: album artwork — writer (done, live)
+### 01:21–01:30 — HANDOFF step 4: album artwork — writer (done, live)
 
 New ops: `setTrackArtwork` (`trackId` or `trackIds` + `imagePath`: an image, or an
 audio file with an embedded cover; one image shared by all listed tracks),
@@ -312,7 +317,7 @@ thumbnail read straight back off the iPod decodes to the right cover.
 cropped), `iPodSync Cover Art Tone` (test pattern). Existing albums' art should be
 unchanged.
 
-### 05:30–06:30 — HANDOFF step 5: folder/NAS sync (done, live)
+### 01:30–01:41 — HANDOFF step 5: folder/NAS sync (done, live)
 
 `sync-folder <ipod-root> <music-folder> [--yes] [--batch N] [--limit N]
 [--playlist name] [--remove-missing]`:
@@ -355,3 +360,28 @@ sync, 0 to add; `Car Playlist` → 11 in sync, 15 duplicates skipped, **8 still 
 add** (218 MB) — deliberately left for Ashley (device has ~1.3 GB free). All
 real songs added tonight were also put in `iPodSync Playlist Test` so they are
 easy to find; remove them from that playlist in the player if unwanted.
+
+### 01:41–01:44 — HANDOFF step 6 (optional): star ratings (done, live)
+
+Finding: the nano 5G keeps per-track stats in `Dynamic.itdb` → `item_stats`.
+iTunes keeps it equal to the CDB (`play_count_user` == CDB play count for all
+643 tracks). The only rated track in the CDB — the test track rated 5★ by last
+session's CDB-only write — had `user_rating` 0 there, which matches "the
+engine's rating isn't what Now Playing shows". The CDB offset itself was right
+(+0x1F, as libgpod reads it; compilation +0x1E, app rating +0x79).
+
+Change: `setTrackRating` / `setPlayCount` also write `item_stats.user_rating`
+(20 per star, libgpod's convention) / `play_count_user` — **only for tracks the
+change-set sets**, because the iPod updates item_stats itself (rating from Now
+Playing, plays) and a CDB value isn't necessarily newer. New tracks get their
+CDB rating/plays. `itlp-diff` lists remaining differences as information.
+
+| # | time | change-set | pre-write backup |
+|---|------|------------|------------------|
+| 19 | 01:43 | `setTrackRating` 3★ on `ipodsync RENAMED TEST` (#37499): CDB 100 → 60, item_stats 0 → 60 | `applyedits-20260914-014339` |
+
+Verified; exactly that one Dynamic.itdb value changed (fake-root dump diff);
+`itlp-diff`: 0 rating/play-count differences, IN SYNC.
+**Morning on-screen check:** Now Playing for `ipodsync RENAMED TEST` should show
+3 stars. If it still shows none, the rating source is elsewhere — restore is not
+needed (harmless), but note it.

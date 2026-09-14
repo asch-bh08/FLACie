@@ -111,6 +111,23 @@ static class WritePipeline
         }
         if (cdbToWrite is not null && cdbToWrite.AsSpan().SequenceEqual(originalCdb)) cdbToWrite = null;
 
+        // Play Counts entries follow tracks by position; keep them with their tracks.
+        string playCountsPath = Path.Combine(itunesDir, PlayCounts.FileName);
+        byte[]? playCountsToWrite = null;
+        string? playCountsSha = null;
+        if (ok && report is not null && File.Exists(playCountsPath))
+        {
+            playCountsSha = DeviceWriteTransaction.Sha1(playCountsPath);
+            try
+            {
+                playCountsToWrite = PlayCounts.Realign(File.ReadAllBytes(playCountsPath), PlayCounts.TrackOrder(before), PlayCounts.TrackOrder(after));
+                Say(playCountsToWrite is null
+                    ? "Play Counts        entries still line up with their tracks (no change)"
+                    : $"Play Counts        realigned to the new track order ({BitConverter.ToInt32(playCountsToWrite, 12)} entries)");
+            }
+            catch (InvalidDataException ex) { Say($"Play Counts        UNREADABLE ({ex.Message}) -- refusing, the file would be misaligned"); ok = false; }
+        }
+
         // ---------------------------------------------------------------- 2. SQLite, on a staged copy
         string? staged = null;
         var changedBundleFiles = new List<string>();
@@ -195,11 +212,12 @@ static class WritePipeline
             return ok ? 0 : 1;
         }
         if (!ok) { Say("refusing to write: not all checks passed."); return 1; }
-        if (cdbToWrite is null && changedBundleFiles.Count == 0 && (report?.FileCopies.Count ?? 0) == 0 && art is null) { Say("nothing to write."); return 0; }
+        if (cdbToWrite is null && changedBundleFiles.Count == 0 && (report?.FileCopies.Count ?? 0) == 0 && art is null && playCountsToWrite is null) { Say("nothing to write."); return 0; }
 
         // ---------------------------------------------------------------- 3. write
         if (DeviceWriteTransaction.Sha1(cdbPath) != originalCdbSha ||
-            deviceBundleSha.Any(kv => DeviceWriteTransaction.Sha1(Path.Combine(itlpDir, kv.Key)) != kv.Value))
+            deviceBundleSha.Any(kv => DeviceWriteTransaction.Sha1(Path.Combine(itlpDir, kv.Key)) != kv.Value) ||
+            (playCountsSha is not null && DeviceWriteTransaction.Sha1(playCountsPath) != playCountsSha))
         {
             Say("refusing to write: device database changed while the change-set was being prepared.");
             return 1;
@@ -230,6 +248,7 @@ static class WritePipeline
             }
             foreach (var f in changedBundleFiles)
                 tx.WriteDatabaseFile(Path.Combine("iTunes Library.itlp", f), File.ReadAllBytes(Path.Combine(staged!, f)));
+            if (playCountsToWrite is not null) tx.WriteDatabaseFile(PlayCounts.FileName, playCountsToWrite);
             if (cdbToWrite is not null) tx.WriteDatabaseFile(cdbName, cdbToWrite);
             foreach (var l in tx.Log.Skip(1)) Say(l);
 

@@ -385,3 +385,40 @@ Verified; exactly that one Dynamic.itdb value changed (fake-root dump diff);
 **Morning on-screen check:** Now Playing for `ipodsync RENAMED TEST` should show
 3 stars. If it still shows none, the rating source is elsewhere — restore is not
 needed (harmless), but note it.
+
+### 01:44–02:00 — hardening after the build order
+
+- **Play Counts alignment** (`e6d23a6`): the firmware's `Play Counts` file is
+  matched to tracks by position. Checked on the device: 635 entries, 0 pending
+  plays, and all 635 positions still hold the same tracks as the original iTunes
+  CDB (tonight only appended tracks and only removed appended ones). Any future
+  write that changes positions now realigns the file by persistent id (tested on
+  the fake root by removing an original mid-list track: 634 entries, each its own
+  track's).
+- **Regression suite** `tools/fake-root-regression.sh <ipod|backup>` (`b410ef7`):
+  every op + folder sync + fault-injected restore against a fake root, with
+  in-sync / artwork / signature checks after each write. **First run found a real
+  bug**: after an image's last reference is removed, its ithmb slots are unused and
+  the append guard refused all later artwork writes. Fixed; suite passes. (Never hit
+  on the device.)
+- **Player UI** (`a39778f`): star rating + cover art (track or whole album) in the
+  edit dialog; add-songs accepts FLAC/Ogg/Opus/WMA/APE/WavPack. Tested in a browser
+  via the new headless `tools/player-dev-server.py` against the fake root (staged
+  rating → review → dry run through the engine: all checks passed). The launcher copy
+  `C:\IPODAPP\ipodsync\ipod-player.html` was updated (previous copy kept as
+  `ipod-player.html.bak-20260914`).
+- **Docs**: EDIT-PROTOCOL.md and README.md rewritten for the current engine.
+- **`import-playlist`** (`iTunes export .txt` / `.m3u`): matches entries to tracks on
+  the iPod and creates the playlist or appends missing tracks (`--replace` to
+  mirror exactly). Validated read-only against the NAS exports vs the device's own
+  playlists: `2026.txt` 15/15 and `aura.txt` 17/17 already in their `(LAC)`
+  playlists; `HoodTrap(LAC).txt` 38/39 (the miss is the track renamed in testing).
+
+| # | time | change | pre-write backup |
+|---|------|--------|------------------|
+| 20 | 01:58 | `import-playlist Playlist.txt --name "iPodSync Import Test"`: new playlist, 27/27 entries matched | `importplaylist-20260914-015838` |
+
+(The dry run for #20 was the immediately preceding command on the same device
+state; it passed.) Verified; IN SYNC; signatures valid. Note: the new playlist got
+persistent id `0xF906EE395DA00877`, the id the deleted `iPodSync Temp` used
+earlier (ids are "max + 1"); SQLite has no trace of the old one.

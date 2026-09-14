@@ -25,6 +25,15 @@ static class WritePipeline
         public bool AllowUnsigned { get; init; }
         public IReadOnlyList<string> FirewireCandidates { get; init; } = [];
         public IReadOnlyList<string> SigningReferences { get; init; } = [];
+        /// <summary>Called only after a write has passed every device check.</summary>
+        public Action<ApplyReport?>? OnVerified { get; init; }
+
+        public Options WithCallback(Action<ApplyReport?> onVerified) => new()
+        {
+            Root = Root, Changes = Changes, Commit = Commit, BackupRoot = BackupRoot, Label = Label,
+            ResignCdb = ResignCdb, AllowUnsigned = AllowUnsigned, FirewireCandidates = FirewireCandidates,
+            SigningReferences = SigningReferences, OnVerified = onVerified,
+        };
     }
 
     public static int Run(Options o)
@@ -267,6 +276,7 @@ static class WritePipeline
         }
 
         Say($"WRITE VERIFIED. Backup of the pre-write state: {tx.BackupDir}");
+        o.OnVerified?.Invoke(report);
         WriteLog(tx.BackupDir, log);
         return 0;
     }

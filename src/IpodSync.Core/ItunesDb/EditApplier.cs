@@ -241,6 +241,7 @@ public static class EditApplier
                     : rel => File.Exists(System.IO.Path.Combine(deviceRoot, rel.Replace('/', System.IO.Path.DirectorySeparatorChar)))
                              || report.FileCopies.Any(fc => fc.DestRel.Equals(rel, StringComparison.OrdinalIgnoreCase));
                 var (mhit, destRel) = LibraryMutation.AddTrackFromFile(root, src, rng, taken, original);
+                report.AddedTracks.Add((original, TrackFields.GetPersistentId(mhit)));
                 report.FileCopies.Add((src, destRel));
                 uint newId = (uint)TrackFields.GetId(mhit);
                 if (op.Playlist is not null)
@@ -330,6 +331,8 @@ public sealed class ApplyReport
     /// <summary>Files to copy onto the device (source path, device-relative dest) for
     /// addTrackFromFile ops. Done only on a real --yes write, after the DB is written.</summary>
     public List<(string Source, string DestRel)> FileCopies { get; } = [];
+    /// <summary>addTrackFromFile results: the file the user chose and the new track's persistent id.</summary>
+    public List<(string Source, ulong PersistentId)> AddedTracks { get; } = [];
     public int TracksBefore { get; set; }
     public int TracksAfter { get; set; }
     public int PlaylistsBefore { get; set; }

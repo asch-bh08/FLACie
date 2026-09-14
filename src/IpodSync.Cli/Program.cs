@@ -23,6 +23,7 @@ try
         case "hash72-verify":  return Hash72VerifyCmd(args.Skip(1).ToArray());
         case "hash58-verify":  return Hash58VerifyCmd(args.Skip(1).ToArray());
         case "itlp-orders-check": return ItlpOrdersCheckCmd(args.Skip(1).ToArray());
+        case "art-check":      return ArtCheckCmd(args.Skip(1).ToArray());
         case "apply-edits":    return ApplyEditsCmd(args.Skip(1).ToArray());
         default:
             Console.Error.WriteLine($"Unknown command '{cmd}'.");
@@ -625,6 +626,44 @@ static int ItlpOrdersCheckCmd(string[] rest)
         foreach (var x in inversions.Take(6)) Console.WriteLine("    " + x);
     }
     return failures == 0 ? 0 : 1;
+}
+
+// Read-only: ArtworkDB round-trip + structural checks against the ithmb files and the CDB.
+static int ArtCheckCmd(string[] rest)
+{
+    if (rest.Length == 0) { Console.Error.WriteLine("usage: art-check <ipod-root | Artwork dir>"); return 2; }
+    string artDir = Directory.Exists(Path.Combine(rest[0], "iPod_Control")) ? Path.Combine(rest[0], "iPod_Control", "Artwork") : rest[0];
+    byte[] bytes = File.ReadAllBytes(Path.Combine(artDir, "ArtworkDB"));
+    var root = IpodSync.Core.Artwork.ArtworkDb.Parse(bytes);
+    bool identical = root.Serialize().AsSpan().SequenceEqual(bytes);
+    Console.WriteLine($"ArtworkDB round-trip   {(identical ? "byte-identical PASS" : "DIFFERS FAIL")} ({bytes.Length:N0} bytes)");
+    var images = IpodSync.Core.Artwork.ArtworkDb.Images(root).ToList();
+    var formats = IpodSync.Core.Artwork.ArtworkDb.Formats(root);
+    Console.WriteLine($"images {images.Count}, next id {IpodSync.Core.Artwork.ArtworkDb.NextImageId(root)}, formats {string.Join(", ", formats.Select(f => $"{f.Format}:{f.Size}"))}");
+    int bad = identical ? 0 : 1;
+    foreach (var (fmt, size) in formats)
+    {
+        string ithmb = Path.Combine(artDir, $"F{fmt}_1.ithmb");
+        long len = File.Exists(ithmb) ? new FileInfo(ithmb).Length : -1;
+        var thumbs = images.SelectMany(IpodSync.Core.Artwork.ArtworkDb.Thumbs).Where(t => t.Format == fmt).ToList();
+        int outOfRange = thumbs.Count(t => t.Offset < 0 || t.Offset + t.Size > len || t.Size != size);
+        int maxEnd = thumbs.Count == 0 ? 0 : thumbs.Max(t => t.Offset + t.Size);
+        Console.WriteLine($"  F{fmt}_1.ithmb {len:N0} bytes, {thumbs.Count} thumbs, out of range/bad size {outOfRange}, highest end {maxEnd:N0}");
+        bad += outOfRange;
+    }
+    string cdbDir = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(artDir))!, "iTunes");
+    string cdbPath = Path.Combine(cdbDir, File.Exists(Path.Combine(cdbDir, "iTunesDB")) ? "iTunesDB" : "iTunesCDB");
+    if (File.Exists(cdbPath))
+    {
+        var cdb = ItunesDbReader.Read(File.ReadAllBytes(cdbPath));
+        var ids = images.ToDictionary(IpodSync.Core.Artwork.ArtworkDb.ImageId);
+        var withArt = cdb.Tracks.Where(t => t.HasArtwork).ToList();
+        int dangling = withArt.Count(t => !ids.ContainsKey((int)t.ArtworkId));
+        int refMismatch = ids.Values.Count(m => IpodSync.Core.Artwork.ArtworkDb.RefCount(m) != withArt.Count(t => t.ArtworkId == IpodSync.Core.Artwork.ArtworkDb.ImageId(m)));
+        Console.WriteLine($"CDB: {withArt.Count} tracks with artwork, dangling image links {dangling}, images whose reference count != referencing tracks {refMismatch}");
+        bad += dangling + refMismatch;
+    }
+    return bad == 0 ? 0 : 1;
 }
 
 static int AddTrackTestCmd(string[] rest)

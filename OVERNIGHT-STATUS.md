@@ -252,3 +252,24 @@ should list Smack That, Lights → now titled `ipodsync RENAMED TEST`, Rolling i
 Deep, `iPodSync Transcode Tone FLAC` (15 s two-tone chord), `iPodSync Transcode
 Tone Opus` (12 s tone). Both tones should play. Artists → iPodSync; Albums →
 `iPodSync Transcode Test`.
+
+### 04:15–04:45 — HANDOFF step 4: album artwork — research pass (read-only)
+
+Decoded from the real device (`ArtworkDB` + 4 `.ithmb` files, 529 images):
+- Structure: `mhfd` (next image id @0x1C = 817) → `mhsd` 1 images (`mhli`),
+  2 photo albums (`mhla`, empty), 3 files (`mhlf`: formats 1056/1078/1073/1074).
+- `mhii`: id @0x10 == SQLite `item.artwork_cache_id` == CDB mhit @0x160;
+  representative track pid @0x14; **reference count @0x38 = number of tracks
+  using the image (529/529 match)**; source image size + 1 @0x30 where the track
+  records one (mhit @0x80). CDB mhit @0xA4 = 1 has art / 2 none; u16 @0x7C = artwork count.
+- Four thumbnails per image, one `mhni` each: 1056 = 128×128, 1078 = 80×80,
+  1073 = 240×240, 1074 = 50×50; **RGB565 little-endian** (verified visually:
+  image 288 decodes to *The Marshall Mathers LP* for "Stan"; big-endian is noise).
+  Non-square art is scaled to fit and **centred**: @0x1C/@0x1E = top/left padding,
+  @0x20/@0x22 = padding + content height/width (verified on a letterboxed image).
+- Thumbnails are stored contiguously, one slot per image, no gaps (file size =
+  529 × slot size for all four files) → adding art = append to each ithmb.
+- `mhaf` inside mhod type 6: length is its header (96); its +0x08 is not a total.
+- `ArtChunk` / `ArtworkDb` lossless tree + read-only `art-check`: **ArtworkDB
+  round-trips byte-identical**; all 2,116 thumbnails in range; 0 dangling track
+  links; 0 reference-count mismatches.

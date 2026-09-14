@@ -26,6 +26,7 @@ try
         case "itlp-orders-check": return ItlpOrdersCheckCmd(args.Skip(1).ToArray());
         case "art-check":      return ArtCheckCmd(args.Skip(1).ToArray());
         case "sync-folder":    return SyncFolderCmd(args.Skip(1).ToArray());
+        case "import-playlist": return ImportPlaylistCmd(args.Skip(1).ToArray());
         case "apply-edits":    return ApplyEditsCmd(args.Skip(1).ToArray());
         default:
             Console.Error.WriteLine($"Unknown command '{cmd}'.");
@@ -668,6 +669,57 @@ static int ArtCheckCmd(string[] rest)
         bad += dangling + refMismatch;
     }
     return bad == 0 ? 0 : 1;
+}
+
+static int ImportPlaylistCmd(string[] rest)
+{
+    var positional = rest.Where(a => !a.StartsWith("--") && !IsOptionValue(rest, a) && !IsSyncOptionValue(rest, a) && !(Array.IndexOf(rest, a) > 0 && rest[Array.IndexOf(rest, a) - 1] == "--name")).ToList();
+    if (positional.Count < 2)
+    {
+        Console.Error.WriteLine("usage: import-playlist <ipod-root> <playlist.txt|.m3u|.m3u8> [--name N] [--replace] [--yes] [--backup-root dir]");
+        return 2;
+    }
+    string root = positional[0], file = positional[1];
+    string name = StrOpt(rest, "--name") ?? Path.GetFileNameWithoutExtension(file);
+    bool replace = rest.Contains("--replace");
+
+    var device = IpodDevice.Open(root);
+    var cdb = ItunesDbReader.Read(File.ReadAllBytes(device.ItunesDbPath));
+    var entries = PlaylistImport.Read(file);
+    var target = cdb.Playlists.FirstOrDefault(p => !p.IsMaster && p.Name == name);
+    var match = PlaylistImport.Match(entries, cdb, target?.TrackIds.ToHashSet());
+    Console.WriteLine($"playlist file  {file} ({entries.Count} entries)");
+    Console.WriteLine($"matched        {match.Matched.Count} to tracks on the iPod");
+    Console.WriteLine($"not on iPod    {match.Unmatched.Count}");
+    foreach (var e in match.Unmatched.Take(20)) Console.WriteLine($"    ? line {e.Line}: {e.Artist} - {e.Title} ({e.Seconds:F0}s)");
+    if (match.Unmatched.Count > 20) Console.WriteLine($"    ... {match.Unmatched.Count - 20} more");
+
+    var wanted = match.Matched.Select(m => m.Track.Id).Distinct().ToList();
+    var existing = target;
+    var ops = new List<EditOp>();
+    if (existing is null)
+    {
+        Console.WriteLine($"target         new playlist '{name}' with {wanted.Count} track(s)");
+        if (wanted.Count > 0) ops.Add(new EditOp { Op = "createPlaylist", Name = name, TrackIds = wanted.ToArray() });
+    }
+    else
+    {
+        var have = existing.TrackIds.ToList();
+        var missing = wanted.Where(id => !have.Contains(id)).ToList();
+        foreach (var id in missing.Take(10)) { var t = cdb.Tracks.First(x => x.Id == id); Console.WriteLine($"    + #{id} {t.Artist} - {t.Title} ({t.LengthMs / 1000}s, {t.Bitrate} kbps)"); }
+        var extra = have.Where(id => !wanted.Contains(id)).Distinct().ToList();
+        Console.WriteLine($"target         existing playlist '{name}' ({have.Count} tracks): {wanted.Count - missing.Count} already in it, {missing.Count} missing, {extra.Count} not in the file");
+        ops.AddRange(missing.Select(id => new EditOp { Op = "addTrackToPlaylist", Playlist = name, TrackId = id }));
+        if (replace)
+        {
+            ops.AddRange(extra.Select(id => new EditOp { Op = "removeTrackFromPlaylist", Playlist = name, TrackId = id }));
+            ops.Add(new EditOp { Op = "reorderPlaylist", Playlist = name, TrackIds = wanted.ToArray() });
+            Console.WriteLine("mode           --replace: playlist becomes exactly the file's order (tracks not in the file are removed from the playlist, not from the iPod)");
+        }
+        else Console.WriteLine("mode           append missing tracks (use --replace to mirror the file exactly)");
+    }
+    if (ops.Count == 0) { Console.WriteLine("nothing to change."); return 0; }
+    return WritePipeline.Run(PipelineOptions(root, rest, new ChangeSet { Ops = ops }, "importplaylist"));
 }
 
 static int SyncFolderCmd(string[] rest)

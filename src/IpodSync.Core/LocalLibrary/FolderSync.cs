@@ -171,7 +171,7 @@ public static class FolderSync
         return plan;
     }
 
-    private static bool LooseMatch(SourceFile f, Track t)
+    internal static bool LooseMatch(SourceFile f, Track t)
     {
         string haystack = Key(f.Title + " " + f.Artist + " " + System.IO.Path.GetFileNameWithoutExtension(f.Path), null).TrimEnd('|');
         var parts = Key(t.Title, t.Artist).Split('|');

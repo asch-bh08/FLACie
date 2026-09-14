@@ -48,8 +48,12 @@ public sealed class ArtworkSession
             s.Formats.Add((fmt, side, side, false));
             string ithmb = Path.Combine(artworkDir, $"F{fmt}_1.ithmb");
             long len = File.Exists(ithmb) ? new FileInfo(ithmb).Length : 0;
+            // New slots go at the end of the file. Slots of removed images can sit past the
+            // last referenced thumbnail (they are simply unused), but the file must still
+            // be whole slots and contain every thumbnail the ArtworkDB references.
             long end = thumbs.Count == 0 ? 0 : thumbs.Max(t => (long)t.Offset + t.Size);
-            if (end != len) throw new InvalidDataException($"F{fmt}_1.ithmb is {len} bytes but thumbnails end at {end}; refusing to append");
+            if (end > len || len % size != 0)
+                throw new InvalidDataException($"F{fmt}_1.ithmb is {len} bytes (thumbnails end at {end}, slot {size}); refusing to append");
             s.OriginalLengths[fmt] = len;
             s.Appends[fmt] = new MemoryStream();
         }

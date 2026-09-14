@@ -122,6 +122,12 @@ public static class FolderSync
             var match = byKey.TryGetValue(Key(f.Title, f.Artist), out var candidates)
                 ? candidates.FirstOrDefault(t => !claimed.Contains(t.PersistentId) && (f.Seconds <= 0 || Math.Abs(t.LengthMs / 1000.0 - f.Seconds) <= 2.5))
                 : null;
+            // Fallback for sources whose tags put the artist inside the title (e.g.
+            // "NOTION - CHRYSTAL - THE DAYS [NOTION REMIX]" vs "CHRYSTAL; NotioN - The Days
+            // (NOTION Remix)"): same duration within 1.5 s AND both the device title and its
+            // first artist appear in the source's title/artist/file name.
+            match ??= device.Tracks.FirstOrDefault(t => !claimed.Contains(t.PersistentId) && f.Seconds > 0 &&
+                Math.Abs(t.LengthMs / 1000.0 - f.Seconds) <= 1.5 && LooseMatch(f, t));
             if (match is not null)
             {
                 plan.Adopt.Add((f, match));
@@ -155,6 +161,13 @@ public static class FolderSync
                 if (byPid.TryGetValue(e.PersistentId, out var t)) plan.RemoveCandidates.Add((e, t));
         }
         return plan;
+    }
+
+    private static bool LooseMatch(SourceFile f, Track t)
+    {
+        string haystack = Key(f.Title + " " + f.Artist + " " + System.IO.Path.GetFileNameWithoutExtension(f.Path), null).TrimEnd('|');
+        var parts = Key(t.Title, t.Artist).Split('|');
+        return parts[0].Length >= 4 && parts[1].Length >= 3 && haystack.Contains(parts[0]) && haystack.Contains(parts[1]);
     }
 
     private static (int, long) Rank(SourceFile f)

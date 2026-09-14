@@ -311,3 +311,47 @@ thumbnail read straight back off the iPod decodes to the right cover.
 (colour test pattern), `…Tone Opus` (SMPTE bars, letterboxed; 80×80 list thumb
 cropped), `iPodSync Cover Art Tone` (test pattern). Existing albums' art should be
 unchanged.
+
+### 05:30–06:30 — HANDOFF step 5: folder/NAS sync (done, live)
+
+`sync-folder <ipod-root> <music-folder> [--yes] [--batch N] [--limit N]
+[--playlist name] [--remove-missing]`:
+- Scans a folder (MP3/AAC/ALAC/WAV/AIFF/FLAC/Ogg/Opus/WMA/APE/WavPack), reads tags.
+- **Off-device manifest** per device library + source folder
+  (`%LOCALAPPDATA%\ipodsync\manifests\<library id>-<folder hash>.json`):
+  source file → track persistent id, origin `added` / `adopted`.
+- Per file: already synced · **already on the iPod** (normalised title + first
+  artist + duration ±2.5 s, or a loose fallback for artist-in-title tags:
+  duration ±1.5 s and both device title and artist appear in the source's
+  title/artist/file name) → adopted, not copied · **duplicate inside the
+  folder** (e.g. FLAC + Tidal M4A of the same song; keeps lossless, then larger)
+  · to add.
+- Free-space check (200 MB kept spare); dry run proves the first batch end to end;
+  adds go through the verified pipeline in batches (transcode, embedded artwork,
+  both databases, signing), manifest saved after each verified batch;
+  `--remove-missing` only removes tracks this sync *added*. Re-running is a no-op.
+
+Source music: `\raspberrypi\CS-1\Music` drops its SMB session every few minutes
+tonight ("network name is no longer available"), so test folders were copied to
+local disk first (`AAC-M4A` 55 MB, `Car Playlist` 740 MB) and synced from there.
+
+Matching was checked by hand against the device before any live write, which
+caught two planner gaps that are now fixed: artist-in-title tags ("NOTION -
+CHRYSTAL - THE DAYS" was about to be re-added although the iPod has it), and a
+lossy duplicate of an adopted song. After the live writes, a re-check caught two
+more (fixed, nothing on the device affected): a second folder's sync replaced
+the first folder's manifest, and lossy copies of already-synced songs were not
+treated as duplicates.
+
+| # | time | sync | pre-write backup (`ipod-backups\…`, incl. Artwork) |
+|---|------|------|------------------|
+| 17 | 01:39 | `AAC-M4A`: 5 already on the iPod adopted; **added** `AbbyLara – Timber (feat. Ke$ha)` (AAC, 25 MB, with its cover) | `syncfolder-20260914-013854` |
+| 18a | 01:39 | `Car Playlist` `--limit 3 --batch 2`, batch 1: 8 adopted; **added** FLAC→ALAC `Kill The Lights (Audien Remix)`, `Love Potions` (with covers) | `syncfolder-20260914-013926` |
+| 18b | 01:39 | batch 2: **added** FLAC→ALAC `Deftones – Mascara` (with cover) | `syncfolder-20260914-013945` |
+
+All batches WRITE VERIFIED; afterwards `itlp-diff` IN SYNC, `art-check` clean
+(596 tracks with art), CDB + cbk signatures valid. Re-plans: `AAC-M4A` → 6 in
+sync, 0 to add; `Car Playlist` → 11 in sync, 15 duplicates skipped, **8 still to
+add** (218 MB) — deliberately left for Ashley (device has ~1.3 GB free). All
+real songs added tonight were also put in `iPodSync Playlist Test` so they are
+easy to find; remove them from that playlist in the player if unwanted.

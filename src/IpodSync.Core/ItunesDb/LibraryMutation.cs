@@ -316,6 +316,12 @@ public static class LibraryMutation
             WriteU64(mhit.Header, 0xBC, (ulong)((long)durationMs * sampleRate / 1000)); // sample count
         if (mhit.Header.Length >= 0x130) WriteI32(mhit.Header, 0x12C, (int)Math.Min(size, int.MaxValue)); // size, second copy
         if (mhit.Header.Length >= 0x1F8) WriteI32(mhit.Header, 0x1F4, (int)newId + 3);
+        // Gapless playback info (confirmed against SQLite avformat_info for all 634 iTunes
+        // tracks: +0xB8 encoder delay, +0xC8 drain, +0xCC heuristic info, +0xF8 last-frame
+        // resync). Not computed for new files: 0 everywhere = play the whole file, matching
+        // the 0s the SQLite mirror writes, instead of inheriting the template's trimming.
+        foreach (int off in new[] { 0xB8, 0xC8, 0xCC, 0xF8 })
+            if (mhit.Header.Length >= off + 4) WriteI32(mhit.Header, off, 0);
         if (mhit.Header.Length > 0xA4) mhit.Header[0xA4] = 2;              // no artwork
         if (mhit.Header.Length >= 0x164) WriteI32(mhit.Header, 0x160, 0);  // artwork link
 

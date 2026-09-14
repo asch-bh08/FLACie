@@ -50,7 +50,7 @@ static class WritePipeline
 
         if (o.Changes?.Ops is { Count: > 0 })
         {
-            report = EditApplier.Apply(originalCdb, o.Changes);
+            report = EditApplier.Apply(originalCdb, o.Changes, deviceRoot);
             Say($"CDB         {cdbPath}");
             Say($"tracks      {report.TracksBefore} -> {report.TracksAfter}");
             Say($"playlists   {report.PlaylistsBefore} -> {report.PlaylistsAfter}");
@@ -204,7 +204,7 @@ static class WritePipeline
         }
         catch (Exception ex)
         {
-            Say($"WRITE ERROR: {ex.Message}");
+            Say($"WRITE FAILED: {ex.Message}");
             restoreNeeded = true;
         }
 

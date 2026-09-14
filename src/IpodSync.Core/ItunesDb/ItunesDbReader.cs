@@ -127,7 +127,8 @@ public static class ItunesDbReader
             DiscNumber   = Fld(d, p, 0x5C, hdrLen),
             TotalDiscs   = Fld(d, p, 0x60, hdrLen),
             // Sample rate lives in the high 16 bits of a fixed-point word.
-            SampleRate   = Fld(d, p, 0x3C, hdrLen) >> 16,
+            // Unsigned shift: 48000 << 16 does not fit a signed int.
+            SampleRate   = (int)((uint)Fld(d, p, 0x3C, hdrLen) >> 16),
             LastModified = MacTime(Fld(d, p, 0x20, hdrLen)),
             LastPlayed   = MacTime(Fld(d, p, 0x58, hdrLen)),
         };

@@ -228,7 +228,8 @@ public static class LibraryMutation
     /// to (the caller does the copy on a real write). Round-trips + re-reads correctly;
     /// on-device acceptance unverified (no hardware).
     /// </summary>
-    public static (RawChunk mhit, string destRel) AddTrackFromFile(RawChunk root, string sourcePath, Random? random = null)
+    public static (RawChunk mhit, string destRel) AddTrackFromFile(RawChunk root, string sourcePath, Random? random = null,
+        Func<string, bool>? pathTaken = null, string? originalPath = null)
     {
         if (!File.Exists(sourcePath)) throw new FileNotFoundException("source audio file not found", sourcePath);
         string ext = Path.GetExtension(sourcePath).TrimStart('.').ToLowerInvariant();
@@ -247,9 +248,14 @@ public static class LibraryMutation
             year = (int)tf.Tag.Year; trackNo = (int)tf.Tag.Track; trackCount = (int)tf.Tag.TrackCount;
             discNo = (int)tf.Tag.Disc; discCount = (int)tf.Tag.DiscCount;
             codec = tf.Properties.Codecs.FirstOrDefault(c => c is not null)?.Description;
+            // TagLib reports 0 kbps for ALAC; iTunes stores its nominal PCM rate
+            // (sample rate x bits x channels, e.g. 1536 / 1411 / 2304 on the device).
+            if (bitrate <= 0 && codec?.Contains("alac", StringComparison.OrdinalIgnoreCase) == true)
+                bitrate = sampleRate * Math.Max(tf.Properties.BitsPerSample, 16) * Math.Max(tf.Properties.AudioChannels, 1) / 1000;
         }
         catch { /* unreadable tags -> fall back to the filename for the title */ }
-        title ??= Path.GetFileNameWithoutExtension(sourcePath);
+        // Untagged: title from the file the user chose (not a transcode-cache name).
+        title ??= Path.GetFileNameWithoutExtension(originalPath ?? sourcePath);
 
         var mhlt = RawChunkNavigation.FindTrackList(root) ?? throw new InvalidOperationException("No track list in this database.");
         var existing = RawChunkNavigation.TrackChunks(root).ToList();
@@ -278,7 +284,7 @@ public static class LibraryMutation
             string name = new string(Enumerable.Range(0, 4).Select(_ => A[rnd.Next(A.Length)]).ToArray());
             destRel = $"{control}/Music/{dir}/{name}.{ext}";
             destColon = $":{control}:Music:{dir}:{name}.{ext}";
-        } while (used.Contains(destRel.ToLowerInvariant()));
+        } while (used.Contains(destRel.ToLowerInvariant()) || pathTaken?.Invoke(destRel) == true);
 
         // Prefer a same-extension template without artwork (mhit +0xA4 == 2) so no
         // artwork count/size/link bytes are inherited from an unrelated track.

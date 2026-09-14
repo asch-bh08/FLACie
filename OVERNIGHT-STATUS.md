@@ -1,5 +1,92 @@
 # Overnight session status — 2026-09-14
 
+## End-of-session report (05:20)
+
+**TL;DR** — All six HANDOFF build-order steps are implemented and were written to the
+real iPod (nano 5G, `D:`) through one verified pipeline: 21 live writes, **every one
+backed up, dry-run first, written, read back, and re-verified from the device; none
+needed a restore**. The device's two databases are fully in sync and signed the way
+iTunes signs them. What is *not* done: nothing has been looked at on the iPod's own
+screen, because the iPod had to stay mounted all night (no eject) — the firmware only
+reloads its databases after an eject. That on-screen check is the one thing left
+that only you can do.
+
+### Newly working, verified on the device's files
+| Feature | Live writes | Notes |
+|---|---|---|
+| Two-database writes (CDB + `iTunes Library.itlp` SQLite) | all | `itlp-diff D:/` → IN SYNC (tracks, fields, album/artist identity, artwork links, playlists, memberships) |
+| Create / rename / delete playlist, add / remove / reorder tracks | #1–#5, #20 | |
+| Rename / retag track, add song from file, delete track | #7–#11 | incl. SQLite entities + sort ranks + signed `Locations.itdb.cbk` |
+| Database signatures (hash72 + hash58) | #6 onwards | the CDB signatures written last session were stale; fixed and now regenerated on every write |
+| Transcode-on-add (FLAC→ALAC, Opus/Ogg/WMA→AAC) | #12, #13, #16, #18 | |
+| Album artwork (set / replace / embedded cover on add) | #14–#18 | thumbnails decoded back off the iPod and inspected |
+| Folder / NAS sync (`sync-folder`) | #17, #18 | adopts songs already on the iPod, skips duplicates; 4 real songs added |
+| Star ratings (Now Playing reads `Dynamic.itdb`) | #19 | the old engine only wrote the CDB byte |
+| Playlist import from iTunes exports / M3U | #20 | |
+| Repair of last session's add-from-file track | #21 | it had a duplicate id copied from another track |
+
+Also: Play Counts file kept aligned, `tools/fake-root-regression.sh` (every op
+against a fake copy of the device — passes), player UI for ratings/cover art/new
+formats, docs (EDIT-PROTOCOL.md, README.md) rewritten.
+
+### Morning on-screen checklist (eject the iPod first)
+1. Library still plays normally; song count **643**; your six playlists unchanged
+   (2026(LAC) 28, AA 351, aura(LAC) 22, Golden Era Mix 138, HoodTrap(LAC) 47, pop(LAC) 51).
+2. Playlists → **iPodSync Playlist Test** (10): Smack That, *ipodsync RENAMED TEST*,
+   Rolling in the Deep, iPodSync Transcode Tone FLAC / Opus, iPodSync Cover Art Tone,
+   Timber (AbbyLara), Kill The Lights, Love Potions, Mascara. `iPodSync Temp` must
+   **not** exist. **iPodSync Import Test** (27 songs from `Playlist.txt`).
+3. The tones play (FLAC tone = 15 s chord, Opus tone = 12 s, cover tone = 10 s).
+4. Cover art: FLAC tone + cover tone show a colour test pattern; Opus tone shows
+   letterboxed SMPTE bars; existing albums' art unchanged.
+5. Now Playing on *ipodsync RENAMED TEST* shows **3 stars**.
+6. Artists → iPodSync; Albums → iPodSync Transcode Test / Edit Test.
+
+### Blocked / not done, and why
+- **On-screen confirmation of everything above** — requires ejecting, which the
+  session was told not to do. File-level verification is complete; firmware
+  acceptance is not proven until you look.
+- **Whether the firmware checks the CDB signatures** is still unknown; they are now
+  valid either way (identical algorithm output to iTunes, proven on the original CDB).
+- **8 more songs in `Car Playlist`** (218 MB) are planned but deliberately not synced
+  (device has 1.37 GB free). Run: `sync-folder D:/ "<copy of Car Playlist>" --yes`.
+- **`\\raspberrypi\CS-1\Music`** drops its SMB session every few minutes; the
+  test folders were copied to local disk first. Syncing straight from the share will
+  be unreliable until that is fixed on the Pi.
+- **hashAB (nano 6G/7G)**, Android write path, MAUI builds: not attempted (no such
+  device; this machine has no MAUI workloads).
+- Player "Write to iPod" button: exercised only as far as the dry run in a browser
+  (the underlying `--yes` path is what all 21 live writes used).
+
+### Writes to double-check, and how to restore
+None looked wrong, but these are the least-proven on the firmware side, most
+uncertain first. Backups live in `C:\IPODAPP\ipodsync\ipod-backups\`; each contains
+`iTunes\` (and `Artwork\` for #14–#18) exactly as the device was **before** that write.
+- **If the iPod shows an empty/broken library or "needs restore"**: restore
+  `overnight-baseline-20260914-001739` (the state before tonight): copy its `iTunes\`
+  over `D:\iPod_Control\iTunes\` and its `Artwork\` over `D:\iPod_Control\Artwork\`.
+  Songs added tonight stay on disk as unreferenced files (harmless).
+- **#6 re-sign (`itlpsync-20260914-004335`)** and **#7 first `Locations.itdb.cbk`
+  write (`itlpsync-20260914-005144`)** — the first writes of signatures/cbk.
+- **#14–#16 artwork (`applyedits-20260914-012917` / `-012929` / `-012941`)** — first
+  ArtworkDB/ithmb writes. If art is wrong or missing everywhere, restore `Artwork\`
+  from `applyedits-20260914-012917`.
+- **#19 rating (`applyedits-20260914-014339`)** — if 3 stars don't show, nothing needs
+  restoring; it means the rating is read from somewhere else.
+- Restore = copy the backup folder's files back; then `itlp-diff D:/`, `art-check D:/`
+  and `hash72-verify D:/` should pass.
+
+### Recommended next step
+Eject the iPod and go through the checklist above. If it all shows correctly, the
+engine is ready for real use: sync the remaining `Car Playlist` songs, then larger
+folders in batches (`--limit`), and use the player's edit mode for everyday changes.
+If something is wrong on screen, note which item, restore the matching backup, and
+start the next session from that finding (the regression suite reproduces every
+write path without touching the device).
+
+---
+
+
 Autonomous session working through the HANDOFF.md build order. This file is the
 running log (newest entries at the bottom) and ends with the end-of-session
 report. Every device write is listed with its pre-write backup folder.
@@ -39,7 +126,7 @@ report. Every device write is listed with its pre-write backup folder.
   the libgpod-documented Nano 5G layout: **any change to `Locations.itdb`
   (needed to add a track) requires re-signing the .cbk with hash72.** Playlist
   edits only touch `Library.itdb` / `Dynamic.itdb`, which are not checksummed.
-- Music source found at `\raspberrypi\CS-1\Music` (≈700 MP3, 287 FLAC, 44 M4A,
+- Music source found at `\\raspberrypi\CS-1\Music` (≈700 MP3, 287 FLAC, 44 M4A,
   41 WAV, 255 WMA).
 
 ### 00:21–00:30 — two-database write pipeline + first live SQLite write
@@ -336,7 +423,7 @@ unchanged.
   both databases, signing), manifest saved after each verified batch;
   `--remove-missing` only removes tracks this sync *added*. Re-running is a no-op.
 
-Source music: `\raspberrypi\CS-1\Music` drops its SMB session every few minutes
+Source music: `\\raspberrypi\CS-1\Music` drops its SMB session every few minutes
 tonight ("network name is no longer available"), so test folders were copied to
 local disk first (`AAC-M4A` 55 MB, `Car Playlist` 740 MB) and synced from there.
 

@@ -1,0 +1,132 @@
+@inherits StateComponent
+@inject PlayerState Player
+
+@if (_showQueue && Player.Queue.Count > 0)
+{
+    <div class="queue-pop">
+        <div class="head">
+            <strong>Up next@(Player.QueueName is { } n ? $" · {n}" : "")</strong>
+            <button class="btn icon ghost" @onclick="() => _showQueue = false"><Icon Name="close" Size="14" /></button>
+        </div>
+        <div class="list">
+            @foreach (var (t, i) in Player.Queue.Select((t, i) => (t, i)).Skip(Math.Max(0, Player.Index - 1)).Take(60))
+            {
+                <button class="queue-row @(i == Player.Index ? "on" : "")" @onclick="() => PlayAt(t)">
+                    <Cover ArtworkId="t.ArtworkId" Size="34" />
+                    <span class="grow ellipsis">
+                        <div class="ellipsis">@t.Title</div>
+                        <div class="ellipsis muted small">@t.Artist</div>
+                    </span>
+                    <span class="faint small">@Time(t.LengthMs)</span>
+                </button>
+            }
+        </div>
+    </div>
+}
+
+<div class="player-bar @(Player.Current is null ? "empty" : "")">
+    <div class="now">
+        @if (Player.Current is { } cur)
+        {
+            <Cover ArtworkId="cur.ArtworkId" Size="52" Source="120" />
+            <span class="grow" style="min-width:0">
+                <div class="t ellipsis" title="@cur.Title">@cur.Title</div>
+                <div class="s ellipsis" title="@cur.Artist">@cur.Artist@(string.IsNullOrEmpty(cur.Album) ? "" : $" — {cur.Album}")</div>
+            </span>
+        }
+        else
+        {
+            <div class="cover-art" style="width:52px;height:52px"><Icon Name="songs" Size="18" /></div>
+            <span class="grow"><div class="t">@(Player.Available ? "Nothing playing" : "Playback unavailable")</div>
+                <div class="s ellipsis">@(Player.Available ? "Pick a song to play it straight from the iPod" : Player.Unavailable)</div></span>
+        }
+    </div>
+
+    <div class="player-controls">
+        <div class="buttons">
+            <button class="pbtn @(Player.Shuffle ? "on" : "")" title="Shuffle" disabled="@(Player.Queue.Count == 0)" @onclick="() => Player.SetShuffle(!Player.Shuffle)"><Icon Name="shuffle" Size="16" /></button>
+            <button class="pbtn" title="Previous" disabled="@(Player.Current is null)" @onclick="Player.PreviousAsync"><Icon Name="prev" Size="18" /></button>
+            <button class="pbtn play" title="@(Player.Player.IsPlaying ? "Pause" : "Play")" disabled="@(Player.Current is null && Player.Queue.Count == 0)" @onclick="Toggle">
+                @if (Player.Player.IsLoading) { <span class="spinner"></span> }
+                else { <Icon Name="@(Player.Player.IsPlaying ? "pause" : "play")" Size="18" /> }
+            </button>
+            <button class="pbtn" title="Next" disabled="@(Player.Queue.Count < 2)" @onclick="Player.NextAsync"><Icon Name="next" Size="18" /></button>
+            <button class="pbtn @(Player.Repeat ? "on" : "")" title="Repeat" @onclick="() => Player.SetRepeat(!Player.Repeat)"><Icon Name="repeat" Size="16" /></button>
+        </div>
+        <div class="scrub">
+            <span class="time">@Clock(Player.Player.Position)</span>
+            <input type="range" min="0" max="@Max" step="0.5" value="@Player.Player.Position" style="--p:@(Percent)%"
+                   disabled="@(Player.Current is null)" @onchange="OnSeek" />
+            <span class="time">@Clock(Player.Player.Duration)</span>
+        </div>
+    </div>
+
+    <div class="player-right">
+        @if (Player.Player.Error is { } err)
+        {
+            <span class="small error-text ellipsis" style="max-width:220px" title="@err">@err</span>
+        }
+        <button class="pbtn @(_showQueue ? "on" : "")" title="Queue" @onclick="() => _showQueue = !_showQueue"><Icon Name="queue" Size="17" /></button>
+        <button class="pbtn" title="@(Player.Player.Volume > 0 ? "Mute" : "Unmute")" @onclick="ToggleMute"><Icon Name="@(Player.Player.Volume > 0 ? "volume" : "mute")" Size="17" /></button>
+        <input type="range" min="0" max="1" step="0.01" value="@Player.Player.Volume" style="--p:@((int)(Player.Player.Volume * 100))%" @onchange="OnVolume" title="Volume" />
+    </div>
+
+    <div class="scrub mobile-scrub">
+        <span class="time">@Clock(Player.Player.Position)</span>
+        <input type="range" min="0" max="@Max" step="0.5" value="@Player.Player.Position" style="--p:@(Percent)%"
+               disabled="@(Player.Current is null)" @onchange="OnSeek" />
+        <span class="time">@Clock(Player.Player.Duration)</span>
+    </div>
+</div>
+
+@code {
+    private bool _showQueue;
+    private double _lastVolume = 1;
+
+    private double Max => Player.Player.Duration > 0 ? Player.Player.Duration : 1;
+    private int Percent => (int)Math.Clamp(Player.Player.Position / Max * 100, 0, 100);
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        Player.Changed += OnChanged;
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public override void Dispose()
+    {
+        Player.Changed -= OnChanged;
+        base.Dispose();
+    }
+
+    private async Task Toggle() { if (State.ActiveRoot is { } root) await Player.ToggleAsync(root); }
+
+    private async Task PlayAt(Track t)
+    {
+        if (State.ActiveRoot is { } root) await Player.PlayAsync(root, t, Player.Queue, Player.QueueName);
+    }
+
+    private async Task OnSeek(ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString(), System.Globalization.CultureInfo.InvariantCulture, out double v)) await Player.SeekAsync(v);
+    }
+
+    private async Task OnVolume(ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString(), System.Globalization.CultureInfo.InvariantCulture, out double v))
+        {
+            if (v > 0) _lastVolume = v;
+            await Player.SetVolumeAsync(v);
+        }
+    }
+
+    private Task ToggleMute() => Player.SetVolumeAsync(Player.Player.Volume > 0 ? 0 : (_lastVolume > 0 ? _lastVolume : 1));
+
+    private static string Clock(double seconds)
+    {
+        if (double.IsNaN(seconds) || seconds < 0) seconds = 0;
+        var t = TimeSpan.FromSeconds(seconds);
+        return t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");
+    }
+}

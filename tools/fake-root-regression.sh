@@ -90,6 +90,10 @@ apply pl-remove "{\"version\":1,\"ops\":[{\"op\":\"removeTrackFromPlaylist\",\"p
 apply remove "{\"version\":1,\"ops\":[{\"op\":\"removeTrack\",\"trackId\":$MP3},{\"op\":\"removeTrack\",\"trackId\":$OPUS}]}"
 apply pl-delete '{"version":1,"ops":[{"op":"deletePlaylist","playlist":"Regression List 2"}]}'
 
+step "9b. retag album artist / genre / composer (FLAC track, still present)"
+apply retag2 "{\"version\":1,\"ops\":[{\"op\":\"setTrackFields\",\"trackId\":$FLAC,\"fields\":{\"albumArtist\":\"Regression AA\",\"genre\":\"Regression Genre\",\"composer\":\"Regression Composer\"}}]}"
+"$CLI" dump "$FAKE" -n 0 -v 2>/dev/null | grep -q "Regression Genre" || "$CLI" itlp-diff "$FAKE" | grep -q "IN SYNC" || fail "retag2 left the databases out of step"
+
 step "10. folder sync (twice: second run must add nothing)"
 "$CLI" sync-folder "$FAKE" "$(win "$MEDIA/folder")" --yes --backup-root "$(win "$BK")" > "$CS/sync1.log" 2>&1 || { cat "$CS/sync1.log"; fail "sync-folder"; }
 grep "SYNC COMPLETE" "$CS/sync1.log" | sed 's/^/   /'; checks "sync-folder"

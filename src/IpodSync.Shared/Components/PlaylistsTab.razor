@@ -1,4 +1,5 @@
 @inherits StateComponent
+@inject PlayerState Player
 
 @if (State.Db is not null)
 {
@@ -8,7 +9,7 @@
         <div>
             @if (State.CanWrite)
             {
-                <form class="row" @onsubmit="Create">
+                <form class="row" @onsubmit="Create" @onsubmit:preventDefault="true">
                     <input class="text-input grow" placeholder="New playlist name" @bind="_newName" @bind:event="oninput" />
                     <button type="submit" class="btn small primary" disabled="@string.IsNullOrWhiteSpace(_newName)">Create</button>
                 </form>
@@ -37,6 +38,10 @@
             else
             {
                 bool editable = State.CanWrite && !sel.IsSmart && !sel.IsPodcast;
+                <div class="row" style="margin-bottom:14px">
+                    <button class="btn primary" disabled="@(sel.TrackIds.Count == 0)" @onclick="() => PlayList(sel)"><Icon Name="play" Size="15" /> Play</button>
+                    <button class="btn" disabled="@(sel.TrackIds.Count == 0)" @onclick="() => ShuffleList(sel)"><Icon Name="shuffle" Size="15" /> Shuffle</button>
+                </div>
                 <div class="panel">
                     @if (editable)
                     {
@@ -71,7 +76,7 @@
                             {
                                 int idx = i;
                                 var t = State.TrackById(sel.TrackIds[i]);
-                                <tr>
+                                <tr class="@(t is not null && Player.IsCurrent(t) ? "playing" : "")" @ondblclick="() => PlayFrom(sel, idx)">
                                     <td class="num muted">@(i + 1)</td>
                                     <td>@(t?.Title ?? $"#{sel.TrackIds[i]}")</td>
                                     <td>@t?.Artist</td>
@@ -79,6 +84,7 @@
                                     @if (editable)
                                     {
                                         <td>
+                                            <button class="btn icon" title="Play" @onclick="() => PlayFrom(sel, idx)"><Icon Name="play" Size="14" /></button>
                                             <button class="btn icon" title="Move up" disabled="@(idx == 0)" @onclick="() => Move(sel, idx, -1)">↑</button>
                                             <button class="btn icon" title="Move down" disabled="@(idx == sel.TrackIds.Count - 1)" @onclick="() => Move(sel, idx, 1)">↓</button>
                                             <button class="btn icon" title="Remove from playlist" @onclick="() => State.RemoveFromPlaylist(sel, sel.TrackIds[idx])">✕</button>
@@ -166,7 +172,45 @@
         State.ReorderPlaylist(v, order);
     }
 
+    private List<Track> Tracks(PlaylistView v) => v.TrackIds.Select(State.TrackById).OfType<Track>().ToList();
+
+    private async Task PlayList(PlaylistView v)
+    {
+        var tracks = Tracks(v);
+        if (tracks.Count == 0 || State.ActiveRoot is not { } root) return;
+        Player.SetShuffle(false);
+        await Player.PlayAsync(root, tracks[0], tracks, v.Name);
+    }
+
+    private async Task ShuffleList(PlaylistView v)
+    {
+        var tracks = Tracks(v);
+        if (tracks.Count == 0 || State.ActiveRoot is not { } root) return;
+        Player.SetShuffle(true);
+        await Player.PlayAsync(root, tracks[Random.Shared.Next(tracks.Count)], tracks, v.Name);
+    }
+
+    private async Task PlayFrom(PlaylistView v, int index)
+    {
+        var tracks = Tracks(v);
+        if (index >= tracks.Count || State.ActiveRoot is not { } root) return;
+        await Player.PlayAsync(root, tracks[index], tracks, v.Name);
+    }
+
+    private List<Track>? _matchCache;
+    private string? _matchKey;
+
+    /// <summary>Cached: the "add songs" list is asked for several times per render.</summary>
     private List<Track> Matches(PlaylistView v)
+    {
+        string key = $"{v.Key}|{_search}|{State.PendingVersion}|{State.Db?.GetHashCode()}";
+        if (_matchCache is not null && key == _matchKey) return _matchCache;
+        _matchCache = Search(v);
+        _matchKey = key;
+        return _matchCache;
+    }
+
+    private List<Track> Search(PlaylistView v)
     {
         if (string.IsNullOrWhiteSpace(_search) || State.Db is null) return [];
         var words = _search.Split(' ', StringSplitOptions.RemoveEmptyEntries);

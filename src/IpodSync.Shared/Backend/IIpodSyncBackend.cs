@@ -55,8 +55,9 @@ public interface IIpodSyncBackend
 
     Task<DeviceHealth?> CheckHealthAsync(string deviceRoot, CancellationToken ct = default) => Task.FromResult<DeviceHealth?>(null);
 
-    /// <summary>240px cover for an artwork id as a data: URL, or null.</summary>
-    Task<string?> GetArtworkDataUrlAsync(string deviceRoot, uint artworkId, CancellationToken ct = default) => Task.FromResult<string?>(null);
+    /// <summary>Cover for an artwork id as a data: URL (smallest stored thumbnail at least
+    /// <paramref name="preferredSide"/> px), or null.</summary>
+    Task<string?> GetArtworkDataUrlAsync(string deviceRoot, uint artworkId, int preferredSide = 240, CancellationToken ct = default) => Task.FromResult<string?>(null);
 
     /// <summary>Runs a change-set through the verified write pipeline. commit=false is a dry run.</summary>
     Task<WritePipeline.Result> RunChangesAsync(string deviceRoot, ChangeSet changes, bool commit, string label, Action<string> log, CancellationToken ct = default)

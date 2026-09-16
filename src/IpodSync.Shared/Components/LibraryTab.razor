@@ -1,51 +1,82 @@
 @inherits StateComponent
 @inject IHostPickers Pickers
+@inject PlayerState Player
 
 @if (State.Db is { } db)
 {
-    <div class="lib-grid">
+    <div class="page-head">
         <div>
-            <div class="row">
-                <input class="text-input grow" placeholder="Search title, artist, album…" @bind="_query" @bind:event="oninput" />
-                <select class="text-input" @bind="_filter">
-                    <option value="all">All songs</option>
-                    <option value="noart">Without cover art</option>
-                    <option value="rated">Rated</option>
-                    <option value="pending">With pending changes</option>
-                </select>
-                <span class="muted small">@Rows.Count of @db.Tracks.Count</span>
+            <h1>Songs</h1>
+            <p>@Rows.Count of @db.Tracks.Count on @(State.ActiveDevice?.VolumeLabel ?? State.ActiveRoot) · click a song to play it</p>
+        </div>
+        <div class="row" style="margin:0">
+            <div class="search" style="width:280px">
+                <Icon Name="search" Size="15" />
+                <input class="text-input" placeholder="Search songs, artists, albums" @bind="_query" @bind:event="oninput" />
             </div>
-            <div class="table-wrap tall">
-                <table class="data-table">
-                    <colgroup><col style="width:34%" /><col style="width:22%" /><col style="width:24%" /><col style="width:8%" /><col style="width:12%" /></colgroup>
-                    <thead>
-                        <tr>
-                            <th class="sortable" @onclick='() => Sort("title")'>Title @Arrow("title")</th>
-                            <th class="sortable" @onclick='() => Sort("artist")'>Artist @Arrow("artist")</th>
-                            <th class="sortable" @onclick='() => Sort("album")'>Album @Arrow("album")</th>
-                            <th class="sortable num" @onclick='() => Sort("time")'>Time @Arrow("time")</th>
-                            <th class="sortable" @onclick='() => Sort("rating")'>Rating @Arrow("rating")</th>
+            <select class="text-input" @bind="_filter">
+                <option value="all">All songs</option>
+                <option value="noart">No cover art</option>
+                <option value="rated">Rated</option>
+                <option value="pending">Pending changes</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="lib-grid">
+        <div class="table-wrap tall">
+            <table class="data-table">
+                <colgroup>
+                    <col style="width:44px" /><col /><col style="width:22%" /><col style="width:22%" />
+                    <col style="width:62px" /><col style="width:86px" /><col style="width:40px" />
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th class="sortable" @onclick='() => Sort("title")'>Title @Arrow("title")</th>
+                        <th class="sortable" @onclick='() => Sort("artist")'>Artist @Arrow("artist")</th>
+                        <th class="sortable" @onclick='() => Sort("album")'>Album @Arrow("album")</th>
+                        <th class="sortable num" @onclick='() => Sort("time")'>Time @Arrow("time")</th>
+                        <th class="sortable" @onclick='() => Sort("rating")'>Rating @Arrow("rating")</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <Virtualize Items="Rows" ItemSize="38" OverscanCount="24" Context="t" SpacerElement="tr">
+                        @{
+                            var f = State.PendingFields(t.Id);
+                            var stars = State.PendingStars(t.Id) ?? t.Stars;
+                            var removing = State.IsPendingRemoval(t.Id);
+                            var playing = Player.IsCurrent(t);
+                            var pending = f is not null || State.PendingStars(t.Id) is not null || State.PendingArtwork(t.Id) is not null;
+                        }
+                        <tr class="@(t.Id == _selectedId ? "selected" : "") @(playing ? "playing" : "") @(removing ? "removing" : pending ? "pending" : "")"
+                            @onclick="() => Select(t)" @ondblclick="() => Play(t)">
+                            <td class="tight">
+                                @if (playing && Player.Player.IsPlaying)
+                                {
+                                    <span class="eq"><i></i><i></i><i></i></span>
+                                }
+                                else
+                                {
+                                    <button class="rowbtn @(playing ? "shown" : "")" title="Play" @onclick:stopPropagation="true" @onclick="() => Play(t)"><Icon Name="play" Size="15" /></button>
+                                }
+                            </td>
+                            <td title="@t.Title">@(f?.Title ?? t.Title)</td>
+                            <td title="@t.Artist">@(f?.Artist ?? t.Artist)</td>
+                            <td title="@t.Album">@(f?.Album ?? t.Album)</td>
+                            <td class="num faint">@Time(t.LengthMs)</td>
+                            <td style="color:#ffd25f">@(stars > 0 ? new string('★', stars) : "")</td>
+                            <td class="tight">
+                                @if (State.CanWrite)
+                                {
+                                    <button class="rowbtn" title="Add to a playlist" @onclick:stopPropagation="true" @onclick="() => { Select(t); _showPlaylistPick = true; }"><Icon Name="playlists" Size="15" /></button>
+                                }
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        <Virtualize Items="Rows" ItemSize="32" OverscanCount="30" Context="t" SpacerElement="tr">
-                            @{
-                                var f = State.PendingFields(t.Id);
-                                var stars = State.PendingStars(t.Id) ?? t.Stars;
-                                var removing = State.IsPendingRemoval(t.Id);
-                                var pending = f is not null || State.PendingStars(t.Id) is not null || State.PendingArtwork(t.Id) is not null;
-                            }
-                            <tr class="@(t.Id == _selectedId ? "selected" : "") @(removing ? "removing" : pending ? "pending" : "")" @onclick="() => Select(t)">
-                                <td title="@t.Title">@(f?.Title ?? t.Title)</td>
-                                <td title="@t.Artist">@(f?.Artist ?? t.Artist)</td>
-                                <td title="@t.Album">@(f?.Album ?? t.Album)</td>
-                                <td class="num">@Time(t.LengthMs)</td>
-                                <td style="color:#ffd25f">@(stars > 0 ? new string('★', stars) : "")</td>
-                            </tr>
-                        </Virtualize>
-                    </tbody>
-                </table>
-            </div>
+                    </Virtualize>
+                </tbody>
+            </table>
         </div>
 
         <div class="panel detail">
@@ -53,63 +84,76 @@
             {
                 var removing = State.IsPendingRemoval(t.Id);
                 var pendingArt = State.PendingArtwork(t.Id);
-                <div class="cover">
-                    @if (_coverUrl is not null && pendingArt is null)
+                <div style="display:flex; flex-direction:column; align-items:center; gap:12px">
+                    <Cover ArtworkId="@(pendingArt is null ? t.ArtworkId : 0u)" Size="240" Source="240" Class="lg" />
+                    @if (pendingArt is not null)
                     {
-                        <img src="@_coverUrl" alt="" />
+                        <div class="small muted" style="text-align:center">@(pendingArt == "remove" ? "Cover will be removed when you write" : $"New cover queued: {pendingArt}")</div>
                     }
-                    else if (pendingArt is not null)
-                    {
-                        <span class="small muted" style="font-size:13px; padding:12px; text-align:center">@(pendingArt == "remove" ? "Cover will be removed" : $"New cover queued: {pendingArt}")</span>
-                    }
-                    else
-                    {
-                        <span>♪</span>
-                    }
+                    <div class="row" style="justify-content:center; margin:0">
+                        <button class="btn primary" @onclick="() => Play(t)"><Icon Name="play" Size="15" /> @(Player.IsCurrent(t) && Player.Player.IsPlaying ? "Playing" : "Play")</button>
+                        @if (State.CanWrite && !removing)
+                        {
+                            <button class="btn" title="Add to a playlist" @onclick="() => _showPlaylistPick = !_showPlaylistPick"><Icon Name="playlists" Size="15" /></button>
+                        }
+                    </div>
                 </div>
 
                 @if (removing)
                 {
-                    <div class="banner bad small">Queued for deletion from the iPod.</div>
+                    <div class="banner bad small" style="margin-top:14px"><Icon Name="trash" Size="15" /> Queued for deletion from the iPod.</div>
                 }
 
                 @if (State.CanWrite && !removing)
                 {
+                    <h3>Details</h3>
                     <label class="field">Title <input class="text-input" @bind="_title" /></label>
                     <label class="field">Artist <input class="text-input" @bind="_artist" /></label>
                     <label class="field">Album <input class="text-input" @bind="_album" /></label>
-                    <div class="row">
-                        <button class="btn small" @onclick="SaveFields" disabled="@(!FieldsChanged(t))">Queue edit</button>
+                    @if (_more)
+                    {
+                        <label class="field">Album artist <input class="text-input" @bind="_albumArtist" /></label>
+                        <label class="field">Genre <input class="text-input" @bind="_genre" /></label>
+                        <label class="field">Composer <input class="text-input" @bind="_composer" /></label>
+                    }
+                    else
+                    {
+                        <button class="linkish" @onclick="() => _more = true">more fields…</button>
+                    }
+                    <div class="row" style="margin-top:10px">
+                        <button class="btn small primary" @onclick="SaveFields" disabled="@(!FieldsChanged(t))">Queue edit</button>
                         @if (State.PendingFields(t.Id) is not null)
                         {
-                            <button class="linkish" @onclick="() => UndoFields(t)">undo edit</button>
+                            <button class="linkish" @onclick="() => UndoFields(t)">undo</button>
                         }
                     </div>
 
-                    <div class="row stars" title="Rating">
+                    <h3>Rating</h3>
+                    <div class="stars">
                         @for (int i = 1; i <= 5; i++)
                         {
                             int n = i;
                             var cur = State.PendingStars(t.Id) ?? t.Stars;
-                            <button class="@(n <= cur ? "on" : "")" @onclick="() => State.SetRating(t, cur == n ? 0 : n)">★</button>
+                            <button class="@(n <= cur ? "on" : "")" title="@n star(s)" @onclick="() => State.SetRating(t, cur == n ? 0 : n)"><Icon Name="star" Size="19" /></button>
                         }
                     </div>
                 }
                 else
                 {
-                    <h3 style="margin-top:0">@t.Title</h3>
+                    <h3>@t.Title</h3>
                     <div>@t.Artist</div>
                     <div class="muted">@t.Album</div>
                 }
 
+                <h3>File</h3>
                 <div class="kv">
                     <div>Time</div><div>@Time(t.LengthMs)</div>
                     <div>Format</div><div>@t.FileTypeDescription, @t.Bitrate kbps, @(t.SampleRate / 1000.0) kHz</div>
-                    <div>Size</div><div>@Size(t.SizeBytes)</div>
+                    <div>Size</div><div>@Bytes(t.SizeBytes)</div>
                     <div>Plays</div><div>@t.PlayCount</div>
                     @if (!string.IsNullOrEmpty(t.AlbumArtist)) { <div>Album artist</div><div>@t.AlbumArtist</div> }
                     @if (!string.IsNullOrEmpty(t.Genre)) { <div>Genre</div><div>@t.Genre</div> }
-                    <div>File</div><div class="mono">@t.RelativePath</div>
+                    <div>Path</div><div class="mono faint">@t.RelativePath</div>
                 </div>
 
                 @if (State.CanWrite && !removing)
@@ -118,7 +162,7 @@
                     <div class="row">
                         @if (Pickers.Available)
                         {
-                            <button class="btn small" @onclick="PickCover" disabled="@(!State.Backend.Capabilities.CanArtwork)">Choose image…</button>
+                            <button class="btn small" @onclick="PickCover" disabled="@(!State.Backend.Capabilities.CanArtwork)"><Icon Name="image" Size="14" /> Choose image…</button>
                         }
                         @if (t.HasArtwork)
                         {
@@ -128,37 +172,35 @@
                     @if (!Pickers.Available)
                     {
                         <div class="row">
-                            <input class="text-input grow" placeholder="Image or audio file path" @bind="_coverPath" />
+                            <input class="text-input grow" placeholder="Image file path" @bind="_coverPath" />
                             <button class="btn small" @onclick="() => QueueCover(_coverPath)" disabled="@string.IsNullOrWhiteSpace(_coverPath)">Set</button>
                         </div>
                     }
                     <label class="check small"><input type="checkbox" @bind="_wholeAlbum" /> Apply to the whole album (@AlbumTracks(t).Count songs)</label>
                     @if (!State.Backend.Capabilities.CanArtwork)
                     {
-                        <div class="muted small">Setting cover art isn't available here@(OperatingSystem.IsWindows() ? " (it needs ffmpeg, which wasn't found on this PC)" : "").</div>
+                        <div class="faint small">Setting cover art isn't available here@(OperatingSystem.IsWindows() ? " — it needs ffmpeg, which wasn't found" : "").</div>
                     }
 
-                    <h3>Playlists</h3>
-                    var targets = State.EffectivePlaylists().Where(v => !v.IsSmart && !v.IsPodcast).ToList();
-                    var inLists = targets.Where(v => v.TrackIds.Contains(t.Id)).Select(v => v.Name).ToList();
-                    <div class="small muted" style="margin-bottom:6px">@(inLists.Count == 0 ? "Not in any playlist" : "In: " + string.Join(", ", inLists))</div>
-                    <div class="row">
-                        <select class="text-input grow" @bind="_playlistKey">
-                            <option value="">Add to playlist…</option>
-                            @foreach (var v in targets.Where(v => !v.TrackIds.Contains(t.Id)))
-                            {
-                                <option value="@v.Key">@v.Name</option>
-                            }
-                        </select>
-                        <button class="btn small" disabled="@string.IsNullOrEmpty(_playlistKey)" @onclick="() => AddToPlaylist(t)">Add</button>
-                    </div>
+                    @if (_showPlaylistPick)
+                    {
+                        <h3>Add to playlist</h3>
+                        var targets = State.EffectivePlaylists().Where(v => !v.IsSmart && !v.IsPodcast && !v.TrackIds.Contains(t.Id)).ToList();
+                        <div class="row">
+                            <select class="text-input grow" @bind="_playlistKey">
+                                <option value="">Choose a playlist…</option>
+                                @foreach (var v in targets) { <option value="@v.Key">@v.Name</option> }
+                            </select>
+                            <button class="btn small" disabled="@string.IsNullOrEmpty(_playlistKey)" @onclick="() => AddToPlaylist(t)">Add</button>
+                        </div>
+                    }
 
                     <h3>Danger zone</h3>
                     @if (_confirmDelete)
                     {
                         <div class="confirm">
-                            Delete “@t.Title” from the iPod? It is removed from every playlist. The audio file is left in place (harmless), and a backup is taken when you write.
-                            <div class="row" style="margin-top:8px">
+                            Delete “@t.Title” from the iPod? It leaves every playlist too. The audio file stays in place (harmless), and a backup is taken when you write.
+                            <div class="row" style="margin-top:9px">
                                 <button class="btn danger small" @onclick="() => { State.RemoveTrack(t); _confirmDelete = false; }">Queue delete</button>
                                 <button class="btn small" @onclick="() => _confirmDelete = false">Cancel</button>
                             </div>
@@ -166,13 +208,16 @@
                     }
                     else
                     {
-                        <button class="btn danger small" @onclick="() => _confirmDelete = true">Delete from iPod…</button>
+                        <button class="btn danger small" @onclick="() => _confirmDelete = true"><Icon Name="trash" Size="14" /> Delete from iPod…</button>
                     }
                 }
             }
             else
             {
-                <div class="muted small">Select a song to see details@(State.CanWrite ? ", edit tags, set its rating or cover, or add it to a playlist" : "").</div>
+                <div class="empty" style="padding:40px 10px">
+                    <div class="big"><Icon Name="songs" Size="26" /></div>
+                    <p class="small">Select a song to see its details@(State.CanWrite ? ", edit tags, set a rating or cover" : "").</p>
+                </div>
             }
         </div>
     </div>
@@ -184,25 +229,16 @@
     private string _sort = "artist";
     private bool _desc;
     private uint? _selectedId;
-    private string _title = "", _artist = "", _album = "";
-    private string? _coverUrl;
+    private string _title = "", _artist = "", _album = "", _albumArtist = "", _genre = "", _composer = "";
+    private bool _more;
     private string _coverPath = "";
     private bool _wholeAlbum;
     private string _playlistKey = "";
     private bool _confirmDelete;
-
-    private Track? Selected => _selectedId is uint id ? State.TrackById(id) : null;
+    private bool _showPlaylistPick;
     private ItunesDatabase? _shownDb;
 
-    // After a write the library is re-read: refresh the selected song's cover and fields.
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (ReferenceEquals(State.Db, _shownDb)) return;
-        bool reload = _shownDb is not null;
-        _shownDb = State.Db;
-        if (reload && Selected is { } t) { await Select(t); StateHasChanged(); }
-        else if (reload && _selectedId is not null) { _selectedId = null; StateHasChanged(); }
-    }
+    private Track? Selected => _selectedId is uint id ? State.TrackById(id) : null;
 
     private List<Track>? _rowsCache;
     private string? _rowsKey;
@@ -212,7 +248,7 @@
         get
         {
             var db = State.Db!;
-            string key = $"{db.GetHashCode()}|{_query}|{_filter}|{_sort}|{_desc}|{State.Pending.Count}";
+            string key = $"{db.GetHashCode()}|{_query}|{_filter}|{_sort}|{_desc}|{State.PendingVersion}";
             if (_rowsCache is not null && key == _rowsKey) return _rowsCache;
             IEnumerable<Track> q = db.Tracks;
             if (!string.IsNullOrWhiteSpace(_query))
@@ -257,42 +293,62 @@
                     string.Equals(x.AlbumArtist ?? x.Artist, t.AlbumArtist ?? t.Artist, StringComparison.OrdinalIgnoreCase))
         .ToList();
 
-    private async Task Select(Track t)
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (ReferenceEquals(State.Db, _shownDb)) return;
+        bool reload = _shownDb is not null;
+        _shownDb = State.Db;
+        if (reload)
+        {
+            if (Selected is { } t) Fill(t); else _selectedId = null;
+            StateHasChanged();
+        }
+    }
+
+    private void Select(Track t)
     {
         _selectedId = t.Id;
+        Fill(t);
+        _confirmDelete = false;
+        _showPlaylistPick = false;
+        _playlistKey = "";
+    }
+
+    private void Fill(Track t)
+    {
         var f = State.PendingFields(t.Id);
         _title = f?.Title ?? t.Title ?? "";
         _artist = f?.Artist ?? t.Artist ?? "";
         _album = f?.Album ?? t.Album ?? "";
-        _confirmDelete = false;
-        _playlistKey = "";
-        _coverUrl = null;
-        if (t.HasArtwork && State.ActiveRoot is { } root)
-        {
-            uint id = t.Id;
-            string? url = null;
-            try { url = await State.Backend.GetArtworkDataUrlAsync(root, t.ArtworkId); } catch { }
-            if (_selectedId == id) _coverUrl = url;
-        }
+        _albumArtist = f?.AlbumArtist ?? t.AlbumArtist ?? "";
+        _genre = f?.Genre ?? t.Genre ?? "";
+        _composer = f?.Composer ?? t.Composer ?? "";
+    }
+
+    private async Task Play(Track t)
+    {
+        Select(t);
+        if (State.ActiveRoot is { } root) await Player.PlayAsync(root, t, Rows, _query.Length > 0 ? $"Search: {_query}" : "Songs");
     }
 
     private bool FieldsChanged(Track t)
     {
         var f = State.PendingFields(t.Id);
-        return _title != (f?.Title ?? t.Title ?? "") || _artist != (f?.Artist ?? t.Artist ?? "") || _album != (f?.Album ?? t.Album ?? "");
+        return _title != (f?.Title ?? t.Title ?? "") || _artist != (f?.Artist ?? t.Artist ?? "") || _album != (f?.Album ?? t.Album ?? "")
+            || _albumArtist != (f?.AlbumArtist ?? t.AlbumArtist ?? "") || _genre != (f?.Genre ?? t.Genre ?? "") || _composer != (f?.Composer ?? t.Composer ?? "");
     }
 
     private void SaveFields()
     {
         if (Selected is not { } t) return;
         if (string.IsNullOrWhiteSpace(_title)) { State.Error = "A song needs a title."; return; }
-        State.SetTrackFields(t, _title.Trim(), _artist.Trim(), _album.Trim());
+        State.SetTrackFields(t, _title.Trim(), _artist.Trim(), _album.Trim(), _albumArtist.Trim(), _genre.Trim(), _composer.Trim());
     }
 
     private void UndoFields(Track t)
     {
-        State.SetTrackFields(t, t.Title ?? "", t.Artist ?? "", t.Album ?? "");
-        _title = t.Title ?? ""; _artist = t.Artist ?? ""; _album = t.Album ?? "";
+        State.SetTrackFields(t, t.Title ?? "", t.Artist ?? "", t.Album ?? "", t.AlbumArtist ?? "", t.Genre ?? "", t.Composer ?? "");
+        Fill(t);
     }
 
     private async Task PickCover()
@@ -316,5 +372,6 @@
         if (v is null) return;
         State.AddToPlaylist(v, [t.Id]);
         _playlistKey = "";
+        _showPlaylistPick = false;
     }
 }

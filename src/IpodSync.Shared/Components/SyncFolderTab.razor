@@ -1,7 +1,7 @@
 @inherits StateComponent
 @inject IHostPickers Pickers
 
-<h2>Sync a folder</h2>
+<div class="page-head"><div><h1>Sync a folder</h1><p>Keep a music folder and the iPod in step, without copying anything twice</p></div></div>
 <div class="panel">
     <p class="muted small" style="margin-top:0">
         Adds songs from a music folder (local or a network share) that aren't on the iPod yet. Songs already on the iPod are
@@ -60,7 +60,7 @@
             </label>
         </div>
         <div class="small @(fits ? "muted" : "error-text")">
-            Needs about @Size(need) on the iPod; @Size(p.FreeBytes) free (keeping @Size(FolderSyncJob.SpaceReserve) spare).
+            Needs about @Bytes(need) on the iPod; @Bytes(p.FreeBytes) free (keeping @Bytes(FolderSyncJob.SpaceReserve) spare).
             @if (!fits) { <span> Lower “add at most”.</span> }
         </div>
         @if (!State.Backend.Capabilities.CanTranscode && p.Plan.Add.Count > Addable(p).Count())

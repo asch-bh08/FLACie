@@ -23,6 +23,21 @@ public sealed class PlaylistView
     public string Key => DeviceName is not null ? "d:" + DeviceName : "n:" + (CreateOp?.GetHashCode() ?? 0);
 }
 
+/// <summary>An album: its tracks, and the artwork id to show for it.</summary>
+public sealed record AlbumView(string Name, string Artist, List<Track> Tracks, uint ArtworkId)
+{
+    public int Seconds => Tracks.Sum(t => t.LengthMs) / 1000;
+}
+
+internal sealed class AlbumKeyComparer : IEqualityComparer<(string Album, string Artist)>
+{
+    public static readonly AlbumKeyComparer Instance = new();
+    public bool Equals((string Album, string Artist) a, (string Album, string Artist) b) =>
+        string.Equals(a.Album, b.Album, StringComparison.OrdinalIgnoreCase) && string.Equals(a.Artist, b.Artist, StringComparison.OrdinalIgnoreCase);
+    public int GetHashCode((string Album, string Artist) k) =>
+        HashCode.Combine(k.Album.ToLowerInvariant(), k.Artist.ToLowerInvariant());
+}
+
 /// <summary>
 /// UI state shared by every tab: the selected iPod, its library, a queue of pending
 /// edits, and the last pipeline run. Nothing reaches the device except through
@@ -34,7 +49,12 @@ public sealed class AppState(IIpodSyncBackend backend)
 {
     public IIpodSyncBackend Backend { get; } = backend;
     public event Action? Changed;
-    public void Notify() => Changed?.Invoke();
+    public void Notify()
+    {
+        PendingVersion++;
+        _playlistViews = null;
+        Changed?.Invoke();
+    }
 
     public List<DeviceSummary> Devices { get; private set; } = [];
     public string? ActiveRoot { get; private set; }
@@ -47,7 +67,13 @@ public sealed class AppState(IIpodSyncBackend backend)
     public bool Loading { get; private set; }
     private Guid _loadToken = Guid.NewGuid();
 
+    /// <summary>Bumped on every queue change: lets views cache derived lists.</summary>
+    public int PendingVersion { get; private set; }
     public List<PendingChange> Pending { get; } = [];
+    private Dictionary<uint, Track> _byId = [];
+    private List<PlaylistView>? _playlistViews;
+    private int _playlistViewsVersion = -1;
+    private List<AlbumView>? _albums;
     public List<string> Log { get; } = [];
     public bool Busy { get; private set; }
     public string? BusyText { get; private set; }
@@ -90,7 +116,11 @@ public sealed class AppState(IIpodSyncBackend backend)
         try
         {
             Db = await Backend.LoadLibraryAsync(ActiveRoot);
+            _byId = Db.Tracks.GroupBy(t => t.Id).ToDictionary(g => g.Key, g => g.First());
+            _albums = null;
+            _playlistViews = null;
             _loadToken = Guid.NewGuid();
+            Player?.Rebind(Db);
         }
         catch (Exception ex) { Error = Format(ex); Db = null; }
         finally { Loading = false; Notify(); }
@@ -107,6 +137,9 @@ public sealed class AppState(IIpodSyncBackend backend)
     }
 
     // ------------------------------------------------------------------ queue
+
+    /// <summary>Set by the shell so the play queue can follow a library reload.</summary>
+    public Playback.PlayerState? Player { get; set; }
 
     public void Enqueue(EditOp op, string label)
     {
@@ -126,7 +159,7 @@ public sealed class AppState(IIpodSyncBackend backend)
     public void RemovePending(PendingChange c) { Pending.Remove(c); Notify(); }
     public void ClearPending() { Pending.Clear(); Notify(); }
 
-    public Track? TrackById(uint id) => Db?.Tracks.FirstOrDefault(t => t.Id == id);
+    public Track? TrackById(uint id) => _byId.TryGetValue(id, out var t) ? t : null;
     public string TrackName(uint id) => TrackById(id) is { } t ? $"{t.Artist} – {t.Title}" : $"track #{id}";
 
     public bool IsPendingRemoval(uint trackId) => Pending.Any(p => p.Op.Op == "removeTrack" && p.Op.TrackId == trackId);
@@ -142,19 +175,28 @@ public sealed class AppState(IIpodSyncBackend backend)
         (p.Op.Op == "removeTrackArtwork" && p.Op.TrackId == trackId)) is { } c
         ? (c.Op.Op == "removeTrackArtwork" ? "remove" : Path.GetFileName(c.Op.ImagePath)) : null;
 
-    /// <summary>Title/artist/album edit; replaces an earlier queued edit of the same track.</summary>
-    public void SetTrackFields(Track t, string title, string artist, string album)
+    /// <summary>Tag edit; replaces an earlier queued edit of the same track. Only fields that
+    /// actually differ are sent, so the write stays as small as it can be.</summary>
+    public void SetTrackFields(Track t, string title, string artist, string album, string albumArtist = "", string genre = "", string composer = "")
     {
         Pending.RemoveAll(p => p.Op.Op == "setTrackFields" && p.Op.TrackId == t.Id);
+        string? Changed(string now, string? was) => now != (was ?? "") ? now : null;
         var f = new EditFields
         {
-            Title = title != (t.Title ?? "") ? title : null,
-            Artist = artist != (t.Artist ?? "") ? artist : null,
-            Album = album != (t.Album ?? "") ? album : null,
+            Title = Changed(title, t.Title),
+            Artist = Changed(artist, t.Artist),
+            Album = Changed(album, t.Album),
+            AlbumArtist = Changed(albumArtist, t.AlbumArtist),
+            Genre = Changed(genre, t.Genre),
+            Composer = Changed(composer, t.Composer),
         };
-        if (f.Title is null && f.Artist is null && f.Album is null) { Notify(); return; }
-        var parts = new[] { f.Title is null ? null : $"title “{f.Title}”", f.Artist is null ? null : $"artist “{f.Artist}”", f.Album is null ? null : $"album “{f.Album}”" };
-        Enqueue(new EditOp { Op = "setTrackFields", TrackId = t.Id, Fields = f }, $"Edit {t.Title}: {string.Join(", ", parts.Where(x => x is not null))}");
+        var parts = new (string Label, string? Value)[]
+        {
+            ("title", f.Title), ("artist", f.Artist), ("album", f.Album),
+            ("album artist", f.AlbumArtist), ("genre", f.Genre), ("composer", f.Composer),
+        }.Where(x => x.Value is not null).Select(x => $"{x.Label} “{x.Value}”").ToList();
+        if (parts.Count == 0) { Notify(); return; }
+        Enqueue(new EditOp { Op = "setTrackFields", TrackId = t.Id, Fields = f }, $"Edit {t.Title}: {string.Join(", ", parts)}");
     }
 
     public void SetRating(Track t, int stars)
@@ -208,7 +250,33 @@ public sealed class AppState(IIpodSyncBackend backend)
 
     // ------------------------------------------------------------------ playlists
 
+    /// <summary>Playlists as they will be after the queued changes. Cached per queue version:
+    /// several tabs ask for this on every render.</summary>
     public List<PlaylistView> EffectivePlaylists()
+    {
+        if (_playlistViews is not null && _playlistViewsVersion == PendingVersion) return _playlistViews;
+        _playlistViews = BuildPlaylistViews();
+        _playlistViewsVersion = PendingVersion;
+        return _playlistViews;
+    }
+
+    /// <summary>Albums with their tracks, in artist/album order. Built once per library load.</summary>
+    public List<AlbumView> Albums()
+    {
+        if (_albums is not null) return _albums;
+        _albums = (Db?.Tracks ?? [])
+            .GroupBy(t => (Album: t.Album ?? "", Artist: t.AlbumArtist ?? t.Artist ?? ""), AlbumKeyComparer.Instance)
+            .Select(g => new AlbumView(
+                g.Key.Album.Length == 0 ? "Unknown album" : g.Key.Album,
+                g.Key.Artist.Length == 0 ? "Unknown artist" : g.Key.Artist,
+                [.. g.OrderBy(t => t.DiscNumber).ThenBy(t => t.TrackNumber).ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase)],
+                g.FirstOrDefault(t => t.HasArtwork)?.ArtworkId ?? 0))
+            .OrderBy(a => a.Artist, StringComparer.OrdinalIgnoreCase).ThenBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return _albums;
+    }
+
+    private List<PlaylistView> BuildPlaylistViews()
     {
         var views = new List<PlaylistView>();
         if (Db is null) return views;

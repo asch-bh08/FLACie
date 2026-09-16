@@ -1,0 +1,162 @@
+@inherits StateComponent
+@inject PlayerState Player
+
+@if (_open is { } album)
+{
+    <div class="page-head">
+        <button class="btn ghost" @onclick="() => _open = null"><Icon Name="back" Size="16" /> All albums</button>
+    </div>
+    <div class="detail-head">
+        <Cover ArtworkId="album.ArtworkId" Size="168" Source="240" Class="lg" />
+        <div class="grow">
+            <h1>@album.Name</h1>
+            <div class="muted">@album.Artist · @album.Tracks.Count songs · @Time(album.Seconds * 1000)</div>
+            <div class="row" style="margin-top:12px">
+                <button class="btn primary" @onclick="() => PlayAlbum(album)"><Icon Name="play" Size="15" /> Play</button>
+                <button class="btn" @onclick="() => ShuffleAlbum(album)"><Icon Name="shuffle" Size="15" /> Shuffle</button>
+                @if (State.CanWrite)
+                {
+                    <button class="btn" @onclick="() => AddAlbumToPlaylist(album)"><Icon Name="playlists" Size="15" /> Add to playlist</button>
+                }
+            </div>
+            @if (_pickPlaylist)
+            {
+                <div class="row" style="margin-top:8px">
+                    <select class="text-input" @bind="_playlistKey">
+                        <option value="">Choose a playlist…</option>
+                        @foreach (var v in State.EffectivePlaylists().Where(v => !v.IsSmart && !v.IsPodcast)) { <option value="@v.Key">@v.Name</option> }
+                    </select>
+                    <button class="btn small" disabled="@string.IsNullOrEmpty(_playlistKey)" @onclick="() => ConfirmAdd(album)">Add @album.Tracks.Count songs</button>
+                    <button class="btn small ghost" @onclick="() => _pickPlaylist = false">Cancel</button>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table">
+            <colgroup><col style="width:44px" /><col /><col style="width:26%" /><col style="width:70px" /></colgroup>
+            <tbody>
+                @foreach (var t in album.Tracks)
+                {
+                    var playing = Player.IsCurrent(t);
+                    <tr class="@(playing ? "playing" : "")" @ondblclick="() => PlayTrack(album, t)">
+                        <td class="tight">
+                            @if (playing && Player.Player.IsPlaying)
+                            {
+                                <span class="eq"><i></i><i></i><i></i></span>
+                            }
+                            else
+                            {
+                                <button class="rowbtn" title="Play" @onclick="() => PlayTrack(album, t)"><Icon Name="play" Size="15" /></button>
+                            }
+                        </td>
+                        <td>@(t.TrackNumber > 0 ? $"{t.TrackNumber}. " : "")@t.Title</td>
+                        <td class="muted">@t.Artist</td>
+                        <td class="num faint">@Time(t.LengthMs)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <h1>Albums</h1>
+            <p>@Albums.Count albums on this iPod, with the covers the iPod itself shows</p>
+        </div>
+        <div class="search" style="width:280px">
+            <Icon Name="search" Size="15" />
+            <input class="text-input" placeholder="Search albums or artists" @bind="_query" @bind:event="oninput" />
+        </div>
+    </div>
+
+    @if (Albums.Count == 0)
+    {
+        <div class="empty"><div class="big"><Icon Name="albums" Size="26" /></div><p>No albums match “@_query”.</p></div>
+    }
+    else
+    {
+        <div class="album-grid">
+            @foreach (var a in Albums.Take(_shown))
+            {
+                <div class="album-tile" @onclick="() => Open(a)">
+                    <div class="art">
+                        <Cover ArtworkId="a.ArtworkId" Size="0" Source="240" />
+                        <button class="play-fab" title="Play album" @onclick:stopPropagation="true" @onclick="() => PlayAlbum(a)"><Icon Name="play" Size="16" /></button>
+                    </div>
+                    <div class="t ellipsis" title="@a.Name">@a.Name</div>
+                    <div class="s ellipsis" title="@a.Artist">@a.Artist</div>
+                </div>
+            }
+        </div>
+        @if (Albums.Count > _shown)
+        {
+            <div class="row" style="justify-content:center; margin-top:20px">
+                <button class="btn" @onclick="() => _shown += 120">Show more (@(Albums.Count - _shown) left)</button>
+            </div>
+        }
+    }
+}
+
+@code {
+    private string _query = "";
+    private int _shown = 120;
+    private AlbumView? _open;
+    private bool _pickPlaylist;
+    private string _playlistKey = "";
+
+    private List<AlbumView>? _cache;
+    private string? _cacheKey;
+
+    private List<AlbumView> Albums
+    {
+        get
+        {
+            string key = $"{State.Db?.GetHashCode()}|{_query}";
+            if (_cache is not null && key == _cacheKey) return _cache;
+            var all = State.Albums();
+            _cache = string.IsNullOrWhiteSpace(_query)
+                ? all
+                : all.Where(a => a.Name.Contains(_query, StringComparison.OrdinalIgnoreCase) || a.Artist.Contains(_query, StringComparison.OrdinalIgnoreCase)).ToList();
+            _cacheKey = key;
+            return _cache;
+        }
+    }
+
+    private void Open(AlbumView a) { _open = a; _pickPlaylist = false; }
+
+    private async Task PlayAlbum(AlbumView a)
+    {
+        if (a.Tracks.Count > 0 && State.ActiveRoot is { } root)
+        {
+            Player.SetShuffle(false);
+            await Player.PlayAsync(root, a.Tracks[0], a.Tracks, a.Name);
+        }
+    }
+
+    private async Task ShuffleAlbum(AlbumView a)
+    {
+        if (a.Tracks.Count == 0 || State.ActiveRoot is not { } root) return;
+        Player.SetShuffle(true);
+        await Player.PlayAsync(root, a.Tracks[Random.Shared.Next(a.Tracks.Count)], a.Tracks, a.Name);
+    }
+
+    private async Task PlayTrack(AlbumView a, Track t)
+    {
+        if (State.ActiveRoot is { } root) await Player.PlayAsync(root, t, a.Tracks, a.Name);
+    }
+
+    private void AddAlbumToPlaylist(AlbumView a) => _pickPlaylist = !_pickPlaylist;
+
+    private void ConfirmAdd(AlbumView a)
+    {
+        var v = State.EffectivePlaylists().FirstOrDefault(v => v.Key == _playlistKey);
+        if (v is null) return;
+        State.AddToPlaylist(v, a.Tracks.Select(t => t.Id));
+        _pickPlaylist = false;
+        _playlistKey = "";
+    }
+}

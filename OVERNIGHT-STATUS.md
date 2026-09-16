@@ -1,5 +1,46 @@
 # Overnight session status — 2026-09-14
 
+## 16 September: the player, and a rebuilt UI
+
+**Playback is in the app now** (the standalone `ipod-player/` page still exists; it was never part of
+the app). It plays the iPod's own files and never writes to the device.
+- **Windows:** WebView2 loads the files through a read-only virtual host mapping. Apple Lossless,
+  which no browser engine decodes, is converted to FLAC on the fly with ffmpeg and cached
+  (`PlaybackMedia`, capped at 2 GB, oldest dropped first).
+- **Web host:** the same UI, with a `/media` endpoint that supports range requests (so seeking works).
+- **Android:** Android's own media player, straight from the file — it decodes ALAC, AAC, MP3 and WAV
+  natively, so nothing is converted there.
+- Bottom bar: play/pause, previous/next, scrubber, volume, shuffle, repeat, and the up-next queue.
+  Clicking a song plays it and queues the list you're looking at; albums and playlists have play and
+  shuffle buttons. The queue survives a write (it re-binds to the reloaded library).
+
+**UI rebuilt.** Sidebar with icons and a device card (free-space meter + health pills), page headers,
+a new **Albums** tab (cover grid, album pages), covers everywhere, play-on-hover rows, an equaliser
+on the playing row, restyled everything (buttons, inputs, tables, banners, dialogs), and a phone
+layout that stacks properly.
+
+**Finished off:**
+- Enter in the new-playlist box works (the form was missing `preventDefault`, so it reloaded the page).
+- Tag editing covers album artist, genre and composer as well as title/artist/album — the engine
+  relinks album/artist entries when the album artist changes, and the SQLite side already mirrored
+  those fields. The regression suite has a new step for it (step 9b) and passes.
+- The detail panel refreshes its cover and fields after a write.
+- Playback retries once with a converted copy if the engine refuses a file, and a late error from the
+  replaced attempt no longer shows a stale message.
+
+**Optimised:**
+- Track lookups use a dictionary (they were a linear scan per row, per render).
+- Playlist views and the "add songs" search are cached per change-queue version; albums are grouped
+  once per library load.
+- Artwork thumbnails are chosen by requested size (the grid uses the iPod's 128px thumbnails, not the
+  240px ones) and the cache is capped at 300 covers.
+
+**Checked:** the regression suite passes; playback tested in the web host against a fake iPod with
+real audio — AAC played directly, Apple Lossless played through the conversion path, and the album
+grid rendered real covers. Windows and Android builds are clean; playback on the phone and the
+Windows virtual-host path are **not** yet tested on hardware.
+
+
 ## Afternoon session (13:10): the app
 
 **On-device check done by Ashley:** the playlists show up on the iPod and the transcoded

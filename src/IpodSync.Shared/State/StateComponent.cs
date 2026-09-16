@@ -17,6 +17,6 @@ public abstract class StateComponent : ComponentBase, IDisposable
         GC.SuppressFinalize(this);
     }
 
-    protected static string Size(long bytes) => bytes >= 1L << 30 ? $"{bytes / (double)(1L << 30):F2} GB" : $"{bytes / (double)(1L << 20):F0} MB";
+    protected static string Bytes(long bytes) => bytes >= 1L << 30 ? $"{bytes / (double)(1L << 30):F2} GB" : $"{bytes / (double)(1L << 20):F0} MB";
     protected static string Time(int ms) { var t = TimeSpan.FromMilliseconds(ms); return t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss"); }
 }

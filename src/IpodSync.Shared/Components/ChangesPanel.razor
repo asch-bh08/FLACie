@@ -1,8 +1,7 @@
 @inherits StateComponent
 @inject IHostPickers Pickers
 
-@if (Wide) { <h2>Changes</h2> }
-else { <h3 style="margin-top:0">Pending changes (@State.Pending.Count)</h3> }
+<div class="page-head"><div><h1>Pending changes</h1><p>Nothing reaches the iPod until you check these and write them</p></div></div>
 
 @if (State.Pending.Count == 0 && !State.Busy && State.LastResult is null)
 {
@@ -11,7 +10,7 @@ else { <h3 style="margin-top:0">Pending changes (@State.Pending.Count)</h3> }
 
 @if (State.Pending.Count > 0)
 {
-    <div class="@(Wide ? "panel" : "")">
+    <div class="panel">
         @for (int i = 0; i < State.Pending.Count; i++)
         {
             var c = State.Pending[i];
@@ -102,7 +101,6 @@ else if (State.LastResult is { } r)
 }
 
 @code {
-    [Parameter] public bool Wide { get; set; }
     private bool _confirm;
     private bool _problemsOnly;
 
@@ -113,7 +111,7 @@ else if (State.LastResult is { } r)
     {
         List<string> copy;
         lock (State.Log) copy = [.. State.Log];
-        return _problemsOnly ? copy.Where(l => LineClass(l) == "fail") : copy.TakeLast(Wide ? 2000 : 400);
+        return _problemsOnly ? copy.Where(l => LineClass(l) == "fail") : copy.TakeLast(2000);
     }
 
     private static string LineClass(string l) =>

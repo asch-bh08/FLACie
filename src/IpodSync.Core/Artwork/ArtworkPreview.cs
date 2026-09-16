@@ -3,7 +3,9 @@ namespace IpodSync.Core.Artwork;
 /// <summary>
 /// Read-only: renders a device thumbnail (RGB565LE in an ithmb file) as a
 /// <c>data:image/bmp</c> URL for display. A 16-bit BI_BITFIELDS bitmap holds RGB565
-/// pixels as-is, so no image library is needed.
+/// pixels as-is, so no image library is needed. An iPod stores each cover at several
+/// sizes; callers say how big they need it, so a grid of covers doesn't pull the 240px
+/// ones (a 60-cover grid at 240px is ~9 MB of data URLs, at 128px under 3 MB).
 /// </summary>
 public static class ArtworkPreview
 {
@@ -12,48 +14,69 @@ public static class ArtworkPreview
         internal readonly object Gate = new();
         internal string? Dir;
         internal DateTime DbStamp;
-        internal Dictionary<int, ArtworkDb.Thumb>? Largest;
-        internal readonly Dictionary<int, string> Urls = [];
+        internal Dictionary<int, List<ArtworkDb.Thumb>>? Thumbs;
+        internal readonly Dictionary<(int Id, int Side), string> Urls = [];
+        internal readonly LinkedList<(int Id, int Side)> Order = new();
 
-        public void Clear() { lock (Gate) { Dir = null; Largest = null; Urls.Clear(); } }
+        /// <summary>Roughly 24 MB of decoded covers.</summary>
+        public int MaxEntries { get; init; } = 300;
+
+        public void Clear() { lock (Gate) { Dir = null; Thumbs = null; Urls.Clear(); Order.Clear(); } }
     }
 
-    public static string? DataUrl(string artworkDir, uint artworkId, Cache cache)
+    public static string? DataUrl(string artworkDir, uint artworkId, Cache cache, int preferredSide = 240)
     {
         string dbPath = Path.Combine(artworkDir, "ArtworkDB");
         if (artworkId == 0 || !File.Exists(dbPath)) return null;
         lock (cache.Gate)
         {
             var stamp = File.GetLastWriteTimeUtc(dbPath);
-            if (cache.Dir != artworkDir || cache.DbStamp != stamp || cache.Largest is null)
+            if (cache.Dir != artworkDir || cache.DbStamp != stamp || cache.Thumbs is null)
             {
                 var root = ArtworkDb.Parse(File.ReadAllBytes(dbPath));
-                cache.Largest = [];
+                cache.Thumbs = [];
                 foreach (var img in ArtworkDb.Images(root))
-                {
-                    var best = ArtworkDb.Thumbs(img).OrderByDescending(t => t.Size).FirstOrDefault();
-                    if (best is not null) cache.Largest[ArtworkDb.ImageId(img)] = best;
-                }
+                    cache.Thumbs[ArtworkDb.ImageId(img)] = [.. ArtworkDb.Thumbs(img)];
                 cache.Dir = artworkDir;
                 cache.DbStamp = stamp;
                 cache.Urls.Clear();
+                cache.Order.Clear();
             }
-            if (cache.Urls.TryGetValue((int)artworkId, out var hit)) return hit;
-            if (!cache.Largest.TryGetValue((int)artworkId, out var thumb)) return null;
 
-            int side = (int)Math.Round(Math.Sqrt(thumb.Size / 2.0));
-            if (side <= 0 || side * side * 2 != thumb.Size) return null;   // only square formats
-            string ithmb = Path.Combine(artworkDir, $"F{thumb.Format}_1.ithmb");
+            var key = ((int)artworkId, preferredSide);
+            if (cache.Urls.TryGetValue(key, out var hit))
+            {
+                cache.Order.Remove(key);
+                cache.Order.AddLast(key);
+                return hit;
+            }
+            if (!cache.Thumbs.TryGetValue((int)artworkId, out var thumbs) || thumbs.Count == 0) return null;
+
+            // Square formats only, smallest that still covers the requested size.
+            var square = thumbs.Select(t => (Thumb: t, Side: (int)Math.Round(Math.Sqrt(t.Size / 2.0))))
+                .Where(x => x.Side > 0 && x.Side * x.Side * 2 == x.Thumb.Size).ToList();
+            if (square.Count == 0) return null;
+            var chosen = square.Where(x => x.Side >= preferredSide).OrderBy(x => x.Side).FirstOrDefault();
+            if (chosen.Thumb is null) chosen = square.OrderByDescending(x => x.Side).First();
+
+            string ithmb = Path.Combine(artworkDir, $"F{chosen.Thumb.Format}_1.ithmb");
             if (!File.Exists(ithmb)) return null;
-            byte[] pixels = new byte[thumb.Size];
+            byte[] pixels = new byte[chosen.Thumb.Size];
             using (var fs = new FileStream(ithmb, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
-                if (thumb.Offset < 0 || thumb.Offset + (long)thumb.Size > fs.Length) return null;
-                fs.Seek(thumb.Offset, SeekOrigin.Begin);
+                if (chosen.Thumb.Offset < 0 || chosen.Thumb.Offset + (long)chosen.Thumb.Size > fs.Length) return null;
+                fs.Seek(chosen.Thumb.Offset, SeekOrigin.Begin);
                 fs.ReadExactly(pixels);
             }
-            string url = "data:image/bmp;base64," + Convert.ToBase64String(Bmp565(pixels, side, side));
-            cache.Urls[(int)artworkId] = url;
+            string url = "data:image/bmp;base64," + Convert.ToBase64String(Bmp565(pixels, chosen.Side, chosen.Side));
+
+            cache.Urls[key] = url;
+            cache.Order.AddLast(key);
+            while (cache.Order.Count > cache.MaxEntries && cache.Order.First is { } oldest)
+            {
+                cache.Urls.Remove(oldest.Value);
+                cache.Order.RemoveFirst();
+            }
             return url;
         }
     }

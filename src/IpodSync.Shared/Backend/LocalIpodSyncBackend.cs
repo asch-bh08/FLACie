@@ -162,10 +162,10 @@ public class LocalIpodSyncBackend : IIpodSyncBackend
         return new DeviceHealth(cdb.Tracks.Count, cdb.Playlists.Count(p => !p.IsMaster), free, total, sigOk, sigDetail, inSync, syncDetail, artOk, artDetail);
     }
 
-    public Task<string?> GetArtworkDataUrlAsync(string deviceRoot, uint artworkId, CancellationToken ct = default) => Task.Run(() =>
+    public Task<string?> GetArtworkDataUrlAsync(string deviceRoot, uint artworkId, int preferredSide = 240, CancellationToken ct = default) => Task.Run(() =>
     {
         string artDir = Path.Combine(deviceRoot, "iPod_Control", "Artwork");
-        return ArtworkPreview.DataUrl(artDir, artworkId, ArtworkCache);
+        return ArtworkPreview.DataUrl(artDir, artworkId, ArtworkCache, preferredSide);
     }, ct);
 
     private static readonly ArtworkPreview.Cache ArtworkCache = new();

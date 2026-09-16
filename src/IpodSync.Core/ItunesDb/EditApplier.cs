@@ -128,9 +128,13 @@ public static class EditApplier
                 if (f.Title is not null) { LibraryMutation.SetTrackString(mhit, MhodType.Title, f.Title); changed.Add("title"); }
                 if (f.Artist is not null) { LibraryMutation.SetTrackString(mhit, MhodType.Artist, f.Artist); changed.Add("artist"); }
                 if (f.Album is not null) { LibraryMutation.SetTrackString(mhit, MhodType.Album, f.Album); changed.Add("album"); }
-                if (changed.Count == 0) throw new InvalidOperationException("setTrackFields had no title/artist/album to set.");
-                // Artist/album changes move the track to a different album/artist entry.
-                if (f.Artist is not null || f.Album is not null) EntityLinks.Relink(root, mhit, rng);
+                if (f.AlbumArtist is not null) { LibraryMutation.SetTrackString(mhit, MhodType.AlbumArtist, f.AlbumArtist); changed.Add("album artist"); }
+                if (f.Genre is not null) { LibraryMutation.SetTrackString(mhit, MhodType.Genre, f.Genre); changed.Add("genre"); }
+                if (f.Composer is not null) { LibraryMutation.SetTrackString(mhit, MhodType.Composer, f.Composer); changed.Add("composer"); }
+                if (changed.Count == 0) throw new InvalidOperationException("setTrackFields had nothing to set.");
+                // Artist/album (and album artist, which is what albums are grouped by) move the
+                // track to a different album/artist entry.
+                if (f.Artist is not null || f.Album is not null || f.AlbumArtist is not null) EntityLinks.Relink(root, mhit, rng);
                 return new OpResult(op.Op!, true, $"track {op.TrackId}: set {string.Join(", ", changed)}");
             }
             case "repairTrack":
@@ -335,6 +339,10 @@ public sealed class EditFields
     [JsonPropertyName("title")] public string? Title { get; set; }
     [JsonPropertyName("artist")] public string? Artist { get; set; }
     [JsonPropertyName("album")] public string? Album { get; set; }
+    /// <summary>Empty string clears the field.</summary>
+    [JsonPropertyName("albumArtist")] public string? AlbumArtist { get; set; }
+    [JsonPropertyName("genre")] public string? Genre { get; set; }
+    [JsonPropertyName("composer")] public string? Composer { get; set; }
 }
 
 public sealed record OpResult(string Op, bool Ok, string Detail);

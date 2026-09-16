@@ -1,6 +1,6 @@
 @inherits StateComponent
 
-<h2>Device health</h2>
+<div class="page-head"><div><h1>Device health</h1><p>Read-only checks of the iPod’s two databases, signatures and artwork</p></div></div>
 @if (State.ActiveDevice is { } d)
 {
     <div class="stat-grid">
@@ -8,7 +8,7 @@
         <div class="stat"><div class="v">@(State.Db?.Playlists.Count(p => !p.IsMaster) ?? 0)</div><div class="k">playlists</div></div>
         @if (d.TotalBytes > 0)
         {
-            <div class="stat"><div class="v">@Size(d.FreeBytes)</div><div class="k">free of @Size(d.TotalBytes)</div></div>
+            <div class="stat"><div class="v">@Bytes(d.FreeBytes)</div><div class="k">free of @Bytes(d.TotalBytes)</div></div>
         }
         <div class="stat"><div class="v">@(d.FileSystem ?? "?")</div><div class="k">file system</div></div>
     </div>

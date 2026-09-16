@@ -18,14 +18,23 @@ On Windows (and the web host) the app manages the iPod through `IpodSync.Core.Sy
 
 | Tab | What it does |
 |---|---|
-| Library | Search/sort every song; covers are read straight from the iPod's `ithmb` files. Edit title/artist/album, set the star rating, set or remove cover art (one song or the whole album), add to a playlist, delete from the iPod. |
-| Playlists | Create, rename, delete; add songs, remove, reorder. Smart playlists are shown read-only. |
+| Songs | Search/sort every song; covers read straight from the iPod's `ithmb` files. Click to play; edit title/artist/album/album artist/genre/composer, star rating, cover art (one song or the whole album), add to a playlist, delete from the iPod. |
+| Albums | A cover grid of the whole library; open an album to play it, shuffle it, or add it to a playlist. |
+| Playlists | Create, rename, delete; add songs, remove, reorder; play or shuffle. Smart playlists are shown read-only. |
 | Add music | Add files. FLAC/Opus/Ogg/WMA are converted (lossless → ALAC, lossy → 256k AAC); tags and embedded covers come along. |
 | Sync a folder | Preview a music folder against the iPod (already synced / on the iPod already / to add / duplicates), then add in verified batches. Sync state lives on the PC (`%LOCALAPPDATA%\ipodsync\manifests`). |
 | Import playlist | Match an iTunes "Export Playlist" `.txt` or an M3U to songs on the iPod, and queue it as a playlist. |
 | Changes | Every edit is queued first. **Write to iPod** stays disabled until a dry run of exactly that queue passes; then there's a confirmation, a verified backup, the write, a read-back re-verify of both databases, signatures and artwork, and an automatic restore if anything doesn't match. |
 | Backups / Device health | Pre-write backups with their write logs, and read-only checks: signatures, CDB ↔ SQLite agreement, artwork integrity. |
 | Jellyfin | Copy the iPod's playlists to a Jellyfin server (writes only to Jellyfin). |
+
+**The player.** The app plays the iPod's own files — nothing is copied to play a song, and playback never writes to the device (the iPod keeps its own play counts). The bar at the bottom has play/pause, previous/next, a scrubber, volume, shuffle, repeat and the up-next queue. Clicking a song plays it and queues whatever list you are looking at.
+
+| Host | How it plays | Apple Lossless |
+|---|---|---|
+| Windows | WebView2, with the iPod mapped to a read-only virtual host | converted to FLAC on the fly (needs ffmpeg), cached |
+| Web | the same UI, files served by a localhost endpoint with range requests | same |
+| Android | Android's own media player, straight from the file | played natively, no conversion |
 
 Backups default to `Documents\ipodsync\ipod-backups`; change the folder in the Backups tab. Settings live in `%LOCALAPPDATA%\ipodsync\app-settings.json`.
 
@@ -41,7 +50,10 @@ The hosts differ only in which `IIpodSyncBackend` is registered (`IpodSync.Share
 - `IPODSYNC_EXTRA_ROOTS=<folder>` lists a folder laid out like an iPod (e.g. the fake root that `tools/fake-root-regression.sh` builds) as a device.
 - `IPODSYNC_APP_SETTINGS=<file>` keeps test backups and settings out of your real ones.
 
-## iPod Player
+## iPod Player (the standalone one)
+
+Playback now lives in the app as well (see above); this is the separate zero-install player, kept
+because it needs nothing built and has the full-screen "Now Playing" experience.
 
 [`ipod-player/`](ipod-player/) is a zero-install, single-file browser player —
 the lightweight **read-and-play** companion to the sync engine above. Double-click

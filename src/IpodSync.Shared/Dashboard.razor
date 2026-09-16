@@ -1,142 +1,176 @@
 @page "/"
 @inherits StateComponent
+@inject PlayerState Player
 
 <PageTitle>ipodsync</PageTitle>
 <PickerHost />
 
 <div class="shell">
-    <header class="topbar">
-        <span class="brand">ipodsync</span>
-        <div class="device-picker">
-            @if (State.Devices.Count > 0)
-            {
-                <select class="text-input" value="@State.ActiveRoot" @onchange="OnDeviceChanged" disabled="@State.Busy">
-                    @foreach (var d in State.Devices)
-                    {
-                        <option value="@d.RootPath">@d.RootPath @(d.VolumeLabel) @(d.HasDatabase ? "" : "(no library)")</option>
-                    }
-                </select>
-            }
-            else
-            {
-                <span class="muted small">@(State.Scanning ? "Looking for iPods…" : "No iPod connected")</span>
-            }
-            <button class="btn small" @onclick="State.RefreshDevicesAsync" disabled="@(State.Scanning || State.Busy)" title="Look for iPods again">⟳</button>
-        </div>
+    <nav class="nav">
+        <div class="brand"><span class="dot"></span><span>ipodsync</span></div>
 
-        <div class="chips">
+        <div class="device-card">
+            <div class="top">
+                <Icon Name="device" Size="16" />
+                @if (State.Devices.Count > 0)
+                {
+                    <select value="@State.ActiveRoot" @onchange="OnDeviceChanged" disabled="@State.Busy" title="@State.ActiveRoot">
+                        @foreach (var d in State.Devices)
+                        {
+                            <option value="@d.RootPath">@(string.IsNullOrWhiteSpace(d.VolumeLabel) ? d.RootPath : d.VolumeLabel)</option>
+                        }
+                    </select>
+                }
+                else
+                {
+                    <span class="grow muted small">@(State.Scanning ? "Looking for iPods…" : "No iPod connected")</span>
+                }
+                <button class="btn icon ghost" @onclick="State.RefreshDevicesAsync" disabled="@(State.Scanning || State.Busy)" title="Look again">
+                    @if (State.Scanning) { <span class="spinner"></span> } else { <Icon Name="refresh" Size="15" /> }
+                </button>
+            </div>
             @if (State.Db is { } db)
             {
-                <span class="chip">@db.Tracks.Count songs</span>
-                <span class="chip">@db.Playlists.Count(p => !p.IsMaster) playlists</span>
-                @if (State.ActiveDevice is { TotalBytes: > 0 } dev)
-                {
-                    <span class="chip @(dev.FreeBytes < 300L * 1024 * 1024 ? "warn" : "")">@Size(dev.FreeBytes) free</span>
-                }
-                @if (State.HealthLoading)
-                {
-                    <span class="chip">checking databases…</span>
-                }
-                else if (State.Health is { } h)
-                {
-                    <span class="chip @Cls(h.SignaturesValid)" title="@h.SignatureDetail">@Mark(h.SignaturesValid) signatures</span>
-                    <span class="chip @Cls(h.DatabasesInSync)" title="@h.SyncDetail">@Mark(h.DatabasesInSync) databases</span>
-                    <span class="chip @Cls(h.ArtworkOk)" title="@h.ArtworkDetail">@Mark(h.ArtworkOk) artwork</span>
-                }
+                var dev = State.ActiveDevice;
+                <div class="meter"><span style="width:@(Used(dev))%"></span></div>
+                <div class="stats">
+                    <span>@db.Tracks.Count songs</span>
+                    <span>@(dev is { TotalBytes: > 0 } ? $"{Bytes(dev.FreeBytes)} free" : "")</span>
+                </div>
+                <div class="health">
+                    @if (State.HealthLoading)
+                    {
+                        <span class="pill"><span class="spinner" style="width:9px;height:9px"></span> checking</span>
+                    }
+                    else if (State.Health is { } h)
+                    {
+                        <span class="pill @Cls(h.SignaturesValid)" title="@h.SignatureDetail">@Mark(h.SignaturesValid) signed</span>
+                        <span class="pill @Cls(h.DatabasesInSync)" title="@h.SyncDetail">@Mark(h.DatabasesInSync) in sync</span>
+                        <span class="pill @Cls(h.ArtworkOk)" title="@h.ArtworkDetail">@Mark(h.ArtworkOk) artwork</span>
+                    }
+                </div>
             }
         </div>
-    </header>
 
-    <div class="body">
-        <nav class="nav">
-            <button class="@Active(Tab.Library)" @onclick="() => _tab = Tab.Library">Library</button>
-            <button class="@Active(Tab.Playlists)" @onclick="() => _tab = Tab.Playlists">Playlists</button>
-            @if (State.CanWrite)
-            {
-                <button class="@Active(Tab.Add)" @onclick="() => _tab = Tab.Add">Add music</button>
-                <button class="@Active(Tab.Sync)" @onclick="() => _tab = Tab.Sync">Sync a folder</button>
-                <button class="@Active(Tab.Import)" @onclick="() => _tab = Tab.Import">Import playlist</button>
-            }
-            <div class="sep"></div>
-            @if (State.CanWrite)
-            {
-                <button class="@Active(Tab.Changes)" @onclick="() => _tab = Tab.Changes">
-                    Changes @if (State.Pending.Count > 0) { <span class="count">@State.Pending.Count</span> }
-                </button>
-                <button class="@Active(Tab.Backups)" @onclick="() => _tab = Tab.Backups">Backups</button>
-            }
-            <button class="@Active(Tab.Device)" @onclick="() => _tab = Tab.Device">Device health</button>
-            <button class="@Active(Tab.Jellyfin)" @onclick="() => _tab = Tab.Jellyfin">Jellyfin</button>
-        </nav>
+        <div class="nav-group">Library</div>
+        @NavItem(Tab.Songs, "songs", "Songs")
+        @NavItem(Tab.Albums, "albums", "Albums")
+        @NavItem(Tab.Playlists, "playlists", "Playlists")
 
-        <main class="main">
-            @if (_tab != Tab.Changes)
-            {
-                <ChangesBar OnReview="() => _tab = Tab.Changes" />
-            }
-            @if (State.Error is not null)
-            {
-                <div class="banner bad"><strong>Error</strong> — @State.Error <button class="linkish" @onclick="() => { State.Error = null; }">dismiss</button></div>
-            }
-            @if (!State.CanWrite && State.Backend.Capabilities.ReadOnlyReason is { } why)
-            {
-                <div class="banner warn">Read-only: @why
-                    @if (State.Backend.SetupActionLabel is { } fix)
-                    {
-                        <button class="btn small primary" style="margin-left:8px" @onclick="State.Backend.RunSetupActionAsync">@fix</button>
-                    }
-                </div>
-            }
+        @if (State.CanWrite)
+        {
+            <div class="nav-group">Add music</div>
+            @NavItem(Tab.Add, "add", "Add files")
+            @NavItem(Tab.Sync, "sync", "Sync a folder")
+            @NavItem(Tab.Import, "import", "Import playlist")
 
-            @if (State.ActiveRoot is null && _tab is not (Tab.Jellyfin or Tab.Backups))
-            {
-                <div class="empty">
-                    <div class="big">🎵</div>
-                    @if (State.Devices.FirstOrDefault(d => d.NeedsUserAction) is { } manual && !State.Scanning)
-                    {
-                        <p>@manual.VolumeLabel</p>
-                        <button class="btn primary" @onclick="() => State.SelectDeviceAsync(manual.RootPath)">Load library</button>
-                    }
-                    else
-                    {
-                        <p>@(State.Scanning ? "Looking for iPods…" : "Plug in an iPod (disk mode) and press ⟳.")</p>
-                    }
-                </div>
-            }
-            else if (State.Loading && State.Db is null)
-            {
-                <div class="empty"><p>Reading the library…</p></div>
-            }
-            else
-            {
-                @switch (_tab)
+            <div class="nav-group">Changes</div>
+            @NavItem(Tab.Changes, "changes", "Pending", State.Pending.Count)
+            @NavItem(Tab.Backups, "backups", "Backups")
+        }
+
+        <div class="nav-group">iPod</div>
+        @NavItem(Tab.Device, "device", "Health")
+        @NavItem(Tab.Jellyfin, "jellyfin", "Jellyfin")
+
+        <div class="nav-foot">@(State.CanWrite ? "Changes are checked and backed up before they're written." : "Read-only")</div>
+    </nav>
+
+    <main class="main" @ref="_main">
+        @if (_tab != Tab.Changes && State.CanWrite)
+        {
+            <ChangesBar OnReview="() => Go(Tab.Changes)" />
+        }
+        @if (State.Error is not null)
+        {
+            <div class="banner bad">
+                <Icon Name="warn" Size="16" />
+                <span class="grow"><strong>Something went wrong.</strong> @State.Error</span>
+                <button class="btn icon ghost" @onclick="() => State.Error = null"><Icon Name="close" Size="14" /></button>
+            </div>
+        }
+        @if (!State.CanWrite && State.Backend.Capabilities.ReadOnlyReason is { } why)
+        {
+            <div class="banner warn">
+                <Icon Name="info" Size="16" />
+                <span class="grow">Read-only: @why</span>
+                @if (State.Backend.SetupActionLabel is { } fix)
                 {
-                    case Tab.Library: <LibraryTab /> break;
-                    case Tab.Playlists: <PlaylistsTab /> break;
-                    case Tab.Add: <AddMusicTab /> break;
-                    case Tab.Sync: <SyncFolderTab /> break;
-                    case Tab.Import: <ImportPlaylistTab OnQueued="() => _tab = Tab.Changes" /> break;
-                    case Tab.Changes: <ChangesPanel Wide="true" /> break;
-                    case Tab.Backups: <BackupsTab /> break;
-                    case Tab.Device: <DeviceTab /> break;
-                    case Tab.Jellyfin: <JellyfinTab /> break;
+                    <button class="btn small primary" @onclick="State.Backend.RunSetupActionAsync">@fix</button>
                 }
+            </div>
+        }
+
+        @if (State.ActiveRoot is null && _tab is not (Tab.Jellyfin or Tab.Backups))
+        {
+            <div class="empty">
+                <div class="big"><Icon Name="device" Size="30" /></div>
+                @if (State.Devices.FirstOrDefault(d => d.NeedsUserAction) is { } manual && !State.Scanning)
+                {
+                    <p>@manual.VolumeLabel</p>
+                    <button class="btn primary" @onclick="() => State.SelectDeviceAsync(manual.RootPath)">Load library</button>
+                }
+                else
+                {
+                    <p>@(State.Scanning ? "Looking for iPods…" : "Plug in an iPod (disk mode) and press refresh.")</p>
+                }
+            </div>
+        }
+        else if (State.Loading && State.Db is null)
+        {
+            <div class="empty"><div class="big"><span class="spinner"></span></div><p>Reading the library…</p></div>
+        }
+        else
+        {
+            @switch (_tab)
+            {
+                case Tab.Songs: <LibraryTab /> break;
+                case Tab.Albums: <AlbumsTab /> break;
+                case Tab.Playlists: <PlaylistsTab /> break;
+                case Tab.Add: <AddMusicTab /> break;
+                case Tab.Sync: <SyncFolderTab /> break;
+                case Tab.Import: <ImportPlaylistTab OnQueued="() => Go(Tab.Changes)" /> break;
+                case Tab.Changes: <ChangesPanel /> break;
+                case Tab.Backups: <BackupsTab /> break;
+                case Tab.Device: <DeviceTab /> break;
+                case Tab.Jellyfin: <JellyfinTab /> break;
             }
-        </main>
-    </div>
+        }
+    </main>
+
+    <NowPlayingBar />
 </div>
 
 @code {
-    private enum Tab { Library, Playlists, Add, Sync, Import, Changes, Backups, Device, Jellyfin }
-    private Tab _tab = Tab.Library;
+    private enum Tab { Songs, Albums, Playlists, Add, Sync, Import, Changes, Backups, Device, Jellyfin }
+    private Tab _tab = Tab.Songs;
+    private ElementReference _main;
 
-    private string Active(Tab t) => _tab == t ? "active" : "";
+    private RenderFragment NavItem(Tab tab, string icon, string label, int badge = 0) => @<button class="nav-item @(_tab == tab ? "active" : "")" @onclick="() => Go(tab)">
+        <Icon Name="@icon" Size="17" />
+        <span>@label</span>
+        @if (badge > 0) { <span class="count">@badge</span> }
+    </button>;
+
+    private void Go(Tab tab) => _tab = tab;
+
     private static string Cls(bool? ok) => ok switch { true => "ok", false => "bad", _ => "" };
     private static string Mark(bool? ok) => ok switch { true => "✓", false => "✗", _ => "–" };
+    private static int Used(DeviceSummary? d) => d is { TotalBytes: > 0 } ? (int)Math.Clamp(100 - d.FreeBytes * 100.0 / d.TotalBytes, 2, 100) : 0;
 
     protected override async Task OnInitializedAsync()
     {
+        State.Player = Player;
+        Player.Changed += OnPlayerChanged;
         if (State.Devices.Count == 0) await State.RefreshDevicesAsync();
+    }
+
+    private void OnPlayerChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public override void Dispose()
+    {
+        Player.Changed -= OnPlayerChanged;
+        base.Dispose();
     }
 
     private async Task OnDeviceChanged(ChangeEventArgs e)

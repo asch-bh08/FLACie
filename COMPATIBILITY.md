@@ -2,8 +2,9 @@
 
 Short version: **every iPod that keeps its library in an `iTunesDB`/`iTunesCDB` file works, except the
 ones whose signature is hashAB.** That covers iPod 1G–5.5G, mini, photo, nano 1G–5G and every iPod
-classic. What's left out is the nano 6G/7G (hashAB), the shuffles (a different library format), and
-the iPod touch (a different device entirely).
+classic. What's left out is the nano 6G/7G (hashAB) and the shuffles (a different library format).
+An early iPod touch (1G-3G) uses a library format that *is* supported - the open question there is
+only how to reach its files; see below.
 
 The app never guesses from the model name. It reads the device's own database header and decides
 from that (`IpodProfiler`), so an iPod nobody has tested still works if its database says it can —

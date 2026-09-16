@@ -89,7 +89,14 @@
                 <button class="btn icon ghost" @onclick="() => State.Error = null"><Icon Name="close" Size="14" /></button>
             </div>
         }
-        @if (!State.CanWrite && State.Backend.Capabilities.ReadOnlyReason is { } why)
+        @if (State.DeviceReadOnlyReason is { } deviceWhy)
+        {
+            <div class="banner warn">
+                <Icon Name="info" Size="16" />
+                <span class="grow">@deviceWhy</span>
+            </div>
+        }
+        @if (!State.Backend.Capabilities.CanWrite && State.Backend.Capabilities.ReadOnlyReason is { } why)
         {
             <div class="banner warn">
                 <Icon Name="info" Size="16" />

@@ -81,7 +81,13 @@ public sealed class AppState(IIpodSyncBackend backend)
     public bool LastWasCommit { get; private set; }
     private string? _dryRunFingerprint;
 
-    public bool CanWrite => Backend.Capabilities.CanWrite;
+    /// <summary>Writing needs both a host that can write and a model whose signature we can
+    /// produce (hashAB iPods are read-only here).</summary>
+    public bool CanWrite => Backend.Capabilities.CanWrite && (Health?.Profile?.CanWrite ?? true);
+
+    /// <summary>Why this particular iPod is read-only, if it is.</summary>
+    public string? DeviceReadOnlyReason =>
+        Backend.Capabilities.CanWrite && Health?.Profile is { CanWrite: false } p ? p.Summary : null;
     public bool DryRunPassed => _dryRunFingerprint is not null && _dryRunFingerprint == Fingerprint();
 
     // ------------------------------------------------------------------ devices

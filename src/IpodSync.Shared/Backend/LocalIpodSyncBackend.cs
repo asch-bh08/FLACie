@@ -159,7 +159,10 @@ public class LocalIpodSyncBackend : IIpodSyncBackend
             artDetail = artOk == true ? $"{ArtworkDb.Images(root).Count()} images, {cdb.Tracks.Count(t => t.HasArtwork)} tracks with art" : $"{problems.Count} problem(s): {problems[0]}";
         }
 
-        return new DeviceHealth(cdb.Tracks.Count, cdb.Playlists.Count(p => !p.IsMaster), free, total, sigOk, sigDetail, inSync, syncDetail, artOk, artDetail);
+        return new DeviceHealth(cdb.Tracks.Count, cdb.Playlists.Count(p => !p.IsMaster), free, total, sigOk, sigDetail, inSync, syncDetail, artOk, artDetail)
+        {
+            Profile = IpodProfiler.Inspect(deviceRoot),
+        };
     }
 
     public Task<string?> GetArtworkDataUrlAsync(string deviceRoot, uint artworkId, int preferredSide = 240, CancellationToken ct = default) => Task.Run(() =>

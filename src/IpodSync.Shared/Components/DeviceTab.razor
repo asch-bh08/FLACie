@@ -18,6 +18,20 @@
             <strong>@d.RootPath @d.VolumeLabel</strong>
             <button class="btn small" @onclick="State.RefreshHealthAsync" disabled="@State.HealthLoading">@(State.HealthLoading ? "Checking…" : "Check again")</button>
         </div>
+        @if (State.Health?.Profile is { } p)
+        {
+            <table class="data-table" style="table-layout:auto">
+                <tbody>
+                    <tr><td style="width:180px">Model</td><td>@(p.ModelName ?? "not reported")</td><td class="muted">@(p.ModelNumber is null ? "the iPod only reports this once iTunes has talked to it" : p.ModelNumber)</td></tr>
+                    <tr><td>Library format</td><td>@Format(p.Format)</td><td class="muted">@(p.HasSqliteBundle ? "classic database + SQLite library" : "classic database only")</td></tr>
+                    <tr><td>Database signature</td><td>@Signature(p.Signature)</td><td class="muted">@p.Summary</td></tr>
+                </tbody>
+            </table>
+            @foreach (var n in p.Notes)
+            {
+                <div class="small muted">· @n</div>
+            }
+        }
         @if (State.Health is { } h)
         {
             <table class="data-table" style="table-layout:auto">
@@ -45,6 +59,24 @@
 }
 
 @code {
+    private static string Format(IpodDbFormat f) => f switch
+    {
+        IpodDbFormat.ItunesCdb => "iTunesCDB (compressed)",
+        IpodDbFormat.ItunesDb => "iTunesDB",
+        IpodDbFormat.ShuffleSd => "iTunesSD (shuffle)",
+        IpodDbFormat.IosMediaLibrary => "iOS media library",
+        _ => "unknown",
+    };
+
+    private static string Signature(IpodSignature s) => s switch
+    {
+        IpodSignature.None => "none (pre-2007 iPod)",
+        IpodSignature.Hash58 => "hash58",
+        IpodSignature.Hash58AndHash72 => "hash58 + hash72",
+        IpodSignature.HashAb => "hashAB (not supported)",
+        _ => "unknown",
+    };
+
     private static string Cls(bool? ok) => ok switch { true => "ok-text", false => "error-text", _ => "muted" };
     private static string Word(bool? ok) => ok switch { true => "OK", false => "Problem", _ => "n/a" };
 }

@@ -6,6 +6,13 @@ plugs directly into the iPod over USB-OTG and works like a PC would.
 Non-destructive by design: the device keeps stock Apple firmware, iTunes keeps
 working alongside it, and our own sync state never lives on the iPod.
 
+**Which iPods?** Every iPod that keeps its library in an `iTunesDB`/`iTunesCDB` — 1G–5.5G, mini,
+photo, nano 1G–5G, all the classics — including the unsigned, hash58 and hash72 variants. Not the
+nano 6G/7G (hashAB: white-box AES nobody has reimplemented; a signer you supply can be plugged in),
+not the shuffles (a different library format), not the iPod touch (a different protocol and an
+Apple-controlled database). `ipodsync profile <root>` says what a given device can do.
+See [COMPATIBILITY.md](COMPATIBILITY.md).
+
 ## The app
 
 `IpodSync.Shared` is one Blazor UI shared by three hosts:

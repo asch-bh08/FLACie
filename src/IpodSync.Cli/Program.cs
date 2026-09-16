@@ -26,6 +26,8 @@ try
         case "hash58-verify":  return Hash58VerifyCmd(args.Skip(1).ToArray());
         case "itlp-orders-check": return ItlpOrdersCheckCmd(args.Skip(1).ToArray());
         case "art-check":      return ArtCheckCmd(args.Skip(1).ToArray());
+        case "profile":        return ProfileCmd(args.Skip(1).ToArray());
+        case "make-fixture-db": return MakeFixtureDbCmd(args.Skip(1).ToArray());
         case "sync-folder":    return SyncFolderCmd(args.Skip(1).ToArray());
         case "import-playlist": return ImportPlaylistCmd(args.Skip(1).ToArray());
         case "apply-edits":    return ApplyEditsCmd(args.Skip(1).ToArray());
@@ -635,6 +637,81 @@ static int ItlpOrdersCheckCmd(string[] rest)
 }
 
 // Read-only: ArtworkDB round-trip + structural checks against the ithmb files and the CDB.
+// Read-only: what is this device, and what can be done with it?
+static int ProfileCmd(string[] rest)
+{
+    string? path = rest.FirstOrDefault(a => !a.StartsWith("--"));
+    if (path is null) { Console.Error.WriteLine("usage: profile <ipod-root>"); return 2; }
+    var p = IpodProfiler.Inspect(path);
+    Console.WriteLine($"root            {p.Root}");
+    Console.WriteLine($"model           {p.ModelName ?? "(not reported)"}{(p.ModelNumber is null ? "" : $" [{p.ModelNumber}]")}");
+    Console.WriteLine($"library format  {p.Format}");
+    Console.WriteLine($"signature       {p.Signature} (header scheme field {p.SchemeField})");
+    Console.WriteLine($"sqlite bundle   {(p.HasSqliteBundle ? "yes" : "no")}");
+    Console.WriteLine($"artwork db      {(p.HasArtworkDb ? "yes" : "no")}");
+    Console.WriteLine($"read / write    {(p.CanRead ? "read" : "no")} / {(p.CanWrite ? "write" : "no")}");
+    Console.WriteLine($"summary         {p.Summary}");
+    foreach (var n in p.Notes) Console.WriteLine($"  - {n}");
+    return p.CanRead ? 0 : 1;
+}
+
+// Test fixtures only: rewrites a COPY of a database to look like an older iPod's, so the
+// hash58-only and unsigned write paths can be exercised without owning those models.
+// Refuses to touch a real device root.
+static int MakeFixtureDbCmd(string[] rest)
+{
+    string? dir = rest.FirstOrDefault(a => !a.StartsWith("--") && !IsOptionValue(rest, a));
+    string scheme = StrOpt(rest, "--scheme") ?? "none";
+    string? fwid = StrOpt(rest, "--firewire-guid");
+    if (dir is null) { Console.Error.WriteLine("usage: make-fixture-db <itunes-dir> --scheme none|hash58|hashab [--firewire-guid hex]"); return 2; }
+    foreach (var drive in IpodDevice.Detect())
+        if (Path.GetFullPath(dir).StartsWith(Path.GetFullPath(drive.RootPath), StringComparison.OrdinalIgnoreCase))
+        { Console.Error.WriteLine("refusing: that is a connected iPod, not a fixture copy."); return 1; }
+
+    string cdb = File.Exists(Path.Combine(dir, "iTunesCDB")) ? Path.Combine(dir, "iTunesCDB") : Path.Combine(dir, "iTunesDB");
+    if (!File.Exists(cdb)) { Console.Error.WriteLine($"no iTunesDB/iTunesCDB in {dir}"); return 1; }
+    byte[] bytes = File.ReadAllBytes(cdb);
+
+    if (scheme.Equals("hashab", StringComparison.OrdinalIgnoreCase))
+    {
+        // A stand-in signature: this is NOT real hashAB (nobody can compute that here). It lets
+        // the external-signer hook and its "must reproduce the device's own signature" gate be
+        // tested against a matching stub signer.
+        BitConverter.TryWriteBytes(bytes.AsSpan(0x30, 2), (ushort)3);
+        Array.Clear(bytes, 0x58, 20);
+        Array.Clear(bytes, 0x72, 46);
+        Array.Clear(bytes, IpodSync.Core.Signing.HashAb.Offset, IpodSync.Core.Signing.HashAb.Length);
+        byte[] sha1 = IpodSync.Core.Signing.HashAb.DatabaseSha1(bytes);
+        byte[] stub = System.Security.Cryptography.SHA512.HashData(sha1)[..IpodSync.Core.Signing.HashAb.Length];
+        stub.CopyTo(bytes, IpodSync.Core.Signing.HashAb.Offset);
+        File.WriteAllBytes(cdb, bytes);
+        string itlpAb = Path.Combine(dir, "iTunes Library.itlp");
+        if (Directory.Exists(itlpAb)) Directory.Delete(itlpAb, true);
+        Console.WriteLine("scheme -> hashAB (stand-in signature, for testing the external-signer hook only)");
+        return 0;
+    }
+
+    Array.Clear(bytes, 0x72, 46);                                   // no hash72 field on these models
+    if (scheme.Equals("none", StringComparison.OrdinalIgnoreCase))
+    {
+        BitConverter.TryWriteBytes(bytes.AsSpan(0x30, 2), (ushort)0);
+        Array.Clear(bytes, 0x58, 20);
+        Console.WriteLine("scheme -> none (pre-2007 iPod): both signature fields cleared");
+    }
+    else
+    {
+        if (fwid is null) { Console.Error.WriteLine("--scheme hash58 needs --firewire-guid"); return 1; }
+        BitConverter.TryWriteBytes(bytes.AsSpan(0x30, 2), (ushort)1);
+        var id = IpodSync.Core.Signing.Hash58.ParseFirewireGuid(fwid);
+        IpodSync.Core.Signing.Hash58.Compute(id, IpodSync.Core.Signing.Hash58.ZeroedForHash(bytes)).CopyTo(bytes, 0x58);
+        Console.WriteLine($"scheme -> hash58 only: recomputed hash58, hash72 cleared ({Path.GetFileName(cdb)})");
+    }
+    File.WriteAllBytes(cdb, bytes);
+    string itlp = Path.Combine(dir, "iTunes Library.itlp");
+    if (Directory.Exists(itlp)) { Directory.Delete(itlp, true); Console.WriteLine("removed the SQLite bundle (these models don't have one)"); }
+    return 0;
+}
+
 static int ArtCheckCmd(string[] rest)
 {
     if (rest.Length == 0) { Console.Error.WriteLine("usage: art-check <ipod-root | Artwork dir>"); return 2; }

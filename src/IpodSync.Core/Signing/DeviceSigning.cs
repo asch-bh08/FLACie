@@ -15,14 +15,22 @@ namespace IpodSync.Core.Signing;
 /// </summary>
 public sealed class DeviceSigning
 {
-    public Hash72.DeviceKey Key72 { get; }
+    /// <summary>Null on models that only use hash58 (nano 3G/4G, iPod classic): those have no
+    /// hash72 field and no SQLite bundle to sign.</summary>
+    public Hash72.DeviceKey? Key72 { get; }
     public byte[] FirewireId { get; }
+    public Device.IpodSignature Scheme { get; }
     public List<string> Evidence { get; } = [];
 
-    private DeviceSigning(Hash72.DeviceKey key72, byte[] firewireId)
+    /// <summary>Set only for hashAB devices, and only when the user's external signer has
+    /// reproduced the signature already on the device (see <see cref="ExternalHashAbSigner"/>).</summary>
+    public ExternalHashAbSigner? HashAbSigner { get; private init; }
+
+    private DeviceSigning(Hash72.DeviceKey? key72, byte[] firewireId, Device.IpodSignature scheme)
     {
         Key72 = key72;
         FirewireId = firewireId;
+        Scheme = scheme;
     }
 
     /// <summary>True when the header declares a signature scheme (so writes must be signed).</summary>
@@ -37,6 +45,33 @@ public sealed class DeviceSigning
         byte[] cdb = File.ReadAllBytes(Path.Combine(itunesDir, databaseFileName));
         ulong libId = LibraryId(cdb);
         var evidence = new List<string>();
+
+        // What does this model actually expect? nano 3G/4G and the classics sign with hash58
+        // alone; the nano 5G adds hash72 (and the signed Locations.itdb.cbk). hashAB devices
+        // (nano 6G/7G, shuffle 4G) are refused here rather than written with a wrong signature.
+        var (scheme, schemeField) = Device.IpodProfiler.ReadSignatureScheme(cdb);
+        if (scheme is Device.IpodSignature.HashAb)
+        {
+            // hashAB can't be computed here (white-box AES; see HashAb). A signer the user
+            // supplies is accepted only after it reproduces this device's own signature.
+            var external = ExternalHashAbSigner.Resolve(cdb, firewireCandidates, problems, evidence);
+            if (external is null)
+            {
+                problems.Add("this iPod signs its database with hashAB (nano 6G/7G, shuffle 4G) -- see COMPATIBILITY.md");
+                return null;
+            }
+            byte[] anyId = [];
+            foreach (var c in firewireCandidates) { try { anyId = Hash58.ParseFirewireGuid(c); break; } catch { } }
+            var signerAb = new DeviceSigning(null, anyId, scheme) { HashAbSigner = external };
+            signerAb.Evidence.AddRange(evidence);
+            return signerAb;
+        }
+        if (scheme is Device.IpodSignature.Unknown)
+        {
+            problems.Add($"this iPod asks for database signature scheme {schemeField}, which this build does not know");
+            return null;
+        }
+        bool needsHash72 = scheme is Device.IpodSignature.Hash58AndHash72;
 
         var references = new List<(string Path, byte[] Bytes)>();
         foreach (var r in referenceDatabases.Distinct(StringComparer.OrdinalIgnoreCase))
@@ -64,7 +99,8 @@ public sealed class DeviceSigning
             if (key is not null) break;
             if (Hash72.ExtractFromDatabase(bytes) is { } k3) { key = k3; evidence.Add($"hash72 key recovered from reference {path}"); }
         }
-        if (key is null) { problems.Add("no valid hash72 signature found to recover this device's signing key from"); return null; }
+        if (key is null && needsHash72) { problems.Add("no valid hash72 signature found to recover this device's signing key from"); return null; }
+        if (!needsHash72) evidence.Add("this model signs with hash58 only (no hash72 field)");
 
         // ---- FirewireGuid for hash58 ----
         byte[]? fw = null;
@@ -78,31 +114,42 @@ public sealed class DeviceSigning
         }
         if (fw is null) { problems.Add("no FirewireGuid candidate reproduces an existing hash58 for this library"); return null; }
 
-        var s = new DeviceSigning(key, fw);
+        var s = new DeviceSigning(needsHash72 ? key : null, fw, scheme);
         s.Evidence.AddRange(evidence);
         return s;
     }
 
-    /// <summary>Returns a copy of the database file with fresh hash72 then hash58.</summary>
+    /// <summary>Returns a copy of the database file with fresh hash72 (where the model has one)
+    /// then hash58.</summary>
     public byte[] SignDatabase(byte[] file)
     {
+        if (HashAbSigner is { } ab) return ab.Sign(file);
         byte[] copy = (byte[])file.Clone();
-        Hash72.Generate(Hash72.DatabaseSha1(copy), Key72).CopyTo(copy, 0x72);
-        Hash58.Compute(FirewireId, Hash58.ZeroedForHash(copy)).CopyTo(copy, 0x58);
+        if (Key72 is { } key72) Hash72.Generate(Hash72.DatabaseSha1(copy), key72).CopyTo(copy, 0x72);
+        if (FirewireId.Length > 0) Hash58.Compute(FirewireId, Hash58.ZeroedForHash(copy)).CopyTo(copy, 0x58);
         return copy;
     }
 
     public List<string> VerifyDatabase(byte[] file)
     {
         var problems = new List<string>();
-        if (!Hash72.Generate(Hash72.DatabaseSha1(file), Key72).AsSpan().SequenceEqual(file.AsSpan(0x72, 46)))
+        if (HashAbSigner is { } ab)
+        {
+            if (!ab.Verify(file)) problems.Add("CDB hashAB does not validate");
+            return problems;
+        }
+        if (Key72 is { } key72 && !Hash72.Generate(Hash72.DatabaseSha1(file), key72).AsSpan().SequenceEqual(file.AsSpan(0x72, 46)))
             problems.Add("CDB hash72 does not validate");
-        if (!Hash58.Verify(FirewireId, file))
+        if (FirewireId.Length > 0 && !Hash58.Verify(FirewireId, file))
             problems.Add("CDB hash58 does not validate");
         return problems;
     }
 
-    public byte[] BuildCbk(byte[] locations) => Hash72.BuildCbk(locations, Key72);
+    /// <summary>Only devices with hash72 have a signed Locations.itdb.cbk.</summary>
+    public bool CanSignCbk => Key72 is not null;
+
+    public byte[] BuildCbk(byte[] locations) => Hash72.BuildCbk(locations,
+        Key72 ?? throw new InvalidOperationException("this model has no hash72 key, so it has no signed Locations.itdb.cbk"));
 
     public List<string> VerifyCbk(byte[] locations, byte[] cbk)
     {

@@ -1,3 +1,4 @@
+using IpodSync.Core.Device;
 using IpodSync.Core.ItunesDb;
 using IpodSync.Core.LocalLibrary;
 using IpodSync.Core.Sync;
@@ -22,7 +23,12 @@ public sealed record DeviceHealth(
     int Tracks, int Playlists, long FreeBytes, long TotalBytes,
     bool? SignaturesValid, string SignatureDetail,
     bool? DatabasesInSync, string SyncDetail,
-    bool? ArtworkOk, string ArtworkDetail);
+    bool? ArtworkOk, string ArtworkDetail)
+{
+    /// <summary>What this model is and whether this app can write to it (from the device's own
+    /// database header, not a guess).</summary>
+    public IpodProfile? Profile { get; init; }
+}
 
 public sealed record BackupInfo(string Path, string Name, DateTime Created, string Kind, bool HasArtwork, string? Outcome, string? LogPath);
 

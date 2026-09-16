@@ -1,5 +1,41 @@
 # Overnight session status — 2026-09-14
 
+## 16 September (later): iPod compatibility
+
+Researched what it would take to support every iPod, then made the code match. Full write-up with
+sources: **COMPATIBILITY.md**.
+
+**Now supported (was: nano 5G only).** The write path no longer assumes a nano 5G:
+- **Unsigned iPods** (1G–5G, mini, photo, nano 1G–2G): write, no signing.
+- **hash58-only iPods** (nano 3G/4G, every iPod classic): previously *refused*, because signing
+  insisted on a hash72 key those models don't have. Fixed: hash72 and the signed `Locations.itdb.cbk`
+  are only required where the model has them.
+- **nano 5G** (hash58 + hash72): unchanged.
+- Devices are profiled from their own database header (`IpodProfiler`), never from a model guess,
+  and an unfamiliar scheme is refused before anything is written. `ipodsync profile <root>` prints it,
+  and the app's Health tab shows model, format, signature and what is supported. The UI drops to
+  read-only for a device it can't sign.
+
+**hashAB (nano 6G/7G, shuffle 4G) — refused, with a documented escape hatch.** It's white-box AES:
+libgpod loads a closed `libhashab.so` blob, pypodlib runs a WASM module; there is no clean-room
+implementation to write. Rather than ship someone's extracted Apple code, there's a hook:
+`IPODSYNC_HASHAB_SIGNER` points at a program that takes the SHA-1 and the FirewireGuid and prints
+57 bytes. It is trusted **only** after it reproduces the signature already on that device.
+
+**iPod touch / iOS:** the transport really can be spoken (usbmuxd + lockdownd pairing + AFC, all open
+source in libimobiledevice) — the blocker is Apple's `MediaLibrary.sqlitedb`, which even
+libimobiledevice gave up on after iOS 6. Detected and explained, not attempted.
+
+**Shuffles:** `iTunesSD`, two incompatible formats, no iTunesDB. Detected and explained, not implemented.
+
+**HFS+ (Mac-formatted) iPods:** Windows can't mount them, so nothing sees them; restore once on a PC.
+
+**Tested** by building fixtures from a copy of the real database and running the whole pipeline
+against them: unsigned → write verified; hash58-only → write verified; hashAB with no signer,
+a wrong signer, and a matching signer → refused, refused, verified. The fake-root regression suite
+still passes.
+
+
 ## 16 September: the player, and a rebuilt UI
 
 **Playback is in the app now** (the standalone `ipod-player/` page still exists; it was never part of

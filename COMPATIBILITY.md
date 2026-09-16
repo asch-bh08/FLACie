@@ -74,13 +74,37 @@ you ever want it — the 3G/4G layout is documented, the 1G/2G one is only in su
 
 ## iPod touch (and iPhone/iPad)
 
-This is the one where "trick it into thinking it's iTunes" is the right question — and the transport
-half is a solved problem. An iOS device isn't a disk: it speaks a USB multiplexing protocol
+Split the question in two: **the file transport**, and **the library format**. They have different answers.
+
+**The library format.** An iPod touch keeps its library under `iTunes_Control` instead of
+`iPod_Control`, and for the early models it is the same `iTunesDB` this app already writes:
+libgpod maps touch 1G–3G (and iPhone 1–3) to **hash72** — the scheme the nano 5G uses and the one
+implemented here. Touch 4G moves to hashAB, and iOS 5 and later move the library to Apple's own
+`MediaLibrary.sqlitedb`.
+
+The engine now accepts either control folder (it picks whichever actually holds the database), so a
+touch whose media partition is mounted as a folder is read and written by exactly the same verified
+pipeline. Tested against a fixture laid out the iOS way (`iTunes_Control/iTunes/iTunesCDB`): profiled
+correctly, written and verified. Not yet tested against a real touch.
+
+| Model | Library | Verdict |
+|---|---|---|
+| touch 1G / 2G / 3G, iOS ≤ 4 | `iTunes_Control` + iTunesDB, hash72 | **format supported** — needs the files to be reachable (see below) |
+| touch 4G | hashAB | blocked, same wall as the nano 6G |
+| anything on iOS 5+ | `MediaLibrary.sqlitedb` | not supported by any open-source tool |
+
+**The transport** is the part your "pretend to be iTunes" question is really about, and it is a solved
+problem. An iOS device isn't a disk: it speaks a USB multiplexing protocol
 (usbmuxd), a control service (lockdownd, with a pairing handshake), and a file service (AFC).
 [libimobiledevice](https://libimobiledevice.org/) implements all of that in the open, without a
 jailbreak, and pairing genuinely does make the device treat you as a trusted host.
 
-The blocker is the *library*, not the protocol. Music lives in Apple's own `MediaLibrary.sqlitedb`,
+On Windows, Apple's own Mobile Device Service (installed with iTunes) speaks that same multiplexing
+protocol on localhost, which is how libimobiledevice works there — so a C# client is plausible
+without shipping a driver. On Linux/macOS, `ifuse` already mounts the device's media partition as a
+folder, which is all this app needs today.
+
+For anything past that era, the blocker is the *library*, not the protocol. Music lives in Apple's own `MediaLibrary.sqlitedb`,
 whose schema changes with iOS and which iTunes updates through a private service. libimobiledevice's
 own answer: "music synchronization with newer devices is currently not supported", and music sync
 through libgpod "hasn't worked since as early as iOS 6". So an iPod touch would mean: implement

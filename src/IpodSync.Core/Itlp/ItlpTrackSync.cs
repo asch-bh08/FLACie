@@ -215,14 +215,19 @@ public static class ItlpTrackSync
         if (audioFormat == 0) { result.Problems.Add($"no known avformat code for '{kind}' ({t.RelativePath}); refusing to guess"); return false; }
 
         string? rel = t.RelativePath;
-        const string musicPrefix = "iPod_Control/Music/";
-        if (rel is null || !rel.StartsWith(musicPrefix, StringComparison.OrdinalIgnoreCase))
+        // iPod_Control on an iPod, iTunes_Control on an iOS device: take it from the track's own
+        // location rather than assuming, and match it against the base_location rows that exist.
+        string? musicBase = rel is null ? null
+            : rel.StartsWith("iPod_Control/Music/", StringComparison.OrdinalIgnoreCase) ? "iPod_Control/Music"
+            : rel.StartsWith("iTunes_Control/Music/", StringComparison.OrdinalIgnoreCase) ? "iTunes_Control/Music"
+            : null;
+        if (musicBase is null)
         {
-            result.Problems.Add($"track {t.Id} location '{rel}' is not under {musicPrefix}; refusing to guess base_location");
+            result.Problems.Add($"track {t.Id} location '{rel}' is not under iPod_Control/Music or iTunes_Control/Music; refusing to guess base_location");
             return false;
         }
-        long baseId = Lo.Scalar("SELECT id FROM base_location WHERE path = 'iPod_Control/Music'") is long b ? b : 0;
-        if (baseId == 0) { result.Problems.Add("Locations.itdb has no base_location 'iPod_Control/Music'"); return false; }
+        long baseId = Lo.Scalar("SELECT id FROM base_location WHERE path = $p", ("$p", musicBase)) is long b ? b : 0;
+        if (baseId == 0) { result.Problems.Add($"Locations.itdb has no base_location '{musicBase}'"); return false; }
 
         long kindId = L.Scalar("SELECT id FROM location_kind_map WHERE kind = $k", ("$k", kind)) is long k ? k : 0;
         if (kindId == 0)
@@ -279,7 +284,7 @@ public static class ItlpTrackSync
               (item_pid, sub_id, base_location_id, location_type, location, extension, kind_id, date_created, file_size,
                file_creator, file_type, num_dir_levels_file, num_dir_levels_lib)
             VALUES ($pid, 0, $base, $type, $loc, $ext, $kind, $now, $size, NULL, NULL, NULL, NULL)
-            """, ("$pid", pid), ("$base", baseId), ("$type", FourCcFile), ("$loc", rel[musicPrefix.Length..]),
+            """, ("$pid", pid), ("$base", baseId), ("$type", FourCcFile), ("$loc", rel![(musicBase.Length + 1)..]),
                  ("$ext", extCode), ("$kind", kindId), ("$now", stamp), ("$size", t.SizeBytes));
 
         D.Exec("""

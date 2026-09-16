@@ -62,9 +62,9 @@ public static class WritePipeline
         string? fwOut = null;
         Result Finish(int code) => new(code, log, backupDirOut, reportOut, writtenOut, restoredOut) { ProvenFirewireGuid = fwOut };
 
-        string itunesDir = Directory.Exists(Path.Combine(o.Root, "iPod_Control"))
+        string itunesDir = IpodDevice.LooksLikeIpod(o.Root)
             ? Path.GetDirectoryName(IpodDevice.Open(o.Root).ItunesDbPath)!
-            : throw new DirectoryNotFoundException($"{o.Root} is not an iPod root (no iPod_Control)");
+            : throw new DirectoryNotFoundException($"{o.Root} is not an iPod root (no iPod_Control or iTunes_Control folder)");
         string cdbName = File.Exists(Path.Combine(itunesDir, "iTunesDB")) ? "iTunesDB" : "iTunesCDB";
         string cdbPath = Path.Combine(itunesDir, cdbName);
         string itlpDir = Path.Combine(itunesDir, "iTunes Library.itlp");

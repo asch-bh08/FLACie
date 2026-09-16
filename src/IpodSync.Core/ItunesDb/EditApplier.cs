@@ -65,7 +65,8 @@ public static class EditApplier
     private static Artwork.ArtworkSession? ArtworkFor(ApplyReport report, string? deviceRoot, bool required)
     {
         if (report.Artwork is not null) return report.Artwork;
-        string? dir = deviceRoot is null ? null : System.IO.Path.Combine(deviceRoot, "iPod_Control", "Artwork");
+        string? dir = deviceRoot is null ? null
+            : System.IO.Path.Combine(deviceRoot, Device.IpodDevice.ControlFolder(deviceRoot), "Artwork");
         report.Artwork = dir is null ? null : Artwork.ArtworkSession.Open(dir);
         if (report.Artwork is null && required)
             throw new InvalidOperationException("this device has no ArtworkDB to add artwork to");

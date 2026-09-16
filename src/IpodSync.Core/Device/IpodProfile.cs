@@ -60,10 +60,10 @@ public static class IpodProfiler
     public static IpodProfile Inspect(string root)
     {
         var notes = new List<string>();
-        string control = Path.Combine(root, "iPod_Control");
-        string iosControl = Path.Combine(root, "iTunes_Control");
-        bool ios = !Directory.Exists(control) && Directory.Exists(iosControl);
-        string itunes = Path.Combine(ios ? iosControl : control, "iTunes");
+        string controlName = IpodDevice.ControlFolder(root);
+        bool ios = controlName == "iTunes_Control";
+        string control = Path.Combine(root, controlName);
+        string itunes = Path.Combine(control, "iTunes");
 
         string plain = Path.Combine(itunes, "iTunesDB");
         string packed = Path.Combine(itunes, "iTunesCDB");
@@ -71,7 +71,7 @@ public static class IpodProfiler
         string itlp = Path.Combine(itunes, "iTunes Library.itlp");
         string mediaLibrary = Path.Combine(itunes, "MediaLibrary.sqlitedb");
 
-        var (model, serial, fwid) = ReadSysInfo(ios ? iosControl : control);
+        var (model, serial, fwid) = ReadSysInfo(control);
         string? modelName = model is null ? null : IpodModels.Name(model);
         bool hasItlp = File.Exists(Path.Combine(itlp, "Library.itdb"));
         bool hasArt = File.Exists(Path.Combine(Path.GetDirectoryName(itunes)!, "Artwork", "ArtworkDB"));

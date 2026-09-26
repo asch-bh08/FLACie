@@ -1,0 +1,25 @@
+# Gradle / Android
+.gradle/
+build/
+*/build/
+local.properties
+.idea/
+*.iml
+.cxx/
+.externalNativeBuild/
+captures/
+
+# Build outputs (attach releases on GitHub instead of tracking binaries)
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Signing
+*.jks
+*.keystore
+
+# Logs / scratch
+*.log
+.DS_Store
+Thumbs.db

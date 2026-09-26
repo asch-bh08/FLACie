@@ -95,7 +95,7 @@ fun NowPlayingScreen(snap: PlayerSnap, nav: PlayerNav) {
     Box(
         Modifier.fillMaxSize()
             .graphicsLayer { translationY = dragY }
-            .background(Brush.verticalGradient(listOf(sc.top, sc.bottom)))
+            .drawBehind { drawRect(Brush.verticalGradient(listOf(sc.top, sc.bottom))) }
             .pointerInput(Unit) {
                 fun back() { scope.launch { androidx.compose.animation.core.animate(dragY, 0f) { v, _ -> dragY = v } } }
                 detectVerticalDragGestures(

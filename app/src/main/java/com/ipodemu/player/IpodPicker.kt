@@ -5,6 +5,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -38,6 +39,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -68,7 +70,7 @@ fun PickerScreen() {
     val cw = model.colors[ci]
     val bg = Brush.verticalGradient(listOf(Color(0xFF1B1F2A), Color(0xFF07080B)))
     val edge = with(androidx.compose.ui.platform.LocalDensity.current) { 22.dp.toPx() }
-    Box(Modifier.fillMaxSize().background(bg).edgeSwipeBack(true, edge, {}) { ui.pickerOpen = false }) {
+    Box(Modifier.fillMaxSize().background(bg).pointerInput(Unit) { detectTapGestures { } }.edgeSwipeBack(true, edge, {}) { ui.pickerOpen = false }) {
         BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding()) {
             val land = maxWidth > maxHeight * 1.15f
             val preview = @Composable { Preview(model, cw, ui.viewMode, Modifier.fillMaxSize().padding(12.dp)) }

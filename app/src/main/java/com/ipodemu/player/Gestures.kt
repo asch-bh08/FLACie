@@ -82,7 +82,7 @@ fun Modifier.trackSwipe(onPrev: () -> Unit, onNext: () -> Unit): Modifier = comp
         }
 }
 
-class SwipeAction(val label: String, val glyph: Glyph, val color: Color, val onTrigger: () -> Unit)
+class SwipeAction(val label: String, val glyph: Glyph, val color: () -> Color, val onTrigger: () -> Unit)
 
 /** A row that reveals an action under it as it is dragged sideways (right = [right], left = [left]) and fires past a threshold. */
 @Composable
@@ -118,7 +118,7 @@ fun SwipeRow(right: SwipeAction?, left: SwipeAction?, modifier: Modifier = Modif
         if (act != null) {
             Box(
                 Modifier.align(if (x > 0f) Alignment.CenterStart else Alignment.CenterEnd).fillMaxHeight().width(with(d) { abs(x).toDp() })
-                    .background(act.color.copy(alpha = if (armed) 1f else 0.72f)),
+                    .background(act.color().copy(alpha = if (armed) 1f else 0.72f)),
             ) {
                 Box(Modifier.align(if (x > 0f) Alignment.CenterStart else Alignment.CenterEnd).width(88.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
                     GlyphIcon(act.glyph, Modifier.graphicsLayer { val s = if (armed) 1.25f else 0.9f; scaleX = s; scaleY = s }.size(26.dp), Color.White)

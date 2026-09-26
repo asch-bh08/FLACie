@@ -77,6 +77,7 @@ import com.ipodemu.App
 import com.ipodemu.Prefs
 import com.ipodemu.library.Group
 import com.ipodemu.library.Track
+import com.ipodemu.library.sortKey
 import com.ipodemu.playback.PlayerController
 import com.ipodemu.theme.Themes
 import kotlinx.coroutines.Dispatchers
@@ -103,6 +104,7 @@ sealed interface Screen {
 
 class SheetSpec(val title: String, val subtitle: String?, val items: List<SheetItem>)
 
+@androidx.compose.runtime.Stable
 class PlayerNav {
     val stack = mutableStateListOf<Screen>(Screen.Home)
     val top: Screen get() = stack.last()
@@ -118,7 +120,8 @@ class PlayerNav {
 }
 
 /** What the player is doing, as one immutable snapshot for composition. */
-class PlayerSnap(val track: Track?, val playing: Boolean, val shuffle: Boolean, val repeat: Int, val index: Int, val count: Int)
+@androidx.compose.runtime.Immutable
+data class PlayerSnap(val track: Track?, val playing: Boolean, val shuffle: Boolean, val repeat: Int, val index: Int, val count: Int)
 
 @Composable
 fun rememberSnap(player: PlayerController, prefs: Prefs): PlayerSnap {
@@ -186,16 +189,17 @@ fun PlayerHost(nav: PlayerNav) {
     ) {
         Column(Modifier.fillMaxSize().graphicsLayer { translationX = if (nav.nowPlaying) 0f else backDrag }) {
             Box(Modifier.weight(1f)) {
-                AnimatedContent(
-                    targetState = nav.top to nav.stack.size,
-                    transitionSpec = {
-                        if (targetState.second > initialState.second)
-                            (slideInHorizontally(tween(260)) { it / 3 } + fadeIn(tween(220))) togetherWith (slideOutHorizontally(tween(260)) { -it / 5 } + fadeOut(tween(180)))
-                        else
-                            (slideInHorizontally(tween(260)) { -it / 5 } + fadeIn(tween(220))) togetherWith (slideOutHorizontally(tween(260)) { it / 3 } + fadeOut(tween(180)))
-                    },
-                    label = "screen",
-                ) { (screen, _) -> ScreenContent(screen, nav, snap) }
+                // one cheap slide for the incoming screen only (no cross-fade, old screen is not kept composed);
+                // going back needs no animation because the swipe-back drag already moved the page
+                val depth = nav.stack.size
+                val lastDepth = remember { androidx.compose.runtime.mutableIntStateOf(depth) }
+                val forward = depth > lastDepth.intValue
+                androidx.compose.runtime.SideEffect { lastDepth.intValue = depth }
+                androidx.compose.runtime.key(nav.top) {
+                    val slide = remember { androidx.compose.animation.core.Animatable(if (forward) 1f else 0f) }
+                    LaunchedEffect(Unit) { if (slide.value > 0f) slide.animateTo(0f, tween(200)) }
+                    Box(Modifier.fillMaxSize().graphicsLayer { translationX = slide.value * size.width * 0.28f }) { ScreenContent(nav.top, nav, snap) }
+                }
             }
             if (snap.track != null && !nav.nowPlaying) MiniPlayer(snap, nav)
         }
@@ -246,21 +250,14 @@ fun TrackRow(
 ) {
     val app = LocalApp.current
     val sc = LocalScheme.current
-    app.userData.rev
-    val fav = app.userData.isFavorite(t.path)
+    val fav by app.userData.favState(t.path)   // per-track state: a favourite toggle recomposes only this row
     val isCurrent = snap.track?.path == t.path
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    fun act(code: Int): SwipeAction? = when (code) {
-        1 -> SwipeAction("Play next", Glyph.QUEUE, sc.accentDark) { app.player.addNext(t); android.widget.Toast.makeText(ctx, "Playing next", android.widget.Toast.LENGTH_SHORT).show() }
-        2 -> SwipeAction(if (fav) "Unfavorite" else "Favorite", if (fav) Glyph.CLOSE else Glyph.HEART_FILLED, Color(0xFFD9427A)) { app.userData.toggleFavorite(t.path) }
-        3 -> SwipeAction("Add to queue", Glyph.PLUS, sc.accentDark) { app.player.addToQueue(t); android.widget.Toast.makeText(ctx, "Added to queue", android.widget.Toast.LENGTH_SHORT).show() }
-        else -> null
-    }
-    SwipeRow(
-        right = act(app.prefs.swipeRowRight),
-        left = act(app.prefs.swipeRowLeft),
-        modifier = modifier,
-    ) {
+    val rCode = app.prefs.swipeRowRight; val lCode = app.prefs.swipeRowLeft
+    // built once per (track, favourite, settings): stable objects keep the row's pointer handlers from restarting
+    val right = remember(t, fav, rCode) { swipeAction(rCode, app, t, fav, ctx) }
+    val left = remember(t, fav, lCode) { swipeAction(lCode, app, t, fav, ctx) }
+    SwipeRow(right = right, left = left, modifier = modifier) {
     IpodRow(onClick = onPlay, onLong = { openTrackSheet(app, nav, t, sheetExtra) }, height = 66.dp,
         leading = {
             if (showArt) Box(Modifier.size(50.dp)) {
@@ -291,6 +288,13 @@ fun TrackRow(
         }
     }
     }
+}
+
+private fun swipeAction(code: Int, app: App, t: Track, fav: Boolean, ctx: android.content.Context): SwipeAction? = when (code) {
+    1 -> SwipeAction("Play next", Glyph.QUEUE, { Color(0xFF2A5FB0) }) { app.player.addNext(t); android.widget.Toast.makeText(ctx, "Playing next", android.widget.Toast.LENGTH_SHORT).show() }
+    2 -> SwipeAction(if (fav) "Unfavorite" else "Favorite", if (fav) Glyph.CLOSE else Glyph.HEART_FILLED, { Color(0xFFD9427A) }) { app.userData.toggleFavorite(t.path) }
+    3 -> SwipeAction("Add to queue", Glyph.PLUS, { Color(0xFF2A5FB0) }) { app.player.addToQueue(t); android.widget.Toast.makeText(ctx, "Added to queue", android.widget.Toast.LENGTH_SHORT).show() }
+    else -> null
 }
 
 fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = emptyList()) {
@@ -492,10 +496,11 @@ fun SongList(
             app.player.play(tracks, i, null); nav.nowPlaying = true
         })
     }
+    val groups = remember(tracks, sections) { if (sections) tracks.withIndex().groupBy { letterOf(sortKey(it.value.title)) } else emptyMap() }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         if (header != null) item { header() }
         if (sections) {
-            tracks.withIndex().groupBy { letterOf(it.value.title) }.forEach { (l, list) ->
+            groups.forEach { (l, list) ->
                 stickyHeader(key = "h$l") { LetterHeader(l) }
                 items(list, key = { "${it.index}${it.value.path}" }) { row(it.index, it.value) }
             }
@@ -727,7 +732,7 @@ private fun QueueScreen(nav: PlayerNav, snap: PlayerSnap) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             itemsIndexed(q, key = { i, t -> "$i${t.path}" }) { i, t ->
                 val cur = i == snap.index
-                val remove = SwipeAction("Remove", Glyph.CLOSE, Color(0xFFD9423F)) { app.player.removeFromQueue(i) }
+                val remove = remember(i, t) { SwipeAction("Remove", Glyph.CLOSE, { Color(0xFFD9423F) }) { app.player.removeFromQueue(i) } }
                 SwipeRow(right = remove, left = remove) {
                 IpodRow({ app.player.skipTo(i) }, height = 64.dp,
                     leading = { Box(Modifier.width(30.dp), contentAlignment = Alignment.Center) { if (cur) EqualizerBars(Modifier.size(18.dp), snap.playing, sc.accent) else Txt("${i + 1}", size = 14f, color = sc.onBgDim) } },

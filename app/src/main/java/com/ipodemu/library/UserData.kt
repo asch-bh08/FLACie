@@ -24,8 +24,13 @@ class UserData(ctx: Context) {
 
     fun isFavorite(path: String) = path in favorites
 
+    private val favStates = HashMap<String, androidx.compose.runtime.MutableState<Boolean>>()
+    /** Per-track observable flag: toggling one favourite recomposes only that row, not every row. */
+    fun favState(path: String): androidx.compose.runtime.State<Boolean> = favStates.getOrPut(path) { androidx.compose.runtime.mutableStateOf(path in favorites) }
+
     fun toggleFavorite(path: String) {
         if (!favorites.remove(path)) favorites.add(path)
+        favStates[path]?.value = path in favorites
         changed()
     }
 
@@ -72,13 +77,24 @@ class UserData(ctx: Context) {
         } catch (_: Exception) {}
     }
 
+    // Saving used to serialise and write the whole file on the main thread at every track start (a visible hitch).
+    // Now: snapshot the data here (cheap), write it on a background thread, and coalesce bursts of changes.
+    private val ioThread = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private var savePending = false
     private fun save() {
-        try {
-            val o = JSONObject()
-            o.put("fav", JSONArray(favorites.toList()))
-            o.put("recent", JSONArray(recents))
-            o.put("lists", JSONArray().also { a -> playlists.forEach { a.put(JSONObject().put("id", it.id).put("n", it.name).put("p", JSONArray(it.paths))) } })
-            file.writeText(o.toString())
-        } catch (_: Exception) {}
+        if (savePending) return
+        savePending = true
+        main.postDelayed(Runnable {
+            savePending = false
+            val o = try {
+                JSONObject().also { o ->
+                    o.put("fav", JSONArray(favorites.toList()))
+                    o.put("recent", JSONArray(recents.toList()))
+                    o.put("lists", JSONArray().also { a -> playlists.forEach { a.put(JSONObject().put("id", it.id).put("n", it.name).put("p", JSONArray(it.paths.toList()))) } })
+                }
+            } catch (_: Exception) { return@Runnable }
+            ioThread.execute { try { file.writeText(o.toString()) } catch (_: Exception) {} }
+        }, 800)
     }
 }

@@ -210,9 +210,11 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
 
     private fun item(t: Track): MediaItem {
         val app = App.of(ctx)
-        val art = t.artKey?.let { k -> app.art.file(k).takeIf { it.exists() }?.readBytes() }
+        // artwork by file URI (decoded off the main thread by Media3), not embedded bytes: reading and attaching ~600 covers made
+        // every Play tap slow and made each track change hitch on the main thread
+        val art = t.artKey?.let { k -> app.art.file(k).takeIf { it.exists() } }
         val md = MediaMetadata.Builder().setTitle(t.title).setArtist(t.artist.ifEmpty { null }).setAlbumTitle(t.album.ifEmpty { null })
-        if (art != null) md.setArtworkData(art, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+        if (art != null) md.setArtworkUri(Uri.fromFile(art))
         val uri = if (t.path.startsWith("content:") || t.path.startsWith("file:")) Uri.parse(t.path) else Uri.fromFile(File(t.path))
         return MediaItem.Builder().setMediaId(t.path).setUri(uri).setTag(t)
             .setMediaMetadata(md.build()).build()

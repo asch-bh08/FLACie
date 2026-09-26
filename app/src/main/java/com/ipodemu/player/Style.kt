@@ -5,7 +5,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontFamily
@@ -65,11 +67,23 @@ class IpodStyle(val model: Model, val colorway: Colorway) {
 }
 
 /** Resolved colours for the whole player UI. */
-@Immutable
+@androidx.compose.runtime.Stable
 class Scheme(
-    val top: Color, val bottom: Color, val accent: Color,
-    val onBg: Color, val onBgDim: Color, val card: Color, val cardBorder: Color, val dark: Boolean,
+    private val topS: State<Color>, private val bottomS: State<Color>, private val accentS: State<Color>,
+    private val onBgS: State<Color>, private val onBgDimS: State<Color>, private val cardS: State<Color>, private val borderS: State<Color>,
+    val dark: Boolean,
 ) {
+    // Colours are States: read in the draw phase they cost nothing, read in composition only that composable recomposes,
+    // so the 900 ms artwork fade no longer recomposes the whole screen every frame.
+    constructor(top: Color, bottom: Color, accent: Color, onBg: Color, onBgDim: Color, card: Color, cardBorder: Color, dark: Boolean) :
+        this(Const(top), Const(bottom), Const(accent), Const(onBg), Const(onBgDim), Const(card), Const(cardBorder), dark)
+    val top: Color get() = topS.value
+    val bottom: Color get() = bottomS.value
+    val accent: Color get() = accentS.value
+    val onBg: Color get() = onBgS.value
+    val onBgDim: Color get() = onBgDimS.value
+    val card: Color get() = cardS.value
+    val cardBorder: Color get() = borderS.value
     val accentDark: Color get() = fromHsv(hsv(accent)[0], hsv(accent)[1], hsv(accent)[2] * 0.62f)
     val accentLight: Color get() = fromHsv(hsv(accent)[0], hsv(accent)[1] * 0.6f, (hsv(accent)[2] * 1.12f).coerceAtMost(1f))
 }
@@ -102,15 +116,18 @@ fun buildScheme(style: IpodStyle, art: ArtColors?, dark: Boolean, useArt: Boolea
 @Composable
 fun animatedScheme(target: Scheme): Scheme {
     val spec = tween<Color>(durationMillis = 900)
-    val top by animateColorAsState(target.top, spec, label = "top")
-    val bottom by animateColorAsState(target.bottom, spec, label = "bottom")
-    val accent by animateColorAsState(target.accent, spec, label = "accent")
-    val onBg by animateColorAsState(target.onBg, tween(400), label = "onBg")
-    val onDim by animateColorAsState(target.onBgDim, tween(400), label = "onDim")
-    val card by animateColorAsState(target.card, tween(400), label = "card")
-    val border by animateColorAsState(target.cardBorder, tween(400), label = "border")
-    return Scheme(top, bottom, accent, onBg, onDim, card, border, target.dark)
+    val top = animateColorAsState(target.top, spec, label = "top")
+    val bottom = animateColorAsState(target.bottom, spec, label = "bottom")
+    val accent = animateColorAsState(target.accent, spec, label = "accent")
+    val onBg = animateColorAsState(target.onBg, tween(400), label = "onBg")
+    val onDim = animateColorAsState(target.onBgDim, tween(400), label = "onDim")
+    val card = animateColorAsState(target.card, tween(400), label = "card")
+    val border = animateColorAsState(target.cardBorder, tween(400), label = "border")
+    // one Scheme instance for as long as the States and the light/dark flag stay the same
+    return remember(top, bottom, accent, onBg, onDim, card, border, target.dark) { Scheme(top, bottom, accent, onBg, onDim, card, border, target.dark) }
 }
+
+private class Const(override val value: Color) : State<Color>
 
 val LocalScheme = compositionLocalOf { buildScheme(IpodStylePlaceholder.style, null, true, false) }
 val LocalStyle = compositionLocalOf { IpodStylePlaceholder.style }

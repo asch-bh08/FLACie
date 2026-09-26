@@ -3,6 +3,8 @@ package com.ipodemu.player
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -55,16 +57,16 @@ fun AppRoot(activity: MainActivity) {
     val model = Themes.model(ui.model)
     val wheel = ui.viewMode >= 2 && !model.touch
     CompositionLocalProvider(LocalApp provides app) {
-        when {
-            ui.pickerOpen -> PickerScreen()
-            wheel -> {
+        // the picker is an overlay, so opening/closing it never tears down the Player or the wheel view underneath
+        Box(Modifier.fillMaxSize()) {
+            if (wheel) {
                 AndroidView(
                     modifier = Modifier.fillMaxSize(),
                     factory = { ctx -> IpodView(ctx).also { activity.ipodView = it; it.requestFocus() } },
                     onRelease = { it.release(); if (activity.ipodView === it) activity.ipodView = null },
                 )
-            }
-            else -> PlayerRoot(activity, nav)
+            } else PlayerRoot(activity, nav)
+            if (ui.pickerOpen) PickerScreen()
         }
     }
 }
@@ -90,8 +92,10 @@ private fun PlayerRoot(activity: MainActivity, nav: PlayerNav) {
     val scheme = animatedScheme(buildScheme(style, artColors, if (style.mono) false else dark, ui.dynamicColor))
 
     CompositionLocalProvider(LocalStyle provides style, LocalScheme provides scheme) {
-        val content: @Composable () -> Unit = {
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(scheme.top, scheme.bottom)))) {
+        // movable: switching Player <-> Player-in-iPod moves the existing UI instead of rebuilding it
+        val content = remember { movableContentOf<@Composable () -> Unit> { it() } }
+        val body: @Composable () -> Unit = {
+            Box(Modifier.fillMaxSize().drawBehind { drawRect(Brush.verticalGradient(listOf(scheme.top, scheme.bottom))) }) {
                 PlayerHost(nav)
                 BackHandler(enabled = nav.stack.size == 1 && !nav.nowPlaying && nav.sheet == null && nav.nameDialog == null) { activity.moveTaskToBack(true) }
             }
@@ -131,7 +135,7 @@ private fun PlayerRoot(activity: MainActivity, nav: PlayerNav) {
                     lastStep = now
                     if (!focusManager.moveFocus(if (d > 0) FocusDirection.Down else FocusDirection.Up)) focusManager.moveFocus(if (d > 0) FocusDirection.Next else FocusDirection.Previous)
                 }
-            }, content = content)
-        } else content()
+            }, content = { content(body) })
+        } else content(body)
     }
 }

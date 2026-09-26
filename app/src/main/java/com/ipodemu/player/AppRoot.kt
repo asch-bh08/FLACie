@@ -60,11 +60,12 @@ fun AppRoot(activity: MainActivity) {
         // the picker is an overlay, so opening/closing it never tears down the Player or the wheel view underneath
         Box(Modifier.fillMaxSize()) {
             if (wheel) {
-                AndroidView(
+                // rebuild the wheel view when the mode, iPod or colour changes so its theme is re-read from prefs
+                androidx.compose.runtime.key(ui.viewMode, ui.model, ui.colorway) { AndroidView(
                     modifier = Modifier.fillMaxSize(),
                     factory = { ctx -> IpodView(ctx).also { activity.ipodView = it; it.requestFocus() } },
                     onRelease = { it.release(); if (activity.ipodView === it) activity.ipodView = null },
-                )
+                ) }
             } else PlayerRoot(activity, nav)
             if (ui.pickerOpen) PickerScreen()
         }

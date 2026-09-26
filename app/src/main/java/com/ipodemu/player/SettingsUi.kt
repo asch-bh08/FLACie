@@ -24,7 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.ipodemu.theme.Themes
 
-private val VIEW_NAMES = listOf("Player", "Player in an iPod", "Click wheel", "Click wheel in an iPod")
+private val VIEW_NAMES = listOf("Modern Player", "iPod Emulator", "Click Wheel Fullscreen", "iPod Emulator")
 
 @Composable
 fun SettingsScreen(nav: PlayerNav) {
@@ -33,6 +33,7 @@ fun SettingsScreen(nav: PlayerNav) {
     val sc = LocalScheme.current
     val prefs = app.prefs
     val ui = app.ui
+    val modeName = VIEW_NAMES[ui.viewMode.coerceIn(0, 3)]   // read here so the row follows mode changes
     var rev by remember { mutableIntStateOf(0) }
     @Suppress("UNUSED_EXPRESSION") rev
     val model = Themes.model(ui.model)
@@ -56,7 +57,7 @@ fun SettingsScreen(nav: PlayerNav) {
             item { SectionHeader("Appearance") }
             item {
                 Card {
-                    SettingRow("Look & Mode", model.name + "  -  " + VIEW_NAMES[ui.viewMode.coerceIn(0, 3)], chevron = true) { ui.pickerOpen = true }
+                    SettingRow("Appearance", modeName, chevron = true) { ui.pickerOpen = true }
                 }
             }
             item { SectionHeader("Playback") }

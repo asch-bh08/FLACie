@@ -58,3 +58,7 @@ Cover Flow, per-item collage previews on menus, other Nano generations, Photos/V
 ## v0.5 (RG Rotate, release build)
 - Verified on-device: all five skins apply live (LCD, Aqua, Nano, Touch iOS 7+ visibly distinct; Touch iOS 6 looks nearly the same as Aqua - both glossy), click-wheel views after the Appearance consolidation (wheel Settings > Appearance opens the shared screen; Back returns), body view on a small screen (readable text, wheel rotates the highlight, jump button pans between screen and wheel), controller (D-pad + Back) on Home, lists, Now Playing, sheets, Settings and Appearance, For You shelves + mix detail, hardware Home in the body view.
 - Not verified: body view on a phone/tablet, Backlight dimming on device, Time in Title, Songs sort beyond the A-Z default, hardware-mode Music submenu, touch-only skins in the body view.
+
+## v0.6 Appearance redesign (RG Rotate)
+- Verified on-device: three named modes with previews (Modern Player / iPod Emulator / Click Wheel Fullscreen), live top preview of mode + iPod + colour, device gallery by family with real drawings, colour swatches updating the gallery/preview, touch iPods disabling the wheel mode with the reason, live switching between all three modes (the wheel view rebuilds), emulator with a wheel iPod and with a touch iPod, hardware-accurate emulator Home.
+- Not verified: gallery on phone/tablet layouts, focus/controller order through the new cards.

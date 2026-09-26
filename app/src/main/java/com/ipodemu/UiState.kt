@@ -28,7 +28,10 @@ class UiState(private val prefs: Prefs) {
     fun changeViewMode(v: Int) { prefs.viewMode = v; viewMode = v; rev++ }
     fun changeModel(id: String) {
         prefs.model = id; model = id; colorway = 0
-        if (com.ipodemu.theme.Themes.model(id).touch && prefs.viewMode >= 2) { prefs.viewMode = 0; viewMode = 0 }
+        if (com.ipodemu.theme.Themes.model(id).touch) {   // no wheel on touch iPods: fullscreen wheel -> modern player, wheel body -> touch body
+            val v = when (prefs.viewMode) { 2 -> 0; 3 -> 1; else -> prefs.viewMode }
+            prefs.viewMode = v; viewMode = v
+        }
         rev++
     }
     fun changeColorway(i: Int) { prefs.colorway = i; colorway = i; rev++ }

@@ -685,11 +685,13 @@ private class Results(val songs: List<Track>, val albums: List<Group>, val artis
 @Composable
 private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
     val app = LocalApp.current
+    // the focused text field used to swallow the first Back press; leave the screen straight away
+    BackHandler(enabled = !app.ui.pickerOpen && nav.sheet == null && nav.nameDialog == null) { nav.pop() }
     val sc = LocalScheme.current
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf(Results(emptyList(), emptyList(), emptyList())) }
     val fr = remember { FocusRequester() }
-    LaunchedEffect(Unit) { try { fr.requestFocus() } catch (_: Exception) {} }
+    // no auto-focus: it popped the keyboard, whose first Back press hid it instead of leaving the screen (and trapped controller focus in the field)
     LaunchedEffect(query) {
         val q = query.trim()
         if (q.isEmpty()) { results = Results(emptyList(), emptyList(), emptyList()); return@LaunchedEffect }

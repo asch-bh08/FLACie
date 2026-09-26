@@ -299,6 +299,12 @@ private fun Controls(model: Model, ci: Int) {
 
         Section("4  Display") {
             val p = app.prefs
+            Txt("Click wheel layout", size = 14f, weight = FontWeight.SemiBold, color = Color.White)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(listOf(0 to "Auto (controller)", 1 to "Wheel shown", 2 to "Wheel hidden")) { (v, n) ->
+                    Chip(n, p.layoutMode == v) { p.layoutMode = v; (ctx as? com.ipodemu.ui.MainActivity)?.ipodView?.refreshLayout(); ui.refreshFromPrefs() }
+                }
+            }
             val steps = listOf(-1f, 0.25f, 0.5f, 0.75f, 1f)
             Txt("Brightness", size = 14f, weight = FontWeight.SemiBold, color = Color.White)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

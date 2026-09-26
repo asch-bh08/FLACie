@@ -77,7 +77,22 @@ class ClassicTheme(
         for (i in first..last) drawRow(c, page, page.source[i], i == page.selected && !page.free, headerH + (i - page.scroll) * rowH, ctx, listW)
         c.restore()
         if (hasArtPane(page)) drawArtPane(c, page, ctx, listW)
+        else if (page.kind == Kind.MENU && H > 300f) drawNowPlayingCard(c, ctx, headerH + n * rowH + 12f)
         header(c, page.title, ctx)
+    }
+
+    /** Tall screens (controller deployed): the space under the short main menu shows what's playing, artwork as big as fits. */
+    private fun drawNowPlayingCard(c: Canvas, ctx: DrawCtx, y0: Float) {
+        val t = ctx.np.track ?: return
+        if (H - y0 < 110f) return
+        Gfx.line(c, 10f, y0 - 6f, W - 10f, y0 - 6f, 0xFFD0D3D9.toInt(), 1f)
+        val sz = minOf(W - 40f, H - y0 - 52f)
+        val ax = (W - sz) / 2
+        Gfx.art(c, ctx.art.get(t.artKey), ax, y0, ax + sz, y0 + sz, 0xFFE7E7EA.toInt(), 0xFFB5B5BB.toInt())
+        Gfx.rrectStroke(c, ax, y0, ax + sz, y0 + sz, 0f, 0xFF9A9AA0.toInt(), 1f)
+        Gfx.text(c, t.title, W / 2, y0 + sz + 18f, 14f, 0xFF000000.toInt(), Gfx.SANS_BOLD, Paint.Align.CENTER, maxW = W - 24f)
+        val sub = listOf(t.artist, t.album).filter { it.isNotEmpty() }.joinToString("  -  ")
+        if (sub.isNotEmpty()) Gfx.text(c, sub, W / 2, y0 + sz + 34f, 11.5f, 0xFF5A5A5F.toInt(), Gfx.SANS, Paint.Align.CENTER, maxW = W - 24f)
     }
 
     private fun drawRow(c: Canvas, page: ListPage, item: Item, sel: Boolean, y: Float, ctx: DrawCtx, w: Float) {
@@ -120,17 +135,29 @@ class ClassicTheme(
         Gfx.rect(c, 0f, 0f, W, H, 0xFFFFFFFF.toInt())
         header(c, "Now Playing", ctx)
         val t = np.track
-        val ax = 12f; val ay = headerH + 14f; val asz = 104f
+        val by = H - 38f
+        // square / portrait screens (controller deployed, phones): the artwork takes the freed height instead of leaving it blank
+        val tall = H > 300f
+        val ay = headerH + (if (tall) 10f else 14f)
+        val asz = if (tall) minOf(W - 30f, by - 76f - ay) else maxOf(104f, minOf(H - headerH - 14f - 64f, W * 0.42f))
+        val ax = if (tall) (W - asz) / 2 else 12f
         Gfx.art(c, ctx.art.get(t?.artKey), ax, ay, ax + asz, ay + asz, 0xFFE7E7EA.toInt(), 0xFFB5B5BB.toInt())
         Gfx.rrectStroke(c, ax, ay, ax + asz, ay + asz, 0f, 0xFF9A9AA0.toInt(), 1f)
-        val tx = ax + asz + 12f; val tw = W - tx - 8f
-        if (np.count > 1) Gfx.text(c, "${np.index + 1} of ${np.count}", tx, ay + 12f, 12f, 0xFF6A6A70.toInt())
         if (t != null) {
-            Gfx.text(c, t.title, tx, ay + 40f, 15f, 0xFF000000.toInt(), Gfx.SANS_BOLD, maxW = tw)
-            if (t.artist.isNotEmpty()) Gfx.text(c, t.artist, tx, ay + 62f, 14f, 0xFF000000.toInt(), Gfx.SANS, maxW = tw)
-            if (t.album.isNotEmpty()) Gfx.text(c, t.album, tx, ay + 82f, 14f, 0xFF000000.toInt(), Gfx.SANS, maxW = tw)
+            if (tall) {
+                val cx = W / 2
+                Gfx.text(c, t.title, cx, by - 40f, 17f, 0xFF000000.toInt(), Gfx.SANS_BOLD, Paint.Align.CENTER, maxW = W - 24f)
+                val line = listOf(t.artist, t.album).filter { it.isNotEmpty() }.joinToString("  -  ")
+                if (line.isNotEmpty()) Gfx.text(c, line, cx, by - 19f, 13f, 0xFF000000.toInt(), Gfx.SANS, Paint.Align.CENTER, maxW = W - 24f)
+                if (np.count > 1) Gfx.text(c, "${np.index + 1} of ${np.count}", W - 10f, headerH + 16f, 12f, 0xFF6A6A70.toInt(), Gfx.SANS, Paint.Align.RIGHT)
+            } else {
+                val tx = ax + asz + 12f; val tw = W - tx - 8f
+                if (np.count > 1) Gfx.text(c, "${np.index + 1} of ${np.count}", tx, ay + 12f, 12f, 0xFF6A6A70.toInt())
+                Gfx.text(c, t.title, tx, ay + 40f, 15f, 0xFF000000.toInt(), Gfx.SANS_BOLD, maxW = tw)
+                if (t.artist.isNotEmpty()) Gfx.text(c, t.artist, tx, ay + 62f, 14f, 0xFF000000.toInt(), Gfx.SANS, maxW = tw)
+                if (t.album.isNotEmpty()) Gfx.text(c, t.album, tx, ay + 82f, 14f, 0xFF000000.toInt(), Gfx.SANS, maxW = tw)
+            }
         }
-        val by = H - 38f
         if (np.hudActive && np.mode == NowPlayingPage.Mode.VOLUME) {
             bar(c, 14f, W - 14f, by, np.volume)
             Gfx.text(c, "Volume", W / 2, by + 20f, 11f, 0xFF000000.toInt(), Gfx.SANS, Paint.Align.CENTER)

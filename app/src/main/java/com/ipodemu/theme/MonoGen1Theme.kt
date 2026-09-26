@@ -138,13 +138,14 @@ class MonoGen1Theme(
         Gfx.rect(c, 0f, 0f, W, H, LCD)
         header(c, "Now Playing", ctx)
         val tr = np.track
+        val dy = ((H - 128f) / 2f).coerceAtLeast(0f)   // tall screens: centre the block instead of leaving the bottom empty
         if (tr != null) {
-            t(c, tr.title, W / 2, 44f, INK, Paint.Align.CENTER, W - 8f)
-            if (tr.artist.isNotEmpty()) t(c, tr.artist, W / 2, 60f, INK, Paint.Align.CENTER, W - 8f)
-            if (tr.album.isNotEmpty()) t(c, tr.album, W / 2, 76f, INK, Paint.Align.CENTER, W - 8f)
+            t(c, tr.title, W / 2, 44f + dy, INK, Paint.Align.CENTER, W - 8f)
+            if (tr.artist.isNotEmpty()) t(c, tr.artist, W / 2, 60f + dy, INK, Paint.Align.CENTER, W - 8f)
+            if (tr.album.isNotEmpty()) t(c, tr.album, W / 2, 76f + dy, INK, Paint.Align.CENTER, W - 8f)
         }
-        if (np.count > 1) t(c, "${np.index + 1} of ${np.count}", W / 2, 30f, INK, Paint.Align.CENTER)
-        val by = 100f
+        if (np.count > 1) t(c, "${np.index + 1} of ${np.count}", W / 2, 30f + dy, INK, Paint.Align.CENTER)
+        val by = 100f + dy
         if (np.hudActive && np.mode == NowPlayingPage.Mode.VOLUME) {
             Gfx.speaker(c, 6f, by + 2f, 10f, INK, false)
             blocks(c, 22f, W - 8f, by, np.volume)

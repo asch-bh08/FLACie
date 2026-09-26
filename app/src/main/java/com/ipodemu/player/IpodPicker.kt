@@ -36,6 +36,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.launch
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -256,28 +258,12 @@ private fun Controls(model: Model, ci: Int) {
         }
 
         Section("2  Which iPod?") {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Themes.groups.forEach { g -> Chip(if (g == Themes.CLASSIC) "Classic" else g.replaceFirstChar { it.uppercase() }, g == group) { group = g } }
-            }
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-                items(Themes.inGroup(group), key = { it.id }) { m ->
-                    val ok = !(needsWheel && m.touch)
-                    val shown = if (m.id == model.id) cw else m.colors.first()
-                    DeviceCard(m, shown, m.id == model.id, ok) {
-                        ui.changeModel(m.id)
-                        // keep the chosen mode when the new iPod supports it; the emulator switches between wheel and touch bodies
-                        if (mode == UseMode.EMULATOR) ui.changeViewMode(viewModeFor(mode, m))
-                    }
-                }
-            }
-            Txt("${model.name} - ${model.year}", size = 13f, weight = FontWeight.SemiBold, color = Color.White)
-            Txt(model.blurb, size = 12f, color = Color(0xFF9AA1B1), maxLines = 2)
+            IpodCarousel(model, ci)
+            Text_model_info(model)
             if (model.colors.size > 1) {
-                Txt("Colour", Modifier.padding(top = 4.dp), size = 13f, weight = FontWeight.Bold, color = LABEL)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
                     items(model.colors.indices.toList()) { i -> Swatch(model.colors[i], i == ci) { ui.changeColorway(i) } }
                 }
-                Txt(cw.name, size = 13f, color = Color(0xFFC9CEDA))
             }
         }
 
@@ -358,4 +344,76 @@ private fun Swatch(col: Colorway, selected: Boolean, onClick: () -> Unit) {
             .border(if (selected) 3.dp else if (focused) 3.dp else 1.dp, if (selected || focused) Color.White else Color(0x55FFFFFF), CircleShape)
             .clickable(src, null, onClick = onClick),
     )
+}
+
+@Composable
+private fun Text_model_info(model: Model) {
+    Txt(model.blurb, size = 12f, color = Color(0xFF9AA1B1), maxLines = 2)
+}
+
+/**
+ * The iPod gallery: every model as a tilted object on a horizontal carousel. The centred iPod is large and turned toward
+ * you, neighbours peek in from the sides, smaller and rotated away with perspective, each with a soft floor shadow. This is
+ * faked 3D (real perspective transforms on the vector device drawings), not a 3D engine. Swipe, tap a neighbour, use the
+ * arrows, or the L1/R1 shoulder buttons. The name and year sit in a pill underneath.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun IpodCarousel(model: Model, ci: Int) {
+    val app = LocalApp.current
+    val ui = app.ui
+    val all = Themes.models
+    val start = all.indexOfFirst { it.id == model.id }.coerceAtLeast(0)
+    val pager = androidx.compose.foundation.pager.rememberPagerState(initialPage = start) { all.size }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    // settle on an iPod -> select it
+    androidx.compose.runtime.LaunchedEffect(pager) {
+        androidx.compose.runtime.snapshotFlow { pager.settledPage }.collect { p -> if (all[p].id != ui.model) ui.changeModel(all[p].id) }
+    }
+    // controller shoulders
+    androidx.compose.runtime.LaunchedEffect(ui.pickerStep) {
+        if (ui.pickerStep > 0) pager.animateScrollToPage((pager.currentPage + ui.pickerStepDir).coerceIn(0, all.lastIndex))
+    }
+    val cur = all[pager.currentPage.coerceIn(0, all.lastIndex)]
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.fillMaxWidth().height(250.dp)) {
+            // floor glow
+            Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp).width(220.dp).height(16.dp).clip(CircleShape).background(Brush.radialGradient(listOf(Color(0x66000000), Color.Transparent))))
+            androidx.compose.foundation.pager.HorizontalPager(
+                pager, Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 118.dp), pageSpacing = (-34).dp, beyondBoundsPageCount = 1,
+            ) { page ->
+                val m = all[page]
+                val offset = (pager.currentPage - page) + pager.currentPageOffsetFraction   // 0 centred, + left of centre, - right
+                val d = kotlin.math.abs(offset).coerceIn(0f, 2f)
+                val shown = if (m.id == model.id) model.colors[ci] else m.colors.first()
+                Box(
+                    Modifier.fillMaxSize().clickable(remember { MutableInteractionSource() }, null) { scope.launch { pager.animateScrollToPage(page) } }
+                        .graphicsLayer {
+                            cameraDistance = 14f * density
+                            rotationY = (-offset).coerceIn(-1.5f, 1.5f) * 32f      // turn away from the centre
+                            val s = 1f - 0.24f * d.coerceAtMost(1.5f)
+                            scaleX = s; scaleY = s
+                            alpha = (1f - 0.32f * d).coerceIn(0.35f, 1f)
+                            translationY = 14.dp.toPx() * d
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    DevicePreview(m, shown, Modifier.fillMaxSize().padding(top = 8.dp, bottom = 22.dp))
+                }
+            }
+            CarouselArrow(true, Modifier.align(Alignment.CenterStart)) { scope.launch { pager.animateScrollToPage((pager.currentPage - 1).coerceAtLeast(0)) } }
+            CarouselArrow(false, Modifier.align(Alignment.CenterEnd)) { scope.launch { pager.animateScrollToPage((pager.currentPage + 1).coerceAtMost(all.lastIndex)) } }
+        }
+        Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0x33FFFFFF)).border(1.dp, Color(0x44FFFFFF), RoundedCornerShape(50)).padding(horizontal = 18.dp, vertical = 8.dp)) {
+            Txt("${cur.name}  -  ${cur.year}", size = 15f, weight = FontWeight.Bold, color = Color.White, maxLines = 1)
+        }
+        Txt("${pager.currentPage + 1} / ${all.size}   L1 / R1 or swipe", Modifier.padding(top = 4.dp), size = 11f, color = Color(0xFF7F8697))
+    }
+}
+
+@Composable
+private fun CarouselArrow(left: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Box(modifier.padding(2.dp).size(38.dp).clip(CircleShape).background(Color(0x55000000)).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        GlyphIcon(Glyph.CHEVRON, Modifier.size(20.dp).graphicsLayer { rotationZ = if (left) 180f else 0f }, Color.White)
+    }
 }

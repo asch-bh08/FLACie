@@ -125,6 +125,12 @@ class MainActivity : ComponentActivity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         wake()
+        if (app.ui.pickerOpen && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_L2 -> { app.ui.stepPicker(-1); return true }
+                KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_R2 -> { app.ui.stepPicker(1); return true }
+            }
+        }
         if (!wheelMode) PlayerKeys.translate(this, event)?.let { return it }
         return super.dispatchKeyEvent(event)
     }

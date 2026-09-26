@@ -20,6 +20,10 @@ class UiState(private val prefs: Prefs) {
     var dynamicColor by mutableStateOf(prefs.dynamicColor)
         private set
     var pickerOpen by mutableStateOf(false)
+    /** Bumped by the L1/R1 shoulder buttons while the picker is open (-1 / +1 via [pickerStepDir]) to cycle the carousel. */
+    var pickerStep by mutableStateOf(0)
+    var pickerStepDir = 0
+    fun stepPicker(d: Int) { pickerStepDir = d; pickerStep++ }
     /** Incremented to ask the player UI to show its full Now Playing screen. */
     var nowPlayingRequest by mutableIntStateOf(0)
         private set

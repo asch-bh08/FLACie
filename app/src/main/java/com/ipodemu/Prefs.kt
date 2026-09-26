@@ -24,9 +24,9 @@ class Prefs(ctx: Context) {
         get() = if (viewMode == 3) 1 else 0
         set(v) { viewMode = if (v == 1) 3 else 2 }
     /** Tint the player with colours pulled from the current album art. */
-    /** 0 = dark (default), 1 = light, 2 = follow the system. */
+    /** 0 = dark, 1 = light, 2 = follow the system (default). */
     var appearance: Int
-        get() = sp.getInt("appearance", 0)
+        get() = sp.getInt("appearance", 2)
         set(v) = sp.edit().putInt("appearance", v).apply()
     /** Back swipe: 0 = anywhere (iPhone style), 1 = left edge only, 2 = off. */
     var swipeBack: Int

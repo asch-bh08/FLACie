@@ -152,10 +152,8 @@ class MenuBuilder(private val app: App, private val onThemeChosen: (String) -> U
         val brightness = listOf(-1f, 0.25f, 0.5f, 0.75f, 1f)
         val model = Themes.model(prefs.model)
         ListSourceOf(listOf(
-            Item("iPod", value = { Themes.model(prefs.model).name }) { app.ui.pickerOpen = true },
-            choice("Color", model.colors.map { it.name }, { prefs.colorway }) { prefs.colorway = it; onThemeChosen("Color") },
-            choice("Style", listOf("Modern", "Device"), { prefs.look }) { prefs.look = it; onThemeChosen("Style") },
-            choice("Layout", listOf("Auto", "Wheel", "Fullscreen"), { prefs.layoutMode }) { prefs.layoutMode = it },
+            // one Appearance screen (Look, Mode, Colour, Theme) shared with the Player views
+            Item("Look & Mode", value = { Themes.model(prefs.model).name }) { app.ui.pickerOpen = true },
             choice("Time in Title", listOf("Off", "On"), { if (prefs.timeInTitle) 1 else 0 }) { prefs.timeInTitle = it == 1 },
             choice("Brightness", brightness.map { if (it < 0) "System" else "${(it * 100).toInt()}%" },
                 { brightness.indexOf(prefs.brightness).coerceAtLeast(0) }) { prefs.brightness = brightness[it] },

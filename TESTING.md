@@ -48,3 +48,9 @@ Cover Flow, per-item collage previews on menus, other Nano generations, Photos/V
 - Left-edge swipe = back (all screens, Now Playing, picker); swipe down on Now Playing to close (follows finger); swipe up on mini player opens it; flick mini player / cover art / title left-right = next/prev; track rows: swipe right = Play next, swipe left = Favorite (queue rows: either way = Remove); animated page slides.
 - Click wheel inside "Player in an iPod" now rotates (22 degrees per detent, haptic tick) and moves the highlight; centre selects; Now Playing: rotate = seek.
 - Needs hands-on: swipe thresholds/feel with a real finger, edge-swipe vs system gestures on phones, brief system-bar flash seen after an edge swipe on the RG Rotate.
+
+## v0.4 performance / density / appearance (RG Rotate, release build)
+- `tools/jank.sh` (Songs scroll + swipes): debug 52% janky (median 28 ms, p99 900 ms) -> release 7-10% -> after recomposition fixes 4-7% (p99 44-73 ms). 5 track changes: p99 450 -> 93 ms after moving artwork to file URIs and saving user data off the main thread.
+- Baseline profile is hand-written wildcards + the libraries' own profiles (no Macrobenchmark: needs a rooted / Android 13+ device); `cmd package compile -m speed-profile -f com.ipodemu` after install to apply it immediately.
+- Verified: slim mini bar, Home Now Playing card, 56 dp rows, square Now Playing, Appearance screen (skin change restyles the whole app live, back gesture closes it), Player-in-body withheld with the reason shown.
+- Needs hands-on: Player in an iPod on a phone/tablet, wheel-view Appearance page, Brightness on device, fixed-colour swatches, light theme under "System".

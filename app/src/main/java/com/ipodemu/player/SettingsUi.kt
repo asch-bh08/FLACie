@@ -48,16 +48,20 @@ fun SettingsScreen(nav: PlayerNav) {
         }) { hi -> Txt(title, size = 16f, weight = androidx.compose.ui.text.font.FontWeight.Medium, color = if (hi) Color.White else sc.onBg) }
     }
 
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     Column(Modifier.fillMaxSize()) {
         TopBar("Settings", nav, showBack = true)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 30.dp)) {
             item { SectionHeader("Appearance") }
             item {
                 Card {
-                    SettingRow("iPod", model.name, chevron = true) { ui.pickerOpen = true }
-                    SettingRow("View", VIEW_NAMES[ui.viewMode.coerceIn(0, 3)], chevron = true) { ui.pickerOpen = true }
-                    SettingRow("Colors from artwork", if (ui.dynamicColor) "On" else "Off") { ui.changeDynamic(!ui.dynamicColor) }
-                    SettingRow("Theme", listOf("Dark", "Light", "System")[prefs.appearance.coerceIn(0, 2)]) { prefs.appearance = (prefs.appearance + 1) % 3; ui.refreshFromPrefs() }
+                    SettingRow("Look & Mode", model.name + "  -  " + VIEW_NAMES[ui.viewMode.coerceIn(0, 3)], chevron = true) { ui.pickerOpen = true }
+                    SettingRow("Brightness", brightnessLabel(prefs.brightness)) {
+                        val steps = listOf(-1f, 0.25f, 0.5f, 0.75f, 1f)
+                        prefs.brightness = steps[(steps.indexOf(prefs.brightness).coerceAtLeast(0) + 1) % steps.size]
+                        (ctx as? com.ipodemu.ui.MainActivity)?.applyBrightness()
+                        ui.refreshFromPrefs()
+                    }
                 }
             }
             item { SectionHeader("Playback") }
@@ -106,3 +110,5 @@ private fun Card(content: @Composable () -> Unit) {
     Column(Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(16.dp)).background(sc.card).border(1.dp, sc.cardBorder, RoundedCornerShape(16.dp))) { content() }
 }
 val SWIPE_ACTIONS = listOf("Off", "Play next", "Favorite", "Add to queue")
+
+fun brightnessLabel(b: Float) = if (b < 0f) "System" else "${(b * 100).toInt()}%"

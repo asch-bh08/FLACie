@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,12 +49,6 @@ import com.ipodemu.theme.Family
 import com.ipodemu.theme.Model
 import com.ipodemu.theme.Themes
 
-private val VIEWS = listOf(
-    Triple(0, "Player", "The modern music player, styled like this iPod"),
-    Triple(1, "Player in an iPod", "The same player inside a physical iPod"),
-    Triple(2, "Click wheel", "The classic wheel interface, full screen"),
-    Triple(3, "Click wheel in an iPod", "The wheel interface inside a physical iPod"),
-)
 
 /**
  * Pick your iPod: every generation is one tap away, grouped like Apple's line-up (Classic 1-7, mini 1-2, nano 1-7,
@@ -111,71 +106,143 @@ private fun Preview(m: Model, cw: Colorway, viewMode: Int, modifier: Modifier) {
     }
 }
 
+/** The five looks: each maps onto a family of iPod models that share one visual language. */
+private enum class Skin(val label: String, val sub: String, val model: String, val top: Long, val bottom: Long) {
+    LCD("LCD", "1G-4G, mini", "ipod4", 0xFFD1D8C0, 0xFFBAC2A6),
+    AQUA("Aqua", "Classic, video", "classic6", 0xFF7DB2F5, 0xFF1D4FA8),
+    NANO("Nano", "Colourful nano", "nano3", 0xFFF08FB5, 0xFF7B3FA0),
+    TOUCH6("Touch iOS 6", "Glossy touch", "touch4", 0xFF6C8FC2, 0xFF25334F),
+    TOUCH7("Touch iOS 7+", "Flat touch", "touch6", 0xFFFFFFFF, 0xFFE3E6EC),
+}
+
+private fun skinOf(m: Model): Skin = when {
+    m.family == Family.MONO -> Skin.LCD
+    m.touch && m.year >= 2012 -> Skin.TOUCH7
+    m.touch -> Skin.TOUCH6
+    m.group == Themes.NANO -> Skin.NANO
+    else -> Skin.AQUA
+}
+
+private val LABEL = Color(0xFF8B92A3)
+
+@Composable
+private fun Section(title: String, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Txt(title, Modifier.padding(top = 8.dp), size = 13f, weight = FontWeight.Bold, color = LABEL)
+        content()
+    }
+}
+
+@Composable
+private fun SkinCard(skin: Skin, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val src = remember { MutableInteractionSource() }
+    val focused by src.collectIsFocusedAsState()
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        modifier.clip(shape).background(if (selected) Color(0x332F7BE8) else Color(0x14FFFFFF))
+            .border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else if (selected) Color(0xFF63A9FF) else Color(0x22FFFFFF), shape)
+            .clickable(src, null, onClick = onClick).padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(Modifier.fillMaxWidth().height(26.dp).clip(RoundedCornerShape(8.dp)).background(Brush.verticalGradient(listOf(Color(skin.top), Color(skin.bottom)))))
+        Txt(skin.label, size = 13f, weight = FontWeight.Bold, color = Color.White)
+        Txt(skin.sub, size = 11f, color = Color(0xFF9AA1B1), maxLines = 1)
+    }
+}
+
+/**
+ * One screen for the whole look of the app (Player and click-wheel views alike): Look (skin), Mode (+ iPod body), Colour and Theme.
+ * Every change applies immediately and the preview above updates. Picking an exact model is the Advanced section.
+ */
 @Composable
 private fun Controls(model: Model, ci: Int) {
     val app = LocalApp.current
     val ui = app.ui
     ui.rev
+    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+    val bodyOk = bodyScale(model, cfg.screenWidthDp.toFloat(), cfg.screenHeightDp.toFloat()) >= BODY_MIN_SCALE
+    val skin = skinOf(model)
+    val wheel = ui.viewMode >= 2
+    val body = ui.viewMode == 1 || ui.viewMode == 3
+    var advanced by remember { androidx.compose.runtime.mutableStateOf(false) }
+    fun setMode(w: Boolean, b: Boolean) = ui.changeViewMode(if (w) (if (b) 3 else 2) else (if (b) 1 else 0))
+
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 30.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Column(Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Txt(model.name, size = 24f, weight = FontWeight.Bold, color = Color.White)
-            Txt("${model.year}", size = 14f, weight = FontWeight.SemiBold, color = Color(0xFF63A9FF))
-            Txt(model.blurb, size = 14f, color = Color(0xFFA3A9B6), maxLines = 2)
+            Txt("Appearance", size = 22f, weight = FontWeight.Bold, color = Color.White)
+            Txt("${model.name} - ${model.year}", size = 13f, color = Color(0xFF63A9FF))
         }
 
-        // ---- which iPod ----
-        Themes.groups.forEach { group ->
-            val ms = Themes.inGroup(group)
-            Txt(if (group == Themes.CLASSIC) "iPod / classic" else "iPod $group", Modifier.padding(top = 8.dp), size = 13f, weight = FontWeight.Bold, color = Color(0xFF8B92A3))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-                items(ms, key = { it.id }) { m ->
-                    Chip("${Themes.genLabel(m)}  ${m.year}", m.id == model.id) {
-                        ui.changeModel(m.id)
-                        if (m.touch && ui.viewMode >= 2) ui.changeViewMode(0)
+        Section("Look") {
+            Skin.values().toList().chunked(3).forEach { rowSkins ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    rowSkins.forEach { s ->
+                        SkinCard(s, s == skin, Modifier.weight(1f)) {
+                            if (s != skin) { ui.changeModel(s.model); ui.changeColorway(0) }
+                        }
                     }
+                    repeat(3 - rowSkins.size) { Box(Modifier.weight(1f)) }
                 }
             }
         }
 
-        // ---- colour ----
-        Txt("Color", Modifier.padding(top = 8.dp), size = 13f, weight = FontWeight.Bold, color = Color(0xFF8B92A3))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
-            items(model.colors.indices.toList()) { i ->
-                val col = model.colors[i]
-                Swatch(col, i == ci) { ui.changeColorway(i) }
+        Section("Mode") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip("Player", !wheel) { setMode(false, body) }
+                Chip("Click wheel", wheel, enabled = !model.touch) { setMode(true, body) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Txt("Show iPod body", Modifier.weight(1f), size = 15f, weight = FontWeight.SemiBold, color = Color.White)
+                val canBody = wheel || bodyOk
+                Chip("Off", !body) { setMode(wheel, false) }
+                Chip("On", body, enabled = canBody) { setMode(wheel, true) }
+            }
+            if (!wheel && !bodyOk) Txt("The body needs a bigger or taller screen for the Player - text would be too small here.", size = 12f, color = Color(0xFF9AA1B1))
+            if (model.touch) Txt("Touch iPods have no click wheel.", size = 12f, color = Color(0xFF9AA1B1))
+        }
+
+        Section("Colour") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip("Auto from artwork", ui.dynamicColor && skin != Skin.LCD, enabled = skin != Skin.LCD) { ui.changeDynamic(true) }
+                Chip("Fixed", !ui.dynamicColor || skin == Skin.LCD) { ui.changeDynamic(false) }
+            }
+            if (skin == Skin.LCD) Txt("LCD skins keep their own colours.", size = 12f, color = Color(0xFF9AA1B1))
+            if ((!ui.dynamicColor || skin == Skin.LCD) && model.colors.size > 1) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
+                    items(model.colors.indices.toList()) { i -> Swatch(model.colors[i], i == ci) { ui.changeColorway(i) } }
+                }
+                Txt(model.colors[ci].name, size = 13f, color = Color(0xFFC9CEDA))
             }
         }
-        Txt(model.colors[ci].name, size = 13f, color = Color(0xFFC9CEDA))
 
-        // ---- view ----
-        Txt("Show it as", Modifier.padding(top = 8.dp), size = 13f, weight = FontWeight.Bold, color = Color(0xFF8B92A3))
-        VIEWS.forEach { (mode, title, sub) ->
-            val cfg = androidx.compose.ui.platform.LocalConfiguration.current
-            val bodyOk = bodyScale(model, cfg.screenWidthDp.toFloat(), cfg.screenHeightDp.toFloat()) >= BODY_MIN_SCALE
-            val ok = if (mode == 1) bodyOk else if (mode >= 2) !model.touch else true
-            val why = if (mode == 1) "Needs a bigger or taller screen - here the text would be too small to read" else "Not available - this iPod has no wheel"
-            ViewRow(title, sub, ui.viewMode == mode, ok, why) { if (ok) ui.changeViewMode(mode) }
+        Section("Theme") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val p = app.prefs
+                listOf("System", "Dark", "Light").forEachIndexed { i, n ->
+                    val code = intArrayOf(2, 0, 1)[i]
+                    Chip(n, p.appearance == code) { p.appearance = code; ui.refreshFromPrefs() }
+                }
+            }
         }
 
-        // ---- colours ----
-        Txt("Colors", Modifier.padding(top = 8.dp), size = 13f, weight = FontWeight.Bold, color = Color(0xFF8B92A3))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Chip("Fade with artwork", ui.dynamicColor) { ui.changeDynamic(true) }
-            Chip("Model colors only", !ui.dynamicColor) { ui.changeDynamic(false) }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val p = app.prefs
-            listOf("Dark", "Light", "System").forEachIndexed { i, n -> Chip(n, p.appearance == i) { p.appearance = i; ui.refreshFromPrefs() } }
+        Chip(if (advanced) "Advanced: hide exact models" else "Advanced: choose the exact iPod", advanced) { advanced = !advanced }
+        if (advanced) {
+            Themes.groups.forEach { group ->
+                Txt(if (group == Themes.CLASSIC) "iPod / classic" else "iPod $group", Modifier.padding(top = 4.dp), size = 13f, weight = FontWeight.Bold, color = LABEL)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+                    items(Themes.inGroup(group), key = { it.id }) { m -> Chip("${Themes.genLabel(m)}  ${m.year}", m.id == model.id) { ui.changeModel(m.id) } }
+                }
+            }
         }
         GlossPill("Done", { ui.pickerOpen = false }, Modifier.fillMaxWidth().padding(top = 10.dp), primary = true, height = 50.dp)
     }
 }
 
 @Composable
-private fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
+private fun Chip(text: String, selected: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
     val shape = RoundedCornerShape(50)
@@ -183,9 +250,9 @@ private fun Chip(text: String, selected: Boolean, onClick: () -> Unit) {
         Modifier.clip(shape)
             .background(if (selected) Brush.verticalGradient(listOf(Color(0xFF5DA6F5), Color(0xFF1D6BDB))) else Brush.verticalGradient(listOf(Color(0x2EFFFFFF), Color(0x14FFFFFF))))
             .border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else if (selected) Color(0xFF8CC0FA) else Color(0x33FFFFFF), shape)
-            .clickable(src, null, onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
+            .clickable(src, null, enabled = enabled, onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center,
-    ) { Txt(text, size = 14f, weight = FontWeight.SemiBold, color = if (selected) Color.White else Color(0xFFD5D9E2)) }
+    ) { Txt(text, size = 14f, weight = FontWeight.SemiBold, color = if (!enabled) Color(0x55FFFFFF) else if (selected) Color.White else Color(0xFFD5D9E2)) }
 }
 
 @Composable
@@ -200,24 +267,3 @@ private fun Swatch(col: Colorway, selected: Boolean, onClick: () -> Unit) {
     )
 }
 
-@Composable
-private fun ViewRow(title: String, sub: String, selected: Boolean, enabled: Boolean, why: String, onClick: () -> Unit) {
-    val src = remember { MutableInteractionSource() }
-    val focused by src.collectIsFocusedAsState()
-    val shape = RoundedCornerShape(14.dp)
-    Row(
-        Modifier.fillMaxWidth().clip(shape)
-            .background(if (selected) Color(0x332F7BE8) else Color(0x14FFFFFF))
-            .border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else if (selected) Color(0xFF63A9FF) else Color(0x22FFFFFF), shape)
-            .clickable(src, null, onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Box(Modifier.size(22.dp).clip(CircleShape).border(2.dp, if (selected) Color(0xFF63A9FF) else Color(0x66FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
-            if (selected) Box(Modifier.size(11.dp).clip(CircleShape).background(Color(0xFF63A9FF)))
-        }
-        Column(Modifier.weight(1f)) {
-            Txt(title, size = 15f, weight = FontWeight.SemiBold, color = if (enabled) Color.White else Color(0x66FFFFFF))
-            Txt(if (enabled) sub else why, size = 12f, color = Color(0xFF9AA1B1))
-        }
-    }
-}

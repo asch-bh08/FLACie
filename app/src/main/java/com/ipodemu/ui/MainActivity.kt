@@ -64,6 +64,14 @@ class MainActivity : ComponentActivity() {
         intent.data = null
     }
 
+    /** Window brightness from Settings (-1 = leave to the system). The click-wheel view also manages its own dimming. */
+    fun applyBrightness() {
+        val p = App.of(this).prefs
+        val a = window.attributes
+        a.screenBrightness = if (p.brightness < 0f) android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE else p.brightness
+        window.attributes = a
+    }
+
     override fun onResume() {
         super.onResume()
         ipodView?.updateHinge()

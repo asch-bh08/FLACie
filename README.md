@@ -7,8 +7,7 @@ An iPod-style local music player for the **Anbernic RG Rotate** (720×720, Andro
 ## Features
 - **Player (default):** a normal music player with iPod styling — glossy Aqua-era buttons and rows, monochrome LCD look for 1G–4G/mini. Home, Playlists, Artists, Albums (cover grid), Songs, Genres, Voice Memos, Search, Queue ("Up Next"), Favorites, Recently Played, mini player and full Now Playing.
 - **Colours fade to the artwork:** the UI gradient, accent and buttons tween (0.9 s) to the palette of the playing cover — pink cover, pink UI. Toggle in Settings; mono LCD models are never tinted.
-- **23 iPod models** in a picker, grouped like Apple's line-up: Classic (1st–7th gen incl. Video), mini 1–2, nano 1–7, touch 1–7 (shuffles excluded), each with real colourways and a live preview.
-- **Four views** (Settings → View): Player · Player inside a physical iPod body · Click wheel (flat) · Click wheel inside an iPod body. Touch models only support the Player views.
+- **One Appearance screen** (Settings → Look & Mode, also reachable from the click-wheel menus): Look (LCD · Aqua · Nano · Touch iOS 6 · Touch iOS 7+), Mode (Player or Click wheel, plus an optional iPod body), Colour (auto from artwork or fixed) and Theme (system by default). The exact iPod is an *Advanced* option: all 23 models (Classic 1–7, mini 1–2, nano 1–7, touch 1–7; shuffles excluded), each with real colourways. "Player in an iPod" is only offered when the UI would stay readable (`bodyScale`), so not on the RG Rotate's square panel.
 - **Click wheel:** a full-screen canvas iPod OS (menus, Now Playing, settings, EQ, sleep timer) with tuned wheel physics (velocity smoothing, acceleration, tap zones, hub resync). The wheel also works inside "Player in an iPod" (rotate = move highlight, centre = select, ring taps = Menu/⏮/⏭/⏯).
 - **Gestures (configurable):** swipe right anywhere to go back (or left edge only / off); swipe down closes Now Playing; flick the mini player or cover to skip; swipe a track row for Favorite / Play next / Add to queue (each side configurable). No haptics on swipes.
 - **Library:** folder-based playlists (folder name = playlist), user playlists, favourites, play history; embedded art extraction with an LRU cache; untagged/voice-memo audio goes to Voice Memos.
@@ -47,8 +46,7 @@ Package `com.ipodemu`:
 Data flow: `Scanner → Library → Compose screens`; `PlayerController.observe → rememberSnap → UI`; `UiState`/`Prefs` drive which model, view and colours are active. Images are loaded off the main thread and cached (`ArtCache`); the palette for the fade is computed once per cover and cached.
 
 ## Known gaps / roadmap
-- Performance on the RG Rotate's low-end SoC needs work (measured ~52% janky frames in a debug build): plan is a release/R8 build with baseline profile, cheaper colour-fade recomposition, memoised list grouping, lighter transitions.
-- Layout density and clarity pass (Now Playing on square screens, list chrome), and consolidating the appearance settings into a few meaningful choices.
+- Performance: release + R8 + profileinstaller (see `tools/jank.sh`); remaining hitches are track-change recomposition and first-open list composition.
 - "Remove from playlist" for user playlists is a stub; no A–Z index scroller; shuffle-only iPods aren't included.
 - Needs hands-on: wheel feel, gamepad flow end to end, light theme, other aspect ratios.
 

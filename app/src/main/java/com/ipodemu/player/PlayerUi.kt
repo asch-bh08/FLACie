@@ -201,7 +201,7 @@ fun PlayerHost(nav: PlayerNav) {
                     Box(Modifier.fillMaxSize().graphicsLayer { translationX = slide.value * size.width * 0.28f }) { ScreenContent(nav.top, nav, snap) }
                 }
             }
-            if (snap.track != null && !nav.nowPlaying) MiniPlayer(snap, nav)
+            if (snap.track != null && !nav.nowPlaying && nav.top != Screen.Home) MiniPlayer(snap, nav)
         }
         AnimatedVisibility(
             nav.nowPlaying,
@@ -233,11 +233,11 @@ private fun ScreenContent(screen: Screen, nav: PlayerNav, snap: PlayerSnap) {
 fun TopBar(title: String, nav: PlayerNav?, showBack: Boolean, actions: @Composable () -> Unit = {}) {
     val sc = LocalScheme.current
     Box(
-        Modifier.fillMaxWidth().statusBarsPadding().height(60.dp)
+        Modifier.fillMaxWidth().statusBarsPadding().height(44.dp)
             .background(Brush.verticalGradient(listOf(Color(0x33FFFFFF), Color(0x0FFFFFFF)))),
     ) {
-        if (showBack && nav != null) GlossPill("Back", { nav.pop() }, Modifier.align(Alignment.CenterStart).padding(start = 10.dp), icon = Glyph.BACK, height = 38.dp)
-        Txt(title, Modifier.align(Alignment.Center).padding(horizontal = 110.dp), size = 19f, weight = FontWeight.Bold, align = TextAlign.Center)
+        if (showBack && nav != null) GlossPill("Back", { nav.pop() }, Modifier.align(Alignment.CenterStart).padding(start = 10.dp), icon = Glyph.BACK, height = 32.dp)
+        Txt(title, Modifier.align(Alignment.Center).padding(horizontal = 96.dp), size = 17f, weight = FontWeight.Bold, align = TextAlign.Center)
         Row(Modifier.align(Alignment.CenterEnd).padding(end = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) { actions() }
         Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(1.dp).background(sc.onBg.copy(alpha = .14f)))
     }
@@ -258,9 +258,9 @@ fun TrackRow(
     val right = remember(t, fav, rCode) { swipeAction(rCode, app, t, fav, ctx) }
     val left = remember(t, fav, lCode) { swipeAction(lCode, app, t, fav, ctx) }
     SwipeRow(right = right, left = left, modifier = modifier) {
-    IpodRow(onClick = onPlay, onLong = { openTrackSheet(app, nav, t, sheetExtra) }, height = 66.dp,
+    IpodRow(onClick = onPlay, onLong = { openTrackSheet(app, nav, t, sheetExtra) }, height = 56.dp,
         leading = {
-            if (showArt) Box(Modifier.size(50.dp)) {
+            if (showArt) Box(Modifier.size(42.dp)) {
                 ArtImage(t.artKey, Modifier.fillMaxSize(), thumb = true, corner = 8.dp)
                 if (isCurrent) Box(Modifier.fillMaxSize().background(Color(0x66000000)), contentAlignment = Alignment.Center) {
                     EqualizerBars(Modifier.size(22.dp), snap.playing, Color.White)
@@ -354,22 +354,24 @@ fun BackdropArt(nav: PlayerNav, artKey: String?) {
 
 @Composable
 private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
-    LocalLibRev.current
     val app = LocalApp.current
     val sc = LocalScheme.current
     val lib = app.library
+    val libRev = LocalLibRev.current
+    val recentAlbums = remember(libRev) { lib.recentAlbums(20) }
     app.userData.rev
     Column(Modifier.fillMaxSize()) {
         TopBar("iPod", nav, showBack = false) {
-            GlossButton({ nav.push(Screen.Search) }, size = 38.dp) { GlyphIcon(Glyph.SEARCH, Modifier.size(20.dp), Color.White) }
-            GlossButton({ nav.push(Screen.Settings) }, size = 38.dp) { GlyphIcon(Glyph.GEAR, Modifier.size(20.dp), Color.White) }
+            GlossButton({ nav.push(Screen.Search) }, size = 34.dp) { GlyphIcon(Glyph.SEARCH, Modifier.size(20.dp), Color.White) }
+            GlossButton({ nav.push(Screen.Settings) }, size = 34.dp) { GlyphIcon(Glyph.GEAR, Modifier.size(20.dp), Color.White) }
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            item { NowPlayingCard(snap, nav) { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s); nav.nowPlaying = true } } }
             item {
-                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    GlossPill("Shuffle All", { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s); nav.nowPlaying = true } }, icon = Glyph.SHUFFLE, primary = true)
-                    GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART)
-                    GlossPill("Recent", { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK)
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GlossPill("Shuffle All", { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s); nav.nowPlaying = true } }, icon = Glyph.SHUFFLE, height = 32.dp)
+                    GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 32.dp)
+                    GlossPill("Recent", { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK, height = 32.dp)
                 }
             }
             item { SectionHeader("Library") }
@@ -383,7 +385,6 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     MenuRow("Voice Memos", Glyph.MIC, "${lib.memos.size}") { nav.push(Screen.Lib(LibKind.MEMOS)) }
                 }
             }
-            val recentAlbums = lib.recentAlbums(20)
             if (recentAlbums.isNotEmpty()) {
                 item { SectionHeader("Recently Added") }
                 item {
@@ -419,7 +420,7 @@ fun SectionHeader(text: String) {
 @Composable
 private fun MenuRow(title: String, g: Glyph, count: String, onClick: () -> Unit) {
     val sc = LocalScheme.current
-    IpodRow(onClick, height = 62.dp, leading = { IconTile(g, size = 38.dp) },
+    IpodRow(onClick, height = 52.dp, leading = { IconTile(g, size = 38.dp) },
         trailing = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { Txt(count, size = 14f, color = sc.onBgDim); GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), sc.onBgDim) } }) { hi ->
         Txt(title, size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.onBg)
     }
@@ -459,7 +460,7 @@ private fun LibraryScreen(kind: LibKind, nav: PlayerNav, snap: PlayerSnap) {
     app.userData.rev
     Column(Modifier.fillMaxSize()) {
         TopBar(kind.title, nav, showBack = true) {
-            GlossButton({ nav.push(Screen.Search) }, size = 38.dp) { GlyphIcon(Glyph.SEARCH, Modifier.size(20.dp), Color.White) }
+            GlossButton({ nav.push(Screen.Search) }, size = 34.dp) { GlyphIcon(Glyph.SEARCH, Modifier.size(20.dp), Color.White) }
         }
         when (kind) {
             LibKind.SONGS -> { val songs = lib.songs(); SongList(songs, nav, snap, showArt = true, sections = true, header = { ShuffleHeader(songs, nav) }) }
@@ -524,8 +525,8 @@ private fun GroupList(groups: List<Group>, nav: PlayerNav, circle: Boolean, targ
     if (groups.isEmpty()) { EmptyState("Nothing here yet"); return }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         items(groups, key = { it.name }) { g ->
-            IpodRow({ nav.push(target(g)) }, height = 68.dp,
-                leading = { ArtImage(g.artKey, Modifier.size(52.dp), thumb = true, corner = 10.dp, circle = circle) },
+            IpodRow({ nav.push(target(g)) }, height = 56.dp,
+                leading = { ArtImage(g.artKey, Modifier.size(44.dp), thumb = true, corner = 10.dp, circle = circle) },
                 trailing = { CountChevron(g.tracks.size) }) { hi ->
                 Txt(g.name, size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.onBg)
             }
@@ -542,13 +543,13 @@ private fun PlaylistsList(nav: PlayerNav) {
     val lib = app.library
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
-            IpodRow({ nav.nameDialog = { ud.createPlaylist(it) } }, height = 60.dp, leading = { IconTile(Glyph.PLUS, size = 44.dp) }) { hi ->
+            IpodRow({ nav.nameDialog = { ud.createPlaylist(it) } }, height = 52.dp, leading = { IconTile(Glyph.PLUS, size = 44.dp) }) { hi ->
                 Txt("New Playlist...", size = 16f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.accent)
             }
         }
         item {
             val favs = ud.favorites.size
-            IpodRow({ nav.push(Screen.Detail(DetailKind.FAVORITES)) }, height = 68.dp, leading = { IconTile(Glyph.HEART_FILLED, size = 52.dp, tint = Color(0xFFE5486B)) },
+            IpodRow({ nav.push(Screen.Detail(DetailKind.FAVORITES)) }, height = 56.dp, leading = { IconTile(Glyph.HEART_FILLED, size = 44.dp, tint = Color(0xFFE5486B)) },
                 trailing = { CountChevron(favs) }) { hi ->
                 Txt("Favorites", size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.onBg)
             }
@@ -558,14 +559,14 @@ private fun PlaylistsList(nav: PlayerNav) {
             val first = p.paths.firstNotNullOfOrNull { by[it]?.artKey }
             IpodRow({ nav.push(Screen.Detail(DetailKind.USER, p.id)) },
                 onLong = { nav.sheet = SheetSpec(p.name, songCount(p.paths.size), listOf(SheetItem("Delete playlist", Glyph.CLOSE) { ud.deletePlaylist(p.id) })) },
-                height = 68.dp, leading = { ArtImage(first, Modifier.size(52.dp), thumb = true, corner = 10.dp) },
+                height = 56.dp, leading = { ArtImage(first, Modifier.size(44.dp), thumb = true, corner = 10.dp) },
                 trailing = { CountChevron(p.paths.size) }) { hi ->
                 Txt(p.name, size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.onBg)
             }
         }
         items(lib.playlists(), key = { "f" + it.name }) { g ->
-            IpodRow({ nav.push(Screen.Detail(DetailKind.FOLDER, g.name)) }, height = 68.dp,
-                leading = { ArtImage(g.artKey, Modifier.size(52.dp), thumb = true, corner = 10.dp) },
+            IpodRow({ nav.push(Screen.Detail(DetailKind.FOLDER, g.name)) }, height = 56.dp,
+                leading = { ArtImage(g.artKey, Modifier.size(44.dp), thumb = true, corner = 10.dp) },
                 trailing = { CountChevron(g.tracks.size) }) { hi ->
                 Txt(g.name, size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.onBg)
             }
@@ -698,14 +699,14 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (r.artists.isNotEmpty()) {
                 item { SectionHeader("Artists") }
                 items(r.artists.take(5), key = { "a" + it.name }) { g ->
-                    IpodRow({ nav.push(Screen.Detail(DetailKind.ARTIST, g.name)) }, height = 60.dp, leading = { ArtImage(g.artKey, Modifier.size(44.dp), thumb = true, circle = true) },
+                    IpodRow({ nav.push(Screen.Detail(DetailKind.ARTIST, g.name)) }, height = 52.dp, leading = { ArtImage(g.artKey, Modifier.size(44.dp), thumb = true, circle = true) },
                         trailing = { GlyphIcon(Glyph.CHEVRON, Modifier.size(16.dp), sc.onBgDim) }) { hi -> Txt(g.name, size = 16f, color = if (hi) Color.White else sc.onBg) }
                 }
             }
             if (r.albums.isNotEmpty()) {
                 item { SectionHeader("Albums") }
                 items(r.albums.take(6), key = { "b" + it.tracks.first().albumKey }) { g ->
-                    IpodRow({ nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) }, height = 64.dp, leading = { ArtImage(g.artKey, Modifier.size(48.dp), thumb = true, corner = 8.dp) },
+                    IpodRow({ nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) }, height = 56.dp, leading = { ArtImage(g.artKey, Modifier.size(48.dp), thumb = true, corner = 8.dp) },
                         trailing = { GlyphIcon(Glyph.CHEVRON, Modifier.size(16.dp), sc.onBgDim) }) { hi ->
                         Column { Txt(g.name, size = 16f, color = if (hi) Color.White else sc.onBg); Txt(g.tracks.firstOrNull()?.artist ?: "", size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim) }
                     }
@@ -727,14 +728,14 @@ private fun QueueScreen(nav: PlayerNav, snap: PlayerSnap) {
     val sc = LocalScheme.current
     val q = app.player.queueTracks()
     Column(Modifier.fillMaxSize()) {
-        TopBar("Up Next", nav, showBack = true) { if (q.isNotEmpty()) GlossPill("Clear", { app.player.clearQueue(); nav.pop() }, height = 38.dp) }
+        TopBar("Up Next", nav, showBack = true) { if (q.isNotEmpty()) GlossPill("Clear", { app.player.clearQueue(); nav.pop() }, height = 30.dp) }
         if (q.isEmpty()) { EmptyState("The queue is empty"); return@Column }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             itemsIndexed(q, key = { i, t -> "$i${t.path}" }) { i, t ->
                 val cur = i == snap.index
                 val remove = remember(i, t) { SwipeAction("Remove", Glyph.CLOSE, { Color(0xFFD9423F) }) { app.player.removeFromQueue(i) } }
                 SwipeRow(right = remove, left = remove) {
-                IpodRow({ app.player.skipTo(i) }, height = 64.dp,
+                IpodRow({ app.player.skipTo(i) }, height = 56.dp,
                     leading = { Box(Modifier.width(30.dp), contentAlignment = Alignment.Center) { if (cur) EqualizerBars(Modifier.size(18.dp), snap.playing, sc.accent) else Txt("${i + 1}", size = 14f, color = sc.onBgDim) } },
                     trailing = { Box(Modifier.size(40.dp).clip(RoundedCornerShape(50)).clickable { app.player.removeFromQueue(i) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.CLOSE, Modifier.size(18.dp), sc.onBgDim) } }) { hi ->
                     Column {

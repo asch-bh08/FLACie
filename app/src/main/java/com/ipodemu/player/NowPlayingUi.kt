@@ -47,6 +47,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import com.ipodemu.playback.PlayerController
 
+/** Slim full-width bar at the bottom of every screen except Home (which leads with the Now Playing card). */
 @Composable
 fun MiniPlayer(snap: PlayerSnap, nav: PlayerNav) {
     val app = LocalApp.current
@@ -56,10 +57,8 @@ fun MiniPlayer(snap: PlayerSnap, nav: PlayerNav) {
     val dur = app.player.durationMs
     val frac = if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
     Box(
-        Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 10.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(18.dp))
+        Modifier.fillMaxWidth().navigationBarsPadding().height(56.dp)
             .background(Brush.verticalGradient(listOf(Color(0x40FFFFFF), Color(0x1AFFFFFF))))
-            .border(1.dp, sc.cardBorder, RoundedCornerShape(18.dp))
             .trackSwipe({ app.player.prev() }, { app.player.next() })
             .clickable { nav.nowPlaying = true }
             .pointerInput(Unit) {
@@ -67,19 +66,58 @@ fun MiniPlayer(snap: PlayerSnap, nav: PlayerNav) {
                 detectVerticalDragGestures(onDragStart = { up = 0f }, onDragEnd = { up = 0f }) { _, dy -> up += dy; if (up < -28f) { up = 0f; nav.nowPlaying = true } }
             },
     ) {
-        Row(Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            ArtImage(t.artKey, Modifier.size(50.dp), thumb = true, corner = 10.dp)
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Txt(t.title, size = 15f, weight = FontWeight.SemiBold)
+        Box(Modifier.align(Alignment.TopStart).fillMaxWidth().height(1.dp).background(sc.onBg.copy(alpha = .16f)))
+        Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 8.dp, top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            ArtImage(t.artKey, Modifier.size(40.dp), thumb = true, corner = 7.dp)
+            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                Txt(t.title, size = 14f, weight = FontWeight.SemiBold)
                 Txt(t.artist.ifEmpty { t.album }, size = 12f, color = sc.onBgDim)
             }
-            GlossButton({ app.player.prev() }, size = 42.dp) { GlyphIcon(Glyph.PREV, Modifier.size(20.dp), Color.White) }
+            GlossButton({ app.player.toggle() }, size = 38.dp, primary = true) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(20.dp), Color.White) }
             Box(Modifier.size(6.dp))
-            GlossButton({ app.player.toggle() }, size = 46.dp, primary = true) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(24.dp), Color.White) }
-            Box(Modifier.size(6.dp))
-            GlossButton({ app.player.next() }, size = 42.dp) { GlyphIcon(Glyph.NEXT, Modifier.size(20.dp), Color.White) }
+            GlossButton({ app.player.next() }, size = 34.dp) { GlyphIcon(Glyph.NEXT, Modifier.size(17.dp), Color.White) }
         }
-        Box(Modifier.align(Alignment.BottomStart).padding(horizontal = 14.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(sc.onBg.copy(alpha = .16f))) {
+        Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(2.dp).background(sc.onBg.copy(alpha = .14f))) {
+            Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(sc.accent))
+        }
+    }
+}
+
+/** Home's lead card: what's playing right now, with play/pause and skip, or a prompt to start something. */
+@Composable
+fun NowPlayingCard(snap: PlayerSnap, nav: PlayerNav, onShuffleAll: () -> Unit) {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    val t = snap.track
+    val shape = RoundedCornerShape(16.dp)
+    val pos by rememberPosition(app.player, snap.playing && t != null)
+    val dur = app.player.durationMs
+    val frac = if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
+    Box(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp).clip(shape)
+            .background(Brush.verticalGradient(listOf(Color(0x40FFFFFF), Color(0x1AFFFFFF))))
+            .border(1.dp, sc.cardBorder, shape)
+            .clickable { if (t != null) nav.nowPlaying = true else onShuffleAll() },
+    ) {
+        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            ArtImage(t?.artKey, Modifier.size(64.dp), corner = 10.dp)
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                if (t != null) {
+                    Txt(if (snap.playing) "NOW PLAYING" else "PAUSED", size = 11f, weight = FontWeight.Bold, color = sc.accentLight)
+                    Txt(t.title, size = 16f, weight = FontWeight.Bold)
+                    Txt(t.artist.ifEmpty { t.album }, size = 13f, color = sc.onBgDim)
+                } else {
+                    Txt("Nothing playing", size = 16f, weight = FontWeight.Bold)
+                    Txt("Tap to shuffle your library", size = 13f, color = sc.onBgDim)
+                }
+            }
+            if (t != null) {
+                GlossButton({ app.player.toggle() }, size = 44.dp, primary = true) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(22.dp), Color.White) }
+                Box(Modifier.size(6.dp))
+                GlossButton({ app.player.next() }, size = 38.dp) { GlyphIcon(Glyph.NEXT, Modifier.size(18.dp), Color.White) }
+            } else GlossButton({ onShuffleAll() }, size = 44.dp, primary = true) { GlyphIcon(Glyph.SHUFFLE, Modifier.size(22.dp), Color.White) }
+        }
+        if (t != null) Box(Modifier.align(Alignment.BottomStart).padding(horizontal = 12.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(sc.onBg.copy(alpha = .16f))) {
             Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(sc.accent))
         }
     }
@@ -114,13 +152,13 @@ fun NowPlayingScreen(snap: PlayerSnap, nav: PlayerNav) {
         Box(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 6.dp).size(width = 38.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(sc.onBg.copy(alpha = .3f)))
         BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             val boxH = maxHeight
-            val twoCol = maxWidth > maxHeight * 0.85f
+            val twoCol = maxWidth > maxHeight * 0.8f
             if (twoCol) {
-                Row(Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(0.46f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                        NpArt(t.artKey, Modifier.widthIn(max = boxH - 40.dp))
+                Row(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(0.52f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                        NpArt(t.artKey, Modifier.widthIn(max = boxH - 24.dp))
                     }
-                    Column(Modifier.weight(0.54f).fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
+                    Column(Modifier.weight(0.48f).fillMaxHeight().navigationBarsPadding(), verticalArrangement = Arrangement.SpaceEvenly) {
                         NpHeader(nav)
                         NpInfo(snap, center = false)
                         NpSeek(snap)
@@ -150,10 +188,10 @@ fun NowPlayingScreen(snap: PlayerSnap, nav: PlayerNav) {
 @Composable
 private fun NpHeader(nav: PlayerNav) {
     val sc = LocalScheme.current
-    Row(Modifier.fillMaxWidth().height(50.dp), verticalAlignment = Alignment.CenterVertically) {
-        GlossButton({ nav.nowPlaying = false }, size = 40.dp) { GlyphIcon(Glyph.DOWN, Modifier.size(22.dp), Color.White) }
+    Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
+        GlossButton({ nav.nowPlaying = false }, size = 36.dp) { GlyphIcon(Glyph.DOWN, Modifier.size(22.dp), Color.White) }
         Txt("Now Playing", Modifier.weight(1f), size = 16f, weight = FontWeight.Bold, align = TextAlign.Center)
-        GlossButton({ nav.nowPlaying = false; nav.push(Screen.Queue) }, size = 40.dp) { GlyphIcon(Glyph.QUEUE, Modifier.size(22.dp), Color.White) }
+        GlossButton({ nav.nowPlaying = false; nav.push(Screen.Queue) }, size = 36.dp) { GlyphIcon(Glyph.QUEUE, Modifier.size(22.dp), Color.White) }
     }
 }
 
@@ -228,17 +266,12 @@ private fun NpExtras(snap: PlayerSnap, nav: PlayerNav) {
     val t = snap.track ?: return
     app.userData.rev
     val fav = app.userData.isFavorite(t.path)
-    var vol by remember { mutableFloatStateOf(app.player.volume) }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            GlossButton({ app.userData.toggleFavorite(t.path) }, size = 44.dp, primary = fav) { GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(22.dp), Color.White) }
+            GlossButton({ app.userData.toggleFavorite(t.path) }, size = 40.dp, primary = fav) { GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(22.dp), Color.White) }
             GlossButton({ nav.sheet = eqSheet(app) }, size = 44.dp) { GlyphIcon(Glyph.LIST, Modifier.size(22.dp), Color.White) }
             GlossButton({ nav.sheet = sleepSheet(app) }, size = 44.dp, primary = app.player.sleepMinutes > 0) { GlyphIcon(Glyph.CLOCK, Modifier.size(22.dp), Color.White) }
             GlossButton({ openTrackSheet(app, nav, t) }, size = 44.dp) { GlyphIcon(Glyph.MORE, Modifier.size(22.dp), Color.White) }
-        }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            GlyphIcon(Glyph.VOLUME, Modifier.size(20.dp), sc.onBgDim)
-            SeekBar(vol, onSeek = { vol = it; app.player.volume = it }, onNudge = { d -> vol = (vol + d * 0.05f).coerceIn(0f, 1f); app.player.volume = vol }, Modifier.weight(1f))
         }
     }
 }

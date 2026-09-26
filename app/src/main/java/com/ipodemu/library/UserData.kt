@@ -16,6 +16,8 @@ class UserData(ctx: Context) {
     val favorites = LinkedHashSet<String>()
     val playlists = ArrayList<UserPlaylist>()
     val recents = ArrayList<String>() // newest first
+    /** How many times each track has been started; feeds the recommendations. */
+    val plays = HashMap<String, Int>()
 
     var rev by mutableIntStateOf(0)
         private set
@@ -35,6 +37,7 @@ class UserData(ctx: Context) {
     }
 
     fun recordPlay(path: String) {
+        plays[path] = (plays[path] ?: 0) + 1
         recents.remove(path); recents.add(0, path)
         while (recents.size > 120) recents.removeAt(recents.lastIndex)
         changed()
@@ -65,6 +68,7 @@ class UserData(ctx: Context) {
             if (!file.exists()) return
             val o = JSONObject(file.readText())
             o.optJSONArray("fav")?.let { a -> for (i in 0 until a.length()) favorites.add(a.getString(i)) }
+            o.optJSONObject("plays")?.let { p -> p.keys().forEach { k -> plays[k] = p.optInt(k) } }
             o.optJSONArray("recent")?.let { a -> for (i in 0 until a.length()) recents.add(a.getString(i)) }
             o.optJSONArray("lists")?.let { a ->
                 for (i in 0 until a.length()) {
@@ -91,6 +95,7 @@ class UserData(ctx: Context) {
                 JSONObject().also { o ->
                     o.put("fav", JSONArray(favorites.toList()))
                     o.put("recent", JSONArray(recents.toList()))
+                    o.put("plays", JSONObject().also { p -> plays.toMap().forEach { (k, v) -> p.put(k, v) } })
                     o.put("lists", JSONArray().also { a -> playlists.forEach { a.put(JSONObject().put("id", it.id).put("n", it.name).put("p", JSONArray(it.paths.toList()))) } })
                 }
             } catch (_: Exception) { return@Runnable }

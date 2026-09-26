@@ -92,13 +92,13 @@ private fun PlayerRoot(activity: MainActivity, nav: PlayerNav) {
     val dark = when (app.prefs.appearance) { 0 -> true; 1 -> false; else -> isSystemInDarkTheme() }
     val scheme = animatedScheme(buildScheme(style, artColors, if (style.mono) false else dark, ui.dynamicColor))
 
-    CompositionLocalProvider(LocalStyle provides style, LocalScheme provides scheme) {
+    CompositionLocalProvider(LocalStyle provides style, LocalScheme provides scheme, LocalHardware provides (mode == 1)) {
         // movable: switching Player <-> Player-in-iPod moves the existing UI instead of rebuilding it
         val content = remember { movableContentOf<@Composable () -> Unit> { it() } }
         val body: @Composable () -> Unit = {
             Box(Modifier.fillMaxSize().drawBehind { drawRect(Brush.verticalGradient(listOf(scheme.top, scheme.bottom))) }) {
                 PlayerHost(nav)
-                BackHandler(enabled = nav.stack.size == 1 && !nav.nowPlaying && nav.sheet == null && nav.nameDialog == null) { activity.moveTaskToBack(true) }
+                BackHandler(enabled = !ui.pickerOpen && nav.stack.size == 1 && !nav.nowPlaying && nav.sheet == null && nav.nameDialog == null) { activity.moveTaskToBack(true) }
             }
         }
         if (mode == 1) {

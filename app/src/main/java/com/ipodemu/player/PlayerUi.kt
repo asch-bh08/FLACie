@@ -91,7 +91,7 @@ enum class LibKind(val title: String) {
     SONGS("Songs"), ALBUMS("Albums"), ARTISTS("Artists"), PLAYLISTS("Playlists"), GENRES("Genres"), MEMOS("Voice Memos"),
 }
 
-enum class DetailKind { ALBUM, ARTIST, FOLDER, USER, GENRE, FAVORITES, RECENT }
+enum class DetailKind { ALBUM, ARTIST, FOLDER, USER, GENRE, FAVORITES, RECENT, MIX }
 
 sealed interface Screen {
     data object Home : Screen
@@ -100,6 +100,7 @@ sealed interface Screen {
     data object Search : Screen
     data object Queue : Screen
     data object Settings : Screen
+    data object Music : Screen
 }
 
 class SheetSpec(val title: String, val subtitle: String?, val items: List<SheetItem>)
@@ -170,9 +171,9 @@ fun PlayerHost(nav: PlayerNav) {
     val ui = app.ui
     ui.rev
 
-    BackHandler(enabled = nav.sheet != null || nav.nameDialog != null) { nav.sheet = null; nav.nameDialog = null }
-    BackHandler(enabled = nav.sheet == null && nav.nameDialog == null && nav.nowPlaying) { nav.nowPlaying = false }
-    BackHandler(enabled = nav.sheet == null && nav.nameDialog == null && !nav.nowPlaying && nav.stack.size > 1) { nav.pop() }
+    BackHandler(enabled = !ui.pickerOpen && (nav.sheet != null || nav.nameDialog != null)) { nav.sheet = null; nav.nameDialog = null }
+    BackHandler(enabled = !ui.pickerOpen && nav.sheet == null && nav.nameDialog == null && nav.nowPlaying) { nav.nowPlaying = false }
+    BackHandler(enabled = !ui.pickerOpen && nav.sheet == null && nav.nameDialog == null && !nav.nowPlaying && nav.stack.size > 1) { nav.pop() }
 
     LaunchedEffect(nav.top) { WheelFocus.last = null }
     LaunchedEffect(ui.nowPlayingRequest) { if (ui.nowPlayingRequest > 0 && app.player.hasQueue) nav.nowPlaying = true }
@@ -180,7 +181,7 @@ fun PlayerHost(nav: PlayerNav) {
 
     androidx.compose.runtime.CompositionLocalProvider(LocalLibRev provides libRev) {
     var backDrag by remember { mutableFloatStateOf(0f) }
-    val sb = app.prefs.swipeBack
+    val sb = if (LocalHardware.current) 2 else app.prefs.swipeBack   // device view: MENU on the wheel is the only back
     val backEnabled = sb != 2 && nav.sheet == null && nav.nameDialog == null && (nav.nowPlaying || nav.stack.size > 1)
     val edgePx = with(androidx.compose.ui.platform.LocalDensity.current) { 22.dp.toPx() }
     val swipeZone = if (sb == 1 || (!nav.nowPlaying && app.prefs.swipeRowRight != 0)) edgePx else 1e9f // iPhone-style: swipe right anywhere goes back (Now Playing keeps the edge, its cover swipes skip tracks)
@@ -201,7 +202,7 @@ fun PlayerHost(nav: PlayerNav) {
                     Box(Modifier.fillMaxSize().graphicsLayer { translationX = slide.value * size.width * 0.28f }) { ScreenContent(nav.top, nav, snap) }
                 }
             }
-            if (snap.track != null && !nav.nowPlaying && nav.top != Screen.Home) MiniPlayer(snap, nav)
+            if (snap.track != null && !nav.nowPlaying && nav.top != Screen.Home && !LocalHardware.current) MiniPlayer(snap, nav)
         }
         AnimatedVisibility(
             nav.nowPlaying,
@@ -223,6 +224,7 @@ private fun ScreenContent(screen: Screen, nav: PlayerNav, snap: PlayerSnap) {
         Screen.Search -> SearchScreen(nav, snap)
         Screen.Queue -> QueueScreen(nav, snap)
         Screen.Settings -> SettingsScreen(nav)
+        Screen.Music -> MusicMenu(nav)
     }
 }
 
@@ -255,8 +257,9 @@ fun TrackRow(
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val rCode = app.prefs.swipeRowRight; val lCode = app.prefs.swipeRowLeft
     // built once per (track, favourite, settings): stable objects keep the row's pointer handlers from restarting
-    val right = remember(t, fav, rCode) { swipeAction(rCode, app, t, fav, ctx) }
-    val left = remember(t, fav, lCode) { swipeAction(lCode, app, t, fav, ctx) }
+    val hw = LocalHardware.current   // the faithful device view has no swipe shortcuts
+    val right = remember(t, fav, rCode, hw) { if (hw) null else swipeAction(rCode, app, t, fav, ctx) }
+    val left = remember(t, fav, lCode, hw) { if (hw) null else swipeAction(lCode, app, t, fav, ctx) }
     SwipeRow(right = right, left = left, modifier = modifier) {
     IpodRow(onClick = onPlay, onLong = { openTrackSheet(app, nav, t, sheetExtra) }, height = 56.dp,
         leading = {
@@ -354,11 +357,13 @@ fun BackdropArt(nav: PlayerNav, artKey: String?) {
 
 @Composable
 private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
+    if (LocalHardware.current) { HardwareHome(nav, snap); return }
     val app = LocalApp.current
     val sc = LocalScheme.current
     val lib = app.library
     val libRev = LocalLibRev.current
     val recentAlbums = remember(libRev) { lib.recentAlbums(20) }
+    val mixes = remember(libRev) { com.ipodemu.library.Recommender.mixes(lib, app.userData) }
     app.userData.rev
     app.ui.rev
     val clock by androidx.compose.runtime.produceState("") { while (true) { value = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date()); delay(15000) } }
@@ -376,6 +381,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     GlossPill("Recent", { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK, height = 32.dp)
                 }
             }
+            forYouShelves(mixes, nav)
             item { SectionHeader("Library") }
             item {
                 Column(Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(16.dp)).background(sc.card).border(1.dp, sc.cardBorder, RoundedCornerShape(16.dp))) {
@@ -465,7 +471,13 @@ private fun LibraryScreen(kind: LibKind, nav: PlayerNav, snap: PlayerSnap) {
             GlossButton({ nav.push(Screen.Search) }, size = 34.dp) { GlyphIcon(Glyph.SEARCH, Modifier.size(20.dp), Color.White) }
         }
         when (kind) {
-            LibKind.SONGS -> { val songs = lib.songs(); SongList(songs, nav, snap, showArt = true, sections = true, header = { ShuffleHeader(songs, nav) }) }
+            LibKind.SONGS -> {
+                var sort by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
+                val libRev = LocalLibRev.current
+                val songs = remember(sort, libRev) { sortedSongs(lib, app.userData, sort) }
+                SongList(songs, nav, snap, showArt = true, sections = if (sort == 0) 1 else if (sort == 1) 2 else 0,
+                    header = { ShuffleHeader(songs, nav, SORTS[sort]) { sort = (sort + 1) % SORTS.size } })
+            }
             LibKind.MEMOS -> { val memos = lib.memos; SongList(memos, nav, snap, showArt = false) }
             LibKind.ALBUMS -> AlbumGrid(lib.albums(), nav)
             LibKind.ARTISTS -> GroupList(lib.artists(), nav, circle = true) { Screen.Detail(DetailKind.ARTIST, it.name) }
@@ -476,11 +488,12 @@ private fun LibraryScreen(kind: LibKind, nav: PlayerNav, snap: PlayerSnap) {
 }
 
 @Composable
-private fun ShuffleHeader(tracks: List<Track>, nav: PlayerNav) {
+private fun ShuffleHeader(tracks: List<Track>, nav: PlayerNav, sortLabel: String, onSort: () -> Unit) {
     val app = LocalApp.current
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         GlossPill("Play", { app.player.play(tracks, 0, null); nav.nowPlaying = true }, icon = Glyph.PLAY, primary = true)
         GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true); nav.nowPlaying = true }, icon = Glyph.SHUFFLE)
+        GlossPill(sortLabel, onSort, height = 32.dp)
         Txt(songCount(tracks.size), Modifier.weight(1f), size = 13f, color = LocalScheme.current.onBgDim, align = TextAlign.End)
     }
 }
@@ -489,7 +502,7 @@ private fun ShuffleHeader(tracks: List<Track>, nav: PlayerNav) {
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 fun SongList(
     tracks: List<Track>, nav: PlayerNav, snap: PlayerSnap, showArt: Boolean, numbered: Boolean = false,
-    sheetExtra: List<SheetItem> = emptyList(), header: (@Composable () -> Unit)? = null, sections: Boolean = false,
+    sheetExtra: List<SheetItem> = emptyList(), header: (@Composable () -> Unit)? = null, sections: Int = 0,
 ) {
     val app = LocalApp.current
     if (tracks.isEmpty()) { EmptyState("Nothing here yet"); return }
@@ -499,10 +512,10 @@ fun SongList(
             app.player.play(tracks, i, null); nav.nowPlaying = true
         })
     }
-    val groups = remember(tracks, sections) { if (sections) tracks.withIndex().groupBy { letterOf(sortKey(it.value.title)) } else emptyMap() }
+    val groups = remember(tracks, sections) { if (sections > 0) tracks.withIndex().groupBy { letterOf(sortKey(if (sections == 2) it.value.artist.ifEmpty { "#" } else it.value.title)) } else emptyMap() }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         if (header != null) item { header() }
-        if (sections) {
+        if (sections > 0) {
             groups.forEach { (l, list) ->
                 stickyHeader(key = "h$l") { LetterHeader(l) }
                 items(list, key = { "${it.index}${it.value.path}" }) { row(it.index, it.value) }
@@ -521,18 +534,24 @@ private fun AlbumGrid(albums: List<Group>, nav: PlayerNav) {
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun GroupList(groups: List<Group>, nav: PlayerNav, circle: Boolean, target: (Group) -> Screen) {
     val sc = LocalScheme.current
     if (groups.isEmpty()) { EmptyState("Nothing here yet"); return }
+    val sections = remember(groups) { groups.groupBy { letterOf(sortKey(it.name)) } }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-        items(groups, key = { it.name }) { g ->
+        sections.forEach { (l, list) ->
+            stickyHeader(key = "h$l") { LetterHeader(l) }
+            items(list, key = { it.name }) { g ->
             IpodRow({ nav.push(target(g)) }, height = 56.dp,
                 leading = { ArtImage(g.artKey, Modifier.size(44.dp), thumb = true, corner = 10.dp, circle = circle) },
                 trailing = { CountChevron(g.tracks.size) }) { hi ->
                 Txt(g.name, size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.onBg)
             }
+            }
         }
+        item { CountFooter("${groups.size} ${if (circle) "artists" else "items"}") }
     }
 }
 
@@ -596,8 +615,10 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
     val lib = app.library
     val ud = app.userData
     ud.rev
+    val libRev = LocalLibRev.current
     val by = lib.byPath()
     var title = ""; var subtitle = ""; var art: String? = null
+    val mix = if (d.kind == DetailKind.MIX) remember(d.id, libRev) { com.ipodemu.library.Recommender.find(d.id, lib, ud) } else null
     var tracks: List<Track> = emptyList()
     var userId: String? = null
     when (d.kind) {
@@ -608,6 +629,7 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
         DetailKind.USER -> ud.playlists.firstOrNull { it.id == d.id }?.let { title = it.name; tracks = it.paths.mapNotNull { p -> by[p] }; art = tracks.firstNotNullOfOrNull { t -> t.artKey }; userId = it.id }
         DetailKind.FAVORITES -> { title = "Favorites"; tracks = ud.favorites.mapNotNull { by[it] }; art = tracks.firstNotNullOfOrNull { it.artKey } }
         DetailKind.RECENT -> { title = "Recently Played"; tracks = ud.recents.mapNotNull { by[it] }; art = tracks.firstNotNullOfOrNull { it.artKey } }
+        DetailKind.MIX -> mix?.let { title = it.title; subtitle = it.subtitle; tracks = it.tracks; art = it.artKey }
     }
     BackdropArt(nav, art)
     val total = tracks.sumOf { it.durationMs }
@@ -785,4 +807,15 @@ fun CountChevron(count: Int) {
         Txt("$count", size = 14f, color = rowDim())
         GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), rowDim())
     }
+}
+
+// ---- richer browsing ----------------------------------------------------------------------------------------------
+
+val SORTS = listOf("A-Z", "Artist", "Recent", "Most played")
+
+fun sortedSongs(lib: com.ipodemu.library.Library, ud: com.ipodemu.library.UserData, sort: Int): List<Track> = when (sort) {
+    1 -> lib.songs().sortedWith(compareBy({ sortKey(it.artist.ifEmpty { "~" }) }, { sortKey(it.album) }, { it.discNo }, { it.trackNo }))
+    2 -> lib.songs().sortedByDescending { it.mtime }
+    3 -> lib.songs().sortedByDescending { ud.plays[it.path] ?: 0 }.filter { (ud.plays[it.path] ?: 0) > 0 }.ifEmpty { lib.songs() }
+    else -> lib.songs()
 }

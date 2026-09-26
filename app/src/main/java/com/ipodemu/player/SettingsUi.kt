@@ -42,7 +42,7 @@ fun SettingsScreen(nav: PlayerNav) {
     @Composable
     fun SettingRow(title: String, value: String? = null, chevron: Boolean = false, onClick: () -> Unit) {
         IpodRow({ onClick(); rev++ }, height = 58.dp, trailing = {
-            Row(Modifier.widthIn(max = 190.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.widthIn(max = 150.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (value != null) Txt(value, Modifier.weight(1f, fill = false), size = 15f, color = rowDim(), maxLines = 1)
                 if (chevron) GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), rowDim())
             }

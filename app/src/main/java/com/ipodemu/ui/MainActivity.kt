@@ -73,6 +73,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onResume() {
+        idleHandler.removeCallbacks(idleCheck); idleHandler.postDelayed(idleCheck, 1000)
+        applyBrightness()
         super.onResume()
         ipodView?.updateHinge()
         WindowInsetsControllerCompat(window, window.decorView).apply {
@@ -101,7 +103,28 @@ class MainActivity : ComponentActivity() {
         if (i >= 0 && grantResults.getOrNull(i) == PackageManager.PERMISSION_GRANTED) app.library.rescan()
     }
 
+    // Backlight timeout for the Player views (the click-wheel view keeps its own dimming): dim after N idle seconds, wake on input.
+    private val idleHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var lastInput = android.os.SystemClock.uptimeMillis()
+    private var dimmed = false
+    private val idleCheck = object : Runnable {
+        override fun run() {
+            val s = app.prefs.backlightSec
+            if (!wheelMode && s > 0 && !dimmed && android.os.SystemClock.uptimeMillis() - lastInput > s * 1000L) {
+                dimmed = true
+                window.attributes = window.attributes.also { it.screenBrightness = 0.01f }
+            }
+            idleHandler.postDelayed(this, 1000)
+        }
+    }
+    private fun wake() {
+        lastInput = android.os.SystemClock.uptimeMillis()
+        if (dimmed) { dimmed = false; applyBrightness() }
+    }
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean { wake(); return super.dispatchTouchEvent(ev) }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        wake()
         if (!wheelMode) PlayerKeys.translate(this, event)?.let { return it }
         return super.dispatchKeyEvent(event)
     }
@@ -114,6 +137,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onGenericMotionEvent(event: MotionEvent): Boolean =
         (wheelMode && ipodView?.onHat(event) == true) || super.onGenericMotionEvent(event)
+
+    override fun onPause() { idleHandler.removeCallbacks(idleCheck); super.onPause() }
 
     override fun onDestroy() {
         ipodView?.release()

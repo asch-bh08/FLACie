@@ -135,7 +135,8 @@ class MenuBuilder(private val app: App, private val onThemeChosen: (String) -> U
     /** Settings is grouped so common changes are a couple of taps away instead of one long list. */
     fun settingsPage(): ListPage = ListPage("Settings", Kind.SETTINGS) {
         ListSourceOf(listOf(
-            Item("Appearance") { it.push(appearancePage()) },
+            // the single Appearance screen (Look, Mode, Colour, Theme, Display) is shared with the Player views
+            Item("Appearance") { app.ui.pickerOpen = true },
             Item("Playback") { it.push(playbackPage()) },
             Item("Controls") { it.push(controlsPage()) },
             Item("Main Menu") { it.push(mainMenuPage()) },
@@ -144,21 +145,6 @@ class MenuBuilder(private val app: App, private val onThemeChosen: (String) -> U
                 lib.rescan(); it.redraw()
             },
             Item("Reset Settings") { it.push(resetPage()) },
-        ))
-    }
-
-    fun appearancePage(): ListPage = ListPage("Appearance", Kind.SETTINGS) {
-        val backlight = listOf(0, 10, 30, 60)
-        val brightness = listOf(-1f, 0.25f, 0.5f, 0.75f, 1f)
-        val model = Themes.model(prefs.model)
-        ListSourceOf(listOf(
-            // one Appearance screen (Look, Mode, Colour, Theme) shared with the Player views
-            Item("Look & Mode", value = { Themes.model(prefs.model).name }) { app.ui.pickerOpen = true },
-            choice("Time in Title", listOf("Off", "On"), { if (prefs.timeInTitle) 1 else 0 }) { prefs.timeInTitle = it == 1 },
-            choice("Brightness", brightness.map { if (it < 0) "System" else "${(it * 100).toInt()}%" },
-                { brightness.indexOf(prefs.brightness).coerceAtLeast(0) }) { prefs.brightness = brightness[it] },
-            choice("Backlight", backlight.map { if (it == 0) "Always On" else "${it}s" },
-                { backlight.indexOf(prefs.backlightSec).coerceAtLeast(0) }) { prefs.backlightSec = backlight[it] },
         ))
     }
 

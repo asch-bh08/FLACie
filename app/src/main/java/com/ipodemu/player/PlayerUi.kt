@@ -274,9 +274,9 @@ fun TrackRow(
         trailing = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (fav) GlyphIcon(Glyph.HEART_FILLED, Modifier.size(18.dp), sc.accent)
-                if (t.durationMs > 0) Txt(fmtTime(t.durationMs), size = 13f, color = sc.onBgDim)
+                if (t.durationMs > 0) Txt(fmtTime(t.durationMs), size = 13f, color = rowDim())
                 Box(Modifier.size(38.dp).clip(RoundedCornerShape(50)).clickable { openTrackSheet(app, nav, t, sheetExtra) }, contentAlignment = Alignment.Center) {
-                    GlyphIcon(Glyph.MORE, Modifier.size(22.dp), sc.onBgDim)
+                    GlyphIcon(Glyph.MORE, Modifier.size(22.dp), rowDim())
                 }
             }
         },
@@ -360,8 +360,10 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     val libRev = LocalLibRev.current
     val recentAlbums = remember(libRev) { lib.recentAlbums(20) }
     app.userData.rev
+    app.ui.rev
+    val clock by androidx.compose.runtime.produceState("") { while (true) { value = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date()); delay(15000) } }
     Column(Modifier.fillMaxSize()) {
-        TopBar("iPod", nav, showBack = false) {
+        TopBar(if (app.prefs.timeInTitle) clock else "iPod", nav, showBack = false) {
             GlossButton({ nav.push(Screen.Search) }, size = 34.dp) { GlyphIcon(Glyph.SEARCH, Modifier.size(20.dp), Color.White) }
             GlossButton({ nav.push(Screen.Settings) }, size = 34.dp) { GlyphIcon(Glyph.GEAR, Modifier.size(20.dp), Color.White) }
         }
@@ -780,7 +782,7 @@ fun CountFooter(text: String) {
 fun CountChevron(count: Int) {
     val sc = LocalScheme.current
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Txt("$count", size = 14f, color = sc.onBgDim)
-        GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), sc.onBgDim)
+        Txt("$count", size = 14f, color = rowDim())
+        GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), rowDim())
     }
 }

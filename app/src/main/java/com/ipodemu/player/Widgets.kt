@@ -319,6 +319,11 @@ fun IconTile(g: Glyph, modifier: Modifier = Modifier, size: Dp = 44.dp, tint: Co
 }
 
 // ---- rows ---------------------------------------------------------------------------------------------------------
+val LocalRowHi = androidx.compose.runtime.compositionLocalOf { false }
+
+/** Secondary text colour that stays readable on the highlighted (focused/pressed) row. */
+@Composable
+fun rowDim(): Color = if (LocalRowHi.current) Color(0xDDFFFFFF) else LocalScheme.current.onBgDim
 
 /** iPod-style list row: hairline divider, and the classic glossy accent selection when focused or pressed. */
 @OptIn(ExperimentalFoundationApi::class)
@@ -348,9 +353,11 @@ fun IpodRow(
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalRowHi provides hi) {
         if (leading != null) { leading(); Box(Modifier.width(14.dp)) }
         Box(Modifier.weight(1f)) { content(hi) }
         if (trailing != null) { Box(Modifier.width(10.dp)); trailing() }
+        }
     }
 }
 
@@ -451,7 +458,7 @@ fun ActionSheet(title: String, subtitle: String?, items: List<SheetItem>, onDism
             }
             items.forEachIndexed { i, item ->
                 IpodRow(onClick = { item.onClick(); onDismiss() }, height = 54.dp, focusRequester = if (i == 0) first else null,
-                    leading = { GlyphIcon(item.glyph, Modifier.size(24.dp), sc.onBg) }) { Txt(item.label, size = 16f) }
+                    leading = { GlyphIcon(item.glyph, Modifier.size(24.dp), if (LocalRowHi.current) Color.White else sc.onBg) }) { hi -> Txt(item.label, size = 16f, color = if (hi) Color.White else sc.onBg) }
             }
         }
     }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -41,9 +42,9 @@ fun SettingsScreen(nav: PlayerNav) {
     @Composable
     fun SettingRow(title: String, value: String? = null, chevron: Boolean = false, onClick: () -> Unit) {
         IpodRow({ onClick(); rev++ }, height = 58.dp, trailing = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (value != null) Txt(value, size = 15f, color = sc.onBgDim)
-                if (chevron) GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), sc.onBgDim)
+            Row(Modifier.widthIn(max = 190.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (value != null) Txt(value, Modifier.weight(1f, fill = false), size = 15f, color = rowDim(), maxLines = 1)
+                if (chevron) GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), rowDim())
             }
         }) { hi -> Txt(title, size = 16f, weight = androidx.compose.ui.text.font.FontWeight.Medium, color = if (hi) Color.White else sc.onBg) }
     }
@@ -56,12 +57,6 @@ fun SettingsScreen(nav: PlayerNav) {
             item {
                 Card {
                     SettingRow("Look & Mode", model.name + "  -  " + VIEW_NAMES[ui.viewMode.coerceIn(0, 3)], chevron = true) { ui.pickerOpen = true }
-                    SettingRow("Brightness", brightnessLabel(prefs.brightness)) {
-                        val steps = listOf(-1f, 0.25f, 0.5f, 0.75f, 1f)
-                        prefs.brightness = steps[(steps.indexOf(prefs.brightness).coerceAtLeast(0) + 1) % steps.size]
-                        (ctx as? com.ipodemu.ui.MainActivity)?.applyBrightness()
-                        ui.refreshFromPrefs()
-                    }
                 }
             }
             item { SectionHeader("Playback") }

@@ -160,6 +160,7 @@ private fun Controls(model: Model, ci: Int) {
     val ui = app.ui
     ui.rev
     val skin = skinOf(model)
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val wheel = ui.viewMode >= 2
     val body = ui.viewMode == 1 || ui.viewMode == 3
     var advanced by remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -221,6 +222,24 @@ private fun Controls(model: Model, ci: Int) {
                     val code = intArrayOf(2, 0, 1)[i]
                     Chip(n, p.appearance == code) { p.appearance = code; ui.refreshFromPrefs() }
                 }
+            }
+        }
+
+        Section("Display") {
+            val p = app.prefs
+            val steps = listOf(-1f, 0.25f, 0.5f, 0.75f, 1f)
+            Txt("Brightness", size = 14f, weight = FontWeight.SemiBold, color = Color.White)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(steps) { b -> Chip(brightnessLabel(b), p.brightness == b) { p.brightness = b; (ctx as? com.ipodemu.ui.MainActivity)?.applyBrightness(); ui.refreshFromPrefs() } }
+            }
+            Txt("Backlight (dims after)", Modifier.padding(top = 4.dp), size = 14f, weight = FontWeight.SemiBold, color = Color.White)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(listOf(0, 10, 30, 60)) { s -> Chip(if (s == 0) "Always on" else "${s}s", p.backlightSec == s) { p.backlightSec = s; ui.refreshFromPrefs() } }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Txt("Time in title", Modifier.weight(1f), size = 14f, weight = FontWeight.SemiBold, color = Color.White)
+                Chip("Off", !p.timeInTitle) { p.timeInTitle = false; ui.refreshFromPrefs() }
+                Chip("On", p.timeInTitle) { p.timeInTitle = true; ui.refreshFromPrefs() }
             }
         }
 

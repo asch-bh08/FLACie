@@ -182,10 +182,7 @@ class IpodView(context: Context) : View(context) {
         theme = Themes.create(prefs)
         computeLayout()
         val settings = menu.settingsPage()
-        val appearance = menu.appearancePage()
-        val src = appearance.source
-        for (i in 0 until src.size) if (src[i].title == row) { appearance.selected = i; break }
-        nav.reset(theme.buildRoot(menu), listOf(settings, appearance))
+        nav.reset(theme.buildRoot(menu), listOf(settings))
         transKind = Navigator.Transition.NONE
         invalidate()
     }

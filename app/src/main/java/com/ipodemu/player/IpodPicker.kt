@@ -159,8 +159,6 @@ private fun Controls(model: Model, ci: Int) {
     val app = LocalApp.current
     val ui = app.ui
     ui.rev
-    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
-    val bodyOk = bodyScale(model, cfg.screenWidthDp.toFloat(), cfg.screenHeightDp.toFloat()) >= BODY_MIN_SCALE
     val skin = skinOf(model)
     val wheel = ui.viewMode >= 2
     val body = ui.viewMode == 1 || ui.viewMode == 3
@@ -196,11 +194,9 @@ private fun Controls(model: Model, ci: Int) {
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Txt("Show iPod body", Modifier.weight(1f), size = 15f, weight = FontWeight.SemiBold, color = Color.White)
-                val canBody = wheel || bodyOk
                 Chip("Off", !body) { setMode(wheel, false) }
-                Chip("On", body, enabled = canBody) { setMode(wheel, true) }
+                Chip("On", body, ) { setMode(wheel, true) }
             }
-            if (!wheel && !bodyOk) Txt("The body needs a bigger or taller screen for the Player - text would be too small here.", size = 12f, color = Color(0xFF9AA1B1))
             if (model.touch) Txt("Touch iPods have no click wheel.", size = 12f, color = Color(0xFF9AA1B1))
         }
 

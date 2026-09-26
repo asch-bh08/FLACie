@@ -7,6 +7,12 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.size
@@ -83,14 +89,20 @@ private fun Color.luminance() = 0.2126f * red + 0.7152f * green + 0.0722f * blue
 fun DeviceFrame(m: Model, cw: Colorway, onWheel: (Zone) -> Unit, onStep: (Int) -> Unit, content: @Composable () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize().background(Color(cw.backdrop))) {
         val aw = maxWidth; val ah = maxHeight
-        val bh0 = ah * 0.97f
-        val bw = minOf(bh0 * m.aspect, aw * 0.98f)
+        // Fit the whole body when that leaves a readable screen; otherwise grow the body until the iPod screen is at least
+        // MIN_SCREEN wide (never wider than the window) and let it scroll vertically: screen at the top, wheel below.
+        val fitW = minOf(ah * 0.97f * m.aspect, aw * 0.98f)
+        val bw = maxOf(fitW, minOf(aw * 0.98f, MIN_SCREEN / m.screen.width()))
         val bh = bw / m.aspect
         val d = LocalDensity.current
-        Box(Modifier.size(bw, bh).align(Alignment.Center)) {
+        val scroll = androidx.compose.foundation.rememberScrollState()
+        val scope = androidx.compose.runtime.rememberCoroutineScope()
+        Box(Modifier.fillMaxSize().verticalScroll(scroll)) {
+        Box(Modifier.fillMaxWidth().defaultMinSize(minHeight = ah), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(bw, bh)) {
             Canvas(Modifier.fillMaxSize()) { drawIpodBody(m, cw) }
             val sW = bw * m.screen.width(); val sH = bh * m.screen.height()
-            val virtW: Dp = if (sW / sH > 1.1f) 560.dp else 360.dp
+            val virtW: Dp = (sW / 0.85f).coerceIn(300.dp, 560.dp)   // lay the UI out near real size: text stays ~85% of normal
             val virtH = virtW * (sH.value / sW.value)
             val scale = sW.value / virtW.value
             Box(
@@ -142,20 +154,18 @@ fun DeviceFrame(m: Model, cw: Colorway, onWheel: (Zone) -> Unit, onStep: (Int) -
                 )
             }
         }
+        }
+        }
+        if (scroll.maxValue > 0) {
+            val atBottom = scroll.value > scroll.maxValue / 2
+            Box(
+                Modifier.align(Alignment.BottomEnd).padding(12.dp).size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color(0xAA000000))
+                    .clickable { scope.launch { scroll.animateScrollTo(if (atBottom) 0 else scroll.maxValue) } },
+                contentAlignment = Alignment.Center,
+            ) { GlyphIcon(Glyph.DOWN, Modifier.size(22.dp).graphicsLayer { rotationZ = if (atBottom) 180f else 0f }, Color.White) }
+        }
     }
 }
 
-/** Minimum on-screen text scale for "Player in an iPod" to count as readable (text is laid out at 360/560 dp and scaled down). */
-const val BODY_MIN_SCALE = 0.7f
-
-/**
- * How much the Player UI is shrunk when shown inside [m]'s body on a [wDp] x [hDp] window (1 = real size). On the RG Rotate's
- * square 360 dp panel every body gives ~0.4 (about 8 px text), so the option is withheld there and offered only on screens
- * where the scale reaches [BODY_MIN_SCALE] (portrait phones, tablets, unfolded foldables).
- */
-fun bodyScale(m: Model, wDp: Float, hDp: Float): Float {
-    val bw = minOf(hDp * 0.97f * m.aspect, wDp * 0.98f)
-    val bh = bw / m.aspect
-    val sW = bw * m.screen.width(); val sH = bh * m.screen.height()
-    return sW / (if (sW / sH > 1.1f) 560f else 360f)
-}
+/** Smallest width the iPod's own screen may have inside the body view; below this the body grows and scrolls instead of shrinking. */
+private val MIN_SCREEN = 260.dp

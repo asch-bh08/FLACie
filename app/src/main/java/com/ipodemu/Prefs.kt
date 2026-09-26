@@ -7,7 +7,7 @@ class Prefs(ctx: Context) {
 
     /** Which iPod (see theme/Models.kt), its colour, and whether to draw the physical body ("device") or the modern flat layout. */
     var model: String
-        get() = sp.getString("model", "nano3") ?: "nano3"
+        get() = sp.getString("model", "ipod4") ?: "ipod4"
         set(v) = sp.edit().putString("model", v).putInt("color", 0).apply()
     var colorway: Int
         get() = sp.getInt("color", 0)

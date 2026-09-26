@@ -184,7 +184,7 @@ object Themes {
             listOf(T_SLATE, T_SILVER5, T_GOLD, T_PINK, T_BLUE, T_RED), "The last iPod: A10 Fusion and up to 256 GB."),
     )
 
-    const val DEFAULT_MODEL = "nano3"
+    const val DEFAULT_MODEL = "ipod4"
 
     fun model(id: String): Model = models.firstOrNull { it.id == id } ?: models.first { it.id == DEFAULT_MODEL }
 

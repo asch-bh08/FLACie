@@ -80,10 +80,7 @@ private fun PlayerRoot(activity: MainActivity, nav: PlayerNav) {
     val model = Themes.model(ui.model)
     val cw = model.colors[ui.colorway.coerceIn(0, model.colors.lastIndex)]
     val style = remember(model, cw) { IpodStyle(model, cw) }
-    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
-    // a body that would shrink the UI to unreadable text falls back to the plain Player
-    val bodyOk = bodyScale(model, cfg.screenWidthDp.toFloat(), cfg.screenHeightDp.toFloat()) >= BODY_MIN_SCALE
-    val mode = if (ui.viewMode == 1 && !bodyOk) 0 else ui.viewMode
+    val mode = ui.viewMode
     val snap = rememberSnap(app.player, app.prefs)
 
     val artKey = nav.overrideArt ?: snap.track?.artKey

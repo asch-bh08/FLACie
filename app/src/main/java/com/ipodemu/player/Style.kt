@@ -135,7 +135,7 @@ val LocalStyle = compositionLocalOf { IpodStylePlaceholder.style }
 /** Only used as a default for the composition locals before the root provides real values. */
 private object IpodStylePlaceholder {
     val style: IpodStyle by lazy {
-        val m = com.ipodemu.theme.Themes.model(com.ipodemu.theme.Themes.DEFAULT_MODEL)
+        val m = com.ipodemu.theme.Themes.model("nano3")
         IpodStyle(m, m.colors.first())
     }
 }

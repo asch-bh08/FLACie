@@ -54,3 +54,7 @@ Cover Flow, per-item collage previews on menus, other Nano generations, Photos/V
 - Baseline profile is hand-written wildcards + the libraries' own profiles (no Macrobenchmark: needs a rooted / Android 13+ device); `cmd package compile -m speed-profile -f com.ipodemu` after install to apply it immediately.
 - Verified: slim mini bar, Home Now Playing card, 56 dp rows, square Now Playing, Appearance screen (skin change restyles the whole app live, back gesture closes it), Player-in-body withheld with the reason shown.
 - Needs hands-on: Player in an iPod on a phone/tablet, wheel-view Appearance page, Brightness on device, fixed-colour swatches, light theme under "System".
+
+## v0.5 (RG Rotate, release build)
+- Verified on-device: all five skins apply live (LCD, Aqua, Nano, Touch iOS 7+ visibly distinct; Touch iOS 6 looks nearly the same as Aqua - both glossy), click-wheel views after the Appearance consolidation (wheel Settings > Appearance opens the shared screen; Back returns), body view on a small screen (readable text, wheel rotates the highlight, jump button pans between screen and wheel), controller (D-pad + Back) on Home, lists, Now Playing, sheets, Settings and Appearance, For You shelves + mix detail, hardware Home in the body view.
+- Not verified: body view on a phone/tablet, Backlight dimming on device, Time in Title, Songs sort beyond the A-Z default, hardware-mode Music submenu, touch-only skins in the body view.

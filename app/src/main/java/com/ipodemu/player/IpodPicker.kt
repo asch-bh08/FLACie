@@ -88,6 +88,7 @@ fun PickerScreen() {
             val land = maxWidth > maxHeight * 1.15f
             val preview = @Composable { BigPreview(model, cw, modeOf(ui.viewMode), Modifier.fillMaxSize().padding(10.dp)) }
             val controls = @Composable { Controls(model, ci) }
+            // always-visible Back (the screen used to have only Done at the very bottom)
             if (land) Row(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(0.42f).fillMaxHeight()) { preview() }
                 Box(Modifier.weight(0.58f).fillMaxHeight()) { controls() }
@@ -95,6 +96,7 @@ fun PickerScreen() {
                 Box(Modifier.weight(0.36f).fillMaxWidth()) { preview() }
                 Box(Modifier.weight(0.64f).fillMaxWidth()) { controls() }
             }
+            GlossPill("Back", { ui.pickerOpen = false }, Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 8.dp), icon = Glyph.BACK, height = 36.dp)
         }
     }
 }

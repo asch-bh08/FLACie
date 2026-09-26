@@ -1,0 +1,14 @@
+# Hand-written baseline profile (no Macrobenchmark on this non-rooted Android 12 device): pre-compile the hot Compose,
+# lazy-list, animation and gesture paths plus our own UI code. Compose libraries also ship their own profiles.
+HSPLandroidx/compose/runtime/**;->**(**)**
+HSPLandroidx/compose/ui/**;->**(**)**
+HSPLandroidx/compose/foundation/**;->**(**)**
+HSPLandroidx/compose/animation/**;->**(**)**
+HSPLcom/ipodemu/player/**;->**(**)**
+HSPLcom/ipodemu/library/**;->**(**)**
+Landroidx/compose/runtime/**;
+Landroidx/compose/ui/**;
+Landroidx/compose/foundation/**;
+Landroidx/compose/animation/**;
+Lcom/ipodemu/player/**;
+Lcom/ipodemu/library/**;

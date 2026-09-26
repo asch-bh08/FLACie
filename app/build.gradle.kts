@@ -12,7 +12,15 @@ android {
         versionCode = 2
         versionName = "0.3"
     }
-    buildTypes { release { isMinifyEnabled = false } }
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // debug key so the release build installs over the debug one on the test device; swap for a real key to publish
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -34,5 +42,6 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.2")
     implementation("androidx.palette:palette-ktx:1.0.0")
+    implementation("androidx.profileinstaller:profileinstaller:1.3.1")
     testImplementation("junit:junit:4.13.2")
 }

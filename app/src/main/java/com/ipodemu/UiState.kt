@@ -11,7 +11,7 @@ class UiState(private val prefs: Prefs) {
     var rev by mutableIntStateOf(0)
         private set
 
-    var viewMode by mutableIntStateOf(prefs.viewMode)
+    var viewMode by mutableIntStateOf(0)
         private set
     var model by mutableStateOf(prefs.model)
         private set
@@ -29,17 +29,29 @@ class UiState(private val prefs: Prefs) {
         private set
     fun requestNowPlaying() { nowPlayingRequest++ }
 
-    fun changeViewMode(v: Int) { prefs.viewMode = v; viewMode = v; rev++ }
+    /** True when the click-wheel view (IpodView) is what is on screen: a wheel mode with an iPod that has a wheel. */
+    val wheelActive: Boolean get() = viewMode >= 2 && !com.ipodemu.theme.Themes.model(model).touch
+
+    /** Only combinations that exist: touch iPods have no wheel views; a wheel iPod in a body shows the wheel OS, not the Player. */
+    private fun fixedViewMode(v: Int, m: com.ipodemu.theme.Model): Int = when {
+        m.touch -> when (v) { 2 -> 0; 3 -> 1; else -> v }
+        else -> if (v == 1) 3 else v
+    }
+    private fun normalise() {
+        val v = fixedViewMode(prefs.viewMode, com.ipodemu.theme.Themes.model(prefs.model))
+        if (v != prefs.viewMode) prefs.viewMode = v
+    }
+
+    fun changeViewMode(v: Int) { prefs.viewMode = fixedViewMode(v, com.ipodemu.theme.Themes.model(prefs.model)); viewMode = prefs.viewMode; rev++ }
     fun changeModel(id: String) {
         prefs.model = id; model = id; colorway = 0
-        if (com.ipodemu.theme.Themes.model(id).touch) {   // no wheel on touch iPods: fullscreen wheel -> modern player, wheel body -> touch body
-            val v = when (prefs.viewMode) { 2 -> 0; 3 -> 1; else -> prefs.viewMode }
-            prefs.viewMode = v; viewMode = v
-        }
+        normalise(); viewMode = prefs.viewMode
         rev++
     }
     fun changeColorway(i: Int) { prefs.colorway = i; colorway = i; rev++ }
     fun changeDynamic(on: Boolean) { prefs.dynamicColor = on; dynamicColor = on; rev++ }
     /** Called after code outside Compose (the wheel UI's own settings) changed prefs. */
-    fun refreshFromPrefs() { viewMode = prefs.viewMode; model = prefs.model; colorway = prefs.colorway; dynamicColor = prefs.dynamicColor; rev++ }
+    fun refreshFromPrefs() { normalise(); viewMode = prefs.viewMode; model = prefs.model; colorway = prefs.colorway; dynamicColor = prefs.dynamicColor; rev++ }
+
+    init { refreshFromPrefs() }   // last: all state fields must exist first
 }

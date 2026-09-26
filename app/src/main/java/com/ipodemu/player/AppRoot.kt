@@ -4,7 +4,6 @@ import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.runtime.movableContentOf
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -55,7 +54,7 @@ fun AppRoot(activity: MainActivity) {
     ui.rev
     val nav = remember { PlayerNav() }
     val model = Themes.model(ui.model)
-    val wheel = ui.viewMode >= 2 && !model.touch
+    val wheel = ui.wheelActive
     CompositionLocalProvider(LocalApp provides app) {
         // the picker is an overlay, so opening/closing it never tears down the Player or the wheel view underneath
         Box(Modifier.fillMaxSize()) {
@@ -94,8 +93,8 @@ private fun PlayerRoot(activity: MainActivity, nav: PlayerNav) {
     val scheme = animatedScheme(buildScheme(style, artColors, if (style.mono) false else dark, ui.dynamicColor))
 
     CompositionLocalProvider(LocalStyle provides style, LocalScheme provides scheme, LocalHardware provides (mode == 1)) {
-        // movable: switching Player <-> Player-in-iPod moves the existing UI instead of rebuilding it
-        val content = remember { movableContentOf<@Composable () -> Unit> { it() } }
+        // (movableContentOf here left a frozen, unresponsive copy of the screen after switching modes, so the UI is simply rebuilt)
+        val content: @Composable (@Composable () -> Unit) -> Unit = { it() }
         val body: @Composable () -> Unit = {
             Box(Modifier.fillMaxSize().drawBehind { drawRect(Brush.verticalGradient(listOf(scheme.top, scheme.bottom))) }) {
                 PlayerHost(nav)

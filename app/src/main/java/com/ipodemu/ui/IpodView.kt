@@ -212,7 +212,7 @@ class IpodView(context: Context) : View(context) {
 
     override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) { computeLayout() }
 
-    private fun wantFull() = when (prefs.layoutMode) { 1 -> false; 2 -> true; else -> controllerDeployed }
+    private fun wantFull() = when (prefs.layoutMode) { 1 -> false; 2 -> true; else -> controllerDeployed && prefs.viewMode != 3 }   // an explicitly chosen iPod body is never hidden by the hinge
 
     /** Re-run layout if the fullscreen decision changed (setting toggled or controller deployed/stowed). */
     fun refreshLayout() {

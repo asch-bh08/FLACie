@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
     var ipodView: IpodView? = null
 
     private val app get() = App.of(this)
-    private val wheelMode get() = app.ui.viewMode >= 2 && !app.ui.pickerOpen   // the Appearance overlay takes keys itself
+    private val wheelMode get() = app.ui.wheelActive && !app.ui.pickerOpen   // the Appearance overlay takes keys itself
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

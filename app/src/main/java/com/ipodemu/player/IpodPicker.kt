@@ -153,8 +153,11 @@ private fun Controls(model: Model, ci: Int) {
         // ---- view ----
         Txt("Show it as", Modifier.padding(top = 8.dp), size = 13f, weight = FontWeight.Bold, color = Color(0xFF8B92A3))
         VIEWS.forEach { (mode, title, sub) ->
-            val ok = mode < 2 || !model.touch
-            ViewRow(title, sub, ui.viewMode == mode, ok) { if (ok) ui.changeViewMode(mode) }
+            val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+            val bodyOk = bodyScale(model, cfg.screenWidthDp.toFloat(), cfg.screenHeightDp.toFloat()) >= BODY_MIN_SCALE
+            val ok = if (mode == 1) bodyOk else if (mode >= 2) !model.touch else true
+            val why = if (mode == 1) "Needs a bigger or taller screen - here the text would be too small to read" else "Not available - this iPod has no wheel"
+            ViewRow(title, sub, ui.viewMode == mode, ok, why) { if (ok) ui.changeViewMode(mode) }
         }
 
         // ---- colours ----
@@ -198,7 +201,7 @@ private fun Swatch(col: Colorway, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ViewRow(title: String, sub: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+private fun ViewRow(title: String, sub: String, selected: Boolean, enabled: Boolean, why: String, onClick: () -> Unit) {
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
     val shape = RoundedCornerShape(14.dp)
@@ -214,7 +217,7 @@ private fun ViewRow(title: String, sub: String, selected: Boolean, enabled: Bool
         }
         Column(Modifier.weight(1f)) {
             Txt(title, size = 15f, weight = FontWeight.SemiBold, color = if (enabled) Color.White else Color(0x66FFFFFF))
-            Txt(if (enabled) sub else "Not available - this iPod has no wheel", size = 12f, color = Color(0xFF9AA1B1))
+            Txt(if (enabled) sub else why, size = 12f, color = Color(0xFF9AA1B1))
         }
     }
 }

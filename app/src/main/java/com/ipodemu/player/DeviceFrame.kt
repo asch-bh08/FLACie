@@ -144,3 +144,18 @@ fun DeviceFrame(m: Model, cw: Colorway, onWheel: (Zone) -> Unit, onStep: (Int) -
         }
     }
 }
+
+/** Minimum on-screen text scale for "Player in an iPod" to count as readable (text is laid out at 360/560 dp and scaled down). */
+const val BODY_MIN_SCALE = 0.7f
+
+/**
+ * How much the Player UI is shrunk when shown inside [m]'s body on a [wDp] x [hDp] window (1 = real size). On the RG Rotate's
+ * square 360 dp panel every body gives ~0.4 (about 8 px text), so the option is withheld there and offered only on screens
+ * where the scale reaches [BODY_MIN_SCALE] (portrait phones, tablets, unfolded foldables).
+ */
+fun bodyScale(m: Model, wDp: Float, hDp: Float): Float {
+    val bw = minOf(hDp * 0.97f * m.aspect, wDp * 0.98f)
+    val bh = bw / m.aspect
+    val sW = bw * m.screen.width(); val sH = bh * m.screen.height()
+    return sW / (if (sW / sH > 1.1f) 560f else 360f)
+}

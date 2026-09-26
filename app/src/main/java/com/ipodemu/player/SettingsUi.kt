@@ -95,7 +95,7 @@ fun SettingsScreen(nav: PlayerNav) {
                 }
             }
             item { SectionHeader("About") }
-            item { Card { SettingRow("Version", "0.3") { } } }
+            item { Card { SettingRow("Version", "0.6") { } } }
         }
     }
 }

@@ -72,15 +72,27 @@ class MainActivity : ComponentActivity() {
         window.attributes = a
     }
 
+    private fun hideSystemBars() {
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
     override fun onResume() {
         idleHandler.removeCallbacks(idleCheck); idleHandler.postDelayed(idleCheck, 1000)
         applyBrightness()
         super.onResume()
         ipodView?.updateHinge()
-        WindowInsetsControllerCompat(window, window.decorView).apply {
-            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            hide(WindowInsetsCompat.Type.systemBars())
-        }
+        hideSystemBars()
+    }
+
+    // onResume alone misses this: a transient system-bar reveal (edge swipe, or a status-bar tap) doesn't pause the
+    // activity, and our own frequent invalidate()s (wheel animations, scrolling) reset the OS's auto-hide timer, so the
+    // bar can stay stuck open indefinitely, drawn over our own header. Re-hide whenever the window regains focus.
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) hideSystemBars()
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {

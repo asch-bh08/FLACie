@@ -99,10 +99,19 @@ class Nano3Theme(
     private fun header(c: Canvas, title: String, ctx: DrawCtx, right: String? = null) {
         Gfx.vgrad(c, 0f, 0f, W, headerH, pal.hdrTop, pal.hdrBot)
         Gfx.line(c, 0f, headerH - 0.5f, W, headerH - 0.5f, pal.hdrLine, 1f)
-        Gfx.text(c, title, W / 2, 18f, 14f, pal.hdrInk, Gfx.SANS_BOLD, Paint.Align.CENTER, maxW = W * 0.6f)
+        // Time in Title's clock (or a per-page right label) can collide with a long centred title; measure it first
+        // (drawn transparently) and shrink the title to leave it room.
+        val rightText = ctx.status.clock ?: right
+        val rightW = rightText?.let { Gfx.text(c, it, W - 34f, 18f, 12f, 0x00000000, Gfx.SANS, Paint.Align.RIGHT) } ?: 0f
+        if (rightW > 0f) {
+            // Recentre the title in whatever space is actually free of the clock/right-label, rather than staying
+            // pinned at the true centre and letting a wide string eat into it.
+            val leftBound = W * 0.1f; val rightBound = (W - 34f - rightW - 6f).coerceAtLeast(leftBound + W * 0.2f)
+            Gfx.text(c, title, (leftBound + rightBound) / 2, 18f, 14f, pal.hdrInk, Gfx.SANS_BOLD, Paint.Align.CENTER, maxW = (rightBound - leftBound).coerceAtLeast(W * 0.2f))
+        } else Gfx.text(c, title, W / 2, 18f, 14f, pal.hdrInk, Gfx.SANS_BOLD, Paint.Align.CENTER, maxW = W * 0.6f)
         if (ctx.status.playing) Gfx.triangle(c, 9f, headerH / 2, 10f, pal.hdrInk)
         Gfx.battery(c, W - 7f, headerH / 2, ctx.status.battery, ctx.status.charging, pal.hdrInk, 0xFF56B14E.toInt())
-        (ctx.status.clock ?: right)?.let { Gfx.text(c, it, W - 34f, 18f, 12f, pal.hdrInk, Gfx.SANS, Paint.Align.RIGHT) }
+        rightText?.let { Gfx.text(c, it, W - 34f, 18f, 12f, pal.hdrInk, Gfx.SANS, Paint.Align.RIGHT) }
     }
 
     private fun drawList(c: Canvas, page: ListPage, ctx: DrawCtx) {

@@ -62,3 +62,31 @@ Cover Flow, per-item collage previews on menus, other Nano generations, Photos/V
 ## v0.6 Appearance redesign (RG Rotate)
 - Verified on-device: three named modes with previews (Modern Player / iPod Emulator / Click Wheel Fullscreen), live top preview of mode + iPod + colour, device gallery by family with real drawings, colour swatches updating the gallery/preview, touch iPods disabling the wheel mode with the reason, live switching between all three modes (the wheel view rebuilds), emulator with a wheel iPod and with a touch iPod, hardware-accurate emulator Home.
 - Not verified: gallery on phone/tablet layouts, focus/controller order through the new cards.
+
+## Full bug pass (v0.6, RG Rotate, release build) — every screen, every mode, every device family
+Systematic click-through of Modern Player, iPod Emulator and Click Wheel Fullscreen across Classic, Mini, Nano and
+Touch families; mode-then-model and model-then-mode switches in both orders, repeated back-and-forth; Back via
+on-screen pill, hardware Back, gamepad B and swipe-back from every screen including nested ones (Settings inside the
+Emulator body, Music submenu, Voice Memos, Search, Queue, action sheet, name dialog); the carousel's arrows, direct
+neighbour tap and L1/R1; rapid/unthrottled input (10 rapid R1 presses, fling-then-tap mid-animation, rapid alternating
+mode taps, backgrounding mid-transition). No crash or ANR anywhere in the pass (logcat clean throughout).
+
+**Found and fixed:**
+- Header text overlap with Time in Title on: a real 1st-4th-gen iPod's 160px-wide header (MonoGen1Theme) has no room
+  for both a centred title and an "h:mm a" clock next to the battery/play icons; the title, pinned at the true
+  centre, collided with the clock. Reproduced on iPod mini (1st gen) in Click Wheel Fullscreen, confirmed to persist
+  across app relaunch (not transient), and fixed by recentring the title in whatever space is free of the clock
+  instead of the fixed centre. Applied the same defensive fix to ClassicTheme and Nano3Theme's headers (not
+  reproduced there — their wider design widths had enough slack — but the same collision was reachable with a long
+  enough title). Verified clean afterwards with the header's own longest titles ("Settings", "Now Playing", "Voice
+  Memos") on mono, and with "iPod"/"Extras" on Classic/Nano3, all with the clock showing.
+
+**Investigated, not a bug:** a suspected frozen-Back-button repro via an automated `uiautomator dump`-based tap
+turned out to be a timing artifact of that tool (the dump raced a screen transition); a direct coordinate tap at the
+same step worked correctly. A "Click wheel layout" setting that appeared to have reset was in fact the RG Rotate's
+own physical controller-deployed state (Auto mode correctly follows the hinge), not a stored preference reverting.
+
+**Not reproduced / nothing else found:** the original frozen-Back-button bug from the previous session did not
+recur under any mode/model switch order, repetition, or rapid/backgrounded input tried here. Not tried: a real phone
+or tablet aspect ratio (no simulator available for this physical device), and touch-family models specifically
+inside "Player in an iPod" on such a screen.

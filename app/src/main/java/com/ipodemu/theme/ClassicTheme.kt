@@ -59,7 +59,15 @@ class ClassicTheme(
     private fun header(c: Canvas, title: String, ctx: DrawCtx) {
         Gfx.vgrad(c, 0f, 0f, W, headerH, 0xFFFFFFFF.toInt(), 0xFFCFD2D8.toInt())
         Gfx.line(c, 0f, headerH - 0.5f, W, headerH - 0.5f, 0xFF8E9299.toInt(), 1f)
-        Gfx.text(c, title, W / 2, 16f, 13f, 0xFF000000.toInt(), Gfx.SANS_BOLD, Paint.Align.CENTER, maxW = 210f)
+        // Time in Title's clock can collide with a long centred page title on narrower widths; measure it first
+        // (drawn in the background colour, so this pass is invisible) and shrink the title to leave it room.
+        val clockW = ctx.status.clock?.let { Gfx.text(c, it, W - 32f, 16f, 12f, 0xFFCFD2D8.toInt(), Gfx.SANS, Paint.Align.RIGHT) } ?: 0f
+        if (clockW > 0f) {
+            // Recentre the title in whatever space is actually free of the clock, rather than staying pinned at the
+            // true centre and letting a wide "h:mm a" string eat into it.
+            val leftBound = 30f; val rightBound = (W - 32f - clockW - 6f).coerceAtLeast(leftBound + 40f)
+            Gfx.text(c, title, (leftBound + rightBound) / 2, 16f, 13f, 0xFF000000.toInt(), Gfx.SANS_BOLD, Paint.Align.CENTER, maxW = (rightBound - leftBound).coerceAtLeast(40f))
+        } else Gfx.text(c, title, W / 2, 16f, 13f, 0xFF000000.toInt(), Gfx.SANS_BOLD, Paint.Align.CENTER, maxW = 210f)
         if (ctx.status.playing) Gfx.triangle(c, 8f, headerH / 2, 9f, 0xFF000000.toInt())
         Gfx.battery(c, W - 6f, headerH / 2, ctx.status.battery, ctx.status.charging, 0xFF000000.toInt(), 0xFF000000.toInt())
         ctx.status.clock?.let { Gfx.text(c, it, W - 32f, 16f, 12f, 0xFF000000.toInt(), Gfx.SANS, Paint.Align.RIGHT) }

@@ -93,7 +93,16 @@ class MonoGen1Theme(
 
     private fun header(c: Canvas, title: String, ctx: DrawCtx) {
         Gfx.rect(c, 0f, 0f, W, headerH, LCD)
-        t(c, title, W / 2, 12f, INK, Paint.Align.CENTER, 100f)
+        // Time in Title (Settings > Appearance > Display) puts a real clock string ("11:57 AM") in this header; the
+        // design width here (160) is a real 1st-4th-gen iPod's, which never had a header clock. Measure it first and
+        // shrink the centred title so the two can never collide (was overlapping unreadably).
+        val clockW = ctx.status.clock?.let { Gfx.text(c, it, W - 26f, 12f, FONT, LCD, Gfx.MONO_BOLD, Paint.Align.RIGHT, aa = false) } ?: 0f
+        if (clockW > 0f) {
+            // A wide "h:mm a" clock can eat most of this 160px header on its own; keeping the title pinned at the
+            // true centre left it nowhere to go. Recentre it in whatever space is actually free of the clock instead.
+            val leftBound = 22f; val rightBound = (W - 26f - clockW - 6f).coerceAtLeast(leftBound + 20f)
+            t(c, title, (leftBound + rightBound) / 2, 12f, INK, Paint.Align.CENTER, (rightBound - leftBound).coerceAtLeast(20f))
+        } else t(c, title, W / 2, 12f, INK, Paint.Align.CENTER, 100f)
         Gfx.line(c, 0f, headerH - 1f, W, headerH - 1f, INK, 1f)
         if (ctx.status.playing) Gfx.triangle(c, 4f, headerH / 2 - 0.5f, 7f, INK)
         Gfx.battery(c, W - 3f, headerH / 2 - 0.5f, ctx.status.battery, ctx.status.charging, INK, INK)

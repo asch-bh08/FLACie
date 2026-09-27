@@ -1,0 +1,86 @@
+@inherits StateComponent
+@inject IHostPickers Pickers
+
+<div class="page-head"><div><h1>Backups</h1><p>A verified copy of the iPod’s databases is taken before every write</p></div></div>
+<div class="panel">
+    <p class="muted small" style="margin-top:0">
+        Before every write, the iPod's databases (and its artwork database, when covers change) are copied here and checked.
+        If a write doesn't verify, the app puts that copy back by itself. Backups are never deleted automatically.
+    </p>
+    <label class="field">Backup folder
+        <div class="row" style="margin:0">
+            <input class="text-input grow" @bind="_root" />
+            @if (Pickers.Available)
+            {
+                <button class="btn" @onclick="Pick">Browse…</button>
+            }
+            <button class="btn" disabled="@(_root == State.Backend.BackupRoot)" @onclick="Save">Save</button>
+        </div>
+    </label>
+</div>
+
+@if (_backups is null)
+{
+    <div class="muted">Loading…</div>
+}
+else if (_backups.Count == 0)
+{
+    <div class="muted">No backups in this folder yet.</div>
+}
+else
+{
+    <div class="table-wrap tall">
+        <table class="data-table">
+            <colgroup><col style="width:170px" /><col style="width:110px" /><col /><col style="width:90px" /></colgroup>
+            <thead><tr><th>When</th><th>Type</th><th>Result</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var b in _backups)
+                {
+                    <tr title="@b.Path">
+                        <td>@b.Created.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td>@b.Kind@(b.HasArtwork ? " + art" : "")</td>
+                        <td class="@(b.Outcome == "Write verified" ? "ok-text" : b.Outcome?.StartsWith("Write failed") == true ? "warn-text" : "muted")">@(b.Outcome ?? "(no log: taken before a write that didn't finish, or a manual copy)")</td>
+                        <td>@if (Pickers.Available) { <button class="btn small" @onclick="() => Pickers.OpenFolderAsync(b.Path)">Open</button> }</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="panel small" style="margin-top:14px">
+        <strong>Putting a backup back by hand.</strong> Each folder holds the files as they were <em>before</em> that write.
+        With the iPod connected, copy the folder's <span class="mono">iTunes</span> contents over <span class="mono">iPod_Control\iTunes</span>
+        (and <span class="mono">Artwork</span> over <span class="mono">iPod_Control\Artwork</span> if present), then eject the iPod.
+        Restoring an older backup also undoes every write made after it.
+    </div>
+}
+
+@code {
+    private string _root = "";
+    private List<BackupInfo>? _backups;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _root = State.Backend.BackupRoot;
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _backups = null;
+        try { _backups = await State.Backend.ListBackupsAsync(); }
+        catch (Exception ex) { State.Error = AppState.Format(ex); _backups = []; }
+    }
+
+    private async Task Pick()
+    {
+        var f = await Pickers.PickFolderAsync();
+        if (f is not null) _root = f;
+    }
+
+    private async Task Save()
+    {
+        State.Backend.BackupRoot = _root.Trim().Trim('"');
+        _root = State.Backend.BackupRoot;
+        await Load();
+    }
+}

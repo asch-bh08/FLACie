@@ -1,4 +1,5 @@
-using IpodSync.Shared.Backend;
+﻿using IpodSync.Shared.Backend;
+using IpodSync.Web;
 using IpodSync.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,6 +12,11 @@ builder.Services.AddHttpClient();
 // The web host always runs on the PC the iPod is physically plugged into, so it
 // talks to IpodSync.Core directly -- see MauiProgram.cs for why Android can't.
 builder.Services.AddScoped<IIpodSyncBackend, LocalIpodSyncBackend>();
+builder.Services.AddScoped<IpodSync.Shared.State.AppState>();
+builder.Services.AddScoped<IpodSync.Shared.Playback.IMediaSource, IpodSync.Web.WebMediaSource>();
+builder.Services.AddScoped<IpodSync.Shared.Playback.AudioPlayer, IpodSync.Shared.Playback.HtmlAudioPlayer>();
+builder.Services.AddScoped<IpodSync.Shared.Playback.PlayerState>();
+builder.Services.AddScoped<IHostPickers>(_ => new InAppPickers());
 
 var app = builder.Build();
 
@@ -27,6 +33,7 @@ app.UseHttpsRedirection();
 
 app.UseAntiforgery();
 
+app.MapIpodMedia();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()

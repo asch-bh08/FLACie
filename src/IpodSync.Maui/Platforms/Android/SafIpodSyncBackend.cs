@@ -29,12 +29,12 @@ namespace IpodSync.Maui.Platforms.Android;
 /// </summary>
 public sealed class SafIpodSyncBackend : IIpodSyncBackend
 {
-    private const string DeviceToken = "saf-ipod";
+    public const string DeviceToken = "saf-ipod";
 
     public Task<List<DeviceSummary>> DetectDevicesAsync(CancellationToken ct = default) =>
         Task.FromResult(new List<DeviceSummary>
         {
-            new(DeviceToken, "Tap \"Load library\" to choose the iPod's folder", "FAT32 (via Android)", IsFat32: true, HasDatabase: true),
+            new(DeviceToken, "Tap \"Load library\" to choose the iPod's folder (read-only)", "FAT32 (via Android)", IsFat32: true, HasDatabase: true, NeedsUserAction: true),
         });
 
     public async Task<ItunesDatabase> LoadLibraryAsync(string deviceRoot, CancellationToken ct = default)

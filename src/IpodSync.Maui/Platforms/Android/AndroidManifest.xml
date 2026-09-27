@@ -10,4 +10,9 @@
          declares that the app uses USB host APIs and that host mode is
          required. -->
     <uses-feature android:name="android.hardware.usb.host" android:required="true" />
+    <!-- Writing to the iPod: Android mounts it as a removable USB volume; "All files access"
+         lets the app use that volume as a normal filesystem path, so the same verified write
+         pipeline as on the PC runs unchanged (AndroidIpodSyncBackend). Granted by the user
+         in Settings, never silently. -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 </manifest>

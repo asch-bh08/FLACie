@@ -29,10 +29,27 @@ public static class MauiProgram
 		// transfer during testing. See HANDOFF.md and SafIpodSyncBackend's class
 		// comment for the full story.
 #if ANDROID
-		builder.Services.AddSingleton<IIpodSyncBackend, IpodSync.Maui.Platforms.Android.SafIpodSyncBackend>();
+		// Writes through the mounted USB volume once "All files access" is granted; read-only
+		// document-picker (SAF) fallback otherwise. See AndroidIpodSyncBackend.
+		IpodSync.Core.Artwork.Thumbnailer.Rasterizer = new IpodSync.Maui.Platforms.Android.AndroidRasterizer();
+		builder.Services.AddSingleton<IIpodSyncBackend, IpodSync.Maui.Platforms.Android.AndroidIpodSyncBackend>();
+		// Android decodes ALAC/AAC/MP3 itself, so playback goes through its media player.
+		builder.Services.AddSingleton<IpodSync.Shared.Playback.AudioPlayer, IpodSync.Maui.Platforms.Android.AndroidAudioPlayer>();
+		builder.Services.AddSingleton<IHostPickers>(new InAppPickers(IpodSync.Maui.Platforms.Android.AndroidIpodSyncBackend.PickerRoots));
 #else
 		builder.Services.AddSingleton<IIpodSyncBackend, LocalIpodSyncBackend>();
+#if WINDOWS
+		builder.Services.AddSingleton<IHostPickers, IpodSync.Maui.Platforms.Windows.WindowsHostPickers>();
+		// WebView2 plays the iPod's files through a virtual host mapping (see WindowsMediaSource).
+		builder.Services.AddSingleton<IpodSync.Shared.Playback.IMediaSource, IpodSync.Maui.Platforms.Windows.WindowsMediaSource>();
+		builder.Services.AddScoped<IpodSync.Shared.Playback.AudioPlayer, IpodSync.Shared.Playback.HtmlAudioPlayer>();
+#else
+		builder.Services.AddSingleton<IHostPickers, NoHostPickers>();
 #endif
+#endif
+		// One app window, one state: the pending-changes queue survives tab switches.
+		builder.Services.AddSingleton<IpodSync.Shared.State.AppState>();
+		builder.Services.AddScoped<IpodSync.Shared.Playback.PlayerState>();
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();

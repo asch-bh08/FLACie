@@ -1,6 +1,9 @@
+using IpodSync.Core.Sync;
 using System.Text.Json;
 using IpodSync.Core.Device;
 using IpodSync.Core.ItunesDb;
+using IpodSync.Core.Itlp;
+using IpodSync.Core.LocalLibrary;
 
 string cmd = args.Length > 0 ? args[0].ToLowerInvariant() : "detect";
 
@@ -17,6 +20,16 @@ try
         case "addtrack-test":  return AddTrackTestCmd(args.Skip(1).ToArray());
         case "pl-inspect":     return PlInspectCmd(args.Skip(1).ToArray());
         case "pid-refs":       return PlaylistPidRefsCmd(args.Skip(1).ToArray());
+        case "itlp-sync":      return ItlpSyncCmd(args.Skip(1).ToArray());
+        case "itlp-diff":      return ItlpDiffCmd(args.Skip(1).ToArray());
+        case "hash72-verify":  return Hash72VerifyCmd(args.Skip(1).ToArray());
+        case "hash58-verify":  return Hash58VerifyCmd(args.Skip(1).ToArray());
+        case "itlp-orders-check": return ItlpOrdersCheckCmd(args.Skip(1).ToArray());
+        case "art-check":      return ArtCheckCmd(args.Skip(1).ToArray());
+        case "profile":        return ProfileCmd(args.Skip(1).ToArray());
+        case "make-fixture-db": return MakeFixtureDbCmd(args.Skip(1).ToArray());
+        case "sync-folder":    return SyncFolderCmd(args.Skip(1).ToArray());
+        case "import-playlist": return ImportPlaylistCmd(args.Skip(1).ToArray());
         case "apply-edits":    return ApplyEditsCmd(args.Skip(1).ToArray());
         default:
             Console.Error.WriteLine($"Unknown command '{cmd}'.");
@@ -48,12 +61,25 @@ static void Usage()
           resize-test [path]  remove a track, add an existing track to a playlist, and rename a
                               track -- three edits that change a chunk's byte length, unlike
                               mutate-test. Read-only, entirely in memory.
-          apply-edits [path] --changes <file.json> [--yes]
+          itlp-diff <root|itunes-dir> [--all]
+                              compare iTunesCDB against the SQLite bundle (iTunes Library.itlp).
+                              Read-only.
+          itlp-sync <root> [--yes] [--resign]
+                              bring the SQLite bundle's playlists into line with the CDB.
+                              Dry run by default (works on a staged copy); --yes backs up,
+                              writes, re-verifies from the device, restores on failure.
+                              --resign re-signs the CDB (hash72 + hash58) even if unchanged.
+          hash72-verify / hash58-verify   read-only signature checks (see OVERNIGHT-STATUS.md)
+        Writes to signed databases (nano 5G) are signed automatically once the device's key
+        material is proven against an existing iTunes signature; --firewire-guid,
+        --signing-reference and --allow-unsigned override discovery.
+          apply-edits [path] --changes <file.json> [--yes] [--backup-root dir]
                               apply a JSON change-set (see EDIT-PROTOCOL.md) from the iPod Player.
                               Default is a DRY RUN: applies in memory, runs the reader re-parse
                               and idempotent-write checks, prints what would change, writes NOTHING.
                               --yes performs the real device write -- but only if every check
-                              passed, and it backs up iPod_Control/iTunes/ first.
+                              passed, and it backs up iPod_Control/iTunes/ first. Mirrors every
+                              edit into the SQLite bundle in the same operation.
         """);
 }
 
@@ -135,7 +161,7 @@ static int Dump(string[] rest)
         string stars = t.Stars > 0 ? new string('*', t.Stars) : "";
         Console.WriteLine($"  {t.Duration:mm\\:ss}  {t.Artist ?? "?"} - {t.Title ?? "?"}");
         Console.WriteLine($"           {t.Album ?? "?"}  |  {t.Bitrate}kbps  |  plays {t.PlayCount}  {stars}");
-        Console.WriteLine($"           {t.RelativePath ?? "(no location)"}");
+        Console.WriteLine($"           {t.RelativePath ?? "(no location)"}  #{t.Id} pid 0x{t.PersistentId:X16}");
     }
 
     return 0;
@@ -415,6 +441,423 @@ static int PlaylistPidRefsCmd(string[] rest)
     return 0;
 }
 
+static int ItlpSyncCmd(string[] rest)
+{
+    string? path = rest.FirstOrDefault(a => !a.StartsWith("--") && !IsOptionValue(rest, a));
+    if (path is null) { Console.Error.WriteLine("usage: itlp-sync <ipod-root> [--yes] [--resign] [--backup-root dir] [--firewire-guid hex] [--signing-reference file] [--allow-unsigned]"); return 2; }
+    return WritePipeline.Run(PipelineOptions(path, rest, null, "itlpsync"));
+}
+
+static bool IsOptionValue(string[] rest, string a)
+{
+    int i = Array.IndexOf(rest, a);
+    return i > 0 && rest[i - 1] is "--backup-root" or "--firewire-guid" or "--signing-reference" or "--changes";
+}
+
+static WritePipeline.Options PipelineOptions(string root, string[] rest, ChangeSet? changes, string label)
+{
+    string? backupRoot = null;
+    var fw = new List<string>();
+    var refs = new List<string>();
+    for (int i = 0; i < rest.Length - 1; i++)
+    {
+        if (rest[i] == "--backup-root") backupRoot = rest[i + 1];
+        else if (rest[i] == "--firewire-guid") fw.Add(rest[i + 1]);
+        else if (rest[i] == "--signing-reference") refs.Add(rest[i + 1]);
+    }
+    backupRoot ??= Path.Combine(Directory.GetCurrentDirectory(), "ipod-backups");
+    return new WritePipeline.Options
+    {
+        Root = root, Changes = changes, Label = label, BackupRoot = backupRoot,
+        Commit = rest.Contains("--yes") || rest.Contains("--commit"),
+        ResignCdb = rest.Contains("--resign"),
+        AllowUnsigned = rest.Contains("--allow-unsigned"),
+        FirewireCandidates = SigningInputs.FirewireCandidates(fw),
+        SigningReferences = SigningInputs.References(backupRoot, refs),
+    };
+}
+
+// Resolves an iPod root, or an iTunes directory (e.g. a backup copy holding
+// iTunesCDB + "iTunes Library.itlp"), to its CDB file and itlp directory.
+static (string Cdb, string Itlp) ResolveItunesDir(string path)
+{
+    string itunesDir = Directory.Exists(Path.Combine(path, "iPod_Control"))
+        ? Path.GetDirectoryName(IpodDevice.Open(path).ItunesDbPath)!
+        : path;
+    string cdb = File.Exists(Path.Combine(itunesDir, "iTunesDB"))
+        ? Path.Combine(itunesDir, "iTunesDB")
+        : Path.Combine(itunesDir, "iTunesCDB");
+    return (cdb, Path.Combine(itunesDir, "iTunes Library.itlp"));
+}
+
+static int ItlpDiffCmd(string[] rest)
+{
+    string? path = rest.FirstOrDefault(a => !a.StartsWith("--"));
+    bool verbose = rest.Contains("--all");
+    if (path is null) { Console.Error.WriteLine("usage: itlp-diff <ipod-root | itunes-dir> [--all]"); return 2; }
+    var (cdbPath, itlp) = ResolveItunesDir(path);
+    var cdb = ItunesDbReader.Read(File.ReadAllBytes(cdbPath));
+    var diff = ItlpCompare.Compare(itlp, cdb);
+    Console.WriteLine($"CDB     {cdbPath}  ({cdb.Tracks.Count} tracks, {cdb.Playlists.Count} playlists incl. master/smart)");
+    Console.WriteLine($"SQLite  {itlp}");
+    foreach (var (section, lines) in diff.Sections())
+    {
+        Console.WriteLine($"{section,-44} {lines.Count}");
+        foreach (var l in verbose ? lines : lines.Take(15)) Console.WriteLine("    " + l);
+        if (!verbose && lines.Count > 15) Console.WriteLine($"    ... {lines.Count - 15} more (--all)");
+    }
+    Console.WriteLine($"{"rating/play-count differences (info only)",-44} {diff.StatsDifferences.Count}");
+    foreach (var l in verbose ? diff.StatsDifferences : diff.StatsDifferences.Take(15)) Console.WriteLine("    " + l);
+    foreach (var n in diff.Notes) Console.WriteLine("note: " + n);
+    Console.WriteLine(diff.InSync ? "IN SYNC" : $"OUT OF SYNC (playlists {(diff.PlaylistsInSync ? "in sync" : "differ")}, tracks {(diff.TracksInSync ? "in sync" : "differ")})");
+    return diff.InSync ? 0 : 3;
+}
+
+// Read-only: validates the hash72 implementation against signatures iTunes wrote.
+static int Hash72VerifyCmd(string[] rest)
+{
+    if (rest.Length == 0) { Console.Error.WriteLine("usage: hash72-verify <ipod-root | itunes-dir> [more itunes-dirs or db files...]"); return 2; }
+    var keys = new List<(string Source, IpodSync.Core.Signing.Hash72.DeviceKey Key)>();
+    int bad = 0;
+    foreach (var arg in rest)
+    {
+        if (File.Exists(arg))
+        {
+            var k = IpodSync.Core.Signing.Hash72.ExtractFromDatabase(File.ReadAllBytes(arg));
+            Console.WriteLine($"{arg}: header hash72 {(k is null ? "does NOT validate for this content" : "valid")}");
+            if (k is not null) keys.Add((arg, k));
+            continue;
+        }
+        var (cdbPath, itlp) = ResolveItunesDir(arg);
+        if (File.Exists(cdbPath))
+        {
+            var k = IpodSync.Core.Signing.Hash72.ExtractFromDatabase(File.ReadAllBytes(cdbPath));
+            Console.WriteLine($"{cdbPath}: header hash72 {(k is null ? "does NOT validate for this content" : "valid")}");
+            if (k is not null) keys.Add((cdbPath, k));
+        }
+        string loc = Path.Combine(itlp, "Locations.itdb"), cbkPath = loc + ".cbk";
+        if (File.Exists(loc) && File.Exists(cbkPath))
+        {
+            byte[] locations = File.ReadAllBytes(loc), cbk = File.ReadAllBytes(cbkPath);
+            var (k, problems) = IpodSync.Core.Signing.Hash72.VerifyCbk(locations, cbk);
+            Console.WriteLine($"{cbkPath}: {(problems.Count == 0 ? "checksums + signature valid" : string.Join("; ", problems))}");
+            if (k is not null)
+            {
+                keys.Add((cbkPath, k));
+                bool regen = IpodSync.Core.Signing.Hash72.BuildCbk(locations, k).AsSpan().SequenceEqual(cbk);
+                Console.WriteLine($"  regenerate cbk from Locations.itdb + recovered key: {(regen ? "byte-identical PASS" : "DIFFERS FAIL")}");
+                if (!regen) bad++;
+            }
+            bad += problems.Count;
+        }
+    }
+    for (int i = 1; i < keys.Count; i++)
+    {
+        bool same = keys[i].Key.SameAs(keys[0].Key);
+        Console.WriteLine($"device key from {Path.GetFileName(keys[i].Source)} == key from {Path.GetFileName(keys[0].Source)}: {(same ? "yes" : "NO")}");
+    }
+    if (keys.Count > 0) Console.WriteLine($"device key iv {Convert.ToHexString(keys[0].Key.Iv)[..8]}.. (from {keys[0].Source})");
+    return bad == 0 && keys.Count > 0 ? 0 : 1;
+}
+
+// Read-only: checks the hash58 implementation against a database iTunes signed.
+static int Hash58VerifyCmd(string[] rest)
+{
+    if (rest.Length < 2) { Console.Error.WriteLine("usage: hash58-verify <iTunesCDB|iTunesDB file> <FirewireGuid hex>"); return 2; }
+    Console.WriteLine($"S-box self-test     {(IpodSync.Core.Signing.Hash58.SelfTest() ? "PASS" : "FAIL")}");
+    byte[] file = File.ReadAllBytes(rest[0]);
+    byte[] fw = IpodSync.Core.Signing.Hash58.ParseFirewireGuid(rest[1]);
+    bool ok = IpodSync.Core.Signing.Hash58.Verify(fw, file);
+    Console.WriteLine($"stored hash58       {Convert.ToHexString(file.AsSpan(0x58, 20))}");
+    Console.WriteLine($"computed (file, db id/0x32/hash58 zeroed): {(ok ? "MATCH" : "no match")}");
+    if (!ok)
+    {
+        // Research variants, reported but never used for signing.
+        byte[] z = IpodSync.Core.Signing.Hash58.ZeroedForHash(file);
+        byte[] z72 = (byte[])z.Clone(); Array.Clear(z72, 0x72, 46);
+        Console.WriteLine($"variant hash72 also zeroed: {(IpodSync.Core.Signing.Hash58.Compute(fw, z72).AsSpan().SequenceEqual(file.AsSpan(0x58, 20)) ? "MATCH" : "no match")}");
+    }
+    return ok ? 0 : 1;
+}
+
+// Read-only: checks ItlpSorting's sort-name rule and collation against every row iTunes wrote.
+static int ItlpOrdersCheckCmd(string[] rest)
+{
+    if (rest.Length == 0) { Console.Error.WriteLine("usage: itlp-orders-check <ipod-root | itunes-dir>"); return 2; }
+    var (_, itlp) = ResolveItunesDir(rest[0]);
+    using var db = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={Path.Combine(itlp, "Library.itdb")};Mode=ReadOnly;Pooling=False");
+    db.Open();
+    List<object?[]> Rows(string sql)
+    {
+        using var c = db.CreateCommand(); c.CommandText = sql;
+        using var r = c.ExecuteReader(); var list = new List<object?[]>();
+        while (r.Read()) { var row = new object?[r.FieldCount]; for (int i = 0; i < r.FieldCount; i++) row[i] = r.IsDBNull(i) ? null : r.GetValue(i); list.Add(row); }
+        return list;
+    }
+    int failures = 0;
+    foreach (var col in new[] { "title", "artist", "album", "album_artist", "composer" })
+    {
+        var bad = Rows($"SELECT {col}, sort_{col} FROM item").Where(r => IpodSync.Core.Itlp.ItlpSorting.SortName((string?)r[0]) != (string?)r[1]).ToList();
+        Console.WriteLine($"sort_{col,-13} rule mismatches {bad.Count}");
+        foreach (var b in bad.Take(5)) Console.WriteLine($"    '{b[0]}' -> device '{b[1]}' rule '{IpodSync.Core.Itlp.ItlpSorting.SortName((string?)b[0])}'");
+        failures += bad.Count;
+    }
+    foreach (var (label, sql) in new[] {
+        ("item.title_order", "SELECT sort_title, title_order FROM item"),
+        ("item.artist_order", "SELECT sort_artist, artist_order FROM item"),
+        ("item.album_order", "SELECT sort_album, album_order FROM item WHERE album IS NOT NULL"),
+        ("item.album_artist_order", "SELECT sort_album_artist, album_artist_order FROM item WHERE album_artist IS NOT NULL"),
+        ("album.name_order", "SELECT sort_name, name_order FROM album WHERE is_unknown = 0"),
+        ("artist.name_order", "SELECT sort_name, name_order FROM artist WHERE is_unknown = 0"),
+        ("track_artist.name_order", "SELECT sort_name, name_order FROM track_artist WHERE is_unknown = 0"),
+        ("composer.name_order", "SELECT sort_name, name_order FROM composer WHERE is_unknown = 0"),
+    })
+    {
+        var rows = Rows(sql).Where(r => r[0] is not null && r[1] is not null).Select(r => ((string)r[0]!, Convert.ToInt64(r[1]))).ToList();
+        var sorted = rows.OrderBy(r => r.Item2).ToList();
+        // Pairs of rank-adjacent distinct ranks whose keys the collation orders the other way.
+        var byRank = sorted.GroupBy(r => r.Item2).Select(g => (Rank: g.Key, Key: g.First().Item1)).ToList();
+        var inversions = new List<string>();
+        for (int i = 0; i + 1 < byRank.Count; i++)
+            if (IpodSync.Core.Itlp.ItlpSorting.Collation.Compare(byRank[i].Key, byRank[i + 1].Key) > 0)
+                inversions.Add($"'{byRank[i].Key}' ({byRank[i].Rank}) > '{byRank[i + 1].Key}' ({byRank[i + 1].Rank})");
+        // Leave-one-out: does NeighbourRank put each key back between its true neighbours?
+        int misplaced = 0;
+        for (int i = 0; i < byRank.Count; i++)
+        {
+            var others = byRank.Where((_, j) => j != i).Select(x => (x.Key, x.Rank));
+            long r = IpodSync.Core.Itlp.ItlpSorting.NeighbourRank(others, byRank[i].Key);
+            long lo = i > 0 ? byRank[i - 1].Rank : 0, hi = i + 1 < byRank.Count ? byRank[i + 1].Rank : long.MaxValue;
+            if (!(r > lo && r < hi)) misplaced++;
+        }
+        Console.WriteLine($"{label,-24} {byRank.Count} ranks, adjacent inversions {inversions.Count}, leave-one-out misplaced {misplaced}");
+        foreach (var x in inversions.Take(6)) Console.WriteLine("    " + x);
+    }
+    return failures == 0 ? 0 : 1;
+}
+
+// Read-only: ArtworkDB round-trip + structural checks against the ithmb files and the CDB.
+// Read-only: what is this device, and what can be done with it?
+static int ProfileCmd(string[] rest)
+{
+    string? path = rest.FirstOrDefault(a => !a.StartsWith("--"));
+    if (path is null) { Console.Error.WriteLine("usage: profile <ipod-root>"); return 2; }
+    var p = IpodProfiler.Inspect(path);
+    Console.WriteLine($"root            {p.Root}");
+    Console.WriteLine($"model           {p.ModelName ?? "(not reported)"}{(p.ModelNumber is null ? "" : $" [{p.ModelNumber}]")}");
+    Console.WriteLine($"library format  {p.Format}");
+    Console.WriteLine($"signature       {p.Signature} (header scheme field {p.SchemeField})");
+    Console.WriteLine($"sqlite bundle   {(p.HasSqliteBundle ? "yes" : "no")}");
+    Console.WriteLine($"artwork db      {(p.HasArtworkDb ? "yes" : "no")}");
+    Console.WriteLine($"read / write    {(p.CanRead ? "read" : "no")} / {(p.CanWrite ? "write" : "no")}");
+    Console.WriteLine($"summary         {p.Summary}");
+    foreach (var n in p.Notes) Console.WriteLine($"  - {n}");
+    return p.CanRead ? 0 : 1;
+}
+
+// Test fixtures only: rewrites a COPY of a database to look like an older iPod's, so the
+// hash58-only and unsigned write paths can be exercised without owning those models.
+// Refuses to touch a real device root.
+static int MakeFixtureDbCmd(string[] rest)
+{
+    string? dir = rest.FirstOrDefault(a => !a.StartsWith("--") && !IsOptionValue(rest, a));
+    string scheme = StrOpt(rest, "--scheme") ?? "none";
+    string? fwid = StrOpt(rest, "--firewire-guid");
+    if (dir is null) { Console.Error.WriteLine("usage: make-fixture-db <itunes-dir> --scheme none|hash58|hashab [--firewire-guid hex]"); return 2; }
+    foreach (var drive in IpodDevice.Detect())
+        if (Path.GetFullPath(dir).StartsWith(Path.GetFullPath(drive.RootPath), StringComparison.OrdinalIgnoreCase))
+        { Console.Error.WriteLine("refusing: that is a connected iPod, not a fixture copy."); return 1; }
+
+    string cdb = File.Exists(Path.Combine(dir, "iTunesCDB")) ? Path.Combine(dir, "iTunesCDB") : Path.Combine(dir, "iTunesDB");
+    if (!File.Exists(cdb)) { Console.Error.WriteLine($"no iTunesDB/iTunesCDB in {dir}"); return 1; }
+    byte[] bytes = File.ReadAllBytes(cdb);
+
+    if (scheme.Equals("hashab", StringComparison.OrdinalIgnoreCase))
+    {
+        // A stand-in signature: this is NOT real hashAB (nobody can compute that here). It lets
+        // the external-signer hook and its "must reproduce the device's own signature" gate be
+        // tested against a matching stub signer.
+        BitConverter.TryWriteBytes(bytes.AsSpan(0x30, 2), (ushort)3);
+        Array.Clear(bytes, 0x58, 20);
+        Array.Clear(bytes, 0x72, 46);
+        Array.Clear(bytes, IpodSync.Core.Signing.HashAb.Offset, IpodSync.Core.Signing.HashAb.Length);
+        byte[] sha1 = IpodSync.Core.Signing.HashAb.DatabaseSha1(bytes);
+        byte[] stub = System.Security.Cryptography.SHA512.HashData(sha1)[..IpodSync.Core.Signing.HashAb.Length];
+        stub.CopyTo(bytes, IpodSync.Core.Signing.HashAb.Offset);
+        File.WriteAllBytes(cdb, bytes);
+        string itlpAb = Path.Combine(dir, "iTunes Library.itlp");
+        if (Directory.Exists(itlpAb)) Directory.Delete(itlpAb, true);
+        Console.WriteLine("scheme -> hashAB (stand-in signature, for testing the external-signer hook only)");
+        return 0;
+    }
+
+    Array.Clear(bytes, 0x72, 46);                                   // no hash72 field on these models
+    if (scheme.Equals("none", StringComparison.OrdinalIgnoreCase))
+    {
+        BitConverter.TryWriteBytes(bytes.AsSpan(0x30, 2), (ushort)0);
+        Array.Clear(bytes, 0x58, 20);
+        Console.WriteLine("scheme -> none (pre-2007 iPod): both signature fields cleared");
+    }
+    else
+    {
+        if (fwid is null) { Console.Error.WriteLine("--scheme hash58 needs --firewire-guid"); return 1; }
+        BitConverter.TryWriteBytes(bytes.AsSpan(0x30, 2), (ushort)1);
+        var id = IpodSync.Core.Signing.Hash58.ParseFirewireGuid(fwid);
+        IpodSync.Core.Signing.Hash58.Compute(id, IpodSync.Core.Signing.Hash58.ZeroedForHash(bytes)).CopyTo(bytes, 0x58);
+        Console.WriteLine($"scheme -> hash58 only: recomputed hash58, hash72 cleared ({Path.GetFileName(cdb)})");
+    }
+    File.WriteAllBytes(cdb, bytes);
+    string itlp = Path.Combine(dir, "iTunes Library.itlp");
+    if (Directory.Exists(itlp)) { Directory.Delete(itlp, true); Console.WriteLine("removed the SQLite bundle (these models don't have one)"); }
+    return 0;
+}
+
+static int ArtCheckCmd(string[] rest)
+{
+    if (rest.Length == 0) { Console.Error.WriteLine("usage: art-check <ipod-root | Artwork dir>"); return 2; }
+    string artDir = Directory.Exists(Path.Combine(rest[0], "iPod_Control")) ? Path.Combine(rest[0], "iPod_Control", "Artwork") : rest[0];
+    byte[] bytes = File.ReadAllBytes(Path.Combine(artDir, "ArtworkDB"));
+    var root = IpodSync.Core.Artwork.ArtworkDb.Parse(bytes);
+    bool identical = root.Serialize().AsSpan().SequenceEqual(bytes);
+    Console.WriteLine($"ArtworkDB round-trip   {(identical ? "byte-identical PASS" : "DIFFERS FAIL")} ({bytes.Length:N0} bytes)");
+    var images = IpodSync.Core.Artwork.ArtworkDb.Images(root).ToList();
+    var formats = IpodSync.Core.Artwork.ArtworkDb.Formats(root);
+    Console.WriteLine($"images {images.Count}, next id {IpodSync.Core.Artwork.ArtworkDb.NextImageId(root)}, formats {string.Join(", ", formats.Select(f => $"{f.Format}:{f.Size}"))}");
+    int bad = identical ? 0 : 1;
+    foreach (var (fmt, size) in formats)
+    {
+        string ithmb = Path.Combine(artDir, $"F{fmt}_1.ithmb");
+        long len = File.Exists(ithmb) ? new FileInfo(ithmb).Length : -1;
+        var thumbs = images.SelectMany(IpodSync.Core.Artwork.ArtworkDb.Thumbs).Where(t => t.Format == fmt).ToList();
+        int outOfRange = thumbs.Count(t => t.Offset < 0 || t.Offset + t.Size > len || t.Size != size);
+        int maxEnd = thumbs.Count == 0 ? 0 : thumbs.Max(t => t.Offset + t.Size);
+        Console.WriteLine($"  F{fmt}_1.ithmb {len:N0} bytes, {thumbs.Count} thumbs, out of range/bad size {outOfRange}, highest end {maxEnd:N0}");
+        bad += outOfRange;
+    }
+    string cdbDir = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(artDir))!, "iTunes");
+    string cdbPath = Path.Combine(cdbDir, File.Exists(Path.Combine(cdbDir, "iTunesDB")) ? "iTunesDB" : "iTunesCDB");
+    if (File.Exists(cdbPath))
+    {
+        var cdb = ItunesDbReader.Read(File.ReadAllBytes(cdbPath));
+        var ids = images.ToDictionary(IpodSync.Core.Artwork.ArtworkDb.ImageId);
+        var withArt = cdb.Tracks.Where(t => t.HasArtwork).ToList();
+        int dangling = withArt.Count(t => !ids.ContainsKey((int)t.ArtworkId));
+        int refMismatch = ids.Values.Count(m => IpodSync.Core.Artwork.ArtworkDb.RefCount(m) != withArt.Count(t => t.ArtworkId == IpodSync.Core.Artwork.ArtworkDb.ImageId(m)));
+        Console.WriteLine($"CDB: {withArt.Count} tracks with artwork, dangling image links {dangling}, images whose reference count != referencing tracks {refMismatch}");
+        bad += dangling + refMismatch;
+    }
+    return bad == 0 ? 0 : 1;
+}
+
+static int ImportPlaylistCmd(string[] rest)
+{
+    var positional = rest.Where(a => !a.StartsWith("--") && !IsOptionValue(rest, a) && !IsSyncOptionValue(rest, a) && !(Array.IndexOf(rest, a) > 0 && rest[Array.IndexOf(rest, a) - 1] == "--name")).ToList();
+    if (positional.Count < 2)
+    {
+        Console.Error.WriteLine("usage: import-playlist <ipod-root> <playlist.txt|.m3u|.m3u8> [--name N] [--replace] [--yes] [--backup-root dir]");
+        return 2;
+    }
+    string root = positional[0], file = positional[1];
+    string name = StrOpt(rest, "--name") ?? Path.GetFileNameWithoutExtension(file);
+    bool replace = rest.Contains("--replace");
+
+    var device = IpodDevice.Open(root);
+    var cdb = ItunesDbReader.Read(File.ReadAllBytes(device.ItunesDbPath));
+    var entries = PlaylistImport.Read(file);
+    var prepared = PlaylistImportJob.Prepare(cdb, entries, name, replace);
+    var match = prepared.Match;
+    var ops = prepared.Ops;
+    Console.WriteLine($"playlist file  {file} ({entries.Count} entries)");
+    Console.WriteLine($"matched        {match.Matched.Count} to tracks on the iPod");
+    Console.WriteLine($"not on iPod    {match.Unmatched.Count}");
+    foreach (var e in match.Unmatched.Take(20)) Console.WriteLine($"    ? line {e.Line}: {e.Artist} - {e.Title} ({e.Seconds:F0}s)");
+    if (match.Unmatched.Count > 20) Console.WriteLine($"    ... {match.Unmatched.Count - 20} more");
+    foreach (var l in prepared.Summary) Console.WriteLine($"target         {l}");
+    if (ops.Count == 0) { Console.WriteLine("nothing to change."); return 0; }
+    return WritePipeline.Run(PipelineOptions(root, rest, new ChangeSet { Ops = ops }, "importplaylist"));
+}
+
+static int SyncFolderCmd(string[] rest)
+{
+    var positional = rest.Where(a => !a.StartsWith("--") && !IsOptionValue(rest, a) && !IsSyncOptionValue(rest, a)).ToList();
+    if (positional.Count < 2)
+    {
+        Console.Error.WriteLine("usage: sync-folder <ipod-root> <music-folder> [--yes] [--batch N] [--limit N] [--playlist name] [--remove-missing] [--backup-root dir]");
+        return 2;
+    }
+    string root = positional[0], folder = Path.GetFullPath(positional[1]);
+    int batch = IntOpt(rest, "--batch", 20), limit = IntOpt(rest, "--limit", int.MaxValue);
+    string? playlist = StrOpt(rest, "--playlist");
+    bool commit = rest.Contains("--yes"), removeMissing = rest.Contains("--remove-missing");
+
+    var device = IpodDevice.Open(root);
+    var cdb = ItunesDbReader.Read(File.ReadAllBytes(device.ItunesDbPath));
+    var manifest = FolderSync.Manifest.Load(cdb.LibraryPersistentId, folder);
+    Console.WriteLine($"device      {root}  library 0x{cdb.LibraryPersistentId:X16}, {cdb.Tracks.Count} tracks");
+    Console.WriteLine($"source      {folder}");
+    Console.WriteLine($"manifest    {FolderSync.Manifest.PathFor(cdb.LibraryPersistentId, folder)} ({manifest.Entries.Count} entries)");
+
+    var files = FolderSync.Scan(folder);
+    Console.WriteLine($"scanned     {files.Count} audio files");
+    var plan = FolderSync.MakePlan(files, cdb, manifest, removeMissing);
+
+    Console.WriteLine($"in sync     {plan.Unchanged.Count}");
+    Console.WriteLine($"on iPod already (adopt, no copy) {plan.Adopt.Count}");
+    foreach (var (f, t) in plan.Adopt.Take(10)) Console.WriteLine($"    = {f.RelativePath}  ->  #{t.Id} {t.Artist} - {t.Title}");
+    if (plan.Adopt.Count > 10) Console.WriteLine($"    ... {plan.Adopt.Count - 10} more");
+    Console.WriteLine($"duplicates in source (skipped) {plan.SourceDuplicates.Count}");
+    foreach (var (skip, keep) in plan.SourceDuplicates.Take(5)) Console.WriteLine($"    - {skip.RelativePath}  (keeping {keep.RelativePath})");
+    var toAdd = plan.Add.Take(limit).ToList();
+    Console.WriteLine($"to add      {plan.Add.Count} ({plan.AddBytes / 1048576.0:F1} MB source){(toAdd.Count < plan.Add.Count ? $", limited to {toAdd.Count}" : "")}");
+    foreach (var f in toAdd.Take(25)) Console.WriteLine($"    + {f.RelativePath}  [{f.Artist} - {f.Title}, {f.Seconds:F0}s]");
+    if (toAdd.Count > 25) Console.WriteLine($"    ... {toAdd.Count - 25} more");
+    var removals = plan.RemoveCandidates.Where(r => r.Entry.Origin == "added").ToList();
+    if (removeMissing) Console.WriteLine($"to remove   {removals.Count} (source file gone; only tracks this sync added)");
+
+    long estimate = FolderSyncJob.EstimateDeviceBytes(toAdd);
+    var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(root))!);
+    const long reserve = FolderSyncJob.SpaceReserve;
+    Console.WriteLine($"space       need ~{estimate / 1048576.0:F1} MB, device free {drive.AvailableFreeSpace / 1048576.0:F1} MB (keeping {reserve / 1048576} MB spare)");
+    if (estimate > drive.AvailableFreeSpace - reserve) { Console.Error.WriteLine("refusing: not enough free space on the device for this sync (use --limit)."); return 1; }
+
+    if (!commit)
+    {
+        // Prove the first batch end to end (transcode, CDB, SQLite, artwork, signing) without writing.
+        if (toAdd.Count > 0)
+        {
+            var cs = FolderSyncJob.BatchChangeSet(toAdd.Take(batch), playlist);
+            Console.WriteLine();
+            Console.WriteLine($"DRY RUN of the first batch ({cs.Ops!.Count} op(s)):");
+            int rc = WritePipeline.Run(PipelineOptions(root, rest, cs, "syncfolder"));
+            if (rc != 0) return rc;
+        }
+        Console.WriteLine("DRY RUN: nothing written. Re-run with --yes to adopt matches into the manifest and add files in verified batches.");
+        return 0;
+    }
+
+    var outcome = FolderSyncJob.Commit(plan, manifest, toAdd, batch, playlist, removeMissing,
+        cs => PipelineOptions(root, rest, cs, "syncfolder"), Console.WriteLine);
+    return outcome.ExitCode;
+}
+
+static bool IsSyncOptionValue(string[] rest, string a)
+{
+    int i = Array.IndexOf(rest, a);
+    return i > 0 && rest[i - 1] is "--batch" or "--limit" or "--playlist";
+}
+
+static int IntOpt(string[] rest, string name, int fallback)
+{
+    int i = Array.IndexOf(rest, name);
+    return i >= 0 && i + 1 < rest.Length && int.TryParse(rest[i + 1], out int v) ? v : fallback;
+}
+
+static string? StrOpt(string[] rest, string name)
+{
+    int i = Array.IndexOf(rest, name);
+    return i >= 0 && i + 1 < rest.Length ? rest[i + 1] : null;
+}
+
 static int AddTrackTestCmd(string[] rest)
 {
     if (rest.Length < 2) { Console.Error.WriteLine("usage: addtrack-test <db-or-ipod> <audiofile>"); return 2; }
@@ -440,20 +883,12 @@ static int AddTrackTestCmd(string[] rest)
 
 static int ApplyEditsCmd(string[] rest)
 {
-    string? path = null, changesPath = null;
-    bool commit = false;
-    for (int i = 0; i < rest.Length; i++)
-    {
-        string a = rest[i];
-        if (a == "--changes" && i + 1 < rest.Length) changesPath = rest[++i];
-        else if (a is "--yes" or "--commit") commit = true;
-        else if (a == "--dry-run") commit = false;
-        else path ??= a;
-    }
+    string? changesPath = null;
+    for (int i = 0; i < rest.Length - 1; i++) if (rest[i] == "--changes") changesPath = rest[i + 1];
+    string? path = rest.FirstOrDefault(a => !a.StartsWith("--") && !IsOptionValue(rest, a));
 
     if (changesPath is null) { Console.Error.WriteLine("apply-edits needs --changes <file.json>"); return 2; }
     if (!File.Exists(changesPath)) { Console.Error.WriteLine($"change-set not found: {changesPath}"); return 1; }
-
     if (path is null)
     {
         var devices = IpodDevice.Detect();
@@ -461,9 +896,6 @@ static int ApplyEditsCmd(string[] rest)
         path = devices[0].RootPath;
         Console.WriteLine($"Using {path}");
     }
-
-    string dbPath = Directory.Exists(path) ? IpodDevice.Open(path).ItunesDbPath : path;
-    if (!File.Exists(dbPath)) { Console.Error.WriteLine($"No iTunesDB at {dbPath}"); return 1; }
 
     ChangeSet? cs;
     try
@@ -476,69 +908,9 @@ static int ApplyEditsCmd(string[] rest)
         });
     }
     catch (JsonException ex) { Console.Error.WriteLine($"invalid change-set JSON: {ex.Message}"); return 1; }
-
     if (cs?.Ops is null || cs.Ops.Count == 0) { Console.Error.WriteLine("change-set has no ops."); return 1; }
 
-    byte[] bytes = File.ReadAllBytes(dbPath);
-    var report = EditApplier.Apply(bytes, cs);
-
-    Console.WriteLine();
-    Console.WriteLine($"file                {dbPath}");
-    Console.WriteLine($"format              {(report.WasCompressed ? "iTunesCDB (zlib-compressed)" : "iTunesDB (plain)")}");
-    Console.WriteLine($"tracks              {report.TracksBefore} -> {report.TracksAfter}");
-    Console.WriteLine($"playlists           {report.PlaylistsBefore} -> {report.PlaylistsAfter}");
-    Console.WriteLine();
-    Console.WriteLine("OPERATIONS");
-    foreach (var o in report.Ops)
-        Console.WriteLine($"  [{(o.Ok ? "ok" : "FAIL")}] {o.Op}: {o.Detail}");
-    Console.WriteLine();
-    Console.WriteLine($"reader re-parse     {(report.Parseable ? "PASS" : "FAIL")}");
-    Console.WriteLine($"idempotent write    {(report.Idempotent ? "PASS" : "FAIL")}");
-    foreach (var p in report.Problems) Console.WriteLine($"  - {p}");
-    if (report.FileCopies.Count > 0)
-    {
-        Console.WriteLine();
-        Console.WriteLine($"new files           {report.FileCopies.Count} to copy onto the device:");
-        foreach (var fc in report.FileCopies) Console.WriteLine($"  + {fc.DestRel}");
-    }
-    Console.WriteLine();
-
-    if (!commit)
-    {
-        Console.WriteLine(report.AllOk
-            ? "DRY RUN: all checks passed. Nothing written. Re-run with --yes to write to the device."
-            : "DRY RUN: checks did NOT all pass. Nothing written (and --yes would refuse).");
-        return report.AllOk ? 0 : 1;
-    }
-
-    if (!report.AllOk) { Console.Error.WriteLine("refusing to write: not all checks passed."); return 1; }
-
-    // Back up iPod_Control/iTunes/ before the real write (non-negotiable, per HANDOFF.md).
-    string itunesDir = Path.GetDirectoryName(dbPath)!;
-    string backupDir = Path.Combine(Directory.GetCurrentDirectory(), "ipod-backups",
-        $"applyedits-{DateTime.Now:yyyyMMdd-HHmmss}", "iTunes");
-    CopyDir(itunesDir, backupDir);
-    Console.WriteLine($"backed up           {itunesDir}  ->  {backupDir}");
-
-    File.WriteAllBytes(dbPath, report.ModifiedOnDisk);
-    Console.WriteLine($"WROTE               {report.ModifiedOnDisk.Length:N0} bytes to {dbPath}");
-
-    // Copy any new audio files onto the device (destRel is relative to the drive root:
-    // iTunes/ -> iPod_Control/ -> <root>).
-    if (report.FileCopies.Count > 0)
-    {
-        string deviceRoot = Path.GetDirectoryName(Path.GetDirectoryName(itunesDir))!;
-        foreach (var (srcF, destRel) in report.FileCopies)
-        {
-            string dest = Path.Combine(deviceRoot, destRel.Replace('/', Path.DirectorySeparatorChar));
-            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-            File.Copy(srcF, dest, overwrite: false);
-            Console.WriteLine($"copied file         {destRel}");
-        }
-    }
-    Console.WriteLine();
-    Console.WriteLine("Done. Safely eject the iPod, then confirm the device itself still shows the library.");
-    return 0;
+    return WritePipeline.Run(PipelineOptions(path, rest, cs, "applyedits"));
 }
 
 static void CopyDir(string src, string dst)

@@ -1,7 +1,9 @@
 namespace IpodSync.Core.Device;
 
 /// <summary>
-/// A mounted classic iPod: any volume with an iPod_Control directory on it.
+/// A mounted iPod: any volume with an <c>iPod_Control</c> directory — or an <c>iTunes_Control</c>
+/// one, which is what an iOS device (iPod touch) calls the same thing, so a touch whose media
+/// partition is mounted (ifuse, or a jailbroken device) is handled by the same code.
 /// </summary>
 public sealed class IpodDevice
 {
@@ -15,7 +17,23 @@ public sealed class IpodDevice
     public IReadOnlyDictionary<string, string> SysInfo { get; init; }
         = new Dictionary<string, string>();
 
-    public string ControlPath => Path.Combine(RootPath, "iPod_Control");
+    public string ControlPath => Path.Combine(RootPath, ControlFolder(RootPath));
+
+    /// <summary>"iPod_Control" on an iPod, "iTunes_Control" on an iOS device. Picked by where the
+    /// database actually is, so a root that happens to have both folders still resolves.</summary>
+    public static string ControlFolder(string root)
+    {
+        foreach (var name in new[] { "iPod_Control", "iTunes_Control" })
+        {
+            string dir = Path.Combine(root, name, "iTunes");
+            if (File.Exists(Path.Combine(dir, "iTunesDB")) || File.Exists(Path.Combine(dir, "iTunesCDB")) || File.Exists(Path.Combine(dir, "iTunesSD")))
+                return name;
+        }
+        return Directory.Exists(Path.Combine(root, "iPod_Control")) ? "iPod_Control" : "iTunes_Control";
+    }
+
+    public static bool LooksLikeIpod(string root) =>
+        Directory.Exists(Path.Combine(root, "iPod_Control")) || Directory.Exists(Path.Combine(root, "iTunes_Control"));
     /// <summary>Path to the music database. Later iPods write a zlib-compressed
     /// iTunesCDB in place of the plain iTunesDB; the reader handles either.</summary>
     public string ItunesDbPath
@@ -70,7 +88,7 @@ public sealed class IpodDevice
             {
                 if (!drive.IsReady) continue;
                 root = drive.RootDirectory.FullName;
-                if (!Directory.Exists(Path.Combine(root, "iPod_Control"))) continue;
+                if (!LooksLikeIpod(root)) continue;
                 label = drive.VolumeLabel;
                 fs = drive.DriveFormat;
                 total = drive.TotalSize;
@@ -94,7 +112,7 @@ public sealed class IpodDevice
         FileSystem = fs,
         TotalBytes = total,
         FreeBytes = free,
-        SysInfo = ReadSysInfo(Path.Combine(root, "iPod_Control", "Device", "SysInfo")),
+        SysInfo = ReadSysInfo(Path.Combine(root, ControlFolder(root), "Device", "SysInfo")),
     };
 
     /// <summary>SysInfo is plain text, one "Key: value" per line.</summary>

@@ -1,4 +1,4 @@
-﻿namespace IpodSync.Maui;
+namespace IpodSync.Maui;
 
 public partial class App : Application
 {
@@ -9,6 +9,6 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		return new Window(new MainPage()) { Title = "IpodSync.Maui" };
+		return new Window(new MainPage()) { Title = "ipodsync", Width = 1400, Height = 900, MinimumWidth = 900, MinimumHeight = 600 };
 	}
 }

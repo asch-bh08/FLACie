@@ -1,0 +1,742 @@
+# Overnight session status — 2026-09-14
+
+## 16 September (later): iPod compatibility
+
+Researched what it would take to support every iPod, then made the code match. Full write-up with
+sources: **COMPATIBILITY.md**.
+
+**Now supported (was: nano 5G only).** The write path no longer assumes a nano 5G:
+- **Unsigned iPods** (1G–5G, mini, photo, nano 1G–2G): write, no signing.
+- **hash58-only iPods** (nano 3G/4G, every iPod classic): previously *refused*, because signing
+  insisted on a hash72 key those models don't have. Fixed: hash72 and the signed `Locations.itdb.cbk`
+  are only required where the model has them.
+- **nano 5G** (hash58 + hash72): unchanged.
+- Devices are profiled from their own database header (`IpodProfiler`), never from a model guess,
+  and an unfamiliar scheme is refused before anything is written. `ipodsync profile <root>` prints it,
+  and the app's Health tab shows model, format, signature and what is supported. The UI drops to
+  read-only for a device it can't sign.
+
+**hashAB (nano 6G/7G, shuffle 4G) — refused, with a documented escape hatch.** It's white-box AES:
+libgpod loads a closed `libhashab.so` blob, pypodlib runs a WASM module; there is no clean-room
+implementation to write. Rather than ship someone's extracted Apple code, there's a hook:
+`IPODSYNC_HASHAB_SIGNER` points at a program that takes the SHA-1 and the FirewireGuid and prints
+57 bytes. It is trusted **only** after it reproduces the signature already on that device.
+
+**iPod touch / iOS:** the transport really can be spoken (usbmuxd + lockdownd pairing + AFC, all open
+source in libimobiledevice) — the blocker is Apple's `MediaLibrary.sqlitedb`, which even
+libimobiledevice gave up on after iOS 6. Detected and explained, not attempted.
+
+**Shuffles:** `iTunesSD`, two incompatible formats, no iTunesDB. Detected and explained, not implemented.
+
+**HFS+ (Mac-formatted) iPods:** Windows can't mount them, so nothing sees them; restore once on a PC.
+
+**Tested** by building fixtures from a copy of the real database and running the whole pipeline
+against them: unsigned → write verified; hash58-only → write verified; hashAB with no signer,
+a wrong signer, and a matching signer → refused, refused, verified. The fake-root regression suite
+still passes.
+
+
+## 16 September: the player, and a rebuilt UI
+
+**Playback is in the app now** (the standalone `ipod-player/` page still exists; it was never part of
+the app). It plays the iPod's own files and never writes to the device.
+- **Windows:** WebView2 loads the files through a read-only virtual host mapping. Apple Lossless,
+  which no browser engine decodes, is converted to FLAC on the fly with ffmpeg and cached
+  (`PlaybackMedia`, capped at 2 GB, oldest dropped first).
+- **Web host:** the same UI, with a `/media` endpoint that supports range requests (so seeking works).
+- **Android:** Android's own media player, straight from the file — it decodes ALAC, AAC, MP3 and WAV
+  natively, so nothing is converted there.
+- Bottom bar: play/pause, previous/next, scrubber, volume, shuffle, repeat, and the up-next queue.
+  Clicking a song plays it and queues the list you're looking at; albums and playlists have play and
+  shuffle buttons. The queue survives a write (it re-binds to the reloaded library).
+
+**UI rebuilt.** Sidebar with icons and a device card (free-space meter + health pills), page headers,
+a new **Albums** tab (cover grid, album pages), covers everywhere, play-on-hover rows, an equaliser
+on the playing row, restyled everything (buttons, inputs, tables, banners, dialogs), and a phone
+layout that stacks properly.
+
+**Finished off:**
+- Enter in the new-playlist box works (the form was missing `preventDefault`, so it reloaded the page).
+- Tag editing covers album artist, genre and composer as well as title/artist/album — the engine
+  relinks album/artist entries when the album artist changes, and the SQLite side already mirrored
+  those fields. The regression suite has a new step for it (step 9b) and passes.
+- The detail panel refreshes its cover and fields after a write.
+- Playback retries once with a converted copy if the engine refuses a file, and a late error from the
+  replaced attempt no longer shows a stale message.
+
+**Optimised:**
+- Track lookups use a dictionary (they were a linear scan per row, per render).
+- Playlist views and the "add songs" search are cached per change-queue version; albums are grouped
+  once per library load.
+- Artwork thumbnails are chosen by requested size (the grid uses the iPod's 128px thumbnails, not the
+  240px ones) and the cache is capped at 300 covers.
+
+**Checked:** the regression suite passes; playback tested in the web host against a fake iPod with
+real audio — AAC played directly, Apple Lossless played through the conversion path, and the album
+grid rendered real covers. Windows and Android builds are clean; playback on the phone and the
+Windows virtual-host path are **not** yet tested on hardware.
+
+
+## Afternoon session (13:10): the app
+
+**On-device check done by Ashley:** the playlists show up on the iPod and the transcoded
+test tracks play. That confirms the overnight write path on the iPod itself.
+
+**What was built.** `IpodSync.Shared` was a read-only dashboard. It is now a full library
+manager on the same verified write pipeline as the CLI. Tabs: Library (edit tags,
+rating, cover art, delete), Playlists (create, rename, delete, add, remove, reorder),
+Add music (with conversion), Sync a folder, Import playlist, Changes, Backups, Device
+health, Jellyfin. See README.md → "The app" for the tour.
+
+**Safety model in the UI.** Nothing reaches the iPod until you press Write. Before that:
+- Every edit is queued first.
+- Write stays disabled until a dry run of exactly that queue, against the same loaded
+  library, has passed. Any edit after the check disables it again.
+- Write asks for confirmation.
+
+The write itself is `WritePipeline` unchanged: verified backup, write, read-back
+re-verify, automatic restore. Folder sync requires the first batch to pass a dry run,
+then writes in verified batches.
+
+**Refactor.** `WritePipeline` and `SigningInputs` moved from the CLI into
+`IpodSync.Core.Sync`, with a structured result. Folder-sync and playlist-import
+orchestration moved into `FolderSyncJob` / `PlaylistImportJob`. The CLI calls them.
+`tools/fake-root-regression.sh` passes after the move.
+
+**Tested, all against a fake root** (the iPod was unplugged), through the UI in a browser:
+| Flow | Result |
+|---|---|
+| Rating, retitle, new playlist with 9 songs, reorder and remove on an existing playlist | written and verified |
+| FLAC add (converted to ALAC, embedded cover) into a playlist, plus a cover on another song | written and verified |
+| Sync a folder: recognised the FLAC added before, skipped a duplicate copy, added MP3 + Opus (→ AAC) | written and verified; re-preview adds nothing |
+| Import an M3U: 2 of 3 matched, the missing song listed | written and verified |
+| Write with `IPODSYNC_FAULT_INJECT=postverify` | restored automatically; all 20 database/artwork files SHA-1-identical to before |
+
+After each write I checked independently with the CLI: `itlp-diff` IN SYNC,
+`hash72-verify` valid (CDB + cbk), `art-check` clean.
+
+**Builds.**
+- **Windows:** `C:\IPODAPP\ipodsync\app-windows\IpodSync.Maui.exe`. Self-contained, so no
+  .NET or Windows App SDK install is needed. I launched it and captured its window: it
+  renders the library with covers and green health chips.
+- **Android:** `C:\IPODAPP\ipodsync\ipodsync.apk`, signed Release. It builds and is still
+  read-only (SAF), and it no longer pops the folder picker at start-up. It has **not**
+  been installed on the phone this session.
+- `tools/build-apps.ps1` rebuilds both. The toolchain was installed without admin rights
+  in `%LOCALAPPDATA%\ipodsync-toolchain` (.NET 9.0.318 + MAUI workloads, JDK 17, Android SDK).
+
+The Windows app's backup folder on this PC is set to `C:\IPODAPP\ipodsync\ipod-backups`
+(in `%LOCALAPPDATA%\ipodsync\app-settings.json`), so it lists the overnight backups.
+
+**First real write from the app (13:15), done.** With the iPod plugged back in:
+- **Before:** read-only checks were clean (IN SYNC, hash72/cbk valid, art-check clean, CDB round-trip
+  byte-identical). I also took an extra SHA-1-verified copy of `iTunes` + `Artwork`:
+  `ipod-backups/app-first-write-baseline-20260914-131300`.
+- **The edit:** the app ran with Ashley's real settings and no test overrides. It was driven through
+  the web host, which runs the same UI and backend as the Windows app. I created playlist
+  **"iPodSync App Test"** with Fur Elise, Air on a G String and Scarborough Fair.
+- **Dry run:** passed. It touched only `iTunesCDB`, `Library.itdb` (container, item_to_container)
+  and `Dynamic.itdb` (container_ui).
+- **Write:** verified (every device check PASS). The app's own backup is
+  `ipod-backups/app-20260914-131509`.
+- **After:** re-checked with the CLI: IN SYNC, signatures and cbk valid, art-check clean, round-trip
+  byte-identical, 643 tracks, the new playlist has 3 songs. Against the baseline, exactly those 3
+  files changed. The plays the iPod recorded for the test tones are preserved.
+- **Still to do:** confirm "iPodSync App Test" appears on the iPod screen after ejecting.
+
+**On-screen confirmation, then cleanup (13:22).**
+- **iPod screen:** Ashley confirmed "iPodSync App Test" shows up on the iPod.
+- **Test playlists removed:** at Ashley's request I deleted "iPodSync App Test", "iPodSync Import Test" and
+  "iPodSync Playlist Test" with `apply-edits`. The dry run passed, then the write was verified; the
+  backup is `ipod-backups/applyedits-20260914-132204`.
+- **After:** a CLI re-check was clean. 643 tracks remain; the original six playlists plus the 5 built-in
+  smart ones.
+- **Not removed:** the test *songs* (tones etc.) are still on the iPod, because only the playlists were asked for.
+
+**Android writes (13:35): built, not yet tested on a phone.**
+- **Approach:** Android mounts the iPod as a removable USB volume (`/storage/XXXX-XXXX`). With "All files
+  access" (`MANAGE_EXTERNAL_STORAGE`) that volume is an ordinary path. So `AndroidIpodSyncBackend` runs
+  the **unchanged WritePipeline** (backup, staged SQLite, signing, write, read-back, re-verify, restore).
+  It doesn't use a second writer.
+- **No permission yet:** the app stays read-only (SAF) and shows an "Allow access" button that opens
+  Android's settings page for that permission.
+- **hash58 FirewireGuid:** on the phone it is the iPod's USB serial. The app asks Android's USB permission
+  prompt once, reads only the serial (it does not claim the interface, which is what broke the old raw-USB
+  attempt), and signing still only accepts it if it reproduces the device's existing hash58. Proven IDs
+  are remembered in the app settings on that phone or PC (never on the iPod, never committed).
+- **Covers without ffmpeg:** `Thumbnailer` now takes a pluggable rasterizer. ffmpeg is unchanged on
+  Windows (same filter strings); Android uses `AndroidRasterizer` (BitmapFactory, RGB565). Without ffmpeg,
+  embedded covers are read with TagLib.
+- **No transcoding on Android:** Add music and Sync a folder skip FLAC/Opus/etc. there, and say so.
+- **File picking on the phone:** an in-app file/folder browser (`InAppPickers` + `PickerHost`), also used
+  by the web host.
+- **Layout:** stacks on narrow screens.
+- **Write path, both platforms:**
+  - database/artwork/audio writes now fsync before read-back;
+  - `DeviceWriteTransaction.ProbeWritable` refuses up front, before the backup and before anything is
+    written, when the iPod can't be opened for writing.
+- **Checks:** `fake-root-regression.sh` passes after these changes. Web, CLI and Android Release builds are
+  clean. The APK is at `C:\IPODAPP\ipodsync\ipodsync.apk`.
+
+**Android test plan (not done, I ran out of session budget):**
+1. **Emulator (optional):** it is ready on this PC. WHPX works, and `emulator` plus
+   `system-images;android-34;google_apis;x86_64` are installed in `%LOCALAPPDATA%\ipodsync-toolchainndroid-sdk`.
+   Create an AVD, install the APK, grant the permission with
+   `adb shell appops set --uid dev.ashley.ipodsync MANAGE_EXTERNAL_STORAGE allow`, push a fake root to
+   `/sdcard`, and point `IPODSYNC_EXTRA_ROOTS` at it. (Environment variables don't reach an Android app, so
+   this needs a small debug hook, or test via the phone instead.)
+2. **On the Z Fold 7:** install the APK, plug in the iPod, tap "Allow access", grant it, and come back to ⟳.
+   The iPod should then appear as a device with green health chips. The health check triggers the USB
+   permission prompt for the serial.
+3. **First phone write:** one small playlist edit, then Check changes → Write to iPod. Then eject from
+   Android and check the result on the PC with `itlp-diff`, `hash72-verify` and `art-check` (backups live in
+   `Documents/ipodsync/ipod-backups` on the phone).
+- **Risks to watch:**
+  - whether One UI's FUSE mount allows writes to the USB volume with this permission (if not,
+    `ProbeWritable` stops before anything is written);
+  - whether the USB permission prompt disturbs the mount.
+
+**Not done / next.**
+1. ~~**First real write from the app.**~~ Done (above). Plug the iPod in, open the Windows app, make one
+   small edit, then Check → Write. Every write path is the same code already proven
+   overnight, but the app itself has only written to fake roots.
+2. **Android writes.** A likely route is "All files access" (`MANAGE_EXTERNAL_STORAGE`)
+   so the unchanged pipeline can run on the mounted USB volume path. It needs the phone
+   to test. Transcoding and cover conversion would also need ffmpeg on Android.
+3. Nice-to-haves: play a track inside the app; edit album artist, genre and year (the
+   engine currently edits title, artist and album).
+
+
+## End-of-session report (05:20)
+
+**TL;DR** — All six HANDOFF build-order steps are implemented and were written to the
+real iPod (nano 5G, `D:`) through one verified pipeline: 21 live writes, **every one
+backed up, dry-run first, written, read back, and re-verified from the device; none
+needed a restore**. The device's two databases are fully in sync and signed the way
+iTunes signs them. What is *not* done: nothing has been looked at on the iPod's own
+screen, because the iPod had to stay mounted all night (no eject) — the firmware only
+reloads its databases after an eject. That on-screen check is the one thing left
+that only you can do.
+
+### Newly working, verified on the device's files
+| Feature | Live writes | Notes |
+|---|---|---|
+| Two-database writes (CDB + `iTunes Library.itlp` SQLite) | all | `itlp-diff D:/` → IN SYNC (tracks, fields, album/artist identity, artwork links, playlists, memberships) |
+| Create / rename / delete playlist, add / remove / reorder tracks | #1–#5, #20 | |
+| Rename / retag track, add song from file, delete track | #7–#11 | incl. SQLite entities + sort ranks + signed `Locations.itdb.cbk` |
+| Database signatures (hash72 + hash58) | #6 onwards | the CDB signatures written last session were stale; fixed and now regenerated on every write |
+| Transcode-on-add (FLAC→ALAC, Opus/Ogg/WMA→AAC) | #12, #13, #16, #18 | |
+| Album artwork (set / replace / embedded cover on add) | #14–#18 | thumbnails decoded back off the iPod and inspected |
+| Folder / NAS sync (`sync-folder`) | #17, #18 | adopts songs already on the iPod, skips duplicates; 4 real songs added |
+| Star ratings (Now Playing reads `Dynamic.itdb`) | #19 | the old engine only wrote the CDB byte |
+| Playlist import from iTunes exports / M3U | #20 | |
+| Repair of last session's add-from-file track | #21 | it had a duplicate id copied from another track |
+
+Also: Play Counts file kept aligned, `tools/fake-root-regression.sh` (every op
+against a fake copy of the device — passes), player UI for ratings/cover art/new
+formats, docs (EDIT-PROTOCOL.md, README.md) rewritten.
+
+### Morning on-screen checklist (eject the iPod first)
+1. Library still plays normally; song count **643**; your six playlists unchanged
+   (2026(LAC) 28, AA 351, aura(LAC) 22, Golden Era Mix 138, HoodTrap(LAC) 47, pop(LAC) 51).
+2. Playlists → **iPodSync Playlist Test** (10): Smack That, *ipodsync RENAMED TEST*,
+   Rolling in the Deep, iPodSync Transcode Tone FLAC / Opus, iPodSync Cover Art Tone,
+   Timber (AbbyLara), Kill The Lights, Love Potions, Mascara. `iPodSync Temp` must
+   **not** exist. **iPodSync Import Test** (27 songs from `Playlist.txt`).
+3. The tones play (FLAC tone = 15 s chord, Opus tone = 12 s, cover tone = 10 s).
+4. Cover art: FLAC tone + cover tone show a colour test pattern; Opus tone shows
+   letterboxed SMPTE bars; existing albums' art unchanged.
+5. Now Playing on *ipodsync RENAMED TEST* shows **3 stars**.
+6. Artists → iPodSync; Albums → iPodSync Transcode Test / Edit Test.
+
+### Blocked / not done, and why
+- **On-screen confirmation of everything above** — requires ejecting, which the
+  session was told not to do. File-level verification is complete; firmware
+  acceptance is not proven until you look.
+- **Whether the firmware checks the CDB signatures** is still unknown; they are now
+  valid either way (identical algorithm output to iTunes, proven on the original CDB).
+- **8 more songs in `Car Playlist`** (218 MB) are planned but deliberately not synced
+  (device has 1.37 GB free). Run: `sync-folder D:/ "<copy of Car Playlist>" --yes`.
+- **`\\raspberrypi\CS-1\Music`** drops its SMB session every few minutes; the
+  test folders were copied to local disk first. Syncing straight from the share will
+  be unreliable until that is fixed on the Pi.
+- **hashAB (nano 6G/7G)**, Android write path, MAUI builds: not attempted (no such
+  device; this machine has no MAUI workloads).
+- Player "Write to iPod" button: exercised only as far as the dry run in a browser
+  (the underlying `--yes` path is what all 21 live writes used).
+
+### Writes to double-check, and how to restore
+None looked wrong, but these are the least-proven on the firmware side, most
+uncertain first. Backups live in `C:\IPODAPP\ipodsync\ipod-backups\`; each contains
+`iTunes\` (and `Artwork\` for #14–#18) exactly as the device was **before** that write.
+- **If the iPod shows an empty/broken library or "needs restore"**: restore
+  `overnight-baseline-20260914-001739` (the state before tonight): copy its `iTunes\`
+  over `D:\iPod_Control\iTunes\` and its `Artwork\` over `D:\iPod_Control\Artwork\`.
+  Songs added tonight stay on disk as unreferenced files (harmless).
+- **#6 re-sign (`itlpsync-20260914-004335`)** and **#7 first `Locations.itdb.cbk`
+  write (`itlpsync-20260914-005144`)** — the first writes of signatures/cbk.
+- **#14–#16 artwork (`applyedits-20260914-012917` / `-012929` / `-012941`)** — first
+  ArtworkDB/ithmb writes. If art is wrong or missing everywhere, restore `Artwork\`
+  from `applyedits-20260914-012917`.
+- **#19 rating (`applyedits-20260914-014339`)** — if 3 stars don't show, nothing needs
+  restoring; it means the rating is read from somewhere else.
+- Restore = copy the backup folder's files back; then `itlp-diff D:/`, `art-check D:/`
+  and `hash72-verify D:/` should pass.
+
+### Recommended next step
+Eject the iPod and go through the checklist above. If it all shows correctly, the
+engine is ready for real use: sync the remaining `Car Playlist` songs, then larger
+folders in batches (`--limit`), and use the player's edit mode for everyday changes.
+If something is wrong on screen, note which item, restore the matching backup, and
+start the next session from that finding (the regression suite reproduces every
+write path without touching the device).
+
+---
+
+
+Autonomous session working through the HANDOFF.md build order. This file is the
+running log (newest entries at the bottom) and ends with the end-of-session
+report. Every device write is listed with its pre-write backup folder.
+
+## Session log
+
+> Correction (01:45): the time ranges in these headings were first written as
+> rough estimates and were wrong; they now reflect the real clock (git commit
+> times). Times in the write tables were always real — they come from the backup
+> folder timestamps.
+
+### 00:03–00:21 — setup, baseline, read-only survey
+
+- Local repo lives at `C:\IPODAPP\ipodsync\ipodsync` (the outer `C:\IPODAPP`
+  folders are the NAS copy without git). `git fetch`: local `main` ==
+  `origin/main` (`cc5cd10`), nothing to pull. Uncommitted WIP from the last
+  session: `src/IpodSync.Core/Itlp/ItlpPlaylistSync.cs` + `itlp-preview` CLI.
+- This machine had **no .NET SDK**; installed .NET SDK 9.0.318 via winget and
+  added the nuget.org package source (none was configured). CLI builds clean.
+- Device: `D:\` "ASHLEY'S IP", FAT32, 7.4 GB. CDB: 636 tracks, 12 playlists
+  (+master). `roundtrip D:/` → byte-identical PASS.
+- **Baseline backup before any work:** `C:\IPODAPP\ipodsync\ipod-backups\overnight-baseline-20260914-001739`
+  (`iPod_Control/iTunes` + `iPod_Control/Artwork`, SHA1 manifest `device.sha1`, verified).
+- `Library.itdb` (and every other `.itdb`) last modified **Sep 7** — the SQLite
+  side has never been written by ipodsync. Consequences, found by comparing
+  the two databases:
+  - SQLite `item` has **635** rows; CDB has **636** → the earlier add-from-file
+    track exists only in the CDB.
+  - SQLite `container` has 7 rows (master + 6); CDB has the extra
+    `iPodSync Test` playlist → not in SQLite.
+  - So the "confirmed on hardware" status of add-song / rename in the Desktop
+    HANDOFF could only have been CDB-level; the repo's EDIT-PROTOCOL.md still
+    says both were awaiting the iPod-screen check. Treating them as unverified
+    against the SQLite layer.
+- `Locations.itdb.cbk` is 1126 bytes = 46 (hash72 signature) + 20 (final SHA1)
+  + 53×20 (SHA1 per 1024-byte block of the 54272-byte `Locations.itdb`). That is
+  the libgpod-documented Nano 5G layout: **any change to `Locations.itdb`
+  (needed to add a track) requires re-signing the .cbk with hash72.** Playlist
+  edits only touch `Library.itdb` / `Dynamic.itdb`, which are not checksummed.
+- Music source found at `\\raspberrypi\CS-1\Music` (≈700 MP3, 287 FLAC, 44 M4A,
+  41 WAV, 255 WMA).
+
+### 00:21–00:30 — two-database write pipeline + first live SQLite write
+
+Built (commit `d868d02`):
+- `itlp-diff` (`ItlpCompare`): read-only CDB-vs-SQLite verifier keyed by
+  persistent id. On the untouched device it matched all 635 shared tracks and
+  all 6 original playlists' memberships exactly; the only differences were the
+  four CDB-only edits from last session (1 added track, 1 renamed track's
+  title/artist/album, the `iPodSync Test` playlist, master 636 vs 635).
+- `ItlpSync`: playlist mirror onto a **staged copy** of the bundle.
+  Real-row findings encoded: `item_to_container.shuffle_order` is NULL;
+  `Dynamic.itdb` has a `container_ui` row (1,0,1,0,0,0) per playlist;
+  `container.name_order` = master 100, then every CDB playlist *including the
+  built-in smart ones that have no container row* sorted case-insensitively,
+  ×100 (reproduces all 7 existing values; re-proven on every run, write refused
+  if it ever doesn't).
+- `WritePipeline` (`apply-edits`, new `itlp-sync`): integrity_check, per-table
+  content hashes (only declared tables may change), refuses any write that adds
+  new track divergence, SHA-1-verified backup, read-back verify, full device
+  re-verify, automatic verified restore on failure. Restore path proven with a
+  fault-injected write on a fake device root.
+
+**LIVE WRITE #1 — 00:30 — `itlp-sync D:/ --yes`** (mirror `iPodSync Test` into SQLite)
+- Pre-write backup: `C:\IPODAPP\ipodsync\ipod-backups\itlpsync-20260914-003002`
+- Changed: `Library.itdb` (container row for `iPodSync Test`, name_order 800;
+  `pop(LAC)` re-ranked 1000→1100; 1 membership row), `Dynamic.itdb`
+  (container_ui row). Device verify: all PASS. Independent Python sqlite3 dump
+  of a read-back copy vs baseline: exactly those 5 rows differ; SHA-1 of the
+  whole `iTunes/` + `Artwork/` tree vs baseline: exactly those 2 files differ.
+- Confidence: high at the file level. **Not yet seen on the iPod screen** — the
+  device must stay mounted all night (no eject), so the firmware won't reload
+  its databases until Ashley ejects it. Morning check: Playlists menu should
+  show `iPodSync Test`.
+- Note: new playlist persistent ids are "max existing + 1"
+  (`0xF906EE395DA00876` = `AA`'s id + 1). Unique, just adjacent.
+
+### 00:30–00:32 — playlist features re-verified through both databases (live)
+
+Each op tested first on a fake device root (copy of the live bundle +
+zero-byte audio placeholders), then run live on `D:` one feature per write,
+each gated on a passing dry run. All device checks PASS on every write
+(CDB bytes, re-read, byte-identical round-trip, track/playlist counts, all 636
+audio files present, SQLite bytes == staged proof, integrity_check, playlists
+in sync between CDB and SQLite). A track-metadata edit (`setTrackFields`) is
+correctly **refused** by the pipeline until the track mirror exists.
+
+| # | time | change-set | pre-write backup (`C:\IPODAPP\ipodsync\ipod-backups\…`) |
+|---|------|------------|------------------|
+| 2 | 00:31 | `iPodSync Test`: add 3 tracks, reorder, remove 1 → Smack That, Lights (renamed test track), Rolling in the Deep | `applyedits-20260914-003149` |
+| 3 | 00:32 | rename `iPodSync Test` → `iPodSync Playlist Test` | `applyedits-20260914-003204` |
+| 4 | 00:32 | create `iPodSync Temp` (2 tracks) — container, container_ui, name_order 900, pop(LAC) re-ranked | `applyedits-20260914-003207` |
+| 5 | 00:32 | delete `iPodSync Temp` | `applyedits-20260914-003210` |
+
+Evidence the pair #4/#5 is an exact inverse: the device CDB after #5 is
+byte-identical to after #3 (SHA-1 `228D4A27…`), and `Dynamic.itdb`'s SQL
+content after #5 equals its content before #4.
+
+**Morning on-screen check (after ejecting):** Playlists menu should show
+`iPodSync Playlist Test` (3 songs: Smack That, Lights…, Rolling in the Deep),
+and should *not* show `iPodSync Temp`.
+
+Playlist features — create, rename, delete, add/remove track, reorder — are
+now written to **both** databases in one operation and verified on the device
+files. Remaining playlist caveat: firmware display not yet eyeballed.
+
+### 00:32–00:44 — database signatures: hash72 + hash58 reproduced exactly
+
+Why this matters: the device is an **iPod nano 5G** (USB `VID_05AC&PID_1265`).
+Its iTunesCDB header carries hash58 (scheme 1) *and* a hash72 signature, and
+`Locations.itdb.cbk` carries hash72. **Every CDB ipodsync has written since
+Sep 13 kept iTunes' old signature bytes**, so the device's CDB signatures are
+currently stale (`hash72-verify D:/` → "does NOT validate"). Whether the
+firmware rejects that is unknown (can't eject tonight), but it is not what
+iTunes produces. Adding/removing tracks also needs Locations.itdb → cbk re-signing.
+
+Implemented (independent C#, not LGPL code: hash72's generate/extract is
+WTFPL, hash58's reference is BSD-licensed; the S-boxes are the FIPS-197 AES
+tables, generated rather than copied, and compared equal to libgpod's in all
+256 entries):
+- `Signing/Hash72.cs` + `hash72-verify`: on the original iTunes CDBs of **both**
+  nano 5Gs seen (D: `3dcaf899…` from Sep 7, and the G: backup) the header
+  hash72 validates; every `Locations.itdb.cbk` validates, and **rebuilding the
+  cbk from Locations.itdb with the recovered (iv, random) pair is
+  byte-identical** to the iTunes-written file.
+- `Signing/Hash58.cs` + `hash58-verify`: with FirewireGuid = USB serial
+  `000A27001E7D86AB`, HMAC over the compressed CDB with db id / 0x32 / hash58
+  zeroed **reproduces the original iTunes hash58 exactly**
+  (`322B2633BB46E313…`). hash72 is computed with hash58 zeroed, hash58 with
+  hash72 in place → sign hash72 first, hash58 last.
+- Wired into the write pipeline (`DeviceSigning`): every CDB write is signed
+  (hash72 then hash58; a check proves only the 66 signature bytes differ),
+  `Locations.itdb.cbk` is rebuilt whenever `Locations.itdb` changes, and the
+  device must pass signature validation after the write or it is restored. Key
+  material is discovered, never stored: hash72 pair from the device's valid
+  cbk; FirewireGuid candidates from the Windows USB registry, accepted only if
+  one reproduces the hash58 of the device CDB or of an iTunes-written backup
+  with the same library id. Without proof, writes to a signed database are
+  refused (`--allow-unsigned` to override). Tested on the fake root incl. a
+  fault-injected restore.
+
+**LIVE WRITE #6 — 00:43 — `itlp-sync D:/ --resign --yes`** (fix stale CDB signatures)
+- Pre-write backup: `C:\IPODAPP\ipodsync\ipod-backups\itlpsync-20260914-004335`
+- Only the CDB header's hash58 (0x58–0x6B) and hash72 body (0x74–0x9F) changed.
+  Device verify all PASS; `hash72-verify D:/` → CDB hash72 valid, cbk valid;
+  `hash58-verify` → MATCH. The device's databases now carry the signatures
+  iTunes would have written for this content.
+
+### 00:44–00:52 — track mirror (Library/Dynamic/Locations.itdb) + live sync to full parity
+
+Research against the device's own rows (all encoded in code, all re-checkable):
+- `ItlpSorting` sort-name rule reproduces `sort_title/artist/album/album_artist/composer`
+  for all 635 items; the collation reproduces title/artist/album-artist/composer
+  ranks with 0 inversions (1 album pair of ~2,800 differs). `itlp-orders-check`.
+- Entities: `track_artist` (small int pid) ↔ `item.artist`; `artist` (64-bit pid)
+  named by album artist, else track artist, else the is_unknown row; `album`
+  keyed by name + artist pid; unknown album/composer/genre rows carry
+  name_order 4294967295; item.genre_order = 100 × case-insensitive genre rank;
+  `item.physical_order` == master-playlist position; `location` uses 4CC
+  `'FILE'` / `'M4A '` / `'MP3 '`, `kind_id` → `location_kind_map`;
+  `avformat_info` 301 MP3 / 502 AAC / 601 ALAC with duration in samples.
+
+`ItlpTrackSync` mirrors removed / changed / new tracks (item, avformat_info,
+location, item_stats, lyrics/chapters on removal, entity rows created with
+neighbour-placed ranks). The pipeline now requires **tracks fully in sync**
+(not just "no new divergence") and rebuilds + verifies the cbk. Master
+playlist appends insert only the new rows.
+
+**LIVE WRITE #7 — 00:51 — `itlp-sync D:/ --yes`** (mirror last session's CDB-only track edits)
+- Pre-write backup: `C:\IPODAPP\ipodsync\ipod-backups\itlpsync-20260914-005144`
+- Library.itdb: renamed test track (`iPodSync – ipodsync RENAMED TEST`, album
+  `Edit Test`, new track_artist/artist/album rows); added `EsDeeKid – Century`
+  (item, avformat_info, master membership). Dynamic.itdb: item_stats.
+  **Locations.itdb: location row → Locations.itdb.cbk re-signed** (first cbk
+  write on the device; generation proven byte-identical against iTunes' file).
+- Device verify all PASS incl. `tracks in sync`, `Locations cbk valid`.
+  `itlp-diff D:/` → **IN SYNC**. `hash72-verify D:/` → CDB + cbk valid.
+- The device's CDB and SQLite library now agree completely, both signed.
+
+### 00:52–01:03 — CDB album/artist links, add-from-file fixes, live track feature pass
+
+Found while checking what add-from-file writes: last session's
+`AddTrackFromFile` cloned a template track's whole mhit header, so the added
+EsDeeKid track carried the template's **second persistent-id copy (+0xA8)**,
+sample count (+0xBC), size copy (+0x12C), date added (+0x68), and its
+**album/artist list links** (+0x120 / +0x1E0 → the template's `????????`
+album/artist). Each offset was confirmed across all 636 tracks (e.g. +0xA8 ==
+persistent id for every iTunes-written track; +0x120 → mhia whose persistent id
+== SQLite `item.album_pid` for all 596 tracks with an album).
+
+Fixed (commit `8ecdae2` + determinism follow-up):
+- `RawChunk` parses mhla/mhli/mhia/mhii structurally; **all 21 databases on
+  hand still round-trip byte-identically**. Reader exposes the lists + links.
+- `EntityLinks` finds/creates album & artist entries (ids from the shared
+  track/list counter, mhod layout identical to every real entry).
+- `AddTrackFromFile` sets every per-track field itself, prefers a no-artwork
+  template, reads album artist / composer / track+disc counts / codec (ALAC vs
+  AAC) from tags, and picks an **existing** `F##` folder (device has F00–F13).
+- `setTrackFields` re-links on artist/album changes; `relinkTrack` op.
+- SQLite sync reuses the CDB entity pids; verifier checks album_pid/artist_pid.
+- Random choices (persistent ids, file names) are seeded from the CDB bytes +
+  change-set, so **a dry run now previews exactly what `--yes` writes** (before
+  this fix, live #9's dry run showed a different path/pid than the real run —
+  harmless, since every write re-proves its own bytes, but not a true preview).
+
+| # | time | change-set | pre-write backup (`ipod-backups\…`) |
+|---|------|------------|------------------|
+| 8 | 01:00 | `relinkTrack` ×2: repair the two test tracks' album/artist links (CDB) → SQLite re-pointed to the same pids, 2 stray rows pruned | `applyedits-20260914-010021` |
+| 9 | 01:02 | `addTrackFromFile` test tone MP3 (ffmpeg-generated, tagged) → +playlist `iPodSync Playlist Test` | `applyedits-20260914-010216` |
+| 10 | 01:02 | `setTrackFields` retag title + album of that track (relinks album) | `applyedits-20260914-010218` |
+| 11 | 01:02 | `removeTrack` that track | `applyedits-20260914-010220` |
+
+All four: every device check PASS (incl. CDB signatures, cbk valid, tracks +
+playlists in sync); after #11 `itlp-diff D:/` → IN SYNC, `hash72-verify` valid.
+Side effect of #9 (pre-fix code): the tone's audio was copied to a new folder
+`D:\iPod_Control\Music\F33\RB76.mp3` (481,649 bytes). After #11 it is an
+unreferenced file — left in place per the no-deleting rule; harmless.
+
+**HANDOFF step 2 status:** create-playlist, playlist rename/delete,
+add/remove/reorder playlist tracks, rename/retag track, add track from file and
+delete track now all write CDB + SQLite in one verified operation, confirmed on
+the device's files. Not yet confirmed on the iPod's screen (no eject tonight).
+
+### 01:03–01:14 — HANDOFF step 3: transcode-on-add (done, live)
+
+`addTrackFromFile` now takes `"transcode": "auto" | "alac" | "aac" | "never"`
+(default auto = convert only what the iPod can't play). `Transcode/Transcoder.cs`:
+- lossless sources (FLAC/APE/WavPack/PCM…) → **ALAC 16-bit stereo**, lossy
+  (Opus/Ogg/WMA…) → **AAC 256k**; 44.1 kHz family → 44100, 48 kHz family → 48000
+  (the device already holds iTunes-synced ALAC at both rates).
+- SHA-256-keyed cache (`%LOCALAPPDATA%\ipodsync\transcode`), ffmpeg bit-exact:
+  two transcodes of the same source are byte-identical, so the dry run and the
+  write use the same file. Output probed (codec, channels, rate, duration ±0.25 s)
+  and rejected otherwise. Tags from format or stream metadata (Ogg/Opus).
+
+Bugs found and fixed on the way (all caught on the fake root, never live):
+- **Reader:** sample rate of every 48 kHz track read as negative (signed shift of
+  `rate << 16`) → SQLite mirror would have written 44100 Hz / wrong sample count.
+- ALAC bitrate: TagLib reports 0; now iTunes' nominal rate×bits×channels
+  (matches all 146 existing ALAC rows: 1536/2304/1411/2116).
+- Deterministic file names could collide with an orphan already on disk (a
+  fake-root write failed safely on this and restored); names now avoid existing
+  files. Untagged titles no longer fall back to the cache file name.
+
+| # | time | change-set | pre-write backup (`ipod-backups\…`) |
+|---|------|------------|------------------|
+| 12 | 01:14 | add 24-bit/96 kHz **FLAC** test tone → ALAC 16/48 → `F01/08X8.m4a`, album `iPodSync Transcode Test`, playlist `iPodSync Playlist Test` | `applyedits-20260914-011427` |
+| 13 | 01:14 | add **Opus** test tone → AAC 256k → `F08/SV6N.m4a`, same album/playlist | `applyedits-20260914-011430` |
+
+Both: all device checks PASS; dry run and write identical; `itlp-diff` IN SYNC;
+CDB + cbk signatures valid. Device now 638 tracks.
+
+**Morning on-screen check (after ejecting):** Playlists → `iPodSync Playlist Test`
+should list Smack That, Lights → now titled `ipodsync RENAMED TEST`, Rolling in the
+Deep, `iPodSync Transcode Tone FLAC` (15 s two-tone chord), `iPodSync Transcode
+Tone Opus` (12 s tone). Both tones should play. Artists → iPodSync; Albums →
+`iPodSync Transcode Test`.
+
+### 01:14–01:21 — HANDOFF step 4: album artwork — research pass (read-only)
+
+Decoded from the real device (`ArtworkDB` + 4 `.ithmb` files, 529 images):
+- Structure: `mhfd` (next image id @0x1C = 817) → `mhsd` 1 images (`mhli`),
+  2 photo albums (`mhla`, empty), 3 files (`mhlf`: formats 1056/1078/1073/1074).
+- `mhii`: id @0x10 == SQLite `item.artwork_cache_id` == CDB mhit @0x160;
+  representative track pid @0x14; **reference count @0x38 = number of tracks
+  using the image (529/529 match)**; source image size + 1 @0x30 where the track
+  records one (mhit @0x80). CDB mhit @0xA4 = 1 has art / 2 none; u16 @0x7C = artwork count.
+- Four thumbnails per image, one `mhni` each: 1056 = 128×128, 1078 = 80×80,
+  1073 = 240×240, 1074 = 50×50; **RGB565 little-endian** (verified visually:
+  image 288 decodes to *The Marshall Mathers LP* for "Stan"; big-endian is noise).
+  Non-square art is scaled to fit and **centred**: @0x1C/@0x1E = top/left padding,
+  @0x20/@0x22 = padding + content height/width (verified on a letterboxed image).
+- Thumbnails are stored contiguously, one slot per image, no gaps (file size =
+  529 × slot size for all four files) → adding art = append to each ithmb.
+- `mhaf` inside mhod type 6: length is its header (96); its +0x08 is not a total.
+- `ArtChunk` / `ArtworkDb` lossless tree + read-only `art-check`: **ArtworkDB
+  round-trips byte-identical**; all 2,116 thumbnails in range; 0 dangling track
+  links; 0 reference-count mismatches.
+
+### 01:21–01:30 — HANDOFF step 4: album artwork — writer (done, live)
+
+New ops: `setTrackArtwork` (`trackId` or `trackIds` + `imagePath`: an image, or an
+audio file with an embedded cover; one image shared by all listed tracks),
+`removeTrackArtwork`; `addTrackFromFile` copies the source file's embedded cover
+automatically (also when transcoding; `"artwork": false` to skip); `removeTrack`
+releases its image. Implementation (`Artwork/`):
+- New image = clone of a real `mhii`/`mhni` layout; id from mhfd next-id; thumbnails
+  appended at the end of each ithmb; reference count kept (replaced/removed art
+  decrements, an image at 0 references is removed; its slots stay unused).
+- Thumbnails via ffmpeg (bit-exact): fit + centred letterbox for 1056/1073/1074;
+  **centre-crop for 1078** — found by noticing iTunes never pads that format
+  (decoded the iTunes 80×80 of a wide image: it is cropped, not letterboxed).
+- CDB mhit +0xA4/+0x160/+0x7C/+0x80 and SQLite artwork_status/artwork_cache_id
+  written together; `itlp-diff` now cross-checks artwork links.
+- Pipeline: backs up `Artwork/` as well (85 MB, SHA-1 verified), re-validates the
+  new ArtworkDB before writing, appends only after confirming each ithmb length,
+  verifies ArtworkDB bytes + integrity on the device, and restores by truncating
+  each ithmb to its backed-up length. Fault-injected test on the fake root
+  restored all 7 files SHA-1-identical. Every new thumbnail was decoded back to
+  PNG and inspected (letterbox, crop, square, embedded cover).
+
+| # | time | change-set | pre-write backup (`ipod-backups\…`, incl. Artwork) |
+|---|------|------------|------------------|
+| 14 | 01:29 | `setTrackArtwork` test pattern (600×600 PNG) → both transcode tones (image #817, 2 refs) | `applyedits-20260914-012917` |
+| 15 | 01:29 | replace the Opus tone's art with a wide 800×450 JPEG (image #818; #817 → 1 ref) | `applyedits-20260914-012929` |
+| 16 | 01:29 | add `test-cover.flac` (embedded PNG cover) → ALAC `F10/DEIN.m4a` + image #819 | `applyedits-20260914-012941` |
+
+All PASS incl. `device artwork integrity`; afterwards `art-check D:/`: ArtworkDB
+round-trips, 532 images, all thumbnails in range, 592 tracks with art, 0 dangling
+links, 0 reference-count mismatches; `itlp-diff` IN SYNC; signatures valid. A
+thumbnail read straight back off the iPod decodes to the right cover.
+
+**Morning on-screen check:** Now Playing art for `iPodSync Transcode Tone FLAC`
+(colour test pattern), `…Tone Opus` (SMPTE bars, letterboxed; 80×80 list thumb
+cropped), `iPodSync Cover Art Tone` (test pattern). Existing albums' art should be
+unchanged.
+
+### 01:30–01:41 — HANDOFF step 5: folder/NAS sync (done, live)
+
+`sync-folder <ipod-root> <music-folder> [--yes] [--batch N] [--limit N]
+[--playlist name] [--remove-missing]`:
+- Scans a folder (MP3/AAC/ALAC/WAV/AIFF/FLAC/Ogg/Opus/WMA/APE/WavPack), reads tags.
+- **Off-device manifest** per device library + source folder
+  (`%LOCALAPPDATA%\ipodsync\manifests\<library id>-<folder hash>.json`):
+  source file → track persistent id, origin `added` / `adopted`.
+- Per file: already synced · **already on the iPod** (normalised title + first
+  artist + duration ±2.5 s, or a loose fallback for artist-in-title tags:
+  duration ±1.5 s and both device title and artist appear in the source's
+  title/artist/file name) → adopted, not copied · **duplicate inside the
+  folder** (e.g. FLAC + Tidal M4A of the same song; keeps lossless, then larger)
+  · to add.
+- Free-space check (200 MB kept spare); dry run proves the first batch end to end;
+  adds go through the verified pipeline in batches (transcode, embedded artwork,
+  both databases, signing), manifest saved after each verified batch;
+  `--remove-missing` only removes tracks this sync *added*. Re-running is a no-op.
+
+Source music: `\\raspberrypi\CS-1\Music` drops its SMB session every few minutes
+tonight ("network name is no longer available"), so test folders were copied to
+local disk first (`AAC-M4A` 55 MB, `Car Playlist` 740 MB) and synced from there.
+
+Matching was checked by hand against the device before any live write, which
+caught two planner gaps that are now fixed: artist-in-title tags ("NOTION -
+CHRYSTAL - THE DAYS" was about to be re-added although the iPod has it), and a
+lossy duplicate of an adopted song. After the live writes, a re-check caught two
+more (fixed, nothing on the device affected): a second folder's sync replaced
+the first folder's manifest, and lossy copies of already-synced songs were not
+treated as duplicates.
+
+| # | time | sync | pre-write backup (`ipod-backups\…`, incl. Artwork) |
+|---|------|------|------------------|
+| 17 | 01:39 | `AAC-M4A`: 5 already on the iPod adopted; **added** `AbbyLara – Timber (feat. Ke$ha)` (AAC, 25 MB, with its cover) | `syncfolder-20260914-013854` |
+| 18a | 01:39 | `Car Playlist` `--limit 3 --batch 2`, batch 1: 8 adopted; **added** FLAC→ALAC `Kill The Lights (Audien Remix)`, `Love Potions` (with covers) | `syncfolder-20260914-013926` |
+| 18b | 01:39 | batch 2: **added** FLAC→ALAC `Deftones – Mascara` (with cover) | `syncfolder-20260914-013945` |
+
+All batches WRITE VERIFIED; afterwards `itlp-diff` IN SYNC, `art-check` clean
+(596 tracks with art), CDB + cbk signatures valid. Re-plans: `AAC-M4A` → 6 in
+sync, 0 to add; `Car Playlist` → 11 in sync, 15 duplicates skipped, **8 still to
+add** (218 MB) — deliberately left for Ashley (device has ~1.3 GB free). All
+real songs added tonight were also put in `iPodSync Playlist Test` so they are
+easy to find; remove them from that playlist in the player if unwanted.
+
+### 01:41–01:44 — HANDOFF step 6 (optional): star ratings (done, live)
+
+Finding: the nano 5G keeps per-track stats in `Dynamic.itdb` → `item_stats`.
+iTunes keeps it equal to the CDB (`play_count_user` == CDB play count for all
+643 tracks). The only rated track in the CDB — the test track rated 5★ by last
+session's CDB-only write — had `user_rating` 0 there, which matches "the
+engine's rating isn't what Now Playing shows". The CDB offset itself was right
+(+0x1F, as libgpod reads it; compilation +0x1E, app rating +0x79).
+
+Change: `setTrackRating` / `setPlayCount` also write `item_stats.user_rating`
+(20 per star, libgpod's convention) / `play_count_user` — **only for tracks the
+change-set sets**, because the iPod updates item_stats itself (rating from Now
+Playing, plays) and a CDB value isn't necessarily newer. New tracks get their
+CDB rating/plays. `itlp-diff` lists remaining differences as information.
+
+| # | time | change-set | pre-write backup |
+|---|------|------------|------------------|
+| 19 | 01:43 | `setTrackRating` 3★ on `ipodsync RENAMED TEST` (#37499): CDB 100 → 60, item_stats 0 → 60 | `applyedits-20260914-014339` |
+
+Verified; exactly that one Dynamic.itdb value changed (fake-root dump diff);
+`itlp-diff`: 0 rating/play-count differences, IN SYNC.
+**Morning on-screen check:** Now Playing for `ipodsync RENAMED TEST` should show
+3 stars. If it still shows none, the rating source is elsewhere — restore is not
+needed (harmless), but note it.
+
+### 01:44–02:00 — hardening after the build order
+
+- **Play Counts alignment** (`e6d23a6`): the firmware's `Play Counts` file is
+  matched to tracks by position. Checked on the device: 635 entries, 0 pending
+  plays, and all 635 positions still hold the same tracks as the original iTunes
+  CDB (tonight only appended tracks and only removed appended ones). Any future
+  write that changes positions now realigns the file by persistent id (tested on
+  the fake root by removing an original mid-list track: 634 entries, each its own
+  track's).
+- **Regression suite** `tools/fake-root-regression.sh <ipod|backup>` (`b410ef7`):
+  every op + folder sync + fault-injected restore against a fake root, with
+  in-sync / artwork / signature checks after each write. **First run found a real
+  bug**: after an image's last reference is removed, its ithmb slots are unused and
+  the append guard refused all later artwork writes. Fixed; suite passes. (Never hit
+  on the device.)
+- **Player UI** (`a39778f`): star rating + cover art (track or whole album) in the
+  edit dialog; add-songs accepts FLAC/Ogg/Opus/WMA/APE/WavPack. Tested in a browser
+  via the new headless `tools/player-dev-server.py` against the fake root (staged
+  rating → review → dry run through the engine: all checks passed). The launcher copy
+  `C:\IPODAPP\ipodsync\ipod-player.html` was updated (previous copy kept as
+  `ipod-player.html.bak-20260914`).
+- **Docs**: EDIT-PROTOCOL.md and README.md rewritten for the current engine.
+- **`import-playlist`** (`iTunes export .txt` / `.m3u`): matches entries to tracks on
+  the iPod and creates the playlist or appends missing tracks (`--replace` to
+  mirror exactly). Validated read-only against the NAS exports vs the device's own
+  playlists: `2026.txt` 15/15 and `aura.txt` 17/17 already in their `(LAC)`
+  playlists; `HoodTrap(LAC).txt` 38/39 (the miss is the track renamed in testing).
+
+| # | time | change | pre-write backup |
+|---|------|--------|------------------|
+| 20 | 01:58 | `import-playlist Playlist.txt --name "iPodSync Import Test"`: new playlist, 27/27 entries matched | `importplaylist-20260914-015838` |
+
+(The dry run for #20 was the immediately preceding command on the same device
+state; it passed.) Verified; IN SYNC; signatures valid. Note: the new playlist got
+persistent id `0xF906EE395DA00877`, the id the deleted `iPodSync Temp` used
+earlier (ids are "max + 1"); SQLite has no trace of the old one.
+
+### 02:00–05:15 — gapless fields, cloned-header repair (usage-limit pause in between)
+
+- Gapless mapping confirmed for all 634 iTunes tracks: mhit +0xB8 delay, +0xC8
+  drain, +0xCC heuristic, +0xF8 last-frame resync == SQLite avformat_info. Added
+  tracks now always get 0s (play the whole file) instead of a template's values
+  (`d3a2d99`). All tracks added tonight already had 0s.
+- Audit of every added track for per-track header values copied from another track:
+  clean for tonight's tracks. **Last session's EsDeeKid "Century" (#41618) still
+  carried its template's data: a duplicate persistent-id copy (+0xA8 = the renamed
+  test track's id), a duplicate +0x1F4, wrong size copy / sample count, a 48 kHz
+  sample rate for a 44.1 kHz file, and a saturated last-modified (0x7FFFFFFF).**
+  New op `repairTrack` (`4ef469f`) re-derives those from the file on the device;
+  date added / gapless are only reset when a stale id copy proves cloning. The fake-
+  root test first caught two flaws in my own repair (it would have reset an iTunes
+  track's genuine date-added/gapless values, and trusted a 0-byte placeholder file);
+  both fixed before any live use. Device-wide scan: #41618 was the only such track.
+
+| # | time | change-set | pre-write backup |
+|---|------|------------|------------------|
+| 21 | 05:14 | `repairTrack` #41618 (EsDeeKid – Century) — CDB header only | `applyedits-20260914-051437` |
+
+Verified; afterwards 0 stale id copies and 0 duplicate +0x1F4 ids across all 643
+tracks; IN SYNC; signatures valid.

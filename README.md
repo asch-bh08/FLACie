@@ -6,34 +6,61 @@ plugs directly into the iPod over USB-OTG and works like a PC would.
 Non-destructive by design: the device keeps stock Apple firmware, iTunes keeps
 working alongside it, and our own sync state never lives on the iPod.
 
+**Which iPods?** Every iPod that keeps its library in an `iTunesDB`/`iTunesCDB` — 1G–5.5G, mini,
+photo, nano 1G–5G, all the classics — including the unsigned, hash58 and hash72 variants. Not the
+nano 6G/7G (hashAB: white-box AES nobody has reimplemented; a signer you supply can be plugged in),
+not the shuffles (a different library format), not the iPod touch (a different protocol and an
+Apple-controlled database). `ipodsync profile <root>` says what a given device can do.
+See [COMPATIBILITY.md](COMPATIBILITY.md).
+
 ## The app
 
-`IpodSync.Shared` is one Blazor UI (`Dashboard.razor`) shared by three hosts:
+`IpodSync.Shared` is one Blazor UI shared by three hosts:
 
-- `IpodSync.Web` — runs it as a local web app. Used mainly as a way to actually
-  see and click through the UI in a browser during development.
-- `IpodSync.Maui`, Windows target — a real installed WinUI 3 app.
-- `IpodSync.Maui`, Android target — a real installed APK.
+- `IpodSync.Maui`, Windows target: the real desktop app (WinUI 3), with native file/folder pickers.
+- `IpodSync.Web`: the same UI in a browser (`dotnet run --project src/IpodSync.Web`, http://localhost:5070). Handy for development.
+- `IpodSync.Maui`, Android target: an installed APK that reads an iPod plugged into the phone over USB-OTG. **Read-only for now.**
 
-The three differ only in which `IIpodSyncBackend` is registered
-(`IpodSync.Shared/Backend/`): `LocalIpodSyncBackend` (web, Windows) reads a
-mounted drive letter directly; `SafIpodSyncBackend`
-(`IpodSync.Maui/Platforms/Android/`) reads an iPod attached over USB-OTG
-through Android's own Storage Access Framework, then hands the resulting bytes
-to the same `ItunesDbReader` everything else uses. **Verified on real
-hardware** (a Samsung Galaxy Z Fold 7 and a real iPod) after three iterations —
-see "The Android read path" in [HANDOFF.md](HANDOFF.md) for the full story,
-including why the first approach (a hand-written SCSI/FAT32 stack claiming the
-raw USB interface directly, `UsbIpodSyncBackend` — still in the tree, just not
-wired up) fought the OS's own USB-storage auto-mount instead of working with
-it.
+On Windows (and the web host) the app manages the iPod through `IpodSync.Core.Sync.WritePipeline`, the same verified write path the CLI uses:
 
-Also wired up: local-folder library scanning with real tag reads
-(`IpodSync.Core/LocalLibrary/`, via TagLibSharp), a read-only local-vs-device
-sync preview, and Jellyfin playlist sync (`IpodSync.Core/Jellyfin/`, a
-server-API-key client that only ever adds to Jellyfin, never deletes).
+| Tab | What it does |
+|---|---|
+| Songs | Search/sort every song; covers read straight from the iPod's `ithmb` files. Click to play; edit title/artist/album/album artist/genre/composer, star rating, cover art (one song or the whole album), add to a playlist, delete from the iPod. |
+| Albums | A cover grid of the whole library; open an album to play it, shuffle it, or add it to a playlist. |
+| Playlists | Create, rename, delete; add songs, remove, reorder; play or shuffle. Smart playlists are shown read-only. |
+| Add music | Add files. FLAC/Opus/Ogg/WMA are converted (lossless → ALAC, lossy → 256k AAC); tags and embedded covers come along. |
+| Sync a folder | Preview a music folder against the iPod (already synced / on the iPod already / to add / duplicates), then add in verified batches. Sync state lives on the PC (`%LOCALAPPDATA%\ipodsync\manifests`). |
+| Import playlist | Match an iTunes "Export Playlist" `.txt` or an M3U to songs on the iPod, and queue it as a playlist. |
+| Changes | Every edit is queued first. **Write to iPod** stays disabled until a dry run of exactly that queue passes; then there's a confirmation, a verified backup, the write, a read-back re-verify of both databases, signatures and artwork, and an automatic restore if anything doesn't match. |
+| Backups / Device health | Pre-write backups with their write logs, and read-only checks: signatures, CDB ↔ SQLite agreement, artwork integrity. |
+| Jellyfin | Copy the iPod's playlists to a Jellyfin server (writes only to Jellyfin). |
 
-## iPod Player
+**The player.** The app plays the iPod's own files — nothing is copied to play a song, and playback never writes to the device (the iPod keeps its own play counts). The bar at the bottom has play/pause, previous/next, a scrubber, volume, shuffle, repeat and the up-next queue. Clicking a song plays it and queues whatever list you are looking at.
+
+| Host | How it plays | Apple Lossless |
+|---|---|---|
+| Windows | WebView2, with the iPod mapped to a read-only virtual host | converted to FLAC on the fly (needs ffmpeg), cached |
+| Web | the same UI, files served by a localhost endpoint with range requests | same |
+| Android | Android's own media player, straight from the file | played natively, no conversion |
+
+Backups default to `Documents\ipodsync\ipod-backups`; change the folder in the Backups tab. Settings live in `%LOCALAPPDATA%\ipodsync\app-settings.json`.
+
+The hosts differ only in which `IIpodSyncBackend` is registered (`IpodSync.Shared/Backend/`):
+
+- `LocalIpodSyncBackend` (web, Windows) works on a mounted drive letter.
+- `SafIpodSyncBackend` (`IpodSync.Maui/Platforms/Android/`) reads through Android's Storage Access Framework. Reading was verified on a Z Fold 7; see HANDOFF.md.
+
+`AppState` (`IpodSync.Shared/State/`) holds the queue and turns UI actions into EDIT-PROTOCOL ops.
+
+**Testing without an iPod.** Set these environment variables before starting the web host or the app:
+
+- `IPODSYNC_EXTRA_ROOTS=<folder>` lists a folder laid out like an iPod (e.g. the fake root that `tools/fake-root-regression.sh` builds) as a device.
+- `IPODSYNC_APP_SETTINGS=<file>` keeps test backups and settings out of your real ones.
+
+## iPod Player (the standalone one)
+
+Playback now lives in the app as well (see above); this is the separate zero-install player, kept
+because it needs nothing built and has the full-screen "Now Playing" experience.
 
 [`ipod-player/`](ipod-player/) is a zero-install, single-file browser player —
 the lightweight **read-and-play** companion to the sync engine above. Double-click
@@ -60,6 +87,14 @@ and the user is asked.
 
 ## Status
 
+**2026-09-14 (overnight session, see [OVERNIGHT-STATUS.md](OVERNIGHT-STATUS.md)):**
+every edit now writes the classic CDB **and** the SQLite library bundle the
+nano 5G's menus actually use, signed the way iTunes signs them, with artwork,
+transcode-on-add and folder/NAS sync — all verified on the real device's files
+through one pipeline (backup → dry run → write → read back → re-verify → restore on
+failure). On-screen confirmation on the iPod is still pending. The history below
+is kept for context.
+
 Reading works, verified against two real devices. The writer's round-trip
 proof passes against both, for: reproducing a database unchanged, editing a
 real field in place (play count, star rating), and three edits that change a
@@ -79,6 +114,19 @@ dotnet build
 ./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe roundtrip G:/
 ./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe mutate-test G:/
 ./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe resize-test G:/
+
+# two-database / signing / artwork checks (read-only)
+./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe itlp-diff D:/          # CDB vs SQLite bundle
+./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe art-check D:/          # ArtworkDB + ithmb integrity
+./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe hash72-verify D:/      # CDB + Locations.itdb.cbk signatures
+./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe itlp-orders-check D:/  # SQLite sort-rank rules vs the device
+
+# writes (dry run unless --yes; see EDIT-PROTOCOL.md)
+./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe apply-edits D:/ --changes edits.json [--yes]
+./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe itlp-sync D:/ [--yes] [--resign]
+./src/IpodSync.Cli/bin/Debug/net9.0/IpodSync.Cli.exe sync-folder D:/ "\\nas\Music\FLAC" [--yes] [--limit N]
+
+tools/fake-root-regression.sh D:/     # every write op against a fake copy of the device
 
 dotnet run --project src/IpodSync.Web                          # app, http://localhost:5070
 dotnet build src/IpodSync.Maui -f net9.0-windows10.0.19041.0    # Windows app
@@ -265,6 +313,59 @@ path picked the way the device does, real duration/bitrate/size read off an
 actual audio file, and copying that file onto the device — none of which
 exists yet.
 
+### The SQLite library bundle (nano 5G)
+
+`iPod_Control/iTunes/iTunes Library.itlp/` holds `Library.itdb` (items, albums,
+artists, genres, composers, playlists = `container`, memberships =
+`item_to_container`), `Dynamic.itdb` (`item_stats` ratings/plays,
+`container_ui`), `Locations.itdb` (file paths) + `Locations.itdb.cbk`, and
+`Extras.itdb` (lyrics). The firmware's menus/search/Now Playing read these, so a
+CDB-only edit is invisible. Keys: `item.pid` = CDB track persistent id,
+`container.pid` = playlist persistent id, `album.pid` / `artist.pid` = the CDB
+album/artist list entries' persistent ids (below). Conventions measured on the
+device and encoded in `src/IpodSync.Core/Itlp/` (each re-checkable with
+`itlp-orders-check` / `itlp-diff`): every `*_order` column is 100 × rank of the
+matching `sort_*` text; sort text strips leading punctuation then one English
+article; the collation ignores apostrophes/hyphens, orders space < punctuation <
+digits < letters, and puts digit-initial keys last (0 inversions against 589
+title / 470 artist ranks); playlist `name_order` ranks all CDB playlists incl.
+built-in smart ones with the master first; `shuffle_order` is NULL; 4CC
+`'FILE'`/`'M4A '`/`'MP3 '` in `location`; `avformat_info.audio_format` 301 MP3 /
+502 AAC / 601 ALAC, duration in samples, ALAC `bit_rate` = rate×bits×channels.
+
+### Signatures (nano 5G)
+
+- **hash72** (`Locations.itdb.cbk`, and the CDB header @0x72): `01 00` + 12 random
+  bytes + AES-128-CBC(fixed key, per-device IV, SHA-1 ‖ random). The (IV, random)
+  pair is recovered from a signature iTunes wrote; rebuilding the device's cbk
+  with it is byte-identical. cbk = signature ‖ SHA-1(block SHA-1s) ‖ SHA-1 of each
+  1024-byte block of Locations.itdb. CDB SHA-1 zeroes db id / hash58 / hash72.
+- **hash58** (CDB header @0x58, scheme @0x30 = 1): HMAC-SHA1 over the compressed
+  file with db id / 0x32 / hash58 zeroed, keyed from the FirewireGuid (= the USB
+  serial). Reproduces the original iTunes value exactly. Sign hash72, then hash58.
+
+### Album / artist lists (`mhla` / `mhli`)
+
+Count at +0x08 like `mhlt`. `mhia`: id @0x10, persistent id @0x14 (= SQLite
+`album.pid`), artwork track pid @0x20, mhods 200 album / 201 artist / 202 album
+artist. `mhii`: id, persistent id (= `artist.pid`), mhod 300 name / 301 sort name.
+`mhit` +0x120 → album id, +0x1E0 → artist id, +0x1F4 = track id + 3; list ids share
+the track id counter. Also on `mhit`: +0xA8 second copy of the persistent id,
++0xBC sample count, +0x12C second copy of the size, +0x68 date added, +0xA4 has
+artwork (1/2), +0x160 artwork image id, u16 +0x7C artwork count, +0x80 source
+artwork size.
+
+### Artwork (`iPod_Control/Artwork`)
+
+`ArtworkDB`: mhfd (next image id @0x1C) → mhsd 1 `mhli` images / 2 `mhla` / 3
+`mhlf` formats. `mhii` image: id (= SQLite `artwork_cache_id` = mhit +0x160),
+track pid @0x14, source size + 1 @0x30, **reference count @0x38**; one `mhni` per
+format (format @0x10, ithmb offset @0x14, size @0x18, padding @0x1C/0x1E,
+padding + content height/width @0x20/0x22). nano 5G formats: 1056 128², 1078 80²,
+1073 240², 1074 50², all **RGB565 little-endian**, stored contiguously in
+`F<format>_1.ithmb`. iTunes letterboxes (centred) except 1078, which is
+centre-cropped. `mhaf` inside mhod type 6: its length is its header.
+
 ### Reading an iPod plugged straight into the phone
 
 **Verified on real hardware** (Samsung Galaxy Z Fold 7, a real iPod): tap Load
@@ -336,12 +437,22 @@ src/IpodSync.Core/
                           playlist, rename a track
     ResizeRoundTrip.cs   proves each resizing edit round-trips (semantic + idempotency
                           checks, since output no longer lines up byte-for-byte)
-  Device/         volume detection, SysInfo, database location
+    EntityLinks.cs       album/artist list entries + track links
+    PlayCounts.cs        keeps the firmware's Play Counts file aligned with the track list
+    EditApplier.cs       applies a JSON change-set (EDIT-PROTOCOL.md)
+  Itlp/           the SQLite library bundle: ItlpCompare (verifier), ItlpSync (playlists),
+                  ItlpTrackSync (tracks/entities/stats), ItlpSorting (sort text + ranks)
+  Signing/        Hash72, Hash58, DeviceSigning (key material proven per device)
+  Artwork/        ArtworkDb (lossless tree), ArtworkSession (edits), Thumbnailer (ffmpeg)
+  Transcode/      Transcoder (ffmpeg transcode-on-add, cached, probed)
+  LocalLibrary/   FolderSync (folder/NAS sync planning + manifest), scanner, preview
+  Device/         volume detection, SysInfo, database location, DeviceWriteTransaction
+                  (verified backup / write / read-back / restore)
   UsbStorage/     BOT + SCSI + FAT32 for reading an iPod over raw USB -- retained,
                   correct, but not what's wired up; see "Reading an iPod" above
   LocalLibrary/   scans a folder for audio files, reads real tags via TagLibSharp
   Jellyfin/       Jellyfin REST API client + playlist sync orchestrator
-src/IpodSync.Cli/    the CLI: detect/dump/roundtrip/mutate-test/resize-test
+src/IpodSync.Cli/    the CLI (WritePipeline.cs is the single write path)
 src/IpodSync.Shared/ the app's actual UI (Dashboard.razor) and IIpodSyncBackend,
                       referenced by all three app hosts below
 src/IpodSync.Web/    hosts Dashboard.razor as a local web app (Blazor Server)
@@ -392,14 +503,14 @@ piped license acceptance to actually work).
 7. Visually check the Windows app's UI (builds and launches; not yet eyeballed)
 8. Writing from Android via SAF (`OpenOutputStream`) — plausibly more direct
    now than porting the raw USB stack forward
-9. Construct a brand-new track (fresh ids, scrambled path, real audio
+9. ~~Construct a brand-new track~~ — done, and mirrored into the SQLite bundle (2026-09-14). Was: construct a brand-new track (fresh ids, scrambled path, real audio
    metadata, file copy) — the remaining gate before any real write that adds
    content rather than editing/removing what's already there
 10. Writing over raw USB, if the SAF write path turns out to need it after all
-11. Artwork (`ithmb`), album (`mhla`) and `mhli` decoding
-12. hash58 / hash72 signing
-13. Sync engine: content-hash manifest kept off-device, keyed by serial
-14. Transcode FLAC to ALAC/AAC on copy
+11. ~~Artwork (`ithmb`), album (`mhla`) and `mhli` decoding~~ — done: decoded and written (2026-09-14)
+12. ~~hash58 / hash72 signing~~ — done for the nano 5G (hashAB for 6G/7G still open)
+13. ~~Sync engine~~ — `sync-folder`: off-device manifest keyed by library id + folder (2026-09-14)
+14. ~~Transcode FLAC to ALAC/AAC on copy~~ — done, cached by source hash (2026-09-14)
 15. iPod Touch (jailbroken): `MediaLibrary.sqlitedb` over afc2 — designed for, not built
 
 ## Notes

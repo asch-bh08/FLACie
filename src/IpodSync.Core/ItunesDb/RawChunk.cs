@@ -47,7 +47,8 @@ public sealed class RawChunk
     /// Informational only -- these chunks are still preserved verbatim.</summary>
     public void CollectUnknownMagics(HashSet<string> into)
     {
-        if (Magic is not ("mhbd" or "mhsd" or "mhlt" or "mhlp" or "mhit" or "mhyp" or "mhod" or "mhip"))
+        if (Magic is not ("mhbd" or "mhsd" or "mhlt" or "mhlp" or "mhit" or "mhyp" or "mhod" or "mhip"
+                         or "mhla" or "mhia" or "mhli" or "mhii"))
             into.Add(Magic);
         foreach (var c in Children) c.CollectUnknownMagics(into);
     }
@@ -69,7 +70,11 @@ public sealed class RawChunk
             case "mhbd": WriteI32(header, 0x14, Children.Count); break;                  // count of mhsd
             case "mhlt": WriteI32(header, 0x08, Children.Count); break;                  // count of mhit (0x08 is COUNT here, not total)
             case "mhlp": WriteI32(header, 0x08, Children.Count); break;                  // count of mhyp (same)
+            case "mhla": WriteI32(header, 0x08, Children.Count); break;                  // count of mhia (0x08 is COUNT, like mhlt)
+            case "mhli": WriteI32(header, 0x08, Children.Count); break;                  // count of mhii (same)
             case "mhit": WriteI32(header, 0x0C, Children.Count); break;                  // count of mhod
+            case "mhia": WriteI32(header, 0x0C, Children.Count); break;                  // count of mhod (album name/artist strings)
+            case "mhii": WriteI32(header, 0x0C, Children.Count); break;                  // count of mhod (artist name)
             case "mhyp":
                 WriteI32(header, 0x0C, Children.Count(c => c.Magic == "mhod"));
                 WriteI32(header, 0x10, Children.Count(c => c.Magic == "mhip"));
@@ -83,7 +88,7 @@ public sealed class RawChunk
         int total = header.Length + childrenBytes.Length + Payload.Length;
 
         // Every known magic except mhlt/mhlp carries its own total at +0x08.
-        if (Magic is "mhbd" or "mhsd" or "mhit" or "mhyp" or "mhod" or "mhip")
+        if (Magic is "mhbd" or "mhsd" or "mhit" or "mhyp" or "mhod" or "mhip" or "mhia" or "mhii")
             WriteI32(header, 0x08, total);
 
         return Concat(header, childrenBytes, Payload);
@@ -147,6 +152,11 @@ public static class RawChunkParser
         {
             "mhlt" => ParseMhlt(d, innerStart, innerEnd),
             "mhlp" => ParseMhlp(d, innerStart, innerEnd),
+            // Album and artist lists: same count-at-0x08 list shape as mhlt, holding
+            // mhia/mhii items that carry mhod strings like mhit. Layout confirmed on
+            // real nano 5G databases (see OVERNIGHT-STATUS.md); round-trip re-proven.
+            "mhla" => ParseList(d, innerStart, innerEnd, "mhla", "mhia"),
+            "mhli" => ParseList(d, innerStart, innerEnd, "mhli", "mhii"),
             _ => ParseLeaf(d, innerStart, innerEnd),
         };
         if (child is not null) chunk.Children.Add(child);
@@ -174,6 +184,24 @@ public static class RawChunkParser
         return chunk;
     }
 
+    private static RawChunk ParseList(byte[] d, int start, int bound, string listMagic, string itemMagic)
+    {
+        int hdrLen = I32(d, start + 0x04);
+        int count = I32(d, start + 0x08);
+        var chunk = new RawChunk { Magic = listMagic, Header = Slice(d, start, hdrLen) };
+
+        int pos = start + hdrLen;
+        for (int i = 0; i < count && pos + 0x10 <= bound; i++)
+        {
+            var child = Magic(d, pos) == itemMagic ? ParseMhit(d, pos, bound, itemMagic) : ParseLeaf(d, pos, bound);
+            if (child is null) break;
+            chunk.Children.Add(child);
+            pos += child.Length;
+        }
+        chunk.Payload = Slice(d, pos, bound - pos);
+        return chunk;
+    }
+
     private static RawChunk ParseMhlp(byte[] d, int start, int bound)
     {
         int hdrLen = I32(d, start + 0x04);
@@ -192,14 +220,14 @@ public static class RawChunkParser
         return chunk;
     }
 
-    private static RawChunk ParseMhit(byte[] d, int start, int bound)
+    private static RawChunk ParseMhit(byte[] d, int start, int bound, string magic = "mhit")
     {
         int hdrLen = I32(d, start + 0x04);
         int total = I32(d, start + 0x08);
         int numMhods = I32(d, start + 0x0C);
         int end = total > 0 ? Math.Min(start + total, bound) : bound;
 
-        var chunk = new RawChunk { Magic = "mhit", Header = Slice(d, start, hdrLen) };
+        var chunk = new RawChunk { Magic = magic, Header = Slice(d, start, hdrLen) };
         int pos = start + hdrLen;
         for (int i = 0; i < numMhods && pos + 0x10 <= end; i++)
         {

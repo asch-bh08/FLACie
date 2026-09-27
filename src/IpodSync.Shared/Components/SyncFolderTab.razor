@@ -1,0 +1,228 @@
+@inherits StateComponent
+@inject IHostPickers Pickers
+
+<div class="page-head"><div><h1>Sync a folder</h1><p>Keep a music folder and the iPod in step, without copying anything twice</p></div></div>
+<div class="panel">
+    <p class="muted small" style="margin-top:0">
+        Adds songs from a music folder (local or a network share) that aren't on the iPod yet. Songs already on the iPod are
+        recognised by title, artist and length, so nothing is copied twice, and duplicates inside the folder are skipped.
+        What was synced is remembered on this PC, never on the iPod.
+    </p>
+    <div class="row">
+        <input class="text-input grow" placeholder="\\server\share\Music or D:\Music" @bind="_folder" disabled="@State.Busy" />
+        @if (Pickers.Available)
+        {
+            <button class="btn" @onclick="PickFolder" disabled="@State.Busy">Browse…</button>
+        }
+        <button class="btn primary" @onclick="Preview" disabled="@(State.Busy || _scanning || string.IsNullOrWhiteSpace(_folder))">@(_scanning ? $"Scanning… {_scanned}" : "Preview")</button>
+    </div>
+    <label class="check small"><input type="checkbox" @bind="_removeMissing" disabled="@State.Busy" /> Also remove songs this sync added whose file has since been deleted from the folder</label>
+    @if (State.Pending.Count > 0)
+    {
+        <div class="banner warn small" style="margin-top:10px">You have @State.Pending.Count pending change(s). Write or clear them before syncing, so each write stays small and verifiable.</div>
+    }
+</div>
+
+@if (_preview is { } p)
+{
+    var toAdd = ToAdd(p);
+    long need = FolderSyncJob.EstimateDeviceBytes(toAdd);
+    bool fits = need <= p.FreeBytes - FolderSyncJob.SpaceReserve;
+    var removals = p.Plan.RemoveCandidates.Where(r => r.Entry.Origin == "added").ToList();
+    bool hasWrites = toAdd.Count > 0 || (_removeMissing && removals.Count > 0);
+    bool canSync = hasWrites ? _dryRunOk : p.Plan.Adopt.Count > 0;
+
+    <div class="stat-grid">
+        <div class="stat"><div class="v">@p.Files.Count</div><div class="k">audio files</div></div>
+        <div class="stat"><div class="v">@p.Plan.Unchanged.Count</div><div class="k">already synced</div></div>
+        <div class="stat"><div class="v">@p.Plan.Adopt.Count</div><div class="k">on iPod already</div></div>
+        <div class="stat"><div class="v">@p.Plan.Add.Count</div><div class="k">to add</div></div>
+        <div class="stat"><div class="v">@p.Plan.SourceDuplicates.Count</div><div class="k">duplicates skipped</div></div>
+        @if (_removeMissing) { <div class="stat"><div class="v">@removals.Count</div><div class="k">to remove</div></div> }
+    </div>
+
+    <div class="panel">
+        <div class="row">
+            <label class="field" style="min-width:160px">Add at most
+                <input class="text-input" type="number" min="1" @bind="_limit" disabled="@State.Busy" />
+            </label>
+            <label class="field" style="min-width:120px">Batch size
+                <input class="text-input" type="number" min="1" max="100" @bind="_batch" disabled="@State.Busy" />
+            </label>
+            <label class="field" style="min-width:220px">Also add to playlist
+                <select class="text-input" @bind="_playlist" disabled="@State.Busy">
+                    <option value="">(none)</option>
+                    @foreach (var pl in (State.Db?.Playlists ?? []).Where(x => !x.IsMaster && !x.IsSmart && !x.IsPodcast).OrderBy(x => x.Name))
+                    {
+                        <option value="@pl.Name">@pl.Name</option>
+                    }
+                </select>
+            </label>
+        </div>
+        <div class="small @(fits ? "muted" : "error-text")">
+            Needs about @Bytes(need) on the iPod; @Bytes(p.FreeBytes) free (keeping @Bytes(FolderSyncJob.SpaceReserve) spare).
+            @if (!fits) { <span> Lower “add at most”.</span> }
+        </div>
+        @if (!State.Backend.Capabilities.CanTranscode && p.Plan.Add.Count > Addable(p).Count())
+        {
+            <div class="small warn-text">@(p.Plan.Add.Count - Addable(p).Count()) file(s) need converting (FLAC, Opus, …), which isn't available here, so they're skipped.</div>
+        }
+        @if (p.Plan.Unreadable.Count > 0)
+        {
+            <div class="small warn-text">@p.Plan.Unreadable.Count file(s) couldn't be read and are skipped.</div>
+        }
+        <div class="row" style="margin-top:10px">
+            <button class="btn" @onclick="() => DryRun(p)" disabled="@(State.Busy || !hasWrites || State.Pending.Count > 0)">@(toAdd.Count > 0 ? "Check first batch" : "Check removals")</button>
+            <button class="btn primary" @onclick="() => _confirm = true" disabled="@(State.Busy || !canSync || !fits || State.Pending.Count > 0)">
+                Sync @toAdd.Count song(s)
+            </button>
+        </div>
+        @if (!_dryRunOk && !State.Busy && hasWrites)
+        {
+            <div class="muted small">Syncing is enabled once the first batch passes a check: converted, tagged, signed and verified without writing anything.</div>
+        }
+        @if (toAdd.Count == 0 && !State.Busy)
+        {
+            <div class="muted small">Nothing to add@(p.Plan.Adopt.Count > 0 ? $"; syncing will just remember the {p.Plan.Adopt.Count} song(s) already on the iPod" : "").</div>
+        }
+        @if (_confirm && !State.Busy)
+        {
+            <div class="confirm">
+                Add @toAdd.Count song(s) to the iPod in batches of @_batch@(_removeMissing && removals.Count > 0 ? $" and remove {removals.Count}" : "")?
+                Every batch is backed up, written and verified before the next one starts; a batch that doesn't verify is restored and the sync stops.
+                <div class="row" style="margin-top:8px">
+                    <button class="btn primary" @onclick="() => Commit(p)">Start sync</button>
+                    <button class="btn" @onclick="() => _confirm = false">Cancel</button>
+                </div>
+            </div>
+        }
+        @if (_outcome is { } o)
+        {
+            <div class="banner @(o.ExitCode == 0 ? "ok" : "bad")" style="margin-top:10px">
+                <strong>@(o.ExitCode == 0 ? "Sync complete." : "Sync stopped.")</strong> @o.Added added, @o.Adopted recognised@(o.Removed > 0 ? $", {o.Removed} removed" : "").
+                @if (o.ExitCode != 0) { <span> Everything written before the failing batch is verified; the failing batch was not kept. See the log.</span> }
+            </div>
+        }
+    </div>
+
+    <div class="two-col">
+        <div>
+            <h3>To add (@p.Plan.Add.Count)</h3>
+            <div class="table-wrap medium">
+                <table class="data-table">
+                    <tbody>
+                        @foreach (var f in p.Plan.Add.Take(300))
+                        {
+                            <tr title="@f.RelativePath"><td>@f.Artist – @f.Title</td><td class="num muted" style="width:70px">@Path.GetExtension(f.Path)</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div>
+            <h3>On the iPod already (@p.Plan.Adopt.Count)</h3>
+            <div class="table-wrap medium">
+                <table class="data-table">
+                    <tbody>
+                        @foreach (var (f, t) in p.Plan.Adopt.Take(300))
+                        {
+                            <tr title="@f.RelativePath"><td>@f.RelativePath</td><td>@t.Artist – @t.Title</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (p.Plan.SourceDuplicates.Count > 0)
+            {
+                <h3>Duplicates skipped (@p.Plan.SourceDuplicates.Count)</h3>
+                <div class="table-wrap medium">
+                    <table class="data-table">
+                        <tbody>
+                            @foreach (var (skip, keep) in p.Plan.SourceDuplicates.Take(200))
+                            {
+                                <tr><td title="@skip.RelativePath">@skip.RelativePath</td><td class="muted" title="@keep.RelativePath">keeps @keep.RelativePath</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@if (State.Log.Count > 0 && (State.Busy || _outcome is not null || _dryRunRan))
+{
+    <h3>Log</h3>
+    <div class="log">
+        @foreach (var l in LogTail()) { <div>@l</div> }
+    </div>
+}
+
+@code {
+    private string _folder = "";
+    private bool _removeMissing;
+    private bool _scanning;
+    private int _scanned;
+    private FolderSyncPreview? _preview;
+    private int _limit = 1000;
+    private int _batch = 20;
+    private string _playlist = "";
+    private bool _dryRunOk;
+    private bool _dryRunRan;
+    private bool _confirm;
+    private FolderSyncJob.Outcome? _outcome;
+
+    private List<string> LogTail() { lock (State.Log) return State.Log.TakeLast(600).ToList(); }
+
+    private List<FolderSync.SourceFile> ToAdd(FolderSyncPreview p) => Addable(p).Take(Math.Max(0, _limit)).ToList();
+
+    /// <summary>Without a converter, files the iPod can't play are left out (and counted).</summary>
+    private IEnumerable<FolderSync.SourceFile> Addable(FolderSyncPreview p) =>
+        State.Backend.Capabilities.CanTranscode ? p.Plan.Add : p.Plan.Add.Where(f => FolderSyncFilters.IsNative(f.Path));
+
+    private async Task PickFolder()
+    {
+        var f = await Pickers.PickFolderAsync();
+        if (f is not null) { _folder = f; _preview = null; }
+    }
+
+    private async Task Preview()
+    {
+        if (State.ActiveRoot is null) return;
+        _scanning = true; _scanned = 0; _preview = null; _dryRunOk = false; _dryRunRan = false; _outcome = null; _confirm = false;
+        try
+        {
+            _preview = await State.Backend.PreviewFolderSyncAsync(State.ActiveRoot, _folder.Trim().Trim('"'), _removeMissing,
+                n => { _scanned = n; _ = InvokeAsync(StateHasChanged); });
+            _limit = Math.Max(1, Addable(_preview).Count());
+        }
+        catch (Exception ex) { State.Error = AppState.Format(ex); }
+        finally { _scanning = false; }
+    }
+
+    private async Task DryRun(FolderSyncPreview p)
+    {
+        _dryRunRan = true; _confirm = false; _outcome = null;
+        var toAdd = ToAdd(p);
+        var cs = toAdd.Count > 0
+            ? FolderSyncJob.BatchChangeSet(toAdd.Take(Math.Max(1, _batch)), _playlist.Length == 0 ? null : _playlist)
+            : new ChangeSet { Ops = p.Plan.RemoveCandidates.Where(r => r.Entry.Origin == "added").Select(r => new EditOp { Op = "removeTrack", TrackId = r.Track.Id }).ToList() };
+        var result = await State.RunJobAsync("Checking the first batch (converting, dry run)…",
+            log => State.Backend.RunChangesAsync(p.DeviceRoot, cs, false, "syncfolder", log), reloadAfter: false);
+        _dryRunOk = result?.ExitCode == 0;
+    }
+
+    private async Task Commit(FolderSyncPreview p)
+    {
+        _confirm = false;
+        var toAdd = ToAdd(p);
+        _outcome = await State.RunJobAsync($"Syncing {toAdd.Count} song(s)…",
+            log => State.Backend.CommitFolderSyncAsync(p, toAdd, Math.Clamp(_batch, 1, 100), _playlist.Length == 0 ? null : _playlist, _removeMissing, log),
+            reloadAfter: true);
+        _dryRunOk = false;
+        _preview = null;
+        if (_outcome is not null && State.ActiveRoot is not null)
+        {
+            try { _preview = await State.Backend.PreviewFolderSyncAsync(State.ActiveRoot, p.Folder, _removeMissing); } catch { }
+        }
+    }
+}

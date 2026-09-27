@@ -53,10 +53,11 @@ class Library(ctx: Context, val art: ArtCache) {
     private val scanner = Scanner(ctx, art)
     private val sync = SyncClient()
     private val prefs = Prefs(ctx)
-    /** Jellyfin tracks from ipodsync's merged /api/listen, last folded into [tracks]. Kept
-     * separately so re-merging (after a rescan, or switching Sync devices) doesn't need a
-     * fresh network round trip every time. */
-    @Volatile private var jellyfinTracks: List<Track> = emptyList()
+    /** Jellyfin tracks from ipodsync's merged /api/listen -- both folded into [tracks] (deduped
+     * against whatever else is showing) and exposed here on their own, for a dedicated "Jellyfin"
+     * library section (like Playlists/Artists/etc) separate from the blended view. Kept cached so
+     * re-merging (after a rescan, or switching Sync devices) doesn't need a fresh network round trip. */
+    @Volatile var jellyfinTracks: List<Track> = emptyList(); private set
 
     /** Any track by file path (playlists and favourites store paths). */
     fun byPath(): Map<String, Track> = derive().byPath

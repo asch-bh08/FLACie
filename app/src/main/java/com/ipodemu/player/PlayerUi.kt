@@ -89,6 +89,7 @@ import kotlinx.coroutines.withContext
 
 enum class LibKind(val title: String) {
     SONGS("Songs"), ALBUMS("Albums"), ARTISTS("Artists"), PLAYLISTS("Playlists"), GENRES("Genres"), MEMOS("Voice Memos"),
+    JELLYFIN("Jellyfin"),
 }
 
 enum class DetailKind { ALBUM, ARTIST, FOLDER, USER, GENRE, FAVORITES, RECENT, MIX }
@@ -407,6 +408,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     MenuRow("Songs", Glyph.NOTE, "${lib.songs().size}") { nav.push(Screen.Lib(LibKind.SONGS)) }
                     MenuRow("Genres", Glyph.STAR, "${lib.genres().size}") { nav.push(Screen.Lib(LibKind.GENRES)) }
                     MenuRow("Voice Memos", Glyph.MIC, "${lib.memos.size}") { nav.push(Screen.Lib(LibKind.MEMOS)) }
+                    if (lib.jellyfinTracks.isNotEmpty()) MenuRow("Jellyfin", Glyph.JELLYFIN, "${lib.jellyfinTracks.size}") { nav.push(Screen.Lib(LibKind.JELLYFIN)) }
                 }
             }
             if (recentAlbums.isNotEmpty()) {
@@ -459,6 +461,7 @@ fun AlbumCard(g: Group, modifier: Modifier = Modifier, onClick: () -> Unit) {
         ArtImage(g.artKey, Modifier.fillMaxWidth().aspectRatio(1f).border(if (focused) 3.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(12.dp)), corner = 12.dp)
         Txt(g.name, Modifier.padding(top = 8.dp), size = 14f, weight = FontWeight.SemiBold)
         Txt(g.tracks.firstOrNull()?.artist ?: "", size = 12f, color = sc.onBgDim)
+        g.tracks.firstOrNull()?.let { Box(Modifier.padding(top = 4.dp)) { SourceBadge(it.source) } }
     }
 }
 
@@ -471,6 +474,7 @@ private fun TrackCard(t: Track, modifier: Modifier = Modifier, onClick: () -> Un
         ArtImage(t.artKey, Modifier.fillMaxWidth().aspectRatio(1f).border(if (focused) 3.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(12.dp)), thumb = true, corner = 12.dp)
         Txt(t.title, Modifier.padding(top = 8.dp), size = 13f, weight = FontWeight.SemiBold)
         Txt(t.artist, size = 12f, color = sc.onBgDim)
+        Box(Modifier.padding(top = 4.dp)) { SourceBadge(t.source) }
     }
 }
 
@@ -504,6 +508,7 @@ private fun LibraryScreen(kind: LibKind, nav: PlayerNav, snap: PlayerSnap) {
             LibKind.ARTISTS -> GroupList(lib.artists(), nav, circle = true) { Screen.Detail(DetailKind.ARTIST, it.name) }
             LibKind.GENRES -> GroupList(lib.genres(), nav, circle = false) { Screen.Detail(DetailKind.GENRE, it.name) }
             LibKind.PLAYLISTS -> PlaylistsList(nav)
+            LibKind.JELLYFIN -> SongList(lib.jellyfinTracks.sortedBy { sortKey(it.title) }, nav, snap, showArt = true, sections = 1)
         }
     }
 }

@@ -67,6 +67,7 @@ fun AppRoot(activity: MainActivity) {
                 ) }
             } else PlayerRoot(activity, nav)
             if (ui.pickerOpen) PickerScreen()
+            if (ui.syncSetupOpen) SyncSetupScreen()
         }
     }
 }

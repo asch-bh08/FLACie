@@ -20,6 +20,8 @@ class UiState(private val prefs: Prefs) {
     var dynamicColor by mutableStateOf(prefs.dynamicColor)
         private set
     var pickerOpen by mutableStateOf(false)
+    /** Sync mode setup overlay (Settings > Sync), same pattern as [pickerOpen]. */
+    var syncSetupOpen by mutableStateOf(false)
     /** Bumped by the L1/R1 shoulder buttons while the picker is open (-1 / +1 via [pickerStepDir]) to cycle the carousel. */
     var pickerStep by mutableStateOf(0)
     var pickerStepDir = 0

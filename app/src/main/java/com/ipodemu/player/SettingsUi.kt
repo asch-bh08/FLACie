@@ -83,6 +83,7 @@ fun SettingsScreen(nav: PlayerNav) {
                 Card {
                     SettingRow("Songs", "${app.library.songs().size}") { }
                     SettingRow("Rescan Library", if (app.library.scanning) "Scanning ${app.library.scanCount}..." else null) { app.library.rescan() }
+                    SettingRow("Sync", app.library.syncDeviceLabel ?: "Local Library", chevron = true) { ui.syncSetupOpen = true }
                 }
             }
             item { SectionHeader("Controls") }

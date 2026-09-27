@@ -99,6 +99,10 @@ class Prefs(ctx: Context) {
     var hiddenMenu: Set<String>
         get() = sp.getStringSet("hidden", emptySet()) ?: emptySet()
         set(v) = sp.edit().putStringSet("hidden", v).apply()
+    /** Last-used ipodsync host, e.g. "192.168.1.50:5070" (LAN) or a Tailscale name. */
+    var syncHost: String
+        get() = sp.getString("synchost", "") ?: ""
+        set(v) = sp.edit().putString("synchost", v).apply()
 
     /** Reset Settings: everything except the chosen iPod, colour and look. */
     fun reset() {

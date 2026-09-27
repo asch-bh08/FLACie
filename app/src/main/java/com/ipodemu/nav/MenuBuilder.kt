@@ -144,6 +144,7 @@ class MenuBuilder(private val app: App, private val onThemeChosen: (String) -> U
             Item("Rescan Library", value = { if (lib.scanning) "${lib.scanCount}..." else null }, chevron = false) {
                 lib.rescan(); it.redraw()
             },
+            Item("Sync", value = { lib.syncDeviceLabel ?: "Local Library" }) { app.ui.syncSetupOpen = true },
             Item("Reset Settings") { it.push(resetPage()) },
         ))
     }

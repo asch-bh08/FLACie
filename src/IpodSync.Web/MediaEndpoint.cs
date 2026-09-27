@@ -49,11 +49,12 @@ public static class MediaEndpoint
     });
 
     /// <summary>Proxies a Jellyfin track through this server instead of letting the browser/
-    /// WebView hit Jellyfin directly. The only reason this exists: Jellyfin's api_key has to
-    /// go somewhere on a plain &lt;audio src&gt; (it can't set headers), and a query-string key
-    /// ends up in browser history, devtools and any log between client and server. Routing
-    /// through here means the real key only ever travels in a header, server-side, and the
-    /// client only ever sees an opaque item id.</summary>
+    /// WebView hit Jellyfin directly. Jellyfin's api_key has to go somewhere on a plain
+    /// &lt;audio src&gt; (it can't set headers), and a query-string key ends up in browser
+    /// history, devtools and any log between client and server. Routing through here means the
+    /// real key only ever travels in a header, server-side, and the client only ever sees an
+    /// opaque item id. static=true means the original file, unmodified -- no server transcode,
+    /// whatever format it's actually stored in.</summary>
     public static void MapJellyfinMedia(this WebApplication app) => app.MapGet("/jellyfin-media", async (string itemId, HttpContext ctx, IpodSync.Shared.JellyfinSettings settings, IHttpClientFactory factory) =>
     {
         if (string.IsNullOrWhiteSpace(settings.BaseUrl) || string.IsNullOrWhiteSpace(settings.ApiKey))

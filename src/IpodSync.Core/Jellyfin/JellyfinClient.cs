@@ -5,6 +5,10 @@ namespace IpodSync.Core.Jellyfin;
 
 public sealed record JellyfinUser(string Id, string Name);
 public sealed record JellyfinPlaylist(string Id, string Name);
+public sealed record JellyfinItem(string Id, string Name, string? Artist, string? Album, long RunTimeTicks)
+{
+    public TimeSpan Duration => TimeSpan.FromTicks(RunTimeTicks);
+}
 
 /// <summary>
 /// Thin wrapper over the bits of Jellyfin's REST API playlist sync needs:
@@ -105,4 +109,42 @@ public sealed class JellyfinClient(HttpClient http, string baseUrl, string apiKe
         using var resp = await http.SendAsync(Req(HttpMethod.Post, $"/Playlists/{playlistId}/Items?ids={ids}&userId={userId}"), ct);
         resp.EnsureSuccessStatusCode();
     }
+
+    public Task<List<JellyfinItem>> GetPlaylistItemsAsync(string playlistId, string userId, CancellationToken ct = default) =>
+        ItemsAsync($"/Playlists/{playlistId}/Items?userId={userId}", ct);
+
+    /// <summary>Newest additions to the whole audio library (a reasonable "home" view).</summary>
+    public Task<List<JellyfinItem>> GetRecentAudioAsync(string userId, int limit = 100, CancellationToken ct = default) =>
+        ItemsAsync($"/Users/{userId}/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=DateCreated&SortOrder=Descending&Limit={limit}", ct);
+
+    public Task<List<JellyfinItem>> SearchAudioAsync(string userId, string term, int limit = 50, CancellationToken ct = default) =>
+        string.IsNullOrWhiteSpace(term) ? Task.FromResult(new List<JellyfinItem>())
+            : ItemsAsync($"/Users/{userId}/Items?IncludeItemTypes=Audio&Recursive=true&SearchTerm={Uri.EscapeDataString(term)}&Limit={limit}", ct);
+
+    private async Task<List<JellyfinItem>> ItemsAsync(string pathAndQuery, CancellationToken ct)
+    {
+        using var resp = await http.SendAsync(Req(HttpMethod.Get, pathAndQuery), ct);
+        resp.EnsureSuccessStatusCode();
+        var json = await resp.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+        if (!json.TryGetProperty("Items", out var items)) return [];
+        return items.EnumerateArray().Select(ToItem).ToList();
+    }
+
+    private static JellyfinItem ToItem(JsonElement i)
+    {
+        string? artist = i.TryGetProperty("AlbumArtist", out var aa) ? aa.GetString()
+            : i.TryGetProperty("Artists", out var ars) && ars.GetArrayLength() > 0 ? ars[0].GetString() : null;
+        return new JellyfinItem(
+            i.GetProperty("Id").GetString()!,
+            i.TryGetProperty("Name", out var n) ? n.GetString() ?? "" : "",
+            artist,
+            i.TryGetProperty("Album", out var al) ? al.GetString() : null,
+            i.TryGetProperty("RunTimeTicks", out var rt) ? rt.GetInt64() : 0);
+    }
+
+    /// <summary>A URL an &lt;audio&gt; element (or anything else that just fetches a URL) can
+    /// stream directly -- the api_key query form exists specifically because such elements
+    /// can't set a custom header. Requests the original file (static=true), not a server
+    /// transcode: ipodsync has its own transcoder tuned for whichever host is asking.</summary>
+    public string StreamUrl(string itemId) => $"{_baseUrl}/Audio/{itemId}/stream?static=true&api_key={Uri.EscapeDataString(apiKey)}";
 }

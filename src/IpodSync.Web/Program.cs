@@ -18,6 +18,12 @@ builder.Services.AddScoped<IpodSync.Shared.Playback.AudioPlayer, IpodSync.Shared
 builder.Services.AddScoped<IpodSync.Shared.Playback.PlayerState>();
 builder.Services.AddScoped<IHostPickers>(_ => new InAppPickers());
 
+// Jellyfin connection details: dotnet user-secrets (set "Jellyfin:BaseUrl"/"Jellyfin:ApiKey" --
+// see README) for local dev, or the Jellyfin__BaseUrl / Jellyfin__ApiKey environment variables
+// in any environment. Never hardcode the real key here or in a committed file.
+builder.Services.AddSingleton(new IpodSync.Shared.JellyfinSettings(
+    builder.Configuration["Jellyfin:BaseUrl"], builder.Configuration["Jellyfin:ApiKey"]));
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -34,6 +40,7 @@ app.UseHttpsRedirection();
 app.UseAntiforgery();
 
 app.MapIpodMedia();
+app.MapLocalMedia();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
@@ -49,6 +56,15 @@ app.MapGet("/api/devices", async (IIpodSyncBackend backend, CancellationToken ct
 app.MapGet("/api/library", async (string root, IIpodSyncBackend backend, CancellationToken ct) =>
 {
     try { return Results.Ok(await backend.LoadLibraryAsync(root, ct)); }
+    catch (Exception ex) { return Results.Problem(ex.Message, statusCode: 500); }
+});
+
+// A folder of local files, independent of any iPod (LocalLibraryScanner). Audio for these
+// tracks is served by /local-media (see MediaEndpoint.cs), the same way iPod tracks are
+// served by /media -- both just stream a file from disk with Range support.
+app.MapGet("/api/local-library", async (string folder, IIpodSyncBackend backend, CancellationToken ct) =>
+{
+    try { return Results.Ok(await backend.ScanLocalAsync(folder, ct)); }
     catch (Exception ex) { return Results.Problem(ex.Message, statusCode: 500); }
 });
 

@@ -18,6 +18,14 @@ public static class MauiProgram
 		builder.Services.AddMauiBlazorWebView();
 		builder.Services.AddHttpClient();
 
+		// Jellyfin connection details: the Jellyfin__BaseUrl / Jellyfin__ApiKey environment
+		// variables (System Properties > Environment Variables on Windows -- see README).
+		// A packaged app has no dotnet user-secrets, so this is the one mechanism both this
+		// host and IpodSync.Web can share; never hardcode the real key here.
+		builder.Configuration.AddEnvironmentVariables();
+		builder.Services.AddSingleton(new IpodSync.Shared.JellyfinSettings(
+			builder.Configuration["Jellyfin:BaseUrl"], builder.Configuration["Jellyfin:ApiKey"]));
+
 		// Windows runs on the same PC the iPod is plugged into, so it can talk to
 		// IpodSync.Core directly, exactly like the web host. Android reads through
 		// the Storage Access Framework instead (SafIpodSyncBackend): real-hardware

@@ -1,5 +1,6 @@
 @inherits StateComponent
 @inject IHttpClientFactory HttpClientFactory
+@inject JellyfinSettings Settings
 
 <div class="page-head"><div><h1>Jellyfin</h1><p>Copy the iPod’s playlists to a Jellyfin server</p></div></div>
 <div class="panel">
@@ -44,6 +45,13 @@
     private List<JellyfinUser>? _users;
     private string? _userId;
     private List<PlaylistSyncReport>? _reports;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        if (!string.IsNullOrWhiteSpace(Settings.BaseUrl)) _url = Settings.BaseUrl;
+        if (!string.IsNullOrWhiteSpace(Settings.ApiKey)) _apiKey = Settings.ApiKey;
+    }
 
     private async Task Test()
     {

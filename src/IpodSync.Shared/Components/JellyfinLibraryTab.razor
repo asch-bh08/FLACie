@@ -1,0 +1,147 @@
+@inherits StateComponent
+@inject IHttpClientFactory HttpClientFactory
+@inject JellyfinSettings Settings
+@using IpodSync.Core.Jellyfin
+
+<div class="page-head"><div><h1>Jellyfin</h1><p>Browse and stream your Jellyfin library</p></div></div>
+
+@if (!_connected)
+{
+    <div class="panel">
+        <p class="muted small" style="margin-top:0">Browses and streams directly from Jellyfin -- this never touches the iPod.</p>
+        <div class="row">
+            <input class="text-input grow" @bind="_url" placeholder="http://192.168.1.183:8096" />
+            <input class="text-input grow" type="password" @bind="_apiKey" placeholder="API key" />
+            <button class="btn primary" @onclick="Connect" disabled="@_connecting">@(_connecting ? "Connecting…" : "Connect")</button>
+        </div>
+        @if (_status is not null) { <p class="error-text small">@_status</p> }
+    </div>
+}
+else
+{
+    <div class="row" style="margin:0 0 14px">
+        <div class="search grow" style="max-width:320px">
+            <Icon Name="search" Size="15" />
+            <input class="text-input" placeholder="Search Jellyfin" @bind="_query" @bind:event="oninput" @bind:after="OnQueryChanged" />
+        </div>
+        @if (_playlists is { Count: > 0 })
+        {
+            <select class="text-input" @bind="_selectedPlaylist" @bind:after="Refresh">
+                <option value="">Recently added</option>
+                @foreach (var p in _playlists) { <option value="@p.Id">@p.Name</option> }
+            </select>
+        }
+        <button class="btn icon ghost" @onclick="Refresh" title="Refresh"><Icon Name="refresh" Size="15" /></button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="empty"><div class="big"><span class="spinner"></span></div></div>
+    }
+    else if (Shown.Count == 0)
+    {
+        <div class="empty"><p class="small">No tracks here.</p></div>
+    }
+    else
+    {
+        <div class="table-wrap tall">
+            <table class="data-table">
+                <colgroup><col style="width:44px" /><col /><col style="width:22%" /><col style="width:22%" /><col style="width:70px" /></colgroup>
+                <thead><tr><th></th><th>Title</th><th>Artist</th><th>Album</th><th class="num">Time</th></tr></thead>
+                <tbody>
+                    @foreach (var it in Shown)
+                    {
+                        <tr class="@(_current?.Id == it.Id ? "playing" : "")" @ondblclick="() => Play(it)">
+                            <td class="tight"><button class="rowbtn shown" @onclick:stopPropagation="true" @onclick="() => Play(it)"><Icon Name="play" Size="15" /></button></td>
+                            <td>@it.Name</td>
+                            <td>@it.Artist</td>
+                            <td>@it.Album</td>
+                            <td class="num faint">@Time((int)it.Duration.TotalMilliseconds)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (_current is { } cur && _client is not null)
+    {
+        <div class="panel" style="position:sticky; bottom:0; margin-top:14px">
+            <div class="row" style="margin:0">
+                <div class="grow">
+                    <div><strong>@cur.Name</strong></div>
+                    <div class="muted small">@cur.Artist@(string.IsNullOrEmpty(cur.Album) ? "" : $" — {cur.Album}")</div>
+                </div>
+                @* Jellyfin's own URL -- the browser/WebView fetches these bytes directly from Jellyfin, not proxied through this app. *@
+                <audio controls autoplay src="@_client.StreamUrl(cur.Id)" style="width:360px" @key="cur.Id"></audio>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private string _url = "http://192.168.1.183:8096";
+    private string _apiKey = "";
+    private bool _connecting, _connected, _loading;
+    private string? _status;
+    private JellyfinClient? _client;
+    private string? _userId;
+    private List<JellyfinPlaylist>? _playlists;
+    private string _selectedPlaylist = "";
+    private List<JellyfinItem> _items = [];
+    private string _query = "";
+    private List<JellyfinItem> _searchResults = [];
+    private JellyfinItem? _current;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        if (!string.IsNullOrWhiteSpace(Settings.BaseUrl)) _url = Settings.BaseUrl;
+        if (!string.IsNullOrWhiteSpace(Settings.ApiKey)) _apiKey = Settings.ApiKey;
+    }
+
+    private List<JellyfinItem> Shown => _query.Length > 0 ? _searchResults : _items;
+
+    private async Task Connect()
+    {
+        _connecting = true; _status = null;
+        try
+        {
+            var client = new JellyfinClient(HttpClientFactory.CreateClient(), _url, _apiKey);
+            var (ok, _, error) = await client.TestConnectionAsync();
+            if (!ok) { _status = $"Could not connect: {error}"; return; }
+            var users = await client.GetUsersAsync();
+            if (users.Count == 0) { _status = "Connected, but this server has no users."; return; }
+            _client = client;
+            _userId = users[0].Id;
+            _connected = true;
+            await Refresh();
+        }
+        catch (Exception ex) { _status = $"Could not connect: {ex.Message}"; }
+        finally { _connecting = false; }
+    }
+
+    private async Task Refresh()
+    {
+        if (_client is null || _userId is null) return;
+        _loading = true; StateHasChanged();
+        try
+        {
+            _playlists = await _client.GetPlaylistsAsync(_userId);
+            _items = string.IsNullOrEmpty(_selectedPlaylist)
+                ? await _client.GetRecentAudioAsync(_userId)
+                : await _client.GetPlaylistItemsAsync(_selectedPlaylist, _userId);
+        }
+        catch (Exception ex) { _status = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private async Task OnQueryChanged()
+    {
+        if (_client is null || _userId is null || _query.Length == 0) { _searchResults = []; return; }
+        try { _searchResults = await _client.SearchAudioAsync(_userId, _query); }
+        catch { /* leave the previous results showing rather than flash an error per keystroke */ }
+    }
+
+    private void Play(JellyfinItem it) => _current = it;
+}

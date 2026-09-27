@@ -1,0 +1,83 @@
+@inherits StateComponent
+@inject IHostPickers Pickers
+@using IpodSync.Core.LocalLibrary
+
+<div class="page-head"><div><h1>Local Library</h1><p>Browse and play files from a folder on this computer -- independent of any iPod</p></div></div>
+
+<div class="row">
+    @if (Pickers.Available)
+    {
+        <button class="btn primary" @onclick="Pick">Choose folder…</button>
+    }
+    <input class="text-input grow" @bind="_folder" @bind:event="oninput" placeholder="C:\Music" />
+    <button class="btn" @onclick="Scan" disabled="@(_scanning || string.IsNullOrWhiteSpace(_folder))">@(_scanning ? "Scanning…" : "Scan")</button>
+</div>
+
+@if (_tracks is { Count: > 0 })
+{
+    <p class="muted small">@_tracks.Count song(s) in @_folder</p>
+    <div class="table-wrap tall">
+        <table class="data-table">
+            <colgroup><col style="width:44px" /><col /><col style="width:22%" /><col style="width:22%" /><col style="width:70px" /></colgroup>
+            <thead><tr><th></th><th>Title</th><th>Artist</th><th>Album</th><th class="num">Time</th></tr></thead>
+            <tbody>
+                @foreach (var t in _tracks)
+                {
+                    <tr class="@(_current?.Path == t.Path ? "playing" : "")" @ondblclick="() => Play(t)">
+                        <td class="tight"><button class="rowbtn shown" @onclick:stopPropagation="true" @onclick="() => Play(t)"><Icon Name="play" Size="15" /></button></td>
+                        <td>@t.DisplayTitle</td>
+                        <td>@t.Artist</td>
+                        <td>@t.Album</td>
+                        <td class="num faint">@Time((int)t.Duration.TotalMilliseconds)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+else if (_scanned)
+{
+    <div class="empty"><p class="small">No supported audio files found in that folder.</p></div>
+}
+
+@if (_current is { } cur)
+{
+    <div class="panel" style="position:sticky; bottom:0; margin-top:14px">
+        <div class="row" style="margin:0">
+            <div class="grow"><strong>@cur.DisplayTitle</strong><div class="muted small">@cur.Artist</div></div>
+            @* /local-media is a Web-host (Kestrel) route -- see MediaEndpoint.cs. The MAUI Windows
+               host resolves local audio through its own virtual-host mapping instead (see
+               WindowsMediaSource for how the iPod source already does this); wiring the same for
+               local files is a small follow-up, not yet done, so this player works in the browser
+               (Web host) today but not yet inside the native Windows app specifically. *@
+            <audio controls autoplay src="@MediaUrl(_folder, cur)" style="width:360px" @key="cur.Path"></audio>
+        </div>
+    </div>
+}
+
+@code {
+    private string _folder = "";
+    private bool _scanning, _scanned;
+    private List<LocalTrack>? _tracks;
+    private LocalTrack? _current;
+
+    private async Task Pick()
+    {
+        var folder = await Pickers.PickFolderAsync();
+        if (folder is not null) { _folder = folder; await Scan(); }
+    }
+
+    private async Task Scan()
+    {
+        if (string.IsNullOrWhiteSpace(_folder)) return;
+        _scanning = true; _scanned = false; StateHasChanged();
+        try { _tracks = await State.Backend.ScanLocalAsync(_folder); }
+        finally { _scanning = false; _scanned = true; }
+    }
+
+    private void Play(LocalTrack t) => _current = t;
+
+    // folder is the scanned root the user chose above -- the safety boundary /local-media
+    // requires path to stay under (see MediaEndpoint.MapLocalMedia), not just this file's own directory.
+    private static string MediaUrl(string folder, LocalTrack t) => $"/local-media?folder={Uri.EscapeDataString(folder)}&path={Uri.EscapeDataString(t.Path)}&convert=false";
+}

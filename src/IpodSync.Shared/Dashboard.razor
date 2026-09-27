@@ -52,6 +52,10 @@
             }
         </div>
 
+        <div class="nav-group">Listen</div>
+        @NavItem(Tab.PlayJellyfin, "jellyfin", "Jellyfin")
+        @NavItem(Tab.PlayLocal, "songs", "Local Library")
+
         <div class="nav-group">Library</div>
         @NavItem(Tab.Songs, "songs", "Songs")
         @NavItem(Tab.Albums, "albums", "Albums")
@@ -108,7 +112,7 @@
             </div>
         }
 
-        @if (State.ActiveRoot is null && _tab is not (Tab.Jellyfin or Tab.Backups))
+        @if (State.ActiveRoot is null && _tab is not (Tab.Jellyfin or Tab.Backups or Tab.PlayJellyfin or Tab.PlayLocal))
         {
             <div class="empty">
                 <div class="big"><Icon Name="device" Size="30" /></div>
@@ -141,6 +145,8 @@
                 case Tab.Backups: <BackupsTab /> break;
                 case Tab.Device: <DeviceTab /> break;
                 case Tab.Jellyfin: <JellyfinTab /> break;
+                case Tab.PlayJellyfin: <JellyfinLibraryTab /> break;
+                case Tab.PlayLocal: <LocalLibraryTab /> break;
             }
         }
     </main>
@@ -149,7 +155,7 @@
 </div>
 
 @code {
-    private enum Tab { Songs, Albums, Playlists, Add, Sync, Import, Changes, Backups, Device, Jellyfin }
+    private enum Tab { Songs, Albums, Playlists, Add, Sync, Import, Changes, Backups, Device, Jellyfin, PlayJellyfin, PlayLocal }
     private Tab _tab = Tab.Songs;
     private ElementReference _main;
 

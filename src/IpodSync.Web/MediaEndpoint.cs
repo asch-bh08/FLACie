@@ -27,6 +27,26 @@ public static class MediaEndpoint
         }
         return Results.File(full, PlaybackMedia.ContentType(full), enableRangeProcessing: true);
     });
+
+    /// <summary>Same idea as /media, for a track found by LocalLibraryScanner instead of on an
+    /// iPod: folder is the scanned root (the safety boundary a path must stay under), path is
+    /// the track's own full path (LocalTrack.Path already is one, not root-relative).</summary>
+    public static void MapLocalMedia(this WebApplication app) => app.MapGet("/local-media", (string folder, string path, bool convert) =>
+    {
+        string full = Path.GetFullPath(path);
+        string folderFull = Path.GetFullPath(folder);
+        if (!full.StartsWith(folderFull, StringComparison.OrdinalIgnoreCase) || !File.Exists(full))
+            return Results.NotFound();
+
+        string ext = Path.GetExtension(full).ToLowerInvariant();
+        if (convert || ext is ".alac" or ".aif" or ".aiff")
+        {
+            string? converted = PlaybackMedia.ConvertForPlayback(full);
+            if (converted is null) return Results.Problem("ffmpeg is needed to play this format in a browser.", statusCode: 501);
+            full = converted;
+        }
+        return Results.File(full, PlaybackMedia.ContentType(full), enableRangeProcessing: true);
+    });
 }
 
 /// <summary>Playback URLs for the web host: the endpoint above.</summary>

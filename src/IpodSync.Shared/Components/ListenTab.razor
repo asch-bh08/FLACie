@@ -1,0 +1,212 @@
+@inherits StateComponent
+@inject IHttpClientFactory HttpClientFactory
+@inject JellyfinSettings Settings
+@inject IHostPickers Pickers
+@inject PlayerState Player
+@using IpodSync.Core.ItunesDb
+@using IpodSync.Core.Jellyfin
+@using IpodSync.Core.LocalLibrary
+@using IpodSync.Core.Listen
+
+<div class="page-head"><div><h1>Listen</h1><p>Your music, wherever it lives -- iPod, a local folder, and Jellyfin, merged into one list</p></div></div>
+
+<div class="row" style="align-items:flex-start; flex-wrap:wrap">
+    <div class="search grow" style="max-width:320px">
+        <Icon Name="search" Size="15" />
+        <input class="text-input" placeholder="Search everything" @bind="_query" @bind:event="oninput" @bind:after="OnQueryChanged" />
+    </div>
+    <button class="btn icon ghost" @onclick="RefreshAll" title="Refresh"><Icon Name="refresh" Size="15" /></button>
+    <button class="btn small ghost" @onclick="() => _showSetup = !_showSetup">@(_showSetup ? "Hide sources" : "Sources…")</button>
+</div>
+
+@if (_showSetup)
+{
+    <div class="panel" style="margin-top:10px">
+        <div class="row">
+            <div class="grow">
+                <div class="small muted">iPod</div>
+                <div>@(State.Db is { } db ? $"{db.Tracks.Count} songs on {(State.ActiveDevice?.VolumeLabel ?? State.ActiveRoot)}" : "No iPod loaded (pick one from the device menu above)")</div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="grow">
+                <div class="small muted">Local folder</div>
+                @if (Pickers.Available) { <button class="btn small" @onclick="PickFolder">Choose folder…</button> }
+                <input class="text-input" style="width:260px" @bind="_folder" @bind:event="oninput" placeholder="C:\Music" />
+                <button class="btn small" @onclick="ScanLocal" disabled="@(_scanningLocal || string.IsNullOrWhiteSpace(_folder))">@(_scanningLocal ? "Scanning…" : "Scan")</button>
+                @if (_localTracks is { Count: > 0 }) { <span class="small muted">@_localTracks.Count found</span> }
+            </div>
+        </div>
+        <div class="row">
+            <div class="grow">
+                <div class="small muted">Jellyfin</div>
+                @if (_jellyfinConnected)
+                {
+                    <span class="small">Connected@(_jellyfinName is null ? "" : $" to {_jellyfinName}")</span>
+                }
+                else
+                {
+                    <input class="text-input" style="width:220px" @bind="_url" placeholder="http://192.168.1.183:8096" />
+                    <input class="text-input" style="width:160px" type="password" @bind="_apiKey" placeholder="API key" />
+                    <button class="btn small" @onclick="ConnectJellyfin" disabled="@_connectingJellyfin">@(_connectingJellyfin ? "Connecting…" : "Connect")</button>
+                }
+                @if (_jellyfinStatus is not null) { <div class="small @(_jellyfinConnected ? "muted" : "error-text")">@_jellyfinStatus</div> }
+            </div>
+        </div>
+    </div>
+}
+
+@if (Rows.Count == 0)
+{
+    <div class="empty" style="margin-top:20px"><p class="small">Nothing to show yet -- load an iPod, scan a folder, or connect Jellyfin above.</p></div>
+}
+else
+{
+    <div class="table-wrap tall" style="margin-top:14px">
+        <table class="data-table">
+            <colgroup><col style="width:44px" /><col /><col style="width:20%" /><col style="width:20%" /><col style="width:64px" /><col style="width:70px" /></colgroup>
+            <thead><tr><th></th><th>Title</th><th>Artist</th><th>Album</th><th class="num">Time</th><th>Source</th></tr></thead>
+            <tbody>
+                @foreach (var row in Rows)
+                {
+                    <tr class="@(IsCurrent(row) ? "playing" : "")" @ondblclick="() => Play(row)">
+                        <td class="tight"><button class="rowbtn shown" @onclick:stopPropagation="true" @onclick="() => Play(row)"><Icon Name="play" Size="15" /></button></td>
+                        <td>@row.Title</td>
+                        <td>@row.Artist</td>
+                        <td>@row.Album</td>
+                        <td class="num faint">@Time((int)row.Duration.TotalMilliseconds)</td>
+                        <td class="small muted">@row.Source</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (_current is { } cur && cur.Source != TrackSource.Ipod)
+{
+    <div class="panel" style="position:sticky; bottom:0; margin-top:14px">
+        <div class="row" style="margin:0">
+            <div class="grow"><strong>@cur.Title</strong><div class="muted small">@cur.Artist</div></div>
+            <audio controls autoplay src="@PlaybackUrl(cur)" style="width:360px" @key="cur.SourceId"></audio>
+        </div>
+    </div>
+}
+
+@code {
+    // Local
+    private string _folder = "";
+    private bool _scanningLocal;
+    private List<LocalTrack>? _localTracks;
+
+    // Jellyfin
+    private string _url = "http://192.168.1.183:8096";
+    private string _apiKey = "";
+    private bool _connectingJellyfin, _jellyfinConnected;
+    private string? _jellyfinStatus, _jellyfinName, _jellyfinUserId;
+    private JellyfinClient? _jellyfin;
+    private List<JellyfinItem> _jellyfinRecent = [];
+    private List<JellyfinItem> _jellyfinSearchResults = [];
+
+    private string _query = "";
+    private bool _showSetup = true;
+    private PlayableTrack? _current;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(Settings.BaseUrl)) _url = Settings.BaseUrl;
+        if (!string.IsNullOrWhiteSpace(Settings.ApiKey)) _apiKey = Settings.ApiKey;
+        // Configured via secrets -- just connect, no need to make the user click every time.
+        if (!string.IsNullOrWhiteSpace(Settings.BaseUrl) && !string.IsNullOrWhiteSpace(Settings.ApiKey)) await ConnectJellyfin();
+        _showSetup = !_jellyfinConnected && _localTracks is null;
+    }
+
+    /// <summary>The merged, deduplicated list this page shows -- Local and iPod filtered
+    /// in-memory, Jellyfin's own search/recent-added results folded in only while connected
+    /// (so an unreachable Jellyfin quietly drops out instead of showing dead rows).</summary>
+    private List<PlayableTrack> Rows
+    {
+        get
+        {
+            IEnumerable<LocalTrack>? local = _localTracks;
+            if (local is not null && _query.Length > 0)
+                local = local.Where(t => Matches(t.DisplayTitle, t.Artist));
+
+            IEnumerable<Track>? ipod = State.Db?.Tracks;
+            if (ipod is not null && _query.Length > 0)
+                ipod = ipod.Where(t => Matches(t.Title ?? "", t.Artist));
+
+            var jf = _jellyfinConnected ? (_query.Length > 0 ? _jellyfinSearchResults : _jellyfinRecent) : null;
+            return ListenLibrary.Merge(local, ipod, jf);
+        }
+    }
+
+    private bool Matches(string title, string? artist) =>
+        title.Contains(_query, StringComparison.OrdinalIgnoreCase) || (artist?.Contains(_query, StringComparison.OrdinalIgnoreCase) ?? false);
+
+    private bool IsCurrent(PlayableTrack row) => row.Source == TrackSource.Ipod
+        ? Player.Player.Current is { } t && t.Id.ToString() == row.SourceId
+        : _current is { } c && c.Source == row.Source && c.SourceId == row.SourceId;
+
+    private async Task Play(PlayableTrack row)
+    {
+        if (row.Source == TrackSource.Ipod)
+        {
+            if (State.ActiveRoot is { } root && State.Db?.Tracks.FirstOrDefault(t => t.Id.ToString() == row.SourceId) is { } track)
+                await Player.PlayAsync(root, track, State.Db.Tracks, "Listen");
+        }
+        else _current = row;
+    }
+
+    // Only ever called for Local or Jellyfin (iPod tracks play through Player.PlayAsync instead).
+    private string PlaybackUrl(PlayableTrack t) => t.Source switch
+    {
+        TrackSource.Jellyfin => $"/jellyfin-media?itemId={Uri.EscapeDataString(t.SourceId)}",
+        TrackSource.Local => $"/local-media?folder={Uri.EscapeDataString(_folder)}&path={Uri.EscapeDataString(t.SourceId)}&convert=false",
+        _ => "",
+    };
+
+    private async Task PickFolder()
+    {
+        var folder = await Pickers.PickFolderAsync();
+        if (folder is not null) { _folder = folder; await ScanLocal(); }
+    }
+
+    private async Task ScanLocal()
+    {
+        if (string.IsNullOrWhiteSpace(_folder)) return;
+        _scanningLocal = true; StateHasChanged();
+        try { _localTracks = await State.Backend.ScanLocalAsync(_folder); }
+        finally { _scanningLocal = false; }
+    }
+
+    private async Task ConnectJellyfin()
+    {
+        _connectingJellyfin = true; _jellyfinStatus = null;
+        try
+        {
+            var client = new JellyfinClient(HttpClientFactory.CreateClient(), _url, _apiKey);
+            var (ok, name, error) = await client.TestConnectionAsync();
+            if (!ok) { _jellyfinStatus = $"Could not connect: {error}"; return; }
+            var users = await client.GetUsersAsync();
+            if (users.Count == 0) { _jellyfinStatus = "Connected, but this server has no users."; return; }
+            _jellyfin = client; _jellyfinUserId = users[0].Id; _jellyfinName = name; _jellyfinConnected = true;
+            _jellyfinRecent = await client.GetRecentAudioAsync(_jellyfinUserId);
+        }
+        catch (Exception ex) { _jellyfinStatus = $"Could not connect: {ex.Message}"; }
+        finally { _connectingJellyfin = false; }
+    }
+
+    private async Task OnQueryChanged()
+    {
+        if (_jellyfin is null || _jellyfinUserId is null || _query.Length == 0) { _jellyfinSearchResults = []; return; }
+        try { _jellyfinSearchResults = await _jellyfin.SearchAudioAsync(_jellyfinUserId, _query); }
+        catch { /* leave previous results rather than flash an error per keystroke */ }
+    }
+
+    private async Task RefreshAll()
+    {
+        if (!string.IsNullOrWhiteSpace(_folder)) await ScanLocal();
+        if (_jellyfinConnected && _jellyfinUserId is not null) _jellyfinRecent = await _jellyfin!.GetRecentAudioAsync(_jellyfinUserId);
+    }
+}

@@ -52,9 +52,7 @@
             }
         </div>
 
-        <div class="nav-group">Listen</div>
-        @NavItem(Tab.PlayJellyfin, "jellyfin", "Jellyfin")
-        @NavItem(Tab.PlayLocal, "songs", "Local Library")
+        @NavItem(Tab.Listen, "songs", "Listen")
 
         <div class="nav-group">Library</div>
         @NavItem(Tab.Songs, "songs", "Songs")
@@ -112,7 +110,7 @@
             </div>
         }
 
-        @if (State.ActiveRoot is null && _tab is not (Tab.Jellyfin or Tab.Backups or Tab.PlayJellyfin or Tab.PlayLocal))
+        @if (State.ActiveRoot is null && _tab is not (Tab.Jellyfin or Tab.Backups or Tab.Listen))
         {
             <div class="empty">
                 <div class="big"><Icon Name="device" Size="30" /></div>
@@ -145,8 +143,7 @@
                 case Tab.Backups: <BackupsTab /> break;
                 case Tab.Device: <DeviceTab /> break;
                 case Tab.Jellyfin: <JellyfinTab /> break;
-                case Tab.PlayJellyfin: <JellyfinLibraryTab /> break;
-                case Tab.PlayLocal: <LocalLibraryTab /> break;
+                case Tab.Listen: <ListenTab /> break;
             }
         }
     </main>
@@ -155,8 +152,8 @@
 </div>
 
 @code {
-    private enum Tab { Songs, Albums, Playlists, Add, Sync, Import, Changes, Backups, Device, Jellyfin, PlayJellyfin, PlayLocal }
-    private Tab _tab = Tab.Songs;
+    private enum Tab { Listen, Songs, Albums, Playlists, Add, Sync, Import, Changes, Backups, Device, Jellyfin }
+    private Tab _tab = Tab.Listen;
     private ElementReference _main;
 
     private RenderFragment NavItem(Tab tab, string icon, string label, int badge = 0) => @<button class="nav-item @(_tab == tab ? "active" : "")" @onclick="() => Go(tab)">

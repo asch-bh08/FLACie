@@ -41,6 +41,7 @@ app.UseAntiforgery();
 
 app.MapIpodMedia();
 app.MapLocalMedia();
+app.MapJellyfinMedia();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
@@ -66,6 +67,57 @@ app.MapGet("/api/local-library", async (string folder, IIpodSyncBackend backend,
 {
     try { return Results.Ok(await backend.ScanLocalAsync(folder, ct)); }
     catch (Exception ex) { return Results.Problem(ex.Message, statusCode: 500); }
+});
+
+// The merged, deduplicated "Listen" view (see IpodSync.Core.Listen.ListenLibrary) as JSON, for
+// a remote client (ipodplayer) to consume the same one-list-across-sources logic the Blazor
+// ListenTab uses in process. root/folder are both optional -- whichever sources are configured
+// get folded in; Jellyfin is included automatically when this host has it configured and it's
+// currently reachable, and silently dropped otherwise (same behaviour as the Blazor page).
+// Every track's streamUrl is already a ready-to-fetch path on this host, so the caller never
+// needs to know which source a track came from to play it.
+app.MapGet("/api/listen", async (string? root, string? folder, IIpodSyncBackend backend, IpodSync.Shared.JellyfinSettings jf, IHttpClientFactory httpFactory, CancellationToken ct) =>
+{
+    List<IpodSync.Core.LocalLibrary.LocalTrack>? local = null;
+    if (!string.IsNullOrWhiteSpace(folder)) { try { local = await backend.ScanLocalAsync(folder, ct); } catch { } }
+
+    List<IpodSync.Core.ItunesDb.Track>? ipod = null;
+    if (!string.IsNullOrWhiteSpace(root)) { try { ipod = (await backend.LoadLibraryAsync(root, ct)).Tracks; } catch { } }
+
+    List<IpodSync.Core.Jellyfin.JellyfinItem>? jellyfin = null;
+    if (!string.IsNullOrWhiteSpace(jf.BaseUrl) && !string.IsNullOrWhiteSpace(jf.ApiKey))
+    {
+        try
+        {
+            var client = new IpodSync.Core.Jellyfin.JellyfinClient(httpFactory.CreateClient(), jf.BaseUrl, jf.ApiKey);
+            var (ok, _, _) = await client.TestConnectionAsync(ct);
+            if (ok)
+            {
+                var users = await client.GetUsersAsync(ct);
+                if (users.Count > 0) jellyfin = await client.GetRecentAudioAsync(users[0].Id, 300, ct);
+            }
+        }
+        catch { /* Jellyfin unreachable right now -- drop it from the merge, not the whole request */ }
+    }
+
+    var merged = IpodSync.Core.Listen.ListenLibrary.Merge(local, ipod, jellyfin);
+    var result = merged.Select(t => new
+    {
+        source = t.Source.ToString(),
+        title = t.Title,
+        artist = t.Artist,
+        album = t.Album,
+        durationMs = (int)t.Duration.TotalMilliseconds,
+        streamUrl = t.Source switch
+        {
+            IpodSync.Core.Listen.TrackSource.Local => $"/local-media?folder={Uri.EscapeDataString(folder!)}&path={Uri.EscapeDataString(t.SourceId)}&convert=false",
+            IpodSync.Core.Listen.TrackSource.Ipod => ipod!.FirstOrDefault(x => x.Id.ToString() == t.SourceId) is { RelativePath: { } rel }
+                ? $"/media?root={Uri.EscapeDataString(root!)}&path={Uri.EscapeDataString(rel)}&convert=false" : null,
+            IpodSync.Core.Listen.TrackSource.Jellyfin => $"/jellyfin-media?itemId={Uri.EscapeDataString(t.SourceId)}",
+            _ => null,
+        },
+    });
+    return Results.Ok(result);
 });
 
 app.Run();

@@ -49,6 +49,7 @@ class SyncClient {
                 artKey = null,
                 mtime = 0L,
                 size = t.optLong("sizeBytes"),
+                source = TrackSource.IPOD,
             )
         }
         val rawPlaylists = root.getJSONArray("playlists")
@@ -90,6 +91,7 @@ class SyncClient {
                 artKey = null,
                 mtime = 0L,
                 size = 0L,
+                source = TrackSource.JELLYFIN,
             )
         }
     }

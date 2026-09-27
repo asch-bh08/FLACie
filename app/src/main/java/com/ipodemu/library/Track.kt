@@ -1,5 +1,9 @@
 package com.ipodemu.library
 
+/** Where a track in the merged library actually lives -- Local (this device's own Scanner),
+ * Ipod (a Sync-mode device's library), or Jellyfin (via ipodsync's /api/listen proxy). */
+enum class TrackSource { LOCAL, IPOD, JELLYFIN }
+
 data class Track(
     val path: String,
     val title: String,
@@ -15,6 +19,7 @@ data class Track(
     val artKey: String?,
     val mtime: Long,
     val size: Long,
+    val source: TrackSource = TrackSource.LOCAL,
 ) {
     val albumKey: String get() = "$albumArtist|$album"
 }

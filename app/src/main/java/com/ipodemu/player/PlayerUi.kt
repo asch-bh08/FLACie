@@ -277,6 +277,7 @@ fun TrackRow(
         trailing = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (fav) GlyphIcon(Glyph.HEART_FILLED, Modifier.size(18.dp), sc.accent)
+                SourceBadge(t.source)
                 if (t.durationMs > 0) Txt(fmtTime(t.durationMs), size = 13f, color = rowDim())
                 Box(Modifier.size(38.dp).clip(RoundedCornerShape(50)).clickable { openTrackSheet(app, nav, t, sheetExtra) }, contentAlignment = Alignment.Center) {
                     GlyphIcon(Glyph.MORE, Modifier.size(22.dp), rowDim())
@@ -290,6 +291,21 @@ fun TrackRow(
             if (sub.isNotEmpty()) Txt(sub, size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
         }
     }
+    }
+}
+
+/** Colours match ipodsync's Listen page (.pill.src-*) so the two apps read as one system. */
+private fun sourceColor(s: com.ipodemu.library.TrackSource): Color = when (s) {
+    com.ipodemu.library.TrackSource.LOCAL -> Color(0xFF4EE0A1)
+    com.ipodemu.library.TrackSource.IPOD -> Color(0xFF8B6BFF)
+    com.ipodemu.library.TrackSource.JELLYFIN -> Color(0xFFFF6FAE)
+}
+
+@Composable
+private fun SourceBadge(source: com.ipodemu.library.TrackSource) {
+    val color = sourceColor(source)
+    Box(Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.16f)).padding(horizontal = 7.dp, vertical = 3.dp)) {
+        Txt(source.name.lowercase().replaceFirstChar { it.uppercase() }, size = 10f, weight = FontWeight.SemiBold, color = color)
     }
 }
 
@@ -473,10 +489,15 @@ private fun LibraryScreen(kind: LibKind, nav: PlayerNav, snap: PlayerSnap) {
         when (kind) {
             LibKind.SONGS -> {
                 var sort by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
+                var sourceFilter by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf<com.ipodemu.library.TrackSource?>(null) }
                 val libRev = LocalLibRev.current
-                val songs = remember(sort, libRev) { sortedSongs(lib, app.userData, sort) }
+                val allSongs = remember(sort, libRev) { sortedSongs(lib, app.userData, sort) }
+                val songs = remember(allSongs, sourceFilter) { sourceFilter?.let { f -> allSongs.filter { it.source == f } } ?: allSongs }
                 SongList(songs, nav, snap, showArt = true, sections = if (sort == 0) 1 else if (sort == 1) 2 else 0,
-                    header = { ShuffleHeader(songs, nav, SORTS[sort]) { sort = (sort + 1) % SORTS.size } })
+                    header = {
+                        ShuffleHeader(songs, nav, SORTS[sort]) { sort = (sort + 1) % SORTS.size }
+                        SourceFilterChips(allSongs, sourceFilter) { sourceFilter = it }
+                    })
             }
             LibKind.MEMOS -> { val memos = lib.memos; SongList(memos, nav, snap, showArt = false) }
             LibKind.ALBUMS -> AlbumGrid(lib.albums(), nav)
@@ -495,6 +516,29 @@ private fun ShuffleHeader(tracks: List<Track>, nav: PlayerNav, sortLabel: String
         GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true); nav.nowPlaying = true }, icon = Glyph.SHUFFLE)
         GlossPill(sortLabel, onSort, height = 32.dp)
         Txt(songCount(tracks.size), Modifier.weight(1f), size = 13f, color = LocalScheme.current.onBgDim, align = TextAlign.End)
+    }
+}
+
+/** "All / Local / iPod / Jellyfin" chips (with live counts) narrowing the Songs screen to one
+ * source -- a pure display filter, same list ipodsync's Listen page shows, chosen (over grouped
+ * sections) to match this list's existing pattern of a filter row above a flat, sortable list. */
+@Composable
+private fun SourceFilterChips(all: List<Track>, current: com.ipodemu.library.TrackSource?, onChange: (com.ipodemu.library.TrackSource?) -> Unit) {
+    val counts = remember(all) { all.groupingBy { it.source }.eachCount() }
+    if (counts.size <= 1) return   // nothing to filter when everything's from one source
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        @Composable
+        fun chip(label: String, value: com.ipodemu.library.TrackSource?, count: Int) {
+            GlossPill("$label ($count)", { onChange(value) }, height = 30.dp, primary = current == value)
+        }
+        chip("All", null, all.size)
+        for (s in com.ipodemu.library.TrackSource.entries) {
+            val n = counts[s] ?: continue
+            chip(s.name.lowercase().replaceFirstChar { it.uppercase() }, s, n)
+        }
     }
 }
 

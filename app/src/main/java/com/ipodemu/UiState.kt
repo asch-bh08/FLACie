@@ -26,6 +26,7 @@ class UiState(private val prefs: Prefs) {
     var jellyfinSetupOpen by mutableStateOf(false)
     var plexSetupOpen by mutableStateOf(false)
     var nasSetupOpen by mutableStateOf(false)
+    var lidarrSetupOpen by mutableStateOf(false)
     /** Bumped by the L1/R1 shoulder buttons while the picker is open (-1 / +1 via [pickerStepDir]) to cycle the carousel. */
     var pickerStep by mutableStateOf(0)
     var pickerStepDir = 0

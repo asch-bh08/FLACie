@@ -71,6 +71,7 @@ fun AppRoot(activity: MainActivity) {
             if (ui.jellyfinSetupOpen) JellyfinSetupScreen()
             if (ui.plexSetupOpen) PlexSetupScreen()
             if (ui.nasSetupOpen) NasSetupScreen()
+            if (ui.lidarrSetupOpen) LidarrSetupScreen()
         }
     }
 }

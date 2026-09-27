@@ -148,6 +148,7 @@ class MenuBuilder(private val app: App, private val onThemeChosen: (String) -> U
             Item("Jellyfin", value = { if (lib.jellyfinConnected) "Connected" else "Not connected" }) { app.ui.jellyfinSetupOpen = true },
             Item("Plex", value = { if (lib.plexConnected) "Connected" else "Not connected" }) { app.ui.plexSetupOpen = true },
             Item("NAS", value = { if (lib.nasConnected) "Connected" else "Not connected" }) { app.ui.nasSetupOpen = true },
+            Item("Lidarr", value = { if (lib.lidarrConnected) "Connected" else "Not connected" }) { app.ui.lidarrSetupOpen = true },
             Item("Reset Settings") { it.push(resetPage()) },
         ))
     }

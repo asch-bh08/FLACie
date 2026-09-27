@@ -740,6 +740,7 @@ private class Results(val songs: List<Track>, val albums: List<Group>, val artis
 @Composable
 private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
     val app = LocalApp.current
+    rememberLibRev(app.library)
     // the focused text field used to swallow the first Back press; leave the screen straight away
     BackHandler(enabled = !app.ui.pickerOpen && nav.sheet == null && nav.nameDialog == null) { nav.pop() }
     val sc = LocalScheme.current
@@ -775,7 +776,12 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         }
         val r = results
         if (query.isBlank()) EmptyState("Search your music")
-        else if (r.songs.isEmpty() && r.albums.isEmpty() && r.artists.isEmpty()) EmptyState("No results")
+        else if (r.songs.isEmpty() && r.albums.isEmpty() && r.artists.isEmpty()) {
+            Column(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f)) { EmptyState("No results") }
+                DownloadRequestBar(app, query.trim())
+            }
+        }
         else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             if (r.artists.isNotEmpty()) {
                 item { SectionHeader("Artists") }
@@ -797,6 +803,32 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 item { SectionHeader("Songs") }
                 itemsIndexed(r.songs, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(r.songs, i, null); nav.nowPlaying = true }) }
             }
+            item { DownloadRequestBar(app, query.trim(), compact = true) }
+        }
+    }
+}
+
+/** Search's "Download this instead" affordance: parses a naive "Artist - Title" split from the
+ * query (or falls back to using the whole query as both), and shows live status once requested --
+ * see Library.requestDownload/DownloadCoordinator for what actually happens on tap. */
+@Composable
+private fun DownloadRequestBar(app: App, query: String, compact: Boolean = false) {
+    if (query.isEmpty()) return
+    val sc = LocalScheme.current
+    val status = app.library.downloadStatus
+    val parts = query.split(" - ", limit = 2)
+    val artist = parts[0].trim()
+    val title = if (parts.size > 1) parts[1].trim() else query
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = if (compact) 10.dp else 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (!compact) Txt("Can't find \"$query\"?", size = 14f, color = sc.onBgDim)
+        GlossPill("Download \"$query\"", { app.library.requestDownload(artist, title, "") }, height = 40.dp, primary = !compact)
+        status?.let { s ->
+            val color = when (s.stage) {
+                com.ipodemu.library.DownloadStage.DONE -> Color(0xFF7CE0A0)
+                com.ipodemu.library.DownloadStage.FAILED -> Color(0xFFFF8080)
+                else -> sc.onBgDim
+            }
+            Txt(s.message, size = 13f, color = color)
         }
     }
 }

@@ -87,6 +87,7 @@ fun SettingsScreen(nav: PlayerNav) {
                     SettingRow("Jellyfin", if (app.library.jellyfinConnected) "Connected" else "Not connected", chevron = true) { ui.jellyfinSetupOpen = true }
                     SettingRow("Plex", if (app.library.plexConnected) "Connected" else "Not connected", chevron = true) { ui.plexSetupOpen = true }
                     SettingRow("NAS", if (app.library.nasConnected) "Connected" else "Not connected", chevron = true) { ui.nasSetupOpen = true }
+                    SettingRow("Lidarr", if (app.library.lidarrConnected) "Connected" else "Not connected", chevron = true) { ui.lidarrSetupOpen = true }
                 }
             }
             item { SectionHeader("Controls") }

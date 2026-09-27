@@ -142,6 +142,28 @@ class Prefs(ctx: Context) {
         get() = sp.getString("nasdomain", "") ?: ""
         set(v) = sp.edit().putString("nasdomain", v).apply()
 
+    /** Lidarr server this app talks to directly to request missing tracks, e.g. a Tailscale URL. */
+    var lidarrUrl: String
+        get() = sp.getString("lidarrurl", "") ?: ""
+        set(v) = sp.edit().putString("lidarrurl", v).apply()
+    var lidarrApiKey: String
+        get() = sp.getString("lidarrkey", "") ?: ""
+        set(v) = sp.edit().putString("lidarrkey", v).apply()
+
+    /** Optional slskd (Soulseek daemon) this app races against Lidarr for a faster download when a
+     * peer already has the file; blank means the app skips straight to the Lidarr-only path. */
+    var slskdUrl: String
+        get() = sp.getString("slskdurl", "") ?: ""
+        set(v) = sp.edit().putString("slskdurl", v).apply()
+    var slskdApiKey: String
+        get() = sp.getString("slskdkey", "") ?: ""
+        set(v) = sp.edit().putString("slskdkey", v).apply()
+    /** Path (as seen by Lidarr, not by this phone) where slskd writes finished downloads, so Lidarr's
+     * manual import can find them; the two containers are expected to share this folder. */
+    var slskdDownloadPath: String
+        get() = sp.getString("slskdpath", "/downloads") ?: "/downloads"
+        set(v) = sp.edit().putString("slskdpath", v).apply()
+
     /** Reset Settings: everything except the chosen iPod, colour and look. */
     fun reset() {
         val m = model; val c = colorway; val vm = viewMode

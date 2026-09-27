@@ -44,6 +44,14 @@ class Library(ctx: Context, val art: ArtCache) {
     @Volatile var nasConnected = false; private set
     @Volatile var nasStatus: String? = null; private set
 
+    @Volatile var lidarrConnecting = false; private set
+    @Volatile var lidarrConnected = false; private set
+    @Volatile var lidarrStatus: String? = null; private set
+
+    @Volatile var slskdConnecting = false; private set
+    @Volatile var slskdConnected = false; private set
+    @Volatile var slskdStatus: String? = null; private set
+
     @Volatile var tracks: List<Track> = emptyList(); private set
     /** Playlists read from .m3u/.m3u8 files: name -> track paths. Local-source only. */
     @Volatile var m3uPlaylists: Map<String, List<String>> = emptyMap(); private set
@@ -71,7 +79,10 @@ class Library(ctx: Context, val art: ArtCache) {
     private val plex = PlexDirectClient()
     @Volatile private var plexSectionKey: String? = null
     private val nas = NasDirectClient()
+    private val lidarr = LidarrClient()
+    private val slskd = SlskdClient()
     private val prefs = Prefs(ctx)
+    private val downloader = DownloadCoordinator(prefs)
     /** Jellyfin/Plex/NAS tracks -- each both folded into [tracks] (deduped against whatever else is
      * showing) and exposed here on its own, for a dedicated library section (like Playlists/Artists/
      * etc) separate from the blended view. Kept cached so re-merging (after a rescan, or switching
@@ -79,6 +90,28 @@ class Library(ctx: Context, val art: ArtCache) {
     @Volatile var jellyfinTracks: List<Track> = emptyList(); private set
     @Volatile var plexTracks: List<Track> = emptyList(); private set
     @Volatile var nasTracks: List<Track> = emptyList(); private set
+
+    /** Status of the in-flight "download this missing track" request, if any -- Settings > Lidarr's
+     * search screen binds to this to show progress. Null once nothing has been requested this session. */
+    @Volatile var downloadStatus: DownloadStatus? = null; private set
+
+    /** Search's "Download" action: races Soulseek against Lidarr (see DownloadCoordinator), then
+     * schedules a couple of re-merges over the next 45s so the new track surfaces without the user
+     * having to manually pull to refresh once Jellyfin's finished indexing it. */
+    fun requestDownload(artist: String, title: String, album: String) {
+        scope.launch {
+            downloader.download(artist, title, album) { status ->
+                downloadStatus = status
+                notifyChange()
+                if (status.stage == DownloadStage.DONE) refreshAfterDownload()
+            }
+        }
+    }
+
+    private fun refreshAfterDownload() {
+        scope.launch { kotlinx.coroutines.delay(15_000L); mergeJellyfin(); mergePlex(); mergeNas() }
+        scope.launch { kotlinx.coroutines.delay(40_000L); mergeJellyfin(); mergePlex(); mergeNas() }
+    }
 
     /** Any track by file path (playlists and favourites store paths). */
     fun byPath(): Map<String, Track> = derive().byPath
@@ -194,7 +227,7 @@ class Library(ctx: Context, val art: ArtCache) {
                 source = Source.SYNC
                 syncDeviceLabel = "$deviceRoot  ($host)"
                 derive()
-                mergeJellyfin(); mergePlex(); mergeNas()
+                mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd()
             } catch (e: Exception) {
                 syncError = e.message ?: "Connection failed"
             } finally {
@@ -210,7 +243,7 @@ class Library(ctx: Context, val art: ArtCache) {
         syncGroups = emptyList(); syncDeviceLabel = null; syncError = null
         source = Source.LOCAL
         derive(); notifyChange()
-        mergeJellyfin(); mergePlex(); mergeNas()
+        mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd()
     }
 
     /**
@@ -342,6 +375,72 @@ class Library(ctx: Context, val art: ArtCache) {
         }
     }
 
+    /** Lidarr/slskd aren't music sources to merge in -- just download targets -- so unlike
+     * Jellyfin/Plex/NAS there's nothing to fetch on a rescan, just a lightweight reachability check
+     * so Settings shows "Connected" again without the user re-entering anything. */
+    private fun checkLidarr() {
+        val url = prefs.lidarrUrl; val key = prefs.lidarrApiKey
+        if (url.isBlank() || key.isBlank()) return
+        scope.launch {
+            try {
+                val (ok, info) = lidarr.testConnection(url, key)
+                lidarrConnected = ok
+                if (ok) { lidarrStatus = info?.let { "Connected to $it" } ?: "Connected"; notifyChange() }
+            } catch (_: Exception) { /* offline or unreachable -- keep showing what's already there */ }
+        }
+    }
+
+    fun connectLidarr(url: String, apiKey: String) {
+        if (lidarrConnecting) return
+        lidarrConnecting = true; lidarrStatus = null; notifyChange()
+        scope.launch {
+            try {
+                val (ok, info) = lidarr.testConnection(url, apiKey)
+                if (!ok) { lidarrStatus = "Could not connect: $info"; lidarrConnected = false; return@launch }
+                prefs.lidarrUrl = url; prefs.lidarrApiKey = apiKey
+                lidarrConnected = true
+                lidarrStatus = info?.let { "Connected to $it" } ?: "Connected"
+            } catch (e: Exception) {
+                lidarrStatus = "Could not connect: ${e.message}"; lidarrConnected = false
+            } finally {
+                lidarrConnecting = false; notifyChange()
+            }
+        }
+    }
+
+    private fun checkSlskd() {
+        val url = prefs.slskdUrl; val key = prefs.slskdApiKey
+        if (url.isBlank() || key.isBlank()) return
+        scope.launch {
+            try {
+                val (ok, info) = slskd.testConnection(url, key)
+                slskdConnected = ok
+                if (ok) { slskdStatus = info?.let { "Connected (slskd $it)" } ?: "Connected"; notifyChange() }
+            } catch (_: Exception) { /* offline or unreachable -- keep showing what's already there */ }
+        }
+    }
+
+    /** Soulseek is optional (Lidarr alone is a complete, working fallback), so this saves a blank
+     * downloadPath as "not configured" rather than erroring. */
+    fun connectSlskd(url: String, apiKey: String, downloadPath: String) {
+        if (slskdConnecting) return
+        slskdConnecting = true; slskdStatus = null; notifyChange()
+        scope.launch {
+            try {
+                val (ok, info) = slskd.testConnection(url, apiKey)
+                if (!ok) { slskdStatus = "Could not connect: $info"; slskdConnected = false; return@launch }
+                prefs.slskdUrl = url; prefs.slskdApiKey = apiKey
+                if (downloadPath.isNotBlank()) prefs.slskdDownloadPath = downloadPath
+                slskdConnected = true
+                slskdStatus = info?.let { "Connected (slskd $it)" } ?: "Connected"
+            } catch (e: Exception) {
+                slskdStatus = "Could not connect: ${e.message}"; slskdConnected = false
+            } finally {
+                slskdConnecting = false; notifyChange()
+            }
+        }
+    }
+
     private fun applyNasMerge() = mergeExtra(nasTracks)
 
     /** Folds [extraSource] into [tracks], dropping anything that's a title+artist match for a track
@@ -370,7 +469,7 @@ class Library(ctx: Context, val art: ArtCache) {
             notifyChange()
         }
         localTracks = res.tracks; localM3u = res.playlists
-        if (source == Source.LOCAL) { tracks = localTracks; m3uPlaylists = localM3u; derive(); mergeJellyfin(); mergePlex(); mergeNas() }
+        if (source == Source.LOCAL) { tracks = localTracks; m3uPlaylists = localM3u; derive(); mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd() }
         art.forgetMisses()
         save()
     }

@@ -56,6 +56,16 @@
     </div>
 }
 
+@{ var counts = MergedRows.GroupBy(r => r.Source).ToDictionary(g => g.Key, g => g.Count()); }
+<div class="row" style="margin-top:12px">
+    <button class="pill pill-filter @(_sourceFilter is null ? "active" : "")" @onclick="() => _sourceFilter = null">All (@MergedRows.Count)</button>
+    @foreach (var s in new[] { TrackSource.Local, TrackSource.Ipod, TrackSource.Jellyfin })
+    {
+        if (!counts.TryGetValue(s, out var n)) continue;
+        <button class="pill @PillClass(s) pill-filter @(_sourceFilter == s ? "active" : "")" @onclick="() => _sourceFilter = s">@s (@n)</button>
+    }
+</div>
+
 @if (Rows.Count == 0)
 {
     <div class="empty" style="margin-top:20px"><p class="small">Nothing to show yet -- load an iPod, scan a folder, or connect Jellyfin above.</p></div>
@@ -64,7 +74,7 @@ else
 {
     <div class="table-wrap tall" style="margin-top:14px">
         <table class="data-table">
-            <colgroup><col style="width:44px" /><col /><col style="width:20%" /><col style="width:20%" /><col style="width:64px" /><col style="width:70px" /></colgroup>
+            <colgroup><col style="width:44px" /><col /><col style="width:20%" /><col style="width:20%" /><col style="width:64px" /><col style="width:80px" /></colgroup>
             <thead><tr><th></th><th>Title</th><th>Artist</th><th>Album</th><th class="num">Time</th><th>Source</th></tr></thead>
             <tbody>
                 @foreach (var row in Rows)
@@ -75,7 +85,7 @@ else
                         <td>@row.Artist</td>
                         <td>@row.Album</td>
                         <td class="num faint">@Time((int)row.Duration.TotalMilliseconds)</td>
-                        <td class="small muted">@row.Source</td>
+                        <td><span class="pill @PillClass(row.Source)">@row.Source</span></td>
                     </tr>
                 }
             </tbody>
@@ -111,6 +121,7 @@ else
     private string _query = "";
     private bool _showSetup = true;
     private PlayableTrack? _current;
+    private TrackSource? _sourceFilter;
 
     protected override async Task OnInitializedAsync()
     {
@@ -121,10 +132,12 @@ else
         _showSetup = !_jellyfinConnected && _localTracks is null;
     }
 
-    /// <summary>The merged, deduplicated list this page shows -- Local and iPod filtered
-    /// in-memory, Jellyfin's own search/recent-added results folded in only while connected
-    /// (so an unreachable Jellyfin quietly drops out instead of showing dead rows).</summary>
-    private List<PlayableTrack> Rows
+    /// <summary>The merged, deduplicated list -- Local and iPod filtered in-memory, Jellyfin's
+    /// own search/recent-added results folded in only while connected (so an unreachable
+    /// Jellyfin quietly drops out instead of showing dead rows). Dedup is exactly
+    /// ListenLibrary.Merge's cross-source-only logic, untouched by the source filter below --
+    /// that's a pure display-layer narrowing of this same list, not a second merge pass.</summary>
+    private List<PlayableTrack> MergedRows
     {
         get
         {
@@ -140,6 +153,25 @@ else
             return ListenLibrary.Merge(local, ipod, jf);
         }
     }
+
+    /// <summary>What the table actually shows: MergedRows narrowed to one source when a filter
+    /// chip is active, or everything when "All" is selected (the default).</summary>
+    private List<PlayableTrack> Rows
+    {
+        get
+        {
+            var merged = MergedRows;
+            return _sourceFilter is { } f ? merged.Where(r => r.Source == f).ToList() : merged;
+        }
+    }
+
+    private static string PillClass(TrackSource s) => s switch
+    {
+        TrackSource.Local => "src-local",
+        TrackSource.Ipod => "src-ipod",
+        TrackSource.Jellyfin => "src-jellyfin",
+        _ => "",
+    };
 
     private bool Matches(string title, string? artist) =>
         title.Contains(_query, StringComparison.OrdinalIgnoreCase) || (artist?.Contains(_query, StringComparison.OrdinalIgnoreCase) ?? false);

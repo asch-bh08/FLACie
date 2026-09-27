@@ -76,7 +76,7 @@ fun LidarrSetupScreen() {
             }
             Txt("Lets a search's \"Download\" option request a track you don't have yet.", size = 13f, maxLines = 3)
 
-            field("Server URL (e.g. a Tailscale URL)", url, { url = it }, focus = true)
+            field("Server URL (e.g. https://frank.tailb05910.ts.net/lidarr)", url, { url = it }, focus = true)
             field("API key (Lidarr > Settings > General)", apiKey, { apiKey = it })
             GlossPill(if (lib.lidarrConnecting) "Connecting…" else "Connect", {
                 if (url.isNotBlank() && apiKey.isNotBlank()) lib.connectLidarr(url.trim(), apiKey.trim())

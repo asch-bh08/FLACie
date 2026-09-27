@@ -43,5 +43,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.2")
     implementation("androidx.palette:palette-ktx:1.0.0")
     implementation("androidx.profileinstaller:profileinstaller:1.3.1")
+    // SMB/CIFS network-share browsing for the NAS source (pure-Java SMB2/3 client, no native code).
+    implementation("eu.agno3.jcifs:jcifs-ng:2.1.10")
     testImplementation("junit:junit:4.13.2")
 }

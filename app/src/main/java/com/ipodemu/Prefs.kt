@@ -103,6 +103,44 @@ class Prefs(ctx: Context) {
     var syncHost: String
         get() = sp.getString("synchost", "") ?: ""
         set(v) = sp.edit().putString("synchost", v).apply()
+    /** Jellyfin server this app talks to directly (no PC/ipodsync in the loop), e.g.
+     * "http://192.168.1.183:8096" or a Tailscale URL. */
+    var jellyfinUrl: String
+        get() = sp.getString("jfurl", "") ?: ""
+        set(v) = sp.edit().putString("jfurl", v).apply()
+    var jellyfinApiKey: String
+        get() = sp.getString("jfkey", "") ?: ""
+        set(v) = sp.edit().putString("jfkey", v).apply()
+
+    /** Plex server this app talks to directly, e.g. "http://192.168.1.183:32400" or a Tailscale URL. */
+    var plexUrl: String
+        get() = sp.getString("plexurl", "") ?: ""
+        set(v) = sp.edit().putString("plexurl", v).apply()
+    var plexToken: String
+        get() = sp.getString("plextoken", "") ?: ""
+        set(v) = sp.edit().putString("plextoken", v).apply()
+
+    /** NAS share this app browses directly over SMB, e.g. host "192.168.1.50", share "Music". */
+    var nasHost: String
+        get() = sp.getString("nashost", "") ?: ""
+        set(v) = sp.edit().putString("nashost", v).apply()
+    var nasShare: String
+        get() = sp.getString("nasshare", "") ?: ""
+        set(v) = sp.edit().putString("nasshare", v).apply()
+    /** Subfolder within the share to scan, e.g. "Music/Flac"; blank scans the whole share. */
+    var nasFolder: String
+        get() = sp.getString("nasfolder", "") ?: ""
+        set(v) = sp.edit().putString("nasfolder", v).apply()
+    var nasUsername: String
+        get() = sp.getString("nasuser", "") ?: ""
+        set(v) = sp.edit().putString("nasuser", v).apply()
+    var nasPassword: String
+        get() = sp.getString("naspass", "") ?: ""
+        set(v) = sp.edit().putString("naspass", v).apply()
+    /** NT domain/workgroup for the share's account; most home NAS boxes leave this blank. */
+    var nasDomain: String
+        get() = sp.getString("nasdomain", "") ?: ""
+        set(v) = sp.edit().putString("nasdomain", v).apply()
 
     /** Reset Settings: everything except the chosen iPod, colour and look. */
     fun reset() {

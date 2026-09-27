@@ -84,6 +84,9 @@ fun SettingsScreen(nav: PlayerNav) {
                     SettingRow("Songs", "${app.library.songs().size}") { }
                     SettingRow("Rescan Library", if (app.library.scanning) "Scanning ${app.library.scanCount}..." else null) { app.library.rescan() }
                     SettingRow("Sync", app.library.syncDeviceLabel ?: "Local Library", chevron = true) { ui.syncSetupOpen = true }
+                    SettingRow("Jellyfin", if (app.library.jellyfinConnected) "Connected" else "Not connected", chevron = true) { ui.jellyfinSetupOpen = true }
+                    SettingRow("Plex", if (app.library.plexConnected) "Connected" else "Not connected", chevron = true) { ui.plexSetupOpen = true }
+                    SettingRow("NAS", if (app.library.nasConnected) "Connected" else "Not connected", chevron = true) { ui.nasSetupOpen = true }
                 }
             }
             item { SectionHeader("Controls") }

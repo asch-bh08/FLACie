@@ -81,7 +81,7 @@ val LocalApp = staticCompositionLocalOf<App> { error("App not provided") }
 
 enum class Glyph {
     PLAY, PAUSE, NEXT, PREV, SHUFFLE, REPEAT, REPEAT_ONE, HEART, HEART_FILLED, SEARCH, QUEUE, CHEVRON, BACK, MORE, CLOSE,
-    NOTE, GEAR, VOLUME, CHECK, PLUS, ALBUM, ARTIST, MIC, CLOCK, IPOD, LIST, STAR, DOWN, JELLYFIN,
+    NOTE, GEAR, VOLUME, CHECK, PLUS, ALBUM, ARTIST, MIC, CLOCK, IPOD, LIST, STAR, DOWN, JELLYFIN, PLEX, NAS,
 }
 
 @Composable
@@ -216,6 +216,18 @@ fun DrawScope.drawGlyph(g: Glyph, c: Color) {
             drawCircle(c, s * .22f, Offset(x(.5f), y(.42f)))
             drawCircle(c, s * .17f, Offset(x(.72f), y(.56f)))
             drawRoundRect(c, Offset(x(.16f), y(.56f)), Size(s * .68f, s * .22f), androidx.compose.ui.geometry.CornerRadius(s * .11f))
+        }
+        Glyph.PLEX -> {
+            // Plex's own mark: an arc wrapped around a play triangle.
+            drawArc(c, -50f, 280f, false, Offset(x(.14f), y(.14f)), Size(s * .72f, s * .72f), style = line)
+            drawPath(path { moveTo(x(.42f), y(.36f)); lineTo(x(.68f), y(.5f)); lineTo(x(.42f), y(.64f)); close() }, c)
+        }
+        Glyph.NAS -> {
+            // Two stacked drive bays, like a small network-attached-storage tower.
+            drawRoundRect(c, Offset(x(.2f), y(.14f)), Size(s * .6f, s * .32f), androidx.compose.ui.geometry.CornerRadius(s * .06f), style = line)
+            drawRoundRect(c, Offset(x(.2f), y(.54f)), Size(s * .6f, s * .32f), androidx.compose.ui.geometry.CornerRadius(s * .06f), style = line)
+            drawCircle(c, s * .04f, Offset(x(.3f), y(.3f)))
+            drawCircle(c, s * .04f, Offset(x(.3f), y(.7f)))
         }
     }
 }

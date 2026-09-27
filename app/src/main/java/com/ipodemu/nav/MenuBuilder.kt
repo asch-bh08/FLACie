@@ -145,6 +145,9 @@ class MenuBuilder(private val app: App, private val onThemeChosen: (String) -> U
                 lib.rescan(); it.redraw()
             },
             Item("Sync", value = { lib.syncDeviceLabel ?: "Local Library" }) { app.ui.syncSetupOpen = true },
+            Item("Jellyfin", value = { if (lib.jellyfinConnected) "Connected" else "Not connected" }) { app.ui.jellyfinSetupOpen = true },
+            Item("Plex", value = { if (lib.plexConnected) "Connected" else "Not connected" }) { app.ui.plexSetupOpen = true },
+            Item("NAS", value = { if (lib.nasConnected) "Connected" else "Not connected" }) { app.ui.nasSetupOpen = true },
             Item("Reset Settings") { it.push(resetPage()) },
         ))
     }

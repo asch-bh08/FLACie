@@ -13,16 +13,82 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.TransferListener
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.ipodemu.App
 import com.ipodemu.Prefs
+import com.ipodemu.library.NasSmb
 import com.ipodemu.library.Track
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.ln
 
+/** Handles the two kinds of playback DefaultDataSource can't do on its own: an smb:// NAS file
+ * (opened via jcifs-ng, no HTTP involved) or an http(s) request to the configured Jellyfin/Plex
+ * server, which needs its auth token attached as a real header -- never in the URL itself. A plain
+ * HTML &lt;audio src&gt; has no way to set a header, which is why ipodsync's own web player puts
+ * keys in the query string instead; ExoPlayer has no such limitation, so there's no reason to
+ * accept that exposure here. DefaultDataSource (see below) only ever hands this factory http(s)
+ * and smb URIs -- file:/content:/asset: local tracks are handled by Android's own readers first. */
+@OptIn(UnstableApi::class)
+private class MultiServerDataSource(private val prefs: Prefs) : DataSource {
+    private val http = DefaultHttpDataSource.Factory().createDataSource()
+    private var smbStream: jcifs.smb.SmbFileInputStream? = null
+    private var smbUri: Uri? = null
+    private var usingSmb = false
+
+    override fun open(dataSpec: DataSpec): Long {
+        usingSmb = dataSpec.uri.scheme == "smb"
+        if (usingSmb) {
+            val nasCtx = NasSmb.context(prefs.nasUsername, prefs.nasPassword, prefs.nasDomain)
+            val file = jcifs.smb.SmbFile(dataSpec.uri.toString(), nasCtx)
+            val stream = jcifs.smb.SmbFileInputStream(file)
+            if (dataSpec.position > 0) stream.skip(dataSpec.position)
+            smbStream = stream
+            smbUri = dataSpec.uri
+            val remaining = file.length() - dataSpec.position
+            return if (dataSpec.length != C.LENGTH_UNSET.toLong()) dataSpec.length else remaining
+        }
+        val uriStr = dataSpec.uri.toString()
+        val jfUrl = prefs.jellyfinUrl.trimEnd('/')
+        val plexUrl = prefs.plexUrl.trimEnd('/')
+        http.clearAllRequestProperties()
+        when {
+            jfUrl.isNotBlank() && uriStr.startsWith(jfUrl) -> http.setRequestProperty("X-Emby-Token", prefs.jellyfinApiKey)
+            plexUrl.isNotBlank() && uriStr.startsWith(plexUrl) -> http.setRequestProperty("X-Plex-Token", prefs.plexToken)
+        }
+        return http.open(dataSpec)
+    }
+
+    override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+        if (usingSmb) (smbStream?.read(buffer, offset, length) ?: -1) else http.read(buffer, offset, length)
+
+    override fun addTransferListener(transferListener: TransferListener) { if (!usingSmb) http.addTransferListener(transferListener) }
+    override fun getUri() = if (usingSmb) smbUri else http.uri
+    override fun getResponseHeaders(): Map<String, List<String>> = if (usingSmb) emptyMap() else http.responseHeaders
+    override fun close() {
+        if (usingSmb) { try { smbStream?.close() } catch (_: Exception) {}; smbStream = null } else http.close()
+    }
+}
+
+@OptIn(UnstableApi::class)
+private class MultiServerDataSourceFactory(private val prefs: Prefs) : DataSource.Factory {
+    override fun createDataSource(): DataSource = MultiServerDataSource(prefs)
+}
+
 class PlayerController(private val ctx: Context, private val prefs: Prefs) {
+    @OptIn(UnstableApi::class)
     val exo: ExoPlayer = ExoPlayer.Builder(ctx)
+        // DefaultDataSource routes file:/content:/asset: URIs to Android's own local-file readers and only
+        // hands http(s)/smb requests to our factory below -- otherwise every local track tries to open through
+        // an HTTP-only data source and fails silently.
+        .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(ctx, MultiServerDataSourceFactory(prefs))))
         .setAudioAttributes(
             AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true
         )
@@ -215,8 +281,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         val art = t.artKey?.let { k -> app.art.file(k).takeIf { it.exists() } }
         val md = MediaMetadata.Builder().setTitle(t.title).setArtist(t.artist.ifEmpty { null }).setAlbumTitle(t.album.ifEmpty { null })
         if (art != null) md.setArtworkUri(Uri.fromFile(art))
-        val uri = if (t.path.startsWith("content:") || t.path.startsWith("file:") || t.path.startsWith("http:") || t.path.startsWith("https:"))
-            Uri.parse(t.path) else Uri.fromFile(File(t.path))
+        val uri = if (t.path.startsWith("content:") || t.path.startsWith("file:") || t.path.startsWith("http:") ||
+            t.path.startsWith("https:") || t.path.startsWith("smb:")) Uri.parse(t.path) else Uri.fromFile(File(t.path))
         return MediaItem.Builder().setMediaId(t.path).setUri(uri).setTag(t)
             .setMediaMetadata(md.build()).build()
     }

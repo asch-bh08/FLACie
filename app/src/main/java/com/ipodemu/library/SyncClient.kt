@@ -65,37 +65,6 @@ class SyncClient {
         SyncLibrary(byId.values.toList(), groups)
     }
 
-    /** ipodsync's merged Jellyfin+local+iPod view (see IpodSync.Core.Listen.ListenLibrary), called
-     * with no root/folder so it returns just whatever ipodsync has Jellyfin configured for. Each
-     * track's path is already a real, directly-playable URL through ipodsync's own proxy (the
-     * Jellyfin API key stays server-side; this app never sees or sends it). */
-    suspend fun listen(host: String): List<Track> = withContext(Dispatchers.IO) {
-        val arr = JSONArray(get("http://$host/api/listen"))
-        fun str(o: JSONObject, key: String) = if (o.isNull(key)) "" else o.optString(key)
-        (0 until arr.length()).mapNotNull { i ->
-            val t = arr.getJSONObject(i)
-            val streamUrl = str(t, "streamUrl")
-            if (streamUrl.isEmpty()) return@mapNotNull null
-            Track(
-                path = "http://$host$streamUrl",
-                title = str(t, "title").ifEmpty { "(untitled)" },
-                artist = str(t, "artist"),
-                album = str(t, "album"),
-                albumArtist = str(t, "artist"),
-                genre = "",
-                trackNo = 0,
-                discNo = 0,
-                durationMs = t.optLong("durationMs"),
-                year = 0,
-                isMusic = true,
-                artKey = null,
-                mtime = 0L,
-                size = 0L,
-                source = TrackSource.JELLYFIN,
-            )
-        }
-    }
-
     private fun get(url: String): String {
         val conn = URL(url).openConnection() as HttpURLConnection
         conn.connectTimeout = 5000

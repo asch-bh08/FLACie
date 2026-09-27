@@ -30,6 +30,20 @@ class Library(ctx: Context, val art: ArtCache) {
     @Volatile var discoveringDevices = false; private set
     @Volatile var lastSyncSearch: String? = null; private set
 
+    /** Jellyfin/Plex/NAS connection state, for their Settings screens' own connect/status UI
+     * (separate from [mergeJellyfin]/[mergePlex]/[mergeNas]'s silent background attempts on every rescan). */
+    @Volatile var jellyfinConnecting = false; private set
+    @Volatile var jellyfinConnected = false; private set
+    @Volatile var jellyfinStatus: String? = null; private set
+
+    @Volatile var plexConnecting = false; private set
+    @Volatile var plexConnected = false; private set
+    @Volatile var plexStatus: String? = null; private set
+
+    @Volatile var nasConnecting = false; private set
+    @Volatile var nasConnected = false; private set
+    @Volatile var nasStatus: String? = null; private set
+
     @Volatile var tracks: List<Track> = emptyList(); private set
     /** Playlists read from .m3u/.m3u8 files: name -> track paths. Local-source only. */
     @Volatile var m3uPlaylists: Map<String, List<String>> = emptyMap(); private set
@@ -52,12 +66,19 @@ class Library(ctx: Context, val art: ArtCache) {
     private var job: Job? = null
     private val scanner = Scanner(ctx, art)
     private val sync = SyncClient()
+    private val jellyfin = JellyfinDirectClient()
+    @Volatile private var jellyfinUserId: String? = null
+    private val plex = PlexDirectClient()
+    @Volatile private var plexSectionKey: String? = null
+    private val nas = NasDirectClient()
     private val prefs = Prefs(ctx)
-    /** Jellyfin tracks from ipodsync's merged /api/listen -- both folded into [tracks] (deduped
-     * against whatever else is showing) and exposed here on their own, for a dedicated "Jellyfin"
-     * library section (like Playlists/Artists/etc) separate from the blended view. Kept cached so
-     * re-merging (after a rescan, or switching Sync devices) doesn't need a fresh network round trip. */
+    /** Jellyfin/Plex/NAS tracks -- each both folded into [tracks] (deduped against whatever else is
+     * showing) and exposed here on its own, for a dedicated library section (like Playlists/Artists/
+     * etc) separate from the blended view. Kept cached so re-merging (after a rescan, or switching
+     * Sync devices) doesn't need a fresh network round trip. */
     @Volatile var jellyfinTracks: List<Track> = emptyList(); private set
+    @Volatile var plexTracks: List<Track> = emptyList(); private set
+    @Volatile var nasTracks: List<Track> = emptyList(); private set
 
     /** Any track by file path (playlists and favourites store paths). */
     fun byPath(): Map<String, Track> = derive().byPath
@@ -173,7 +194,7 @@ class Library(ctx: Context, val art: ArtCache) {
                 source = Source.SYNC
                 syncDeviceLabel = "$deviceRoot  ($host)"
                 derive()
-                mergeJellyfin()
+                mergeJellyfin(); mergePlex(); mergeNas()
             } catch (e: Exception) {
                 syncError = e.message ?: "Connection failed"
             } finally {
@@ -189,32 +210,148 @@ class Library(ctx: Context, val art: ArtCache) {
         syncGroups = emptyList(); syncDeviceLabel = null; syncError = null
         source = Source.LOCAL
         derive(); notifyChange()
-        mergeJellyfin()
+        mergeJellyfin(); mergePlex(); mergeNas()
     }
 
     /**
      * The "General Music Player" behaviour: whatever's on screen (local files, or a Sync-mode
-     * iPod) quietly also gets Jellyfin's tracks folded in when a sync host is configured and
-     * reachable -- same song in both places (by normalized title+artist) shows once, preferring
-     * the copy that doesn't need network. If Jellyfin can't be reached right now (no host
-     * configured, no network, ipodsync down), this fails silently and whatever was already
+     * iPod) quietly also gets Jellyfin's tracks folded in when a Jellyfin server is configured --
+     * same song in both places (by normalized title+artist) shows once, preferring the copy that
+     * doesn't need network. Talks to Jellyfin directly (no PC/ipodsync in the loop at all), so
+     * this works whether or not anything else is turned on. If Jellyfin can't be reached right
+     * now (not configured, no network, server down), this fails silently and whatever was already
      * showing just stays as-is -- no error, no retry loop.
      */
     private fun mergeJellyfin() {
-        val host = prefs.syncHost
-        if (host.isBlank()) return
+        val url = prefs.jellyfinUrl
+        val key = prefs.jellyfinApiKey
+        if (url.isBlank() || key.isBlank()) return
         scope.launch {
             try {
-                jellyfinTracks = sync.listen(host)
+                val userId = jellyfinUserId ?: jellyfin.firstUserId(url, key)?.also { jellyfinUserId = it } ?: return@launch
+                jellyfinTracks = jellyfin.allAudio(url, key, userId)
+                jellyfinConnected = true
                 applyJellyfinMerge()
             } catch (_: Exception) { /* offline or unreachable -- keep showing what's already there */ }
         }
     }
 
-    private fun applyJellyfinMerge() {
-        if (jellyfinTracks.isEmpty()) return
+    /** Settings > Jellyfin's "Connect" button: tests the server, saves it, and does the first
+     * fetch+merge right away rather than waiting for the next background attempt. */
+    fun connectJellyfin(url: String, apiKey: String) {
+        if (jellyfinConnecting) return
+        jellyfinConnecting = true; jellyfinStatus = null; notifyChange()
+        scope.launch {
+            try {
+                val (ok, info) = jellyfin.testConnection(url, apiKey)
+                if (!ok) { jellyfinStatus = "Could not connect: $info"; jellyfinConnected = false; return@launch }
+                val userId = jellyfin.firstUserId(url, apiKey)
+                if (userId == null) { jellyfinStatus = "Connected, but this server has no users."; jellyfinConnected = false; return@launch }
+                jellyfinUserId = userId
+                prefs.jellyfinUrl = url; prefs.jellyfinApiKey = apiKey
+                jellyfinTracks = jellyfin.allAudio(url, apiKey, userId)
+                jellyfinConnected = true
+                jellyfinStatus = info?.let { "Connected to $it" } ?: "Connected"
+                applyJellyfinMerge()
+            } catch (e: Exception) {
+                jellyfinStatus = "Could not connect: ${e.message}"; jellyfinConnected = false
+            } finally {
+                jellyfinConnecting = false; notifyChange()
+            }
+        }
+    }
+
+    private fun applyJellyfinMerge() = mergeExtra(jellyfinTracks)
+
+    /** Same direct-connect pattern as Jellyfin, against a Plex Media Server's own REST API. */
+    private fun mergePlex() {
+        val url = prefs.plexUrl
+        val token = prefs.plexToken
+        if (url.isBlank() || token.isBlank()) return
+        scope.launch {
+            try {
+                val key = plexSectionKey ?: plex.firstMusicSectionKey(url, token)?.also { plexSectionKey = it } ?: return@launch
+                plexTracks = plex.allAudio(url, token, key)
+                plexConnected = true
+                applyPlexMerge()
+            } catch (_: Exception) { /* offline or unreachable -- keep showing what's already there */ }
+        }
+    }
+
+    /** Settings > Plex's "Connect" button: tests the server, saves it, and does the first fetch+merge right away. */
+    fun connectPlex(url: String, token: String) {
+        if (plexConnecting) return
+        plexConnecting = true; plexStatus = null; notifyChange()
+        scope.launch {
+            try {
+                val (ok, info) = plex.testConnection(url, token)
+                if (!ok) { plexStatus = "Could not connect: $info"; plexConnected = false; return@launch }
+                val key = plex.firstMusicSectionKey(url, token)
+                if (key == null) { plexStatus = "Connected, but this server has no music library."; plexConnected = false; return@launch }
+                plexSectionKey = key
+                prefs.plexUrl = url; prefs.plexToken = token
+                plexTracks = plex.allAudio(url, token, key)
+                plexConnected = true
+                plexStatus = info?.let { "Connected to $it" } ?: "Connected"
+                applyPlexMerge()
+            } catch (e: Exception) {
+                plexStatus = "Could not connect: ${e.message}"; plexConnected = false
+            } finally {
+                plexConnecting = false; notifyChange()
+            }
+        }
+    }
+
+    private fun applyPlexMerge() = mergeExtra(plexTracks)
+
+    /** Same idea again, but for a plain SMB/CIFS network share instead of a media server's API --
+     * see [NasDirectClient] for how titles/artists/albums get inferred with no metadata service. */
+    private fun mergeNas() {
+        val host = prefs.nasHost
+        val share = prefs.nasShare
+        if (host.isBlank() || share.isBlank()) return
+        scope.launch {
+            try {
+                nasTracks = nas.scanTracks(host, share, prefs.nasFolder, prefs.nasUsername, prefs.nasPassword, prefs.nasDomain)
+                nasConnected = true
+                applyNasMerge()
+            } catch (_: Exception) { /* offline or unreachable -- keep showing what's already there */ }
+        }
+    }
+
+    /** Settings > NAS's "Connect" button: tests the share, saves it, and does the first scan+merge right away. */
+    fun connectNas(host: String, share: String, folder: String, username: String, password: String, domain: String) {
+        if (nasConnecting) return
+        nasConnecting = true; nasStatus = null; notifyChange()
+        scope.launch {
+            try {
+                val (ok, info) = nas.testConnection(host, share, folder, username, password, domain)
+                if (!ok) { nasStatus = "Could not connect: $info"; nasConnected = false; return@launch }
+                val found = nas.scanTracks(host, share, folder, username, password, domain)
+                prefs.nasHost = host; prefs.nasShare = share; prefs.nasFolder = folder
+                prefs.nasUsername = username; prefs.nasPassword = password; prefs.nasDomain = domain
+                nasTracks = found
+                nasConnected = true
+                nasStatus = "Connected -- ${found.size} tracks found"
+                applyNasMerge()
+            } catch (e: Exception) {
+                nasStatus = "Could not connect: ${e.message}"; nasConnected = false
+            } finally {
+                nasConnecting = false; notifyChange()
+            }
+        }
+    }
+
+    private fun applyNasMerge() = mergeExtra(nasTracks)
+
+    /** Folds [extraSource] into [tracks], dropping anything that's a title+artist match for a track
+     * already showing -- whichever source got merged first (local/sync, then Jellyfin, then Plex,
+     * then NAS, per the call order in [runScan]/[useLocal]) wins the dedup, same cross-source-only
+     * rule ipodsync's ListenLibrary.Merge uses. */
+    private fun mergeExtra(extraSource: List<Track>) {
+        if (extraSource.isEmpty()) return
         val seen = tracks.mapTo(HashSet()) { dedupKey(it) }
-        val extra = jellyfinTracks.filter { dedupKey(it) !in seen }
+        val extra = extraSource.filter { dedupKey(it) !in seen }
         if (extra.isEmpty()) return
         tracks = tracks + extra
         derive(); notifyChange()
@@ -233,7 +370,7 @@ class Library(ctx: Context, val art: ArtCache) {
             notifyChange()
         }
         localTracks = res.tracks; localM3u = res.playlists
-        if (source == Source.LOCAL) { tracks = localTracks; m3uPlaylists = localM3u; derive(); mergeJellyfin() }
+        if (source == Source.LOCAL) { tracks = localTracks; m3uPlaylists = localM3u; derive(); mergeJellyfin(); mergePlex(); mergeNas() }
         art.forgetMisses()
         save()
     }

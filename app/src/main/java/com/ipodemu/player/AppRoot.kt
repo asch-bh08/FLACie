@@ -68,6 +68,9 @@ fun AppRoot(activity: MainActivity) {
             } else PlayerRoot(activity, nav)
             if (ui.pickerOpen) PickerScreen()
             if (ui.syncSetupOpen) SyncSetupScreen()
+            if (ui.jellyfinSetupOpen) JellyfinSetupScreen()
+            if (ui.plexSetupOpen) PlexSetupScreen()
+            if (ui.nasSetupOpen) NasSetupScreen()
         }
     }
 }

@@ -22,6 +22,10 @@ class UiState(private val prefs: Prefs) {
     var pickerOpen by mutableStateOf(false)
     /** Sync mode setup overlay (Settings > Sync), same pattern as [pickerOpen]. */
     var syncSetupOpen by mutableStateOf(false)
+    /** Jellyfin/Plex/NAS direct-connect setup overlays (Settings > Jellyfin/Plex/NAS), same pattern as [syncSetupOpen]. */
+    var jellyfinSetupOpen by mutableStateOf(false)
+    var plexSetupOpen by mutableStateOf(false)
+    var nasSetupOpen by mutableStateOf(false)
     /** Bumped by the L1/R1 shoulder buttons while the picker is open (-1 / +1 via [pickerStepDir]) to cycle the carousel. */
     var pickerStep by mutableStateOf(0)
     var pickerStepDir = 0

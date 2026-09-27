@@ -89,7 +89,7 @@ import kotlinx.coroutines.withContext
 
 enum class LibKind(val title: String) {
     SONGS("Songs"), ALBUMS("Albums"), ARTISTS("Artists"), PLAYLISTS("Playlists"), GENRES("Genres"), MEMOS("Voice Memos"),
-    JELLYFIN("Jellyfin"),
+    JELLYFIN("Jellyfin"), PLEX("Plex"), NAS("NAS"),
 }
 
 enum class DetailKind { ALBUM, ARTIST, FOLDER, USER, GENRE, FAVORITES, RECENT, MIX }
@@ -300,6 +300,8 @@ private fun sourceColor(s: com.ipodemu.library.TrackSource): Color = when (s) {
     com.ipodemu.library.TrackSource.LOCAL -> Color(0xFF4EE0A1)
     com.ipodemu.library.TrackSource.IPOD -> Color(0xFF8B6BFF)
     com.ipodemu.library.TrackSource.JELLYFIN -> Color(0xFFFF6FAE)
+    com.ipodemu.library.TrackSource.PLEX -> Color(0xFFE5A00D)
+    com.ipodemu.library.TrackSource.NAS -> Color(0xFF5FB8E0)
 }
 
 @Composable
@@ -409,6 +411,8 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     MenuRow("Genres", Glyph.STAR, "${lib.genres().size}") { nav.push(Screen.Lib(LibKind.GENRES)) }
                     MenuRow("Voice Memos", Glyph.MIC, "${lib.memos.size}") { nav.push(Screen.Lib(LibKind.MEMOS)) }
                     if (lib.jellyfinTracks.isNotEmpty()) MenuRow("Jellyfin", Glyph.JELLYFIN, "${lib.jellyfinTracks.size}") { nav.push(Screen.Lib(LibKind.JELLYFIN)) }
+                    if (lib.plexTracks.isNotEmpty()) MenuRow("Plex", Glyph.PLEX, "${lib.plexTracks.size}") { nav.push(Screen.Lib(LibKind.PLEX)) }
+                    if (lib.nasTracks.isNotEmpty()) MenuRow("NAS", Glyph.NAS, "${lib.nasTracks.size}") { nav.push(Screen.Lib(LibKind.NAS)) }
                 }
             }
             if (recentAlbums.isNotEmpty()) {
@@ -509,6 +513,8 @@ private fun LibraryScreen(kind: LibKind, nav: PlayerNav, snap: PlayerSnap) {
             LibKind.GENRES -> GroupList(lib.genres(), nav, circle = false) { Screen.Detail(DetailKind.GENRE, it.name) }
             LibKind.PLAYLISTS -> PlaylistsList(nav)
             LibKind.JELLYFIN -> SongList(lib.jellyfinTracks.sortedBy { sortKey(it.title) }, nav, snap, showArt = true, sections = 1)
+            LibKind.PLEX -> SongList(lib.plexTracks.sortedBy { sortKey(it.title) }, nav, snap, showArt = true, sections = 1)
+            LibKind.NAS -> SongList(lib.nasTracks.sortedBy { sortKey(it.title) }, nav, snap, showArt = true, sections = 1)
         }
     }
 }

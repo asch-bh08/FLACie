@@ -215,7 +215,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         val art = t.artKey?.let { k -> app.art.file(k).takeIf { it.exists() } }
         val md = MediaMetadata.Builder().setTitle(t.title).setArtist(t.artist.ifEmpty { null }).setAlbumTitle(t.album.ifEmpty { null })
         if (art != null) md.setArtworkUri(Uri.fromFile(art))
-        val uri = if (t.path.startsWith("content:") || t.path.startsWith("file:")) Uri.parse(t.path) else Uri.fromFile(File(t.path))
+        val uri = if (t.path.startsWith("content:") || t.path.startsWith("file:") || t.path.startsWith("http:") || t.path.startsWith("https:"))
+            Uri.parse(t.path) else Uri.fromFile(File(t.path))
         return MediaItem.Builder().setMediaId(t.path).setUri(uri).setTag(t)
             .setMediaMetadata(md.build()).build()
     }

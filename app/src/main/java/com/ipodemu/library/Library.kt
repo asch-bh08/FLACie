@@ -3,6 +3,7 @@ package com.ipodemu.library
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import com.ipodemu.Prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -51,6 +52,11 @@ class Library(ctx: Context, val art: ArtCache) {
     private var job: Job? = null
     private val scanner = Scanner(ctx, art)
     private val sync = SyncClient()
+    private val prefs = Prefs(ctx)
+    /** Jellyfin tracks from ipodsync's merged /api/listen, last folded into [tracks]. Kept
+     * separately so re-merging (after a rescan, or switching Sync devices) doesn't need a
+     * fresh network round trip every time. */
+    @Volatile private var jellyfinTracks: List<Track> = emptyList()
 
     /** Any track by file path (playlists and favourites store paths). */
     fun byPath(): Map<String, Track> = derive().byPath
@@ -88,10 +94,14 @@ class Library(ctx: Context, val art: ArtCache) {
         return d
     }
 
-    /** Each top-level folder under Music/ is a playlist ("pop(FLAC)" -> "pop"); .m3u files add more. */
+    /** Each top-level folder under Music/ is a playlist ("pop(FLAC)" -> "pop"); .m3u files add more.
+     * Remote tracks (Jellyfin, folded in by [mergeJellyfin]) have no real folder structure in their
+     * path, so they sit out of folder-derived playlists entirely -- they still show up in Songs/
+     * Albums/Artists like any other track, just not grouped into a bogus one-track "playlist" here. */
     private fun buildPlaylists(music: List<Track>): List<Group> {
         val byFolder = LinkedHashMap<String, MutableList<Track>>()
         for (t in music) {
+            if (t.path.startsWith("http:") || t.path.startsWith("https:")) continue
             val dirs = t.path.split('/').dropLast(1)
             val mi = dirs.indexOfLast { it.equals("Music", ignoreCase = true) }
             val folder = (if (mi >= 0) dirs.getOrNull(mi + 1) else dirs.lastOrNull()) ?: continue
@@ -162,6 +172,7 @@ class Library(ctx: Context, val art: ArtCache) {
                 source = Source.SYNC
                 syncDeviceLabel = "$deviceRoot  ($host)"
                 derive()
+                mergeJellyfin()
             } catch (e: Exception) {
                 syncError = e.message ?: "Connection failed"
             } finally {
@@ -177,7 +188,38 @@ class Library(ctx: Context, val art: ArtCache) {
         syncGroups = emptyList(); syncDeviceLabel = null; syncError = null
         source = Source.LOCAL
         derive(); notifyChange()
+        mergeJellyfin()
     }
+
+    /**
+     * The "General Music Player" behaviour: whatever's on screen (local files, or a Sync-mode
+     * iPod) quietly also gets Jellyfin's tracks folded in when a sync host is configured and
+     * reachable -- same song in both places (by normalized title+artist) shows once, preferring
+     * the copy that doesn't need network. If Jellyfin can't be reached right now (no host
+     * configured, no network, ipodsync down), this fails silently and whatever was already
+     * showing just stays as-is -- no error, no retry loop.
+     */
+    private fun mergeJellyfin() {
+        val host = prefs.syncHost
+        if (host.isBlank()) return
+        scope.launch {
+            try {
+                jellyfinTracks = sync.listen(host)
+                applyJellyfinMerge()
+            } catch (_: Exception) { /* offline or unreachable -- keep showing what's already there */ }
+        }
+    }
+
+    private fun applyJellyfinMerge() {
+        if (jellyfinTracks.isEmpty()) return
+        val seen = tracks.mapTo(HashSet()) { dedupKey(it) }
+        val extra = jellyfinTracks.filter { dedupKey(it) !in seen }
+        if (extra.isEmpty()) return
+        tracks = tracks + extra
+        derive(); notifyChange()
+    }
+
+    private fun dedupKey(t: Track) = "${t.title.trim().lowercase()}|${t.artist.trim().lowercase()}"
 
     private suspend fun runScan() {
         val existing = localTracks.associateBy { it.path }
@@ -190,7 +232,7 @@ class Library(ctx: Context, val art: ArtCache) {
             notifyChange()
         }
         localTracks = res.tracks; localM3u = res.playlists
-        if (source == Source.LOCAL) { tracks = localTracks; m3uPlaylists = localM3u; derive() }
+        if (source == Source.LOCAL) { tracks = localTracks; m3uPlaylists = localM3u; derive(); mergeJellyfin() }
         art.forgetMisses()
         save()
     }

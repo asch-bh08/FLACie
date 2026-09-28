@@ -736,7 +736,7 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
 
 // ---- search -------------------------------------------------------------------------------------------------------
 
-private class Results(val songs: List<Track>, val albums: List<Group>, val artists: List<Group>)
+private class Results(val songs: List<Track>, val albums: List<Group>)
 
 /** A small "you already have this" tag, so an owned result reads as obviously different from a
  * catalog hit at a glance without needing to compare sections. */
@@ -751,26 +751,27 @@ private fun OwnedTag() {
 @Composable
 private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
     val app = LocalApp.current
-    rememberLibRev(app.library)
+    val libRev = rememberLibRev(app.library)
     // the focused text field used to swallow the first Back press; leave the screen straight away
     BackHandler(enabled = !app.ui.pickerOpen && nav.sheet == null && nav.nameDialog == null) { nav.pop() }
     val sc = LocalScheme.current
     var query by remember { mutableStateOf("") }
-    var results by remember { mutableStateOf(Results(emptyList(), emptyList(), emptyList())) }
+    var results by remember { mutableStateOf(Results(emptyList(), emptyList())) }
     var catalog by remember { mutableStateOf(com.ipodemu.library.CatalogResults.EMPTY) }
     var catalogLoading by remember { mutableStateOf(false) }
     val fr = remember { FocusRequester() }
     // no auto-focus: it popped the keyboard, whose first Back press hid it instead of leaving the screen (and trapped controller focus in the field)
-    LaunchedEffect(query) {
+    // Keyed on libRev too, not just query -- a download landing (Library's own background merge)
+    // used to leave stale results on screen until the user retyped the search themselves.
+    LaunchedEffect(query, libRev) {
         val q = query.trim()
-        if (q.isEmpty()) { results = Results(emptyList(), emptyList(), emptyList()); return@LaunchedEffect }
+        if (q.isEmpty()) { results = Results(emptyList(), emptyList()); return@LaunchedEffect }
         delay(140)
         results = withContext(Dispatchers.Default) {
             val lib = app.library
             Results(
                 lib.songs().filter { it.title.contains(q, true) || it.artist.contains(q, true) || it.album.contains(q, true) }.take(150),
                 lib.albums().filter { it.name.contains(q, true) || (it.tracks.firstOrNull()?.artist ?: "").contains(q, true) }.take(30),
-                lib.artists().filter { it.name.contains(q, true) }.take(30),
             )
         }
     }
@@ -799,8 +800,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         }
         val r = results
         val c = catalog
-        val nothingAtAll = r.songs.isEmpty() && r.albums.isEmpty() && r.artists.isEmpty() &&
-            c.artists.isEmpty() && c.albums.isEmpty() && c.tracks.isEmpty() && !catalogLoading
+        val nothingAtAll = r.songs.isEmpty() && r.albums.isEmpty() && c.albums.isEmpty() && c.tracks.isEmpty() && !catalogLoading
         if (query.isBlank()) EmptyState("Search your music")
         else if (nothingAtAll) {
             Column(Modifier.fillMaxSize()) {
@@ -809,11 +809,14 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             }
         }
         else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-            if (r.artists.isNotEmpty()) {
-                item { SectionHeader("Artists") }
-                items(r.artists.take(5), key = { "a" + it.name }) { g ->
-                    IpodRow({ nav.push(Screen.Detail(DetailKind.ARTIST, g.name)) }, height = 52.dp, leading = { ArtImage(g.artKey, Modifier.size(44.dp), thumb = true, circle = true) },
-                        trailing = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { OwnedTag(); GlyphIcon(Glyph.CHEVRON, Modifier.size(16.dp), sc.onBgDim) } }) { hi -> Txt(g.name, size = 16f, color = if (hi) Color.White else sc.onBg) }
+            if (r.songs.isNotEmpty()) {
+                item { SectionHeader("Songs") }
+                itemsIndexed(r.songs, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(r.songs, i, null); nav.nowPlaying = true }) }
+            }
+            if (c.tracks.isNotEmpty()) {
+                item { SectionHeader("Found on Soulseek") }
+                itemsIndexed(c.tracks, key = { i, t -> "ct$i${t.artist}${t.title}" }) { _, t ->
+                    CatalogRow(t.title, t.artist, t.imageUrl) { app.library.requestDownload(t.artist, t.title, "") }
                 }
             }
             if (r.albums.isNotEmpty()) {
@@ -825,26 +828,10 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                     }
                 }
             }
-            if (r.songs.isNotEmpty()) {
-                item { SectionHeader("Songs") }
-                itemsIndexed(r.songs, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(r.songs, i, null); nav.nowPlaying = true }) }
-            }
-            if (c.artists.isNotEmpty()) {
-                item { SectionHeader("Artists you don't have") }
-                itemsIndexed(c.artists, key = { i, a -> "ca$i${a.name}" }) { _, a ->
-                    CatalogRow(a.name, "Artist", a.imageUrl, circle = true) { app.library.requestDownload(a.name, "", "") }
-                }
-            }
             if (c.albums.isNotEmpty()) {
                 item { SectionHeader("Albums you don't have") }
                 itemsIndexed(c.albums, key = { i, al -> "cb$i${al.artist}${al.title}" }) { _, al ->
                     CatalogRow(al.title, al.artist, al.imageUrl) { app.library.requestDownload(al.artist, "", al.title) }
-                }
-            }
-            if (c.tracks.isNotEmpty()) {
-                item { SectionHeader("Found on Soulseek") }
-                itemsIndexed(c.tracks, key = { i, t -> "ct$i${t.artist}${t.title}" }) { _, t ->
-                    CatalogRow(t.title, t.artist, null) { app.library.requestDownload(t.artist, t.title, "") }
                 }
             }
             if (catalogLoading) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Searching Lidarr/Soulseek...", size = 13f, color = sc.onBgDim) } }

@@ -14,14 +14,13 @@ import java.io.File
 
 class Group(val name: String, val tracks: List<Track>, val artKey: String?)
 
-/** A search hit that isn't in the library yet -- from Lidarr's MusicBrainz-backed catalog (artists,
- * albums) or a live Soulseek peer search (tracks), not from anything already owned. Search shows
- * these in their own section, distinct from owned results, each with a Download action. */
-data class CatalogArtist(val name: String, val imageUrl: String?)
+/** A search hit that isn't in the library yet -- from Lidarr's MusicBrainz-backed catalog (albums)
+ * or a live Soulseek peer search (tracks), not from anything already owned. Search shows these in
+ * their own section, distinct from owned results, each with a Download action. */
 data class CatalogAlbum(val title: String, val artist: String, val imageUrl: String?)
-data class CatalogTrack(val artist: String, val title: String)
-data class CatalogResults(val artists: List<CatalogArtist>, val albums: List<CatalogAlbum>, val tracks: List<CatalogTrack>) {
-    companion object { val EMPTY = CatalogResults(emptyList(), emptyList(), emptyList()) }
+data class CatalogTrack(val artist: String, val title: String, val imageUrl: String?)
+data class CatalogResults(val albums: List<CatalogAlbum>, val tracks: List<CatalogTrack>) {
+    companion object { val EMPTY = CatalogResults(emptyList(), emptyList()) }
 }
 
 class Library(ctx: Context, val art: ArtCache) {
@@ -210,20 +209,19 @@ class Library(ctx: Context, val art: ArtCache) {
      * shows things Search's own local sections don't already have. */
     suspend fun catalogSearch(query: String): CatalogResults {
         if (query.isBlank() || prefs.lidarrUrl.isBlank() || prefs.lidarrApiKey.isBlank()) return CatalogResults.EMPTY
-        val ownedArtists = artists().map { it.name.trim().lowercase() }.toSet()
         val ownedAlbumKeys = albums().map { g -> "${g.tracks.firstOrNull()?.artist.orEmpty().trim().lowercase()}|${g.name.trim().lowercase()}" }.toSet()
-        val catalogArtists = try {
-            lidarr.lookupArtist(prefs.lidarrUrl, prefs.lidarrApiKey, query)
-                .distinctBy { it.artistName.trim().lowercase() }
-                .filter { it.artistName.trim().lowercase() !in ownedArtists }
-                .take(5)
-                .map { CatalogArtist(it.artistName, it.imageUrl) }
-        } catch (_: Exception) { emptyList() }
         val catalogAlbums = try {
+            val qLower = query.trim().lowercase()
             lidarr.lookupAlbum(prefs.lidarrUrl, prefs.lidarrApiKey, query)
                 .distinctBy { "${it.artistName.trim().lowercase()}|${it.title.trim().lowercase()}" }
                 .filter { "${it.artistName.trim().lowercase()}|${it.title.trim().lowercase()}" !in ownedAlbumKeys }
-                .take(8)
+                // A free-text album search returns every same-titled release by anyone (tribute
+                // albums, unknown-artist covers, megamixes...) -- there's no real popularity signal
+                // in Lidarr's own API, so this is a best-effort proxy: an exact title match with real
+                // cover art is far more likely to be the release someone actually meant than a loose
+                // match with no artwork at all. Just the single best guess, not the whole noisy list.
+                .sortedWith(compareBy({ it.title.trim().lowercase() != qLower }, { it.imageUrl == null }))
+                .take(1)
                 .map { CatalogAlbum(it.title, it.artistName, it.imageUrl) }
         } catch (_: Exception) { emptyList() }
         val catalogTracks = if (query.contains(" - ") && prefs.slskdUrl.isNotBlank() && prefs.slskdApiKey.isNotBlank()) {
@@ -232,11 +230,23 @@ class Library(ctx: Context, val art: ArtCache) {
                 val artist = parts[0].trim(); val title = parts[1].trim()
                 val ownedSong = songs().any { it.artist.trim().equals(artist, true) && it.title.trim().equals(title, true) }
                 if (ownedSong) emptyList()
-                else slskd.searchCandidates(prefs.slskdUrl, prefs.slskdApiKey, artist, title, timeoutMs = 6000)
-                    .take(1).map { CatalogTrack(artist, title) }
+                else {
+                    val hit = slskd.searchCandidates(prefs.slskdUrl, prefs.slskdApiKey, artist, title, timeoutMs = 6000).take(1)
+                    if (hit.isEmpty()) emptyList() else {
+                        // Best-effort cover: reuse the album search above if it already has this
+                        // artist, else one extra lookup by artist name alone -- Soulseek's own search
+                        // results never carry artwork.
+                        val cover = catalogAlbums.firstOrNull { it.artist.trim().equals(artist, true) }?.imageUrl
+                            ?: try {
+                                lidarr.lookupAlbum(prefs.lidarrUrl, prefs.lidarrApiKey, artist)
+                                    .firstOrNull { it.artistName.trim().equals(artist, true) }?.imageUrl
+                            } catch (_: Exception) { null }
+                        listOf(CatalogTrack(artist, title, cover))
+                    }
+                }
             } catch (_: Exception) { emptyList() }
         } else emptyList()
-        return CatalogResults(catalogArtists, catalogAlbums, catalogTracks)
+        return CatalogResults(catalogAlbums, catalogTracks)
     }
 
     /** Load the cached local library, then rescan. Runs regardless of [source] (so switching back to

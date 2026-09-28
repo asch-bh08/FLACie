@@ -225,11 +225,20 @@ class DownloadCoordinator(private val prefs: Prefs) {
 
     private suspend fun finishWithJellyfinScan(artist: String, onUpdate: (DownloadStatus) -> Unit, source: String, title: String, newTrack: Track? = null) {
         onUpdate(DownloadStatus(DownloadStage.SCANNING, if (newTrack != null) "Adding to your library..." else "Refreshing Jellyfin...", source))
-        try {
-            val jfUrl = prefs.jellyfinUrl; val jfKey = prefs.jellyfinApiKey
-            if (jfUrl.isNotBlank() && jfKey.isNotBlank()) jellyfin.scanArtistFolder(jfUrl, jfKey, artist)
-        } catch (_: Exception) { /* a nice-to-have speed boost, not required for correctness -- the
-            library's own periodic auto-refresh will pick the track up regardless */ }
+        // A Soulseek win (newTrack != null) is already visible via addDownloadedTrack -- Jellyfin's
+        // own scan is no longer needed to surface it in this app, and triggering it anyway caused a
+        // real, confirmed-live duplicate: this app's merge sometimes read Jellyfin's title back
+        // mid-scan, before Jellyfin's own async metadata pass replaced a temporary filename-derived
+        // stub with the real embedded-tag title, leaving a stale second entry with the wrong name.
+        // Skipping the trigger here removes that race entirely; Jellyfin will still pick the file up
+        // on its own regular schedule for anyone using its other clients, just not on this timeline.
+        if (newTrack == null) {
+            try {
+                val jfUrl = prefs.jellyfinUrl; val jfKey = prefs.jellyfinApiKey
+                if (jfUrl.isNotBlank() && jfKey.isNotBlank()) jellyfin.scanArtistFolder(jfUrl, jfKey, artist)
+            } catch (_: Exception) { /* a nice-to-have speed boost, not required for correctness -- the
+                library's own periodic auto-refresh will pick the track up regardless */ }
+        }
         val message = if (newTrack != null) "\"$title\" is ready to play" else "\"$title\" should appear within 45s"
         onUpdate(DownloadStatus(DownloadStage.DONE, message, source, newTrack))
     }

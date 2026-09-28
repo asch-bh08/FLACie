@@ -240,7 +240,17 @@ class Library(ctx: Context, val art: ArtCache) {
                 val ownedSong = songs().any { it.artist.trim().equals(artist, true) && it.title.trim().equals(title, true) }
                 if (ownedSong) emptyList()
                 else {
-                    val hit = slskd.searchCandidates(prefs.slskdUrl, prefs.slskdApiKey, artist, title, timeoutMs = 6000).take(1)
+                    // slskd's search-detail endpoint doesn't fill in `responses` progressively as
+                    // peers reply -- confirmed live via direct logging: responseCount climbed
+                    // (0 -> 90 -> 227 -> 250) across several polls while `responses` stayed empty at
+                    // every one of them, then arrived all at once the instant isComplete flipped true.
+                    // A real search for a hugely-available track completed in ~4.9s in that same run,
+                    // but that's close enough to a 6s budget that it's a coin flip run to run (several
+                    // earlier attempts for the identical track came back completely empty) -- 12s gives
+                    // real headroom instead of racing slskd's own completion time.
+                    val hit = try {
+                        slskd.searchCandidates(prefs.slskdUrl, prefs.slskdApiKey, artist, title, timeoutMs = 12_000).take(1)
+                    } catch (_: Exception) { emptyList() }
                     if (hit.isEmpty()) emptyList() else {
                         // Best-effort cover, cheapest/most-likely-to-hit first: reuse the album search
                         // above if it already has this artist; else a fresh album lookup keyed by

@@ -49,7 +49,16 @@ class SlskdClient {
             })
             withTimeoutOrNull(timeoutMs) {
                 while (true) {
-                    val results = rankedResultsSoFar(url, apiKey, searchId)
+                    // A single poll's own HTTP call failing (one dropped packet over a phone's
+                    // connection, a transient 502 from the Funnel, whatever) used to propagate
+                    // straight out of this whole function and get swallowed by the caller's
+                    // catch-all as "no results" -- killing an otherwise-winning search over one
+                    // blip in what's ~8 polls in a 6s window. Confirmed live: an identical search
+                    // (same searchText) run via curl against the same slskd instance moments later
+                    // found 250 responses in ~4s, while the in-app search came back completely
+                    // empty. A failed poll now just counts as "nothing yet" and the loop keeps
+                    // trying until the real timeout.
+                    val results = try { rankedResultsSoFar(url, apiKey, searchId) } catch (_: Exception) { emptyList() }
                     if (results.isNotEmpty()) return@withTimeoutOrNull results
                     delay(750)
                 }

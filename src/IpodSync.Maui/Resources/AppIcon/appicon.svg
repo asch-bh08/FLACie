@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg width="456" height="456" viewBox="0 0 456 456" version="1.1" xmlns="http://www.w3.org/2000/svg">
+<!-- FLACie icon background: pink -> violet diagonal gradient. -->
+<svg width="456" height="456" viewBox="0 0 108 108" version="1.1" xmlns="http://www.w3.org/2000/svg">
     <defs>
         <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#ff5fa2" />
-            <stop offset="1" stop-color="#6a4dff" />
+            <stop offset="0" stop-color="#FF4D6D" />
+            <stop offset="1" stop-color="#6A2CFF" />
         </linearGradient>
     </defs>
-    <rect x="0" y="0" width="456" height="456" fill="url(#bg)" />
+    <rect width="108" height="108" fill="url(#bg)" />
 </svg>

@@ -22,7 +22,7 @@
         <Nullable>enable</Nullable>
 
         <!-- Display name -->
-        <ApplicationTitle>ipodsync</ApplicationTitle>
+        <ApplicationTitle>FLACie</ApplicationTitle>
 
         <!-- App Identifier -->
         <ApplicationId>dev.ashley.ipodsync</ApplicationId>
@@ -46,7 +46,7 @@
 
     <ItemGroup>
         <!-- App Icon -->
-        <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#7b5fff" />
+        <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#B03CB6" />
 
         <!-- Splash Screen -->
         <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#15151c" BaseSize="128,128" />

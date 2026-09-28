@@ -29,7 +29,7 @@ $installer = Join-Path $PSScriptRoot "installer"
 Push-Location $installer
 try {
   & dotnet tool restore | Out-Null
-  $msi = Join-Path $Out "ipodsync-$version-windows-x64.msi"
+  $msi = Join-Path $Out "FLACie-$version-windows-x64.msi"
   & dotnet wix build ipodsync.wxs -arch x64 -d "Version=$version" -d "PublishDir=$publish" -o $msi
   if ($LASTEXITCODE -ne 0) { throw "wix build failed" }
 } finally { Pop-Location }

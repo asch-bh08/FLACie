@@ -6,22 +6,22 @@
   touched by install/uninstall.
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="ipodsync" Manufacturer="ipodsync" Version="$(Version)" Scope="perUser"
+  <Package Name="FLACie" Manufacturer="FLACie" Version="$(Version)" Scope="perUser"
            UpgradeCode="B480A45D-C957-4961-8E9C-6D1802B43BAC" Compressed="yes">
-    <MajorUpgrade DowngradeErrorMessage="A newer version of ipodsync is already installed." />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of FLACie is already installed." />
     <MediaTemplate EmbedCab="yes" />
     <Icon Id="AppIcon" SourceFile="$(PublishDir)\IpodSync.Maui.exe" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon" />
 
     <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="ProgramsDir" Name="Programs">
-        <Directory Id="INSTALLFOLDER" Name="ipodsync" />
+        <Directory Id="INSTALLFOLDER" Name="FLACie" />
       </Directory>
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramMenuFolder">
       <Component Id="StartMenuShortcut">
-        <Shortcut Id="AppShortcut" Name="ipodsync" Description="Sync classic iPods without iTunes"
+        <Shortcut Id="AppShortcut" Name="FLACie" Description="Sync and edit classic iPods without iTunes"
                   Target="[INSTALLFOLDER]IpodSync.Maui.exe" WorkingDirectory="INSTALLFOLDER" Icon="AppIcon" />
         <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
         <RegistryValue Root="HKCU" Key="Software\ipodsync" Name="installed" Type="integer" Value="1" KeyPath="yes" />

@@ -14,4 +14,12 @@ public class MainApplication : MauiApplication
 	}
 
 	protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
+
+	// Lets ipodplayer (on this same phone) browse and edit a USB-connected iPod through this app's verified
+	// engine -- see LocalApiServer. Loopback only.
+	public override void OnCreate()
+	{
+		base.OnCreate();
+		LocalApiServer.Start(IPlatformApplication.Current!.Services.GetRequiredService<IpodSync.Shared.Backend.IIpodSyncBackend>());
+	}
 }

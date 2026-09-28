@@ -43,7 +43,12 @@ public sealed class AndroidUsbIpodConnector
 
         var tcs = new TaskCompletionSource<bool>();
         var receiver = new UsbPermissionReceiver(tcs, () => Manager.HasPermission(device));
-        AndroidApplication.Context.RegisterReceiver(receiver, new IntentFilter(UsbPermissionAction), ReceiverFlags.Exported);
+        // The flags overload's Exported value only exists from Android 13; older versions (the RG Rotate runs 12)
+        // take the plain overload, which registers exported by default.
+        if (OperatingSystem.IsAndroidVersionAtLeast(33))
+            AndroidApplication.Context.RegisterReceiver(receiver, new IntentFilter(UsbPermissionAction), ReceiverFlags.Exported);
+        else
+            AndroidApplication.Context.RegisterReceiver(receiver, new IntentFilter(UsbPermissionAction));
 
         try
         {

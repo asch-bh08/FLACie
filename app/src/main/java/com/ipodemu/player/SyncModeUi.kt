@@ -125,7 +125,7 @@ fun SyncModeScreen() {
             if (st == null || device == null) {
                 // ---- connect ------------------------------------------------------------------------------
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Txt("Edit an iPod connected to your PC through ipodsync: rename songs, rate them, and build or reorder playlists. Changes are only written after you review and confirm them, and the iPod's database is backed up first.", size = 14f, color = sc.onBgDim, maxLines = 6)
+                    Txt("Edit an iPod plugged into this device (needs the ipodsync app) or into a PC running ipodsync: rename songs, rate them, and build or reorder playlists. Changes are only written after you review and confirm them, and the iPod's database is backed up first.", size = 14f, color = sc.onBgDim, maxLines = 6)
                     // no PC, no Wi-Fi: the iPod on this device's USB port, through the ipodsync app's loopback API
                     GlossPill("iPod plugged into this device (USB)", { host = LOCAL_HOST; findDevices(launchIfLocal = true) }, icon = Glyph.IPOD, primary = true)
                     Txt("Or an iPod plugged into a PC running ipodsync:", size = 13f, color = sc.onBgDim)

@@ -2,8 +2,11 @@ package com.ipodemu.library
 
 /** Where a track in the merged library actually lives -- Local (this device's own Scanner),
  * Ipod (a Sync-mode device's library), Jellyfin/Plex (direct to those servers' own REST APIs),
- * or Nas (an SMB/CIFS network share browsed and streamed directly). */
-enum class TrackSource { LOCAL, IPOD, JELLYFIN, PLEX, NAS }
+ * Nas (an SMB/CIFS network share, home network only), or Cloud (a track this app downloaded
+ * itself and injected straight into the library the instant it landed, served back over HTTP by
+ * the file-mover service -- WAN-capable like Jellyfin/Plex, but visible in seconds rather than
+ * waiting on a library scan). */
+enum class TrackSource { LOCAL, IPOD, JELLYFIN, PLEX, NAS, CLOUD }
 
 data class Track(
     val path: String,

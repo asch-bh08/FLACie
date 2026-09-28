@@ -109,13 +109,15 @@ class Library(ctx: Context, val art: ArtCache) {
      * search screen binds to this to show progress. Null once nothing has been requested this session. */
     @Volatile var downloadStatus: DownloadStatus? = null; private set
 
-    /** Search's "Download" action: races Soulseek against Lidarr (see DownloadCoordinator), then
-     * schedules a couple of re-merges over the next 45s so the new track surfaces without the user
-     * having to manually pull to refresh once Jellyfin's finished indexing it. */
+    /** Search's "Download" action: races Soulseek against Lidarr (see DownloadCoordinator). A
+     * Soulseek win carries a ready-to-play Track straight in the DONE status -- added immediately,
+     * no waiting on anything. A Lidarr win doesn't have that (Lidarr does its own import under its
+     * own naming), so that path still relies on the scheduled re-merges noticing it via Jellyfin. */
     fun requestDownload(artist: String, title: String, album: String) {
         scope.launch {
             downloader.download(artist, title, album) { status ->
                 downloadStatus = status
+                status.newTrack?.let { addDownloadedTrack(it) }
                 notifyChange()
                 if (status.stage == DownloadStage.DONE) refreshAfterDownload()
             }
@@ -541,6 +543,12 @@ class Library(ctx: Context, val art: ArtCache) {
      * already showing -- whichever source got merged first (local/sync, then Jellyfin, then Plex,
      * then NAS, per the call order in [runScan]/[useLocal]) wins the dedup, same cross-source-only
      * rule ipodsync's ListenLibrary.Merge uses. */
+    /** Adds a track this app just downloaded and filed itself straight into the merged library --
+     * instant, no waiting on Jellyfin's own scan/API at all. Reuses the same title+artist dedup as
+     * every other merge source, so once Jellyfin or NAS eventually also notices the same file, it's
+     * recognized as already-present rather than duplicated. */
+    fun addDownloadedTrack(t: Track) = mergeExtra(listOf(t))
+
     private fun mergeExtra(extraSource: List<Track>) {
         if (extraSource.isEmpty()) return
         val seen = tracks.mapTo(HashSet()) { dedupKey(it) }

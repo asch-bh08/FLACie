@@ -303,6 +303,7 @@ private fun sourceColor(s: com.ipodemu.library.TrackSource): Color = when (s) {
     com.ipodemu.library.TrackSource.JELLYFIN -> Color(0xFFFF6FAE)
     com.ipodemu.library.TrackSource.PLEX -> Color(0xFFE5A00D)
     com.ipodemu.library.TrackSource.NAS -> Color(0xFF5FB8E0)
+    com.ipodemu.library.TrackSource.CLOUD -> Color(0xFFB27CE0)
 }
 
 @Composable

@@ -5,10 +5,15 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
+import java.net.URLEncoder
 
 enum class DownloadStage { REQUESTED, SEARCHING, DOWNLOADING, IMPORTING, SCANNING, DONE, FAILED }
 
-data class DownloadStatus(val stage: DownloadStage, val message: String, val source: String? = null)
+/** [newTrack] is set only on a Soulseek win's DONE status -- a fully-formed Track the caller can add
+ * straight to the library, playable immediately over the file-mover's own HTTP endpoint (WAN-capable,
+ * no Jellyfin/NAS scan wait). Lidarr's own wins don't have this: Lidarr does its own import with its
+ * own naming, so the library still finds out about those via the normal Jellyfin scan + merge. */
+data class DownloadStatus(val stage: DownloadStage, val message: String, val source: String? = null, val newTrack: Track? = null)
 
 /**
  * Orchestrates "download this missing track": races an on-demand Soulseek search (via slskd, if
@@ -90,8 +95,8 @@ class DownloadCoordinator(private val prefs: Prefs) {
                 } ?: false
                 if (!succeeded) continue
                 onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library...", "soulseek"))
-                if (!fileIntoLibrary(hit, artist, title)) return false
-                finishWithJellyfinScan(artist, onUpdate, "soulseek", title)
+                val track = fileIntoLibrary(hit, artist, title) ?: return false
+                finishWithJellyfinScan(artist, onUpdate, "soulseek", title, track)
                 return true
             }
             false
@@ -105,13 +110,17 @@ class DownloadCoordinator(private val prefs: Prefs) {
      * doesn't go through Lidarr). An earlier same-network SMB move (NasSmb.moveFile) was tried first
      * here, but jcifs-ng misbehaved on this exact operation across three different bug fixes and never
      * once completed successfully in live testing -- not worth more time on it, so this goes straight
-     * to the file-mover now. Requires it to be configured; returns false without it, since there's
+     * to the file-mover now. Requires it to be configured; returns null without it, since there's
      * nowhere else to safely file a bare, untagged single track. slskd flattens a peer's own folder
      * structure down to just the immediate parent folder when it writes the finished file to disk
      * (confirmed against several live downloads), which is what `hit.filename`'s last two path
-     * segments are used to reconstruct here. */
-    private suspend fun fileIntoLibrary(hit: SlskdClient.FileResult, artist: String, title: String): Boolean {
-        if (prefs.fileMoverUrl.isBlank() || prefs.fileMoverApiKey.isBlank()) return false
+     * segments are used to reconstruct here.
+     *
+     * Returns a ready-to-play Track on success -- its `path` is the file-mover's own `/file?path=`
+     * URL (the same service, same auth, that just moved it), not the on-disk path, so playback works
+     * over WAN exactly like Jellyfin/Plex, without waiting on either of them to notice the file. */
+    private suspend fun fileIntoLibrary(hit: SlskdClient.FileResult, artist: String, title: String): Track? {
+        if (prefs.fileMoverUrl.isBlank() || prefs.fileMoverApiKey.isBlank()) return null
         val remoteParts = hit.filename.replace('\\', '/').split('/').filter { it.isNotBlank() }
         val sourceLeaf = remoteParts.last()
         val sourceParentFolder = if (remoteParts.size >= 2) remoteParts[remoteParts.size - 2] else ""
@@ -121,11 +130,17 @@ class DownloadCoordinator(private val prefs: Prefs) {
         fun clean(s: String) = s.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
         val destFolder = "${prefs.nasFolder.trim('/')}/${clean(artist)}"
         val destName = "${clean(artist)} - ${clean(title)}.$ext"
+        val destRelPath = "$destFolder/$destName"
         return try {
-            fileMover.move(prefs.fileMoverUrl, prefs.fileMoverApiKey, "$sourceFolder/$sourceLeaf", "$destFolder/$destName")
-            true
+            fileMover.move(prefs.fileMoverUrl, prefs.fileMoverApiKey, "$sourceFolder/$sourceLeaf", destRelPath)
+            val playUrl = "${prefs.fileMoverUrl.trimEnd('/')}/file?path=${URLEncoder.encode(destRelPath, "UTF-8")}"
+            Track(
+                path = playUrl, title = title, artist = artist, album = "", albumArtist = artist, genre = "",
+                trackNo = 0, discNo = 0, durationMs = 0, year = 0, isMusic = true, artKey = null,
+                mtime = System.currentTimeMillis(), size = hit.size, source = TrackSource.CLOUD,
+            )
         } catch (_: Exception) {
-            false
+            null
         }
     }
 
@@ -208,13 +223,14 @@ class DownloadCoordinator(private val prefs: Prefs) {
         }
     }
 
-    private suspend fun finishWithJellyfinScan(artist: String, onUpdate: (DownloadStatus) -> Unit, source: String, title: String) {
-        onUpdate(DownloadStatus(DownloadStage.SCANNING, "Refreshing Jellyfin...", source))
+    private suspend fun finishWithJellyfinScan(artist: String, onUpdate: (DownloadStatus) -> Unit, source: String, title: String, newTrack: Track? = null) {
+        onUpdate(DownloadStatus(DownloadStage.SCANNING, if (newTrack != null) "Adding to your library..." else "Refreshing Jellyfin...", source))
         try {
             val jfUrl = prefs.jellyfinUrl; val jfKey = prefs.jellyfinApiKey
             if (jfUrl.isNotBlank() && jfKey.isNotBlank()) jellyfin.scanArtistFolder(jfUrl, jfKey, artist)
         } catch (_: Exception) { /* a nice-to-have speed boost, not required for correctness -- the
             library's own periodic auto-refresh will pick the track up regardless */ }
-        onUpdate(DownloadStatus(DownloadStage.DONE, "\"$title\" should appear within 45s", source))
+        val message = if (newTrack != null) "\"$title\" is ready to play" else "\"$title\" should appear within 45s"
+        onUpdate(DownloadStatus(DownloadStage.DONE, message, source, newTrack))
     }
 }

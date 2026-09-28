@@ -58,10 +58,12 @@ private class MultiServerDataSource(private val prefs: Prefs) : DataSource {
         val uriStr = dataSpec.uri.toString()
         val jfUrl = prefs.jellyfinUrl.trimEnd('/')
         val plexUrl = prefs.plexUrl.trimEnd('/')
+        val moverUrl = prefs.fileMoverUrl.trimEnd('/')
         http.clearAllRequestProperties()
         when {
             jfUrl.isNotBlank() && uriStr.startsWith(jfUrl) -> http.setRequestProperty("X-Emby-Token", prefs.jellyfinApiKey)
             plexUrl.isNotBlank() && uriStr.startsWith(plexUrl) -> http.setRequestProperty("X-Plex-Token", prefs.plexToken)
+            moverUrl.isNotBlank() && uriStr.startsWith(moverUrl) -> http.setRequestProperty("X-Api-Key", prefs.fileMoverApiKey)
         }
         return http.open(dataSpec)
     }

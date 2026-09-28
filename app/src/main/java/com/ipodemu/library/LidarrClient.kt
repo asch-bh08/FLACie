@@ -55,18 +55,28 @@ class LidarrClient {
         null
     }
 
-    private suspend fun firstQualityProfileId(url: String, apiKey: String): Int = withContext(Dispatchers.IO) {
-        JSONArray(get("${base(url)}/api/v1/qualityprofile", apiKey)).getJSONObject(0).getInt("id")
+    /** Prefers a profile literally named "Lossless" -- this app's setup notes have that one edited
+     * to exclude the 24-bit/96kHz "hi-res" quality tiers (needlessly huge for pop/rock catalog with
+     * no audible benefit over standard FLAC), falling back to whatever profile comes first if a
+     * Lidarr instance doesn't have one by that name. */
+    private suspend fun qualityProfileId(url: String, apiKey: String): Int = withContext(Dispatchers.IO) {
+        val arr = JSONArray(get("${base(url)}/api/v1/qualityprofile", apiKey))
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            if (o.optString("name").equals("Lossless", ignoreCase = true)) return@withContext o.getInt("id")
+        }
+        arr.getJSONObject(0).getInt("id")
     }
 
     private suspend fun firstRootFolderPath(url: String, apiKey: String): String = withContext(Dispatchers.IO) {
         JSONArray(get("${base(url)}/api/v1/rootfolder", apiKey)).getJSONObject(0).getString("path")
     }
 
-    /** Adds the artist as monitored and asks Lidarr to immediately search for its missing albums --
-     * this alone covers most of "trigger a search" when we can't pin down the exact album below. */
+    /** Adds the artist as monitored, but does NOT ask Lidarr to search all of its missing albums --
+     * that would search every album the artist has, not just the one with the track we actually
+     * want. The caller matches and triggers a search for that one specific album instead. */
     suspend fun addArtist(url: String, apiKey: String, lookup: ArtistLookup): Int = withContext(Dispatchers.IO) {
-        val profileId = firstQualityProfileId(url, apiKey)
+        val profileId = qualityProfileId(url, apiKey)
         val rootFolder = firstRootFolderPath(url, apiKey)
         val body = JSONObject().apply {
             put("foreignArtistId", lookup.foreignArtistId)
@@ -77,7 +87,7 @@ class LidarrClient {
             put("monitored", true)
             put("addOptions", JSONObject().apply {
                 put("monitor", "all")
-                put("searchForMissingAlbums", true)
+                put("searchForMissingAlbums", false)
             })
         }
         JSONObject(post("${base(url)}/api/v1/artist", apiKey, body)).getInt("id")
@@ -87,6 +97,24 @@ class LidarrClient {
     suspend fun albumsFor(url: String, apiKey: String, artistId: Int): List<Pair<Int, String>> = withContext(Dispatchers.IO) {
         val arr = JSONArray(get("${base(url)}/api/v1/album?artistId=$artistId", apiKey))
         List(arr.length()) { i -> arr.getJSONObject(i).let { it.getInt("id") to it.optString("title") } }
+    }
+
+    /** Which album actually contains the requested track -- a search only gives us a song title, not
+     * an album, so this is the real way to find the right one (matching by album name against an
+     * empty/blank album string would just match whichever album happens to come first). */
+    suspend fun albumIdForTrack(url: String, apiKey: String, artistId: Int, title: String): Int? = withContext(Dispatchers.IO) {
+        val arr = JSONArray(get("${base(url)}/api/v1/track?artistId=$artistId", apiKey))
+        val target = title.trim().lowercase()
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            if (o.optString("title").trim().lowercase() == target) return@withContext o.optInt("albumId").takeIf { it != 0 }
+        }
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            val t = o.optString("title").trim().lowercase()
+            if (t.contains(target) || target.contains(t)) return@withContext o.optInt("albumId").takeIf { it != 0 }
+        }
+        null
     }
 
     /** Tighter and faster than an artist-wide search when we can match the exact album. */

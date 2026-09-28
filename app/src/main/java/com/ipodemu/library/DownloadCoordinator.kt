@@ -86,29 +86,49 @@ class DownloadCoordinator(private val prefs: Prefs) {
             onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Looking up \"$artist\" on Lidarr...", "lidarr"))
             val best = lidarr.lookupArtist(url, key, artist).firstOrNull() ?: return false
             var artistId = lidarr.existingArtistId(url, key, best.foreignArtistId)
+            val justAdded = artistId == null
             if (artistId == null) {
                 onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Adding \"${best.artistName}\" to Lidarr...", "lidarr"))
                 artistId = lidarr.addArtist(url, key, best)
-                // addArtist already asked Lidarr to search for missing albums -- give it a moment
-                // before also firing an explicit album search below, so we don't double-trigger.
-                delay(2000)
             }
-            val albums = lidarr.albumsFor(url, key, artistId)
-            val albumMatch = albums.firstOrNull { it.second.contains(album, ignoreCase = true) || album.contains(it.second, ignoreCase = true) }
+            val watchArtistId = artistId
+            // A search only gives us a song title, not an album -- find which album actually has it
+            // (falling back to the caller's album name, then an artist-wide search) so only that one
+            // album gets searched, instead of the whole artist's catalog. For a freshly-added artist,
+            // Lidarr syncs its album/track metadata asynchronously (slower for a big catalog), so poll
+            // for a bit rather than guessing a fixed delay -- a wrong guess is what silently fell back
+            // to an artist-wide search here before.
+            var targetAlbumId = lidarr.albumIdForTrack(url, key, watchArtistId, title)
+            if (targetAlbumId == null && justAdded) {
+                withTimeoutOrNull(15_000L) {
+                    while (targetAlbumId == null) {
+                        delay(1500)
+                        targetAlbumId = lidarr.albumIdForTrack(url, key, watchArtistId, title)
+                    }
+                }
+            }
+            if (targetAlbumId == null && album.isNotBlank()) {
+                val albums = lidarr.albumsFor(url, key, watchArtistId)
+                targetAlbumId = albums.firstOrNull { it.second.contains(album, ignoreCase = true) || album.contains(it.second, ignoreCase = true) }?.first
+            }
+            val albumId = targetAlbumId
             onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Searching indexers...", "lidarr"))
-            if (albumMatch != null) lidarr.triggerAlbumSearch(url, key, albumMatch.first) else lidarr.triggerArtistSearch(url, key, artistId)
+            if (albumId != null) lidarr.triggerAlbumSearch(url, key, albumId) else lidarr.triggerArtistSearch(url, key, watchArtistId)
 
             onUpdate(DownloadStatus(DownloadStage.DOWNLOADING, "Waiting for a grab...", "lidarr"))
-            val watchArtistId = artistId
-            var lastDownloadId: String? = null
             var seenInQueue = false
             val outcome = withTimeoutOrNull(120_000L) {
                 while (true) {
                     val items = lidarr.queue(url, key)
+                    // By artist, not the specific album: Lidarr's indexer search can legitimately grab
+                    // a different release than the one targeted above (e.g. a "Best Of" compilation
+                    // that happens to contain the same track) and file it under a different album --
+                    // scoping this to the exact target album would wait forever for a grab that already
+                    // happened. We only trigger one album's search above (not a blanket multi-album
+                    // one), so there's normally just one relevant item here regardless.
                     val item = items.firstOrNull { it.artistId == watchArtistId }
                     if (item != null) {
                         seenInQueue = true
-                        lastDownloadId = item.downloadId
                         if (item.errorMessage != null) return@withTimeoutOrNull false
                         val stuckAwaitingImport = item.trackedDownloadState?.contains("import", true) == true ||
                             item.trackedDownloadState?.contains("warning", true) == true

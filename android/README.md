@@ -1,4 +1,4 @@
-# ipodplayer
+# FLACie for Android (formerly ipodplayer)
 
 An iPod-style local music player for the **Anbernic RG Rotate** (720×720, Android 12, touch + D-pad + gamepad buttons). It scans the device's own music (embedded cover art, untagged audio and voice memos included) and plays it as a modern touch player styled after every iPod generation, or as the original click-wheel interface.
 

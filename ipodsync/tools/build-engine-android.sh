@@ -2,13 +2,15 @@
 # Builds the ipodsync engine as an Android native library for ipodplayer: libipodsync.so (NativeAOT) plus the
 # libe_sqlite3.so it loads, for arm64-v8a.
 #
-#   tools/build-engine-android.sh [out-dir]        (run on Linux or WSL -- NativeAOT can't cross-compile from Windows)
+#   ipodsync/tools/build-engine-android.sh [out-dir]   (run on Linux or WSL -- NativeAOT can't cross-compile from Windows)
+#
+# out-dir defaults to the FLACie Android app's jniLibs (../android/app/src/main/jniLibs) in this monorepo.
 #
 # Needs: .NET 9 SDK (DOTNET, default ~/.dotnet/dotnet) and the Android NDK r27+ (NDK, default ~/ipodtc/android-ndk-r27c).
 # The sources are copied to a Linux-side work dir first (building on /mnt/c is very slow and trips over CRLF).
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="${1:-$REPO/dist/engine-android}"
+OUT="${1:-$REPO/../android/app/src/main/jniLibs}"
 NDK="${NDK:-$HOME/ipodtc/android-ndk-r27c}"
 DOTNET="${DOTNET:-$HOME/.dotnet/dotnet}"
 TC="$NDK/toolchains/llvm/prebuilt/linux-x86_64"

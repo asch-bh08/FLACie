@@ -366,7 +366,7 @@ private fun NameDialog(onDone: (String) -> Unit, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf("") }
     val fr = remember { FocusRequester() }
     LaunchedEffect(Unit) { try { fr.requestFocus() } catch (_: Exception) {} }
-    Box(Modifier.fillMaxSize().background(Color(0xAA000000)).pointerInput(Unit) { detectTapGestures { onDismiss() } }, contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().background(Color(0xAA000000)).imePadding().pointerInput(Unit) { detectTapGestures { onDismiss() } }, contentAlignment = Alignment.Center) {
         Column(
             Modifier.padding(24.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(sc.top.mix(Color.Black, .4f))
                 .pointerInput(Unit) { detectTapGestures { } }.padding(20.dp),

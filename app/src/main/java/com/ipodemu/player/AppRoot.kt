@@ -66,7 +66,13 @@ fun AppRoot(activity: MainActivity) {
                     onRelease = { it.release(); if (activity.ipodView === it) activity.ipodView = null },
                 ) }
             } else PlayerRoot(activity, nav)
-            val overlay: @Composable (@Composable () -> Unit) -> Unit = { Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFF07080B)).safeArea()) { it() } }
+            // overlays sit outside PlayerRoot, so give them the active theme's widget style too
+            val oStyle = remember(model, ui.colorway, ui.ipodTheme) { IpodStyle(model, model.colors[ui.colorway.coerceIn(0, model.colors.lastIndex)], !ui.ipodTheme) }
+            val overlay: @Composable (@Composable () -> Unit) -> Unit = {
+                CompositionLocalProvider(LocalStyle provides oStyle, LocalScheme provides if (ui.ipodTheme) LocalScheme.current else remember { buildModernScheme(null) }) {
+                    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFF07080B)).safeArea()) { it() }
+                }
+            }
             if (ui.pickerOpen) overlay { PickerScreen() }
             if (ui.syncSetupOpen) overlay { SyncSetupScreen() }
             if (ui.jellyfinSetupOpen) overlay { JellyfinSetupScreen() }

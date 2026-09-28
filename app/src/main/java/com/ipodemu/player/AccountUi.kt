@@ -91,7 +91,7 @@ fun AccountScreen() {
                 GlossPill(if (acct.busy) "Signing in..." else "Sign in", { if (server.isNotBlank() && user.isNotBlank()) acct.signInWithPassword(server, user.trim(), pass) }, primary = true)
                 GlossPill("Use Quick Connect instead", { usePassword = false })
             }
-            acct.status?.let { Txt(it, size = 14f, color = if (acct.signedIn) Color(0xFF7CE0A0) else Color(0xFFFFB0B0), maxLines = 3) }
+            acct.status?.let { Txt(it, size = 14f, color = if (acct.busy || acct.quickCode != null) Color(0xCCFFFFFF) else Color(0xFFFFB0B0), maxLines = 3) }
         }
     }
 }

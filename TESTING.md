@@ -90,3 +90,17 @@ own physical controller-deployed state (Auto mode correctly follows the hinge), 
 recur under any mode/model switch order, repetition, or rapid/backgrounded input tried here. Not tried: a real phone
 or tablet aspect ratio (no simulator available for this physical device), and touch-family models specifically
 inside "Player in an iPod" on such a screen.
+
+## v0.8 Modern default, safe area, account + playlist sync (RG Rotate, debug build)
+- Verified on-device: Modern theme is the default (nav rail on the square panel); iPod theme via Settings > Theme restyles
+  the whole app and Back from its Settings returns to Home; "Modern theme" pill on the Appearance screen switches back.
+- Layouts via `am start --es fake WxH --es fakedp N --es fakecutout N`: phone 1080x2400 @411dp, Z Fold cover
+  904x2316 @344dp (bottom nav) and inner 1812x2176 @673dp (rail), each with a simulated top cutout -- content, mini
+  player and Now Playing stay clear of it.
+- NOT verified on a real punch-hole phone/Fold: Android's own cutout emulation overlay crashes system_server on the RG
+  Rotate's square display (don't enable `com.android.internal.display.cutout.emulation.*` on it).
+- Account: Quick Connect sign-in, profile push, "Sync Test" playlist (local + Jellyfin + NAS track) mirrored as a real
+  Jellyfin playlist; `pm clear` + sign-in restored Jellyfin/NAS/Lidarr/slskd/file-mover + ipodsync host, the playlist
+  and favourites; deleting the playlist deleted its Jellyfin copy and stayed deleted after the next sync.
+- Not verified: password sign-in (not exercised -- no password entered), cross-device title+artist matching of a
+  local-only file on a second device, Plex restore (Plex was never configured).

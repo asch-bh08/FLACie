@@ -515,7 +515,7 @@ fun ActionSheet(title: String, subtitle: String?, items: List<SheetItem>, onDism
                 if (subtitle != null) Txt(subtitle, size = 13f, color = sc.onBgDim)
             }
             items.forEachIndexed { i, item ->
-                IpodRow(onClick = { item.onClick(); onDismiss() }, height = 54.dp, focusRequester = if (i == 0) first else null,
+                IpodRow(onClick = { onDismiss(); item.onClick() }, height = 54.dp, focusRequester = if (i == 0) first else null,
                     leading = { GlyphIcon(item.glyph, Modifier.size(24.dp), if (LocalRowHi.current) Color.White else sc.onBg) }) { hi -> Txt(item.label, size = 16f, color = if (hi) Color.White else sc.onBg) }
             }
         }

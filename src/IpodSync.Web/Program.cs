@@ -42,6 +42,7 @@ app.UseAntiforgery();
 app.MapIpodMedia();
 app.MapLocalMedia();
 app.MapJellyfinMedia();
+app.MapEditApi();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()

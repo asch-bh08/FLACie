@@ -158,11 +158,22 @@ class Prefs(ctx: Context) {
     var slskdApiKey: String
         get() = sp.getString("slskdkey", "") ?: ""
         set(v) = sp.edit().putString("slskdkey", v).apply()
-    /** Path (as seen by Lidarr, not by this phone) where slskd writes finished downloads, so Lidarr's
-     * manual import can find them; the two containers are expected to share this folder. */
+    /** Where slskd writes finished downloads, as a path relative to the shared root both NAS (SMB)
+     * and the file-mover service (HTTP) use -- a completed Soulseek download gets moved from here
+     * straight into the music folder Jellyfin scans. */
     var slskdDownloadPath: String
         get() = sp.getString("slskdpath", "/downloads/slskd-inbox") ?: "/downloads/slskd-inbox"
         set(v) = sp.edit().putString("slskdpath", v).apply()
+
+    /** Optional small HTTP service on the homelab that moves a file within its shared root -- the
+     * fallback for filing a Soulseek download when a direct SMB move (NasSmb) isn't reachable, e.g.
+     * away from home over the Tailscale Funnel, which can't carry raw SMB. Blank skips this fallback. */
+    var fileMoverUrl: String
+        get() = sp.getString("filemoverurl", "") ?: ""
+        set(v) = sp.edit().putString("filemoverurl", v).apply()
+    var fileMoverApiKey: String
+        get() = sp.getString("filemoverkey", "") ?: ""
+        set(v) = sp.edit().putString("filemoverkey", v).apply()
 
     /** Reset Settings: everything except the chosen iPod, colour and look. */
     fun reset() {

@@ -1,9 +1,11 @@
 package com.ipodemu.library
 
 import com.ipodemu.Prefs
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 enum class DownloadStage { REQUESTED, SEARCHING, DOWNLOADING, IMPORTING, SCANNING, DONE, FAILED }
@@ -12,20 +14,23 @@ data class DownloadStatus(val stage: DownloadStage, val message: String, val sou
 
 /**
  * Orchestrates "download this missing track": races an on-demand Soulseek search (via slskd, if
- * configured) against Lidarr's indexer-based search -- Soulseek only wins if a peer already has the
- * exact file online right now, so Lidarr always runs too rather than waiting to see if Soulseek
- * pans out first. Whichever source produces a file gets it imported through Lidarr (for proper
- * tagging/filing), then asks Jellyfin to scan just that artist's folder so the merged library picks
- * it up as fast as possible -- Library's own 45s auto-refresh (see Library.startAutoRefresh) is what
- * actually surfaces it in the UI without the user pulling to refresh.
+ * configured) against Lidarr's indexer-based search. Lidarr always runs too rather than waiting to
+ * see if Soulseek pans out first, but with a live peer search this usually wins -- a popular track
+ * easily has dozens of peers online, so it's normally the faster, primary path.
  *
- * Lidarr's queue/import status strings are matched loosely (contains, not exact enum) since this
- * hasn't been exercised against a live Lidarr queue transition yet -- see the app's setup notes.
+ * The two sources are filed differently: Lidarr's own grabs go through Lidarr's own import (it
+ * already knows the artist/album it searched for). A Soulseek win is just a single file, and
+ * Lidarr's manual-import flatly refuses a lone track when it's expecting a whole album -- confirmed
+ * live, this isn't a timing issue a retry fixes -- so instead it's moved directly (via SMB, same
+ * share slskd downloads onto) into the folder Jellyfin scans, named `Artist/Artist - Title.ext`.
+ * This needs NAS configured (Settings > NAS) pointing at that share; without it a Soulseek win can't
+ * be filed anywhere and the request falls through to Lidarr's slower but self-sufficient path.
  */
 class DownloadCoordinator(private val prefs: Prefs) {
     private val lidarr = LidarrClient()
     private val slskd = SlskdClient()
     private val jellyfin = JellyfinDirectClient()
+    private val fileMover = FileMoverClient()
 
     suspend fun download(artist: String, title: String, album: String, onUpdate: (DownloadStatus) -> Unit) {
         onUpdate(DownloadStatus(DownloadStage.REQUESTED, "Requested \"$title\""))
@@ -53,31 +58,83 @@ class DownloadCoordinator(private val prefs: Prefs) {
         val url = prefs.slskdUrl; val key = prefs.slskdApiKey
         return try {
             onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Searching Soulseek...", "soulseek"))
-            val hit = slskd.searchForTrack(url, key, artist, title) ?: return false
-            onUpdate(DownloadStatus(DownloadStage.DOWNLOADING, "Downloading from a peer via Soulseek...", "soulseek"))
-            slskd.download(url, key, hit)
-            val succeeded = withTimeoutOrNull(25_000L) {
-                var result = false
-                while (true) {
-                    when (slskd.downloadSucceeded(url, key, hit)) {
-                        true -> { result = true; break }
-                        false -> break
-                        null -> delay(1500)
-                    }
+            // A popular track easily has dozens of peers online -- try several ranked candidates in
+            // turn instead of giving up on Soulseek entirely because the single best-ranked peer was
+            // slow or rejected the request.
+            val candidates = slskd.searchCandidates(url, key, artist, title)
+            for ((index, hit) in candidates.take(5).withIndex()) {
+                onUpdate(DownloadStatus(
+                    DownloadStage.DOWNLOADING,
+                    "Downloading from a peer via Soulseek" + (if (index > 0) " (peer ${index + 1})..." else "..."),
+                    "soulseek",
+                ))
+                try {
+                    slskd.download(url, key, hit)
+                } catch (_: Exception) {
+                    continue   // this peer refused the request outright -- try the next one
                 }
-                result
-            } ?: false
-            if (!succeeded) return false
-            onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Handing off to Lidarr for import...", "soulseek"))
-            val folder = prefs.slskdDownloadPath
-            val candidates = lidarr.manualImportCandidatesForFolder(prefs.lidarrUrl, prefs.lidarrApiKey, folder)
-            if (candidates.length() == 0) return false
-            lidarr.triggerManualImport(prefs.lidarrUrl, prefs.lidarrApiKey, candidates)
-            finishWithJellyfinScan(artist, onUpdate, "soulseek", title)
-            true
+                val succeeded = withTimeoutOrNull(60_000L) {
+                    var result = false
+                    while (true) {
+                        when (slskd.downloadSucceeded(url, key, hit)) {
+                            true -> { result = true; break }
+                            false -> break
+                            null -> delay(1500)
+                        }
+                    }
+                    result
+                } ?: false
+                if (!succeeded) continue
+                onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library...", "soulseek"))
+                if (!fileIntoLibrary(hit, artist, title)) return false
+                finishWithJellyfinScan(artist, onUpdate, "soulseek", title)
+                return true
+            }
+            false
         } catch (_: Exception) {
             false
         }
+    }
+
+    /** Moves the just-downloaded file from slskd's inbox straight into the folder Jellyfin scans, as
+     * `Artist/Artist - Title.ext` -- an SMB move on the same share slskd's downloads land on (see the
+     * class doc for why this doesn't go through Lidarr). Requires NAS to be configured; returns false
+     * without it, since there's nowhere else to safely file a bare, untagged single track. slskd
+     * flattens a peer's own folder structure down to just the immediate parent folder when it writes
+     * the finished file to disk (confirmed against two live downloads), which is what `hit.filename`'s
+     * last two path segments are used to reconstruct here. */
+    private suspend fun fileIntoLibrary(hit: SlskdClient.FileResult, artist: String, title: String): Boolean {
+        val remoteParts = hit.filename.replace('\\', '/').split('/').filter { it.isNotBlank() }
+        val sourceLeaf = remoteParts.last()
+        val sourceParentFolder = if (remoteParts.size >= 2) remoteParts[remoteParts.size - 2] else ""
+        val inboxFolder = prefs.slskdDownloadPath.trim('/')
+        val sourceFolder = if (sourceParentFolder.isNotBlank()) "$inboxFolder/$sourceParentFolder" else inboxFolder
+        val ext = sourceLeaf.substringAfterLast('.', "mp3")
+        fun clean(s: String) = s.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
+        val destFolder = "${prefs.nasFolder.trim('/')}/${clean(artist)}"
+        val destName = "${clean(artist)} - ${clean(title)}.$ext"
+
+        // Same-network SMB move first -- no extra network hop through the homelab's own server, and
+        // works even if the file-mover service isn't set up. Falls back to the HTTP file-mover (which
+        // works from anywhere, unlike SMB over the Funnel) when that fails or isn't configured.
+        if (prefs.nasHost.isNotBlank() && prefs.nasShare.isNotBlank()) {
+            try {
+                withContext(Dispatchers.IO) {
+                    NasSmb.moveFile(
+                        prefs.nasUsername, prefs.nasPassword, prefs.nasDomain,
+                        prefs.nasHost, prefs.nasShare, sourceFolder, sourceLeaf, destFolder, destName,
+                    )
+                }
+                return true
+            } catch (_: Exception) { /* try the file-mover fallback below */ }
+        }
+        if (prefs.fileMoverUrl.isNotBlank() && prefs.fileMoverApiKey.isNotBlank()) {
+            try {
+                fileMover.move(prefs.fileMoverUrl, prefs.fileMoverApiKey, "$sourceFolder/$sourceLeaf", "$destFolder/$destName")
+                return true
+            } catch (_: Exception) { return false }
+        }
+        return false
     }
 
     private suspend fun tryLidarr(artist: String, title: String, album: String, onUpdate: (DownloadStatus) -> Unit): Boolean {

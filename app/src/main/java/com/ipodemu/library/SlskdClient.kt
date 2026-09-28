@@ -35,11 +35,11 @@ class SlskdClient {
         }
     }
 
-    /** Fires a live peer search and waits up to [timeoutMs] for a decent-quality hit -- a
-     * lossless-or-decent-bitrate audio file from a user with a free upload slot -- rather than
-     * waiting for the search to fully settle, since Soulseek searches can run long after the first
-     * useful results arrive. Returns null if nothing usable turned up in time. */
-    suspend fun searchForTrack(url: String, apiKey: String, artist: String, title: String, timeoutMs: Long = 6000): FileResult? =
+    /** Fires a live peer search and waits up to [timeoutMs], returning several ranked candidates
+     * (free-upload-slot peers first, decent quality only -- lossless or >= 256kbps) rather than just
+     * the single best one, so a caller can fall through to the next peer if the first turns out to
+     * be slow or rejects the transfer, instead of giving up on Soulseek after one bad peer. */
+    suspend fun searchCandidates(url: String, apiKey: String, artist: String, title: String, timeoutMs: Long = 25_000): List<FileResult> =
         withContext(Dispatchers.IO) {
             val searchId = UUID.randomUUID().toString()
             val query = "$artist $title".trim()
@@ -49,18 +49,21 @@ class SlskdClient {
             })
             withTimeoutOrNull(timeoutMs) {
                 while (true) {
-                    val best = bestResultSoFar(url, apiKey, searchId)
-                    if (best != null) return@withTimeoutOrNull best
+                    val results = rankedResultsSoFar(url, apiKey, searchId)
+                    if (results.isNotEmpty()) return@withTimeoutOrNull results
                     delay(750)
                 }
-                @Suppress("UNREACHABLE_CODE") null
-            }
+                @Suppress("UNREACHABLE_CODE") emptyList()
+            } ?: emptyList()
         }
 
-    private fun bestResultSoFar(url: String, apiKey: String, searchId: String): FileResult? {
-        val json = JSONObject(get("${base(url)}/api/v0/searches/$searchId", apiKey))
-        val responses = json.optJSONArray("responses") ?: return null
-        var best: FileResult? = null
+    private fun rankedResultsSoFar(url: String, apiKey: String, searchId: String): List<FileResult> {
+        // slskd's search-detail endpoint omits the actual file listings unless explicitly asked for
+        // (responseCount is present either way, but responses is just [] without this) -- confirmed
+        // live against a real search: same endpoint, 250 responses reported, 0 returned without this.
+        val json = JSONObject(get("${base(url)}/api/v0/searches/$searchId?includeResponses=true", apiKey))
+        val responses = json.optJSONArray("responses") ?: return emptyList()
+        val candidates = ArrayList<FileResult>()
         for (i in 0 until responses.length()) {
             val r = responses.getJSONObject(i)
             val username = r.optString("username")
@@ -74,12 +77,11 @@ class SlskdClient {
                 // "decent quality": lossless (no bitrate field, e.g. flac) or >= 256kbps lossy
                 val decent = bitRate == null || bitRate >= 256
                 if (!decent) continue
-                val candidate = FileResult(username, name, f.optLong("size"), freeSlot, bitRate)
-                if (best == null || (candidate.hasFreeUploadSlot && !best!!.hasFreeUploadSlot)) best = candidate
-                if (freeSlot) return candidate   // good enough -- stop as soon as we have a downloadable match
+                candidates.add(FileResult(username, name, f.optLong("size"), freeSlot, bitRate))
             }
         }
-        return best
+        // Free-upload-slot peers first (won't queue behind someone else's transfer), then the rest.
+        return candidates.sortedByDescending { it.hasFreeUploadSlot }
     }
 
     /** Enqueues the download; slskd writes it into its own configured downloads directory once complete. */

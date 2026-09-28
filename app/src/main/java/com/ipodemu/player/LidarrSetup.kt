@@ -52,6 +52,8 @@ fun LidarrSetupScreen() {
     var slskdUrl by remember { mutableStateOf(app.prefs.slskdUrl) }
     var slskdKey by remember { mutableStateOf(app.prefs.slskdApiKey) }
     var slskdPath by remember { mutableStateOf(app.prefs.slskdDownloadPath) }
+    var moverUrl by remember { mutableStateOf(app.prefs.fileMoverUrl) }
+    var moverKey by remember { mutableStateOf(app.prefs.fileMoverApiKey) }
     val fr = remember { FocusRequester() }
 
     @Composable
@@ -88,10 +90,10 @@ fun LidarrSetupScreen() {
             }
 
             Box(Modifier.padding(top = 8.dp)) { Txt("Soulseek (optional)", size = 16f, weight = FontWeight.Bold) }
-            Txt("Tried first, racing Lidarr: faster when a peer already has the exact file online, but not guaranteed. Leave blank to use Lidarr only.", size = 12f, maxLines = 4)
+            Txt("Usually wins the race when configured: a live peer search often beats waiting on an indexer. Lidarr won't import a single track on its own, so a completed download is filed straight into the library via NAS (SMB, home network only) or the file mover below (works from anywhere) -- at least one of those must be set up too. Leave blank to use Lidarr only.", size = 12f, maxLines = 8)
             field("slskd URL (e.g. https://frank.tailb05910.ts.net/slskd)", slskdUrl, { slskdUrl = it })
             field("slskd API key", slskdKey, { slskdKey = it })
-            field("Download path (as Lidarr sees it, e.g. /downloads/slskd-inbox)", slskdPath, { slskdPath = it })
+            field("Download path (relative to the shared root, e.g. downloads/slskd-inbox)", slskdPath, { slskdPath = it })
             GlossPill(if (lib.slskdConnecting) "Connecting…" else "Connect Soulseek", {
                 if (slskdUrl.isNotBlank() && slskdKey.isNotBlank()) lib.connectSlskd(slskdUrl.trim(), slskdKey.trim(), slskdPath.trim())
             })
@@ -99,6 +101,19 @@ fun LidarrSetupScreen() {
                 lib.slskdConnecting -> Txt("Connecting to $slskdUrl ...", size = 13f)
                 lib.slskdConnected -> Txt(lib.slskdStatus ?: "Connected", size = 13f, color = Color(0xFF7CE0A0))
                 lib.slskdStatus != null -> Txt(lib.slskdStatus ?: "", size = 13f, color = Color(0xFFFF8080))
+            }
+
+            Box(Modifier.padding(top = 8.dp)) { Txt("File mover (optional)", size = 16f, weight = FontWeight.Bold) }
+            Txt("Fallback for filing a Soulseek download when NAS/SMB isn't reachable, e.g. away from home -- a small HTTP service on the same box, works over the Funnel.", size = 12f, maxLines = 4)
+            field("File mover URL (e.g. https://frank.tailb05910.ts.net/filemove)", moverUrl, { moverUrl = it })
+            field("File mover API key", moverKey, { moverKey = it })
+            GlossPill(if (lib.fileMoverConnecting) "Connecting…" else "Connect File Mover", {
+                if (moverUrl.isNotBlank() && moverKey.isNotBlank()) lib.connectFileMover(moverUrl.trim(), moverKey.trim())
+            })
+            when {
+                lib.fileMoverConnecting -> Txt("Connecting to $moverUrl ...", size = 13f)
+                lib.fileMoverConnected -> Txt(lib.fileMoverStatus ?: "Connected", size = 13f, color = Color(0xFF7CE0A0))
+                lib.fileMoverStatus != null -> Txt(lib.fileMoverStatus ?: "", size = 13f, color = Color(0xFFFF8080))
             }
         }
     }

@@ -52,6 +52,10 @@ class Library(ctx: Context, val art: ArtCache) {
     @Volatile var slskdConnected = false; private set
     @Volatile var slskdStatus: String? = null; private set
 
+    @Volatile var fileMoverConnecting = false; private set
+    @Volatile var fileMoverConnected = false; private set
+    @Volatile var fileMoverStatus: String? = null; private set
+
     @Volatile var tracks: List<Track> = emptyList(); private set
     /** Playlists read from .m3u/.m3u8 files: name -> track paths. Local-source only. */
     @Volatile var m3uPlaylists: Map<String, List<String>> = emptyMap(); private set
@@ -81,6 +85,7 @@ class Library(ctx: Context, val art: ArtCache) {
     private val nas = NasDirectClient()
     private val lidarr = LidarrClient()
     private val slskd = SlskdClient()
+    private val fileMover = FileMoverClient()
     private val prefs = Prefs(ctx)
     private val downloader = DownloadCoordinator(prefs)
     /** Jellyfin/Plex/NAS tracks -- each both folded into [tracks] (deduped against whatever else is
@@ -227,7 +232,7 @@ class Library(ctx: Context, val art: ArtCache) {
                 source = Source.SYNC
                 syncDeviceLabel = "$deviceRoot  ($host)"
                 derive()
-                mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd()
+                mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd(); checkFileMover()
             } catch (e: Exception) {
                 syncError = e.message ?: "Connection failed"
             } finally {
@@ -243,7 +248,7 @@ class Library(ctx: Context, val art: ArtCache) {
         syncGroups = emptyList(); syncDeviceLabel = null; syncError = null
         source = Source.LOCAL
         derive(); notifyChange()
-        mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd()
+        mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd(); checkFileMover()
     }
 
     /**
@@ -420,6 +425,18 @@ class Library(ctx: Context, val art: ArtCache) {
         }
     }
 
+    private fun checkFileMover() {
+        val url = prefs.fileMoverUrl; val key = prefs.fileMoverApiKey
+        if (url.isBlank() || key.isBlank()) return
+        scope.launch {
+            try {
+                val (ok, _) = fileMover.testConnection(url, key)
+                fileMoverConnected = ok
+                if (ok) { fileMoverStatus = "Connected"; notifyChange() }
+            } catch (_: Exception) { /* offline or unreachable -- keep showing what's already there */ }
+        }
+    }
+
     /** Soulseek is optional (Lidarr alone is a complete, working fallback), so this saves a blank
      * downloadPath as "not configured" rather than erroring. */
     fun connectSlskd(url: String, apiKey: String, downloadPath: String) {
@@ -437,6 +454,26 @@ class Library(ctx: Context, val art: ArtCache) {
                 slskdStatus = "Could not connect: ${e.message}"; slskdConnected = false
             } finally {
                 slskdConnecting = false; notifyChange()
+            }
+        }
+    }
+
+    /** Fallback for filing a Soulseek download when NAS/SMB isn't reachable (e.g. away from home) --
+     * optional, same "leave it blank" pattern as the other integrations. */
+    fun connectFileMover(url: String, apiKey: String) {
+        if (fileMoverConnecting) return
+        fileMoverConnecting = true; fileMoverStatus = null; notifyChange()
+        scope.launch {
+            try {
+                val (ok, info) = fileMover.testConnection(url, apiKey)
+                if (!ok) { fileMoverStatus = "Could not connect: $info"; fileMoverConnected = false; return@launch }
+                prefs.fileMoverUrl = url; prefs.fileMoverApiKey = apiKey
+                fileMoverConnected = true
+                fileMoverStatus = "Connected"
+            } catch (e: Exception) {
+                fileMoverStatus = "Could not connect: ${e.message}"; fileMoverConnected = false
+            } finally {
+                fileMoverConnecting = false; notifyChange()
             }
         }
     }
@@ -469,7 +506,7 @@ class Library(ctx: Context, val art: ArtCache) {
             notifyChange()
         }
         localTracks = res.tracks; localM3u = res.playlists
-        if (source == Source.LOCAL) { tracks = localTracks; m3uPlaylists = localM3u; derive(); mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd() }
+        if (source == Source.LOCAL) { tracks = localTracks; m3uPlaylists = localM3u; derive(); mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd(); checkFileMover() }
         art.forgetMisses()
         save()
     }

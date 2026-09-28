@@ -89,9 +89,9 @@ fun LidarrSetupScreen() {
 
             Box(Modifier.padding(top = 8.dp)) { Txt("Soulseek (optional)", size = 16f, weight = FontWeight.Bold) }
             Txt("Tried first, racing Lidarr: faster when a peer already has the exact file online, but not guaranteed. Leave blank to use Lidarr only.", size = 12f, maxLines = 4)
-            field("slskd URL", slskdUrl, { slskdUrl = it })
+            field("slskd URL (e.g. https://frank.tailb05910.ts.net/slskd)", slskdUrl, { slskdUrl = it })
             field("slskd API key", slskdKey, { slskdKey = it })
-            field("Download path (as Lidarr sees it, e.g. /downloads)", slskdPath, { slskdPath = it })
+            field("Download path (as Lidarr sees it, e.g. /downloads/slskd-inbox)", slskdPath, { slskdPath = it })
             GlossPill(if (lib.slskdConnecting) "Connecting…" else "Connect Soulseek", {
                 if (slskdUrl.isNotBlank() && slskdKey.isNotBlank()) lib.connectSlskd(slskdUrl.trim(), slskdKey.trim(), slskdPath.trim())
             })

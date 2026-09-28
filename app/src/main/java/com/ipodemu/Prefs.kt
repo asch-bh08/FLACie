@@ -161,7 +161,7 @@ class Prefs(ctx: Context) {
     /** Path (as seen by Lidarr, not by this phone) where slskd writes finished downloads, so Lidarr's
      * manual import can find them; the two containers are expected to share this folder. */
     var slskdDownloadPath: String
-        get() = sp.getString("slskdpath", "/downloads") ?: "/downloads"
+        get() = sp.getString("slskdpath", "/downloads/slskd-inbox") ?: "/downloads/slskd-inbox"
         set(v) = sp.edit().putString("slskdpath", v).apply()
 
     /** Reset Settings: everything except the chosen iPod, colour and look. */

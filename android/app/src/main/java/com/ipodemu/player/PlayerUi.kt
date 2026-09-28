@@ -849,7 +849,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         else if (nothingAtAll) {
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f)) { EmptyState("No results") }
-                DownloadRequestBar(app, query.trim())
+                DownloadRequestBar(app, query.trim(), guess = bestGuess(c))
             }
         }
         else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -889,11 +889,11 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (c.albums.isNotEmpty()) {
                 item { SectionHeader("Albums you don't have") }
                 itemsIndexed(c.albums, key = { i, al -> "cb$i${al.artist}${al.title}" }) { _, al ->
-                    CatalogRow(al.title, al.artist, al.imageUrl) { app.library.requestDownload(al.artist, "", al.title) }
+                    CatalogRow(al.title, al.artist, al.imageUrl) { app.library.requestDownload(al.artist, al.title, al.title, soulseekFirst = true) }
                 }
             }
             if (catalogLoading) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Searching Lidarr/Soulseek...", size = 13f, color = sc.onBgDim) } }
-            item { DownloadRequestBar(app, query.trim(), compact = true) }
+            item { DownloadRequestBar(app, query.trim(), compact = true, guess = bestGuess(c)) }
         }
     }
 }
@@ -960,16 +960,18 @@ private fun ShowMoreRow(count: Int, onClick: () -> Unit) {
  * query (or falls back to using the whole query as both), and shows live status once requested --
  * see Library.requestDownload/DownloadCoordinator for what actually happens on tap. */
 @Composable
-private fun DownloadRequestBar(app: App, query: String, compact: Boolean = false) {
+private fun DownloadRequestBar(app: App, query: String, compact: Boolean = false, guess: Pair<String, String>? = null) {
     if (query.isEmpty()) return
     val sc = LocalScheme.current
     val status = app.library.downloadStatus
     val parts = query.split(" - ", limit = 2)
-    val artist = parts[0].trim()
-    val title = if (parts.size > 1) parts[1].trim() else query
+    // "Artist - Title" as typed; otherwise the best catalog match, so the file isn't tagged with the query as both
+    // artist and title (which also left it without cover art)
+    val artist = if (parts.size > 1) parts[0].trim() else guess?.first ?: query
+    val title = if (parts.size > 1) parts[1].trim() else guess?.second ?: query
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = if (compact) 10.dp else 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (!compact) Txt("Can't find \"$query\"?", size = 14f, color = sc.onBgDim)
-        GlossPill("Download \"$query\"", { app.library.requestDownload(artist, title, "") }, height = 40.dp, primary = !compact)
+        GlossPill(if (artist != query) "Download \"$title\" by $artist" else "Download \"$query\"", { app.library.requestDownload(artist, title, "") }, height = 40.dp, primary = !compact)
         status?.let { s ->
             val color = when (s.stage) {
                 com.ipodemu.library.DownloadStage.DONE -> Color(0xFF7CE0A0)
@@ -1081,3 +1083,7 @@ private fun AccountAction() {
         }
     }
 }
+
+/** Artist + title of the best catalog hit for a query typed without "Artist - Title". */
+private fun bestGuess(c: com.ipodemu.library.CatalogResults): Pair<String, String>? =
+    c.tracks.firstOrNull()?.let { it.artist to it.title } ?: c.albums.firstOrNull()?.let { it.artist to it.title }

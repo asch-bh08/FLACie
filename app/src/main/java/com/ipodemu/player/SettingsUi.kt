@@ -69,10 +69,11 @@ fun SettingsScreen(nav: PlayerNav) {
                 Card {
                     // an explicit chooser, not a one-tap toggle: the Account rows above change count on sign-in/out, and a tap meant
                     // for them used to land here and silently flip the whole app into the iPod theme
-                    SettingRow("Theme", if (ui.ipodTheme) "iPod" else "Modern", chevron = true) {
-                        nav.sheet = SheetSpec("Theme", null, listOf(
+                    SettingRow("Mode", if (ui.ipodTheme) "iPod" else "Modern", chevron = true) {
+                        nav.sheet = SheetSpec("Mode", null, listOf(
                             SheetItem("Modern", if (!ui.ipodTheme) Glyph.CHECK else Glyph.NOTE) { ui.changeTheme(0) },
                             SheetItem("iPod (classic skins and click wheel)", if (ui.ipodTheme) Glyph.CHECK else Glyph.IPOD) { ui.changeTheme(1) },
+                            SheetItem("Sync mode (edit a connected iPod)", Glyph.LIST) { ui.changeTheme(2) },
                         ))
                     }
                     if (ui.ipodTheme) SettingRow("iPod appearance", modeName, chevron = true) { ui.pickerOpen = true }

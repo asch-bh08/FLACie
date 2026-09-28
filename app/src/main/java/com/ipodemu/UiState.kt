@@ -15,6 +15,8 @@ class UiState(private val prefs: Prefs) {
     var uiTheme by mutableIntStateOf(prefs.uiTheme)
         private set
     val ipodTheme: Boolean get() = uiTheme == 1
+    /** 2 = Sync mode: browse/edit a real iPod through ipodsync (player/SyncModeUi.kt). */
+    val syncMode: Boolean get() = uiTheme == 2
     /** Account sign-in overlay (Settings > Account, or first-run). */
     var accountOpen by mutableStateOf(false)
     var viewMode by mutableIntStateOf(0)

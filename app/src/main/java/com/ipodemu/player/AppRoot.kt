@@ -65,6 +65,10 @@ fun AppRoot(activity: MainActivity) {
                     factory = { ctx -> IpodView(ctx).also { activity.ipodView = it; it.requestFocus() } },
                     onRelease = { it.release(); if (activity.ipodView === it) activity.ipodView = null },
                 ) }
+            } else if (ui.syncMode) {
+                CompositionLocalProvider(LocalStyle provides remember(model) { IpodStyle(model, model.colors.first(), modern = true) }, LocalScheme provides remember { buildModernScheme(null) }) {
+                    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFF0B0B0D)).safeArea()) { SyncModeScreen() }
+                }
             } else PlayerRoot(activity, nav)
             // overlays sit outside PlayerRoot, so give them the active theme's widget style too
             val oStyle = remember(model, ui.colorway, ui.ipodTheme) { IpodStyle(model, model.colors[ui.colorway.coerceIn(0, model.colors.lastIndex)], !ui.ipodTheme) }

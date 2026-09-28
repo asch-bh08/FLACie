@@ -37,8 +37,15 @@ class DownloadCoordinator(private val prefs: Prefs) {
     private val jellyfin = JellyfinDirectClient()
     private val fileMover = FileMoverClient()
 
-    suspend fun download(artist: String, title: String, album: String, onUpdate: (DownloadStatus) -> Unit) {
+    /** [soulseekFirst]: a Soulseek search result the user picked -- try Soulseek alone, Lidarr only if that fails. */
+    suspend fun download(artist: String, title: String, album: String, soulseekFirst: Boolean = false, onUpdate: (DownloadStatus) -> Unit) {
         onUpdate(DownloadStatus(DownloadStage.REQUESTED, "Requested \"${title.ifBlank { album.ifBlank { artist } }}\""))
+        if (soulseekFirst && title.isNotBlank() && prefs.slskdUrl.isNotBlank() && prefs.slskdApiKey.isNotBlank()) {
+            if (trySoulseek(artist, title, onUpdate)) return
+            if (prefs.lidarrUrl.isBlank() || prefs.lidarrApiKey.isBlank()) { onUpdate(DownloadStatus(DownloadStage.FAILED, "Not found on Soulseek")); return }
+            if (!tryLidarr(artist, title, album, onUpdate)) onUpdate(DownloadStatus(DownloadStage.FAILED, "Not found on Soulseek or Lidarr"))
+            return
+        }
         if (prefs.lidarrUrl.isBlank() || prefs.lidarrApiKey.isBlank()) {
             onUpdate(DownloadStatus(DownloadStage.FAILED, "Lidarr isn't configured (Settings > Lidarr)"))
             return

@@ -189,7 +189,8 @@ fun PlayerHost(nav: PlayerNav) {
     val sb = if (LocalHardware.current) 2 else app.prefs.swipeBack   // device view: MENU on the wheel is the only back
     val backEnabled = sb != 2 && nav.sheet == null && nav.nameDialog == null && (nav.nowPlaying || nav.stack.size > 1)
     val edgePx = with(androidx.compose.ui.platform.LocalDensity.current) { 22.dp.toPx() }
-    val swipeZone = if (sb == 1 || (!nav.nowPlaying && app.prefs.swipeRowRight != 0)) edgePx else 1e9f // iPhone-style: swipe right anywhere goes back (Now Playing keeps the edge, its cover swipes skip tracks)
+    // Now Playing: edge only, or dragging the seek bar / swiping the cover counted as "back"
+    val swipeZone = if (sb == 1 || nav.nowPlaying || app.prefs.swipeRowRight != 0) edgePx else 1e9f // iPhone-style: swipe right anywhere goes back (Now Playing keeps the edge, its cover swipes skip tracks)
     Box(
         Modifier.fillMaxSize().edgeSwipeBack(backEnabled, swipeZone, { backDrag = it }) { if (nav.nowPlaying) nav.nowPlaying = false else nav.pop() },
     ) {
@@ -791,9 +792,12 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         delay(140)
         results = withContext(Dispatchers.Default) {
             val lib = app.library
+            // every word of the query, in any order, anywhere in title + artist + album ("intro xx" finds "The xx - Intro")
+            val words = q.lowercase().split(' ').filter { it.isNotBlank() }
+            fun hit(vararg fields: String) = fields.joinToString(" ").lowercase().let { h -> words.all { it in h } }
             Results(
-                lib.songs().filter { it.title.contains(q, true) || it.artist.contains(q, true) || it.album.contains(q, true) }.take(150),
-                lib.albums().filter { it.name.contains(q, true) || (it.tracks.firstOrNull()?.artist ?: "").contains(q, true) }.take(30),
+                lib.songs().filter { hit(it.title, it.artist, it.album) }.take(150),
+                lib.albums().filter { hit(it.name, it.tracks.firstOrNull()?.artist ?: "") }.take(30),
             )
         }
     }
@@ -866,7 +870,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (c.tracks.isNotEmpty()) {
                 item { SectionHeader("Found on Soulseek") }
                 itemsIndexed(c.tracks, key = { i, t -> "ct$i${t.artist}${t.title}" }) { _, t ->
-                    CatalogRow(t.title, t.artist, t.imageUrl) { app.library.requestDownload(t.artist, t.title, "") }
+                    CatalogRow(t.title, t.artist, t.imageUrl) { app.library.requestDownload(t.artist, t.title, "", soulseekFirst = true) }
                 }
             }
             if (r.albums.isNotEmpty()) {

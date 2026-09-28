@@ -141,9 +141,9 @@ class Library(ctx: Context, val art: ArtCache) {
     private suspend fun jellyfinUser(url: String, key: String): String? =
         prefs.accountUserId.takeIf { it.isNotBlank() && prefs.accountServer.trimEnd('/') == url.trimEnd('/') } ?: jellyfin.firstUserId(url, key)
 
-    fun requestDownload(artist: String, title: String, album: String) {
+    fun requestDownload(artist: String, title: String, album: String, soulseekFirst: Boolean = false) {
         scope.launch {
-            downloader.download(artist, title, album) { status ->
+            downloader.download(artist, title, album, soulseekFirst) { status ->
                 downloadStatus = status
                 status.newTrack?.let { addDownloadedTrack(it) }
                 notifyChange()

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512">
+  <!-- FLACie logo: an "F" whose middle bar sends out sound waves, on a pink-to-violet gradient. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FF4D6D"/>
+      <stop offset="1" stop-color="#6A2CFF"/>
+    </linearGradient>
+  </defs>
+  <rect width="108" height="108" rx="24" fill="url(#bg)"/>
+  <g fill="#fff">
+    <path d="M38,32h0a5,5 0 0 1 5,5v34a5,5 0 0 1 -10,0v-34a5,5 0 0 1 5,-5z"/>
+    <path d="M38,32h22a5,5 0 0 1 0,10h-22a5,5 0 0 1 0,-10z"/>
+    <path d="M38,49h14a5,5 0 0 1 0,10h-14a5,5 0 0 1 0,-10z"/>
+  </g>
+  <g fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round">
+    <path d="M63,48.5a8,8 0 0 1 0,11"/>
+    <path d="M69.5,43a15,15 0 0 1 0,22" stroke-opacity=".9"/>
+    <path d="M76,37.5a22,22 0 0 1 0,33" stroke-opacity=".7"/>
+  </g>
+</svg>

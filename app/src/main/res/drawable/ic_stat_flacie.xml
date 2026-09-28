@@ -1,0 +1,12 @@
+<!-- Notification icon: the FLACie mark as a white silhouette. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="54" android:viewportHeight="54" android:tint="#FFFFFFFF">
+    <group android:translateX="-27" android:translateY="-27">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M38,32h0a5,5 0 0 1 5,5v34a5,5 0 0 1 -10,0v-34a5,5 0 0 1 5,-5z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M38,32h22a5,5 0 0 1 0,10h-22a5,5 0 0 1 0,-10z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M38,49h14a5,5 0 0 1 0,10h-14a5,5 0 0 1 0,-10z" />
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="4.5" android:strokeLineCap="round" android:pathData="M63,48.5a8,8 0 0 1 0,11" />
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="4.5" android:strokeLineCap="round" android:pathData="M69.5,43a15,15 0 0 1 0,22" />
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="4.5" android:strokeLineCap="round" android:pathData="M76,37.5a22,22 0 0 1 0,33" />
+    </group>
+</vector>

@@ -28,7 +28,7 @@ class PlaybackService : MediaSessionService() {
         session = MediaSession.Builder(this, App.of(this).player.exo).setSessionActivity(open).build()
         // Register the session so the notification manager tracks the player even with no external controller bound.
         addSession(session!!)
-        setMediaNotificationProvider(DefaultMediaNotificationProvider(this).apply { setSmallIcon(R.drawable.ic_stat_ipod) })
+        setMediaNotificationProvider(DefaultMediaNotificationProvider(this).apply { setSmallIcon(R.drawable.ic_stat_flacie) })
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session

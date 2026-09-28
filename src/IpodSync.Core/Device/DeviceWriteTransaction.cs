@@ -83,7 +83,7 @@ public sealed class DeviceWriteTransaction
         byte[] back = File.ReadAllBytes(dest);
         if (!back.AsSpan().SequenceEqual(bytes))
             throw new IOException($"read-back mismatch after writing {relPath}");
-        Log.Add($"wrote       {relPath}  {bytes.Length:N0} bytes, SHA-1 {Convert.ToHexString(SHA1.HashData(bytes))[..12]}.. read back identical");
+        Log.Add($"wrote       {relPath}  {bytes.Length:N0} bytes, SHA-1 {Convert.ToHexString(IpodSync.Core.Crypto.CryptoPrimitives.Sha1(bytes))[..12]}.. read back identical");
     }
 
     /// <summary>Appends bytes to an Artwork/ file, refusing unless the file is exactly
@@ -220,7 +220,7 @@ public sealed class DeviceWriteTransaction
     public static string Sha1(string path)
     {
         using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        return Convert.ToHexString(SHA1.HashData(fs));
+        return Convert.ToHexString(IpodSync.Core.Crypto.CryptoPrimitives.Sha1(fs));
     }
 
     private static void CopyDir(string src, string dst)

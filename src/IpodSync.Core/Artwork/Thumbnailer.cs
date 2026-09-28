@@ -18,7 +18,7 @@ public static class Thumbnailer
     public static string? ExtractCover(string audioPath)
     {
         string key;
-        using (var fs = File.OpenRead(audioPath)) key = Convert.ToHexString(SHA256.HashData(fs))[..32];
+        using (var fs = File.OpenRead(audioPath)) key = Convert.ToHexString(IpodSync.Core.Crypto.CryptoPrimitives.Sha256(fs))[..32];
         string dir = Path.Combine(Transcoder.CacheDir, "covers");
         Directory.CreateDirectory(dir);
         foreach (var ext in new[] { ".jpg", ".png" })

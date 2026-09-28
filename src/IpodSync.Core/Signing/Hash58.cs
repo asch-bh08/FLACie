@@ -41,8 +41,8 @@ public static class Hash58
             y[i * 4 + 3] = InvSBox[lo];
         }
         byte[] key = new byte[64];
-        SHA1.HashData([.. Fixed, .. y]).CopyTo(key, 0);
-        return HMACSHA1.HashData(key, zeroedDatabase);
+        IpodSync.Core.Crypto.CryptoPrimitives.Sha1([.. Fixed, .. y]).CopyTo(key, 0);
+        return IpodSync.Core.Crypto.CryptoPrimitives.HmacSha1(key, zeroedDatabase);
     }
 
     /// <summary>The database bytes hash58 covers: the file with db id (0x18, 8),

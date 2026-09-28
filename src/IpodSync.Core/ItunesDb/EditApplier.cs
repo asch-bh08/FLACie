@@ -112,8 +112,8 @@ public static class EditApplier
 
     private static int Seed(byte[] fileBytes, ChangeSet changeSet)
     {
-        byte[] json = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(changeSet);
-        byte[] hash = System.Security.Cryptography.SHA256.HashData([.. System.Security.Cryptography.SHA256.HashData(fileBytes), .. json]);
+        byte[] json = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(changeSet, IpodSync.Core.Sync.ChangeSetJson.Default.ChangeSet);
+        byte[] hash = IpodSync.Core.Crypto.CryptoPrimitives.Sha256([.. IpodSync.Core.Crypto.CryptoPrimitives.Sha256(fileBytes), .. json]);
         return BitConverter.ToInt32(hash, 0);
     }
 

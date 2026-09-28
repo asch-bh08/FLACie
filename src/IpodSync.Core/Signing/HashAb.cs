@@ -36,7 +36,7 @@ public static class HashAb
         Array.Clear(copy, 0x72, 46);
         if (copy.Length >= Offset + Length) Array.Clear(copy, Offset, Length);
         BitConverter.TryWriteBytes(copy.AsSpan(0x30, 2), (ushort)3);
-        return SHA1.HashData(copy);
+        return IpodSync.Core.Crypto.CryptoPrimitives.Sha1(copy);
     }
 }
 

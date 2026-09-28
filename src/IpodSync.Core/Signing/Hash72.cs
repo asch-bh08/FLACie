@@ -35,9 +35,7 @@ public static class Hash72
         sha1.CopyTo(plain);
         key.Random.CopyTo(plain, 20);
 
-        using var aes = Aes.Create();
-        aes.Key = AesKey;
-        byte[] cipher = aes.EncryptCbc(plain, key.Iv, PaddingMode.None);
+        byte[] cipher = IpodSync.Core.Crypto.CryptoPrimitives.AesCbcEncrypt(AesKey, key.Iv, plain);
 
         byte[] sig = new byte[46];
         sig[0] = 0x01; sig[1] = 0x00;
@@ -58,9 +56,7 @@ public static class Hash72
         random.CopyTo(plain, 20);
 
         // CBC: C1 = E(P1 xor IV)  =>  IV = D(C1) xor P1.
-        using var aes = Aes.Create();
-        aes.Key = AesKey;
-        byte[] d1 = aes.DecryptEcb(signature.Slice(14, 16).ToArray(), PaddingMode.None);
+        byte[] d1 = IpodSync.Core.Crypto.CryptoPrimitives.AesEcbDecrypt(AesKey, signature.Slice(14, 16).ToArray());
         byte[] iv = new byte[16];
         for (int i = 0; i < 16; i++) iv[i] = (byte)(d1[i] ^ plain[i]);
 
@@ -79,8 +75,8 @@ public static class Hash72
         int blocks = locations.Length / 1024;
         byte[] sha1s = new byte[blocks * 20];
         for (int b = 0; b < blocks; b++)
-            SHA1.HashData(locations.AsSpan(b * 1024, 1024), sha1s.AsSpan(b * 20, 20));
-        return (SHA1.HashData(sha1s), sha1s);
+            IpodSync.Core.Crypto.CryptoPrimitives.Sha1(locations.AsSpan(b * 1024, 1024), sha1s.AsSpan(b * 20, 20));
+        return (IpodSync.Core.Crypto.CryptoPrimitives.Sha1(sha1s), sha1s);
     }
 
     public static byte[] BuildCbk(byte[] locations, DeviceKey key)
@@ -118,7 +114,7 @@ public static class Hash72
         Array.Clear(copy, 0x18, 8);
         Array.Clear(copy, 0x58, 20);
         Array.Clear(copy, 0x72, 46);
-        return SHA1.HashData(copy);
+        return IpodSync.Core.Crypto.CryptoPrimitives.Sha1(copy);
     }
 
     public static DeviceKey? ExtractFromDatabase(byte[] file) =>

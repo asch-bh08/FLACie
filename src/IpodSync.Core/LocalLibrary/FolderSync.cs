@@ -43,7 +43,7 @@ public static class FolderSync
         /// folder never replaces the first folder's entries.</summary>
         public static string PathFor(ulong libraryId, string folder)
         {
-            string folderKey = Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(
+            string folderKey = Convert.ToHexString(IpodSync.Core.Crypto.CryptoPrimitives.Sha1(
                 Encoding.UTF8.GetBytes(System.IO.Path.GetFullPath(folder).TrimEnd('\\', '/').ToLowerInvariant())))[..10];
             return System.IO.Path.Combine(
                 Environment.GetEnvironmentVariable("IPODSYNC_MANIFEST_DIR")

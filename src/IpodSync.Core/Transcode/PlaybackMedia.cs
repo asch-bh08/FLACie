@@ -42,7 +42,7 @@ public static class PlaybackMedia
     {
         if (!Transcoder.FfmpegAvailable()) return null;
         var info = new FileInfo(source);
-        string key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{source}|{info.Length}|{info.LastWriteTimeUtc.Ticks}")))[..24];
+        string key = Convert.ToHexString(IpodSync.Core.Crypto.CryptoPrimitives.Sha256(Encoding.UTF8.GetBytes($"{source}|{info.Length}|{info.LastWriteTimeUtc.Ticks}")))[..24];
         Directory.CreateDirectory(CacheDir);
         string outPath = Path.Combine(CacheDir, key + ".flac");
         if (File.Exists(outPath) && new FileInfo(outPath).Length > 0) return outPath;

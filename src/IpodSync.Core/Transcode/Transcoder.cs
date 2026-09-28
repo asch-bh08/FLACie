@@ -69,7 +69,7 @@ public static class Transcoder
 
         string settings = lossless ? $"alac-s16-{rate}-2ch-v2" : $"aac-256k-{rate}-2ch-v2";
         string key;
-        using (var fs = File.OpenRead(source)) key = Convert.ToHexString(SHA256.HashData(fs))[..32];
+        using (var fs = File.OpenRead(source)) key = Convert.ToHexString(IpodSync.Core.Crypto.CryptoPrimitives.Sha256(fs))[..32];
         Directory.CreateDirectory(CacheDir);
         string output = Path.Combine(CacheDir, $"{key}-{settings}.m4a");
 

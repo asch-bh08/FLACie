@@ -246,7 +246,7 @@ public static class ItlpSync
             }
             foreach (var t in tables)
             {
-                using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                using var sha = IpodSync.Core.Crypto.CryptoPrimitives.CreateSha256();
                 using var cmd = c.CreateCommand();
                 // Every table in these bundles is a rowid table; rowid order is stable for
                 // rows nobody touched, which is exactly what this hash is used to prove.
@@ -297,7 +297,7 @@ public static class ItlpSync
         return problems;
     }
 
-    public static string Sha1(string path) => Convert.ToHexString(SHA1.HashData(File.ReadAllBytes(path)));
+    public static string Sha1(string path) => Convert.ToHexString(IpodSync.Core.Crypto.CryptoPrimitives.Sha1(File.ReadAllBytes(path)));
 
     // ------------------------------------------------------------------ helpers
 

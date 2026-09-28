@@ -303,7 +303,8 @@ class Library(ctx: Context, val art: ArtCache) {
         return CatalogResults(catalogAlbums, catalogTracks)
     }
 
-    private val albumArtUrlCache = java.util.concurrent.ConcurrentHashMap<String, String?>()
+    // ConcurrentHashMap rejects null values (a "no cover found" miss used to crash the app), so a miss is stored as ""
+    private val albumArtUrlCache = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     /** Best-effort cover art for an OWNED track that has no local [Track.artKey] -- NAS scans (no
      * embedded-tag reading) and Cloud/Soulseek injections never set one. Reuses the same Lidarr
@@ -313,14 +314,13 @@ class Library(ctx: Context, val art: ArtCache) {
     suspend fun albumArtUrl(artist: String, album: String): String? {
         if (prefs.lidarrUrl.isBlank() || prefs.lidarrApiKey.isBlank()) return null
         val key = "${artist.trim().lowercase()}|${album.trim().lowercase()}"
-        albumArtUrlCache[key]?.let { return it }
-        if (albumArtUrlCache.containsKey(key)) return null
+        albumArtUrlCache[key]?.let { return it.ifEmpty { null } }
         val term = album.ifBlank { artist }
         val url = try {
             lidarr.lookupAlbum(prefs.lidarrUrl, prefs.lidarrApiKey, term)
                 .firstOrNull { it.artistName.trim().equals(artist.trim(), true) }?.imageUrl
         } catch (_: Exception) { null }
-        albumArtUrlCache[key] = url
+        albumArtUrlCache[key] = url ?: ""
         return url
     }
 

@@ -1,0 +1,82 @@
+@inherits StateComponent
+
+<div class="page-head"><div><h1>Device health</h1><p>Read-only checks of the iPod’s two databases, signatures and artwork</p></div></div>
+@if (State.ActiveDevice is { } d)
+{
+    <div class="stat-grid">
+        <div class="stat"><div class="v">@(State.Db?.Tracks.Count ?? 0)</div><div class="k">songs</div></div>
+        <div class="stat"><div class="v">@(State.Db?.Playlists.Count(p => !p.IsMaster) ?? 0)</div><div class="k">playlists</div></div>
+        @if (d.TotalBytes > 0)
+        {
+            <div class="stat"><div class="v">@Bytes(d.FreeBytes)</div><div class="k">free of @Bytes(d.TotalBytes)</div></div>
+        }
+        <div class="stat"><div class="v">@(d.FileSystem ?? "?")</div><div class="k">file system</div></div>
+    </div>
+
+    <div class="panel">
+        <div class="row" style="justify-content:space-between">
+            <strong>@d.RootPath @d.VolumeLabel</strong>
+            <button class="btn small" @onclick="State.RefreshHealthAsync" disabled="@State.HealthLoading">@(State.HealthLoading ? "Checking…" : "Check again")</button>
+        </div>
+        @if (State.Health?.Profile is { } p)
+        {
+            <table class="data-table" style="table-layout:auto">
+                <tbody>
+                    <tr><td style="width:180px">Model</td><td>@(p.ModelName ?? "not reported")</td><td class="muted">@(p.ModelNumber is null ? "the iPod only reports this once iTunes has talked to it" : p.ModelNumber)</td></tr>
+                    <tr><td>Library format</td><td>@Format(p.Format)</td><td class="muted">@(p.HasSqliteBundle ? "classic database + SQLite library" : "classic database only")</td></tr>
+                    <tr><td>Database signature</td><td>@Signature(p.Signature)</td><td class="muted">@p.Summary</td></tr>
+                </tbody>
+            </table>
+            @foreach (var n in p.Notes)
+            {
+                <div class="small muted">· @n</div>
+            }
+        }
+        @if (State.Health is { } h)
+        {
+            <table class="data-table" style="table-layout:auto">
+                <tbody>
+                    <tr><td style="width:180px">Signatures</td><td class="@Cls(h.SignaturesValid)">@Word(h.SignaturesValid)</td><td class="muted">@h.SignatureDetail</td></tr>
+                    <tr><td>Classic ↔ SQLite library</td><td class="@Cls(h.DatabasesInSync)">@Word(h.DatabasesInSync)</td><td class="muted">@h.SyncDetail</td></tr>
+                    <tr><td>Artwork</td><td class="@Cls(h.ArtworkOk)">@Word(h.ArtworkOk)</td><td class="muted">@h.ArtworkDetail</td></tr>
+                </tbody>
+            </table>
+            <p class="muted small">
+                Newer iPods (like the nano 5G) keep two copies of the library: the classic iTunesCDB and an SQLite library that the
+                menus read. Both are signed with keys tied to the device. Every write from this app updates both and re-checks all of
+                this before it's accepted.
+            </p>
+        }
+        else if (!State.HealthLoading)
+        {
+            <div class="muted small">Health checks aren't available on this platform.</div>
+        }
+        @if (!d.IsFat32)
+        {
+            <div class="banner warn small">This iPod isn't FAT32 (Windows-formatted). Mac-formatted iPods can't be written from Windows or Android.</div>
+        }
+    </div>
+}
+
+@code {
+    private static string Format(IpodDbFormat f) => f switch
+    {
+        IpodDbFormat.ItunesCdb => "iTunesCDB (compressed)",
+        IpodDbFormat.ItunesDb => "iTunesDB",
+        IpodDbFormat.ShuffleSd => "iTunesSD (shuffle)",
+        IpodDbFormat.IosMediaLibrary => "iOS media library",
+        _ => "unknown",
+    };
+
+    private static string Signature(IpodSignature s) => s switch
+    {
+        IpodSignature.None => "none (pre-2007 iPod)",
+        IpodSignature.Hash58 => "hash58",
+        IpodSignature.Hash58AndHash72 => "hash58 + hash72",
+        IpodSignature.HashAb => "hashAB (not supported)",
+        _ => "unknown",
+    };
+
+    private static string Cls(bool? ok) => ok switch { true => "ok-text", false => "error-text", _ => "muted" };
+    private static string Word(bool? ok) => ok switch { true => "OK", false => "Problem", _ => "n/a" };
+}

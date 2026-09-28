@@ -1,0 +1,225 @@
+@inherits StateComponent
+@inject PlayerState Player
+
+@if (State.Db is not null)
+{
+    var views = State.EffectivePlaylists();
+    var sel = views.FirstOrDefault(v => v.Key == _selectedKey) ?? (_selectedKey is null ? null : views.FirstOrDefault(v => v.Name == _selectedName));
+    <div class="split">
+        <div>
+            @if (State.CanWrite)
+            {
+                <form class="row" @onsubmit="Create" @onsubmit:preventDefault="true">
+                    <input class="text-input grow" placeholder="New playlist name" @bind="_newName" @bind:event="oninput" />
+                    <button type="submit" class="btn small primary" disabled="@string.IsNullOrWhiteSpace(_newName)">Create</button>
+                </form>
+            }
+            <div class="pl-list">
+                @foreach (var v in views.OrderBy(v => v.IsSmart).ThenBy(v => v.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    <button class="@(sel?.Key == v.Key ? "active" : "")" @onclick="() => SelectList(v)">
+                        <span>
+                            @v.Name
+                            @if (v.IsSmart) { <span class="tag smart">smart</span> }
+                            @if (v.CreateOp is not null) { <span class="tag pending">new</span> }
+                            else if (v.HasPendingChanges) { <span class="tag pending">edited</span> }
+                        </span>
+                        <span class="n">@v.TrackIds.Count</span>
+                    </button>
+                }
+            </div>
+        </div>
+
+        <div>
+            @if (sel is null)
+            {
+                <div class="empty"><p>Select a playlist@(State.CanWrite ? ", or create one" : "").</p></div>
+            }
+            else
+            {
+                bool editable = State.CanWrite && !sel.IsSmart && !sel.IsPodcast;
+                <div class="row" style="margin-bottom:14px">
+                    <button class="btn primary" disabled="@(sel.TrackIds.Count == 0)" @onclick="() => PlayList(sel)"><Icon Name="play" Size="15" /> Play</button>
+                    <button class="btn" disabled="@(sel.TrackIds.Count == 0)" @onclick="() => ShuffleList(sel)"><Icon Name="shuffle" Size="15" /> Shuffle</button>
+                </div>
+                <div class="panel">
+                    @if (editable)
+                    {
+                        <div class="row">
+                            <input class="text-input grow" @bind="_rename" style="font-size:16px; font-weight:600" />
+                            <button class="btn small" disabled="@(string.IsNullOrWhiteSpace(_rename) || _rename == sel.Name)" @onclick="() => Rename(sel)">Rename</button>
+                            @if (_confirmDelete)
+                            {
+                                <button class="btn danger small" @onclick="() => { State.DeletePlaylist(sel); _confirmDelete = false; _selectedKey = null; }">Confirm delete</button>
+                                <button class="btn small" @onclick="() => _confirmDelete = false">Cancel</button>
+                            }
+                            else
+                            {
+                                <button class="btn danger small" @onclick="() => _confirmDelete = true">Delete playlist…</button>
+                            }
+                        </div>
+                        <div class="muted small">@sel.TrackIds.Count songs · @Time(sel.TrackIds.Sum(id => State.TrackById(id)?.LengthMs ?? 0))@(sel.PendingFileAdds > 0 ? $" · +{sel.PendingFileAdds} new file(s) queued" : "") · deleting a playlist never deletes its songs</div>
+                    }
+                    else
+                    {
+                        <h2>@sel.Name</h2>
+                        <div class="muted small">@sel.TrackIds.Count songs@(sel.IsSmart ? " · smart playlist (the iPod fills it from its rules; edit it in iTunes)" : "")</div>
+                    }
+                </div>
+
+                <div class="table-wrap medium">
+                    <table class="data-table">
+                        <colgroup><col style="width:36px" /><col /><col style="width:28%" /><col style="width:60px" />@if (editable) { <col style="width:110px" /> }</colgroup>
+                        <thead><tr><th class="num">#</th><th>Title</th><th>Artist</th><th class="num">Time</th>@if (editable) { <th></th> }</tr></thead>
+                        <tbody>
+                            @for (int i = 0; i < sel.TrackIds.Count; i++)
+                            {
+                                int idx = i;
+                                var t = State.TrackById(sel.TrackIds[i]);
+                                <tr class="@(t is not null && Player.IsCurrent(t) ? "playing" : "")" @ondblclick="() => PlayFrom(sel, idx)">
+                                    <td class="num muted">@(i + 1)</td>
+                                    <td>@(t?.Title ?? $"#{sel.TrackIds[i]}")</td>
+                                    <td>@t?.Artist</td>
+                                    <td class="num">@(t is null ? "" : Time(t.LengthMs))</td>
+                                    @if (editable)
+                                    {
+                                        <td>
+                                            <button class="btn icon" title="Play" @onclick="() => PlayFrom(sel, idx)"><Icon Name="play" Size="14" /></button>
+                                            <button class="btn icon" title="Move up" disabled="@(idx == 0)" @onclick="() => Move(sel, idx, -1)">↑</button>
+                                            <button class="btn icon" title="Move down" disabled="@(idx == sel.TrackIds.Count - 1)" @onclick="() => Move(sel, idx, 1)">↓</button>
+                                            <button class="btn icon" title="Remove from playlist" @onclick="() => State.RemoveFromPlaylist(sel, sel.TrackIds[idx])">✕</button>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (editable)
+                {
+                    <h3>Add songs</h3>
+                    <div class="row">
+                        <input class="text-input grow" placeholder="Search the library to add…" @bind="_search" @bind:event="oninput" />
+                        @if (Matches(sel).Count > 1)
+                        {
+                            <button class="btn small" @onclick="() => State.AddToPlaylist(sel, Matches(sel).Select(t => t.Id))">Add all @Matches(sel).Count</button>
+                        }
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(_search))
+                    {
+                        <div class="table-wrap medium">
+                            <table class="data-table">
+                                <colgroup><col /><col style="width:28%" /><col style="width:28%" /><col style="width:70px" /></colgroup>
+                                <tbody>
+                                    @foreach (var t in Matches(sel).Take(100))
+                                    {
+                                        <tr>
+                                            <td>@t.Title</td><td>@t.Artist</td><td>@t.Album</td>
+                                            <td><button class="btn small" @onclick="() => State.AddToPlaylist(sel, [t.Id])">+ Add</button></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                }
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private string? _selectedKey;
+    private string? _selectedName;
+    private string _newName = "";
+    private string _rename = "";
+    private string _search = "";
+    private bool _confirmDelete;
+
+    private void SelectList(PlaylistView v)
+    {
+        _selectedKey = v.Key;
+        _selectedName = v.Name;
+        _rename = v.Name;
+        _confirmDelete = false;
+        _search = "";
+    }
+
+    private void Create()
+    {
+        string name = _newName.Trim();
+        if (name.Length == 0) return;
+        if (State.NameInUse(name)) { State.Error = $"There is already a playlist called “{name}”."; return; }
+        State.CreatePlaylist(name, []);
+        _newName = "";
+        var v = State.EffectivePlaylists().Last(v => v.CreateOp is not null && v.Name == name);
+        SelectList(v);
+    }
+
+    private void Rename(PlaylistView v)
+    {
+        string name = _rename.Trim();
+        if (State.NameInUse(name, v)) { State.Error = $"There is already a playlist called “{name}”."; return; }
+        State.RenamePlaylist(v, name);
+        _selectedName = name;
+    }
+
+    private void Move(PlaylistView v, int index, int delta)
+    {
+        var order = new List<uint>(v.TrackIds);
+        (order[index], order[index + delta]) = (order[index + delta], order[index]);
+        State.ReorderPlaylist(v, order);
+    }
+
+    private List<Track> Tracks(PlaylistView v) => v.TrackIds.Select(State.TrackById).OfType<Track>().ToList();
+
+    private async Task PlayList(PlaylistView v)
+    {
+        var tracks = Tracks(v);
+        if (tracks.Count == 0 || State.ActiveRoot is not { } root) return;
+        Player.SetShuffle(false);
+        await Player.PlayAsync(root, tracks[0], tracks, v.Name);
+    }
+
+    private async Task ShuffleList(PlaylistView v)
+    {
+        var tracks = Tracks(v);
+        if (tracks.Count == 0 || State.ActiveRoot is not { } root) return;
+        Player.SetShuffle(true);
+        await Player.PlayAsync(root, tracks[Random.Shared.Next(tracks.Count)], tracks, v.Name);
+    }
+
+    private async Task PlayFrom(PlaylistView v, int index)
+    {
+        var tracks = Tracks(v);
+        if (index >= tracks.Count || State.ActiveRoot is not { } root) return;
+        await Player.PlayAsync(root, tracks[index], tracks, v.Name);
+    }
+
+    private List<Track>? _matchCache;
+    private string? _matchKey;
+
+    /// <summary>Cached: the "add songs" list is asked for several times per render.</summary>
+    private List<Track> Matches(PlaylistView v)
+    {
+        string key = $"{v.Key}|{_search}|{State.PendingVersion}|{State.Db?.GetHashCode()}";
+        if (_matchCache is not null && key == _matchKey) return _matchCache;
+        _matchCache = Search(v);
+        _matchKey = key;
+        return _matchCache;
+    }
+
+    private List<Track> Search(PlaylistView v)
+    {
+        if (string.IsNullOrWhiteSpace(_search) || State.Db is null) return [];
+        var words = _search.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return State.Db.Tracks
+            .Where(t => !v.TrackIds.Contains(t.Id) && !State.IsPendingRemoval(t.Id))
+            .Where(t => words.All(w => (t.Title?.Contains(w, StringComparison.OrdinalIgnoreCase) ?? false)
+                                    || (t.Artist?.Contains(w, StringComparison.OrdinalIgnoreCase) ?? false)
+                                    || (t.Album?.Contains(w, StringComparison.OrdinalIgnoreCase) ?? false)))
+            .OrderBy(t => t.Artist).ThenBy(t => t.Album).ThenBy(t => t.TrackNumber)
+            .ToList();
+    }
+}

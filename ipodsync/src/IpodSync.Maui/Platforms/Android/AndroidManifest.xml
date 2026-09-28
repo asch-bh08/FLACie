@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:allowBackup="true" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true"></application>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- USB host mode, for talking to an iPod plugged in over USB via an OTG
+         cable. There is no install-time "USB device" permission in Android:
+         access to a specific attached device is always a separate runtime
+         grant (see AndroidUsbIpodConnector.RequestPermissionAsync); this just
+         declares that the app uses USB host APIs and that host mode is
+         required. -->
+    <uses-feature android:name="android.hardware.usb.host" android:required="true" />
+    <!-- Writing to the iPod: Android mounts it as a removable USB volume; "All files access"
+         lets the app use that volume as a normal filesystem path, so the same verified write
+         pipeline as on the PC runs unchanged (AndroidIpodSyncBackend). Granted by the user
+         in Settings, never silently. -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+</manifest>

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The ipodsync engine as a native shared library (libipodsync.so) for ipodplayer on Android: NativeAOT, no UI,
+    no .NET runtime to install. Built on Linux/WSL with the Android NDK by tools/build-engine-android.sh.
+    Crypto goes through BouncyCastle here (see BouncyCryptoBackend) because NativeAOT on Android has no OpenSSL.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>true</PublishAot>
+    <NativeLib>Shared</NativeLib>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- the change-set / library JSON is plain POCOs; keep reflection-based System.Text.Json working under AOT -->
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+    <TrimMode>partial</TrimMode>
+    <AssemblyName>ipodsync</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\IpodSync.Core\IpodSync.Core.csproj" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.4.0" />
+    <TrimmerRootAssembly Include="IpodSync.Core" />
+  </ItemGroup>
+</Project>

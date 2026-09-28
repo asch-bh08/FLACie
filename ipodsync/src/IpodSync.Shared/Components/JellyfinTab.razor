@@ -1,0 +1,88 @@
+@inherits StateComponent
+@inject IHttpClientFactory HttpClientFactory
+@inject JellyfinSettings Settings
+
+<div class="page-head"><div><h1>Jellyfin</h1><p>Copy the iPod’s playlists to a Jellyfin server</p></div></div>
+<div class="panel">
+    <p class="muted small" style="margin-top:0">Copies the iPod's playlists to a Jellyfin server, matching songs by title and artist. This only writes to Jellyfin, never to the iPod.</p>
+    <div class="row">
+        <input class="text-input grow" @bind="_url" placeholder="http://192.168.1.183:8096" />
+        <input class="text-input grow" type="password" @bind="_apiKey" placeholder="API key" />
+        <button class="btn" @onclick="Test" disabled="@_testing">@(_testing ? "Connecting…" : "Connect")</button>
+    </div>
+    @if (_status is not null)
+    {
+        <p class="@(_connected ? "ok-text" : "error-text") small">@_status</p>
+    }
+    @if (_users is { Count: > 0 })
+    {
+        <div class="row">
+            <label class="muted small">Sync as user:</label>
+            <select class="text-input" @bind="_userId">
+                @foreach (var u in _users) { <option value="@u.Id">@u.Name</option> }
+            </select>
+            <button class="btn primary" @onclick="Sync" disabled="@(_syncing || State.Db is null || _userId is null)">@(_syncing ? "Syncing…" : "Sync playlists to Jellyfin")</button>
+        </div>
+    }
+</div>
+@if (_reports is { Count: > 0 })
+{
+    <div class="table-wrap medium">
+        <table class="data-table">
+            <thead><tr><th>Playlist</th><th class="num">Matched</th><th class="num">Unmatched</th><th>Action</th></tr></thead>
+            <tbody>
+                @foreach (var r in _reports) { <tr><td>@r.PlaylistName</td><td class="num">@r.Matched</td><td class="num">@r.Unmatched</td><td>@r.Action</td></tr> }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private string _url = "http://192.168.1.183:8096";
+    private string _apiKey = "";
+    private bool _testing, _connected, _syncing;
+    private string? _status;
+    private List<JellyfinUser>? _users;
+    private string? _userId;
+    private List<PlaylistSyncReport>? _reports;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        if (!string.IsNullOrWhiteSpace(Settings.BaseUrl)) _url = Settings.BaseUrl;
+        if (!string.IsNullOrWhiteSpace(Settings.ApiKey)) _apiKey = Settings.ApiKey;
+    }
+
+    private async Task Test()
+    {
+        _testing = true; _users = null; _reports = null;
+        try
+        {
+            var client = new JellyfinClient(HttpClientFactory.CreateClient(), _url, _apiKey);
+            var (ok, serverName, error) = await client.TestConnectionAsync();
+            _connected = ok;
+            _status = ok ? $"Connected to {serverName}" : $"Could not connect: {error}";
+            if (ok) _users = await client.GetUsersAsync();
+            if (_users is { Count: > 0 }) _userId = _users[0].Id;
+        }
+        catch (Exception ex) { _connected = false; _status = $"Could not connect: {ex.Message}"; }
+        finally { _testing = false; }
+    }
+
+    private async Task Sync()
+    {
+        if (State.Db is not { } db || _userId is null) return;
+        _syncing = true; _reports = [];
+        try
+        {
+            var client = new JellyfinClient(HttpClientFactory.CreateClient(), _url, _apiKey);
+            foreach (var playlist in db.Playlists.Where(p => !p.IsMaster && p.TrackIds.Count > 0))
+            {
+                _reports.Add(await JellyfinPlaylistSync.SyncAsync(client, _userId, playlist, db.Tracks));
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex) { _status = $"Sync failed: {ex.Message}"; }
+        finally { _syncing = false; }
+    }
+}

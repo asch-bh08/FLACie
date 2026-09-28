@@ -1,0 +1,41 @@
+@inherits StateComponent
+@* An album cover read from the iPod's artwork file, loaded lazily at the size asked for. *@
+
+<div class="cover-art @Class" style="@(Size > 0 ? $"width:{Size}px;height:{Size}px" : "")">
+    @if (_url is not null)
+    {
+        <img src="@_url" alt="" loading="lazy" draggable="false" />
+    }
+    else
+    {
+        <Icon Name="albums" Size="@(Size > 0 ? Math.Max(16, Size / 3) : 24)" Class="cover-placeholder" />
+    }
+</div>
+
+@code {
+    [Parameter] public uint ArtworkId { get; set; }
+    [Parameter] public int Size { get; set; } = 48;
+    /// <summary>Thumbnail size to request; defaults to the display size (times 2 for small ones, so they stay sharp).</summary>
+    [Parameter] public int? Source { get; set; }
+    [Parameter] public string? Class { get; set; }
+
+    private string? _url;
+    private uint _loadedId;
+    private string? _loadedRoot;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ArtworkId == _loadedId && State.ActiveRoot == _loadedRoot) return;
+        _loadedId = ArtworkId;
+        _loadedRoot = State.ActiveRoot;
+        _url = null;
+        if (ArtworkId == 0 || State.ActiveRoot is not { } root) return;
+        uint want = ArtworkId;
+        try
+        {
+            string? url = await State.Backend.GetArtworkDataUrlAsync(root, want, Source ?? (Size <= 120 ? Size * 2 : Size));
+            if (_loadedId == want) _url = url;
+        }
+        catch { /* unreadable artwork: keep the placeholder */ }
+    }
+}

@@ -1,0 +1,63 @@
+@inherits StateComponent
+
+@if (State.CanWrite && (State.Pending.Count > 0 || State.Busy || State.LastResult is not null))
+{
+    var r = State.LastResult;
+    string tone = State.Busy ? "" : r is null ? "" : r.Written || (!State.LastWasCommit && r.ExitCode == 0) ? "ok" : r.ExitCode == 0 ? "ok" : "bad";
+    <div class="changes-bar @tone">
+        <span class="grow">
+            @if (State.Busy)
+            {
+                <strong>@State.BusyText</strong> <span class="muted">keep the iPod connected</span>
+            }
+            else if (r is not null && State.LastWasCommit && !r.Written && r.ExitCode != 0)
+            {
+                <strong class="error-text">@(r.Restored ? "The write didn't verify, so the backup was put back — the iPod is unchanged." : "Not written: a check failed before anything touched the iPod.")</strong>
+                <span class="muted"> Your @State.Pending.Count change(s) are still queued; see the log.</span>
+            }
+            else if (State.Pending.Count > 0)
+            {
+                <strong>@State.Pending.Count pending change(s)</strong>
+                @if (r is not null && !State.LastWasCommit)
+                {
+                    <span class="@(r.ExitCode == 0 ? "ok-text" : "error-text")"> · check @(r.ExitCode == 0 ? (State.DryRunPassed ? "passed" : "passed, but the changes were edited since") : "failed")</span>
+                }
+                else
+                {
+                    <span class="muted"> · nothing is written until you check and write</span>
+                }
+            }
+            else if (r is not null && State.LastWasCommit)
+            {
+                <strong>@(r.Written ? "Written and verified." : r.Restored ? "Write didn't verify; the backup was restored." : r.ExitCode == 0 ? "Nothing needed writing." : "Not written: a check failed.")</strong>
+            }
+        </span>
+        @if (!State.Busy && State.Pending.Count > 0)
+        {
+            @if (_confirm && State.DryRunPassed)
+            {
+                <span class="small">Write @State.Pending.Count change(s) to the iPod? A backup is made first.</span>
+                <button class="btn primary small" @onclick="Write">Yes, write</button>
+                <button class="btn small" @onclick="() => _confirm = false">Cancel</button>
+            }
+            else
+            {
+                <button class="btn small" @onclick="DryRun">Check changes</button>
+                <button class="btn primary small" disabled="@(!State.DryRunPassed)" title="@(State.DryRunPassed ? "" : "Check these exact changes first")" @onclick="() => _confirm = true">Write to iPod</button>
+            }
+        }
+        <button class="btn small" @onclick="OnReview">Review@(State.Log.Count > 0 ? " & log" : "")</button>
+        @if (!State.Busy && State.Pending.Count == 0)
+        {
+            <button class="btn icon" title="Dismiss" @onclick="State.DismissResult">✕</button>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public EventCallback OnReview { get; set; }
+    private bool _confirm;
+
+    private async Task DryRun() { _confirm = false; await State.DryRunAsync(); }
+    private async Task Write() { _confirm = false; await State.WriteAsync(); }
+}

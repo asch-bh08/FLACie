@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\IpodSync.Core\IpodSync.Core.csproj" />
+    <ProjectReference Include="..\IpodSync.Shared\IpodSync.Shared.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>75c22e9e-7d76-475b-9f8c-c3e393a1490e</UserSecretsId>
+  </PropertyGroup>
+
+</Project>

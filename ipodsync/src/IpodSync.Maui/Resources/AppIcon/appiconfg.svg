@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- FLACie mark: an "F" whose middle bar sends out sound waves. -->
+<svg width="456" height="456" viewBox="0 0 108 108" version="1.1" xmlns="http://www.w3.org/2000/svg">
+    <g fill="#ffffff">
+        <path d="M38,32h0a5,5 0 0 1 5,5v34a5,5 0 0 1 -10,0v-34a5,5 0 0 1 5,-5z" />
+        <path d="M38,32h22a5,5 0 0 1 0,10h-22a5,5 0 0 1 0,-10z" />
+        <path d="M38,49h14a5,5 0 0 1 0,10h-14a5,5 0 0 1 0,-10z" />
+    </g>
+    <g fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round">
+        <path d="M63,48.5a8,8 0 0 1 0,11" />
+        <path d="M69.5,43a15,15 0 0 1 0,22" stroke-opacity="0.9" />
+        <path d="M76,37.5a22,22 0 0 1 0,33" stroke-opacity="0.7" />
+    </g>
+</svg>

@@ -1,0 +1,9 @@
+bin/
+obj/
+fixtures/
+*.user
+backups/
+
+# Device backups are never committed (HANDOFF.md)
+ipod-backups/
+dist/

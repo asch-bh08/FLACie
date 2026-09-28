@@ -47,7 +47,7 @@ class NasDirectClient {
                     continue
                 }
                 if (!f.isFile || !NasSmb.isAudio(f.name)) continue
-                val title = f.name.substringBeforeLast('.').replace(Regex("^\\d+[\\s.\\-_]+"), "").ifBlank { f.name }
+                val title = cleanTitle(f.name, artist, album)
                 out += Track(
                     path = f.canonicalPath,
                     title = title,
@@ -67,5 +67,30 @@ class NasDirectClient {
                 )
             } catch (_: Exception) { /* one bad entry (permissions, a broken link) shouldn't stop the whole scan */ }
         }
+    }
+
+    /** Strips redundant "Artist - ", "Album - ", and leading track-number prefixes from a filename,
+     * in that order -- matching the common "Artist - Album - 01 - Title.ext" convention (Lidarr's
+     * own, and this app's file-mover) as well as plain "01 - Title.ext" rips. Without this, a NAS
+     * scan (no embedded-tag reading, filename only) reads the *entire* filename as the title, so the
+     * same song organized two different ways looks like two different songs -- confirmed live, a
+     * Lidarr-imported "Artist - Album - 01 - Title.flac" and this app's own "Artist - Title.ext"
+     * download of the same track never matched each other's dedup key. The track-number strip
+     * repeats (not just once) to also handle "1.15. Title.ext"-style disc.track prefixes.
+     *
+     * The album match strips a trailing "(1982)"-style year first: the *folder* name (which becomes
+     * `album`) commonly carries the release year, but Lidarr's own filenames embed just the bare
+     * album title without it -- confirmed live, a folder "Toto IV (1982)" holding a file named
+     * "Toto - Toto IV - 01 - Rosanna.flac" was silently falling through this strip (the exact-prefix
+     * match "Toto IV (1982) - " never matched the file's "Toto IV - "), leaving the track-number
+     * regex nothing to grab since the remainder still started with a letter, not a digit. */
+    private fun cleanTitle(filename: String, artist: String?, album: String?): String {
+        var t = filename.substringBeforeLast('.')
+        val albumCore = album?.trim()?.replace(Regex("\\s*\\(\\d{4}\\)\\s*$"), "")
+        if (!artist.isNullOrBlank() && t.startsWith("$artist - ", ignoreCase = true)) t = t.substring(artist.length + 3)
+        if (!albumCore.isNullOrBlank() && t.startsWith("$albumCore - ", ignoreCase = true)) t = t.substring(albumCore.length + 3)
+        t = t.replace(Regex("^(\\d+[\\s.\\-_]+)+"), "")
+        if (!artist.isNullOrBlank() && t.startsWith("$artist - ", ignoreCase = true)) t = t.substring(artist.length + 3)
+        return t.trim().ifBlank { filename.substringBeforeLast('.') }
     }
 }

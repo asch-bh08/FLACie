@@ -211,8 +211,15 @@ class Library(ctx: Context, val art: ArtCache) {
      * shows things Search's own local sections don't already have. */
     suspend fun catalogSearch(query: String): CatalogResults {
         if (query.isBlank() || prefs.lidarrUrl.isBlank() || prefs.lidarrApiKey.isBlank()) return CatalogResults.EMPTY
+        // "Artist - Title" is this app's own song-query shorthand (see catalogTracks below) -- running
+        // that whole string through the ALBUM free-text lookup too was misleading: Lidarr/MusicBrainz
+        // often still finds a same-titled single/release for the raw "Artist - Title" text and, since
+        // there's no real ranking signal, it can end up the only thing shown, mislabeled as an "album"
+        // for what was unambiguously a song search (confirmed live with "Rick Astley - Never Gonna
+        // Give You Up" surfacing only under "Albums you don't have", no Songs section at all).
+        val looksLikeSongQuery = query.contains(" - ")
         val ownedAlbumKeys = albums().map { g -> "${g.tracks.firstOrNull()?.artist.orEmpty().trim().lowercase()}|${g.name.trim().lowercase()}" }.toSet()
-        val catalogAlbums = try {
+        val catalogAlbums = if (looksLikeSongQuery) emptyList() else try {
             val qLower = query.trim().lowercase()
             lidarr.lookupAlbum(prefs.lidarrUrl, prefs.lidarrApiKey, query)
                 .distinctBy { "${it.artistName.trim().lowercase()}|${it.title.trim().lowercase()}" }
@@ -226,7 +233,7 @@ class Library(ctx: Context, val art: ArtCache) {
                 .take(1)
                 .map { CatalogAlbum(it.title, it.artistName, it.imageUrl) }
         } catch (_: Exception) { emptyList() }
-        val catalogTracks = if (query.contains(" - ") && prefs.slskdUrl.isNotBlank() && prefs.slskdApiKey.isNotBlank()) {
+        val catalogTracks = if (looksLikeSongQuery && prefs.slskdUrl.isNotBlank() && prefs.slskdApiKey.isNotBlank()) {
             try {
                 val parts = query.split(" - ", limit = 2)
                 val artist = parts[0].trim(); val title = parts[1].trim()
@@ -235,12 +242,19 @@ class Library(ctx: Context, val art: ArtCache) {
                 else {
                     val hit = slskd.searchCandidates(prefs.slskdUrl, prefs.slskdApiKey, artist, title, timeoutMs = 6000).take(1)
                     if (hit.isEmpty()) emptyList() else {
-                        // Best-effort cover: reuse the album search above if it already has this
-                        // artist, else one extra lookup by artist name alone -- Soulseek's own search
-                        // results never carry artwork.
+                        // Best-effort cover, cheapest/most-likely-to-hit first: reuse the album search
+                        // above if it already has this artist; else a fresh album lookup keyed by
+                        // "artist title" (a single's own release far more often carries real art than
+                        // a bare-artist-name album search does); else the artist's own poster image,
+                        // which MusicBrainz has for virtually any real artist -- Soulseek's own search
+                        // results never carry artwork of their own.
                         val cover = catalogAlbums.firstOrNull { it.artist.trim().equals(artist, true) }?.imageUrl
                             ?: try {
-                                lidarr.lookupAlbum(prefs.lidarrUrl, prefs.lidarrApiKey, artist)
+                                lidarr.lookupAlbum(prefs.lidarrUrl, prefs.lidarrApiKey, "$artist $title")
+                                    .firstOrNull { it.artistName.trim().equals(artist, true) }?.imageUrl
+                            } catch (_: Exception) { null }
+                            ?: try {
+                                lidarr.lookupArtist(prefs.lidarrUrl, prefs.lidarrApiKey, artist)
                                     .firstOrNull { it.artistName.trim().equals(artist, true) }?.imageUrl
                             } catch (_: Exception) { null }
                         listOf(CatalogTrack(artist, title, cover))
@@ -249,6 +263,27 @@ class Library(ctx: Context, val art: ArtCache) {
             } catch (_: Exception) { emptyList() }
         } else emptyList()
         return CatalogResults(catalogAlbums, catalogTracks)
+    }
+
+    private val albumArtUrlCache = java.util.concurrent.ConcurrentHashMap<String, String?>()
+
+    /** Best-effort cover art for an OWNED track that has no local [Track.artKey] -- NAS scans (no
+     * embedded-tag reading) and Cloud/Soulseek injections never set one. Reuses the same Lidarr
+     * catalog lookup the "not yet owned" rows already use, so a Top Result card can show real art
+     * instead of the generic note-glyph placeholder. Cached per artist+album so repeat searches for
+     * the same song don't re-hit Lidarr. */
+    suspend fun albumArtUrl(artist: String, album: String): String? {
+        if (prefs.lidarrUrl.isBlank() || prefs.lidarrApiKey.isBlank()) return null
+        val key = "${artist.trim().lowercase()}|${album.trim().lowercase()}"
+        albumArtUrlCache[key]?.let { return it }
+        if (albumArtUrlCache.containsKey(key)) return null
+        val term = album.ifBlank { artist }
+        val url = try {
+            lidarr.lookupAlbum(prefs.lidarrUrl, prefs.lidarrApiKey, term)
+                .firstOrNull { it.artistName.trim().equals(artist.trim(), true) }?.imageUrl
+        } catch (_: Exception) { null }
+        albumArtUrlCache[key] = url
+        return url
     }
 
     /** Load the cached local library, then rescan. Runs regardless of [source] (so switching back to
@@ -552,7 +587,13 @@ class Library(ctx: Context, val art: ArtCache) {
     private fun mergeExtra(extraSource: List<Track>) {
         if (extraSource.isEmpty()) return
         val seen = tracks.mapTo(HashSet()) { dedupKey(it) }
-        val extra = extraSource.filter { dedupKey(it) !in seen }
+        // distinctBy first: this only filters extraSource against tracks already merged in, so two
+        // duplicate files inside the SAME scan pass (e.g. a NAS folder holding both a Soulseek-won
+        // flat file and a Lidarr-organized import of the same song, now both cleaning to the same
+        // title+artist) would otherwise both survive -- neither was "seen" yet when the other was
+        // checked. Confirmed live: a NAS rescan kept "Rosanna"/"Toto" as two rows even after the
+        // title-cleaning fix, because both copies arrived in the same nasTracks batch.
+        val extra = extraSource.distinctBy { dedupKey(it) }.filter { dedupKey(it) !in seen }
         if (extra.isEmpty()) return
         tracks = tracks + extra
         derive(); notifyChange()

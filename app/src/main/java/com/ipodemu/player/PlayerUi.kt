@@ -802,6 +802,24 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         val r = results
         val c = catalog
         val nothingAtAll = r.songs.isEmpty() && r.albums.isEmpty() && c.albums.isEmpty() && c.tracks.isEmpty() && !catalogLoading
+        // A confident single best match first (like a "top result" card), everything else -- other
+        // songs, albums, not-yet-owned catalog hits -- collapsed behind a "Show more" by default so
+        // a broad query doesn't read as a wall of equally-weighted rows. Ranked simply: an exact
+        // title match beats a prefix match beats a loose contains/artist-only match.
+        val q = query.trim()
+        fun songScore(t: Track) = when {
+            t.title.equals(q, true) -> 0
+            t.title.startsWith(q, true) -> 1
+            t.title.contains(q, true) -> 2
+            t.artist.equals(q, true) -> 3
+            else -> 4
+        }
+        val rankedSongs = remember(r.songs, q) { r.songs.sortedBy { songScore(it) } }
+        val topSong = rankedSongs.firstOrNull()
+        val restSongs = if (topSong != null) rankedSongs.drop(1) else rankedSongs
+        var songsExpanded by remember(q) { mutableStateOf(false) }
+        var albumsExpanded by remember(q) { mutableStateOf(false) }
+        val songCap = 4; val albumCap = 3
         if (query.isBlank()) EmptyState("Search your music")
         else if (nothingAtAll) {
             Column(Modifier.fillMaxSize()) {
@@ -810,9 +828,19 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             }
         }
         else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-            if (r.songs.isNotEmpty()) {
+            if (topSong != null) {
+                item { SectionHeader("Top result") }
+                item(key = "top${topSong.path}") {
+                    TopResultCard(topSong) { app.player.play(listOf(topSong), 0, null); nav.nowPlaying = true }
+                }
+            }
+            if (restSongs.isNotEmpty()) {
                 item { SectionHeader("Songs") }
-                itemsIndexed(r.songs, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(r.songs, i, null); nav.nowPlaying = true }) }
+                val shown = if (songsExpanded) restSongs else restSongs.take(songCap)
+                itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(shown, i, null); nav.nowPlaying = true }) }
+                if (!songsExpanded && restSongs.size > songCap) {
+                    item { ShowMoreRow(restSongs.size - songCap) { songsExpanded = true } }
+                }
             }
             if (c.tracks.isNotEmpty()) {
                 item { SectionHeader("Found on Soulseek") }
@@ -822,11 +850,15 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             }
             if (r.albums.isNotEmpty()) {
                 item { SectionHeader("Albums") }
-                items(r.albums.take(6), key = { "b" + it.tracks.first().albumKey }) { g ->
+                val shownAlbums = if (albumsExpanded) r.albums else r.albums.take(albumCap)
+                items(shownAlbums, key = { "b" + it.tracks.first().albumKey }) { g ->
                     IpodRow({ nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) }, height = 56.dp, leading = { ArtImage(g.artKey, Modifier.size(48.dp), thumb = true, corner = 8.dp) },
                         trailing = { OwnedTag() }) { hi ->
                         Column { Txt(g.name, size = 16f, color = if (hi) Color.White else sc.onBg); Txt(g.tracks.firstOrNull()?.artist ?: "", size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim) }
                     }
+                }
+                if (!albumsExpanded && r.albums.size > albumCap) {
+                    item { ShowMoreRow(r.albums.size - albumCap) { albumsExpanded = true } }
                 }
             }
             if (c.albums.isNotEmpty()) {
@@ -852,6 +884,50 @@ private fun CatalogRow(title: String, subtitle: String, imageUrl: String?, circl
         trailing = { GlossPill("Download", onDownload, height = 32.dp) },
     ) { hi ->
         Column { Txt(title, size = 15f, color = if (hi) Color.White else sc.onBg, maxLines = 1); Txt(subtitle, size = 12f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim, maxLines = 1) }
+    }
+}
+
+/** The single best-matching owned song for the current query, shown large above everything else --
+ * YT-Music-style "one clear answer first" instead of a flat wall of equally-weighted rows. */
+@Composable
+private fun TopResultCard(t: Track, onPlay: () -> Unit) {
+    val sc = LocalScheme.current
+    val app = LocalApp.current
+    // NAS scans and Cloud/Soulseek injections never populate artKey (no embedded-tag reading, no
+    // local art cache entry) -- fall back to the same Lidarr cover lookup catalog rows use, so the
+    // one card the user actually sees first isn't stuck with the generic note-glyph placeholder.
+    var fallbackArtUrl by remember(t.path) { mutableStateOf<String?>(null) }
+    LaunchedEffect(t.path) {
+        if (t.artKey == null) fallbackArtUrl = app.library.albumArtUrl(t.artist, t.album)
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(16.dp)).background(sc.accent.copy(alpha = 0.12f))
+            .clickable(onClick = onPlay).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (t.artKey == null && fallbackArtUrl != null) RemoteArtImage(fallbackArtUrl, Modifier.size(64.dp), corner = 10.dp)
+        else ArtImage(t.artKey, Modifier.size(64.dp), thumb = true, corner = 10.dp)
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+            Txt(t.title, size = 18f, weight = FontWeight.Bold, color = sc.onBg, maxLines = 1)
+            Txt(t.artist, size = 14f, color = sc.onBgDim, maxLines = 1)
+            Box(Modifier.padding(top = 4.dp)) { SourceBadge(t.source) }
+        }
+        Box(Modifier.size(44.dp).clip(CircleShape).background(sc.accent).clickable(onClick = onPlay), contentAlignment = Alignment.Center) {
+            GlyphIcon(Glyph.PLAY, Modifier.size(20.dp), Color.White)
+        }
+    }
+}
+
+/** Collapsed-section expander -- keeps a long song/album list from dumping everything at once. */
+@Composable
+private fun ShowMoreRow(count: Int, onClick: () -> Unit) {
+    val sc = LocalScheme.current
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Txt("Show $count more", size = 14f, weight = FontWeight.Medium, color = sc.accent)
     }
 }
 

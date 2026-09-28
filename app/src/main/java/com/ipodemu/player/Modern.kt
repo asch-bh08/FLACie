@@ -87,14 +87,14 @@ fun ModernTopBar(title: String, onBack: (() -> Unit)?, actions: @Composable () -
 
 /** A 48dp icon button (Material minimum touch target) -- the Modern theme's top-bar and toolbar action. */
 @Composable
-fun IconAction(g: Glyph, label: String, onClick: () -> Unit, tint: Color = LocalScheme.current.onBg, size: Dp = 48.dp) {
+fun IconAction(g: Glyph, label: String, onClick: () -> Unit, tint: Color = LocalScheme.current.onBg, size: Dp = 48.dp, iconScale: Float = 0.5f) {
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
     Box(
         Modifier.size(size).clip(CircleShape).background(if (focused) Color(0x33FFFFFF) else Color.Transparent)
             .semanticsLabel(label).wheelTracked().clickable(src, null, onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { GlyphIcon(g, Modifier.size(size * 0.5f), tint) }
+    ) { GlyphIcon(g, Modifier.size(size * iconScale), tint) }
 }
 
 private fun Modifier.semanticsLabel(label: String) = this.semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button }
@@ -174,7 +174,7 @@ fun LibraryHome(nav: PlayerNav) {
             if (lib.memos.isNotEmpty()) item { LibRow("Voice Memos", Glyph.MIC, "${lib.memos.size}") { nav.push(Screen.Lib(LibKind.MEMOS)) } }
             if (lib.jellyfinTracks.isNotEmpty()) item { LibRow("Jellyfin", Glyph.JELLYFIN, "${lib.jellyfinTracks.size}") { nav.push(Screen.Lib(LibKind.JELLYFIN)) } }
             if (lib.plexTracks.isNotEmpty()) item { LibRow("Plex", Glyph.PLEX, "${lib.plexTracks.size}") { nav.push(Screen.Lib(LibKind.PLEX)) } }
-            if (lib.nasTracks.isNotEmpty()) item { LibRow("NAS", Glyph.NAS, "${lib.nasTracks.size}") { nav.push(Screen.Lib(LibKind.NAS)) } }
+            lib.nasOnlyTracks().takeIf { it.isNotEmpty() }?.let { n -> item { LibRow("NAS only", Glyph.NAS, "${n.size}") { nav.push(Screen.Lib(LibKind.NAS)) } } }
         }
     }
 }

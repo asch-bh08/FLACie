@@ -241,7 +241,7 @@ class AccountSync(private val app: App) {
         jfIdRe.find(path)?.let { return it.groupValues[1] }
         val t = app.library.byPath()[path]
         val m = app.userData.meta[path]
-        val key = if (t != null) "${t.title.trim().lowercase()}|${t.artist.trim().lowercase()}" else m?.let { "${it.first.trim().lowercase()}|${it.second.trim().lowercase()}" } ?: return null
+        val key = t?.matchKey ?: m?.let { matchKey(it.first, it.second) } ?: return null
         val hit = app.library.jellyfinByKey()[key] ?: return null
         return jfIdRe.find(hit.path)?.groupValues?.get(1)
     }

@@ -1,0 +1,292 @@
+package com.ipodemu.player
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.ipodemu.library.Lyrics
+import com.ipodemu.library.Track
+
+/**
+ * The Modern theme's Now Playing, laid out by shape rather than one layout squeezed to fit:
+ *  - portrait (phones, Fold cover): art on top, then title, seek, transport and actions -- lyrics replace the art;
+ *  - square-ish / landscape (RG Rotate, Fold inner, phone landscape): art (or lyrics) left, controls right;
+ *  - wide (tablet, Fold inner landscape, >= 840dp): art, controls and lyrics side by side, lyrics always shown.
+ */
+@Composable
+fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
+    val t = snap.track ?: return
+    var lyricsOpen by rememberSaveable { mutableStateOf(false) }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val w = maxWidth; val h = maxHeight
+        val ratio = w / h
+        when {
+            w >= 840.dp && ratio >= 1.1f -> Row(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(28.dp), verticalAlignment = Alignment.CenterVertically) {
+                NpArtModern(t, Modifier.size(min(h - 48.dp, w * 0.32f)))
+                Column(Modifier.width(min(420.dp, w * 0.34f)).fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
+                    Controls(snap, nav, lyricsToggle = null)
+                }
+                LyricsPanel(t, snap.playing, Modifier.weight(1f).fillMaxHeight(), big = true)
+            }
+            ratio in 0.95f..1.3f -> Column(Modifier.fillMaxSize().padding(start = 20.dp, end = 20.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // square-ish (RG Rotate, Fold inner): art + title/actions on top, then seek and the transport at full width,
+                // so the controls get the whole width instead of a narrow side column
+                Header(nav)
+                Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                    BoxWithConstraints(Modifier.weight(0.5f).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
+                        val side = min(maxWidth, maxHeight)
+                        Box(Modifier.size(side)) {
+                            if (lyricsOpen) LyricsPanel(t, snap.playing, Modifier.fillMaxSize(), big = false) else NpArtModern(t, Modifier.fillMaxSize())
+                        }
+                    }
+                    Column(Modifier.weight(0.5f), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                        InfoRow(snap, nav)
+                        ActionRow(snap, nav, lyricsOpen to { lyricsOpen = !lyricsOpen }, spread = false)
+                    }
+                }
+                Seek(snap)
+                Transport(snap)
+            }
+            ratio > 1.3f -> Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+                Header(nav)
+                Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(22.dp), verticalAlignment = Alignment.CenterVertically) {
+                    val side = min(h - 52.dp - 16.dp, w * 0.52f)
+                    Box(Modifier.size(side), contentAlignment = Alignment.Center) {
+                        if (lyricsOpen) LyricsPanel(t, snap.playing, Modifier.fillMaxSize(), big = false) else NpArtModern(t, Modifier.fillMaxSize())
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterVertically)) {
+                        Controls(snap, nav, lyricsToggle = lyricsOpen to { lyricsOpen = !lyricsOpen }, header = false)
+                    }
+                }
+            }
+            else -> Column(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 8.dp)) {
+                Header(nav)
+                Box(Modifier.weight(1f).fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+                    if (lyricsOpen) LyricsPanel(t, snap.playing, Modifier.fillMaxSize(), big = true)
+                    else NpArtModern(t, Modifier.fillMaxWidth().aspectRatio(1f, matchHeightConstraintsFirst = true))
+                }
+                Controls(snap, nav, lyricsToggle = lyricsOpen to { lyricsOpen = !lyricsOpen }, header = false)
+                Box(Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun Header(nav: PlayerNav) {
+    val sc = LocalScheme.current
+    Row(Modifier.fillMaxWidth().height(52.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconAction(Glyph.DOWN, "Close", { nav.nowPlaying = false })
+        Txt("Now Playing", Modifier.weight(1f), size = 14f, weight = FontWeight.SemiBold, color = sc.onBgDim, align = TextAlign.Center)
+        IconAction(Glyph.QUEUE, "Up next", { nav.nowPlaying = false; nav.push(Screen.Queue) })
+    }
+}
+
+/** Title/artist + heart, seek, transport and the action row, stacked; shared by every layout. */
+@Composable
+private fun Controls(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boolean, () -> Unit>?, header: Boolean = true) {
+    if (header) Header(nav)
+    InfoRow(snap, nav)
+    Seek(snap)
+    Transport(snap)
+    ActionRow(snap, nav, lyricsToggle, spread = true)
+}
+
+@Composable
+private fun InfoRow(snap: PlayerSnap, nav: PlayerNav) {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    val t = snap.track ?: return
+    val fav by app.userData.favState(t.path)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).trackSwipe({ app.player.prev() }, { app.player.next() })) {
+            Txt(t.title, size = 22f, weight = FontWeight.Bold, maxLines = 2)
+            Txt(t.artist.ifEmpty { "Unknown Artist" }, Modifier.padding(top = 2.dp).clickable(enabled = t.artist.isNotEmpty()) {
+                nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist }))
+            }, size = 16f, color = sc.onBgDim)
+        }
+        IconAction(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Unfavorite" else "Favorite", { app.userData.toggleFavorite(t.path) }, tint = if (fav) sc.accent else sc.onBg)
+    }
+}
+
+@Composable
+private fun ActionRow(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boolean, () -> Unit>?, spread: Boolean) {
+    val app = LocalApp.current
+    val t = snap.track ?: return
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (spread) Arrangement.SpaceBetween else Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (lyricsToggle != null) RoundAction(Glyph.LYRICS, "Lyrics", lyricsToggle.first, lyricsToggle.second)
+        RoundAction(Glyph.LIST, "Equalizer", app.prefs.eq != "Off") { nav.sheet = eqSheet(app) }
+        RoundAction(Glyph.CLOCK, "Sleep timer", app.player.sleepMinutes > 0) { nav.sheet = sleepSheet(app) }
+        RoundAction(Glyph.MORE, "More", false) { openTrackSheet(app, nav, t) }
+    }
+}
+
+@Composable
+private fun Seek(snap: PlayerSnap) {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    val pos by rememberPosition(app.player, snap.playing)
+    val dur = app.player.durationMs
+    Column(Modifier.fillMaxWidth()) {
+        SeekBar(if (dur > 0) pos.toFloat() / dur else 0f, onSeek = { f -> if (dur > 0) app.player.seekTo((f * dur).toLong()) },
+            onNudge = { d -> app.player.seekBy((d * 5000).toLong()) }, Modifier.fillMaxWidth())
+        Row(Modifier.fillMaxWidth()) {
+            Txt(fmtTime(pos), Modifier.weight(1f), size = 12f, color = sc.onBgDim)
+            Txt(fmtTime(dur.coerceAtLeast(0)), size = 12f, color = sc.onBgDim)
+        }
+    }
+}
+
+/** Sized from the width it gets, so all five controls always fit (the old row pushed Repeat off a narrow column). */
+@Composable
+private fun Transport(snap: PlayerSnap) {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    val playFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { try { playFocus.requestFocus() } catch (_: Exception) {} }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val play = min(78.dp, maxWidth * 0.26f)
+        val big = min(58.dp, maxWidth * 0.19f)
+        val small = min(46.dp, maxWidth * 0.15f)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            IconAction(Glyph.SHUFFLE, "Shuffle", { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() }, tint = if (snap.shuffle) sc.accent else sc.onBgDim, size = small, iconScale = 0.52f)
+            IconAction(Glyph.PREV, "Previous", { app.player.prev() }, size = big, iconScale = 0.56f)
+            PlayDisc(snap.playing, play, playFocus) { app.player.toggle() }
+            IconAction(Glyph.NEXT, "Next", { app.player.next() }, size = big, iconScale = 0.56f)
+            IconAction(if (snap.repeat == 2) Glyph.REPEAT_ONE else Glyph.REPEAT, "Repeat", { app.prefs.repeat = (app.prefs.repeat + 1) % 3; app.player.applyModes() },
+                tint = if (snap.repeat != 0) sc.accent else sc.onBgDim, size = small, iconScale = 0.52f)
+        }
+    }
+}
+
+@Composable
+private fun PlayDisc(playing: Boolean, size: Dp, focus: FocusRequester, onClick: () -> Unit) {
+    val sc = LocalScheme.current
+    val src = remember { MutableInteractionSource() }
+    val focused by src.collectIsFocusedAsState()
+    Box(
+        Modifier.size(size).focusRequester(focus).clip(CircleShape).background(Color.White)
+            .then(if (focused) Modifier.border(3.dp, sc.accent, CircleShape) else Modifier)
+            .clickable(src, null, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { GlyphIcon(if (playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(size * 0.45f), Color.Black) }
+}
+
+@Composable
+private fun NpArtModern(t: Track, modifier: Modifier) {
+    val app = LocalApp.current
+    ArtImage(
+        t.artKey, modifier.trackSwipe({ app.player.prev() }, { app.player.next() })
+            .shadow(24.dp, RoundedCornerShape(12.dp), clip = false, ambientColor = Color.Black, spotColor = Color.Black),
+        corner = 12.dp,
+    )
+}
+
+// ---- lyrics --------------------------------------------------------------------------------------------------------
+
+private sealed interface LyricsState {
+    data object Loading : LyricsState
+    data object None : LyricsState
+    class Ready(val lyrics: Lyrics) : LyricsState
+}
+
+/** Synced lyrics follow the song (current line bright, auto-scrolled to a third of the way down; tap a line to jump
+ * there); plain lyrics just scroll. */
+@Composable
+fun LyricsPanel(t: Track, playing: Boolean, modifier: Modifier, big: Boolean) {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    var state by remember(t.path) { mutableStateOf<LyricsState>(LyricsState.Loading) }
+    LaunchedEffect(t.path) { state = app.lyrics.get(t)?.let { LyricsState.Ready(it) } ?: LyricsState.None }
+    Box(modifier.clip(RoundedCornerShape(16.dp)).background(Color(0x1AFFFFFF))) {
+        when (val s = state) {
+            LyricsState.Loading -> Txt("Looking for lyrics...", Modifier.align(Alignment.Center), size = 15f, color = sc.onBgDim)
+            LyricsState.None -> Column(Modifier.align(Alignment.Center).padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Txt("No lyrics found", size = 17f, weight = FontWeight.SemiBold)
+                Txt("Checked Jellyfin, local .lrc files and LRCLIB", Modifier.padding(top = 4.dp), size = 13f, color = sc.onBgDim, maxLines = 2, align = TextAlign.Center)
+            }
+            is LyricsState.Ready -> {
+                val l = s.lyrics
+                val pos by rememberPosition(app.player, playing && l.synced)
+                val current = if (!l.synced) -1 else l.lines.indexOfLast { it.timeMs <= pos + 250 }
+                val list = rememberLazyListState()
+                LaunchedEffect(current) {
+                    if (current >= 0) {
+                        val vh = list.layoutInfo.viewportSize.height
+                        list.animateScrollToItem(current, -(vh / 3))
+                    }
+                }
+                val size = if (big) 22f else 18f
+                LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp), verticalArrangement = Arrangement.spacedBy(if (big) 14.dp else 10.dp)) {
+                    itemsIndexed(l.lines) { i, line ->
+                        val color = when {
+                            !l.synced -> sc.onBg
+                            i == current -> sc.onBg
+                            i < current -> sc.onBg.copy(alpha = .35f)
+                            else -> sc.onBg.copy(alpha = .55f)
+                        }
+                        Txt(line.text.ifEmpty { "♪" }, Modifier.fillMaxWidth().then(if (l.synced) Modifier.clickable { app.player.seekTo(line.timeMs) } else Modifier),
+                            size = if (l.synced) size else size - 3f, weight = if (l.synced) FontWeight.Bold else FontWeight.Medium, color = color, maxLines = 4)
+                    }
+                    item { Txt("Lyrics via ${l.source}", Modifier.padding(top = 12.dp), size = 12f, color = sc.onBgDim) }
+                }
+            }
+        }
+    }
+}
+
+/** One of the matching round buttons under the transport: soft disc, accent-filled when that feature is on. */
+@Composable
+private fun RoundAction(g: Glyph, label: String, active: Boolean, onClick: () -> Unit) {
+    val sc = LocalScheme.current
+    val src = remember { MutableInteractionSource() }
+    val focused by src.collectIsFocusedAsState()
+    Box(
+        Modifier.size(46.dp).clip(CircleShape).background(if (active) sc.accent else Color(0x1FFFFFFF))
+            .then(if (focused) Modifier.border(2.dp, Color.White, CircleShape) else Modifier)
+            .semantics { contentDescription = label }
+            .clickable(src, null, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { GlyphIcon(g, Modifier.size(22.dp), Color.White) }
+}

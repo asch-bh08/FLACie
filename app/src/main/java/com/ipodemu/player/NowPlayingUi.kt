@@ -152,6 +152,7 @@ fun NowPlayingScreen(snap: PlayerSnap, nav: PlayerNav) {
             .pointerInput(Unit) { detectTapGestures { } },
     ) {
         if (t == null) { EmptyState("Nothing playing"); return@Box }
+        if (LocalStyle.current.modern) { Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) { ModernNowPlayingBody(snap, nav) }; return@Box }
         Box(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 6.dp).size(width = 38.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(sc.onBg.copy(alpha = .3f)))
         BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             val boxH = maxHeight
@@ -243,7 +244,6 @@ private fun NpTransport(snap: PlayerSnap) {
     val playFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { try { playFocus.requestFocus() } catch (_: Exception) {} }
     var bump by remember { mutableFloatStateOf(0f) }
-    if (LocalStyle.current.modern) { ModernTransport(snap, playFocus); return }
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
         // shrink the row on narrow columns so all five buttons always fit
         val k = (maxWidth / 320.dp).coerceIn(0.62f, 1f)
@@ -280,11 +280,11 @@ private fun NpExtras(snap: PlayerSnap, nav: PlayerNav) {
     }
 }
 
-private fun eqSheet(app: com.ipodemu.App) = SheetSpec("Equalizer", app.prefs.eq, PlayerController.EQ_NAMES.map { n ->
+fun eqSheet(app: com.ipodemu.App) = SheetSpec("Equalizer", app.prefs.eq, PlayerController.EQ_NAMES.map { n ->
     SheetItem(if (app.prefs.eq == n) "$n  (on)" else n, if (app.prefs.eq == n) Glyph.CHECK else Glyph.LIST) { app.prefs.eq = n; app.player.applyEq() }
 })
 
-private fun sleepSheet(app: com.ipodemu.App) = SheetSpec("Sleep Timer", if (app.player.sleepMinutes > 0) "${app.player.sleepMinutes} min" else "Off",
+fun sleepSheet(app: com.ipodemu.App) = SheetSpec("Sleep Timer", if (app.player.sleepMinutes > 0) "${app.player.sleepMinutes} min" else "Off",
     listOf(0, 15, 30, 60, 90, 120).map { m -> SheetItem(if (m == 0) "Off" else "$m minutes", Glyph.CLOCK) { app.player.setSleepTimer(m) } })
 
 /** Modern mini player: a floating rounded bar above the navigation, cover + title + play/next, thin progress line. */
@@ -317,26 +317,5 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
         Box(Modifier.align(Alignment.BottomStart).padding(horizontal = 8.dp).fillMaxWidth().height(2.dp).background(sc.onBg.copy(alpha = .18f))) {
             Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(sc.onBg))
         }
-    }
-}
-
-/** Modern transport row: flat icons, one big white play/pause disc. */
-@Composable
-private fun ModernTransport(snap: PlayerSnap, playFocus: FocusRequester) {
-    val app = LocalApp.current
-    val sc = LocalScheme.current
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-        IconAction(Glyph.SHUFFLE, "Shuffle", { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() }, tint = if (snap.shuffle) sc.accent else sc.onBgDim)
-        IconAction(Glyph.PREV, "Previous", { app.player.prev() }, size = 60.dp)
-        val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-        val focused by src.collectIsFocusedAsState()
-        Box(
-            Modifier.size(76.dp).focusRequester(playFocus).clip(CircleShape).background(Color.White)
-                .then(if (focused) Modifier.border(3.dp, sc.accent, CircleShape) else Modifier)
-                .clickable(src, null) { app.player.toggle() },
-            contentAlignment = Alignment.Center,
-        ) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(34.dp), Color.Black) }
-        IconAction(Glyph.NEXT, "Next", { app.player.next() }, size = 60.dp)
-        IconAction(if (snap.repeat == 2) Glyph.REPEAT_ONE else Glyph.REPEAT, "Repeat", { app.prefs.repeat = (app.prefs.repeat + 1) % 3; app.player.applyModes() }, tint = if (snap.repeat != 0) sc.accent else sc.onBgDim)
     }
 }

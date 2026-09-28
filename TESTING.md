@@ -104,3 +104,12 @@ inside "Player in an iPod" on such a screen.
   and favourites; deleting the playlist deleted its Jellyfin copy and stayed deleted after the next sync.
 - Not verified: password sign-in (not exercised -- no password entered), cross-device title+artist matching of a
   local-only file on a second device, Plex restore (Plex was never configured).
+
+## v0.8.1 Now Playing, lyrics, NAS/Jellyfin de-dup (RG Rotate + simulated phone/Fold/landscape)
+- Now Playing verified per shape: square 720x720 (art + title/actions on top, full-width seek/transport), phone
+  1080x2400, Fold inner 1812x2176 (portrait layout, big art), landscape 2400x1080 (art | controls | lyrics).
+- Lyrics: synced LRCLIB lyrics for "Bad Romance" follow playback (line highlight moved 0:17 -> 0:25) on square and
+  phone; a remix with no LRCLIB entry shows "No lyrics found". Jellyfin had no lyrics for the items tried.
+- De-dup: "just dance" search went from 5 rows (Local/NAS/Jellyfin copies of one song + NAS/Jellyfin copies of a
+  remix) to 2. Songs 8721 -> 5268 = 589 local + ~4.6k Jellyfin songs not on the device + 36 NAS-only files (Jellyfin's
+  6460 files are 4904 distinct songs); Library shows "NAS only (36)".

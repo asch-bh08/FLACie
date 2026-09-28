@@ -91,7 +91,7 @@ import kotlinx.coroutines.withContext
 
 enum class LibKind(val title: String) {
     SONGS("Songs"), ALBUMS("Albums"), ARTISTS("Artists"), PLAYLISTS("Playlists"), GENRES("Genres"), MEMOS("Voice Memos"),
-    JELLYFIN("Jellyfin"), PLEX("Plex"), NAS("NAS"),
+    JELLYFIN("Jellyfin"), PLEX("Plex"), NAS("NAS only"),
 }
 
 enum class DetailKind { ALBUM, ARTIST, FOLDER, USER, GENRE, FAVORITES, RECENT, MIX }
@@ -436,7 +436,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     MenuRow("Voice Memos", Glyph.MIC, "${lib.memos.size}") { nav.push(Screen.Lib(LibKind.MEMOS)) }
                     if (lib.jellyfinTracks.isNotEmpty()) MenuRow("Jellyfin", Glyph.JELLYFIN, "${lib.jellyfinTracks.size}") { nav.push(Screen.Lib(LibKind.JELLYFIN)) }
                     if (lib.plexTracks.isNotEmpty()) MenuRow("Plex", Glyph.PLEX, "${lib.plexTracks.size}") { nav.push(Screen.Lib(LibKind.PLEX)) }
-                    if (lib.nasTracks.isNotEmpty()) MenuRow("NAS", Glyph.NAS, "${lib.nasTracks.size}") { nav.push(Screen.Lib(LibKind.NAS)) }
+                    lib.nasOnlyTracks().takeIf { it.isNotEmpty() }?.let { n -> MenuRow("NAS only", Glyph.NAS, "${n.size}") { nav.push(Screen.Lib(LibKind.NAS)) } }
                 }
             }
             if (recentAlbums.isNotEmpty()) {
@@ -536,7 +536,7 @@ private fun LibraryScreen(kind: LibKind, nav: PlayerNav, snap: PlayerSnap) {
             LibKind.PLAYLISTS -> PlaylistsList(nav)
             LibKind.JELLYFIN -> SongList(lib.jellyfinTracks.sortedBy { sortKey(it.title) }, nav, snap, showArt = true, sections = 1)
             LibKind.PLEX -> SongList(lib.plexTracks.sortedBy { sortKey(it.title) }, nav, snap, showArt = true, sections = 1)
-            LibKind.NAS -> SongList(lib.nasTracks.sortedBy { sortKey(it.title) }, nav, snap, showArt = true, sections = 1)
+            LibKind.NAS -> SongList(lib.nasOnlyTracks().sortedBy { sortKey(it.title) }, nav, snap, showArt = true, sections = 1)
         }
     }
 }
@@ -747,11 +747,12 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
             Txt(title, size = 20f, weight = FontWeight.Bold, maxLines = 2)
             if (line1.isNotEmpty()) Txt(line1, size = 13f, color = sc.onBgDim)
             if (line2.isNotEmpty()) Txt(line2, size = 12f, color = sc.onBgDim)
-            Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        GlossPill("Play", { app.player.play(tracks, 0, null); nav.nowPlaying = true }, icon = Glyph.PLAY, primary = true, height = 36.dp)
-                GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true); nav.nowPlaying = true }, icon = Glyph.SHUFFLE, height = 36.dp)
-            }
         }
+    }
+    // below the art row rather than beside the title, so both buttons fit in the narrow side column of wide layouts
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        GlossPill("Play", { app.player.play(tracks, 0, null); nav.nowPlaying = true }, icon = Glyph.PLAY, primary = true, height = 40.dp)
+        GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true); nav.nowPlaying = true }, icon = Glyph.SHUFFLE, height = 40.dp)
     }
 }
 

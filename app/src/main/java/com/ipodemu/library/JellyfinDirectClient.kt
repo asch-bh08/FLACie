@@ -40,7 +40,7 @@ class JellyfinDirectClient {
         val out = ArrayList<Track>()
         var startIndex = 0
         while (true) {
-            val endpoint = "${base(url)}/Users/$userId/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&StartIndex=$startIndex&Limit=$pageSize"
+            val endpoint = "${base(url)}/Users/$userId/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=Path&StartIndex=$startIndex&Limit=$pageSize"
             val json = JSONObject(get(endpoint, apiKey))
             val arr = json.optJSONArray("Items") ?: JSONArray()
             out += tracksFrom(url, arr)
@@ -82,6 +82,7 @@ class JellyfinDirectClient {
                 mtime = 0L,
                 size = 0L,
                 source = TrackSource.JELLYFIN,
+                filePath = str(o, "Path"),
             )
         }
     }

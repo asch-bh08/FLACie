@@ -85,7 +85,7 @@ val LocalApp = staticCompositionLocalOf<App> { error("App not provided") }
 
 enum class Glyph {
     PLAY, PAUSE, NEXT, PREV, SHUFFLE, REPEAT, REPEAT_ONE, HEART, HEART_FILLED, SEARCH, QUEUE, CHEVRON, BACK, MORE, CLOSE,
-    NOTE, GEAR, VOLUME, CHECK, PLUS, ALBUM, ARTIST, MIC, CLOCK, IPOD, LIST, STAR, DOWN, JELLYFIN, PLEX, NAS,
+    NOTE, GEAR, VOLUME, CHECK, PLUS, ALBUM, ARTIST, MIC, CLOCK, IPOD, LIST, STAR, DOWN, JELLYFIN, PLEX, NAS, LYRICS,
 }
 
 @Composable
@@ -225,6 +225,13 @@ fun DrawScope.drawGlyph(g: Glyph, c: Color) {
             // Plex's own mark: an arc wrapped around a play triangle.
             drawArc(c, -50f, 280f, false, Offset(x(.14f), y(.14f)), Size(s * .72f, s * .72f), style = line)
             drawPath(path { moveTo(x(.42f), y(.36f)); lineTo(x(.68f), y(.5f)); lineTo(x(.42f), y(.64f)); close() }, c)
+        }
+        Glyph.LYRICS -> {
+            // a speech bubble with text lines
+            drawRoundRect(c, Offset(x(.12f), y(.16f)), Size(s * .76f, s * .56f), androidx.compose.ui.geometry.CornerRadius(s * .1f), style = line)
+            drawPath(path { moveTo(x(.3f), y(.72f)); lineTo(x(.26f), y(.88f)); lineTo(x(.46f), y(.72f)) }, c, style = line)
+            drawLine(c, Offset(x(.26f), y(.36f)), Offset(x(.74f), y(.36f)), w, StrokeCap.Round)
+            drawLine(c, Offset(x(.26f), y(.52f)), Offset(x(.6f), y(.52f)), w, StrokeCap.Round)
         }
         Glyph.NAS -> {
             // Two stacked drive bays, like a small network-attached-storage tower.

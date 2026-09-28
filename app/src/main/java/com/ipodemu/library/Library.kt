@@ -104,6 +104,14 @@ class Library(ctx: Context, val art: ArtCache) {
     @Volatile var jellyfinTracks: List<Track> = emptyList(); private set
     @Volatile var plexTracks: List<Track> = emptyList(); private set
     @Volatile var nasTracks: List<Track> = emptyList(); private set
+    /** NAS files Jellyfin doesn't also serve -- what the NAS section lists, since the rest are the same files. */
+    fun nasOnlyTracks(): List<Track> {
+        val n = nasTracks; val j = jellyfinTracks
+        nasOnlyCache?.let { if (it.first === n && it.second === j) return it.third }
+        val files = j.mapNotNullTo(HashSet()) { it.fileKey }; val keys = j.mapTo(HashSet()) { dedupKey(it) }
+        return n.filter { it.fileKey !in files && dedupKey(it) !in keys }.also { nasOnlyCache = Triple(n, j, it) }
+    }
+    @Volatile private var nasOnlyCache: Triple<List<Track>, List<Track>, List<Track>>? = null
 
     /** Status of the in-flight "download this missing track" request, if any -- Settings > Lidarr's
      * search screen binds to this to show progress. Null once nothing has been requested this session. */
@@ -127,7 +135,7 @@ class Library(ctx: Context, val art: ArtCache) {
     /** A playlist/favourite entry on this device: the exact file, or -- for an entry synced from another device --
      * this library's copy of the same song by title + artist. */
     fun resolve(path: String, meta: Pair<String, String>?): Track? =
-        byPath()[path] ?: meta?.let { byKey()["${it.first.trim().lowercase()}|${it.second.trim().lowercase()}"] }
+        byPath()[path] ?: meta?.let { byKey()[matchKey(it.first, it.second)] }
 
     /** The signed-in account's user when Jellyfin is the account's own server (its token can't list /Users). */
     private suspend fun jellyfinUser(url: String, key: String): String? =
@@ -622,20 +630,32 @@ class Library(ctx: Context, val art: ArtCache) {
 
     private fun mergeExtra(extraSource: List<Track>) {
         if (extraSource.isEmpty()) return
+        // Jellyfin and the NAS share are usually the same files (Jellyfin scans that share): the Jellyfin copy wins,
+        // since it streams from anywhere while SMB only works at home -- drop NAS rows it duplicates before merging.
+        if (extraSource.first().source == TrackSource.JELLYFIN) {
+            val jf = extraSource.mapNotNullTo(HashSet()) { it.fileKey } to extraSource.mapTo(HashSet()) { dedupKey(it) }
+            val before = tracks.size
+            tracks = tracks.filterNot { it.source == TrackSource.NAS && (it.fileKey in jf.first || dedupKey(it) in jf.second) }
+            if (tracks.size != before) derive()
+        }
         val seen = tracks.mapTo(HashSet()) { dedupKey(it) }
+        val seenFiles = tracks.mapNotNullTo(HashSet()) { it.fileKey }
         // distinctBy first: this only filters extraSource against tracks already merged in, so two
         // duplicate files inside the SAME scan pass (e.g. a NAS folder holding both a Soulseek-won
         // flat file and a Lidarr-organized import of the same song, now both cleaning to the same
         // title+artist) would otherwise both survive -- neither was "seen" yet when the other was
         // checked. Confirmed live: a NAS rescan kept "Rosanna"/"Toto" as two rows even after the
         // title-cleaning fix, because both copies arrived in the same nasTracks batch.
-        val extra = extraSource.distinctBy { dedupKey(it) }.filter { dedupKey(it) !in seen }
+        // within one source only exact title+artist repeats collapse (the same song on two albums stays on both);
+        // across sources the looser [matchKey] applies
+        val extra = extraSource.distinctBy { "${it.title.trim().lowercase()}|${it.artist.trim().lowercase()}" }.filter { dedupKey(it) !in seen && (it.fileKey == null || it.fileKey !in seenFiles) }
         if (extra.isEmpty()) return
         tracks = tracks + extra
         derive(); notifyChange()
     }
 
-    private fun dedupKey(t: Track) = "${t.title.trim().lowercase()}|${t.artist.trim().lowercase()}"
+    /** Same song across sources, tolerant of how each one spells the credits (see [matchKey]). */
+    private fun dedupKey(t: Track) = t.matchKey
 
     private suspend fun runScan() {
         val existing = localTracks.associateBy { it.path }

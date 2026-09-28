@@ -24,7 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.ipodemu.theme.Themes
 
-private val VIEW_NAMES = listOf("Modern Player", "iPod Emulator", "Click Wheel Fullscreen", "iPod Emulator")
+private val VIEW_NAMES = listOf("iPod Player", "iPod Emulator", "Click Wheel Fullscreen", "iPod Emulator")
 
 @Composable
 fun SettingsScreen(nav: PlayerNav) {
@@ -67,7 +67,14 @@ fun SettingsScreen(nav: PlayerNav) {
             item { SectionHeader("Appearance") }
             item {
                 Card {
-                    SettingRow("Theme", if (ui.ipodTheme) "iPod" else "Modern") { ui.changeTheme(if (ui.ipodTheme) 0 else 1) }
+                    // an explicit chooser, not a one-tap toggle: the Account rows above change count on sign-in/out, and a tap meant
+                    // for them used to land here and silently flip the whole app into the iPod theme
+                    SettingRow("Theme", if (ui.ipodTheme) "iPod" else "Modern", chevron = true) {
+                        nav.sheet = SheetSpec("Theme", null, listOf(
+                            SheetItem("Modern", if (!ui.ipodTheme) Glyph.CHECK else Glyph.NOTE) { ui.changeTheme(0) },
+                            SheetItem("iPod (classic skins and click wheel)", if (ui.ipodTheme) Glyph.CHECK else Glyph.IPOD) { ui.changeTheme(1) },
+                        ))
+                    }
                     if (ui.ipodTheme) SettingRow("iPod appearance", modeName, chevron = true) { ui.pickerOpen = true }
                 }
             }

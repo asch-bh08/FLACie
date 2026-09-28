@@ -55,7 +55,7 @@ import com.ipodemu.theme.Themes
 
 /** The three ways to use the app. Everything else on this screen (which iPod, colours) refines the chosen mode. */
 private enum class UseMode(val title: String, val tagline: String, val detail: String) {
-    MODERN("Modern Player", "Flat music app, iPod style", "Shelves, suggestions, search and swipes. No device body, no wheel."),
+    MODERN("iPod Player", "Flat music app, iPod style", "Shelves, suggestions, search and swipes. No device body, no wheel."),
     EMULATOR("iPod Emulator", "The device itself", "Full iPod body, screen and click wheel, faithful to the real hardware."),
     WHEEL("Click Wheel Fullscreen", "Wheel UI, no body", "The iPod menus and click wheel filling the screen, without the device around it."),
 }

@@ -196,6 +196,8 @@ fun PlayerHost(nav: PlayerNav) {
         val modern = LocalStyle.current.modern
         // the iPod theme has no tabs: its stack must always start at Home (a Modern tab root like Settings would make Back exit)
         if (!modern && nav.stack.first() != Screen.Home) androidx.compose.runtime.SideEffect { if (nav.stack.first() != Screen.Home) nav.stack.add(0, Screen.Home) }
+        // and the reverse on switching to Modern: a tab screen pushed on top of Home becomes its own tab root, so the nav highlights it
+        if (modern && nav.stack.size > 1 && Tab.entries.any { it.root == nav.top }) androidx.compose.runtime.SideEffect { Tab.entries.firstOrNull { it.root == nav.top }?.let { nav.selectTab(it) } }
         BackHandler(enabled = modern && !ui.pickerOpen && nav.sheet == null && nav.nameDialog == null && !nav.nowPlaying && nav.stack.size == 1 && nav.top != Screen.Home) { nav.selectTab(Tab.HOME) }
         BoxWithConstraints(Modifier.fillMaxSize()) {
         // Modern: a navigation rail when there is width to spare (unfolded Fold, tablet, landscape, the square RG Rotate),

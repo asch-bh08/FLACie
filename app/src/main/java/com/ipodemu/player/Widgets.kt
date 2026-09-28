@@ -1,6 +1,8 @@
 package com.ipodemu.player
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.util.LruCache
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -73,6 +75,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.ipodemu.App
 
 val LocalApp = staticCompositionLocalOf<App> { error("App not provided") }
@@ -395,6 +399,35 @@ fun ArtImage(key: String?, modifier: Modifier = Modifier, thumb: Boolean = false
     val shape = if (circle) CircleShape else RoundedCornerShape(corner)
     Box(modifier.clip(shape).background(Brush.linearGradient(listOf(sc.onBg.copy(alpha = .16f), sc.onBg.copy(alpha = .05f)))), contentAlignment = Alignment.Center) {
         if (bmp != null) Image(bmp.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        else GlyphIcon(Glyph.NOTE, Modifier.fillMaxSize(0.42f), sc.onBg.copy(alpha = .35f))
+    }
+}
+
+private val remoteArtCache = object : LruCache<String, Bitmap>(8 * 1024 * 1024) {
+    override fun sizeOf(k: String, v: Bitmap) = v.byteCount
+}
+
+/** Cover art for a catalog search result (Lidarr's own image cache) -- not yet in the library, so
+ * there's no local artKey for it. Fetches and decodes the URL directly with a small in-memory cache,
+ * separate from ArtCache (which is keyed to this app's own library items, not arbitrary URLs). */
+@Composable
+fun RemoteArtImage(url: String?, modifier: Modifier = Modifier, corner: Dp = 8.dp) {
+    val sc = LocalScheme.current
+    var bmp by remember(url) { mutableStateOf(url?.let { remoteArtCache.get(it) }) }
+    LaunchedEffect(url) {
+        if (url == null || bmp != null) return@LaunchedEffect
+        val loaded = withContext(Dispatchers.IO) {
+            try {
+                val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 5000; conn.readTimeout = 8000
+                conn.inputStream.use { BitmapFactory.decodeStream(it) }
+            } catch (_: Exception) { null }
+        }
+        if (loaded != null) { remoteArtCache.put(url, loaded); bmp = loaded }
+    }
+    Box(modifier.clip(RoundedCornerShape(corner)).background(Brush.linearGradient(listOf(sc.onBg.copy(alpha = .16f), sc.onBg.copy(alpha = .05f)))), contentAlignment = Alignment.Center) {
+        val b = bmp
+        if (b != null) Image(b.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         else GlyphIcon(Glyph.NOTE, Modifier.fillMaxSize(0.42f), sc.onBg.copy(alpha = .35f))
     }
 }

@@ -14,6 +14,16 @@ import java.io.File
 
 class Group(val name: String, val tracks: List<Track>, val artKey: String?)
 
+/** A search hit that isn't in the library yet -- from Lidarr's MusicBrainz-backed catalog (artists,
+ * albums) or a live Soulseek peer search (tracks), not from anything already owned. Search shows
+ * these in their own section, distinct from owned results, each with a Download action. */
+data class CatalogArtist(val name: String, val imageUrl: String?)
+data class CatalogAlbum(val title: String, val artist: String, val imageUrl: String?)
+data class CatalogTrack(val artist: String, val title: String)
+data class CatalogResults(val artists: List<CatalogArtist>, val albums: List<CatalogAlbum>, val tracks: List<CatalogTrack>) {
+    companion object { val EMPTY = CatalogResults(emptyList(), emptyList(), emptyList()) }
+}
+
 class Library(ctx: Context, val art: ArtCache) {
     /** Where [tracks]/[playlists] currently come from. Switching does not forget the other side:
      * the local scan result stays cached in memory so flipping back to LOCAL is instant. */
@@ -191,6 +201,43 @@ class Library(ctx: Context, val art: ArtCache) {
     fun genres(): List<Group> = derive().genres
     /** ipodsync's own named playlists in Sync mode; folder-/m3u-derived groups otherwise. */
     fun playlists(): List<Group> = if (source == Source.SYNC) syncGroups else derive().playlists
+
+    /** Live search against what's NOT already owned -- Lidarr's MusicBrainz-backed catalog for
+     * artists/albums (works without adding anything first), and a live Soulseek peer search for the
+     * specific track if the query looks like "Artist - Title". Each source fails silently (empty
+     * result) if not configured or unreachable; a slow/offline Lidarr or Soulseek just means this
+     * section of Search stays empty, not an error. Owned hits are filtered out so this only ever
+     * shows things Search's own local sections don't already have. */
+    suspend fun catalogSearch(query: String): CatalogResults {
+        if (query.isBlank() || prefs.lidarrUrl.isBlank() || prefs.lidarrApiKey.isBlank()) return CatalogResults.EMPTY
+        val ownedArtists = artists().map { it.name.trim().lowercase() }.toSet()
+        val ownedAlbumKeys = albums().map { g -> "${g.tracks.firstOrNull()?.artist.orEmpty().trim().lowercase()}|${g.name.trim().lowercase()}" }.toSet()
+        val catalogArtists = try {
+            lidarr.lookupArtist(prefs.lidarrUrl, prefs.lidarrApiKey, query)
+                .distinctBy { it.artistName.trim().lowercase() }
+                .filter { it.artistName.trim().lowercase() !in ownedArtists }
+                .take(5)
+                .map { CatalogArtist(it.artistName, it.imageUrl) }
+        } catch (_: Exception) { emptyList() }
+        val catalogAlbums = try {
+            lidarr.lookupAlbum(prefs.lidarrUrl, prefs.lidarrApiKey, query)
+                .distinctBy { "${it.artistName.trim().lowercase()}|${it.title.trim().lowercase()}" }
+                .filter { "${it.artistName.trim().lowercase()}|${it.title.trim().lowercase()}" !in ownedAlbumKeys }
+                .take(8)
+                .map { CatalogAlbum(it.title, it.artistName, it.imageUrl) }
+        } catch (_: Exception) { emptyList() }
+        val catalogTracks = if (query.contains(" - ") && prefs.slskdUrl.isNotBlank() && prefs.slskdApiKey.isNotBlank()) {
+            try {
+                val parts = query.split(" - ", limit = 2)
+                val artist = parts[0].trim(); val title = parts[1].trim()
+                val ownedSong = songs().any { it.artist.trim().equals(artist, true) && it.title.trim().equals(title, true) }
+                if (ownedSong) emptyList()
+                else slskd.searchCandidates(prefs.slskdUrl, prefs.slskdApiKey, artist, title, timeoutMs = 6000)
+                    .take(1).map { CatalogTrack(artist, title) }
+            } catch (_: Exception) { emptyList() }
+        } else emptyList()
+        return CatalogResults(catalogArtists, catalogAlbums, catalogTracks)
+    }
 
     /** Load the cached local library, then rescan. Runs regardless of [source] (so switching back to
      * LOCAL later is instant/fresh); only mirrors into the visible [tracks] while LOCAL is active. */

@@ -44,6 +44,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
@@ -737,6 +738,16 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
 
 private class Results(val songs: List<Track>, val albums: List<Group>, val artists: List<Group>)
 
+/** A small "you already have this" tag, so an owned result reads as obviously different from a
+ * catalog hit at a glance without needing to compare sections. */
+@Composable
+private fun OwnedTag() {
+    val sc = LocalScheme.current
+    Box(Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xFF2E7D4F)).padding(horizontal = 7.dp, vertical = 3.dp)) {
+        Txt("OWNED", size = 10f, weight = FontWeight.Bold, color = Color.White)
+    }
+}
+
 @Composable
 private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
     val app = LocalApp.current
@@ -746,6 +757,8 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
     val sc = LocalScheme.current
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf(Results(emptyList(), emptyList(), emptyList())) }
+    var catalog by remember { mutableStateOf(com.ipodemu.library.CatalogResults.EMPTY) }
+    var catalogLoading by remember { mutableStateOf(false) }
     val fr = remember { FocusRequester() }
     // no auto-focus: it popped the keyboard, whose first Back press hid it instead of leaving the screen (and trapped controller focus in the field)
     LaunchedEffect(query) {
@@ -761,6 +774,16 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             )
         }
     }
+    // Separately debounced (longer -- these are live network calls to Lidarr/Soulseek, not a local
+    // filter) so typing doesn't fire a search per keystroke.
+    LaunchedEffect(query) {
+        val q = query.trim()
+        if (q.isEmpty()) { catalog = com.ipodemu.library.CatalogResults.EMPTY; catalogLoading = false; return@LaunchedEffect }
+        delay(600)
+        catalogLoading = true
+        catalog = try { app.library.catalogSearch(q) } catch (_: Exception) { com.ipodemu.library.CatalogResults.EMPTY }
+        catalogLoading = false
+    }
     Column(Modifier.fillMaxSize().imePadding()) {
         TopBar("Search", nav, showBack = true)
         Row(
@@ -775,8 +798,11 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (query.isNotEmpty()) Box(Modifier.size(28.dp).clickable { query = "" }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.CLOSE, Modifier.size(18.dp), sc.onBgDim) }
         }
         val r = results
+        val c = catalog
+        val nothingAtAll = r.songs.isEmpty() && r.albums.isEmpty() && r.artists.isEmpty() &&
+            c.artists.isEmpty() && c.albums.isEmpty() && c.tracks.isEmpty() && !catalogLoading
         if (query.isBlank()) EmptyState("Search your music")
-        else if (r.songs.isEmpty() && r.albums.isEmpty() && r.artists.isEmpty()) {
+        else if (nothingAtAll) {
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f)) { EmptyState("No results") }
                 DownloadRequestBar(app, query.trim())
@@ -787,14 +813,14 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 item { SectionHeader("Artists") }
                 items(r.artists.take(5), key = { "a" + it.name }) { g ->
                     IpodRow({ nav.push(Screen.Detail(DetailKind.ARTIST, g.name)) }, height = 52.dp, leading = { ArtImage(g.artKey, Modifier.size(44.dp), thumb = true, circle = true) },
-                        trailing = { GlyphIcon(Glyph.CHEVRON, Modifier.size(16.dp), sc.onBgDim) }) { hi -> Txt(g.name, size = 16f, color = if (hi) Color.White else sc.onBg) }
+                        trailing = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { OwnedTag(); GlyphIcon(Glyph.CHEVRON, Modifier.size(16.dp), sc.onBgDim) } }) { hi -> Txt(g.name, size = 16f, color = if (hi) Color.White else sc.onBg) }
                 }
             }
             if (r.albums.isNotEmpty()) {
                 item { SectionHeader("Albums") }
                 items(r.albums.take(6), key = { "b" + it.tracks.first().albumKey }) { g ->
                     IpodRow({ nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) }, height = 56.dp, leading = { ArtImage(g.artKey, Modifier.size(48.dp), thumb = true, corner = 8.dp) },
-                        trailing = { GlyphIcon(Glyph.CHEVRON, Modifier.size(16.dp), sc.onBgDim) }) { hi ->
+                        trailing = { OwnedTag() }) { hi ->
                         Column { Txt(g.name, size = 16f, color = if (hi) Color.White else sc.onBg); Txt(g.tracks.firstOrNull()?.artist ?: "", size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim) }
                     }
                 }
@@ -803,8 +829,41 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 item { SectionHeader("Songs") }
                 itemsIndexed(r.songs, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(r.songs, i, null); nav.nowPlaying = true }) }
             }
+            if (c.artists.isNotEmpty()) {
+                item { SectionHeader("Artists you don't have") }
+                itemsIndexed(c.artists, key = { i, a -> "ca$i${a.name}" }) { _, a ->
+                    CatalogRow(a.name, "Artist", a.imageUrl, circle = true) { app.library.requestDownload(a.name, "", "") }
+                }
+            }
+            if (c.albums.isNotEmpty()) {
+                item { SectionHeader("Albums you don't have") }
+                itemsIndexed(c.albums, key = { i, al -> "cb$i${al.artist}${al.title}" }) { _, al ->
+                    CatalogRow(al.title, al.artist, al.imageUrl) { app.library.requestDownload(al.artist, "", al.title) }
+                }
+            }
+            if (c.tracks.isNotEmpty()) {
+                item { SectionHeader("Found on Soulseek") }
+                itemsIndexed(c.tracks, key = { i, t -> "ct$i${t.artist}${t.title}" }) { _, t ->
+                    CatalogRow(t.title, t.artist, null) { app.library.requestDownload(t.artist, t.title, "") }
+                }
+            }
+            if (catalogLoading) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Searching Lidarr/Soulseek...", size = 13f, color = sc.onBgDim) } }
             item { DownloadRequestBar(app, query.trim(), compact = true) }
         }
+    }
+}
+
+/** One row in a "not in your library" catalog section -- cover art (when the source has any),
+ * title/subtitle, and an explicit Download pill so the action is obvious without relying on the
+ * section header alone. */
+@Composable
+private fun CatalogRow(title: String, subtitle: String, imageUrl: String?, circle: Boolean = false, onDownload: () -> Unit) {
+    val sc = LocalScheme.current
+    IpodRow({ onDownload() }, height = 56.dp,
+        leading = { RemoteArtImage(imageUrl, Modifier.size(48.dp).let { if (circle) it.clip(CircleShape) else it }, corner = if (circle) 24.dp else 8.dp) },
+        trailing = { GlossPill("Download", onDownload, height = 32.dp) },
+    ) { hi ->
+        Column { Txt(title, size = 15f, color = if (hi) Color.White else sc.onBg, maxLines = 1); Txt(subtitle, size = 12f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim, maxLines = 1) }
     }
 }
 

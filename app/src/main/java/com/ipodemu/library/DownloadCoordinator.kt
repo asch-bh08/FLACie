@@ -33,13 +33,17 @@ class DownloadCoordinator(private val prefs: Prefs) {
     private val fileMover = FileMoverClient()
 
     suspend fun download(artist: String, title: String, album: String, onUpdate: (DownloadStatus) -> Unit) {
-        onUpdate(DownloadStatus(DownloadStage.REQUESTED, "Requested \"$title\""))
+        onUpdate(DownloadStatus(DownloadStage.REQUESTED, "Requested \"${title.ifBlank { album.ifBlank { artist } }}\""))
         if (prefs.lidarrUrl.isBlank() || prefs.lidarrApiKey.isBlank()) {
             onUpdate(DownloadStatus(DownloadStage.FAILED, "Lidarr isn't configured (Settings > Lidarr)"))
             return
         }
         coroutineScope {
-            val soulseekConfigured = prefs.slskdUrl.isNotBlank() && prefs.slskdApiKey.isNotBlank()
+            // Soulseek only makes sense for a single track -- an album/artist-only request (blank
+            // title, from a catalog search result rather than a track search) goes to Lidarr alone,
+            // since there's no reasonable way to raced-search a whole album's worth of files over
+            // Soulseek's single-file download flow.
+            val soulseekConfigured = title.isNotBlank() && prefs.slskdUrl.isNotBlank() && prefs.slskdApiKey.isNotBlank()
             val soulseekDeferred = if (soulseekConfigured) async { trySoulseek(artist, title, onUpdate) } else null
             val lidarrDeferred = async { tryLidarr(artist, title, album, onUpdate) }
 
@@ -137,22 +141,28 @@ class DownloadCoordinator(private val prefs: Prefs) {
                 artistId = lidarr.addArtist(url, key, best)
             }
             val watchArtistId = artistId
-            // A search only gives us a song title, not an album -- find which album actually has it
-            // (falling back to the caller's album name, then an artist-wide search) so only that one
+            // A track search only gives us a song title, not an album -- find which album actually has
+            // it (falling back to the caller's album name, then an artist-wide search) so only that one
             // album gets searched, instead of the whole artist's catalog. For a freshly-added artist,
             // Lidarr syncs its album/track metadata asynchronously (slower for a big catalog), so poll
             // for a bit rather than guessing a fixed delay -- a wrong guess is what silently fell back
-            // to an artist-wide search here before.
-            var targetAlbumId = lidarr.albumIdForTrack(url, key, watchArtistId, title)
-            if (targetAlbumId == null && justAdded) {
-                withTimeoutOrNull(15_000L) {
-                    while (targetAlbumId == null) {
-                        delay(1500)
-                        targetAlbumId = lidarr.albumIdForTrack(url, key, watchArtistId, title)
+            // to an artist-wide search here before. A blank title means this is an album- or
+            // artist-only request (from a catalog search result, not a track search) -- skip straight
+            // to matching by album name instead of matching an empty string against every track.
+            var targetAlbumId: Int? = null
+            if (title.isNotBlank()) {
+                targetAlbumId = lidarr.albumIdForTrack(url, key, watchArtistId, title)
+                if (targetAlbumId == null && justAdded) {
+                    withTimeoutOrNull(15_000L) {
+                        while (targetAlbumId == null) {
+                            delay(1500)
+                            targetAlbumId = lidarr.albumIdForTrack(url, key, watchArtistId, title)
+                        }
                     }
                 }
             }
             if (targetAlbumId == null && album.isNotBlank()) {
+                if (justAdded) withTimeoutOrNull(15_000L) { while (lidarr.albumsFor(url, key, watchArtistId).isEmpty()) delay(1500) }
                 val albums = lidarr.albumsFor(url, key, watchArtistId)
                 targetAlbumId = albums.firstOrNull { it.second.contains(album, ignoreCase = true) || album.contains(it.second, ignoreCase = true) }?.first
             }

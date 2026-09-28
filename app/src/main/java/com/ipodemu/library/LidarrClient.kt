@@ -17,7 +17,8 @@ import java.net.URL
  * Settings > General page, sent as the X-Api-Key header on every request.
  */
 class LidarrClient {
-    data class ArtistLookup(val foreignArtistId: String, val artistName: String, val overview: String?)
+    data class ArtistLookup(val foreignArtistId: String, val artistName: String, val overview: String?, val imageUrl: String? = null)
+    data class AlbumLookup(val title: String, val artistName: String, val foreignAlbumId: String, val imageUrl: String?)
     data class QueueItem(
         val id: Long, val title: String, val status: String, val trackedDownloadStatus: String?,
         val trackedDownloadState: String?, val artistId: Int?, val albumId: Int?,
@@ -41,8 +42,38 @@ class LidarrClient {
         val arr = JSONArray(get("${base(url)}/api/v1/artist/lookup?term=$q", apiKey))
         List(arr.length()) { i ->
             val o = arr.getJSONObject(i)
-            ArtistLookup(o.getString("foreignArtistId"), o.optString("artistName"), o.optString("overview").ifEmpty { null })
+            ArtistLookup(o.getString("foreignArtistId"), o.optString("artistName"), o.optString("overview").ifEmpty { null }, coverUrl(o, "poster"))
         }
+    }
+
+    /** MusicBrainz-backed album search (Lidarr's own /album/lookup) -- unlike artist lookup this
+     * searches across every artist's catalog, not just one, so results are the caller's to filter by
+     * artist name if that matters. Works without the artist being added to Lidarr first. */
+    suspend fun lookupAlbum(url: String, apiKey: String, term: String): List<AlbumLookup> = withContext(Dispatchers.IO) {
+        if (term.isBlank()) return@withContext emptyList()
+        val q = java.net.URLEncoder.encode(term, "UTF-8")
+        val arr = JSONArray(get("${base(url)}/api/v1/album/lookup?term=$q", apiKey))
+        List(arr.length()) { i ->
+            val o = arr.getJSONObject(i)
+            val artistName = o.optJSONObject("artist")?.optString("artistName") ?: ""
+            AlbumLookup(o.optString("title"), artistName, o.optString("foreignAlbumId"), coverUrl(o, "cover"))
+        }
+    }
+
+    /** Prefers the given cover type (e.g. "poster" for an artist, "cover" for an album) out of
+     * Lidarr's `images` array, falling back to whatever's there; `remoteUrl` is a direct, unauthenticated
+     * link to Lidarr's own image cache (images.lidarr.audio), unlike `url` which is a relative path
+     * behind Lidarr's own auth. */
+    private fun coverUrl(o: JSONObject, preferredType: String): String? {
+        val images = o.optJSONArray("images") ?: return null
+        var fallback: String? = null
+        for (i in 0 until images.length()) {
+            val img = images.getJSONObject(i)
+            val remote = img.optString("remoteUrl").ifEmpty { null } ?: continue
+            if (img.optString("coverType") == preferredType) return remote
+            if (fallback == null) fallback = remote
+        }
+        return fallback
     }
 
     /** Artists already in the Lidarr library, so we don't re-add one that's already there. */

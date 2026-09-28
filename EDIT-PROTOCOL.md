@@ -51,6 +51,13 @@ IpodSync.Cli apply-edits <ipod-root> --changes <file.json> [--yes] [--backup-roo
   any check fails. `write-log.txt` is saved next to the backup.
 - The player's helper server (`ipod-server.ps1`) exposes the same command as
   `POST /api/apply-edits` (`?commit=1` for `--yes`); the JSON contract is identical.
+- `IpodSync.Web` also serves `POST /api/apply-edits?root=<ipod-root>` for remote clients (ipodplayer's Sync
+  mode): same body, same pipeline, two extra gates. Only `setTrackFields`, `setTrackRating` and the playlist ops
+  are accepted (nothing that names a file on the host, no `removeTrack`), and `commit=1` must carry the
+  `confirmToken` a clean dry run returned for the identical change-set against the unchanged database
+  (`&confirm=<token>`), so a write always follows a preview the user saw. Response: `{dryRun, ok, exitCode,
+  written, restored, backupDir, ops[], problems[], log[], confirmToken}`. Ops in one change-set can't address a
+  playlist an earlier `createPlaylist` in the same set made -- put the final order in `createPlaylist.trackIds`.
 
 Related commands: `itlp-sync <root> [--yes] [--resign]` (bring SQLite in line with
 the CDB / re-sign), `itlp-diff`, `art-check`, `hash72-verify`, `hash58-verify`,

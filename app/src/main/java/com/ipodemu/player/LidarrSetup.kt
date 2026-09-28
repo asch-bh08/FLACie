@@ -90,7 +90,7 @@ fun LidarrSetupScreen() {
             }
 
             Box(Modifier.padding(top = 8.dp)) { Txt("Soulseek (optional)", size = 16f, weight = FontWeight.Bold) }
-            Txt("Usually wins the race when configured: a live peer search often beats waiting on an indexer. Lidarr won't import a single track on its own, so a completed download is filed straight into the library via NAS (SMB, home network only) or the file mover below (works from anywhere) -- at least one of those must be set up too. Leave blank to use Lidarr only.", size = 12f, maxLines = 8)
+            Txt("Usually wins the race when configured: a live peer search often beats waiting on an indexer. Lidarr won't import a single track on its own, so a completed download is filed straight into the library via the file mover below -- that must be set up too, or a Soulseek win can't be filed anywhere. Leave blank to use Lidarr only.", size = 12f, maxLines = 8)
             field("slskd URL (e.g. https://frank.tailb05910.ts.net/slskd)", slskdUrl, { slskdUrl = it })
             field("slskd API key", slskdKey, { slskdKey = it })
             field("Download path (relative to the shared root, e.g. downloads/slskd-inbox)", slskdPath, { slskdPath = it })
@@ -103,8 +103,8 @@ fun LidarrSetupScreen() {
                 lib.slskdStatus != null -> Txt(lib.slskdStatus ?: "", size = 13f, color = Color(0xFFFF8080))
             }
 
-            Box(Modifier.padding(top = 8.dp)) { Txt("File mover (optional)", size = 16f, weight = FontWeight.Bold) }
-            Txt("Fallback for filing a Soulseek download when NAS/SMB isn't reachable, e.g. away from home -- a small HTTP service on the same box, works over the Funnel.", size = 12f, maxLines = 4)
+            Box(Modifier.padding(top = 8.dp)) { Txt("File mover", size = 16f, weight = FontWeight.Bold) }
+            Txt("How a Soulseek download actually gets filed into the library -- a small HTTP service on the homelab, works from anywhere over the Funnel.", size = 12f, maxLines = 3)
             field("File mover URL (e.g. https://frank.tailb05910.ts.net/filemove)", moverUrl, { moverUrl = it })
             field("File mover API key", moverKey, { moverKey = it })
             GlossPill(if (lib.fileMoverConnecting) "Connecting…" else "Connect File Mover", {

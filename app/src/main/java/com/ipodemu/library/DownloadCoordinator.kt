@@ -1,11 +1,9 @@
 package com.ipodemu.library
 
 import com.ipodemu.Prefs
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 enum class DownloadStage { REQUESTED, SEARCHING, DOWNLOADING, IMPORTING, SCANNING, DONE, FAILED }
@@ -21,10 +19,12 @@ data class DownloadStatus(val stage: DownloadStage, val message: String, val sou
  * The two sources are filed differently: Lidarr's own grabs go through Lidarr's own import (it
  * already knows the artist/album it searched for). A Soulseek win is just a single file, and
  * Lidarr's manual-import flatly refuses a lone track when it's expecting a whole album -- confirmed
- * live, this isn't a timing issue a retry fixes -- so instead it's moved directly (via SMB, same
- * share slskd downloads onto) into the folder Jellyfin scans, named `Artist/Artist - Title.ext`.
- * This needs NAS configured (Settings > NAS) pointing at that share; without it a Soulseek win can't
- * be filed anywhere and the request falls through to Lidarr's slower but self-sufficient path.
+ * live, this isn't a timing issue a retry fixes -- so instead it's moved directly into the folder
+ * Jellyfin scans, named `Artist/Artist - Title.ext`, via the file-mover HTTP service (Settings >
+ * Lidarr > File mover). This needs that configured; without it a Soulseek win can't be filed
+ * anywhere and the request falls through to Lidarr's slower but self-sufficient path. (An SMB move
+ * on the same share was tried first here, but never completed successfully across three separate
+ * bug fixes in live testing -- dropped rather than sink more time into it.)
  */
 class DownloadCoordinator(private val prefs: Prefs) {
     private val lidarr = LidarrClient()
@@ -97,13 +97,17 @@ class DownloadCoordinator(private val prefs: Prefs) {
     }
 
     /** Moves the just-downloaded file from slskd's inbox straight into the folder Jellyfin scans, as
-     * `Artist/Artist - Title.ext` -- an SMB move on the same share slskd's downloads land on (see the
-     * class doc for why this doesn't go through Lidarr). Requires NAS to be configured; returns false
-     * without it, since there's nowhere else to safely file a bare, untagged single track. slskd
-     * flattens a peer's own folder structure down to just the immediate parent folder when it writes
-     * the finished file to disk (confirmed against two live downloads), which is what `hit.filename`'s
-     * last two path segments are used to reconstruct here. */
+     * `Artist/Artist - Title.ext` -- via the HTTP file-mover service (see the class doc for why this
+     * doesn't go through Lidarr). An earlier same-network SMB move (NasSmb.moveFile) was tried first
+     * here, but jcifs-ng misbehaved on this exact operation across three different bug fixes and never
+     * once completed successfully in live testing -- not worth more time on it, so this goes straight
+     * to the file-mover now. Requires it to be configured; returns false without it, since there's
+     * nowhere else to safely file a bare, untagged single track. slskd flattens a peer's own folder
+     * structure down to just the immediate parent folder when it writes the finished file to disk
+     * (confirmed against several live downloads), which is what `hit.filename`'s last two path
+     * segments are used to reconstruct here. */
     private suspend fun fileIntoLibrary(hit: SlskdClient.FileResult, artist: String, title: String): Boolean {
+        if (prefs.fileMoverUrl.isBlank() || prefs.fileMoverApiKey.isBlank()) return false
         val remoteParts = hit.filename.replace('\\', '/').split('/').filter { it.isNotBlank() }
         val sourceLeaf = remoteParts.last()
         val sourceParentFolder = if (remoteParts.size >= 2) remoteParts[remoteParts.size - 2] else ""
@@ -113,28 +117,12 @@ class DownloadCoordinator(private val prefs: Prefs) {
         fun clean(s: String) = s.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
         val destFolder = "${prefs.nasFolder.trim('/')}/${clean(artist)}"
         val destName = "${clean(artist)} - ${clean(title)}.$ext"
-
-        // Same-network SMB move first -- no extra network hop through the homelab's own server, and
-        // works even if the file-mover service isn't set up. Falls back to the HTTP file-mover (which
-        // works from anywhere, unlike SMB over the Funnel) when that fails or isn't configured.
-        if (prefs.nasHost.isNotBlank() && prefs.nasShare.isNotBlank()) {
-            try {
-                withContext(Dispatchers.IO) {
-                    NasSmb.moveFile(
-                        prefs.nasUsername, prefs.nasPassword, prefs.nasDomain,
-                        prefs.nasHost, prefs.nasShare, sourceFolder, sourceLeaf, destFolder, destName,
-                    )
-                }
-                return true
-            } catch (_: Exception) { /* try the file-mover fallback below */ }
+        return try {
+            fileMover.move(prefs.fileMoverUrl, prefs.fileMoverApiKey, "$sourceFolder/$sourceLeaf", "$destFolder/$destName")
+            true
+        } catch (_: Exception) {
+            false
         }
-        if (prefs.fileMoverUrl.isNotBlank() && prefs.fileMoverApiKey.isNotBlank()) {
-            try {
-                fileMover.move(prefs.fileMoverUrl, prefs.fileMoverApiKey, "$sourceFolder/$sourceLeaf", "$destFolder/$destName")
-                return true
-            } catch (_: Exception) { return false }
-        }
-        return false
     }
 
     private suspend fun tryLidarr(artist: String, title: String, album: String, onUpdate: (DownloadStatus) -> Unit): Boolean {

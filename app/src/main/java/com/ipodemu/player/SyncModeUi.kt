@@ -75,14 +75,30 @@ fun SyncModeScreen() {
     var openPlaylist by remember { mutableStateOf<SyncStaging.WorkPlaylist?>(null) }
     var reviewing by remember { mutableStateOf(false) }
 
-    fun findDevices() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    /** Opens the ipodsync app (it serves a USB-connected iPod on this device over a loopback API). */
+    fun openIpodsync(): Boolean {
+        val i = ctx.packageManager.getLaunchIntentForPackage(IPODSYNC_PACKAGE) ?: return false
+        ctx.startActivity(i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)); return true
+    }
+    fun findDevices(launchIfLocal: Boolean = false) {
         if (host.isBlank()) return
         app.prefs.syncHost = host.trim()
-        busy = true; status = "Looking for iPods on ${host.trim()}..."
+        val local = host.trim() == LOCAL_HOST
+        busy = true; status = if (local) "Looking for an iPod plugged into this device..." else "Looking for iPods on ${host.trim()}..."
         scope.launch {
-            try { devices = com.ipodemu.library.SyncClient().devices(host.trim()); status = if (devices.isNullOrEmpty()) "No iPod connected to that PC" else null }
-            catch (e: Exception) { status = "Can't reach ipodsync at ${host.trim()}: ${e.message}" }
-            finally { busy = false }
+            try {
+                devices = try { com.ipodemu.library.SyncClient().devices(host.trim()) } catch (e: Exception) {
+                    // on this device the API only exists while the ipodsync app is running: start it once and retry
+                    if (!(local && launchIfLocal && openIpodsync())) throw e
+                    status = "Starting ipodsync..."
+                    kotlinx.coroutines.delay(5000)
+                    com.ipodemu.library.SyncClient().devices(host.trim())
+                }
+                status = if (devices.isNullOrEmpty()) (if (local) "No iPod plugged in" else "No iPod connected to that PC") else null
+            } catch (e: Exception) {
+                status = if (local) "ipodsync isn't running on this device. Install it (ipodsync v0.4+), open it once, then try again." else "Can't reach ipodsync at ${host.trim()}: ${e.message}"
+            } finally { busy = false }
         }
     }
     fun load(d: SyncDevice) {
@@ -110,11 +126,17 @@ fun SyncModeScreen() {
                 // ---- connect ------------------------------------------------------------------------------
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Txt("Edit an iPod connected to your PC through ipodsync: rename songs, rate them, and build or reorder playlists. Changes are only written after you review and confirm them, and the iPod's database is backed up first.", size = 14f, color = sc.onBgDim, maxLines = 6)
+                    // no PC, no Wi-Fi: the iPod on this device's USB port, through the ipodsync app's loopback API
+                    GlossPill("iPod plugged into this device (USB)", { host = LOCAL_HOST; findDevices(launchIfLocal = true) }, icon = Glyph.IPOD, primary = true)
+                    Txt("Or an iPod plugged into a PC running ipodsync:", size = 13f, color = sc.onBgDim)
                     SyncField("ipodsync PC (host:port)", host, { host = it }, "192.168.1.50:5070", uri = true)
-                    GlossPill(if (busy) "Looking..." else "Find iPods", { findDevices() }, primary = true)
+                    GlossPill(if (busy) "Looking..." else "Find iPods", { findDevices() })
                     devices?.forEach { d ->
-                        IpodRow({ load(d) }, height = 60.dp, leading = { IconTile(Glyph.IPOD, size = 40.dp) }, trailing = { GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), rowDim()) }) {
-                            Column { Txt(d.volumeLabel ?: "iPod", size = 16f, weight = FontWeight.SemiBold); Txt(d.rootPath + if (d.hasDatabase) "" else "  (no database)", size = 13f, color = rowDim()) }
+                        // ipodsync reports a placeholder when it can't see the iPod as USB storage yet (not plugged in, or it
+                        // still needs "All files access"): send the user to ipodsync to sort that out
+                        IpodRow({ if (d.needsUserAction) openIpodsync() else load(d) }, height = if (d.needsUserAction) 84.dp else 60.dp, leading = { IconTile(Glyph.IPOD, size = 40.dp) }, trailing = { GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), rowDim()) }) {
+                            if (d.needsUserAction) Column { Txt("Open ipodsync", size = 16f, weight = FontWeight.SemiBold); Txt(d.volumeLabel ?: "", size = 12f, color = rowDim(), maxLines = 3) }
+                            else Column { Txt(d.volumeLabel ?: "iPod", size = 16f, weight = FontWeight.SemiBold); Txt(d.rootPath + if (d.hasDatabase) "" else "  (no database)", size = 13f, color = rowDim()) }
                         }
                     }
                     // for when detection misses the iPod (or to open a copy of one): its drive or folder on that PC
@@ -379,3 +401,7 @@ private fun SyncField(label: String?, value: String, onChange: (String) -> Unit,
         }
     }
 }
+
+/** ipodsync's Android app serves the iPod on this device's USB port here (LocalApiServer.cs in ipodsync). */
+private const val LOCAL_HOST = "127.0.0.1:5071"
+private const val IPODSYNC_PACKAGE = "dev.ashley.ipodsync"

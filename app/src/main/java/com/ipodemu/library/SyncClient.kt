@@ -9,7 +9,7 @@ import java.net.URL
 import java.net.URLEncoder
 
 /** A real iPod ipodsync sees plugged into the PC ("root" is its drive/mount path, e.g. "G:/"). */
-class SyncDevice(val rootPath: String, val volumeLabel: String?, val hasDatabase: Boolean)
+class SyncDevice(val rootPath: String, val volumeLabel: String?, val hasDatabase: Boolean, val needsUserAction: Boolean = false)
 
 class SyncLibrary(val tracks: List<Track>, val playlists: List<Group>)
 
@@ -22,7 +22,7 @@ class SyncClient {
         val arr = JSONArray(get("http://$host/api/devices"))
         List(arr.length()) { i ->
             val o = arr.getJSONObject(i)
-            SyncDevice(o.getString("rootPath"), o.optString("volumeLabel").ifEmpty { null }, o.optBoolean("hasDatabase"))
+            SyncDevice(o.getString("rootPath"), o.optString("volumeLabel").ifEmpty { null }, o.optBoolean("hasDatabase"), o.optBoolean("needsUserAction"))
         }
     }
 

@@ -54,10 +54,21 @@ fun SettingsScreen(nav: PlayerNav) {
     Column(Modifier.fillMaxSize()) {
         TopBar("Settings", nav, showBack = true)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 30.dp)) {
+            item { SectionHeader("Account") }
+            item {
+                Card {
+                    val acct = app.account
+                    if (acct.signedIn) {
+                        SettingRow(prefs.accountUserName.ifEmpty { "Signed in" }, prefs.accountServer.removePrefix("https://").removePrefix("http://"), chevron = true) { ui.accountOpen = true }
+                        SettingRow("Sync now", acct.status ?: syncedLabel(prefs.accountSyncedAt)) { acct.sync() }
+                    } else SettingRow("Sign in", "Not signed in", chevron = true) { ui.accountOpen = true }
+                }
+            }
             item { SectionHeader("Appearance") }
             item {
                 Card {
-                    SettingRow("Appearance", modeName, chevron = true) { ui.pickerOpen = true }
+                    SettingRow("Theme", if (ui.ipodTheme) "iPod" else "Modern") { ui.changeTheme(if (ui.ipodTheme) 0 else 1) }
+                    if (ui.ipodTheme) SettingRow("iPod appearance", modeName, chevron = true) { ui.pickerOpen = true }
                 }
             }
             item { SectionHeader("Playback") }
@@ -100,7 +111,7 @@ fun SettingsScreen(nav: PlayerNav) {
                 }
             }
             item { SectionHeader("About") }
-            item { Card { SettingRow("Version", "0.6") { } } }
+            item { Card { SettingRow("Version", "0.8") { } } }
         }
     }
 }
@@ -113,3 +124,8 @@ private fun Card(content: @Composable () -> Unit) {
 val SWIPE_ACTIONS = listOf("Off", "Play next", "Favorite", "Add to queue")
 
 fun brightnessLabel(b: Float) = if (b < 0f) "System" else "${(b * 100).toInt()}%"
+
+fun syncedLabel(at: Long): String = if (at <= 0L) "Not synced yet" else {
+    val m = (System.currentTimeMillis() - at) / 60000
+    when { m < 1 -> "Synced just now"; m < 60 -> "Synced $m min ago"; m < 1440 -> "Synced ${m / 60} hr ago"; else -> "Synced ${m / 1440} d ago" }
+}

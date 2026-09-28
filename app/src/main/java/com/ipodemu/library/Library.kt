@@ -113,6 +113,26 @@ class Library(ctx: Context, val art: ArtCache) {
      * Soulseek win carries a ready-to-play Track straight in the DONE status -- added immediately,
      * no waiting on anything. A Lidarr win doesn't have that (Lidarr does its own import under its
      * own naming), so that path still relies on the scheduled re-merges noticing it via Jellyfin. */
+    /** Called after a service connection is saved from its Settings screen, so the account copy gets updated. */
+    var onServicesChanged: (() -> Unit)? = null
+
+    /** Re-tries every configured service in the background (after the account restored connections). */
+    fun reconnectAll() { jellyfinUserId = null; mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd(); checkFileMover() }
+
+    @Volatile private var keyCache: Pair<List<Track>, Map<String, Track>>? = null
+    private fun byKey(): Map<String, Track> { val t = tracks; keyCache?.let { if (it.first === t) return it.second }; return t.associateBy { dedupKey(it) }.also { keyCache = t to it } }
+    @Volatile private var jfKeyCache: Pair<List<Track>, Map<String, Track>>? = null
+    fun jellyfinByKey(): Map<String, Track> { val t = jellyfinTracks; jfKeyCache?.let { if (it.first === t) return it.second }; return t.associateBy { dedupKey(it) }.also { jfKeyCache = t to it } }
+
+    /** A playlist/favourite entry on this device: the exact file, or -- for an entry synced from another device --
+     * this library's copy of the same song by title + artist. */
+    fun resolve(path: String, meta: Pair<String, String>?): Track? =
+        byPath()[path] ?: meta?.let { byKey()["${it.first.trim().lowercase()}|${it.second.trim().lowercase()}"] }
+
+    /** The signed-in account's user when Jellyfin is the account's own server (its token can't list /Users). */
+    private suspend fun jellyfinUser(url: String, key: String): String? =
+        prefs.accountUserId.takeIf { it.isNotBlank() && prefs.accountServer.trimEnd('/') == url.trimEnd('/') } ?: jellyfin.firstUserId(url, key)
+
     fun requestDownload(artist: String, title: String, album: String) {
         scope.launch {
             downloader.download(artist, title, album) { status ->
@@ -370,7 +390,7 @@ class Library(ctx: Context, val art: ArtCache) {
         if (url.isBlank() || key.isBlank()) return
         scope.launch {
             try {
-                val userId = jellyfinUserId ?: jellyfin.firstUserId(url, key)?.also { jellyfinUserId = it } ?: return@launch
+                val userId = jellyfinUserId ?: jellyfinUser(url, key)?.also { jellyfinUserId = it } ?: return@launch
                 jellyfinTracks = jellyfin.allAudio(url, key, userId)
                 jellyfinConnected = true
                 applyJellyfinMerge()
@@ -387,10 +407,11 @@ class Library(ctx: Context, val art: ArtCache) {
             try {
                 val (ok, info) = jellyfin.testConnection(url, apiKey)
                 if (!ok) { jellyfinStatus = "Could not connect: $info"; jellyfinConnected = false; return@launch }
-                val userId = jellyfin.firstUserId(url, apiKey)
+                val userId = jellyfinUser(url, apiKey)
                 if (userId == null) { jellyfinStatus = "Connected, but this server has no users."; jellyfinConnected = false; return@launch }
                 jellyfinUserId = userId
                 prefs.jellyfinUrl = url; prefs.jellyfinApiKey = apiKey
+                onServicesChanged?.invoke()
                 jellyfinTracks = jellyfin.allAudio(url, apiKey, userId)
                 jellyfinConnected = true
                 jellyfinStatus = info?.let { "Connected to $it" } ?: "Connected"
@@ -432,6 +453,7 @@ class Library(ctx: Context, val art: ArtCache) {
                 if (key == null) { plexStatus = "Connected, but this server has no music library."; plexConnected = false; return@launch }
                 plexSectionKey = key
                 prefs.plexUrl = url; prefs.plexToken = token
+                onServicesChanged?.invoke()
                 plexTracks = plex.allAudio(url, token, key)
                 plexConnected = true
                 plexStatus = info?.let { "Connected to $it" } ?: "Connected"
@@ -472,6 +494,7 @@ class Library(ctx: Context, val art: ArtCache) {
                 val found = nas.scanTracks(host, share, folder, username, password, domain)
                 prefs.nasHost = host; prefs.nasShare = share; prefs.nasFolder = folder
                 prefs.nasUsername = username; prefs.nasPassword = password; prefs.nasDomain = domain
+                onServicesChanged?.invoke()
                 nasTracks = found
                 nasConnected = true
                 nasStatus = "Connected -- ${found.size} tracks found"
@@ -507,6 +530,7 @@ class Library(ctx: Context, val art: ArtCache) {
                 val (ok, info) = lidarr.testConnection(url, apiKey)
                 if (!ok) { lidarrStatus = "Could not connect: $info"; lidarrConnected = false; return@launch }
                 prefs.lidarrUrl = url; prefs.lidarrApiKey = apiKey
+                onServicesChanged?.invoke()
                 lidarrConnected = true
                 lidarrStatus = info?.let { "Connected to $it" } ?: "Connected"
             } catch (e: Exception) {
@@ -552,6 +576,7 @@ class Library(ctx: Context, val art: ArtCache) {
                 if (!ok) { slskdStatus = "Could not connect: $info"; slskdConnected = false; return@launch }
                 prefs.slskdUrl = url; prefs.slskdApiKey = apiKey
                 if (downloadPath.isNotBlank()) prefs.slskdDownloadPath = downloadPath
+                onServicesChanged?.invoke()
                 slskdConnected = true
                 slskdStatus = info?.let { "Connected (slskd $it)" } ?: "Connected"
             } catch (e: Exception) {
@@ -572,6 +597,7 @@ class Library(ctx: Context, val art: ArtCache) {
                 val (ok, info) = fileMover.testConnection(url, apiKey)
                 if (!ok) { fileMoverStatus = "Could not connect: $info"; fileMoverConnected = false; return@launch }
                 prefs.fileMoverUrl = url; prefs.fileMoverApiKey = apiKey
+                onServicesChanged?.invoke()
                 fileMoverConnected = true
                 fileMoverStatus = "Connected"
             } catch (e: Exception) {

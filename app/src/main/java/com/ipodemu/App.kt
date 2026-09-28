@@ -14,6 +14,7 @@ class App : Application() {
     lateinit var player: PlayerController; private set
     lateinit var ui: UiState; private set
     lateinit var userData: com.ipodemu.library.UserData; private set
+    lateinit var account: com.ipodemu.library.AccountSync; private set
 
     override fun onCreate() {
         super.onCreate()
@@ -24,6 +25,11 @@ class App : Application() {
         ui = UiState(prefs)
         userData = com.ipodemu.library.UserData(this)
         player.onTrackStarted = { userData.recordPlay(it.path) }
+        account = com.ipodemu.library.AccountSync(this)
+        userData.onChanged = { account.schedulePush() }
+        library.onServicesChanged = { account.schedulePush() }
+        // pick up changes made on other devices (playlists, newly added services) every launch
+        account.sync()
     }
 
     companion object {

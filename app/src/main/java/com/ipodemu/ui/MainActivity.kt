@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -30,7 +31,7 @@ class MainActivity : ComponentActivity() {
 
     private val app get() = App.of(this)
     private val wheelMode get() = app.ui.wheelActive && !app.ui.pickerOpen && !app.ui.syncSetupOpen &&
-        !app.ui.jellyfinSetupOpen && !app.ui.plexSetupOpen && !app.ui.nasSetupOpen && !app.ui.lidarrSetupOpen   // these overlays take keys themselves
+        !app.ui.jellyfinSetupOpen && !app.ui.plexSetupOpen && !app.ui.nasSetupOpen && !app.ui.lidarrSetupOpen && !app.ui.accountOpen   // these overlays take keys themselves
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,13 +40,23 @@ class MainActivity : ComponentActivity() {
         ensurePermission()
         app.library.start()
         // Debug aid: `am start --es fake 1080x2400` letterboxes the UI into that aspect ratio to test layouts.
+        // `--es fakedp 360` also renders it at that width in dp (e.g. a Z Fold cover screen), and `--es fakecutout 32`
+        // simulates a camera cutout that tall at the top, for checking safe-area handling on a device without one.
         val fake = intent?.getStringExtra("fake")?.split("x")?.mapNotNull { it.toFloatOrNull() }
+        val fakeDp = intent?.getStringExtra("fakedp")?.toFloatOrNull()
+        val fakeCutout = intent?.getStringExtra("fakecutout")?.toFloatOrNull() ?: 0f
         setContent {
-            if (fake != null && fake.size == 2) {
-                Box(Modifier.fillMaxSize().background(Color(0xFF303030)), contentAlignment = Alignment.Center) {
-                    Box(Modifier.aspectRatio(fake[0] / fake[1])) { AppRoot(this@MainActivity) }
-                }
-            } else AppRoot(this@MainActivity)
+            androidx.compose.runtime.CompositionLocalProvider(com.ipodemu.player.LocalDebugCutout provides fakeCutout.dp) {
+                if (fake != null && fake.size == 2) {
+                    Box(Modifier.fillMaxSize().background(Color(0xFF303030)), contentAlignment = Alignment.Center) {
+                        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.aspectRatio(fake[0] / fake[1])) {
+                            val d = androidx.compose.ui.platform.LocalDensity.current
+                            val density = if (fakeDp != null) androidx.compose.ui.unit.Density(constraints.maxWidth / fakeDp, d.fontScale) else d
+                            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides density) { AppRoot(this@MainActivity) }
+                        }
+                    }
+                } else AppRoot(this@MainActivity)
+            }
         }
         handleIntent(intent)
     }

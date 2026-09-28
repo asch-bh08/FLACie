@@ -175,9 +175,42 @@ class Prefs(ctx: Context) {
         get() = sp.getString("filemoverkey", "") ?: ""
         set(v) = sp.edit().putString("filemoverkey", v).apply()
 
+
+    /** Look & feel: 0 = Modern (the default: a flat, YT Music/Spotify-style player), 1 = iPod (the glossy iPod-OS
+     * skins and click-wheel modes, configured on the Appearance screen). */
+    var uiTheme: Int
+        get() = sp.getInt("uitheme", 0)
+        set(v) = sp.edit().putInt("uitheme", v).apply()
+
+    /** Account (see library/AccountSync.kt): a Jellyfin user whose server keeps this app's saved profile --
+     * every service connection plus playlists/favourites -- so a fresh install restores it all by signing in. */
+    var accountServer: String
+        get() = sp.getString("acctserver", "") ?: ""
+        set(v) = sp.edit().putString("acctserver", v).apply()
+    var accountUserId: String
+        get() = sp.getString("acctuid", "") ?: ""
+        set(v) = sp.edit().putString("acctuid", v).apply()
+    var accountUserName: String
+        get() = sp.getString("acctname", "") ?: ""
+        set(v) = sp.edit().putString("acctname", v).apply()
+    var accountToken: String
+        get() = sp.getString("accttoken", "") ?: ""
+        set(v) = sp.edit().putString("accttoken", v).apply()
+    /** Epoch ms of the last successful profile upload/download, for Settings. */
+    var accountSyncedAt: Long
+        get() = sp.getLong("acctsynced", 0L)
+        set(v) = sp.edit().putLong("acctsynced", v).apply()
+    /** Stable per-install id Jellyfin needs for its session/device bookkeeping. */
+    val deviceId: String
+        get() = sp.getString("deviceid", null) ?: java.util.UUID.randomUUID().toString().also { sp.edit().putString("deviceid", it).apply() }
+    val signedIn: Boolean get() = accountServer.isNotBlank() && accountToken.isNotBlank() && accountUserId.isNotBlank()
+
     /** Reset Settings: everything except the chosen iPod, colour and look. */
     fun reset() {
+        val keep = listOf("acctserver", "acctuid", "acctname", "accttoken", "deviceid", "uitheme").associateWith { sp.all[it] }
         val m = model; val c = colorway; val vm = viewMode
-        sp.edit().clear().putString("model", m).putInt("color", c).putInt("viewmode", vm).apply()
+        val e = sp.edit().clear().putString("model", m).putInt("color", c).putInt("viewmode", vm)
+        keep.forEach { (k, v) -> when (v) { is String -> e.putString(k, v); is Int -> e.putInt(k, v) } }
+        e.apply()
     }
 }

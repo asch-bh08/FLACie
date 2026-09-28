@@ -11,6 +11,12 @@ class UiState(private val prefs: Prefs) {
     var rev by mutableIntStateOf(0)
         private set
 
+    /** 0 = Modern (default), 1 = iPod; see [Prefs.uiTheme]. */
+    var uiTheme by mutableIntStateOf(prefs.uiTheme)
+        private set
+    val ipodTheme: Boolean get() = uiTheme == 1
+    /** Account sign-in overlay (Settings > Account, or first-run). */
+    var accountOpen by mutableStateOf(false)
     var viewMode by mutableIntStateOf(0)
         private set
     var model by mutableStateOf(prefs.model)
@@ -37,7 +43,7 @@ class UiState(private val prefs: Prefs) {
     fun requestNowPlaying() { nowPlayingRequest++ }
 
     /** True when the click-wheel view (IpodView) is what is on screen: a wheel mode with an iPod that has a wheel. */
-    val wheelActive: Boolean get() = viewMode >= 2 && !com.ipodemu.theme.Themes.model(model).touch
+    val wheelActive: Boolean get() = ipodTheme && viewMode >= 2 && !com.ipodemu.theme.Themes.model(model).touch
 
     /** Only combinations that exist: touch iPods have no wheel views; a wheel iPod in a body shows the wheel OS, not the Player. */
     private fun fixedViewMode(v: Int, m: com.ipodemu.theme.Model): Int = when {
@@ -55,10 +61,11 @@ class UiState(private val prefs: Prefs) {
         normalise(); viewMode = prefs.viewMode
         rev++
     }
+    fun changeTheme(t: Int) { prefs.uiTheme = t; uiTheme = t; rev++ }
     fun changeColorway(i: Int) { prefs.colorway = i; colorway = i; rev++ }
     fun changeDynamic(on: Boolean) { prefs.dynamicColor = on; dynamicColor = on; rev++ }
     /** Called after code outside Compose (the wheel UI's own settings) changed prefs. */
-    fun refreshFromPrefs() { normalise(); viewMode = prefs.viewMode; model = prefs.model; colorway = prefs.colorway; dynamicColor = prefs.dynamicColor; rev++ }
+    fun refreshFromPrefs() { normalise(); uiTheme = prefs.uiTheme; viewMode = prefs.viewMode; model = prefs.model; colorway = prefs.colorway; dynamicColor = prefs.dynamicColor; rev++ }
 
     init { refreshFromPrefs() }   // last: all state fields must exist first
 }

@@ -97,6 +97,8 @@ fun PickerScreen() {
                 Box(Modifier.weight(0.64f).fillMaxWidth()) { controls() }
             }
             GlossPill("Back", { ui.pickerOpen = false }, Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 8.dp), icon = Glyph.BACK, height = 36.dp)
+            // the click-wheel views have no other way back to the default theme
+            GlossPill("Modern theme", { ui.changeTheme(0); ui.pickerOpen = false }, Modifier.align(Alignment.TopEnd).padding(end = 10.dp, top = 8.dp), height = 36.dp)
         }
     }
 }

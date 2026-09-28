@@ -47,15 +47,15 @@ private fun fromHsv(h: Float, s: Float, v: Float) = Color(android.graphics.Color
 
 /** What the current iPod model contributes to the app's look. */
 @Immutable
-class IpodStyle(val model: Model, val colorway: Colorway) {
+class IpodStyle(val model: Model, val colorway: Colorway, val modern: Boolean = false) {
     val family: Family get() = model.family
-    val mono: Boolean get() = model.family == Family.MONO
+    val mono: Boolean get() = !modern && model.family == Family.MONO
     val touch: Boolean get() = model.touch
     /** Glossy Aqua-era widgets (everything except the mono LCD models and flat iOS 7+ touches). */
-    val glossy: Boolean get() = !mono && !(model.touch && model.year >= 2012)
+    val glossy: Boolean get() = !modern && !mono && !(model.touch && model.year >= 2012)
     val font: FontFamily get() = if (mono) FontFamily.Monospace else FontFamily.SansSerif
     /** Corner radius scale: square LCD, softer colour screens, round modern touches. */
-    val corner: Float get() = when { mono -> 2f; model.touch && model.year >= 2012 -> 20f; touch -> 14f; else -> 10f }
+    val corner: Float get() = when { modern -> 12f; mono -> 2f; model.touch && model.year >= 2012 -> 20f; touch -> 14f; else -> 10f }
 
     /** The model's signature highlight colour (iPod blue for silver/white/black bodies). */
     val accent: Color = run {

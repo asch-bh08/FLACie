@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -103,6 +104,8 @@ sealed interface Screen {
     data object Queue : Screen
     data object Settings : Screen
     data object Music : Screen
+    /** Modern theme's Library tab. */
+    data object Library : Screen
 }
 
 class SheetSpec(val title: String, val subtitle: String?, val items: List<SheetItem>)
@@ -190,7 +193,17 @@ fun PlayerHost(nav: PlayerNav) {
     Box(
         Modifier.fillMaxSize().edgeSwipeBack(backEnabled, swipeZone, { backDrag = it }) { if (nav.nowPlaying) nav.nowPlaying = false else nav.pop() },
     ) {
-        Column(Modifier.fillMaxSize().graphicsLayer { translationX = if (nav.nowPlaying) 0f else backDrag }) {
+        val modern = LocalStyle.current.modern
+        // the iPod theme has no tabs: its stack must always start at Home (a Modern tab root like Settings would make Back exit)
+        if (!modern && nav.stack.first() != Screen.Home) androidx.compose.runtime.SideEffect { if (nav.stack.first() != Screen.Home) nav.stack.add(0, Screen.Home) }
+        BackHandler(enabled = modern && !ui.pickerOpen && nav.sheet == null && nav.nameDialog == null && !nav.nowPlaying && nav.stack.size == 1 && nav.top != Screen.Home) { nav.selectTab(Tab.HOME) }
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+        // Modern: a navigation rail when there is width to spare (unfolded Fold, tablet, landscape, the square RG Rotate),
+        // a bottom bar on portrait phones and the Fold cover screen
+        val rail = modern && (maxWidth >= 600.dp || maxWidth >= maxHeight)
+        Row(Modifier.fillMaxSize()) {
+        if (rail) NavRail(nav)
+        Column(Modifier.weight(1f).fillMaxHeight().graphicsLayer { translationX = if (nav.nowPlaying) 0f else backDrag }) {
             Box(Modifier.weight(1f)) {
                 // one cheap slide for the incoming screen only (no cross-fade, old screen is not kept composed);
                 // going back needs no animation because the swipe-back drag already moved the page
@@ -204,7 +217,10 @@ fun PlayerHost(nav: PlayerNav) {
                     Box(Modifier.fillMaxSize().graphicsLayer { translationX = slide.value * size.width * 0.28f }) { ScreenContent(nav.top, nav, snap) }
                 }
             }
-            if (snap.track != null && !nav.nowPlaying && nav.top != Screen.Home && !LocalHardware.current) MiniPlayer(snap, nav)
+            if (snap.track != null && !nav.nowPlaying && (modern || nav.top != Screen.Home) && !LocalHardware.current) MiniPlayer(snap, nav)
+            if (modern && !rail) BottomNav(nav)
+        }
+        }
         }
         AnimatedVisibility(
             nav.nowPlaying,
@@ -227,6 +243,7 @@ private fun ScreenContent(screen: Screen, nav: PlayerNav, snap: PlayerSnap) {
         Screen.Queue -> QueueScreen(nav, snap)
         Screen.Settings -> SettingsScreen(nav)
         Screen.Music -> MusicMenu(nav)
+        Screen.Library -> LibraryHome(nav)
     }
 }
 
@@ -235,9 +252,10 @@ private fun ScreenContent(screen: Screen, nav: PlayerNav, snap: PlayerSnap) {
 /** iPod-OS style title bar: glossy Back pill on the left, centred bold title, actions on the right. */
 @Composable
 fun TopBar(title: String, nav: PlayerNav?, showBack: Boolean, actions: @Composable () -> Unit = {}) {
+    if (LocalStyle.current.modern) { ModernTopBar(title, if (showBack && nav != null && nav.stack.size > 1) ({ nav.pop() }) else null, actions); return }
     val sc = LocalScheme.current
     Box(
-        Modifier.fillMaxWidth().statusBarsPadding().height(44.dp)
+        Modifier.fillMaxWidth().height(44.dp)
             .background(Brush.verticalGradient(listOf(Color(0x33FFFFFF), Color(0x0FFFFFFF)))),
     ) {
         if (showBack && nav != null) GlossPill("Back", { nav.pop() }, Modifier.align(Alignment.CenterStart).padding(start = 10.dp), icon = Glyph.BACK, height = 32.dp)
@@ -389,12 +407,14 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     app.ui.rev
     val clock by androidx.compose.runtime.produceState("") { while (true) { value = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date()); delay(15000) } }
     Column(Modifier.fillMaxSize()) {
-        TopBar(if (app.prefs.timeInTitle) clock else "iPod", nav, showBack = false) {
-            GlossButton({ nav.push(Screen.Search) }, size = 34.dp) { GlyphIcon(Glyph.SEARCH, Modifier.size(20.dp), Color.White) }
-            GlossButton({ nav.push(Screen.Settings) }, size = 34.dp) { GlyphIcon(Glyph.GEAR, Modifier.size(20.dp), Color.White) }
+        val modern = LocalStyle.current.modern
+        if (modern) ModernTopBar(greeting(), null) { AccountAction() }
+        else TopBar(if (app.prefs.timeInTitle) clock else "iPod", nav, showBack = false) {
+            TopAction(Glyph.SEARCH, "Search") { nav.push(Screen.Search) }
+            TopAction(Glyph.GEAR, "Settings") { nav.push(Screen.Settings) }
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-            item { NowPlayingCard(snap, nav) { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s); nav.nowPlaying = true } } }
+            if (!modern) item { NowPlayingCard(snap, nav) { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s); nav.nowPlaying = true } } }
             item {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlossPill("Shuffle All", { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s); nav.nowPlaying = true } }, icon = Glyph.SHUFFLE, height = 32.dp)
@@ -403,8 +423,8 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                 }
             }
             forYouShelves(mixes, nav)
-            item { SectionHeader("Library") }
-            item {
+            if (!modern) item { SectionHeader("Library") }
+            if (!modern) item {
                 Column(Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(16.dp)).background(sc.card).border(1.dp, sc.cardBorder, RoundedCornerShape(16.dp))) {
                     MenuRow("Playlists", Glyph.LIST, "${lib.playlists().size + app.userData.playlists.size}") { nav.push(Screen.Lib(LibKind.PLAYLISTS)) }
                     MenuRow("Artists", Glyph.ARTIST, "${lib.artists().size}") { nav.push(Screen.Lib(LibKind.ARTISTS)) }
@@ -493,9 +513,7 @@ private fun LibraryScreen(kind: LibKind, nav: PlayerNav, snap: PlayerSnap) {
     val lib = app.library
     app.userData.rev
     Column(Modifier.fillMaxSize()) {
-        TopBar(kind.title, nav, showBack = true) {
-            GlossButton({ nav.push(Screen.Search) }, size = 34.dp) { GlyphIcon(Glyph.SEARCH, Modifier.size(20.dp), Color.White) }
-        }
+        TopBar(kind.title, nav, showBack = true) { TopAction(Glyph.SEARCH, "Search") { nav.push(Screen.Search) } }
         when (kind) {
             LibKind.SONGS -> {
                 var sort by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
@@ -683,8 +701,8 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
         DetailKind.ARTIST -> lib.artists().firstOrNull { it.name == d.id }?.let { title = it.name; tracks = it.tracks; art = it.artKey }
         DetailKind.GENRE -> lib.genres().firstOrNull { it.name == d.id }?.let { title = it.name; tracks = it.tracks; art = it.artKey }
         DetailKind.FOLDER -> lib.playlists().firstOrNull { it.name == d.id }?.let { title = it.name; tracks = it.tracks; art = it.artKey }
-        DetailKind.USER -> ud.playlists.firstOrNull { it.id == d.id }?.let { title = it.name; tracks = it.paths.mapNotNull { p -> by[p] }; art = tracks.firstNotNullOfOrNull { t -> t.artKey }; userId = it.id }
-        DetailKind.FAVORITES -> { title = "Favorites"; tracks = ud.favorites.mapNotNull { by[it] }; art = tracks.firstNotNullOfOrNull { it.artKey } }
+        DetailKind.USER -> ud.playlists.firstOrNull { it.id == d.id }?.let { title = it.name; tracks = it.paths.mapNotNull { p -> lib.resolve(p, ud.meta[p]) }; art = tracks.firstNotNullOfOrNull { t -> t.artKey }; userId = it.id }
+        DetailKind.FAVORITES -> { title = "Favorites"; tracks = ud.favorites.mapNotNull { lib.resolve(it, ud.meta[it]) }.distinctBy { it.path }; art = tracks.firstNotNullOfOrNull { it.artKey } }
         DetailKind.RECENT -> { title = "Recently Played"; tracks = ud.recents.mapNotNull { by[it] }; art = tracks.firstNotNullOfOrNull { it.artKey } }
         DetailKind.MIX -> mix?.let { title = it.title; subtitle = it.subtitle; tracks = it.tracks; art = it.artKey }
     }
@@ -754,7 +772,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
     val app = LocalApp.current
     val libRev = rememberLibRev(app.library)
     // the focused text field used to swallow the first Back press; leave the screen straight away
-    BackHandler(enabled = !app.ui.pickerOpen && nav.sheet == null && nav.nameDialog == null) { nav.pop() }
+    BackHandler(enabled = !app.ui.pickerOpen && nav.sheet == null && nav.nameDialog == null && nav.stack.size > 1) { nav.pop() }
     val sc = LocalScheme.current
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf(Results(emptyList(), emptyList())) }
@@ -1030,4 +1048,29 @@ fun sortedSongs(lib: com.ipodemu.library.Library, ud: com.ipodemu.library.UserDa
     2 -> lib.songs().sortedByDescending { it.mtime }
     3 -> lib.songs().sortedByDescending { ud.plays[it.path] ?: 0 }.filter { (ud.plays[it.path] ?: 0) > 0 }.ifEmpty { lib.songs() }
     else -> lib.songs()
+}
+
+/** A title-bar action: a 48dp flat icon in the Modern theme, the glossy round button under the iPod theme. */
+@Composable
+fun TopAction(g: Glyph, label: String, onClick: () -> Unit) {
+    if (LocalStyle.current.modern) IconAction(g, label, onClick)
+    else GlossButton(onClick, size = 34.dp) { GlyphIcon(g, Modifier.size(20.dp), Color.White) }
+}
+
+private fun greeting(): String = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
+    in 5..11 -> "Good morning"; in 12..17 -> "Good afternoon"; else -> "Good evening"
+}
+
+/** Top-right of Home: the signed-in account's initial (or a person glyph), opening the Account screen. */
+@Composable
+private fun AccountAction() {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    val name = app.prefs.accountUserName
+    Box(Modifier.size(48.dp).clip(CircleShape).clickable { app.ui.accountOpen = true }, contentAlignment = Alignment.Center) {
+        Box(Modifier.size(34.dp).clip(CircleShape).background(if (name.isNotEmpty()) sc.accent else Color(0x22FFFFFF)), contentAlignment = Alignment.Center) {
+            if (name.isNotEmpty()) Txt(name.take(1).uppercase(), size = 16f, weight = FontWeight.Bold, color = Color.White)
+            else GlyphIcon(Glyph.ARTIST, Modifier.size(20.dp), sc.onBg)
+        }
+    }
 }

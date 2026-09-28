@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,6 +55,7 @@ fun MiniPlayer(snap: PlayerSnap, nav: PlayerNav) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     val t = snap.track ?: return
+    if (LocalStyle.current.modern) { ModernMiniPlayer(snap, nav, t); return }
     val pos by rememberPosition(app.player, snap.playing)
     val dur = app.player.durationMs
     val frac = if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
@@ -240,6 +243,7 @@ private fun NpTransport(snap: PlayerSnap) {
     val playFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { try { playFocus.requestFocus() } catch (_: Exception) {} }
     var bump by remember { mutableFloatStateOf(0f) }
+    if (LocalStyle.current.modern) { ModernTransport(snap, playFocus); return }
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
         // shrink the row on narrow columns so all five buttons always fit
         val k = (maxWidth / 320.dp).coerceIn(0.62f, 1f)
@@ -282,3 +286,57 @@ private fun eqSheet(app: com.ipodemu.App) = SheetSpec("Equalizer", app.prefs.eq,
 
 private fun sleepSheet(app: com.ipodemu.App) = SheetSpec("Sleep Timer", if (app.player.sleepMinutes > 0) "${app.player.sleepMinutes} min" else "Off",
     listOf(0, 15, 30, 60, 90, 120).map { m -> SheetItem(if (m == 0) "Off" else "$m minutes", Glyph.CLOCK) { app.player.setSleepTimer(m) } })
+
+/** Modern mini player: a floating rounded bar above the navigation, cover + title + play/next, thin progress line. */
+@Composable
+private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.library.Track) {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    val pos by rememberPosition(app.player, snap.playing)
+    val dur = app.player.durationMs
+    val frac = if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
+    Box(
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp).height(64.dp).clip(RoundedCornerShape(12.dp))
+            .background(sc.top.mix(Color(0xFF16161A), .45f))
+            .trackSwipe({ app.player.prev() }, { app.player.next() })
+            .clickable { nav.nowPlaying = true }
+            .pointerInput(Unit) {
+                var up = 0f
+                detectVerticalDragGestures(onDragStart = { up = 0f }, onDragEnd = { up = 0f }) { _, dy -> up += dy; if (up < -28f) { up = 0f; nav.nowPlaying = true } }
+            },
+    ) {
+        Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            ArtImage(t.artKey, Modifier.size(48.dp), thumb = true, corner = 6.dp)
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                Txt(t.title, size = 15f, weight = FontWeight.SemiBold)
+                Txt(t.artist.ifEmpty { t.album }, size = 13f, color = sc.onBgDim)
+            }
+            IconAction(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, if (snap.playing) "Pause" else "Play", { app.player.toggle() })
+            IconAction(Glyph.NEXT, "Next", { app.player.next() })
+        }
+        Box(Modifier.align(Alignment.BottomStart).padding(horizontal = 8.dp).fillMaxWidth().height(2.dp).background(sc.onBg.copy(alpha = .18f))) {
+            Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(sc.onBg))
+        }
+    }
+}
+
+/** Modern transport row: flat icons, one big white play/pause disc. */
+@Composable
+private fun ModernTransport(snap: PlayerSnap, playFocus: FocusRequester) {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+        IconAction(Glyph.SHUFFLE, "Shuffle", { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() }, tint = if (snap.shuffle) sc.accent else sc.onBgDim)
+        IconAction(Glyph.PREV, "Previous", { app.player.prev() }, size = 60.dp)
+        val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+        val focused by src.collectIsFocusedAsState()
+        Box(
+            Modifier.size(76.dp).focusRequester(playFocus).clip(CircleShape).background(Color.White)
+                .then(if (focused) Modifier.border(3.dp, sc.accent, CircleShape) else Modifier)
+                .clickable(src, null) { app.player.toggle() },
+            contentAlignment = Alignment.Center,
+        ) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(34.dp), Color.Black) }
+        IconAction(Glyph.NEXT, "Next", { app.player.next() }, size = 60.dp)
+        IconAction(if (snap.repeat == 2) Glyph.REPEAT_ONE else Glyph.REPEAT, "Repeat", { app.prefs.repeat = (app.prefs.repeat + 1) % 3; app.player.applyModes() }, tint = if (snap.repeat != 0) sc.accent else sc.onBgDim)
+    }
+}

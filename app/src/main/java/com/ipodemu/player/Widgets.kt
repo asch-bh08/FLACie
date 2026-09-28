@@ -263,7 +263,9 @@ fun GlossButton(
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val focused by src.collectIsFocusedAsState()
-    val brush = if (primary) Brush.verticalGradient(listOf(sc.accentLight, sc.accent, sc.accentDark))
+    val modern = style.modern
+    val brush = if (modern) androidx.compose.ui.graphics.SolidColor(if (primary) sc.accent else if (pressed) Color(0x2EFFFFFF) else Color(0x14FFFFFF))
+    else if (primary) Brush.verticalGradient(listOf(sc.accentLight, sc.accent, sc.accentDark))
     else Brush.verticalGradient(listOf(Color(0x59FFFFFF), Color(0x1FFFFFFF)))
     Box(
         modifier
@@ -271,7 +273,7 @@ fun GlossButton(
             .graphicsLayer { val s = if (pressed) 0.92f else 1f; scaleX = s; scaleY = s; alpha = if (enabled) 1f else 0.4f }
             .clip(CircleShape)
             .background(brush)
-            .border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else Color(0x40FFFFFF), CircleShape)
+            .then(if (modern && !focused) Modifier else Modifier.border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else Color(0x40FFFFFF), CircleShape))
             .drawBehind {
                 if (style.glossy) drawOval(
                     Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color.Transparent)),
@@ -299,14 +301,16 @@ fun GlossPill(
     val pressed by src.collectIsPressedAsState()
     val focused by src.collectIsFocusedAsState()
     val shape = RoundedCornerShape(50)
-    val brush = if (primary) Brush.verticalGradient(listOf(sc.accentLight, sc.accent, sc.accentDark))
+    val modern = style.modern
+    val brush = if (modern) androidx.compose.ui.graphics.SolidColor(if (primary) sc.accent else Color(0x1FFFFFFF))
+    else if (primary) Brush.verticalGradient(listOf(sc.accentLight, sc.accent, sc.accentDark))
     else Brush.verticalGradient(listOf(Color(0x52FFFFFF), Color(0x1AFFFFFF)))
     Row(
         modifier
             .height(height)
             .graphicsLayer { val s = if (pressed) 0.96f else 1f; scaleX = s; scaleY = s }
             .clip(shape).background(brush)
-            .border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else Color(0x40FFFFFF), shape)
+            .then(if (modern && !focused) Modifier else Modifier.border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else Color(0x40FFFFFF), shape))
             .drawBehind {
                 if (style.glossy) drawRoundRect(
                     Brush.verticalGradient(listOf(Color(0x55FFFFFF), Color.Transparent)),
@@ -365,9 +369,9 @@ fun IpodRow(
     Row(
         modifier.fillMaxWidth().height(height)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .background(if (hi) Brush.verticalGradient(listOf(sc.accentLight, sc.accentDark)) else Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent)))
+            .background(if (hi && style.modern) androidx.compose.ui.graphics.SolidColor(Color(0x1FFFFFFF)) else if (hi) Brush.verticalGradient(listOf(sc.accentLight, sc.accentDark)) else Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent)))
             .drawBehind {
-                if (!hi) drawLine(sc.onBg.copy(alpha = .1f), Offset(size.height, size.height - 1f), Offset(size.width, size.height - 1f), 1f)
+                if (!hi && !style.modern) drawLine(sc.onBg.copy(alpha = .1f), Offset(size.height, size.height - 1f), Offset(size.width, size.height - 1f), 1f)
                 if (hi && style.glossy) drawRect(Brush.verticalGradient(listOf(Color(0x40FFFFFF), Color.Transparent)), size = Size(size.width, size.height * .5f))
             }
             .wheelTracked()
@@ -454,6 +458,7 @@ fun EqualizerBars(modifier: Modifier = Modifier, playing: Boolean, color: Color)
 @Composable
 fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, onNudge: (Float) -> Unit, modifier: Modifier = Modifier) {
     val sc = LocalScheme.current
+    val style = LocalStyle.current
     var drag by remember { mutableStateOf<Float?>(null) }
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
@@ -477,12 +482,14 @@ fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, onNudge: (Float) -> Unit, 
         contentAlignment = Alignment.CenterStart,
     ) {
         Canvas(Modifier.fillMaxWidth().height(36.dp)) {
-            val th = 8.dp.toPx(); val cy = size.height / 2
+            val modern = style.modern
+            val th = (if (modern) 4.dp else 8.dp).toPx(); val cy = size.height / 2
             drawRoundRect(sc.onBg.copy(alpha = .22f), Offset(0f, cy - th / 2), Size(size.width, th), androidx.compose.ui.geometry.CornerRadius(th / 2))
             val fx = size.width * shown
-            if (fx > 0f) drawRoundRect(Brush.verticalGradient(listOf(sc.accentLight, sc.accentDark), cy - th / 2, cy + th / 2), Offset(0f, cy - th / 2), Size(fx, th), androidx.compose.ui.geometry.CornerRadius(th / 2))
-            drawCircle(Color.White, if (drag != null || focused) 11.dp.toPx() else 8.dp.toPx(), Offset(fx, cy))
-            drawCircle(sc.accent, 4.dp.toPx(), Offset(fx, cy))
+            if (fx > 0f && modern) drawRoundRect(sc.onBg, Offset(0f, cy - th / 2), Size(fx, th), androidx.compose.ui.geometry.CornerRadius(th / 2))
+            else if (fx > 0f) drawRoundRect(Brush.verticalGradient(listOf(sc.accentLight, sc.accentDark), cy - th / 2, cy + th / 2), Offset(0f, cy - th / 2), Size(fx, th), androidx.compose.ui.geometry.CornerRadius(th / 2))
+            drawCircle(Color.White, if (drag != null || focused) 11.dp.toPx() else if (modern) 7.dp.toPx() else 8.dp.toPx(), Offset(fx, cy))
+            if (!modern) drawCircle(sc.accent, 4.dp.toPx(), Offset(fx, cy))
         }
     }
 }

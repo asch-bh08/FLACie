@@ -61,17 +61,19 @@ fun AppRoot(activity: MainActivity) {
             if (wheel) {
                 // rebuild the wheel view when the mode, iPod or colour changes so its theme is re-read from prefs
                 androidx.compose.runtime.key(ui.viewMode, ui.model, ui.colorway) { AndroidView(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().safeArea(),
                     factory = { ctx -> IpodView(ctx).also { activity.ipodView = it; it.requestFocus() } },
                     onRelease = { it.release(); if (activity.ipodView === it) activity.ipodView = null },
                 ) }
             } else PlayerRoot(activity, nav)
-            if (ui.pickerOpen) PickerScreen()
-            if (ui.syncSetupOpen) SyncSetupScreen()
-            if (ui.jellyfinSetupOpen) JellyfinSetupScreen()
-            if (ui.plexSetupOpen) PlexSetupScreen()
-            if (ui.nasSetupOpen) NasSetupScreen()
-            if (ui.lidarrSetupOpen) LidarrSetupScreen()
+            val overlay: @Composable (@Composable () -> Unit) -> Unit = { Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFF07080B)).safeArea()) { it() } }
+            if (ui.pickerOpen) overlay { PickerScreen() }
+            if (ui.syncSetupOpen) overlay { SyncSetupScreen() }
+            if (ui.jellyfinSetupOpen) overlay { JellyfinSetupScreen() }
+            if (ui.plexSetupOpen) overlay { PlexSetupScreen() }
+            if (ui.nasSetupOpen) overlay { NasSetupScreen() }
+            if (ui.lidarrSetupOpen) overlay { LidarrSetupScreen() }
+            if (ui.accountOpen) overlay { AccountScreen() }
         }
     }
 }
@@ -84,8 +86,9 @@ private fun PlayerRoot(activity: MainActivity, nav: PlayerNav) {
     ui.rev
     val model = Themes.model(ui.model)
     val cw = model.colors[ui.colorway.coerceIn(0, model.colors.lastIndex)]
-    val style = remember(model, cw) { IpodStyle(model, cw) }
-    val mode = ui.viewMode
+    val modern = !ui.ipodTheme
+    val style = remember(model, cw, modern) { IpodStyle(model, cw, modern) }
+    val mode = if (modern) 0 else ui.viewMode
     val snap = rememberSnap(app.player, app.prefs)
 
     val artKey = nav.overrideArt ?: snap.track?.artKey
@@ -95,15 +98,15 @@ private fun PlayerRoot(activity: MainActivity, nav: PlayerNav) {
         else ArtPalette.of(app.art, artKey)?.let { artColors = it }
     }
     val dark = when (app.prefs.appearance) { 0 -> true; 1 -> false; else -> isSystemInDarkTheme() }
-    val scheme = animatedScheme(buildScheme(style, artColors, if (style.mono) false else dark, ui.dynamicColor))
+    val scheme = animatedScheme(if (modern) buildModernScheme(if (ui.dynamicColor) artColors else null) else buildScheme(style, artColors, if (style.mono) false else dark, ui.dynamicColor))
 
     CompositionLocalProvider(LocalStyle provides style, LocalScheme provides scheme, LocalHardware provides (mode == 1)) {
         // (movableContentOf here left a frozen, unresponsive copy of the screen after switching modes, so the UI is simply rebuilt)
         val content: @Composable (@Composable () -> Unit) -> Unit = { it() }
         val body: @Composable () -> Unit = {
-            Box(Modifier.fillMaxSize().drawBehind { drawRect(Brush.verticalGradient(listOf(scheme.top, scheme.bottom))) }) {
+            Box(Modifier.fillMaxSize().drawBehind { drawRect(Brush.verticalGradient(listOf(scheme.top, scheme.bottom), endY = if (modern) size.height * 0.55f else Float.POSITIVE_INFINITY)) }.let { if (mode == 1) it else it.safeArea() }) {
                 PlayerHost(nav)
-                BackHandler(enabled = !ui.pickerOpen && nav.stack.size == 1 && !nav.nowPlaying && nav.sheet == null && nav.nameDialog == null) { activity.moveTaskToBack(true) }
+                BackHandler(enabled = !ui.pickerOpen && nav.stack.size == 1 && nav.top == Screen.Home && !nav.nowPlaying && nav.sheet == null && nav.nameDialog == null) { activity.moveTaskToBack(true) }
             }
         }
         if (mode == 1) {

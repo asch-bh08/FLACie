@@ -13,3 +13,5 @@
 # ...and its crypto (NTLM MD4/HMAC) comes from BouncyCastle, looked up through JCA providers by name.
 -keep class org.bouncycastle.** { *; }
 -dontwarn org.bouncycastle.**
+# The ipodsync engine (libipodsync.so) exports Java_com_ipodemu_library_IpodEngine_call: class and method names must stay.
+-keep class com.ipodemu.library.IpodEngine { native <methods>; }

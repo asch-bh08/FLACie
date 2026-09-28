@@ -9,10 +9,11 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Sync mode "iPod on this device": ipodplayer opens the ipodsync app, which serves the iPod over a loopback API -->
-    <queries>
-        <package android:name="dev.ashley.ipodsync" />
-    </queries>
+    <!-- Sync mode, iPod plugged into this device: the built-in ipodsync engine reads and writes the iPod's USB
+         storage volume (/storage/XXXX-XXXX) as a normal path, which needs "All files access" on Android 11+;
+         the USB host API is only used to read the iPod's serial number (its signature key). -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
     <application
         android:name=".App"

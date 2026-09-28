@@ -62,8 +62,10 @@ fun SyncModeScreen() {
     val ui = app.ui
     val sc = LocalScheme.current
     val scope = rememberCoroutineScope()
-    val client = remember { SyncEditClient() }
-    var host by remember { mutableStateOf(app.prefs.syncHost) }
+    var host by remember { mutableStateOf(app.prefs.syncHost.takeIf { it != "127.0.0.1:5071" } ?: "") }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    // where the iPod is: this device's USB port (the engine built into this app) or a PC running ipodsync
+    var link by remember { mutableStateOf<com.ipodemu.library.IpodLink?>(null) }
     var devices by remember { mutableStateOf<List<SyncDevice>?>(null) }
     var device by remember { mutableStateOf<SyncDevice?>(null) }
     var staging by remember { mutableStateOf<SyncStaging?>(null) }
@@ -75,41 +77,41 @@ fun SyncModeScreen() {
     var openPlaylist by remember { mutableStateOf<SyncStaging.WorkPlaylist?>(null) }
     var reviewing by remember { mutableStateOf(false) }
 
-    val ctx = androidx.compose.ui.platform.LocalContext.current
-    /** Opens the ipodsync app (it serves a USB-connected iPod on this device over a loopback API). */
-    fun openIpodsync(): Boolean {
-        val i = ctx.packageManager.getLaunchIntentForPackage(IPODSYNC_PACKAGE) ?: return false
-        ctx.startActivity(i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)); return true
-    }
-    fun findDevices(launchIfLocal: Boolean = false) {
-        if (host.isBlank()) return
-        app.prefs.syncHost = host.trim()
-        val local = host.trim() == LOCAL_HOST
-        busy = true; status = if (local) "Looking for an iPod plugged into this device..." else "Looking for iPods on ${host.trim()}..."
+    fun findDevices(l: com.ipodemu.library.IpodLink) {
+        link = l; devices = null
+        val local = l is com.ipodemu.library.EngineLink
+        if (!local) app.prefs.syncHost = l.label
+        busy = true; status = if (local) "Looking for an iPod plugged into this device..." else "Looking for iPods on ${l.label}..."
         scope.launch {
             try {
-                devices = try { com.ipodemu.library.SyncClient().devices(host.trim()) } catch (e: Exception) {
-                    // on this device the API only exists while the ipodsync app is running: start it once and retry
-                    if (!(local && launchIfLocal && openIpodsync())) throw e
-                    status = "Starting ipodsync..."
-                    kotlinx.coroutines.delay(5000)
-                    com.ipodemu.library.SyncClient().devices(host.trim())
-                }
-                status = if (devices.isNullOrEmpty()) (if (local) "No iPod plugged in" else "No iPod connected to that PC") else null
-            } catch (e: Exception) {
-                status = if (local) "ipodsync isn't running on this device. Install it (ipodsync v0.4+), open it once, then try again." else "Can't reach ipodsync at ${host.trim()}: ${e.message}"
-            } finally { busy = false }
+                devices = l.devices()
+                status = if (devices.isNullOrEmpty()) (if (local) "No iPod found. Plug it in over USB (it should appear as USB storage), then try again." else "No iPod connected to that PC") else null
+            } catch (e: Exception) { status = if (local) "Couldn't look for the iPod: ${e.message}" else "Can't reach ipodsync at ${l.label}: ${e.message}" }
+            finally { busy = false }
         }
     }
+    fun useThisDevice() {
+        if (!com.ipodemu.library.IpodEngine.available) { status = "The built-in iPod engine isn't available on this device's processor (it needs 64-bit ARM)."; return }
+        findDevices(com.ipodemu.library.EngineLink(ctx))
+    }
     fun load(d: SyncDevice) {
+        val l = link ?: return
         busy = true; status = "Reading ${d.volumeLabel ?: d.rootPath}..."
         scope.launch {
-            try { staging = SyncStaging(client.load(host.trim(), d.rootPath)); device = d; status = null; rev++ }
+            try { staging = SyncStaging(l.load(d.rootPath)); device = d; status = null; rev++ }
             catch (e: Exception) { status = "Couldn't read the iPod: ${e.message}" }
             finally { busy = false }
         }
     }
-    LaunchedEffect(Unit) { if (host.isNotBlank()) findDevices() }
+    // coming back from the "All files access" settings screen: look again
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            val l = link
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME && l is com.ipodemu.library.EngineLink && staging == null) findDevices(l)
+        }
+        lifecycle.lifecycle.addObserver(obs); onDispose { lifecycle.lifecycle.removeObserver(obs) }
+    }
 
     val pending = remember(staging, rev) { staging?.ops()?.length() ?: 0 }
     BackHandler(enabled = editTrack != null || openPlaylist != null || reviewing) { editTrack = null; if (reviewing) reviewing = false else openPlaylist = null }
@@ -125,25 +127,31 @@ fun SyncModeScreen() {
             if (st == null || device == null) {
                 // ---- connect ------------------------------------------------------------------------------
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Txt("Edit an iPod plugged into this device (needs the ipodsync app) or into a PC running ipodsync: rename songs, rate them, and build or reorder playlists. Changes are only written after you review and confirm them, and the iPod's database is backed up first.", size = 14f, color = sc.onBgDim, maxLines = 6)
-                    // no PC, no Wi-Fi: the iPod on this device's USB port, through the ipodsync app's loopback API
-                    GlossPill("iPod plugged into this device (USB)", { host = LOCAL_HOST; findDevices(launchIfLocal = true) }, icon = Glyph.IPOD, primary = true)
-                    Txt("Or an iPod plugged into a PC running ipodsync:", size = 13f, color = sc.onBgDim)
-                    SyncField("ipodsync PC (host:port)", host, { host = it }, "192.168.1.50:5070", uri = true)
-                    GlossPill(if (busy) "Looking..." else "Find iPods", { findDevices() })
-                    devices?.forEach { d ->
-                        // ipodsync reports a placeholder when it can't see the iPod as USB storage yet (not plugged in, or it
-                        // still needs "All files access"): send the user to ipodsync to sort that out
-                        IpodRow({ if (d.needsUserAction) openIpodsync() else load(d) }, height = if (d.needsUserAction) 84.dp else 60.dp, leading = { IconTile(Glyph.IPOD, size = 40.dp) }, trailing = { GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), rowDim()) }) {
-                            if (d.needsUserAction) Column { Txt("Open ipodsync", size = 16f, weight = FontWeight.SemiBold); Txt(d.volumeLabel ?: "", size = 12f, color = rowDim(), maxLines = 3) }
-                            else Column { Txt(d.volumeLabel ?: "iPod", size = 16f, weight = FontWeight.SemiBold); Txt(d.rootPath + if (d.hasDatabase) "" else "  (no database)", size = 13f, color = rowDim()) }
+                    Txt("Edit an iPod: rename songs, rate them, and build or reorder playlists. Changes are only written after you review and confirm them, and the iPod's database is backed up first.", size = 14f, color = sc.onBgDim, maxLines = 6)
+                    // no PC, no Wi-Fi: the iPod on this device's USB port, through ipodsync's engine built into this app
+                    if (com.ipodemu.library.IpodEngine.available) GlossPill(if (busy && link is com.ipodemu.library.EngineLink) "Looking..." else "iPod plugged into this device (USB)", { useThisDevice() }, icon = Glyph.IPOD, primary = true)
+                    if (link is com.ipodemu.library.EngineLink) devices?.forEach { d -> DeviceRow(d, onOpen = {
+                        if (d.rootPath == com.ipodemu.library.EngineLink.NEEDS_ACCESS) ctx.startActivity(com.ipodemu.library.EngineLink.allFilesAccessIntent(ctx)) else load(d)
+                    }) }
+                    if (link is com.ipodemu.library.EngineLink && devices?.none { it.needsUserAction } == true) {
+                        // an iPod folder that isn't mounted as a volume (a copy or backup of one)
+                        var localPath by remember { mutableStateOf("") }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(Modifier.weight(1f)) { SyncField("Or an iPod folder on this device", localPath, { localPath = it }, "/sdcard/...", uri = true) }
+                            GlossPill("Open", { if (localPath.isNotBlank()) load(SyncDevice(localPath.trim(), null, true)) }, height = 44.dp)
                         }
                     }
-                    // for when detection misses the iPod (or to open a copy of one): its drive or folder on that PC
-                    var manual by remember { mutableStateOf("") }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Box(Modifier.weight(1f)) { SyncField("Or the iPod's drive on that PC", manual, { manual = it }, "G:\\", uri = true) }
-                        GlossPill("Open", { if (manual.isNotBlank()) load(SyncDevice(manual.trim(), null, true)) }, height = 44.dp)
+                    Txt("Or an iPod plugged into a PC running ipodsync:", size = 13f, color = sc.onBgDim)
+                    SyncField("ipodsync PC (host:port)", host, { host = it }, "192.168.1.50:5070", uri = true)
+                    GlossPill(if (busy && link is com.ipodemu.library.HttpLink) "Looking..." else "Find iPods on that PC", { if (host.isNotBlank()) findDevices(com.ipodemu.library.HttpLink(host.trim())) })
+                    if (link is com.ipodemu.library.HttpLink) {
+                        devices?.forEach { d -> DeviceRow(d, onOpen = { load(d) }) }
+                        // for when detection misses the iPod (or to open a copy of one): its drive or folder on that PC
+                        var manual by remember { mutableStateOf("") }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(Modifier.weight(1f)) { SyncField("Or the iPod's drive on that PC", manual, { manual = it }, "G:\\", uri = true) }
+                            GlossPill("Open", { if (manual.isNotBlank()) load(SyncDevice(manual.trim(), null, true)) }, height = 44.dp)
+                        }
                     }
                     status?.let { Txt(it, size = 14f, color = sc.onBgDim, maxLines = 3) }
                 }
@@ -173,7 +181,7 @@ fun SyncModeScreen() {
             }
         }
         editTrack?.let { t -> TrackEditDialog(t, onDone = { edited -> staging?.tracks?.set(t.id, edited); rev++; editTrack = null }, onDismiss = { editTrack = null }) }
-        if (reviewing && staging != null && device != null) ReviewScreen(client, host.trim(), device!!, staging!!, onClose = { reviewing = false }, onWritten = {
+        if (reviewing && staging != null && device != null) ReviewScreen(link!!, device!!, staging!!, onClose = { reviewing = false }, onWritten = {
             reviewing = false; openPlaylist = null; load(device!!); status = it
         })
     }
@@ -314,7 +322,7 @@ private fun TrackEditDialog(t: IpodTrack, onDone: (IpodTrack) -> Unit, onDismiss
 
 /** Dry run -> results -> explicit confirmation -> write. Nothing reaches the iPod before the last step. */
 @Composable
-private fun ReviewScreen(client: SyncEditClient, host: String, device: SyncDevice, st: SyncStaging, onClose: () -> Unit, onWritten: (String) -> Unit) {
+private fun ReviewScreen(link: com.ipodemu.library.IpodLink, device: SyncDevice, st: SyncStaging, onClose: () -> Unit, onWritten: (String) -> Unit) {
     val sc = LocalScheme.current
     val scope = rememberCoroutineScope()
     val changeSet = remember { st.changeSet() }
@@ -323,7 +331,7 @@ private fun ReviewScreen(client: SyncEditClient, host: String, device: SyncDevic
     var confirm by remember { mutableStateOf(false) }
     var writing by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        dry = try { client.apply(host, device.rootPath, changeSet, commit = false, confirmToken = null) }
+        dry = try { link.apply(device.rootPath, changeSet, commit = false, confirmToken = null) }
         catch (e: Exception) { ApplyResult(true, false, false, false, null, emptyList(), emptyList(), emptyList(), null, e.message ?: "Couldn't reach ipodsync") }
     }
     Box(Modifier.fillMaxSize().background(Color(0xFF0B0B0D)).pointerInput(Unit) { detectTapGestures { } }) {
@@ -366,7 +374,7 @@ private fun ReviewScreen(client: SyncEditClient, host: String, device: SyncDevic
                 GlossPill("Write", {
                     confirm = false; writing = true
                     scope.launch {
-                        result = try { client.apply(host, device.rootPath, changeSet, commit = true, confirmToken = dry?.confirmToken) }
+                        result = try { link.apply(device.rootPath, changeSet, commit = true, confirmToken = dry?.confirmToken) }
                         catch (e: Exception) { ApplyResult(false, false, false, false, null, emptyList(), emptyList(), emptyList(), null, e.message) }
                         writing = false
                     }
@@ -402,6 +410,10 @@ private fun SyncField(label: String?, value: String, onChange: (String) -> Unit,
     }
 }
 
-/** ipodsync's Android app serves the iPod on this device's USB port here (LocalApiServer.cs in ipodsync). */
-private const val LOCAL_HOST = "127.0.0.1:5071"
-private const val IPODSYNC_PACKAGE = "dev.ashley.ipodsync"
+@Composable
+private fun DeviceRow(d: SyncDevice, onOpen: () -> Unit) {
+    IpodRow(onOpen, height = if (d.needsUserAction) 84.dp else 60.dp, leading = { IconTile(Glyph.IPOD, size = 40.dp) }, trailing = { GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), rowDim()) }) {
+        if (d.needsUserAction) Column { Txt("Allow access", size = 16f, weight = FontWeight.SemiBold); Txt(d.volumeLabel ?: "", size = 12f, color = rowDim(), maxLines = 3) }
+        else Column { Txt(d.volumeLabel ?: "iPod", size = 16f, weight = FontWeight.SemiBold); Txt(d.rootPath + if (d.hasDatabase) "" else "  (no database)", size = 13f, color = rowDim()) }
+    }
+}

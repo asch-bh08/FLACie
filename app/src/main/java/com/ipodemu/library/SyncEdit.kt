@@ -28,7 +28,20 @@ class ApplyResult(
 /** Sync mode's read + write calls to ipodsync (the read side reuses the same /api/library the browse-only source uses). */
 class SyncEditClient {
     suspend fun load(host: String, root: String): IpodDb = withContext(Dispatchers.IO) {
-        val o = JSONObject(http("GET", "http://$host/api/library?root=${enc(root)}", null).second)
+        parseLibrary(JSONObject(http("GET", "http://$host/api/library?root=${enc(root)}", null).second))
+    }
+
+    /** commit=false is a dry run; a commit must carry the token the dry run of the same change-set returned. */
+    suspend fun apply(host: String, root: String, changeSet: JSONObject, commit: Boolean, confirmToken: String?): ApplyResult = withContext(Dispatchers.IO) {
+        var url = "http://$host/api/apply-edits?root=${enc(root)}"
+        if (commit) url += "&commit=1&confirm=${enc(confirmToken ?: "")}"
+        val (code, body) = http("POST", url, changeSet.toString())
+        parseApply(try { JSONObject(body) } catch (_: Exception) { JSONObject().put("error", "HTTP $code") }, code, commit)
+    }
+
+    companion object {
+    /** The ItunesDatabase JSON both IpodSync.Web and the built-in engine return. */
+    fun parseLibrary(o: JSONObject): IpodDb {
         val ta = o.getJSONArray("tracks")
         val tracks = List(ta.length()) { i ->
             val t = ta.getJSONObject(i)
@@ -42,18 +55,14 @@ class SyncEditClient {
             val ids = p.getJSONArray("trackIds")
             playlists += IpodPlaylist(str(p, "name").ifEmpty { "(untitled playlist)" }, List(ids.length()) { ids.getLong(it) }, p.optBoolean("isSmart"), p.optBoolean("isPodcast"))
         }
-        IpodDb(tracks, playlists)
+        return IpodDb(tracks, playlists)
     }
 
-    /** commit=false is a dry run; a commit must carry the token the dry run of the same change-set returned. */
-    suspend fun apply(host: String, root: String, changeSet: JSONObject, commit: Boolean, confirmToken: String?): ApplyResult = withContext(Dispatchers.IO) {
-        var url = "http://$host/api/apply-edits?root=${enc(root)}"
-        if (commit) url += "&commit=1&confirm=${enc(confirmToken ?: "")}"
-        val (code, body) = http("POST", url, changeSet.toString())
-        val o = try { JSONObject(body) } catch (_: Exception) { JSONObject().put("error", "HTTP $code") }
+    /** An apply-edits reply body (same shape from IpodSync.Web and the engine). */
+    fun parseApply(o: JSONObject, code: Int, commit: Boolean): ApplyResult {
         fun list(k: String) = o.optJSONArray(k)?.let { a -> List(a.length()) { a.optString(it) } } ?: emptyList()
         val ops = o.optJSONArray("ops")?.let { a -> List(a.length()) { a.getJSONObject(it).let { r -> OpResult(r.optString("op"), r.optBoolean("ok"), r.optString("detail")) } } } ?: emptyList()
-        ApplyResult(
+        return ApplyResult(
             o.optBoolean("dryRun", !commit), o.optBoolean("ok"), o.optBoolean("written"), o.optBoolean("restored"), str(o, "backupDir").ifEmpty { null },
             ops, list("problems"), list("log"), str(o, "confirmToken").ifEmpty { null },
             str(o, "error").ifEmpty { str(o, "detail") }.ifEmpty { if (code !in 200..299) "HTTP $code" else "" }.ifEmpty { null },
@@ -61,6 +70,7 @@ class SyncEditClient {
     }
 
     private fun str(o: JSONObject, k: String) = if (o.isNull(k)) "" else o.optString(k)
+    }
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
 
     private fun http(method: String, url: String, body: String?): Pair<Int, String> {

@@ -157,8 +157,8 @@ class IpodView(context: Context) : View(context) {
         }
         app.art.onLoaded = { invalidate() }
         setOnApplyWindowInsetsListener { _, ins ->
-            val i = ins.getInsets(android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.displayCutout())
-            insets.set(i.left, i.top, i.right, i.bottom)
+            // the Compose host already pads this view into the safe area (cutout + bars), so don't subtract them twice
+            insets.setEmpty()
             computeLayout(); invalidate(); ins
         }
         app.library.start()
@@ -276,8 +276,17 @@ class IpodView(context: Context) : View(context) {
 
         // Modern (flat) layout.
         val pad = s * 0.022f
-        if (aw <= ah * 1.3f) {
-            // Portrait / square / foldable: screen across the top, wheel underneath with info cards either side.
+        if (ah > aw * 1.25f) {
+            // Tall phones and the Fold cover screen: a thumb-sized wheel (about as wide, relative to the screen, as on a
+            // real iPod) centred under a screen that keeps a sensible shape instead of eating the whole height.
+            wheelR = min(aw * 0.36f, ah * 0.2f)
+            val sh = min(ah - 2 * wheelR - 4 * pad - 5f, aw * 1.25f)
+            screenRect.set(area.left, area.top, area.right, area.top + sh)
+            wheelCx = area.centerX(); wheelCy = (screenRect.bottom + 5f + area.bottom) / 2
+            val py = wheelCy + wheelR + pad * 2; val kh = wheelR * 0.28f
+            if (py + kh <= area.bottom - pad) keyRects.getValue(Key.SHUFFLE).set(wheelCx - wheelR * 0.8f, py, wheelCx + wheelR * 0.8f, py + kh)
+        } else if (aw <= ah * 1.3f) {
+            // Square / unfolded foldable: screen across the top, wheel underneath with info cards either side.
             wheelR = min(s * 0.19f, ah * 0.2f)
             val sh = ah - 2 * wheelR - 3 * pad - 5f
             screenRect.set(area.left, area.top, area.right, area.top + sh)

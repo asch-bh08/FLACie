@@ -257,7 +257,7 @@ fun TopBar(title: String, nav: PlayerNav?, showBack: Boolean, actions: @Composab
     if (LocalStyle.current.modern) { ModernTopBar(title, if (showBack && nav != null && nav.stack.size > 1) ({ nav.pop() }) else null, actions); return }
     val sc = LocalScheme.current
     Box(
-        Modifier.fillMaxWidth().height(44.dp)
+        Modifier.fillMaxWidth().height(52.dp)
             .background(Brush.verticalGradient(listOf(Color(0x33FFFFFF), Color(0x0FFFFFFF)))),
     ) {
         if (showBack && nav != null) GlossPill("Back", { nav.pop() }, Modifier.align(Alignment.CenterStart).padding(start = 10.dp), icon = Glyph.BACK, height = 32.dp)
@@ -1056,7 +1056,7 @@ fun sortedSongs(lib: com.ipodemu.library.Library, ud: com.ipodemu.library.UserDa
 @Composable
 fun TopAction(g: Glyph, label: String, onClick: () -> Unit) {
     if (LocalStyle.current.modern) IconAction(g, label, onClick)
-    else GlossButton(onClick, size = 34.dp) { GlyphIcon(g, Modifier.size(20.dp), Color.White) }
+    else GlossButton(onClick, size = 40.dp) { GlyphIcon(g, Modifier.size(22.dp), Color.White) }
 }
 
 private fun greeting(): String = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {

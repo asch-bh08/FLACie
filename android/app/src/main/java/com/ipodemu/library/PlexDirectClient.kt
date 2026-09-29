@@ -90,7 +90,7 @@ class PlexDirectClient {
                 durationMs = o.optLong("duration"),
                 year = o.optInt("year"),
                 isMusic = true,
-                artKey = null,
+                artKey = plexArtKeyOf(o),
                 mtime = 0L,
                 size = part.optLong("size"),
                 source = TrackSource.PLEX,
@@ -115,4 +115,12 @@ class PlexDirectClient {
             conn.disconnect()
         }
     }
+}
+
+/** "px<ratingKey>" of the album (or the track) that has a thumb. */
+private fun plexArtKeyOf(o: JSONObject): String? {
+    val album = o.optString("parentRatingKey")
+    if (album.isNotEmpty() && o.optString("parentThumb").isNotEmpty()) return "px$album"
+    if (o.optString("thumb").isNotEmpty()) return "px" + o.optString("ratingKey")
+    return null
 }

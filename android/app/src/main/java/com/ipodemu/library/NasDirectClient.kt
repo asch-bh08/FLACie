@@ -60,7 +60,7 @@ class NasDirectClient {
                     durationMs = 0L,
                     year = 0,
                     isMusic = true,
-                    artKey = null,
+                    artKey = CoverLookup.key(artist ?: "", album ?: "", title),
                     mtime = f.lastModified(),
                     size = f.length(),
                     source = TrackSource.NAS,

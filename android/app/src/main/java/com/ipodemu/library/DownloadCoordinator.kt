@@ -3,8 +3,10 @@ package com.ipodemu.library
 import com.ipodemu.Prefs
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withContext
 import java.net.URLEncoder
 
 enum class DownloadStage { REQUESTED, SEARCHING, DOWNLOADING, IMPORTING, SCANNING, DONE, FAILED }
@@ -140,10 +142,12 @@ class DownloadCoordinator(private val prefs: Prefs) {
         val destRelPath = "$destFolder/$destName"
         return try {
             fileMover.move(prefs.fileMoverUrl, prefs.fileMoverApiKey, "$sourceFolder/$sourceLeaf", destRelPath)
+            // the file itself is untagged: take the album from the iTunes catalog so it groups and gets a cover
+            val album = withContext(Dispatchers.IO) { CoverLookup.song(artist, title) }?.album.orEmpty()
             val playUrl = "${prefs.fileMoverUrl.trimEnd('/')}/file?path=${URLEncoder.encode(destRelPath, "UTF-8")}"
             Track(
-                path = playUrl, title = title, artist = artist, album = "", albumArtist = artist, genre = "",
-                trackNo = 0, discNo = 0, durationMs = 0, year = 0, isMusic = true, artKey = null,
+                path = playUrl, title = title, artist = artist, album = album, albumArtist = artist, genre = "",
+                trackNo = 0, discNo = 0, durationMs = 0, year = 0, isMusic = true, artKey = CoverLookup.key(artist, album, title),
                 mtime = System.currentTimeMillis(), size = hit.size, source = TrackSource.CLOUD,
             )
         } catch (_: Exception) {

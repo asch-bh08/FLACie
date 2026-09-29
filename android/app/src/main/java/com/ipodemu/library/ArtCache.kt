@@ -18,11 +18,26 @@ class ArtCache(private val dir: File) {
     }
     private val missing = HashSet<String>()
     private val pending = HashSet<String>()
-    private val exec = Executors.newSingleThreadExecutor()
+    private val exec = Executors.newFixedThreadPool(4)
     private val main = Handler(Looper.getMainLooper())
     private var notifyQueued = false
 
     var onLoaded: (() -> Unit)? = null
+
+    /** Downloads cover bytes for a key that has no file yet (Jellyfin/Plex/downloads); null = none. Runs on a background thread. */
+    @Volatile var fetcher: ((String) -> ByteArray?)? = null
+    private val fetchFailed = HashSet<String>()
+
+    private fun ensure(key: String): File {
+        val f = file(key)
+        if (f.exists()) return f
+        val fx = fetcher ?: return f
+        synchronized(this) { if (key in fetchFailed) return f }
+        val bytes = try { fx(key) } catch (_: Exception) { null }
+        if (bytes != null) try { save(key, bytes) } catch (_: Exception) {}
+        if (!f.exists()) synchronized(this) { fetchFailed.add(key) }
+        return f
+    }
 
     init { dir.mkdirs() }
 
@@ -51,7 +66,7 @@ class ArtCache(private val dir: File) {
             pending.add(ck)
         }
         exec.execute {
-            val f = file(key)
+            val f = ensure(key)
             val b = try {
                 if (f.exists()) BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { if (thumb) inSampleSize = 3 }) else null
             } catch (_: Exception) { null }
@@ -76,7 +91,7 @@ class ArtCache(private val dir: File) {
         val ck = if (thumb) "t$key" else key
         synchronized(this) { mem.get(ck)?.let { return it } }
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val f = file(key)
+            val f = ensure(key)
             val b = try {
                 if (f.exists()) BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { if (thumb) inSampleSize = 3 }) else null
             } catch (_: Exception) { null }
@@ -85,7 +100,7 @@ class ArtCache(private val dir: File) {
         }
     }
 
-    @Synchronized fun forgetMisses() = missing.clear()
+    @Synchronized fun forgetMisses() { missing.clear(); fetchFailed.clear() }
 
     companion object { const val MAX_PX = 320 }
 }

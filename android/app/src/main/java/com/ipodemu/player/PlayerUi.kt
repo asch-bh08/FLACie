@@ -187,7 +187,8 @@ fun PlayerHost(nav: PlayerNav) {
     androidx.compose.runtime.CompositionLocalProvider(LocalLibRev provides libRev) {
     var backDrag by remember { mutableFloatStateOf(0f) }
     val sb = if (LocalHardware.current) 2 else app.prefs.swipeBack   // device view: MENU on the wheel is the only back
-    val backEnabled = sb != 2 && nav.sheet == null && nav.nameDialog == null && (nav.nowPlaying || nav.stack.size > 1)
+    // not on Now Playing: its seek bar starts inside the edge zone on phones, so dragging the knob closed the player
+    val backEnabled = sb != 2 && nav.sheet == null && nav.nameDialog == null && !nav.nowPlaying && nav.stack.size > 1
     val edgePx = with(androidx.compose.ui.platform.LocalDensity.current) { 22.dp.toPx() }
     // Now Playing: edge only, or dragging the seek bar / swiping the cover counted as "back"
     val swipeZone = if (sb == 1 || nav.nowPlaying || app.prefs.swipeRowRight != 0) edgePx else 1e9f // iPhone-style: swipe right anywhere goes back (Now Playing keeps the edge, its cover swipes skip tracks)
@@ -429,7 +430,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (!modern) item { SectionHeader("Library") }
             if (!modern) item {
                 Column(Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(16.dp)).background(sc.card).border(1.dp, sc.cardBorder, RoundedCornerShape(16.dp))) {
-                    MenuRow("Playlists", Glyph.LIST, "${lib.playlists().size + app.userData.playlists.size}") { nav.push(Screen.Lib(LibKind.PLAYLISTS)) }
+                    MenuRow("Playlists", Glyph.LIST, "${shownPlaylists(app).size + shownFolderPlaylists(app).size}") { nav.push(Screen.Lib(LibKind.PLAYLISTS)) }
                     MenuRow("Artists", Glyph.ARTIST, "${lib.artists().size}") { nav.push(Screen.Lib(LibKind.ARTISTS)) }
                     MenuRow("Albums", Glyph.ALBUM, "${lib.albums().size}") { nav.push(Screen.Lib(LibKind.ALBUMS)) }
                     MenuRow("Songs", Glyph.NOTE, "${lib.songs().size}") { nav.push(Screen.Lib(LibKind.SONGS)) }
@@ -653,9 +654,9 @@ private fun PlaylistsList(nav: PlayerNav) {
                 Txt("Favorites", size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.onBg)
             }
         }
-        items(ud.playlists.toList(), key = { it.id }) { p ->
+        items(shownPlaylists(app), key = { it.id }) { p ->
             val by = lib.byPath()
-            val first = p.paths.firstNotNullOfOrNull { by[it]?.artKey }
+            val first = p.paths.asSequence().take(12).firstNotNullOfOrNull { (by[it] ?: lib.resolve(it, ud.meta[it]))?.artKey }
             IpodRow({ nav.push(Screen.Detail(DetailKind.USER, p.id)) },
                 onLong = { nav.sheet = SheetSpec(p.name, songCount(p.paths.size), listOf(SheetItem("Delete playlist", Glyph.CLOSE) { ud.deletePlaylist(p.id) })) },
                 height = 56.dp, leading = { ArtImage(first, Modifier.size(44.dp), thumb = true, corner = 10.dp) },
@@ -663,7 +664,7 @@ private fun PlaylistsList(nav: PlayerNav) {
                 Txt(p.name, size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.onBg)
             }
         }
-        items(lib.playlists(), key = { "f" + it.name }) { g ->
+        items(shownFolderPlaylists(app), key = { "f" + it.name }) { g ->
             IpodRow({ nav.push(Screen.Detail(DetailKind.FOLDER, g.name)) }, height = 56.dp,
                 leading = { ArtImage(g.artKey, Modifier.size(44.dp), thumb = true, corner = 10.dp) },
                 trailing = { CountChevron(g.tracks.size) }) { hi ->
@@ -1087,3 +1088,10 @@ private fun AccountAction() {
 /** Artist + title of the best catalog hit for a query typed without "Artist - Title". */
 private fun bestGuess(c: com.ipodemu.library.CatalogResults): Pair<String, String>? =
     c.tracks.firstOrNull()?.let { it.artist to it.title } ?: c.albums.firstOrNull()?.let { it.artist to it.title }
+
+/** Playlists the Playlists screen lists: with an account, only its own (on the Jellyfin server, or just created here);
+ * folder/m3u-derived groups only while browsing an iPod in Sync mode. */
+fun shownPlaylists(app: com.ipodemu.App): List<com.ipodemu.library.UserPlaylist> =
+    app.userData.playlists.toList().filter { !app.prefs.signedIn || it.jfId != null || it.paths.isEmpty() }
+fun shownFolderPlaylists(app: com.ipodemu.App): List<com.ipodemu.library.Group> =
+    if (app.library.source == com.ipodemu.library.Library.Source.SYNC) app.library.playlists() else emptyList()

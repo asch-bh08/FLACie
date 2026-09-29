@@ -1,5 +1,6 @@
 package com.ipodemu.player
 
+import androidx.compose.foundation.verticalScroll
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -52,7 +53,7 @@ fun JellyfinSetupScreen() {
     LaunchedEffect(lib.jellyfinConnected) { if (lib.jellyfinConnected) ui.jellyfinSetupOpen = false }
 
     Box(Modifier.fillMaxSize().background(Color(0xFF07080B)).pointerInput(Unit) { detectTapGestures { } }) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().imePadding().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.fillMaxSize().statusBarsPadding().imePadding().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 GlossPill("Back", { ui.jellyfinSetupOpen = false }, icon = Glyph.BACK, height = 36.dp)
                 Box(Modifier.padding(start = 14.dp)) { Txt("Jellyfin", size = 20f, weight = FontWeight.Bold) }

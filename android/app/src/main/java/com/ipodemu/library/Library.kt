@@ -97,6 +97,21 @@ class Library(ctx: Context, val art: ArtCache) {
     private val fileMover = FileMoverClient()
     private val prefs = Prefs(ctx)
     private val downloader = DownloadCoordinator(prefs)
+
+    init {
+        // covers for streamed tracks are fetched the first time they are shown, then kept on disk like scanned ones
+        art.fetcher = { key ->
+            when {
+                key.startsWith("jf") && prefs.jellyfinUrl.isNotBlank() ->
+                    CoverLookup.bytes("${prefs.jellyfinUrl.trimEnd('/')}/Items/${key.substring(2)}/Images/Primary?maxWidth=640&quality=90",
+                        mapOf("X-Emby-Token" to prefs.jellyfinApiKey))
+                key.startsWith("px") && prefs.plexUrl.isNotBlank() ->
+                    CoverLookup.bytes("${prefs.plexUrl.trimEnd('/')}/library/metadata/${key.substring(2)}/thumb", mapOf("X-Plex-Token" to prefs.plexToken))
+                key.startsWith("it") -> CoverLookup.fetch(key)
+                else -> null
+            }
+        }
+    }
     /** Jellyfin/Plex/NAS tracks -- each both folded into [tracks] (deduped against whatever else is
      * showing) and exposed here on its own, for a dedicated library section (like Playlists/Artists/
      * etc) separate from the blended view. Kept cached so re-merging (after a rescan, or switching

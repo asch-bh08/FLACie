@@ -131,6 +131,7 @@ class AccountSync(private val app: App) {
     private suspend fun syncNow() {
         val remote = pull()
         val restored = if (remote != null) apply(remote) else 0
+        try { pullJellyfinPlaylists() } catch (_: Exception) {}
         push()
         status = "Synced" + if (restored > 0) " -- restored $restored service connection${if (restored == 1) "" else "s"}" else ""
     }
@@ -244,6 +245,35 @@ class AccountSync(private val app: App) {
         val key = t?.matchKey ?: m?.let { matchKey(it.first, it.second) } ?: return null
         val hit = app.library.jellyfinByKey()[key] ?: return null
         return jfIdRe.find(hit.path)?.groupValues?.get(1)
+    }
+
+
+    /** The account user's own playlists on the server (made in Jellyfin or mirrored from here), as playable paths. */
+    private suspend fun pullJellyfinPlaylists() {
+        val base = prefs.accountServer; val token = prefs.accountToken; val uid = prefs.accountUserId
+        val (c, t) = http("GET", "$base/Users/$uid/Items?IncludeItemTypes=Playlist&Recursive=true&SortBy=SortName", token, null)
+        if (c !in 200..299) return
+        val arr = JSONObject(t).optJSONArray("Items") ?: return
+        val byId = HashMap<String, Track>()
+        for (tr in app.library.jellyfinTracks) jfIdRe.find(tr.path)?.let { byId[it.groupValues[1]] = tr }
+        val streamBase = prefs.jellyfinUrl.ifBlank { base }.trimEnd('/')
+        val out = ArrayList<Triple<String, String, List<Pair<String, Pair<String, String>>>>>()
+        for (i in 0 until arr.length()) {
+            val pl = arr.getJSONObject(i)
+            if (pl.optString("MediaType").let { it.isNotEmpty() && it != "Audio" }) continue
+            val id = pl.getString("Id")
+            val (ic, it2) = http("GET", "$base/Playlists/$id/Items?userId=$uid", token, null)
+            if (ic !in 200..299) continue
+            val items = JSONObject(it2).optJSONArray("Items") ?: JSONArray()
+            val tracks = (0 until items.length()).map { items.getJSONObject(it) }.filter { it.optString("Type") == "Audio" }.map { o ->
+                val tid = o.getString("Id")
+                val artist = o.optString("AlbumArtist").ifEmpty { o.optJSONArray("Artists")?.optString(0).orEmpty() }
+                (byId[tid]?.path ?: "$streamBase/Audio/$tid/stream?static=true") to (o.optString("Name") to artist)
+            }
+            out += Triple(id, pl.optString("Name").ifBlank { "Playlist" }, tracks)
+        }
+        val since = prefs.accountSyncedAt
+        kotlinx.coroutines.withContext(Dispatchers.Main) { app.userData.mergeJellyfin(out, since) }
     }
 
     private fun mirrorPlaylists() {

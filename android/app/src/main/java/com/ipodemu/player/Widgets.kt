@@ -1,5 +1,10 @@
 package com.ipodemu.player
 
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
@@ -470,6 +475,8 @@ fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, onNudge: (Float) -> Unit, 
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
     val shown = (drag ?: fraction).coerceIn(0f, 1f)
+    // pointerInput(Unit) outlives recompositions: call the latest onSeek, not the one captured before the track had a duration.
+    val seek by androidx.compose.runtime.rememberUpdatedState(onSeek)
     Box(
         modifier.height(36.dp)
             .onKeyEvent {
@@ -477,14 +484,24 @@ fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, onNudge: (Float) -> Unit, 
                 else if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionRight) { onNudge(1f); true } else false
             }
             .combinedClickableNoRipple(src, true, {})
-            .pointerInput(Unit) { detectTapGestures { o -> onSeek((o.x / size.width).coerceIn(0f, 1f)) } }
+            // one gesture from touch-down: the bar owns the finger (consumed at once, so Now Playing's swipe-down, track
+            // swipes and swipe-back never take it), follows it, and seeks where it lifts -- a tap is just a zero-length drag
             .pointerInput(Unit) {
-                detectHorizontalDragGestures(
-                    onDragStart = { drag = (it.x / size.width).coerceIn(0f, 1f) },
-                    onDragEnd = { drag?.let(onSeek); drag = null },
-                    onDragCancel = { drag = null },
-                    onHorizontalDrag = { c, _ -> drag = (c.position.x / size.width).coerceIn(0f, 1f) },
-                )
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    drag = (down.position.x / size.width).coerceIn(0f, 1f)
+                    var lifted = false
+                    while (true) {
+                        val ev = awaitPointerEvent()
+                        val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                        drag = (c.position.x / size.width).coerceIn(0f, 1f)
+                        c.consume()
+                        if (!c.pressed) { lifted = true; break }
+                    }
+                    if (lifted) drag?.let { seek(it) }
+                    drag = null
+                }
             },
         contentAlignment = Alignment.CenterStart,
     ) {
@@ -510,8 +527,11 @@ fun ActionSheet(title: String, subtitle: String?, items: List<SheetItem>, onDism
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { try { first.requestFocus() } catch (_: Exception) {} }
     Box(Modifier.fillMaxSize().background(Color(0x99000000)).pointerInput(Unit) { detectTapGestures { onDismiss() } }) {
+      androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().safeArea()) {
+        // capped to the screen and scrollable, so long lists (EQ presets, landscape phones) never run off the bottom
         Column(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().widthIn(max = 640.dp)
+                .heightIn(max = maxHeight * 0.9f)
                 .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
                 .background(Brush.verticalGradient(listOf(sc.top.copy(alpha = 1f).mix(Color.Black, .35f), sc.bottom.mix(Color.Black, .25f))))
                 .pointerInput(Unit) { detectTapGestures { } }
@@ -521,11 +541,14 @@ fun ActionSheet(title: String, subtitle: String?, items: List<SheetItem>, onDism
                 Txt(title, size = 18f, weight = FontWeight.Bold)
                 if (subtitle != null) Txt(subtitle, size = 13f, color = sc.onBgDim)
             }
-            items.forEachIndexed { i, item ->
-                IpodRow(onClick = { onDismiss(); item.onClick() }, height = 54.dp, focusRequester = if (i == 0) first else null,
-                    leading = { GlyphIcon(item.glyph, Modifier.size(24.dp), if (LocalRowHi.current) Color.White else sc.onBg) }) { hi -> Txt(item.label, size = 16f, color = if (hi) Color.White else sc.onBg) }
+            Column(Modifier.weight(1f, fill = false).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                items.forEachIndexed { i, item ->
+                    IpodRow(onClick = { onDismiss(); item.onClick() }, height = 54.dp, focusRequester = if (i == 0) first else null,
+                        leading = { GlyphIcon(item.glyph, Modifier.size(24.dp), if (LocalRowHi.current) Color.White else sc.onBg) }) { hi -> Txt(item.label, size = 16f, color = if (hi) Color.White else sc.onBg) }
+                }
             }
         }
+      }
     }
 }
 

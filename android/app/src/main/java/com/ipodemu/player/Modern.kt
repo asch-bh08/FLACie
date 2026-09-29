@@ -1,5 +1,6 @@
 package com.ipodemu.player
 
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -129,7 +130,7 @@ fun BottomNav(nav: PlayerNav) {
 fun NavRail(nav: PlayerNav) {
     val cur = nav.currentTab()
     Column(
-        Modifier.width(80.dp).fillMaxHeight().background(Color(0xF20B0B0D)).padding(vertical = 12.dp),
+        Modifier.width(80.dp).fillMaxHeight().background(Color(0xF20B0B0D)).verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Tab.entries.forEach { t -> NavItem(t, t == cur, Modifier.width(80.dp).height(68.dp)) { nav.selectTab(t) } }
@@ -166,7 +167,7 @@ fun LibraryHome(nav: PlayerNav) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
             item { LibRow("Favorites", Glyph.HEART_FILLED, "${ud.favorites.size}", Color(0xFFE5486B)) { nav.push(Screen.Detail(DetailKind.FAVORITES)) } }
             item { LibRow("Recently Played", Glyph.CLOCK, "${ud.recents.size}") { nav.push(Screen.Detail(DetailKind.RECENT)) } }
-            item { LibRow("Playlists", Glyph.LIST, "${lib.playlists().size + ud.playlists.size}") { nav.push(Screen.Lib(LibKind.PLAYLISTS)) } }
+            item { LibRow("Playlists", Glyph.LIST, "${shownPlaylists(app).size + shownFolderPlaylists(app).size}") { nav.push(Screen.Lib(LibKind.PLAYLISTS)) } }
             item { LibRow("Artists", Glyph.ARTIST, "${lib.artists().size}") { nav.push(Screen.Lib(LibKind.ARTISTS)) } }
             item { LibRow("Albums", Glyph.ALBUM, "${lib.albums().size}") { nav.push(Screen.Lib(LibKind.ALBUMS)) } }
             item { LibRow("Songs", Glyph.NOTE, "${lib.songs().size}") { nav.push(Screen.Lib(LibKind.SONGS)) } }

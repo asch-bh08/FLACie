@@ -119,7 +119,7 @@ fun SettingsScreen(nav: PlayerNav) {
                 }
             }
             item { SectionHeader("About") }
-            item { Card { SettingRow("Version", "0.8") { } } }
+            item { Card { SettingRow("Version", remember { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "" }) { } } }
         }
     }
 }

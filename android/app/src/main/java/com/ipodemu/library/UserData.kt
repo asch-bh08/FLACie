@@ -93,6 +93,21 @@ class UserData(ctx: Context) {
         changed(sync = false)
     }
 
+
+    /** The account's own Jellyfin playlists (see AccountSync.pullJellyfinPlaylists): new ones are added, and ones not edited here
+     * since the last sync take the server's name and tracks; ones deleted on the server go, unless edited here since. */
+    fun mergeJellyfin(server: List<Triple<String, String, List<Pair<String, Pair<String, String>>>>>, syncedAt: Long) {
+        val ids = server.mapTo(HashSet()) { it.first }
+        playlists.removeAll { it.jfId != null && it.jfId !in ids && it.mtime <= syncedAt }
+        for ((jf, name, tracks) in server) {
+            tracks.forEach { (p, ta) -> if (ta.first.isNotEmpty() && p !in meta) meta[p] = ta }
+            val paths = tracks.mapTo(ArrayList()) { it.first }
+            val mine = playlists.firstOrNull { it.jfId == jf }
+            if (mine == null) playlists.add(UserPlaylist("jf$jf", name, paths, syncedAt.coerceAtLeast(1), jf))
+            else if (mine.mtime <= syncedAt) { mine.name = name; mine.paths.clear(); mine.paths.addAll(paths) }
+        }
+        changed(sync = false)
+    }
     private fun changed(sync: Boolean = true) { rev++; save(); if (sync) onChanged?.invoke() }
 
     private fun load() {

@@ -78,7 +78,7 @@ class JellyfinDirectClient {
                 durationMs = o.optLong("RunTimeTicks") / 10_000L,
                 year = 0,
                 isMusic = true,
-                artKey = null,
+                artKey = artKeyOf(o),
                 mtime = 0L,
                 size = 0L,
                 source = TrackSource.JELLYFIN,
@@ -140,4 +140,12 @@ class JellyfinDirectClient {
             conn.disconnect()
         }
     }
+}
+
+/** "jf<id>" of the item whose Primary image is the cover: the album's when it has one, else the track's own. */
+internal fun artKeyOf(o: JSONObject): String? {
+    val albumId = o.optString("AlbumId")
+    if (albumId.isNotEmpty() && !o.isNull("AlbumPrimaryImageTag")) return "jf$albumId"
+    if (o.optJSONObject("ImageTags")?.has("Primary") == true) return "jf" + o.getString("Id")
+    return if (albumId.isNotEmpty()) "jf$albumId" else null
 }

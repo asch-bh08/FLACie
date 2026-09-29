@@ -47,20 +47,25 @@ class NasDirectClient {
                     continue
                 }
                 if (!f.isFile || !NasSmb.isAudio(f.name)) continue
-                val title = cleanTitle(f.name, artist, album)
+                val cleaned = cleanTitle(f.name, artist, album)
+                // a loose "Artist - Title" file straight inside a top-level folder: that folder is a playlist-style collection
+                // ("aura(LAC)"), not the artist, so the credit comes from the file name
+                val split = if (album == null && " - " in cleaned) cleaned.split(" - ", limit = 2).map { it.trim() }.takeIf { it.all { p -> p.isNotEmpty() } } else null
+                val title = split?.get(1) ?: cleaned
+                val credit = split?.get(0) ?: artist
                 out += Track(
                     path = f.canonicalPath,
                     title = title,
-                    artist = artist ?: "",
+                    artist = credit ?: "",
                     album = album ?: "",
-                    albumArtist = artist ?: "",
+                    albumArtist = credit ?: "",
                     genre = "",
                     trackNo = 0,
                     discNo = 0,
                     durationMs = 0L,
                     year = 0,
                     isMusic = true,
-                    artKey = CoverLookup.key(artist ?: "", album ?: "", title),
+                    artKey = CoverLookup.key(credit ?: "", album ?: "", title),
                     mtime = f.lastModified(),
                     size = f.length(),
                     source = TrackSource.NAS,

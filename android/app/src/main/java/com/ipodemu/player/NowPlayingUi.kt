@@ -76,9 +76,9 @@ fun MiniPlayer(snap: PlayerSnap, nav: PlayerNav) {
                 Txt(t.title, size = 14f, weight = FontWeight.SemiBold)
                 Txt(t.artist.ifEmpty { t.album }, size = 12f, color = sc.onBgDim)
             }
-            GlossButton({ app.player.toggle() }, size = 38.dp, primary = true) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(20.dp), Color.White) }
+            GlossButton({ app.player.toggle() }, label = if (snap.playing) "Pause" else "Play", size = 38.dp, primary = true) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(20.dp), Color.White) }
             Box(Modifier.size(6.dp))
-            GlossButton({ app.player.next() }, size = 34.dp) { GlyphIcon(Glyph.NEXT, Modifier.size(17.dp), Color.White) }
+            GlossButton({ app.player.next() }, label = "Next", size = 34.dp) { GlyphIcon(Glyph.NEXT, Modifier.size(17.dp), Color.White) }
         }
         Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(2.dp).background(sc.onBg.copy(alpha = .14f))) {
             Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(sc.accent))
@@ -115,10 +115,10 @@ fun NowPlayingCard(snap: PlayerSnap, nav: PlayerNav, onShuffleAll: () -> Unit) {
                 }
             }
             if (t != null) {
-                GlossButton({ app.player.toggle() }, size = 44.dp, primary = true) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(22.dp), Color.White) }
+                GlossButton({ app.player.toggle() }, label = if (snap.playing) "Pause" else "Play", size = 44.dp, primary = true) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(22.dp), Color.White) }
                 Box(Modifier.size(6.dp))
-                GlossButton({ app.player.next() }, size = 38.dp) { GlyphIcon(Glyph.NEXT, Modifier.size(18.dp), Color.White) }
-            } else GlossButton({ onShuffleAll() }, size = 44.dp, primary = true) { GlyphIcon(Glyph.SHUFFLE, Modifier.size(22.dp), Color.White) }
+                GlossButton({ app.player.next() }, label = "Next", size = 38.dp) { GlyphIcon(Glyph.NEXT, Modifier.size(18.dp), Color.White) }
+            } else GlossButton({ onShuffleAll() }, label = "Shuffle all", size = 44.dp, primary = true) { GlyphIcon(Glyph.SHUFFLE, Modifier.size(22.dp), Color.White) }
         }
         if (t != null) Box(Modifier.align(Alignment.BottomStart).padding(horizontal = 12.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(sc.onBg.copy(alpha = .16f))) {
             Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(sc.accent))
@@ -193,9 +193,9 @@ fun NowPlayingScreen(snap: PlayerSnap, nav: PlayerNav) {
 private fun NpHeader(nav: PlayerNav) {
     val sc = LocalScheme.current
     Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
-        GlossButton({ nav.nowPlaying = false }, size = 36.dp) { GlyphIcon(Glyph.DOWN, Modifier.size(22.dp), Color.White) }
+        GlossButton({ nav.nowPlaying = false }, label = "Close", size = 36.dp) { GlyphIcon(Glyph.DOWN, Modifier.size(22.dp), Color.White) }
         Txt("Now Playing", Modifier.weight(1f), size = 16f, weight = FontWeight.Bold, align = TextAlign.Center)
-        GlossButton({ nav.nowPlaying = false; nav.push(Screen.Queue) }, size = 36.dp) { GlyphIcon(Glyph.QUEUE, Modifier.size(22.dp), Color.White) }
+        GlossButton({ nav.nowPlaying = false; nav.push(Screen.Queue) }, label = "Up next", size = 36.dp) { GlyphIcon(Glyph.QUEUE, Modifier.size(22.dp), Color.White) }
     }
 }
 
@@ -248,15 +248,15 @@ private fun NpTransport(snap: PlayerSnap) {
         // shrink the row on narrow columns so all five buttons always fit
         val k = (maxWidth / 320.dp).coerceIn(0.62f, 1f)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            GlossButton({ app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes(); bump += 1f }, size = 44.dp * k, primary = snap.shuffle) {
+            GlossButton({ app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes(); bump += 1f }, label = "Shuffle", size = 44.dp * k, primary = snap.shuffle) {
                 GlyphIcon(Glyph.SHUFFLE, Modifier.size(22.dp * k), Color.White)
             }
-            GlossButton({ app.player.prev() }, size = 56.dp * k) { GlyphIcon(Glyph.PREV, Modifier.size(26.dp * k), Color.White) }
-            GlossButton({ app.player.toggle() }, Modifier.focusRequester(playFocus), size = 74.dp * k, primary = true) {
+            GlossButton({ app.player.prev() }, label = "Previous", size = 56.dp * k) { GlyphIcon(Glyph.PREV, Modifier.size(26.dp * k), Color.White) }
+            GlossButton({ app.player.toggle() }, Modifier.focusRequester(playFocus), label = if (snap.playing) "Pause" else "Play", size = 74.dp * k, primary = true) {
                 GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(38.dp * k), Color.White)
             }
-            GlossButton({ app.player.next() }, size = 56.dp * k) { GlyphIcon(Glyph.NEXT, Modifier.size(26.dp * k), Color.White) }
-            GlossButton({ app.prefs.repeat = (app.prefs.repeat + 1) % 3; app.player.applyModes(); bump += 1f }, size = 44.dp * k, primary = snap.repeat != 0) {
+            GlossButton({ app.player.next() }, label = "Next", size = 56.dp * k) { GlyphIcon(Glyph.NEXT, Modifier.size(26.dp * k), Color.White) }
+            GlossButton({ app.prefs.repeat = (app.prefs.repeat + 1) % 3; app.player.applyModes(); bump += 1f }, label = "Repeat", size = 44.dp * k, primary = snap.repeat != 0) {
                 GlyphIcon(if (snap.repeat == 2) Glyph.REPEAT_ONE else Glyph.REPEAT, Modifier.size(22.dp * k), Color.White)
             }
         }
@@ -272,10 +272,10 @@ private fun NpExtras(snap: PlayerSnap, nav: PlayerNav) {
     val fav = app.userData.isFavorite(t.path)
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            GlossButton({ app.userData.toggleFavorite(t.path) }, size = 40.dp, primary = fav) { GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(22.dp), Color.White) }
-            GlossButton({ nav.sheet = eqSheet(app) }, size = 44.dp) { GlyphIcon(Glyph.LIST, Modifier.size(22.dp), Color.White) }
-            GlossButton({ nav.sheet = sleepSheet(app) }, size = 44.dp, primary = app.player.sleepMinutes > 0) { GlyphIcon(Glyph.CLOCK, Modifier.size(22.dp), Color.White) }
-            GlossButton({ openTrackSheet(app, nav, t) }, size = 44.dp) { GlyphIcon(Glyph.MORE, Modifier.size(22.dp), Color.White) }
+            GlossButton({ app.userData.toggleFavorite(t.path) }, label = if (fav) "Unfavorite" else "Favorite", size = 40.dp, primary = fav) { GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(22.dp), Color.White) }
+            GlossButton({ nav.sheet = eqSheet(app) }, label = "Equalizer", size = 44.dp) { GlyphIcon(Glyph.LIST, Modifier.size(22.dp), Color.White) }
+            GlossButton({ nav.sheet = sleepSheet(app) }, label = "Sleep timer", size = 44.dp, primary = app.player.sleepMinutes > 0) { GlyphIcon(Glyph.CLOCK, Modifier.size(22.dp), Color.White) }
+            GlossButton({ openTrackSheet(app, nav, t) }, label = "More", size = 44.dp) { GlyphIcon(Glyph.MORE, Modifier.size(22.dp), Color.White) }
         }
     }
 }

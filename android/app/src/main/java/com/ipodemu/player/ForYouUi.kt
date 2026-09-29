@@ -51,7 +51,7 @@ fun MixCard(mix: Mix, modifier: Modifier = Modifier, onClick: () -> Unit) {
             Box(
                 Modifier.align(Alignment.BottomStart).padding(8.dp).size(30.dp).clip(CircleShape).background(sc.accent),
                 contentAlignment = Alignment.Center,
-            ) { GlyphIcon(Glyph.PLAY, Modifier.size(14.dp), Color.White) }
+            ) { GlyphIcon(Glyph.PLAY, Modifier.size(14.dp), sc.accent.readableInk()) }
         }
         Txt(mix.title, Modifier.padding(top = 8.dp), size = 14f, weight = FontWeight.SemiBold, maxLines = 1)
         Txt(mix.subtitle, size = 12f, color = sc.onBgDim, maxLines = 2)

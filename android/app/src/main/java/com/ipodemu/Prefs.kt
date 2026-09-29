@@ -200,6 +200,13 @@ class Prefs(ctx: Context) {
     var accountSyncedAt: Long
         get() = sp.getLong("acctsynced", 0L)
         set(v) = sp.edit().putLong("acctsynced", v).apply()
+    /** Playlists that existed only on this device before Playlists started listing the account's own (hidden from it). */
+    var hiddenPlaylists: Set<String>
+        get() = sp.getStringSet("hiddenlists", null) ?: emptySet()
+        set(v) = sp.edit().putStringSet("hiddenlists", v).apply()
+    var playlistsMigrated: Boolean
+        get() = sp.getBoolean("listsmigrated", false)
+        set(v) = sp.edit().putBoolean("listsmigrated", v).apply()
     /** Stable per-install id Jellyfin needs for its session/device bookkeeping. */
     val deviceId: String
         get() = sp.getString("deviceid", null) ?: java.util.UUID.randomUUID().toString().also { sp.edit().putString("deviceid", it).apply() }

@@ -66,7 +66,7 @@ class AccountSync(private val app: App) {
                 busy = true; status = "Asking the server for a code..."
                 val (ec, et) = http("GET", "$base/QuickConnect/Enabled", null, null)
                 if (ec !in 200..299) throw IOException("Can't reach server (HTTP $ec)")
-                if (!et.trim().equals("true", true)) throw IOException("Quick Connect is turned off on this server -- sign in with a password instead")
+                if (!et.trim().equals("true", true)) throw IOException("Quick Connect is turned off on this server. Sign in with a password instead.")
                 val (ic, it) = http("POST", "$base/QuickConnect/Initiate", null, null)
                 if (ic !in 200..299) throw IOException("HTTP $ic")
                 val init = JSONObject(it)
@@ -85,7 +85,7 @@ class AccountSync(private val app: App) {
                         return@launch
                     }
                 }
-                throw IOException("The code expired -- try again")
+                throw IOException("The code expired. Try again.")
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -133,7 +133,7 @@ class AccountSync(private val app: App) {
         val restored = if (remote != null) apply(remote) else 0
         try { pullJellyfinPlaylists() } catch (_: Exception) {}
         push()
-        status = "Synced" + if (restored > 0) " -- restored $restored service connection${if (restored == 1) "" else "s"}" else ""
+        status = "Synced" + if (restored > 0) ", restored $restored service connection${if (restored == 1) "" else "s"}" else ""
     }
 
     private fun prefsUrl(): String {
@@ -143,7 +143,7 @@ class AccountSync(private val app: App) {
 
     private fun pull(): JSONObject? {
         val (code, text) = http("GET", prefsUrl(), prefs.accountToken, null)
-        if (code == 401) { signedIn = false; throw IOException("Session expired -- sign in again") }
+        if (code == 401) { signedIn = false; throw IOException("Session expired. Sign in again.") }
         if (code !in 200..299) throw IOException("HTTP $code")
         val raw = JSONObject(text).optJSONObject("CustomPrefs")?.optString(PREFS_KEY)?.takeIf { it.isNotBlank() && it != "null" } ?: return null
         return try { JSONObject(raw) } catch (_: Exception) { null }

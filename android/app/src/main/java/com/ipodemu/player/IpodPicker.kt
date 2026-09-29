@@ -1,5 +1,6 @@
 package com.ipodemu.player
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -84,11 +85,18 @@ fun PickerScreen() {
     val bg = Brush.verticalGradient(listOf(Color(0xFF1B1F2A), Color(0xFF07080B)))
     val edge = with(androidx.compose.ui.platform.LocalDensity.current) { 22.dp.toPx() }
     Box(Modifier.fillMaxSize().background(bg).pointerInput(Unit) { detectTapGestures { } }.edgeSwipeBack(true, edge, {}) { ui.pickerOpen = false }) {
-        BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding()) {
+      Column(Modifier.fillMaxSize().safeArea()) {
+        // header row of its own, so the preview can never cover these; the click-wheel views have no other way back to the default theme
+        Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 10.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            GlossPill("Back", { ui.pickerOpen = false }, icon = Glyph.BACK, height = 36.dp)
+            Box(Modifier.width(12.dp))
+            GlossPill("Sync mode", { ui.changeTheme(2); ui.pickerOpen = false }, height = 36.dp)
+            GlossPill("Modern theme", { ui.changeTheme(0); ui.pickerOpen = false }, height = 36.dp)
+        }
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val land = maxWidth > maxHeight * 1.15f
             val preview = @Composable { BigPreview(model, cw, modeOf(ui.viewMode), Modifier.fillMaxSize().padding(10.dp)) }
             val controls = @Composable { Controls(model, ci) }
-            // always-visible Back (the screen used to have only Done at the very bottom)
             if (land) Row(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(0.42f).fillMaxHeight()) { preview() }
                 Box(Modifier.weight(0.58f).fillMaxHeight()) { controls() }
@@ -96,13 +104,8 @@ fun PickerScreen() {
                 Box(Modifier.weight(0.36f).fillMaxWidth()) { preview() }
                 Box(Modifier.weight(0.64f).fillMaxWidth()) { controls() }
             }
-            GlossPill("Back", { ui.pickerOpen = false }, Modifier.align(Alignment.TopStart).padding(start = 10.dp, top = 8.dp), icon = Glyph.BACK, height = 36.dp)
-            // the click-wheel views have no other way back to the default theme
-            Row(Modifier.align(Alignment.TopEnd).padding(end = 10.dp, top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GlossPill("Sync mode", { ui.changeTheme(2); ui.pickerOpen = false }, height = 36.dp)
-                GlossPill("Modern theme", { ui.changeTheme(0); ui.pickerOpen = false }, height = 36.dp)
-            }
         }
+      }
     }
 }
 

@@ -27,6 +27,8 @@ class App : Application() {
         player = PlayerController(this, prefs)
         ui = UiState(prefs)
         userData = com.ipodemu.library.UserData(this)
+        // one-off: on-device playlists that never reached the account stay out of Playlists; new ones always show
+        if (!prefs.playlistsMigrated) { prefs.hiddenPlaylists = userData.playlists.filter { it.jfId == null && it.paths.isNotEmpty() }.mapTo(HashSet()) { it.id }; prefs.playlistsMigrated = true }
         lyrics = com.ipodemu.library.LyricsProvider(this)
         // fetch lyrics as each song starts, so they are ready (and cached) before Now Playing asks
         player.onTrackStarted = { t -> userData.recordPlay(t.path); bg.launch { lyrics.get(t) } }

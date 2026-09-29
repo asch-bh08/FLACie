@@ -58,10 +58,10 @@ fun NasSetupScreen() {
     LaunchedEffect(lib.nasConnected) { if (lib.nasConnected) ui.nasSetupOpen = false }
 
     @Composable
-    fun field(label: String, value: String, onChange: (String) -> Unit, focus: Boolean = false) {
+    fun field(label: String, value: String, onChange: (String) -> Unit, focus: Boolean = false, secret: Boolean = label.startsWith("Password")) {
         Txt(label, size = 12f)
-        BasicTextField(
-            value, onChange, singleLine = true, cursorBrush = SolidColor(Color.White),
+        SetupTextField(
+            value, onChange, singleLine = true, cursorBrush = SolidColor(Color.White), secret = secret,
             textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
             modifier = Modifier.fillMaxWidth().let { if (focus) it.focusRequester(fr) else it }
                 .clip(RoundedCornerShape(12.dp)).background(Color(0x22FFFFFF)).padding(14.dp),
@@ -77,7 +77,7 @@ fun NasSetupScreen() {
                 GlossPill("Back", { ui.nasSetupOpen = false }, icon = Glyph.BACK, height = 36.dp)
                 Box(Modifier.padding(start = 14.dp)) { Txt("NAS", size = 20f, weight = FontWeight.Bold) }
             }
-            Txt("Browses a network share's music files directly over SMB -- no media server needed.", size = 13f, maxLines = 3)
+            Txt("Browses a network share's music files directly over SMB. No media server needed.", size = 13f, maxLines = 3)
 
             field("Server (e.g. 192.168.1.50)", host, { host = it }, focus = true)
             field("Share name (e.g. Music)", share, { share = it })

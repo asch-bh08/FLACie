@@ -58,16 +58,16 @@ fun PlexSetupScreen() {
                 GlossPill("Back", { ui.plexSetupOpen = false }, icon = Glyph.BACK, height = 36.dp)
                 Box(Modifier.padding(start = 14.dp)) { Txt("Plex", size = 20f, weight = FontWeight.Bold) }
             }
-            Txt("Streams straight from your Plex server -- no PC needs to be running for this.", size = 13f, maxLines = 3)
+            Txt("Streams straight from your Plex server. Nothing else needs to be running.", size = 13f, maxLines = 3)
 
             Txt("Server URL (e.g. http://192.168.1.183:32400)", size = 12f)
-            BasicTextField(
+            SetupTextField(
                 url, { url = it }, singleLine = true, cursorBrush = SolidColor(Color.White),
                 textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
                 modifier = Modifier.fillMaxWidth().focusRequester(fr).clip(RoundedCornerShape(12.dp)).background(Color(0x22FFFFFF)).padding(14.dp),
             )
             Txt("Plex token (Settings > ... in a Plex web session's network tab, or plex.tv/claim)", size = 12f)
-            BasicTextField(
+            SetupTextField(
                 token, { token = it }, singleLine = true, cursorBrush = SolidColor(Color.White),
                 textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0x22FFFFFF)).padding(14.dp),

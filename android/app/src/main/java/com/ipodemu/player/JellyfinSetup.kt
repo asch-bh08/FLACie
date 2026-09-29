@@ -58,16 +58,16 @@ fun JellyfinSetupScreen() {
                 GlossPill("Back", { ui.jellyfinSetupOpen = false }, icon = Glyph.BACK, height = 36.dp)
                 Box(Modifier.padding(start = 14.dp)) { Txt("Jellyfin", size = 20f, weight = FontWeight.Bold) }
             }
-            Txt("Streams straight from your Jellyfin server -- no PC needs to be running for this.", size = 13f, maxLines = 3)
+            Txt("Streams straight from your Jellyfin server. Nothing else needs to be running.", size = 13f, maxLines = 3)
 
             Txt("Server URL (e.g. http://192.168.1.183:8096)", size = 12f)
-            BasicTextField(
+            SetupTextField(
                 url, { url = it }, singleLine = true, cursorBrush = SolidColor(Color.White),
                 textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
                 modifier = Modifier.fillMaxWidth().focusRequester(fr).clip(RoundedCornerShape(12.dp)).background(Color(0x22FFFFFF)).padding(14.dp),
             )
             Txt("API key (Jellyfin dashboard > Advanced > API Keys)", size = 12f)
-            BasicTextField(
+            SetupTextField(
                 apiKey, { apiKey = it }, singleLine = true, cursorBrush = SolidColor(Color.White),
                 textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0x22FFFFFF)).padding(14.dp),

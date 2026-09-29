@@ -19,6 +19,8 @@ class UiState(private val prefs: Prefs) {
     val syncMode: Boolean get() = uiTheme == 2
     /** Account sign-in overlay (Settings > Account, or first-run). */
     var accountOpen by mutableStateOf(false)
+    /** Search text, kept while switching tabs. */
+    var searchQuery by mutableStateOf("")
     var viewMode by mutableIntStateOf(0)
         private set
     var model by mutableStateOf(prefs.model)

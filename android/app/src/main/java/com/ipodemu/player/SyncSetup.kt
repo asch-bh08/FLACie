@@ -58,10 +58,10 @@ fun SyncSetupScreen() {
                 GlossPill("Back", { ui.syncSetupOpen = false }, icon = Glyph.BACK, height = 36.dp)
                 Box(Modifier.padding(start = 14.dp)) { Txt("Sync", size = 20f, weight = FontWeight.Bold) }
             }
-            Txt("Browse a real iPod plugged into a PC running ipodsync, over Wi-Fi.", size = 13f, maxLines = 3)
+            Txt("Browse a real iPod plugged into a PC running FLACie for Windows, over Wi-Fi.", size = 13f, maxLines = 3)
 
-            Txt("ipodsync host (e.g. 192.168.1.50:5070)", size = 12f)
-            BasicTextField(
+            Txt("PC address (e.g. 192.168.1.50:5070)", size = 12f)
+            SetupTextField(
                 host, { host = it }, singleLine = true, cursorBrush = SolidColor(Color.White),
                 textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
                 modifier = Modifier.fillMaxWidth().focusRequester(fr).clip(RoundedCornerShape(12.dp)).background(Color(0x22FFFFFF)).padding(14.dp),
@@ -87,7 +87,7 @@ fun SyncSetupScreen() {
                     ) {
                         Column {
                             Txt(d.volumeLabel?.takeIf { it.isNotBlank() } ?: d.rootPath, size = 15f, weight = FontWeight.SemiBold)
-                            Txt(if (d.hasDatabase) d.rootPath else "${d.rootPath} -- no iTunes library found", size = 12f)
+                            Txt(if (d.hasDatabase) d.rootPath else "${d.rootPath}: no iTunes library found", size = 12f)
                         }
                     }
                 }

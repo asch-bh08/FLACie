@@ -1,5 +1,7 @@
 package com.ipodemu.player
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -303,7 +305,7 @@ fun TrackRow(
                 if (fav) GlyphIcon(Glyph.HEART_FILLED, Modifier.size(18.dp), sc.accent)
                 SourceBadge(t.source)
                 if (t.durationMs > 0) Txt(fmtTime(t.durationMs), size = 13f, color = rowDim())
-                Box(Modifier.size(38.dp).clip(RoundedCornerShape(50)).clickable { openTrackSheet(app, nav, t, sheetExtra) }, contentAlignment = Alignment.Center) {
+                Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = "More options for ${t.title}" }.clickable { openTrackSheet(app, nav, t, sheetExtra) }, contentAlignment = Alignment.Center) {
                     GlyphIcon(Glyph.MORE, Modifier.size(22.dp), rowDim())
                 }
             }
@@ -332,7 +334,7 @@ private fun sourceColor(s: com.ipodemu.library.TrackSource): Color = when (s) {
 private fun SourceBadge(source: com.ipodemu.library.TrackSource) {
     val color = sourceColor(source)
     Box(Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.16f)).padding(horizontal = 7.dp, vertical = 3.dp)) {
-        Txt(source.name.lowercase().replaceFirstChar { it.uppercase() }, size = 10f, weight = FontWeight.SemiBold, color = color)
+        Txt(if (source == com.ipodemu.library.TrackSource.NAS) "NAS" else source.name.lowercase().replaceFirstChar { it.uppercase() }, size = 11f, weight = FontWeight.SemiBold, color = color)
     }
 }
 
@@ -359,8 +361,14 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
 private fun playlistPicker(app: App, nav: PlayerNav, t: Track): SheetSpec {
     val ud = app.userData
     val items = ArrayList<SheetItem>()
-    items += SheetItem("New playlist...", Glyph.PLUS) { nav.nameDialog = { name -> ud.createPlaylist(name, t.path) } }
-    ud.playlists.forEach { p -> items += SheetItem(p.name, Glyph.LIST) { ud.addToPlaylist(p.id, t.path) } }
+    items += SheetItem("New playlist...", Glyph.PLUS) { nav.nameDialog = { name -> ud.createPlaylist(name, t.path); android.widget.Toast.makeText(app, "Added to $name", android.widget.Toast.LENGTH_SHORT).show() } }
+    shownPlaylists(app).forEach { p ->
+        items += SheetItem(p.name, Glyph.LIST) {
+            val had = t.path in p.paths
+            ud.addToPlaylist(p.id, t.path)
+            android.widget.Toast.makeText(app, if (had) "Already in ${p.name}" else "Added to ${p.name}", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
     return SheetSpec("Add to playlist", t.title, items)
 }
 
@@ -380,11 +388,13 @@ private fun NameDialog(onDone: (String) -> Unit, onDismiss: () -> Unit) {
             BasicTextField(
                 text, { text = it }, singleLine = true, cursorBrush = SolidColor(sc.accent),
                 textStyle = TextStyle(color = sc.onBg, fontSize = 18.sp),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { if (text.isNotBlank()) { onDone(text.trim()); onDismiss() } }),
                 modifier = Modifier.fillMaxWidth().focusRequester(fr).clip(RoundedCornerShape(12.dp)).background(Color(0x22FFFFFF)).padding(14.dp),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.align(Alignment.End)) {
                 GlossPill("Cancel", onDismiss)
-                GlossPill("Create", { onDone(text); onDismiss() }, primary = true)
+                GlossPill("Create", { if (text.isNotBlank()) { onDone(text.trim()); onDismiss() } }, primary = true)
             }
         }
     }
@@ -656,9 +666,14 @@ private fun PlaylistsList(nav: PlayerNav) {
         }
         items(shownPlaylists(app), key = { it.id }) { p ->
             val by = lib.byPath()
-            val first = p.paths.asSequence().take(12).firstNotNullOfOrNull { (by[it] ?: lib.resolve(it, ud.meta[it]))?.artKey }
+            val keys = p.paths.asSequence().take(20).mapNotNull { (by[it] ?: lib.resolve(it, ud.meta[it]))?.artKey }.toList()
+            // a cover already on disk, else one a server can supply; a local key with no file behind it shows nothing
+            val first = keys.firstOrNull { app.art.has(it) } ?: keys.firstOrNull { it.startsWith("jf") || it.startsWith("px") || it.startsWith("it") }
             IpodRow({ nav.push(Screen.Detail(DetailKind.USER, p.id)) },
-                onLong = { nav.sheet = SheetSpec(p.name, songCount(p.paths.size), listOf(SheetItem("Delete playlist", Glyph.CLOSE) { ud.deletePlaylist(p.id) })) },
+                onLong = { nav.sheet = SheetSpec(p.name, songCount(p.paths.size), listOf(SheetItem("Delete playlist", Glyph.CLOSE) {
+                    nav.sheet = SheetSpec("Delete \"${p.name}\"?", if (p.jfId != null) "It is also deleted from your Jellyfin account" else null, listOf(
+                        SheetItem("Delete", Glyph.CLOSE) { ud.deletePlaylist(p.id) }, SheetItem("Cancel", Glyph.BACK) {}))
+                })) },
                 height = 56.dp, leading = { ArtImage(first, Modifier.size(44.dp), thumb = true, corner = 10.dp) },
                 trailing = { CountChevron(p.paths.size) }) { hi ->
                 Txt(p.name, size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.onBg)
@@ -779,11 +794,12 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
     // the focused text field used to swallow the first Back press; leave the screen straight away
     BackHandler(enabled = !app.ui.pickerOpen && nav.sheet == null && nav.nameDialog == null && nav.stack.size > 1) { nav.pop() }
     val sc = LocalScheme.current
-    var query by remember { mutableStateOf("") }
+    var query by app.ui::searchQuery
     var results by remember { mutableStateOf(Results(emptyList(), emptyList())) }
     var catalog by remember { mutableStateOf(com.ipodemu.library.CatalogResults.EMPTY) }
     var catalogLoading by remember { mutableStateOf(false) }
     val fr = remember { FocusRequester() }
+    val searchFocus = androidx.compose.ui.platform.LocalFocusManager.current
     // no auto-focus: it popped the keyboard, whose first Back press hid it instead of leaving the screen (and trapped controller focus in the field)
     // Keyed on libRev too, not just query -- a download landing (Library's own background merge)
     // used to leave stale results on screen until the user retyped the search themselves.
@@ -821,9 +837,11 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             GlyphIcon(Glyph.SEARCH, Modifier.size(20.dp), sc.onBgDim)
             Box(Modifier.weight(1f)) {
                 if (query.isEmpty()) Txt("Songs, albums, artists", size = 16f, color = sc.onBgDim)
-                BasicTextField(query, { query = it }, singleLine = true, cursorBrush = SolidColor(sc.accent), textStyle = TextStyle(color = sc.onBg, fontSize = 16.sp), modifier = Modifier.fillMaxWidth().focusRequester(fr))
+                BasicTextField(query, { query = it }, singleLine = true, cursorBrush = SolidColor(sc.accent), textStyle = TextStyle(color = sc.onBg, fontSize = 16.sp), modifier = Modifier.fillMaxWidth().focusRequester(fr),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(autoCorrect = false, imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { searchFocus.clearFocus() }))
             }
-            if (query.isNotEmpty()) Box(Modifier.size(28.dp).clickable { query = "" }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.CLOSE, Modifier.size(18.dp), sc.onBgDim) }
+            if (query.isNotEmpty()) IconAction(Glyph.CLOSE, "Clear search", { query = "" }, tint = sc.onBgDim, size = 40.dp, iconScale = 0.45f)
         }
         val r = results
         val c = catalog
@@ -939,8 +957,8 @@ private fun TopResultCard(t: Track, onPlay: () -> Unit) {
             Txt(t.artist, size = 14f, color = sc.onBgDim, maxLines = 1)
             Box(Modifier.padding(top = 4.dp)) { SourceBadge(t.source) }
         }
-        Box(Modifier.size(44.dp).clip(CircleShape).background(sc.accent).clickable(onClick = onPlay), contentAlignment = Alignment.Center) {
-            GlyphIcon(Glyph.PLAY, Modifier.size(20.dp), Color.White)
+        Box(Modifier.size(44.dp).clip(CircleShape).background(sc.accent).semantics { contentDescription = "Play" }.clickable(onClick = onPlay), contentAlignment = Alignment.Center) {
+            GlyphIcon(Glyph.PLAY, Modifier.size(20.dp), sc.accent.readableInk())
         }
     }
 }
@@ -994,14 +1012,16 @@ private fun QueueScreen(nav: PlayerNav, snap: PlayerSnap) {
     Column(Modifier.fillMaxSize()) {
         TopBar("Up Next", nav, showBack = true) { if (q.isNotEmpty()) GlossPill("Clear", { app.player.clearQueue(); nav.pop() }, height = 30.dp) }
         if (q.isEmpty()) { EmptyState("The queue is empty"); return@Column }
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+        // opens on the song playing now (what already played stays above it)
+        val list = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = snap.index.coerceIn(0, q.size - 1))
+        LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 24.dp)) {
             itemsIndexed(q, key = { i, t -> "$i${t.path}" }) { i, t ->
                 val cur = i == snap.index
                 val remove = remember(i, t) { SwipeAction("Remove", Glyph.CLOSE, { Color(0xFFD9423F) }) { app.player.removeFromQueue(i) } }
                 SwipeRow(right = remove, left = remove) {
                 IpodRow({ app.player.skipTo(i) }, height = 56.dp,
                     leading = { Box(Modifier.width(30.dp), contentAlignment = Alignment.Center) { if (cur) EqualizerBars(Modifier.size(18.dp), snap.playing, sc.accent) else Txt("${i + 1}", size = 14f, color = sc.onBgDim) } },
-                    trailing = { Box(Modifier.size(40.dp).clip(RoundedCornerShape(50)).clickable { app.player.removeFromQueue(i) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.CLOSE, Modifier.size(18.dp), sc.onBgDim) } }) { hi ->
+                    trailing = { Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = "Remove ${t.title}" }.clickable { app.player.removeFromQueue(i) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.CLOSE, Modifier.size(18.dp), sc.onBgDim) } }) { hi ->
                     Column {
                         Txt(t.title, size = 16f, weight = if (cur) FontWeight.Bold else FontWeight.Medium, color = if (hi) Color.White else if (cur) sc.accent else sc.onBg)
                         Txt(t.artist, size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
@@ -1064,7 +1084,7 @@ fun sortedSongs(lib: com.ipodemu.library.Library, ud: com.ipodemu.library.UserDa
 @Composable
 fun TopAction(g: Glyph, label: String, onClick: () -> Unit) {
     if (LocalStyle.current.modern) IconAction(g, label, onClick)
-    else GlossButton(onClick, size = 40.dp) { GlyphIcon(g, Modifier.size(22.dp), Color.White) }
+    else GlossButton(onClick, label = label, size = 40.dp) { GlyphIcon(g, Modifier.size(22.dp), Color.White) }
 }
 
 private fun greeting(): String = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
@@ -1089,9 +1109,9 @@ private fun AccountAction() {
 private fun bestGuess(c: com.ipodemu.library.CatalogResults): Pair<String, String>? =
     c.tracks.firstOrNull()?.let { it.artist to it.title } ?: c.albums.firstOrNull()?.let { it.artist to it.title }
 
-/** Playlists the Playlists screen lists: with an account, only its own (on the Jellyfin server, or just created here);
+/** Playlists the Playlists screen lists: the account's own and any made here, not the old on-device ones hidden at upgrade;
  * folder/m3u-derived groups only while browsing an iPod in Sync mode. */
 fun shownPlaylists(app: com.ipodemu.App): List<com.ipodemu.library.UserPlaylist> =
-    app.userData.playlists.toList().filter { !app.prefs.signedIn || it.jfId != null || it.paths.isEmpty() }
+    app.prefs.hiddenPlaylists.let { hidden -> app.userData.playlists.toList().filter { it.id !in hidden } }
 fun shownFolderPlaylists(app: com.ipodemu.App): List<com.ipodemu.library.Group> =
     if (app.library.source == com.ipodemu.library.Library.Source.SYNC) app.library.playlists() else emptyList()

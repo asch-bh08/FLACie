@@ -1,5 +1,7 @@
 package com.ipodemu.player
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -86,7 +88,7 @@ fun SyncModeScreen() {
             try {
                 devices = l.devices()
                 status = if (devices.isNullOrEmpty()) (if (local) "No iPod found. Plug it in over USB (it should appear as USB storage), then try again." else "No iPod connected to that PC") else null
-            } catch (e: Exception) { status = if (local) "Couldn't look for the iPod: ${e.message}" else "Can't reach ipodsync at ${l.label}: ${e.message}" }
+            } catch (e: Exception) { status = if (local) "Couldn't look for the iPod: ${e.message}" else "Can't reach FLACie for Windows at ${l.label}: ${e.message}" }
             finally { busy = false }
         }
     }
@@ -120,7 +122,7 @@ fun SyncModeScreen() {
         Column(Modifier.fillMaxSize()) {
             ModernTopBar(openPlaylist?.name ?: "Sync mode", openPlaylist?.let { { openPlaylist = null } }) {
                 GlossPill("Exit", {
-                    if (pending == 0) ui.changeTheme(0) else status = "You have $pending unsaved change(s) -- write or discard them first"
+                    if (pending == 0) ui.changeTheme(0) else status = "You have $pending unsaved change(s). Write or discard them first."
                 }, height = 36.dp)
             }
             val st = staging
@@ -141,8 +143,8 @@ fun SyncModeScreen() {
                             GlossPill("Open", { if (localPath.isNotBlank()) load(SyncDevice(localPath.trim(), null, true)) }, height = 44.dp)
                         }
                     }
-                    Txt("Or an iPod plugged into a PC running ipodsync:", size = 13f, color = sc.onBgDim)
-                    SyncField("ipodsync PC (host:port)", host, { host = it }, "192.168.1.50:5070", uri = true)
+                    Txt("Or an iPod plugged into a PC running FLACie for Windows:", size = 13f, color = sc.onBgDim)
+                    SyncField("PC address (host:port)", host, { host = it }, "192.168.1.50:5070", uri = true)
                     GlossPill(if (busy && link is com.ipodemu.library.HttpLink) "Looking..." else "Find iPods on that PC", { if (host.isNotBlank()) findDevices(com.ipodemu.library.HttpLink(host.trim())) })
                     if (link is com.ipodemu.library.HttpLink) {
                         devices?.forEach { d -> DeviceRow(d, onOpen = { load(d) }) }
@@ -175,7 +177,7 @@ fun SyncModeScreen() {
                 Modifier.fillMaxWidth().padding(12.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x22FFFFFF)).padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Txt("$pending change${if (pending == 1) "" else "s"} staged -- nothing written yet", Modifier.weight(1f), size = 14f, maxLines = 2)
+                Txt("$pending change${if (pending == 1) "" else "s"} staged, nothing written yet", Modifier.weight(1f), size = 14f, maxLines = 2)
                 GlossPill("Discard", { staging = SyncStaging(st.base); openPlaylist = null; rev++ }, height = 38.dp)
                 GlossPill("Review", { reviewing = true }, height = 38.dp, primary = true)
             }
@@ -214,7 +216,7 @@ private fun sortKey(s: String) = com.ipodemu.library.sortKey(s)
 private fun Stars(stars: Int, onSet: (Int) -> Unit) {
     val sc = LocalScheme.current
     Row {
-        for (i in 1..5) Box(Modifier.size(28.dp).clickable { onSet(if (stars == i) 0 else i) }, contentAlignment = Alignment.Center) {
+        for (i in 1..5) Box(Modifier.size(40.dp).semantics { contentDescription = "$i star${if (i == 1) "" else "s"}" }.clickable { onSet(if (stars == i) 0 else i) }, contentAlignment = Alignment.Center) {
             GlyphIcon(Glyph.STAR, Modifier.size(18.dp), if (i <= stars) sc.accent else sc.onBg.copy(alpha = .22f))
         }
     }
@@ -332,7 +334,7 @@ private fun ReviewScreen(link: com.ipodemu.library.IpodLink, device: SyncDevice,
     var writing by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         dry = try { link.apply(device.rootPath, changeSet, commit = false, confirmToken = null) }
-        catch (e: Exception) { ApplyResult(true, false, false, false, null, emptyList(), emptyList(), emptyList(), null, e.message ?: "Couldn't reach ipodsync") }
+        catch (e: Exception) { ApplyResult(true, false, false, false, null, emptyList(), emptyList(), emptyList(), null, e.message ?: "Couldn't reach FLACie for Windows") }
     }
     Box(Modifier.fillMaxSize().background(Color(0xFF0B0B0D)).pointerInput(Unit) { detectTapGestures { } }) {
         Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -349,7 +351,7 @@ private fun ReviewScreen(link: com.ipodemu.library.IpodLink, device: SyncDevice,
                         result?.restored == true -> "The write failed a check, so the iPod's database was restored from the backup. Nothing changed."
                         result != null -> "Not written: ${result?.error ?: "a check failed"}"
                         r.ok -> "Dry run passed. The iPod's database will be backed up before writing."
-                        else -> "Dry run did not pass${r.error?.let { ": $it" } ?: ""} -- nothing can be written."
+                        else -> "Dry run did not pass${r.error?.let { ": $it" } ?: ""}. Nothing can be written."
                     }
                     Txt(headline, size = 15f, weight = FontWeight.SemiBold, color = if (result?.written == true || (result == null && r.ok)) Color(0xFF7CE0A0) else Color(0xFFFFB0B0), maxLines = 4)
                     LazyColumn(Modifier.weight(1f)) {
@@ -368,7 +370,7 @@ private fun ReviewScreen(link: com.ipodemu.library.IpodLink, device: SyncDevice,
             }
         }
         if (confirm) DialogFrame("Write to ${device.volumeLabel ?: device.rootPath}?", { confirm = false }) {
-            Txt("${changeSet.getJSONArray("ops").length()} change(s) will be written to the iPod. ipodsync backs up its database first, verifies everything after writing, and puts the backup back automatically if any check fails.", size = 14f, maxLines = 6)
+            Txt("${changeSet.getJSONArray("ops").length()} change(s) will be written to the iPod. Its database is backed up first, everything is checked after writing, and the backup is put back automatically if any check fails.", size = 14f, maxLines = 6)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 GlossPill("Cancel", { confirm = false })
                 GlossPill("Write", {

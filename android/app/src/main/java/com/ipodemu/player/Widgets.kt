@@ -1,5 +1,11 @@
 package com.ipodemu.player
 
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.verticalScroll
@@ -267,7 +273,7 @@ fun Txt(
 /** Round Aqua-style button: gradient body, specular highlight, focus ring for the D-pad. */
 @Composable
 fun GlossButton(
-    onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 56.dp, primary: Boolean = false, enabled: Boolean = true,
+    onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 56.dp, primary: Boolean = false, enabled: Boolean = true, label: String? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val sc = LocalScheme.current
@@ -292,6 +298,7 @@ fun GlossButton(
                     Offset(this.size.width * .1f, this.size.height * .03f), Size(this.size.width * .8f, this.size.height * .5f),
                 )
             }
+            .then(if (label != null) Modifier.semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button } else Modifier)
             .combinedClickableNoRipple(src, enabled, onClick),
         contentAlignment = Alignment.Center, content = content,
     )
@@ -334,8 +341,10 @@ fun GlossPill(
             .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
     ) {
-        if (icon != null) { GlyphIcon(icon, Modifier.size(20.dp), Color.White); if (text.isNotEmpty()) Box(Modifier.width(8.dp)) }
-        if (text.isNotEmpty()) Txt(text, size = 15f, weight = FontWeight.SemiBold, color = Color.White)
+        // a pale accent (a yellow or white cover) needs dark text to stay readable
+        val ink = if (primary && modern) sc.accent.readableInk() else Color.White
+        if (icon != null) { GlyphIcon(icon, Modifier.size(20.dp), ink); if (text.isNotEmpty()) Box(Modifier.width(8.dp)) }
+        if (text.isNotEmpty()) Txt(text, size = 15f, weight = FontWeight.SemiBold, color = ink)
     }
 }
 
@@ -555,3 +564,30 @@ fun ActionSheet(title: String, subtitle: String?, items: List<SheetItem>, onDism
 fun Color.mix(other: Color, t: Float) = Color(
     red + (other.red - red) * t, green + (other.green - green) * t, blue + (other.blue - blue) * t, alpha,
 )
+
+/** Text field for the service setup forms: no autocorrect (URLs and keys), Next moves to the following field, Done closes
+ * the keyboard on the last one, and [secret] masks passwords. */
+@Composable
+fun SetupTextField(
+    value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier, singleLine: Boolean = true,
+    cursorBrush: Brush = SolidColor(Color.White), textStyle: TextStyle = TextStyle(color = Color.White, fontSize = 16.sp),
+    secret: Boolean = false, last: Boolean = false,
+) {
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    BasicTextField(
+        value, onValueChange, modifier, singleLine = singleLine, cursorBrush = cursorBrush, textStyle = textStyle,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = if (secret) androidx.compose.ui.text.input.KeyboardType.Password else androidx.compose.ui.text.input.KeyboardType.Uri,
+            autoCorrect = false,
+            imeAction = if (last) androidx.compose.ui.text.input.ImeAction.Done else androidx.compose.ui.text.input.ImeAction.Next,
+        ),
+        keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+            onNext = { focus.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) },
+            onDone = { focus.clearFocus() },
+        ),
+        visualTransformation = if (secret) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+    )
+}
+
+/** White or near-black, whichever reads better on this colour (WCAG relative luminance). */
+fun Color.readableInk(): Color = if (luminance() > 0.4f) Color(0xFF111114) else Color.White

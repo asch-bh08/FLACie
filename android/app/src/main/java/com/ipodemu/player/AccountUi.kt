@@ -64,7 +64,7 @@ fun AccountScreen() {
             if (acct.signedIn) {
                 Txt("Signed in as ${prefs.accountUserName}", size = 18f, weight = FontWeight.SemiBold, color = Color.White)
                 Txt(prefs.accountServer, size = 14f, color = Color(0x99FFFFFF))
-                Txt("Your service connections, playlists and favourites are saved to this account and restored when you sign in on another device. Playlists are also kept as real Jellyfin playlists.", size = 14f, color = Color(0xCCFFFFFF), maxLines = 5)
+                Txt("Your service connections, playlists and favourites are saved to this account and restored when you sign in on another device. Playlists are also kept as real Jellyfin playlists. Passwords and API keys are stored in your Jellyfin user settings, so anyone with admin access to that server can read them.", size = 14f, color = Color(0xCCFFFFFF), maxLines = 7)
                 Txt(acct.status ?: syncedLabel(prefs.accountSyncedAt), size = 14f, color = Color(0xFF7CE0A0), maxLines = 3)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     GlossPill(if (acct.busy) "Syncing..." else "Sync now", { acct.sync() }, primary = true)

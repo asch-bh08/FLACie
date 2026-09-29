@@ -25,3 +25,10 @@ straight into the phone over USB or into a PC.
 
 This repository was `ipodplayer` (the Android app); `ipodsync` was merged in with its full history under `ipodsync/`.
 Older releases of each live on their original release pages.
+
+## Privacy
+
+FLACie has no analytics, ads or tracking. It talks to the servers you set up (Jellyfin, Plex, NAS, Lidarr, slskd, file mover),
+plus two public lookups that send only an artist and song or album name: [LRCLIB](https://lrclib.net) for lyrics and the
+iTunes Search API for covers that your servers don't have. Signing in to an account stores your service connections
+(including passwords and API keys) in your Jellyfin user settings on your own server.

@@ -123,8 +123,8 @@ class Library(ctx: Context, val art: ArtCache) {
     fun nasOnlyTracks(): List<Track> {
         val n = nasTracks; val j = jellyfinTracks
         nasOnlyCache?.let { if (it.first === n && it.second === j) return it.third }
-        val files = j.mapNotNullTo(HashSet()) { it.fileKey }; val keys = j.mapTo(HashSet()) { dedupKey(it) }
-        return n.filter { it.fileKey !in files && dedupKey(it) !in keys }.also { nasOnlyCache = Triple(n, j, it) }
+        val files = j.mapNotNullTo(HashSet()) { it.fileKey }; val keys = j.mapTo(HashSet()) { mergeKey(it) }
+        return n.filter { it.fileKey !in files && mergeKey(it) !in keys }.also { nasOnlyCache = Triple(n, j, it) }
     }
     @Volatile private var nasOnlyCache: Triple<List<Track>, List<Track>, List<Track>>? = null
 
@@ -150,7 +150,16 @@ class Library(ctx: Context, val art: ArtCache) {
     /** A playlist/favourite entry on this device: the exact file, or -- for an entry synced from another device --
      * this library's copy of the same song by title + artist. */
     fun resolve(path: String, meta: Pair<String, String>?): Track? =
-        byPath()[path] ?: meta?.let { byKey()[matchKey(it.first, it.second)] }
+        byPath()[path] ?: meta?.let { byKey()[matchKey(it.first, it.second)] } ?: jellyfinByPath()[path]
+            // a Jellyfin stream the library hasn't listed (yet): still playable from what the playlist recorded
+            ?: if (meta != null && path.startsWith("http") && "/Audio/" in path) Track(
+                path = path, title = meta.first, artist = meta.second, album = "", albumArtist = meta.second, genre = "", trackNo = 0, discNo = 0,
+                durationMs = 0, year = 0, isMusic = true, artKey = Regex("/Audio/([0-9a-fA-F]{32})/").find(path)?.let { "jf" + it.groupValues[1] },
+                mtime = 0, size = 0, source = TrackSource.JELLYFIN,
+            ) else null
+
+    private fun jellyfinByPath(): Map<String, Track> { val t = jellyfinTracks; jfPathCache?.let { if (it.first === t) return it.second }; return t.associateBy { it.path }.also { jfPathCache = t to it } }
+    @Volatile private var jfPathCache: Pair<List<Track>, Map<String, Track>>? = null
 
     /** The signed-in account's user when Jellyfin is the account's own server (its token can't list /Users). */
     private suspend fun jellyfinUser(url: String, key: String): String? =
@@ -194,10 +203,10 @@ class Library(ctx: Context, val art: ArtCache) {
         val m = src.filter { it.isMusic }
         val songs = m.sortedBy { sortKey(it.title) }
         val artists = m.groupBy { it.albumArtist.ifEmpty { it.artist } }.map { (k, v) ->
-            Group(k, v.sortedWith(albumOrder), v.firstNotNullOfOrNull { it.artKey })
+            Group(k.ifBlank { "Unknown Artist" }, v.sortedWith(albumOrder), v.firstNotNullOfOrNull { it.artKey })
         }.sortedBy { sortKey(it.name) }
         val albums = m.groupBy { it.albumKey }.map { (_, v) ->
-            Group(v[0].album, v.sortedWith(trackOrder), v.firstNotNullOfOrNull { it.artKey })
+            Group(v[0].album.ifBlank { "Unknown Album" }, v.sortedWith(trackOrder), v.firstNotNullOfOrNull { it.artKey })
         }.sortedBy { sortKey(it.name) }
         // Genres differing only by case ("HoodTrap" / "hoodtrap") are one genre.
         val genres = m.filter { it.genre.isNotEmpty() }.groupBy { it.genre.lowercase() }.map { (_, v) ->
@@ -520,7 +529,7 @@ class Library(ctx: Context, val art: ArtCache) {
                 onServicesChanged?.invoke()
                 nasTracks = found
                 nasConnected = true
-                nasStatus = "Connected -- ${found.size} tracks found"
+                nasStatus = "Connected: ${found.size} tracks found"
                 applyNasMerge()
             } catch (e: Exception) {
                 nasStatus = "Could not connect: ${e.message}"; nasConnected = false
@@ -648,12 +657,12 @@ class Library(ctx: Context, val art: ArtCache) {
         // Jellyfin and the NAS share are usually the same files (Jellyfin scans that share): the Jellyfin copy wins,
         // since it streams from anywhere while SMB only works at home -- drop NAS rows it duplicates before merging.
         if (extraSource.first().source == TrackSource.JELLYFIN) {
-            val jf = extraSource.mapNotNullTo(HashSet()) { it.fileKey } to extraSource.mapTo(HashSet()) { dedupKey(it) }
+            val jf = extraSource.mapNotNullTo(HashSet()) { it.fileKey } to extraSource.mapTo(HashSet()) { mergeKey(it) }
             val before = tracks.size
-            tracks = tracks.filterNot { it.source == TrackSource.NAS && (it.fileKey in jf.first || dedupKey(it) in jf.second) }
+            tracks = tracks.filterNot { it.source == TrackSource.NAS && (it.fileKey in jf.first || mergeKey(it) in jf.second) }
             if (tracks.size != before) derive()
         }
-        val seen = tracks.mapTo(HashSet()) { dedupKey(it) }
+        val seen = tracks.mapTo(HashSet()) { mergeKey(it) }
         val seenFiles = tracks.mapNotNullTo(HashSet()) { it.fileKey }
         // distinctBy first: this only filters extraSource against tracks already merged in, so two
         // duplicate files inside the SAME scan pass (e.g. a NAS folder holding both a Soulseek-won
@@ -661,9 +670,9 @@ class Library(ctx: Context, val art: ArtCache) {
         // title+artist) would otherwise both survive -- neither was "seen" yet when the other was
         // checked. Confirmed live: a NAS rescan kept "Rosanna"/"Toto" as two rows even after the
         // title-cleaning fix, because both copies arrived in the same nasTracks batch.
-        // within one source only exact title+artist repeats collapse (the same song on two albums stays on both);
-        // across sources the looser [matchKey] applies
-        val extra = extraSource.distinctBy { "${it.title.trim().lowercase()}|${it.artist.trim().lowercase()}" }.filter { dedupKey(it) !in seen && (it.fileKey == null || it.fileKey !in seenFiles) }
+        // the same song on two albums stays on both (an album page must not lose tracks); a copy of the same song on
+        // the same album, however each source spells the credits and edition, collapses
+        val extra = extraSource.distinctBy { mergeKey(it) }.filter { mergeKey(it) !in seen && (it.fileKey == null || it.fileKey !in seenFiles) }
         if (extra.isEmpty()) return
         tracks = tracks + extra
         derive(); notifyChange()
@@ -671,6 +680,10 @@ class Library(ctx: Context, val art: ArtCache) {
 
     /** Same song across sources, tolerant of how each one spells the credits (see [matchKey]). */
     private fun dedupKey(t: Track) = t.matchKey
+
+    /** [matchKey] plus the album with editions and punctuation dropped ("Recovery [Deluxe Edition]" = "Recovery"). */
+    private fun mergeKey(t: Track) = t.matchKey + "|" + t.album.lowercase().replace(editionRe, "").filter { it.isLetterOrDigit() }
+    private val editionRe = Regex("""[(\[][^)\]]*[)\]]""")
 
     private suspend fun runScan() {
         val existing = localTracks.associateBy { it.path }

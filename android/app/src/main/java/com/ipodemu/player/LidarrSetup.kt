@@ -57,10 +57,10 @@ fun LidarrSetupScreen() {
     val fr = remember { FocusRequester() }
 
     @Composable
-    fun field(label: String, value: String, onChange: (String) -> Unit, focus: Boolean = false) {
+    fun field(label: String, value: String, onChange: (String) -> Unit, focus: Boolean = false, secret: Boolean = label.startsWith("Password")) {
         Txt(label, size = 12f)
-        BasicTextField(
-            value, onChange, singleLine = true, cursorBrush = SolidColor(Color.White),
+        SetupTextField(
+            value, onChange, singleLine = true, cursorBrush = SolidColor(Color.White), secret = secret,
             textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
             modifier = Modifier.fillMaxWidth().let { if (focus) it.focusRequester(fr) else it }
                 .clip(RoundedCornerShape(12.dp)).background(Color(0x22FFFFFF)).padding(14.dp),
@@ -78,7 +78,7 @@ fun LidarrSetupScreen() {
             }
             Txt("Lets a search's \"Download\" option request a track you don't have yet.", size = 13f, maxLines = 3)
 
-            field("Server URL (e.g. https://frank.tailb05910.ts.net/lidarr)", url, { url = it }, focus = true)
+            field("Server URL (e.g. https://myserver.example/lidarr)", url, { url = it }, focus = true)
             field("API key (Lidarr > Settings > General)", apiKey, { apiKey = it })
             GlossPill(if (lib.lidarrConnecting) "Connecting…" else "Connect", {
                 if (url.isNotBlank() && apiKey.isNotBlank()) lib.connectLidarr(url.trim(), apiKey.trim())
@@ -90,8 +90,8 @@ fun LidarrSetupScreen() {
             }
 
             Box(Modifier.padding(top = 8.dp)) { Txt("Soulseek (optional)", size = 16f, weight = FontWeight.Bold) }
-            Txt("Usually wins the race when configured: a live peer search often beats waiting on an indexer. Lidarr won't import a single track on its own, so a completed download is filed straight into the library via the file mover below -- that must be set up too, or a Soulseek win can't be filed anywhere. Leave blank to use Lidarr only.", size = 12f, maxLines = 8)
-            field("slskd URL (e.g. https://frank.tailb05910.ts.net/slskd)", slskdUrl, { slskdUrl = it })
+            Txt("Lidarr won't import a single track on its own, so a completed download is filed straight into the library via the file mover below, so set that up too. Leave blank to use Lidarr only.", size = 12f, maxLines = 8)
+            field("slskd URL (e.g. https://myserver.example/slskd)", slskdUrl, { slskdUrl = it })
             field("slskd API key", slskdKey, { slskdKey = it })
             field("Download path (relative to the shared root, e.g. downloads/slskd-inbox)", slskdPath, { slskdPath = it })
             GlossPill(if (lib.slskdConnecting) "Connecting…" else "Connect Soulseek", {
@@ -104,8 +104,8 @@ fun LidarrSetupScreen() {
             }
 
             Box(Modifier.padding(top = 8.dp)) { Txt("File mover", size = 16f, weight = FontWeight.Bold) }
-            Txt("How a Soulseek download actually gets filed into the library -- a small HTTP service on the homelab, works from anywhere over the Funnel.", size = 12f, maxLines = 3)
-            field("File mover URL (e.g. https://frank.tailb05910.ts.net/filemove)", moverUrl, { moverUrl = it })
+            Txt("Moves finished Soulseek downloads into your music folder.", size = 12f, maxLines = 3)
+            field("File mover URL (e.g. https://myserver.example/filemove)", moverUrl, { moverUrl = it })
             field("File mover API key", moverKey, { moverKey = it })
             GlossPill(if (lib.fileMoverConnecting) "Connecting…" else "Connect File Mover", {
                 if (moverUrl.isNotBlank() && moverKey.isNotBlank()) lib.connectFileMover(moverUrl.trim(), moverKey.trim())

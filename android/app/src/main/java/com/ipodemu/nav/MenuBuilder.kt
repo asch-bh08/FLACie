@@ -91,8 +91,14 @@ class MenuBuilder(private val app: App, private val onThemeChosen: (String) -> U
         }
     }
 
-    /** Playlists mirror the folders under Music/ (plus any .m3u files). */
-    fun playlistsPage() = groupPage("Playlists", Kind.ALBUMS, { lib.playlists() }) { g -> songsPage(g.name, g.tracks) }
+    /** The account's playlists and ones made here (same list as the Modern theme); an iPod's own in Sync mode. */
+    fun playlistsPage() = groupPage("Playlists", Kind.ALBUMS, {
+        val ud = app.userData
+        com.ipodemu.player.shownPlaylists(app).map { p ->
+            val ts = p.paths.mapNotNull { lib.resolve(it, ud.meta[it]) }
+            Group(p.name, ts, ts.firstNotNullOfOrNull { it.artKey })
+        } + com.ipodemu.player.shownFolderPlaylists(app)
+    }) { g -> songsPage(g.name, g.tracks) }
 
     fun artistsPage() = groupPage("Artists", Kind.ARTISTS, { lib.artists() }) { g ->
         val albums = g.tracks.groupBy { it.albumKey }.values.map { Group(it[0].album, it, it.firstNotNullOfOrNull { t -> t.artKey }) }

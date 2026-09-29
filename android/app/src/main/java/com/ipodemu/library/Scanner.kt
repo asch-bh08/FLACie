@@ -87,7 +87,7 @@ class Scanner(private val ctx: Context, private val art: ArtCache) {
         val mmr = MediaMetadataRetriever()
         try {
             mmr.setDataSource(f.path)
-            fun tag(k: Int) = mmr.extractMetadata(k)?.trim()?.takeIf { it.isNotEmpty() }
+            fun tag(k: Int) = mmr.extractMetadata(k)?.trim()?.takeIf { it.isNotEmpty() }?.let(::fixMojibake)
             val artist = tag(MediaMetadataRetriever.METADATA_KEY_ARTIST)
             val album = tag(MediaMetadataRetriever.METADATA_KEY_ALBUM)
             val title = tag(MediaMetadataRetriever.METADATA_KEY_TITLE)

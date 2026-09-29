@@ -195,6 +195,7 @@ class AccountSync(private val app: App) {
             .put("favorites", JSONArray().also { a -> ud.favorites.toList().forEach { a.put(meta(it)) } })
             .put("playlists", lists)
             .put("deleted", JSONArray(ud.deletedPlaylists.toList()))
+            .put("hidden", JSONArray(p.hiddenPlaylists.toList()))
     }
 
     /** Merges a pulled profile in. Services only fill in what this device doesn't have yet (never overwrites a
@@ -225,6 +226,8 @@ class AccountSync(private val app: App) {
                 List(tr.length()) { j -> tr.getJSONObject(j).let { Triple(it.optString("p"), it.optString("t"), it.optString("a")) } })
         }
         val deleted = r.optJSONArray("deleted")?.let { a -> List(a.length()) { a.getString(it) } } ?: emptyList()
+        // old on-device playlists hidden on another install stay hidden here
+        r.optJSONArray("hidden")?.let { a -> p.hiddenPlaylists = p.hiddenPlaylists + List(a.length()) { a.getString(it) } }
         kotlinx.coroutines.withContext(Dispatchers.Main) { app.userData.mergeRemote(incomingFavs, incoming, deleted) }
         if (restored > 0) app.library.reconnectAll()
         return restored

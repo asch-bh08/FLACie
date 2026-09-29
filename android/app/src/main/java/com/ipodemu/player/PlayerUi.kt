@@ -632,7 +632,7 @@ private fun GroupList(groups: List<Group>, nav: PlayerNav, circle: Boolean, targ
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         sections.forEach { (l, list) ->
             stickyHeader(key = "h$l") { LetterHeader(l) }
-            items(list, key = { it.name }) { g ->
+            items(list, key = { it.name + "|" + (it.tracks.firstOrNull()?.path ?: "") }) { g ->
             IpodRow({ nav.push(target(g)) }, height = 56.dp,
                 leading = { ArtImage(g.artKey, Modifier.size(44.dp), thumb = true, corner = 10.dp, circle = circle) },
                 trailing = { CountChevron(g.tracks.size) }) { hi ->
@@ -679,7 +679,7 @@ private fun PlaylistsList(nav: PlayerNav) {
                 Txt(p.name, size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.onBg)
             }
         }
-        items(shownFolderPlaylists(app), key = { "f" + it.name }) { g ->
+        items(shownFolderPlaylists(app), key = { "f" + it.name + "|" + (it.tracks.firstOrNull()?.path ?: "") }) { g ->
             IpodRow({ nav.push(Screen.Detail(DetailKind.FOLDER, g.name)) }, height = 56.dp,
                 leading = { ArtImage(g.artKey, Modifier.size(44.dp), thumb = true, corner = 10.dp) },
                 trailing = { CountChevron(g.tracks.size) }) { hi ->
@@ -828,6 +828,16 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         catalog = try { app.library.catalogSearch(q) } catch (_: Exception) { com.ipodemu.library.CatalogResults.EMPTY }
         catalogLoading = false
     }
+    // what the bottom Download button will fetch: the most popular song matching the words (iTunes ranks by popularity,
+    // Lidarr's album catalog does not, so "rap god" used to guess a cover album by someone else)
+    var songGuess by remember { mutableStateOf<Pair<String, String>?>(null) }
+    LaunchedEffect(query) {
+        songGuess = null
+        val q = query.trim()
+        if (q.isEmpty() || " - " in q) return@LaunchedEffect
+        delay(600)
+        songGuess = withContext(Dispatchers.IO) { com.ipodemu.library.CoverLookup.topSong(q) }
+    }
     Column(Modifier.fillMaxSize().imePadding()) {
         TopBar("Search", nav, showBack = true)
         Row(
@@ -868,7 +878,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         else if (nothingAtAll) {
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f)) { EmptyState("No results") }
-                DownloadRequestBar(app, query.trim(), guess = bestGuess(c))
+                DownloadRequestBar(app, query.trim(), guess = songGuess ?: bestGuess(c))
             }
         }
         else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -912,7 +922,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 }
             }
             if (catalogLoading) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Searching Lidarr/Soulseek...", size = 13f, color = sc.onBgDim) } }
-            item { DownloadRequestBar(app, query.trim(), compact = true, guess = bestGuess(c)) }
+            item { DownloadRequestBar(app, query.trim(), compact = true, guess = songGuess ?: bestGuess(c)) }
         }
     }
 }

@@ -60,12 +60,12 @@ class JellyfinDirectClient {
     }
 
     private fun tracksFrom(url: String, arr: JSONArray): List<Track> {
-        fun str(o: JSONObject, key: String) = if (o.isNull(key)) "" else o.optString(key)
+        fun str(o: JSONObject, key: String) = if (o.isNull(key)) "" else fixMojibake(o.optString(key))
         return List(arr.length()) { i ->
             val o = arr.getJSONObject(i)
             val id = o.getString("Id")
-            val artist = if (!o.isNull("AlbumArtist") && o.optString("AlbumArtist").isNotEmpty()) o.optString("AlbumArtist")
-                else o.optJSONArray("Artists")?.takeIf { it.length() > 0 }?.getString(0) ?: ""
+            val artist = fixMojibake(if (!o.isNull("AlbumArtist") && o.optString("AlbumArtist").isNotEmpty()) o.optString("AlbumArtist")
+                else o.optJSONArray("Artists")?.takeIf { it.length() > 0 }?.getString(0) ?: "")
             Track(
                 path = "${base(url)}/Audio/$id/stream?static=true",
                 title = str(o, "Name").ifEmpty { "(untitled)" },

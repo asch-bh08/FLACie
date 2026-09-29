@@ -123,8 +123,8 @@ class Library(ctx: Context, val art: ArtCache) {
     fun nasOnlyTracks(): List<Track> {
         val n = nasTracks; val j = jellyfinTracks
         nasOnlyCache?.let { if (it.first === n && it.second === j) return it.third }
-        val files = j.mapNotNullTo(HashSet()) { it.fileKey }; val keys = j.mapTo(HashSet()) { mergeKey(it) }
-        return n.filter { it.fileKey !in files && mergeKey(it) !in keys }.also { nasOnlyCache = Triple(n, j, it) }
+        val files = j.mapNotNullTo(HashSet()) { it.fileKey }; val keys = SongIndex(j)
+        return n.filter { it.fileKey !in files && !keys.has(it) }.also { nasOnlyCache = Triple(n, j, it) }
     }
     @Volatile private var nasOnlyCache: Triple<List<Track>, List<Track>, List<Track>>? = null
 
@@ -202,8 +202,8 @@ class Library(ctx: Context, val art: ArtCache) {
         if (d0.src === src) return d0
         val m = src.filter { it.isMusic }
         val songs = m.sortedBy { sortKey(it.title) }
-        val artists = m.groupBy { it.albumArtist.ifEmpty { it.artist } }.map { (k, v) ->
-            Group(k.ifBlank { "Unknown Artist" }, v.sortedWith(albumOrder), v.firstNotNullOfOrNull { it.artKey })
+        val artists = m.groupBy { it.albumArtist.ifEmpty { it.artist }.ifBlank { "Unknown Artist" } }.map { (k, v) ->
+            Group(k, v.sortedWith(albumOrder), v.firstNotNullOfOrNull { it.artKey })
         }.sortedBy { sortKey(it.name) }
         val albums = m.groupBy { it.albumKey }.map { (_, v) ->
             Group(v[0].album.ifBlank { "Unknown Album" }, v.sortedWith(trackOrder), v.firstNotNullOfOrNull { it.artKey })
@@ -270,12 +270,14 @@ class Library(ctx: Context, val art: ArtCache) {
         // for what was unambiguously a song search (confirmed live with "Rick Astley - Never Gonna
         // Give You Up" surfacing only under "Albums you don't have", no Songs section at all).
         val looksLikeSongQuery = query.contains(" - ")
-        val ownedAlbumKeys = albums().map { g -> "${g.tracks.firstOrNull()?.artist.orEmpty().trim().lowercase()}|${g.name.trim().lowercase()}" }.toSet()
+        // "Espresso", "Espresso EP", "Espresso - Single" and "Espresso (Deluxe)" are one release for this purpose
+        fun ownedKey(artist: String, album: String) = primaryArtist(artist) + "|" + album.lowercase().replace(editionRe, "").replace(Regex("""s*-?s*(ep|single)s*$"""), "").filter { it.isLetterOrDigit() }
+        val ownedAlbumKeys = albums().map { g -> ownedKey(g.tracks.firstOrNull()?.artist.orEmpty(), g.name) }.toSet()
         val catalogAlbums = if (looksLikeSongQuery) emptyList() else try {
             val qLower = query.trim().lowercase()
             lidarr.lookupAlbum(prefs.lidarrUrl, prefs.lidarrApiKey, query)
                 .distinctBy { "${it.artistName.trim().lowercase()}|${it.title.trim().lowercase()}" }
-                .filter { "${it.artistName.trim().lowercase()}|${it.title.trim().lowercase()}" !in ownedAlbumKeys }
+                .filter { ownedKey(it.artistName, it.title) !in ownedAlbumKeys }
                 // A free-text album search returns every same-titled release by anyone (tribute
                 // albums, unknown-artist covers, megamixes...) -- there's no real popularity signal
                 // in Lidarr's own API, so this is a best-effort proxy: an exact title match with real
@@ -657,12 +659,12 @@ class Library(ctx: Context, val art: ArtCache) {
         // Jellyfin and the NAS share are usually the same files (Jellyfin scans that share): the Jellyfin copy wins,
         // since it streams from anywhere while SMB only works at home -- drop NAS rows it duplicates before merging.
         if (extraSource.first().source == TrackSource.JELLYFIN) {
-            val jf = extraSource.mapNotNullTo(HashSet()) { it.fileKey } to extraSource.mapTo(HashSet()) { mergeKey(it) }
+            val jf = extraSource.mapNotNullTo(HashSet()) { it.fileKey } to SongIndex(extraSource)
             val before = tracks.size
-            tracks = tracks.filterNot { it.source == TrackSource.NAS && (it.fileKey in jf.first || mergeKey(it) in jf.second) }
+            tracks = tracks.filterNot { it.source == TrackSource.NAS && (it.fileKey in jf.first || jf.second.has(it)) }
             if (tracks.size != before) derive()
         }
-        val seen = tracks.mapTo(HashSet()) { mergeKey(it) }
+        val seen = SongIndex(tracks)
         val seenFiles = tracks.mapNotNullTo(HashSet()) { it.fileKey }
         // distinctBy first: this only filters extraSource against tracks already merged in, so two
         // duplicate files inside the SAME scan pass (e.g. a NAS folder holding both a Soulseek-won
@@ -672,7 +674,7 @@ class Library(ctx: Context, val art: ArtCache) {
         // title-cleaning fix, because both copies arrived in the same nasTracks batch.
         // the same song on two albums stays on both (an album page must not lose tracks); a copy of the same song on
         // the same album, however each source spells the credits and edition, collapses
-        val extra = extraSource.distinctBy { mergeKey(it) }.filter { mergeKey(it) !in seen && (it.fileKey == null || it.fileKey !in seenFiles) }
+        val extra = extraSource.distinctBy { mergeKey(it) }.filter { !seen.has(it) && (it.fileKey == null || it.fileKey !in seenFiles) }
         if (extra.isEmpty()) return
         tracks = tracks + extra
         derive(); notifyChange()
@@ -682,8 +684,17 @@ class Library(ctx: Context, val art: ArtCache) {
     private fun dedupKey(t: Track) = t.matchKey
 
     /** [matchKey] plus the album with editions and punctuation dropped ("Recovery [Deluxe Edition]" = "Recovery"). */
-    private fun mergeKey(t: Track) = t.matchKey + "|" + t.album.lowercase().replace(editionRe, "").filter { it.isLetterOrDigit() }
+    private fun mergeKey(t: Track) = t.matchKey + "|" + albumNorm(t)
+    private fun albumNorm(t: Track) = t.album.lowercase().replace(editionRe, "").filter { it.isLetterOrDigit() }
     private val editionRe = Regex("""[(\[][^)\]]*[)\]]""")
+
+    /** Songs already present: the same song on the same album; a copy with no album tag counts as present when the song
+     * is there on any album (a tagged album copy is never hidden by a loose untagged one, or album pages would lose it). */
+    private inner class SongIndex(ts: List<Track>) {
+        private val exact = HashSet<String>(); private val any = HashSet<String>()
+        init { for (t in ts) { exact += mergeKey(t); any += t.matchKey } }
+        fun has(t: Track) = mergeKey(t) in exact || (albumNorm(t).isEmpty() && t.matchKey in any)
+    }
 
     private suspend fun runScan() {
         val existing = localTracks.associateBy { it.path }
@@ -729,7 +740,7 @@ class Library(ctx: Context, val art: ArtCache) {
         .put("mt", t.mtime).put("s", t.size)
 
     private fun fromJson(o: JSONObject) = Track(
-        o.getString("p"), o.getString("ti"), o.getString("ar"), o.getString("al"), o.getString("aa"),
+        o.getString("p"), fixMojibake(o.getString("ti")), fixMojibake(o.getString("ar")), fixMojibake(o.getString("al")), fixMojibake(o.getString("aa")),
         o.getString("g"), o.getInt("tn"), o.getInt("dn"), o.getLong("d"), o.getInt("y"), o.getBoolean("m"),
         o.getString("k").ifEmpty { null }, o.getLong("mt"), o.getLong("s"),
     )

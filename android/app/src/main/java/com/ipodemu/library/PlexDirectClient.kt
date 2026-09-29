@@ -67,7 +67,7 @@ class PlexDirectClient {
     }
 
     private fun tracksFrom(url: String, arr: JSONArray): List<Track> {
-        fun str(o: JSONObject, key: String) = if (o.isNull(key)) "" else o.optString(key)
+        fun str(o: JSONObject, key: String) = if (o.isNull(key)) "" else fixMojibake(o.optString(key))
         val out = ArrayList<Track>()
         for (i in 0 until arr.length()) {
             val o = arr.getJSONObject(i)

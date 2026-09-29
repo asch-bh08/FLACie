@@ -65,3 +65,24 @@ val Track.fileKey: String?
         val segs = decoded.replace('\\', '/').split('/').filter { it.isNotEmpty() }
         return if (segs.size < 2) null else segs.takeLast(3).joinToString("/").lowercase()
     }
+
+/**
+ * Repairs tag text that was decoded with the wrong charset: UTF-8 read as Latin-1 ("BeyoncÃ©") or Chinese GBK read as
+ * Latin-1 ("±£ÂÞ Âó¿¨ÌØÄá" = 保罗 麦卡特尼). Only when the bytes decode cleanly (strict) into the other charset, and
+ * for GBK only when the result is Chinese, so ordinary accented names are left alone.
+ */
+fun fixMojibake(s: String): String {
+    if (s.isEmpty() || s.any { it.code > 0xFF }) return s
+    val high = s.count { it.code >= 0x80 }
+    if (high == 0) return s
+    val bytes = ByteArray(s.length) { s[it].code.toByte() }
+    fun strict(cs: String): String? = try {
+        java.nio.charset.Charset.forName(cs).newDecoder()
+            .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT).onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+            .decode(java.nio.ByteBuffer.wrap(bytes)).toString()
+    } catch (_: Exception) { null }
+    strict("UTF-8")?.let { if (it != s) return it }
+    val letters = s.count { !it.isWhitespace() }
+    if (high * 10 >= letters * 4) strict("GBK")?.let { g -> if (g.any { it in '一'..'鿿' }) return g }
+    return s
+}

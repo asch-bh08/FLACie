@@ -36,6 +36,25 @@ object CoverLookup {
         return Song(best.optString("collectionName").replace(Regex("""\s*-\s*(Single|EP)$"""), ""), big(best.optString("artworkUrl100")))
     }
 
+    /** The most popular song matching free text ("rap god" -> Eminem, "Rap God"), as artist to title. */
+    fun topSong(query: String): Pair<String, String>? {
+        val arr = search(query, "song") ?: return null
+        val words = query.lowercase().split(' ').filter { it.isNotBlank() }
+        // every typed word must appear in the credit or title, so a loose hit on one word is not offered
+        val hits = (0 until arr.length()).map { arr.getJSONObject(it) }
+            .filter { o -> "${o.optString("artistName")} ${o.optString("trackName")}".lowercase().let { h -> words.all { it in h } } }
+        // the original over a variant ("Espresso" over "Espresso (On Vacation Version)", a remix or a cover "- Artist for
+        // Babies"), unless the variant's words were typed; "(feat. ...)" is not a variant
+        fun variant(title: String): Boolean {
+            val extra = Regex("""[(\[]([^)\]]*)[)\]]|\s-\s(.*)$""").findAll(title).map { (it.groupValues[1] + it.groupValues[2]).trim().lowercase() }
+                .filterNot { it.startsWith("feat") || it.startsWith("ft.") || it.startsWith("with ") }.joinToString(" ")
+            return extra.isNotBlank() && !extra.split(' ').filter { it.length > 2 }.all { it in words }
+        }
+        return (hits.firstOrNull { !variant(it.optString("trackName")) } ?: hits.firstOrNull())
+            ?.let { it.optString("artistName") to it.optString("trackName") }
+            ?.takeIf { it.first.isNotBlank() && it.second.isNotBlank() }
+    }
+
     private fun albumArt(artist: String, album: String): String? {
         val arr = search("$artist $album", "album") ?: return null
         val best = (0 until arr.length()).map { arr.getJSONObject(it) }

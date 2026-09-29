@@ -271,7 +271,7 @@ class Library(ctx: Context, val art: ArtCache) {
         // Give You Up" surfacing only under "Albums you don't have", no Songs section at all).
         val looksLikeSongQuery = query.contains(" - ")
         // "Espresso", "Espresso EP", "Espresso - Single" and "Espresso (Deluxe)" are one release for this purpose
-        fun ownedKey(artist: String, album: String) = primaryArtist(artist) + "|" + album.lowercase().replace(editionRe, "").replace(Regex("""s*-?s*(ep|single)s*$"""), "").filter { it.isLetterOrDigit() }
+        fun ownedKey(artist: String, album: String) = primaryArtist(artist) + "|" + album.lowercase().replace(editionRe, "").replace(Regex("""\s*-?\s*\b(ep|single)\s*$"""), "").filter { it.isLetterOrDigit() }
         val ownedAlbumKeys = albums().map { g -> ownedKey(g.tracks.firstOrNull()?.artist.orEmpty(), g.name) }.toSet()
         val catalogAlbums = if (looksLikeSongQuery) emptyList() else try {
             val qLower = query.trim().lowercase()

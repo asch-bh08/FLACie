@@ -36,11 +36,11 @@ class JellyfinDirectClient {
 
     /** The Jellyfin library is usually much bigger than one page, so this pages through the full
      * audio catalog (not just "recently added") via StartIndex/Limit until it's all been fetched. */
-    suspend fun allAudio(url: String, apiKey: String, userId: String, pageSize: Int = 500): List<Track> = withContext(Dispatchers.IO) {
+    suspend fun allAudio(url: String, apiKey: String, userId: String, pageSize: Int = 2500): List<Track> = withContext(Dispatchers.IO) {
         val out = ArrayList<Track>()
         var startIndex = 0
         while (true) {
-            val endpoint = "${base(url)}/Users/$userId/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=Path&StartIndex=$startIndex&Limit=$pageSize"
+            val endpoint = "${base(url)}/Users/$userId/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=Path&EnableUserData=false&StartIndex=$startIndex&Limit=$pageSize"
             val json = JSONObject(get(endpoint, apiKey))
             val arr = json.optJSONArray("Items") ?: JSONArray()
             out += tracksFrom(url, arr)

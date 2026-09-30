@@ -38,8 +38,10 @@ import kotlin.math.ln
  * and smb URIs -- file:/content:/asset: local tracks are handled by Android's own readers first. */
 @OptIn(UnstableApi::class)
 private class MultiServerDataSource(private val prefs: Prefs) : DataSource {
-    private val http = DefaultHttpDataSource.Factory().createDataSource()
-    private var smbStream: jcifs.smb.SmbFileInputStream? = null
+    // generous timeouts: a seek over Tailscale can take a few seconds to answer, and the default gave up mid-seek
+    private val http = DefaultHttpDataSource.Factory().setConnectTimeoutMs(15_000).setReadTimeoutMs(20_000)
+        .setAllowCrossProtocolRedirects(true).createDataSource()
+    private var smbStream: jcifs.smb.SmbRandomAccessFile? = null
     private var smbUri: Uri? = null
     private var usingSmb = false
 
@@ -48,8 +50,10 @@ private class MultiServerDataSource(private val prefs: Prefs) : DataSource {
         if (usingSmb) {
             val nasCtx = NasSmb.context(prefs.nasUsername, prefs.nasPassword, prefs.nasDomain)
             val file = jcifs.smb.SmbFile(dataSpec.uri.toString(), nasCtx)
-            val stream = jcifs.smb.SmbFileInputStream(file)
-            if (dataSpec.position > 0) stream.skip(dataSpec.position)
+            // random access: a seek (FLAC seeking reopens several times) jumps straight to the byte instead of reading
+            // and discarding everything before it over the network, which stalled and then broke playback
+            val stream = jcifs.smb.SmbRandomAccessFile(file, "r")
+            if (dataSpec.position > 0) stream.seek(dataSpec.position)
             smbStream = stream
             smbUri = dataSpec.uri
             val remaining = file.length() - dataSpec.position
@@ -115,6 +119,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
 
     val current: Track? get() = exo.currentMediaItem?.localConfiguration?.tag as? Track
     val isPlaying: Boolean get() = exo.isPlaying
+    /** Playing, or about to (loading after a seek, reconnecting): what the Play/Pause button shows and toggles. Showing Play
+     * while it was only loading made a tap pause the reload instead of resuming. */
+    val wantsToPlay: Boolean get() = exo.playWhenReady && exo.playerError == null && exo.playbackState != Player.STATE_IDLE && exo.playbackState != Player.STATE_ENDED
     val hasQueue: Boolean get() = exo.mediaItemCount > 0
     val positionMs: Long get() = exo.currentPosition.coerceAtLeast(0)
     val durationMs: Long get() = current?.durationMs?.takeIf { it > 0 } ?: exo.duration.takeIf { it > 0 } ?: 0L
@@ -133,6 +140,14 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                 (mediaItem?.localConfiguration?.tag as? Track)?.let { onTrackStarted?.invoke(it) }
             }
             override fun onAudioSessionIdChanged(audioSessionId: Int) { applyEq() }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                android.util.Log.w("FLACie", "playback error at ${exo.currentPosition}ms: ${error.errorCodeName}", error)
+                val key = exo.currentMediaItemIndex to (current?.path ?: "")
+                retries = if (key == retryKey) retries + 1 else 1
+                retryKey = key
+                if (retries <= 2) { val at = exo.currentPosition; exo.seekTo(exo.currentMediaItemIndex, at); exo.prepare(); exo.play() }
+                fire()
+            }
         })
         applyEq()
     }
@@ -238,13 +253,17 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** Shuffle Songs: random start, shuffle mode forced on. */
     fun shuffleAll(list: List<Track>) = play(list, if (list.isEmpty()) 0 else list.indices.random(), true)
 
-    fun toggle() { if (exo.isPlaying) exo.pause() else if (hasQueue) exo.play() }
+    fun toggle() { if (wantsToPlay) exo.pause() else if (hasQueue) { ensurePrepared(); exo.play() } }
+    /** After an error the player sits idle and play() alone does nothing; this was why Play stopped working after a bad seek. */
+    private fun ensurePrepared() { if (exo.playbackState == Player.STATE_IDLE || exo.playerError != null) { retries = 0; exo.prepare() } }
+    private var retries = 0
+    private var retryKey: Pair<Int, String>? = null
     fun next() { if (exo.hasNextMediaItem()) exo.seekToNextMediaItem() else if (hasQueue) exo.seekTo(0, 0L) }
     fun prev() {
         if (exo.currentPosition > 3000 || !exo.hasPreviousMediaItem()) exo.seekTo(0) else exo.seekToPreviousMediaItem()
     }
-    fun seekBy(ms: Long) = exo.seekTo((exo.currentPosition + ms).coerceIn(0, (durationMs - 500).coerceAtLeast(0)))
-    fun seekTo(ms: Long) = exo.seekTo(ms.coerceIn(0, durationMs.coerceAtLeast(0)))
+    fun seekBy(ms: Long) { ensurePrepared(); exo.seekTo((exo.currentPosition + ms).coerceIn(0, (durationMs - 500).coerceAtLeast(0))) }
+    fun seekTo(ms: Long) { ensurePrepared(); exo.seekTo(ms.coerceIn(0, (durationMs - 250).coerceAtLeast(0))) }
 
     /** Plays a single audio file opened from another app (file manager, browser, chat...). */
     fun playUri(uri: Uri) {

@@ -136,7 +136,7 @@ fun rememberSnap(player: PlayerController, prefs: Prefs): PlayerSnap {
     var tick by remember { mutableIntStateOf(0) }
     DisposableEffect(player) { val d = player.observe { tick++ }; onDispose { d() } }
     @Suppress("UNUSED_EXPRESSION") tick
-    return PlayerSnap(player.current, player.isPlaying, prefs.shuffle, prefs.repeat, player.queueIndex, player.queue.size)
+    return PlayerSnap(player.current, player.wantsToPlay, prefs.shuffle, prefs.repeat, player.queueIndex, player.queue.size)
 }
 
 @Composable

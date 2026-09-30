@@ -357,7 +357,8 @@ class Library(ctx: Context, val art: ArtCache) {
         scanning = true; scanCount = 0
         job = scope.launch {
             try {
-                if (!loaded) { load(); derive(); loaded = true; notifyChange() }
+                if (!loaded) { load(); loadRemote(); rebuild(); loaded = true }
+                if (source == Source.LOCAL) { mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd(); checkFileMover() }
                 runScan()
             } catch (_: Exception) {
             } finally {
@@ -386,10 +387,10 @@ class Library(ctx: Context, val art: ArtCache) {
         scope.launch {
             try {
                 val lib = sync.library(host, deviceRoot)
-                tracks = lib.tracks; syncGroups = lib.playlists; m3uPlaylists = emptyMap()
+                syncTracks = lib.tracks; syncGroups = lib.playlists; m3uPlaylists = emptyMap()
                 source = Source.SYNC
                 syncDeviceLabel = "$deviceRoot  ($host)"
-                derive()
+                rebuild()
                 mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd(); checkFileMover()
             } catch (e: Exception) {
                 syncError = e.message ?: "Connection failed"
@@ -402,10 +403,10 @@ class Library(ctx: Context, val art: ArtCache) {
     /** Back to whatever the last local scan found -- instant, no rescan needed. */
     fun useLocal() {
         if (source == Source.LOCAL) return
-        tracks = localTracks; m3uPlaylists = localM3u
+        m3uPlaylists = localM3u
         syncGroups = emptyList(); syncDeviceLabel = null; syncError = null
         source = Source.LOCAL
-        derive(); notifyChange()
+        rebuild()
         mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd(); checkFileMover()
     }
 
@@ -458,7 +459,7 @@ class Library(ctx: Context, val art: ArtCache) {
         }
     }
 
-    private fun applyJellyfinMerge() = mergeExtra(jellyfinTracks)
+    private fun applyJellyfinMerge() { rebuild(); saveRemote() }
 
     /** Same direct-connect pattern as Jellyfin, against a Plex Media Server's own REST API. */
     private fun mergePlex() {
@@ -500,7 +501,7 @@ class Library(ctx: Context, val art: ArtCache) {
         }
     }
 
-    private fun applyPlexMerge() = mergeExtra(plexTracks)
+    private fun applyPlexMerge() { rebuild(); saveRemote() }
 
     /** Same idea again, but for a plain SMB/CIFS network share instead of a media server's API --
      * see [NasDirectClient] for how titles/artists/albums get inferred with no metadata service. */
@@ -642,7 +643,7 @@ class Library(ctx: Context, val art: ArtCache) {
         }
     }
 
-    private fun applyNasMerge() = mergeExtra(nasTracks)
+    private fun applyNasMerge() { rebuild(); saveRemote() }
 
     /** Folds [extraSource] into [tracks], dropping anything that's a title+artist match for a track
      * already showing -- whichever source got merged first (local/sync, then Jellyfin, then Plex,
@@ -652,9 +653,23 @@ class Library(ctx: Context, val art: ArtCache) {
      * instant, no waiting on Jellyfin's own scan/API at all. Reuses the same title+artist dedup as
      * every other merge source, so once Jellyfin or NAS eventually also notices the same file, it's
      * recognized as already-present rather than duplicated. */
-    fun addDownloadedTrack(t: Track) = mergeExtra(listOf(t))
+    fun addDownloadedTrack(t: Track) { downloaded = downloaded + t; rebuild() }
+    @Volatile private var downloaded: List<Track> = emptyList()
+    @Volatile private var syncTracks: List<Track> = emptyList()
 
-    private fun mergeExtra(extraSource: List<Track>) {
+    /**
+     * The shown library, rebuilt from scratch: this device's files (or the iPod in Sync mode), then Jellyfin, Plex, the
+     * NAS and fresh downloads, in that order. Rebuilding (instead of adding to whatever is there) means the result never
+     * depends on which fetch finished first -- a local scan finishing used to wipe a Jellyfin merge that had landed before
+     * it, so Jellyfin songs came and went until the next fetch.
+     */
+    @Synchronized private fun rebuild() {
+        tracks = if (source == Source.SYNC) syncTracks else localTracks
+        for (s in listOf(jellyfinTracks, plexTracks, nasTracks, downloaded)) mergeExtra(s, publish = false)
+        derive(); notifyChange()
+    }
+
+    @Synchronized private fun mergeExtra(extraSource: List<Track>, publish: Boolean = true) {
         if (extraSource.isEmpty()) return
         // Jellyfin and the NAS share are usually the same files (Jellyfin scans that share): the Jellyfin copy wins,
         // since it streams from anywhere while SMB only works at home -- drop NAS rows it duplicates before merging.
@@ -662,7 +677,7 @@ class Library(ctx: Context, val art: ArtCache) {
             val jf = extraSource.mapNotNullTo(HashSet()) { it.fileKey } to SongIndex(extraSource)
             val before = tracks.size
             tracks = tracks.filterNot { it.source == TrackSource.NAS && (it.fileKey in jf.first || jf.second.has(it)) }
-            if (tracks.size != before) derive()
+            if (tracks.size != before && publish) derive()
         }
         val seen = SongIndex(tracks)
         val seenFiles = tracks.mapNotNullTo(HashSet()) { it.fileKey }
@@ -677,7 +692,7 @@ class Library(ctx: Context, val art: ArtCache) {
         val extra = extraSource.distinctBy { mergeKey(it) }.filter { !seen.has(it) && (it.fileKey == null || it.fileKey !in seenFiles) }
         if (extra.isEmpty()) return
         tracks = tracks + extra
-        derive(); notifyChange()
+        if (publish) { derive(); notifyChange() }
     }
 
     /** Same song across sources, tolerant of how each one spells the credits (see [matchKey]). */
@@ -702,12 +717,12 @@ class Library(ctx: Context, val art: ArtCache) {
             scanCount = n
             if (localTracks.isEmpty()) {
                 localTracks = partial
-                if (source == Source.LOCAL) { tracks = partial; derive() }
+                if (source == Source.LOCAL) rebuild()
             }
             notifyChange()
         }
         localTracks = res.tracks; localM3u = res.playlists
-        if (source == Source.LOCAL) { tracks = localTracks; m3uPlaylists = localM3u; derive(); mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd(); checkFileMover() }
+        if (source == Source.LOCAL) { m3uPlaylists = localM3u; rebuild() }
         art.forgetMisses()
         save()
     }
@@ -721,8 +736,31 @@ class Library(ctx: Context, val art: ArtCache) {
             localM3u = pl?.keys()?.asSequence()?.associateWith { k ->
                 pl.getJSONArray(k).let { a -> List(a.length()) { a.getString(it) } }
             } ?: emptyMap()
-            if (source == Source.LOCAL) { tracks = localTracks; m3uPlaylists = localM3u }
+            if (source == Source.LOCAL) m3uPlaylists = localM3u
         } catch (_: Exception) { localTracks = emptyList() }
+    }
+
+    private val remoteFile = File(cacheFile.parentFile, "remote.json")
+
+    /** Last fetched Jellyfin/Plex/NAS lists, so they show the moment the app opens instead of after a network round trip. */
+    private fun loadRemote() {
+        try {
+            if (!remoteFile.exists()) return
+            val root = JSONObject(remoteFile.readText())
+            fun list(k: String) = root.optJSONArray(k)?.let { a -> List(a.length()) { fromJson(a.getJSONObject(it)) } } ?: emptyList()
+            if (jellyfinTracks.isEmpty()) jellyfinTracks = list("jf")
+            if (plexTracks.isEmpty()) plexTracks = list("px")
+            if (nasTracks.isEmpty()) nasTracks = list("nas")
+        } catch (_: Exception) {}
+    }
+
+    @Synchronized private fun saveRemote() {
+        try {
+            fun arr(ts: List<Track>) = JSONArray().also { a -> ts.forEach { a.put(toJson(it)) } }
+            val tmp = File(remoteFile.path + ".tmp")
+            tmp.writeText(JSONObject().put("jf", arr(jellyfinTracks)).put("px", arr(plexTracks)).put("nas", arr(nasTracks)).toString())
+            tmp.renameTo(remoteFile)
+        } catch (_: Exception) {}
     }
 
     private fun notifyChange() { main.post { onChange?.invoke(); for (o in observers) o() } }
@@ -737,12 +775,14 @@ class Library(ctx: Context, val art: ArtCache) {
     private fun toJson(t: Track) = JSONObject().put("p", t.path).put("ti", t.title).put("ar", t.artist)
         .put("al", t.album).put("aa", t.albumArtist).put("g", t.genre).put("tn", t.trackNo).put("dn", t.discNo)
         .put("d", t.durationMs).put("y", t.year).put("m", t.isMusic).put("k", t.artKey ?: "")
-        .put("mt", t.mtime).put("s", t.size)
+        .put("mt", t.mtime).put("s", t.size).put("src", t.source.name).put("fp", t.filePath)
 
     private fun fromJson(o: JSONObject) = Track(
         o.getString("p"), fixMojibake(o.getString("ti")), fixMojibake(o.getString("ar")), fixMojibake(o.getString("al")), fixMojibake(o.getString("aa")),
         o.getString("g"), o.getInt("tn"), o.getInt("dn"), o.getLong("d"), o.getInt("y"), o.getBoolean("m"),
         o.getString("k").ifEmpty { null }, o.getLong("mt"), o.getLong("s"),
+        source = o.optString("src").let { s -> TrackSource.entries.firstOrNull { it.name == s } } ?: TrackSource.LOCAL,
+        filePath = o.optString("fp"),
     )
 
     companion object {

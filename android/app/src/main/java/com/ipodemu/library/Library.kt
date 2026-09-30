@@ -165,6 +165,9 @@ class Library(ctx: Context, val art: ArtCache) {
     private suspend fun jellyfinUser(url: String, key: String): String? =
         prefs.accountUserId.takeIf { it.isNotBlank() && prefs.accountServer.trimEnd('/') == url.trimEnd('/') } ?: jellyfin.firstUserId(url, key)
 
+    /** Called on the main thread when a download finishes (App records it in UserData.downloads). */
+    var onDownloaded: ((DownloadEntry) -> Unit)? = null
+
     fun requestDownload(artist: String, title: String, album: String, soulseekFirst: Boolean = false) {
         scope.launch {
             downloader.download(artist, title, album, soulseekFirst) { status ->
@@ -172,6 +175,7 @@ class Library(ctx: Context, val art: ArtCache) {
                 status.newTrack?.let { addDownloadedTrack(it) }
                 notifyChange()
                 if (status.stage == DownloadStage.DONE) refreshAfterDownload()
+                if (status.stage == DownloadStage.DONE) { val t = status.newTrack; main.post { onDownloaded?.invoke(DownloadEntry(t?.artist ?: artist, t?.title ?: title.ifBlank { album }, t?.album ?: album, t?.path.orEmpty(), System.currentTimeMillis(), status.source.orEmpty())) } }
             }
         }
     }
@@ -664,35 +668,31 @@ class Library(ctx: Context, val art: ArtCache) {
      * it, so Jellyfin songs came and went until the next fetch.
      */
     @Synchronized private fun rebuild() {
-        tracks = if (source == Source.SYNC) syncTracks else localTracks
-        for (s in listOf(jellyfinTracks, plexTracks, nasTracks, downloaded)) mergeExtra(s, publish = false)
+        // built aside and swapped in once: assigning the base list first let a screen read an empty library mid-rebuild
+        var acc = if (source == Source.SYNC) syncTracks else localTracks
+        for (s in listOf(jellyfinTracks, plexTracks, nasTracks, downloaded)) acc = merged(acc, s)
+        tracks = acc
         derive(); notifyChange()
     }
 
-    @Synchronized private fun mergeExtra(extraSource: List<Track>, publish: Boolean = true) {
-        if (extraSource.isEmpty()) return
+    /** [base] plus the songs of [extraSource] it doesn't already have. */
+    private fun merged(base: List<Track>, extraSource: List<Track>): List<Track> {
+        if (extraSource.isEmpty()) return base
+        var acc = base
         // Jellyfin and the NAS share are usually the same files (Jellyfin scans that share): the Jellyfin copy wins,
         // since it streams from anywhere while SMB only works at home -- drop NAS rows it duplicates before merging.
         if (extraSource.first().source == TrackSource.JELLYFIN) {
             val jf = extraSource.mapNotNullTo(HashSet()) { it.fileKey } to SongIndex(extraSource)
-            val before = tracks.size
-            tracks = tracks.filterNot { it.source == TrackSource.NAS && (it.fileKey in jf.first || jf.second.has(it)) }
-            if (tracks.size != before && publish) derive()
+            acc = acc.filterNot { it.source == TrackSource.NAS && (it.fileKey in jf.first || jf.second.has(it)) }
         }
-        val seen = SongIndex(tracks)
-        val seenFiles = tracks.mapNotNullTo(HashSet()) { it.fileKey }
-        // distinctBy first: this only filters extraSource against tracks already merged in, so two
-        // duplicate files inside the SAME scan pass (e.g. a NAS folder holding both a Soulseek-won
-        // flat file and a Lidarr-organized import of the same song, now both cleaning to the same
-        // title+artist) would otherwise both survive -- neither was "seen" yet when the other was
-        // checked. Confirmed live: a NAS rescan kept "Rosanna"/"Toto" as two rows even after the
-        // title-cleaning fix, because both copies arrived in the same nasTracks batch.
-        // the same song on two albums stays on both (an album page must not lose tracks); a copy of the same song on
-        // the same album, however each source spells the credits and edition, collapses
+        val seen = SongIndex(acc)
+        val seenFiles = acc.mapNotNullTo(HashSet()) { it.fileKey }
+        // distinctBy first: two copies of one song inside the same batch (a NAS folder holding both a Soulseek file and a
+        // Lidarr import) would otherwise both survive, since neither was "seen" when the other was checked.
+        // The same song on two albums stays on both (an album page must not lose tracks); a copy of the same song on
+        // the same album, however each source spells the credits and edition, collapses.
         val extra = extraSource.distinctBy { mergeKey(it) }.filter { !seen.has(it) && (it.fileKey == null || it.fileKey !in seenFiles) }
-        if (extra.isEmpty()) return
-        tracks = tracks + extra
-        if (publish) { derive(); notifyChange() }
+        return if (extra.isEmpty()) acc else acc + extra
     }
 
     /** Same song across sources, tolerant of how each one spells the credits (see [matchKey]). */

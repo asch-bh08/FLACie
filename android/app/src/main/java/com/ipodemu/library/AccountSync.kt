@@ -322,6 +322,36 @@ class AccountSync(private val app: App) {
     }
     @Volatile var lastMirrored = 0; private set
 
+
+    // ---- sharing ------------------------------------------------------------------------------------------------
+
+    /** Other people on the account's server, to share a playlist with: every user for an admin, else the ones shown on
+     * the server's sign-in screen. Calls back on the main thread with (id, name) pairs, or an error message. */
+    fun otherUsers(done: (List<Pair<String, String>>, String?) -> Unit) {
+        scope.launch {
+            val r = try {
+                val base = prefs.accountServer; val token = prefs.accountToken
+                var (c, t) = http("GET", "$base/Users", token, null)
+                if (c !in 200..299) { val p = http("GET", "$base/Users/Public", token, null); c = p.first; t = p.second }
+                if (c !in 200..299) throw IOException("HTTP $c")
+                val a = JSONArray(t)
+                List(a.length()) { a.getJSONObject(it) }.map { it.optString("Id") to it.optString("Name") }
+                    .filter { it.first.isNotBlank() && it.first != prefs.accountUserId } to null
+            } catch (e: Exception) { emptyList<Pair<String, String>>() to (e.message ?: "Couldn't list users") }
+            kotlinx.coroutines.withContext(Dispatchers.Main) { done(r.first, r.second) }
+        }
+    }
+
+    /** Shares the Jellyfin copy of a playlist with [userId] (Jellyfin 10.9+); it shows in their Jellyfin and FLACie. */
+    fun sharePlaylist(jfId: String, userId: String, canEdit: Boolean, done: (String) -> Unit) {
+        scope.launch {
+            val msg = try {
+                val (c, _) = http("POST", "${prefs.accountServer}/Playlists/$jfId/Users/$userId", prefs.accountToken, JSONObject().put("CanEdit", canEdit).toString())
+                if (c in 200..299) "Shared" else if (c == 404) "This server is too old to share playlists (needs Jellyfin 10.9)" else "Couldn't share (HTTP $c)"
+            } catch (e: Exception) { "Couldn't share: ${e.message}" }
+            kotlinx.coroutines.withContext(Dispatchers.Main) { done(msg) }
+        }
+    }
     // ---- plumbing -----------------------------------------------------------------------------------------------
 
     private fun run(msg: String, block: suspend () -> Unit) {

@@ -17,6 +17,8 @@ class UserData(ctx: Context) {
     val favorites = LinkedHashSet<String>()
     val playlists = ArrayList<UserPlaylist>()
     val recents = ArrayList<String>() // newest first
+    /** Finished downloads, newest first: what was asked for and, for a Soulseek file, the path it plays from. */
+    val downloads = ArrayList<DownloadEntry>()
     /** How many times each track has been started; feeds the recommendations. */
     val plays = HashMap<String, Int>()
     /** Title + artist for paths that came from another device's playlists/favourites, so they can be matched to this
@@ -43,6 +45,14 @@ class UserData(ctx: Context) {
         if (!favorites.remove(path)) favorites.add(path)
         favStates[path]?.value = path in favorites
         changed()
+    }
+
+    fun recordDownload(e: DownloadEntry) {
+        downloads.removeAll { it.title.equals(e.title, true) && it.artist.equals(e.artist, true) }
+        downloads.add(0, e)
+        if (e.path.isNotEmpty() && e.path !in meta) meta[e.path] = e.title to e.artist
+        while (downloads.size > 200) downloads.removeAt(downloads.lastIndex)
+        changed(sync = false)
     }
 
     fun recordPlay(path: String) {
@@ -117,6 +127,7 @@ class UserData(ctx: Context) {
             o.optJSONArray("fav")?.let { a -> for (i in 0 until a.length()) favorites.add(a.getString(i)) }
             o.optJSONObject("plays")?.let { p -> p.keys().forEach { k -> plays[k] = p.optInt(k) } }
             o.optJSONArray("recent")?.let { a -> for (i in 0 until a.length()) recents.add(a.getString(i)) }
+            o.optJSONArray("dl")?.let { a -> for (i in 0 until a.length()) a.getJSONObject(i).let { d -> downloads.add(DownloadEntry(d.optString("a"), d.optString("t"), d.optString("al"), d.optString("p"), d.optLong("w"), d.optString("s"))) } }
             o.optJSONObject("meta")?.let { m -> m.keys().forEach { k -> m.optJSONArray(k)?.let { v -> meta[k] = v.optString(0) to v.optString(1) } } }
             o.optJSONArray("deleted")?.let { a -> for (i in 0 until a.length()) deletedPlaylists.add(a.getString(i)) }
             o.optJSONArray("deljf")?.let { a -> for (i in 0 until a.length()) deletedPlaylistJf.add(a.getString(i)) }
@@ -145,6 +156,7 @@ class UserData(ctx: Context) {
                 JSONObject().also { o ->
                     o.put("fav", JSONArray(favorites.toList()))
                     o.put("recent", JSONArray(recents.toList()))
+                    o.put("dl", JSONArray().also { a -> downloads.toList().forEach { d -> a.put(JSONObject().put("a", d.artist).put("t", d.title).put("al", d.album).put("p", d.path).put("w", d.time).put("s", d.source)) } })
                     o.put("plays", JSONObject().also { p -> plays.toMap().forEach { (k, v) -> p.put(k, v) } })
                     o.put("lists", JSONArray().also { a -> playlists.forEach { a.put(JSONObject().put("id", it.id).put("n", it.name).put("p", JSONArray(it.paths.toList())).put("m", it.mtime).put("jf", it.jfId ?: "")) } })
                     o.put("meta", JSONObject().also { m -> meta.toMap().forEach { (k, v) -> m.put(k, JSONArray().put(v.first).put(v.second)) } })
@@ -156,3 +168,6 @@ class UserData(ctx: Context) {
         }, 800)
     }
 }
+
+/** One finished download (see UserData.downloads); [path] is empty for a Lidarr grab, which arrives through Jellyfin later. */
+data class DownloadEntry(val artist: String, val title: String, val album: String, val path: String, val time: Long, val source: String)

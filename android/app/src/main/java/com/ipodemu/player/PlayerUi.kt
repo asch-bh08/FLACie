@@ -96,7 +96,7 @@ enum class LibKind(val title: String) {
     JELLYFIN("Jellyfin"), PLEX("Plex"), NAS("NAS only"),
 }
 
-enum class DetailKind { ALBUM, ARTIST, FOLDER, USER, GENRE, FAVORITES, RECENT, MIX }
+enum class DetailKind { ALBUM, ARTIST, FOLDER, USER, GENRE, FAVORITES, RECENT, MIX, DOWNLOADS }
 
 sealed interface Screen {
     data object Home : Screen
@@ -434,6 +434,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     GlossPill("Shuffle All", { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s); nav.nowPlaying = true } }, icon = Glyph.SHUFFLE, height = 32.dp)
                     GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 32.dp)
                     GlossPill("Recent", { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK, height = 32.dp)
+                    GlossPill("Downloads", { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.DOWN, height = 32.dp)
                 }
             }
             forYouShelves(mixes, nav)
@@ -670,7 +671,18 @@ private fun PlaylistsList(nav: PlayerNav) {
             // a cover already on disk, else one a server can supply; a local key with no file behind it shows nothing
             val first = keys.firstOrNull { app.art.has(it) } ?: keys.firstOrNull { it.startsWith("jf") || it.startsWith("px") || it.startsWith("it") }
             IpodRow({ nav.push(Screen.Detail(DetailKind.USER, p.id)) },
-                onLong = { nav.sheet = SheetSpec(p.name, songCount(p.paths.size), listOf(SheetItem("Delete playlist", Glyph.CLOSE) {
+                onLong = { nav.sheet = SheetSpec(p.name, songCount(p.paths.size), listOfNotNull(
+                    // share the Jellyfin copy with someone else on the same server (it then shows in their Jellyfin and FLACie)
+                    p.jfId?.takeIf { app.prefs.signedIn }?.let { jf -> SheetItem("Share with...", Glyph.ARTIST) {
+                        val toast = { m: String -> android.widget.Toast.makeText(app, m, android.widget.Toast.LENGTH_LONG).show() }
+                        app.account.otherUsers { users, err ->
+                            if (err != null || users.isEmpty()) toast(err ?: "No other users on this server")
+                            else nav.sheet = SheetSpec("Share \"${p.name}\"", "They can play it; only you can change it", users.map { (uid, name) ->
+                                SheetItem(name, Glyph.ARTIST) { app.account.sharePlaylist(jf, uid, false) { m -> toast(if (m == "Shared") "Shared \"${p.name}\" with $name" else m) } }
+                            })
+                        }
+                    } },
+                    SheetItem("Delete playlist", Glyph.CLOSE) {
                     nav.sheet = SheetSpec("Delete \"${p.name}\"?", if (p.jfId != null) "It is also deleted from your Jellyfin account" else null, listOf(
                         SheetItem("Delete", Glyph.CLOSE) { ud.deletePlaylist(p.id) }, SheetItem("Cancel", Glyph.BACK) {}))
                 })) },
@@ -722,7 +734,8 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
         DetailKind.FOLDER -> lib.playlists().firstOrNull { it.name == d.id }?.let { title = it.name; tracks = it.tracks; art = it.artKey }
         DetailKind.USER -> ud.playlists.firstOrNull { it.id == d.id }?.let { title = it.name; tracks = it.paths.mapNotNull { p -> lib.resolve(p, ud.meta[p]) }; art = tracks.firstNotNullOfOrNull { t -> t.artKey }; userId = it.id }
         DetailKind.FAVORITES -> { title = "Favorites"; tracks = ud.favorites.mapNotNull { lib.resolve(it, ud.meta[it]) }.distinctBy { it.path }; art = tracks.firstNotNullOfOrNull { it.artKey } }
-        DetailKind.RECENT -> { title = "Recently Played"; tracks = ud.recents.mapNotNull { by[it] }; art = tracks.firstNotNullOfOrNull { it.artKey } }
+        DetailKind.RECENT -> { title = "Recently Played"; tracks = ud.recents.mapNotNull { by[it] ?: lib.resolve(it, ud.meta[it]) }; art = tracks.firstNotNullOfOrNull { it.artKey } }
+        DetailKind.DOWNLOADS -> { title = "Recently Downloaded"; tracks = recentDownloads(app); art = tracks.firstNotNullOfOrNull { it.artKey } }
         DetailKind.MIX -> mix?.let { title = it.title; subtitle = it.subtitle; tracks = it.tracks; art = it.artKey }
     }
     BackdropArt(nav, art)
@@ -1125,3 +1138,17 @@ fun shownPlaylists(app: com.ipodemu.App): List<com.ipodemu.library.UserPlaylist>
     app.prefs.hiddenPlaylists.let { hidden -> app.userData.playlists.toList().filter { it.id !in hidden } }
 fun shownFolderPlaylists(app: com.ipodemu.App): List<com.ipodemu.library.Group> =
     if (app.library.source == com.ipodemu.library.Library.Source.SYNC) app.library.playlists() else emptyList()
+
+/** Finished downloads, newest first, as playable tracks: the Soulseek file itself, or the library's copy once Jellyfin has
+ * it (a Lidarr grab); a whole-album download brings in that album's songs. */
+fun recentDownloads(app: com.ipodemu.App): List<Track> {
+    val lib = app.library
+    val out = LinkedHashMap<String, Track>()
+    for (d in app.userData.downloads.toList()) {
+        val t = lib.resolve(d.path, d.title to d.artist)
+        if (t != null) { out.putIfAbsent(t.path, t); continue }
+        lib.albums().firstOrNull { it.name.equals(d.album.ifBlank { d.title }, true) && it.tracks.any { x -> com.ipodemu.library.primaryArtist(x.artist) == com.ipodemu.library.primaryArtist(d.artist) } }
+            ?.tracks?.forEach { out.putIfAbsent(it.path, it) }
+    }
+    return out.values.toList()
+}

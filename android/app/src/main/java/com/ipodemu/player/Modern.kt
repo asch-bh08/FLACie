@@ -167,6 +167,7 @@ fun LibraryHome(nav: PlayerNav) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
             item { LibRow("Favorites", Glyph.HEART_FILLED, "${ud.favorites.size}", Color(0xFFE5486B)) { nav.push(Screen.Detail(DetailKind.FAVORITES)) } }
             item { LibRow("Recently Played", Glyph.CLOCK, "${ud.recents.size}") { nav.push(Screen.Detail(DetailKind.RECENT)) } }
+            item { LibRow("Recently Downloaded", Glyph.DOWN, "${ud.downloads.size}") { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) } }
             item { LibRow("Playlists", Glyph.LIST, "${shownPlaylists(app).size + shownFolderPlaylists(app).size}") { nav.push(Screen.Lib(LibKind.PLAYLISTS)) } }
             item { LibRow("Artists", Glyph.ARTIST, "${lib.artists().size}") { nav.push(Screen.Lib(LibKind.ARTISTS)) } }
             item { LibRow("Albums", Glyph.ALBUM, "${lib.albums().size}") { nav.push(Screen.Lib(LibKind.ALBUMS)) } }

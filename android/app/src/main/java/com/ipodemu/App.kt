@@ -35,6 +35,7 @@ class App : Application() {
         account = com.ipodemu.library.AccountSync(this)
         userData.onChanged = { account.schedulePush() }
         library.onServicesChanged = { account.schedulePush() }
+        library.onDownloaded = { userData.recordDownload(it) }
         // pick up changes made on other devices (playlists, newly added services) every launch
         account.sync()
     }

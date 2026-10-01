@@ -106,6 +106,7 @@ class AccountSync(private val app: App) {
         // the services came with the account; the next person on this device starts clean
         app.library.forgetAllServices()
         signedIn = false; status = "Signed out"
+        app.connect.refresh()
     }
 
     private suspend fun finishSignIn(base: String, auth: JSONObject) {
@@ -145,6 +146,8 @@ class AccountSync(private val app: App) {
         if (prefs.hasJellyfinAccount) try { pullJellyfinPlaylists() } catch (_: Exception) {}
         push()
         status = "Synced" + if (restored > 0) ", restored $restored service connection${if (restored == 1) "" else "s"}" else ""
+        // a sign-in (or a Jellyfin account restored from the NAS copy) brings Connect up
+        kotlinx.coroutines.withContext(Dispatchers.Main) { app.connect.refresh() }
     }
 
     // ---- the NAS copy of the profile ------------------------------------------------------------------------------

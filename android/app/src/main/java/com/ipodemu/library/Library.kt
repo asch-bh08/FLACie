@@ -137,6 +137,16 @@ class Library(ctx: Context, val art: ArtCache) {
     private fun byKey(): Map<String, Track> { val t = tracks; keyCache?.let { if (it.first === t) return it.second }; return t.associateBy { dedupKey(it) }.also { keyCache = t to it } }
     @Volatile private var jfKeyCache: Pair<List<Track>, Map<String, Track>>? = null
     fun jellyfinByKey(): Map<String, Track> { val t = jellyfinTracks; jfKeyCache?.let { if (it.first === t) return it.second }; return t.associateBy { dedupKey(it) }.also { jfKeyCache = t to it } }
+    private val jfItemRe = Regex("/Audio/([0-9a-fA-F]{32})/")
+    @Volatile private var jfIdCache: Pair<List<Track>, Map<String, Track>>? = null
+    /** The Jellyfin song for an item id (remote control and Jams send item ids). */
+    fun jellyfinTrack(id: String): Track? {
+        val t = jellyfinTracks
+        val m = jfIdCache?.takeIf { it.first === t }?.second ?: t.mapNotNull { x -> jfItemRe.find(x.path)?.let { it.groupValues[1].lowercase() to x } }.toMap().also { jfIdCache = t to it }
+        return m[id.lowercase()]
+    }
+    /** This track as a Jellyfin item id: its own stream, or the Jellyfin copy of the same song; null if Jellyfin has none. */
+    fun jellyfinIdOf(t: Track): String? = jfItemRe.find(t.path)?.groupValues?.get(1) ?: jellyfinByKey()[dedupKey(t)]?.let { jfItemRe.find(it.path)?.groupValues?.get(1) }
 
     /** A playlist/favourite entry on this device: the exact file, or -- for an entry synced from another device --
      * this library's copy of the same song by title + artist. */

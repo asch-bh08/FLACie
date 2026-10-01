@@ -96,7 +96,7 @@ val LocalApp = staticCompositionLocalOf<App> { error("App not provided") }
 
 enum class Glyph {
     PLAY, PAUSE, NEXT, PREV, SHUFFLE, REPEAT, REPEAT_ONE, HEART, HEART_FILLED, SEARCH, QUEUE, CHEVRON, BACK, MORE, CLOSE,
-    NOTE, GEAR, VOLUME, CHECK, PLUS, ALBUM, ARTIST, MIC, CLOCK, IPOD, LIST, STAR, DOWN, JELLYFIN, PLEX, NAS, LYRICS,
+    NOTE, GEAR, VOLUME, CHECK, PLUS, ALBUM, ARTIST, MIC, CLOCK, IPOD, LIST, STAR, DOWN, JELLYFIN, PLEX, NAS, LYRICS, DEVICES, JAM,
 }
 
 @Composable
@@ -250,6 +250,20 @@ fun DrawScope.drawGlyph(g: Glyph, c: Color) {
             drawRoundRect(c, Offset(x(.2f), y(.54f)), Size(s * .6f, s * .32f), androidx.compose.ui.geometry.CornerRadius(s * .06f), style = line)
             drawCircle(c, s * .04f, Offset(x(.3f), y(.3f)))
             drawCircle(c, s * .04f, Offset(x(.3f), y(.7f)))
+        }
+        Glyph.DEVICES -> {
+            // a speaker beside a phone: playback on another device
+            drawRoundRect(c, Offset(x(.12f), y(.14f)), Size(s * .4f, s * .72f), androidx.compose.ui.geometry.CornerRadius(s * .07f), style = line)
+            drawCircle(c, s * .1f, Offset(x(.32f), y(.6f)), style = line)
+            drawCircle(c, s * .04f, Offset(x(.32f), y(.3f)))
+            drawRoundRect(c, Offset(x(.62f), y(.3f)), Size(s * .26f, s * .48f), androidx.compose.ui.geometry.CornerRadius(s * .05f), style = line)
+        }
+        Glyph.JAM -> {
+            // two people side by side: listening together
+            drawCircle(c, s * .12f, Offset(x(.36f), y(.32f)), style = line)
+            drawCircle(c, s * .12f, Offset(x(.66f), y(.36f)), style = line)
+            drawPath(path { moveTo(x(.14f), y(.84f)); quadraticBezierTo(x(.36f), y(.5f), x(.58f), y(.84f)) }, c, style = line)
+            drawPath(path { moveTo(x(.5f), y(.62f)); quadraticBezierTo(x(.7f), y(.52f), x(.88f), y(.84f)) }, c, style = line)
         }
     }
 }

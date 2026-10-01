@@ -115,10 +115,13 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
 
 @Composable
 private fun Header(nav: PlayerNav) {
+    val app = LocalApp.current
     val sc = LocalScheme.current
     Row(Modifier.fillMaxWidth().height(52.dp), verticalAlignment = Alignment.CenterVertically) {
         IconAction(Glyph.DOWN, "Close", { nav.nowPlaying = false })
         Txt("Now Playing", Modifier.weight(1f), size = 14f, weight = FontWeight.SemiBold, color = sc.onBgDim, align = TextAlign.Center)
+        if (!app.ui.guest) IconAction(Glyph.JAM, if (app.jam.inJam) "In a Jam" else "Jam", { app.ui.jamOpen = true }, tint = if (app.jam.inJam) sc.accent else sc.onBg)
+        if (!app.ui.guest) IconAction(Glyph.DEVICES, "Devices", { app.ui.devicesOpen = true })
         IconAction(Glyph.QUEUE, "Up next", { nav.nowPlaying = false; nav.push(Screen.Queue) })
     }
 }

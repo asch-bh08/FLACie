@@ -140,6 +140,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                 // a metadata-only swap (refreshArtwork) also reports a transition; that's not a new play
                 (mediaItem?.localConfiguration?.tag as? Track)?.let { if (it !== lastStarted || reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) onTrackStarted?.invoke(it); lastStarted = it }
                 refreshArtwork()
+                // a song ending on its own: a Jam moves the whole group on instead (see Jam)
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) onAutoAdvance?.invoke()
             }
             override fun onAudioSessionIdChanged(audioSessionId: Int) { applyEq() }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -202,12 +204,25 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** Tracks currently queued, in queue order (not shuffle order). */
     fun queueTracks(): List<Track> = List(exo.mediaItemCount) { exo.getMediaItemAt(it).localConfiguration?.tag as? Track }.filterNotNull()
 
+    /** While in a Jam, the transport and queue actions go to the group (which then drives this player) instead. */
+    interface Interceptor {
+        fun toggle(): Boolean; fun seek(ms: Long): Boolean; fun next(): Boolean; fun prev(): Boolean
+        fun play(list: List<Track>, index: Int): Boolean; fun enqueue(t: Track, next: Boolean): Boolean; fun skipTo(index: Int): Boolean
+    }
+    @Volatile var interceptor: Interceptor? = null
+    /** Called when a song ends and the next starts by itself. */
+    var onAutoAdvance: (() -> Unit)? = null
+    /** Loaded and able to play at once (a Jam waits for this before telling the group it is ready). */
+    val buffered: Boolean get() = exo.playbackState == Player.STATE_READY
+
     fun addNext(t: Track) {
+        if (interceptor?.enqueue(t, true) == true) return
         if (!hasQueue) { play(listOf(t), 0, shuffle = false); return }
         exo.addMediaItem(exo.currentMediaItemIndex + 1, item(t)); queue = queueTracks(); fire()
     }
 
     fun addToQueue(t: Track) {
+        if (interceptor?.enqueue(t, false) == true) return
         if (!hasQueue) { play(listOf(t), 0, shuffle = false); return }
         exo.addMediaItem(item(t)); queue = queueTracks(); fire()
     }
@@ -219,7 +234,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
 
     fun clearQueue() { exo.stop(); exo.clearMediaItems(); queue = emptyList(); fire() }
 
-    fun skipTo(index: Int) { exo.seekTo(index, 0L); exo.play() }
+    fun skipTo(index: Int) { if (interceptor?.skipTo(index) == true) return; exo.seekTo(index, 0L); exo.play() }
 
     fun applyVolumeLimit() { exo.volume = volume }
 
@@ -260,6 +275,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     // ---- transport ---------------------------------------------------------
 
     fun play(list: List<Track>, index: Int, shuffle: Boolean? = null) {
+        if (interceptor?.play(list, index) == true) return
         if (list.isEmpty()) return
         queue = list
         if (shuffle != null) { prefs.shuffle = shuffle; applyModes() }
@@ -272,18 +288,31 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** Shuffle Songs: random start, shuffle mode forced on. */
     fun shuffleAll(list: List<Track>) = play(list, if (list.isEmpty()) 0 else list.indices.random(), true)
 
-    fun toggle() { if (wantsToPlay) exo.pause() else if (hasQueue) { ensurePrepared(); exo.play() } }
+    fun toggle() { if (interceptor?.toggle() == true) return; if (wantsToPlay) exo.pause() else if (hasQueue) { ensurePrepared(); exo.play() } }
+    fun pause() { exo.pause() }
+    fun resume() { if (hasQueue) { ensurePrepared(); exo.play() } }
+    /** Starts [list] at [index] from [positionMs] (taking over playback from another device). */
+    fun playFrom(list: List<Track>, index: Int, positionMs: Long, paused: Boolean = false) {
+        if (list.isEmpty()) return
+        queue = list
+        exo.setMediaItems(list.map(::item), index.coerceIn(0, list.lastIndex), positionMs.coerceAtLeast(0))
+        exo.prepare(); if (paused) exo.pause() else exo.play()
+        ctx.startService(Intent(ctx, PlaybackService::class.java))
+    }
     /** After an error the player sits idle and play() alone does nothing; this was why Play stopped working after a bad seek. */
     private fun ensurePrepared() { if (exo.playbackState == Player.STATE_IDLE || exo.playerError != null) { retries = 0; exo.prepare() } }
     private var retries = 0
     private var lastStarted: Track? = null
     private var retryKey: Pair<Int, String>? = null
-    fun next() { if (exo.hasNextMediaItem()) exo.seekToNextMediaItem() else if (hasQueue) exo.seekTo(0, 0L) }
+    fun next() { if (interceptor?.next() == true) return; if (exo.hasNextMediaItem()) exo.seekToNextMediaItem() else if (hasQueue) exo.seekTo(0, 0L) }
     fun prev() {
+        if (interceptor?.prev() == true) return
         if (exo.currentPosition > 3000 || !exo.hasPreviousMediaItem()) exo.seekTo(0) else exo.seekToPreviousMediaItem()
     }
-    fun seekBy(ms: Long) { ensurePrepared(); exo.seekTo((exo.currentPosition + ms).coerceIn(0, (durationMs - 500).coerceAtLeast(0))) }
-    fun seekTo(ms: Long) { ensurePrepared(); exo.seekTo(ms.coerceIn(0, (durationMs - 250).coerceAtLeast(0))) }
+    fun seekBy(ms: Long) { if (interceptor?.seek((exo.currentPosition + ms).coerceAtLeast(0)) == true) return; ensurePrepared(); exo.seekTo((exo.currentPosition + ms).coerceIn(0, (durationMs - 500).coerceAtLeast(0))) }
+    fun seekTo(ms: Long) { if (interceptor?.seek(ms) == true) return; rawSeek(ms) }
+    /** Seeks without going through a Jam (the Jam itself uses this). */
+    fun rawSeek(ms: Long) { ensurePrepared(); exo.seekTo(ms.coerceIn(0, (durationMs - 250).coerceAtLeast(0))) }
 
     /** Plays a single audio file opened from another app (file manager, browser, chat...). */
     fun playUri(uri: Uri) {

@@ -16,6 +16,8 @@ class App : Application() {
     lateinit var ui: UiState; private set
     lateinit var userData: com.ipodemu.library.UserData; private set
     lateinit var account: com.ipodemu.library.AccountSync; private set
+    lateinit var connect: com.ipodemu.library.JellyfinConnect; private set
+    lateinit var jam: com.ipodemu.library.Jam; private set
     lateinit var lyrics: com.ipodemu.library.LyricsProvider; private set
     private val bg = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
@@ -40,6 +42,9 @@ class App : Application() {
         // fetch lyrics as each song starts, so they are ready (and cached) before Now Playing asks
         player.onTrackStarted = { t -> userData.recordPlay(t.path); bg.launch { lyrics.get(t) } }
         account = com.ipodemu.library.AccountSync(this)
+        connect = com.ipodemu.library.JellyfinConnect(this)
+        connect.attach(); connect.refresh()
+        jam = com.ipodemu.library.Jam(this)
         userData.onChanged = { account.schedulePush() }
         library.onServicesChanged = { account.schedulePush() }
         library.onDownloaded = { userData.recordDownload(it) }

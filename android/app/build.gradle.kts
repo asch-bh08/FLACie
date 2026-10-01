@@ -30,6 +30,8 @@ android {
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
 }
 dependencies {
+    // WebSocket for Jellyfin remote control (Connect) and SyncPlay (Jams)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.media3:media3-exoplayer:1.4.1")
     implementation("androidx.media3:media3-session:1.4.1")

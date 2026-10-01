@@ -137,7 +137,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         exo.addListener(object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) { fire() }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                (mediaItem?.localConfiguration?.tag as? Track)?.let { onTrackStarted?.invoke(it) }
+                // a metadata-only swap (refreshArtwork) also reports a transition; that's not a new play
+                (mediaItem?.localConfiguration?.tag as? Track)?.let { if (it !== lastStarted || reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) onTrackStarted?.invoke(it); lastStarted = it }
+                refreshArtwork()
             }
             override fun onAudioSessionIdChanged(audioSessionId: Int) { applyEq() }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -150,6 +152,23 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             }
         })
         applyEq()
+    }
+
+    /** Covers that weren't downloaded yet when the queue was built (Jellyfin/iTunes keys) left the lock screen and
+     * notification on no art or the previous song's: fetch the current and next covers, then swap the metadata in. */
+    private fun refreshArtwork() {
+        val app = App.of(ctx)
+        val idx = exo.currentMediaItemIndex
+        if (idx < 0 || idx >= exo.mediaItemCount) return
+        for (i in idx until minOf(idx + 3, exo.mediaItemCount)) {
+            val item = exo.getMediaItemAt(i)
+            val t = item.localConfiguration?.tag as? Track ?: continue
+            if (item.mediaMetadata.artworkUri != null || t.artKey == null) continue
+            app.art.prefetch(t.artKey) {
+                val n = (0 until exo.mediaItemCount).firstOrNull { exo.getMediaItemAt(it).localConfiguration?.tag === t } ?: return@prefetch
+                if (exo.getMediaItemAt(n).mediaMetadata.artworkUri == null) exo.replaceMediaItem(n, item(t))
+            }
+        }
     }
 
     fun applyModes() {
@@ -257,6 +276,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** After an error the player sits idle and play() alone does nothing; this was why Play stopped working after a bad seek. */
     private fun ensurePrepared() { if (exo.playbackState == Player.STATE_IDLE || exo.playerError != null) { retries = 0; exo.prepare() } }
     private var retries = 0
+    private var lastStarted: Track? = null
     private var retryKey: Pair<Int, String>? = null
     fun next() { if (exo.hasNextMediaItem()) exo.seekToNextMediaItem() else if (hasQueue) exo.seekTo(0, 0L) }
     fun prev() {

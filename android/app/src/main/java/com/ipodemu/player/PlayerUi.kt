@@ -40,6 +40,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -85,6 +89,9 @@ import com.ipodemu.library.sortKey
 import com.ipodemu.playback.PlayerController
 import com.ipodemu.theme.Themes
 import kotlinx.coroutines.Dispatchers
+import com.ipodemu.library.WebCatalog
+import com.ipodemu.library.DownloadStage
+import com.ipodemu.library.DownloadStatus
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
@@ -809,13 +816,12 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
     val sc = LocalScheme.current
     var query by app.ui::searchQuery
     var results by remember { mutableStateOf(Results(emptyList(), emptyList())) }
-    var catalog by remember { mutableStateOf(com.ipodemu.library.CatalogResults.EMPTY) }
-    var catalogLoading by remember { mutableStateOf(false) }
+    var web by remember { mutableStateOf(WebResults(emptyList(), emptyList())) }
+    var webLoading by remember { mutableStateOf(false) }
     val fr = remember { FocusRequester() }
     val searchFocus = androidx.compose.ui.platform.LocalFocusManager.current
     // no auto-focus: it popped the keyboard, whose first Back press hid it instead of leaving the screen (and trapped controller focus in the field)
-    // Keyed on libRev too, not just query -- a download landing (Library's own background merge)
-    // used to leave stale results on screen until the user retyped the search themselves.
+    // Keyed on libRev too, so a download landing updates the results without retyping.
     LaunchedEffect(query, libRev) {
         val q = query.trim()
         if (q.isEmpty()) { results = Results(emptyList(), emptyList()); return@LaunchedEffect }
@@ -831,28 +837,23 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             )
         }
     }
-    // Separately debounced (longer -- these are live network calls to Lidarr/Soulseek, not a local
-    // filter) so typing doesn't fire a search per keystroke.
+    // Songs and albums that aren't owned yet, most popular first (iTunes ranks by popularity, so a hit song comes before
+    // anyone else's track with the same name). Debounced longer than the local filter: these are network calls.
     LaunchedEffect(query) {
         val q = query.trim()
-        if (q.isEmpty()) { catalog = com.ipodemu.library.CatalogResults.EMPTY; catalogLoading = false; return@LaunchedEffect }
-        delay(600)
-        catalogLoading = true
-        catalog = try { app.library.catalogSearch(q) } catch (_: Exception) { com.ipodemu.library.CatalogResults.EMPTY }
-        catalogLoading = false
-    }
-    // what the bottom Download button will fetch: the most popular song matching the words (iTunes ranks by popularity,
-    // Lidarr's album catalog does not, so "rap god" used to guess a cover album by someone else)
-    var songGuess by remember { mutableStateOf<Pair<String, String>?>(null) }
-    LaunchedEffect(query) {
-        songGuess = null
-        val q = query.trim()
-        if (q.isEmpty() || " - " in q) return@LaunchedEffect
-        delay(600)
-        songGuess = withContext(Dispatchers.IO) { com.ipodemu.library.CoverLookup.topSong(q) }
+        if (q.isEmpty()) { web = WebResults(emptyList(), emptyList()); webLoading = false; return@LaunchedEffect }
+        delay(450)
+        webLoading = true
+        val songs = withContext(Dispatchers.IO) { WebCatalog.songs(q) }
+        web = WebResults(songs, emptyList())
+        web = WebResults(songs, withContext(Dispatchers.IO) { WebCatalog.albumsWithTop(q, songs.firstOrNull()) })
+        webLoading = false
     }
     Column(Modifier.fillMaxSize().imePadding()) {
-        TopBar("Search", nav, showBack = true)
+        // the big title goes while typing, so more results fit above the keyboard
+        val imeUp = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+        if (!imeUp) TopBar("Search", nav, showBack = true)
+        else Spacer(Modifier.windowInsetsTopHeight(androidx.compose.foundation.layout.WindowInsets.statusBars))
         Row(
             Modifier.padding(16.dp).fillMaxWidth().height(46.dp).clip(RoundedCornerShape(50)).background(Color(0x26FFFFFF)).border(1.dp, sc.cardBorder, RoundedCornerShape(50)).padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -867,13 +868,15 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (query.isNotEmpty()) IconAction(Glyph.CLOSE, "Clear search", { query = "" }, tint = sc.onBgDim, size = 40.dp, iconScale = 0.45f)
         }
         val r = results
-        val c = catalog
-        val nothingAtAll = r.songs.isEmpty() && r.albums.isEmpty() && c.albums.isEmpty() && c.tracks.isEmpty() && !catalogLoading
-        // A confident single best match first (like a "top result" card), everything else -- other
-        // songs, albums, not-yet-owned catalog hits -- collapsed behind a "Show more" by default so
-        // a broad query doesn't read as a wall of equally-weighted rows. Ranked simply: an exact
-        // title match beats a prefix match beats a loose contains/artist-only match.
+        val w = web
         val q = query.trim()
+        // owned copies of web hits: a song you have plays instead of offering a download
+        // a copy per library change, so rows recompose as download progress arrives
+        val dl = remember(libRev) { HashMap(app.library.downloads) }
+        val ownedSongs = remember(libRev) { app.library.songs().associateBy { com.ipodemu.library.matchKey(it.title, it.artist) } }
+        val ownedAlbums = remember(libRev) { app.library.albums().associateBy { ownedAlbumKey(it.tracks.firstOrNull()?.artist.orEmpty(), it.name) } }
+        val nothingAtAll = r.songs.isEmpty() && r.albums.isEmpty() && w.songs.isEmpty() && w.albums.isEmpty() && !webLoading
+        // Ranked simply: an exact title match beats a prefix match beats a loose contains/artist-only match.
         fun songScore(t: Track) = when {
             t.title.equals(q, true) -> 0
             t.title.startsWith(q, true) -> 1
@@ -886,71 +889,130 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         val restSongs = if (topSong != null) rankedSongs.drop(1) else rankedSongs
         var songsExpanded by remember(q) { mutableStateOf(false) }
         var albumsExpanded by remember(q) { mutableStateOf(false) }
-        val songCap = 4; val albumCap = 3
+        var webSongsExpanded by remember(q) { mutableStateOf(false) }
         if (query.isBlank()) EmptyState("Search your music")
         else if (nothingAtAll) {
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f)) { EmptyState("No results") }
-                DownloadRequestBar(app, query.trim(), guess = songGuess ?: bestGuess(c))
+                DownloadRequestBar(app, q)
             }
         }
         else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            // albums as one swipeable row of covers near the top, so they're visible with the keyboard up; a query naming an
+            // album ("short n sweet") puts that row first, like YT Music
+            val albumNamed = w.albums.firstOrNull()?.takeIf { it.kind != "Single" }?.let { a -> a.cleanTitle.lowercase().filter { it.isLetterOrDigit() } == q.lowercase().filter { it.isLetterOrDigit() } } == true
+            val webAlbums: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
+                if (w.albums.isNotEmpty()) {
+                    item { SectionHeader("Albums and EPs") }
+                    item(key = "walbums") {
+                        androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(w.albums, key = { it.id }) { a ->
+                                val owned = ownedAlbums[ownedAlbumKey(a.artist, a.cleanTitle)]
+                                AlbumCard(a, owned != null, dl[app.library.albumKey(a)],
+                                    onOpen = { owned?.let { nav.push(Screen.Detail(DetailKind.ALBUM, it.tracks.first().albumKey)) } },
+                                    onDownload = { app.library.requestAlbum(a) })
+                            }
+                        }
+                    }
+                }
+            }
+            if (albumNamed) webAlbums()
             if (topSong != null) {
                 item { SectionHeader("Top result") }
                 item(key = "top${topSong.path}") {
                     TopResultCard(topSong) { app.player.play(listOf(topSong), 0, null); nav.nowPlaying = true }
                 }
             }
-            if (restSongs.isNotEmpty()) {
+            if (!albumNamed) webAlbums()
+            if (w.songs.isNotEmpty()) {
                 item { SectionHeader("Songs") }
-                val shown = if (songsExpanded) restSongs else restSongs.take(songCap)
-                itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(shown, i, null); nav.nowPlaying = true }) }
-                if (!songsExpanded && restSongs.size > songCap) {
-                    item { ShowMoreRow(restSongs.size - songCap) { songsExpanded = true } }
+                val shown = if (webSongsExpanded) w.songs else w.songs.take(8)
+                itemsIndexed(shown, key = { i, s -> "ws$i${s.artist}${s.title}" }) { _, s ->
+                    val owned = ownedSongs[com.ipodemu.library.matchKey(s.title, s.artist)]
+                    val status = dl[app.library.songKey(s.artist, s.title)]
+                    WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.message ?: "${s.artist} · ${s.album}", s.artUrl, owned, status,
+                        onPlay = { owned?.let { app.player.play(listOf(it), 0, null); nav.nowPlaying = true } },
+                        onDownload = { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs) })
                 }
+                if (!webSongsExpanded && w.songs.size > 8) item { ShowMoreRow(w.songs.size - 8) { webSongsExpanded = true } }
             }
-            if (c.tracks.isNotEmpty()) {
-                item { SectionHeader("Found on Soulseek") }
-                itemsIndexed(c.tracks, key = { i, t -> "ct$i${t.artist}${t.title}" }) { _, t ->
-                    CatalogRow(t.title, t.artist, t.imageUrl) { app.library.requestDownload(t.artist, t.title, "", soulseekFirst = true) }
-                }
+            if (restSongs.isNotEmpty()) {
+                item { SectionHeader("In your library") }
+                val shown = if (songsExpanded) restSongs else restSongs.take(4)
+                itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(shown, i, null); nav.nowPlaying = true }) }
+                if (!songsExpanded && restSongs.size > 4) item { ShowMoreRow(restSongs.size - 4) { songsExpanded = true } }
             }
             if (r.albums.isNotEmpty()) {
-                item { SectionHeader("Albums") }
-                val shownAlbums = if (albumsExpanded) r.albums else r.albums.take(albumCap)
+                item { SectionHeader("Your albums") }
+                val shownAlbums = if (albumsExpanded) r.albums else r.albums.take(3)
                 items(shownAlbums, key = { "b" + it.tracks.first().albumKey }) { g ->
                     IpodRow({ nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) }, height = 56.dp, leading = { ArtImage(g.artKey, Modifier.size(48.dp), thumb = true, corner = 8.dp) },
                         trailing = { OwnedTag() }) { hi ->
                         Column { Txt(g.name, size = 16f, color = if (hi) Color.White else sc.onBg); Txt(g.tracks.firstOrNull()?.artist ?: "", size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim) }
                     }
                 }
-                if (!albumsExpanded && r.albums.size > albumCap) {
-                    item { ShowMoreRow(r.albums.size - albumCap) { albumsExpanded = true } }
-                }
+                if (!albumsExpanded && r.albums.size > 3) item { ShowMoreRow(r.albums.size - 3) { albumsExpanded = true } }
             }
-            if (c.albums.isNotEmpty()) {
-                item { SectionHeader("Albums you don't have") }
-                itemsIndexed(c.albums, key = { i, al -> "cb$i${al.artist}${al.title}" }) { _, al ->
-                    CatalogRow(al.title, al.artist, al.imageUrl) { app.library.requestDownload(al.artist, al.title, al.title, soulseekFirst = true) }
-                }
-            }
-            if (catalogLoading) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Searching Lidarr/Soulseek...", size = 13f, color = sc.onBgDim) } }
-            item { DownloadRequestBar(app, query.trim(), compact = true, guess = songGuess ?: bestGuess(c)) }
+            if (webLoading) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Searching for more...", size = 13f, color = sc.onBgDim) } }
+            if (!webLoading && w.songs.isEmpty()) item { DownloadRequestBar(app, q) }
         }
     }
 }
 
-/** One row in a "not in your library" catalog section -- cover art (when the source has any),
- * title/subtitle, and an explicit Download pill so the action is obvious without relying on the
- * section header alone. */
+
+/** An album/EP/single in Search's swipeable row: cover with a Download (or progress, or Open) button on it, title, kind and artist. */
 @Composable
-private fun CatalogRow(title: String, subtitle: String, imageUrl: String?, circle: Boolean = false, onDownload: () -> Unit) {
+private fun AlbumCard(a: WebCatalog.Album, owned: Boolean, status: DownloadStatus?, onOpen: () -> Unit, onDownload: () -> Unit) {
     val sc = LocalScheme.current
-    IpodRow({ onDownload() }, height = 56.dp,
-        leading = { RemoteArtImage(imageUrl, Modifier.size(48.dp).let { if (circle) it.clip(CircleShape) else it }, corner = if (circle) 24.dp else 8.dp) },
-        trailing = { GlossPill("Download", onDownload, height = 32.dp) },
+    val busy = status != null && status.stage != DownloadStage.DONE && status.stage != DownloadStage.FAILED
+    val failed = status?.stage == DownloadStage.FAILED
+    val act = { if (owned) onOpen() else if (!busy) onDownload() }
+    Column(Modifier.width(132.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = act)
+        .semantics { contentDescription = "${a.cleanTitle}, ${a.kind} by ${a.artist}. " + if (owned) "In your library" else if (busy) status!!.message else "Download" }) {
+        Box {
+            RemoteArtImage(a.artUrl, Modifier.size(132.dp), corner = 10.dp)
+            Box(Modifier.align(Alignment.BottomEnd).padding(6.dp).height(32.dp).widthIn(min = 32.dp).clip(RoundedCornerShape(50))
+                .background(if (owned || busy) Color(0xCC000000) else sc.accent).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
+                when {
+                    owned -> Txt("Open", size = 12f, weight = FontWeight.Medium, color = Color.White)
+                    busy -> Txt(Regex("""\d+%""").find(status!!.message)?.value ?: "...", size = 12f, weight = FontWeight.Medium, color = Color.White)
+                    else -> GlyphIcon(Glyph.DOWN, Modifier.size(16.dp), sc.accent.readableInk())
+                }
+            }
+        }
+        Txt(a.cleanTitle, size = 14f, weight = FontWeight.Medium, color = sc.onBg, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
+        Txt(if (busy || failed) status!!.message else "${a.kind} · ${a.artist}", size = 12f, color = if (failed) Color(0xFFFF9C9C) else sc.onBgDim, maxLines = 1)
+    }
+}
+private class WebResults(val songs: List<WebCatalog.Song>, val albums: List<WebCatalog.Album>)
+
+/** "Espresso", "Espresso EP", "Espresso - Single" and "Espresso (Deluxe)" are one release when checking what's owned. */
+private fun ownedAlbumKey(artist: String, album: String) = com.ipodemu.library.primaryArtist(artist) + "|" +
+    album.lowercase().replace(Regex("""\s*[(\[](deluxe|expanded|anniversary|remaster)[^)\]]*[)\]]"""), "").replace(Regex("""\s*-?\s*\b(ep|single)\s*$"""), "").filter { it.isLetterOrDigit() }
+
+/**
+ * A song or album from the web catalog: cover, title, a second line that turns into live progress while downloading, and
+ * one action: Play (or Open) when it's already in the library, otherwise Download, a percentage while it runs, then Play.
+ */
+@Composable
+private fun WebRow(title: String, subtitle: String, imageUrl: String?, owned: Track?, status: DownloadStatus?, onPlay: () -> Unit, onDownload: () -> Unit, actionLabel: String = "Download $title") {
+    val sc = LocalScheme.current
+    val busy = status != null && status.stage != DownloadStage.DONE && status.stage != DownloadStage.FAILED
+    val failed = status?.stage == DownloadStage.FAILED
+    IpodRow({ if (owned != null) onPlay() else if (!busy) onDownload() }, height = 60.dp,
+        leading = { RemoteArtImage(imageUrl, Modifier.size(48.dp), corner = 8.dp) },
+        trailing = {
+            when {
+                owned != null -> GlossPill("Play", onPlay, height = 32.dp)
+                busy -> Txt(Regex("""\d+%""").find(status!!.message)?.value ?: "...", size = 13f, weight = FontWeight.Medium, color = sc.accent)
+                else -> GlossPill(if (failed) "Retry" else "Download", onDownload, Modifier.semantics { contentDescription = actionLabel }, height = 32.dp)
+            }
+        },
     ) { hi ->
-        Column { Txt(title, size = 15f, color = if (hi) Color.White else sc.onBg, maxLines = 1); Txt(subtitle, size = 12f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim, maxLines = 1) }
+        Column {
+            Txt(title, size = 15f, color = if (hi) Color.White else sc.onBg, maxLines = 1)
+            Txt(subtitle, size = 12f, color = if (failed && !hi) Color(0xFFFF9C9C) else if (hi) Color(0xDDFFFFFF) else sc.onBgDim, maxLines = 1)
+        }
     }
 }
 
@@ -998,26 +1060,23 @@ private fun ShowMoreRow(count: Int, onClick: () -> Unit) {
     }
 }
 
-/** Search's "Download this instead" affordance: parses a naive "Artist - Title" split from the
- * query (or falls back to using the whole query as both), and shows live status once requested --
- * see Library.requestDownload/DownloadCoordinator for what actually happens on tap. */
+/** When the catalog has nothing: download the query as typed ("Artist - Title", or the whole query as the title). */
 @Composable
-private fun DownloadRequestBar(app: App, query: String, compact: Boolean = false, guess: Pair<String, String>? = null) {
+private fun DownloadRequestBar(app: App, query: String) {
+    rememberLibRev(app.library) // redraw as the request progresses
     if (query.isEmpty()) return
     val sc = LocalScheme.current
-    val status = app.library.downloadStatus
     val parts = query.split(" - ", limit = 2)
-    // "Artist - Title" as typed; otherwise the best catalog match, so the file isn't tagged with the query as both
-    // artist and title (which also left it without cover art)
-    val artist = if (parts.size > 1) parts[0].trim() else guess?.first ?: query
-    val title = if (parts.size > 1) parts[1].trim() else guess?.second ?: query
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = if (compact) 10.dp else 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (!compact) Txt("Can't find \"$query\"?", size = 14f, color = sc.onBgDim)
-        GlossPill(if (artist != query) "Download \"$title\" by $artist" else "Download \"$query\"", { app.library.requestDownload(artist, title, "") }, height = 40.dp, primary = !compact)
+    val artist = if (parts.size > 1) parts[0].trim() else ""
+    val title = if (parts.size > 1) parts[1].trim() else query
+    val status = app.library.downloads[app.library.songKey(artist, title)]
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Txt(if (parts.size > 1) "Not in the catalog." else "Not in the catalog. Typing \"Artist - Title\" finds the right file faster.", size = 13f, color = sc.onBgDim, maxLines = 3)
+        GlossPill(if (artist.isNotEmpty()) "Download \"$title\" by $artist" else "Download \"$query\"", { app.library.requestDownload(artist, title, "") }, height = 40.dp)
         status?.let { s ->
             val color = when (s.stage) {
-                com.ipodemu.library.DownloadStage.DONE -> Color(0xFF7CE0A0)
-                com.ipodemu.library.DownloadStage.FAILED -> Color(0xFFFF8080)
+                DownloadStage.DONE -> Color(0xFF7CE0A0)
+                DownloadStage.FAILED -> Color(0xFFFF9C9C)
                 else -> sc.onBgDim
             }
             Txt(s.message, size = 13f, color = color)
@@ -1127,10 +1186,6 @@ private fun AccountAction() {
         }
     }
 }
-
-/** Artist + title of the best catalog hit for a query typed without "Artist - Title". */
-private fun bestGuess(c: com.ipodemu.library.CatalogResults): Pair<String, String>? =
-    c.tracks.firstOrNull()?.let { it.artist to it.title } ?: c.albums.firstOrNull()?.let { it.artist to it.title }
 
 /** Playlists the Playlists screen lists: the account's own and any made here, not the old on-device ones hidden at upgrade;
  * folder/m3u-derived groups only while browsing an iPod in Sync mode. */

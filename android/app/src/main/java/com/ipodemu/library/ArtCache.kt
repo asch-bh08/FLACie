@@ -100,6 +100,13 @@ class ArtCache(private val dir: File) {
         }
     }
 
+    /** Downloads the cover file if missing (background), then calls [done] on the main thread when it exists. */
+    fun prefetch(key: String?, done: (() -> Unit)? = null) {
+        if (key == null) return
+        if (has(key)) { done?.let { main.post(it) }; return }
+        exec.execute { if (ensure(key).exists()) done?.let { main.post(it) } }
+    }
+
     @Synchronized fun forgetMisses() { missing.clear(); fetchFailed.clear() }
 
     companion object { const val MAX_PX = 320 }

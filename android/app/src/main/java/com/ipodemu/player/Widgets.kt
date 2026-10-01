@@ -413,8 +413,10 @@ fun IpodRow(
 @Composable
 fun rememberArt(key: String?, thumb: Boolean): Bitmap? {
     val art = LocalApp.current.art
-    val bmp by produceState(initialValue = art.peek(key, thumb), key, thumb) { value = art.load(key, thumb) ?: art.peek(key, thumb) }
-    return bmp
+    // keyed state: produceState kept the previous song's cover on screen while the next one loaded (or for good when it had none)
+    val state = remember(key, thumb) { mutableStateOf(art.peek(key, thumb)) }
+    LaunchedEffect(key, thumb) { if (state.value == null) state.value = art.load(key, thumb) }
+    return state.value
 }
 
 @Composable

@@ -2,36 +2,32 @@ package com.ipodemu.library
 
 import com.ipodemu.Prefs
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 import java.net.URLEncoder
 
 enum class DownloadStage { REQUESTED, SEARCHING, DOWNLOADING, IMPORTING, SCANNING, DONE, FAILED }
 
-/** [newTrack] is set only on a Soulseek win's DONE status -- a fully-formed Track the caller can add
- * straight to the library, playable immediately over the file-mover's own HTTP endpoint (WAN-capable,
- * no Jellyfin/NAS scan wait). Lidarr's own wins don't have this: Lidarr does its own import with its
- * own naming, so the library still finds out about those via the normal Jellyfin scan + merge. */
-data class DownloadStatus(val stage: DownloadStage, val message: String, val source: String? = null, val newTrack: Track? = null)
+/** [newTracks] are set on a Soulseek win's DONE status: Tracks the caller can add straight to the library, playable at
+ * once over the file mover's own HTTP endpoint (no Jellyfin scan wait). Lidarr wins arrive through the Jellyfin scan. */
+data class DownloadStatus(val stage: DownloadStage, val message: String, val source: String? = null, val newTrack: Track? = null,
+                          val newTracks: List<Track> = listOfNotNull(newTrack))
 
 /**
- * Orchestrates "download this missing track": races an on-demand Soulseek search (via slskd, if
- * configured) against Lidarr's indexer-based search. Lidarr always runs too rather than waiting to
- * see if Soulseek pans out first, but with a live peer search this usually wins -- a popular track
- * easily has dozens of peers online, so it's normally the faster, primary path.
+ * "Download this": Soulseek (slskd) first, since a live peer usually has a popular song right now, with Lidarr's indexer
+ * search as the fallback. A Soulseek file is moved by the file mover into the folder Jellyfin scans
+ * (`Artist/Artist - Title.ext`, or `Artist/Album/NN - Title.ext` for an album) because Lidarr's manual import refuses a
+ * lone track. Without the file mover a Soulseek win can't be filed, so it falls through to Lidarr.
  *
- * The two sources are filed differently: Lidarr's own grabs go through Lidarr's own import (it
- * already knows the artist/album it searched for). A Soulseek win is just a single file, and
- * Lidarr's manual-import flatly refuses a lone track when it's expecting a whole album -- confirmed
- * live, this isn't a timing issue a retry fixes -- so instead it's moved directly into the folder
- * Jellyfin scans, named `Artist/Artist - Title.ext`, via the file-mover HTTP service (Settings >
- * Lidarr > File mover). This needs that configured; without it a Soulseek win can't be filed
- * anywhere and the request falls through to Lidarr's slower but self-sufficient path. (An SMB move
- * on the same share was tried first here, but never completed successfully across three separate
- * bug fixes in live testing -- dropped rather than sink more time into it.)
+ * Speed: the best two peers are raced (the second starts only if the first hasn't sent anything within a few seconds),
+ * a peer that stalls is dropped for the next, and an album comes as one folder from one peer where possible, with any
+ * missing songs fetched one by one from other peers, three at a time.
  */
 class DownloadCoordinator(private val prefs: Prefs) {
     private val lidarr = LidarrClient()
@@ -39,120 +35,185 @@ class DownloadCoordinator(private val prefs: Prefs) {
     private val jellyfin = JellyfinDirectClient()
     private val fileMover = FileMoverClient()
 
-    /** [soulseekFirst]: a Soulseek search result the user picked -- try Soulseek alone, Lidarr only if that fails. */
-    suspend fun download(artist: String, title: String, album: String, soulseekFirst: Boolean = false, onUpdate: (DownloadStatus) -> Unit) {
+    private val soulseekReady get() = prefs.slskdUrl.isNotBlank() && prefs.slskdApiKey.isNotBlank() && prefs.fileMoverUrl.isNotBlank() && prefs.fileMoverApiKey.isNotBlank()
+    private val lidarrReady get() = prefs.lidarrUrl.isNotBlank() && prefs.lidarrApiKey.isNotBlank()
+
+    /** One song. [durationMs] (from the catalog) rules out peers' files of a different length (a live take, a cover). */
+    suspend fun download(artist: String, title: String, album: String, durationMs: Long = 0, onUpdate: (DownloadStatus) -> Unit) {
         onUpdate(DownloadStatus(DownloadStage.REQUESTED, "Requested \"${title.ifBlank { album.ifBlank { artist } }}\""))
-        if (soulseekFirst && title.isNotBlank() && prefs.slskdUrl.isNotBlank() && prefs.slskdApiKey.isNotBlank()) {
-            if (trySoulseek(artist, title, onUpdate)) return
-            if (prefs.lidarrUrl.isBlank() || prefs.lidarrApiKey.isBlank()) { onUpdate(DownloadStatus(DownloadStage.FAILED, "Not found on Soulseek")); return }
-            if (!tryLidarr(artist, title, album, onUpdate)) onUpdate(DownloadStatus(DownloadStage.FAILED, "Not found on Soulseek or Lidarr"))
+        if (title.isBlank()) { // an album/artist with no tracklist: Lidarr alone
+            if (!lidarrReady) onUpdate(DownloadStatus(DownloadStage.FAILED, "Lidarr isn't configured (Settings > Lidarr)"))
+            else if (!tryLidarr(artist, title, album, onUpdate)) onUpdate(DownloadStatus(DownloadStage.FAILED, "Not found on Lidarr"))
             return
         }
-        if (prefs.lidarrUrl.isBlank() || prefs.lidarrApiKey.isBlank()) {
-            onUpdate(DownloadStatus(DownloadStage.FAILED, "Lidarr isn't configured (Settings > Lidarr)"))
-            return
-        }
-        coroutineScope {
-            // Soulseek only makes sense for a single track -- an album/artist-only request (blank
-            // title, from a catalog search result rather than a track search) goes to Lidarr alone,
-            // since there's no reasonable way to raced-search a whole album's worth of files over
-            // Soulseek's single-file download flow.
-            val soulseekConfigured = title.isNotBlank() && prefs.slskdUrl.isNotBlank() && prefs.slskdApiKey.isNotBlank()
-            val soulseekDeferred = if (soulseekConfigured) async { trySoulseek(artist, title, onUpdate) } else null
-            val lidarrDeferred = async { tryLidarr(artist, title, album, onUpdate) }
-
-            val soulseekWon = soulseekDeferred?.await() ?: false
-            if (soulseekWon) {
-                lidarrDeferred.cancel()
-                return@coroutineScope
-            }
-            if (!lidarrDeferred.await()) {
-                onUpdate(DownloadStatus(DownloadStage.FAILED, "Not found on Lidarr's indexers${if (soulseekConfigured) " or Soulseek" else ""}"))
-            }
-        }
+        if (soulseekReady && trySoulseek(artist, title, album, (durationMs / 1000).toInt(), onUpdate)) return
+        if (!lidarrReady) { onUpdate(DownloadStatus(DownloadStage.FAILED, if (soulseekReady) "Not found on Soulseek" else "Downloads aren't set up (Settings > Lidarr)")); return }
+        if (!tryLidarr(artist, title, album, onUpdate)) onUpdate(DownloadStatus(DownloadStage.FAILED, "Not found on Soulseek or Lidarr"))
     }
 
-    private suspend fun trySoulseek(artist: String, title: String, onUpdate: (DownloadStatus) -> Unit): Boolean {
+    /** A whole album or EP: one peer's folder where possible, missing songs one by one; Lidarr if Soulseek finds nothing. */
+    suspend fun downloadAlbum(album: WebCatalog.Album, onUpdate: (DownloadStatus) -> Unit) {
+        val name = album.cleanTitle
+        onUpdate(DownloadStatus(DownloadStage.REQUESTED, "Requested \"$name\""))
+        val list = withContext(Dispatchers.IO) { WebCatalog.tracks(album) }
+        if (soulseekReady && list.isNotEmpty()) {
+            val tracks = trySoulseekAlbum(album, list, onUpdate)
+            if (tracks.isNotEmpty()) {
+                val msg = if (tracks.size == list.size) "\"$name\" is ready to play" else "\"$name\": ${tracks.size} of ${list.size} songs ready"
+                onUpdate(DownloadStatus(DownloadStage.DONE, msg, "soulseek", newTracks = tracks))
+                return
+            }
+        }
+        if (!lidarrReady) { onUpdate(DownloadStatus(DownloadStage.FAILED, "\"$name\" wasn't found on Soulseek")); return }
+        if (!tryLidarr(album.artist, "", name, onUpdate)) onUpdate(DownloadStatus(DownloadStage.FAILED, "\"$name\" wasn't found"))
+    }
+
+    private suspend fun trySoulseek(artist: String, title: String, album: String, durationSec: Int, onUpdate: (DownloadStatus) -> Unit): Boolean = try {
+        onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Searching Soulseek...", "soulseek"))
+        val cands = slskd.rankSong(slskd.search(prefs.slskdUrl, prefs.slskdApiKey, "${primaryArtist(artist)} ${WebCatalog.baseTitle(title)}"), artist, title, durationSec)
+        val hit = if (cands.isEmpty()) null else fetchFirst(cands) { onUpdate(DownloadStatus(DownloadStage.DOWNLOADING, it, "soulseek")) }
+        if (hit == null) false else {
+            onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library...", "soulseek"))
+            // the file itself may be untagged: the album comes from the catalog so it groups and gets a cover
+            val alb = album.ifBlank { withContext(Dispatchers.IO) { CoverLookup.song(artist, title) }?.album.orEmpty() }
+            val track = file(hit, artist, title, alb, 0, 0, durationSec * 1000L, "${clean(artist)} - ${clean(title)}", null)
+            if (track == null) false else { finishWithJellyfinScan(artist, onUpdate, "soulseek", title, track); true }
+        }
+    } catch (_: Exception) { false }
+
+    private suspend fun trySoulseekAlbum(album: WebCatalog.Album, list: List<WebCatalog.Song>, onUpdate: (DownloadStatus) -> Unit): List<Track> {
         val url = prefs.slskdUrl; val key = prefs.slskdApiKey
-        return try {
-            onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Searching Soulseek...", "soulseek"))
-            // A popular track easily has dozens of peers online -- try several ranked candidates in
-            // turn instead of giving up on Soulseek entirely because the single best-ranked peer was
-            // slow or rejected the request.
-            val candidates = slskd.searchCandidates(url, key, artist, title)
-            for ((index, hit) in candidates.take(5).withIndex()) {
-                onUpdate(DownloadStatus(
-                    DownloadStage.DOWNLOADING,
-                    "Downloading from a peer via Soulseek" + (if (index > 0) " (peer ${index + 1})..." else "..."),
-                    "soulseek",
-                ))
-                try {
-                    slskd.download(url, key, hit)
-                } catch (_: Exception) {
-                    continue   // this peer refused the request outright -- try the next one
-                }
-                val succeeded = withTimeoutOrNull(60_000L) {
-                    var result = false
-                    while (true) {
-                        when (slskd.downloadSucceeded(url, key, hit)) {
-                            true -> { result = true; break }
-                            false -> break
-                            null -> delay(1500)
-                        }
-                    }
-                    result
-                } ?: false
-                if (!succeeded) continue
-                onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library...", "soulseek"))
-                val track = fileIntoLibrary(hit, artist, title) ?: return false
-                finishWithJellyfinScan(artist, onUpdate, "soulseek", title, track)
-                return true
+        val name = album.cleanTitle
+        val got = arrayOfNulls<SlskdClient.FileResult>(list.size)
+        fun status(msg: String) = onUpdate(DownloadStatus(DownloadStage.DOWNLOADING, msg, "soulseek"))
+        try {
+            onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Searching Soulseek for \"$name\"...", "soulseek"))
+            val files = slskd.search(url, key, "${primaryArtist(album.artist)} ${name.replace(Regex("""\s*[(\[][^)\]]*[)\]]"""), "")}", enough = 80)
+            for (folder in slskd.rankAlbumFolders(files, album.artist, name, list.map { it.title }).take(3)) {
+                val want = folder.indices.filter { got[it] == null && folder[it] != null }
+                if (want.isEmpty()) continue
+                val ok = fetchBatch(want.map { folder[it]!! }) { status("Downloading \"$name\": $it") }
+                for (i in want) if (folder[i] in ok) got[i] = folder[i]
+                if (got.all { it != null }) break
             }
-            false
-        } catch (_: Exception) {
-            false
+            // songs no folder had: each from its own best peer, three at a time
+            val missing = list.indices.filter { got[it] == null }
+            if (missing.isNotEmpty()) {
+                status("Finding ${missing.size} more song${if (missing.size == 1) "" else "s"}...")
+                val gate = Semaphore(3)
+                coroutineScope {
+                    missing.map { i ->
+                        async {
+                            gate.withPermit {
+                                val s = list[i]
+                                val cands = slskd.rankSong(slskd.search(url, key, "${primaryArtist(s.artist)} ${WebCatalog.baseTitle(s.title)}", timeoutMs = 12_000),
+                                    s.artist, s.title, (s.durationMs / 1000).toInt())
+                                if (cands.isNotEmpty()) got[i] = fetchFirst(cands) {}
+                            }
+                        }
+                    }.awaitAll()
+                }
+            }
+        } catch (_: Exception) {}
+        if (got.all { it == null }) return emptyList()
+        onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing \"$name\" into the library...", "soulseek"))
+        val multiDisc = list.any { it.discNo > 1 }
+        return list.indices.mapNotNull { i ->
+            val hit = got[i] ?: return@mapNotNull null
+            val s = list[i]
+            val no = (if (multiDisc) "${s.discNo}-" else "") + s.trackNo.toString().padStart(2, '0')
+            file(hit, album.artist, s.title, name, s.trackNo, s.discNo, s.durationMs, "$no - ${clean(s.title)}", clean(name), trackArtist = s.artist)
         }
     }
 
-    /** Moves the just-downloaded file from slskd's inbox straight into the folder Jellyfin scans, as
-     * `Artist/Artist - Title.ext` -- via the HTTP file-mover service (see the class doc for why this
-     * doesn't go through Lidarr). An earlier same-network SMB move (NasSmb.moveFile) was tried first
-     * here, but jcifs-ng misbehaved on this exact operation across three different bug fixes and never
-     * once completed successfully in live testing -- not worth more time on it, so this goes straight
-     * to the file-mover now. Requires it to be configured; returns null without it, since there's
-     * nowhere else to safely file a bare, untagged single track. slskd flattens a peer's own folder
-     * structure down to just the immediate parent folder when it writes the finished file to disk
-     * (confirmed against several live downloads), which is what `hit.filename`'s last two path
-     * segments are used to reconstruct here.
-     *
-     * Returns a ready-to-play Track on success -- its `path` is the file-mover's own `/file?path=`
-     * URL (the same service, same auth, that just moved it), not the on-disk path, so playback works
-     * over WAN exactly like Jellyfin/Plex, without waiting on either of them to notice the file. */
-    private suspend fun fileIntoLibrary(hit: SlskdClient.FileResult, artist: String, title: String): Track? {
-        if (prefs.fileMoverUrl.isBlank() || prefs.fileMoverApiKey.isBlank()) return null
-        val remoteParts = hit.filename.replace('\\', '/').split('/').filter { it.isNotBlank() }
-        val sourceLeaf = remoteParts.last()
-        val sourceParentFolder = if (remoteParts.size >= 2) remoteParts[remoteParts.size - 2] else ""
-        val inboxFolder = prefs.slskdDownloadPath.trim('/')
-        val sourceFolder = if (sourceParentFolder.isNotBlank()) "$inboxFolder/$sourceParentFolder" else inboxFolder
-        val ext = sourceLeaf.substringAfterLast('.', "mp3")
-        fun clean(s: String) = s.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
-        val destFolder = "${prefs.nasFolder.trim('/')}/${clean(artist)}"
-        val destName = "${clean(artist)} - ${clean(title)}.$ext"
-        val destRelPath = "$destFolder/$destName"
+    /**
+     * Downloads one song from the best of [cands]: starts the top peer, adds the next if it hasn't sent anything after 6s,
+     * drops a peer that stalls (nothing for 20s) or fails, and cancels the rest once one finishes. Null if none delivered.
+     */
+    private suspend fun fetchFirst(cands: List<SlskdClient.FileResult>, progress: (String) -> Unit): SlskdClient.FileResult? {
+        val url = prefs.slskdUrl; val key = prefs.slskdApiKey
+        class Active(val f: SlskdClient.FileResult, val started: Long) { var bytes = 0L; var moved = started; var id: String? = null }
+        val queue = ArrayDeque(cands.take(8))
+        val active = ArrayList<Active>()
+        suspend fun drop(a: Active) { active.remove(a); a.id?.let { slskd.cancel(url, key, a.f.username, it) } }
+        suspend fun startNext() {
+            while (queue.isNotEmpty()) {
+                val f = queue.removeFirst()
+                try { slskd.download(url, key, f); active.add(Active(f, System.currentTimeMillis())); return } catch (_: Exception) {}
+            }
+        }
+        startNext()
+        val deadline = System.currentTimeMillis() + 8 * 60_000
+        while (active.isNotEmpty() && System.currentTimeMillis() < deadline) {
+            delay(1000)
+            val now = System.currentTimeMillis()
+            for (a in active.toList()) {
+                val t = slskd.transfers(url, key, a.f.username)[a.f.filename]
+                if (t != null) a.id = t.id
+                when {
+                    t?.done == true -> { active.filter { it !== a }.forEach { drop(it) }; return a.f }
+                    t?.done == false -> drop(a)
+                    t != null && t.bytes > a.bytes -> { a.bytes = t.bytes; a.moved = now }
+                    now - a.moved > 20_000 -> drop(a)
+                }
+            }
+            // race a second peer while the first is still queued remotely or silent; replace a dropped one
+            if (queue.isNotEmpty() && (active.isEmpty() || (active.size == 1 && active[0].bytes == 0L && now - active[0].started > 6_000))) startNext()
+            active.maxByOrNull { it.bytes }?.let { a ->
+                progress(if (a.bytes == 0L) "Waiting for a peer..." else "Downloading ${(a.bytes * 100 / a.f.size.coerceAtLeast(1)).coerceAtMost(99)}%...")
+            }
+        }
+        active.toList().forEach { drop(it) }
+        return null
+    }
+
+    /** Downloads several files from one peer at once; returns the ones that arrived. Gives up on the rest after 30s with
+     * no progress at all. */
+    private suspend fun fetchBatch(files: List<SlskdClient.FileResult>, progress: (String) -> Unit): Set<SlskdClient.FileResult> {
+        val url = prefs.slskdUrl; val key = prefs.slskdApiKey
+        val user = files.first().username
+        try { slskd.download(url, key, files) } catch (_: Exception) { return emptySet() }
+        val total = files.sumOf { it.size }.coerceAtLeast(1)
+        var last = 0L; var moved = System.currentTimeMillis()
+        val deadline = System.currentTimeMillis() + 20 * 60_000
+        while (System.currentTimeMillis() < deadline) {
+            delay(1500)
+            val ts = slskd.transfers(url, key, user)
+            val mine = files.map { ts[it.filename] }
+            val bytes = files.indices.sumOf { i -> if (mine[i]?.done == true) files[i].size else mine[i]?.bytes ?: 0L }
+            if (bytes > last) { last = bytes; moved = System.currentTimeMillis() }
+            progress("${mine.count { it?.done == true }} of ${files.size} songs, ${(bytes * 100 / total).coerceAtMost(99)}%")
+            if (mine.all { it?.done != null }) break
+            if (System.currentTimeMillis() - moved > 30_000) break
+        }
+        val ts = slskd.transfers(url, key, user)
+        files.forEach { f -> ts[f.filename]?.takeIf { it.done == null }?.let { slskd.cancel(url, key, user, it.id) } }
+        return files.filter { ts[it.filename]?.done == true }.toSet()
+    }
+
+    private fun clean(s: String) = s.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().trimEnd('.')
+
+    /**
+     * Moves a finished file from slskd's inbox into the folder Jellyfin scans, `Artist/[Album/]name.ext`, via the file
+     * mover, and returns a Track that plays from the file mover's `/file?path=` URL (works over the internet, before
+     * Jellyfin has scanned it). slskd keeps only the peer's immediate parent folder, which is how the inbox path is rebuilt.
+     */
+    private suspend fun file(hit: SlskdClient.FileResult, artist: String, title: String, album: String, trackNo: Int, discNo: Int,
+                             durationMs: Long, name: String, albumFolder: String?, trackArtist: String = artist): Track? {
+        val parts = hit.filename.replace('\\', '/').split('/').filter { it.isNotBlank() }
+        val inbox = prefs.slskdDownloadPath.trim('/')
+        val source = if (parts.size >= 2) "$inbox/${parts[parts.size - 2]}/${parts.last()}" else "$inbox/${parts.last()}"
+        val ext = parts.last().substringAfterLast('.', "mp3")
+        val dest = listOfNotNull(prefs.nasFolder.trim('/').ifBlank { null }, clean(artist), albumFolder).joinToString("/") + "/$name.$ext"
         return try {
-            fileMover.move(prefs.fileMoverUrl, prefs.fileMoverApiKey, "$sourceFolder/$sourceLeaf", destRelPath)
-            // the file itself is untagged: take the album from the iTunes catalog so it groups and gets a cover
-            val album = withContext(Dispatchers.IO) { CoverLookup.song(artist, title) }?.album.orEmpty()
-            val playUrl = "${prefs.fileMoverUrl.trimEnd('/')}/file?path=${URLEncoder.encode(destRelPath, "UTF-8")}"
+            fileMover.move(prefs.fileMoverUrl, prefs.fileMoverApiKey, source, dest)
             Track(
-                path = playUrl, title = title, artist = artist, album = album, albumArtist = artist, genre = "",
-                trackNo = 0, discNo = 0, durationMs = 0, year = 0, isMusic = true, artKey = CoverLookup.key(artist, album, title),
+                path = "${prefs.fileMoverUrl.trimEnd('/')}/file?path=${URLEncoder.encode(dest, "UTF-8")}", title = title, artist = trackArtist,
+                album = album, albumArtist = artist, genre = "", trackNo = trackNo, discNo = discNo, durationMs = durationMs, year = 0,
+                isMusic = true, artKey = CoverLookup.key(artist, album, if (albumFolder != null) "" else title),
                 mtime = System.currentTimeMillis(), size = hit.size, source = TrackSource.CLOUD,
             )
-        } catch (_: Exception) {
-            null
-        }
+        } catch (_: Exception) { null }
     }
 
     private suspend fun tryLidarr(artist: String, title: String, album: String, onUpdate: (DownloadStatus) -> Unit): Boolean {

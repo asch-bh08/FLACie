@@ -14,15 +14,6 @@ import java.io.File
 
 class Group(val name: String, val tracks: List<Track>, val artKey: String?)
 
-/** A search hit that isn't in the library yet -- from Lidarr's MusicBrainz-backed catalog (albums)
- * or a live Soulseek peer search (tracks), not from anything already owned. Search shows these in
- * their own section, distinct from owned results, each with a Download action. */
-data class CatalogAlbum(val title: String, val artist: String, val imageUrl: String?)
-data class CatalogTrack(val artist: String, val title: String, val imageUrl: String?)
-data class CatalogResults(val albums: List<CatalogAlbum>, val tracks: List<CatalogTrack>) {
-    companion object { val EMPTY = CatalogResults(emptyList(), emptyList()) }
-}
-
 class Library(ctx: Context, val art: ArtCache) {
     /** Where [tracks]/[playlists] currently come from. Switching does not forget the other side:
      * the local scan result stays cached in memory so flipping back to LOCAL is instant. */
@@ -168,15 +159,39 @@ class Library(ctx: Context, val art: ArtCache) {
     /** Called on the main thread when a download finishes (App records it in UserData.downloads). */
     var onDownloaded: ((DownloadEntry) -> Unit)? = null
 
-    fun requestDownload(artist: String, title: String, album: String, soulseekFirst: Boolean = false) {
+    /** Each request's latest status, by [songKey]/[albumKey], so every search row can show its own progress. */
+    val downloads = java.util.concurrent.ConcurrentHashMap<String, DownloadStatus>()
+    fun songKey(artist: String, title: String) = "s|" + matchKey(title, artist)
+    fun albumKey(a: WebCatalog.Album) = "a|${a.id}"
+
+    /** Search's per-song Download. Several can run at once; each reports under its own key. */
+    fun requestDownload(artist: String, title: String, album: String, durationMs: Long = 0) {
+        val key = songKey(artist, title)
+        if (downloads[key]?.stage.let { it != null && it != DownloadStage.DONE && it != DownloadStage.FAILED }) return
         scope.launch {
-            downloader.download(artist, title, album, soulseekFirst) { status ->
-                downloadStatus = status
-                status.newTrack?.let { addDownloadedTrack(it) }
-                notifyChange()
-                if (status.stage == DownloadStage.DONE) refreshAfterDownload()
-                if (status.stage == DownloadStage.DONE) { val t = status.newTrack; main.post { onDownloaded?.invoke(DownloadEntry(t?.artist ?: artist, t?.title ?: title.ifBlank { album }, t?.album ?: album, t?.path.orEmpty(), System.currentTimeMillis(), status.source.orEmpty())) } }
-            }
+            downloader.download(artist, title, album, durationMs) { status -> onStatus(key, status, DownloadEntry(artist, title.ifBlank { album }, album, "", 0, "")) }
+        }
+    }
+
+    /** A whole album or EP from search. */
+    fun requestAlbum(a: WebCatalog.Album) {
+        val key = albumKey(a)
+        if (downloads[key]?.stage.let { it != null && it != DownloadStage.DONE && it != DownloadStage.FAILED }) return
+        // the entry's empty path makes Recently Downloaded list the album's songs
+        scope.launch { downloader.downloadAlbum(a) { status -> onStatus(key, status, DownloadEntry(a.artist, a.cleanTitle, a.cleanTitle, "", 0, "")) } }
+    }
+
+    private fun onStatus(key: String, status: DownloadStatus, entry: DownloadEntry) {
+        downloadStatus = status
+        downloads[key] = status
+        addDownloadedTracks(status.newTracks)
+        notifyChange()
+        if (status.stage == DownloadStage.DONE) {
+            refreshAfterDownload()
+            val t = status.newTracks.singleOrNull()
+            val e = if (t != null) DownloadEntry(t.artist, t.title, t.album, t.path, System.currentTimeMillis(), status.source.orEmpty())
+                else entry.copy(album = status.newTracks.firstOrNull()?.album ?: entry.album, time = System.currentTimeMillis(), source = status.source.orEmpty())
+            main.post { onDownloaded?.invoke(e) }
         }
     }
 
@@ -259,79 +274,6 @@ class Library(ctx: Context, val art: ArtCache) {
     /** ipodsync's own named playlists in Sync mode; folder-/m3u-derived groups otherwise. */
     fun playlists(): List<Group> = if (source == Source.SYNC) syncGroups else derive().playlists
 
-    /** Live search against what's NOT already owned -- Lidarr's MusicBrainz-backed catalog for
-     * artists/albums (works without adding anything first), and a live Soulseek peer search for the
-     * specific track if the query looks like "Artist - Title". Each source fails silently (empty
-     * result) if not configured or unreachable; a slow/offline Lidarr or Soulseek just means this
-     * section of Search stays empty, not an error. Owned hits are filtered out so this only ever
-     * shows things Search's own local sections don't already have. */
-    suspend fun catalogSearch(query: String): CatalogResults {
-        if (query.isBlank() || prefs.lidarrUrl.isBlank() || prefs.lidarrApiKey.isBlank()) return CatalogResults.EMPTY
-        // "Artist - Title" is this app's own song-query shorthand (see catalogTracks below) -- running
-        // that whole string through the ALBUM free-text lookup too was misleading: Lidarr/MusicBrainz
-        // often still finds a same-titled single/release for the raw "Artist - Title" text and, since
-        // there's no real ranking signal, it can end up the only thing shown, mislabeled as an "album"
-        // for what was unambiguously a song search (confirmed live with "Rick Astley - Never Gonna
-        // Give You Up" surfacing only under "Albums you don't have", no Songs section at all).
-        val looksLikeSongQuery = query.contains(" - ")
-        // "Espresso", "Espresso EP", "Espresso - Single" and "Espresso (Deluxe)" are one release for this purpose
-        fun ownedKey(artist: String, album: String) = primaryArtist(artist) + "|" + album.lowercase().replace(editionRe, "").replace(Regex("""\s*-?\s*\b(ep|single)\s*$"""), "").filter { it.isLetterOrDigit() }
-        val ownedAlbumKeys = albums().map { g -> ownedKey(g.tracks.firstOrNull()?.artist.orEmpty(), g.name) }.toSet()
-        val catalogAlbums = if (looksLikeSongQuery) emptyList() else try {
-            val qLower = query.trim().lowercase()
-            lidarr.lookupAlbum(prefs.lidarrUrl, prefs.lidarrApiKey, query)
-                .distinctBy { "${it.artistName.trim().lowercase()}|${it.title.trim().lowercase()}" }
-                .filter { ownedKey(it.artistName, it.title) !in ownedAlbumKeys }
-                // A free-text album search returns every same-titled release by anyone (tribute
-                // albums, unknown-artist covers, megamixes...) -- there's no real popularity signal
-                // in Lidarr's own API, so this is a best-effort proxy: an exact title match with real
-                // cover art is far more likely to be the release someone actually meant than a loose
-                // match with no artwork at all. Just the single best guess, not the whole noisy list.
-                .sortedWith(compareBy({ it.title.trim().lowercase() != qLower }, { it.imageUrl == null }))
-                .take(1)
-                .map { CatalogAlbum(it.title, it.artistName, it.imageUrl) }
-        } catch (_: Exception) { emptyList() }
-        val catalogTracks = if (looksLikeSongQuery && prefs.slskdUrl.isNotBlank() && prefs.slskdApiKey.isNotBlank()) {
-            try {
-                val parts = query.split(" - ", limit = 2)
-                val artist = parts[0].trim(); val title = parts[1].trim()
-                val ownedSong = songs().any { it.artist.trim().equals(artist, true) && it.title.trim().equals(title, true) }
-                if (ownedSong) emptyList()
-                else {
-                    // slskd's search-detail endpoint doesn't fill in `responses` progressively as
-                    // peers reply -- confirmed live via direct logging: responseCount climbed
-                    // (0 -> 90 -> 227 -> 250) across several polls while `responses` stayed empty at
-                    // every one of them, then arrived all at once the instant isComplete flipped true.
-                    // A real search for a hugely-available track completed in ~4.9s in that same run,
-                    // but that's close enough to a 6s budget that it's a coin flip run to run (several
-                    // earlier attempts for the identical track came back completely empty) -- 12s gives
-                    // real headroom instead of racing slskd's own completion time.
-                    val hit = try {
-                        slskd.searchCandidates(prefs.slskdUrl, prefs.slskdApiKey, artist, title, timeoutMs = 12_000).take(1)
-                    } catch (_: Exception) { emptyList() }
-                    if (hit.isEmpty()) emptyList() else {
-                        // Best-effort cover, cheapest/most-likely-to-hit first: reuse the album search
-                        // above if it already has this artist; else a fresh album lookup keyed by
-                        // "artist title" (a single's own release far more often carries real art than
-                        // a bare-artist-name album search does); else the artist's own poster image,
-                        // which MusicBrainz has for virtually any real artist -- Soulseek's own search
-                        // results never carry artwork of their own.
-                        val cover = catalogAlbums.firstOrNull { it.artist.trim().equals(artist, true) }?.imageUrl
-                            ?: try {
-                                lidarr.lookupAlbum(prefs.lidarrUrl, prefs.lidarrApiKey, "$artist $title")
-                                    .firstOrNull { it.artistName.trim().equals(artist, true) }?.imageUrl
-                            } catch (_: Exception) { null }
-                            ?: try {
-                                lidarr.lookupArtist(prefs.lidarrUrl, prefs.lidarrApiKey, artist)
-                                    .firstOrNull { it.artistName.trim().equals(artist, true) }?.imageUrl
-                            } catch (_: Exception) { null }
-                        listOf(CatalogTrack(artist, title, cover))
-                    }
-                }
-            } catch (_: Exception) { emptyList() }
-        } else emptyList()
-        return CatalogResults(catalogAlbums, catalogTracks)
-    }
 
     // ConcurrentHashMap rejects null values (a "no cover found" miss used to crash the app), so a miss is stored as ""
     private val albumArtUrlCache = java.util.concurrent.ConcurrentHashMap<String, String>()
@@ -657,7 +599,9 @@ class Library(ctx: Context, val art: ArtCache) {
      * instant, no waiting on Jellyfin's own scan/API at all. Reuses the same title+artist dedup as
      * every other merge source, so once Jellyfin or NAS eventually also notices the same file, it's
      * recognized as already-present rather than duplicated. */
-    fun addDownloadedTrack(t: Track) { downloaded = downloaded + t; rebuild() }
+    fun addDownloadedTrack(t: Track) { addDownloadedTracks(listOf(t)) }
+    /** Kept in remote.json too, so a fresh download is still there after a restart even if Jellyfin hasn't scanned it yet. */
+    fun addDownloadedTracks(ts: List<Track>) { if (ts.isEmpty()) return; downloaded = downloaded.filter { d -> ts.none { it.path == d.path } } + ts; rebuild(); saveRemote() }
     @Volatile private var downloaded: List<Track> = emptyList()
     @Volatile private var syncTracks: List<Track> = emptyList()
 
@@ -751,6 +695,8 @@ class Library(ctx: Context, val art: ArtCache) {
             if (jellyfinTracks.isEmpty()) jellyfinTracks = list("jf")
             if (plexTracks.isEmpty()) plexTracks = list("px")
             if (nasTracks.isEmpty()) nasTracks = list("nas")
+            val week2 = System.currentTimeMillis() - 14L * 86_400_000
+            if (downloaded.isEmpty()) downloaded = list("dl").filter { it.mtime > week2 }
         } catch (_: Exception) {}
     }
 
@@ -758,7 +704,7 @@ class Library(ctx: Context, val art: ArtCache) {
         try {
             fun arr(ts: List<Track>) = JSONArray().also { a -> ts.forEach { a.put(toJson(it)) } }
             val tmp = File(remoteFile.path + ".tmp")
-            tmp.writeText(JSONObject().put("jf", arr(jellyfinTracks)).put("px", arr(plexTracks)).put("nas", arr(nasTracks)).toString())
+            tmp.writeText(JSONObject().put("jf", arr(jellyfinTracks)).put("px", arr(plexTracks)).put("nas", arr(nasTracks)).put("dl", arr(downloaded)).toString())
             tmp.renameTo(remoteFile)
         } catch (_: Exception) {}
     }

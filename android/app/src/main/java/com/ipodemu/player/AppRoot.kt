@@ -101,11 +101,12 @@ private fun PlayerRoot(activity: MainActivity, nav: PlayerNav) {
     val mode = if (modern) 0 else ui.viewMode
     val snap = rememberSnap(app.player, app.prefs)
 
-    val artKey = nav.overrideArt ?: snap.track?.artKey
+    // a playlist/album page left open under Now Playing used to pin the tint to its cover while the songs changed
+    val artKey = (if (nav.nowPlaying) null else nav.overrideArt) ?: snap.track?.artKey
     var artColors by remember { mutableStateOf<ArtColors?>(null) }
     LaunchedEffect(artKey, ui.dynamicColor) {
         if (!ui.dynamicColor || artKey == null) artColors = null
-        else ArtPalette.of(app.art, artKey)?.let { artColors = it }
+        else artColors = ArtPalette.of(app.art, artKey)
     }
     val dark = when (app.prefs.appearance) { 0 -> true; 1 -> false; else -> isSystemInDarkTheme() }
     val scheme = animatedScheme(if (modern) buildModernScheme(if (ui.dynamicColor) artColors else null) else buildScheme(style, artColors, if (style.mono) false else dark, ui.dynamicColor))

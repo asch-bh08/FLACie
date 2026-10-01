@@ -31,6 +31,12 @@ window.flacie = (() => {
     navigator.mediaSession.setActionHandler("previoustrack", () => send("OnPrev"));
     navigator.mediaSession.setActionHandler("seekto", e => { audio.currentTime = e.seekTime; });
   }
+  let npRef = null, npPushed = false;
+  const npClosed = () => { const r = npRef; npRef = null; npPushed = false; document.body.classList.remove("np-open"); if (r) r.invokeMethodAsync("Closed").catch(() => { }); };
+  window.addEventListener("popstate", () => { if (npRef) npClosed(); else npPushed = false; });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && npRef) window.flacie.npBack(); });
+  // a reload keeps the #now-playing in the address but not the player; drop it
+  if (location.hash === "#now-playing") history.replaceState(null, "", location.pathname + location.search);
   return {
     load(ref, url, title, artist, album, art, autoplay, dur, startAt) {
       dotnet = ref;
@@ -42,8 +48,20 @@ window.flacie = (() => {
     },
     toggle() { audio.paused ? audio.play().catch(() => {}) : audio.pause(); },
     play() { audio.play().catch(() => send("OnState", false)); },
-    // keeps the line being sung in the middle of the lyrics panel
-    scrollLyric() { const el = document.querySelector("#lyrics .cur"); if (el) el.scrollIntoView({ block: "center", behavior: "smooth" }); },
+    // keeps the line being sung in the middle of the lyrics panel, scrolling only that panel (never the page behind it)
+    scrollLyric() {
+      const el = document.querySelector("#lyrics .cur"), panel = document.querySelector(".np-panel");
+      if (el && panel) panel.scrollTo({ top: el.offsetTop - panel.clientHeight / 2 + el.clientHeight / 2, behavior: "smooth" });
+    },
+    // the full-screen player is a history entry, so the browser's Back button closes it
+    npOpen(ref) {
+      npRef = ref; document.body.classList.add("np-open");
+      if (!npPushed) { history.pushState({ np: 1 }, "", location.pathname + location.search + "#now-playing"); npPushed = true; }
+    },
+    npBack() { if (npPushed) history.back(); else npClosed(); },
+    npReset() { npRef = null; document.body.classList.remove("np-open"); },
+    stash(key, json) { try { localStorage.setItem(key, json); } catch { } },
+    unstash(key) { try { return localStorage.getItem(key); } catch { return null; } },
     ready() { return audio.readyState >= 3; },
     pause() { audio.pause(); },
     seek(s) { if (isFinite(s)) audio.currentTime = s; },

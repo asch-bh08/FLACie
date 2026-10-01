@@ -237,6 +237,21 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
 public static class Art
 {
     public static string ExternalKey(string url) => "ex" + Convert.ToBase64String(Encoding.UTF8.GetBytes(url)).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+    /// <summary>A cover to be looked up in the public catalog by artist, album and title (same key format as the Android app).</summary>
+    public static string? LookupKey(string artist, string album, string title)
+    {
+        if (artist.Length == 0 || (album.Length == 0 && title.Length == 0)) return null;
+        var raw = $"{artist}\n{album}\n{title}"; if (raw.Length > 150) raw = raw[..150];
+        return "it" + Convert.ToBase64String(Encoding.UTF8.GetBytes(raw)).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+    }
+
+    public static (string Artist, string Album, string Title)? ParseLookupKey(string key)
+    {
+        if (!key.StartsWith("it")) return null;
+        var b = key[2..].Replace('-', '+').Replace('_', '/'); b = b.PadRight(b.Length + (4 - b.Length % 4) % 4, '=');
+        try { var p = Encoding.UTF8.GetString(Convert.FromBase64String(b)).Split('\n'); return p.Length >= 3 ? (p[0], p[1], p[2]) : null; } catch (Exception) { return null; }
+    }
+
     public static string? ExternalUrl(string key)
     {
         if (!key.StartsWith("ex")) return null;

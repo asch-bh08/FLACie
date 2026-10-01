@@ -121,8 +121,11 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         string Str(string k) => o[k]?.GetValue<string>() ?? "";
         var artist = o["Artists"]?.AsArray().FirstOrDefault()?.GetValue<string>() ?? Str("AlbumArtist");
         var albumId = Str("AlbumId");
-        var art = albumId.Length > 0 && o["AlbumPrimaryImageTag"] is not null ? "jf" + albumId
-                : o["ImageTags"]?["Primary"] is not null ? "jf" + id : albumId.Length > 0 ? "jf" + albumId : null;
+        // the song's own picture first (embedded art differs per song); the album's only when the song has none, because a shared
+        // folder.jpg would put one cover on every song in a folder; a catalog lookup when neither exists
+        var art = o["ImageTags"]?["Primary"] is not null ? "jf" + id
+                : albumId.Length > 0 && o["AlbumPrimaryImageTag"] is not null ? "jf" + albumId
+                : Art.LookupKey(artist, Str("Album"), Str("Name"));
         DateTime.TryParse(Str("DateCreated"), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var created);
         return new Track($"{server}/Audio/{id}/stream?static=true", Str("Name"), artist, Str("Album"), Str("AlbumArtist").Length > 0 ? Str("AlbumArtist") : artist,
             o["IndexNumber"]?.GetValue<int>() ?? 0, o["ParentIndexNumber"]?.GetValue<int>() ?? 0, (o["RunTimeTicks"]?.GetValue<long>() ?? 0) / 10_000,

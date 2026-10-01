@@ -30,6 +30,43 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
     IReadOnlyList<Track> IPlayerHost.Queue => Queue;
     public long PositionMs => (long)(Position * 1000);
 
+    // ---- remembering the queue across a reload (kept in this browser, per account) ----
+
+    string? stashKey; long lastStash;
+    public void SetStashKey(string key) => stashKey = "flacie.queue." + key;
+
+    void Stash(bool force)
+    {
+        if (stashKey is null || Current is null) return;
+        var now = Environment.TickCount64;
+        if (!force && now - lastStash < 5_000) return;
+        lastStash = now;
+        var from = Math.Max(0, Index - 50);
+        var json = System.Text.Json.JsonSerializer.Serialize(new { q = Queue.Skip(from).Take(300).Select(t => t.Path), i = Index - from, p = Position, s = Shuffle, r = Repeat });
+        _ = js.InvokeVoidAsync("flacie.stash", stashKey, json).AsTask().ContinueWith(_ => { });
+    }
+
+    /// <summary>After a reload: puts the last queue back, paused at the second it was left, once the library has loaded.</summary>
+    public async Task RestoreAsync(UserSession s)
+    {
+        if (stashKey is null || Current is not null) return;
+        string? json;
+        try { json = await js.InvokeAsync<string?>("flacie.unstash", stashKey); } catch (Exception) { return; }
+        if (string.IsNullOrEmpty(json)) return;
+        for (var i = 0; i < 180 && (s.Loading || s.Library.Songs.Count == 0); i++) await Task.Delay(500);
+        if (Current is not null) return; // the user already picked something
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var r = doc.RootElement;
+            var tracks = r.GetProperty("q").EnumerateArray().Select(e => s.FindByPath(e.GetString() ?? "")).OfType<Track>().ToList();
+            if (tracks.Count == 0) return;
+            Shuffle = r.TryGetProperty("s", out var sh) && sh.GetBoolean(); Repeat = r.TryGetProperty("r", out var rp) ? rp.GetInt32() : 0;
+            await PlayFromAsync(tracks, Math.Clamp(r.GetProperty("i").GetInt32(), 0, tracks.Count - 1), (long)(r.GetProperty("p").GetDouble() * 1000), true);
+        }
+        catch (Exception) { }
+    }
+
     /// <summary>Joins this tab to the account's Connect: remote commands drive the tab that last played (or the first one open).</summary>
     public void Bind(Connect c) { connect = c; if (c.Host is null) c.Host = this; }
 
@@ -42,6 +79,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         await js.InvokeVoidAsync("flacie.load", self, "/stream?p=" + Uri.EscapeDataString(t.Path), t.Title, t.Artist, t.Album,
             t.ArtKey is null ? null : "/art/" + Uri.EscapeDataString(t.ArtKey), autoplay, t.DurationMs / 1000.0, startAt);
         Position = startAt; Duration = t.DurationMs / 1000.0;
+        Stash(true);
         Changed?.Invoke();
     }
 
@@ -125,7 +163,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
 
     // ---- from flacie.js ----
 
-    [JSInvokable] public void OnTime(double pos, double dur) { Position = pos; if (dur > 0 && !double.IsInfinity(dur)) Duration = dur; Changed?.Invoke(); }
+    [JSInvokable] public void OnTime(double pos, double dur) { Position = pos; if (dur > 0 && !double.IsInfinity(dur)) Duration = dur; Stash(false); Changed?.Invoke(); }
     [JSInvokable] public void OnState(bool playing) { Playing = playing; Changed?.Invoke(); }
     [JSInvokable] public async Task OnEnded()
     {

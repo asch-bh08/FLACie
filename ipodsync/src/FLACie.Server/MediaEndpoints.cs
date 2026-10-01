@@ -99,6 +99,11 @@ public static class MediaEndpoints
                 using var res = await http.GetAsync(external, ctx.RequestAborted);
                 if (res.IsSuccessStatusCode) bytes = await res.Content.ReadAsByteArrayAsync(ctx.RequestAborted);
             }
+            else if (Art.ParseLookupKey(key) is var (la, lb, lt))
+            {
+                await nasSlots.WaitAsync(ctx.RequestAborted);
+                try { bytes = await OnlineCover(http, la, lb, lt, ctx.RequestAborted); } finally { nasSlots.Release(); }
+            }
             else if (key.StartsWith("nf") && s.Nas is { } n)
             {
                 var parts = Encoding.UTF8.GetString(Convert.FromBase64String(Pad(key[2..].Replace('-', '+').Replace('_', '/')))).Split('\n');

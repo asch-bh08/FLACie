@@ -3,6 +3,7 @@
 {
     @if (open) { <NowPlaying OnClose="() => open = false" /> }
     <section class="player" aria-label="Player">
+        <input class="bar-progress" type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@Player.Position" aria-label="Seek" style="@Fill(Player.Position, Player.Duration)" @onchange="OnSeek" />
         <div class="bar">
             <button class="bar-song" @onclick="() => open = true" aria-label="Open Now Playing">
                 <Cover ArtKey="@(t.ArtKey)" Size="52" />
@@ -34,7 +35,13 @@
     bool open, volumeLoaded;
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!volumeLoaded) { volumeLoaded = true; try { await Player.LoadVolumeAsync(); } catch (InvalidOperationException) { } }
+        if (!volumeLoaded)
+        {
+            volumeLoaded = true;
+            try { await Player.LoadVolumeAsync(); } catch (InvalidOperationException) { }
+            Player.SetStashKey(Session.Jellyfin?.UserId ?? Session.Nas?.User ?? "guest");
+            _ = Player.RestoreAsync(Session);
+        }
     }
     Task OnSeek(ChangeEventArgs e) => double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var s) ? Player.Seek(s) : Task.CompletedTask;
     static string Fill(double v, double max) => $"--fill:{(max > 0 ? Math.Clamp(v / max * 100, 0, 100) : 0).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}%";

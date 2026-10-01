@@ -1,11 +1,12 @@
 @inherits UserComponent
+@implements IDisposable
 @* Full-screen player: the cover, the controls, and beside it the queue, the synced lyrics or the file's real format. *@
 @{ var t = Player.Current; }
 <div class="np" role="dialog" aria-modal="true" aria-label="Now Playing">
     @if (t?.ArtKey is { } art) { <img class="np-backdrop" src="/art/@Uri.EscapeDataString(art)" alt="" /> }
     <div class="np-shade"></div>
     <header class="np-top">
-        <button class="icon-btn" @onclick="OnClose" aria-label="Close Now Playing"><Icon Name="chevron-down" Size="24" /></button>
+        <button class="icon-btn" @onclick="Back" aria-label="Close Now Playing"><Icon Name="chevron-down" Size="24" /></button>
         <span class="np-where">Playing from @(t is null ? "" : SourceName(t))</span>
         <span class="np-spacer"></span>
     </header>
@@ -13,7 +14,10 @@
     {
         <div class="np-body">
             <section class="np-main">
-                <Cover ArtKey="@(t.ArtKey)" Class="np-cover" />
+                <button class="np-cover-btn" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")">
+                    <Cover ArtKey="@(t.ArtKey)" Class="np-cover" />
+                    <span class="np-cover-state" aria-hidden="true"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="56" /></span>
+                </button>
                 <div class="np-meta">
                     <div class="np-titles">
                         <h2>@t.Title</h2>
@@ -92,7 +96,11 @@
     [Inject] LyricsService LyricsSvc { get; set; } = default!;
     [Inject] InfoService Infos { get; set; } = default!;
     [Inject] IJSRuntime Js { get; set; } = default!;
+    DotNetObjectReference<NowPlaying>? self;
     string tab = "queue";
+    [JSInvokable] public Task Closed() => OnClose.InvokeAsync();
+    async Task Back() { try { await Js.InvokeVoidAsync("flacie.npBack"); } catch (Exception) { await OnClose.InvokeAsync(); } }
+    public override void Dispose() { self?.Dispose(); _ = Js.InvokeVoidAsync("flacie.npReset").AsTask().ContinueWith(_ => { }); base.Dispose(); }
     Lyrics? lyrics; bool lyricsLoading; string? lyricsFor;
     MediaInfo? info; bool infoLoading; string? infoFor;
     int lastLine = -1;
@@ -101,6 +109,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender) { self = DotNetObjectReference.Create(this); try { await Js.InvokeVoidAsync("flacie.npOpen", self); } catch (Exception) { } }
         if (Player.Current is not { } t) return;
         // a new song: refresh whatever is showing
         if (infoFor != t.Path) await LoadInfo();

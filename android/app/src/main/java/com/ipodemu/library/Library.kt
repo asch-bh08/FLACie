@@ -381,6 +381,14 @@ class Library(ctx: Context, val art: ArtCache) {
 
     /** Settings > Jellyfin's "Connect" button: tests the server, saves it, and does the first
      * fetch+merge right away rather than waiting for the next background attempt. */
+    /** Forgets the Jellyfin server and its songs (the account copy follows on the next sync). */
+    fun disconnectJellyfin() {
+        prefs.jellyfinUrl = ""; prefs.jellyfinApiKey = ""
+        jellyfinUserId = null; jellyfinConnected = false; jellyfinStatus = null; jellyfinTracks = emptyList()
+        onServicesChanged?.invoke()
+        rebuild(); saveRemote()
+    }
+
     fun connectJellyfin(url: String, apiKey: String) {
         if (jellyfinConnecting) return
         jellyfinConnecting = true; jellyfinStatus = null; notifyChange()
@@ -614,7 +622,12 @@ class Library(ctx: Context, val art: ArtCache) {
     @Synchronized private fun rebuild() {
         // built aside and swapped in once: assigning the base list first let a screen read an empty library mid-rebuild
         var acc = if (source == Source.SYNC) syncTracks else localTracks
-        for (s in listOf(jellyfinTracks, plexTracks, nasTracks, downloaded)) acc = merged(acc, s)
+        // a download is also a NAS file the moment it lands: the download (playable anywhere) hides that NAS row, and
+        // Jellyfin's copy, once scanned, hides the download (same file, see fileKey)
+        val dlFiles = downloaded.mapNotNullTo(HashSet()) { it.fileKey }
+        // NAS rows are checked against every Jellyfin file (nasOnlyTracks), not just the Jellyfin rows that survived its own
+        // de-dup: a NAS FLAC whose Jellyfin twin lost to a stray .m4a copy of the same song used to show up as a NAS extra
+        for (s in listOf(jellyfinTracks, plexTracks, nasOnlyTracks().filterNot { it.fileKey in dlFiles }, downloaded)) acc = merged(acc, s)
         tracks = acc
         derive(); notifyChange()
     }

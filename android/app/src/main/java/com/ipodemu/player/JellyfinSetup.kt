@@ -50,7 +50,9 @@ fun JellyfinSetupScreen() {
     var apiKey by remember { mutableStateOf(app.prefs.jellyfinApiKey) }
     val fr = remember { FocusRequester() }
 
-    LaunchedEffect(lib.jellyfinConnected) { if (lib.jellyfinConnected) ui.jellyfinSetupOpen = false }
+    // close once a connection is made here; already connected on opening, it stays open so the server can be changed
+    val connectedOnOpen = remember { lib.jellyfinConnected }
+    LaunchedEffect(lib.jellyfinConnected) { if (lib.jellyfinConnected && !connectedOnOpen) ui.jellyfinSetupOpen = false }
 
     Box(Modifier.fillMaxSize().background(Color(0xFF07080B)).pointerInput(Unit) { detectTapGestures { } }) {
         Column(Modifier.fillMaxSize().statusBarsPadding().imePadding().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -75,6 +77,13 @@ fun JellyfinSetupScreen() {
             GlossPill(if (lib.jellyfinConnecting) "Connecting…" else "Connect", {
                 if (url.isNotBlank() && apiKey.isNotBlank()) lib.connectJellyfin(url.trim(), apiKey.trim())
             }, primary = true)
+            // signed in to a Jellyfin account: connect with that sign-in instead of an API key
+            val p = app.prefs
+            if (p.accountServer.isNotBlank() && p.accountToken.isNotBlank() && p.jellyfinUrl.trimEnd('/') != p.accountServer.trimEnd('/'))
+                GlossPill("Use my account (${p.accountUserName.ifBlank { "signed in" }})", {
+                    url = p.accountServer; apiKey = ""; lib.connectJellyfin(p.accountServer, p.accountToken)
+                })
+            if (lib.jellyfinConnected || p.jellyfinUrl.isNotBlank()) GlossPill("Disconnect", { lib.disconnectJellyfin(); url = ""; apiKey = "" })
 
             when {
                 lib.jellyfinConnecting -> Txt("Connecting to $url ...", size = 13f)

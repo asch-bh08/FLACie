@@ -40,7 +40,7 @@ class JellyfinDirectClient {
         val out = ArrayList<Track>()
         var startIndex = 0
         while (true) {
-            val endpoint = "${base(url)}/Users/$userId/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=Path&EnableUserData=false&StartIndex=$startIndex&Limit=$pageSize"
+            val endpoint = "${base(url)}/Users/$userId/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=Path,DateCreated&EnableUserData=false&StartIndex=$startIndex&Limit=$pageSize"
             val json = JSONObject(get(endpoint, apiKey))
             val arr = json.optJSONArray("Items") ?: JSONArray()
             out += tracksFrom(url, arr)
@@ -79,7 +79,7 @@ class JellyfinDirectClient {
                 year = 0,
                 isMusic = true,
                 artKey = artKeyOf(o),
-                mtime = 0L,
+                mtime = jfDate(o.optString("DateCreated")),
                 size = 0L,
                 source = TrackSource.JELLYFIN,
                 filePath = str(o, "Path"),
@@ -149,3 +149,9 @@ internal fun artKeyOf(o: JSONObject): String? {
     if (o.optJSONObject("ImageTags")?.has("Primary") == true) return "jf" + o.getString("Id")
     return if (albumId.isNotEmpty()) "jf$albumId" else null
 }
+
+/** Jellyfin's "2026-09-28T17:58:38.7227291Z" as epoch millis (0 if absent), so Recently Added orders Jellyfin songs by
+ * when they arrived. */
+internal fun jfDate(s: String): Long = if (s.length < 19) 0L else try {
+    java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.parse(s.take(19))?.time ?: 0L
+} catch (_: Exception) { 0L }

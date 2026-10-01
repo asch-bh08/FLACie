@@ -28,15 +28,17 @@ object WebCatalog {
     fun songs(query: String, limit: Int = 30): List<Song> {
         val words = words(query)
         val raw = deezerSongs(query) ?: itunesSongs(query) ?: return emptyList()
-        return raw.filter { s -> words.all { w -> w in "${s.artist} ${s.title} ${s.album}".lowercase() } }
-            .sortedBy { variant(it.title, words) }
+        val sw = searchWords(query)
+        return raw.filter { s -> searchHit(sw, s.artist, s.title, s.album) }
+            // karaoke/tribute/cover acts sit below real recordings unless asked for ("Karaoke Carpool" names it in the artist)
+            .sortedBy { variant(it.title, words) + (if (typedNone(coverActs, words) && coverActs.containsMatchIn("${it.artist} ${it.album} ${it.title}")) 2 else 0) }
             .distinctBy { norm(primaryArtist(it.artist)) + "|" + norm(baseTitle(it.title)) }.take(limit)
     }
 
     fun albums(query: String, limit: Int = 12): List<Album> {
-        val words = words(query)
         val raw = deezerAlbums(query) ?: itunesAlbums(query) ?: return emptyList()
-        return raw.filter { a -> words.all { w -> w in "${a.artist} ${a.title}".lowercase() } }
+        val sw = searchWords(query)
+        return raw.filter { a -> searchHit(sw, a.artist, a.title) }
             .distinctBy { norm(it.artist) + "|" + norm(it.cleanTitle.replace(editionWords, "")) + "|" + it.kind }
             .take(limit)
     }
@@ -120,6 +122,8 @@ object WebCatalog {
         return if (variantWords.any { it in extra } && typed.none { it in extra }) 1 else 0
     }
 
+    private val coverActs = Regex("""karaoke|tribute|lullaby|kidz bop|in the style of|made famous|cover|8.bit|piano version|instrumental""", RegexOption.IGNORE_CASE)
+    private fun typedNone(r: Regex, typed: List<String>) = !r.containsMatchIn(typed.joinToString(" "))
     private fun words(q: String) = q.lowercase().split(' ', '-').filter { it.isNotBlank() }
     private fun norm(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
     private fun big(u: String) = u.takeIf { it.isNotEmpty() }?.replace("100x100bb", "600x600bb")

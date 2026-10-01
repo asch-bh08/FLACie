@@ -50,7 +50,9 @@ fun PlexSetupScreen() {
     var token by remember { mutableStateOf(app.prefs.plexToken) }
     val fr = remember { FocusRequester() }
 
-    LaunchedEffect(lib.plexConnected) { if (lib.plexConnected) ui.plexSetupOpen = false }
+    // close once a connection is made here; already connected on opening, it stays open so the server can be changed
+    val connectedOnOpen = remember { lib.plexConnected }
+    LaunchedEffect(lib.plexConnected) { if (lib.plexConnected && !connectedOnOpen) ui.plexSetupOpen = false }
 
     Box(Modifier.fillMaxSize().background(Color(0xFF07080B)).pointerInput(Unit) { detectTapGestures { } }) {
         Column(Modifier.fillMaxSize().statusBarsPadding().imePadding().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {

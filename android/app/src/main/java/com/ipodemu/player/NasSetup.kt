@@ -55,7 +55,9 @@ fun NasSetupScreen() {
     var password by remember { mutableStateOf(app.prefs.nasPassword) }
     val fr = remember { FocusRequester() }
 
-    LaunchedEffect(lib.nasConnected) { if (lib.nasConnected) ui.nasSetupOpen = false }
+    // close once a connection is made here; already connected on opening, it stays open so the server can be changed
+    val connectedOnOpen = remember { lib.nasConnected }
+    LaunchedEffect(lib.nasConnected) { if (lib.nasConnected && !connectedOnOpen) ui.nasSetupOpen = false }
 
     @Composable
     fun field(label: String, value: String, onChange: (String) -> Unit, focus: Boolean = false, secret: Boolean = label.startsWith("Password")) {

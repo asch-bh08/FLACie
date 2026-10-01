@@ -77,36 +77,36 @@ fun SettingsScreen(nav: PlayerNav) {
                         ))
                     }
                     if (ui.ipodTheme) SettingRow("iPod appearance", modeName, chevron = true) { ui.pickerOpen = true }
+                    SettingRow("Colour from album art", if (ui.dynamicColor) "On" else "Off") { ui.changeDynamic(!ui.dynamicColor) }
+                    if (ui.ipodTheme) SettingRow("Light or dark", listOf("Dark", "Light", "System")[prefs.appearance.coerceIn(0, 2)]) { prefs.appearance = (prefs.appearance + 1) % 3; ui.refreshFromPrefs() }
                 }
             }
+            // shuffle and repeat live on Now Playing, where they're used; settings holds what's set once
             item { SectionHeader("Playback") }
             item {
                 Card {
-                    SettingRow("Shuffle", if (prefs.shuffle) "On" else "Off") { prefs.shuffle = !prefs.shuffle; app.player.applyModes() }
-                    SettingRow("Repeat", listOf("Off", "All", "One")[prefs.repeat.coerceIn(0, 2)]) { prefs.repeat = (prefs.repeat + 1) % 3; app.player.applyModes() }
                     SettingRow("Equalizer", prefs.eq, chevron = true) {
                         nav.sheet = SheetSpec("Equalizer", prefs.eq, com.ipodemu.playback.PlayerController.EQ_NAMES.map { n ->
                             SheetItem(if (prefs.eq == n) "$n  (on)" else n, if (prefs.eq == n) Glyph.CHECK else Glyph.LIST) { prefs.eq = n; app.player.applyEq() }
                         })
                     }
-                    SettingRow("Volume Limit", if (prefs.volumeLimit == 100) "Off" else "${prefs.volumeLimit}%") {
+                    SettingRow("Volume limit", if (prefs.volumeLimit == 100) "Off" else "${prefs.volumeLimit}%") {
                         prefs.volumeLimit = limits[(limits.indexOf(prefs.volumeLimit).coerceAtLeast(0) + 1) % limits.size]; app.player.applyVolumeLimit()
                     }
-                    SettingRow("Sleep Timer", if (app.player.sleepMinutes == 0) "Off" else "${app.player.sleepMinutes} min") {
+                    SettingRow("Sleep timer", if (app.player.sleepMinutes == 0) "Off" else "${app.player.sleepMinutes} min") {
                         app.player.setSleepTimer(sleeps[(sleeps.indexOf(app.player.sleepMinutes).coerceAtLeast(0) + 1) % sleeps.size])
                     }
                 }
             }
-            item { SectionHeader("Library") }
+            item { SectionHeader("Music sources") }
             item {
                 Card {
-                    SettingRow("Songs", "${app.library.songs().size}") { }
-                    SettingRow("Rescan Library", if (app.library.scanning) "Scanning ${app.library.scanCount}..." else null) { app.library.rescan() }
-                    SettingRow("Sync", app.library.syncDeviceLabel ?: "Local Library", chevron = true) { ui.syncSetupOpen = true }
                     SettingRow("Jellyfin", if (app.library.jellyfinConnected) "Connected" else "Not connected", chevron = true) { ui.jellyfinSetupOpen = true }
                     SettingRow("Plex", if (app.library.plexConnected) "Connected" else "Not connected", chevron = true) { ui.plexSetupOpen = true }
                     SettingRow("NAS", if (app.library.nasConnected) "Connected" else "Not connected", chevron = true) { ui.nasSetupOpen = true }
-                    SettingRow("Lidarr", if (app.library.lidarrConnected) "Connected" else "Not connected", chevron = true) { ui.lidarrSetupOpen = true }
+                    SettingRow("Downloads", if (app.library.lidarrConnected) "Set up" else "Not set up", chevron = true) { ui.lidarrSetupOpen = true }
+                    SettingRow("iPod sync", app.library.syncDeviceLabel ?: "Off", chevron = true) { ui.syncSetupOpen = true }
+                    SettingRow("Rescan this device", if (app.library.scanning) "Scanning ${app.library.scanCount}..." else null) { app.library.rescan() }
                 }
             }
             item { SectionHeader("Controls") }

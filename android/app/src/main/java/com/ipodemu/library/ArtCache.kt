@@ -26,16 +26,23 @@ class ArtCache(private val dir: File) {
 
     /** Downloads cover bytes for a key that has no file yet (Jellyfin/Plex/downloads); null = none. Runs on a background thread. */
     @Volatile var fetcher: ((String) -> ByteArray?)? = null
-    private val fetchFailed = HashSet<String>()
+    /** When each key last failed: retried after a few minutes, since a failure is often a timeout, not a missing cover. */
+    private val fetchFailed = HashMap<String, Long>()
+    /** A search lists dozens of rows at once; unlimited parallel downloads timed most of them out over the internet. */
+    private val fetchSlots = java.util.concurrent.Semaphore(4)
 
     private fun ensure(key: String): File {
         val f = file(key)
         if (f.exists()) return f
         val fx = fetcher ?: return f
-        synchronized(this) { if (key in fetchFailed) return f }
-        val bytes = try { fx(key) } catch (_: Exception) { null }
-        if (bytes != null) try { save(key, bytes) } catch (_: Exception) {}
-        if (!f.exists()) synchronized(this) { fetchFailed.add(key) }
+        synchronized(this) { fetchFailed[key]?.let { if (System.currentTimeMillis() - it < 3 * 60_000) return f } }
+        fetchSlots.acquire()
+        try {
+            if (f.exists()) return f // another request fetched it while this one waited
+            val bytes = try { fx(key) } catch (_: Exception) { null }
+            if (bytes != null) try { save(key, bytes) } catch (_: Exception) {}
+        } finally { fetchSlots.release() }
+        synchronized(this) { if (!f.exists()) fetchFailed[key] = System.currentTimeMillis() else fetchFailed.remove(key) }
         return f
     }
 
@@ -72,7 +79,9 @@ class ArtCache(private val dir: File) {
             } catch (_: Exception) { null }
             synchronized(this) {
                 pending.remove(ck)
-                if (b == null) missing.add(ck) else mem.put(ck, b)
+                // a remote cover that failed may be retried later (see ensure); only a local miss is final
+                if (b == null) { if (fetcher == null || has(key)) missing.add(ck) } else { mem.put(ck, b) }
+                Unit
             }
             if (b != null) main.post { onLoaded?.invoke() }
         }

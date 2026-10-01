@@ -46,7 +46,10 @@ private val nonAlnum = Regex("""[^\p{L}\p{N}]+""")
 /** Title with "(feat. X)" / "ft. X" dropped and punctuation folded, for matching one song across sources. */
 fun normTitle(s: String): String = s.replace(featParen, "").replace(featTail, "").lowercase().replace(nonAlnum, " ").trim()
 /** Just the lead artist: "Lady Gaga; Colby O'Donis", "Lady Gaga Feat. Colby O'Donis" and "Lady Gaga" all -> "lady gaga". */
+// "The Black Eyed Peas" and "Black Eyed Peas" are one artist (taggers disagree on the article)
 fun primaryArtist(s: String): String = s.split(artistSplit).firstOrNull { it.isNotBlank() }.orEmpty().lowercase().replace(nonAlnum, " ").trim()
+    .replace(spaces, " ").let { if (it.startsWith("the ") && it.length > 4) it.substring(4) else it }
+private val spaces = Regex(" +")
 /** Same song regardless of which source spelled the credits how. */
 fun matchKey(title: String, artist: String): String = "${normTitle(title)}|${primaryArtist(artist)}"
 val Track.matchKey: String get() = matchKey(title, artist)
@@ -58,10 +61,13 @@ val Track.fileKey: String?
         val p = when (source) {
             TrackSource.JELLYFIN -> filePath
             TrackSource.NAS -> path
+            // a download played through the file mover: its "?path=" is the same file the NAS and Jellyfin list
+            TrackSource.CLOUD -> path.substringAfter("/file?path=", "")
             else -> return null
         }
         if (p.isBlank()) return null
-        val decoded = try { java.net.URLDecoder.decode(p.replace("+", "%2B"), "UTF-8") } catch (_: Exception) { p }
+        // the file mover URL was form-encoded ("+" is a space); the other paths keep a literal "+"
+        val decoded = try { java.net.URLDecoder.decode(if (source == TrackSource.CLOUD) p else p.replace("+", "%2B"), "UTF-8") } catch (_: Exception) { p }
         val segs = decoded.replace('\\', '/').split('/').filter { it.isNotEmpty() }
         return if (segs.size < 2) null else segs.takeLast(3).joinToString("/").lowercase()
     }
@@ -86,3 +92,18 @@ fun fixMojibake(s: String): String {
     if (high * 10 >= letters * 4) strict("GBK")?.let { g -> if (g.any { it in '一'..'鿿' }) return g }
     return s
 }
+
+/**
+ * Search matching that ignores how a name is written: "&"/"+" = "and", punctuation, spacing and accents don't count, so
+ * "scream and shout will i am" finds "Scream & Shout" by will.i.am and "beyonce" finds "Beyoncé".
+ * [searchWords] once per query, then [searchHit] per item.
+ */
+fun searchWords(query: String): List<String> = searchFold(query).split(' ').map { w -> w.filter { it.isLetterOrDigit() } }.filter { it.isNotEmpty() }
+fun searchHit(words: List<String>, vararg fields: String): Boolean {
+    if (words.isEmpty()) return false
+    val hay = searchFold(fields.joinToString(" ")).filter { it.isLetterOrDigit() }
+    return words.all { it in hay }
+}
+private fun searchFold(s: String): String =
+    java.text.Normalizer.normalize(s.lowercase().replace("&", " and ").replace("+", " and "), java.text.Normalizer.Form.NFD).replace(diacritics, "")
+private val diacritics = Regex("""\p{Mn}+""")

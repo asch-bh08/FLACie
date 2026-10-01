@@ -829,8 +829,9 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         results = withContext(Dispatchers.Default) {
             val lib = app.library
             // every word of the query, in any order, anywhere in title + artist + album ("intro xx" finds "The xx - Intro")
-            val words = q.lowercase().split(' ').filter { it.isNotBlank() }
-            fun hit(vararg fields: String) = fields.joinToString(" ").lowercase().let { h -> words.all { it in h } }
+            // punctuation-blind: "scream and shout will i am" finds "Scream & Shout" by will.i.am
+            val words = com.ipodemu.library.searchWords(q)
+            fun hit(vararg fields: String) = com.ipodemu.library.searchHit(words, *fields)
             Results(
                 lib.songs().filter { hit(it.title, it.artist, it.album) }.take(150),
                 lib.albums().filter { hit(it.name, it.tracks.firstOrNull()?.artist ?: "") }.take(30),

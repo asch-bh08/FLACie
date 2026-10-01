@@ -98,10 +98,13 @@ class AccountSync(private val app: App) {
 
     fun signOut() {
         val base = prefs.accountServer; val token = prefs.accountToken
-        scope.launch { try { http("POST", "$base/Sessions/Logout", token, null) } catch (_: Exception) {} }
+        if (base.isNotBlank()) scope.launch { try { http("POST", "$base/Sessions/Logout", token, null) } catch (_: Exception) {} }
         // a Jellyfin connection that was only borrowing the account's token goes with it
         if (prefs.jellyfinApiKey == token) { prefs.jellyfinApiKey = ""; prefs.jellyfinUrl = "" }
         prefs.accountServer = ""; prefs.accountToken = ""; prefs.accountUserId = ""; prefs.accountUserName = ""; prefs.accountSyncedAt = 0
+        prefs.accountKind = "jellyfin"
+        // the services came with the account; the next person on this device starts clean
+        app.library.forgetAllServices()
         signedIn = false; status = "Signed out"
     }
 
@@ -111,6 +114,7 @@ class AccountSync(private val app: App) {
         prefs.accountToken = auth.getString("AccessToken")
         prefs.accountUserId = user.getString("Id")
         prefs.accountUserName = user.optString("Name")
+        if (!prefs.hasNasAccount || prefs.accountKind != "nas") prefs.accountKind = "jellyfin"
         signedIn = true
         syncNow()
     }
@@ -128,12 +132,41 @@ class AccountSync(private val app: App) {
         pushJob = scope.launch { delay(4000); try { lock.withLock { push() } } catch (e: Exception) { status = "Sync failed: ${e.message}" } }
     }
 
+    /** The profile lives in every account this install has: the Jellyfin user's settings and a file on the NAS share.
+     * The newest copy is merged in, then both are rewritten, so signing in with either later brings everything back
+     * (a NAS sign-in restores the Jellyfin account and vice versa). */
     private suspend fun syncNow() {
-        val remote = pull()
+        val copies = listOfNotNull(
+            if (prefs.hasJellyfinAccount) pull() else null,
+            if (prefs.hasNasAccount) try { pullNas() } catch (_: Exception) { null } else null,
+        )
+        val remote = copies.maxByOrNull { it.optLong("updated") }
         val restored = if (remote != null) apply(remote) else 0
-        try { pullJellyfinPlaylists() } catch (_: Exception) {}
+        if (prefs.hasJellyfinAccount) try { pullJellyfinPlaylists() } catch (_: Exception) {}
         push()
         status = "Synced" + if (restored > 0) ", restored $restored service connection${if (restored == 1) "" else "s"}" else ""
+    }
+
+    // ---- the NAS copy of the profile ------------------------------------------------------------------------------
+
+    private fun nasProfilePath() = ".flacie/profile-${prefs.nasUsername.ifBlank { "guest" }.lowercase().replace(Regex("[^a-z0-9._-]"), "_")}.json"
+
+    private fun pullNas(): JSONObject? = NasSmb.readText(prefs.nasUsername, prefs.nasPassword, prefs.nasDomain, prefs.nasHost, prefs.nasShare, nasProfilePath())
+        ?.let { try { JSONObject(it) } catch (_: Exception) { null } }
+
+    private fun pushNas(profile: JSONObject) =
+        NasSmb.writeText(prefs.nasUsername, prefs.nasPassword, prefs.nasDomain, prefs.nasHost, prefs.nasShare, nasProfilePath(), profile.toString(2))
+
+    /** Sign in with a NAS login: the share must be reachable with these credentials. Its profile (if any) is pulled. */
+    fun signInWithNas(host: String, share: String, folder: String, user: String, password: String, domain: String) = run("Connecting to $host...") {
+        val (ok, info) = NasDirectClient().testConnection(host.trim(), share.trim(), folder.trim(), user.trim(), password, domain.trim())
+        if (!ok) { status = "Could not sign in: ${info ?: "the NAS didn't accept that login"}"; return@run }
+        prefs.nasHost = host.trim(); prefs.nasShare = share.trim(); prefs.nasFolder = folder.trim()
+        prefs.nasUsername = user.trim(); prefs.nasPassword = password; prefs.nasDomain = domain.trim()
+        prefs.accountKind = "nas"
+        signedIn = prefs.signedIn
+        syncNow()
+        app.library.reconnectAll()
     }
 
     private fun prefsUrl(): String {
@@ -143,23 +176,35 @@ class AccountSync(private val app: App) {
 
     private fun pull(): JSONObject? {
         val (code, text) = http("GET", prefsUrl(), prefs.accountToken, null)
-        if (code == 401) { signedIn = false; throw IOException("Session expired. Sign in again.") }
+        if (code == 401) {
+            // signed in with the NAS: a Jellyfin token from an old profile copy has expired; drop it, keep the NAS session
+            if (prefs.accountKind == "nas") { prefs.accountServer = ""; prefs.accountToken = ""; prefs.accountUserId = ""; prefs.accountUserName = ""; return null }
+            signedIn = false; throw IOException("Session expired. Sign in again.")
+        }
         if (code !in 200..299) throw IOException("HTTP $code")
         val raw = JSONObject(text).optJSONObject("CustomPrefs")?.optString(PREFS_KEY)?.takeIf { it.isNotBlank() && it != "null" } ?: return null
         return try { JSONObject(raw) } catch (_: Exception) { null }
     }
 
     private suspend fun push() {
+        val profile = buildProfile()
+        var failure: Exception? = null
+        if (prefs.hasNasAccount) try { pushNas(profile) } catch (e: Exception) { failure = e }
+        if (prefs.hasJellyfinAccount) try { pushJellyfin(profile) } catch (e: Exception) { failure = e }
+        failure?.let { throw it }
+        prefs.accountSyncedAt = System.currentTimeMillis()
+    }
+
+    private suspend fun pushJellyfin(profile: JSONObject) {
         mirrorPlaylists()
         val (gc, gt) = http("GET", prefsUrl(), prefs.accountToken, null)
         if (gc !in 200..299) throw IOException("HTTP $gc")
         val dto = JSONObject(gt)
         val custom = dto.optJSONObject("CustomPrefs") ?: JSONObject()
-        custom.put(PREFS_KEY, buildProfile().toString())
+        custom.put(PREFS_KEY, profile.toString())
         dto.put("CustomPrefs", custom).put("Client", CLIENT)
         val (pc, _) = http("POST", prefsUrl(), prefs.accountToken, dto.toString())
         if (pc !in 200..299) throw IOException("HTTP $pc")
-        prefs.accountSyncedAt = System.currentTimeMillis()
     }
 
     private fun buildProfile(): JSONObject {
@@ -191,7 +236,10 @@ class AccountSync(private val app: App) {
                     .put("tracks", JSONArray().also { a -> pl.paths.forEach { a.put(meta(it)) } }))
             }
         }
-        return JSONObject().put("v", 1).put("updated", System.currentTimeMillis()).put("services", services)
+        // the Jellyfin sign-in travels too, so signing in with only the NAS brings the Jellyfin account back
+        val account = if (p.hasJellyfinAccount) JSONObject().put("server", p.accountServer).put("userId", p.accountUserId)
+            .put("user", p.accountUserName).put("token", p.accountToken) else JSONObject.NULL
+        return JSONObject().put("v", 2).put("updated", System.currentTimeMillis()).put("services", services).put("account", account)
             .put("favorites", JSONArray().also { a -> ud.favorites.toList().forEach { a.put(meta(it)) } })
             .put("playlists", lists)
             .put("deleted", JSONArray(ud.deletedPlaylists.toList()))
@@ -206,6 +254,12 @@ class AccountSync(private val app: App) {
         var restored = 0
         val s = r.optJSONObject("services") ?: JSONObject()
         fun take(blank: Boolean, key: String, set: (JSONObject) -> Unit) { if (blank) s.optJSONObject(key)?.let { set(it); restored++ } }
+        if (!p.hasJellyfinAccount) r.optJSONObject("account")?.let { a ->
+            if (a.optString("token").isNotBlank()) {
+                p.accountServer = a.optString("server"); p.accountUserId = a.optString("userId"); p.accountUserName = a.optString("user"); p.accountToken = a.optString("token")
+                restored++
+            }
+        }
         take(p.jellyfinUrl.isBlank(), "jellyfin") { p.jellyfinUrl = it.optString("url"); p.jellyfinApiKey = it.optString("key") }
         take(p.plexUrl.isBlank(), "plex") { p.plexUrl = it.optString("url"); p.plexToken = it.optString("token") }
         take(p.nasHost.isBlank(), "nas") { p.nasHost = it.optString("host"); p.nasShare = it.optString("share"); p.nasFolder = it.optString("folder"); p.nasUsername = it.optString("user"); p.nasPassword = it.optString("pass"); p.nasDomain = it.optString("domain") }
@@ -214,7 +268,7 @@ class AccountSync(private val app: App) {
         take(p.fileMoverUrl.isBlank(), "filemover") { p.fileMoverUrl = it.optString("url"); p.fileMoverApiKey = it.optString("key") }
         if (p.syncHost.isBlank() && s.optString("synchost").isNotBlank()) p.syncHost = s.optString("synchost")
         // no Jellyfin connection of its own: the account's server + user token is one
-        if (p.jellyfinUrl.isBlank()) { p.jellyfinUrl = p.accountServer; p.jellyfinApiKey = p.accountToken; restored++ }
+        if (p.jellyfinUrl.isBlank() && p.hasJellyfinAccount) { p.jellyfinUrl = p.accountServer; p.jellyfinApiKey = p.accountToken; restored++ }
 
         val favs = r.optJSONArray("favorites") ?: JSONArray()
         val incomingFavs = List(favs.length()) { favs.getJSONObject(it) }.map { Triple(it.optString("p"), it.optString("t"), it.optString("a")) }

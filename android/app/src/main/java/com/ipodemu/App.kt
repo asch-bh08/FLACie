@@ -29,6 +29,13 @@ class App : Application() {
         userData = com.ipodemu.library.UserData(this)
         // one-off: on-device playlists that never reached the account stay out of Playlists; new ones always show
         if (!prefs.playlistsMigrated) { prefs.hiddenPlaylists = userData.playlists.filter { it.jfId == null && it.paths.isNotEmpty() }.mapTo(HashSet()) { it.id }; prefs.playlistsMigrated = true }
+        // installs from before the login screen go straight in, as whatever they were already using
+        if (prefs.loginMode.isEmpty()) prefs.loginMode = when {
+            prefs.accountToken.isNotBlank() || prefs.jellyfinUrl.isNotBlank() || prefs.plexUrl.isNotBlank() -> "account"
+            prefs.nasHost.isNotBlank() -> "account"
+            else -> ""
+        }
+        ui.setLogin(prefs.loginMode)
         lyrics = com.ipodemu.library.LyricsProvider(this)
         // fetch lyrics as each song starts, so they are ready (and cached) before Now Playing asks
         player.onTrackStarted = { t -> userData.recordPlay(t.path); bg.launch { lyrics.get(t) } }

@@ -47,10 +47,6 @@ fun AccountScreen() {
     val prefs = app.prefs
     fun close() { acct.cancelQuickConnect(); ui.accountOpen = false }
     BackHandler { close() }
-    var server by remember { mutableStateOf(prefs.accountServer.ifEmpty { prefs.jellyfinUrl }) }
-    var user by remember { mutableStateOf("") }
-    var pass by remember { mutableStateOf("") }
-    var usePassword by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -62,17 +58,42 @@ fun AccountScreen() {
                 Txt("Account", Modifier.padding(start = 4.dp), size = 22f, weight = FontWeight.Bold, color = Color.White)
             }
             if (acct.signedIn) {
-                Txt("Signed in as ${prefs.accountUserName}", size = 18f, weight = FontWeight.SemiBold, color = Color.White)
-                Txt(prefs.accountServer, size = 14f, color = Color(0x99FFFFFF))
-                Txt("Your service connections, playlists and favourites are saved to this account and restored when you sign in on another device. Playlists are also kept as real Jellyfin playlists. Passwords and API keys are stored in your Jellyfin user settings, so anyone with admin access to that server can read them.", size = 14f, color = Color(0xCCFFFFFF), maxLines = 7)
+                val viaNas = prefs.accountKind == "nas"
+                Txt(if (viaNas) "Signed in with a NAS" else "Signed in as ${prefs.accountUserName}", size = 18f, weight = FontWeight.SemiBold, color = Color.White)
+                Txt(if (viaNas) "${prefs.nasUsername.ifBlank { "guest" }} on ${prefs.nasHost}/${prefs.nasShare}" else prefs.accountServer, size = 14f, color = Color(0x99FFFFFF))
+                val kept = listOfNotNull("this NAS".takeIf { prefs.hasNasAccount }, "Jellyfin (${prefs.accountUserName})".takeIf { prefs.hasJellyfinAccount }).joinToString(" and ")
+                Txt("Your connected services, playlists, favourites and preferences are kept in $kept, so signing in with either on another device brings them back. They include the services' passwords and API keys, which the server's admins can read.", size = 14f, color = Color(0xCCFFFFFF), maxLines = 7)
                 Txt(acct.status ?: syncedLabel(prefs.accountSyncedAt), size = 14f, color = Color(0xFF7CE0A0), maxLines = 3)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     GlossPill(if (acct.busy) "Syncing..." else "Sync now", { acct.sync() }, primary = true)
-                    GlossPill("Sign out", { acct.signOut() })
+                    // signing out leads back to the login screen
+                    GlossPill("Sign out", { acct.signOut(); ui.setLogin(""); ui.accountOpen = false })
+                }
+                // add the other kind of account, so the profile is kept in both
+                if (!prefs.hasJellyfinAccount) {
+                    Txt("Also keep it in a Jellyfin account", size = 16f, weight = FontWeight.SemiBold, color = Color.White)
+                    JellyfinSignInForm()
                 }
                 return@Column
             }
-            Txt("Sign in with your Jellyfin account to bring back every service you set up (Jellyfin, Plex, NAS, Lidarr, Soulseek) and your playlists.", size = 14f, color = Color(0xCCFFFFFF), maxLines = 5)
+            Txt("You're using FLACie as a guest", size = 18f, weight = FontWeight.SemiBold, color = Color.White)
+            Txt("Guest mode plays this device's music only. Sign in with Jellyfin or a NAS to stream, download and keep your playlists and settings in sync.", size = 14f, color = Color(0xCCFFFFFF), maxLines = 5)
+            GlossPill("Sign in", { ui.setLogin(""); ui.accountOpen = false }, primary = true)
+        }
+    }
+}
+
+/** Server field plus Quick Connect (default) or username and password; used by Settings > Account and the login screen. */
+@Composable
+fun JellyfinSignInForm() {
+    val app = LocalApp.current
+    val acct = app.account
+    val prefs = app.prefs
+    var server by remember { mutableStateOf(prefs.accountServer.ifEmpty { prefs.jellyfinUrl }) }
+    var user by remember { mutableStateOf("") }
+    var pass by remember { mutableStateOf("") }
+    var usePassword by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Field("Jellyfin server", server, { server = it }, "https://jellyfin.example.ts.net", KeyboardType.Uri)
             if (!usePassword) {
                 val code = acct.quickCode
@@ -92,12 +113,11 @@ fun AccountScreen() {
                 GlossPill("Use Quick Connect instead", { usePassword = false })
             }
             acct.status?.let { Txt(it, size = 14f, color = if (acct.busy || acct.quickCode != null) Color(0xCCFFFFFF) else Color(0xFFFFB0B0), maxLines = 3) }
-        }
     }
 }
 
 @Composable
-private fun Field(label: String, value: String, onChange: (String) -> Unit, hint: String, type: KeyboardType, secret: Boolean = false) {
+internal fun Field(label: String, value: String, onChange: (String) -> Unit, hint: String, type: KeyboardType, secret: Boolean = false) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Txt(label, size = 13f, color = Color(0x99FFFFFF))
         Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0x22FFFFFF)).padding(14.dp)) {

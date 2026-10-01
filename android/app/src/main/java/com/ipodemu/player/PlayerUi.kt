@@ -842,7 +842,8 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
     // anyone else's track with the same name). Debounced longer than the local filter: these are network calls.
     LaunchedEffect(query) {
         val q = query.trim()
-        if (q.isEmpty()) { web = WebResults(emptyList(), emptyList()); webLoading = false; return@LaunchedEffect }
+        // guests have no servers or downloads, so the online catalog has nothing to offer them
+        if (q.isEmpty() || app.ui.guest) { web = WebResults(emptyList(), emptyList()); webLoading = false; return@LaunchedEffect }
         delay(450)
         webLoading = true
         val songs = withContext(Dispatchers.IO) { WebCatalog.songs(q) }
@@ -895,7 +896,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         else if (nothingAtAll) {
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f)) { EmptyState("No results") }
-                DownloadRequestBar(app, q)
+                if (!app.ui.guest) DownloadRequestBar(app, q)
             }
         }
         else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -955,7 +956,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 if (!albumsExpanded && r.albums.size > 3) item { ShowMoreRow(r.albums.size - 3) { albumsExpanded = true } }
             }
             if (webLoading) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Searching for more...", size = 13f, color = sc.onBgDim) } }
-            if (!webLoading && w.songs.isEmpty()) item { DownloadRequestBar(app, q) }
+            if (!webLoading && w.songs.isEmpty() && !app.ui.guest) item { DownloadRequestBar(app, q) }
         }
     }
 }

@@ -207,10 +207,23 @@ class Prefs(ctx: Context) {
     var playlistsMigrated: Boolean
         get() = sp.getBoolean("listsmigrated", false)
         set(v) = sp.edit().putBoolean("listsmigrated", v).apply()
+    /** How this install got in: "account" (signed in with Jellyfin or a NAS, or set up before the login screen existed),
+     * "guest" (this device's files only, nothing synced), or "" (not yet: the login screen shows). */
+    var loginMode: String
+        get() = sp.getString("loginMode", "") ?: ""
+        set(v) = sp.edit().putString("loginMode", v).apply()
     /** Stable per-install id Jellyfin needs for its session/device bookkeeping. */
     val deviceId: String
         get() = sp.getString("deviceid", null) ?: java.util.UUID.randomUUID().toString().also { sp.edit().putString("deviceid", it).apply() }
-    val signedIn: Boolean get() = accountServer.isNotBlank() && accountToken.isNotBlank() && accountUserId.isNotBlank()
+    /** A Jellyfin user session (signed in with Jellyfin, or restored from a NAS profile). */
+    val hasJellyfinAccount: Boolean get() = accountServer.isNotBlank() && accountToken.isNotBlank() && accountUserId.isNotBlank()
+    /** A NAS that can hold the profile: a share and a login. */
+    val hasNasAccount: Boolean get() = nasHost.isNotBlank() && nasShare.isNotBlank()
+    /** Which account the user signed in with: "jellyfin" or "nas". The profile is kept in both whenever both exist. */
+    var accountKind: String
+        get() = sp.getString("accountKind", "jellyfin") ?: "jellyfin"
+        set(v) = sp.edit().putString("accountKind", v).apply()
+    val signedIn: Boolean get() = if (accountKind == "nas") hasNasAccount else hasJellyfinAccount
 
     /** Reset Settings: everything except the chosen iPod, colour and look. */
     fun reset() {

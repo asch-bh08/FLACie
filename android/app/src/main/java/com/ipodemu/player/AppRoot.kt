@@ -84,6 +84,8 @@ fun AppRoot(activity: MainActivity) {
             if (ui.nasSetupOpen) overlay { NasSetupScreen() }
             if (ui.lidarrSetupOpen) overlay { LidarrSetupScreen() }
             if (ui.accountOpen) overlay { AccountScreen() }
+            // first run and after signing out: nothing else until the user signs in or picks guest
+            if (ui.loginMode.isEmpty()) overlay { LoginScreen() }
         }
     }
 }

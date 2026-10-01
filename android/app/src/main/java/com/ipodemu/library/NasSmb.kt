@@ -42,6 +42,27 @@ object NasSmb {
 
     private fun encodeSegment(seg: String) = java.net.URLEncoder.encode(seg, "UTF-8").replace("+", "%20")
 
+
+    /** A small text file at [relPath] from the share root (the account profile in .flacie/); null if it isn't there. */
+    fun readText(username: String, password: String, domain: String, host: String, share: String, relPath: String): String? {
+        val f = jcifs.smb.SmbFile(rootUrl(host, share, relPath.substringBeforeLast('/', "")) + encodeSegment(relPath.substringAfterLast('/')), context(username, password, domain))
+        return if (!f.exists()) null else f.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
+    }
+
+    /** Writes [text] to [relPath] from the share root, creating its folder; written aside and renamed so a reader never
+     * sees half a file. */
+    fun writeText(username: String, password: String, domain: String, host: String, share: String, relPath: String, text: String) {
+        val ctx = context(username, password, domain)
+        val dirUrl = rootUrl(host, share, relPath.substringBeforeLast('/', ""))
+        jcifs.smb.SmbFile(dirUrl, ctx).let { if (!it.exists()) it.mkdirs() }
+        val name = encodeSegment(relPath.substringAfterLast('/'))
+        val tmp = jcifs.smb.SmbFile("$dirUrl$name.tmp", ctx)
+        tmp.outputStream.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+        val dest = jcifs.smb.SmbFile(dirUrl + name, ctx)
+        if (dest.exists()) dest.delete()
+        tmp.renameTo(dest)
+    }
+
     fun isAudio(name: String): Boolean = name.substringAfterLast('.', "").lowercase() in AUDIO_EXT
 
     /** Moves a file within the same SMB share -- used to file a Soulseek download straight into the

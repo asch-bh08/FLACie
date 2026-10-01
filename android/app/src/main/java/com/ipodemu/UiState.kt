@@ -69,6 +69,10 @@ class UiState(private val prefs: Prefs) {
     fun changeColorway(i: Int) { prefs.colorway = i; colorway = i; rev++ }
     fun changeDynamic(on: Boolean) { prefs.dynamicColor = on; dynamicColor = on; rev++ }
     /** Called after code outside Compose (the wheel UI's own settings) changed prefs. */
+    var loginMode by mutableStateOf(prefs.loginMode); private set
+    fun setLogin(mode: String) { prefs.loginMode = mode; loginMode = mode }
+    val guest: Boolean get() = loginMode == "guest"
+
     fun refreshFromPrefs() { normalise(); uiTheme = prefs.uiTheme; viewMode = prefs.viewMode; model = prefs.model; colorway = prefs.colorway; dynamicColor = prefs.dynamicColor; rev++ }
 
     init { refreshFromPrefs() }   // last: all state fields must exist first

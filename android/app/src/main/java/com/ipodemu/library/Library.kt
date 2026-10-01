@@ -381,6 +381,18 @@ class Library(ctx: Context, val art: ArtCache) {
 
     /** Settings > Jellyfin's "Connect" button: tests the server, saves it, and does the first
      * fetch+merge right away rather than waiting for the next background attempt. */
+    /** Guest mode starts empty: forgets every server and download service on this device (not on the servers or in any
+     * account) and their songs; this device's own music stays. */
+    fun forgetAllServices() {
+        prefs.jellyfinUrl = ""; prefs.jellyfinApiKey = ""; prefs.plexUrl = ""; prefs.plexToken = ""
+        prefs.nasHost = ""; prefs.nasShare = ""; prefs.nasFolder = ""; prefs.nasUsername = ""; prefs.nasPassword = ""; prefs.nasDomain = ""
+        prefs.lidarrUrl = ""; prefs.lidarrApiKey = ""; prefs.slskdUrl = ""; prefs.slskdApiKey = ""; prefs.fileMoverUrl = ""; prefs.fileMoverApiKey = ""
+        jellyfinUserId = null; jellyfinConnected = false; plexConnected = false; nasConnected = false; lidarrConnected = false
+        jellyfinStatus = null
+        jellyfinTracks = emptyList(); plexTracks = emptyList(); nasTracks = emptyList(); downloaded = emptyList()
+        rebuild(); saveRemote()
+    }
+
     /** Forgets the Jellyfin server and its songs (the account copy follows on the next sync). */
     fun disconnectJellyfin() {
         prefs.jellyfinUrl = ""; prefs.jellyfinApiKey = ""

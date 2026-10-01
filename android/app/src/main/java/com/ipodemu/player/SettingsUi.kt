@@ -59,9 +59,10 @@ fun SettingsScreen(nav: PlayerNav) {
                 Card {
                     val acct = app.account
                     if (acct.signedIn) {
-                        SettingRow(prefs.accountUserName.ifEmpty { "Signed in" }, prefs.accountServer.removePrefix("https://").removePrefix("http://"), chevron = true) { ui.accountOpen = true }
+                        if (prefs.accountKind == "nas") SettingRow("NAS: ${prefs.nasUsername.ifBlank { "guest" }}", "${prefs.nasHost}/${prefs.nasShare}", chevron = true) { ui.accountOpen = true }
+                        else SettingRow(prefs.accountUserName.ifEmpty { "Signed in" }, prefs.accountServer.removePrefix("https://").removePrefix("http://"), chevron = true) { ui.accountOpen = true }
                         SettingRow("Sync now", acct.status ?: syncedLabel(prefs.accountSyncedAt)) { acct.sync() }
-                    } else SettingRow("Sign in", "Not signed in", chevron = true) { ui.accountOpen = true }
+                    } else SettingRow("Sign in", if (ui.guest) "Guest" else "Not signed in", chevron = true) { ui.accountOpen = true }
                 }
             }
             item { SectionHeader("Appearance") }
@@ -101,10 +102,11 @@ fun SettingsScreen(nav: PlayerNav) {
             item { SectionHeader("Music sources") }
             item {
                 Card {
-                    SettingRow("Jellyfin", if (app.library.jellyfinConnected) "Connected" else "Not connected", chevron = true) { ui.jellyfinSetupOpen = true }
-                    SettingRow("Plex", if (app.library.plexConnected) "Connected" else "Not connected", chevron = true) { ui.plexSetupOpen = true }
-                    SettingRow("NAS", if (app.library.nasConnected) "Connected" else "Not connected", chevron = true) { ui.nasSetupOpen = true }
-                    SettingRow("Downloads", if (app.library.lidarrConnected) "Set up" else "Not set up", chevron = true) { ui.lidarrSetupOpen = true }
+                    // guests use this device's files only
+                    if (!ui.guest) SettingRow("Jellyfin", if (app.library.jellyfinConnected) "Connected" else "Not connected", chevron = true) { ui.jellyfinSetupOpen = true }
+                    if (!ui.guest) SettingRow("Plex", if (app.library.plexConnected) "Connected" else "Not connected", chevron = true) { ui.plexSetupOpen = true }
+                    if (!ui.guest) SettingRow("NAS", if (app.library.nasConnected) "Connected" else "Not connected", chevron = true) { ui.nasSetupOpen = true }
+                    if (!ui.guest) SettingRow("Downloads", if (app.library.lidarrConnected) "Set up" else "Not set up", chevron = true) { ui.lidarrSetupOpen = true }
                     SettingRow("iPod sync", app.library.syncDeviceLabel ?: "Off", chevron = true) { ui.syncSetupOpen = true }
                     SettingRow("Rescan this device", if (app.library.scanning) "Scanning ${app.library.scanCount}..." else null) { app.library.rescan() }
                 }

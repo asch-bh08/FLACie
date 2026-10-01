@@ -2,6 +2,7 @@ package com.ipodemu.library
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -19,6 +20,11 @@ import java.util.UUID
  *   close to the real song), then by a free upload slot, short queue and fast upload speed.
  */
 class SlskdClient {
+    companion object {
+        private val searchGate = kotlinx.coroutines.sync.Mutex()
+        @Volatile private var lastSearchAt = 0L
+    }
+
     data class FileResult(
         val username: String, val filename: String, val size: Long, val hasFreeUploadSlot: Boolean, val bitRate: Int?,
         val uploadSpeed: Long = 0, val queueLength: Int = 0, val lengthSec: Int = 0,
@@ -49,7 +55,14 @@ class SlskdClient {
             // seconds, counted by slskd from the last response rather than the start
             put("searchTimeout", (timeoutMs / 1000).toInt().coerceAtLeast(5)); put("responseLimit", 200); put("fileLimit", 20_000)
         }
-        // slskd takes one search request at a time (429 for another), which an album's three parallel fill-ins hit
+        // Soulseek's server quietly stops answering accounts that search too often (every search came back empty for
+        // over an hour after a burst), so searches from this app are spaced at least 4s apart, whoever starts them
+        searchGate.withLock {
+            val wait = lastSearchAt + 4_000 - System.currentTimeMillis()
+            if (wait > 0) delay(wait)
+            lastSearchAt = System.currentTimeMillis()
+        }
+        // slskd takes one search request at a time (429 for another)
         for (attempt in 0 until 8) {
             try { post("${base(url)}/api/v0/searches", apiKey, body); break }
             catch (e: IOException) { if (e.message != "HTTP 429" || attempt == 7) throw e; delay(400L + attempt * 200) }

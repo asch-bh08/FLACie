@@ -97,7 +97,8 @@ class DownloadCoordinator(private val prefs: Prefs) {
                 if (got.all { it != null }) break
             }
             // songs no folder had: each from its own best peer, three at a time
-            val missing = list.indices.filter { got[it] == null }
+            // at most 8 single-song searches per album, so one album can't set off Soulseek's search limit
+            val missing = list.indices.filter { got[it] == null }.take(8)
             if (missing.isNotEmpty()) {
                 status("Finding ${missing.size} more song${if (missing.size == 1) "" else "s"}...")
                 val gate = Semaphore(3)

@@ -12,6 +12,58 @@ straight into the phone over USB or into a PC.
 | [`ipodsync/`](ipodsync/) | **The iPod engine** (reading, the verified writer, database signatures), the **FLACie desktop app** (Windows) with its installer, a web host, a CLI, and `IpodSync.Engine` — the engine as a native library for the Android app. | C#/.NET 9, MAUI, NativeAOT |
 | [`logo/`](logo/) | The FLACie logo (SVG master). | |
 
+## FLACie Web (self-hosted)
+
+The same player in a browser, and the same look as the phone app: search on top, your playlists in the sidebar, a full-screen player with
+Autoplay, an Up next that shows what actually plays next, synced lyrics, a file-info tab (format, bit rate, sample rate), and a
+"Listening on <device>" strip when another player on your Jellyfin account is playing. It is a small ASP.NET server (`ipodsync/src/FLACie.Server`,
+built on `ipodsync/src/FLACie.Core`) and a multi-arch image: `ghcr.io/asch-bh08/flacie-web`.
+
+**Sign in** with Jellyfin (a password, or Quick Connect: approve the six-digit code in any signed-in Jellyfin app) or, if allowed, a NAS (an SMB
+share). The profile (services, playlists, favourites, preferences) lives in your Jellyfin user settings and on the NAS share
+(`.flacie/profile-<user>.json`), the same place the phone app keeps it, so everything follows you between devices.
+
+```yaml
+# docker-compose.yml
+services:
+  flacie:
+    image: ghcr.io/asch-bh08/flacie-web:latest
+    container_name: flacie
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./flacie-data:/data        # sign-in keys, cover and lyrics cache
+    environment:
+      PUID: "1000"                         # optional: run as your own user (find yours with `id`)
+      PGID: "1000"
+      FLACIE_JELLYFIN_URL: "https://jellyfin.example.com"   # optional: lock sign-in to one server (users then only type a username)
+      # FLACIE_JELLYFIN_INTERNAL_URL: "http://jellyfin:8096" # optional: where the server itself reaches Jellyfin, if that differs from the address above
+      FLACIE_ALLOW_NAS_LOGIN: "false"      # optional: Jellyfin only. Recommended on a public site: a NAS sign-in makes the server connect to any address typed in.
+```
+
+Then `docker compose up -d` and open `http://<host>:8080`.
+
+**Behind a reverse proxy or Tailscale Funnel.** The app reads `X-Forwarded-For/Proto/Host`, so it works behind Caddy, Nginx, Traefik or a Funnel with no
+extra setting: proxy a hostname (not a sub-path) to port 8080 and make sure WebSockets are passed through (Blazor needs them). Caddy needs only
+`flacie.example.com { reverse_proxy flacie:8080 }`. With Tailscale Funnel on a host that already uses port 443, give it its own HTTPS port:
+`tailscale funnel --bg --https=8443 http://127.0.0.1:8080`.
+
+**Downloads from the web.** Search shows music you don't have under "More music", with Download buttons: Soulseek (slskd plus the small file
+mover) first, Lidarr as the fallback. The addresses and keys are read from your profile (set them in the phone app, or in Settings > Downloads on
+the web) and stay on the server; the browser only sees progress.
+
+**Connect and Jams.** Signed in with Jellyfin, the browser appears as a device next to your phone: control it from the phone, take over what the
+phone plays, or start/join a Jam (Jellyfin SyncPlay; each user needs SyncPlay access in Dashboard > Users). A token that was borrowed from the
+shared profile is replaced by one of the device's own (via an approved Quick Connect request), so every device shows up on its own.
+
+## FLACie on Windows
+
+The Windows desktop app now opens on the music player: the same FLACie Web server, packaged next to the app (`flacie-web` folder) and shown
+inside the window, so the look and the features are identical to the web. A switch at the top changes between **FLACie** and the **iPod manager**
+(the iPod tools described in `ipodsync/README.md`). The player's data (sign-in keys, caches) lives in `%LOCALAPPDATA%\FLACie\web`; it only listens on
+127.0.0.1 and stops with the app. `ipodsync\tools\build-apps.ps1 -Windows` (and the installer) publishes it into the app folder.
+
 ## Building
 
 - **Android app:** `cd android && ./gradlew assembleRelease` (JDK 17, Android SDK). See [android/README.md](android/README.md).

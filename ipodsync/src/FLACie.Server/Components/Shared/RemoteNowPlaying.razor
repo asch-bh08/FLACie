@@ -5,7 +5,7 @@
 @if (Live is { } live && Remote(live) is { } s)
 {
     <aside class="remote-now @(Player.Current is null ? "solo" : "")" aria-label="@("Playing on " + s.Device)">
-        <Cover ArtKey="@("jf" + s.ItemId)" Size="44" />
+        <Cover ArtKey="@s.ArtKey" Size="44" />
         <span class="rn-text">
             <small><Icon Name="devices" Size="14" />Listening on @s.Device</small>
             <b>@s.Title</b>

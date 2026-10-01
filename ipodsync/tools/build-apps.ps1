@@ -1,4 +1,4 @@
-<#
+﻿<#
   Builds the ipodsync apps.
 
     powershell -ExecutionPolicy Bypass -File tools\build-apps.ps1 [-Windows] [-Android] [-Out <dir>]
@@ -41,6 +41,10 @@ if ($Windows) {
       -p:RuntimeIdentifierOverride=win-x64 -p:WindowsPackageType=None `
       -p:WindowsAppSDKSelfContained=true -p:SelfContained=true -o $dest
   if ($LASTEXITCODE -ne 0) { throw "Windows publish failed" }
+  # the FLACie music player: the same server the Docker image runs, packaged beside the app and shown in a WebView (see FlacieHost.cs)
+  $server = Join-Path $repo "src\FLACie.Server\FLACie.Server.csproj"
+  & $dotnet publish $server -c Release -r win-x64 --self-contained -o (Join-Path $dest "flacie-web")
+  if ($LASTEXITCODE -ne 0) { throw "FLACie player publish failed" }
   Write-Host "   run: $dest\IpodSync.Maui.exe" -ForegroundColor Green
 }
 

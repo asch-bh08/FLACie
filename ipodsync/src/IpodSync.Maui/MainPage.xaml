@@ -1,14 +1,27 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:IpodSync.Maui"
              xmlns:components="clr-namespace:IpodSync.Maui.Components"
-             x:Class="IpodSync.Maui.MainPage">
+             x:Class="IpodSync.Maui.MainPage"
+             BackgroundColor="#0b0b0e">
 
-    <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html" BlazorWebViewInitialized="OnWebViewInitialized">
-        <BlazorWebView.RootComponents>
-            <RootComponent Selector="#app" ComponentType="{x:Type components:Routes}" />
-        </BlazorWebView.RootComponents>
-    </BlazorWebView>
+    <Grid RowDefinitions="Auto,*">
+        <!-- the mode switch: the music player (FLACie) or the iPod manager; Windows only, and only when the player is packaged -->
+        <HorizontalStackLayout x:Name="modeBar" Grid.Row="0" IsVisible="False" Spacing="6" Padding="12,8" BackgroundColor="#0b0b0e">
+            <Button x:Name="flacieButton" Text="FLACie" Clicked="OnFlacieClicked" CornerRadius="18" HeightRequest="36" Padding="18,0" FontAttributes="Bold" />
+            <Button x:Name="ipodButton" Text="iPod manager" Clicked="OnIpodClicked" CornerRadius="18" HeightRequest="36" Padding="18,0" FontAttributes="Bold" />
+            <Label x:Name="modeStatus" VerticalOptions="Center" TextColor="#a9a6b3" Margin="10,0,0,0" />
+        </HorizontalStackLayout>
+
+        <Grid Grid.Row="1">
+            <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html" BlazorWebViewInitialized="OnWebViewInitialized">
+                <BlazorWebView.RootComponents>
+                    <RootComponent Selector="#app" ComponentType="{x:Type components:Routes}" />
+                </BlazorWebView.RootComponents>
+            </BlazorWebView>
+            <WebView x:Name="flacieView" IsVisible="False" />
+        </Grid>
+    </Grid>
 
 </ContentPage>

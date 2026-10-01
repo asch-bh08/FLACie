@@ -51,6 +51,15 @@ builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>
 });
 
 var app = builder.Build();
+// hosted by the Windows app: stop when that app does, so closing it never leaves a server running
+if (int.TryParse(builder.Configuration["FLACIE_PARENT_PID"], out var parentPid))
+{
+    _ = Task.Run(async () =>
+    {
+        try { using var parent = System.Diagnostics.Process.GetProcessById(parentPid); await parent.WaitForExitAsync(); } catch (Exception) { }
+        app.Lifetime.StopApplication();
+    });
+}
 app.UseForwardedHeaders();
 if (!app.Environment.IsDevelopment()) app.UseExceptionHandler("/error", createScopeForErrors: true);
 app.UseAuthentication();

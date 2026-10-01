@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 namespace FLACie.Core;
 
-public enum TrackSource { Jellyfin, Nas, Local }
+public enum TrackSource { Jellyfin, Nas, Local, Cloud }
 
 /// <summary>One song from one source. <see cref="Path"/> is the same string the Android app stores in playlists and
 /// favourites (a Jellyfin stream URL, an smb:// URL or a local path), so the shared profile matches across devices.</summary>

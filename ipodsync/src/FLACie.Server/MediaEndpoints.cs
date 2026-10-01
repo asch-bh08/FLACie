@@ -29,11 +29,10 @@ public static class MediaEndpoints
             var s = store.For(ctx.User);
             var t = s.FindByPath(p);
             if (t is null) return Results.NotFound();
-            if (t.Source == TrackSource.Jellyfin && s.Jellyfin is { } a)
+            async Task<IResult> Proxy(HttpRequestMessage req)
             {
-                using var req = jf.Authorized(a, jf.StreamUrl(a, t.JellyfinId!));
                 if (ctx.Request.Headers.Range.Count > 0) req.Headers.TryAddWithoutValidation("Range", ctx.Request.Headers.Range.ToString());
-                var res = await hf.CreateClient("media").SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
+                using var res = await hf.CreateClient("media").SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
                 ctx.Response.StatusCode = (int)res.StatusCode;
                 foreach (var h in new[] { "Content-Type", "Content-Length", "Content-Range", "Accept-Ranges" })
                 {
@@ -42,6 +41,18 @@ public static class MediaEndpoints
                 await using var body = await res.Content.ReadAsStreamAsync(ctx.RequestAborted);
                 await body.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
                 return Results.Empty;
+            }
+            if (t.Source == TrackSource.Jellyfin && s.Jellyfin is { } a)
+            {
+                using var req = jf.Authorized(a, jf.StreamUrl(a, t.JellyfinId!));
+                return await Proxy(req);
+            }
+            // a song just downloaded, playing from the file mover before Jellyfin has scanned it (only that service, with the key kept here)
+            if (t.Source == TrackSource.Cloud && s.Services is { FileMoverUrl.Length: > 0 } svc && t.Path.StartsWith(svc.FileMoverUrl.TrimEnd('/') + "/file?", StringComparison.Ordinal))
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Get, t.Path);
+                req.Headers.TryAddWithoutValidation("X-Api-Key", svc.FileMoverKey);
+                return await Proxy(req);
             }
             if (t.Source == TrackSource.Nas && s.Nas is { } n)
             {
@@ -81,6 +92,11 @@ public static class MediaEndpoints
             {
                 using var req = jf.Authorized(a, jf.ImageUrl(a, key[2..], 500));
                 using var res = await http.SendAsync(req, ctx.RequestAborted);
+                if (res.IsSuccessStatusCode) bytes = await res.Content.ReadAsByteArrayAsync(ctx.RequestAborted);
+            }
+            else if (Art.ExternalUrl(key) is { } external)
+            {
+                using var res = await http.GetAsync(external, ctx.RequestAborted);
                 if (res.IsSuccessStatusCode) bytes = await res.Content.ReadAsByteArrayAsync(ctx.RequestAborted);
             }
             else if (key.StartsWith("nf") && s.Nas is { } n)

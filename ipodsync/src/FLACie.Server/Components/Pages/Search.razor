@@ -1,20 +1,31 @@
 @page "/search"
 @attribute [Authorize]
+@implements IDisposable
 @inherits UserComponent
 <PageTitle>Search · FLACie</PageTitle>
 <header class="page-head">
     <h1>Search</h1>
     <input class="search" type="search" placeholder="Songs, albums, artists" aria-label="Search your music" autofocus
-           value="@q" @oninput="e => q = e.Value?.ToString() ?? string.Empty" />
+           value="@q" @oninput="OnInput" />
 </header>
-@{ var r = Lib.Search(q); }
+@{ var r = Lib.Search(q); var jobs = Downloads.JobsOf(Session); }
+@if (jobs.Count > 0)
+{
+    <section class="panel wide" aria-label="Downloads">
+        <h2>Downloads</h2>
+        @foreach (var j in jobs)
+        {
+            <div class="job @(j.Stage == DownloadStage.Failed ? "bad" : "")">
+                <Cover ArtKey="@(j.ArtKey)" Size="40" />
+                <span class="job-text"><b>@j.Label</b><small>@j.Message</small></span>
+            </div>
+        }
+        @if (jobs.Any(x => x.Finished)) { <button class="btn ghost" @onclick="() => Downloads.DismissFinished(Session)">Clear finished</button> }
+    </section>
+}
 @if (q.Trim().Length == 0)
 {
-    <p class="status">Search your music. Punctuation doesn't matter: "scream and shout will i am" finds Scream &amp; Shout.</p>
-}
-else if (r.Songs.Count == 0 && r.Albums.Count == 0 && r.Artists.Count == 0)
-{
-    <p class="status">Nothing matches "@q".</p>
+    <p class="status">Search your music, or find new music to download. Punctuation doesn't matter: "scream and shout will i am" finds Scream &amp; Shout.</p>
 }
 else
 {
@@ -38,5 +49,93 @@ else
         <h2 class="section">Songs</h2>
         <TrackList Tracks="r.Songs" />
     }
+    @if (r.Songs.Count == 0 && r.Albums.Count == 0 && r.Artists.Count == 0 && !webBusy && webSongs.Count == 0 && webAlbums.Count == 0)
+    {
+        <p class="status">Nothing in your library matches "@q".</p>
+    }
+    @if (webBusy || webSongs.Count > 0 || webAlbums.Count > 0)
+    {
+        <h2 class="section">More music @(webBusy ? "(searching…)" : "")</h2>
+        @if (!Session.Services.Any) { <p class="hint">To download these, set up Soulseek or Lidarr in <a href="/settings">Settings</a>. Your phone's setup is picked up automatically.</p> }
+        @if (webAlbums.Count > 0)
+        {
+            <div class="row-scroll">
+                @foreach (var a in webAlbums)
+                {
+                    <div class="card">
+                        <Cover ArtKey="@(a.ArtUrl is null ? null : Art.ExternalKey(a.ArtUrl))" Class="square" />
+                        <span class="card-title">@a.CleanTitle</span>
+                        <span class="card-sub">@a.Artist · @a.Kind</span>
+                        <button class="btn" disabled="@(!Session.Services.Any)" @onclick="() => Downloads.Album(Session, a)">Download</button>
+                    </div>
+                }
+            </div>
+        }
+        @if (webSongs.Count > 0)
+        {
+            <ul class="tracks">
+                @foreach (var s in webSongs)
+                {
+                    <li class="track">
+                        <span class="track-main">
+                            <Cover ArtKey="@(s.ArtUrl is null ? null : Art.ExternalKey(s.ArtUrl))" Size="44" />
+                            <span class="track-text"><span class="track-title">@s.Title</span><span class="track-sub">@s.Artist@(s.Album.Length > 0 ? " · " + s.Album : "")</span></span>
+                        </span>
+                        <span class="track-time">@Time(s.DurationMs / 1000.0)</span>
+                        <button class="btn" disabled="@(!Session.Services.Any)" @onclick="() => Downloads.Song(Session, s)">Download</button>
+                    </li>
+                }
+            </ul>
+        }
+    }
 }
-@code { string q = ""; }
+@code {
+    [Inject] WebCatalog Catalog { get; set; } = default!;
+    [Inject] DownloadManager Downloads { get; set; } = default!;
+    string q = "";
+    List<CatalogSong> webSongs = [];
+    List<CatalogAlbum> webAlbums = [];
+    bool webBusy;
+    CancellationTokenSource? pending;
+    Action? onJobs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        onJobs = () => InvokeAsync(StateHasChanged);
+        Downloads.Subscribe(Session, onJobs);
+    }
+
+    void OnInput(ChangeEventArgs e)
+    {
+        q = e.Value?.ToString() ?? string.Empty;
+        pending?.Cancel();
+        webSongs = []; webAlbums = [];
+        if (q.Trim().Length < 2) { webBusy = false; return; }
+        var cts = pending = new CancellationTokenSource();
+        webBusy = true;
+        _ = SearchWeb(q.Trim(), cts.Token);
+    }
+
+    // after a short pause in typing, so each keystroke doesn't hit the catalog
+    async Task SearchWeb(string query, CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(500, ct);
+            var songs = await Catalog.SongsAsync(query, 20, ct);
+            var albums = await Catalog.AlbumsWithTopAsync(query, songs.FirstOrDefault(), ct);
+            // what the library already has isn't offered again
+            var have = Lib.Songs.Select(Matching.MatchKey).ToHashSet();
+            var haveAlbums = Lib.Albums.Select(a => a.Tracks[0].AlbumKey).ToHashSet();
+            webSongs = songs.Where(s => !have.Contains(Matching.MatchKey(s.Title, s.Artist))).ToList();
+            webAlbums = albums.Where(a => !haveAlbums.Contains(Matching.PrimaryArtist(a.Artist) + "|" + Matching.AlbumNorm(a.CleanTitle))).ToList();
+            webBusy = false;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception) { webBusy = false; await InvokeAsync(StateHasChanged); }
+    }
+
+    public override void Dispose() { pending?.Cancel(); if (onJobs is not null) Downloads.Unsubscribe(Session, onJobs); base.Dispose(); }
+}

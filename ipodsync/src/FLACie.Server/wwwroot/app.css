@@ -171,3 +171,10 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 5px; font-
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
 .row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
 .row-actions > span { flex: 1; min-width: 0; }
+.panel.wide { max-width: none; align-items: stretch; }
+.job { display: flex; align-items: center; gap: 12px; }
+.job-text { display: flex; flex-direction: column; min-width: 0; }
+.job-text small { color: var(--dim); }
+.job.bad .job-text small { color: var(--danger); }
+.card .btn { margin-top: 6px; align-self: flex-start; }
+.track > .btn { margin-left: 8px; }

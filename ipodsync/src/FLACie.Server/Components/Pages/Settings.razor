@@ -50,11 +50,39 @@
         </div>
     </section>
 }
+<section class="panel">
+    <h2>Downloads</h2>
+    <p class="hint">Search finds new music and downloads it: Soulseek (slskd plus the file mover) first, Lidarr as the fallback. These are kept in your profile, so the phone's setup shows up here and the other way round. Keys stay on the server; leave a key empty to keep the saved one.</p>
+    <div class="form">
+        <label for="sl">slskd address</label><input id="sl" @bind="slUrl" placeholder="https://host/slskd" />
+        <label for="slk">slskd API key @(Session.Services.SlskdKey.Length > 0 ? "(saved)" : "")</label><input id="slk" type="password" @bind="slKey" autocomplete="new-password" />
+        <label for="slp">slskd downloads folder <span class="opt">(as the file mover sees it)</span></label><input id="slp" @bind="slPath" placeholder="downloads" />
+        <label for="fm">File mover address</label><input id="fm" @bind="fmUrl" placeholder="https://host/filemove" />
+        <label for="fmk">File mover key @(Session.Services.FileMoverKey.Length > 0 ? "(saved)" : "")</label><input id="fmk" type="password" @bind="fmKey" autocomplete="new-password" />
+        <label for="ld">Lidarr address <span class="opt">(optional)</span></label><input id="ld" @bind="ldUrl" placeholder="https://host/lidarr" />
+        <label for="ldk">Lidarr API key @(Session.Services.LidarrKey.Length > 0 ? "(saved)" : "")</label><input id="ldk" type="password" @bind="ldKey" autocomplete="new-password" />
+        <button class="btn primary" @onclick="SaveDownloads">Save downloads</button>
+        @if (dlSaved) { <span class="hint">Saved.</span> }
+    </div>
+</section>
 @if (error is not null) { <p class="form-error" role="alert">@error</p> }
 
 @code {
     string host = "", share = "", folder = "", nuser = "", npass = "", jserver = "", juser = "", jpass = "";
     bool busy; string? error;
+    string slUrl = "", slPath = "", fmUrl = "", ldUrl = "";
+    string slKey = "", fmKey = "", ldKey = ""; bool dlSaved;
+
+    protected override async Task OnInitializedAsync() { await base.OnInitializedAsync(); var d = Session.Services; (slUrl, slPath, fmUrl, ldUrl) = (d.SlskdUrl, d.SlskdPath, d.FileMoverUrl, d.LidarrUrl); }
+
+    void SaveDownloads()
+    {
+        var old = Session.Services;
+        var dl = new DownloadServices(slUrl.Trim(), slKey.Length > 0 ? slKey.Trim() : old.SlskdKey, string.IsNullOrWhiteSpace(slPath) ? "downloads" : slPath.Trim(), fmUrl.Trim(), fmKey.Length > 0 ? fmKey.Trim() : old.FileMoverKey, ldUrl.Trim(), ldKey.Length > 0 ? ldKey.Trim() : old.LidarrKey, old.NasFolder);
+        dl.WriteTo(Session.Profile);
+        slKey = fmKey = ldKey = ""; dlSaved = true;
+        SaveProfile();
+    }
 
     string Where => string.Join(" and ", new[] { Session.Jellyfin is not null ? "your Jellyfin account" : null, Session.Nas is not null ? "the NAS" : null }.OfType<string>());
 

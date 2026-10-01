@@ -62,7 +62,7 @@ public sealed class UserSession
             if (Nas is { } na)
                 try { nasTracks = await Task.Run(() => NasClient.Scan(na), ct); }
                 catch (Exception e) { Problem = (Problem is null ? "" : Problem + " · ") + $"NAS: {e.Message}"; }
-            Library = Library.Merge(jfTracks, nasTracks);
+            Library = WithDownloads(Library.Merge(jfTracks, nasTracks));
             LoadedAt = DateTime.UtcNow;
         }
         finally { Loading = false; gate.Release(); Changed?.Invoke(); }
@@ -70,6 +70,28 @@ public sealed class UserSession
 
     static string S(JsonObject o, string k) => o[k]?.GetValue<string>() ?? "";
 
+
+    // ---- downloads ----
+
+    readonly List<Track> downloaded = [];
+    public DownloadServices Services => DownloadServices.From(Profile);
+
+    /// <summary>Songs downloaded in this session play at once; a later library reload finds them again through Jellyfin or the NAS.</summary>
+    public void AddDownloaded(IEnumerable<Track> tracks)
+    {
+        lock (downloaded) downloaded.AddRange(tracks);
+        Library = WithDownloads(Library);
+        Changed?.Invoke();
+    }
+
+    Library WithDownloads(Library l)
+    {
+        List<Track> mine; lock (downloaded) mine = downloaded.ToList();
+        if (mine.Count == 0) return l;
+        var seen = l.Songs.Select(Matching.MergeKey).ToHashSet();
+        var add = mine.Where(t => seen.Add(Matching.MergeKey(t))).ToList();
+        return add.Count == 0 ? l : new Library(l.Songs.Concat(add).ToList());
+    }
     // ---- save ----
 
     /// <summary>Writes the profile to every account this user has, with the accounts themselves in it.</summary>

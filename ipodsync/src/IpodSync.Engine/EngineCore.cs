@@ -11,6 +11,8 @@ namespace IpodSync.Engine;
 /// wrapper). Responses are <c>{"status": http-like code, "body": ...}</c> with the same bodies IpodSync.Web returns.
 ///   {"op":"selftest"}
 ///   {"op":"library","root":"/storage/XXXX-XXXX"}
+///   {"op":"health","root":..,"firewire":["serial"],"backupRoot":"..","free":0,"total":0}   read-only checks
+///   {"op":"backups","backupRoot":".."}                                                    the pre-write backups, newest first
 ///   {"op":"apply","root":..,"changeSet":{..},"commit":false,"confirm":null,"firewire":["serial"],"backupRoot":".."}
 /// "apply" goes through <see cref="RemoteEdits"/> (op allow-list, dry-run confirm token) and <see cref="WritePipeline"/>
 /// (backup, write, read-back, re-verify, auto-restore) -- the same code the PC and the ipodsync app run.
@@ -47,6 +49,16 @@ public static class EngineCore
                     var db = ItunesDbReader.Read(File.ReadAllBytes(IpodDevice.Open(root).ItunesDbPath));
                     return Reply(200, db);
                 }
+                case "health":
+                {
+                    string root = Str("root") ?? throw new ArgumentException("root is required");
+                    var firewire = r.TryGetProperty("firewire", out var fw0) && fw0.ValueKind == JsonValueKind.Array
+                        ? fw0.EnumerateArray().Select(e => e.GetString()).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).ToList() : [];
+                    long Num(string k) => r.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt64() : 0;
+                    return Reply(200, DeviceHealthCheck.Run(root, SigningInputs.FirewireCandidates(firewire), Str("backupRoot") ?? "", Num("free"), Num("total")));
+                }
+                case "backups":
+                    return Reply(200, DeviceHealthCheck.ListBackups(Str("backupRoot") ?? throw new ArgumentException("backupRoot is required")));
                 case "apply":
                 {
                     if (failures.Count > 0) return Reply(500, new ErrorReply("crypto self-test failed (" + string.Join(", ", failures) + "); refusing to write"));

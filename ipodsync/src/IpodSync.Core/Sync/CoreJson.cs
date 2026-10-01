@@ -22,6 +22,8 @@ public sealed record SelfTestReply(bool Ok, List<string> Failures);
 [JsonSerializable(typeof(ErrorReply))]
 [JsonSerializable(typeof(ApplyReply))]
 [JsonSerializable(typeof(SelfTestReply))]
+[JsonSerializable(typeof(HealthReport))]
+[JsonSerializable(typeof(List<BackupEntry>))]
 public partial class CoreJson : JsonSerializerContext;
 
 /// <summary>The change-set, with the *default* serializer options it has always used: its serialized bytes seed the

@@ -166,10 +166,16 @@ fun SyncModeScreen() {
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     GlossPill("Songs (${st.tracks.size})", { tab = 0 }, height = 36.dp, primary = tab == 0)
                     GlossPill("Playlists (${st.playlists.count { !it.deleted }})", { tab = 1 }, height = 36.dp, primary = tab == 1)
+                    if (link?.canMaintain == true) {
+                        GlossPill("Health", { tab = 2 }, height = 36.dp, primary = tab == 2)
+                        GlossPill("Backups", { tab = 3 }, height = 36.dp, primary = tab == 3)
+                    }
                     Box(Modifier.weight(1f))
                     Txt(device?.volumeLabel ?: device?.rootPath ?: "", size = 13f, color = sc.onBgDim)
                 }
                 if (tab == 0) SongsTab(st, rev, onEdit = { editTrack = it }, onRate = { t, s -> st.tracks[t.id] = t.copy(stars = s); rev++ })
+                else if (tab == 2 && link != null && device != null) HealthTab(link!!, device!!.rootPath)
+                else if (tab == 3 && link != null) BackupsTab(link!!)
                 else PlaylistsTab(st, rev, onOpen = { openPlaylist = it }, onCreate = { name -> val p = SyncStaging.WorkPlaylist(null, name, ArrayList(), false, false); st.playlists.add(0, p); rev++; openPlaylist = p })
             }
             status?.let { Txt(it, Modifier.padding(horizontal = 20.dp, vertical = 4.dp), size = 13f, color = sc.onBgDim, maxLines = 2) }
@@ -210,6 +216,69 @@ private fun SongsTab(st: SyncStaging, rev: Int, onEdit: (IpodTrack) -> Unit, onR
 }
 
 private fun sortKey(s: String) = com.ipodemu.library.sortKey(s)
+
+/** Device health: what this iPod is, whether this app can write to it, and the read-only checks of its databases, signatures and artwork. */
+@Composable
+private fun HealthTab(link: com.ipodemu.library.IpodLink, root: String) {
+    val sc = LocalScheme.current
+    var info by remember(root) { mutableStateOf<com.ipodemu.library.HealthInfo?>(null) }
+    var error by remember(root) { mutableStateOf<String?>(null) }
+    var checking by remember(root) { mutableStateOf(true) }
+    LaunchedEffect(root) {
+        checking = true
+        try { info = link.health(root); error = null } catch (e: Exception) { error = e.message ?: "The check failed" }
+        checking = false
+    }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (checking) Txt("Checking the iPod (nothing is written)...", size = 14f, color = sc.onBgDim, maxLines = 3)
+        error?.let { Txt(it, size = 14f, color = Color(0xFFFFB0B0), maxLines = 5) }
+        info?.let { h ->
+            Txt(h.model ?: "iPod", size = 20f, weight = FontWeight.Bold, maxLines = 2)
+            Txt(h.summary, size = 14f, color = sc.onBgDim, maxLines = 6)
+            HealthRow("Songs and playlists", "${h.tracks} songs, ${h.playlists} playlists", null)
+            if (h.totalBytes > 0) HealthRow("Space", "${fmtBytes(h.freeBytes)} free of ${fmtBytes(h.totalBytes)}", null)
+            HealthRow("Signatures", h.signatures.second, h.signatures.first)
+            HealthRow("Databases", h.databases.second, h.databases.first)
+            HealthRow("Artwork", h.artwork.second, h.artwork.first)
+            HealthRow("Writing", if (h.canWrite) "Supported: every write is backed up, verified and undone if a check fails" else "Not supported for this iPod; reading only", h.canWrite)
+            h.notes.forEach { Txt(it, size = 13f, color = sc.onBgDim, maxLines = 6) }
+        }
+    }
+}
+
+@Composable
+private fun HealthRow(title: String, detail: String, ok: Boolean?) {
+    val sc = LocalScheme.current
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0x14FFFFFF)).padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(12.dp).clip(RoundedCornerShape(6.dp)).background(when (ok) { true -> Color(0xFF6FD6A3); false -> Color(0xFFFF7A8A); null -> Color(0x55FFFFFF) }))
+        Column(Modifier.weight(1f)) {
+            Txt(title, size = 15f, weight = FontWeight.SemiBold)
+            Txt(detail, size = 13f, color = sc.onBgDim, maxLines = 5)
+        }
+    }
+}
+
+private fun fmtBytes(b: Long) = if (b >= 1L shl 30) String.format(java.util.Locale.US, "%.1f GB", b / (1L shl 30).toDouble()) else String.format(java.util.Locale.US, "%d MB", b shr 20)
+
+/** The backups made before every write, newest first, with how each write ended. */
+@Composable
+private fun BackupsTab(link: com.ipodemu.library.IpodLink) {
+    val sc = LocalScheme.current
+    var items by remember { mutableStateOf<List<com.ipodemu.library.BackupItem>?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) { try { items = link.backups() } catch (e: Exception) { error = e.message ?: "Could not read the backups" } }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Txt("Before every write the iPod database is copied here, and put back automatically if a check after the write fails.", size = 13f, color = sc.onBgDim, maxLines = 4)
+        error?.let { Txt(it, size = 14f, color = Color(0xFFFFB0B0), maxLines = 4) }
+        val list = items
+        if (list == null && error == null) Txt("Looking...", size = 14f, color = sc.onBgDim)
+        if (list != null && list.isEmpty()) Txt("No backups yet. The first write makes one.", size = 14f, color = sc.onBgDim)
+        list?.forEach { b ->
+            val date = java.text.SimpleDateFormat("d MMM yyyy, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(b.createdMs))
+            HealthRow(b.kind + " Â· " + date, (b.outcome ?: "No write log") + if (b.hasArtwork) " Â· with artwork" else "", b.outcome?.startsWith("Write verified"))
+        }
+    }
+}
 
 /** Five tappable stars; tapping the current rating clears it. */
 @Composable

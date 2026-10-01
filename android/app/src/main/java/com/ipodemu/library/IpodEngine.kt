@@ -50,7 +50,29 @@ interface IpodLink {
     suspend fun devices(): List<SyncDevice>
     suspend fun load(root: String): IpodDb
     suspend fun apply(root: String, changeSet: JSONObject, commit: Boolean, confirmToken: String?): ApplyResult
+    /** Read-only checks of the iPod (databases, signatures, artwork) and the backups made before writes; only the built-in engine offers them. */
+    val canMaintain: Boolean get() = false
+    suspend fun health(root: String): HealthInfo? = null
+    suspend fun backups(): List<BackupItem> = emptyList()
 }
+
+class HealthInfo(
+    val model: String?, val summary: String, val canWrite: Boolean, val tracks: Int, val playlists: Int, val freeBytes: Long, val totalBytes: Long,
+    val signatures: Pair<Boolean?, String>, val databases: Pair<Boolean?, String>, val artwork: Pair<Boolean?, String>, val notes: List<String>,
+) {
+    companion object {
+        private fun flag(o: JSONObject, k: String): Boolean? = if (o.isNull(k) || !o.has(k)) null else o.optBoolean(k)
+        private fun text(o: JSONObject, k: String): String? = o.optString(k).takeIf { it.isNotBlank() && it != "null" }
+        fun parse(o: JSONObject) = HealthInfo(
+            listOfNotNull(text(o, "modelName"), text(o, "modelNumber")).joinToString(" Â· ").ifBlank { null },
+            o.optString("profileSummary"), o.optBoolean("canWrite"), o.optInt("tracks"), o.optInt("playlists"), o.optLong("freeBytes"), o.optLong("totalBytes"),
+            flag(o, "signaturesValid") to o.optString("signatureDetail"), flag(o, "databasesInSync") to o.optString("syncDetail"), flag(o, "artworkOk") to o.optString("artworkDetail"),
+            o.optJSONArray("notes")?.let { a -> List(a.length()) { a.getString(it) } } ?: emptyList(),
+        )
+    }
+}
+
+class BackupItem(val name: String, val kind: String, val createdMs: Long, val hasArtwork: Boolean, val outcome: String?)
 
 class HttpLink(private val host: String) : IpodLink {
     private val edit = SyncEditClient()
@@ -81,6 +103,26 @@ class EngineLink(private val ctx: Context) : IpodLink {
             if (v.isPrimary || v.state != Environment.MEDIA_MOUNTED || !File(dir, "iPod_Control").isDirectory) return@mapNotNull null
             SyncDevice(dir.absolutePath, v.getDescription(ctx), File(dir, "iPod_Control/iTunes").isDirectory)
         }
+    }
+
+    override val canMaintain get() = true
+
+    override suspend fun health(root: String): HealthInfo? {
+        val serials = appleUsbSerials()
+        return withContext(Dispatchers.IO) {
+            val dir = File(root)
+            val r = IpodEngine.request(JSONObject().put("op", "health").put("root", root).put("firewire", JSONArray(serials)).put("backupRoot", backupRoot)
+                .put("free", dir.freeSpace).put("total", dir.totalSpace))
+            if (r.optInt("status") != 200) throw java.io.IOException(r.optJSONObject("body")?.optString("error") ?: "engine error")
+            HealthInfo.parse(r.getJSONObject("body"))
+        }
+    }
+
+    override suspend fun backups(): List<BackupItem> = withContext(Dispatchers.IO) {
+        val r = IpodEngine.request(JSONObject().put("op", "backups").put("backupRoot", backupRoot))
+        if (r.optInt("status") != 200) throw java.io.IOException(r.optJSONObject("body")?.optString("error") ?: "engine error")
+        val a = r.optJSONArray("body") ?: JSONArray()
+        List(a.length()) { i -> a.getJSONObject(i).let { BackupItem(it.optString("name"), it.optString("kind"), it.optLong("createdMs"), it.optBoolean("hasArtwork"), it.optString("outcome").takeIf { s -> s.isNotBlank() && s != "null" }) } }
     }
 
     override suspend fun load(root: String): IpodDb = withContext(Dispatchers.IO) {

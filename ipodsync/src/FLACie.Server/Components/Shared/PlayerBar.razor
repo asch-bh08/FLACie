@@ -25,6 +25,7 @@
             </div>
             <div class="bar-right">
                 <button class="icon-btn fav @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" /></button>
+                <DevicePicker />
                 <VolumeControl />
                 <button class="icon-btn" @onclick="() => open = true" aria-label="Full screen player"><Icon Name="expand" /></button>
             </div>
@@ -38,7 +39,7 @@
         if (!volumeLoaded)
         {
             volumeLoaded = true;
-            try { await Player.LoadVolumeAsync(); } catch (InvalidOperationException) { }
+            try { await Player.LoadVolumeAsync(); await Player.LoadAutoplayAsync(); } catch (InvalidOperationException) { }
             Player.SetStashKey(Session.Jellyfin?.UserId ?? Session.Nas?.User ?? "guest");
             _ = Player.RestoreAsync(Session);
         }

@@ -7,12 +7,12 @@
     <h1>Favourites</h1>
     <p class="sub">@tracks.Count songs</p>
     <div class="chips">
-        <button class="btn primary" @onclick="() => Player.Play(tracks, 0)" disabled="@(tracks.Count == 0)"><Icon Name="play" Size="18" />Play</button>
-        <button class="btn" @onclick="() => Player.ShuffleAll(tracks)" disabled="@(tracks.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+        <button class="btn primary" @onclick='() => Player.Play(tracks, 0, "Favourites")' disabled="@(tracks.Count == 0)"><Icon Name="play" Size="18" />Play</button>
+        <button class="btn" @onclick='() => Player.ShuffleAll(tracks, "Favourites")' disabled="@(tracks.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle</button>
     </div>
 </header>
 @if (tracks.Count == 0)
 {
     <p class="status">Tap the heart on a song to keep it here.</p>
 }
-<TrackList Tracks="tracks" />
+<TrackList Tracks="tracks" PlayContext="Favourites" />

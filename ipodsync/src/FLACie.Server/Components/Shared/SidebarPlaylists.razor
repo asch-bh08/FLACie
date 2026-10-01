@@ -1,0 +1,33 @@
+@inherits UserComponent
+@* YT Music's left column: a New playlist button, then Favourites and every playlist, one click away from anywhere. *@
+<div class="side-playlists">
+    @if (creating)
+    {
+        <form class="side-new" @onsubmit="Create">
+            <input @bind="name" @bind:event="oninput" placeholder="Playlist name" aria-label="New playlist name" autofocus />
+            <button class="icon-btn" type="submit" aria-label="Create playlist" disabled="@string.IsNullOrWhiteSpace(name)"><Icon Name="check" /></button>
+            <button class="icon-btn" type="button" aria-label="Cancel" @onclick="() => creating = false"><Icon Name="x" /></button>
+        </form>
+    }
+    else
+    {
+        <button class="btn new-playlist" @onclick="() => creating = true"><Icon Name="plus" Size="18" />New playlist</button>
+    }
+    <hr />
+    <NavLink href="/favorites" class="side-item"><b>Favourites</b><small>@Session.Favorites.Count songs</small></NavLink>
+    @foreach (var p in Session.Playlists)
+    {
+        <NavLink href="@("/playlist/" + p.Id)" class="side-item"><b>@p.Name</b><small>@p.Entries.Count songs</small></NavLink>
+    }
+</div>
+@code {
+    bool creating; string name = "";
+    void Create()
+    {
+        if (string.IsNullOrWhiteSpace(name)) return;
+        var p = Session.CreatePlaylist(name.Trim());
+        name = ""; creating = false;
+        SaveProfile();
+        Nav.NavigateTo("/playlist/" + p.Id);
+    }
+}

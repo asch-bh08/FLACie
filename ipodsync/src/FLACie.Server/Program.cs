@@ -59,6 +59,18 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapAuth();
 app.MapMedia(dataDir);
+// local diagnostics only (FLACIE_DEBUG=1): the signed-in user's own Jellyfin, GET or POST, so a session problem can be looked at directly
+if (builder.Configuration["FLACIE_DEBUG"] == "1")
+{
+    app.MapMethods("/debug/jf", ["GET", "POST"], async (HttpContext ctx, string path, SessionStore store, JellyfinClient jf) =>
+    {
+        var a = store.For(ctx.User).Jellyfin; if (a is null) return Results.NotFound();
+        System.Text.Json.Nodes.JsonNode? body = null;
+        if (ctx.Request.Method == "POST" && ctx.Request.ContentLength > 0) body = System.Text.Json.Nodes.JsonNode.Parse(await new StreamReader(ctx.Request.Body).ReadToEndAsync());
+        try { var r = ctx.Request.Method == "POST" ? await jf.PostAsync(a, path, body) : await jf.GetAsync(a, path); return Results.Text(r?.ToJsonString() ?? "(empty)", "application/json"); }
+        catch (Exception e) { return Results.Text(e.Message, "text/plain", statusCode: 500); }
+    }).RequireAuthorization();
+}
 app.MapGet("/healthz", () => Results.Ok("ok"));
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.Run();

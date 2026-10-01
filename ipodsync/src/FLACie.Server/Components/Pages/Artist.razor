@@ -16,8 +16,8 @@ else
             <h1>@a.Name</h1>
             <p class="sub">@a.Tracks.Count songs</p>
             <div class="chips">
-                <button class="btn primary" @onclick="() => Player.Play(a.Tracks, 0)"><Icon Name="play" Size="18" />Play</button>
-                <button class="btn" @onclick="() => Player.ShuffleAll(a.Tracks)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+                <button class="btn primary" @onclick="() => Player.Play(a.Tracks, 0, a.Name)"><Icon Name="play" Size="18" />Play</button>
+                <button class="btn" @onclick="() => Player.ShuffleAll(a.Tracks, a.Name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
             </div>
         </div>
     </header>

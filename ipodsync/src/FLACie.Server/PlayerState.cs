@@ -19,6 +19,42 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
     public async Task LoadVolumeAsync() { Volume = await js.InvokeAsync<double>("flacie.volume", null); if (Volume > 0) lastVolume = Volume; Changed?.Invoke(); }
     public async Task SetVolumeAsync(double v) { Volume = await js.InvokeAsync<double>("flacie.volume", Math.Clamp(v, 0, 1)); if (Volume > 0) lastVolume = Volume; Changed?.Invoke(); }
     public Task ToggleMuteAsync() => SetVolumeAsync(Volume > 0 ? 0 : lastVolume);
+    /// <summary>Where the queue came from ("Pop", an album, "Favourites"), shown as "Playing from".</summary>
+    public string? Context { get; private set; }
+    public bool Autoplay { get; private set; } = true;
+    /// <summary>Songs that will be added when the queue runs out (similar to what is playing), and where the added ones start.</summary>
+    public IReadOnlyList<Track> AutoplayNext => autoplayNext;
+    public int AutoplayFrom { get; private set; } = -1;
+    List<Track> autoplayNext = [];
+    Func<Library>? library;
+    public void SetLibrary(Func<Library> f) => library = f;
+    Func<Track, IReadOnlyList<Track>>? related;
+    /// <summary>Songs that sit in the same playlists as the given one: the best hint of what goes with it.</summary>
+    public void SetRelated(Func<Track, IReadOnlyList<Track>> f) => related = f;
+    public async Task LoadAutoplayAsync() { try { Autoplay = await js.InvokeAsync<string?>("flacie.unstash", "flacie.autoplay") != "0"; } catch (Exception) { } RefreshSuggestions(); Changed?.Invoke(); }
+    public async Task SetAutoplayAsync(bool on)
+    {
+        Autoplay = on; RefreshSuggestions();
+        try { await js.InvokeVoidAsync("flacie.stash", "flacie.autoplay", on ? "1" : "0"); } catch (Exception) { }
+        Changed?.Invoke();
+    }
+
+    /// <summary>Songs from the library like the one playing: the same artist first, then others, none already queued.</summary>
+    void RefreshSuggestions()
+    {
+        autoplayNext = [];
+        if (!Autoplay || Current is not { } cur || library?.Invoke() is not { } lib) return;
+        var queued = Queue.Select(t => t.Path).ToHashSet();
+        var artist = Matching.PrimaryArtist(cur.Artist);
+        var pool = lib.Songs.Where(t => !queued.Contains(t.Path) && t.DurationMs > 30_000 && t.Source != TrackSource.Cloud || !queued.Contains(t.Path) && t.Source == TrackSource.Cloud).ToList();
+        var same = pool.Where(t => Matching.PrimaryArtist(t.Artist) == artist).OrderBy(_ => Random.Shared.Next()).Take(4).ToList();
+        var poolPaths = pool.Select(t => t.Path).ToHashSet();
+        var mates = (related?.Invoke(cur) ?? []).Where(t => poolPaths.Contains(t.Path) && !same.Contains(t)).OrderBy(_ => Random.Shared.Next()).Take(6).ToList();
+        var albumMates = pool.Where(t => t.Album.Length > 0 && t.Album == cur.Album && !same.Contains(t) && !mates.Contains(t)).OrderBy(_ => Random.Shared.Next()).Take(3);
+        var rest = pool.OrderBy(_ => Random.Shared.Next()).Take(12);
+        autoplayNext = same.Concat(mates).Concat(albumMates).Concat(rest).DistinctBy(t => t.Path).Take(10).ToList();
+    }
+
     public Track? Current => Index >= 0 && Index < Queue.Count ? Queue[Index] : null;
     public event Action? Changed;
     public IPlayInterceptor? Interceptor { get; set; }
@@ -80,25 +116,29 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
             t.ArtKey is null ? null : "/art/" + Uri.EscapeDataString(t.ArtKey), autoplay, t.DurationMs / 1000.0, startAt);
         Position = startAt; Duration = t.DurationMs / 1000.0;
         Stash(true);
+        if (autoplayNext.Count == 0 || autoplayNext.Any(a => Queue.Contains(a))) RefreshSuggestions();
         Changed?.Invoke();
     }
 
-    public async Task Play(IReadOnlyList<Track> list, int index)
+    public async Task Play(IReadOnlyList<Track> list, int index, string? context = null)
     {
         if (list.Count == 0) return;
         if (Interceptor?.Play(list, index) == true) return;
-        await PlayFromAsync(list, index, 0, false);
+        await StartAsync(list, index, 0, false, context);
     }
 
-    public async Task PlayFromAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused)
+    public Task PlayFromAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused) => StartAsync(list, index, positionMs, paused, Context);
+
+    async Task StartAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused, string? context)
     {
         if (list.Count == 0) return;
+        Context = context; AutoplayFrom = -1; autoplayNext = [];
         Queue = list.ToList(); Index = Math.Clamp(index, 0, Queue.Count - 1);
         Reorder();
         await Load(!paused, positionMs / 1000.0);
     }
 
-    public async Task ShuffleAll(IReadOnlyList<Track> list) { Shuffle = true; if (list.Count > 0) await Play(list, Random.Shared.Next(list.Count)); }
+    public async Task ShuffleAll(IReadOnlyList<Track> list, string? context = null) { Shuffle = true; if (list.Count > 0) await Play(list, Random.Shared.Next(list.Count), context); }
 
     public async Task Toggle() { if (Interceptor?.Toggle() == true) return; await ToggleAsync(); }
     public async Task Seek(double seconds) { if (Interceptor?.Seek((long)(seconds * 1000)) == true) return; await SeekRawAsync((long)(seconds * 1000)); }
@@ -118,6 +158,14 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         var pos = order.IndexOf(Index);
         if (pos + 1 < order.Count) Index = order[pos + 1];
         else if (Repeat == 1) { Reorder(); Index = order[0]; }
+        else if (Autoplay && autoplayNext.Count > 0)
+        {
+            // the queue ran out: carry on with songs like the last one, so the music never just stops
+            AutoplayFrom = Queue.Count; var start = Queue.Count;
+            Queue.AddRange(autoplayNext); autoplayNext = [];
+            for (var i = start; i < Queue.Count; i++) order.Add(i);
+            Index = start;
+        }
         else { await js.InvokeVoidAsync("flacie.pause"); return; }
         await Load(true);
     }

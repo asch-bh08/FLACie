@@ -142,11 +142,13 @@ class JellyfinDirectClient {
     }
 }
 
-/** "jf<id>" of the item whose Primary image is the cover: the album's when it has one, else the track's own. */
+/** "jf<id>" of the item whose Primary image is the cover: the track's own picture (embedded art differs per song) when it has
+ * one, else the album's. The album's image is often one folder.jpg shared by everything in the folder, so preferring it put the
+ * same cover on unrelated songs. */
 internal fun artKeyOf(o: JSONObject): String? {
     val albumId = o.optString("AlbumId")
-    if (albumId.isNotEmpty() && !o.isNull("AlbumPrimaryImageTag")) return "jf$albumId"
     if (o.optJSONObject("ImageTags")?.has("Primary") == true) return "jf" + o.getString("Id")
+    if (albumId.isNotEmpty() && !o.isNull("AlbumPrimaryImageTag")) return "jf$albumId"
     return if (albumId.isNotEmpty()) "jf$albumId" else null
 }
 

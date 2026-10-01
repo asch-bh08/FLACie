@@ -54,13 +54,36 @@
                 <div class="np-panel" role="tabpanel">
                     @if (tab == "queue")
                     {
+                        <div class="q-head">
+                            <div><small>Playing from</small><b>@(Player.Context ?? "Your queue")</b></div>
+                        </div>
+                        <label class="switch-row">
+                            <span><b>Autoplay</b><small>Add similar songs to the end of the queue</small></span>
+                            <input type="checkbox" role="switch" checked="@Player.Autoplay" @onchange="e => Player.SetAutoplayAsync((bool)(e.Value ?? false))" />
+                            <i class="switch" aria-hidden="true"></i>
+                        </label>
                         <ol class="upnext">
-                            @foreach (var (i, u) in Player.UpNext(60))
+                            <li class="now"><div class="q-row"><Cover ArtKey="@(t.ArtKey)" Size="44" /><span><b>@t.Title</b><small>@t.Artist</small></span><em class="eq @(Player.Playing ? "on" : "")" aria-label="Now playing"><i></i><i></i><i></i></em></div></li>
+                            @{ var shownAuto = false; }
+                            @foreach (var (i, u) in Player.UpNext(30))
                             {
-                                <li><button @onclick="() => Player.SkipTo(i)"><Cover ArtKey="@(u.ArtKey)" Size="44" /><span><b>@u.Title</b><small>@u.Artist</small></span></button></li>
+                                @if (!shownAuto && Player.AutoplayFrom >= 0 && i >= Player.AutoplayFrom)
+                                {
+                                    shownAuto = true;
+                                    <li class="q-divider">Autoplay · similar to what you were playing</li>
+                                }
+                                <li><button class="q-row" @onclick="() => Player.SkipTo(i)"><Cover ArtKey="@(u.ArtKey)" Size="44" /><span><b>@u.Title</b><small>@u.Artist</small></span><span class="q-time">@Time(u.DurationMs / 1000.0)</span></button></li>
+                            }
+                            @if (!Player.UpNext(1).Any() && Player.Autoplay && Player.AutoplayNext.Count > 0)
+                            {
+                                <li class="q-divider">Autoplay · up next after this</li>
+                                @foreach (var u in Player.AutoplayNext)
+                                {
+                                    <li><button class="q-row" @onclick="() => Player.Play([u], 0, Player.Context)"><Cover ArtKey="@(u.ArtKey)" Size="44" /><span><b>@u.Title</b><small>@u.Artist</small></span><span class="q-time">@Time(u.DurationMs / 1000.0)</span></button></li>
+                                }
                             }
                         </ol>
-                        @if (!Player.UpNext(1).Any()) { <p class="hint">Nothing queued after this song.</p> }
+                        @if (!Player.UpNext(1).Any() && (!Player.Autoplay || Player.AutoplayNext.Count == 0)) { <p class="hint">Nothing after this song. Turn Autoplay on to keep the music going.</p> }
                     }
                     else if (tab == "lyrics")
                     {
@@ -68,12 +91,11 @@
                         else if (lyrics is null) { <p class="hint">No lyrics found for this song.</p> }
                         else
                         {
-                            var cur = CurrentLine();
                             <ol class="lyrics @(lyrics.Synced ? "synced" : "")" id="lyrics">
                                 @for (var i = 0; i < lyrics.Lines.Count; i++)
                                 {
                                     var line = lyrics.Lines[i];
-                                    <li class="@(i == cur ? "cur" : i < cur ? "past" : "")">
+                                    <li>
                                         @if (lyrics.Synced) { <button @onclick="() => Player.Seek(line.TimeMs / 1000.0)">@(line.Text.Length == 0 ? " " : line.Text)</button> }
                                         else { <span>@(line.Text.Length == 0 ? " " : line.Text)</span> }
                                     </li>
@@ -103,7 +125,7 @@
     public override void Dispose() { self?.Dispose(); _ = Js.InvokeVoidAsync("flacie.npReset").AsTask().ContinueWith(_ => { }); base.Dispose(); }
     Lyrics? lyrics; bool lyricsLoading; string? lyricsFor;
     MediaInfo? info; bool infoLoading; string? infoFor;
-    int lastLine = -1;
+    string? lyricsPushed;
 
     void Open(string t) { tab = t; if (t == "lyrics") _ = LoadLyrics(); }
 
@@ -114,10 +136,12 @@
         // a new song: refresh whatever is showing
         if (infoFor != t.Path) await LoadInfo();
         if (tab == "lyrics" && lyricsFor != t.Path) await LoadLyrics();
-        if (tab == "lyrics" && lyrics is { Synced: true })
+        // the highlight runs in the browser (flacie.js) off the audio clock itself, so it never trails the singer by a round trip
+        var wantLyrics = tab == "lyrics" && lyrics is { Synced: true } ? t.Path : null;
+        if (wantLyrics != lyricsPushed)
         {
-            var c = CurrentLine();
-            if (c != lastLine) { lastLine = c; try { await Js.InvokeVoidAsync("flacie.scrollLyric"); } catch (Exception) { } }
+            lyricsPushed = wantLyrics;
+            try { if (wantLyrics is null) await Js.InvokeVoidAsync("flacie.clearLyrics"); else await Js.InvokeVoidAsync("flacie.setLyrics", lyrics!.Lines.Select(l => l.TimeMs).ToArray()); } catch (Exception) { }
         }
     }
 
@@ -134,20 +158,11 @@
     async Task LoadLyrics()
     {
         if (Player.Current is not { } t) return;
-        lyricsFor = t.Path; lyricsLoading = true; lyrics = null; lastLine = -1;
+        lyricsFor = t.Path; lyricsLoading = true; lyrics = null; lyricsPushed = null;
         await InvokeAsync(StateHasChanged);
         var got = await LyricsSvc.GetAsync(t, Session.Jellyfin);
         if (lyricsFor == t.Path) { lyrics = got; lyricsLoading = false; }
         await InvokeAsync(StateHasChanged);
-    }
-
-    int CurrentLine()
-    {
-        if (lyrics is not { Synced: true }) return -1;
-        var ms = (long)(Player.Position * 1000) + 250;
-        var cur = -1;
-        for (var i = 0; i < lyrics.Lines.Count; i++) { if (lyrics.Lines[i].TimeMs <= ms) cur = i; else break; }
-        return cur;
     }
 
     static string SourceName(Track t) => t.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "Download", _ => t.Source.ToString() };

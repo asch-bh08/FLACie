@@ -93,7 +93,9 @@ class JellyfinConnect(private val app: App) {
 
     private fun playState(itemId: String, posMs: Long, paused: Boolean): JSONObject {
         // the queue travels as Jellyfin ids, so another device can take over the whole thing
-        val q = app.player.queueTracks().mapNotNull { app.library.jellyfinIdOf(it) }.take(200)
+        // a window around the song playing: a 5,000-song shuffle must not be cut at its first 200 songs and lose the current one
+        val all = app.player.queueTracks().mapNotNull { app.library.jellyfinIdOf(it) }
+        val q = all.drop((all.indexOf(itemId).coerceAtLeast(0) - 20).coerceAtLeast(0)).take(200)
         return JSONObject().put("ItemId", itemId).put("PositionTicks", posMs * 10_000).put("IsPaused", paused).put("CanSeek", true)
             .put("PlayMethod", "DirectPlay").put("RepeatMode", when (prefs.repeat) { 1 -> "RepeatAll"; 2 -> "RepeatOne"; else -> "RepeatNone" })
             .put("NowPlayingQueue", JSONArray().also { a -> q.forEachIndexed { i, x -> a.put(JSONObject().put("Id", x).put("PlaylistItemId", "q$i")) } })
@@ -134,7 +136,8 @@ class JellyfinConnect(private val app: App) {
 
     /** Continues [s]'s queue here from the same second, and stops it there. */
     fun takeOver(s: Session) = scope.launch {
-        val ids = s.queue.ifEmpty { listOfNotNull(s.itemId) }
+        val ids = s.queue.ifEmpty { listOfNotNull(s.itemId) }.toMutableList()
+        if (s.itemId != null && s.itemId !in ids) ids.add(0, s.itemId)
         val tracks = ids.mapNotNull { id -> app.library.jellyfinTrack(id) ?: streamTrack(id) }
         if (tracks.isEmpty()) return@launch
         val idx = ids.indexOf(s.itemId).coerceAtLeast(0).coerceAtMost(tracks.lastIndex)
@@ -147,8 +150,11 @@ class JellyfinConnect(private val app: App) {
     fun sendTo(s: Session) = scope.launch {
         val p = app.player
         val q = withContext(Dispatchers.Main) { p.queueTracks() }
-        val ids = q.mapNotNull { app.library.jellyfinIdOf(it) }
+        val all = q.mapNotNull { app.library.jellyfinIdOf(it) }
         val cur = withContext(Dispatchers.Main) { p.current }?.let { app.library.jellyfinIdOf(it) } ?: return@launch
+        // the ids travel in the URL, so only a window around the current song (a whole shuffled library would not fit)
+        val from = (all.indexOf(cur).coerceAtLeast(0) - 5).coerceAtLeast(0)
+        val ids = all.drop(from).take(100)
         val pos = withContext(Dispatchers.Main) { p.positionMs }
         post("/Sessions/${s.id}/Playing?PlayCommand=PlayNow&ItemIds=${ids.joinToString(",")}&StartIndex=${ids.indexOf(cur).coerceAtLeast(0)}&StartPositionTicks=${pos * 10_000}", null)
         withContext(Dispatchers.Main) { p.pause() }
@@ -172,7 +178,7 @@ class JellyfinConnect(private val app: App) {
         val base = prefs.accountServer.trimEnd('/').replaceFirst("http", "ws")
         val req = Request.Builder().url("$base/socket?api_key=${prefs.accountToken}&deviceId=${prefs.deviceId}").build()
         ws = http.newWebSocket(req, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) { main.post { connected = true; reportedItem = null; report(false) }; loadSessions() }
+            override fun onOpen(webSocket: WebSocket, response: Response) { android.util.Log.d("FLACieConnect", "socket open"); main.post { connected = true; reportedItem = null; report(false) }; loadSessions() }
             override fun onMessage(webSocket: WebSocket, text: String) {
                 val m = try { JSONObject(text) } catch (_: Exception) { return }
                 val type = m.optString("MessageType"); val data = m.optJSONObject("Data")
@@ -184,8 +190,8 @@ class JellyfinConnect(private val app: App) {
                 }
                 for (l in listeners) try { l(type, data) } catch (_: Exception) {}
             }
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) = dropped()
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) = dropped()
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) { android.util.Log.d("FLACieConnect", "socket closed $code $reason"); dropped() }
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) { android.util.Log.d("FLACieConnect", "socket failed ${t.message} ${response?.code}"); dropped() }
         })
     }
 
@@ -235,7 +241,7 @@ class JellyfinConnect(private val app: App) {
     fun post(path: String, body: JSONObject?) = scope.launch {
         try {
             http.newCall(Request.Builder().url(prefs.accountServer.trimEnd('/') + path).header("Authorization", auth())
-                .post((body?.toString() ?: "").toRequestBody("application/json".toMediaType())).build()).execute().close()
-        } catch (_: Exception) {}
+                .post((body?.toString() ?: "").toRequestBody("application/json".toMediaType())).build()).execute().use { r -> if (!r.isSuccessful) android.util.Log.d("FLACieConnect", "post ${path.take(40)} -> HTTP ${r.code}") }
+        } catch (e: Exception) { android.util.Log.d("FLACieConnect", "post $path failed: ${e.message}") }
     }
 }

@@ -1,7 +1,0 @@
-@inherits UserComponent
-@* Who is signed in, at the foot of the navigation; opens the account page. *@
-<NavLink href="/account" class="account-chip" aria-label="@("Account: " + Session.DisplayName)">
-    <span class="avatar" aria-hidden="true">@Initial</span>
-    <span class="account-text"><b>@Session.DisplayName</b><small>@(Session.Kind == "nas" ? "NAS" : "Jellyfin")@(Session.Jellyfin is not null && Session.Nas is not null ? " + NAS" : "")</small></span>
-</NavLink>
-@code { string Initial => Session.DisplayName.Length > 0 ? Session.DisplayName[..1].ToUpperInvariant() : "?"; }

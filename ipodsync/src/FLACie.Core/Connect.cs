@@ -28,6 +28,8 @@ public sealed class Connect : IDisposable
 
     public bool Connected { get; private set; }
     public IReadOnlyList<ConnectSession> Sessions { get; private set; } = [];
+    /// <summary>When <see cref="Sessions"/> was read, so a playing session's position can be carried forward between reads.</summary>
+    public DateTime SessionsAsOf { get; private set; } = DateTime.UtcNow;
     public event Action? Changed;
     /// <summary>Every WebSocket message (MessageType, Data); Jams read SyncPlay from here.</summary>
     public event Action<string, JsonNode?>? Message;
@@ -189,7 +191,9 @@ public sealed class Connect : IDisposable
     static JsonObject PlayState(IPlayerHost p, string itemId, bool paused)
     {
         // the queue travels as Jellyfin ids, so another device can take over the whole thing
-        var q = p.Queue.Select(t => t.JellyfinId).OfType<string>().Take(200).ToList();
+        // a window around the song playing: a 5,000-song shuffle must not be cut at its first 200 songs and lose the current one
+        var all = p.Queue.Select(t => t.JellyfinId).OfType<string>().ToList();
+        var q = all.Skip(Math.Max(0, all.IndexOf(itemId) - 20)).Take(200).ToList();
         var items = new JsonArray(); for (var i = 0; i < q.Count; i++) items.Add(new JsonObject { ["Id"] = q[i], ["PlaylistItemId"] = "q" + i });
         return new JsonObject
         {
@@ -207,6 +211,7 @@ public sealed class Connect : IDisposable
         JsonArray? arr;
         try { arr = await jf.GetAsync(Account, $"/Sessions?ControllableByUserId={Account.UserId}&ActiveWithinSeconds=600") as JsonArray; } catch { return; }
         if (arr is null) return;
+        if (Environment.GetEnvironmentVariable("FLACIE_DEBUG") == "1") Console.WriteLine("SESSIONS " + arr.ToJsonString());
         var list = new List<ConnectSession>();
         foreach (var o in arr.OfType<JsonObject>())
         {
@@ -220,6 +225,7 @@ public sealed class Connect : IDisposable
                 (np?["Artists"] as JsonArray)?.FirstOrDefault()?.GetValue<string>() ?? np?["AlbumArtist"]?.GetValue<string>() ?? "",
                 (ps?["PositionTicks"]?.GetValue<long>() ?? 0) / 10_000, (np?["RunTimeTicks"]?.GetValue<long>() ?? 0) / 10_000, ps?["IsPaused"]?.GetValue<bool>() ?? true, q));
         }
+        SessionsAsOf = DateTime.UtcNow;
         Sessions = list.OrderBy(s => !s.IsSelf).ThenBy(s => s.ItemId is null).ThenBy(s => s.Device).ToList();
         Changed?.Invoke();
     }
@@ -234,6 +240,7 @@ public sealed class Connect : IDisposable
     {
         if (host is not { } p) return;
         var ids = s.Queue.Count > 0 ? s.Queue.ToList() : s.ItemId is { } one ? [one] : [];
+        if (s.ItemId is { } now && !ids.Contains(now)) ids.Insert(0, now);
         var tracks = new List<Track>(); var kept = new List<string>();
         foreach (var id in ids) if (await ResolveAsync(id) is { } t) { tracks.Add(t); kept.Add(id); }
         if (tracks.Count == 0) return;
@@ -247,7 +254,9 @@ public sealed class Connect : IDisposable
     public async Task SendToAsync(ConnectSession s)
     {
         if (host is not { } p || p.Current?.JellyfinId is not { } cur) return;
-        var ids = p.Queue.Select(t => t.JellyfinId).OfType<string>().ToList();
+        var every = p.Queue.Select(t => t.JellyfinId).OfType<string>().ToList();
+        // the ids travel in the URL: a window around the current song, not a whole shuffled library
+        var ids = every.Skip(Math.Max(0, every.IndexOf(cur) - 5)).Take(100).ToList();
         await PostSafe($"/Sessions/{s.Id}/Playing?PlayCommand=PlayNow&ItemIds={string.Join(",", ids)}&StartIndex={Math.Max(0, ids.IndexOf(cur))}&StartPositionTicks={p.PositionMs * 10_000}", null);
         await p.PauseAsync();
         await Task.Delay(1200); await LoadSessionsAsync();

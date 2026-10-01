@@ -1,0 +1,47 @@
+@inherits UserComponent
+@implements IDisposable
+@* Connect from the player bar: this browser and the account's other players, what each is playing, and one click to move the music. *@
+@if (Live is { } live)
+{
+    var others = live.Connect.Sessions.Where(s => !s.IsSelf && s.Controllable).ToList();
+    var busy = others.Any(s => s.ItemId is not null && !s.Paused);
+    <div class="devpick">
+        <button class="icon-btn @(busy ? "on" : "")" @onclick="Toggle" aria-haspopup="dialog" aria-expanded="@open" aria-label="@(busy ? "Devices, music is playing on another device" : "Devices")"><Icon Name="devices" />@if (busy) { <i class="dot" aria-hidden="true"></i> }</button>
+        @if (open)
+        {
+            <button class="scrim" aria-label="Close devices" @onclick="() => open = false"></button>
+            <div class="devpop" role="dialog" aria-label="Connect to a device">
+                <h3>Connect to a device</h3>
+                <div class="dev here">
+                    <Icon Name="devices" Size="22" />
+                    <span><b>This browser</b><small>@(Player.Current is { } c ? (Player.Playing ? "Playing " : "Paused · ") + c.Title : "Nothing playing")</small></span>
+                    <i class="check" aria-hidden="true"><Icon Name="check" Size="18" /></i>
+                </div>
+                @foreach (var s in others)
+                {
+                    <div class="dev">
+                        <Icon Name="devices" Size="22" />
+                        <span><b>@s.Device</b><small>@(s.ItemId is null ? s.Client : (s.Paused ? "Paused · " : "Playing ") + s.Title + " · " + s.Artist)</small></span>
+                        <span class="dev-actions">
+                            @if (s.ItemId is not null) { <button class="btn" @onclick="() => TakeOver(live, s)">Play here</button> }
+                            @if (Player.Current?.JellyfinId is not null) { <button class="btn" @onclick="() => Send(live, s)">Send here</button> }
+                        </span>
+                    </div>
+                }
+                @if (others.Count == 0) { <p class="hint">No other device is signed in right now. Open FLACie on your phone with this account and it appears here.</p> }
+                <a class="btn ghost" href="/devices" @onclick="() => open = false">All devices and Jams</a>
+            </div>
+        }
+    </div>
+}
+@code {
+    bool open; Timer? poll;
+    void Toggle()
+    {
+        open = !open; poll?.Dispose(); poll = null;
+        if (open && Live is { } l) { _ = l.Connect.LoadSessionsAsync(); poll = new Timer(_ => { _ = l.Connect.LoadSessionsAsync(); }, null, 3000, 3000); }
+    }
+    async Task TakeOver(Live l, ConnectSession s) { open = false; await l.Connect.TakeOverAsync(s); }
+    async Task Send(Live l, ConnectSession s) { open = false; await l.Connect.SendToAsync(s); }
+    public override void Dispose() { poll?.Dispose(); base.Dispose(); }
+}

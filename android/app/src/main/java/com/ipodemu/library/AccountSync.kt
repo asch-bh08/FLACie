@@ -261,6 +261,7 @@ class AccountSync(private val app: App) {
             if (a.optString("token").isNotBlank()) {
                 p.accountServer = a.optString("server"); p.accountUserId = a.optString("userId"); p.accountUserName = a.optString("user"); p.accountToken = a.optString("token")
                 restored++
+                rebindToThisDevice()
             }
         }
         take(p.jellyfinUrl.isBlank(), "jellyfin") { p.jellyfinUrl = it.optString("url"); p.jellyfinApiKey = it.optString("key") }
@@ -288,6 +289,27 @@ class AccountSync(private val app: App) {
         kotlinx.coroutines.withContext(Dispatchers.Main) { app.userData.mergeRemote(incomingFavs, incoming, deleted) }
         if (restored > 0) app.library.reconnectAll()
         return restored
+    }
+
+    /**
+     * A token that came out of the shared profile was issued to whichever device signed in first, and Jellyfin ties sessions to the
+     * token's device: Connect and Jams would then talk as that other device. Mint one for this install by approving our own Quick
+     * Connect request with the borrowed token (no password involved). If anything fails the borrowed token is kept.
+     */
+    private fun rebindToThisDevice() {
+        val base = prefs.accountServer; val old = prefs.accountToken
+        try {
+            val (ic, it) = http("POST", "$base/QuickConnect/Initiate", null, null)
+            if (ic !in 200..299) return
+            val init = JSONObject(it)
+            val (ac, _) = http("POST", "$base/QuickConnect/Authorize?code=${init.getString("Code")}", old, null)
+            if (ac !in 200..299) return
+            val (rc, rt) = http("POST", "$base/Users/AuthenticateWithQuickConnect", null, JSONObject().put("Secret", init.getString("Secret")).toString())
+            if (rc !in 200..299) return
+            val fresh = JSONObject(rt).getString("AccessToken")
+            prefs.accountToken = fresh
+            if (prefs.jellyfinApiKey == old) prefs.jellyfinApiKey = fresh
+        } catch (_: Exception) { }
     }
 
     class RemotePlaylist(val id: String, val name: String, val mtime: Long, val jfId: String?, val tracks: List<Triple<String, String, String>>)

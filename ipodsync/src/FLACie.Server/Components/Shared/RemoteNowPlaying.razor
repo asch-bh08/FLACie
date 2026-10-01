@@ -1,0 +1,44 @@
+@inherits UserComponent
+@implements IDisposable
+@* "Listening on <device>", like Spotify: when another player on this same Jellyfin account is playing and this browser isn't, a strip with what
+   it plays and the usual controls, plus one click to bring the music here. Only this account's own sessions are ever listed. *@
+@if (Live is { } live && Remote(live) is { } s)
+{
+    <aside class="remote-now @(Player.Current is null ? "solo" : "")" aria-label="@("Playing on " + s.Device)">
+        <Cover ArtKey="@("jf" + s.ItemId)" Size="44" />
+        <span class="rn-text">
+            <small><Icon Name="devices" Size="14" />Listening on @s.Device</small>
+            <b>@s.Title</b>
+            <small>@s.Artist@(s.DurationMs > 0 ? " · " + Time(Pos(live, s) / 1000.0) + " / " + Time(s.DurationMs / 1000.0) : "")</small>
+        </span>
+        <span class="rn-controls">
+            <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "PreviousTrack")' aria-label="Previous on @s.Device"><Icon Name="prev" Size="20" /></button>
+            <button class="play small" @onclick='() => live.Connect.CommandAsync(s, "PlayPause")' aria-label="@(s.Paused ? "Play" : "Pause") on @s.Device"><Icon Name="@(s.Paused ? "play" : "pause")" Size="18" /></button>
+            <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "NextTrack")' aria-label="Next on @s.Device"><Icon Name="next" Size="20" /></button>
+            <button class="btn" @onclick="() => live.Connect.TakeOverAsync(s)">Play here</button>
+        </span>
+        @if (s.DurationMs > 0) { <i class="rn-progress" style="width:@Pct(live, s)%"></i> }
+    </aside>
+}
+@code {
+    Timer? poll, tick;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        if (Live is { } l)
+        {
+            poll = new Timer(_ => { _ = l.Connect.LoadSessionsAsync(); }, null, 1000, 4000);
+            tick = new Timer(_ => { if (Remote(l) is not null) InvokeAsync(StateHasChanged); }, null, 1000, 1000);
+        }
+    }
+
+    // another player of this account that is on a song, while this browser is not playing one itself
+    ConnectSession? Remote(Live l) => Player.Playing ? null : l.Connect.Sessions.Where(s => !s.IsSelf && s.Controllable && s.ItemId is not null).OrderBy(s => s.Paused).FirstOrDefault(s => !s.Paused);
+
+    // the other player reports every few seconds; between reports the position is carried forward at normal speed
+    static long Pos(Live l, ConnectSession s) => Math.Min(s.DurationMs, s.PositionMs + (s.Paused ? 0 : (long)(DateTime.UtcNow - l.Connect.SessionsAsOf).TotalMilliseconds));
+    static string Pct(Live l, ConnectSession s) => Math.Clamp(Pos(l, s) * 100.0 / Math.Max(1, s.DurationMs), 0, 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+
+    public override void Dispose() { poll?.Dispose(); tick?.Dispose(); base.Dispose(); }
+}

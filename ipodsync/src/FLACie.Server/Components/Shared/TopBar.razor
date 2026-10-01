@@ -1,0 +1,67 @@
+@inherits UserComponent
+@implements IDisposable
+@* Along the top, like YT Music: the logo, one search box that works from every page, and the account at the right. *@
+<header class="topbar">
+    <a class="top-brand" href="/" aria-label="FLACie home"><span class="brand-mark" aria-hidden="true"><Icon Name="note" Size="18" /></span><span class="top-name">FLACie</span></a>
+    <form class="top-search" role="search" @onsubmit="Go">
+        <Icon Name="search" Size="18" />
+        <input type="search" placeholder="Search songs, albums, artists, or music to download" aria-label="Search" value="@q" @oninput="OnInput" autocomplete="off" />
+        @if (q.Length > 0) { <button type="button" class="icon-btn" aria-label="Clear search" @onclick="Clear"><Icon Name="x" Size="16" /></button> }
+    </form>
+    <div class="top-account">
+        <button class="avatar-btn" @onclick="() => open = !open" aria-haspopup="menu" aria-expanded="@open" aria-label="@("Account: " + Session.DisplayName)"><span class="avatar">@Initial</span></button>
+        @if (open)
+        {
+            <button class="scrim" aria-label="Close menu" @onclick="() => open = false"></button>
+            <div class="account-menu" role="menu">
+                <div class="am-head"><span class="avatar big">@Initial</span><div><b>@Session.DisplayName</b><small>@(Session.Kind == "nas" ? "NAS" : "Jellyfin")@(Session.Jellyfin is not null && Session.Nas is not null ? " and NAS" : "")</small></div></div>
+                <a role="menuitem" href="/account" @onclick="() => open = false"><Icon Name="artists" Size="18" />Account</a>
+                <a role="menuitem" href="/settings" @onclick="() => open = false"><Icon Name="settings" Size="18" />Settings</a>
+                <form method="post" action="/auth/logout" data-enhance="false"><button role="menuitem" type="submit"><Icon Name="logout" Size="18" />Sign out</button></form>
+            </div>
+        }
+    </div>
+</header>
+@code {
+    string q = "";
+    bool open;
+    CancellationTokenSource? pending;
+    string Initial => Session.DisplayName.Length > 0 ? Session.DisplayName[..1].ToUpperInvariant() : "?";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        Nav.LocationChanged += OnLocation;
+        SyncFromUrl();
+    }
+
+    void OnLocation(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) { SyncFromUrl(); InvokeAsync(StateHasChanged); }
+
+    // the box mirrors the Search page's address, so Back and a shared link show what was searched
+    void SyncFromUrl()
+    {
+        var uri = new Uri(Nav.Uri);
+        if (uri.AbsolutePath != "/search") { if (q.Length > 0 && !uri.AbsolutePath.StartsWith("/search")) q = ""; return; }
+        var m = System.Web.HttpUtility.ParseQueryString(uri.Query)["q"] ?? "";
+        if (m != q) q = m;
+    }
+
+    // typing searches as you go, after a short pause; the Search page follows the address
+    async Task OnInput(ChangeEventArgs e)
+    {
+        q = e.Value?.ToString() ?? "";
+        pending?.Cancel(); var cts = pending = new CancellationTokenSource();
+        try { await Task.Delay(300, cts.Token); } catch (OperationCanceledException) { return; }
+        Navigate();
+    }
+
+    void Go() { pending?.Cancel(); Navigate(); }
+    void Clear() { q = ""; Navigate(); }
+    void Navigate()
+    {
+        var onSearch = new Uri(Nav.Uri).AbsolutePath == "/search";
+        Nav.NavigateTo("/search" + (q.Trim().Length > 0 ? "?q=" + Uri.EscapeDataString(q) : ""), replace: onSearch);
+    }
+
+    public override void Dispose() { Nav.LocationChanged -= OnLocation; pending?.Cancel(); base.Dispose(); }
+}

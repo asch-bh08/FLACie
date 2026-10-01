@@ -31,6 +31,26 @@ window.flacie = (() => {
     navigator.mediaSession.setActionHandler("previoustrack", () => send("OnPrev"));
     navigator.mediaSession.setActionHandler("seekto", e => { audio.currentTime = e.seekTime; });
   }
+  // synced lyrics: the line being sung is found from the audio clock every frame, so the highlight lands with the voice
+  let lyr = null;
+  const lyricTick = () => {
+    if (lyr) {
+      const ms = audio.currentTime * 1000 + 150; // a hair early: the eye needs the line before it is sung
+      let lo = 0, hi = lyr.times.length - 1, c = -1;
+      while (lo <= hi) { const m = (lo + hi) >> 1; if (lyr.times[m] <= ms) { c = m; lo = m + 1; } else hi = m - 1; }
+      if (c !== lyr.cur) {
+        const items = document.querySelectorAll("#lyrics li");
+        if (items.length === lyr.times.length) {
+          items.forEach((li, i) => { li.classList.toggle("cur", i === c); li.classList.toggle("past", i < c); });
+          lyr.cur = c;
+          const el = items[c], panel = document.querySelector(".np-panel");
+          if (el && panel) panel.scrollTo({ top: el.offsetTop - panel.clientHeight / 2 + el.clientHeight / 2, behavior: "smooth" });
+        }
+      }
+    }
+    requestAnimationFrame(lyricTick);
+  };
+  requestAnimationFrame(lyricTick);
   let npRef = null, npPushed = false;
   const npClosed = () => { const r = npRef; npRef = null; npPushed = false; document.body.classList.remove("np-open"); if (r) r.invokeMethodAsync("Closed").catch(() => { }); };
   window.addEventListener("popstate", () => { if (npRef) npClosed(); else npPushed = false; });
@@ -48,6 +68,8 @@ window.flacie = (() => {
     },
     toggle() { audio.paused ? audio.play().catch(() => {}) : audio.pause(); },
     play() { audio.play().catch(() => send("OnState", false)); },
+    setLyrics(times) { lyr = { times, cur: -2 }; },
+    clearLyrics() { lyr = null; },
     // keeps the line being sung in the middle of the lyrics panel, scrolling only that panel (never the page behind it)
     scrollLyric() {
       const el = document.querySelector("#lyrics .cur"), panel = document.querySelector(".np-panel");

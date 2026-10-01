@@ -116,8 +116,10 @@ class SlskdClient {
         }
         // the typed artist somewhere in the path (file or folder) rules out the same title by somebody else
         val byArtist = ok.filter { f -> tokens(f.filename).toSet().containsAll(artistWords) }
-        return (byArtist.ifEmpty { if (artistWords.isEmpty()) ok else emptyList() })
-            .sortedByDescending { peerScore(it) + (if (it.lossless) 40 else if ((it.bitRate ?: 0) >= 320) 30 else 0) }
+        val matched = byArtist.ifEmpty { if (artistWords.isEmpty()) ok else emptyList() }
+        // lossless whenever anyone has it, however slow; MP3/AAC (320 kbps) only when no peer has a lossless copy at all
+        return matched.filter { it.lossless }.ifEmpty { matched.filter { (it.bitRate ?: 0) >= 320 } }
+            .sortedByDescending { peerScore(it) }
             .distinctBy { it.username }
     }
 
@@ -142,7 +144,9 @@ class SlskdClient {
                     .sortedWith(compareBy({ it.leaf.substringBeforeLast('.').length }, { if (it.lossless) 0 else 1 })).firstOrNull()?.also { used.add(it) }
             }
             val found = picks.count { it != null }
-            if (found < need) null else picks.toList() to (found * 100 + peerScore(fs.first()))
+            // an all-lossless folder beats any lossy one, then the most songs, then the fastest peer
+            val lossless = picks.all { it == null || it.lossless }
+            if (found < need) null else picks.toList() to ((if (lossless) 100_000 else 0) + found * 100 + peerScore(fs.first()))
         }.sortedByDescending { it.second }.map { it.first }
     }
 

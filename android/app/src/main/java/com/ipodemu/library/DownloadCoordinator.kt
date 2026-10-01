@@ -154,7 +154,8 @@ class DownloadCoordinator(private val prefs: Prefs) {
                     t?.done == true -> { active.filter { it !== a }.forEach { drop(it) }; return a.f }
                     t?.done == false -> drop(a)
                     t != null && t.bytes > a.bytes -> { a.bytes = t.bytes; a.moved = now }
-                    now - a.moved > 20_000 -> drop(a)
+                    // a silent peer is swapped only when there is someone else to try; the last one keeps its chance
+                    now - a.moved > 20_000 && (queue.isNotEmpty() || active.size > 1) -> drop(a)
                 }
             }
             // race a second peer while the first is still queued remotely or silent; replace a dropped one

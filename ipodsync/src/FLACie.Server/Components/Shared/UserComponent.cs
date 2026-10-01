@@ -14,12 +14,20 @@ public abstract class UserComponent : ComponentBase, IDisposable
     [CascadingParameter] Task<AuthenticationState> Auth { get; set; } = default!;
     protected UserSession Session { get; private set; } = default!;
     protected Library Lib => Session.Library;
+    /// <summary>Connect and Jams; null when signed in with a NAS only.</summary>
+    protected Live? Live { get; private set; }
 
     protected override async Task OnInitializedAsync()
     {
         Session = Store.For((await Auth).User);
         Session.Changed += Refresh;
         Player.Changed += Refresh;
+        if (Store.LiveFor(Session) is { } l)
+        {
+            Live = l;
+            Player.Bind(l.Connect);
+            l.Connect.Changed += Refresh; l.Jam.Changed += Refresh;
+        }
     }
 
     void Refresh() => InvokeAsync(StateHasChanged);
@@ -30,5 +38,10 @@ public abstract class UserComponent : ComponentBase, IDisposable
     protected static string Time(double s) => s <= 0 || double.IsNaN(s) ? "0:00" : $"{(int)s / 60}:{(int)s % 60:00}";
     protected static string AlbumLink(Group g) => "/album/" + Uri.EscapeDataString(g.Tracks[0].AlbumKey);
 
-    public virtual void Dispose() { if (Session is not null) Session.Changed -= Refresh; Player.Changed -= Refresh; }
+    public virtual void Dispose()
+    {
+        if (Session is not null) Session.Changed -= Refresh;
+        Player.Changed -= Refresh;
+        if (Live is { } l) { l.Connect.Changed -= Refresh; l.Jam.Changed -= Refresh; }
+    }
 }

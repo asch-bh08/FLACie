@@ -22,6 +22,9 @@ public sealed class UserSession
     public bool Loading { get; private set; }
     public DateTime LoadedAt { get; private set; }
     public event Action? Changed;
+    /// <summary>Jellyfin songs another device sent that the loaded library doesn't list; they can still be streamed.</summary>
+    public System.Collections.Concurrent.ConcurrentDictionary<string, Track> Extra { get; } = new();
+    public Track? FindByPath(string path) => Library.ByPath(path) ?? Extra.GetValueOrDefault(path);
     readonly SemaphoreSlim gate = new(1, 1);
 
     public UserSession(string kind, JellyfinAccount? jellyfin, NasAccount? nas) { Kind = kind; Jellyfin = jellyfin; Nas = nas; }

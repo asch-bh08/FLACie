@@ -1,0 +1,60 @@
+@page "/devices"
+@attribute [Authorize]
+@implements IDisposable
+@inherits UserComponent
+<PageTitle>Devices · FLACie</PageTitle>
+<header class="page-head"><h1>Devices</h1></header>
+
+@if (Live is not { } live)
+{
+    <section class="panel"><p>Devices and Jams need a Jellyfin sign-in. Sign out and sign in with Jellyfin to control your other FLACie players from here.</p></section>
+}
+else
+{
+    <p class="hint">Your other players signed in to the same Jellyfin account@(live.Connect.Connected ? "" : " (connecting…)"). Pick one to control it, bring its music here, or send what plays here to it. Only songs on Jellyfin can travel between devices.</p>
+    @foreach (var s in live.Connect.Sessions)
+    {
+        <section class="panel">
+            <h2>@s.Device@(s.IsSelf ? " (this browser)" : "")</h2>
+            <p class="hint">@s.Client</p>
+            @if (s.ItemId is not null)
+            {
+                <p><b>@s.Title</b><br /><span class="hint">@s.Artist · @Time(s.PositionMs / 1000.0) / @Time(s.DurationMs / 1000.0)@(s.Paused ? " · paused" : "")</span></p>
+            }
+            else
+            {
+                <p class="hint">Nothing playing</p>
+            }
+            @if (!s.IsSelf && s.Controllable)
+            {
+                <div class="row-actions">
+                    @if (s.ItemId is not null)
+                    {
+                        <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "PreviousTrack")' aria-label="Previous">⏮</button>
+                        <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "PlayPause")' aria-label="@(s.Paused ? "Play" : "Pause")">@(s.Paused ? "▶" : "❚❚")</button>
+                        <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "NextTrack")' aria-label="Next">⏭</button>
+                        <button class="btn" @onclick="() => live.Connect.TakeOverAsync(s)">Play here</button>
+                    }
+                    @if (Player.Current?.JellyfinId is not null)
+                    {
+                        <button class="btn" @onclick="() => live.Connect.SendToAsync(s)">Send what plays here</button>
+                    }
+                </div>
+            }
+        </section>
+    }
+    @if (!live.Connect.Sessions.Any(s => !s.IsSelf))
+    {
+        <section class="panel"><p class="hint">No other device is active. Open FLACie on your phone with the same Jellyfin account and it shows up here.</p></section>
+    }
+    <p><a class="btn" href="/jam">Jam together</a></p>
+}
+@code {
+    Timer? poll;
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        if (Live is { } l) { _ = l.Connect.LoadSessionsAsync(); poll = new Timer(_ => { _ = l.Connect.LoadSessionsAsync(); }, null, 4000, 4000); }
+    }
+    public override void Dispose() { poll?.Dispose(); base.Dispose(); }
+}

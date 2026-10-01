@@ -27,7 +27,7 @@ public static class MediaEndpoints
         app.MapGet("/stream", async (HttpContext ctx, string p, SessionStore store, JellyfinClient jf, IHttpClientFactory hf) =>
         {
             var s = store.For(ctx.User);
-            var t = s.Library.ByPath(p);
+            var t = s.FindByPath(p);
             if (t is null) return Results.NotFound();
             if (t.Source == TrackSource.Jellyfin && s.Jellyfin is { } a)
             {

@@ -12,11 +12,16 @@ window.flacie = (() => {
   audio.addEventListener("play", () => send("OnState", true));
   audio.addEventListener("pause", () => send("OnState", false));
   audio.addEventListener("ended", () => send("OnEnded"));
-  // a dropped connection mid-song: pick up again at the same second
+  // a dropped connection mid-song: pick up again at the same second. A song the browser can't decode (e.g. WMA) fails
+  // the same way every time, so after three tries it is skipped instead of retried forever.
+  let failures = 0, failedSrc = "";
+  audio.addEventListener("playing", () => { failures = 0; });
   audio.addEventListener("error", () => {
     if (!audio.src) return;
     const at = audio.currentTime, src = audio.src;
-    setTimeout(() => { audio.src = src; audio.currentTime = at; audio.play().catch(() => {}); }, 1500);
+    failures = src === failedSrc ? failures + 1 : 1; failedSrc = src;
+    if (failures > 3) { failures = 0; send("OnEnded"); return; }
+    setTimeout(() => { if (audio.src !== src) return; audio.src = src; audio.currentTime = at; audio.play().catch(() => {}); }, 1500);
   });
   if ("mediaSession" in navigator) {
     navigator.mediaSession.setActionHandler("play", () => audio.play());
@@ -26,15 +31,17 @@ window.flacie = (() => {
     navigator.mediaSession.setActionHandler("seekto", e => { audio.currentTime = e.seekTime; });
   }
   return {
-    load(ref, url, title, artist, album, art, autoplay) {
+    load(ref, url, title, artist, album, art, autoplay, dur, startAt) {
       dotnet = ref;
       audio.src = url;
+      if (startAt > 0) audio.addEventListener("loadedmetadata", () => { audio.currentTime = startAt; }, { once: true });
       if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title, artist, album, artwork: art ? [{ src: art, sizes: "500x500", type: "image/jpeg" }] : [] });
       document.title = title ? `${title} · ${artist}` : "FLACie";
-      if (autoplay) audio.play().catch(() => send("OnState", false));
+      if (autoplay) audio.play().catch(() => send("OnState", false)); else { audio.pause(); send("OnState", false); }
     },
     toggle() { audio.paused ? audio.play().catch(() => {}) : audio.pause(); },
-    play() { audio.play().catch(() => {}); },
+    play() { audio.play().catch(() => send("OnState", false)); },
+    ready() { return audio.readyState >= 3; },
     pause() { audio.pause(); },
     seek(s) { if (isFinite(s)) audio.currentTime = s; },
     volume(v) { audio.volume = v; },

@@ -1,0 +1,58 @@
+@page "/jam"
+@attribute [Authorize]
+@inherits UserComponent
+<PageTitle>Jam · FLACie</PageTitle>
+<header class="page-head"><h1>Jam</h1></header>
+
+@if (Live is not { } live)
+{
+    <section class="panel"><p>Jams need a Jellyfin sign-in. Sign out and sign in with Jellyfin to listen together.</p></section>
+}
+else
+{
+    var jam = live.Jam;
+    <p class="hint">Listen together: everyone in a Jam hears the same song at the same moment, and anyone can play, pause, skip or add songs. Uses Jellyfin SyncPlay, so everyone needs a Jellyfin account on the same server.</p>
+    @if (jam.Status is { } st) { <p class="form-error">@st</p> }
+    @if (notice is not null) { <p class="hint">@notice</p> }
+    @if (jam.InJam)
+    {
+        <section class="panel">
+            <h2>@jam.GroupName</h2>
+            <p>@(string.Join(", ", jam.People))</p>
+            <p class="hint">Play songs as usual; they play for the whole Jam.</p>
+            <button class="btn danger" @onclick="jam.LeaveAsync">Leave the Jam</button>
+        </section>
+    }
+    else
+    {
+        <section class="panel">
+            <h2>Start a Jam</h2>
+            <p class="hint">@(Player.Current?.JellyfinId is not null ? "Starts with what plays now." : "Start a Jam, then play a song from Jellyfin.")</p>
+            <button class="btn primary" @onclick="jam.StartAsync">Start a Jam</button>
+        </section>
+        <section class="panel">
+            <h2>Join a Jam</h2>
+            @foreach (var g in jam.Groups)
+            {
+                <div class="row-actions"><span><b>@g.Name</b> <span class="hint">@string.Join(", ", g.People)</span></span><button class="btn" @onclick="() => jam.JoinAsync(g)">Join</button></div>
+            }
+            @if (jam.Groups.Count == 0) { <p class="hint">No Jams going on right now.</p> }
+            <button class="btn ghost" @onclick="jam.LoadGroupsAsync">Refresh</button>
+        </section>
+    }
+}
+@code {
+    string? notice;
+    Action<string>? onNotice;
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        if (Live is { } l)
+        {
+            onNotice = m => { notice = m; InvokeAsync(StateHasChanged); };
+            l.Jam.Notice += onNotice;
+            _ = l.Jam.LoadGroupsAsync();
+        }
+    }
+    public override void Dispose() { if (Live is { } l && onNotice is not null) l.Jam.Notice -= onNotice; base.Dispose(); }
+}

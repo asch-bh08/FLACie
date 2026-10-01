@@ -13,6 +13,8 @@ namespace FLACie.Server;
 /// server's data-protection keys, so nothing usable reaches the browser and a restart doesn't sign anyone out.
 /// One <see cref="UserSession"/> per account is kept in memory and shared by that user's tabs.
 /// </summary>
+public sealed record Live(Connect Connect, Jam Jam);
+
 public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log)
 {
     readonly ConcurrentDictionary<string, UserSession> sessions = new();
@@ -49,7 +51,19 @@ public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log)
         return s;
     }
 
-    public void Forget(ClaimsPrincipal p) => sessions.TryRemove(Key(p), out _);
+    /// <summary>Connect and the Jam for a user who signed in with Jellyfin (null for a NAS sign-in: its token isn't this server's device).</summary>
+    public Live? LiveFor(UserSession s)
+    {
+        if (s.Kind != "jellyfin" || s.Jellyfin is null) return null;
+        return live.GetValue(s, u => { var c = new Connect(jf, u); var l = new Live(c, new Jam(c)); c.Start(); return l; });
+    }
+
+    readonly System.Runtime.CompilerServices.ConditionalWeakTable<UserSession, Live> live = new();
+
+    public void Forget(ClaimsPrincipal p)
+    {
+        if (sessions.TryRemove(Key(p), out var s) && live.TryGetValue(s, out var l)) { l.Connect.Dispose(); live.Remove(s); }
+    }
     static string V(ClaimsPrincipal p, string k) => p.FindFirst(k)?.Value ?? "";
 }
 

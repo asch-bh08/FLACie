@@ -23,6 +23,21 @@ public sealed class JellyfinClient(HttpClient http, string deviceId, string devi
         return s.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? s : "http://" + s;
     }
 
+    public string DeviceId => deviceId;
+
+    /// <summary>A GET on the user's Jellyfin server with their token (JSON, or null for an empty reply).</summary>
+    public Task<JsonNode?> GetAsync(JellyfinAccount a, string path, CancellationToken ct = default) => Send(HttpMethod.Get, a.Server + path, a.Token, null, ct);
+    public Task<JsonNode?> PostAsync(JellyfinAccount a, string path, JsonNode? body = null, CancellationToken ct = default) => Send(HttpMethod.Post, a.Server + path, a.Token, body, ct);
+
+    /// <summary>The live connection Jellyfin's remote-control and SyncPlay messages arrive on.</summary>
+    public Uri SocketUri(JellyfinAccount a) => new("ws" + a.Server.TrimEnd('/')[4..] + $"/socket?api_key={Uri.EscapeDataString(a.Token)}&deviceId={Uri.EscapeDataString(deviceId)}");
+
+    /// <summary>One song by Jellyfin id, for songs another device sends that this library hasn't listed.</summary>
+    public async Task<Track?> TrackAsync(JellyfinAccount a, string id, CancellationToken ct = default)
+    {
+        try { return await GetAsync(a, $"/Users/{a.UserId}/Items/{id}", ct) is { } o ? ToTrack(a.Server, o) : null; } catch (Exception) { return null; }
+    }
+
     string Auth(string? token) => $"MediaBrowser Client=\"{Client}\", Device=\"{deviceName}\", DeviceId=\"{deviceId}\", Version=\"{Version}\"" + (token is null ? "" : $", Token=\"{token}\"");
 
     async Task<JsonNode?> Send(HttpMethod method, string url, string? token, JsonNode? body, CancellationToken ct)

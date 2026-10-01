@@ -1,0 +1,15 @@
+@inherits LayoutComponentBase
+<div class="app">
+    <nav class="rail" aria-label="Main">
+        <div class="brand small"><span class="brand-mark" aria-hidden="true">♫</span><span>FLACie</span></div>
+        <NavLink href="/" Match="NavLinkMatch.All"><span aria-hidden="true">⌂</span>Home</NavLink>
+        <NavLink href="/search"><span aria-hidden="true">⌕</span>Search</NavLink>
+        <NavLink href="/albums"><span aria-hidden="true">◫</span>Albums</NavLink>
+        <NavLink href="/artists"><span aria-hidden="true">☺</span>Artists</NavLink>
+        <NavLink href="/songs"><span aria-hidden="true">♪</span>Songs</NavLink>
+        <NavLink href="/playlists"><span aria-hidden="true">≡</span>Playlists</NavLink>
+        <NavLink href="/settings"><span aria-hidden="true">⚙</span>Settings</NavLink>
+    </nav>
+    <main class="content">@Body</main>
+    <PlayerBar />
+</div>

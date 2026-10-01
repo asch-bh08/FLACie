@@ -1,0 +1,13 @@
+@* A cover from /art, or a quiet placeholder when there's none. *@
+<div class="cover @Class" style="@(Size > 0 ? $"width:{Size}px;height:{Size}px" : "")">
+    @if (ArtKey is not null)
+    {
+        <img src="/art/@Uri.EscapeDataString(ArtKey)" alt="" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'" />
+    }
+    <span class="cover-ph" aria-hidden="true">♪</span>
+</div>
+@code {
+    [Parameter] public string? ArtKey { get; set; }
+    [Parameter] public int Size { get; set; }
+    [Parameter] public string Class { get; set; } = "";
+}

@@ -1,0 +1,100 @@
+@page "/login"
+@layout EmptyLayout
+@attribute [AllowAnonymous]
+@inject IConfiguration Config
+
+<PageTitle>Sign in · FLACie</PageTitle>
+
+<main class="login">
+    <div class="login-card">
+        <div class="brand"><span class="brand-mark" aria-hidden="true">♫</span><h1>FLACie</h1></div>
+        <p class="lede">Sign in to play your music. Your playlists and settings follow you to the FLACie app on your phone and PC.</p>
+
+        @if (!string.IsNullOrEmpty(Error))
+        {
+            <p class="form-error" role="alert">@Error</p>
+        }
+
+        <div class="tabs" role="tablist">
+            <a href="/login" class="tab @(Tab != "nas" ? "on" : "")" role="tab" aria-selected="@(Tab != "nas")">Jellyfin</a>
+            @if (AllowNas)
+            {
+                <a href="/login?tab=nas" class="tab @(Tab == "nas" ? "on" : "")" role="tab" aria-selected="@(Tab == "nas")">NAS</a>
+            }
+        </div>
+
+        @if (Tab != "nas")
+        {
+            <section id="qc" class="qc" hidden>
+                <p>Enter this code in a signed-in Jellyfin app (Settings &gt; Quick Connect):</p>
+                <p class="qc-code" id="qc-code"></p>
+                <button type="button" class="btn ghost" id="qc-cancel">Cancel</button>
+            </section>
+            <form method="post" action="/auth/jellyfin" class="form" id="jf-form">
+                @if (FixedServer is null)
+                {
+                    <label for="server">Jellyfin server</label>
+                    <input id="server" name="server" type="url" inputmode="url" autocomplete="url" placeholder="https://jellyfin.example.com" required />
+                }
+                <button type="button" class="btn primary" id="qc-start">Sign in with Quick Connect</button>
+                <details>
+                    <summary>Use username and password</summary>
+                    <label for="user">Username</label>
+                    <input id="user" name="user" autocomplete="username" autocapitalize="off" />
+                    <label for="password">Password</label>
+                    <input id="password" name="password" type="password" autocomplete="current-password" />
+                    <button type="submit" class="btn">Sign in</button>
+                </details>
+                <p class="form-error" id="qc-error" role="alert" hidden></p>
+            </form>
+            <script>
+                (() => {
+                    const fixed = @((MarkupString)(FixedServer is null ? "null" : System.Text.Json.JsonSerializer.Serialize(FixedServer)));
+                    const $ = id => document.getElementById(id);
+                    let timer = null;
+                    const fail = m => { const e = $("qc-error"); e.textContent = m; e.hidden = false; $("qc").hidden = true; $("jf-form").hidden = false; };
+                    $("qc-start").addEventListener("click", async () => {
+                        const server = fixed ?? $("server").value.trim();
+                        if (!server) { $("server").focus(); return; }
+                        const r = await fetch("/auth/qc/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ server }) });
+                        const j = await r.json();
+                        if (!r.ok) return fail(j.error);
+                        $("qc-code").textContent = j.code.replace(/(\d{3})(\d{3})/, "$1 $2");
+                        $("qc").hidden = false; $("jf-form").hidden = true;
+                        timer = setInterval(async () => {
+                            const p = await fetch("/auth/qc/poll", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ server: j.server, secret: j.secret }) });
+                            const q = await p.json();
+                            if (!p.ok) { clearInterval(timer); return fail(q.error); }
+                            if (q.done) { clearInterval(timer); location.href = "/"; }
+                        }, 2500);
+                    });
+                    $("qc-cancel").addEventListener("click", () => { clearInterval(timer); $("qc").hidden = true; $("jf-form").hidden = false; });
+                })();
+            </script>
+        }
+        else
+        {
+            <form method="post" action="/auth/nas" class="form">
+                <label for="host">NAS address</label>
+                <input id="host" name="host" placeholder="192.168.1.50 or nas.local" required autocapitalize="off" />
+                <label for="share">Share</label>
+                <input id="share" name="share" placeholder="Music" required autocapitalize="off" />
+                <label for="folder">Music folder in the share <span class="opt">(optional)</span></label>
+                <input id="folder" name="folder" autocapitalize="off" />
+                <label for="nuser">Username</label>
+                <input id="nuser" name="user" autocomplete="username" autocapitalize="off" />
+                <label for="npass">Password</label>
+                <input id="npass" name="password" type="password" autocomplete="current-password" />
+                <button type="submit" class="btn primary">Sign in</button>
+                <p class="hint">Your profile is kept in a <code>.flacie</code> folder on the share.</p>
+            </form>
+        }
+    </div>
+</main>
+
+@code {
+    [SupplyParameterFromQuery] string? Error { get; set; }
+    [SupplyParameterFromQuery] string? Tab { get; set; }
+    string? FixedServer => Config["FLACIE_JELLYFIN_URL"] is { Length: > 0 } s ? s : null;
+    bool AllowNas => Config.GetValue("FLACIE_ALLOW_NAS_LOGIN", true);
+}

@@ -1,0 +1,46 @@
+@page "/playlist/{Id}"
+@attribute [Authorize]
+@inherits UserComponent
+@{ var p = Session.Playlists.FirstOrDefault(x => x.Id == Id); }
+@if (p is null)
+{
+    <p class="status">This playlist isn't there any more.</p>
+}
+else
+{
+    var tracks = Session.Resolve(p.Entries);
+    <PageTitle>@p.Name · FLACie</PageTitle>
+    <header class="detail-head">
+        <Cover ArtKey="@(tracks.Select(t => t.ArtKey).FirstOrDefault(k => k is not null))" Class="detail-cover" />
+        <div>
+            <p class="eyebrow">Playlist</p>
+            <h1>@p.Name</h1>
+            <p class="sub">@tracks.Count songs@(tracks.Count < p.Entries.Count ? $" ({p.Entries.Count - tracks.Count} not in this library)" : "")</p>
+            <div class="chips">
+                <button class="btn primary" @onclick="() => Player.Play(tracks, 0)" disabled="@(tracks.Count == 0)">▶ Play</button>
+                <button class="btn" @onclick="() => Player.ShuffleAll(tracks)" disabled="@(tracks.Count == 0)">⤨ Shuffle</button>
+                @if (confirm)
+                {
+                    <button class="btn danger" @onclick="Delete">Delete "@p.Name"</button>
+                    <button class="btn" @onclick="() => confirm = false">Keep it</button>
+                }
+                else
+                {
+                    <button class="btn ghost" @onclick="() => confirm = true">Delete</button>
+                }
+            </div>
+        </div>
+    </header>
+    <TrackList Tracks="tracks" OnRemove="i => Remove(p, tracks, i)" />
+}
+@code {
+    [Parameter] public string Id { get; set; } = "";
+    bool confirm;
+    void Delete() { Session.DeletePlaylist(Id); SaveProfile(); Nav.NavigateTo("/playlists"); }
+    void Remove(FLACie.Core.Playlist p, IReadOnlyList<Track> tracks, int i)
+    {
+        var t = tracks[i];
+        Session.RemoveFromPlaylist(p.Id, p.Entries.FindIndex(e => e.Path == t.Path || (e.Title == t.Title && e.Artist == t.Artist)));
+        SaveProfile();
+    }
+}

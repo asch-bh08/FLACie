@@ -1,0 +1,42 @@
+@page "/search"
+@attribute [Authorize]
+@inherits UserComponent
+<PageTitle>Search · FLACie</PageTitle>
+<header class="page-head">
+    <h1>Search</h1>
+    <input class="search" type="search" placeholder="Songs, albums, artists" aria-label="Search your music" autofocus
+           value="@q" @oninput="e => q = e.Value?.ToString() ?? string.Empty" />
+</header>
+@{ var r = Lib.Search(q); }
+@if (q.Trim().Length == 0)
+{
+    <p class="status">Search your music. Punctuation doesn't matter: "scream and shout will i am" finds Scream &amp; Shout.</p>
+}
+else if (r.Songs.Count == 0 && r.Albums.Count == 0 && r.Artists.Count == 0)
+{
+    <p class="status">Nothing matches "@q".</p>
+}
+else
+{
+    @if (r.Artists.Count > 0)
+    {
+        <h2 class="section">Artists</h2>
+        <div class="row-scroll">
+            @foreach (var a in r.Artists)
+            {
+                <a class="card artist" href="/artist/@Uri.EscapeDataString(a.Name)"><Cover ArtKey="@(a.ArtKey)" Class="square round" /><span class="card-title">@a.Name</span></a>
+            }
+        </div>
+    }
+    @if (r.Albums.Count > 0)
+    {
+        <h2 class="section">Albums</h2>
+        <AlbumGrid Albums="r.Albums" />
+    }
+    @if (r.Songs.Count > 0)
+    {
+        <h2 class="section">Songs</h2>
+        <TrackList Tracks="r.Songs" />
+    }
+}
+@code { string q = ""; }

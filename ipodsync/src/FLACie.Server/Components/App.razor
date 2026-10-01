@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0b0e" />
+    <base href="/" />
+    <title>FLACie</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <HeadOutlet @rendermode="PageMode" />
+</head>
+<body>
+    <Routes @rendermode="PageMode" />
+    <script src="flacie.js"></script>
+    <script src="_framework/blazor.web.js"></script>
+</body>
+</html>
+
+@code {
+    [CascadingParameter] HttpContext HttpContext { get; set; } = default!;
+    // the login page is a plain form page (it has to set the sign-in cookie); everything else is live
+    IComponentRenderMode? PageMode => HttpContext.Request.Path.StartsWithSegments("/login") ? null : InteractiveServer;
+}

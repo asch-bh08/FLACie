@@ -1,0 +1,12 @@
+@page "/artists"
+@attribute [Authorize]
+@inherits UserComponent
+<PageTitle>Artists · FLACie</PageTitle>
+<header class="page-head"><h1>Artists</h1><p class="sub">@Lib.Artists.Count artists</p></header>
+<LibraryStatus />
+<div class="grid">
+    @foreach (var a in Lib.Artists)
+    {
+        <a class="card artist" href="/artist/@Uri.EscapeDataString(a.Name)"><Cover ArtKey="@(a.ArtKey)" Class="square round" /><span class="card-title">@a.Name</span><span class="card-sub">@a.Tracks.Count songs</span></a>
+    }
+</div>

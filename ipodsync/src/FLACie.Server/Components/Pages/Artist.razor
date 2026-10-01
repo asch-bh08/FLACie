@@ -1,0 +1,27 @@
+@page "/artist/{Name}"
+@attribute [Authorize]
+@inherits UserComponent
+@{ var a = Lib.Artists.FirstOrDefault(x => x.Name == Uri.UnescapeDataString(Name)); }
+@if (a is null)
+{
+    <p class="status">@(Session.Loading ? "Loading…" : "This artist isn't in your library.")</p>
+}
+else
+{
+    <PageTitle>@a.Name · FLACie</PageTitle>
+    <header class="detail-head">
+        <Cover ArtKey="@(a.ArtKey)" Class="detail-cover round" />
+        <div>
+            <p class="eyebrow">Artist</p>
+            <h1>@a.Name</h1>
+            <p class="sub">@a.Tracks.Count songs</p>
+            <div class="chips">
+                <button class="btn primary" @onclick="() => Player.Play(a.Tracks, 0)">▶ Play</button>
+                <button class="btn" @onclick="() => Player.ShuffleAll(a.Tracks)">⤨ Shuffle</button>
+            </div>
+        </div>
+    </header>
+    <h2 class="section">Albums</h2>
+    <AlbumGrid Albums="Lib.Albums.Where(g => g.Tracks.Any(t => a.Tracks.Contains(t))).ToList()" />
+}
+@code { [Parameter] public string Name { get; set; } = ""; }

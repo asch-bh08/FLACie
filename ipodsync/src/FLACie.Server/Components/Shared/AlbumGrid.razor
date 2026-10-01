@@ -1,0 +1,12 @@
+@inherits UserComponent
+<div class="grid">
+    @foreach (var g in Albums)
+    {
+        <a class="card" href="@AlbumLink(g)">
+            <Cover ArtKey="@(g.ArtKey)" Class="square" />
+            <span class="card-title">@g.Name</span>
+            <span class="card-sub">@(g.Tracks[0].AlbumArtist.Length > 0 ? g.Tracks[0].AlbumArtist : g.Tracks[0].Artist)</span>
+        </a>
+    }
+</div>
+@code { [Parameter] public IReadOnlyList<Group> Albums { get; set; } = []; }

@@ -1,0 +1,7 @@
+@page "/albums"
+@attribute [Authorize]
+@inherits UserComponent
+<PageTitle>Albums · FLACie</PageTitle>
+<header class="page-head"><h1>Albums</h1><p class="sub">@Lib.Albums.Count albums</p></header>
+<LibraryStatus />
+<AlbumGrid Albums="Lib.Albums" />

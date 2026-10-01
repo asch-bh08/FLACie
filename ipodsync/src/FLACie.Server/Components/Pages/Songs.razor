@@ -1,0 +1,28 @@
+@page "/songs"
+@attribute [Authorize]
+@inherits UserComponent
+<PageTitle>Songs · FLACie</PageTitle>
+<header class="page-head">
+    <h1>Songs</h1>
+    <p class="sub">@Lib.Songs.Count songs</p>
+    <div class="chips"><button class="btn primary" @onclick="() => Player.ShuffleAll(Lib.Songs)" disabled="@(Lib.Songs.Count == 0)">⤨ Shuffle all</button></div>
+</header>
+<LibraryStatus />
+<div class="tracks virtual">
+    <Virtualize Items="rows" Context="row" ItemSize="60">
+        <div class="track @(Player.Current?.Path == row.T.Path ? "now" : "")">
+            <button class="track-main" @onclick="() => Player.Play(Lib.Songs, row.I)" aria-label="Play @row.T.Title by @row.T.Artist">
+                <Cover ArtKey="@(row.T.ArtKey)" Size="44" />
+                <span class="track-text"><span class="track-title">@row.T.Title</span><span class="track-sub">@row.T.Artist@(row.T.Album.Length > 0 ? " · " + row.T.Album : "")</span></span>
+            </button>
+            <span class="track-time">@(row.T.DurationMs > 0 ? Time(row.T.DurationMs / 1000.0) : "")</span>
+        </div>
+    </Virtualize>
+</div>
+@code {
+    record Row(Track T, int I);
+    List<Row> rows = [];
+    Library? built;
+    protected override void OnParametersSet() { if (!ReferenceEquals(built, Lib)) { built = Lib; rows = Lib.Songs.Select((t, i) => new Row(t, i)).ToList(); } }
+    protected override bool ShouldRender() { if (!ReferenceEquals(built, Lib)) OnParametersSet(); return true; }
+}

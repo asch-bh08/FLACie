@@ -1,0 +1,13 @@
+@inherits UserComponent
+@if (Session.Loading && Lib.Songs.Count == 0)
+{
+    <p class="status">Loading your library…</p>
+}
+else if (Session.Problem is { } p)
+{
+    <p class="status warn">@p</p>
+}
+else if (!Session.Loading && Lib.Songs.Count == 0)
+{
+    <p class="status">No music found yet. Add a Jellyfin server or a NAS in <a href="/settings">Settings</a>.</p>
+}

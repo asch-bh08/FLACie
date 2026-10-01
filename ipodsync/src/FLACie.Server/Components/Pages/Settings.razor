@@ -1,0 +1,92 @@
+@page "/settings"
+@attribute [Authorize]
+@inherits UserComponent
+<PageTitle>Settings · FLACie</PageTitle>
+<header class="page-head"><h1>Settings</h1></header>
+
+<section class="panel">
+    <h2>Account</h2>
+    <p>Signed in with @(Session.Kind == "nas" ? "a NAS" : "Jellyfin") as <b>@Session.DisplayName</b>.</p>
+    <p class="hint">Your playlists, favourites and connected services are kept in @Where, so signing in with any of them on another device brings them back.</p>
+    <form method="post" action="/auth/logout" data-enhance="false"><button class="btn" type="submit">Sign out</button></form>
+</section>
+
+<section class="panel">
+    <h2>Music sources</h2>
+    <dl class="kv">
+        <dt>Jellyfin</dt><dd>@(Session.Jellyfin is { } j ? $"{j.UserName} on {j.Server}" : "Not connected")</dd>
+        <dt>NAS</dt><dd>@(Session.Nas is { } n ? $"{n.Host}/{n.Share}{(n.Folder.Length > 0 ? "/" + n.Folder : "")}" : "Not connected")</dd>
+        <dt>Songs</dt><dd>@Lib.Songs.Count · @Lib.Albums.Count albums@(Session.Loading ? " (loading…)" : "")</dd>
+    </dl>
+    <button class="btn" @onclick="Reload" disabled="@Session.Loading">Reload library</button>
+    @if (Session.Problem is { } p) { <p class="form-error">@p</p> }
+</section>
+
+@if (Session.Nas is null)
+{
+    <section class="panel">
+        <h2>Add a NAS</h2>
+        <p class="hint">Plays the music on a network share, and keeps a copy of your profile there.</p>
+        <div class="form">
+            <label for="host">NAS address</label><input id="host" @bind="host" placeholder="192.168.1.50" />
+            <label for="share">Share</label><input id="share" @bind="share" placeholder="Music" />
+            <label for="folder">Music folder <span class="opt">(optional)</span></label><input id="folder" @bind="folder" />
+            <label for="nuser">Username</label><input id="nuser" @bind="nuser" autocomplete="off" />
+            <label for="npass">Password</label><input id="npass" type="password" @bind="npass" autocomplete="new-password" />
+            <button class="btn primary" @onclick="AddNas" disabled="@busy">@(busy ? "Checking…" : "Add NAS")</button>
+        </div>
+    </section>
+}
+@if (Session.Jellyfin is null)
+{
+    <section class="panel">
+        <h2>Add Jellyfin</h2>
+        <p class="hint">Streams your Jellyfin library, and keeps a copy of your profile in your Jellyfin account.</p>
+        <div class="form">
+            <label for="jserver">Jellyfin server</label><input id="jserver" @bind="jserver" placeholder="https://jellyfin.example.com" />
+            <label for="juser">Username</label><input id="juser" @bind="juser" autocomplete="off" />
+            <label for="jpass">Password</label><input id="jpass" type="password" @bind="jpass" autocomplete="new-password" />
+            <button class="btn primary" @onclick="AddJellyfin" disabled="@busy">@(busy ? "Signing in…" : "Add Jellyfin")</button>
+        </div>
+    </section>
+}
+@if (error is not null) { <p class="form-error" role="alert">@error</p> }
+
+@code {
+    string host = "", share = "", folder = "", nuser = "", npass = "", jserver = "", juser = "", jpass = "";
+    bool busy; string? error;
+
+    string Where => string.Join(" and ", new[] { Session.Jellyfin is not null ? "your Jellyfin account" : null, Session.Nas is not null ? "the NAS" : null }.OfType<string>());
+
+    async Task Reload() => await Session.LoadAsync(Jellyfin);
+
+    async Task AddNas()
+    {
+        busy = true; error = null;
+        try
+        {
+            var n = new NasAccount(host.Trim(), share.Trim(), folder.Trim('/', ' '), nuser.Trim(), npass);
+            await Task.Run(() => NasClient.Test(n));
+            Session.AddNas(n);
+            await Session.SaveAsync(Jellyfin);
+            await Session.LoadAsync(Jellyfin);
+            npass = "";
+        }
+        catch (Exception e) { error = e.Message; }
+        finally { busy = false; }
+    }
+
+    async Task AddJellyfin()
+    {
+        busy = true; error = null;
+        try
+        {
+            Session.AddJellyfin(await Jellyfin.SignInAsync(jserver, juser.Trim(), jpass));
+            await Session.SaveAsync(Jellyfin);
+            await Session.LoadAsync(Jellyfin);
+            jpass = "";
+        }
+        catch (Exception e) { error = e.Message; }
+        finally { busy = false; }
+    }
+}

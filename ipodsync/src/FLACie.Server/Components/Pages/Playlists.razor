@@ -1,0 +1,30 @@
+@page "/playlists"
+@attribute [Authorize]
+@inherits UserComponent
+<PageTitle>Playlists · FLACie</PageTitle>
+<header class="page-head">
+    <h1>Playlists</h1>
+    <form class="inline-form" @onsubmit="Create">
+        <input @bind="name" @bind:event="oninput" placeholder="New playlist name" aria-label="New playlist name" />
+        <button class="btn primary" type="submit" disabled="@string.IsNullOrWhiteSpace(name)">Create</button>
+    </form>
+</header>
+<div class="grid">
+    <a class="card" href="/favorites"><div class="cover square fav-cover" aria-hidden="true">♥</div><span class="card-title">Favourites</span><span class="card-sub">@Session.Favorites.Count songs</span></a>
+    @foreach (var p in Session.Playlists)
+    {
+        var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
+        <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@p.Entries.Count songs</span></a>
+    }
+</div>
+@code {
+    string name = "";
+    void Create()
+    {
+        if (string.IsNullOrWhiteSpace(name)) return;
+        var p = Session.CreatePlaylist(name.Trim());
+        name = "";
+        SaveProfile();
+        Nav.NavigateTo("/playlist/" + p.Id);
+    }
+}

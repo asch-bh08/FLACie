@@ -1,0 +1,18 @@
+# FLACie Web, self-hosted. Copy to docker-compose.yml, adjust, then: docker compose up -d
+services:
+  flacie:
+    image: ghcr.io/asch-bh08/flacie-web:latest
+    container_name: flacie
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./flacie-data:/data          # sign-in keys and cover cache
+    environment:
+      # Optional: run as your own user, so files in ./flacie-data belong to you (find yours with `id`).
+      # PUID: "1000"
+      # PGID: "1000"
+      # Optional: lock sign-in to one Jellyfin server (the login page then only asks for a username).
+      # FLACIE_JELLYFIN_URL: "https://jellyfin.example.com"
+      # Optional: turn off NAS sign-in (Jellyfin only).
+      # FLACIE_ALLOW_NAS_LOGIN: "false"

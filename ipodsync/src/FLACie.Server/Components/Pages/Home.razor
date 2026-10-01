@@ -1,0 +1,32 @@
+@page "/"
+@attribute [Authorize]
+@inherits UserComponent
+<PageTitle>FLACie</PageTitle>
+<header class="page-head">
+    <h1>@Greeting</h1>
+    <div class="chips">
+        <button class="chip" @onclick="() => Player.ShuffleAll(Lib.Songs)" disabled="@(Lib.Songs.Count == 0)">⤨ Shuffle all</button>
+        <a class="chip" href="/favorites">♥ Favourites</a>
+        <a class="chip" href="/playlists">≡ Playlists</a>
+    </div>
+</header>
+<LibraryStatus />
+@if (Session.Playlists.Count > 0)
+{
+    <h2 class="section">Your playlists</h2>
+    <div class="row-scroll">
+        @foreach (var p in Session.Playlists.Take(12))
+        {
+            var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
+            <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@p.Entries.Count songs</span></a>
+        }
+    </div>
+}
+@if (Lib.Albums.Count > 0)
+{
+    <h2 class="section">Recently added</h2>
+    <AlbumGrid Albums="Lib.RecentAlbums(18)" />
+}
+@code {
+    string Greeting { get { var h = DateTime.Now.Hour; return h >= 18 ? "Good evening" : h >= 12 ? "Good afternoon" : "Good morning"; } }
+}

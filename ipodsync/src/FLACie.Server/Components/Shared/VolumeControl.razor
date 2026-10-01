@@ -1,0 +1,8 @@
+@inherits UserComponent
+<div class="vol">
+    <button class="icon-btn" @onclick="Player.ToggleMuteAsync" aria-label="@(Player.Volume == 0 ? "Unmute" : "Mute")"><Icon Name="@(Player.Volume == 0 ? "volume-0" : Player.Volume < 0.5 ? "volume-1" : "volume-2")" /></button>
+    <input type="range" min="0" max="100" step="1" value="@((int)Math.Round(Player.Volume * 100))" aria-label="Volume" style="--fill:@((int)Math.Round(Player.Volume * 100))%" @oninput="OnVolume" />
+</div>
+@code {
+    Task OnVolume(ChangeEventArgs e) => int.TryParse(e.Value?.ToString(), out var v) ? Player.SetVolumeAsync(v / 100.0) : Task.CompletedTask;
+}

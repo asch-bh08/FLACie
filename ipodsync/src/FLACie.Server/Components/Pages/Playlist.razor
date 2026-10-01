@@ -17,8 +17,8 @@ else
             <h1>@p.Name</h1>
             <p class="sub">@tracks.Count songs@(tracks.Count < p.Entries.Count ? $" ({p.Entries.Count - tracks.Count} not in this library)" : "")</p>
             <div class="chips">
-                <button class="btn primary" @onclick="() => Player.Play(tracks, 0)" disabled="@(tracks.Count == 0)">▶ Play</button>
-                <button class="btn" @onclick="() => Player.ShuffleAll(tracks)" disabled="@(tracks.Count == 0)">⤨ Shuffle</button>
+                <button class="btn primary" @onclick="() => Player.Play(tracks, 0)" disabled="@(tracks.Count == 0)"><Icon Name="play" Size="18" />Play</button>
+                <button class="btn" @onclick="() => Player.ShuffleAll(tracks)" disabled="@(tracks.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle</button>
                 @if (confirm)
                 {
                     <button class="btn danger" @onclick="Delete">Delete "@p.Name"</button>

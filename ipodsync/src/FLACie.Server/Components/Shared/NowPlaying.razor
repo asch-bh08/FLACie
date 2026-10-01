@@ -1,0 +1,146 @@
+@inherits UserComponent
+@* Full-screen player: the cover, the controls, and beside it the queue, the synced lyrics or the file's real format. *@
+@{ var t = Player.Current; }
+<div class="np" role="dialog" aria-modal="true" aria-label="Now Playing">
+    @if (t?.ArtKey is { } art) { <img class="np-backdrop" src="/art/@Uri.EscapeDataString(art)" alt="" /> }
+    <div class="np-shade"></div>
+    <header class="np-top">
+        <button class="icon-btn" @onclick="OnClose" aria-label="Close Now Playing"><Icon Name="chevron-down" Size="24" /></button>
+        <span class="np-where">Playing from @(t is null ? "" : SourceName(t))</span>
+        <span class="np-spacer"></span>
+    </header>
+    @if (t is not null)
+    {
+        <div class="np-body">
+            <section class="np-main">
+                <Cover ArtKey="@(t.ArtKey)" Class="np-cover" />
+                <div class="np-meta">
+                    <div class="np-titles">
+                        <h2>@t.Title</h2>
+                        <p class="np-artist"><a href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="OnClose">@t.Artist</a>@(t.Album.Length > 0 ? " · " + t.Album : "")</p>
+                        <div class="pills">
+                            <span class="badge @t.Source.ToString().ToLowerInvariant()">@SourceName(t)</span>
+                            @if (info is not null && info.Format.Length > 0) { <span class="badge fmt @(info.Lossless ? "lossless" : "")">@info.Format</span> }
+                            @if (info is not null && info.Sampling.Length > 0) { <span class="badge plain">@info.Sampling</span> }
+                            @if (info is not null && info.BitrateKbps > 0) { <span class="badge plain">@info.BitrateKbps kbps</span> }
+                        </div>
+                    </div>
+                    <button class="icon-btn lg @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="24" /></button>
+                </div>
+                <div class="seek big">
+                    <span>@Time(Player.Position)</span>
+                    <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@Player.Position" aria-label="Seek" style="--fill:@(Player.Duration > 0 ? Math.Clamp(Player.Position / Player.Duration * 100, 0, 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "0")%" @onchange="OnSeek" />
+                    <span>@Time(Player.Duration)</span>
+                </div>
+                <div class="np-controls">
+                    <button class="icon-btn lg @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@Player.Shuffle"><Icon Name="shuffle" Size="22" /></button>
+                    <button class="icon-btn lg" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="28" /></button>
+                    <button class="play big" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="30" /></button>
+                    <button class="icon-btn lg" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="28" /></button>
+                    <button class="icon-btn lg @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="22" /></button>
+                </div>
+                <div class="np-volume"><VolumeControl /></div>
+            </section>
+            <section class="np-side">
+                <div class="np-tabs" role="tablist">
+                    <button role="tab" aria-selected="@(tab == "queue")" class="@(tab == "queue" ? "on" : "")" @onclick='() => tab = "queue"'><Icon Name="queue" Size="18" />Up next</button>
+                    <button role="tab" aria-selected="@(tab == "lyrics")" class="@(tab == "lyrics" ? "on" : "")" @onclick='() => Open("lyrics")'><Icon Name="lyrics" Size="18" />Lyrics</button>
+                    <button role="tab" aria-selected="@(tab == "info")" class="@(tab == "info" ? "on" : "")" @onclick='() => Open("info")'><Icon Name="info" Size="18" />Info</button>
+                </div>
+                <div class="np-panel" role="tabpanel">
+                    @if (tab == "queue")
+                    {
+                        <ol class="upnext">
+                            @foreach (var (i, u) in Player.UpNext(60))
+                            {
+                                <li><button @onclick="() => Player.SkipTo(i)"><Cover ArtKey="@(u.ArtKey)" Size="44" /><span><b>@u.Title</b><small>@u.Artist</small></span></button></li>
+                            }
+                        </ol>
+                        @if (!Player.UpNext(1).Any()) { <p class="hint">Nothing queued after this song.</p> }
+                    }
+                    else if (tab == "lyrics")
+                    {
+                        @if (lyricsLoading) { <p class="hint">Looking for lyrics…</p> }
+                        else if (lyrics is null) { <p class="hint">No lyrics found for this song.</p> }
+                        else
+                        {
+                            var cur = CurrentLine();
+                            <ol class="lyrics @(lyrics.Synced ? "synced" : "")" id="lyrics">
+                                @for (var i = 0; i < lyrics.Lines.Count; i++)
+                                {
+                                    var line = lyrics.Lines[i];
+                                    <li class="@(i == cur ? "cur" : i < cur ? "past" : "")">
+                                        @if (lyrics.Synced) { <button @onclick="() => Player.Seek(line.TimeMs / 1000.0)">@(line.Text.Length == 0 ? " " : line.Text)</button> }
+                                        else { <span>@(line.Text.Length == 0 ? " " : line.Text)</span> }
+                                    </li>
+                                }
+                            </ol>
+                            <p class="hint src">Lyrics from @lyrics.Source</p>
+                        }
+                    }
+                    else
+                    {
+                        <TrackInfoPanel Track="t" Info="info" Loading="infoLoading" />
+                    }
+                </div>
+            </section>
+        </div>
+    }
+</div>
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Inject] LyricsService LyricsSvc { get; set; } = default!;
+    [Inject] InfoService Infos { get; set; } = default!;
+    [Inject] IJSRuntime Js { get; set; } = default!;
+    string tab = "queue";
+    Lyrics? lyrics; bool lyricsLoading; string? lyricsFor;
+    MediaInfo? info; bool infoLoading; string? infoFor;
+    int lastLine = -1;
+
+    void Open(string t) { tab = t; if (t == "lyrics") _ = LoadLyrics(); }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Player.Current is not { } t) return;
+        // a new song: refresh whatever is showing
+        if (infoFor != t.Path) await LoadInfo();
+        if (tab == "lyrics" && lyricsFor != t.Path) await LoadLyrics();
+        if (tab == "lyrics" && lyrics is { Synced: true })
+        {
+            var c = CurrentLine();
+            if (c != lastLine) { lastLine = c; try { await Js.InvokeVoidAsync("flacie.scrollLyric"); } catch (Exception) { } }
+        }
+    }
+
+    async Task LoadInfo()
+    {
+        if (Player.Current is not { } t) return;
+        infoFor = t.Path; infoLoading = true; info = null;
+        await InvokeAsync(StateHasChanged);
+        var got = await Infos.GetAsync(Session, t);
+        if (infoFor == t.Path) { info = got; infoLoading = false; }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    async Task LoadLyrics()
+    {
+        if (Player.Current is not { } t) return;
+        lyricsFor = t.Path; lyricsLoading = true; lyrics = null; lastLine = -1;
+        await InvokeAsync(StateHasChanged);
+        var got = await LyricsSvc.GetAsync(t, Session.Jellyfin);
+        if (lyricsFor == t.Path) { lyrics = got; lyricsLoading = false; }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    int CurrentLine()
+    {
+        if (lyrics is not { Synced: true }) return -1;
+        var ms = (long)(Player.Position * 1000) + 250;
+        var cur = -1;
+        for (var i = 0; i < lyrics.Lines.Count; i++) { if (lyrics.Lines[i].TimeMs <= ms) cur = i; else break; }
+        return cur;
+    }
+
+    static string SourceName(Track t) => t.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "Download", _ => t.Source.ToString() };
+    Task OnSeek(ChangeEventArgs e) => double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var s) ? Player.Seek(s) : Task.CompletedTask;
+}

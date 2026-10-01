@@ -19,6 +19,6 @@ VOLUME /data
 EXPOSE 8080
 
 COPY FLACie.Server/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN sed -i 's/$//' /entrypoint.sh && chmod +x /entrypoint.sh
 # starts as root only to fix /data ownership, then runs the app as an unprivileged user (see entrypoint.sh)
 ENTRYPOINT ["/entrypoint.sh"]

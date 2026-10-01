@@ -5,9 +5,9 @@
 <header class="page-head">
     <h1>@Greeting</h1>
     <div class="chips">
-        <button class="chip" @onclick="() => Player.ShuffleAll(Lib.Songs)" disabled="@(Lib.Songs.Count == 0)">⤨ Shuffle all</button>
-        <a class="chip" href="/favorites">♥ Favourites</a>
-        <a class="chip" href="/playlists">≡ Playlists</a>
+        <button class="chip" @onclick="() => Player.ShuffleAll(Lib.Songs)" disabled="@(Lib.Songs.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle all</button>
+        <a class="chip" href="/favorites"><Icon Name="heart" Size="18" />Favourites</a>
+        <a class="chip" href="/playlists"><Icon Name="playlists" Size="18" />Playlists</a>
     </div>
 </header>
 <LibraryStatus />

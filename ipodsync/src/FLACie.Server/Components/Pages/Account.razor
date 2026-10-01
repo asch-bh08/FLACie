@@ -1,0 +1,24 @@
+@page "/account"
+@attribute [Authorize]
+@inherits UserComponent
+<PageTitle>Account · FLACie</PageTitle>
+<header class="page-head"><h1>Account</h1></header>
+
+<section class="panel account-card">
+    <div class="account-head">
+        <span class="avatar big" aria-hidden="true">@(Session.DisplayName.Length > 0 ? Session.DisplayName[..1].ToUpperInvariant() : "?")</span>
+        <div><h2>@Session.DisplayName</h2><p class="hint">Signed in with @(Session.Kind == "nas" ? "a NAS" : "Jellyfin")</p></div>
+    </div>
+    <dl class="kv">
+        <dt>Jellyfin</dt><dd>@(Session.Jellyfin is { } j ? $"{j.UserName} on {j.Server}" : "Not connected")</dd>
+        <dt>NAS</dt><dd>@(Session.Nas is { } n ? $"{n.Host}/{n.Share}{(n.Folder.Length > 0 ? "/" + n.Folder : "")}" : "Not connected")</dd>
+        <dt>Library</dt><dd>@Lib.Songs.Count songs · @Lib.Albums.Count albums · @Lib.Artists.Count artists@(Session.Loading ? " (loading…)" : "")</dd>
+        <dt>Playlists</dt><dd>@Session.Playlists.Count playlists · @Session.Favorites.Count favourites</dd>
+        @if (Live is { } l) { <dt>Devices</dt><dd>@(l.Connect.Connected ? "Connected for remote control and Jams" : "Connecting…")</dd> }
+    </dl>
+    <p class="hint">Your playlists, favourites and connected services live in @(Session.Jellyfin is not null && Session.Nas is not null ? "your Jellyfin account and on the NAS" : Session.Jellyfin is not null ? "your Jellyfin account" : "the NAS"), so every FLACie you sign in to picks them up.</p>
+    <div class="row-actions">
+        <a class="btn" href="/settings"><Icon Name="settings" Size="18" />Settings</a>
+        <form method="post" action="/auth/logout" data-enhance="false"><button class="btn danger" type="submit"><Icon Name="logout" Size="18" />Sign out</button></form>
+    </div>
+</section>

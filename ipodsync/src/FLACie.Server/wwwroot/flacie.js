@@ -42,6 +42,8 @@ window.flacie = (() => {
     },
     toggle() { audio.paused ? audio.play().catch(() => {}) : audio.pause(); },
     play() { audio.play().catch(() => send("OnState", false)); },
+    // keeps the line being sung in the middle of the lyrics panel
+    scrollLyric() { const el = document.querySelector("#lyrics .cur"); if (el) el.scrollIntoView({ block: "center", behavior: "smooth" }); },
     ready() { return audio.readyState >= 3; },
     pause() { audio.pause(); },
     seek(s) { if (isFinite(s)) audio.currentTime = s; },

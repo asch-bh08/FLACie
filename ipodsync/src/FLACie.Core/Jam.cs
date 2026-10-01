@@ -56,6 +56,8 @@ public sealed class Jam : IPlayInterceptor
     /// <summary>Starts a Jam with what plays here (if it's on Jellyfin), so the others hear it as soon as they join.</summary>
     public async Task StartAsync()
     {
+        // a group left over from an earlier try would make Jellyfin refuse a second one
+        try { await Send("/SyncPlay/Leave", null); } catch { }
         try { await Send("/SyncPlay/New", new JsonObject { ["GroupName"] = $"{(Account.UserName.Length > 0 ? Account.UserName : "FLACie")}'s Jam" }); }
         catch (Exception e) { SetStatus(Problem(e)); return; }
         await Task.Delay(800);

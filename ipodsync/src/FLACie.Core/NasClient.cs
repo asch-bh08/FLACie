@@ -203,6 +203,26 @@ public static class NasClient
         catch { return null; }
     }
 
+    /// <summary>The real format of a NAS file, read from its header with TagLib (only the first few megabytes are fetched).</summary>
+    public static MediaInfo? Probe(NasAccount a, string rel)
+    {
+        try
+        {
+            var size = Size(a, rel);
+            using var head = new MemoryStream();
+            CopyRangeAsync(a, rel, 0, Math.Min(size, 4_000_000), head, CancellationToken.None).GetAwaiter().GetResult();
+            using var f = TagLib.File.Create(new MemoryFile(System.IO.Path.GetFileName(rel), head.ToArray()), TagLib.ReadStyle.Average);
+            var p = f.Properties;
+            var codec = p.Codecs.FirstOrDefault(c => c is TagLib.IAudioCodec)?.Description ?? "";
+            var ext = System.IO.Path.GetExtension(rel).TrimStart('.').ToLowerInvariant();
+            // TagLib describes codecs in words ("FLAC Audio", "MPEG Version 1 Audio, Layer 3"); badges want the short name
+            var name = codec.Contains("FLAC", StringComparison.OrdinalIgnoreCase) ? "flac" : codec.Contains("Layer 3", StringComparison.OrdinalIgnoreCase) ? "mp3" : codec.Contains("ALAC", StringComparison.OrdinalIgnoreCase) || codec.Contains("Apple Lossless", StringComparison.OrdinalIgnoreCase) ? "alac"
+                : codec.Contains("AAC", StringComparison.OrdinalIgnoreCase) ? "aac" : codec.Contains("Vorbis", StringComparison.OrdinalIgnoreCase) ? "vorbis" : codec.Contains("Opus", StringComparison.OrdinalIgnoreCase) ? "opus" : codec.Contains("PCM", StringComparison.OrdinalIgnoreCase) ? "pcm" : ext;
+            return new MediaInfo(ext, name, p.Duration.TotalSeconds > 1 && name is "flac" or "alac" or "pcm" ? (int)(size * 8 / p.Duration.TotalSeconds / 1000) : p.AudioBitrate, p.AudioSampleRate, p.BitsPerSample, p.AudioChannels, size, (long)p.Duration.TotalMilliseconds, rel, "NAS");
+        }
+        catch (Exception) { return null; }
+    }
+
     /// <summary>The start of a file, for TagLib (tags and pictures live there; the rest is never read).</summary>
     sealed class MemoryFile(string name, byte[] data) : TagLib.File.IFileAbstraction
     {

@@ -30,9 +30,9 @@ else
                 <div class="row-actions">
                     @if (s.ItemId is not null)
                     {
-                        <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "PreviousTrack")' aria-label="Previous">⏮</button>
-                        <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "PlayPause")' aria-label="@(s.Paused ? "Play" : "Pause")">@(s.Paused ? "▶" : "❚❚")</button>
-                        <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "NextTrack")' aria-label="Next">⏭</button>
+                        <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "PreviousTrack")' aria-label="Previous"><Icon Name="prev" /></button>
+                        <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "PlayPause")' aria-label="@(s.Paused ? "Play" : "Pause")"><Icon Name="@(s.Paused ? "play" : "pause")" /></button>
+                        <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "NextTrack")' aria-label="Next"><Icon Name="next" /></button>
                         <button class="btn" @onclick="() => live.Connect.TakeOverAsync(s)">Play here</button>
                     }
                     @if (Player.Current?.JellyfinId is not null)

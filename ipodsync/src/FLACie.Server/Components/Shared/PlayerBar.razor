@@ -1,50 +1,32 @@
 @inherits UserComponent
 @if (Player.Current is { } t)
 {
-    <section class="player @(open ? "open" : "")" aria-label="Player">
-        @if (open)
-        {
-            <div class="np">
-                <button class="icon-btn np-close" @onclick="() => open = false" aria-label="Close Now Playing">⌄</button>
-                <Cover ArtKey="@(t.ArtKey)" Class="np-cover" />
-                <div class="np-side">
-                    <h2>@t.Title</h2>
-                    <p class="np-artist">@t.Artist@(t.Album.Length > 0 ? " · " + t.Album : "")</p>
-                    <h3>Up next</h3>
-                    <ol class="upnext">
-                        @foreach (var (i, u) in Player.UpNext(30))
-                        {
-                            <li><button @onclick="() => Player.SkipTo(i)"><Cover ArtKey="@(u.ArtKey)" Size="36" /><span><b>@u.Title</b><small>@u.Artist</small></span></button></li>
-                        }
-                    </ol>
-                </div>
-            </div>
-        }
+    @if (open) { <NowPlaying OnClose="() => open = false" /> }
+    <section class="player" aria-label="Player">
         <div class="bar">
-            <button class="bar-song" @onclick="() => open = !open" aria-label="@(open ? "Close" : "Open") Now Playing">
-                <Cover ArtKey="@(t.ArtKey)" Size="48" />
+            <button class="bar-song" @onclick="() => open = true" aria-label="Open Now Playing">
+                <Cover ArtKey="@(t.ArtKey)" Size="52" />
                 <span class="bar-text"><b>@t.Title</b><small>@t.Artist</small></span>
             </button>
             <div class="bar-controls">
                 <div class="buttons">
-                    <button class="icon-btn @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")">⤨</button>
-                    <button class="icon-btn" @onclick="Player.Prev" aria-label="Previous">⏮</button>
-                    <button class="play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")">@(Player.Playing ? "❚❚" : "▶")</button>
-                    <button class="icon-btn" @onclick="Player.Next" aria-label="Next">⏭</button>
-                    <button class="icon-btn @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })">@(Player.Repeat == 2 ? "🔂" : "🔁")</button>
+                    <button class="icon-btn @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@Player.Shuffle"><Icon Name="shuffle" /></button>
+                    <button class="icon-btn" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="22" /></button>
+                    <button class="play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="22" /></button>
+                    <button class="icon-btn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="22" /></button>
+                    <button class="icon-btn @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" /></button>
                 </div>
                 <div class="seek">
                     <span>@Time(Player.Position)</span>
-                    <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@Player.Position" aria-label="Seek"
-                           @onchange="OnSeek" />
+                    <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@Player.Position" aria-label="Seek" style="@Fill(Player.Position, Player.Duration)" @onchange="OnSeek" />
                     <span>@Time(Player.Duration)</span>
                 </div>
             </div>
-            <div class="vol">
-                <button class="icon-btn" @onclick="Player.ToggleMuteAsync" aria-label="@(Player.Volume == 0 ? "Unmute" : "Mute")">@(Player.Volume == 0 ? "ðŸ”‡" : Player.Volume < 0.5 ? "ðŸ”‰" : "ðŸ”Š")</button>
-                <input type="range" min="0" max="100" step="1" value="@((int)Math.Round(Player.Volume * 100))" aria-label="Volume" @oninput="OnVolume" />
+            <div class="bar-right">
+                <button class="icon-btn fav @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" /></button>
+                <VolumeControl />
+                <button class="icon-btn" @onclick="() => open = true" aria-label="Full screen player"><Icon Name="expand" /></button>
             </div>
-            <button class="icon-btn fav @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")">♥</button>
         </div>
     </section>
 }
@@ -54,6 +36,6 @@
     {
         if (!volumeLoaded) { volumeLoaded = true; try { await Player.LoadVolumeAsync(); } catch (InvalidOperationException) { } }
     }
-    Task OnVolume(ChangeEventArgs e) => int.TryParse(e.Value?.ToString(), out var v) ? Player.SetVolumeAsync(v / 100.0) : Task.CompletedTask;
     Task OnSeek(ChangeEventArgs e) => double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var s) ? Player.Seek(s) : Task.CompletedTask;
+    static string Fill(double v, double max) => $"--fill:{(max > 0 ? Math.Clamp(v / max * 100, 0, 100) : 0).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}%";
 }

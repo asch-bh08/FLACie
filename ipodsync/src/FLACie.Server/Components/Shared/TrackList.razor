@@ -5,6 +5,7 @@
     {
         var idx = i; var t = Tracks[i];
         var now = Player.Current?.Path == t.Path;
+        var fmt = InfoService.QuickFormat(t);
         <li class="track @(now ? "now" : "")">
             <button class="track-main" @onclick="() => Player.Play(Tracks, idx)" aria-label="Play @t.Title by @t.Artist">
                 @if (Numbered) { <span class="track-no">@(t.TrackNo > 0 ? t.TrackNo : idx + 1)</span> }
@@ -14,10 +15,13 @@
                     <span class="track-sub">@t.Artist@(ShowAlbum && t.Album.Length > 0 ? " · " + t.Album : "")</span>
                 </span>
             </button>
-            <span class="badge @t.Source.ToString().ToLowerInvariant()">@(t.Source == TrackSource.Nas ? "NAS" : t.Source.ToString())</span>
+            <span class="pills">
+                <span class="badge @t.Source.ToString().ToLowerInvariant()" title="Where this song is played from">@(t.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "Download", _ => t.Source.ToString() })</span>
+                @if (fmt.Length > 0) { <span class="badge fmt @(MediaInfo.LosslessCodecs.Contains(fmt.ToLowerInvariant()) ? "lossless" : "")" title="File format">@fmt</span> }
+            </span>
             <span class="track-time">@(t.DurationMs > 0 ? Time(t.DurationMs / 1000.0) : "")</span>
-            <button class="icon-btn @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")">♥</button>
-            <button class="icon-btn" @onclick="() => menu = menu == idx ? -1 : idx" aria-label="More for @t.Title" aria-expanded="@(menu == idx)">⋯</button>
+            <button class="icon-btn @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" /></button>
+            <button class="icon-btn" @onclick="() => menu = menu == idx ? -1 : idx" aria-label="More for @t.Title" aria-expanded="@(menu == idx)"><Icon Name="more" /></button>
             @if (menu == idx)
             {
                 <div class="menu" role="menu">

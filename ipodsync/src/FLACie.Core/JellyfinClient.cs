@@ -11,7 +11,7 @@ public sealed record JellyfinAccount(string Server, string UserId, string UserNa
 
 /// <summary>Talks to a Jellyfin server as one user: sign-in (password or Quick Connect), the music library, playlists and
 /// the profile stored in the user's display preferences (same place and format as the Android app, so they share it).</summary>
-public sealed class JellyfinClient(HttpClient http, string deviceId, string deviceName = "FLACie Web")
+public sealed partial class JellyfinClient(HttpClient http, string deviceId, string deviceName = "FLACie Web")
 {
     public const string Client = "ipodplayer"; // the Android app's client id: changing it would orphan saved profiles
     public const string Version = "0.8";
@@ -25,12 +25,19 @@ public sealed class JellyfinClient(HttpClient http, string deviceId, string devi
 
     public string DeviceId => deviceId;
 
+    /// <summary>When this machine reaches Jellyfin at a different address than the users do (a Docker host that cannot loop back to its
+    /// own public/Tailscale address), requests to <see cref="PublicBase"/> are sent to <see cref="InternalBase"/> instead. Accounts and the
+    /// shared profile keep the public address, so the phone still gets one it can use.</summary>
+    public string? PublicBase { get; set; }
+    public string? InternalBase { get; set; }
+    string Route(string url) => InternalBase is { Length: > 0 } i && PublicBase is { Length: > 0 } p && url.StartsWith(p, StringComparison.OrdinalIgnoreCase) ? i.TrimEnd('/') + url[p.Length..] : url;
+
     /// <summary>A GET on the user's Jellyfin server with their token (JSON, or null for an empty reply).</summary>
     public Task<JsonNode?> GetAsync(JellyfinAccount a, string path, CancellationToken ct = default) => Send(HttpMethod.Get, a.Server + path, a.Token, null, ct);
     public Task<JsonNode?> PostAsync(JellyfinAccount a, string path, JsonNode? body = null, CancellationToken ct = default) => Send(HttpMethod.Post, a.Server + path, a.Token, body, ct);
 
     /// <summary>The live connection Jellyfin's remote-control and SyncPlay messages arrive on.</summary>
-    public Uri SocketUri(JellyfinAccount a) => new("ws" + a.Server.TrimEnd('/')[4..] + $"/socket?api_key={Uri.EscapeDataString(a.Token)}&deviceId={Uri.EscapeDataString(deviceId)}");
+    public Uri SocketUri(JellyfinAccount a) => new("ws" + Route(a.Server.TrimEnd('/'))[4..] + $"/socket?api_key={Uri.EscapeDataString(a.Token)}&deviceId={Uri.EscapeDataString(deviceId)}");
 
     /// <summary>One song by Jellyfin id, for songs another device sends that this library hasn't listed.</summary>
     public async Task<Track?> TrackAsync(JellyfinAccount a, string id, CancellationToken ct = default)
@@ -42,13 +49,18 @@ public sealed class JellyfinClient(HttpClient http, string deviceId, string devi
 
     async Task<JsonNode?> Send(HttpMethod method, string url, string? token, JsonNode? body, CancellationToken ct)
     {
-        using var req = new HttpRequestMessage(method, url);
+        using var req = new HttpRequestMessage(method, Route(url));
         req.Headers.TryAddWithoutValidation("Authorization", Auth(token));
         if (body is not null) req.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
         else if (method == HttpMethod.Post) req.Content = new StringContent("", Encoding.UTF8, "application/json");
         using var res = await http.SendAsync(req, ct);
         if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized) throw new UnauthorizedAccessException("Jellyfin didn't accept that sign-in.");
-        res.EnsureSuccessStatusCode();
+        if (!res.IsSuccessStatusCode)
+        {
+            // Jellyfin says what is wrong in the body (e.g. a SyncPlay refusal); keep it so the page can show it
+            var why = (await res.Content.ReadAsStringAsync(ct)).Trim();
+            throw new HttpRequestException($"{(int)res.StatusCode} {res.ReasonPhrase}{(why.Length > 0 && why.Length < 300 ? ": " + why : "")}", null, res.StatusCode);
+        }
         var text = await res.Content.ReadAsStringAsync(ct);
         return string.IsNullOrWhiteSpace(text) ? null : JsonNode.Parse(text);
     }
@@ -137,7 +149,7 @@ public sealed class JellyfinClient(HttpClient http, string deviceId, string devi
     public string ImageUrl(JellyfinAccount a, string itemId, int width = 400) => $"{a.Server}/Items/{itemId}/Images/Primary?maxWidth={width}&quality=90";
 
     /// <summary>A request with this user's token, for proxying audio and covers.</summary>
-    public HttpRequestMessage Authorized(JellyfinAccount a, string url) { var r = new HttpRequestMessage(HttpMethod.Get, url); r.Headers.TryAddWithoutValidation("Authorization", Auth(a.Token)); return r; }
+    public HttpRequestMessage Authorized(JellyfinAccount a, string url) { var r = new HttpRequestMessage(HttpMethod.Get, Route(url)); r.Headers.TryAddWithoutValidation("Authorization", Auth(a.Token)); return r; }
 
     // ---- profile ----
 

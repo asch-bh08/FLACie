@@ -1,10 +1,10 @@
 @* A cover from /art, or a quiet placeholder when there's none. *@
 <div class="cover @Class" style="@(Size > 0 ? $"width:{Size}px;height:{Size}px" : "")">
+    <span class="cover-ph" aria-hidden="true"><Icon Name="note" Size="@(Size > 0 ? Math.Max(14, Size / 3) : 40)" /></span>
     @if (ArtKey is not null)
     {
         <img src="/art/@Uri.EscapeDataString(ArtKey)" alt="" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'" />
     }
-    <span class="cover-ph" aria-hidden="true">♪</span>
 </div>
 @code {
     [Parameter] public string? ArtKey { get; set; }

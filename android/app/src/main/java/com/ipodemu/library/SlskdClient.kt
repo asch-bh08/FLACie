@@ -52,13 +52,14 @@ class SlskdClient {
         val id = UUID.randomUUID().toString()
         val body = JSONObject().apply {
             put("id", id); put("searchText", query.replace(Regex("""[^\p{L}\p{N}' ]"""), " ").replace(Regex("\\s+"), " ").trim())
-            // seconds, counted by slskd from the last response rather than the start
-            put("searchTimeout", (timeoutMs / 1000).toInt().coerceAtLeast(5)); put("responseLimit", 200); put("fileLimit", 20_000)
+            // milliseconds: slskd hands the number straight to Soulseek.NET (its docs say seconds, but 15 ended every search
+            // after 15ms and dropped all the answers that arrived later); counted from the last response, not the start
+            put("searchTimeout", timeoutMs.toInt().coerceAtLeast(5_000)); put("responseLimit", 200); put("fileLimit", 20_000)
         }
-        // Soulseek's server quietly stops answering accounts that search too often (every search came back empty for
-        // over an hour after a burst), so searches from this app are spaced at least 4s apart, whoever starts them
+        // searches are spaced at least 2s apart, whoever starts them, so a big album can't fire a burst at the Soulseek
+        // server (automated clients that search too often risk being throttled)
         searchGate.withLock {
-            val wait = lastSearchAt + 4_000 - System.currentTimeMillis()
+            val wait = lastSearchAt + 2_000 - System.currentTimeMillis()
             if (wait > 0) delay(wait)
             lastSearchAt = System.currentTimeMillis()
         }

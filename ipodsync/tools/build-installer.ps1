@@ -23,6 +23,9 @@ if (Test-Path $publish) { Remove-Item -Recurse -Force $publish }
     -p:RuntimeIdentifierOverride=win-x64 -p:WindowsPackageType=None `
     -p:WindowsAppSDKSelfContained=true -p:SelfContained=true -o $publish
 if ($LASTEXITCODE -ne 0) { throw "Windows publish failed" }
+# the FLACie music player (the FLACie Web server) goes beside the app; see FlacieHost.cs
+& dotnet publish (Join-Path $repo "src\FLACie.Server\FLACie.Server.csproj") -c Release -r win-x64 --self-contained -o (Join-Path $publish "flacie-web")
+if ($LASTEXITCODE -ne 0) { throw "FLACie player publish failed" }
 
 Write-Host "== installer" -ForegroundColor Cyan
 $installer = Join-Path $PSScriptRoot "installer"

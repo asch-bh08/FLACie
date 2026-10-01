@@ -99,6 +99,7 @@ class Library(ctx: Context, val art: ArtCache) {
                 key.startsWith("px") && prefs.plexUrl.isNotBlank() ->
                     CoverLookup.bytes("${prefs.plexUrl.trimEnd('/')}/library/metadata/${key.substring(2)}/thumb", mapOf("X-Plex-Token" to prefs.plexToken))
                 key.startsWith("it") -> CoverLookup.fetch(key)
+                key.startsWith("nf") -> NasCover.fetch(key, prefs.nasUsername, prefs.nasPassword, prefs.nasDomain)
                 else -> null
             }
         }

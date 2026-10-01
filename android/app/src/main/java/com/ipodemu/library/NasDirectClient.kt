@@ -31,9 +31,13 @@ class NasDirectClient {
             val ctx = NasSmb.context(username, password, domain)
             val root = SmbFile(NasSmb.rootUrl(host, share, folder), ctx)
             val out = ArrayList<Track>()
+            // artist folders at the top level tell which side of a loose "X - Y" file name is the artist
+            knownArtists = try { root.listFiles().filter { it.isDirectory }.mapTo(HashSet()) { primaryArtist(it.name.trimEnd('/')) } } catch (_: Exception) { emptySet() }
             walk(root, out, depth = 0, artist = null, album = null)
             out
         }
+
+    @Volatile private var knownArtists: Set<String> = emptySet()
 
     private fun walk(dir: SmbFile, out: MutableList<Track>, depth: Int, artist: String?, album: String?) {
         val children = try { dir.listFiles() } catch (_: Exception) { return }
@@ -50,7 +54,9 @@ class NasDirectClient {
                 val cleaned = cleanTitle(f.name, artist, album)
                 // a loose "Artist - Title" file straight inside a top-level folder: that folder is a playlist-style collection
                 // ("aura(LAC)"), not the artist, so the credit comes from the file name
-                val split = if (album == null && " - " in cleaned) cleaned.split(" - ", limit = 2).map { it.trim() }.takeIf { it.all { p -> p.isNotEmpty() } } else null
+                val split = (if (album == null && " - " in cleaned) cleaned.split(" - ", limit = 2).map { it.trim() }.takeIf { it.all { p -> p.isNotEmpty() } } else null)
+                    // "Cinderella Man - Eminem": the known artist is on the right, so it is "Title - Artist"
+                    ?.let { s -> if (primaryArtist(s[1]) in knownArtists && primaryArtist(s[0]) !in knownArtists) listOf(s[1], s[0]) else s }
                 val title = split?.get(1) ?: cleaned
                 val credit = split?.get(0) ?: artist
                 out += Track(
@@ -65,7 +71,8 @@ class NasDirectClient {
                     durationMs = 0L,
                     year = 0,
                     isMusic = true,
-                    artKey = CoverLookup.key(credit ?: "", album ?: "", title),
+                    // the folder's own cover first (one key per album folder), then an online lookup by these names
+                    artKey = NasCover.key(f.parent, credit ?: "", album ?: "", if (album != null) "" else title),
                     mtime = f.lastModified(),
                     size = f.length(),
                     source = TrackSource.NAS,

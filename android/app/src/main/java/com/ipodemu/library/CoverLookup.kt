@@ -24,8 +24,22 @@ object CoverLookup {
         val parts = String(Base64.decode(key.removePrefix("it"), Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)).split('\n')
         if (parts.size < 3) return null
         val (artist, album, title) = parts
-        val url = (if (album.isNotBlank()) albumArt(artist, album) else null) ?: song(artist, title)?.artUrl ?: return null
+        // Deezer first (generous rate limit); iTunes allows ~20 lookups a minute, which a screen of NAS songs used up
+        val url = (if (album.isNotBlank()) deezer("search/album", "$artist $album", artist) else null)
+            ?: (if (title.isNotBlank()) deezer("search", "$artist $title", artist) else null)
+            ?: (if (album.isNotBlank()) albumArt(artist, album) else null) ?: song(artist, title)?.artUrl ?: return null
         return bytes(url)
+    }
+
+    /** The first Deezer result by this artist: an album's cover, or a song's album cover. */
+    private fun deezer(endpoint: String, q: String, artist: String): String? {
+        val body = bytes("https://api.deezer.com/$endpoint?q=${URLEncoder.encode(q, "UTF-8")}&limit=10") ?: return null
+        val arr = try { JSONObject(String(body)).optJSONArray("data") } catch (_: Exception) { null } ?: return null
+        val a = norm(artist)
+        val hit = (0 until arr.length()).map { arr.getJSONObject(it) }.firstOrNull { o ->
+            val n = norm(o.optJSONObject("artist")?.optString("name").orEmpty()); n.isNotEmpty() && (n.contains(a) || a.contains(n))
+        } ?: return null
+        return (hit.optString("cover_big").ifBlank { hit.optJSONObject("album")?.optString("cover_big").orEmpty() }).ifBlank { null }
     }
 
     fun song(artist: String, title: String): Song? {

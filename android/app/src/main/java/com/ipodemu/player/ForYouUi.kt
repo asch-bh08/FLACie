@@ -47,7 +47,10 @@ fun MixCard(mix: Mix, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val focused by src.collectIsFocusedAsState()
     Column(modifier.clip(RoundedCornerShape(14.dp)).clickable(src, null, onClick = onClick).padding(4.dp)) {
         Box {
-            ArtImage(mix.artKey, Modifier.fillMaxWidth().aspectRatio(1f).border(if (focused) 3.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(12.dp)), corner = 12.dp)
+            // the first song with a cover already here, so a mix opening on an uncovered song still has a picture
+            val app = LocalApp.current
+            val key = remember(mix.id, mix.tracks.size, LocalLibRev.current) { mix.tracks.mapNotNull { it.artKey }.distinct().take(12).firstOrNull { app.art.has(it) } ?: mix.artKey }
+            ArtImage(key, Modifier.fillMaxWidth().aspectRatio(1f).border(if (focused) 3.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(12.dp)), corner = 12.dp)
             Box(
                 Modifier.align(Alignment.BottomStart).padding(8.dp).size(30.dp).clip(CircleShape).background(sc.accent),
                 contentAlignment = Alignment.Center,

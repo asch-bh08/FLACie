@@ -48,7 +48,8 @@ class ArtCache(private val dir: File) {
 
     init { dir.mkdirs() }
 
-    fun file(key: String) = File(dir, "$key.jpg")
+    // long keys (NAS folder covers carry their folder path) are hashed: file names stop at 255 characters
+    fun file(key: String) = File(dir, if (key.length <= 120) "$key.jpg" else "h" + java.security.MessageDigest.getInstance("SHA-1").digest(key.toByteArray()).joinToString("") { "%02x".format(it) } + ".jpg")
     fun has(key: String) = file(key).exists()
 
     fun save(key: String, bytes: ByteArray) {

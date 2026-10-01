@@ -892,6 +892,10 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         var songsExpanded by remember(q) { mutableStateOf(false) }
         var albumsExpanded by remember(q) { mutableStateOf(false) }
         var webSongsExpanded by remember(q) { mutableStateOf(false) }
+        // the row keeps its scroll offset by item key; when a new result list arrives (or a download reshuffles it) it could stay scrolled
+        // a few pixels, clipping the first card, so it snaps back to the start whenever the first album changes
+        val albumRowState = androidx.compose.foundation.lazy.rememberLazyListState()
+        androidx.compose.runtime.LaunchedEffect(q, w.albums.firstOrNull()?.id) { albumRowState.scrollToItem(0) }
         if (query.isBlank()) EmptyState("Search your music")
         else if (nothingAtAll) {
             Column(Modifier.fillMaxSize()) {
@@ -907,7 +911,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 if (w.albums.isNotEmpty()) {
                     item { SectionHeader("Albums and EPs") }
                     item(key = "walbums") {
-                        androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        androidx.compose.foundation.lazy.LazyRow(state = albumRowState, contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             items(w.albums, key = { it.id }) { a ->
                                 val owned = ownedAlbums[ownedAlbumKey(a.artist, a.cleanTitle)]
                                 AlbumCard(a, owned != null, dl[app.library.albumKey(a)],

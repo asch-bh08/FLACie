@@ -2,6 +2,7 @@
 // reports time, state and the end of each song back. Media Session gives lock-screen and headphone controls.
 window.flacie = (() => {
   const audio = new Audio();
+  try { const v = parseFloat(localStorage.getItem("flacie.volume")); if (v >= 0 && v <= 1) audio.volume = v; } catch { }
   audio.preload = "auto";
   let dotnet = null, lastSent = 0;
   const send = (m, ...a) => dotnet && dotnet.invokeMethodAsync(m, ...a).catch(() => {});
@@ -44,6 +45,11 @@ window.flacie = (() => {
     ready() { return audio.readyState >= 3; },
     pause() { audio.pause(); },
     seek(s) { if (isFinite(s)) audio.currentTime = s; },
-    volume(v) { audio.volume = v; },
+    volume(v) {
+      if (v === undefined || v === null) return audio.volume;
+      audio.volume = Math.min(1, Math.max(0, v));
+      try { localStorage.setItem("flacie.volume", String(audio.volume)); } catch { }
+      return audio.volume;
+    },
   };
 })();

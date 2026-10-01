@@ -133,6 +133,7 @@ private fun Controls(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boolea
     InfoRow(snap, nav)
     Seek(snap)
     Transport(snap)
+    VolumeRow()
     ActionRow(snap, nav, lyricsToggle, spread = true)
 }
 
@@ -178,6 +179,21 @@ private fun Seek(snap: PlayerSnap) {
             Txt(fmtTime(pos), Modifier.weight(1f), size = 12f, color = sc.onBgDim)
             Txt(fmtTime(dur.coerceAtLeast(0)), size = 12f, color = sc.onBgDim)
         }
+    }
+}
+
+/** Volume for the player itself (the phone's keys still work). Honors the volume limit in Settings: the far end of the bar is that limit. */
+@Composable
+private fun VolumeRow() {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    val limit = (app.prefs.volumeLimit / 100f).coerceAtLeast(0.05f)
+    var frac by remember { mutableStateOf((app.player.volume / limit).coerceIn(0f, 1f)) }
+    fun set(f: Float) { frac = f.coerceIn(0f, 1f); app.player.volume = frac * limit }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        GlyphIcon(Glyph.VOLUME, Modifier.size(18.dp), sc.onBgDim)
+        SeekBar(frac, onSeek = { set(it) }, onNudge = { d -> set(frac + d * 0.05f) }, Modifier.weight(1f).padding(start = 8.dp)
+            .semantics { contentDescription = "Volume ${(frac * 100).toInt()} percent" })
     }
 }
 

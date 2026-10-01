@@ -40,11 +40,20 @@
                     <span>@Time(Player.Duration)</span>
                 </div>
             </div>
+            <div class="vol">
+                <button class="icon-btn" @onclick="Player.ToggleMuteAsync" aria-label="@(Player.Volume == 0 ? "Unmute" : "Mute")">@(Player.Volume == 0 ? "ðŸ”‡" : Player.Volume < 0.5 ? "ðŸ”‰" : "ðŸ”Š")</button>
+                <input type="range" min="0" max="100" step="1" value="@((int)Math.Round(Player.Volume * 100))" aria-label="Volume" @oninput="OnVolume" />
+            </div>
             <button class="icon-btn fav @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")">♥</button>
         </div>
     </section>
 }
 @code {
-    bool open;
+    bool open, volumeLoaded;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!volumeLoaded) { volumeLoaded = true; try { await Player.LoadVolumeAsync(); } catch (InvalidOperationException) { } }
+    }
+    Task OnVolume(ChangeEventArgs e) => int.TryParse(e.Value?.ToString(), out var v) ? Player.SetVolumeAsync(v / 100.0) : Task.CompletedTask;
     Task OnSeek(ChangeEventArgs e) => double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var s) ? Player.Seek(s) : Task.CompletedTask;
 }

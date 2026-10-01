@@ -124,7 +124,7 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 5px; font-
 
 /* ---- player ---- */
 .player { position: fixed; left: 0; right: 0; bottom: var(--tabs); z-index: 30; background: #121217f2; backdrop-filter: blur(16px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
-.bar { height: var(--bar); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; align-items: center; gap: 16px; padding: 0 18px; }
+.bar { height: var(--bar); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto auto; align-items: center; gap: 16px; padding: 0 18px; }
 .bar-song { display: flex; align-items: center; gap: 12px; min-width: 0; background: none; border: 0; text-align: left; padding: 0; }
 .bar-text { display: flex; flex-direction: column; min-width: 0; }
 .bar-text b, .bar-text small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -157,6 +157,7 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 5px; font-
   .rail .brand, .rail a[href="/artists"], .rail a[href="/songs"], .rail a[href="/jam"] { display: none; }
   .rail a { flex-direction: column; gap: 2px; font-size: 11px; padding: 8px 6px; }
   .player { bottom: calc(var(--tabs) + env(safe-area-inset-bottom, 0px)); padding-bottom: 0; }
+  .vol { display: none; }
   .bar { grid-template-columns: minmax(0, 1fr) auto; padding: 0 12px; }
   .bar-controls { flex-direction: row; }
   .bar-controls .seek, .bar-controls .icon-btn, .bar .fav { display: none; }
@@ -178,3 +179,6 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 5px; font-
 .job.bad .job-text small { color: var(--danger); }
 .card .btn { margin-top: 6px; align-self: flex-start; }
 .track > .btn { margin-left: 8px; }
+.vol { display: flex; align-items: center; gap: 4px; }
+.vol input { width: 96px; accent-color: var(--accent); }
+@media (max-width: 760px) { .vol { display: none; } }

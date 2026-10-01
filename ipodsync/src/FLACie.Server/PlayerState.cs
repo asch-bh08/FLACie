@@ -14,6 +14,11 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
     public double Duration { get; private set; }
     public bool Shuffle { get; private set; }
     public int Repeat { get; private set; } // 0 off, 1 all, 2 one
+    public double Volume { get; private set; } = 1;
+    double lastVolume = 1;
+    public async Task LoadVolumeAsync() { Volume = await js.InvokeAsync<double>("flacie.volume", null); if (Volume > 0) lastVolume = Volume; Changed?.Invoke(); }
+    public async Task SetVolumeAsync(double v) { Volume = await js.InvokeAsync<double>("flacie.volume", Math.Clamp(v, 0, 1)); if (Volume > 0) lastVolume = Volume; Changed?.Invoke(); }
+    public Task ToggleMuteAsync() => SetVolumeAsync(Volume > 0 ? 0 : lastVolume);
     public Track? Current => Index >= 0 && Index < Queue.Count ? Queue[Index] : null;
     public event Action? Changed;
     public IPlayInterceptor? Interceptor { get; set; }

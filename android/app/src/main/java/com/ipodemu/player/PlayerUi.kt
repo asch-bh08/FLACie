@@ -376,7 +376,7 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
     nav.sheet = SheetSpec(t.title, t.artist.ifEmpty { null }, items)
 }
 
-private fun playlistPicker(app: App, nav: PlayerNav, t: Track): SheetSpec {
+internal fun playlistPicker(app: App, nav: PlayerNav, t: Track): SheetSpec {
     val ud = app.userData
     val items = ArrayList<SheetItem>()
     items += SheetItem("New playlist...", Glyph.PLUS) { nav.nameDialog = { name -> ud.createPlaylist(name, t.path); android.widget.Toast.makeText(app, "Added to $name", android.widget.Toast.LENGTH_SHORT).show() } }

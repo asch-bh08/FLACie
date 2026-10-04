@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -123,7 +125,6 @@ private fun Header(nav: PlayerNav) {
         Txt("Now Playing", Modifier.weight(1f), size = 14f, weight = FontWeight.SemiBold, color = sc.onBgDim, align = TextAlign.Center)
         if (!app.ui.guest) IconAction(Glyph.JAM, if (app.jam.inJam) "In a Jam" else "Jam", { app.ui.jamOpen = true }, tint = if (app.jam.inJam) sc.accent else sc.onBg)
         if (!app.ui.guest) IconAction(Glyph.DEVICES, "Devices", { app.ui.devicesOpen = true })
-        IconAction(Glyph.QUEUE, "Up next", { nav.openQueueFromPlayer() })
     }
 }
 
@@ -133,10 +134,10 @@ private fun Controls(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boolea
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
     if (header) Header(nav)
     InfoRow(snap, nav)
+    ActionRow(snap, nav, lyricsToggle, spread = true, info = info)
     Seek(snap)
     Transport(snap)
     VolumeRow()
-    ActionRow(snap, nav, lyricsToggle, spread = true, info = info)
     }
 }
 
@@ -161,11 +162,32 @@ private fun InfoRow(snap: PlayerSnap, nav: PlayerNav) {
 private fun ActionRow(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boolean, () -> Unit>?, spread: Boolean, info: Pair<Boolean, () -> Unit>? = null) {
     val app = LocalApp.current
     val t = snap.track ?: return
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (spread) Arrangement.SpaceEvenly else Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (lyricsToggle != null) RoundAction(Glyph.LYRICS, "Lyrics", lyricsToggle.first, lyricsToggle.second)
-        if (info != null) RoundAction(Glyph.INFO, "Info", info.first, info.second)
-        RoundAction(Glyph.LIST, "Equalizer", app.prefs.eq != "Off") { nav.sheet = eqSheet(app) }
-        RoundAction(Glyph.MORE, "More", false) { openTrackSheet(app, nav, t) }
+    // YouTube Music style: one scrollable row of pills; the active ones (Lyrics, Info, Equalizer on) fill with the accent
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (lyricsToggle != null) Pill(Glyph.LYRICS, "Lyrics", lyricsToggle.first, lyricsToggle.second)
+        if (info != null) Pill(Glyph.INFO, "Info", info.first, info.second)
+        Pill(Glyph.QUEUE, "Up next", false) { nav.openQueueFromPlayer() }
+        Pill(Glyph.LIST, "Equalizer", app.prefs.eq != "Off") { nav.sheet = eqSheet(app) }
+        Pill(Glyph.PLUS, "Add to playlist", false) { nav.sheet = playlistPicker(app, nav, t) }
+        Pill(Glyph.MORE, "More", false) { openTrackSheet(app, nav, t) }
+    }
+}
+
+@Composable
+private fun Pill(g: Glyph, label: String, active: Boolean, onClick: () -> Unit) {
+    val sc = LocalScheme.current
+    val src = remember { MutableInteractionSource() }
+    val focused by src.collectIsFocusedAsState()
+    val ink = if (active) sc.accent.readableInk() else Color.White
+    Row(
+        Modifier.height(38.dp).clip(RoundedCornerShape(19.dp)).background(if (active) sc.accent else Color(0x1FFFFFFF))
+            .then(if (focused) Modifier.border(2.dp, Color.White, RoundedCornerShape(19.dp)) else Modifier)
+            .semantics { contentDescription = label }
+            .clickable(src, null, onClick = onClick).padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
+    ) {
+        GlyphIcon(g, Modifier.size(18.dp), ink)
+        Txt(label, size = 14f, weight = FontWeight.SemiBold, color = ink, maxLines = 1)
     }
 }
 

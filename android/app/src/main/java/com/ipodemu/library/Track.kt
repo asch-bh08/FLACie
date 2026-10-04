@@ -29,6 +29,11 @@ data class Track(
     val filePath: String = "",
 ) {
     val albumKey: String get() = "$albumArtist|$album"
+    // computed once per track: the library merge asks for these several times per track, and each is a handful of regex passes
+    internal val matchKeyC: String by lazy(LazyThreadSafetyMode.PUBLICATION) { matchKey(title, artist) }
+    internal val fileKeyC: String? by lazy(LazyThreadSafetyMode.PUBLICATION) { computeFileKey(this) }
+    internal val mergeKeyC: String by lazy(LazyThreadSafetyMode.PUBLICATION) { matchKeyC + "|" + album.lowercase().replace(editionRe, "").filter { it.isLetterOrDigit() } }
+    internal val albumNormC: String by lazy(LazyThreadSafetyMode.PUBLICATION) { album.lowercase().replace(editionRe, "").filter { it.isLetterOrDigit() } }
 }
 
 /** iPod-style sort key: case-insensitive, ignores leading "The ", "A ", "An ". */
@@ -52,25 +57,28 @@ fun primaryArtist(s: String): String = s.split(artistSplit).firstOrNull { it.isN
 private val spaces = Regex(" +")
 /** Same song regardless of which source spelled the credits how. */
 fun matchKey(title: String, artist: String): String = "${normTitle(title)}|${primaryArtist(artist)}"
-val Track.matchKey: String get() = matchKey(title, artist)
+val Track.matchKey: String get() = matchKeyC
+internal val editionRe = Regex("""[(\[][^)\]]*[)\]]""")
 
 /** Identity of the underlying file for sources that can share one (Jellyfin serves the same NAS share the app also
  * browses over SMB): the last three path segments, decoded and lower-cased. Null when not applicable. */
-val Track.fileKey: String?
-    get() {
-        val p = when (source) {
-            TrackSource.JELLYFIN -> filePath
-            TrackSource.NAS -> path
-            // a download played through the file mover: its "?path=" is the same file the NAS and Jellyfin list
-            TrackSource.CLOUD -> path.substringAfter("/file?path=", "")
-            else -> return null
-        }
-        if (p.isBlank()) return null
-        // the file mover URL was form-encoded ("+" is a space); the other paths keep a literal "+"
-        val decoded = try { java.net.URLDecoder.decode(if (source == TrackSource.CLOUD) p else p.replace("+", "%2B"), "UTF-8") } catch (_: Exception) { p }
-        val segs = decoded.replace('\\', '/').split('/').filter { it.isNotEmpty() }
-        return if (segs.size < 2) null else segs.takeLast(3).joinToString("/").lowercase()
+val Track.fileKey: String? get() = fileKeyC
+
+private fun computeFileKey(t: Track): String? {
+    val source = t.source; val filePath = t.filePath; val path = t.path
+    val p = when (source) {
+        TrackSource.JELLYFIN -> filePath
+        TrackSource.NAS -> path
+        // a download played through the file mover: its "?path=" is the same file the NAS and Jellyfin list
+        TrackSource.CLOUD -> path.substringAfter("/file?path=", "")
+        else -> return null
     }
+    if (p.isBlank()) return null
+    // the file mover URL was form-encoded ("+" is a space); the other paths keep a literal "+"
+    val decoded = try { java.net.URLDecoder.decode(if (source == TrackSource.CLOUD) p else p.replace("+", "%2B"), "UTF-8") } catch (_: Exception) { p }
+    val segs = decoded.replace('\\', '/').split('/').filter { it.isNotEmpty() }
+    return if (segs.size < 2) null else segs.takeLast(3).joinToString("/").lowercase()
+}
 
 /**
  * Repairs tag text that was decoded with the wrong charset: UTF-8 read as Latin-1 ("BeyoncÃ©") or Chinese GBK read as

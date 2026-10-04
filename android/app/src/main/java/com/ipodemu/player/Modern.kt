@@ -119,7 +119,7 @@ fun PlayerNav.selectTab(t: Tab) {
 fun BottomNav(nav: PlayerNav) {
     val sc = LocalScheme.current
     val cur = nav.currentTab()
-    Row(Modifier.fillMaxWidth().height(64.dp).background(Color(0xF20B0B0D)), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().height(76.dp).background(Color(0xF20B0B0D)).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Tab.entries.forEach { t -> NavItem(t, t == cur, Modifier.weight(1f).fillMaxHeight()) { nav.selectTab(t) } }
     }
 }
@@ -145,11 +145,11 @@ private fun NavItem(t: Tab, selected: Boolean, modifier: Modifier, onClick: () -
     val col = if (selected) sc.onBg else sc.onBgDim
     Column(modifier.wheelTracked().clickable(src, null, onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Box(
-            Modifier.size(width = 56.dp, height = 30.dp).clip(RoundedCornerShape(15.dp))
+            Modifier.size(width = 64.dp, height = 32.dp).clip(RoundedCornerShape(16.dp))
                 .background(if (selected) sc.onBg.copy(alpha = .16f) else if (focused) Color(0x22FFFFFF) else Color.Transparent),
             contentAlignment = Alignment.Center,
         ) { GlyphIcon(t.glyph, Modifier.size(22.dp), col) }
-        Txt(t.label, Modifier.padding(top = 4.dp), size = 12f, weight = if (selected) FontWeight.SemiBold else FontWeight.Normal, color = col, align = TextAlign.Center)
+        Txt(t.label, Modifier.padding(top = 6.dp), size = 12f, weight = if (selected) FontWeight.SemiBold else FontWeight.Normal, color = col, align = TextAlign.Center)
     }
 }
 

@@ -33,10 +33,13 @@ class PlaybackService : MediaSessionService() {
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
 
-    /** Swiping the app away keeps music going; if nothing is playing there is no reason to stay alive. */
+    /** Swiping the app away from recents stops the music, clears the notification and ends the service. */
     override fun onTaskRemoved(rootIntent: Intent?) {
         val p = App.of(this).player.exo
-        if (!p.playWhenReady || p.mediaItemCount == 0) stopSelf()
+        p.pause()
+        p.stop()
+        p.clearMediaItems()
+        stopSelf()
     }
 
     override fun onDestroy() {

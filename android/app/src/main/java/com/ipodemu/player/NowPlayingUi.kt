@@ -296,7 +296,7 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
     val dur = app.player.durationMs
     val frac = if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
     Box(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp).height(64.dp).clip(RoundedCornerShape(12.dp))
+        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp).height(62.dp).clip(RoundedCornerShape(14.dp))
             .background(sc.top.mix(Color(0xFF16161A), .45f))
             .trackSwipe({ app.player.prev() }, { app.player.next() })
             .clickable { nav.nowPlaying = true }

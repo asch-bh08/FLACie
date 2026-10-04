@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -333,7 +334,7 @@ class Library(ctx: Context, val art: ArtCache) {
         scanning = true; scanCount = 0
         job = scope.launch {
             try {
-                if (!loaded) { load(); loadRemote(); rebuild(); loaded = true }
+                if (!loaded) { load(); showSavedLibrary(); loadRemote(); rebuild(); loaded = true }
                 if (source == Source.LOCAL) { mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd(); checkFileMover() }
                 runScan()
             } catch (_: Exception) {
@@ -671,7 +672,7 @@ class Library(ctx: Context, val art: ArtCache) {
         // de-dup: a NAS FLAC whose Jellyfin twin lost to a stray .m4a copy of the same song used to show up as a NAS extra
         for (s in listOf(jellyfinTracks, plexTracks, nasOnlyTracks().filterNot { it.fileKey in dlFiles }, downloaded)) acc = merged(acc, s)
         tracks = acc
-        derive(); notifyChange()
+        derive(); notifyChange(); saveMergedSoon()
     }
 
     /** [base] plus the songs of [extraSource] it doesn't already have. */
@@ -698,9 +699,8 @@ class Library(ctx: Context, val art: ArtCache) {
     private fun dedupKey(t: Track) = t.matchKey
 
     /** [matchKey] plus the album with editions and punctuation dropped ("Recovery [Deluxe Edition]" = "Recovery"). */
-    private fun mergeKey(t: Track) = t.matchKey + "|" + albumNorm(t)
-    private fun albumNorm(t: Track) = t.album.lowercase().replace(editionRe, "").filter { it.isLetterOrDigit() }
-    private val editionRe = Regex("""[(\[][^)\]]*[)\]]""")
+    private fun mergeKey(t: Track) = t.mergeKeyC
+    private fun albumNorm(t: Track) = t.albumNormC
 
     /** Songs already present: the same song on the same album; a copy with no album tag counts as present when the song
      * is there on any album (a tagged album copy is never hidden by a loose untagged one, or album pages would lose it). */
@@ -742,11 +742,20 @@ class Library(ctx: Context, val art: ArtCache) {
     private val remoteFile = File(cacheFile.parentFile, "remote.json")
 
     /** Last fetched Jellyfin/Plex/NAS lists, so they show the moment the app opens instead of after a network round trip. */
-    private fun loadRemote() {
+    private suspend fun loadRemote() {
         try {
             if (!remoteFile.exists()) return
-            val root = JSONObject(remoteFile.readText())
-            fun list(k: String) = root.optJSONArray(k)?.let { a -> List(a.length()) { fromJson(a.getJSONObject(it)) } } ?: emptyList()
+            // streamed straight into tracks: building a JSONObject tree for several MB of tracks took seconds on a phone
+            val parsed = HashMap<String, List<Track>>()
+            android.util.JsonReader(remoteFile.bufferedReader(Charsets.UTF_8, 1 shl 16)).use { r ->
+                r.beginObject()
+                while (r.hasNext()) {
+                    val k = r.nextName()
+                    if (k in REMOTE_KEYS) { val out = ArrayList<Track>(); r.beginArray(); while (r.hasNext()) out += readTrack(r); r.endArray(); parsed[k] = out } else r.skipValue()
+                }
+                r.endObject()
+            }
+            fun list(k: String) = parsed[k] ?: emptyList()
             if (jellyfinTracks.isEmpty()) jellyfinTracks = list("jf")
             if (plexTracks.isEmpty()) plexTracks = list("px")
             if (nasTracks.isEmpty()) nasTracks = list("nas")
@@ -786,7 +795,61 @@ class Library(ctx: Context, val art: ArtCache) {
         filePath = o.optString("fp"),
     )
 
+    private val mergedFile = File(cacheFile.parentFile, "merged.json")
+    private var mergedSave: Job? = null
+
+    /** The blended library as it was last shown, so a cold start has songs on screen straight away; the full rebuild from the
+     * per-source lists (and the network refresh) follows in the background and replaces it. */
+    private fun showSavedLibrary() {
+        try {
+            if (source != Source.LOCAL || tracks.isNotEmpty() || !mergedFile.exists()) return
+            val out = ArrayList<Track>()
+            android.util.JsonReader(mergedFile.bufferedReader(Charsets.UTF_8, 1 shl 16)).use { r -> r.beginArray(); while (r.hasNext()) out += readTrack(r); r.endArray() }
+            if (out.isEmpty()) return
+            tracks = out
+            notifyChange()
+        } catch (_: Exception) {}
+    }
+
+    private fun saveMergedSoon() {
+        mergedSave?.cancel()
+        mergedSave = scope.launch {
+            kotlinx.coroutines.delay(4000)
+            val all = tracks
+            if (all.isEmpty() || source != Source.LOCAL) return@launch
+            try {
+                val tmp = File(mergedFile.path + ".tmp")
+                android.util.JsonWriter(tmp.bufferedWriter(Charsets.UTF_8, 1 shl 16)).use { w ->
+                    w.beginArray()
+                    for (t in all) {
+                        w.beginObject().name("p").value(t.path).name("ti").value(t.title).name("ar").value(t.artist).name("al").value(t.album).name("aa").value(t.albumArtist)
+                            .name("g").value(t.genre).name("tn").value(t.trackNo.toLong()).name("dn").value(t.discNo.toLong()).name("d").value(t.durationMs).name("y").value(t.year.toLong())
+                            .name("m").value(t.isMusic).name("k").value(t.artKey ?: "").name("mt").value(t.mtime).name("s").value(t.size).name("src").value(t.source.name).name("fp").value(t.filePath).endObject()
+                    }
+                    w.endArray()
+                }
+                tmp.renameTo(mergedFile)
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun readTrack(r: android.util.JsonReader): Track {
+        var p = ""; var ti = ""; var ar = ""; var al = ""; var aa = ""; var g = ""; var tn = 0; var dn = 0; var d = 0L; var y = 0; var m = false
+        var k = ""; var mt = 0L; var s = 0L; var src = ""; var fp = ""
+        r.beginObject()
+        while (r.hasNext()) when (r.nextName()) {
+            "p" -> p = r.nextString(); "ti" -> ti = r.nextString(); "ar" -> ar = r.nextString(); "al" -> al = r.nextString(); "aa" -> aa = r.nextString()
+            "g" -> g = r.nextString(); "tn" -> tn = r.nextInt(); "dn" -> dn = r.nextInt(); "d" -> d = r.nextLong(); "y" -> y = r.nextInt(); "m" -> m = r.nextBoolean()
+            "k" -> k = r.nextString(); "mt" -> mt = r.nextLong(); "s" -> s = r.nextLong(); "src" -> src = r.nextString(); "fp" -> fp = r.nextString()
+            else -> r.skipValue()
+        }
+        r.endObject()
+        return Track(p, fixMojibake(ti), fixMojibake(ar), fixMojibake(al), fixMojibake(aa), g, tn, dn, d, y, m, k.ifEmpty { null }, mt, s,
+            source = TrackSource.entries.firstOrNull { it.name == src } ?: TrackSource.LOCAL, filePath = fp)
+    }
+
     companion object {
+        private val REMOTE_KEYS = setOf("jf", "px", "nas", "dl")
         val trackOrder = compareBy<Track>({ it.discNo }, { it.trackNo }, { sortKey(it.title) })
         val albumOrder = compareBy<Track>({ sortKey(it.album) }, { it.discNo }, { it.trackNo }, { sortKey(it.title) })
         private val QUALITY_TAG = Regex("\\s*[(\\[]\\s*(flac|mp3|wav|m4a|aac|ogg|opus|alac|lossless)\\s*[)\\]]\\s*$", RegexOption.IGNORE_CASE)

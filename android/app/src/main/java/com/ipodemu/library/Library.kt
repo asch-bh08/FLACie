@@ -152,7 +152,7 @@ class Library(ctx: Context, val art: ArtCache) {
     /** A playlist/favourite entry on this device: the exact file, or -- for an entry synced from another device --
      * this library's copy of the same song by title + artist. */
     fun resolve(path: String, meta: Pair<String, String>?): Track? =
-        byPath()[path] ?: meta?.let { byKey()[matchKey(it.first, it.second)] } ?: jellyfinByPath()[path]
+        byPath()[path] ?: meta?.let { byKey()[matchKey(it.first, it.second)] } ?: jellyfinByPath()[path] ?: meta?.let { findLoose(it.first, it.second) }
             // a Jellyfin stream the library hasn't listed (yet): still playable from what the playlist recorded
             ?: if (meta != null && path.startsWith("http") && "/Audio/" in path) Track(
                 path = path, title = meta.first, artist = meta.second, album = "", albumArtist = meta.second, genre = "", trackNo = 0, discNo = 0,
@@ -221,6 +221,14 @@ class Library(ctx: Context, val art: ArtCache) {
 
     /** Whether anything can download here: Soulseek with the file mover, or Lidarr. */
     fun downloadsConfigured() = (prefs.slskdUrl.isNotBlank() && prefs.fileMoverUrl.isNotBlank()) || prefs.lidarrUrl.isNotBlank()
+
+    /** A song with this title whose credit is missing or the same artist spelled another way (a file with no artist tag), when the exact match finds nothing. */
+    fun findLoose(title: String, artist: String): Track? {
+        val nt = normTitle(title); val pa = primaryArtist(artist)
+        return derive().songs.firstOrNull { t ->
+            normTitle(t.title) == nt && primaryArtist(t.artist).let { a -> a.isEmpty() || a == "unknown artist" || a == "unknown" || (pa.isNotEmpty() && (a.contains(pa) || pa.contains(a))) }
+        }
+    }
 
     /** Any track by file path (playlists and favourites store paths). */
     fun byPath(): Map<String, Track> = derive().byPath

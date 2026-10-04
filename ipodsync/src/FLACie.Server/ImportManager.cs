@@ -69,7 +69,7 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
     async Task RunAsync(UserSession s, ImportJob job, CancellationToken ct)
     {
         // wait for the library to load, or "already have it" would be answered wrongly for every song
-        for (var i = 0; i < 240 && (s.Loading || s.Library.Songs.Count == 0 && s.LoadedAt == default); i++) await Task.Delay(500, ct);
+        for (var i = 0; i < 360 && (s.Loading || s.LoadedAt == default); i++) await Task.Delay(500, ct);
         var gate = new SemaphoreSlim(3);
         if (job.Replace && !job.Consolidated) { foreach (var l in job.Lists) Consolidate(s, l); job.Consolidated = true; states.Save(s); }
         // first everything the library already has, so playlists fill at once; downloads (slow) come after

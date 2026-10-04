@@ -618,10 +618,10 @@ private fun SourceFilterChips(all: List<Track>, current: com.ipodemu.library.Tra
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 fun SongList(
     tracks: List<Track>, nav: PlayerNav, snap: PlayerSnap, showArt: Boolean, numbered: Boolean = false,
-    sheetExtra: List<SheetItem> = emptyList(), header: (@Composable () -> Unit)? = null, sections: Int = 0,
+    sheetExtra: List<SheetItem> = emptyList(), header: (@Composable () -> Unit)? = null, sections: Int = 0, missing: List<Pair<String, String>> = emptyList(),
 ) {
     val app = LocalApp.current
-    if (tracks.isEmpty()) { EmptyState("Nothing here yet"); return }
+    if (tracks.isEmpty() && missing.isEmpty()) { EmptyState("Nothing here yet"); return }
     val sc = LocalScheme.current
     val row: @Composable (Int, Track) -> Unit = { i, t ->
         TrackRow(t, nav, snap, showArt = showArt, index = if (numbered) i + 1 else null, sheetExtra = sheetExtra, onPlay = {
@@ -638,6 +638,18 @@ fun SongList(
             }
         } else itemsIndexed(tracks, key = { i, t -> "$i${t.path}" }) { i, t -> row(i, t) }
         item { CountFooter(songCount(tracks.size) + totalTime(tracks)) }
+        if (missing.isNotEmpty()) {
+            item { SectionHeader("Not in your library") }
+            item {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { GlossPill("Download all ${missing.size}", { missing.forEach { (t, a) -> app.library.requestDownload(a, t, "", 0) } }, icon = Glyph.DOWN, height = 34.dp) }
+            }
+            itemsIndexed(missing, key = { i, m -> "m$i${m.first}" }) { _, (t, a) ->
+                val st = app.library.downloads[app.library.songKey(a, t)]
+                IpodRow({ app.library.requestDownload(a, t, "", 0) }, height = 56.dp, trailing = { Txt(st?.message?.take(18) ?: "Download", size = 13f, color = sc.accent) }) { _ ->
+                    Column { Txt(t, size = 16f, color = sc.onBgDim, maxLines = 1); Txt(a, size = 13f, color = sc.onBgDim, maxLines = 1) }
+                }
+            }
+        }
     }
 }
 
@@ -768,9 +780,10 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
     val total = tracks.sumOf { it.durationMs }
     val info = songCount(tracks.size) + if (total > 0) "  -  " + (total / 60000).toString() + " min" else ""
     val extra = if (userId != null) listOf(SheetItem("Remove from playlist", Glyph.CLOSE) { }) else emptyList()
+    val missing = if (userId != null && app.library.loaded) ud.playlists.firstOrNull { it.id == userId }?.paths.orEmpty().filter { lib.resolve(it, ud.meta[it]) == null }.mapNotNull { ud.meta[it] }.filter { it.first.isNotBlank() } else emptyList()
     Column(Modifier.fillMaxSize()) {
         TopBar(title.ifEmpty { "Playlist" }, nav, showBack = true)
-        if (tracks.isEmpty()) { EmptyState(if (d.kind == DetailKind.FAVORITES) "Tap the heart on a song to add it here" else "Nothing here yet"); return@Column }
+        if (tracks.isEmpty() && missing.isEmpty()) { EmptyState(if (d.kind == DetailKind.FAVORITES) "Tap the heart on a song to add it here" else "Nothing here yet"); return@Column }
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val wide = maxWidth > 620.dp && maxWidth > maxHeight * 1.25f
             if (wide) {
@@ -778,10 +791,10 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
                     Column(Modifier.width(300.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         DetailHeader(art, title, subtitle.ifEmpty { info }, if (subtitle.isEmpty()) "" else info, tracks, nav)
                     }
-                    SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtra = removeExtra(userId, ud))
+                    SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtra = removeExtra(userId, ud), missing = missing)
                 }
             } else {
-                SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtra = removeExtra(userId, ud), header = {
+                SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtra = removeExtra(userId, ud), missing = missing, header = {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         DetailHeader(art, title, subtitle.ifEmpty { info }, if (subtitle.isEmpty()) "" else info, tracks, nav)
                     }

@@ -35,6 +35,7 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
     /// <summary>A GET on the user's Jellyfin server with their token (JSON, or null for an empty reply).</summary>
     public Task<JsonNode?> GetAsync(JellyfinAccount a, string path, CancellationToken ct = default) => Send(HttpMethod.Get, a.Server + path, a.Token, null, ct);
     public Task<JsonNode?> PostAsync(JellyfinAccount a, string path, JsonNode? body = null, CancellationToken ct = default) => Send(HttpMethod.Post, a.Server + path, a.Token, body, ct);
+    public Task<JsonNode?> DeleteAsync(JellyfinAccount a, string path, CancellationToken ct = default) => Send(HttpMethod.Delete, a.Server + path, a.Token, null, ct);
 
     /// <summary>The live connection Jellyfin's remote-control and SyncPlay messages arrive on.</summary>
     public Uri SocketUri(JellyfinAccount a) => new("ws" + Route(a.Server.TrimEnd('/'))[4..] + $"/socket?api_key={Uri.EscapeDataString(a.Token)}&deviceId={Uri.EscapeDataString(deviceId)}");

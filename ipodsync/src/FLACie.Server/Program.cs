@@ -93,12 +93,12 @@ if (builder.Configuration["FLACIE_DEBUG"] == "1")
     // the signed-in user's library as JSON (title, artist, album), to compare another folder against it
     app.MapGet("/debug/library", (HttpContext ctx, SessionStore store) =>
         Results.Json(store.For(ctx.User).Library.Songs.Select(t => new { t = t.Title, a = t.Artist, al = t.Album, p = t.Path }))).RequireAuthorization();
-    app.MapMethods("/debug/jf", ["GET", "POST"], async (HttpContext ctx, string path, SessionStore store, JellyfinClient jf) =>
+    app.MapMethods("/debug/jf", ["GET", "POST", "DELETE"], async (HttpContext ctx, string path, SessionStore store, JellyfinClient jf) =>
     {
         var a = store.For(ctx.User).Jellyfin; if (a is null) return Results.NotFound();
         System.Text.Json.Nodes.JsonNode? body = null;
         if (ctx.Request.Method == "POST" && ctx.Request.ContentLength > 0) body = System.Text.Json.Nodes.JsonNode.Parse(await new StreamReader(ctx.Request.Body).ReadToEndAsync());
-        try { var r = ctx.Request.Method == "POST" ? await jf.PostAsync(a, path, body) : await jf.GetAsync(a, path); return Results.Text(r?.ToJsonString() ?? "(empty)", "application/json"); }
+        try { var r = ctx.Request.Method == "POST" ? await jf.PostAsync(a, path, body) : ctx.Request.Method == "DELETE" ? await jf.DeleteAsync(a, path) : await jf.GetAsync(a, path); return Results.Text(r?.ToJsonString() ?? "(empty)", "application/json"); }
         catch (Exception e) { return Results.Text(e.Message, "text/plain", statusCode: 500); }
     }).RequireAuthorization();
 }

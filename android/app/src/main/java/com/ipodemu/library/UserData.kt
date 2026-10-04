@@ -114,7 +114,8 @@ class UserData(ctx: Context) {
             val paths = tracks.mapTo(ArrayList()) { it.first }
             val mine = playlists.firstOrNull { it.jfId == jf }
             if (mine == null) playlists.add(UserPlaylist("jf$jf", name, paths, syncedAt.coerceAtLeast(1), jf))
-            else if (mine.mtime <= syncedAt ) { mine.name = name; mine.paths.clear(); mine.paths.addAll(paths) }
+            // the account profile is the master copy of a playlist it already holds (FLACie Web edits it without touching the Jellyfin playlist, which the next push brings up to date); the server only fills one that is empty here
+            else if (mine.paths.isEmpty()) { mine.name = name; mine.paths.addAll(paths) }
         }
         changed(sync = false)
     }

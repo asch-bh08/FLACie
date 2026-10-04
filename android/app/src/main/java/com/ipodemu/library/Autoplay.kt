@@ -28,7 +28,7 @@ class Autoplay(private val app: App) {
         val seed = app.player.current ?: return
         working = true
         scope.launch {
-            try { refill(seed) } catch (_: Exception) { } finally { working = false }
+            try { refill(seed) } catch (e: Exception) { android.util.Log.w("FLACie", "autoplay failed: ${e.message}", e) } finally { working = false }
         }
     }
 
@@ -43,8 +43,9 @@ class Autoplay(private val app: App) {
 
         val key = seed.matchKey
         val suggestions = synchronized(related) { related[key]?.takeIf { System.currentTimeMillis() - it.first < 30 * 60_000L }?.second }
-            ?: try { WebCatalog.related(seed.artist, seed.title) } catch (_: Exception) { emptyList() }.also { synchronized(related) { related[key] = System.currentTimeMillis() to it } }
+            ?: try { WebCatalog.related(seed.artist, seed.title) } catch (e: Exception) { android.util.Log.w("FLACie", "related failed: $e", e); emptyList() }.also { synchronized(related) { related[key] = System.currentTimeMillis() to it } }
 
+        android.util.Log.d("FLACie", "autoplay: ${suggestions.size} suggestions for ${seed.title}")
         val pick = ArrayList<Track>(); val taken = HashSet<String>()
         fun take(src: Sequence<Track>, max: Int) {
             var n = 0

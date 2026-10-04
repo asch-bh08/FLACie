@@ -158,7 +158,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                 // a metadata-only swap (refreshArtwork) also reports a transition; that's not a new play
                 (mediaItem?.localConfiguration?.tag as? Track)?.let { if (it !== lastStarted || reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) onTrackStarted?.invoke(it); lastStarted = it }
                 refreshArtwork()
-                if (!prefs.shuffle && prefs.repeat == 0 && exo.mediaItemCount - exo.currentMediaItemIndex <= 2) onQueueLow?.invoke()
+                checkQueueLow()
                 adaptUpcoming(); schedulePrefetch()
                 // a song ending on its own: a Jam moves the whole group on instead (see Jam)
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) onAutoAdvance?.invoke()
@@ -256,6 +256,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (list.isEmpty() || !hasQueue) return
         exo.addMediaItems(list.map(::item)); queue = queueTracks(); fire()
     }
+    /** Autoplay fills the queue when at most one more song follows the current one. */
+    fun checkQueueLow() { if (prefs.repeat == 0 && exo.mediaItemCount > 0 && exo.mediaItemCount - exo.currentMediaItemIndex <= 2) onQueueLow?.invoke() }
     /** Called as a song starts when at most one more is queued after it (Autoplay fills the queue). */
     var onQueueLow: (() -> Unit)? = null
 
@@ -321,6 +323,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         exo.prepare()
         exo.play()
         ctx.startService(Intent(ctx, PlaybackService::class.java))
+        handler.postDelayed({ checkQueueLow() }, 1500)
     }
 
     /** Shuffle Songs: random start, shuffle mode forced on. */

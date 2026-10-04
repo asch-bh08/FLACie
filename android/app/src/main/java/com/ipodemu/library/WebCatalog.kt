@@ -60,25 +60,33 @@ object WebCatalog {
         }.sortedWith(compareBy({ it.discNo }, { it.trackNo }))
     }
 
-    /** Songs that go with the given one: the artist's other well-known songs, then the best-known songs of artists their listeners also play
-     * (Deezer's "related artists"), interleaved so one artist doesn't take over. Never the song itself or another release of it. */
+    /** Songs that go with the given one: the artist's other well-known songs, then those of artists listeners of this artist also play
+     * (MusicBrainz finds the artist, ListenBrainz's listening data names the similar ones, Deezer has their popular songs), interleaved so one
+     * artist doesn't take over. Never the song itself or another release of it. */
     fun related(artist: String, title: String, limit: Int = 24): List<Song> {
         val lead = primaryArtist(artist)
-        val hit = json("https://api.deezer.com/search?q=${enc("artist:\"$lead\" track:\"${baseTitle(title)}\"")}&limit=5")?.optJSONArray("data")
-        var artistId = objects(hit ?: JSONArray()).firstOrNull { norm(primaryArtist(it.optJSONObject("artist")?.optString("name").orEmpty())) == norm(lead) }?.optJSONObject("artist")?.optLong("id") ?: 0L
-        if (artistId == 0L) artistId = objects(json("https://api.deezer.com/search/artist?q=${enc(lead)}&limit=1")?.optJSONArray("data") ?: JSONArray()).firstOrNull()?.optLong("id") ?: 0L
-        if (artistId == 0L) return emptyList()
+        val similar = ArrayList<String>()
+        try {
+            val mb = json("https://musicbrainz.org/ws/2/artist?query=artist:${enc("\"$lead\"")}&fmt=json&limit=1")?.optJSONArray("artists")
+            val mbid = mb?.optJSONObject(0)?.optString("id").orEmpty()
+            if (mbid.isNotBlank()) {
+                val raw = CoverLookup.bytes("https://labs.api.listenbrainz.org/similar-artists/json?artist_mbids=$mbid&algorithm=session_based_days_9000_session_300_contribution_5_threshold_15_limit_50_skip_30")
+                val arr = raw?.let { try { JSONArray(String(it)) } catch (_: Exception) { null } }
+                if (arr != null) objects(arr).map { it.optString("name") }.filter { it.isNotBlank() && norm(it) != norm(lead) }.take(8).forEach { similar.add(it) }
+            }
+        } catch (_: Exception) { }
         val self = norm(baseTitle(title))
-        fun songs(o: JSONObject?) = objects(o?.optJSONArray("data") ?: JSONArray()).map { t ->
-            val al = t.optJSONObject("album")
-            Song(t.optJSONObject("artist")?.optString("name").orEmpty(), t.optString("title"), al?.optString("title").orEmpty(), al?.optString("cover_xl")?.ifBlank { null }, t.optLong("duration") * 1000, 0, 0)
-        }.filter { norm(baseTitle(it.title)) != self && !(variantWords.any { w -> it.title.contains(w, true) } && Regex("""[(\[]""").containsMatchIn(it.title)) }
-        val own = songs(json("https://api.deezer.com/artist/$artistId/top?limit=10"))
-        val rel = objects(json("https://api.deezer.com/artist/$artistId/related?limit=8")?.optJSONArray("data") ?: JSONArray()).map { it.optLong("id") }.filter { it != 0L }.take(6)
+        fun of(name: String, take: Int): List<Song> {
+            val arr = json("https://api.deezer.com/search?q=${enc(name)}&limit=40")?.optJSONArray("data") ?: return emptyList()
+            return objects(arr).map { t ->
+                val al = t.optJSONObject("album")
+                Song(t.optJSONObject("artist")?.optString("name").orEmpty(), t.optString("title"), al?.optString("title").orEmpty(), al?.optString("cover_xl")?.ifBlank { null }, t.optLong("duration") * 1000, 0, 0)
+            }.filter { norm(primaryArtist(it.artist)) == norm(primaryArtist(name)) && norm(baseTitle(it.title)) != self && !(variantWords.any { w -> it.title.contains(w, true) } && Regex("""[(\[]""").containsMatchIn(it.title)) && !coverActs.containsMatchIn(it.album + " " + it.title) }
+                .distinctBy { norm(baseTitle(it.title)) }.take(take)
+        }
+        android.util.Log.d("FLACie", "related: ${similar.size} similar artists for $lead")
         val lists = ArrayList<List<Song>>()
-        lists.add(own.take(3))
-        rel.forEach { lists.add(songs(json("https://api.deezer.com/artist/$it/top?limit=5")).take(3)) }
-        lists.add(own.drop(3))
+        lists.add(of(lead, 5)); similar.forEach { lists.add(of(it, 3)) }
         val out = ArrayList<Song>()
         var i = 0
         while (out.size < limit && lists.any { i < it.size }) { lists.forEach { l -> if (i < l.size) out.add(l[i]) }; i++ }

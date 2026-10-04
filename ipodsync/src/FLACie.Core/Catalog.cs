@@ -78,20 +78,28 @@ public sealed class WebCatalog(HttpClient http)
     public async Task<List<CatalogSong>> RelatedAsync(string artist, string title, int limit = 24, CancellationToken ct = default)
     {
         var lead = Matching.PrimaryArtist(artist);
-        var hit = (await Json($"https://api.deezer.com/search?q={Enc($"artist:\"{lead}\" track:\"{BaseTitle(title)}\"")}&limit=5", ct))?["data"] as JsonArray;
-        var found = hit?.OfType<JsonObject>().FirstOrDefault(o => Norm(Matching.PrimaryArtist(S(o["artist"], "name"))) == Norm(lead))
-                    ?? (await Json($"https://api.deezer.com/search/artist?q={Enc(lead)}&limit=1", ct))?["data"]?.AsArray().OfType<JsonObject>().Select(a => new JsonObject { ["artist"] = a.DeepClone() }).FirstOrDefault();
-        var artistId = L(found?["artist"], "id");
-        if (artistId == 0) return [];
+        // similar artists: MusicBrainz finds the artist, ListenBrainz's listening data says who listeners of that artist also play
+        var similar = new List<string>();
+        try
+        {
+            var mb = (await Json($"https://musicbrainz.org/ws/2/artist?query=artist:{Enc("\"" + lead + "\"")}&fmt=json&limit=1", ct))?["artists"] as JsonArray;
+            if (S(mb?.FirstOrDefault(), "id") is { Length: > 0 } mbid
+                && await Json($"https://labs.api.listenbrainz.org/similar-artists/json?artist_mbids={mbid}&algorithm=session_based_days_9000_session_300_contribution_5_threshold_15_limit_50_skip_30", ct) is JsonArray sim)
+                similar = sim.OfType<JsonObject>().Select(o => S(o, "name")).Where(n => n.Length > 0 && Norm(n) != Norm(lead)).Take(8).ToList();
+        }
+        catch (Exception) { }
         var self = Norm(BaseTitle(title));
-        List<CatalogSong> Songs(JsonNode? node) => (node?["data"] as JsonArray ?? []).OfType<JsonObject>().Select(o => new CatalogSong(S(o["artist"], "name"), S(o, "title"), S(o["album"], "title"),
-            S(o["album"], "cover_xl") is { Length: > 0 } c ? c : null, L(o, "duration") * 1000, 0, 0)).Where(s => Norm(BaseTitle(s.Title)) != self && !Variant(s.Title)).ToList();
-        var own = Songs(await Json($"https://api.deezer.com/artist/{artistId}/top?limit=10", ct));
-        var relArtists = ((await Json($"https://api.deezer.com/artist/{artistId}/related?limit=8", ct))?["data"] as JsonArray ?? []).OfType<JsonObject>().Select(o => L(o, "id")).Where(i => i != 0).Take(6).ToList();
-        var tops = await Task.WhenAll(relArtists.Select(async id => Songs(await Json($"https://api.deezer.com/artist/{id}/top?limit=5", ct))));
-        var lists = new List<List<CatalogSong>> { own.Take(3).ToList() };
-        lists.AddRange(tops.Select(t => t.Take(3).ToList()));
-        lists.Add(own.Skip(3).ToList());
+        async Task<List<CatalogSong>> Of(string name, int take)
+        {
+            var j = await Json($"https://api.deezer.com/search?q={Enc(name)}&limit=40", ct);
+            return (j?["data"] as JsonArray ?? []).OfType<JsonObject>().Select(o => new CatalogSong(S(o["artist"], "name"), S(o, "title"), S(o["album"], "title"),
+                    S(o["album"], "cover_xl") is { Length: > 0 } c ? c : null, L(o, "duration") * 1000, 0, 0))
+                .Where(s => Norm(Matching.PrimaryArtist(s.Artist)) == Norm(Matching.PrimaryArtist(name)) && Norm(BaseTitle(s.Title)) != self && !Variant(s.Title) && !CoverActs.IsMatch(s.Album + " " + s.Title))
+                .DistinctBy(s => Norm(BaseTitle(s.Title))).Take(take).ToList();
+        }
+        var tasks = new List<Task<List<CatalogSong>>> { Of(lead, 5) };
+        tasks.AddRange(similar.Select(n => Of(n, 3)));
+        var lists = (await Task.WhenAll(tasks)).ToList();
         var res = new List<CatalogSong>();
         for (var i = 0; res.Count < limit && lists.Any(l => i < l.Count); i++)
             foreach (var l in lists) if (i < l.Count) res.Add(l[i]);
@@ -100,12 +108,18 @@ public sealed class WebCatalog(HttpClient http)
 
     static bool Variant(string title) => VariantWords.Any(w => title.Contains(w, StringComparison.OrdinalIgnoreCase)) && Brackets.IsMatch(title);
 
-    /// <summary>The current chart: 0 is Deezer's overall chart, other numbers are its genres (132 Pop, 116 Rap/Hip Hop, 152 Rock, 113 Dance, 165 R&amp;B).</summary>
+    /// <summary>The current iTunes chart of top songs (Deezer's own chart endpoints stopped answering): 0 is overall; the other ids are
+    /// 132 Pop, 116 Rap/Hip Hop, 152 Rock, 113 Dance, 165 R&amp;B, 85 Alternative, 106 Electronic.</summary>
     public async Task<List<CatalogSong>> ChartAsync(int genre = 0, int limit = 50, CancellationToken ct = default)
     {
-        var j = await Json($"https://api.deezer.com/chart/{genre}/tracks?limit={limit}", ct);
-        return (j?["data"] as JsonArray ?? []).OfType<JsonObject>().Select(o => new CatalogSong(S(o["artist"], "name"), S(o, "title"), S(o["album"], "title"),
-            S(o["album"], "cover_xl") is { Length: > 0 } c ? c : null, L(o, "duration") * 1000, 0, 0)).ToList();
+        int? g = genre switch { 132 => 14, 116 => 18, 152 => 21, 113 => 17, 165 => 15, 85 => 20, 106 => 7, _ => null };
+        var j = await Json($"https://itunes.apple.com/us/rss/topsongs/limit={limit}{(g is null ? "" : "/genre=" + g)}/json", ct);
+        string Lbl(JsonNode? n, string k) => S(n?[k], "label");
+        return (j?["feed"]?["entry"] as JsonArray ?? []).OfType<JsonObject>().Select(o =>
+        {
+            var img = (o["im:image"] as JsonArray)?.LastOrDefault();
+            return new CatalogSong(Lbl(o, "im:artist"), Lbl(o, "im:name"), Lbl(o["im:collection"], "im:name"), S(img, "label") is { Length: > 0 } u ? Big(u.Replace("170x170bb", "100x100bb")) : null, 0, 0, 0);
+        }).Where(s => s.Title.Length > 0).ToList();
     }
 
     /// <summary>"Song (feat. X)" -> "Song"; used to match file names and fold duplicates.</summary>

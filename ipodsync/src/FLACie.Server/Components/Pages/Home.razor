@@ -11,6 +11,9 @@
     </div>
 </header>
 <LibraryStatus />
+@if (Waiting) { <p class="status">Loading your music…</p> }
+else
+{
 @if (moods.Count > 0)
 {
     <div class="mood-chips" role="group" aria-label="Moods">
@@ -100,7 +103,10 @@ else
         </section>
     }
 }
+}
 @code {
+    // the shelves are built from the account's profile (plays, favourites, playlists), so they wait for it rather than show a version with none of it
+    bool Waiting => !Session.ProfileLoaded && Session.Loading;
     // playing from Home opens the full-screen player
     async Task PlayFull(IReadOnlyList<Track> list, int index, string? context) { await Player.Play(list, index, context); Player.RequestFullScreen(); }
     async Task ShuffleFull(IReadOnlyList<Track> list, string? context) { await Player.ShuffleAll(list, context); Player.RequestFullScreen(); }
@@ -109,7 +115,7 @@ else
 
     List<Shelf> shelves = [];
     List<string> moods = []; string? mood; List<Track> moodTracks = [];
-    long builtSlot = -1, builtLast = -1; int builtSongs = -1;
+    long builtSlot = -1, builtLast = -1; int builtSongs = -1, builtRev = -1;
 
     void Pick(string m) { if (mood == m) { mood = null; return; } mood = m; moodTracks = HomeBuilder.MoodTracks(Lib, m, DateTime.UtcNow); }
 
@@ -119,7 +125,7 @@ else
     {
         if (Session is null) return;
         var slot = HomeBuilder.Slot(DateTime.UtcNow);
-        if (slot != builtSlot || builtSongs != Lib.Songs.Count) { Rebuild(); StateHasChanged(); }
+        if (slot != builtSlot || builtSongs != Lib.Songs.Count || builtRev != Session.ProfileRev) { Rebuild(); StateHasChanged(); }
     }
 
     void Rebuild()
@@ -128,8 +134,8 @@ else
         var slot = HomeBuilder.Slot(DateTime.UtcNow);
         var history = Session.History;
         var last = history.FirstOrDefault()?.At ?? 0;
-        if (slot == builtSlot && builtSongs == Lib.Songs.Count && builtLast == last) return;
-        builtSlot = slot; builtSongs = Lib.Songs.Count; builtLast = last;
+        if (slot == builtSlot && builtSongs == Lib.Songs.Count && builtLast == last && builtRev == Session.ProfileRev) return;
+        builtSlot = slot; builtSongs = Lib.Songs.Count; builtLast = last; builtRev = Session.ProfileRev;
         shelves = HomeBuilder.Build(Lib, history, Session.Favorites, Session.Playlists, DateTime.UtcNow);
         moods = HomeBuilder.MoodsAvailable(Lib);
     }

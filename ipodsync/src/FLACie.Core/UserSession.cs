@@ -71,10 +71,12 @@ public sealed class UserSession
         try
         {
             // newest profile copy from every account this user has
-            var copies = new List<JsonObject>();
-            if (Jellyfin is { } a) try { if (await jf.PullProfileAsync(a, ct) is { } p) copies.Add(p); } catch (UnauthorizedAccessException) when (Kind == "nas") { Jellyfin = null; }
+            var copies = new List<JsonObject>(); var profileOk = true; string? profileProblem = null;
+            if (Jellyfin is { } a) try { if (await jf.PullProfileAsync(a, ct) is { } p) copies.Add(p); } catch (UnauthorizedAccessException) when (Kind == "nas") { Jellyfin = null; } catch (Exception e) when (e is not UnauthorizedAccessException) { profileOk = false; profileProblem = "Couldn't load your profile: " + e.Message; }
             if (Nas is { } n) try { if (NasClient.ReadText(n, n.ProfilePath) is { } s && JsonNode.Parse(s) is JsonObject p) copies.Add(p); } catch (Exception) when (Kind == "jellyfin") { }
             if (copies.Count > 0) Profile = copies.MaxBy(p => p["updated"]?.GetValue<long>() ?? 0)!;
+            // until the profile has really been read, nothing is saved back (an empty one would wipe the real one)
+            if (profileOk) { ProfileLoaded = true; ProfileRev++; Changed?.Invoke(); }
 
             // the other account comes back from the profile: a NAS sign-in gets the Jellyfin account and vice versa
             if (Jellyfin is null && Profile["account"] is JsonObject acc && acc["token"]?.GetValue<string>() is { Length: > 0 } tok)
@@ -83,7 +85,7 @@ public sealed class UserSession
                 Nas = new NasAccount(host, S(ns, "share"), S(ns, "folder"), S(ns, "user"), S(ns, "pass"), S(ns, "domain"));
 
             List<Track> jfTracks = [], nasTracks = [];
-            Problem = null;
+            Problem = profileProblem;
             if (Jellyfin is { } ja)
                 try { jfTracks = await jf.AllAudioAsync(ja, ct); }
                 catch (UnauthorizedAccessException) { if (Kind == "nas") Jellyfin = null; else throw; }
@@ -91,7 +93,8 @@ public sealed class UserSession
             if (Nas is { } na)
                 try { nasTracks = await Task.Run(() => NasClient.Scan(na), ct); }
                 catch (Exception e) { Problem = (Problem is null ? "" : Problem + " · ") + $"NAS: {e.Message}"; }
-            Library = WithDownloads(Library.Merge(jfTracks, nasTracks));
+            // a failed fetch must not replace the library kept from last time with nothing
+            if (!(jfTracks.Count == 0 && nasTracks.Count == 0 && Problem is not null && Library.Songs.Count > 0)) Library = WithDownloads(Library.Merge(jfTracks, nasTracks));
             LoadedAt = DateTime.UtcNow; SaveCache();
             if (StripQualityTags()) try { await SaveAsync(jf, ct); } catch (Exception) { }
         }
@@ -139,8 +142,13 @@ public sealed class UserSession
     // ---- save ----
 
     /// <summary>Writes the profile to every account this user has, with the accounts themselves in it.</summary>
+    public bool ProfileLoaded { get; private set; }
+    /// <summary>Goes up each time the profile is read from the account (pages that show it start again).</summary>
+    public int ProfileRev { get; private set; }
+
     public async Task SaveAsync(JellyfinClient jf, CancellationToken ct = default)
     {
+        if (!ProfileLoaded) return;
         Profile["updated"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         Profile["v"] = 2;
         if (Jellyfin is { } a) Profile["account"] = new JsonObject { ["server"] = a.Server, ["userId"] = a.UserId, ["user"] = a.UserName, ["token"] = a.Token };

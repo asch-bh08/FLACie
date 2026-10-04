@@ -2,7 +2,7 @@
 @implements IDisposable
 @* Along the top, like YT Music: the logo, one search box that works from every page, and the account at the right. *@
 <header class="topbar">
-    <a class="top-brand" href="/" aria-label="FLACie home"><span class="brand-mark" aria-hidden="true"><Icon Name="note" Size="18" /></span><span class="top-name">FLACie</span></a>
+    <a class="top-brand" href="/" aria-label="FLACie home"><Logo Size="32" Class="top-name-wrap" /></a>
     <form class="top-search" role="search" @onsubmit="Go">
         <Icon Name="search" Size="18" />
         <input type="search" placeholder="Search songs, albums, artists, or music to download" aria-label="Search" value="@q" @oninput="OnInput" autocomplete="off" />

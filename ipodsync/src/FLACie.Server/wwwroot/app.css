@@ -613,3 +613,20 @@ html { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
 .viz.stereo { height: 200px; }
 .viz.wall { height: 220px; }
 @media (max-height: 520px) and (orientation: landscape) { .viz, .viz.curve, .viz.loud, .viz.stereo, .viz.wall { height: 150px; } }
+
+/* ---- top bar that melts into the page ---- */
+.logo { display: inline-flex; align-items: center; gap: 11px; }
+.logo-mark { flex: none; display: block; border-radius: 28%; box-shadow: 0 4px 16px #ff4d7344; }
+.wordmark { font-weight: 800; font-size: 20px; letter-spacing: -.02em; color: var(--ink); }
+.wordmark i { font-style: normal; font-weight: 500; background: linear-gradient(90deg, #ff6d8d, #b45cf5); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.logo.big .wordmark { font-size: 36px; }
+.top-brand { font-size: inherit; }
+.topbar { background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 88%, transparent), color-mix(in srgb, var(--bg) 70%, transparent)); backdrop-filter: blur(22px) saturate(1.4); -webkit-backdrop-filter: blur(22px) saturate(1.4); border-bottom: 0; }
+.topbar::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 18px; background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 55%, transparent), transparent); pointer-events: none; }
+.top-search { background: rgba(255,255,255,.07); border: 1px solid transparent; box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); transition: background .15s, box-shadow .15s; }
+.top-search:hover { background: rgba(255,255,255,.1); }
+.top-search:focus-within { background: rgba(255,255,255,.12); border-color: transparent; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 70%, transparent); }
+.top-search input::placeholder { color: var(--faint); }
+/* the full-screen player runs up behind the translucent top bar, so the two read as one surface */
+.np { top: 0; padding-top: var(--top); }
+@media (max-width: 760px) { .wordmark { display: none; } }

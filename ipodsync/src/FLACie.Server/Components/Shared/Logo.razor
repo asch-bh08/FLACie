@@ -1,0 +1,20 @@
+@* The FLACie mark: a rounded tile with a sound wave in it, and the name set with a lighter "ie". *@
+<span class="logo @Class">
+    <svg class="logo-mark" viewBox="0 0 40 40" width="@Size" height="@Size" aria-hidden="true" focusable="false">
+        <defs><linearGradient id="lg@(Size)" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff5a7e" /><stop offset="1" stop-color="#9b3df0" /></linearGradient></defs>
+        <rect width="40" height="40" rx="11" fill="url(#lg@(Size))" />
+        <g fill="#fff" opacity=".95">
+            <rect x="8.5" y="17" width="3.4" height="6" rx="1.7" />
+            <rect x="14.1" y="11.5" width="3.4" height="17" rx="1.7" />
+            <rect x="19.7" y="7.5" width="3.4" height="25" rx="1.7" />
+            <rect x="25.3" y="13" width="3.4" height="14" rx="1.7" />
+            <rect x="30.9" y="17.5" width="3.4" height="5" rx="1.7" />
+        </g>
+    </svg>
+    @if (Name) { <span class="wordmark">FLAC<i>ie</i></span> }
+</span>
+@code {
+    [Parameter] public int Size { get; set; } = 32;
+    [Parameter] public bool Name { get; set; } = true;
+    [Parameter] public string Class { get; set; } = "";
+}

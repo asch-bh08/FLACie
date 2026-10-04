@@ -51,39 +51,7 @@ window.flacie = (() => {
     requestAnimationFrame(lyricTick);
   };
   requestAnimationFrame(lyricTick);
-  // live equaliser view of what is playing (Info tab): the audio runs through an analyser; low sounds are drawn on the left, high on the right
-  let actx = null, an = null, scopeOn = false, peaks = null;
-  const scopeDraw = () => {
-    if (!scopeOn) return;
-    requestAnimationFrame(scopeDraw);
-    const cv = document.getElementById("spectrum"); if (!cv || !an) return;
-    const dpr = window.devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
-    if (!w || !h) return;
-    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-    const g = cv.getContext("2d"), nyq = actx.sampleRate / 2, bins = an.frequencyBinCount;
-    const data = new Uint8Array(bins); an.getByteFrequencyData(data);
-    const N = Math.max(24, Math.min(64, Math.floor(w / (9 * dpr)))), lo = 40, hi = Math.min(nyq, 20000);
-    if (!peaks || peaks.length !== N) peaks = new Float32Array(N);
-    const css = getComputedStyle(document.documentElement), accent = css.getPropertyValue("--accent").trim() || "#ff4d8d", dim = css.getPropertyValue("--faint").trim() || "#888";
-    g.clearRect(0, 0, w, h);
-    const bottom = h - 18 * dpr, top = 4 * dpr, span = bottom - top, slot = w / N, bw = Math.max(2 * dpr, slot * 0.68);
-    const grad = g.createLinearGradient(0, top, 0, bottom); grad.addColorStop(0, accent); grad.addColorStop(1, "rgba(255,255,255,.12)");
-    for (let i = 0; i < N; i++) {
-      // each bar is one slice of the pitch range (low to high, evenly spaced by ear), showing its loudest part
-      const f0 = lo * Math.pow(hi / lo, i / N), f1 = lo * Math.pow(hi / lo, (i + 1) / N);
-      const b0 = Math.floor(f0 / nyq * bins), b1 = Math.max(b0 + 1, Math.ceil(f1 / nyq * bins));
-      let m = 0; for (let k = b0; k < b1 && k < bins; k++) m = Math.max(m, data[k]);
-      const v = Math.pow(m / 255, 1.6); peaks[i] = Math.max(v, peaks[i] - 0.01);
-      const x = i * slot + (slot - bw) / 2, bh = Math.max(2 * dpr, v * span);
-      g.fillStyle = grad; g.beginPath(); g.roundRect(x, bottom - bh, bw, bh, Math.min(bw / 2, 4 * dpr)); g.fill();
-      g.fillStyle = "rgba(255,255,255,.55)"; g.fillRect(x, bottom - peaks[i] * span - 3 * dpr, bw, 2 * dpr);
-    }
-    g.font = `${11 * dpr}px system-ui, sans-serif`; g.fillStyle = dim; g.textBaseline = "alphabetic"; g.textAlign = "center";
-    for (const [f, t] of [[100, "100 Hz"], [1000, "1 kHz"], [10000, "10 kHz"]]) {
-      if (f > hi) continue;
-      const x = Math.log(f / lo) / Math.log(hi / lo) * w; g.fillText(t, Math.min(Math.max(x, 24 * dpr), w - 24 * dpr), h - 3 * dpr);
-    }
-  };
+  window.flacieAudio = audio; // read by insight.js (the Info tab graphs), which never touches the audio path
   let npRef = null, npPushed = false;
   const npClosed = () => { const r = npRef; npRef = null; npPushed = false; document.body.classList.remove("np-open"); if (r) r.invokeMethodAsync("Closed").catch(() => { }); };
   window.addEventListener("popstate", () => { if (npRef) npClosed(); else npPushed = false; });
@@ -99,19 +67,6 @@ window.flacie = (() => {
       document.title = title ? `${title} · ${artist}` : "FLACie";
       if (autoplay) audio.play().catch(() => send("OnState", false)); else { audio.pause(); send("OnState", false); }
     },
-    scope() {
-      try {
-        if (!an) {
-          actx = new (window.AudioContext || window.webkitAudioContext)();
-          const src = actx.createMediaElementSource(audio);
-          an = actx.createAnalyser(); an.fftSize = 4096; an.smoothingTimeConstant = 0.82;
-          src.connect(an); an.connect(actx.destination);
-        }
-        if (actx.state === "suspended") actx.resume();
-        if (!scopeOn) { scopeOn = true; requestAnimationFrame(scopeDraw); }
-      } catch { }
-    },
-    scopeStop() { scopeOn = false; },
     toggle() { audio.paused ? audio.play().catch(() => {}) : audio.pause(); },
     play() { audio.play().catch(() => send("OnState", false)); },
     setLyrics(times) { lyr = { times, cur: -2 }; },

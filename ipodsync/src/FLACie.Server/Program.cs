@@ -49,6 +49,7 @@ builder.Services.AddSingleton(sp => new JellyfinClient(sp.GetRequiredService<IHt
 });
 builder.Services.AddSingleton<SessionStore>();
 builder.Services.AddScoped<PlayerState>();
+builder.Services.AddScoped<ExploreState>();
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 // behind a reverse proxy (Caddy, Nginx, Traefik, Tailscale Funnel) the browser talks HTTPS to the proxy, not to us

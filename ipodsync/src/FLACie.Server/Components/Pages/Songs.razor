@@ -1,20 +1,23 @@
 @page "/songs"
 @attribute [Authorize]
 @inherits UserComponent
-<PageTitle>Songs · FLACie</PageTitle>
+@inject ExploreState X
+<PageTitle>Explore · FLACie</PageTitle>
 <header class="page-head">
-    <h1>All music</h1>
-    <p class="sub">@Lib.Songs.Count songs</p>
-    <div class="chips"><button class="btn primary" @onclick="() => Player.ShuffleAll(Lib.Songs)" disabled="@(Lib.Songs.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle all</button></div>
+    <h1>Explore</h1>
+    <p class="sub">@(X.Filtering ? list.Count + " of " + Lib.Songs.Count : Lib.Songs.Count.ToString()) songs</p>
+    <div class="chips"><button class="btn primary" @onclick="() => Player.ShuffleAll(list)" disabled="@(list.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle @(X.Filtering ? "these" : "all")</button></div>
 </header>
 <MusicTabs Active="Songs" />
+<ExploreBar Tab="Songs" Changed="Refresh" />
 <LibraryStatus />
+@if (list.Count == 0 && Lib.Songs.Count > 0) { <p class="status">Nothing matches these filters.</p> }
 <div class="tracks virtual">
     <Virtualize Items="rows" Context="row" ItemSize="60">
         <div class="track @(Player.Current?.Path == row.T.Path ? "now" : "")">
-            <button class="track-main" @onclick='() => Player.Play(Lib.Songs, row.I, "Songs")' aria-label="Play @row.T.Title by @row.T.Artist">
+            <button class="track-main" @onclick='() => Player.Play(list, row.I, "Songs")' aria-label="Play @row.T.Title by @row.T.Artist">
                 <Cover ArtKey="@(row.T.ArtKey)" Size="44" />
-                <span class="track-text"><span class="track-title">@row.T.Title</span><span class="track-sub">@row.T.Artist@(row.T.Album.Length > 0 ? " · " + row.T.Album : "")</span></span>
+                <span class="track-text"><span class="track-title">@row.T.Title</span><span class="track-sub">@row.T.Artist@(row.T.Album.Length > 0 ? " · " + row.T.Album : "")@(row.T.Year > 0 ? " · " + row.T.Year : "")</span></span>
             </button>
             <span class="pills">
                 <span class="badge @row.T.Source.ToString().ToLowerInvariant()" title="Where this song is played from">@(row.T.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "Download", _ => row.T.Source.ToString() })</span>
@@ -26,8 +29,11 @@
 </div>
 @code {
     record Row(Track T, int I);
+    List<Track> list = [];
     List<Row> rows = [];
-    Library? built;
-    protected override void OnParametersSet() { if (!ReferenceEquals(built, Lib)) { built = Lib; rows = Lib.Songs.Select((t, i) => new Row(t, i)).ToList(); } }
-    protected override bool ShouldRender() { if (!ReferenceEquals(built, Lib)) OnParametersSet(); return true; }
+    Library? built; int builtVersion = -1;
+    void Build() { if (ReferenceEquals(built, Lib) && builtVersion == X.Version) return; built = Lib; builtVersion = X.Version; list = X.Songs(Lib); rows = list.Select((t, i) => new Row(t, i)).ToList(); }
+    void Refresh() { Build(); StateHasChanged(); }
+    protected override void OnParametersSet() => Build();
+    protected override bool ShouldRender() { Build(); return true; }
 }

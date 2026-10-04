@@ -1,0 +1,3 @@
+@page "/explore"
+@inject NavigationManager Nav
+@code { protected override void OnInitialized() => Nav.NavigateTo("/songs", replace: true); }

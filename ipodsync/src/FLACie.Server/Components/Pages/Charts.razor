@@ -1,8 +1,9 @@
 @page "/charts"
 @attribute [Authorize]
 @inherits UserComponent
-<PageTitle>Charts · FLACie</PageTitle>
-<header class="page-head"><h1>Charts</h1></header>
+<PageTitle>Explore · FLACie</PageTitle>
+<header class="page-head"><h1>Explore</h1></header>
+<MusicTabs Active="Charts" />
 <div class="mood-chips" role="tablist" aria-label="Charts">
     @foreach (var c in ChartsService.Available)
     {

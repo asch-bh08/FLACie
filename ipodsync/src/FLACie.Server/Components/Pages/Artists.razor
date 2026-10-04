@@ -1,13 +1,24 @@
 @page "/artists"
 @attribute [Authorize]
 @inherits UserComponent
-<PageTitle>Artists · FLACie</PageTitle>
-<header class="page-head"><h1>All music</h1><p class="sub">@Lib.Artists.Count artists</p></header>
+@inject ExploreState X
+<PageTitle>Explore · FLACie</PageTitle>
+<header class="page-head"><h1>Explore</h1><p class="sub">@(X.Filtering ? list.Count + " of " + Lib.Artists.Count : Lib.Artists.Count.ToString()) artists</p></header>
 <MusicTabs Active="Artists" />
+<ExploreBar Tab="Artists" Changed="Refresh" />
 <LibraryStatus />
+@if (list.Count == 0 && Lib.Artists.Count > 0) { <p class="status">Nothing matches these filters.</p> }
 <div class="grid">
-    @foreach (var a in Lib.Artists)
+    @foreach (var a in list)
     {
-        <a class="card artist" href="/artist/@Uri.EscapeDataString(a.Name)"><Cover ArtKey="@(a.ArtKey)" Class="square round" /><span class="card-title">@a.Name</span><span class="card-sub">@a.Tracks.Count songs</span></a>
+        <a class="card artist" href="/artist/@Uri.EscapeDataString(a.Name)"><Cover ArtKey="@(a.ArtKey)" Class="square round" /><span class="card-title">@a.Name</span><span class="card-sub">@a.Tracks.Count @(a.Tracks.Count == 1 ? "song" : "songs")</span></a>
     }
 </div>
+@code {
+    List<Group> list = [];
+    Library? built; int builtVersion = -1;
+    void Build() { if (ReferenceEquals(built, Lib) && builtVersion == X.Version) return; built = Lib; builtVersion = X.Version; list = X.Artists(Lib); }
+    void Refresh() { Build(); StateHasChanged(); }
+    protected override void OnParametersSet() => Build();
+    protected override bool ShouldRender() { Build(); return true; }
+}

@@ -9,13 +9,12 @@
             <NavLink href="/search"><Icon Name="search" />Search</NavLink>
         </div>
         <div class="rail-group">
-            <a href="/songs" class="@(InMusic ? "active" : "")"><Icon Name="songs" />All music</a>
+            <a href="/songs" class="@(InMusic ? "active" : "")"><Icon Name="albums" />Explore</a>
             <NavLink href="/favorites"><Icon Name="heart" />Favourites</NavLink>
             <NavLink href="/playlists" Match="NavLinkMatch.All"><Icon Name="playlists" />Playlists</NavLink>
         </div>
         <div class="rail-group">
             <p class="rail-label">Find more</p>
-            <NavLink href="/charts"><Icon Name="chart" />Charts</NavLink>
             <NavLink href="/import"><Icon Name="download" />Import</NavLink>
         </div>
         <div class="rail-group">
@@ -23,7 +22,6 @@
             <NavLink href="/devices"><Icon Name="devices" />Devices</NavLink>
             <NavLink href="/jam"><Icon Name="jam" />Jam</NavLink>
         </div>
-        <SidebarPlaylists />
     </nav>
     <main class="content">@Body</main>
     <RemoteNowPlaying />
@@ -31,7 +29,7 @@
 </div>
 @code {
     // "All music" is lit for its four filters and their detail pages
-    bool InMusic { get { var p = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0]; return new[] { "/songs", "/albums", "/artists", "/genres", "/album/", "/artist/", "/genre/" }.Any(x => p.StartsWith(x, StringComparison.OrdinalIgnoreCase)); } }
+    bool InMusic { get { var p = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0]; return new[] { "/songs", "/albums", "/artists", "/genres", "/charts", "/album/", "/artist/", "/genre/" }.Any(x => p.StartsWith(x, StringComparison.OrdinalIgnoreCase)); } }
     protected override void OnInitialized() => Nav.LocationChanged += Moved;
     void Moved(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => InvokeAsync(StateHasChanged);
     public void Dispose() => Nav.LocationChanged -= Moved;

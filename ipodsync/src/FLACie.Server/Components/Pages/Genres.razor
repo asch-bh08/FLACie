@@ -1,27 +1,24 @@
 @page "/genres"
 @attribute [Authorize]
 @inherits UserComponent
-<PageTitle>Genres · FLACie</PageTitle>
-<header class="page-head"><h1>All music</h1><p class="sub">@genres.Count genres</p></header>
+@inject ExploreState X
+<PageTitle>Explore · FLACie</PageTitle>
+<header class="page-head"><h1>Explore</h1><p class="sub">@list.Count genres</p></header>
 <MusicTabs Active="Genres" />
+<ExploreBar Tab="Genres" Changed="Refresh" />
 <LibraryStatus />
-@if (genres.Count == 0 && Lib.Songs.Count > 0) { <p class="status">None of your songs have a genre tag yet.</p> }
+@if (list.Count == 0 && Lib.Songs.Count > 0) { <p class="status">@(X.Filtering ? "Nothing matches these filters." : "None of your songs have a genre tag yet.")</p> }
 <div class="grid">
-    @foreach (var g in genres)
+    @foreach (var g in list)
     {
         <a class="card" href="/genre/@Uri.EscapeDataString(g.Name)"><Cover ArtKey="@(g.ArtKey)" Class="square" /><span class="card-title">@g.Name</span><span class="card-sub">@g.Tracks.Count songs</span></a>
     }
 </div>
 @code {
-    List<Group> genres = [];
-    Library? built;
-    protected override bool ShouldRender() { OnParametersSet(); return true; }
-    protected override void OnParametersSet()
-    {
-        if (ReferenceEquals(built, Lib)) return;
-        built = Lib;
-        genres = Lib.Songs.Where(t => t.Genre.Length > 0).GroupBy(t => t.Genre.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Select(g => new Group(g.Key, g.ToList(), g.Select(t => t.ArtKey).FirstOrDefault(k => k is not null)))
-            .OrderByDescending(g => g.Tracks.Count).ThenBy(g => g.Name).ToList();
-    }
+    List<Group> list = [];
+    Library? built; int builtVersion = -1;
+    void Build() { if (ReferenceEquals(built, Lib) && builtVersion == X.Version) return; built = Lib; builtVersion = X.Version; list = X.Genres(Lib); }
+    void Refresh() { Build(); StateHasChanged(); }
+    protected override void OnParametersSet() => Build();
+    protected override bool ShouldRender() { Build(); return true; }
 }

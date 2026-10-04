@@ -1,8 +1,19 @@
 @page "/albums"
 @attribute [Authorize]
 @inherits UserComponent
-<PageTitle>Albums · FLACie</PageTitle>
-<header class="page-head"><h1>All music</h1><p class="sub">@Lib.Albums.Count albums</p></header>
+@inject ExploreState X
+<PageTitle>Explore · FLACie</PageTitle>
+<header class="page-head"><h1>Explore</h1><p class="sub">@(X.Filtering ? list.Count + " of " + Lib.Albums.Count : Lib.Albums.Count.ToString()) albums</p></header>
 <MusicTabs Active="Albums" />
+<ExploreBar Tab="Albums" Changed="Refresh" />
 <LibraryStatus />
-<AlbumGrid Albums="Lib.Albums" />
+@if (list.Count == 0 && Lib.Albums.Count > 0) { <p class="status">Nothing matches these filters.</p> }
+<AlbumGrid Albums="list" />
+@code {
+    List<Group> list = [];
+    Library? built; int builtVersion = -1;
+    void Build() { if (ReferenceEquals(built, Lib) && builtVersion == X.Version) return; built = Lib; builtVersion = X.Version; list = X.Albums(Lib); }
+    void Refresh() { Build(); StateHasChanged(); }
+    protected override void OnParametersSet() => Build();
+    protected override bool ShouldRender() { Build(); return true; }
+}

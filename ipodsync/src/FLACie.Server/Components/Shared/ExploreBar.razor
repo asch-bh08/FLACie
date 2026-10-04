@@ -1,0 +1,68 @@
+@inherits UserComponent
+@inject ExploreState X
+@* The filters over Explore's lists: a text filter, A to Z, genre, decade, lossless or lossy, and the sort. What a tab can't use is left out. *@
+<div class="x-bar">
+    <label class="x-search"><Icon Name="search" Size="18" /><input type="search" placeholder="@Placeholder" aria-label="Filter this list" value="@X.Query" @oninput="e => Set(() => X.Query = e.Value?.ToString() ?? string.Empty)" /></label>
+    <div class="x-selects">
+        <label>Sort
+            <select value="@X.Sort" @onchange="e => Set(() => X.Sort = e.Value?.ToString() ?? string.Empty)">
+                @foreach (var (v, n) in SortOptions) { <option value="@v" selected="@(X.Sort == v)">@n</option> }
+            </select>
+        </label>
+        <label>Genre
+            <select value="@X.Genre" @onchange="e => Set(() => X.Genre = e.Value?.ToString() ?? string.Empty)">
+                <option value="">Any</option>
+                @foreach (var g in choices.Genres) { <option value="@g" selected="@(X.Genre == g)">@g</option> }
+            </select>
+        </label>
+        <label>Decade
+            <select value="@X.Decade" @onchange="e => Set(() => X.Decade = e.Value?.ToString() ?? string.Empty)">
+                <option value="">Any</option>
+                @foreach (var d in choices.Decades) { <option value="@d" selected="@(X.Decade == d)">@d</option> }
+            </select>
+        </label>
+        <label>Quality
+            <select value="@X.Format" @onchange="e => Set(() => X.Format = e.Value?.ToString() ?? string.Empty)">
+                <option value="">Any</option>
+                <option value="lossless" selected="@(X.Format == "lossless")">Lossless (FLAC, ALAC…)</option>
+                <option value="lossy" selected="@(X.Format == "lossy")">Lossy (MP3, AAC…)</option>
+            </select>
+        </label>
+        @if (X.Filtering) { <button class="btn ghost" @onclick="() => Set(X.Clear)">Clear filters</button> }
+    </div>
+    <div class="az" role="group" aria-label="First letter">
+        <button class="@(X.Letter.Length == 0 ? "on" : "")" aria-pressed="@(X.Letter.Length == 0)" @onclick="() => Set(() => X.Letter = string.Empty)">All</button>
+        @foreach (var l in letters)
+        {
+            var c = l;
+            <button class="@(X.Letter == c ? "on" : "")" aria-pressed="@(X.Letter == c)" @onclick="() => Set(() => X.Letter = X.Letter == c ? string.Empty : c)">@c</button>
+        }
+    </div>
+</div>
+@code {
+    [Parameter] public string Tab { get; set; } = "Songs";
+    [Parameter] public EventCallback Changed { get; set; }
+    static readonly string[] letters = ["#", .. "ABCDEFGHIJKLMNOPQRSTUVWXYZ".Select(c => c.ToString())];
+    (List<string> Genres, List<string> Decades) choices = ([], []);
+    Library? built;
+
+    string Placeholder => Tab switch { "Songs" => "Filter songs by title, artist or album", "Albums" => "Filter albums by name or artist", "Artists" => "Filter artists", _ => "Filter genres" };
+
+    (string, string)[] SortOptions => Tab switch
+    {
+        "Songs" => [("az", "Title A–Z"), ("za", "Title Z–A"), ("artist", "Artist"), ("new", "Recently added"), ("year", "Newest year"), ("oldest", "Oldest year"), ("long", "Longest")],
+        "Albums" => [("az", "Name A–Z"), ("za", "Name Z–A"), ("artist", "Artist"), ("new", "Recently added"), ("year", "Newest year"), ("oldest", "Oldest year"), ("long", "Most songs")],
+        "Artists" => [("az", "Name A–Z"), ("za", "Name Z–A"), ("long", "Most songs")],
+        _ => [("az", "Name A–Z"), ("za", "Name Z–A"), ("long", "Most songs")],
+    };
+
+    protected override void OnParametersSet()
+    {
+        if (!ReferenceEquals(built, Lib)) { built = Lib; choices = ExploreState.Choices(Lib); }
+        // a sort that this tab doesn't have falls back to A–Z
+        if (!SortOptions.Any(o => o.Item1 == X.Sort)) X.Sort = "az";
+    }
+    protected override bool ShouldRender() { OnParametersSet(); return true; }
+
+    async Task Set(Action change) { change(); X.Touch(); await Changed.InvokeAsync(); }
+}

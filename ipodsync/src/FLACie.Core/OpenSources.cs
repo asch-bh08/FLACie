@@ -121,7 +121,7 @@ public static class OpenSources
     {
         public static async Task<OpenHit?> FindAsync(HttpClient http, string clientId, string artist, string title, int durationSec, CancellationToken ct)
         {
-            var url = $"https://api.jamendo.com/v3.0/tracks/?client_id={Uri.EscapeDataString(clientId)}&format=json&limit=10&audiodownload_allowed=true" +
+            var url = $"https://api.jamendo.com/v3.0/tracks/?client_id={Uri.EscapeDataString(clientId)}&format=json&limit=10" +
                       $"&namesearch={Uri.EscapeDataString(Matching.NormTitle(title))}&artist_name={Uri.EscapeDataString(Matching.PrimaryArtist(artist))}";
             var results = (await GetJson(http, url, ct))?["results"] as JsonArray;
             if (results is null) return null;

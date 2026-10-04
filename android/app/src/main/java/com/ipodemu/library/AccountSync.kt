@@ -234,6 +234,7 @@ class AccountSync(private val app: App) {
         if (p.lidarrUrl.isNotBlank()) services.put("lidarr", JSONObject().put("url", p.lidarrUrl).put("key", p.lidarrApiKey))
         if (p.slskdUrl.isNotBlank()) services.put("slskd", JSONObject().put("url", p.slskdUrl).put("key", p.slskdApiKey).put("path", p.slskdDownloadPath))
         if (p.fileMoverUrl.isNotBlank()) services.put("filemover", JSONObject().put("url", p.fileMoverUrl).put("key", p.fileMoverApiKey))
+        if (p.jamendoClientId.isNotBlank()) services.put("jamendo", JSONObject().put("id", p.jamendoClientId))
         if (p.syncHost.isNotBlank()) services.put("synchost", p.syncHost)
         if (p.flacieWebUrl.isNotBlank()) services.put("flacieweb", JSONObject().put("url", p.flacieWebUrl))
         val lists = JSONArray()
@@ -277,6 +278,7 @@ class AccountSync(private val app: App) {
         take(p.lidarrUrl.isBlank(), "lidarr") { p.lidarrUrl = it.optString("url"); p.lidarrApiKey = it.optString("key") }
         take(p.slskdUrl.isBlank(), "slskd") { p.slskdUrl = it.optString("url"); p.slskdApiKey = it.optString("key"); it.optString("path").takeIf { v -> v.isNotBlank() }?.let { v -> p.slskdDownloadPath = v } }
         take(p.fileMoverUrl.isBlank(), "filemover") { p.fileMoverUrl = it.optString("url"); p.fileMoverApiKey = it.optString("key") }
+        take(p.jamendoClientId.isBlank(), "jamendo") { p.jamendoClientId = it.optString("id") }
         if (p.syncHost.isBlank() && s.optString("synchost").isNotBlank()) p.syncHost = s.optString("synchost")
         s.optJSONObject("flacieweb")?.optString("url")?.takeIf { it.isNotBlank() }?.let { p.flacieWebUrl = it }
         // no Jellyfin connection of its own: the account's server + user token is one

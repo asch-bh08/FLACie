@@ -114,7 +114,7 @@ object OpenSources {
 
     /** Jamendo, only tracks the artist allows to be downloaded (audiodownload_allowed). Needs a free client id. */
     private suspend fun jamendo(clientId: String, artist: String, title: String, durationSec: Int): OpenHit? {
-        val url = "https://api.jamendo.com/v3.0/tracks/?client_id=${enc(clientId)}&format=json&limit=10&audiodownload_allowed=true" +
+        val url = "https://api.jamendo.com/v3.0/tracks/?client_id=${enc(clientId)}&format=json&limit=10" +
             "&namesearch=${enc(normTitle(title))}&artist_name=${enc(primaryArtist(artist))}"
         val results = (getJson(url) as? JSONObject)?.optJSONArray("results") ?: return null
         for (i in 0 until results.length()) {
@@ -143,4 +143,16 @@ object OpenSources {
         }
         return null
     }
+}
+
+/** Settings > Downloads > Open sources: checks a Jamendo client id by asking the API for one track. */
+suspend fun testJamendoClientId(clientId: String): Pair<Boolean, String?> = withContext(Dispatchers.IO) {
+    try {
+        val c = URL("https://api.jamendo.com/v3.0/tracks/?client_id=${URLEncoder.encode(clientId, "UTF-8")}&format=json&limit=1").openConnection() as HttpURLConnection
+        c.connectTimeout = 8000; c.readTimeout = 12000
+        try {
+            val h = JSONObject(c.inputStream.bufferedReader().readText()).optJSONObject("headers")
+            if (h?.optString("status") == "success") true to null else false to (h?.optString("error_message")?.takeIf { it.isNotBlank() } ?: "Jamendo did not accept that client id")
+        } finally { c.disconnect() }
+    } catch (e: Exception) { false to (e.message ?: "Could not reach Jamendo") }
 }

@@ -20,6 +20,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.ipodemu.library.testJamendoClientId
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +57,10 @@ fun LidarrSetupScreen() {
     var slskdPath by remember { mutableStateOf(app.prefs.slskdDownloadPath) }
     var moverUrl by remember { mutableStateOf(app.prefs.fileMoverUrl) }
     var moverKey by remember { mutableStateOf(app.prefs.fileMoverApiKey) }
+    var jamendoId by remember { mutableStateOf(app.prefs.jamendoClientId) }
+    var jamendoStatus by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
+    var jamendoBusy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val fr = remember { FocusRequester() }
 
     @Composable
@@ -104,7 +111,7 @@ fun LidarrSetupScreen() {
             }
 
             Box(Modifier.padding(top = 8.dp)) { Txt("File mover", size = 16f, weight = FontWeight.Bold) }
-            Txt("Moves finished Soulseek downloads into your music folder.", size = 12f, maxLines = 3)
+            Txt("Moves finished Soulseek downloads into your music folder, and fetches songs from the open sources below.", size = 12f, maxLines = 4)
             field("File mover URL (e.g. https://myserver.example/filemove)", moverUrl, { moverUrl = it })
             field("File mover API key", moverKey, { moverKey = it })
             GlossPill(if (lib.fileMoverConnecting) "Connecting…" else "Connect File Mover", {
@@ -115,6 +122,25 @@ fun LidarrSetupScreen() {
                 lib.fileMoverConnected -> Txt(lib.fileMoverStatus ?: "Connected", size = 13f, color = Color(0xFF7CE0A0))
                 lib.fileMoverStatus != null -> Txt(lib.fileMoverStatus ?: "", size = 13f, color = Color(0xFFFF8080))
             }
+
+            Box(Modifier.padding(top = 8.dp)) { Txt("Open sources", size = 16f, weight = FontWeight.Bold) }
+            Txt("A song Soulseek doesn't have is also looked up on the Internet Archive (live-music and netlabel collections), Audius and Jamendo, and fetched through the file mover. Audius and the Archive need nothing; Jamendo needs a free client id from devportal.jamendo.com and only downloads tracks whose artist allows it.", size = 12f, maxLines = 8)
+            field("Jamendo client id (optional)", jamendoId, { jamendoId = it; jamendoStatus = null })
+            GlossPill(if (jamendoBusy) "Checking…" else if (jamendoId.isBlank()) "Turn Jamendo off" else "Save Jamendo", {
+                if (jamendoBusy) return@GlossPill
+                val id = jamendoId.trim()
+                if (id.isEmpty()) { app.prefs.jamendoClientId = ""; app.library.onServicesChanged?.invoke(); jamendoStatus = true to "Jamendo is off" }
+                else {
+                    jamendoBusy = true
+                    scope.launch {
+                        val (ok, why) = testJamendoClientId(id)
+                        if (ok) { app.prefs.jamendoClientId = id; app.library.onServicesChanged?.invoke(); jamendoStatus = true to "Saved. Jamendo is on" }
+                        else jamendoStatus = false to "Not saved: $why"
+                        jamendoBusy = false
+                    }
+                }
+            })
+            jamendoStatus?.let { (ok, msg) -> Txt(msg, size = 13f, color = if (ok) Color(0xFF7CE0A0) else Color(0xFFFF8080)) }
         }
     }
 }

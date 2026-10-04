@@ -28,6 +28,7 @@
                 <DevicePicker />
                 <VolumeControl />
                 <button class="icon-btn" @onclick="() => open = true" aria-label="Full screen player"><Icon Name="expand" /></button>
+                <button class="icon-btn" @onclick="Player.StopAsync" aria-label="Stop playing and close the player" title="Stop playing"><Icon Name="x" /></button>
             </div>
         </div>
     </section>

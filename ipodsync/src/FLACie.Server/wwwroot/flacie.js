@@ -88,6 +88,8 @@ window.flacie = (() => {
     unstash(key) { try { return localStorage.getItem(key); } catch { return null; } },
     ready() { return audio.readyState >= 3; },
     pause() { audio.pause(); },
+    // the X on the bar: stop and let go of the file
+    stop() { audio.pause(); audio.removeAttribute("src"); audio.load(); document.title = "FLACie"; if ("mediaSession" in navigator) navigator.mediaSession.metadata = null; },
     seek(s) { if (isFinite(s)) audio.currentTime = s; },
     volume(v) {
       if (v === undefined || v === null) return audio.volume;

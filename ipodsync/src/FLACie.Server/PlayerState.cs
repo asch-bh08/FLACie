@@ -265,6 +265,16 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
     [JSInvokable] public Task OnNext() => Next();
     [JSInvokable] public Task OnPrev() => Prev();
 
+    /// <summary>Stops the music and closes the player: the queue is emptied and the bar goes away. It is what the X on the bar does.</summary>
+    public async Task StopAsync()
+    {
+        planning?.Cancel();
+        try { await js.InvokeVoidAsync("flacie.stop"); } catch (Exception) { }
+        Queue = []; order = []; Index = -1; Playing = false; Position = 0; Duration = 0; autoplayNext = []; suggested = []; AutoplayFrom = -1; Context = null;
+        if (stashKey is not null) { try { await js.InvokeVoidAsync("flacie.stash", stashKey, ""); } catch (Exception) { } }
+        Changed?.Invoke();
+    }
+
     public ValueTask DisposeAsync()
     {
         if (connect is not null && ReferenceEquals(connect.Host, this)) connect.Host = null;

@@ -15,7 +15,7 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
     public event Action<UserSession>? Changed;
 
     /// <summary>Reads the file and starts the import. Throws a message-carrying exception if nothing in it looks like songs.</summary>
-    public ImportJob Start(UserSession s, string fileName, byte[] bytes)
+    public ImportJob Start(UserSession s, string fileName, byte[] bytes, bool replace = false)
     {
         List<ImportedPlaylist> lists;
         try { lists = PlaylistImport.Parse(fileName, bytes); }
@@ -23,7 +23,7 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
         if (lists.Count == 0) throw new InvalidDataException("No songs found in that file. It can be an iTunes Library.xml, an M3U playlist, a Spotify CSV, or a text list with one \"Artist - Title\" per line.");
         var job = new ImportJob
         {
-            File = fileName,
+            File = fileName, Replace = replace,
             Lists = lists.Select(l => new ImportList { Name = l.Name, Items = l.Tracks.Select(t => new ImportItem { Artist = t.Artist, Title = t.Title, Album = t.Album }).ToList() }).ToList(),
         };
         var st = states.For(s);
@@ -97,7 +97,7 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
 
     async Task HandleAsync(UserSession s, ImportJob job, ImportList list, ImportItem item, CancellationToken ct)
     {
-        var plId = EnsurePlaylist(s, list);
+        var plId = EnsurePlaylist(s, list, job.Replace);
         var have = s.Library.Find(item.Title, item.Artist);
         if (have is not null) { s.AddToPlaylist(plId, have); item.State = "owned"; Touch(s, job); return; }
         if (!s.Services.Any) { item.State = "failed"; item.Message = "Downloads aren't set up"; Touch(s, job); return; }
@@ -116,12 +116,22 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
     }
 
     readonly ConcurrentDictionary<string, object> listLocks = new();
-    string EnsurePlaylist(UserSession s, ImportList list)
+    static readonly System.Text.RegularExpressions.Regex QualityTag = new(@"s*((f?lac|alac|mp3|aac|wav|ogg|opus))s*$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    static string Base(string n) => QualityTag.Replace(n, "").Trim().ToLowerInvariant();
+
+    string EnsurePlaylist(UserSession s, ImportList list, bool replace)
     {
         lock (listLocks.GetOrAdd(s.Id, _ => new object()))
         {
             if (list.PlaylistId is { } id && s.Playlists.Any(p => p.Id == id)) return id;
             var existing = s.Playlists.FirstOrDefault(p => p.Name.Equals(list.Name, StringComparison.OrdinalIgnoreCase));
+            if (existing is null && replace)
+            {
+                // "2026" in the account and "2026(LAC)" in the file are the same playlist: it takes the file's name and exactly the file's songs
+                existing = s.Playlists.FirstOrDefault(p => Base(p.Name) == Base(list.Name));
+                if (existing is not null) s.RenamePlaylist(existing.Id, list.Name);
+            }
+            if (existing is not null && replace) s.ReplacePlaylistTracks(existing.Id, []);
             list.PlaylistId = (existing ?? s.CreatePlaylist(list.Name)).Id;
             return list.PlaylistId;
         }

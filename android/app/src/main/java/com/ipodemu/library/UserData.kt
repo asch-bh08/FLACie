@@ -9,7 +9,7 @@ import org.json.JSONObject
 import java.io.File
 
 /** [mtime] = last edit (newest wins when two devices' copies are merged); [jfId] = the mirrored Jellyfin playlist. */
-class UserPlaylist(val id: String, var name: String, val paths: MutableList<String>, var mtime: Long = System.currentTimeMillis(), var jfId: String? = null, var ip: String? = null)
+class UserPlaylist(val id: String, var name: String, val paths: MutableList<String>, var mtime: Long = System.currentTimeMillis(), var jfId: String? = null)
 
 /** Favourites, hand-made playlists and play history. Persisted as JSON; [rev] lets Compose observe changes. */
 class UserData(ctx: Context) {
@@ -96,8 +96,8 @@ class UserData(ctx: Context) {
             if (r.id in deletedPlaylists) continue
             r.tracks.forEach { (p, t, a) -> note(p, t, a) }
             val mine = playlists.firstOrNull { it.id == r.id }
-            if (mine == null) playlists.add(UserPlaylist(r.id, r.name, r.tracks.mapTo(ArrayList()) { it.first }, r.mtime, r.jfId, r.ip))
-            else if (r.mtime > mine.mtime) { mine.name = r.name; mine.paths.clear(); mine.paths.addAll(r.tracks.map { it.first }); mine.mtime = r.mtime; mine.jfId = r.jfId ?: mine.jfId; mine.ip = r.ip ?: mine.ip }
+            if (mine == null) playlists.add(UserPlaylist(r.id, r.name, r.tracks.mapTo(ArrayList()) { it.first }, r.mtime, r.jfId))
+            else if (r.mtime > mine.mtime) { mine.name = r.name; mine.paths.clear(); mine.paths.addAll(r.tracks.map { it.first }); mine.mtime = r.mtime; mine.jfId = r.jfId ?: mine.jfId }
             else if (mine.jfId == null) mine.jfId = r.jfId
         }
         changed(sync = false)
@@ -114,30 +114,10 @@ class UserData(ctx: Context) {
             val paths = tracks.mapTo(ArrayList()) { it.first }
             val mine = playlists.firstOrNull { it.jfId == jf }
             if (mine == null) playlists.add(UserPlaylist("jf$jf", name, paths, syncedAt.coerceAtLeast(1), jf))
-            else if (mine.mtime <= syncedAt && mine.ip == null) { mine.name = name; mine.paths.clear(); mine.paths.addAll(paths) }
+            else if (mine.mtime <= syncedAt ) { mine.name = name; mine.paths.clear(); mine.paths.addAll(paths) }
         }
         changed(sync = false)
     }
-    /** Makes the account's copy of [device]'s playlists match the iPod (see IpodMirror). Returns how many playlists changed. */
-    fun mirrorIpod(device: String, snaps: List<IpodSnap>, resolve: (String, String) -> String?): Int {
-        val plans = IpodMirror.plan(device, snaps, resolve)
-        var changed = 0
-        for (p in plans) {
-            p.meta.forEach { (path, m) -> meta[path] = m }
-            val mine = IpodMirror.target(playlists, p)
-            if (mine == null) { playlists.add(UserPlaylist(p.id, p.name, p.paths.toMutableList(), System.currentTimeMillis(), null, p.key)); deletedPlaylists.remove(p.id); changed++ }
-            else if (mine.name != p.name || mine.paths != p.paths || mine.ip != p.key) {
-                mine.name = p.name; mine.paths.clear(); mine.paths.addAll(p.paths); mine.ip = p.key; mine.mtime = System.currentTimeMillis(); changed++
-            }
-        }
-        // on this iPod before, gone now
-        val keep = plans.map { it.key }.toSet()
-        val gone = playlists.filter { it.ip != null && it.ip!!.startsWith("$device|") && it.ip !in keep }
-        for (g in gone) { g.jfId?.let { deletedPlaylistJf.add(it) }; playlists.remove(g); deletedPlaylists.add(g.id); changed++ }
-        if (changed > 0) changed()
-        return changed
-    }
-
     private fun changed(sync: Boolean = true) { rev++; save(); if (sync) onChanged?.invoke() }
 
     private fun load() {
@@ -156,7 +136,7 @@ class UserData(ctx: Context) {
                     val p = a.getJSONObject(i)
                     val paths = ArrayList<String>()
                     p.getJSONArray("p").let { pa -> for (j in 0 until pa.length()) paths.add(pa.getString(j)) }
-                    playlists.add(UserPlaylist(p.getString("id"), p.getString("n"), paths, p.optLong("m", 0L), p.optString("jf").ifBlank { null }, p.optString("ip").ifBlank { null }))
+                    playlists.add(UserPlaylist(p.getString("id"), p.getString("n"), paths, p.optLong("m", 0L), p.optString("jf").ifBlank { null }))
                 }
             }
         } catch (_: Exception) {}
@@ -178,7 +158,7 @@ class UserData(ctx: Context) {
                     o.put("recent", JSONArray(recents.toList()))
                     o.put("dl", JSONArray().also { a -> downloads.toList().forEach { d -> a.put(JSONObject().put("a", d.artist).put("t", d.title).put("al", d.album).put("p", d.path).put("w", d.time).put("s", d.source)) } })
                     o.put("plays", JSONObject().also { p -> plays.toMap().forEach { (k, v) -> p.put(k, v) } })
-                    o.put("lists", JSONArray().also { a -> playlists.forEach { a.put(JSONObject().put("id", it.id).put("n", it.name).put("p", JSONArray(it.paths.toList())).put("m", it.mtime).put("jf", it.jfId ?: "").put("ip", it.ip ?: "")) } })
+                    o.put("lists", JSONArray().also { a -> playlists.forEach { a.put(JSONObject().put("id", it.id).put("n", it.name).put("p", JSONArray(it.paths.toList())).put("m", it.mtime).put("jf", it.jfId ?: "")) } })
                     o.put("meta", JSONObject().also { m -> meta.toMap().forEach { (k, v) -> m.put(k, JSONArray().put(v.first).put(v.second)) } })
                     o.put("deleted", JSONArray(deletedPlaylists.toList()))
                     o.put("deljf", JSONArray(deletedPlaylistJf.toList()))

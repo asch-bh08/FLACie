@@ -81,7 +81,7 @@
         <div class="inline"><input id="minfree" type="number" min="0" max="2000" @bind="State.MinFreeGb" @bind:after="Persist" /><span class="hint">GB free</span></div>
     </div>
     <label class="switch-row">
-        <span><b>Daily charts</b><small>Once a day, download new songs from the charts you choose (if there is room). Nothing already on your storage is ever deleted.</small></span>
+        <span><b>Daily charts</b><small>Every day, add new songs from the charts you choose to your library, like a Radarr list, while there is room. Nothing already on your storage is ever deleted.</small></span>
         <input type="checkbox" role="switch" checked="@State.Charts.Enabled" @onchange="e => { State.Charts.Enabled = (bool)(e.Value ?? false); Persist(); }" />
         <i class="switch" aria-hidden="true"></i>
     </label>
@@ -102,7 +102,7 @@
             <button class="btn" @onclick="RunCharts" disabled="@chartsBusy">@(chartsBusy ? "Running…" : "Run now")</button>
             <span class="hint">@(State.Charts.LastRun.Length > 0 ? "Last run " + State.Charts.LastRun + ": " + State.Charts.LastNote : "Not run yet. It runs by itself once a day.")</span>
         </div>
-        <p class="hint">The lists appear as playlists called "Charts: …". The server must be running for it to happen, and it works for accounts that have signed in since it last started.</p>
+        <p class="hint">New songs are added to your library every day (lossless where Soulseek has it, about 25 to 35 MB each, so roughly @((State.Charts.Lists.Count * State.Charts.PerList * 30 / 1024.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)) GB a day, @((State.Charts.Lists.Count * State.Charts.PerList * 30 * 30 / 1024.0).ToString("0", System.Globalization.CultureInfo.InvariantCulture)) GB a month with these settings). The lists also appear as playlists called "Charts: …". It runs on its own, even after the server restarts.</p>
     }
 </section>
 

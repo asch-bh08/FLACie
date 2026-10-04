@@ -40,13 +40,13 @@ public static class ApiEndpoints
 
         app.MapGet("/api/ping", () => Results.Ok(new { name = "FLACie Web", import = true }));
 
-        app.MapPost("/api/import", async (HttpContext ctx, string? name, SessionStore store, JellyfinClient jf, ImportManager imports) =>
+        app.MapPost("/api/import", async (HttpContext ctx, string? name, bool? replace, SessionStore store, JellyfinClient jf, ImportManager imports) =>
         {
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
             if (ctx.Request.ContentLength is > 20 * 1024 * 1024) return Results.BadRequest(new { error = "That file is too big (limit 20 MB)." });
             using var ms = new MemoryStream();
             await ctx.Request.Body.CopyToAsync(ms);
-            try { return Results.Ok(Summary(imports.Start(s, string.IsNullOrWhiteSpace(name) ? "playlist.txt" : Path.GetFileName(name), ms.ToArray()))); }
+            try { return Results.Ok(Summary(imports.Start(s, string.IsNullOrWhiteSpace(name) ? "playlist.txt" : Path.GetFileName(name), ms.ToArray(), replace == true))); }
             catch (InvalidDataException e) { return Results.BadRequest(new { error = e.Message }); }
         }).DisableAntiforgery();
 

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using FLACie.Core;
@@ -28,6 +29,8 @@ public sealed class ImportJob
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string File { get; set; } = "";
+    /// <summary>Playlists that already exist (same name, ignoring a quality tag such as "(FLAC)") are renamed to the file's name and made to hold exactly the file's songs.</summary>
+    public bool Replace { get; set; }
     public DateTime Created { get; set; } = DateTime.UtcNow;
     /// <summary>running, waiting (for disk space), done, cancelled</summary>
     public string State { get; set; } = "running";
@@ -40,7 +43,7 @@ public sealed class ImportJob
 
 public sealed class ChartSettings
 {
-    public bool Enabled { get; set; }
+    public bool Enabled { get; set; } = true;
     /// <summary>Deezer chart ids: 0 overall, 132 Pop, 116 Rap/Hip Hop, 152 Rock, 113 Dance, 165 R&amp;B.</summary>
     public List<int> Lists { get; set; } = [0];
     public int PerList { get; set; } = 10;
@@ -58,9 +61,11 @@ public sealed class UserState
     public ChartSettings Charts { get; set; } = new();
     public List<ImportJob> Imports { get; set; } = [];
     public HashSet<string> ChartSeen { get; set; } = [];
+    /// <summary>The Jellyfin sign-in, encrypted with the server's keys, so daily jobs can run after a restart before anyone opens the page.</summary>
+    public string? Account { get; set; }
 }
 
-public sealed class UserStateStore(DataPaths paths)
+public sealed class UserStateStore(DataPaths paths, Microsoft.AspNetCore.DataProtection.IDataProtectionProvider dp)
 {
     readonly ConcurrentDictionary<string, UserState> cache = new();
     static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
@@ -72,6 +77,36 @@ public sealed class UserStateStore(DataPaths paths)
         return new UserState();
     });
 
+
+    /// <summary>Keeps this account's Jellyfin sign-in (encrypted) so the daily chart download can run after a restart.</summary>
+    public void Remember(UserSession s)
+    {
+        if (s.Jellyfin is not { } j) return;
+        var st = For(s);
+        var protectedJson = dp.CreateProtector("FLACie.Account").Protect(JsonSerializer.Serialize(new[] { j.Server, j.UserId, j.UserName, j.Token }));
+        if (st.Account == protectedJson) return;
+        st.Account = protectedJson; Save(s);
+    }
+
+    /// <summary>The Jellyfin accounts remembered by earlier runs.</summary>
+    public List<JellyfinAccount> Remembered()
+    {
+        var res = new List<JellyfinAccount>();
+        var dir = Path.Combine(paths.Root, "users");
+        if (!Directory.Exists(dir)) return res;
+        foreach (var f in Directory.EnumerateFiles(dir, "*.json"))
+        {
+            try
+            {
+                var st = JsonSerializer.Deserialize<UserState>(File.ReadAllText(f));
+                if (st?.Account is null || !st.Charts.Enabled) continue;
+                var a = JsonSerializer.Deserialize<string[]>(dp.CreateProtector("FLACie.Account").Unprotect(st.Account));
+                if (a is { Length: 4 }) res.Add(new JellyfinAccount(a[0], a[1], a[2], a[3]));
+            }
+            catch (Exception) { }
+        }
+        return res;
+    }
     readonly object gate = new();
     public void Save(UserSession s)
     {

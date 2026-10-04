@@ -183,6 +183,13 @@ public sealed class UserSession
         Changed?.Invoke();
     }
 
+
+    /// <summary>Renames a playlist.</summary>
+    public void RenamePlaylist(string id, string name)
+    {
+        lock (listLock) { if (FindPlaylist(id) is { } o) { o["n"] = name; o["m"] = Now(); } }
+        Changed?.Invoke();
+    }
     /// <summary>The playlist with this name (any case), made if it isn't there.</summary>
     public Playlist PlaylistNamed(string name)
     {

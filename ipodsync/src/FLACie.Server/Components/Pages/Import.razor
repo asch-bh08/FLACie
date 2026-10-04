@@ -8,6 +8,7 @@
 <section class="panel wide">
     <h2>Drop in a playlist or library file</h2>
     <p class="hint">An iTunes <code>Library.xml</code>, an M3U playlist, a Spotify CSV, or a text file. In text, a line starting with <code>##</code> begins a playlist and every other line is <code>Artist - Title</code>. This server does the searching and downloading in the background, so it keeps going when you close this page and nothing is downloaded to this device. Songs already in your library are just added.</p>
+    <label class="switch-row"><span><b>Replace playlists with the same name</b><small>Existing playlists (a quality tag such as "(FLAC)" is ignored) are renamed to the file's name and made to hold exactly its songs</small></span><input type="checkbox" role="switch" checked="@replace" @onchange="e => replace = (bool)(e.Value ?? false)" /><i class="switch" aria-hidden="true"></i></label>
     <div class="drop">
         <InputFile OnChange="Upload" accept=".xml,.m3u,.m3u8,.csv,.txt,.text" aria-label="Choose a playlist file" />
         @if (busy) { <span class="hint">Reading…</span> }
@@ -47,7 +48,7 @@
 @code {
     [Inject] ImportManager Imports { get; set; } = default!;
     [Inject] UserStateStore States { get; set; } = default!;
-    bool busy; string? error;
+    bool busy, replace; string? error;
     Action<UserSession>? onChange; Timer? tick;
     List<ImportJob> Jobs => States.For(Session).Imports.ToList();
 
@@ -67,7 +68,7 @@
             var f = e.File;
             using var ms = new MemoryStream();
             await using (var s = f.OpenReadStream(20 * 1024 * 1024)) await s.CopyToAsync(ms);
-            Imports.Start(Session, f.Name, ms.ToArray());
+            Imports.Start(Session, f.Name, ms.ToArray(), replace);
         }
         catch (InvalidDataException ex) { error = ex.Message; }
         catch (IOException) { error = "That file is too big (limit 20 MB)."; }

@@ -14,6 +14,8 @@ public sealed class ChartsService(SessionStore sessions, UserStateStore states, 
     protected override async Task ExecuteAsync(CancellationToken stop)
     {
         await Task.Delay(TimeSpan.FromSeconds(45), stop);
+        // accounts that turned this on and signed in before this start: bring their sessions back so the daily download runs without a visit
+        foreach (var j in states.Remembered()) { try { sessions.For(SessionStore.Principal(j, null)); } catch (Exception e) { log.LogWarning(e, "Restoring a remembered account failed"); } }
         while (!stop.IsCancellationRequested)
         {
             foreach (var s in sessions.Active.ToList())

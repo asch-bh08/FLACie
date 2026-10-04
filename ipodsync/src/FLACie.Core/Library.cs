@@ -58,6 +58,17 @@ public sealed class Library
     /// <summary>This library's copy of a song by title and artist (the same song on another release counts), or null.</summary>
     public Track? Find(string title, string artist) => byMatch.GetValueOrDefault(Matching.MatchKey(title, artist));
 
+    /// <summary>A song with this title whose credit is missing or the same artist spelled another way (a file with no artist tag), when the exact match finds nothing.</summary>
+    public Track? FindLoose(string title, string artist)
+    {
+        var nt = Matching.NormTitle(title); var pa = Matching.PrimaryArtist(artist);
+        return Songs.Where(t => Matching.NormTitle(t.Title) == nt).FirstOrDefault(t =>
+        {
+            var a = Matching.PrimaryArtist(t.Artist);
+            return a.Length == 0 || a is "unknown artist" or "unknown" || (pa.Length > 0 && (a.Contains(pa) || pa.Contains(a)));
+        });
+    }
+
     /// <summary>Jellyfin songs, then NAS songs Jellyfin doesn't have, de-duplicated.</summary>
     public static Library Merge(IReadOnlyList<Track> jellyfin, IReadOnlyList<Track> nas)
     {

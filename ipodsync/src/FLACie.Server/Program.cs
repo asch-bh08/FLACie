@@ -90,6 +90,9 @@ if (builder.Configuration["FLACIE_DEBUG"] == "1")
             new Microsoft.AspNetCore.Authentication.AuthenticationProperties { IsPersistent = true, ExpiresUtc = DateTimeOffset.UtcNow.AddDays(30) });
         return Results.Redirect("/");
     });
+    // the signed-in user's library as JSON (title, artist, album), to compare another folder against it
+    app.MapGet("/debug/library", (HttpContext ctx, SessionStore store) =>
+        Results.Json(store.For(ctx.User).Library.Songs.Select(t => new { t = t.Title, a = t.Artist, al = t.Album, p = t.Path }))).RequireAuthorization();
     app.MapMethods("/debug/jf", ["GET", "POST"], async (HttpContext ctx, string path, SessionStore store, JellyfinClient jf) =>
     {
         var a = store.For(ctx.User).Jellyfin; if (a is null) return Results.NotFound();

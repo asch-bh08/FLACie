@@ -99,7 +99,7 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
     async Task HandleAsync(UserSession s, ImportJob job, ImportList list, ImportItem item, CancellationToken ct)
     {
         var plId = EnsurePlaylist(s, list, job.Replace);
-        var have = s.Library.Find(item.Title, item.Artist);
+        var have = s.Library.Find(item.Title, item.Artist) ?? s.Library.FindLoose(item.Title, item.Artist);
         if (have is not null) { s.AddToPlaylist(plId, have); item.State = "owned"; Touch(s, job); return; }
         if (!s.Services.Any) { item.State = "failed"; item.Message = "Downloads aren't set up"; Touch(s, job); return; }
         // out of room: hold everything until there is some, instead of failing the rest of the file

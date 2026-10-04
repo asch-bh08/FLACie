@@ -221,7 +221,7 @@ class Library(ctx: Context, val art: ArtCache) {
     }
 
     /** Whether anything can download here: Soulseek with the file mover, or Lidarr. */
-    fun downloadsConfigured() = (prefs.slskdUrl.isNotBlank() && prefs.fileMoverUrl.isNotBlank()) || prefs.lidarrUrl.isNotBlank()
+    fun downloadsConfigured() = (prefs.slskdUrl.isNotBlank() && prefs.fileMoverUrl.isNotBlank()) || prefs.lidarrUrl.isNotBlank() || (prefs.fileMoverUrl.isNotBlank() && prefs.fileMoverApiKey.isNotBlank())
 
     /** A song with this title whose credit is missing or the same artist spelled another way (a file with no artist tag), when the exact match finds nothing. */
     fun findLoose(title: String, artist: String): Track? {

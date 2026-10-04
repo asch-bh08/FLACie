@@ -174,6 +174,10 @@ class Prefs(ctx: Context) {
     var fileMoverApiKey: String
         get() = sp.getString("filemoverkey", "") ?: ""
         set(v) = sp.edit().putString("filemoverkey", v).apply()
+    /** Free Jamendo client id for the open download sources (blank = Jamendo is skipped). */
+    var jamendoClientId: String
+        get() = sp.getString("jamendoclientid", "") ?: ""
+        set(v) = sp.edit().putString("jamendoclientid", v).apply()
 
 
     /** Look & feel: 0 = Modern (the default: a flat, YT Music/Spotify-style player), 1 = iPod (the glossy iPod-OS

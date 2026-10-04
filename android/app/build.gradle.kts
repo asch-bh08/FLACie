@@ -9,8 +9,8 @@ android {
         applicationId = "com.ipodemu"
         minSdk = 30
         targetSdk = 33
-        versionCode = 25
-        versionName = "1.0-beta11"
+        versionCode = 26
+        versionName = "1.0-beta12"
     }
     buildTypes {
         release {
@@ -50,4 +50,5 @@ dependencies {
     // SMB/CIFS network-share browsing for the NAS source (pure-Java SMB2/3 client, no native code).
     implementation("eu.agno3.jcifs:jcifs-ng:2.1.10")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20231013")
 }

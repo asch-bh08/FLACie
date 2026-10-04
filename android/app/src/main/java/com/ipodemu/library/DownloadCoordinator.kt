@@ -37,6 +37,8 @@ class DownloadCoordinator(private val prefs: Prefs) {
 
     private val soulseekReady get() = prefs.slskdUrl.isNotBlank() && prefs.slskdApiKey.isNotBlank() && prefs.fileMoverUrl.isNotBlank() && prefs.fileMoverApiKey.isNotBlank()
     private val lidarrReady get() = prefs.lidarrUrl.isNotBlank() && prefs.lidarrApiKey.isNotBlank()
+    /** The open sources (Internet Archive, Jamendo, Audius) only need the file mover to fetch and file what they find. */
+    private val openReady get() = prefs.fileMoverUrl.isNotBlank() && prefs.fileMoverApiKey.isNotBlank()
 
     /** One song. [durationMs] (from the catalog) rules out peers' files of a different length (a live take, a cover). */
     suspend fun download(artist: String, title: String, album: String, durationMs: Long = 0, onUpdate: (DownloadStatus) -> Unit) {
@@ -46,10 +48,36 @@ class DownloadCoordinator(private val prefs: Prefs) {
             else if (!tryLidarr(artist, title, album, onUpdate)) onUpdate(DownloadStatus(DownloadStage.FAILED, "Not found on Lidarr"))
             return
         }
-        if (soulseekReady && trySoulseek(artist, title, album, (durationMs / 1000).toInt(), onUpdate)) return
-        if (!lidarrReady) { onUpdate(DownloadStatus(DownloadStage.FAILED, if (soulseekReady) "Not found on Soulseek" else "Downloads aren't set up (Settings > Lidarr)")); return }
-        if (!tryLidarr(artist, title, album, onUpdate)) onUpdate(DownloadStatus(DownloadStage.FAILED, "Not found on Soulseek or Lidarr"))
+        // the open sources look for the song while Soulseek searches; they only find, and download nothing unless Soulseek came up empty
+        coroutineScope {
+            val open = if (openReady) async { OpenSources.find(artist, title, (durationMs / 1000).toInt(), prefs.jamendoClientId) } else null
+            try {
+                if (soulseekReady && trySoulseek(artist, title, album, (durationMs / 1000).toInt(), onUpdate)) return@coroutineScope
+                // Soulseek had nothing: an open source that already found it is used, one still looking gets a few seconds (never longer before Lidarr)
+                if (open != null && tryOpen(open, artist, title, album, durationMs, onUpdate)) return@coroutineScope
+                if (!lidarrReady) { onUpdate(DownloadStatus(DownloadStage.FAILED, if (soulseekReady) "Not found on Soulseek or the open sources" else if (openReady) "Not found on the open sources" else "Downloads aren't set up (Settings > Lidarr)")); return@coroutineScope }
+                if (!tryLidarr(artist, title, album, onUpdate)) onUpdate(DownloadStatus(DownloadStage.FAILED, "Not found on Soulseek, the open sources or Lidarr"))
+            } finally { open?.cancel() }
+        }
     }
+
+    private suspend fun tryOpen(open: kotlinx.coroutines.Deferred<OpenHit?>, artist: String, title: String, album: String, durationMs: Long, onUpdate: (DownloadStatus) -> Unit): Boolean = try {
+        val hit = withTimeoutOrNull(if (soulseekReady) 4_000L else 30_000L) { open.await() }
+        if (hit == null) false else {
+            onUpdate(DownloadStatus(DownloadStage.DOWNLOADING, "Downloading from ${hit.label}...", hit.source))
+            val dest = listOfNotNull(prefs.nasFolder.trim('/').ifBlank { null }, clean(artist)).joinToString("/") + "/${clean(artist)} - ${clean(title)}.${hit.ext}"
+            onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library...", hit.source))
+            fileMover.fetch(prefs.fileMoverUrl, prefs.fileMoverApiKey, hit.url, dest)
+            val alb = album.ifBlank { withContext(Dispatchers.IO) { CoverLookup.song(artist, title) }?.album.orEmpty() }
+            val track = Track(
+                path = "${prefs.fileMoverUrl.trimEnd('/')}/file?path=${URLEncoder.encode(dest, "UTF-8")}", title = title, artist = artist,
+                album = alb, albumArtist = artist, genre = "", trackNo = 0, discNo = 0, durationMs = if (durationMs > 0) durationMs else hit.durationSec * 1000L, year = 0,
+                isMusic = true, artKey = CoverLookup.key(artist, alb, title), mtime = System.currentTimeMillis(), size = 0, source = TrackSource.CLOUD,
+            )
+            finishWithJellyfinScan(artist, onUpdate, hit.source, title, track)
+            true
+        }
+    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { false }
 
     /** A whole album or EP: one peer's folder where possible, missing songs one by one; Lidarr if Soulseek finds nothing. */
     suspend fun downloadAlbum(album: WebCatalog.Album, onUpdate: (DownloadStatus) -> Unit) {

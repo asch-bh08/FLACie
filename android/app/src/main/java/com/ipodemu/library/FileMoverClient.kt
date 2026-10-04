@@ -32,10 +32,17 @@ class FileMoverClient {
         Unit
     }
 
-    private fun postForCode(url: String, apiKey: String, body: JSONObject): Int {
-        val conn = URL("${url.trimEnd('/')}/move").openConnection() as HttpURLConnection
+    /** Asks the service to download a public https [source] file straight into its root at [to] (the open sources: Internet Archive, Jamendo, Audius). */
+    suspend fun fetch(url: String, apiKey: String, source: String, to: String) = withContext(Dispatchers.IO) {
+        val code = postForCode(url, apiKey, JSONObject().put("url", source).put("to", to), "fetch", readTimeoutMs = 180_000)
+        if (code != 200) throw IOException("fetch failed (HTTP $code)")
+        Unit
+    }
+
+    private fun postForCode(url: String, apiKey: String, body: JSONObject, path: String = "move", readTimeoutMs: Int = 30000): Int {
+        val conn = URL("${url.trimEnd('/')}/$path").openConnection() as HttpURLConnection
         conn.connectTimeout = 5000
-        conn.readTimeout = 30000
+        conn.readTimeout = readTimeoutMs
         conn.requestMethod = "POST"
         conn.doOutput = true
         conn.setRequestProperty("X-Api-Key", apiKey)

@@ -239,7 +239,7 @@ class AccountSync(private val app: App) {
         val lists = JSONArray()
         synchronized(ud) {
             ud.playlists.forEach { pl ->
-                lists.put(JSONObject().put("id", pl.id).put("n", pl.name).put("m", pl.mtime).put("jf", pl.jfId ?: JSONObject.NULL)
+                lists.put(JSONObject().put("id", pl.id).put("n", pl.name).put("m", pl.mtime).put("jf", pl.jfId ?: JSONObject.NULL).put("ip", pl.ip ?: JSONObject.NULL)
                     .put("tracks", JSONArray().also { a -> pl.paths.forEach { a.put(meta(it)) } }))
             }
         }
@@ -289,7 +289,7 @@ class AccountSync(private val app: App) {
             val o = pls.getJSONObject(i)
             val tr = o.optJSONArray("tracks") ?: JSONArray()
             RemotePlaylist(o.getString("id"), o.optString("n"), o.optLong("m"), if (o.isNull("jf")) null else o.optString("jf").ifBlank { null },
-                List(tr.length()) { j -> tr.getJSONObject(j).let { Triple(it.optString("p"), it.optString("t"), it.optString("a")) } })
+                List(tr.length()) { j -> tr.getJSONObject(j).let { Triple(it.optString("p"), it.optString("t"), it.optString("a")) } }, if (o.isNull("ip")) null else o.optString("ip").ifBlank { null })
         }
         val deleted = r.optJSONArray("deleted")?.let { a -> List(a.length()) { a.getString(it) } } ?: emptyList()
         // old on-device playlists hidden on another install stay hidden here
@@ -320,7 +320,7 @@ class AccountSync(private val app: App) {
         } catch (_: Exception) { }
     }
 
-    class RemotePlaylist(val id: String, val name: String, val mtime: Long, val jfId: String?, val tracks: List<Triple<String, String, String>>)
+    class RemotePlaylist(val id: String, val name: String, val mtime: Long, val jfId: String?, val tracks: List<Triple<String, String, String>>, val ip: String? = null)
 
     // ---- Jellyfin playlist mirror --------------------------------------------------------------------------------
 

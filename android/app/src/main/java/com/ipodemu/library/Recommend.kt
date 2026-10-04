@@ -68,3 +68,75 @@ object Recommender {
 
     fun find(id: String, lib: Library, ud: UserData): Mix? = mixes(lib, ud).firstOrNull { it.id == id }
 }
+
+/** One row on Home: songs or albums. */
+class HomeShelf(val id: String, val title: String, val subtitle: String, val tracks: List<Track> = emptyList(), val albums: List<Group> = emptyList())
+
+/**
+ * Home the way YouTube Music lays it out, the same shelves as FLACie Web (ipodsync/src/FLACie.Core/Home.cs): Listen again, Quick picks, a Daily
+ * Mix that changes every hour and cycles through moods and genres, mood and genre rows, Albums for you. Seeded by the hour / the day, so a shelf is
+ * steady while you look at it and new picks turn up in the next slot.
+ */
+object HomeShelves {
+    class Mood(val name: String, val sub: String, val genres: List<String>)
+    val moods = listOf(
+        Mood("Relax", "Slow it down", listOf("ambient", "chill", "lounge", "jazz", "acoustic", "folk", "classical", "soul", "easy", "lo-fi", "lofi", "downtempo", "new age", "bossa", "piano", "instrumental", "singer", "soft")),
+        Mood("Workout", "Keep moving", listOf("hip hop", "hip-hop", "rap", "trap", "dance", "electronic", "edm", "house", "techno", "drum", "metal", "punk", "hardcore", "workout", "rock", "hardstyle")),
+        Mood("Party", "Turn it up", listOf("dance", "pop", "disco", "funk", "reggaeton", "latin", "house", "club", "r&b", "party", "hip hop", "electro")),
+        Mood("Feel good", "Good vibes", listOf("pop", "funk", "soul", "reggae", "disco", "indie", "happy", "summer", "ska")),
+        Mood("Late night", "After dark", listOf("r&b", "rnb", "hip hop", "trap", "soul", "chill", "trip", "downtempo", "alternative", "indie")),
+        Mood("Focus", "Head down", listOf("instrumental", "classical", "ambient", "post-rock", "electronic", "lo-fi", "lofi", "piano", "study")),
+    )
+    private fun inMood(t: Track, m: Mood) = t.genre.isNotEmpty() && m.genres.any { t.genre.contains(it, true) }
+    fun slot(nowMs: Long, hours: Int = 1) = nowMs / (3_600_000L * hours)
+    private fun <T> Iterable<T>.seeded(seed: Long) = shuffled(java.util.Random(seed))
+    private fun spread(tracks: Iterable<Track>, per: Int, take: Int): List<Track> {
+        val seen = HashMap<String, Int>(); val out = ArrayList<Track>()
+        for (t in tracks) { val a = primaryArtist(t.artist); val n = (seen[a] ?: 0) + 1; seen[a] = n; if (n <= per) out.add(t); if (out.size >= take) break }
+        return out
+    }
+
+    fun build(lib: Library, ud: UserData, nowMs: Long = System.currentTimeMillis()): List<HomeShelf> {
+        val songs = lib.songs().filter { it.isMusic }
+        if (songs.isEmpty()) return emptyList()
+        val by = lib.byPath()
+        val out = ArrayList<HomeShelf>()
+        val s = slot(nowMs); val day = slot(nowMs, 24)
+        val listen = ArrayList<Track>(); val listenKeys = HashSet<String>()
+        for (p in ud.recents) { val t = by[p] ?: lib.resolve(p, ud.meta[p]) ?: continue; if (listenKeys.add(t.matchKey)) listen.add(t); if (listen.size >= 16) break }
+        val plays = HashMap<String, Int>()
+        ud.plays.forEach { (p, n) -> by[p]?.let { plays.merge(it.matchKey, n, Int::plus) } }
+        val favKeys = ud.favorites.mapNotNull { by[it]?.matchKey }.toHashSet()
+        val listKeys = ud.playlists.flatMap { it.paths }.mapNotNull { by[it]?.matchKey }.toHashSet()
+        fun taste(t: Track): Int { val k = t.matchKey; return (plays[k] ?: 0) * 2 + (if (k in favKeys) 3 else 0) + (if (k in listKeys) 1 else 0) }
+
+        if (listen.isNotEmpty()) out.add(HomeShelf("listen-again", "Listen again", "Your recent plays", listen))
+        val again = listen.take(8).map { it.matchKey }.toHashSet()
+        val picks = spread(songs.filter { it.matchKey !in again && (it.durationMs == 0L || it.durationMs > 40_000) }.seeded(s * 31 + 7).sortedByDescending { taste(it) }, 2, 20)
+        if (picks.isNotEmpty()) out.add(HomeShelf("quick-picks", "Quick picks", "Songs to start with, based on what you play", picks))
+
+        val genres = songs.filter { it.genre.isNotEmpty() }.groupBy { it.genre.lowercase() }.entries.sortedByDescending { it.value.size }.take(8)
+        val mixes = ArrayList<Triple<String, String, List<Track>>>()
+        for (m in moods) { val l = songs.filter { inMood(it, m) }; if (l.size >= 8) mixes.add(Triple(m.name, m.sub, l)) }
+        for (g in genres) { if (g.value.size >= 8 && mixes.none { it.first.equals(g.key, true) }) mixes.add(Triple(g.value.first().genre, "More ${g.value.first().genre}", g.value)) }
+        if (mixes.isNotEmpty()) {
+            val now = mixes[(s % mixes.size).toInt()]
+            out.add(HomeShelf("daily-mix", "Daily Mix: ${now.first}", now.second + " · new every hour", spread(now.third.seeded(s).sortedByDescending { if (taste(it) > 0) 1 else 0 }, 3, 30)))
+            for (i in 1..2) {
+                if (mixes.size <= i) break
+                val m = mixes[((day + i * 3) % mixes.size).toInt()]
+                if (m.first == now.first) continue
+                out.add(HomeShelf("daily-mix-$i", "Daily Mix $i: ${m.first}", m.second + " · new each day", spread(m.third.seeded(day * 13 + i), 3, 30)))
+            }
+        }
+        for (m in moods) { val l = songs.filter { inMood(it, m) }; if (l.size >= 6) out.add(HomeShelf("mood-${m.name}", m.name, m.sub, spread(l.seeded(day * 17 + m.name.length), 2, 14))) }
+        for (g in genres.take(4)) { val name = g.value.first().genre; if (g.value.size >= 6 && out.none { it.title.equals(name, true) }) out.add(HomeShelf("genre-${g.key}", name, "${g.value.size} songs", spread(g.value.seeded(day * 19 + name.length), 2, 14))) }
+
+        val albums = lib.albums().filter { it.tracks.size >= 3 }.map { it to it.tracks.sumOf { t -> taste(t) } / it.tracks.size }
+        val forYou = (albums.filter { it.second > 0 }.sortedByDescending { it.second }.take(6).map { it.first } + albums.filter { it.second == 0 }.map { it.first }.seeded(day * 5 + 1).take(10)).distinctBy { it.tracks.first().albumKey }.take(12)
+        if (forYou.isNotEmpty()) out.add(HomeShelf("albums-for-you", "Albums for you", "From your library", albums = forYou))
+        val recent = lib.recentAlbums(14)
+        if (recent.isNotEmpty()) out.add(HomeShelf("recently-added", "Recently added", "New in your library", albums = recent))
+        return out
+    }
+}

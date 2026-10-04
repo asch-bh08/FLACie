@@ -40,7 +40,7 @@ class JellyfinDirectClient {
         val out = ArrayList<Track>()
         var startIndex = 0
         while (true) {
-            val endpoint = "${base(url)}/Users/$userId/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=Path,DateCreated&EnableUserData=false&StartIndex=$startIndex&Limit=$pageSize"
+            val endpoint = "${base(url)}/Users/$userId/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=Path,DateCreated,Genres&EnableUserData=false&StartIndex=$startIndex&Limit=$pageSize"
             val json = JSONObject(get(endpoint, apiKey))
             val arr = json.optJSONArray("Items") ?: JSONArray()
             out += tracksFrom(url, arr)
@@ -72,7 +72,7 @@ class JellyfinDirectClient {
                 artist = artist,
                 album = str(o, "Album"),
                 albumArtist = artist,
-                genre = "",
+                genre = fixMojibake(o.optJSONArray("Genres")?.takeIf { it.length() > 0 }?.getString(0) ?: ""),
                 trackNo = 0,
                 discNo = 0,
                 durationMs = o.optLong("RunTimeTicks") / 10_000L,

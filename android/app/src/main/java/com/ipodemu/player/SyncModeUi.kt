@@ -96,11 +96,18 @@ fun SyncModeScreen() {
         if (!com.ipodemu.library.IpodEngine.available) { status = "The built-in iPod engine isn't available on this device's processor (it needs 64-bit ARM)."; return }
         findDevices(com.ipodemu.library.EngineLink(ctx))
     }
+    // the account's playlists follow the iPod: read it and they are updated to match (names, songs, order), and again after a write
+    fun mirrorToAccount(d: SyncDevice, db: com.ipodemu.library.IpodDb) {
+        val byId = db.tracks.associateBy { it.id }
+        val snaps = db.playlists.filter { !it.podcast }.map { p -> com.ipodemu.library.IpodSnap(p.name, p.trackIds.mapNotNull { byId[it] }.map { it.title to it.artist }) }
+        val n = app.userData.mirrorIpod(d.volumeLabel?.takeIf { it.isNotBlank() } ?: d.rootPath, snaps) { t, a -> app.library.findSong(t, a)?.path }
+        if (n > 0) status = "Updated $n playlist${if (n == 1) "" else "s"} in your account to match this iPod"
+    }
     fun load(d: SyncDevice) {
         val l = link ?: return
         busy = true; status = "Reading ${d.volumeLabel ?: d.rootPath}..."
         scope.launch {
-            try { staging = SyncStaging(l.load(d.rootPath)); device = d; status = null; rev++ }
+            try { val db = l.load(d.rootPath); staging = SyncStaging(db); device = d; status = null; rev++; mirrorToAccount(d, db) }
             catch (e: Exception) { status = "Couldn't read the iPod: ${e.message}" }
             finally { busy = false }
         }
@@ -395,6 +402,7 @@ private fun TrackEditDialog(t: IpodTrack, onDone: (IpodTrack) -> Unit, onDismiss
 @Composable
 private fun ReviewScreen(link: com.ipodemu.library.IpodLink, device: SyncDevice, st: SyncStaging, onClose: () -> Unit, onWritten: (String) -> Unit) {
     val sc = LocalScheme.current
+    val app = LocalApp.current
     val scope = rememberCoroutineScope()
     val changeSet = remember { st.changeSet() }
     var dry by remember { mutableStateOf<ApplyResult?>(null) }
@@ -447,6 +455,11 @@ private fun ReviewScreen(link: com.ipodemu.library.IpodLink, device: SyncDevice,
                     scope.launch {
                         result = try { link.apply(device.rootPath, changeSet, commit = true, confirmToken = dry?.confirmToken) }
                         catch (e: Exception) { ApplyResult(false, false, false, false, null, emptyList(), emptyList(), emptyList(), null, e.message) }
+                        if (result?.written == true) {
+                            // the iPod now holds what was staged: the account's playlists follow
+                            val snaps = st.playlists.filter { !it.deleted && !it.podcast }.map { p -> com.ipodemu.library.IpodSnap(p.name, p.ids.mapNotNull { st.tracks[it] }.map { it.title to it.artist }) }
+                            app.userData.mirrorIpod(device.volumeLabel?.takeIf { it.isNotBlank() } ?: device.rootPath, snaps) { t, a -> app.library.findSong(t, a)?.path }
+                        }
                         writing = false
                     }
                 }, primary = true)

@@ -104,7 +104,7 @@ private fun Modifier.semanticsLabel(label: String) = this.semantics { contentDes
 
 enum class Tab(val label: String, val glyph: Glyph, val root: Screen) {
     HOME("Home", Glyph.NOTE, Screen.Home), SEARCH("Search", Glyph.SEARCH, Screen.Search),
-    LIBRARY("Library", Glyph.LIST, Screen.Library), SETTINGS("Settings", Glyph.GEAR, Screen.Settings),
+    PLAYLISTS("Playlists", Glyph.LIST, Screen.Lib(LibKind.PLAYLISTS)), LIBRARY("Library", Glyph.ALBUM, Screen.Library), SETTINGS("Settings", Glyph.GEAR, Screen.Settings),
 }
 
 fun PlayerNav.currentTab(): Tab = Tab.entries.firstOrNull { it.root == stack.first() } ?: Tab.HOME

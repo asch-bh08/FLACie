@@ -424,6 +424,9 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     val libRev = LocalLibRev.current
     val recentAlbums = remember(libRev) { lib.recentAlbums(20) }
     val mixes = remember(libRev) { com.ipodemu.library.Recommender.mixes(lib, app.userData) }
+    val hour = androidx.compose.runtime.produceState(System.currentTimeMillis() / 3_600_000L) { while (true) { delay(60_000); value = System.currentTimeMillis() / 3_600_000L } }.value
+    val recentsKey = app.userData.recents.firstOrNull()
+    val shelves = remember(libRev, hour, recentsKey) { com.ipodemu.library.HomeShelves.build(lib, app.userData) }
     app.userData.rev
     app.ui.rev
     val clock by androidx.compose.runtime.produceState("") { while (true) { value = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date()); delay(15000) } }
@@ -444,7 +447,29 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     GlossPill("Downloads", { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.DOWN, height = 32.dp)
                 }
             }
-            forYouShelves(mixes, nav)
+            // YT Music style shelves (see library/Recommend.kt); the Daily Mix moves on every hour
+            items(shelves, key = { it.id }) { sh ->
+                Column {
+                    SectionHeader(sh.title)
+                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        if (sh.tracks.isNotEmpty()) itemsIndexed(sh.tracks) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(sh.tracks, i, null); nav.nowPlaying = true } }
+                        else items(sh.albums, key = { it.tracks.first().albumKey }) { g -> AlbumCard(g, Modifier.width(150.dp)) { nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) } }
+                    }
+                }
+            }
+            // playlists are one tap away here as well as in the Playlists tab
+            val lists = shownPlaylists(app); val by0 = lib.byPath()
+            if (lists.isNotEmpty()) {
+                item { SectionHeader("Your playlists") }
+                item {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        items(lists.take(14), key = { it.id }) { pl ->
+                            val ts = remember(pl.paths.size, libRev) { pl.paths.mapNotNull { by0[it] ?: lib.resolve(it, app.userData.meta[it]) } }
+                            AlbumCard(com.ipodemu.library.Group("${pl.name} (${pl.paths.size})", ts, ts.firstNotNullOfOrNull { it.artKey }), Modifier.width(150.dp)) { nav.push(Screen.Detail(DetailKind.USER, pl.id)) }
+                        }
+                    }
+                }
+            }
             if (!modern) item { SectionHeader("Library") }
             if (!modern) item {
                 Column(Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(16.dp)).background(sc.card).border(1.dp, sc.cardBorder, RoundedCornerShape(16.dp))) {
@@ -457,28 +482,6 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     if (lib.jellyfinTracks.isNotEmpty()) MenuRow("Jellyfin", Glyph.JELLYFIN, "${lib.jellyfinTracks.size}") { nav.push(Screen.Lib(LibKind.JELLYFIN)) }
                     if (lib.plexTracks.isNotEmpty()) MenuRow("Plex", Glyph.PLEX, "${lib.plexTracks.size}") { nav.push(Screen.Lib(LibKind.PLEX)) }
                     lib.nasOnlyTracks().takeIf { it.isNotEmpty() }?.let { n -> MenuRow("NAS only", Glyph.NAS, "${n.size}") { nav.push(Screen.Lib(LibKind.NAS)) } }
-                }
-            }
-            if (recentAlbums.isNotEmpty()) {
-                item { SectionHeader("Recently Added") }
-                item {
-                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        items(recentAlbums, key = { it.tracks.first().albumKey }) { g ->
-                            AlbumCard(g, Modifier.width(150.dp)) { nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) }
-                        }
-                    }
-                }
-            }
-            val by = lib.byPath()
-            val recents = app.userData.recents.mapNotNull { by[it] }.take(15)
-            if (recents.isNotEmpty()) {
-                item { SectionHeader("Recently Played") }
-                item {
-                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        itemsIndexed(recents) { i, t ->
-                            TrackCard(t, Modifier.width(130.dp)) { app.player.play(recents, i, null); nav.nowPlaying = true }
-                        }
-                    }
                 }
             }
         }

@@ -286,6 +286,8 @@ window.flacie = (() => {
       const os = /Windows/.test(ua) ? "Windows" : /Android/.test(ua) ? "Android" + (model && model !== "K" ? " (" + model.trim() + ")" : "") : /iPhone|iPad/.test(ua) ? "iOS" : /Mac OS X/.test(ua) ? "macOS" : /CrOS/.test(ua) ? "ChromeOS" : /Linux/.test(ua) ? "Linux" : "";
       return { ip: who.ip || "", ua, browser, os, screen: `${screen.width}×${screen.height}`, language: navigator.language || "" };
     },
+    // a tab in the full-screen player starts at its top, not wherever the last tab was scrolled to
+    panelTop() { const p = document.querySelector(".np-panel"); if (p) p.scrollTop = 0; },
     toggle() { audio.paused ? audio.play().catch(() => {}) : audio.pause(); },
     play() { audio.play().catch(() => send("OnState", false)); },
     setLyrics(times) { lyr = { times, cur: -2 }; },

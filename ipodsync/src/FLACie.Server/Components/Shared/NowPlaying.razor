@@ -122,7 +122,7 @@
     string? realAlbum, realAlbumFor;
     string AlbumOf(Track t) => realAlbumFor == t.Path && realAlbum is { Length: > 0 } a ? a : t.Album;
     DotNetObjectReference<NowPlaying>? self;
-    string tab = "queue";
+    string tab = "queue"; string? shownTab = "queue";
     [JSInvokable] public Task Closed() => OnClose.InvokeAsync();
     async Task Back() { try { await Js.InvokeVoidAsync("flacie.npBack"); } catch (Exception) { await OnClose.InvokeAsync(); } }
     public override void Dispose() { self?.Dispose(); _ = Js.InvokeVoidAsync("flacie.npReset").AsTask().ContinueWith(_ => { }); base.Dispose(); }
@@ -135,6 +135,7 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender) { self = DotNetObjectReference.Create(this); try { await Js.InvokeVoidAsync("flacie.npOpen", self); } catch (Exception) { } }
+        if (shownTab != tab) { shownTab = tab; try { await Js.InvokeVoidAsync("flacie.panelTop"); } catch (Exception) { } }
         if (Player.Current is not { } t) return;
         // a new song: refresh whatever is showing
         if (infoFor != t.Path) { await LoadInfo(); _ = LoadRealAlbum(t); }

@@ -29,6 +29,8 @@ builder.Services.AddSingleton(sp => new WebCatalog(sp.GetRequiredService<IHttpCl
 builder.Services.AddSingleton(new DataPaths(dataDir));
 builder.Services.AddSingleton<UserStateStore>();
 builder.Services.AddSingleton<StorageGuard>();
+builder.Services.AddSingleton<ActivityLog>();
+builder.Services.AddSingleton<Notifier>();
 builder.Services.AddSingleton<StorageService>();
 builder.Services.AddSingleton<DownloadManager>();
 builder.Services.AddSingleton<AutoplayPlanner>();
@@ -107,5 +109,6 @@ if (builder.Configuration["FLACIE_DEBUG"] == "1")
     }).RequireAuthorization();
 }
 app.MapGet("/healthz", () => Results.Ok("ok"));
+app.Lifetime.ApplicationStarted.Register(() => { var a = app.Services.GetRequiredService<ActivityLog>(); a.Add("server", "", "FLACie started"); _ = app.Services.GetRequiredService<Notifier>().NotifyAsync("started", "FLACie started", "The server is up again.", 2, "rocket"); });
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.Run();

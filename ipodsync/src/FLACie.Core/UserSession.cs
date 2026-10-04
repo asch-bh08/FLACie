@@ -77,6 +77,7 @@ public sealed class UserSession
             if (copies.Count > 0) Profile = copies.MaxBy(p => p["updated"]?.GetValue<long>() ?? 0)!;
             // until the profile has really been read, nothing is saved back (an empty one would wipe the real one)
             if (profileOk) { ProfileLoaded = true; ProfileRev++; Changed?.Invoke(); }
+            if (Jellyfin is { } adm) try { IsAdmin = (await jf.GetAsync(adm, "/Users/Me", ct))?["Policy"]?["IsAdministrator"]?.GetValue<bool>() == true; } catch (Exception) { }
 
             // the other account comes back from the profile: a NAS sign-in gets the Jellyfin account and vice versa
             if (Jellyfin is null && Profile["account"] is JsonObject acc && acc["token"]?.GetValue<string>() is { Length: > 0 } tok)
@@ -143,6 +144,8 @@ public sealed class UserSession
 
     /// <summary>Writes the profile to every account this user has, with the accounts themselves in it.</summary>
     public bool ProfileLoaded { get; private set; }
+    /// <summary>The account is an administrator of its Jellyfin server.</summary>
+    public bool IsAdmin { get; private set; }
     /// <summary>Goes up each time the profile is read from the account (pages that show it start again).</summary>
     public int ProfileRev { get; private set; }
 

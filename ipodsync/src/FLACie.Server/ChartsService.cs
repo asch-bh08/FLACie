@@ -7,7 +7,7 @@ namespace FLACie.Server;
 /// a few per chart, while the music storage has room. When space is tight it just doesn't download (nothing already on the storage is ever
 /// deleted). The playlists "Charts: Top Songs" and so on are rebuilt from whatever of each chart is in the library.
 /// </summary>
-public sealed class ChartsService(SessionStore sessions, UserStateStore states, StorageGuard guard, DownloadManager downloads, WebCatalog catalog, JellyfinClient jf, ILogger<ChartsService> log) : BackgroundService
+public sealed class ChartsService(SessionStore sessions, UserStateStore states, StorageGuard guard, DownloadManager downloads, WebCatalog catalog, JellyfinClient jf, ILogger<ChartsService> log, Notifier notify, ActivityLog activity) : BackgroundService
 {
     public static readonly (int Id, string Name)[] Available = [(0, "Top Songs"), (132, "Pop"), (116, "Hip-Hop"), (152, "Rock"), (113, "Dance"), (165, "R&B"), (85, "Alternative"), (106, "Electronic")];
 
@@ -79,6 +79,10 @@ public sealed class ChartsService(SessionStore sessions, UserStateStore states, 
             }
             if (st.ChartSeen.Count > 5000) st.ChartSeen = st.ChartSeen.Skip(2500).ToHashSet();
             cfg.LastRun = today;
+            var summary = skippedForSpace ? $"Low on free space: got {fetched} of {wanted} new songs, the rest were skipped" : wanted == 0 ? "Nothing new today" : $"Downloaded {fetched} of {wanted} new songs";
+            activity.Add("charts", s.DisplayName, "Daily charts: " + summary);
+            if (skippedForSpace) _ = notify.NotifyAsync("space", "Music storage is nearly full", summary + $" ({s.DisplayName})", 4, "warning");
+            else if (fetched > 0) _ = notify.NotifyAsync("charts", "Daily charts", summary + $" ({s.DisplayName})", 2, "musical_note");
             cfg.LastNote = skippedForSpace ? $"Low on free space: got {fetched} of {wanted} new songs, the rest were skipped"
                 : wanted == 0 ? "Nothing new today" : $"Downloaded {fetched} of {wanted} new songs";
             states.Save(s);

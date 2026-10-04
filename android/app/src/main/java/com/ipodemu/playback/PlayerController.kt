@@ -100,7 +100,15 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
     @OptIn(UnstableApi::class)
+    val live = LiveAudio()
+    @OptIn(UnstableApi::class)
     val exo: ExoPlayer = ExoPlayer.Builder(ctx)
+        // the sound passes through a tap that only reads it, for the live graphs on the Info tab
+        .setRenderersFactory(object : androidx.media3.exoplayer.DefaultRenderersFactory(ctx) {
+            override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): androidx.media3.exoplayer.audio.AudioSink =
+                androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context).setEnableFloatOutput(enableFloatOutput).setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .setAudioProcessorChain(androidx.media3.exoplayer.audio.DefaultAudioSink.DefaultAudioProcessorChain(androidx.media3.exoplayer.audio.TeeAudioProcessor(live))).build()
+        })
         .setMediaSourceFactory(
             DefaultMediaSourceFactory(DataSource.Factory { RoutingDataSource(cacheSource.createDataSource(), upstream.createDataSource()) })
                 // a failed piece is tried six times with growing waits before the player gives up, instead of twice

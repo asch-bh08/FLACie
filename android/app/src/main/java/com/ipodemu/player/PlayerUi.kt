@@ -115,6 +115,8 @@ sealed interface Screen {
     data object Music : Screen
     /** Modern theme's Library tab. */
     data object Library : Screen
+    /** Favorites, recents and every source (Jellyfin, Plex, NAS, voice memos): what the Library tab used to list. */
+    data object Sources : Screen
 }
 
 class SheetSpec(val title: String, val subtitle: String?, val items: List<SheetItem>)
@@ -256,7 +258,8 @@ private fun ScreenContent(screen: Screen, nav: PlayerNav, snap: PlayerSnap) {
         Screen.Queue -> QueueScreen(nav, snap)
         Screen.Settings -> SettingsScreen(nav)
         Screen.Music -> MusicMenu(nav)
-        Screen.Library -> LibraryHome(nav)
+        Screen.Library -> ExploreScreen(nav, snap)
+        Screen.Sources -> LibraryHome(nav)
     }
 }
 
@@ -654,7 +657,7 @@ fun SongList(
 }
 
 @Composable
-private fun AlbumGrid(albums: List<Group>, nav: PlayerNav) {
+internal fun AlbumGrid(albums: List<Group>, nav: PlayerNav) {
     if (albums.isEmpty()) { EmptyState("No albums yet"); return }
     LazyVerticalGrid(GridCells.Adaptive(150.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp, 12.dp, 12.dp, 24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -664,7 +667,7 @@ private fun AlbumGrid(albums: List<Group>, nav: PlayerNav) {
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun GroupList(groups: List<Group>, nav: PlayerNav, circle: Boolean, target: (Group) -> Screen) {
+internal fun GroupList(groups: List<Group>, nav: PlayerNav, circle: Boolean, target: (Group) -> Screen) {
     val sc = LocalScheme.current
     if (groups.isEmpty()) { EmptyState("Nothing here yet"); return }
     val sections = remember(groups) { groups.groupBy { letterOf(sortKey(it.name)) } }

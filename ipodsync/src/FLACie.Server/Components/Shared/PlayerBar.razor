@@ -48,7 +48,8 @@
     {
         if (open) InvokeAsync(() => { open = false; StateHasChanged(); });
     }
-    void OnStarted(Track t) { if (Session.RecordPlay(t)) SaveProfile(); }
+    [Inject] ActivityLog Activity { get; set; } = default!;
+    void OnStarted(Track t) { Activity.Add("play", Session.DisplayName, $"Started {t.Title} by {t.Artist} in the web player"); if (Session.RecordPlay(t)) SaveProfile(); }
     public override void Dispose() { Nav.LocationChanged -= OnNavigated; Player.Started -= OnStarted; Player.FullScreenRequested -= OnFullScreen; base.Dispose(); }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

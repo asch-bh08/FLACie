@@ -1,0 +1,185 @@
+@page "/admin"
+@attribute [Authorize]
+@implements IDisposable
+@inherits UserComponent
+@inject IConfiguration Conf
+@inject ActivityLog Log
+@inject Notifier Notify
+@inject SessionStore Store
+@inject DownloadManager Downloads
+@inject UserStateStore States
+<PageTitle>Admin · FLACie</PageTitle>
+<header class="page-head"><h1>Admin</h1><p class="sub">What is playing, who is on, and what the server is doing</p></header>
+@if (!allowed)
+{
+    <section class="panel"><p>This page is for the server's administrators. Ask the person who runs FLACie to make your account an administrator of the Jellyfin server, or to add you to <code>FLACIE_ADMINS</code>.</p></section>
+}
+else
+{
+    <section class="admin-block" aria-label="Now playing">
+        <div class="shelf-head"><div><h2>Devices</h2><small>@(sessions.Count(s => s.Playing)) playing · @sessions.Count online across all accounts</small></div></div>
+        @if (error is not null) { <p class="form-error">@error</p> }
+        @if (sessions.Count == 0 && error is null) { <p class="hint">No device is connected to Jellyfin right now.</p> }
+        <div class="dev-grid">
+            @foreach (var s in sessions)
+            {
+                <article class="dev-card @(s.Playing ? "live" : "")">
+                    <div class="dev-art">
+                        @if (s.ItemId is not null) { <Cover ArtKey="@("jf" + s.ItemId)" Class="square" /> }
+                        else { <span class="dev-idle"><Icon Name="devices" Size="40" /></span> }
+                        @if (s.Playing) { <span class="tag live"><i aria-hidden="true"></i>@(s.Paused ? "Paused" : "Playing")</span> }
+                    </div>
+                    <div class="dev-body">
+                        <b class="dev-title">@(s.Title ?? "Nothing playing")</b>
+                        <span class="dev-sub">@(s.Artist ?? (s.Playing ? "" : "Idle"))</span>
+                        <span class="dev-meta"><Icon Name="devices" Size="14" />@s.Device · @s.Client @s.Version</span>
+                        <span class="dev-meta"><Icon Name="artists" Size="14" />@s.User · @Ago(s.LastActivity)</span>
+                        @if (s.Playing && s.DurationMs > 0)
+                        {
+                            <div class="dev-progress"><i style="width:@Pct(s.PositionMs, s.DurationMs)%"></i></div>
+                            <span class="dev-time">@Time(s.PositionMs / 1000.0) / @Time(s.DurationMs / 1000.0)</span>
+                        }
+                        @if (s.Controllable && s.Playing)
+                        {
+                            <div class="dev-actions-row">
+                                <button class="icon-btn" aria-label="Previous" @onclick='() => Cmd(s, "PreviousTrack")'><Icon Name="prev" Size="20" /></button>
+                                <button class="icon-btn" aria-label="@(s.Paused ? "Resume" : "Pause")" @onclick='() => Cmd(s, "PlayPause")'><Icon Name="@(s.Paused ? "play" : "pause")" Size="20" /></button>
+                                <button class="icon-btn" aria-label="Next" @onclick='() => Cmd(s, "NextTrack")'><Icon Name="next" Size="20" /></button>
+                                <button class="icon-btn" aria-label="Stop" @onclick='() => Cmd(s, "Stop")'><Icon Name="stop" Size="20" /></button>
+                            </div>
+                        }
+                    </div>
+                </article>
+            }
+        </div>
+    </section>
+
+    <section class="admin-block" aria-label="Server">
+        <div class="shelf-head"><div><h2>Server</h2></div></div>
+        <div class="stats" role="list">
+            <div class="stat" role="listitem"><b>@Store.Active.Count()</b><span>Accounts on</span></div>
+            <div class="stat" role="listitem"><b>@Lib.Songs.Count.ToString("N0")</b><span>Songs in your library</span></div>
+            <div class="stat" role="listitem"><b>@(space is { } sp ? StorageService.Bytes(sp.Free) : "?")</b><span>Music storage free</span></div>
+            <div class="stat" role="listitem"><b>@activeDownloads</b><span>Downloads running</span></div>
+            <div class="stat" role="listitem"><b>@runningImports</b><span>Imports running</span></div>
+        </div>
+        <ul class="links">
+            @foreach (var u in Store.Active)
+            {
+                <li><i class="dot on"></i><span><b>@u.DisplayName</b><small>@(u.Kind == "nas" ? "NAS sign-in" : "Jellyfin") · @u.Library.Songs.Count.ToString("N0") songs@(u.Loading ? " · loading" : "")@(AdminAccess.Is(u, Conf) ? " · admin" : "")</small></span></li>
+            }
+        </ul>
+    </section>
+
+    <section class="admin-block" aria-label="Activity">
+        <div class="shelf-head"><div><h2>Activity</h2><small>The latest things that happened on this server</small></div></div>
+        @if (activity.Count == 0) { <p class="hint">Nothing yet.</p> }
+        <ul class="feed">
+            @foreach (var a in activity)
+            {
+                <li class="feed-row k-@a.Kind"><span class="feed-ico"><Icon Name="@FeedIcon(a.Kind)" Size="16" /></span><span class="feed-text"><b>@a.Text</b>@if (a.User.Length > 0) { <small>@a.User</small> }</span><time>@Ago(a.At)</time></li>
+            }
+        </ul>
+    </section>
+
+    <section class="admin-block panel set" id="notify" aria-label="Notifications">
+        <div class="set-head"><h2>Notifications</h2><p class="hint">Sends the events below to an <a href="https://ntfy.sh/" target="_blank" rel="noopener">ntfy</a> topic, so they reach your phone. Use your own ntfy server or ntfy.sh. Nothing is sent until you turn it on.</p></div>
+        <label class="switch-row"><span><b>Send notifications</b><small>@(string.IsNullOrEmpty(Notify.LastResult) ? "Not sent anything yet" : "Last: " + Notify.LastResult + (Notify.LastAt is { } la ? " · " + Ago(la) : ""))</small></span><input type="checkbox" role="switch" @bind="cfg.Enabled" /><i class="switch" aria-hidden="true"></i></label>
+        <div class="form">
+            <label for="nu">ntfy address</label><input id="nu" @bind="cfg.Url" placeholder="https://ntfy.example.com" autocomplete="off" />
+            <label for="nt">Topic</label><input id="nt" @bind="cfg.Topic" placeholder="flacie" autocomplete="off" />
+            <label for="nk">Access token <span class="opt">(only if the topic needs one@(Notify.HasToken ? "; one is saved, leave empty to keep it" : ""))</span></label><input id="nk" type="password" @bind="token" autocomplete="new-password" />
+        </div>
+        <div class="chart-picks" role="group" aria-label="What to send">
+            <label class="check-chip"><input type="checkbox" @bind="cfg.Imports" /><span>Imports finished</span></label>
+            <label class="check-chip"><input type="checkbox" @bind="cfg.Charts" /><span>Daily charts</span></label>
+            <label class="check-chip"><input type="checkbox" @bind="cfg.LowSpace" /><span>Storage nearly full</span></label>
+            <label class="check-chip"><input type="checkbox" @bind="cfg.SignIns" /><span>Someone signs in</span></label>
+            <label class="check-chip"><input type="checkbox" @bind="cfg.Started" /><span>Server started</span></label>
+        </div>
+        <div class="row-actions">
+            <button class="btn primary" @onclick="SaveNotify">Save</button>
+            <button class="btn" @onclick="TestNotify" disabled="@testing">@(testing ? "Sending…" : "Send a test")</button>
+            @if (notifyMsg is not null) { <span class="hint">@notifyMsg</span> }
+        </div>
+    </section>
+}
+@code {
+    record Dev(string Id, string User, string Device, string Client, string Version, DateTime LastActivity, string? ItemId, string? Title, string? Artist, long PositionMs, long DurationMs, bool Paused, bool Controllable)
+    {
+        public bool Playing => ItemId is not null;
+    }
+    List<Dev> sessions = []; List<ActivityEntry> activity = []; string? error;
+    bool allowed; NotifyConfig cfg = new(); string token = ""; string? notifyMsg; bool testing;
+    (long Free, long Total)? space; int activeDownloads, runningImports;
+    Timer? timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        allowed = AdminAccess.Is(Session, Conf);
+        if (!allowed) return;
+        cfg = Notify.Current;
+        Log.Added += OnLog;
+        await Refresh2();
+        timer = new Timer(_ => InvokeAsync(async () => { await Refresh2(); StateHasChanged(); }), null, 3000, 3000);
+    }
+
+    void OnLog() => InvokeAsync(StateHasChanged);
+
+    async Task Refresh2()
+    {
+        activity = Log.Recent(60);
+        try { space = States is null ? null : Guard()?.Space(Session); } catch (Exception) { space = null; }
+        activeDownloads = Store.Active.Sum(u => Downloads.JobsOf(u).Count(j => !j.Finished));
+        runningImports = Store.Active.Sum(u => States.For(u).Imports.Count(j => j.State is "running" or "waiting"));
+        if (Session.Jellyfin is not { } a) { error = "Signed in without Jellyfin: the device list comes from Jellyfin."; return; }
+        try
+        {
+            var node = await Jellyfin.GetAsync(a, "/Sessions?ActiveWithinSeconds=960");
+            var list = new List<Dev>();
+            foreach (var o in node?.AsArray() ?? [])
+            {
+                if (o is null) continue;
+                var item = o["NowPlayingItem"];
+                var ps = o["PlayState"];
+                DateTime.TryParse(o["LastActivityDate"]?.GetValue<string>(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var last);
+                list.Add(new Dev(o["Id"]?.GetValue<string>() ?? "", o["UserName"]?.GetValue<string>() ?? "", o["DeviceName"]?.GetValue<string>() ?? "", o["Client"]?.GetValue<string>() ?? "", o["ApplicationVersion"]?.GetValue<string>() ?? "", last,
+                    item?["Id"]?.GetValue<string>(), item?["Name"]?.GetValue<string>(), item?["Artists"]?.AsArray().FirstOrDefault()?.GetValue<string>() ?? item?["AlbumArtist"]?.GetValue<string>(),
+                    (ps?["PositionTicks"]?.GetValue<long>() ?? 0) / 10_000, (item?["RunTimeTicks"]?.GetValue<long>() ?? 0) / 10_000, ps?["IsPaused"]?.GetValue<bool>() ?? false, o["SupportsRemoteControl"]?.GetValue<bool>() ?? false));
+            }
+            // Jellyfin keeps several sessions per app install; one card per device and app is enough (the playing or latest one)
+            sessions = list.Where(d => d.User.Length > 0).GroupBy(d => (d.User, d.Device, d.Client)).Select(g => g.OrderByDescending(d => d.Playing).ThenByDescending(d => d.LastActivity).First()).OrderByDescending(d => d.Playing && !d.Paused).ThenByDescending(d => d.Playing).ThenByDescending(d => d.LastActivity).ToList();
+            error = null;
+        }
+        catch (Exception e) { error = "Couldn't read the device list from Jellyfin: " + e.Message; }
+    }
+
+    StorageGuard? guard;
+    StorageGuard? Guard() => guard ??= (StorageGuard?)ServiceProvider.GetService(typeof(StorageGuard));
+    [Inject] IServiceProvider ServiceProvider { get; set; } = default!;
+
+    async Task Cmd(Dev d, string cmd)
+    {
+        try { await Jellyfin.PostAsync(Session.Jellyfin!, $"/Sessions/{d.Id}/Playing/{cmd}", null); Log.Add("admin", Session.DisplayName, $"{cmd} on {d.Device} ({d.User})"); } catch (Exception) { }
+        await Task.Delay(500); await Refresh2();
+    }
+
+    void SaveNotify() { Notify.Save(cfg, token.Length > 0 ? token : null); token = ""; notifyMsg = "Saved."; }
+    async Task TestNotify()
+    {
+        SaveNotify(); testing = true; StateHasChanged();
+        var (ok, msg) = await Notify.SendAsync("FLACie test", "If you can read this, notifications from FLACie work.", 3, "tada");
+        notifyMsg = ok ? "Test sent. Check your phone." : "Not sent: " + msg; testing = false;
+    }
+
+    static string Ago(DateTime utc)
+    {
+        var s = (DateTime.UtcNow - utc).TotalSeconds;
+        return s < 10 ? "just now" : s < 60 ? (int)s + " s ago" : s < 3600 ? (int)(s / 60) + " min ago" : s < 86400 ? (int)(s / 3600) + " h ago" : (int)(s / 86400) + " d ago";
+    }
+    static string Pct(long v, long max) => Math.Clamp(v * 100.0 / Math.Max(1, max), 0, 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+    static string FeedIcon(string kind) => kind switch { "play" => "play", "signin" => "artists", "import" => "download", "charts" => "chart", "server" => "settings", "alert" => "info", "admin" => "shield", _ => "note" };
+
+    public override void Dispose() { timer?.Dispose(); Log.Added -= OnLog; base.Dispose(); }
+}

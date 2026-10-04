@@ -94,10 +94,17 @@ public static class ApiEndpoints
             return Results.Ok();
         }).DisableAntiforgery();
 
+        app.MapGet("/api/charts/{id:int}", async (HttpContext ctx, int id, SessionStore store, JellyfinClient jf, ChartsService charts) =>
+        {
+            if (await Who(ctx, store, jf) is null) return Results.Unauthorized();
+            var songs = await charts.ChartAsync(id, ctx.RequestAborted);
+            return Results.Json(songs.Select((s, i) => new { rank = i + 1, title = s.Title, artist = s.Artist, art = s.ArtUrl }));
+        });
+
         app.MapGet("/api/account", async (HttpContext ctx, SessionStore store, JellyfinClient jf) =>
         {
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
-            return Results.Json(new { songs = s.Library.Songs.Count, albums = s.Library.Albums.Count, artists = s.Library.Artists.Count, playlists = s.Playlists.Count, favourites = s.Favorites.Count });
+            return Results.Json(new { songs = s.Library.Songs.Count, albums = s.Library.Albums.Count, artists = s.Library.Artists.Count, playlists = s.Playlists.Count, favourites = s.Favorites.Count, admin = AdminAccess.Is(s, app.Configuration) });
         });
 
         app.MapPost("/api/import/{id}/cancel", async (HttpContext ctx, string id, SessionStore store, JellyfinClient jf, ImportManager imports) =>

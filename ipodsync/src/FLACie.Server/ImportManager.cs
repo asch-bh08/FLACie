@@ -8,7 +8,7 @@ namespace FLACie.Server;
 /// searching and downloading happen here, a few songs at a time, and the songs are put into the account's playlists as they arrive. A song
 /// the library already has is simply added. It pauses while the music storage is nearly full and carries on after a restart.
 /// </summary>
-public sealed class ImportManager(DownloadManager downloads, UserStateStore states, StorageGuard guard, JellyfinClient jf, ILogger<ImportManager> log)
+public sealed class ImportManager(DownloadManager downloads, UserStateStore states, StorageGuard guard, JellyfinClient jf, ILogger<ImportManager> log, Notifier notify, ActivityLog activity)
 {
     readonly ConcurrentDictionary<string, Task> running = new();
     readonly ConcurrentDictionary<string, CancellationTokenSource> cancels = new();
@@ -108,6 +108,8 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
         await FlushAsync(s, job);
         job.State = "done";
         job.Note = job.Failed == 0 ? null : $"{job.Failed} song{(job.Failed == 1 ? "" : "s")} couldn't be found";
+        activity.Add("import", s.DisplayName, $"Import finished: {job.File}, {job.Total - job.Failed} of {job.Total} songs");
+        _ = notify.NotifyAsync("imports", "Playlist import finished", $"{job.File}: {job.Total - job.Failed} of {job.Total} songs ({s.DisplayName})", job.Failed == 0 ? 3 : 4, job.Failed == 0 ? "white_check_mark" : "warning");
         states.Save(s); Changed?.Invoke(s);
     }
 

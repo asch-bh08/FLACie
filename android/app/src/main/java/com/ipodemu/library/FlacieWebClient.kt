@@ -45,7 +45,8 @@ class FlacieWebClient(private val prefs: Prefs) {
         val prefetch: Boolean, val minFreeGb: Int, val chartsOn: Boolean, val lists: List<Int>, val perList: Int, val lastRun: String, val lastNote: String,
         val available: List<Pair<Int, String>>, val musicFree: Long, val musicTotal: Long, val nasSongs: Int, val nasBytes: Long,
     )
-    class AccountStats(val songs: Int, val albums: Int, val artists: Int, val playlists: Int, val favourites: Int)
+    class AccountStats(val songs: Int, val albums: Int, val artists: Int, val playlists: Int, val favourites: Int, val admin: Boolean = false)
+    class ChartSong(val rank: Int, val title: String, val artist: String, val art: String?)
 
     private fun send(path: String, method: String, body: String? = null): String {
         val c = open(path, method)
@@ -76,7 +77,10 @@ class FlacieWebClient(private val prefs: Prefs) {
         return parseSettings(send("/api/settings", "POST", o.toString()))
     }
     fun runCharts() { send("/api/charts/run", "POST", "{}") }
-    fun account(): AccountStats = JSONObject(send("/api/account", "GET")).let { AccountStats(it.optInt("songs"), it.optInt("albums"), it.optInt("artists"), it.optInt("playlists"), it.optInt("favourites")) }
+    fun account(): AccountStats = JSONObject(send("/api/account", "GET")).let { AccountStats(it.optInt("songs"), it.optInt("albums"), it.optInt("artists"), it.optInt("playlists"), it.optInt("favourites"), it.optBoolean("admin")) }
+
+    /** A chart (0 = Top Songs; the ids come from [settings]), as the server read it from the public charts. */
+    fun chart(id: Int): List<ChartSong> { val a = JSONArray(send("/api/charts/$id", "GET")); return List(a.length()) { a.getJSONObject(it).let { o -> ChartSong(o.optInt("rank"), o.optString("title"), o.optString("artist"), o.optString("art").takeIf { s -> s.isNotBlank() && s != "null" }) } } }
 
     fun jobs(): List<Job> {
         val c = open("/api/import", "GET")

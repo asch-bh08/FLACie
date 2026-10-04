@@ -194,6 +194,15 @@ fun SettingsScreen(nav: PlayerNav) {
                         else SettingRow(prefs.accountUserName.ifEmpty { "Signed in" }, prefs.accountServer.removePrefix("https://").removePrefix("http://"), chevron = true) { ui.accountOpen = true }
                         SettingRow("Sync now", acct.status ?: syncedLabel(prefs.accountSyncedAt)) { acct.sync() }
                     } else SettingRow("Sign in", if (ui.guest) "Guest" else "Not signed in", chevron = true) { ui.accountOpen = true }
+                    // administrators of the server get its dashboard (devices playing, activity, notifications) from here
+                    val adminWeb = remember { com.ipodemu.library.FlacieWebClient(prefs) }
+                    var isAdmin by remember { mutableStateOf(false) }
+                    androidx.compose.runtime.LaunchedEffect(adminWeb.available) {
+                        if (adminWeb.available) isAdmin = try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { adminWeb.account().admin } } catch (_: Exception) { false }
+                    }
+                    if (isAdmin) SettingRow("Admin dashboard", "Open", chevron = true) {
+                        ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(prefs.flacieWebUrl.trimEnd('/') + "/admin")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
                 }
             }
             item { SectionHeader("About") }

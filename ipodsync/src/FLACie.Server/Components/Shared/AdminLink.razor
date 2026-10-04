@@ -1,0 +1,7 @@
+@inherits UserComponent
+@inject IConfiguration Conf
+@* The Admin entry in the rail, only for admins. *@
+@if (Session is not null && AdminAccess.Is(Session, Conf))
+{
+    <NavLink href="/admin"><Icon Name="shield" />Admin</NavLink>
+}

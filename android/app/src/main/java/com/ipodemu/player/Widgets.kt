@@ -96,7 +96,7 @@ val LocalApp = staticCompositionLocalOf<App> { error("App not provided") }
 
 enum class Glyph {
     PLAY, PAUSE, NEXT, PREV, SHUFFLE, REPEAT, REPEAT_ONE, HEART, HEART_FILLED, SEARCH, QUEUE, CHEVRON, BACK, MORE, CLOSE,
-    NOTE, GEAR, VOLUME, CHECK, PLUS, ALBUM, ARTIST, MIC, CLOCK, IPOD, LIST, STAR, DOWN, JELLYFIN, PLEX, NAS, LYRICS, DEVICES, JAM,
+    NOTE, GEAR, VOLUME, CHECK, PLUS, ALBUM, ARTIST, MIC, CLOCK, IPOD, LIST, STAR, DOWN, JELLYFIN, PLEX, NAS, LYRICS, DEVICES, JAM, INFO,
 }
 
 @Composable
@@ -243,6 +243,11 @@ fun DrawScope.drawGlyph(g: Glyph, c: Color) {
             drawPath(path { moveTo(x(.3f), y(.72f)); lineTo(x(.26f), y(.88f)); lineTo(x(.46f), y(.72f)) }, c, style = line)
             drawLine(c, Offset(x(.26f), y(.36f)), Offset(x(.74f), y(.36f)), w, StrokeCap.Round)
             drawLine(c, Offset(x(.26f), y(.52f)), Offset(x(.6f), y(.52f)), w, StrokeCap.Round)
+        }
+        Glyph.INFO -> {
+            drawCircle(c, s * .38f, Offset(x(.5f), y(.5f)), style = line)
+            drawLine(c, Offset(x(.5f), y(.46f)), Offset(x(.5f), y(.68f)), w, StrokeCap.Round)
+            drawCircle(c, s * .035f, Offset(x(.5f), y(.32f)))
         }
         Glyph.NAS -> {
             // Two stacked drive bays, like a small network-attached-storage tower.

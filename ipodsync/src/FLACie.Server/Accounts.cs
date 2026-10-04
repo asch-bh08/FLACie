@@ -76,9 +76,15 @@ public static class AuthEndpoints
         var allowNas = app.Configuration.GetValue("FLACIE_ALLOW_NAS_LOGIN", true);
         var fixedServer = app.Configuration["FLACIE_JELLYFIN_URL"];
 
-        async Task SignIn(HttpContext ctx, JellyfinAccount? j, NasAccount? n) =>
+        async Task SignIn(HttpContext ctx, JellyfinAccount? j, NasAccount? n)
+        {
             await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, SessionStore.Principal(j, n),
                 new AuthenticationProperties { IsPersistent = true, ExpiresUtc = DateTimeOffset.UtcNow.AddDays(30) });
+            var who = j?.UserName ?? (n?.User is { Length: > 0 } nu ? nu : "guest");
+            var from = ctx.Connection.RemoteIpAddress?.ToString() ?? "";
+            ctx.RequestServices.GetRequiredService<ActivityLog>().Add("signin", who, $"Signed in from {from}");
+            _ = ctx.RequestServices.GetRequiredService<Notifier>().NotifyAsync("signin", "Someone signed in to FLACie", $"{who} from {from}", 2, "key");
+        }
 
         static IResult Back(string error, string tab = "") => Results.Redirect("/login?error=" + Uri.EscapeDataString(error) + (tab.Length > 0 ? "&tab=" + tab : ""));
 

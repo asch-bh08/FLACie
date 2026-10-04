@@ -136,7 +136,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         string? json;
         try { json = await js.InvokeAsync<string?>("flacie.unstash", stashKey); } catch (Exception) { return; }
         if (string.IsNullOrEmpty(json)) return;
-        for (var i = 0; i < 180 && (s.Loading || s.Library.Songs.Count == 0); i++) await Task.Delay(500);
+        for (var i = 0; i < 180 && s.Library.Songs.Count == 0; i++) await Task.Delay(500);
         if (Current is not null) return; // the user already picked something
         try
         {

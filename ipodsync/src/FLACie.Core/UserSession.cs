@@ -36,11 +36,38 @@ public sealed class UserSession
     static JsonObject NewProfile() => new() { ["v"] = 2, ["updated"] = 0L, ["services"] = new JsonObject(), ["favorites"] = new JsonArray(), ["playlists"] = new JsonArray(), ["deleted"] = new JsonArray(), ["hidden"] = new JsonArray() };
 
     // ---- load ----
+    /// <summary>Where this account's last library is kept (set by the server), so a restart shows it at once while the fresh one loads.</summary>
+    public string? CachePath { get; set; }
+
+    void LoadCache()
+    {
+        if (CachePath is null || Library.Songs.Count > 0 || !File.Exists(CachePath)) return;
+        try
+        {
+            var list = System.Text.Json.JsonSerializer.Deserialize<List<Track>>(File.ReadAllText(CachePath));
+            if (list is { Count: > 0 }) { Library = WithDownloads(new Library(list)); Changed?.Invoke(); }
+        }
+        catch (Exception) { }
+    }
+
+    void SaveCache()
+    {
+        if (CachePath is null || Library.Songs.Count == 0) return;
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(CachePath)!);
+            var tmp = CachePath + ".tmp";
+            File.WriteAllText(tmp, System.Text.Json.JsonSerializer.Serialize(Library.Songs.Where(t => t.Source != TrackSource.Cloud).ToList()));
+            File.Move(tmp, CachePath, true);
+        }
+        catch (Exception) { }
+    }
+
 
     public async Task LoadAsync(JellyfinClient jf, CancellationToken ct = default)
     {
         await gate.WaitAsync(ct);
-        Loading = true; Changed?.Invoke();
+        Loading = true; LoadCache(); Changed?.Invoke();
         try
         {
             // newest profile copy from every account this user has
@@ -65,7 +92,7 @@ public sealed class UserSession
                 try { nasTracks = await Task.Run(() => NasClient.Scan(na), ct); }
                 catch (Exception e) { Problem = (Problem is null ? "" : Problem + " · ") + $"NAS: {e.Message}"; }
             Library = WithDownloads(Library.Merge(jfTracks, nasTracks));
-            LoadedAt = DateTime.UtcNow;
+            LoadedAt = DateTime.UtcNow; SaveCache();
             if (StripQualityTags()) try { await SaveAsync(jf, ct); } catch (Exception) { }
         }
         finally { Loading = false; gate.Release(); Changed?.Invoke(); }

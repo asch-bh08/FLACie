@@ -141,8 +141,7 @@ public sealed class Connect : IDisposable
     async Task OnPlay(JsonNode? d)
     {
         if (host is not { } p || d?["ItemIds"] is not JsonArray arr) return;
-        var tracks = new List<Track>();
-        foreach (var id in arr) if (id is not null && await ResolveAsync(id.GetValue<string>()) is { } t) tracks.Add(t);
+        var tracks = (await ResolveManyAsync(arr.Where(i => i is not null).Select(i => i!.GetValue<string>()))).Select(x => x.Track).ToList();
         if (tracks.Count == 0) return;
         switch (d["PlayCommand"]?.GetValue<string>())
         {
@@ -150,6 +149,18 @@ public sealed class Connect : IDisposable
             case "PlayLast": foreach (var t in tracks) p.AddLast(t); break;
             default: await p.PlayFromAsync(tracks, Math.Clamp(d["StartIndex"]?.GetValue<int>() ?? 0, 0, tracks.Count - 1), (d["StartPositionTicks"]?.GetValue<long>() ?? 0) / 10_000, false); break;
         }
+    }
+
+    /// <summary>Resolves many songs at once (a dozen at a time) and keeps their order; ones that can't be found are left out.</summary>
+    public async Task<List<(string Id, Track Track)>> ResolveManyAsync(IEnumerable<string> ids)
+    {
+        using var gate = new SemaphoreSlim(12);
+        var all = await Task.WhenAll(ids.Select(async id =>
+        {
+            await gate.WaitAsync();
+            try { return (Id: id, Track: await ResolveAsync(id)); } finally { gate.Release(); }
+        }));
+        return all.Where(x => x.Track is not null).Select(x => (x.Id, x.Track!)).ToList();
     }
 
     /// <summary>A Jellyfin song from this library, or fetched by id and remembered so it can be streamed.</summary>
@@ -242,8 +253,7 @@ public sealed class Connect : IDisposable
         if (host is not { } p) return;
         var ids = s.Queue.Count > 0 ? s.Queue.ToList() : s.ItemId is { } one ? [one] : [];
         if (s.ItemId is { } now && !ids.Contains(now)) ids.Insert(0, now);
-        var tracks = new List<Track>(); var kept = new List<string>();
-        foreach (var id in ids) if (await ResolveAsync(id) is { } t) { tracks.Add(t); kept.Add(id); }
+        var resolved = await ResolveManyAsync(ids); var tracks = resolved.Select(x => x.Track).ToList(); var kept = resolved.Select(x => x.Id).ToList();
         if (tracks.Count == 0) return;
         var idx = Math.Clamp(kept.IndexOf(s.ItemId ?? ""), 0, tracks.Count - 1);
         await p.PlayFromAsync(tracks, idx, s.PositionMs, false);

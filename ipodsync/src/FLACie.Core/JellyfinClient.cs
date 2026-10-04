@@ -101,18 +101,26 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
 
     // ---- library ----
 
-    /// <summary>Every song the user can see, paged.</summary>
+    /// <summary>Every song the user can see. The first page says how many there are; the rest are fetched side by side, which is several times faster than one after another.</summary>
     public async Task<List<Track>> AllAudioAsync(JellyfinAccount a, CancellationToken ct = default)
     {
-        var all = new List<Track>();
-        for (var start = 0; ; start += 2500)
+        const int size = 1500;
+        async Task<(List<Track> Items, int Total)> Page(int start)
         {
-            var page = await Send(HttpMethod.Get, $"{a.Server}/Users/{a.UserId}/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=Path,DateCreated,Genres&EnableUserData=false&StartIndex={start}&Limit=2500", a.Token, null, ct);
+            var page = await Send(HttpMethod.Get, $"{a.Server}/Users/{a.UserId}/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=Path,DateCreated,Genres&EnableUserData=false&StartIndex={start}&Limit={size}", a.Token, null, ct);
             var items = page?["Items"]?.AsArray();
-            if (items is null || items.Count == 0) break;
-            foreach (var o in items) if (o is not null) all.Add(ToTrack(a.Server, o));
-            if (items.Count < 2500) break;
+            return (items is null ? [] : items.OfType<JsonNode>().Select(o => ToTrack(a.Server, o)).ToList(), page?["TotalRecordCount"]?.GetValue<int>() ?? 0);
         }
+        var (first, total) = await Page(0);
+        var all = new List<Track>(first);
+        if (first.Count < size || total <= first.Count) return all;
+        using var gate = new SemaphoreSlim(4);
+        var rest = await Task.WhenAll(Enumerable.Range(1, (total - 1) / size).Select(async i =>
+        {
+            await gate.WaitAsync(ct);
+            try { return (await Page(i * size)).Items; } finally { gate.Release(); }
+        }));
+        foreach (var r in rest) all.AddRange(r);
         return all;
     }
 

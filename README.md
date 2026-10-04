@@ -84,3 +84,10 @@ FLACie has no analytics, ads or tracking. It talks to the servers you set up (Je
 plus two public lookups that send only an artist and song or album name: [LRCLIB](https://lrclib.net) for lyrics and the
 iTunes Search API for covers that your servers don't have. Signing in to an account stores your service connections
 (including passwords and API keys) in your Jellyfin user settings on your own server.
+
+## Background playlist import, charts and Autoplay (FLACie Web)
+
+- **Import:** FLACie Web's *Import* page (or Settings > Background downloads in the Android app) takes an iTunes `Library.xml`, an M3U, a Spotify CSV or a text file (`## Playlist (N tracks)` headings, `Artist - Title` lines). The server searches and downloads in the background (three songs at a time, paused while the music storage has less free space than Settings > Background says) and fills account playlists as songs arrive. The phone only sends the file (`POST /api/import`, authenticated with its Jellyfin token) and reads progress (`GET /api/import`).
+- **Daily charts:** Settings > Background downloads can follow iTunes charts (overall and by genre); once a day it downloads songs you don't have while there is room, and rebuilds "Charts: ..." playlists. Nothing is ever deleted.
+- **Autoplay:** when the queue ends it adds different songs: the artist's others and those of similar artists (MusicBrainz + ListenBrainz listening data, songs from Deezer), and fetches the next few you lack.
+- **Storage:** Settings > Storage shows the music storage's free space, the server's disk and data folder, and (on request) the Jellyfin library size.

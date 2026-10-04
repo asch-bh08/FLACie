@@ -96,6 +96,15 @@ object HomeShelves {
         return out
     }
 
+    /** The moods with enough songs in this library to be worth a chip on Home. */
+    fun moodsAvailable(lib: Library): List<String> = lib.songs().let { s -> moods.filter { m -> s.count { it.isMusic && inMood(it, m) } >= 6 }.map { it.name } }
+
+    /** One mood's songs for today, spread across artists. */
+    fun moodTracks(lib: Library, name: String, nowMs: Long = System.currentTimeMillis()): List<Track> {
+        val m = moods.firstOrNull { it.name == name } ?: return emptyList()
+        return spread(lib.songs().filter { it.isMusic && inMood(it, m) }.seeded(slot(nowMs, 24) * 17 + name.length), 2, 40)
+    }
+
     fun build(lib: Library, ud: UserData, nowMs: Long = System.currentTimeMillis()): List<HomeShelf> {
         val songs = lib.songs().filter { it.isMusic }
         if (songs.isEmpty()) return emptyList()
@@ -122,16 +131,14 @@ object HomeShelves {
         if (mixes.isNotEmpty()) {
             val now = mixes[(s % mixes.size).toInt()]
             out.add(HomeShelf("daily-mix", "Daily Mix: ${now.first}", now.second + " · new every hour", spread(now.third.seeded(s).sortedByDescending { if (taste(it) > 0) 1 else 0 }, 3, 30)))
-            for (i in 1..2) {
-                if (mixes.size <= i) break
-                val m = mixes[((day + i * 3) % mixes.size).toInt()]
-                if (m.first == now.first) continue
-                out.add(HomeShelf("daily-mix-$i", "Daily Mix $i: ${m.first}", m.second + " · new each day", spread(m.third.seeded(day * 13 + i), 3, 30)))
-            }
         }
-        for (m in moods) { val l = songs.filter { inMood(it, m) }; if (l.size >= 6) out.add(HomeShelf("mood-${m.name}", m.name, m.sub, spread(l.seeded(day * 17 + m.name.length), 2, 14))) }
-        for (g in genres.take(4)) { val name = g.value.first().genre; if (g.value.size >= 6 && out.none { it.title.equals(name, true) }) out.add(HomeShelf("genre-${g.key}", name, "${g.value.size} songs", spread(g.value.seeded(day * 19 + name.length), 2, 14))) }
 
+        // "Similar to": the artist you favour most, then songs of the same genre by other artists
+        val topArtist = songs.filter { taste(it) > 0 }.groupBy { primaryArtist(it.artist) }.filterKeys { it.isNotEmpty() }.maxByOrNull { e -> e.value.sumOf { taste(it) } }
+        topArtist?.value?.firstOrNull { it.genre.isNotEmpty() }?.let { seed ->
+            val sim = spread(songs.filter { it.genre.equals(seed.genre, true) && primaryArtist(it.artist) != topArtist.key }.seeded(day * 7 + 3), 2, 14)
+            if (sim.size >= 6) out.add(HomeShelf("similar", "Similar to ${topArtist.value.first().artist}", "Same sound, other artists", sim))
+        }
         val albums = lib.albums().filter { it.tracks.size >= 3 }.map { it to it.tracks.sumOf { t -> taste(t) } / it.tracks.size }
         val forYou = (albums.filter { it.second > 0 }.sortedByDescending { it.second }.take(6).map { it.first } + albums.filter { it.second == 0 }.map { it.first }.seeded(day * 5 + 1).take(10)).distinctBy { it.tracks.first().albumKey }.take(12)
         if (forYou.isNotEmpty()) out.add(HomeShelf("albums-for-you", "Albums for you", "From your library", albums = forYou))

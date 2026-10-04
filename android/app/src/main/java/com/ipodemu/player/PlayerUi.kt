@@ -427,6 +427,8 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     val hour = androidx.compose.runtime.produceState(System.currentTimeMillis() / 3_600_000L) { while (true) { delay(60_000); value = System.currentTimeMillis() / 3_600_000L } }.value
     val recentsKey = app.userData.recents.firstOrNull()
     val shelves = remember(libRev, hour, recentsKey) { com.ipodemu.library.HomeShelves.build(lib, app.userData) }
+    val moodList = remember(libRev) { com.ipodemu.library.HomeShelves.moodsAvailable(lib) }
+    var mood by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     app.userData.rev
     app.ui.rev
     val clock by androidx.compose.runtime.produceState("") { while (true) { value = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date()); delay(15000) } }
@@ -448,7 +450,21 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                 }
             }
             // YT Music style shelves (see library/Recommend.kt); the Daily Mix moves on every hour
-            items(shelves, key = { it.id }) { sh ->
+            if (moodList.isNotEmpty()) item {
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    moodList.forEach { m -> GlossPill(m, { mood = if (mood == m) null else m }, height = 34.dp, primary = mood == m) }
+                }
+            }
+            mood?.let { mname ->
+                val ts = com.ipodemu.library.HomeShelves.moodTracks(lib, mname)
+                item { SectionHeader(mname) }
+                item {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        itemsIndexed(ts) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(ts, i, null); nav.nowPlaying = true } }
+                    }
+                }
+            }
+            if (mood == null) items(shelves, key = { it.id }) { sh ->
                 Column {
                     SectionHeader(sh.title)
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -459,7 +475,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             }
             // playlists are one tap away here as well as in the Playlists tab
             val lists = shownPlaylists(app); val by0 = lib.byPath()
-            if (lists.isNotEmpty()) {
+            if (lists.isNotEmpty() && mood == null) {
                 item { SectionHeader("Your playlists") }
                 item {
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {

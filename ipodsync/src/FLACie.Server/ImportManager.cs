@@ -72,6 +72,20 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
         for (var i = 0; i < 240 && (s.Loading || s.Library.Songs.Count == 0 && s.LoadedAt == default); i++) await Task.Delay(500, ct);
         var gate = new SemaphoreSlim(3);
         if (job.Replace && !job.Consolidated) { foreach (var l in job.Lists) Consolidate(s, l); job.Consolidated = true; states.Save(s); }
+        // first everything the library already has, so playlists fill at once; downloads (slow) come after
+        foreach (var list in job.Lists)
+        {
+            ct.ThrowIfCancellationRequested();
+            var plId = EnsurePlaylist(s, list, job.Replace);
+            foreach (var item in list.Items.Where(i => i.State == "pending"))
+            {
+                var have = s.Library.Find(item.Title, item.Artist) ?? s.Library.FindLoose(item.Title, item.Artist);
+                if (have is null) continue;
+                s.AddToPlaylist(plId, have); item.State = "owned";
+            }
+            Touch(s, job);
+        }
+        await FlushAsync(s, job);
         foreach (var list in job.Lists)
         {
             ct.ThrowIfCancellationRequested();
@@ -91,6 +105,7 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
             await FlushAsync(s, job);
         }
         if (ct.IsCancellationRequested) return;
+        await FlushAsync(s, job);
         job.State = "done";
         job.Note = job.Failed == 0 ? null : $"{job.Failed} song{(job.Failed == 1 ? "" : "s")} couldn't be found";
         states.Save(s); Changed?.Invoke(s);
@@ -156,11 +171,13 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
         }
     }
 
-    long lastSave;
+    long lastSave, lastProfileSave;
     void Touch(UserSession s, ImportJob job)
     {
         Changed?.Invoke(s);
         if (Environment.TickCount64 - lastSave > 3_000) { lastSave = Environment.TickCount64; states.Save(s); }
+        // the account itself is saved every half minute while songs arrive, so a restart never loses a playlist's progress
+        if (Environment.TickCount64 - lastProfileSave > 30_000) { lastProfileSave = Environment.TickCount64; _ = Task.Run(async () => { try { await s.SaveAsync(jf); } catch (Exception) { } }); }
     }
 
     async Task FlushAsync(UserSession s, ImportJob job)

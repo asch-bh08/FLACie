@@ -1,0 +1,43 @@
+@page "/charts"
+@attribute [Authorize]
+@inherits UserComponent
+<PageTitle>Charts · FLACie</PageTitle>
+<header class="page-head"><h1>Charts</h1></header>
+<div class="mood-chips" role="tablist" aria-label="Charts">
+    @foreach (var c in ChartsService.Available)
+    {
+        var id = c.Id;
+        <button role="tab" class="mood @(id == current ? "on" : "")" aria-selected="@(id == current)" @onclick="() => Pick(id)">@c.Name</button>
+    }
+</div>
+@if (loading) { <p class="status">Loading the chart…</p> }
+else if (songs.Count == 0) { <p class="status">The chart couldn't be loaded right now.</p> }
+else
+{
+    <p class="hint">@owned of @songs.Count are in your library. @(State.Charts.Enabled ? "New ones are added to your library every day." : "Daily downloads are off (Settings > Background downloads).")</p>
+    <ol class="chart-list">
+        @for (var i = 0; i < songs.Count; i++)
+        {
+            var s = songs[i]; var have = Lib.Find(s.Title, s.Artist) ?? Lib.FindLoose(s.Title, s.Artist);
+            <li class="chart-row">
+                <span class="rank">@(i + 1)</span>
+                <Cover ArtKey="@(s.ArtUrl is null ? null : Art.ExternalKey(s.ArtUrl))" Size="48" />
+                <span class="chart-text"><b>@s.Title</b><small>@s.Artist</small></span>
+                @if (have is not null) { <button class="btn" @onclick="() => Player.Play([have], 0, current_name)"><Icon Name="play" Size="16" />Play</button> }
+                else { <button class="btn" disabled="@(!Session.Services.Any)" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />Download</button> }
+            </li>
+        }
+    </ol>
+}
+@code {
+    [Inject] ChartsService ChartSvc { get; set; } = default!;
+    [Inject] UserStateStore States { get; set; } = default!;
+    [Inject] DownloadManager Downloads { get; set; } = default!;
+    UserState State => States.For(Session);
+    int current; bool loading = true; List<CatalogSong> songs = [];
+    string current_name => ChartsService.Available.FirstOrDefault(c => c.Id == current).Name ?? "Chart";
+    int owned => songs.Count(s => Lib.Find(s.Title, s.Artist) is not null || Lib.FindLoose(s.Title, s.Artist) is not null);
+
+    protected override async Task OnInitializedAsync() { await base.OnInitializedAsync(); await Pick(0); }
+    async Task Pick(int id) { current = id; loading = true; StateHasChanged(); songs = await ChartSvc.ChartAsync(id); loading = false; }
+}

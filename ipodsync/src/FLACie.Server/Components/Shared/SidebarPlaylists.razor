@@ -14,7 +14,6 @@
         <button class="btn new-playlist" @onclick="() => creating = true"><Icon Name="plus" Size="18" />New playlist</button>
     }
     <hr />
-    <NavLink href="/favorites" class="side-item"><b>Favourites</b><small>@Session.Favorites.Count songs</small></NavLink>
     @foreach (var p in Session.Playlists)
     {
         <NavLink href="@("/playlist/" + p.Id)" class="side-item"><b>@p.Name</b><small>@p.Entries.Count songs</small></NavLink>

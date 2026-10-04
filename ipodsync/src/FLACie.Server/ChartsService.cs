@@ -20,12 +20,31 @@ public sealed class ChartsService(SessionStore sessions, UserStateStore states, 
         {
             foreach (var s in sessions.Active.ToList())
             {
-                try { await RunAsync(s, false, stop); }
+                try { RemoveChartPlaylists(s); await RunAsync(s, false, stop); }
                 catch (OperationCanceledException) { }
                 catch (Exception e) { log.LogWarning(e, "Charts run failed"); }
             }
             try { await Task.Delay(TimeSpan.FromMinutes(30), stop); } catch (OperationCanceledException) { }
         }
+    }
+
+    readonly System.Collections.Concurrent.ConcurrentDictionary<int, (DateTime At, List<CatalogSong> Songs)> cache = new();
+    /// <summary>A chart for the Charts page (kept for half an hour).</summary>
+    public async Task<List<CatalogSong>> ChartAsync(int id, CancellationToken ct = default)
+    {
+        if (cache.TryGetValue(id, out var c) && DateTime.UtcNow - c.At < TimeSpan.FromMinutes(30)) return c.Songs;
+        var songs = await catalog.ChartAsync(id, 50, ct);
+        if (songs.Count > 0) cache[id] = (DateTime.UtcNow, songs);
+        return songs;
+    }
+
+    /// <summary>Charts used to be made into playlists; they have their own page now, so the old ones are taken out of the account.</summary>
+    void RemoveChartPlaylists(UserSession s)
+    {
+        var old = s.Playlists.Where(p => p.Name.StartsWith("Charts: ", StringComparison.OrdinalIgnoreCase)).ToList();
+        if (old.Count == 0) return;
+        foreach (var p in old) s.DeletePlaylist(p.Id);
+        _ = Task.Run(async () => { try { await s.SaveAsync(jf); } catch (Exception) { } });
     }
 
     readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> busy = new();
@@ -56,8 +75,6 @@ public sealed class ChartsService(SessionStore sessions, UserStateStore states, 
                     var r = await downloads.FetchAsync(s, "Chart", c.Artist, c.Title, c.Album, c.ArtUrl, c.DurationMs, ct);
                     if (r.Ok) fetched++;
                 }
-                var have = chart.Select(c => s.Library.Find(c.Title, c.Artist)).OfType<Track>().ToList();
-                if (have.Count > 0) s.ReplacePlaylistTracks(s.PlaylistNamed("Charts: " + name).Id, have);
                 if (skippedForSpace) break;
             }
             if (st.ChartSeen.Count > 5000) st.ChartSeen = st.ChartSeen.Skip(2500).ToHashSet();

@@ -10,7 +10,6 @@
     </form>
 </header>
 <div class="grid">
-    <a class="card" href="/favorites"><div class="cover square fav-cover" aria-hidden="true"><Icon Name="heart-fill" Size="44" /></div><span class="card-title">Favourites</span><span class="card-sub">@Session.Favorites.Count songs</span></a>
     @foreach (var p in Session.Playlists)
     {
         var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);

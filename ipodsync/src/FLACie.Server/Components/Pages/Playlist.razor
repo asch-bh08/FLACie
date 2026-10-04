@@ -32,10 +32,34 @@ else
         </div>
     </header>
     <TrackList Tracks="tracks" PlayContext="@p.Name" OnRemove="i => Remove(p, tracks, i)" />
+    var missing = Session.Loading || Lib.Songs.Count == 0 ? [] : p.Entries.Where(e => Session.ResolveEntry(e) is null && e.Title.Length > 0).ToList();
+    @if (missing.Count > 0)
+    {
+        <section class="shelf missing-list" aria-label="Not in your library">
+            <div class="shelf-head"><div><h2>Not in your library</h2><small>@missing.Count song@(missing.Count == 1 ? "" : "s") from this playlist, fetched from Soulseek or Lidarr</small></div>
+                <button class="btn" disabled="@(!Session.Services.Any)" @onclick="() => Get(missing)"><Icon Name="download" Size="16" />Download all</button></div>
+            @if (!Session.Services.Any) { <p class="hint">Set up downloads in <a href="/settings#downloads">Settings</a> first.</p> }
+            <ul class="tracks">
+                @foreach (var m in missing)
+                {
+                    var e = m;
+                    <li class="track gone"><span class="track-main"><Cover Size="44" /><span class="track-text"><span class="track-title">@e.Title</span><span class="track-sub">@e.Artist</span></span></span>
+                        <button class="btn" disabled="@(!Session.Services.Any || asked.Contains(Key(e)))" @onclick="() => Get([e])">@(asked.Contains(Key(e)) ? "Requested" : "Download")</button></li>
+                }
+            </ul>
+        </section>
+    }
 }
 @code {
     [Parameter] public string Id { get; set; } = "";
     bool confirm;
+    readonly HashSet<string> asked = [];
+    [Inject] DownloadManager Downloads { get; set; } = default!;
+    static string Key(PlaylistEntry e) => Matching.MatchKey(e.Title, e.Artist);
+    void Get(IEnumerable<PlaylistEntry> entries)
+    {
+        foreach (var e in entries) if (asked.Add(Key(e))) _ = Downloads.FetchAsync(Session, "Playlist", e.Artist, e.Title, "", null, 0);
+    }
     void Delete() { Session.DeletePlaylist(Id); SaveProfile(); Nav.NavigateTo("/playlists"); }
     void Remove(FLACie.Core.Playlist p, IReadOnlyList<Track> tracks, int i)
     {

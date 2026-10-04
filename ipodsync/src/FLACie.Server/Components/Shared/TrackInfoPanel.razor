@@ -25,6 +25,12 @@ else
             }
         </div>
         <dl class="kv">
+            <dt>Title</dt><dd>@Track.Title</dd>
+            <dt>Artist</dt><dd>@Track.Artist</dd>
+            @if (Track.Album.Length > 0) { <dt>Album</dt><dd>@Track.Album@(Track.AlbumArtist.Length > 0 && Track.AlbumArtist != Track.Artist ? " (" + Track.AlbumArtist + ")" : "")</dd> }
+            @if (Track.Year > 0) { <dt>Year</dt><dd>@Track.Year</dd> }
+            @if (Track.Genre.Length > 0) { <dt>Genre</dt><dd>@Track.Genre</dd> }
+            @if (Track.TrackNo > 0) { <dt>Track</dt><dd>@(Track.DiscNo > 1 ? Track.DiscNo + "-" : "")@Track.TrackNo</dd> }
             <dt>Source</dt><dd><span class="badge @Track.Source.ToString().ToLowerInvariant()">@Info.Source</span></dd>
             @if (Info.Codec.Length > 0) { <dt>Codec</dt><dd>@Info.Codec.ToUpperInvariant()@(Info.Container.Length > 0 && !string.Equals(Info.Container, Info.Codec, StringComparison.OrdinalIgnoreCase) ? " in " + Info.Container.ToUpperInvariant() : "")</dd> }
             @if (Info.BitrateKbps > 0) { <dt>Bit rate</dt><dd>@Info.BitrateKbps kbps</dd> }

@@ -82,7 +82,7 @@ public static class MediaEndpoints
         app.MapGet("/art/{key}", async (HttpContext ctx, string key, SessionStore store, JellyfinClient jf, IHttpClientFactory hf) =>
         {
             if (key.Length > 400 || key.Contains('/') || key.Contains('\\') || key.Contains("..")) return Results.BadRequest();
-            var file = Path.Combine(artDir, Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(key))) + ".img");
+            var file = Path.Combine(artDir, Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(key))) + ".v2.img");
             ctx.Response.Headers.CacheControl = "private, max-age=604800";
             if (File.Exists(file)) return Results.File(file, "image/jpeg");
             var s = store.For(ctx.User);
@@ -123,20 +123,34 @@ public static class MediaEndpoints
 
     static string Pad(string b) => b.PadRight(b.Length + (4 - b.Length % 4) % 4, '=');
 
-    /// <summary>An album (or the song's album) cover from Deezer's public catalog, matched by artist.</summary>
+    static readonly System.Text.RegularExpressions.Regex Compilation = new(@"\b(now|hits?|best of|greatest|various|top \d+|mix|party|summer|workout|anthems?|ministry|essentials?|chart|collection|playlist|radio|karaoke|tribute)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>An album (or the song's album) cover from Deezer's public catalog, matched by artist. A song search returns the song on every release
+    /// that carries it, "Now That's What I Call Music 96" included, so the song's own album wins, and compilations only when nothing else exists.</summary>
     static async Task<byte[]?> OnlineCover(HttpClient http, string artist, string album, string title, CancellationToken ct)
     {
         if (artist.Length == 0) return null;
         // "Me Against the World (1995)", "Album [Deluxe]": the bracketed part only hurts a catalog search
         album = System.Text.RegularExpressions.Regex.Replace(album, @"\s*[(\[][^)\]]*[)\]]", "").Trim();
+        var want = Matching.PrimaryArtist(artist);
         foreach (var (ep, q) in new[] { ("search/album", $"{artist} {album}"), ("search", $"{artist} {title}") })
         {
             if (q.Trim() == artist) continue;
             try
             {
-                var j = JsonNode.Parse(await http.GetStringAsync($"https://api.deezer.com/{ep}?q={Uri.EscapeDataString(q)}&limit=10", ct));
-                var want = Matching.PrimaryArtist(artist);
-                var hit = j?["data"]?.AsArray().FirstOrDefault(o => Matching.PrimaryArtist(o?["artist"]?["name"]?.GetValue<string>() ?? "") is { Length: > 0 } a && (a.Contains(want) || want.Contains(a)));
+                var j = JsonNode.Parse(await http.GetStringAsync($"https://api.deezer.com/{ep}?q={Uri.EscapeDataString(q)}&limit=25", ct));
+                var mine = (j?["data"]?.AsArray() ?? []).OfType<JsonObject>()
+                    .Where(o => Matching.PrimaryArtist(o["artist"]?["name"]?.GetValue<string>() ?? "") is { Length: > 0 } a && (a.Contains(want) || want.Contains(a))).ToList();
+                int Score(JsonObject o)
+                {
+                    var alTitle = ep == "search" ? o["album"]?["title"]?.GetValue<string>() ?? "" : o["title"]?.GetValue<string>() ?? "";
+                    var s = 0;
+                    if (album.Length > 0 && Matching.AlbumNorm(alTitle) == Matching.AlbumNorm(album)) s += 100;
+                    if (Compilation.IsMatch(alTitle) && !Compilation.IsMatch(album)) s -= 50;
+                    if (ep == "search" && Matching.NormTitle(o["title"]?.GetValue<string>() ?? "") == Matching.NormTitle(title)) s += 10;
+                    return s;
+                }
+                var hit = mine.OrderByDescending(Score).FirstOrDefault();
                 var url = hit?["cover_big"]?.GetValue<string>() ?? hit?["album"]?["cover_big"]?.GetValue<string>();
                 if (!string.IsNullOrEmpty(url)) return await http.GetByteArrayAsync(url, ct);
             }

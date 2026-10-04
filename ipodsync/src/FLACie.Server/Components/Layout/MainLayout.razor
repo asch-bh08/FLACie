@@ -2,17 +2,28 @@
 <div class="app">
     <TopBar />
     <nav class="rail" aria-label="Main">
-        <NavLink href="/" Match="NavLinkMatch.All"><Icon Name="home" />Home</NavLink>
-        <NavLink href="/search"><Icon Name="search" />Search</NavLink>
-        <NavLink href="/albums"><Icon Name="albums" />Albums</NavLink>
-        <NavLink href="/artists"><Icon Name="artists" />Artists</NavLink>
-        <NavLink href="/songs"><Icon Name="songs" />Songs</NavLink>
-        <NavLink href="/favorites"><Icon Name="heart" />Favourites</NavLink>
-        <NavLink href="/charts"><Icon Name="songs" />Charts</NavLink>
-        <NavLink href="/playlists" Match="NavLinkMatch.All"><Icon Name="playlists" />Playlists</NavLink>
-        <NavLink href="/devices"><Icon Name="devices" />Devices</NavLink>
-        <NavLink href="/jam"><Icon Name="jam" />Jam</NavLink>
-        <NavLink href="/import"><Icon Name="download" />Import</NavLink>
+        <div class="rail-group">
+            <NavLink href="/" Match="NavLinkMatch.All"><Icon Name="home" />Home</NavLink>
+            <NavLink href="/search"><Icon Name="search" />Search</NavLink>
+        </div>
+        <div class="rail-group">
+            <p class="rail-label">Your music</p>
+            <NavLink href="/songs"><Icon Name="songs" />Songs</NavLink>
+            <NavLink href="/albums"><Icon Name="albums" />Albums</NavLink>
+            <NavLink href="/artists"><Icon Name="artists" />Artists</NavLink>
+            <NavLink href="/favorites"><Icon Name="heart" />Favourites</NavLink>
+            <NavLink href="/playlists" Match="NavLinkMatch.All"><Icon Name="playlists" />Playlists</NavLink>
+        </div>
+        <div class="rail-group">
+            <p class="rail-label">Find more</p>
+            <NavLink href="/charts"><Icon Name="chart" />Charts</NavLink>
+            <NavLink href="/import"><Icon Name="download" />Import</NavLink>
+        </div>
+        <div class="rail-group">
+            <p class="rail-label">Together</p>
+            <NavLink href="/devices"><Icon Name="devices" />Devices</NavLink>
+            <NavLink href="/jam"><Icon Name="jam" />Jam</NavLink>
+        </div>
         <SidebarPlaylists />
     </nav>
     <main class="content">@Body</main>

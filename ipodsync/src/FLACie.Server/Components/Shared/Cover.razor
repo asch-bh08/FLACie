@@ -3,7 +3,7 @@
     <span class="cover-ph" aria-hidden="true"><Icon Name="note" Size="@(Size > 0 ? Math.Max(14, Size / 3) : 40)" /></span>
     @if (ArtKey is not null)
     {
-        <img src="/art/@Uri.EscapeDataString(ArtKey)" alt="" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'" />
+        <img src="/art/@Uri.EscapeDataString(ArtKey)?v=2" alt="" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'" />
     }
 </div>
 @code {

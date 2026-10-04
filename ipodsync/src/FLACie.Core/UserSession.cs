@@ -226,5 +226,6 @@ public sealed class UserSession
     static PlaylistEntry Entry(JsonObject o) => new(S(o, "p"), S(o, "t"), S(o, "a"));
     static JsonObject EntryJson(Track t) => new() { ["p"] = t.Path, ["t"] = t.Title, ["a"] = t.Artist };
 
-    public IReadOnlyList<Track> Resolve(IEnumerable<PlaylistEntry> entries) => entries.Select(e => Library.Resolve(e.Path, e.Title, e.Artist)).OfType<Track>().ToList();
+    public Track? ResolveEntry(PlaylistEntry e) => Library.Resolve(e.Path, e.Title, e.Artist) ?? Library.FindLoose(e.Title, e.Artist);
+    public IReadOnlyList<Track> Resolve(IEnumerable<PlaylistEntry> entries) => entries.Select(ResolveEntry).OfType<Track>().ToList();
 }

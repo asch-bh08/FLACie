@@ -61,6 +61,20 @@ public static class NasClient
         finally { c.Store.CloseFile(handle); }
     }
 
+    /// <summary>Free and total bytes of the share's volume, or null when the server won't say.</summary>
+    public static (long Free, long Total)? ShareSpace(NasAccount a)
+    {
+        try
+        {
+            using var c = Open(a);
+            var st = c.Store.GetFileSystemInformation(out var info, FileSystemInformationClass.FileFsSizeInformation);
+            if (st != NTStatus.STATUS_SUCCESS || info is not FileFsSizeInformation s) return null;
+            long unit = (long)s.SectorsPerAllocationUnit * s.BytesPerSector;
+            return (s.AvailableAllocationUnits * unit, s.TotalAllocationUnits * unit);
+        }
+        catch (Exception) { return null; }
+    }
+
     /// <summary>Checks the login and that the music folder exists.</summary>
     public static void Test(NasAccount a)
     {
@@ -104,7 +118,7 @@ public static class NasClient
                 var trackNo = no.Success ? int.Parse(no.Groups[1].Value) : 0;
                 var folder = rel;
                 outList.Add(new Track(a.Url(path), title, credit, album ?? "", credit, trackNo, 0, 0, 0, "nf" + Convert.ToBase64String(Encoding.UTF8.GetBytes(folder + "\n" + credit + "\n" + (album ?? "") + "\n" + (album is null ? title : ""))).TrimEnd('=').Replace('+', '-').Replace('/', '_'),
-                    e.LastWriteTime.ToUniversalTime().Ticks / 10_000 - 62_135_596_800_000, TrackSource.Nas));
+                    e.LastWriteTime.ToUniversalTime().Ticks / 10_000 - 62_135_596_800_000, TrackSource.Nas, null, null, "", e.EndOfFile));
             }
         }
         Walk(root, top, 0, null, null);

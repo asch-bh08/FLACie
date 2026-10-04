@@ -44,6 +44,8 @@ class AccountSync(private val app: App) {
     var quickCode by mutableStateOf<String?>(null); private set
     var signedIn by mutableStateOf(prefs.signedIn); private set
     private var qcJob: Job? = null
+    /** The newest profile copy pulled; whatever other apps keep in it (FLACie Web's play history) is written back untouched. */
+    @Volatile private var lastRemote: JSONObject? = null
 
     // ---- sign in / out ------------------------------------------------------------------------------------------
 
@@ -142,6 +144,7 @@ class AccountSync(private val app: App) {
             if (prefs.hasNasAccount) try { pullNas() } catch (_: Exception) { null } else null,
         )
         val remote = copies.maxByOrNull { it.optLong("updated") }
+        if (remote != null) lastRemote = remote
         val restored = if (remote != null) apply(remote) else 0
         if (prefs.hasJellyfinAccount) try { pullJellyfinPlaylists() } catch (_: Exception) {}
         push()
@@ -232,6 +235,7 @@ class AccountSync(private val app: App) {
         if (p.slskdUrl.isNotBlank()) services.put("slskd", JSONObject().put("url", p.slskdUrl).put("key", p.slskdApiKey).put("path", p.slskdDownloadPath))
         if (p.fileMoverUrl.isNotBlank()) services.put("filemover", JSONObject().put("url", p.fileMoverUrl).put("key", p.fileMoverApiKey))
         if (p.syncHost.isNotBlank()) services.put("synchost", p.syncHost)
+        if (p.flacieWebUrl.isNotBlank()) services.put("flacieweb", JSONObject().put("url", p.flacieWebUrl))
         val lists = JSONArray()
         synchronized(ud) {
             ud.playlists.forEach { pl ->
@@ -242,11 +246,14 @@ class AccountSync(private val app: App) {
         // the Jellyfin sign-in travels too, so signing in with only the NAS brings the Jellyfin account back
         val account = if (p.hasJellyfinAccount) JSONObject().put("server", p.accountServer).put("userId", p.accountUserId)
             .put("user", p.accountUserName).put("token", p.accountToken) else JSONObject.NULL
-        return JSONObject().put("v", 2).put("updated", System.currentTimeMillis()).put("services", services).put("account", account)
+        val built = JSONObject().put("v", 2).put("updated", System.currentTimeMillis()).put("services", services).put("account", account)
             .put("favorites", JSONArray().also { a -> ud.favorites.toList().forEach { a.put(meta(it)) } })
             .put("playlists", lists)
             .put("deleted", JSONArray(ud.deletedPlaylists.toList()))
             .put("hidden", JSONArray(p.hiddenPlaylists.toList()))
+        // anything else in the shared profile (FLACie Web keeps the play history there) goes back as it was
+        lastRemote?.let { r -> r.keys().forEach { k -> if (!built.has(k)) built.put(k, r.get(k)) } }
+        return built
     }
 
     /** Merges a pulled profile in. Services only fill in what this device doesn't have yet (never overwrites a
@@ -271,6 +278,7 @@ class AccountSync(private val app: App) {
         take(p.slskdUrl.isBlank(), "slskd") { p.slskdUrl = it.optString("url"); p.slskdApiKey = it.optString("key"); it.optString("path").takeIf { v -> v.isNotBlank() }?.let { v -> p.slskdDownloadPath = v } }
         take(p.fileMoverUrl.isBlank(), "filemover") { p.fileMoverUrl = it.optString("url"); p.fileMoverApiKey = it.optString("key") }
         if (p.syncHost.isBlank() && s.optString("synchost").isNotBlank()) p.syncHost = s.optString("synchost")
+        s.optJSONObject("flacieweb")?.optString("url")?.takeIf { it.isNotBlank() }?.let { p.flacieWebUrl = it }
         // no Jellyfin connection of its own: the account's server + user token is one
         if (p.jellyfinUrl.isBlank() && p.hasJellyfinAccount) { p.jellyfinUrl = p.accountServer; p.jellyfinApiKey = p.accountToken; restored++ }
 

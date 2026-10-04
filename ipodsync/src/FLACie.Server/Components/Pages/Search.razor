@@ -4,7 +4,7 @@
 @inherits UserComponent
 <PageTitle>@(q.Length > 0 ? q + " · " : "")Search · FLACie</PageTitle>
 <h1 class="sr-only">Search</h1>
-@{ var r = Lib.Search(q); var jobs = Downloads.JobsOf(Session); }
+@{ var r = Lib.Search(q); var jobs = Downloads.JobsOf(Session).Where(j => j.Kind == "Search").ToList(); }
 @if (jobs.Count > 0)
 {
     <section class="panel wide" aria-label="Downloads">
@@ -47,7 +47,7 @@ else
     @if (r.Songs.Count > 0)
     {
         <h2 class="section">Songs</h2>
-        <TrackList Tracks="r.Songs" PlayContext="@("Search: " + q)" />
+        <TrackList Tracks="r.Songs" PlayContext="@("Search: " + q)" Single="true" />
     }
     @if (r.Songs.Count == 0 && r.Albums.Count == 0 && r.Artists.Count == 0 && !webBusy && webSongs.Count == 0 && webAlbums.Count == 0)
     {

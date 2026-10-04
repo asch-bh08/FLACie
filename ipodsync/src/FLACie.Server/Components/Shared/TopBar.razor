@@ -33,6 +33,19 @@
         await base.OnInitializedAsync();
         Nav.LocationChanged += OnLocation;
         SyncFromUrl();
+        ShareAddress();
+    }
+
+    // the phone app finds this server (to hand over playlist files) through the shared profile; a localhost address is no use to it
+    void ShareAddress()
+    {
+        var origin = new Uri(Nav.BaseUri).GetLeftPart(UriPartial.Authority);
+        var host = new Uri(origin).Host;
+        if (host is "localhost" or "127.0.0.1" or "::1" or "[::1]" || host.EndsWith(".localhost")) return;
+        var services = Session.Profile["services"] as System.Text.Json.Nodes.JsonObject;
+        if (services is null || services["flacieweb"]?["url"]?.GetValue<string>() == origin) return;
+        services["flacieweb"] = new System.Text.Json.Nodes.JsonObject { ["url"] = origin };
+        SaveProfile();
     }
 
     void OnLocation(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) { SyncFromUrl(); InvokeAsync(StateHasChanged); }

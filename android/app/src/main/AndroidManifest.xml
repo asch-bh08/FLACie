@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Sync mode, iPod plugged into this device: the built-in ipodsync engine reads and writes the iPod's USB
          storage volume (/storage/XXXX-XXXX) as a normal path, which needs "All files access" on Android 11+;

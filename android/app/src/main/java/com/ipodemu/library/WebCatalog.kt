@@ -28,8 +28,7 @@ object WebCatalog {
     fun songs(query: String, limit: Int = 30): List<Song> {
         val words = words(query)
         val raw = deezerSongs(query) ?: itunesSongs(query) ?: return emptyList()
-        val sw = searchWords(query)
-        return raw.filter { s -> searchHit(sw, s.artist, s.title, s.album) }
+        return raw.filter { s -> SearchRank.matches(query, s.title, s.artist, s.album) }
             // karaoke/tribute/cover acts sit below real recordings unless asked for ("Karaoke Carpool" names it in the artist)
             .sortedBy { variant(it.title, words) + (if (typedNone(coverActs, words) && coverActs.containsMatchIn("${it.artist} ${it.album} ${it.title}")) 2 else 0) }
             .distinctBy { norm(primaryArtist(it.artist)) + "|" + norm(baseTitle(it.title)) }.take(limit)
@@ -37,8 +36,7 @@ object WebCatalog {
 
     fun albums(query: String, limit: Int = 12): List<Album> {
         val raw = deezerAlbums(query) ?: itunesAlbums(query) ?: return emptyList()
-        val sw = searchWords(query)
-        return raw.filter { a -> searchHit(sw, a.artist, a.title) }
+        return raw.filter { a -> SearchRank.matches(query, a.title, a.artist) }
             .distinctBy { norm(it.artist) + "|" + norm(it.cleanTitle.replace(editionWords, "")) + "|" + it.kind }
             .take(limit)
     }
@@ -60,6 +58,31 @@ object WebCatalog {
             Song(o.optJSONObject("artist")?.optString("name").orEmpty().ifBlank { album.artist }, o.optString("title"), album.cleanTitle, album.artUrl,
                 o.optLong("duration") * 1000, o.optInt("track_position"), o.optInt("disk_number").coerceAtLeast(1))
         }.sortedWith(compareBy({ it.discNo }, { it.trackNo }))
+    }
+
+    /** Songs that go with the given one: the artist's other well-known songs, then the best-known songs of artists their listeners also play
+     * (Deezer's "related artists"), interleaved so one artist doesn't take over. Never the song itself or another release of it. */
+    fun related(artist: String, title: String, limit: Int = 24): List<Song> {
+        val lead = primaryArtist(artist)
+        val hit = json("https://api.deezer.com/search?q=${enc("artist:\"$lead\" track:\"${baseTitle(title)}\"")}&limit=5")?.optJSONArray("data")
+        var artistId = objects(hit ?: JSONArray()).firstOrNull { norm(primaryArtist(it.optJSONObject("artist")?.optString("name").orEmpty())) == norm(lead) }?.optJSONObject("artist")?.optLong("id") ?: 0L
+        if (artistId == 0L) artistId = objects(json("https://api.deezer.com/search/artist?q=${enc(lead)}&limit=1")?.optJSONArray("data") ?: JSONArray()).firstOrNull()?.optLong("id") ?: 0L
+        if (artistId == 0L) return emptyList()
+        val self = norm(baseTitle(title))
+        fun songs(o: JSONObject?) = objects(o?.optJSONArray("data") ?: JSONArray()).map { t ->
+            val al = t.optJSONObject("album")
+            Song(t.optJSONObject("artist")?.optString("name").orEmpty(), t.optString("title"), al?.optString("title").orEmpty(), al?.optString("cover_xl")?.ifBlank { null }, t.optLong("duration") * 1000, 0, 0)
+        }.filter { norm(baseTitle(it.title)) != self && !(variantWords.any { w -> it.title.contains(w, true) } && Regex("""[(\[]""").containsMatchIn(it.title)) }
+        val own = songs(json("https://api.deezer.com/artist/$artistId/top?limit=10"))
+        val rel = objects(json("https://api.deezer.com/artist/$artistId/related?limit=8")?.optJSONArray("data") ?: JSONArray()).map { it.optLong("id") }.filter { it != 0L }.take(6)
+        val lists = ArrayList<List<Song>>()
+        lists.add(own.take(3))
+        rel.forEach { lists.add(songs(json("https://api.deezer.com/artist/$it/top?limit=5")).take(3)) }
+        lists.add(own.drop(3))
+        val out = ArrayList<Song>()
+        var i = 0
+        while (out.size < limit && lists.any { i < it.size }) { lists.forEach { l -> if (i < l.size) out.add(l[i]) }; i++ }
+        return out.distinctBy { norm(primaryArtist(it.artist)) + "|" + norm(baseTitle(it.title)) }.take(limit)
     }
 
     /** "Song (feat. X)" -> "Song"; used to match file names and fold duplicates. */

@@ -19,6 +19,7 @@ class App : Application() {
     lateinit var connect: com.ipodemu.library.JellyfinConnect; private set
     lateinit var jam: com.ipodemu.library.Jam; private set
     lateinit var lyrics: com.ipodemu.library.LyricsProvider; private set
+    lateinit var autoplay: com.ipodemu.library.Autoplay; private set
     private val bg = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
     override fun onCreate() {
@@ -47,7 +48,9 @@ class App : Application() {
         jam = com.ipodemu.library.Jam(this)
         userData.onChanged = { account.schedulePush() }
         library.onServicesChanged = { account.schedulePush() }
-        library.onDownloaded = { userData.recordDownload(it) }
+        autoplay = com.ipodemu.library.Autoplay(this)
+        player.onQueueLow = { autoplay.queueLow() }
+        library.onDownloaded = { userData.recordDownload(it); autoplay.downloaded(it) }
         // pick up changes made on other devices (playlists, newly added services) every launch
         account.sync()
     }

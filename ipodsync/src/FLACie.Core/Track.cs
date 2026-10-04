@@ -10,7 +10,7 @@ public enum TrackSource { Jellyfin, Nas, Local, Cloud }
 /// favourites (a Jellyfin stream URL, an smb:// URL or a local path), so the shared profile matches across devices.</summary>
 public sealed record Track(
     string Path, string Title, string Artist, string Album, string AlbumArtist, int TrackNo, int DiscNo,
-    long DurationMs, int Year, string? ArtKey, long AddedMs, TrackSource Source, string? FilePath = null, string? JellyfinId = null)
+    long DurationMs, int Year, string? ArtKey, long AddedMs, TrackSource Source, string? FilePath = null, string? JellyfinId = null, string Genre = "", long Size = 0)
 {
     public string AlbumKey => Matching.PrimaryArtist(AlbumArtist.Length > 0 ? AlbumArtist : Artist) + "|" + Matching.AlbumNorm(Album);
 }

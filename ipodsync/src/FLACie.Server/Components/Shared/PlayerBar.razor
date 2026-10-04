@@ -34,6 +34,19 @@
 }
 @code {
     bool open, volumeLoaded;
+    // the full-screen player sits over the page, so any navigation (the account menu, a link in the player, Back) has to close it first
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        Nav.LocationChanged += OnNavigated;
+        Player.Started += OnStarted;
+    }
+    void OnNavigated(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        if (open) InvokeAsync(() => { open = false; StateHasChanged(); });
+    }
+    void OnStarted(Track t) { if (Session.RecordPlay(t)) SaveProfile(); }
+    public override void Dispose() { Nav.LocationChanged -= OnNavigated; Player.Started -= OnStarted; base.Dispose(); }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!volumeLoaded)

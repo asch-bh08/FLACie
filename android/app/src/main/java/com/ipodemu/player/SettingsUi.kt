@@ -15,6 +15,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,17 +56,6 @@ fun SettingsScreen(nav: PlayerNav) {
     Column(Modifier.fillMaxSize()) {
         TopBar("Settings", nav, showBack = true)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 30.dp)) {
-            item { SectionHeader("Account") }
-            item {
-                Card {
-                    val acct = app.account
-                    if (acct.signedIn) {
-                        if (prefs.accountKind == "nas") SettingRow("NAS: ${prefs.nasUsername.ifBlank { "guest" }}", "${prefs.nasHost}/${prefs.nasShare}", chevron = true) { ui.accountOpen = true }
-                        else SettingRow(prefs.accountUserName.ifEmpty { "Signed in" }, prefs.accountServer.removePrefix("https://").removePrefix("http://"), chevron = true) { ui.accountOpen = true }
-                        SettingRow("Sync now", acct.status ?: syncedLabel(prefs.accountSyncedAt)) { acct.sync() }
-                    } else SettingRow("Sign in", if (ui.guest) "Guest" else "Not signed in", chevron = true) { ui.accountOpen = true }
-                }
-            }
             item { SectionHeader("Appearance") }
             item {
                 Card {
@@ -86,6 +77,9 @@ fun SettingsScreen(nav: PlayerNav) {
             item { SectionHeader("Playback") }
             item {
                 Card {
+                    SettingRow("Autoplay", if (prefs.autoplay) "On" else "Off") { prefs.autoplay = !prefs.autoplay }
+                    SettingRow("Fetch ahead", if (prefs.autoplayFetch) "On" else "Off") { prefs.autoplayFetch = !prefs.autoplayFetch }
+                    SettingRow("Streaming quality", listOf("Automatic", "Always full", "Data saver")[prefs.streamQuality.coerceIn(0, 2)]) { prefs.streamQuality = (prefs.streamQuality + 1) % 3 }
                     SettingRow("Equalizer", prefs.eq, chevron = true) {
                         nav.sheet = SheetSpec("Equalizer", prefs.eq, com.ipodemu.playback.PlayerController.EQ_NAMES.map { n ->
                             SheetItem(if (prefs.eq == n) "$n  (on)" else n, if (prefs.eq == n) Glyph.CHECK else Glyph.LIST) { prefs.eq = n; app.player.applyEq() }
@@ -111,6 +105,41 @@ fun SettingsScreen(nav: PlayerNav) {
                     SettingRow("Rescan this device", if (app.library.scanning) "Scanning ${app.library.scanCount}..." else null) { app.library.rescan() }
                 }
             }
+            if (!ui.guest) {
+                item { SectionHeader("Background downloads") }
+                item {
+                    Card {
+                        val web = remember { com.ipodemu.library.FlacieWebClient(prefs) }
+                        val scope = androidx.compose.runtime.rememberCoroutineScope()
+                        var msg by remember { mutableStateOf<String?>(null) }
+                        var jobs by remember { mutableStateOf<List<com.ipodemu.library.FlacieWebClient.Job>>(emptyList()) }
+                        androidx.compose.runtime.LaunchedEffect(Unit) {
+                            while (true) {
+                                if (web.available) jobs = try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { web.jobs() } } catch (_: Exception) { jobs }
+                                kotlinx.coroutines.delay(5000)
+                            }
+                        }
+                        val pick = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+                            if (uri != null) scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                try {
+                                    val name = ctx.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { if (it.moveToFirst()) it.getString(0) else null } ?: "playlist.txt"
+                                    val bytes = ctx.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
+                                    val j = web.submit(name, bytes)
+                                    msg = "Sent ${j.file}: ${j.total} songs. The server is fetching them."
+                                    jobs = web.jobs()
+                                } catch (e: Exception) { msg = e.message ?: "Couldn't send the file" }
+                            }
+                        }
+                        SettingRow("Import a playlist file", if (web.available) "Choose" else "Needs FLACie Web", chevron = web.available) {
+                            if (web.available) pick.launch(arrayOf("*/*")) else msg = "Open FLACie Web in a browser, signed in to the same Jellyfin account, and this phone finds it by itself."
+                        }
+                        jobs.take(3).forEach { j ->
+                            SettingRow(j.file, when (j.state) { "done" -> "Done ${j.total - j.failed}/${j.total}"; "waiting" -> "Waiting for space"; "cancelled" -> "Stopped"; else -> "${j.done}/${j.total}" }) { }
+                        }
+                        msg?.let { Txt(it, Modifier.padding(horizontal = 16.dp, vertical = 10.dp), size = 13f, color = sc.onBgDim, maxLines = 4) }
+                    }
+                }
+            }
             item { SectionHeader("Controls") }
             item {
                 Card {
@@ -118,6 +147,17 @@ fun SettingsScreen(nav: PlayerNav) {
                     SettingRow("Swipe track right", SWIPE_ACTIONS[prefs.swipeRowRight.coerceIn(0, 3)]) { prefs.swipeRowRight = (prefs.swipeRowRight + 1) % 4; ui.refreshFromPrefs() }
                     SettingRow("Swipe track left", SWIPE_ACTIONS[prefs.swipeRowLeft.coerceIn(0, 3)]) { prefs.swipeRowLeft = (prefs.swipeRowLeft + 1) % 4; ui.refreshFromPrefs() }
                     SettingRow("Face buttons", if (prefs.swapFaceButtons) "Nintendo" else "Xbox") { prefs.swapFaceButtons = !prefs.swapFaceButtons }
+                }
+            }
+            item { SectionHeader("Account") }
+            item {
+                Card {
+                    val acct = app.account
+                    if (acct.signedIn) {
+                        if (prefs.accountKind == "nas") SettingRow("NAS: ${prefs.nasUsername.ifBlank { "guest" }}", "${prefs.nasHost}/${prefs.nasShare}", chevron = true) { ui.accountOpen = true }
+                        else SettingRow(prefs.accountUserName.ifEmpty { "Signed in" }, prefs.accountServer.removePrefix("https://").removePrefix("http://"), chevron = true) { ui.accountOpen = true }
+                        SettingRow("Sync now", acct.status ?: syncedLabel(prefs.accountSyncedAt)) { acct.sync() }
+                    } else SettingRow("Sign in", if (ui.guest) "Guest" else "Not signed in", chevron = true) { ui.accountOpen = true }
                 }
             }
             item { SectionHeader("About") }

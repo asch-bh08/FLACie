@@ -211,6 +211,17 @@ class Library(ctx: Context, val art: ArtCache) {
         scope.launch { kotlinx.coroutines.delay(40_000L); mergeJellyfin(); mergePlex(); mergeNas() }
     }
 
+    @Volatile private var matchCache: Pair<List<Track>, Map<String, Track>>? = null
+    /** This library's copy of a song by title and artist, whichever release it is on; null if it has none. */
+    fun findSong(title: String, artist: String): Track? {
+        val s = derive().songs
+        val m = matchCache?.takeIf { it.first === s }?.second ?: HashMap<String, Track>().also { h -> s.forEach { h.putIfAbsent(it.matchKey, it) } }.also { matchCache = s to it }
+        return m[matchKey(title, artist)]
+    }
+
+    /** Whether anything can download here: Soulseek with the file mover, or Lidarr. */
+    fun downloadsConfigured() = (prefs.slskdUrl.isNotBlank() && prefs.fileMoverUrl.isNotBlank()) || prefs.lidarrUrl.isNotBlank()
+
     /** Any track by file path (playlists and favourites store paths). */
     fun byPath(): Map<String, Track> = derive().byPath
 

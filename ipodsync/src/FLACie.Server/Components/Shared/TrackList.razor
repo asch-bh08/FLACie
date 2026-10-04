@@ -7,7 +7,7 @@
         var now = Player.Current?.Path == t.Path;
         var fmt = InfoService.QuickFormat(t);
         <li class="track @(now ? "now" : "")">
-            <button class="track-main" @onclick="() => Player.Play(Tracks, idx, PlayContext)" aria-label="Play @t.Title by @t.Artist">
+            <button class="track-main" @onclick="() => Go(idx)" aria-label="Play @t.Title by @t.Artist">
                 @if (Numbered) { <span class="track-no">@(t.TrackNo > 0 ? t.TrackNo : idx + 1)</span> }
                 else { <Cover ArtKey="@(t.ArtKey)" Size="44" /> }
                 <span class="track-text">
@@ -40,8 +40,11 @@
 @code {
     [Parameter] public IReadOnlyList<Track> Tracks { get; set; } = [];
     [Parameter] public bool Numbered { get; set; }
+    /// <summary>Play only the clicked song and let Autoplay carry on (search results hold several releases of one song, which must not queue up behind it).</summary>
+    [Parameter] public bool Single { get; set; }
     [Parameter] public string? PlayContext { get; set; }
     [Parameter] public bool ShowAlbum { get; set; } = true;
     [Parameter] public Action<int>? OnRemove { get; set; }
     int menu = -1;
+    Task Go(int i) => Single ? Player.Play([Tracks[i]], 0, PlayContext) : Player.Play(Tracks, i, PlayContext);
 }

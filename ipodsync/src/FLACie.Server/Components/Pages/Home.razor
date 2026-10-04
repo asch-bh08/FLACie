@@ -5,28 +5,84 @@
 <header class="page-head">
     <h1>@Greeting</h1>
     <div class="chips">
-        <button class="chip" @onclick="() => Player.ShuffleAll(Lib.Songs)" disabled="@(Lib.Songs.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle all</button>
+        <button class="chip" @onclick='() => Player.ShuffleAll(Lib.Songs, "Your library")' disabled="@(Lib.Songs.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle all</button>
         <a class="chip" href="/favorites"><Icon Name="heart" Size="18" />Favourites</a>
-        <a class="chip" href="/playlists"><Icon Name="playlists" Size="18" />Playlists</a>
+        <a class="chip" href="/import"><Icon Name="download" Size="18" />Import playlists</a>
     </div>
 </header>
 <LibraryStatus />
 @if (Session.Playlists.Count > 0)
 {
-    <h2 class="section">Your playlists</h2>
-    <div class="row-scroll">
-        @foreach (var p in Session.Playlists.Take(12))
-        {
-            var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
-            <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@p.Entries.Count songs</span></a>
-        }
-    </div>
+    <section class="shelf" aria-label="Your playlists">
+        <div class="shelf-head"><h2>Your playlists</h2><a href="/playlists">All playlists</a></div>
+        <div class="row-scroll">
+            @foreach (var p in Session.Playlists.OrderByDescending(p => p.Modified).Take(14))
+            {
+                var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
+                <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@p.Entries.Count songs</span></a>
+            }
+        </div>
+    </section>
 }
-@if (Lib.Albums.Count > 0)
+@foreach (var sh in shelves)
 {
-    <h2 class="section">Recently added</h2>
-    <AlbumGrid Albums="Lib.RecentAlbums(18)" />
+    <section class="shelf" aria-label="@sh.Title">
+        <div class="shelf-head">
+            <div><h2>@sh.Title</h2>@if (sh.Subtitle.Length > 0) { <small>@sh.Subtitle</small> }</div>
+            @if (sh.Tracks.Count > 0) { <button class="chip small" @onclick="() => Player.Play(sh.Tracks, 0, sh.Title)"><Icon Name="play" Size="16" />Play all</button> }
+        </div>
+        @if (sh.Tracks.Count > 0)
+        {
+            <div class="row-scroll">
+                @for (var i = 0; i < sh.Tracks.Count; i++)
+                {
+                    var idx = i; var t = sh.Tracks[i];
+                    <button class="card song-card" @onclick="() => Player.Play(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)">
+                        <Cover ArtKey="@(t.ArtKey)" Class="square" />
+                        <span class="card-title">@t.Title</span>
+                        <span class="card-sub">@t.Artist</span>
+                    </button>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="row-scroll">
+                @foreach (var g in sh.Albums)
+                {
+                    <a class="card" href="@AlbumLink(g)">
+                        <Cover ArtKey="@(g.ArtKey)" Class="square" />
+                        <span class="card-title">@g.Name</span>
+                        <span class="card-sub">@(g.Tracks[0].AlbumArtist.Length > 0 ? g.Tracks[0].AlbumArtist : g.Tracks[0].Artist)</span>
+                    </a>
+                }
+            </div>
+        }
+    </section>
 }
 @code {
     string Greeting { get { var h = DateTime.Now.Hour; return h >= 18 ? "Good evening" : h >= 12 ? "Good afternoon" : "Good morning"; } }
+
+    List<Shelf> shelves = [];
+    long builtSlot = -1, builtLast = -1; int builtSongs = -1;
+
+    // the shelves are rebuilt when the library or history changes, and each hour (the Daily Mix moves on then)
+    protected override void OnParametersSet() => Rebuild();
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (Session is null) return;
+        var slot = HomeBuilder.Slot(DateTime.UtcNow);
+        if (slot != builtSlot || builtSongs != Lib.Songs.Count) { Rebuild(); StateHasChanged(); }
+    }
+
+    void Rebuild()
+    {
+        if (Session is null) return;
+        var slot = HomeBuilder.Slot(DateTime.UtcNow);
+        var history = Session.History;
+        var last = history.FirstOrDefault()?.At ?? 0;
+        if (slot == builtSlot && builtSongs == Lib.Songs.Count && builtLast == last) return;
+        builtSlot = slot; builtSongs = Lib.Songs.Count; builtLast = last;
+        shelves = HomeBuilder.Build(Lib, history, Session.Favorites, Session.Playlists, DateTime.UtcNow);
+    }
 }

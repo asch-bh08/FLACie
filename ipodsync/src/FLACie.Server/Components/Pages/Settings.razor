@@ -1,58 +1,67 @@
 @page "/settings"
 @attribute [Authorize]
+@implements IDisposable
 @inherits UserComponent
 <PageTitle>Settings · FLACie</PageTitle>
 <header class="page-head"><h1>Settings</h1></header>
+<nav class="subnav" aria-label="Settings sections">
+    <a href="/settings#playback">Playback</a><a href="/settings#sources">Music sources</a><a href="/settings#downloads">Downloads</a><a href="/settings#background">Background</a><a href="/settings#storage">Storage</a><a href="/settings#account">Account</a>
+</nav>
 
-<section class="panel">
-    <h2>Account</h2>
-    <p>Signed in with @(Session.Kind == "nas" ? "a NAS" : "Jellyfin") as <b>@Session.DisplayName</b>.</p>
-    <p class="hint">Your playlists, favourites and connected services are kept in @Where, so signing in with any of them on another device brings them back.</p>
-    <form method="post" action="/auth/logout" data-enhance="false"><button class="btn" type="submit">Sign out</button></form>
+<section class="panel set" id="playback">
+    <div class="set-head"><h2>Playback</h2><p class="hint">How this browser plays and what comes after the last song.</p></div>
+    <label class="switch-row">
+        <span><b>Autoplay</b><small>When the queue ends, carry on with different songs that go with what was playing</small></span>
+        <input type="checkbox" role="switch" checked="@Player.Autoplay" @onchange="e => Player.SetAutoplayAsync((bool)(e.Value ?? false))" />
+        <i class="switch" aria-hidden="true"></i>
+    </label>
+    <label class="switch-row">
+        <span><b>Fetch ahead</b><small>Download the next few Autoplay songs you don't have yet, so they are ready when needed</small></span>
+        <input type="checkbox" role="switch" checked="@State.Prefetch" @onchange="e => { State.Prefetch = (bool)(e.Value ?? false); Persist(); }" />
+        <i class="switch" aria-hidden="true"></i>
+    </label>
 </section>
 
-<section class="panel">
-    <h2>Music sources</h2>
+<section class="panel set" id="sources">
+    <div class="set-head"><h2>Music sources</h2><p class="hint">Where the songs come from. Your profile is kept in @Where, so signing in on another device brings everything back.</p></div>
     <dl class="kv">
         <dt>Jellyfin</dt><dd>@(Session.Jellyfin is { } j ? $"{j.UserName} on {j.Server}" : "Not connected")</dd>
         <dt>NAS</dt><dd>@(Session.Nas is { } n ? $"{n.Host}/{n.Share}{(n.Folder.Length > 0 ? "/" + n.Folder : "")}" : "Not connected")</dd>
-        <dt>Songs</dt><dd>@Lib.Songs.Count · @Lib.Albums.Count albums@(Session.Loading ? " (loading…)" : "")</dd>
+        <dt>Library</dt><dd>@Lib.Songs.Count songs · @Lib.Albums.Count albums@(Session.Loading ? " (loading…)" : "")</dd>
     </dl>
-    <button class="btn" @onclick="Reload" disabled="@Session.Loading">Reload library</button>
+    <div class="row-actions"><button class="btn" @onclick="Reload" disabled="@Session.Loading">Reload library</button></div>
     @if (Session.Problem is { } p) { <p class="form-error">@p</p> }
+    @if (Session.Nas is null)
+    {
+        <details class="more"><summary>Add a NAS</summary>
+            <p class="hint">Plays the music on a network share, and keeps a copy of your profile there.</p>
+            <div class="form">
+                <label for="host">NAS address</label><input id="host" @bind="host" placeholder="192.168.1.50" />
+                <label for="share">Share</label><input id="share" @bind="share" placeholder="Music" />
+                <label for="folder">Music folder <span class="opt">(optional)</span></label><input id="folder" @bind="folder" />
+                <label for="nuser">Username</label><input id="nuser" @bind="nuser" autocomplete="off" />
+                <label for="npass">Password</label><input id="npass" type="password" @bind="npass" autocomplete="new-password" />
+                <button class="btn primary" @onclick="AddNas" disabled="@busy">@(busy ? "Checking…" : "Add NAS")</button>
+            </div>
+        </details>
+    }
+    @if (Session.Jellyfin is null)
+    {
+        <details class="more"><summary>Add Jellyfin</summary>
+            <p class="hint">Streams your Jellyfin library, and keeps a copy of your profile in your Jellyfin account.</p>
+            <div class="form">
+                <label for="jserver">Jellyfin server</label><input id="jserver" @bind="jserver" placeholder="https://jellyfin.example.com" />
+                <label for="juser">Username</label><input id="juser" @bind="juser" autocomplete="off" />
+                <label for="jpass">Password</label><input id="jpass" type="password" @bind="jpass" autocomplete="new-password" />
+                <button class="btn primary" @onclick="AddJellyfin" disabled="@busy">@(busy ? "Signing in…" : "Add Jellyfin")</button>
+            </div>
+        </details>
+    }
+    @if (error is not null) { <p class="form-error" role="alert">@error</p> }
 </section>
 
-@if (Session.Nas is null)
-{
-    <section class="panel">
-        <h2>Add a NAS</h2>
-        <p class="hint">Plays the music on a network share, and keeps a copy of your profile there.</p>
-        <div class="form">
-            <label for="host">NAS address</label><input id="host" @bind="host" placeholder="192.168.1.50" />
-            <label for="share">Share</label><input id="share" @bind="share" placeholder="Music" />
-            <label for="folder">Music folder <span class="opt">(optional)</span></label><input id="folder" @bind="folder" />
-            <label for="nuser">Username</label><input id="nuser" @bind="nuser" autocomplete="off" />
-            <label for="npass">Password</label><input id="npass" type="password" @bind="npass" autocomplete="new-password" />
-            <button class="btn primary" @onclick="AddNas" disabled="@busy">@(busy ? "Checking…" : "Add NAS")</button>
-        </div>
-    </section>
-}
-@if (Session.Jellyfin is null)
-{
-    <section class="panel">
-        <h2>Add Jellyfin</h2>
-        <p class="hint">Streams your Jellyfin library, and keeps a copy of your profile in your Jellyfin account.</p>
-        <div class="form">
-            <label for="jserver">Jellyfin server</label><input id="jserver" @bind="jserver" placeholder="https://jellyfin.example.com" />
-            <label for="juser">Username</label><input id="juser" @bind="juser" autocomplete="off" />
-            <label for="jpass">Password</label><input id="jpass" type="password" @bind="jpass" autocomplete="new-password" />
-            <button class="btn primary" @onclick="AddJellyfin" disabled="@busy">@(busy ? "Signing in…" : "Add Jellyfin")</button>
-        </div>
-    </section>
-}
-<section class="panel">
-    <h2>Downloads</h2>
-    <p class="hint">Search finds new music and downloads it: Soulseek (slskd plus the file mover) first, Lidarr as the fallback. These are kept in your profile, so the phone's setup shows up here and the other way round. Keys stay on the server; leave a key empty to keep the saved one.</p>
+<section class="panel set" id="downloads">
+    <div class="set-head"><h2>Downloads</h2><p class="hint">Search finds new music and downloads it: Soulseek (slskd plus the file mover) first, Lidarr as the fallback. These are kept in your profile, so the phone's setup shows up here and the other way round. Keys stay on the server; leave a key empty to keep the saved one.</p></div>
     <div class="form">
         <label for="sl">slskd address</label><input id="sl" @bind="slUrl" placeholder="https://host/slskd" />
         <label for="slk">slskd API key @(Session.Services.SlskdKey.Length > 0 ? "(saved)" : "")</label><input id="slk" type="password" @bind="slKey" autocomplete="new-password" />
@@ -61,19 +70,122 @@
         <label for="fmk">File mover key @(Session.Services.FileMoverKey.Length > 0 ? "(saved)" : "")</label><input id="fmk" type="password" @bind="fmKey" autocomplete="new-password" />
         <label for="ld">Lidarr address <span class="opt">(optional)</span></label><input id="ld" @bind="ldUrl" placeholder="https://host/lidarr" />
         <label for="ldk">Lidarr API key @(Session.Services.LidarrKey.Length > 0 ? "(saved)" : "")</label><input id="ldk" type="password" @bind="ldKey" autocomplete="new-password" />
-        <button class="btn primary" @onclick="SaveDownloads">Save downloads</button>
-        @if (dlSaved) { <span class="hint">Saved.</span> }
+        <div class="row-actions"><button class="btn primary" @onclick="SaveDownloads">Save downloads</button>@if (dlSaved) { <span class="hint">Saved.</span> }</div>
     </div>
 </section>
-@if (error is not null) { <p class="form-error" role="alert">@error</p> }
+
+<section class="panel set" id="background">
+    <div class="set-head"><h2>Background downloads</h2><p class="hint">Everything here happens on the server, never on your phone or this browser. <a href="/import">Import a playlist file</a> to fetch a whole list.</p></div>
+    <div class="form">
+        <label for="minfree">Stop downloading when the music storage has less than</label>
+        <div class="inline"><input id="minfree" type="number" min="0" max="2000" @bind="State.MinFreeGb" @bind:after="Persist" /><span class="hint">GB free</span></div>
+    </div>
+    <label class="switch-row">
+        <span><b>Daily charts</b><small>Once a day, download new songs from the charts you choose (if there is room). Nothing already on your storage is ever deleted.</small></span>
+        <input type="checkbox" role="switch" checked="@State.Charts.Enabled" @onchange="e => { State.Charts.Enabled = (bool)(e.Value ?? false); Persist(); }" />
+        <i class="switch" aria-hidden="true"></i>
+    </label>
+    @if (State.Charts.Enabled)
+    {
+        <div class="chart-picks" role="group" aria-label="Charts to follow">
+            @foreach (var c in ChartsService.Available)
+            {
+                var id = c.Id;
+                <label class="check-chip"><input type="checkbox" checked="@State.Charts.Lists.Contains(id)" @onchange="e => ToggleChart(id, (bool)(e.Value ?? false))" /><span>@c.Name</span></label>
+            }
+        </div>
+        <div class="form">
+            <label for="perlist">New songs per chart, per day</label>
+            <div class="inline"><input id="perlist" type="number" min="1" max="50" @bind="State.Charts.PerList" @bind:after="Persist" /></div>
+        </div>
+        <div class="row-actions">
+            <button class="btn" @onclick="RunCharts" disabled="@chartsBusy">@(chartsBusy ? "Running…" : "Run now")</button>
+            <span class="hint">@(State.Charts.LastRun.Length > 0 ? "Last run " + State.Charts.LastRun + ": " + State.Charts.LastNote : "Not run yet. It runs by itself once a day.")</span>
+        </div>
+        <p class="hint">The lists appear as playlists called "Charts: …". The server must be running for it to happen, and it works for accounts that have signed in since it last started.</p>
+    }
+</section>
+
+<section class="panel set" id="storage">
+    <div class="set-head"><h2>Storage</h2><p class="hint">What this server and your music library use.</p></div>
+    @{ var r = report ?? Storage.Quick(Session); }
+    <h3>Music storage</h3>
+    @if (r.Music is { } m)
+    {
+        <div class="meter" role="img" aria-label="@(Bytes(m.Total - m.Free)) of @(Bytes(m.Total)) used"><i class="a" style="width:@(Pct(m.Total - m.Free, m.Total))%"></i></div>
+        <div class="legend"><span><i class="a" style="background:var(--accent)"></i>Used @Bytes(m.Total - m.Free)</span><span>Free @Bytes(m.Free)</span><span>Total @Bytes(m.Total)</span></div>
+    }
+    else { <p class="hint">@(Session.Nas is null ? "No NAS is connected, so the music storage's free space isn't known." : "The NAS didn't report its free space.")</p> }
+    <dl class="kv">
+        @if (r.NasSongs > 0) { <dt>NAS library</dt><dd>@r.NasSongs songs, @Bytes(r.NasBytes)</dd> }
+        @if (r.JellyfinSongs > 0) { <dt>Jellyfin library</dt><dd>@r.JellyfinSongs songs, @Bytes(r.JellyfinBytes)</dd> }
+    </dl>
+    @if (Session.Jellyfin is not null)
+    {
+        <div class="row-actions"><button class="btn" @onclick="Measure" disabled="@measuring">@(measuring ? "Measuring…" : "Measure the Jellyfin library")</button><span class="hint">Jellyfin only reports sizes file by file, so this takes a moment.</span></div>
+    }
+    @if (r.Problem is { } pr) { <p class="form-error">@pr</p> }
+    <h3>This server</h3>
+    <div class="meter" role="img" aria-label="Disk use"><i class="b" style="width:@(Pct(r.DiskTotal - r.DiskFree, r.DiskTotal))%"></i></div>
+    <div class="legend"><span>@Bytes(r.DiskFree) free of @Bytes(r.DiskTotal) on the server's disk</span></div>
+    <dl class="kv">
+        <dt>FLACie data</dt><dd>@Bytes(r.DataBytes)</dd>
+        @foreach (var (name, bytes) in r.DataParts) { <dt class="sub-k">@name</dt><dd>@Bytes(bytes)</dd> }
+    </dl>
+    <p class="hint">Covers and lyrics are caches: they can be emptied by deleting the folders and fill up again as you browse.</p>
+</section>
+
+<section class="panel set" id="account">
+    <div class="set-head"><h2>Account</h2></div>
+    <p>Signed in with @(Session.Kind == "nas" ? "a NAS" : "Jellyfin") as <b>@Session.DisplayName</b>.</p>
+    <div class="row-actions">
+        <a class="btn" href="/account">Account details</a>
+        <form method="post" action="/auth/logout" data-enhance="false"><button class="btn danger" type="submit">Sign out</button></form>
+    </div>
+</section>
 
 @code {
+    [Inject] UserStateStore States { get; set; } = default!;
+    [Inject] StorageService Storage { get; set; } = default!;
+    [Inject] ChartsService Charts { get; set; } = default!;
+    UserState State => States.For(Session);
     string host = "", share = "", folder = "", nuser = "", npass = "", jserver = "", juser = "", jpass = "";
-    bool busy; string? error;
+    bool busy, chartsBusy, measuring; string? error;
     string slUrl = "", slPath = "", fmUrl = "", ldUrl = "";
     string slKey = "", fmKey = "", ldKey = ""; bool dlSaved;
+    StorageReport? report; Timer? tick;
 
-    protected override async Task OnInitializedAsync() { await base.OnInitializedAsync(); var d = Session.Services; (slUrl, slPath, fmUrl, ldUrl) = (d.SlskdUrl, d.SlskdPath, d.FileMoverUrl, d.LidarrUrl); }
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        var d = Session.Services; (slUrl, slPath, fmUrl, ldUrl) = (d.SlskdUrl, d.SlskdPath, d.FileMoverUrl, d.LidarrUrl);
+    }
+
+    void Persist() => States.Save(Session);
+
+    void ToggleChart(int id, bool on)
+    {
+        var l = State.Charts.Lists;
+        if (on && !l.Contains(id)) l.Add(id); else if (!on) l.Remove(id);
+        Persist();
+    }
+
+    async Task RunCharts()
+    {
+        chartsBusy = true;
+        try { await Charts.RunAsync(Session, true, CancellationToken.None); } catch (Exception e) { State.Charts.LastNote = e.Message; }
+        chartsBusy = false;
+    }
+
+    async Task Measure()
+    {
+        measuring = true; StateHasChanged();
+        report = await Storage.FullAsync(Session, CancellationToken.None);
+        measuring = false;
+    }
+
+    static string Bytes(long b) => StorageService.Bytes(b);
+    static string Pct(long part, long whole) => (whole <= 0 ? 0 : Math.Clamp(part * 100.0 / whole, 0, 100)).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
 
     void SaveDownloads()
     {
@@ -117,4 +229,6 @@
         catch (Exception e) { error = e.Message; }
         finally { busy = false; }
     }
+
+    public override void Dispose() { tick?.Dispose(); base.Dispose(); }
 }

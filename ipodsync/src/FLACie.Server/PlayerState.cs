@@ -39,24 +39,68 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         Changed?.Invoke();
     }
 
-    /// <summary>Songs from the library like the one playing: the same artist first, then others, none already queued.</summary>
+    /// <summary>Songs that go with the one playing. First the ones the online lookup suggests and the library already has, then the library's own
+    /// idea of what fits (same artist, shared playlists, same genre), then anything. Never a song already queued or played lately, and never
+    /// the same song on another release (same title and lead artist counts as the same song).</summary>
     void RefreshSuggestions()
     {
         autoplayNext = [];
         if (!Autoplay || Current is not { } cur || library?.Invoke() is not { } lib) return;
-        var queued = Queue.Select(t => t.Path).ToHashSet();
+        var seen = Queue.Select(Matching.MatchKey).ToHashSet();
+        seen.Add(Matching.MatchKey(cur));
+        if (session is not null) foreach (var h in session.History.Take(40)) seen.Add(Matching.MatchKey(h.Title, h.Artist));
+        bool Fresh(Track t) => t.DurationMs is 0 or > 40_000 && !seen.Contains(Matching.MatchKey(t));
+        var res = new List<Track>(); var taken = new HashSet<string>();
+        void Take(IEnumerable<Track> src, int max)
+        {
+            var n = 0;
+            foreach (var t in src)
+            {
+                if (n >= max || res.Count >= 10) return;
+                if (!Fresh(t) || !taken.Add(Matching.MatchKey(t))) continue;
+                res.Add(t); n++;
+            }
+        }
         var artist = Matching.PrimaryArtist(cur.Artist);
-        var pool = lib.Songs.Where(t => !queued.Contains(t.Path) && t.DurationMs > 30_000 && t.Source != TrackSource.Cloud || !queued.Contains(t.Path) && t.Source == TrackSource.Cloud).ToList();
-        var same = pool.Where(t => Matching.PrimaryArtist(t.Artist) == artist).OrderBy(_ => Random.Shared.Next()).Take(4).ToList();
-        var poolPaths = pool.Select(t => t.Path).ToHashSet();
-        var mates = (related?.Invoke(cur) ?? []).Where(t => poolPaths.Contains(t.Path) && !same.Contains(t)).OrderBy(_ => Random.Shared.Next()).Take(6).ToList();
-        var albumMates = pool.Where(t => t.Album.Length > 0 && t.Album == cur.Album && !same.Contains(t) && !mates.Contains(t)).OrderBy(_ => Random.Shared.Next()).Take(3);
-        var rest = pool.OrderBy(_ => Random.Shared.Next()).Take(12);
-        autoplayNext = same.Concat(mates).Concat(albumMates).Concat(rest).DistinctBy(t => t.Path).Take(10).ToList();
+        var rnd = Random.Shared;
+        // suggestions from the lookup, in its order (the artist's own hits first, then similar artists'), if the library has them
+        Take(suggested.Select(s => lib.Find(s.Title, s.Artist)).OfType<Track>(), 6);
+        Take(lib.Songs.Where(t => Matching.PrimaryArtist(t.Artist) == artist).OrderBy(_ => rnd.Next()), 3);
+        Take((related?.Invoke(cur) ?? []).OrderBy(_ => rnd.Next()), 4);
+        if (cur.Genre.Length > 0) Take(lib.Songs.Where(t => t.Genre.Equals(cur.Genre, StringComparison.OrdinalIgnoreCase)).OrderBy(_ => rnd.Next()), 4);
+        Take(lib.Songs.OrderBy(_ => rnd.Next()), 10);
+        autoplayNext = res;
+    }
+
+    // ---- looking ahead: what the lookup suggests, and fetching what the library lacks ----
+
+    List<CatalogSong> suggested = [];
+    UserSession? session;
+    AutoplayPlanner? planner;
+    CancellationTokenSource? planning;
+    public void SetPlanner(UserSession s, AutoplayPlanner p) { session = s; planner = p; }
+
+    async Task PlanAsync(Track seed)
+    {
+        planning?.Cancel(); var cts = planning = new CancellationTokenSource();
+        if (!Autoplay || planner is null || session is null || library?.Invoke() is not { } lib) return;
+        try
+        {
+            suggested = await planner.RelatedAsync(seed, cts.Token);
+            if (cts.IsCancellationRequested) return;
+            RefreshSuggestions(); Changed?.Invoke();
+            var s = session;
+            var missing = suggested.Where(x => lib.Find(x.Title, x.Artist) is null && Matching.MatchKey(x.Title, x.Artist) != Matching.MatchKey(seed)).Take(8);
+            planner.Prefetch(s, missing, 5, () => { RefreshSuggestions(); Changed?.Invoke(); });
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception) { }
     }
 
     public Track? Current => Index >= 0 && Index < Queue.Count ? Queue[Index] : null;
     public event Action? Changed;
+    /// <summary>A song began (for the play history).</summary>
+    public event Action<Track>? Started;
     public IPlayInterceptor? Interceptor { get; set; }
     public Action? OnAutoAdvance { get; set; }
     DotNetObjectReference<PlayerState>? self;
@@ -116,7 +160,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
             t.ArtKey is null ? null : "/art/" + Uri.EscapeDataString(t.ArtKey), autoplay, t.DurationMs / 1000.0, startAt);
         Position = startAt; Duration = t.DurationMs / 1000.0;
         Stash(true);
-        if (autoplayNext.Count == 0 || autoplayNext.Any(a => Queue.Contains(a))) RefreshSuggestions();
+        RefreshSuggestions(); _ = PlanAsync(t); Started?.Invoke(t);
         Changed?.Invoke();
     }
 

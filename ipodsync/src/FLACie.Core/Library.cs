@@ -43,15 +43,20 @@ public sealed class Library
     /// <summary>Songs matching every word of the query (punctuation-blind), best first.</summary>
     public (IReadOnlyList<Track> Songs, IReadOnlyList<Group> Albums, IReadOnlyList<Group> Artists) Search(string q)
     {
-        var w = Matching.SearchWords(q);
-        if (w.Count == 0) return ([], [], []);
-        var qn = string.Concat(w);
-        int Score(string title) { var n = string.Concat(Matching.SearchWords(title)); return n == qn ? 0 : n.StartsWith(qn) ? 1 : n.Contains(qn) ? 2 : 3; }
+        if (SearchRank.Words(q).Length == 0) return ([], [], []);
+        songDocs ??= Songs.Select(t => new SearchRank.Doc(t.Title, t.Artist, t.Album)).ToArray();
+        albumDocs ??= Albums.Select(g => new SearchRank.Doc(g.Name, g.Tracks[0].AlbumArtist.Length > 0 ? g.Tracks[0].AlbumArtist : g.Tracks[0].Artist, "")).ToArray();
+        artistDocs ??= Artists.Select(g => new SearchRank.Doc(g.Name, "", "")).ToArray();
+        var si = Enumerable.Range(0, Songs.Count).ToList(); var ai = Enumerable.Range(0, Albums.Count).ToList(); var ri = Enumerable.Range(0, Artists.Count).ToList();
         return (
-            Songs.Where(t => Matching.SearchHit(w, t.Title, t.Artist, t.Album)).OrderBy(t => Score(t.Title)).Take(100).ToList(),
-            Albums.Where(g => Matching.SearchHit(w, g.Name, g.Tracks[0].AlbumArtist)).Take(24).ToList(),
-            Artists.Where(g => Matching.SearchHit(w, g.Name)).Take(12).ToList());
+            SearchRank.Rank(si, i => songDocs[i], q, 100).Select(i => Songs[i]).ToList(),
+            SearchRank.Rank(ai, i => albumDocs[i], q, 24).Select(i => Albums[i]).ToList(),
+            SearchRank.Rank(ri, i => artistDocs[i], q, 12).Select(i => Artists[i]).ToList());
     }
+    SearchRank.Doc[]? songDocs, albumDocs, artistDocs;
+
+    /// <summary>This library's copy of a song by title and artist (the same song on another release counts), or null.</summary>
+    public Track? Find(string title, string artist) => byMatch.GetValueOrDefault(Matching.MatchKey(title, artist));
 
     /// <summary>Jellyfin songs, then NAS songs Jellyfin doesn't have, de-duplicated.</summary>
     public static Library Merge(IReadOnlyList<Track> jellyfin, IReadOnlyList<Track> nas)

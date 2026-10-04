@@ -2,23 +2,46 @@
 @attribute [Authorize]
 @inherits UserComponent
 <PageTitle>Account · FLACie</PageTitle>
-<header class="page-head"><h1>Account</h1></header>
 
-<section class="panel account-card">
-    <div class="account-head">
-        <span class="avatar big" aria-hidden="true">@(Session.DisplayName.Length > 0 ? Session.DisplayName[..1].ToUpperInvariant() : "?")</span>
-        <div><h2>@Session.DisplayName</h2><p class="hint">Signed in with @(Session.Kind == "nas" ? "a NAS" : "Jellyfin")</p></div>
+<section class="acct-hero">
+    <span class="avatar huge" aria-hidden="true">@(Session.DisplayName.Length > 0 ? Session.DisplayName[..1].ToUpperInvariant() : "?")</span>
+    <div>
+        <h1>@Session.DisplayName</h1>
+        <p class="hint">Signed in with @(Session.Kind == "nas" ? "a NAS" : "Jellyfin")@(Session.Loading ? " · loading your library…" : "")</p>
     </div>
-    <dl class="kv">
-        <dt>Jellyfin</dt><dd>@(Session.Jellyfin is { } j ? $"{j.UserName} on {j.Server}" : "Not connected")</dd>
-        <dt>NAS</dt><dd>@(Session.Nas is { } n ? $"{n.Host}/{n.Share}{(n.Folder.Length > 0 ? "/" + n.Folder : "")}" : "Not connected")</dd>
-        <dt>Library</dt><dd>@Lib.Songs.Count songs · @Lib.Albums.Count albums · @Lib.Artists.Count artists@(Session.Loading ? " (loading…)" : "")</dd>
-        <dt>Playlists</dt><dd>@Session.Playlists.Count playlists · @Session.Favorites.Count favourites</dd>
-        @if (Live is { } l) { <dt>Devices</dt><dd>@(l.Connect.Connected ? "Connected for remote control and Jams" : "Connecting…")</dd> }
-    </dl>
-    <p class="hint">Your playlists, favourites and connected services live in @(Session.Jellyfin is not null && Session.Nas is not null ? "your Jellyfin account and on the NAS" : Session.Jellyfin is not null ? "your Jellyfin account" : "the NAS"), so every FLACie you sign in to picks them up.</p>
-    <div class="row-actions">
+    <div class="row-actions acct-actions">
         <a class="btn" href="/settings"><Icon Name="settings" Size="18" />Settings</a>
         <form method="post" action="/auth/logout" data-enhance="false"><button class="btn danger" type="submit"><Icon Name="logout" Size="18" />Sign out</button></form>
     </div>
 </section>
+
+<div class="stats" role="list">
+    <a class="stat" role="listitem" href="/songs"><b>@Lib.Songs.Count</b><span>Songs</span></a>
+    <a class="stat" role="listitem" href="/albums"><b>@Lib.Albums.Count</b><span>Albums</span></a>
+    <a class="stat" role="listitem" href="/artists"><b>@Lib.Artists.Count</b><span>Artists</span></a>
+    <a class="stat" role="listitem" href="/playlists"><b>@Session.Playlists.Count</b><span>Playlists</span></a>
+    <a class="stat" role="listitem" href="/favorites"><b>@Session.Favorites.Count</b><span>Favourites</span></a>
+</div>
+
+<section class="panel set">
+    <div class="set-head"><h2>Connected</h2><p class="hint">Where your music and profile live. Your playlists, favourites and services are kept in @Where, so every FLACie you sign in to picks them up.</p></div>
+    <ul class="links">
+        <li><i class="dot @(Session.Jellyfin is not null ? "on" : "")"></i><span><b>Jellyfin</b><small>@(Session.Jellyfin is { } j ? $"{j.UserName} on {j.Server}" : "Not connected")</small></span><a class="btn ghost" href="/settings#sources">@(Session.Jellyfin is null ? "Add" : "Manage")</a></li>
+        <li><i class="dot @(Session.Nas is not null ? "on" : "")"></i><span><b>NAS</b><small>@(Session.Nas is { } n ? $"{n.Host}/{n.Share}{(n.Folder.Length > 0 ? "/" + n.Folder : "")}" : "Not connected")</small></span><a class="btn ghost" href="/settings#sources">@(Session.Nas is null ? "Add" : "Manage")</a></li>
+        <li><i class="dot @(Session.Services.SoulseekReady || Session.Services.LidarrReady ? "on" : "")"></i><span><b>Downloads</b><small>@(Session.Services.SoulseekReady ? "Soulseek" : "") @(Session.Services.LidarrReady ? "Lidarr" : "")@(Session.Services.Any ? "" : "Not set up")</small></span><a class="btn ghost" href="/settings#downloads">@(Session.Services.Any ? "Manage" : "Set up")</a></li>
+        @if (Live is { } l) { <li><i class="dot @(l.Connect.Connected ? "on" : "")"></i><span><b>Devices</b><small>@(l.Connect.Connected ? "Connected for remote control and Jams" : "Connecting…")</small></span><a class="btn ghost" href="/devices">Open</a></li> }
+    </ul>
+</section>
+
+<section class="panel set">
+    <div class="set-head"><h2>Shortcuts</h2></div>
+    <ul class="links">
+        <li><Icon Name="download" Size="20" /><span><b>Import playlists</b><small>Send an iTunes, M3U or text file and let the server fetch it</small></span><a class="btn ghost" href="/import">Open</a></li>
+        <li><Icon Name="playlists" Size="20" /><span><b>Playlists</b><small>@Session.Playlists.Count playlists, kept in sync with your phone</small></span><a class="btn ghost" href="/playlists">Open</a></li>
+        <li><Icon Name="jam" Size="20" /><span><b>Jam</b><small>Listen together, in sync</small></span><a class="btn ghost" href="/jam">Open</a></li>
+    </ul>
+</section>
+
+@code {
+    string Where => string.Join(" and ", new[] { Session.Jellyfin is not null ? "your Jellyfin account" : null, Session.Nas is not null ? "the NAS" : null }.OfType<string>());
+}

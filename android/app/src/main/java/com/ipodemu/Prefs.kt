@@ -225,6 +225,23 @@ class Prefs(ctx: Context) {
         set(v) = sp.edit().putString("accountKind", v).apply()
     val signedIn: Boolean get() = if (accountKind == "nas") hasNasAccount else hasJellyfinAccount
 
+    /** When the queue is nearly over, carry on with different songs that go with what played (Autoplay). */
+    var autoplay: Boolean
+        get() = sp.getBoolean("autoplay", true)
+        set(v) = sp.edit().putBoolean("autoplay", v).apply()
+    /** Autoplay may download the next few songs the library lacks (the server does the downloading; the phone only asks). */
+    var autoplayFetch: Boolean
+        get() = sp.getBoolean("autoplayFetch", true)
+        set(v) = sp.edit().putBoolean("autoplayFetch", v).apply()
+    /** Streaming quality: 0 = automatic (full quality, a lower bitrate only when the connection can't keep up), 1 = always full, 2 = always data saver. */
+    var streamQuality: Int
+        get() = sp.getInt("streamQuality", 0)
+        set(v) = sp.edit().putInt("streamQuality", v).apply()
+    /** The address of FLACie Web (it takes playlist files and does the downloading); shared through the account profile. */
+    var flacieWebUrl: String
+        get() = sp.getString("flacieWeb", "") ?: ""
+        set(v) = sp.edit().putString("flacieWeb", v).apply()
+
     /** Reset Settings: everything except the chosen iPod, colour and look. */
     fun reset() {
         val keep = listOf("acctserver", "acctuid", "acctname", "accttoken", "deviceid", "uitheme").associateWith { sp.all[it] }

@@ -830,11 +830,11 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             val lib = app.library
             // every word of the query, in any order, anywhere in title + artist + album ("intro xx" finds "The xx - Intro")
             // punctuation-blind: "scream and shout will i am" finds "Scream & Shout" by will.i.am
-            val words = com.ipodemu.library.searchWords(q)
-            fun hit(vararg fields: String) = com.ipodemu.library.searchHit(words, *fields)
+            // ranked by word: exact > start > inside, title > artist > album, and a typo or two only when little else matches
+            val docs = com.ipodemu.library.searchDocs(lib)
             Results(
-                lib.songs().filter { hit(it.title, it.artist, it.album) }.take(150),
-                lib.albums().filter { hit(it.name, it.tracks.firstOrNull()?.artist ?: "") }.take(30),
+                com.ipodemu.library.SearchRank.rank(lib.songs(), { docs.song(it) }, q, 150),
+                com.ipodemu.library.SearchRank.rank(lib.albums(), { docs.album(it) }, q, 30),
             )
         }
     }
@@ -945,7 +945,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (restSongs.isNotEmpty()) {
                 item { SectionHeader("In your library") }
                 val shown = if (songsExpanded) restSongs else restSongs.take(4)
-                itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(shown, i, null); nav.nowPlaying = true }) }
+                itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(listOf(t), 0, null); nav.nowPlaying = true }) }
                 if (!songsExpanded && restSongs.size > 4) item { ShowMoreRow(restSongs.size - 4) { songsExpanded = true } }
             }
             if (r.albums.isNotEmpty()) {

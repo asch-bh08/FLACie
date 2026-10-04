@@ -15,9 +15,11 @@ namespace FLACie.Server;
 /// </summary>
 public sealed record Live(Connect Connect, Jam Jam);
 
-public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log)
+public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log, ImportManager imports)
 {
     readonly ConcurrentDictionary<string, UserSession> sessions = new();
+    /// <summary>Every account with a session on this server right now.</summary>
+    public IEnumerable<UserSession> Active => sessions.Values;
 
     public static ClaimsPrincipal Principal(JellyfinAccount? j, NasAccount? n)
     {
@@ -44,8 +46,8 @@ public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log)
             var kind = p.FindFirst("kind")?.Value ?? "jellyfin";
             JellyfinAccount? j = p.FindFirst("jf.token") is { } t ? new(p.FindFirst("jf.server")!.Value, p.FindFirst("jf.user")!.Value, p.FindFirst("jf.name")?.Value ?? "", t.Value) : null;
             NasAccount? n = p.FindFirst("nas.host") is { } h ? new(h.Value, V(p, "nas.share"), V(p, "nas.folder"), V(p, "nas.user"), V(p, "nas.pass"), V(p, "nas.domain")) : null;
-            var us = new UserSession(kind, j, n);
-            _ = Task.Run(async () => { try { await us.LoadAsync(jf); } catch (Exception e) { log.LogWarning(e, "Loading library failed"); } });
+            var us = new UserSession(kind, j, n) { Id = key };
+            _ = Task.Run(async () => { try { await us.LoadAsync(jf); } catch (Exception e) { log.LogWarning(e, "Loading library failed"); } imports.Resume(us); });
             return us;
         });
         return s;

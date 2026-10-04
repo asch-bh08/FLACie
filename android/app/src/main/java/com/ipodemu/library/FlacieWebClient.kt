@@ -1,0 +1,52 @@
+package com.ipodemu.library
+
+import com.ipodemu.Prefs
+import org.json.JSONArray
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+
+/**
+ * Hands playlist files to FLACie Web, which does all the searching and downloading on the server (nothing is downloaded to the phone), and asks
+ * how far it got. The phone proves who it is with its Jellyfin token and says which Jellyfin it uses; the server's address comes from the shared
+ * account profile (FLACie Web writes it there when you open it in a browser).
+ */
+class FlacieWebClient(private val prefs: Prefs) {
+    class Job(val id: String, val file: String, val state: String, val total: Int, val done: Int, val failed: Int, val note: String?)
+
+    val available: Boolean get() = prefs.flacieWebUrl.isNotBlank() && prefs.hasJellyfinAccount
+
+    private fun open(path: String, method: String): HttpURLConnection {
+        val c = URL(prefs.flacieWebUrl.trimEnd('/') + path).openConnection() as HttpURLConnection
+        c.requestMethod = method; c.connectTimeout = 10_000; c.readTimeout = 60_000
+        c.setRequestProperty("X-Emby-Token", prefs.accountToken)
+        c.setRequestProperty("X-Jellyfin-Server", prefs.accountServer.trimEnd('/'))
+        return c
+    }
+
+    private fun parse(o: JSONObject) = Job(o.optString("id"), o.optString("file"), o.optString("state"), o.optInt("total"), o.optInt("done"), o.optInt("failed"), o.optString("note").takeIf { it.isNotBlank() && it != "null" })
+
+    /** Sends the file; returns the new job, or throws with the server's message. */
+    fun submit(name: String, bytes: ByteArray): Job {
+        val c = open("/api/import?name=" + java.net.URLEncoder.encode(name, "UTF-8"), "POST")
+        c.doOutput = true; c.setRequestProperty("Content-Type", "application/octet-stream"); c.setFixedLengthStreamingMode(bytes.size)
+        try {
+            c.outputStream.use { it.write(bytes) }
+            val code = c.responseCode
+            val text = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() } ?: ""
+            if (code == 401) throw java.io.IOException("FLACie Web doesn't know this account. Open FLACie Web in a browser once, signed in to the same Jellyfin.")
+            if (code !in 200..299) throw java.io.IOException(try { JSONObject(text).optString("error") } catch (_: Exception) { "" }.ifBlank { "HTTP $code" })
+            return parse(JSONObject(text))
+        } finally { c.disconnect() }
+    }
+
+    fun jobs(): List<Job> {
+        val c = open("/api/import", "GET")
+        try {
+            val code = c.responseCode
+            if (code !in 200..299) throw java.io.IOException("HTTP $code")
+            val a = JSONArray(c.inputStream.bufferedReader().use { it.readText() })
+            return List(a.length()) { parse(a.getJSONObject(it)) }
+        } finally { c.disconnect() }
+    }
+}

@@ -106,7 +106,7 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         var all = new List<Track>();
         for (var start = 0; ; start += 2500)
         {
-            var page = await Send(HttpMethod.Get, $"{a.Server}/Users/{a.UserId}/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=Path,DateCreated&EnableUserData=false&StartIndex={start}&Limit=2500", a.Token, null, ct);
+            var page = await Send(HttpMethod.Get, $"{a.Server}/Users/{a.UserId}/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=Path,DateCreated,Genres&EnableUserData=false&StartIndex={start}&Limit=2500", a.Token, null, ct);
             var items = page?["Items"]?.AsArray();
             if (items is null || items.Count == 0) break;
             foreach (var o in items) if (o is not null) all.Add(ToTrack(a.Server, o));
@@ -130,7 +130,7 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         return new Track($"{server}/Audio/{id}/stream?static=true", Str("Name"), artist, Str("Album"), Str("AlbumArtist").Length > 0 ? Str("AlbumArtist") : artist,
             o["IndexNumber"]?.GetValue<int>() ?? 0, o["ParentIndexNumber"]?.GetValue<int>() ?? 0, (o["RunTimeTicks"]?.GetValue<long>() ?? 0) / 10_000,
             o["ProductionYear"]?.GetValue<int>() ?? 0, art, created == default ? 0 : new DateTimeOffset(created).ToUnixTimeMilliseconds(),
-            TrackSource.Jellyfin, Str("Path"), id);
+            TrackSource.Jellyfin, Str("Path"), id, o["Genres"]?.AsArray().FirstOrDefault()?.GetValue<string>() ?? "");
     }
 
     /// <summary>The user's own playlists with their songs' item ids.</summary>
@@ -173,5 +173,20 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         custom[ProfileKey] = profile.ToJsonString();
         dto["CustomPrefs"] = custom; dto["Client"] = Client;
         await Send(HttpMethod.Post, PrefsUrl(a), a.Token, dto, ct);
+    }
+
+    /// <summary>Total size on disk of the account's songs on this Jellyfin (it reports each file's size only with the media sources, so this pages through them).</summary>
+    public async Task<(int Songs, long Bytes)> LibrarySizeAsync(JellyfinAccount a, CancellationToken ct = default)
+    {
+        long bytes = 0; var songs = 0;
+        for (var start = 0; ; start += 1000)
+        {
+            var page = await Send(HttpMethod.Get, $"{a.Server}/Users/{a.UserId}/Items?IncludeItemTypes=Audio&Recursive=true&Fields=MediaSources&EnableUserData=false&EnableImages=false&StartIndex={start}&Limit=1000", a.Token, null, ct);
+            var items = page?["Items"]?.AsArray();
+            if (items is null || items.Count == 0) break;
+            foreach (var o in items) { songs++; bytes += o?["MediaSources"]?.AsArray().FirstOrDefault()?["Size"]?.GetValue<long>() ?? 0; }
+            if (items.Count < 1000) break;
+        }
+        return (songs, bytes);
     }
 }

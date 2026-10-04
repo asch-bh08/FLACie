@@ -14,6 +14,8 @@ public sealed record Playlist(string Id, string Name, long Modified, string? Jel
 public sealed class UserSession
 {
     public string Kind { get; }
+    /// <summary>A stable key for this account on this server (the server keeps its own per-account files under it).</summary>
+    public string Id { get; init; } = "";
     public JellyfinAccount? Jellyfin { get; private set; }
     public NasAccount? Nas { get; private set; }
     public JsonObject Profile { get; private set; } = NewProfile();
@@ -127,6 +129,25 @@ public sealed class UserSession
         Profile["favorites"] = arr; Changed?.Invoke();
     }
 
+    // ---- play history (in the profile, so Listen again follows the account) ----
+
+    public IReadOnlyList<PlayedEntry> History => (Profile["history"] as JsonArray ?? []).OfType<JsonObject>()
+        .Select(o => new PlayedEntry(S(o, "p"), S(o, "t"), S(o, "a"), o["w"]?.GetValue<long>() ?? 0)).ToList();
+
+    /// <summary>Notes that a song started. Returns true when the history changed enough to be worth saving (at most about every two minutes).</summary>
+    public bool RecordPlay(Track t)
+    {
+        var arr = Profile["history"] as JsonArray ?? (JsonArray)(Profile["history"] = new JsonArray());
+        if (arr.Count > 0 && arr[0] is JsonObject last && S(last, "p") == t.Path && Now() - (last["w"]?.GetValue<long>() ?? 0) < 60_000) return false;
+        arr.Insert(0, new JsonObject { ["p"] = t.Path, ["t"] = t.Title, ["a"] = t.Artist, ["w"] = Now() });
+        while (arr.Count > 200) arr.RemoveAt(arr.Count - 1);
+        Changed?.Invoke();
+        if (Now() - lastHistorySave < 120_000) return false;
+        lastHistorySave = Now();
+        return true;
+    }
+    long lastHistorySave;
+
     public IReadOnlyList<Playlist> Playlists
     {
         get
@@ -147,12 +168,36 @@ public sealed class UserSession
         return Playlists.First(p => p.Id == S(o, "id"));
     }
 
+    readonly object listLock = new();
+
+    /// <summary>Makes a playlist hold exactly these songs, in this order (an automatic list such as a chart is rebuilt, not appended to).</summary>
+    public void ReplacePlaylistTracks(string id, IEnumerable<Track> tracks)
+    {
+        lock (listLock)
+        {
+            if (FindPlaylist(id) is not { } o) return;
+            var arr = new JsonArray();
+            foreach (var t in tracks.DistinctBy(Matching.MatchKey)) arr.Add(EntryJson(t));
+            o["tracks"] = arr; o["m"] = Now();
+        }
+        Changed?.Invoke();
+    }
+
+    /// <summary>The playlist with this name (any case), made if it isn't there.</summary>
+    public Playlist PlaylistNamed(string name)
+    {
+        lock (listLock) return Playlists.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) ?? CreatePlaylist(name);
+    }
     public void AddToPlaylist(string id, Track t)
     {
-        if (FindPlaylist(id) is not { } o) return;
-        var tr = o["tracks"] as JsonArray ?? new JsonArray();
-        if (tr.OfType<JsonObject>().Any(x => S(x, "p") == t.Path)) return;
-        tr.Add(EntryJson(t)); o["tracks"] = tr; o["m"] = Now(); Changed?.Invoke();
+        lock (listLock)
+        {
+            if (FindPlaylist(id) is not { } o) return;
+            var tr = o["tracks"] as JsonArray ?? new JsonArray();
+            if (tr.OfType<JsonObject>().Any(x => S(x, "p") == t.Path || Matching.MatchKey(S(x, "t"), S(x, "a")) == Matching.MatchKey(t))) return;
+            tr.Add(EntryJson(t)); o["tracks"] = tr; o["m"] = Now();
+        }
+        Changed?.Invoke();
     }
 
     public void RemoveFromPlaylist(string id, int index)

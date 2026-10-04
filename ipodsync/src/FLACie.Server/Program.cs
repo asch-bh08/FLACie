@@ -26,7 +26,15 @@ builder.Services.AddHttpClient("media", c => { c.Timeout = Timeout.InfiniteTimeS
 builder.Services.AddHttpClient("catalog", c => { c.Timeout = TimeSpan.FromSeconds(12); c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); });
 builder.Services.AddHttpClient("downloads", c => { c.Timeout = TimeSpan.FromSeconds(30); c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); });
 builder.Services.AddSingleton(sp => new WebCatalog(sp.GetRequiredService<IHttpClientFactory>().CreateClient("catalog")));
+builder.Services.AddSingleton(new DataPaths(dataDir));
+builder.Services.AddSingleton<UserStateStore>();
+builder.Services.AddSingleton<StorageGuard>();
+builder.Services.AddSingleton<StorageService>();
 builder.Services.AddSingleton<DownloadManager>();
+builder.Services.AddSingleton<AutoplayPlanner>();
+builder.Services.AddSingleton<ImportManager>();
+builder.Services.AddSingleton<ChartsService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ChartsService>());
 builder.Services.AddSingleton<InfoService>();
 builder.Services.AddSingleton(sp => new LyricsService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("catalog"), sp.GetRequiredService<JellyfinClient>(), Path.Combine(dataDir, "lyrics")));
 // one device id per server install, so Jellyfin lists FLACie Web as one device
@@ -68,6 +76,7 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapAuth();
 app.MapMedia(dataDir);
+app.MapApi();
 // local diagnostics only (FLACIE_DEBUG=1): the signed-in user's own Jellyfin, GET or POST, so a session problem can be looked at directly
 if (builder.Configuration["FLACIE_DEBUG"] == "1")
 {

@@ -1,0 +1,89 @@
+@page "/import"
+@attribute [Authorize]
+@implements IDisposable
+@inherits UserComponent
+<PageTitle>Import playlists · FLACie</PageTitle>
+<header class="page-head"><h1>Import playlists</h1></header>
+
+<section class="panel wide">
+    <h2>Drop in a playlist or library file</h2>
+    <p class="hint">An iTunes <code>Library.xml</code>, an M3U playlist, a Spotify CSV, or a text file. In text, a line starting with <code>##</code> begins a playlist and every other line is <code>Artist - Title</code>. This server does the searching and downloading in the background, so it keeps going when you close this page and nothing is downloaded to this device. Songs already in your library are just added.</p>
+    <div class="drop">
+        <InputFile OnChange="Upload" accept=".xml,.m3u,.m3u8,.csv,.txt,.text" aria-label="Choose a playlist file" />
+        @if (busy) { <span class="hint">Reading…</span> }
+    </div>
+    @if (error is not null) { <p class="form-error" role="alert">@error</p> }
+    @if (!Session.Services.Any) { <p class="hint">Downloads aren't set up yet, so only songs you already have can be added. Set them up in <a href="/settings">Settings</a>.</p> }
+</section>
+
+@foreach (var job in Jobs)
+{
+    <section class="panel wide import" aria-label="@job.File">
+        <div class="import-head">
+            <div><h2>@job.File</h2><small class="hint">@job.Created.ToLocalTime().ToString("d MMM, HH:mm") · @StateText(job)</small></div>
+            <div class="row-actions">
+                @if (job.State is "running" or "waiting") { <button class="btn" @onclick="() => Imports.Cancel(Session, job.Id)">Stop</button> }
+                @if (job.Failed > 0 && job.State != "running") { <button class="btn" @onclick="() => Imports.Retry(Session, job.Id)">Retry @job.Failed missing</button> }
+            </div>
+        </div>
+        <div class="bar-meter" role="progressbar" aria-valuemin="0" aria-valuemax="@job.Total" aria-valuenow="@job.Finished"><i style="width:@(job.Total == 0 ? 0 : job.Finished * 100 / job.Total)%"></i></div>
+        @if (job.Note is { Length: > 0 }) { <p class="hint">@job.Note</p> }
+        @foreach (var l in job.Lists)
+        {
+            <details>
+                <summary><b>@l.Name</b> <span class="hint">@l.Items.Count(i => i.State is not "pending") of @l.Items.Count</span>@if (l.PlaylistId is not null) { <a class="open-pl" href="/playlist/@l.PlaylistId">Open</a> }</summary>
+                <ul class="import-items">
+                    @foreach (var i in l.Items.Where(i => i.State != "owned" || l.Items.Count < 40).Take(300))
+                    {
+                        <li class="@i.State"><span>@i.Artist@(i.Artist.Length > 0 ? " - " : "")@i.Title</span><small>@Label(i)</small></li>
+                    }
+                </ul>
+            </details>
+        }
+    </section>
+}
+@if (Jobs.Count == 0) { <p class="hint">Nothing imported yet.</p> }
+
+@code {
+    [Inject] ImportManager Imports { get; set; } = default!;
+    [Inject] UserStateStore States { get; set; } = default!;
+    bool busy; string? error;
+    Action<UserSession>? onChange; Timer? tick;
+    List<ImportJob> Jobs => States.For(Session).Imports.ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        onChange = s => { if (ReferenceEquals(s, Session)) InvokeAsync(StateHasChanged); };
+        Imports.Changed += onChange;
+        tick = new Timer(_ => InvokeAsync(StateHasChanged), null, 2000, 2000);
+    }
+
+    async Task Upload(InputFileChangeEventArgs e)
+    {
+        busy = true; error = null;
+        try
+        {
+            var f = e.File;
+            using var ms = new MemoryStream();
+            await using (var s = f.OpenReadStream(20 * 1024 * 1024)) await s.CopyToAsync(ms);
+            Imports.Start(Session, f.Name, ms.ToArray());
+        }
+        catch (InvalidDataException ex) { error = ex.Message; }
+        catch (IOException) { error = "That file is too big (limit 20 MB)."; }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    static string StateText(ImportJob j) => j.State switch
+    {
+        "running" => $"{j.Finished} of {j.Total} done" + (j.Failed > 0 ? $", {j.Failed} not found" : ""),
+        "waiting" => "waiting for free space",
+        "done" => $"finished: {j.Total - j.Failed} of {j.Total} added" + (j.Failed > 0 ? $", {j.Failed} not found" : ""),
+        _ => j.State,
+    };
+
+    static string Label(ImportItem i) => i.State switch { "owned" => "already in your library", "done" => "downloaded", "requested" => "requested", "failed" => i.Message ?? "not found", _ => "waiting" };
+
+    public override void Dispose() { if (onChange is not null) Imports.Changed -= onChange; tick?.Dispose(); base.Dispose(); }
+}

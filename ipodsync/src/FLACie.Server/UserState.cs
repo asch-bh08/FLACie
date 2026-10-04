@@ -31,6 +31,8 @@ public sealed class ImportJob
     public string File { get; set; } = "";
     /// <summary>Playlists that already exist (same name, ignoring a quality tag such as "(FLAC)") are renamed to the file's name and made to hold exactly the file's songs.</summary>
     public bool Replace { get; set; }
+    /// <summary>Replace mode has already merged the same-named playlists for this job.</summary>
+    public bool Consolidated { get; set; }
     public DateTime Created { get; set; } = DateTime.UtcNow;
     /// <summary>running, waiting (for disk space), done, cancelled</summary>
     public string State { get; set; } = "running";
@@ -43,7 +45,9 @@ public sealed class ImportJob
 
 public sealed class ChartSettings
 {
-    public bool Enabled { get; set; } = true;
+    /// <summary>Stored as "turned off" so that a fresh or older file means on (the daily download is on unless switched off).</summary>
+    public bool Off { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore] public bool Enabled { get => !Off; set => Off = !value; }
     /// <summary>Deezer chart ids: 0 overall, 132 Pop, 116 Rap/Hip Hop, 152 Rock, 113 Dance, 165 R&amp;B.</summary>
     public List<int> Lists { get; set; } = [0];
     public int PerList { get; set; } = 10;
@@ -99,7 +103,7 @@ public sealed class UserStateStore(DataPaths paths, Microsoft.AspNetCore.DataPro
             try
             {
                 var st = JsonSerializer.Deserialize<UserState>(File.ReadAllText(f));
-                if (st?.Account is null || !st.Charts.Enabled) continue;
+                if (st?.Account is null) continue;
                 var a = JsonSerializer.Deserialize<string[]>(dp.CreateProtector("FLACie.Account").Unprotect(st.Account));
                 if (a is { Length: 4 }) res.Add(new JellyfinAccount(a[0], a[1], a[2], a[3]));
             }

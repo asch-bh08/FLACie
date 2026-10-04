@@ -80,6 +80,16 @@ app.MapApi();
 // local diagnostics only (FLACIE_DEBUG=1): the signed-in user's own Jellyfin, GET or POST, so a session problem can be looked at directly
 if (builder.Configuration["FLACIE_DEBUG"] == "1")
 {
+    // local testing only: sign the browser in as an account this server already remembers (it was approved through Quick Connect earlier)
+    app.MapGet("/debug/login", async (HttpContext ctx, UserStateStore states) =>
+    {
+        if (!System.Net.IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress!)) return Results.NotFound();
+        var j = states.Remembered().FirstOrDefault();
+        if (j is null) return Results.NotFound();
+        await Microsoft.AspNetCore.Authentication.AuthenticationHttpContextExtensions.SignInAsync(ctx, Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme, SessionStore.Principal(j, null),
+            new Microsoft.AspNetCore.Authentication.AuthenticationProperties { IsPersistent = true, ExpiresUtc = DateTimeOffset.UtcNow.AddDays(30) });
+        return Results.Redirect("/");
+    });
     app.MapMethods("/debug/jf", ["GET", "POST"], async (HttpContext ctx, string path, SessionStore store, JellyfinClient jf) =>
     {
         var a = store.For(ctx.User).Jellyfin; if (a is null) return Results.NotFound();

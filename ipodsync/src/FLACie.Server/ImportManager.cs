@@ -71,6 +71,7 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
         // wait for the library to load, or "already have it" would be answered wrongly for every song
         for (var i = 0; i < 240 && (s.Loading || s.Library.Songs.Count == 0 && s.LoadedAt == default); i++) await Task.Delay(500, ct);
         var gate = new SemaphoreSlim(3);
+        if (job.Replace && !job.Consolidated) { foreach (var l in job.Lists) Consolidate(s, l); job.Consolidated = true; states.Save(s); }
         foreach (var list in job.Lists)
         {
             ct.ThrowIfCancellationRequested();
@@ -116,8 +117,26 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
     }
 
     readonly ConcurrentDictionary<string, object> listLocks = new();
-    static readonly System.Text.RegularExpressions.Regex QualityTag = new(@"s*((f?lac|alac|mp3|aac|wav|ogg|opus))s*$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    static readonly System.Text.RegularExpressions.Regex QualityTag = new(@"\s*\((f?lac|alac|mp3|aac|wav|ogg|opus)\)\s*$",System.Text.RegularExpressions.RegexOptions.IgnoreCase);
     static string Base(string n) => QualityTag.Replace(n, "").Trim().ToLowerInvariant();
+
+    /// <summary>Replace mode, once per playlist: every account playlist with this name (a quality tag such as "(LAC)" ignored) is one and the same list.
+    /// The one that is also a Jellyfin playlist (else the first) is kept, renamed to the file's name and emptied; the others are removed; the file's songs
+    /// go back in. Items are reset so songs already in the library are simply added again.</summary>
+    void Consolidate(UserSession s, ImportList list)
+    {
+        lock (listLocks.GetOrAdd(s.Id, _ => new object()))
+        {
+            var group = s.Playlists.Where(p => Base(p.Name) == Base(list.Name)).ToList();
+            if (group.Count == 0) return;
+            var keep = group.FirstOrDefault(p => p.JellyfinId is not null) ?? group.First();
+            foreach (var p in group.Where(p => p.Id != keep.Id)) s.DeletePlaylist(p.Id);
+            if (keep.Name != list.Name) s.RenamePlaylist(keep.Id, list.Name);
+            s.ReplacePlaylistTracks(keep.Id, []);
+            list.PlaylistId = keep.Id;
+            foreach (var i in list.Items) { i.State = "pending"; i.Message = null; }
+        }
+    }
 
     string EnsurePlaylist(UserSession s, ImportList list, bool replace)
     {

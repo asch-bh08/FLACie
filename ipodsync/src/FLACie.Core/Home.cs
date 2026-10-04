@@ -46,6 +46,16 @@ public static class HomeBuilder
         return res;
     }
 
+    /// <summary>The moods that have enough songs in this library to be worth a chip.</summary>
+    public static List<string> MoodsAvailable(Library lib) => Moods.Where(m => lib.Songs.Count(t => InMood(t, m)) >= 6).Select(m => m.Name).ToList();
+
+    /// <summary>A mood's songs for today, spread across artists.</summary>
+    public static List<Track> MoodTracks(Library lib, string mood, DateTime utcNow, int take = 40)
+    {
+        var m = Moods.FirstOrDefault(x => x.Name == mood);
+        return m is null ? [] : Spread(Shuffled(lib.Songs.Where(t => InMood(t, m)), Slot(utcNow, 24) * 17 + mood.Length), 2, take);
+    }
+
     public static List<Shelf> Build(Library lib, IReadOnlyList<PlayedEntry> history, IReadOnlyList<PlaylistEntry> favourites, IReadOnlyList<Playlist> playlists, DateTime utcNow)
     {
         var shelves = new List<Shelf>();
@@ -83,24 +93,15 @@ public static class HomeBuilder
             var now = mixes[(int)(slot % mixes.Count)];
             var mix = Spread(Shuffled(now.Tracks, slot).OrderByDescending(t => Taste(t) > 0 ? 1 : 0), 3, 30);
             shelves.Add(new("daily-mix", "Daily Mix: " + now.Name, now.Sub, mix, [], "A new mix every hour, cycling through moods and genres"));
-            // two more picked for the day, so there is always something besides the one of the hour
-            for (var i = 1; i <= 2 && mixes.Count > i; i++)
-            {
-                var m = mixes[(int)((day + i * 3) % mixes.Count)];
-                if (m.Name == now.Name) continue;
-                shelves.Add(new($"daily-mix-{i}", $"Daily Mix {i}: " + m.Name, m.Sub, Spread(Shuffled(m.Tracks, day * 13 + i), 3, 30), [], "New each day"));
-            }
         }
 
-        // the mood and genre rows
-        foreach (var m in Moods)
+        // "Similar to": the artist you favour most, then songs of the same genre by other artists
+        var top = lib.Songs.Where(t => Taste(t) > 0).GroupBy(t => Matching.PrimaryArtist(t.Artist)).Where(g => g.Key.Length > 0).OrderByDescending(g => g.Sum(Taste)).FirstOrDefault();
+        if (top is not null && top.FirstOrDefault(t => t.Genre.Length > 0) is { } seed)
         {
-            var l = lib.Songs.Where(t => InMood(t, m)).ToList();
-            if (l.Count >= 6) shelves.Add(new("mood-" + m.Name.ToLowerInvariant().Replace(' ', '-'), m.Name, m.Subtitle, Spread(Shuffled(l, day * 17 + m.Name.Length), 2, 14), [], "New each day"));
+            var sim = Spread(Shuffled(lib.Songs.Where(t => t.Genre.Equals(seed.Genre, StringComparison.OrdinalIgnoreCase) && Matching.PrimaryArtist(t.Artist) != top.Key), day * 7 + 3), 2, 14);
+            if (sim.Count >= 6) shelves.Add(new("similar", "Similar to " + top.First().Artist, "Same sound, other artists", sim, []));
         }
-        foreach (var g in genres.Take(4))
-            if (g.Count() >= 6 && shelves.All(s => !s.Title.Equals(g.Key, StringComparison.OrdinalIgnoreCase)))
-                shelves.Add(new("genre-" + g.Key.ToLowerInvariant().Replace(' ', '-'), g.Key, g.Count() + " songs", Spread(Shuffled(g, day * 19 + g.Key.Length), 2, 14), []));
 
         // albums for you: the albums whose songs you like best, then a few you haven't heard in a while
         var albums = lib.Albums.Where(a => a.Tracks.Count >= 3).Select(a => (Album: a, Score: a.Tracks.Sum(Taste) / a.Tracks.Count)).ToList();

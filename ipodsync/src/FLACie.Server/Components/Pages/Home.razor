@@ -11,60 +11,102 @@
     </div>
 </header>
 <LibraryStatus />
-@if (Session.Playlists.Count > 0)
+@if (moods.Count > 0)
 {
-    <section class="shelf" aria-label="Your playlists">
-        <div class="shelf-head"><h2>Your playlists</h2><a href="/playlists">All playlists</a></div>
-        <div class="row-scroll">
-            @foreach (var p in Session.Playlists.OrderByDescending(p => p.Modified).Take(14))
+    <div class="mood-chips" role="group" aria-label="Moods">
+        @foreach (var m in moods)
+        {
+            var name = m;
+            <button class="mood @(mood == name ? "on" : "")" aria-pressed="@(mood == name)" @onclick="() => Pick(name)">@name</button>
+        }
+    </div>
+}
+@if (mood is not null)
+{
+    <section class="shelf" aria-label="@mood">
+        <div class="shelf-head"><div><h2>@mood</h2><small>New picks each day</small></div><button class="chip small" @onclick="() => Player.Play(moodTracks, 0, mood)"><Icon Name="play" Size="16" />Play all</button></div>
+        <ul class="pick-grid">
+            @for (var i = 0; i < moodTracks.Count; i++)
             {
-                var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
-                <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@p.Entries.Count songs</span></a>
+                var idx = i; var t = moodTracks[i];
+                <li><button class="pick" @onclick="() => Player.Play(moodTracks, idx, mood)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small></span></button></li>
             }
-        </div>
+        </ul>
     </section>
 }
-@foreach (var sh in shelves)
+else
 {
-    <section class="shelf" aria-label="@sh.Title">
-        <div class="shelf-head">
-            <div><h2>@sh.Title</h2>@if (sh.Subtitle.Length > 0) { <small>@sh.Subtitle</small> }</div>
-            @if (sh.Tracks.Count > 0) { <button class="chip small" @onclick="() => Player.Play(sh.Tracks, 0, sh.Title)"><Icon Name="play" Size="16" />Play all</button> }
-        </div>
-        @if (sh.Tracks.Count > 0)
-        {
+    @if (Session.Playlists.Count > 0)
+    {
+        <section class="shelf" aria-label="Your playlists">
+            <div class="shelf-head"><div><h2>Your playlists</h2></div><span class="shelf-nav"><a href="/playlists">All</a><Arrows /></span></div>
             <div class="row-scroll">
-                @for (var i = 0; i < sh.Tracks.Count; i++)
+                @foreach (var p in Session.Playlists.OrderByDescending(p => p.Modified).Take(14))
                 {
-                    var idx = i; var t = sh.Tracks[i];
-                    <button class="card song-card" @onclick="() => Player.Play(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)">
-                        <Cover ArtKey="@(t.ArtKey)" Class="square" />
-                        <span class="card-title">@t.Title</span>
-                        <span class="card-sub">@t.Artist</span>
-                    </button>
+                    var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
+                    <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@p.Entries.Count songs</span></a>
                 }
             </div>
-        }
-        else
-        {
-            <div class="row-scroll">
-                @foreach (var g in sh.Albums)
-                {
-                    <a class="card" href="@AlbumLink(g)">
-                        <Cover ArtKey="@(g.ArtKey)" Class="square" />
-                        <span class="card-title">@g.Name</span>
-                        <span class="card-sub">@(g.Tracks[0].AlbumArtist.Length > 0 ? g.Tracks[0].AlbumArtist : g.Tracks[0].Artist)</span>
-                    </a>
-                }
+        </section>
+    }
+    @foreach (var sh in shelves)
+    {
+        <section class="shelf" aria-label="@sh.Title">
+            <div class="shelf-head">
+                <div><h2>@sh.Title</h2>@if (sh.Subtitle.Length > 0) { <small>@sh.Subtitle</small> }</div>
+                <span class="shelf-nav">
+                    @if (sh.Tracks.Count > 0) { <button class="chip small" @onclick="() => Player.Play(sh.Tracks, 0, sh.Title)"><Icon Name="play" Size="16" />Play all</button> }
+                    @if (sh.Id != "quick-picks") { <Arrows /> }
+                </span>
             </div>
-        }
-    </section>
+            @if (sh.Id == "quick-picks")
+            {
+                <ul class="pick-grid">
+                    @for (var i = 0; i < sh.Tracks.Count && i < 12; i++)
+                    {
+                        var idx = i; var t = sh.Tracks[i];
+                        <li><button class="pick" @onclick="() => Player.Play(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small></span></button></li>
+                    }
+                </ul>
+            }
+            else if (sh.Tracks.Count > 0)
+            {
+                <div class="row-scroll">
+                    @for (var i = 0; i < sh.Tracks.Count; i++)
+                    {
+                        var idx = i; var t = sh.Tracks[i];
+                        <button class="card song-card" @onclick="() => Player.Play(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)">
+                            <Cover ArtKey="@(t.ArtKey)" Class="square" />
+                            <span class="card-title">@t.Title</span>
+                            <span class="card-sub">@t.Artist</span>
+                        </button>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="row-scroll">
+                    @foreach (var g in sh.Albums)
+                    {
+                        <a class="card" href="@AlbumLink(g)">
+                            <Cover ArtKey="@(g.ArtKey)" Class="square" />
+                            <span class="card-title">@g.Name</span>
+                            <span class="card-sub">@(g.Tracks[0].AlbumArtist.Length > 0 ? g.Tracks[0].AlbumArtist : g.Tracks[0].Artist)</span>
+                        </a>
+                    }
+                </div>
+            }
+        </section>
+    }
 }
 @code {
     string Greeting { get { var h = DateTime.Now.Hour; return h >= 18 ? "Good evening" : h >= 12 ? "Good afternoon" : "Good morning"; } }
 
     List<Shelf> shelves = [];
+    List<string> moods = []; string? mood; List<Track> moodTracks = [];
     long builtSlot = -1, builtLast = -1; int builtSongs = -1;
+
+    void Pick(string m) { if (mood == m) { mood = null; return; } mood = m; moodTracks = HomeBuilder.MoodTracks(Lib, m, DateTime.UtcNow); }
 
     // the shelves are rebuilt when the library or history changes, and each hour (the Daily Mix moves on then)
     protected override void OnParametersSet() => Rebuild();
@@ -84,5 +126,6 @@
         if (slot == builtSlot && builtSongs == Lib.Songs.Count && builtLast == last) return;
         builtSlot = slot; builtSongs = Lib.Songs.Count; builtLast = last;
         shelves = HomeBuilder.Build(Lib, history, Session.Favorites, Session.Playlists, DateTime.UtcNow);
+        moods = HomeBuilder.MoodsAvailable(Lib);
     }
 }

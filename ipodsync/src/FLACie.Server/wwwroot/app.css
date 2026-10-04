@@ -471,3 +471,28 @@ details.more .form { margin-top: 10px; }
 .links .ic { color: var(--dim); }
 .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--surface-3); }
 .dot.on { background: var(--ok); box-shadow: 0 0 0 4px #6fd6a322; }
+
+/* ---- calmer home: no scrollbars on rows (arrows in the heading instead), mood chips, quick picks as a list ---- */
+.row-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+.row-scroll::-webkit-scrollbar { display: none; }
+.rail { scrollbar-width: none; }
+.rail::-webkit-scrollbar { display: none; }
+html { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+.np-panel, .import-items, .menu { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+.shelf-nav { display: flex; align-items: center; gap: 10px; }
+.shelf-nav > a { color: var(--dim); font-weight: 600; text-decoration: none; }
+.shelf-nav > a:hover { color: var(--ink); }
+.arrows { display: inline-flex; gap: 2px; }
+.arrows .icon-btn { width: 34px; height: 34px; background: var(--surface-2); }
+.mood-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 26px; }
+.mood { border: 1px solid var(--line); background: var(--surface); color: var(--dim); border-radius: 999px; padding: 8px 16px; font-weight: 600; }
+.mood:hover { background: var(--surface-2); color: var(--ink); }
+.mood.on { background: var(--ink); color: #000; border-color: var(--ink); }
+.pick-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 28px; }
+.pick { display: flex; align-items: center; gap: 14px; width: 100%; padding: 6px 8px; background: none; border: 0; border-radius: 10px; text-align: left; }
+.pick:hover { background: var(--surface); }
+.pick span { min-width: 0; display: flex; flex-direction: column; }
+.pick b, .pick small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pick small { color: var(--dim); }
+@media (max-width: 1100px) { .pick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .pick-grid { grid-template-columns: minmax(0, 1fr); } }

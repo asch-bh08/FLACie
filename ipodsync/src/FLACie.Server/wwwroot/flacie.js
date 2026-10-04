@@ -76,6 +76,8 @@ window.flacie = (() => {
       if (el && panel) panel.scrollTo({ top: el.offsetTop - panel.clientHeight / 2 + el.clientHeight / 2, behavior: "smooth" });
     },
     // the full-screen player is a history entry, so the browser's Back button closes it
+    // the arrows in a shelf heading scroll the row below it, a page at a time
+    scrollRow(btn, dir) { const row = btn.closest(".shelf")?.querySelector(".row-scroll"); if (row) row.scrollBy({ left: dir * row.clientWidth * 0.85, behavior: "smooth" }); },
     npOpen(ref) {
       npRef = ref; document.body.classList.add("np-open");
       if (!npPushed) { history.pushState({ np: 1 }, "", location.pathname + location.search + "#now-playing"); npPushed = true; }

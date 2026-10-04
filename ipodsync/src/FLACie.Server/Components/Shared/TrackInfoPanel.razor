@@ -1,4 +1,4 @@
-@* The file behind a song: format and quality at a glance, then a graph for whichever measure you pick (bit rate, sample rate, bit depth, channels), then the details. *@
+@* The file behind a song: format and quality at a glance, a live visualizer of what is playing right now, then the details. *@
 @implements IAsyncDisposable
 @inject IJSRuntime Js
 @if (Loading) { <p class="hint">Reading the file…</p> }
@@ -10,46 +10,22 @@ else
             <span class="fmt-big @(Info.Lossless ? "lossless" : "")">@(Info.Format.Length > 0 ? Info.Format : "AUDIO")</span>
             <div><b>@(Info.Tier.Length > 0 ? Info.Tier : "Quality unknown")</b><small>@Info.Sampling@(Info.Sampling.Length > 0 && Info.ChannelsName.Length > 0 ? " · " : "")@Info.ChannelsName</small></div>
         </div>
-
-        <div class="qtiles" role="tablist" aria-label="Graph to show">
-            @foreach (var (id, big, small) in Tiles())
-            {
-                var m = id;
-                <button role="tab" class="qtile @(mode == m ? "on" : "")" aria-selected="@(mode == m)" @onclick="() => Pick(m)"><b>@big</b><small>@small</small></button>
-            }
+        <div class="facts">
+            @if (Info.BitrateKbps > 0) { <span class="fact"><b>@Info.BitrateKbps</b><small>kbps</small></span> }
+            @if (Info.SampleRateHz > 0) { <span class="fact"><b>@((Info.SampleRateHz / 1000.0).ToString("0.#"))</b><small>kHz</small></span> }
+            @if (Info.BitDepth > 0) { <span class="fact"><b>@Info.BitDepth</b><small>bit</small></span> }
+            @if (Info.Channels > 0) { <span class="fact"><b>@Info.ChannelsName</b></span> }
         </div>
-
-        <div class="card-block graph">
-            <div class="block-head"><b>@Title</b><small>@Hint</small></div>
-            @if (mode == "rate")
-            {
-                <div class="bars" role="img" aria-label="Bit rate against common formats">
-                    @foreach (var (name, v, me) in RateBars())
-                    {
-                        <div class="bar-row @(me ? "me" : "")"><span>@name</span><div class="bar-track"><i style="width:@Pct(v, RateMax)%"></i></div><b>@v kbps</b></div>
-                    }
-                </div>
-            }
-            else if (tooBig) { <p class="hint">This file is too large to draw in the browser.</p> }
-            else if (error is not null) { <p class="hint">@error</p> }
+        <div class="viz-wrap">
+            @if (unavailable) { <p class="viz-off">The live view isn't available in this browser.</p> }
             else
             {
-                <div class="canvas-wrap">
-                    <canvas id="insight" class="insight" aria-label="@Title"></canvas>
-                    @if (analysing || stats is null) { <p class="canvas-note">Reading the whole song to draw this…</p> }
-                </div>
-                @if (stats is not null) { <ul class="notes">@foreach (var n in Notes()) { <li>@n</li> }</ul> }
+                <canvas id="viz" class="viz" role="img" aria-label="Live equaliser of the song playing"></canvas>
+                <div class="viz-scale" aria-hidden="true"><span>Bass</span><span>Mid</span><span>Treble</span></div>
             }
         </div>
-
-        <div class="tiers" aria-hidden="true">
-            @foreach (var (name, on) in Tiers())
-            {
-                <span class="@(on ? "on" : "")">@name</span>
-            }
-        </div>
-        <div class="card-block">
-            <div class="block-head"><b>Song</b></div>
+        <section class="kv-sec">
+            <h4>Song</h4>
             <dl class="kv">
                 <dt>Title</dt><dd>@Track.Title</dd>
                 <dt>Artist</dt><dd>@Track.Artist</dd>
@@ -60,9 +36,9 @@ else
                 @if (Track.TrackNo > 0) { <dt>Track</dt><dd>@(Track.DiscNo > 1 ? Track.DiscNo + "-" : "")@Track.TrackNo</dd> }
                 @if (Info.DurationMs > 0) { <dt>Length</dt><dd>@Clock(Info.DurationMs)</dd> }
             </dl>
-        </div>
-        <div class="card-block">
-            <div class="block-head"><b>File</b></div>
+        </section>
+        <section class="kv-sec">
+            <h4>File</h4>
             <dl class="kv">
                 <dt>Source</dt><dd><span class="badge @Track.Source.ToString().ToLowerInvariant()">@Info.Source</span></dd>
                 @if (Info.Codec.Length > 0) { <dt>Codec</dt><dd>@Info.Codec.ToUpperInvariant()@(Info.Container.Length > 0 && !string.Equals(Info.Container, Info.Codec, StringComparison.OrdinalIgnoreCase) ? " in " + Info.Container.ToUpperInvariant() : "")</dd> }
@@ -70,7 +46,7 @@ else
                 @if (Info.Path.Length > 0) { <dt>Location</dt><dd class="path">@Info.Path</dd> }
                 <dt>Playing</dt><dd>Original file, streamed without converting</dd>
             </dl>
-        </div>
+        </section>
     </div>
 }
 @code {
@@ -80,103 +56,16 @@ else
     /// <summary>The song's own album when the file is filed on a compilation or another release.</summary>
     [Parameter] public string? Album { get; set; }
 
-    public sealed class InsightStats
-    {
-        public double SampleRate { get; set; } public double DurationSec { get; set; } public bool Stereo { get; set; }
-        public double PeakDb { get; set; } public double RmsDb { get; set; } public double DynamicDb { get; set; } public long Clipped { get; set; }
-        public double Correlation { get; set; } public double WidthPct { get; set; } public double ContentKhz { get; set; } public double NyquistKhz { get; set; }
-    }
-
-    string mode = "spec";
-    InsightStats? stats; string? statsFor, error, shown; bool analysing;
-    bool tooBig => Info is { } i && (i.SizeBytes > 90L * 1024 * 1024 || i.DurationMs > 20 * 60_000);
-
-    IEnumerable<(string Id, string Big, string Small)> Tiles()
-    {
-        if (Info!.BitrateKbps > 0) yield return ("rate", Info.BitrateKbps.ToString(), "kbps");
-        if (Info.SampleRateHz > 0) yield return ("spec", (Info.SampleRateHz / 1000.0).ToString("0.#"), "kHz");
-        if (Info.BitDepth > 0) yield return ("wave", Info.BitDepth.ToString(), "bit");
-        if (Info.Channels > 0) yield return ("stereo", Info.ChannelsName, "channels");
-    }
-
-    string Title => mode switch { "rate" => "Bit rate", "spec" => "Frequency detail", "wave" => "Loudness", _ => "Left and right" };
-    string Hint => mode switch
-    {
-        "rate" => "How much data each second of the song uses, next to common formats.",
-        "spec" => "Time runs across, pitch runs up (deep sounds at the bottom, high sounds at the top). Brighter means louder. Click to jump.",
-        "wave" => "The song's loudness over time. The faint lines are 0, −6, −12 and −24 dB. Click to jump.",
-        _ => "The left channel above, the right below. Click to jump.",
-    };
-
-    void Pick(string m) { mode = m; shown = null; }
-
+    bool started, unavailable;
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (Info is null || Loading) { shown = null; return; }
-        if (mode == "rate" || tooBig) { if (shown is not null) { shown = null; await Safe(() => Js.InvokeVoidAsync("insight.stop").AsTask()); } return; }
-        var path = Track.Path;
-        if (statsFor != path && !analysing)
-        {
-            analysing = true; error = null; stats = null; shown = null; StateHasChanged();
-            try { stats = await Js.InvokeAsync<InsightStats>("insight.load", "/stream?p=" + Uri.EscapeDataString(path), (int)Info.SampleRateHz, path); }
-            catch (JSException) { error = "This format can't be drawn here (the browser can't decode it)."; }
-            catch (Exception) { error = "The song couldn't be read for the graph."; }
-            statsFor = path; analysing = false; StateHasChanged(); return;
-        }
-        if (stats is not null && statsFor == path && shown != path + "|" + mode)
-        {
-            shown = path + "|" + mode;
-            await Safe(() => Js.InvokeVoidAsync("insight.show", "insight", path, mode).AsTask());
-        }
+        if (Info is null || Loading) { started = false; return; }
+        if (started || unavailable) return;
+        started = true;
+        try { if (!await Js.InvokeAsync<bool>("flacie.viz", "viz")) { unavailable = true; StateHasChanged(); } } catch (Exception) { }
     }
+    public async ValueTask DisposeAsync() { try { await Js.InvokeVoidAsync("flacie.vizStop"); } catch (Exception) { } }
 
-    static async Task Safe(Func<Task> f) { try { await f(); } catch (Exception) { } }
-    public async ValueTask DisposeAsync() => await Safe(() => Js.InvokeVoidAsync("insight.stop").AsTask());
-
-    IEnumerable<string> Notes()
-    {
-        var s = stats!;
-        switch (mode)
-        {
-            case "spec":
-                yield return $"Sound reaches about {s.ContentKhz:0.#} kHz. The top of the graph is {s.NyquistKhz:0.#} kHz, half the sample rate.";
-                if (s.NyquistKhz >= 20 && s.ContentKhz < 17.5) yield return "It stops well short of the top, which is typical of an MP3 or AAC file, or of a song that was lossy before it became lossless.";
-                else if (s.ContentKhz >= 19) yield return "It fills the range right up to the top, as a lossless file from a good source usually does.";
-                else yield return "It tops out in the high teens, which many older CD masters do.";
-                break;
-            case "wave":
-                yield return $"Loudest point {s.PeakDb:0.#} dB, average level {s.RmsDb:0.#} dB (0 dB is the loudest a file can hold).";
-                yield return $"The loud parts are about {Math.Max(0, s.DynamicDb):0} dB louder than the quiet parts.";
-                yield return s.Clipped > 50 ? $"Hard clipping in about {s.Clipped:N0} places, where the peaks were cut flat." : "No clipping found.";
-                break;
-            case "stereo":
-                if (!s.Stereo) { yield return "This is a mono recording: both sides are the same."; break; }
-                yield return s.Correlation > 0.95 ? "Left and right are almost the same, so it sounds close to mono."
-                    : s.Correlation > 0.6 ? "Left and right share most of the sound, with some space between them."
-                    : s.Correlation > 0.2 ? "A wide stereo picture: left and right differ a lot." : "Left and right are very different, so it is extremely wide (or has phase tricks).";
-                yield return $"About {s.WidthPct:0}% of the sound is the difference between the two sides.";
-                break;
-        }
-    }
-
-    IEnumerable<(string Name, int V, bool Me)> RateBars()
-    {
-        var l = new List<(string, int, bool)> { ("MP3, low", 128, false), ("MP3, high", 320, false), ("CD, uncompressed", 1411, false), ("This file", Info!.BitrateKbps, true) };
-        return l.OrderBy(x => x.Item2);
-    }
-    double RateMax => Math.Max(1411, Info?.BitrateKbps ?? 0);
-
-    static string Pct(double v, double max) => Math.Clamp(v / max * 100, 0, 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     static string Size(long b) => b >= 1 << 30 ? $"{b / (double)(1 << 30):0.##} GB" : $"{b / (double)(1 << 20):0.#} MB";
     static string Clock(long ms) => $"{ms / 60000}:{ms / 1000 % 60:00}";
-
-    // which of four quality bands the file falls in
-    IEnumerable<(string, bool)> Tiers()
-    {
-        var hi = Info!.Lossless && (Info.SampleRateHz > 48_000 || Info.BitDepth > 16);
-        var lossless = Info.Lossless && !hi;
-        var high = !Info.Lossless && Info.BitrateKbps >= 256;
-        var std = !Info.Lossless && Info.BitrateKbps < 256;
-        return [("Standard", std), ("High", high), ("Lossless", lossless), ("Hi-Res", hi)];
-    }
 }

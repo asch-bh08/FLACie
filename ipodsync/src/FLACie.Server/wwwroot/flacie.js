@@ -51,7 +51,53 @@ window.flacie = (() => {
     requestAnimationFrame(lyricTick);
   };
   requestAnimationFrame(lyricTick);
-  window.flacieAudio = audio; // read by insight.js (the Info tab graphs), which never touches the audio path
+  // Live equaliser for the Info tab. The audio is routed through an analyser from the first song on (set up before any sound plays, so
+  // switching the Info tab on or off never interrupts it). Not done on iOS, where routing through Web Audio can stop playback in the background.
+  let actx = null, an = null, vizOn = false, vh = null, vp = null;
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const ensureGraph = () => {
+    if (an || ios) return;
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = actx.createMediaElementSource(audio);
+      an = actx.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0.7;
+      src.connect(an); an.connect(actx.destination);
+    } catch { an = null; }
+  };
+  audio.addEventListener("play", () => { if (actx && actx.state === "suspended") actx.resume().catch(() => { }); });
+  const vizDraw = () => {
+    if (!vizOn) return;
+    requestAnimationFrame(vizDraw);
+    const cv = document.getElementById("viz"); if (!cv || !an) return;
+    const dpr = window.devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
+    if (!w || !h) return;
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    const g = cv.getContext("2d"), nyq = actx.sampleRate / 2, bins = an.frequencyBinCount, data = new Uint8Array(bins);
+    an.getByteFrequencyData(data);
+    const N = Math.max(18, Math.min(48, Math.floor(w / (13 * dpr)))), lo = 35, hi = Math.min(nyq, 18000);
+    if (!vh || vh.length !== N) { vh = new Float32Array(N); vp = new Float32Array(N); }
+    const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#ff4d8d";
+    g.clearRect(0, 0, w, h);
+    // classic LED columns: each column is one slice of pitch (low to high, evenly spaced by ear), lit up to its loudness
+    const seg = 7 * dpr, gap = 2.5 * dpr, rows = Math.max(6, Math.floor(h / (seg + gap))), slot = w / N, bw = Math.max(3 * dpr, slot * 0.7);
+    for (let i = 0; i < N; i++) {
+      const f0 = lo * Math.pow(hi / lo, i / N), f1 = lo * Math.pow(hi / lo, (i + 1) / N);
+      const b0 = Math.floor(f0 / nyq * bins), b1 = Math.max(b0 + 1, Math.ceil(f1 / nyq * bins));
+      let m = 0; for (let k = b0; k < b1 && k < bins; k++) m = Math.max(m, data[k]);
+      // the highs carry less energy in real music, so they are lifted a little to be seen
+      const v = Math.min(1, Math.pow(m / 255, 1.5) * (1 + 0.7 * i / N));
+      vh[i] = Math.max(v, vh[i] - 0.035); vp[i] = Math.max(vh[i], vp[i] - 0.008);
+      const lit = Math.round(vh[i] * rows), peak = Math.min(rows - 1, Math.round(vp[i] * rows)), x = i * slot + (slot - bw) / 2;
+      for (let r = 0; r < rows; r++) {
+        const y = h - (r + 1) * (seg + gap) + gap;
+        if (r < lit) { g.globalAlpha = 0.45 + 0.55 * (r / rows); g.fillStyle = accent; }
+        else if (r === peak && peak > 0) { g.globalAlpha = 0.9; g.fillStyle = "#fff"; }
+        else { g.globalAlpha = 0.06; g.fillStyle = "#fff"; }
+        g.beginPath(); g.roundRect(x, y, bw, seg, Math.min(2 * dpr, seg / 2)); g.fill();
+      }
+    }
+    g.globalAlpha = 1;
+  };
   let npRef = null, npPushed = false;
   const npClosed = () => { const r = npRef; npRef = null; npPushed = false; document.body.classList.remove("np-open"); if (r) r.invokeMethodAsync("Closed").catch(() => { }); };
   window.addEventListener("popstate", () => { if (npRef) npClosed(); else npPushed = false; });
@@ -61,12 +107,22 @@ window.flacie = (() => {
   return {
     load(ref, url, title, artist, album, art, autoplay, dur, startAt) {
       dotnet = ref;
+      ensureGraph();
       audio.src = url;
       if (startAt > 0) audio.addEventListener("loadedmetadata", () => { audio.currentTime = startAt; }, { once: true });
       if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title, artist, album, artwork: art ? [{ src: art, sizes: "500x500", type: "image/jpeg" }] : [] });
       document.title = title ? `${title} · ${artist}` : "FLACie";
       if (autoplay) audio.play().catch(() => send("OnState", false)); else { audio.pause(); send("OnState", false); }
     },
+    // starts the Info tab's live view; false when this browser can't do it
+    viz() {
+      ensureGraph();
+      if (!an) return false;
+      if (actx.state === "suspended") actx.resume().catch(() => { });
+      if (!vizOn) { vizOn = true; requestAnimationFrame(vizDraw); }
+      return true;
+    },
+    vizStop() { vizOn = false; },
     toggle() { audio.paused ? audio.play().catch(() => {}) : audio.pause(); },
     play() { audio.play().catch(() => send("OnState", false)); },
     setLyrics(times) { lyr = { times, cur: -2 }; },

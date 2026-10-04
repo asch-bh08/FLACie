@@ -53,7 +53,33 @@ window.flacie = (() => {
   requestAnimationFrame(lyricTick);
   // Live equaliser for the Info tab. The audio is routed through an analyser from the first song on (set up before any sound plays, so
   // switching the Info tab on or off never interrupts it). Not done on iOS, where routing through Web Audio can stop playback in the background.
-  let actx = null, an = null, vizOn = false, vh = null, vp = null;
+  let actx = null, an = null, vizOn = false, vh = null, vp = null, vizStyle = "curve", cp = null;
+  window.flacieAudio = audio; // read by insight.js (the whole-song graphs), which never touches the audio path
+  // the live spectrum: how loud each pitch is right now, 0 Hz on the left to 22 kHz on the right, with a slowly falling peak line
+  const drawCurve = (g, w, h, dpr, data, nyq, bins, accent) => {
+    const maxHz = Math.min(nyq, 22050), use = Math.floor(bins * maxHz / nyq), bottom = h - 18 * dpr, top = 6 * dpr, span = bottom - top;
+    if (!cp || cp.length !== use) cp = new Float32Array(use);
+    g.font = `${11 * dpr}px system-ui, sans-serif`; g.textBaseline = "alphabetic"; g.lineWidth = dpr;
+    for (let k = 0; k <= maxHz; k += 5000) {
+      const x = Math.min(w - 1, k / maxHz * w);
+      g.strokeStyle = "rgba(255,255,255,.08)"; g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke();
+      g.fillStyle = "#8a8a94"; g.textAlign = k === 0 ? "left" : "center"; g.fillText(k === 0 ? "0" : (k / 1000) + " kHz", k === 0 ? 2 : Math.min(x, w - 22 * dpr), h - 3 * dpr);
+    }
+    if (maxHz > 16000) { // where MP3s are usually cut off
+      const x = 16000 / maxHz * w; g.setLineDash([4 * dpr, 4 * dpr]); g.strokeStyle = "rgba(255,255,255,.3)"; g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke(); g.setLineDash([]);
+      g.fillStyle = "#8a8a94"; g.textAlign = "left"; g.fillText("MP3 usually ends here", x + 5 * dpr, top + 10 * dpr);
+    }
+    const pts = [], pk = [];
+    for (let i = 0; i < use; i++) {
+      const v = data[i] / 255; cp[i] = Math.max(v, cp[i] - 0.004);
+      pts.push([i / (use - 1) * w, bottom - Math.pow(v, 1.15) * span]); pk.push([i / (use - 1) * w, bottom - Math.pow(cp[i], 1.15) * span]);
+    }
+    const path = (p) => { g.moveTo(p[0][0], p[0][1]); for (let i = 1; i < p.length - 1; i++) { const mx = (p[i][0] + p[i + 1][0]) / 2, my = (p[i][1] + p[i + 1][1]) / 2; g.quadraticCurveTo(p[i][0], p[i][1], mx, my); } };
+    const grad = g.createLinearGradient(0, top, 0, bottom); grad.addColorStop(0, accent); grad.addColorStop(1, "rgba(255,255,255,.02)");
+    g.beginPath(); path(pk); g.strokeStyle = "rgba(255,255,255,.28)"; g.lineWidth = 1.2 * dpr; g.stroke();
+    g.beginPath(); path(pts); g.lineTo(w, bottom); g.lineTo(0, bottom); g.closePath(); g.fillStyle = grad; g.globalAlpha = .85; g.fill(); g.globalAlpha = 1;
+    g.beginPath(); path(pts); g.strokeStyle = accent; g.lineWidth = 2 * dpr; g.stroke();
+  };
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const ensureGraph = () => {
     if (an || ios) return;
@@ -74,6 +100,8 @@ window.flacie = (() => {
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
     const g = cv.getContext("2d"), nyq = actx.sampleRate / 2, bins = an.frequencyBinCount, data = new Uint8Array(bins);
     an.getByteFrequencyData(data);
+    const accent0 = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#ff4d8d";
+    if (vizStyle === "curve") { g.clearRect(0, 0, w, h); drawCurve(g, w, h, dpr, data, nyq, bins, accent0); return; }
     const N = Math.max(18, Math.min(48, Math.floor(w / (13 * dpr)))), lo = 35, hi = Math.min(nyq, 18000);
     if (!vh || vh.length !== N) { vh = new Float32Array(N); vp = new Float32Array(N); }
     const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#ff4d8d";
@@ -115,7 +143,8 @@ window.flacie = (() => {
       if (autoplay) audio.play().catch(() => send("OnState", false)); else { audio.pause(); send("OnState", false); }
     },
     // starts the Info tab's live view; false when this browser can't do it
-    viz() {
+    viz(id, style) {
+      vizStyle = style === "leds" ? "leds" : "curve";
       ensureGraph();
       if (!an) return false;
       if (actx.state === "suspended") actx.resume().catch(() => { });

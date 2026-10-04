@@ -2,13 +2,9 @@
 @attribute [Authorize]
 @inherits UserComponent
 <PageTitle>FLACie</PageTitle>
-<header class="page-head">
+<header class="page-head home-head">
     <h1>@Greeting</h1>
-    <div class="chips">
-        <button class="chip" @onclick='() => ShuffleFull(Lib.Songs, "Your library")' disabled="@(Lib.Songs.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle all</button>
-        <a class="chip" href="/favorites"><Icon Name="heart" Size="18" />Favourites</a>
-        <a class="chip" href="/import"><Icon Name="download" Size="18" />Import playlists</a>
-    </div>
+    <button class="btn primary shuffle-all" @onclick='() => ShuffleFull(Lib.Songs, "Your library")' disabled="@(Lib.Songs.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle all</button>
 </header>
 <LibraryStatus />
 @if (Waiting) { <p class="status">Loading your music…</p> }

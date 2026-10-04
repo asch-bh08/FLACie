@@ -630,3 +630,6 @@ html { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
 /* the full-screen player runs up behind the translucent top bar, so the two read as one surface */
 .np { top: 0; padding-top: var(--top); }
 @media (max-width: 760px) { .wordmark { display: none; } }
+
+.home-head { justify-content: space-between; }
+.shuffle-all { margin-left: auto; }

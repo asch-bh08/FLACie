@@ -275,6 +275,17 @@ window.flacie = (() => {
       return true;
     },
     vizStop() { vizOn = false; },
+    // what this browser is, for the admin dashboard
+    async clientInfo() {
+      let who = {};
+      try { who = await (await fetch("/api/whoami", { credentials: "same-origin" })).json(); } catch { }
+      const ua = navigator.userAgent;
+      let browser = /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera" : /SamsungBrowser/.test(ua) ? "Samsung Internet" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "Browser";
+      try { if (navigator.brave && await navigator.brave.isBrave()) browser = "Brave"; } catch { }
+      const model = (/Android [\d.]+; ([^;)]+)/.exec(ua) || [])[1];
+      const os = /Windows/.test(ua) ? "Windows" : /Android/.test(ua) ? "Android" + (model && model !== "K" ? " (" + model.trim() + ")" : "") : /iPhone|iPad/.test(ua) ? "iOS" : /Mac OS X/.test(ua) ? "macOS" : /CrOS/.test(ua) ? "ChromeOS" : /Linux/.test(ua) ? "Linux" : "";
+      return { ip: who.ip || "", ua, browser, os, screen: `${screen.width}×${screen.height}`, language: navigator.language || "" };
+    },
     toggle() { audio.paused ? audio.play().catch(() => {}) : audio.pause(); },
     play() { audio.play().catch(() => send("OnState", false)); },
     setLyrics(times) { lyr = { times, cur: -2 }; },

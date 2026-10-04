@@ -231,7 +231,7 @@ class JellyfinConnect(private val app: App) {
     // ---- plumbing ----------------------------------------------------------------------------------------------
 
     // same client and device as the sign-in, so this is one session in Jellyfin, not a second
-    private fun auth() = "MediaBrowser Client=\"${AccountSync.CLIENT}\", Device=\"${android.os.Build.MODEL.replace("\"", "")}\", DeviceId=\"${prefs.deviceId}\", Version=\"${AccountSync.VERSION}\", Token=\"${prefs.accountToken}\""
+    private fun auth() = "MediaBrowser Client=\"FLACie\", Device=\"${android.os.Build.MODEL.replace("\"", "")}\", DeviceId=\"${prefs.deviceId}\", Version=\"${AccountSync.VERSION}\", Token=\"${prefs.accountToken}\""
 
     private fun get(path: String): String =
         http.newCall(Request.Builder().url(prefs.accountServer.trimEnd('/') + path).header("Authorization", auth()).build()).execute().use { r ->

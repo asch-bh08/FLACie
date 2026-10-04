@@ -15,6 +15,8 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
 {
     public const string Client = "ipodplayer"; // the Android app's client id: changing it would orphan saved profiles
     public const string Version = "0.8";
+    /// <summary>The name Jellyfin lists this app under (the Client id above stays "ipodplayer": it keys saved profiles).</summary>
+    public const string ClientName = "FLACie";
     const string ProfileKey = "ipodplayer.profile";
 
     public static string Normalise(string server)
@@ -46,7 +48,7 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         try { return await GetAsync(a, $"/Users/{a.UserId}/Items/{id}", ct) is { } o ? ToTrack(a.Server, o) : null; } catch (Exception) { return null; }
     }
 
-    string Auth(string? token) => $"MediaBrowser Client=\"{Client}\", Device=\"{deviceName}\", DeviceId=\"{deviceId}\", Version=\"{Version}\"" + (token is null ? "" : $", Token=\"{token}\"");
+    string Auth(string? token) => $"MediaBrowser Client=\"{ClientName}\", Device=\"{deviceName}\", DeviceId=\"{deviceId}\", Version=\"{Version}\"" + (token is null ? "" : $", Token=\"{token}\"");
 
     async Task<JsonNode?> Send(HttpMethod method, string url, string? token, JsonNode? body, CancellationToken ct)
     {

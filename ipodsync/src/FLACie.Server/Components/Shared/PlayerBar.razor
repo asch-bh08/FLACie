@@ -35,6 +35,20 @@
 }
 @code {
     bool open, volumeLoaded;
+    [Inject] ClientRegistry Registry { get; set; } = default!;
+    [Inject] IJSRuntime PageJs { get; set; } = default!;
+    sealed record ClientInfo(string Ip, string Ua, string Browser, string Os, string Screen, string Language);
+    string? clientId;
+    async Task RegisterClient()
+    {
+        try
+        {
+            var ci = await PageJs.InvokeAsync<ClientInfo>("flacie.clientInfo");
+            clientId = Guid.NewGuid().ToString("N");
+            Registry.Add(new WebClient(clientId, Session, Player) { Ip = ci.Ip, Ua = ci.Ua, Browser = ci.Browser, Os = ci.Os, Screen = ci.Screen, Language = ci.Language });
+        }
+        catch (Exception) { }
+    }
     // the full-screen player sits over the page, so any navigation (the account menu, a link in the player, Back) has to close it first
     protected override async Task OnInitializedAsync()
     {
@@ -50,7 +64,7 @@
     }
     [Inject] ActivityLog Activity { get; set; } = default!;
     void OnStarted(Track t) { Activity.Add("play", Session.DisplayName, $"Started {t.Title} by {t.Artist} in the web player"); if (Session.RecordPlay(t)) SaveProfile(); }
-    public override void Dispose() { Nav.LocationChanged -= OnNavigated; Player.Started -= OnStarted; Player.FullScreenRequested -= OnFullScreen; base.Dispose(); }
+    public override void Dispose() { if (clientId is not null) Registry.Remove(clientId); Nav.LocationChanged -= OnNavigated; Player.Started -= OnStarted; Player.FullScreenRequested -= OnFullScreen; base.Dispose(); }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!volumeLoaded)
@@ -59,6 +73,7 @@
             try { await Player.LoadVolumeAsync(); await Player.LoadAutoplayAsync(); } catch (InvalidOperationException) { }
             Player.SetStashKey(Session.Jellyfin?.UserId ?? Session.Nas?.User ?? "guest");
             _ = Player.RestoreAsync(Session);
+            _ = RegisterClient();
         }
     }
     Task OnSeek(ChangeEventArgs e) => double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var s) ? Player.Seek(s) : Task.CompletedTask;

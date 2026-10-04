@@ -679,3 +679,15 @@ button.stat.on { border-color: var(--accent); background: color-mix(in srgb, var
 .dev-times { display: flex; justify-content: space-between; margin-top: -8px; color: var(--faint); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .dev-actions-row { display: flex; align-items: center; justify-content: center; gap: 14px; }
 @media (max-width: 760px) { .dev-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* device cards: blurred cover behind what is playing, Info underneath */
+.dev-card { position: relative; overflow: hidden; isolation: isolate; }
+.dev-card > *:not(.dev-bg) { position: relative; }
+.dev-bg { position: absolute; inset: -24px; z-index: -1; background-size: cover; background-position: center; filter: blur(36px) saturate(1.3); opacity: .4; }
+.dev-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dev-foot .btn.small { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; font-size: 13px; }
+.dev-info { border-top: 1px solid rgba(255,255,255,.12); padding-top: 6px; display: flex; flex-direction: column; }
+.dev-info h5 { margin: 12px 0 6px; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+.dev-info .kv { grid-template-columns: 112px minmax(0, 1fr); gap: 5px 14px; font-size: 13.5px; }
+.dev-info .kv dd.path { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--dim); }
+.dev-info h5 { color: var(--dim); }

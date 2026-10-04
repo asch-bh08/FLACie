@@ -30,6 +30,7 @@ builder.Services.AddSingleton(new DataPaths(dataDir));
 builder.Services.AddSingleton<UserStateStore>();
 builder.Services.AddSingleton<StorageGuard>();
 builder.Services.AddSingleton<ActivityLog>();
+builder.Services.AddSingleton<ClientRegistry>();
 builder.Services.AddSingleton<Notifier>();
 builder.Services.AddSingleton<StorageService>();
 builder.Services.AddSingleton<DownloadManager>();
@@ -108,6 +109,8 @@ if (builder.Configuration["FLACIE_DEBUG"] == "1")
         catch (Exception e) { return Results.Text(e.Message, "text/plain", statusCode: 500); }
     }).RequireAuthorization();
 }
+// who and what is asking, for the admin dashboard (the address as the server sees it)
+app.MapGet("/api/whoami", (HttpContext ctx) => Results.Json(new { ip = ctx.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "", ua = ctx.Request.Headers.UserAgent.ToString() })).RequireAuthorization();
 app.MapGet("/healthz", () => Results.Ok("ok"));
 app.Lifetime.ApplicationStarted.Register(() => { var a = app.Services.GetRequiredService<ActivityLog>(); a.Add("server", "", "FLACie started"); _ = app.Services.GetRequiredService<Notifier>().NotifyAsync("started", "FLACie started", "The server is up again.", 2, "rocket"); });
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();

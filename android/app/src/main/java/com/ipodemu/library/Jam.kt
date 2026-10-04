@@ -234,7 +234,7 @@ class Jam(private val app: App) {
     private fun toast(m: String) = main.post { Toast.makeText(app, m, Toast.LENGTH_SHORT).show() }
     private fun problem(e: Exception) = if (e.message?.contains("403") == true) "Your Jellyfin user isn't allowed to use SyncPlay. An admin can turn it on in Dashboard > Users." else "Jam failed: ${e.message}"
 
-    private fun auth() = "MediaBrowser Client=\"${AccountSync.CLIENT}\", Device=\"${android.os.Build.MODEL.replace("\"", "")}\", DeviceId=\"${prefs.deviceId}\", Version=\"${AccountSync.VERSION}\", Token=\"${prefs.accountToken}\""
+    private fun auth() = "MediaBrowser Client=\"FLACie\", Device=\"${android.os.Build.MODEL.replace("\"", "")}\", DeviceId=\"${prefs.deviceId}\", Version=\"${AccountSync.VERSION}\", Token=\"${prefs.accountToken}\""
 
     private fun get(path: String): String =
         http.newCall(Request.Builder().url(prefs.accountServer.trimEnd('/') + path).header("Authorization", auth()).build()).execute().use { r ->

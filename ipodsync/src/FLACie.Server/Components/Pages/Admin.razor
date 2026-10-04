@@ -17,46 +17,54 @@
 }
 else
 {
-    <section class="admin-block" aria-label="Now playing">
-        <div class="shelf-head"><div><h2>Devices</h2><small>@(sessions.Count(s => s.Playing)) playing · @sessions.Count online across all accounts</small></div></div>
+    <section class="admin-block" aria-label="Devices">
+        <div class="shelf-head"><div><h2>Devices</h2><small>@cards.Count(c => c.Playing && !c.Paused) playing · @cards.Count open now, across all accounts</small></div></div>
         @if (error is not null) { <p class="form-error">@error</p> }
-        @if (sessions.Count == 0 && error is null) { <p class="hint">No device is connected to Jellyfin right now.</p> }
+        @if (cards.Count == 0) { <p class="hint">No device is connected right now.</p> }
         <div class="dev-grid">
-            @foreach (var s in sessions)
+            @foreach (var c in cards)
             {
-                <article class="dev-card @(s.Playing && !s.Paused ? "live" : "")">
+                <article class="dev-card @(c.Playing && !c.Paused ? "live" : "")">
+                    @if (c.Playing && c.ArtKey is not null) { <div class="dev-bg" style="background-image:url('/art/@Uri.EscapeDataString(c.ArtKey)?v=2')"></div> }
                     <header class="dev-top">
-                        <span class="dev-icon"><Icon Name="devices" Size="22" /></span>
-                        <div class="dev-who">
-                            <b>@s.Device</b>
-                            <small>@s.Client @s.Version</small>
-                        </div>
-                        <span class="dev-state @(s.Playing ? (s.Paused ? "paused" : "on") : "")">@(s.Playing ? (s.Paused ? "Paused" : "Playing") : "Idle")</span>
+                        <span class="dev-icon"><Icon Name="@(c.Web ? "expand" : "devices")" Size="22" /></span>
+                        <div class="dev-who"><b>@c.Title</b><small>@c.Sub</small></div>
+                        <span class="dev-state @(c.Playing ? (c.Paused ? "paused" : "on") : "")">@(c.Playing ? (c.Paused ? "Paused" : "Playing") : "Idle")</span>
                     </header>
-                    <div class="dev-user"><span class="avatar small" aria-hidden="true">@(s.User.Length > 0 ? s.User[..1].ToUpperInvariant() : "?")</span>@s.User<em>@Ago(s.LastActivity)</em></div>
-                    @if (s.Playing)
+                    <div class="dev-user"><span class="avatar small" aria-hidden="true">@(c.User.Length > 0 ? c.User[..1].ToUpperInvariant() : "?")</span>@c.User<em>@c.Seen</em></div>
+                    @if (c.Playing)
                     {
                         <div class="dev-now">
-                            <Cover ArtKey="@("jf" + s.ItemId)" Class="square" />
-                            <div class="dev-now-text">
-                                <b>@s.Title</b>
-                                <span>@s.Artist</span>
-                            </div>
+                            @if (c.ArtKey is not null) { <Cover ArtKey="@c.ArtKey" Class="square" /> }
+                            <div class="dev-now-text"><b>@c.Track</b><span>@c.Artist</span></div>
                         </div>
-                        @if (s.DurationMs > 0)
+                        @if (c.DurMs > 0)
                         {
-                            <div class="dev-progress"><i style="width:@Pct(s.PositionMs, s.DurationMs)%"></i></div>
-                            <div class="dev-times"><span>@Time(s.PositionMs / 1000.0)</span><span>@Time(s.DurationMs / 1000.0)</span></div>
+                            <div class="dev-progress"><i style="width:@Pct(c.PosMs, c.DurMs)%"></i></div>
+                            <div class="dev-times"><span>@Time(c.PosMs / 1000.0)</span><span>@Time(c.DurMs / 1000.0)</span></div>
                         }
-                        @if (s.Controllable)
+                    }
+                    <footer class="dev-foot">
+                        <button class="btn ghost small" aria-expanded="@infoOpen.Contains(c.Key)" @onclick="() => ToggleInfo(c.Key)"><Icon Name="info" Size="16" />Info</button>
+                        @if (c.Playing && c.Do is { } act)
                         {
-                            <div class="dev-actions-row">
-                                <button class="icon-btn" aria-label="Previous" @onclick='() => Cmd(s, "PreviousTrack")'><Icon Name="prev" Size="22" /></button>
-                                <button class="play small" aria-label="@(s.Paused ? "Resume" : "Pause")" @onclick='() => Cmd(s, "PlayPause")'><Icon Name="@(s.Paused ? "play" : "pause")" Size="20" /></button>
-                                <button class="icon-btn" aria-label="Next" @onclick='() => Cmd(s, "NextTrack")'><Icon Name="next" Size="22" /></button>
-                                <button class="icon-btn" aria-label="Stop" @onclick='() => Cmd(s, "Stop")'><Icon Name="stop" Size="22" /></button>
-                            </div>
+                            <span class="dev-actions-row">
+                                <button class="icon-btn" aria-label="Previous" @onclick='() => Act(c, "prev")'><Icon Name="prev" Size="20" /></button>
+                                <button class="play small" aria-label="@(c.Paused ? "Resume" : "Pause")" @onclick='() => Act(c, "toggle")'><Icon Name="@(c.Paused ? "play" : "pause")" Size="18" /></button>
+                                <button class="icon-btn" aria-label="Next" @onclick='() => Act(c, "next")'><Icon Name="next" Size="20" /></button>
+                                <button class="icon-btn" aria-label="Stop" @onclick='() => Act(c, "stop")'><Icon Name="stop" Size="20" /></button>
+                            </span>
                         }
+                    </footer>
+                    @if (infoOpen.Contains(c.Key))
+                    {
+                        <div class="dev-info">
+                            @foreach (var (head, rows) in c.Info)
+                            {
+                                <h5>@head</h5>
+                                <dl class="kv">@foreach (var (k, v) in rows) { <dt>@k</dt><dd class="@(k == "Browser string" || k == "Location" ? "path" : "")">@v</dd> }</dl>
+                            }
+                        </div>
                     }
                 </article>
             }
@@ -180,7 +188,7 @@ else
     </section>
 }
 @code {
-    record Dev(string Id, string User, string Device, string Client, string Version, DateTime LastActivity, string? ItemId, string? Title, string? Artist, long PositionMs, long DurationMs, bool Paused, bool Controllable)
+    record Dev(string Id, string User, string Device, string Client, string Version, DateTime LastActivity, string? ItemId, string? Title, string? Artist, long PositionMs, long DurationMs, bool Paused, bool Controllable, System.Text.Json.Nodes.JsonObject? Raw = null)
     {
         public bool Playing => ItemId is not null;
     }
@@ -217,7 +225,7 @@ else
         importJobs = Store.Active.SelectMany(u => States.For(u).Imports.Select(j => (u.DisplayName, j))).OrderByDescending(x => x.j.State is "running" or "waiting").ThenByDescending(x => x.j.Created).Take(10).ToList();
         try { var dr = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(Paths.Root))!); diskFree = dr.AvailableFreeSpace; diskTotal = dr.TotalSize; } catch (Exception) { }
         Recount();
-        if (Session.Jellyfin is not { } a) { error = "Signed in without Jellyfin: the device list comes from Jellyfin."; return; }
+        if (Session.Jellyfin is not { } a) { error = "Signed in without Jellyfin: only browsers are listed."; await BuildCards(); return; }
         try
         {
             var node = await Jellyfin.GetAsync(a, "/Sessions?ActiveWithinSeconds=960");
@@ -230,15 +238,111 @@ else
                 DateTime.TryParse(o["LastActivityDate"]?.GetValue<string>(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var last);
                 list.Add(new Dev(o["Id"]?.GetValue<string>() ?? "", o["UserName"]?.GetValue<string>() ?? "", o["DeviceName"]?.GetValue<string>() ?? "", o["Client"]?.GetValue<string>() ?? "", o["ApplicationVersion"]?.GetValue<string>() ?? "", last,
                     item?["Id"]?.GetValue<string>(), item?["Name"]?.GetValue<string>(), item?["Artists"]?.AsArray().FirstOrDefault()?.GetValue<string>() ?? item?["AlbumArtist"]?.GetValue<string>(),
-                    (ps?["PositionTicks"]?.GetValue<long>() ?? 0) / 10_000, (item?["RunTimeTicks"]?.GetValue<long>() ?? 0) / 10_000, ps?["IsPaused"]?.GetValue<bool>() ?? false, o["SupportsRemoteControl"]?.GetValue<bool>() ?? false));
+                    (ps?["PositionTicks"]?.GetValue<long>() ?? 0) / 10_000, (item?["RunTimeTicks"]?.GetValue<long>() ?? 0) / 10_000, ps?["IsPaused"]?.GetValue<bool>() ?? false, o["SupportsRemoteControl"]?.GetValue<bool>() ?? false, o as System.Text.Json.Nodes.JsonObject));
             }
             // Jellyfin keeps several sessions per app install; one card per device and app is enough (the playing or latest one)
             sessions = list.Where(d => d.User.Length > 0).GroupBy(d => (d.User, d.Device, d.Client)).Select(g => g.OrderByDescending(d => d.Playing).ThenByDescending(d => d.LastActivity).First()).OrderByDescending(d => d.Playing && !d.Paused).ThenByDescending(d => d.Playing).ThenByDescending(d => d.LastActivity).ToList();
-            error = null;
+            error = null; await BuildCards();
         }
-        catch (Exception e) { error = "Couldn't read the device list from Jellyfin: " + e.Message; }
+        catch (Exception e) { error = "Couldn't read the device list from Jellyfin: " + e.Message; await BuildCards(); }
     }
 
+    sealed class Card
+    {
+        public string Key = "", Title = "", Sub = "", User = "", Seen = "", Track = "", Artist = "";
+        public bool Web, Playing, Paused;
+        public string? ArtKey;
+        public long PosMs, DurMs;
+        public Func<string, Task>? Do;
+        public List<(string Head, List<(string K, string V)> Rows)> Info = [];
+    }
+    List<Card> cards = [];
+    readonly HashSet<string> infoOpen = [];
+    readonly Dictionary<string, MediaInfo> mediaCache = new();
+    [Inject] InfoService InfoSvc { get; set; } = default!;
+    [Inject] ClientRegistry Clients { get; set; } = default!;
+
+    void ToggleInfo(string key) { if (!infoOpen.Remove(key)) infoOpen.Add(key); }
+
+    async Task Act(Card c, string what)
+    {
+        if (c.Do is { } d) { try { await d(what); Log.Add("admin", Session.DisplayName, $"{what} on {c.Title} ({c.User})"); } catch (Exception) { } }
+        await Task.Delay(400); await Refresh2(); StateHasChanged();
+    }
+
+    static void Add(List<(string K, string V)> rows, string k, string? v) { if (!string.IsNullOrWhiteSpace(v)) rows.Add((k, v!)); }
+    static string Rate(long bitsPerSecond) => bitsPerSecond <= 0 ? "" : bitsPerSecond >= 1_000_000 ? (bitsPerSecond / 1_000_000.0).ToString("0.0") + " Mbps" : (bitsPerSecond / 1000) + " kbps";
+
+    async Task BuildCards()
+    {
+        var list = new List<Card>();
+        // browsers: every open FLACie Web page, told apart by browser, system and address
+        foreach (var w in Clients.All)
+        {
+            var t = w.Player.Current;
+            var c = new Card
+            {
+                Key = "w" + w.Id, Web = true, Title = w.Browser + (w.Os.Length > 0 ? " on " + w.Os : ""), Sub = string.Join(" · ", new[] { w.Ip, w.Host }.Where(x => x.Length > 0)), User = w.User,
+                Seen = "opened " + Ago(w.Since), Playing = t is not null, Paused = !w.Player.Playing, ArtKey = t?.ArtKey, Track = t?.Title ?? "", Artist = t?.Artist ?? "",
+                PosMs = (long)(w.Player.Position * 1000), DurMs = (long)(w.Player.Duration * 1000),
+                Do = async k => { switch (k) { case "toggle": await w.Player.ToggleAsync(); break; case "next": await w.Player.NextAsync(); break; case "prev": await w.Player.PrevAsync(); break; default: await w.Player.StopAsync(); break; } },
+            };
+            if (t is not null)
+            {
+                var pb = new List<(string, string)>(); Add(pb, "Method", "Direct play"); Add(pb, "What that means", "The original file is sent to the browser as it is, without converting it");
+                c.Info.Add(("Playback", pb));
+                if (!mediaCache.TryGetValue(t.Path, out var mi)) { try { mi = await InfoSvc.GetAsync(w.Session, t); mediaCache[t.Path] = mi; } catch (Exception) { mi = null!; } }
+                if (mi is not null)
+                {
+                    var f = new List<(string, string)>(); Add(f, "Format", mi.Format + (mi.Tier.Length > 0 ? " · " + mi.Tier : "")); Add(f, "Codec", mi.Codec.ToUpperInvariant()); Add(f, "Bit rate", mi.BitrateKbps > 0 ? mi.BitrateKbps + " kbps" : "");
+                    Add(f, "Sampling", mi.Sampling); Add(f, "Channels", mi.ChannelsName); Add(f, "Size", mi.SizeBytes > 0 ? StorageService.Bytes(mi.SizeBytes) : ""); Add(f, "Source", mi.Source); Add(f, "Location", mi.Path);
+                    c.Info.Add(("File", f));
+                }
+            }
+            var cl = new List<(string, string)>(); Add(cl, "Browser", w.Browser); Add(cl, "System", w.Os); Add(cl, "Address", w.Ip); Add(cl, "Computer", w.Host); Add(cl, "Screen", w.Screen); Add(cl, "Language", w.Language);
+            Add(cl, "Opened", w.Since.ToLocalTime().ToString("HH:mm")); Add(cl, "Browser string", w.Ua); c.Info.Add(("Client", cl));
+            list.Add(c);
+        }
+        // other apps signed in to Jellyfin (the phone app, Jellyfin's own web page, ...); FLACie Web's own session is shown above, per browser
+        foreach (var d in sessions.Where(s => s.Device != "FLACie Web"))
+        {
+            var raw = d.Raw; var item = raw?["NowPlayingItem"] as System.Text.Json.Nodes.JsonObject; var ps = raw?["PlayState"]; var tr = raw?["TranscodingInfo"];
+            var c = new Card
+            {
+                Key = "j" + d.Id, Title = d.Device, Sub = (d.Client + " " + d.Version).Trim(), User = d.User, Seen = Ago(d.LastActivity), Playing = d.Playing, Paused = d.Paused,
+                ArtKey = d.ItemId is null ? null : "jf" + d.ItemId, Track = d.Title ?? "", Artist = d.Artist ?? "", PosMs = d.PositionMs, DurMs = d.DurationMs,
+                Do = d.Controllable ? (k => Cmd(d, k switch { "prev" => "PreviousTrack", "next" => "NextTrack", "toggle" => "PlayPause", _ => "Stop" })) : null,
+            };
+            if (d.Playing)
+            {
+                var method = ps?["PlayMethod"]?.GetValue<string>() ?? "";
+                var pb = new List<(string, string)>();
+                Add(pb, "Method", method switch { "DirectPlay" => "Direct play", "DirectStream" => "Direct stream", "Transcode" => "Transcoding", "" => "Not reported", var m => m });
+                Add(pb, "What that means", method switch { "DirectPlay" => "The original file is played as it is", "DirectStream" => "The audio is untouched but repackaged for this device", "Transcode" => "Jellyfin converts the audio on the fly for this device", _ => "" });
+                if (tr is not null)
+                {
+                    Add(pb, "Converted to", ((tr["AudioCodec"]?.GetValue<string>() ?? "") + " in " + (tr["Container"]?.GetValue<string>() ?? "")).Trim().ToUpperInvariant());
+                    Add(pb, "At", Rate(tr["Bitrate"]?.GetValue<long>() ?? 0));
+                    Add(pb, "Why", string.Join(", ", (tr["TranscodeReasons"] as System.Text.Json.Nodes.JsonArray)?.Select(x => (x?.GetValue<string>() ?? "")) ?? []));
+                }
+                c.Info.Add(("Playback", pb));
+                var src = (item?["MediaSources"] as System.Text.Json.Nodes.JsonArray)?.FirstOrDefault() as System.Text.Json.Nodes.JsonObject;
+                var au = (src?["MediaStreams"] as System.Text.Json.Nodes.JsonArray)?.OfType<System.Text.Json.Nodes.JsonObject>().FirstOrDefault(x => x["Type"]?.GetValue<string>() == "Audio");
+                var f = new List<(string, string)>();
+                Add(f, "Container", src?["Container"]?.GetValue<string>()?.ToUpperInvariant()); Add(f, "Codec", au?["Codec"]?.GetValue<string>()?.ToUpperInvariant());
+                Add(f, "Bit rate", Rate(au?["BitRate"]?.GetValue<long>() ?? src?["Bitrate"]?.GetValue<long>() ?? 0));
+                Add(f, "Sampling", au is null ? "" : ((au["BitDepth"]?.GetValue<int>() is > 0 and var bd ? bd + "-bit / " : "") + ((au["SampleRate"]?.GetValue<int>() ?? 0) / 1000.0).ToString("0.#") + " kHz"));
+                Add(f, "Channels", au?["Channels"]?.GetValue<int>() is { } ch ? (ch == 1 ? "Mono" : ch == 2 ? "Stereo" : ch + " channels") : "");
+                Add(f, "Size", (src?["Size"]?.GetValue<long>() ?? 0) > 0 ? StorageService.Bytes(src!["Size"]!.GetValue<long>()) : ""); Add(f, "Location", src?["Path"]?.GetValue<string>() ?? item?["Path"]?.GetValue<string>());
+                if (f.Count > 0) c.Info.Add(("File", f));
+            }
+            var cl = new List<(string, string)>(); Add(cl, "App", (d.Client + " " + d.Version).Trim()); Add(cl, "Device", d.Device); Add(cl, "Device id", raw?["DeviceId"]?.GetValue<string>());
+            Add(cl, "Address", raw?["RemoteEndPoint"]?.GetValue<string>()); Add(cl, "Account", d.User); Add(cl, "Last activity", d.LastActivity.ToLocalTime().ToString("HH:mm:ss")); Add(cl, "Remote control", d.Controllable ? "yes" : "no");
+            c.Info.Add(("Client", cl));
+            list.Add(c);
+        }
+        cards = list.OrderByDescending(c => c.Playing && !c.Paused).ThenByDescending(c => c.Playing).ToList();
+    }
     StorageGuard? guard;
     StorageGuard? Guard() => guard ??= (StorageGuard?)ServiceProvider.GetService(typeof(StorageGuard));
     [Inject] IServiceProvider ServiceProvider { get; set; } = default!;

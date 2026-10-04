@@ -18,58 +18,56 @@
 else
 {
     <section class="admin-block" aria-label="Devices">
-        <div class="shelf-head"><div><h2>Devices</h2><small>@cards.Count(c => c.Playing && !c.Paused) playing · @cards.Count open now, across all accounts</small></div></div>
+        <div class="shelf-head"><div><h2>Devices</h2><small>@cards.Count(c => c.Playing && !c.Paused) playing · @cards.Count open now</small></div></div>
         @if (error is not null) { <p class="form-error">@error</p> }
         @if (cards.Count == 0) { <p class="hint">No device is connected right now.</p> }
-        <div class="dev-grid">
+        <div class="jf-grid">
             @foreach (var c in cards)
             {
-                <article class="dev-card @(c.Playing && !c.Paused ? "live" : "")">
-                    @if (c.Playing && c.ArtKey is not null) { <div class="dev-bg" style="background-image:url('/art/@Uri.EscapeDataString(c.ArtKey)?v=2')"></div> }
-                    <header class="dev-top">
-                        <span class="dev-icon"><Icon Name="@(c.Web ? "expand" : "devices")" Size="22" /></span>
-                        <div class="dev-who"><b>@c.Title</b><small>@c.Sub</small></div>
-                        <span class="dev-state @(c.Playing ? (c.Paused ? "paused" : "on") : "")">@(c.Playing ? (c.Paused ? "Paused" : "Playing") : "Idle")</span>
-                    </header>
-                    <div class="dev-user"><span class="avatar small" aria-hidden="true">@(c.User.Length > 0 ? c.User[..1].ToUpperInvariant() : "?")</span>@c.User<em>@c.Seen</em></div>
-                    @if (c.Playing)
-                    {
-                        <div class="dev-now">
-                            @if (c.ArtKey is not null) { <Cover ArtKey="@c.ArtKey" Class="square" /> }
-                            <div class="dev-now-text"><b>@c.Track</b><span>@c.Artist</span></div>
+                <article class="jf-card">
+                    <div class="jf-top @(c.Playing ? "art" : "idle")" style="@(c.Playing && c.ArtKey is not null ? $"background-image:linear-gradient(to top,#000c,#0003 55%,#0006),url('/art/{Uri.EscapeDataString(c.ArtKey)}?v=2')" : "")">
+                        <div class="jf-head"><Icon Name="devices" Size="26" /><div><b>@c.Title</b><small>@c.Sub</small></div></div>
+                        <div class="jf-line">
+                            <span>@(c.Playing ? c.Track : "Last activity " + c.Seen)</span>
+                            @if (c.Playing && c.DurMs > 0) { <span>@Time(c.PosMs / 1000.0) / @Time(c.DurMs / 1000.0)</span> }
                         </div>
-                        @if (c.DurMs > 0)
-                        {
-                            <div class="dev-progress"><i style="width:@Pct(c.PosMs, c.DurMs)%"></i></div>
-                            <div class="dev-times"><span>@Time(c.PosMs / 1000.0)</span><span>@Time(c.DurMs / 1000.0)</span></div>
-                        }
-                    }
-                    <footer class="dev-foot">
-                        <button class="btn ghost small" aria-expanded="@infoOpen.Contains(c.Key)" @onclick="() => ToggleInfo(c.Key)"><Icon Name="info" Size="16" />Info</button>
-                        @if (c.Playing && c.Do is { } act)
-                        {
-                            <span class="dev-actions-row">
-                                <button class="icon-btn" aria-label="Previous" @onclick='() => Act(c, "prev")'><Icon Name="prev" Size="20" /></button>
-                                <button class="play small" aria-label="@(c.Paused ? "Resume" : "Pause")" @onclick='() => Act(c, "toggle")'><Icon Name="@(c.Paused ? "play" : "pause")" Size="18" /></button>
-                                <button class="icon-btn" aria-label="Next" @onclick='() => Act(c, "next")'><Icon Name="next" Size="20" /></button>
-                                <button class="icon-btn" aria-label="Stop" @onclick='() => Act(c, "stop")'><Icon Name="stop" Size="20" /></button>
-                            </span>
-                        }
-                    </footer>
-                    @if (infoOpen.Contains(c.Key))
-                    {
-                        <div class="dev-info">
-                            @foreach (var (head, rows) in c.Info)
+                        @if (c.Playing && c.DurMs > 0) { <div class="jf-progress"><i style="width:@Pct(c.PosMs, c.DurMs)%"></i></div> }
+                    </div>
+                    <div class="jf-bar">
+                        <div class="jf-btns">
+                            @if (c.Playing && c.Do is not null)
                             {
-                                <h5>@head</h5>
-                                <dl class="kv">@foreach (var (k, v) in rows) { <dt>@k</dt><dd class="@(k == "Browser string" || k == "Location" ? "path" : "")">@v</dd> }</dl>
+                                <button aria-label="@(c.Paused ? "Resume" : "Pause")" @onclick='() => Act(c, "toggle")'><Icon Name="@(c.Paused ? "play" : "pause")" Size="18" /></button>
+                                <button aria-label="Stop" @onclick='() => Act(c, "stop")'><Icon Name="stop" Size="18" /></button>
                             }
+                            <button aria-label="Details" @onclick="() => infoKey = c.Key"><Icon Name="info" Size="20" /></button>
                         </div>
-                    }
+                        <span class="jf-user">@c.User</span>
+                    </div>
                 </article>
             }
         </div>
     </section>
+
+    @if (infoKey is not null && cards.FirstOrDefault(x => x.Key == infoKey) is { } ic)
+    {
+        var pb = ic.Info.FirstOrDefault(g => g.Head == "Playback").Rows;
+        <div class="modal-scrim" @onclick="() => infoKey = null"></div>
+        <div class="modal" role="dialog" aria-modal="true" aria-label="@ic.Title">
+            <h3>@(pb?.FirstOrDefault(r => r.K == "Method").V switch { "Direct play" => "Direct playing", "Direct stream" => "Direct streaming", "Transcoding" => "Transcoding", _ => ic.Title })</h3>
+            @if (pb?.FirstOrDefault(r => r.K == "What that means").V is { Length: > 0 } why) { <p class="modal-lead">@why</p> }
+            <div class="modal-body">
+                @foreach (var (head, rows) in ic.Info)
+                {
+                    var shown = rows.Where(r => !(head == "Playback" && r.K is "Method" or "What that means")).ToList();
+                    if (shown.Count == 0) { continue; }
+                    <h5>@head</h5>
+                    <dl class="kv">@foreach (var (k, v) in shown) { <dt>@k</dt><dd class="@(k == "Browser string" || k == "Location" ? "path" : "")">@v</dd> }</dl>
+                }
+            </div>
+            <div class="row-actions"><button class="btn primary" @onclick="() => infoKey = null">Got it</button></div>
+        </div>
+    }
 
     <section class="admin-block" aria-label="Server">
         <div class="shelf-head"><div><h2>Server</h2><small>Tap a number to see what is behind it</small></div></div>
@@ -257,12 +255,11 @@ else
         public List<(string Head, List<(string K, string V)> Rows)> Info = [];
     }
     List<Card> cards = [];
-    readonly HashSet<string> infoOpen = [];
+    string? infoKey;
     readonly Dictionary<string, MediaInfo> mediaCache = new();
     [Inject] InfoService InfoSvc { get; set; } = default!;
     [Inject] ClientRegistry Clients { get; set; } = default!;
 
-    void ToggleInfo(string key) { if (!infoOpen.Remove(key)) infoOpen.Add(key); }
 
     async Task Act(Card c, string what)
     {

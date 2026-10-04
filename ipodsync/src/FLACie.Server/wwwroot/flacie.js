@@ -288,6 +288,8 @@ window.flacie = (() => {
     },
     // a tab in the full-screen player starts at its top, not wherever the last tab was scrolled to
     panelTop() { const p = document.querySelector(".np-panel"); if (p) p.scrollTop = 0; },
+    // is the player laid out as a phone (tabs open a sheet over the cover)?
+    sheetMode() { return window.matchMedia("(max-width: 1024px) and (orientation: portrait)").matches; },
     toggle() { audio.paused ? audio.play().catch(() => {}) : audio.pause(); },
     play() { audio.play().catch(() => send("OnState", false)); },
     setLyrics(times) { lyr = { times, cur: -2 }; },

@@ -158,7 +158,7 @@ fun SettingsScreen(nav: PlayerNav) {
                             })
                         }
                         fun size(b: Long) = when { b >= 1L shl 40 -> "%.1f TB".format(b / 1099511627776.0); b >= 1L shl 30 -> "%.0f GB".format(b / 1073741824.0); else -> "%.0f MB".format(b / 1048576.0) }
-                        srv?.let { s ->
+                        srv?.takeIf { it.admin }?.let { s ->
                             val gbs = listOf(5, 10, 25, 50, 100, 200)
                             SettingRow("Keep free space", "${s.minFreeGb} GB") { val n = gbs.firstOrNull { it > s.minFreeGb } ?: gbs[0]; change { web.saveSettings(minFreeGb = n) } }
                             SettingRow("Daily charts", if (s.chartsOn) "On" else "Off") { change { web.saveSettings(chartsOn = !s.chartsOn) } }

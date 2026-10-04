@@ -25,7 +25,7 @@ else
             @foreach (var c in cards)
             {
                 <article class="jf-card">
-                    <div class="jf-top @(c.Playing ? "art" : "idle")" style="@(c.Playing && c.ArtKey is not null ? $"background-image:linear-gradient(to top,#000c,#0003 55%,#0006),url('/art/{Uri.EscapeDataString(c.ArtKey)}?v=2')" : "")">
+                    <div class="jf-top @(c.Playing ? "art" : "idle")" style="@(c.Playing && c.ArtKey is not null ? $"background-image:linear-gradient(to bottom,#000b,#0004 38%,#000d),url('/art/{Uri.EscapeDataString(c.ArtKey)}?v=2')" : "")">
                         <div class="jf-head"><Icon Name="devices" Size="26" /><div><b>@c.Title</b><small>@c.Sub</small></div></div>
                         <div class="jf-line">
                             <span>@(c.Playing ? c.Track : "Last activity " + c.Seen)</span>

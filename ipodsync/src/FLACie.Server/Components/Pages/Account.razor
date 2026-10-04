@@ -1,6 +1,7 @@
 @page "/account"
 @attribute [Authorize]
 @inherits UserComponent
+@inject IConfiguration Conf
 <PageTitle>Account · FLACie</PageTitle>
 
 <section class="acct-hero">
@@ -28,7 +29,7 @@
     <ul class="links">
         <li><i class="dot @(Session.Jellyfin is not null ? "on" : "")"></i><span><b>Jellyfin</b><small>@(Session.Jellyfin is { } j ? $"{j.UserName} on {j.Server}" : "Not connected")</small></span><a class="btn ghost" href="/settings#sources">@(Session.Jellyfin is null ? "Add" : "Manage")</a></li>
         <li><i class="dot @(Session.Nas is not null ? "on" : "")"></i><span><b>NAS</b><small>@(Session.Nas is { } n ? $"{n.Host}/{n.Share}{(n.Folder.Length > 0 ? "/" + n.Folder : "")}" : "Not connected")</small></span><a class="btn ghost" href="/settings#sources">@(Session.Nas is null ? "Add" : "Manage")</a></li>
-        <li><i class="dot @(Session.Services.SoulseekReady || Session.Services.LidarrReady ? "on" : "")"></i><span><b>Downloads</b><small>@(Session.Services.SoulseekReady ? "Soulseek" : "") @(Session.Services.LidarrReady ? "Lidarr" : "")@(Session.Services.Any ? "" : "Not set up")</small></span><a class="btn ghost" href="/settings#downloads">@(Session.Services.Any ? "Manage" : "Set up")</a></li>
+        <li><i class="dot @(Session.Services.SoulseekReady || Session.Services.LidarrReady ? "on" : "")"></i><span><b>Downloads</b><small>@(Session.Services.SoulseekReady ? "Soulseek" : "") @(Session.Services.LidarrReady ? "Lidarr" : "")@(Session.Services.Any ? "" : "Not set up")</small></span>@if (AdminAccess.Is(Session, Conf)) { <a class="btn ghost" href="/settings#downloads">@(Session.Services.Any ? "Manage" : "Set up")</a> }</li>
         @if (Live is { } l) { <li><i class="dot @(l.Connect.Connected ? "on" : "")"></i><span><b>Devices</b><small>@(l.Connect.Connected ? "Connected for remote control and Jams" : "Connecting…")</small></span><a class="btn ghost" href="/devices">Open</a></li> }
     </ul>
 </section>

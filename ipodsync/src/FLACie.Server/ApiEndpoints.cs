@@ -62,7 +62,7 @@ public static class ApiEndpoints
             var st = states.For(s); var r = storage.Quick(s);
             return new
             {
-                prefetch = st.Prefetch, minFreeGb = st.MinFreeGb,
+                admin = AdminAccess.Is(s, app.Configuration), prefetch = st.Prefetch, minFreeGb = st.MinFreeGb,
                 charts = new { enabled = st.Charts.Enabled, lists = st.Charts.Lists, perList = st.Charts.PerList, lastRun = st.Charts.LastRun, lastNote = st.Charts.LastNote },
                 available = ChartsService.Available.Select(c => new { id = c.Id, name = c.Name }),
                 storage = new { musicFree = r.Music?.Free ?? -1, musicTotal = r.Music?.Total ?? -1, nasSongs = r.NasSongs, nasBytes = r.NasBytes, diskFree = r.DiskFree, diskTotal = r.DiskTotal },
@@ -75,6 +75,7 @@ public static class ApiEndpoints
         app.MapPost("/api/settings", async (HttpContext ctx, SessionStore store, JellyfinClient jf, UserStateStore states, StorageService storage) =>
         {
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
+            if (!AdminAccess.Is(s, app.Configuration)) return Results.StatusCode(403);
             var body = await System.Text.Json.Nodes.JsonNode.ParseAsync(ctx.Request.Body) as System.Text.Json.Nodes.JsonObject;
             var st = states.For(s);
             if (body?["prefetch"]?.GetValue<bool>() is { } pf) st.Prefetch = pf;
@@ -90,6 +91,7 @@ public static class ApiEndpoints
         app.MapPost("/api/charts/run", async (HttpContext ctx, SessionStore store, JellyfinClient jf, ChartsService charts) =>
         {
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
+            if (!AdminAccess.Is(s, app.Configuration)) return Results.StatusCode(403);
             _ = Task.Run(async () => { try { await charts.RunAsync(s, true, CancellationToken.None); } catch (Exception) { } });
             return Results.Ok();
         }).DisableAntiforgery();

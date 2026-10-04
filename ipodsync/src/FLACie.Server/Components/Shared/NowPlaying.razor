@@ -52,6 +52,7 @@
                     <button role="tab" aria-selected="@(tab == "info")" class="@(tab == "info" ? "on" : "")" @onclick='() => Open("info")'><Icon Name="info" Size="18" />Info</button>
                 </div>
                 <div class="np-panel" role="tabpanel">
+                    <div class="sheet-head"><button class="sheet-song" @onclick="() => panelOpen = false" aria-label="Back to the cover"><Cover ArtKey="@(t.ArtKey)" Size="44" /><span><b>@t.Title</b><small>@t.Artist · @TabTitle</small></span></button><button class="icon-btn" @onclick="() => panelOpen = false" aria-label="Back to the cover"><Icon Name="chevron-down" Size="24" /></button></div>
                     @if (tab == "queue")
                     {
                         <div class="q-head">
@@ -124,7 +125,13 @@
     DotNetObjectReference<NowPlaying>? self;
     string tab = "queue"; string? shownTab = "queue";
     [JSInvokable] public Task Closed() => OnClose.InvokeAsync();
-    async Task Back() { try { await Js.InvokeVoidAsync("flacie.npBack"); } catch (Exception) { await OnClose.InvokeAsync(); } }
+    // on a phone the first Back closes an open sheet (back to the cover), the next one closes the player
+    async Task Back()
+    {
+        try { if (panelOpen && await Js.InvokeAsync<bool>("flacie.sheetMode")) { panelOpen = false; return; } } catch (Exception) { }
+        try { await Js.InvokeVoidAsync("flacie.npBack"); } catch (Exception) { await OnClose.InvokeAsync(); }
+    }
+    string TabTitle => tab switch { "lyrics" => "Lyrics", "info" => "Info", _ => "Up next" };
     public override void Dispose() { self?.Dispose(); _ = Js.InvokeVoidAsync("flacie.npReset").AsTask().ContinueWith(_ => { }); base.Dispose(); }
     Lyrics? lyrics; bool lyricsLoading; string? lyricsFor;
     MediaInfo? info; bool infoLoading; string? infoFor;

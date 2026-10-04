@@ -51,8 +51,7 @@ window.flacie = (() => {
     requestAnimationFrame(lyricTick);
   };
   requestAnimationFrame(lyricTick);
-  // live spectrum of what is playing (Info tab): the audio runs through an analyser, and the frequency bars are drawn as a filled curve
-  // with a slowly falling peak line. A lossy file shows where its encoder cut the top off.
+  // live equaliser view of what is playing (Info tab): the audio runs through an analyser; low sounds are drawn on the left, high on the right
   let actx = null, an = null, scopeOn = false, peaks = null;
   const scopeDraw = () => {
     if (!scopeOn) return;
@@ -61,29 +60,29 @@ window.flacie = (() => {
     const dpr = window.devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
     if (!w || !h) return;
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-    const g = cv.getContext("2d"), nyq = actx.sampleRate / 2, maxHz = Math.min(nyq, 24000);
-    const bins = an.frequencyBinCount, use = Math.floor(bins * maxHz / nyq);
+    const g = cv.getContext("2d"), nyq = actx.sampleRate / 2, bins = an.frequencyBinCount;
     const data = new Uint8Array(bins); an.getByteFrequencyData(data);
-    if (!peaks || peaks.length !== use) peaks = new Float32Array(use);
+    const N = Math.max(24, Math.min(64, Math.floor(w / (9 * dpr)))), lo = 40, hi = Math.min(nyq, 20000);
+    if (!peaks || peaks.length !== N) peaks = new Float32Array(N);
     const css = getComputedStyle(document.documentElement), accent = css.getPropertyValue("--accent").trim() || "#ff4d8d", dim = css.getPropertyValue("--faint").trim() || "#888";
     g.clearRect(0, 0, w, h);
-    const bottom = h - 18 * dpr, top = 6 * dpr, span = bottom - top;
-    g.font = `${11 * dpr}px system-ui, sans-serif`; g.textBaseline = "alphabetic"; g.lineWidth = 1;
-    for (let k = 0; k <= maxHz; k += 5000) {
-      const x = Math.min(w - 1, k / maxHz * w);
-      g.strokeStyle = "rgba(255,255,255,.08)"; g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke();
-      g.fillStyle = dim; g.textAlign = k === 0 ? "left" : "center"; g.fillText(k === 0 ? "0" : (k / 1000) + " kHz", k === 0 ? 2 : Math.min(x, w - 22 * dpr), h - 3 * dpr);
+    const bottom = h - 18 * dpr, top = 4 * dpr, span = bottom - top, slot = w / N, bw = Math.max(2 * dpr, slot * 0.68);
+    const grad = g.createLinearGradient(0, top, 0, bottom); grad.addColorStop(0, accent); grad.addColorStop(1, "rgba(255,255,255,.12)");
+    for (let i = 0; i < N; i++) {
+      // each bar is one slice of the pitch range (low to high, evenly spaced by ear), showing its loudest part
+      const f0 = lo * Math.pow(hi / lo, i / N), f1 = lo * Math.pow(hi / lo, (i + 1) / N);
+      const b0 = Math.floor(f0 / nyq * bins), b1 = Math.max(b0 + 1, Math.ceil(f1 / nyq * bins));
+      let m = 0; for (let k = b0; k < b1 && k < bins; k++) m = Math.max(m, data[k]);
+      const v = Math.pow(m / 255, 1.6); peaks[i] = Math.max(v, peaks[i] - 0.01);
+      const x = i * slot + (slot - bw) / 2, bh = Math.max(2 * dpr, v * span);
+      g.fillStyle = grad; g.beginPath(); g.roundRect(x, bottom - bh, bw, bh, Math.min(bw / 2, 4 * dpr)); g.fill();
+      g.fillStyle = "rgba(255,255,255,.55)"; g.fillRect(x, bottom - peaks[i] * span - 3 * dpr, bw, 2 * dpr);
     }
-    const pts = [], pk = [];
-    for (let i = 0; i < use; i++) {
-      const v = data[i] / 255; peaks[i] = Math.max(v, peaks[i] - 0.004);
-      pts.push([i / (use - 1) * w, bottom - Math.pow(v, 1.15) * span]); pk.push([i / (use - 1) * w, bottom - Math.pow(peaks[i], 1.15) * span]);
+    g.font = `${11 * dpr}px system-ui, sans-serif`; g.fillStyle = dim; g.textBaseline = "alphabetic"; g.textAlign = "center";
+    for (const [f, t] of [[100, "100 Hz"], [1000, "1 kHz"], [10000, "10 kHz"]]) {
+      if (f > hi) continue;
+      const x = Math.log(f / lo) / Math.log(hi / lo) * w; g.fillText(t, Math.min(Math.max(x, 24 * dpr), w - 24 * dpr), h - 3 * dpr);
     }
-    const path = (p) => { g.moveTo(p[0][0], p[0][1]); for (let i = 1; i < p.length - 1; i++) { const mx = (p[i][0] + p[i + 1][0]) / 2, my = (p[i][1] + p[i + 1][1]) / 2; g.quadraticCurveTo(p[i][0], p[i][1], mx, my); } };
-    const grad = g.createLinearGradient(0, top, 0, bottom); grad.addColorStop(0, accent); grad.addColorStop(1, "rgba(255,255,255,.02)");
-    g.beginPath(); path(pk); g.strokeStyle = "rgba(255,255,255,.28)"; g.lineWidth = 1.2 * dpr; g.stroke();
-    g.beginPath(); path(pts); g.lineTo(w, bottom); g.lineTo(0, bottom); g.closePath(); g.fillStyle = grad; g.globalAlpha = .85; g.fill(); g.globalAlpha = 1;
-    g.beginPath(); path(pts); g.strokeStyle = accent; g.lineWidth = 2 * dpr; g.stroke();
   };
   let npRef = null, npPushed = false;
   const npClosed = () => { const r = npRef; npRef = null; npPushed = false; document.body.classList.remove("np-open"); if (r) r.invokeMethodAsync("Closed").catch(() => { }); };

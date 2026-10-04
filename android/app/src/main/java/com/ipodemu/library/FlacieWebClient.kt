@@ -40,6 +40,44 @@ class FlacieWebClient(private val prefs: Prefs) {
         } finally { c.disconnect() }
     }
 
+    /** The server's own settings and storage, the same numbers as FLACie Web's Settings page. */
+    class ServerSettings(
+        val prefetch: Boolean, val minFreeGb: Int, val chartsOn: Boolean, val lists: List<Int>, val perList: Int, val lastRun: String, val lastNote: String,
+        val available: List<Pair<Int, String>>, val musicFree: Long, val musicTotal: Long, val nasSongs: Int, val nasBytes: Long,
+    )
+    class AccountStats(val songs: Int, val albums: Int, val artists: Int, val playlists: Int, val favourites: Int)
+
+    private fun send(path: String, method: String, body: String? = null): String {
+        val c = open(path, method)
+        try {
+            if (body != null) { val b = body.toByteArray(); c.doOutput = true; c.setRequestProperty("Content-Type", "application/json"); c.setFixedLengthStreamingMode(b.size); c.outputStream.use { it.write(b) } }
+            val code = c.responseCode
+            if (code == 401) throw java.io.IOException("FLACie Web doesn't know this account. Open FLACie Web in a browser once, signed in to the same Jellyfin.")
+            if (code !in 200..299) throw java.io.IOException("HTTP $code")
+            return c.inputStream.bufferedReader().use { it.readText() }
+        } finally { c.disconnect() }
+    }
+
+    private fun parseSettings(t: String): ServerSettings {
+        val o = JSONObject(t); val ch = o.getJSONObject("charts"); val st = o.getJSONObject("storage")
+        val av = o.getJSONArray("available"); val ls = ch.getJSONArray("lists")
+        return ServerSettings(o.optBoolean("prefetch"), o.optInt("minFreeGb"), ch.optBoolean("enabled"), List(ls.length()) { ls.getInt(it) }, ch.optInt("perList", 10),
+            ch.optString("lastRun").takeIf { it != "null" } ?: "", ch.optString("lastNote").takeIf { it != "null" } ?: "",
+            List(av.length()) { av.getJSONObject(it).let { a -> a.getInt("id") to a.getString("name") } },
+            st.optLong("musicFree", -1), st.optLong("musicTotal", -1), st.optInt("nasSongs"), st.optLong("nasBytes"))
+    }
+
+    fun settings(): ServerSettings = parseSettings(send("/api/settings", "GET"))
+    /** Sends only the fields given; returns the settings as the server now has them. */
+    fun saveSettings(prefetch: Boolean? = null, minFreeGb: Int? = null, chartsOn: Boolean? = null, perList: Int? = null, lists: List<Int>? = null): ServerSettings {
+        val o = JSONObject()
+        prefetch?.let { o.put("prefetch", it) }; minFreeGb?.let { o.put("minFreeGb", it) }; chartsOn?.let { o.put("chartsEnabled", it) }; perList?.let { o.put("perList", it) }
+        lists?.let { o.put("lists", JSONArray(it)) }
+        return parseSettings(send("/api/settings", "POST", o.toString()))
+    }
+    fun runCharts() { send("/api/charts/run", "POST", "{}") }
+    fun account(): AccountStats = JSONObject(send("/api/account", "GET")).let { AccountStats(it.optInt("songs"), it.optInt("albums"), it.optInt("artists"), it.optInt("playlists"), it.optInt("favourites")) }
+
     fun jobs(): List<Job> {
         val c = open("/api/import", "GET")
         try {

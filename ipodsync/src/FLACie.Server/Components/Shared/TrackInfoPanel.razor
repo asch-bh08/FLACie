@@ -18,12 +18,12 @@ else
             @if (Info.Channels > 0) { <div class="stat"><b>@Info.ChannelsName</b><small>channels</small></div> }
         </div>
         <div class="card-block">
-            <div class="block-head"><b>Live spectrum</b><small>What is in the sound right now. A lossy file stops short of the top; a lossless one reaches it.</small></div>
+            <div class="block-head"><b>Live sound</b><small>Deep sounds on the left, high ones on the right.</small></div>
             <canvas id="spectrum" class="spectrum" aria-label="Live frequency spectrum of the song playing"></canvas>
         </div>
         @if (Info.BitrateKbps > 0)
         {
-            <div class="card-block meter" role="img" aria-label="Bit rate @Info.BitrateKbps kilobits per second">
+            <div class="card-block rate" role="img" aria-label="Bit rate @Info.BitrateKbps kilobits per second">
                 <div class="block-head"><b>Bit rate</b><small>against MP3 128 and 320 and CD quality</small></div>
                 <div class="meter-track"><div class="meter-fill @(Info.Lossless ? "lossless" : "")" style="width:@Pct(Info.BitrateKbps, scale)%"></div>
                     <i style="left:@Pct(128, scale)%"></i><i style="left:@Pct(320, scale)%"></i><i style="left:@Pct(1411, scale)%"></i></div>

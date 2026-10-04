@@ -90,6 +90,9 @@ if (builder.Configuration["FLACIE_DEBUG"] == "1")
             new Microsoft.AspNetCore.Authentication.AuthenticationProperties { IsPersistent = true, ExpiresUtc = DateTimeOffset.UtcNow.AddDays(30) });
         return Results.Redirect("/");
     });
+    // local testing of /api/*: the signed-in account's own token, loopback only (never printed or stored anywhere)
+    app.MapGet("/debug/token", (HttpContext ctx, SessionStore store) =>
+        !System.Net.IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress!) || store.For(ctx.User).Jellyfin is not { } a ? Results.NotFound() : Results.Text(a.Token)).RequireAuthorization();
     // the signed-in user's library as JSON (title, artist, album), to compare another folder against it
     app.MapGet("/debug/library", (HttpContext ctx, SessionStore store) =>
         Results.Json(store.For(ctx.User).Library.Songs.Select(t => new { t = t.Title, a = t.Artist, al = t.Album, p = t.Path }))).RequireAuthorization();

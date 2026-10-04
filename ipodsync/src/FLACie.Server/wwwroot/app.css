@@ -243,7 +243,7 @@ input[type=range]:hover::-webkit-slider-runnable-track { background: linear-grad
   .app { grid-template-columns: minmax(0, 1fr); }
   .rail { position: fixed; top: auto; bottom: 0; left: 0; right: 0; height: calc(var(--tabs) + env(safe-area-inset-bottom, 0px)); padding: 0 4px env(safe-area-inset-bottom, 0px); flex-direction: row; justify-content: space-around; border-right: 0; border-top: 1px solid var(--line); z-index: 31; gap: 0; }
   .rail .brand, .rail a[href="/jam"], .rail-grow, .account-text { display: none; }
-  .rail a { flex-direction: column; gap: 3px; font-size: 11px; padding: 8px 6px; flex: 1; justify-content: center; }
+  .rail a { flex-direction: column; gap: 3px; font-size: 11px; padding: 8px 4px; flex: 1; justify-content: center; white-space: nowrap; min-width: 0; }
   .account-chip { margin: 0; border: 0; }
   .player { bottom: calc(var(--tabs) + env(safe-area-inset-bottom, 0px)); padding-bottom: 0; }
   .bar { grid-template-columns: minmax(0, 1fr) auto; padding: 0 12px; gap: 8px; }
@@ -537,4 +537,8 @@ html { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
 .block-head small { color: var(--dim); }
 .spectrum { display: block; width: 100%; height: 170px; }
 .kv dd.dim { color: var(--dim); }
-.meter.card-block .meter-track { margin-top: 4px; }
+.rate .meter-track { margin-top: 4px; }
+
+.info > * { flex-shrink: 0; }
+.spectrum { height: 140px; }
+.tiers span { text-align: center; }

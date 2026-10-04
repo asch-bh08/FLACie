@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,8 +60,46 @@ fun AccountScreen() {
             }
             if (acct.signedIn) {
                 val viaNas = prefs.accountKind == "nas"
-                Txt(if (viaNas) "Signed in with a NAS" else "Signed in as ${prefs.accountUserName}", size = 18f, weight = FontWeight.SemiBold, color = Color.White)
-                Txt(if (viaNas) "${prefs.nasUsername.ifBlank { "guest" }} on ${prefs.nasHost}/${prefs.nasShare}" else prefs.accountServer, size = 14f, color = Color(0x99FFFFFF))
+                val who = if (viaNas) prefs.nasUsername.ifBlank { "guest" } else prefs.accountUserName.ifBlank { "Signed in" }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Box(Modifier.size(64.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color(0xFFE0457B)), contentAlignment = Alignment.Center) {
+                        Txt(who.take(1).uppercase(), size = 28f, weight = FontWeight.Bold, color = Color.White)
+                    }
+                    Column {
+                        Txt(who, size = 22f, weight = FontWeight.Bold, color = Color.White, maxLines = 1)
+                        Txt(if (viaNas) "Signed in with a NAS" else "Signed in with Jellyfin", size = 14f, color = Color(0x99FFFFFF))
+                    }
+                }
+                // the numbers: from the server when FLACie Web is reachable (its library is the whole account), else what this phone holds
+                val web = remember { com.ipodemu.library.FlacieWebClient(prefs) }
+                var stats by remember { mutableStateOf<com.ipodemu.library.FlacieWebClient.AccountStats?>(null) }
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    stats = try { if (web.available) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { web.account() } else null } catch (_: Exception) { null }
+                }
+                val st = stats?.takeIf { it.songs > 0 } ?:com.ipodemu.library.FlacieWebClient.AccountStats(app.library.songs().size, app.library.albums().size, app.library.artists().size, app.userData.playlists.size, app.userData.favorites.size)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Songs" to st.songs, "Albums" to st.albums, "Artists" to st.artists, "Playlists" to st.playlists, "Favourites" to st.favourites).forEach { (label, n) ->
+                        Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Color(0x14FFFFFF)).padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Txt("$n", size = 18f, weight = FontWeight.Bold, color = Color.White, maxLines = 1)
+                            Txt(label, size = 10f, color = Color(0x99FFFFFF), maxLines = 1)
+                        }
+                    }
+                }
+                Txt("Connected", size = 16f, weight = FontWeight.SemiBold, color = Color.White)
+                listOf(
+                    Triple("Jellyfin", prefs.hasJellyfinAccount, if (prefs.hasJellyfinAccount) "${prefs.accountUserName} on ${prefs.accountServer.removePrefix("https://").removePrefix("http://")}" else "Not connected"),
+                    Triple("NAS", prefs.hasNasAccount, if (prefs.hasNasAccount) "${prefs.nasHost}/${prefs.nasShare}" else "Not connected"),
+                    Triple("Downloads", app.library.lidarrConnected, if (app.library.lidarrConnected) "Set up" else "Not set up"),
+                    Triple("FLACie Web", web.available, if (web.available) prefs.flacieWebUrl.removePrefix("https://").removePrefix("http://") else "Not found yet"),
+                ).forEach { (name, on, detail) ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0x14FFFFFF)).padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(Modifier.size(10.dp).clip(androidx.compose.foundation.shape.CircleShape).background(if (on) Color(0xFF7CE0A0) else Color(0x55FFFFFF)))
+                        Column(Modifier.weight(1f)) {
+                            Txt(name, size = 15f, weight = FontWeight.SemiBold, color = Color.White, maxLines = 1)
+                            Txt(detail, size = 13f, color = Color(0x99FFFFFF), maxLines = 1)
+                        }
+                    }
+                }
                 val kept = listOfNotNull("this NAS".takeIf { prefs.hasNasAccount }, "Jellyfin (${prefs.accountUserName})".takeIf { prefs.hasJellyfinAccount }).joinToString(" and ")
                 Txt("Your connected services, playlists, favourites and preferences are kept in $kept, so signing in with either on another device brings them back. They include the services' passwords and API keys, which the server's admins can read.", size = 14f, color = Color(0xCCFFFFFF), maxLines = 7)
                 Txt(acct.status ?: syncedLabel(prefs.accountSyncedAt), size = 14f, color = Color(0xFF7CE0A0), maxLines = 3)

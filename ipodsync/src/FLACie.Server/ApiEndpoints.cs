@@ -56,6 +56,50 @@ public static class ApiEndpoints
             return Results.Ok(states.For(s).Imports.Select(Summary));
         });
 
+        // the server-side settings and storage the phone shows next to its own (the same numbers as the web Settings page)
+        object SettingsOf(UserSession s, UserStateStore states, StorageService storage)
+        {
+            var st = states.For(s); var r = storage.Quick(s);
+            return new
+            {
+                prefetch = st.Prefetch, minFreeGb = st.MinFreeGb,
+                charts = new { enabled = st.Charts.Enabled, lists = st.Charts.Lists, perList = st.Charts.PerList, lastRun = st.Charts.LastRun, lastNote = st.Charts.LastNote },
+                available = ChartsService.Available.Select(c => new { id = c.Id, name = c.Name }),
+                storage = new { musicFree = r.Music?.Free ?? -1, musicTotal = r.Music?.Total ?? -1, nasSongs = r.NasSongs, nasBytes = r.NasBytes, diskFree = r.DiskFree, diskTotal = r.DiskTotal },
+            };
+        }
+
+        app.MapGet("/api/settings", async (HttpContext ctx, SessionStore store, JellyfinClient jf, UserStateStore states, StorageService storage) =>
+            await Who(ctx, store, jf) is not { } s ? Results.Unauthorized() : Results.Json(SettingsOf(s, states, storage)));
+
+        app.MapPost("/api/settings", async (HttpContext ctx, SessionStore store, JellyfinClient jf, UserStateStore states, StorageService storage) =>
+        {
+            if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
+            var body = await System.Text.Json.Nodes.JsonNode.ParseAsync(ctx.Request.Body) as System.Text.Json.Nodes.JsonObject;
+            var st = states.For(s);
+            if (body?["prefetch"]?.GetValue<bool>() is { } pf) st.Prefetch = pf;
+            if (body?["minFreeGb"]?.GetValue<int>() is { } mf) st.MinFreeGb = Math.Clamp(mf, 0, 2000);
+            if (body?["chartsEnabled"]?.GetValue<bool>() is { } ce) st.Charts.Enabled = ce;
+            if (body?["perList"]?.GetValue<int>() is { } pl) st.Charts.PerList = Math.Clamp(pl, 1, 50);
+            if (body?["lists"] is System.Text.Json.Nodes.JsonArray la)
+                st.Charts.Lists = la.Select(x => x!.GetValue<int>()).Where(id => ChartsService.Available.Any(c => c.Id == id)).Distinct().ToList();
+            states.Save(s);
+            return Results.Json(SettingsOf(s, states, storage));
+        }).DisableAntiforgery();
+
+        app.MapPost("/api/charts/run", async (HttpContext ctx, SessionStore store, JellyfinClient jf, ChartsService charts) =>
+        {
+            if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
+            _ = Task.Run(async () => { try { await charts.RunAsync(s, true, CancellationToken.None); } catch (Exception) { } });
+            return Results.Ok();
+        }).DisableAntiforgery();
+
+        app.MapGet("/api/account", async (HttpContext ctx, SessionStore store, JellyfinClient jf) =>
+        {
+            if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
+            return Results.Json(new { songs = s.Library.Songs.Count, albums = s.Library.Albums.Count, artists = s.Library.Artists.Count, playlists = s.Playlists.Count, favourites = s.Favorites.Count });
+        });
+
         app.MapPost("/api/import/{id}/cancel", async (HttpContext ctx, string id, SessionStore store, JellyfinClient jf, ImportManager imports) =>
         {
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();

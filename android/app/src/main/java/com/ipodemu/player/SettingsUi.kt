@@ -136,6 +136,42 @@ fun SettingsScreen(nav: PlayerNav) {
                         jobs.take(3).forEach { j ->
                             SettingRow(j.file, when (j.state) { "done" -> "Done ${j.total - j.failed}/${j.total}"; "waiting" -> "Waiting for space"; "cancelled" -> "Stopped"; else -> "${j.done}/${j.total}" }) { }
                         }
+                        // the server's own settings, the same ones as FLACie Web's Settings page (they live on the server, so they apply on every device)
+                        var srv by remember { mutableStateOf<com.ipodemu.library.FlacieWebClient.ServerSettings?>(null) }
+                        androidx.compose.runtime.LaunchedEffect(web.available) {
+                            if (web.available) srv = try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { web.settings() } } catch (_: Exception) { null }
+                        }
+                        fun change(block: () -> com.ipodemu.library.FlacieWebClient.ServerSettings) {
+                            scope.launch(kotlinx.coroutines.Dispatchers.IO) { try { srv = block() } catch (e: Exception) { msg = e.message ?: "Couldn't reach FLACie Web" } }
+                        }
+                        fun chartsSheet(s: com.ipodemu.library.FlacieWebClient.ServerSettings) {
+                            nav.sheet = SheetSpec("Charts to follow", "Tap to add or remove", s.available.map { (id, name) ->
+                                val on = id in s.lists
+                                SheetItem(name, if (on) Glyph.CHECK else Glyph.LIST) {
+                                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                        try {
+                                            val n = web.saveSettings(lists = if (on) s.lists - id else s.lists + id); srv = n
+                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { chartsSheet(n) }
+                                        } catch (e: Exception) { msg = e.message }
+                                    }
+                                }
+                            })
+                        }
+                        fun size(b: Long) = when { b >= 1L shl 40 -> "%.1f TB".format(b / 1099511627776.0); b >= 1L shl 30 -> "%.0f GB".format(b / 1073741824.0); else -> "%.0f MB".format(b / 1048576.0) }
+                        srv?.let { s ->
+                            val gbs = listOf(5, 10, 25, 50, 100, 200)
+                            SettingRow("Keep free space", "${s.minFreeGb} GB") { val n = gbs.firstOrNull { it > s.minFreeGb } ?: gbs[0]; change { web.saveSettings(minFreeGb = n) } }
+                            SettingRow("Daily charts", if (s.chartsOn) "On" else "Off") { change { web.saveSettings(chartsOn = !s.chartsOn) } }
+                            if (s.chartsOn) {
+                                val per = listOf(5, 10, 15, 25)
+                                SettingRow("Charts to follow", "${s.lists.size} chosen", chevron = true) { chartsSheet(s) }
+                                SettingRow("New songs per chart", "${s.perList} a day") { val n = per.firstOrNull { it > s.perList } ?: per[0]; change { web.saveSettings(perList = n) } }
+                                SettingRow("Run now", if (s.lastRun.isNotEmpty()) "Last ${s.lastRun}" else "Not run yet") { scope.launch(kotlinx.coroutines.Dispatchers.IO) { try { web.runCharts(); msg = "Started. New songs are added to your library on the server." } catch (e: Exception) { msg = e.message } } }
+                                Txt("About ${"%.1f".format(s.lists.size * s.perList * 30 / 1024.0)} GB a day with these settings, only while there is room. Nothing already stored is deleted." + (if (s.lastNote.isNotEmpty()) " Last run: ${s.lastNote}" else ""),
+                                    Modifier.padding(horizontal = 16.dp, vertical = 8.dp), size = 13f, color = sc.onBgDim, maxLines = 5)
+                            }
+                            SettingRow("Music storage", if (s.musicTotal > 0) "${size(s.musicFree)} free of ${size(s.musicTotal)}" else "Unknown") { }
+                        }
                         msg?.let { Txt(it, Modifier.padding(horizontal = 16.dp, vertical = 10.dp), size = 13f, color = sc.onBgDim, maxLines = 4) }
                     }
                 }

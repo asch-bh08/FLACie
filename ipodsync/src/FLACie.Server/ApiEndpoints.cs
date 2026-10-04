@@ -16,10 +16,11 @@ public static class ApiEndpoints
         async Task<UserSession?> Who(HttpContext ctx, SessionStore store, JellyfinClient jf)
         {
             var token = ctx.Request.Headers["X-Emby-Token"].FirstOrDefault() ?? ctx.Request.Headers.Authorization.ToString().Replace("Bearer ", "");
-            var server = ctx.Request.Headers["X-Jellyfin-Server"].FirstOrDefault() ?? fixedServer;
+            // with a fixed Jellyfin the token is checked there, whatever address the phone uses for the same server (LAN, Tailscale, public)
+            var server = fixedServer ?? ctx.Request.Headers["X-Jellyfin-Server"].FirstOrDefault();
             if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(server)) return null;
             server = JellyfinClient.Normalise(server);
-            var known = fixedServer is not null ? JellyfinClient.Normalise(fixedServer) == server : store.Active.Any(s => s.Jellyfin?.Server == server);
+            var known = fixedServer is not null || store.Active.Any(s => s.Jellyfin?.Server == server);
             if (!known) return null;
             try
             {

@@ -242,7 +242,7 @@ input[type=range]:hover::-webkit-slider-runnable-track { background: linear-grad
   :root { --tabs: 62px; --bar: 72px; }
   .app { grid-template-columns: minmax(0, 1fr); }
   .rail { position: fixed; top: auto; bottom: 0; left: 0; right: 0; height: calc(var(--tabs) + env(safe-area-inset-bottom, 0px)); padding: 0 4px env(safe-area-inset-bottom, 0px); flex-direction: row; justify-content: space-around; border-right: 0; border-top: 1px solid var(--line); z-index: 31; gap: 0; }
-  .rail .brand, .rail a[href="/artists"], .rail a[href="/songs"], .rail a[href="/jam"], .rail-grow, .account-text { display: none; }
+  .rail .brand, .rail a[href="/jam"], .rail-grow, .account-text { display: none; }
   .rail a { flex-direction: column; gap: 3px; font-size: 11px; padding: 8px 6px; flex: 1; justify-content: center; }
   .account-chip { margin: 0; border: 0; }
   .player { bottom: calc(var(--tabs) + env(safe-area-inset-bottom, 0px)); padding-bottom: 0; }

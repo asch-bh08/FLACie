@@ -146,7 +146,7 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
             if (group.Count == 0) return;
             var keep = group.FirstOrDefault(p => p.JellyfinId is not null) ?? group.First();
             foreach (var p in group.Where(p => p.Id != keep.Id)) s.DeletePlaylist(p.Id);
-            if (keep.Name != list.Name) s.RenamePlaylist(keep.Id, list.Name);
+            if (keep.Name != UserSession.CleanName(list.Name)) s.RenamePlaylist(keep.Id, UserSession.CleanName(list.Name));
             s.ReplacePlaylistTracks(keep.Id, []);
             list.PlaylistId = keep.Id;
             foreach (var i in list.Items) { i.State = "pending"; i.Message = null; }
@@ -158,15 +158,16 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
         lock (listLocks.GetOrAdd(s.Id, _ => new object()))
         {
             if (list.PlaylistId is { } id && s.Playlists.Any(p => p.Id == id)) return id;
-            var existing = s.Playlists.FirstOrDefault(p => p.Name.Equals(list.Name, StringComparison.OrdinalIgnoreCase));
+            var name = UserSession.CleanName(list.Name);
+            var existing = s.Playlists.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
             if (existing is null && replace)
             {
-                // "2026" in the account and "2026(LAC)" in the file are the same playlist: it takes the file's name and exactly the file's songs
+                // "2026" in the account and "2026(LAC)" in the file are the same playlist: it takes the file's songs, and the name without the tag
                 existing = s.Playlists.FirstOrDefault(p => Base(p.Name) == Base(list.Name));
-                if (existing is not null) s.RenamePlaylist(existing.Id, list.Name);
+                if (existing is not null) s.RenamePlaylist(existing.Id, name);
             }
             if (existing is not null && replace) s.ReplacePlaylistTracks(existing.Id, []);
-            list.PlaylistId = (existing ?? s.CreatePlaylist(list.Name)).Id;
+            list.PlaylistId = (existing ?? s.CreatePlaylist(name)).Id;
             return list.PlaylistId;
         }
     }

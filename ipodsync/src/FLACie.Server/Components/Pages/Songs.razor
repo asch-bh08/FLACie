@@ -3,10 +3,11 @@
 @inherits UserComponent
 <PageTitle>Songs · FLACie</PageTitle>
 <header class="page-head">
-    <h1>Songs</h1>
+    <h1>All music</h1>
     <p class="sub">@Lib.Songs.Count songs</p>
     <div class="chips"><button class="btn primary" @onclick="() => Player.ShuffleAll(Lib.Songs)" disabled="@(Lib.Songs.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle all</button></div>
 </header>
+<MusicTabs Active="Songs" />
 <LibraryStatus />
 <div class="tracks virtual">
     <Virtualize Items="rows" Context="row" ItemSize="60">

@@ -1,0 +1,11 @@
+@* The filters of "All music": the same library cut four ways. *@
+<div class="mood-chips" role="tablist" aria-label="Browse all music">
+    @foreach (var (name, href) in tabs)
+    {
+        <a class="mood @(Active == name ? "on" : "")" role="tab" aria-selected="@(Active == name)" href="@href">@name</a>
+    }
+</div>
+@code {
+    [Parameter, EditorRequired] public string Active { get; set; } = "Songs";
+    static readonly (string, string)[] tabs = [("Songs", "/songs"), ("Albums", "/albums"), ("Artists", "/artists"), ("Genres", "/genres")];
+}

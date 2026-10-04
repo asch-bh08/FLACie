@@ -2,7 +2,8 @@
 @attribute [Authorize]
 @inherits UserComponent
 <PageTitle>Artists · FLACie</PageTitle>
-<header class="page-head"><h1>Artists</h1><p class="sub">@Lib.Artists.Count artists</p></header>
+<header class="page-head"><h1>All music</h1><p class="sub">@Lib.Artists.Count artists</p></header>
+<MusicTabs Active="Artists" />
 <LibraryStatus />
 <div class="grid">
     @foreach (var a in Lib.Artists)

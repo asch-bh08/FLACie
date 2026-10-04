@@ -80,8 +80,8 @@ public static class HomeBuilder
             shelves.Add(new("listen-again", "Listen again", "Your recent plays", listen.Take(16).ToList(), []));
 
         var again = listen.Take(8).Select(Matching.MatchKey).ToHashSet();
-        var picks = Spread(Shuffled(lib.Songs.Where(t => !again.Contains(Matching.MatchKey(t)) && t.DurationMs is 0 or > 40_000), slot * 31 + 7).OrderByDescending(Taste), 2, 20);
-        if (picks.Count > 0) shelves.Add(new("quick-picks", "Quick picks", "Songs to start with, based on what you play", picks, [], "Refreshes every hour"));
+        var picks = Recommender.Recommend(lib, new TasteProfile(lib, history, favourites, playlists, utcNow), utcNow, 20, 31, 2, again);
+        if (picks.Count > 0) shelves.Add(new("quick-picks", "Quick picks", "Chosen for you from what you play, save and list", picks, [], "Refreshes every hour"));
 
         // the Daily Mix of the hour cycles through the moods, then the genres you own most of
         var genres = lib.Songs.Where(t => t.Genre.Length > 0).GroupBy(t => t.Genre, StringComparer.OrdinalIgnoreCase).OrderByDescending(g => g.Count()).Take(8).ToList();

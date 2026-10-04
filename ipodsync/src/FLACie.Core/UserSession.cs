@@ -66,11 +66,26 @@ public sealed class UserSession
                 catch (Exception e) { Problem = (Problem is null ? "" : Problem + " · ") + $"NAS: {e.Message}"; }
             Library = WithDownloads(Library.Merge(jfTracks, nasTracks));
             LoadedAt = DateTime.UtcNow;
+            if (StripQualityTags()) try { await SaveAsync(jf, ct); } catch (Exception) { }
         }
         finally { Loading = false; gate.Release(); Changed?.Invoke(); }
     }
 
     static string S(JsonObject o, string k) => o[k]?.GetValue<string>() ?? "";
+
+    static readonly System.Text.RegularExpressions.Regex QualityTag = new(@"\s*\((f?lac|alac|mp3|aac|wav|ogg|opus)\)\s*$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    /// <summary>A playlist name without a trailing quality tag such as "(LAC)" or "(FLAC)".</summary>
+    public static string CleanName(string name) => QualityTag.Replace(name, "").Trim() is { Length: > 0 } c ? c : name;
+
+    /// <summary>Drops the quality tag from every playlist name. True when anything was renamed.</summary>
+    bool StripQualityTags()
+    {
+        var changed = false;
+        lock (listLock)
+            foreach (var o in (Profile["playlists"] as JsonArray ?? []).OfType<JsonObject>())
+                if (o["n"]?.GetValue<string>() is { } n && CleanName(n) != n) { o["n"] = CleanName(n); o["m"] = Now(); changed = true; }
+        return changed;
+    }
 
 
     // ---- downloads ----

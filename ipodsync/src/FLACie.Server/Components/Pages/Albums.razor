@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @inherits UserComponent
 <PageTitle>Albums · FLACie</PageTitle>
-<header class="page-head"><h1>Albums</h1><p class="sub">@Lib.Albums.Count albums</p></header>
+<header class="page-head"><h1>All music</h1><p class="sub">@Lib.Albums.Count albums</p></header>
+<MusicTabs Active="Albums" />
 <LibraryStatus />
 <AlbumGrid Albums="Lib.Albums" />

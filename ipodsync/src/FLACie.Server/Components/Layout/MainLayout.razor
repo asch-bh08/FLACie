@@ -1,4 +1,6 @@
 @inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Nav
 <div class="app">
     <TopBar />
     <nav class="rail" aria-label="Main">
@@ -7,10 +9,7 @@
             <NavLink href="/search"><Icon Name="search" />Search</NavLink>
         </div>
         <div class="rail-group">
-            <p class="rail-label">Your music</p>
-            <NavLink href="/songs"><Icon Name="songs" />Songs</NavLink>
-            <NavLink href="/albums"><Icon Name="albums" />Albums</NavLink>
-            <NavLink href="/artists"><Icon Name="artists" />Artists</NavLink>
+            <a href="/songs" class="@(InMusic ? "active" : "")"><Icon Name="songs" />All music</a>
             <NavLink href="/favorites"><Icon Name="heart" />Favourites</NavLink>
             <NavLink href="/playlists" Match="NavLinkMatch.All"><Icon Name="playlists" />Playlists</NavLink>
         </div>
@@ -30,3 +29,10 @@
     <RemoteNowPlaying />
     <PlayerBar />
 </div>
+@code {
+    // "All music" is lit for its four filters and their detail pages
+    bool InMusic { get { var p = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0]; return new[] { "/songs", "/albums", "/artists", "/genres", "/album/", "/artist/", "/genre/" }.Any(x => p.StartsWith(x, StringComparison.OrdinalIgnoreCase)); } }
+    protected override void OnInitialized() => Nav.LocationChanged += Moved;
+    void Moved(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => InvokeAsync(StateHasChanged);
+    public void Dispose() => Nav.LocationChanged -= Moved;
+}

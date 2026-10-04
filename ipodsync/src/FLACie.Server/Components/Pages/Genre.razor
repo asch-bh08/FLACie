@@ -1,0 +1,26 @@
+@page "/genre/{Name}"
+@attribute [Authorize]
+@inherits UserComponent
+@{ var name = Uri.UnescapeDataString(Name); var songs = Lib.Songs.Where(t => t.Genre.Trim().Equals(name, StringComparison.OrdinalIgnoreCase)).ToList(); }
+@if (songs.Count == 0)
+{
+    <p class="status">@(Session.Loading ? "Loading…" : "No songs with this genre.")</p>
+}
+else
+{
+    <PageTitle>@name · FLACie</PageTitle>
+    <header class="detail-head">
+        <Cover ArtKey="@(songs.Select(t => t.ArtKey).FirstOrDefault(k => k is not null))" Class="detail-cover" />
+        <div>
+            <p class="eyebrow">Genre</p>
+            <h1>@name</h1>
+            <p class="sub">@songs.Count songs</p>
+            <div class="chips">
+                <button class="btn primary" @onclick="() => Player.Play(songs, 0, name)"><Icon Name="play" Size="18" />Play</button>
+                <button class="btn" @onclick="() => Player.ShuffleAll(songs, name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+            </div>
+        </div>
+    </header>
+    <TrackList Tracks="songs" PlayContext="@name" />
+}
+@code { [Parameter] public string Name { get; set; } = ""; }

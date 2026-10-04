@@ -51,6 +51,40 @@ window.flacie = (() => {
     requestAnimationFrame(lyricTick);
   };
   requestAnimationFrame(lyricTick);
+  // live spectrum of what is playing (Info tab): the audio runs through an analyser, and the frequency bars are drawn as a filled curve
+  // with a slowly falling peak line. A lossy file shows where its encoder cut the top off.
+  let actx = null, an = null, scopeOn = false, peaks = null;
+  const scopeDraw = () => {
+    if (!scopeOn) return;
+    requestAnimationFrame(scopeDraw);
+    const cv = document.getElementById("spectrum"); if (!cv || !an) return;
+    const dpr = window.devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
+    if (!w || !h) return;
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    const g = cv.getContext("2d"), nyq = actx.sampleRate / 2, maxHz = Math.min(nyq, 24000);
+    const bins = an.frequencyBinCount, use = Math.floor(bins * maxHz / nyq);
+    const data = new Uint8Array(bins); an.getByteFrequencyData(data);
+    if (!peaks || peaks.length !== use) peaks = new Float32Array(use);
+    const css = getComputedStyle(document.documentElement), accent = css.getPropertyValue("--accent").trim() || "#ff4d8d", dim = css.getPropertyValue("--faint").trim() || "#888";
+    g.clearRect(0, 0, w, h);
+    const bottom = h - 18 * dpr, top = 6 * dpr, span = bottom - top;
+    g.font = `${11 * dpr}px system-ui, sans-serif`; g.textBaseline = "alphabetic"; g.lineWidth = 1;
+    for (let k = 0; k <= maxHz; k += 5000) {
+      const x = Math.min(w - 1, k / maxHz * w);
+      g.strokeStyle = "rgba(255,255,255,.08)"; g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke();
+      g.fillStyle = dim; g.textAlign = k === 0 ? "left" : "center"; g.fillText(k === 0 ? "0" : (k / 1000) + " kHz", k === 0 ? 2 : Math.min(x, w - 22 * dpr), h - 3 * dpr);
+    }
+    const pts = [], pk = [];
+    for (let i = 0; i < use; i++) {
+      const v = data[i] / 255; peaks[i] = Math.max(v, peaks[i] - 0.004);
+      pts.push([i / (use - 1) * w, bottom - Math.pow(v, 1.15) * span]); pk.push([i / (use - 1) * w, bottom - Math.pow(peaks[i], 1.15) * span]);
+    }
+    const path = (p) => { g.moveTo(p[0][0], p[0][1]); for (let i = 1; i < p.length - 1; i++) { const mx = (p[i][0] + p[i + 1][0]) / 2, my = (p[i][1] + p[i + 1][1]) / 2; g.quadraticCurveTo(p[i][0], p[i][1], mx, my); } };
+    const grad = g.createLinearGradient(0, top, 0, bottom); grad.addColorStop(0, accent); grad.addColorStop(1, "rgba(255,255,255,.02)");
+    g.beginPath(); path(pk); g.strokeStyle = "rgba(255,255,255,.28)"; g.lineWidth = 1.2 * dpr; g.stroke();
+    g.beginPath(); path(pts); g.lineTo(w, bottom); g.lineTo(0, bottom); g.closePath(); g.fillStyle = grad; g.globalAlpha = .85; g.fill(); g.globalAlpha = 1;
+    g.beginPath(); path(pts); g.strokeStyle = accent; g.lineWidth = 2 * dpr; g.stroke();
+  };
   let npRef = null, npPushed = false;
   const npClosed = () => { const r = npRef; npRef = null; npPushed = false; document.body.classList.remove("np-open"); if (r) r.invokeMethodAsync("Closed").catch(() => { }); };
   window.addEventListener("popstate", () => { if (npRef) npClosed(); else npPushed = false; });
@@ -66,6 +100,19 @@ window.flacie = (() => {
       document.title = title ? `${title} · ${artist}` : "FLACie";
       if (autoplay) audio.play().catch(() => send("OnState", false)); else { audio.pause(); send("OnState", false); }
     },
+    scope() {
+      try {
+        if (!an) {
+          actx = new (window.AudioContext || window.webkitAudioContext)();
+          const src = actx.createMediaElementSource(audio);
+          an = actx.createAnalyser(); an.fftSize = 4096; an.smoothingTimeConstant = 0.82;
+          src.connect(an); an.connect(actx.destination);
+        }
+        if (actx.state === "suspended") actx.resume();
+        if (!scopeOn) { scopeOn = true; requestAnimationFrame(scopeDraw); }
+      } catch { }
+    },
+    scopeStop() { scopeOn = false; },
     toggle() { audio.paused ? audio.play().catch(() => {}) : audio.pause(); },
     play() { audio.play().catch(() => send("OnState", false)); },
     setLyrics(times) { lyr = { times, cur: -2 }; },

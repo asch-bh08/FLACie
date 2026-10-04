@@ -129,6 +129,26 @@ public static class MediaEndpoints
     /// that carries it, "Now That's What I Call Music 96" included, so the song's own album wins, and compilations only when nothing else exists.</summary>
     static async Task<byte[]?> OnlineCover(HttpClient http, string artist, string album, string title, CancellationToken ct)
     {
+        var hit = await OnlineAlbum(http, artist, album, title, ct);
+        if (hit?.Cover is not { Length: > 0 } url) return null;
+        try { return await http.GetByteArrayAsync(url, ct); } catch { return null; }
+    }
+
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Album, string Cover)?> albumCache = new();
+
+    /// <summary>The song's own album in the public catalog (title and cover), for songs whose file carries a compilation or a wrong album.</summary>
+    public static async Task<(string Album, string Cover)?> OnlineAlbum(HttpClient http, string artist, string album, string title, CancellationToken ct)
+    {
+        var ck = Matching.MatchKey(title, artist) + "|" + Matching.AlbumNorm(album);
+        if (albumCache.TryGetValue(ck, out var cached)) return cached;
+        var found = await OnlineAlbumUncached(http, artist, album, title, ct);
+        if (albumCache.Count > 5000) albumCache.Clear();
+        albumCache[ck] = found;
+        return found;
+    }
+
+    static async Task<(string Album, string Cover)?> OnlineAlbumUncached(HttpClient http, string artist, string album, string title, CancellationToken ct)
+    {
         if (artist.Length == 0) return null;
         // "Me Against the World (1995)", "Album [Deluxe]": the bracketed part only hurts a catalog search
         album = System.Text.RegularExpressions.Regex.Replace(album, @"\s*[(\[][^)\]]*[)\]]", "").Trim();
@@ -152,7 +172,8 @@ public static class MediaEndpoints
                 }
                 var hit = mine.OrderByDescending(Score).FirstOrDefault();
                 var url = hit?["cover_big"]?.GetValue<string>() ?? hit?["album"]?["cover_big"]?.GetValue<string>();
-                if (!string.IsNullOrEmpty(url)) return await http.GetByteArrayAsync(url, ct);
+                var name = ep == "search" ? hit?["album"]?["title"]?.GetValue<string>() : hit?["title"]?.GetValue<string>();
+                if (!string.IsNullOrEmpty(url)) return (name ?? "", url);
             }
             catch { }
         }

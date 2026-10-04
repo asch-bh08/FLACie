@@ -5,7 +5,7 @@
 <header class="page-head">
     <h1>@Greeting</h1>
     <div class="chips">
-        <button class="chip" @onclick='() => Player.ShuffleAll(Lib.Songs, "Your library")' disabled="@(Lib.Songs.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle all</button>
+        <button class="chip" @onclick='() => ShuffleFull(Lib.Songs, "Your library")' disabled="@(Lib.Songs.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle all</button>
         <a class="chip" href="/favorites"><Icon Name="heart" Size="18" />Favourites</a>
         <a class="chip" href="/import"><Icon Name="download" Size="18" />Import playlists</a>
     </div>
@@ -25,12 +25,12 @@
 @if (mood is not null)
 {
     <section class="shelf" aria-label="@mood">
-        <div class="shelf-head"><div><h2>@mood</h2><small>New picks each day</small></div><button class="chip small" @onclick="() => Player.Play(moodTracks, 0, mood)"><Icon Name="play" Size="16" />Play all</button></div>
+        <div class="shelf-head"><div><h2>@mood</h2><small>New picks each day</small></div><button class="chip small" @onclick="() => PlayFull(moodTracks, 0, mood)"><Icon Name="play" Size="16" />Play all</button></div>
         <ul class="pick-grid">
             @for (var i = 0; i < moodTracks.Count; i++)
             {
                 var idx = i; var t = moodTracks[i];
-                <li><button class="pick" @onclick="() => Player.Play(moodTracks, idx, mood)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small></span></button></li>
+                <li><button class="pick" @onclick="() => PlayFull(moodTracks, idx, mood)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small></span></button></li>
             }
         </ul>
     </section>
@@ -56,7 +56,7 @@ else
             <div class="shelf-head">
                 <div><h2>@sh.Title</h2>@if (sh.Subtitle.Length > 0) { <small>@sh.Subtitle</small> }</div>
                 <span class="shelf-nav">
-                    @if (sh.Tracks.Count > 0) { <button class="chip small" @onclick="() => Player.Play(sh.Tracks, 0, sh.Title)"><Icon Name="play" Size="16" />Play all</button> }
+                    @if (sh.Tracks.Count > 0) { <button class="chip small" @onclick="() => PlayFull(sh.Tracks, 0, sh.Title)"><Icon Name="play" Size="16" />Play all</button> }
                     @if (sh.Id != "quick-picks") { <Arrows /> }
                 </span>
             </div>
@@ -66,7 +66,7 @@ else
                     @for (var i = 0; i < sh.Tracks.Count && i < 12; i++)
                     {
                         var idx = i; var t = sh.Tracks[i];
-                        <li><button class="pick" @onclick="() => Player.Play(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small></span></button></li>
+                        <li><button class="pick" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small></span></button></li>
                     }
                 </ul>
             }
@@ -76,7 +76,7 @@ else
                     @for (var i = 0; i < sh.Tracks.Count; i++)
                     {
                         var idx = i; var t = sh.Tracks[i];
-                        <button class="card song-card" @onclick="() => Player.Play(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)">
+                        <button class="card song-card" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)">
                             <Cover ArtKey="@(t.ArtKey)" Class="square" />
                             <span class="card-title">@t.Title</span>
                             <span class="card-sub">@t.Artist</span>
@@ -101,6 +101,10 @@ else
     }
 }
 @code {
+    // playing from Home opens the full-screen player
+    async Task PlayFull(IReadOnlyList<Track> list, int index, string? context) { await Player.Play(list, index, context); Player.RequestFullScreen(); }
+    async Task ShuffleFull(IReadOnlyList<Track> list, string? context) { await Player.ShuffleAll(list, context); Player.RequestFullScreen(); }
+
     string Greeting { get { var h = DateTime.Now.Hour; return h >= 18 ? "Good evening" : h >= 12 ? "Good afternoon" : "Good morning"; } }
 
     List<Shelf> shelves = [];

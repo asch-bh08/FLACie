@@ -99,6 +99,9 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
 
     public Track? Current => Index >= 0 && Index < Queue.Count ? Queue[Index] : null;
     public event Action? Changed;
+    /// <summary>A page that starts music asks the player bar to open the full-screen player.</summary>
+    public event Action? FullScreenRequested;
+    public void RequestFullScreen() => FullScreenRequested?.Invoke();
     /// <summary>A song began (for the play history).</summary>
     public event Action<Track>? Started;
     public IPlayInterceptor? Interceptor { get; set; }

@@ -1,4 +1,6 @@
-@* The file behind a song: format, quality tier, a bit-rate meter and the details that say where it comes from. *@
+@* The file behind a song: format and quality at a glance, a live spectrum of what is actually playing, then the details in two tidy cards. *@
+@implements IAsyncDisposable
+@inject IJSRuntime Js
 @if (Loading) { <p class="hint">Reading the file…</p> }
 else if (Info is null) { <p class="hint">No details available for this song.</p> }
 else
@@ -9,13 +11,23 @@ else
             <span class="fmt-big @(Info.Lossless ? "lossless" : "")">@(Info.Format.Length > 0 ? Info.Format : "AUDIO")</span>
             <div><b>@(Info.Tier.Length > 0 ? Info.Tier : "Quality unknown")</b><small>@Info.Sampling@(Info.Sampling.Length > 0 && Info.ChannelsName.Length > 0 ? " · " : "")@Info.ChannelsName</small></div>
         </div>
+        <div class="stat-grid">
+            @if (Info.BitrateKbps > 0) { <div class="stat"><b>@Info.BitrateKbps</b><small>kbps</small></div> }
+            @if (Info.SampleRateHz > 0) { <div class="stat"><b>@((Info.SampleRateHz / 1000.0).ToString("0.#"))</b><small>kHz</small></div> }
+            @if (Info.BitDepth > 0) { <div class="stat"><b>@Info.BitDepth</b><small>bit</small></div> }
+            @if (Info.Channels > 0) { <div class="stat"><b>@Info.ChannelsName</b><small>channels</small></div> }
+        </div>
+        <div class="card-block">
+            <div class="block-head"><b>Live spectrum</b><small>What is in the sound right now. A lossy file stops short of the top; a lossless one reaches it.</small></div>
+            <canvas id="spectrum" class="spectrum" aria-label="Live frequency spectrum of the song playing"></canvas>
+        </div>
         @if (Info.BitrateKbps > 0)
         {
-            <div class="meter" role="img" aria-label="Bit rate @Info.BitrateKbps kilobits per second">
+            <div class="card-block meter" role="img" aria-label="Bit rate @Info.BitrateKbps kilobits per second">
+                <div class="block-head"><b>Bit rate</b><small>against MP3 128 and 320 and CD quality</small></div>
                 <div class="meter-track"><div class="meter-fill @(Info.Lossless ? "lossless" : "")" style="width:@Pct(Info.BitrateKbps, scale)%"></div>
                     <i style="left:@Pct(128, scale)%"></i><i style="left:@Pct(320, scale)%"></i><i style="left:@Pct(1411, scale)%"></i></div>
                 <div class="meter-scale"><span style="left:@Pct(128, scale)%">128</span><span style="left:@Pct(320, scale)%">320</span><span style="left:@Pct(1411, scale)%">CD 1411</span></div>
-                <p class="meter-read"><b>@Info.BitrateKbps</b> kbps</p>
             </div>
         }
         <div class="tiers" aria-hidden="true">
@@ -24,30 +36,44 @@ else
                 <span class="@(on ? "on" : "")">@name</span>
             }
         </div>
-        <dl class="kv">
-            <dt>Title</dt><dd>@Track.Title</dd>
-            <dt>Artist</dt><dd>@Track.Artist</dd>
-            @if (Track.Album.Length > 0) { <dt>Album</dt><dd>@Track.Album@(Track.AlbumArtist.Length > 0 && Track.AlbumArtist != Track.Artist ? " (" + Track.AlbumArtist + ")" : "")</dd> }
-            @if (Track.Year > 0) { <dt>Year</dt><dd>@Track.Year</dd> }
-            @if (Track.Genre.Length > 0) { <dt>Genre</dt><dd>@Track.Genre</dd> }
-            @if (Track.TrackNo > 0) { <dt>Track</dt><dd>@(Track.DiscNo > 1 ? Track.DiscNo + "-" : "")@Track.TrackNo</dd> }
-            <dt>Source</dt><dd><span class="badge @Track.Source.ToString().ToLowerInvariant()">@Info.Source</span></dd>
-            @if (Info.Codec.Length > 0) { <dt>Codec</dt><dd>@Info.Codec.ToUpperInvariant()@(Info.Container.Length > 0 && !string.Equals(Info.Container, Info.Codec, StringComparison.OrdinalIgnoreCase) ? " in " + Info.Container.ToUpperInvariant() : "")</dd> }
-            @if (Info.BitrateKbps > 0) { <dt>Bit rate</dt><dd>@Info.BitrateKbps kbps</dd> }
-            @if (Info.SampleRateHz > 0) { <dt>Sample rate</dt><dd>@(Info.SampleRateHz.ToString("N0")) Hz</dd> }
-            @if (Info.BitDepth > 0) { <dt>Bit depth</dt><dd>@Info.BitDepth-bit</dd> }
-            @if (Info.Channels > 0) { <dt>Channels</dt><dd>@Info.ChannelsName</dd> }
-            @if (Info.SizeBytes > 0) { <dt>File size</dt><dd>@Size(Info.SizeBytes)</dd> }
-            @if (Info.DurationMs > 0) { <dt>Length</dt><dd>@Clock(Info.DurationMs)</dd> }
-            @if (Info.Path.Length > 0) { <dt>Location</dt><dd class="path">@Info.Path</dd> }
-            <dt>Playing</dt><dd>Original file, streamed through FLACie without converting</dd>
-        </dl>
+        <div class="card-block">
+            <div class="block-head"><b>Song</b></div>
+            <dl class="kv">
+                <dt>Title</dt><dd>@Track.Title</dd>
+                <dt>Artist</dt><dd>@Track.Artist</dd>
+                @if ((Album ?? Track.Album).Length > 0) { <dt>Album</dt><dd>@(Album ?? Track.Album)</dd> }
+                @if (Album is not null && Track.Album.Length > 0 && Album != Track.Album) { <dt>Filed under</dt><dd class="dim">@Track.Album@(Track.AlbumArtist.Length > 0 && Track.AlbumArtist != Track.Artist ? " (" + Track.AlbumArtist + ")" : "")</dd> }
+                @if (Track.Year > 0) { <dt>Year</dt><dd>@Track.Year</dd> }
+                @if (Track.Genre.Length > 0) { <dt>Genre</dt><dd>@Track.Genre</dd> }
+                @if (Track.TrackNo > 0) { <dt>Track</dt><dd>@(Track.DiscNo > 1 ? Track.DiscNo + "-" : "")@Track.TrackNo</dd> }
+                @if (Info.DurationMs > 0) { <dt>Length</dt><dd>@Clock(Info.DurationMs)</dd> }
+            </dl>
+        </div>
+        <div class="card-block">
+            <div class="block-head"><b>File</b></div>
+            <dl class="kv">
+                <dt>Source</dt><dd><span class="badge @Track.Source.ToString().ToLowerInvariant()">@Info.Source</span></dd>
+                @if (Info.Codec.Length > 0) { <dt>Codec</dt><dd>@Info.Codec.ToUpperInvariant()@(Info.Container.Length > 0 && !string.Equals(Info.Container, Info.Codec, StringComparison.OrdinalIgnoreCase) ? " in " + Info.Container.ToUpperInvariant() : "")</dd> }
+                @if (Info.SizeBytes > 0) { <dt>Size</dt><dd>@Size(Info.SizeBytes)</dd> }
+                @if (Info.Path.Length > 0) { <dt>Location</dt><dd class="path">@Info.Path</dd> }
+                <dt>Playing</dt><dd>Original file, streamed without converting</dd>
+            </dl>
+        </div>
     </div>
 }
 @code {
     [Parameter] public Track Track { get; set; } = default!;
     [Parameter] public MediaInfo? Info { get; set; }
     [Parameter] public bool Loading { get; set; }
+    /// <summary>The song's own album when the file is filed on a compilation or another release.</summary>
+    [Parameter] public string? Album { get; set; }
+
+    bool scoping;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Info is not null && !scoping) { scoping = true; try { await Js.InvokeVoidAsync("flacie.scope", "spectrum"); } catch (Exception) { } }
+    }
+    public async ValueTask DisposeAsync() { try { await Js.InvokeVoidAsync("flacie.scopeStop"); } catch (Exception) { } }
 
     static string Pct(double v, double max) => Math.Clamp(v / max * 100, 0, 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     static string Size(long b) => b >= 1 << 30 ? $"{b / (double)(1 << 30):0.##} GB" : $"{b / (double)(1 << 20):0.#} MB";

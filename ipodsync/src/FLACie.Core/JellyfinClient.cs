@@ -124,7 +124,9 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         var albumId = Str("AlbumId");
         // the song's own picture first (embedded art differs per song); the album's only when the song has none, because a shared
         // folder.jpg would put one cover on every song in a folder; a catalog lookup when neither exists
-        var art = o["ImageTags"]?["Primary"] is not null ? "jf" + id
+        // a song on a compilation gets its own album's cover from the catalog, whatever the file's embedded picture is
+        var art = Art.OnCompilation(artist, Str("AlbumArtist"), Str("Album")) && Art.LookupKey(artist, "", Str("Name")) is { } own ? own
+                : o["ImageTags"]?["Primary"] is not null ? "jf" + id
                 : albumId.Length > 0 && o["AlbumPrimaryImageTag"] is not null ? "jf" + albumId
                 : Art.LookupKey(artist, Str("Album"), Str("Name"));
         DateTime.TryParse(Str("DateCreated"), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var created);

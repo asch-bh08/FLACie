@@ -41,13 +41,15 @@
         await base.OnInitializedAsync();
         Nav.LocationChanged += OnNavigated;
         Player.Started += OnStarted;
+        Player.FullScreenRequested += OnFullScreen;
     }
+    void OnFullScreen() => InvokeAsync(() => { open = true; StateHasChanged(); });
     void OnNavigated(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
         if (open) InvokeAsync(() => { open = false; StateHasChanged(); });
     }
     void OnStarted(Track t) { if (Session.RecordPlay(t)) SaveProfile(); }
-    public override void Dispose() { Nav.LocationChanged -= OnNavigated; Player.Started -= OnStarted; base.Dispose(); }
+    public override void Dispose() { Nav.LocationChanged -= OnNavigated; Player.Started -= OnStarted; Player.FullScreenRequested -= OnFullScreen; base.Dispose(); }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!volumeLoaded)

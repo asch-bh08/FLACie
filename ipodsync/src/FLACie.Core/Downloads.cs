@@ -245,6 +245,12 @@ public static class Art
         return "it" + Convert.ToBase64String(Encoding.UTF8.GetBytes(raw)).Replace('+', '-').Replace('/', '_').TrimEnd('=');
     }
 
+    static readonly System.Text.RegularExpressions.Regex CompilationName = new(@"\b(now that'?s what i call|now \d+|various|ministry of sound|hits?|anthems?|summer|party|workout|karaoke|tribute|mix)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    /// <summary>A song filed on a compilation ("Now That's What I Call Music 84", "Various Artists"): its embedded cover is the compilation's, not the song's own album.</summary>
+    public static bool OnCompilation(string artist, string albumArtist, string album) =>
+        albumArtist.Contains("various", StringComparison.OrdinalIgnoreCase)
+        || (album.Length > 0 && CompilationName.IsMatch(album) && albumArtist.Length > 0 && Matching.PrimaryArtist(albumArtist) != Matching.PrimaryArtist(artist));
+
     public static (string Artist, string Album, string Title)? ParseLookupKey(string key)
     {
         if (!key.StartsWith("it")) return null;

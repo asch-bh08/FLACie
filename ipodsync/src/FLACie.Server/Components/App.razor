@@ -13,6 +13,14 @@
 </head>
 <body>
     <Routes @rendermode="PageMode" />
+    @* Blazor shows this when the live connection drops (a restart, a lost signal); it is a quiet toast that only appears if the drop lasts *@
+    <div id="components-reconnect-modal" role="status" aria-live="polite">
+        <span class="rc-dot" aria-hidden="true"></span>
+        <span class="rc-msg rc-show">Reconnecting…</span>
+        <span class="rc-msg rc-failed">Can't reach FLACie. Still trying…</span>
+        <span class="rc-msg rc-rejected">The connection was reset.</span>
+        <a class="rc-reload" href="">Reload</a>
+    </div>
     <script src="flacie.js"></script>
     <script src="_framework/blazor.web.js"></script>
 </body>

@@ -253,6 +253,8 @@ input[type=range]:hover::-webkit-slider-runnable-track { background: linear-grad
   .np-cover { width: min(100%, 360px); }
   .np-side { min-height: 360px; }
   .np-volume { display: none; }
+  .np-controls { display: flex; } .seek.big { display: flex; }
+  .np-main { width: 100%; max-width: 620px; margin: 0 auto; }
   h1 { font-size: 26px; }
   .detail-head > .cover { width: 160px; height: 160px; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(134px, 1fr)); gap: 18px 14px; }
@@ -682,3 +684,34 @@ button.stat.on { border-color: var(--accent); background: color-mix(in srgb, var
 @media (max-width: 760px) { .jf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .jf-top { min-height: 130px; } }
 .jf-head > div { min-width: 0; }
 .jf-head b, .jf-head small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- full-screen player on a phone or a narrow window (portrait), laid out like YouTube Music ----
+   the whole screen: header, a cover that takes whatever height is left, title, seek, controls, and the three tabs along the bottom;
+   a tab opens its panel as a sheet over the cover */
+.np-set { display: none; }
+@media (max-width: 1024px) and (orientation: portrait) {
+  .np { top: 0; bottom: 0; z-index: 70; padding-top: env(safe-area-inset-top, 0px); }
+  .np-top { padding: 8px 8px 0; min-height: 56px; }
+  .np-set { display: grid; }
+  .np-spacer { display: none; }
+  .np-body { display: flex; flex-direction: column; padding: 0; gap: 0; overflow: hidden; }
+  .np-main { flex: 1 1 0; min-height: 0; justify-content: flex-start; gap: 14px; padding: 6px clamp(20px, 7vw, 44px) 0; }
+  .np-cover-btn { flex: 1 1 0; min-height: 110px; width: 100%; aspect-ratio: auto; display: grid; place-items: center; border-radius: 12px; container-type: size; }
+  .np-cover-btn .np-cover { width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); max-width: none; aspect-ratio: 1; margin: 0 auto; border-radius: 12px; }
+  .np-meta { margin-top: 2px; }
+  .np-titles h2 { font-size: clamp(22px, 6.4vw, 30px); }
+  .np-controls { gap: clamp(6px, 3vw, 18px); padding: 2px 0 10px; }
+  .np-volume { display: none; }
+  .np-controls { display: flex; } .seek.big { display: flex; }
+  .np-main { width: 100%; max-width: 620px; margin: 0 auto; }
+  .np-side { flex: none; padding: 0; gap: 0; min-height: 0; }
+  .np-tabs { align-self: stretch; justify-content: space-around; background: none; border-radius: 0; padding: 0; gap: 0; border-top: 1px solid rgba(255,255,255,.1); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .np-tabs button { flex: 1; justify-content: center; padding: 14px 4px 13px; border-radius: 0; background: none !important; color: var(--faint); font-size: 12.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; border-top: 2px solid transparent; margin-top: -1px; }
+  .np-tabs button .ic { display: none; }
+  .np:not(.sheet) .np-tabs button.on { color: var(--faint); }
+  .np.sheet .np-tabs button.on { color: var(--ink); border-top-color: var(--ink); }
+  .np-panel { display: none; position: absolute; left: 0; right: 0; top: 0; bottom: calc(46px + env(safe-area-inset-bottom, 0px)); z-index: 3; padding: 14px clamp(18px, 6vw, 40px) 20px; background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); overflow-y: auto; }
+  .np.sheet .np-panel { display: block; }
+  .np-shade { background: linear-gradient(to bottom, #0b0b0e55, #0b0b0eb0 55%, #0b0b0e); }
+  body.np-open .player, body.np-open .rail, body.np-open .remote-now { display: none; }
+}

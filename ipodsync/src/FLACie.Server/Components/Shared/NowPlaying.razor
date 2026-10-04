@@ -2,13 +2,13 @@
 @implements IDisposable
 @* Full-screen player: the cover, the controls, and beside it the queue, the synced lyrics or the file's real format. *@
 @{ var t = Player.Current; }
-<div class="np" role="dialog" aria-modal="true" aria-label="Now Playing">
+<div class="np @(panelOpen ? "sheet" : "")" role="dialog" aria-modal="true" aria-label="Now Playing">
     @if (t?.ArtKey is { } art) { <img class="np-backdrop" src="/art/@Uri.EscapeDataString(art)?v=2" alt="" /> }
     <div class="np-shade"></div>
     <header class="np-top">
         <button class="icon-btn" @onclick="Back" aria-label="Close Now Playing"><Icon Name="chevron-down" Size="24" /></button>
         <span class="np-where">Playing from @(t is null ? "" : SourceName(t))</span>
-        <span class="np-spacer"></span>
+        <a class="icon-btn np-set" href="/settings" aria-label="Settings"><Icon Name="settings" Size="22" /></a><span class="np-spacer"></span>
     </header>
     @if (t is not null)
     {
@@ -47,7 +47,7 @@
             </section>
             <section class="np-side">
                 <div class="np-tabs" role="tablist">
-                    <button role="tab" aria-selected="@(tab == "queue")" class="@(tab == "queue" ? "on" : "")" @onclick='() => tab = "queue"'><Icon Name="queue" Size="18" />Up next</button>
+                    <button role="tab" aria-selected="@(tab == "queue")" class="@(tab == "queue" ? "on" : "")" @onclick='() => Open("queue")'><Icon Name="queue" Size="18" />Up next</button>
                     <button role="tab" aria-selected="@(tab == "lyrics")" class="@(tab == "lyrics" ? "on" : "")" @onclick='() => Open("lyrics")'><Icon Name="lyrics" Size="18" />Lyrics</button>
                     <button role="tab" aria-selected="@(tab == "info")" class="@(tab == "info" ? "on" : "")" @onclick='() => Open("info")'><Icon Name="info" Size="18" />Info</button>
                 </div>
@@ -130,7 +130,9 @@
     MediaInfo? info; bool infoLoading; string? infoFor;
     string? lyricsPushed;
 
-    void Open(string t) { tab = t; if (t == "lyrics") _ = LoadLyrics(); }
+    // on a phone the panel is a sheet over the cover: a tab opens it, the same tab again closes it (on a wide screen it is always there)
+    bool panelOpen;
+    void Open(string t) { if (tab == t && panelOpen) { panelOpen = false; return; } tab = t; panelOpen = true; if (t == "lyrics") _ = LoadLyrics(); }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

@@ -16,7 +16,9 @@ public sealed record DownloadServices(string SlskdUrl, string SlskdKey, string S
 {
     public bool SoulseekReady => SlskdUrl.Length > 0 && SlskdKey.Length > 0 && FileMoverUrl.Length > 0 && FileMoverKey.Length > 0;
     public bool LidarrReady => LidarrUrl.Length > 0 && LidarrKey.Length > 0;
-    public bool Any => SoulseekReady || LidarrReady;
+    /// <summary>The open sources (Internet Archive, Jamendo, Audius) only need the file mover to fetch and file what they find.</summary>
+    public bool OpenReady => FileMoverUrl.Length > 0 && FileMoverKey.Length > 0;
+    public bool Any => SoulseekReady || LidarrReady || OpenReady;
 
     public static DownloadServices From(JsonObject profile)
     {
@@ -47,9 +49,46 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
     public async Task DownloadAsync(string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct = default)
     {
         on(new(DownloadStage.Requested, $"Requested \"{title}\""));
-        if (cfg.SoulseekReady && await TrySoulseek(artist, title, album, artUrl, (int)(durationMs / 1000), on, ct)) return;
-        if (!cfg.LidarrReady) { on(new(DownloadStage.Failed, cfg.SoulseekReady ? "Not found on Soulseek" : "Downloads aren't set up (Settings > Downloads)")); return; }
-        if (!await new LidarrFlow(http, cfg).TryAsync(artist, title, album, on, ct)) on(new(DownloadStage.Failed, "Not found on Soulseek or Lidarr"));
+        // the open sources look for the song while Soulseek searches; they only find, and download nothing unless Soulseek came up empty
+        using var openCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var open = cfg.OpenReady ? OpenSources.FindAsync(http, artist, title, (int)(durationMs / 1000), Environment.GetEnvironmentVariable("FLACIE_JAMENDO_CLIENT_ID"), TimeSpan.FromSeconds(25), openCts.Token) : Task.FromResult<OpenHit?>(null);
+        try
+        {
+            if (cfg.SoulseekReady && await TrySoulseek(artist, title, album, artUrl, (int)(durationMs / 1000), on, ct)) return;
+            // Soulseek had nothing: an open source that already found it is used, one still looking gets a few seconds (never longer than that before Lidarr)
+            if (await TryOpen(open, artist, title, album, artUrl, durationMs, on, ct)) return;
+        }
+        finally { openCts.Cancel(); }
+        if (!cfg.LidarrReady) { on(new(DownloadStage.Failed, cfg.SoulseekReady ? "Not found on Soulseek or the open sources" : cfg.OpenReady ? "Not found on the open sources" : "Downloads aren't set up (Settings > Downloads)")); return; }
+        if (!await new LidarrFlow(http, cfg).TryAsync(artist, title, album, on, ct)) on(new(DownloadStage.Failed, "Not found on Soulseek, the open sources or Lidarr"));
+    }
+
+    async Task<bool> TryOpen(Task<OpenHit?> open, string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct)
+    {
+        try
+        {
+            var grace = Task.Delay(cfg.SoulseekReady ? 4_000 : 30_000, ct);
+            if (await Task.WhenAny(open, grace) != open || await open is not { } hit) return false;
+            on(new(DownloadStage.Downloading, $"Downloading from {hit.Label}...", hit.Source));
+            var dest = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(title)}.{hit.Ext}";
+            on(new(DownloadStage.Importing, "Filing into the library...", hit.Source));
+            if (!await FetchViaFileMover(hit.Url, dest, ct)) return false;
+            var track = new Track($"{cfg.FileMoverUrl.TrimEnd('/')}/file?path={Uri.EscapeDataString(dest)}", title, artist, album, artist, 0, 0, durationMs > 0 ? durationMs : hit.DurationSec * 1000L, 0,
+                artUrl is null ? null : Art.ExternalKey(artUrl), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), TrackSource.Cloud);
+            on(new(DownloadStage.Done, $"\"{title}\" is ready to play", hit.Source, [track]));
+            return true;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception) { return false; }
+    }
+
+    /// <summary>Asks the file mover to download [url] straight into the library folder ([to], relative to its root).</summary>
+    async Task<bool> FetchViaFileMover(string url, string to, CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Post, cfg.FileMoverUrl.TrimEnd('/') + "/fetch") { Content = new StringContent(new JsonObject { ["url"] = url, ["to"] = to }.ToJsonString(), Encoding.UTF8, "application/json") };
+        req.Headers.TryAddWithoutValidation("X-Api-Key", cfg.FileMoverKey);
+        using var res = await http.SendAsync(req, ct);
+        return res.IsSuccessStatusCode;
     }
 
     /// <summary>A whole album or EP: one peer's folder where possible, missing songs one by one; Lidarr if Soulseek finds nothing.</summary>

@@ -15,8 +15,8 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
 {
     public const string Client = "ipodplayer"; // the Android app's client id: changing it would orphan saved profiles
     public const string Version = "0.8";
-    /// <summary>The name Jellyfin lists this app under (the Client id above stays "ipodplayer": it keys saved profiles).</summary>
-    public const string ClientName = "FLACie";
+    /// <summary>The name sent with every request. It has to stay the same as the one the device signed in with.</summary>
+    public const string ClientName = Client; // Jellyfin keys a device's session by this name: a different one splits it in two and breaks remote control
     const string ProfileKey = "ipodplayer.profile";
 
     public static string Normalise(string server)

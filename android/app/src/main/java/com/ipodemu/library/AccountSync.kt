@@ -454,7 +454,7 @@ class AccountSync(private val app: App) {
     }
 
     private fun authHeader(token: String?): String =
-        "MediaBrowser Client=\"FLACie\", Device=\"${android.os.Build.MODEL.replace("\"", "")}\", DeviceId=\"${prefs.deviceId}\", Version=\"$VERSION\"" +
+        "MediaBrowser Client=\"$CLIENT\", Device=\"${android.os.Build.MODEL.replace("\"", "")}\", DeviceId=\"${prefs.deviceId}\", Version=\"$VERSION\"" +
             (token?.let { ", Token=\"$it\"" } ?: "")
 
     private fun http(method: String, url: String, token: String?, body: String?): Pair<Int, String> {

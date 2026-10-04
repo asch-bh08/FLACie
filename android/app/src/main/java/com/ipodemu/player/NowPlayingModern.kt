@@ -123,19 +123,21 @@ private fun Header(nav: PlayerNav) {
         Txt("Now Playing", Modifier.weight(1f), size = 14f, weight = FontWeight.SemiBold, color = sc.onBgDim, align = TextAlign.Center)
         if (!app.ui.guest) IconAction(Glyph.JAM, if (app.jam.inJam) "In a Jam" else "Jam", { app.ui.jamOpen = true }, tint = if (app.jam.inJam) sc.accent else sc.onBg)
         if (!app.ui.guest) IconAction(Glyph.DEVICES, "Devices", { app.ui.devicesOpen = true })
-        IconAction(Glyph.QUEUE, "Up next", { nav.nowPlaying = false; nav.push(Screen.Queue) })
+        IconAction(Glyph.QUEUE, "Up next", { nav.openQueueFromPlayer() })
     }
 }
 
 /** Title/artist + heart, seek, transport and the action row, stacked; shared by every layout. */
 @Composable
 private fun Controls(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boolean, () -> Unit>?, header: Boolean = true, info: Pair<Boolean, () -> Unit>? = null) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
     if (header) Header(nav)
     InfoRow(snap, nav)
     Seek(snap)
     Transport(snap)
     VolumeRow()
     ActionRow(snap, nav, lyricsToggle, spread = true, info = info)
+    }
 }
 
 @Composable
@@ -159,11 +161,10 @@ private fun InfoRow(snap: PlayerSnap, nav: PlayerNav) {
 private fun ActionRow(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boolean, () -> Unit>?, spread: Boolean, info: Pair<Boolean, () -> Unit>? = null) {
     val app = LocalApp.current
     val t = snap.track ?: return
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (spread) Arrangement.SpaceBetween else Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (spread) Arrangement.SpaceEvenly else Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
         if (lyricsToggle != null) RoundAction(Glyph.LYRICS, "Lyrics", lyricsToggle.first, lyricsToggle.second)
         if (info != null) RoundAction(Glyph.INFO, "Info", info.first, info.second)
         RoundAction(Glyph.LIST, "Equalizer", app.prefs.eq != "Off") { nav.sheet = eqSheet(app) }
-        RoundAction(Glyph.CLOCK, "Sleep timer", app.player.sleepMinutes > 0) { nav.sheet = sleepSheet(app) }
         RoundAction(Glyph.MORE, "More", false) { openTrackSheet(app, nav, t) }
     }
 }

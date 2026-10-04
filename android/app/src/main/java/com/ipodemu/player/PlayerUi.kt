@@ -132,8 +132,16 @@ class PlayerNav {
     var overrideArt by mutableStateOf<String?>(null)
 
     fun push(s: Screen) { if (stack.lastOrNull() != s) stack.add(s) }
-    fun pop(): Boolean { if (stack.size <= 1) return false; stack.removeAt(stack.lastIndex); return true }
-    fun home() { while (stack.size > 1) stack.removeAt(stack.lastIndex) }
+    /** The queue was opened from the full-screen player: going back from it returns there, not to the screen under it. */
+    var queueFromPlayer = false
+    fun openQueueFromPlayer() { nowPlaying = false; queueFromPlayer = true; push(Screen.Queue) }
+    fun pop(): Boolean {
+        if (stack.size <= 1) return false
+        val gone = stack.removeAt(stack.lastIndex)
+        if (gone == Screen.Queue && queueFromPlayer) { queueFromPlayer = false; nowPlaying = true }
+        return true
+    }
+    fun home() { queueFromPlayer = false; while (stack.size > 1) stack.removeAt(stack.lastIndex) }
 }
 
 /** What the player is doing, as one immutable snapshot for composition. */

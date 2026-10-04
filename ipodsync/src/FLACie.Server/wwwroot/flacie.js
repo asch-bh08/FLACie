@@ -61,17 +61,17 @@ window.flacie = (() => {
     try {
       actx = new (window.AudioContext || window.webkitAudioContext)();
       const src = actx.createMediaElementSource(audio);
-      // the sound's own path first, so it can never be lost: the volume is applied here, after the analysers' tap, so graphs look the same at any volume
+      // the sound's own path first, so it can never be lost: the volume is applied here, and the graphs read what comes out of it
       outGain = actx.createGain(); outGain.gain.value = audio.volume; audio.volume = 1;
       src.connect(outGain); outGain.connect(actx.destination);
       try {
         const sink = actx.createGain(); sink.gain.value = 0; sink.connect(actx.destination); // keeps the analysers running
-        const a = actx.createAnalyser(); a.fftSize = 2048; a.smoothingTimeConstant = 0.7; src.connect(a); a.connect(sink);
+        const a = actx.createAnalyser(); a.fftSize = 2048; a.smoothingTimeConstant = 0.7; outGain.connect(a); a.connect(sink);
         // left and right on their own; the gain node first turns a mono file into two equal channels, so a mono song reads the same on both sides
         const up = actx.createGain(); up.channelCount = 2; up.channelCountMode = "explicit"; up.channelInterpretation = "speakers";
         const split = actx.createChannelSplitter(2);
         const l = actx.createAnalyser(), r = actx.createAnalyser(); l.fftSize = r.fftSize = 2048; l.smoothingTimeConstant = r.smoothingTimeConstant = 0;
-        src.connect(up); up.connect(split); split.connect(l, 0); split.connect(r, 1); l.connect(sink); r.connect(sink);
+        outGain.connect(up); up.connect(split); split.connect(l, 0); split.connect(r, 1); l.connect(sink); r.connect(sink);
         an = a; anL = l; anR = r;
       } catch { an = null; }
     } catch { an = null; }

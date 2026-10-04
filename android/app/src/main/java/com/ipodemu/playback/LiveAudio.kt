@@ -77,7 +77,7 @@ class LiveAudio : TeeAudioProcessor.AudioBufferSink {
  * -100 to -30 dB spread over 0..255), the raw left and right waves, and levels in dB.
  */
 @UnstableApi
-class LiveAnalysis(private val live: LiveAudio) {
+class LiveAnalysis(private val live: LiveAudio, private val gain: () -> Float = { 1f }) {
     val fftSize = 2048
     val bins = fftSize / 2
     val freq = IntArray(bins)                  // 0..255 per pitch slice
@@ -96,6 +96,9 @@ class LiveAnalysis(private val live: LiveAudio) {
 
     fun update() {
         active = live.latest(left, right, fftSize)
+        // the graphs show what comes out of the speaker: the player's volume and the phone's volume are applied to the tapped sound
+        val g = gain().coerceIn(0f, 1f)
+        if (g < 0.999f) for (i in 0 until fftSize) { left[i] *= g; right[i] *= g }
         if (!active) { for (i in 0 until bins) { smooth[i] *= 0.7f; freq[i] = toByte(smooth[i]) }; return }
         for (i in 0 until fftSize) { re[i] = (left[i] + right[i]) * 0.5f * window[i]; im[i] = 0f }
         fft()

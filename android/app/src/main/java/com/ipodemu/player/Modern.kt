@@ -109,7 +109,7 @@ enum class Tab(val label: String, val glyph: Glyph, val root: Screen) {
 
 fun PlayerNav.currentTab(): Tab = Tab.entries.firstOrNull { it.root == stack.first() } ?: Tab.HOME
 fun PlayerNav.selectTab(t: Tab) {
-    nowPlaying = false
+    nowPlaying = false; queueFromPlayer = false
     if (stack.size == 1 && stack.first() == t.root) return
     stack.clear(); stack.add(t.root)
 }

@@ -110,7 +110,11 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
     val sc = LocalScheme.current
     var mode by rememberSaveable { mutableStateOf("curve") }
     val info = remember(t.path, snap.playing) { audioInfo(app, t) }
-    val analysis = remember { LiveAnalysis(app.player.live) }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val analysis = remember {
+        val am = ctx.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+        LiveAnalysis(app.player.live) { app.player.volume * (am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC).toFloat() / am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)) }
+    }
     Column(modifier.clip(RoundedCornerShape(16.dp)).background(Color(0x1AFFFFFF)).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(Modifier.clip(RoundedCornerShape(10.dp)).background(if (info.lossless) Color(0xFF1D2A1C) else Color(0x33FFFFFF)).padding(horizontal = 12.dp, vertical = 8.dp)) {

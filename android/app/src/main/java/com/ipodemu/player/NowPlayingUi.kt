@@ -195,7 +195,7 @@ private fun NpHeader(nav: PlayerNav) {
     Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
         GlossButton({ nav.nowPlaying = false }, label = "Close", size = 36.dp) { GlyphIcon(Glyph.DOWN, Modifier.size(22.dp), Color.White) }
         Txt("Now Playing", Modifier.weight(1f), size = 16f, weight = FontWeight.Bold, align = TextAlign.Center)
-        GlossButton({ nav.nowPlaying = false; nav.push(Screen.Queue) }, label = "Up next", size = 36.dp) { GlyphIcon(Glyph.QUEUE, Modifier.size(22.dp), Color.White) }
+        GlossButton({ nav.openQueueFromPlayer() }, label = "Up next", size = 36.dp) { GlyphIcon(Glyph.QUEUE, Modifier.size(22.dp), Color.White) }
     }
 }
 

@@ -8,6 +8,7 @@
 @inject SessionStore Store
 @inject DownloadManager Downloads
 @inject UserStateStore States
+@inject DataPaths Paths
 <PageTitle>Admin · FLACie</PageTitle>
 <header class="page-head"><h1>Admin</h1><p class="sub">What is playing, who is on, and what the server is doing</p></header>
 @if (!allowed)
@@ -23,52 +24,126 @@ else
         <div class="dev-grid">
             @foreach (var s in sessions)
             {
-                <article class="dev-card @(s.Playing ? "live" : "")">
-                    <div class="dev-art">
-                        @if (s.ItemId is not null) { <Cover ArtKey="@("jf" + s.ItemId)" Class="square" /> }
-                        else { <span class="dev-idle"><Icon Name="devices" Size="40" /></span> }
-                        @if (s.Playing) { <span class="tag live"><i aria-hidden="true"></i>@(s.Paused ? "Paused" : "Playing")</span> }
-                    </div>
-                    <div class="dev-body">
-                        <b class="dev-title">@(s.Title ?? "Nothing playing")</b>
-                        <span class="dev-sub">@(s.Artist ?? (s.Playing ? "" : "Idle"))</span>
-                        <span class="dev-meta"><Icon Name="devices" Size="14" />@s.Device · @s.Client @s.Version</span>
-                        <span class="dev-meta"><Icon Name="artists" Size="14" />@s.User · @Ago(s.LastActivity)</span>
-                        @if (s.Playing && s.DurationMs > 0)
+                <article class="dev-card @(s.Playing && !s.Paused ? "live" : "")">
+                    <header class="dev-top">
+                        <span class="dev-icon"><Icon Name="devices" Size="22" /></span>
+                        <div class="dev-who">
+                            <b>@s.Device</b>
+                            <small>@s.Client @s.Version</small>
+                        </div>
+                        <span class="dev-state @(s.Playing ? (s.Paused ? "paused" : "on") : "")">@(s.Playing ? (s.Paused ? "Paused" : "Playing") : "Idle")</span>
+                    </header>
+                    <div class="dev-user"><span class="avatar small" aria-hidden="true">@(s.User.Length > 0 ? s.User[..1].ToUpperInvariant() : "?")</span>@s.User<em>@Ago(s.LastActivity)</em></div>
+                    @if (s.Playing)
+                    {
+                        <div class="dev-now">
+                            <Cover ArtKey="@("jf" + s.ItemId)" Class="square" />
+                            <div class="dev-now-text">
+                                <b>@s.Title</b>
+                                <span>@s.Artist</span>
+                            </div>
+                        </div>
+                        @if (s.DurationMs > 0)
                         {
                             <div class="dev-progress"><i style="width:@Pct(s.PositionMs, s.DurationMs)%"></i></div>
-                            <span class="dev-time">@Time(s.PositionMs / 1000.0) / @Time(s.DurationMs / 1000.0)</span>
+                            <div class="dev-times"><span>@Time(s.PositionMs / 1000.0)</span><span>@Time(s.DurationMs / 1000.0)</span></div>
                         }
-                        @if (s.Controllable && s.Playing)
+                        @if (s.Controllable)
                         {
                             <div class="dev-actions-row">
-                                <button class="icon-btn" aria-label="Previous" @onclick='() => Cmd(s, "PreviousTrack")'><Icon Name="prev" Size="20" /></button>
-                                <button class="icon-btn" aria-label="@(s.Paused ? "Resume" : "Pause")" @onclick='() => Cmd(s, "PlayPause")'><Icon Name="@(s.Paused ? "play" : "pause")" Size="20" /></button>
-                                <button class="icon-btn" aria-label="Next" @onclick='() => Cmd(s, "NextTrack")'><Icon Name="next" Size="20" /></button>
-                                <button class="icon-btn" aria-label="Stop" @onclick='() => Cmd(s, "Stop")'><Icon Name="stop" Size="20" /></button>
+                                <button class="icon-btn" aria-label="Previous" @onclick='() => Cmd(s, "PreviousTrack")'><Icon Name="prev" Size="22" /></button>
+                                <button class="play small" aria-label="@(s.Paused ? "Resume" : "Pause")" @onclick='() => Cmd(s, "PlayPause")'><Icon Name="@(s.Paused ? "play" : "pause")" Size="20" /></button>
+                                <button class="icon-btn" aria-label="Next" @onclick='() => Cmd(s, "NextTrack")'><Icon Name="next" Size="22" /></button>
+                                <button class="icon-btn" aria-label="Stop" @onclick='() => Cmd(s, "Stop")'><Icon Name="stop" Size="22" /></button>
                             </div>
                         }
-                    </div>
+                    }
                 </article>
             }
         </div>
     </section>
 
     <section class="admin-block" aria-label="Server">
-        <div class="shelf-head"><div><h2>Server</h2></div></div>
+        <div class="shelf-head"><div><h2>Server</h2><small>Tap a number to see what is behind it</small></div></div>
         <div class="stats" role="list">
-            <div class="stat" role="listitem"><b>@Store.Active.Count()</b><span>Accounts on</span></div>
-            <div class="stat" role="listitem"><b>@Lib.Songs.Count.ToString("N0")</b><span>Songs in your library</span></div>
-            <div class="stat" role="listitem"><b>@(space is { } sp ? StorageService.Bytes(sp.Free) : "?")</b><span>Music storage free</span></div>
-            <div class="stat" role="listitem"><b>@activeDownloads</b><span>Downloads running</span></div>
-            <div class="stat" role="listitem"><b>@runningImports</b><span>Imports running</span></div>
+            <button class="stat @(open == "accounts" ? "on" : "")" role="listitem" aria-expanded="@(open == "accounts")" @onclick='() => Toggle("accounts")'><b>@Store.Active.Count()</b><span>Accounts on</span></button>
+            <button class="stat @(open == "songs" ? "on" : "")" role="listitem" aria-expanded="@(open == "songs")" @onclick='() => Toggle("songs")'><b>@Lib.Songs.Count.ToString("N0")</b><span>Songs in your library</span></button>
+            <button class="stat @(open == "storage" ? "on" : "")" role="listitem" aria-expanded="@(open == "storage")" @onclick='() => Toggle("storage")'><b>@(space is { } sp ? StorageService.Bytes(sp.Free) : "?")</b><span>Music storage free</span></button>
+            <button class="stat @(open == "downloads" ? "on" : "")" role="listitem" aria-expanded="@(open == "downloads")" @onclick='() => Toggle("downloads")'><b>@activeDownloads</b><span>Downloads running</span></button>
+            <button class="stat @(open == "imports" ? "on" : "")" role="listitem" aria-expanded="@(open == "imports")" @onclick='() => Toggle("imports")'><b>@runningImports</b><span>Imports running</span></button>
         </div>
-        <ul class="links">
-            @foreach (var u in Store.Active)
-            {
-                <li><i class="dot on"></i><span><b>@u.DisplayName</b><small>@(u.Kind == "nas" ? "NAS sign-in" : "Jellyfin") · @u.Library.Songs.Count.ToString("N0") songs@(u.Loading ? " · loading" : "")@(AdminAccess.Is(u, Conf) ? " · admin" : "")</small></span></li>
-            }
-        </ul>
+        @if (open is not null)
+        {
+            <div class="stat-detail" aria-live="polite">
+                @switch (open)
+                {
+                    case "accounts":
+                        <h3>Accounts signed in</h3>
+                        <ul class="links">
+                            @foreach (var u in Store.Active)
+                            {
+                                var devs = sessions.Count(d => d.User.Equals(u.Jellyfin?.UserName ?? u.DisplayName, StringComparison.OrdinalIgnoreCase));
+                                <li><i class="dot on"></i><span><b>@u.DisplayName</b><small>@(u.Kind == "nas" ? "NAS sign-in" : "Jellyfin") · @u.Library.Songs.Count.ToString("N0") songs@(u.Loading ? " · loading the library" : "") · @devs device@(devs == 1 ? "" : "s") connected@(AdminAccess.Is(u, Conf) ? " · admin" : "")</small></span></li>
+                            }
+                        </ul>
+                        <p class="hint">An account is "on" while this server holds its session: from the moment it signs in until the server restarts or it signs out.</p>
+                        break;
+                    case "songs":
+                        <h3>Your library</h3>
+                        <dl class="kv">
+                            <dt>Songs</dt><dd>@Lib.Songs.Count.ToString("N0") in @Lib.Albums.Count.ToString("N0") albums by @Lib.Artists.Count.ToString("N0") artists</dd>
+                            @foreach (var g in Lib.Songs.GroupBy(t => t.Source).OrderByDescending(g => g.Count()))
+                            {
+                                <dt>From @(g.Key switch { TrackSource.Nas => "the NAS", TrackSource.Cloud => "downloads", _ => g.Key.ToString() })</dt><dd>@g.Count().ToString("N0") songs</dd>
+                            }
+                            <dt>Quality</dt><dd>@lossless.ToString("N0") lossless · @((Lib.Songs.Count - lossless - unknownFmt).ToString("N0")) lossy@(unknownFmt > 0 ? " · " + unknownFmt.ToString("N0") + " unknown" : "")</dd>
+                            <dt>Playlists</dt><dd>@Session.Playlists.Count</dd>
+                            <dt>Favourites</dt><dd>@Session.Favorites.Count</dd>
+                            <dt>Last read</dt><dd>@(Session.LoadedAt == default ? "not yet" : Ago(Session.LoadedAt))</dd>
+                        </dl>
+                        <div class="row-actions"><a class="btn" href="/songs">Explore</a></div>
+                        break;
+                    case "storage":
+                        <h3>Music storage</h3>
+                        @if (space is { } m)
+                        {
+                            <div class="meter" role="img" aria-label="@StorageService.Bytes(m.Total - m.Free) of @StorageService.Bytes(m.Total) used"><i class="a" style="width:@Pct(m.Total - m.Free, m.Total)%"></i></div>
+                            <div class="legend"><span><i class="a" style="background:var(--accent)"></i>Used @StorageService.Bytes(m.Total - m.Free)</span><span>Free @StorageService.Bytes(m.Free)</span><span>Total @StorageService.Bytes(m.Total)</span></div>
+                        }
+                        else { <p class="hint">The music storage didn't report its free space (no NAS is connected to this account).</p> }
+                        <dl class="kv">
+                            <dt>Stops downloading below</dt><dd>@States.For(Session).MinFreeGb GB free</dd>
+                            <dt>Server disk</dt><dd>@StorageService.Bytes(diskFree) free of @StorageService.Bytes(diskTotal)</dd>
+                            <dt>Daily charts</dt><dd>@(States.For(Session).Charts.Enabled ? "on" : "off")@(States.For(Session).Charts.LastRun.Length > 0 ? ", last run " + States.For(Session).Charts.LastRun + ": " + States.For(Session).Charts.LastNote : "")</dd>
+                        </dl>
+                        <div class="row-actions"><a class="btn" href="/settings#storage">Storage settings</a></div>
+                        break;
+                    case "downloads":
+                        <h3>Downloads</h3>
+                        @if (downloads.Count == 0) { <p class="hint">Nothing has been downloaded since the server started.</p> }
+                        <ul class="feed">
+                            @foreach (var (u, j) in downloads)
+                            {
+                                <li class="feed-row k-@(j.Finished ? (j.Stage == DownloadStage.Failed ? "alert" : "server") : "play")"><span class="feed-ico"><Icon Name="@(j.Finished ? (j.Stage == DownloadStage.Failed ? "info" : "check") : "download")" Size="16" /></span>
+                                    <span class="feed-text"><b>@j.Label</b><small>@j.Kind · @u · @j.Message</small></span><time>@(j.Finished ? Ago(j.At) : "running")</time></li>
+                            }
+                        </ul>
+                        <p class="hint">"Search" is a song someone asked for, "Autoplay" is fetched ahead for a queue, "Import" comes from a playlist file and "Chart" from the daily charts. A running download is being searched for on Soulseek or Lidarr, then moved into the library.</p>
+                        break;
+                    default:
+                        <h3>Playlist imports</h3>
+                        @if (importJobs.Count == 0) { <p class="hint">No playlist file has been imported.</p> }
+                        <ul class="links">
+                            @foreach (var (u, j) in importJobs)
+                            {
+                                <li><i class="dot @(j.State is "running" or "waiting" ? "on" : "")"></i><span><b>@j.File</b><small>@u · @j.State@(j.State == "waiting" ? " for free space" : "") · @j.Finished of @j.Total songs@(j.Failed > 0 ? " · " + j.Failed + " not found" : "")@(j.Lists.Count > 0 ? " · " + string.Join(", ", j.Lists.Take(4).Select(l => UserSession.CleanName(l.Name))) + (j.Lists.Count > 4 ? "…" : "") : "")</small></span></li>
+                            }
+                        </ul>
+                        <div class="row-actions"><a class="btn" href="/import">Import page</a></div>
+                        break;
+                }
+            </div>
+        }
     </section>
 
     <section class="admin-block" aria-label="Activity">
@@ -113,6 +188,11 @@ else
     bool allowed; NotifyConfig cfg = new(); string token = ""; string? notifyMsg; bool testing;
     (long Free, long Total)? space; int activeDownloads, runningImports;
     Timer? timer;
+    string? open;
+    void Toggle(string k) { open = open == k ? null : k; Recount(); }
+    void Recount() { if (open != "songs") return; lossless = Lib.Songs.Count(t => FLACie.Core.MediaInfo.LosslessCodecs.Contains(InfoService.QuickFormat(t).ToLowerInvariant())); unknownFmt = Lib.Songs.Count(t => InfoService.QuickFormat(t).Length == 0); }
+    List<(string User, DownloadJob Job)> downloads = []; List<(string User, ImportJob Job)> importJobs = [];
+    int lossless, unknownFmt; long diskFree, diskTotal;
 
     protected override async Task OnInitializedAsync()
     {
@@ -133,6 +213,10 @@ else
         try { space = States is null ? null : Guard()?.Space(Session); } catch (Exception) { space = null; }
         activeDownloads = Store.Active.Sum(u => Downloads.JobsOf(u).Count(j => !j.Finished));
         runningImports = Store.Active.Sum(u => States.For(u).Imports.Count(j => j.State is "running" or "waiting"));
+        downloads = Store.Active.SelectMany(u => Downloads.JobsOf(u).Select(j => (u.DisplayName, j))).OrderBy(x => x.j.Finished).ThenByDescending(x => x.j.At).Take(40).ToList();
+        importJobs = Store.Active.SelectMany(u => States.For(u).Imports.Select(j => (u.DisplayName, j))).OrderByDescending(x => x.j.State is "running" or "waiting").ThenByDescending(x => x.j.Created).Take(10).ToList();
+        try { var dr = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(Paths.Root))!); diskFree = dr.AvailableFreeSpace; diskTotal = dr.TotalSize; } catch (Exception) { }
+        Recount();
         if (Session.Jellyfin is not { } a) { error = "Signed in without Jellyfin: the device list comes from Jellyfin."; return; }
         try
         {

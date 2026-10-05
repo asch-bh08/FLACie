@@ -974,3 +974,4 @@ body.np-open .np { top: 0; padding-top: var(--top); }
 .tracks > li:nth-child(n+14), .grid > :nth-child(n+14) { animation-delay: 0s; animation-duration: .2s; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; } }
 .pref-calm *, .pref-calm *::before, .pref-calm *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; }
+.player .bar { cursor: pointer; } .player .bar button, .player .bar input, .player .seek, .player .buttons { cursor: default; } .player .bar button { cursor: pointer; }

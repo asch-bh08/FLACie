@@ -311,6 +311,8 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
                 Txt(t.title, size = 15f, weight = FontWeight.SemiBold)
                 Txt(t.artist.ifEmpty { t.album }, size = 13f, color = sc.onBgDim)
             }
+            // instant way to the Devices screen (hand this song to another device, or take over theirs) while other devices are signed in
+            if (!app.ui.guest && app.connect.sessions.any { !it.isSelf }) IconAction(Glyph.DEVICES, "Devices", { app.ui.devicesOpen = true }, tint = sc.accent)
             IconAction(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, if (snap.playing) "Pause" else "Play", { app.player.toggle() })
             IconAction(Glyph.NEXT, "Next", { app.player.next() })
         }

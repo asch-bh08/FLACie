@@ -87,6 +87,7 @@ fun AppRoot(activity: MainActivity) {
             if (ui.lidarrSetupOpen) overlay { LidarrSetupScreen() }
             if (ui.downloadsOpen) overlay { DownloadsScreen() }
             if (ui.accountOpen) overlay { AccountScreen() }
+            if (ui.remoteOpen) overlay { RemoteScreen() }
             if (ui.devicesOpen) overlay { DevicesScreen() }
             if (ui.jamOpen) overlay { JamScreen() }
             // first run and after signing out: nothing else until the user signs in or picks guest

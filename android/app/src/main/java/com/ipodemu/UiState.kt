@@ -20,6 +20,8 @@ class UiState(private val prefs: Prefs) {
     /** Account sign-in overlay (Settings > Account, or first-run). */
     var accountOpen by mutableStateOf(false)
     var devicesOpen by mutableStateOf(false)
+    /** The full-screen remote for music playing on another device (RemoteUi.kt). */
+    var remoteOpen by mutableStateOf(false)
     var jamOpen by mutableStateOf(false)
     /** Search text, kept while switching tabs. */
     var searchQuery by mutableStateOf("")

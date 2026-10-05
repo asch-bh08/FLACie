@@ -202,6 +202,10 @@ fun PlayerHost(nav: PlayerNav) {
     BackHandler(enabled = !ui.pickerOpen && nav.sheet == null && nav.nameDialog == null && !nav.nowPlaying && nav.stack.size > 1) { nav.pop() }
 
     LaunchedEffect(nav.top) { WheelFocus.last = null }
+    // the other devices' state, so the remote bar knows when something starts or stops elsewhere (quicker while one is showing)
+    LaunchedEffect(app.connect.available) {
+        while (app.connect.available) { if (app.connect.connected) app.connect.loadSessions(); delay(if (app.connect.remoteNow() != null) 3_000 else 8_000) }
+    }
     LaunchedEffect(ui.nowPlayingRequest) { if (ui.nowPlayingRequest > 0 && app.player.hasQueue) nav.nowPlaying = true }
     val libRev = rememberLibRev(app.library)
 
@@ -242,7 +246,11 @@ fun PlayerHost(nav: PlayerNav) {
                     Box(Modifier.fillMaxSize().graphicsLayer { translationX = slide.value * size.width * 0.28f }) { ScreenContent(nav.top, nav, snap) }
                 }
             }
-            if (snap.track != null && !nav.nowPlaying && (modern || nav.top != Screen.Home) && !LocalHardware.current) {
+            // music playing on another of this user's devices while this phone is quiet: a remote bar instead (Spotify Connect style)
+            val remote = app.connect.remoteNow()
+            if (remote != null && !snap.playing && !nav.nowPlaying && modern && !LocalHardware.current) {
+                AnimatedVisibility(remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }, enter = slideInVertically(androidx.compose.animation.core.spring(0.8f, 380f)) { it } + androidx.compose.animation.fadeIn(tween(160))) { RemoteMiniPlayer(remote) }
+            } else if (snap.track != null && !nav.nowPlaying && (modern || nav.top != Screen.Home) && !LocalHardware.current) {
                 // the bar slides up from the bottom the first time a song starts (and when coming back from the full player)
                 AnimatedVisibility(remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }, enter = slideInVertically(androidx.compose.animation.core.spring(0.8f, 380f)) { it } + androidx.compose.animation.fadeIn(tween(160))) { MiniPlayer(snap, nav) }
             }

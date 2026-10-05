@@ -35,7 +35,7 @@ class JellyfinConnect(private val app: App) {
     data class Session(
         val id: String, val device: String, val client: String, val user: String, val isSelf: Boolean, val controllable: Boolean,
         val itemId: String?, val title: String, val artist: String, val positionMs: Long, val durationMs: Long, val paused: Boolean,
-        val queue: List<String>, val queueIndex: Int,
+        val queue: List<String>, val queueIndex: Int, val at: Long = System.currentTimeMillis(),
     )
 
     var sessions by mutableStateOf<List<Session>>(emptyList()); private set
@@ -112,7 +112,7 @@ class JellyfinConnect(private val app: App) {
 
     /** Lists this user's other active sessions (last 10 minutes) and what each plays. */
     fun loadSessions() = scope.launch {
-        val arr = try { JSONArray(get("/Sessions?ControllableByUserId=${prefs.accountUserId}&ActiveWithinSeconds=600")) } catch (_: Exception) { return@launch }
+        val arr = try { JSONArray(get("/Sessions?ControllableByUserId=${prefs.accountUserId}&ActiveWithinSeconds=600")) } catch (e: Exception) { android.util.Log.d("FLACieConnect", "sessions failed: ${e.message}"); return@launch }
         val out = (0 until arr.length()).map { arr.getJSONObject(it) }.filter { it.optString("UserId").equals(prefs.accountUserId, true) || it.optBoolean("SupportsRemoteControl") }
             .map { o ->
                 val np = o.optJSONObject("NowPlayingItem"); val ps = o.optJSONObject("PlayState")

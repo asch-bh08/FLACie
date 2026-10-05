@@ -76,7 +76,7 @@ inside the window, so the look and the features are identical to the web. A swit
 ## History
 
 This repository was `ipodplayer` (the Android app); `ipodsync` was merged in with its full history under `ipodsync/`.
-Older releases of each live on their original release pages.
+Older releases of each live on their original release pages; [CHANGELOG.md](CHANGELOG.md) lists every release (newest first) with its notes in one place.
 
 ## Privacy
 

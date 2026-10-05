@@ -932,6 +932,8 @@ body.np-open .np { top: 0; padding-top: var(--top); }
   .app.full .menu-scrim { display: block; position: fixed; inset: var(--top) 0 0 0; z-index: 55; border: 0; padding: 0; background: #000a; opacity: 0; pointer-events: none; transition: opacity .3s; }
   .app.full.menu-open .menu-scrim { opacity: 1; pointer-events: auto; }
   .app.full .remote-now { left: 0; }
+  /* the menu is out of the grid (fixed), so the page would fall into the 0-width first column */
+  .app.full > .content { grid-column: 1 / -1; }
 }
 
 /* ---- motion: things slide, pop and fade instead of appearing ---- */

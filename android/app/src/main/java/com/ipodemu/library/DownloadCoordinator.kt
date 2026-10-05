@@ -80,7 +80,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
             val hit = withTimeoutOrNull((deadline - System.currentTimeMillis()).coerceAtLeast(0)) { task.await() }
             if (hit == null) { onUpdate(DownloadStatus(DownloadStage.SEARCHING, OpenSourceNames.of(id) + " had nothing", id, miss = true)); continue }
             onUpdate(DownloadStatus(DownloadStage.DOWNLOADING, "Downloading from ${hit.label}...", hit.source))
-            val dest = listOfNotNull(prefs.nasFolder.trim('/').ifBlank { null }, clean(artist)).joinToString("/") + "/${clean(artist)} - ${clean(title)}.${hit.ext}"
+            val dest = listOfNotNull(prefs.nasFolder.trim('/').ifBlank { null }, clean(artist)).joinToString("/") + "/${clean(artist)} - ${clean(WebCatalog.baseTitle(title))}.${hit.ext}"
             onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library...", hit.source))
             try { fileMover.fetch(prefs.fileMoverUrl, prefs.fileMoverApiKey, hit.url, dest) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { onUpdate(DownloadStatus(DownloadStage.SEARCHING, OpenSourceNames.of(id) + " had it, but the download failed", id, miss = true)); continue }
             finishWithJellyfinScan(artist, onUpdate, hit.source, title, openTrack(dest, artist, title, album, if (durationMs > 0) durationMs else hit.durationSec * 1000L))
@@ -102,8 +102,8 @@ class DownloadCoordinator(private val prefs: Prefs) {
      * length and title checked) and files the audio itself. Off unless the user switched it on in Settings. */
     private suspend fun tryYtdl(artist: String, title: String, album: String, durationMs: Long, onUpdate: (DownloadStatus) -> Unit): Boolean = try {
         onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Looking on YouTube...", "ytdl"))
-        val noExt = listOfNotNull(prefs.nasFolder.trim('/').ifBlank { null }, clean(artist)).joinToString("/") + "/${clean(artist)} - ${clean(title)}"
-        val r = fileMover.ytdl(prefs.fileMoverUrl, prefs.fileMoverApiKey, artist, title, (durationMs / 1000).toInt(), noExt)
+        val noExt = listOfNotNull(prefs.nasFolder.trim('/').ifBlank { null }, clean(artist)).joinToString("/") + "/${clean(artist)} - ${clean(WebCatalog.baseTitle(title))}"
+        val r = fileMover.ytdl(prefs.fileMoverUrl, prefs.fileMoverApiKey, artist, WebCatalog.baseTitle(title), (durationMs / 1000).toInt(), noExt)
         if (r == null) false else {
             onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library...", "ytdl"))
             finishWithJellyfinScan(artist, onUpdate, "ytdl", title, openTrack("$noExt.${r.first}", artist, title, album, if (durationMs > 0) durationMs else r.second * 1000L))
@@ -128,18 +128,51 @@ class DownloadCoordinator(private val prefs: Prefs) {
         if (!tryLidarr(album.artist, "", name, onUpdate)) onUpdate(DownloadStatus(DownloadStage.FAILED, "\"$name\" wasn't found"))
     }
 
-    private suspend fun trySoulseek(artist: String, title: String, album: String, durationSec: Int, onUpdate: (DownloadStatus) -> Unit): Boolean = try {
-        onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Searching Soulseek...", "soulseek"))
-        val cands = slskd.rankSong(slskd.search(prefs.slskdUrl, prefs.slskdApiKey, "${primaryArtist(artist)} ${WebCatalog.baseTitle(title)}"), artist, title, durationSec)
+    /** The searches to try for a song, best first. Soulseek's server refuses to search some full artist names (a query containing "kendrick lamar" returns nothing
+     * at all, while "kendrick all the stars" finds hundreds of files), so when the full-name query finds nothing usable the artist's first word, then the title
+     * alone, are tried; the ranking afterwards still requires the artist in the file's path. */
+    private fun searchPlan(artist: String, title: String): List<Pair<String, Long>> {
+        val a = primaryArtist(artist); val t = WebCatalog.baseTitle(title)
+        val words = a.split(' ').filter { it.isNotEmpty() }
+        return buildList {
+            add("$a $t".trim() to 15_000L)
+            if (words.size > 1) add("${words[0]} $t" to 10_000L)
+            if (t.split(' ').count { it.isNotEmpty() } >= 2) add(t to 10_000L)
+        }
+    }
+
+    /** One song from Soulseek. [hiRes] is the explicit Hi-Res download: only Hi-Res files, filed next to the normal copy as "Artist - Title [Hi-Res]".
+     * A normal download never takes a Hi-Res file (they are several times the size), and says so when that is all there is. */
+    private suspend fun trySoulseek(artist: String, title: String, album: String, durationSec: Int, onUpdate: (DownloadStatus) -> Unit, hiRes: Boolean = false): Boolean = try {
+        onUpdate(DownloadStatus(DownloadStage.SEARCHING, if (hiRes) "Searching Soulseek for a Hi-Res copy..." else "Searching Soulseek...", "soulseek"))
+        var found = emptyList<SlskdClient.FileResult>(); var cands = emptyList<SlskdClient.FileResult>()
+        for ((query, timeout) in searchPlan(artist, title)) {
+            found = slskd.search(prefs.slskdUrl, prefs.slskdApiKey, query, timeout)
+            cands = slskd.rankSong(found, artist, title, durationSec, hiRes)
+            if (cands.isNotEmpty()) break
+        }
+        if (cands.isEmpty() && !hiRes && slskd.rankSong(found, artist, title, durationSec, hiRes = true).isNotEmpty())
+            onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Soulseek only has Hi-Res copies of this song. Use the Hi-Res download if you want one.", "soulseek", miss = true))
         val hit = if (cands.isEmpty()) null else fetchFirst(cands) { onUpdate(DownloadStatus(DownloadStage.DOWNLOADING, it, "soulseek")) }
         if (hit == null) false else {
             onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library...", "soulseek"))
             // the file itself may be untagged: the album comes from the catalog so it groups and gets a cover
             val alb = album.ifBlank { withContext(Dispatchers.IO) { CoverLookup.song(artist, title) }?.album.orEmpty() }
-            val track = file(hit, artist, title, alb, 0, 0, durationSec * 1000L, "${clean(artist)} - ${clean(title)}", null)
+            val track = file(hit, artist, title, alb, 0, 0, durationSec * 1000L, "${clean(artist)} - ${clean(WebCatalog.baseTitle(title))}${if (hiRes) " [Hi-Res]" else ""}", null)
             if (track == null) false else { finishWithJellyfinScan(artist, onUpdate, "soulseek", title, track); true }
         }
-    } catch (_: Exception) { false }
+    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { false }
+
+    /** The explicit Hi-Res download of one song (administrators only, per song, never automatic): Soulseek is searched for a Hi-Res copy first and, when there is none,
+     * the normal download runs instead (the same sources and order as a plain Download), so the song still arrives, just not in Hi-Res. */
+    suspend fun downloadHiRes(artist: String, title: String, album: String, durationMs: Long = 0, onUpdate: (DownloadStatus) -> Unit) {
+        onUpdate(DownloadStatus(DownloadStage.REQUESTED, "Requested \"$title\" in Hi-Res"))
+        if (soulseekReady) {
+            if (trySoulseek(artist, title, album, (durationMs / 1000).toInt(), onUpdate, hiRes = true)) return
+            onUpdate(DownloadStatus(DownloadStage.SEARCHING, "No Hi-Res copy was found, so the normal quality is downloaded instead", "soulseek", miss = true))
+        } else onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Hi-Res needs Soulseek, so the normal quality is downloaded instead", null, miss = true))
+        download(artist, title, album, durationMs, onUpdate)
+    }
 
     private suspend fun trySoulseekAlbum(album: WebCatalog.Album, list: List<WebCatalog.Song>, onUpdate: (DownloadStatus) -> Unit): List<Track> {
         val url = prefs.slskdUrl; val key = prefs.slskdApiKey
@@ -148,8 +181,16 @@ class DownloadCoordinator(private val prefs: Prefs) {
         fun status(msg: String) = onUpdate(DownloadStatus(DownloadStage.DOWNLOADING, msg, "soulseek"))
         try {
             onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Searching Soulseek for \"$name\"...", "soulseek"))
-            val files = slskd.search(url, key, "${primaryArtist(album.artist)} ${name.replace(Regex("""\s*[(\[][^)\]]*[)\]]"""), "")}", enough = 80)
-            for (folder in slskd.rankAlbumFolders(files, album.artist, name, list.map { it.title }).take(3)) {
+            // the full artist name can be a phrase Soulseek refuses to search (see searchPlan): fall back to the artist's first word, then the album alone
+            val albumName = name.replace(Regex("""s*[([][^)]]*[)]]"""), "").trim()
+            val aw = primaryArtist(album.artist).split(' ').filter { it.isNotEmpty() }
+            val plan = buildList { add("${aw.joinToString(" ")} $albumName".trim() to 15_000L); if (aw.size > 1) add("${aw[0]} $albumName" to 10_000L); if (albumName.split(' ').count { it.isNotEmpty() } >= 2) add(albumName to 10_000L) }
+            var folders = emptyList<List<SlskdClient.FileResult?>>()
+            for ((query, timeout) in plan) {
+                folders = slskd.rankAlbumFolders(slskd.search(url, key, query, timeout, enough = 80), album.artist, name, list.map { it.title })
+                if (folders.isNotEmpty()) break
+            }
+            for (folder in folders.take(3)) {
                 val want = folder.indices.filter { got[it] == null && folder[it] != null }
                 if (want.isEmpty()) continue
                 val ok = fetchBatch(want.map { folder[it]!! }) { status("Downloading \"$name\": $it") }

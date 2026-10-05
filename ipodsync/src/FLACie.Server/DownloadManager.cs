@@ -114,8 +114,9 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
         lock (j.List) return j.List.FirstOrDefault(x => x.Title.Length > 0 && Matching.MatchKey(x.Title, x.Artist) == key);
     }
 
-    public void Song(UserSession s, CatalogSong song) =>
-        Run(s, Add(s, $"{song.Title} · {song.Artist}", song.ArtUrl, "Search", song.Artist, song.Title), (c, on) => c.DownloadAsync(song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs, on));
+    public void Song(UserSession s, CatalogSong song, bool hiRes = false) =>
+        Run(s, Add(s, $"{song.Title} · {song.Artist}{(hiRes ? " (Hi-Res)" : "")}", song.ArtUrl, "Search", song.Artist, song.Title),
+            (c, on) => hiRes ? c.DownloadHiResAsync(song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs, on) : c.DownloadAsync(song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs, on));
 
     public void Album(UserSession s, CatalogAlbum album) =>
         Run(s, Add(s, $"{album.CleanTitle} · {album.Artist}", album.ArtUrl, "Search", album.Artist, album.CleanTitle), (c, on) => c.DownloadAlbumAsync(album, on));

@@ -820,3 +820,25 @@ body.np-open .np { top: 0; padding-top: var(--top); }
 .pref-nobadges .track .badge, .pref-nobadges .track .fmt { display: none; }
 .pref-calm *, .pref-calm *::before, .pref-calm *::after { animation: none !important; transition: none !important; }
 .pref-noartbg .np-backdrop { display: none; }
+
+/* a song's actions in the search results, and the Hi-Res confirmation under its title */
+.track-actions { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+.track-dl.ask i { display: none; }
+.track-actions .btn { padding: 8px 12px; }
+.track.asking { flex-wrap: wrap; }
+
+/* Hi-Res (administrators): an amber button, and a confirmation card under the song's row */
+.btn.hires { color: #ffc857; border: 1px solid #ffc85766; background: linear-gradient(180deg, #ffc8571a, #ffc85708); font-weight: 700; letter-spacing: .02em; }
+.btn.hires:hover:not(:disabled) { background: #ffc85726; border-color: #ffc857aa; }
+.btn.hires.solid { background: #ffc857; color: #2a1d00; border-color: #ffc857; }
+.btn.hires.solid:hover { background: #ffd57d; }
+.hires-ask { flex: 1 0 100%; display: flex; flex-direction: column; gap: 6px; margin: 2px 0 12px 52px; padding: 12px 14px; border-radius: 12px; background: #ffc8570f; border: 1px solid #ffc85744; }
+.hires-ask > span:not(.hires-actions) { color: var(--dim); font-size: 13px; line-height: 1.45; }
+.hires-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.track-actions .btn.ghost:not(.hires) { border: 1px solid var(--line); }
+@media (max-width: 520px) { .hires-ask { margin-left: 0; } }
+@media (max-width: 520px) {
+  .track:has(.track-actions) .track-time { display: none; }
+  .track-actions .btn { padding: 8px 10px; }
+  .track-actions .btn svg { display: none; }
+}

@@ -180,13 +180,14 @@ class Library(ctx: Context, val art: ArtCache) {
     fun albumKey(a: WebCatalog.Album) = "a|${a.id}"
 
     /** Search's per-song Download. Several can run at once; each reports under its own key. */
-    fun requestDownload(artist: String, title: String, album: String, durationMs: Long = 0) {
+    fun requestDownload(artist: String, title: String, album: String, durationMs: Long = 0, hiRes: Boolean = false) {
         val key = songKey(artist, title)
         if (downloads[key]?.stage.let { it != null && it != DownloadStage.DONE && it != DownloadStage.FAILED }) return
-        val label = "${title.ifBlank { album }} · $artist"
+        val label = "${title.ifBlank { album }} · $artist${if (hiRes) " (Hi-Res)" else ""}"
         runningDownloads[key] = RunningDownload(java.util.UUID.randomUUID().toString(), label, "Search", CoverLookup.key(artist, album, title))
         scope.launch {
-            downloader.download(artist, title, album, durationMs) { status -> onStatus(key, status, DownloadEntry(artist, title.ifBlank { album }, album, "", 0, "")) }
+            val report: (DownloadStatus) -> Unit = { status -> onStatus(key, status, DownloadEntry(artist, title.ifBlank { album }, album, "", 0, "")) }
+            if (hiRes) downloader.downloadHiRes(artist, title, album, durationMs, report) else downloader.download(artist, title, album, durationMs, report)
         }
     }
 

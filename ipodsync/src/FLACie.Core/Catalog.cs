@@ -122,8 +122,27 @@ public sealed class WebCatalog(HttpClient http)
         }).Where(s => s.Title.Length > 0).ToList();
     }
 
-    /// <summary>"Song (feat. X)" -> "Song"; used to match file names and fold duplicates.</summary>
-    public static string BaseTitle(string t) => Regex.Replace(t, @"\s*[(\[](feat|ft|with)[^)\]]*[)\]]", "", RegexOptions.IgnoreCase).Trim();
+    static readonly Regex TrailingGroup = new(@"\s*[(\[]([^)\]]*)[)\]]\s*$", RegexOptions.Compiled);
+    // a different recording of the song: these stay in the title (a "(Live)" or "(Remix)" is not the song itself)
+    static readonly Regex VersionWord = new(@"\b(live|remix|mix|acoustic|instrumental|demo|cover|karaoke|session|unplugged|vip|rework|bootleg|extended|sped|slowed|reverb|a cappella|acapella|nightcore)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    static readonly Regex PartMarker = new(@"^\s*(pt|part)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    static readonly Regex DashNote = new(@"\s+-\s+(?:\d{4}\s+)?(?:remaster(?:ed)?|from\b|single version|album version|original (?:motion picture )?soundtrack|mono\b|stereo\b|bonus|deluxe|explicit|clean|radio edit)[^-]*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>The song's own name, for searching and matching file names: "Song (feat. X)", "Song (From "Some Movie")", "Song (Remastered 2011)",
+    /// "Song - Remastered" and "Song [Deluxe]" all become "Song". A trailing "(Live)", "(Remix)", "(Acoustic)", "(Part 2)" ... is a different
+    /// recording or a different song, so it stays. Leading brackets ("(Don't Fear) The Reaper") are part of the title and stay.</summary>
+    public static string BaseTitle(string t)
+    {
+        var s = Regex.Replace(t, @"\s*[(\[](feat|ft|with|featuring)[^)\]]*[)\]]", "", RegexOptions.IgnoreCase).Trim();
+        for (var i = 0; i < 4; i++)
+        {
+            var m = TrailingGroup.Match(s);
+            if (!m.Success || m.Index == 0 || VersionWord.IsMatch(m.Groups[1].Value) || PartMarker.IsMatch(m.Groups[1].Value)) break;
+            s = s[..m.Index].TrimEnd();
+        }
+        s = DashNote.Replace(s, "").Trim();
+        return s.Length > 0 ? s : t.Trim();
+    }
 
     // ---- Deezer ----
 

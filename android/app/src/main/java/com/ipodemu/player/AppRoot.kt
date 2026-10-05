@@ -106,6 +106,14 @@ private fun PlayerRoot(activity: MainActivity, nav: PlayerNav) {
     val mode = if (modern) 0 else ui.viewMode
     val snap = rememberSnap(app.player, app.prefs)
 
+    // administrators of the FLACie server get the Hi-Res download (and the Dashboard); without a server the phone's own user is its administrator
+    val adminWeb = remember { com.ipodemu.library.FlacieWebClient(app.prefs) }
+    LaunchedEffect(app.prefs.flacieWebUrl, ui.guest) {
+        ui.isAdmin = if (ui.guest) false
+            else if (!adminWeb.available) true
+            else try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { adminWeb.account().admin } } catch (_: Exception) { ui.isAdmin }
+    }
+
     // a playlist/album page left open under Now Playing used to pin the tint to its cover while the songs changed
     val artKey = (if (nav.nowPlaying) null else nav.overrideArt) ?: snap.track?.artKey
     var artColors by remember { mutableStateOf<ArtColors?>(null) }

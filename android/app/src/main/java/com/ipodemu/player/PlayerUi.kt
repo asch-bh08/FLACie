@@ -352,6 +352,7 @@ private fun sourceColor(s: com.ipodemu.library.TrackSource): Color = when (s) {
 
 @Composable
 private fun SourceBadge(source: com.ipodemu.library.TrackSource) {
+    if (!Tweaks.badges) return
     val color = sourceColor(source)
     Box(Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.16f)).padding(horizontal = 7.dp, vertical = 3.dp)) {
         Txt(if (source == com.ipodemu.library.TrackSource.NAS) "NAS" else if (source == com.ipodemu.library.TrackSource.CLOUD) "Streaming" else source.name.lowercase().replaceFirstChar { it.uppercase() }, size = 11f, weight = FontWeight.SemiBold, color = color)
@@ -983,7 +984,14 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                     val status = dl[app.library.songKey(s.artist, s.title)]
                     WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.message ?: "${s.artist} · ${s.album}", s.artUrl, owned, status,
                         onPlay = { owned?.let { app.player.play(listOf(it), 0, null); nav.nowPlaying = true } },
-                        onDownload = { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs) })
+                        onDownload = { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs) },
+                        // Hi-Res only on request, per song, after a confirmation: the files are several times the size
+                        onHiRes = if (app.ui.isAdmin && app.prefs.slskdUrl.isNotBlank() && app.prefs.slskdApiKey.isNotBlank() && app.prefs.fileMoverUrl.isNotBlank()) ({
+                            nav.sheet = SheetSpec("Download in Hi-Res?", "Hi-Res files are 3 to 5 times bigger (roughly 80 to 200 MB). Only \"${s.title}\" is downloaded, as a separate [Hi-Res] copy. If no Hi-Res copy exists you get the normal quality instead.", listOf(
+                                SheetItem("Yes, download \"${s.title}\" in Hi-Res", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, hiRes = true) },
+                                SheetItem("Cancel", Glyph.CLOSE) { },
+                            ))
+                        }) else null)
                 }
                 if (!webSongsExpanded && w.songs.size > 8) item { ShowMoreRow(w.songs.size - 8) { webSongsExpanded = true } }
             }
@@ -1046,7 +1054,7 @@ private fun ownedAlbumKey(artist: String, album: String) = com.ipodemu.library.p
  * one action: Play (or Open) when it's already in the library, otherwise Download, a percentage while it runs, then Play.
  */
 @Composable
-private fun WebRow(title: String, subtitle: String, imageUrl: String?, owned: Track?, status: DownloadStatus?, onPlay: () -> Unit, onDownload: () -> Unit, actionLabel: String = "Download $title") {
+private fun WebRow(title: String, subtitle: String, imageUrl: String?, owned: Track?, status: DownloadStatus?, onPlay: () -> Unit, onDownload: () -> Unit, actionLabel: String = "Download $title", onHiRes: (() -> Unit)? = null) {
     val sc = LocalScheme.current
     val busy = status != null && status.stage != DownloadStage.DONE && status.stage != DownloadStage.FAILED
     val failed = status?.stage == DownloadStage.FAILED
@@ -1056,7 +1064,10 @@ private fun WebRow(title: String, subtitle: String, imageUrl: String?, owned: Tr
             when {
                 owned != null -> GlossPill("Play", onPlay, height = 32.dp)
                 busy -> Txt(Regex("""\d+%""").find(status!!.message)?.value ?: "...", size = 13f, weight = FontWeight.Medium, color = sc.accent)
-                else -> GlossPill(if (failed) "Retry" else "Download", onDownload, Modifier.semantics { contentDescription = actionLabel }, height = 32.dp)
+                else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (onHiRes != null) HiResPill(onHiRes, Modifier.semantics { contentDescription = "Download $title in Hi-Res" })
+                    GlossPill(if (failed) "Retry" else "Download", onDownload, Modifier.semantics { contentDescription = actionLabel }, height = 32.dp)
+                }
             }
         },
     ) { hi ->

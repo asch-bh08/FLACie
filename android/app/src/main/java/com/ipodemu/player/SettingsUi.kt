@@ -82,6 +82,19 @@ fun SettingsScreen(nav: PlayerNav, dashboard: Boolean = false) {
                     if (ui.ipodTheme) SettingRow("Light or dark", listOf("Dark", "Light", "System")[prefs.appearance.coerceIn(0, 2)]) { prefs.appearance = (prefs.appearance + 1) % 3; ui.refreshFromPrefs() }
                 }
             }
+            item { SectionHeader("Look and feel") }
+            item {
+                Card {
+                    val accName = Tweaks.ACCENTS.firstOrNull { it.second == prefs.accentColor }?.first ?: "Custom"
+                    SettingRow("Accent colour", accName, chevron = true) {
+                        nav.sheet = SheetSpec("Accent colour", "Over the theme's own colour", Tweaks.ACCENTS.map { (n, c) ->
+                            SheetItem(if (c == prefs.accentColor) "$n  (on)" else n, if (c == prefs.accentColor) Glyph.CHECK else Glyph.NOTE) { prefs.accentColor = c; ui.refreshFromPrefs() }
+                        })
+                    }
+                    SettingRow("Compact lists", if (prefs.compactLists) "On" else "Off") { prefs.compactLists = !prefs.compactLists; ui.refreshFromPrefs() }
+                    SettingRow("Format and source badges", if (prefs.showBadges) "On" else "Off") { prefs.showBadges = !prefs.showBadges; ui.refreshFromPrefs() }
+                }
+            }
             // shuffle and repeat live on Now Playing, where they're used; settings holds what's set once
             item { SectionHeader("Playback") }
             item {

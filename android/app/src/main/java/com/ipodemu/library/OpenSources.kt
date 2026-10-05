@@ -70,7 +70,7 @@ object OpenSources {
 
     /** Same song: the title (feat. and punctuation ignored) equal, the artist's lead name equal, and a length within 8 seconds when both are known. */
     fun matches(wantArtist: String, wantTitle: String, wantSec: Int, gotArtist: String, gotTitle: String, gotSec: Int): Boolean {
-        if (normTitle(wantTitle) != normTitle(gotTitle)) return false
+        if (normTitle(WebCatalog.baseTitle(wantTitle)) != normTitle(WebCatalog.baseTitle(gotTitle))) return false
         val a = primaryArtist(wantArtist); val b = primaryArtist(gotArtist)
         if (a.isEmpty() || b.isEmpty() || !(a == b || a.contains(b) || b.contains(a))) return false
         return wantSec <= 0 || gotSec <= 0 || abs(wantSec - gotSec) <= 8
@@ -126,7 +126,7 @@ object OpenSources {
     /** Jamendo, only tracks the artist allows to be downloaded (audiodownload_allowed). Needs a free client id. */
     private suspend fun jamendo(clientId: String, artist: String, title: String, durationSec: Int): OpenHit? {
         val url = "https://api.jamendo.com/v3.0/tracks/?client_id=${enc(clientId)}&format=json&limit=10" +
-            "&namesearch=${enc(normTitle(title))}&artist_name=${enc(primaryArtist(artist))}"
+            "&namesearch=${enc(normTitle(WebCatalog.baseTitle(title)))}&artist_name=${enc(primaryArtist(artist))}"
         val results = (getJson(url) as? JSONObject)?.optJSONArray("results") ?: return null
         for (i in 0 until results.length()) {
             val r = results.getJSONObject(i)
@@ -143,7 +143,7 @@ object OpenSources {
     private suspend fun audius(artist: String, title: String, durationSec: Int): OpenHit? {
         val hosts = (getJson("https://api.audius.co") as? JSONObject)?.optJSONArray("data") ?: return null
         val host = (0 until hosts.length()).map { hosts.optString(it) }.firstOrNull { it.startsWith("https://") }?.trimEnd('/') ?: return null
-        val q = "${primaryArtist(artist)} ${normTitle(title)}"
+        val q = "${primaryArtist(artist)} ${normTitle(WebCatalog.baseTitle(title))}"
         val results = (getJson("$host/v1/tracks/search?query=${enc(q)}&app_name=FLACie&limit=10") as? JSONObject)?.optJSONArray("data") ?: return null
         for (i in 0 until results.length()) {
             val r = results.getJSONObject(i)

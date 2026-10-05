@@ -22,7 +22,15 @@
         <a class="rc-reload" href="">Reload</a>
     </div>
     <script src="flacie.js"></script>
-    <script src="_framework/blazor.web.js"></script>
+    <script src="_framework/blazor.web.js" autostart="false"></script>
+    <script>
+      // patient reconnecting (a lost signal, a phone asleep): retry for a long time, and when the server was restarted (the old page can no longer continue) reload by itself once it is back
+      Blazor.start({ circuit: {
+        reconnectionOptions: { maxRetries: 200, retryIntervalMilliseconds: n => Math.min(1000 + n * 500, 5000) },
+        configureSignalR: b => { b.withServerTimeout(90000); b.withKeepAliveInterval(10000); },
+      } });
+      window.flacie.autoRecover();
+    </script>
 </body>
 </html>
 

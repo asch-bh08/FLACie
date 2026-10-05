@@ -27,11 +27,13 @@ class SlskdClient {
 
     data class FileResult(
         val username: String, val filename: String, val size: Long, val hasFreeUploadSlot: Boolean, val bitRate: Int?,
-        val uploadSpeed: Long = 0, val queueLength: Int = 0, val lengthSec: Int = 0,
+        val uploadSpeed: Long = 0, val queueLength: Int = 0, val lengthSec: Int = 0, val bitDepth: Int? = null, val sampleRate: Int? = null,
     ) {
         val leaf: String get() = filename.substringAfterLast('\\').substringAfterLast('/')
         val folder: String get() = filename.replace('\\', '/').substringBeforeLast('/', "")
         val lossless: Boolean get() = leaf.substringAfterLast('.').lowercase() in setOf("flac", "alac", "wav", "aiff", "ape", "wv")
+        /** Hi-Res: lossless at more than CD quality (24-bit, or above 48 kHz). When the peer does not say, a lossless file using more than about 1700 kbps is taken to be one. */
+        val hiRes: Boolean get() = lossless && ((bitDepth ?: 0) >= 24 || (sampleRate ?: 0) > 48_000 || (bitDepth == null && sampleRate == null && lengthSec > 30 && size * 8.0 / lengthSec / 1000 > 1700))
     }
 
     /** One file's transfer as slskd reports it. [done]: true succeeded, false failed, null still going. */
@@ -111,14 +113,15 @@ class SlskdClient {
                 val bitRate = if (f.has("bitRate") && !f.isNull("bitRate")) f.optInt("bitRate") else null
                 if (bitRate != null && bitRate < 256) continue
                 out.add(FileResult(r.optString("username"), name, f.optLong("size"), r.optBoolean("hasFreeUploadSlot"), bitRate,
-                    r.optLong("uploadSpeed"), r.optInt("queueLength"), if (f.isNull("length")) 0 else f.optInt("length")))
+                    r.optLong("uploadSpeed"), r.optInt("queueLength"), if (f.isNull("length")) 0 else f.optInt("length"),
+                    if (f.has("bitDepth") && !f.isNull("bitDepth")) f.optInt("bitDepth").takeIf { it > 0 } else null, if (f.has("sampleRate") && !f.isNull("sampleRate")) f.optInt("sampleRate").takeIf { it > 0 } else null))
             }
         }
         return out
     }
 
     /** The best files for one song, best first, at most one per peer (so falling through to the next tries someone else). */
-    fun rankSong(files: List<FileResult>, artist: String, title: String, durationSec: Int = 0): List<FileResult> {
+    fun rankSong(files: List<FileResult>, artist: String, title: String, durationSec: Int = 0, hiRes: Boolean = false): List<FileResult> {
         val titleWords = tokens(WebCatalog.baseTitle(title))
         if (titleWords.isEmpty()) return emptyList()
         val artistWords = tokens(primaryArtist(artist))
@@ -131,8 +134,13 @@ class SlskdClient {
         // the typed artist somewhere in the path (file or folder) rules out the same title by somebody else
         val byArtist = ok.filter { f -> tokens(f.filename).toSet().containsAll(artistWords) }
         val matched = byArtist.ifEmpty { if (artistWords.isEmpty()) ok else emptyList() }
-        // lossless whenever anyone has it, however slow; MP3/AAC (320 kbps) only when no peer has a lossless copy at all
-        return matched.filter { it.lossless }.ifEmpty { matched.filter { (it.bitRate ?: 0) >= 320 } }
+        if (hiRes) {
+            // asked for explicitly: only Hi-Res files, the best quality first (24-bit before 16, higher sample rate first), then the better peer
+            return matched.filter { it.hiRes }.sortedWith(compareByDescending<FileResult> { (it.bitDepth ?: 0) * 1_000_000L + (it.sampleRate ?: 0) }.thenByDescending { peerScore(it) }).distinctBy { it.username }
+        }
+        // lossless whenever anyone has it, however slow; MP3/AAC (320 kbps) only when no peer has a lossless copy at all.
+        // Hi-Res files are never taken here (they are several times the size): they only come from the explicit Hi-Res download.
+        return matched.filter { it.lossless && !it.hiRes }.ifEmpty { matched.filter { !it.lossless && (it.bitRate ?: 0) >= 320 } }
             .sortedByDescending { peerScore(it) }
             .distinctBy { it.username }
     }

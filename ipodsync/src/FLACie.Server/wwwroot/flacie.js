@@ -308,6 +308,23 @@ window.flacie = (() => {
       if (!npPushed) { history.pushState({ np: 1 }, "", location.pathname + location.search + "#now-playing"); npPushed = true; }
     },
     npBack() { if (npPushed) history.back(); else npClosed(); },
+    // when Blazor gives up on the live connection ("rejected": the server was restarted and has forgotten this page; "failed": it could not be reached in time),
+    // wait for the server to answer again and reload, instead of leaving a stuck "Can't reach FLACie" toast
+    autoRecover() {
+      let polling = false;
+      const poll = async () => {
+        try { const r = await fetch("/healthz", { cache: "no-store" }); if (r.ok) { location.reload(); return; } } catch { }
+        setTimeout(poll, 2500);
+      };
+      const check = () => {
+        const m = document.getElementById("components-reconnect-modal");
+        if (!m || polling) return;
+        if (m.classList.contains("components-reconnect-rejected") || m.classList.contains("components-reconnect-failed")) { polling = true; poll(); }
+      };
+      const m = document.getElementById("components-reconnect-modal");
+      if (m) new MutationObserver(check).observe(m, { attributes: true, attributeFilter: ["class"] });
+      document.addEventListener("components-reconnect-state-changed", check);
+    },
     // a popup that closes when you click or tap anywhere outside it (selector = the popup's wrapper), or press Escape
     watchOutside(selector, ref) {
       window.flacie.unwatchOutside();

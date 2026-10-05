@@ -65,7 +65,7 @@ public static class OpenSources
     /// <summary>Same song: the title (feat. and punctuation ignored) equal, the artist's lead name equal, and a length within 8 seconds when both are known.</summary>
     public static bool Matches(string wantArtist, string wantTitle, int wantSec, string gotArtist, string gotTitle, int gotSec)
     {
-        if (Matching.NormTitle(wantTitle) != Matching.NormTitle(gotTitle)) return false;
+        if (Matching.NormTitle(WebCatalog.BaseTitle(wantTitle)) != Matching.NormTitle(WebCatalog.BaseTitle(gotTitle))) return false;
         var a = Matching.PrimaryArtist(wantArtist); var b = Matching.PrimaryArtist(gotArtist);
         if (a.Length == 0 || b.Length == 0 || !(a == b || a.Contains(b) || b.Contains(a))) return false;
         return wantSec <= 0 || gotSec <= 0 || Math.Abs(wantSec - gotSec) <= 8;
@@ -136,7 +136,7 @@ public static class OpenSources
         public static async Task<OpenHit?> FindAsync(HttpClient http, string clientId, string artist, string title, int durationSec, CancellationToken ct)
         {
             var url = $"https://api.jamendo.com/v3.0/tracks/?client_id={Uri.EscapeDataString(clientId)}&format=json&limit=10" +
-                      $"&namesearch={Uri.EscapeDataString(Matching.NormTitle(title))}&artist_name={Uri.EscapeDataString(Matching.PrimaryArtist(artist))}";
+                      $"&namesearch={Uri.EscapeDataString(Matching.NormTitle(WebCatalog.BaseTitle(title)))}&artist_name={Uri.EscapeDataString(Matching.PrimaryArtist(artist))}";
             var results = (await GetJson(http, url, ct))?["results"] as JsonArray;
             if (results is null) return null;
             foreach (var r in results)
@@ -159,7 +159,7 @@ public static class OpenSources
             var hosts = (await GetJson(http, "https://api.audius.co", ct))?["data"] as JsonArray;
             var host = hosts?.Select(h => h?.GetValue<string>()).FirstOrDefault(h => !string.IsNullOrEmpty(h) && h!.StartsWith("https://"));
             if (host is null) return null;
-            var q = $"{Matching.PrimaryArtist(artist)} {Matching.NormTitle(title)}";
+            var q = $"{Matching.PrimaryArtist(artist)} {Matching.NormTitle(WebCatalog.BaseTitle(title))}";
             var results = (await GetJson(http, $"{host.TrimEnd('/')}/v1/tracks/search?query={Uri.EscapeDataString(q)}&app_name=FLACie&limit=10", ct))?["data"] as JsonArray;
             if (results is null) return null;
             foreach (var r in results)

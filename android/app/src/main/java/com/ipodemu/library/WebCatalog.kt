@@ -93,8 +93,27 @@ object WebCatalog {
         return out.distinctBy { norm(primaryArtist(it.artist)) + "|" + norm(baseTitle(it.title)) }.take(limit)
     }
 
-    /** "Song (feat. X)" -> "Song"; used to match file names and fold duplicates. */
-    fun baseTitle(t: String) = t.replace(Regex("""\s*[(\[](feat|ft|with)[^)\]]*[)\]]""", RegexOption.IGNORE_CASE), "").trim()
+    private val trailingGroup = Regex("""\s*[(\[]([^)\]]*)[)\]]\s*$""")
+    // a different recording of the song: these stay in the title (a "(Live)" or "(Remix)" is not the song itself)
+    private val versionWord = Regex("""\b(live|remix|mix|acoustic|instrumental|demo|cover|karaoke|session|unplugged|vip|rework|bootleg|extended|sped|slowed|reverb|a cappella|acapella|nightcore)\b""", RegexOption.IGNORE_CASE)
+    private val partMarker = Regex("""^\s*(pt|part)\b""", RegexOption.IGNORE_CASE)
+    private val dashNote = Regex("""\s+-\s+(?:\d{4}\s+)?(?:remaster(?:ed)?|from\b|single version|album version|original (?:motion picture )?soundtrack|mono\b|stereo\b|bonus|deluxe|explicit|clean|radio edit)[^-]*$""", RegexOption.IGNORE_CASE)
+
+    /**
+     * The song's own name, for searching and matching file names: "Song (feat. X)", "Song (From "Some Movie")", "Song (Remastered 2011)",
+     * "Song - Remastered" and "Song [Deluxe]" all become "Song". A trailing "(Live)", "(Remix)", "(Acoustic)", "(Part 2)" ... is a different
+     * recording or a different song, so it stays. Leading brackets ("(Don't Fear) The Reaper") are part of the title and stay. Same rules as FLACie Web.
+     */
+    fun baseTitle(t: String): String {
+        var s = t.replace(Regex("""\s*[(\[](feat|ft|with|featuring)[^)\]]*[)\]]""", RegexOption.IGNORE_CASE), "").trim()
+        repeat(4) {
+            val m = trailingGroup.find(s) ?: return@repeat
+            if (m.range.first == 0 || versionWord.containsMatchIn(m.groupValues[1]) || partMarker.containsMatchIn(m.groupValues[1])) return@repeat
+            s = s.substring(0, m.range.first).trimEnd()
+        }
+        s = dashNote.replace(s, "").trim()
+        return s.ifEmpty { t.trim() }
+    }
 
     // ---- Deezer ----
 

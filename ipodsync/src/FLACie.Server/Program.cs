@@ -54,7 +54,10 @@ builder.Services.AddSingleton(sp => new JellyfinClient(sp.GetRequiredService<IHt
 builder.Services.AddSingleton<SessionStore>();
 builder.Services.AddScoped<PlayerState>();
 builder.Services.AddScoped<ExploreState>();
-builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+// the live page connection: a phone that slept or lost signal for a while picks its page up again (30 minutes) instead of getting "connection was reset"
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents(o => { o.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(30); o.DisconnectedCircuitMaxRetained = 300; })
+    .AddHubOptions(o => { o.KeepAliveInterval = TimeSpan.FromSeconds(10); o.ClientTimeoutInterval = TimeSpan.FromSeconds(90); o.HandshakeTimeout = TimeSpan.FromSeconds(30); });
 
 // behind a reverse proxy (Caddy, Nginx, Traefik, Tailscale Funnel) the browser talks HTTPS to the proxy, not to us
 builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(o =>

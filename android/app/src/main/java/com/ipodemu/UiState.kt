@@ -31,6 +31,8 @@ class UiState(private val prefs: Prefs) {
         private set
     var dynamicColor by mutableStateOf(prefs.dynamicColor)
         private set
+    /** True for administrators of the FLACie server (or on a phone with no server, for the signed-in user): the Dashboard and the Hi-Res download are theirs. */
+    var isAdmin by mutableStateOf(false)
     var pickerOpen by mutableStateOf(false)
     /** Sync mode setup overlay (Settings > Sync), same pattern as [pickerOpen]. */
     var syncSetupOpen by mutableStateOf(false)
@@ -76,7 +78,7 @@ class UiState(private val prefs: Prefs) {
     fun setLogin(mode: String) { prefs.loginMode = mode; loginMode = mode }
     val guest: Boolean get() = loginMode == "guest"
 
-    fun refreshFromPrefs() { normalise(); uiTheme = prefs.uiTheme; viewMode = prefs.viewMode; model = prefs.model; colorway = prefs.colorway; dynamicColor = prefs.dynamicColor; rev++ }
+    fun refreshFromPrefs() { com.ipodemu.player.Tweaks.load(prefs); normalise(); uiTheme = prefs.uiTheme; viewMode = prefs.viewMode; model = prefs.model; colorway = prefs.colorway; dynamicColor = prefs.dynamicColor; rev++ }
 
     init { refreshFromPrefs() }   // last: all state fields must exist first
 }

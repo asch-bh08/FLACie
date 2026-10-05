@@ -1,6 +1,7 @@
 package com.ipodemu.player
 
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.role
@@ -407,7 +408,7 @@ fun IpodRow(
     val focused by src.collectIsFocusedAsState()
     val hi = pressed || focused
     Row(
-        modifier.fillMaxWidth().height(height)
+        modifier.fillMaxWidth().height(if (Tweaks.compact) height * 0.84f else height)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .background(if (hi && style.modern) androidx.compose.ui.graphics.SolidColor(Color(0x1FFFFFFF)) else if (hi) Brush.verticalGradient(listOf(sc.accentLight, sc.accentDark)) else Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent)))
             .drawBehind {
@@ -612,3 +613,17 @@ fun SetupTextField(
 
 /** White or near-black, whichever reads better on this colour (WCAG relative luminance). */
 fun Color.readableInk(): Color = if (luminance() > 0.4f) Color(0xFF111114) else Color.White
+
+/** The Hi-Res download button (administrators): an amber outlined pill with a star, so it reads as a deliberate extra next to the normal Download. */
+@Composable
+fun HiResPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val amber = Color(0xFFFFC857)
+    Row(
+        modifier.height(32.dp).clip(RoundedCornerShape(50)).background(amber.copy(alpha = 0.10f)).border(1.dp, amber.copy(alpha = 0.45f), RoundedCornerShape(50))
+            .then(Modifier.clickable(onClick = onClick)).padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Txt("✦", size = 12f, weight = FontWeight.Bold, color = amber)
+        Txt("Hi-Res", size = 13f, weight = FontWeight.Bold, color = amber)
+    }
+}

@@ -67,11 +67,11 @@ private fun hsvColor(h: Float, s: Float, v: Float) = Color(android.graphics.Colo
  * cover's colour at the top and an accent taken from the art. */
 fun buildModernScheme(art: ArtColors?): Scheme {
     val bottom = Color(0xFF0B0B0D)
-    if (art == null) return Scheme(Color(0xFF1D1D24), bottom, Color(0xFFFF4D6D), Color(0xFFF5F5F7), Color(0xB3FFFFFF), Color(0x14FFFFFF), Color.Transparent, true)
+    if (art == null) return Scheme(Color(0xFF1D1D24), bottom, Tweaks.accent ?: Color(0xFFFF4D6D), Color(0xFFF5F5F7), Color(0xB3FFFFFF), Color(0x14FFFFFF), Color.Transparent, true)
     val p = hsvOf(art.primary)
     val top = hsvColor(p[0], p[1] * 0.6f, 0.30f)
     val accent = hsvColor(p[0], p[1].coerceIn(0.55f, 0.85f), 0.88f)
-    return Scheme(top, bottom, accent, Color(0xFFF5F5F7), Color(0xB3FFFFFF), Color(0x14FFFFFF), Color.Transparent, true)
+    return Scheme(top, bottom, Tweaks.accent ?: accent, Color(0xFFF5F5F7), Color(0xB3FFFFFF), Color(0x14FFFFFF), Color.Transparent, true)
 }
 
 // ---- top bar -------------------------------------------------------------------------------------------------------

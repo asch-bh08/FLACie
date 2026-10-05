@@ -4,11 +4,13 @@ using System.Text.RegularExpressions;
 
 namespace FLACie.Core;
 
-public sealed record SlskdFile(string Username, string Filename, long Size, bool HasFreeUploadSlot, int? BitRate, long UploadSpeed = 0, int QueueLength = 0, int LengthSec = 0)
+public sealed record SlskdFile(string Username, string Filename, long Size, bool HasFreeUploadSlot, int? BitRate, long UploadSpeed = 0, int QueueLength = 0, int LengthSec = 0, int? BitDepth = null, int? SampleRate = null)
 {
     public string Leaf => Filename.Replace('\\', '/').Split('/').Last();
     public string Folder => Filename.Replace('\\', '/') is var f && f.Contains('/') ? f[..f.LastIndexOf('/')] : "";
     public bool Lossless => new[] { "flac", "alac", "wav", "aiff", "ape", "wv" }.Contains(Leaf[(Leaf.LastIndexOf('.') + 1)..].ToLowerInvariant());
+    /// <summary>Hi-Res: lossless at more than CD quality (24-bit, or above 48 kHz). When the peer does not say, a lossless file that uses more than about 1700 kbps is taken to be one.</summary>
+    public bool HiRes => Lossless && (BitDepth >= 24 || SampleRate > 48_000 || (BitDepth is null && SampleRate is null && LengthSec > 30 && Size * 8.0 / LengthSec / 1000 > 1700));
 }
 
 /// <summary>One file's transfer as slskd reports it. <see cref="Done"/>: true succeeded, false failed, null still going.</summary>
@@ -116,7 +118,8 @@ public sealed class SlskdClient(HttpClient http, string url, string apiKey)
                 int? bitRate = f["bitRate"] is JsonValue b && b.TryGetValue<int>(out var br) ? br : null;
                 if (bitRate is < 256) continue;
                 res.Add(new SlskdFile(r["username"]?.GetValue<string>() ?? "", name, f["size"]?.GetValue<long>() ?? 0, r["hasFreeUploadSlot"]?.GetValue<bool>() ?? false, bitRate,
-                    r["uploadSpeed"]?.GetValue<long>() ?? 0, r["queueLength"]?.GetValue<int>() ?? 0, f["length"] is JsonValue l && l.TryGetValue<int>(out var len) ? len : 0));
+                    r["uploadSpeed"]?.GetValue<long>() ?? 0, r["queueLength"]?.GetValue<int>() ?? 0, f["length"] is JsonValue l && l.TryGetValue<int>(out var len) ? len : 0,
+                    f["bitDepth"] is JsonValue bd && bd.TryGetValue<int>(out var depth) && depth > 0 ? depth : null, f["sampleRate"] is JsonValue sr && sr.TryGetValue<int>(out var rate) && rate > 0 ? rate : null));
             }
         }
         return res;
@@ -131,7 +134,7 @@ public sealed class SlskdClient(HttpClient http, string url, string apiKey)
     static int PeerScore(SlskdFile f) => (f.HasFreeUploadSlot ? 500 : 0) - Math.Min(50, f.QueueLength) * 8 + (int)Math.Min(400, f.UploadSpeed / 50_000);
 
     /// <summary>The best files for one song, best first, at most one per peer (so falling through to the next tries someone else).</summary>
-    public static List<SlskdFile> RankSong(IEnumerable<SlskdFile> files, string artist, string title, int durationSec = 0)
+    public static List<SlskdFile> RankSong(IEnumerable<SlskdFile> files, string artist, string title, int durationSec = 0, bool hiRes = false)
     {
         var titleWords = Tokens(WebCatalog.BaseTitle(title));
         if (titleWords.Count == 0) return [];
@@ -146,9 +149,15 @@ public sealed class SlskdClient(HttpClient http, string url, string apiKey)
         // the typed artist somewhere in the path (file or folder) rules out the same title by somebody else
         var byArtist = ok.Where(f => { var p = Tokens(f.Filename).ToHashSet(); return artistWords.All(p.Contains); }).ToList();
         var matched = byArtist.Count > 0 ? byArtist : artistWords.Count == 0 ? ok : [];
-        // lossless whenever anyone has it, however slow; MP3/AAC (320 kbps) only when no peer has a lossless copy at all
-        var pool = matched.Where(f => f.Lossless).ToList();
-        if (pool.Count == 0) pool = matched.Where(f => (f.BitRate ?? 0) >= 320).ToList();
+        if (hiRes)
+        {
+            // asked for explicitly: only Hi-Res files, the best quality first (24-bit before 16, higher sample rate first), then the better peer
+            return matched.Where(f => f.HiRes).OrderByDescending(f => (f.BitDepth ?? 0) * 1_000_000L + (f.SampleRate ?? 0)).ThenByDescending(PeerScore).DistinctBy(f => f.Username).ToList();
+        }
+        // lossless whenever anyone has it, however slow; MP3/AAC (320 kbps) only when no peer has a lossless copy at all.
+        // Hi-Res files are never taken here (they are several times the size): they only come from the explicit Hi-Res download.
+        var pool = matched.Where(f => f.Lossless && !f.HiRes).ToList();
+        if (pool.Count == 0) pool = matched.Where(f => !f.Lossless && (f.BitRate ?? 0) >= 320).ToList();
         return pool.OrderByDescending(PeerScore).DistinctBy(f => f.Username).ToList();
     }
 

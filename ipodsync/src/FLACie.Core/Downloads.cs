@@ -84,7 +84,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
                 var left = (int)Math.Max(0, deadline - Environment.TickCount64);
                 if (await Task.WhenAny(task, Task.Delay(left, ct)) != task || await task is not { } hit) { on(new(DownloadStage.Searching, sname + " had nothing", id, null, true)); continue; }
                 on(new(DownloadStage.Downloading, $"Downloading from {hit.Label}...", hit.Source));
-                var dest = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(title)}.{hit.Ext}";
+                var dest = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}.{hit.Ext}";
                 on(new(DownloadStage.Importing, "Filing into the library...", hit.Source));
                 if (!await FetchViaFileMover(hit.Url, dest, ct)) { on(new(DownloadStage.Searching, sname + " had it, but the download failed", id, null, true)); continue; }
                 on(new(DownloadStage.Done, $"\"{title}\" is ready to play", hit.Source, [OpenTrack(dest, title, artist, album, artUrl, durationMs > 0 ? durationMs : hit.DurationSec * 1000L)]));
@@ -107,10 +107,10 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         try
         {
             on(new(DownloadStage.Searching, "Looking on YouTube...", "ytdl"));
-            var noExt = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(title)}";
+            var noExt = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}";
             using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct); limit.CancelAfter(TimeSpan.FromSeconds(200));
             using var req = new HttpRequestMessage(HttpMethod.Post, cfg.FileMoverUrl.TrimEnd('/') + "/ytdl")
-            { Content = new StringContent(new JsonObject { ["artist"] = artist, ["title"] = title, ["durationSec"] = (int)(durationMs / 1000), ["to"] = noExt }.ToJsonString(), Encoding.UTF8, "application/json") };
+            { Content = new StringContent(new JsonObject { ["artist"] = artist, ["title"] = WebCatalog.BaseTitle(title), ["durationSec"] = (int)(durationMs / 1000), ["to"] = noExt }.ToJsonString(), Encoding.UTF8, "application/json") };
             req.Headers.TryAddWithoutValidation("X-Api-Key", cfg.FileMoverKey);
             using var res = await http.SendAsync(req, limit.Token);
             if (!res.IsSuccessStatusCode) return false;
@@ -154,23 +154,62 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         if (!await new LidarrFlow(http, cfg).TryAsync(album.Artist, "", name, on, ct)) on(new(DownloadStage.Failed, $"\"{name}\" wasn't found"));
     }
 
-    async Task<bool> TrySoulseek(string artist, string title, string album, string? artUrl, int durationSec, Action<DownloadStatus> on, CancellationToken ct)
+    /// <summary>The searches to try for a song, best first. Soulseek's server refuses to search some full artist names (a query containing "kendrick lamar" returns
+    /// nothing at all, while "kendrick all the stars" finds hundreds of files), so when the full-name query finds nothing usable the artist's first word, then
+    /// the title alone, are tried; the ranking afterwards still requires the artist in the file's path.</summary>
+    static List<(string Query, int TimeoutMs)> SearchPlan(string artist, string title)
+    {
+        var a = Matching.PrimaryArtist(artist); var t = WebCatalog.BaseTitle(title);
+        var words = a.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var plan = new List<(string, int)> { ($"{a} {t}".Trim(), 15_000) };
+        if (words.Length > 1) plan.Add(($"{words[0]} {t}", 10_000));
+        if (t.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 2) plan.Add((t, 10_000));
+        return plan;
+    }
+
+    /// <summary>One song from Soulseek. [hiRes] is the explicit Hi-Res download: only Hi-Res files, filed next to the normal copy as "Artist - Title [Hi-Res]".
+    /// A normal download never takes a Hi-Res file (they are several times the size), and says so when that is all there is.</summary>
+    async Task<bool> TrySoulseek(string artist, string title, string album, string? artUrl, int durationSec, Action<DownloadStatus> on, CancellationToken ct, bool hiRes = false)
     {
         try
         {
-            on(new(DownloadStage.Searching, "Searching Soulseek...", "soulseek"));
+            on(new(DownloadStage.Searching, hiRes ? "Searching Soulseek for a Hi-Res copy..." : "Searching Soulseek...", "soulseek"));
             var sl = Slskd;
-            var cands = SlskdClient.RankSong(await sl.SearchAsync($"{Matching.PrimaryArtist(artist)} {WebCatalog.BaseTitle(title)}", ct: ct), artist, title, durationSec);
+            List<SlskdFile> found = [], cands = [];
+            foreach (var (query, timeout) in SearchPlan(artist, title))
+            {
+                found = await sl.SearchAsync(query, timeout, ct: ct);
+                cands = SlskdClient.RankSong(found, artist, title, durationSec, hiRes);
+                if (cands.Count > 0) break;
+            }
+            if (cands.Count == 0 && !hiRes && SlskdClient.RankSong(found, artist, title, durationSec, hiRes: true).Count > 0)
+                on(new(DownloadStage.Searching, "Soulseek only has Hi-Res copies of this song. Use the Hi-Res download if you want one.", "soulseek", null, true));
             var hit = cands.Count == 0 ? null : await FetchFirst(sl, cands, m => on(new(DownloadStage.Downloading, m, "soulseek")), ct);
             if (hit is null) return false;
             on(new(DownloadStage.Importing, "Filing into the library...", "soulseek"));
-            var track = await FileAsync(hit, artist, title, album, 0, 0, durationSec * 1000L, $"{Clean(artist)} - {Clean(title)}", null, artist, artUrl, ct);
+            var track = await FileAsync(hit, artist, title, album, 0, 0, durationSec * 1000L, $"{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}{(hiRes ? " [Hi-Res]" : "")}", null, artist, artUrl, ct);
             if (track is null) return false;
-            on(new(DownloadStage.Done, $"\"{title}\" is ready to play", "soulseek", [track]));
+            on(new(DownloadStage.Done, hiRes ? $"\"{title}\" is ready to play (Hi-Res {HiResLabel(hit)})" : $"\"{title}\" is ready to play", "soulseek", [track]));
             return true;
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception) { return false; }
+    }
+
+    static string HiResLabel(SlskdFile f) => f.BitDepth is { } d && f.SampleRate is { } r ? $"{d}-bit / {r / 1000.0:0.#} kHz" : f.SampleRate is { } r2 ? $"{r2 / 1000.0:0.#} kHz" : f.BitDepth is { } d2 ? $"{d2}-bit" : "lossless";
+
+    /// <summary>The explicit Hi-Res download of one song (administrators only, per song, never automatic): Soulseek is searched for a Hi-Res copy first and, when there is none,
+    /// the normal download runs instead (the same sources and order as a plain Download), so the song still arrives, just not in Hi-Res.</summary>
+    public async Task DownloadHiResAsync(string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct = default)
+    {
+        on(new(DownloadStage.Requested, $"Requested \"{title}\" in Hi-Res"));
+        if (cfg.SoulseekReady)
+        {
+            if (await TrySoulseek(artist, title, album, artUrl, (int)(durationMs / 1000), on, ct, hiRes: true)) return;
+            on(new(DownloadStage.Searching, "No Hi-Res copy was found, so the normal quality is downloaded instead", "soulseek", null, true));
+        }
+        else on(new(DownloadStage.Searching, "Hi-Res needs Soulseek, so the normal quality is downloaded instead", null, null, true));
+        await DownloadAsync(artist, title, album, artUrl, durationMs, on, ct);
     }
 
     async Task<List<Track>> TrySoulseekAlbum(CatalogAlbum album, List<CatalogSong> list, Action<DownloadStatus> on, CancellationToken ct)
@@ -181,8 +220,20 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         try
         {
             on(new(DownloadStage.Searching, $"Searching Soulseek for \"{name}\"...", "soulseek"));
-            var files = await sl.SearchAsync($"{Matching.PrimaryArtist(album.Artist)} {Regex.Replace(name, @"\s*[(\[][^)\]]*[)\]]", "")}", enough: 80, ct: ct);
-            foreach (var folder in SlskdClient.RankAlbumFolders(files, album.Artist, name, list.Select(s => s.Title).ToList()).Take(3))
+            // the full artist name can be a phrase Soulseek refuses to search (see SearchPlan): fall back to the artist's first word, then the album alone
+            var albumName = Regex.Replace(name, @"s*[([][^)]]*[)]]", "").Trim();
+            var aw = Matching.PrimaryArtist(album.Artist).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var plan = new List<(string, int)> { ($"{string.Join(' ', aw)} {albumName}".Trim(), 15_000) };
+            if (aw.Length > 1) plan.Add(($"{aw[0]} {albumName}", 10_000));
+            if (albumName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 2) plan.Add((albumName, 10_000));
+            var folders = new List<SlskdFile?[]>();
+            foreach (var (query, timeout) in plan)
+            {
+                var files = await sl.SearchAsync(query, timeout, enough: 80, ct: ct);
+                folders = SlskdClient.RankAlbumFolders(files, album.Artist, name, list.Select(s => s.Title).ToList());
+                if (folders.Count > 0) break;
+            }
+            foreach (var folder in folders.Take(3))
             {
                 var want = Enumerable.Range(0, list.Count).Where(i => got[i] is null && folder[i] is not null).ToList();
                 if (want.Count == 0) continue;

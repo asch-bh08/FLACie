@@ -78,14 +78,18 @@ else
             <ul class="tracks">
                 @foreach (var s in webSongs)
                 {
-                    var jb = Downloads.JobFor(Session, s.Artist, s.Title);
-                    <li class="track">
+                    var jb = Downloads.JobFor(Session, s.Artist, s.Title); var hiKey = FLACie.Core.Matching.MatchKey(s.Title, s.Artist);
+                    <li class="track @(hiAsk == hiKey ? "asking" : "")">
                         <span class="track-main">
                             <Cover ArtKey="@(s.ArtUrl is null ? null : Art.ExternalKey(s.ArtUrl))" Size="44" />
                             <span class="track-text"><span class="track-title">@s.Title</span><span class="track-sub">@s.Artist@(s.Album.Length > 0 ? " · " + s.Album : "")</span>@if (jb is not null) { <span class="track-dl @(jb.Stage == DownloadStage.Failed ? "bad" : jb.Stage == DownloadStage.Done ? "ok" : "")"><i aria-hidden="true"></i>@jb.Message@(jb.Current is { } c && !jb.Finished ? " · " + OpenSourceSettings.Name(c) : jb.Source is { } src ? " · from " + OpenSourceSettings.Name(src) : "")</span> }</span>
                         </span>
                         <span class="track-time">@Time(s.DurationMs / 1000.0)</span>
+                        <span class="track-actions">
                         <button class="btn" disabled="@(!Session.Services.Any || jb is { Finished: false })" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />@(jb is { Finished: false } ? "Downloading…" : jb is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button>
+                        @if (isAdmin && Session.Services.SoulseekReady) { <button class="btn hires" disabled="@(jb is { Finished: false })" title="Hi-Res (administrators): 24-bit or above 48 kHz, several times the size. Only on request, per song." @onclick="() => hiAsk = hiKey"><span aria-hidden="true">✦</span> Hi-Res</button> }
+                        </span>
+                        @if (isAdmin && hiAsk == hiKey) { <div class="hires-ask track-ask" role="group" aria-label="Download in Hi-Res?"><b>Download "@s.Title" in Hi-Res?</b><span>Hi-Res files are 3 to 5 times bigger (roughly 80 to 200 MB). If no Hi-Res copy exists, you get the normal quality instead. Only this song.</span><span class="hires-actions"><button class="btn hires solid" @onclick="() => { hiAsk = null; Downloads.Song(Session, s, true); }">Download Hi-Res</button><button class="btn ghost" @onclick="() => hiAsk = null">Cancel</button></span></div> }
                     </li>
                 }
             </ul>
@@ -96,7 +100,9 @@ else
     [Parameter, SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
     [Inject] WebCatalog Catalog { get; set; } = default!;
     [Inject] DownloadManager Downloads { get; set; } = default!;
-    string q = "";
+    [Inject] IConfiguration Conf { get; set; } = default!;
+    bool isAdmin => AdminAccess.Is(Session, Conf);
+    string q = ""; string? hiAsk;
     List<CatalogSong> webSongs = [];
     List<CatalogAlbum> webAlbums = [];
     bool webBusy;

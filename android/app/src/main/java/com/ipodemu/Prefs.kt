@@ -189,6 +189,16 @@ class Prefs(ctx: Context) {
         get() = sp.getBoolean("openjamendo", true)
         set(v) = sp.edit().putBoolean("openjamendo", v).apply()
     /** The last-resort yt-dlp (YouTube) source: off until the user switches it on. */
+    /** Look and feel: an accent colour over the theme's own (0 = the theme's), tighter list rows, and the small source badges next to songs. */
+    var accentColor: Int
+        get() = sp.getInt("accentcolor", 0)
+        set(v) = sp.edit().putInt("accentcolor", v).apply()
+    var compactLists: Boolean
+        get() = sp.getBoolean("compactlists", false)
+        set(v) = sp.edit().putBoolean("compactlists", v).apply()
+    var showBadges: Boolean
+        get() = sp.getBoolean("showbadges", true)
+        set(v) = sp.edit().putBoolean("showbadges", v).apply()
     var openYtdl: Boolean
         get() = sp.getBoolean("openytdl", false)
         set(v) = sp.edit().putBoolean("openytdl", v).apply()

@@ -27,6 +27,24 @@ BAD = ["live", "cover", "remix", "karaoke", "instrumental", "sped up", "speed up
        "reaction", "tutorial", "lesson", "piano version", "bass boosted", "loop", "1 hour", "extended", "mv", "fanmade", "fan made"]
 
 
+VERSION_WORD = re.compile(r"\b(live|remix|mix|acoustic|instrumental|demo|cover|karaoke|session|unplugged|vip|rework|bootleg|extended|sped|slowed|reverb|a cappella|acapella|nightcore)\b", re.I)
+PART_MARKER = re.compile(r"^\s*(pt|part)\b", re.I)
+TRAILING_GROUP = re.compile(r"\s*[(\[]([^)\]]*)[)\]]\s*$")
+DASH_NOTE = re.compile(r"\s+-\s+(?:\d{4}\s+)?(?:remaster(?:ed)?|from\b|single version|album version|original (?:motion picture )?soundtrack|mono\b|stereo\b|bonus|deluxe|explicit|clean|radio edit)[^-]*$", re.I)
+
+
+def base_title(t):
+    """The song's own name: '(feat. X)', '(From "Some Movie")', '(Remastered 2011)', ' - Remastered' go; '(Live)', '(Remix)', '(Part 2)' stay (same rules as the apps)."""
+    s = re.sub(r"\s*[\(\[](feat|ft|with|featuring)[^\)\]]*[\)\]]", "", t or "", flags=re.I).strip()
+    for _ in range(4):
+        m = TRAILING_GROUP.search(s)
+        if not m or m.start() == 0 or VERSION_WORD.search(m.group(1)) or PART_MARKER.search(m.group(1)):
+            break
+        s = s[:m.start()].rstrip()
+    s = DASH_NOTE.sub("", s).strip()
+    return s or (t or "").strip()
+
+
 def norm(s):
     s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode().lower()
     s = re.sub(r"\s*[\(\[](feat\.?|ft\.?|featuring|with)\s[^\)\]]*[\)\]]", "", s)
@@ -58,8 +76,9 @@ def search(query, n=8):
     return out
 
 
-def rank(cands, artist, title, dur):
-    a, t = lead_artist(artist), norm(title)
+def rank(cands, artist, title, dur, relaxed=False):
+    a, t = lead_artist(artist), norm(base_title(title))
+    tw = set(t.split())
     scored, seen = [], set()
     for c in cands:
         vid = c.get("id")
@@ -67,7 +86,7 @@ def rank(cands, artist, title, dur):
             continue
         seen.add(vid)
         ct, chan = norm(c.get("title")), norm(c.get("channel") or c.get("uploader"))
-        if t not in ct or not (a in ct or a in chan):
+        if not ((tw <= set(ct.split())) if relaxed else (t in ct)) or not (a in ct or a in chan):
             continue
         d = c.get("duration") or 0
         if dur > 0 and d > 0 and abs(d - dur) > 8:
@@ -113,7 +132,9 @@ def probe(rel):
 
 
 def fetch_best(artist, title, dur, dest_noext):
-    cands = rank(search(f"{artist} {title} official audio") + search(f"{artist} - {title} topic", 5), artist, title, dur)
+    bt = base_title(title)
+    found = search(f"{artist} {bt} official audio") + search(f"{artist} - {bt} topic", 5)
+    cands = rank(found, artist, title, dur) or rank(found, artist, title, dur, relaxed=True)
     if not cands:
         raise LookupError("no matching upload")
     last = "download failed"

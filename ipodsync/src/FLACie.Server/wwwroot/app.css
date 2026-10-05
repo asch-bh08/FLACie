@@ -842,3 +842,9 @@ body.np-open .np { top: 0; padding-top: var(--top); }
   .track-actions .btn { padding: 8px 10px; }
   .track-actions .btn svg { display: none; }
 }
+
+/* the Hi-Res entry at the foot of a song's menu: quiet until looked for */
+.menu .menu-subtle { color: var(--faint, var(--dim)); font-size: 13px; border-top: 1px solid var(--line); margin-top: 4px; padding-top: 10px; opacity: .75; }
+.menu .menu-subtle:hover { color: #ffc857; opacity: 1; }
+.menu .menu-ask { display: flex; flex-direction: column; gap: 6px; padding: 10px; margin-top: 4px; border-top: 1px solid var(--line); }
+.menu .menu-ask small { color: var(--dim); line-height: 1.4; white-space: normal; }

@@ -376,6 +376,15 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
     if (t.isMusic && t.album.isNotEmpty()) items += SheetItem("Go to album", Glyph.ALBUM) { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ALBUM, t.albumKey)) }
     if (t.isMusic && t.artist.isNotEmpty()) items += SheetItem("Go to artist", Glyph.ARTIST) { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist })) }
     items += extra
+    // administrators only, kept quiet at the foot of the menu: a Hi-Res copy of a song already in the library (saved beside it; nothing is downloaded instead if none exists)
+    if (app.ui.isAdmin && t.isMusic && app.prefs.slskdUrl.isNotBlank() && app.prefs.slskdApiKey.isNotBlank() && app.prefs.fileMoverUrl.isNotBlank() && !t.path.contains("[Hi-Res]", ignoreCase = true)) {
+        items += SheetItem("✦ Hi-Res version…", Glyph.DOWN) {
+            nav.sheet = SheetSpec("Get a Hi-Res copy?", "Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). It is saved next to this one. If no Hi-Res copy exists, nothing is changed.", listOf(
+                SheetItem("Yes, download Hi-Res", Glyph.DOWN) { app.library.requestDownload(t.artist, t.title, t.album, t.durationMs, hiRes = true, fallbackToNormal = false) },
+                SheetItem("Cancel", Glyph.CLOSE) { },
+            ))
+        }
+    }
     nav.sheet = SheetSpec(t.title, t.artist.ifEmpty { null }, items)
 }
 
@@ -987,7 +996,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                         onDownload = { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs) },
                         // Hi-Res only on request, per song, after a confirmation: the files are several times the size
                         onHiRes = if (app.ui.isAdmin && app.prefs.slskdUrl.isNotBlank() && app.prefs.slskdApiKey.isNotBlank() && app.prefs.fileMoverUrl.isNotBlank()) ({
-                            nav.sheet = SheetSpec("Download in Hi-Res?", "Hi-Res files are 3 to 5 times bigger (roughly 80 to 200 MB). Only \"${s.title}\" is downloaded, as a separate [Hi-Res] copy. If no Hi-Res copy exists you get the normal quality instead.", listOf(
+                            nav.sheet = SheetSpec("Download in Hi-Res?", "Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). Only \"${s.title}\" is downloaded, as a separate [Hi-Res] copy. If no Hi-Res copy exists you get the normal quality instead.", listOf(
                                 SheetItem("Yes, download \"${s.title}\" in Hi-Res", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, hiRes = true) },
                                 SheetItem("Cancel", Glyph.CLOSE) { },
                             ))

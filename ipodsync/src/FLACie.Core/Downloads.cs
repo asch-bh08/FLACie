@@ -200,12 +200,13 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
 
     /// <summary>The explicit Hi-Res download of one song (administrators only, per song, never automatic): Soulseek is searched for a Hi-Res copy first and, when there is none,
     /// the normal download runs instead (the same sources and order as a plain Download), so the song still arrives, just not in Hi-Res.</summary>
-    public async Task DownloadHiResAsync(string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct = default)
+    public async Task DownloadHiResAsync(string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct = default, bool fallbackToNormal = true)
     {
         on(new(DownloadStage.Requested, $"Requested \"{title}\" in Hi-Res"));
         if (cfg.SoulseekReady)
         {
             if (await TrySoulseek(artist, title, album, artUrl, (int)(durationMs / 1000), on, ct, hiRes: true)) return;
+            if (!fallbackToNormal) { on(new(DownloadStage.Failed, "No Hi-Res copy of this song was found on Soulseek. Nothing was changed.")); return; }
             on(new(DownloadStage.Searching, "No Hi-Res copy was found, so the normal quality is downloaded instead", "soulseek", null, true));
         }
         else on(new(DownloadStage.Searching, "Hi-Res needs Soulseek, so the normal quality is downloaded instead", null, null, true));

@@ -325,6 +325,8 @@ window.flacie = (() => {
       if (m) new MutationObserver(check).observe(m, { attributes: true, attributeFilter: ["class"] });
       document.addEventListener("components-reconnect-state-changed", check);
     },
+    // a song's menu is a short scrollable list: bring its last part (the Hi-Res question) into view
+    menuToEnd() { document.querySelectorAll(".menu").forEach(m => { m.scrollTop = m.scrollHeight; }); },
     // a popup that closes when you click or tap anywhere outside it (selector = the popup's wrapper), or press Escape
     watchOutside(selector, ref) {
       window.flacie.unwatchOutside();

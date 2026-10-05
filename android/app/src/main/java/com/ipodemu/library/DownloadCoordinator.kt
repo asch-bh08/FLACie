@@ -165,10 +165,11 @@ class DownloadCoordinator(private val prefs: Prefs) {
 
     /** The explicit Hi-Res download of one song (administrators only, per song, never automatic): Soulseek is searched for a Hi-Res copy first and, when there is none,
      * the normal download runs instead (the same sources and order as a plain Download), so the song still arrives, just not in Hi-Res. */
-    suspend fun downloadHiRes(artist: String, title: String, album: String, durationMs: Long = 0, onUpdate: (DownloadStatus) -> Unit) {
+    suspend fun downloadHiRes(artist: String, title: String, album: String, durationMs: Long = 0, fallbackToNormal: Boolean = true, onUpdate: (DownloadStatus) -> Unit) {
         onUpdate(DownloadStatus(DownloadStage.REQUESTED, "Requested \"$title\" in Hi-Res"))
         if (soulseekReady) {
             if (trySoulseek(artist, title, album, (durationMs / 1000).toInt(), onUpdate, hiRes = true)) return
+            if (!fallbackToNormal) { onUpdate(DownloadStatus(DownloadStage.FAILED, "No Hi-Res copy of this song was found on Soulseek. Nothing was changed.")); return }
             onUpdate(DownloadStatus(DownloadStage.SEARCHING, "No Hi-Res copy was found, so the normal quality is downloaded instead", "soulseek", miss = true))
         } else onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Hi-Res needs Soulseek, so the normal quality is downloaded instead", null, miss = true))
         download(artist, title, album, durationMs, onUpdate)

@@ -32,6 +32,14 @@
                         <button role="menuitem" @onclick="() => { Session.AddToPlaylist(p.Id, t); SaveProfile(); menu = -1; }">Add to @p.Name</button>
                     }
                     @if (OnRemove is not null) { <button role="menuitem" class="danger" @onclick="() => { OnRemove(idx); menu = -1; }">Remove from playlist</button> }
+                    @if (admin && Session.Services.SoulseekReady && !t.Path.Contains("[Hi-Res]", StringComparison.OrdinalIgnoreCase))
+                    {
+                        @if (hiAsk == idx)
+                        {
+                            <div class="menu-ask" role="group" aria-label="Get a Hi-Res copy?"><b>Get a Hi-Res copy?</b><small>Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). It is saved next to this one. If no Hi-Res copy exists, nothing is changed.</small><span class="hires-actions"><button class="btn hires solid" @onclick="() => GetHiRes(t)">Download Hi-Res</button><button class="btn ghost" @onclick="() => hiAsk = -1">Cancel</button></span></div>
+                        }
+                        else { <button role="menuitem" class="menu-subtle" @onclick="() => AskHi(idx)"><span aria-hidden="true">✦</span> Hi-Res version…</button> }
+                    }
                 </div>
             }
         </li>
@@ -45,6 +53,13 @@
     [Parameter] public string? PlayContext { get; set; }
     [Parameter] public bool ShowAlbum { get; set; } = true;
     [Parameter] public Action<int>? OnRemove { get; set; }
-    int menu = -1;
+    int menu = -1, hiAsk = -1;
+    [Inject] DownloadManager Downloads { get; set; } = default!;
+    [Inject] IJSRuntime Js { get; set; } = default!;
+    async Task AskHi(int idx) { hiAsk = idx; StateHasChanged(); await Task.Delay(30); try { await Js.InvokeVoidAsync("flacie.menuToEnd"); } catch (Exception) { } }
+    [Inject] IConfiguration Conf { get; set; } = default!;
+    bool admin => AdminAccess.Is(Session, Conf);
+    // administrators only: a Hi-Res copy of a song already in the library (saved beside it; the normal download runs instead only when asked for from Search)
+    void GetHiRes(Track t) { menu = -1; hiAsk = -1; Downloads.Song(Session, new CatalogSong(t.Artist, t.Title, t.Album, null, t.DurationMs, t.TrackNo, t.DiscNo), true, false); }
     Task Go(int i) => Single ? Player.Play([Tracks[i]], 0, PlayContext) : Player.Play(Tracks, i, PlayContext);
 }

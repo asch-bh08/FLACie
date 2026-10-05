@@ -47,7 +47,7 @@ public sealed class DownloadJob(string id, string label, string? artKey, string 
 
 /// <summary>Runs downloads in the background for the signed-in user (they keep going when the tab closes) and keeps their progress for
 /// the page. The Soulseek and Lidarr addresses and keys come from the user's profile and never reach the browser.</summary>
-public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, DownloadLog log)
+public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, DownloadLog log, JellyfinClient jf)
 {
     sealed class Jobs
     {
@@ -98,11 +98,26 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
         });
     }
 
+    // ---- a finished download is only a file on the NAS until Jellyfin scans it; ask for a scan soon after (once per minute at most) so the song joins the library ----
+    static long lastScanAt;
+    void ScanSoon(UserSession s)
+    {
+        if (s.Jellyfin is not { } a) return;
+        var now = Environment.TickCount64;
+        if (now - Interlocked.Read(ref lastScanAt) < 60_000) return;
+        Interlocked.Exchange(ref lastScanAt, now);
+        _ = Task.Run(async () =>
+        {
+            try { await Task.Delay(TimeSpan.FromSeconds(15)); await jf.PostAsync(a, "/Library/Refresh", null); } catch (Exception) { /* only administrators may start a scan; the next scheduled one still finds it */ }
+        });
+    }
+
     /// <summary>A job is over: stamp it and write it to the log.</summary>
     void Finish(UserSession s, DownloadJob job, Jobs jobs)
     {
         job.FinishedAt ??= DateTime.UtcNow;
         try { log.Add(job.ToRecord(s)); } catch (Exception) { }
+        if (job.Stage == DownloadStage.Done && job.File is not null) ScanSoon(s);
         jobs.Raise();
     }
 

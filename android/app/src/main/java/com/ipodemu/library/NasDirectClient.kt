@@ -103,6 +103,7 @@ class NasDirectClient {
         if (!albumCore.isNullOrBlank() && t.startsWith("$albumCore - ", ignoreCase = true)) t = t.substring(albumCore.length + 3)
         t = t.replace(Regex("^(\\d+[\\s.\\-_]+)+"), "")
         if (!artist.isNullOrBlank() && t.startsWith("$artist - ", ignoreCase = true)) t = t.substring(artist.length + 3)
+        t = t.replace(Regex("\\s*\\[Hi-Res]\\s*$", RegexOption.IGNORE_CASE), "")   // the Hi-Res badge says it
         return t.trim().ifBlank { filename.substringBeforeLast('.') }
     }
 }

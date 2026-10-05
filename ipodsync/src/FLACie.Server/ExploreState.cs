@@ -38,7 +38,7 @@ public sealed class ExploreState
     bool Match(Track t) =>
         (Genre.Length == 0 || t.Genre.Trim().Equals(Genre, StringComparison.OrdinalIgnoreCase))
         && (Decade.Length == 0 || DecadeOf(t.Year) == Decade)
-        && (Format.Length == 0 || (Format == "lossless") == Lossless(t));
+        && (Format.Length == 0 || (Format == "hires" ? InfoService.QuickFormat(t) == "HI-RES" : (Format == "lossless") == Lossless(t)));
 
     public List<Track> Songs(Library lib)
     {

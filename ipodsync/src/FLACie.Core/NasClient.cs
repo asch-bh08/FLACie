@@ -113,6 +113,7 @@ public static class NasClient
                     }
                 }
                 else title = CleanTitle(name, artist, album);
+                title = System.Text.RegularExpressions.Regex.Replace(title, @"\s*\[Hi-Res\]\s*$", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);   // the Hi-Res badge says it
                 // "2Pac - Me Against the World - 09 - Dear Mama" / "09 Dear Mama": the album order
                 var no = System.Text.RegularExpressions.Regex.Match(name, @"(?:^|\s-\s)(\d{1,3})\s*[-. ]");
                 var trackNo = no.Success ? int.Parse(no.Groups[1].Value) : 0;

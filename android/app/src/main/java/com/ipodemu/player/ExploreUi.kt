@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,6 +37,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ipodemu.library.hiRes
 import com.ipodemu.library.FlacieWebClient
 import com.ipodemu.library.Group
 import com.ipodemu.library.SearchRank
@@ -83,7 +85,7 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
     val words = remember(query) { SearchRank.words(query) }
     fun hit(vararg fields: String): Boolean { if (words.isEmpty()) return true; val glue = SearchRank.words(fields.joinToString(" ")).joinToString(""); return words.all { glue.contains(it) } }
     fun match(t: Track) = (genre.isEmpty() || t.genre.trim().equals(genre, true)) && (decade.isEmpty() || decadeOf(t.year) == decade) &&
-        (quality.isEmpty() || (quality == "lossless") == (ext(t) in LOSSLESS))
+        (quality.isEmpty() || (if (quality == "hires") t.hiRes else (quality == "lossless") == (ext(t) in LOSSLESS)))
     fun letterOk(name: String) = letter.isEmpty() || letterOf(sortKey(name)) == letter
 
     Column(Modifier.fillMaxSize()) {
@@ -111,19 +113,25 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
             GlossPill("Decade: " + decade.ifEmpty { "Any" }, {
                 nav.sheet = SheetSpec("Decade", null, listOf(SheetItem("Any", if (decade.isEmpty()) Glyph.CHECK else Glyph.LIST) { decade = "" }) + choices.second.map { d -> SheetItem(d, if (d == decade) Glyph.CHECK else Glyph.LIST) { decade = d } })
             }, primary = decade.isNotEmpty(), height = 34.dp)
-            GlossPill("Quality: " + when (quality) { "lossless" -> "Lossless"; "lossy" -> "Lossy"; else -> "Any" }, {
-                nav.sheet = SheetSpec("Quality", null, listOf("" to "Any", "lossless" to "Lossless (FLAC, ALAC…)", "lossy" to "Lossy (MP3, AAC…)").map { (id, label) -> SheetItem(label, if (id == quality) Glyph.CHECK else Glyph.LIST) { quality = id } })
+            GlossPill("Quality: " + when (quality) { "lossless" -> "Lossless"; "lossy" -> "Lossy"; "hires" -> "Hi-Res"; else -> "Any" }, {
+                nav.sheet = SheetSpec("Quality", null, listOf("" to "Any", "lossless" to "Lossless (FLAC, ALAC…)", "lossy" to "Lossy (MP3, AAC…)", "hires" to "✦ Hi-Res").map { (id, label) -> SheetItem(label, if (id == quality) Glyph.CHECK else Glyph.LIST) { quality = id } })
             }, primary = quality.isNotEmpty(), height = 34.dp)
             if (filtering) GlossPill("Clear", { query = ""; letter = ""; genre = ""; decade = ""; quality = "" }, icon = Glyph.CLOSE, height = 34.dp)
         }
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Box(Modifier.fillMaxSize()) {
+        // the first-letter index: a slim rail down the right edge, over the list
+        Column(
+            Modifier.align(Alignment.CenterEnd).padding(end = 3.dp, top = 6.dp, bottom = 10.dp).fillMaxHeight().width(24.dp).clip(RoundedCornerShape(12.dp)).background(Color(0x99111114)).padding(vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween,
+        ) {
             for (l in listOf("") + listOf("#") + ('A'..'Z').map { it.toString() }) {
                 val on = letter == l
-                Box(Modifier.size(32.dp).clip(CircleShape).background(if (on) sc.onBg else Color.Transparent).clickable { letter = if (on) "" else l }, contentAlignment = Alignment.Center) {
-                    Txt(if (l.isEmpty()) "All" else l, size = if (l.isEmpty()) 11f else 13f, weight = FontWeight.Bold, color = if (on) Color.Black else sc.onBgDim)
+                Box(Modifier.weight(1f).fillMaxWidth().background(if (on) sc.accent else Color.Transparent, RoundedCornerShape(6.dp)).clickable { letter = if (on) "" else l }, contentAlignment = Alignment.Center) {
+                    Txt(if (l.isEmpty()) "All" else l, size = if (l.isEmpty()) 8.5f else 10.5f, weight = FontWeight.ExtraBold, color = if (on) Color.White else sc.onBgDim)
                 }
             }
         }
+        Box(Modifier.fillMaxSize().padding(end = 32.dp)) {
         when (tab) {
             "Songs" -> {
                 val list = remember(songs, query, letter, genre, decade, quality, sort) {
@@ -169,6 +177,7 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
                 if (list.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No genres yet") else GroupList(list, nav, circle = false) { Screen.Detail(DetailKind.GENRE, it.name) }
             }
         }
+}        }
     }
 }
 

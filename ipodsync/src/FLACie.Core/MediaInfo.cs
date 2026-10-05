@@ -5,8 +5,10 @@ namespace FLACie.Core;
 /// <summary>What the file behind a song really is: format, quality and where it lives. Any field the source can't tell is zero/empty.</summary>
 public sealed record MediaInfo(string Container, string Codec, int BitrateKbps, int SampleRateHz, int BitDepth, int Channels, long SizeBytes, long DurationMs, string Path, string Source, string Origin = "", string OriginSource = "", DateTime? OriginAt = null)
 {
-    public static readonly HashSet<string> LosslessCodecs = ["flac", "alac", "wav", "pcm", "aiff", "ape", "wavpack", "wv", "dsd", "tta", "pcm_s16le", "pcm_s24le", "pcm_s32le"];
+    public static readonly HashSet<string> LosslessCodecs = ["flac", "alac", "wav", "pcm", "aiff", "ape", "wavpack", "wv", "dsd", "tta", "pcm_s16le", "pcm_s24le", "pcm_s32le", "hi-res"];
     public bool Lossless => LosslessCodecs.Contains(Codec.ToLowerInvariant()) || LosslessCodecs.Contains(Container.ToLowerInvariant());
+    /// <summary>Hi-Res: lossless at more than CD quality (24-bit, or above 48 kHz).</summary>
+    public bool HiRes => Lossless && (BitDepth >= 24 || SampleRateHz > 48_000);
 
     /// <summary>"FLAC", "MP3" ... for a badge.</summary>
     public string Format => (Codec.Length > 0 ? Codec : Container).ToUpperInvariant() switch { "MPEG" or "MPEGAUDIO" => "MP3", "AAC" => "AAC", var f => f };

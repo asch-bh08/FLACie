@@ -21,7 +21,7 @@
             </button>
             <span class="pills">
                 <span class="badge @row.T.Source.ToString().ToLowerInvariant()" title="@(row.T.Source == TrackSource.Cloud ? SourceLabel.StreamingHint : "Where this song is played from")">@SourceLabel.Short(row.T.Source)</span>
-                @if (InfoService.QuickFormat(row.T) is { Length: > 0 } fmt) { <span class="badge fmt @(MediaInfo.LosslessCodecs.Contains(fmt.ToLowerInvariant()) ? "lossless" : "")" title="File format">@fmt</span> }
+                @if (InfoService.QuickFormat(row.T) is { Length: > 0 } fmt) { <span class="badge fmt @(fmt == "HI-RES" ? "hires" : MediaInfo.LosslessCodecs.Contains(fmt.ToLowerInvariant()) ? "lossless" : "")" title="@(fmt == "HI-RES" ? "Hi-Res: lossless at more than CD quality" : "File format")">@(fmt == "HI-RES" ? "✦ Hi-Res" : fmt)</span> }
             </span>
             <span class="track-time">@(row.T.DurationMs > 0 ? Time(row.T.DurationMs / 1000.0) : "")</span>
         </div>

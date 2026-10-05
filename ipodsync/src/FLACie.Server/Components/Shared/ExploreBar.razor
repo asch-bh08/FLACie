@@ -26,19 +26,20 @@
                 <option value="">Any</option>
                 <option value="lossless" selected="@(X.Format == "lossless")">Lossless (FLAC, ALAC…)</option>
                 <option value="lossy" selected="@(X.Format == "lossy")">Lossy (MP3, AAC…)</option>
+                <option value="hires" selected="@(X.Format == "hires")">✦ Hi-Res</option>
             </select>
         </label>
         @if (X.Filtering) { <button class="btn ghost" @onclick="() => Set(X.Clear)">Clear filters</button> }
     </div>
-    <div class="az" role="group" aria-label="First letter">
-        <button class="@(X.Letter.Length == 0 ? "on" : "")" aria-pressed="@(X.Letter.Length == 0)" @onclick="() => Set(() => X.Letter = string.Empty)">All</button>
-        @foreach (var l in letters)
-        {
-            var c = l;
-            <button class="@(X.Letter == c ? "on" : "")" aria-pressed="@(X.Letter == c)" @onclick="() => Set(() => X.Letter = X.Letter == c ? string.Empty : c)">@c</button>
-        }
-    </div>
 </div>
+<nav class="az-rail" aria-label="First letter">
+    <button class="@(X.Letter.Length == 0 ? "on" : "")" aria-pressed="@(X.Letter.Length == 0)" title="All songs" @onclick="() => Set(() => X.Letter = string.Empty)">All</button>
+    @foreach (var l in letters)
+    {
+        var c = l;
+        <button class="@(X.Letter == c ? "on" : "")" aria-pressed="@(X.Letter == c)" @onclick="() => Set(() => X.Letter = X.Letter == c ? string.Empty : c)">@c</button>
+    }
+</nav>
 @code {
     [Parameter] public string Tab { get; set; } = "Songs";
     [Parameter] public EventCallback Changed { get; set; }

@@ -24,7 +24,7 @@
                         <p class="np-artist"><a href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="OnClose">@t.Artist</a>@(AlbumOf(t).Length > 0 ? " · " + AlbumOf(t) : "")</p>
                         <div class="pills">
                             <span class="badge @t.Source.ToString().ToLowerInvariant()">@SourceName(t)</span>
-                            @if (info is not null && info.Format.Length > 0) { <span class="badge fmt @(info.Lossless ? "lossless" : "")">@info.Format</span> }
+                            @if (info is not null && info.Format.Length > 0) { <span class="badge fmt @(info.HiRes ? "hires" : info.Lossless ? "lossless" : "")">@(info.HiRes ? "✦ Hi-Res" : info.Format)</span> }
                             @if (info is not null && info.Sampling.Length > 0) { <span class="badge plain">@info.Sampling</span> }
                             @if (info is not null && info.BitrateKbps > 0) { <span class="badge plain">@info.BitrateKbps kbps</span> }
                         </div>

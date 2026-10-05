@@ -528,10 +528,6 @@ html { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
 .x-selects { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .x-selects label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dim); font-weight: 600; }
 .x-selects select { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; min-width: 130px; }
-.az { display: flex; flex-wrap: wrap; gap: 4px; }
-.az button { min-width: 32px; height: 32px; padding: 0 8px; border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--dim); font-weight: 700; font-size: 13px; }
-.az button:hover { background: var(--surface-2); color: var(--ink); }
-.az button.on { background: var(--ink); color: #000; }
 
 
 /* Info tab: flat sections on the player's own backdrop, one live visualizer */
@@ -848,3 +844,27 @@ body.np-open .np { top: 0; padding-top: var(--top); }
 .menu .menu-subtle:hover { color: #ffc857; opacity: 1; }
 .menu .menu-ask { display: flex; flex-direction: column; gap: 6px; padding: 10px; margin-top: 4px; border-top: 1px solid var(--line); }
 .menu .menu-ask small { color: var(--dim); line-height: 1.4; white-space: normal; }
+
+/* Hi-Res files get their own amber badge instead of the plain FLAC one */
+.badge.fmt.hires { background: linear-gradient(135deg, #ffd57d, #ffb12e); color: #2a1d00; font-weight: 800; letter-spacing: .03em; box-shadow: 0 0 0 1px #ffc85766, 0 0 14px #ffc85740; }
+
+/* Explore: the search and filters in one calm card, the first-letter index as a slim rail down the right edge */
+.x-bar { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 14px; gap: 12px; margin: 0 0 18px; }
+.x-search { background: var(--bg); }
+.x-selects { gap: 8px; align-items: center; }
+.x-selects label { flex-direction: row; align-items: center; gap: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 0 4px 0 14px; font-size: 12px; color: var(--dim); white-space: nowrap; }
+.x-selects label:focus-within { border-color: var(--accent); }
+.x-selects select { background: transparent; border: 0; border-radius: 999px; padding: 9px 8px 9px 8px; min-width: 0; font-weight: 600; font-size: 13px; color: var(--ink); max-width: 150px; }
+.x-selects select option { background: var(--surface-2); color: var(--ink); }
+.az-rail { position: fixed; right: 6px; top: calc(var(--top) + 14px); bottom: calc(var(--bar) + var(--tabs, 0px) + 14px); z-index: 24; width: 26px; display: flex; flex-direction: column; align-items: center; padding: 6px 0; background: color-mix(in srgb, var(--surface) 86%, transparent); border: 1px solid var(--line); border-radius: 14px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.az-rail button { flex: 1 1 0; min-height: 0; width: 100%; border: 0; background: none; color: var(--dim); font-size: 10.5px; font-weight: 800; line-height: 1; padding: 0; cursor: pointer; border-radius: 6px; }
+.az-rail button:first-child { font-size: 9px; letter-spacing: .02em; }
+.az-rail button:hover { color: var(--ink); }
+.az-rail button.on { color: #fff; background: var(--accent); }
+.content:has(.az-rail) { padding-right: 42px; }
+.mood-chips { scrollbar-width: none; }
+@media (max-width: 760px) {
+  .mood-chips { flex-wrap: nowrap; overflow-x: auto; margin-right: -16px; padding-right: 16px; }
+  .x-selects label { flex: 0 1 auto; }
+  .x-selects select { width: auto; max-width: 128px; }
+}

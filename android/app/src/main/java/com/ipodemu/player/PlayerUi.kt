@@ -85,6 +85,7 @@ import com.ipodemu.App
 import com.ipodemu.Prefs
 import com.ipodemu.library.Group
 import com.ipodemu.library.Track
+import com.ipodemu.library.hiRes
 import com.ipodemu.library.sortKey
 import com.ipodemu.playback.PlayerController
 import com.ipodemu.theme.Themes
@@ -323,6 +324,7 @@ fun TrackRow(
         trailing = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (fav) GlyphIcon(Glyph.HEART_FILLED, Modifier.size(18.dp), sc.accent)
+                if (t.hiRes) HiResBadge()
                 SourceBadge(t.source)
                 if (t.durationMs > 0) Txt(fmtTime(t.durationMs), size = 13f, color = rowDim())
                 Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = "More options for ${t.title}" }.clickable { openTrackSheet(app, nav, t, sheetExtra) }, contentAlignment = Alignment.Center) {

@@ -61,6 +61,8 @@ public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, Downlo
     {
         var src = t.FilePath ?? (t.Source == TrackSource.Jellyfin ? "" : t.Path);
         if (t.Source == TrackSource.Cloud && src.IndexOf("path=", StringComparison.Ordinal) is var at and >= 0) src = Uri.UnescapeDataString(src[(at + 5)..]);
+        // a Hi-Res download is filed as "Artist - Title [Hi-Res]": say so instead of the plain format
+        try { if (Uri.UnescapeDataString(src).Contains("[Hi-Res]", StringComparison.OrdinalIgnoreCase)) return "HI-RES"; } catch (Exception) { }
         var e = MediaInfo.FromExtension(src).ToUpperInvariant();
         return e switch { "" => "", "MPEG" => "MP3", "M4A" => "M4A", _ => e };
     }

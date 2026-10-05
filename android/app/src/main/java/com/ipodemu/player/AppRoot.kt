@@ -76,7 +76,7 @@ fun AppRoot(activity: MainActivity) {
             val oStyle = remember(model, ui.colorway, ui.ipodTheme) { IpodStyle(model, model.colors[ui.colorway.coerceIn(0, model.colors.lastIndex)], !ui.ipodTheme) }
             val overlay: @Composable (@Composable () -> Unit) -> Unit = {
                 CompositionLocalProvider(LocalStyle provides oStyle, LocalScheme provides if (ui.ipodTheme) LocalScheme.current else remember { buildModernScheme(null) }) {
-                    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFF07080B)).safeArea()) { it() }
+                    Box(Modifier.fillMaxSize().background(Palette.bg).safeArea()) { it() }
                 }
             }
             if (ui.pickerOpen) overlay { PickerScreen() }
@@ -135,7 +135,7 @@ private fun PlayerRoot(activity: MainActivity, nav: PlayerNav) {
         else artColors = ArtPalette.of(app.art, artKey)
     }
     val dark = when (app.prefs.appearance) { 0 -> true; 1 -> false; else -> isSystemInDarkTheme() }
-    val scheme = animatedScheme(if (modern) buildModernScheme(if (ui.dynamicColor) artColors else null) else buildScheme(style, artColors, if (style.mono) false else dark, ui.dynamicColor))
+    val scheme = animatedScheme(if (modern) buildModernScheme(if (ui.dynamicColor && nav.nowPlaying) artColors else null) else buildScheme(style, artColors, if (style.mono) false else dark, ui.dynamicColor))
 
     CompositionLocalProvider(LocalStyle provides style, LocalScheme provides scheme, LocalHardware provides (mode == 1)) {
         // (movableContentOf here left a frozen, unresponsive copy of the screen after switching modes, so the UI is simply rebuilt)

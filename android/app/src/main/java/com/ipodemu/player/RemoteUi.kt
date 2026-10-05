@@ -2,6 +2,7 @@ package com.ipodemu.player
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -57,15 +58,16 @@ private fun JellyfinConnect.Session.estimatedMs(now: Long): Long =
     if (paused) positionMs else (positionMs + (now - at)).coerceAtMost(if (durationMs > 0) durationMs else Long.MAX_VALUE)
 
 @Composable
-fun RemoteMiniPlayer(s: JellyfinConnect.Session) {
+fun RemoteMiniPlayer(id: String) {
     val app = LocalApp.current
+    val s = app.connect.sessions.firstOrNull { it.id == id } ?: return
     val sc = LocalScheme.current
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(s.id, s.paused) { while (true) { now = System.currentTimeMillis(); delay(500) } }
     val frac = if (s.durationMs > 0) (s.estimatedMs(now).toFloat() / s.durationMs).coerceIn(0f, 1f) else 0f
     Box(
         Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp).height(66.dp).clip(RoundedCornerShape(14.dp))
-            .background(sc.top.mix(Color(0xFF16161A), .45f))
+            .background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(14.dp))
             .clickable { app.ui.remoteOpen = true },
     ) {
         Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {

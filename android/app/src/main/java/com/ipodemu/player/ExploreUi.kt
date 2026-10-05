@@ -124,7 +124,7 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
         if (tab == "Charts") { ChartsPanel(nav, snap); return@Column }
         // one line: the filter box, Filters (with how many are on) and Sort
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Row(Modifier.weight(1f).height(42.dp).clip(RoundedCornerShape(21.dp)).background(Color(0x1FFFFFFF)).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.weight(1f).height(42.dp).clip(RoundedCornerShape(21.dp)).background(Palette.surface2).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                 GlyphIcon(Glyph.SEARCH, Modifier.size(18.dp), sc.onBgDim)
                 Box(Modifier.padding(start = 10.dp).weight(1f)) {
                     if (query.isEmpty()) Txt("Filter this list", size = 15f, color = sc.onBgDim)
@@ -174,7 +174,7 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
                 if (list.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No songs yet")
                 else SongList(list, nav, snap, showArt = true, header = {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        GlossPill("Shuffle", { app.player.play(list, list.indices.random(), true); nav.nowPlaying = true }, icon = Glyph.SHUFFLE, primary = true, height = 34.dp)
+                        GlossPill("Shuffle", { app.player.play(list, list.indices.random(), true) }, icon = Glyph.SHUFFLE, primary = true, height = 34.dp)
                         Txt(if (filtering) "${list.size} of ${songs.size} songs" else songCount(list.size), Modifier.weight(1f), size = 13f, color = sc.onBgDim, align = androidx.compose.ui.text.style.TextAlign.End)
                     }
                 })
@@ -245,7 +245,7 @@ private fun ChartsPanel(nav: PlayerNav, snap: PlayerSnap) {
                 itemsIndexed(list, key = { _, s -> "${s.rank}${s.title}" }) { _, s ->
                     val mine = owned[matchKey(s.title, s.artist)]
                     val status = app.library.downloads[app.library.songKey(s.artist, s.title)]
-                    IpodRow({ if (mine != null) { app.player.play(listOf(mine), 0, null); nav.nowPlaying = true } else app.library.requestDownload(s.artist, s.title, "", 0) }, height = 58.dp,
+                    IpodRow({ if (mine != null) { app.player.play(listOf(mine), 0, null) } else app.library.requestDownload(s.artist, s.title, "", 0) }, height = 58.dp,
                         leading = { Box(Modifier.width(34.dp), contentAlignment = Alignment.Center) { Txt("${s.rank}", size = 15f, weight = FontWeight.Bold, color = sc.onBgDim) } },
                         trailing = { Txt(if (mine != null) "Play" else status?.message?.take(16) ?: "Download", size = 13f, color = sc.accent) }) { _ ->
                         Column { Txt(s.title, size = 16f, weight = FontWeight.Medium); Txt(s.artist, size = 13f, color = sc.onBgDim) }

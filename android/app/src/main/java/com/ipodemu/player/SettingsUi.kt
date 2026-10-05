@@ -1,6 +1,7 @@
 package com.ipodemu.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -44,10 +45,11 @@ fun SettingsScreen(nav: PlayerNav, dashboard: Boolean = false) {
     val sleeps = listOf(0, 15, 30, 60, 90, 120)
 
     @Composable
-    fun SettingRow(title: String, value: String? = null, chevron: Boolean = false, onClick: () -> Unit) {
+    fun SettingRow(title: String, value: String? = null, chevron: Boolean = false, toggle: Boolean = false, onClick: () -> Unit) {
         IpodRow({ onClick(); rev++ }, height = 58.dp, trailing = {
             Row(Modifier.widthIn(max = 150.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (value != null) Txt(value, Modifier.weight(1f, fill = false), size = 15f, color = rowDim(), maxLines = 1)
+                if (toggle) SwitchPill(value == "On")
+                else if (value != null) Txt(value, Modifier.weight(1f, fill = false), size = 15f, color = rowDim(), maxLines = 1)
                 if (chevron) GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), rowDim())
             }
         }) { hi -> Txt(title, size = 16f, weight = androidx.compose.ui.text.font.FontWeight.Medium, color = if (hi) Color.White else sc.onBg) }
@@ -62,9 +64,10 @@ fun SettingsScreen(nav: PlayerNav, dashboard: Boolean = false) {
     }
     val canAdmin = !ui.guest && (isAdmin || !adminWeb.available)
 
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().background(Palette.bg)) {
         TopBar(if (dashboard) "Dashboard" else "Settings", nav, showBack = true)
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 30.dp)) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        LazyColumn(Modifier.widthIn(max = 620.dp).fillMaxSize(), contentPadding = PaddingValues(bottom = 30.dp)) {
             if (!dashboard && canAdmin) {
                 item { SectionHeader("Server") }
                 item { Card { SettingRow("Dashboard", "Library, downloads, server", chevron = true) { nav.push(Screen.Dashboard) } } }
@@ -83,7 +86,7 @@ fun SettingsScreen(nav: PlayerNav, dashboard: Boolean = false) {
                         ))
                     }
                     if (ui.ipodTheme) SettingRow("iPod appearance", modeName, chevron = true) { ui.pickerOpen = true }
-                    SettingRow("Colour from album art", if (ui.dynamicColor) "On" else "Off") { ui.changeDynamic(!ui.dynamicColor) }
+                    SettingRow("Colour from album art", if (ui.dynamicColor) "On" else "Off", toggle = true) { ui.changeDynamic(!ui.dynamicColor) }
                     if (ui.ipodTheme) SettingRow("Light or dark", listOf("Dark", "Light", "System")[prefs.appearance.coerceIn(0, 2)]) { prefs.appearance = (prefs.appearance + 1) % 3; ui.refreshFromPrefs() }
                 }
             }
@@ -96,16 +99,17 @@ fun SettingsScreen(nav: PlayerNav, dashboard: Boolean = false) {
                             SheetItem(if (c == prefs.accentColor) "$n  (on)" else n, if (c == prefs.accentColor) Glyph.CHECK else Glyph.NOTE) { prefs.accentColor = c; ui.refreshFromPrefs() }
                         })
                     }
-                    SettingRow("Compact lists", if (prefs.compactLists) "On" else "Off") { prefs.compactLists = !prefs.compactLists; ui.refreshFromPrefs() }
-                    SettingRow("Format and source badges", if (prefs.showBadges) "On" else "Off") { prefs.showBadges = !prefs.showBadges; ui.refreshFromPrefs() }
+                    SettingRow("Compact lists", if (prefs.compactLists) "On" else "Off", toggle = true) { prefs.compactLists = !prefs.compactLists; ui.refreshFromPrefs() }
+                    SettingRow("Format and source badges", if (prefs.showBadges) "On" else "Off", toggle = true) { prefs.showBadges = !prefs.showBadges; ui.refreshFromPrefs() }
+                    SettingRow("Animations", if (prefs.motion) "On" else "Off", toggle = true) { prefs.motion = !prefs.motion; ui.refreshFromPrefs() }
                 }
             }
             // shuffle and repeat live on Now Playing, where they're used; settings holds what's set once
             item { SectionHeader("Playback") }
             item {
                 Card {
-                    SettingRow("Autoplay", if (prefs.autoplay) "On" else "Off") { prefs.autoplay = !prefs.autoplay }
-                    SettingRow("Fetch ahead", if (prefs.autoplayFetch) "On" else "Off") { prefs.autoplayFetch = !prefs.autoplayFetch }
+                    SettingRow("Autoplay", if (prefs.autoplay) "On" else "Off", toggle = true) { prefs.autoplay = !prefs.autoplay }
+                    SettingRow("Fetch ahead", if (prefs.autoplayFetch) "On" else "Off", toggle = true) { prefs.autoplayFetch = !prefs.autoplayFetch }
                     SettingRow("Streaming quality", listOf("Automatic", "Always full", "Data saver")[prefs.streamQuality.coerceIn(0, 2)]) { prefs.streamQuality = (prefs.streamQuality + 1) % 3 }
                     SettingRow("Equalizer", prefs.eq, chevron = true) {
                         nav.sheet = SheetSpec("Equalizer", prefs.eq, com.ipodemu.playback.PlayerController.EQ_NAMES.map { n ->
@@ -273,13 +277,14 @@ fun SettingsScreen(nav: PlayerNav, dashboard: Boolean = false) {
             item { Card { SettingRow("Version", remember { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "" }) { } } }
             }
         }
+        }
     }
 }
 
 @Composable
 private fun Card(content: @Composable () -> Unit) {
     val sc = LocalScheme.current
-    Column(Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(16.dp)).background(sc.card).border(1.dp, sc.cardBorder, RoundedCornerShape(16.dp))) { content() }
+    Column(Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(14.dp)).background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(14.dp))) { content() }
 }
 val SWIPE_ACTIONS = listOf("Off", "Play next", "Favorite", "Add to queue")
 
@@ -288,4 +293,14 @@ fun brightnessLabel(b: Float) = if (b < 0f) "System" else "${(b * 100).toInt()}%
 fun syncedLabel(at: Long): String = if (at <= 0L) "Not synced yet" else {
     val m = (System.currentTimeMillis() - at) / 60000
     when { m < 1 -> "Synced just now"; m < 60 -> "Synced $m min ago"; m < 1440 -> "Synced ${m / 60} hr ago"; else -> "Synced ${m / 1440} d ago" }
+}
+
+/** The On/Off of a setting drawn as a switch (the web's), instead of the word. */
+@Composable
+fun SwitchPill(on: Boolean) {
+    val sc = LocalScheme.current
+    val x by androidx.compose.animation.core.animateDpAsState(if (on) 20.dp else 2.dp, androidx.compose.animation.core.tween(160), label = "knob")
+    Box(Modifier.size(width = 44.dp, height = 26.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(13.dp)).background(if (on) sc.accent else Palette.surface3)) {
+        Box(Modifier.padding(start = x, top = 2.dp).size(22.dp).clip(androidx.compose.foundation.shape.CircleShape).background(if (on) sc.accent.readableInk() else Palette.dim))
+    }
 }

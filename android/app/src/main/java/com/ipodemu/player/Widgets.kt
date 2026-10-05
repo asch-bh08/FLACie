@@ -303,7 +303,7 @@ fun GlossButton(
     val pressed by src.collectIsPressedAsState()
     val focused by src.collectIsFocusedAsState()
     val modern = style.modern
-    val brush = if (modern) androidx.compose.ui.graphics.SolidColor(if (primary) sc.accent else if (pressed) Color(0x2EFFFFFF) else Color(0x14FFFFFF))
+    val brush = if (modern) androidx.compose.ui.graphics.SolidColor(if (primary) sc.accent else if (pressed) Palette.surface3 else Palette.surface2)
     else if (primary) Brush.verticalGradient(listOf(sc.accentLight, sc.accent, sc.accentDark))
     else Brush.verticalGradient(listOf(Color(0x59FFFFFF), Color(0x1FFFFFFF)))
     Box(
@@ -312,7 +312,7 @@ fun GlossButton(
             .pressSpring(pressed, 0.88f).graphicsLayer { alpha = if (enabled) 1f else 0.4f }
             .clip(CircleShape)
             .background(brush)
-            .then(if (modern && !focused) Modifier else Modifier.border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else Color(0x40FFFFFF), CircleShape))
+            .then(if (modern && !focused) (if (primary) Modifier else Modifier.border(1.dp, Palette.line, CircleShape)) else Modifier.border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else Color(0x40FFFFFF), CircleShape))
             .drawBehind {
                 if (style.glossy) drawOval(
                     Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color.Transparent)),
@@ -342,7 +342,7 @@ fun GlossPill(
     val focused by src.collectIsFocusedAsState()
     val shape = RoundedCornerShape(50)
     val modern = style.modern
-    val brush = if (modern) androidx.compose.ui.graphics.SolidColor(if (primary) sc.accent else Color(0x1FFFFFFF))
+    val brush = if (modern) androidx.compose.ui.graphics.SolidColor(if (primary) sc.accent else Palette.surface2)
     else if (primary) Brush.verticalGradient(listOf(sc.accentLight, sc.accent, sc.accentDark))
     else Brush.verticalGradient(listOf(Color(0x52FFFFFF), Color(0x1AFFFFFF)))
     Row(
@@ -350,7 +350,7 @@ fun GlossPill(
             .height(height)
             .pressSpring(pressed, 0.92f)
             .clip(shape).background(brush)
-            .then(if (modern && !focused) Modifier else Modifier.border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else Color(0x40FFFFFF), shape))
+            .then(if (modern && !focused) (if (primary) Modifier else Modifier.border(1.dp, Palette.line, shape)) else Modifier.border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else Color(0x40FFFFFF), shape))
             .drawBehind {
                 if (style.glossy) drawRoundRect(
                     Brush.verticalGradient(listOf(Color(0x55FFFFFF), Color.Transparent)),
@@ -410,9 +410,8 @@ fun IpodRow(
     val hi = pressed || focused
     Row(
         modifier.fillMaxWidth().height(if (Tweaks.compact) height * 0.84f else height)
-            .pressSpring(pressed, 0.975f)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .background(if (hi && style.modern) androidx.compose.ui.graphics.SolidColor(Color(0x1FFFFFFF)) else if (hi) Brush.verticalGradient(listOf(sc.accentLight, sc.accentDark)) else Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent)))
+            .background(if (hi && style.modern) androidx.compose.ui.graphics.SolidColor(Palette.surface2) else if (hi) Brush.verticalGradient(listOf(sc.accentLight, sc.accentDark)) else Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent)))
             .drawBehind {
                 if (!hi && !style.modern) drawLine(sc.onBg.copy(alpha = .1f), Offset(size.height, size.height - 1f), Offset(size.width, size.height - 1f), 1f)
                 if (hi && style.glossy) drawRect(Brush.verticalGradient(listOf(Color(0x40FFFFFF), Color.Transparent)), size = Size(size.width, size.height * .5f))

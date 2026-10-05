@@ -62,5 +62,10 @@
     bool admin => AdminAccess.Is(Session, Conf);
     // administrators only: a Hi-Res copy of a song already in the library (saved beside it; the normal download runs instead only when asked for from Search)
     void GetHiRes(Track t) { menu = -1; hiAsk = -1; Downloads.Song(Session, new CatalogSong(t.Artist, t.Title, t.Album, null, t.DurationMs, t.TrackNo, t.DiscNo), true, false); }
-    Task Go(int i) => Single ? Player.Play([Tracks[i]], 0, PlayContext) : Player.Play(Tracks, i, PlayContext);
+    // the song that is already playing is not started over: a click resumes it if paused, or opens the full-screen player
+    Task Go(int i)
+    {
+        if (Player.Current?.Path == Tracks[i].Path) { if (!Player.Playing) return Player.Toggle(); Player.RequestFullScreen(); return Task.CompletedTask; }
+        return Single ? Player.Play([Tracks[i]], 0, PlayContext) : Player.Play(Tracks, i, PlayContext);
+    }
 }

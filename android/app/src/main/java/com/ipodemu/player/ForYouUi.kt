@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -89,7 +92,7 @@ fun HardwareHome(nav: PlayerNav, snap: PlayerSnap) {
             item { HwRow("Music", true) { nav.push(Screen.Music) } }
             item { HwRow("Voice Memos", true) { nav.push(Screen.Lib(LibKind.MEMOS)) } }
             item { HwRow("Settings", true) { nav.push(Screen.Settings) } }
-            item { HwRow("Shuffle Songs", false) { val s = app.library.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s); nav.nowPlaying = true } } }
+            item { HwRow("Shuffle Songs", false) { val s = app.library.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } } }
             if (snap.track != null) item { HwRow("Now Playing", true) { nav.nowPlaying = true } }
         }
     }
@@ -111,5 +114,35 @@ fun MusicMenu(nav: PlayerNav) {
 private fun HwRow(title: String, chevron: Boolean, onClick: () -> Unit) {
     IpodRow(onClick, height = 52.dp, trailing = { if (chevron) GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), rowDim()) }) { hi ->
         Txt(title, size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else LocalScheme.current.onBg)
+    }
+}
+
+/**
+ * "Quick picks": small cover, title and artist in rows of four, a few songs wide, swiped sideways (the YouTube Music shelf). A tap plays that song
+ * with the rest of the shelf queued behind it.
+ */
+@Composable
+fun QuickPicks(tracks: List<com.ipodemu.library.Track>, onPlay: (Int) -> Unit) {
+    val sc = LocalScheme.current
+    val pageW = (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp * 0.86f).coerceAtMost(420f).dp
+    val pages = remember(tracks) { tracks.chunked(4) }
+    androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        itemsIndexed(pages) { pi, page ->
+            Column(Modifier.width(pageW)) {
+                page.forEachIndexed { ri, t ->
+                    val idx = pi * 4 + ri
+                    Row(
+                        Modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(10.dp)).clickable { onPlay(idx) }.padding(horizontal = 4.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        ArtImage(t.artKey, Modifier.size(50.dp), thumb = true, corner = 6.dp)
+                        Column(Modifier.weight(1f)) {
+                            Txt(t.title, size = 15f, weight = FontWeight.SemiBold, maxLines = 1)
+                            Txt(t.artist, size = 12.5f, color = sc.onBgDim, maxLines = 1)
+                        }
+                    }
+                }
+            }
+        }
     }
 }

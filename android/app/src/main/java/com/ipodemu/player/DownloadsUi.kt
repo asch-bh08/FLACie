@@ -158,7 +158,7 @@ private fun SourceTag(id: String?, failed: Boolean = false) {
 
 @Composable
 private fun RunningCard(r: RunningLine) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0x14FFFFFF)).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Palette.surface).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         ArtImage(r.artKey, Modifier.size(44.dp), thumb = true, corner = 8.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Txt(r.label, size = 15f, weight = FontWeight.SemiBold, maxLines = 1)
@@ -171,7 +171,7 @@ private fun RunningCard(r: RunningLine) {
 
 @Composable
 private fun RecordCard(r: DownloadRecord, open: Boolean, toggle: () -> Unit) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0x14FFFFFF)).clickable { toggle() }.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Palette.surface).clickable { toggle() }.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ArtImage(r.artKey, Modifier.size(44.dp), thumb = true, corner = 8.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {

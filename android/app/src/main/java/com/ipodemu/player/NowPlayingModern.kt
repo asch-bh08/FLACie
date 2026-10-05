@@ -137,7 +137,6 @@ private fun Controls(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boolea
     ActionRow(snap, nav, lyricsToggle, spread = true, info = info)
     Seek(snap)
     Transport(snap)
-    VolumeRow()
     }
 }
 
@@ -148,7 +147,7 @@ private fun InfoRow(snap: PlayerSnap, nav: PlayerNav) {
     val t = snap.track ?: return
     val fav by app.userData.favState(t.path)
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f).trackSwipe({ app.player.prev() }, { app.player.next() })) {
+        Column(Modifier.weight(1f)) {
             Txt(t.title, size = 22f, weight = FontWeight.Bold, maxLines = 2)
             Txt(t.artist.ifEmpty { "Unknown Artist" }, Modifier.padding(top = 2.dp).clickable(enabled = t.artist.isNotEmpty()) {
                 nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist }))

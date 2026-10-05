@@ -86,6 +86,7 @@ import com.ipodemu.Prefs
 import com.ipodemu.library.Group
 import com.ipodemu.library.Track
 import com.ipodemu.library.hiRes
+import com.ipodemu.library.AudioFacts
 import com.ipodemu.library.matchKey
 import com.ipodemu.library.sortKey
 import com.ipodemu.playback.PlayerController
@@ -248,9 +249,10 @@ fun PlayerHost(nav: PlayerNav) {
                 }
             }
             // music playing on another of this user's devices while this phone is quiet: a remote bar instead (Spotify Connect style)
-            val remote = app.connect.remoteNow()
-            if (remote != null && !snap.playing && !nav.nowPlaying && modern && !LocalHardware.current) {
-                AnimatedVisibility(remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }, enter = slideInVertically(androidx.compose.animation.core.spring(0.8f, 380f)) { it } + androidx.compose.animation.fadeIn(tween(160))) { RemoteMiniPlayer(remote) }
+            // only WHICH device (not its moving position) is read here, so the poll every few seconds does not recompose the whole screen
+            val remoteId by remember { androidx.compose.runtime.derivedStateOf { app.connect.remoteNow()?.id } }
+            if (remoteId != null && !snap.playing && !nav.nowPlaying && modern && !LocalHardware.current) {
+                AnimatedVisibility(remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }, enter = slideInVertically(androidx.compose.animation.core.spring(0.8f, 380f)) { it } + androidx.compose.animation.fadeIn(tween(160))) { RemoteMiniPlayer(remoteId!!) }
             } else if (snap.track != null && !nav.nowPlaying && (modern || nav.top != Screen.Home) && !LocalHardware.current) {
                 // the bar slides up from the bottom the first time a song starts (and when coming back from the full player)
                 AnimatedVisibility(remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }, enter = slideInVertically(androidx.compose.animation.core.spring(0.8f, 380f)) { it } + androidx.compose.animation.fadeIn(tween(160))) { MiniPlayer(snap, nav) }
@@ -312,6 +314,7 @@ fun TrackRow(
     val app = LocalApp.current
     val sc = LocalScheme.current
     val fav by app.userData.favState(t.path)   // per-track state: a favourite toggle recomposes only this row
+    val hiRes = remember(t, AudioFacts.version) { t.hiRes }   // not worked out again on every recomposition while scrolling
     val isCurrent = snap.track?.path == t.path
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val rCode = app.prefs.swipeRowRight; val lCode = app.prefs.swipeRowLeft
@@ -320,7 +323,11 @@ fun TrackRow(
     val right = remember(t, fav, rCode, hw) { if (hw) null else swipeAction(rCode, app, t, fav, ctx) }
     val left = remember(t, fav, lCode, hw) { if (hw) null else swipeAction(lCode, app, t, fav, ctx) }
     SwipeRow(right = right, left = left, modifier = modifier) {
-    IpodRow(onClick = onPlay, onLong = { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, height = 56.dp,
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    // tapping the song that is already playing opens the player (or resumes it) instead of starting it over; any tap puts the keyboard away
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val tap = { focus.clearFocus(); keyboard?.hide(); if (isCurrent) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else onPlay() }
+    IpodRow(onClick = tap, onLong = { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, height = 56.dp,
         leading = {
             if (showArt) Box(Modifier.size(42.dp)) {
                 ArtImage(t.artKey, Modifier.fillMaxSize(), thumb = true, corner = 8.dp)
@@ -336,7 +343,7 @@ fun TrackRow(
         trailing = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (fav) GlyphIcon(Glyph.HEART_FILLED, Modifier.size(18.dp), sc.accent)
-                if (t.hiRes) HiResBadge()
+                if (hiRes) HiResBadge()
                 SourceBadge(t.source)
                 if (t.durationMs > 0) Txt(fmtTime(t.durationMs), size = 13f, color = rowDim())
                 Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = "More options for ${t.title}" }.clickable { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, contentAlignment = Alignment.Center) {
@@ -476,10 +483,10 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             TopAction(Glyph.GEAR, "Settings") { nav.push(Screen.Settings) }
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-            if (!modern) item { NowPlayingCard(snap, nav) { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s); nav.nowPlaying = true } } }
+            if (!modern) item { NowPlayingCard(snap, nav) { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } } }
             item {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GlossPill("Shuffle All", { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s); nav.nowPlaying = true } }, icon = Glyph.SHUFFLE, height = 32.dp)
+                    GlossPill("Shuffle All", { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } }, icon = Glyph.SHUFFLE, height = 32.dp)
                     GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 32.dp)
                     GlossPill("Recent", { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK, height = 32.dp)
                     GlossPill("Downloads", { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.DOWN, height = 32.dp)
@@ -496,15 +503,16 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                 item { SectionHeader(mname) }
                 item {
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        itemsIndexed(ts) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(ts, i, null); nav.nowPlaying = true } }
+                        itemsIndexed(ts) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(ts, i, null) } }
                     }
                 }
             }
             if (mood == null) items(shelves, key = { it.id }) { sh ->
                 Column {
                     SectionHeader(sh.title)
+                    if (sh.id == "quick-picks") { QuickPicks(sh.tracks) { i -> app.player.play(sh.tracks, i, null) }; return@items }
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        if (sh.tracks.isNotEmpty()) itemsIndexed(sh.tracks) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(sh.tracks, i, null); nav.nowPlaying = true } }
+                        if (sh.tracks.isNotEmpty()) itemsIndexed(sh.tracks) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(sh.tracks, i, null) } }
                         else items(sh.albums, key = { it.tracks.first().albumKey }) { g -> AlbumCard(g, Modifier.width(150.dp)) { nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) } }
                     }
                 }
@@ -543,7 +551,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
 @Composable
 fun SectionHeader(text: String) {
     val sc = LocalScheme.current
-    Txt(text.uppercase(), Modifier.padding(start = 20.dp, top = 22.dp, bottom = 8.dp), size = 13f, weight = FontWeight.Bold, color = sc.onBgDim)
+    Txt(text.uppercase(), Modifier.padding(start = 20.dp, top = 22.dp, bottom = 8.dp), size = 12f, weight = FontWeight.Bold, color = Palette.faint)
 }
 
 @Composable
@@ -620,8 +628,8 @@ private fun LibraryScreen(kind: LibKind, nav: PlayerNav, snap: PlayerSnap) {
 private fun ShuffleHeader(tracks: List<Track>, nav: PlayerNav, sortLabel: String, onSort: () -> Unit) {
     val app = LocalApp.current
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-        GlossPill("Play", { app.player.play(tracks, 0, null); nav.nowPlaying = true }, icon = Glyph.PLAY, primary = true)
-        GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true); nav.nowPlaying = true }, icon = Glyph.SHUFFLE)
+        GlossPill("Play", { app.player.play(tracks, 0, null) }, icon = Glyph.PLAY, primary = true)
+        GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true) }, icon = Glyph.SHUFFLE)
         GlossPill(sortLabel, onSort, height = 32.dp)
         Txt(songCount(tracks.size), Modifier.weight(1f), size = 13f, color = LocalScheme.current.onBgDim, align = TextAlign.End)
     }
@@ -661,7 +669,7 @@ fun SongList(
     val sc = LocalScheme.current
     val row: @Composable (Int, Track) -> Unit = { i, t ->
         TrackRow(t, nav, snap, showArt = showArt, index = if (numbered) i + 1 else null, sheetExtra = sheetExtra, sheetExtraFor = sheetExtraFor, onPlay = {
-            app.player.play(tracks, i, null); nav.nowPlaying = true
+            app.player.play(tracks, i, null)
         })
     }
     val groups = remember(tracks, sections) { if (sections > 0) tracks.withIndex().groupBy { letterOf(sortKey(if (sections == 2) it.value.artist.ifEmpty { "#" } else it.value.title)) } else emptyMap() }
@@ -855,8 +863,8 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
     }
     // below the art row rather than beside the title, so both buttons fit in the narrow side column of wide layouts
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        GlossPill("Play", { app.player.play(tracks, 0, null); nav.nowPlaying = true }, icon = Glyph.PLAY, primary = true, height = 40.dp)
-        GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true); nav.nowPlaying = true }, icon = Glyph.SHUFFLE, height = 40.dp)
+        GlossPill("Play", { app.player.play(tracks, 0, null) }, icon = Glyph.PLAY, primary = true, height = 40.dp)
+        GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true) }, icon = Glyph.SHUFFLE, height = 40.dp)
     }
     if (playlistId != null) {
         // editing: the playlist's own actions (songs have Move and Remove in their menu)
@@ -1005,7 +1013,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (topSong != null) {
                 item { SectionHeader("Top result") }
                 item(key = "top${topSong.path}") {
-                    TopResultCard(topSong) { app.player.play(listOf(topSong), 0, null); nav.nowPlaying = true }
+                    TopResultCard(topSong) { searchFocus.clearFocus(); if (snap.track?.path == topSong.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(topSong), 0, null) } }
                 }
             }
             if (!albumNamed) webAlbums()
@@ -1016,7 +1024,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                     val owned = ownedSongs[com.ipodemu.library.matchKey(s.title, s.artist)]
                     val status = dl[app.library.songKey(s.artist, s.title)]
                     WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.message ?: "${s.artist} · ${s.album}", s.artUrl, owned, status,
-                        onPlay = { owned?.let { app.player.play(listOf(it), 0, null); nav.nowPlaying = true } },
+                        onPlay = { searchFocus.clearFocus(); owned?.let { if (snap.track?.path == it.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(it), 0, null) } } },
                         onDownload = { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs) },
                         // the three-line menu: Download, Hi-Res (administrators, per song, after a confirmation: the files are several times the size), Find on YouTube
                         onHiRes = {
@@ -1039,7 +1047,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (restSongs.isNotEmpty()) {
                 item { SectionHeader("In your library") }
                 val shown = if (songsExpanded) restSongs else restSongs.take(4)
-                itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(listOf(t), 0, null); nav.nowPlaying = true }) }
+                itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(listOf(t), 0, null) }) }
                 if (!songsExpanded && restSongs.size > 4) item { ShowMoreRow(restSongs.size - 4) { songsExpanded = true } }
             }
             if (r.albums.isNotEmpty()) {

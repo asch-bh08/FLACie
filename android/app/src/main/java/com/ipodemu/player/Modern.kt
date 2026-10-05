@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -64,15 +65,17 @@ fun Modifier.safeArea(): Modifier = this.windowInsetsPadding(safeInsets())
 private fun hsvOf(c: Color): FloatArray { val o = FloatArray(3); android.graphics.Color.colorToHSV(c.toArgb(), o); return o }
 private fun hsvColor(h: Float, s: Float, v: Float) = Color(android.graphics.Color.HSVToColor(floatArrayOf(h, s.coerceIn(0f, 1f), v.coerceIn(0f, 1f))))
 
-/** The Modern theme is always dark (like the players it follows): near-black, with only a soft wash of the current
- * cover's colour at the top and an accent taken from the art. */
+/** The web's own palette (app.css :root), so the phone and the browser look like one app: flat near-black, one pink accent (or the one chosen in
+ * Settings), raised surfaces with a hairline. Only the full-screen player takes a wash of the cover's colour, like the web's blurred backdrop. */
+object Palette {
+    val bg = Color(0xFF0B0B0E); val surface = Color(0xFF15151A); val surface2 = Color(0xFF1E1E25); val surface3 = Color(0xFF282832)
+    val line = Color(0xFF2A2A33); val ink = Color(0xFFF4F3F7); val dim = Color(0xFFA9A6B3); val faint = Color(0xFF6F6C78); val pink = Color(0xFFFF4D73)
+}
+
 fun buildModernScheme(art: ArtColors?): Scheme {
-    val bottom = Color(0xFF0B0B0D)
-    if (art == null) return Scheme(Color(0xFF1D1D24), bottom, Tweaks.accent ?: Color(0xFFFF4D6D), Color(0xFFF5F5F7), Color(0xB3FFFFFF), Color(0x14FFFFFF), Color.Transparent, true)
-    val p = hsvOf(art.primary)
-    val top = hsvColor(p[0], p[1] * 0.6f, 0.30f)
-    val accent = hsvColor(p[0], p[1].coerceIn(0.55f, 0.85f), 0.88f)
-    return Scheme(top, bottom, Tweaks.accent ?: accent, Color(0xFFF5F5F7), Color(0xB3FFFFFF), Color(0x14FFFFFF), Color.Transparent, true)
+    val accent = Tweaks.accent ?: Palette.pink
+    val top = if (art == null) Palette.bg else hsvOf(art.primary).let { p -> hsvColor(p[0], p[1] * 0.55f, 0.27f) }
+    return Scheme(top, Palette.bg, accent, Palette.ink, Palette.dim, Palette.surface, Palette.line, true)
 }
 
 // ---- top bar -------------------------------------------------------------------------------------------------------
@@ -121,7 +124,7 @@ fun PlayerNav.selectTab(t: Tab) {
 fun BottomNav(nav: PlayerNav) {
     val sc = LocalScheme.current
     val cur = nav.currentTab()
-    Row(Modifier.fillMaxWidth().height(76.dp).background(Color(0xF20B0B0D)).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().height(72.dp).background(Palette.bg).drawBehind { drawLine(Palette.line, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1f) }.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Tab.entries.forEach { t -> NavItem(t, t == cur, Modifier.weight(1f).fillMaxHeight()) { nav.selectTab(t) } }
     }
 }
@@ -132,7 +135,7 @@ fun BottomNav(nav: PlayerNav) {
 fun NavRail(nav: PlayerNav) {
     val cur = nav.currentTab()
     Column(
-        Modifier.width(80.dp).fillMaxHeight().background(Color(0xF20B0B0D)).verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(vertical = 12.dp),
+        Modifier.width(80.dp).fillMaxHeight().background(Palette.bg).verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Tab.entries.forEach { t -> NavItem(t, t == cur, Modifier.width(80.dp).height(68.dp)) { nav.selectTab(t) } }
@@ -144,11 +147,11 @@ private fun NavItem(t: Tab, selected: Boolean, modifier: Modifier, onClick: () -
     val sc = LocalScheme.current
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
-    val col = if (selected) sc.onBg else sc.onBgDim
+    val col = if (selected) sc.accent else Palette.dim
     Column(modifier.wheelTracked().clickable(src, null, onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Box(
             Modifier.size(width = 64.dp, height = 32.dp).clip(RoundedCornerShape(16.dp))
-                .background(if (selected) sc.onBg.copy(alpha = .16f) else if (focused) Color(0x22FFFFFF) else Color.Transparent),
+                .background(if (selected) sc.accent.copy(alpha = .16f) else if (focused) Color(0x22FFFFFF) else Color.Transparent),
             contentAlignment = Alignment.Center,
         ) { GlyphIcon(t.glyph, Modifier.size(22.dp), col) }
         Txt(t.label, Modifier.padding(top = 6.dp), size = 12f, weight = if (selected) FontWeight.SemiBold else FontWeight.Normal, color = col, align = TextAlign.Center)

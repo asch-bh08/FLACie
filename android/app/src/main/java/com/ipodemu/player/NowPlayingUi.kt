@@ -297,13 +297,8 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
     val frac = if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
     Box(
         Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp).height(62.dp).clip(RoundedCornerShape(14.dp))
-            .background(sc.top.mix(Color(0xFF16161A), .45f))
-            .trackSwipe({ app.player.prev() }, { app.player.next() })
+            .background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(14.dp))
             .clickable { nav.nowPlaying = true }
-            .pointerInput(Unit) {
-                var up = 0f
-                detectVerticalDragGestures(onDragStart = { up = 0f }, onDragEnd = { up = 0f }) { _, dy -> up += dy; if (up < -28f) { up = 0f; nav.nowPlaying = true } }
-            },
     ) {
         Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             ArtImage(t.artKey, Modifier.size(48.dp).popIn(t.path, 0.7f), thumb = true, corner = 6.dp)
@@ -312,7 +307,8 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
                 Txt(t.artist.ifEmpty { t.album }, size = 13f, color = sc.onBgDim)
             }
             // instant way to the Devices screen (hand this song to another device, or take over theirs) while other devices are signed in
-            if (!app.ui.guest && app.connect.sessions.any { !it.isSelf }) IconAction(Glyph.DEVICES, "Devices", { app.ui.devicesOpen = true }, tint = sc.accent)
+            val hasOthers by remember { androidx.compose.runtime.derivedStateOf { app.connect.sessions.any { !it.isSelf } } }
+            if (!app.ui.guest && hasOthers) IconAction(Glyph.DEVICES, "Devices", { app.ui.devicesOpen = true }, tint = sc.accent)
             IconAction(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, if (snap.playing) "Pause" else "Play", { app.player.toggle() })
             IconAction(Glyph.NEXT, "Next", { app.player.next() })
         }

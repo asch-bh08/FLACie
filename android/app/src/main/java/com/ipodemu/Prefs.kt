@@ -30,14 +30,23 @@ class Prefs(ctx: Context) {
         set(v) = sp.edit().putInt("appearance", v).apply()
     /** Back swipe: 0 = anywhere (iPhone style), 1 = left edge only, 2 = off. */
     var swipeBack: Int
-        get() = sp.getInt("swipeBack", 0)
+        get() = sp.getInt("swipeBack", 1)
         set(v) = sp.edit().putInt("swipeBack", v).apply()
     /** Track-row swipe actions: 0 = off, 1 = play next, 2 = favorite, 3 = add to queue. */
+    /** One-time: phones that still had the old touchy defaults (back swipe from anywhere, left-swipe = favourite) get the safe ones. */
+    fun applySafeTouchDefaults() {
+        if (sp.getBoolean("safeTouchV2", false)) return
+        if (sp.getInt("swipeBack", 1) == 0) sp.edit().putInt("swipeBack", 1).apply()
+        if (sp.getInt("swipeRowL", 0) == 2) sp.edit().putInt("swipeRowL", 0).apply()
+        // the app now uses the web's pink by default: an old green pick (the previous look) goes back to Default once; any other colour stays
+        if (sp.getInt("accentcolor", 0) == 0xFF3DDC84.toInt()) sp.edit().putInt("accentcolor", 0).apply()
+        sp.edit().putBoolean("safeTouchV2", true).apply()
+    }
     var swipeRowRight: Int
         get() = sp.getInt("swipeRowR", 0)
         set(v) = sp.edit().putInt("swipeRowR", v).apply()
     var swipeRowLeft: Int
-        get() = sp.getInt("swipeRowL", 2)
+        get() = sp.getInt("swipeRowL", 0)
         set(v) = sp.edit().putInt("swipeRowL", v).apply()
     var dynamicColor: Boolean
         get() = sp.getBoolean("dynamic", true)
@@ -193,6 +202,10 @@ class Prefs(ctx: Context) {
     var accentColor: Int
         get() = sp.getInt("accentcolor", 0)
         set(v) = sp.edit().putInt("accentcolor", v).apply()
+    /** Animations on (the default); off = calm: no pops, slides or springs. */
+    var motion: Boolean
+        get() = sp.getBoolean("motion", true)
+        set(v) = sp.edit().putBoolean("motion", v).apply()
     var compactLists: Boolean
         get() = sp.getBoolean("compactlists", false)
         set(v) = sp.edit().putBoolean("compactlists", v).apply()

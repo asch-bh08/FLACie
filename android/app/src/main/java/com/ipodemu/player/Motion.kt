@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 /** Pops in (grows from a little smaller, fades up, with a springy overshoot) on first show and again whenever [key] changes: a new song's cover. */
 @Composable
 fun Modifier.popIn(key: Any?, from: Float = 0.86f): Modifier {
+    if (!Tweaks.motion) return this
     val a = remember(key) { Animatable(0f) }
     LaunchedEffect(key) { a.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 380f)) }
     return this.graphicsLayer { val s = from + (1f - from) * a.value; scaleX = s; scaleY = s; alpha = (a.value * 2f).coerceIn(0f, 1f) }
@@ -26,6 +27,7 @@ fun Modifier.popIn(key: Any?, from: Float = 0.86f): Modifier {
 /** Slides up a little and fades in when it first appears; [delayMs] staggers a few of these one after another. */
 @Composable
 fun Modifier.riseIn(delayMs: Int = 0, key: Any? = Unit): Modifier {
+    if (!Tweaks.motion) return this
     val a = remember(key) { Animatable(0f) }
     LaunchedEffect(key) { a.animateTo(1f, tween(420, delayMs, FastOutSlowInEasing)) }
     return this.graphicsLayer { translationY = (1f - a.value) * 28f * density; alpha = a.value }
@@ -35,6 +37,7 @@ fun Modifier.riseIn(delayMs: Int = 0, key: Any? = Unit): Modifier {
 /** A press makes the thing dip and spring back. */
 @Composable
 fun Modifier.pressSpring(pressed: Boolean, to: Float = 0.94f): Modifier {
+    if (!Tweaks.motion) return this
     val s by animateFloatAsState(if (pressed) to else 1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium), label = "press")
     return this.graphicsLayer { scaleX = s; scaleY = s }
 }
@@ -42,6 +45,7 @@ fun Modifier.pressSpring(pressed: Boolean, to: Float = 0.94f): Modifier {
 /** A bounce each time [key] changes (a heart turning solid), not on first show. */
 @Composable
 fun Modifier.bumpOnChange(key: Any?): Modifier {
+    if (!Tweaks.motion) return this
     val a = remember { Animatable(1f) }
     val first = remember { booleanArrayOf(true) }
     LaunchedEffect(key) {

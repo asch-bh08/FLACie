@@ -33,6 +33,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,6 +66,9 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val w = maxWidth; val h = maxHeight
         val ratio = w / h
+        val portraitSheet = !(w >= 840.dp && ratio >= 1.1f) && ratio < 0.95f
+        val upState = remember { UpNextState() }
+        androidx.compose.runtime.CompositionLocalProvider(LocalUpNext provides if (portraitSheet) upState else null) {
         when {
             w >= 840.dp && ratio >= 1.1f -> Row(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(28.dp), verticalAlignment = Alignment.CenterVertically) {
                 NpArtModern(t, Modifier.size(min(h - 48.dp, w * 0.32f)))
@@ -110,10 +114,11 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
                     ArtOrPanel(t, snap, lyricsOpen, infoOpen, big = true, art = Modifier.fillMaxWidth().aspectRatio(1f, matchHeightConstraintsFirst = true))
                 }
                 Controls(snap, nav, lyricsToggle = lyricsOpen to { lyricsOpen = !lyricsOpen; if (lyricsOpen) infoOpen = false }, header = false, info = infoToggle)
-                Box(Modifier.height(80.dp))   // room for the Up next bar
+                Box(Modifier.height(20.dp))
             }
         }
-        if (!(w >= 840.dp && ratio >= 1.1f) && ratio < 0.95f) UpNextDrawer(snap)
+        }
+        if (portraitSheet) UpNextDrawer(snap, upState)
     }
 }
 
@@ -166,7 +171,9 @@ private fun ActionRow(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boole
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         if (lyricsToggle != null) Pill(Glyph.LYRICS, "Lyrics", lyricsToggle.first, lyricsToggle.second)
         if (info != null) Pill(Glyph.INFO, "Info", info.first, info.second)
-        Pill(Glyph.QUEUE, "Up next", false) { nav.openQueueFromPlayer() }
+        val upNext = LocalUpNext.current
+        val upScope = androidx.compose.runtime.rememberCoroutineScope()
+        Pill(Glyph.QUEUE, "Up next", false) { if (upNext != null) upScope.launch { upNext.frac.animateTo(1f, androidx.compose.animation.core.tween(320)) } else nav.openQueueFromPlayer() }
         Pill(Glyph.LIST, "Equalizer", app.prefs.eq != "Off") { nav.sheet = eqSheet(app) }
         Pill(Glyph.PLUS, "Add to playlist", false) { nav.sheet = playlistPicker(app, nav, t) }
         Pill(Glyph.MORE, "More", false) { openTrackSheet(app, nav, t, if (info != null && !info.first) listOf(SheetItem("Song info", Glyph.INFO) { info.second() }) else emptyList()) }

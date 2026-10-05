@@ -72,6 +72,33 @@ class UserData(ctx: Context) {
         playlists.firstOrNull { it.id == id }?.let { if (path !in it.paths) it.paths.add(path); it.mtime = System.currentTimeMillis(); changed() }
     }
 
+    /** Takes the song at [index] out (the Undo puts it back with [insertAt]). */
+    fun removeAt(id: String, index: Int): String? = playlists.firstOrNull { it.id == id }?.let { p ->
+        if (index !in p.paths.indices) null else p.paths.removeAt(index).also { p.mtime = System.currentTimeMillis(); changed() }
+    }
+
+    fun insertAt(id: String, index: Int, path: String) {
+        playlists.firstOrNull { it.id == id }?.let { it.paths.add(index.coerceIn(0, it.paths.size), path); it.mtime = System.currentTimeMillis(); changed() }
+    }
+
+    /** Moves the song at [from] to [to] (up or down in the list). */
+    fun move(id: String, from: Int, to: Int) {
+        playlists.firstOrNull { it.id == id }?.let { p ->
+            if (from !in p.paths.indices || to !in p.paths.indices || from == to) return
+            p.paths.add(to, p.paths.removeAt(from)); p.mtime = System.currentTimeMillis(); changed()
+        }
+    }
+
+    /** Drops later copies of a song already in the playlist ([keyOf] says what counts as the same song); returns how many went. */
+    fun removeDuplicates(id: String, keyOf: (String) -> String): Int {
+        val p = playlists.firstOrNull { it.id == id } ?: return 0
+        val seen = HashSet<String>(); val keep = ArrayList<String>()
+        for (path in p.paths) if (seen.add(keyOf(path))) keep.add(path)
+        val removed = p.paths.size - keep.size
+        if (removed > 0) { p.paths.clear(); p.paths.addAll(keep); p.mtime = System.currentTimeMillis(); changed() }
+        return removed
+    }
+
     fun removeFromPlaylist(id: String, path: String) {
         playlists.firstOrNull { it.id == id }?.let { it.paths.remove(path); it.mtime = System.currentTimeMillis(); changed() }
     }

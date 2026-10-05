@@ -76,7 +76,7 @@ public sealed class UserSession
             if (Nas is { } n) try { if (NasClient.ReadText(n, n.ProfilePath) is { } s && JsonNode.Parse(s) is JsonObject p) copies.Add(p); } catch (Exception) when (Kind == "jellyfin") { }
             if (copies.Count > 0) Profile = copies.MaxBy(p => p["updated"]?.GetValue<long>() ?? 0)!;
             // until the profile has really been read, nothing is saved back (an empty one would wipe the real one)
-            if (profileOk) { ProfileLoaded = true; ProfileRev++; Changed?.Invoke(); }
+            if (profileOk) { ProfileLoaded = true; profileSeen = Profile["updated"]?.GetValue<long>() ?? 0; ProfileRev++; Changed?.Invoke(); }
             if (Jellyfin is { } adm) try { IsAdmin = (await jf.GetAsync(adm, "/Users/Me", ct))?["Policy"]?["IsAdministrator"]?.GetValue<bool>() == true; } catch (Exception) { }
 
             // the other account comes back from the profile: a NAS sign-in gets the Jellyfin account and vice versa
@@ -152,7 +152,7 @@ public sealed class UserSession
     public async Task SaveAsync(JellyfinClient jf, CancellationToken ct = default)
     {
         if (!ProfileLoaded) return;
-        Profile["updated"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        Profile["updated"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); profileSeen = Math.Max(profileSeen, Profile["updated"]!.GetValue<long>());
         Profile["v"] = 2;
         if (Jellyfin is { } a) Profile["account"] = new JsonObject { ["server"] = a.Server, ["userId"] = a.UserId, ["user"] = a.UserName, ["token"] = a.Token };
         var services = Profile["services"] as JsonObject ?? new JsonObject();
@@ -162,6 +162,52 @@ public sealed class UserSession
         if (Nas is { } na) try { await Task.Run(() => NasClient.WriteText(na, na.ProfilePath, Profile.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true })), ct); } catch (Exception e) { failure = e; }
         if (Jellyfin is { } ja) try { await jf.PushProfileAsync(ja, Profile, ct); } catch (Exception e) { failure = e; }
         if (failure is not null) throw failure;
+    }
+
+    long profileSeen;
+
+    /// <summary>
+    /// Looks at the account's copy of the profile again and folds in what other devices changed since (a song added to a playlist on the phone, a favourite,
+    /// a playlist made or deleted): playlists by id with the newest edit winning, deletions, favourites added. Without this the web only ever read the profile
+    /// once at sign-in, never showed the phone's edits, and its next save wrote its old copy back over them. True when something changed.
+    /// </summary>
+    public async Task<bool> RefreshProfileAsync(JellyfinClient jf, CancellationToken ct = default)
+    {
+        if (!ProfileLoaded || Jellyfin is not { } a) return false;
+        JsonObject? remote;
+        try { remote = await jf.PullProfileAsync(a, ct); } catch (Exception) { return false; }
+        var seen = remote?["updated"]?.GetValue<long>() ?? 0;
+        if (remote is null || seen <= profileSeen) return false;
+        var changed = false;
+        lock (listLock)
+        {
+            var mine = Profile["playlists"] as JsonArray ?? new JsonArray();
+            var deleted = Profile["deleted"] as JsonArray ?? new JsonArray();
+            var gone = deleted.Select(d => d?.GetValue<string>()).ToHashSet();
+            foreach (var id in (remote["deleted"] as JsonArray ?? []).Select(d => d?.GetValue<string>()).OfType<string>())
+            {
+                if (!gone.Add(id)) continue;
+                deleted.Add(id); changed = true;
+                if (mine.OfType<JsonObject>().FirstOrDefault(o => S(o, "id") == id) is { } dead) mine.Remove(dead);
+            }
+            foreach (var rp in (remote["playlists"] as JsonArray ?? []).OfType<JsonObject>())
+            {
+                var id = S(rp, "id"); if (id.Length == 0 || gone.Contains(id)) continue;
+                var lp = mine.OfType<JsonObject>().FirstOrDefault(o => S(o, "id") == id);
+                if (lp is null) { mine.Add(JsonNode.Parse(rp.ToJsonString())); changed = true; }
+                else if ((rp["m"]?.GetValue<long>() ?? 0) > (lp["m"]?.GetValue<long>() ?? 0))
+                {
+                    lp["n"] = rp["n"]?.DeepClone(); lp["m"] = rp["m"]?.DeepClone(); lp["tracks"] = rp["tracks"]?.DeepClone(); changed = true;
+                }
+            }
+            var favs = Profile["favorites"] as JsonArray ?? new JsonArray();
+            foreach (var rf in (remote["favorites"] as JsonArray ?? []).OfType<JsonObject>())
+                if (!favs.OfType<JsonObject>().Any(f => S(f, "p") == S(rf, "p") || Matching.MatchKey(S(f, "t"), S(f, "a")) == Matching.MatchKey(S(rf, "t"), S(rf, "a")))) { favs.Add(JsonNode.Parse(rf.ToJsonString())); changed = true; }
+            Profile["playlists"] = mine; Profile["deleted"] = deleted; Profile["favorites"] = favs;
+        }
+        profileSeen = seen;
+        if (changed) { ProfileRev++; Changed?.Invoke(); }
+        return changed;
     }
 
     /// <summary>Adds the other kind of account, so the profile is kept in both.</summary>

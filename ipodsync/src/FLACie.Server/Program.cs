@@ -45,6 +45,7 @@ builder.Services.AddSingleton<InfoService>();
 builder.Services.AddSingleton<FormatIndex>();
 builder.Services.AddSingleton<FormatProbeService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FormatProbeService>());
+builder.Services.AddHostedService<ProfileSyncService>();
 builder.Services.AddSingleton(sp => new LyricsService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("catalog"), sp.GetRequiredService<JellyfinClient>(), Path.Combine(dataDir, "lyrics")));
 // one device id per server install, so Jellyfin lists FLACie Web as one device
 var deviceIdFile = Path.Combine(dataDir, "device-id");

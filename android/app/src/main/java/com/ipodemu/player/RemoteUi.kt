@@ -46,10 +46,10 @@ import kotlinx.coroutines.delay
  * a seek bar, the transport, "Play here" (takes the queue over, same second) and the list of devices.
  */
 
-/** The device to show: the one playing, else one that is paused on a song. */
-fun JellyfinConnect.remoteNow(): JellyfinConnect.Session? {
+/** The device whose bar to show: one that is playing (a paused one is only offered inside the full-screen remote). */
+fun JellyfinConnect.remoteNow(includePaused: Boolean = false): JellyfinConnect.Session? {
     val others = sessions.filter { !it.isSelf && it.controllable && it.itemId != null }
-    return others.firstOrNull { !it.paused } ?: others.firstOrNull()
+    return others.firstOrNull { !it.paused } ?: if (includePaused) others.firstOrNull() else null
 }
 
 /** Where the song is on the other device right now: its last reported spot plus the time since (while it plays). */
@@ -95,7 +95,7 @@ fun RemoteScreen() {
     LaunchedEffect(Unit) { while (true) { c.loadSessions(); delay(2_500) } }
     var pick by remember { mutableStateOf<String?>(null) }
     val others = c.sessions.filter { !it.isSelf }
-    val s = others.firstOrNull { it.id == pick && it.itemId != null } ?: c.remoteNow()
+    val s = others.firstOrNull { it.id == pick && it.itemId != null } ?: c.remoteNow(includePaused = true)
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(400) } }
 

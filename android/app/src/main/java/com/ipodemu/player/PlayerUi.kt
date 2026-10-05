@@ -86,6 +86,7 @@ import com.ipodemu.Prefs
 import com.ipodemu.library.Group
 import com.ipodemu.library.Track
 import com.ipodemu.library.hiRes
+import com.ipodemu.library.matchKey
 import com.ipodemu.library.sortKey
 import com.ipodemu.playback.PlayerController
 import com.ipodemu.theme.Themes
@@ -306,7 +307,7 @@ fun TopBar(title: String, nav: PlayerNav?, showBack: Boolean, actions: @Composab
 @Composable
 fun TrackRow(
     t: Track, nav: PlayerNav, snap: PlayerSnap, onPlay: () -> Unit, modifier: Modifier = Modifier,
-    showArt: Boolean = true, index: Int? = null, sheetExtra: List<SheetItem> = emptyList(),
+    showArt: Boolean = true, index: Int? = null, sheetExtra: List<SheetItem> = emptyList(), sheetExtraFor: ((Track) -> List<SheetItem>)? = null,
 ) {
     val app = LocalApp.current
     val sc = LocalScheme.current
@@ -319,7 +320,7 @@ fun TrackRow(
     val right = remember(t, fav, rCode, hw) { if (hw) null else swipeAction(rCode, app, t, fav, ctx) }
     val left = remember(t, fav, lCode, hw) { if (hw) null else swipeAction(lCode, app, t, fav, ctx) }
     SwipeRow(right = right, left = left, modifier = modifier) {
-    IpodRow(onClick = onPlay, onLong = { openTrackSheet(app, nav, t, sheetExtra) }, height = 56.dp,
+    IpodRow(onClick = onPlay, onLong = { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, height = 56.dp,
         leading = {
             if (showArt) Box(Modifier.size(42.dp)) {
                 ArtImage(t.artKey, Modifier.fillMaxSize(), thumb = true, corner = 8.dp)
@@ -338,7 +339,7 @@ fun TrackRow(
                 if (t.hiRes) HiResBadge()
                 SourceBadge(t.source)
                 if (t.durationMs > 0) Txt(fmtTime(t.durationMs), size = 13f, color = rowDim())
-                Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = "More options for ${t.title}" }.clickable { openTrackSheet(app, nav, t, sheetExtra) }, contentAlignment = Alignment.Center) {
+                Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = "More options for ${t.title}" }.clickable { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, contentAlignment = Alignment.Center) {
                     GlyphIcon(Glyph.MORE, Modifier.size(22.dp), rowDim())
                 }
             }
@@ -407,7 +408,7 @@ internal fun playlistPicker(app: App, nav: PlayerNav, t: Track): SheetSpec {
     items += SheetItem("New playlist...", Glyph.PLUS) { nav.nameDialog = { name -> val p = ud.createPlaylist(name, t.path); app.ui.say("Added \"${t.title}\" to $name", "Undo") { ud.removeFromPlaylist(p.id, t.path) } } }
     shownPlaylists(app).forEach { p ->
         items += SheetItem(p.name, Glyph.LIST) {
-            if (t.path in p.paths) app.ui.say("\"${t.title}\" is already in ${p.name}", warn = true)
+            if (p.paths.any { it == t.path || app.library.resolve(it, ud.meta[it])?.let { r -> r.matchKey == t.matchKey } == true }) app.ui.say("\"${t.title}\" is already in ${p.name}", warn = true)
             else { ud.addToPlaylist(p.id, t.path); app.ui.say("Added \"${t.title}\" to ${p.name}", "Undo") { ud.removeFromPlaylist(p.id, t.path); app.ui.say("Removed \"${t.title}\" from ${p.name}") } }
         }
     }
@@ -653,13 +654,13 @@ private fun SourceFilterChips(all: List<Track>, current: com.ipodemu.library.Tra
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 fun SongList(
     tracks: List<Track>, nav: PlayerNav, snap: PlayerSnap, showArt: Boolean, numbered: Boolean = false,
-    sheetExtra: List<SheetItem> = emptyList(), header: (@Composable () -> Unit)? = null, sections: Int = 0, missing: List<Pair<String, String>> = emptyList(),
+    sheetExtra: List<SheetItem> = emptyList(), sheetExtraFor: ((Track) -> List<SheetItem>)? = null, header: (@Composable () -> Unit)? = null, sections: Int = 0, missing: List<Pair<String, String>> = emptyList(),
 ) {
     val app = LocalApp.current
     if (tracks.isEmpty() && missing.isEmpty()) { EmptyState("Nothing here yet"); return }
     val sc = LocalScheme.current
     val row: @Composable (Int, Track) -> Unit = { i, t ->
-        TrackRow(t, nav, snap, showArt = showArt, index = if (numbered) i + 1 else null, sheetExtra = sheetExtra, onPlay = {
+        TrackRow(t, nav, snap, showArt = showArt, index = if (numbered) i + 1 else null, sheetExtra = sheetExtra, sheetExtraFor = sheetExtraFor, onPlay = {
             app.player.play(tracks, i, null); nav.nowPlaying = true
         })
     }
@@ -824,14 +825,14 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
             if (wide) {
                 Row(Modifier.fillMaxSize()) {
                     Column(Modifier.width(300.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        DetailHeader(art, title, subtitle.ifEmpty { info }, if (subtitle.isEmpty()) "" else info, tracks, nav)
+                        DetailHeader(art, title, subtitle.ifEmpty { info }, if (subtitle.isEmpty()) "" else info, tracks, nav, userId)
                     }
-                    SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtra = removeExtra(userId, ud), missing = missing)
+                    SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing)
                 }
             } else {
-                SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtra = removeExtra(userId, ud), missing = missing, header = {
+                SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, header = {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        DetailHeader(art, title, subtitle.ifEmpty { info }, if (subtitle.isEmpty()) "" else info, tracks, nav)
+                        DetailHeader(art, title, subtitle.ifEmpty { info }, if (subtitle.isEmpty()) "" else info, tracks, nav, userId)
                     }
                 })
             }
@@ -839,10 +840,9 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
     }
 }
 
-private fun removeExtra(userId: String?, ud: com.ipodemu.library.UserData): List<SheetItem> = emptyList()
 
 @Composable
-private fun DetailHeader(art: String?, title: String, line1: String, line2: String, tracks: List<Track>, nav: PlayerNav) {
+private fun DetailHeader(art: String?, title: String, line1: String, line2: String, tracks: List<Track>, nav: PlayerNav, playlistId: String? = null) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -857,6 +857,18 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         GlossPill("Play", { app.player.play(tracks, 0, null); nav.nowPlaying = true }, icon = Glyph.PLAY, primary = true, height = 40.dp)
         GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true); nav.nowPlaying = true }, icon = Glyph.SHUFFLE, height = 40.dp)
+    }
+    if (playlistId != null) {
+        // editing: the playlist's own actions (songs have Move and Remove in their menu)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GlossPill("Rename", { nav.nameDialog = { n -> app.userData.rename(playlistId, n); app.ui.say("Renamed to \"$n\"") } }, height = 36.dp)
+            GlossPill("Remove dupes", {
+                val ud = app.userData
+                val n = ud.removeDuplicates(playlistId) { p -> app.library.resolve(p, ud.meta[p])?.matchKey ?: p }
+                app.ui.say(if (n == 0) "No duplicates in this playlist" else "Removed $n duplicate${if (n == 1) "" else "s"}", warn = n == 0)
+            }, height = 36.dp)
+            GlossPill("Delete", { nav.sheet = SheetSpec("Delete this playlist?", null, listOf(SheetItem("Delete", Glyph.CLOSE) { app.userData.deletePlaylist(playlistId); nav.pop() }, SheetItem("Cancel", Glyph.BACK) {})) }, height = 36.dp)
+        }
     }
 }
 
@@ -1297,4 +1309,20 @@ fun recentDownloads(app: com.ipodemu.App): List<Track> {
             ?.tracks?.forEach { out.putIfAbsent(it.path, it) }
     }
     return out.values.toList()
+}
+
+/** Per-song actions on a playlist page: move it up/down/to the top, or take it out (with Undo). */
+private fun playlistSongItems(app: App, id: String, t: Track): List<SheetItem> {
+    val ud = app.userData; val lib = app.library
+    val p = ud.playlists.firstOrNull { it.id == id } ?: return emptyList()
+    val i = p.paths.indexOfFirst { it == t.path || lib.resolve(it, ud.meta[it])?.path == t.path }
+    if (i < 0) return emptyList()
+    val items = ArrayList<SheetItem>()
+    if (i > 0) { items += SheetItem("Move up", Glyph.CHEVRON) { ud.move(id, i, i - 1) }; items += SheetItem("Move to top", Glyph.CHEVRON) { ud.move(id, i, 0) } }
+    if (i < p.paths.lastIndex) items += SheetItem("Move down", Glyph.CHEVRON) { ud.move(id, i, i + 1) }
+    items += SheetItem("Remove from playlist", Glyph.CLOSE) {
+        val path = ud.removeAt(id, i)
+        if (path != null) app.ui.say("Removed \"${t.title}\" from ${p.name}", "Undo") { ud.insertAt(id, i, path) }
+    }
+    return items
 }

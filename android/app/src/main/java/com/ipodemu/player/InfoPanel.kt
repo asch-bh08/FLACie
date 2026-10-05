@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -97,7 +98,7 @@ private val MODES = listOf("rate" to "Bit rate", "curve" to "Spectrum", "leds" t
 
 private fun hint(mode: String, sampleRate: Int = 0) = when (mode) {
     "rate" -> "How much data each second of the song uses, next to common formats."
-    "curve" -> "How loud each pitch is right now: deep sounds on the left, high on the right, up to ${if (sampleRate > 0) "%.1f".format(sampleRate / 2000.0) else "22"} kHz (half this file's sample rate). A lossless file usually has sound out to the right edge; an MP3 is cut off around 16 kHz."
+    "curve" -> "How loud each pitch is right now: deep sounds on the left, high on the right, up to ${if (sampleRate > 0) "%.1f".format(sampleRate / 2000.0) else "22"} kHz (half this file's sample rate). An MP3 is cut off around 16 kHz."
     "leds" -> "The song as it plays, deep sounds on the left and high ones on the right."
     "wall" -> "Pitch runs up the side (deep at the bottom, high at the top) and brighter means louder. The newest sound is on the right and scrolls left."
     "loud" -> "How loud the song is right now, in dB (0 is the loudest a file can go), and the last ten seconds."
@@ -117,7 +118,10 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
         val am = ctx.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
         LiveAnalysis(app.player.live) { app.player.volume * (am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC).toFloat() / am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)) }
     }
-    Column(modifier.clip(RoundedCornerShape(16.dp)).background(Color(0x1AFFFFFF)).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
+    // the graph takes what room the panel has (header, chips and text above it need about 320dp), so its axis is never cut off at the bottom; Hi-Res files get more when there is more
+    val graphH = (maxHeight - 330.dp).coerceIn(150.dp, if (info.hiRes) 300.dp else 230.dp)
+    Column(Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color(0x1AFFFFFF)).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(Modifier.clip(RoundedCornerShape(10.dp)).background(if (info.hiRes) Brush.linearGradient(listOf(Color(0xFFFFD36E), Color(0xFFF59E0B))) else Brush.linearGradient(listOf(if (info.lossless) Color(0xFF1D2A1C) else Color(0x33FFFFFF), if (info.lossless) Color(0xFF1D2A1C) else Color(0x33FFFFFF)))).padding(horizontal = 12.dp, vertical = 8.dp)) {
                 Txt(if (info.hiRes) "HI-RES" else info.codec.ifEmpty { "AUDIO" }, size = 16f, weight = FontWeight.ExtraBold, color = if (info.hiRes) Color(0xFF2A1A00) else if (info.lossless) Color(0xFFB8F0A8) else sc.onBg)
@@ -127,7 +131,7 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
                 Txt(listOf(info.sampling, if (info.channels == 1) "Mono" else if (info.channels == 2) "Stereo" else "${info.channels} channels").filter { it.isNotEmpty() }.joinToString(" · "), size = 12f, color = sc.onBgDim)
             }
         }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val chips = listOf(
                 Triple("rate", if (info.kbps > 0) "${info.kbps} kbps" else "kbps", true),
                 Triple("curve", if (info.sampleRate > 0) "Spectrum · %.1f kHz".format(info.sampleRate / 1000.0) else "Spectrum", true),
@@ -146,7 +150,7 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
                 }
             }
             Txt(hint(mode, info.sampleRate), size = 12.5f, color = sc.onBgDim, maxLines = 6)
-            if (mode == "rate") RateBars(info.kbps) else LiveGraph(mode, analysis, snap.playing, tall = info.hiRes)
+            if (mode == "rate") RateBars(info.kbps) else LiveGraph(mode, analysis, snap.playing, graphH)
         }
         Detail(listOf(
             "Title" to t.title, "Artist" to t.artist, "Album" to t.album, "Year" to t.year.takeIf { it > 0 }?.toString(), "Genre" to t.genre,
@@ -158,6 +162,7 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
             "Location" to t.filePath.takeIf { it.isNotEmpty() },
             "Playback" to playbackLine(ctx, info),
         ), "FILE")
+    }
     }
 }
 
@@ -237,7 +242,7 @@ private val LUT = IntArray(256).also { lut ->
 
 @OptIn(UnstableApi::class)
 @Composable
-private fun LiveGraph(mode: String, analysis: LiveAnalysis, playing: Boolean, tall: Boolean = false) {
+private fun LiveGraph(mode: String, analysis: LiveAnalysis, playing: Boolean, height: androidx.compose.ui.unit.Dp) {
     val sc = LocalScheme.current
     val state = remember(mode) { GraphState() }
     var frameNs by remember { mutableLongStateOf(0L) }
@@ -245,8 +250,8 @@ private fun LiveGraph(mode: String, analysis: LiveAnalysis, playing: Boolean, ta
         while (true) androidx.compose.runtime.withFrameNanos { ns -> analysis.update(); frameNs = ns }
     }
     val paint = remember { Paint(Paint.ANTI_ALIAS_FLAG) }
-    // Hi-Res files get a bigger graph: there is more to see out to the right edge
-    val h = if (mode == "wall") (if (tall) 320.dp else 220.dp) else if (tall) 280.dp else 190.dp
+
+    val h = height
     Canvas(Modifier.fillMaxWidth().height(h)) {
         @Suppress("UNUSED_EXPRESSION") frameNs
         val g = Gfx(this, paint, sc.accent, sc.onBgDim, sc.onBg, analysis, state, frameNs, playing && analysis.active)

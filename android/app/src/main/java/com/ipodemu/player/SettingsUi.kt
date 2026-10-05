@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.ipodemu.library.AudioFacts
 import com.ipodemu.theme.Themes
 
 private val VIEW_NAMES = listOf("iPod Player", "iPod Emulator", "Click Wheel Fullscreen", "iPod Emulator")
@@ -64,6 +65,10 @@ fun SettingsScreen(nav: PlayerNav, dashboard: Boolean = false) {
     Column(Modifier.fillMaxSize()) {
         TopBar(if (dashboard) "Dashboard" else "Settings", nav, showBack = true)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 30.dp)) {
+            if (!dashboard && canAdmin) {
+                item { SectionHeader("Server") }
+                item { Card { SettingRow("Dashboard", "Library, downloads, server", chevron = true) { nav.push(Screen.Dashboard) } } }
+            }
             if (!dashboard) {
             item { SectionHeader("Appearance") }
             item {
@@ -130,9 +135,34 @@ fun SettingsScreen(nav: PlayerNav, dashboard: Boolean = false) {
                 }
             }
             }
-            if (!dashboard && canAdmin) {
-                item { SectionHeader("Server") }
-                item { Card { SettingRow("Dashboard", "Administrators", chevron = true) { nav.push(Screen.Dashboard) } } }
+            if (dashboard && canAdmin) {
+                item { SectionHeader("Overview") }
+                item {
+                    Card {
+                        // what is in the library, by the real format of each file (AudioFacts, read by the server), and how the last downloads went
+                        AudioFacts.version
+                        val counts = remember(AudioFacts.version, app.library.songs().size) {
+                            val all = app.library.songs(); var hi = 0; var lossless = 0; var lossy = 0; var unknown = 0
+                            for (t in all) { val f = AudioFacts.of(t); if (f == null) unknown++ else if (f.hiRes) hi++ else if (f.lossless) lossless++ else lossy++ }
+                            listOf(all.size, hi, lossless, lossy, unknown)
+                        }
+                        SettingRow("Songs", "%,d".format(counts[0])) { }
+                        SettingRow("Hi-Res", "%,d".format(counts[1])) { }
+                        SettingRow("Lossless (CD quality)", "%,d".format(counts[2])) { }
+                        SettingRow("Lossy (MP3, AAC...)", "%,d".format(counts[3])) { }
+                        if (counts[4] > 0) SettingRow("Format not read yet", "%,d".format(counts[4])) { }
+                        val dl = remember { com.ipodemu.library.FlacieWebClient(prefs) }
+                        var recent by remember { mutableStateOf<List<com.ipodemu.library.DownloadRecord>?>(null) }
+                        androidx.compose.runtime.LaunchedEffect(dl.available) {
+                            if (dl.available) recent = try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { dl.downloads().log.take(100) } } catch (_: Exception) { null }
+                        }
+                        recent?.let { r ->
+                            SettingRow("Last ${r.size} downloads", "${r.count { it.done }} worked, ${r.count { !it.done }} failed") { ui.downloadsOpen = true }
+                            for ((src, n) in r.filter { it.done }.groupingBy { it.source ?: "other" }.eachCount().entries.sortedByDescending { it.value })
+                                SettingRow("  from ${com.ipodemu.library.OpenSourceNames.of(src).let { if (src == "soulseek") "Soulseek" else if (src == "lidarr") "Lidarr" else it }}", "$n") { }
+                        }
+                    }
+                }
             }
             if (dashboard) {
                 item { SectionHeader("Download services") }

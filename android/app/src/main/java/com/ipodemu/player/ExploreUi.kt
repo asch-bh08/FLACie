@@ -98,41 +98,53 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
         (rate.isEmpty() || AudioFacts.of(t)?.let { rateBand(it.rate, rate) } == true)
     fun letterOk(name: String) = letter.isEmpty() || letterOf(sortKey(name)) == letter
 
+    // the pickers live in one tidy Filters sheet instead of a row of seven pills
+    fun pick(title: String, subtitle: String?, options: List<Pair<String, String>>, current: String, set: (String) -> Unit) {
+        nav.sheet = SheetSpec(title, subtitle, options.map { (id, label) -> SheetItem(label, if (id == current) Glyph.CHECK else Glyph.LIST) { set(id) } })
+    }
+    val pendingNote = if (AudioFacts.pending > 0) "Still reading ${AudioFacts.pending} songs on the server" else null
+    fun qualityName(q: String) = when (q) { "lossless" -> "Lossless"; "lossy" -> "Lossy"; "hires" -> "Hi-Res"; else -> "Any" }
+    fun openFilters() {
+        nav.sheet = SheetSpec("Filters", null, listOf(
+            SheetItem("Genre · " + genre.ifEmpty { "Any" }, Glyph.NOTE) { pick("Genre", null, listOf("" to "Any") + choices.first.map { it to it }, genre) { genre = it } },
+            SheetItem("Decade · " + decade.ifEmpty { "Any" }, Glyph.CLOCK) { pick("Decade", null, listOf("" to "Any") + choices.second.map { it to it }, decade) { decade = it } },
+            SheetItem("Quality · " + qualityName(quality), Glyph.STAR) { pick("Quality", null, listOf("" to "Any", "lossless" to "Lossless (FLAC, ALAC…)", "lossy" to "Lossy (MP3, AAC…)", "hires" to "✦ Hi-Res"), quality) { quality = it } },
+            SheetItem("Bit depth · " + (DEPTHS.firstOrNull { it.first == depth }?.second ?: "Any"), Glyph.INFO) { pick("Bit depth", pendingNote, listOf("" to "Any") + DEPTHS, depth) { depth = it } },
+            SheetItem("Sample rate · " + (RATES.firstOrNull { it.first == rate }?.second ?: "Any"), Glyph.INFO) { pick("Sample rate", pendingNote, listOf("" to "Any") + RATES, rate) { rate = it } },
+        ) + (if (genre.isNotEmpty() || decade.isNotEmpty() || quality.isNotEmpty() || depth.isNotEmpty() || rate.isNotEmpty()) listOf(SheetItem("Clear all filters", Glyph.CLOSE) { genre = ""; decade = ""; quality = ""; depth = ""; rate = "" }) else emptyList()))
+    }
+    val activeFilters = listOf(genre, decade, quality, depth, rate).count { it.isNotEmpty() }
+
     Column(Modifier.fillMaxSize()) {
-        ModernTopBar("Explore", null)
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (t in listOf("Songs", "Albums", "Artists", "Genres", "Charts")) GlossPill(t, { tab = t }, primary = tab == t, height = 36.dp)
-            GlossPill("Favorites, sources…", { nav.push(Screen.Sources) }, icon = Glyph.HEART, height = 36.dp)
+        ModernTopBar("Explore", null) { IconAction(Glyph.HEART, "Favorites and sources", { nav.push(Screen.Sources) }) }
+        // the five views, as one quiet row
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (t in listOf("Songs", "Albums", "Artists", "Genres", "Charts")) GlossPill(t, { tab = t }, primary = tab == t, height = 38.dp)
         }
         if (tab == "Charts") { ChartsPanel(nav, snap); return@Column }
-        // filter row: the text box, then the pickers
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Row(Modifier.width(190.dp).height(36.dp).clip(RoundedCornerShape(18.dp)).background(Color(0x1FFFFFFF)).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                GlyphIcon(Glyph.SEARCH, Modifier.size(16.dp), sc.onBgDim)
-                Box(Modifier.padding(start = 8.dp).weight(1f)) {
-                    if (query.isEmpty()) Txt("Filter this list", size = 14f, color = sc.onBgDim)
-                    BasicTextField(query, { query = it }, singleLine = true, cursorBrush = SolidColor(sc.accent), textStyle = TextStyle(color = sc.onBg, fontSize = 14.sp), modifier = Modifier.fillMaxWidth())
+        // one line: the filter box, Filters (with how many are on) and Sort
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.weight(1f).height(42.dp).clip(RoundedCornerShape(21.dp)).background(Color(0x1FFFFFFF)).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                GlyphIcon(Glyph.SEARCH, Modifier.size(18.dp), sc.onBgDim)
+                Box(Modifier.padding(start = 10.dp).weight(1f)) {
+                    if (query.isEmpty()) Txt("Filter this list", size = 15f, color = sc.onBgDim)
+                    BasicTextField(query, { query = it }, singleLine = true, cursorBrush = SolidColor(sc.accent), textStyle = TextStyle(color = sc.onBg, fontSize = 15.sp), modifier = Modifier.fillMaxWidth())
                 }
+                if (query.isNotEmpty()) Box(Modifier.size(28.dp).clip(RoundedCornerShape(14.dp)).clickable { query = "" }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.CLOSE, Modifier.size(14.dp), sc.onBgDim) }
             }
-            GlossPill("Sort: " + (sorts?.firstOrNull { it.first == sort }?.second ?: ""), {
+            GlossPill(if (activeFilters > 0) "Filters · $activeFilters" else "Filters", { openFilters() }, icon = Glyph.LIST, primary = activeFilters > 0, height = 42.dp)
+            IconAction(Glyph.CHEVRON, "Sort: " + (sorts?.firstOrNull { it.first == sort }?.second ?: ""), {
                 nav.sheet = SheetSpec("Sort", null, (sorts ?: emptyList()).map { (id, label) -> SheetItem(label, if (id == sort) Glyph.CHECK else Glyph.LIST) { sort = id } })
-            }, height = 34.dp)
-            GlossPill("Genre: " + genre.ifEmpty { "Any" }, {
-                nav.sheet = SheetSpec("Genre", null, listOf(SheetItem("Any", if (genre.isEmpty()) Glyph.CHECK else Glyph.LIST) { genre = "" }) + choices.first.map { g -> SheetItem(g, if (g == genre) Glyph.CHECK else Glyph.LIST) { genre = g } })
-            }, primary = genre.isNotEmpty(), height = 34.dp)
-            GlossPill("Decade: " + decade.ifEmpty { "Any" }, {
-                nav.sheet = SheetSpec("Decade", null, listOf(SheetItem("Any", if (decade.isEmpty()) Glyph.CHECK else Glyph.LIST) { decade = "" }) + choices.second.map { d -> SheetItem(d, if (d == decade) Glyph.CHECK else Glyph.LIST) { decade = d } })
-            }, primary = decade.isNotEmpty(), height = 34.dp)
-            GlossPill("Quality: " + when (quality) { "lossless" -> "Lossless"; "lossy" -> "Lossy"; "hires" -> "Hi-Res"; else -> "Any" }, {
-                nav.sheet = SheetSpec("Quality", null, listOf("" to "Any", "lossless" to "Lossless (FLAC, ALAC…)", "lossy" to "Lossy (MP3, AAC…)", "hires" to "✦ Hi-Res").map { (id, label) -> SheetItem(label, if (id == quality) Glyph.CHECK else Glyph.LIST) { quality = id } })
-            }, primary = quality.isNotEmpty(), height = 34.dp)
-            GlossPill("Bit depth: " + (DEPTHS.firstOrNull { it.first == depth }?.second ?: "Any"), {
-                nav.sheet = SheetSpec("Bit depth", if (AudioFacts.pending > 0) "Still reading ${AudioFacts.pending} songs on the server" else null, (listOf("" to "Any") + DEPTHS).map { (id, label) -> SheetItem(label, if (id == depth) Glyph.CHECK else Glyph.LIST) { depth = id } })
-            }, primary = depth.isNotEmpty(), height = 34.dp)
-            GlossPill("Sample rate: " + (RATES.firstOrNull { it.first == rate }?.second ?: "Any"), {
-                nav.sheet = SheetSpec("Sample rate", if (AudioFacts.pending > 0) "Still reading ${AudioFacts.pending} songs on the server" else null, (listOf("" to "Any") + RATES).map { (id, label) -> SheetItem(label, if (id == rate) Glyph.CHECK else Glyph.LIST) { rate = id } })
-            }, primary = rate.isNotEmpty(), height = 34.dp)
-            if (filtering) GlossPill("Clear", { query = ""; letter = ""; genre = ""; decade = ""; quality = ""; depth = ""; rate = "" }, icon = Glyph.CLOSE, height = 34.dp)
+            }, size = 42.dp)
+        }
+        // what is on, each one tappable to turn off (only shown when something is)
+        if (activeFilters > 0 || letter.isNotEmpty()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (letter.isNotEmpty()) GlossPill("Letter $letter", { letter = "" }, icon = Glyph.CLOSE, height = 32.dp)
+            if (genre.isNotEmpty()) GlossPill(genre, { genre = "" }, icon = Glyph.CLOSE, height = 32.dp)
+            if (decade.isNotEmpty()) GlossPill(decade, { decade = "" }, icon = Glyph.CLOSE, height = 32.dp)
+            if (quality.isNotEmpty()) GlossPill(qualityName(quality), { quality = "" }, icon = Glyph.CLOSE, height = 32.dp)
+            if (depth.isNotEmpty()) GlossPill(DEPTHS.firstOrNull { it.first == depth }?.second ?: depth, { depth = "" }, icon = Glyph.CLOSE, height = 32.dp)
+            if (rate.isNotEmpty()) GlossPill(RATES.firstOrNull { it.first == rate }?.second ?: rate, { rate = "" }, icon = Glyph.CLOSE, height = 32.dp)
         }
         Box(Modifier.fillMaxSize()) {
         // the first-letter index: a slim rail down the right edge, over the list

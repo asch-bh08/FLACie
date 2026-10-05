@@ -33,6 +33,9 @@ class UiState(private val prefs: Prefs) {
         private set
     /** True for administrators of the FLACie server (or on a phone with no server, for the signed-in user): the Dashboard and the Hi-Res download are theirs. */
     var isAdmin by mutableStateOf(false)
+    /** The message at the bottom of the screen ("Added to X", with Undo), drawn by SnackHost. */
+    var snack by mutableStateOf<com.ipodemu.player.Snack?>(null)
+    fun say(text: String, actionLabel: String? = null, warn: Boolean = false, action: (() -> Unit)? = null) { snack = com.ipodemu.player.Snack(text, actionLabel, action, warn) }
     var pickerOpen by mutableStateOf(false)
     /** Sync mode setup overlay (Settings > Sync), same pattern as [pickerOpen]. */
     var syncSetupOpen by mutableStateOf(false)

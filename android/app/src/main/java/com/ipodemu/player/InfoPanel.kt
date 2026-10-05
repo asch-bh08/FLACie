@@ -58,8 +58,10 @@ import kotlin.math.sqrt
 
 /** What the player knows about the file it is playing right now. */
 private class AudioInfo(val codec: String, val lossless: Boolean, val sampleRate: Int, val channels: Int, val kbps: Int, val bits: Int) {
+    /** Lossless and better than CD: more than 16 bits, or above 44.1 kHz. */
+    val hiRes: Boolean get() = lossless && (sampleRate > 44_100 || bits > 16)
     val tier: String get() = when {
-        lossless && (sampleRate > 48_000 || bits > 16) -> "Hi-Res"
+        hiRes -> "Hi-Res"
         lossless -> "Lossless"
         kbps >= 256 -> "High"
         kbps > 0 -> "Standard"
@@ -93,9 +95,9 @@ private fun audioInfo(app: com.ipodemu.App, t: Track): AudioInfo {
 
 private val MODES = listOf("rate" to "Bit rate", "curve" to "Spectrum", "leds" to "Visualizer", "wall" to "Spectrogram", "loud" to "Loudness", "stereo" to "Stereo")
 
-private fun hint(mode: String) = when (mode) {
+private fun hint(mode: String, sampleRate: Int = 0) = when (mode) {
     "rate" -> "How much data each second of the song uses, next to common formats."
-    "curve" -> "How loud each pitch is right now: deep sounds on the left, high on the right, up to 22 kHz. A lossless file usually has sound out to the right edge; an MP3 is cut off around 16 kHz."
+    "curve" -> "How loud each pitch is right now: deep sounds on the left, high on the right, up to ${if (sampleRate > 0) "%.1f".format(sampleRate / 2000.0) else "22"} kHz (half this file's sample rate). A lossless file usually has sound out to the right edge; an MP3 is cut off around 16 kHz."
     "leds" -> "The song as it plays, deep sounds on the left and high ones on the right."
     "wall" -> "Pitch runs up the side (deep at the bottom, high at the top) and brighter means louder. The newest sound is on the right and scrolls left."
     "loud" -> "How loud the song is right now, in dB (0 is the loudest a file can go), and the last ten seconds."
@@ -117,8 +119,8 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
     }
     Column(modifier.clip(RoundedCornerShape(16.dp)).background(Color(0x1AFFFFFF)).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.clip(RoundedCornerShape(10.dp)).background(if (info.lossless) Color(0xFF1D2A1C) else Color(0x33FFFFFF)).padding(horizontal = 12.dp, vertical = 8.dp)) {
-                Txt(info.codec.ifEmpty { "AUDIO" }, size = 16f, weight = FontWeight.ExtraBold, color = if (info.lossless) Color(0xFFB8F0A8) else sc.onBg)
+            Box(Modifier.clip(RoundedCornerShape(10.dp)).background(if (info.hiRes) Brush.linearGradient(listOf(Color(0xFFFFD36E), Color(0xFFF59E0B))) else Brush.linearGradient(listOf(if (info.lossless) Color(0xFF1D2A1C) else Color(0x33FFFFFF), if (info.lossless) Color(0xFF1D2A1C) else Color(0x33FFFFFF)))).padding(horizontal = 12.dp, vertical = 8.dp)) {
+                Txt(if (info.hiRes) "HI-RES" else info.codec.ifEmpty { "AUDIO" }, size = 16f, weight = FontWeight.ExtraBold, color = if (info.hiRes) Color(0xFF2A1A00) else if (info.lossless) Color(0xFFB8F0A8) else sc.onBg)
             }
             Column {
                 Txt(info.tier.ifEmpty { "Quality unknown" }, size = 15f, weight = FontWeight.SemiBold)
@@ -143,8 +145,8 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
                     Txt(if (mode == "rate") "FROM THE FILE" else "● LIVE", size = 10f, weight = FontWeight.ExtraBold, color = if (mode == "rate") sc.onBgDim else sc.accent)
                 }
             }
-            Txt(hint(mode), size = 12.5f, color = sc.onBgDim, maxLines = 6)
-            if (mode == "rate") RateBars(info.kbps) else LiveGraph(mode, analysis, snap.playing)
+            Txt(hint(mode, info.sampleRate), size = 12.5f, color = sc.onBgDim, maxLines = 6)
+            if (mode == "rate") RateBars(info.kbps) else LiveGraph(mode, analysis, snap.playing, tall = info.hiRes)
         }
         Detail(listOf(
             "Title" to t.title, "Artist" to t.artist, "Album" to t.album, "Year" to t.year.takeIf { it > 0 }?.toString(), "Genre" to t.genre,
@@ -154,7 +156,26 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
             "Source" to (if (t.source == com.ipodemu.library.TrackSource.CLOUD) "Streaming (a new download, played from your server)" else t.source.name.lowercase().replaceFirstChar { it.uppercase() }), "Codec" to info.codec.takeIf { it.isNotEmpty() },
             "Size" to t.size.takeIf { it > 0 }?.let { if (it >= 1L shl 30) "%.2f GB".format(it / 1073741824.0) else "%.1f MB".format(it / 1048576.0) },
             "Location" to t.filePath.takeIf { it.isNotEmpty() },
+            "Playback" to playbackLine(ctx, info),
         ), "FILE")
+    }
+}
+
+/** The path from file to speaker, as far as the phone says: the player hands the decoded sound over at the file's own rate and Android's mixer decides the rest. */
+private fun playbackLine(ctx: android.content.Context, info: AudioInfo): String {
+    if (info.sampleRate <= 0) return ""
+    val am = ctx.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+    val mixer = am.getProperty(android.media.AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull() ?: 0
+    val usb = am.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS).firstOrNull {
+        it.type == android.media.AudioDeviceInfo.TYPE_USB_DEVICE || it.type == android.media.AudioDeviceInfo.TYPE_USB_HEADSET
+    }
+    val src = "${info.codec} ${info.sampling}".trim()
+    val mixKhz = "%.1f kHz".format(mixer / 1000.0)
+    return when {
+        usb != null -> "$src → decoder (the app does not resample) → Android audio mixer → USB DAC ${usb.productName}. Android's mixer resamples to ${if (mixer > 0) mixKhz else "its own rate"} unless the phone and DAC run in Android 14's bit-perfect USB mode, which this app does not switch on yet."
+        mixer > 0 && mixer != info.sampleRate -> "$src → decoder (the app does not resample) → Android audio mixer at $mixKhz: resampled by the device."
+        mixer > 0 -> "$src → decoder (the app does not resample) → Android audio mixer at $mixKhz: native rate, but the mixer still processes it, so it is not bit-exact."
+        else -> "$src → decoder (the app does not resample) → Android audio mixer. The phone does not say its mixer rate."
     }
 }
 
@@ -216,7 +237,7 @@ private val LUT = IntArray(256).also { lut ->
 
 @OptIn(UnstableApi::class)
 @Composable
-private fun LiveGraph(mode: String, analysis: LiveAnalysis, playing: Boolean) {
+private fun LiveGraph(mode: String, analysis: LiveAnalysis, playing: Boolean, tall: Boolean = false) {
     val sc = LocalScheme.current
     val state = remember(mode) { GraphState() }
     var frameNs by remember { mutableLongStateOf(0L) }
@@ -224,7 +245,8 @@ private fun LiveGraph(mode: String, analysis: LiveAnalysis, playing: Boolean) {
         while (true) androidx.compose.runtime.withFrameNanos { ns -> analysis.update(); frameNs = ns }
     }
     val paint = remember { Paint(Paint.ANTI_ALIAS_FLAG) }
-    val h = if (mode == "wall") 220.dp else 190.dp
+    // Hi-Res files get a bigger graph: there is more to see out to the right edge
+    val h = if (mode == "wall") (if (tall) 320.dp else 220.dp) else if (tall) 280.dp else 190.dp
     Canvas(Modifier.fillMaxWidth().height(h)) {
         @Suppress("UNUSED_EXPRESSION") frameNs
         val g = Gfx(this, paint, sc.accent, sc.onBgDim, sc.onBg, analysis, state, frameNs, playing && analysis.active)
@@ -252,9 +274,10 @@ private class Gfx(
         for (i in 1 until n - 1) quadraticBezierTo(xs[i], ys[i], (xs[i] + xs[i + 1]) / 2, (ys[i] + ys[i + 1]) / 2)
     }
 
-    // spectrum: 0 Hz to 22 kHz, a filled curve and a slowly falling peak line
+    // spectrum: 0 Hz up to the file's own Nyquist (half its sample rate), a filled curve and a slowly falling peak line
     fun curve() {
-        val maxHz = min(nyq, 22050f); val use = (a.bins * maxHz / nyq).toInt().coerceAtLeast(2)
+        val maxHz = nyq; val use = (a.bins * maxHz / nyq).toInt().coerceAtLeast(2)
+        val stepHz = if (maxHz > 48000f) 20000f else if (maxHz > 26000f) 10000f else 5000f
         val bottom = h - 18 * dp; val top = 6 * dp; val span = bottom - top
         if (st.peaks.size != use) st.peaks = FloatArray(use)
         var k = 0f
@@ -262,7 +285,7 @@ private class Gfx(
             val x = min(w - 1, k / maxHz * w)
             d.drawLine(Color(0x14FFFFFF), Offset(x, top), Offset(x, bottom), 1f)
             text(if (k == 0f) "0" else "${(k / 1000).toInt()} kHz", if (k == 0f) 2f else min(x, w - 22 * dp), h - 3 * dp, align = if (k == 0f) Paint.Align.LEFT else Paint.Align.CENTER)
-            k += 5000f
+            k += stepHz
         }
         if (maxHz > 16000) {
             val x = 16000f / maxHz * w
@@ -307,7 +330,8 @@ private class Gfx(
         val x0 = 44 * dp; val x1 = w - 2 * dp; val y0 = 4 * dp; val y1 = h - 18 * dp
         val pw = (x1 - x0).toInt().coerceAtLeast(2); val ph = (y1 - y0).toInt().coerceAtLeast(2); val speed = 60 * dp
         if (st.pw != pw || st.ph != ph) { st.pw = pw; st.ph = ph; st.pix = IntArray(pw * ph) { 0xFF04000A.toInt() }; st.bmp = Bitmap.createBitmap(pw, ph, Bitmap.Config.ARGB_8888); st.lastNs = ns; st.acc = 0f }
-        val maxHz = min(nyq, 22050f); val use = (a.bins * maxHz / nyq).toInt().coerceAtLeast(2)
+        val maxHz = nyq; val use = (a.bins * maxHz / nyq).toInt().coerceAtLeast(2)
+        val stepHz = if (maxHz > 48000f) 16000f else if (maxHz > 26000f) 8000f else 4000f
         val dt = min(100f, (ns - st.lastNs) / 1_000_000f); st.lastNs = ns
         if (playing) st.acc += dt / 1000f * speed
         val step = st.acc.toInt()
@@ -331,7 +355,7 @@ private class Gfx(
             val y = y1 - k / maxHz * ph; val key = k == 16000f || k == 20000f
             text(if (k == 0f) "0" else "${(k / 1000).toInt()} kHz", x0 - 6 * dp, min(y1 - 1 * dp, max(y0 + 10 * dp, y + 4 * dp)), color = if (key) ink else dim, align = Paint.Align.RIGHT)
             if (k > 0) d.drawLine(Color.White.copy(alpha = if (key) .5f else .12f), Offset(x0, y), Offset(x1, y), 1f, pathEffect = if (key) PathEffect.dashPathEffect(floatArrayOf(5 * dp, 4 * dp)) else null)
-            k += 4000f
+            k += stepHz
         }
         text("${(pw / speed).toInt()} s ago", x0, h - 3 * dp); text("now", x1, h - 3 * dp, align = Paint.Align.RIGHT)
     }

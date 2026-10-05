@@ -44,7 +44,7 @@ public sealed record DownloadServices(string SlskdUrl, string SlskdKey, string S
 /// <summary>"Download this": Soulseek (slskd) first, since a live peer usually has a popular song right now, with Lidarr's indexer search
 /// as the fallback. A Soulseek file is moved by the file mover into the folder Jellyfin scans (<c>Artist/Artist - Title.ext</c>, or
 /// <c>Artist/Album/NN - Title.ext</c> for an album). Same behaviour as the Android DownloadCoordinator.</summary>
-public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, DownloadServices cfg)
+public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, DownloadServices cfg, HttpClient? longHttp = null)
 {
     SlskdClient Slskd => new(http, cfg.SlskdUrl, cfg.SlskdKey);
 
@@ -76,7 +76,6 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
                 if (id == OpenSourceSettings.YtdlId)
                 {
                     if (await TryYtdl(artist, title, album, artUrl, durationMs, on, ct)) return true;
-                    on(new(DownloadStage.Searching, "YouTube had no matching upload", "ytdl", null, true));
                     continue;
                 }
                 if (finders is null || !finders.Tasks.TryGetValue(id, out var task)) continue;
@@ -102,28 +101,55 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
 
     /// <summary>The last-resort source: the file mover forwards to the yt-dlp service, which finds the song on YouTube (official audio / Topic uploads
     /// first, length and title checked) and files the audio itself. Off unless the user switched it on in Settings.</summary>
+    // yt-dlp does two searches and a download per song (30 s or more), and its service takes two songs at a time: the queue is kept here so a song
+    // waiting its turn is not counted as a failure, and the time limit only starts when it is actually being fetched
+    static readonly SemaphoreSlim YtdlTurn = new(2);
+
     async Task<bool> TryYtdl(string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct)
     {
+        string why = "YouTube had no matching upload";
         try
         {
-            on(new(DownloadStage.Searching, "Looking on YouTube...", "ytdl"));
-            var noExt = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}";
-            using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct); limit.CancelAfter(TimeSpan.FromSeconds(200));
-            using var req = new HttpRequestMessage(HttpMethod.Post, cfg.FileMoverUrl.TrimEnd('/') + "/ytdl")
-            { Content = new StringContent(new JsonObject { ["artist"] = artist, ["title"] = WebCatalog.BaseTitle(title), ["durationSec"] = (int)(durationMs / 1000), ["to"] = noExt }.ToJsonString(), Encoding.UTF8, "application/json") };
-            req.Headers.TryAddWithoutValidation("X-Api-Key", cfg.FileMoverKey);
-            using var res = await http.SendAsync(req, limit.Token);
-            if (!res.IsSuccessStatusCode) return false;
-            var j = JsonNode.Parse(await res.Content.ReadAsStringAsync(limit.Token));
-            if (j?["ok"]?.GetValue<bool>() != true || j["ext"]?.GetValue<string>() is not { Length: > 0 } ext) return false;
-            on(new(DownloadStage.Importing, "Filing into the library...", "ytdl"));
-            var secs = j["durationSec"] is JsonValue d && d.TryGetValue<int>(out var n) ? n : 0;
-            on(new(DownloadStage.Done, $"\"{title}\" is ready to play", "ytdl", [OpenTrack($"{noExt}.{ext}", title, artist, album, artUrl, durationMs > 0 ? durationMs : secs * 1000L)]));
-            return true;
+            on(new(DownloadStage.Searching, "Waiting for YouTube's turn...", "ytdl"));
+            await YtdlTurn.WaitAsync(ct);
+            try
+            {
+                on(new(DownloadStage.Searching, "Looking on YouTube...", "ytdl"));
+                var noExt = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}";
+                for (var attempt = 0; attempt < 2; attempt++)
+                {
+                    using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct); limit.CancelAfter(TimeSpan.FromSeconds(170));
+                    using var req = new HttpRequestMessage(HttpMethod.Post, cfg.FileMoverUrl.TrimEnd('/') + "/ytdl")
+                    { Content = new StringContent(new JsonObject { ["artist"] = artist, ["title"] = WebCatalog.BaseTitle(title), ["durationSec"] = (int)(durationMs / 1000), ["to"] = noExt }.ToJsonString(), Encoding.UTF8, "application/json") };
+                    req.Headers.TryAddWithoutValidation("X-Api-Key", cfg.FileMoverKey);
+                    try
+                    {
+                        using var res = await (longHttp ?? http).SendAsync(req, limit.Token);
+                        var j = JsonNode.Parse(await res.Content.ReadAsStringAsync(limit.Token));
+                        if (res.IsSuccessStatusCode && j?["ok"]?.GetValue<bool>() == true && j["ext"]?.GetValue<string>() is { Length: > 0 } ext)
+                        {
+                            on(new(DownloadStage.Importing, "Filing into the library...", "ytdl"));
+                            var secs = j["durationSec"] is JsonValue d && d.TryGetValue<int>(out var n) ? n : 0;
+                            on(new(DownloadStage.Done, $"\"{title}\" is ready to play", "ytdl", [OpenTrack($"{noExt}.{ext}", title, artist, album, artUrl, durationMs > 0 ? durationMs : secs * 1000L)]));
+                            return true;
+                        }
+                        // 404 = the search really found nothing usable; anything else is the YouTube service failing, worth one more try
+                        var said = j?["error"]?.GetValue<string>() ?? "";
+                        if ((int)res.StatusCode == 404) { why = "YouTube had no matching upload"; break; }
+                        why = "YouTube failed: " + (said.Length > 0 ? said : "HTTP " + (int)res.StatusCode);
+                    }
+                    catch (OperationCanceledException) when (!ct.IsCancellationRequested) { why = "YouTube took too long"; }
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception e) { why = "YouTube service unreachable: " + e.Message; }
+                    await Task.Delay(3_000, ct);
+                }
+            }
+            finally { YtdlTurn.Release(); }
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return false; }
         catch (OperationCanceledException) { throw; }
-        catch (Exception) { return false; }
+        catch (Exception) { }
+        on(new(DownloadStage.Searching, why, "ytdl", null, true));
+        return false;
     }
 
     /// <summary>Asks the file mover to download [url] straight into the library folder ([to], relative to its root).</summary>
@@ -131,7 +157,8 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
     {
         using var req = new HttpRequestMessage(HttpMethod.Post, cfg.FileMoverUrl.TrimEnd('/') + "/fetch") { Content = new StringContent(new JsonObject { ["url"] = url, ["to"] = to }.ToJsonString(), Encoding.UTF8, "application/json") };
         req.Headers.TryAddWithoutValidation("X-Api-Key", cfg.FileMoverKey);
-        using var res = await http.SendAsync(req, ct);
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct); limit.CancelAfter(TimeSpan.FromMinutes(4));
+        using var res = await (longHttp ?? http).SendAsync(req, limit.Token);
         return res.IsSuccessStatusCode;
     }
 
@@ -163,7 +190,11 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         var words = a.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var plan = new List<(string, int)> { ($"{a} {t}".Trim(), 15_000) };
         if (words.Length > 1) plan.Add(($"{words[0]} {t}", 10_000));
+        // a title that is a single word ("Loser", "Treppen") is too broad alone, so it keeps the artist's last word with it instead
         if (t.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 2) plan.Add((t, 10_000));
+        else if (words.Length > 1) plan.Add(($"{words[^1]} {t}", 10_000));
+        // peers come and go: the same search once more, longer, when nothing at all answered
+        plan.Add(($"{a} {t}".Trim(), 25_000));
         return plan;
     }
 
@@ -176,9 +207,12 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
             on(new(DownloadStage.Searching, hiRes ? "Searching Soulseek for a Hi-Res copy..." : "Searching Soulseek...", "soulseek"));
             var sl = Slskd;
             List<SlskdFile> found = [], cands = [];
-            foreach (var (query, timeout) in SearchPlan(artist, title))
+            var plan = SearchPlan(artist, title);
+            for (var i = 0; i < plan.Count; i++)
             {
-                found = await sl.SearchAsync(query, timeout, ct: ct);
+                // the closing repeat of the first search is only worth its extra seconds when every earlier search came back completely empty
+                if (i == plan.Count - 1 && i > 0 && found.Count > 0) break;
+                found = await sl.SearchAsync(plan[i].Query, plan[i].TimeoutMs, ct: ct);
                 cands = SlskdClient.RankSong(found, artist, title, durationSec, hiRes);
                 if (cands.Count > 0) break;
             }

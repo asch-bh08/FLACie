@@ -36,6 +36,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
     private val slskd = SlskdClient()
     private val jellyfin = JellyfinDirectClient()
     private val fileMover = FileMoverClient()
+    private companion object { val ytdlTurn = Semaphore(2) }
 
     private val soulseekReady get() = prefs.slskdUrl.isNotBlank() && prefs.slskdApiKey.isNotBlank() && prefs.fileMoverUrl.isNotBlank() && prefs.fileMoverApiKey.isNotBlank()
     private val lidarrReady get() = prefs.lidarrUrl.isNotBlank() && prefs.lidarrApiKey.isNotBlank()
@@ -74,7 +75,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
         for (id in prefs.openSources.active()) {
             if (id == OpenSourceSettings.YTDL) {
                 if (tryYtdl(artist, title, album, durationMs, onUpdate)) { done = true; break }
-                onUpdate(DownloadStatus(DownloadStage.SEARCHING, "YouTube had no matching upload", "ytdl", miss = true)); continue
+                continue
             }
             val task = finders?.tasks?.get(id) ?: continue
             val hit = withTimeoutOrNull((deadline - System.currentTimeMillis()).coerceAtLeast(0)) { task.await() }
@@ -100,16 +101,31 @@ class DownloadCoordinator(private val prefs: Prefs) {
 
     /** The last-resort source: the file mover forwards to the yt-dlp service, which finds the song on YouTube (official audio / Topic uploads first,
      * length and title checked) and files the audio itself. Off unless the user switched it on in Settings. */
-    private suspend fun tryYtdl(artist: String, title: String, album: String, durationMs: Long, onUpdate: (DownloadStatus) -> Unit): Boolean = try {
-        onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Looking on YouTube...", "ytdl"))
-        val noExt = listOfNotNull(prefs.nasFolder.trim('/').ifBlank { null }, clean(artist)).joinToString("/") + "/${clean(artist)} - ${clean(WebCatalog.baseTitle(title))}"
-        val r = fileMover.ytdl(prefs.fileMoverUrl, prefs.fileMoverApiKey, artist, WebCatalog.baseTitle(title), (durationMs / 1000).toInt(), noExt)
-        if (r == null) false else {
-            onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library...", "ytdl"))
-            finishWithJellyfinScan(artist, onUpdate, "ytdl", title, openTrack("$noExt.${r.first}", artist, title, album, if (durationMs > 0) durationMs else r.second * 1000L))
-            true
-        }
-    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { false }
+    private suspend fun tryYtdl(artist: String, title: String, album: String, durationMs: Long, onUpdate: (DownloadStatus) -> Unit): Boolean {
+        var why = "YouTube had no matching upload"
+        try {
+            // the yt-dlp service takes two songs at a time: the wait for a turn is kept here, so it does not eat into the time limit of the fetch itself
+            onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Waiting for YouTube's turn...", "ytdl"))
+            ytdlTurn.withPermit {
+                onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Looking on YouTube...", "ytdl"))
+                val noExt = listOfNotNull(prefs.nasFolder.trim('/').ifBlank { null }, clean(artist)).joinToString("/") + "/${clean(artist)} - ${clean(WebCatalog.baseTitle(title))}"
+                for (attempt in 0 until 2) {
+                    try {
+                        val r = fileMover.ytdl(prefs.fileMoverUrl, prefs.fileMoverApiKey, artist, WebCatalog.baseTitle(title), (durationMs / 1000).toInt(), noExt)
+                        if (r == null) { why = "YouTube had no matching upload"; break }
+                        onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library...", "ytdl"))
+                        finishWithJellyfinScan(artist, onUpdate, "ytdl", title, openTrack("$noExt.${r.first}", artist, title, album, if (durationMs > 0) durationMs else r.second * 1000L))
+                        return true
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                    catch (e: java.net.SocketTimeoutException) { why = "YouTube took too long" }
+                    catch (e: Exception) { why = "YouTube failed: " + (e.message ?: "service unreachable") }
+                    delay(3_000)
+                }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { }
+        onUpdate(DownloadStatus(DownloadStage.SEARCHING, why, "ytdl", miss = true))
+        return false
+    }
 
     /** A whole album or EP: one peer's folder where possible, missing songs one by one; Lidarr if Soulseek finds nothing. */
     suspend fun downloadAlbum(album: WebCatalog.Album, onUpdate: (DownloadStatus) -> Unit) {
@@ -137,7 +153,10 @@ class DownloadCoordinator(private val prefs: Prefs) {
         return buildList {
             add("$a $t".trim() to 15_000L)
             if (words.size > 1) add("${words[0]} $t" to 10_000L)
-            if (t.split(' ').count { it.isNotEmpty() } >= 2) add(t to 10_000L)
+            // a title that is a single word ("Loser", "Treppen") is too broad alone, so it keeps the artist's last word with it instead
+            if (t.split(' ').count { it.isNotEmpty() } >= 2) add(t to 10_000L) else if (words.size > 1) add("${words.last()} $t" to 10_000L)
+            // peers come and go: the same search once more, longer, when nothing at all answered
+            add("$a $t".trim() to 25_000L)
         }
     }
 
@@ -146,8 +165,11 @@ class DownloadCoordinator(private val prefs: Prefs) {
     private suspend fun trySoulseek(artist: String, title: String, album: String, durationSec: Int, onUpdate: (DownloadStatus) -> Unit, hiRes: Boolean = false): Boolean = try {
         onUpdate(DownloadStatus(DownloadStage.SEARCHING, if (hiRes) "Searching Soulseek for a Hi-Res copy..." else "Searching Soulseek...", "soulseek"))
         var found = emptyList<SlskdClient.FileResult>(); var cands = emptyList<SlskdClient.FileResult>()
-        for ((query, timeout) in searchPlan(artist, title)) {
-            found = slskd.search(prefs.slskdUrl, prefs.slskdApiKey, query, timeout)
+        val plan = searchPlan(artist, title)
+        for ((i, step) in plan.withIndex()) {
+            // the closing repeat of the first search is only worth its extra seconds when every earlier search came back completely empty
+            if (i == plan.lastIndex && i > 0 && found.isNotEmpty()) break
+            found = slskd.search(prefs.slskdUrl, prefs.slskdApiKey, step.first, step.second)
             cands = slskd.rankSong(found, artist, title, durationSec, hiRes)
             if (cands.isNotEmpty()) break
         }

@@ -7,6 +7,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -114,6 +116,16 @@ private fun PlayerRoot(activity: MainActivity, nav: PlayerNav) {
             else try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { adminWeb.account().admin } } catch (_: Exception) { ui.isAdmin }
     }
 
+    // the real format of every song (for the Hi-Res badge and the Explore quality filters), kept from the last run and refreshed from FLACie Web
+    val factsFile = remember { java.io.File(app.filesDir, "audiofacts.json") }
+    LaunchedEffect(app.prefs.flacieWebUrl) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            if (com.ipodemu.library.AudioFacts.size == 0) com.ipodemu.library.AudioFacts.load(factsFile)
+            com.ipodemu.library.AudioFacts.refresh(adminWeb, factsFile)
+        }
+
+    }
+
     // a playlist/album page left open under Now Playing used to pin the tint to its cover while the songs changed
     val artKey = (if (nav.nowPlaying) null else nav.overrideArt) ?: snap.track?.artKey
     var artColors by remember { mutableStateOf<ArtColors?>(null) }
@@ -130,6 +142,7 @@ private fun PlayerRoot(activity: MainActivity, nav: PlayerNav) {
         val body: @Composable () -> Unit = {
             Box(Modifier.fillMaxSize().drawBehind { drawRect(Brush.verticalGradient(listOf(scheme.top, scheme.bottom), endY = if (modern) size.height * 0.55f else Float.POSITIVE_INFINITY)) }.let { if (mode == 1) it else it.safeArea() }) {
                 PlayerHost(nav)
+                SnackHost(ui, Modifier.align(androidx.compose.ui.Alignment.BottomCenter).padding(bottom = 96.dp))
                 BackHandler(enabled = !ui.pickerOpen && nav.stack.size == 1 && nav.top == Screen.Home && !nav.nowPlaying && nav.sheet == null && nav.nameDialog == null) { activity.moveTaskToBack(true) }
             }
         }

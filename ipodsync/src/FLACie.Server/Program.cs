@@ -24,6 +24,8 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddHttpClient("jellyfin", c => c.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddHttpClient("media", c => { c.Timeout = Timeout.InfiniteTimeSpan; c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); });
 builder.Services.AddHttpClient("catalog", c => { c.Timeout = TimeSpan.FromSeconds(12); c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); });
+// the yt-dlp call (search, search, download) and the open-source file fetches run for minutes: the call carries its own time limit, so no client one
+builder.Services.AddHttpClient("downloads-long", c => { c.Timeout = Timeout.InfiniteTimeSpan; c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); });
 builder.Services.AddHttpClient("downloads", c => { c.Timeout = TimeSpan.FromSeconds(30); c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); });
 builder.Services.AddSingleton(sp => new WebCatalog(sp.GetRequiredService<IHttpClientFactory>().CreateClient("catalog")));
 builder.Services.AddSingleton(new DataPaths(dataDir));
@@ -40,6 +42,9 @@ builder.Services.AddSingleton<ImportManager>();
 builder.Services.AddSingleton<ChartsService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ChartsService>());
 builder.Services.AddSingleton<InfoService>();
+builder.Services.AddSingleton<FormatIndex>();
+builder.Services.AddSingleton<FormatProbeService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<FormatProbeService>());
 builder.Services.AddSingleton(sp => new LyricsService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("catalog"), sp.GetRequiredService<JellyfinClient>(), Path.Combine(dataDir, "lyrics")));
 // one device id per server install, so Jellyfin lists FLACie Web as one device
 var deviceIdFile = Path.Combine(dataDir, "device-id");
@@ -53,6 +58,7 @@ builder.Services.AddSingleton(sp => new JellyfinClient(sp.GetRequiredService<IHt
 });
 builder.Services.AddSingleton<SessionStore>();
 builder.Services.AddScoped<PlayerState>();
+builder.Services.AddScoped<Toasts>();
 builder.Services.AddScoped<ExploreState>();
 // the live page connection: a phone that slept or lost signal for a while picks its page up again (30 minutes) instead of getting "connection was reset"
 builder.Services.AddRazorComponents()

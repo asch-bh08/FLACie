@@ -109,6 +109,17 @@ public static class ApiEndpoints
             return Results.Json(new { songs = s.Library.Songs.Count, albums = s.Library.Albums.Count, artists = s.Library.Artists.Count, playlists = s.Playlists.Count, favourites = s.Favorites.Count, admin = AdminAccess.Is(s, app.Configuration) });
         });
 
+        // the real format of every song the server has read (ffprobe / Jellyfin, never guessed from the extension), keyed like the apps key a file
+        // (the last three path segments): the phone uses it for the Hi-Res badge and the Explore quality filter. [codec, sampleRate, bitDepth, kbps]
+        app.MapGet("/api/audiofacts", async (HttpContext ctx, SessionStore store, JellyfinClient jf, FormatIndex index, FormatProbeService probe) =>
+        {
+            if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
+            var facts = new Dictionary<string, object[]>();
+            foreach (var t in s.Library.Songs)
+                if (index.Get(t) is { } f && Matching.FileKey(t) is { } k) facts[k] = [f.Codec, f.Rate, f.Depth, f.Kbps];
+            return Results.Json(new { pending = probe.Pending, facts });
+        });
+
         // the Downloads page on the phone: what is running now and the log of everything the server fetched for this account (newest first)
         app.MapGet("/api/downloads", async (HttpContext ctx, SessionStore store, JellyfinClient jf, DownloadManager downloads, DownloadLog log, int? limit) =>
         {

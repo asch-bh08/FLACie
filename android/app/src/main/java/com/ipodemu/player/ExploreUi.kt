@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ipodemu.library.hiRes
+import com.ipodemu.library.AudioFacts
 import com.ipodemu.library.FlacieWebClient
 import com.ipodemu.library.Group
 import com.ipodemu.library.SearchRank
@@ -58,10 +59,15 @@ private val EXPLORE_SORTS = mapOf(
     "Genres" to listOf("az" to "Name A–Z", "za" to "Name Z–A", "long" to "Most songs"),
 )
 
+private val DEPTHS = listOf("16" to "16-bit", "24" to "24-bit", "32" to "32-bit")
+private val RATES = listOf("lo" to "44.1 kHz or lower", "48" to "48 kHz", "96" to "88.2 to 96 kHz", "192" to "176.4 kHz and up")
+private fun rateBand(hz: Int, band: String) = when (band) { "lo" -> hz in 1..44_100; "48" -> hz in 44_101..48_000; "96" -> hz in 48_001..96_000; "192" -> hz > 96_000; else -> true }
+
 /** Explore: the library cut five ways (songs, albums, artists, genres, charts) with a text filter, A to Z, genre, decade, lossless or lossy and a sort. */
 @Composable
 fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
     LocalLibRev.current
+    AudioFacts.version
     val app = LocalApp.current
     val sc = LocalScheme.current
     val lib = app.library
@@ -72,6 +78,8 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
     var genre by rememberSaveable { mutableStateOf("") }
     var decade by rememberSaveable { mutableStateOf("") }
     var quality by rememberSaveable { mutableStateOf("") }
+    var depth by rememberSaveable { mutableStateOf("") }
+    var rate by rememberSaveable { mutableStateOf("") }
     var sort by rememberSaveable { mutableStateOf("az") }
     val sorts = EXPLORE_SORTS[tab]
     if (sorts != null && sorts.none { it.first == sort }) sort = "az"
@@ -81,11 +89,13 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
         val gs = songs.filter { it.genre.isNotBlank() }.groupBy { it.genre.trim().lowercase() }.filter { it.value.size >= 3 }.map { it.value.first().genre.trim() }.sortedBy { it.lowercase() }
         gs to songs.map { decadeOf(it.year) }.filter { it.isNotEmpty() }.distinct().sortedDescending()
     }
-    val filtering = query.isNotBlank() || letter.isNotEmpty() || genre.isNotEmpty() || decade.isNotEmpty() || quality.isNotEmpty()
+    val filtering = query.isNotBlank() || letter.isNotEmpty() || genre.isNotEmpty() || decade.isNotEmpty() || quality.isNotEmpty() || depth.isNotEmpty() || rate.isNotEmpty()
     val words = remember(query) { SearchRank.words(query) }
     fun hit(vararg fields: String): Boolean { if (words.isEmpty()) return true; val glue = SearchRank.words(fields.joinToString(" ")).joinToString(""); return words.all { glue.contains(it) } }
     fun match(t: Track) = (genre.isEmpty() || t.genre.trim().equals(genre, true)) && (decade.isEmpty() || decadeOf(t.year) == decade) &&
-        (quality.isEmpty() || (if (quality == "hires") t.hiRes else (quality == "lossless") == (ext(t) in LOSSLESS)))
+        (quality.isEmpty() || (if (quality == "hires") t.hiRes else (quality == "lossless") == (AudioFacts.of(t)?.lossless ?: (ext(t) in LOSSLESS)))) &&
+        (depth.isEmpty() || AudioFacts.of(t)?.let { it.depth > 0 && it.depth.toString() == depth } == true) &&
+        (rate.isEmpty() || AudioFacts.of(t)?.let { rateBand(it.rate, rate) } == true)
     fun letterOk(name: String) = letter.isEmpty() || letterOf(sortKey(name)) == letter
 
     Column(Modifier.fillMaxSize()) {
@@ -116,7 +126,13 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
             GlossPill("Quality: " + when (quality) { "lossless" -> "Lossless"; "lossy" -> "Lossy"; "hires" -> "Hi-Res"; else -> "Any" }, {
                 nav.sheet = SheetSpec("Quality", null, listOf("" to "Any", "lossless" to "Lossless (FLAC, ALAC…)", "lossy" to "Lossy (MP3, AAC…)", "hires" to "✦ Hi-Res").map { (id, label) -> SheetItem(label, if (id == quality) Glyph.CHECK else Glyph.LIST) { quality = id } })
             }, primary = quality.isNotEmpty(), height = 34.dp)
-            if (filtering) GlossPill("Clear", { query = ""; letter = ""; genre = ""; decade = ""; quality = "" }, icon = Glyph.CLOSE, height = 34.dp)
+            GlossPill("Bit depth: " + (DEPTHS.firstOrNull { it.first == depth }?.second ?: "Any"), {
+                nav.sheet = SheetSpec("Bit depth", if (AudioFacts.pending > 0) "Still reading ${AudioFacts.pending} songs on the server" else null, (listOf("" to "Any") + DEPTHS).map { (id, label) -> SheetItem(label, if (id == depth) Glyph.CHECK else Glyph.LIST) { depth = id } })
+            }, primary = depth.isNotEmpty(), height = 34.dp)
+            GlossPill("Sample rate: " + (RATES.firstOrNull { it.first == rate }?.second ?: "Any"), {
+                nav.sheet = SheetSpec("Sample rate", if (AudioFacts.pending > 0) "Still reading ${AudioFacts.pending} songs on the server" else null, (listOf("" to "Any") + RATES).map { (id, label) -> SheetItem(label, if (id == rate) Glyph.CHECK else Glyph.LIST) { rate = id } })
+            }, primary = rate.isNotEmpty(), height = 34.dp)
+            if (filtering) GlossPill("Clear", { query = ""; letter = ""; genre = ""; decade = ""; quality = ""; depth = ""; rate = "" }, icon = Glyph.CLOSE, height = 34.dp)
         }
         Box(Modifier.fillMaxSize()) {
         // the first-letter index: a slim rail down the right edge, over the list
@@ -134,7 +150,7 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
         Box(Modifier.fillMaxSize().padding(end = 32.dp)) {
         when (tab) {
             "Songs" -> {
-                val list = remember(songs, query, letter, genre, decade, quality, sort) {
+                val list = remember(songs, query, letter, genre, decade, quality, depth, rate, sort) {
                     songs.filter { letterOk(it.title) && match(it) && hit(it.title, it.artist, it.album) }.let { l ->
                         when (sort) {
                             "za" -> l.sortedByDescending { sortKey(it.title) }; "artist" -> l.sortedWith(compareBy({ sortKey(it.artist) }, { it.album }, { it.discNo }, { it.trackNo }))
@@ -152,7 +168,7 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
                 })
             }
             "Albums" -> {
-                val list = remember(libRev, query, letter, genre, decade, quality, sort) {
+                val list = remember(libRev, query, letter, genre, decade, quality, depth, rate, sort) {
                     lib.albums().filter { g -> letterOk(g.name) && hit(g.name, g.tracks.first().albumArtist.ifEmpty { g.tracks.first().artist }) && g.tracks.any { match(it) } }.let { l ->
                         when (sort) {
                             "za" -> l.sortedByDescending { sortKey(it.name) }; "artist" -> l.sortedBy { sortKey(it.tracks.first().albumArtist.ifEmpty { it.tracks.first().artist }) }
@@ -165,13 +181,13 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
                 if (list.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No albums yet") else AlbumGrid(list, nav)
             }
             "Artists" -> {
-                val list = remember(libRev, query, letter, genre, decade, quality, sort) {
+                val list = remember(libRev, query, letter, genre, decade, quality, depth, rate, sort) {
                     lib.artists().filter { letterOk(it.name) && hit(it.name) && it.tracks.any { t -> match(t) } }.let { l -> when (sort) { "za" -> l.sortedByDescending { sortKey(it.name) }; "long" -> l.sortedByDescending { it.tracks.size }; else -> l } }
                 }
                 if (list.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No artists yet") else GroupList(list, nav, circle = true) { Screen.Detail(DetailKind.ARTIST, it.name) }
             }
             else -> {
-                val list = remember(libRev, query, letter, genre, decade, quality, sort) {
+                val list = remember(libRev, query, letter, genre, decade, quality, depth, rate, sort) {
                     lib.genres().filter { letterOk(it.name) && hit(it.name) && it.tracks.any { t -> match(t) } }.let { l -> when (sort) { "za" -> l.sortedByDescending { sortKey(it.name) }; "long" -> l.sortedByDescending { it.tracks.size }; else -> l } }
                 }
                 if (list.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No genres yet") else GroupList(list, nav, circle = false) { Screen.Detail(DetailKind.GENRE, it.name) }

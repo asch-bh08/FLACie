@@ -3,7 +3,7 @@
 {
     @if (open) { <NowPlaying OnClose="() => open = false" /> }
     <section class="player" aria-label="Player">
-        <input class="bar-progress" type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@Player.Position" aria-label="Seek" style="@Fill(Player.Position, Player.Duration)" @onchange="OnSeek" />
+        <input class="bar-progress" type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" style="@Fill(hold.Value(Player.Position), Player.Duration)" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
         <div class="bar">
             <button class="bar-song" @onclick="() => open = true" aria-label="Open Now Playing">
                 <Cover ArtKey="@(Art.KeyFor(t))" Size="52" />
@@ -19,7 +19,7 @@
                 </div>
                 <div class="seek">
                     <span>@Time(Player.Position)</span>
-                    <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@Player.Position" aria-label="Seek" style="@Fill(Player.Position, Player.Duration)" @onchange="OnSeek" />
+                    <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" style="@Fill(hold.Value(Player.Position), Player.Duration)" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
                     <span>@Time(Player.Duration)</span>
                 </div>
             </div>
@@ -76,6 +76,7 @@
             _ = RegisterClient();
         }
     }
-    Task OnSeek(ChangeEventArgs e) => double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var s) ? Player.Seek(s) : Task.CompletedTask;
+    readonly SeekHold hold = new();
+    Task OnSeek(ChangeEventArgs e) { if (!SeekHold.Parse(e.Value, out var s)) return Task.CompletedTask; hold.Changed(s); return Player.Seek(s); }
     static string Fill(double v, double max) => $"--fill:{(max > 0 ? Math.Clamp(v / max * 100, 0, 100) : 0).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}%";
 }

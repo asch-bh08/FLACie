@@ -393,12 +393,11 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
 internal fun playlistPicker(app: App, nav: PlayerNav, t: Track): SheetSpec {
     val ud = app.userData
     val items = ArrayList<SheetItem>()
-    items += SheetItem("New playlist...", Glyph.PLUS) { nav.nameDialog = { name -> ud.createPlaylist(name, t.path); android.widget.Toast.makeText(app, "Added to $name", android.widget.Toast.LENGTH_SHORT).show() } }
+    items += SheetItem("New playlist...", Glyph.PLUS) { nav.nameDialog = { name -> val p = ud.createPlaylist(name, t.path); app.ui.say("Added \"${t.title}\" to $name", "Undo") { ud.removeFromPlaylist(p.id, t.path) } } }
     shownPlaylists(app).forEach { p ->
         items += SheetItem(p.name, Glyph.LIST) {
-            val had = t.path in p.paths
-            ud.addToPlaylist(p.id, t.path)
-            android.widget.Toast.makeText(app, if (had) "Already in ${p.name}" else "Added to ${p.name}", android.widget.Toast.LENGTH_SHORT).show()
+            if (t.path in p.paths) app.ui.say("\"${t.title}\" is already in ${p.name}", warn = true)
+            else { ud.addToPlaylist(p.id, t.path); app.ui.say("Added \"${t.title}\" to ${p.name}", "Undo") { ud.removeFromPlaylist(p.id, t.path); app.ui.say("Removed \"${t.title}\" from ${p.name}") } }
         }
     }
     return SheetSpec("Add to playlist", t.title, items)

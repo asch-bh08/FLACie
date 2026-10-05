@@ -51,32 +51,48 @@ window.flacie = (() => {
     requestAnimationFrame(lyricTick);
   };
   requestAnimationFrame(lyricTick);
-  // Live views for the Info tab: spectrum, bars, spectrogram, loudness, stereo. The audio runs through analysers from the first song on
-  // (set up before any sound plays, so switching a view on or off never interrupts it). Not done on iOS, where routing through Web Audio
-  // can stop playback in the background.
-  let actx = null, an = null, anL = null, anR = null, outGain = null, vizOn = false, vizStyle = "curve", vs = {}, vh = null, vp = null, cp = null;
+  // Live views for the Info tab: spectrum, bars, spectrogram, loudness, stereo. Playback itself goes straight from the audio element to the
+  // output (no Web Audio in its path, so the browser never resamples it to a fixed rate). The graphs read a silent twin of the same stream
+  // through an AudioContext opened at the file's own sample rate, so the spectrum reaches the file's real Nyquist. Not done on iOS.
+  let actx = null, an = null, anL = null, anR = null, twin = null, vizOn = false, vizStyle = "curve", vs = {}, vh = null, vp = null, cp = null, ctxKey = "";
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  const ensureGraph = () => {
-    if (an || ios || actx) return;
-    try {
-      actx = new (window.AudioContext || window.webkitAudioContext)();
-      const src = actx.createMediaElementSource(audio);
-      // the sound's own path first, so it can never be lost: the volume is applied here, and the graphs read what comes out of it
-      outGain = actx.createGain(); outGain.gain.value = audio.volume; audio.volume = 1;
-      src.connect(outGain); outGain.connect(actx.destination);
-      try {
-        const sink = actx.createGain(); sink.gain.value = 0; sink.connect(actx.destination); // keeps the analysers running
-        const a = actx.createAnalyser(); a.fftSize = 2048; a.smoothingTimeConstant = 0.7; outGain.connect(a); a.connect(sink);
-        // left and right on their own; the gain node first turns a mono file into two equal channels, so a mono song reads the same on both sides
-        const up = actx.createGain(); up.channelCount = 2; up.channelCountMode = "explicit"; up.channelInterpretation = "speakers";
-        const split = actx.createChannelSplitter(2);
-        const l = actx.createAnalyser(), r = actx.createAnalyser(); l.fftSize = r.fftSize = 2048; l.smoothingTimeConstant = r.smoothingTimeConstant = 0;
-        outGain.connect(up); up.connect(split); split.connect(l, 0); split.connect(r, 1); l.connect(sink); r.connect(sink);
-        an = a; anL = l; anR = r;
-      } catch { an = null; }
-    } catch { an = null; }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const closeGraph = () => {
+    if (twin) { try { twin.pause(); twin.removeAttribute("src"); twin.load(); } catch { } twin = null; }
+    if (actx) { try { actx.close(); } catch { } }
+    actx = an = anL = anR = null; ctxKey = "";
   };
-  audio.addEventListener("play", () => { if (actx && actx.state === "suspended") actx.resume().catch(() => { }); });
+  const syncTwin = () => {
+    if (!twin || !audio.src) return;
+    if (twin.src !== audio.src) twin.src = audio.src;
+    if (Math.abs(twin.currentTime - audio.currentTime) > 0.3) { try { twin.currentTime = audio.currentTime; } catch { } }
+    if (twin.playbackRate !== audio.playbackRate) twin.playbackRate = audio.playbackRate;
+    if (audio.paused !== twin.paused) { if (audio.paused) twin.pause(); else twin.play().catch(() => { }); }
+  };
+  ["play", "pause", "seeked", "loadstart", "ratechange"].forEach(ev => audio.addEventListener(ev, syncTwin));
+  const buildGraph = (rate) => {
+    if (ios || !AC) return false;
+    const key = String(rate || 0);
+    if (actx && ctxKey === key) return true;
+    closeGraph();
+    try {
+      try { actx = rate >= 8000 && rate <= 192000 ? new AC({ sampleRate: rate, latencyHint: "playback" }) : new AC(); } catch { actx = new AC(); }
+      twin = new Audio(); twin.preload = "auto";
+      const src = actx.createMediaElementSource(twin);
+      // nothing here reaches the speakers: the analysers feed a gain of zero (which keeps them running)
+      const sink = actx.createGain(); sink.gain.value = 0; sink.connect(actx.destination);
+      const a = actx.createAnalyser(); a.fftSize = 2048; a.smoothingTimeConstant = 0.7; src.connect(a); a.connect(sink);
+      // left and right on their own; the gain node first turns a mono file into two equal channels, so a mono song reads the same on both sides
+      const up = actx.createGain(); up.channelCount = 2; up.channelCountMode = "explicit"; up.channelInterpretation = "speakers";
+      const split = actx.createChannelSplitter(2);
+      const l = actx.createAnalyser(), r = actx.createAnalyser(); l.fftSize = r.fftSize = 2048; l.smoothingTimeConstant = r.smoothingTimeConstant = 0;
+      src.connect(up); up.connect(split); split.connect(l, 0); split.connect(r, 1); l.connect(sink); r.connect(sink);
+      an = a; anL = l; anR = r; ctxKey = key;
+      if (actx.state === "suspended") actx.resume().catch(() => { });
+      syncTwin();
+      return true;
+    } catch { closeGraph(); return false; }
+  };
 
   const db = (x) => 20 * Math.log10(Math.max(x, 1e-6));
   const freqData = () => { const d = new Uint8Array(an.frequencyBinCount); an.getByteFrequencyData(d); return d; };
@@ -96,10 +112,10 @@ window.flacie = (() => {
   // ---- spectrum: how loud each pitch is, 0 Hz on the left to 22 kHz on the right, with a slowly falling peak line ----
   const drawCurve = (f) => {
     const { g, w, h, dpr, c } = f, data = freqData(), nyq = actx.sampleRate / 2, bins = data.length;
-    const maxHz = Math.min(nyq, 22050), use = Math.floor(bins * maxHz / nyq), bottom = h - 18 * dpr, top = 6 * dpr, span = bottom - top;
+    const maxHz = nyq, stepHz = maxHz > 48000 ? 20000 : maxHz > 26000 ? 10000 : 5000, use = Math.floor(bins * maxHz / nyq), bottom = h - 18 * dpr, top = 6 * dpr, span = bottom - top;
     if (!cp || cp.length !== use) cp = new Float32Array(use);
     g.clearRect(0, 0, w, h); labelFont(f); g.lineWidth = dpr;
-    for (let k = 0; k <= maxHz; k += 5000) {
+    for (let k = 0; k <= maxHz; k += stepHz) {
       const x = Math.min(w - 1, k / maxHz * w);
       g.strokeStyle = "rgba(255,255,255,.08)"; g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke();
       g.textAlign = k === 0 ? "left" : "center"; g.fillText(k === 0 ? "0" : (k / 1000) + " kHz", k === 0 ? 2 : Math.min(x, w - 22 * dpr), h - 3 * dpr);
@@ -148,7 +164,7 @@ window.flacie = (() => {
   const drawWall = (f) => {
     const { g, w, h, dpr, c } = f, x0 = 44 * dpr, x1 = w - 2 * dpr, y0 = 4 * dpr, y1 = h - 18 * dpr, pw = Math.round(x1 - x0), ph = Math.round(y1 - y0), speed = 60 * dpr;
     if (!vs.buf || vs.buf.width !== pw || vs.buf.height !== ph) { vs.buf = document.createElement("canvas"); vs.buf.width = pw; vs.buf.height = ph; vs.last = f.ts; vs.acc = 0; }
-    const bg = vs.buf.getContext("2d"), nyq = actx.sampleRate / 2, maxHz = Math.min(nyq, 22050);
+    const bg = vs.buf.getContext("2d"), nyq = actx.sampleRate / 2, maxHz = nyq, stepHz = maxHz > 48000 ? 16000 : maxHz > 26000 ? 8000 : 4000;
     const dt = Math.min(100, f.ts - (vs.last || f.ts)); vs.last = f.ts;
     if (f.playing) vs.acc += dt / 1000 * speed;
     const step = Math.floor(vs.acc);
@@ -165,7 +181,7 @@ window.flacie = (() => {
     }
     g.clearRect(0, 0, w, h); g.fillStyle = "#04000a"; g.fillRect(x0, y0, pw, ph); g.drawImage(vs.buf, x0, y0);
     labelFont(f); g.lineWidth = dpr; g.textAlign = "right"; g.textBaseline = "middle";
-    for (let k = 0; k <= maxHz; k += 4000) {
+    for (let k = 0; k <= maxHz; k += stepHz) {
       const y = y1 - k / maxHz * ph, key = k === 16000 || k === 20000;
       g.fillStyle = key ? c.ink : c.dim; g.fillText(k === 0 ? "0" : (k / 1000) + " kHz", x0 - 6 * dpr, Math.min(y1 - 5 * dpr, Math.max(y0 + 6 * dpr, y)));
       if (k > 0) { g.strokeStyle = key ? "rgba(255,255,255,.5)" : "rgba(255,255,255,.12)"; g.setLineDash(key ? [5 * dpr, 4 * dpr] : []); g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); }
@@ -239,10 +255,12 @@ window.flacie = (() => {
   };
 
   const views = { curve: drawCurve, leds: drawLeds, wall: drawWall, loud: drawLoud, stereo: drawStereo };
+  let lastSync = 0;
   const vizDraw = (ts) => {
     if (!vizOn) return;
     requestAnimationFrame(vizDraw);
     const cv = document.getElementById("viz"); if (!cv || !an) return;
+    if (ts - lastSync > 500) { lastSync = ts; syncTwin(); }
     const dpr = window.devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
     if (!w || !h) return;
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; vs = {}; }
@@ -259,7 +277,6 @@ window.flacie = (() => {
   return {
     load(ref, url, title, artist, album, art, autoplay, dur, startAt) {
       dotnet = ref;
-      ensureGraph();
       audio.src = url;
       if (startAt > 0) audio.addEventListener("loadedmetadata", () => { audio.currentTime = startAt; }, { once: true });
       if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title, artist, album, artwork: art ? [{ src: art, sizes: "500x500", type: "image/jpeg" }] : [] });
@@ -267,15 +284,15 @@ window.flacie = (() => {
       if (autoplay) audio.play().catch(() => send("OnState", false)); else { audio.pause(); send("OnState", false); }
     },
     // starts the Info tab's live view; false when this browser can't do it
-    viz(id, style) {
+    viz(id, style, rate) {
       vizStyle = views[style] ? style : "curve"; vs = {};
-      ensureGraph();
-      if (!an) return false;
-      if (actx.state === "suspended") actx.resume().catch(() => { });
+      if (!buildGraph(rate | 0) || !an) return false;
       if (!vizOn) { vizOn = true; requestAnimationFrame(vizDraw); }
       return true;
     },
-    vizStop() { vizOn = false; },
+    vizStop() { vizOn = false; closeGraph(); },
+    // the output device's own rate: a context made with no rate takes it
+    outputRate() { try { if (!AC) return 0; const c = new AC(); const r = c.sampleRate; c.close(); return r; } catch { return 0; } },
     // what this browser is, for the admin dashboard
     async clientInfo() {
       let who = {};
@@ -358,11 +375,10 @@ window.flacie = (() => {
     stop() { audio.pause(); audio.removeAttribute("src"); audio.load(); document.title = "FLACie"; if ("mediaSession" in navigator) navigator.mediaSession.metadata = null; },
     seek(s) { if (isFinite(s)) audio.currentTime = s; },
     volume(v) {
-      // with the graph in place the volume is applied after the analysers, so the graphs look the same at any volume
-      const cur = () => outGain ? outGain.gain.value : audio.volume;
-      if (v === undefined || v === null) return cur();
+      // the graphs read their own twin of the stream at full volume, so they look the same at any volume
+      if (v === undefined || v === null) return audio.volume;
       const x = Math.min(1, Math.max(0, v));
-      if (outGain) outGain.gain.value = x; else audio.volume = x;
+      audio.volume = x;
       try { localStorage.setItem("flacie.volume", String(x)); } catch { }
       return x;
     },

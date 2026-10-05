@@ -248,16 +248,28 @@ public sealed class UserSession
     {
         lock (listLock) return Playlists.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) ?? CreatePlaylist(name);
     }
-    public void AddToPlaylist(string id, Track t)
+    public enum PlaylistAdd { Added, Already, NoPlaylist }
+
+    /// <summary>Adds the song unless the playlist already has it (the same file, or the same title and artist).</summary>
+    public PlaylistAdd AddToPlaylist(string id, Track t)
     {
         lock (listLock)
         {
-            if (FindPlaylist(id) is not { } o) return;
+            if (FindPlaylist(id) is not { } o) return PlaylistAdd.NoPlaylist;
             var tr = o["tracks"] as JsonArray ?? new JsonArray();
-            if (tr.OfType<JsonObject>().Any(x => S(x, "p") == t.Path || Matching.MatchKey(S(x, "t"), S(x, "a")) == Matching.MatchKey(t))) return;
+            if (tr.OfType<JsonObject>().Any(x => S(x, "p") == t.Path || Matching.MatchKey(S(x, "t"), S(x, "a")) == Matching.MatchKey(t))) return PlaylistAdd.Already;
             tr.Add(EntryJson(t)); o["tracks"] = tr; o["m"] = Now();
         }
         Changed?.Invoke();
+        return PlaylistAdd.Added;
+    }
+
+    /// <summary>Takes a song back out (the Undo after an add).</summary>
+    public void RemoveFromPlaylist(string id, Track t)
+    {
+        if (FindPlaylist(id) is not { } o || o["tracks"] is not JsonArray tr) return;
+        var i = tr.OfType<JsonObject>().ToList().FindIndex(x => S(x, "p") == t.Path || Matching.MatchKey(S(x, "t"), S(x, "a")) == Matching.MatchKey(t));
+        if (i >= 0) RemoveFromPlaylist(id, i);
     }
 
     public void RemoveFromPlaylist(string id, int index)

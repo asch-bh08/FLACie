@@ -116,6 +116,7 @@ private fun searchFold(s: String): String =
     java.text.Normalizer.normalize(s.lowercase().replace("&", " and ").replace("+", " and "), java.text.Normalizer.Form.NFD).replace(diacritics, "")
 private val diacritics = Regex("""\p{Mn}+""")
 
-/** A Hi-Res download is filed as "Artist - Title [Hi-Res]". */
+/** Hi-Res: the real format says lossless above CD quality (see [AudioFacts]); a file the server has not read yet is judged by the "[Hi-Res]" a Hi-Res download is filed with. */
 val Track.hiRes: Boolean
-    get() = (filePath.ifEmpty { path }).let { p -> try { java.net.URLDecoder.decode(p, "UTF-8") } catch (_: Exception) { p } }.contains("[Hi-Res]", ignoreCase = true)
+    get() = AudioFacts.of(this)?.hiRes
+        ?: (filePath.ifEmpty { path }).let { p -> try { java.net.URLDecoder.decode(p, "UTF-8") } catch (_: Exception) { p } }.contains("[Hi-Res]", ignoreCase = true)

@@ -9,7 +9,7 @@
         <button class="btn primary" type="submit" disabled="@string.IsNullOrWhiteSpace(name)">Create</button>
     </form>
 </header>
-<div class="grid">
+<div class="grid pl-grid">
     @foreach (var p in Session.Playlists)
     {
         var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);

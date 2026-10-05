@@ -8,13 +8,18 @@ namespace FLACie.Server;
 /// </summary>
 public sealed class ExploreState
 {
-    public string Query = "", Letter = "", Genre = "", Decade = "", Format = "", Sort = "az";
+    public string Query = "", Letter = "", Genre = "", Decade = "", Format = "", Depth = "", Rate = "", Sort = "az";
     public int Version { get; private set; }
     public event Action? Changed;
 
-    public bool Filtering => Query.Length > 0 || Letter.Length > 0 || Genre.Length > 0 || Decade.Length > 0 || Format.Length > 0;
+    public bool Filtering => Query.Length > 0 || Letter.Length > 0 || Genre.Length > 0 || Decade.Length > 0 || Format.Length > 0 || Depth.Length > 0 || Rate.Length > 0;
     public void Touch() { Version++; Changed?.Invoke(); }
-    public void Clear() { Query = Letter = Genre = Decade = Format = ""; Touch(); }
+    public void Clear() { Query = Letter = Genre = Decade = Format = Depth = Rate = ""; Touch(); }
+
+    /// <summary>Bit depths and sample-rate bands to filter by (from the real format of each file, see <see cref="FormatIndex"/>).</summary>
+    public static readonly (string, string)[] DepthChoices = [("16", "16-bit"), ("24", "24-bit"), ("32", "32-bit")];
+    public static readonly (string, string)[] RateChoices = [("lo", "44.1 kHz or lower"), ("48", "48 kHz"), ("96", "88.2 to 96 kHz"), ("192", "176.4 kHz and up")];
+    static bool RateBand(int hz, string band) => band switch { "lo" => hz > 0 && hz <= 44_100, "48" => hz is > 44_100 and <= 48_000, "96" => hz is > 48_000 and <= 96_000, "192" => hz > 96_000, _ => true };
 
     /// <summary>"A".."Z", or "#" for anything that doesn't start with a letter.</summary>
     public static string LetterOf(string name)
@@ -24,7 +29,10 @@ public sealed class ExploreState
         return c is >= 'A' and <= 'Z' ? c.ToString() : "#";
     }
 
-    static bool Lossless(Track t) => MediaInfo.LosslessCodecs.Contains(InfoService.QuickFormat(t).ToLowerInvariant());
+    // the real codec when it has been read, else the file extension
+    static bool Lossless(Track t) => FormatIndex.Current?.Get(t) is { } f ? f.Lossless : MediaInfo.LosslessCodecs.Contains(InfoService.QuickFormat(t).ToLowerInvariant());
+    static bool DepthOk(Track t, string d) => FormatIndex.Current?.Get(t) is { Depth: > 0 } f && f.Depth.ToString() == d;
+    static bool RateOk(Track t, string b) => FormatIndex.Current?.Get(t) is { Rate: > 0 } f && RateBand(f.Rate, b);
     static string DecadeOf(int year) => year >= 1900 ? (year / 10 * 10) + "s" : "";
 
     IReadOnlyList<string> words = [];
@@ -38,7 +46,9 @@ public sealed class ExploreState
     bool Match(Track t) =>
         (Genre.Length == 0 || t.Genre.Trim().Equals(Genre, StringComparison.OrdinalIgnoreCase))
         && (Decade.Length == 0 || DecadeOf(t.Year) == Decade)
-        && (Format.Length == 0 || (Format == "hires" ? InfoService.QuickFormat(t) == "HI-RES" : (Format == "lossless") == Lossless(t)));
+        && (Format.Length == 0 || (Format == "hires" ? InfoService.QuickFormat(t) == "HI-RES" : (Format == "lossless") == Lossless(t)))
+        && (Depth.Length == 0 || DepthOk(t, Depth))
+        && (Rate.Length == 0 || RateOk(t, Rate));
 
     public List<Track> Songs(Library lib)
     {

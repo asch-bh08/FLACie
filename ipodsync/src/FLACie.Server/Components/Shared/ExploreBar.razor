@@ -29,6 +29,19 @@
                 <option value="hires" selected="@(X.Format == "hires")">✦ Hi-Res</option>
             </select>
         </label>
+        <label>Bit depth
+            <select value="@X.Depth" @onchange="e => Set(() => X.Depth = e.Value?.ToString() ?? string.Empty)">
+                <option value="">Any</option>
+                @foreach (var (v, n) in ExploreState.DepthChoices) { <option value="@v" selected="@(X.Depth == v)">@n</option> }
+            </select>
+        </label>
+        <label>Sample rate
+            <select value="@X.Rate" @onchange="e => Set(() => X.Rate = e.Value?.ToString() ?? string.Empty)">
+                <option value="">Any</option>
+                @foreach (var (v, n) in ExploreState.RateChoices) { <option value="@v" selected="@(X.Rate == v)">@n</option> }
+            </select>
+        </label>
+        @if (X.Format.Length + X.Depth.Length + X.Rate.Length > 0 && Probe.Pending > 0) { <small class="x-note" role="status">Still reading the real format of @Probe.Pending.ToString("N0") songs, so some may not show yet.</small> }
         @if (X.Filtering) { <button class="btn ghost" @onclick="() => Set(X.Clear)">Clear filters</button> }
     </div>
 </div>
@@ -43,6 +56,7 @@
 @code {
     [Parameter] public string Tab { get; set; } = "Songs";
     [Parameter] public EventCallback Changed { get; set; }
+    [Inject] FormatProbeService Probe { get; set; } = default!;
     static readonly string[] letters = ["#", .. "ABCDEFGHIJKLMNOPQRSTUVWXYZ".Select(c => c.ToString())];
     (List<string> Genres, List<string> Decades) choices = ([], []);
     Library? built;

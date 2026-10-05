@@ -169,7 +169,7 @@ private fun ActionRow(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boole
         Pill(Glyph.QUEUE, "Up next", false) { nav.openQueueFromPlayer() }
         Pill(Glyph.LIST, "Equalizer", app.prefs.eq != "Off") { nav.sheet = eqSheet(app) }
         Pill(Glyph.PLUS, "Add to playlist", false) { nav.sheet = playlistPicker(app, nav, t) }
-        Pill(Glyph.MORE, "More", false) { openTrackSheet(app, nav, t) }
+        Pill(Glyph.MORE, "More", false) { openTrackSheet(app, nav, t, if (info != null && !info.first) listOf(SheetItem("Song info", Glyph.INFO) { info.second() }) else emptyList()) }
     }
 }
 

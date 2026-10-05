@@ -47,8 +47,12 @@ class FileMoverClient {
         conn.setRequestProperty("X-Api-Key", apiKey); conn.setRequestProperty("Content-Type", "application/json")
         conn.outputStream.use { it.write(JSONObject().put("artist", artist).put("title", title).put("durationSec", durationSec).put("to", to).toString().toByteArray(Charsets.UTF_8)) }
         try {
-            if (conn.responseCode != 200) null
-            else JSONObject(conn.inputStream.bufferedReader().readText()).let { j -> if (j.optBoolean("ok")) j.optString("ext").takeIf { it.isNotBlank() }?.let { it to j.optInt("durationSec") } else null }
+            val code = conn.responseCode
+            if (code == 404) null   // the search really found no usable upload
+            else if (code != 200) {
+                val said = try { JSONObject((conn.errorStream ?: conn.inputStream).bufferedReader().readText()).optString("error") } catch (_: Exception) { "" }
+                throw IOException(if (said.isNotBlank()) said else "HTTP $code")
+            } else JSONObject(conn.inputStream.bufferedReader().readText()).let { j -> if (j.optBoolean("ok")) j.optString("ext").takeIf { it.isNotBlank() }?.let { it to j.optInt("durationSec") } else null }
         } finally { conn.disconnect() }
     }
 

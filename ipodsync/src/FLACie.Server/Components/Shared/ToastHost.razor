@@ -1,0 +1,15 @@
+@implements IDisposable
+@inject Toasts Toast
+@if (Toast.Current is { } t)
+{
+    <div class="toast @(t.Warn ? "warn" : "")" role="status" aria-live="polite">
+        <span>@t.Text</span>
+        @if (t.ActionLabel is not null) { <button @onclick="() => { var a = t.Action; Toast.Dismiss(); a?.Invoke(); }">@t.ActionLabel</button> }
+        <button class="x" aria-label="Dismiss" @onclick="Toast.Dismiss"><Icon Name="x" Size="16" /></button>
+    </div>
+}
+@code {
+    protected override void OnInitialized() => Toast.Changed += Refresh;
+    void Refresh() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Toast.Changed -= Refresh;
+}

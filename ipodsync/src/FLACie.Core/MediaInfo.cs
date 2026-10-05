@@ -9,14 +9,14 @@ public sealed record MediaInfo(string Container, string Codec, int BitrateKbps, 
     public static readonly HashSet<string> NotPlayableInBrowsers = ["wma", "asf", "ape", "wv", "tta"];
     public static readonly HashSet<string> LosslessCodecs = ["flac", "alac", "wav", "pcm", "aiff", "ape", "wavpack", "wv", "dsd", "tta", "pcm_s16le", "pcm_s24le", "pcm_s32le", "hi-res"];
     public bool Lossless => LosslessCodecs.Contains(Codec.ToLowerInvariant()) || LosslessCodecs.Contains(Container.ToLowerInvariant());
-    /// <summary>Hi-Res: lossless at more than CD quality (24-bit, or above 48 kHz).</summary>
-    public bool HiRes => Lossless && (BitDepth >= 24 || SampleRateHz > 48_000);
+    /// <summary>Hi-Res: lossless at more than CD quality (more than 16 bits, or above 44.1 kHz).</summary>
+    public bool HiRes => Lossless && (BitDepth > 16 || SampleRateHz > 44_100);
 
     /// <summary>"FLAC", "MP3" ... for a badge.</summary>
     public string Format => (Codec.Length > 0 ? Codec : Container).ToUpperInvariant() switch { "MPEG" or "MPEGAUDIO" => "MP3", "AAC" => "AAC", var f => f };
 
     /// <summary>"Hi-Res Lossless", "Lossless", "High quality" ... in one phrase.</summary>
-    public string Tier => Lossless ? (SampleRateHz > 48_000 || BitDepth > 16 ? "Hi-Res Lossless" : "Lossless") : BitrateKbps >= 256 ? "High quality" : BitrateKbps > 0 ? "Standard quality" : "";
+    public string Tier => Lossless ? (HiRes ? "Hi-Res Lossless" : "Lossless") : BitrateKbps >= 256 ? "High quality" : BitrateKbps > 0 ? "Standard quality" : "";
 
     /// <summary>"24-bit / 96 kHz" or "44.1 kHz".</summary>
     public string Sampling => SampleRateHz == 0 ? "" : (BitDepth > 0 ? $"{BitDepth}-bit / " : "") + (SampleRateHz % 1000 == 0 ? $"{SampleRateHz / 1000}" : $"{SampleRateHz / 1000.0:0.#}") + " kHz";

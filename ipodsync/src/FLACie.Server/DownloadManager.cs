@@ -80,7 +80,7 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
     void Run(UserSession s, DownloadJob job, Func<DownloadCoordinator, Action<DownloadStatus>, Task> work)
     {
         var jobs = For(s);
-        var coordinator = new DownloadCoordinator(hf.CreateClient("downloads"), catalog, s.Services);
+        var coordinator = new DownloadCoordinator(hf.CreateClient("downloads"), catalog, s.Services, hf.CreateClient("downloads-long"));
         _ = Task.Run(async () =>
         {
             try
@@ -164,7 +164,7 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
     async Task<DownloadResult> FetchCore(UserSession s, Jobs jobs, string kind, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct)
     {
         var job = Add(s, $"{title} · {artist}", artUrl, kind, artist, title);
-        var coordinator = new DownloadCoordinator(hf.CreateClient("downloads"), catalog, s.Services);
+        var coordinator = new DownloadCoordinator(hf.CreateClient("downloads"), catalog, s.Services, hf.CreateClient("downloads-long"));
         var got = new List<Track>(); string last = "";
         try
         {

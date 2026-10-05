@@ -7,7 +7,7 @@ else
 {
     <div class="info">
         <div class="info-head">
-            <span class="fmt-big @(Info.Lossless ? "lossless" : "")">@(Info.Format.Length > 0 ? Info.Format : "AUDIO")</span>
+            <span class="fmt-big @(Info.HiRes ? "hires" : Info.Lossless ? "lossless" : "")">@(Info.HiRes ? "HI-RES" : Info.Format.Length > 0 ? Info.Format : "AUDIO")</span>
             <div><b>@(Info.Tier.Length > 0 ? Info.Tier : "Quality unknown")</b><small>@Info.Sampling@(Info.Sampling.Length > 0 && Info.ChannelsName.Length > 0 ? " · " : "")@Info.ChannelsName</small></div>
         </div>
 
@@ -35,7 +35,7 @@ else
                 </div>
             }
             else if (unavailable) { <p class="viz-off">The live graphs aren't available in this browser.</p> }
-            else { <canvas id="viz" class="viz @mode" role="img" aria-label="@Title"></canvas> }
+            else { <canvas id="viz" class="viz @mode @(Info.HiRes ? "tall" : "")" role="img" aria-label="@Title"></canvas> }
         </div>
 
         <section class="kv-sec">
@@ -59,7 +59,8 @@ else
                 @if (Info.Codec.Length > 0) { <dt>Codec</dt><dd>@Info.Codec.ToUpperInvariant()@(Info.Container.Length > 0 && !string.Equals(Info.Container, Info.Codec, StringComparison.OrdinalIgnoreCase) ? " in " + Info.Container.ToUpperInvariant() : "")</dd> }
                 @if (Info.SizeBytes > 0) { <dt>Size</dt><dd>@Size(Info.SizeBytes)</dd> }
                 @if (Info.Path.Length > 0) { <dt>Location</dt><dd class="path">@Info.Path</dd> }
-                <dt>Playing</dt><dd>@(Track.Source == TrackSource.Cloud ? "Streaming from your server: a new download that Jellyfin has not scanned yet. Original file, not converted." : "Original file, streamed without converting")</dd>
+                <dt>Playing</dt><dd>@(Converted ? "Converted to MP3 by Jellyfin, because browsers can't play " + Info.Format + " files" : Track.Source == TrackSource.Cloud ? "Streaming from your server: a new download that Jellyfin has not scanned yet. Original file, not converted." : "Original file, streamed without converting")</dd>
+                <dt>Playback</dt><dd>@Playback</dd>
             </dl>
         </section>
     </div>
@@ -74,6 +75,26 @@ else
     // curve = live spectrum, leds = bars, wall = scrolling spectrogram, loud = loudness meter, stereo = phase scope and L/R meters, rate = bit rate
     string mode = "curve";
     string? shown; bool unavailable;
+    double outRate = -1;
+
+    bool Converted => Info is not null && MediaInfo.NotPlayableInBrowsers.Contains(Info.Codec.ToLowerInvariant()) || MediaInfo.NotPlayableInBrowsers.Contains(Info?.Container.ToLowerInvariant() ?? "");
+
+    /// <summary>The path from file to speaker as this browser can tell it: the file's own rate, the decoder, and the rate the device runs at.</summary>
+    MarkupString Playback
+    {
+        get
+        {
+            if (Info is null || outRate < 0) return new("Checking this device…");
+            var src = $"{System.Net.WebUtility.HtmlEncode(Info.Format)} {Info.Sampling}".Trim();
+            var rate = Info.SampleRateHz;
+            if (outRate == 0 || rate == 0) return new($"{src} → this browser's decoder → your device. The device's rate is not reported here.");
+            var dev = $"{outRate / 1000.0:0.#} kHz";
+            var same = Math.Abs(outRate - rate) < 1;
+            var flag = same ? "<span class=\"badge lossless\">Native rate</span>" : "<span class=\"badge\">Resampled by device</span>";
+            var note = same ? " A browser mixes through the system sound mixer, so it can't be bit-exact." : $" The system mixer runs at {dev}, so the browser hands over the sound at that rate. The Android app and a USB DAC can do better.";
+            return new($"{src} → browser decoder → device mixer at {dev} {flag}<small class=\"dim\">{note}</small>");
+        }
+    }
 
     IEnumerable<(string Id, string Big, string Small)> Picks()
     {
@@ -90,7 +111,7 @@ else
     string Hint => mode switch
     {
         "rate" => "How much data each second of the song uses, next to common formats.",
-        "curve" => "How loud each pitch is right now: deep sounds on the left, high sounds on the right, up to 22 kHz. A lossless file usually has sound out to the right edge; an MP3 is cut off around 16 kHz.",
+        "curve" => $"How loud each pitch is right now: deep sounds on the left, high sounds on the right, up to {(Info!.SampleRateHz > 0 ? (Info.SampleRateHz / 2000.0).ToString("0.#") : "22")} kHz (half this file's sample rate). A lossless file usually has sound out to the right edge; an MP3 is cut off around 16 kHz.",
         "leds" => "The song as it plays, deep sounds on the left and high ones on the right.",
         "wall" => "Pitch runs up the side (deep at the bottom, high at the top) and brighter means louder. The newest sound is on the right and scrolls left.",
         "loud" => "How loud the song is right now, in dB (0 is the loudest a file can go), and the last ten seconds of it.",
@@ -126,10 +147,12 @@ else
     {
         if (Info is null || Loading) { shown = null; return; }
         await Safe(() => Js.InvokeVoidAsync("flacie.times").AsTask());
+        if (outRate < 0) { try { outRate = await Js.InvokeAsync<double>("flacie.outputRate"); } catch (Exception) { outRate = 0; } StateHasChanged(); }
         if (mode == "rate") { if (shown != "rate") { shown = "rate"; await Safe(() => Js.InvokeVoidAsync("flacie.vizStop").AsTask()); } return; }
-        if (shown == mode || unavailable) return;
-        shown = mode;
-        try { if (!await Js.InvokeAsync<bool>("flacie.viz", "viz", mode)) { unavailable = true; StateHasChanged(); } } catch (Exception) { }
+        var key = mode + "|" + Track.Path + "|" + Info.SampleRateHz;   // a new song can run at another rate, which needs a new graph
+        if (shown == key || unavailable) return;
+        shown = key;
+        try { if (!await Js.InvokeAsync<bool>("flacie.viz", "viz", mode, Info.SampleRateHz)) { unavailable = true; StateHasChanged(); } } catch (Exception) { }
     }
 
     static async Task Safe(Func<Task> f) { try { await f(); } catch (Exception) { } }

@@ -76,6 +76,8 @@ class FlacieWebClient(private val prefs: Prefs) {
         lists?.let { o.put("lists", JSONArray(it)) }
         return parseSettings(send("/api/settings", "POST", o.toString()))
     }
+    /** The real format of every song the server has read, as the JSON the server sends (see [AudioFacts]). */
+    fun audioFactsRaw(): String = send("/api/audiofacts", "GET")
     fun runCharts() { send("/api/charts/run", "POST", "{}") }
 
     /** What the server is downloading right now and the log of what it fetched for this account (searches on the web, Autoplay, charts, imports). */

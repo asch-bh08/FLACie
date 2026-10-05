@@ -10,7 +10,8 @@ else
 {
     var tracks = Session.Resolve(p.Entries);
     <PageTitle>@p.Name · FLACie</PageTitle>
-    <header class="detail-head">
+    <div class="pl-layout">
+    <header class="detail-head pl-side">
         <Cover ArtKey="@(tracks.Select(t => t.ArtKey).FirstOrDefault(k => k is not null))" Class="detail-cover" />
         <div>
             <p class="eyebrow">Playlist</p>
@@ -31,8 +32,10 @@ else
             </div>
         </div>
     </header>
+    <div class="pl-main">
+    @if (tracks.Count == 0) { <p class="status">Nothing in this playlist yet. Use the ⋯ menu on any song and pick “Add to playlist”.</p> }
     <TrackList Tracks="tracks" PlayContext="@p.Name" OnRemove="i => Remove(p, tracks, i)" />
-    var missing = Session.Loading || Lib.Songs.Count == 0 ? [] : p.Entries.Where(e => Session.ResolveEntry(e) is null && e.Title.Length > 0).ToList();
+    @{ var missing = Session.Loading || Lib.Songs.Count == 0 ? [] : p.Entries.Where(e => Session.ResolveEntry(e) is null && e.Title.Length > 0).ToList(); }
     @if (missing.Count > 0)
     {
         <section class="shelf missing-list" aria-label="Not in your library">
@@ -49,6 +52,8 @@ else
             </ul>
         </section>
     }
+    </div>
+    </div>
 }
 @code {
     [Parameter] public string Id { get; set; } = "";

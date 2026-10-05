@@ -6,7 +6,7 @@
 <PageTitle>Settings · FLACie</PageTitle>
 <header class="page-head"><h1>Settings</h1></header>
 <nav class="subnav" aria-label="Settings sections">
-    <a href="/settings#playback">Playback</a><a href="/settings#sources">Music sources</a>@if (admin) { <a href="/settings#downloads">Downloads</a><a href="/settings#background">Background</a><a href="/settings#storage">Storage</a> }<a href="/settings#account">Account</a>
+    <a href="/settings#playback">Playback</a><a href="/settings#sources">Music sources</a>@if (admin) { <a href="/settings#downloads">Downloads</a><a href="/settings#opensources">Open sources</a><a href="/settings#background">Background</a><a href="/settings#storage">Storage</a> }<a href="/settings#account">Account</a>
 </nav>
 
 <section class="panel set" id="playback">
@@ -73,6 +73,30 @@
         <label for="ld">Lidarr address <span class="opt">(optional)</span></label><input id="ld" @bind="ldUrl" placeholder="https://host/lidarr" />
         <label for="ldk">Lidarr API key @(Session.Services.LidarrKey.Length > 0 ? "(saved)" : "")</label><input id="ldk" type="password" @bind="ldKey" autocomplete="new-password" />
         <div class="row-actions"><button class="btn primary" @onclick="SaveDownloads">Save downloads</button>@if (dlSaved) { <span class="hint">Saved.</span> }</div>
+    </div>
+</section>
+
+<section class="panel set" id="opensources">
+    <div class="set-head"><h2>Open sources</h2><p class="hint">When Soulseek doesn't have a song, these free sources are tried before Lidarr. They look while Soulseek searches and only download if it found nothing. They need the file mover above. The first one on the list that has the song is used; move a source up to prefer it.</p></div>
+    @foreach (var id in osOrder)
+    {
+        var sid = id;
+        <div class="src-row">
+            <div class="src-move">
+                <button class="btn icon" aria-label="Move up" disabled="@(osOrder.IndexOf(sid) == 0)" @onclick="() => MoveSource(sid, -1)">▲</button>
+                <button class="btn icon" aria-label="Move down" disabled="@(osOrder.IndexOf(sid) == osOrder.Count - 1)" @onclick="() => MoveSource(sid, 1)">▼</button>
+            </div>
+            <label class="switch-row">
+                <span><b>@SourceName(sid)</b><small>@SourceHint(sid)</small></span>
+                <input type="checkbox" role="switch" checked="@SourceOn(sid)" @onchange="e => SetSource(sid, (bool)(e.Value ?? false))" />
+                <i class="switch" aria-hidden="true"></i>
+            </label>
+        </div>
+    }
+    <div class="form">
+        <label for="jm">Jamendo client ID <span class="opt">(free from devportal.jamendo.com; Jamendo stays off without one)</span></label>
+        <input id="jm" @bind="jmId" autocomplete="off" spellcheck="false" placeholder="e.g. 614b506c" />
+        <div class="row-actions"><button class="btn primary" @onclick="SaveOpenSources">Save open sources</button><button class="btn" @onclick="CheckJamendo" disabled="@(jmId.Trim().Length == 0 || jmChecking)">Check Jamendo ID</button>@if (osNote is not null) { <span class="hint">@osNote</span> }</div>
     </div>
 </section>
 
@@ -164,9 +188,53 @@
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
-        var d = Session.Services; (slUrl, slPath, fmUrl, ldUrl) = (d.SlskdUrl, d.SlskdPath, d.FileMoverUrl, d.LidarrUrl);
+        var d = Session.Services; (slUrl, slPath, fmUrl, ldUrl) = (d.SlskdUrl, d.SlskdPath, d.FileMoverUrl, d.LidarrUrl); LoadOpenSources();
     }
 
+
+    // ---- open sources (Internet Archive, Audius, Jamendo): on/off, order and the Jamendo client ID ----
+    List<string> osOrder = [];
+    bool arOn = true, auOn = true, jmOn = true, jmChecking; string jmId = ""; string? osNote;
+    static string SourceName(string id) => id switch { "archive" => "Internet Archive", "audius" => "Audius", _ => "Jamendo" };
+    static string SourceHint(string id) => id switch
+    {
+        "archive" => "Live Music Archive and netlabel collections only, never a general search. Needs nothing.",
+        "audius" => "The free Audius catalogue. Needs nothing.",
+        _ => "Only tracks whose artist allows downloads. Needs the client ID below.",
+    };
+    bool SourceOn(string id) => id switch { "archive" => arOn, "audius" => auOn, _ => jmOn };
+    void SetSource(string id, bool on) { if (id == "archive") arOn = on; else if (id == "audius") auOn = on; else jmOn = on; osNote = null; }
+    void MoveSource(string id, int by)
+    {
+        var i = osOrder.IndexOf(id); var j = i + by;
+        if (i < 0 || j < 0 || j >= osOrder.Count) return;
+        (osOrder[i], osOrder[j]) = (osOrder[j], osOrder[i]); osNote = null;
+    }
+    void LoadOpenSources()
+    {
+        var o = Session.Services.OpenCfg;
+        (arOn, auOn, jmOn, jmId) = (o.Archive, o.Audius, o.Jamendo, o.JamendoId); osOrder = o.FullOrder.ToList();
+    }
+    void SaveOpenSources()
+    {
+        var old = Session.Services;
+        new DownloadServices(old.SlskdUrl, old.SlskdKey, old.SlskdPath, old.FileMoverUrl, old.FileMoverKey, old.LidarrUrl, old.LidarrKey, old.NasFolder,
+            new OpenSourceSettings(arOn, auOn, jmOn, jmId.Trim(), osOrder)).WriteTo(Session.Profile);
+        SaveProfile();
+        osNote = jmOn && jmId.Trim().Length == 0 ? "Saved. Jamendo stays off until a client ID is entered." : "Saved.";
+    }
+    async Task CheckJamendo()
+    {
+        jmChecking = true; osNote = "Checking...";
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            var j = System.Text.Json.Nodes.JsonNode.Parse(await http.GetStringAsync($"https://api.jamendo.com/v3.0/tracks/?client_id={Uri.EscapeDataString(jmId.Trim())}&format=json&limit=1"));
+            osNote = j?["headers"]?["status"]?.GetValue<string>() == "success" ? "Jamendo accepted that client ID." : "Jamendo said: " + (j?["headers"]?["error_message"]?.GetValue<string>() ?? "not accepted");
+        }
+        catch (Exception e) { osNote = "Could not reach Jamendo: " + e.Message; }
+        jmChecking = false;
+    }
     void Persist() => States.Save(Session);
 
     void ToggleChart(int id, bool on)
@@ -196,7 +264,7 @@
     void SaveDownloads()
     {
         var old = Session.Services;
-        var dl = new DownloadServices(slUrl.Trim(), slKey.Length > 0 ? slKey.Trim() : old.SlskdKey, string.IsNullOrWhiteSpace(slPath) ? "downloads" : slPath.Trim(), fmUrl.Trim(), fmKey.Length > 0 ? fmKey.Trim() : old.FileMoverKey, ldUrl.Trim(), ldKey.Length > 0 ? ldKey.Trim() : old.LidarrKey, old.NasFolder);
+        var dl = new DownloadServices(slUrl.Trim(), slKey.Length > 0 ? slKey.Trim() : old.SlskdKey, string.IsNullOrWhiteSpace(slPath) ? "downloads" : slPath.Trim(), fmUrl.Trim(), fmKey.Length > 0 ? fmKey.Trim() : old.FileMoverKey, ldUrl.Trim(), ldKey.Length > 0 ? ldKey.Trim() : old.LidarrKey, old.NasFolder, old.Open);
         dl.WriteTo(Session.Profile);
         slKey = fmKey = ldKey = ""; dlSaved = true;
         SaveProfile();

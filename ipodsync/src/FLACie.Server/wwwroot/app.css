@@ -760,3 +760,12 @@ button.stat.on { border-color: var(--accent); background: color-mix(in srgb, var
   .np-tabs button { padding: 8px 4px 6px; }
   .np-panel { bottom: calc(var(--np-tabs) + env(safe-area-inset-bottom, 0px)); }
 }
+
+/* Settings > Open sources: a source's switch with its move up/down buttons */
+.src-row { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--line, rgba(255,255,255,.08)); }
+.src-row:first-of-type { border-top: 0; }
+.src-row .switch-row { flex: 1; min-width: 0; }
+.src-row .switch-row span { flex: 1; min-width: 0; }
+.src-move { display: flex; flex-direction: column; gap: 2px; }
+.src-move .btn.icon { padding: 0 8px; min-width: 32px; height: 22px; line-height: 1; font-size: 11px; }
+.src-move .btn.icon:disabled { opacity: .3; }

@@ -12,19 +12,20 @@ public sealed record DownloadStatus(DownloadStage Stage, string Message, string?
 
 /// <summary>The download stack's addresses and keys, as the Android app keeps them in the shared profile (<c>services</c>). They stay
 /// on the server: the browser only ever sees progress messages.</summary>
-public sealed record DownloadServices(string SlskdUrl, string SlskdKey, string SlskdPath, string FileMoverUrl, string FileMoverKey, string LidarrUrl, string LidarrKey, string NasFolder)
+public sealed record DownloadServices(string SlskdUrl, string SlskdKey, string SlskdPath, string FileMoverUrl, string FileMoverKey, string LidarrUrl, string LidarrKey, string NasFolder, OpenSourceSettings? Open = null)
 {
     public bool SoulseekReady => SlskdUrl.Length > 0 && SlskdKey.Length > 0 && FileMoverUrl.Length > 0 && FileMoverKey.Length > 0;
     public bool LidarrReady => LidarrUrl.Length > 0 && LidarrKey.Length > 0;
     /// <summary>The open sources (Internet Archive, Jamendo, Audius) only need the file mover to fetch and file what they find.</summary>
-    public bool OpenReady => FileMoverUrl.Length > 0 && FileMoverKey.Length > 0;
+    public OpenSourceSettings OpenCfg => Open ?? OpenSourceSettings.Default;
+    public bool OpenReady => FileMoverUrl.Length > 0 && FileMoverKey.Length > 0 && OpenCfg.Any;
     public bool Any => SoulseekReady || LidarrReady || OpenReady;
 
     public static DownloadServices From(JsonObject profile)
     {
         var s = profile["services"] as JsonObject;
         string V(string svc, string k) => s?[svc]?[k] is JsonValue v && v.TryGetValue<string>(out var x) ? x : "";
-        return new(V("slskd", "url"), V("slskd", "key"), V("slskd", "path") is { Length: > 0 } p ? p : "downloads", V("filemover", "url"), V("filemover", "key"), V("lidarr", "url"), V("lidarr", "key"), V("nas", "folder"));
+        return new(V("slskd", "url"), V("slskd", "key"), V("slskd", "path") is { Length: > 0 } p ? p : "downloads", V("filemover", "url"), V("filemover", "key"), V("lidarr", "url"), V("lidarr", "key"), V("nas", "folder"), OpenSourceSettings.From(s, Environment.GetEnvironmentVariable("FLACIE_JAMENDO_CLIENT_ID")));
     }
 
     /// <summary>Writes these settings into the profile's <c>services</c>, the same fields the phone reads.</summary>
@@ -35,6 +36,7 @@ public sealed record DownloadServices(string SlskdUrl, string SlskdKey, string S
         Put("slskd", SlskdUrl.Length > 0, new JsonObject { ["url"] = SlskdUrl, ["key"] = SlskdKey, ["path"] = SlskdPath });
         Put("filemover", FileMoverUrl.Length > 0, new JsonObject { ["url"] = FileMoverUrl, ["key"] = FileMoverKey });
         Put("lidarr", LidarrUrl.Length > 0, new JsonObject { ["url"] = LidarrUrl, ["key"] = LidarrKey });
+        OpenCfg.WriteTo(s);
         profile["services"] = s;
     }
 }
@@ -51,7 +53,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         on(new(DownloadStage.Requested, $"Requested \"{title}\""));
         // the open sources look for the song while Soulseek searches; they only find, and download nothing unless Soulseek came up empty
         using var openCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var open = cfg.OpenReady ? OpenSources.FindAsync(http, artist, title, (int)(durationMs / 1000), Environment.GetEnvironmentVariable("FLACIE_JAMENDO_CLIENT_ID"), TimeSpan.FromSeconds(25), openCts.Token) : Task.FromResult<OpenHit?>(null);
+        var open = cfg.OpenReady ? OpenSources.FindAsync(http, artist, title, (int)(durationMs / 1000), cfg.OpenCfg, TimeSpan.FromSeconds(25), openCts.Token) : Task.FromResult<OpenHit?>(null);
         try
         {
             if (cfg.SoulseekReady && await TrySoulseek(artist, title, album, artUrl, (int)(durationMs / 1000), on, ct)) return;

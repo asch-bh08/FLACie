@@ -178,6 +178,21 @@ class Prefs(ctx: Context) {
     var jamendoClientId: String
         get() = sp.getString("jamendoclientid", "") ?: ""
         set(v) = sp.edit().putString("jamendoclientid", v).apply()
+    /** The open download sources (Internet Archive, Audius, Jamendo): each on or off, and the order they are preferred in (comma separated ids). */
+    var openArchive: Boolean
+        get() = sp.getBoolean("openarchive", true)
+        set(v) = sp.edit().putBoolean("openarchive", v).apply()
+    var openAudius: Boolean
+        get() = sp.getBoolean("openaudius", true)
+        set(v) = sp.edit().putBoolean("openaudius", v).apply()
+    var openJamendo: Boolean
+        get() = sp.getBoolean("openjamendo", true)
+        set(v) = sp.edit().putBoolean("openjamendo", v).apply()
+    var openOrder: String
+        get() = sp.getString("openorder", "archive,audius,jamendo") ?: "archive,audius,jamendo"
+        set(v) = sp.edit().putString("openorder", v).apply()
+    val openSources: com.ipodemu.library.OpenSourceSettings
+        get() = com.ipodemu.library.OpenSourceSettings(openArchive, openAudius, openJamendo, jamendoClientId.trim(), openOrder.split(',').map { it.trim() }.filter { it.isNotEmpty() })
 
 
     /** Look & feel: 0 = Modern (the default: a flat, YT Music/Spotify-style player), 1 = iPod (the glossy iPod-OS

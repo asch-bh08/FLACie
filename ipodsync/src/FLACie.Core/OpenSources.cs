@@ -22,24 +22,28 @@ public static class OpenSources
         Uri.TryCreate(url, UriKind.Absolute, out var u) && u.Scheme == Uri.UriSchemeHttps &&
         AllowedHostSuffixes.Any(s => u.Host == s || u.Host.EndsWith("." + s, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>Searches every source at once; the first hit wins and cancels the others. Null when nobody has it (or the time ran out).</summary>
-    public static async Task<OpenHit?> FindAsync(HttpClient http, string artist, string title, int durationSec, string? jamendoClientId, TimeSpan budget, CancellationToken ct)
+    /// <summary>Looks in every enabled source at once and takes the hit of the highest-priority source that has the song (settings order): the
+    /// first-ranked source's answer is waited for, and only if it has nothing the next one's (already running) is used. Null when nobody has it
+    /// or the time ran out.</summary>
+    public static async Task<OpenHit?> FindAsync(HttpClient http, string artist, string title, int durationSec, OpenSourceSettings cfg, TimeSpan budget, CancellationToken ct)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(budget);
-        var running = new List<Task<OpenHit?>>
+        var running = new List<Task<OpenHit?>>();
+        foreach (var id in cfg.Active)
+            running.Add(id switch
+            {
+                OpenSourceSettings.ArchiveId => Guard(() => ArchiveOrg.FindAsync(http, artist, title, durationSec, cts.Token)),
+                OpenSourceSettings.AudiusId => Guard(() => Audius.FindAsync(http, artist, title, durationSec, cts.Token)),
+                _ => Guard(() => Jamendo.FindAsync(http, cfg.JamendoId, artist, title, durationSec, cts.Token)),
+            });
+        try
         {
-            Guard(() => ArchiveOrg.FindAsync(http, artist, title, durationSec, cts.Token)),
-            Guard(() => Audius.FindAsync(http, artist, title, durationSec, cts.Token)),
-        };
-        if (!string.IsNullOrWhiteSpace(jamendoClientId)) running.Add(Guard(() => Jamendo.FindAsync(http, jamendoClientId, artist, title, durationSec, cts.Token)));
-        while (running.Count > 0)
-        {
-            var done = await Task.WhenAny(running);
-            running.Remove(done);
-            if (await done is { } hit && Allowed(hit)) { cts.Cancel(); return hit; }
+            foreach (var task in running)
+                if (await task is { } hit && Allowed(hit)) return hit;
+            return null;
         }
-        return null;
+        finally { cts.Cancel(); }
     }
 
     static async Task<OpenHit?> Guard(Func<Task<OpenHit?>> f)
@@ -157,5 +161,40 @@ public static class OpenSources
             }
             return null;
         }
+    }
+}
+
+/// <summary>Which open sources are on and in what order they are preferred, kept in the profile's <c>services.opensources</c> (the Jamendo client id in
+/// <c>services.jamendo.id</c>), so the phone, the Windows app and the web page share one setup. Jamendo only counts as on with a client id.</summary>
+public sealed record OpenSourceSettings(bool Archive, bool Audius, bool Jamendo, string JamendoId, IReadOnlyList<string> Order)
+{
+    public const string ArchiveId = "archive", AudiusId = "audius", JamendoSourceId = "jamendo";
+    public static readonly string[] AllIds = [ArchiveId, AudiusId, JamendoSourceId];
+    public static OpenSourceSettings Default => new(true, true, true, "", AllIds);
+
+    /// <summary>The saved order with anything unknown dropped and anything missing appended, so every source appears exactly once.</summary>
+    public IReadOnlyList<string> FullOrder => Order.Where(AllIds.Contains).Distinct().Concat(AllIds.Except(Order)).ToList();
+    public bool IsOn(string id) => id switch { ArchiveId => Archive, AudiusId => Audius, _ => Jamendo };
+    /// <summary>The sources that will actually be searched, best first.</summary>
+    public IEnumerable<string> Active => FullOrder.Where(id => IsOn(id) && (id != JamendoSourceId || JamendoId.Length > 0));
+    public bool Any => Active.Any();
+
+    public static OpenSourceSettings From(JsonObject? services, string? fallbackJamendoId = null)
+    {
+        var o = services?["opensources"] as JsonObject;
+        bool B(string k) => o?[k] is JsonValue v && v.TryGetValue<bool>(out var b) ? b : true;
+        var order = (o?["order"] as JsonArray)?.Select(n => n?.GetValue<string>() ?? "").Where(s => s.Length > 0).ToList() ?? [];
+        var id = services?["jamendo"]?["id"] is JsonValue j && j.TryGetValue<string>(out var s) ? s.Trim() : "";
+        return new(B(ArchiveId), B(AudiusId), B(JamendoSourceId), id.Length > 0 ? id : (fallbackJamendoId ?? "").Trim(), order);
+    }
+
+    public void WriteTo(JsonObject services)
+    {
+        services["opensources"] = new JsonObject
+        {
+            [ArchiveId] = Archive, [AudiusId] = Audius, [JamendoSourceId] = Jamendo,
+            ["order"] = new JsonArray(FullOrder.Select(x => (JsonNode)JsonValue.Create(x)!).ToArray()),
+        };
+        if (JamendoId.Length > 0) services["jamendo"] = new JsonObject { ["id"] = JamendoId }; else services.Remove("jamendo");
     }
 }

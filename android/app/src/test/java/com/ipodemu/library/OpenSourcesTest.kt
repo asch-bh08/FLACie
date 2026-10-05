@@ -23,14 +23,24 @@ class OpenSourcesTest {
         assertFalse(OpenSources.allowed(OpenHit("jamendo", "x", "https://127.0.0.1/a.mp3", "mp3", 0)))
     }
 
+    @Test fun settingsOrderAndSwitches() {
+        val on = OpenSourceSettings(true, true, true, "id", listOf("jamendo", "archive"))
+        assertEquals(listOf("jamendo", "archive", "audius"), on.fullOrder())          // the missing source is appended
+        assertEquals(listOf("jamendo", "archive", "audius"), on.active())
+        assertEquals(listOf("jamendo", "audius"), on.copy(archive = false).active())  // off sources are skipped
+        assertEquals(listOf("archive", "audius"), on.copy(jamendoId = "").copy(order = emptyList()).active()) // no client id: Jamendo stays off
+        assertFalse(on.copy(archive = false, audius = false, jamendo = false).any())
+        assertEquals(listOf("archive", "audius", "jamendo"), OpenSourceSettings(true, true, true, "x", listOf("bogus", "archive", "archive")).fullOrder())
+    }
+
     /** Live APIs: only with FLACIE_NET_TESTS=1 (same songs as the FLACie Web probe). */
     @Test fun liveSources() = runBlocking {
         assumeTrue(System.getenv("FLACIE_NET_TESTS") == "1")
-        val audius = OpenSources.find("Kevin MacLeod", "Sneaky Snitch", 137, "")
+        val audius = OpenSources.find("Kevin MacLeod", "Sneaky Snitch", 137, OpenSourceSettings(true, true, false, "", emptyList()))
         println("audius: $audius"); assertNotNull(audius); assertEquals("audius", audius!!.source)
-        val archive = OpenSources.find("Grateful Dead", "Dark Star", 0, "")
+        val archive = OpenSources.find("Grateful Dead", "Dark Star", 0, OpenSourceSettings(true, true, false, "", emptyList()))
         println("archive: $archive"); assertNotNull(archive); assertEquals("archive", archive!!.source)
-        val none = OpenSources.find("Taylor Swift", "Anti-Hero", 200, "")
+        val none = OpenSources.find("Taylor Swift", "Anti-Hero", 200, OpenSourceSettings(true, true, false, "", emptyList()))
         println("none: $none"); assertEquals(null, none)
     }
 }

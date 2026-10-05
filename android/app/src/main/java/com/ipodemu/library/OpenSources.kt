@@ -1,9 +1,8 @@
 package com.ipodemu.library
 
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -33,27 +32,27 @@ object OpenSources {
         return hit.source == "audius" || allowedSuffixes.any { u.host == it || u.host.endsWith(".$it") }
     }
 
-    /** Searches every source at once; the first hit wins and cancels the others. Null when nobody has it (or [budgetMs] ran out). */
-    suspend fun find(artist: String, title: String, durationSec: Int, jamendoClientId: String, budgetMs: Long = 25_000): OpenHit? =
+    /** Looks in every enabled source at once and takes the hit of the highest-priority source that has the song (the settings order): the
+     * first-ranked source's answer is waited for, and only if it has nothing the next one's (already running) is used. Null when nobody has it
+     * or [budgetMs] ran out. */
+    suspend fun find(artist: String, title: String, durationSec: Int, cfg: OpenSourceSettings, budgetMs: Long = 25_000): OpenHit? =
         withTimeoutOrNull(budgetMs) {
             coroutineScope {
-                val winner = CompletableDeferred<OpenHit?>()
-                val finders = mutableListOf<suspend () -> OpenHit?>({ archive(artist, title, durationSec) }, { audius(artist, title, durationSec) })
-                if (jamendoClientId.isNotBlank()) finders += { jamendo(jamendoClientId, artist, title, durationSec) }
-                var left = finders.size
-                val lock = Any()
-                val jobs = finders.map { f ->
-                    launch(Dispatchers.IO) {
-                        val hit = try { f() } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
-                        synchronized(lock) {
-                            left--
-                            if (hit != null && allowed(hit)) winner.complete(hit) else if (left == 0) winner.complete(null)
-                        }
+                val running = cfg.active().map { id ->
+                    async(Dispatchers.IO) {
+                        try {
+                            when (id) {
+                                OpenSourceSettings.ARCHIVE -> archive(artist, title, durationSec)
+                                OpenSourceSettings.AUDIUS -> audius(artist, title, durationSec)
+                                else -> jamendo(cfg.jamendoId, artist, title, durationSec)
+                            }
+                        } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
                     }
                 }
-                val hit = winner.await()
-                jobs.forEach { it.cancel() }
-                hit
+                var found: OpenHit? = null
+                for (task in running) { val hit = task.await(); if (hit != null && allowed(hit)) { found = hit; break } }
+                running.forEach { it.cancel() }
+                found
             }
         }
 
@@ -155,4 +154,19 @@ suspend fun testJamendoClientId(clientId: String): Pair<Boolean, String?> = with
             if (h?.optString("status") == "success") true to null else false to (h?.optString("error_message")?.takeIf { it.isNotBlank() } ?: "Jamendo did not accept that client id")
         } finally { c.disconnect() }
     } catch (e: Exception) { false to (e.message ?: "Could not reach Jamendo") }
+}
+
+/** Which open sources are on and in what order they are preferred; kept in the account profile's `services.opensources` (the Jamendo client id in
+ * `services.jamendo.id`) so every device and FLACie Web share one setup. Jamendo only counts as on with a client id. */
+data class OpenSourceSettings(val archive: Boolean, val audius: Boolean, val jamendo: Boolean, val jamendoId: String, val order: List<String>) {
+    companion object {
+        const val ARCHIVE = "archive"; const val AUDIUS = "audius"; const val JAMENDO = "jamendo"
+        val ALL = listOf(ARCHIVE, AUDIUS, JAMENDO)
+    }
+    /** The saved order with anything unknown dropped and anything missing appended, so every source appears exactly once. */
+    fun fullOrder(): List<String> = order.filter { it in ALL }.distinct() + ALL.filter { it !in order }
+    fun isOn(id: String) = when (id) { ARCHIVE -> archive; AUDIUS -> audius; else -> jamendo }
+    /** The sources that will actually be searched, best first. */
+    fun active(): List<String> = fullOrder().filter { isOn(it) && (it != JAMENDO || jamendoId.isNotBlank()) }
+    fun any() = active().isNotEmpty()
 }

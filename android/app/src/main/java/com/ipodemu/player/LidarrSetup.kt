@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import com.ipodemu.library.testJamendoClientId
+import com.ipodemu.library.OpenSourceSettings
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +61,10 @@ fun LidarrSetupScreen() {
     var jamendoId by remember { mutableStateOf(app.prefs.jamendoClientId) }
     var jamendoStatus by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
     var jamendoBusy by remember { mutableStateOf(false) }
+    var order by remember { mutableStateOf(app.prefs.openSources.fullOrder()) }
+    var openRev by remember { mutableStateOf(0) }
+    @Suppress("UNUSED_EXPRESSION") openRev
+    val openArchive = app.prefs.openArchive; val openAudius = app.prefs.openAudius; val openJamendo = app.prefs.openJamendo
     val scope = rememberCoroutineScope()
     val fr = remember { FocusRequester() }
 
@@ -124,8 +129,28 @@ fun LidarrSetupScreen() {
             }
 
             Box(Modifier.padding(top = 8.dp)) { Txt("Open sources", size = 16f, weight = FontWeight.Bold) }
-            Txt("A song Soulseek doesn't have is also looked up on the Internet Archive (live-music and netlabel collections), Audius and Jamendo, and fetched through the file mover. Audius and the Archive need nothing; Jamendo needs a free client id from devportal.jamendo.com and only downloads tracks whose artist allows it.", size = 12f, maxLines = 8)
-            field("Jamendo client id (optional)", jamendoId, { jamendoId = it; jamendoStatus = null })
+            Txt("A song Soulseek doesn't have is also looked up here before Lidarr, and fetched through the file mover. They look while Soulseek searches and only download if it found nothing. The first source on the list that has the song is used: move one up to prefer it.", size = 12f, maxLines = 8)
+            for (id in order) {
+                val pos = order.indexOf(id)
+                val on = when (id) { OpenSourceSettings.ARCHIVE -> openArchive; OpenSourceSettings.AUDIUS -> openAudius; else -> openJamendo }
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0x14FFFFFF)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Txt("${pos + 1}. " + when (id) { OpenSourceSettings.ARCHIVE -> "Internet Archive"; OpenSourceSettings.AUDIUS -> "Audius"; else -> "Jamendo" }, size = 16f, weight = FontWeight.SemiBold)
+                    Txt(when (id) {
+                        OpenSourceSettings.ARCHIVE -> "Live Music Archive and netlabel collections only, never a general search. Needs nothing."
+                        OpenSourceSettings.AUDIUS -> "The free Audius catalogue. Needs nothing."
+                        else -> "Only tracks whose artist allows downloads. Needs the client id below."
+                    }, size = 12f, maxLines = 3)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        GlossPill(if (on) "On" else "Off", {
+                            when (id) { OpenSourceSettings.ARCHIVE -> app.prefs.openArchive = !on; OpenSourceSettings.AUDIUS -> app.prefs.openAudius = !on; else -> app.prefs.openJamendo = !on }
+                            openRev++; app.library.onServicesChanged?.invoke()
+                        }, primary = on, height = 38.dp)
+                        if (pos > 0) GlossPill("Move up", { order = order.toMutableList().also { java.util.Collections.swap(it, pos, pos - 1) }; app.prefs.openOrder = order.joinToString(","); app.library.onServicesChanged?.invoke() }, height = 38.dp)
+                        if (pos < order.size - 1) GlossPill("Move down", { order = order.toMutableList().also { java.util.Collections.swap(it, pos, pos + 1) }; app.prefs.openOrder = order.joinToString(","); app.library.onServicesChanged?.invoke() }, height = 38.dp)
+                    }
+                }
+            }
+            field("Jamendo client id (free from devportal.jamendo.com; Jamendo stays off without one)", jamendoId, { jamendoId = it; jamendoStatus = null })
             GlossPill(if (jamendoBusy) "Checking…" else if (jamendoId.isBlank()) "Turn Jamendo off" else "Save Jamendo", {
                 if (jamendoBusy) return@GlossPill
                 val id = jamendoId.trim()

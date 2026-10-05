@@ -38,7 +38,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
     private val soulseekReady get() = prefs.slskdUrl.isNotBlank() && prefs.slskdApiKey.isNotBlank() && prefs.fileMoverUrl.isNotBlank() && prefs.fileMoverApiKey.isNotBlank()
     private val lidarrReady get() = prefs.lidarrUrl.isNotBlank() && prefs.lidarrApiKey.isNotBlank()
     /** The open sources (Internet Archive, Jamendo, Audius) only need the file mover to fetch and file what they find. */
-    private val openReady get() = prefs.fileMoverUrl.isNotBlank() && prefs.fileMoverApiKey.isNotBlank()
+    private val openReady get() = prefs.fileMoverUrl.isNotBlank() && prefs.fileMoverApiKey.isNotBlank() && prefs.openSources.any()
 
     /** One song. [durationMs] (from the catalog) rules out peers' files of a different length (a live take, a cover). */
     suspend fun download(artist: String, title: String, album: String, durationMs: Long = 0, onUpdate: (DownloadStatus) -> Unit) {
@@ -50,7 +50,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
         }
         // the open sources look for the song while Soulseek searches; they only find, and download nothing unless Soulseek came up empty
         coroutineScope {
-            val open = if (openReady) async { OpenSources.find(artist, title, (durationMs / 1000).toInt(), prefs.jamendoClientId) } else null
+            val open = if (openReady) async { OpenSources.find(artist, title, (durationMs / 1000).toInt(), prefs.openSources) } else null
             try {
                 if (soulseekReady && trySoulseek(artist, title, album, (durationMs / 1000).toInt(), onUpdate)) return@coroutineScope
                 // Soulseek had nothing: an open source that already found it is used, one still looking gets a few seconds (never longer before Lidarr)

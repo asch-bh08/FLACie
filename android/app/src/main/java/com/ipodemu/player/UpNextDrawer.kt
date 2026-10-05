@@ -95,7 +95,12 @@ fun UpNextDrawer(snap: PlayerSnap, state: UpNextState, modifier: Modifier = Modi
         // the cover and controls fade back behind the rising sheet
         if (frac.value > 0.005f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.78f * frac.value)).clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { scope.launch { frac.animateTo(0f, tween(240)) } })
         // the invisible swipe zone at the foot of the player
-        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(56.dp).pointerInput(Unit) { drag() })
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(64.dp).pointerInput(Unit) { drag() }.graphicsLayer { alpha = (1f - frac.value * 4f).coerceIn(0f, 1f) },
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            // a quiet line saying where the queue comes from: swipe up from it (it sits above the system gesture area, so it never closes the app)
+            Box(Modifier.size(width = 32.dp, height = 3.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x44FFFFFF)))
+            Txt(from, Modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp), size = 14f, weight = FontWeight.SemiBold, color = sc.onBgDim, maxLines = 1, align = androidx.compose.ui.text.style.TextAlign.Center)
+        }
         if (frac.value > 0.005f) Column(
             Modifier.fillMaxSize().graphicsLayer { translationY = (1f - frac.value) * size.height }.clip(shape).background(Color(0xFF17171B)),
         ) {

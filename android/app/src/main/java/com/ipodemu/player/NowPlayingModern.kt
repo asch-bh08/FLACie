@@ -114,7 +114,7 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
                     ArtOrPanel(t, snap, lyricsOpen, infoOpen, big = true, art = Modifier.fillMaxWidth().aspectRatio(1f, matchHeightConstraintsFirst = true))
                 }
                 Controls(snap, nav, lyricsToggle = lyricsOpen to { lyricsOpen = !lyricsOpen; if (lyricsOpen) infoOpen = false }, header = false, info = infoToggle)
-                Box(Modifier.height(20.dp))
+                Box(Modifier.height(64.dp))   // room for the "Playing from" line you swipe up from
             }
         }
         }

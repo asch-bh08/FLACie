@@ -1012,3 +1012,13 @@ body.np-open .player .bar, body.np-open .player .bar:hover { cursor: default; }
   .np.sheet .np-panel { animation: np-sheet-in .3s ease both; }
 }
 @keyframes np-sheet-in { from { opacity: 0; transform: translateY(48px); } to { opacity: 1; transform: none; } }
+/* the quiet "Playing from ..." line above the tab strip: swipe up from it for the queue */
+@media (max-width: 1024px) and (orientation: portrait) {
+  .np-peek { height: auto; padding: 4px 24px 8px; text-align: center; cursor: pointer; }
+  .np-peek > .grab { display: block; width: 32px; height: 3px; margin: 0 auto 6px; }
+  .np-peek > .peek-row { display: block; min-height: 0; }
+  .np-peek .peek-row > .from { display: block; }
+  .np-peek .peek-row > .from small { display: none; }
+  .np-peek .peek-row > .from b { font-size: 14px; font-weight: 650; color: var(--dim); }
+  .np.sheet .np-peek { display: none; }
+}

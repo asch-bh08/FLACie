@@ -131,6 +131,8 @@ class PlayerNav {
     val stack = mutableStateListOf<Screen>(Screen.Home)
     val top: Screen get() = stack.last()
     var nowPlaying by mutableStateOf(false)
+    /** The list the screen on top is showing (a playlist, an album...): what a play from it reports as "Playing from". */
+    var playContext: String? = null
     var sheet by mutableStateOf<SheetSpec?>(null)
     var nameDialog by mutableStateOf<((String) -> Unit)?>(null)
     /** Cover whose colours should tint the background (set by detail screens); null = the playing track's cover. */
@@ -507,7 +509,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                 item { SectionHeader(mname) }
                 item {
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        itemsIndexed(ts) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(ts, i, null) } }
+                        itemsIndexed(ts) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(ts, i, null, mname) } }
                     }
                 }
             }
@@ -516,13 +518,13 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     if (sh.id == "quick-picks") {
                         Row(Modifier.fillMaxWidth().padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.weight(1f)) { SectionHeader(sh.title) }
-                            GlossPill("Play all", { app.player.play(sh.tracks, 0, null) }, icon = Glyph.PLAY, height = 28.dp)
+                            GlossPill("Play all", { app.player.play(sh.tracks, 0, null, sh.title) }, icon = Glyph.PLAY, height = 28.dp)
                         }
-                        QuickPicks(sh.tracks, nav) { i -> app.player.play(sh.tracks, i, null) }; return@items
+                        QuickPicks(sh.tracks, nav) { i -> app.player.play(sh.tracks, i, null, sh.title) }; return@items
                     }
                     SectionHeader(sh.title)
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        if (sh.tracks.isNotEmpty()) itemsIndexed(sh.tracks) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(sh.tracks, i, null) } }
+                        if (sh.tracks.isNotEmpty()) itemsIndexed(sh.tracks) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(sh.tracks, i, null, sh.title) } }
                         else items(sh.albums, key = { it.tracks.first().albumKey }) { g -> AlbumCard(g, Modifier.width(150.dp)) { nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) } }
                     }
                 }
@@ -534,7 +536,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                 item {
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         items(lists.take(14), key = { it.id }) { pl ->
-                            val ts = remember(pl.paths.size, libRev) { pl.paths.mapNotNull { by0[it] ?: lib.resolve(it, app.userData.meta[it]) } }
+                            val ts = remember(pl.paths.size, libRev) { pl.paths.asSequence().take(8).mapNotNull { by0[it] ?: lib.resolve(it, app.userData.meta[it]) }.toList() }   // only the first few: the cover needs one, and a 350-song playlist resolved whole on every Home build was a stutter
                             AlbumCard(com.ipodemu.library.Group("${pl.name} (${pl.paths.size})", ts, ts.firstNotNullOfOrNull { it.artKey }), Modifier.width(150.dp)) { nav.push(Screen.Detail(DetailKind.USER, pl.id)) }
                         }
                     }
@@ -679,7 +681,7 @@ fun SongList(
     val sc = LocalScheme.current
     val row: @Composable (Int, Track) -> Unit = { i, t ->
         TrackRow(t, nav, snap, showArt = showArt, index = if (numbered) i + 1 else null, sheetExtra = sheetExtra, sheetExtraFor = sheetExtraFor, onPlay = {
-            app.player.play(tracks, i, null)
+            app.player.play(tracks, i, null, nav.playContext)
         })
     }
     val groups = remember(tracks, sections) { if (sections > 0) tracks.withIndex().groupBy { letterOf(sortKey(if (sections == 2) it.value.artist.ifEmpty { "#" } else it.value.title)) } else emptyMap() }
@@ -833,6 +835,7 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
     BackdropArt(nav, art)
     val total = tracks.sumOf { it.durationMs }
     val info = songCount(tracks.size) + if (total > 0) "  -  " + (total / 60000).toString() + " min" else ""
+    androidx.compose.runtime.DisposableEffect(title) { nav.playContext = title.ifEmpty { null }; onDispose { if (nav.playContext == title) nav.playContext = null } }
     val extra = if (userId != null) listOf(SheetItem("Remove from playlist", Glyph.CLOSE) { }) else emptyList()
     val missing = if (userId != null && app.library.loaded) ud.playlists.firstOrNull { it.id == userId }?.paths.orEmpty().filter { lib.resolve(it, ud.meta[it]) == null }.mapNotNull { ud.meta[it] }.filter { it.first.isNotBlank() } else emptyList()
     Column(Modifier.fillMaxSize()) {
@@ -873,8 +876,8 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
     }
     // below the art row rather than beside the title, so both buttons fit in the narrow side column of wide layouts
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        GlossPill("Play", { app.player.play(tracks, 0, null) }, icon = Glyph.PLAY, primary = true, height = 40.dp)
-        GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true) }, icon = Glyph.SHUFFLE, height = 40.dp)
+        GlossPill("Play", { app.player.play(tracks, 0, null, title) }, icon = Glyph.PLAY, primary = true, height = 40.dp)
+        GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true, title) }, icon = Glyph.SHUFFLE, height = 40.dp)
     }
     if (playlistId != null) {
         // editing: the playlist's own actions (songs have Move and Remove in their menu)

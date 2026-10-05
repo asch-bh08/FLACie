@@ -61,8 +61,9 @@ private fun NoteChip(text: String) {
 }
 
 /**
- * The YouTube Music bottom sheet: a bar at the foot of the full-screen player showing what plays next; drag it up (slowly, it follows the
- * finger) to see the whole queue with cover, artist, album and whether the song was just downloaded. Tap a song to jump to it.
+ * The YouTube Music bottom sheet: a bar at the foot of the full-screen player saying where the queue comes from ("Playing from ... mix");
+ * drag it up (slowly, it follows the finger) and the sheet rises over the player until the playing song becomes a small header and the
+ * queue fills the screen: cover, artist, album and whether the song was just downloaded. Tap a song to jump to it.
  */
 @Composable
 fun UpNextDrawer(snap: PlayerSnap, modifier: Modifier = Modifier) {
@@ -72,17 +73,19 @@ fun UpNextDrawer(snap: PlayerSnap, modifier: Modifier = Modifier) {
     val frac = remember { Animatable(0f) }
     app.userData.rev
     val next = remember(snap.track?.path, snap.index, snap.shuffle, snap.repeat, snap.count) { app.player.upNext(30) }
+    val from = app.player.contextName ?: "Your queue"
     BackHandler(enabled = frac.value > 0.02f) { scope.launch { frac.animateTo(0f, tween(220)) } }
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val peek = 68.dp
-        val full = maxHeight - 64.dp
+        val peek = 76.dp
+        val full = maxHeight
         val range = with(LocalDensity.current) { (full - peek).toPx() }
         val shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
         var lastDy = 0f
         Column(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(peek + (full - peek) * frac.value).clip(shape).background(Color(0xFF17171B)),
         ) {
-            Column(
+            val cur = snap.track
+            Box(
                 Modifier.fillMaxWidth().height(peek)
                     .pointerInput(range) {
                         detectVerticalDragGestures(
@@ -93,30 +96,33 @@ fun UpNextDrawer(snap: PlayerSnap, modifier: Modifier = Modifier) {
                     }
                     .clickable { scope.launch { frac.animateTo(if (frac.value > 0.5f) 0f else 1f, tween(260)) } },
             ) {
-                Box(Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp).size(width = 36.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x55FFFFFF)))
-                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Txt("UP NEXT", size = 12f, weight = FontWeight.Bold, color = Palette.faint)
-                    val n = next.firstOrNull()?.second
-                    if (n != null) {
-                        ArtImage(n.artKey, Modifier.size(34.dp).graphicsLayer { alpha = 1f - frac.value }, thumb = true, corner = 6.dp)
-                        Column(Modifier.weight(1f).graphicsLayer { alpha = 1f - frac.value }) {
-                            Txt(n.title, size = 14f, weight = FontWeight.SemiBold, maxLines = 1)
-                            Txt(n.artist, size = 12f, color = sc.onBgDim, maxLines = 1)
-                        }
-                    } else Txt("Nothing queued after this", Modifier.weight(1f), size = 13f, color = sc.onBgDim)
-                    GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp).graphicsLayer { rotationZ = if (frac.value > 0.5f) 90f else -90f }, sc.onBgDim)
+                Box(Modifier.align(Alignment.TopCenter).padding(top = 8.dp).size(width = 36.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x55FFFFFF)))
+                // closed: where the queue comes from; open: the song that is playing, as a header (the two fade into each other as you drag)
+                Row(Modifier.fillMaxSize().padding(start = 20.dp, end = 20.dp, top = 14.dp).graphicsLayer { alpha = 1f - frac.value * 1.6f }, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Txt("Playing from", size = 12f, color = sc.onBgDim, maxLines = 1)
+                        Txt(from, size = 16f, weight = FontWeight.Bold, maxLines = 1)
+                    }
+                    GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp).graphicsLayer { rotationZ = -90f }, sc.onBgDim)
+                }
+                if (cur != null) Row(Modifier.fillMaxSize().padding(start = 20.dp, end = 8.dp, top = 12.dp).graphicsLayer { alpha = ((frac.value - 0.35f) * 1.8f).coerceIn(0f, 1f) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    ArtImage(cur.artKey, Modifier.size(52.dp), thumb = true, corner = 8.dp)
+                    Column(Modifier.weight(1f)) {
+                        Txt(cur.title, size = 16f, weight = FontWeight.Bold, maxLines = 1)
+                        Txt(cur.artist, size = 13f, color = sc.onBgDim, maxLines = 1)
+                    }
+                    IconAction(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, if (snap.playing) "Pause" else "Play", { app.player.toggle() })
                 }
             }
             if (frac.value > 0.02f) {
-                val cur = snap.track
                 LazyColumn(Modifier.fillMaxSize().graphicsLayer { alpha = frac.value }, contentPadding = PaddingValues(bottom = 24.dp)) {
-                    if (cur != null) item {
-                        Column {
-                            Txt("NOW PLAYING", Modifier.padding(start = 20.dp, top = 4.dp, bottom = 6.dp), size = 11f, weight = FontWeight.Bold, color = Palette.faint)
-                            DrawerRow(cur, current = true, onClick = {})
+                    item {
+                        Column(Modifier.padding(start = 20.dp, top = 6.dp, bottom = 8.dp)) {
+                            Txt("Playing from", size = 12f, color = sc.onBgDim)
+                            Txt(from, size = 18f, weight = FontWeight.Bold, maxLines = 1)
                         }
                     }
-                    item { Txt("NEXT", Modifier.padding(start = 20.dp, top = 14.dp, bottom = 6.dp), size = 11f, weight = FontWeight.Bold, color = Palette.faint) }
+                    if (cur != null) item { DrawerRow(cur, current = true, onClick = {}) }
                     if (next.isEmpty()) item { Txt("Nothing queued after this song.", Modifier.padding(horizontal = 20.dp, vertical = 8.dp), size = 14f, color = sc.onBgDim) }
                     itemsIndexed(next, key = { _, p -> p.first }) { _, p -> DrawerRow(p.second, current = false) { app.player.skipTo(p.first); scope.launch { frac.animateTo(0f, tween(220)) } } }
                 }

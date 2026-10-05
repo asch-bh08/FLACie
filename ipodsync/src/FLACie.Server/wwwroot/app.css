@@ -998,3 +998,8 @@ body.np-open .player .bar, body.np-open .player .bar:hover { cursor: default; }
   .peek-row .cover { border-radius: 6px; flex: none; }
   .peek-row .dl-note { margin: 0; flex: none; }
 }
+@media (max-width: 1024px) and (orientation: portrait) {
+  .peek-row .from { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+  .peek-row .from small { font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--dim); }
+  .peek-row .from b { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}

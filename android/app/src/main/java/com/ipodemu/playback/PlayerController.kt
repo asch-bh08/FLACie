@@ -322,7 +322,11 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
 
     // ---- transport ---------------------------------------------------------
 
-    fun play(list: List<Track>, index: Int, shuffle: Boolean? = null) {
+    /** What the queue came from ("Bad Romance mix", a playlist name...), shown as "Playing from" in the Up next sheet. */
+    var contextName: String? = null
+
+    fun play(list: List<Track>, index: Int, shuffle: Boolean? = null, context: String? = null) {
+        contextName = context
         if (interceptor?.play(list, index) == true) return
         if (list.isEmpty()) return
         queue = list

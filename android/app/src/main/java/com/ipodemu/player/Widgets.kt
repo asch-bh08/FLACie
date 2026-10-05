@@ -445,8 +445,9 @@ fun ArtImage(key: String?, modifier: Modifier = Modifier, thumb: Boolean = false
     val bmp = rememberArt(key, thumb)
     val sc = LocalScheme.current
     val shape = if (circle) CircleShape else RoundedCornerShape(corner)
+    val img = remember(bmp) { bmp?.asImageBitmap() }
     Box(modifier.clip(shape).background(Brush.linearGradient(listOf(sc.onBg.copy(alpha = .16f), sc.onBg.copy(alpha = .05f)))), contentAlignment = Alignment.Center) {
-        if (bmp != null) Image(bmp.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        if (img != null) Image(img, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         else GlyphIcon(Glyph.NOTE, Modifier.fillMaxSize(0.42f), sc.onBg.copy(alpha = .35f))
     }
 }

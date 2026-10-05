@@ -13,7 +13,7 @@ import java.util.concurrent.Executors
  * and decodes in the background, then calls [onLoaded] so the UI redraws.
  */
 class ArtCache(private val dir: File) {
-    private val mem = object : LruCache<String, Bitmap>(24 * 1024 * 1024) {
+    private val mem = object : LruCache<String, Bitmap>(maxOf(24 * 1024 * 1024L, Runtime.getRuntime().maxMemory() / 6).toInt()) {
         override fun sizeOf(k: String, v: Bitmap) = v.byteCount
     }
     private val missing = HashSet<String>()

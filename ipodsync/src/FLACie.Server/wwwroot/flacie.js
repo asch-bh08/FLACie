@@ -334,6 +334,15 @@ window.flacie = (() => {
     // the full-screen player is a history entry, so the browser's Back button closes it
     // the arrows in a shelf heading scroll the row below it, a page at a time
     scrollRow(btn, dir) { const row = btn.closest(".shelf")?.querySelector(".row-scroll"); if (row) row.scrollBy({ left: dir * row.clientWidth * 0.85, behavior: "smooth" }); },
+    // the Up next bar at the foot of the phone player: it follows the finger up, and past a short pull (or a tap) it opens the queue
+    peekDrag(el, ref) {
+      if (!el || el._drag) return; el._drag = true;
+      let y0 = null, dy = 0;
+      el.addEventListener("pointerdown", e => { y0 = e.clientY; dy = 0; el.style.transition = "none"; try { el.setPointerCapture(e.pointerId); } catch (_) {} });
+      el.addEventListener("pointermove", e => { if (y0 === null) return; dy = Math.min(0, e.clientY - y0); el.style.transform = "translateY(" + dy + "px)"; });
+      const end = () => { if (y0 === null) return; const pulled = dy < -48; y0 = null; el.style.transition = "transform .22s ease"; el.style.transform = ""; if (pulled) ref.invokeMethodAsync("PeekOpen"); };
+      el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+    },
     npOpen(ref) {
       npRef = ref; document.body.classList.add("np-open");
       if (!npPushed) { history.pushState({ np: 1 }, "", location.pathname + location.search + "#now-playing"); npPushed = true; }

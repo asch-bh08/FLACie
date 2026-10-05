@@ -90,6 +90,16 @@ public sealed class DownloadLog(DataPaths paths)
         return segs.Length < 2 ? "" : string.Join('/', segs.TakeLast(3)).ToLowerInvariant();
     }
 
+    public static string FileKey(string? path) => string.IsNullOrEmpty(path) ? "" : Key(path);
+
+    /// <summary>This user's finished downloads by file (newest wins), to tell in a list which songs were just fetched.</summary>
+    public Dictionary<string, DownloadRecord> DoneIndex(string userId)
+    {
+        var d = new Dictionary<string, DownloadRecord>();
+        foreach (var r in For(userId)) if (r.Done && r.File is { Length: > 0 } f && Key(f) is { Length: > 0 } k) d.TryAdd(k, r);
+        return d;
+    }
+
     /// <summary>The newest successful download that filed this file (matched on the last three path segments, so a Jellyfin path and the file mover's path agree), from anyone's log.</summary>
     public DownloadRecord? FindByFile(string path)
     {

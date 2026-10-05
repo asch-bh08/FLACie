@@ -69,6 +69,21 @@
                 <div class="np-volume"><VolumeControl /></div>
             </section>
             <section class="np-side">
+                @{ var peekNext = Player.UpNext(1).Select(x => x.Track).FirstOrDefault(); }
+                <div class="np-peek" @ref="peekEl" role="button" tabindex="0" aria-label="Up next. Swipe up or press to open the queue" @onclick="OpenQueue" @onkeydown="PeekKey">
+                    <i class="grab" aria-hidden="true"></i>
+                    <div class="peek-row">
+                        <small>Up next</small>
+                        @if (peekNext is not null)
+                        {
+                            <Cover ArtKey="@(Art.KeyFor(peekNext))" Size="36" />
+                            <span><b>@peekNext.Title</b><small>@peekNext.Artist@(peekNext.Album.Length > 0 ? " · " + peekNext.Album : "")</small></span>
+                            @if (Note(peekNext) is { } pn) { <em class="dl-note @(pn == "Downloading" ? "live" : "")">@pn</em> }
+                        }
+                        else { <span class="none">Nothing queued after this</span> }
+                        <Icon Name="chevron-up" Size="20" />
+                    </div>
+                </div>
                 <div class="np-tabs" role="tablist">
                     <button role="tab" aria-selected="@(tab == "queue")" class="@(tab == "queue" ? "on" : "")" @onclick='() => Open("queue")'><Icon Name="queue" Size="18" />Up next</button>
                     <button role="tab" aria-selected="@(tab == "lyrics")" class="@(tab == "lyrics" ? "on" : "")" @onclick='() => Open("lyrics")'><Icon Name="lyrics" Size="18" />Lyrics</button>
@@ -96,14 +111,14 @@
                                     shownAuto = true;
                                     <li class="q-divider">Autoplay · similar to what you were playing</li>
                                 }
-                                <li><button class="q-row" @onclick="() => Player.SkipTo(i)"><Cover ArtKey="@(Art.KeyFor(u))" Size="44" /><span><b>@u.Title</b><small>@u.Artist</small></span><span class="q-time">@Time(u.DurationMs / 1000.0)</span></button></li>
+                                <li><button class="q-row" @onclick="() => Player.SkipTo(i)"><Cover ArtKey="@(Art.KeyFor(u))" Size="44" /><span><b>@u.Title</b><small>@u.Artist@(u.Album.Length > 0 ? " · " + u.Album : "")</small>@if (Note(u) is { } dn) { <em class="dl-note @(dn == "Downloading" ? "live" : "")">@dn</em> }</span><span class="q-time">@Time(u.DurationMs / 1000.0)</span></button></li>
                             }
                             @if (!Player.UpNext(1).Any() && Player.Autoplay && Player.AutoplayNext.Count > 0)
                             {
                                 <li class="q-divider">Autoplay · up next after this</li>
                                 @foreach (var u in Player.AutoplayNext)
                                 {
-                                    <li><button class="q-row" @onclick="() => Player.Play([u], 0, Player.Context)"><Cover ArtKey="@(Art.KeyFor(u))" Size="44" /><span><b>@u.Title</b><small>@u.Artist</small></span><span class="q-time">@Time(u.DurationMs / 1000.0)</span></button></li>
+                                    <li><button class="q-row" @onclick="() => Player.Play([u], 0, Player.Context)"><Cover ArtKey="@(Art.KeyFor(u))" Size="44" /><span><b>@u.Title</b><small>@u.Artist@(u.Album.Length > 0 ? " · " + u.Album : "")</small>@if (Note(u) is { } dn) { <em class="dl-note @(dn == "Downloading" ? "live" : "")">@dn</em> }</span><span class="q-time">@Time(u.DurationMs / 1000.0)</span></button></li>
                                 }
                             }
                         </ol>
@@ -149,6 +164,7 @@
     string tab = "queue"; string? shownTab = "queue";
     // closing plays the slide-down (the cover pops down) before the player is taken out of the page
     bool closing;
+    [JSInvokable] public void PeekOpen() => InvokeAsync(() => { OpenQueue(); StateHasChanged(); });
     [JSInvokable] public async Task Closed()
     {
         await InvokeAsync(async () => { closing = true; StateHasChanged(); await Task.Delay(260); });
@@ -185,12 +201,28 @@
     string? lyricsPushed;
 
     // on a phone the panel is a sheet over the cover: a tab opens it, the same tab again closes it (on a wide screen it is always there)
+    ElementReference peekEl;
+    [Inject] DownloadLog DlLog { get; set; } = default!;
+    [Inject] DownloadManager Dls { get; set; } = default!;
+    Dictionary<string, DownloadRecord>? dlIdx; string? dlIdxFor;
+    /// <summary>"Downloaded just now / today / this week" for a song FLACie fetched (from this account's download history); null for the rest.</summary>
+    string? Note(Track u)
+    {
+        var key = Session.Jellyfin?.UserId ?? Session.Nas?.User ?? "guest";
+        if (dlIdx is null || dlIdxFor != Player.Current?.Path) { dlIdx = DlLog.DoneIndex(key); dlIdxFor = Player.Current?.Path; }
+        if (Dls.JobsOf(Session).Any(j => !j.Finished && string.Equals(j.Title, u.Title, StringComparison.OrdinalIgnoreCase) && string.Equals(j.Artist, u.Artist, StringComparison.OrdinalIgnoreCase))) return "Downloading";
+        if (!dlIdx.TryGetValue(DownloadLog.FileKey(u.FilePath ?? u.Path), out var r)) return null;
+        var age = DateTime.UtcNow - r.FinishedAt.ToUniversalTime();
+        return age.TotalHours < 1 ? "Downloaded just now" : age.TotalDays < 1 ? "Downloaded today" : age.TotalDays < 7 ? "Downloaded this week" : "Downloaded";
+    }
+    void OpenQueue() { tab = "queue"; panelOpen = true; }
+    void PeekKey(KeyboardEventArgs e) { if (e.Key is "Enter" or " ") OpenQueue(); }
     bool panelOpen;
     void Open(string t) { if (tab == t && panelOpen) { panelOpen = false; return; } tab = t; panelOpen = true; if (t == "lyrics") _ = LoadLyrics(); }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender) { self = DotNetObjectReference.Create(this); try { await Js.InvokeVoidAsync("flacie.npOpen", self); } catch (Exception) { } }
+        if (firstRender) { self = DotNetObjectReference.Create(this); try { await Js.InvokeVoidAsync("flacie.npOpen", self); await Js.InvokeVoidAsync("flacie.peekDrag", peekEl, self); } catch (Exception) { } }
         if (shownTab != tab) { shownTab = tab; try { await Js.InvokeVoidAsync("flacie.panelTop"); } catch (Exception) { } }
         if (Player.Current is not { } t) return;
         // a new song: refresh whatever is showing

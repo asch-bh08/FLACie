@@ -1,9 +1,10 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject NavigationManager Nav
-<div class="app">
-    <TopBar />
-    <nav class="rail" aria-label="Main">
+<div class="app @(InMusic ? "full" : "") @(InMusic && menu ? "menu-open" : "")">
+    <TopBar Full="InMusic" MenuOpen="menu" OnMenu="() => menu = !menu" />
+    <button class="menu-scrim" tabindex="-1" aria-hidden="true" @onclick="() => menu = false"></button>
+    <nav class="rail" aria-label="Main" id="main-rail">
         <div class="rail-group">
             <NavLink href="/" Match="NavLinkMatch.All"><Icon Name="home" />Home</NavLink>
             <NavLink href="/search"><Icon Name="search" />Search</NavLink>
@@ -33,7 +34,9 @@
 @code {
     // "All music" is lit for its four filters and their detail pages
     bool InMusic { get { var p = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0]; return new[] { "/songs", "/albums", "/artists", "/genres", "/charts", "/album/", "/artist/", "/genre/" }.Any(x => p.StartsWith(x, StringComparison.OrdinalIgnoreCase)); } }
+    // Explore uses the whole window: the side menu slides in from a hamburger and goes away again after a choice
+    bool menu;
     protected override void OnInitialized() => Nav.LocationChanged += Moved;
-    void Moved(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => InvokeAsync(StateHasChanged);
+    void Moved(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => InvokeAsync(() => { menu = false; StateHasChanged(); });
     public void Dispose() => Nav.LocationChanged -= Moved;
 }

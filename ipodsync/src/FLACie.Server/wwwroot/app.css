@@ -909,3 +909,66 @@ body.np-open .np { top: 0; padding-top: var(--top); }
 .dl-menu button:hover:not(:disabled), .dl-menu a:hover { background: var(--surface-3); }
 .dl-menu button:disabled { opacity: .45; cursor: default; }
 .dl-menu .hi { color: #ffc857; }
+
+/* ---- Explore uses the whole window: the side menu slides in from a hamburger ---- */
+.top-left { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.top-title { margin: 0; font-size: 18px; font-weight: 750; justify-self: start; }
+.top-burger { display: none; width: 42px; height: 42px; border: 0; background: none; border-radius: 12px; position: relative; color: var(--ink); cursor: pointer; }
+.top-burger:hover { background: var(--surface); }
+.top-burger i { position: absolute; left: 11px; right: 11px; height: 2px; border-radius: 2px; background: currentColor; transition: transform .28s cubic-bezier(.2, .8, .2, 1), opacity .2s, top .28s cubic-bezier(.2, .8, .2, 1); }
+.top-burger i:nth-child(1) { top: 14px; } .top-burger i:nth-child(2) { top: 20px; } .top-burger i:nth-child(3) { top: 26px; }
+.top-burger.open i:nth-child(1) { top: 20px; transform: rotate(45deg); }
+.top-burger.open i:nth-child(2) { opacity: 0; transform: scaleX(.2); }
+.top-burger.open i:nth-child(3) { top: 20px; transform: rotate(-45deg); }
+.menu-scrim { display: none; }
+@media (min-width: 761px) {
+  .app.full { grid-template-columns: 0 minmax(0, 1fr); --rail: 0px; }
+  .app.full .topbar { grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; padding-left: 10px; }
+  .app.full .top-brand { padding-left: 4px; }
+  .app.full .top-burger { display: block; }
+  .app.full .rail { position: fixed; top: var(--top); left: 0; bottom: 0; height: auto; width: 252px; z-index: 60; visibility: hidden; transform: translateX(-104%); box-shadow: none;
+    transition: transform .3s cubic-bezier(.2, .8, .2, 1), box-shadow .3s, visibility 0s linear .3s; }
+  .app.full.menu-open .rail { visibility: visible; transform: none; box-shadow: 24px 0 60px #000a; transition-delay: 0s; }
+  .app.full .menu-scrim { display: block; position: fixed; inset: var(--top) 0 0 0; z-index: 55; border: 0; padding: 0; background: #000a; opacity: 0; pointer-events: none; transition: opacity .3s; }
+  .app.full.menu-open .menu-scrim { opacity: 1; pointer-events: auto; }
+  .app.full .remote-now { left: 0; }
+}
+
+/* ---- motion: things slide, pop and fade instead of appearing ---- */
+@keyframes page-in { from { opacity: 0; transform: translateY(10px); } }
+@keyframes np-up { from { transform: translateY(100%); opacity: .4; } }
+@keyframes np-down { to { transform: translateY(100%); opacity: .4; } }
+@keyframes cover-pop { from { transform: scale(.84) translateY(36px); opacity: 0; } }
+@keyframes cover-drop { to { transform: scale(.82) translateY(70px); opacity: 0; } }
+@keyframes bar-up { from { transform: translateY(100%); } }
+@keyframes pop-in { 0% { transform: scale(.6); opacity: 0; } 70% { transform: scale(1.08); } }
+@keyframes menu-in { from { opacity: 0; transform: translateY(-6px) scale(.96); } }
+@keyframes menu-in-up { from { opacity: 0; transform: translateY(6px) scale(.96); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes row-pulse { 0% { background: color-mix(in srgb, var(--accent) 28%, transparent); } 100% { background: transparent; } }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+
+.content > * { animation: page-in .32s cubic-bezier(.2, .8, .2, 1) backwards; }
+.np { animation: np-up .38s cubic-bezier(.2, .8, .2, 1) backwards; }
+.np.closing { animation: np-down .26s cubic-bezier(.5, 0, .9, .4) forwards; pointer-events: none; }
+.np .np-cover-btn { animation: cover-pop .5s cubic-bezier(.2, .9, .25, 1.15) .08s backwards; }
+.np.closing .np-cover-btn { animation: cover-drop .24s cubic-bezier(.5, 0, .9, .4) forwards; }
+.np-meta, .np .seek.big, .np-controls { animation: rise .45s cubic-bezier(.2, .8, .2, 1) .16s backwards; }
+.np-panel > * { animation: fade-in .22s ease-out backwards; }
+.player { animation: bar-up .34s cubic-bezier(.2, .8, .2, 1) backwards; }
+.bar-song { animation: fade-in .25s ease-out backwards; }
+.bar-song .cover { animation: pop-in .42s cubic-bezier(.2, .9, .3, 1) backwards; }
+.track.now { animation: row-pulse .9s ease-out; }
+.menu, .account-menu, .devpop { animation: menu-in .16s cubic-bezier(.2, .8, .2, 1) backwards; transform-origin: top right; }
+.menu.np-menu { animation-name: menu-in-up; transform-origin: bottom right; }
+.card .cover, .card .cover-img { transition: transform .25s cubic-bezier(.2, .8, .2, 1), box-shadow .25s; }
+.card:hover .cover { transform: translateY(-3px) scale(1.025); box-shadow: 0 16px 34px #0009; }
+.btn, .icon-btn, .play, .badge, .chip, .fact { transition: transform .12s ease, background-color .15s, color .15s, box-shadow .15s; }
+.btn:active, .icon-btn:active, .play:active, .fact:active { transform: scale(.93); }
+.track { transition: background-color .15s; }
+.toast { animation-duration: .28s; }
+.x-bar, .az-rail { animation: fade-in .3s ease-out backwards; }
+.tracks > li, .grid > * { animation: rise .4s cubic-bezier(.2, .8, .2, 1) backwards; }
+.tracks > li:nth-child(n+14), .grid > :nth-child(n+14) { animation-delay: 0s; animation-duration: .2s; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; } }
+.pref-calm *, .pref-calm *::before, .pref-calm *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; }

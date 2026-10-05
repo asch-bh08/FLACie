@@ -5,7 +5,7 @@
     <section class="player" aria-label="Player">
         <input class="bar-progress" type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" style="@Fill(hold.Value(Player.Position), Player.Duration)" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
         <div class="bar">
-            <button class="bar-song" @onclick="() => open = true" aria-label="Open Now Playing">
+            <button class="bar-song" @key="t.Path" @onclick="() => open = true" aria-label="Open Now Playing">
                 <Cover ArtKey="@(Art.KeyFor(t))" Size="52" />
                 <span class="bar-text"><b>@t.Title</b><small>@t.Artist</small></span>
             </button>
@@ -53,14 +53,19 @@
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
+        var here = new Uri(Nav.Uri); lastPath = here.AbsolutePath + here.Query;
         Nav.LocationChanged += OnNavigated;
         Player.Started += OnStarted;
         Player.FullScreenRequested += OnFullScreen;
     }
     void OnFullScreen() => InvokeAsync(() => { open = true; StateHasChanged(); });
+    string? lastPath;
     void OnNavigated(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
-        if (open) InvokeAsync(() => { open = false; StateHasChanged(); });
+        // only a real page change closes it at once; the #now-playing in the address coming and going is the player's own open/close (which animates)
+        var path = new Uri(e.Location).AbsolutePath + new Uri(e.Location).Query;
+        var moved = lastPath is not null && path != lastPath; lastPath = path;
+        if (open && moved) InvokeAsync(() => { open = false; StateHasChanged(); });
     }
     [Inject] ActivityLog Activity { get; set; } = default!;
     void OnStarted(Track t) { Activity.Add("play", Session.DisplayName, $"Started {t.Title} by {t.Artist} in the web player"); if (Session.RecordPlay(t)) SaveProfile(); }

@@ -2,7 +2,7 @@
 @implements IDisposable
 @* Full-screen player: the cover, the controls, and beside it the queue, the synced lyrics or the file's real format. *@
 @{ var t = Player.Current; }
-<div class="np @(panelOpen ? "sheet" : "")" role="dialog" aria-modal="true" aria-label="Now Playing">
+<div class="np @(panelOpen ? "sheet" : "") @(closing ? "closing" : "")" role="dialog" aria-modal="true" aria-label="Now Playing">
     @if (t is not null && Art.KeyFor(t) is { } art) { <img class="np-backdrop" src="/art/@Uri.EscapeDataString(art)?v=2" alt="" /> }
     <div class="np-shade"></div>
     <header class="np-top">
@@ -147,7 +147,13 @@
     string AlbumOf(Track t) => realAlbumFor == t.Path && realAlbum is { Length: > 0 } a ? a : t.Album;
     DotNetObjectReference<NowPlaying>? self;
     string tab = "queue"; string? shownTab = "queue";
-    [JSInvokable] public Task Closed() => OnClose.InvokeAsync();
+    // closing plays the slide-down (the cover pops down) before the player is taken out of the page
+    bool closing;
+    [JSInvokable] public async Task Closed()
+    {
+        await InvokeAsync(async () => { closing = true; StateHasChanged(); await Task.Delay(260); });
+        await OnClose.InvokeAsync();
+    }
     [Inject] Toasts Toast { get; set; } = default!;
 
     // the "..." menu: closes on a click anywhere outside it or Escape (flacie.watchOutside calls Dismiss)

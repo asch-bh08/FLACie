@@ -118,27 +118,38 @@ private fun HwRow(title: String, chevron: Boolean, onClick: () -> Unit) {
 }
 
 /**
- * "Quick picks": small cover, title and artist in rows of four, a few songs wide, swiped sideways (the YouTube Music shelf). A tap plays that song
- * with the rest of the shelf queued behind it.
+ * "Quick picks": small cover, title and artist in rows of four (the YouTube Music shelf). The page takes the width of the screen less a sliver of the next
+ * one, and on a wide screen (a tablet, the unfolded Fold) two or three pages sit side by side instead of one thin column with empty space beside it.
+ * A tap plays that song with the rest of the shelf queued behind it.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun QuickPicks(tracks: List<com.ipodemu.library.Track>, onPlay: (Int) -> Unit) {
     val sc = LocalScheme.current
-    val pageW = (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp * 0.86f).coerceAtMost(420f).dp
     val pages = remember(tracks) { tracks.chunked(4) }
-    androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        itemsIndexed(pages) { pi, page ->
-            Column(Modifier.width(pageW)) {
-                page.forEachIndexed { ri, t ->
-                    val idx = pi * 4 + ri
-                    Row(
-                        Modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(10.dp)).clickable { onPlay(idx) }.padding(horizontal = 4.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        ArtImage(t.artKey, Modifier.size(50.dp), thumb = true, corner = 6.dp)
-                        Column(Modifier.weight(1f)) {
-                            Txt(t.title, size = 15f, weight = FontWeight.SemiBold, maxLines = 1)
-                            Txt(t.artist, size = 12.5f, color = sc.onBgDim, maxLines = 1)
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val gap = 14.dp; val side = 16.dp
+        val cols = (maxWidth / 330.dp).toInt().coerceIn(1, 3)
+        // one column: a sliver (24dp) of the next page shows, so it is clear there is more; several columns: whole pages
+        val pageW = if (cols == 1) maxWidth - side - 40.dp else (maxWidth - side * 2 - gap * (cols - 1)) / cols
+        val state = androidx.compose.foundation.lazy.rememberLazyListState()
+        androidx.compose.foundation.lazy.LazyRow(
+            state = state, flingBehavior = androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior(state),
+            contentPadding = PaddingValues(horizontal = side), horizontalArrangement = Arrangement.spacedBy(gap),
+        ) {
+            itemsIndexed(pages) { pi, page ->
+                Column(Modifier.width(pageW)) {
+                    page.forEachIndexed { ri, t ->
+                        val idx = pi * 4 + ri
+                        Row(
+                            Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(10.dp)).clickable { onPlay(idx) }.padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            ArtImage(t.artKey, Modifier.size(52.dp), thumb = true, corner = 8.dp)
+                            Column(Modifier.weight(1f)) {
+                                Txt(t.title, size = 15f, weight = FontWeight.SemiBold, maxLines = 1)
+                                Txt(t.artist, size = 12.5f, color = sc.onBgDim, maxLines = 1)
+                            }
                         }
                     }
                 }

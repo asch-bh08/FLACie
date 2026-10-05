@@ -465,12 +465,19 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     val sc = LocalScheme.current
     val lib = app.library
     val libRev = LocalLibRev.current
-    val recentAlbums = remember(libRev) { lib.recentAlbums(20) }
-    val mixes = remember(libRev) { com.ipodemu.library.Recommender.mixes(lib, app.userData) }
     val hour = androidx.compose.runtime.produceState(System.currentTimeMillis() / 3_600_000L) { while (true) { delay(60_000); value = System.currentTimeMillis() / 3_600_000L } }.value
     val recentsKey = app.userData.recents.firstOrNull()
-    val shelves = remember(libRev, hour, recentsKey) { com.ipodemu.library.HomeShelves.build(lib, app.userData) }
-    val moodList = remember(libRev) { com.ipodemu.library.HomeShelves.moodsAvailable(lib) }
+    // the shelves are worked out in the background (they shuffle and sort the whole library several times: that on the main thread was the stutter
+    // when scrolling Home and when coming back to it after playing something) and kept, so the last ones show at once
+    var home by remember { androidx.compose.runtime.mutableStateOf(HomeCache.last) }
+    LaunchedEffect(libRev, hour, recentsKey) {
+        val d = kotlinx.coroutines.withContext(Dispatchers.Default) {
+            try { HomeData(com.ipodemu.library.HomeShelves.build(lib, app.userData), com.ipodemu.library.HomeShelves.moodsAvailable(lib)) } catch (_: Exception) { null }
+        }
+        if (d != null) { HomeCache.last = d; home = d }
+    }
+    val shelves = home?.shelves ?: emptyList()
+    val moodList = home?.moods ?: emptyList()
     var mood by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     app.userData.rev
     app.ui.rev
@@ -1334,3 +1341,6 @@ private fun playlistSongItems(app: App, id: String, t: Track): List<SheetItem> {
     }
     return items
 }
+
+private class HomeData(val shelves: List<com.ipodemu.library.HomeShelf>, val moods: List<String>)
+private object HomeCache { @Volatile var last: HomeData? = null }

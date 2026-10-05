@@ -118,6 +118,8 @@ private fun PlayerRoot(activity: MainActivity, nav: PlayerNav) {
     }
 
     // the real format of every song (for the Hi-Res badge and the Explore quality filters), kept from the last run and refreshed from FLACie Web
+    // the system bars follow the theme: shown (so you can swipe out) everywhere but the full-bleed click-wheel view
+    LaunchedEffect(ui.uiTheme, ui.viewMode, ui.model) { activity.applySystemBars() }
     val factsFile = remember { java.io.File(app.filesDir, "audiofacts.json") }
     LaunchedEffect(app.prefs.flacieWebUrl) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {

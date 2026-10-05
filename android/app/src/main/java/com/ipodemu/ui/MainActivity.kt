@@ -84,12 +84,22 @@ class MainActivity : ComponentActivity() {
         window.attributes = a
     }
 
-    private fun hideSystemBars() {
-        WindowInsetsControllerCompat(window, window.decorView).apply {
-            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            hide(WindowInsetsCompat.Type.systemBars())
+    /** The click-wheel iPod view is a full-bleed device and hides the system bars; everything else keeps the status and navigation bars, so the gesture bar
+     * (or the Home / Back buttons) is always there to swipe out of the app. */
+    fun applySystemBars() {
+        val c = WindowInsetsControllerCompat(window, window.decorView)
+        if (app.ui.wheelActive || app.ui.ipodTheme) {
+            c.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            c.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            c.show(WindowInsetsCompat.Type.systemBars())
+            c.isAppearanceLightStatusBars = false; c.isAppearanceLightNavigationBars = false
+            window.statusBarColor = android.graphics.Color.TRANSPARENT; window.navigationBarColor = android.graphics.Color.TRANSPARENT
+            if (android.os.Build.VERSION.SDK_INT >= 29) window.isNavigationBarContrastEnforced = false
         }
     }
+
+    private fun hideSystemBars() = applySystemBars()
 
     override fun onResume() {
         idleHandler.removeCallbacks(idleCheck); idleHandler.postDelayed(idleCheck, 1000)

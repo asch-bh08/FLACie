@@ -62,11 +62,13 @@ else
             <div class="row-scroll">
                 @foreach (var a in webAlbums)
                 {
+                    var ja = Downloads.JobFor(Session, a.Artist, a.CleanTitle);
                     <div class="card">
                         <Cover ArtKey="@(a.ArtUrl is null ? null : Art.ExternalKey(a.ArtUrl))" Class="square" />
                         <span class="card-title">@a.CleanTitle</span>
                         <span class="card-sub">@a.Artist · @a.Kind</span>
-                        <button class="btn" disabled="@(!Session.Services.Any)" @onclick="() => Downloads.Album(Session, a)"><Icon Name="download" Size="16" />Download</button>
+                        @if (ja is not null) { <span class="track-dl @(ja.Stage == DownloadStage.Failed ? "bad" : ja.Stage == DownloadStage.Done ? "ok" : "")"><i aria-hidden="true"></i>@ja.Message@(ja.Current is { } ca && !ja.Finished ? " · " + OpenSourceSettings.Name(ca) : ja.Source is { } sa ? " · from " + OpenSourceSettings.Name(sa) : "")</span> }
+                        <button class="btn" disabled="@(!Session.Services.Any || ja is { Finished: false })" @onclick="() => Downloads.Album(Session, a)"><Icon Name="download" Size="16" />@(ja is { Finished: false } ? "Downloading…" : ja is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button>
                     </div>
                 }
             </div>
@@ -76,13 +78,14 @@ else
             <ul class="tracks">
                 @foreach (var s in webSongs)
                 {
+                    var jb = Downloads.JobFor(Session, s.Artist, s.Title);
                     <li class="track">
                         <span class="track-main">
                             <Cover ArtKey="@(s.ArtUrl is null ? null : Art.ExternalKey(s.ArtUrl))" Size="44" />
-                            <span class="track-text"><span class="track-title">@s.Title</span><span class="track-sub">@s.Artist@(s.Album.Length > 0 ? " · " + s.Album : "")</span></span>
+                            <span class="track-text"><span class="track-title">@s.Title</span><span class="track-sub">@s.Artist@(s.Album.Length > 0 ? " · " + s.Album : "")</span>@if (jb is not null) { <span class="track-dl @(jb.Stage == DownloadStage.Failed ? "bad" : jb.Stage == DownloadStage.Done ? "ok" : "")"><i aria-hidden="true"></i>@jb.Message@(jb.Current is { } c && !jb.Finished ? " · " + OpenSourceSettings.Name(c) : jb.Source is { } src ? " · from " + OpenSourceSettings.Name(src) : "")</span> }</span>
                         </span>
                         <span class="track-time">@Time(s.DurationMs / 1000.0)</span>
-                        <button class="btn" disabled="@(!Session.Services.Any)" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />Download</button>
+                        <button class="btn" disabled="@(!Session.Services.Any || jb is { Finished: false })" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />@(jb is { Finished: false } ? "Downloading…" : jb is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button>
                     </li>
                 }
             </ul>

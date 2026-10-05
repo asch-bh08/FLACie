@@ -54,11 +54,12 @@ else
         <section class="kv-sec">
             <h4>File</h4>
             <dl class="kv">
-                <dt>Source</dt><dd><span class="badge @Track.Source.ToString().ToLowerInvariant()">@Info.Source</span></dd>
+                <dt>Source</dt><dd><span class="badge @Track.Source.ToString().ToLowerInvariant()" title="@(Track.Source == TrackSource.Cloud ? SourceLabel.StreamingHint : "Where this song is played from")">@Info.Source</span></dd>
+                <dt>Came from</dt><dd>@Origin</dd>
                 @if (Info.Codec.Length > 0) { <dt>Codec</dt><dd>@Info.Codec.ToUpperInvariant()@(Info.Container.Length > 0 && !string.Equals(Info.Container, Info.Codec, StringComparison.OrdinalIgnoreCase) ? " in " + Info.Container.ToUpperInvariant() : "")</dd> }
                 @if (Info.SizeBytes > 0) { <dt>Size</dt><dd>@Size(Info.SizeBytes)</dd> }
                 @if (Info.Path.Length > 0) { <dt>Location</dt><dd class="path">@Info.Path</dd> }
-                <dt>Playing</dt><dd>Original file, streamed without converting</dd>
+                <dt>Playing</dt><dd>@(Track.Source == TrackSource.Cloud ? "Streaming from your server: a new download that Jellyfin has not scanned yet. Original file, not converted." : "Original file, streamed without converting")</dd>
             </dl>
         </section>
     </div>
@@ -77,7 +78,8 @@ else
     IEnumerable<(string Id, string Big, string Small)> Picks()
     {
         if (Info!.BitrateKbps > 0) yield return ("rate", Info.BitrateKbps.ToString(), "kbps");
-        if (Info.SampleRateHz > 0) yield return ("curve", (Info.SampleRateHz / 1000.0).ToString("0.#"), "kHz");
+        // the spectrum is always a choice (it is what opens first), with the sample rate beside it when the file says
+        yield return ("curve", "Spectrum", Info.SampleRateHz > 0 ? (Info.SampleRateHz / 1000.0).ToString("0.#") + " kHz" : "");
         yield return ("loud", Info.BitDepth > 0 ? Info.BitDepth.ToString() : "Level", Info.BitDepth > 0 ? "bit" : "");
         yield return ("stereo", Info.Channels == 1 ? "Mono" : "Stereo", "");
         yield return ("leds", "Visualizer", "");
@@ -95,11 +97,35 @@ else
         _ => "The dots show what left and right do together: a thin vertical line is the same sound in both, a wide cloud is a wide stereo picture. The bars are the level of each side.",
     };
 
+
+    /// <summary>Where the file came from, in a sentence: a recent download (and from which source, when) or "in the library from the start".</summary>
+    MarkupString Origin
+    {
+        get
+        {
+            if (Info is null) return default;
+            var from = Info.OriginSource.Length > 0 ? OpenSourceSettings.Name(Info.OriginSource) : "";
+            if (Info.Origin == "downloaded")
+            {
+                var when = Info.OriginAt is { } at ? $" <time data-utc=\"{DateTime.SpecifyKind(at, DateTimeKind.Utc):o}\" data-abs=\"1\" data-rel=\"{Ago(at)}\">{Ago(at)}</time>" : "";
+                var tail = Track.Source == TrackSource.Cloud ? " It is streaming from your server until the next Jellyfin scan." : "";
+                return new($"Downloaded {(from.Length > 0 ? "from <b>" + System.Net.WebUtility.HtmlEncode(from) + "</b>" : "by FLACie")}{when}.{tail}");
+            }
+            return new(Track.Source == TrackSource.Nas ? "On your NAS. FLACie has no download record for it." : "In your Jellyfin library. FLACie has no download record for it, so it was already there or was added before the log began.");
+        }
+    }
+
+    static string Ago(DateTime utc)
+    {
+        var d = DateTime.UtcNow - DateTime.SpecifyKind(utc, DateTimeKind.Utc);
+        return d.TotalSeconds < 60 ? "just now" : d.TotalMinutes < 60 ? $"{(int)d.TotalMinutes} min ago" : d.TotalHours < 24 ? $"{(int)d.TotalHours} h ago" : d.TotalDays < 2 ? "yesterday" : $"{(int)d.TotalDays} days ago";
+    }
     void Pick(string m) { mode = m; shown = null; }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (Info is null || Loading) { shown = null; return; }
+        await Safe(() => Js.InvokeVoidAsync("flacie.times").AsTask());
         if (mode == "rate") { if (shown != "rate") { shown = "rate"; await Safe(() => Js.InvokeVoidAsync("flacie.vizStop").AsTask()); } return; }
         if (shown == mode || unavailable) return;
         shown = mode;

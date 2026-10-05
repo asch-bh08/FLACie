@@ -307,6 +307,15 @@ window.flacie = (() => {
       if (!npPushed) { history.pushState({ np: 1 }, "", location.pathname + location.search + "#now-playing"); npPushed = true; }
     },
     npBack() { if (npPushed) history.back(); else npClosed(); },
+    // times on the Downloads page: the exact local time in a tooltip, and the clock time itself where the row asks for it (data-abs)
+    times() {
+      document.querySelectorAll("time[data-utc]").forEach(t => {
+        const d = new Date(t.dataset.utc); if (isNaN(d)) return;
+        t.title = d.toLocaleString();
+        if (t.dataset.abs === "1") t.textContent = d.toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) + (t.dataset.rel ? " (" + t.dataset.rel + ")" : "");
+        else if (t.dataset.abs === "time") t.textContent = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      });
+    },
     npReset() { npRef = null; document.body.classList.remove("np-open"); },
     stash(key, json) { try { localStorage.setItem(key, json); } catch { } },
     unstash(key) { try { return localStorage.getItem(key); } catch { return null; } },

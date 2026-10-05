@@ -83,3 +83,13 @@ public static partial class Matching
         return t.ToLowerInvariant();
     }
 }
+
+/// <summary>How a song's source is named on screen. A song that was just downloaded is played straight from the user's server (the file mover) while
+/// Jellyfin has not scanned it yet; that is called "Streaming", and it turns into a normal Jellyfin song at the next library scan.</summary>
+public static class SourceLabel
+{
+    public static string Short(TrackSource s) => s switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "Streaming", _ => s.ToString() };
+    public const string StreamingHint = "A song you just downloaded, played straight from your server while it is filed into the library. After the next Jellyfin scan it becomes a normal library song.";
+    /// <summary>"Playing from ..." in the full-screen player.</summary>
+    public static string PlayingFrom(TrackSource s) => s == TrackSource.Cloud ? "your server (new download)" : Short(s);
+}

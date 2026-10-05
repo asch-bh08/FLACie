@@ -19,13 +19,13 @@ else
     <ol class="chart-list">
         @for (var i = 0; i < songs.Count; i++)
         {
-            var s = songs[i]; var have = Lib.Find(s.Title, s.Artist) ?? Lib.FindLoose(s.Title, s.Artist);
+            var s = songs[i]; var have = Lib.Find(s.Title, s.Artist) ?? Lib.FindLoose(s.Title, s.Artist); var jb = Downloads.JobFor(Session, s.Artist, s.Title);
             <li class="chart-row">
                 <span class="rank">@(i + 1)</span>
                 <Cover ArtKey="@(s.ArtUrl is null ? null : Art.ExternalKey(s.ArtUrl))" Size="48" />
-                <span class="chart-text"><b>@s.Title</b><small>@s.Artist</small></span>
+                <span class="chart-text"><b>@s.Title</b><small>@s.Artist</small>@if (jb is not null && have is null) { <span class="track-dl @(jb.Stage == DownloadStage.Failed ? "bad" : jb.Stage == DownloadStage.Done ? "ok" : "")"><i aria-hidden="true"></i>@jb.Message@(jb.Current is { } c && !jb.Finished ? " · " + OpenSourceSettings.Name(c) : jb.Source is { } src ? " · from " + OpenSourceSettings.Name(src) : "")</span> }</span>
                 @if (have is not null) { <button class="btn" @onclick="() => Player.Play([have], 0, current_name)"><Icon Name="play" Size="16" />Play</button> }
-                else { <button class="btn" disabled="@(!Session.Services.Any)" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />Download</button> }
+                else { <button class="btn" disabled="@(!Session.Services.Any || jb is { Finished: false })" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />@(jb is { Finished: false } ? "Downloading…" : jb is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button> }
             </li>
         }
     </ol>
@@ -39,6 +39,8 @@ else
     string current_name => ChartsService.Available.FirstOrDefault(c => c.Id == current).Name ?? "Chart";
     int owned => songs.Count(s => Lib.Find(s.Title, s.Artist) is not null || Lib.FindLoose(s.Title, s.Artist) is not null);
 
-    protected override async Task OnInitializedAsync() { await base.OnInitializedAsync(); await Pick(0); }
+    Action? onJobs;
+    protected override async Task OnInitializedAsync() { await base.OnInitializedAsync(); onJobs = () => InvokeAsync(StateHasChanged); Downloads.Subscribe(Session, onJobs); await Pick(0); }
+    public override void Dispose() { if (onJobs is not null) Downloads.Unsubscribe(Session, onJobs); base.Dispose(); }
     async Task Pick(int id) { current = id; loading = true; StateHasChanged(); songs = await ChartSvc.ChartAsync(id); loading = false; }
 }

@@ -14,7 +14,7 @@ import socket
 API_KEY = os.environ["API_KEY"]
 ROOT = "/data"
 MAX_FETCH = 700 * 1024 * 1024
-YTDL_URL = "http://172.17.0.1:8091/ytdl"
+YTDL_BASE = "http://172.17.0.1:8091"
 
 
 def check_public(url):
@@ -57,8 +57,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         if not self._authed():
             return
-        if self.path == "/ytdl":
-            self._ytdl()
+        if self.path in ("/ytdl", "/probe"):
+            self._forward(self.path)
             return
         if self.path == "/fetch":
             self._fetch()
@@ -79,12 +79,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except Exception as e:
             self._reply(400, {"error": str(e)})
 
-    def _ytdl(self):
-        """POST /ytdl: forwards to the flacie-ytdl container (yt-dlp), which looks the song up and files it. The caller's key is passed on as is."""
+    def _forward(self, path):
+        """POST /ytdl and /probe: forwards to the flacie-ytdl container (yt-dlp and ffprobe). The caller's key is passed on as is."""
         length = int(self.headers.get("Content-Length", 0))
         data = self.rfile.read(length)
         try:
-            req = urllib.request.Request(YTDL_URL, data=data, method="POST", headers={"X-Api-Key": self.headers.get("X-Api-Key", ""), "Content-Type": "application/json"})
+            req = urllib.request.Request(YTDL_BASE + path, data=data, method="POST", headers={"X-Api-Key": self.headers.get("X-Api-Key", ""), "Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=240) as r:
                 self._reply(r.status, json.loads(r.read() or b"{}"))
         except urllib.error.HTTPError as e:

@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 namespace FLACie.Core;
 
 /// <summary>What the file behind a song really is: format, quality and where it lives. Any field the source can't tell is zero/empty.</summary>
-public sealed record MediaInfo(string Container, string Codec, int BitrateKbps, int SampleRateHz, int BitDepth, int Channels, long SizeBytes, long DurationMs, string Path, string Source)
+public sealed record MediaInfo(string Container, string Codec, int BitrateKbps, int SampleRateHz, int BitDepth, int Channels, long SizeBytes, long DurationMs, string Path, string Source, string Origin = "", string OriginSource = "", DateTime? OriginAt = null)
 {
     public static readonly HashSet<string> LosslessCodecs = ["flac", "alac", "wav", "pcm", "aiff", "ape", "wavpack", "wv", "dsd", "tta", "pcm_s16le", "pcm_s24le", "pcm_s32le"];
     public bool Lossless => LosslessCodecs.Contains(Codec.ToLowerInvariant()) || LosslessCodecs.Contains(Container.ToLowerInvariant());

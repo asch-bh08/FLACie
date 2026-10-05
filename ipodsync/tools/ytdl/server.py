@@ -91,6 +91,27 @@ def rank(cands, artist, title, dur):
     return [c for _, c in scored[:3]]
 
 
+def probe(rel):
+    """ffprobe of a file under /data: what the Info panel shows for songs that were just downloaded."""
+    full = resolve(rel)
+    if not os.path.isfile(full):
+        raise FileNotFoundError("no such file")
+    p = subprocess.run(["ffprobe", "-v", "error", "-print_format", "json", "-show_format", "-show_streams", full], capture_output=True, text=True, timeout=30)
+    j = json.loads(p.stdout or "{}")
+    a = next((s for s in j.get("streams", []) if s.get("codec_type") == "audio"), {})
+    f = j.get("format", {})
+    dur = float(f.get("duration") or a.get("duration") or 0)
+    return {
+        "codec": a.get("codec_name", ""),
+        "bitrateKbps": int(a.get("bit_rate") or f.get("bit_rate") or 0) // 1000,
+        "sampleRate": int(a.get("sample_rate") or 0),
+        "bitDepth": int(a.get("bits_per_raw_sample") or a.get("bits_per_sample") or 0),
+        "channels": int(a.get("channels") or 0),
+        "size": int(f.get("size") or os.path.getsize(full)),
+        "durationMs": int(dur * 1000),
+    }
+
+
 def fetch_best(artist, title, dur, dest_noext):
     cands = rank(search(f"{artist} {title} official audio") + search(f"{artist} - {title} topic", 5), artist, title, dur)
     if not cands:
@@ -144,6 +165,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         if self.headers.get("X-Api-Key") != API_KEY:
             return self._reply(401, {"error": "unauthorized"})
+        if self.path == "/probe":
+            try:
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+                return self._reply(200, probe(str(body["path"])))
+            except FileNotFoundError as e:
+                return self._reply(404, {"error": str(e)})
+            except Exception as e:
+                return self._reply(400, {"error": str(e)})
         if self.path != "/ytdl":
             return self._reply(404, {"error": "not found"})
         try:

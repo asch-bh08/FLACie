@@ -180,6 +180,8 @@ public sealed record OpenSourceSettings(bool Archive, bool Audius, bool Jamendo,
 {
     public const string ArchiveId = "archive", AudiusId = "audius", JamendoSourceId = "jamendo", YtdlId = "ytdl";
     public static readonly string[] AllIds = [ArchiveId, AudiusId, JamendoSourceId, YtdlId];
+    /// <summary>How a source is named for people ("Internet Archive", "YouTube", ...), also for the download log.</summary>
+    public static string Name(string id) => id switch { ArchiveId => "Internet Archive", AudiusId => "Audius", JamendoSourceId => "Jamendo", YtdlId => "YouTube", "soulseek" => "Soulseek", "lidarr" => "Lidarr", _ => id };
     public static OpenSourceSettings Default => new(true, true, true, "", AllIds);
 
     /// <summary>The saved order with anything unknown dropped and anything missing appended, so every source appears exactly once.</summary>

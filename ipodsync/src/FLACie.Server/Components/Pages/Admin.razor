@@ -100,7 +100,7 @@ else
                             <dt>Songs</dt><dd>@Lib.Songs.Count.ToString("N0") in @Lib.Albums.Count.ToString("N0") albums by @Lib.Artists.Count.ToString("N0") artists</dd>
                             @foreach (var g in Lib.Songs.GroupBy(t => t.Source).OrderByDescending(g => g.Count()))
                             {
-                                <dt>From @(g.Key switch { TrackSource.Nas => "the NAS", TrackSource.Cloud => "downloads", _ => g.Key.ToString() })</dt><dd>@g.Count().ToString("N0") songs</dd>
+                                <dt>From @(g.Key switch { TrackSource.Nas => "the NAS", TrackSource.Cloud => "new downloads (streaming)", _ => g.Key.ToString() })</dt><dd>@g.Count().ToString("N0") songs</dd>
                             }
                             <dt>Quality</dt><dd>@lossless.ToString("N0") lossless · @((Lib.Songs.Count - lossless - unknownFmt).ToString("N0")) lossy@(unknownFmt > 0 ? " · " + unknownFmt.ToString("N0") + " unknown" : "")</dd>
                             <dt>Playlists</dt><dd>@Session.Playlists.Count</dd>

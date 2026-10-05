@@ -33,6 +33,7 @@ builder.Services.AddSingleton<ActivityLog>();
 builder.Services.AddSingleton<ClientRegistry>();
 builder.Services.AddSingleton<Notifier>();
 builder.Services.AddSingleton<StorageService>();
+builder.Services.AddSingleton<DownloadLog>();
 builder.Services.AddSingleton<DownloadManager>();
 builder.Services.AddSingleton<AutoplayPlanner>();
 builder.Services.AddSingleton<ImportManager>();

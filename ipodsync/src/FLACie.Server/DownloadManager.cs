@@ -3,22 +3,51 @@ using FLACie.Core;
 
 namespace FLACie.Server;
 
-public sealed class DownloadJob(string id, string label, string? artKey, string kind = "Search")
+public sealed class DownloadJob(string id, string label, string? artKey, string kind = "Search", string artist = "", string title = "")
 {
     public string Id { get; } = id;
     public string Label { get; } = label;
+    public string Artist { get; } = artist;
+    public string Title { get; } = title;
     public string? ArtKey { get; } = artKey;
     /// <summary>Where it came from: Search (the user asked), Autoplay (fetched ahead for the queue), Import (a playlist file) or Chart.</summary>
     public string Kind { get; } = kind;
     public DateTime At { get; } = DateTime.UtcNow;
+    public DateTime? FinishedAt { get; internal set; }
     public DownloadStage Stage { get; internal set; } = DownloadStage.Requested;
     public string Message { get; internal set; } = "Requested";
+    /// <summary>The source being worked on right now (soulseek, lidarr, ytdl, archive, audius, jamendo), null before the first one starts.</summary>
+    public string? Current { get; internal set; }
+    /// <summary>The source that delivered it, once it is done.</summary>
+    public string? Source { get; internal set; }
+    public string? File { get; internal set; }
+    public List<TrailStep> Trail { get; } = [];
     public bool Finished => Stage is DownloadStage.Done or DownloadStage.Failed;
+
+    /// <summary>Takes one status from the download code: moves the job along and keeps the step for the story shown later.</summary>
+    internal void Apply(DownloadStatus st)
+    {
+        lock (Trail)
+        {
+            if (!st.Miss) { Stage = st.Stage; Message = st.Message; if (st.Source is not null) Current = st.Source; }
+            if (st.Stage == DownloadStage.Done) { Source = st.Source; if (st.NewTracks is { Count: > 0 } t) File = FileOf(t[0].Path); }
+            if (Trail.Count == 0 || Trail[^1].Text != st.Message || Trail[^1].Source != st.Source) { Trail.Add(new(DateTime.UtcNow, st.Source, st.Message, st.Miss)); if (Trail.Count > 40) Trail.RemoveAt(1); }
+        }
+    }
+
+    static string? FileOf(string path) { var i = path.IndexOf("path=", StringComparison.Ordinal); return i < 0 ? null : Uri.UnescapeDataString(path[(i + 5)..]); }
+
+    internal DownloadRecord ToRecord(UserSession s) => new()
+    {
+        Id = Id, UserId = s.Id, UserName = s.DisplayName, Label = Label, Title = Title, Artist = Artist, Kind = Kind, StartedAt = At, FinishedAt = FinishedAt ?? DateTime.UtcNow,
+        Outcome = Stage == DownloadStage.Done ? "done" : "failed", Source = Stage == DownloadStage.Done ? Source ?? Current : null, Message = Message, File = File, ArtKey = ArtKey,
+        Trail = [.. Trail],
+    };
 }
 
 /// <summary>Runs downloads in the background for the signed-in user (they keep going when the tab closes) and keeps their progress for
 /// the page. The Soulseek and Lidarr addresses and keys come from the user's profile and never reach the browser.</summary>
-public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog)
+public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, DownloadLog log)
 {
     sealed class Jobs
     {
@@ -40,9 +69,9 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog)
 
     public void DismissFinished(UserSession s) { var j = For(s); lock (j.List) j.List.RemoveAll(x => x.Finished); j.Raise(); }
 
-    DownloadJob Add(UserSession s, string label, string? artUrl, string kind = "Search")
+    DownloadJob Add(UserSession s, string label, string? artUrl, string kind = "Search", string artist = "", string title = "")
     {
-        var j = For(s); var job = new DownloadJob(Guid.NewGuid().ToString("N"), label, artUrl is null ? null : Art.ExternalKey(artUrl), kind);
+        var j = For(s); var job = new DownloadJob(Guid.NewGuid().ToString("N"), label, artUrl is null ? null : Art.ExternalKey(artUrl), kind, artist, title);
         lock (j.List) { j.List.Insert(0, job); while (j.List.Count > 400) { var i = j.List.FindLastIndex(x => x.Finished); if (i < 0) break; j.List.RemoveAt(i); } }
         j.Raise();
         return job;
@@ -58,21 +87,38 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog)
             {
                 await work(coordinator, st =>
                 {
-                    job.Stage = st.Stage; job.Message = st.Message;
+                    job.Apply(st);
                     if (st.NewTracks is { Count: > 0 } t) s.AddDownloaded(t);
                     jobs.Raise();
                 });
             }
-            catch (Exception e) { job.Stage = DownloadStage.Failed; job.Message = e.Message; jobs.Raise(); }
-            if (!job.Finished) { job.Stage = DownloadStage.Failed; job.Message = "Stopped"; jobs.Raise(); }
+            catch (Exception e) { job.Apply(new(DownloadStage.Failed, e.Message)); }
+            if (!job.Finished) job.Apply(new(DownloadStage.Failed, "Stopped"));
+            Finish(s, job, jobs);
         });
     }
 
+    /// <summary>A job is over: stamp it and write it to the log.</summary>
+    void Finish(UserSession s, DownloadJob job, Jobs jobs)
+    {
+        job.FinishedAt ??= DateTime.UtcNow;
+        try { log.Add(job.ToRecord(s)); } catch (Exception) { }
+        jobs.Raise();
+    }
+
+    /// <summary>The newest job (running or finished this session) for this song, so a search result can show how its download is going.</summary>
+    public DownloadJob? JobFor(UserSession s, string artist, string title)
+    {
+        var key = Matching.MatchKey(title, artist);
+        var j = For(s);
+        lock (j.List) return j.List.FirstOrDefault(x => x.Title.Length > 0 && Matching.MatchKey(x.Title, x.Artist) == key);
+    }
+
     public void Song(UserSession s, CatalogSong song) =>
-        Run(s, Add(s, $"{song.Title} · {song.Artist}", song.ArtUrl), (c, on) => c.DownloadAsync(song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs, on));
+        Run(s, Add(s, $"{song.Title} · {song.Artist}", song.ArtUrl, "Search", song.Artist, song.Title), (c, on) => c.DownloadAsync(song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs, on));
 
     public void Album(UserSession s, CatalogAlbum album) =>
-        Run(s, Add(s, $"{album.CleanTitle} · {album.Artist}", album.ArtUrl), (c, on) => c.DownloadAlbumAsync(album, on));
+        Run(s, Add(s, $"{album.CleanTitle} · {album.Artist}", album.ArtUrl, "Search", album.Artist, album.CleanTitle), (c, on) => c.DownloadAlbumAsync(album, on));
 
     // ---- downloads nobody is watching: autoplay look-ahead, playlist imports, charts ----
 
@@ -101,22 +147,23 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog)
 
     async Task<DownloadResult> FetchCore(UserSession s, Jobs jobs, string kind, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct)
     {
-        var job = Add(s, $"{title} · {artist}", artUrl, kind);
+        var job = Add(s, $"{title} · {artist}", artUrl, kind, artist, title);
         var coordinator = new DownloadCoordinator(hf.CreateClient("downloads"), catalog, s.Services);
         var got = new List<Track>(); string last = "";
         try
         {
             await coordinator.DownloadAsync(artist, title, album, artUrl, durationMs, st =>
             {
-                job.Stage = st.Stage; job.Message = st.Message; last = st.Message;
+                job.Apply(st); if (!st.Miss) last = st.Message;
                 if (st.NewTracks is { Count: > 0 } t) { got.AddRange(t); s.AddDownloaded(t); }
                 jobs.Raise();
             }, ct);
         }
-        catch (OperationCanceledException) { job.Stage = DownloadStage.Failed; job.Message = "Cancelled"; jobs.Raise(); return new(false, [], "Cancelled"); }
-        catch (Exception e) { job.Stage = DownloadStage.Failed; job.Message = e.Message; last = e.Message; }
-        if (!job.Finished) { job.Stage = DownloadStage.Failed; job.Message = "Stopped"; }
+        catch (OperationCanceledException) { job.Apply(new(DownloadStage.Failed, "Cancelled")); Finish(s, job, jobs); return new(false, [], "Cancelled"); }
+        catch (Exception e) { job.Apply(new(DownloadStage.Failed, e.Message)); last = e.Message; }
+        if (!job.Finished) job.Apply(new(DownloadStage.Failed, "Stopped"));
         if (job.Stage == DownloadStage.Failed && got.Count == 0) lock (jobs.Failed) jobs.Failed[Key(artist, title)] = DateTime.UtcNow;
+        Finish(s, job, jobs);
         jobs.Raise();
         return new(job.Stage == DownloadStage.Done, got, last);
     }

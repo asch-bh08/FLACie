@@ -189,6 +189,6 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    static string SourceName(Track t) => t.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "Download", _ => t.Source.ToString() };
+    static string SourceName(Track t) => SourceLabel.PlayingFrom(t.Source);
     Task OnSeek(ChangeEventArgs e) => double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var s) ? Player.Seek(s) : Task.CompletedTask;
 }

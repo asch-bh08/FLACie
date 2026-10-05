@@ -16,7 +16,7 @@
                 </span>
             </button>
             <span class="pills">
-                <span class="badge @t.Source.ToString().ToLowerInvariant()" title="Where this song is played from">@(t.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "Download", _ => t.Source.ToString() })</span>
+                <span class="badge @t.Source.ToString().ToLowerInvariant()" title="@(t.Source == TrackSource.Cloud ? SourceLabel.StreamingHint : "Where this song is played from")">@SourceLabel.Short(t.Source)</span>
                 @if (fmt.Length > 0) { <span class="badge fmt @(MediaInfo.LosslessCodecs.Contains(fmt.ToLowerInvariant()) ? "lossless" : "")" title="File format">@fmt</span> }
             </span>
             <span class="track-time">@(t.DurationMs > 0 ? Time(t.DurationMs / 1000.0) : "")</span>

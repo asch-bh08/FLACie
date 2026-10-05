@@ -352,7 +352,7 @@ private fun sourceColor(s: com.ipodemu.library.TrackSource): Color = when (s) {
 private fun SourceBadge(source: com.ipodemu.library.TrackSource) {
     val color = sourceColor(source)
     Box(Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.16f)).padding(horizontal = 7.dp, vertical = 3.dp)) {
-        Txt(if (source == com.ipodemu.library.TrackSource.NAS) "NAS" else source.name.lowercase().replaceFirstChar { it.uppercase() }, size = 11f, weight = FontWeight.SemiBold, color = color)
+        Txt(if (source == com.ipodemu.library.TrackSource.NAS) "NAS" else if (source == com.ipodemu.library.TrackSource.CLOUD) "Streaming" else source.name.lowercase().replaceFirstChar { it.uppercase() }, size = 11f, weight = FontWeight.SemiBold, color = color)
     }
 }
 

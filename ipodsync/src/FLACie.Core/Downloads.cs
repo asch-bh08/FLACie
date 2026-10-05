@@ -8,7 +8,7 @@ public enum DownloadStage { Requested, Searching, Downloading, Importing, Scanni
 
 /// <summary><see cref="NewTracks"/> are set on a Soulseek win's Done status: songs the caller can add to the library, playable at once
 /// through the file mover. Lidarr wins arrive through the Jellyfin scan.</summary>
-public sealed record DownloadStatus(DownloadStage Stage, string Message, string? Source = null, IReadOnlyList<Track>? NewTracks = null);
+public sealed record DownloadStatus(DownloadStage Stage, string Message, string? Source = null, IReadOnlyList<Track>? NewTracks = null, bool Miss = false);
 
 /// <summary>The download stack's addresses and keys, as the Android app keeps them in the shared profile (<c>services</c>). They stay
 /// on the server: the browser only ever sees progress messages.</summary>
@@ -53,7 +53,11 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         on(new(DownloadStage.Requested, $"Requested \"{title}\""));
         // the open finders (Internet Archive, Audius, Jamendo) look for the song while Soulseek searches; they only find, and nothing is downloaded from them unless Soulseek came up empty
         using var finders = cfg.OpenReady ? OpenSources.Start(http, artist, title, (int)(durationMs / 1000), cfg.OpenCfg, TimeSpan.FromSeconds(25), ct) : null;
-        if (cfg.SoulseekReady && await TrySoulseek(artist, title, album, artUrl, (int)(durationMs / 1000), on, ct)) return;
+        if (cfg.SoulseekReady)
+        {
+            if (await TrySoulseek(artist, title, album, artUrl, (int)(durationMs / 1000), on, ct)) return;
+            on(new(DownloadStage.Searching, "Soulseek had nothing it could finish", "soulseek", null, true));
+        }
         // Soulseek had nothing: the open sources in the user's order, then Lidarr
         if (cfg.OpenReady && await TryOpen(finders, artist, title, album, artUrl, durationMs, on, ct)) return;
         if (!cfg.LidarrReady) { on(new(DownloadStage.Failed, cfg.SoulseekReady ? "Not found on Soulseek or the open sources" : cfg.OpenReady ? "Not found on the open sources" : "Downloads aren't set up (Settings > Downloads)")); return; }
@@ -72,15 +76,17 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
                 if (id == OpenSourceSettings.YtdlId)
                 {
                     if (await TryYtdl(artist, title, album, artUrl, durationMs, on, ct)) return true;
+                    on(new(DownloadStage.Searching, "YouTube had no matching upload", "ytdl", null, true));
                     continue;
                 }
                 if (finders is null || !finders.Tasks.TryGetValue(id, out var task)) continue;
+                var sname = OpenSourceSettings.Name(id);
                 var left = (int)Math.Max(0, deadline - Environment.TickCount64);
-                if (await Task.WhenAny(task, Task.Delay(left, ct)) != task || await task is not { } hit) continue;
+                if (await Task.WhenAny(task, Task.Delay(left, ct)) != task || await task is not { } hit) { on(new(DownloadStage.Searching, sname + " had nothing", id, null, true)); continue; }
                 on(new(DownloadStage.Downloading, $"Downloading from {hit.Label}...", hit.Source));
                 var dest = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(title)}.{hit.Ext}";
                 on(new(DownloadStage.Importing, "Filing into the library...", hit.Source));
-                if (!await FetchViaFileMover(hit.Url, dest, ct)) continue;
+                if (!await FetchViaFileMover(hit.Url, dest, ct)) { on(new(DownloadStage.Searching, sname + " had it, but the download failed", id, null, true)); continue; }
                 on(new(DownloadStage.Done, $"\"{title}\" is ready to play", hit.Source, [OpenTrack(dest, title, artist, album, artUrl, durationMs > 0 ? durationMs : hit.DurationSec * 1000L)]));
                 return true;
             }

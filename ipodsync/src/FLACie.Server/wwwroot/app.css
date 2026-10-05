@@ -769,3 +769,44 @@ button.stat.on { border-color: var(--accent); background: color-mix(in srgb, var
 .src-move { display: flex; flex-direction: column; gap: 2px; }
 .src-move .btn.icon { padding: 0 8px; min-width: 32px; height: 22px; line-height: 1; font-size: 11px; }
 .src-move .btn.icon:disabled { opacity: .3; }
+
+/* Full-screen player: the top bar takes the player's own background (the blurred cover) instead of sitting black above it */
+body.np-open .topbar { background: transparent; border-bottom-color: transparent; }
+body.np-open .np { top: 0; padding-top: var(--top); }
+
+/* Downloads page: what ran, where it came from, when */
+.dl-intro { max-width: 720px; margin: -10px 0 14px; }
+.subnav a b { margin-left: 4px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dl-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-bottom: 16px; }
+.dl-filter { flex: 1; min-width: 200px; max-width: 420px; padding: 10px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.dl-every { display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: 14px; }
+.dl-sec { scroll-margin-top: calc(var(--top) + 12px); }
+.dl-sec h2 small { color: var(--dim); font-weight: 600; margin-left: 6px; font-size: 14px; }
+.dl-row { display: block; border-top: 1px solid var(--line); padding: 10px 0; }
+.dl-row:first-of-type { border-top: 0; }
+.dl-row > summary, .dl-row.running { display: flex; align-items: center; gap: 12px; cursor: pointer; list-style: none; }
+.dl-row.running { cursor: default; }
+.dl-row > summary::-webkit-details-marker { display: none; }
+.dl-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dl-main b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-main small { color: var(--dim); }
+.dl-main .dl-why { color: var(--danger); }
+.dl-meta { font-size: 12px; }
+.dl-src { white-space: nowrap; }
+.dl-src.soulseek { background: #14261c; color: #6fe0a0; }
+.dl-src.lidarr { background: #262014; color: #e6c46a; }
+.dl-src.ytdl { background: #2a1416; color: #ff8a8a; }
+.dl-src.archive, .dl-src.audius, .dl-src.jamendo { background: #141f2a; color: #7cc0ff; }
+.dl-src.failed { background: #2a1416; color: var(--danger); }
+.dl-trail { margin: 10px 0 4px 56px; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 4px; color: var(--dim); font-size: 13px; }
+.dl-trail li.miss { color: var(--faint, var(--dim)); }
+.dl-trail time { color: var(--faint, var(--dim)); font-variant-numeric: tabular-nums; margin-right: 6px; }
+.dl-file { margin: 6px 0 0 56px; color: var(--dim); font-size: 13px; }
+.dl-file code { word-break: break-all; }
+
+/* a song's download progress, right under its title in the results (so it is visible however far down the list you are) */
+.track-dl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--accent, #ff5c7a); font-weight: 600; margin-top: 2px; }
+.track-dl i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; animation: dl-pulse 1.2s ease-in-out infinite; }
+.track-dl.ok { color: var(--ok); } .track-dl.ok i { animation: none; }
+.track-dl.bad { color: var(--danger); } .track-dl.bad i { animation: none; }
+@keyframes dl-pulse { 50% { opacity: .35; } }

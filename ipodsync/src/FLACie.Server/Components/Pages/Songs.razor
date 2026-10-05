@@ -20,7 +20,7 @@
                 <span class="track-text"><span class="track-title">@row.T.Title</span><span class="track-sub">@row.T.Artist@(row.T.Album.Length > 0 ? " · " + row.T.Album : "")@(row.T.Year > 0 ? " · " + row.T.Year : "")</span></span>
             </button>
             <span class="pills">
-                <span class="badge @row.T.Source.ToString().ToLowerInvariant()" title="Where this song is played from">@(row.T.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "Download", _ => row.T.Source.ToString() })</span>
+                <span class="badge @row.T.Source.ToString().ToLowerInvariant()" title="@(row.T.Source == TrackSource.Cloud ? SourceLabel.StreamingHint : "Where this song is played from")">@SourceLabel.Short(row.T.Source)</span>
                 @if (InfoService.QuickFormat(row.T) is { Length: > 0 } fmt) { <span class="badge fmt @(MediaInfo.LosslessCodecs.Contains(fmt.ToLowerInvariant()) ? "lossless" : "")" title="File format">@fmt</span> }
             </span>
             <span class="track-time">@(row.T.DurationMs > 0 ? Time(row.T.DurationMs / 1000.0) : "")</span>

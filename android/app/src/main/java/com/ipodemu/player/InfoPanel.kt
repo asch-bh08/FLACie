@@ -128,7 +128,7 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val chips = listOf(
                 Triple("rate", if (info.kbps > 0) "${info.kbps} kbps" else "kbps", true),
-                Triple("curve", if (info.sampleRate > 0) "%.1f kHz".format(info.sampleRate / 1000.0) else "kHz", true),
+                Triple("curve", if (info.sampleRate > 0) "Spectrum · %.1f kHz".format(info.sampleRate / 1000.0) else "Spectrum", true),
                 Triple("loud", if (info.bits > 0) "${info.bits} bit" else "Level", true),
                 Triple("stereo", if (info.channels == 1) "Mono" else "Stereo", true),
                 Triple("leds", "Visualizer", true),
@@ -151,7 +151,7 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
             "Track" to t.trackNo.takeIf { it > 0 }?.let { (if (t.discNo > 1) "${t.discNo}-" else "") + it }, "Length" to t.durationMs.takeIf { it > 0 }?.let { fmtTime(it) },
         ), "SONG")
         Detail(listOf(
-            "Source" to t.source.name.lowercase().replaceFirstChar { it.uppercase() }, "Codec" to info.codec.takeIf { it.isNotEmpty() },
+            "Source" to (if (t.source == com.ipodemu.library.TrackSource.CLOUD) "Streaming (a new download, played from your server)" else t.source.name.lowercase().replaceFirstChar { it.uppercase() }), "Codec" to info.codec.takeIf { it.isNotEmpty() },
             "Size" to t.size.takeIf { it > 0 }?.let { if (it >= 1L shl 30) "%.2f GB".format(it / 1073741824.0) else "%.1f MB".format(it / 1048576.0) },
             "Location" to t.filePath.takeIf { it.isNotEmpty() },
         ), "FILE")

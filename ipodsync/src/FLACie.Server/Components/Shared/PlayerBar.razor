@@ -60,16 +60,20 @@
     }
     void OnFullScreen() => InvokeAsync(() => { open = true; StateHasChanged(); });
     string? lastPath;
+    DotNetObjectReference<PlayerBar>? barRef;
+    /// <summary>Back onto the "#now-playing" history entry (from a page the player linked to) brings the full-screen player back.</summary>
+    [JSInvokable] public void ReopenFull() => InvokeAsync(() => { open = true; StateHasChanged(); });
     void OnNavigated(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
         // only a real page change closes it at once; the #now-playing in the address coming and going is the player's own open/close (which animates)
         var path = new Uri(e.Location).AbsolutePath + new Uri(e.Location).Query;
         var moved = lastPath is not null && path != lastPath; lastPath = path;
+        if (new Uri(e.Location).Fragment == "#now-playing") { if (moved) InvokeAsync(() => { open = true; StateHasChanged(); }); return; }   // arrived Back onto the player's own history entry: it stays (or comes back)
         if (open && moved) InvokeAsync(() => { open = false; StateHasChanged(); });
     }
     [Inject] ActivityLog Activity { get; set; } = default!;
     void OnStarted(Track t) { Activity.Add("play", Session.DisplayName, $"Started {t.Title} by {t.Artist} in the web player"); if (Session.RecordPlay(t)) SaveProfile(); }
-    public override void Dispose() { if (clientId is not null) Registry.Remove(clientId); Nav.LocationChanged -= OnNavigated; Player.Started -= OnStarted; Player.FullScreenRequested -= OnFullScreen; base.Dispose(); }
+    public override void Dispose() { barRef?.Dispose(); if (clientId is not null) Registry.Remove(clientId); Nav.LocationChanged -= OnNavigated; Player.Started -= OnStarted; Player.FullScreenRequested -= OnFullScreen; base.Dispose(); }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!volumeLoaded)
@@ -79,6 +83,7 @@
             Player.SetStashKey(Session.Jellyfin?.UserId ?? Session.Nas?.User ?? "guest");
             _ = Player.RestoreAsync(Session);
             _ = RegisterClient();
+            barRef = DotNetObjectReference.Create(this); try { await PageJs.InvokeVoidAsync("flacie.setBarRef", barRef); } catch (Exception) { }
         }
     }
     readonly SeekHold hold = new();

@@ -269,7 +269,21 @@ window.flacie = (() => {
   };
   let npRef = null, npPushed = false;
   const npClosed = () => { const r = npRef; npRef = null; npPushed = false; document.body.classList.remove("np-open"); if (r) r.invokeMethodAsync("Closed").catch(() => { }); };
-  window.addEventListener("popstate", () => { if (npRef) npClosed(); else npPushed = false; });
+  // Back onto a "#now-playing" entry (after following a link out of the full-screen player) brings the player back instead of landing on the bare page
+  let barRef = null;
+  window.addEventListener("popstate", () => {
+    if (npRef) npClosed();
+    else if (location.hash === "#now-playing" && barRef) { npPushed = true; barRef.invokeMethodAsync("ReopenFull").catch(() => { }); }
+    else npPushed = false;
+  });
+  // the filter bar on Explore slides away while scrolling down and comes back as soon as you scroll up
+  let lastY = 0;
+  window.addEventListener("scroll", () => {
+    const y = window.scrollY, d = y - lastY, b = document.querySelector(".x-bar");
+    if (!b) { lastY = y; return; }
+    if (Math.abs(d) < 8) return;
+    b.classList.toggle("away", d > 0 && y > 160); lastY = y;
+  }, { passive: true });
   document.addEventListener("keydown", e => { if (e.key === "Escape" && npRef) window.flacie.npBack(); });
   // a reload keeps the #now-playing in the address but not the player; drop it
   if (location.hash === "#now-playing") history.replaceState(null, "", location.pathname + location.search);
@@ -374,7 +388,8 @@ window.flacie = (() => {
         else if (t.dataset.abs === "time") t.textContent = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
       });
     },
-    npReset() { npRef = null; document.body.classList.remove("np-open"); },
+    npReset() { npRef = null; npPushed = false; document.body.classList.remove("np-open"); },
+    setBarRef(r) { barRef = r; },
     stash(key, json) { try { localStorage.setItem(key, json); } catch { } },
     unstash(key) { try { return localStorage.getItem(key); } catch { return null; } },
     ready() { return audio.readyState >= 3; },

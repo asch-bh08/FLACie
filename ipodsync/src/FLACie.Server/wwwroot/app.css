@@ -977,3 +977,6 @@ body.np-open .player .bar, body.np-open .player .bar:hover { cursor: default; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; } }
 .pref-calm *, .pref-calm *::before, .pref-calm *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; }
 .player .bar { cursor: pointer; } .player .bar button, .player .bar input, .player .seek, .player .buttons { cursor: default; } .player .bar button { cursor: pointer; }
+/* Explore's filter bar stays with you: it slides away as you scroll down and is back the moment you scroll up */
+.x-bar { position: sticky; top: calc(var(--top) + 6px); z-index: 30; transition: transform .28s cubic-bezier(.2, .8, .2, 1), opacity .2s; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: 0 10px 30px #0006; }
+.x-bar.away { transform: translateY(calc(-100% - var(--top) - 12px)); opacity: 0; pointer-events: none; }

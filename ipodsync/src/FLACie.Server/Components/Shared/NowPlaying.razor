@@ -165,10 +165,10 @@
         if (more && self is not null) { try { await Js.InvokeVoidAsync("flacie.watchOutside", ".np-more", self); } catch (Exception) { } }
         else { try { await Js.InvokeVoidAsync("flacie.unwatchOutside"); } catch (Exception) { } }
     }
-    // leaving for another page: the player's own #now-playing history entry is taken off first, so Back returns to the page that was open under it, not past it
+    // a link out of the player keeps its #now-playing history entry, so Back returns to the full-screen player you came from
     Task GoArtist(Track t) => Go("/artist/" + Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist));
     Task GoAlbum(Track t) => Go("/album/" + Uri.EscapeDataString(t.AlbumKey));
-    Task Go(string url) { CloseMore(); return Js.InvokeVoidAsync("flacie.npGo", url).AsTask(); }
+    Task Go(string url) { CloseMore(); Nav.NavigateTo(url); return Task.CompletedTask; }
     void CloseMore() { more = false; plOpen = false; _ = Js.InvokeVoidAsync("flacie.unwatchOutside").AsTask().ContinueWith(_ => { }); }
     void Plain(Action act, string message) { act(); Toast.Show(message); CloseMore(); }
     static string FileName(Track t) => string.Concat($"{t.Artist} - {t.Title}".Split(Path.GetInvalidFileNameChars())) + (MediaInfo.FromExtension(t.FilePath ?? "") is { Length: > 0 } e ? "." + e : "");

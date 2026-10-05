@@ -7,12 +7,14 @@ import shutil
 import socketserver
 import urllib.parse
 import urllib.request
+import urllib.error
 import ipaddress
 import socket
 
 API_KEY = os.environ["API_KEY"]
 ROOT = "/data"
 MAX_FETCH = 700 * 1024 * 1024
+YTDL_URL = "http://172.17.0.1:8091/ytdl"
 
 
 def check_public(url):
@@ -55,6 +57,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         if not self._authed():
             return
+        if self.path == "/ytdl":
+            self._ytdl()
+            return
         if self.path == "/fetch":
             self._fetch()
             return
@@ -73,6 +78,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._reply(200, {"ok": True})
         except Exception as e:
             self._reply(400, {"error": str(e)})
+
+    def _ytdl(self):
+        """POST /ytdl: forwards to the flacie-ytdl container (yt-dlp), which looks the song up and files it. The caller's key is passed on as is."""
+        length = int(self.headers.get("Content-Length", 0))
+        data = self.rfile.read(length)
+        try:
+            req = urllib.request.Request(YTDL_URL, data=data, method="POST", headers={"X-Api-Key": self.headers.get("X-Api-Key", ""), "Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=240) as r:
+                self._reply(r.status, json.loads(r.read() or b"{}"))
+        except urllib.error.HTTPError as e:
+            try:
+                self._reply(e.code, json.loads(e.read() or b"{}"))
+            except Exception:
+                self._reply(e.code, {"error": "yt-dlp service error"})
+        except Exception as e:
+            self._reply(502, {"error": "yt-dlp service unavailable: " + str(e)})
 
     def _fetch(self):
         """POST /fetch {"url": "https://...", "to": "relative/path.ext"}: downloads a public https file straight into the library.

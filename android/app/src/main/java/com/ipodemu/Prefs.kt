@@ -188,11 +188,15 @@ class Prefs(ctx: Context) {
     var openJamendo: Boolean
         get() = sp.getBoolean("openjamendo", true)
         set(v) = sp.edit().putBoolean("openjamendo", v).apply()
+    /** The last-resort yt-dlp (YouTube) source: off until the user switches it on. */
+    var openYtdl: Boolean
+        get() = sp.getBoolean("openytdl", false)
+        set(v) = sp.edit().putBoolean("openytdl", v).apply()
     var openOrder: String
         get() = sp.getString("openorder", "archive,audius,jamendo") ?: "archive,audius,jamendo"
         set(v) = sp.edit().putString("openorder", v).apply()
     val openSources: com.ipodemu.library.OpenSourceSettings
-        get() = com.ipodemu.library.OpenSourceSettings(openArchive, openAudius, openJamendo, jamendoClientId.trim(), openOrder.split(',').map { it.trim() }.filter { it.isNotEmpty() })
+        get() = com.ipodemu.library.OpenSourceSettings(openArchive, openAudius, openJamendo, jamendoClientId.trim(), openOrder.split(',').map { it.trim() }.filter { it.isNotEmpty() }, openYtdl)
 
 
     /** Look & feel: 0 = Modern (the default: a flat, YT Music/Spotify-style player), 1 = iPod (the glossy iPod-OS

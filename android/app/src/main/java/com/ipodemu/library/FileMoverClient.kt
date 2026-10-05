@@ -39,6 +39,19 @@ class FileMoverClient {
         Unit
     }
 
+    /** The last-resort yt-dlp source behind the file mover: finds the song and files it at [to] + ".ext". Returns (extension, seconds) or null when it had none. */
+    suspend fun ytdl(url: String, apiKey: String, artist: String, title: String, durationSec: Int, to: String): Pair<String, Int>? = withContext(Dispatchers.IO) {
+        val conn = URL("${url.trimEnd('/')}/ytdl").openConnection() as HttpURLConnection
+        conn.connectTimeout = 5000; conn.readTimeout = 200_000
+        conn.requestMethod = "POST"; conn.doOutput = true
+        conn.setRequestProperty("X-Api-Key", apiKey); conn.setRequestProperty("Content-Type", "application/json")
+        conn.outputStream.use { it.write(JSONObject().put("artist", artist).put("title", title).put("durationSec", durationSec).put("to", to).toString().toByteArray(Charsets.UTF_8)) }
+        try {
+            if (conn.responseCode != 200) null
+            else JSONObject(conn.inputStream.bufferedReader().readText()).let { j -> if (j.optBoolean("ok")) j.optString("ext").takeIf { it.isNotBlank() }?.let { it to j.optInt("durationSec") } else null }
+        } finally { conn.disconnect() }
+    }
+
     private fun postForCode(url: String, apiKey: String, body: JSONObject, path: String = "move", readTimeoutMs: Int = 30000): Int {
         val conn = URL("${url.trimEnd('/')}/$path").openConnection() as HttpURLConnection
         conn.connectTimeout = 5000

@@ -48,33 +48,56 @@ class DownloadCoordinator(private val prefs: Prefs) {
             else if (!tryLidarr(artist, title, album, onUpdate)) onUpdate(DownloadStatus(DownloadStage.FAILED, "Not found on Lidarr"))
             return
         }
-        // the open sources look for the song while Soulseek searches; they only find, and download nothing unless Soulseek came up empty
+        // the open finders (Internet Archive, Audius, Jamendo) look for the song while Soulseek searches; they only find, and nothing is downloaded from them unless Soulseek came up empty
         coroutineScope {
-            val open = if (openReady) async { OpenSources.find(artist, title, (durationMs / 1000).toInt(), prefs.openSources) } else null
+            val finders = if (openReady) OpenSources.start(this, artist, title, (durationMs / 1000).toInt(), prefs.openSources) else null
             try {
                 if (soulseekReady && trySoulseek(artist, title, album, (durationMs / 1000).toInt(), onUpdate)) return@coroutineScope
-                // Soulseek had nothing: an open source that already found it is used, one still looking gets a few seconds (never longer before Lidarr)
-                if (open != null && tryOpen(open, artist, title, album, durationMs, onUpdate)) return@coroutineScope
+                // Soulseek had nothing: the open sources in the user's order, then Lidarr
+                if (openReady && tryOpen(finders, artist, title, album, durationMs, onUpdate)) return@coroutineScope
                 if (!lidarrReady) { onUpdate(DownloadStatus(DownloadStage.FAILED, if (soulseekReady) "Not found on Soulseek or the open sources" else if (openReady) "Not found on the open sources" else "Downloads aren't set up (Settings > Lidarr)")); return@coroutineScope }
                 if (!tryLidarr(artist, title, album, onUpdate)) onUpdate(DownloadStatus(DownloadStage.FAILED, "Not found on Soulseek, the open sources or Lidarr"))
-            } finally { open?.cancel() }
+            } finally { finders?.cancel() }
         }
     }
 
-    private suspend fun tryOpen(open: kotlinx.coroutines.Deferred<OpenHit?>, artist: String, title: String, album: String, durationMs: Long, onUpdate: (DownloadStatus) -> Unit): Boolean = try {
-        val hit = withTimeoutOrNull(if (soulseekReady) 4_000L else 30_000L) { open.await() }
-        if (hit == null) false else {
+    /** The open sources in the user's order: a finder that already found the song (or finds it within a few seconds more; Soulseek's own search has
+     * usually given them time) is downloaded from, yt-dlp runs its own search and download when its turn comes. False when none had it. */
+    private suspend fun tryOpen(finders: OpenSources.Finders?, artist: String, title: String, album: String, durationMs: Long, onUpdate: (DownloadStatus) -> Unit): Boolean = try {
+        val deadline = System.currentTimeMillis() + if (soulseekReady) 4_000L else 30_000L
+        var done = false
+        for (id in prefs.openSources.active()) {
+            if (id == OpenSourceSettings.YTDL) { if (tryYtdl(artist, title, album, durationMs, onUpdate)) { done = true; break } else continue }
+            val task = finders?.tasks?.get(id) ?: continue
+            val hit = withTimeoutOrNull((deadline - System.currentTimeMillis()).coerceAtLeast(0)) { task.await() } ?: continue
             onUpdate(DownloadStatus(DownloadStage.DOWNLOADING, "Downloading from ${hit.label}...", hit.source))
             val dest = listOfNotNull(prefs.nasFolder.trim('/').ifBlank { null }, clean(artist)).joinToString("/") + "/${clean(artist)} - ${clean(title)}.${hit.ext}"
             onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library...", hit.source))
-            fileMover.fetch(prefs.fileMoverUrl, prefs.fileMoverApiKey, hit.url, dest)
-            val alb = album.ifBlank { withContext(Dispatchers.IO) { CoverLookup.song(artist, title) }?.album.orEmpty() }
-            val track = Track(
-                path = "${prefs.fileMoverUrl.trimEnd('/')}/file?path=${URLEncoder.encode(dest, "UTF-8")}", title = title, artist = artist,
-                album = alb, albumArtist = artist, genre = "", trackNo = 0, discNo = 0, durationMs = if (durationMs > 0) durationMs else hit.durationSec * 1000L, year = 0,
-                isMusic = true, artKey = CoverLookup.key(artist, alb, title), mtime = System.currentTimeMillis(), size = 0, source = TrackSource.CLOUD,
-            )
-            finishWithJellyfinScan(artist, onUpdate, hit.source, title, track)
+            try { fileMover.fetch(prefs.fileMoverUrl, prefs.fileMoverApiKey, hit.url, dest) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { continue }
+            finishWithJellyfinScan(artist, onUpdate, hit.source, title, openTrack(dest, artist, title, album, if (durationMs > 0) durationMs else hit.durationSec * 1000L))
+            done = true; break
+        }
+        done
+    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { false }
+
+    private suspend fun openTrack(dest: String, artist: String, title: String, album: String, durationMs: Long): Track {
+        val alb = album.ifBlank { withContext(Dispatchers.IO) { CoverLookup.song(artist, title) }?.album.orEmpty() }
+        return Track(
+            path = "${prefs.fileMoverUrl.trimEnd('/')}/file?path=${URLEncoder.encode(dest, "UTF-8")}", title = title, artist = artist,
+            album = alb, albumArtist = artist, genre = "", trackNo = 0, discNo = 0, durationMs = durationMs, year = 0,
+            isMusic = true, artKey = CoverLookup.key(artist, alb, title), mtime = System.currentTimeMillis(), size = 0, source = TrackSource.CLOUD,
+        )
+    }
+
+    /** The last-resort source: the file mover forwards to the yt-dlp service, which finds the song on YouTube (official audio / Topic uploads first,
+     * length and title checked) and files the audio itself. Off unless the user switched it on in Settings. */
+    private suspend fun tryYtdl(artist: String, title: String, album: String, durationMs: Long, onUpdate: (DownloadStatus) -> Unit): Boolean = try {
+        onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Looking on YouTube...", "ytdl"))
+        val noExt = listOfNotNull(prefs.nasFolder.trim('/').ifBlank { null }, clean(artist)).joinToString("/") + "/${clean(artist)} - ${clean(title)}"
+        val r = fileMover.ytdl(prefs.fileMoverUrl, prefs.fileMoverApiKey, artist, title, (durationMs / 1000).toInt(), noExt)
+        if (r == null) false else {
+            onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library...", "ytdl"))
+            finishWithJellyfinScan(artist, onUpdate, "ytdl", title, openTrack("$noExt.${r.first}", artist, title, album, if (durationMs > 0) durationMs else r.second * 1000L))
             true
         }
     } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { false }

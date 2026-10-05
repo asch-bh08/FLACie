@@ -51,35 +51,71 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
     public async Task DownloadAsync(string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct = default)
     {
         on(new(DownloadStage.Requested, $"Requested \"{title}\""));
-        // the open sources look for the song while Soulseek searches; they only find, and download nothing unless Soulseek came up empty
-        using var openCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var open = cfg.OpenReady ? OpenSources.FindAsync(http, artist, title, (int)(durationMs / 1000), cfg.OpenCfg, TimeSpan.FromSeconds(25), openCts.Token) : Task.FromResult<OpenHit?>(null);
-        try
-        {
-            if (cfg.SoulseekReady && await TrySoulseek(artist, title, album, artUrl, (int)(durationMs / 1000), on, ct)) return;
-            // Soulseek had nothing: an open source that already found it is used, one still looking gets a few seconds (never longer than that before Lidarr)
-            if (await TryOpen(open, artist, title, album, artUrl, durationMs, on, ct)) return;
-        }
-        finally { openCts.Cancel(); }
+        // the open finders (Internet Archive, Audius, Jamendo) look for the song while Soulseek searches; they only find, and nothing is downloaded from them unless Soulseek came up empty
+        using var finders = cfg.OpenReady ? OpenSources.Start(http, artist, title, (int)(durationMs / 1000), cfg.OpenCfg, TimeSpan.FromSeconds(25), ct) : null;
+        if (cfg.SoulseekReady && await TrySoulseek(artist, title, album, artUrl, (int)(durationMs / 1000), on, ct)) return;
+        // Soulseek had nothing: the open sources in the user's order, then Lidarr
+        if (cfg.OpenReady && await TryOpen(finders, artist, title, album, artUrl, durationMs, on, ct)) return;
         if (!cfg.LidarrReady) { on(new(DownloadStage.Failed, cfg.SoulseekReady ? "Not found on Soulseek or the open sources" : cfg.OpenReady ? "Not found on the open sources" : "Downloads aren't set up (Settings > Downloads)")); return; }
         if (!await new LidarrFlow(http, cfg).TryAsync(artist, title, album, on, ct)) on(new(DownloadStage.Failed, "Not found on Soulseek, the open sources or Lidarr"));
     }
 
-    async Task<bool> TryOpen(Task<OpenHit?> open, string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct)
+    /// <summary>The open sources in the user's order: a finder that already found the song (or finds it within a few seconds more; Soulseek's own search
+    /// has usually given them time) is downloaded from, yt-dlp runs its own search and download when its turn comes. False when none had it.</summary>
+    async Task<bool> TryOpen(OpenSources.Finders? finders, string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct)
     {
         try
         {
-            var grace = Task.Delay(cfg.SoulseekReady ? 4_000 : 30_000, ct);
-            if (await Task.WhenAny(open, grace) != open || await open is not { } hit) return false;
-            on(new(DownloadStage.Downloading, $"Downloading from {hit.Label}...", hit.Source));
-            var dest = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(title)}.{hit.Ext}";
-            on(new(DownloadStage.Importing, "Filing into the library...", hit.Source));
-            if (!await FetchViaFileMover(hit.Url, dest, ct)) return false;
-            var track = new Track($"{cfg.FileMoverUrl.TrimEnd('/')}/file?path={Uri.EscapeDataString(dest)}", title, artist, album, artist, 0, 0, durationMs > 0 ? durationMs : hit.DurationSec * 1000L, 0,
-                artUrl is null ? null : Art.ExternalKey(artUrl), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), TrackSource.Cloud);
-            on(new(DownloadStage.Done, $"\"{title}\" is ready to play", hit.Source, [track]));
+            var deadline = Environment.TickCount64 + (cfg.SoulseekReady ? 4_000 : 30_000);
+            foreach (var id in cfg.OpenCfg.Active)
+            {
+                if (id == OpenSourceSettings.YtdlId)
+                {
+                    if (await TryYtdl(artist, title, album, artUrl, durationMs, on, ct)) return true;
+                    continue;
+                }
+                if (finders is null || !finders.Tasks.TryGetValue(id, out var task)) continue;
+                var left = (int)Math.Max(0, deadline - Environment.TickCount64);
+                if (await Task.WhenAny(task, Task.Delay(left, ct)) != task || await task is not { } hit) continue;
+                on(new(DownloadStage.Downloading, $"Downloading from {hit.Label}...", hit.Source));
+                var dest = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(title)}.{hit.Ext}";
+                on(new(DownloadStage.Importing, "Filing into the library...", hit.Source));
+                if (!await FetchViaFileMover(hit.Url, dest, ct)) continue;
+                on(new(DownloadStage.Done, $"\"{title}\" is ready to play", hit.Source, [OpenTrack(dest, title, artist, album, artUrl, durationMs > 0 ? durationMs : hit.DurationSec * 1000L)]));
+                return true;
+            }
+            return false;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception) { return false; }
+    }
+
+    Track OpenTrack(string dest, string title, string artist, string album, string? artUrl, long durationMs) =>
+        new($"{cfg.FileMoverUrl.TrimEnd('/')}/file?path={Uri.EscapeDataString(dest)}", title, artist, album, artist, 0, 0, durationMs, 0,
+            artUrl is null ? null : Art.ExternalKey(artUrl), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), TrackSource.Cloud);
+
+    /// <summary>The last-resort source: the file mover forwards to the yt-dlp service, which finds the song on YouTube (official audio / Topic uploads
+    /// first, length and title checked) and files the audio itself. Off unless the user switched it on in Settings.</summary>
+    async Task<bool> TryYtdl(string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct)
+    {
+        try
+        {
+            on(new(DownloadStage.Searching, "Looking on YouTube...", "ytdl"));
+            var noExt = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(title)}";
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct); limit.CancelAfter(TimeSpan.FromSeconds(200));
+            using var req = new HttpRequestMessage(HttpMethod.Post, cfg.FileMoverUrl.TrimEnd('/') + "/ytdl")
+            { Content = new StringContent(new JsonObject { ["artist"] = artist, ["title"] = title, ["durationSec"] = (int)(durationMs / 1000), ["to"] = noExt }.ToJsonString(), Encoding.UTF8, "application/json") };
+            req.Headers.TryAddWithoutValidation("X-Api-Key", cfg.FileMoverKey);
+            using var res = await http.SendAsync(req, limit.Token);
+            if (!res.IsSuccessStatusCode) return false;
+            var j = JsonNode.Parse(await res.Content.ReadAsStringAsync(limit.Token));
+            if (j?["ok"]?.GetValue<bool>() != true || j["ext"]?.GetValue<string>() is not { Length: > 0 } ext) return false;
+            on(new(DownloadStage.Importing, "Filing into the library...", "ytdl"));
+            var secs = j["durationSec"] is JsonValue d && d.TryGetValue<int>(out var n) ? n : 0;
+            on(new(DownloadStage.Done, $"\"{title}\" is ready to play", "ytdl", [OpenTrack($"{noExt}.{ext}", title, artist, album, artUrl, durationMs > 0 ? durationMs : secs * 1000L)]));
             return true;
         }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return false; }
         catch (OperationCanceledException) { throw; }
         catch (Exception) { return false; }
     }

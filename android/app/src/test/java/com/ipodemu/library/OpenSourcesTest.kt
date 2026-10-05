@@ -25,12 +25,16 @@ class OpenSourcesTest {
 
     @Test fun settingsOrderAndSwitches() {
         val on = OpenSourceSettings(true, true, true, "id", listOf("jamendo", "archive"))
-        assertEquals(listOf("jamendo", "archive", "audius"), on.fullOrder())          // the missing source is appended
+        assertEquals(listOf("jamendo", "archive", "audius", "ytdl"), on.fullOrder())    // missing sources are appended
         assertEquals(listOf("jamendo", "archive", "audius"), on.active())
         assertEquals(listOf("jamendo", "audius"), on.copy(archive = false).active())  // off sources are skipped
         assertEquals(listOf("archive", "audius"), on.copy(jamendoId = "").copy(order = emptyList()).active()) // no client id: Jamendo stays off
         assertFalse(on.copy(archive = false, audius = false, jamendo = false).any())
-        assertEquals(listOf("archive", "audius", "jamendo"), OpenSourceSettings(true, true, true, "x", listOf("bogus", "archive", "archive")).fullOrder())
+        assertEquals(listOf("archive", "audius", "jamendo", "ytdl"), OpenSourceSettings(true, true, true, "x", listOf("bogus", "archive", "archive")).fullOrder())
+        // yt-dlp is off by default and only searched when switched on, in its place in the order
+        assertFalse("ytdl" in on.active())
+        assertEquals(listOf("jamendo", "archive", "audius", "ytdl"), on.copy(ytdl = true).active())
+        assertEquals(listOf("ytdl", "archive"), OpenSourceSettings(true, false, false, "", listOf("ytdl"), true).active())
     }
 
     /** Live APIs: only with FLACIE_NET_TESTS=1 (same songs as the FLACie Web probe). */

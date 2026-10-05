@@ -235,7 +235,7 @@ class AccountSync(private val app: App) {
         if (p.slskdUrl.isNotBlank()) services.put("slskd", JSONObject().put("url", p.slskdUrl).put("key", p.slskdApiKey).put("path", p.slskdDownloadPath))
         if (p.fileMoverUrl.isNotBlank()) services.put("filemover", JSONObject().put("url", p.fileMoverUrl).put("key", p.fileMoverApiKey))
         if (p.jamendoClientId.isNotBlank()) services.put("jamendo", JSONObject().put("id", p.jamendoClientId))
-        services.put("opensources", JSONObject().put("archive", p.openArchive).put("audius", p.openAudius).put("jamendo", p.openJamendo).put("order", JSONArray(p.openSources.fullOrder())))
+        services.put("opensources", JSONObject().put("archive", p.openArchive).put("audius", p.openAudius).put("jamendo", p.openJamendo).put("ytdl", p.openYtdl).put("order", JSONArray(p.openSources.fullOrder())))
         if (p.syncHost.isNotBlank()) services.put("synchost", p.syncHost)
         if (p.flacieWebUrl.isNotBlank()) services.put("flacieweb", JSONObject().put("url", p.flacieWebUrl))
         val lists = JSONArray()
@@ -282,7 +282,7 @@ class AccountSync(private val app: App) {
         s.optJSONObject("jamendo")?.optString("id")?.takeIf { it.isNotBlank() }?.let { p.jamendoClientId = it }
         // the shared setup wins for the on/off switches and the order (this device may have been set up before the profile had them)
         s.optJSONObject("opensources")?.let { o ->
-            p.openArchive = o.optBoolean("archive", true); p.openAudius = o.optBoolean("audius", true); p.openJamendo = o.optBoolean("jamendo", true)
+            p.openArchive = o.optBoolean("archive", true); p.openAudius = o.optBoolean("audius", true); p.openJamendo = o.optBoolean("jamendo", true); p.openYtdl = o.optBoolean("ytdl", false)
             o.optJSONArray("order")?.let { a -> p.openOrder = List(a.length()) { i -> a.optString(i) }.joinToString(",") }
         }
         if (p.syncHost.isBlank() && s.optString("synchost").isNotBlank()) p.syncHost = s.optString("synchost")

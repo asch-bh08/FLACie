@@ -77,7 +77,7 @@
 </section>
 
 <section class="panel set" id="opensources">
-    <div class="set-head"><h2>Open sources</h2><p class="hint">When Soulseek doesn't have a song, these free sources are tried before Lidarr. They look while Soulseek searches and only download if it found nothing. They need the file mover above. The first one on the list that has the song is used; move a source up to prefer it.</p></div>
+    <div class="set-head"><h2>Open sources</h2><p class="hint">When Soulseek doesn't have a song, these sources are tried before Lidarr. The free ones look while Soulseek searches and only download if it found nothing. They need the file mover above. The first one on the list that has the song is used; move a source up to prefer it.</p></div>
     @foreach (var id in osOrder)
     {
         var sid = id;
@@ -194,16 +194,17 @@
 
     // ---- open sources (Internet Archive, Audius, Jamendo): on/off, order and the Jamendo client ID ----
     List<string> osOrder = [];
-    bool arOn = true, auOn = true, jmOn = true, jmChecking; string jmId = ""; string? osNote;
-    static string SourceName(string id) => id switch { "archive" => "Internet Archive", "audius" => "Audius", _ => "Jamendo" };
+    bool arOn = true, auOn = true, jmOn = true, ytOn, jmChecking; string jmId = ""; string? osNote;
+    static string SourceName(string id) => id switch { "archive" => "Internet Archive", "audius" => "Audius", "ytdl" => "YouTube (yt-dlp)", _ => "Jamendo" };
     static string SourceHint(string id) => id switch
     {
         "archive" => "Live Music Archive and netlabel collections only, never a general search. Needs nothing.",
         "audius" => "The free Audius catalogue. Needs nothing.",
+        "ytdl" => "Last resort for songs nothing else has: finds the official audio on YouTube and saves it (AAC, not lossless). Against YouTube's terms of service, so it is off until you switch it on. Needs the yt-dlp service next to the file mover.",
         _ => "Only tracks whose artist allows downloads. Needs the client ID below.",
     };
-    bool SourceOn(string id) => id switch { "archive" => arOn, "audius" => auOn, _ => jmOn };
-    void SetSource(string id, bool on) { if (id == "archive") arOn = on; else if (id == "audius") auOn = on; else jmOn = on; osNote = null; }
+    bool SourceOn(string id) => id switch { "archive" => arOn, "audius" => auOn, "ytdl" => ytOn, _ => jmOn };
+    void SetSource(string id, bool on) { if (id == "archive") arOn = on; else if (id == "audius") auOn = on; else if (id == "ytdl") ytOn = on; else jmOn = on; osNote = null; }
     void MoveSource(string id, int by)
     {
         var i = osOrder.IndexOf(id); var j = i + by;
@@ -213,13 +214,13 @@
     void LoadOpenSources()
     {
         var o = Session.Services.OpenCfg;
-        (arOn, auOn, jmOn, jmId) = (o.Archive, o.Audius, o.Jamendo, o.JamendoId); osOrder = o.FullOrder.ToList();
+        (arOn, auOn, jmOn, ytOn, jmId) = (o.Archive, o.Audius, o.Jamendo, o.Ytdl, o.JamendoId); osOrder = o.FullOrder.ToList();
     }
     void SaveOpenSources()
     {
         var old = Session.Services;
         new DownloadServices(old.SlskdUrl, old.SlskdKey, old.SlskdPath, old.FileMoverUrl, old.FileMoverKey, old.LidarrUrl, old.LidarrKey, old.NasFolder,
-            new OpenSourceSettings(arOn, auOn, jmOn, jmId.Trim(), osOrder)).WriteTo(Session.Profile);
+            new OpenSourceSettings(arOn, auOn, jmOn, jmId.Trim(), osOrder, ytOn)).WriteTo(Session.Profile);
         SaveProfile();
         osNote = jmOn && jmId.Trim().Length == 0 ? "Saved. Jamendo stays off until a client ID is entered." : "Saved.";
     }

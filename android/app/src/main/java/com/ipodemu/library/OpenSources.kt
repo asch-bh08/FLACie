@@ -2,6 +2,8 @@ package com.ipodemu.library
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
@@ -32,28 +34,38 @@ object OpenSources {
         return hit.source == "audius" || allowedSuffixes.any { u.host == it || u.host.endsWith(".$it") }
     }
 
-    /** Looks in every enabled source at once and takes the hit of the highest-priority source that has the song (the settings order): the
-     * first-ranked source's answer is waited for, and only if it has nothing the next one's (already running) is used. Null when nobody has it
-     * or [budgetMs] ran out. */
-    suspend fun find(artist: String, title: String, durationSec: Int, cfg: OpenSourceSettings, budgetMs: Long = 25_000): OpenHit? =
-        withTimeoutOrNull(budgetMs) {
-            coroutineScope {
-                val running = cfg.active().map { id ->
-                    async(Dispatchers.IO) {
-                        try {
-                            when (id) {
-                                OpenSourceSettings.ARCHIVE -> archive(artist, title, durationSec)
-                                OpenSourceSettings.AUDIUS -> audius(artist, title, durationSec)
-                                else -> jamendo(cfg.jamendoId, artist, title, durationSec)
-                            }
-                        } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
-                    }
-                }
-                var found: OpenHit? = null
-                for (task in running) { val hit = task.await(); if (hit != null && allowed(hit)) { found = hit; break } }
-                running.forEach { it.cancel() }
-                found
+    /** The finders (not yt-dlp, which downloads in one go) running for one song; call [cancel] when the song is settled. */
+    class Finders(val tasks: Map<String, Deferred<OpenHit?>>) { fun cancel() = tasks.values.forEach { it.cancel() } }
+
+    /** Starts a search in every enabled finder source (Internet Archive, Audius, Jamendo) at once, each answering on its own task; [budgetMs] bounds each. */
+    fun start(scope: CoroutineScope, artist: String, title: String, durationSec: Int, cfg: OpenSourceSettings, budgetMs: Long = 25_000): Finders {
+        val tasks = LinkedHashMap<String, Deferred<OpenHit?>>()
+        for (id in cfg.active()) {
+            if (id == OpenSourceSettings.YTDL) continue
+            tasks[id] = scope.async(Dispatchers.IO) {
+                try {
+                    withTimeoutOrNull(budgetMs) {
+                        when (id) {
+                            OpenSourceSettings.ARCHIVE -> archive(artist, title, durationSec)
+                            OpenSourceSettings.AUDIUS -> audius(artist, title, durationSec)
+                            else -> jamendo(cfg.jamendoId, artist, title, durationSec)
+                        }
+                    }?.takeIf { allowed(it) }
+                } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
             }
+        }
+        return Finders(tasks)
+    }
+
+    /** Takes the hit of the highest-priority finder source that has the song (the settings order): the first-ranked source's answer is waited for, and
+     * only if it has nothing the next one's (already running) is used. Null when nobody has it. */
+    suspend fun find(artist: String, title: String, durationSec: Int, cfg: OpenSourceSettings, budgetMs: Long = 25_000): OpenHit? =
+        coroutineScope {
+            val finders = start(this, artist, title, durationSec, cfg, budgetMs)
+            var found: OpenHit? = null
+            for (id in cfg.active()) { val hit = finders.tasks[id]?.await(); if (hit != null) { found = hit; break } }
+            finders.cancel()
+            found
         }
 
     /** Same song: the title (feat. and punctuation ignored) equal, the artist's lead name equal, and a length within 8 seconds when both are known. */
@@ -158,14 +170,14 @@ suspend fun testJamendoClientId(clientId: String): Pair<Boolean, String?> = with
 
 /** Which open sources are on and in what order they are preferred; kept in the account profile's `services.opensources` (the Jamendo client id in
  * `services.jamendo.id`) so every device and FLACie Web share one setup. Jamendo only counts as on with a client id. */
-data class OpenSourceSettings(val archive: Boolean, val audius: Boolean, val jamendo: Boolean, val jamendoId: String, val order: List<String>) {
+data class OpenSourceSettings(val archive: Boolean, val audius: Boolean, val jamendo: Boolean, val jamendoId: String, val order: List<String>, val ytdl: Boolean = false) {
     companion object {
-        const val ARCHIVE = "archive"; const val AUDIUS = "audius"; const val JAMENDO = "jamendo"
-        val ALL = listOf(ARCHIVE, AUDIUS, JAMENDO)
+        const val ARCHIVE = "archive"; const val AUDIUS = "audius"; const val JAMENDO = "jamendo"; const val YTDL = "ytdl"
+        val ALL = listOf(ARCHIVE, AUDIUS, JAMENDO, YTDL)
     }
     /** The saved order with anything unknown dropped and anything missing appended, so every source appears exactly once. */
     fun fullOrder(): List<String> = order.filter { it in ALL }.distinct() + ALL.filter { it !in order }
-    fun isOn(id: String) = when (id) { ARCHIVE -> archive; AUDIUS -> audius; else -> jamendo }
+    fun isOn(id: String) = when (id) { ARCHIVE -> archive; AUDIUS -> audius; YTDL -> ytdl; else -> jamendo }
     /** The sources that will actually be searched, best first. */
     fun active(): List<String> = fullOrder().filter { isOn(it) && (it != JAMENDO || jamendoId.isNotBlank()) }
     fun any() = active().isNotEmpty()

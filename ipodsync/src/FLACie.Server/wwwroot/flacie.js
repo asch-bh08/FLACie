@@ -255,6 +255,7 @@ window.flacie = (() => {
   document.addEventListener("keydown", e => { if (e.key === "Escape" && npRef) window.flacie.npBack(); });
   // a reload keeps the #now-playing in the address but not the player; drop it
   if (location.hash === "#now-playing") history.replaceState(null, "", location.pathname + location.search);
+  let outside = null;
   return {
     load(ref, url, title, artist, album, art, autoplay, dur, startAt) {
       dotnet = ref;
@@ -307,6 +308,19 @@ window.flacie = (() => {
       if (!npPushed) { history.pushState({ np: 1 }, "", location.pathname + location.search + "#now-playing"); npPushed = true; }
     },
     npBack() { if (npPushed) history.back(); else npClosed(); },
+    // a popup that closes when you click or tap anywhere outside it (selector = the popup's wrapper), or press Escape
+    watchOutside(selector, ref) {
+      window.flacie.unwatchOutside();
+      const down = e => { if (!e.target.closest(selector)) ref.invokeMethodAsync("Dismiss").catch(() => { }); };
+      const key = e => { if (e.key === "Escape") ref.invokeMethodAsync("Dismiss").catch(() => { }); };
+      outside = { down, key };
+      // after the click that opened it has finished, or it would close at once
+      setTimeout(() => { if (outside && outside.down === down) { document.addEventListener("pointerdown", down, true); document.addEventListener("keydown", key); } }, 0);
+    },
+    unwatchOutside() {
+      if (!outside) return;
+      document.removeEventListener("pointerdown", outside.down, true); document.removeEventListener("keydown", outside.key); outside = null;
+    },
     // times on the Downloads page: the exact local time in a tooltip, and the clock time itself where the row asks for it (data-abs)
     times() {
       document.querySelectorAll("time[data-utc]").forEach(t => {
@@ -333,5 +347,27 @@ window.flacie = (() => {
       try { localStorage.setItem("flacie.volume", String(x)); } catch { }
       return x;
     },
+  };
+})();
+
+// Personal look-and-feel tweaks (Settings > Look and feel), kept in this browser and applied on every page load
+window.flacieUi = (() => {
+  const KEY = "flacie.ui";
+  const defaults = { accent: "", compact: false, badges: true, motion: true, artbg: true };
+  const read = () => { try { return { ...defaults, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return { ...defaults }; } };
+  const lighter = hex => { const n = parseInt(hex.slice(1), 16); const m = c => Math.round(c + (255 - c) * 0.28); return "#" + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(m).map(v => v.toString(16).padStart(2, "0")).join(""); };
+  const apply = p => {
+    const r = document.documentElement;
+    if (/^#[0-9a-f]{6}$/i.test(p.accent)) { r.style.setProperty("--accent", p.accent); r.style.setProperty("--accent-2", lighter(p.accent)); }
+    else { r.style.removeProperty("--accent"); r.style.removeProperty("--accent-2"); }
+    r.classList.toggle("pref-compact", !!p.compact);
+    r.classList.toggle("pref-nobadges", p.badges === false);
+    r.classList.toggle("pref-calm", p.motion === false);
+    r.classList.toggle("pref-noartbg", p.artbg === false);
+  };
+  apply(read());
+  return {
+    get: () => JSON.stringify(read()),
+    set(json) { try { localStorage.setItem(KEY, json); } catch { } apply(read()); },
   };
 })();

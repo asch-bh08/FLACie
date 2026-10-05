@@ -109,6 +109,23 @@ public static class ApiEndpoints
             return Results.Json(new { songs = s.Library.Songs.Count, albums = s.Library.Albums.Count, artists = s.Library.Artists.Count, playlists = s.Playlists.Count, favourites = s.Favorites.Count, admin = AdminAccess.Is(s, app.Configuration) });
         });
 
+        // the Downloads page on the phone: what is running now and the log of everything the server fetched for this account (newest first)
+        app.MapGet("/api/downloads", async (HttpContext ctx, SessionStore store, JellyfinClient jf, DownloadManager downloads, DownloadLog log, int? limit) =>
+        {
+            if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
+            object Step(TrailStep t) => new { at = DateTime.SpecifyKind(t.At, DateTimeKind.Utc), source = t.Source, text = t.Text, miss = t.Miss };
+            var running = downloads.JobsOf(s).Where(j => !j.Finished).Select(j => new
+            {
+                id = j.Id, label = j.Label, kind = j.Kind, startedAt = DateTime.SpecifyKind(j.At, DateTimeKind.Utc), message = j.Message, current = j.Current, artKey = j.ArtKey,
+            });
+            var done = log.For(s.Id).Take(Math.Clamp(limit ?? 300, 1, 1000)).Select(r => new
+            {
+                id = r.Id, label = r.Label, kind = r.Kind, startedAt = DateTime.SpecifyKind(r.StartedAt, DateTimeKind.Utc), finishedAt = DateTime.SpecifyKind(r.FinishedAt, DateTimeKind.Utc),
+                outcome = r.Outcome, source = r.Source, message = r.Message, file = r.File, artKey = r.ArtKey, trail = r.Trail.Select(Step),
+            });
+            return Results.Json(new { running, log = done });
+        });
+
         app.MapPost("/api/import/{id}/cancel", async (HttpContext ctx, string id, SessionStore store, JellyfinClient jf, ImportManager imports) =>
         {
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();

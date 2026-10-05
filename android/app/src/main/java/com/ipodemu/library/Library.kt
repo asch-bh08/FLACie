@@ -173,6 +173,9 @@ class Library(ctx: Context, val art: ArtCache) {
 
     /** Each request's latest status, by [songKey]/[albumKey], so every search row can show its own progress. */
     val downloads = java.util.concurrent.ConcurrentHashMap<String, DownloadStatus>()
+    /** Downloads in progress on this phone (with their story so far) and the log of finished ones, for the Downloads screen. */
+    val runningDownloads = java.util.concurrent.ConcurrentHashMap<String, RunningDownload>()
+    val downloadLog = DownloadLog(ctx)
     fun songKey(artist: String, title: String) = "s|" + matchKey(title, artist)
     fun albumKey(a: WebCatalog.Album) = "a|${a.id}"
 
@@ -180,6 +183,8 @@ class Library(ctx: Context, val art: ArtCache) {
     fun requestDownload(artist: String, title: String, album: String, durationMs: Long = 0) {
         val key = songKey(artist, title)
         if (downloads[key]?.stage.let { it != null && it != DownloadStage.DONE && it != DownloadStage.FAILED }) return
+        val label = "${title.ifBlank { album }} · $artist"
+        runningDownloads[key] = RunningDownload(java.util.UUID.randomUUID().toString(), label, "Search", CoverLookup.key(artist, album, title))
         scope.launch {
             downloader.download(artist, title, album, durationMs) { status -> onStatus(key, status, DownloadEntry(artist, title.ifBlank { album }, album, "", 0, "")) }
         }
@@ -189,12 +194,27 @@ class Library(ctx: Context, val art: ArtCache) {
     fun requestAlbum(a: WebCatalog.Album) {
         val key = albumKey(a)
         if (downloads[key]?.stage.let { it != null && it != DownloadStage.DONE && it != DownloadStage.FAILED }) return
+        runningDownloads[key] = RunningDownload(java.util.UUID.randomUUID().toString(), "${a.cleanTitle} · ${a.artist}", "Search", null)
         // the entry's empty path makes Recently Downloaded list the album's songs
         scope.launch { downloader.downloadAlbum(a) { status -> onStatus(key, status, DownloadEntry(a.artist, a.cleanTitle, a.cleanTitle, "", 0, "")) } }
     }
 
+    /** Keeps the download's story (each status, and what each source said) and writes it to the log when it ends. */
+    private fun track(key: String, status: DownloadStatus) {
+        val r = runningDownloads[key] ?: return
+        if (!status.miss) { r.message = status.message; if (status.source != null) r.current = status.source }
+        if (r.trail.lastOrNull()?.let { it.text == status.message && it.source == status.source } != true) r.trail += TrailStep(System.currentTimeMillis(), status.source, status.message, status.miss)
+        if (status.stage == DownloadStage.DONE || status.stage == DownloadStage.FAILED) {
+            runningDownloads.remove(key)
+            val done = status.stage == DownloadStage.DONE
+            val file = status.newTracks.firstOrNull()?.path?.substringAfter("/file?path=", "")?.takeIf { it.isNotEmpty() }?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+            downloadLog.add(DownloadRecord(r.id, r.label, r.kind, r.startedAt, System.currentTimeMillis(), done, if (done) status.source else null, status.message, file, r.artKey, r.trail.toList()))
+        }
+    }
+
     private fun onStatus(key: String, status: DownloadStatus, entry: DownloadEntry) {
         downloadStatus = status
+        track(key, status)
         downloads[key] = status
         addDownloadedTracks(status.newTracks)
         notifyChange()

@@ -1,3 +1,4 @@
+@page "/dashboard"
 @page "/admin"
 @attribute [Authorize]
 @implements IDisposable
@@ -9,8 +10,9 @@
 @inject DownloadManager Downloads
 @inject UserStateStore States
 @inject DataPaths Paths
-<PageTitle>Admin · FLACie</PageTitle>
-<header class="page-head"><h1>Admin</h1><p class="sub">What is playing, who is on, and what the server is doing</p></header>
+<PageTitle>Dashboard · FLACie</PageTitle>
+<header class="page-head"><h1>Dashboard</h1><p class="sub">What is playing, who is on, what the server is doing, and the server's settings</p></header>
+@if (allowed) { <nav class="subnav" aria-label="Dashboard sections"><a href="/dashboard#downloads">Download services</a><a href="/dashboard#opensources">Open sources</a><a href="/dashboard#background">Background downloads</a><a href="/dashboard#storage">Storage</a><a href="/dashboard#notify">Notifications</a><a href="/downloads">Download log</a></nav> }
 @if (!allowed)
 {
     <section class="panel"><p>This page is for the server's administrators. Ask the person who runs FLACie to make your account an administrator of the Jellyfin server, or to add you to <code>FLACIE_ADMINS</code>.</p></section>
@@ -122,7 +124,7 @@ else
                             <dt>Server disk</dt><dd>@StorageService.Bytes(diskFree) free of @StorageService.Bytes(diskTotal)</dd>
                             <dt>Daily charts</dt><dd>@(States.For(Session).Charts.Enabled ? "on" : "off")@(States.For(Session).Charts.LastRun.Length > 0 ? ", last run " + States.For(Session).Charts.LastRun + ": " + States.For(Session).Charts.LastNote : "")</dd>
                         </dl>
-                        <div class="row-actions"><a class="btn" href="/settings#storage">Storage settings</a></div>
+                        <div class="row-actions"><a class="btn" href="/dashboard#storage">Storage settings</a></div>
                         break;
                     case "downloads":
                         <h3>Downloads</h3>
@@ -184,6 +186,7 @@ else
             @if (notifyMsg is not null) { <span class="hint">@notifyMsg</span> }
         </div>
     </section>
+<ServerSettings />
 }
 @code {
     record Dev(string Id, string User, string Device, string Client, string Version, DateTime LastActivity, string? ItemId, string? Title, string? Artist, long PositionMs, long DurationMs, bool Paused, bool Controllable, System.Text.Json.Nodes.JsonObject? Raw = null)

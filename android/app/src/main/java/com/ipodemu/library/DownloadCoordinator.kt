@@ -17,7 +17,9 @@ enum class DownloadStage { REQUESTED, SEARCHING, DOWNLOADING, IMPORTING, SCANNIN
 /** [newTracks] are set on a Soulseek win's DONE status: Tracks the caller can add straight to the library, playable at
  * once over the file mover's own HTTP endpoint (no Jellyfin scan wait). Lidarr wins arrive through the Jellyfin scan. */
 data class DownloadStatus(val stage: DownloadStage, val message: String, val source: String? = null, val newTrack: Track? = null,
-                          val newTracks: List<Track> = listOfNotNull(newTrack))
+                          val newTracks: List<Track> = listOfNotNull(newTrack),
+                          /** A note that [source] had nothing (kept in the download's story), not a change of stage. */
+                          val miss: Boolean = false)
 
 /**
  * "Download this": Soulseek (slskd) first, since a live peer usually has a popular song right now, with Lidarr's indexer
@@ -52,7 +54,10 @@ class DownloadCoordinator(private val prefs: Prefs) {
         coroutineScope {
             val finders = if (openReady) OpenSources.start(this, artist, title, (durationMs / 1000).toInt(), prefs.openSources) else null
             try {
-                if (soulseekReady && trySoulseek(artist, title, album, (durationMs / 1000).toInt(), onUpdate)) return@coroutineScope
+                if (soulseekReady) {
+                    if (trySoulseek(artist, title, album, (durationMs / 1000).toInt(), onUpdate)) return@coroutineScope
+                    onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Soulseek had nothing it could finish", "soulseek", miss = true))
+                }
                 // Soulseek had nothing: the open sources in the user's order, then Lidarr
                 if (openReady && tryOpen(finders, artist, title, album, durationMs, onUpdate)) return@coroutineScope
                 if (!lidarrReady) { onUpdate(DownloadStatus(DownloadStage.FAILED, if (soulseekReady) "Not found on Soulseek or the open sources" else if (openReady) "Not found on the open sources" else "Downloads aren't set up (Settings > Lidarr)")); return@coroutineScope }
@@ -67,13 +72,17 @@ class DownloadCoordinator(private val prefs: Prefs) {
         val deadline = System.currentTimeMillis() + if (soulseekReady) 4_000L else 30_000L
         var done = false
         for (id in prefs.openSources.active()) {
-            if (id == OpenSourceSettings.YTDL) { if (tryYtdl(artist, title, album, durationMs, onUpdate)) { done = true; break } else continue }
+            if (id == OpenSourceSettings.YTDL) {
+                if (tryYtdl(artist, title, album, durationMs, onUpdate)) { done = true; break }
+                onUpdate(DownloadStatus(DownloadStage.SEARCHING, "YouTube had no matching upload", "ytdl", miss = true)); continue
+            }
             val task = finders?.tasks?.get(id) ?: continue
-            val hit = withTimeoutOrNull((deadline - System.currentTimeMillis()).coerceAtLeast(0)) { task.await() } ?: continue
+            val hit = withTimeoutOrNull((deadline - System.currentTimeMillis()).coerceAtLeast(0)) { task.await() }
+            if (hit == null) { onUpdate(DownloadStatus(DownloadStage.SEARCHING, OpenSourceNames.of(id) + " had nothing", id, miss = true)); continue }
             onUpdate(DownloadStatus(DownloadStage.DOWNLOADING, "Downloading from ${hit.label}...", hit.source))
             val dest = listOfNotNull(prefs.nasFolder.trim('/').ifBlank { null }, clean(artist)).joinToString("/") + "/${clean(artist)} - ${clean(title)}.${hit.ext}"
             onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library...", hit.source))
-            try { fileMover.fetch(prefs.fileMoverUrl, prefs.fileMoverApiKey, hit.url, dest) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { continue }
+            try { fileMover.fetch(prefs.fileMoverUrl, prefs.fileMoverApiKey, hit.url, dest) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { onUpdate(DownloadStatus(DownloadStage.SEARCHING, OpenSourceNames.of(id) + " had it, but the download failed", id, miss = true)); continue }
             finishWithJellyfinScan(artist, onUpdate, hit.source, title, openTrack(dest, artist, title, album, if (durationMs > 0) durationMs else hit.durationSec * 1000L))
             done = true; break
         }

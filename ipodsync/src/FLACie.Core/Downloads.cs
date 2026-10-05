@@ -98,7 +98,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
 
     Track OpenTrack(string dest, string title, string artist, string album, string? artUrl, long durationMs) =>
         new($"{cfg.FileMoverUrl.TrimEnd('/')}/file?path={Uri.EscapeDataString(dest)}", title, artist, album, artist, 0, 0, durationMs, 0,
-            artUrl is null ? null : Art.ExternalKey(artUrl), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), TrackSource.Cloud);
+            artUrl is null ? Art.LookupKey(artist, album, title) : Art.ExternalKey(artUrl), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), TrackSource.Cloud);
 
     /// <summary>The last-resort source: the file mover forwards to the yt-dlp service, which finds the song on YouTube (official audio / Topic uploads
     /// first, length and title checked) and files the audio itself. Off unless the user switched it on in Settings.</summary>
@@ -309,7 +309,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
             using var res = await http.SendAsync(req, ct);
             if (!res.IsSuccessStatusCode) return null;
             return new Track($"{cfg.FileMoverUrl.TrimEnd('/')}/file?path={Uri.EscapeDataString(dest)}", title, trackArtist, album, artist, trackNo, discNo, durationMs, 0,
-                artUrl is null ? null : Art.ExternalKey(artUrl), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), TrackSource.Cloud);
+                artUrl is null ? Art.LookupKey(artist, album, title) : Art.ExternalKey(artUrl), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), TrackSource.Cloud);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception) { return null; }
@@ -321,6 +321,9 @@ public static class Art
 {
     public static string ExternalKey(string url) => "ex" + Convert.ToBase64String(Encoding.UTF8.GetBytes(url)).Replace('+', '-').Replace('/', '_').TrimEnd('=');
     /// <summary>A cover to be looked up in the public catalog by artist, album and title (same key format as the Android app).</summary>
+    /// <summary>The cover to show for a song: its own, or (when a download left none) one looked up in the public catalog by artist, album and title.</summary>
+    public static string? KeyFor(Track t) => t.ArtKey ?? LookupKey(t.Artist, t.Album, t.Title);
+
     public static string? LookupKey(string artist, string album, string title)
     {
         if (artist.Length == 0 || (album.Length == 0 && title.Length == 0)) return null;

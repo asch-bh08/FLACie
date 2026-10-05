@@ -29,7 +29,7 @@ import com.ipodemu.theme.Themes
 private val VIEW_NAMES = listOf("iPod Player", "iPod Emulator", "Click Wheel Fullscreen", "iPod Emulator")
 
 @Composable
-fun SettingsScreen(nav: PlayerNav) {
+fun SettingsScreen(nav: PlayerNav, dashboard: Boolean = false) {
     LocalLibRev.current
     val app = LocalApp.current
     val sc = LocalScheme.current
@@ -53,9 +53,18 @@ fun SettingsScreen(nav: PlayerNav) {
     }
 
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    // administrators of the server (FLACie Web's Jellyfin admins) get the Dashboard; without FLACie Web the phone's own download setup lives there too
+    val adminWeb = remember { com.ipodemu.library.FlacieWebClient(prefs) }
+    var isAdmin by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(adminWeb.available) {
+        if (adminWeb.available) isAdmin = try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { adminWeb.account().admin } } catch (_: Exception) { false }
+    }
+    val canAdmin = !ui.guest && (isAdmin || !adminWeb.available)
+
     Column(Modifier.fillMaxSize()) {
-        TopBar("Settings", nav, showBack = true)
+        TopBar(if (dashboard) "Dashboard" else "Settings", nav, showBack = true)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 30.dp)) {
+            if (!dashboard) {
             item { SectionHeader("Appearance") }
             item {
                 Card {
@@ -93,6 +102,8 @@ fun SettingsScreen(nav: PlayerNav) {
                     }
                 }
             }
+            }
+            if (!dashboard) {
             item { SectionHeader("Music sources") }
             item {
                 Card {
@@ -100,12 +111,30 @@ fun SettingsScreen(nav: PlayerNav) {
                     if (!ui.guest) SettingRow("Jellyfin", if (app.library.jellyfinConnected) "Connected" else "Not connected", chevron = true) { ui.jellyfinSetupOpen = true }
                     if (!ui.guest) SettingRow("Plex", if (app.library.plexConnected) "Connected" else "Not connected", chevron = true) { ui.plexSetupOpen = true }
                     if (!ui.guest) SettingRow("NAS", if (app.library.nasConnected) "Connected" else "Not connected", chevron = true) { ui.nasSetupOpen = true }
-                    if (!ui.guest) SettingRow("Downloads", if (app.library.lidarrConnected) "Set up" else "Not set up", chevron = true) { ui.lidarrSetupOpen = true }
+                    if (!ui.guest) SettingRow("Download log", "Open", chevron = true) { ui.downloadsOpen = true }
                     SettingRow("iPod sync", app.library.syncDeviceLabel ?: "Off", chevron = true) { ui.syncSetupOpen = true }
                     SettingRow("Rescan this device", if (app.library.scanning) "Scanning ${app.library.scanCount}..." else null) { app.library.rescan() }
                 }
             }
-            if (!ui.guest) {
+            }
+            if (!dashboard && canAdmin) {
+                item { SectionHeader("Server") }
+                item { Card { SettingRow("Dashboard", "Administrators", chevron = true) { nav.push(Screen.Dashboard) } } }
+            }
+            if (dashboard) {
+                item { SectionHeader("Download services") }
+                item {
+                    Card {
+                        if (canAdmin) SettingRow("Download services", if (app.library.lidarrConnected) "Set up" else "Not set up", chevron = true) { ui.lidarrSetupOpen = true }
+                        SettingRow("Download log", "Open", chevron = true) { ui.downloadsOpen = true }
+                        if (adminWeb.available) SettingRow("Web dashboard", "Open", chevron = true) {
+                            ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(prefs.flacieWebUrl.trimEnd('/') + "/dashboard")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                        }
+                    }
+                }
+                if (!canAdmin) item { Txt("The Dashboard is for the server's administrators.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), size = 13f, color = sc.onBgDim, maxLines = 3) }
+            }
+            if (dashboard && canAdmin) {
                 item { SectionHeader("Background downloads") }
                 item {
                     Card {
@@ -176,6 +205,7 @@ fun SettingsScreen(nav: PlayerNav) {
                     }
                 }
             }
+            if (!dashboard) {
             item { SectionHeader("Controls") }
             item {
                 Card {
@@ -194,19 +224,11 @@ fun SettingsScreen(nav: PlayerNav) {
                         else SettingRow(prefs.accountUserName.ifEmpty { "Signed in" }, prefs.accountServer.removePrefix("https://").removePrefix("http://"), chevron = true) { ui.accountOpen = true }
                         SettingRow("Sync now", acct.status ?: syncedLabel(prefs.accountSyncedAt)) { acct.sync() }
                     } else SettingRow("Sign in", if (ui.guest) "Guest" else "Not signed in", chevron = true) { ui.accountOpen = true }
-                    // administrators of the server get its dashboard (devices playing, activity, notifications) from here
-                    val adminWeb = remember { com.ipodemu.library.FlacieWebClient(prefs) }
-                    var isAdmin by remember { mutableStateOf(false) }
-                    androidx.compose.runtime.LaunchedEffect(adminWeb.available) {
-                        if (adminWeb.available) isAdmin = try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { adminWeb.account().admin } } catch (_: Exception) { false }
-                    }
-                    if (isAdmin) SettingRow("Admin dashboard", "Open", chevron = true) {
-                        ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(prefs.flacieWebUrl.trimEnd('/') + "/admin")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
-                    }
                 }
             }
             item { SectionHeader("About") }
             item { Card { SettingRow("Version", remember { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "" }) { } } }
+            }
         }
     }
 }

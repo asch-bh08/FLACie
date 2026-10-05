@@ -6,7 +6,7 @@
         <input class="bar-progress" type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@Player.Position" aria-label="Seek" style="@Fill(Player.Position, Player.Duration)" @onchange="OnSeek" />
         <div class="bar">
             <button class="bar-song" @onclick="() => open = true" aria-label="Open Now Playing">
-                <Cover ArtKey="@(t.ArtKey)" Size="52" />
+                <Cover ArtKey="@(Art.KeyFor(t))" Size="52" />
                 <span class="bar-text"><b>@t.Title</b><small>@t.Artist</small></span>
             </button>
             <div class="bar-controls">

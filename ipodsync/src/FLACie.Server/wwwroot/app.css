@@ -810,3 +810,13 @@ body.np-open .np { top: 0; padding-top: var(--top); }
 .track-dl.ok { color: var(--ok); } .track-dl.ok i { animation: none; }
 .track-dl.bad { color: var(--danger); } .track-dl.bad i { animation: none; }
 @keyframes dl-pulse { 50% { opacity: .35; } }
+
+/* Settings > Look and feel */
+.swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+.swatch { width: 34px; height: 34px; border-radius: 50%; border: 2px solid transparent; background: var(--sw); cursor: pointer; padding: 0; }
+.swatch.on { border-color: #fff; box-shadow: 0 0 0 2px var(--sw); }
+.pref-compact .track { padding-top: 3px; padding-bottom: 3px; }
+.pref-compact .track .cover, .pref-compact .track-main .cover { transform: scale(.82); transform-origin: left center; }
+.pref-nobadges .track .badge, .pref-nobadges .track .fmt { display: none; }
+.pref-calm *, .pref-calm *::before, .pref-calm *::after { animation: none !important; transition: none !important; }
+.pref-noartbg .np-backdrop { display: none; }

@@ -83,6 +83,7 @@ fun AppRoot(activity: MainActivity) {
             if (ui.plexSetupOpen) overlay { PlexSetupScreen() }
             if (ui.nasSetupOpen) overlay { NasSetupScreen() }
             if (ui.lidarrSetupOpen) overlay { LidarrSetupScreen() }
+            if (ui.downloadsOpen) overlay { DownloadsScreen() }
             if (ui.accountOpen) overlay { AccountScreen() }
             if (ui.devicesOpen) overlay { DevicesScreen() }
             if (ui.jamOpen) overlay { JamScreen() }

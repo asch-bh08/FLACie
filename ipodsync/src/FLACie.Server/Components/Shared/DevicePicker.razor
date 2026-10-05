@@ -1,5 +1,6 @@
 @inherits UserComponent
 @implements IDisposable
+@inject IJSRuntime Js
 @* Connect from the player bar: this browser and the account's other players, what each is playing, and one click to move the music. *@
 @if (Live is { } live)
 {
@@ -9,7 +10,6 @@
         <button class="icon-btn @(busy ? "on" : "")" @onclick="Toggle" aria-haspopup="dialog" aria-expanded="@open" aria-label="@(busy ? "Devices, music is playing on another device" : "Devices")"><Icon Name="devices" />@if (busy) { <i class="dot" aria-hidden="true"></i> }</button>
         @if (open)
         {
-            <button class="scrim" aria-label="Close devices" @onclick="() => open = false"></button>
             <div class="devpop" role="dialog" aria-label="Connect to a device">
                 <h3>Connect to a device</h3>
                 <div class="dev here">
@@ -35,13 +35,16 @@
     </div>
 }
 @code {
-    bool open; Timer? poll;
+    bool open; Timer? poll; DotNetObjectReference<DevicePicker>? self;
     void Toggle()
     {
         open = !open; poll?.Dispose(); poll = null;
+        if (open) { self ??= DotNetObjectReference.Create(this); _ = Js.InvokeVoidAsync("flacie.watchOutside", ".devpick", self); } else _ = Js.InvokeVoidAsync("flacie.unwatchOutside");
         if (open && Live is { } l) { _ = l.Connect.LoadSessionsAsync(); poll = new Timer(_ => { _ = l.Connect.LoadSessionsAsync(); }, null, 3000, 3000); }
     }
+    /// <summary>Called from the page when a click lands outside the popup, or Escape is pressed.</summary>
+    [JSInvokable] public void Dismiss() { if (!open) return; open = false; poll?.Dispose(); poll = null; _ = Js.InvokeVoidAsync("flacie.unwatchOutside"); InvokeAsync(StateHasChanged); }
     async Task TakeOver(Live l, ConnectSession s) { open = false; await l.Connect.TakeOverAsync(s); }
     async Task Send(Live l, ConnectSession s) { open = false; await l.Connect.SendToAsync(s); }
-    public override void Dispose() { poll?.Dispose(); base.Dispose(); }
+    public override void Dispose() { poll?.Dispose(); self?.Dispose(); try { _ = Js.InvokeVoidAsync("flacie.unwatchOutside"); } catch (Exception) { } base.Dispose(); }
 }

@@ -18,7 +18,7 @@
                 <div class="am-head"><span class="avatar big">@Initial</span><div><b>@Session.DisplayName</b><small>@(Session.Kind == "nas" ? "NAS" : "Jellyfin")@(Session.Jellyfin is not null && Session.Nas is not null ? " and NAS" : "")</small></div></div>
                 <a role="menuitem" href="/account" @onclick="() => open = false"><Icon Name="artists" Size="18" />Account</a>
                 <a role="menuitem" href="/downloads" @onclick="() => open = false"><Icon Name="download" Size="18" />Downloads</a>
-                @if (AdminAccess.Is(Session, Conf)) { <a role="menuitem" href="/admin" @onclick="() => open = false"><Icon Name="shield" Size="18" />Admin</a> }
+                @if (AdminAccess.Is(Session, Conf)) { <a role="menuitem" href="/dashboard" @onclick="() => open = false"><Icon Name="shield" Size="18" />Dashboard</a> }
                 <a role="menuitem" href="/settings" @onclick="() => open = false"><Icon Name="settings" Size="18" />Settings</a>
                 <form method="post" action="/auth/logout" data-enhance="false"><button role="menuitem" type="submit"><Icon Name="logout" Size="18" />Sign out</button></form>
             </div>

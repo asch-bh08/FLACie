@@ -112,6 +112,7 @@ sealed interface Screen {
     data object Search : Screen
     data object Queue : Screen
     data object Settings : Screen
+    data object Dashboard : Screen
     data object Music : Screen
     /** Modern theme's Library tab. */
     data object Library : Screen
@@ -265,6 +266,7 @@ private fun ScreenContent(screen: Screen, nav: PlayerNav, snap: PlayerSnap) {
         Screen.Search -> SearchScreen(nav, snap)
         Screen.Queue -> QueueScreen(nav, snap)
         Screen.Settings -> SettingsScreen(nav)
+        Screen.Dashboard -> SettingsScreen(nav, dashboard = true)
         Screen.Music -> MusicMenu(nav)
         Screen.Library -> ExploreScreen(nav, snap)
         Screen.Sources -> LibraryHome(nav)

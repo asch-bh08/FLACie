@@ -56,7 +56,7 @@ else
     @if (webBusy || webSongs.Count > 0 || webAlbums.Count > 0)
     {
         <h2 class="section">More music @(webBusy ? "(searching…)" : "")</h2>
-        @if (!Session.Services.Any) { <p class="hint">To download these, set up Soulseek or Lidarr in <a href="/settings">Settings</a>. Your phone's setup is picked up automatically.</p> }
+        @if (!Session.Services.Any) { <p class="hint">To download these, set up Soulseek or Lidarr in the <a href="/dashboard#downloads">Dashboard</a> (administrators). Your phone's setup is picked up automatically.</p> }
         @if (webAlbums.Count > 0)
         {
             <div class="row-scroll">

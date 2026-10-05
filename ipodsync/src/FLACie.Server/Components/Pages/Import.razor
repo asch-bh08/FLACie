@@ -14,7 +14,7 @@
         @if (busy) { <span class="hint">Reading…</span> }
     </div>
     @if (error is not null) { <p class="form-error" role="alert">@error</p> }
-    @if (!Session.Services.Any) { <p class="hint">Downloads aren't set up yet, so only songs you already have can be added. Set them up in <a href="/settings">Settings</a>.</p> }
+    @if (!Session.Services.Any) { <p class="hint">Downloads aren't set up yet, so only songs you already have can be added. Set them up in the <a href="/dashboard#downloads">Dashboard</a> (administrators).</p> }
 </section>
 
 @foreach (var job in Jobs)

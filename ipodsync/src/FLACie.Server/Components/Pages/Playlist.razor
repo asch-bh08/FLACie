@@ -38,7 +38,7 @@ else
         <section class="shelf missing-list" aria-label="Not in your library">
             <div class="shelf-head"><div><h2>Not in your library</h2><small>@missing.Count song@(missing.Count == 1 ? "" : "s") from this playlist, fetched from Soulseek or Lidarr</small></div>
                 <button class="btn" disabled="@(!Session.Services.Any)" @onclick="() => Get(missing)"><Icon Name="download" Size="16" />Download all</button></div>
-            @if (!Session.Services.Any) { <p class="hint">Set up downloads in <a href="/settings#downloads">Settings</a> first.</p> }
+            @if (!Session.Services.Any) { <p class="hint">Set up downloads in <a href="/dashboard#downloads">the Dashboard</a> first.</p> }
             <ul class="tracks">
                 @foreach (var m in missing)
                 {

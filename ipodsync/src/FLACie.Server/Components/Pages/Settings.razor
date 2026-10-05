@@ -6,7 +6,7 @@
 <PageTitle>Settings · FLACie</PageTitle>
 <header class="page-head"><h1>Settings</h1></header>
 <nav class="subnav" aria-label="Settings sections">
-    <a href="/settings#playback">Playback</a><a href="/settings#sources">Music sources</a>@if (admin) { <a href="/settings#downloads">Downloads</a><a href="/settings#opensources">Open sources</a><a href="/settings#background">Background</a><a href="/settings#storage">Storage</a> }<a href="/settings#account">Account</a><a href="/downloads">Download log</a>@if (admin) { <a href="/admin">Admin</a> }
+    <a href="/settings#playback">Playback</a><a href="/settings#look">Look and feel</a><a href="/settings#sources">Music sources</a><a href="/settings#account">Account</a><a href="/downloads">Download log</a>@if (admin) { <a href="/dashboard">Dashboard</a> }
 </nav>
 
 <section class="panel set" id="playback">
@@ -61,108 +61,41 @@
     @if (error is not null) { <p class="form-error" role="alert">@error</p> }
 </section>
 
-@if (admin) {
-<section class="panel set" id="downloads">
-    <div class="set-head"><h2>Downloads</h2><p class="hint">Search finds new music and downloads it: Soulseek (slskd plus the file mover) first, Lidarr as the fallback. These are kept in your profile, so the phone's setup shows up here and the other way round. Keys stay on the server; leave a key empty to keep the saved one.</p></div>
+<section class="panel set" id="look">
+    <div class="set-head"><h2>Look and feel</h2><p class="hint">Personal tweaks, saved in this browser only (your phone has its own in its Settings).</p></div>
     <div class="form">
-        <label for="sl">slskd address</label><input id="sl" @bind="slUrl" placeholder="https://host/slskd" />
-        <label for="slk">slskd API key @(Session.Services.SlskdKey.Length > 0 ? "(saved)" : "")</label><input id="slk" type="password" @bind="slKey" autocomplete="new-password" />
-        <label for="slp">slskd downloads folder <span class="opt">(as the file mover sees it)</span></label><input id="slp" @bind="slPath" placeholder="downloads" />
-        <label for="fm">File mover address</label><input id="fm" @bind="fmUrl" placeholder="https://host/filemove" />
-        <label for="fmk">File mover key @(Session.Services.FileMoverKey.Length > 0 ? "(saved)" : "")</label><input id="fmk" type="password" @bind="fmKey" autocomplete="new-password" />
-        <label for="ld">Lidarr address <span class="opt">(optional)</span></label><input id="ld" @bind="ldUrl" placeholder="https://host/lidarr" />
-        <label for="ldk">Lidarr API key @(Session.Services.LidarrKey.Length > 0 ? "(saved)" : "")</label><input id="ldk" type="password" @bind="ldKey" autocomplete="new-password" />
-        <div class="row-actions"><button class="btn primary" @onclick="SaveDownloads">Save downloads</button>@if (dlSaved) { <span class="hint">Saved.</span> }</div>
-    </div>
-</section>
-
-<section class="panel set" id="opensources">
-    <div class="set-head"><h2>Open sources</h2><p class="hint">When Soulseek doesn't have a song, these sources are tried before Lidarr. The free ones look while Soulseek searches and only download if it found nothing. They need the file mover above. The first one on the list that has the song is used; move a source up to prefer it.</p></div>
-    @foreach (var id in osOrder)
-    {
-        var sid = id;
-        <div class="src-row">
-            <div class="src-move">
-                <button class="btn icon" aria-label="Move up" disabled="@(osOrder.IndexOf(sid) == 0)" @onclick="() => MoveSource(sid, -1)">▲</button>
-                <button class="btn icon" aria-label="Move down" disabled="@(osOrder.IndexOf(sid) == osOrder.Count - 1)" @onclick="() => MoveSource(sid, 1)">▼</button>
-            </div>
-            <label class="switch-row">
-                <span><b>@SourceName(sid)</b><small>@SourceHint(sid)</small></span>
-                <input type="checkbox" role="switch" checked="@SourceOn(sid)" @onchange="e => SetSource(sid, (bool)(e.Value ?? false))" />
-                <i class="switch" aria-hidden="true"></i>
-            </label>
-        </div>
-    }
-    <div class="form">
-        <label for="jm">Jamendo client ID <span class="opt">(free from devportal.jamendo.com; Jamendo stays off without one)</span></label>
-        <input id="jm" @bind="jmId" autocomplete="off" spellcheck="false" placeholder="e.g. 614b506c" />
-        <div class="row-actions"><button class="btn primary" @onclick="SaveOpenSources">Save open sources</button><button class="btn" @onclick="CheckJamendo" disabled="@(jmId.Trim().Length == 0 || jmChecking)">Check Jamendo ID</button>@if (osNote is not null) { <span class="hint">@osNote</span> }</div>
-    </div>
-</section>
-
-<section class="panel set" id="background">
-    <div class="set-head"><h2>Background downloads</h2><p class="hint">Everything here happens on the server, never on your phone or this browser. <a href="/import">Import a playlist file</a> to fetch a whole list.</p></div>
-    <div class="form">
-        <label for="minfree">Stop downloading when the music storage has less than</label>
-        <div class="inline"><input id="minfree" type="number" min="0" max="2000" @bind="State.MinFreeGb" @bind:after="Persist" /><span class="hint">GB free</span></div>
-    </div>
-    <label class="switch-row">
-        <span><b>Daily charts</b><small>Every day, add new songs from the charts you choose to your library, like a Radarr list, while there is room. Nothing already on your storage is ever deleted.</small></span>
-        <input type="checkbox" role="switch" checked="@State.Charts.Enabled" @onchange="e => { State.Charts.Enabled = (bool)(e.Value ?? false); Persist(); }" />
-        <i class="switch" aria-hidden="true"></i>
-    </label>
-    @if (State.Charts.Enabled)
-    {
-        <div class="chart-picks" role="group" aria-label="Charts to follow">
-            @foreach (var c in ChartsService.Available)
+        <label>Accent colour</label>
+        <div class="swatches" role="radiogroup" aria-label="Accent colour">
+            @foreach (var (name, hex) in Accents)
             {
-                var id = c.Id;
-                <label class="check-chip"><input type="checkbox" checked="@State.Charts.Lists.Contains(id)" @onchange="e => ToggleChart(id, (bool)(e.Value ?? false))" /><span>@c.Name</span></label>
+                var h = hex;
+                <button type="button" class="swatch @(look.Accent == h ? "on" : "")" style="--sw:@(h.Length > 0 ? h : "#ff4d73")" role="radio" aria-checked="@(look.Accent == h)" aria-label="@name" title="@name" @onclick="() => SetLook(accent: h)"></button>
             }
         </div>
-        <div class="form">
-            <label for="perlist">New songs per chart, per day</label>
-            <div class="inline"><input id="perlist" type="number" min="1" max="50" @bind="State.Charts.PerList" @bind:after="Persist" /></div>
-        </div>
-        <div class="row-actions">
-            <button class="btn" @onclick="RunCharts" disabled="@chartsBusy">@(chartsBusy ? "Running…" : "Run now")</button>
-            <span class="hint">@(State.Charts.LastRun.Length > 0 ? "Last run " + State.Charts.LastRun + ": " + State.Charts.LastNote : "Not run yet. It runs by itself once a day.")</span>
-        </div>
-        <p class="hint">New songs are added to your library every day (lossless where Soulseek has it, about 25 to 35 MB each, so roughly @((State.Charts.Lists.Count * State.Charts.PerList * 30 / 1024.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)) GB a day, @((State.Charts.Lists.Count * State.Charts.PerList * 30 * 30 / 1024.0).ToString("0", System.Globalization.CultureInfo.InvariantCulture)) GB a month with these settings). The lists also appear as playlists called "Charts: …". It runs on its own, even after the server restarts.</p>
-    }
+    </div>
+    <label class="switch-row">
+        <span><b>Cover colours in the player</b><small>The full-screen player takes its background from the song's cover. Off gives a plain dark background.</small></span>
+        <input type="checkbox" role="switch" checked="@look.ArtBg" @onchange="e => SetLook(artBg: (bool)(e.Value ?? false))" />
+        <i class="switch" aria-hidden="true"></i>
+    </label>
+    <label class="switch-row">
+        <span><b>Compact lists</b><small>Tighter rows in song lists, so more fit on the screen.</small></span>
+        <input type="checkbox" role="switch" checked="@look.Compact" @onchange="e => SetLook(compact: (bool)(e.Value ?? false))" />
+        <i class="switch" aria-hidden="true"></i>
+    </label>
+    <label class="switch-row">
+        <span><b>Format and source badges</b><small>The small FLAC / MP3 and NAS / Streaming labels next to songs.</small></span>
+        <input type="checkbox" role="switch" checked="@look.Badges" @onchange="e => SetLook(badges: (bool)(e.Value ?? false))" />
+        <i class="switch" aria-hidden="true"></i>
+    </label>
+    <label class="switch-row">
+        <span><b>Animations</b><small>Fades, the pulsing download dot and moving highlights. Turn off for a calmer, lighter page.</small></span>
+        <input type="checkbox" role="switch" checked="@look.Motion" @onchange="e => SetLook(motion: (bool)(e.Value ?? false))" />
+        <i class="switch" aria-hidden="true"></i>
+    </label>
+    <div class="row-actions"><button class="btn ghost" @onclick="ResetLook">Reset look and feel</button></div>
 </section>
 
-<section class="panel set" id="storage">
-    <div class="set-head"><h2>Storage</h2><p class="hint">What this server and your music library use.</p></div>
-    @{ var r = report ?? Storage.Quick(Session); }
-    <h3>Music storage</h3>
-    @if (r.Music is { } m)
-    {
-        <div class="meter" role="img" aria-label="@(Bytes(m.Total - m.Free)) of @(Bytes(m.Total)) used"><i class="a" style="width:@(Pct(m.Total - m.Free, m.Total))%"></i></div>
-        <div class="legend"><span><i class="a" style="background:var(--accent)"></i>Used @Bytes(m.Total - m.Free)</span><span>Free @Bytes(m.Free)</span><span>Total @Bytes(m.Total)</span></div>
-    }
-    else { <p class="hint">@(Session.Nas is null ? "No NAS is connected, so the music storage's free space isn't known." : "The NAS didn't report its free space.")</p> }
-    <dl class="kv">
-        @if (r.NasSongs > 0) { <dt>NAS library</dt><dd>@r.NasSongs songs, @Bytes(r.NasBytes)</dd> }
-        @if (r.JellyfinSongs > 0) { <dt>Jellyfin library</dt><dd>@r.JellyfinSongs songs, @Bytes(r.JellyfinBytes)</dd> }
-    </dl>
-    @if (Session.Jellyfin is not null)
-    {
-        <div class="row-actions"><button class="btn" @onclick="Measure" disabled="@measuring">@(measuring ? "Measuring…" : "Measure the Jellyfin library")</button><span class="hint">Jellyfin only reports sizes file by file, so this takes a moment.</span></div>
-    }
-    @if (r.Problem is { } pr) { <p class="form-error">@pr</p> }
-    <h3>This server</h3>
-    <div class="meter" role="img" aria-label="Disk use"><i class="b" style="width:@(Pct(r.DiskTotal - r.DiskFree, r.DiskTotal))%"></i></div>
-    <div class="legend"><span>@Bytes(r.DiskFree) free of @Bytes(r.DiskTotal) on the server's disk</span></div>
-    <dl class="kv">
-        <dt>FLACie data</dt><dd>@Bytes(r.DataBytes)</dd>
-        @foreach (var (name, bytes) in r.DataParts) { <dt class="sub-k">@name</dt><dd>@Bytes(bytes)</dd> }
-    </dl>
-    <p class="hint">Covers and lyrics are caches: they can be emptied by deleting the folders and fill up again as you browse.</p>
-</section>
-} else {
-<section class="panel set" id="admin-only"><div class="set-head"><h2>Server settings</h2><p class="hint">Storage, the download services and the daily charts affect everyone on this server, so only an administrator can see and change them.</p></div></section>
-}
 
 <section class="panel set" id="account">
     <div class="set-head"><h2>Account</h2></div>
@@ -175,101 +108,40 @@
 
 @code {
     [Inject] UserStateStore States { get; set; } = default!;
-    [Inject] StorageService Storage { get; set; } = default!;
-    [Inject] ChartsService Charts { get; set; } = default!;
     UserState State => States.For(Session);
-    bool admin => AdminAccess.Is(Session, Conf);
     string host = "", share = "", folder = "", nuser = "", npass = "", jserver = "", juser = "", jpass = "";
-    bool busy, chartsBusy, measuring; string? error;
-    string slUrl = "", slPath = "", fmUrl = "", ldUrl = "";
-    string slKey = "", fmKey = "", ldKey = ""; bool dlSaved;
-    StorageReport? report; Timer? tick;
+    bool busy; string? error;
+    bool admin => AdminAccess.Is(Session, Conf);
 
-    protected override async Task OnInitializedAsync()
-    {
-        await base.OnInitializedAsync();
-        var d = Session.Services; (slUrl, slPath, fmUrl, ldUrl) = (d.SlskdUrl, d.SlskdPath, d.FileMoverUrl, d.LidarrUrl); LoadOpenSources();
-    }
+    // ---- look and feel: kept in this browser (localStorage, applied by flacie.js on every page) ----
+    [Inject] IJSRuntime Js { get; set; } = default!;
+    sealed record Look(string Accent, bool Compact, bool Badges, bool Motion, bool ArtBg);
+    Look look = new("", false, true, true, true);
+    static readonly (string Name, string Hex)[] Accents = [("Pink", ""), ("Red", "#ff4d4d"), ("Orange", "#ff8a3d"), ("Yellow", "#ffd23d"), ("Green", "#3ddc84"), ("Teal", "#2dd4bf"), ("Blue", "#4d9bff"), ("Purple", "#a566ff")];
 
-
-    // ---- open sources (Internet Archive, Audius, Jamendo): on/off, order and the Jamendo client ID ----
-    List<string> osOrder = [];
-    bool arOn = true, auOn = true, jmOn = true, ytOn, jmChecking; string jmId = ""; string? osNote;
-    static string SourceName(string id) => id switch { "archive" => "Internet Archive", "audius" => "Audius", "ytdl" => "YouTube (yt-dlp)", _ => "Jamendo" };
-    static string SourceHint(string id) => id switch
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        "archive" => "Live Music Archive and netlabel collections only, never a general search. Needs nothing.",
-        "audius" => "The free Audius catalogue. Needs nothing.",
-        "ytdl" => "Last resort for songs nothing else has: finds the official audio on YouTube and saves it (AAC, not lossless). Against YouTube's terms of service, so it is off until you switch it on. Needs the yt-dlp service next to the file mover.",
-        _ => "Only tracks whose artist allows downloads. Needs the client ID below.",
-    };
-    bool SourceOn(string id) => id switch { "archive" => arOn, "audius" => auOn, "ytdl" => ytOn, _ => jmOn };
-    void SetSource(string id, bool on) { if (id == "archive") arOn = on; else if (id == "audius") auOn = on; else if (id == "ytdl") ytOn = on; else jmOn = on; osNote = null; }
-    void MoveSource(string id, int by)
-    {
-        var i = osOrder.IndexOf(id); var j = i + by;
-        if (i < 0 || j < 0 || j >= osOrder.Count) return;
-        (osOrder[i], osOrder[j]) = (osOrder[j], osOrder[i]); osNote = null;
-    }
-    void LoadOpenSources()
-    {
-        var o = Session.Services.OpenCfg;
-        (arOn, auOn, jmOn, ytOn, jmId) = (o.Archive, o.Audius, o.Jamendo, o.Ytdl, o.JamendoId); osOrder = o.FullOrder.ToList();
-    }
-    void SaveOpenSources()
-    {
-        var old = Session.Services;
-        new DownloadServices(old.SlskdUrl, old.SlskdKey, old.SlskdPath, old.FileMoverUrl, old.FileMoverKey, old.LidarrUrl, old.LidarrKey, old.NasFolder,
-            new OpenSourceSettings(arOn, auOn, jmOn, jmId.Trim(), osOrder, ytOn)).WriteTo(Session.Profile);
-        SaveProfile();
-        osNote = jmOn && jmId.Trim().Length == 0 ? "Saved. Jamendo stays off until a client ID is entered." : "Saved.";
-    }
-    async Task CheckJamendo()
-    {
-        jmChecking = true; osNote = "Checking...";
+        if (!firstRender) return;
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            var j = System.Text.Json.Nodes.JsonNode.Parse(await http.GetStringAsync($"https://api.jamendo.com/v3.0/tracks/?client_id={Uri.EscapeDataString(jmId.Trim())}&format=json&limit=1"));
-            osNote = j?["headers"]?["status"]?.GetValue<string>() == "success" ? "Jamendo accepted that client ID." : "Jamendo said: " + (j?["headers"]?["error_message"]?.GetValue<string>() ?? "not accepted");
+            if (System.Text.Json.Nodes.JsonNode.Parse(await Js.InvokeAsync<string>("flacieUi.get")) is { } j)
+            {
+                look = new(j["accent"]?.GetValue<string>() ?? "", j["compact"]?.GetValue<bool>() ?? false, j["badges"]?.GetValue<bool>() ?? true, j["motion"]?.GetValue<bool>() ?? true, j["artbg"]?.GetValue<bool>() ?? true);
+                StateHasChanged();
+            }
         }
-        catch (Exception e) { osNote = "Could not reach Jamendo: " + e.Message; }
-        jmChecking = false;
+        catch (Exception) { }
     }
+
+    void SetLook(string? accent = null, bool? compact = null, bool? badges = null, bool? motion = null, bool? artBg = null)
+    {
+        look = new(accent ?? look.Accent, compact ?? look.Compact, badges ?? look.Badges, motion ?? look.Motion, artBg ?? look.ArtBg);
+        _ = Js.InvokeVoidAsync("flacieUi.set", System.Text.Json.JsonSerializer.Serialize(new { accent = look.Accent, compact = look.Compact, badges = look.Badges, motion = look.Motion, artbg = look.ArtBg }));
+    }
+
+    void ResetLook() { look = new("", false, true, true, true); _ = Js.InvokeVoidAsync("flacieUi.set", "{}"); }
+
     void Persist() => States.Save(Session);
-
-    void ToggleChart(int id, bool on)
-    {
-        var l = State.Charts.Lists;
-        if (on && !l.Contains(id)) l.Add(id); else if (!on) l.Remove(id);
-        Persist();
-    }
-
-    async Task RunCharts()
-    {
-        chartsBusy = true;
-        try { await Charts.RunAsync(Session, true, CancellationToken.None); } catch (Exception e) { State.Charts.LastNote = e.Message; }
-        chartsBusy = false;
-    }
-
-    async Task Measure()
-    {
-        measuring = true; StateHasChanged();
-        report = await Storage.FullAsync(Session, CancellationToken.None);
-        measuring = false;
-    }
-
-    static string Bytes(long b) => StorageService.Bytes(b);
-    static string Pct(long part, long whole) => (whole <= 0 ? 0 : Math.Clamp(part * 100.0 / whole, 0, 100)).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
-
-    void SaveDownloads()
-    {
-        var old = Session.Services;
-        var dl = new DownloadServices(slUrl.Trim(), slKey.Length > 0 ? slKey.Trim() : old.SlskdKey, string.IsNullOrWhiteSpace(slPath) ? "downloads" : slPath.Trim(), fmUrl.Trim(), fmKey.Length > 0 ? fmKey.Trim() : old.FileMoverKey, ldUrl.Trim(), ldKey.Length > 0 ? ldKey.Trim() : old.LidarrKey, old.NasFolder, old.Open);
-        dl.WriteTo(Session.Profile);
-        slKey = fmKey = ldKey = ""; dlSaved = true;
-        SaveProfile();
-    }
 
     string Where => string.Join(" and ", new[] { Session.Jellyfin is not null ? "your Jellyfin account" : null, Session.Nas is not null ? "the NAS" : null }.OfType<string>());
 
@@ -304,6 +176,4 @@
         catch (Exception e) { error = e.Message; }
         finally { busy = false; }
     }
-
-    public override void Dispose() { tick?.Dispose(); base.Dispose(); }
 }

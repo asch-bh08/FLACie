@@ -9,7 +9,7 @@
         <li class="track @(now ? "now" : "")">
             <button class="track-main" @onclick="() => Go(idx)" aria-label="Play @t.Title by @t.Artist">
                 @if (Numbered) { <span class="track-no">@(t.TrackNo > 0 ? t.TrackNo : idx + 1)</span> }
-                else { <Cover ArtKey="@(t.ArtKey)" Size="44" /> }
+                else { <Cover ArtKey="@(Art.KeyFor(t))" Size="44" /> }
                 <span class="track-text">
                     <span class="track-title">@t.Title</span>
                     <span class="track-sub">@t.Artist@(ShowAlbum && t.Album.Length > 0 ? " · " + t.Album : "")@(t.Year > 0 ? " · " + t.Year : "")</span>

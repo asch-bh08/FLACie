@@ -427,6 +427,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             "&Container=aac&TranscodingContainer=ts&TranscodingProtocol=hls&AudioCodec=aac&MaxAudioChannels=2&StartTimeTicks=0")
     }
 
+    private fun needsTranscode(t: Track) = t.filePath.substringAfterLast('.', "").lowercase() in setOf("wma", "asf", "ape", "wv", "tta")
+
     private fun isHls(i: MediaItem) = i.localConfiguration?.mimeType == androidx.media3.common.MimeTypes.APPLICATION_M3U8
 
     private fun downgradeCurrent() {
@@ -477,7 +479,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (art != null) md.setArtworkUri(Uri.fromFile(art))
         val uri = if (t.path.startsWith("content:") || t.path.startsWith("file:") || t.path.startsWith("http:") ||
             t.path.startsWith("https:") || t.path.startsWith("smb:")) Uri.parse(t.path) else Uri.fromFile(File(t.path))
-        val hls = if (dataSaver) hlsUri(t) else null
+        // formats the phone cannot decode (WMA, APE ...) are converted by Jellyfin on the way, like the data saver does
+        val hls = if (dataSaver || needsTranscode(t)) hlsUri(t) else null
         return MediaItem.Builder().setMediaId(t.path).setUri(hls ?: uri).setTag(t).also { if (hls != null) it.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8) }
             .setMediaMetadata(md.build()).build()
     }

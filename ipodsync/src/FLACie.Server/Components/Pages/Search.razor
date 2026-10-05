@@ -87,7 +87,18 @@ else
                         <span class="track-time">@Time(s.DurationMs / 1000.0)</span>
                         <span class="track-actions">
                         <button class="btn" disabled="@(!Session.Services.Any || jb is { Finished: false })" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />@(jb is { Finished: false } ? "Downloading…" : jb is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button>
-                        @if (isAdmin && Session.Services.SoulseekReady) { <button class="btn hires" disabled="@(jb is { Finished: false })" title="Hi-Res (administrators): 24-bit or above 48 kHz, several times the size. Only on request, per song." @onclick="() => hiAsk = hiKey"><span aria-hidden="true">✦</span> Hi-Res</button> }
+                        <span class="dl-more">
+                            <button class="icon-btn" aria-haspopup="menu" aria-expanded="@(dlMenu == hiKey)" aria-label="More download options for @s.Title" @onclick="() => dlMenu = dlMenu == hiKey ? null : hiKey"><Icon Name="lines" Size="20" /></button>
+                            @if (dlMenu == hiKey)
+                            {
+                                <button class="scrim" aria-label="Close" @onclick="() => dlMenu = null"></button>
+                                <div class="dl-menu" role="menu">
+                                    <button role="menuitem" disabled="@(!Session.Services.Any || jb is { Finished: false })" @onclick="() => { dlMenu = null; Downloads.Song(Session, s); }"><Icon Name="download" Size="16" />Download</button>
+                                    @if (isAdmin && Session.Services.SoulseekReady) { <button role="menuitem" class="hi" disabled="@(jb is { Finished: false })" @onclick="() => { dlMenu = null; hiAsk = hiKey; }"><span aria-hidden="true">✦</span> Hi-Res download…</button> }
+                                    <a role="menuitem" href="https://www.youtube.com/results?search_query=@Uri.EscapeDataString(s.Artist + " " + s.Title)" target="_blank" rel="noopener" @onclick="() => dlMenu = null">Find on YouTube</a>
+                                </div>
+                            }
+                        </span>
                         </span>
                         @if (isAdmin && hiAsk == hiKey) { <div class="hires-ask track-ask" role="group" aria-label="Download in Hi-Res?"><b>Download "@s.Title" in Hi-Res?</b><span>Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). If no Hi-Res copy exists, you get the normal quality instead. Only this song.</span><span class="hires-actions"><button class="btn hires solid" @onclick="() => { hiAsk = null; Downloads.Song(Session, s, true); }">Download Hi-Res</button><button class="btn ghost" @onclick="() => hiAsk = null">Cancel</button></span></div> }
                     </li>
@@ -102,7 +113,7 @@ else
     [Inject] DownloadManager Downloads { get; set; } = default!;
     [Inject] IConfiguration Conf { get; set; } = default!;
     bool isAdmin => AdminAccess.Is(Session, Conf);
-    string q = ""; string? hiAsk;
+    string q = ""; string? hiAsk, dlMenu;
     List<CatalogSong> webSongs = [];
     List<CatalogAlbum> webAlbums = [];
     bool webBusy;

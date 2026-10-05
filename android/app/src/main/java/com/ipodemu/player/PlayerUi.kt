@@ -996,13 +996,21 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                     WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.message ?: "${s.artist} · ${s.album}", s.artUrl, owned, status,
                         onPlay = { owned?.let { app.player.play(listOf(it), 0, null); nav.nowPlaying = true } },
                         onDownload = { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs) },
-                        // Hi-Res only on request, per song, after a confirmation: the files are several times the size
-                        onHiRes = if (app.ui.isAdmin && app.prefs.slskdUrl.isNotBlank() && app.prefs.slskdApiKey.isNotBlank() && app.prefs.fileMoverUrl.isNotBlank()) ({
-                            nav.sheet = SheetSpec("Download in Hi-Res?", "Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). Only \"${s.title}\" is downloaded, as a separate [Hi-Res] copy. If no Hi-Res copy exists you get the normal quality instead.", listOf(
-                                SheetItem("Yes, download \"${s.title}\" in Hi-Res", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, hiRes = true) },
-                                SheetItem("Cancel", Glyph.CLOSE) { },
-                            ))
-                        }) else null)
+                        // the three-line menu: Download, Hi-Res (administrators, per song, after a confirmation: the files are several times the size), Find on YouTube
+                        onHiRes = {
+                            val items = ArrayList<SheetItem>()
+                            items += SheetItem("Download", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs) }
+                            if (app.ui.isAdmin && app.prefs.slskdUrl.isNotBlank() && app.prefs.slskdApiKey.isNotBlank() && app.prefs.fileMoverUrl.isNotBlank()) items += SheetItem("✦ Hi-Res download…", Glyph.DOWN) {
+                                nav.sheet = SheetSpec("Download in Hi-Res?", "Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). Only \"${s.title}\" is downloaded, as a separate [Hi-Res] copy. If no Hi-Res copy exists you get the normal quality instead.", listOf(
+                                    SheetItem("Yes, download \"${s.title}\" in Hi-Res", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, hiRes = true) },
+                                    SheetItem("Cancel", Glyph.CLOSE) { },
+                                ))
+                            }
+                            items += SheetItem("Find on YouTube", Glyph.SEARCH) {
+                                app.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com/results?search_query=" + android.net.Uri.encode("${s.artist} ${s.title}"))).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }
+                            nav.sheet = SheetSpec(s.title, s.artist.ifEmpty { null }, items)
+                        })
                 }
                 if (!webSongsExpanded && w.songs.size > 8) item { ShowMoreRow(w.songs.size - 8) { webSongsExpanded = true } }
             }
@@ -1076,7 +1084,7 @@ private fun WebRow(title: String, subtitle: String, imageUrl: String?, owned: Tr
                 owned != null -> GlossPill("Play", onPlay, height = 32.dp)
                 busy -> Txt(Regex("""\d+%""").find(status!!.message)?.value ?: "...", size = 13f, weight = FontWeight.Medium, color = sc.accent)
                 else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (onHiRes != null) HiResPill(onHiRes, Modifier.semantics { contentDescription = "Download $title in Hi-Res" })
+                    if (onHiRes != null) IconAction(Glyph.LIST, "More download options for $title", onHiRes, size = 36.dp)
                     GlossPill(if (failed) "Retry" else "Download", onDownload, Modifier.semantics { contentDescription = actionLabel }, height = 32.dp)
                 }
             }

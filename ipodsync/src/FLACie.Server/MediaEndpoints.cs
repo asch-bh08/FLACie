@@ -29,9 +29,9 @@ public static class MediaEndpoints
             var s = store.For(ctx.User);
             var t = s.FindByPath(p);
             if (t is null) return Results.NotFound();
-            async Task<IResult> Proxy(HttpRequestMessage req)
+            async Task<IResult> Proxy(HttpRequestMessage req, bool ranges = true)
             {
-                if (ctx.Request.Headers.Range.Count > 0) req.Headers.TryAddWithoutValidation("Range", ctx.Request.Headers.Range.ToString());
+                if (ranges && ctx.Request.Headers.Range.Count > 0) req.Headers.TryAddWithoutValidation("Range", ctx.Request.Headers.Range.ToString());
                 using var res = await hf.CreateClient("media").SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
                 ctx.Response.StatusCode = (int)res.StatusCode;
                 foreach (var h in new[] { "Content-Type", "Content-Length", "Content-Range", "Accept-Ranges" })
@@ -44,8 +44,10 @@ public static class MediaEndpoints
             }
             if (t.Source == TrackSource.Jellyfin && s.Jellyfin is { } a)
             {
-                using var req = jf.Authorized(a, jf.StreamUrl(a, t.JellyfinId!));
-                return await Proxy(req);
+                // formats a browser cannot decode (WMA, APE ...) are converted to MP3 by Jellyfin on the way (no seeking inside them, but they play)
+                var transcode = MediaInfo.NotPlayableInBrowsers.Contains(MediaInfo.FromExtension(t.FilePath ?? ""));
+                using var req = jf.Authorized(a, transcode ? $"{a.Server}/Audio/{t.JellyfinId}/stream.mp3?AudioCodec=mp3&AudioBitRate=256000&MaxAudioChannels=2" : jf.StreamUrl(a, t.JellyfinId!));
+                return await Proxy(req, !transcode);
             }
             // a song just downloaded, playing from the file mover before Jellyfin has scanned it (only that service, with the key kept here)
             if (t.Source == TrackSource.Cloud && s.Services is { FileMoverUrl.Length: > 0 } svc && t.Path.StartsWith(svc.FileMoverUrl.TrimEnd('/') + "/file?", StringComparison.Ordinal))

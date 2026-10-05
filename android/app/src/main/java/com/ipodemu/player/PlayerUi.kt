@@ -22,6 +22,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -484,7 +485,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     val clock by androidx.compose.runtime.produceState("") { while (true) { value = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date()); delay(15000) } }
     Column(Modifier.fillMaxSize()) {
         val modern = LocalStyle.current.modern
-        if (modern) ModernTopBar(greeting(), null) { AccountAction() }
+        if (modern) ModernTopBar(greeting(), null) { IconAction(Glyph.SEARCH, "Search", { nav.push(Screen.Search) }); AccountAction() }
         else TopBar(if (app.prefs.timeInTitle) clock else "iPod", nav, showBack = false) {
             TopAction(Glyph.SEARCH, "Search") { nav.push(Screen.Search) }
             TopAction(Glyph.GEAR, "Settings") { nav.push(Screen.Settings) }
@@ -497,14 +498,10 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 32.dp)
                     GlossPill("Recent", { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK, height = 32.dp)
                     GlossPill("Downloads", { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.DOWN, height = 32.dp)
+                    moodList.forEach { m -> GlossPill(m, { mood = if (mood == m) null else m }, height = 32.dp, primary = mood == m) }
                 }
             }
             // YT Music style shelves (see library/Recommend.kt); the Daily Mix moves on every hour
-            if (moodList.isNotEmpty()) item {
-                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    moodList.forEach { m -> GlossPill(m, { mood = if (mood == m) null else m }, height = 34.dp, primary = mood == m) }
-                }
-            }
             mood?.let { mname ->
                 val ts = com.ipodemu.library.HomeShelves.moodTracks(lib, mname)
                 item { SectionHeader(mname) }
@@ -516,8 +513,14 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             }
             if (mood == null) items(shelves, key = { it.id }) { sh ->
                 Column {
+                    if (sh.id == "quick-picks") {
+                        Row(Modifier.fillMaxWidth().padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.weight(1f)) { SectionHeader(sh.title) }
+                            GlossPill("Play all", { app.player.play(sh.tracks, 0, null) }, icon = Glyph.PLAY, height = 28.dp)
+                        }
+                        QuickPicks(sh.tracks, nav) { i -> app.player.play(sh.tracks, i, null) }; return@items
+                    }
                     SectionHeader(sh.title)
-                    if (sh.id == "quick-picks") { QuickPicks(sh.tracks) { i -> app.player.play(sh.tracks, i, null) }; return@items }
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         if (sh.tracks.isNotEmpty()) itemsIndexed(sh.tracks) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(sh.tracks, i, null) } }
                         else items(sh.albums, key = { it.tracks.first().albumKey }) { g -> AlbumCard(g, Modifier.width(150.dp)) { nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) } }
@@ -990,7 +993,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         // a few pixels, clipping the first card, so it snaps back to the start whenever the first album changes
         val albumRowState = androidx.compose.foundation.lazy.rememberLazyListState()
         androidx.compose.runtime.LaunchedEffect(q, w.albums.firstOrNull()?.id) { albumRowState.scrollToItem(0) }
-        if (query.isBlank()) EmptyState("Search your music")
+        if (query.isBlank()) SearchIdle(nav)
         else if (nothingAtAll) {
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f)) { EmptyState("No results") }
@@ -1344,3 +1347,27 @@ private fun playlistSongItems(app: App, id: String, t: Track): List<SheetItem> {
 
 private class HomeData(val shelves: List<com.ipodemu.library.HomeShelf>, val moods: List<String>)
 private object HomeCache { @Volatile var last: HomeData? = null }
+
+/** What the Search tab shows before anything is typed: shortcuts and genres to tap, instead of an empty page. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun SearchIdle(nav: PlayerNav) {
+    val app = LocalApp.current
+    val genres = remember(LocalLibRev.current) { app.library.genres().filter { it.name.lowercase() !in setOf("genre", "other", "unknown", "") }.sortedByDescending { it.tracks.size }.take(16) }
+    Column(Modifier.fillMaxSize().then(Modifier.verticalScroll(rememberScrollState())).padding(bottom = 24.dp)) {
+        SectionHeader("Jump to")
+        androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 36.dp)
+            GlossPill("Recent", { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK, height = 36.dp)
+            GlossPill("Downloads", { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.DOWN, height = 36.dp)
+            GlossPill("Albums", { nav.push(Screen.Lib(LibKind.ALBUMS)) }, icon = Glyph.ALBUM, height = 36.dp)
+            GlossPill("Artists", { nav.push(Screen.Lib(LibKind.ARTISTS)) }, icon = Glyph.ARTIST, height = 36.dp)
+        }
+        if (genres.isNotEmpty()) {
+            SectionHeader("Browse by genre")
+            androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                genres.forEach { g -> GlossPill(g.name, { nav.push(Screen.Detail(DetailKind.GENRE, g.name)) }, height = 36.dp) }
+            }
+        }
+    }
+}

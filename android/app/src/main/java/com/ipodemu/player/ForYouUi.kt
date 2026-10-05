@@ -124,14 +124,15 @@ private fun HwRow(title: String, chevron: Boolean, onClick: () -> Unit) {
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun QuickPicks(tracks: List<com.ipodemu.library.Track>, onPlay: (Int) -> Unit) {
+fun QuickPicks(tracks: List<com.ipodemu.library.Track>, nav: PlayerNav, onPlay: (Int) -> Unit) {
+    val app = LocalApp.current
     val sc = LocalScheme.current
     val pages = remember(tracks) { tracks.chunked(4) }
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
         val gap = 14.dp; val side = 16.dp
         val cols = (maxWidth / 330.dp).toInt().coerceIn(1, 3)
         // one column: a sliver (24dp) of the next page shows, so it is clear there is more; several columns: whole pages
-        val pageW = if (cols == 1) maxWidth - side - 40.dp else (maxWidth - side * 2 - gap * (cols - 1)) / cols
+        val pageW = if (cols == 1) maxWidth - side - 28.dp else (maxWidth - side * 2 - gap * (cols - 1)) / cols
         val state = androidx.compose.foundation.lazy.rememberLazyListState()
         androidx.compose.foundation.lazy.LazyRow(
             state = state, flingBehavior = androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior(state),
@@ -150,6 +151,7 @@ fun QuickPicks(tracks: List<com.ipodemu.library.Track>, onPlay: (Int) -> Unit) {
                                 Txt(t.title, size = 15f, weight = FontWeight.SemiBold, maxLines = 1)
                                 Txt(t.artist, size = 12.5f, color = sc.onBgDim, maxLines = 1)
                             }
+                            Box(Modifier.size(40.dp).clip(CircleShape).clickable { openTrackSheet(app, nav, t) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.MORE, Modifier.size(20.dp), sc.onBgDim) }
                         }
                     }
                 }

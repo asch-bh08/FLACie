@@ -133,7 +133,7 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
                 if (query.isNotEmpty()) Box(Modifier.size(28.dp).clip(RoundedCornerShape(14.dp)).clickable { query = "" }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.CLOSE, Modifier.size(14.dp), sc.onBgDim) }
             }
             GlossPill(if (activeFilters > 0) "Filters · $activeFilters" else "Filters", { openFilters() }, icon = Glyph.LIST, primary = activeFilters > 0, height = 42.dp)
-            IconAction(Glyph.CHEVRON, "Sort: " + (sorts?.firstOrNull { it.first == sort }?.second ?: ""), {
+            IconAction(Glyph.DOWN, "Sort: " + (sorts?.firstOrNull { it.first == sort }?.second ?: ""), {
                 nav.sheet = SheetSpec("Sort", null, (sorts ?: emptyList()).map { (id, label) -> SheetItem(label, if (id == sort) Glyph.CHECK else Glyph.LIST) { sort = id } })
             }, size = 42.dp)
         }

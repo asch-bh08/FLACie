@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -91,11 +92,12 @@ fun ModernTopBar(title: String, onBack: (() -> Unit)?, actions: @Composable () -
 fun IconAction(g: Glyph, label: String, onClick: () -> Unit, tint: Color = LocalScheme.current.onBg, size: Dp = 48.dp, iconScale: Float = 0.5f) {
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
+    val pressed by src.collectIsPressedAsState()
     Box(
-        Modifier.size(size).clip(CircleShape).background(if (focused) Color(0x33FFFFFF) else Color.Transparent)
+        Modifier.size(size).pressSpring(pressed, 0.82f).clip(CircleShape).background(if (focused || pressed) Color(0x33FFFFFF) else Color.Transparent)
             .semanticsLabel(label).wheelTracked().clickable(src, null, onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { GlyphIcon(g, Modifier.size(size * iconScale), tint) }
+    ) { GlyphIcon(g, Modifier.size(size * iconScale).bumpOnChange(g), tint) }   // a heart turning solid bounces
 }
 
 private fun Modifier.semanticsLabel(label: String) = this.semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button }

@@ -88,6 +88,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.ipodemu.App
 
@@ -308,7 +309,7 @@ fun GlossButton(
     Box(
         modifier
             .size(size)
-            .graphicsLayer { val s = if (pressed) 0.92f else 1f; scaleX = s; scaleY = s; alpha = if (enabled) 1f else 0.4f }
+            .pressSpring(pressed, 0.88f).graphicsLayer { alpha = if (enabled) 1f else 0.4f }
             .clip(CircleShape)
             .background(brush)
             .then(if (modern && !focused) Modifier else Modifier.border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else Color(0x40FFFFFF), CircleShape))
@@ -347,7 +348,7 @@ fun GlossPill(
     Row(
         modifier
             .height(height)
-            .graphicsLayer { val s = if (pressed) 0.96f else 1f; scaleX = s; scaleY = s }
+            .pressSpring(pressed, 0.92f)
             .clip(shape).background(brush)
             .then(if (modern && !focused) Modifier else Modifier.border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else Color(0x40FFFFFF), shape))
             .drawBehind {
@@ -409,6 +410,7 @@ fun IpodRow(
     val hi = pressed || focused
     Row(
         modifier.fillMaxWidth().height(if (Tweaks.compact) height * 0.84f else height)
+            .pressSpring(pressed, 0.975f)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .background(if (hi && style.modern) androidx.compose.ui.graphics.SolidColor(Color(0x1FFFFFFF)) else if (hi) Brush.verticalGradient(listOf(sc.accentLight, sc.accentDark)) else Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent)))
             .drawBehind {
@@ -557,11 +559,21 @@ fun ActionSheet(title: String, subtitle: String?, items: List<SheetItem>, onDism
     val sc = LocalScheme.current
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { try { first.requestFocus() } catch (_: Exception) {} }
-    Box(Modifier.fillMaxSize().background(Color(0x99000000)).pointerInput(Unit) { detectTapGestures { onDismiss() } }) {
+    // the scrim fades in and the sheet slides up; tapping outside slides it down again before it is removed
+    val shown = remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }
+    val scrim by androidx.compose.animation.core.animateFloatAsState(if (shown.targetState) 1f else 0f, androidx.compose.animation.core.tween(220), label = "scrim")
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    fun closeAnimated() { if (!shown.targetState) return; shown.targetState = false; scope.launch { kotlinx.coroutines.delay(230L); onDismiss() } }
+    Box(Modifier.fillMaxSize().background(Color(0x99000000).copy(alpha = 0.6f * scrim)).pointerInput(Unit) { detectTapGestures { closeAnimated() } }) {
       androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().safeArea()) {
+        androidx.compose.animation.AnimatedVisibility(
+            shown, Modifier.align(Alignment.BottomCenter),
+            enter = androidx.compose.animation.slideInVertically(androidx.compose.animation.core.spring(0.82f, 420f)) { it } + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(160)),
+            exit = androidx.compose.animation.slideOutVertically(androidx.compose.animation.core.tween(220)) { it } + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)),
+        ) {
         // capped to the screen and scrollable, so long lists (EQ presets, landscape phones) never run off the bottom
         Column(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().widthIn(max = 640.dp)
+            Modifier.fillMaxWidth().widthIn(max = 640.dp)
                 .heightIn(max = maxHeight * 0.9f)
                 .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
                 .background(Brush.verticalGradient(listOf(sc.top.copy(alpha = 1f).mix(Color.Black, .35f), sc.bottom.mix(Color.Black, .25f))))
@@ -578,6 +590,7 @@ fun ActionSheet(title: String, subtitle: String?, items: List<SheetItem>, onDism
                         leading = { GlyphIcon(item.glyph, Modifier.size(24.dp), if (LocalRowHi.current) Color.White else sc.onBg) }) { hi -> Txt(item.label, size = 16f, color = if (hi) Color.White else sc.onBg) }
                 }
             }
+        }
         }
       }
     }

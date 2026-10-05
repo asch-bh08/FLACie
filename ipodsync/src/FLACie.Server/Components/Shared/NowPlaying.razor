@@ -21,7 +21,7 @@
                 <div class="np-meta">
                     <div class="np-titles">
                         <h2>@t.Title</h2>
-                        <p class="np-artist"><a href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="OnClose">@t.Artist</a>@(AlbumOf(t).Length > 0 ? " · " + AlbumOf(t) : "")</p>
+                        <p class="np-artist"><a href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="() => GoArtist(t)" @onclick:preventDefault="true">@t.Artist</a>@(AlbumOf(t).Length > 0 ? " · " + AlbumOf(t) : "")</p>
                         <div class="pills">
                             <span class="badge @t.Source.ToString().ToLowerInvariant()">@SourceName(t)</span>
                             @if (info is not null && info.Format.Length > 0) { <span class="badge fmt @(info.HiRes ? "hires" : info.Lossless ? "lossless" : "")">@(info.HiRes ? "✦ Hi-Res" : info.Format)</span> }
@@ -46,8 +46,8 @@
                                         <button role="menuitem" class="sub" @onclick="() => { Toast.Added(Session, p, t, SaveProfile); CloseMore(); }">@p.Name</button>
                                     }
                                 }
-                                <a role="menuitem" href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="OnClose">Go to artist</a>
-                                @if (t.Album.Length > 0) { <a role="menuitem" href="/album/@Uri.EscapeDataString(t.AlbumKey)" @onclick="OnClose">Go to album</a> }
+                                <a role="menuitem" href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="() => GoArtist(t)" @onclick:preventDefault="true">Go to artist</a>
+                                @if (t.Album.Length > 0) { <a role="menuitem" href="/album/@Uri.EscapeDataString(t.AlbumKey)" @onclick="() => GoAlbum(t)" @onclick:preventDefault="true">Go to album</a> }
                                 <a role="menuitem" href="/stream?p=@Uri.EscapeDataString(t.Path)" download="@FileName(t)" @onclick="CloseMore">Download</a>
                                 <button role="menuitem" @onclick='() => { Open("info"); CloseMore(); }'>Song info</button>
                             </div>
@@ -165,6 +165,10 @@
         if (more && self is not null) { try { await Js.InvokeVoidAsync("flacie.watchOutside", ".np-more", self); } catch (Exception) { } }
         else { try { await Js.InvokeVoidAsync("flacie.unwatchOutside"); } catch (Exception) { } }
     }
+    // leaving for another page: the player's own #now-playing history entry is taken off first, so Back returns to the page that was open under it, not past it
+    Task GoArtist(Track t) => Go("/artist/" + Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist));
+    Task GoAlbum(Track t) => Go("/album/" + Uri.EscapeDataString(t.AlbumKey));
+    Task Go(string url) { CloseMore(); return Js.InvokeVoidAsync("flacie.npGo", url).AsTask(); }
     void CloseMore() { more = false; plOpen = false; _ = Js.InvokeVoidAsync("flacie.unwatchOutside").AsTask().ContinueWith(_ => { }); }
     void Plain(Action act, string message) { act(); Toast.Show(message); CloseMore(); }
     static string FileName(Track t) => string.Concat($"{t.Artist} - {t.Title}".Split(Path.GetInvalidFileNameChars())) + (MediaInfo.FromExtension(t.FilePath ?? "") is { Length: > 0 } e ? "." + e : "");

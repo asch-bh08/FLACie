@@ -71,7 +71,7 @@ fun MiniPlayer(snap: PlayerSnap, nav: PlayerNav) {
     ) {
         Box(Modifier.align(Alignment.TopStart).fillMaxWidth().height(1.dp).background(sc.onBg.copy(alpha = .16f)))
         Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 8.dp, top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-            ArtImage(t.artKey, Modifier.size(40.dp), thumb = true, corner = 7.dp)
+            ArtImage(t.artKey, Modifier.size(40.dp).popIn(t.path, 0.7f), thumb = true, corner = 7.dp)
             Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                 Txt(t.title, size = 14f, weight = FontWeight.SemiBold)
                 Txt(t.artist.ifEmpty { t.album }, size = 12f, color = sc.onBgDim)
@@ -306,7 +306,7 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
             },
     ) {
         Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            ArtImage(t.artKey, Modifier.size(48.dp), thumb = true, corner = 6.dp)
+            ArtImage(t.artKey, Modifier.size(48.dp).popIn(t.path, 0.7f), thumb = true, corner = 6.dp)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Txt(t.title, size = 15f, weight = FontWeight.SemiBold)
                 Txt(t.artist.ifEmpty { t.album }, size = 13f, color = sc.onBgDim)

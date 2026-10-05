@@ -864,7 +864,9 @@ body.np-open .np { top: 0; padding-top: var(--top); }
 .menu.np-menu { right: 0; top: auto; bottom: calc(100% + 6px); z-index: 60; min-width: 230px; max-height: min(60vh, 420px); }
 .menu a[role=menuitem] { display: block; padding: 9px 12px; border-radius: 8px; color: inherit; text-decoration: none; }
 .menu a[role=menuitem]:hover { background: var(--surface-3); }
-.menu button.sub { padding-left: 26px; color: var(--dim); }
+.menu button.sub { padding-left: 28px; color: var(--ink); border-left: 2px solid var(--line); margin-left: 12px; border-radius: 0 8px 8px 0; }
+.menu button.sub:hover { border-left-color: var(--accent); }
+body.np-open .player .bar, body.np-open .player .bar:hover { cursor: default; }
 .menu .menu-note { padding: 6px 12px; color: var(--faint, var(--dim)); }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--bar) + var(--tabs, 0px) + 18px); z-index: 90; display: flex; align-items: center; gap: 12px; max-width: min(520px, calc(100vw - 32px)); padding: 10px 12px 10px 16px; background: var(--surface-3); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 14px 40px #000b; font-size: 14px; animation: toast-in .18s ease-out; }
 .toast.warn { border-color: #ffc857aa; }

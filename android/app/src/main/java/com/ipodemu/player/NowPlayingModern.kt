@@ -131,7 +131,7 @@ private fun Header(nav: PlayerNav) {
 /** Title/artist + heart, seek, transport and the action row, stacked; shared by every layout. */
 @Composable
 private fun Controls(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boolean, () -> Unit>?, header: Boolean = true, info: Pair<Boolean, () -> Unit>? = null) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxWidth().riseIn(120), verticalArrangement = Arrangement.spacedBy(16.dp)) {
     if (header) Header(nav)
     InfoRow(snap, nav)
     ActionRow(snap, nav, lyricsToggle, spread = true, info = info)
@@ -261,7 +261,7 @@ private fun PlayDisc(playing: Boolean, size: Dp, focus: FocusRequester, onClick:
 private fun NpArtModern(t: Track, modifier: Modifier) {
     val app = LocalApp.current
     ArtImage(
-        t.artKey, modifier.trackSwipe({ app.player.prev() }, { app.player.next() })
+        t.artKey, modifier.popIn(t.path, 0.88f).trackSwipe({ app.player.prev() }, { app.player.next() })
             .shadow(24.dp, RoundedCornerShape(12.dp), clip = false, ambientColor = Color.Black, spotColor = Color.Black),
         corner = 12.dp,
     )

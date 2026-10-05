@@ -27,6 +27,11 @@ fun SnackHost(ui: UiState, modifier: Modifier = Modifier) {
     val s = ui.snack ?: return
     LaunchedEffect(s) { delay(5_000); if (ui.snack === s) ui.snack = null }
     Box(modifier.fillMaxWidth().padding(horizontal = 16.dp), contentAlignment = Alignment.BottomCenter) {
+        // slides up with a little spring each time a new message arrives
+        androidx.compose.animation.AnimatedVisibility(
+            androidx.compose.runtime.remember(s) { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } },
+            enter = androidx.compose.animation.slideInVertically(androidx.compose.animation.core.spring(0.7f, 420f)) { it / 2 } + androidx.compose.animation.fadeIn(),
+        ) {
         Row(
             Modifier.clip(RoundedCornerShape(14.dp)).background(Color(0xF02A2A32)).padding(start = 16.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -35,6 +40,7 @@ fun SnackHost(ui: UiState, modifier: Modifier = Modifier) {
             if (s.actionLabel != null) {
                 Txt(s.actionLabel, Modifier.clip(RoundedCornerShape(10.dp)).clickable { ui.snack = null; s.action?.invoke() }.padding(horizontal = 12.dp, vertical = 10.dp), size = 14f, weight = FontWeight.ExtraBold, color = LocalScheme.current.accent)
             }
+        }
         }
     }
 }

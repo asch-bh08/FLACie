@@ -324,6 +324,14 @@ window.flacie = (() => {
       npRef = ref; document.body.classList.add("np-open");
       if (!npPushed) { history.pushState({ np: 1 }, "", location.pathname + location.search + "#now-playing"); npPushed = true; }
     },
+    // a link inside the full-screen player: drop the player's #now-playing history entry (history.back), then go, so Back from the new page returns to the page under the player
+    npGo(url) {
+      const go = () => window.Blazor ? Blazor.navigateTo(url) : (location.href = url);
+      if (!npPushed) { go(); return; }
+      const after = () => { window.removeEventListener("popstate", after); setTimeout(go, 0); };
+      window.addEventListener("popstate", after);
+      history.back();
+    },
     npBack() { if (npPushed) history.back(); else npClosed(); },
     // when Blazor gives up on the live connection ("rejected": the server was restarted and has forgotten this page; "failed": it could not be reached in time),
     // wait for the server to answer again and reload, instead of leaving a stuck "Can't reach FLACie" toast

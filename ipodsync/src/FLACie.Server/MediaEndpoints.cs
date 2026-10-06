@@ -84,9 +84,10 @@ public static class MediaEndpoints
         app.MapGet("/art/{key}", async (HttpContext ctx, string key, SessionStore store, JellyfinClient jf, IHttpClientFactory hf) =>
         {
             if (key.Length > 400 || key.Contains('/') || key.Contains('\\') || key.Contains("..")) return Results.BadRequest();
-            var file = Path.Combine(artDir, Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(key))) + ".v2.img");
+            var file = Path.Combine(artDir, Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(key))) + ".v3.img");
             ctx.Response.Headers.CacheControl = "private, max-age=604800";
-            if (File.Exists(file)) return Results.File(file, "image/jpeg");
+            // a Jellyfin cover can be changed (fixed in Jellyfin): the saved copy is trusted for three days, then fetched again
+            if (File.Exists(file) && !(key.StartsWith("jf") && File.GetLastWriteTimeUtc(file) < DateTime.UtcNow.AddDays(-3))) return Results.File(file, "image/jpeg");
             var s = store.For(ctx.User);
             byte[]? bytes = null;
             var http = hf.CreateClient("media");

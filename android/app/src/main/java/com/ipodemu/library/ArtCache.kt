@@ -33,6 +33,8 @@ class ArtCache(private val dir: File) {
 
     private fun ensure(key: String): File {
         val f = file(key)
+        // a Jellyfin cover can be replaced on the server: a saved copy is trusted for three days, then fetched again
+        if (f.exists() && key.startsWith("jf") && fetcher != null && System.currentTimeMillis() - f.lastModified() > 3L * 86_400_000L) f.delete()
         if (f.exists()) return f
         val fx = fetcher ?: return f
         synchronized(this) { fetchFailed[key]?.let { if (System.currentTimeMillis() - it < 3 * 60_000) return f } }

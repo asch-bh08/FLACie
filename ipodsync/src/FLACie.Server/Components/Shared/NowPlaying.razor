@@ -3,7 +3,7 @@
 @* Full-screen player: the cover, the controls, and beside it the queue, the synced lyrics or the file's real format. *@
 @{ var t = Player.Current; }
 <div @ref="npEl" class="np @(panelOpen ? "sheet" : "") @(closing ? "closing" : "")" role="dialog" aria-modal="true" aria-label="Now Playing">
-    @if (t is not null && Art.KeyFor(t) is { } art) { <img class="np-backdrop" src="/art/@Uri.EscapeDataString(art)?v=2" alt="" /> }
+    @if (t is not null && Art.KeyFor(t) is { } art) { <img class="np-backdrop" src="/art/@Uri.EscapeDataString(art)?v=3" alt="" /> }
     <div class="np-shade"></div>
     <header class="np-top">
         <button class="icon-btn" @onclick="Back" aria-label="Close Now Playing"><Icon Name="chevron-down" Size="24" /></button>

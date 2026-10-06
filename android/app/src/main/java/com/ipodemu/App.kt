@@ -25,7 +25,8 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         prefs = Prefs(this)
-        art = ArtCache(File(filesDir, "art"))
+        File(filesDir, "art").deleteRecursively()   // the old cover folder (covers changed in Jellyfin showed stale): covers are fetched again, into a new one
+        art = ArtCache(File(filesDir, "art2"))
         library = Library(this, art)
         player = PlayerController(this, prefs)
         ui = UiState(prefs)

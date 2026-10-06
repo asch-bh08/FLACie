@@ -2,6 +2,24 @@
 
 Every release, newest first (generated from the GitHub release notes; the downloads stay on each release page). The newest build is marked Latest. Versions up to 0.9.x were called ipodplayer.
 
+## FLACie 1.0 beta 33
+
+_v1.0.0-beta33, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta33))
+
+Beta 33 (Android 47, MSI 0.33.0). Still a beta, not a 1.0 final.
+
+**Changed (Android)**
+- Up next now has the web's Autoplay switch ("Add similar songs to the end of the queue"), the same setting as Settings > Autoplay.
+- The player shows the web's format tags under the title: where it plays from (Jellyfin...), the format (FLAC, MP3 or Hi-Res), the sample rate and the bit rate when the file says it.
+- Unfolded / wide / landscape player is back to an even 50 / 50 split, keeping the new tabs (Up next first, Lyrics, Info), the sideways swipe and the buttons beside the heart.
+- The remote "Listening on <device>" bar and the remote player now fall back to the album's cover when the song has none of its own.
+
+**Server data (not an app change)**: the Jellyfin album "The Fame Monster" had no cover at all (Bad Romance and the other songs showed a music note). I added the album's cover (from iTunes) to that album in Jellyfin; Jellyfin keeps it in its own metadata, nothing was written to the NAS. Other albums may be missing covers too.
+
+**Tested**: Android release build on the emulator: wide screen shows the 50 / 50 split with the Autoplay switch and the format tags, phone view shows the tags under the title.
+**Not tested**: the remote-cover fallback on a song that really has no cover of its own (the album in question was fixed in Jellyfin as well); a real Fold; installing the MSI or launching the 0.33 Windows app.
+
+
 ## FLACie 1.0 beta 32
 
 _v1.0.0-beta32, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta32))

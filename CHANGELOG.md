@@ -2,6 +2,23 @@
 
 Every release, newest first (generated from the GitHub release notes; the downloads stay on each release page). The newest build is marked Latest. Versions up to 0.9.x were called ipodplayer.
 
+## FLACie 1.0 beta 31
+
+_v1.0.0-beta31, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta31))
+
+Beta 31 (Android 45, MSI 0.31.0). Still a beta, not a 1.0 final.
+
+**Changed (Android)**
+- Unfolded / wide / landscape player now works like the web: cover, title, seek and transport on the left; on the right the pills (Lyrics, Info, Up next, Equalizer, Add to playlist, More) and the Up next / Lyrics / Info pane, always showing. Taller-than-wide screens keep the swipeable pages. Seen on a 1800x1700 (Fold-inner-like) and a 2400x1200 (tablet-like) emulator screen.
+- The lit pill now follows swipes. After tapping Info and swiping out of it, the pill stayed lit because the page tracker kept an old copy of the pane; it reads the current pane now.
+- Info graph pills: one tidy 3 x 2 grid of equal pills with proper names (Bit rate, Spectrum, Level, Stereo, Visualizer, Spectrogram), nothing cut off; the file's own figure (kbps, kHz, bit) is in the card title.
+
+**Server data (not an app change)**: "Meet Me Halfway" showed the wrong cover because Jellyfin's picture for the "The E.N.D" album folder was "The Beginning". I replaced that album's picture in Jellyfin with the real THE E.N.D. cover (Jellyfin keeps it in its own metadata; the library has "save local metadata" off, so nothing was written to the NAS). The old picture is saved on the PC as ~/the-beginning-cover-backup.jpg.
+
+**Tested**: Android release build on the emulator at phone, square and landscape sizes; pill highlight after swiping into and out of Up next and Info.
+**Not tested**: a real Fold unfolded (only an emulator screen of similar shape); that your phone shows the new cover for Meet Me Halfway (it may need the app's picture cache to refresh); installing the MSI or launching the 0.31 Windows app.
+
+
 ## FLACie 1.0 beta 30
 
 _v1.0.0-beta30, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta30))

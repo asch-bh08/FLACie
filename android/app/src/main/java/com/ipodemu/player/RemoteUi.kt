@@ -54,7 +54,7 @@ fun JellyfinConnect.remoteNow(includePaused: Boolean = false): JellyfinConnect.S
 }
 
 /** Where the song is on the other device right now: its last reported spot plus the time since (while it plays). */
-private fun JellyfinConnect.Session.estimatedMs(now: Long): Long =
+internal fun JellyfinConnect.Session.estimatedMs(now: Long): Long =
     if (paused) positionMs else (positionMs + (now - at)).coerceAtMost(if (durationMs > 0) durationMs else Long.MAX_VALUE)
 
 @Composable

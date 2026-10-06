@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -53,12 +54,13 @@ fun DevicesScreen() {
                 Txt("Sign in with Jellyfin to see and control your other devices.", size = 15f, color = Color(0xCCFFFFFF), maxLines = 3)
                 return@Column
             }
-            DeviceCard("This device", here?.let { "${it.title} · ${it.artist}" } ?: "Nothing playing", Glyph.DEVICES, highlight = true) {}
+            DeviceCard("This phone", listOf("This device", if (here != null) "Playing" else "Idle"), here?.title, here?.artist, here?.artKey, null, Glyph.DEVICES, highlight = true) {}
             if (!c.connected) Txt("Connecting to Jellyfin...", size = 14f, color = Color(0x99FFFFFF))
             else if (others.isEmpty()) Txt("No other devices are signed in to ${app.prefs.accountUserName} right now. Open FLACie on the web, on Windows or on another phone, and it shows up here.", size = 14f, color = Color(0x99FFFFFF), maxLines = 4)
             for (s in others) {
                 val playing = s.itemId != null
-                DeviceCard("${s.device} · ${s.client}", if (playing) "${s.title} · ${s.artist}${if (s.paused) " (paused)" else ""}" else "Nothing playing", Glyph.DEVICES) {
+                val kind = deviceKind(s.device)
+                DeviceCard(s.device, listOf(kind, if (!playing) "Idle" else if (s.paused) "Paused" else "Playing"), s.title.takeIf { playing }, s.artist.takeIf { playing }, s.artKey, if (playing && s.durationMs > 0) (s.estimatedMs(System.currentTimeMillis()).toFloat() / s.durationMs).coerceIn(0f, 1f) else null, if (kind == "Phone") Glyph.DEVICES else Glyph.DEVICES) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (playing && s.controllable) {
                             IconAction(if (s.paused) Glyph.PLAY else Glyph.PAUSE, if (s.paused) "Play on ${s.device}" else "Pause ${s.device}", { c.command(s, "PlayPause") }, tint = Color.White, size = 40.dp, iconScale = 0.5f)
@@ -76,20 +78,43 @@ fun DevicesScreen() {
     }
 }
 
+/** Jellyfin only gives a device name and the app name (the same for every FLACie player), so the kind is guessed from the name. */
+private fun deviceKind(name: String): String {
+    val n = name.lowercase()
+    return when {
+        n.contains("flacie web") || n.contains("browser") || n.contains("chrome") || n.contains("firefox") || n.contains("edge") || n.contains("safari") -> "Browser"
+        n.startsWith("sm-") || n.startsWith("sdk_") || n.contains("pixel") || n.contains("phone") || n.contains("galaxy") -> "Phone"
+        n.contains("desktop") || n.contains("windows") || n.contains("laptop") -> "Computer"
+        else -> "Player"
+    }
+}
+
+/** A device: its cover (or icon), name, what it is and whether it is playing, the song with a progress line, then the actions. */
 @Composable
-private fun DeviceCard(title: String, subtitle: String, glyph: Glyph, highlight: Boolean = false, actions: @Composable () -> Unit) {
+private fun DeviceCard(title: String, chips: List<String>, song: String?, artist: String?, artKey: String?, progress: Float?, glyph: Glyph, highlight: Boolean = false, actions: @Composable () -> Unit) {
     val sc = LocalScheme.current
+    val live = chips.contains("Playing")
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(if (highlight) sc.accent.copy(alpha = 0.16f) else Color(0x14FFFFFF)).padding(16.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(if (highlight) sc.accent.copy(alpha = 0.14f) else Color(0x14FFFFFF)).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            GlyphIcon(glyph, Modifier.size(26.dp), if (highlight) sc.accent else Color.White)
-            Column(Modifier.weight(1f)) {
-                Txt(title, size = 16f, weight = FontWeight.SemiBold, color = Color.White, maxLines = 1)
-                Txt(subtitle, size = 13f, color = Color(0xBBFFFFFF), maxLines = 2)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Box(Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(Color(0x1FFFFFFF)), contentAlignment = Alignment.Center) {
+                if (song != null) ArtImage(artKey, Modifier.fillMaxSize(), thumb = true, corner = 12.dp) else GlyphIcon(glyph, Modifier.size(28.dp), if (highlight) sc.accent else Color.White)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Txt(title, size = 16f, weight = FontWeight.Bold, color = Color.White, maxLines = 1)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    chips.forEach { c ->
+                        val on = c == "Playing"; val you = c == "This device"
+                        Txt(c, Modifier.clip(RoundedCornerShape(50)).background(if (you) sc.accent.copy(alpha = .22f) else if (on) Color(0x2E4EE0A1) else Color(0x1FFFFFFF)).padding(horizontal = 9.dp, vertical = 2.dp), size = 11.5f, weight = FontWeight.Bold, color = if (you) sc.accent else if (on) Color(0xFF4EE0A1) else Color(0xB3FFFFFF), maxLines = 1)
+                    }
+                }
+                if (song != null) Txt(song + if (!artist.isNullOrBlank()) " · $artist" else "", size = 13f, color = Color(0xCCFFFFFF), maxLines = 1)
+                else Txt("Nothing playing", size = 13f, color = Color(0x80FFFFFF), maxLines = 1)
             }
         }
+        if (progress != null) Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x22FFFFFF))) { Box(Modifier.fillMaxWidth(progress).height(3.dp).background(if (live) sc.accent else Color(0x99FFFFFF))) }
         actions()
     }
 }

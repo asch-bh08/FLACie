@@ -1302,7 +1302,7 @@ private fun greeting(): String = when (java.util.Calendar.getInstance().get(java
 private fun AccountAction() {
     val app = LocalApp.current
     val sc = LocalScheme.current
-    val name = app.prefs.accountUserName
+    val name = if (app.prefs.accountKind == "nas") app.prefs.nasUsername else app.prefs.accountUserName   // the same name the Account screen shows
     Box(Modifier.size(48.dp).clip(CircleShape).clickable { app.ui.accountOpen = true }, contentAlignment = Alignment.Center) {
         Box(Modifier.size(34.dp).clip(CircleShape).background(if (name.isNotEmpty()) sc.accent else Color(0x22FFFFFF)), contentAlignment = Alignment.Center) {
             if (name.isNotEmpty()) Txt(name.take(1).uppercase(), size = 16f, weight = FontWeight.Bold, color = Color.White)

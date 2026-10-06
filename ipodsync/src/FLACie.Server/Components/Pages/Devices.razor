@@ -11,38 +11,50 @@
 }
 else
 {
-    <p class="hint">Your other players signed in to the same Jellyfin account@(live.Connect.Connected ? "" : " (connecting…)"). Pick one to control it, bring its music here, or send what plays here to it. Only songs on Jellyfin can travel between devices.</p>
-    @foreach (var s in live.Connect.Sessions)
+    <p class="hint">Your other players signed in to the same Jellyfin account@(live.Connect.Connected ? "" : " (connecting…)"). Control one, bring its music here, or send what plays here to it. Only songs on Jellyfin can travel between devices.</p>
+    <div class="dev-grid">
+    @foreach (var s in live.Connect.Sessions.OrderByDescending(x => x.IsSelf).ThenByDescending(x => x.ItemId is not null && !x.Paused))
     {
-        <section class="panel">
-            <h2>@s.Device@(s.IsSelf ? " (this browser)" : "")</h2>
-            <p class="hint">@s.Client</p>
-            @if (s.ItemId is not null)
-            {
-                <p><b>@s.Title</b><br /><span class="hint">@s.Artist · @Time(s.PositionMs / 1000.0) / @Time(s.DurationMs / 1000.0)@(s.Paused ? " · paused" : "")</span></p>
-            }
-            else
-            {
-                <p class="hint">Nothing playing</p>
-            }
-            @if (!s.IsSelf && s.Controllable)
-            {
-                <div class="row-actions">
-                    @if (s.ItemId is not null)
-                    {
-                        <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "PreviousTrack")' aria-label="Previous"><Icon Name="prev" /></button>
-                        <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "PlayPause")' aria-label="@(s.Paused ? "Play" : "Pause")"><Icon Name="@(s.Paused ? "play" : "pause")" /></button>
-                        <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "NextTrack")' aria-label="Next"><Icon Name="next" /></button>
-                        <button class="btn" @onclick="() => live.Connect.TakeOverAsync(s)">Play here</button>
-                    }
-                    @if (Player.Current?.JellyfinId is not null)
-                    {
-                        <button class="btn" @onclick="() => live.Connect.SendToAsync(s)">Send what plays here</button>
-                    }
+        var kind = Kind(s);
+        <article class="dev-card @(s.IsSelf ? "self" : "") @(s.ItemId is not null && !s.Paused ? "live" : "")">
+            <div class="dev-art">
+                @if (s.ItemId is not null) { <Cover ArtKey="@s.ArtKey" Size="72" /> } else { <span class="dev-ic"><Icon Name="@kind.Icon" Size="30" /></span> }
+            </div>
+            <div class="dev-main">
+                <div class="dev-name"><b>@s.Device</b>
+                    <span class="dev-chips">
+                        <em class="dev-chip">@kind.Label</em>
+                        @if (s.IsSelf) { <em class="dev-chip you">This browser</em> }
+                        <em class="dev-chip @(s.ItemId is not null && !s.Paused ? "on" : "")">@(s.ItemId is null ? "Idle" : s.Paused ? "Paused" : "Playing")</em>
+                    </span>
                 </div>
-            }
-        </section>
+                @if (s.ItemId is not null)
+                {
+                    <p class="dev-song"><b>@s.Title</b><span>@s.Artist</span></p>
+                    <div class="dev-bar"><i style="width:@(s.DurationMs > 0 ? Math.Clamp(s.PositionMs * 100.0 / s.DurationMs, 0, 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : "0")%"></i></div>
+                    <small class="dev-time">@Time(s.PositionMs / 1000.0) / @Time(s.DurationMs / 1000.0)</small>
+                }
+                else { <p class="hint">Nothing playing</p> }
+                @if (!s.IsSelf && s.Controllable)
+                {
+                    <div class="dev-actions">
+                        @if (s.ItemId is not null)
+                        {
+                            <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "PreviousTrack")' aria-label="Previous"><Icon Name="prev" /></button>
+                            <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "PlayPause")' aria-label="@(s.Paused ? "Play" : "Pause")"><Icon Name="@(s.Paused ? "play" : "pause")" /></button>
+                            <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "NextTrack")' aria-label="Next"><Icon Name="next" /></button>
+                            <button class="btn primary" @onclick="() => live.Connect.TakeOverAsync(s)">Play here</button>
+                        }
+                        @if (Player.Current?.JellyfinId is not null)
+                        {
+                            <button class="btn" @onclick="() => live.Connect.SendToAsync(s)">Send what plays here</button>
+                        }
+                    </div>
+                }
+            </div>
+        </article>
     }
+    </div>
     @if (!live.Connect.Sessions.Any(s => !s.IsSelf))
     {
         <section class="panel"><p class="hint">No other device is active. Open FLACie on your phone with the same Jellyfin account and it shows up here.</p></section>
@@ -50,6 +62,15 @@ else
     <p><a class="btn" href="/jam">Jam together</a></p>
 }
 @code {
+    // what kind of device a session is, from its name (Jellyfin only tells us a device name and the app, which is the same for every FLACie player)
+    static (string Label, string Icon) Kind(FLACie.Core.ConnectSession s)
+    {
+        var n = s.Device.ToLowerInvariant();
+        if (n.Contains("flacie web") || n.Contains("browser") || n.Contains("chrome") || n.Contains("firefox") || n.Contains("edge") || n.Contains("safari")) return ("Browser", "globe");
+        if (n.StartsWith("sm-") || n.StartsWith("sdk_") || n.Contains("pixel") || n.Contains("phone") || n.Contains("galaxy") || n.Contains("iphone")) return ("Phone", "devices");
+        if (n.Contains("desktop") || n.Contains("windows") || n.Contains("pc") || n.Contains("laptop")) return ("Computer", "devices");
+        return ("Player", "devices");
+    }
     Timer? poll;
     protected override async Task OnInitializedAsync()
     {

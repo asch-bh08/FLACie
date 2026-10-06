@@ -5,6 +5,8 @@ import android.graphics.Paint
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -126,7 +128,7 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
     cutLabel = if (info.codec.equals("MP3", true) && info.kbps > 0) "${info.kbps} kbps MP3 usually ends here" else "MP3 usually ends here"
     androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
     // the graph takes what room the panel has (header, chips and text above it need about 320dp), so its axis is never cut off at the bottom; Hi-Res files get more when there is more
-    val graphH = (maxHeight - 330.dp).coerceIn(150.dp, if (info.hiRes) 300.dp else 230.dp)
+    val graphH = (maxHeight - 380.dp).coerceIn(120.dp, if (info.hiRes) 300.dp else 220.dp)
     Column(Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color(0x1AFFFFFF)).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(Modifier.clip(RoundedCornerShape(10.dp)).background(if (info.hiRes) Brush.linearGradient(listOf(Color(0xFFFFD36E), Color(0xFFF59E0B))) else Brush.linearGradient(listOf(if (info.lossless) Color(0xFF1D2A1C) else Color(0x33FFFFFF), if (info.lossless) Color(0xFF1D2A1C) else Color(0x33FFFFFF)))).padding(horizontal = 12.dp, vertical = 8.dp)) {
@@ -148,14 +150,23 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
             )
             for ((id, label, _) in chips) GlossPill(label, { mode = id }, primary = mode == id, height = 34.dp)
         }
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0x14FFFFFF)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        var hintOpen by remember(mode) { mutableStateOf(false) }
+        val order = listOf("rate", "curve", "loud", "stereo", "leds", "wall")
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0x14FFFFFF)).padding(14.dp).pointerInput(mode) {
+            // a sideways swipe on the graph moves to the next or previous graph (and keeps the player's own pages from moving)
+            var dx = 0f
+            detectHorizontalDragGestures(onDragStart = { dx = 0f }, onDragEnd = {
+                val i = order.indexOf(mode)
+                if (dx < -60f && i < order.lastIndex) mode = order[i + 1] else if (dx > 60f && i > 0) mode = order[i - 1]
+            }) { c, d -> c.consume(); dx += d }
+        }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Txt(MODES.first { it.first == mode }.second, Modifier.weight(1f), size = 17f, weight = FontWeight.ExtraBold)
                 Box(Modifier.clip(RoundedCornerShape(50)).background(if (mode == "rate") Color(0x1FFFFFFF) else sc.accent.copy(alpha = .18f)).padding(horizontal = 9.dp, vertical = 3.dp)) {
                     Txt(if (mode == "rate") "FROM THE FILE" else "● LIVE", size = 10f, weight = FontWeight.ExtraBold, color = if (mode == "rate") sc.onBgDim else sc.accent)
                 }
             }
-            Txt(hint(mode, info.sampleRate), size = 12.5f, color = sc.onBgDim, maxLines = 6)
+            Txt(hint(mode, info.sampleRate), Modifier.clickable { hintOpen = !hintOpen }, size = 12.5f, color = sc.onBgDim, maxLines = if (hintOpen) 8 else 2)
             if (mode == "rate") RateBars(info.kbps) else LiveGraph(mode, analysis, snap.playing, graphH)
         }
         Detail(listOf(
@@ -190,6 +201,7 @@ private fun playbackLine(ctx: android.content.Context, info: AudioInfo): String 
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Detail(rows: List<Pair<String, String?>>, title: String) {
     val sc = LocalScheme.current
@@ -198,7 +210,13 @@ private fun Detail(rows: List<Pair<String, String?>>, title: String) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x1AFFFFFF)))
         Txt(title, Modifier.padding(top = 6.dp), size = 11f, weight = FontWeight.ExtraBold, color = sc.onBgDim)
-        for ((k, v) in shown) Row(Modifier.fillMaxWidth()) { Txt(k, Modifier.width(84.dp), size = 14f, color = sc.onBgDim); Txt(v!!, Modifier.weight(1f), size = 14f, maxLines = 3) }
+        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // short facts sit two to a line, long ones (location, playback path) take the whole width
+            for ((k, v) in shown) Column(if (v!!.length > 22) Modifier.fillMaxWidth() else Modifier.fillMaxWidth(0.47f)) {
+                Txt(k, size = 11f, color = sc.onBgDim)
+                Txt(v, size = 14f, maxLines = 3)
+            }
+        }
     }
 }
 

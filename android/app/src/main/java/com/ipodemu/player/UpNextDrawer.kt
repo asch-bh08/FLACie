@@ -71,9 +71,10 @@ val PANES = listOf("lyrics", "art", "info", "queue")
 @Composable
 fun PanePager(nav: PaneNav, modifier: Modifier = Modifier, page: @Composable (String) -> Unit) {
     val pager = androidx.compose.foundation.pager.rememberPagerState(initialPage = PANES.indexOf(nav.pane).coerceAtLeast(0)) { PANES.size }
-    androidx.compose.runtime.LaunchedEffect(nav.pane) { val i = PANES.indexOf(nav.pane); if (i >= 0 && pager.targetPage != i) pager.animateScrollToPage(i, animationSpec = androidx.compose.animation.core.spring(0.85f, 380f)) }
-    androidx.compose.runtime.LaunchedEffect(pager) { androidx.compose.runtime.snapshotFlow { pager.settledPage }.collect { p -> if (PANES[p] != nav.pane) nav.go(PANES[p]) } }
-    androidx.compose.foundation.pager.HorizontalPager(pager, modifier, pageSpacing = 12.dp, beyondBoundsPageCount = 0) { p ->
+    // a pill moves the pager; a finger moves the pager and then tells the pill. Neither fights the other: the pager is only driven while it is still, and only reports once it has come to rest
+    androidx.compose.runtime.LaunchedEffect(nav.pane) { val i = PANES.indexOf(nav.pane); if (i >= 0 && !pager.isScrollInProgress && pager.currentPage != i) pager.animateScrollToPage(i) }
+    androidx.compose.runtime.LaunchedEffect(pager) { androidx.compose.runtime.snapshotFlow { pager.isScrollInProgress to pager.currentPage }.collect { (moving, p) -> if (!moving && PANES[p] != nav.pane) nav.go(PANES[p]) } }
+    androidx.compose.foundation.pager.HorizontalPager(pager, modifier, pageSpacing = 12.dp, beyondBoundsPageCount = 0, flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(pager, snapPositionalThreshold = 0.25f)) { p ->
         Box(Modifier.fillMaxSize().graphicsLayer {
             // the page slides away a little and fades as it leaves the centre
             val off = kotlin.math.abs(pager.currentPage - p + pager.currentPageOffsetFraction).coerceIn(0f, 1f)

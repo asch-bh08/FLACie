@@ -2,6 +2,22 @@
 
 Every release, newest first (generated from the GitHub release notes; the downloads stay on each release page). The newest build is marked Latest. Versions up to 0.9.x were called ipodplayer.
 
+## FLACie 1.0 beta 30
+
+_v1.0.0-beta30, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta30))
+
+Beta 30 (Android 43 -> 44, MSI 0.30.0). Still a beta, not a 1.0 final.
+
+**Changed (Android)**
+- Player pages: a fast flick or a short half swipe no longer snaps and snaps back. The pager is only moved by a pill while it is still, and only reports a new page once it has come to rest; a flick now carries on from a quarter of the way.
+- Info: swiping sideways on the graph card switches to the next or previous graph (bit rate, spectrum, level, stereo, visualizer, spectrogram) and no longer moves the player page. The graph text is two lines (tap it for all of it), the graph is a bit shorter on small screens, and the file facts are laid out two to a line, so more of them show without scrolling.
+
+**Tested**: Android release build on the emulator (swipe on the graph moved Spectrum to Level and kept the Info page; two-column facts).
+**Not tested**: the pager feel on a real phone (emulator draws in software); a normal-aspect phone (only the 1080x2400 emulator and your Fold were seen); installing the MSI or launching the 0.30 Windows app.
+
+**Known, not changed**: "Resampled by device" in the Playback row is accurate: Android's mixer resamples to its own rate (48 kHz on most phones); only a USB DAC with Android 14+ bit-perfect mode can bypass it, and the app does not switch that on yet. Meet Me Halfway: Jellyfin's album picture for "The E.N.D" folder is the "The Beginning" cover.
+
+
 ## FLACie 1.0 beta 29
 
 _v1.0.0-beta29, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta29))

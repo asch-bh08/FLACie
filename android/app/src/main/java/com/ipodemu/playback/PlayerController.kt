@@ -183,10 +183,22 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             override fun onAudioSessionIdChanged(audioSessionId: Int) { applyEq() }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 android.util.Log.w("FLACie", "playback error at ${exo.currentPosition}ms: ${error.errorCodeName}", error)
+                // a song this phone cannot decode (no decoder for the format) is played through the server's conversion instead of going silent
+                val cur0 = current
+                if (cur0 != null && cur0.path !in forceHls && hlsUri(cur0) != null && !isHls(exo.currentMediaItem ?: return) && error.errorCode in setOf(
+                        androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED, androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED,
+                        androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED, androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
+                        androidx.media3.common.PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED)) {
+                    forceHls.add(cur0.path)
+                    val idx = exo.currentMediaItemIndex; val at = exo.currentPosition
+                    exo.replaceMediaItem(idx, item(cur0)); exo.seekTo(idx, at); exo.prepare(); exo.play()
+                    fire(); return
+                }
                 val key = exo.currentMediaItemIndex to (current?.path ?: "")
                 retries = if (key == retryKey) retries + 1 else 1
                 retryKey = key
                 // a dropped connection (screen lock, a tunnel, a dead spot) is retried after a short, growing wait, from where it stopped
+                if (retries == 6) android.widget.Toast.makeText(ctx, "Couldn't play \"${current?.title ?: "this song"}\" (${error.errorCodeName})", android.widget.Toast.LENGTH_LONG).show()
                 if (retries <= 5) { val at = exo.currentPosition; val idx = exo.currentMediaItemIndex; handler.postDelayed({ if (exo.currentMediaItemIndex == idx) { exo.seekTo(idx, at); exo.prepare(); exo.play() } }, 600L * retries * retries) }
                 fire()
             }
@@ -431,7 +443,10 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             "&Container=aac&TranscodingContainer=ts&TranscodingProtocol=hls&AudioCodec=aac&MaxAudioChannels=2&StartTimeTicks=0")
     }
 
-    private fun needsTranscode(t: Track) = t.filePath.substringAfterLast('.', "").lowercase() in setOf("wma", "asf", "ape", "wv", "tta")
+    private fun needsTranscode(t: Track) = t.filePath.substringAfterLast('.', "").lowercase() in setOf("wma", "asf", "ape", "wv", "tta") || t.path in forceHls
+
+    /** Songs that failed to decode here and are played through the server's conversion from now on. */
+    private val forceHls = HashSet<String>()
 
     private fun isHls(i: MediaItem) = i.localConfiguration?.mimeType == androidx.media3.common.MimeTypes.APPLICATION_M3U8
 

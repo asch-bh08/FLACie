@@ -193,20 +193,25 @@ private fun InfoRow(snap: PlayerSnap, nav: PlayerNav) {
         }
         return
     }
+    Column(Modifier.fillMaxWidth()) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Txt(t.title, size = 22f, weight = FontWeight.Bold, maxLines = 2)
             Txt(t.artist.ifEmpty { "Unknown Artist" }, Modifier.padding(top = 2.dp).clickable(enabled = t.artist.isNotEmpty()) {
                 nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist }))
             }, size = 16f, color = sc.onBgDim)
-            FormatChips(t, snap)
         }
+        IconAction(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Unfavorite" else "Favorite", { app.userData.toggleFavorite(t.path) }, tint = if (fav) sc.accent else sc.onBg)
+    }
+    // the format tags get their own full-width line (with the extra buttons on the right when there is room), so the title is never squeezed
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.weight(1f)) { FormatChips(t, snap) }
         if (pn?.wide == true) {
             IconAction(Glyph.LIST, "Equalizer", { nav.sheet = eqSheet(app) })
             IconAction(Glyph.PLUS, "Add to playlist", { nav.sheet = playlistPicker(app, nav, t) })
             IconAction(Glyph.MORE, "More", { openTrackSheet(app, nav, t) })
         }
-        IconAction(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Unfavorite" else "Favorite", { app.userData.toggleFavorite(t.path) }, tint = if (fav) sc.accent else sc.onBg)
+    }
     }
 }
 

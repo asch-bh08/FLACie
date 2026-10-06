@@ -2,6 +2,21 @@
 
 Every release, newest first (generated from the GitHub release notes; the downloads stay on each release page). The newest build is marked Latest. Versions up to 0.9.x were called ipodplayer.
 
+## FLACie 1.0 beta 29
+
+_v1.0.0-beta29, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta29))
+
+Beta 29 (Android 43, MSI 0.29.0). Still a beta, not a 1.0 final.
+
+**Changed**
+- Android full-screen player: the four panes (Lyrics, cover, Info, Up next) are now a pager. They follow your finger, settle with a spring, glide when you press a pill, and the page you leave shrinks and fades a little. While Lyrics, Info or Up next is open the song title collapses to one line (small cover, title, artist, heart) so the pane gets much more room; seek bar, transport and the pill row stay.
+- Info graph: the dashed "MP3 usually ends here" line is back on every file (as before), and for an MP3 it follows its bitrate (about 16 kHz at 128 kbps up to about 20 kHz at 320 kbps). Android and web.
+- CHANGELOG.md and docs/HANDOFF.md now cover betas 24 to 28.
+
+**Tested**: Android release build on the emulator (swiping from the cover to Info shows both panes sliding together mid-swipe; the title collapses; Up next pane; the dashed line on a FLAC); web server deployed to frank and answering /healthz.
+**Not tested**: how the pager feels on a real phone (the emulator draws in software); Lyrics pane on a song with synced lyrics after this change; the web marker on an MP3; installing the MSI or launching the 0.29 Windows app.
+
+
 ## FLACie 1.0 beta 28
 
 _v1.0.0-beta28, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta28))

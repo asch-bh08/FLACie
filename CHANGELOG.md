@@ -2,6 +2,18 @@
 
 Every release, newest first (generated from the GitHub release notes; the downloads stay on each release page). The newest build is marked Latest. Versions up to 0.9.x were called ipodplayer.
 
+## FLACie 1.0 beta 37
+
+_v1.0.0-beta37, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta37))
+
+Beta 37 (Android 51, MSI 0.37.0). Still a beta, not a 1.0 final.
+
+**Changed (Android)**
+- Format tags now look like the web's: separate badges (Jellyfin in pink, the format in green when it is lossless, then the sample rate with bit depth, then the bit rate). They wrap onto a second line instead of being cut off or scrolling, so a long set such as AAC · 48 kHz · 256 kbps · Jellyfin always fits.
+
+**Tested**: Android release build on the emulator (phone view: four badges on one line). **Not tested**: a long set that actually wraps (nothing in the library was long enough here); a real Fold; installing the MSI or launching the 0.37 Windows app.
+
+
 ## FLACie 1.0 beta 36
 
 _v1.0.0-beta36, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta36))

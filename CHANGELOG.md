@@ -2,6 +2,29 @@
 
 Every release, newest first (generated from the GitHub release notes; the downloads stay on each release page). The newest build is marked Latest. Versions up to 0.9.x were called ipodplayer.
 
+## FLACie 1.0 beta 39.5
+
+_v1.0.0-beta39.5, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta39.5))
+
+Beta 39.5 (Android 54, MSI 0.39.5). A half-way build on the way to beta 40: the full test pass was cut short, so this is released as 39.5. Full log: docs/TEST-LOG-beta40.md.
+
+**Fixed (the three reported bugs)**
+- Small window / split screen (Android): two columns are only used with real width (>= 600 dp); a short window gets one scrolling column with the song, seek bar and play controls first. Landscape phone keeps two columns with a small fixed cover. The side nav rail fits short screens.
+- Artist name cut off beside the buttons: the Equalizer / Add / More buttons now have their own row; the title and artist get the full width (artist may use two lines).
+- Seek knob clipped at the start and end of the track (Android): the track is inset by the knob's radius.
+
+**Also**
+- Devices page redesigned on web and Android: a card per player with cover, kind (Browser / Phone / Computer), state (This device / Playing / Paused / Idle), progress and controls; "ipodplayer" is gone from it.
+- Web: every button and chip is at least 44 px at phone/tablet widths; narrow-screen fixes (320 px: the "Listening on ..." strip, tab labels). Swept 15 pages at 9 window sizes with no horizontal overflow.
+- Web: playlists can be renamed and reordered (Move up / down), Explore > Songs rows now have favourite and a menu (play next, queue, add to playlist), which they did not have at all.
+- Downloads: a Soulseek file that arrives is now retried when filing it fails for a moment (and the trail says why); the Lidarr wait follows Lidarr's queue (up to 30 min) instead of giving up after 2 minutes. Most of the failures on your account (Without Me, Blue Moon, People You Know, Blush) happened on 5 Oct, before the YouTube source was switched on; YouTube fallback was tested end to end (Halo came back in 6 s; an obscure song correctly found nothing).
+- Account avatar letter matches the Account screen.
+
+**Tested**: Android emulator at 6 window sizes (player), Devices, accent colour; web in the browser pane (sweeps, player, Devices, playlists create / rename / reorder / remove / delete, M3U import and stop), real downloads through Soulseek, YouTube via the file mover.
+**Not tested / not done**: Jams, notifications (ntfy server still unreachable), Admin from the phone, Android Explore/Search/Settings page by page, startup time and memory on Android, dead-code clean-up, Windows app smoke test, a real Fold. The Soulseek filing retry and Lidarr wait are fixes for failures seen in the logs and were not reproduced.
+**Left behind on the NAS (never deleted)**: Cruel Summer (.wav), vampire, Sneaky Snitch and VALHALLA CALLING under music/<artist>/, and Beyonce - Halo.m4a in <file mover root>/_flacie_test_beta40/.
+
+
 ## FLACie 1.0 beta 39
 
 _v1.0.0-beta39, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta39))

@@ -36,6 +36,8 @@ class JellyfinConnect(private val app: App) {
         val id: String, val device: String, val client: String, val user: String, val isSelf: Boolean, val controllable: Boolean,
         val itemId: String?, val title: String, val artist: String, val positionMs: Long, val durationMs: Long, val paused: Boolean,
         val queue: List<String>, val queueIndex: Int, val at: Long = System.currentTimeMillis(),
+        /** The cover to show: the song's own picture if it has one, else its album's (songs on an album often have none of their own). */
+        val artKey: String? = null,
     )
 
     var sessions by mutableStateOf<List<Session>>(emptyList()); private set
@@ -123,6 +125,7 @@ class JellyfinConnect(private val app: App) {
                     np?.optString("Id"), np?.optString("Name").orEmpty(), np?.optJSONArray("Artists")?.optString(0) ?: np?.optString("AlbumArtist").orEmpty(),
                     (ps?.optLong("PositionTicks") ?: 0) / 10_000, (np?.optLong("RunTimeTicks") ?: 0) / 10_000, ps?.optBoolean("IsPaused") ?: true,
                     q, q.indexOf(np?.optString("Id")).coerceAtLeast(0),
+                    artKey = np?.let { n -> if (n.optJSONObject("ImageTags")?.has("Primary") == true) "jf" + n.optString("Id") else n.optString("AlbumId").takeIf { it.isNotBlank() }?.let { "jf$it" } ?: "jf" + n.optString("Id") },
                 )
             }
             .sortedWith(compareBy({ !it.isSelf }, { it.itemId == null }, { it.device }))

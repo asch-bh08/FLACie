@@ -71,7 +71,7 @@ fun RemoteMiniPlayer(id: String) {
             .clickable { app.ui.remoteOpen = true },
     ) {
         Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            ArtImage("jf${s.itemId}", Modifier.size(50.dp).popIn(s.itemId, 0.7f), thumb = true, corner = 6.dp)
+            ArtImage(s.artKey ?: "jf${s.itemId}", Modifier.size(50.dp).popIn(s.itemId, 0.7f), thumb = true, corner = 6.dp)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Txt("Listening on ${s.device}", size = 11f, weight = FontWeight.Bold, color = sc.accent, maxLines = 1)
                 Txt(s.title, size = 15f, weight = FontWeight.SemiBold, maxLines = 1)
@@ -117,7 +117,7 @@ fun RemoteScreen() {
                 return@Column
             }
             Box(Modifier.fillMaxWidth()) {
-                ArtImage("jf${s.itemId}", Modifier.align(Alignment.Center).fillMaxWidth(0.86f).aspectRatio(1f).popIn(s.itemId, 0.9f), thumb = false, corner = 14.dp)
+                ArtImage(s.artKey ?: "jf${s.itemId}", Modifier.align(Alignment.Center).fillMaxWidth(0.86f).aspectRatio(1f).popIn(s.itemId, 0.9f), thumb = false, corner = 14.dp)
             }
             Column(Modifier.fillMaxWidth().riseIn(80, s.itemId), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Column {

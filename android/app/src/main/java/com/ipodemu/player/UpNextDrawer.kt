@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -102,6 +103,16 @@ fun QueuePanel(snap: PlayerSnap, modifier: Modifier = Modifier) {
             Column(Modifier.padding(start = 4.dp, top = 2.dp, bottom = 8.dp)) {
                 Txt("Playing from", size = 12f, color = sc.onBgDim)
                 Txt(from, size = 18f, weight = FontWeight.Bold, maxLines = 1)
+            }
+        }
+        item {
+            var on by remember { androidx.compose.runtime.mutableStateOf(app.prefs.autoplay) }
+            Row(Modifier.fillMaxWidth().clickable { on = !on; app.prefs.autoplay = on }.padding(horizontal = 4.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Txt("Autoplay", size = 15f, weight = FontWeight.SemiBold)
+                    Txt("Add similar songs to the end of the queue", size = 12.5f, color = sc.onBgDim)
+                }
+                SwitchPill(on)
             }
         }
         if (cur != null) item { DrawerRow(cur, current = true, onClick = {}) }

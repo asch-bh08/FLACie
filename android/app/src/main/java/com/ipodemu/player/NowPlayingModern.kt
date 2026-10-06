@@ -76,7 +76,7 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
         if (sideBySide) {
             // like the web: the cover and controls on the left, and on the right three tabs (Up next, Lyrics, Info) you can also swipe through
             Row(Modifier.fillMaxSize().padding(start = 28.dp, end = 28.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(44.dp)) {
-                Column(Modifier.weight(0.42f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.weight(0.5f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Header(nav)
                     BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                         NpArtModern(t, Modifier.size(min(maxWidth, maxHeight)))
@@ -85,7 +85,7 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
                     Seek(snap)
                     Transport(snap)
                 }
-                Column(Modifier.weight(0.58f).fillMaxHeight().padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.weight(0.5f).fillMaxHeight().padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     SideTabs(shown) { paneNav.go(it) }
                     PanePager(paneNav, Modifier.weight(1f).fillMaxWidth(), order = SIDE_PANES) { p ->
                         when (p) {
@@ -105,6 +105,28 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
             Controls(snap, nav, lyricsToggle = lyricsToggle, header = false, info = infoToggle)
             Box(Modifier.height(20.dp))
         }
+        }
+    }
+}
+
+/** Small tags under the title, like the web's: where it plays from, the format, its rate and bit rate. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun FormatChips(t: Track, snap: PlayerSnap) {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    val ai = remember(t.path, snap.playing) { audioInfo(app, t) }
+    val tags = listOfNotNull(
+        t.source.name.lowercase().replaceFirstChar { it.uppercase() },
+        if (ai.hiRes) "Hi-Res" else ai.codec.takeIf { it.isNotEmpty() },
+        ai.sampleRate.takeIf { it > 0 }?.let { "%.1f kHz".format(it / 1000.0) },
+        ai.kbps.takeIf { it > 0 }?.let { "$it kbps" },
+    )
+    if (tags.isEmpty()) return
+    androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        tags.forEachIndexed { i, s ->
+            val src = i == 0
+            Txt(s, Modifier.clip(RoundedCornerShape(50)).background(if (src) sc.accent.copy(alpha = .22f) else Color(0x22FFFFFF)).padding(horizontal = 10.dp, vertical = 3.dp), size = 11.5f, weight = FontWeight.Bold, color = if (src) sc.accent else if (s == "Hi-Res") Color(0xFFFFC857) else sc.onBgDim, maxLines = 1)
         }
     }
 }
@@ -177,6 +199,7 @@ private fun InfoRow(snap: PlayerSnap, nav: PlayerNav) {
             Txt(t.artist.ifEmpty { "Unknown Artist" }, Modifier.padding(top = 2.dp).clickable(enabled = t.artist.isNotEmpty()) {
                 nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist }))
             }, size = 16f, color = sc.onBgDim)
+            FormatChips(t, snap)
         }
         if (pn?.wide == true) {
             IconAction(Glyph.LIST, "Equalizer", { nav.sheet = eqSheet(app) })

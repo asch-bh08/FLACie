@@ -60,7 +60,7 @@ import kotlin.math.pow
 import kotlin.math.sqrt
 
 /** What the player knows about the file it is playing right now. */
-private class AudioInfo(val codec: String, val lossless: Boolean, val sampleRate: Int, val channels: Int, val kbps: Int, val bits: Int) {
+internal class AudioInfo(val codec: String, val lossless: Boolean, val sampleRate: Int, val channels: Int, val kbps: Int, val bits: Int) {
     /** Lossless and better than CD: more than 16 bits, or above 44.1 kHz. */
     val hiRes: Boolean get() = lossless && (sampleRate > 44_100 || bits > 16)
     val tier: String get() = when {
@@ -75,7 +75,7 @@ private class AudioInfo(val codec: String, val lossless: Boolean, val sampleRate
 
 @OptIn(UnstableApi::class)
 @Suppress("DEPRECATION")
-private fun audioInfo(app: com.ipodemu.App, t: Track): AudioInfo {
+internal fun audioInfo(app: com.ipodemu.App, t: Track): AudioInfo {
     val f = app.player.exo.audioFormat
     val mime = f?.sampleMimeType ?: ""
     val ext = t.filePath.substringAfterLast('.', "").lowercase().takeIf { it.length in 2..5 } ?: ""

@@ -2,6 +2,17 @@
 
 Every release, newest first (generated from the GitHub release notes; the downloads stay on each release page). The newest build is marked Latest. Versions up to 0.9.x were called ipodplayer.
 
+## FLACie 1.0 beta 39
+
+_v1.0.0-beta39, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta39))
+
+Beta 39 (Android 53, MSI 0.39.0). Still a beta, not a 1.0 final.
+
+**Fixed (Android, unfolded / wide player)**: beta 38 left the badges squeezed beside the Equalizer / Add to playlist / More buttons, so "16-bit / 44.1 kHz" dropped to a second line. The three buttons now sit next to the heart on the title row, and the badges (Jellyfin, FLAC, 16-bit / 44.1 kHz) have the whole width, on one line. The "Now Playing" label above the cover is gone in this layout (the chevron and the two buttons stay).
+
+**Tested**: Android release build on an emulator at an unfolded size: badges on one line, buttons beside the heart. **Not tested**: a real Fold; a very long set of badges on the wide layout; installing the MSI or launching the 0.39 Windows app.
+
+
 ## FLACie 1.0 beta 38
 
 _v1.0.0-beta38, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta38))

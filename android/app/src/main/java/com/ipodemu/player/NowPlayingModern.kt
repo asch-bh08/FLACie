@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -155,9 +156,10 @@ private fun SideTabs(selected: String, onSelect: (String) -> Unit) {
 private fun Header(nav: PlayerNav) {
     val app = LocalApp.current
     val sc = LocalScheme.current
+    val wide = LocalPane.current?.wide == true
     Row(Modifier.fillMaxWidth().height(52.dp), verticalAlignment = Alignment.CenterVertically) {
         IconAction(Glyph.DOWN, "Close", { nav.nowPlaying = false })
-        Txt("Now Playing", Modifier.weight(1f), size = 14f, weight = FontWeight.SemiBold, color = sc.onBgDim, align = TextAlign.Center)
+        if (wide) Spacer(Modifier.weight(1f)) else Txt("Now Playing", Modifier.weight(1f), size = 14f, weight = FontWeight.SemiBold, color = sc.onBgDim, align = TextAlign.Center)
         if (!app.ui.guest) IconAction(Glyph.JAM, if (app.jam.inJam) "In a Jam" else "Jam", { app.ui.jamOpen = true }, tint = if (app.jam.inJam) sc.accent else sc.onBg)
         if (!app.ui.guest) IconAction(Glyph.DEVICES, "Devices", { app.ui.devicesOpen = true })
     }
@@ -211,17 +213,14 @@ private fun InfoRow(snap: PlayerSnap, nav: PlayerNav) {
                             nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist }))
                         }, size = 16f, color = sc.onBgDim)
                     }
-                    IconAction(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Unfavorite" else "Favorite", { app.userData.toggleFavorite(t.path) }, tint = if (fav) sc.accent else sc.onBg)
-                }
-                // the format tags get their own full-width line (with the extra buttons on the right when there is room), so the title is never squeezed
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f)) { FormatChips(t, snap) }
                     if (pn?.wide == true) {
                         IconAction(Glyph.LIST, "Equalizer", { nav.sheet = eqSheet(app) })
                         IconAction(Glyph.PLUS, "Add to playlist", { nav.sheet = playlistPicker(app, nav, t) })
                         IconAction(Glyph.MORE, "More", { openTrackSheet(app, nav, t) })
                     }
+                    IconAction(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Unfavorite" else "Favorite", { app.userData.toggleFavorite(t.path) }, tint = if (fav) sc.accent else sc.onBg)
                 }
+                FormatChips(t, snap)   // the whole width of the column, so the badges stay on one line
             }
         }
     }

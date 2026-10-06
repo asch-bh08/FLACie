@@ -98,9 +98,10 @@ fun QueuePanel(snap: PlayerSnap, modifier: Modifier = Modifier) {
     val next = remember(snap.track?.path, snap.index, snap.shuffle, snap.repeat, snap.count) { app.player.upNext(30) }
     val from = app.player.contextName ?: "Your queue"
     val cur = snap.track
-    LazyColumn(modifier, contentPadding = PaddingValues(bottom = 16.dp)) {
+    // the queue sits on a slightly raised card, so the player beside it stands out
+    LazyColumn(modifier.clip(RoundedCornerShape(18.dp)).background(Color(0x14FFFFFF)), contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)) {
         item {
-            Column(Modifier.padding(start = 4.dp, top = 2.dp, bottom = 8.dp)) {
+            Column(Modifier.padding(start = 8.dp, top = 2.dp, bottom = 8.dp)) {
                 Txt("Playing from", size = 12f, color = sc.onBgDim)
                 Txt(from, size = 18f, weight = FontWeight.Bold, maxLines = 1)
             }
@@ -126,10 +127,10 @@ private fun DrawerRow(t: Track, current: Boolean, onClick: () -> Unit) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     val note = downloadNote(app, t)
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        ArtImage(t.artKey, Modifier.size(52.dp), thumb = true, corner = 8.dp)
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (current) sc.accent.copy(alpha = .14f) else Color.Transparent).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        ArtImage(t.artKey, Modifier.size(46.dp), thumb = true, corner = 7.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Txt(t.title, size = 15f, weight = FontWeight.SemiBold, color = if (current) sc.accent else sc.onBg, maxLines = 1)
+            Txt(t.title, size = 15f, weight = FontWeight.SemiBold, color = if (current) sc.accent else sc.onBg, maxLines = 2)
             Txt(listOf(t.artist, t.album).filter { it.isNotEmpty() }.joinToString(" · "), size = 12.5f, color = sc.onBgDim, maxLines = 1)
             if (note != null) NoteChip(note)
         }

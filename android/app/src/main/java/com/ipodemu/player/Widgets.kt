@@ -148,7 +148,7 @@ fun DrawScope.drawGlyph(g: Glyph, c: Color) {
                 cubicTo(x(.5f), y(.24f), x(.58f), y(.16f), x(.69f), y(.16f))
                 cubicTo(x(.9f), y(.16f), x(.94f), y(.56f), x(.5f), y(.86f)); close()
             }
-            if (g == Glyph.HEART_FILLED) drawPath(p, c) else drawPath(p, c, style = line)
+            if (g == Glyph.HEART_FILLED) drawPath(p, c) else drawPath(p, c, style = Stroke(w * 1.2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
         Glyph.SEARCH -> {
             drawCircle(c, s * .24f, Offset(x(.43f), y(.43f)), style = line)
@@ -162,7 +162,7 @@ fun DrawScope.drawGlyph(g: Glyph, c: Color) {
         Glyph.CHEVRON -> drawPath(path { moveTo(x(.36f), y(.2f)); lineTo(x(.66f), y(.5f)); lineTo(x(.36f), y(.8f)) }, c, style = line)
         Glyph.BACK -> drawPath(path { moveTo(x(.64f), y(.2f)); lineTo(x(.34f), y(.5f)); lineTo(x(.64f), y(.8f)) }, c, style = line)
         Glyph.DOWN -> drawPath(path { moveTo(x(.2f), y(.36f)); lineTo(x(.5f), y(.66f)); lineTo(x(.8f), y(.36f)) }, c, style = line)
-        Glyph.MORE -> for (i in 0..2) drawCircle(c, s * .07f, Offset(x(.24f + i * .26f), y(.5f)))
+        Glyph.MORE -> for (i in 0..2) drawCircle(c, s * .08f, Offset(x(.24f + i * .26f), y(.5f)))
         Glyph.CLOSE -> {
             drawLine(c, Offset(x(.24f), y(.24f)), Offset(x(.76f), y(.76f)), w, StrokeCap.Round)
             drawLine(c, Offset(x(.76f), y(.24f)), Offset(x(.24f), y(.76f)), w, StrokeCap.Round)

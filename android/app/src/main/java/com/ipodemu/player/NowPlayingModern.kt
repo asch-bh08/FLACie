@@ -124,11 +124,11 @@ private fun FormatChips(t: Track, snap: PlayerSnap) {
         ai.kbps.takeIf { it > 0 }?.let { "$it kbps" },
     )
     if (tags.isEmpty()) return
-    androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        tags.forEachIndexed { i, s ->
-            val src = i == 0
-            Txt(s, Modifier.clip(RoundedCornerShape(50)).background(if (src) sc.accent.copy(alpha = .22f) else Color(0x22FFFFFF)).padding(horizontal = 10.dp, vertical = 3.dp), size = 11.5f, weight = FontWeight.Bold, color = if (src) sc.accent else if (s == "Hi-Res") Color(0xFFFFC857) else sc.onBgDim, maxLines = 1)
-        }
+    // one inline row: where it plays from, then the format, rate and bit rate together in a single badge (it scrolls sideways rather than wrapping)
+    val src = tags.first(); val rest = tags.drop(1)
+    Row(Modifier.padding(top = 8.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Txt(src, Modifier.clip(RoundedCornerShape(50)).background(sc.accent.copy(alpha = .22f)).padding(horizontal = 10.dp, vertical = 3.dp), size = 11.5f, weight = FontWeight.Bold, color = sc.accent, maxLines = 1)
+        if (rest.isNotEmpty()) Txt(rest.joinToString(" · "), Modifier.clip(RoundedCornerShape(50)).background(Color(0x22FFFFFF)).padding(horizontal = 10.dp, vertical = 3.dp), size = 11.5f, weight = FontWeight.Bold, color = if (rest.first() == "Hi-Res") Color(0xFFFFC857) else sc.onBgDim, maxLines = 1)
     }
 }
 

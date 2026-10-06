@@ -62,61 +62,47 @@ import com.ipodemu.library.Track
 fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
     val t = snap.track ?: return
     var pane by rememberSaveable { mutableStateOf("art") }
-    val paneNav = PaneNav(pane, { p -> pane = if (pane == p) "art" else p }, { p -> pane = p })
-    val lyricsOpen = pane == "lyrics"
-    val infoOpen = pane == "info"
-    val infoToggle: Pair<Boolean, () -> Unit> = infoOpen to { paneNav.toggle("info") }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val w = maxWidth; val h = maxHeight
         val ratio = w / h
+        // taller than wide (phones, Fold cover): the cover, Lyrics, Info and Up next are pages you swipe between;
+        // as wide as tall or wider (Fold unfolded, tablets, landscape): like the web, cover and controls on the left, Up next / Lyrics / Info always on the right
+        val sideBySide = ratio >= 0.95f
+        val shown = if (sideBySide && pane == "art") "queue" else pane
+        val paneNav = PaneNav(shown, { p -> pane = if (!sideBySide && pane == p) "art" else p }, { p -> pane = p }, wide = sideBySide)
+        val lyricsToggle: Pair<Boolean, () -> Unit> = (shown == "lyrics") to { paneNav.toggle("lyrics") }
+        val infoToggle: Pair<Boolean, () -> Unit> = (shown == "info") to { paneNav.toggle("info") }
         androidx.compose.runtime.CompositionLocalProvider(LocalPane provides paneNav) {
-        when {
-            w >= 840.dp && ratio >= 1.1f -> Row(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(28.dp), verticalAlignment = Alignment.CenterVertically) {
-                NpArtModern(t, Modifier.size(min(h - 48.dp, w * 0.32f)))
-                Column(Modifier.width(min(420.dp, w * 0.34f)).fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
-                    Controls(snap, nav, lyricsToggle = null, info = infoToggle)
+        if (sideBySide) {
+            val roomy = w >= 840.dp
+            Row(Modifier.fillMaxSize().padding(start = 20.dp, end = 20.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(if (roomy) 32.dp else 20.dp)) {
+                Column(Modifier.weight(if (roomy) 0.42f else 0.5f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Header(nav)
+                    BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        NpArtModern(t, Modifier.size(min(maxWidth, maxHeight)))
+                    }
+                    InfoRow(snap, nav)
+                    Seek(snap)
+                    Transport(snap)
                 }
-                if (pane == "queue") QueuePanel(snap, Modifier.weight(1f).fillMaxHeight()) else if (infoOpen) TrackInfoPanel(t, snap, Modifier.weight(1f).fillMaxHeight()) else LyricsPanel(t, snap.playing, Modifier.weight(1f).fillMaxHeight(), big = true)
-            }
-            ratio in 0.95f..1.3f -> Column(Modifier.fillMaxSize().padding(start = 20.dp, end = 20.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                // square-ish (RG Rotate, Fold inner): art + title/actions on top, then seek and the transport at full width,
-                // so the controls get the whole width instead of a narrow side column
-                Header(nav)
-                Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    BoxWithConstraints(Modifier.weight(0.5f).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
-                        val side = min(maxWidth, maxHeight)
-                        Box(Modifier.size(side)) {
-                            ArtOrPanel(t, snap, lyricsOpen, infoOpen, big = false)
+                Column(Modifier.weight(if (roomy) 0.58f else 0.5f).fillMaxHeight().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ActionRow(snap, nav, lyricsToggle, spread = false, info = infoToggle)
+                    androidx.compose.animation.Crossfade(shown, Modifier.weight(1f).fillMaxWidth(), animationSpec = androidx.compose.animation.core.tween(220), label = "side") { p ->
+                        when (p) {
+                            "info" -> TrackInfoPanel(t, snap, Modifier.fillMaxSize())
+                            "lyrics" -> LyricsPanel(t, snap.playing, Modifier.fillMaxSize(), big = true)
+                            else -> QueuePanel(snap, Modifier.fillMaxSize())
                         }
                     }
-                    Column(Modifier.weight(0.5f), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                        InfoRow(snap, nav)
-                        ActionRow(snap, nav, lyricsOpen to { paneNav.toggle("lyrics") }, spread = false, info = infoToggle)
-                    }
-                }
-                Seek(snap)
-                Transport(snap)
-            }
-            ratio > 1.3f -> Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
-                Header(nav)
-                Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(22.dp), verticalAlignment = Alignment.CenterVertically) {
-                    val side = min(h - 52.dp - 16.dp, w * 0.52f)
-                    Box(Modifier.size(side), contentAlignment = Alignment.Center) {
-                        ArtOrPanel(t, snap, lyricsOpen, infoOpen, big = false)
-                    }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterVertically)) {
-                        Controls(snap, nav, lyricsToggle = lyricsOpen to { paneNav.toggle("lyrics") }, header = false, info = infoToggle)
-                    }
                 }
             }
-            else -> Column(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 8.dp)) {
-                Header(nav)
-                Box(Modifier.weight(1f).fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
-                    ArtOrPanel(t, snap, lyricsOpen, infoOpen, big = true, art = Modifier.fillMaxWidth().aspectRatio(1f, matchHeightConstraintsFirst = true))
-                }
-                Controls(snap, nav, lyricsToggle = lyricsOpen to { paneNav.toggle("lyrics") }, header = false, info = infoToggle)
-                Box(Modifier.height(20.dp))
+        } else Column(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 8.dp)) {
+            Header(nav)
+            Box(Modifier.weight(1f).fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+                ArtOrPanel(t, snap, shown == "lyrics", shown == "info", big = true, art = Modifier.fillMaxWidth().aspectRatio(1f, matchHeightConstraintsFirst = true))
             }
+            Controls(snap, nav, lyricsToggle = lyricsToggle, header = false, info = infoToggle)
+            Box(Modifier.height(20.dp))
         }
         }
     }
@@ -153,7 +139,7 @@ private fun InfoRow(snap: PlayerSnap, nav: PlayerNav) {
     val t = snap.track ?: return
     val fav by app.userData.favState(t.path)
     val pn = LocalPane.current
-    if (pn != null && pn.pane != "art") {
+    if (pn != null && pn.pane != "art" && !pn.wide) {
         // a pane (lyrics, info, up next) is open: a one-line title keeps the controls and gives the pane the room
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ArtImage(t.artKey, Modifier.size(40.dp), thumb = true, corner = 8.dp)

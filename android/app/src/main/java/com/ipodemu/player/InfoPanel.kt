@@ -139,16 +139,12 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
                 Txt(listOf(info.sampling, if (info.channels == 1) "Mono" else if (info.channels == 2) "Stereo" else "${info.channels} channels").filter { it.isNotEmpty() }.joinToString(" · "), size = 12f, color = sc.onBgDim)
             }
         }
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val chips = listOf(
-                Triple("rate", if (info.kbps > 0) "${info.kbps} kbps" else "kbps", true),
-                Triple("curve", if (info.sampleRate > 0) "Spectrum · %.1f kHz".format(info.sampleRate / 1000.0) else "Spectrum", true),
-                Triple("loud", if (info.bits > 0) "${info.bits} bit" else "Level", true),
-                Triple("stereo", if (info.channels == 1) "Mono" else "Stereo", true),
-                Triple("leds", "Visualizer", true),
-                Triple("wall", "Spectrogram", true),
-            )
-            for ((id, label, _) in chips) GlossPill(label, { mode = id }, primary = mode == id, height = 34.dp)
+        // the graphs as a tidy 3-by-2 grid of equal pills (nothing cut off), each with a proper name; the file's own figure is in the card below
+        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = 3) {
+            for ((id, label) in listOf("rate" to "Bit rate", "curve" to "Spectrum", "loud" to "Level", "stereo" to "Stereo", "leds" to "Visualizer", "wall" to "Spectrogram"))
+                Box(Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(50)).background(if (mode == id) sc.accent else Palette.surface2).clickable { mode = id }, contentAlignment = Alignment.Center) {
+                    Txt(label, size = 12f, weight = FontWeight.SemiBold, color = if (mode == id) sc.accent.readableInk() else Color.White, maxLines = 1)
+                }
         }
         var hintOpen by remember(mode) { mutableStateOf(false) }
         val order = listOf("rate", "curve", "loud", "stereo", "leds", "wall")
@@ -161,7 +157,7 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
             }) { c, d -> c.consume(); dx += d }
         }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Txt(MODES.first { it.first == mode }.second, Modifier.weight(1f), size = 17f, weight = FontWeight.ExtraBold)
+                Txt(MODES.first { it.first == mode }.second + (when (mode) { "rate" -> if (info.kbps > 0) " · ${info.kbps} kbps" else ""; "curve" -> if (info.sampleRate > 0) " · %.1f kHz".format(info.sampleRate / 1000.0) else ""; "loud" -> if (info.bits > 0) " · ${info.bits} bit" else ""; else -> "" }), Modifier.weight(1f), size = 17f, weight = FontWeight.ExtraBold)
                 Box(Modifier.clip(RoundedCornerShape(50)).background(if (mode == "rate") Color(0x1FFFFFFF) else sc.accent.copy(alpha = .18f)).padding(horizontal = 9.dp, vertical = 3.dp)) {
                     Txt(if (mode == "rate") "FROM THE FILE" else "● LIVE", size = 10f, weight = FontWeight.ExtraBold, color = if (mode == "rate") sc.onBgDim else sc.accent)
                 }

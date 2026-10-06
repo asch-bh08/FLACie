@@ -2,6 +2,23 @@
 
 Every release, newest first (generated from the GitHub release notes; the downloads stay on each release page). The newest build is marked Latest. Versions up to 0.9.x were called ipodplayer.
 
+## FLACie 1.0 beta 32
+
+_v1.0.0-beta32, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta32))
+
+Beta 32 (Android 46, MSI 0.32.0). Still a beta, not a 1.0 final.
+
+**Changed (Android, unfolded / wide / landscape player)**
+- Cleaner and less cramped: the cover, title, seek bar and transport buttons on the left (about 42% of the width, with wider margins), and a roomy panel on the right.
+- The right side is now like the web: three tabs, Up next (the default), Lyrics, Info. Tap a tab or swipe the panel sideways to move between them, in that order.
+- The six action pills at the top are gone. Equalizer, Add to playlist and More are small buttons beside the heart under the title.
+- Tall screens (phones, the Fold's cover screen) are unchanged: the swipeable pages with the pill row.
+
+**Tested**: Android release build on an emulator screen of about 1968x1800 at 300 dpi (Fold-inner-like): Up next shows first, swiping moved to Lyrics, the tabs and the buttons beside the heart look right. Not seen on a real Fold.
+**Not tested**: a real unfolded Fold 7; the Info tab on that layout after this change (the Info panel itself is unchanged); installing the MSI or launching the 0.32 Windows app.
+**Seen, not fixed**: the remote "Listening on <device>" bar on Home showed a blank cover for the song your Fold was playing.
+
+
 ## FLACie 1.0 beta 31
 
 _v1.0.0-beta31, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta31))

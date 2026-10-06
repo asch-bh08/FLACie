@@ -708,7 +708,9 @@ button.stat.on { border-color: var(--accent); background: color-mix(in srgb, var
   .np-meta { margin-top: 2px; }
   .np-titles h2 { font-size: clamp(22px, 6.4vw, 30px); }
   .np-controls { gap: clamp(6px, 3vw, 18px); padding: 2px 0 10px; }
-  .np-volume { display: none; }
+  .np-volume { display: flex; justify-content: center; padding: 0 0 10px; }
+  .np-volume .vol { display: flex; align-items: center; gap: 6px; width: min(78vw, 320px); }
+  .np-volume .vol input { flex: 1; width: auto; }
   .np-controls { display: flex; } .seek.big { display: flex; }
   .np-main { width: 100%; max-width: 620px; margin: 0 auto; }
   .np-side { flex: none; padding: 0; gap: 0; min-height: 0; }

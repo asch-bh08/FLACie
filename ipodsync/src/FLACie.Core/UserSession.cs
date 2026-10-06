@@ -324,6 +324,17 @@ public sealed class UserSession
         tr.RemoveAt(index); o["m"] = Now(); Changed?.Invoke();
     }
 
+    /// <summary>Moves the entry at [from] to [to] (the playlist's own order, so songs missing from this library keep their place).</summary>
+    public void MoveInPlaylist(string id, int from, int to)
+    {
+        lock (listLock)
+        {
+            if (FindPlaylist(id) is not { } o || o["tracks"] is not JsonArray tr || from < 0 || from >= tr.Count || to < 0 || to >= tr.Count || from == to) return;
+            var item = tr[from]; tr.RemoveAt(from); tr.Insert(to, item); o["m"] = Now();
+        }
+        Changed?.Invoke();
+    }
+
     public void DeletePlaylist(string id)
     {
         if (FindPlaylist(id) is not { } o) return;

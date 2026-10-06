@@ -15,7 +15,15 @@ else
         <Cover ArtKey="@(tracks.Select(t => t.ArtKey).FirstOrDefault(k => k is not null))" Class="detail-cover" />
         <div>
             <p class="eyebrow">Playlist</p>
-            <h1>@p.Name</h1>
+            @if (renaming)
+            {
+                <form class="pl-rename" @onsubmit="() => Rename(p)">
+                    <input @bind="newName" @bind:event="oninput" aria-label="Playlist name" maxlength="80" />
+                    <button class="btn primary" type="submit" disabled="@(newName.Trim().Length == 0)">Save</button>
+                    <button class="btn" type="button" @onclick="() => renaming = false">Cancel</button>
+                </form>
+            }
+            else { <h1>@p.Name</h1> }
             <p class="sub">@tracks.Count songs@(tracks.Count < p.Entries.Count ? $" ({p.Entries.Count - tracks.Count} not in this library)" : "")</p>
             <div class="chips">
                 <button class="btn primary" @onclick="() => Player.Play(tracks, 0, p.Name)" disabled="@(tracks.Count == 0)"><Icon Name="play" Size="18" />Play</button>
@@ -27,6 +35,7 @@ else
                 }
                 else
                 {
+                    <button class="btn ghost" @onclick="() => { renaming = true; newName = p.Name; }">Rename</button>
                     <button class="btn ghost" @onclick="() => confirm = true">Delete</button>
                 }
             </div>
@@ -34,7 +43,7 @@ else
     </header>
     <div class="pl-main">
     @if (tracks.Count == 0) { <p class="status">Nothing in this playlist yet. Use the ⋯ menu on any song and pick “Add to playlist”.</p> }
-    <TrackList Tracks="tracks" PlayContext="@p.Name" OnRemove="i => Remove(p, tracks, i)" />
+    <TrackList Tracks="tracks" PlayContext="@p.Name" OnRemove="i => Remove(p, tracks, i)" OnMove="(a, b) => Move(p, tracks, a, b)" />
     @{ var missing = Session.Loading || Lib.Songs.Count == 0 ? [] : p.Entries.Where(e => Session.ResolveEntry(e) is null && e.Title.Length > 0).ToList(); }
     @if (missing.Count > 0)
     {
@@ -58,6 +67,15 @@ else
 @code {
     [Parameter] public string Id { get; set; } = "";
     bool confirm;
+    bool renaming; string newName = "";
+    void Rename(FLACie.Core.Playlist p) { var n = newName.Trim(); if (n.Length > 0) { Session.RenamePlaylist(p.Id, n); SaveProfile(); } renaming = false; }
+    // the list shows only songs this library has; the playlist's own order also holds the ones it doesn't, so the move is made on the real entries
+    void Move(FLACie.Core.Playlist p, IReadOnlyList<Track> tracks, int from, int to)
+    {
+        int At(Track t) => p.Entries.FindIndex(e => e.Path == t.Path || (e.Title == t.Title && e.Artist == t.Artist));
+        if (from < 0 || to < 0 || from >= tracks.Count || to >= tracks.Count) return;
+        Session.MoveInPlaylist(p.Id, At(tracks[from]), At(tracks[to])); SaveProfile();
+    }
     readonly HashSet<string> asked = [];
     [Inject] DownloadManager Downloads { get; set; } = default!;
     static string Key(PlaylistEntry e) => Matching.MatchKey(e.Title, e.Artist);

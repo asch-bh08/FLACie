@@ -1084,3 +1084,5 @@ body.np-open .player .bar, body.np-open .player .bar:hover { cursor: default; }
 .dev-bar i { display: block; height: 100%; background: var(--accent); }
 .dev-time { color: var(--dim); font-variant-numeric: tabular-nums; }
 .dev-main .dev-actions { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
+.pl-rename { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
+.pl-rename input { flex: 1 1 200px; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 18px; font-weight: 700; }

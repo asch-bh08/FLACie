@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @inherits UserComponent
 @inject ExploreState X
+@inject Toasts Toast
 <PageTitle>Explore · FLACie</PageTitle>
 <header class="page-head">
     <h1>Explore</h1>
@@ -24,11 +25,25 @@
                 @if (InfoService.QuickFormat(row.T) is { Length: > 0 } fmt) { <span class="badge fmt @(fmt == "HI-RES" ? "hires" : MediaInfo.LosslessCodecs.Contains(fmt.ToLowerInvariant()) ? "lossless" : "")" title="@(fmt == "HI-RES" ? "Hi-Res: lossless at more than CD quality" : "File format")">@(fmt == "HI-RES" ? "✦ Hi-Res" : fmt)</span> }
             </span>
             <span class="track-time">@(row.T.DurationMs > 0 ? Time(row.T.DurationMs / 1000.0) : "")</span>
+            <button class="icon-btn @(Session.IsFavorite(row.T) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(row.T); SaveProfile(); }" aria-label="@(Session.IsFavorite(row.T) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(row.T) ? "heart-fill" : "heart")" /></button>
+            <button class="icon-btn" @onclick="() => menu = menu == row.I ? -1 : row.I" aria-label="More for @row.T.Title" aria-expanded="@(menu == row.I)"><Icon Name="more" /></button>
+            @if (menu == row.I)
+            {
+                <div class="menu" role="menu">
+                    <button role="menuitem" @onclick='() => { Player.PlayNext(row.T); Toast.Show($"“{row.T.Title}” plays next"); menu = -1; }'>Play next</button>
+                    <button role="menuitem" @onclick='() => { Player.AddToQueue(row.T); Toast.Show($"Added “{row.T.Title}” to the queue"); menu = -1; }'>Add to queue</button>
+                    @foreach (var p in Session.Playlists)
+                    {
+                        <button role="menuitem" @onclick="() => { Toast.Added(Session, p, row.T, SaveProfile); menu = -1; }">Add to @p.Name</button>
+                    }
+                </div>
+            }
         </div>
     </Virtualize>
 </div>
 @code {
     record Row(Track T, int I);
+    int menu = -1;
     List<Track> list = [];
     List<Row> rows = [];
     Library? built; int builtVersion = -1;

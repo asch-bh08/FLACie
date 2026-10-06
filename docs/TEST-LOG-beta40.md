@@ -25,3 +25,16 @@ Started 2026-10-06. Each entry: what was seen, steps, fix, re-test result.
 - YouTube fallback tested end to end on frank (file mover -> yt-dlp service): Beyonce - Halo came back as m4a in 5.9 s (wrong-ish channel "BeyonceSasha1" but right duration); an obscure song correctly answered "no matching upload" in 2 s. The test file is at <file mover root>/_flacie_test_beta40/Beyonce - Halo.m4a (not under music/, so Jellyfin does not index it). Not deleted (rule).
 - Bug (found in the trails): Soulseek finished a file, "Filing into the library..." then "had nothing it could finish" (Blue Moon, People You Know). Possible cause: slskd announces completion a moment before it moves the file into its downloads folder, so the file mover's first /move finds nothing. FileAsync now retries "source not found" for up to ~16 s and the trail now says why a filing failed. NOT reproduced here (all four test downloads filed on the first try), so this fix is unconfirmed.
 - Bug: Lidarr flow gave up two minutes after the grab even while the download was in Lidarr's queue, so a song that arrived later (Blue Moon is in the library now) was logged as "Not found". The wait now follows the queue (up to 30 min).
+
+## Web playlists and import (tested live in the browser pane, dummy playlists removed afterwards)
+- Create a playlist: works. Add songs (from the song menu, with confirmation toast and Undo): works from playlists/search, but the Explore > Songs rows had NO favourite or "..." menu at all, so a song could not be added to a playlist from the main library page. Added both (play next, add to queue, add to playlist).
+- Rename a playlist: the web had no rename (the session method existed but no UI). Added a Rename button with an inline form. Tested: renamed ok.
+- Reorder: the web had no reorder. Added Move up / Move down to the song menu on a playlist page (moves the real entry, so songs not in this library keep their place). Tested: up, down ok.
+- Remove from playlist, Delete (with confirm): ok.
+- Import: an M3U with only "#EXTINF" lines (no file lines) reports "No songs found" (expected for a malformed M3U); a normal M3U imported "2 of 3 done" (the third was a made-up song, it went on to search Soulseek/Lidarr/YouTube), Stop worked ("cancelled"). Dummy playlists "ZZ beta40 test/renamed" and "zz-beta40-import" deleted.
+
+## NOT done or NOT tested in this pass (be honest)
+- Android: only the player at 6 window sizes, devices, accent colour and nav rail were exercised on the emulator; not walked through: Explore filters, Search options, playlist editing on the phone, Downloads page on the phone, charts, Settings fields one by one, Jams, notifications (ntfy server still unreachable), Admin from the phone.
+- Web: Jams, charts page behaviour, notifications, the admin dashboard actions, the Windows app build, and "dead code removal" were not done. No startup-time / memory measurement on Android was taken.
+- The Soulseek "filing" retry and the Lidarr wait change are fixes for failures seen in the logs, not reproduced here.
+- This is released as beta 39.5, not beta 40: the full pass was cut short.

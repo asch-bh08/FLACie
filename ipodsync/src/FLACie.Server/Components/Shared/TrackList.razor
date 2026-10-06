@@ -31,6 +31,11 @@
                     {
                         <button role="menuitem" @onclick="() => { Toast.Added(Session, p, t, SaveProfile); menu = -1; }">Add to @p.Name</button>
                     }
+                    @if (OnMove is not null)
+                    {
+                        <button role="menuitem" disabled="@(idx == 0)" @onclick="() => { OnMove(idx, idx - 1); menu = -1; }">Move up</button>
+                        <button role="menuitem" disabled="@(idx == Tracks.Count - 1)" @onclick="() => { OnMove(idx, idx + 1); menu = -1; }">Move down</button>
+                    }
                     @if (OnRemove is not null) { <button role="menuitem" class="danger" @onclick="() => { OnRemove(idx); menu = -1; }">Remove from playlist</button> }
                     @if (admin && Session.Services.SoulseekReady && !t.Path.Contains("[Hi-Res]", StringComparison.OrdinalIgnoreCase))
                     {
@@ -53,6 +58,8 @@
     [Parameter] public string? PlayContext { get; set; }
     [Parameter] public bool ShowAlbum { get; set; } = true;
     [Parameter] public Action<int>? OnRemove { get; set; }
+    /// <summary>Set on a playlist page: move the song at the first index to the second.</summary>
+    [Parameter] public Action<int, int>? OnMove { get; set; }
     int menu = -1, hiAsk = -1;
     [Inject] DownloadManager Downloads { get; set; } = default!;
     [Inject] Toasts Toast { get; set; } = default!;

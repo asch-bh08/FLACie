@@ -2,6 +2,21 @@
 
 Every release, newest first (generated from the GitHub release notes; the downloads stay on each release page). The newest build is marked Latest. Versions up to 0.9.x were called ipodplayer.
 
+## FLACie 1.0 beta 38
+
+_v1.0.0-beta38, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta38))
+
+Beta 38 (Android 52, MSI 0.38.0). Still a beta, not a 1.0 final.
+
+**Changed (Android and web)**
+- Up next: the song playing now has an accent bar on its left edge and an animated equalizer on its cover (Android) / the existing animated equalizer plus the bar (web).
+- Up next: the artist / album line and the title may take two lines before they are cut off (web and Android), so album names show much more.
+- Format badges stay one row of equal pills on the web (no wrapping inside a badge); on Android the format badge shows "16-bit / 44.1 kHz" as its own pill like the web.
+- Web server with these changes is deployed to frank.
+
+**Tested**: Android release build on an emulator at unfolded size (bar, equalizer, two-line text, badges); web builds. **Not tested**: the web page after this CSS change in a browser; a real Fold; installing the MSI or launching the 0.38 Windows app.
+
+
 ## FLACie 1.0 beta 37
 
 _v1.0.0-beta37, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta37))

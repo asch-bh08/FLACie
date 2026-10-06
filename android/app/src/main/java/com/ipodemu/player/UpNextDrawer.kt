@@ -66,23 +66,25 @@ private fun NoteChip(text: String) {
 class PaneNav(val pane: String, val toggle: (String) -> Unit, val go: (String) -> Unit, val wide: Boolean = false)
 val LocalPane = androidx.compose.runtime.staticCompositionLocalOf<PaneNav?> { null }
 val PANES = listOf("lyrics", "art", "info", "queue")
+/** The tabs of the wide layout, in the web's order. */
+val SIDE_PANES = listOf("queue", "lyrics", "info")
 
 /** The panes as pages of a pager: they follow the finger and settle with a spring, and the pills glide to a page. */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun PanePager(nav: PaneNav, modifier: Modifier = Modifier, page: @Composable (String) -> Unit) {
+fun PanePager(nav: PaneNav, modifier: Modifier = Modifier, order: List<String> = PANES, page: @Composable (String) -> Unit) {
     // the effects below live as long as the pager does, so they must read the CURRENT pane, not the one they started with (that stale copy left a pill lit after a swipe)
     val navNow by androidx.compose.runtime.rememberUpdatedState(nav)
-    val pager = androidx.compose.foundation.pager.rememberPagerState(initialPage = PANES.indexOf(nav.pane).coerceAtLeast(0)) { PANES.size }
+    val pager = androidx.compose.foundation.pager.rememberPagerState(initialPage = order.indexOf(nav.pane).coerceAtLeast(0)) { order.size }
     // a pill moves the pager; a finger moves the pager and then tells the pill. Neither fights the other: the pager is only driven while it is still, and only reports once it has come to rest
-    androidx.compose.runtime.LaunchedEffect(nav.pane) { val i = PANES.indexOf(navNow.pane); if (i >= 0 && !pager.isScrollInProgress && pager.currentPage != i) pager.animateScrollToPage(i) }
-    androidx.compose.runtime.LaunchedEffect(pager) { androidx.compose.runtime.snapshotFlow { pager.isScrollInProgress to pager.currentPage }.collect { (moving, p) -> if (!moving && PANES[p] != navNow.pane) navNow.go(PANES[p]) } }
+    androidx.compose.runtime.LaunchedEffect(nav.pane) { val i = order.indexOf(navNow.pane); if (i >= 0 && !pager.isScrollInProgress && pager.currentPage != i) pager.animateScrollToPage(i) }
+    androidx.compose.runtime.LaunchedEffect(pager) { androidx.compose.runtime.snapshotFlow { pager.isScrollInProgress to pager.currentPage }.collect { (moving, p) -> if (!moving && order[p] != navNow.pane) navNow.go(order[p]) } }
     androidx.compose.foundation.pager.HorizontalPager(pager, modifier, pageSpacing = 12.dp, beyondBoundsPageCount = 0, flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(pager, snapPositionalThreshold = 0.25f)) { p ->
         Box(Modifier.fillMaxSize().graphicsLayer {
             // the page slides away a little and fades as it leaves the centre
             val off = kotlin.math.abs(pager.currentPage - p + pager.currentPageOffsetFraction).coerceIn(0f, 1f)
             alpha = 1f - 0.45f * off; scaleX = 1f - 0.04f * off; scaleY = 1f - 0.04f * off
-        }, contentAlignment = Alignment.Center) { page(PANES[p]) }
+        }, contentAlignment = Alignment.Center) { page(order[p]) }
     }
 }
 

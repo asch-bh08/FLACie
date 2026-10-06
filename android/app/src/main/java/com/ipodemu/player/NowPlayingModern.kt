@@ -74,9 +74,9 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
         val infoToggle: Pair<Boolean, () -> Unit> = (shown == "info") to { paneNav.toggle("info") }
         androidx.compose.runtime.CompositionLocalProvider(LocalPane provides paneNav) {
         if (sideBySide) {
-            val roomy = w >= 840.dp
-            Row(Modifier.fillMaxSize().padding(start = 20.dp, end = 20.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(if (roomy) 32.dp else 20.dp)) {
-                Column(Modifier.weight(if (roomy) 0.42f else 0.5f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // like the web: the cover and controls on the left, and on the right three tabs (Up next, Lyrics, Info) you can also swipe through
+            Row(Modifier.fillMaxSize().padding(start = 28.dp, end = 28.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(44.dp)) {
+                Column(Modifier.weight(0.42f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Header(nav)
                     BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                         NpArtModern(t, Modifier.size(min(maxWidth, maxHeight)))
@@ -85,9 +85,9 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
                     Seek(snap)
                     Transport(snap)
                 }
-                Column(Modifier.weight(if (roomy) 0.58f else 0.5f).fillMaxHeight().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ActionRow(snap, nav, lyricsToggle, spread = false, info = infoToggle)
-                    androidx.compose.animation.Crossfade(shown, Modifier.weight(1f).fillMaxWidth(), animationSpec = androidx.compose.animation.core.tween(220), label = "side") { p ->
+                Column(Modifier.weight(0.58f).fillMaxHeight().padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    SideTabs(shown) { paneNav.go(it) }
+                    PanePager(paneNav, Modifier.weight(1f).fillMaxWidth(), order = SIDE_PANES) { p ->
                         when (p) {
                             "info" -> TrackInfoPanel(t, snap, Modifier.fillMaxSize())
                             "lyrics" -> LyricsPanel(t, snap.playing, Modifier.fillMaxSize(), big = true)
@@ -96,7 +96,8 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
                     }
                 }
             }
-        } else Column(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 8.dp)) {
+        
+} else Column(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 8.dp)) {
             Header(nav)
             Box(Modifier.weight(1f).fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
                 ArtOrPanel(t, snap, shown == "lyrics", shown == "info", big = true, art = Modifier.fillMaxWidth().aspectRatio(1f, matchHeightConstraintsFirst = true))
@@ -104,6 +105,25 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
             Controls(snap, nav, lyricsToggle = lyricsToggle, header = false, info = infoToggle)
             Box(Modifier.height(20.dp))
         }
+        }
+    }
+}
+
+/** The three tabs beside the cover, like the web's: Up next, Lyrics, Info (swiping the panel moves between them too). */
+@Composable
+private fun SideTabs(selected: String, onSelect: (String) -> Unit) {
+    val sc = LocalScheme.current
+    Row(Modifier.clip(RoundedCornerShape(50)).background(Color(0x1AFFFFFF)).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        for ((id, label, g) in listOf(Triple("queue", "Up next", Glyph.QUEUE), Triple("lyrics", "Lyrics", Glyph.LYRICS), Triple("info", "Info", Glyph.INFO))) {
+            val on = selected == id
+            Row(
+                Modifier.height(40.dp).clip(RoundedCornerShape(50)).background(if (on) Color(0x33FFFFFF) else Color.Transparent)
+                    .semantics { contentDescription = label }.clickable { onSelect(id) }.padding(horizontal = 18.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                GlyphIcon(g, Modifier.size(18.dp), if (on) Color.White else sc.onBgDim)
+                Txt(label, size = 14f, weight = FontWeight.SemiBold, color = if (on) Color.White else sc.onBgDim, maxLines = 1)
+            }
         }
     }
 }
@@ -157,6 +177,11 @@ private fun InfoRow(snap: PlayerSnap, nav: PlayerNav) {
             Txt(t.artist.ifEmpty { "Unknown Artist" }, Modifier.padding(top = 2.dp).clickable(enabled = t.artist.isNotEmpty()) {
                 nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist }))
             }, size = 16f, color = sc.onBgDim)
+        }
+        if (pn?.wide == true) {
+            IconAction(Glyph.LIST, "Equalizer", { nav.sheet = eqSheet(app) })
+            IconAction(Glyph.PLUS, "Add to playlist", { nav.sheet = playlistPicker(app, nav, t) })
+            IconAction(Glyph.MORE, "More", { openTrackSheet(app, nav, t) })
         }
         IconAction(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Unfavorite" else "Favorite", { app.userData.toggleFavorite(t.path) }, tint = if (fav) sc.accent else sc.onBg)
     }
@@ -353,5 +378,5 @@ private fun ArtOrPanel(t: Track, snap: PlayerSnap, lyrics: Boolean, info: Boolea
         }
     }
     if (pn == null) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content(if (info) "info" else if (lyrics) "lyrics" else "art") }
-    else PanePager(pn, Modifier.fillMaxSize(), content)
+    else PanePager(pn, Modifier.fillMaxSize(), page = content)
 }

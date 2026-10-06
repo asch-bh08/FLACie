@@ -2,6 +2,22 @@
 
 Every release, newest first (generated from the GitHub release notes; the downloads stay on each release page). The newest build is marked Latest. Versions up to 0.9.x were called ipodplayer.
 
+## FLACie 1.0 beta 36
+
+_v1.0.0-beta36, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta36))
+
+Beta 36 (Android 50, MSI 0.36.0). Still a beta, not a 1.0 final.
+
+**Changed (Android player polish)**
+- Up next: long titles get two lines before they are cut off.
+- Format tags are one tidy row: the source badge, then the format, sample rate and bit rate together in a single badge (FLAC · 44.1 kHz).
+- Icons: the outline heart is drawn with the same stroke weight as the other action icons (the plus, the list), and the menu dots are a touch larger.
+- Wide / unfolded layout: the queue sits on a slightly raised card with smaller covers, and the song playing now is highlighted, so the player on the left stands out.
+
+**Tested**: Android release build on the emulator at an unfolded-sized screen.
+**Not tested**: a real Fold; the phone-width tag row with a very long format string; installing the MSI or launching the 0.36 Windows app.
+
+
 ## FLACie 1.0 beta 35
 
 _v1.0.0-beta35, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta35))

@@ -1029,3 +1029,9 @@ body.np-open .player .bar, body.np-open .player .bar:hover { cursor: default; }
 .dl-note::before { content: "\2193"; margin-right: 5px; font-weight: 800; }
 .dl-note.live { background: color-mix(in srgb, var(--accent) 28%, transparent); color: var(--accent); }
 .np-peek { display: none !important; }
+/* queue polish: the playing row has an accent bar on its left edge, and the artist / album line may take two lines before it is cut off */
+.upnext li.now { box-shadow: inset 3px 0 0 var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.q-row small { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.q-row b { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* the format badges stay one inline row of equal-height pills */
+.pills .badge { white-space: nowrap; line-height: 1.5; }

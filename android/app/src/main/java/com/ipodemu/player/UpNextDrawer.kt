@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -127,11 +128,14 @@ private fun DrawerRow(t: Track, current: Boolean, onClick: () -> Unit) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     val note = downloadNote(app, t)
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (current) sc.accent.copy(alpha = .14f) else Color.Transparent).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        ArtImage(t.artKey, Modifier.size(46.dp), thumb = true, corner = 7.dp)
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (current) sc.accent.copy(alpha = .14f) else Color.Transparent).clickable(onClick = onClick).then(if (current) Modifier.drawBehind { drawRect(sc.accent, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)) } else Modifier).padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Box(Modifier.size(46.dp)) {
+            ArtImage(t.artKey, Modifier.fillMaxSize(), thumb = true, corner = 7.dp)
+            if (current) Box(Modifier.fillMaxSize().clip(RoundedCornerShape(7.dp)).background(Color(0x77000000)), contentAlignment = Alignment.Center) { EqualizerBars(Modifier.size(20.dp), LocalApp.current.player.wantsToPlay, Color.White) }
+        }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Txt(t.title, size = 15f, weight = FontWeight.SemiBold, color = if (current) sc.accent else sc.onBg, maxLines = 2)
-            Txt(listOf(t.artist, t.album).filter { it.isNotEmpty() }.joinToString(" · "), size = 12.5f, color = sc.onBgDim, maxLines = 1)
+            Txt(listOf(t.artist, t.album).filter { it.isNotEmpty() }.joinToString(" · "), size = 12.5f, color = sc.onBgDim, maxLines = 2)
             if (note != null) NoteChip(note)
         }
         if (t.durationMs > 0) Txt(fmtTime(t.durationMs), size = 12.5f, color = sc.onBgDim)

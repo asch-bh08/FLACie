@@ -24,6 +24,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.ipodemu.App
 import com.ipodemu.Prefs
+import com.ipodemu.library.AudioFacts
 import com.ipodemu.library.NasSmb
 import com.ipodemu.library.Track
 import java.io.File
@@ -439,14 +440,18 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private fun hlsUri(t: Track): Uri? {
         val m = jfStreamRe.find(t.path) ?: return null
         val uid = prefs.accountUserId.ifBlank { return null }
-        return Uri.parse("${m.groupValues[1]}/Audio/${m.groupValues[2]}/universal?UserId=$uid&DeviceId=${prefs.deviceId}&MaxStreamingBitrate=192000" +
+        return Uri.parse("${m.groupValues[1]}/Audio/${m.groupValues[2]}/universal?UserId=$uid&DeviceId=${prefs.deviceId}&MaxStreamingBitrate=320000" +
             "&Container=aac&TranscodingContainer=ts&TranscodingProtocol=hls&AudioCodec=aac&MaxAudioChannels=2&StartTimeTicks=0")
     }
 
-    private fun needsTranscode(t: Track) = t.filePath.substringAfterLast('.', "").lowercase() in setOf("wma", "asf", "ape", "wv", "tta") || t.path in forceHls
+    private fun needsTranscode(t: Track) = t.filePath.substringAfterLast('.', "").lowercase() in setOf("wma", "asf", "ape", "wv", "tta") || t.path in forceHls ||
+        (AudioFacts.of(t)?.codec.equals("alac", true) && !hasAlacDecoder)   // Apple lossless: only where the phone has no decoder for it (many have none and stay silent)
 
     /** Songs that failed to decode here and are played through the server's conversion from now on. */
     private val forceHls = HashSet<String>()
+    private val hasAlacDecoder: Boolean by lazy {
+        try { android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS).codecInfos.any { !it.isEncoder && it.supportedTypes.any { m -> m.equals("audio/alac", true) } } } catch (_: Exception) { true }
+    }
 
     private fun isHls(i: MediaItem) = i.localConfiguration?.mimeType == androidx.media3.common.MimeTypes.APPLICATION_M3U8
 

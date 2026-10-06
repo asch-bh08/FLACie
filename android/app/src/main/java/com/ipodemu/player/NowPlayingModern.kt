@@ -1,6 +1,7 @@
 package com.ipodemu.player
 
 import androidx.compose.foundation.background
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -181,38 +182,60 @@ private fun InfoRow(snap: PlayerSnap, nav: PlayerNav) {
     val t = snap.track ?: return
     val fav by app.userData.favState(t.path)
     val pn = LocalPane.current
-    if (pn != null && pn.pane != "art" && !pn.wide) {
-        // a pane (lyrics, info, up next) is open: a one-line title keeps the controls and gives the pane the room
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ArtImage(t.artKey, Modifier.size(40.dp), thumb = true, corner = 8.dp)
-            Column(Modifier.weight(1f)) {
-                Txt(t.title, size = 16f, weight = FontWeight.Bold, maxLines = 1)
-                Txt(t.artist.ifEmpty { "Unknown Artist" }, size = 13f, color = sc.onBgDim, maxLines = 1)
+    val compact = pn != null && pn.pane != "art" && !pn.wide
+    val tags = formatTags(app, t, snap)
+    // the title block eases between its two sizes with the page you swipe to (a pane open gets the room; the format tags stay in both)
+    androidx.compose.animation.AnimatedContent(
+        compact, Modifier.fillMaxWidth(),
+        transitionSpec = {
+            androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220)) togetherWith androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(140)) using
+                androidx.compose.animation.SizeTransform(clip = false) { _, _ -> androidx.compose.animation.core.tween(240) }
+        },
+        label = "titleRow",
+    ) { small ->
+        if (small) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ArtImage(t.artKey, Modifier.size(40.dp), thumb = true, corner = 8.dp)
+                Column(Modifier.weight(1f)) {
+                    Txt(t.title, size = 16f, weight = FontWeight.Bold, maxLines = 1)
+                    Txt((listOf(t.artist.ifEmpty { "Unknown Artist" }) + tags).joinToString(" · "), size = 12.5f, color = sc.onBgDim, maxLines = 1)
+                }
+                IconAction(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Unfavorite" else "Favorite", { app.userData.toggleFavorite(t.path) }, tint = if (fav) sc.accent else sc.onBg)
             }
-            IconAction(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Unfavorite" else "Favorite", { app.userData.toggleFavorite(t.path) }, tint = if (fav) sc.accent else sc.onBg)
+        } else {
+            Column(Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Txt(t.title, size = 22f, weight = FontWeight.Bold, maxLines = 2)
+                        Txt(t.artist.ifEmpty { "Unknown Artist" }, Modifier.padding(top = 2.dp).clickable(enabled = t.artist.isNotEmpty()) {
+                            nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist }))
+                        }, size = 16f, color = sc.onBgDim)
+                    }
+                    IconAction(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Unfavorite" else "Favorite", { app.userData.toggleFavorite(t.path) }, tint = if (fav) sc.accent else sc.onBg)
+                }
+                // the format tags get their own full-width line (with the extra buttons on the right when there is room), so the title is never squeezed
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) { FormatChips(t, snap) }
+                    if (pn?.wide == true) {
+                        IconAction(Glyph.LIST, "Equalizer", { nav.sheet = eqSheet(app) })
+                        IconAction(Glyph.PLUS, "Add to playlist", { nav.sheet = playlistPicker(app, nav, t) })
+                        IconAction(Glyph.MORE, "More", { openTrackSheet(app, nav, t) })
+                    }
+                }
+            }
         }
-        return
     }
-    Column(Modifier.fillMaxWidth()) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Txt(t.title, size = 22f, weight = FontWeight.Bold, maxLines = 2)
-            Txt(t.artist.ifEmpty { "Unknown Artist" }, Modifier.padding(top = 2.dp).clickable(enabled = t.artist.isNotEmpty()) {
-                nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist }))
-            }, size = 16f, color = sc.onBgDim)
-        }
-        IconAction(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Unfavorite" else "Favorite", { app.userData.toggleFavorite(t.path) }, tint = if (fav) sc.accent else sc.onBg)
-    }
-    // the format tags get their own full-width line (with the extra buttons on the right when there is room), so the title is never squeezed
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.weight(1f)) { FormatChips(t, snap) }
-        if (pn?.wide == true) {
-            IconAction(Glyph.LIST, "Equalizer", { nav.sheet = eqSheet(app) })
-            IconAction(Glyph.PLUS, "Add to playlist", { nav.sheet = playlistPicker(app, nav, t) })
-            IconAction(Glyph.MORE, "More", { openTrackSheet(app, nav, t) })
-        }
-    }
-    }
+}
+
+/** Where it plays from, the format, its rate and bit rate (the same tags in the full title block and in the one-line one). */
+private fun formatTags(app: com.ipodemu.App, t: Track, snap: PlayerSnap): List<String> {
+    val ai = audioInfo(app, t)
+    return listOfNotNull(
+        t.source.name.lowercase().replaceFirstChar { it.uppercase() },
+        if (ai.hiRes) "Hi-Res" else ai.codec.takeIf { it.isNotEmpty() },
+        ai.sampleRate.takeIf { it > 0 }?.let { "%.1f kHz".format(it / 1000.0) },
+        ai.kbps.takeIf { it > 0 }?.let { "$it kbps" },
+    )
 }
 
 @Composable

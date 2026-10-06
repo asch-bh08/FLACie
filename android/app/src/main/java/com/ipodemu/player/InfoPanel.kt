@@ -122,8 +122,8 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
         val am = ctx.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
         LiveAnalysis(app.player.live) { app.player.volume * (am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC).toFloat() / am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)) }
     }
-    cutHz = if (info.codec.equals("MP3", true) && info.kbps > 0) (if (info.kbps <= 96) 15000 else if (info.kbps <= 128) 16000 else if (info.kbps <= 160) 17500 else if (info.kbps <= 192) 19000 else if (info.kbps <= 256) 20000 else 20500) else 0
-    cutLabel = "${info.kbps} kbps MP3 usually ends here"
+    cutHz = if (info.codec.equals("MP3", true) && info.kbps > 0) (if (info.kbps <= 96) 15000 else if (info.kbps <= 128) 16000 else if (info.kbps <= 160) 17500 else if (info.kbps <= 192) 19000 else if (info.kbps <= 256) 20000 else 20500) else 16000
+    cutLabel = if (info.codec.equals("MP3", true) && info.kbps > 0) "${info.kbps} kbps MP3 usually ends here" else "MP3 usually ends here"
     androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
     // the graph takes what room the panel has (header, chips and text above it need about 320dp), so its axis is never cut off at the bottom; Hi-Res files get more when there is more
     val graphH = (maxHeight - 330.dp).coerceIn(150.dp, if (info.hiRes) 300.dp else 230.dp)

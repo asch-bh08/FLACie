@@ -1,6 +1,7 @@
 package com.ipodemu.player
 
 import androidx.compose.foundation.background
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -136,7 +137,7 @@ private fun Header(nav: PlayerNav) {
 /** Title/artist + heart, seek, transport and the action row, stacked; shared by every layout. */
 @Composable
 private fun Controls(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boolean, () -> Unit>?, header: Boolean = true, info: Pair<Boolean, () -> Unit>? = null) {
-    Column(Modifier.fillMaxWidth().riseIn(120), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxWidth().riseIn(120).animateContentSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
     if (header) Header(nav)
     InfoRow(snap, nav)
     ActionRow(snap, nav, lyricsToggle, spread = true, info = info)
@@ -151,6 +152,19 @@ private fun InfoRow(snap: PlayerSnap, nav: PlayerNav) {
     val sc = LocalScheme.current
     val t = snap.track ?: return
     val fav by app.userData.favState(t.path)
+    val pn = LocalPane.current
+    if (pn != null && pn.pane != "art") {
+        // a pane (lyrics, info, up next) is open: a one-line title keeps the controls and gives the pane the room
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ArtImage(t.artKey, Modifier.size(40.dp), thumb = true, corner = 8.dp)
+            Column(Modifier.weight(1f)) {
+                Txt(t.title, size = 16f, weight = FontWeight.Bold, maxLines = 1)
+                Txt(t.artist.ifEmpty { "Unknown Artist" }, size = 13f, color = sc.onBgDim, maxLines = 1)
+            }
+            IconAction(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Unfavorite" else "Favorite", { app.userData.toggleFavorite(t.path) }, tint = if (fav) sc.accent else sc.onBg)
+        }
+        return
+    }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Txt(t.title, size = 22f, weight = FontWeight.Bold, maxLines = 2)
@@ -344,17 +358,14 @@ private fun RoundAction(g: Glyph, label: String, active: Boolean, onClick: () ->
 @Composable
 private fun ArtOrPanel(t: Track, snap: PlayerSnap, lyrics: Boolean, info: Boolean, big: Boolean, art: Modifier = Modifier.fillMaxSize()) {
     val pn = LocalPane.current
-    val shown = if (pn == null) (if (info) "info" else if (lyrics) "lyrics" else "art") else pn.pane
-    Box(Modifier.fillMaxSize().paneSwipe(pn), contentAlignment = Alignment.Center) {
-        PaneSwitcher(shown, Modifier.fillMaxSize()) { p ->
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                when (p) {
-                    "queue" -> QueuePanel(snap, Modifier.fillMaxSize())
-                    "info" -> TrackInfoPanel(t, snap, Modifier.fillMaxSize())
-                    "lyrics" -> LyricsPanel(t, snap.playing, Modifier.fillMaxSize(), big)
-                    else -> NpArtModern(t, art)
-                }
-            }
+    val content: @Composable (String) -> Unit = { p ->
+        when (p) {
+            "queue" -> QueuePanel(snap, Modifier.fillMaxSize())
+            "info" -> TrackInfoPanel(t, snap, Modifier.fillMaxSize())
+            "lyrics" -> LyricsPanel(t, snap.playing, Modifier.fillMaxSize(), big)
+            else -> NpArtModern(t, art)
         }
     }
+    if (pn == null) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content(if (info) "info" else if (lyrics) "lyrics" else "art") }
+    else PanePager(pn, Modifier.fillMaxSize(), content)
 }

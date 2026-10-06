@@ -2,6 +2,89 @@
 
 Every release, newest first (generated from the GitHub release notes; the downloads stay on each release page). The newest build is marked Latest. Versions up to 0.9.x were called ipodplayer.
 
+## FLACie 1.0 beta 28
+
+_v1.0.0-beta28, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta28))
+
+Beta 28 (Android 42, MSI 0.28.0). Still a beta, not a 1.0 final.
+
+**Changed**
+- Full-screen player (Android and web phone layout): swipe sideways between panes, left to right: Lyrics, the cover, Info, Up next. A swipe no longer skips the song (Previous/Next do that). The pills still work and light up for the pane you are on; the swipe-up queue sheet is gone.
+- Up next: the "downloaded" tag is bigger and clearer (pink while downloading, green once fetched: just now / today / this week), and web also matches autoplay picks that were downloaded by name.
+- Info graph: the "MP3 usually ends here" line now follows the file's bitrate (about 16 kHz at 128 kbps up to about 20 kHz at 320 kbps) and only shows for MP3s. A 320 kbps MP3 reaching 20 kHz is normal; the 44.1 kHz reading is the file's real sample rate.
+- Web: typing in the search box no longer loses focus part-way (the page was grabbing focus on every address change).
+- Web phone player: the volume slider is back.
+
+**Tested**: Android release build on the emulator (swipe cover -> Info -> Up next, pills highlight); web at phone width (search kept focus through typing "scream and shout"; swipe order cover -> Info -> Up next and back to Lyrics); web deployed to frank.
+**Not tested**: the web volume slider on a real phone after this change; the "Downloaded" tags with a freshly downloaded or autoplay song; Home scroll smoothness; installing the MSI or launching the 0.28 Windows app.
+
+
+
+## FLACie 1.0 beta 27
+
+_v1.0.0-beta27, 2026-10-05, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta27))
+
+Beta 27 (Android 41, MSI 0.27.0). Still a beta, not a 1.0 final.
+
+**Changed**
+- Full-screen player: the play/pause and seek controls move up, and a quiet "Playing from <playlist or mix>" line with a small handle sits above the system gesture area. Swipe up from it (it follows your finger) to raise the queue sheet; it no longer sits where a swipe closes the app. The "Up next" pill opens the same sheet. Android and web (phone width).
+- Everything from beta 26 (Funnel back on for port 443 on frank so the phone's Lidarr / Soulseek / File mover addresses connect off Tailscale, Home lag changes, Search shortcuts).
+
+**Tested**: Android release build on the emulator (line shows, swipe from it raises the sheet, controls clear of the gesture bar); web server deployed to frank and answering /healthz.
+**Not tested**: web phone layout after this change; Home scroll smoothness on a real phone; the phone's Connect buttons off Tailscale; downloaded notes with a freshly downloaded song; installing the MSI or launching the 0.27 Windows app.
+
+
+
+## FLACie 1.0 beta 26
+
+_v1.0.0-beta26, 2026-10-05, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta26))
+
+Beta 26 (Android 40, MSI 0.26.0). Still a beta, not a 1.0 final.
+
+**New**
+- Up next (YouTube Music style): no bar on the full-screen player. Swipe up from the foot of the player (it follows your finger) or press "Up next": the cover fades back and the queue sheet rises until it fills the screen, with the playing song as a small header, "Playing from <playlist or mix>", then the queue with cover, artist, album and a note for songs FLACie downloaded. Android and web (phone width).
+- Home: bigger cover cache and cheaper playlist covers (aimed at the scroll lag), search icon, one chip row, Quick picks with options and Play all. Search tab shows shortcuts and genres.
+- Server (frank): Tailscale Funnel turned back on for port 443, so the phone's Lidarr / Soulseek / File mover addresses (frank.tailb05910.ts.net/lidarr, /slskd, /filemove) connect again without Tailscale.
+
+**Tested**: Android release build on the emulator (swipe up raises the sheet with the cover fading, Up next button opens it, "Playing from" shows the list name); web at phone width earlier; frank answers 403 (key needed, as expected) on the three paths and logs no more rejected connections.
+**Not tested**: Home scroll smoothness on a real phone; the phone's Connect buttons for Lidarr/Soulseek/File mover (only the server side was checked); downloaded notes with a freshly downloaded song; installing the MSI or launching the 0.26 Windows app.
+
+
+
+## FLACie 1.0 beta 25
+
+_v1.0.0-beta25, 2026-10-05, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta25))
+
+Beta 25 (Android 39, MSI 0.25.0). Still a beta, not a 1.0 final.
+
+**New**
+- Up next bar (YouTube Music style) at the foot of the full-screen player, Android and web (phone-width). Drag it up (it follows your finger) or tap it for the queue: cover, title, artist, album, length, and a note when FLACie downloaded the song ("Downloading", "Downloaded just now / today / this week"). Tap a song to jump to it.
+- Everything from beta 24: Home search icon and one chip row, Quick picks with options and Play all, Search tab with shortcuts and genres, visible system bars, swipe-away stops playback.
+- Web server with the bar is already deployed to frank.
+
+**Tested**: Android release build on the emulator (bar shows, swipe opens the queue); web at phone width in the browser pane (bar shows, tap opens the queue, simulated drag opens it); Windows app from the beta 24 build ran and served /healthz.
+**Not tested**: slow finger-following drag on a real touchscreen; the "Downloaded" notes with a real freshly downloaded song; scroll smoothness on a real phone; installing the MSI; the 0.25 Windows app was built but not launched.
+
+
+
+## FLACie 1.0 beta 24
+
+_v1.0.0-beta24, 2026-10-05, pre-release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta24))
+
+Beta 24 (Android 38, MSI 0.24.0). Android-focused; no web server change.
+
+**New / changed**
+- Android system bars stay visible in the Modern theme, so the gesture bar / Home button work from the full-screen player; the player controls sit clear of the bottom.
+- Home: shelves are built off the main thread (aimed at the scroll stutter), search icon in the top bar, one chip row (Shuffle, Favorites, Recent, Downloads, moods).
+- Quick picks: wider next-page sliver, a "..." options menu on every row, "Play all".
+- Search tab: shows shortcuts and genres before you type.
+- Full-screen player: scrollable pill row (Lyrics, Info, Up next, Equalizer...). Swiping the app away from recents stops playback.
+
+**Tested**: Android release build on the emulator: Home, Quick picks, Search idle screen, full-screen player layout with gesture bar, swipe-away stops audio. Windows app: launched, its server answered /healthz, and the server was gone after the app was closed (force-closed).
+**Not tested**: scroll smoothness on a real phone (emulator is software-rendered), Fold-size layout, installing the MSI (only the built app folder was run).
+
+
+
 ## FLACie 1.0 beta 23
 
 _v1.0.0-beta23, 2026-10-05, pre-release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta23))

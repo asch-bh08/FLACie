@@ -164,8 +164,8 @@ else
         return l.OrderBy(x => x.Item2);
     }
     // where an MP3 encoder at this bitrate usually stops the sound (LAME's lowpass): 128k ~16 kHz, 192k ~19 kHz, 256k ~20 kHz, 320k ~20.5 kHz. A 320k MP3 reaching 20 kHz is normal, not a sign of a better file.
-    int CutHz => Info is { } i && i.Codec.Equals("mp3", StringComparison.OrdinalIgnoreCase) && i.BitrateKbps > 0 ? (i.BitrateKbps <= 96 ? 15000 : i.BitrateKbps <= 128 ? 16000 : i.BitrateKbps <= 160 ? 17500 : i.BitrateKbps <= 192 ? 19000 : i.BitrateKbps <= 256 ? 20000 : 20500) : 0;
-    string CutLabel => Info is { } i2 && CutHz > 0 ? $"{i2.BitrateKbps} kbps MP3 usually ends here" : "";
+    int CutHz => Info is { } i && i.Codec.Equals("mp3", StringComparison.OrdinalIgnoreCase) && i.BitrateKbps > 0 ? (i.BitrateKbps <= 96 ? 15000 : i.BitrateKbps <= 128 ? 16000 : i.BitrateKbps <= 160 ? 17500 : i.BitrateKbps <= 192 ? 19000 : i.BitrateKbps <= 256 ? 20000 : 20500) : 16000;   // other formats: the usual 128 kbps MP3 line, as a yardstick
+    string CutLabel => Info is { } i2 && i2.Codec.Equals("mp3", StringComparison.OrdinalIgnoreCase) && i2.BitrateKbps > 0 ? $"{i2.BitrateKbps} kbps MP3 usually ends here" : "MP3 usually ends here";
     double RateMax => Math.Max(1411, Info?.BitrateKbps ?? 0);
 
     static string Pct(double v, double max) => Math.Clamp(v / max * 100, 0, 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);

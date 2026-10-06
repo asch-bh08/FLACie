@@ -2,6 +2,19 @@
 
 Repo: `C:\ipodemu` (GitHub asch-bh08/FLACie). `android/` = Kotlin/Compose/Media3 app. `ipodsync/` = .NET 9: `src/FLACie.Core`, `src/FLACie.Server` (FLACie Web, Blazor Server), `src/IpodSync.Maui` (Windows host), `src/IpodSync.Engine` (NativeAOT iPod engine). `main` = beta 11 plus the open-sources commit; `wip/beta11-fixes` is merged and can be deleted.
 
+## Betas 24 to 28 (2026-10-05 / 2026-10-06)
+
+Full notes per release are in CHANGELOG.md. What matters for the next session:
+
+- **Release flavour:** since beta 25 the user wants each beta marked **Latest** (`gh release create ... --latest`, so not flagged pre-release) but still named/versioned as a beta. Beta 28 = Android 42, MSI 0.28.0.
+- **Full-screen player (Android, `NowPlayingModern.kt` + `UpNextDrawer.kt`):** four panes left to right (Lyrics, cover, Info, Up next) in a `HorizontalPager` (`PanePager`), state in `PaneNav`/`LocalPane`; pills toggle panes; swiping never skips a song. While a pane is open the title collapses to one line (more room, controls stay). `QueuePanel` shows "Playing from <context>" (`PlayerController.contextName`, set by `play(..., context)`, Detail screens set `nav.playContext`) and download tags (`downloadNote`). The earlier swipe-up sheet and the bottom bar were removed on purpose.
+- **Web phone player (`NowPlaying.razor` + `flacie.js paneSwipe`):** same idea with the existing sheet (`PaneSwipe(dir)` order lyrics, cover, info, queue); volume slider is shown on phones again. Queue rows show download tags (`DownloadLog.DoneIndex`, matches by file and by title+artist, running jobs from `DownloadManager.JobsOf`).
+- **Info graph:** the dashed "MP3 usually ends here" line follows the file's bitrate for MP3s (16 kHz at 128k ... 20.5 kHz at 320k) and stays a 16 kHz yardstick for other formats (`TrackInfoPanel.razor CutHz`, `InfoPanel.kt cutHz`, `flacie.js viz(..., cutHz, cutLabel)`).
+- **Web search typing bug:** `FocusOnNavigate` in `Routes.razor` stole focus on every address change; removed.
+- **Download services off Tailscale:** frank's Tailscale Funnel was only on for 8443; port 443 (`/lidarr`, `/slskd`, `/filemove`, and `/` = ntfy on 2586) was switched back to Funnel on 2026-10-05 with `tailscale serve set-raw` (backup `/root/tailscale-serve.bak-2026-10-05.json` on frank). Check that ntfy at `/` asks for a login. The phone's Connect buttons were not re-tested.
+- **Home lag:** cover cache now sized from the heap, playlist covers resolve 8 songs. Still unconfirmed on the real phone (emulator cannot measure smoothness).
+- **Emulator:** it exits on its own between sessions; start with `"$LOCALAPPDATA/Android/Sdk/emulator/emulator.exe" -avd flacie_phone -no-snapshot -gpu swiftshader_indirect -no-audio &` and wait ~60 s. The first tap on the mini player after launch is sometimes lost: tap again.
+
 ## State of the world
 
 - **Released:** v1.0.0-beta19 (Android 33, MSI 0.19.0): Hi-Res badge instead of FLAC (`QuickFormat` returns "HI-RES" for files named `[Hi-Res]`; `Track.hiRes` on Android), Explore redesign + A-Z rail (`.az-rail`, Android right-edge rail), `DownloadManager.ScanSoon` asks Jellyfin to scan ~15 s after a download (admin accounts), Hi-Res library-menu entry (beta 18), reconnect auto-reload, Soulseek search fallback (beta 17). 2026-10-05: 34 duplicate files removed from the NAS (list in docs/duplicates-removed-2026-10-05.tsv); ~800 cross-folder "dupes" are album/playlist folder copies and were kept on purpose. Earlier betas: see git log.

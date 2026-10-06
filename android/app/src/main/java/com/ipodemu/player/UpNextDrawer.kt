@@ -1,14 +1,7 @@
 package com.ipodemu.player
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,8 +19,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ipodemu.App
@@ -71,18 +64,22 @@ private fun NoteChip(text: String) {
  */
 class PaneNav(val pane: String, val toggle: (String) -> Unit, val go: (String) -> Unit)
 val LocalPane = androidx.compose.runtime.staticCompositionLocalOf<PaneNav?> { null }
-private val PANES = listOf("lyrics", "art", "info", "queue")
+val PANES = listOf("lyrics", "art", "info", "queue")
 
-fun Modifier.paneSwipe(nav: PaneNav?): Modifier = if (nav == null) this else pointerInput(nav.pane) {
-    var dx = 0f
-    detectHorizontalDragGestures(
-        onDragStart = { dx = 0f },
-        onDragEnd = {
-            val i = PANES.indexOf(nav.pane)
-            if (dx < -70f && i < PANES.lastIndex) nav.go(PANES[i + 1])
-            else if (dx > 70f && i > 0) nav.go(PANES[i - 1])
-        },
-    ) { c, d -> c.consume(); dx += d }
+/** The panes as pages of a pager: they follow the finger and settle with a spring, and the pills glide to a page. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+fun PanePager(nav: PaneNav, modifier: Modifier = Modifier, page: @Composable (String) -> Unit) {
+    val pager = androidx.compose.foundation.pager.rememberPagerState(initialPage = PANES.indexOf(nav.pane).coerceAtLeast(0)) { PANES.size }
+    androidx.compose.runtime.LaunchedEffect(nav.pane) { val i = PANES.indexOf(nav.pane); if (i >= 0 && pager.targetPage != i) pager.animateScrollToPage(i, animationSpec = androidx.compose.animation.core.spring(0.85f, 380f)) }
+    androidx.compose.runtime.LaunchedEffect(pager) { androidx.compose.runtime.snapshotFlow { pager.settledPage }.collect { p -> if (PANES[p] != nav.pane) nav.go(PANES[p]) } }
+    androidx.compose.foundation.pager.HorizontalPager(pager, modifier, pageSpacing = 12.dp, beyondBoundsPageCount = 0) { p ->
+        Box(Modifier.fillMaxSize().graphicsLayer {
+            // the page slides away a little and fades as it leaves the centre
+            val off = kotlin.math.abs(pager.currentPage - p + pager.currentPageOffsetFraction).coerceIn(0f, 1f)
+            alpha = 1f - 0.45f * off; scaleX = 1f - 0.04f * off; scaleY = 1f - 0.04f * off
+        }, contentAlignment = Alignment.Center) { page(PANES[p]) }
+    }
 }
 
 /** The queue as a pane of the player: where it comes from, the song now playing, then what comes next, each with its download note. */
@@ -106,20 +103,6 @@ fun QueuePanel(snap: PlayerSnap, modifier: Modifier = Modifier) {
         itemsIndexed(next, key = { _, p -> p.first }) { _, p -> DrawerRow(p.second, current = false) { app.player.skipTo(p.first) } }
     }
 }
-
-/** Slides the panes in and out sideways, in the order they sit. */
-@Composable
-fun PaneSwitcher(pane: String, modifier: Modifier = Modifier, content: @Composable (String) -> Unit) {
-    AnimatedContent(
-        pane, modifier,
-        transitionSpec = {
-            val dir = if (PANES.indexOf(targetState) > PANES.indexOf(initialState)) 1 else -1
-            (slideInHorizontally(tween240()) { it * dir / 3 } + fadeIn(tween240())) togetherWith (slideOutHorizontally(tween240()) { -it * dir / 3 } + fadeOut(tween240()))
-        },
-        label = "pane",
-    ) { p -> content(p) }
-}
-private fun <T> tween240() = androidx.compose.animation.core.tween<T>(240)
 
 @Composable
 private fun DrawerRow(t: Track, current: Boolean, onClick: () -> Unit) {

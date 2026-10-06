@@ -222,7 +222,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
             if (hit is null) return false;
             on(new(DownloadStage.Importing, "Filing into the library...", "soulseek"));
             var track = await FileAsync(hit, artist, title, album, 0, 0, durationSec * 1000L, $"{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}{(hiRes ? " [Hi-Res]" : "")}", null, artist, artUrl, ct);
-            if (track is null) return false;
+            if (track is null) { on(new(DownloadStage.Searching, "Soulseek sent the file but it could not be filed: " + (FileWhy.Value ?? "unknown reason"), "soulseek", null, true)); return false; }
             on(new(DownloadStage.Done, hiRes ? $"\"{title}\" is ready to play (Hi-Res {HiResLabel(hit)})" : $"\"{title}\" is ready to play", "soulseek", [track]));
             return true;
         }
@@ -381,6 +381,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
     /// <summary>Moves a finished file from slskd's inbox into the folder Jellyfin scans, <c>Artist/[Album/]name.ext</c>, via the file mover,
     /// and returns a Track that plays from the file mover's <c>/file?path=</c> URL (before Jellyfin has scanned it). slskd keeps only the
     /// peer's immediate parent folder, which is how the inbox path is rebuilt.</summary>
+    static readonly AsyncLocal<string?> FileWhy = new();
     async Task<Track?> FileAsync(SlskdFile hit, string artist, string title, string album, int trackNo, int discNo, long durationMs, string name, string? albumFolder, string trackArtist, string? artUrl, CancellationToken ct)
     {
         var parts = hit.Filename.Replace('\\', '/').Split('/').Where(p => p.Trim().Length > 0).ToArray();
@@ -390,15 +391,25 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         var dest = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist), albumFolder }.Where(x => !string.IsNullOrEmpty(x))) + $"/{name}.{ext}";
         try
         {
-            using var req = new HttpRequestMessage(HttpMethod.Post, cfg.FileMoverUrl.TrimEnd('/') + "/move") { Content = new StringContent(new JsonObject { ["from"] = source, ["to"] = dest }.ToJsonString(), Encoding.UTF8, "application/json") };
-            req.Headers.TryAddWithoutValidation("X-Api-Key", cfg.FileMoverKey);
-            using var res = await http.SendAsync(req, ct);
-            if (!res.IsSuccessStatusCode) return null;
+            // slskd reports a transfer complete a moment before it has moved the file from its incomplete folder into the downloads folder, so the first
+            // ask can find nothing there (seen: "Filing into the library..." then "had nothing it could finish" on songs that did arrive): ask again for up to ~16 s
+            var moved = false;
+            for (var attempt = 0; attempt < 8 && !moved; attempt++)
+            {
+                if (attempt > 0) await Task.Delay(2000, ct);
+                using var req = new HttpRequestMessage(HttpMethod.Post, cfg.FileMoverUrl.TrimEnd('/') + "/move") { Content = new StringContent(new JsonObject { ["from"] = source, ["to"] = dest }.ToJsonString(), Encoding.UTF8, "application/json") };
+                req.Headers.TryAddWithoutValidation("X-Api-Key", cfg.FileMoverKey);
+                using var res = await http.SendAsync(req, ct);
+                if (res.IsSuccessStatusCode) { moved = true; break; }
+                var said = await res.Content.ReadAsStringAsync(ct);
+                if (!said.Contains("source not found", StringComparison.OrdinalIgnoreCase)) { FileWhy.Value = "the file mover said: " + (said.Length > 160 ? said[..160] : said); return null; }   // any other refusal will not change by waiting
+            }
+            if (!moved) { FileWhy.Value ??= "the file never showed up in slskd's downloads folder"; return null; }
             return new Track($"{cfg.FileMoverUrl.TrimEnd('/')}/file?path={Uri.EscapeDataString(dest)}", title, trackArtist, album, artist, trackNo, discNo, durationMs, 0,
                 artUrl is null ? Art.LookupKey(artist, album, title) : Art.ExternalKey(artUrl), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), TrackSource.Cloud);
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception) { return null; }
+        catch (Exception e) { FileWhy.Value = "the file mover was unreachable: " + e.Message; return null; }
     }
 }
 
@@ -501,7 +512,9 @@ sealed class LidarrFlow(HttpClient http, DownloadServices cfg)
                 ? new JsonObject { ["name"] = "AlbumSearch", ["albumIds"] = new JsonArray(alb) } : new JsonObject { ["name"] = "ArtistSearch", ["artistId"] = artistId }, ct);
 
             on(new(DownloadStage.Downloading, "Waiting for a grab...", "lidarr"));
-            var seen = false; var deadline = Environment.TickCount64 + 120_000;
+            // two minutes to be grabbed; once Lidarr's queue has it the wait follows the download (a torrent or usenet grab often takes longer than two minutes,
+            // and a song that arrived minutes later used to be logged as "Not found"), up to 30 minutes
+            var seen = false; var deadline = Environment.TickCount64 + 120_000; var hardStop = Environment.TickCount64 + 30 * 60_000;
             while (Environment.TickCount64 < deadline)
             {
                 var items = (await Call(HttpMethod.Get, "/api/v1/queue?pageSize=200", null, ct))?["records"] as JsonArray ?? [];
@@ -510,6 +523,7 @@ sealed class LidarrFlow(HttpClient http, DownloadServices cfg)
                 if (item is not null)
                 {
                     seen = true;
+                    deadline = Math.Min(hardStop, Environment.TickCount64 + 150_000);
                     if (item["statusMessages"] is JsonArray { Count: > 0 } sm && sm[0]?["messages"] is JsonArray { Count: > 0 }) return false;
                     var state = item["trackedDownloadState"]?.GetValue<string>() ?? "";
                     if ((state.Contains("import", StringComparison.OrdinalIgnoreCase) || state.Contains("warning", StringComparison.OrdinalIgnoreCase)) && item["downloadId"]?.GetValue<string>() is { Length: > 0 } dl)

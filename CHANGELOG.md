@@ -2,6 +2,23 @@
 
 Every release, newest first (generated from the GitHub release notes; the downloads stay on each release page). The newest build is marked Latest. Versions up to 0.9.x were called ipodplayer.
 
+## FLACie 1.0 beta 34
+
+_v1.0.0-beta34, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta34))
+
+Beta 34 (Android 48, MSI 0.34.0). Still a beta, not a 1.0 final.
+
+**Fixed**
+- Covers fixed in Jellyfin no longer stay stale. Android kept every cover forever (so "Meet Me Halfway" kept showing "The Beginning" after the real cover was set in Jellyfin); it now fetches Jellyfin covers again after three days, and the old cover folder is cleared once on update. The web server and its pages do the same.
+- Player: the song title uses the full width instead of being cut off beside the buttons. The format tags (Jellyfin, AAC, 44.1 kHz) sit on one line under the title, with the Equalizer / Add to playlist / More buttons at the right on wide screens.
+- A song the phone cannot decode (no decoder for its format) is now played through the server's conversion instead of going silent, and if a song still cannot play, a message names the error.
+
+**Not reproduced**: "Dark horse (Kryd Hoodtrap / Mylancore)" playing with no sound. I checked both copies in the library on the server: the Apple-lossless one in HoodTrap(LAC) and the AAC one in Unknown artist/Singles both decode with normal loudness, and the song plays on the emulator. If it is still silent on your phone, the message from this build should say why; tell me what it says. (Your phone's status bar shows the muted-speaker icon: worth checking the media volume.)
+
+**Tested**: Android release build on the emulator: wide view (title, one-line tags, buttons, Autoplay switch, "Downloaded just now" note), Meet Me Halfway now shows the E.N.D. cover.
+**Not tested**: the decode fallback on a song that really cannot be decoded (none available here); a real Fold; installing the MSI or launching the 0.34 Windows app.
+
+
 ## FLACie 1.0 beta 33
 
 _v1.0.0-beta33, 2026-10-06, release_  ([release page](https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta33))

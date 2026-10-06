@@ -90,13 +90,18 @@ public sealed class DownloadLog(DataPaths paths)
         return segs.Length < 2 ? "" : string.Join('/', segs.TakeLast(3)).ToLowerInvariant();
     }
 
+    public static string TitleKey(string title, string artist) => "t:" + title.Trim().ToLowerInvariant() + "|" + artist.Trim().ToLowerInvariant();
     public static string FileKey(string? path) => string.IsNullOrEmpty(path) ? "" : Key(path);
 
     /// <summary>This user's finished downloads by file (newest wins), to tell in a list which songs were just fetched.</summary>
     public Dictionary<string, DownloadRecord> DoneIndex(string userId)
     {
         var d = new Dictionary<string, DownloadRecord>();
-        foreach (var r in For(userId)) if (r.Done && r.File is { Length: > 0 } f && Key(f) is { Length: > 0 } k) d.TryAdd(k, r);
+        foreach (var r in For(userId)) if (r.Done)
+        {
+            if (r.File is { Length: > 0 } f && Key(f) is { Length: > 0 } k) d.TryAdd(k, r);
+            if (r.Title.Length > 0) d.TryAdd(TitleKey(r.Title, r.Artist), r);   // a song not in the library yet (an autoplay pick) is matched by name
+        }
         return d;
     }
 

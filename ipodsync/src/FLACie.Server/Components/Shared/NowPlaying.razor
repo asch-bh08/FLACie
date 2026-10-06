@@ -2,7 +2,7 @@
 @implements IDisposable
 @* Full-screen player: the cover, the controls, and beside it the queue, the synced lyrics or the file's real format. *@
 @{ var t = Player.Current; }
-<div class="np @(panelOpen ? "sheet" : "") @(closing ? "closing" : "")" role="dialog" aria-modal="true" aria-label="Now Playing">
+<div @ref="npEl" class="np @(panelOpen ? "sheet" : "") @(closing ? "closing" : "")" role="dialog" aria-modal="true" aria-label="Now Playing">
     @if (t is not null && Art.KeyFor(t) is { } art) { <img class="np-backdrop" src="/art/@Uri.EscapeDataString(art)?v=2" alt="" /> }
     <div class="np-shade"></div>
     <header class="np-top">
@@ -69,13 +69,6 @@
                 <div class="np-volume"><VolumeControl /></div>
             </section>
             <section class="np-side">
-                <div class="np-peek" @ref="peekEl" role="button" tabindex="0" aria-label="Up next. Swipe up or press to open the queue" @onclick="OpenQueue" @onkeydown="PeekKey">
-                    <i class="grab" aria-hidden="true"></i>
-                    <div class="peek-row">
-                        <span class="from"><small>Playing from</small><b>@(Player.Context ?? "Your queue")</b></span>
-                        <Icon Name="chevron-up" Size="20" />
-                    </div>
-                </div>
                 <div class="np-tabs" role="tablist">
                     <button role="tab" aria-selected="@(tab == "queue")" class="@(tab == "queue" ? "on" : "")" @onclick='() => Open("queue")'><Icon Name="queue" Size="18" />Up next</button>
                     <button role="tab" aria-selected="@(tab == "lyrics")" class="@(tab == "lyrics" ? "on" : "")" @onclick='() => Open("lyrics")'><Icon Name="lyrics" Size="18" />Lyrics</button>
@@ -156,7 +149,15 @@
     string tab = "queue"; string? shownTab = "queue";
     // closing plays the slide-down (the cover pops down) before the player is taken out of the page
     bool closing;
-    [JSInvokable] public void PeekOpen() => InvokeAsync(() => { OpenQueue(); StateHasChanged(); });
+    /// <summary>A sideways swipe on the phone player moves between its panes, left to right: Lyrics, the cover, Info, Up next (a swipe no longer skips the song).</summary>
+    [JSInvokable] public void PaneSwipe(int dir) => InvokeAsync(() =>
+    {
+        string[] order = ["lyrics", "cover", "info", "queue"];
+        var i = Array.IndexOf(order, panelOpen ? tab : "cover") + dir;
+        if (i < 0 || i >= order.Length) return;
+        if (order[i] == "cover") panelOpen = false; else { tab = order[i]; panelOpen = true; if (tab == "lyrics") _ = LoadLyrics(); }
+        StateHasChanged();
+    });
     [JSInvokable] public async Task Closed()
     {
         await InvokeAsync(async () => { closing = true; StateHasChanged(); await Task.Delay(260); });
@@ -193,7 +194,7 @@
     string? lyricsPushed;
 
     // on a phone the panel is a sheet over the cover: a tab opens it, the same tab again closes it (on a wide screen it is always there)
-    ElementReference peekEl;
+    ElementReference npEl;
     [Inject] DownloadLog DlLog { get; set; } = default!;
     [Inject] DownloadManager Dls { get; set; } = default!;
     Dictionary<string, DownloadRecord>? dlIdx; string? dlIdxFor;
@@ -203,7 +204,7 @@
         var key = Session.Jellyfin?.UserId ?? Session.Nas?.User ?? "guest";
         if (dlIdx is null || dlIdxFor != Player.Current?.Path) { dlIdx = DlLog.DoneIndex(key); dlIdxFor = Player.Current?.Path; }
         if (Dls.JobsOf(Session).Any(j => !j.Finished && string.Equals(j.Title, u.Title, StringComparison.OrdinalIgnoreCase) && string.Equals(j.Artist, u.Artist, StringComparison.OrdinalIgnoreCase))) return "Downloading";
-        if (!dlIdx.TryGetValue(DownloadLog.FileKey(u.FilePath ?? u.Path), out var r)) return null;
+        if (!dlIdx.TryGetValue(DownloadLog.FileKey(u.FilePath ?? u.Path), out var r) && !dlIdx.TryGetValue(DownloadLog.TitleKey(u.Title, u.Artist), out r)) return null;
         var age = DateTime.UtcNow - r.FinishedAt.ToUniversalTime();
         return age.TotalHours < 1 ? "Downloaded just now" : age.TotalDays < 1 ? "Downloaded today" : age.TotalDays < 7 ? "Downloaded this week" : "Downloaded";
     }
@@ -214,7 +215,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender) { self = DotNetObjectReference.Create(this); try { await Js.InvokeVoidAsync("flacie.npOpen", self); await Js.InvokeVoidAsync("flacie.peekDrag", peekEl, self); } catch (Exception) { } }
+        if (firstRender) { self = DotNetObjectReference.Create(this); try { await Js.InvokeVoidAsync("flacie.npOpen", self); await Js.InvokeVoidAsync("flacie.paneSwipe", npEl, self); } catch (Exception) { } }
         if (shownTab != tab) { shownTab = tab; try { await Js.InvokeVoidAsync("flacie.panelTop"); } catch (Exception) { } }
         if (Player.Current is not { } t) return;
         // a new song: refresh whatever is showing

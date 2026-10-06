@@ -111,7 +111,7 @@ else
     string Hint => mode switch
     {
         "rate" => "How much data each second of the song uses, next to common formats.",
-        "curve" => $"How loud each pitch is right now: deep sounds on the left, high sounds on the right, up to {(Info!.SampleRateHz > 0 ? (Info.SampleRateHz / 2000.0).ToString("0.#") : "22")} kHz (half this file's sample rate). A lossless file usually has sound out to the right edge; an MP3 is cut off around 16 kHz.",
+        "curve" => $"How loud each pitch is right now: deep sounds on the left, high sounds on the right, up to {(Info!.SampleRateHz > 0 ? (Info.SampleRateHz / 2000.0).ToString("0.#") : "22")} kHz (half this file's sample rate). A lossless file usually has sound out to the right edge; an MP3 is cut off by its encoder (about 16 kHz at 128 kbps, about 20 kHz at 320 kbps: the dashed line marks it).",
         "leds" => "The song as it plays, deep sounds on the left and high ones on the right.",
         "wall" => "Pitch runs up the side (deep at the bottom, high at the top) and brighter means louder. The newest sound is on the right and scrolls left.",
         "loud" => "How loud the song is right now, in dB (0 is the loudest a file can go), and the last ten seconds of it.",
@@ -152,7 +152,7 @@ else
         var key = mode + "|" + Track.Path + "|" + Info.SampleRateHz;   // a new song can run at another rate, which needs a new graph
         if (shown == key || unavailable) return;
         shown = key;
-        try { if (!await Js.InvokeAsync<bool>("flacie.viz", "viz", mode, Info.SampleRateHz)) { unavailable = true; StateHasChanged(); } } catch (Exception) { }
+        try { if (!await Js.InvokeAsync<bool>("flacie.viz", "viz", mode, Info.SampleRateHz, CutHz, CutLabel)) { unavailable = true; StateHasChanged(); } } catch (Exception) { }
     }
 
     static async Task Safe(Func<Task> f) { try { await f(); } catch (Exception) { } }
@@ -163,6 +163,9 @@ else
         var l = new List<(string, int, bool)> { ("MP3, low", 128, false), ("MP3, high", 320, false), ("CD, uncompressed", 1411, false), ("This file", Info!.BitrateKbps, true) };
         return l.OrderBy(x => x.Item2);
     }
+    // where an MP3 encoder at this bitrate usually stops the sound (LAME's lowpass): 128k ~16 kHz, 192k ~19 kHz, 256k ~20 kHz, 320k ~20.5 kHz. A 320k MP3 reaching 20 kHz is normal, not a sign of a better file.
+    int CutHz => Info is { } i && i.Codec.Equals("mp3", StringComparison.OrdinalIgnoreCase) && i.BitrateKbps > 0 ? (i.BitrateKbps <= 96 ? 15000 : i.BitrateKbps <= 128 ? 16000 : i.BitrateKbps <= 160 ? 17500 : i.BitrateKbps <= 192 ? 19000 : i.BitrateKbps <= 256 ? 20000 : 20500) : 0;
+    string CutLabel => Info is { } i2 && CutHz > 0 ? $"{i2.BitrateKbps} kbps MP3 usually ends here" : "";
     double RateMax => Math.Max(1411, Info?.BitrateKbps ?? 0);
 
     static string Pct(double v, double max) => Math.Clamp(v / max * 100, 0, 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);

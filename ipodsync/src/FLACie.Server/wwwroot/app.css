@@ -1022,3 +1022,8 @@ body.np-open .player .bar, body.np-open .player .bar:hover { cursor: default; }
   .np-peek .peek-row > .from b { font-size: 14px; font-weight: 650; color: var(--dim); }
   .np.sheet .np-peek { display: none; }
 }
+/* queue notes: easier to see (green once fetched, pink while downloading) */
+.dl-note { font-size: 12px; padding: 3px 10px 3px 8px; background: #4ee0a12e; color: #4ee0a1; }
+.dl-note::before { content: "\2193"; margin-right: 5px; font-weight: 800; }
+.dl-note.live { background: color-mix(in srgb, var(--accent) 28%, transparent); color: var(--accent); }
+.np-peek { display: none !important; }

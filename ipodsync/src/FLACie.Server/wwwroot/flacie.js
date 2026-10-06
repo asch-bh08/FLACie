@@ -54,7 +54,7 @@ window.flacie = (() => {
   // Live views for the Info tab: spectrum, bars, spectrogram, loudness, stereo. Playback itself goes straight from the audio element to the
   // output (no Web Audio in its path, so the browser never resamples it to a fixed rate). The graphs read a silent twin of the same stream
   // through an AudioContext opened at the file's own sample rate, so the spectrum reaches the file's real Nyquist. Not done on iOS.
-  let actx = null, an = null, anL = null, anR = null, twin = null, vizOn = false, vizStyle = "curve", vs = {}, vh = null, vp = null, cp = null, ctxKey = "";
+  let actx = null, an = null, anL = null, anR = null, twin = null, vizOn = false, vizStyle = "curve", vs = {}, vh = null, vp = null, cp = null, ctxKey = "", vizCut = 0, vizCutLabel = "";
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const AC = window.AudioContext || window.webkitAudioContext;
   const closeGraph = () => {
@@ -120,9 +120,9 @@ window.flacie = (() => {
       g.strokeStyle = "rgba(255,255,255,.08)"; g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke();
       g.textAlign = k === 0 ? "left" : "center"; g.fillText(k === 0 ? "0" : (k / 1000) + " kHz", k === 0 ? 2 : Math.min(x, w - 22 * dpr), h - 3 * dpr);
     }
-    if (maxHz > 16000) { // where MP3s are usually cut off
-      const x = 16000 / maxHz * w; g.setLineDash([4 * dpr, 4 * dpr]); g.strokeStyle = "rgba(255,255,255,.3)"; g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke(); g.setLineDash([]);
-      g.textAlign = "right"; g.fillText("MP3 usually ends here", x - 5 * dpr, top + 10 * dpr);
+    if (vizCut > 0 && maxHz > vizCut) { // where an encoder at this file's bitrate usually cuts the sound off
+      const x = vizCut / maxHz * w; g.setLineDash([4 * dpr, 4 * dpr]); g.strokeStyle = "rgba(255,255,255,.3)"; g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke(); g.setLineDash([]);
+      g.textAlign = "right"; g.fillText(vizCutLabel || "usually ends here", x - 5 * dpr, top + 10 * dpr);
     }
     const pts = [], pk = [];
     for (let i = 0; i < use; i++) {
@@ -298,7 +298,8 @@ window.flacie = (() => {
       if (autoplay) audio.play().catch(() => send("OnState", false)); else { audio.pause(); send("OnState", false); }
     },
     // starts the Info tab's live view; false when this browser can't do it
-    viz(id, style, rate) {
+    viz(id, style, rate, cutHz, cutLabel) {
+      vizCut = cutHz | 0; vizCutLabel = cutLabel || "";
       vizStyle = views[style] ? style : "curve"; vs = {};
       if (!buildGraph(rate | 0) || !an) return false;
       if (!vizOn) { vizOn = true; requestAnimationFrame(vizDraw); }
@@ -334,14 +335,17 @@ window.flacie = (() => {
     // the full-screen player is a history entry, so the browser's Back button closes it
     // the arrows in a shelf heading scroll the row below it, a page at a time
     scrollRow(btn, dir) { const row = btn.closest(".shelf")?.querySelector(".row-scroll"); if (row) row.scrollBy({ left: dir * row.clientWidth * 0.85, behavior: "smooth" }); },
-    // the Up next bar at the foot of the phone player: it follows the finger up, and past a short pull (or a tap) it opens the queue
-    peekDrag(el, ref) {
-      if (!el || el._drag) return; el._drag = true;
-      let y0 = null, dy = 0;
-      el.addEventListener("pointerdown", e => { y0 = e.clientY; dy = 0; el.style.transition = "none"; try { el.setPointerCapture(e.pointerId); } catch (_) {} });
-      el.addEventListener("pointermove", e => { if (y0 === null) return; dy = Math.min(0, e.clientY - y0); el.style.transform = "translateY(" + dy + "px)"; });
-      const end = () => { if (y0 === null) return; const pulled = dy < -48; y0 = null; el.style.transition = "transform .22s ease"; el.style.transform = ""; if (pulled) ref.invokeMethodAsync("PeekOpen"); };
-      el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+    // the phone player: a sideways swipe moves between Lyrics, the cover, Info and Up next (never skips the song)
+    paneSwipe(el, ref) {
+      if (!el || el._swipe) return; el._swipe = true;
+      let x0 = null, y0 = 0;
+      el.addEventListener("pointerdown", e => { x0 = (e.pointerType === "mouse" || e.target.closest("input[type=range],button.play,.seek")) ? null : e.clientX; y0 = e.clientY; });
+      el.addEventListener("pointerup", e => {
+        if (x0 === null) return; const dx = e.clientX - x0, dy = e.clientY - y0; x0 = null;
+        if (!matchMedia("(max-width: 1024px) and (orientation: portrait)").matches) return;
+        if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.4) ref.invokeMethodAsync("PaneSwipe", dx < 0 ? 1 : -1);
+      });
+      el.addEventListener("pointercancel", () => { x0 = null; });
     },
     npOpen(ref) {
       npRef = ref; document.body.classList.add("np-open");

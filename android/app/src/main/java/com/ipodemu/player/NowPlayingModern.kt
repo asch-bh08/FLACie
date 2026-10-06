@@ -60,22 +60,22 @@ import com.ipodemu.library.Track
 @Composable
 fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
     val t = snap.track ?: return
-    var lyricsOpen by rememberSaveable { mutableStateOf(false) }
-    var infoOpen by rememberSaveable { mutableStateOf(false) }
-    val infoToggle: Pair<Boolean, () -> Unit> = infoOpen to { infoOpen = !infoOpen; if (infoOpen) lyricsOpen = false }
+    var pane by rememberSaveable { mutableStateOf("art") }
+    val paneNav = PaneNav(pane, { p -> pane = if (pane == p) "art" else p }, { p -> pane = p })
+    val lyricsOpen = pane == "lyrics"
+    val infoOpen = pane == "info"
+    val infoToggle: Pair<Boolean, () -> Unit> = infoOpen to { paneNav.toggle("info") }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val w = maxWidth; val h = maxHeight
         val ratio = w / h
-        val portraitSheet = !(w >= 840.dp && ratio >= 1.1f) && ratio < 0.95f
-        val upState = remember { UpNextState() }
-        androidx.compose.runtime.CompositionLocalProvider(LocalUpNext provides if (portraitSheet) upState else null) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalPane provides paneNav) {
         when {
             w >= 840.dp && ratio >= 1.1f -> Row(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(28.dp), verticalAlignment = Alignment.CenterVertically) {
                 NpArtModern(t, Modifier.size(min(h - 48.dp, w * 0.32f)))
                 Column(Modifier.width(min(420.dp, w * 0.34f)).fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
                     Controls(snap, nav, lyricsToggle = null, info = infoToggle)
                 }
-                if (infoOpen) TrackInfoPanel(t, snap, Modifier.weight(1f).fillMaxHeight()) else LyricsPanel(t, snap.playing, Modifier.weight(1f).fillMaxHeight(), big = true)
+                if (pane == "queue") QueuePanel(snap, Modifier.weight(1f).fillMaxHeight()) else if (infoOpen) TrackInfoPanel(t, snap, Modifier.weight(1f).fillMaxHeight()) else LyricsPanel(t, snap.playing, Modifier.weight(1f).fillMaxHeight(), big = true)
             }
             ratio in 0.95f..1.3f -> Column(Modifier.fillMaxSize().padding(start = 20.dp, end = 20.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 // square-ish (RG Rotate, Fold inner): art + title/actions on top, then seek and the transport at full width,
@@ -90,7 +90,7 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
                     }
                     Column(Modifier.weight(0.5f), verticalArrangement = Arrangement.spacedBy(18.dp)) {
                         InfoRow(snap, nav)
-                        ActionRow(snap, nav, lyricsOpen to { lyricsOpen = !lyricsOpen; if (lyricsOpen) infoOpen = false }, spread = false, info = infoToggle)
+                        ActionRow(snap, nav, lyricsOpen to { paneNav.toggle("lyrics") }, spread = false, info = infoToggle)
                     }
                 }
                 Seek(snap)
@@ -104,7 +104,7 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
                         ArtOrPanel(t, snap, lyricsOpen, infoOpen, big = false)
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterVertically)) {
-                        Controls(snap, nav, lyricsToggle = lyricsOpen to { lyricsOpen = !lyricsOpen; if (lyricsOpen) infoOpen = false }, header = false, info = infoToggle)
+                        Controls(snap, nav, lyricsToggle = lyricsOpen to { paneNav.toggle("lyrics") }, header = false, info = infoToggle)
                     }
                 }
             }
@@ -113,12 +113,11 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
                 Box(Modifier.weight(1f).fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
                     ArtOrPanel(t, snap, lyricsOpen, infoOpen, big = true, art = Modifier.fillMaxWidth().aspectRatio(1f, matchHeightConstraintsFirst = true))
                 }
-                Controls(snap, nav, lyricsToggle = lyricsOpen to { lyricsOpen = !lyricsOpen; if (lyricsOpen) infoOpen = false }, header = false, info = infoToggle)
-                Box(Modifier.height(64.dp))   // room for the "Playing from" line you swipe up from
+                Controls(snap, nav, lyricsToggle = lyricsOpen to { paneNav.toggle("lyrics") }, header = false, info = infoToggle)
+                Box(Modifier.height(20.dp))
             }
         }
         }
-        if (portraitSheet) UpNextDrawer(snap, upState)
     }
 }
 
@@ -171,9 +170,8 @@ private fun ActionRow(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boole
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         if (lyricsToggle != null) Pill(Glyph.LYRICS, "Lyrics", lyricsToggle.first, lyricsToggle.second)
         if (info != null) Pill(Glyph.INFO, "Info", info.first, info.second)
-        val upNext = LocalUpNext.current
-        val upScope = androidx.compose.runtime.rememberCoroutineScope()
-        Pill(Glyph.QUEUE, "Up next", false) { if (upNext != null) upScope.launch { upNext.frac.animateTo(1f, androidx.compose.animation.core.tween(320)) } else nav.openQueueFromPlayer() }
+        val pn = LocalPane.current
+        Pill(Glyph.QUEUE, "Up next", pn?.pane == "queue") { if (pn != null) pn.toggle("queue") else nav.openQueueFromPlayer() }
         Pill(Glyph.LIST, "Equalizer", app.prefs.eq != "Off") { nav.sheet = eqSheet(app) }
         Pill(Glyph.PLUS, "Add to playlist", false) { nav.sheet = playlistPicker(app, nav, t) }
         Pill(Glyph.MORE, "More", false) { openTrackSheet(app, nav, t, if (info != null && !info.first) listOf(SheetItem("Song info", Glyph.INFO) { info.second() }) else emptyList()) }
@@ -268,7 +266,7 @@ private fun PlayDisc(playing: Boolean, size: Dp, focus: FocusRequester, onClick:
 private fun NpArtModern(t: Track, modifier: Modifier) {
     val app = LocalApp.current
     ArtImage(
-        t.artKey, modifier.popIn(t.path, 0.88f).trackSwipe({ app.player.prev() }, { app.player.next() })
+        t.artKey, modifier.popIn(t.path, 0.88f)
             .shadow(24.dp, RoundedCornerShape(12.dp), clip = false, ambientColor = Color.Black, spotColor = Color.Black),
         corner = 12.dp,
     )
@@ -345,9 +343,18 @@ private fun RoundAction(g: Glyph, label: String, active: Boolean, onClick: () ->
 /** The cover, or whichever panel (lyrics, or the Info graphs) has taken its place. */
 @Composable
 private fun ArtOrPanel(t: Track, snap: PlayerSnap, lyrics: Boolean, info: Boolean, big: Boolean, art: Modifier = Modifier.fillMaxSize()) {
-    when {
-        info -> TrackInfoPanel(t, snap, Modifier.fillMaxSize())
-        lyrics -> LyricsPanel(t, snap.playing, Modifier.fillMaxSize(), big)
-        else -> NpArtModern(t, art)
+    val pn = LocalPane.current
+    val shown = if (pn == null) (if (info) "info" else if (lyrics) "lyrics" else "art") else pn.pane
+    Box(Modifier.fillMaxSize().paneSwipe(pn), contentAlignment = Alignment.Center) {
+        PaneSwitcher(shown, Modifier.fillMaxSize()) { p ->
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                when (p) {
+                    "queue" -> QueuePanel(snap, Modifier.fillMaxSize())
+                    "info" -> TrackInfoPanel(t, snap, Modifier.fillMaxSize())
+                    "lyrics" -> LyricsPanel(t, snap.playing, Modifier.fillMaxSize(), big)
+                    else -> NpArtModern(t, art)
+                }
+            }
+        }
     }
 }

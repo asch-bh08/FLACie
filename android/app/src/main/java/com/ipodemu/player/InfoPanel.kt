@@ -94,11 +94,15 @@ private fun audioInfo(app: com.ipodemu.App, t: Track): AudioInfo {
     return AudioInfo(codec, codec in setOf("FLAC", "ALAC", "WAV"), f?.sampleRate?.takeIf { it > 0 } ?: live.sampleRate, f?.channelCount?.takeIf { it > 0 } ?: live.channels, kbps, bits)
 }
 
+/** Where an MP3 at this file's bitrate usually stops (0 = not an MP3, no marker); set by the panel, read by the spectrum drawing. */
+private var cutHz = 0
+private var cutLabel = ""
+
 private val MODES = listOf("rate" to "Bit rate", "curve" to "Spectrum", "leds" to "Visualizer", "wall" to "Spectrogram", "loud" to "Loudness", "stereo" to "Stereo")
 
 private fun hint(mode: String, sampleRate: Int = 0) = when (mode) {
     "rate" -> "How much data each second of the song uses, next to common formats."
-    "curve" -> "How loud each pitch is right now: deep sounds on the left, high on the right, up to ${if (sampleRate > 0) "%.1f".format(sampleRate / 2000.0) else "22"} kHz (half this file's sample rate). An MP3 is cut off around 16 kHz."
+    "curve" -> "How loud each pitch is right now: deep sounds on the left, high on the right, up to ${if (sampleRate > 0) "%.1f".format(sampleRate / 2000.0) else "22"} kHz (half this file's sample rate). An MP3 is cut off by its encoder (about 16 kHz at 128 kbps, about 20 kHz at 320 kbps: the dashed line marks it)."
     "leds" -> "The song as it plays, deep sounds on the left and high ones on the right."
     "wall" -> "Pitch runs up the side (deep at the bottom, high at the top) and brighter means louder. The newest sound is on the right and scrolls left."
     "loud" -> "How loud the song is right now, in dB (0 is the loudest a file can go), and the last ten seconds."
@@ -118,6 +122,8 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
         val am = ctx.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
         LiveAnalysis(app.player.live) { app.player.volume * (am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC).toFloat() / am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)) }
     }
+    cutHz = if (info.codec.equals("MP3", true) && info.kbps > 0) (if (info.kbps <= 96) 15000 else if (info.kbps <= 128) 16000 else if (info.kbps <= 160) 17500 else if (info.kbps <= 192) 19000 else if (info.kbps <= 256) 20000 else 20500) else 0
+    cutLabel = "${info.kbps} kbps MP3 usually ends here"
     androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
     // the graph takes what room the panel has (header, chips and text above it need about 320dp), so its axis is never cut off at the bottom; Hi-Res files get more when there is more
     val graphH = (maxHeight - 330.dp).coerceIn(150.dp, if (info.hiRes) 300.dp else 230.dp)
@@ -292,10 +298,10 @@ private class Gfx(
             text(if (k == 0f) "0" else "${(k / 1000).toInt()} kHz", if (k == 0f) 2f else min(x, w - 22 * dp), h - 3 * dp, align = if (k == 0f) Paint.Align.LEFT else Paint.Align.CENTER)
             k += stepHz
         }
-        if (maxHz > 16000) {
-            val x = 16000f / maxHz * w
+        if (cutHz > 0 && maxHz > cutHz) {
+            val x = cutHz.toFloat() / maxHz * w
             d.drawLine(Color(0x4DFFFFFF), Offset(x, top), Offset(x, bottom), 1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4 * dp, 4 * dp)))
-            text("MP3 usually ends here", x - 5 * dp, top + 10 * dp, align = Paint.Align.RIGHT)
+            text(cutLabel, x - 5 * dp, top + 10 * dp, align = Paint.Align.RIGHT)
         }
         val xs = FloatArray(use); val ys = FloatArray(use); val pxs = FloatArray(use); val pys = FloatArray(use)
         for (i in 0 until use) {

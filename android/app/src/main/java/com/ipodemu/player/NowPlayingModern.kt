@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -69,7 +70,8 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
         val ratio = w / h
         // taller than wide (phones, Fold cover): the cover, Lyrics, Info and Up next are pages you swipe between;
         // as wide as tall or wider (Fold unfolded, tablets, landscape): like the web, cover and controls on the left, Up next / Lyrics / Info always on the right
-        val sideBySide = ratio >= 0.95f
+        val sideBySide = ratio >= 0.95f && w >= 600.dp   // two columns need room: a small window or split screen keeps the single column
+        val short = h < 560.dp
         val shown = if (sideBySide && pane == "art") "queue" else pane
         val paneNav = PaneNav(shown, { p -> pane = if (!sideBySide && pane == p) "art" else p }, { p -> pane = p }, wide = sideBySide)
         val lyricsToggle: Pair<Boolean, () -> Unit> = (shown == "lyrics") to { paneNav.toggle("lyrics") }
@@ -78,11 +80,13 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
         if (sideBySide) {
             // like the web: the cover and controls on the left, and on the right three tabs (Up next, Lyrics, Info) you can also swipe through
             Row(Modifier.fillMaxSize().padding(start = 28.dp, end = 28.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(44.dp)) {
-                Column(Modifier.weight(0.5f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.weight(0.5f).fillMaxHeight().then(if (short) Modifier.verticalScroll(rememberScrollState()) else Modifier), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Header(nav)
-                    BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    if (short) Box(Modifier.fillMaxWidth().height(min(160.dp, h * 0.4f)), contentAlignment = Alignment.Center) { NpArtModern(t, Modifier.size(min(160.dp, h * 0.4f))) }
+                    else BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                         NpArtModern(t, Modifier.size(min(maxWidth, maxHeight)))
                     }
+                    Unit
                     InfoRow(snap, nav)
                     Seek(snap)
                     Transport(snap)
@@ -99,12 +103,21 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
                 }
             }
         
-} else Column(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 8.dp)) {
+        } else Column(Modifier.fillMaxSize().padding(horizontal = if (w < 360.dp) 14.dp else 22.dp, vertical = 8.dp).then(if (short) Modifier.verticalScroll(rememberScrollState()) else Modifier)) {
             Header(nav)
+            if (short) {
+                // a short window (split screen, landscape phone): the song, seek bar and transport come first, so the essentials are always on screen; the cover and pages scroll below
+                InfoRow(snap, nav); Seek(snap); Transport(snap)
+                Box(Modifier.height(if (shown == "art") min(w - 44.dp, 240.dp) else 340.dp).fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                    ArtOrPanel(t, snap, shown == "lyrics", shown == "info", big = true, art = Modifier.fillMaxWidth().aspectRatio(1f, matchHeightConstraintsFirst = true))
+                }
+                ActionRow(snap, nav, lyricsToggle, spread = true, info = infoToggle)
+            } else {
             Box(Modifier.weight(1f).fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
                 ArtOrPanel(t, snap, shown == "lyrics", shown == "info", big = true, art = Modifier.fillMaxWidth().aspectRatio(1f, matchHeightConstraintsFirst = true))
             }
             Controls(snap, nav, lyricsToggle = lyricsToggle, header = false, info = infoToggle)
+            }
             Box(Modifier.height(20.dp))
         }
         }
@@ -211,16 +224,16 @@ private fun InfoRow(snap: PlayerSnap, nav: PlayerNav) {
                         Txt(t.title, size = 22f, weight = FontWeight.Bold, maxLines = 2)
                         Txt(t.artist.ifEmpty { "Unknown Artist" }, Modifier.padding(top = 2.dp).clickable(enabled = t.artist.isNotEmpty()) {
                             nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist }))
-                        }, size = 16f, color = sc.onBgDim)
-                    }
-                    if (pn?.wide == true) {
-                        IconAction(Glyph.LIST, "Equalizer", { nav.sheet = eqSheet(app) })
-                        IconAction(Glyph.PLUS, "Add to playlist", { nav.sheet = playlistPicker(app, nav, t) })
-                        IconAction(Glyph.MORE, "More", { openTrackSheet(app, nav, t) })
+                        }, size = 16f, color = sc.onBgDim, maxLines = 2)
                     }
                     IconAction(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Unfavorite" else "Favorite", { app.userData.toggleFavorite(t.path) }, tint = if (fav) sc.accent else sc.onBg)
                 }
                 FormatChips(t, snap)   // the whole width of the column, so the badges stay on one line
+                if (pn?.wide == true) Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconAction(Glyph.LIST, "Equalizer", { nav.sheet = eqSheet(app) })
+                    IconAction(Glyph.PLUS, "Add to playlist", { nav.sheet = playlistPicker(app, nav, t) })
+                    IconAction(Glyph.MORE, "More", { openTrackSheet(app, nav, t) })
+                }
             }
         }
     }

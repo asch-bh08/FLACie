@@ -523,12 +523,12 @@ fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, onNudge: (Float) -> Unit, 
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     down.consume()
-                    drag = (down.position.x / size.width).coerceIn(0f, 1f)
+                    drag = ((down.position.x - 12.dp.toPx()) / (size.width - 24.dp.toPx()).coerceAtLeast(1f)).coerceIn(0f, 1f)
                     var lifted = false
                     while (true) {
                         val ev = awaitPointerEvent()
                         val c = ev.changes.firstOrNull { it.id == down.id } ?: break
-                        drag = (c.position.x / size.width).coerceIn(0f, 1f)
+                        drag = ((c.position.x - 12.dp.toPx()) / (size.width - 24.dp.toPx()).coerceAtLeast(1f)).coerceIn(0f, 1f)
                         c.consume()
                         if (!c.pressed) { lifted = true; break }
                     }
@@ -541,10 +541,11 @@ fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, onNudge: (Float) -> Unit, 
         Canvas(Modifier.fillMaxWidth().height(36.dp)) {
             val modern = style.modern
             val th = (if (modern) 4.dp else 8.dp).toPx(); val cy = size.height / 2
-            drawRoundRect(sc.onBg.copy(alpha = .22f), Offset(0f, cy - th / 2), Size(size.width, th), androidx.compose.ui.geometry.CornerRadius(th / 2))
-            val fx = size.width * shown
-            if (fx > 0f && modern) drawRoundRect(sc.onBg, Offset(0f, cy - th / 2), Size(fx, th), androidx.compose.ui.geometry.CornerRadius(th / 2))
-            else if (fx > 0f) drawRoundRect(Brush.verticalGradient(listOf(sc.accentLight, sc.accentDark), cy - th / 2, cy + th / 2), Offset(0f, cy - th / 2), Size(fx, th), androidx.compose.ui.geometry.CornerRadius(th / 2))
+            val pad = 12.dp.toPx(); val tw = size.width - 2 * pad   // the knob's radius of room at each end: it is never cut off at the start or the end
+            drawRoundRect(sc.onBg.copy(alpha = .22f), Offset(pad, cy - th / 2), Size(tw, th), androidx.compose.ui.geometry.CornerRadius(th / 2))
+            val fx = pad + tw * shown
+            if (fx > pad && modern) drawRoundRect(sc.onBg, Offset(pad, cy - th / 2), Size(fx - pad, th), androidx.compose.ui.geometry.CornerRadius(th / 2))
+            else if (fx > pad) drawRoundRect(Brush.verticalGradient(listOf(sc.accentLight, sc.accentDark), cy - th / 2, cy + th / 2), Offset(pad, cy - th / 2), Size(fx - pad, th), androidx.compose.ui.geometry.CornerRadius(th / 2))
             drawCircle(Color.White, if (drag != null || focused) 11.dp.toPx() else if (modern) 7.dp.toPx() else 8.dp.toPx(), Offset(fx, cy))
             if (!modern) drawCircle(sc.accent, 4.dp.toPx(), Offset(fx, cy))
         }

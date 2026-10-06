@@ -134,11 +134,15 @@ fun BottomNav(nav: PlayerNav) {
 @Composable
 fun NavRail(nav: PlayerNav) {
     val cur = nav.currentTab()
-    Column(
-        Modifier.width(80.dp).fillMaxHeight().background(Palette.bg).verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Tab.entries.forEach { t -> NavItem(t, t == cur, Modifier.width(80.dp).height(68.dp)) { nav.selectTab(t) } }
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.width(80.dp).fillMaxHeight().background(Palette.bg)) {
+        // the items share the height there is (a landscape phone is only about 400dp tall): they shrink to fit, and still scroll if even that is too much
+        val itemH = ((maxHeight - 16.dp) / Tab.entries.size - 2.dp).coerceIn(50.dp, 68.dp)
+        Column(
+            Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Tab.entries.forEach { t -> NavItem(t, t == cur, Modifier.width(80.dp).height(itemH)) { nav.selectTab(t) } }
+        }
     }
 }
 
@@ -150,11 +154,11 @@ private fun NavItem(t: Tab, selected: Boolean, modifier: Modifier, onClick: () -
     val col = if (selected) sc.accent else Palette.dim
     Column(modifier.wheelTracked().clickable(src, null, onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Box(
-            Modifier.size(width = 64.dp, height = 32.dp).clip(RoundedCornerShape(16.dp))
+            Modifier.size(width = 56.dp, height = 28.dp).clip(RoundedCornerShape(14.dp))
                 .background(if (selected) sc.accent.copy(alpha = .16f) else if (focused) Color(0x22FFFFFF) else Color.Transparent),
             contentAlignment = Alignment.Center,
         ) { GlyphIcon(t.glyph, Modifier.size(22.dp), col) }
-        Txt(t.label, Modifier.padding(top = 6.dp), size = 12f, weight = if (selected) FontWeight.SemiBold else FontWeight.Normal, color = col, align = TextAlign.Center)
+        Txt(t.label, Modifier.padding(top = 3.dp), size = 11.5f, weight = if (selected) FontWeight.SemiBold else FontWeight.Normal, color = col, align = TextAlign.Center)
     }
 }
 

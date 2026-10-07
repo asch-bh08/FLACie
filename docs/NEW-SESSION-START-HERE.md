@@ -28,7 +28,9 @@ Before anything else, check what is missing (`java -version`, `dotnet --list-sdk
 
 Then build once to prove the toolchain: `cd android && ./gradlew.bat :app:assembleRelease` (first run downloads Gradle and dependencies, several minutes) and `cd ipodsync && dotnet build src/FLACie.Server`.
 
-## 2. Files that are NOT in git (the previous machine had them)
+> **Where this lives:** the owner copied the repo to the network share `Z:lacie` (`\raspberrypi-1lacie`) so it can be picked up from another pc. building on a network share is slow and git may refuse it ("dubious ownership": run `git config --global --add safe.directory '*'`). faster: `git clone https://github.com/asch-bh08/flacie.git c:lacie`, copy `z:lacie_machine-files` next to it, and work there. always push to github when you finish: that is the source of truth.
+
+## 2. files that are not in git (the previous machine had them)
 
 They are in `_machine-files/` inside this repo folder (git-ignored, see the README there):
 

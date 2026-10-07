@@ -21,7 +21,7 @@
             </span>
             <span class="track-time">@(t.DurationMs > 0 ? Time(t.DurationMs / 1000.0) : "")</span>
             <button class="icon-btn @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" /></button>
-            <button class="icon-btn" @onclick="() => menu = menu == idx ? -1 : idx" aria-label="More for @t.Title" aria-expanded="@(menu == idx)"><Icon Name="more" /></button>
+            <button class="icon-btn" @onclick="() => menu = menu == idx ? -1 : idx" aria-label="More for @t.Title" aria-expanded="@((menu == idx) ? "true" : "false")"><Icon Name="more" /></button>
             @if (menu == idx)
             {
                 <div class="menu" role="menu">

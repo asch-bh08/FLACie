@@ -8,7 +8,7 @@
     @foreach (var c in ChartsService.Available)
     {
         var id = c.Id;
-        <button role="tab" class="mood @(id == current ? "on" : "")" aria-selected="@(id == current)" @onclick="() => Pick(id)">@c.Name</button>
+        <button role="tab" class="mood @(id == current ? "on" : "")" aria-selected="@((id == current) ? "true" : "false")" @onclick="() => Pick(id)">@c.Name</button>
     }
 </div>
 @if (loading) { <p class="status">Loading the chart…</p> }

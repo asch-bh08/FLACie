@@ -2,7 +2,7 @@
 <div class="mood-chips" role="tablist" aria-label="Explore">
     @foreach (var (name, href) in tabs)
     {
-        <a class="mood @(Active == name ? "on" : "")" role="tab" aria-selected="@(Active == name)" href="@href">@name</a>
+        <a class="mood @(Active == name ? "on" : "")" role="tab" aria-selected="@((Active == name) ? "true" : "false")" href="@href">@name</a>
     }
 </div>
 @code {

@@ -69,7 +69,7 @@
             @foreach (var (name, hex) in Accents)
             {
                 var h = hex;
-                <button type="button" class="swatch @(look.Accent == h ? "on" : "")" style="--sw:@(h.Length > 0 ? h : "#ff4d73")" role="radio" aria-checked="@(look.Accent == h)" aria-label="@name" title="@name" @onclick="() => SetLook(accent: h)"></button>
+                <button type="button" class="swatch @(look.Accent == h ? "on" : "")" style="--sw:@(h.Length > 0 ? h : "#ff4d73")" role="radio" aria-checked="@((look.Accent == h) ? "true" : "false")" aria-label="@name" title="@name" @onclick="() => SetLook(accent: h)"></button>
             }
         </div>
     </div>

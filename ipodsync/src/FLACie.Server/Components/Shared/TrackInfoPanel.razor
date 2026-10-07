@@ -16,7 +16,7 @@ else
                 @foreach (var (id, big, small) in Picks())
                 {
                     var m = id;
-                    <button role="tab" class="fact choose @(mode == m ? "on" : "")" aria-selected="@(mode == m)" @onclick="() => Pick(m)"><b>@big</b>@if (small.Length > 0) { <small>@small</small> }</button>
+                    <button role="tab" class="fact choose @(mode == m ? "on" : "")" aria-selected="@((mode == m) ? "true" : "false")" @onclick="() => Pick(m)"><b>@big</b>@if (small.Length > 0) { <small>@small</small> }</button>
                 }
             </div>
             <div class="graph-head">

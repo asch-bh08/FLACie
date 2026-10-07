@@ -285,6 +285,10 @@ window.flacie = (() => {
     b.classList.toggle("away", d > 0 && y > 160); lastY = y;
   }, { passive: true });
   document.addEventListener("keydown", e => { if (e.key === "Escape" && npRef) window.flacie.npBack(); });
+  // a song row's "..." menu closes on a click outside it or Escape: press its own toggle, which Blazor already handles
+  const closeRowMenu = () => document.querySelector(".track button[aria-expanded=true]")?.click();
+  document.addEventListener("pointerdown", e => { if (!e.target.closest(".track .menu, .track button[aria-expanded]")) closeRowMenu(); }, true);
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeRowMenu(); });
   // a reload keeps the #now-playing in the address but not the player; drop it
   if (location.hash === "#now-playing") history.replaceState(null, "", location.pathname + location.search);
   let outside = null;

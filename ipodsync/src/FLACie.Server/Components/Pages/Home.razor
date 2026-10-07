@@ -13,11 +13,11 @@ else
 @if (moods.Count > 0)
 {
     <div class="mood-chips" role="group" aria-label="Moods">
-        <button class="mood @(mood is null ? "on" : "")" aria-pressed="@(mood is null)" @onclick="() => mood = null">All</button>
+        <button class="mood @(mood is null ? "on" : "")" aria-pressed="@((mood is null) ? "true" : "false")" @onclick="() => mood = null">All</button>
         @foreach (var m in moods)
         {
             var name = m;
-            <button class="mood @(mood == name ? "on" : "")" aria-pressed="@(mood == name)" @onclick="() => Pick(name)">@name</button>
+            <button class="mood @(mood == name ? "on" : "")" aria-pressed="@((mood == name) ? "true" : "false")" @onclick="() => Pick(name)">@name</button>
         }
     </div>
 }

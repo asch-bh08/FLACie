@@ -14,7 +14,7 @@ else
         <div>
             <p class="eyebrow">Genre</p>
             <h1>@name</h1>
-            <p class="sub">@songs.Count songs</p>
+            <p class="sub">@songs.Count @(songs.Count == 1 ? "song" : "songs")</p>
             <div class="chips">
                 <button class="btn primary" @onclick="() => Player.Play(songs, 0, name)"><Icon Name="play" Size="18" />Play</button>
                 <button class="btn" @onclick="() => Player.ShuffleAll(songs, name)"><Icon Name="shuffle" Size="18" />Shuffle</button>

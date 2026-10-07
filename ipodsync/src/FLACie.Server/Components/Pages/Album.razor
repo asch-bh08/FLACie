@@ -15,7 +15,7 @@ else
         <div>
             <p class="eyebrow">Album</p>
             <h1>@g.Name</h1>
-            <p class="sub"><a href="/artist/@Uri.EscapeDataString(head.AlbumArtist)">@head.AlbumArtist</a>@(head.Year > 0 ? $" · {head.Year}" : "") · @g.Tracks.Count songs</p>
+            <p class="sub"><a href="/artist/@Uri.EscapeDataString(head.AlbumArtist)">@head.AlbumArtist</a>@(head.Year > 0 ? $" · {head.Year}" : "") · @g.Tracks.Count @(g.Tracks.Count == 1 ? "song" : "songs")</p>
             <div class="chips">
                 <button class="btn primary" @onclick="() => Player.Play(g.Tracks, 0, g.Name)"><Icon Name="play" Size="18" />Play</button>
                 <button class="btn" @onclick="() => Player.ShuffleAll(g.Tracks, g.Name)"><Icon Name="shuffle" Size="18" />Shuffle</button>

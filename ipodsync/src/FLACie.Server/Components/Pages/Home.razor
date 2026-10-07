@@ -44,7 +44,7 @@ else
                 @foreach (var p in Session.Playlists.OrderByDescending(p => p.Modified).Take(14))
                 {
                     var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
-                    <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@p.Entries.Count songs</span></a>
+                    <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs")</span></a>
                 }
             </div>
         </section>

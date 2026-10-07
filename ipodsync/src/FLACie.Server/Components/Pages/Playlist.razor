@@ -24,7 +24,7 @@ else
                 </form>
             }
             else { <h1>@p.Name</h1> }
-            <p class="sub">@tracks.Count songs@(tracks.Count < p.Entries.Count ? $" ({p.Entries.Count - tracks.Count} not in this library)" : "")</p>
+            <p class="sub">@tracks.Count @(tracks.Count == 1 ? "song" : "songs")@(tracks.Count < p.Entries.Count ? $" ({p.Entries.Count - tracks.Count} not in this library)" : "")</p>
             <div class="chips">
                 <button class="btn primary" @onclick="() => Player.Play(tracks, 0, p.Name)" disabled="@(tracks.Count == 0)"><Icon Name="play" Size="18" />Play</button>
                 <button class="btn" @onclick="() => Player.ShuffleAll(tracks, p.Name)" disabled="@(tracks.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle</button>

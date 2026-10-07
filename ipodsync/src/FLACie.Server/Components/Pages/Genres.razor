@@ -11,7 +11,7 @@
 <div class="grid">
     @foreach (var g in list)
     {
-        <a class="card" href="/genre/@Uri.EscapeDataString(g.Name)"><Cover ArtKey="@(g.ArtKey)" Class="square" /><span class="card-title">@g.Name</span><span class="card-sub">@g.Tracks.Count songs</span></a>
+        <a class="card" href="/genre/@Uri.EscapeDataString(g.Name)"><Cover ArtKey="@(g.ArtKey)" Class="square" /><span class="card-title">@g.Name</span><span class="card-sub">@g.Tracks.Count @(g.Tracks.Count == 1 ? "song" : "songs")</span></a>
     }
 </div>
 @code {

@@ -62,12 +62,12 @@ Run from the repo root unless stated. Use Git Bash or PowerShell as you prefer; 
 - **Responsive sweep (web)**: `ipodsync/tools/dev/sweep.js` and the iframe method in `docs/TEST-LOG-beta40.md` (create iframes of each route at each window size from one same-origin page and measure overflow and tap-target sizes).
 - **Deploy web to frank** (from `ipodsync/src`): `tar --exclude=bin --exclude=obj -czf - FLACie.Core FLACie.Server | ssh root@frank 'rm -rf /tmp/fw && mkdir /tmp/fw && tar --no-same-owner -xzf - -C /tmp/fw && cd /tmp/fw && docker build -q -f FLACie.Server/Dockerfile -t flacie-web:local . && cd /home/hms/docker/flacie-web && docker compose up -d --force-recreate'`, then `curl https://frank.tailb05910.ts.net:8443/healthz` must say `ok`.
 - **Windows installer**: `powershell -ExecutionPolicy Bypass -File ipodsync/tools/build-installer.ps1 -Out <dir>` (about 3 minutes; run in the background; **wait until the log prints `msi:` and the file stops growing before uploading it**: once an upload started while the MSI was still being written and failed). Smoke test: launch `<dir>/app-windows/IpodSync.Maui.exe`, `curl` its `FLACie.Server` port `/healthz`, close the app and check the server process went away.
-- **Version bump** (every release): `android/app/build.gradle.kts` (`versionCode`, `versionName`) and `ipodsync/src/IpodSync.Maui/IpodSync.Maui.csproj` (`ApplicationDisplayVersion` and the integer `ApplicationVersion`, which must only ever go up). Current: Android versionCode 54 / `1.0-beta39.5`, MSI 0.39.5 / ApplicationVersion 40. The next real release is **beta 40**: use versionCode 55, MSI 0.40.0 and ApplicationVersion 41.
+- **Version bump** (every release): `android/app/build.gradle.kts` (`versionCode`, `versionName`) and `ipodsync/src/IpodSync.Maui/IpodSync.Maui.csproj` (`ApplicationDisplayVersion` and the integer `ApplicationVersion`, which must only ever go up). Current: Android versionCode 55 / `1.0-beta40`, MSI 0.40.0 / ApplicationVersion 41. The next release is beta 41: versionCode 56, MSI 0.41.0, ApplicationVersion 42.
 - **Release**: copy the APK as `FLACie-1.0-betaN.apk`, then `gh release create v1.0.0-betaN --latest --target main --title "FLACie 1.0 beta N" --notes-file notes.md <apk> <msi>`; add the notes to the top of `CHANGELOG.md`; push.
 
 ## 6. State right now (2026-10-07)
 
-Latest release: **v1.0.0-beta39.5** (Android 54, MSI 0.39.5). The web side of it is deployed on frank. `main` is clean and pushed.
+Latest release: **v1.0.0-beta40** (Android 55, MSI 0.40.0), published 2026-10-08; its web code is deployed on frank. See `docs/TEST-LOG-beta40.md` (last section) for what was and was not tested, and `docs/TODO-beta40-explore-search.md` for the queued Explore search work (typo-tolerant search, codec/kbps filters, nicer search box, Search out of the side rail).
 
 Unfinished: the owner's **beta 40 brief** was only partly done. Remaining from it, in the owner's words, "test everything, down to the last CSS overlap": the full feature test on Android and web (Explore with the quality filter, Search options, every Settings field, charts, Jams, notifications, Admin, playlist import, the Downloads page), startup time and memory on Android, removing dead code / duplicate UI / unused settings, a smoke test of each build, then release beta 40 and redeploy frank. `docs/TEST-LOG-beta40.md` lists what was done and what was not. Known gaps and ideas:
 
@@ -78,6 +78,13 @@ Unfinished: the owner's **beta 40 brief** was only partly done. Remaining from i
 - "Resampled by device" in the Info Playback row is accurate: Android's mixer resamples; only a USB DAC with Android 14+ bit-perfect mode avoids it, and the app does not switch that on.
 - The A-Z letter rail on web Explore is smaller than 44 px per letter by nature (a scrubber).
 - Android player layouts live in `android/app/src/main/java/com/ipodemu/player/NowPlayingModern.kt` (single column, short window, side-by-side) and `UpNextDrawer.kt` (swipeable pages, queue, tabs); the web player is `ipodsync/src/FLACie.Server/Components/Shared/NowPlaying.razor` and `wwwroot/app.css` / `flacie.js`.
+
+## 6b. Machine notes (2026-10-08 PC)
+
+- **frank is the LXC container `hms-docker`** on the Proxmox host `hms-jellyfin` (a separate Tailscale node, 100.100.75.106; do not put keys there). frank = 100.114.148.48. Its Docker containers include flacie-web, jellyfin, ntfy, slskd, lidarr, filemove, flacie-ytdl and more; only touch flacie-web.
+- Tools installed there: JDK 17 (`C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot`), Android SDK at `%LOCALAPPDATA%\Android\Sdk` (platform 34, build-tools 34, emulator, system image android-34 google_apis x86_64, AVD `flacie_phone`), ffmpeg (winget), WiX 5 (dotnet tool), maui-windows + android workloads. `android/local.properties` needs `sdk.dir=C\:\Users\...` with escaped backslashes.
+- Emulator tips: a fresh AVD is not signed in (Quick Connect needs the owner); guest mode works. The app hides untagged audio (voice-memo filter), so test files need artist/album tags (ffmpeg `-metadata`). `uiautomator dump` gives readable screen text. Pass Windows paths to `build-installer.ps1 -Out` from PowerShell, not bash (bash eats the backslashes).
+- The browser pane must be visible for Blazor `Virtualize` lists to draw rows.
 
 ## 7. Gotchas that cost time before
 

@@ -3,8 +3,12 @@ using FLACie.Core;
 
 namespace FLACie.Server;
 
-public sealed class DownloadJob(string id, string label, string? artKey, string kind = "Search", string artist = "", string title = "")
+public sealed class DownloadJob(string id, string label, string? artKey, string kind = "Search", string artist = "", string title = "", string album = "", long durationMs = 0, string? artUrl = null, bool isAlbum = false)
 {
+    public string Album { get; } = album;
+    public long DurationMs { get; } = durationMs;
+    public string? ArtUrl { get; } = artUrl;
+    public bool IsAlbum { get; } = isAlbum;
     public string Id { get; } = id;
     public string Label { get; } = label;
     public string Artist { get; } = artist;
@@ -41,7 +45,7 @@ public sealed class DownloadJob(string id, string label, string? artKey, string 
     {
         Id = Id, UserId = s.Id, UserName = s.DisplayName, Label = Label, Title = Title, Artist = Artist, Kind = Kind, StartedAt = At, FinishedAt = FinishedAt ?? DateTime.UtcNow,
         Outcome = Stage == DownloadStage.Done ? "done" : "failed", Source = Stage == DownloadStage.Done ? Source ?? Current : null, Message = Message, File = File, ArtKey = ArtKey,
-        Trail = [.. Trail],
+        Album = Album, DurationMs = DurationMs, ArtUrl = ArtUrl, IsAlbum = IsAlbum, Trail = [.. Trail],
     };
 }
 
@@ -69,9 +73,9 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
 
     public void DismissFinished(UserSession s) { var j = For(s); lock (j.List) j.List.RemoveAll(x => x.Finished); j.Raise(); }
 
-    DownloadJob Add(UserSession s, string label, string? artUrl, string kind = "Search", string artist = "", string title = "")
+    DownloadJob Add(UserSession s, string label, string? artUrl, string kind = "Search", string artist = "", string title = "", string album = "", long durationMs = 0, bool isAlbum = false)
     {
-        var j = For(s); var job = new DownloadJob(Guid.NewGuid().ToString("N"), label, artUrl is null ? null : Art.ExternalKey(artUrl), kind, artist, title);
+        var j = For(s); var job = new DownloadJob(Guid.NewGuid().ToString("N"), label, artUrl is null ? null : Art.ExternalKey(artUrl), kind, artist, title, album, durationMs, artUrl, isAlbum);
         lock (j.List) { j.List.Insert(0, job); while (j.List.Count > 400) { var i = j.List.FindLastIndex(x => x.Finished); if (i < 0) break; j.List.RemoveAt(i); } }
         j.Raise();
         return job;
@@ -130,11 +134,42 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
     }
 
     public void Song(UserSession s, CatalogSong song, bool hiRes = false, bool fallbackToNormal = true) =>
-        Run(s, Add(s, $"{song.Title} · {song.Artist}{(hiRes ? " (Hi-Res)" : "")}", song.ArtUrl, "Search", song.Artist, song.Title),
+        Run(s, Add(s, $"{song.Title} · {song.Artist}{(hiRes ? " (Hi-Res)" : "")}", song.ArtUrl, "Search", song.Artist, song.Title, song.Album, song.DurationMs),
             (c, on) => hiRes ? c.DownloadHiResAsync(song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs, on, default, fallbackToNormal) : c.DownloadAsync(song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs, on));
 
     public void Album(UserSession s, CatalogAlbum album) =>
-        Run(s, Add(s, $"{album.CleanTitle} · {album.Artist}", album.ArtUrl, "Search", album.Artist, album.CleanTitle), (c, on) => c.DownloadAlbumAsync(album, on));
+        Run(s, Add(s, $"{album.CleanTitle} · {album.Artist}", album.ArtUrl, "Search", album.Artist, album.CleanTitle, isAlbum: true), (c, on) => c.DownloadAlbumAsync(album, on));
+
+    // ---- trying a failed download again ----
+
+    /// <summary>True when this failed record can be asked for again (a song: a whole album can't be rebuilt from the log).</summary>
+    public static bool CanRetry(DownloadRecord r) => !r.Done && !r.IsAlbum && r.Title.Length > 0 && r.Artist.Length > 0;
+
+    /// <summary>Asks for a failed song again, as a new download that starts now. Nothing happens when that song is already being fetched.</summary>
+    public bool Retry(UserSession s, DownloadRecord r)
+    {
+        if (!CanRetry(r) || JobFor(s, r.Artist, r.Title) is { Finished: false }) return false;
+        var j = For(s); lock (j.Failed) j.Failed.Remove(Key(r.Artist, r.Title));
+        var job = Add(s, r.Label, r.ArtUrl, r.Kind == "Autoplay" ? "Autoplay" : "Search", r.Artist, r.Title, r.Album, r.DurationMs);
+        Run(s, job, (c, on) => c.DownloadAsync(r.Artist, r.Title, r.Album, r.ArtUrl, r.DurationMs, on));
+        return true;
+    }
+
+    /// <summary>Retries every song whose latest try failed (one per song, newest failure), at most [max]. Returns how many were started.</summary>
+    public int RetryAll(UserSession s, IEnumerable<DownloadRecord> mine, int max = 100)
+    {
+        var done = new Dictionary<string, DateTime>();
+        foreach (var r in mine.Where(r => r.Done)) { var dk = Key(r.Artist, r.Title); if (!done.TryGetValue(dk, out var at) || r.FinishedAt > at) done[dk] = r.FinishedAt; }
+        var n = 0; var seen = new HashSet<string>();
+        foreach (var r in mine.Where(CanRetry).OrderByDescending(r => r.FinishedAt))
+        {
+            var k = Key(r.Artist, r.Title);
+            if (!seen.Add(k) || (done.TryGetValue(k, out var got) && got >= r.FinishedAt)) continue;
+            if (n >= max) break;
+            if (Retry(s, r)) n++;
+        }
+        return n;
+    }
 
     // ---- downloads nobody is watching: autoplay look-ahead, playlist imports, charts ----
 
@@ -163,7 +198,7 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
 
     async Task<DownloadResult> FetchCore(UserSession s, Jobs jobs, string kind, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct)
     {
-        var job = Add(s, $"{title} · {artist}", artUrl, kind, artist, title);
+        var job = Add(s, $"{title} · {artist}", artUrl, kind, artist, title, album, durationMs);
         var coordinator = new DownloadCoordinator(hf.CreateClient("downloads"), catalog, s.Services, hf.CreateClient("downloads-long"));
         var got = new List<Track>(); string last = "";
         try

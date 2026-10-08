@@ -31,12 +31,14 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 });
 builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
+// FLACIE_SERVICE_ROUTES: "public=>internal" pairs, so this server reaches a download service on its own machine without going through the public name
+var serviceRoutes = ServiceRouteHandler.Parse(builder.Configuration["FLACIE_SERVICE_ROUTES"]);
 builder.Services.AddHttpClient("jellyfin", c => c.Timeout = TimeSpan.FromSeconds(60));
-builder.Services.AddHttpClient("media", c => { c.Timeout = Timeout.InfiniteTimeSpan; c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); });
+builder.Services.AddHttpClient("media", c => { c.Timeout = Timeout.InfiniteTimeSpan; c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); }).AddHttpMessageHandler(() => new ServiceRouteHandler(serviceRoutes));
 builder.Services.AddHttpClient("catalog", c => { c.Timeout = TimeSpan.FromSeconds(12); c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); });
 // the yt-dlp call (search, search, download) and the open-source file fetches run for minutes: the call carries its own time limit, so no client one
-builder.Services.AddHttpClient("downloads-long", c => { c.Timeout = Timeout.InfiniteTimeSpan; c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); });
-builder.Services.AddHttpClient("downloads", c => { c.Timeout = TimeSpan.FromSeconds(30); c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); });
+builder.Services.AddHttpClient("downloads-long", c => { c.Timeout = Timeout.InfiniteTimeSpan; c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); }).AddHttpMessageHandler(() => new ServiceRouteHandler(serviceRoutes));
+builder.Services.AddHttpClient("downloads", c => { c.Timeout = TimeSpan.FromSeconds(30); c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); }).AddHttpMessageHandler(() => new ServiceRouteHandler(serviceRoutes));
 builder.Services.AddSingleton(sp => new WebCatalog(sp.GetRequiredService<IHttpClientFactory>().CreateClient("catalog")));
 builder.Services.AddSingleton(new DataPaths(dataDir));
 builder.Services.AddSingleton<UserStateStore>();

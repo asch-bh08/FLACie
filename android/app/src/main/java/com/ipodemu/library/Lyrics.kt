@@ -58,7 +58,7 @@ class LyricsProvider(private val app: App) {
         val id = jfId.find(t.path)?.groupValues?.get(1)
             ?: app.library.jellyfinByKey()[t.matchKey]?.let { jfId.find(it.path)?.groupValues?.get(1) } ?: return null
         if (p.jellyfinUrl.isBlank() || p.jellyfinApiKey.isBlank()) return null
-        val body = http("${p.jellyfinUrl.trimEnd('/')}/Audio/$id/Lyrics", mapOf("X-Emby-Token" to p.jellyfinApiKey)) ?: return null
+        val body = http("${p.jellyfinUrl.trimEnd('/')}/Audio/$id/Lyrics", mapOf("Authorization" to JellyfinAuth.header(p.jellyfinApiKey))) ?: return null
         return try {
             val arr = JSONObject(body).optJSONArray("Lyrics") ?: return null
             val lines = List(arr.length()) { i -> arr.getJSONObject(i).let { LyricLine(if (it.has("Start")) it.optLong("Start") / 10_000 else -1, it.optString("Text")) } }

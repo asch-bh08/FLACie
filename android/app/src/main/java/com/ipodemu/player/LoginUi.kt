@@ -39,7 +39,15 @@ fun LoginScreen() {
     val ui = app.ui
     val acct = app.account
     var page by remember { mutableStateOf(0) } // 0 choose, 1 Jellyfin, 2 NAS, 3 guest
-    LaunchedEffect(acct.signedIn) { if (acct.signedIn) ui.setLogin("account") }
+    LaunchedEffect(acct.signedIn) {
+        if (acct.signedIn) {
+            ui.setLogin("account")
+            // a Jellyfin sign-in is also the music source: switch it on now, so the library shows up without a trip to Settings
+            val p = app.prefs
+            if (p.accountKind != "nas" && p.accountServer.isNotBlank() && p.accountToken.isNotBlank() && p.jellyfinUrl.isBlank())
+                app.library.connectJellyfin(p.accountServer, p.accountToken)
+        }
+    }
     androidx.activity.compose.BackHandler(enabled = page != 0) { acct.cancelQuickConnect(); page = 0 }
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {

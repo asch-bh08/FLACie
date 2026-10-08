@@ -28,6 +28,11 @@ public sealed class DownloadRecord
     /// <summary>Where the file was put, relative to the file mover's root (null for Lidarr, which files it itself).</summary>
     public string? File { get; set; }
     public string? ArtKey { get; set; }
+    /// <summary>What a retry needs to ask again: the album name, the length, the cover address, and whether it was a whole album.</summary>
+    public string Album { get; set; } = "";
+    public long DurationMs { get; set; }
+    public string? ArtUrl { get; set; }
+    public bool IsAlbum { get; set; }
     public List<TrailStep> Trail { get; set; } = [];
 
     public bool Done => Outcome == "done";

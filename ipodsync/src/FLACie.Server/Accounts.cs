@@ -114,7 +114,8 @@ public static class AuthEndpoints
             var server = fixedServer ?? f["server"].ToString();
             var user = f["user"].ToString().Trim();
             if (string.IsNullOrWhiteSpace(server) || user.Length == 0) return Back("Enter the server and your username.");
-            if (throttle.Blocked(ctx, user)) return Back(TooMany);
+            if (throttle.Blocked(ctx)) return Back(TooMany);
+            if (throttle.Delay(user) is { Ticks: > 0 } wait) await Task.Delay(wait, ctx.RequestAborted);
             try { await SignIn(ctx, await jf.SignInAsync(server, user, f["password"].ToString()), null); throttle.Succeed(user); return Results.Redirect("/"); }
             catch (UnauthorizedAccessException) { throttle.Fail(ctx, user); return Back("Wrong username or password."); }
             catch (Exception e) { throttle.Fail(ctx); return Back($"Couldn't reach {server}: {e.Message}"); }

@@ -24,7 +24,7 @@ public sealed class JellyfinClient(HttpClient http, string baseUrl, string apiKe
     private HttpRequestMessage Req(HttpMethod method, string pathAndQuery)
     {
         var req = new HttpRequestMessage(method, $"{_baseUrl}{pathAndQuery}");
-        req.Headers.Add("X-Emby-Token", apiKey);
+        req.Headers.TryAddWithoutValidation("Authorization", $"MediaBrowser Client=\"ipodsync\", Device=\"FLACie\", DeviceId=\"flacie-windows\", Version=\"1\", Token=\"{apiKey}\"");
         return req;
     }
 
@@ -146,5 +146,5 @@ public sealed class JellyfinClient(HttpClient http, string baseUrl, string apiKe
     /// stream directly -- the api_key query form exists specifically because such elements
     /// can't set a custom header. Requests the original file (static=true), not a server
     /// transcode: ipodsync has its own transcoder tuned for whichever host is asking.</summary>
-    public string StreamUrl(string itemId) => $"{_baseUrl}/Audio/{itemId}/stream?static=true&api_key={Uri.EscapeDataString(apiKey)}";
+    public string StreamUrl(string itemId) => $"{_baseUrl}/Audio/{itemId}/stream?static=true&ApiKey={Uri.EscapeDataString(apiKey)}";
 }

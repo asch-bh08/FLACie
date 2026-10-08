@@ -76,7 +76,8 @@
     }
 
     RenderFragment Section(string id, string title, List<DownloadRecord> rows, string empty, bool bad) => @<section class="panel wide dl-sec" id="@id">
-        <h2>@title <small>@rows.Count</small></h2>
+        <h2>@title <small>@rows.Count</small>@if (bad && rows.Any(DownloadManager.CanRetry)) { <button class="btn ghost dl-retry-all" @onclick="RetryAll">Retry all</button> }</h2>
+        @if (retryNote is { Length: > 0 } && bad) { <p class="hint" role="status">@retryNote</p> }
         @if (rows.Count == 0) { <p class="hint">@empty</p> }
         @foreach (var r in rows.Take(shown.GetValueOrDefault(id, Page)))
         {
@@ -89,7 +90,15 @@
                         <small class="dl-meta">@KindText(r.Kind) · <time data-utc="@Iso(r.FinishedAt)" data-abs="1" data-rel="@Ago(r.FinishedAt)">@Ago(r.FinishedAt)</time> · took @Took(r.Took)@(everyone ? " · " + r.UserName : "")</small>
                     </div>
                     @if (r.Source is { } s) { <span class="badge dl-src @s">@OpenSourceSettings.Name(s)</span> }
-                    else { <span class="badge dl-src failed">Failed</span> }
+                    else
+                    {
+                        <span class="badge dl-src failed">Failed</span>
+                        @if (DownloadManager.CanRetry(r) && !everyone)
+                        {
+                            var again = Manager.JobFor(Session, r.Artist, r.Title) is { Finished: false };
+                            <button class="btn ghost dl-retry" disabled="@again" @onclick="() => Retry(r)" @onclick:preventDefault @onclick:stopPropagation>@(again ? "Retrying…" : "Retry")</button>
+                        }
+                    }
                 </summary>
                 <ol class="dl-trail">
                     @foreach (var st in r.Trail)
@@ -103,6 +112,14 @@
         }
         @if (rows.Count > shown.GetValueOrDefault(id, Page)) { <button class="btn ghost" @onclick="() => shown[id] = shown.GetValueOrDefault(id, Page) + 25">Show more (@(rows.Count - shown.GetValueOrDefault(id, Page)) older)</button> }
     </section>;
+
+    string? retryNote;
+    void Retry(DownloadRecord r) { retryNote = Manager.Retry(Session, r) ? $"Trying \"{r.Title}\" again." : null; }
+    void RetryAll()
+    {
+        var n = Manager.RetryAll(Session, Log.For(Session.Id));
+        retryNote = n == 0 ? "Nothing to retry." : $"Trying {n} song{(n == 1 ? "" : "s")} again. They show under Running now.";
+    }
 
     static string KindText(string kind) => kind switch { "Search" => "You asked for it", "Autoplay" => "Fetched ahead for Autoplay", "Playlist" => "From a playlist", "Import" => "From an import", "Chart" => "Daily charts", _ => kind };
     static string Iso(DateTime utc) => DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToString("o");

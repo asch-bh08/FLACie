@@ -66,7 +66,7 @@ public static class MediaEndpoint
 
         var http = factory.CreateClient();
         var req = new HttpRequestMessage(HttpMethod.Get, $"{settings.BaseUrl.TrimEnd('/')}/Audio/{itemId}/stream?static=true");
-        req.Headers.Add("X-Emby-Token", settings.ApiKey);
+        req.Headers.TryAddWithoutValidation("Authorization", $"MediaBrowser Client=\"ipodsync\", Device=\"FLACie\", DeviceId=\"flacie-windows\", Version=\"1\", Token=\"{settings.ApiKey}\"");
         if (ctx.Request.Headers.TryGetValue("Range", out var range)) req.Headers.TryAddWithoutValidation("Range", (string?)range);
 
         using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);

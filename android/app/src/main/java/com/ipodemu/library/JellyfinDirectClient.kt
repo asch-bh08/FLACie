@@ -11,10 +11,10 @@ import java.net.URL
 /**
  * Talks to a Jellyfin server directly from the phone -- no PC or ipodsync involved, so playback
  * doesn't depend on anything else being turned on. Auth is a server-issued API key (Jellyfin
- * dashboard > Advanced > API Keys), sent as the X-Emby-Token header for every request here.
+ * dashboard > Advanced > API Keys), sent as the Authorization: MediaBrowser header for every request here (Jellyfin 12 refuses X-Emby-Token).
  *
  * Stream URLs this returns deliberately do NOT carry the key (unlike a plain HTML <audio src>,
- * which has no other way to authenticate): PlayerController attaches X-Emby-Token as a real HTTP
+ * which has no other way to authenticate): PlayerController attaches the Authorization header as a real HTTP
  * header per-request instead (see JellyfinAuthDataSource), so the key never ends up in a URL,
  * request log, or track path string.
  */
@@ -113,7 +113,7 @@ class JellyfinDirectClient {
         conn.connectTimeout = 5000
         conn.readTimeout = 15000
         conn.requestMethod = "GET"
-        conn.setRequestProperty("X-Emby-Token", apiKey)
+        conn.setRequestProperty("Authorization", JellyfinAuth.header(apiKey))
         try {
             if (conn.responseCode !in 200..299) throw IOException("HTTP ${conn.responseCode}")
             return conn.inputStream.bufferedReader().use { it.readText() }
@@ -127,7 +127,7 @@ class JellyfinDirectClient {
         conn.connectTimeout = 5000
         conn.readTimeout = 15000
         conn.requestMethod = "POST"
-        conn.setRequestProperty("X-Emby-Token", apiKey)
+        conn.setRequestProperty("Authorization", JellyfinAuth.header(apiKey))
         if (body != null) {
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/json")

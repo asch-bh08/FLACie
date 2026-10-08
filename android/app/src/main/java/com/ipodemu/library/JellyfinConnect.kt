@@ -179,7 +179,7 @@ class JellyfinConnect(private val app: App) {
 
     private fun openSocket() {
         val base = prefs.accountServer.trimEnd('/').replaceFirst("http", "ws")
-        val req = Request.Builder().url("$base/socket?api_key=${prefs.accountToken}&deviceId=${prefs.deviceId}").build()
+        val req = Request.Builder().url("$base/socket?ApiKey=${prefs.accountToken}&deviceId=${prefs.deviceId}").build()
         ws = http.newWebSocket(req, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) { android.util.Log.d("FLACieConnect", "socket open"); main.post { connected = true; reportedItem = null; report(false) }; loadSessions() }
             override fun onMessage(webSocket: WebSocket, text: String) {

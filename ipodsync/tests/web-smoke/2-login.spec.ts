@@ -48,6 +48,16 @@ test('the admin pages are closed to a signed-out visitor', async ({ request }) =
   }
 });
 
+test('guessing at a user name never locks that user out', async ({ page, request }) => {
+  for (let i = 0; i < 6; i++) await request.post('/auth/jellyfin', { form: { user: 'tester', password: 'guess' + i }, maxRedirects: 0 });
+  await page.goto('/login');
+  await page.locator('#jf-form summary').click();
+  await page.locator('#user').fill('tester');
+  await page.locator('#password').fill('pw');
+  await page.locator('#jf-form button[type="submit"]').click();
+  await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 30_000 });
+});
+
 test('repeated wrong passwords are throttled', async ({ request }) => {
   let last = '';
   for (let i = 0; i < 12; i++) {

@@ -188,7 +188,15 @@
         try { await Js.InvokeVoidAsync("flacie.npBack"); } catch (Exception) { await OnClose.InvokeAsync(); }
     }
     string TabTitle => tab switch { "lyrics" => "Lyrics", "info" => "Info", _ => "Up next" };
-    public override void Dispose() { self?.Dispose(); _ = Js.InvokeVoidAsync("flacie.npReset").AsTask().ContinueWith(_ => { }); base.Dispose(); }
+    Action? onDls;
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        // the little "Downloading" / "Downloaded just now" line under a queued song follows the downloads as they change
+        onDls = () => InvokeAsync(StateHasChanged);
+        Dls.Subscribe(Session, onDls);
+    }
+    public override void Dispose() { if (onDls is not null) Dls.Unsubscribe(Session, onDls); self?.Dispose(); _ = Js.InvokeVoidAsync("flacie.npReset").AsTask().ContinueWith(_ => { }); base.Dispose(); }
     Lyrics? lyrics; bool lyricsLoading; string? lyricsFor;
     MediaInfo? info; bool infoLoading; string? infoFor;
     string? lyricsPushed;
@@ -202,9 +210,10 @@
     string? Note(Track u)
     {
         var key = Session.Jellyfin?.UserId ?? Session.Nas?.User ?? "guest";
-        if (dlIdx is null || dlIdxFor != Player.Current?.Path) { dlIdx = DlLog.DoneIndex(key); dlIdxFor = Player.Current?.Path; }
+        var finished = Dls.JobsOf(Session).Count(j => j.Finished);
+        if (dlIdx is null || dlIdxFor != Player.Current?.Path + "|" + finished) { dlIdx = DlLog.DoneIndex(key); dlIdxFor = Player.Current?.Path + "|" + finished; }
         if (Dls.JobsOf(Session).Any(j => !j.Finished && string.Equals(j.Title, u.Title, StringComparison.OrdinalIgnoreCase) && string.Equals(j.Artist, u.Artist, StringComparison.OrdinalIgnoreCase))) return "Downloading";
-        if (!dlIdx.TryGetValue(DownloadLog.FileKey(u.FilePath ?? u.Path), out var r) && !dlIdx.TryGetValue(DownloadLog.TitleKey(u.Title, u.Artist), out r)) return null;
+        if (!dlIdx.TryGetValue(DownloadLog.FileKey(u.FilePath ?? u.Path), out var r) && !dlIdx.TryGetValue(DownloadLog.TitleKey(u.Title, u.Artist), out r)) return Dls.RecentlyFailed(Session, u.Artist, u.Title) ? "Couldn't be downloaded" : null;
         var age = DateTime.UtcNow - r.FinishedAt.ToUniversalTime();
         return age.TotalHours < 1 ? "Downloaded just now" : age.TotalDays < 1 ? "Downloaded today" : age.TotalDays < 7 ? "Downloaded this week" : "Downloaded";
     }

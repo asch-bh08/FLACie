@@ -40,7 +40,7 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
     public Task<JsonNode?> DeleteAsync(JellyfinAccount a, string path, CancellationToken ct = default) => Send(HttpMethod.Delete, a.Server + path, a.Token, null, ct);
 
     /// <summary>The live connection Jellyfin's remote-control and SyncPlay messages arrive on.</summary>
-    public Uri SocketUri(JellyfinAccount a) => new("ws" + Route(a.Server.TrimEnd('/'))[4..] + $"/socket?api_key={Uri.EscapeDataString(a.Token)}&deviceId={Uri.EscapeDataString(deviceId)}");
+    public Uri SocketUri(JellyfinAccount a) => new("ws" + Route(a.Server.TrimEnd('/'))[4..] + $"/socket?ApiKey={Uri.EscapeDataString(a.Token)}&deviceId={Uri.EscapeDataString(deviceId)}");
 
     /// <summary>One song by Jellyfin id, for songs another device sends that this library hasn't listed.</summary>
     public async Task<Track?> TrackAsync(JellyfinAccount a, string id, CancellationToken ct = default)

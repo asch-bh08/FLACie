@@ -60,8 +60,9 @@ public static class ProxyTrust
 }
 
 /// <summary>
-/// Slows down password guessing: too many failed sign-ins from one address (or against one account name) within the window are refused until it passes.
-/// Kept in memory, so a restart clears it; that is enough to make guessing impractical without locking out the real owner for long.
+/// Slows down password guessing. Too many failed sign-ins from one client address within the window are refused until it passes. Failures against one
+/// account name never block anyone (a stranger must not be able to lock the real owner out by guessing at their name): they only make further tries at that
+/// name wait a little longer each time (<see cref="Delay"/>), from another address as well. Kept in memory, so a restart clears it.
 /// </summary>
 public sealed class LoginThrottle
 {
@@ -72,8 +73,16 @@ public sealed class LoginThrottle
     static string Ip(HttpContext ctx) => "ip:" + (ctx.Connection.RemoteIpAddress?.ToString() ?? "?");
     static string User(string name) => "u:" + name.Trim().ToLowerInvariant();
 
-    /// <summary>True when this address, or this account name, has failed too often just now.</summary>
-    public bool Blocked(HttpContext ctx, string? user = null) => Count(Ip(ctx)) >= MaxFailures || (user is { Length: > 0 } && Count(User(user)) >= MaxFailures);
+    /// <summary>True when this client address has failed too often just now.</summary>
+    public bool Blocked(HttpContext ctx) => Count(Ip(ctx)) >= MaxFailures;
+
+    /// <summary>How long to hold back a try at this account name: nothing for the first few wrong guesses, then 1, 2, 4 ... up to 8 seconds. Never a refusal.</summary>
+    public TimeSpan Delay(string? user)
+    {
+        if (user is not { Length: > 0 }) return TimeSpan.Zero;
+        var n = Count(User(user)) - 4;
+        return n <= 0 ? TimeSpan.Zero : TimeSpan.FromSeconds(Math.Min(8, 1 << Math.Min(n - 1, 3)));
+    }
 
     public void Fail(HttpContext ctx, string? user = null)
     {

@@ -1210,3 +1210,7 @@ main.content:has(.az-rail) .tracks { padding-right: 16px; }
 .sr-albums .card .cover { width: 100%; height: auto; aspect-ratio: 1; }
 @media (max-width: 560px) { .sr-hero { gap: 16px; padding: 16px; } .sr-play { right: 14px; width: 46px; height: 46px; } .sr-albums { grid-auto-columns: minmax(150px, 172px); } }
 @media (hover: none) { .sr-play { transform: translateY(50%); } }
+/* the cover's holder is as wide as the cover (a play-on-click cover button used to be 148px and the 188px cover spilled over the title) */
+.sr-hero .sr-art, .sr-hero .sr-cover { width: min(188px, 34vw); flex: none; }
+.sr-hero .cover { width: 100% !important; }
+.sr-hero-text { flex: 1; min-width: 0; }

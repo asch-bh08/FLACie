@@ -23,6 +23,43 @@ object SearchRank {
 
     private val diacritics = Regex("""\p{Mn}+""")
 
+    /**
+     * Typo-tolerant match for Explore's filter box (used only when nothing matches exactly): every query word is inside the text, or within a few typos
+     * of a word in it ("beyonse", "metalica", "daft pnuk"; swapped neighbouring letters count as one typo). Words of 3 letters or fewer stay exact,
+     * 4 to 7 letters allow one typo, 8 or more allow two.
+     */
+    fun fuzzyHit(queryWords: List<String>, text: String): Boolean {
+        if (queryWords.isEmpty()) return false
+        val tokens = words(text)
+        val glue = tokens.joinToString("")
+        return queryWords.all { w ->
+            glue.contains(w) || run {
+                val tol = if (w.length <= 3) 0 else if (w.length <= 7) 1 else 2
+                tol > 0 && tokens.any { t ->
+                    Math.abs(t.length - w.length) <= tol + 2 && (typos(w, t, tol) <= tol || (t.length > w.length && typos(w, t.substring(0, w.length), tol) <= tol))
+                }
+            }
+        }
+    }
+
+    /** Edit distance counting a swap of two neighbouring letters as one change; gives up (returns more than [max]) early. */
+    private fun typos(a: String, b: String, max: Int): Int {
+        if (Math.abs(a.length - b.length) > max) return max + 1
+        var prev2 = IntArray(b.length + 1); var prev = IntArray(b.length + 1) { it }; var cur = IntArray(b.length + 1)
+        for (i in 1..a.length) {
+            cur[0] = i; var best = cur[0]
+            for (j in 1..b.length) {
+                val cost = if (a[i - 1] == b[j - 1]) 0 else 1
+                var v = minOf(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
+                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) v = minOf(v, prev2[j - 2] + 1)
+                cur[j] = v; if (v < best) best = v
+            }
+            if (best > max) return max + 1
+            val t = prev2; prev2 = prev; prev = cur; cur = t
+        }
+        return prev[b.length]
+    }
+
     /** Lower-case words, accents dropped; "&" and "+" read as "and"; dots and apostrophes inside a name are joiners ("will.i.am" is one word). */
     fun words(s: String): List<String> {
         if (s.isEmpty()) return emptyList()

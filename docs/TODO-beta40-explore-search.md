@@ -1,6 +1,6 @@
 # Explore search upgrade (asked 2026-10-08)
 
-**Status:** web done (typo-tolerant search, codec + bit rate + every sample rate filters, collapsible filter grid, nicer search box, Search hidden from the side rail while in Explore). Android and the Windows app still to do on the Android side: same filters in `ExploreUi.kt`, typo tolerance, nicer search field.
+**Status: shipped in beta 41 (web, Android, Windows).** Web done (typo-tolerant search, codec + bit rate + every sample rate filters, collapsible filter grid, nicer search box, Search hidden from the side rail while in Explore). Android and the Windows app still to do on the Android side: same filters in `ExploreUi.kt`, typo tolerance, nicer search field.
 
 Asked mid-session; queued behind the beta 40 test/release work. Applies to web, Android and Windows (same release).
 
@@ -17,3 +17,5 @@ Found while testing (not yet done):
 - Android: the Quality filter sheet shows a list icon on unselected options (looks like a bug next to the tick).
 - Web: Albums (1436) and Artists (781) draw every card at once; consider chunked rendering.
 - Web: the Explore filters and A-Z letter are shared across the Songs/Albums/Artists/Genres tabs (can show "0 of 781 artists" after filtering Albums); whitespace-only search says "7514 of 7514 songs".
+
+Still open from the list above: hide the Android source pill only when mixed (done), read format facts for device-only files (not done), chunked rendering of the big Albums/Artists grids (not done), Explore filters shared across tabs (not changed).

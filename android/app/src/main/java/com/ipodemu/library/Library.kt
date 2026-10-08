@@ -57,7 +57,10 @@ class Library(ctx: Context, val art: ArtCache) {
     @Volatile var fileMoverConnected = false; private set
     @Volatile var fileMoverStatus: String? = null; private set
 
-    @Volatile var tracks: List<Track> = emptyList(); private set
+    @Volatile var tracks: List<Track> = emptyList()
+        private set(v) { field = v; mixedSources = v.asSequence().map { it.source }.distinct().take(2).count() > 1 }
+    /** More than one kind of source in the library (Local and Jellyfin ...): only then does a row's source badge tell anything. */
+    @Volatile var mixedSources: Boolean = false; private set
     /** Playlists read from .m3u/.m3u8 files: name -> track paths. Local-source only. */
     @Volatile var m3uPlaylists: Map<String, List<String>> = emptyMap(); private set
     /** Playlists as reported by ipodsync (real named playlists, not folder-derived). Sync-source only. */

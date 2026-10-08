@@ -378,7 +378,7 @@ private fun sourceColor(s: com.ipodemu.library.TrackSource): Color = when (s) {
 
 @Composable
 private fun SourceBadge(source: com.ipodemu.library.TrackSource) {
-    if (!Tweaks.badges) return
+    if (!Tweaks.badges || !LocalApp.current.library.mixedSources) return
     val color = sourceColor(source)
     Box(Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.16f)).padding(horizontal = 7.dp, vertical = 3.dp)) {
         Txt(if (source == com.ipodemu.library.TrackSource.NAS) "NAS" else if (source == com.ipodemu.library.TrackSource.CLOUD) "Streaming" else source.name.lowercase().replaceFirstChar { it.uppercase() }, size = 11f, weight = FontWeight.SemiBold, color = color)
@@ -801,9 +801,9 @@ private fun PlaylistsList(nav: PlayerNav) {
 fun EmptyState(text: String) {
     val sc = LocalScheme.current
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(horizontal = 32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             GlyphIcon(Glyph.NOTE, Modifier.size(56.dp), sc.onBg.copy(alpha = .3f))
-            Txt(text, size = 16f, color = sc.onBgDim)
+            Txt(text, size = 16f, color = sc.onBgDim, maxLines = 6, align = TextAlign.Center)
         }
     }
 }

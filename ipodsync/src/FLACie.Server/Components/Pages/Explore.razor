@@ -1,3 +1,17 @@
 @page "/explore"
-@inject NavigationManager Nav
-@code { protected override void OnInitialized() => Nav.NavigateTo("/songs", replace: true); }
+@attribute [Authorize]
+@inherits UserComponent
+@inject ExploreState X
+<PageTitle>Explore · FLACie</PageTitle>
+<header class="page-head">
+    <h1>Explore</h1>
+    <p class="sub">@Lib.Songs.Count.ToString("N0") songs · @Lib.Albums.Count.ToString("N0") albums · @Lib.Artists.Count.ToString("N0") artists</p>
+</header>
+<MusicTabs Active="Overview" />
+<ExploreBar Tab="Overview" Changed="Refresh" />
+<LibraryStatus />
+<ResultSections Query="@X.Query" Rev="@X.Version" Context="Explore" SeeAllHref="/songs" SortKey="@X.OverviewSort" OnQuery="Suggest" />
+@code {
+    void Refresh() => StateHasChanged();
+    void Suggest(string v) { X.Query = v; X.Touch(); }
+}

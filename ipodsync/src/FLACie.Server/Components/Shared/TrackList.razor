@@ -9,7 +9,7 @@
         <li class="track @(now ? "now" : "")">
             <button class="track-main" @onclick="() => Go(idx)" aria-label="Play @t.Title by @t.Artist">
                 @if (Numbered) { <span class="track-no">@(t.TrackNo > 0 ? t.TrackNo : idx + 1)</span> }
-                else { <Cover ArtKey="@(Art.KeyFor(t))" Size="44" /> }
+                else { <Cover ArtKey="@(Art.KeyFor(t))" Size="@ThumbSize" /> }
                 <span class="track-text">
                     <span class="track-title">@t.Title</span>
                     <span class="track-sub">@t.Artist@(ShowAlbum && t.Album.Length > 0 ? " · " + t.Album : "")@(t.Year > 0 ? " · " + t.Year : "")</span>
@@ -53,6 +53,8 @@
 @code {
     [Parameter] public IReadOnlyList<Track> Tracks { get; set; } = [];
     [Parameter] public bool Numbered { get; set; }
+    /// <summary>Side of the small cover in a row, in pixels.</summary>
+    [Parameter] public int ThumbSize { get; set; } = 44;
     /// <summary>Play only the clicked song and let Autoplay carry on (search results hold several releases of one song, which must not queue up behind it).</summary>
     [Parameter] public bool Single { get; set; }
     [Parameter] public string? PlayContext { get; set; }

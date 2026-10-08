@@ -10,6 +10,8 @@ public sealed class ExploreState
 {
     public string Query = "", Letter = "", Genre = "", Decade = "", Format = "", Depth = "", Rate = "", Codec = "", Kbps = "", Sort = "az";
     /// <summary>True when the last list found nothing exactly for the text and is showing close matches instead (typos).</summary>
+    /// <summary>How the Overview tab orders its songs and albums: best (as ranked or newest first), az, artist, new, year or long.</summary>
+    public string OverviewSort = "best";
     public bool Fuzzy { get; private set; }
     /// <summary>For a typo search: the corrected words ("beyonce"), or "" when there is no better spelling to offer.</summary>
     public string Suggestion { get; private set; } = "";

@@ -11,7 +11,7 @@
             @if (!InMusic) { <NavLink href="/search"><Icon Name="search" />Search</NavLink> }
         </div>
         <div class="rail-group">
-            <a href="/songs" class="@(InMusic ? "active" : "")"><Icon Name="albums" />Explore</a>
+            <a href="/explore" class="@(InMusic ? "active" : "")"><Icon Name="albums" />Explore</a>
             <NavLink href="/favorites"><Icon Name="heart" />Favourites</NavLink>
             <NavLink href="/playlists" Match="NavLinkMatch.All"><Icon Name="playlists" />Playlists</NavLink>
         </div>
@@ -34,7 +34,7 @@
 </div>
 @code {
     // "All music" is lit for its four filters and their detail pages
-    bool InMusic { get { var p = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0]; return new[] { "/songs", "/albums", "/artists", "/genres", "/charts", "/album/", "/artist/", "/genre/" }.Any(x => p.StartsWith(x, StringComparison.OrdinalIgnoreCase)); } }
+    bool InMusic { get { var p = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0]; return new[] { "/explore", "/songs", "/albums", "/artists", "/genres", "/charts", "/album/", "/artist/", "/genre/" }.Any(x => p.StartsWith(x, StringComparison.OrdinalIgnoreCase)); } }
     // Explore uses the whole window: the side menu slides in from a hamburger and goes away again after a choice
     bool menu;
     protected override void OnInitialized() => Nav.LocationChanged += Moved;

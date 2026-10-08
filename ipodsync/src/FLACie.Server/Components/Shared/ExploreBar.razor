@@ -9,7 +9,7 @@
         <label class="x-search"><Icon Name="search" Size="20" /><input type="search" placeholder="@Placeholder" aria-label="Search this list" value="@X.Query" autocomplete="off" spellcheck="false" @oninput="e => Set(() => X.Query = e.Value?.ToString() ?? string.Empty)" />
             @if (X.Query.Length > 0) { <button type="button" class="x-clear" aria-label="Clear search" @onclick="() => Set(() => X.Query = string.Empty)"><Icon Name="x" Size="16" /></button> }
         </label>
-        <Dropdown Class="x-sort" Label="Sort" ShowAny="false" Options="sortOptions" Value="@X.Sort" ValueChanged="v => Set(() => X.Sort = v)" />
+        <Dropdown Class="x-sort" Label="Sort" ShowAny="false" Options="sortOptions" Value="@SortValue" ValueChanged="v => Set(() => SortValue = v)" />
         }
         <button type="button" class="x-ftoggle @(open || ActiveCount > 0 ? "on" : "")" aria-expanded="@(open ? "true" : "false")" aria-controls="x-panel" @onclick="() => open = !open">
             <Icon Name="lines" Size="18" /><span>Filters@(ActiveCount > 0 ? $" ({ActiveCount} active)" : "")</span><Icon Name="@(open ? "chevron-up" : "chevron-down")" Size="16" />
@@ -61,7 +61,7 @@
         </div>
     }
 </div>
-@if (!Compact)
+@if (!Compact && Tab != "Overview")
 {
 <nav class="az-rail" aria-label="First letter">
     <button class="@(X.Letter.Length == 0 ? "on" : "")" aria-pressed="@((X.Letter.Length == 0) ? "true" : "false")" title="All songs" @onclick="() => Set(() => X.Letter = string.Empty)">All</button>
@@ -111,11 +111,14 @@
         }
     }
 
-    string Placeholder => Tab switch { "Songs" => "Search songs by title, artist or album", "Albums" => "Search albums by name or artist", "Artists" => "Search artists", _ => "Search genres" };
+    string SortValue { get => Tab == "Overview" ? X.OverviewSort : X.Sort; set { if (Tab == "Overview") X.OverviewSort = value; else X.Sort = value; } }
+
+    string Placeholder => Tab switch { "Overview" => "Search songs, albums, artists and genres", "Songs" => "Search songs by title, artist or album", "Albums" => "Search albums by name or artist", "Artists" => "Search artists", _ => "Search genres" };
 
     DropOption[] sortOptions => SortList.Select(o => new DropOption(o.Item1, o.Item2)).ToArray();
     (string, string)[] SortList => Tab switch
     {
+        "Overview" => [("best", "Best match"), ("az", "Title A–Z"), ("artist", "Artist"), ("new", "Recently added"), ("year", "Newest year"), ("long", "Longest")],
         "Songs" => [("az", "Title A–Z"), ("za", "Title Z–A"), ("artist", "Artist"), ("new", "Recently added"), ("year", "Newest year"), ("oldest", "Oldest year"), ("long", "Longest")],
         "Albums" => [("az", "Name A–Z"), ("za", "Name Z–A"), ("artist", "Artist"), ("new", "Recently added"), ("year", "Newest year"), ("oldest", "Oldest year"), ("long", "Most songs")],
         "Artists" => [("az", "Name A–Z"), ("za", "Name Z–A"), ("long", "Most songs")],
@@ -131,7 +134,7 @@
             decadeOptions = choices.Decades.Select(d => new DropOption(d, d)).ToArray();
         }
         // a sort that this tab doesn't have falls back to A–Z
-        if (!SortList.Any(o => o.Item1 == X.Sort)) X.Sort = "az";
+        if (Tab != "Overview" && !SortList.Any(o => o.Item1 == X.Sort)) X.Sort = "az";
     }
     protected override bool ShouldRender() { OnParametersSet(); return true; }
 

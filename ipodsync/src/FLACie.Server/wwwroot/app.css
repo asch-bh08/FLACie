@@ -1196,3 +1196,17 @@ main.content:has(.az-rail) .tracks { padding-right: 16px; }
 .sr-top { grid-template-columns: minmax(260px, 1fr) minmax(340px, 1.7fr); }
 @container sr (max-width: 760px) { .sr-top { grid-template-columns: minmax(0, 1fr); } .sr-hero { flex-direction: row; align-items: center; } .sr-play { opacity: 1; transform: none; width: 46px; height: 46px; right: 16px; bottom: 16px; } }
 .sr-hero.artist .cover, .sr-hero.artist .cover-img { border-radius: 50%; }
+
+/* ---- Stacked results (Explore overview and Search): full-width banner, song list, big album covers, round artists ---- */
+.sr-section { margin-bottom: 8px; }
+.sr-hero { flex-direction: row; align-items: center; gap: 28px; padding: 22px 28px; width: 100%; }
+.sr-hero .sr-art { flex: none; display: block; padding: 0; border: 0; background: none; border-radius: 16px; }
+.sr-hero .cover { width: min(188px, 34vw) !important; height: auto !important; aspect-ratio: 1; }
+.sr-hero.artist .cover, .sr-hero.artist .cover-img { border-radius: 50%; }
+.sr-hero-title { font-size: clamp(24px, 3.4vw, 36px); }
+.sr-play { right: 28px; bottom: 50%; transform: translateY(50%) scale(.92); width: 56px; height: 56px; }
+.sr-hero:hover .sr-play, .sr-play:focus-visible { transform: translateY(50%); }
+.sr-albums { grid-auto-columns: minmax(180px, 212px); gap: 20px; }
+.sr-albums .card .cover { width: 100%; height: auto; aspect-ratio: 1; }
+@media (max-width: 560px) { .sr-hero { gap: 16px; padding: 16px; } .sr-play { right: 14px; width: 46px; height: 46px; } .sr-albums { grid-auto-columns: minmax(150px, 172px); } }
+@media (hover: none) { .sr-play { transform: translateY(50%); } }

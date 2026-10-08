@@ -7,5 +7,5 @@
 </div>
 @code {
     [Parameter, EditorRequired] public string Active { get; set; } = "Songs";
-    static readonly (string, string)[] tabs = [("Songs", "/songs"), ("Albums", "/albums"), ("Artists", "/artists"), ("Genres", "/genres"), ("Charts", "/charts")];
+    static readonly (string, string)[] tabs = [("Overview", "/explore"), ("Songs", "/songs"), ("Albums", "/albums"), ("Artists", "/artists"), ("Genres", "/genres"), ("Charts", "/charts")];
 }

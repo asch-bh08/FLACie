@@ -102,6 +102,11 @@ public sealed class ExploreState
         && (Codec.Length == 0 || CodecOk(t, Codec))
         && (Kbps.Length == 0 || KbpsOk(t, Kbps));
 
+    /// <summary>The filter choices (genre, decade, quality, codec, bit rate, bit depth, sample rate) without the text: so Search can narrow its results with the same chips.</summary>
+    public bool Allows(Track t) => Match(t);
+    /// <summary>Any of those filter choices is on (the text, letter and sort do not count).</summary>
+    public bool AnyFilter => Genre.Length + Decade.Length + Format.Length + Depth.Length + Rate.Length + Codec.Length + Kbps.Length > 0;
+
     public List<Track> Songs(Library lib)
     {
         var l = Text(lib.Songs.Where(t => (Letter.Length == 0 || LetterOf(t.Title) == Letter) && Match(t)), t => [t.Title, t.Artist, t.Album]);

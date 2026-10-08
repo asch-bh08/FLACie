@@ -2,9 +2,25 @@
 @attribute [Authorize]
 @implements IDisposable
 @inherits UserComponent
+@inject ExploreState X
 <PageTitle>@(q.Length > 0 ? q + " · " : "")Search · FLACie</PageTitle>
 <h1 class="sr-only">Search</h1>
-@{ var r = Lib.Search(q); var jobs = Downloads.JobsOf(Session).Where(j => j.Kind == "Search").ToList(); }
+@{
+    var r = Lib.Search(q); var jobs = Downloads.JobsOf(Session).Where(j => j.Kind == "Search").ToList();
+    // the filter pills (shared with Explore) narrow every section below
+    var songs = r.Songs.Where(X.Allows).ToList();
+    var albums = r.Albums.Where(g => g.Tracks.Any(X.Allows)).ToList();
+    var artists = r.Artists.Where(g => g.Tracks.Any(X.Allows)).ToList();
+    var plays = FindPlaylists();
+    var genres = FindGenres();
+    var topSong = songs.FirstOrDefault();
+    // the top result: an artist named exactly like the search, else an album named so, else the best song (accents and punctuation do not count)
+    var songIsExact = topSong is not null && Same(topSong.Title, q);
+    var topArtist = artists.FirstOrDefault(g => Same(g.Name, q));
+    var heroArtist = topArtist is not null && !songIsExact;
+    var topAlbum = albums.FirstOrDefault(g => Same(g.Name, q));
+    var heroAlbum = !heroArtist && topAlbum is not null && !songIsExact;
+}
 @if (jobs.Count > 0)
 {
     <section class="panel wide" aria-label="Downloads">
@@ -29,29 +45,113 @@
 }
 else
 {
-    @if (r.Artists.Count > 0)
+    <ExploreBar Compact="true" Changed="OnFilters" />
+    @if (songs.Count > 0 || heroAlbum || heroArtist)
+    {
+        <div class="sr-wrap"><div class="sr-top">
+            <section aria-label="Top result">
+                <h2 class="section">Top result</h2>
+                @if (heroArtist && topArtist is not null)
+                {
+                    <div class="sr-hero artist">
+                        <a href="/artist/@Uri.EscapeDataString(topArtist.Name)" aria-label="Open artist @topArtist.Name"><Cover ArtKey="@(topArtist.ArtKey)" Size="148" Class="square round" /></a>
+                        <div class="sr-hero-text">
+                            <a class="sr-hero-title" href="/artist/@Uri.EscapeDataString(topArtist.Name)">@topArtist.Name</a>
+                            <span class="sr-hero-sub">Artist</span>
+                            <span class="pills"><span class="badge plain">@Count(topArtist) @(Count(topArtist) == 1 ? "song" : "songs")</span></span>
+                        </div>
+                        <button class="sr-play" aria-label="Play @topArtist.Name" @onclick="() => Player.Play(topArtist.Tracks.Where(X.Allows).ToList(), 0, topArtist.Name)"><Icon Name="play" Size="22" /></button>
+                    </div>
+                }
+                else if (heroAlbum && topAlbum is not null)
+                {
+                    var ht = topAlbum.Tracks[0]; var hy = topAlbum.Tracks.Max(t => t.Year);
+                    <div class="sr-hero">
+                        <a href="@AlbumLink(topAlbum)" aria-label="Open album @topAlbum.Name"><Cover ArtKey="@(topAlbum.ArtKey)" Size="148" Class="square" /></a>
+                        <div class="sr-hero-text">
+                            <a class="sr-hero-title" href="@AlbumLink(topAlbum)">@topAlbum.Name</a>
+                            <span class="sr-hero-sub">Album · @(ht.AlbumArtist.Length > 0 ? ht.AlbumArtist : ht.Artist)@(hy > 0 ? " · " + hy : "")</span>
+                            <span class="pills"><span class="badge @ht.Source.ToString().ToLowerInvariant()">@SourceLabel.Short(ht.Source)</span><span class="badge plain">@Count(topAlbum) @(Count(topAlbum) == 1 ? "song" : "songs")</span></span>
+                        </div>
+                        <button class="sr-play" aria-label="Play @topAlbum.Name" @onclick="() => Player.Play(topAlbum.Tracks.Where(X.Allows).ToList(), 0, topAlbum.Name)"><Icon Name="play" Size="22" /></button>
+                    </div>
+                }
+                else if (topSong is not null)
+                {
+                    var fmt = InfoService.QuickFormat(topSong); var facts = FormatIndex.Current?.Get(topSong);
+                    <div class="sr-hero">
+                        <button class="sr-cover" aria-label="Play @topSong.Title" @onclick='() => Player.Play([topSong], 0, "Search: " + q)'><Cover ArtKey="@(Art.KeyFor(topSong))" Size="148" Class="square" /></button>
+                        <div class="sr-hero-text">
+                            <span class="sr-hero-title">@topSong.Title</span>
+                            <span class="sr-hero-sub">Song · <a href="/artist/@Uri.EscapeDataString(topSong.AlbumArtist.Length > 0 ? topSong.AlbumArtist : topSong.Artist)">@topSong.Artist</a>@(topSong.Album.Length > 0 ? " · " + topSong.Album : "")</span>
+                            <span class="pills">
+                                <span class="badge @topSong.Source.ToString().ToLowerInvariant()">@SourceLabel.Short(topSong.Source)</span>
+                                @if (fmt.Length > 0) { <span class="badge fmt @(fmt == "HI-RES" ? "hires" : FLACie.Core.MediaInfo.LosslessCodecs.Contains(fmt.ToLowerInvariant()) ? "lossless" : "")">@(fmt == "HI-RES" ? "✦ Hi-Res" : fmt)</span> }
+                                @if (facts is { Depth: > 0, Rate: > 0 }) { <span class="badge plain">@facts.Depth-bit / @((facts.Rate / 1000.0).ToString("0.#")) kHz</span> }
+                                @if (facts is { Kbps: > 0 }) { <span class="badge plain">@facts.Kbps kbps</span> }
+                            </span>
+                        </div>
+                        <button class="sr-play" aria-label="Play @topSong.Title" @onclick='() => Player.Play([topSong], 0, "Search: " + q)'><Icon Name="play" Size="22" /></button>
+                    </div>
+                }
+            </section>
+            <section aria-label="Songs">
+                <h2 class="section">Songs</h2>
+                <TrackList Tracks="songs.Take(5).ToList()" PlayContext="@("Search: " + q)" Single="true" />
+            </section>
+        </div></div>
+        @if (songs.Count > 5)
+        {
+            @if (showAllSongs)
+            {
+                <TrackList Tracks="songs.Skip(5).ToList()" PlayContext="@("Search: " + q)" Single="true" />
+                <button class="btn ghost sr-more" @onclick="() => showAllSongs = false">Show fewer songs</button>
+            }
+            else { <button class="btn ghost sr-more" @onclick="() => showAllSongs = true">Show all @songs.Count songs</button> }
+        }
+    }
+    @if (artists.Count > 0)
     {
         <h2 class="section">Artists</h2>
         <div class="row-scroll">
-            @foreach (var a in r.Artists)
+            @foreach (var a in artists)
             {
-                <a class="card artist" href="/artist/@Uri.EscapeDataString(a.Name)"><Cover ArtKey="@(a.ArtKey)" Class="square round" /><span class="card-title">@a.Name</span></a>
+                <a class="card artist" href="/artist/@Uri.EscapeDataString(a.Name)"><Cover ArtKey="@(a.ArtKey)" Class="square round" /><span class="card-title">@a.Name</span><span class="card-sub">Artist · @Count(a) @(Count(a) == 1 ? "song" : "songs")</span></a>
             }
         </div>
     }
-    @if (r.Albums.Count > 0)
+    @if (albums.Count > 0)
     {
         <h2 class="section">Albums</h2>
-        <AlbumGrid Albums="r.Albums" />
+        <div class="row-scroll">
+            @foreach (var g in albums)
+            {
+                var gy = g.Tracks.Max(t => t.Year); var ga = g.Tracks[0].AlbumArtist.Length > 0 ? g.Tracks[0].AlbumArtist : g.Tracks[0].Artist;
+                <a class="card" href="@AlbumLink(g)"><Cover ArtKey="@(g.ArtKey)" Class="square" /><span class="card-title">@g.Name</span><span class="card-sub">@ga@(gy > 0 ? " · " + gy : "")</span></a>
+            }
+        </div>
     }
-    @if (r.Songs.Count > 0)
+    @if (plays.Count > 0)
     {
-        <h2 class="section">Songs</h2>
-        <TrackList Tracks="r.Songs" PlayContext="@("Search: " + q)" Single="true" />
+        <h2 class="section">Playlists</h2>
+        <div class="row-scroll">
+            @foreach (var p in plays)
+            {
+                var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
+                <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">Playlist · @p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs")</span></a>
+            }
+        </div>
     }
-    @if (r.Songs.Count == 0 && r.Albums.Count == 0 && r.Artists.Count == 0 && !webBusy && webSongs.Count == 0 && webAlbums.Count == 0)
+    @if (genres.Count > 0)
     {
-        <p class="status">Nothing in your library matches "@q".</p>
+        <h2 class="section">Genres</h2>
+        <div class="sr-genres">
+            @foreach (var gn in genres) { <a class="chip" href="/genre/@Uri.EscapeDataString(gn)">@gn</a> }
+        </div>
+    }
+    @if (songs.Count == 0 && albums.Count == 0 && artists.Count == 0 && plays.Count == 0 && genres.Count == 0 && !webBusy && webSongs.Count == 0 && webAlbums.Count == 0)
+    {
+        <p class="status">@(X.AnyFilter ? "Nothing in your library matches \"" + q + "\" with these filters." : "Nothing in your library matches \"" + q + "\".")</p>
     }
     @if (webBusy || webSongs.Count > 0 || webAlbums.Count > 0)
     {
@@ -114,6 +214,26 @@ else
     [Inject] IConfiguration Conf { get; set; } = default!;
     bool isAdmin => AdminAccess.Is(Session, Conf);
     string q = ""; string? hiAsk, dlMenu;
+    bool showAllSongs;
+    static bool Same(string a, string b) => string.Join(' ', FLACie.Core.Matching.SearchWords(a)) == string.Join(' ', FLACie.Core.Matching.SearchWords(b));
+    // how many of a group's songs the filter pills allow
+    int Count(Group g) => g.Tracks.Count(X.Allows);
+    void OnFilters() { showAllSongs = false; }
+
+    // playlists and genres whose name matches the search (and, with filter pills on, that hold something the filters allow)
+    List<FLACie.Core.Playlist> FindPlaylists()
+    {
+        var words = FLACie.Core.Matching.SearchWords(q);
+        if (words.Count == 0) return [];
+        return Session.Playlists.Where(p => FLACie.Core.Matching.SearchHit(words, p.Name) && (!X.AnyFilter || Session.Resolve(p.Entries).Any(X.Allows))).Take(12).ToList();
+    }
+    List<string> FindGenres()
+    {
+        var words = FLACie.Core.Matching.SearchWords(q);
+        if (words.Count == 0) return [];
+        return Lib.Songs.Where(t => t.Genre.Trim().Length > 0 && X.Allows(t) && FLACie.Core.Matching.SearchHit(words, t.Genre)).Select(t => t.Genre.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(g => g).Take(12).ToList();
+    }
     List<CatalogSong> webSongs = [];
     List<CatalogAlbum> webAlbums = [];
     bool webBusy;

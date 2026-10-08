@@ -26,3 +26,8 @@ Still open from the list above: hide the Android source pill only when mixed (do
 - Typo notice is soft grey with "Did you mean ...?" (`Matching.Suggest`); "Nothing matches ..., not even closely" when there is nothing.
 - Also: every boolean aria-expanded / pressed in the web UI now renders true/false.
 - Android already has this shape (search + Filters + Sort, removable chips, a Filters sheet); no change made there.
+
+## Web Search results layout (2026-10-08, after beta 41; deployed to frank, not yet in an MSI/APK release)
+- `/search` is now sectioned like Spotify: a Top result card (artist named exactly like the search, else an album named so, else the best song, with source / format / bit depth + sample rate / kbps badges and a play button) beside the five best Songs (Show all N songs below), then Artists (circular, "Artist - N songs"), Albums (cover, artist, year), Playlists, Genres chips, and the existing "More music" downloads.
+- The same filter pills as Explore (compact: Filters button, pills, drawer) narrow every section, including the counts on the cards. The text is still the box at the top of the page.
+- The two-column split follows the width of the page area (container query), stacking when narrow; Explore track rows get 16 px of right padding so the menus do not touch the A-Z bar.

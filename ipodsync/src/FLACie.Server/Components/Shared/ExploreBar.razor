@@ -2,17 +2,20 @@
 @inject ExploreState X
 @* The filters over Explore's lists, kept to one quiet row: the search box, Sort, and a Filters button with how many are on. What is on shows as removable
    pills under the row. Genre, decade and quality are the main filters; bit rate, bit depth, sample rate and codec live in an "Audio specs" drawer. *@
-<div class="x-bar">
+<div class="x-bar @(Compact ? "compact" : "")">
     <div class="x-top">
+        @if (!Compact)
+        {
         <label class="x-search"><Icon Name="search" Size="20" /><input type="search" placeholder="@Placeholder" aria-label="Search this list" value="@X.Query" autocomplete="off" spellcheck="false" @oninput="e => Set(() => X.Query = e.Value?.ToString() ?? string.Empty)" />
             @if (X.Query.Length > 0) { <button type="button" class="x-clear" aria-label="Clear search" @onclick="() => Set(() => X.Query = string.Empty)"><Icon Name="x" Size="16" /></button> }
         </label>
         <Dropdown Class="x-sort" Label="Sort" ShowAny="false" Options="sortOptions" Value="@X.Sort" ValueChanged="v => Set(() => X.Sort = v)" />
+        }
         <button type="button" class="x-ftoggle @(open || ActiveCount > 0 ? "on" : "")" aria-expanded="@(open ? "true" : "false")" aria-controls="x-panel" @onclick="() => open = !open">
             <Icon Name="lines" Size="18" /><span>Filters@(ActiveCount > 0 ? $" ({ActiveCount} active)" : "")</span><Icon Name="@(open ? "chevron-up" : "chevron-down")" Size="16" />
         </button>
     </div>
-    @if (X.Query.Trim().Length > 0 && X.Fuzzy)
+    @if (!Compact && X.Query.Trim().Length > 0 && X.Fuzzy)
     {
         <p class="x-hint" role="status">
             @if (X.TextHits == 0) { <span>Nothing matches “@X.Query.Trim()”, not even closely. Try fewer letters, or clear a filter.</span> }
@@ -58,6 +61,8 @@
         </div>
     }
 </div>
+@if (!Compact)
+{
 <nav class="az-rail" aria-label="First letter">
     <button class="@(X.Letter.Length == 0 ? "on" : "")" aria-pressed="@((X.Letter.Length == 0) ? "true" : "false")" title="All songs" @onclick="() => Set(() => X.Letter = string.Empty)">All</button>
     @foreach (var l in letters)
@@ -66,8 +71,11 @@
         <button class="@(X.Letter == c ? "on" : "")" aria-pressed="@((X.Letter == c) ? "true" : "false")" @onclick="() => Set(() => X.Letter = X.Letter == c ? string.Empty : c)">@c</button>
     }
 </nav>
+}
 @code {
     [Parameter] public string Tab { get; set; } = "Songs";
+    /// <summary>Search results use only the Filters button, the pills and the drawer (the text is the box at the top of the page; no sort, no A to Z).</summary>
+    [Parameter] public bool Compact { get; set; }
     [Parameter] public EventCallback Changed { get; set; }
     [Inject] FormatProbeService Probe { get; set; } = default!;
     static readonly string[] letters = ["#", .. "ABCDEFGHIJKLMNOPQRSTUVWXYZ".Select(c => c.ToString())];

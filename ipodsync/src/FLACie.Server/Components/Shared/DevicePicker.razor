@@ -7,7 +7,7 @@
     var others = live.Connect.Sessions.Where(s => !s.IsSelf && s.Controllable).ToList();
     var busy = others.Any(s => s.ItemId is not null && !s.Paused);
     <div class="devpick">
-        <button class="icon-btn @(busy ? "on" : "")" @onclick="Toggle" aria-haspopup="dialog" aria-expanded="@open" aria-label="@(busy ? "Devices, music is playing on another device" : "Devices")"><Icon Name="devices" />@if (busy) { <i class="dot" aria-hidden="true"></i> }</button>
+        <button class="icon-btn @(busy ? "on" : "")" @onclick="Toggle" aria-haspopup="dialog" aria-expanded="@(open ? "true" : "false")" aria-label="@(busy ? "Devices, music is playing on another device" : "Devices")"><Icon Name="devices" />@if (busy) { <i class="dot" aria-hidden="true"></i> }</button>
         @if (open)
         {
             <div class="devpop" role="dialog" aria-label="Connect to a device">

@@ -19,3 +19,10 @@ Found while testing (not yet done):
 - Web: the Explore filters and A-Z letter are shared across the Songs/Albums/Artists/Genres tabs (can show "0 of 781 artists" after filtering Albums); whitespace-only search says "7514 of 7514 songs".
 
 Still open from the list above: hide the Android source pill only when mixed (done), read format facts for device-only files (not done), chunked rendering of the big Albums/Artists grids (not done), Explore filters shared across tabs (not changed).
+
+## Web filter UI refactor (2026-10-08, after beta 41; deployed to frank, not yet in an MSI/APK release)
+- Explore bar is one row (search, Sort, "Filters (N active)"); chosen filters are removable pills under it with "Clear all"; Genre / Decade / Quality are the main filters and Codec / Bit rate / Bit depth / Sample rate sit in an "Audio specs" drawer.
+- Own dropdown component (`Components/Shared/Dropdown.razor`, `flacie.ddPlace` in flacie.js): 240 px max height with scrolling, flips upwards (and aligns right) when there is no room, accent-coloured selected row with a check, group headings. Codec is grouped Lossless / Lossy / Hi-Res (Hi-Res FLAC / ALAC / WAV).
+- Typo notice is soft grey with "Did you mean ...?" (`Matching.Suggest`); "Nothing matches ..., not even closely" when there is nothing.
+- Also: every boolean aria-expanded / pressed in the web UI now renders true/false.
+- Android already has this shape (search + Filters + Sort, removable chips, a Filters sheet); no change made there.

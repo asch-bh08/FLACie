@@ -31,13 +31,13 @@
                     </div>
                     <button class="icon-btn lg @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="24" /></button>
                     <div class="np-more">
-                        <button class="icon-btn lg" @onclick="ToggleMore" aria-label="More options" aria-haspopup="menu" aria-expanded="@more"><Icon Name="more" Size="24" /></button>
+                        <button class="icon-btn lg" @onclick="ToggleMore" aria-label="More options" aria-haspopup="menu" aria-expanded="@(more ? "true" : "false")"><Icon Name="more" Size="24" /></button>
                         @if (more)
                         {
                             <div class="menu np-menu" role="menu">
                                 <button role="menuitem" @onclick='() => Plain(() => Player.PlayNext(t), $"“{t.Title}” plays next")'>Play next</button>
                                 <button role="menuitem" @onclick='() => Plain(() => Player.AddToQueue(t), $"Added “{t.Title}” to the queue")'>Add to queue</button>
-                                <button role="menuitem" aria-expanded="@plOpen" @onclick="() => plOpen = !plOpen">Add to playlist <span aria-hidden="true">@(plOpen ? "▾" : "▸")</span></button>
+                                <button role="menuitem" aria-expanded="@(plOpen ? "true" : "false")" @onclick="() => plOpen = !plOpen">Add to playlist <span aria-hidden="true">@(plOpen ? "▾" : "▸")</span></button>
                                 @if (plOpen)
                                 {
                                     @if (!Session.Playlists.Any()) { <small class="menu-note">No playlists yet. Make one on the Playlists page.</small> }
@@ -60,7 +60,7 @@
                     <span>@Time(Player.Duration)</span>
                 </div>
                 <div class="np-controls">
-                    <button class="icon-btn lg @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@Player.Shuffle"><Icon Name="shuffle" Size="22" /></button>
+                    <button class="icon-btn lg @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")"><Icon Name="shuffle" Size="22" /></button>
                     <button class="icon-btn lg" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="28" /></button>
                     <button class="play big" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="30" /></button>
                     <button class="icon-btn lg" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="28" /></button>

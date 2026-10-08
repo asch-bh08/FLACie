@@ -1122,3 +1122,45 @@ body.np-open .player .bar, body.np-open .player .bar:hover { cursor: default; }
 .x-toggle { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; color: var(--dim); cursor: pointer; padding: 6px 8px 6px 4px; margin-left: -4px; border-radius: 999px; }
 .x-toggle:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 8%, transparent); }
 .x-toggle b { color: inherit; }
+
+/* ---- Explore bar, one quiet row: search + sort + Filters, removable pills, an Audio specs drawer, and our own dropdowns ---- */
+.x-bar { gap: 10px; padding: 12px; border-radius: 18px; }
+.x-top { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.x-top .x-search { flex: 1 1 260px; min-width: 0; height: 46px; }
+.x-top .dd.x-sort { flex: 0 0 auto; }
+.dd { position: relative; min-width: 0; }
+.dd-btn { display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 12px 0 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 14px; color: var(--ink); cursor: pointer; font: inherit; min-width: 0; max-width: 100%; transition: border-color .15s, background .15s, box-shadow .15s; }
+.dd-btn:hover { border-color: color-mix(in srgb, var(--ink) 30%, var(--line)); }
+.dd.open .dd-btn, .dd-btn:focus-visible { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.dd.on .dd-btn { border-color: color-mix(in srgb, var(--accent) 70%, var(--line)); background: color-mix(in srgb, var(--accent) 12%, var(--bg)); }
+.dd-label { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--dim); font-weight: 700; flex: none; }
+.dd.on .dd-label { color: var(--accent); }
+.dd-val { font-weight: 650; font-size: 14px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-btn > svg:last-child { flex: none; color: var(--dim); transition: transform .15s; }
+.dd.open .dd-btn > svg:last-child { transform: rotate(180deg); }
+.dd-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; min-width: 100%; width: max-content; max-width: min(320px, 90vw); max-height: 240px; overflow-y: auto; overscroll-behavior: contain; scroll-behavior: smooth; scrollbar-width: thin; background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; padding: 6px; box-shadow: 0 18px 50px #000b; display: flex; flex-direction: column; gap: 2px; animation: dd-in .12s ease-out; }
+.dd-menu.up { top: auto; bottom: calc(100% + 6px); }
+.dd-menu.right { left: auto; right: 0; }
+@keyframes dd-in { from { opacity: 0; transform: translateY(-4px); } }
+.dd-group { position: sticky; top: -6px; z-index: 1; padding: 8px 10px 4px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); background: var(--surface-2); }
+.dd-opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; padding: 9px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+.dd-opt:hover, .dd-opt:focus-visible { background: color-mix(in srgb, var(--ink) 9%, transparent); outline: none; }
+.dd-opt.sel { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-weight: 650; }
+.dd-opt.sel:hover { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+.dd-opt > svg { flex: none; color: var(--accent); }
+.x-ftoggle, .x-specs-toggle { display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 12px 0 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-weight: 650; font-size: 14px; cursor: pointer; white-space: nowrap; transition: border-color .15s, background .15s; }
+.x-ftoggle:hover, .x-specs-toggle:hover { border-color: color-mix(in srgb, var(--ink) 30%, var(--line)); }
+.x-ftoggle.on, .x-specs-toggle.on { border-color: color-mix(in srgb, var(--accent) 70%, var(--line)); background: color-mix(in srgb, var(--accent) 12%, var(--bg)); }
+.x-ftoggle > svg:last-child, .x-specs-toggle > svg:last-child { color: var(--dim); }
+.x-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.x-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 9px 0 12px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--ink); font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; transition: background .15s; }
+.x-chip:hover { background: color-mix(in srgb, var(--accent) 26%, transparent); }
+.x-chip > svg { opacity: .7; }
+.x-chips .x-reset { margin-left: 4px; }
+.x-panel { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+.x-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.x-hint { margin: 0; padding: 0 4px; font-size: 13px; color: var(--dim); }
+.x-did { background: none; border: 0; padding: 0; margin: 0 2px; font: inherit; color: var(--ink); cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+.x-did b { color: var(--accent); font-weight: 700; }
+.x-did:hover { text-decoration-style: solid; }
+@media (max-width: 760px) { .x-top .x-search { flex: 1 1 100%; } .x-row > .dd { flex: 1 1 calc(50% - 5px); } .x-row > .dd .dd-btn { width: 100%; } .dd-val { max-width: none; flex: 1; text-align: right; } }

@@ -392,6 +392,16 @@ window.flacie = (() => {
       // after the click that opened it has finished, or it would close at once
       setTimeout(() => { if (outside && outside.down === down) { document.addEventListener("pointerdown", down, true); document.addEventListener("keydown", key); } }, 0);
     },
+    // a dropdown just opened: open upwards when there is more room above than below, line up with the right edge when it would run off the screen,
+    // and scroll the chosen option into view
+    ddPlace(root) {
+      const menu = root && root.querySelector(".dd-menu"); if (!menu) return;
+      menu.classList.remove("up", "right");
+      const r = root.getBoundingClientRect(), h = Math.min(menu.scrollHeight, 240), below = innerHeight - r.bottom - 12, above = r.top - 12;
+      if (below < h && above > below) menu.classList.add("up");
+      if (r.left + menu.offsetWidth > innerWidth - 8) menu.classList.add("right");
+      const sel = menu.querySelector(".sel"); if (sel) menu.scrollTop = Math.max(0, sel.offsetTop - menu.clientHeight / 2 + sel.offsetHeight / 2);
+    },
     unwatchOutside() {
       if (!outside) return;
       document.removeEventListener("pointerdown", outside.down, true); document.removeEventListener("keydown", outside.key); outside = null;

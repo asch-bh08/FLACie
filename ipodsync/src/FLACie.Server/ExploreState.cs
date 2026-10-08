@@ -11,6 +11,10 @@ public sealed class ExploreState
     public string Query = "", Letter = "", Genre = "", Decade = "", Format = "", Depth = "", Rate = "", Codec = "", Kbps = "", Sort = "az";
     /// <summary>True when the last list found nothing exactly for the text and is showing close matches instead (typos).</summary>
     public bool Fuzzy { get; private set; }
+    /// <summary>For a typo search: the corrected words ("beyonce"), or "" when there is no better spelling to offer.</summary>
+    public string Suggestion { get; private set; } = "";
+    /// <summary>How many items matched the text in the list last built (to tell "close matches" from "nothing, even loosely").</summary>
+    public int TextHits { get; private set; }
     public int Version { get; private set; }
     public event Action? Changed;
 
@@ -28,7 +32,13 @@ public sealed class ExploreState
     };
 
     /// <summary>Audio codecs to filter by (the real codec when it has been read, else the file extension) and bit-rate bands (kbps, from the real format).</summary>
-    public static readonly (string, string)[] CodecChoices = [("flac", "FLAC"), ("alac", "ALAC (Apple Lossless)"), ("wav", "WAV / PCM"), ("aiff", "AIFF"), ("ape", "APE"), ("wv", "WavPack"), ("dsd", "DSD"), ("mp3", "MP3"), ("aac", "AAC / M4A"), ("ogg", "Ogg Vorbis"), ("opus", "Opus"), ("wma", "WMA")];
+    public static readonly DropOption[] CodecChoices =
+    [
+        new("flac", "FLAC", "Lossless"), new("alac", "ALAC (Apple Lossless)", "Lossless"), new("wav", "WAV / PCM", "Lossless"), new("aiff", "AIFF", "Lossless"), new("ape", "APE", "Lossless"), new("wv", "WavPack", "Lossless"), new("dsd", "DSD", "Lossless"),
+        new("mp3", "MP3", "Lossy"), new("aac", "AAC / M4A", "Lossy"), new("ogg", "Ogg Vorbis", "Lossy"), new("opus", "Opus", "Lossy"), new("wma", "WMA", "Lossy"),
+        new("hires-flac", "Hi-Res FLAC", "Hi-Res"), new("hires-alac", "Hi-Res ALAC", "Hi-Res"), new("hires-wav", "Hi-Res WAV / PCM", "Hi-Res"),
+    ];
+    static bool CodecOk(Track t, string c) => c.StartsWith("hires-", StringComparison.Ordinal) ? CodecFamily(t) == c[6..] && InfoService.QuickFormat(t) == "HI-RES" : CodecFamily(t) == c;
     public static readonly (string, string)[] KbpsChoices = [("128", "128 kbps or lower"), ("192", "129 to 192 kbps"), ("256", "193 to 256 kbps"), ("320", "257 to 320 kbps"), ("hi", "Above 320 kbps")];
     static bool KbpsBand(int k, string band) => k > 0 && band switch { "128" => k <= 128, "192" => k is > 128 and <= 192, "256" => k is > 192 and <= 256, "320" => k is > 256 and <= 320, "hi" => k > 320, _ => true };
     /// <summary>The codec family of a song: "flac", "mp3", "aac" ... ("" when unknown).</summary>
@@ -72,11 +82,15 @@ public sealed class ExploreState
     {
         var words = Matching.SearchWords(Query);
         var all = src.ToList();
-        Fuzzy = false;
+        Fuzzy = false; Suggestion = ""; TextHits = all.Count;
         if (words.Count == 0) return all;
         var exact = all.Where(i => Matching.SearchHit(words, fields(i))).ToList();
         Fuzzy = exact.Count == 0 && all.Count > 0;
-        return Fuzzy ? all.Where(i => Matching.FuzzyHit(words, fields(i))).ToList() : exact;
+        if (!Fuzzy) { TextHits = exact.Count; return exact; }
+        var close = all.Where(i => Matching.FuzzyHit(words, fields(i))).ToList();
+        TextHits = close.Count;
+        Suggestion = Matching.Suggest(words, close.Select(fields));
+        return close;
     }
 
     bool Match(Track t) =>
@@ -85,7 +99,7 @@ public sealed class ExploreState
         && (Format.Length == 0 || (Format == "hires" ? InfoService.QuickFormat(t) == "HI-RES" : (Format == "lossless") == Lossless(t)))
         && (Depth.Length == 0 || DepthOk(t, Depth))
         && (Rate.Length == 0 || RateOk(t, Rate))
-        && (Codec.Length == 0 || CodecFamily(t) == Codec)
+        && (Codec.Length == 0 || CodecOk(t, Codec))
         && (Kbps.Length == 0 || KbpsOk(t, Kbps));
 
     public List<Track> Songs(Library lib)
@@ -143,3 +157,6 @@ public sealed class ExploreState
         lib.Songs.Where(t => t.Genre.Length > 0).GroupBy(t => t.Genre.Trim(), StringComparer.OrdinalIgnoreCase).Where(g => g.Count() >= 3).OrderBy(g => g.Key).Select(g => g.Key).ToList(),
         lib.Songs.Select(t => DecadeOf(t.Year)).Where(d => d.Length > 0).Distinct().OrderByDescending(d => d).ToList());
 }
+
+/// <summary>One choice in a <see cref="Components.Shared.Dropdown"/>: the value stored, the text shown, and an optional group heading.</summary>
+public sealed record DropOption(string Value, string Text, string? Group = null);

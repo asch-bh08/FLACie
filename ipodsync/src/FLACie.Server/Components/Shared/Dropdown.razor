@@ -1,0 +1,78 @@
+@implements IDisposable
+@inject IJSRuntime Js
+@* A dropdown that looks like the rest of the app (the browser's own select list can't be limited in height, flipped upwards or given a checkmark).
+   The menu is at most 240px tall and scrolls, opens upwards when there is no room below, marks the chosen option with a check in the accent colour,
+   and closes on a click elsewhere or Escape. Options may carry a group heading. *@
+<div class="dd @(open ? "open" : "") @(ShowAny && Value.Length > 0 ? "on" : "") @Class" @ref="root">
+    <button type="button" class="dd-btn" aria-haspopup="listbox" aria-expanded="@(open ? "true" : "false")" @onclick="Toggle">
+        <span class="dd-label">@Label</span>
+        <span class="dd-val">@Current</span>
+        <Icon Name="chevron-down" Size="16" />
+    </button>
+    @if (open)
+    {
+        <div class="dd-menu" role="listbox" aria-label="@Label">
+            @if (ShowAny)
+            {
+                <button type="button" role="option" class="dd-opt @(Value.Length == 0 ? "sel" : "")" aria-selected="@(Value.Length == 0 ? "true" : "false")" @onclick='() => Pick("")'>
+                    <span>@AnyText</span>@if (Value.Length == 0) { <Icon Name="check" Size="16" /> }
+                </button>
+            }
+            @foreach (var g in Options.GroupBy(o => o.Group ?? ""))
+            {
+                @if (g.Key.Length > 0) { <div class="dd-group" role="presentation">@g.Key</div> }
+                @foreach (var o in g)
+                {
+                    var v = o.Value; var sel = v == Value;
+                    <button type="button" role="option" class="dd-opt @(sel ? "sel" : "")" aria-selected="@(sel ? "true" : "false")" @onclick="() => Pick(v)">
+                        <span>@o.Text</span>@if (sel) { <Icon Name="check" Size="16" /> }
+                    </button>
+                }
+            }
+        </div>
+    }
+</div>
+@code {
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public IReadOnlyList<DropOption> Options { get; set; } = [];
+    [Parameter] public string AnyText { get; set; } = "Any";
+    /// <summary>False for a list that always has a choice (Sort): no "Any" row.</summary>
+    [Parameter] public bool ShowAny { get; set; } = true;
+    [Parameter] public string Class { get; set; } = "";
+
+    ElementReference root;
+    bool open, justOpened;
+    DotNetObjectReference<Dropdown>? self;
+
+    string Current => Value.Length == 0 ? (ShowAny ? AnyText : "") : Options.FirstOrDefault(o => o.Value == Value)?.Text ?? Value;
+
+    async Task Toggle()
+    {
+        if (open) { Close(); return; }
+        open = true; justOpened = true;
+        self ??= DotNetObjectReference.Create(this);
+        try { await Js.InvokeVoidAsync("flacie.watchOutside", ".dd.open", self); } catch (Exception) { }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!justOpened) return;
+        justOpened = false;
+        try { await Js.InvokeVoidAsync("flacie.ddPlace", root); } catch (Exception) { }
+    }
+
+    void Close()
+    {
+        if (!open) return;
+        open = false;
+        _ = Js.InvokeVoidAsync("flacie.unwatchOutside").AsTask().ContinueWith(_ => { });
+    }
+
+    async Task Pick(string v) { Close(); await ValueChanged.InvokeAsync(v); }
+
+    [JSInvokable] public void Dismiss() { if (!open) return; open = false; _ = Js.InvokeVoidAsync("flacie.unwatchOutside").AsTask().ContinueWith(_ => { }); InvokeAsync(StateHasChanged); }
+
+    public void Dispose() { self?.Dispose(); try { _ = Js.InvokeVoidAsync("flacie.unwatchOutside").AsTask().ContinueWith(_ => { }); } catch (Exception) { } }
+}

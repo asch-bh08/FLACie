@@ -11,7 +11,7 @@
             </button>
             <div class="bar-controls">
                 <div class="buttons" @onclick:stopPropagation="true">
-                    <button class="icon-btn @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@Player.Shuffle"><Icon Name="shuffle" /></button>
+                    <button class="icon-btn @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")"><Icon Name="shuffle" /></button>
                     <button class="icon-btn" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="22" /></button>
                     <button class="play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="22" /></button>
                     <button class="icon-btn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="22" /></button>

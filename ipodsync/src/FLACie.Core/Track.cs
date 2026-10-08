@@ -97,6 +97,37 @@ public static partial class Matching
         return true;
     }
 
+    /// <summary>
+    /// "Did you mean ...?": for a search that only matched with typos, the words of the results that are closest to what was typed
+    /// (the most common spelling wins). Returns the corrected words joined, or "" when no word needed correcting.
+    /// </summary>
+    public static string Suggest(IReadOnlyList<string> words, IEnumerable<string[]> results)
+    {
+        var sample = results.Take(300).Select(f => Fold(string.Join(' ', f)).Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => new string(x.Where(char.IsLetterOrDigit).ToArray())).Where(x => x.Length > 0).Distinct().ToList()).ToList();
+        var outWords = new List<string>(words.Count); var changed = false;
+        foreach (var w in words)
+        {
+            var tol = w.Length <= 3 ? 0 : w.Length <= 7 ? 1 : 2;
+            if (tol == 0 || sample.Any(toks => toks.Contains(w))) { outWords.Add(w); continue; }
+            var best = ""; var bestCount = 0; var bestDist = int.MaxValue;
+            var counts = new Dictionary<string, int>();
+            foreach (var toks in sample)
+                foreach (var t in toks)
+                {
+                    if (Math.Abs(t.Length - w.Length) > tol + 2) continue;
+                    var d = Typos(w, t, tol);
+                    if (d > tol && t.Length > w.Length) d = Typos(w, t[..w.Length], tol);
+                    if (d > tol) continue;
+                    counts[t] = counts.GetValueOrDefault(t) + 1;
+                    var c = counts[t];
+                    if (c > bestCount || (c == bestCount && d < bestDist)) { best = t; bestCount = c; bestDist = d; }
+                }
+            if (best.Length > 0) { outWords.Add(best); changed = true; } else outWords.Add(w);
+        }
+        return changed ? string.Join(' ', outWords) : "";
+    }
+
     /// <summary>Edit distance counting a swap of two neighbouring letters as one change; gives up (returns more than <paramref name="max"/>) early.</summary>
     private static int Typos(string a, string b, int max)
     {

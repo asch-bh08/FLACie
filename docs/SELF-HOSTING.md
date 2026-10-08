@@ -10,7 +10,7 @@ Contents: [Jellyfin only](#a-jellyfin-only) · [NAS only](#b-nas-only-no-jellyfi
 
 You need Docker (with Compose) on any machine that can reach your Jellyfin or NAS. The image runs on amd64 and arm64 (Raspberry Pi 4/5 included).
 
-**Jellyfin versions.** Tested against Jellyfin **10.10.x**: everything works. **Jellyfin 12.2** (the current `jellyfin/jellyfin:latest`): signing in, browsing, playing, playlists and the Info panel work on the web, but Connect (remote control between devices) and Jams do not, and the Android app cannot use it yet (Jellyfin 12 no longer accepts the `X-Emby-Token` header or `api_key` that those parts send). Until that is fixed, run Jellyfin 10.10 if you need those.
+**Jellyfin versions.** Tested against Jellyfin **10.10.7** and **12.2.0** (the current `jellyfin/jellyfin:latest`): signing in, browsing, playing, playlists, the Info panel, Connect (remote control between devices) and the SyncPlay calls Jams use all work on both, on the web and in the Android app (from beta 45 on; older versions of the app cannot use Jellyfin 12, which refuses the `X-Emby-Token` header and `api_key=` those sent).
 
 ## A. Jellyfin only
 
@@ -158,6 +158,7 @@ The Android app is a separate download (APK on the GitHub release page; enable i
 | `FLACIE_ALLOW_NAS_LOGIN` | `false` | `true` shows the NAS sign-in tab (SMB). Off by default: it lets visitors make the server connect to addresses they type. |
 | `FLACIE_ADMINS` | (not set) | Comma separated admins. With `FLACIE_JELLYFIN_URL` set: Jellyfin user names (`alice,bob`). Otherwise write `name@jellyfin-host:port` (or `name@nas-host`). Not set: the administrators of the locked Jellyfin. |
 | `FLACIE_TRUSTED_PROXIES` | loopback and private networks | Addresses or CIDR ranges (comma separated) whose `X-Forwarded-*` headers are believed. `*` trusts every sender (only if nothing but your proxy can reach the port). |
+| `FLACIE_SERVICE_ROUTES` | (not set) | Comma separated `public=>internal` pairs, for example `https://files.example.com/filemove=>http://127.0.0.1:8090`. This server sends its own requests for a download service's public address to the internal one, so a DNS or tunnel problem on the public name cannot stop downloads when the service runs on the same machine. The address saved in people's profiles (and used by the phone) is not changed. |
 | `FLACIE_DATA` | `/data` in Docker | The data folder (see Backups). |
 | `PUID`, `PGID` | `1654` | Docker only: run as this user/group so the files in the mounted folder belong to you (`id` shows yours). |
 | `FLACIE_NTFY_URL`, `FLACIE_NTFY_TOPIC`, `FLACIE_NTFY_TOKEN` | (not set) | First-start defaults for push notifications through an [ntfy](https://ntfy.sh) server. Later changes are made in the dashboard. |
@@ -176,5 +177,5 @@ Taking audio from YouTube or Soulseek can be against those services' terms or yo
 - **Redirects go to `http://` after signing in:** the proxy isn't sending `X-Forwarded-Proto`, or its address is not in `FLACIE_TRUSTED_PROXIES`.
 - **"Couldn't reach …" when signing in:** the container can't reach that Jellyfin address; try `FLACIE_JELLYFIN_INTERNAL_URL` with a LAN address.
 - **Signed in but no songs:** Jellyfin's music library must be visible to that user; check the dashboard's "loading the library" line and `docker compose logs flacie`.
-- **"Too many failed attempts":** more than 8 wrong sign-ins from one address or for one user name in 15 minutes. Wait, or restart the container. (Because the user name counts too, someone guessing at your account from elsewhere can lock you out for the same 15 minutes; restarting the container clears it.)
+- **"Too many failed attempts":** more than 8 wrong sign-ins from one client address in 15 minutes. Wait, or restart the container. Guessing at one user name never locks that user out: after a few wrong guesses at the same name each further try there is only held back 1, 2, 4, up to 8 seconds, from any address.
 - **The NAS tab is missing:** set `FLACIE_ALLOW_NAS_LOGIN: "true"`.

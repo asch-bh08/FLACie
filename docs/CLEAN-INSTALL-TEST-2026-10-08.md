@@ -11,7 +11,7 @@ Method: only `docs/SELF-HOSTING.md` was followed, on a fresh Docker host (Ubuntu
 | 5 | Upgrade, backup and restore | **Pass.** Started on `sha-0e40f89` (beta 44 build), signed in; `docker compose pull && up -d` on `latest`; the same cookie still worked and the playlist was still there. Stop, `tar`, wipe `flacie-data`, restore: still signed in, same data, `keys/` and `users/` mode 700 | Tag example `1.0.0` did not exist (fixed to `1.0.0-beta44` and `sha-` tags) |
 | 6 | Android release APK on the emulator | **Pass with Jellyfin 10.10.7; fails on Jellyfin 12.2.** Install, permission prompts, Quick Connect sign-in and playback of a Jellyfin song work on 10.10.7. On 12.2 "Use my account" fails with HTTP 401 | Missing: the music source must be switched on separately (Settings > Music sources > Jellyfin > Use my account) (fixed); the emulator reaches the host at `10.0.2.2`. Connecting the app to the FLACie Web server itself was not tested |
 
-## Code bugs found (not fixed)
+## Code bugs found (1–3 fixed in beta 45, see CHANGELOG; 4–5 still open)
 
 1. **Jellyfin 12.x compatibility (high).** Jellyfin 12.2 rejects the `X-Emby-Token` header and the `api_key` query parameter for user tokens (HTTP 401); it accepts the `Authorization: MediaBrowser ... Token="..."` header (and an `ApiKey` query). Effects:
    - Android: every direct Jellyfin call that sets `X-Emby-Token` (`JellyfinDirectClient.kt`, `Library.kt:102`, `Lyrics.kt:61`) fails; "Use my account" returns 401, so the Jellyfin library never loads. Also `JellyfinConnect.kt:182` (`/socket?api_key=`).

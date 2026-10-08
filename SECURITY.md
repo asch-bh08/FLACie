@@ -9,7 +9,7 @@ Please report security problems privately through GitHub: **Security > Report a 
 | Area | What it does |
 |---|---|
 | Sign-in | A Jellyfin password or Quick Connect is checked by **your Jellyfin**; FLACie never stores the password. The sign-in cookie (HTTP-only, SameSite=Lax, secure over HTTPS, 30 days) is encrypted with the key ring in `/data/keys`. |
-| Password guessing | 8 failed sign-ins within 15 minutes from one address, or against one user name, are refused until the window passes (in memory; a restart clears it). Quick Connect starts and NAS attempts count too. |
+| Password guessing | 8 failed sign-ins within 15 minutes from one client address are refused until the window passes (in memory; a restart clears it); Quick Connect starts and NAS attempts count too. Wrong guesses at one user name never block that user: they only hold back each further try at that name by 1, 2, 4, up to 8 seconds, so a stranger cannot lock the real owner out. |
 | Forwarded headers | `X-Forwarded-For/Proto/Host` are believed only from loopback and private networks, or from `FLACIE_TRUSTED_PROXIES` if set. A client on the public internet can't forge its address or scheme. |
 | Admin pages | Only administrators of the Jellyfin the server is locked to (`FLACIE_JELLYFIN_URL`), or accounts listed in `FLACIE_ADMINS`. A user name alone proves nothing on a server where visitors may type their own Jellyfin address, so there a list entry must be `name@host`. |
 | NAS sign-in | Off unless `FLACIE_ALLOW_NAS_LOGIN=true`, because it makes the server connect to an address chosen by the visitor. |
@@ -40,8 +40,8 @@ What this means for you as the host
   as files with the container user's permissions, not in a vault. Don't put `/data` on a shared folder.
 - Sign-in and NAS/Jellyfin addresses typed by visitors are contacted by the server. Locking the server to your Jellyfin (`FLACIE_JELLYFIN_URL`) and leaving
   NAS sign-in off removes that. If you can't, put the site behind a VPN (Tailscale) or your proxy's authentication.
-- Rate limiting is per address and per account name inside the server. Behind a proxy that isn't in the trusted list every visitor looks like the proxy, so
-  one attacker could lock everyone out for a few minutes: set `FLACIE_TRUSTED_PROXIES` correctly.
+- Rate limiting is per client address inside the server. Behind a proxy that isn't in the trusted list every visitor looks like the proxy, so
+  one attacker could block everyone's sign-ins for a few minutes: set `FLACIE_TRUSTED_PROXIES` correctly.
 - There is no cross-site request protection on the sign-in and sign-out forms (they work without a prior page). A hostile page can sign someone out; it cannot read anything.
 - `FLACIE_DEBUG=1` exposes local-only debug endpoints. Never use it on a server other people reach.
 - Running the optional download services is your responsibility: downloading from some sources can be against their terms or your local law.

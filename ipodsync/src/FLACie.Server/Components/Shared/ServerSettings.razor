@@ -110,7 +110,7 @@
     bool chartsBusy, measuring;
     string slUrl = "", slPath = "", fmUrl = "", ldUrl = "";
     string slKey = "", fmKey = "", ldKey = ""; bool dlSaved;
-    StorageReport? report; Timer? tick;
+    StorageReport? report;
 
     protected override async Task OnInitializedAsync()
     {
@@ -199,5 +199,5 @@
         SaveProfile();
     }
 
-    public override void Dispose() { tick?.Dispose(); base.Dispose(); }
+    public override void Dispose() { base.Dispose(); }
 }

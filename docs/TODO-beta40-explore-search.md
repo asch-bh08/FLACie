@@ -1,0 +1,17 @@
+# Queued from the owner (2026-10-08): Explore search upgrade
+
+Asked mid-session; queued behind the beta 40 test/release work. Applies to web, Android and Windows (same release).
+
+1. **Better search inside Explore**
+   - Typo tolerance (fuzzy match: "beyonse", "metalica", transposed letters), on top of the existing punctuation/accent-blind matching.
+   - New filters, all combinable with the existing ones: **audio codec** (FLAC, ALAC, MP3, AAC/M4A, OGG/Opus, WAV, WMA ...), **bit rate (kbps)** (ranges: up to 128, 129-256, 257-320, 321-999, 1000+), **sample rate** (already there: widen to every rate), **bit depth** (already there).
+   - Data source: `FormatIndex` / `GET /api/audiofacts` (codec, rate, depth, kbps per song; see HANDOFF "Beta 20"). Local-only (guest) songs on Android have no facts yet: read them in `Scanner.kt` with MediaMetadataRetriever (sample rate / bit depth need API 31+, minSdk is 30).
+2. **Remove Search from the side rail** where Explore has its own (web `MainLayout.razor` rail link `/search`; the top bar search stays on every other page, and Search still does "More music" downloads).
+3. **Make the Explore search box look better** (web `ExploreBar.razor` / `app.css` `.x-bar`; Android `ExploreUi.kt` "Filter this list" pill): clear (x) button, result count, match highlight, calmer spacing, same look in both.
+
+Found while testing (not yet done):
+- Android: Hi-Res / quality filters and format badges never match device-only files (no audio facts for them; see item 1).
+- Android: the "Local" source pill squeezes the artist/album line ("First Albu...") when every song is local; hide the pill when there is only one source.
+- Android: the Quality filter sheet shows a list icon on unselected options (looks like a bug next to the tick).
+- Web: Albums (1436) and Artists (781) draw every card at once; consider chunked rendering.
+- Web: the Explore filters and A-Z letter are shared across the Songs/Albums/Artists/Genres tabs (can show "0 of 781 artists" after filtering Albums); whitespace-only search says "7514 of 7514 songs".

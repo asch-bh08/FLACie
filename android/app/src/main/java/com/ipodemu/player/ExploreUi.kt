@@ -171,6 +171,8 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
                         }
                     }
                 }
+                // "Playing from Songs" in the queue, as on the web
+                androidx.compose.runtime.DisposableEffect(Unit) { nav.playContext = "Songs"; onDispose { if (nav.playContext == "Songs") nav.playContext = null } }
                 if (list.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No songs yet")
                 else SongList(list, nav, snap, showArt = true, header = {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {

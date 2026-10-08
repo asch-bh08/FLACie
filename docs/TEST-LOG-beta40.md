@@ -38,3 +38,15 @@ Started 2026-10-06. Each entry: what was seen, steps, fix, re-test result.
 - Web: Jams, charts page behaviour, notifications, the admin dashboard actions, the Windows app build, and "dead code removal" were not done. No startup-time / memory measurement on Android was taken.
 - The Soulseek "filing" retry and the Lidarr wait change are fixes for failures seen in the logs, not reproduced here.
 - This is released as beta 39.5, not beta 40: the full pass was cut short.
+
+## Session 2026-10-07/08 (new PC: toolchain proved, web re-test, Android on an emulator, release)
+
+Toolchain: JDK 17, Android SDK 34 + emulator (Pixel 6 AVD `flacie_phone`, WHPX works), .NET 9 SDK + maui-windows/android workloads, WiX 5, ffmpeg (for tagged test music). Release APK builds (~4-7 min), `dotnet build FLACie.Server` clean, MSI builds (~3 min), Android unit tests pass.
+
+Web bugs found and fixed (all in the CHANGELOG): player under the Explore filter bar (z-index), "Playing from" run together, song menus not closing on outside click / Escape, aria-expanded/pressed/selected/checked rendered empty, "1 songs". The Explore song list looks empty while the browser pane is hidden (Virtualize waits for the viewport): a test artefact, not an app bug.
+
+Android (emulator, guest mode, 8 generated tagged files in /sdcard/Music from C:\FLACie_out\music3): fixed the Rename dialog saying "New playlist / Create", and the queue saying "Playing from Your queue" for Explore songs. Seen, not fixed: Hi-Res filter and format badges never match device-only files (no audio facts); the "Local" pill squeezes the artist line when everything is local; unselected options in the Quality sheet show a list icon.
+Measured on the emulator (software GPU, 8 songs): cold start 2.2-2.4 s, idle ~49 MB PSS. Not a phone figure.
+
+NOT done: Android signed in to Jellyfin (Quick Connect needs the owner to approve the code), so Downloads / charts / Jams / remote / Admin on Android are still unwalked; ntfy; a real phone; installing the MSI (the unpacked app was launched, /healthz ok, closing it stopped the server).
+Test files left on the emulator only; nothing was written to the NAS, an iPod or any real library.

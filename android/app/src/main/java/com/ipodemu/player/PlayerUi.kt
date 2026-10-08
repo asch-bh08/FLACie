@@ -135,6 +135,8 @@ class PlayerNav {
     var playContext: String? = null
     var sheet by mutableStateOf<SheetSpec?>(null)
     var nameDialog by mutableStateOf<((String) -> Unit)?>(null)
+    /** Set (to the current name) when the name dialog is renaming something, so it says "Rename playlist" / "Save" with the name filled in. */
+    var nameDialogRename by mutableStateOf<String?>(null)
     /** Cover whose colours should tint the background (set by detail screens); null = the playing track's cover. */
     var overrideArt by mutableStateOf<String?>(null)
 
@@ -202,7 +204,7 @@ fun PlayerHost(nav: PlayerNav) {
     val ui = app.ui
     ui.rev
 
-    BackHandler(enabled = !ui.pickerOpen && (nav.sheet != null || nav.nameDialog != null)) { nav.sheet = null; nav.nameDialog = null }
+    BackHandler(enabled = !ui.pickerOpen && (nav.sheet != null || nav.nameDialog != null)) { nav.sheet = null; nav.nameDialog = null; nav.nameDialogRename = null }
     BackHandler(enabled = !ui.pickerOpen && nav.sheet == null && nav.nameDialog == null && nav.nowPlaying) { nav.nowPlaying = false }
     BackHandler(enabled = !ui.pickerOpen && nav.sheet == null && nav.nameDialog == null && !nav.nowPlaying && nav.stack.size > 1) { nav.pop() }
 
@@ -270,7 +272,7 @@ fun PlayerHost(nav: PlayerNav) {
             exit = slideOutVertically(tween(260)) { it } + fadeOut(tween(200)),
         ) { Box(Modifier.graphicsLayer { translationX = backDrag }) { NowPlayingScreen(snap, nav) } }
         nav.sheet?.let { s -> ActionSheet(s.title, s.subtitle, s.items) { nav.sheet = null } }
-        nav.nameDialog?.let { done -> NameDialog(done) { nav.nameDialog = null } }
+        nav.nameDialog?.let { done -> NameDialog(done, nav.nameDialogRename) { nav.nameDialog = null; nav.nameDialogRename = null } }
     }
     }
 }
@@ -426,9 +428,9 @@ internal fun playlistPicker(app: App, nav: PlayerNav, t: Track): SheetSpec {
 }
 
 @Composable
-private fun NameDialog(onDone: (String) -> Unit, onDismiss: () -> Unit) {
+private fun NameDialog(onDone: (String) -> Unit, renaming: String?, onDismiss: () -> Unit) {
     val sc = LocalScheme.current
-    var text by remember { mutableStateOf("") }
+    var text by remember { mutableStateOf(renaming ?: "") }
     val fr = remember { FocusRequester() }
     LaunchedEffect(Unit) { try { fr.requestFocus() } catch (_: Exception) {} }
     Box(Modifier.fillMaxSize().background(Color(0xAA000000)).imePadding().pointerInput(Unit) { detectTapGestures { onDismiss() } }, contentAlignment = Alignment.Center) {
@@ -437,7 +439,7 @@ private fun NameDialog(onDone: (String) -> Unit, onDismiss: () -> Unit) {
                 .pointerInput(Unit) { detectTapGestures { } }.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Txt("New playlist", size = 20f, weight = FontWeight.Bold)
+            Txt(if (renaming != null) "Rename playlist" else "New playlist", size = 20f, weight = FontWeight.Bold)
             BasicTextField(
                 text, { text = it }, singleLine = true, cursorBrush = SolidColor(sc.accent),
                 textStyle = TextStyle(color = sc.onBg, fontSize = 18.sp),
@@ -447,7 +449,7 @@ private fun NameDialog(onDone: (String) -> Unit, onDismiss: () -> Unit) {
             )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.align(Alignment.End)) {
                 GlossPill("Cancel", onDismiss)
-                GlossPill("Create", { if (text.isNotBlank()) { onDone(text.trim()); onDismiss() } }, primary = true)
+                GlossPill(if (renaming != null) "Save" else "Create", { if (text.isNotBlank()) { onDone(text.trim()); onDismiss() } }, primary = true)
             }
         }
     }
@@ -882,7 +884,7 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
     if (playlistId != null) {
         // editing: the playlist's own actions (songs have Move and Remove in their menu)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            GlossPill("Rename", { nav.nameDialog = { n -> app.userData.rename(playlistId, n); app.ui.say("Renamed to \"$n\"") } }, height = 36.dp)
+            GlossPill("Rename", { nav.nameDialogRename = title; nav.nameDialog = { n -> app.userData.rename(playlistId, n); app.ui.say("Renamed to \"$n\"") } }, height = 36.dp)
             GlossPill("Remove dupes", {
                 val ud = app.userData
                 val n = ud.removeDuplicates(playlistId) { p -> app.library.resolve(p, ud.meta[p])?.matchKey ?: p }

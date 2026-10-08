@@ -76,8 +76,8 @@ test('the Explore filter bar narrows the results', async ({ page }) => {
   // typing before the live connection is up is lost, so type again until the page reacts
   await expect(async () => {
     await box.fill('');
-    await box.pressSequentially('aurora');
-    await expect(box).toHaveValue('aurora');
+    await box.fill('aurora');   // one input event: typing key by key races with the page redrawing the box
+    await expect(box).toHaveValue('aurora', { timeout: 3000 });
     await expect(page.locator('body')).not.toContainText('Echo Harbour', { timeout: 3000 });
     await expect(page.locator('body')).toContainText('Aurora Vale', { timeout: 3000 });
   }).toPass({ timeout: 40_000 });

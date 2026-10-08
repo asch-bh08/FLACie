@@ -13,7 +13,7 @@ Beta 40 (Android 55, MSI 0.40.0). Still a beta, not a 1.0 final. Full test log: 
 
 **Housekeeping**
 - Removed an unused timer field in the web server settings. Versions bumped (Android 55 / 1.0-beta40, MSI 0.40.0).
-- frank runs the web code of this release.
+- your-server runs the web code of this release.
 
 **Tested**
 - Web, in a browser against the real Jellyfin library: every Explore tab with all sorts, filters (quality, bit depth, sample rate, genre, decade), the A-Z rail and the text filter; Search incl. no-match and odd characters; the player (next, previous, shuffle, repeat, mute, lyrics, info, queue); song menus; Home moods; Charts; Settings (Autoplay saves across a reload); Devices, Jam, Import, Account and Dashboard pages load. Server log has no errors.

@@ -382,7 +382,7 @@ The user's iPods hold their actual music library. Treat them as production.
    without crashing but hasn't been eyeballed for correctness.
 2. **Get a Jellyfin API key and exercise the sync path for real** — the client
    code is written but has never made a real request against
-   `192.168.1.183:8096`.
+   `192.168.x.x:8096`.
 3. **Writing from Android via SAF** (`ContentResolver.OpenOutputStream`) —
    now that reading works, this is plausibly the more direct path to a real
    Android write than porting the raw USB/SCSI stack forward. Still needs the

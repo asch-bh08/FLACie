@@ -11,10 +11,10 @@ Beta 41 (Android 56, MSI 0.41.0). Still a beta, not a 1.0 final. The Explore sea
 - Empty and error messages (for example when the chart can't be loaded) wrap and centre instead of running off both edges, and the chart error now says what failed.
 
 **Tested**
-- Web against the real Jellyfin library (7,975 songs): typo searches, every codec, every bit-rate band and every sample rate (the bands add up to the whole library bar one song the server has not read), the new filter grid expanded and collapsed, Clear all, and a filter combination (typo search + decade + codec + bit rate). Deployed to frank, /healthz ok.
+- Web against the real Jellyfin library (7,975 songs): typo searches, every codec, every bit-rate band and every sample rate (the bands add up to the whole library bar one song the server has not read), the new filter grid expanded and collapsed, Clear all, and a filter combination (typo search + decade + codec + bit rate). Deployed to your-server, /healthz ok.
 - Android on the emulator, signed in to your Jellyfin account (Quick Connect approved by you): Explore (7,981 songs), typo search "beyonse" (139 Beyoncé songs), Filters sheet with Codec, Codec = MP3 combined with the search (13 songs, one active filter and a chip), Home shelves, Account, Devices, Download log, the Jam screen (opened, no Jam started), the full player with real format badges.
 - Android unit tests, Android release build, Windows MSI build.
 
 **Not tested**
-- Charts and the download services on the emulator (it cannot resolve your Tailscale name frank.tailb05910.ts.net); Downloads / Soulseek / Lidarr in the apps; starting or joining a Jam; remote control against another device; notifications (ntfy); Admin; a real phone or Fold; installing the MSI itself (the app inside it was run for beta 40).
+- Charts and the download services on the emulator (it cannot resolve your Tailscale name your-server.example.ts.net); Downloads / Soulseek / Lidarr in the apps; starting or joining a Jam; remote control against another device; notifications (ntfy); Admin; a real phone or Fold; installing the MSI itself (the app inside it was run for beta 40).
 - Bit rate, bit depth, sample rate, codec and Hi-Res filtering for songs that exist only on the device: they have no server-read format, so those filters do not match them.

@@ -20,19 +20,19 @@ Found while testing (not yet done):
 
 Still open from the list above: hide the Android source pill only when mixed (done), read format facts for device-only files (not done), chunked rendering of the big Albums/Artists grids (not done), Explore filters shared across tabs (not changed).
 
-## Web filter UI refactor (2026-10-08, after beta 41; deployed to frank, not yet in an MSI/APK release)
+## Web filter UI refactor (2026-10-08, after beta 41; deployed to your-server, not yet in an MSI/APK release)
 - Explore bar is one row (search, Sort, "Filters (N active)"); chosen filters are removable pills under it with "Clear all"; Genre / Decade / Quality are the main filters and Codec / Bit rate / Bit depth / Sample rate sit in an "Audio specs" drawer.
 - Own dropdown component (`Components/Shared/Dropdown.razor`, `flacie.ddPlace` in flacie.js): 240 px max height with scrolling, flips upwards (and aligns right) when there is no room, accent-coloured selected row with a check, group headings. Codec is grouped Lossless / Lossy / Hi-Res (Hi-Res FLAC / ALAC / WAV).
 - Typo notice is soft grey with "Did you mean ...?" (`Matching.Suggest`); "Nothing matches ..., not even closely" when there is nothing.
 - Also: every boolean aria-expanded / pressed in the web UI now renders true/false.
 - Android already has this shape (search + Filters + Sort, removable chips, a Filters sheet); no change made there.
 
-## Web Search results layout (2026-10-08, after beta 41; deployed to frank, not yet in an MSI/APK release)
+## Web Search results layout (2026-10-08, after beta 41; deployed to your-server, not yet in an MSI/APK release)
 - `/search` is now sectioned like Spotify: a Top result card (artist named exactly like the search, else an album named so, else the best song, with source / format / bit depth + sample rate / kbps badges and a play button) beside the five best Songs (Show all N songs below), then Artists (circular, "Artist - N songs"), Albums (cover, artist, year), Playlists, Genres chips, and the existing "More music" downloads.
 - The same filter pills as Explore (compact: Filters button, pills, drawer) narrow every section, including the counts on the cards. The text is still the box at the top of the page.
 - The two-column split follows the width of the page area (container query), stacking when narrow; Explore track rows get 16 px of right padding so the menus do not touch the A-Z bar.
 
-## Explore Overview tab (2026-10-08, after beta 42; deployed to frank, not yet in an MSI/APK release)
+## Explore Overview tab (2026-10-08, after beta 42; deployed to your-server, not yet in an MSI/APK release)
 - The sectioned results are now one shared component (`Components/Shared/ResultSections.razor`) used by the new **Explore > Overview** tab (`/explore`, the first tab and where the side menu's Explore goes) and by `/search`. Stacked and full width: Top result banner (188 px cover, badges, play), Songs list (48 px thumbnails, 8 rows, "See all N songs" opens the flat Songs tab with the same search and filters), Albums in a row of big square covers (title, artist, year), Artists as round avatars, then Playlists and Genres chips. Without a search the Overview browses: newest songs and albums, biggest artists.
 - The flat table stays on the Songs tab (`/songs`) only. Overview has its own Sort (Best match, Title, Artist, Recently added, Newest year, Longest) kept apart from the Songs tab's.
 - Android still has its own Explore (Songs / Albums / Artists / Genres / Charts) with a Filters sheet; it does not have the Overview.

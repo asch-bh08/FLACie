@@ -15,7 +15,7 @@ Beta 42 (Android 57, MSI 0.42.0). Still a beta, not a 1.0 final. Mostly web work
 **Also (from beta 41, now in the installer)**: typo-tolerant search and the Codec / Bit rate / Sample rate filters; every boolean aria-expanded / pressed in the web UI now says true or false.
 
 **Tested**
-- Web against your real library: every bit-rate band count; the filter bar, pills, drawer and dropdowns (height cap, flipping up in a 520 px window, grouped codec list); "Did you mean"; Search for an artist, an album, a song and a genre; the filters narrowing Search (Metallica: 100 songs became 7 with 1980s); wide and narrow layouts. Frank runs this web code.
+- Web against your real library: every bit-rate band count; the filter bar, pills, drawer and dropdowns (height cap, flipping up in a 520 px window, grouped codec list); "Did you mean"; Search for an artist, an album, a song and a genre; the filters narrowing Search (Metallica: 100 songs became 7 with 1980s); wide and narrow layouts. Your server runs this web code.
 - Android: unit tests pass and the release build works. On the emulator (signed in to your account) the Bit rate list shows all the new bands under Filters. The emulator cannot reach FLACie Web (it cannot resolve the Tailscale name), and Android takes bit rates from that server, so picking a band returned "Nothing matches" there: the band results on Android are not verified. The web bands are.
 - Windows: installer build and app smoke test (starts, /healthz ok, closing stops the server).
 
@@ -23,4 +23,4 @@ Beta 42 (Android 57, MSI 0.42.0). Still a beta, not a 1.0 final. Mostly web work
 - Android bit-rate band results against real server data (see above); Charts and the download services on the emulator (it cannot resolve the Tailscale name); starting or joining a Jam; notifications (ntfy); a real phone or Fold; installing the MSI itself.
 - Search results on phone widths, and a search that matches a playlist name.
 - The Android app does not have the sectioned (Spotify-style) search results or the pill-and-drawer filter bar; those are web and Windows only. Android keeps its own Filters sheet with chips.
-- Public web: https://frank.tailb05910.ts.net:8443 currently fails with "DNS_PROBE_FINISHED_NXDOMAIN" because Tailscale is not publishing the Funnel's public DNS name (not an app problem: it needs a look in the Tailscale admin console). On a device running Tailscale, http://100.114.148.48:5255 works.
+- Public web: https://your-server.example.ts.net:8443 currently fails with "DNS_PROBE_FINISHED_NXDOMAIN" because Tailscale is not publishing the Funnel's public DNS name (not an app problem: it needs a look in the Tailscale admin console). On a device running Tailscale, http://100.x.y.z:5255 works.

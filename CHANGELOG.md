@@ -12,7 +12,7 @@ Beta 44 (Android 59, MSI 0.44.0). A quick fix on top of beta 43. Still a beta, n
 - With the full-screen player open, pressing Devices in the bottom bar opened "Connect to a device" underneath the player, so it looked broken. This was my own regression: in beta 41 I raised the full-screen player above Explore's filter bar, which also put it above the popups that open upwards from the bottom bar. The bottom bar now sits above the player (the player stops where the bar starts, so nothing else moves). The Explore filter bar is still under the player.
 
 **Tested**
-- Web in the browser: with the full-screen player open on Explore, the Devices popup opens and is on top (three points across it all hit the popup, and it lists "This browser" and the other player with Play here / Send here). Frank runs this web code and the public address serves the new stylesheet.
+- Web in the browser: with the full-screen player open on Explore, the Devices popup opens and is on top (three points across it all hit the popup, and it lists "This browser" and the other player with Play here / Send here). Your server runs this web code and the public address serves the new stylesheet.
 - Windows: installer build and app smoke test (starts, /healthz ok, the new stylesheet is inside it, closing the app stops the server). Android: unit tests and release build; no Android code changed.
 
 **Not tested**
@@ -35,12 +35,12 @@ Beta 43 (Android 58, MSI 0.43.0). Still a beta, not a 1.0 final. Mostly web work
 - The web server kept one session per Jellyfin user holding the token of whichever sign-in reached it first. After a redeploy an old browser token (already dropped by Jellyfin) came first, the profile load failed, and a later sign-in reused that session, so playlists, recommendations and the admin check stayed empty and Jellyfin was asked with a dead token every few seconds. A fresh sign-in now replaces the cached session, and a session Jellyfin refuses is no longer kept.
 
 **Public address**
-- `https://frank.tailb05910.ts.net:8443` stopped working off the tailnet because Tailscale is not publishing a public DNS name for frank (the funnel itself is configured correctly; it needs a look in the Tailscale admin console). The web app is now also published through the Caddy on hms-jellyfin, which does have a public name: **https://hms-jellyfin.tailb05910.ts.net:10000**, and **https://hms-jellyfin.tailb05910.ts.net/flacie** redirects to it. The app treats any `*.ts.net` address as https. The frank name still works on devices running Tailscale. A phone app that uses the frank address keeps working while the phone runs Tailscale.
+- `https://your-server.example.ts.net:8443` stopped working off the tailnet because Tailscale is not publishing a public DNS name for your-server (the funnel itself is configured correctly; it needs a look in the Tailscale admin console). The web app is now also published through the Caddy on your-proxy-host, which does have a public name: **https://your-proxy.example.ts.net:10000**, and **https://your-proxy.example.ts.net/flacie** redirects to it. The app treats any `*.ts.net` address as https. The your-server name still works on devices running Tailscale. A phone app that uses the your-server address keeps working while the phone runs Tailscale.
 
 **Also**: the Bit rate filter bands, typo-tolerant search and the one-row filter bar with the Audio specs drawer and new dropdowns from beta 41 and 42 are in the Windows installer too.
 
 **Tested**
-- Web, in the browser against your real library: the Overview in browse mode and for an artist, an album-style and a song search, the banner click and play button (play, pause, resume without restart, banner click while playing), "See all" to the Songs tab with the filters kept, a filter narrowing the page, Search using the same layout, sizes (188 px cover, 48 px thumbnails), and the cover-overlap fix. The public addresses answer over the real public path (health check, login page, /flacie redirect, the live-update channel), and Jellyfin on 443 and Jellyseerr on 8443 still answer after the Caddy changes. Frank runs this web code; after the session fix its profile requests succeed with no 401s.
+- Web, in the browser against your real library: the Overview in browse mode and for an artist, an album-style and a song search, the banner click and play button (play, pause, resume without restart, banner click while playing), "See all" to the Songs tab with the filters kept, a filter narrowing the page, Search using the same layout, sizes (188 px cover, 48 px thumbnails), and the cover-overlap fix. The public addresses answer over the real public path (health check, login page, /flacie redirect, the live-update channel), and Jellyfin on 443 and Jellyseerr on 8443 still answer after the Caddy changes. Your server runs this web code; after the session fix its profile requests succeed with no 401s.
 - Windows: installer build and app smoke test (starts, /healthz ok, closing it stops the server).
 - Android: unit tests and the release build; no code change since beta 42.
 
@@ -71,7 +71,7 @@ Beta 42 (Android 57, MSI 0.42.0). Still a beta, not a 1.0 final. Mostly web work
 **Also (from beta 41, now in the installer)**: typo-tolerant search and the Codec / Bit rate / Sample rate filters; every boolean aria-expanded / pressed in the web UI now says true or false.
 
 **Tested**
-- Web against your real library: every bit-rate band count; the filter bar, pills, drawer and dropdowns (height cap, flipping up in a 520 px window, grouped codec list); "Did you mean"; Search for an artist, an album, a song and a genre; the filters narrowing Search (Metallica: 100 songs became 7 with 1980s); wide and narrow layouts. Frank runs this web code.
+- Web against your real library: every bit-rate band count; the filter bar, pills, drawer and dropdowns (height cap, flipping up in a 520 px window, grouped codec list); "Did you mean"; Search for an artist, an album, a song and a genre; the filters narrowing Search (Metallica: 100 songs became 7 with 1980s); wide and narrow layouts. Your server runs this web code.
 - Android: unit tests pass and the release build works. On the emulator (signed in to your account) the Bit rate list shows all the new bands under Filters. The emulator cannot reach FLACie Web (it cannot resolve the Tailscale name), and Android takes bit rates from that server, so picking a band returned "Nothing matches" there: the band results on Android are not verified. The web bands are.
 - Windows: installer build and app smoke test (starts, /healthz ok, closing stops the server).
 
@@ -79,7 +79,7 @@ Beta 42 (Android 57, MSI 0.42.0). Still a beta, not a 1.0 final. Mostly web work
 - Android bit-rate band results against real server data (see above); Charts and the download services on the emulator (it cannot resolve the Tailscale name); starting or joining a Jam; notifications (ntfy); a real phone or Fold; installing the MSI itself.
 - Search results on phone widths, and a search that matches a playlist name.
 - The Android app does not have the sectioned (Spotify-style) search results or the pill-and-drawer filter bar; those are web and Windows only. Android keeps its own Filters sheet with chips.
-- Public web: https://frank.tailb05910.ts.net:8443 currently fails with "DNS_PROBE_FINISHED_NXDOMAIN" because Tailscale is not publishing the Funnel's public DNS name (not an app problem: it needs a look in the Tailscale admin console). On a device running Tailscale, http://100.114.148.48:5255 works.
+- Public web: https://your-server.example.ts.net:8443 currently fails with "DNS_PROBE_FINISHED_NXDOMAIN" because Tailscale is not publishing the Funnel's public DNS name (not an app problem: it needs a look in the Tailscale admin console). On a device running Tailscale, http://100.x.y.z:5255 works.
 
 
 ## FLACie 1.0 beta 41
@@ -99,12 +99,12 @@ Beta 41 (Android 56, MSI 0.41.0). Still a beta, not a 1.0 final. The Explore sea
 - Empty and error messages (for example when the chart can't be loaded) wrap and centre instead of running off both edges, and the chart error now says what failed.
 
 **Tested**
-- Web against the real Jellyfin library (7,975 songs): typo searches, every codec, every bit-rate band and every sample rate (the bands add up to the whole library bar one song the server has not read), the new filter grid expanded and collapsed, Clear all, and a filter combination (typo search + decade + codec + bit rate). Deployed to frank, /healthz ok.
+- Web against the real Jellyfin library (7,975 songs): typo searches, every codec, every bit-rate band and every sample rate (the bands add up to the whole library bar one song the server has not read), the new filter grid expanded and collapsed, Clear all, and a filter combination (typo search + decade + codec + bit rate). Deployed to your-server, /healthz ok.
 - Android on the emulator, signed in to your Jellyfin account (Quick Connect approved by you): Explore (7,981 songs), typo search "beyonse" (139 Beyoncé songs), Filters sheet with Codec, Codec = MP3 combined with the search (13 songs, one active filter and a chip), Home shelves, Account, Devices, Download log, the Jam screen (opened, no Jam started), the full player with real format badges.
 - Android unit tests, Android release build, Windows MSI build.
 
 **Not tested**
-- Charts and the download services on the emulator (it cannot resolve your Tailscale name frank.tailb05910.ts.net); Downloads / Soulseek / Lidarr in the apps; starting or joining a Jam; remote control against another device; notifications (ntfy); Admin; a real phone or Fold; installing the MSI itself (the app inside it was run for beta 40).
+- Charts and the download services on the emulator (it cannot resolve your Tailscale name your-server.example.ts.net); Downloads / Soulseek / Lidarr in the apps; starting or joining a Jam; remote control against another device; notifications (ntfy); Admin; a real phone or Fold; installing the MSI itself (the app inside it was run for beta 40).
 - Bit rate, bit depth, sample rate, codec and Hi-Res filtering for songs that exist only on the device: they have no server-read format, so those filters do not match them.
 
 
@@ -127,7 +127,7 @@ Beta 40 (Android 55, MSI 0.40.0). Still a beta, not a 1.0 final. Full test log: 
 
 **Housekeeping**
 - Removed an unused timer field in the web server settings. Versions bumped (Android 55 / 1.0-beta40, MSI 0.40.0).
-- frank runs the web code of this release.
+- your-server runs the web code of this release.
 
 **Tested**
 - Web, in a browser against the real Jellyfin library: every Explore tab with all sorts, filters (quality, bit depth, sample rate, genre, decade), the A-Z rail and the text filter; Search incl. no-match and odd characters; the player (next, previous, shuffle, repeat, mute, lyrics, info, queue); song menus; Home moods; Charts; Settings (Autoplay saves across a reload); Devices, Jam, Import, Account and Dashboard pages load. Server log has no errors.
@@ -188,7 +188,7 @@ Beta 38 (Android 52, MSI 0.38.0). Still a beta, not a 1.0 final.
 - Up next: the song playing now has an accent bar on its left edge and an animated equalizer on its cover (Android) / the existing animated equalizer plus the bar (web).
 - Up next: the artist / album line and the title may take two lines before they are cut off (web and Android), so album names show much more.
 - Format badges stay one row of equal pills on the web (no wrapping inside a badge); on Android the format badge shows "16-bit / 44.1 kHz" as its own pill like the web.
-- Web server with these changes is deployed to frank.
+- Web server with these changes is deployed to your-server.
 
 **Tested**: Android release build on an emulator at unfolded size (bar, equalizer, two-line text, badges); web builds. **Not tested**: the web page after this CSS change in a browser; a real Fold; installing the MSI or launching the 0.38 Windows app.
 
@@ -334,7 +334,7 @@ Beta 29 (Android 43, MSI 0.29.0). Still a beta, not a 1.0 final.
 - Info graph: the dashed "MP3 usually ends here" line is back on every file (as before), and for an MP3 it follows its bitrate (about 16 kHz at 128 kbps up to about 20 kHz at 320 kbps). Android and web.
 - CHANGELOG.md and docs/HANDOFF.md now cover betas 24 to 28.
 
-**Tested**: Android release build on the emulator (swiping from the cover to Info shows both panes sliding together mid-swipe; the title collapses; Up next pane; the dashed line on a FLAC); web server deployed to frank and answering /healthz.
+**Tested**: Android release build on the emulator (swiping from the cover to Info shows both panes sliding together mid-swipe; the title collapses; Up next pane; the dashed line on a FLAC); web server deployed to your-server and answering /healthz.
 **Not tested**: how the pager feels on a real phone (the emulator draws in software); Lyrics pane on a song with synced lyrics after this change; the web marker on an MP3; installing the MSI or launching the 0.29 Windows app.
 
 
@@ -351,7 +351,7 @@ Beta 28 (Android 42, MSI 0.28.0). Still a beta, not a 1.0 final.
 - Web: typing in the search box no longer loses focus part-way (the page was grabbing focus on every address change).
 - Web phone player: the volume slider is back.
 
-**Tested**: Android release build on the emulator (swipe cover -> Info -> Up next, pills highlight); web at phone width (search kept focus through typing "scream and shout"; swipe order cover -> Info -> Up next and back to Lyrics); web deployed to frank.
+**Tested**: Android release build on the emulator (swipe cover -> Info -> Up next, pills highlight); web at phone width (search kept focus through typing "scream and shout"; swipe order cover -> Info -> Up next and back to Lyrics); web deployed to your-server.
 **Not tested**: the web volume slider on a real phone after this change; the "Downloaded" tags with a freshly downloaded or autoplay song; Home scroll smoothness; installing the MSI or launching the 0.28 Windows app.
 
 
@@ -364,9 +364,9 @@ Beta 27 (Android 41, MSI 0.27.0). Still a beta, not a 1.0 final.
 
 **Changed**
 - Full-screen player: the play/pause and seek controls move up, and a quiet "Playing from <playlist or mix>" line with a small handle sits above the system gesture area. Swipe up from it (it follows your finger) to raise the queue sheet; it no longer sits where a swipe closes the app. The "Up next" pill opens the same sheet. Android and web (phone width).
-- Everything from beta 26 (Funnel back on for port 443 on frank so the phone's Lidarr / Soulseek / File mover addresses connect off Tailscale, Home lag changes, Search shortcuts).
+- Everything from beta 26 (Funnel back on for port 443 on your-server so the phone's Lidarr / Soulseek / File mover addresses connect off Tailscale, Home lag changes, Search shortcuts).
 
-**Tested**: Android release build on the emulator (line shows, swipe from it raises the sheet, controls clear of the gesture bar); web server deployed to frank and answering /healthz.
+**Tested**: Android release build on the emulator (line shows, swipe from it raises the sheet, controls clear of the gesture bar); web server deployed to your-server and answering /healthz.
 **Not tested**: web phone layout after this change; Home scroll smoothness on a real phone; the phone's Connect buttons off Tailscale; downloaded notes with a freshly downloaded song; installing the MSI or launching the 0.27 Windows app.
 
 
@@ -380,9 +380,9 @@ Beta 26 (Android 40, MSI 0.26.0). Still a beta, not a 1.0 final.
 **New**
 - Up next (YouTube Music style): no bar on the full-screen player. Swipe up from the foot of the player (it follows your finger) or press "Up next": the cover fades back and the queue sheet rises until it fills the screen, with the playing song as a small header, "Playing from <playlist or mix>", then the queue with cover, artist, album and a note for songs FLACie downloaded. Android and web (phone width).
 - Home: bigger cover cache and cheaper playlist covers (aimed at the scroll lag), search icon, one chip row, Quick picks with options and Play all. Search tab shows shortcuts and genres.
-- Server (frank): Tailscale Funnel turned back on for port 443, so the phone's Lidarr / Soulseek / File mover addresses (frank.tailb05910.ts.net/lidarr, /slskd, /filemove) connect again without Tailscale.
+- Server (your-server): Tailscale Funnel turned back on for port 443, so the phone's Lidarr / Soulseek / File mover addresses (your-server.example.ts.net/lidarr, /slskd, /filemove) connect again without Tailscale.
 
-**Tested**: Android release build on the emulator (swipe up raises the sheet with the cover fading, Up next button opens it, "Playing from" shows the list name); web at phone width earlier; frank answers 403 (key needed, as expected) on the three paths and logs no more rejected connections.
+**Tested**: Android release build on the emulator (swipe up raises the sheet with the cover fading, Up next button opens it, "Playing from" shows the list name); web at phone width earlier; your-server answers 403 (key needed, as expected) on the three paths and logs no more rejected connections.
 **Not tested**: Home scroll smoothness on a real phone; the phone's Connect buttons for Lidarr/Soulseek/File mover (only the server side was checked); downloaded notes with a freshly downloaded song; installing the MSI or launching the 0.26 Windows app.
 
 
@@ -396,7 +396,7 @@ Beta 25 (Android 39, MSI 0.25.0). Still a beta, not a 1.0 final.
 **New**
 - Up next bar (YouTube Music style) at the foot of the full-screen player, Android and web (phone-width). Drag it up (it follows your finger) or tap it for the queue: cover, title, artist, album, length, and a note when FLACie downloaded the song ("Downloading", "Downloaded just now / today / this week"). Tap a song to jump to it.
 - Everything from beta 24: Home search icon and one chip row, Quick picks with options and Play all, Search tab with shortcuts and genres, visible system bars, swipe-away stops playback.
-- Web server with the bar is already deployed to frank.
+- Web server with the bar is already deployed to your-server.
 
 **Tested**: Android release build on the emulator (bar shows, swipe opens the queue); web at phone width in the browser pane (bar shows, tap opens the queue, simulated drag opens it); Windows app from the beta 24 build ran and served /healthz.
 **Not tested**: slow finger-following drag on a real touchscreen; the "Downloaded" notes with a real freshly downloaded song; scroll smoothness on a real phone; installing the MSI; the 0.25 Windows app was built but not launched.
@@ -488,7 +488,7 @@ FLACie 1.0 beta 20 (Android 34, Windows 0.20.0)
 - Seeker focus frame and snap-back fixed (web).
 - Downloads: fixed the 30 s timeout that logged working YouTube downloads as failures; yt-dlp queue; Soulseek search tweaks; Lidarr now allows Single and EP.
 
-Tested: web in the browser pane (seek hold, focus, menu, toasts with Undo, Explore filters, Info/Playback, probe of 7,100 songs), frank deploy healthy, Android launch + Explore Hi-Res badges on the emulator, Android unit tests, YouTube search/ranking on frank.
+Tested: web in the browser pane (seek hold, focus, menu, toasts with Undo, Explore filters, Info/Playback, probe of 7,100 songs), your-server deploy healthy, Android launch + Explore Hi-Res badges on the emulator, Android unit tests, YouTube search/ranking on your-server.
 Not tested: Android Info panel and snackbar on a device, USB DAC playback, a fresh YouTube download after the fix (needs a new request), Windows MSI install.
 
 
@@ -508,7 +508,7 @@ _v1.0.0-beta19, 2026-10-05, pre-release_  ([release page](https://github.com/asc
 
 Everything from beta 18 is included.
 
-**Tested:** the Explore page on the web at phone width, the A–Z rail and filter card, the Hi-Res badge on the web build (compiled and rendered in lists), Android's Explore with the rail on the emulator, unit tests, the release APK launching with no crashes or ANRs, the Windows app starting and its server stopping with it, frank redeployed and healthy.
+**Tested:** the Explore page on the web at phone width, the A–Z rail and filter card, the Hi-Res badge on the web build (compiled and rendered in lists), Android's Explore with the rail on the emulator, unit tests, the release APK launching with no crashes or ANRs, the Windows app starting and its server stopping with it, your-server redeployed and healthy.
 **Not tested:** the Hi-Res badge on a real Hi-Res row on the phone, the automatic Jellyfin scan after a download finishing (it needs a real download by an administrator account), a real phone, the MSI installer itself.
 
 
@@ -524,7 +524,7 @@ _v1.0.0-beta18, 2026-10-05, pre-release_  ([release page](https://github.com/asc
 
 Also: Hi-Res size wording corrected (2 to 5 times bigger, about 40 to 200 MB), and everything from beta 17 is included.
 
-**Tested:** the web menu entry and its confirmation (it scrolls into view in the menu), the Android song sheet entry, the real Hi-Res download above, unit tests, the release APK launching with no crashes or ANRs, the Windows app starting and its server stopping with it, frank redeployed and healthy.
+**Tested:** the web menu entry and its confirmation (it scrolls into view in the menu), the Android song sheet entry, the real Hi-Res download above, unit tests, the release APK launching with no crashes or ANRs, the Windows app starting and its server stopping with it, your-server redeployed and healthy.
 **Not tested:** tapping "Download Hi-Res" from the library menu (the same code path as the Search button was exercised by the live test), a real phone, the MSI installer itself.
 
 
@@ -549,8 +549,8 @@ _v1.0.0-beta17, 2026-10-05, pre-release_  ([release page](https://github.com/asc
 
 Everything from beta 16 is included.
 
-**Tested:** the title cleaning on a spread of real titles (C# and Kotlin unit tests), a live Soulseek search for the song (0 files for the full-name query, 244 for the first-word query, 84 normal and 25 Hi-Res candidates), the real download of "All The Stars" through the app's download code (20 s, 16-bit/44.1 kHz FLAC, 25 MB), the YouTube match for the same song (4.7 s), Hi-Res detection and ranking (unit tests), the web Hi-Res button and confirmation at phone width, the Android Hi-Res pill and Look and feel, the page reloading itself after a server restart, the release APK launching with no crashes or ANRs, the Windows app starting and its server stopping with it, frank redeployed and healthy.
-**Not tested:** an actual Hi-Res download (the search and ranking were verified, but I did not put a Hi-Res file into your library), the automatic fallback from Hi-Res to normal as a live run, the Hi-Res button being hidden for a non-admin account, the auto-reload on frank itself, a real phone, the MSI installer itself.
+**Tested:** the title cleaning on a spread of real titles (C# and Kotlin unit tests), a live Soulseek search for the song (0 files for the full-name query, 244 for the first-word query, 84 normal and 25 Hi-Res candidates), the real download of "All The Stars" through the app's download code (20 s, 16-bit/44.1 kHz FLAC, 25 MB), the YouTube match for the same song (4.7 s), Hi-Res detection and ranking (unit tests), the web Hi-Res button and confirmation at phone width, the Android Hi-Res pill and Look and feel, the page reloading itself after a server restart, the release APK launching with no crashes or ANRs, the Windows app starting and its server stopping with it, your-server redeployed and healthy.
+**Not tested:** an actual Hi-Res download (the search and ranking were verified, but I did not put a Hi-Res file into your library), the automatic fallback from Hi-Res to normal as a live run, the Hi-Res button being hidden for a non-admin account, the auto-reload on your-server itself, a real phone, the MSI installer itself.
 
 
 ## FLACie 1.0 beta 16
@@ -571,8 +571,8 @@ _v1.0.0-beta16, 2026-10-05, pre-release_  ([release page](https://github.com/asc
 
 Everything from beta 15 is included.
 
-**Tested:** the Dashboard, Settings, Look and feel (accent change and saving) and the Devices popup (outside click, Escape, button) in the browser, the Android Downloads screen with sample entries (sections, badges, times, expanded stories), the Android Settings / Dashboard split on the emulator, the new server endpoint (401 without a token on frank), unit tests, the release APK launching with no crashes or ANRs, the Windows app starting and its server stopping with it, frank redeployed and healthy.
-**Not tested:** the Android Downloads screen showing the server's log (frank only just got the endpoint and its log is empty), a real running download appearing live in the new screens or under a song in the results, a non-admin account seeing the plain Settings, the cover fix on a real freshly downloaded song, a real phone, the MSI installer itself. Android has no "Look and feel" section (its Settings already had appearance and playback tweaks); that is the one gap against the web.
+**Tested:** the Dashboard, Settings, Look and feel (accent change and saving) and the Devices popup (outside click, Escape, button) in the browser, the Android Downloads screen with sample entries (sections, badges, times, expanded stories), the Android Settings / Dashboard split on the emulator, the new server endpoint (401 without a token on your-server), unit tests, the release APK launching with no crashes or ANRs, the Windows app starting and its server stopping with it, your-server redeployed and healthy.
+**Not tested:** the Android Downloads screen showing the server's log (your-server only just got the endpoint and its log is empty), a real running download appearing live in the new screens or under a song in the results, a non-admin account seeing the plain Settings, the cover fix on a real freshly downloaded song, a real phone, the MSI installer itself. Android has no "Look and feel" section (its Settings already had appearance and playback tweaks); that is the one gap against the web.
 
 
 ## FLACie 1.0 beta 15
@@ -594,9 +594,9 @@ _v1.0.0-beta15, 2026-10-05, pre-release_  ([release page](https://github.com/asc
 - Real file details for those songs: bit rate, sample rate, bit depth and size (it showed "0 MB" and no quality before), read by the file mover's new `/probe`.
 - In the full-screen player the **top bar now takes the player's background** instead of a black strip.
 
-**Server side:** the file mover (`/probe`, `/ytdl`) and the yt-dlp container were updated on frank; yt-dlp (YouTube) stays OFF until you switch it on in Settings.
+**Server side:** the file mover (`/probe`, `/ytdl`) and the yt-dlp container were updated on your-server; yt-dlp (YouTube) stays OFF until you switch it on in Settings.
 
-**Tested:** the Downloads page with sample log entries at phone width (sections, badges, times, expanded step stories), the Info panel on a real song (Spectrum chip, Came from, size), `/probe` on a FLAC and an AAC file through the file mover (and its refusals), the build, frank redeployed and healthy, the release APK launching without crashes or ANRs, the Windows app starting and its server stopping with it.
+**Tested:** the Downloads page with sample log entries at phone width (sections, badges, times, expanded step stories), the Info panel on a real song (Spectrum chip, Came from, size), `/probe` on a FLAC and an AAC file through the file mover (and its refusals), the build, your-server redeployed and healthy, the release APK launching without crashes or ANRs, the Windows app starting and its server stopping with it.
 **Not tested:** the live progress line under a song in the search results while a real download runs (the code is in, I did not run a live download for it), the new top-bar colour on a wide desktop window, Android's Downloads screen (Android keeps its own list; only the "Streaming" wording changed there), a real phone, the MSI installer itself.
 
 
@@ -607,11 +607,11 @@ _v1.0.0-beta14, 2026-10-05, pre-release_  ([release page](https://github.com/asc
 ## FLACie 1.0 beta 14 (Android 1.0-beta14 / versionCode 28, Windows 0.14.0)
 
 **New: a last-resort source for songs nothing else has (YouTube, via yt-dlp).** Popular songs that Soulseek, the free sources and Lidarr all miss can now be fetched: the server finds the song's official audio (YouTube "Topic" and official-audio uploads first, title, artist and length checked, live/cover/remix/sped-up uploads skipped) and saves it to your library with tags. It is a fourth entry in Settings > Open sources (web, Windows app and Android), in the same list as the Internet Archive, Audius and Jamendo, so you can put it first or last. **It is OFF until you switch it on**: it takes audio from YouTube, which is against YouTube's terms of service, and the file is AAC (about 130 kbps, not lossless).
-- It runs in its own small container next to the file mover on frank (`flacie-ytdl`), reached through the file mover so every device uses it the same way. yt-dlp updates itself whenever that container restarts.
+- It runs in its own small container next to the file mover on your-server (`flacie-ytdl`), reached through the file mover so every device uses it the same way. yt-dlp updates itself whenever that container restarts.
 
 Everything from beta 13 is included (Open sources settings: on/off, order, Jamendo client ID).
 
-**Tested:** the service against real YouTube from frank (a popular song, "Doja Cat - Say So" and "The Weeknd - Blinding Lights", fetched in about 5 s, valid AAC with the right tags and length), the full path through the app's download code and the public file-mover address (found; a made-up song fails cleanly), the Android call to the same route (live test), the file mover refusing requests without the key and rejecting path escapes, the web Settings row and the Android Settings row, unit tests, the release APK launching with no crashes or ANRs, the Windows app starting and its server stopping with it, frank redeployed and healthy.
+**Tested:** the service against real YouTube from your-server (a popular song, "Doja Cat - Say So" and "The Weeknd - Blinding Lights", fetched in about 5 s, valid AAC with the right tags and length), the full path through the app's download code and the public file-mover address (found; a made-up song fails cleanly), the Android call to the same route (live test), the file mover refusing requests without the key and rejecting path escapes, the web Settings row and the Android Settings row, unit tests, the release APK launching with no crashes or ANRs, the Windows app starting and its server stopping with it, your-server redeployed and healthy.
 **Not tested:** a download started by tapping Download in the Android app or the web page with yt-dlp switched on (the pieces were tested, not that exact tap), a real phone, the MSI installer itself, how long YouTube keeps working before yt-dlp needs a restart/update.
 
 
@@ -630,7 +630,7 @@ The setup lives in your account profile, so the phone, the Windows app and the w
 
 Everything from beta 12 is included.
 
-**Tested:** the web page at phone width against the real account (check the ID, reorder, save, reload: all kept), the Android section on the emulator (toggle, reorder, Jamendo ID, values stored), unit tests for the order/on-off rules and the live-API finders, the release APK launching with no crashes or ANRs, the Windows app starting and its server stopping with it, frank redeployed and healthy.
+**Tested:** the web page at phone width against the real account (check the ID, reorder, save, reload: all kept), the Android section on the emulator (toggle, reorder, Jamendo ID, values stored), unit tests for the order/on-off rules and the live-API finders, the release APK launching with no crashes or ANRs, the Windows app starting and its server stopping with it, your-server redeployed and healthy.
 **Not tested:** that the phone picks up a setting changed on the web (and the other way round) after a sync, a real phone, the MSI installer itself, an actual download that uses a reordered source.
 
 
@@ -642,14 +642,14 @@ _v1.0.0-beta12, 2026-10-04, pre-release_  ([release page](https://github.com/asc
 
 *Assets re-uploaded after release with the Jamendo settings field (the version numbers did not change, so install over the earlier beta 12 if you already have it).*
 
-**New: open download sources on every device.** "Download this" now also looks on the Internet Archive (only the Live Music Archive and netlabel collections), Audius, and Jamendo (only tracks whose artist allows downloads) while Soulseek searches. They only *find*; a file is downloaded from them only if Soulseek found nothing, and Lidarr stays the final fallback, so they cannot slow or block the main path. Files are filed through the file mover's new `/fetch` endpoint (live on frank). Downloads show their source ("archive", "audius", "jamendo"). Songs only; albums still use Soulseek then Lidarr.
-- Android, the Windows app (it hosts the same server code) and FLACie Web on frank all have it.
-- **Jamendo:** Android has Settings > Downloads > Open sources > "Jamendo client id" (checked against Jamendo before it is saved, synced with your account). On the web it is the `FLACIE_JAMENDO_CLIENT_ID` environment variable (already set on frank).
+**New: open download sources on every device.** "Download this" now also looks on the Internet Archive (only the Live Music Archive and netlabel collections), Audius, and Jamendo (only tracks whose artist allows downloads) while Soulseek searches. They only *find*; a file is downloaded from them only if Soulseek found nothing, and Lidarr stays the final fallback, so they cannot slow or block the main path. Files are filed through the file mover's new `/fetch` endpoint (live on your-server). Downloads show their source ("archive", "audius", "jamendo"). Songs only; albums still use Soulseek then Lidarr.
+- Android, the Windows app (it hosts the same server code) and FLACie Web on your-server all have it.
+- **Jamendo:** Android has Settings > Downloads > Open sources > "Jamendo client id" (checked against Jamendo before it is saved, synced with your account). On the web it is the `FLACIE_JAMENDO_CLIENT_ID` environment variable (already set on your-server).
 
 Everything from beta 11 is included.
 
-**Tested:** the finders against the live APIs from the web server code and the Android code (Audius and Internet Archive hits, Jamendo hit and clean misses), the file mover refusing loopback/http/path-escape/no-key requests, real Audius and Jamendo files fetched and filed through frank's file mover, a real Audius download end to end through the web coordinator, the Jamendo field saving on the emulator, unit tests, the release APK launching on the emulator, the Windows app starting and its server stopping with it.
-**Not tested:** an actual download started from the Android app or using Jamendo end to end, a real phone, the MSI installer itself, hgs notifications.
+**Tested:** the finders against the live APIs from the web server code and the Android code (Audius and Internet Archive hits, Jamendo hit and clean misses), the file mover refusing loopback/http/path-escape/no-key requests, real Audius and Jamendo files fetched and filed through your-server's file mover, a real Audius download end to end through the web coordinator, the Jamendo field saving on the emulator, unit tests, the release APK launching on the emulator, the Windows app starting and its server stopping with it.
+**Not tested:** an actual download started from the Android app or using Jamendo end to end, a real phone, the MSI installer itself, ntfy-host notifications.
 
 
 ## FLACie 1.0 beta 11

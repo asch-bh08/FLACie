@@ -39,13 +39,14 @@ services:
       PGID: "1000"
       FLACIE_JELLYFIN_URL: "https://jellyfin.example.com"   # optional: lock sign-in to one server (users then only type a username)
       # FLACIE_JELLYFIN_INTERNAL_URL: "http://jellyfin:8096" # optional: where the server itself reaches Jellyfin, if that differs from the address above
-      FLACIE_ALLOW_NAS_LOGIN: "false"      # optional: Jellyfin only. Recommended on a public site: a NAS sign-in makes the server connect to any address typed in.
+      # FLACIE_ALLOW_NAS_LOGIN: "true"     # optional: also allow signing in with a NAS (SMB share). Off by default: it makes the server connect to any address typed in.
 ```
 
 Then `docker compose up -d` and open `http://<host>:8080`.
 
-**Behind a reverse proxy or Tailscale Funnel.** The app reads `X-Forwarded-For/Proto/Host`, so it works behind Caddy, Nginx, Traefik or a Funnel with no
-extra setting: proxy a hostname (not a sub-path) to port 8080 and make sure WebSockets are passed through (Blazor needs them). Caddy needs only
+**Everything you need to host it** (Jellyfin only, NAS only, HTTPS, upgrading, backups, every setting) is in [docs/SELF-HOSTING.md](docs/SELF-HOSTING.md); security notes are in [SECURITY.md](SECURITY.md).
+
+**Behind a reverse proxy or Tailscale Funnel.** The app reads `X-Forwarded-For/Proto/Host` from proxies on a private network (or the ones in `FLACIE_TRUSTED_PROXIES`), so it works behind Caddy, Nginx, Traefik or a Funnel on the same machine or network: proxy a hostname (not a sub-path) to port 8080 and make sure WebSockets are passed through (Blazor needs them). Caddy needs only
 `flacie.example.com { reverse_proxy flacie:8080 }`. With Tailscale Funnel on a host that already uses port 443, give it its own HTTPS port:
 `tailscale funnel --bg --https=8443 http://127.0.0.1:8080`.
 
@@ -72,6 +73,10 @@ inside the window, so the look and the features are identical to the web. A swit
 - **Windows desktop app + installer:** `powershell -File ipodsync\tools\build-installer.ps1` → `FLACie-<version>-windows-x64.msi`.
 - Safety rules for anything that writes to an iPod: [ipodsync/EDIT-PROTOCOL.md](ipodsync/EDIT-PROTOCOL.md) — back up first, dry-run first,
   verify after, restore on failure, and `tools/fake-root-regression.sh` before changing the write path.
+
+## Licence
+
+MIT, see [LICENSE](LICENSE). The libraries FLACie uses keep their own licences (three are LGPL): [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 ## History
 

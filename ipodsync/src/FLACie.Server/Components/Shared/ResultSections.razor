@@ -62,37 +62,37 @@
         <h2 class="section">Top result</h2>
         @if (heroArtist && topArtist is not null)
         {
-            <div class="sr-hero artist">
-                <a class="sr-art" href="/artist/@Uri.EscapeDataString(topArtist.Name)" aria-label="Open artist @topArtist.Name"><Cover ArtKey="@(topArtist.ArtKey)" Size="188" Class="square round" /></a>
+            <div class="sr-hero artist" @onclick="() => PlayFull(topArtist.Tracks.Where(X.Allows).ToList(), topArtist.Name)">
+                <a class="sr-art" href="/artist/@Uri.EscapeDataString(topArtist.Name)" aria-label="Open artist @topArtist.Name" @onclick="Noop" @onclick:stopPropagation><Cover ArtKey="@(topArtist.ArtKey)" Size="188" Class="square round" /></a>
                 <div class="sr-hero-text">
-                    <a class="sr-hero-title" href="/artist/@Uri.EscapeDataString(topArtist.Name)">@topArtist.Name</a>
+                    <a class="sr-hero-title" href="/artist/@Uri.EscapeDataString(topArtist.Name)" @onclick="Noop" @onclick:stopPropagation>@topArtist.Name</a>
                     <span class="sr-hero-sub">Artist</span>
                     <span class="pills"><span class="badge plain">@Count(topArtist) @(Count(topArtist) == 1 ? "song" : "songs")</span></span>
                 </div>
-                <button class="sr-play" aria-label="Play @topArtist.Name" @onclick="() => Player.Play(topArtist.Tracks.Where(X.Allows).ToList(), 0, topArtist.Name)"><Icon Name="play" Size="22" /></button>
+                <button class="sr-play" aria-label="Play @topArtist.Name" @onclick="() => PlayOnly(topArtist.Tracks.Where(X.Allows).ToList(), topArtist.Name)" @onclick:stopPropagation><Icon Name="play" Size="22" /></button>
             </div>
         }
         else if (heroAlbum && topAlbum is not null)
         {
             var ht = topAlbum.Tracks[0]; var hy = topAlbum.Tracks.Max(t => t.Year);
-            <div class="sr-hero">
-                <a class="sr-art" href="@AlbumLink(topAlbum)" aria-label="Open album @topAlbum.Name"><Cover ArtKey="@(topAlbum.ArtKey)" Size="188" Class="square" /></a>
+            <div class="sr-hero" @onclick="() => PlayFull(topAlbum.Tracks.Where(X.Allows).ToList(), topAlbum.Name)">
+                <a class="sr-art" href="@AlbumLink(topAlbum)" aria-label="Open album @topAlbum.Name" @onclick="Noop" @onclick:stopPropagation><Cover ArtKey="@(topAlbum.ArtKey)" Size="188" Class="square" /></a>
                 <div class="sr-hero-text">
-                    <a class="sr-hero-title" href="@AlbumLink(topAlbum)">@topAlbum.Name</a>
+                    <a class="sr-hero-title" href="@AlbumLink(topAlbum)" @onclick="Noop" @onclick:stopPropagation>@topAlbum.Name</a>
                     <span class="sr-hero-sub">Album · @(ht.AlbumArtist.Length > 0 ? ht.AlbumArtist : ht.Artist)@(hy > 0 ? " · " + hy : "")</span>
                     <span class="pills"><span class="badge @ht.Source.ToString().ToLowerInvariant()">@SourceLabel.Short(ht.Source)</span><span class="badge plain">@Count(topAlbum) @(Count(topAlbum) == 1 ? "song" : "songs")</span></span>
                 </div>
-                <button class="sr-play" aria-label="Play @topAlbum.Name" @onclick="() => Player.Play(topAlbum.Tracks.Where(X.Allows).ToList(), 0, topAlbum.Name)"><Icon Name="play" Size="22" /></button>
+                <button class="sr-play" aria-label="Play @topAlbum.Name" @onclick="() => PlayOnly(topAlbum.Tracks.Where(X.Allows).ToList(), topAlbum.Name)" @onclick:stopPropagation><Icon Name="play" Size="22" /></button>
             </div>
         }
         else if (heroSong is not null)
         {
             var hs = heroSong; var fmt = InfoService.QuickFormat(hs); var facts = FormatIndex.Current?.Get(hs);
-            <div class="sr-hero">
-                <button class="sr-art sr-cover" aria-label="Play @hs.Title" @onclick='() => Player.Play([hs], 0, context)'><Cover ArtKey="@(Art.KeyFor(hs))" Size="188" Class="square" /></button>
+            <div class="sr-hero" @onclick="() => PlayFull([hs], context)">
+                <button class="sr-art sr-cover" aria-label="Play @hs.Title and open the player" @onclick='() => PlayFull([hs], context)' @onclick:stopPropagation><Cover ArtKey="@(Art.KeyFor(hs))" Size="188" Class="square" /></button>
                 <div class="sr-hero-text">
                     <span class="sr-hero-title">@hs.Title</span>
-                    <span class="sr-hero-sub">Song · <a href="/artist/@Uri.EscapeDataString(hs.AlbumArtist.Length > 0 ? hs.AlbumArtist : hs.Artist)">@hs.Artist</a>@(hs.Album.Length > 0 ? " · " + hs.Album : "")</span>
+                    <span class="sr-hero-sub">Song · <a href="/artist/@Uri.EscapeDataString(hs.AlbumArtist.Length > 0 ? hs.AlbumArtist : hs.Artist)" @onclick="Noop" @onclick:stopPropagation>@hs.Artist</a>@(hs.Album.Length > 0 ? " · " + hs.Album : "")</span>
                     <span class="pills">
                         <span class="badge @hs.Source.ToString().ToLowerInvariant()">@SourceLabel.Short(hs.Source)</span>
                         @if (fmt.Length > 0) { <span class="badge fmt @(fmt == "HI-RES" ? "hires" : FLACie.Core.MediaInfo.LosslessCodecs.Contains(fmt.ToLowerInvariant()) ? "lossless" : "")">@(fmt == "HI-RES" ? "✦ Hi-Res" : fmt)</span> }
@@ -100,7 +100,7 @@
                         @if (facts is { Kbps: > 0 }) { <span class="badge plain">@facts.Kbps kbps</span> }
                     </span>
                 </div>
-                <button class="sr-play" aria-label="Play @hs.Title" @onclick='() => Player.Play([hs], 0, context)'><Icon Name="play" Size="22" /></button>
+                <button class="sr-play" aria-label="Play @hs.Title" @onclick='() => PlayOnly([hs], context)' @onclick:stopPropagation><Icon Name="play" Size="22" /></button>
             </div>
         }
     </section>
@@ -186,6 +186,20 @@
     [Parameter] public EventCallback<string> OnQuery { get; set; }
 
     bool showAll;
+
+    void Noop() { }
+    /// <summary>The banner itself: play it and bring up the full-screen player.</summary>
+    async Task PlayFull(IReadOnlyList<Track> list, string context)
+    {
+        if (list.Count == 0) return;
+        await Player.Play(list, 0, context);
+        Player.RequestFullScreen();
+    }
+    /// <summary>The round play button: just play, stay on the page.</summary>
+    async Task PlayOnly(IReadOnlyList<Track> list, string context)
+    {
+        if (list.Count > 0) await Player.Play(list, 0, context);
+    }
 
     static bool Same(string a, string b) => string.Join(' ', FLACie.Core.Matching.SearchWords(a)) == string.Join(' ', FLACie.Core.Matching.SearchWords(b));
     // how many of a group's songs the filter pills allow

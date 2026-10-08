@@ -1214,3 +1214,5 @@ main.content:has(.az-rail) .tracks { padding-right: 16px; }
 .sr-hero .sr-art, .sr-hero .sr-cover { width: min(188px, 34vw); flex: none; }
 .sr-hero .cover { width: 100% !important; }
 .sr-hero-text { flex: 1; min-width: 0; }
+.sr-hero { cursor: pointer; }
+.sr-hero a, .sr-hero button { cursor: pointer; }

@@ -81,7 +81,7 @@ fun NasSetupScreen() {
             }
             Txt("Browses a network share's music files directly over SMB. No media server needed.", size = 13f, maxLines = 3)
 
-            field("Server (e.g. 192.168.1.50)", host, { host = it }, focus = true)
+            field("Server (e.g. nas.local)", host, { host = it }, focus = true)
             field("Share name (e.g. Music)", share, { share = it })
             field("Folder within the share (optional, e.g. Flac)", folder, { folder = it })
             field("Username (blank = guest/anonymous)", username, { username = it })

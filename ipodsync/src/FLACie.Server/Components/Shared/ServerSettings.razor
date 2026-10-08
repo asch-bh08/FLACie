@@ -35,7 +35,7 @@
     }
     <div class="form">
         <label for="jm">Jamendo client ID <span class="opt">(free from devportal.jamendo.com; Jamendo stays off without one)</span></label>
-        <input id="jm" @bind="jmId" autocomplete="off" spellcheck="false" placeholder="e.g. 614b506c" />
+        <input id="jm" @bind="jmId" autocomplete="off" spellcheck="false" placeholder="your Jamendo client id" />
         <div class="row-actions"><button class="btn primary" @onclick="SaveOpenSources">Save open sources</button><button class="btn" @onclick="CheckJamendo" disabled="@(jmId.Trim().Length == 0 || jmChecking)">Check Jamendo ID</button>@if (osNote is not null) { <span class="hint">@osNote</span> }</div>
     </div>
 </section>

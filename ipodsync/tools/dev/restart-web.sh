@@ -9,5 +9,5 @@ D=${FLACIE_DEV_DIR:-$HOME/flacie-dev}; mkdir -p "$D"
 for pid in $(netstat -ano | grep ":5255 " | awk '{print $5}' | sort -u); do taskkill //PID $pid //F >/dev/null 2>&1; done
 sleep 1
 cd "$(dirname "$0")/../.." && dotnet publish src/FLACie.Server -c Release -o "$D/pub" 2>&1 | grep -E "error" | head -5
-cd "$D/pub" && (FLACIE_JELLYFIN_URL=http://100.114.148.48:8096 FLACIE_DATA="$D/webdata" FLACIE_DEBUG=1 nohup dotnet FLACie.Server.dll --urls http://127.0.0.1:5255 > "$D/web.log" 2>&1 &)
+cd "$D/pub" && (FLACIE_JELLYFIN_URL=${FLACIE_JELLYFIN_URL:-http://localhost:8096} FLACIE_DATA="$D/webdata" FLACIE_DEBUG=1 nohup dotnet FLACie.Server.dll --urls http://127.0.0.1:5255 > "$D/web.log" 2>&1 &)
 sleep 6; curl -s -o /dev/null -w "up %{http_code}\n" http://127.0.0.1:5255/healthz

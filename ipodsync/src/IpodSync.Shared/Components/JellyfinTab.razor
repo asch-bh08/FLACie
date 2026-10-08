@@ -6,7 +6,7 @@
 <div class="panel">
     <p class="muted small" style="margin-top:0">Copies the iPod's playlists to a Jellyfin server, matching songs by title and artist. This only writes to Jellyfin, never to the iPod.</p>
     <div class="row">
-        <input class="text-input grow" @bind="_url" placeholder="http://192.168.1.183:8096" />
+        <input class="text-input grow" @bind="_url" placeholder="http://your-server:8096" />
         <input class="text-input grow" type="password" @bind="_apiKey" placeholder="API key" />
         <button class="btn" @onclick="Test" disabled="@_testing">@(_testing ? "Connecting…" : "Connect")</button>
     </div>
@@ -38,7 +38,7 @@
 }
 
 @code {
-    private string _url = "http://192.168.1.183:8096";
+    private string _url = "";
     private string _apiKey = "";
     private bool _testing, _connected, _syncing;
     private string? _status;

@@ -62,7 +62,7 @@ fun JellyfinSetupScreen() {
             }
             Txt("Streams straight from your Jellyfin server. Nothing else needs to be running.", size = 13f, maxLines = 3)
 
-            Txt("Server URL (e.g. http://192.168.1.183:8096)", size = 12f)
+            Txt("Server URL (e.g. http://your-server:8096)", size = 12f)
             SetupTextField(
                 url, { url = it }, singleLine = true, cursorBrush = SolidColor(Color.White),
                 textStyle = TextStyle(color = Color.White, fontSize = 16.sp),

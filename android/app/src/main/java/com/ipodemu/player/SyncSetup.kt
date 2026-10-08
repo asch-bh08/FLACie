@@ -60,7 +60,7 @@ fun SyncSetupScreen() {
             }
             Txt("Browse a real iPod plugged into a PC running FLACie for Windows, over Wi-Fi.", size = 13f, maxLines = 3)
 
-            Txt("PC address (e.g. 192.168.1.50:5070)", size = 12f)
+            Txt("PC address (e.g. my-pc:5070)", size = 12f)
             SetupTextField(
                 host, { host = it }, singleLine = true, cursorBrush = SolidColor(Color.White),
                 textStyle = TextStyle(color = Color.White, fontSize = 16.sp),

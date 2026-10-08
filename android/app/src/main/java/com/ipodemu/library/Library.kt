@@ -370,7 +370,7 @@ class Library(ctx: Context, val art: ArtCache) {
 
     fun rescan() = start()
 
-    /** Look for a real iPod on the PC running ipodsync at `host` (e.g. "192.168.1.50:5070"). */
+    /** Look for a real iPod on the PC running ipodsync at `host` (e.g. "my-pc:5070"). */
     fun findSyncDevices(host: String) {
         if (discoveringDevices) return
         discoveringDevices = true; syncError = null; notifyChange()

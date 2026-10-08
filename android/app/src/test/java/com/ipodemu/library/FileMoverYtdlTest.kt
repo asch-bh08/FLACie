@@ -10,7 +10,7 @@ import org.junit.Test
 /** Live check of the yt-dlp route behind the file mover; only with FLACIE_FM_KEY set (it writes into the throwaway _flacie_fetchtest folder). */
 class FileMoverYtdlTest {
     private val key get() = System.getenv("FLACIE_FM_KEY").orEmpty()
-    private val url = "https://frank.tailb05910.ts.net/filemove"
+    private val url = "https://filemove.example.ts.net/filemove"
 
     @Test fun findsAPopularSongAndRefusesNonsense() = runBlocking {
         assumeTrue(key.isNotBlank())

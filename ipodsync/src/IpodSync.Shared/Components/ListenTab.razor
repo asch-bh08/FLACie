@@ -46,7 +46,7 @@
                 }
                 else
                 {
-                    <input class="text-input" style="width:220px" @bind="_url" placeholder="http://192.168.1.183:8096" />
+                    <input class="text-input" style="width:220px" @bind="_url" placeholder="http://your-server:8096" />
                     <input class="text-input" style="width:160px" type="password" @bind="_apiKey" placeholder="API key" />
                     <button class="btn small" @onclick="ConnectJellyfin" disabled="@_connectingJellyfin">@(_connectingJellyfin ? "Connecting…" : "Connect")</button>
                 }
@@ -110,7 +110,7 @@ else
     private List<LocalTrack>? _localTracks;
 
     // Jellyfin
-    private string _url = "http://192.168.1.183:8096";
+    private string _url = "";
     private string _apiKey = "";
     private bool _connectingJellyfin, _jellyfinConnected;
     private string? _jellyfinStatus, _jellyfinName, _jellyfinUserId;

@@ -144,7 +144,7 @@ fun SyncModeScreen() {
                         }
                     }
                     Txt("Or an iPod plugged into a PC running FLACie for Windows:", size = 13f, color = sc.onBgDim)
-                    SyncField("PC address (host:port)", host, { host = it }, "192.168.1.50:5070", uri = true)
+                    SyncField("PC address (host:port)", host, { host = it }, "my-pc:5070", uri = true)
                     GlossPill(if (busy && link is com.ipodemu.library.HttpLink) "Looking..." else "Find iPods on that PC", { if (host.isNotBlank()) findDevices(com.ipodemu.library.HttpLink(host.trim())) })
                     if (link is com.ipodemu.library.HttpLink) {
                         devices?.forEach { d -> DeviceRow(d, onOpen = { load(d) }) }

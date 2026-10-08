@@ -108,12 +108,12 @@ class Prefs(ctx: Context) {
     var hiddenMenu: Set<String>
         get() = sp.getStringSet("hidden", emptySet()) ?: emptySet()
         set(v) = sp.edit().putStringSet("hidden", v).apply()
-    /** Last-used ipodsync host, e.g. "192.168.1.50:5070" (LAN) or a Tailscale name. */
+    /** Last-used ipodsync host, e.g. "my-pc:5070" (LAN) or a Tailscale name. */
     var syncHost: String
         get() = sp.getString("synchost", "") ?: ""
         set(v) = sp.edit().putString("synchost", v).apply()
     /** Jellyfin server this app talks to directly (no PC/ipodsync in the loop), e.g.
-     * "http://192.168.1.183:8096" or a Tailscale URL. */
+     * "http://your-server:8096" or a Tailscale URL. */
     var jellyfinUrl: String
         get() = sp.getString("jfurl", "") ?: ""
         set(v) = sp.edit().putString("jfurl", v).apply()
@@ -121,7 +121,7 @@ class Prefs(ctx: Context) {
         get() = sp.getString("jfkey", "") ?: ""
         set(v) = sp.edit().putString("jfkey", v).apply()
 
-    /** Plex server this app talks to directly, e.g. "http://192.168.1.183:32400" or a Tailscale URL. */
+    /** Plex server this app talks to directly, e.g. "http://your-server:32400" or a Tailscale URL. */
     var plexUrl: String
         get() = sp.getString("plexurl", "") ?: ""
         set(v) = sp.edit().putString("plexurl", v).apply()
@@ -129,7 +129,7 @@ class Prefs(ctx: Context) {
         get() = sp.getString("plextoken", "") ?: ""
         set(v) = sp.edit().putString("plextoken", v).apply()
 
-    /** NAS share this app browses directly over SMB, e.g. host "192.168.1.50", share "Music". */
+    /** NAS share this app browses directly over SMB, e.g. host "my-pc", share "Music". */
     var nasHost: String
         get() = sp.getString("nashost", "") ?: ""
         set(v) = sp.edit().putString("nashost", v).apply()

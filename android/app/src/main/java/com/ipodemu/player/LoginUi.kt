@@ -90,7 +90,7 @@ fun NasSignInForm() {
     var user by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Field("Server address", host, { host = it }, "192.168.1.50 or nas.local", KeyboardType.Uri)
+        Field("Server address", host, { host = it }, "nas.local or the NAS address", KeyboardType.Uri)
         Field("Share", share, { share = it }, "Music", KeyboardType.Text)
         Field("Music folder in the share (optional)", folder, { folder = it }, "", KeyboardType.Text)
         Field("Username", user, { user = it }, "", KeyboardType.Text)

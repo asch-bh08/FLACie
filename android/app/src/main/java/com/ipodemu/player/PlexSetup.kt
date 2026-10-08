@@ -62,7 +62,7 @@ fun PlexSetupScreen() {
             }
             Txt("Streams straight from your Plex server. Nothing else needs to be running.", size = 13f, maxLines = 3)
 
-            Txt("Server URL (e.g. http://192.168.1.183:32400)", size = 12f)
+            Txt("Server URL (e.g. http://your-server:32400)", size = 12f)
             SetupTextField(
                 url, { url = it }, singleLine = true, cursorBrush = SolidColor(Color.White),
                 textStyle = TextStyle(color = Color.White, fontSize = 16.sp),

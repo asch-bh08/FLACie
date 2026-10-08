@@ -18,7 +18,8 @@ public static class AdminAccess
         var locked = conf["FLACIE_JELLYFIN_URL"] is { Length: > 0 } f ? JellyfinClient.Normalise(f) : null;
         if (s.Kind == "jellyfin" && s.Jellyfin is { } j)
         {
-            var onLocked = local || locked is not null && string.Equals(JellyfinClient.Normalise(j.Server), locked, StringComparison.OrdinalIgnoreCase);
+            // when the server is locked to one Jellyfin every sign-in went to it (the cookie is signed by this server), whatever address the account was saved under (an older sign-in may hold the LAN, Tailscale or public address of the same Jellyfin)
+            var onLocked = local || locked is not null;
             if (list.Length == 0) return onLocked && s.IsAdmin;
             return (onLocked && list.Contains(j.UserName, StringComparer.OrdinalIgnoreCase)) || list.Contains($"{j.UserName}@{Authority(j.Server)}", StringComparer.OrdinalIgnoreCase);
         }

@@ -72,11 +72,14 @@ for (const [route, text] of pages) {
 test('the Explore filter bar narrows the results', async ({ page }) => {
   const problems = watch(page);
   await page.goto('/explore');
-  await page.waitForTimeout(2000); // typing before the live connection is up is lost
   const box = page.locator('input[type="search"]').first();
-  await box.pressSequentially('aurora');
+  // typing before the live connection is up is lost, so type again until the page reacts
+  await expect(async () => {
+    await box.fill('');
+    await box.pressSequentially('aurora');
+    await expect(page.locator('body')).not.toContainText('Echo Harbour', { timeout: 3000 });
+  }).toPass({ timeout: 40_000 });
   await expect(page.locator('body')).toContainText('Aurora Vale');
-  await expect(page.locator('body')).not.toContainText('Echo Harbour');
   expect(problems).toEqual([]);
 });
 

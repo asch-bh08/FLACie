@@ -86,6 +86,13 @@ Unfinished: the owner's **beta 40 brief** was only partly done. Remaining from i
 - Emulator tips: a fresh AVD is not signed in (Quick Connect needs the owner); guest mode works. The app hides untagged audio (voice-memo filter), so test files need artist/album tags (ffmpeg `-metadata`). `uiautomator dump` gives readable screen text. Pass Windows paths to `build-installer.ps1 -Out` from PowerShell, not bash (bash eats the backslashes).
 - The browser pane must be visible for Blazor `Virtualize` lists to draw rows.
 
+## 6c. Public web address (changed 2026-10-08)
+
+- `https://frank.tailb05910.ts.net:8443` stopped working off the tailnet: Tailscale does not publish a public DNS record for `frank` (or `hs-1`) any more (NXDOMAIN at Google, Cloudflare and Tailscale's own nameservers) although frank's funnel config is correct. Cause is on Tailscale's side (check the admin console / support). It still works on devices running Tailscale.
+- **Working public address: `https://hms-jellyfin.tailb05910.ts.net:10000`** (hms-jellyfin is the Proxmox host, 100.100.75.106, whose name does resolve publicly). Its funnel port 10000 -> `http://localhost:2082`, a block added to `/etc/caddy/Caddyfile` there (`:2082 { reverse_proxy http://100.114.148.48:5255 }`; backup `/etc/caddy/Caddyfile.bak-2026-10-08`; serve config backup `/root/tailscale-serve.bak-2026-10-08.json`). Tailscale funnel only forwards to localhost, hence Caddy; funnel only allows ports 443, 8443 and 10000, and 443 / 8443 there are Jellyfin and Jellyseerr. The app treats any `*.ts.net` host as https (Program.cs) because the hop through Caddy hands it plain http.
+- To undo: `tailscale funnel --https=10000 off` on hms-jellyfin and delete the `:2082` block (then `systemctl reload caddy`).
+- The auto mode refused a second edit to that Caddyfile (shared host); anything further there needs the owner's go-ahead.
+
 ## 7. Gotchas that cost time before
 
 - `sed` and heredocs mangle `$` and quotes in Kotlin/C#: prefer your editor tool for code edits. A greedy regex once ate half a file; always check `git diff` after scripted edits.

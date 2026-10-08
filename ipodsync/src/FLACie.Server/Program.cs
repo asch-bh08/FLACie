@@ -84,6 +84,13 @@ if (int.TryParse(builder.Configuration["FLACIE_PARENT_PID"], out var parentPid))
     });
 }
 app.UseForwardedHeaders();
+// a Tailscale name (*.ts.net) is only ever reached over https (Tailscale ends the TLS itself and hands the request on as plain http, and a second proxy in between
+// may not pass that on), so redirects, cookies and links must say https
+app.Use((ctx, next) =>
+{
+    if (ctx.Request.Host.Host.EndsWith(".ts.net", StringComparison.OrdinalIgnoreCase)) ctx.Request.Scheme = "https";
+    return next();
+});
 if (!app.Environment.IsDevelopment()) app.UseExceptionHandler("/error", createScopeForErrors: true);
 app.UseAuthentication();
 app.UseAuthorization();

@@ -39,8 +39,19 @@ public sealed class ExploreState
         new("hires-flac", "Hi-Res FLAC", "Hi-Res"), new("hires-alac", "Hi-Res ALAC", "Hi-Res"), new("hires-wav", "Hi-Res WAV / PCM", "Hi-Res"),
     ];
     static bool CodecOk(Track t, string c) => c.StartsWith("hires-", StringComparison.Ordinal) ? CodecFamily(t) == c[6..] && InfoService.QuickFormat(t) == "HI-RES" : CodecFamily(t) == c;
-    public static readonly (string, string)[] KbpsChoices = [("128", "128 kbps or lower"), ("192", "129 to 192 kbps"), ("256", "193 to 256 kbps"), ("320", "257 to 320 kbps"), ("hi", "Above 320 kbps")];
-    static bool KbpsBand(int k, string band) => k > 0 && band switch { "128" => k <= 128, "192" => k is > 128 and <= 192, "256" => k is > 192 and <= 256, "320" => k is > 256 and <= 320, "hi" => k > 320, _ => true };
+    public static readonly DropOption[] KbpsChoices =
+    [
+        new("128", "128 kbps or lower", "Lossy range"), new("192", "129 to 192 kbps", "Lossy range"), new("256", "193 to 256 kbps", "Lossy range"), new("320", "257 to 320 kbps", "Lossy range"),
+        new("700", "321 to 700 kbps", "Lossless range"), new("900", "701 to 900 kbps", "Lossless range"), new("1000", "901 to 1,000 kbps", "Lossless range"), new("1500", "1,001 to 1,500 kbps", "Lossless range"),
+        new("2000", "1,501 to 2,000 kbps", "Lossless range"), new("3000", "2,001 to 3,000 kbps", "Lossless range"), new("4000", "3,001 to 4,000 kbps", "Lossless range"), new("5000", "4,001 to 5,000 kbps", "Lossless range"),
+        new("max", "Above 5,000 kbps", "Lossless range"),
+    ];
+    static bool KbpsBand(int k, string band) => k > 0 && band switch
+    {
+        "128" => k <= 128, "192" => k is > 128 and <= 192, "256" => k is > 192 and <= 256, "320" => k is > 256 and <= 320, "700" => k is > 320 and <= 700,
+        "900" => k is > 700 and <= 900, "1000" => k is > 900 and <= 1000, "1500" => k is > 1000 and <= 1500, "2000" => k is > 1500 and <= 2000,
+        "3000" => k is > 2000 and <= 3000, "4000" => k is > 3000 and <= 4000, "5000" => k is > 4000 and <= 5000, "max" => k > 5000, _ => true,
+    };
     /// <summary>The codec family of a song: "flac", "mp3", "aac" ... ("" when unknown).</summary>
     public static string CodecFamily(Track t)
     {

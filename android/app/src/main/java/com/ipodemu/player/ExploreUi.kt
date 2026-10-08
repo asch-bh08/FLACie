@@ -67,8 +67,15 @@ private fun rateBand(hz: Int, band: String) = when (band) {
     "96" -> hz in 95_900..96_100; "176" -> hz in 176_000..176_500; "192" -> hz >= 191_900; else -> true
 }
 private val CODECS = listOf("flac" to "FLAC", "alac" to "ALAC (Apple Lossless)", "wav" to "WAV / PCM", "aiff" to "AIFF", "ape" to "APE", "wv" to "WavPack", "dsd" to "DSD", "mp3" to "MP3", "aac" to "AAC / M4A", "ogg" to "Ogg Vorbis", "opus" to "Opus", "wma" to "WMA")
-private val KBPS = listOf("128" to "128 kbps or lower", "192" to "129 to 192 kbps", "256" to "193 to 256 kbps", "320" to "257 to 320 kbps", "hi" to "Above 320 kbps")
-private fun kbpsBand(k: Int, band: String) = k > 0 && when (band) { "128" -> k <= 128; "192" -> k in 129..192; "256" -> k in 193..256; "320" -> k in 257..320; "hi" -> k > 320; else -> true }
+private val KBPS = listOf(
+    "128" to "128 kbps or lower", "192" to "129 to 192 kbps", "256" to "193 to 256 kbps", "320" to "257 to 320 kbps", "700" to "321 to 700 kbps", "900" to "701 to 900 kbps",
+    "1000" to "901 to 1,000 kbps", "1500" to "1,001 to 1,500 kbps", "2000" to "1,501 to 2,000 kbps", "3000" to "2,001 to 3,000 kbps", "4000" to "3,001 to 4,000 kbps",
+    "5000" to "4,001 to 5,000 kbps", "max" to "Above 5,000 kbps",
+)
+private fun kbpsBand(k: Int, band: String) = k > 0 && when (band) {
+    "128" -> k <= 128; "192" -> k in 129..192; "256" -> k in 193..256; "320" -> k in 257..320; "700" -> k in 321..700; "900" -> k in 701..900; "1000" -> k in 901..1000
+    "1500" -> k in 1001..1500; "2000" -> k in 1501..2000; "3000" -> k in 2001..3000; "4000" -> k in 3001..4000; "5000" -> k in 4001..5000; "max" -> k > 5000; else -> true
+}
 /** The codec family of a song ("flac", "mp3", "aac" ...): the real codec when the server read it, else the file extension. */
 private fun codecFamily(t: Track): String {
     val c = (AudioFacts.of(t)?.codec?.takeIf { it.isNotEmpty() } ?: ext(t)).lowercase()

@@ -86,7 +86,7 @@
     record Chip(string Text, Action Remove);
 
     static readonly DropOption[] qualityOptions = [new("lossless", "Lossless (FLAC, ALAC…)"), new("lossy", "Lossy (MP3, AAC…)"), new("hires", "✦ Hi-Res")];
-    static readonly DropOption[] kbpsOptions = ExploreState.KbpsChoices.Select(c => new DropOption(c.Item1, c.Item2)).ToArray();
+    static readonly DropOption[] kbpsOptions = ExploreState.KbpsChoices;
     static readonly DropOption[] depthOptions = ExploreState.DepthChoices.Select(c => new DropOption(c.Item1, c.Item2)).ToArray();
     static readonly DropOption[] rateOptions = ExploreState.RateChoices.Select(c => new DropOption(c.Item1, c.Item2)).ToArray();
     DropOption[] genreOptions = [], decadeOptions = [];

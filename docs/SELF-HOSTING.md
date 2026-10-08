@@ -10,6 +10,8 @@ Contents: [Jellyfin only](#a-jellyfin-only) · [NAS only](#b-nas-only-no-jellyfi
 
 You need Docker (with Compose) on any machine that can reach your Jellyfin or NAS. The image runs on amd64 and arm64 (Raspberry Pi 4/5 included).
 
+**Jellyfin versions.** Tested against Jellyfin **10.10.x**: everything works. **Jellyfin 12.2** (the current `jellyfin/jellyfin:latest`): signing in, browsing, playing, playlists and the Info panel work on the web, but Connect (remote control between devices) and Jams do not, and the Android app cannot use it yet (Jellyfin 12 no longer accepts the `X-Emby-Token` header or `api_key` that those parts send). Until that is fixed, run Jellyfin 10.10 if you need those.
+
 ## A. Jellyfin only
 
 1. Make a folder and save this as `docker-compose.yml` in it (also in the repository as `ipodsync/src/FLACie.Server/docker-compose.example.yml`):
@@ -27,6 +29,8 @@ You need Docker (with Compose) on any machine that can reach your Jellyfin or NA
        environment:
          FLACIE_JELLYFIN_URL: "https://jellyfin.example.com"   # your Jellyfin, as people reach it
    ```
+
+   Use an address the **container** can reach: the Docker host's LAN address or name (for example `http://192.168.1.20:8096`), not `localhost` or `127.0.0.1`, which inside the container is the container itself.
 
 2. `docker compose up -d`, then open `http://<this-machine>:8080`.
 3. Sign in with a Jellyfin username and password, or press **Sign in with Quick Connect** and approve the code in any Jellyfin app
@@ -64,6 +68,8 @@ user name and password that can read the share. The profile is saved on the shar
 - Turning NAS sign-in on lets a signed-in-or-not visitor make the server connect to an address they type. Only enable it on a private network, or behind
   something that already restricts who can open the page (a VPN such as Tailscale, or your proxy's authentication).
 - Without Jellyfin there are no Jellyfin-only features: Connect (remote control between devices), Jams, and Jellyfin-reported audio facts.
+
+- **Admin with a NAS sign-in:** the dashboard is closed to everyone until you name an admin. Add `FLACIE_ADMINS: "yourNasUser@nas.local"`, written exactly as the user name and NAS address are typed on the sign-in page.
 
 You can set both `FLACIE_JELLYFIN_URL` and `FLACIE_ALLOW_NAS_LOGIN=true`; the login page then shows both tabs. An account that uses both keeps one profile.
 
@@ -114,8 +120,8 @@ docker compose pull
 docker compose up -d
 ```
 
-Your data lives in `./flacie-data` and is kept. Releases are tagged (`ghcr.io/asch-bh08/flacie-web:1.0.0`); `latest` follows the main branch. To stay on
-a known version, put that tag in the compose file instead of `latest`. Release notes: [CHANGELOG.md](../CHANGELOG.md). To go back, set the earlier tag
+Your data lives in `./flacie-data` and is kept. Releases are tagged (for example `ghcr.io/asch-bh08/flacie-web:1.0.0-beta44`, the beta number of the release on GitHub), every build also has a `sha-<commit>` tag, and `latest` follows the main branch. To stay on
+a known version, put that tag in the compose file instead of `latest`. (Older tags such as beta44 do not have the sign-in rate limit or the trusted-proxy rules.) Release notes: [CHANGELOG.md](../CHANGELOG.md). To go back, set the earlier tag
 and `docker compose up -d`.
 
 ## Backups
@@ -138,6 +144,10 @@ docker compose stop && tar czf flacie-data-$(date +%F).tgz flacie-data && docker
 ```
 
 Keep backups private: `keys/` is what protects the saved sign-ins.
+
+## The phone app
+
+The Android app is a separate download (APK on the GitHub release page; enable installing from unknown sources). On first start choose **Sign in with Jellyfin**, enter your Jellyfin address (from the phone, so a name or address the phone can reach; in the Android emulator your PC is `10.0.2.2`) and use Quick Connect or a password. Then open **Settings > Music sources > Jellyfin > Use my account** once: signing in syncs your profile, but the music source is switched on separately. Your Jellyfin must be 10.10.x for now (see above). The web server is only needed for extras such as the audio-format filters; the app plays straight from Jellyfin.
 
 ## Environment variables
 
@@ -166,5 +176,5 @@ Taking audio from YouTube or Soulseek can be against those services' terms or yo
 - **Redirects go to `http://` after signing in:** the proxy isn't sending `X-Forwarded-Proto`, or its address is not in `FLACIE_TRUSTED_PROXIES`.
 - **"Couldn't reach …" when signing in:** the container can't reach that Jellyfin address; try `FLACIE_JELLYFIN_INTERNAL_URL` with a LAN address.
 - **Signed in but no songs:** Jellyfin's music library must be visible to that user; check the dashboard's "loading the library" line and `docker compose logs flacie`.
-- **"Too many failed attempts":** more than 8 wrong sign-ins from one address or for one user name in 15 minutes. Wait, or restart the container.
+- **"Too many failed attempts":** more than 8 wrong sign-ins from one address or for one user name in 15 minutes. Wait, or restart the container. (Because the user name counts too, someone guessing at your account from elsewhere can lock you out for the same 15 minutes; restarting the container clears it.)
 - **The NAS tab is missing:** set `FLACIE_ALLOW_NAS_LOGIN: "true"`.

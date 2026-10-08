@@ -1086,3 +1086,39 @@ body.np-open .player .bar, body.np-open .player .bar:hover { cursor: default; }
 .dev-main .dev-actions { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
 .pl-rename { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 6px 0; }
 .pl-rename input { flex: 1 1 200px; min-height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 18px; font-weight: 700; }
+
+/* Explore search: a larger, calmer search field with a clear button and a note when it is showing close (typo) matches */
+.x-find { display: flex; flex-direction: column; gap: 8px; }
+.x-bar .x-search { height: 52px; padding: 0 8px 0 18px; border-radius: 16px; gap: 12px; background: var(--bg); border: 1px solid var(--line); box-shadow: inset 0 1px 0 #ffffff08; transition: border-color .15s, box-shadow .15s, background .15s; }
+.x-bar .x-search:hover { background: color-mix(in srgb, var(--bg) 88%, #fff 6%); }
+.x-bar .x-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent); }
+.x-bar .x-search input { font-size: 16px; padding: 0; height: 100%; }
+.x-bar .x-search input::-webkit-search-cancel-button { display: none; }
+.x-clear { flex: none; width: 36px; height: 36px; border-radius: 999px; border: 0; background: transparent; color: var(--dim); display: grid; place-items: center; cursor: pointer; }
+.x-clear:hover { background: color-mix(in srgb, var(--ink) 12%, transparent); color: var(--ink); }
+.x-fuzzy { padding-left: 6px; color: var(--accent); }
+@media (max-width: 760px) { .x-bar .x-search { height: 48px; } .x-clear { width: 40px; height: 40px; } }
+
+/* Explore filters: search + sort on top, then an even grid of labelled fields; a chosen filter lights up */
+.x-bar { gap: 14px; padding: 16px; border-radius: 22px; }
+.x-top { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; }
+.x-top .x-find { flex: 1 1 320px; min-width: 0; }
+.x-filters-head { display: flex; align-items: center; gap: 10px; min-height: 24px; }
+.x-filters-head b { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); font-weight: 700; }
+.x-count { font-size: 12px; font-weight: 700; color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); padding: 3px 10px; border-radius: 999px; }
+.x-reset { margin-left: auto; background: none; border: 0; color: var(--dim); font-weight: 650; font-size: 13px; cursor: pointer; padding: 6px 10px; border-radius: 999px; }
+.x-reset:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.x-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px; }
+.x-bar .x-field { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 8px 12px 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 14px; transition: border-color .15s, background .15s; cursor: pointer; }
+.x-bar .x-field:hover { border-color: color-mix(in srgb, var(--ink) 28%, var(--line)); }
+.x-bar .x-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.x-bar .x-field.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--bg)); }
+.x-bar .x-field > span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); font-weight: 700; }
+.x-bar .x-field.on > span { color: var(--accent); }
+.x-bar .x-field select { appearance: none; -webkit-appearance: none; background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 0 center; border: 0; outline: none; color: var(--ink); font-size: 15px; font-weight: 650; padding: 4px 22px 4px 0; width: 100%; max-width: none; min-width: 0; text-overflow: ellipsis; cursor: pointer; }
+.x-bar .x-field select option { background: var(--surface-2); color: var(--ink); font-weight: 500; }
+.x-top .x-sort { flex: 0 0 200px; justify-content: center; }
+@media (max-width: 760px) { .x-top .x-sort { flex: 1 1 100%; } .x-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.x-toggle { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; color: var(--dim); cursor: pointer; padding: 6px 8px 6px 4px; margin-left: -4px; border-radius: 999px; }
+.x-toggle:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.x-toggle b { color: inherit; }

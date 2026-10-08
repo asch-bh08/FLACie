@@ -2,26 +2,39 @@
 @inject ExploreState X
 @* The filters over Explore's lists: a text filter, A to Z, genre, decade, lossless or lossy, and the sort. What a tab can't use is left out. *@
 <div class="x-bar">
-    <label class="x-search"><Icon Name="search" Size="18" /><input type="search" placeholder="@Placeholder" aria-label="Filter this list" value="@X.Query" @oninput="e => Set(() => X.Query = e.Value?.ToString() ?? string.Empty)" /></label>
-    <div class="x-selects">
-        <label>Sort
+    <div class="x-top">
+        <div class="x-find">
+            <label class="x-search"><Icon Name="search" Size="20" /><input type="search" placeholder="@Placeholder" aria-label="Search this list" value="@X.Query" autocomplete="off" spellcheck="false" @oninput="e => Set(() => X.Query = e.Value?.ToString() ?? string.Empty)" />
+                @if (X.Query.Length > 0) { <button type="button" class="x-clear" aria-label="Clear search" @onclick="() => Set(() => X.Query = string.Empty)"><Icon Name="x" Size="16" /></button> }
+            </label>
+        </div>
+        <label class="x-field x-sort">
+            <span>Sort by</span>
             <select value="@X.Sort" @onchange="e => Set(() => X.Sort = e.Value?.ToString() ?? string.Empty)">
                 @foreach (var (v, n) in SortOptions) { <option value="@v" selected="@(X.Sort == v)">@n</option> }
             </select>
         </label>
-        <label>Genre
+    </div>
+    @if (X.Query.Trim().Length > 0 && X.Fuzzy) { <small class="x-note x-fuzzy" role="status">No exact match for “@X.Query.Trim()”, so these are the closest matches.</small> }
+    <div class="x-filters-head">
+        <button type="button" class="x-toggle" aria-expanded="@(open ? "true" : "false")" aria-controls="x-grid" @onclick="() => open = !open"><Icon Name="@(open ? "chevron-down" : "chevron-right")" Size="16" /><b>Filters</b></button>
+        @if (ActiveCount > 0) { <span class="x-count">@ActiveCount active</span><button class="x-reset" @onclick="() => Set(X.Clear)">Clear all</button> }
+    </div>
+    @if (open) {
+    <div class="x-grid" id="x-grid" role="group" aria-label="Filters">
+        <label class="x-field @(X.Genre.Length > 0 ? "on" : "")"><span>Genre</span>
             <select value="@X.Genre" @onchange="e => Set(() => X.Genre = e.Value?.ToString() ?? string.Empty)">
                 <option value="">Any</option>
                 @foreach (var g in choices.Genres) { <option value="@g" selected="@(X.Genre == g)">@g</option> }
             </select>
         </label>
-        <label>Decade
+        <label class="x-field @(X.Decade.Length > 0 ? "on" : "")"><span>Decade</span>
             <select value="@X.Decade" @onchange="e => Set(() => X.Decade = e.Value?.ToString() ?? string.Empty)">
                 <option value="">Any</option>
                 @foreach (var d in choices.Decades) { <option value="@d" selected="@(X.Decade == d)">@d</option> }
             </select>
         </label>
-        <label>Quality
+        <label class="x-field @(X.Format.Length > 0 ? "on" : "")"><span>Quality</span>
             <select value="@X.Format" @onchange="e => Set(() => X.Format = e.Value?.ToString() ?? string.Empty)">
                 <option value="">Any</option>
                 <option value="lossless" selected="@(X.Format == "lossless")">Lossless (FLAC, ALAC…)</option>
@@ -29,21 +42,33 @@
                 <option value="hires" selected="@(X.Format == "hires")">✦ Hi-Res</option>
             </select>
         </label>
-        <label>Bit depth
+        <label class="x-field @(X.Codec.Length > 0 ? "on" : "")"><span>Codec</span>
+            <select value="@X.Codec" @onchange="e => Set(() => X.Codec = e.Value?.ToString() ?? string.Empty)">
+                <option value="">Any</option>
+                @foreach (var (v, n) in ExploreState.CodecChoices) { <option value="@v" selected="@(X.Codec == v)">@n</option> }
+            </select>
+        </label>
+        <label class="x-field @(X.Kbps.Length > 0 ? "on" : "")"><span>Bit rate</span>
+            <select value="@X.Kbps" @onchange="e => Set(() => X.Kbps = e.Value?.ToString() ?? string.Empty)">
+                <option value="">Any</option>
+                @foreach (var (v, n) in ExploreState.KbpsChoices) { <option value="@v" selected="@(X.Kbps == v)">@n</option> }
+            </select>
+        </label>
+        <label class="x-field @(X.Depth.Length > 0 ? "on" : "")"><span>Bit depth</span>
             <select value="@X.Depth" @onchange="e => Set(() => X.Depth = e.Value?.ToString() ?? string.Empty)">
                 <option value="">Any</option>
                 @foreach (var (v, n) in ExploreState.DepthChoices) { <option value="@v" selected="@(X.Depth == v)">@n</option> }
             </select>
         </label>
-        <label>Sample rate
+        <label class="x-field @(X.Rate.Length > 0 ? "on" : "")"><span>Sample rate</span>
             <select value="@X.Rate" @onchange="e => Set(() => X.Rate = e.Value?.ToString() ?? string.Empty)">
                 <option value="">Any</option>
                 @foreach (var (v, n) in ExploreState.RateChoices) { <option value="@v" selected="@(X.Rate == v)">@n</option> }
             </select>
         </label>
-        @if (X.Format.Length + X.Depth.Length + X.Rate.Length > 0 && Probe.Pending > 0) { <small class="x-note" role="status">Still reading the real format of @Probe.Pending.ToString("N0") songs, so some may not show yet.</small> }
-        @if (X.Filtering) { <button class="btn ghost" @onclick="() => Set(X.Clear)">Clear filters</button> }
     </div>
+    }
+    @if (X.Format.Length + X.Depth.Length + X.Rate.Length + X.Codec.Length + X.Kbps.Length > 0 && Probe.Pending > 0) { <small class="x-note" role="status">Still reading the real format of @Probe.Pending.ToString("N0") songs, so some may not show yet.</small> }
 </div>
 <nav class="az-rail" aria-label="First letter">
     <button class="@(X.Letter.Length == 0 ? "on" : "")" aria-pressed="@((X.Letter.Length == 0) ? "true" : "false")" title="All songs" @onclick="() => Set(() => X.Letter = string.Empty)">All</button>
@@ -61,7 +86,10 @@
     (List<string> Genres, List<string> Decades) choices = ([], []);
     Library? built;
 
-    string Placeholder => Tab switch { "Songs" => "Filter songs by title, artist or album", "Albums" => "Filter albums by name or artist", "Artists" => "Filter artists", _ => "Filter genres" };
+    bool open;
+    int ActiveCount => new[] { X.Genre, X.Decade, X.Format, X.Codec, X.Kbps, X.Depth, X.Rate }.Count(v => v.Length > 0);
+
+    string Placeholder => Tab switch { "Songs" => "Search songs by title, artist or album", "Albums" => "Search albums by name or artist", "Artists" => "Search artists", _ => "Search genres" };
 
     (string, string)[] SortOptions => Tab switch
     {

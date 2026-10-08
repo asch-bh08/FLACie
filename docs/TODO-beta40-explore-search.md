@@ -1,4 +1,6 @@
-# Queued from the owner (2026-10-08): Explore search upgrade
+# Explore search upgrade (asked 2026-10-08)
+
+**Status:** web done (typo-tolerant search, codec + bit rate + every sample rate filters, collapsible filter grid, nicer search box, Search hidden from the side rail while in Explore). Android and the Windows app still to do on the Android side: same filters in `ExploreUi.kt`, typo tolerance, nicer search field.
 
 Asked mid-session; queued behind the beta 40 test/release work. Applies to web, Android and Windows (same release).
 

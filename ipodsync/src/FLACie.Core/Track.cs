@@ -68,6 +68,57 @@ public static partial class Matching
         return words.All(hay.Contains);
     }
 
+    /// <summary>
+    /// Typo-tolerant version of <see cref="SearchHit"/>: every query word must be inside the text, or within a couple of typos of a word in it
+    /// ("beyonse" finds Beyoncé, "metalica" Metallica, "daft pnuk" Daft Punk; transposed letters count as one typo). Short words (3 letters or fewer)
+    /// stay exact, 4 to 7 letters allow one typo, 8 or more allow two. Meant as the fallback when nothing matches exactly.
+    /// </summary>
+    public static bool FuzzyHit(IReadOnlyList<string> words, params string[] fields)
+    {
+        if (words.Count == 0) return false;
+        var folded = Fold(string.Join(' ', fields));
+        var hay = new string(folded.Where(char.IsLetterOrDigit).ToArray());
+        List<string>? tokens = null;
+        foreach (var w in words)
+        {
+            if (hay.Contains(w)) continue;
+            var tol = w.Length <= 3 ? 0 : w.Length <= 7 ? 1 : 2;
+            if (tol == 0) return false;
+            tokens ??= folded.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(x => new string(x.Where(char.IsLetterOrDigit).ToArray())).Where(x => x.Length > 0).ToList();
+            var ok = false;
+            foreach (var t in tokens)
+            {
+                if (Math.Abs(t.Length - w.Length) > tol + 2) continue;
+                // the whole word, or its start (a word still being typed: "metalic" against "metallica")
+                if (Typos(w, t, tol) <= tol || (t.Length > w.Length && Typos(w, t[..w.Length], tol) <= tol)) { ok = true; break; }
+            }
+            if (!ok) return false;
+        }
+        return true;
+    }
+
+    /// <summary>Edit distance counting a swap of two neighbouring letters as one change; gives up (returns more than <paramref name="max"/>) early.</summary>
+    private static int Typos(string a, string b, int max)
+    {
+        if (Math.Abs(a.Length - b.Length) > max) return max + 1;
+        var prev2 = new int[b.Length + 1]; var prev = new int[b.Length + 1]; var cur = new int[b.Length + 1];
+        for (var j = 0; j <= b.Length; j++) prev[j] = j;
+        for (var i = 1; i <= a.Length; i++)
+        {
+            cur[0] = i; var best = cur[0];
+            for (var j = 1; j <= b.Length; j++)
+            {
+                var cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                var v = Math.Min(Math.Min(prev[j] + 1, cur[j - 1] + 1), prev[j - 1] + cost);
+                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) v = Math.Min(v, prev2[j - 2] + 1);
+                cur[j] = v; if (v < best) best = v;
+            }
+            if (best > max) return max + 1;
+            (prev2, prev, cur) = (prev, cur, prev2);
+        }
+        return prev[b.Length];
+    }
+
     private static string Fold(string s)
     {
         var d = s.ToLowerInvariant().Replace("&", " and ").Replace("+", " and ").Normalize(NormalizationForm.FormD);

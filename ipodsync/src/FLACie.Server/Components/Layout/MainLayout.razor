@@ -7,7 +7,8 @@
     <nav class="rail" aria-label="Main" id="main-rail">
         <div class="rail-group">
             <NavLink href="/" Match="NavLinkMatch.All"><Icon Name="home" />Home</NavLink>
-            <NavLink href="/search"><Icon Name="search" />Search</NavLink>
+            @* Explore has its own search box, so its menu leaves this one out *@
+            @if (!InMusic) { <NavLink href="/search"><Icon Name="search" />Search</NavLink> }
         </div>
         <div class="rail-group">
             <a href="/songs" class="@(InMusic ? "active" : "")"><Icon Name="albums" />Explore</a>

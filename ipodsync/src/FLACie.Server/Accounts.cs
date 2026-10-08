@@ -47,7 +47,17 @@ public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log, I
             JellyfinAccount? j = p.FindFirst("jf.token") is { } t ? new(p.FindFirst("jf.server")!.Value, p.FindFirst("jf.user")!.Value, p.FindFirst("jf.name")?.Value ?? "", t.Value) : null;
             NasAccount? n = p.FindFirst("nas.host") is { } h ? new(h.Value, V(p, "nas.share"), V(p, "nas.folder"), V(p, "nas.user"), V(p, "nas.pass"), V(p, "nas.domain")) : null;
             var us = new UserSession(kind, j, n) { Id = key, CachePath = Path.Combine(paths.Root, "library", key + ".json") }; states.Remember(us);
-            _ = Task.Run(async () => { try { await us.LoadAsync(jf); } catch (Exception e) { log.LogWarning(e, "Loading library failed"); } imports.Resume(us); });
+            _ = Task.Run(async () =>
+            {
+                try { await us.LoadAsync(jf); }
+                catch (Exception e)
+                {
+                    log.LogWarning(e, "Loading library failed");
+                    // Jellyfin refused this sign-in (a token it has since dropped): do not keep the half-loaded session, or the next sign-in of the same user would reuse its dead token
+                    if (e is UnauthorizedAccessException) { sessions.TryRemove(new KeyValuePair<string, UserSession>(key, us)); if (live.TryGetValue(us, out var l)) { l.Connect.Dispose(); live.Remove(us); } }
+                }
+                imports.Resume(us);
+            });
             return us;
         });
         return s;
@@ -78,7 +88,10 @@ public static class AuthEndpoints
 
         async Task SignIn(HttpContext ctx, JellyfinAccount? j, NasAccount? n)
         {
-            await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, SessionStore.Principal(j, n),
+            var principal = SessionStore.Principal(j, n);
+            // a fresh sign-in brings a fresh token: drop any session kept from an earlier one, so it is not reused with the old (maybe dead) token
+            ctx.RequestServices.GetRequiredService<SessionStore>().Forget(principal);
+            await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
                 new AuthenticationProperties { IsPersistent = true, ExpiresUtc = DateTimeOffset.UtcNow.AddDays(30) });
             var who = j?.UserName ?? (n?.User is { Length: > 0 } nu ? nu : "guest");
             var from = ctx.Connection.RemoteIpAddress?.ToString() ?? "";

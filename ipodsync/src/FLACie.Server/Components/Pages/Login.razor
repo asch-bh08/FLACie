@@ -96,5 +96,5 @@
     [SupplyParameterFromQuery] string? Error { get; set; }
     [SupplyParameterFromQuery] string? Tab { get; set; }
     string? FixedServer => Config["FLACIE_JELLYFIN_URL"] is { Length: > 0 } s ? s : null;
-    bool AllowNas => Config.GetValue("FLACIE_ALLOW_NAS_LOGIN", true);
+    bool AllowNas => Config.GetValue("FLACIE_ALLOW_NAS_LOGIN", false);
 }

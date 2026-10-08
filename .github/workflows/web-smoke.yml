@@ -1,0 +1,40 @@
+# Page-by-page smoke test of FLACie Web (Playwright + a mock Jellyfin), on every push and pull request.
+name: Web smoke test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ipodsync/tests/web-smoke/package-lock.json
+      - name: Install test tooling
+        working-directory: ipodsync/tests/web-smoke
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Run the smoke test
+        working-directory: ipodsync/tests/web-smoke
+        run: npx playwright test
+      - name: Keep the report when it fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: ipodsync/tests/web-smoke/test-results
+          retention-days: 7

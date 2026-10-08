@@ -26,3 +26,5 @@ Thumbs.db
 
 # machine-specific files copied by hand between computers (keystore, sign-in data)
 /_machine-files/
+.data-smoke/
+.pub-smoke/

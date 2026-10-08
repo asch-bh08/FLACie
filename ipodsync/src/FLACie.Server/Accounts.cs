@@ -83,7 +83,7 @@ public static class AuthEndpoints
 {
     public static void MapAuth(this WebApplication app)
     {
-        var allowNas = app.Configuration.GetValue("FLACIE_ALLOW_NAS_LOGIN", true);
+        var allowNas = app.Configuration.GetValue("FLACIE_ALLOW_NAS_LOGIN", false);
         var fixedServer = app.Configuration["FLACIE_JELLYFIN_URL"];
 
         async Task SignIn(HttpContext ctx, JellyfinAccount? j, NasAccount? n)
@@ -101,32 +101,38 @@ public static class AuthEndpoints
 
         static IResult Back(string error, string tab = "") => Results.Redirect("/login?error=" + Uri.EscapeDataString(error) + (tab.Length > 0 ? "&tab=" + tab : ""));
 
-        app.MapPost("/auth/jellyfin", async (HttpContext ctx, JellyfinClient jf) =>
+        const string TooMany = "Too many failed attempts. Wait a few minutes and try again.";
+
+        app.MapPost("/auth/jellyfin", async (HttpContext ctx, JellyfinClient jf, LoginThrottle throttle) =>
         {
             var f = ctx.Request.Form;
             var server = fixedServer ?? f["server"].ToString();
-            if (string.IsNullOrWhiteSpace(server) || string.IsNullOrWhiteSpace(f["user"])) return Back("Enter the server and your username.");
-            try { await SignIn(ctx, await jf.SignInAsync(server, f["user"].ToString().Trim(), f["password"].ToString()), null); return Results.Redirect("/"); }
-            catch (UnauthorizedAccessException) { return Back("Wrong username or password."); }
-            catch (Exception e) { return Back($"Couldn't reach {server}: {e.Message}"); }
+            var user = f["user"].ToString().Trim();
+            if (string.IsNullOrWhiteSpace(server) || user.Length == 0) return Back("Enter the server and your username.");
+            if (throttle.Blocked(ctx, user)) return Back(TooMany);
+            try { await SignIn(ctx, await jf.SignInAsync(server, user, f["password"].ToString()), null); throttle.Succeed(user); return Results.Redirect("/"); }
+            catch (UnauthorizedAccessException) { throttle.Fail(ctx, user); return Back("Wrong username or password."); }
+            catch (Exception e) { throttle.Fail(ctx); return Back($"Couldn't reach {server}: {e.Message}"); }
         }).DisableAntiforgery();
 
-        app.MapPost("/auth/nas", async (HttpContext ctx) =>
+        app.MapPost("/auth/nas", async (HttpContext ctx, LoginThrottle throttle) =>
         {
             if (!allowNas) return Back("NAS sign-in is turned off on this server.");
+            if (throttle.Blocked(ctx)) return Back(TooMany, "nas");
             var f = ctx.Request.Form;
             var n = new NasAccount(f["host"].ToString().Trim(), f["share"].ToString().Trim(), f["folder"].ToString().Trim('/', ' '), f["user"].ToString().Trim(), f["password"].ToString());
             if (n.Host.Length == 0 || n.Share.Length == 0) return Back("Enter the NAS address and share.", "nas");
             try { await Task.Run(() => NasClient.Test(n)); await SignIn(ctx, null, n); return Results.Redirect("/"); }
-            catch (Exception e) { return Back(e.Message, "nas"); }
+            catch (Exception e) { throttle.Fail(ctx, n.User); return Back(e.Message, "nas"); }
         }).DisableAntiforgery();
 
         // Quick Connect: the page polls until the code is approved in another Jellyfin app, then this signs in
-        app.MapPost("/auth/qc/start", async (QcStart body, JellyfinClient jf) =>
+        app.MapPost("/auth/qc/start", async (HttpContext ctx, QcStart body, JellyfinClient jf, LoginThrottle throttle) =>
         {
+            if (throttle.Blocked(ctx)) return Results.BadRequest(new { error = TooMany });
             var server = fixedServer ?? body.Server;
             try { var (code, secret) = await jf.QuickConnectStartAsync(server); return Results.Ok(new { code, secret, server = JellyfinClient.Normalise(server) }); }
-            catch (Exception e) { return Results.BadRequest(new { error = $"Quick Connect isn't available on {server}: {e.Message}" }); }
+            catch (Exception e) { throttle.Fail(ctx); return Results.BadRequest(new { error = $"Quick Connect isn't available on {server}: {e.Message}" }); }
         }).DisableAntiforgery();
 
         app.MapPost("/auth/qc/poll", async (HttpContext ctx, QcPoll body, JellyfinClient jf) =>

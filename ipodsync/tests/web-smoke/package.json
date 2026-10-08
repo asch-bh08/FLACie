@@ -1,0 +1,13 @@
+{
+  "name": "flacie-web-smoke",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Page-by-page smoke test of FLACie Web against a mock Jellyfin",
+  "scripts": {
+    "test": "playwright test",
+    "mock": "node mock-jellyfin.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.49.1"
+  }
+}

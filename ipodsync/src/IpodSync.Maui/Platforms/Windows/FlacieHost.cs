@@ -36,6 +36,7 @@ public static class FlacieHost
 			psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
 			psi.Environment["FLACIE_DATA"] = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FLACie", "web");
 			psi.Environment["FLACIE_PARENT_PID"] = Environment.ProcessId.ToString();
+			psi.Environment["FLACIE_ALLOW_NAS_LOGIN"] = "true"; // one person on their own PC, listening on loopback only
 			process = Process.Start(psi) ?? throw new InvalidOperationException("Couldn't start the FLACie player.");
 			AppDomain.CurrentDomain.ProcessExit += (_, _) => Stop();
 

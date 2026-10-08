@@ -67,11 +67,9 @@ builder.Services.AddRazorComponents()
     .AddHubOptions(o => { o.KeepAliveInterval = TimeSpan.FromSeconds(10); o.ClientTimeoutInterval = TimeSpan.FromSeconds(90); o.HandshakeTimeout = TimeSpan.FromSeconds(30); });
 
 // behind a reverse proxy (Caddy, Nginx, Traefik, Tailscale Funnel) the browser talks HTTPS to the proxy, not to us
-builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(o =>
-{
-    o.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedHost;
-    o.KnownNetworks.Clear(); o.KnownProxies.Clear();
-});
+// ... but only a configured proxy is believed (FLACIE_TRUSTED_PROXIES; by default loopback and private networks, never the public internet)
+builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(o => ProxyTrust.Configure(o, builder.Configuration));
+builder.Services.AddSingleton<LoginThrottle>();
 
 var app = builder.Build();
 // hosted by the Windows app: stop when that app does, so closing it never leaves a server running
@@ -83,12 +81,23 @@ if (int.TryParse(builder.Configuration["FLACIE_PARENT_PID"], out var parentPid))
         app.Lifetime.StopApplication();
     });
 }
+app.Use((ctx, next) => { ctx.Items["viaProxy"] = ProxyTrust.IsTrusted(ctx.Connection.RemoteIpAddress); return next(); });
 app.UseForwardedHeaders();
 // a Tailscale name (*.ts.net) is only ever reached over https (Tailscale ends the TLS itself and hands the request on as plain http, and a second proxy in between
-// may not pass that on), so redirects, cookies and links must say https
+// may not pass that on), so redirects, cookies and links must say https. Only when the request came through a configured proxy: the Host header alone proves nothing.
 app.Use((ctx, next) =>
 {
-    if (ctx.Request.Host.Host.EndsWith(".ts.net", StringComparison.OrdinalIgnoreCase)) ctx.Request.Scheme = "https";
+    if (ctx.Items["viaProxy"] is true && ctx.Request.Host.Host.EndsWith(".ts.net", StringComparison.OrdinalIgnoreCase)) ctx.Request.Scheme = "https";
+    return next();
+});
+app.Use((ctx, next) =>
+{
+    var h = ctx.Response.Headers;
+    h["X-Content-Type-Options"] = "nosniff";
+    h["Referrer-Policy"] = "same-origin";
+    h["X-Frame-Options"] = "SAMEORIGIN";
+    h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+    if (ctx.Request.IsHttps) h["Strict-Transport-Security"] = "max-age=15552000";
     return next();
 });
 if (!app.Environment.IsDevelopment()) app.UseExceptionHandler("/error", createScopeForErrors: true);
@@ -102,6 +111,7 @@ app.MapApi();
 // local diagnostics only (FLACIE_DEBUG=1): the signed-in user's own Jellyfin, GET or POST, so a session problem can be looked at directly
 if (builder.Configuration["FLACIE_DEBUG"] == "1")
 {
+    app.Logger.LogWarning("FLACIE_DEBUG=1: the /debug endpoints are on (loopback only). Never leave this on a server other people can reach.");
     // local testing only: sign the browser in as an account this server already remembers (it was approved through Quick Connect earlier)
     app.MapGet("/debug/login", async (HttpContext ctx, UserStateStore states) =>
     {

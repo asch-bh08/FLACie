@@ -1216,3 +1216,6 @@ main.content:has(.az-rail) .tracks { padding-right: 16px; }
 .sr-hero-text { flex: 1; min-width: 0; }
 .sr-hero { cursor: pointer; }
 .sr-hero a, .sr-hero button { cursor: pointer; }
+
+/* the bottom bar's popups (Devices) open upwards over the full-screen player: the bar must sit above it (the player stops where the bar starts, so nothing else changes) */
+.player { z-index: 36; }

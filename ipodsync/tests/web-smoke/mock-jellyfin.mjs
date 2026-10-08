@@ -52,6 +52,8 @@ http
     if (p === '/System/Info/Public') return json(res, 200, { ServerName: 'Mock Jellyfin', Version: '10.10.0', Id: 'mock' });
     if (p === '/Users/AuthenticateByName' && m === 'POST') {
       const b = JSON.parse((await readBody(req)) || '{}');
+      // 'revoked' signs in fine but its token is refused from then on (a token Jellyfin has dropped)
+      if (b.Username === 'revoked' && b.Pw === 'pw') return json(res, 200, { User: { ...me, Name: 'revoked' }, AccessToken: 'dead-token' });
       return b.Username === 'tester' && b.Pw === 'pw' ? json(res, 200, { User: me, AccessToken: 'mock-token' }) : json(res, 401, { error: 'bad' });
     }
     if (!(req.headers.authorization || '').includes('Token="mock-token"')) return json(res, 401, {});

@@ -1,6 +1,7 @@
 using FLACie.Core;
 using FLACie.Server;
 using FLACie.Server.Components;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 
@@ -18,6 +19,15 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     o.Cookie.SameSite = SameSiteMode.Lax;
     o.SlidingExpiration = true;
     o.ExpireTimeSpan = TimeSpan.FromDays(30);
+    // a cookie whose Jellyfin token Jellyfin has dropped is useless: sign it out, so the person lands on the sign-in page instead of an empty, non-admin page
+    o.Events.OnValidatePrincipal = async ctx =>
+    {
+        if (ctx.Principal is { } p && ctx.HttpContext.RequestServices.GetRequiredService<SessionStore>().IsDead(p))
+        {
+            ctx.RejectPrincipal();
+            await ctx.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        }
+    };
 });
 builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();

@@ -18,6 +18,11 @@ public sealed record Live(Connect Connect, Jam Jam);
 public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log, ImportManager imports, UserStateStore states, DataPaths paths)
 {
     readonly ConcurrentDictionary<string, UserSession> sessions = new();
+    /// <summary>Sign-in cookies whose Jellyfin token Jellyfin has refused (a hash of the token, when): such a browser is signed out instead of being left half signed in (no playlists, no admin).</summary>
+    readonly ConcurrentDictionary<string, DateTime> deadTokens = new();
+    static string TokenKey(ClaimsPrincipal p) => p.FindFirst("jf.token")?.Value is { Length: > 0 } t ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(t))) : "";
+    /// <summary>This cookie carries a Jellyfin token that Jellyfin refused while loading the account.</summary>
+    public bool IsDead(ClaimsPrincipal p) => TokenKey(p) is { Length: > 0 } k && deadTokens.TryGetValue(k, out var at) && DateTime.UtcNow - at < TimeSpan.FromHours(12);
     /// <summary>Every account with a session on this server right now.</summary>
     public IEnumerable<UserSession> Active => sessions.Values;
 
@@ -54,7 +59,7 @@ public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log, I
                 {
                     log.LogWarning(e, "Loading library failed");
                     // Jellyfin refused this sign-in (a token it has since dropped): do not keep the half-loaded session, or the next sign-in of the same user would reuse its dead token
-                    if (e is UnauthorizedAccessException) { sessions.TryRemove(new KeyValuePair<string, UserSession>(key, us)); if (live.TryGetValue(us, out var l)) { l.Connect.Dispose(); live.Remove(us); } }
+                    if (e is UnauthorizedAccessException) { if (TokenKey(p) is { Length: > 0 } dk) deadTokens[dk] = DateTime.UtcNow; sessions.TryRemove(new KeyValuePair<string, UserSession>(key, us)); if (live.TryGetValue(us, out var l)) { l.Connect.Dispose(); live.Remove(us); } }
                 }
                 imports.Resume(us);
             });

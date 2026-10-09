@@ -74,6 +74,9 @@
         var gotAt = new Dictionary<string, DateTime>();
         foreach (var d in everyoneLog.Where(x => x.Done && x.Title.Length > 0)) { var k = Matching.MatchKey(d.Title, d.Artist); if (!gotAt.TryGetValue(k, out var t) || d.FinishedAt > t) gotAt[k] = d.FinishedAt; }
         failed = all.Where(r => !r.Done && !(r.Title.Length > 0 && gotAt.TryGetValue(Matching.MatchKey(r.Title, r.Artist), out var t2) && t2 >= r.FinishedAt)).ToList();
+        // one row per song: the same song failing again and again (Autoplay and the daily charts keep asking) is one problem, so only its newest failure shows
+        var seenFail = new HashSet<string>();
+        failed = failed.OrderByDescending(r => r.FinishedAt).Where(r => r.Title.Length == 0 || seenFail.Add((everyone ? r.UserId + "|" : "") + Matching.MatchKey(r.Title, r.Artist))).ToList();
         soulseek = all.Where(r => r.Done && r.Source == "soulseek").ToList();
         lidarr = all.Where(r => r.Done && r.Source == "lidarr").ToList();
         open = all.Where(r => r.Done && r.Source is "ytdl" or "archive" or "audius" or "jamendo").ToList();

@@ -10,7 +10,7 @@ Beta 45 (Android 60, MSI 0.45.0). Still a beta, not a 1.0 final.
 - Signing in with Jellyfin now also connects the library (no trip to Settings > Music sources > "Use my account").
 
 **Downloads (web, Windows)**
-- When YouTube could not be asked because its service was unreachable, the failure says so ("YouTube was never asked (its service could not be reached); try again in a minute") instead of only "Not found".
+- When YouTube could not be asked because its service was unreachable, the failure says so ("YouTube was never asked : its service could not be reached; try again in a minute") instead of only "Not found".
 - New setting `FLACIE_SERVICE_ROUTES` (`public=>internal` pairs): this server reaches a download service on its own machine directly, so a problem with the public name (it was the DNS name of the Tailscale funnel) cannot stop downloads. The saved address, and so the phone, are unchanged.
 - Failed downloads have a **Retry** button each and a **Retry all** at the top of the Failed list (songs only, not whole albums).
 - In the queue, a small line under a song says "Downloading" or "Downloaded just now / today / this week" (and "Couldn't be downloaded") for songs Autoplay fetched; it now follows downloads as they change.

@@ -55,18 +55,33 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         using var finders = cfg.OpenReady ? OpenSources.Start(http, artist, title, (int)(durationMs / 1000), cfg.OpenCfg, TimeSpan.FromSeconds(25), ct) : null;
         if (cfg.SoulseekReady)
         {
-            if (await TrySoulseek(artist, title, album, artUrl, (int)(durationMs / 1000), on, ct)) return;
+            if (await Guard("Soulseek", "soulseek", on, ct, () => TrySoulseek(artist, title, album, artUrl, (int)(durationMs / 1000), on, ct))) return;
             on(new(DownloadStage.Searching, "Soulseek had nothing it could finish", "soulseek", null, true));
         }
         // Soulseek had nothing: the open sources in the user's order, then Lidarr
-        if (cfg.OpenReady && await TryOpen(finders, artist, title, album, artUrl, durationMs, on, ct)) return;
+        if (cfg.OpenReady && await Guard("The open sources", "archive", on, ct, () => TryOpen(finders, artist, title, album, artUrl, durationMs, on, ct))) return;
         if (!cfg.LidarrReady) { on(new(DownloadStage.Failed, cfg.SoulseekReady ? "Not found on Soulseek or the open sources" + Unreachable : cfg.OpenReady ? "Not found on the open sources" + Unreachable : "Downloads aren't set up (Settings > Downloads)")); return; }
-        if (!await new LidarrFlow(http, cfg).TryAsync(artist, title, album, on, ct)) on(new(DownloadStage.Failed, "Not found on Soulseek, the open sources or Lidarr" + Unreachable));
+        if (!await Guard("Lidarr", "lidarr", on, ct, () => new LidarrFlow(http, cfg).TryAsync(artist, title, album, on, ct))) on(new(DownloadStage.Failed, "Not found on Soulseek, the open sources or Lidarr" + Unreachable));
+    }
+
+    /// <summary>One source's turn. A source that errors or does not answer in time (a busy slskd, a service that is down) counts as "had nothing" and the next source
+    /// is tried, instead of the whole download failing on the spot with the error text. A real cancel still cancels.</summary>
+    async Task<bool> Guard(string name, string source, Action<DownloadStatus> on, CancellationToken ct, Func<Task<bool>> step)
+    {
+        try { return await step(); }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception e)
+        {
+            var timedOut = e is OperationCanceledException or TimeoutException;
+            on(new(DownloadStage.Searching, timedOut ? $"{name} did not answer in time" : $"{name} failed: {e.Message}", source, null, true));
+            if (timedOut || e is HttpRequestException) serviceDown ??= $"{name} could not be reached";
+            return false;
+        }
     }
 
     /// <summary>Set when the YouTube service (the file mover) could not be reached, so a failure says that rather than only "not found": it was not a real "no".</summary>
     string? serviceDown;
-    string Unreachable => serviceDown is null ? "" : $". YouTube was never asked ({serviceDown}); try again in a minute";
+    string Unreachable => serviceDown is null ? "" : $". {serviceDown}; try again in a minute";
 
     /// <summary>The open sources in the user's order: a finder that already found the song (or finds it within a few seconds more; Soulseek's own search
     /// has usually given them time) is downloaded from, yt-dlp runs its own search and download when its turn comes. False when none had it.</summary>
@@ -144,7 +159,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
                     }
                     catch (OperationCanceledException) when (!ct.IsCancellationRequested) { why = "YouTube took too long"; serviceDown = null; }
                     catch (OperationCanceledException) { throw; }
-                    catch (Exception e) { why = "YouTube service unreachable: " + e.Message; serviceDown = "its service could not be reached"; }
+                    catch (Exception e) { why = "YouTube service unreachable: " + e.Message; serviceDown = "YouTube was never asked: its service could not be reached"; }
                     await Task.Delay(3_000, ct);
                 }
             }

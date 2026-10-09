@@ -142,6 +142,8 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
 
     // ---- trying a failed download again ----
 
+    static readonly SemaphoreSlim RetryTurn = new(3);
+
     /// <summary>True when this failed record can be asked for again (a song: a whole album can't be rebuilt from the log).</summary>
     public static bool CanRetry(DownloadRecord r) => !r.Done && !r.IsAlbum && r.Title.Length > 0 && r.Artist.Length > 0;
 
@@ -151,7 +153,13 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
         if (!CanRetry(r) || JobFor(s, r.Artist, r.Title) is { Finished: false }) return false;
         var j = For(s); lock (j.Failed) j.Failed.Remove(Key(r.Artist, r.Title));
         var job = Add(s, r.Label, r.ArtUrl, r.Kind == "Autoplay" ? "Autoplay" : "Search", r.Artist, r.Title, r.Album, r.DurationMs);
-        Run(s, job, (c, on) => c.DownloadAsync(r.Artist, r.Title, r.Album, r.ArtUrl, r.DurationMs, on));
+        Run(s, job, async (c, on) =>
+        {
+            // Retry all can start dozens at once; slskd and the file mover time out when asked for that much together, so they go through three at a time
+            on(new(DownloadStage.Requested, "Waiting for its turn..."));
+            await RetryTurn.WaitAsync();
+            try { await c.DownloadAsync(r.Artist, r.Title, r.Album, r.ArtUrl, r.DurationMs, on); } finally { RetryTurn.Release(); }
+        });
         return true;
     }
 

@@ -1248,3 +1248,42 @@ main.content:has(.az-rail) .tracks { padding-right: 16px; }
 .hp #hp-num { width: 96px; min-height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); padding: 0 10px; font-size: 16px; }
 .hp-3d { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
 .hp-safe { border-left: 4px solid var(--accent); }
+
+/* headphone test, clearer layout: a sticky level / stop bar, tabs, and one row per test with a play button and what to listen for */
+.hp-how ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--dim); }
+.hp-how b { color: var(--ink); }
+.hp-bar { position: sticky; top: 70px; z-index: 20; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 16px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); box-shadow: 0 6px 20px #0006; }
+.hp-bar .hp-level { display: flex; align-items: center; gap: 10px; font-weight: 600; flex: 1 1 260px; }
+.hp-bar .hp-level input { flex: 1; min-width: 100px; accent-color: var(--accent); }
+.hp-bar #hp-level-label { min-width: 52px; font-variant-numeric: tabular-nums; color: var(--dim); }
+.hp-stop { background: #ff4f4f33; border-color: #ff4f4f77; font-weight: 700; }
+.hp-bar #hp-status { flex: 1 1 100%; font-size: 14px; color: var(--ink); }
+.hp-small { font-size: 12px; margin: 0; }
+.hp-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.hp-tabs button { border: 1px solid var(--line); background: var(--surface-2); color: var(--dim); font: inherit; font-weight: 650; padding: 9px 16px; border-radius: 999px; cursor: pointer; }
+.hp-tabs button[aria-selected="true"] { background: var(--accent); border-color: transparent; color: #fff; }
+.hp [data-panel][hidden] { display: none; }
+.hp-test { display: flex; gap: 14px; align-items: center; padding: 12px 6px; border-top: 1px solid var(--line); border-radius: 10px; }
+.hp-test:first-of-type { border-top: 0; }
+.hp-test b { display: block; font-size: 15.5px; }
+.hp-test span { display: block; color: var(--dim); font-size: 13.5px; margin-top: 2px; line-height: 1.35; }
+.hp-test.playing { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.hp-play { flex: none; width: 46px; height: 46px; border-radius: 50%; border: 0; background: var(--surface-2); color: var(--ink); font-size: 17px; cursor: pointer; display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--line); }
+.hp-play::before { content: "\25B6"; margin-left: 2px; }
+.hp-play[data-on] { background: var(--accent); color: #fff; box-shadow: none; }
+.hp-play[data-on]::before { content: "\25A0"; margin-left: 0; }
+.hp-readout { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin: 4px 0 2px; }
+.hp-zone { color: var(--dim); font-size: 14px; flex: 1 1 260px; }
+.hp-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--dim); margin: 0 2px 6px; }
+.hp-tests { flex: 1 1 320px; }
+.hp-steps { color: var(--dim); display: grid; gap: 6px; padding-left: 20px; }
+@media (max-width: 640px) { .hp-bar { top: 58px; } .hp-tabs button { padding: 8px 12px; font-size: 13.5px; } }
+/* the headphone test's sliders: always show the knob and how far they are set */
+.hp input[type=range] { height: 28px; }
+.hp input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 6px; background: linear-gradient(to right, var(--accent) var(--fill, 50%), var(--surface-3) var(--fill, 50%)); }
+.hp input[type=range]::-moz-range-track { height: 6px; border-radius: 6px; background: var(--surface-3); }
+.hp input[type=range]::-moz-range-progress { height: 6px; border-radius: 6px; background: var(--accent); }
+.hp input[type=range]::-webkit-slider-thumb { opacity: 1; width: 22px; height: 22px; margin-top: -8px; background: #fff; box-shadow: 0 1px 6px #0008; }
+.hp input[type=range]::-moz-range-thumb { opacity: 1; width: 22px; height: 22px; background: #fff; box-shadow: 0 1px 6px #0008; }
+.hp input[type=range]:hover::-webkit-slider-runnable-track { background: linear-gradient(to right, var(--accent) var(--fill, 50%), var(--surface-3) var(--fill, 50%)); }
+.hp-scale { margin-top: -2px; }

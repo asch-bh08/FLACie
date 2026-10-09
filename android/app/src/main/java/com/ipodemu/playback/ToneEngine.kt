@@ -76,7 +76,7 @@ class ToneEngine {
     // ---- the audio thread ----
 
     private fun run(mode: Mode) {
-        val sr = 48000
+        val sr = 96000   // so tones up to 44 kHz can exist; the phone's output may still cut them lower
         val frames = 1024
         val buf = ShortArray(frames * 2)
         val track = AudioTrack.Builder()
@@ -152,11 +152,11 @@ class ToneEngine {
                 is Mode.Tone -> {
                     val f = if (e.liveHz > 0) e.liveHz else mode.hz
                     hz = f; status = "${fmtHz(f)} ${mode.wave.name.lowercase()}"
-                    phase += f / sr; place(wave(mode.wave, phase), mode.chan)
+                    phase += f / sr; place(wave(mode.wave, phase) * safe(f), mode.chan)
                 }
                 is Mode.Sweep -> {
                     val p = min(1.0, t / mode.secs); val f = mode.from * (mode.to / mode.from).pow(p)
-                    hz = f; status = "Sweep ${fmtHz(f)}"; phase += f / sr; place(sin(2 * PI * phase).toFloat(), mode.chan)
+                    hz = f; status = "Sweep ${fmtHz(f)}"; phase += f / sr; place(sin(2 * PI * phase).toFloat() * safe(f), mode.chan)
                     if (p >= 1.0) finished = true
                 }
                 is Mode.Steps -> {
@@ -164,7 +164,7 @@ class ToneEngine {
                     val f = mode.list[idx]; val tt = t - idx * 2.2
                     val a = (min(1.0, tt / 0.05) * min(1.0, max(0.0, (1.95 - tt) / 0.25))).toFloat().coerceAtLeast(0f)
                     hz = f; status = "${fmtHz(f)}  (${idx + 1} of ${mode.list.size}): do you hear it, and is it steady?"
-                    phase += f / sr; place(sin(2 * PI * phase).toFloat() * a, mode.chan)
+                    phase += f / sr; place(sin(2 * PI * phase).toFloat() * a * safe(f), mode.chan)
                 }
                 is Mode.Noise -> { status = if (mode.pink) "Pink noise" else "White noise"; place(if (mode.pink) pink() else white() * 0.6f, mode.chan) }
                 Mode.Alternate -> {
@@ -226,12 +226,28 @@ class ToneEngine {
             n++
         }
 
+        /** Tones below 20 Hz move the driver a long way, so they are kept quieter. */
+        private fun safe(f: Double) = if (f < 20.0) 0.35f else 1f
         private fun fmtHz(f: Double) = if (f >= 1000) "%.2f kHz".format(f / 1000).replace(Regex("\\.?0+ kHz"), " kHz") else if (f < 100) "%.1f Hz".format(f).replace(".0 Hz", " Hz") else "${f.toInt()} Hz"
     }
 
     companion object {
-        /** Slider position 0..1 to Hz (log scale, 20 Hz to 20 kHz) and back. */
-        fun hzOf(p: Float): Double = 20.0 * 1000.0.pow(p.toDouble())
-        fun posOf(hz: Double): Float = (ln(hz / 20.0) / ln(1000.0)).toFloat().coerceIn(0f, 1f)
+        const val MIN_HZ = 1.0
+        const val MAX_HZ = 44000.0
+        /** Slider position 0..1 to Hz (log scale, 1 Hz to 44 kHz) and back. */
+        fun hzOf(p: Float): Double = MIN_HZ * (MAX_HZ / MIN_HZ).pow(p.toDouble())
+        fun posOf(hz: Double): Float = (ln(hz.coerceIn(MIN_HZ, MAX_HZ) / MIN_HZ) / ln(MAX_HZ / MIN_HZ)).toFloat().coerceIn(0f, 1f)
+        /** What a frequency is, in words. */
+        fun zoneOf(f: Double): String = when {
+            f < 20 -> "Infrasound: felt at best, not heard. Most headphones cannot make it; kept quieter to protect the drivers"
+            f < 60 -> "Sub-bass: the deep rumble under the kick drum"
+            f < 250 -> "Bass: kick drum and bass guitar"
+            f < 500 -> "Low mids: warmth, the body of voices"
+            f < 2000 -> "Mids: voices and most instruments"
+            f < 4000 -> "Upper mids: presence and edge of voices"
+            f < 8000 -> "Presence and sibilance: “s” sounds, cymbal bite"
+            f <= 20000 -> "Treble and air: sparkle, the top of cymbals"
+            else -> "Ultrasonic: above human hearing. Nobody hears it; it only shows what your device can output"
+        }
     }
 }

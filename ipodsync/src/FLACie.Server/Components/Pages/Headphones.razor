@@ -4,84 +4,88 @@
 @inject IJSRuntime Js
 <PageTitle>Headphone test · FLACie</PageTitle>
 <header class="page-head"><h1>Headphone test</h1></header>
-<p class="hint">Test tones made in your browser: left and right, bass, treble, clarity, a frequency slider and a 3D check. Any music stops while you test. Nothing is recorded or sent anywhere.</p>
 
 <div id="hp-root" class="hp">
-    <section class="panel wide hp-safe">
-        <h2>Start quiet</h2>
-        <p class="hint">Test tones are much more tiring than music, and an amplifier (such as one for 250 Ω headphones) makes it easy to go too loud. Put your amp low, set this slider low, press a test, and raise the level slowly. <b>Escape</b> or the Stop button ends any test.</p>
-        <label class="hp-row">Test level <input id="hp-level" type="range" min="0" max="100" value="12" aria-label="Test level" /> <output id="hp-level-label">-46 dB</output></label>
-        <div class="hp-now"><button class="btn" data-act="stop">Stop</button><span id="hp-status" role="status" aria-live="polite">Ready</span></div>
-        <canvas id="hp-scope" class="hp-scope" aria-label="Live spectrum of the test sound"></canvas>
+    <section class="panel wide hp-how">
+        <ol>
+            <li><b>Start quiet.</b> Turn your amp down and the Test level below to low. Test tones are tiring and an amp makes them easy to overdo.</li>
+            <li><b>Pick a test</b> from the tabs and press its ▶ button. Press it again (or <b>Stop</b>) to end it.</li>
+            <li><b>Raise the level slowly</b> until it is comfortable. Music stops while you test; nothing is sent anywhere.</li>
+        </ol>
     </section>
 
-    <section class="panel wide">
-        <h2>Left and right</h2>
-        <p class="hint">Each side should be clear and equally loud, with nothing coming from the other ear. If you hear it in the wrong ear, the cable or the channel setting is reversed.</p>
-        <div class="hp-btns">
-            <button class="btn" data-act="side" data-side="L">Left only</button>
-            <button class="btn" data-act="side" data-side="R">Right only</button>
-            <button class="btn" data-act="side" data-side="LR">Both</button>
-            <button class="btn" data-act="side" data-side="alt">Alternate left / right</button>
-        </div>
+    <div class="hp-bar">
+        <label class="hp-level">Test level <input id="hp-level" type="range" min="0" max="100" value="12" aria-label="Test level" /> <output id="hp-level-label">-46 dB</output></label>
+        <button class="btn hp-stop" data-act="stop">■ Stop</button>
+        <span id="hp-status" role="status" aria-live="polite">Ready: pick a test</span>
+    </div>
+    <canvas id="hp-scope" class="hp-scope" aria-label="Live spectrum of the test sound"></canvas>
+    <p id="hp-rate" class="hint hp-small"></p>
+
+    <nav class="hp-tabs" role="tablist" aria-label="Tests">
+        <button role="tab" aria-selected="true" data-act="tab" data-to="lr">1 · Left / right</button>
+        <button role="tab" aria-selected="false" data-act="tab" data-to="tone">2 · Tone generator</button>
+        <button role="tab" aria-selected="false" data-act="tab" data-to="bass">3 · Bass</button>
+        <button role="tab" aria-selected="false" data-act="tab" data-to="treble">4 · Treble &amp; clarity</button>
+        <button role="tab" aria-selected="false" data-act="tab" data-to="space">5 · 3D &amp; phase</button>
+        <button role="tab" aria-selected="false" data-act="tab" data-to="amp">Amp tips</button>
+    </nav>
+
+    <section class="panel wide" data-panel="lr">
+        <p class="hint">Checks each side on its own. Each should be clear, equally loud, and silent in the other ear. If it comes from the wrong side, the cable or channel setting is swapped.</p>
+        <div class="hp-test"><button class="hp-play" data-act="side" data-side="L" aria-label="Play left ear only"></button><div><b>Left ear only</b><span>A steady tone in the left ear, nothing in the right.</span></div></div>
+        <div class="hp-test"><button class="hp-play" data-act="side" data-side="R" aria-label="Play right ear only"></button><div><b>Right ear only</b><span>A steady tone in the right ear, nothing in the left.</span></div></div>
+        <div class="hp-test"><button class="hp-play" data-act="side" data-side="LR" aria-label="Play both ears"></button><div><b>Both ears</b><span>The tone should sit in the middle of your head, not to one side.</span></div></div>
+        <div class="hp-test"><button class="hp-play" data-act="side" data-side="alt" aria-label="Play alternating"></button><div><b>Alternate left / right</b><span>Jumps between ears every second at the same loudness: a quick way to hear a volume imbalance.</span></div></div>
     </section>
 
-    <section class="panel wide">
-        <h2>Frequency slider</h2>
-        <p class="hint">Play one steady tone and move the slider. Under about 40 Hz you feel it more than hear it; above about 16 kHz many adult ears fade out. Which ear:
-            <label class="hp-chip"><input type="radio" name="hp-chan" value="L" /> Left</label>
-            <label class="hp-chip"><input type="radio" name="hp-chan" value="LR" checked /> Both</label>
-            <label class="hp-chip"><input type="radio" name="hp-chan" value="R" /> Right</label>
-            <select id="hp-wave" aria-label="Wave shape"><option value="sine">Sine</option><option value="triangle">Triangle</option><option value="square">Square</option><option value="sawtooth">Saw</option></select>
-        </p>
-        <div class="hp-hz"><output id="hp-hz-label" class="hp-big">1 kHz</output></div>
-        <input id="hp-hz" class="hp-wide" type="range" min="0" max="1000" step="1" value="500" aria-label="Frequency, 20 Hz to 20 kHz" />
+    <section class="panel wide" data-panel="tone" hidden>
+        <p class="hint">One steady tone you control. Move the slider while it plays. 1 Hz to 44 kHz, spread evenly by pitch.</p>
+        <div class="hp-readout"><output id="hp-hz-label" class="hp-big">1 kHz</output><span id="hp-zone" class="hp-zone"></span></div>
+        <input id="hp-hz" class="hp-wide" type="range" min="0" max="1000" step="1" value="500" aria-label="Frequency, 1 Hz to 44 kHz" />
+        <div class="hp-scale" aria-hidden="true"><span>1 Hz</span><span>20</span><span>100</span><span>1 k</span><span>10 k</span><span>44 kHz</span></div>
         <div class="hp-btns">
-            <input id="hp-num" type="number" min="5" max="20000" step="1" value="1000" aria-label="Frequency in Hz" /> <span class="hint">Hz</span>
-            <button class="btn" data-act="tone">Play tone</button>
-            <button class="btn ghost" data-act="preset" data-hz="40">40</button>
-            <button class="btn ghost" data-act="preset" data-hz="100">100</button>
-            <button class="btn ghost" data-act="preset" data-hz="440">440</button>
-            <button class="btn ghost" data-act="preset" data-hz="1000">1k</button>
-            <button class="btn ghost" data-act="preset" data-hz="4000">4k</button>
-            <button class="btn ghost" data-act="preset" data-hz="8000">8k</button>
-            <button class="btn ghost" data-act="preset" data-hz="12000">12k</button>
-            <button class="btn ghost" data-act="preset" data-hz="16000">16k</button>
+            <input id="hp-num" type="number" min="1" max="44000" step="1" value="1000" aria-label="Frequency in Hz" /> <span class="hint">Hz</span>
+            <button class="btn ghost" data-act="nudge" data-add="-1" aria-label="1 Hz lower">−1</button>
+            <button class="btn ghost" data-act="nudge" data-add="1" aria-label="1 Hz higher">+1</button>
+            <button class="btn ghost" data-act="nudge" data-mul="0.5" aria-label="One octave lower">½×</button>
+            <button class="btn ghost" data-act="nudge" data-mul="2" aria-label="One octave higher">2×</button>
         </div>
-        <div class="hp-btns">
-            <button class="btn" data-act="sweep" data-from="20" data-to="20000" data-secs="30">Full sweep 20 Hz – 20 kHz</button>
-            <button class="btn" data-act="sweep" data-from="20" data-to="200" data-secs="14">Bass sweep</button>
-            <button class="btn" data-act="sweep" data-from="2000" data-to="20000" data-secs="16">Treble sweep</button>
+        <div class="hp-btns"><span class="hint">Jump to</span>
+            <button class="btn ghost" data-act="preset" data-hz="5">5</button><button class="btn ghost" data-act="preset" data-hz="20">20</button><button class="btn ghost" data-act="preset" data-hz="40">40</button><button class="btn ghost" data-act="preset" data-hz="100">100</button><button class="btn ghost" data-act="preset" data-hz="440">440</button><button class="btn ghost" data-act="preset" data-hz="1000">1k</button><button class="btn ghost" data-act="preset" data-hz="4000">4k</button><button class="btn ghost" data-act="preset" data-hz="8000">8k</button><button class="btn ghost" data-act="preset" data-hz="12000">12k</button><button class="btn ghost" data-act="preset" data-hz="16000">16k</button><button class="btn ghost" data-act="preset" data-hz="20000">20k</button><button class="btn ghost" data-act="preset" data-hz="30000">30k</button>
         </div>
+        <div class="hp-btns"><span class="hint">Ear</span>
+            <label class="hp-chip"><input type="radio" name="hp-chan" value="L" /> Left</label><label class="hp-chip"><input type="radio" name="hp-chan" value="LR" checked /> Both</label><label class="hp-chip"><input type="radio" name="hp-chan" value="R" /> Right</label>
+            <span class="hint">Shape</span>
+            <select id="hp-wave" aria-label="Wave shape"><option value="sine">Sine (pure)</option><option value="triangle">Triangle</option><option value="square">Square (harsh)</option><option value="sawtooth">Saw (buzzy)</option></select>
+        </div>
+        <div class="hp-test"><button class="hp-play" data-act="tone" aria-label="Play the tone"></button><div><b>Play this tone</b><span>Plays the frequency above until you stop it.</span></div></div>
+        <div class="hp-test"><button class="hp-play" data-act="sweep" data-from="20" data-to="20000" data-secs="30" aria-label="Play the full sweep"></button><div><b>Full sweep, 20 Hz → 20 kHz (30 s)</b><span>Glides up through everything you can hear. Note where it appears, where it gets quiet, and where it vanishes. Listen for buzzing or dips.</span></div></div>
+        <div class="hp-test"><button class="hp-play" data-act="sweep" data-from="1" data-to="100" data-secs="25" aria-label="Play the deep bass sweep"></button><div><b>Deep bass sweep, 1 → 100 Hz (25 s)</b><span>Starts below hearing. You will feel it before you hear it; note where the tone first becomes audible.</span></div></div>
+        <div class="hp-test"><button class="hp-play" data-act="sweep" data-from="2000" data-to="44000" data-secs="22" aria-label="Play the treble sweep"></button><div><b>Treble sweep, 2 kHz → 44 kHz (22 s)</b><span>Note where it stops being audible (for most adults somewhere 14–20 kHz). The rest is above hearing and only shows what your device can output.</span></div></div>
     </section>
 
-    <section class="panel wide">
-        <h2>Bass test</h2>
-        <p class="hint">Steps from the lowest notes up. A good set plays 40 Hz clearly and 30 Hz faintly; the low steps should be smooth, not rattling or dropping out. The kick drum shows punch: tight and deep, then silent, not boomy.</p>
-        <div class="hp-btns">
-            <button class="btn" data-act="steps" data-list="20,25,31,40,50,63,80,100,125">Bass steps 20 – 125 Hz</button>
-            <button class="btn" data-act="kick">Kick drum loop</button>
-        </div>
+    <section class="panel wide" data-panel="bass" hidden>
+        <p class="hint">How low and how clean the bass goes. A good pair plays 40 Hz clearly and 30 Hz faintly, steady and not rattling. Below 20 Hz is mostly felt, if at all.</p>
+        <div class="hp-test"><button class="hp-play" data-act="steps" data-list="5,10,15,20,25,31,40,50,63,80,100,125" aria-label="Play bass steps"></button><div><b>Bass steps, 5 → 125 Hz</b><span>Twelve notes, two seconds each, climbing. The screen shows each one. Note the lowest one you hear.</span></div></div>
+        <div class="hp-test"><button class="hp-play" data-act="kick" aria-label="Play the kick drum"></button><div><b>Kick drum loop</b><span>Should thump deep, then stop cleanly. Boomy or lingering means loose bass; a thin click with no weight means weak bass.</span></div></div>
+        <div class="hp-test"><button class="hp-play" data-act="sweep" data-from="1" data-to="200" data-secs="30" aria-label="Play the bass sweep"></button><div><b>Bass sweep, 1 → 200 Hz (30 s)</b><span>Watch the Hz on screen and note where it first becomes audible and whether the volume stays even or has dips and bumps.</span></div></div>
+        <div class="hp-test"><button class="hp-play" data-act="noise" data-kind="pink" aria-label="Play pink noise"></button><div><b>Pink noise</b><span>Balanced across the range. It should sound smooth, like steady rain, with no part sticking out.</span></div></div>
     </section>
 
-    <section class="panel wide">
-        <h2>Treble and clarity</h2>
-        <p class="hint">High steps show how far up you hear. Clicks, hi-hats and the “sss” show detail and sharpness: crisp and clean is good; dull means rolled off, painful or splashy means a harsh peak. Two close tones should wobble slowly if the headphones keep them apart cleanly.</p>
-        <div class="hp-btns">
-            <button class="btn" data-act="steps" data-list="4000,6000,8000,10000,12000,14000,16000,18000,20000">Treble steps 4 – 20 kHz</button>
-            <button class="btn" data-act="clicks">Clicks</button>
-            <button class="btn" data-act="hat">Hi-hat</button>
-            <button class="btn" data-act="sss">“sss” sibilance</button>
-            <button class="btn" data-act="close" data-diff="4">Two close tones (4 Hz apart)</button>
-            <button class="btn" data-act="close" data-diff="12">(12 Hz apart)</button>
-            <button class="btn" data-act="noise" data-kind="pink">Pink noise (smooth balance)</button>
-            <button class="btn" data-act="noise" data-kind="white">White noise (bright)</button>
-        </div>
+    <section class="panel wide" data-panel="treble" hidden>
+        <p class="hint">Top-end detail. Crisp and clean is good, dull means rolled-off treble, and painful or splashy means a harsh peak.</p>
+        <div class="hp-test"><button class="hp-play" data-act="steps" data-list="4000,6000,8000,10000,12000,14000,16000,18000,20000,22000" aria-label="Play treble steps"></button><div><b>Treble steps, 4 → 22 kHz</b><span>Ten notes, two seconds each. The last ones are very high: note the highest you hear.</span></div></div>
+        <div class="hp-test"><button class="hp-play" data-act="clicks" aria-label="Play clicks"></button><div><b>Clicks</b><span>Each should be one crisp tick. Ringing or a smeared tail means poor transient response.</span></div></div>
+        <div class="hp-test"><button class="hp-play" data-act="hat" aria-label="Play hi-hat"></button><div><b>Hi-hat</b><span>A short tick and a longer open hat, each with a clear edge, not a hiss.</span></div></div>
+        <div class="hp-test"><button class="hp-play" data-act="sss" aria-label="Play sibilance"></button><div><b>“sss” sibilance</b><span>Bright and clear is good. Piercing or painful means a harsh peak around 6–9 kHz.</span></div></div>
+        <div class="hp-test"><button class="hp-play" data-act="close" data-diff="4" aria-label="Play two close tones, 4 hertz apart"></button><div><b>Two close tones (4 Hz apart)</b><span>1000 Hz and 1004 Hz together: a slow wobble, four beats a second.</span></div></div>
+        <div class="hp-test"><button class="hp-play" data-act="close" data-diff="12" aria-label="Play two close tones, 12 hertz apart"></button><div><b>Two close tones (12 Hz apart)</b><span>A faster flutter. If it is smooth in both, the tones are being kept apart cleanly.</span></div></div>
+        <div class="hp-test"><button class="hp-play" data-act="noise" data-kind="white" aria-label="Play white noise"></button><div><b>White noise</b><span>Bright hiss. Gives a quick feel for how much high-frequency energy there is.</span></div></div>
     </section>
 
-    <section class="panel wide">
-        <h2>3D and stereo image</h2>
-        <p class="hint">With headphones on, a sound should move around you, not just between your ears. Front and behind are the hardest to tell apart; that depends a lot on your own ears. The phase test should sound centred in your head, then wide and hollow.</p>
+    <section class="panel wide" data-panel="space" hidden>
+        <p class="hint">With headphones on, a sound should move around you, not just between your ears. Front and behind are the hardest to tell apart and depend a lot on your own ears.</p>
         <div class="hp-3d">
             <svg viewBox="0 0 120 120" width="150" height="150" role="img" aria-label="Where the sound is, seen from above">
                 <circle cx="60" cy="60" r="44" fill="none" stroke="#ffffff22" /><circle cx="60" cy="60" r="16" fill="#ffffff14" stroke="#ffffff55" />
@@ -89,20 +93,26 @@
                 <text x="60" y="116" fill="#ffffff77" font-size="9" text-anchor="middle">behind</text><text x="6" y="63" fill="#ffffff77" font-size="9">L</text><text x="108" y="63" fill="#ffffff77" font-size="9">R</text>
                 <circle id="hp-dot" cx="60" cy="16" r="6" fill="#ff4f7b" opacity="0" />
             </svg>
-            <div class="hp-btns">
-                <button class="btn" data-act="spin" data-path="circle" data-secs="10">Circle around me</button>
-                <button class="btn" data-act="spin" data-path="lr" data-secs="6">Left ↔ right in front</button>
-                <button class="btn" data-act="spin" data-path="fb" data-secs="8">Front ↔ back</button>
-                <button class="btn" data-act="spin" data-path="ud" data-secs="8">Low ↔ high</button>
-                <button class="btn" data-act="phase" data-mode="in">Phase: in phase</button>
-                <button class="btn" data-act="phase" data-mode="out">Phase: out of phase</button>
+            <div class="hp-tests">
+                <div class="hp-test"><button class="hp-play" data-act="spin" data-path="circle" data-secs="10" aria-label="Play circle around me"></button><div><b>Circle around me</b><span>Goes round your head clockwise from the front. The dot shows where.</span></div></div>
+                <div class="hp-test"><button class="hp-play" data-act="spin" data-path="lr" data-secs="6" aria-label="Play left to right"></button><div><b>Left ↔ right in front</b><span>Sweeps across the front. It should stay out in front, not drop inside your head.</span></div></div>
+                <div class="hp-test"><button class="hp-play" data-act="spin" data-path="fb" data-secs="8" aria-label="Play front to back"></button><div><b>Front ↔ back</b><span>From in front, over the top, to behind you and back.</span></div></div>
+                <div class="hp-test"><button class="hp-play" data-act="spin" data-path="ud" data-secs="8" aria-label="Play low to high"></button><div><b>Low ↔ high</b><span>Rises and falls in front of you. The hardest one; many people only hear it get brighter.</span></div></div>
             </div>
         </div>
+        <div class="hp-test"><button class="hp-play" data-act="phase" data-mode="in" aria-label="Play in phase"></button><div><b>Phase: in phase</b><span>Same noise in both ears. It should sit in the centre of your head.</span></div></div>
+        <div class="hp-test"><button class="hp-play" data-act="phase" data-mode="out" aria-label="Play out of phase"></button><div><b>Phase: out of phase</b><span>One ear flipped. It should sound wide and hollow, outside the centre. If both sound the same, check the wiring or any “mono” setting.</span></div></div>
     </section>
 
-    <section class="panel wide">
+    <section class="panel wide" data-panel="amp" hidden>
         <h2>Using an amp with 250 Ω headphones</h2>
-        <p class="hint">High-impedance headphones (250 Ω, like the DT 990 Pro) need more voltage than a phone or laptop gives, so they sound quiet and thin without an amp. With the amp: start the gain on low, run the 1 kHz tone, and raise the amp volume until the test level here sounds comfortable at about the loudness you like for music, then leave the amp there and use this site's volume. Compare the bass steps and treble steps before and after to hear what the amp changed.</p>
+        <p class="hint">High-impedance headphones (250 Ω, like the DT 990 Pro) need more voltage than a phone or laptop gives, so they sound quiet and thin without an amp.</p>
+        <ol class="hp-steps">
+            <li>Set the amp's gain low, play “Both ears” on tab 1, and raise the amp until the test level here is comfortable, at about the loudness you like for music.</li>
+            <li>Leave the amp there and use this site's volume from now on.</li>
+            <li>Run the bass steps and treble steps before and after the amp to hear what it changed.</li>
+            <li>The tones below 20 Hz are kept quieter on purpose: they move the driver a long way, so do not turn them up loud.</li>
+        </ol>
     </section>
 </div>
 

@@ -5,14 +5,23 @@ window.hp = (() => {
   let ctx = null, master = null, analyser = null, root = null, running = [], timers = [], raf = 0, level = 0.12;
   let chan = "LR", wave = "sine", hz = 1000;
   const $ = (sel) => root && root.querySelector(sel);
-  const logHz = (v) => 20 * Math.pow(1000, v / 1000);                 // slider 0..1000 -> 20 Hz..20 kHz
-  const sliderOf = (f) => Math.round(1000 * Math.log(f / 20) / Math.log(1000));
+  const fillOf = (el) => { if (el) el.style.setProperty("--fill", ((el.value - el.min) / (el.max - el.min) * 100) + "%"); };
+  const MIN_HZ = 1, MAX_HZ = 44000;                                     // the slider's whole range: below hearing up to above it
+  const logHz = (v) => MIN_HZ * Math.pow(MAX_HZ / MIN_HZ, v / 1000);    // slider 0..1000 -> 1 Hz..44 kHz
+  const sliderOf = (f) => Math.round(1000 * Math.log(Math.max(MIN_HZ, f) / MIN_HZ) / Math.log(MAX_HZ / MIN_HZ));
+  const zoneOf = (f) => f < 20 ? "Infrasound: felt as pressure at best, not heard. Most headphones cannot make it; kept quieter to protect the drivers"
+    : f < 60 ? "Sub-bass: the deep rumble under the kick drum" : f < 250 ? "Bass: kick drum and bass guitar" : f < 500 ? "Low mids: warmth, the body of voices"
+    : f < 2000 ? "Mids: voices and most instruments" : f < 4000 ? "Upper mids: presence and edge of voices" : f < 8000 ? "Presence and sibilance: “s” sounds, cymbal bite"
+    : f <= 20000 ? "Treble and air: sparkle, the top of cymbals" : "Ultrasonic: above human hearing. Nobody hears it; it only shows what your device can output";
   const gainOf = (l) => Math.pow(l, 2) * 0.35;                         // 0..1 slider -> a gentle curve, never above 0.35
   const fmt = (f) => (f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 1 : 2).replace(/\.?0+$/, "") + " kHz" : (f < 100 ? f.toFixed(1).replace(/\.0$/, "") : Math.round(f)) + " Hz");
 
   function audio() {
     if (!ctx) {
-      ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      // 96 kHz when the browser allows it, so tones up to 44 kHz can exist; the sound card may still cut them lower
+      try { ctx = new Ctx({ latencyHint: "interactive", sampleRate: 96000 }); } catch { ctx = new Ctx({ latencyHint: "interactive" }); }
+      const r = document.getElementById("hp-rate"); if (r) r.textContent = `Output ${ctx.sampleRate / 1000} kHz: tones above ${Math.round(ctx.sampleRate / 2000)} kHz cannot exist, and your sound card may cut off lower than that.`;
       master = ctx.createGain(); master.gain.value = gainOf(level);
       analyser = ctx.createAnalyser(); analyser.fftSize = 4096; analyser.smoothingTimeConstant = 0.8;
       master.connect(analyser); analyser.connect(ctx.destination);
@@ -40,7 +49,7 @@ window.hp = (() => {
     timers.forEach((id) => { clearInterval(id); clearTimeout(id); }); timers = [];
     running.forEach((n) => { try { if (n.gain) { n.gain.cancelScheduledValues(t); n.gain.setValueAtTime(n.gain.value, t); n.gain.linearRampToValueAtTime(0, t + 0.06); } if (n.stop) n.stop(t + 0.08); else setTimeout(() => { try { n.disconnect(); } catch { } }, 150); } catch { } });
     running = [];
-    setMarker(null); status("Stopped"); document.querySelectorAll("[data-on]").forEach((b) => b.removeAttribute("data-on"));
+    setMarker(null); status("Stopped"); document.querySelectorAll("[data-on]").forEach((b) => b.removeAttribute("data-on")); document.querySelectorAll(".hp-test.playing").forEach((r) => r.classList.remove("playing"));
     const dot = $("#hp-dot"); if (dot) dot.setAttribute("opacity", "0");
   }
 
@@ -49,7 +58,11 @@ window.hp = (() => {
   let marker = null;
 
   // ---- sources ----
-  function osc(f, type, side) { const c = audio(), o = c.createOscillator(); o.type = type; o.frequency.value = f; const env = out(side); o.connect(env); o.start(); track(o); track(env); return o; }
+  const trimOf = (f) => (f < 20 ? 0.35 : 1);
+  function osc(f, type, side) {
+    const c = audio(), o = c.createOscillator(); o.type = type; o.frequency.value = f; const env = out(side);
+    const trim = c.createGain(); trim.gain.value = trimOf(f); o.connect(trim); trim.connect(env); o._trim = trim; o.start(); track(o); track(env); return o;
+  }
   function noiseBuf(kind) {
     const c = audio(), len = c.sampleRate * 4, b = c.createBuffer(1, len, c.sampleRate), d = b.getChannelData(0);
     if (kind === "white") for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
@@ -77,6 +90,11 @@ window.hp = (() => {
       stop(); btn.dataset.on = "1"; const o = osc(hz, wave, chan); live = o; status(fmt(hz) + " " + wave); setMarker(hz);
     },
     preset(btn) { setHz(+btn.dataset.hz); },
+    nudge(btn) { setHz(hz * (+btn.dataset.mul || 1) + (+btn.dataset.add || 0)); },
+    tab(btn) {
+      root.querySelectorAll("[data-act=tab]").forEach((b) => b.setAttribute("aria-selected", b === btn ? "true" : "false"));
+      root.querySelectorAll("[data-panel]").forEach((p) => { p.hidden = p.dataset.panel !== btn.dataset.to; });
+    },
     sweep(btn) {
       stop(); btn.dataset.on = "1";
       const from = +btn.dataset.from, to = +btn.dataset.to, secs = +btn.dataset.secs, c = audio();
@@ -155,10 +173,10 @@ window.hp = (() => {
   let live = null;
 
   function setHz(f, fromSlider) {
-    hz = Math.min(20000, Math.max(5, f));
-    const rng = $("#hp-hz"), num = $("#hp-num"), lab = $("#hp-hz-label");
-    if (rng && !fromSlider) rng.value = sliderOf(Math.max(20, hz)); if (num) num.value = Math.round(hz * 10) / 10; if (lab) lab.textContent = fmt(hz);
-    if (live && running.includes(live)) { live.frequency.setTargetAtTime(hz, ctx.currentTime, 0.02); setMarker(hz); status(fmt(hz) + " " + wave); }
+    hz = Math.min(MAX_HZ, Math.max(MIN_HZ, f));
+    const rng = $("#hp-hz"), num = $("#hp-num"), lab = $("#hp-hz-label"), zone = $("#hp-zone");
+    if (rng && !fromSlider) rng.value = sliderOf(hz); fillOf(rng); if (num && document.activeElement !== num) num.value = Math.round(hz * 10) / 10; if (lab) lab.textContent = fmt(hz); if (zone) zone.textContent = zoneOf(hz);
+    if (live && running.includes(live)) { live.frequency.setTargetAtTime(hz, ctx.currentTime, 0.02); if (live._trim) live._trim.gain.setTargetAtTime(trimOf(hz), ctx.currentTime, 0.05); setMarker(hz); status(fmt(hz) + " " + wave); }
   }
 
   // ---- the little spectrum picture ----
@@ -167,21 +185,27 @@ window.hp = (() => {
     const cv = $("#hp-scope"); if (!cv || !analyser) return;
     const w = cv.width = cv.clientWidth * (devicePixelRatio || 1), h = cv.height = cv.clientHeight * (devicePixelRatio || 1), g = cv.getContext("2d");
     g.clearRect(0, 0, w, h); const bins = analyser.frequencyBinCount, data = new Uint8Array(bins); analyser.getByteFrequencyData(data); const nyq = ctx.sampleRate / 2;
-    const xOf = (f) => (Math.log(f / 20) / Math.log(1000)) * w;
+    const top = Math.min(48000, nyq), xOf = (f) => (Math.log(Math.max(20, f) / 20) / Math.log(top / 20)) * w;
     g.strokeStyle = "#ffffff18"; g.fillStyle = "#ffffff77"; g.font = `${11 * (devicePixelRatio || 1)}px system-ui`; g.lineWidth = 1;
-    for (const f of [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]) { const x = xOf(f); g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); g.fillText(f >= 1000 ? f / 1000 + "k" : f, x + 3, h - 4); }
+    for (const f of [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 40000].filter((f) => f < top)) { const x = xOf(f); g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); g.fillText(f >= 1000 ? f / 1000 + "k" : f, x + 3, h - 4); }
     g.beginPath(); g.moveTo(0, h);
-    for (let x = 0; x < w; x += 2) { const f = 20 * Math.pow(1000, x / w), i = Math.min(bins - 1, Math.round(f / nyq * bins)); g.lineTo(x, h - (data[i] / 255) * (h - 18)); }
+    for (let x = 0; x < w; x += 2) { const f = 20 * Math.pow(top / 20, x / w), i = Math.min(bins - 1, Math.round(f / nyq * bins)); g.lineTo(x, h - (data[i] / 255) * (h - 18)); }
     g.lineTo(w, h); g.closePath(); g.fillStyle = "#ff4f7b55"; g.fill(); g.strokeStyle = "#ff4f7b"; g.lineWidth = 1.5; g.stroke();
-    if (marker) { const x = xOf(Math.min(20000, Math.max(20, marker))); g.strokeStyle = "#fff"; g.lineWidth = 2; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
+    if (marker) { const x = xOf(Math.min(top, Math.max(20, marker))); g.strokeStyle = "#fff"; g.lineWidth = 2; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
   }
 
-  function onClick(e) { const b = e.target.closest("[data-act]"); if (!b || !root.contains(b)) return; (acts[b.dataset.act] || (() => { }))(b); }
+  function onClick(e) {
+    const b = e.target.closest("[data-act]"); if (!b || !root.contains(b)) return;
+    const wasOn = b.hasAttribute("data-on"), a = b.dataset.act;
+    if (wasOn && !["tab", "preset", "nudge", "stop"].includes(a)) { stop(); return; }   // pressing a playing test again stops it
+    (acts[a] || (() => { }))(b);
+    const row = b.closest(".hp-test"); if (row && b.hasAttribute("data-on")) row.classList.add("playing");
+  }
   function onInput(e) {
     const t = e.target;
-    if (t.id === "hp-hz") setHz(logHz(+t.value), true);
-    else if (t.id === "hp-num") { const v = parseFloat(t.value); if (isFinite(v)) setHz(v); }
-    else if (t.id === "hp-level") { level = +t.value / 100; if (master) master.gain.setTargetAtTime(gainOf(level), ctx.currentTime, 0.03); const l = $("#hp-level-label"); if (l) l.textContent = levelText(); }
+    if (t.id === "hp-hz") { setHz(logHz(+t.value), true); fillOf(t); }
+    else if (t.id === "hp-num") { const v = parseFloat(t.value); if (isFinite(v) && v > 0) setHz(v); }
+    else if (t.id === "hp-level") { level = +t.value / 100; if (master) master.gain.setTargetAtTime(gainOf(level), ctx.currentTime, 0.03); const l = $("#hp-level-label"); if (l) l.textContent = levelText(); fillOf(t); }
     else if (t.name === "hp-chan") { chan = t.value; if (live && running.includes(live)) { acts.tone(root.querySelector("[data-act=tone]")); } }
     else if (t.id === "hp-wave") { wave = t.value; if (live && running.includes(live)) live.type = wave; }
   }
@@ -196,7 +220,7 @@ window.hp = (() => {
       window.flacie && window.flacie.pause && window.flacie.pause();   // the test tones should not play over a song
       root.addEventListener("click", onClick); root.addEventListener("input", onInput); document.addEventListener("keydown", onKey);
       window.addEventListener("pagehide", stop);
-      const lv = $("#hp-level"); if (lv) { lv.value = Math.round(level * 100); $("#hp-level-label").textContent = levelText(); }
+      const lv = $("#hp-level"); if (lv) { lv.value = Math.round(level * 100); $("#hp-level-label").textContent = levelText(); fillOf(lv); }
       setHz(hz); cancelAnimationFrame(raf); draw();
     },
     unmount() {

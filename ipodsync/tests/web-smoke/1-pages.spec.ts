@@ -85,19 +85,32 @@ test('the Explore filter bar narrows the results', async ({ page }) => {
   expect(problems).toEqual([]);
 });
 
-test('the headphone test plays tones and follows the frequency slider', async ({ page }) => {
+test('the headphone test plays tones, reaches 1 Hz to 44 kHz and follows the slider', async ({ page }) => {
   const problems = watch(page);
   await page.goto('/headphones');
   await expect(page.locator('#hp-root')).toBeVisible();
   await page.waitForTimeout(2000);   // the page wires itself up once the live connection is up
   await page.locator('[data-act="side"][data-side="L"]').click();
   await expect(page.locator('#hp-status')).toContainText('Left ear only');
+  await page.locator('#hp-level').fill('60');
+  await expect.poll(() => page.evaluate(() => (window as any).hp.peak()), { timeout: 8000 }).toBeGreaterThan(20);   // real sound is being made
+  await page.locator('[data-act="tab"][data-to="tone"]').click();
+  await expect(page.locator('[data-panel="tone"]')).toBeVisible();
+  await expect(page.locator('[data-panel="lr"]')).toBeHidden();
   await page.locator('[data-act="preset"][data-hz="440"]').click();
   await expect(page.locator('#hp-hz-label')).toHaveText('440 Hz');
   await page.locator('[data-act="tone"]').click();
   await expect(page.locator('#hp-status')).toContainText('440 Hz');
-  await page.locator('#hp-level').fill('60');
-  await expect.poll(() => page.evaluate(() => (window as any).hp.peak()), { timeout: 8000 }).toBeGreaterThan(20);   // real sound is being made
+  await page.locator('[data-act="preset"][data-hz="5"]').click();
+  await expect(page.locator('#hp-hz-label')).toHaveText('5 Hz');
+  await expect(page.locator('#hp-zone')).toContainText('Infrasound');
+  await page.locator('[data-act="preset"][data-hz="30000"]').click();
+  await expect(page.locator('#hp-zone')).toContainText('Ultrasonic');
+  await page.locator('[data-act="nudge"][data-mul="0.5"]').click();
+  await expect(page.locator('#hp-hz-label')).toHaveText('15 kHz');
+  await page.locator('[data-act="tone"]').click();   // pressing a playing test again stops it
+  await expect(page.locator('#hp-status')).toHaveText('Stopped');
+  await page.locator('[data-act="tab"][data-to="space"]').click();
   await page.locator('[data-act="spin"][data-path="circle"]').click();
   await expect(page.locator('#hp-status')).toContainText('Around your head');
   await page.locator('[data-act="stop"]').click();

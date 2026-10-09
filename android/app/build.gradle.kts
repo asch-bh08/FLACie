@@ -9,8 +9,8 @@ android {
         applicationId = "com.ipodemu"
         minSdk = 30
         targetSdk = 33
-        versionCode = 60
-        versionName = "1.0-beta45"
+        versionCode = 61
+        versionName = "1.0-beta46"
     }
     buildTypes {
         release {

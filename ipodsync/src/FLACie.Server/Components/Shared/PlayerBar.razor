@@ -26,6 +26,7 @@
             <div class="bar-right" @onclick:stopPropagation="true">
                 <button class="icon-btn fav @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" /></button>
                 <DevicePicker />
+                @if (pipOk) { <button class="icon-btn @(pipOn ? "on" : "")" @onclick="TogglePip" aria-label="Mini player (picture in picture)" title="Mini player: keeps the cover and controls on top when you switch tabs"><Icon Name="pip" /></button> }
                 <VolumeControl />
                 <button class="icon-btn" @onclick="() => open = true" aria-label="Full screen player"><Icon Name="expand" /></button>
                 <button class="icon-btn" @onclick="Player.StopAsync" aria-label="Stop playing and close the player" title="Stop playing"><Icon Name="x" /></button>
@@ -34,7 +35,8 @@
     </section>
 }
 @code {
-    bool open, volumeLoaded;
+    bool open, volumeLoaded, pipOk, pipOn;
+    async Task TogglePip() { try { pipOn = await PageJs.InvokeAsync<bool>("flacie.pipToggle"); } catch (Exception) { pipOn = false; } }
     [Inject] ClientRegistry Registry { get; set; } = default!;
     [Inject] IJSRuntime PageJs { get; set; } = default!;
     sealed record ClientInfo(string Ip, string Ua, string Browser, string Os, string Screen, string Language);
@@ -83,6 +85,7 @@
             Player.SetStashKey(Session.Jellyfin?.UserId ?? Session.Nas?.User ?? "guest");
             _ = Player.RestoreAsync(Session);
             _ = RegisterClient();
+            try { pipOk = await PageJs.InvokeAsync<bool>("flacie.pipSupported"); StateHasChanged(); } catch (Exception) { }
             barRef = DotNetObjectReference.Create(this); try { await PageJs.InvokeVoidAsync("flacie.setBarRef", barRef); } catch (Exception) { }
         }
     }

@@ -291,10 +291,88 @@ window.flacie = (() => {
   document.addEventListener("keydown", e => { if (e.key === "Escape") closeRowMenu(); });
   // a reload keeps the #now-playing in the address but not the player; drop it
   if (location.hash === "#now-playing") history.replaceState(null, "", location.pathname + location.search);
+  // ---- mini player (picture in picture): the cover, the title and a few controls in a small window that stays on top when you switch tabs or apps ----
+  // Chrome and Edge open a real little page (Document Picture-in-Picture) with buttons; other browsers get a video picture-in-picture of the cover that
+  // carries the play / previous / next buttons of Media Session. The sound keeps playing from this tab either way.
+  const pip = (() => {
+    let cur = { title: "", artist: "", art: "" }, win = null, el = null, vidWin = null, canvas = null, vid = null, img = null, lastDraw = 0;
+    const ICON = {
+      prev: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg>',
+      next: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg>',
+      play: '<svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12-7.5a1 1 0 0 0 0-1.72l-12-7.5A1 1 0 0 0 7 4.5z"/></svg>',
+      pause: '<svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>',
+    };
+    const CSS = "*{box-sizing:border-box}body{margin:0;background:#0d0d12;color:#f2f2f6;font:14px system-ui,-apple-system,Segoe UI,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}"
+      + ".art{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:12px 12px 0}.art img{max-width:100%;max-height:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;box-shadow:0 8px 30px #0008;background:#1b1b24}"
+      + ".t{padding:10px 16px 0;text-align:center}.t b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.t span{display:block;color:#a8a8b8;font-size:12.5px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
+      + "input[type=range]{width:calc(100% - 32px);margin:10px 16px 0;accent-color:#ff4f7b;height:16px}.c{display:flex;justify-content:center;align-items:center;gap:14px;padding:6px 0 14px}"
+      + "button{border:0;background:none;color:#f2f2f6;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;cursor:pointer}button:hover{background:#ffffff1c}"
+      + "button.p{background:#f2f2f6;color:#0d0d12;width:52px;height:52px}button.p:hover{background:#fff}";
+    const supportedDoc = () => "documentPictureInPicture" in window;
+    const supportedVid = () => !!document.pictureInPictureEnabled;
+    function paint() {
+      if (win && el) {
+        el.img.src = cur.art || ""; el.img.style.visibility = cur.art ? "visible" : "hidden";
+        el.title.textContent = cur.title; el.artist.textContent = cur.artist;
+        el.play.innerHTML = audio.paused ? ICON.play : ICON.pause; el.play.setAttribute("aria-label", audio.paused ? "Play" : "Pause");
+        if (isFinite(audio.duration)) { el.seek.max = audio.duration; el.seek.value = audio.currentTime; }
+      }
+      if (vidWin) draw();
+    }
+    function draw() {
+      if (!canvas) return;
+      const c = canvas.getContext("2d"), W = canvas.width;
+      c.fillStyle = "#0d0d12"; c.fillRect(0, 0, W, W);
+      if (img && img.complete && img.naturalWidth) { const r = Math.max(W / img.naturalWidth, W / img.naturalHeight); c.drawImage(img, (W - img.naturalWidth * r) / 2, (W - img.naturalHeight * r) / 2, img.naturalWidth * r, img.naturalHeight * r); }
+      const g = c.createLinearGradient(0, W * 0.6, 0, W); g.addColorStop(0, "#0d0d1200"); g.addColorStop(1, "#0d0d12ee"); c.fillStyle = g; c.fillRect(0, W * 0.6, W, W * 0.4);
+      c.fillStyle = "#f2f2f6"; c.font = "600 30px system-ui,sans-serif"; c.textAlign = "left"; c.fillText((cur.title || "").slice(0, 34), 24, W - 62);
+      c.fillStyle = "#c4c4d2"; c.font = "22px system-ui,sans-serif"; c.fillText((cur.artist || "").slice(0, 44), 24, W - 28);
+      if (isFinite(audio.duration) && audio.duration > 0) { c.fillStyle = "#ffffff30"; c.fillRect(0, W - 6, W, 6); c.fillStyle = "#ff4f7b"; c.fillRect(0, W - 6, W * audio.currentTime / audio.duration, 6); }
+    }
+    async function openDoc() {
+      const w = await window.documentPictureInPicture.requestWindow({ width: 340, height: 440 });
+      const d = w.document;
+      const st = d.createElement("style"); st.textContent = CSS; d.head.append(st);
+      d.title = "FLACie";
+      d.body.innerHTML = '<div class="art"><img alt=""></div><div class="t"><b></b><span></span></div><input type="range" min="0" max="1" step="1" value="0" aria-label="Seek"><div class="c"><button class="prev" aria-label="Previous"></button><button class="p play"></button><button class="next" aria-label="Next"></button></div>';
+      el = { img: d.querySelector("img"), title: d.querySelector(".t b"), artist: d.querySelector(".t span"), seek: d.querySelector("input"), play: d.querySelector(".play") };
+      d.querySelector(".prev").innerHTML = ICON.prev; d.querySelector(".next").innerHTML = ICON.next;
+      d.querySelector(".prev").onclick = () => send("OnPrev"); d.querySelector(".next").onclick = () => send("OnNext");
+      el.play.onclick = () => { if (audio.paused) audio.play().catch(() => { }); else audio.pause(); };
+      el.seek.oninput = () => { audio.currentTime = +el.seek.value; };
+      win = w; w.addEventListener("pagehide", () => { win = null; el = null; });
+      paint();
+    }
+    async function openVid() {
+      if (!canvas) { canvas = document.createElement("canvas"); canvas.width = canvas.height = 480; vid = document.createElement("video"); vid.muted = true; vid.playsInline = true; vid.srcObject = canvas.captureStream(5); vid.addEventListener("leavepictureinpicture", () => { vidWin = null; }); }
+      draw(); await vid.play().catch(() => { });
+      vidWin = await vid.requestPictureInPicture();
+    }
+    function setArt(url) { if (!url) { img = null; return; } img = new Image(); img.onload = () => { paint(); }; img.src = url; }
+    ["play", "pause", "timeupdate"].forEach(ev => audio.addEventListener(ev, () => { const n = Date.now(); if (ev !== "timeupdate" || n - lastDraw > 900) { lastDraw = n; if (win || vidWin) paint(); } }));
+    return {
+      supported: () => supportedDoc() || supportedVid(),
+      active: () => !!(win || vidWin),
+      meta(title, artist, art) { cur = { title, artist, art }; setArt(art); paint(); },
+      async toggle() {
+        if (win) { win.close(); return false; }
+        if (vidWin) { try { await document.exitPictureInPicture(); } catch { } return false; }
+        try { if (supportedDoc()) await openDoc(); else if (supportedVid()) await openVid(); else return false; return true; } catch { return false; }
+      },
+    };
+  })();
+  if ("mediaSession" in navigator) {
+    // Chrome can open the mini player by itself when you switch to another tab while music plays
+    try { navigator.mediaSession.setActionHandler("enterpictureinpicture", () => { pip.toggle(); }); } catch { }
+  }
   let outside = null;
   return {
+    pipSupported() { return pip.supported(); },
+    pipActive() { return pip.active(); },
+    pipToggle() { return pip.toggle(); },
     load(ref, url, title, artist, album, art, autoplay, dur, startAt) {
       dotnet = ref;
+      pip.meta(title, artist, art);
       audio.src = url;
       if (startAt > 0) audio.addEventListener("loadedmetadata", () => { audio.currentTime = startAt; }, { once: true });
       if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title, artist, album, artwork: art ? [{ src: art, sizes: "500x500", type: "image/jpeg" }] : [] });

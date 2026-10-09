@@ -31,7 +31,7 @@ class MainActivity : ComponentActivity() {
 
     private val app get() = App.of(this)
     private val wheelMode get() = app.ui.wheelActive && !app.ui.pickerOpen && !app.ui.syncSetupOpen &&
-        !app.ui.jellyfinSetupOpen && !app.ui.plexSetupOpen && !app.ui.nasSetupOpen && !app.ui.lidarrSetupOpen && !app.ui.downloadsOpen && !app.ui.accountOpen && !app.ui.devicesOpen && !app.ui.jamOpen && app.ui.loginMode.isNotEmpty()   // these overlays take keys themselves
+        !app.ui.jellyfinSetupOpen && !app.ui.plexSetupOpen && !app.ui.nasSetupOpen && !app.ui.lidarrSetupOpen && !app.ui.downloadsOpen && !app.ui.headphonesOpen && !app.ui.accountOpen && !app.ui.devicesOpen && !app.ui.jamOpen && app.ui.loginMode.isNotEmpty()   // these overlays take keys themselves
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

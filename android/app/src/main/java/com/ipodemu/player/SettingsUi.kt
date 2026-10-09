@@ -134,6 +134,7 @@ fun SettingsScreen(nav: PlayerNav, dashboard: Boolean = false) {
                     if (!ui.guest) SettingRow("Plex", if (app.library.plexConnected) "Connected" else "Not connected", chevron = true) { ui.plexSetupOpen = true }
                     if (!ui.guest) SettingRow("NAS", if (app.library.nasConnected) "Connected" else "Not connected", chevron = true) { ui.nasSetupOpen = true }
                     if (!ui.guest) SettingRow("Download log", "Open", chevron = true) { ui.downloadsOpen = true }
+                    SettingRow("Headphone test", "Tones, bass, 3D", chevron = true) { ui.headphonesOpen = true }
                     SettingRow("iPod sync", app.library.syncDeviceLabel ?: "Off", chevron = true) { ui.syncSetupOpen = true }
                     SettingRow("Rescan this device", if (app.library.scanning) "Scanning ${app.library.scanCount}..." else null) { app.library.rescan() }
                 }

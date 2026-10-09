@@ -86,6 +86,7 @@ fun AppRoot(activity: MainActivity) {
             if (ui.nasSetupOpen) overlay { NasSetupScreen() }
             if (ui.lidarrSetupOpen) overlay { LidarrSetupScreen() }
             if (ui.downloadsOpen) overlay { DownloadsScreen() }
+            if (ui.headphonesOpen) overlay { HeadphoneTestScreen() }
             if (ui.accountOpen) overlay { AccountScreen() }
             if (ui.remoteOpen) overlay { RemoteScreen() }
             if (ui.devicesOpen) overlay { DevicesScreen() }

@@ -47,6 +47,8 @@ class UiState(private val prefs: Prefs) {
     var nasSetupOpen by mutableStateOf(false)
     var lidarrSetupOpen by mutableStateOf(false)
     var downloadsOpen by mutableStateOf(false)
+    /** Headphone test (Settings > Headphone test). */
+    var headphonesOpen by mutableStateOf(false)
     /** Bumped by the L1/R1 shoulder buttons while the picker is open (-1 / +1 via [pickerStepDir]) to cycle the carousel. */
     var pickerStep by mutableStateOf(0)
     var pickerStepDir = 0

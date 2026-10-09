@@ -50,6 +50,7 @@ const pages: [string, RegExp][] = [
   ['/downloads', /Download/i],
   ['/import', /Import/i],
   ['/jam', /Jam/i],
+  ['/headphones', /Headphone test/],
   ['/artist/Aurora%20Vale', /Aurora Vale/],
   ['/genre/Rock', /Rock/],
 ];
@@ -82,6 +83,32 @@ test('the Explore filter bar narrows the results', async ({ page }) => {
     await expect(page.locator('body')).toContainText('Aurora Vale', { timeout: 3000 });
   }).toPass({ timeout: 40_000 });
   expect(problems).toEqual([]);
+});
+
+test('the headphone test plays tones and follows the frequency slider', async ({ page }) => {
+  const problems = watch(page);
+  await page.goto('/headphones');
+  await expect(page.locator('#hp-root')).toBeVisible();
+  await page.waitForTimeout(2000);   // the page wires itself up once the live connection is up
+  await page.locator('[data-act="side"][data-side="L"]').click();
+  await expect(page.locator('#hp-status')).toContainText('Left ear only');
+  await page.locator('[data-act="preset"][data-hz="440"]').click();
+  await expect(page.locator('#hp-hz-label')).toHaveText('440 Hz');
+  await page.locator('[data-act="tone"]').click();
+  await expect(page.locator('#hp-status')).toContainText('440 Hz');
+  await page.locator('[data-act="spin"][data-path="circle"]').click();
+  await expect(page.locator('#hp-status')).toContainText('Around your head');
+  await page.locator('[data-act="stop"]').click();
+  await expect(page.locator('#hp-status')).toHaveText('Stopped');
+  expect(problems).toEqual([]);
+});
+
+test('the player bar offers the mini player (picture in picture) where the browser can', async ({ page }) => {
+  await page.goto('/songs');
+  await page.waitForTimeout(2000);
+  await page.locator('button.track-main').first().click();
+  await expect(page.locator('.player')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Mini player/ })).toBeVisible({ timeout: 10_000 });
 });
 
 test('an unknown address shows a page, not a crash', async ({ page }) => {

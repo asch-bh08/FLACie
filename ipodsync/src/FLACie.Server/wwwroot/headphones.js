@@ -189,6 +189,8 @@ window.hp = (() => {
   function onKey(e) { if (e.target.id === "hp-num") return; if (e.key === "Escape") stop(); }
 
   return {
+    // the loudest point in the live spectrum right now (0..255): a test can tell sound is really being made
+    peak() { if (!analyser) return 0; const d = new Uint8Array(analyser.frequencyBinCount); analyser.getByteFrequencyData(d); return Math.max(...d); },
     mount() {
       root = document.getElementById("hp-root"); if (!root) return;
       window.flacie && window.flacie.pause && window.flacie.pause();   // the test tones should not play over a song

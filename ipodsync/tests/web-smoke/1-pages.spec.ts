@@ -96,6 +96,8 @@ test('the headphone test plays tones and follows the frequency slider', async ({
   await expect(page.locator('#hp-hz-label')).toHaveText('440 Hz');
   await page.locator('[data-act="tone"]').click();
   await expect(page.locator('#hp-status')).toContainText('440 Hz');
+  await page.locator('#hp-level').fill('60');
+  await expect.poll(() => page.evaluate(() => (window as any).hp.peak()), { timeout: 8000 }).toBeGreaterThan(20);   // real sound is being made
   await page.locator('[data-act="spin"][data-path="circle"]').click();
   await expect(page.locator('#hp-status')).toContainText('Around your head');
   await page.locator('[data-act="stop"]').click();

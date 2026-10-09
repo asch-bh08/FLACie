@@ -69,7 +69,11 @@
     {
         running = Manager.JobsOf(Session).Where(j => !j.Finished && Matches(j.Label)).ToList();
         var all = (everyone && admin ? Log.Everyone() : Log.For(Session.Id)).Where(r => Matches(r.Label, r.UserName, r.Message)).ToList();
-        failed = all.Where(r => !r.Done).ToList();
+        // a failure that a later try (a Retry, or Autoplay fetching it again) turned into a download is history: it no longer shows as Failed
+        var everyoneLog = everyone && admin ? Log.Everyone() : Log.For(Session.Id);
+        var gotAt = new Dictionary<string, DateTime>();
+        foreach (var d in everyoneLog.Where(x => x.Done && x.Title.Length > 0)) { var k = Matching.MatchKey(d.Title, d.Artist); if (!gotAt.TryGetValue(k, out var t) || d.FinishedAt > t) gotAt[k] = d.FinishedAt; }
+        failed = all.Where(r => !r.Done && !(r.Title.Length > 0 && gotAt.TryGetValue(Matching.MatchKey(r.Title, r.Artist), out var t2) && t2 >= r.FinishedAt)).ToList();
         soulseek = all.Where(r => r.Done && r.Source == "soulseek").ToList();
         lidarr = all.Where(r => r.Done && r.Source == "lidarr").ToList();
         open = all.Where(r => r.Done && r.Source is "ytdl" or "archive" or "audius" or "jamendo").ToList();

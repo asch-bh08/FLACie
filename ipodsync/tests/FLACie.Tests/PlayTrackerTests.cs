@@ -41,15 +41,16 @@ public class PlayTrackerTests
         Assert.Equal("🎵 FLACie · Dad is listening", r.Sent[0].Title);
         Assert.Equal("Song 0 - Artist · via NAS · FLACie Web", r.Sent[0].Message);
         for (var i = 1; i < 7; i++) r.Listen("u1", "Dad", "t" + i, "Song " + i, "Artist", 240);
-        Assert.Single(r.Sent);                       // 6 more tracks: nothing extra
+        Assert.Equal(7, r.Sent.Count);               // live: one message per song listened to
+        Assert.All(r.Sent, m => Assert.Equal("🎵 FLACie · Dad is listening", m.Title));
         r.Now = r.Now.AddMinutes(9); r.T.Sweep();
-        Assert.Single(r.Sent);                       // not idle long enough yet
+        Assert.Equal(7, r.Sent.Count);               // not idle long enough yet
         r.Now = r.Now.AddMinutes(2); r.T.Sweep();
-        Assert.Equal(2, r.Sent.Count);
-        Assert.Equal("🎵 FLACie · Dad finished", r.Sent[1].Title);
-        Assert.Equal("7 tracks · 28 min · via NAS", r.Sent[1].Message);
+        Assert.Equal(8, r.Sent.Count);
+        Assert.Equal("🎵 FLACie · Dad finished", r.Sent[7].Title);
+        Assert.Equal("7 tracks · 28 min · via NAS", r.Sent[7].Message);
         r.T.Sweep();                                 // a second sweep never repeats the summary
-        Assert.Equal(2, r.Sent.Count);
+        Assert.Equal(8, r.Sent.Count);
     }
 
     [Fact]

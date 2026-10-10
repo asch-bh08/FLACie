@@ -88,12 +88,10 @@ public sealed class PlayTracker
             s.CountedAt = t; s.InRun = true;
             runs.TryGetValue(user, out var run);
             if (run is not null && t - run.Last >= Idle) { say.Add(Summary(user, run)); runs.Remove(user); run = null; }
-            if (run is null)
-            {
-                runs[user] = new Run { Tracks = 1, Seconds = s.Listened, Last = t, Via = src };
-                say.Add(($"{TitlePrefix}{Name(user)} is listening", $"{Label(s)}{(s.Context.Length > 0 ? " · from " + s.Context : "")} · via {src} · {s.Device}"));
-            }
+            if (run is null) runs[user] = new Run { Tracks = 1, Seconds = s.Listened, Last = t, Via = src };
             else { run.Tracks++; run.Seconds += s.Listened; run.Last = t; run.Via = src; }
+            // live: every song that is really listened to (past the 20 s) is announced as it goes; skipping through songs says nothing
+            say.Add(($"{TitlePrefix}{Name(user)} is listening", $"{Label(s)}{(s.Context.Length > 0 ? " · from " + s.Context : "")} · via {src} · {s.Device}"));
         }
     done:
         foreach (var (title, msg) in say) publish(title, msg);

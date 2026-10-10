@@ -36,8 +36,10 @@ The Docker image contains Debian, the .NET runtime and FLACie only.
 
 ## Apple Lossless (ALAC) decoder
 
-`ipodsync/src/FLACie.Core/Alac.cs` is FLACie's own ALAC decoder. It is written from the published ALAC bitstream layout (the format Apple released as open source under the
-Apache-2.0 licence), contains no code copied from Apple's or ffmpeg's sources, and was checked bit for bit against ffmpeg's output on 41 files. FLACie does not use ffmpeg to play ALAC.
+`ipodsync/src/FLACie.Core/Alac.cs` is FLACie's own ALAC decoder, written in C# for this project. Apple Lossless is a published format (Apple released its reference
+decoder as open source under the Apache-2.0 licence), and the decoding steps (the MP4 layout, the adaptive Golomb-Rice reading, the adaptive predictor and the stereo mixing) are the
+format's own, so any decoder, this one included, follows the same algorithm as Apple's and ffmpeg's. No source file of either was copied into FLACie; the output was checked bit for bit
+against ffmpeg's on 41 files. FLACie does not run or ship ffmpeg to play ALAC. If you need a stricter provenance guarantee than that for redistribution, have this file reviewed.
 
 ## Online catalog data
 

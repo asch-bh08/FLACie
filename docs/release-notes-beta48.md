@@ -1,7 +1,7 @@
 Beta 48 (Android 63, MSI 0.48.0). Still a beta, not a 1.0 final.
 
 **Apple Lossless (the HoodTrap playlist) now plays: FLACie decodes it itself (web, Windows, Android)**
-- The songs in a "(LAC)" folder are Apple Lossless (ALAC) in .m4a. Chrome, Edge and Firefox cannot play ALAC at all, and many Android phones have no decoder for it, so the playlist played silence. FLACie Web now **reads and decodes ALAC itself** (a decoder written for FLACie, no ffmpeg and no Jellyfin conversion) and sends WAV, which every browser plays and can seek in. Other .m4a files (AAC) are sent as they are.
+- The songs in a "(LAC)" folder are Apple Lossless (ALAC) in .m4a. Chrome, Edge and Firefox cannot play ALAC at all, and many Android phones have no decoder for it, so the playlist played silence. FLACie Web now **reads and decodes ALAC itself** (a decoder written for FLACie in C#, so no ffmpeg and no Jellyfin conversion is involved) and sends WAV, which every browser plays and can seek in. Other .m4a files (AAC) are sent as they are.
 - Windows gets it with the web player. **Android**: on a phone with no ALAC decoder the app plays the song from FLACie Web (it needs FLACie Web set up, as for downloads); with no FLACie Web it falls back to Jellyfin's conversion as before. A phone that has an ALAC decoder still plays the original.
 - The decoder was checked **bit for bit against ffmpeg** on 35 real songs from the HoodTrap(LAC) folder and 6 more (24-bit, mono, 44.1 kHz, silence, small frames): identical output on all 41.
 

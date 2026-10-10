@@ -101,7 +101,7 @@ public static class AuthEndpoints
             var who = j?.UserName ?? (n?.User is { Length: > 0 } nu ? nu : "guest");
             var from = ctx.Connection.RemoteIpAddress?.ToString() ?? "";
             ctx.RequestServices.GetRequiredService<ActivityLog>().Add("signin", who, $"Signed in from {from}");
-            _ = ctx.RequestServices.GetRequiredService<Notifier>().NotifyAsync("signin", "Someone signed in to FLACie", $"{who} from {from}", 2, "key");
+            _ = ctx.RequestServices.GetRequiredService<Notifier>().NotifyAsync("signin", "Someone signed in", $"{who} from {from}", 2, "key");
         }
 
         static IResult Back(string error, string tab = "") => Results.Redirect("/login?error=" + Uri.EscapeDataString(error) + (tab.Length > 0 ? "&tab=" + tab : ""));

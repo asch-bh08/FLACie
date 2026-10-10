@@ -109,6 +109,26 @@ public static class ApiEndpoints
             return Results.Json(new { songs = s.Library.Songs.Count, albums = s.Library.Albums.Count, artists = s.Library.Artists.Count, playlists = s.Playlists.Count, favourites = s.Favorites.Count, admin = AdminAccess.Is(s, app.Configuration) });
         });
 
+        // "music played" from the phone for songs that do not go through Jellyfin (the NAS, the file mover): the server cannot see those streams, so the app says
+        // when one starts, that it is still playing (about every ten seconds) and when it stops. Jellyfin songs are never reported: Jellyfin announces them itself.
+        app.MapPost("/api/played", async (HttpContext ctx, SessionStore store, JellyfinClient jf, PlayTracker plays, PlayedReport r) =>
+        {
+            if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
+            if (r.Via is not ("NAS" or "direct") || string.IsNullOrEmpty(r.Key) || r.Key.Length > 600) return Results.BadRequest();
+            var key = "phone:" + r.Key;
+            var device = string.IsNullOrWhiteSpace(r.Device) ? "phone" : r.Device.Trim()[..Math.Min(r.Device.Trim().Length, 40)];
+            string Cut(string? x, int n) => (x ?? "").Trim() is var y && y.Length > n ? y[..n] : y;
+            plays.Served(s.Id, key, r.Via);
+            switch (r.Event)
+            {
+                case "start": plays.Begin(s.Id, s.DisplayName, key, Cut(r.Title, 120), Cut(r.Artist, 120), device); plays.Tick(s.Id, key, true, 15); break;
+                case "progress": plays.Tick(s.Id, key, true, 15); break;
+                case "stop": plays.Tick(s.Id, key, false, 15); break;
+                default: return Results.BadRequest();
+            }
+            return Results.NoContent();
+        }).DisableAntiforgery();
+
         // the real format of every song the server has read (ffprobe / Jellyfin, never guessed from the extension), keyed like the apps key a file
         // (the last three path segments): the phone uses it for the Hi-Res badge and the Explore quality filter. [codec, sampleRate, bitDepth, kbps]
         // an Apple Lossless song as WAV, for players (the phone app) that have no ALAC decoder: this server decodes it itself, with the caller's own Jellyfin sign-in
@@ -153,3 +173,6 @@ public static class ApiEndpoints
         }).DisableAntiforgery();
     }
 }
+
+/// <summary>What the phone says about a song that does not go through Jellyfin (see /api/played).</summary>
+public sealed record PlayedReport(string Event, string Key, string? Title, string? Artist, string Via, string? Device);

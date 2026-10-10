@@ -179,6 +179,7 @@ else
             <label class="check-chip"><input type="checkbox" @bind="cfg.LowSpace" /><span>Storage nearly full</span></label>
             <label class="check-chip"><input type="checkbox" @bind="cfg.SignIns" /><span>Someone signs in</span></label>
             <label class="check-chip"><input type="checkbox" @bind="cfg.Started" /><span>Server started</span></label>
+            <label class="check-chip"><input type="checkbox" @bind="cfg.Plays" /><span>Someone plays music</span></label>
         </div>
         <div class="row-actions">
             <button class="btn primary" @onclick="SaveNotify">Save</button>
@@ -357,7 +358,7 @@ else
     async Task TestNotify()
     {
         SaveNotify(); testing = true; StateHasChanged();
-        var (ok, msg) = await Notify.SendAsync("FLACie test", "If you can read this, notifications from FLACie work.", 3, "tada");
+        var (ok, msg) = await Notify.SendAsync("Test", "If you can read this, notifications from FLACie work.", 3, "tada");
         notifyMsg = ok ? "Test sent. Check your phone." : "Not sent: " + msg; testing = false;
     }
 

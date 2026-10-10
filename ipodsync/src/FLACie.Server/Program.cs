@@ -46,6 +46,9 @@ builder.Services.AddSingleton<StorageGuard>();
 builder.Services.AddSingleton<ActivityLog>();
 builder.Services.AddSingleton<ClientRegistry>();
 builder.Services.AddSingleton<Notifier>();
+// "music played": only plays that Jellyfin does not announce itself (NAS, the direct fallback) reach it; see PlayTracker
+builder.Services.AddSingleton(sp => { var n = sp.GetRequiredService<Notifier>(); return new PlayTracker((title, msg) => _ = n.NotifyAsync("plays", title, msg, 2, "musical_note"), null, () => n.Current is { Enabled: true, Plays: true }); });
+builder.Services.AddHostedService<PlayTrackerSweeper>();
 builder.Services.AddSingleton<StorageService>();
 builder.Services.AddSingleton<DownloadLog>();
 builder.Services.AddSingleton<DownloadManager>();
@@ -154,6 +157,6 @@ if (builder.Configuration["FLACIE_DEBUG"] == "1")
 // who and what is asking, for the admin dashboard (the address as the server sees it)
 app.MapGet("/api/whoami", (HttpContext ctx) => Results.Json(new { ip = ctx.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "", ua = ctx.Request.Headers.UserAgent.ToString() })).RequireAuthorization();
 app.MapGet("/healthz", () => Results.Ok("ok"));
-app.Lifetime.ApplicationStarted.Register(() => { var a = app.Services.GetRequiredService<ActivityLog>(); a.Add("server", "", "FLACie started"); _ = app.Services.GetRequiredService<Notifier>().NotifyAsync("started", "FLACie started", "The server is up again.", 2, "rocket"); });
+app.Lifetime.ApplicationStarted.Register(() => { var a = app.Services.GetRequiredService<ActivityLog>(); a.Add("server", "", "FLACie started"); _ = app.Services.GetRequiredService<Notifier>().NotifyAsync("started", "Server started", "FLACie is up again.", 2, "rocket"); });
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.Run();

@@ -79,6 +79,10 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
     AutoplayPlanner? planner;
     CancellationTokenSource? planning;
     public void SetPlanner(UserSession s, AutoplayPlanner p) { session = s; planner = p; }
+    PlayTracker? plays;
+    /// <summary>Reports listening to the "music played" tracker (which only ever speaks for plays outside Jellyfin).</summary>
+    public void SetPlays(PlayTracker p) => plays = p;
+    void PlayTick() { if (plays is not null && session is not null && Current is { } c) plays.Tick(session.Id, c.Path, Playing); }
 
     async Task PlanAsync(Track seed)
     {
@@ -162,6 +166,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         await js.InvokeVoidAsync("flacie.load", self, "/stream?p=" + Uri.EscapeDataString(t.Path), t.Title, t.Artist, t.Album,
             t.ArtKey is null ? null : "/art/" + Uri.EscapeDataString(t.ArtKey), autoplay, t.DurationMs / 1000.0, startAt);
         Position = startAt; Duration = t.DurationMs / 1000.0;
+        if (plays is not null && session is not null) plays.Begin(session.Id, session.DisplayName, t.Path, t.Title, t.Artist, "FLACie Web");
         Stash(true);
         RefreshSuggestions(); _ = PlanAsync(t); Started?.Invoke(t);
         Changed?.Invoke();
@@ -258,8 +263,8 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
 
     // ---- from flacie.js ----
 
-    [JSInvokable] public void OnTime(double pos, double dur) { Position = pos; if (dur > 0 && !double.IsInfinity(dur)) Duration = dur; Stash(false); Changed?.Invoke(); }
-    [JSInvokable] public void OnState(bool playing) { Playing = playing; Changed?.Invoke(); }
+    [JSInvokable] public void OnTime(double pos, double dur) { Position = pos; if (dur > 0 && !double.IsInfinity(dur)) Duration = dur; Stash(false); PlayTick(); Changed?.Invoke(); }
+    [JSInvokable] public void OnState(bool playing) { Playing = playing; PlayTick(); Changed?.Invoke(); }
     [JSInvokable] public async Task OnEnded()
     {
         if (OnAutoAdvance is { } hand) { hand(); return; }

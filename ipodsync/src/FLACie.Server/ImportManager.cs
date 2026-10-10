@@ -109,7 +109,7 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
         job.State = "done";
         job.Note = job.Failed == 0 ? null : $"{job.Failed} song{(job.Failed == 1 ? "" : "s")} couldn't be found";
         activity.Add("import", s.DisplayName, $"Import finished: {job.File}, {job.Total - job.Failed} of {job.Total} songs");
-        _ = notify.NotifyAsync("imports", "Playlist import finished", $"{job.File}: {job.Total - job.Failed} of {job.Total} songs ({s.DisplayName})", job.Failed == 0 ? 3 : 4, job.Failed == 0 ? "white_check_mark" : "warning");
+        _ = notify.NotifyAsync("imports", "Imports finished", $"{job.File}: {job.Total - job.Failed} of {job.Total} songs ({s.DisplayName})", job.Failed == 0 ? 3 : 4, job.Failed == 0 ? "white_check_mark" : "warning");
         states.Save(s); Changed?.Invoke(s);
     }
 

@@ -12,6 +12,7 @@ public abstract class UserComponent : ComponentBase, IDisposable
     [Inject] protected NavigationManager Nav { get; set; } = default!;
     [Inject] protected JellyfinClient Jellyfin { get; set; } = default!;
     [Inject] AutoplayPlanner Planner { get; set; } = default!;
+    [Inject] PlayTracker Plays { get; set; } = default!;
     [CascadingParameter] Task<AuthenticationState> Auth { get; set; } = default!;
     protected UserSession Session { get; private set; } = default!;
     protected Library Lib => Session.Library;
@@ -25,6 +26,7 @@ public abstract class UserComponent : ComponentBase, IDisposable
         Player.Changed += Refresh;
         Player.SetLibrary(() => Session.Library);
         Player.SetPlanner(Session, Planner);
+        Player.SetPlays(Plays);
         Player.SetRelated(cur => Session.Playlists.Where(p => p.Entries.Any(e => e.Path == cur.Path || (e.Title == cur.Title && e.Artist == cur.Artist))).SelectMany(p => Session.Resolve(p.Entries)).DistinctBy(t => t.Path).ToList());
         if (Store.LiveFor(Session) is { } l)
         {

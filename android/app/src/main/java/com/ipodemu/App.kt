@@ -20,6 +20,7 @@ class App : Application() {
     lateinit var jam: com.ipodemu.library.Jam; private set
     lateinit var lyrics: com.ipodemu.library.LyricsProvider; private set
     lateinit var autoplay: com.ipodemu.library.Autoplay; private set
+    lateinit var plays: com.ipodemu.library.PlaysReporter; private set
     private val bg = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
     override fun onCreate() {
@@ -42,7 +43,7 @@ class App : Application() {
         ui.setLogin(prefs.loginMode)
         lyrics = com.ipodemu.library.LyricsProvider(this)
         // fetch lyrics as each song starts, so they are ready (and cached) before Now Playing asks
-        player.onTrackStarted = { t -> userData.recordPlay(t.path); bg.launch { lyrics.get(t) } }
+        player.onTrackStarted = { t -> userData.recordPlay(t.path); bg.launch { lyrics.get(t) }; plays.started(t, bg) }
         account = com.ipodemu.library.AccountSync(this)
         connect = com.ipodemu.library.JellyfinConnect(this)
         connect.attach(); connect.refresh()
@@ -50,6 +51,7 @@ class App : Application() {
         userData.onChanged = { account.schedulePush() }
         library.onServicesChanged = { account.schedulePush() }
         autoplay = com.ipodemu.library.Autoplay(this)
+        plays = com.ipodemu.library.PlaysReporter(prefs, player, bg)
         player.onQueueLow = { autoplay.queueLow() }
         library.onDownloaded = { userData.recordDownload(it); autoplay.downloaded(it) }
         // pick up changes made on other devices (playlists, newly added services) every launch

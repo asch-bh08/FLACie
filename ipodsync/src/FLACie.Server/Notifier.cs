@@ -18,6 +18,7 @@ public sealed class NotifyConfig
     public bool LowSpace { get; set; } = true;    // downloads stopped for lack of space
     public bool SignIns { get; set; } = true;     // someone signed in
     public bool Started { get; set; } = true;     // the server started
+    public bool Plays { get; set; } = true;       // someone plays music that Jellyfin does not already announce (NAS, direct fallback)
 }
 
 /// <summary>Sends notifications to an ntfy server (https://ntfy.sh/ or your own). Nothing is sent unless an admin has set it up and turned it on.</summary>
@@ -39,6 +40,8 @@ public sealed class Notifier
             cfg.Url = u; cfg.Topic = conf["FLACIE_NTFY_TOPIC"] ?? ""; cfg.Enabled = cfg.Topic.Length > 0;
             if (conf["FLACIE_NTFY_TOKEN"] is { Length: > 0 } t) cfg.Token = Protect(t);
         }
+        // the topic the owner reads: FLACIE_NTFY_TOPIC wins over an empty topic and over the old "FLACie" default (kept out of the source: a topic name is half a secret)
+        if (conf["FLACIE_NTFY_TOPIC"] is { Length: > 0 } et && (cfg.Topic.Length == 0 || cfg.Topic == "FLACie")) cfg.Topic = et;
     }
 
     string Protect(string s) { try { return protector.Protect(s); } catch (Exception) { return ""; } }
@@ -63,7 +66,7 @@ public sealed class Notifier
     public Task NotifyAsync(string kind, string title, string message, int priority = 3, string? tags = null)
     {
         var c = Current;
-        var on = kind switch { "imports" => c.Imports, "charts" => c.Charts, "space" => c.LowSpace, "signin" => c.SignIns, "started" => c.Started, _ => true };
+        var on = kind switch { "imports" => c.Imports, "charts" => c.Charts, "space" => c.LowSpace, "signin" => c.SignIns, "started" => c.Started, "plays" => c.Plays, _ => true };
         return c.Enabled && on ? Task.Run(() => SendAsync(title, message, priority, tags)) : Task.CompletedTask;
     }
 
@@ -72,6 +75,8 @@ public sealed class Notifier
     {
         var c = Current;
         if (c.Url.Length == 0 || c.Topic.Length == 0) return (false, "Add the ntfy address and a topic first.");
+        // every message from FLACie is recognisable on a phone that also gets alerts from other tools
+        if (!title.StartsWith(PlayTracker.TitlePrefix, StringComparison.Ordinal)) title = PlayTracker.TitlePrefix + title;
         try
         {
             using var req = new HttpRequestMessage(HttpMethod.Post, c.Url);
@@ -83,7 +88,9 @@ public sealed class Notifier
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             using var res = await http.SendAsync(req, cts.Token);
             var ok = res.IsSuccessStatusCode;
-            var msg = ok ? "Sent" : $"ntfy answered {(int)res.StatusCode} {res.ReasonPhrase}";
+            var msg = ok ? "Sent"
+                : res.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden ? "ntfy rejected the token (needs write access to this topic)"
+                : $"ntfy answered {(int)res.StatusCode} {res.ReasonPhrase}";
             LastResult = msg; LastAt = DateTime.UtcNow;
             if (!ok) activity.Add("alert", "", "Notification not sent: " + msg);
             return (ok, msg);

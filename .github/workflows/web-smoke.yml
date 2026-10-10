@@ -18,6 +18,8 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 9.0.x
+      - name: Unit tests (notifications, music played)
+        run: dotnet test ipodsync/tests/FLACie.Tests/FLACie.Tests.csproj
       - uses: actions/setup-node@v4
         with:
           node-version: 22

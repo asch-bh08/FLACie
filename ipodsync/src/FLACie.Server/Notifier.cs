@@ -19,6 +19,7 @@ public sealed class NotifyConfig
     public bool SignIns { get; set; } = true;     // someone signed in
     public bool Started { get; set; } = true;     // the server started
     public bool Plays { get; set; } = true;       // someone plays music that Jellyfin does not already announce (NAS, direct fallback)
+    public bool Downloads { get; set; } = true;   // a user's downloads finished (batched into one message)
 }
 
 /// <summary>Sends notifications to an ntfy server (https://ntfy.sh/ or your own). Nothing is sent unless an admin has set it up and turned it on.</summary>
@@ -66,7 +67,7 @@ public sealed class Notifier
     public Task NotifyAsync(string kind, string title, string message, int priority = 3, string? tags = null)
     {
         var c = Current;
-        var on = kind switch { "imports" => c.Imports, "charts" => c.Charts, "space" => c.LowSpace, "signin" => c.SignIns, "started" => c.Started, "plays" => c.Plays, _ => true };
+        var on = kind switch { "imports" => c.Imports, "charts" => c.Charts, "space" => c.LowSpace, "signin" => c.SignIns, "started" => c.Started, "plays" => c.Plays, "downloads" => c.Downloads, _ => true };
         return c.Enabled && on ? Task.Run(() => SendAsync(title, message, priority, tags)) : Task.CompletedTask;
     }
 

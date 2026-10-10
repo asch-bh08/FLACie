@@ -48,6 +48,7 @@ builder.Services.AddSingleton<ClientRegistry>();
 builder.Services.AddSingleton<Notifier>();
 // "music played": only plays that Jellyfin does not announce itself (NAS, the direct fallback) reach it; see PlayTracker
 builder.Services.AddSingleton(sp => { var n = sp.GetRequiredService<Notifier>(); return new PlayTracker((title, msg) => _ = n.NotifyAsync("plays", title, msg, 2, "musical_note"), null, () => n.Current is { Enabled: true, Plays: true }); });
+builder.Services.AddSingleton(sp => { var n = sp.GetRequiredService<Notifier>(); return new DownloadDigest((title, msg) => _ = n.NotifyAsync("downloads", title, msg, 2, "inbox_tray"), null, () => n.Current is { Enabled: true, Downloads: true }); });
 builder.Services.AddHostedService<PlayTrackerSweeper>();
 builder.Services.AddSingleton<StorageService>();
 builder.Services.AddSingleton<DownloadLog>();

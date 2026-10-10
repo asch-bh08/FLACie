@@ -51,7 +51,7 @@ public sealed class DownloadJob(string id, string label, string? artKey, string 
 
 /// <summary>Runs downloads in the background for the signed-in user (they keep going when the tab closes) and keeps their progress for
 /// the page. The Soulseek and Lidarr addresses and keys come from the user's profile and never reach the browser.</summary>
-public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, DownloadLog log, JellyfinClient jf)
+public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, DownloadLog log, JellyfinClient jf, DownloadDigest digest)
 {
     sealed class Jobs
     {
@@ -122,6 +122,8 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
         job.FinishedAt ??= DateTime.UtcNow;
         try { log.Add(job.ToRecord(s)); } catch (Exception) { }
         if (job.Stage == DownloadStage.Done && job.File is not null) ScanSoon(s);
+        // "Dad downloaded ...": only what the user asked for (searches), not songs fetched ahead for the queue, charts or imports (those have their own messages)
+        if (job.Stage == DownloadStage.Done && job.Kind == "Search") digest.Done(s.Id, s.DisplayName, job.Title.Length > 0 ? $"{job.Title} - {job.Artist}" : job.Label);
         jobs.Raise();
     }
 

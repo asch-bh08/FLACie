@@ -53,6 +53,15 @@ public class PlayTrackerTests
     }
 
     [Fact]
+    public void The_start_message_says_which_playlist_it_plays_from()
+    {
+        var r = new Rig();
+        r.T.Served("u1", "a", "NAS"); r.T.Begin("u1", "hms", "a", "Song", "Artist", "FLACie Web", "Road trip");
+        for (var i = 0; i < 25; i++) { r.Now = r.Now.AddSeconds(1); r.T.Tick("u1", "a", true); }
+        Assert.Equal("Song - Artist · from Road trip · via NAS · FLACie Web", Assert.Single(r.Sent).Message);
+    }
+
+    [Fact]
     public void A_song_under_twenty_seconds_does_not_count()
     {
         var r = new Rig();

@@ -20,7 +20,7 @@ public sealed class PlayTracker
 
     sealed class Song
     {
-        public string Title = "", Artist = "", Device = "";
+        public string Title = "", Artist = "", Device = "", Context = "";
         public double Listened;
         public DateTime? LastTick;
         public bool Decided;          // the 20 s were reached for this load and the outcome is settled
@@ -54,13 +54,13 @@ public sealed class PlayTracker
     }
 
     /// <summary>A song was loaded in a player: its listening clock starts from zero.</summary>
-    public void Begin(string user, string userName, string key, string title, string artist, string device)
+    public void Begin(string user, string userName, string key, string title, string artist, string device, string? context = null)
     {
         lock (gate)
         {
             names[user] = userName;
             if (!songs.TryGetValue((user, key), out var s)) songs[(user, key)] = s = new();
-            s.Title = title; s.Artist = artist; s.Device = device;
+            s.Title = title; s.Artist = artist; s.Device = device; s.Context = context ?? "";
             s.Listened = 0; s.LastTick = null; s.Decided = false; s.InRun = false; s.Touched = now();
         }
     }
@@ -91,7 +91,7 @@ public sealed class PlayTracker
             if (run is null)
             {
                 runs[user] = new Run { Tracks = 1, Seconds = s.Listened, Last = t, Via = src };
-                say.Add(($"{TitlePrefix}{Name(user)} is listening", $"{Label(s)} · via {src} · {s.Device}"));
+                say.Add(($"{TitlePrefix}{Name(user)} is listening", $"{Label(s)}{(s.Context.Length > 0 ? " · from " + s.Context : "")} · via {src} · {s.Device}"));
             }
             else { run.Tracks++; run.Seconds += s.Listened; run.Last = t; run.Via = src; }
         }

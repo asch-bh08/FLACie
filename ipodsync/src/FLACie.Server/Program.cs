@@ -83,6 +83,7 @@ builder.Services.AddRazorComponents()
 builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(o => ProxyTrust.Configure(o, builder.Configuration));
 builder.Services.AddSingleton<LoginThrottle>();
 builder.Services.AddSingleton<AlacCache>();
+builder.Services.AddSingleton<HitsService>();
 
 var app = builder.Build();
 // hosted by the Windows app: stop when that app does, so closing it never leaves a server running

@@ -73,6 +73,12 @@ http
       return json(res, 200, prefs);
     }
     if (p === '/Users/u1/Items') {
+      // what this account has played in any Jellyfin app: a few songs by Aurora Vale, played a lot
+      if (q.get('Filters') === 'IsPlayed') {
+        const played = songs.filter((x) => ['s2', 's3', 's5'].includes(x.Id)).map((x, i) => ({ ...x, UserData: { PlayCount: 9 - i, LastPlayedDate: new Date(Date.now() - (20 + i) * 86400000).toISOString(), IsFavorite: false } }));
+        return json(res, 200, { Items: played, TotalRecordCount: played.length });
+      }
+      if (q.get('Filters') === 'IsFavorite') return json(res, 200, { Items: [], TotalRecordCount: 0 });
       if (q.get('IncludeItemTypes') === 'Audio') {
         const start = Number(q.get('StartIndex') || 0), limit = Number(q.get('Limit') || 1500);
         return json(res, 200, { Items: songs.slice(start, start + limit), TotalRecordCount: songs.length, StartIndex: start });

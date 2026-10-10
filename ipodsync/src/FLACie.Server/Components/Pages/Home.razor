@@ -1,6 +1,8 @@
 @page "/"
 @attribute [Authorize]
 @inherits UserComponent
+@inject JellyfinClient Jf
+@inject HitsService Hits
 <PageTitle>FLACie</PageTitle>
 <header class="page-head home-head">
     <h1>@Greeting</h1>
@@ -110,6 +112,21 @@ else
     string Greeting { get { var h = DateTime.Now.Hour; return h >= 18 ? "Good evening" : h >= 12 ? "Good afternoon" : "Good morning"; } }
 
     List<Shelf> shelves = [];
+    // what Quick picks learn from besides this site's own history: Jellyfin's play counts (every app) and the best-known songs of the artists played most
+    IReadOnlySet<string>? hits; long tasteSlot = -1;
+    async Task LoadTasteAsync()
+    {
+        try
+        {
+            if (Session is null) return;
+            await Session.RefreshPlayStatsAsync(Jf, TimeSpan.FromHours(1));
+            var artists = HomeBuilder.TopArtists(Lib, Session.History, Session.Favorites, Session.Playlists, DateTime.UtcNow, Session.PlayStats);
+            if (artists.Count > 0) hits = await Hits.KeysAsync(artists);
+            builtSlot = -1;   // build the shelves again with it
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception) { }
+    }
     List<string> moods = []; string? mood; List<Track> moodTracks = [];
     long builtSlot = -1, builtLast = -1; int builtSongs = -1, builtRev = -1;
 
@@ -121,6 +138,7 @@ else
     {
         if (Session is null) return;
         var slot = HomeBuilder.Slot(DateTime.UtcNow);
+        if (slot != tasteSlot && Lib.Songs.Count > 0) { tasteSlot = slot; _ = LoadTasteAsync(); }
         if (slot != builtSlot || builtSongs != Lib.Songs.Count || builtRev != Session.ProfileRev) { Rebuild(); StateHasChanged(); }
     }
 
@@ -132,7 +150,7 @@ else
         var last = history.FirstOrDefault()?.At ?? 0;
         if (slot == builtSlot && builtSongs == Lib.Songs.Count && builtLast == last && builtRev == Session.ProfileRev) return;
         builtSlot = slot; builtSongs = Lib.Songs.Count; builtLast = last; builtRev = Session.ProfileRev;
-        shelves = HomeBuilder.Build(Lib, history, Session.Favorites, Session.Playlists, DateTime.UtcNow);
+        shelves = HomeBuilder.Build(Lib, history, Session.Favorites, Session.Playlists, DateTime.UtcNow, Session.PlayStats, hits);
         moods = HomeBuilder.MoodsAvailable(Lib);
     }
 }

@@ -1,0 +1,17 @@
+Beta 48 (Android 63, MSI 0.48.0). Still a beta, not a 1.0 final.
+
+**Apple Lossless (the HoodTrap playlist) now plays: FLACie decodes it itself (web, Windows, Android)**
+- The songs in a "(LAC)" folder are Apple Lossless (ALAC) in .m4a. Chrome, Edge and Firefox cannot play ALAC at all, and many Android phones have no decoder for it, so the playlist played silence. FLACie Web now **reads and decodes ALAC itself** (a decoder written for FLACie, no ffmpeg and no Jellyfin conversion) and sends WAV, which every browser plays and can seek in. Other .m4a files (AAC) are sent as they are.
+- Windows gets it with the web player. **Android**: on a phone with no ALAC decoder the app plays the song from FLACie Web (it needs FLACie Web set up, as for downloads); with no FLACie Web it falls back to Jellyfin's conversion as before. A phone that has an ALAC decoder still plays the original.
+- The decoder was checked **bit for bit against ffmpeg** on 35 real songs from the HoodTrap(LAC) folder and 6 more (24-bit, mono, 44.1 kHz, silence, small frames): identical output on all 41.
+
+**Quick picks: songs you actually listen to (web, Windows, Android)**
+- Quick picks used to be mostly random songs from your genres. They now learn from **everything Jellyfin has counted for your account in any app** (plays, favourites, when you last played), plus FLACie's own history, favourites and playlists, and bring forward: songs you play most, the other songs of albums you play, and **the best-known songs of the artists you play** (looked up by artist name only). A song you have never played only gets in when it is tied to something you play (its artist, its album, or one of that artist's hits); a song that just shares a genre no longer is. Roughly three in five are songs you already love and two in five are new to you but related; a song you played in the last six hours sits out. Still steady within the hour and different the next.
+- On your own library and Jellyfin history, the old row had 85% never-played songs and 20% well-known songs of your artists; the new one has 40% never-played and 70% well-known (for example Teenage Dream, Bad Romance, Love The Way You Lie, Tik Tok, Imma Be). "Listen again" also shows what Jellyfin says you played last when FLACie has no history yet.
+
+**Tested**
+- Web: all browser tests pass, including an Apple Lossless song played end to end (the server decodes it to WAV and the browser plays it, with a mid-file Range request), and Quick picks following the plays a Jellyfin account reports. Against real Jellyfin 12.2 and 10.10.7: four Apple Lossless songs (including a 24-bit one) play on both, byte ranges are exact, and one of them is byte-identical to the ffmpeg-checked decode.
+- Android (emulator, Jellyfin 12.2): a 24-bit Apple Lossless song plays through FLACie Web's decoder (the app asks `/api/alac`, the clock runs); 8 new unit tests for the Quick picks rules pass with the rest.
+
+**Not tested**
+- A real phone with no ALAC decoder: the emulator has one, so the app was forced through the server's decoder with a developer switch (an empty file named force-own-alac in the app's external files folder). Quick picks on a real phone with your real Jellyfin history (checked on the web side with your real data, and by unit tests on Android). The Deezer lookups of best-known songs ran against Deezer for the web check only. The mini window (picture in picture) in a desktop browser, the Windows MSI install, and listening to any of it with ears.

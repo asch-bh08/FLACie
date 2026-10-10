@@ -148,6 +148,17 @@ test('an Apple Lossless song plays: the server decodes it to WAV (browsers canno
   expect(problems).toEqual([]);
 });
 
+test('Quick picks learn from what Jellyfin says was played: songs of that artist come first', async ({ page }) => {
+  const problems = watch(page);
+  await page.goto('/');
+  // the picks are rebuilt once Jellyfin's play counts have been read (a moment after the page opens)
+  await expect(async () => {
+    const shelf = page.locator('section.shelf[aria-label="Quick picks"]');
+    await expect(shelf.locator('.pick').first()).toContainText('Aurora Vale', { timeout: 2500 });   // the songs Jellyfin counted lead the row
+  }).toPass({ timeout: 30_000 });
+  expect(problems).toEqual([]);
+});
+
 test('an unknown address shows a page, not a crash', async ({ page }) => {
   const res = await page.goto('/this-page-does-not-exist');
   expect(res?.status()).toBeLessThan(500);

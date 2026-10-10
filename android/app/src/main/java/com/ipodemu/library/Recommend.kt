@@ -105,7 +105,7 @@ object HomeShelves {
         return spread(lib.songs().filter { it.isMusic && inMood(it, m) }.seeded(slot(nowMs, 24) * 17 + name.length), 2, 40)
     }
 
-    fun build(lib: Library, ud: UserData, nowMs: Long = System.currentTimeMillis()): List<HomeShelf> {
+    fun build(lib: Library, ud: UserData, nowMs: Long = System.currentTimeMillis(), jf: List<JfPlay> = emptyList(), hits: Set<String> = emptySet()): List<HomeShelf> {
         val songs = lib.songs().filter { it.isMusic }
         if (songs.isEmpty()) return emptyList()
         val by = lib.byPath()
@@ -117,11 +117,15 @@ object HomeShelves {
         ud.plays.forEach { (p, n) -> by[p]?.let { plays.merge(it.matchKey, n, Int::plus) } }
         val favKeys = ud.favorites.mapNotNull { by[it]?.matchKey }.toHashSet()
         val listKeys = ud.playlists.flatMap { it.paths }.mapNotNull { by[it]?.matchKey }.toHashSet()
-        fun taste(t: Track): Int { val k = t.matchKey; return (plays[k] ?: 0) * 2 + (if (k in favKeys) 3 else 0) + (if (k in listKeys) 1 else 0) }
+        // Jellyfin's own count counts too: everything played in any app, not only here
+        val jfWeight = HashMap<String, Double>()
+        if (jf.isNotEmpty()) { val byJf = HashMap<String, Track>(); songs.forEach { t -> TasteData.jfIdRe.find(t.path)?.groupValues?.get(1)?.lowercase()?.let { byJf[it] = t } }
+            for (p in jf) byJf[p.id]?.let { jfWeight.merge(it.matchKey, Math.log(1.0 + p.plays.coerceAtLeast(0)) * 1.5 + (if (p.favourite) 3.0 else 0.0), Double::plus) } }
+        fun taste(t: Track): Int { val k = t.matchKey; return (plays[k] ?: 0) * 2 + (jfWeight[k] ?: 0.0).toInt() + (if (k in favKeys) 3 else 0) + (if (k in listKeys) 1 else 0) }
 
         if (listen.isNotEmpty()) out.add(HomeShelf("listen-again", "Listen again", "Your recent plays", listen))
         val again = listen.take(8).map { it.matchKey }.toHashSet()
-        val picks = spread(songs.filter { it.matchKey !in again && (it.durationMs == 0L || it.durationMs > 40_000) }.seeded(s * 31 + 7).sortedByDescending { taste(it) }, 2, 20)
+        val picks = QuickPicks.pick(songs, ud, jf, hits, s, nowMs, again)
         if (picks.isNotEmpty()) out.add(HomeShelf("quick-picks", "Quick picks", "Songs to start with, based on what you play", picks))
 
         val genres = songs.filter { it.genre.isNotEmpty() }.groupBy { it.genre.lowercase() }.entries.sortedByDescending { it.value.size }.take(8)

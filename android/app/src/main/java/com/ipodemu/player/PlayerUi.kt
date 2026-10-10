@@ -477,9 +477,18 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     var home by remember { androidx.compose.runtime.mutableStateOf(HomeCache.last) }
     LaunchedEffect(libRev, hour, recentsKey) {
         val d = kotlinx.coroutines.withContext(Dispatchers.Default) {
-            try { HomeData(com.ipodemu.library.HomeShelves.build(lib, app.userData), com.ipodemu.library.HomeShelves.moodsAvailable(lib)) } catch (_: Exception) { null }
+            try { HomeData(com.ipodemu.library.HomeShelves.build(lib, app.userData, System.currentTimeMillis(), com.ipodemu.library.TasteData.jf, com.ipodemu.library.TasteData.hits), com.ipodemu.library.HomeShelves.moodsAvailable(lib)) } catch (e: Exception) { android.util.Log.w("FLACie", "Home shelves failed", e); null }
         }
         if (d != null) { HomeCache.last = d; home = d }
+        // then, once an hour, learn from Jellyfin's play counts and the artists' best-known songs, and build the shelves again with them
+        val before = com.ipodemu.library.TasteData.hits.size + com.ipodemu.library.TasteData.jf.size
+        kotlinx.coroutines.withContext(Dispatchers.IO) { com.ipodemu.library.TasteData.refresh(app, lib) }
+        if (com.ipodemu.library.TasteData.hits.size + com.ipodemu.library.TasteData.jf.size != before) {
+            val d2 = kotlinx.coroutines.withContext(Dispatchers.Default) {
+                try { HomeData(com.ipodemu.library.HomeShelves.build(lib, app.userData, System.currentTimeMillis(), com.ipodemu.library.TasteData.jf, com.ipodemu.library.TasteData.hits), com.ipodemu.library.HomeShelves.moodsAvailable(lib)) } catch (e: Exception) { android.util.Log.w("FLACie", "Home shelves failed", e); null }
+            }
+            if (d2 != null) { HomeCache.last = d2; home = d2 }
+        }
     }
     val shelves = home?.shelves ?: emptyList()
     val moodList = home?.moods ?: emptyList()

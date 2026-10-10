@@ -126,6 +126,33 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         return all;
     }
 
+    /// <summary>
+    /// What Jellyfin has counted for this user across every app and device: songs played (most played first) and favourites, with the play count and the
+    /// last time. This is the account's whole listening history, from before FLACie, and what the Quick picks learn from.
+    /// </summary>
+    public async Task<List<JfPlay>> PlayStatsAsync(JellyfinAccount a, CancellationToken ct = default)
+    {
+        var res = new Dictionary<string, JfPlay>(StringComparer.OrdinalIgnoreCase);
+        async Task Pull(string filter, string sort)
+        {
+            var page = await Send(HttpMethod.Get, $"{a.Server}/Users/{a.UserId}/Items?IncludeItemTypes=Audio&Recursive=true&Filters={filter}&SortBy={sort}&SortOrder=Descending&EnableUserData=true&EnableImages=false&EnableTotalRecordCount=false&Limit=3000", a.Token, null, ct);
+            foreach (var o in page?["Items"]?.AsArray() ?? [])
+            {
+                if (o?["Id"]?.GetValue<string>() is not { Length: > 0 } id) continue;
+                var ud = o["UserData"];
+                var plays = ud?["PlayCount"] is JsonValue pv && pv.TryGetValue<int>(out var pc) ? pc : 0;
+                long last = 0;
+                if (ud?["LastPlayedDate"]?.GetValue<string>() is { Length: > 0 } ls && DateTime.TryParse(ls, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var lp)) last = new DateTimeOffset(lp).ToUnixTimeMilliseconds();
+                var fav = ud?["IsFavorite"] is JsonValue fv && fv.TryGetValue<bool>(out var fb) && fb;
+                var key = id.Replace("-", "");
+                res[key] = res.TryGetValue(key, out var old) ? new(key, Math.Max(old.Plays, plays), Math.Max(old.LastMs, last), old.Favourite || fav) : new(key, plays, last, fav);
+            }
+        }
+        await Pull("IsPlayed", "PlayCount");
+        try { await Pull("IsFavorite", "SortName"); } catch (Exception) when (res.Count > 0) { }
+        return [.. res.Values];
+    }
+
     public static Track ToTrack(string server, JsonNode o)
     {
         var id = o["Id"]!.GetValue<string>();

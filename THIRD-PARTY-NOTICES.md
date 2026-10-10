@@ -34,6 +34,15 @@ FLACie does **not** ship or link ffmpeg, ffprobe, yt-dlp, slskd, Lidarr or Jelly
 services in `ipodsync/tools/ytdl` use ffmpeg and yt-dlp in their own container) their licences (LGPL/GPL and Unlicense) apply to that container, not to FLACie.
 The Docker image contains Debian, the .NET runtime and FLACie only.
 
+## Apple Lossless (ALAC) decoder
+
+`ipodsync/src/FLACie.Core/Alac.cs` is FLACie's own ALAC decoder. It is written from the published ALAC bitstream layout (the format Apple released as open source under the
+Apache-2.0 licence), contains no code copied from Apple's or ffmpeg's sources, and was checked bit for bit against ffmpeg's output on 41 files. FLACie does not use ffmpeg to play ALAC.
+
+## Online catalog data
+
+Quick picks and Autoplay look up the best-known songs and similar artists of the artists you play from Deezer's public API, MusicBrainz and ListenBrainz. Only artist names are sent.
+
 ## iPod format knowledge
 
 The iPod database and signing code in `ipodsync/src/IpodSync.Core` is an independent implementation written from published format descriptions

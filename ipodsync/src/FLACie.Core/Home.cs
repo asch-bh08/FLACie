@@ -56,7 +56,12 @@ public static class HomeBuilder
         return m is null ? [] : Spread(Shuffled(lib.Songs.Where(t => InMood(t, m)), Slot(utcNow, 24) * 17 + mood.Length), 2, take);
     }
 
-    public static List<Shelf> Build(Library lib, IReadOnlyList<PlayedEntry> history, IReadOnlyList<PlaylistEntry> favourites, IReadOnlyList<Playlist> playlists, DateTime utcNow)
+    /// <summary>The lead artists this account plays most (library names), to look their best-known songs up for the Quick picks.</summary>
+    public static List<string> TopArtists(Library lib, IReadOnlyList<PlayedEntry> history, IReadOnlyList<PlaylistEntry> favourites, IReadOnlyList<Playlist> playlists, DateTime utcNow, IReadOnlyList<JfPlay>? jellyfin, int n = 24) =>
+        new TasteProfile(lib, history, favourites, playlists, utcNow, jellyfin).TopArtists(lib, n);
+
+    public static List<Shelf> Build(Library lib, IReadOnlyList<PlayedEntry> history, IReadOnlyList<PlaylistEntry> favourites, IReadOnlyList<Playlist> playlists, DateTime utcNow,
+        IReadOnlyList<JfPlay>? jellyfin = null, IReadOnlySet<string>? hits = null)
     {
         var shelves = new List<Shelf>();
         if (lib.Songs.Count == 0) return shelves;
@@ -74,13 +79,23 @@ public static class HomeBuilder
         }
         var favKeys = favourites.Select(f => lib.Resolve(f.Path, f.Title, f.Artist)).OfType<Track>().Select(Matching.MatchKey).ToHashSet();
         var listKeys = playlists.SelectMany(p => p.Entries).Select(e => lib.Resolve(e.Path, e.Title, e.Artist)).OfType<Track>().Select(Matching.MatchKey).ToHashSet();
-        double Taste(Track t) { var k = Matching.MatchKey(t); return plays.GetValueOrDefault(k) * 2 + (favKeys.Contains(k) ? 3 : 0) + (listKeys.Contains(k) ? 1 : 0); }
+        // Jellyfin's own count counts too: everything played in any app, not only here
+        var jfWeight = new Dictionary<string, double>();
+        foreach (var p in jellyfin ?? []) if (lib.ByJellyfinId(p.Id) is { } jt) { var k = Matching.MatchKey(jt); jfWeight[k] = jfWeight.GetValueOrDefault(k) + Math.Log(1 + Math.Max(0, p.Plays)) * 1.5 + (p.Favourite ? 3 : 0); }
+        double Taste(Track t) { var k = Matching.MatchKey(t); return plays.GetValueOrDefault(k) * 2 + jfWeight.GetValueOrDefault(k) + (favKeys.Contains(k) ? 3 : 0) + (listKeys.Contains(k) ? 1 : 0); }
 
         if (listen.Count > 0)
             shelves.Add(new("listen-again", "Listen again", "Your recent plays", listen.Take(16).ToList(), []));
+        else if (jellyfin is { Count: > 0 })
+        {
+            // nothing played through FLACie yet: the songs Jellyfin says were played most recently
+            var lastPlayed = jellyfin.Where(p => p.LastMs > 0).OrderByDescending(p => p.LastMs).Select(p => lib.ByJellyfinId(p.Id)).OfType<Track>().DistinctBy(Matching.MatchKey).Take(16).ToList();
+            foreach (var t in lastPlayed) listen.Add(t);
+            if (lastPlayed.Count > 0) shelves.Add(new("listen-again", "Listen again", "Recently played in Jellyfin", lastPlayed, []));
+        }
 
         var again = listen.Take(8).Select(Matching.MatchKey).ToHashSet();
-        var picks = Recommender.Recommend(lib, new TasteProfile(lib, history, favourites, playlists, utcNow), utcNow, 20, 31, 2, again);
+        var picks = Recommender.Recommend(lib, new TasteProfile(lib, history, favourites, playlists, utcNow, jellyfin, hits), utcNow, 20, 31, 2, again);
         if (picks.Count > 0) shelves.Add(new("quick-picks", "Quick picks", "Chosen for you from what you play, save and list", picks, [], "Refreshes every hour"));
 
         // the Daily Mix of the hour cycles through the moods, then the genres you own most of

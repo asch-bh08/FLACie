@@ -115,7 +115,7 @@ public static class Recommender
         var skip = exclude?.ToHashSet() ?? [];
         var rnd = new Random((int)((seed + HomeBuilder.Slot(utcNow)) % int.MaxValue));
         var now = new DateTimeOffset(utcNow).ToUnixTimeMilliseconds();
-        var loved = new List<(Track T, double S)>(); var fresh = new List<(Track T, double S)>();
+        var loved = new List<(Track T, double S)>(); var fresh = new List<(Track T, double S)>(); var other = new List<(Track T, double S)>();
         foreach (var t in lib.Songs)
         {
             if (t.DurationMs is > 0 and < 40_000) continue;
@@ -130,15 +130,17 @@ public static class Recommender
                 - (taste.PlayedWithin(t, utcNow, 24) ? 0.6 : 0);
             if (known > 0) loved.Add((t, s));
             else if (a > 0.12 || al > 0.12 || hit) fresh.Add((t, s));
+            else other.Add((t, s));
         }
         var res = new List<Track>(); var per = new Dictionary<string, int>(); var used = new HashSet<string>();
-        List<Track> Take(List<(Track T, double S)> src, int n)
+        List<Track> Take(List<(Track T, double S)> src, int n, int cap)
         {
             var got = new List<Track>();
             foreach (var x in src.OrderByDescending(x => x.S))
             {
                 var ar = Matching.PrimaryArtist(x.T.Artist);
-                if (per.GetValueOrDefault(ar) >= perArtist || !used.Add(Matching.MatchKey(x.T))) continue;
+                if (per.GetValueOrDefault(ar) >= cap || used.Contains(Matching.MatchKey(x.T))) continue;
+                used.Add(Matching.MatchKey(x.T));
                 per[ar] = per.GetValueOrDefault(ar) + 1; got.Add(x.T);
                 if (got.Count >= n) break;
             }
@@ -149,11 +151,16 @@ public static class Recommender
             // no taste yet: recent additions, then a shuffle
             var any = lib.Songs.Where(t => !(t.DurationMs is > 0 and < 40_000) && !skip.Contains(Matching.MatchKey(t)))
                 .OrderByDescending(t => t.AddedMs > 0 && now - t.AddedMs < 14L * 86_400_000 ? 1 : 0).ThenBy(_ => rnd.Next()).Select(t => (t, rnd.NextDouble())).ToList();
-            return Take(any, take);
+            return Take(any, take, perArtist);
         }
         var wantLoved = (int)Math.Round(take * 0.6);
-        var a1 = Take(loved, wantLoved); var b1 = Take(fresh, take - a1.Count);
-        if (a1.Count + b1.Count < take) a1.AddRange(Take(loved, take - a1.Count - b1.Count));   // not enough new ones: more of what you love
+        // songs you love: two of one artist at most; new ones may bring an artist to three (their best-known songs are what you want from artists you play)
+        var a1 = Take(loved, wantLoved, perArtist); var b1 = Take(fresh, take - a1.Count, perArtist + 1);
+        // short of songs (a small history or library): more of what you love, then more new ones with a looser limit, and only then songs that merely share a taste
+        if (a1.Count + b1.Count < take) a1.AddRange(Take(loved, take - a1.Count - b1.Count, perArtist + 2));
+        if (a1.Count + b1.Count < take) b1.AddRange(Take(fresh, take - a1.Count - b1.Count, perArtist + 2));
+        if (a1.Count + b1.Count < take) b1.AddRange(Take(other, take - a1.Count - b1.Count, perArtist + 1));
+        if (a1.Count + b1.Count < take) b1.AddRange(Take(other, take - a1.Count - b1.Count, 99));   // a library with only a few artists: no limit left
         // mix them in turn: two you love, one new, and so on
         int i = 0, j = 0;
         while (res.Count < take && (i < a1.Count || j < b1.Count))

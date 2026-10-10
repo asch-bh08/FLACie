@@ -93,6 +93,15 @@ object WebCatalog {
         return out.distinctBy { norm(primaryArtist(it.artist)) + "|" + norm(baseTitle(it.title)) }.take(limit)
     }
 
+    /** The best-known songs of one artist (Deezer's top list for that artist), most popular first; empty when the artist is not found. */
+    fun topSongs(artist: String, limit: Int = 25): List<String> {
+        val lead = primaryArtist(artist); if (lead.isEmpty()) return emptyList()
+        val found = json("https://api.deezer.com/search/artist?q=${enc(lead)}&limit=5")?.optJSONArray("data") ?: return emptyList()
+        val hit = objects(found).firstOrNull { norm(primaryArtist(it.optString("name"))) == norm(lead) } ?: return emptyList()
+        val top = json("https://api.deezer.com/artist/${hit.optLong("id")}/top?limit=$limit")?.optJSONArray("data") ?: return emptyList()
+        return objects(top).map { it.optString("title") }.filter { t -> t.isNotBlank() && !(variantWords.any { w -> t.contains(w, true) } && Regex("""[(\[]""").containsMatchIn(t)) }
+    }
+
     private val trailingGroup = Regex("""\s*[(\[]([^)\]]*)[)\]]\s*$""")
     // a different recording of the song: these stay in the title (a "(Live)" or "(Remix)" is not the song itself)
     private val versionWord = Regex("""\b(live|remix|mix|acoustic|instrumental|demo|cover|karaoke|session|unplugged|vip|rework|bootleg|extended|sped|slowed|reverb|a cappella|acapella|nightcore)\b""", RegexOption.IGNORE_CASE)

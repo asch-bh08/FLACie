@@ -22,6 +22,16 @@ public sealed class UserSession
     public Library Library { get; private set; } = Library.Empty;
     public string? Problem { get; private set; }
     public bool Loading { get; private set; }
+    /// <summary>What Jellyfin counts this user has played (all apps), for the Quick picks. Empty for a NAS-only sign-in or until it has been read.</summary>
+    public IReadOnlyList<JfPlay> PlayStats { get; private set; } = [];
+    public DateTime PlayStatsAt { get; private set; }
+    /// <summary>Reads the play counts again unless they are less than [maxAge] old. Never throws: the Quick picks just go without.</summary>
+    public async Task RefreshPlayStatsAsync(JellyfinClient jf, TimeSpan maxAge, CancellationToken ct = default)
+    {
+        if (Jellyfin is not { } a || DateTime.UtcNow - PlayStatsAt < maxAge) return;
+        PlayStatsAt = DateTime.UtcNow;   // set first, so a slow or failing read is not started again by every page
+        try { PlayStats = await jf.PlayStatsAsync(a, ct); Changed?.Invoke(); } catch (Exception) { }
+    }
     public DateTime LoadedAt { get; private set; }
     public event Action? Changed;
     /// <summary>Jellyfin songs another device sent that the loaded library doesn't list; they can still be streamed.</summary>
@@ -97,6 +107,7 @@ public sealed class UserSession
             // a failed fetch must not replace the library kept from last time with nothing
             if (!(jfTracks.Count == 0 && nasTracks.Count == 0 && Problem is not null && Library.Songs.Count > 0)) Library = WithDownloads(Library.Merge(jfTracks, nasTracks));
             LoadedAt = DateTime.UtcNow; SaveCache();
+            _ = RefreshPlayStatsAsync(jf, TimeSpan.Zero, ct);
             if (StripQualityTags()) try { await SaveAsync(jf, ct); } catch (Exception) { }
         }
         finally { Loading = false; gate.Release(); Changed?.Invoke(); }

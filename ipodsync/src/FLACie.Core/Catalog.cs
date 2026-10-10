@@ -108,6 +108,18 @@ public sealed class WebCatalog(HttpClient http)
 
     static bool Variant(string title) => VariantWords.Any(w => title.Contains(w, StringComparison.OrdinalIgnoreCase)) && Brackets.IsMatch(title);
 
+    /// <summary>The best-known songs of one artist (Deezer's top list for that artist), most popular first. Empty when the artist is not found.</summary>
+    public async Task<List<string>> TopSongsAsync(string artist, int limit = 25, CancellationToken ct = default)
+    {
+        var lead = Matching.PrimaryArtist(artist);
+        if (lead.Length == 0) return [];
+        var found = (await Json($"https://api.deezer.com/search/artist?q={Enc(lead)}&limit=5", ct))?["data"] as JsonArray ?? [];
+        var hit = found.OfType<JsonObject>().FirstOrDefault(o => Norm(Matching.PrimaryArtist(S(o, "name"))) == Norm(lead));
+        if (hit is null) return [];
+        var top = (await Json($"https://api.deezer.com/artist/{L(hit, "id")}/top?limit={limit}", ct))?["data"] as JsonArray ?? [];
+        return top.OfType<JsonObject>().Select(o => S(o, "title")).Where(t => t.Length > 0 && !Variant(t)).ToList();
+    }
+
     /// <summary>The current iTunes chart of top songs (Deezer's own chart endpoints stopped answering): 0 is overall; the other ids are
     /// 132 Pop, 116 Rap/Hip Hop, 152 Rock, 113 Dance, 165 R&amp;B, 85 Alternative, 106 Electronic.</summary>
     public async Task<List<CatalogSong>> ChartAsync(int genre = 0, int limit = 50, CancellationToken ct = default)

@@ -7,3 +7,7 @@ backups/
 # Device backups are never committed (HANDOFF.md)
 ipod-backups/
 dist/
+
+# the web smoke test's small Apple Lossless sample is tracked
+!tests/web-smoke/fixtures/
+!tests/web-smoke/fixtures/tone-alac.m4a

@@ -10,38 +10,48 @@ public class DownloadDigestTests
     DownloadDigest Make() => new((t, m) => sent.Add((t, m)), () => now);
 
     [Fact]
-    public void A_burst_of_downloads_is_one_message_after_it_goes_quiet()
+    public void A_single_song_is_said_live_right_away()
     {
         var d = Make();
-        d.Done("u1", "Dad", "A - X"); now = now.AddSeconds(10);
-        d.Done("u1", "Dad", "B - Y"); now = now.AddSeconds(10);
-        d.Done("u1", "Dad", "C - Z"); now = now.AddSeconds(10);
-        d.Done("u1", "Dad", "D - W"); now = now.AddSeconds(20);
-        d.Sweep();
-        Assert.Empty(sent);                       // still within 45 s of the last one
-        now = now.AddSeconds(40); d.Sweep();
+        d.Done("u1", "hms", "Song - Artist");
         var (title, msg) = Assert.Single(sent);
-        Assert.Equal("🎵 FLACie · Dad downloaded", title);
-        Assert.Equal("4 songs: A - X, B - Y, C - Z and 1 more", msg);
-        d.Sweep(); Assert.Single(sent);           // never repeated
+        Assert.Equal("🎵 FLACie · hms downloaded", title);
+        Assert.Equal("Song - Artist", msg);
     }
 
     [Fact]
-    public void Each_user_gets_their_own_message_and_a_repeat_is_counted_once()
+    public void The_first_three_are_live_and_a_big_burst_becomes_one_summary_when_it_goes_quiet()
     {
         var d = Make();
-        d.Done("u1", "hms", "A - X"); d.Done("u1", "hms", "A - X"); d.Done("u2", "Dad", "B - Y");
+        for (var i = 0; i < 50; i++) { d.Done("u1", "Dad", $"S{i} - X"); now = now.AddSeconds(5); d.Sweep(); }
+        Assert.Equal(3, sent.Count);                 // only the live ones so far (the burst keeps going: no quiet gap yet)
+        now = now.AddSeconds(50); d.Sweep();
+        Assert.Equal(4, sent.Count);
+        Assert.Equal("🎵 FLACie · Dad downloaded 47 more", sent[3].Title);
+        Assert.Equal("S3 - X, S4 - X, S5 - X and 44 more", sent[3].Message);
         now = now.AddMinutes(1); d.Sweep();
-        Assert.Equal(2, sent.Count);
-        Assert.Contains(sent, s => s.Title.EndsWith("hms downloaded") && s.Message == "1 song: A - X");
-        Assert.Contains(sent, s => s.Title.EndsWith("Dad downloaded"));
+        Assert.Equal(4, sent.Count);                 // never repeated
     }
 
     [Fact]
-    public void A_long_stream_of_downloads_is_still_announced_within_five_minutes()
+    public void Each_user_has_their_own_burst_and_a_repeat_is_counted_once()
     {
         var d = Make();
-        for (var i = 0; i < 40; i++) { d.Done("u1", "Dad", "S" + i); now = now.AddSeconds(10); d.Sweep(); }
-        Assert.NotEmpty(sent);
+        for (var i = 0; i < 6; i++) d.Done("u1", "hms", "A" + i);
+        d.Done("u1", "hms", "A5");
+        d.Done("u2", "Dad", "B");
+        Assert.Equal(4, sent.Count);                 // 3 live for hms, 1 live for Dad
+        now = now.AddMinutes(1); d.Sweep();
+        Assert.Equal(5, sent.Count);
+        Assert.Contains("hms downloaded 3 more", sent[4].Title);
+    }
+
+    [Fact]
+    public void After_a_quiet_stretch_the_next_song_is_live_again()
+    {
+        var d = Make();
+        d.Done("u1", "hms", "One"); now = now.AddMinutes(10); d.Sweep();
+        d.Done("u1", "hms", "Two");
+        Assert.Equal(2, sent.Count);
     }
 }

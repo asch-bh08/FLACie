@@ -20,7 +20,7 @@ class PlaysReporter(private val prefs: Prefs, private val player: PlayerControll
     private var reported: String? = null      // the path of the song the server was told about
     private var lastSent = false              // whether the last thing said was "playing"
 
-    private fun via(t: Track?): String? = when (t?.source) { TrackSource.NAS -> "NAS"; TrackSource.CLOUD -> "direct"; TrackSource.JELLYFIN -> "Jellyfin"; else -> null }
+    private fun via(t: Track?): String? = when (t?.source) { TrackSource.NAS -> "NAS"; TrackSource.CLOUD -> "direct"; else -> null }
     private val usable: Boolean get() = prefs.flacieWebUrl.isNotBlank() && prefs.hasJellyfinAccount
 
     init {

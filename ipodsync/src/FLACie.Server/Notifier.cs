@@ -20,7 +20,7 @@ public sealed class NotifyConfig
     public bool Started { get; set; } = true;     // the server started
     public bool Plays { get; set; } = true;       // someone plays music that Jellyfin does not already announce (NAS, direct fallback)
     public bool Downloads { get; set; } = true;   // a user's downloads finished (batched into one message)
-    public bool JellyfinPlays { get; set; }       // also announce plays that go through Jellyfin (only when the Jellyfin watcher ignores FLACie, or every song is announced twice)
+    public bool JellyfinPlays { get; set; } = true;   // also announce plays that go through Jellyfin from FLACie Web (the Jellyfin watcher must ignore the device "FLACie Web", or every song is announced twice)
 }
 
 /// <summary>Sends notifications to an ntfy server (https://ntfy.sh/ or your own). Nothing is sent unless an admin has set it up and turned it on.</summary>

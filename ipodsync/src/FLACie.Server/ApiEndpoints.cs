@@ -111,10 +111,11 @@ public static class ApiEndpoints
 
         // "music played" from the phone for songs that do not go through Jellyfin (the NAS, the file mover): the server cannot see those streams, so the app says
         // when one starts, that it is still playing (about every ten seconds) and when it stops. Jellyfin songs are never reported: Jellyfin announces them itself.
-        app.MapPost("/api/played", async (HttpContext ctx, SessionStore store, JellyfinClient jf, PlayTracker plays, PlayedReport r) =>
+        app.MapPost("/api/played", async (HttpContext ctx, SessionStore store, JellyfinClient jf, PlayTracker plays, Notifier notify, PlayedReport r) =>
         {
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
-            if (r.Via is not ("NAS" or "direct") || string.IsNullOrEmpty(r.Key) || r.Key.Length > 600) return Results.BadRequest();
+            if (r.Via is not ("NAS" or "direct" or "Jellyfin") || string.IsNullOrEmpty(r.Key) || r.Key.Length > 600) return Results.BadRequest();
+            if (r.Via == "Jellyfin" && !notify.Current.JellyfinPlays) return Results.NoContent();   // the Jellyfin watcher announces those
             var key = "phone:" + r.Key;
             var device = string.IsNullOrWhiteSpace(r.Device) ? "phone" : r.Device.Trim()[..Math.Min(r.Device.Trim().Length, 40)];
             string Cut(string? x, int n) => (x ?? "").Trim() is var y && y.Length > n ? y[..n] : y;

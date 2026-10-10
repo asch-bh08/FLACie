@@ -181,6 +181,7 @@ else
             <label class="check-chip"><input type="checkbox" @bind="cfg.Started" /><span>Server started</span></label>
             <label class="check-chip"><input type="checkbox" @bind="cfg.Plays" /><span>Someone plays music</span></label>
             <label class="check-chip"><input type="checkbox" @bind="cfg.Downloads" /><span>Someone downloads music</span></label>
+            <label class="check-chip"><input type="checkbox" @bind="cfg.JellyfinPlays" /><span>Also plays through Jellyfin (live, with playlist name)</span></label>
         </div>
         <div class="row-actions">
             <button class="btn primary" @onclick="SaveNotify">Save</button>

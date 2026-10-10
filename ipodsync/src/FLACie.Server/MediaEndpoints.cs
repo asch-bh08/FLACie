@@ -24,14 +24,14 @@ public static class MediaEndpoints
         // a page of album tiles asks for dozens of covers at once; a NAS answers a few at a time reliably
         var nasSlots = new SemaphoreSlim(4);
 
-        app.MapGet("/stream", async (HttpContext ctx, string p, SessionStore store, JellyfinClient jf, IHttpClientFactory hf, AlacCache alac, PlayTracker plays) =>
+        app.MapGet("/stream", async (HttpContext ctx, string p, SessionStore store, JellyfinClient jf, IHttpClientFactory hf, AlacCache alac, PlayTracker plays, Notifier notify) =>
         {
             var s = store.For(ctx.User);
             var t = s.FindByPath(p);
             if (t is null) return Results.NotFound();
             // where this play really comes from, decided here where the stream is resolved: Jellyfin plays are announced by Jellyfin's own watcher, so only
             // NAS files and the file mover's direct fallback (a song Jellyfin has not scanned yet) are ever reported as "music played"
-            plays.Served(s.Id, t.Path, t.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "direct", _ => null });
+            plays.Served(s.Id, t.Path, t.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "direct", TrackSource.Jellyfin when notify.Current.JellyfinPlays => "Jellyfin", _ => null });
             async Task<IResult> Proxy(HttpRequestMessage req, bool ranges = true)
             {
                 if (ranges && ctx.Request.Headers.Range.Count > 0) req.Headers.TryAddWithoutValidation("Range", ctx.Request.Headers.Range.ToString());

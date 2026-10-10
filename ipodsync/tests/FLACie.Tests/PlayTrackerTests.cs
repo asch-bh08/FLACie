@@ -61,6 +61,19 @@ public class PlayTrackerTests
     }
 
     [Fact]
+    public void Skipping_through_songs_a_second_each_publishes_nothing()
+    {
+        var r = new Rig();
+        for (var i = 0; i < 40; i++) r.Listen("u1", "Dad", "t" + i, "Song " + i, "Artist", 1);
+        r.Now = r.Now.AddMinutes(11); r.T.Sweep();
+        Assert.Empty(r.Sent);
+        // and once one song is actually listened to, only that one counts
+        r.Listen("u1", "Dad", "keep", "Keeper", "Artist", 30);
+        Assert.Single(r.Sent);
+        Assert.Contains("Keeper - Artist", r.Sent[0].Message);
+    }
+
+    [Fact]
     public void The_same_song_again_within_a_minute_is_the_same_play()
     {
         var r = new Rig();

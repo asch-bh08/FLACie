@@ -1,5 +1,11 @@
 // A tiny stand-in for Jellyfin, just enough for FLACie Web to sign in and show a library. Account: tester / pw (an administrator).
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const here = path.dirname(fileURLToPath(import.meta.url));
+// song 1 is an Apple Lossless .m4a (a real file), which browsers cannot play: FLACie Web has to decode it itself
+const alacFile = fs.readFileSync(path.join(here, 'fixtures', 'tone-alac.m4a'));
 
 const PORT = Number(process.env.PORT || 8196);
 const artists = ['Aurora Vale', 'Brass Monkeys', 'Cobalt Sky', 'Delta Hum', 'Echo Harbour'];
@@ -21,7 +27,7 @@ for (let a = 0; a < artists.length; a++) {
         ParentIndexNumber: 1,
         RunTimeTicks: (150 + n * 7) * 10_000_000,
         ProductionYear: 1990 + a * 7 + al * 3,
-        Path: `/music/${artists[a]}/Album ${al + 1}/${String(t).padStart(2, '0')} song ${n}.flac`,
+        Path: `/music/${artists[a]}/Album ${al + 1}/${String(t).padStart(2, '0')} song ${n}.${n === 1 ? 'm4a' : 'flac'}`,
         Genres: [genres[a]],
         DateCreated: new Date(Date.UTC(2024, a, 1 + al * 10 + t)).toISOString(),
         ImageTags: { Primary: 'x' },
@@ -72,6 +78,14 @@ http
         return json(res, 200, { Items: songs.slice(start, start + limit), TotalRecordCount: songs.length, StartIndex: start });
       }
       return json(res, 200, { Items: [], TotalRecordCount: 0 });
+    }
+    if (p === '/Audio/s1/stream') {
+      // byte ranges, like Jellyfin's static stream
+      const m = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
+      const total = alacFile.length;
+      const from = m && m[1] !== '' ? +m[1] : 0, to = m && m[2] !== '' ? Math.min(+m[2], total - 1) : total - 1;
+      res.writeHead(m ? 206 : 200, { 'content-type': 'audio/mp4', 'accept-ranges': 'bytes', 'content-length': to - from + 1, ...(m ? { 'content-range': `bytes ${from}-${to}/${total}` } : {}) });
+      return res.end(alacFile.subarray(from, to + 1));
     }
     if (/^\/Items\/[^/]+\/Images\//.test(p)) {
       res.writeHead(200, { 'content-type': 'image/png' });

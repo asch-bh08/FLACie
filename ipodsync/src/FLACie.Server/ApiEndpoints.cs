@@ -111,6 +111,15 @@ public static class ApiEndpoints
 
         // the real format of every song the server has read (ffprobe / Jellyfin, never guessed from the extension), keyed like the apps key a file
         // (the last three path segments): the phone uses it for the Hi-Res badge and the Explore quality filter. [codec, sampleRate, bitDepth, kbps]
+        // an Apple Lossless song as WAV, for players (the phone app) that have no ALAC decoder: this server decodes it itself, with the caller's own Jellyfin sign-in
+        app.MapGet("/api/alac", async (HttpContext ctx, string id, SessionStore store, JellyfinClient jf, IHttpClientFactory hf, AlacCache alac) =>
+        {
+            if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
+            if (id.Length != 32 || !id.All(Uri.IsHexDigit)) return Results.BadRequest();
+            var t = new Track("alac:" + id, "", "", "", "", 0, 0, 0, 0, null, 0, TrackSource.Jellyfin, "x.m4a", id);
+            return await AlacServe.TryServeAsync(ctx, s, t, jf, hf, alac) ? Results.Empty : Results.StatusCode(422);
+        }).DisableAntiforgery();
+
         app.MapGet("/api/audiofacts", async (HttpContext ctx, SessionStore store, JellyfinClient jf, FormatIndex index, FormatProbeService probe) =>
         {
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();

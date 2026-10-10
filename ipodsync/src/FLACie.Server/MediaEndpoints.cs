@@ -24,7 +24,7 @@ public static class MediaEndpoints
         // a page of album tiles asks for dozens of covers at once; a NAS answers a few at a time reliably
         var nasSlots = new SemaphoreSlim(4);
 
-        app.MapGet("/stream", async (HttpContext ctx, string p, SessionStore store, JellyfinClient jf, IHttpClientFactory hf) =>
+        app.MapGet("/stream", async (HttpContext ctx, string p, SessionStore store, JellyfinClient jf, IHttpClientFactory hf, AlacCache alac) =>
         {
             var s = store.For(ctx.User);
             var t = s.FindByPath(p);
@@ -42,6 +42,8 @@ public static class MediaEndpoints
                 await body.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
                 return Results.Empty;
             }
+            // Apple Lossless: browsers cannot decode it, so the server decodes it itself and sends WAV (any other .m4a goes on as it is)
+            if (await AlacServe.TryServeAsync(ctx, s, t, jf, hf, alac)) return Results.Empty;
             if (t.Source == TrackSource.Jellyfin && s.Jellyfin is { } a)
             {
                 // formats a browser cannot decode (WMA, APE ...) are converted to MP3 by Jellyfin on the way (no seeking inside them, but they play)

@@ -82,6 +82,7 @@ builder.Services.AddRazorComponents()
 // ... but only a configured proxy is believed (FLACIE_TRUSTED_PROXIES; by default loopback and private networks, never the public internet)
 builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(o => ProxyTrust.Configure(o, builder.Configuration));
 builder.Services.AddSingleton<LoginThrottle>();
+builder.Services.AddSingleton<AlacCache>();
 
 var app = builder.Build();
 // hosted by the Windows app: stop when that app does, so closing it never leaves a server running

@@ -126,6 +126,28 @@ test('the player bar offers the mini player (picture in picture) where the brows
   await expect(page.getByRole('button', { name: /Mini player/ })).toBeVisible({ timeout: 10_000 });
 });
 
+test('an Apple Lossless song plays: the server decodes it to WAV (browsers cannot play ALAC)', async ({ page }) => {
+  const problems = watch(page);
+  await page.goto('/songs');
+  await page.waitForTimeout(2000);
+  await expect(async () => {   // typing before the live connection is up is lost: type again until the list narrows
+    await page.locator('input[type="search"]').first().fill('Velvet');
+    await expect(page.locator('.track-title', { hasText: /^Velvet 1$/ })).toBeVisible({ timeout: 3000 });
+  }).toPass({ timeout: 30_000 });
+  const streamed = page.waitForResponse((r) => r.url().includes('/stream?p=') && r.url().includes('s1'), { timeout: 20_000 });
+  await page.locator('.track', { has: page.locator('.track-title', { hasText: /^Velvet 1$/ }) }).locator('button.track-main').click();   // song 1 of the mock library
+  const res = await streamed;
+  expect(res.headers()['content-type']).toBe('audio/wav');
+  expect([200, 206]).toContain(res.status());
+  // the clock moves, so the browser really decoded and played it
+  await expect.poll(async () => (await page.locator('.player .seek span').first().innerText()), { timeout: 15_000 }).not.toBe('0:00');
+  const body = await page.request.get(res.url());
+  const bytes = await body.body();
+  expect(bytes.subarray(0, 4).toString('ascii')).toBe('RIFF');
+  expect(bytes.length).toBeGreaterThan(44 + 44100 * 4);   // two seconds of 16-bit stereo at 44.1 kHz
+  expect(problems).toEqual([]);
+});
+
 test('an unknown address shows a page, not a crash', async ({ page }) => {
   const res = await page.goto('/this-page-does-not-exist');
   expect(res?.status()).toBeLessThan(500);

@@ -70,6 +70,9 @@ private class MultiServerDataSource(private val prefs: Prefs) : DataSource {
             jfUrl.isNotBlank() && uriStr.startsWith(jfUrl) -> http.setRequestProperty("Authorization", com.ipodemu.library.JellyfinAuth.header(prefs.jellyfinApiKey))
             plexUrl.isNotBlank() && uriStr.startsWith(plexUrl) -> http.setRequestProperty("X-Plex-Token", prefs.plexToken)
             moverUrl.isNotBlank() && uriStr.startsWith(moverUrl) -> http.setRequestProperty("X-Api-Key", prefs.fileMoverApiKey)
+            prefs.flacieWebUrl.isNotBlank() && uriStr.startsWith(prefs.flacieWebUrl.trimEnd('/') + "/api/") -> {
+                http.setRequestProperty("X-Emby-Token", prefs.accountToken); http.setRequestProperty("X-Jellyfin-Server", prefs.accountServer.trimEnd('/'))
+            }
         }
         return http.open(dataSpec)
     }
@@ -444,6 +447,22 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             "&Container=aac&TranscodingContainer=ts&TranscodingProtocol=hls&AudioCodec=aac&MaxAudioChannels=2&StartTimeTicks=0")
     }
 
+    /**
+     * Apple Lossless on a phone that has no decoder for it: FLACie Web decodes the song itself (its own ALAC decoder, no ffmpeg and no Jellyfin conversion) and sends
+     * WAV, which plays and seeks anywhere. Only when FLACie Web is set up and this is a Jellyfin song; null otherwise (the Jellyfin conversion is the fallback).
+     */
+    private fun ownAlacUri(t: Track): Uri? {
+        val web = prefs.flacieWebUrl.trimEnd('/'); if (web.isBlank() || !prefs.hasJellyfinAccount) return null
+        if (t.filePath.substringAfterLast('.', "").lowercase() !in setOf("m4a", "alac", "mp4")) return null
+        val id = jfStreamRe.find(t.path)?.groupValues?.get(2) ?: return null
+        val codec = AudioFacts.of(t)?.codec
+        // developer switch: an empty file named force-own-alac in the app's external files folder sends every .m4a through the server's decoder, to test it on a phone that has an ALAC decoder
+        val forceTest = java.io.File(ctx.getExternalFilesDir(null), "force-own-alac").exists() && (codec.isNullOrBlank() || codec.equals("alac", true))
+        val alac = (codec.equals("alac", true) && !hasAlacDecoder) || forceTest
+        val forcedUnknown = t.path in forceHls && codec.isNullOrBlank()
+        return if (alac || forcedUnknown) Uri.parse("$web/api/alac?id=$id") else null
+    }
+
     private fun needsTranscode(t: Track) = t.filePath.substringAfterLast('.', "").lowercase() in setOf("wma", "asf", "ape", "wv", "tta") || t.path in forceHls ||
         (AudioFacts.of(t)?.codec.equals("alac", true) && !hasAlacDecoder)   // Apple lossless: only where the phone has no decoder for it (many have none and stay silent)
 
@@ -504,8 +523,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         val uri = if (t.path.startsWith("content:") || t.path.startsWith("file:") || t.path.startsWith("http:") ||
             t.path.startsWith("https:") || t.path.startsWith("smb:")) Uri.parse(t.path) else Uri.fromFile(File(t.path))
         // formats the phone cannot decode (WMA, APE ...) are converted by Jellyfin on the way, like the data saver does
-        val hls = if (dataSaver || needsTranscode(t)) hlsUri(t) else null
-        return MediaItem.Builder().setMediaId(t.path).setUri(hls ?: uri).setTag(t).also { if (hls != null) it.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8) }
+        val own = ownAlacUri(t)
+        val hls = if (own == null && (dataSaver || needsTranscode(t))) hlsUri(t) else null
+        return MediaItem.Builder().setMediaId(t.path).setUri(own ?: hls ?: uri).setTag(t).also { if (hls != null) it.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8) }
             .setMediaMetadata(md.build()).build()
     }
 

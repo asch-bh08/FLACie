@@ -273,6 +273,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             lastStarted = s.tracks[s.index]   // a restore is not a new play (no history entry, no plays report)
             exo.setMediaItems(s.tracks.map(::item), s.index, s.positionMs)
             exo.playWhenReady = false
+            ensureService()   // a paused session, so the media buttons and the notification reach the restored queue
         } catch (_: Exception) {}
     }
 
@@ -420,9 +421,11 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** Shuffle Songs: random start, shuffle mode forced on. */
     fun shuffleAll(list: List<Track>) = play(list, if (list.isEmpty()) 0 else list.indices.random(), true)
 
-    fun toggle() { if (interceptor?.toggle() == true) return; if (wantsToPlay) exo.pause() else if (hasQueue) { ensurePrepared(); exo.play() } }
+    /** The media session and notification live in the service: a queue restored after a kill has none until something starts it. */
+    private fun ensureService() { try { ctx.startService(Intent(ctx, PlaybackService::class.java)) } catch (_: Exception) {} }
+    fun toggle() { if (interceptor?.toggle() == true) return; if (wantsToPlay) exo.pause() else if (hasQueue) { ensureService(); ensurePrepared(); exo.play() } }
     fun pause() { exo.pause() }
-    fun resume() { if (hasQueue) { ensurePrepared(); exo.play() } }
+    fun resume() { if (hasQueue) { ensureService(); ensurePrepared(); exo.play() } }
     /** Starts [list] at [index] from [positionMs] (taking over playback from another device). */
     fun playFrom(list: List<Track>, index: Int, positionMs: Long, paused: Boolean = false) {
         if (list.isEmpty()) return

@@ -328,6 +328,8 @@ fun TrackRow(
     val rCode = app.prefs.swipeRowRight; val lCode = app.prefs.swipeRowLeft
     // built once per (track, favourite, settings): stable objects keep the row's pointer handlers from restarting
     val hw = LocalHardware.current   // the faithful device view has no swipe shortcuts
+    // a narrow screen (the 360 dp RG Rotate, with its 80 dp rail): the badges would leave the title room for 7 letters, so the source badge goes and Hi-Res moves under the title
+    val narrow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 440
     val right = remember(t, fav, rCode, hw) { if (hw) null else swipeAction(rCode, app, t, fav, ctx) }
     val left = remember(t, fav, lCode, hw) { if (hw) null else swipeAction(lCode, app, t, fav, ctx) }
     SwipeRow(right = right, left = left, modifier = modifier) {
@@ -351,8 +353,8 @@ fun TrackRow(
         trailing = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (fav) GlyphIcon(Glyph.HEART_FILLED, Modifier.size(18.dp), sc.accent)
-                if (hiRes) HiResBadge()
-                SourceBadge(t.source)
+                if (hiRes && !narrow) HiResBadge()
+                if (!narrow) SourceBadge(t.source)
                 if (t.durationMs > 0) Txt(remember(t.durationMs) { fmtTime(t.durationMs) }, size = 13f, color = rowDim())
                 val moreLabel = remember(t.title) { "More options for ${t.title}" }
                 Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = moreLabel }.clickable { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, contentAlignment = Alignment.Center) {
@@ -364,7 +366,10 @@ fun TrackRow(
         Column {
             Txt(t.title, size = 16f, weight = if (isCurrent) FontWeight.Bold else FontWeight.Medium, color = if (hi) Color.White else if (isCurrent) sc.accent else sc.onBg)
             val sub = remember(t.artist, t.album) { if (t.artist.isEmpty()) t.album else if (t.album.isEmpty()) t.artist else t.artist + " - " + t.album }
-            if (sub.isNotEmpty()) Txt(sub, size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
+            if (narrow && hiRes) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                HiResBadge(compact = true)
+                if (sub.isNotEmpty()) Txt(sub, Modifier.weight(1f), size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
+            } else if (sub.isNotEmpty()) Txt(sub, size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
         }
     }
     }
@@ -437,19 +442,21 @@ private fun NameDialog(onDone: (String) -> Unit, renaming: String?, onDismiss: (
     var text by remember { mutableStateOf(renaming ?: "") }
     val fr = remember { FocusRequester() }
     LaunchedEffect(Unit) { try { fr.requestFocus() } catch (_: Exception) {} }
-    Box(Modifier.fillMaxSize().background(Color(0xAA000000)).imePadding().pointerInput(Unit) { detectTapGestures { onDismiss() } }, contentAlignment = Alignment.Center) {
+    // a short screen with the keyboard up leaves about 180 dp: the dialog sits at the top, is tighter, and scrolls, so Cancel and Create are never hidden behind the keyboard
+    val shortScreen = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500
+    Box(Modifier.fillMaxSize().background(Color(0xAA000000)).imePadding().pointerInput(Unit) { detectTapGestures { onDismiss() } }, contentAlignment = if (shortScreen) Alignment.TopCenter else Alignment.Center) {
         Column(
-            Modifier.padding(24.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(sc.top.mix(Color.Black, .4f))
-                .pointerInput(Unit) { detectTapGestures { } }.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            Modifier.padding(if (shortScreen) 12.dp else 24.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(sc.top.mix(Color.Black, .4f))
+                .pointerInput(Unit) { detectTapGestures { } }.verticalScroll(rememberScrollState()).padding(if (shortScreen) 14.dp else 20.dp),
+            verticalArrangement = Arrangement.spacedBy(if (shortScreen) 8.dp else 14.dp),
         ) {
-            Txt(if (renaming != null) "Rename playlist" else "New playlist", size = 20f, weight = FontWeight.Bold)
+            Txt(if (renaming != null) "Rename playlist" else "New playlist", size = if (shortScreen) 18f else 20f, weight = FontWeight.Bold)
             BasicTextField(
                 text, { text = it }, singleLine = true, cursorBrush = SolidColor(sc.accent),
                 textStyle = TextStyle(color = sc.onBg, fontSize = 18.sp),
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
                 keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { if (text.isNotBlank()) { onDone(text.trim()); onDismiss() } }),
-                modifier = Modifier.fillMaxWidth().focusRequester(fr).clip(RoundedCornerShape(12.dp)).background(Color(0x22FFFFFF)).padding(14.dp),
+                modifier = Modifier.fillMaxWidth().focusRequester(fr).clip(RoundedCornerShape(12.dp)).background(Color(0x22FFFFFF)).padding(if (shortScreen) 10.dp else 14.dp),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.align(Alignment.End)) {
                 GlossPill("Cancel", onDismiss)
@@ -500,6 +507,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     app.userData.rev
     app.ui.rev
     val clock by androidx.compose.runtime.produceState("") { while (true) { value = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date()); delay(15000) } }
+    val online = rememberOnline()
     Column(Modifier.fillMaxSize()) {
         val modern = LocalStyle.current.modern
         if (modern) ModernTopBar(greeting(), null) { IconAction(Glyph.SEARCH, "Search", { nav.push(Screen.Search) }); AccountAction() }
@@ -508,6 +516,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             TopAction(Glyph.GEAR, "Settings") { nav.push(Screen.Settings) }
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            if (!online) item { OfflineChip(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) }
             if (!modern) item { NowPlayingCard(snap, nav) { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } } }
             if (com.ipodemu.PermissionPlan.showMediaNotice(app.ui.loginMode, app.ui.mediaAccess)) item { MediaAccessNotice(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             item {
@@ -976,12 +985,17 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
     Column(Modifier.fillMaxSize().imePadding()) {
         // the big title goes while typing, so more results fit above the keyboard
         val imeUp = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
-        if (!imeUp) TopBar("Search", nav, showBack = true)
+        // a short screen (the 360 dp RG Rotate) drops the big title when Search is a tab of its own, so the field and the results get the room
+        val shortNoTitle = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500 && nav.stack.size <= 1
+        if (shortNoTitle) Spacer(Modifier.height(4.dp))
+        else if (!imeUp) TopBar("Search", nav, showBack = true)
         else Spacer(Modifier.windowInsetsTopHeight(androidx.compose.foundation.layout.WindowInsets.statusBars))
         SearchPill(query, { query = it }, "Songs, albums, artists", Modifier.padding(16.dp), shape = RoundedCornerShape(50), background = Color(0x26FFFFFF), borderColor = sc.cardBorder,
             height = 46.dp, textSize = 16f, onSubmit = { searchFocus.clearFocus() }, trailing = {
                 if (query.isNotEmpty()) IconAction(Glyph.CLOSE, "Clear search", { query = "" }, tint = sc.onBgDim, size = 44.dp, iconScale = 0.45f)
             })
+        val online = rememberOnline()
+        if (!online) OfflineChip(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp), "Offline: searching only the music on this device")
         val r = results
         val w = web
         val q = query.trim()

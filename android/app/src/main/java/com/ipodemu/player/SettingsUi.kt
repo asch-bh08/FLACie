@@ -119,9 +119,8 @@ fun SettingsScreen(nav: PlayerNav, dashboard: Boolean = false) {
                     SettingRow("Volume limit", if (prefs.volumeLimit == 100) "Off" else "${prefs.volumeLimit}%") {
                         prefs.volumeLimit = limits[(limits.indexOf(prefs.volumeLimit).coerceAtLeast(0) + 1) % limits.size]; app.player.applyVolumeLimit()
                     }
-                    SettingRow("Sleep timer", if (app.player.sleepMinutes == 0) "Off" else "${app.player.sleepMinutes} min") {
-                        app.player.setSleepTimer(sleeps[(sleeps.indexOf(app.player.sleepMinutes).coerceAtLeast(0) + 1) % sleeps.size])
-                    }
+                    val sleepLeft = rememberSleepLeft(app)
+                    SettingRow("Sleep timer", sleepLeft ?: "Off", chevron = true) { nav.sheet = sleepSheet(app) }
                 }
             }
             }

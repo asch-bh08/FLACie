@@ -284,7 +284,7 @@ fun eqSheet(app: com.ipodemu.App) = SheetSpec("Equalizer", app.prefs.eq, PlayerC
     SheetItem(if (app.prefs.eq == n) "$n  (on)" else n, if (app.prefs.eq == n) Glyph.CHECK else Glyph.LIST) { app.prefs.eq = n; app.player.applyEq() }
 })
 
-fun sleepSheet(app: com.ipodemu.App) = SheetSpec("Sleep Timer", if (app.player.sleepMinutes > 0) "${app.player.sleepMinutes} min" else "Off",
+fun sleepSheet(app: com.ipodemu.App) = SheetSpec("Sleep Timer", if (app.player.sleepMinutes > 0) formatSleepLeft(app.player.sleepRemainingMs) else "Off",
     listOf(0, 15, 30, 60, 90, 120).map { m -> SheetItem(if (m == 0) "Off" else "$m minutes", Glyph.CLOCK) { app.player.setSleepTimer(m) } })
 
 /** Modern mini player: a floating rounded bar above the navigation, cover + title + play/next, thin progress line. */
@@ -295,8 +295,10 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
     val pos by rememberPosition(app.player, snap.playing)
     val dur = app.player.durationMs
     val frac = if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
+    // on a short screen the bar is slimmer and sits closer to the bottom: it took a fifth of the 360 dp RG Rotate
+    val short = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500
     Box(
-        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp).height(62.dp).clip(RoundedCornerShape(14.dp))
+        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = if (short) 4.dp else 6.dp, bottom = if (short) 4.dp else 10.dp).height(if (short) 56.dp else 62.dp).clip(RoundedCornerShape(14.dp))
             .background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(14.dp))
             .focusRing(RoundedCornerShape(14.dp))
             .clickable { nav.nowPlaying = true }

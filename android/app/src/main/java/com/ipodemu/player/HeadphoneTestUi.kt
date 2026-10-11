@@ -128,10 +128,16 @@ fun HeadphoneTestScreen() {
                 }
                 Txt(if (engine.playing) engine.status else "Ready: pick a test. Start with the level low.", size = 13f, color = Color.White, maxLines = 2)
             }
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for ((id, name) in TABS) GlossPill(name, { tab = id }, primary = tab == id, height = 38.dp)
+            // a short screen (360 dp): the tabs scroll away with the test instead of staying pinned, so the tests get the room
+            val shortScreen = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500
+            val tabRow: @Composable () -> Unit = {
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for ((id, name) in TABS) GlossPill(name, { tab = id }, primary = tab == id, height = 38.dp)
+                }
             }
+            if (!shortScreen) tabRow()
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (shortScreen) tabRow()
                 when (tab) {
                     "lr" -> Card {
                         Hint("Checks each side on its own. Each should be clear, equally loud, and silent in the other ear. If it comes from the wrong side, the cable or channel setting is swapped.")

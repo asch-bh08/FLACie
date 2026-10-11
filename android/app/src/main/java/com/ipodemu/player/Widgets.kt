@@ -670,8 +670,8 @@ fun HiResPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
 
 /** The badge for a Hi-Res file: filled amber, so it stands out from the quiet source badges. */
 @Composable
-fun HiResBadge() {
-    Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0xFFFFC857)).padding(horizontal = 8.dp, vertical = 3.dp)) {
-        Txt("✦ Hi-Res", size = 11f, weight = FontWeight.ExtraBold, color = Color(0xFF2A1D00))
+fun HiResBadge(compact: Boolean = false) {
+    Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0xFFFFC857)).padding(horizontal = if (compact) 6.dp else 8.dp, vertical = if (compact) 1.dp else 3.dp)) {
+        Txt("✦ Hi-Res", size = if (compact) 10f else 11f, weight = FontWeight.ExtraBold, color = Color(0xFF2A1D00))
     }
 }

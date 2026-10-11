@@ -11,8 +11,13 @@ public sealed class ChartsService(SessionStore sessions, UserStateStore states, 
 {
     public static readonly (int Id, string Name)[] Available = [(0, "Top Songs"), (132, "Pop"), (116, "Hip-Hop"), (152, "Rock"), (113, "Dance"), (165, "R&B"), (85, "Alternative"), (106, "Electronic")];
 
+    // the copy inside the desktop app (FLACIE_PARENT_PID is set by it) leaves the daily download to the always-on server: two servers
+    // racing on one library fetched the same songs twice. "Run now" on the Charts settings still works there.
+    public static bool InDesktopShell => Environment.GetEnvironmentVariable("FLACIE_PARENT_PID") is { Length: > 0 };
+
     protected override async Task ExecuteAsync(CancellationToken stop)
     {
+        if (InDesktopShell) return;
         await Task.Delay(TimeSpan.FromSeconds(45), stop);
         // accounts that turned this on and signed in before this start: bring their sessions back so the daily download runs without a visit
         foreach (var j in states.Remembered()) { try { sessions.For(SessionStore.Principal(j, null)); } catch (Exception e) { log.LogWarning(e, "Restoring a remembered account failed"); } }
@@ -66,7 +71,7 @@ public sealed class ChartsService(SessionStore sessions, UserStateStore states, 
                 var name = Available.FirstOrDefault(a => a.Id == id).Name ?? "Chart " + id;
                 var chart = await catalog.ChartAsync(id, 50, ct);
                 if (chart.Count == 0) continue;
-                var todo = chart.Where(c => s.Library.Find(c.Title, c.Artist) is null && !st.ChartSeen.Contains(Matching.MatchKey(c.Title, c.Artist)) && !downloads.RecentlyFailed(s, c.Artist, c.Title)).Take(Math.Max(0, cfg.PerList)).ToList();
+                var todo = chart.Where(c => s.Library.Find(c.Title, c.Artist) is null && !st.ChartSeen.Contains(Matching.MatchKey(c.Title, c.Artist)) && !downloads.RecentlyFailed(s, c.Artist, c.Title) && !downloads.RecentlyFetched(s, c.Artist, c.Title)).Take(Math.Max(0, cfg.PerList)).ToList();
                 wanted += todo.Count;
                 foreach (var c in todo)
                 {

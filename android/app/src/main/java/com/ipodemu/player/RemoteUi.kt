@@ -65,9 +65,11 @@ fun RemoteMiniPlayer(id: String) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(s.id, s.paused) { while (true) { now = System.currentTimeMillis(); delay(500) } }
     val frac = if (s.durationMs > 0) (s.estimatedMs(now).toFloat() / s.durationMs).coerceIn(0f, 1f) else 0f
+    val short = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500
     Box(
-        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp).height(66.dp).clip(RoundedCornerShape(14.dp))
+        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = if (short) 4.dp else 6.dp, bottom = if (short) 4.dp else 10.dp).height(if (short) 58.dp else 66.dp).clip(RoundedCornerShape(14.dp))
             .background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(14.dp))
+            .focusRing(RoundedCornerShape(14.dp))
             .clickable { app.ui.remoteOpen = true },
     ) {
         Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {

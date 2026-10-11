@@ -34,6 +34,7 @@ class App : Application() {
         library = Library(this, art)
         player = PlayerController(this, prefs)
         ui = UiState(prefs)
+        player.restoreQueue(); player.restoreSleepTimer()
         userData = com.ipodemu.library.UserData(this)
         // one-off: on-device playlists that never reached the account stay out of Playlists; new ones always show
         if (!prefs.playlistsMigrated) { prefs.hiddenPlaylists = userData.playlists.filter { it.jfId == null && it.paths.isNotEmpty() }.mapTo(HashSet()) { it.id }; prefs.playlistsMigrated = true }

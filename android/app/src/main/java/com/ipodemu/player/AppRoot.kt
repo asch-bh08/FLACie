@@ -41,6 +41,10 @@ object PlayerKeys {
             a -> activity.window.decorView.dispatchKeyEvent(KeyEvent(e.downTime, e.eventTime, e.action, KeyEvent.KEYCODE_DPAD_CENTER, e.repeatCount))
             b, KeyEvent.KEYCODE_ESCAPE -> { if (e.action == KeyEvent.ACTION_UP) activity.onBackPressedDispatcher.onBackPressed(); true }
             x, KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { if (down && e.repeatCount == 0) app.player.toggle(); true }
+            // PLAY and PAUSE on their own (a headset, a keyboard): handled here while the app is in front, because after another app took the audio focus the system
+            // can route them to that app's dead session instead of ours (only PLAY_PAUSE reached us)
+            KeyEvent.KEYCODE_MEDIA_PLAY -> { if (down && e.repeatCount == 0 && !app.player.wantsToPlay) app.player.toggle(); true }
+            KeyEvent.KEYCODE_MEDIA_PAUSE -> { if (down && e.repeatCount == 0 && app.player.wantsToPlay) app.player.toggle(); true }
             y -> { if (down && e.repeatCount == 0) app.ui.requestNowPlaying(); true }
             KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_MEDIA_PREVIOUS -> { if (down && e.repeatCount == 0) app.player.prev(); true }
             KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_R2, KeyEvent.KEYCODE_MEDIA_NEXT -> { if (down && e.repeatCount == 0) app.player.next(); true }

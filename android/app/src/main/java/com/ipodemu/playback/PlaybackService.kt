@@ -25,7 +25,7 @@ class PlaybackService : MediaSessionService() {
             this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        session = MediaSession.Builder(this, App.of(this).player.exo).setSessionActivity(open).build()
+        session = MediaSession.Builder(this, App.of(this).player.sessionPlayer).setSessionActivity(open).build()
         // Register the session so the notification manager tracks the player even with no external controller bound.
         addSession(session!!)
         setMediaNotificationProvider(DefaultMediaNotificationProvider(this).apply { setSmallIcon(R.drawable.ic_stat_flacie) })
@@ -35,6 +35,7 @@ class PlaybackService : MediaSessionService() {
 
     /** Swiping the app away from recents stops the music, clears the notification and ends the service. */
     override fun onTaskRemoved(rootIntent: Intent?) {
+        App.of(this).player.persistNow()   // the swipe-away stops the music, but the queue comes back (paused) next time
         val p = App.of(this).player.exo
         p.pause()
         p.stop()

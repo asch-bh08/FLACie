@@ -104,20 +104,33 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
                 }
             }
         
+        } else if (compactSquare && shown != "art") {
+            // a pane (Lyrics, Info graphs, Up next) on a small square screen takes the whole width: in half the width its chips, graphs and lines were cut off.
+            // The song is named in the header and the controls shrink to one strip under it.
+            Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 4.dp)) {
+                Header(nav, title = listOf(t.title, t.artist).filter { it.isNotEmpty() }.joinToString(" - "))
+                Box(Modifier.weight(1f).fillMaxWidth().padding(vertical = 4.dp)) {
+                    ArtOrPanel(t, snap, shown == "lyrics", shown == "info", big = false, art = Modifier.fillMaxWidth().aspectRatio(1f))
+                }
+                PaneStrip(snap, lyricsToggle, infoToggle)
+            }
         } else if (compactSquare) {
             // a small square or landscape screen (the RG Rotate is 360 x 360 dp): header on top, then the cover (or lyrics / info) on the left and the
             // song, seek bar and controls on the right, all on screen at once (the single column pushed the cover out of sight below the controls)
             Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 4.dp)) {
                 Header(nav)
                 Row(Modifier.weight(1f).fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Box(Modifier.weight(0.44f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                    Box(Modifier.weight(0.42f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                         ArtOrPanel(t, snap, shown == "lyrics", shown == "info", big = false, art = Modifier.fillMaxWidth().aspectRatio(1f))
                     }
-                    Column(Modifier.weight(0.56f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        InfoRow(snap, nav)
-                        Seek(snap)
-                        Transport(snap)
-                        ActionRow(snap, nav, lyricsToggle, spread = true, info = infoToggle)
+                    // centred in the height there is, and scrolling only if the text is too big for it (large font size)
+                    Box(Modifier.weight(0.58f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            InfoRow(snap, nav)
+                            Seek(snap)
+                            Transport(snap)
+                            ActionRow(snap, nav, lyricsToggle, spread = true, info = infoToggle, compact = true)
+                        }
                     }
                 }
             }
@@ -184,15 +197,34 @@ private fun SideTabs(selected: String, onSelect: (String) -> Unit) {
 }
 
 @Composable
-private fun Header(nav: PlayerNav) {
+private fun Header(nav: PlayerNav, title: String? = null) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     val wide = LocalPane.current?.wide == true
     Row(Modifier.fillMaxWidth().height(52.dp), verticalAlignment = Alignment.CenterVertically) {
         IconAction(Glyph.DOWN, "Close", { nav.nowPlaying = false })
-        if (wide) Spacer(Modifier.weight(1f)) else Txt("Now Playing", Modifier.weight(1f), size = 14f, weight = FontWeight.SemiBold, color = sc.onBgDim, align = TextAlign.Center)
+        val sleepLeft = rememberSleepLeft(app)
+        if (sleepLeft != null) Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { SleepChip(sleepLeft) { nav.sheet = sleepSheet(app) } }
+        else if (title != null) Txt(title, Modifier.weight(1f).padding(horizontal = 8.dp), size = 14f, weight = FontWeight.SemiBold, color = sc.onBgDim, align = TextAlign.Center)
+        else if (wide) Spacer(Modifier.weight(1f)) else Txt("Now Playing", Modifier.weight(1f), size = 14f, weight = FontWeight.SemiBold, color = sc.onBgDim, align = TextAlign.Center)
         if (!app.ui.guest) IconAction(Glyph.JAM, if (app.jam.inJam) "In a Jam" else "Jam", { app.ui.jamOpen = true }, tint = if (app.jam.inJam) sc.accent else sc.onBg)
         if (!app.ui.guest) IconAction(Glyph.DEVICES, "Devices", { app.ui.devicesOpen = true })
+    }
+}
+
+/** The one-row controls under a full-width pane on a small square screen: previous, play, next, and the pane buttons. */
+@Composable
+private fun PaneStrip(snap: PlayerSnap, lyrics: Pair<Boolean, () -> Unit>, info: Pair<Boolean, () -> Unit>) {
+    val app = LocalApp.current
+    val pn = LocalPane.current
+    val playFocus = remember { FocusRequester() }
+    Row(Modifier.fillMaxWidth().height(56.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        IconAction(Glyph.PREV, "Previous", { app.player.prev() }, size = 44.dp, iconScale = 0.56f)
+        PlayDisc(snap.playing, 48.dp, playFocus) { app.player.toggle() }
+        IconAction(Glyph.NEXT, "Next", { app.player.next() }, size = 44.dp, iconScale = 0.56f)
+        RoundAction(Glyph.LYRICS, "Lyrics", lyrics.first, lyrics.second)
+        RoundAction(Glyph.INFO, "Info", info.first, info.second)
+        RoundAction(Glyph.QUEUE, "Up next", pn?.pane == "queue") { pn?.toggle?.invoke("queue") }
     }
 }
 
@@ -269,9 +301,26 @@ private fun formatTags(app: com.ipodemu.App, t: Track, snap: PlayerSnap): List<S
 }
 
 @Composable
-private fun ActionRow(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boolean, () -> Unit>?, spread: Boolean, info: Pair<Boolean, () -> Unit>? = null) {
+private fun ActionRow(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boolean, () -> Unit>?, spread: Boolean, info: Pair<Boolean, () -> Unit>? = null, compact: Boolean = false) {
     val app = LocalApp.current
     val t = snap.track ?: return
+    if (compact) {
+        // a narrow column (the 360 dp square RG Rotate): four round buttons that all fit, nothing scrolled off the edge; the rest is in More
+        val pn = LocalPane.current
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            if (lyricsToggle != null) RoundAction(Glyph.LYRICS, "Lyrics", lyricsToggle.first, lyricsToggle.second)
+            if (info != null) RoundAction(Glyph.INFO, "Info", info.first, info.second)
+            RoundAction(Glyph.QUEUE, "Up next", pn?.pane == "queue") { if (pn != null) pn.toggle("queue") else nav.openQueueFromPlayer() }
+            RoundAction(Glyph.MORE, "More", false) {
+                openTrackSheet(app, nav, t, listOf(
+                    SheetItem("Add to playlist", Glyph.PLUS) { nav.sheet = playlistPicker(app, nav, t) },
+                    SheetItem("Equalizer" + if (app.prefs.eq != "Off") "  (${app.prefs.eq})" else "", Glyph.LIST) { nav.sheet = eqSheet(app) },
+                    SheetItem("Sleep timer", Glyph.CLOCK) { nav.sheet = sleepSheet(app) },
+                ))
+            }
+        }
+        return
+    }
     // YouTube Music style: one scrollable row of pills; the active ones (Lyrics, Info, Equalizer on) fill with the accent
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         if (lyricsToggle != null) Pill(Glyph.LYRICS, "Lyrics", lyricsToggle.first, lyricsToggle.second)
@@ -280,7 +329,7 @@ private fun ActionRow(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boole
         Pill(Glyph.QUEUE, "Up next", pn?.pane == "queue") { if (pn != null) pn.toggle("queue") else nav.openQueueFromPlayer() }
         Pill(Glyph.LIST, "Equalizer", app.prefs.eq != "Off") { nav.sheet = eqSheet(app) }
         Pill(Glyph.PLUS, "Add to playlist", false) { nav.sheet = playlistPicker(app, nav, t) }
-        Pill(Glyph.MORE, "More", false) { openTrackSheet(app, nav, t, if (info != null && !info.first) listOf(SheetItem("Song info", Glyph.INFO) { info.second() }) else emptyList()) }
+        Pill(Glyph.MORE, "More", false) { openTrackSheet(app, nav, t, (if (info != null && !info.first) listOf(SheetItem("Song info", Glyph.INFO) { info.second() }) else emptyList()) + SheetItem("Sleep timer", Glyph.CLOCK) { nav.sheet = sleepSheet(app) }) }
     }
 }
 
@@ -362,10 +411,13 @@ private fun PlayDisc(playing: Boolean, size: Dp, focus: FocusRequester, onClick:
     val focused by src.collectIsFocusedAsState()
     Box(
         Modifier.size(size).focusRequester(focus).clip(CircleShape).background(Color.White)
-            .then(if (focused) Modifier.border(3.dp, sc.accent, CircleShape) else Modifier)
             .clickable(src, null, onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { GlyphIcon(if (playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(size * 0.45f), Color.Black) }
+    ) {
+        // the focus ring is inset and in the accent: a white ring on the white disc cannot be seen
+        if (focused) Box(Modifier.fillMaxSize().padding(3.dp).border(3.dp, sc.accent, CircleShape))
+        GlyphIcon(if (playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(size * 0.45f), Color.Black)
+    }
 }
 
 @Composable
@@ -438,7 +490,7 @@ private fun RoundAction(g: Glyph, label: String, active: Boolean, onClick: () ->
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
     Box(
-        Modifier.size(46.dp).clip(CircleShape).background(if (active) sc.accent else Color(0x1FFFFFFF))
+        Modifier.size(44.dp).clip(CircleShape).background(if (active) sc.accent else Color(0x1FFFFFFF))
             .then(if (focused) Modifier.border(2.dp, Color.White, CircleShape) else Modifier)
             .semantics { contentDescription = label }
             .clickable(src, null, onClick = onClick),

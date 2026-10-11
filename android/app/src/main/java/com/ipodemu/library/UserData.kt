@@ -8,6 +8,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
+/** How long a removal from a playlist page can be undone: a little longer than the Undo message stays on screen. */
+const val UNDO_MS = 6_500L
+
+/** Where a pending removal really is now: the recorded [index] if it still holds [path], else the first copy of it, else -1. */
+fun removalIndex(paths: List<String>, index: Int, path: String): Int = if (paths.getOrNull(index) == path) index else paths.indexOf(path)
+
 /** [mtime] = last edit (newest wins when two devices' copies are merged); [jfId] = the mirrored Jellyfin playlist. */
 class UserPlaylist(val id: String, var name: String, val paths: MutableList<String>, var mtime: Long = System.currentTimeMillis(), var jfId: String? = null)
 
@@ -72,17 +78,54 @@ class UserData(ctx: Context) {
         playlists.firstOrNull { it.id == id }?.let { if (path !in it.paths) it.paths.add(path); it.mtime = System.currentTimeMillis(); changed() }
     }
 
+    /** A song taken out of a playlist page that is not gone yet: it stays pending for [UNDO_MS] so Undo brings it back untouched, then the removal is applied. */
+    class PendingRemoval(val playlistId: String, val path: String, val index: Int)
+    var pending by androidx.compose.runtime.mutableStateOf<PendingRemoval?>(null)
+        private set
+    private val pendingHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /** Starts a removal that Undo can cancel (see [PendingRemoval]); a removal already pending is applied first. Returns the song, or null. */
+    fun removeLater(id: String, index: Int): String? {
+        commitPending()
+        val path = playlists.firstOrNull { it.id == id }?.paths?.getOrNull(index) ?: return null
+        val pr = PendingRemoval(id, path, index)
+        pending = pr; rev++
+        pendingHandler.postDelayed({ if (pending === pr) commitPending() }, UNDO_MS)
+        return path
+    }
+    /** Undo: the song was never taken out. */
+    fun cancelRemoval() { if (pending != null) { pending = null; rev++ } }
+    /** Applies the pending removal now (the time is up, or another edit is about to happen). */
+    fun commitPending() {
+        val pr = pending ?: return
+        pending = null
+        playlists.firstOrNull { it.id == pr.playlistId }?.let { p ->
+            val i = removalIndex(p.paths, pr.index, pr.path)
+            if (i >= 0) { p.paths.removeAt(i); p.mtime = System.currentTimeMillis(); changed() } else rev++
+        }
+    }
+    /** The songs of a playlist as the page shows them: the one with a pending removal is already out of sight. */
+    fun visiblePaths(id: String): List<String> {
+        val p = playlists.firstOrNull { it.id == id } ?: return emptyList()
+        val pr = pending?.takeIf { it.playlistId == id } ?: return p.paths.toList()
+        val i = removalIndex(p.paths, pr.index, pr.path)
+        return if (i < 0) p.paths.toList() else p.paths.filterIndexed { n, _ -> n != i }
+    }
+
     /** Takes the song at [index] out (the Undo puts it back with [insertAt]). */
     fun removeAt(id: String, index: Int): String? = playlists.firstOrNull { it.id == id }?.let { p ->
+        commitPending()
         if (index !in p.paths.indices) null else p.paths.removeAt(index).also { p.mtime = System.currentTimeMillis(); changed() }
     }
 
     fun insertAt(id: String, index: Int, path: String) {
+        commitPending()
         playlists.firstOrNull { it.id == id }?.let { it.paths.add(index.coerceIn(0, it.paths.size), path); it.mtime = System.currentTimeMillis(); changed() }
     }
 
     /** Moves the song at [from] to [to] (up or down in the list). */
     fun move(id: String, from: Int, to: Int) {
+        commitPending()
         playlists.firstOrNull { it.id == id }?.let { p ->
             if (from !in p.paths.indices || to !in p.paths.indices || from == to) return
             p.paths.add(to, p.paths.removeAt(from)); p.mtime = System.currentTimeMillis(); changed()
@@ -91,6 +134,7 @@ class UserData(ctx: Context) {
 
     /** Drops later copies of a song already in the playlist ([keyOf] says what counts as the same song); returns how many went. */
     fun removeDuplicates(id: String, keyOf: (String) -> String): Int {
+        commitPending()
         val p = playlists.firstOrNull { it.id == id } ?: return 0
         val seen = HashSet<String>(); val keep = ArrayList<String>()
         for (path in p.paths) if (seen.add(keyOf(path))) keep.add(path)
@@ -100,10 +144,12 @@ class UserData(ctx: Context) {
     }
 
     fun removeFromPlaylist(id: String, path: String) {
+        commitPending()
         playlists.firstOrNull { it.id == id }?.let { it.paths.remove(path); it.mtime = System.currentTimeMillis(); changed() }
     }
 
     fun deletePlaylist(id: String) {
+        commitPending()
         playlists.firstOrNull { it.id == id }?.jfId?.let { deletedPlaylistJf.add(it) }
         playlists.removeAll { it.id == id }; deletedPlaylists.add(id); changed()
     }

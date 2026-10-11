@@ -44,7 +44,7 @@ import java.util.Locale
 /** One line of what is running right now (this phone's own downloads and the server's). */
 private class RunningLine(val label: String, val kind: String, val startedAt: Long, val message: String, val current: String?, val artKey: String?, val origin: String)
 
-private val SECTIONS = listOf("running" to "Running", "failed" to "Failed", "soulseek" to "Soulseek", "lidarr" to "Lidarr", "open" to "YouTube and open sources")
+private val SECTIONS = listOf("running" to "Running", "failed" to "Failed", "soulseek" to "Soulseek", "lidarr" to "Lidarr", "open" to "Open sources")
 
 private fun sectionOf(r: DownloadRecord): String = when {
     !r.done -> "failed"
@@ -110,7 +110,7 @@ fun DownloadsScreen() {
                 }
             }
             item {
-                Txt("Everything fetched for you, newest first, kept across restarts. Each download tries Soulseek first, then the free sources and YouTube (if switched on), then Lidarr; tap one to see what each source said." +
+                Txt("Everything fetched for you, newest first, kept across restarts. Each download tries Soulseek first, then the free sources, then Lidarr; tap one to see what each source said." +
                     if (web.available) "" else " Set up FLACie Web to also see the server's downloads here.", size = 13f, color = Color(0xB3FFFFFF), maxLines = 6)
             }
             item {
@@ -134,7 +134,7 @@ fun DownloadsScreen() {
                 } else {
                     val rows = by[id] ?: emptyList()
                     if (rows.isEmpty()) item(key = "e-$id") {
-                        Txt(when (id) { "failed" -> "Nothing failed."; "soulseek" -> "Nothing came from Soulseek yet."; "lidarr" -> "Nothing came from Lidarr yet."; else -> "Nothing came from YouTube, the Internet Archive, Audius or Jamendo yet." }, size = 13f, color = Color(0x99FFFFFF))
+                        Txt(when (id) { "failed" -> "Nothing failed."; "soulseek" -> "Nothing came from Soulseek yet."; "lidarr" -> "Nothing came from Lidarr yet."; else -> "Nothing came from the Internet Archive, Audius or Jamendo yet." }, size = 13f, color = Color(0x99FFFFFF))
                     }
                     val limit = shown[id] ?: 15
                     items(rows.take(limit), key = { "${it.origin}-${it.id}" }) { r ->

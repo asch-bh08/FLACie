@@ -72,6 +72,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -236,7 +237,8 @@ fun PlayerHost(nav: PlayerNav) {
         // and the reverse on switching to Modern: a tab screen pushed on top of Home becomes its own tab root, so the nav highlights it
         if (modern && nav.stack.size > 1 && Tab.entries.any { it.root == nav.top }) androidx.compose.runtime.SideEffect { Tab.entries.firstOrNull { it.root == nav.top }?.let { nav.selectTab(it) } }
         BackHandler(enabled = modern && !ui.pickerOpen && nav.sheet == null && nav.nameDialog == null && !nav.nowPlaying && nav.stack.size == 1 && nav.top != Screen.Home) { nav.selectTab(Tab.HOME) }
-        BoxWithConstraints(Modifier.fillMaxSize()) {
+        // what is covered (Now Playing, a menu, a dialog) must not take D-pad focus: Down used to walk into the page underneath
+        BoxWithConstraints(Modifier.fillMaxSize().focusProperties { canFocus = !(nav.nowPlaying || nav.sheet != null || nav.nameDialog != null) }) {
         // Modern: a navigation rail when there is width to spare (unfolded Fold, tablet, landscape, the square RG Rotate),
         // a bottom bar on portrait phones and the Fold cover screen
         val rail = modern && (maxWidth >= 600.dp || maxWidth >= maxHeight)
@@ -273,7 +275,7 @@ fun PlayerHost(nav: PlayerNav) {
             nav.nowPlaying,
             enter = slideInVertically(tween(320)) { it } + fadeIn(tween(200)),
             exit = slideOutVertically(tween(260)) { it } + fadeOut(tween(200)),
-        ) { Box(Modifier.graphicsLayer { translationX = backDrag }) { NowPlayingScreen(snap, nav) } }
+        ) { Box(Modifier.graphicsLayer { translationX = backDrag }.focusProperties { canFocus = nav.sheet == null && nav.nameDialog == null }) { NowPlayingScreen(snap, nav) } }
         nav.sheet?.let { s -> ActionSheet(s.title, s.subtitle, s.items) { nav.sheet = null } }
         nav.nameDialog?.let { done -> NameDialog(done, nav.nameDialogRename) { nav.nameDialog = null; nav.nameDialogRename = null } }
     }
@@ -328,6 +330,8 @@ fun TrackRow(
     val rCode = app.prefs.swipeRowRight; val lCode = app.prefs.swipeRowLeft
     // built once per (track, favourite, settings): stable objects keep the row's pointer handlers from restarting
     val hw = LocalHardware.current   // the faithful device view has no swipe shortcuts
+    // a narrow screen (a phone, or the 480 dp wide RG Rotate with its 80 dp rail): the badges would leave the title room for 7 letters, so the source badge goes and Hi-Res moves under the title
+    val narrow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 520
     val right = remember(t, fav, rCode, hw) { if (hw) null else swipeAction(rCode, app, t, fav, ctx) }
     val left = remember(t, fav, lCode, hw) { if (hw) null else swipeAction(lCode, app, t, fav, ctx) }
     SwipeRow(right = right, left = left, modifier = modifier) {
@@ -351,8 +355,8 @@ fun TrackRow(
         trailing = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (fav) GlyphIcon(Glyph.HEART_FILLED, Modifier.size(18.dp), sc.accent)
-                if (hiRes) HiResBadge()
-                SourceBadge(t.source)
+                if (hiRes && !narrow) HiResBadge()
+                if (!narrow) SourceBadge(t.source)
                 if (t.durationMs > 0) Txt(remember(t.durationMs) { fmtTime(t.durationMs) }, size = 13f, color = rowDim())
                 val moreLabel = remember(t.title) { "More options for ${t.title}" }
                 Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = moreLabel }.clickable { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, contentAlignment = Alignment.Center) {
@@ -364,7 +368,10 @@ fun TrackRow(
         Column {
             Txt(t.title, size = 16f, weight = if (isCurrent) FontWeight.Bold else FontWeight.Medium, color = if (hi) Color.White else if (isCurrent) sc.accent else sc.onBg)
             val sub = remember(t.artist, t.album) { if (t.artist.isEmpty()) t.album else if (t.album.isEmpty()) t.artist else t.artist + " - " + t.album }
-            if (sub.isNotEmpty()) Txt(sub, size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
+            if (narrow && hiRes) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                HiResBadge(compact = true)
+                if (sub.isNotEmpty()) Txt(sub, Modifier.weight(1f), size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
+            } else if (sub.isNotEmpty()) Txt(sub, size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
         }
     }
     }
@@ -437,19 +444,21 @@ private fun NameDialog(onDone: (String) -> Unit, renaming: String?, onDismiss: (
     var text by remember { mutableStateOf(renaming ?: "") }
     val fr = remember { FocusRequester() }
     LaunchedEffect(Unit) { try { fr.requestFocus() } catch (_: Exception) {} }
-    Box(Modifier.fillMaxSize().background(Color(0xAA000000)).imePadding().pointerInput(Unit) { detectTapGestures { onDismiss() } }, contentAlignment = Alignment.Center) {
+    // a short screen with the keyboard up leaves about 180 dp: the dialog sits at the top, is tighter, and scrolls, so Cancel and Create are never hidden behind the keyboard
+    val shortScreen = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500
+    Box(Modifier.fillMaxSize().background(Color(0xAA000000)).imePadding().pointerInput(Unit) { detectTapGestures { onDismiss() } }, contentAlignment = if (shortScreen) Alignment.TopCenter else Alignment.Center) {
         Column(
-            Modifier.padding(24.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(sc.top.mix(Color.Black, .4f))
-                .pointerInput(Unit) { detectTapGestures { } }.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            Modifier.padding(if (shortScreen) 12.dp else 24.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(sc.top.mix(Color.Black, .4f))
+                .pointerInput(Unit) { detectTapGestures { } }.verticalScroll(rememberScrollState()).padding(if (shortScreen) 14.dp else 20.dp),
+            verticalArrangement = Arrangement.spacedBy(if (shortScreen) 8.dp else 14.dp),
         ) {
-            Txt(if (renaming != null) "Rename playlist" else "New playlist", size = 20f, weight = FontWeight.Bold)
+            Txt(if (renaming != null) "Rename playlist" else "New playlist", size = if (shortScreen) 18f else 20f, weight = FontWeight.Bold)
             BasicTextField(
                 text, { text = it }, singleLine = true, cursorBrush = SolidColor(sc.accent),
                 textStyle = TextStyle(color = sc.onBg, fontSize = 18.sp),
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
                 keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { if (text.isNotBlank()) { onDone(text.trim()); onDismiss() } }),
-                modifier = Modifier.fillMaxWidth().focusRequester(fr).clip(RoundedCornerShape(12.dp)).background(Color(0x22FFFFFF)).padding(14.dp),
+                modifier = Modifier.fillMaxWidth().focusRequester(fr).clip(RoundedCornerShape(12.dp)).background(Color(0x22FFFFFF)).padding(if (shortScreen) 10.dp else 14.dp),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.align(Alignment.End)) {
                 GlossPill("Cancel", onDismiss)
@@ -500,6 +509,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     app.userData.rev
     app.ui.rev
     val clock by androidx.compose.runtime.produceState("") { while (true) { value = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date()); delay(15000) } }
+    val online = rememberOnline()
     Column(Modifier.fillMaxSize()) {
         val modern = LocalStyle.current.modern
         if (modern) ModernTopBar(greeting(), null) { IconAction(Glyph.SEARCH, "Search", { nav.push(Screen.Search) }); AccountAction() }
@@ -508,6 +518,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             TopAction(Glyph.GEAR, "Settings") { nav.push(Screen.Settings) }
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            if (!online) item { OfflineChip(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) }
             if (!modern) item { NowPlayingCard(snap, nav) { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } } }
             if (com.ipodemu.PermissionPlan.showMediaNotice(app.ui.loginMode, app.ui.mediaAccess)) item { MediaAccessNotice(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             item {
@@ -843,7 +854,7 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
         DetailKind.ARTIST -> lib.artists().firstOrNull { it.name == d.id }?.let { title = it.name; tracks = it.tracks; art = it.artKey }
         DetailKind.GENRE -> lib.genres().firstOrNull { it.name == d.id }?.let { title = it.name; tracks = it.tracks; art = it.artKey }
         DetailKind.FOLDER -> lib.playlists().firstOrNull { it.name == d.id }?.let { title = it.name; tracks = it.tracks; art = it.artKey }
-        DetailKind.USER -> ud.playlists.firstOrNull { it.id == d.id }?.let { title = it.name; tracks = it.paths.mapNotNull { p -> lib.resolve(p, ud.meta[p]) }; art = tracks.firstNotNullOfOrNull { t -> t.artKey }; userId = it.id }
+        DetailKind.USER -> ud.playlists.firstOrNull { it.id == d.id }?.let { title = it.name; tracks = ud.visiblePaths(it.id).mapNotNull { p -> lib.resolve(p, ud.meta[p]) }; art = tracks.firstNotNullOfOrNull { t -> t.artKey }; userId = it.id }
         DetailKind.FAVORITES -> { title = "Favorites"; tracks = ud.favorites.mapNotNull { lib.resolve(it, ud.meta[it]) }.distinctBy { it.path }; art = tracks.firstNotNullOfOrNull { it.artKey } }
         DetailKind.RECENT -> { title = "Recently Played"; tracks = ud.recents.mapNotNull { by[it] ?: lib.resolve(it, ud.meta[it]) }; art = tracks.firstNotNullOfOrNull { it.artKey } }
         DetailKind.DOWNLOADS -> { title = "Recently Downloaded"; tracks = recentDownloads(app); art = tracks.firstNotNullOfOrNull { it.artKey } }
@@ -857,7 +868,12 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
     val missing = if (userId != null && app.library.loaded) ud.playlists.firstOrNull { it.id == userId }?.paths.orEmpty().filter { lib.resolve(it, ud.meta[it]) == null }.mapNotNull { ud.meta[it] }.filter { it.first.isNotBlank() } else emptyList()
     Column(Modifier.fillMaxSize()) {
         TopBar(title.ifEmpty { "Playlist" }, nav, showBack = true)
-        if (tracks.isEmpty() && missing.isEmpty()) { EmptyState(if (d.kind == DetailKind.FAVORITES) "Tap the heart on a song to add it here" else "Nothing here yet"); return@Column }
+        if (tracks.isEmpty() && missing.isEmpty()) {
+            // an emptied playlist keeps its Play / Rename / Delete buttons (the only way to rename or delete it from its own page)
+            if (userId != null) Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) { DetailHeader(art, title, subtitle.ifEmpty { info }, if (subtitle.isEmpty()) "" else info, tracks, nav, userId) }
+            Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState(if (d.kind == DetailKind.FAVORITES) "Tap the heart on a song to add it here" else "Nothing here yet") }
+            return@Column
+        }
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val wide = maxWidth > 620.dp && maxWidth > maxHeight * 1.25f
             if (wide) {
@@ -971,21 +987,17 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
     Column(Modifier.fillMaxSize().imePadding()) {
         // the big title goes while typing, so more results fit above the keyboard
         val imeUp = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
-        if (!imeUp) TopBar("Search", nav, showBack = true)
+        // a short screen (the 360 dp RG Rotate) drops the big title when Search is a tab of its own, so the field and the results get the room
+        val shortNoTitle = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500 && nav.stack.size <= 1
+        if (shortNoTitle) Spacer(Modifier.height(4.dp))
+        else if (!imeUp) TopBar("Search", nav, showBack = true)
         else Spacer(Modifier.windowInsetsTopHeight(androidx.compose.foundation.layout.WindowInsets.statusBars))
-        Row(
-            Modifier.padding(16.dp).fillMaxWidth().height(46.dp).clip(RoundedCornerShape(50)).background(Color(0x26FFFFFF)).border(1.dp, sc.cardBorder, RoundedCornerShape(50)).padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            GlyphIcon(Glyph.SEARCH, Modifier.size(20.dp), sc.onBgDim)
-            Box(Modifier.weight(1f)) {
-                if (query.isEmpty()) Txt("Songs, albums, artists", size = 16f, color = sc.onBgDim)
-                BasicTextField(query, { query = it }, singleLine = true, cursorBrush = SolidColor(sc.accent), textStyle = TextStyle(color = sc.onBg, fontSize = 16.sp), modifier = Modifier.fillMaxWidth().focusRequester(fr),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(autoCorrect = false, imeAction = androidx.compose.ui.text.input.ImeAction.Search),
-                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { searchFocus.clearFocus() }))
-            }
-            if (query.isNotEmpty()) IconAction(Glyph.CLOSE, "Clear search", { query = "" }, tint = sc.onBgDim, size = 40.dp, iconScale = 0.45f)
-        }
+        SearchPill(query, { query = it }, "Songs, albums, artists", Modifier.padding(16.dp), shape = RoundedCornerShape(50), background = Color(0x26FFFFFF), borderColor = sc.cardBorder,
+            height = 46.dp, textSize = 16f, onSubmit = { searchFocus.clearFocus() }, trailing = {
+                if (query.isNotEmpty()) IconAction(Glyph.CLOSE, "Clear search", { query = "" }, tint = sc.onBgDim, size = 44.dp, iconScale = 0.45f)
+            })
+        val online = rememberOnline()
+        if (!online) OfflineChip(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp), "Offline: searching only the music on this device")
         val r = results
         val w = web
         val q = query.trim()
@@ -1359,8 +1371,9 @@ private fun playlistSongItems(app: App, id: String, t: Track): List<SheetItem> {
     if (i > 0) { items += SheetItem("Move up", Glyph.CHEVRON) { ud.move(id, i, i - 1) }; items += SheetItem("Move to top", Glyph.CHEVRON) { ud.move(id, i, 0) } }
     if (i < p.paths.lastIndex) items += SheetItem("Move down", Glyph.CHEVRON) { ud.move(id, i, i + 1) }
     items += SheetItem("Remove from playlist", Glyph.CLOSE) {
-        val path = ud.removeAt(id, i)
-        if (path != null) app.ui.say("Removed \"${t.title}\" from ${p.name}", "Undo") { ud.insertAt(id, i, path) }
+        // not gone until the Undo message has run out: Undo just cancels it
+        val path = ud.removeLater(id, i)
+        if (path != null) app.ui.say("Removed \"${t.title}\" from ${p.name}", "Undo") { ud.cancelRemoval() }
     }
     return items
 }

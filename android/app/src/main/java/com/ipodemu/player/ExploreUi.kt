@@ -84,6 +84,7 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
     var codec by rememberSaveable { mutableStateOf("") }
     var kbps by rememberSaveable { mutableStateOf("") }
     var sort by rememberSaveable { mutableStateOf("az") }
+    val shortScreen = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500
     val sorts = EXPLORE_SORTS[tab]
     if (sorts != null && sorts.none { it.first == sort }) sort = "az"
     val libRev = LocalLibRev.current
@@ -116,7 +117,7 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
     val pendingNote = if (AudioFacts.pending > 0) "Still reading ${AudioFacts.pending} songs on the server" else null
     fun qualityName(q: String) = when (q) { "lossless" -> "Lossless"; "lossy" -> "Lossy"; "hires" -> "Hi-Res"; else -> "Any" }
     fun openFilters() {
-        nav.sheet = SheetSpec("Filters", null, listOf(
+        nav.sheet = SheetSpec("Filters", null, (if (shortScreen) listOf(SheetItem("Starts with · " + (if (letter.isEmpty()) "Any" else letter), Glyph.LIST) { pick("Starts with", null, listOf("" to "Any", "#" to "#") + ('A'..'Z').map { it.toString() to it.toString() }, letter) { letter = it } }) else emptyList()) + listOf(
             SheetItem("Genre · " + genre.ifEmpty { "Any" }, Glyph.NOTE) { pick("Genre", null, listOf("" to "Any") + choices.first.map { it to it }, genre) { genre = it } },
             SheetItem("Decade · " + decade.ifEmpty { "Any" }, Glyph.CLOCK) { pick("Decade", null, listOf("" to "Any") + choices.second.map { it to it }, decade) { decade = it } },
             SheetItem("Quality · " + qualityName(quality), Glyph.STAR) { pick("Quality", null, listOf("" to "Any", "lossless" to "Lossless (FLAC, ALAC…)", "lossy" to "Lossy (MP3, AAC…)", "hires" to "✦ Hi-Res"), quality) { quality = it } },
@@ -130,7 +131,6 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
 
     Column(Modifier.fillMaxSize()) {
         // a short screen (the RG Rotate is 360 dp tall): no title bar, so the header leaves room for the list; Favorites moves into the row of views
-        val shortScreen = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500
         if (!shortScreen) ModernTopBar("Explore", null) { IconAction(Glyph.HEART, "Favorites and sources", { nav.push(Screen.Sources) }) }
         // the five views, as one quiet row
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -140,14 +140,9 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
         if (tab == "Charts") { ChartsPanel(nav, snap); return@Column }
         // one line: the filter box, Filters (with how many are on) and Sort
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Row(Modifier.weight(1f).height(46.dp).clip(RoundedCornerShape(16.dp)).background(Palette.surface2).border(1.dp, if (query.isNotEmpty()) sc.accent else Color(0x22FFFFFF), RoundedCornerShape(16.dp)).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                GlyphIcon(Glyph.SEARCH, Modifier.size(18.dp), sc.onBgDim)
-                Box(Modifier.padding(start = 10.dp).weight(1f)) {
-                    if (query.isEmpty()) Txt(when (tab) { "Songs" -> "Search songs"; "Albums" -> "Search albums"; "Artists" -> "Search artists"; else -> "Search genres" }, size = 16f, color = sc.onBgDim)
-                    BasicTextField(query, { query = it }, singleLine = true, cursorBrush = SolidColor(sc.accent), textStyle = TextStyle(color = sc.onBg, fontSize = 15.sp), modifier = Modifier.fillMaxWidth())
-                }
-                if (query.isNotEmpty()) Box(Modifier.size(28.dp).clip(RoundedCornerShape(14.dp)).clickable { query = "" }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.CLOSE, Modifier.size(14.dp), sc.onBgDim) }
-            }
+            SearchPill(query, { query = it }, when (tab) { "Songs" -> "Search songs"; "Albums" -> "Search albums"; "Artists" -> "Search artists"; else -> "Search genres" }, Modifier.weight(1f), height = 46.dp, trailing = {
+                if (query.isNotEmpty()) Box(Modifier.size(32.dp).clip(RoundedCornerShape(16.dp)).clickable { query = "" }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.CLOSE, Modifier.size(14.dp), sc.onBgDim) }
+            })
             GlossPill(if (activeFilters > 0) "Filters · $activeFilters" else "Filters", { openFilters() }, icon = Glyph.LIST, primary = activeFilters > 0, height = 46.dp)
             IconAction(Glyph.DOWN, "Sort: " + (sorts?.firstOrNull { it.first == sort }?.second ?: ""), {
                 nav.sheet = SheetSpec("Sort", null, (sorts ?: emptyList()).map { (id, label) -> SheetItem(label, if (id == sort) Glyph.CHECK else Glyph.LIST) { sort = id } })
@@ -166,8 +161,9 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (kbps.isNotEmpty()) GlossPill(KBPS.firstOrNull { it.first == kbps }?.second ?: kbps, { kbps = "" }, icon = Glyph.CLOSE, height = 32.dp)
         }
         Box(Modifier.fillMaxSize()) {
-        // the first-letter index: a slim rail down the right edge, over the list
-        Column(
+        // the first-letter index: a slim rail down the right edge, over the list (not on a short screen: 28 letters in 300 dp are too small to hit, so
+        // there the letter is picked in the Filters sheet instead)
+        if (!shortScreen) Column(
             Modifier.align(Alignment.CenterEnd).padding(end = 3.dp, top = 6.dp, bottom = 10.dp).fillMaxHeight().width(24.dp).clip(RoundedCornerShape(12.dp)).background(Color(0x99111114)).padding(vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -178,7 +174,7 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
                 }
             }
         }
-        Box(Modifier.fillMaxSize().padding(end = 32.dp)) {
+        Box(Modifier.fillMaxSize().padding(end = if (shortScreen) 0.dp else 32.dp)) {
         if (r != null) when (tab) {
             "Songs" -> {
                 val list = r.songs

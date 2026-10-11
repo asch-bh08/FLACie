@@ -25,7 +25,7 @@ class Snack(val text: String, val actionLabel: String? = null, val action: (() -
 @Composable
 fun SnackHost(ui: UiState, modifier: Modifier = Modifier) {
     val s = ui.snack ?: return
-    LaunchedEffect(s) { delay(5_000); if (ui.snack === s) ui.snack = null }
+    LaunchedEffect(s) { delay(6_000); if (ui.snack === s) ui.snack = null }
     Box(modifier.fillMaxWidth().padding(horizontal = 16.dp), contentAlignment = Alignment.BottomCenter) {
         // slides up with a little spring each time a new message arrives
         androidx.compose.animation.AnimatedVisibility(

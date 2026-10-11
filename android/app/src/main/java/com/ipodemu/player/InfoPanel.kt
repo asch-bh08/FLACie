@@ -128,8 +128,10 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
     cutLabel = if (info.codec.equals("MP3", true) && info.kbps > 0) "${info.kbps} kbps MP3 usually ends here" else "MP3 usually ends here"
     androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
     // the graph takes what room the panel has (header, chips and text above it need about 320dp), so its axis is never cut off at the bottom; Hi-Res files get more when there is more
-    val graphH = (maxHeight - 380.dp).coerceIn(120.dp, if (info.hiRes) 300.dp else 220.dp)
-    Column(Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color(0x1AFFFFFF)).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    // a short panel (the 360 dp square screen, with the controls in one strip under it): chips in one scrolling row and the explanation only on tap, so the graph itself is on screen
+    val tight = maxHeight < 340.dp
+    val graphH = if (tight) (maxHeight - 205.dp).coerceIn(96.dp, 160.dp) else (maxHeight - 380.dp).coerceIn(120.dp, if (info.hiRes) 300.dp else 220.dp)
+    Column(Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color(0x1AFFFFFF)).verticalScroll(rememberScrollState()).padding(if (tight) 12.dp else 16.dp), verticalArrangement = Arrangement.spacedBy(if (tight) 10.dp else 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(Modifier.clip(RoundedCornerShape(10.dp)).background(if (info.hiRes) Brush.linearGradient(listOf(Color(0xFFFFD36E), Color(0xFFF59E0B))) else Brush.linearGradient(listOf(if (info.lossless) Color(0xFF1D2A1C) else Color(0x33FFFFFF), if (info.lossless) Color(0xFF1D2A1C) else Color(0x33FFFFFF)))).padding(horizontal = 12.dp, vertical = 8.dp)) {
                 Txt(if (info.hiRes) "HI-RES" else info.codec.ifEmpty { "AUDIO" }, size = 16f, weight = FontWeight.ExtraBold, color = if (info.hiRes) Color(0xFF2A1A00) else if (info.lossless) Color(0xFFB8F0A8) else sc.onBg)
@@ -140,12 +142,14 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
             }
         }
         // the graphs as a tidy 3-by-2 grid of equal pills (nothing cut off), each with a proper name; the file's own figure is in the card below
-        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = 3) {
+        val modePills: @Composable (Boolean) -> Unit = { scroll ->
             for ((id, label) in listOf("rate" to "Bit rate", "curve" to "Spectrum", "loud" to "Level", "stereo" to "Stereo", "leds" to "Visualizer", "wall" to "Spectrogram"))
-                Box(Modifier.weight(1f).height(36.dp).clip(RoundedCornerShape(50)).background(if (mode == id) sc.accent else Palette.surface2).clickable { mode = id }, contentAlignment = Alignment.Center) {
+                Box((if (scroll) Modifier.width(104.dp) else Modifier.weight(1f)).height(if (scroll) 40.dp else 36.dp).clip(RoundedCornerShape(50)).background(if (mode == id) sc.accent else Palette.surface2).clickable { mode = id }, contentAlignment = Alignment.Center) {
                     Txt(label, size = 12f, weight = FontWeight.SemiBold, color = if (mode == id) sc.accent.readableInk() else Color.White, maxLines = 1)
                 }
         }
+        if (tight) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { modePills(true) }
+        else androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = 3) { modePills(false) }
         var hintOpen by remember(mode) { mutableStateOf(false) }
         val order = listOf("rate", "curve", "loud", "stereo", "leds", "wall")
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0x14FFFFFF)).padding(14.dp).pointerInput(mode) {
@@ -156,13 +160,13 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
                 if (dx < -60f && i < order.lastIndex) mode = order[i + 1] else if (dx > 60f && i > 0) mode = order[i - 1]
             }) { c, d -> c.consume(); dx += d }
         }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.clickable { hintOpen = !hintOpen }, verticalAlignment = Alignment.CenterVertically) {
                 Txt(MODES.first { it.first == mode }.second + (when (mode) { "rate" -> if (info.kbps > 0) " · ${info.kbps} kbps" else ""; "curve" -> if (info.sampleRate > 0) " · %.1f kHz".format(info.sampleRate / 1000.0) else ""; "loud" -> if (info.bits > 0) " · ${info.bits} bit" else ""; else -> "" }), Modifier.weight(1f), size = 17f, weight = FontWeight.ExtraBold)
                 Box(Modifier.clip(RoundedCornerShape(50)).background(if (mode == "rate") Color(0x1FFFFFFF) else sc.accent.copy(alpha = .18f)).padding(horizontal = 9.dp, vertical = 3.dp)) {
                     Txt(if (mode == "rate") "FROM THE FILE" else "● LIVE", size = 10f, weight = FontWeight.ExtraBold, color = if (mode == "rate") sc.onBgDim else sc.accent)
                 }
             }
-            Txt(hint(mode, info.sampleRate), Modifier.clickable { hintOpen = !hintOpen }, size = 12.5f, color = sc.onBgDim, maxLines = if (hintOpen) 8 else 2)
+            if (!tight || hintOpen) Txt(hint(mode, info.sampleRate), Modifier.clickable { hintOpen = !hintOpen }, size = 12.5f, color = sc.onBgDim, maxLines = if (hintOpen) 8 else 2)
             if (mode == "rate") RateBars(info.kbps) else LiveGraph(mode, analysis, snap.playing, graphH)
         }
         Detail(listOf(

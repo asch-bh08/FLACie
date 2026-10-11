@@ -51,7 +51,7 @@ public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log, I
             var kind = p.FindFirst("kind")?.Value ?? "jellyfin";
             JellyfinAccount? j = p.FindFirst("jf.token") is { } t ? new(p.FindFirst("jf.server")!.Value, p.FindFirst("jf.user")!.Value, p.FindFirst("jf.name")?.Value ?? "", t.Value) : null;
             NasAccount? n = p.FindFirst("nas.host") is { } h ? new(h.Value, V(p, "nas.share"), V(p, "nas.folder"), V(p, "nas.user"), V(p, "nas.pass"), V(p, "nas.domain")) : null;
-            var us = new UserSession(kind, j, n) { Id = key, CachePath = Path.Combine(paths.Root, "library", key + ".json") }; states.Remember(us);
+            var us = new UserSession(kind, j, n) { Id = key, CachePath = Path.Combine(paths.Root, "library", key + ".json"), FactsSink = (t, mi) => { FormatIndex.Current?.Set(t, mi); InfoService.Current?.Remember(t, mi); } }; states.Remember(us);
             _ = Task.Run(async () =>
             {
                 try { await us.LoadAsync(jf); }

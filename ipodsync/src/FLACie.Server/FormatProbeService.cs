@@ -40,6 +40,7 @@ public sealed class FormatProbeService(SessionStore sessions, InfoService info, 
                     var ok = await PassAsync(ct);
                     lastPass = ok ? DateTime.UtcNow : DateTime.UtcNow - Interval + RetryAfterFailure;
                 }
+                index.Flush();   // facts that arrived with the library listing
                 await Task.Delay(TimeSpan.FromSeconds(30), ct);
             }
             catch (OperationCanceledException) { break; }
@@ -66,6 +67,7 @@ public sealed class FormatProbeService(SessionStore sessions, InfoService info, 
 
     public async Task PassAsync(UserSession s, CancellationToken ct)
     {
+        using var prio = JellyfinGate.Use(GatePriority.Background);
         var now = DateTime.UtcNow;
         var todo = s.Library.Songs.Where(t => Probeable(t) && !index.Has(t) && index.Due(t, now)).ToList();
         Pending = todo.Count;

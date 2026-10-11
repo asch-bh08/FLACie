@@ -10,6 +10,8 @@ namespace FLACie.Server;
 /// Cached, because the Info panel is opened often and a NAS read costs a round trip.</summary>
 public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, DownloadLog log)
 {
+    /// <summary>The running instance, so the library listing can hand over the facts it carries.</summary>
+    public static InfoService? Current { get; set; }
     readonly ConcurrentDictionary<string, MediaInfo> cache = new();
 
     /// <summary>Test hook: replaces the real source read.</summary>
@@ -23,6 +25,8 @@ public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, Downlo
     /// makes one attempt and leaves a failure to its back-off instead of asking again three times.</summary>
     public async Task<MediaInfo> GetAsync(UserSession s, Track t, bool retry = true)
     {
+        // the song a person is looking at is read first; the background probe's reads wait behind everything
+        using var prio = JellyfinGate.Use(retry ? GatePriority.Playing : GatePriority.Background);
         if (!cache.TryGetValue(t.Path, out var info))
         {
             // only a real read is kept: a failed or partial one (extension fallback, no rate/depth/bit rate) is returned for now but never cached,

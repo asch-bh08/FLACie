@@ -86,6 +86,7 @@ public sealed class ProfileSyncService(SessionStore sessions, JellyfinClient jf,
 {
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
+        using var prio = JellyfinGate.Use(GatePriority.Background);
         while (!ct.IsCancellationRequested)
         {
             try { await Task.Delay(TimeSpan.FromSeconds(20), ct); } catch (OperationCanceledException) { break; }

@@ -3,11 +3,13 @@
     <span class="cover-ph" aria-hidden="true"><Icon Name="note" Size="@(Size > 0 ? Math.Max(14, Size / 3) : 40)" /></span>
     @if (ArtKey is not null)
     {
-        <img src="/art/@Uri.EscapeDataString(ArtKey)?v=3" alt="" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'" />
+        <img src="/art/@Uri.EscapeDataString(ArtKey)?v=3@(Full ? "&s=full" : "")" alt="" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'" />
     }
 </div>
 @code {
     [Parameter] public string? ArtKey { get; set; }
     [Parameter] public int Size { get; set; }
+    /// <summary>The original picture instead of the small row size (only the big Now Playing cover).</summary>
+    [Parameter] public bool Full { get; set; }
     [Parameter] public string Class { get; set; } = "";
 }

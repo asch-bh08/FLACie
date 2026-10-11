@@ -15,7 +15,7 @@
         <div class="np-body">
             <section class="np-main">
                 <button class="np-cover-btn" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")">
-                    <Cover ArtKey="@(Art.KeyFor(t))" Class="np-cover" />
+                    <Cover ArtKey="@(Art.KeyFor(t))" Class="np-cover" Full="true" />
                     <span class="np-cover-state" aria-hidden="true"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="56" /></span>
                 </button>
                 <div class="np-meta">

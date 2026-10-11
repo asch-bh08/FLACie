@@ -95,7 +95,7 @@ object NasTagMerge {
  * Fills in tags for the NAS files the cache has not seen: a few files at a time, publishing the improved list every
  * few hundred files (or seconds) so the library fills in while it is in use, and saving the cache as it goes.
  */
-class NasTagEnricher(private val cache: NasTagCache, private val parallel: Int = 2, private val minPublishGapMs: Long = 0) {
+class NasTagEnricher(private val cache: NasTagCache, private val parallel: Int = 2, private val minPublishGapMs: Long = 0, private val pauseWhile: () -> Boolean = { false }) {
     /** What is known right now (from the cache only): used to show the list immediately. */
     fun fromCache(entries: List<NasEntry>): Pair<List<Track>, List<CachedTags?>> {
         val tags = entries.map { cache.get(it.base.path, it.base.size, it.base.mtime) }
@@ -127,6 +127,7 @@ class NasTagEnricher(private val cache: NasTagCache, private val parallel: Int =
                 repeat(parallel.coerceAtLeast(1)) {
                     launch(Dispatchers.IO) {
                         try { while (isActive) {
+                            while (isActive && pauseWhile()) kotlinx.coroutines.delay(500)
                             val k = next.getAndIncrement()
                             if (k >= todo.size) break
                             val i = todo[k]
@@ -175,4 +176,10 @@ class NasTagEnricher(private val cache: NasTagCache, private val parallel: Int =
     }
 
     companion object { const val PUBLISH_EVERY = 250 }
+}
+
+/** When the user last touched the screen or a key (stamped by MainActivity); background work waits while it is recent. */
+object UserActivity {
+    @Volatile var last = 0L
+    fun recent(withinMs: Long = 3000) = android.os.SystemClock.elapsedRealtime() - last < withinMs
 }

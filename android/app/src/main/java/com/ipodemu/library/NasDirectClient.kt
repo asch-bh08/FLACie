@@ -66,7 +66,7 @@ class NasDirectClient(
             // artist folders at the top level tell which side of a loose "X - Y" file name is the artist
             knownArtists = try { root.listFiles().filter { it.isDirectory }.mapTo(HashSet()) { primaryArtist(it.name.trimEnd('/')) } } catch (_: Exception) { emptySet() }
             walk(root, entries, depth = 0, artist = null, album = null)
-            val enricher = NasTagEnricher(cache, minPublishGapMs = 600_000)
+            val enricher = NasTagEnricher(cache, minPublishGapMs = 600_000, pauseWhile = { com.ipodemu.library.tags.UserActivity.recent() })
             if (entries.isNotEmpty()) cache.retainOnly(entries.mapTo(HashSet(entries.size * 2)) { it.base.path })
             val (tracks, tags) = enricher.fromCache(entries)
             publishFacts(entries, tags)

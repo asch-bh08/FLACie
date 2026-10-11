@@ -41,8 +41,10 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
 
     public void Cancel(UserSession s, string id)
     {
+        // only the account's own imports: the id is looked up in this account's list before anything is cancelled
+        if (states.For(s).Imports.FirstOrDefault(j => j.Id == id) is not { } job) return;
         if (cancels.TryGetValue(id, out var c)) c.Cancel();
-        if (states.For(s).Imports.FirstOrDefault(j => j.Id == id) is { } job && job.State is "running" or "waiting") { job.State = "cancelled"; states.Save(s); Changed?.Invoke(s); }
+        if (job.State is "running" or "waiting") { job.State = "cancelled"; states.Save(s); Changed?.Invoke(s); }
     }
 
     /// <summary>Tries the songs that failed again.</summary>

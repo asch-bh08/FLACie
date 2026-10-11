@@ -206,11 +206,14 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         try { return JsonNode.Parse(raw) as JsonObject; } catch (JsonException) { return null; }
     }
 
-    public async Task PushProfileAsync(JellyfinAccount a, JsonObject profile, CancellationToken ct = default)
+    public Task PushProfileAsync(JellyfinAccount a, JsonObject profile, CancellationToken ct = default) => PushProfileAsync(a, profile.ToJsonString(), ct);
+
+    /// <summary>Stores an already serialised profile (so the caller can take the snapshot under its own lock).</summary>
+    public async Task PushProfileAsync(JellyfinAccount a, string profileJson, CancellationToken ct = default)
     {
         var dto = await Send(HttpMethod.Get, PrefsUrl(a), a.Token, null, ct) as JsonObject ?? new JsonObject();
         var custom = dto["CustomPrefs"] as JsonObject ?? new JsonObject();
-        custom[ProfileKey] = profile.ToJsonString();
+        custom[ProfileKey] = profileJson;
         dto["CustomPrefs"] = custom; dto["Client"] = Client;
         await Send(HttpMethod.Post, PrefsUrl(a), a.Token, dto, ct);
     }

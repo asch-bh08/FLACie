@@ -66,19 +66,14 @@ public static class MediaEndpoints
                 var rel = NasClient.RelPath(n, t.Path);
                 long size;
                 try { size = await Task.Run(() => NasClient.Size(n, rel)); } catch (FileNotFoundException) { return Results.NotFound(); }
-                var (from, to) = (0L, size - 1);
-                var partial = false;
-                if (RangeHeaderValue.TryParse(ctx.Request.Headers.Range.ToString(), out var range) && range.Ranges.FirstOrDefault() is { } r)
-                {
-                    from = r.From ?? Math.Max(0, size - (r.To ?? 0)); to = r.From is null ? size - 1 : Math.Min(r.To ?? size - 1, size - 1); partial = true;
-                }
-                if (from > to || from >= size) { ctx.Response.Headers.ContentRange = $"bytes */{size}"; return Results.StatusCode(416); }
+                var (satisfiable, partial, from, to) = ByteRanges.Resolve(ctx.Request.Headers.Range.ToString(), size);
+                if (!satisfiable) { ctx.Response.Headers.ContentRange = $"bytes */{size}"; return Results.StatusCode(416); }
                 ctx.Response.StatusCode = partial ? 206 : 200;
                 ctx.Response.ContentType = Mime.GetValueOrDefault(Path.GetExtension(rel).TrimStart('.'), "application/octet-stream");
                 ctx.Response.ContentLength = to - from + 1;
                 ctx.Response.Headers.AcceptRanges = "bytes";
                 if (partial) ctx.Response.Headers.ContentRange = $"bytes {from}-{to}/{size}";
-                try { await NasClient.CopyRangeAsync(n, rel, from, to - from + 1, ctx.Response.Body, ctx.RequestAborted); } catch (OperationCanceledException) { }
+                if (to >= from) try { await NasClient.CopyRangeAsync(n, rel, from, to - from + 1, ctx.Response.Body, ctx.RequestAborted); } catch (OperationCanceledException) { }
                 return Results.Empty;
             }
             return Results.NotFound();
@@ -135,6 +130,7 @@ public static class MediaEndpoints
             }
             catch (OperationCanceledException) when (!ctx.RequestAborted.IsCancellationRequested) { log.LogDebug("cover lookup timed out for {Key}", key); }
             catch (HttpRequestException) { }
+            catch (FormatException) { }   // a key that is not valid base64 is just a cover that does not exist
             if (bytes is null)
             {
                 if (artMisses.Count > 2000) artMisses.Clear();

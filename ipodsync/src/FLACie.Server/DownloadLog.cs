@@ -72,8 +72,19 @@ public sealed class DownloadLog(DataPaths paths)
     public void Add(DownloadRecord r)
     {
         var l = Of(r.UserId);
-        lock (l) { l.Insert(0, r); if (l.Count > Keep) l.RemoveRange(Keep, l.Count - Keep); }
-        try { File.AppendAllText(FileOf(r.UserId), JsonSerializer.Serialize(r) + "\n"); } catch (Exception) { }
+        // under the list's lock: two downloads finishing together both append, and a second writer used to hit the first one's open file and lose its line
+        lock (l)
+        {
+            l.Insert(0, r); if (l.Count > Keep) l.RemoveRange(Keep, l.Count - Keep);
+            // on Windows a virus scanner or a backup can hold a file for a moment right after it was closed: try again briefly instead of losing the line
+            var line = JsonSerializer.Serialize(r) + "\n";
+            for (var attempt = 0; attempt < 6; attempt++)
+            {
+                try { File.AppendAllText(FileOf(r.UserId), line); break; }
+                catch (IOException) { Thread.Sleep(30 * (attempt + 1)); }
+                catch (Exception) { break; }
+            }
+        }
     }
 
     /// <summary>This user's finished downloads, newest first.</summary>

@@ -46,7 +46,8 @@ public sealed class Notifier
         if (conf["FLACIE_NTFY_TOPIC"] is { Length: > 0 } et && (cfg.Topic.Length == 0 || cfg.Topic == "FLACie")) cfg.Topic = et;
     }
 
-    string Protect(string s) { try { return protector.Protect(s); } catch (Exception) { return ""; } }
+    // a token goes into an Authorization header: a line break in a pasted token would start another header line, so control characters are dropped
+    string Protect(string s) { try { return protector.Protect(new string(s.Where(c => !char.IsControl(c)).ToArray()).Trim()); } catch (Exception) { return ""; } }
     string Unprotect(string s) { try { return s.Length == 0 ? "" : protector.Unprotect(s); } catch (Exception) { return ""; } }
 
     public NotifyConfig Current { get { lock (gate) return JsonSerializer.Deserialize<NotifyConfig>(JsonSerializer.Serialize(cfg))!; } }

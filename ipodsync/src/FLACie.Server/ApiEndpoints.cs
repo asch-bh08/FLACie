@@ -19,6 +19,8 @@ public static class ApiEndpoints
             // with a fixed Jellyfin the token is checked there, whatever address the phone uses for the same server (LAN, Tailscale, public)
             var server = fixedServer ?? ctx.Request.Headers["X-Jellyfin-Server"].FirstOrDefault();
             if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(server)) return null;
+            // the token ends up inside an Authorization header sent to Jellyfin: a Jellyfin token is hex, so anything with quotes, commas or spaces is not one (and must not add parameters to that header)
+            if (token.Length > 256 || token.Any(c => c is '"' or ',' or ' ' or '\\' or ';' || char.IsControl(c))) return null;
             server = JellyfinClient.Normalise(server);
             var known = fixedServer is not null || store.Active.Any(s => s.Jellyfin?.Server == server);
             if (!known) return null;
@@ -44,8 +46,11 @@ public static class ApiEndpoints
         {
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
             if (ctx.Request.ContentLength is > 20 * 1024 * 1024) return Results.BadRequest(new { error = "That file is too big (limit 20 MB)." });
+            // a body sent in chunks has no length to check up front: the server stops reading at the limit
+            if (ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit) limit.MaxRequestBodySize = 20 * 1024 * 1024;
             using var ms = new MemoryStream();
-            await ctx.Request.Body.CopyToAsync(ms);
+            try { await ctx.Request.Body.CopyToAsync(ms); }
+            catch (Microsoft.AspNetCore.Http.BadHttpRequestException) { return Results.Json(new { error = "That file is too big (limit 20 MB)." }, statusCode: 413); }
             try { return Results.Ok(Summary(imports.Start(s, string.IsNullOrWhiteSpace(name) ? "playlist.txt" : Path.GetFileName(name), ms.ToArray(), replace == true))); }
             catch (InvalidDataException e) { return Results.BadRequest(new { error = e.Message }); }
         }).DisableAntiforgery();
@@ -76,13 +81,23 @@ public static class ApiEndpoints
         {
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
             if (!AdminAccess.Is(s, app.Configuration)) return Results.StatusCode(403);
-            var body = await System.Text.Json.Nodes.JsonNode.ParseAsync(ctx.Request.Body) as System.Text.Json.Nodes.JsonObject;
+            // a body that is not a JSON object, or a field of the wrong type, is the caller's mistake (400), not a server error
+            System.Text.Json.Nodes.JsonObject? body;
+            try { body = await System.Text.Json.Nodes.JsonNode.ParseAsync(ctx.Request.Body) as System.Text.Json.Nodes.JsonObject; }
+            catch (System.Text.Json.JsonException) { body = null; }
+            if (body is null) return Results.BadRequest(new { error = "Send a JSON object." });
+            bool? Bool(string k) => body[k] is System.Text.Json.Nodes.JsonValue v && v.TryGetValue<bool>(out var b) ? b : null;
+            int? Int(string k) => body[k] is System.Text.Json.Nodes.JsonValue v && v.TryGetValue<int>(out var i) ? i : null;
+            if ((body["prefetch"] is not null && Bool("prefetch") is null) || (body["chartsEnabled"] is not null && Bool("chartsEnabled") is null)
+                || (body["minFreeGb"] is not null && Int("minFreeGb") is null) || (body["perList"] is not null && Int("perList") is null)
+                || (body["lists"] is not null && (body["lists"] is not System.Text.Json.Nodes.JsonArray chk || chk.Any(x => x is not System.Text.Json.Nodes.JsonValue jv || !jv.TryGetValue<int>(out _)))))
+                return Results.BadRequest(new { error = "A setting has the wrong type." });
             var st = states.For(s);
-            if (body?["prefetch"]?.GetValue<bool>() is { } pf) st.Prefetch = pf;
-            if (body?["minFreeGb"]?.GetValue<int>() is { } mf) st.MinFreeGb = Math.Clamp(mf, 0, 2000);
-            if (body?["chartsEnabled"]?.GetValue<bool>() is { } ce) st.Charts.Enabled = ce;
-            if (body?["perList"]?.GetValue<int>() is { } pl) st.Charts.PerList = Math.Clamp(pl, 1, 50);
-            if (body?["lists"] is System.Text.Json.Nodes.JsonArray la)
+            if (Bool("prefetch") is { } pf) st.Prefetch = pf;
+            if (Int("minFreeGb") is { } mf) st.MinFreeGb = Math.Clamp(mf, 0, 2000);
+            if (Bool("chartsEnabled") is { } ce) st.Charts.Enabled = ce;
+            if (Int("perList") is { } pl) st.Charts.PerList = Math.Clamp(pl, 1, 50);
+            if (body["lists"] is System.Text.Json.Nodes.JsonArray la)
                 st.Charts.Lists = la.Select(x => x!.GetValue<int>()).Where(id => ChartsService.Available.Any(c => c.Id == id)).Distinct().ToList();
             states.Save(s);
             return Results.Json(SettingsOf(s, states, storage));
@@ -114,7 +129,7 @@ public static class ApiEndpoints
         app.MapPost("/api/played", async (HttpContext ctx, SessionStore store, JellyfinClient jf, PlayTracker plays, Notifier notify, PlayedReport r) =>
         {
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
-            if (r.Via is not ("NAS" or "direct" or "Jellyfin") || string.IsNullOrEmpty(r.Key) || r.Key.Length > 600) return Results.BadRequest();
+            if (r.Via is not ("NAS" or "direct" or "Jellyfin") || string.IsNullOrEmpty(r.Key) || r.Key.Length > 600 || r.Event is not ("start" or "progress" or "stop")) return Results.BadRequest();
             if (r.Via == "Jellyfin" && !notify.Current.JellyfinPlays) return Results.NoContent();   // the Jellyfin watcher announces those
             var key = "phone:" + r.Key;
             var device = string.IsNullOrWhiteSpace(r.Device) ? "phone" : r.Device.Trim()[..Math.Min(r.Device.Trim().Length, 40)];

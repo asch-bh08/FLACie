@@ -1,4 +1,4 @@
-﻿package com.ipodemu.ui
+package com.ipodemu.ui
 
 import android.Manifest
 import android.content.Intent

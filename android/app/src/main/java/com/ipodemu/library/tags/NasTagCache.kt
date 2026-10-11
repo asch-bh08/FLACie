@@ -1,4 +1,4 @@
-﻿package com.ipodemu.library.tags
+package com.ipodemu.library.tags
 
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream

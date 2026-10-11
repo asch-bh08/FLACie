@@ -1,4 +1,4 @@
-﻿package com.ipodemu.library.tags
+package com.ipodemu.library.tags
 
 import com.ipodemu.library.NasCover
 import com.ipodemu.library.Track

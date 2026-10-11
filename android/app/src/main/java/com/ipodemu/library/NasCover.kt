@@ -1,4 +1,4 @@
-﻿package com.ipodemu.library
+package com.ipodemu.library
 
 import com.ipodemu.library.tags.NasArtKeys
 import com.ipodemu.library.tags.TagReader

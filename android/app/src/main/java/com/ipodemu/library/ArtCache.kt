@@ -1,4 +1,4 @@
-﻿package com.ipodemu.library
+package com.ipodemu.library
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory

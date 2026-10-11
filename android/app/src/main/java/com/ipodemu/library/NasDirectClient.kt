@@ -1,4 +1,4 @@
-﻿package com.ipodemu.library
+package com.ipodemu.library
 
 import com.ipodemu.library.tags.NasEntry
 import com.ipodemu.library.tags.NasTagCache

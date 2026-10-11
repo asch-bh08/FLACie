@@ -1,4 +1,4 @@
-﻿package com.ipodemu.player
+package com.ipodemu.player
 
 import androidx.compose.foundation.horizontalScroll
 import androidx.activity.compose.BackHandler

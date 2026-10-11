@@ -167,12 +167,12 @@ class JellyfinConnect(private val app: App) {
     /** A Jellyfin song this library hasn't listed: streamed by id with whatever Jellyfin says it is. */
     fun streamTrack(id: String): Track? = try {
         val o = JSONObject(get("/Users/${prefs.accountUserId}/Items/$id"))
-        Track(
-            path = "${prefs.accountServer.trimEnd('/')}/Audio/$id/stream?static=true", title = o.optString("Name"),
+        TrackTitles.cleanAll(listOf(Track(
+            path = "${prefs.accountServer.trimEnd('/')}/Audio/$id/stream?static=true", title = o.optString("Name"), filePath = o.optString("Path"),
             artist = o.optJSONArray("Artists")?.optString(0) ?: o.optString("AlbumArtist"), album = o.optString("Album"), albumArtist = o.optString("AlbumArtist"),
             genre = "", trackNo = o.optInt("IndexNumber"), discNo = o.optInt("ParentIndexNumber"), durationMs = o.optLong("RunTimeTicks") / 10_000, year = o.optInt("ProductionYear"),
             isMusic = true, artKey = o.optString("AlbumId").takeIf { it.isNotBlank() }?.let { "jf$it" } ?: "jf$id", mtime = 0, size = 0, source = TrackSource.JELLYFIN,
-        )
+        ))).first()
     } catch (_: Exception) { null }
 
     // ---- the live connection -----------------------------------------------------------------------------------

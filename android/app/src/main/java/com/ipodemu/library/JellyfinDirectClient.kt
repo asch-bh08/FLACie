@@ -49,14 +49,19 @@ class JellyfinDirectClient {
             val total = json.optInt("TotalRecordCount", startIndex)
             if (startIndex >= total) break
         }
-        out
+        // songs whose title is just their file name get the artist and title read out of it (see TrackTitles)
+        knownArtists = TrackTitles.knownArtistsOf(out)
+        TrackTitles.cleanAll(out, knownArtists)
     }
+
+    /** Artists seen on properly tagged songs in the last full listing, for a search's untagged songs. */
+    @Volatile private var knownArtists: Set<String> = emptySet()
 
     suspend fun search(url: String, apiKey: String, userId: String, term: String, limit: Int = 50): List<Track> = withContext(Dispatchers.IO) {
         if (term.isBlank()) return@withContext emptyList()
         val q = java.net.URLEncoder.encode(term, "UTF-8")
         val json = JSONObject(get("${base(url)}/Users/$userId/Items?IncludeItemTypes=Audio&Recursive=true&SearchTerm=$q&Limit=$limit", apiKey))
-        tracksFrom(url, json.optJSONArray("Items") ?: JSONArray())
+        TrackTitles.cleanAll(tracksFrom(url, json.optJSONArray("Items") ?: JSONArray()), knownArtists)
     }
 
     private fun tracksFrom(url: String, arr: JSONArray): List<Track> {

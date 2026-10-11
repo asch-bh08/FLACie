@@ -157,6 +157,8 @@ class Library(ctx: Context, val art: ArtCache) {
      * this library's copy of the same song by title + artist. */
     fun resolve(path: String, meta: Pair<String, String>?): Track? =
         byPath()[path] ?: meta?.let { byKey()[matchKey(it.first, it.second)] } ?: jellyfinByPath()[path] ?: meta?.let { findLoose(it.first, it.second) }
+            // an entry saved when the song still showed its file name (see TrackTitles): the cleaned song remembers that title
+            ?: meta?.let { m -> jellyfinByOrigTitle()[normTitle(m.first)]?.takeIf { m.second.isBlank() || primaryArtist(m.second) == primaryArtist(it.artist) || primaryArtist(m.second) in setOf("unknown", "unknown artist") } }
             // a Jellyfin stream the library hasn't listed (yet): still playable from what the playlist recorded
             ?: if (meta != null && path.startsWith("http") && "/Audio/" in path) Track(
                 path = path, title = meta.first, artist = meta.second, album = "", albumArtist = meta.second, genre = "", trackNo = 0, discNo = 0,
@@ -166,6 +168,12 @@ class Library(ctx: Context, val art: ArtCache) {
 
     private fun jellyfinByPath(): Map<String, Track> { val t = jellyfinTracks; jfPathCache?.let { if (it.first === t) return it.second }; return t.associateBy { it.path }.also { jfPathCache = t to it } }
     @Volatile private var jfPathCache: Pair<List<Track>, Map<String, Track>>? = null
+    private fun jellyfinByOrigTitle(): Map<String, Track> {
+        val t = jellyfinTracks
+        jfOrigCache?.let { if (it.first === t) return it.second }
+        return HashMap<String, Track>().also { h -> t.forEach { if (it.origTitle.isNotEmpty()) h.putIfAbsent(normTitle(it.origTitle), it) } }.also { jfOrigCache = t to it }
+    }
+    @Volatile private var jfOrigCache: Pair<List<Track>, Map<String, Track>>? = null
 
     /** The signed-in account's user when Jellyfin is the account's own server (its token can't list /Users). */
     private suspend fun jellyfinUser(url: String, key: String): String? =
@@ -780,7 +788,7 @@ class Library(ctx: Context, val art: ArtCache) {
                 r.endObject()
             }
             fun list(k: String) = parsed[k] ?: emptyList()
-            if (jellyfinTracks.isEmpty()) jellyfinTracks = list("jf")
+            if (jellyfinTracks.isEmpty()) jellyfinTracks = TrackTitles.cleanAll(list("jf"))
             if (plexTracks.isEmpty()) plexTracks = list("px")
             if (nasTracks.isEmpty()) nasTracks = list("nas")
             val week2 = System.currentTimeMillis() - 14L * 86_400_000
@@ -809,14 +817,14 @@ class Library(ctx: Context, val art: ArtCache) {
     private fun toJson(t: Track) = JSONObject().put("p", t.path).put("ti", t.title).put("ar", t.artist)
         .put("al", t.album).put("aa", t.albumArtist).put("g", t.genre).put("tn", t.trackNo).put("dn", t.discNo)
         .put("d", t.durationMs).put("y", t.year).put("m", t.isMusic).put("k", t.artKey ?: "")
-        .put("mt", t.mtime).put("s", t.size).put("src", t.source.name).put("fp", t.filePath)
+        .put("mt", t.mtime).put("s", t.size).put("src", t.source.name).put("fp", t.filePath).put("ot", t.origTitle)
 
     private fun fromJson(o: JSONObject) = Track(
         o.getString("p"), fixMojibake(o.getString("ti")), fixMojibake(o.getString("ar")), fixMojibake(o.getString("al")), fixMojibake(o.getString("aa")),
         o.getString("g"), o.getInt("tn"), o.getInt("dn"), o.getLong("d"), o.getInt("y"), o.getBoolean("m"),
         o.getString("k").ifEmpty { null }, o.getLong("mt"), o.getLong("s"),
         source = o.optString("src").let { s -> TrackSource.entries.firstOrNull { it.name == s } } ?: TrackSource.LOCAL,
-        filePath = o.optString("fp"),
+        filePath = o.optString("fp"), origTitle = o.optString("ot"),
     )
 
     private val mergedFile = File(cacheFile.parentFile, "merged.json")
@@ -848,7 +856,7 @@ class Library(ctx: Context, val art: ArtCache) {
                     for (t in all) {
                         w.beginObject().name("p").value(t.path).name("ti").value(t.title).name("ar").value(t.artist).name("al").value(t.album).name("aa").value(t.albumArtist)
                             .name("g").value(t.genre).name("tn").value(t.trackNo.toLong()).name("dn").value(t.discNo.toLong()).name("d").value(t.durationMs).name("y").value(t.year.toLong())
-                            .name("m").value(t.isMusic).name("k").value(t.artKey ?: "").name("mt").value(t.mtime).name("s").value(t.size).name("src").value(t.source.name).name("fp").value(t.filePath).endObject()
+                            .name("m").value(t.isMusic).name("k").value(t.artKey ?: "").name("mt").value(t.mtime).name("s").value(t.size).name("src").value(t.source.name).name("fp").value(t.filePath).name("ot").value(t.origTitle).endObject()
                     }
                     w.endArray()
                 }
@@ -859,17 +867,17 @@ class Library(ctx: Context, val art: ArtCache) {
 
     private fun readTrack(r: android.util.JsonReader): Track {
         var p = ""; var ti = ""; var ar = ""; var al = ""; var aa = ""; var g = ""; var tn = 0; var dn = 0; var d = 0L; var y = 0; var m = false
-        var k = ""; var mt = 0L; var s = 0L; var src = ""; var fp = ""
+        var k = ""; var mt = 0L; var s = 0L; var src = ""; var fp = ""; var ot = ""
         r.beginObject()
         while (r.hasNext()) when (r.nextName()) {
             "p" -> p = r.nextString(); "ti" -> ti = r.nextString(); "ar" -> ar = r.nextString(); "al" -> al = r.nextString(); "aa" -> aa = r.nextString()
             "g" -> g = r.nextString(); "tn" -> tn = r.nextInt(); "dn" -> dn = r.nextInt(); "d" -> d = r.nextLong(); "y" -> y = r.nextInt(); "m" -> m = r.nextBoolean()
-            "k" -> k = r.nextString(); "mt" -> mt = r.nextLong(); "s" -> s = r.nextLong(); "src" -> src = r.nextString(); "fp" -> fp = r.nextString()
+            "k" -> k = r.nextString(); "mt" -> mt = r.nextLong(); "s" -> s = r.nextLong(); "src" -> src = r.nextString(); "fp" -> fp = r.nextString(); "ot" -> ot = r.nextString()
             else -> r.skipValue()
         }
         r.endObject()
         return Track(p, fixMojibake(ti), fixMojibake(ar), fixMojibake(al), fixMojibake(aa), g, tn, dn, d, y, m, k.ifEmpty { null }, mt, s,
-            source = TrackSource.entries.firstOrNull { it.name == src } ?: TrackSource.LOCAL, filePath = fp)
+            source = TrackSource.entries.firstOrNull { it.name == src } ?: TrackSource.LOCAL, filePath = fp, origTitle = ot)
     }
 
     companion object {

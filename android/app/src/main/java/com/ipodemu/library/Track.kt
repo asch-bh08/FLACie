@@ -27,6 +27,9 @@ data class Track(
     /** For Jellyfin tracks: the file's path on the server (e.g. "/media/Movies/music/A/B.flac"), used to recognise the
      * very same file when the NAS share it lives on is browsed directly too. Empty otherwise. */
     val filePath: String = "",
+    /** For a Jellyfin song whose file had no tags: the file-name-style title Jellyfin gave it before [TrackTitles] cleaned it
+     * (older playlist and favourite entries were saved under that title). Empty otherwise. */
+    val origTitle: String = "",
 ) {
     val albumKey: String get() = "$albumArtist|$album"
     // computed once per track: the library merge asks for these several times per track, and each is a handful of regex passes

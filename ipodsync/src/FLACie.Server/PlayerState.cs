@@ -16,6 +16,19 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
     public int Repeat { get; private set; } // 0 off, 1 all, 2 one
     public double Volume { get; private set; } = 1;
     double lastVolume = 1;
+    /// <summary>The stream of the song that comes after this one, which the page starts fetching once the current song plays, so skipping is instant.
+    /// Not for repeat-one, for Apple Lossless (the server decodes it: not worth doing twice) or for formats Jellyfin has to convert.</summary>
+    public string? PrefetchUrl()
+    {
+        if (Repeat == 2 || Index < 0) return null;
+        var pos = order.IndexOf(Index);
+        if (pos < 0 || pos + 1 >= order.Count) return null;
+        var n = Queue[order[pos + 1]];
+        var ext = MediaInfo.FromExtension(n.FilePath ?? "");
+        if (ext is "m4a" or "alac" or "mp4" || MediaInfo.NotPlayableInBrowsers.Contains(ext) || FormatIndex.Current?.Get(n)?.Codec == "alac") return null;
+        return "/stream?p=" + Uri.EscapeDataString(n.Path);
+    }
+
     public async Task LoadVolumeAsync() { Volume = await js.InvokeAsync<double>("flacie.volume", null); if (Volume > 0) lastVolume = Volume; Changed?.Invoke(); }
     public async Task SetVolumeAsync(double v) { Volume = await js.InvokeAsync<double>("flacie.volume", Math.Clamp(v, 0, 1)); if (Volume > 0) lastVolume = Volume; Changed?.Invoke(); }
     public Task ToggleMuteAsync() => SetVolumeAsync(Volume > 0 ? 0 : lastVolume);
@@ -164,7 +177,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         if (connect is not null && !ReferenceEquals(connect.Host, this)) connect.Host = this; // this tab is the one playing now
         self ??= DotNetObjectReference.Create(this);
         await js.InvokeVoidAsync("flacie.load", self, "/stream?p=" + Uri.EscapeDataString(t.Path), t.Title, t.Artist, t.Album,
-            t.ArtKey is null ? null : "/art/" + Uri.EscapeDataString(t.ArtKey), autoplay, t.DurationMs / 1000.0, startAt);
+            t.ArtKey is null ? null : "/art/" + Uri.EscapeDataString(t.ArtKey), autoplay, t.DurationMs / 1000.0, startAt, PrefetchUrl());
         Position = startAt; Duration = t.DurationMs / 1000.0;
         if (plays is not null && session is not null) plays.Begin(session.Id, session.DisplayName, t.Path, t.Title, t.Artist, "FLACie Web", Context);
         Stash(true);
@@ -263,7 +276,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
 
     // ---- from flacie.js ----
 
-    [JSInvokable] public void OnTime(double pos, double dur) { Position = pos; if (dur > 0 && !double.IsInfinity(dur)) Duration = dur; Stash(false); PlayTick(); Changed?.Invoke(); }
+    [JSInvokable] public void OnTime(double pos, double dur) { PlaybackActivity.Current?.Heartbeat(); Position = pos; if (dur > 0 && !double.IsInfinity(dur)) Duration = dur; Stash(false); PlayTick(); Changed?.Invoke(); }
     [JSInvokable] public void OnState(bool playing) { Playing = playing; PlayTick(); Changed?.Invoke(); }
     [JSInvokable] public async Task OnEnded()
     {

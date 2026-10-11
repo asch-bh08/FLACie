@@ -27,6 +27,9 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
 
     public string DeviceId => deviceId;
 
+    /// <summary>How many calls this client made to Jellyfin in the last minute, by kind (for the admin dashboard).</summary>
+    public JellyfinCallStats Stats { get; } = new();
+
     /// <summary>When this machine reaches Jellyfin at a different address than the users do (a Docker host that cannot loop back to its
     /// own public/Tailscale address), requests to <see cref="PublicBase"/> are sent to <see cref="InternalBase"/> instead. Accounts and the
     /// shared profile keep the public address, so the phone still gets one it can use.</summary>
@@ -52,6 +55,7 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
 
     async Task<JsonNode?> Send(HttpMethod method, string url, string? token, JsonNode? body, CancellationToken ct)
     {
+        Stats.HitUrl(url);
         using var req = new HttpRequestMessage(method, Route(url));
         req.Headers.TryAddWithoutValidation("Authorization", Auth(token));
         if (body is not null) req.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
@@ -192,7 +196,7 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
     public string ImageUrl(JellyfinAccount a, string itemId, int width = 400) => $"{a.Server}/Items/{itemId}/Images/Primary?maxWidth={width}&quality=90";
 
     /// <summary>A request with this user's token, for proxying audio and covers.</summary>
-    public HttpRequestMessage Authorized(JellyfinAccount a, string url) { var r = new HttpRequestMessage(HttpMethod.Get, Route(url)); r.Headers.TryAddWithoutValidation("Authorization", Auth(a.Token)); return r; }
+    public HttpRequestMessage Authorized(JellyfinAccount a, string url) { Stats.HitUrl(url); var r = new HttpRequestMessage(HttpMethod.Get, Route(url)); r.Headers.TryAddWithoutValidation("Authorization", Auth(a.Token)); return r; }
 
     // ---- profile ----
 

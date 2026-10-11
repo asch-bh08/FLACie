@@ -59,6 +59,8 @@ builder.Services.AddSingleton<ChartsService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ChartsService>());
 builder.Services.AddSingleton<InfoService>();
 builder.Services.AddSingleton<FormatIndex>();
+builder.Services.AddSingleton<PlaybackActivity>();
+builder.Services.AddSingleton<TokenCache>();
 builder.Services.AddSingleton<FormatProbeService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FormatProbeService>());
 builder.Services.AddHostedService<ProfileSyncService>();
@@ -174,6 +176,10 @@ if (builder.Configuration["FLACIE_DEBUG"] == "1")
 }
 // who and what is asking, for the admin dashboard (the address as the server sees it)
 app.MapGet("/api/whoami", (HttpContext ctx) => Results.Json(new { ip = ctx.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "", ua = ctx.Request.Headers.UserAgent.ToString() })).RequireAuthorization();
+// what this server asks of Jellyfin, for the administrators: calls in the last minute by kind, so an overload can be traced next time
+app.MapGet("/api/admin/load", (HttpContext ctx, SessionStore store, JellyfinClient jf, PlaybackActivity act, FormatProbeService probe, FormatIndex idx, IConfiguration conf) =>
+    !AdminAccess.Is(store.For(ctx.User), conf) ? Results.StatusCode(403)
+    : Results.Json(new { jellyfinCallsLastMinute = jf.Stats.LastMinute(), jellyfinCallsSinceStart = jf.Stats.Totals(), openStreams = act.OpenStreams, busy = act.Busy, probePending = probe.Pending, indexed = idx.Count, backingOff = idx.MissCount, desktopShell = ChartsService.InDesktopShell })).RequireAuthorization();
 app.MapGet("/healthz", () => Results.Ok("ok"));
 app.MapGet("/licenses", () => Results.Text(AppInfo.Licenses(), "text/plain; charset=utf-8"));
 app.Lifetime.ApplicationStarted.Register(() => { var a = app.Services.GetRequiredService<ActivityLog>(); a.Add("server", "", "FLACie started"); _ = app.Services.GetRequiredService<Notifier>().NotifyAsync("started", "Server started", "FLACie is up again.", 2, "rocket"); });

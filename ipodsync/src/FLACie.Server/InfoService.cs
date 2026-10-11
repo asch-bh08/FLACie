@@ -16,7 +16,12 @@ public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, Downlo
     public Func<UserSession, Track, Task<MediaInfo>>? Reader { get; set; }
     public int RetryDelayMs { get; set; } = 400;
 
-    public async Task<MediaInfo> GetAsync(UserSession s, Track t)
+    /// <summary>Keeps a real read that came from somewhere else (the bulk read of the library), so the Info panel does not ask again.</summary>
+    public void Remember(Track t, MediaInfo info) { if (info.Known) cache[t.Path] = info; }
+
+    /// <summary>Reads at once, whoever is playing: the song a person is looking at never waits. <paramref name="retry"/> false is for the background probe, which
+    /// makes one attempt and leaves a failure to its back-off instead of asking again three times.</summary>
+    public async Task<MediaInfo> GetAsync(UserSession s, Track t, bool retry = true)
     {
         if (!cache.TryGetValue(t.Path, out var info))
         {
@@ -25,7 +30,7 @@ public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, Downlo
             for (var attempt = 0; ; attempt++)
             {
                 info = await (Reader?.Invoke(s, t) ?? ReadAsync(s, t));
-                if (info.Known || attempt >= 2) break;
+                if (info.Known || !retry || attempt >= 2) break;
                 await Task.Delay(RetryDelayMs);
             }
             if (info.Known) { cache[t.Path] = info; FormatIndex.Current?.Set(t, info); }

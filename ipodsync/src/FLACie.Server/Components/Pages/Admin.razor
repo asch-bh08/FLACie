@@ -10,6 +10,8 @@
 @inject DownloadManager Downloads
 @inject UserStateStore States
 @inject DataPaths Paths
+@inject JellyfinClient JfStats
+@inject PlaybackActivity Activity
 <PageTitle>Dashboard · FLACie</PageTitle>
 <header class="page-head"><h1>Dashboard</h1><p class="sub">What is playing, who is on, what the server is doing, and the server's settings</p></header>
 @if (allowed) { <nav class="subnav" aria-label="Dashboard sections"><a href="/dashboard#downloads">Download services</a><a href="/dashboard#opensources">Open sources</a><a href="/dashboard#background">Background downloads</a><a href="/dashboard#storage">Storage</a><a href="/dashboard#notify">Notifications</a><a href="/downloads">Download log</a></nav> }
@@ -80,6 +82,7 @@ else
             <button class="stat @(open == "downloads" ? "on" : "")" role="listitem" aria-expanded="@(open == "downloads")" @onclick='() => Toggle("downloads")'><b>@activeDownloads</b><span>Downloads running</span></button>
             <button class="stat @(open == "imports" ? "on" : "")" role="listitem" aria-expanded="@(open == "imports")" @onclick='() => Toggle("imports")'><b>@runningImports</b><span>Imports running</span></button>
         </div>
+        <p class="hint" id="jf-calls">Calls to Jellyfin in the last minute: @string.Join(" · ", JfStats.Stats.LastMinute().Select(k => $"{k.Key} {k.Value}")). Open streams: @Activity.OpenStreams.</p>
         @if (open is not null)
         {
             <div class="stat-detail" aria-live="polite">

@@ -72,6 +72,7 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
         // as wide as tall or wider (Fold unfolded, tablets, landscape): like the web, cover and controls on the left, Up next / Lyrics / Info always on the right
         val sideBySide = ratio >= 0.95f && w >= 600.dp   // two columns need room: a small window or split screen keeps the single column
         val short = h < 560.dp
+        val compactSquare = !sideBySide && ratio >= 0.85f && h < 480.dp && w >= 320.dp
         val shown = if (sideBySide && pane == "art") "queue" else pane
         val paneNav = PaneNav(shown, { p -> pane = if (!sideBySide && pane == p) "art" else p }, { p -> pane = p }, wide = sideBySide)
         val lyricsToggle: Pair<Boolean, () -> Unit> = (shown == "lyrics") to { paneNav.toggle("lyrics") }
@@ -103,6 +104,23 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
                 }
             }
         
+        } else if (compactSquare) {
+            // a small square or landscape screen (the RG Rotate is 360 x 360 dp): header on top, then the cover (or lyrics / info) on the left and the
+            // song, seek bar and controls on the right, all on screen at once (the single column pushed the cover out of sight below the controls)
+            Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 4.dp)) {
+                Header(nav)
+                Row(Modifier.weight(1f).fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Box(Modifier.weight(0.44f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                        ArtOrPanel(t, snap, shown == "lyrics", shown == "info", big = false, art = Modifier.fillMaxWidth().aspectRatio(1f))
+                    }
+                    Column(Modifier.weight(0.56f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        InfoRow(snap, nav)
+                        Seek(snap)
+                        Transport(snap)
+                        ActionRow(snap, nav, lyricsToggle, spread = true, info = infoToggle)
+                    }
+                }
+            }
         } else Column(Modifier.fillMaxSize().padding(horizontal = if (w < 360.dp) 14.dp else 22.dp, vertical = 8.dp).then(if (short) Modifier.verticalScroll(rememberScrollState()) else Modifier)) {
             Header(nav)
             if (short) {

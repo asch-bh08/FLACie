@@ -1293,3 +1293,31 @@ main.content:has(.az-rail) .tracks { padding-right: 16px; }
   .app:not(.full) .rail { overflow-x: auto; overflow-y: hidden; justify-content: flex-start; -webkit-overflow-scrolling: touch; }
   .app:not(.full) .rail a { display: flex !important; flex: 0 0 auto; min-width: 64px; min-height: 44px; padding: 6px 8px; overflow: visible; font-size: 11px; }
 }
+
+/* ---- G2: short windows ----
+   full-screen player on a wide or short screen: the cover takes the height that is left (never more), so the header, the title block,
+   the chips and the player bars stay clear of it; the column scrolls as a last resort instead of hiding the title */
+@media (min-width: 1025px), (orientation: landscape) {
+  .np-main { justify-content: flex-start; overflow-y: auto; scrollbar-width: none; }
+  .np-main > * { flex: none; }
+  .np-main > .np-cover-btn { flex: 1 1 0; min-height: 64px; width: 100%; aspect-ratio: auto; display: grid; place-items: center; border-radius: 12px; container-type: size; }
+  .np-cover-btn .np-cover { width: min(100cqw, 100cqh, 560px); height: min(100cqw, 100cqh, 560px); max-width: none; aspect-ratio: 1; margin: 0 auto; }
+  .np-cover-btn .np-cover-state { inset: 0; }
+}
+@media (max-height: 760px) { .np-body { padding-bottom: 12px; } .np-main { gap: 10px; } .np-titles { gap: 3px; } .np-titles h2 { font-size: clamp(18px, 2.4vw, 26px); } }
+@media (max-width: 1000px) { .wordmark { display: none; } }
+/* the A-Z rail ends above the player bars and above the "Listening on" strip */
+:root { --remote: 62px; }
+body:has(.remote-now:not(.solo)) .az-rail { bottom: calc(var(--bar) + var(--tabs, 0px) + var(--remote) + 14px); }
+body:has(.remote-now.solo) .az-rail { bottom: calc(var(--tabs, 0px) + var(--remote) + 14px); }
+/* short windows: the "Listening on" strip slims down to one line of text and its controls */
+@media (max-height: 760px) {
+  :root { --remote: 46px; }
+  .remote-now { padding: 4px 16px; gap: 10px; }
+  .remote-now > .cover { display: none; }
+  .rn-text small:last-child { display: none; }
+  .rn-controls .btn { padding: 5px 12px; }
+  .play.small { width: 32px; height: 32px; }
+}
+@media (max-height: 480px) { .az-rail { display: none; } .content:has(.az-rail) { padding-right: clamp(16px, 4vw, 44px); } }
+@media (max-width: 1024px) and (orientation: portrait) and (max-height: 560px) { .np-top { min-height: 44px; padding-top: 4px; } .np-main { overflow-y: auto; scrollbar-width: none; gap: 6px; } .np-cover-btn { min-height: 0; } .np-meta .pills, .np-artist + .pills { display: none; } .np-volume { display: none; } .np-titles h2 { font-size: 20px; } .np-controls { padding-bottom: 4px; } .np-tabs button { padding: 8px 4px 7px; flex-direction: row; justify-content: center; } }

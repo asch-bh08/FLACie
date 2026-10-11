@@ -145,14 +145,21 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (Info is null || Loading) { shown = null; return; }
-        await Safe(() => Js.InvokeVoidAsync("flacie.times").AsTask());
-        if (outRate < 0) { try { outRate = await Js.InvokeAsync<double>("flacie.outputRate"); } catch (Exception) { outRate = 0; } StateHasChanged(); }
-        if (mode == "rate") { if (shown != "rate") { shown = "rate"; await Safe(() => Js.InvokeVoidAsync("flacie.vizStop").AsTask()); } return; }
-        var key = mode + "|" + Track.Path + "|" + Info.SampleRateHz;   // a new song can run at another rate, which needs a new graph
-        if (shown == key || unavailable) return;
-        shown = key;
-        try { if (!await Js.InvokeAsync<bool>("flacie.viz", "viz", mode, Info.SampleRateHz, CutHz, CutLabel)) { unavailable = true; StateHasChanged(); } } catch (Exception) { }
+        // skipping a song replaces Track and Info (and nulls Info) while this method is awaiting: read them once, and never let an
+        // exception out of a render hook, because that ends the whole page connection and freezes the UI until a reload
+        try
+        {
+            var info = Info; var track = Track;
+            if (info is null || track is null || Loading) { shown = null; return; }
+            await Safe(() => Js.InvokeVoidAsync("flacie.times").AsTask());
+            if (outRate < 0) { try { outRate = await Js.InvokeAsync<double>("flacie.outputRate"); } catch (Exception) { outRate = 0; } StateHasChanged(); }
+            if (mode == "rate") { if (shown != "rate") { shown = "rate"; await Safe(() => Js.InvokeVoidAsync("flacie.vizStop").AsTask()); } return; }
+            var key = mode + "|" + track.Path + "|" + info.SampleRateHz;   // a new song can run at another rate, which needs a new graph
+            if (shown == key || unavailable) return;
+            shown = key;
+            try { if (!await Js.InvokeAsync<bool>("flacie.viz", "viz", mode, info.SampleRateHz, CutHz, CutLabel)) { unavailable = true; StateHasChanged(); } } catch (Exception) { }
+        }
+        catch (Exception) { shown = null; }
     }
 
     static async Task Safe(Func<Task> f) { try { await f(); } catch (Exception) { } }

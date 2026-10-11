@@ -90,44 +90,64 @@ public static class MediaEndpoints
         {
             if (key.Length > 400 || key.Contains('/') || key.Contains('\\') || key.Contains("..")) return Results.BadRequest();
             var file = Path.Combine(artDir, Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(Encoding.UTF8.GetBytes(key))) + ".v3.img");
-            ctx.Response.Headers.CacheControl = "private, max-age=604800";
+            // a found cover is kept by the browser for a week; a missing one only briefly, or "no cover" would stick for a week after it is fixed
+            const string Kept = "private, max-age=604800", Briefly = "private, max-age=30";
             // a Jellyfin cover can be changed (fixed in Jellyfin): the saved copy is trusted for three days, then fetched again
-            if (File.Exists(file) && !(key.StartsWith("jf") && File.GetLastWriteTimeUtc(file) < DateTime.UtcNow.AddDays(-3))) return Results.File(file, "image/jpeg");
+            if (File.Exists(file) && !(key.StartsWith("jf") && File.GetLastWriteTimeUtc(file) < DateTime.UtcNow.AddDays(-3))) { ctx.Response.Headers.CacheControl = Kept; return Results.File(file, "image/jpeg"); }
+            ctx.Response.Headers.CacheControl = Briefly;
+            // a cover that was just looked for and not found is not looked for again at once (a page of tiles would ask again and again)
+            if (artMisses.TryGetValue(key, out var missedAt) && DateTime.UtcNow - missedAt < TimeSpan.FromMinutes(3)) return Results.NotFound();
             var s = store.For(ctx.User);
             byte[]? bytes = null;
-            var http = hf.CreateClient("media");
-            if (key.StartsWith("jf") && s.Jellyfin is { } a)
+            var http = hf.CreateClient("media");   // no client timeout (it carries audio): every cover lookup gets its own, so a stalled server never holds a slot for good
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted);
+            limit.CancelAfter(TimeSpan.FromSeconds(15));
+            var ct = limit.Token;
+            try
             {
-                using var req = jf.Authorized(a, jf.ImageUrl(a, key[2..], 500));
-                using var res = await http.SendAsync(req, ctx.RequestAborted);
-                if (res.IsSuccessStatusCode) bytes = await res.Content.ReadAsByteArrayAsync(ctx.RequestAborted);
-            }
-            else if (Art.ExternalUrl(key) is { } external)
-            {
-                using var res = await http.GetAsync(external, ctx.RequestAborted);
-                if (res.IsSuccessStatusCode) bytes = await res.Content.ReadAsByteArrayAsync(ctx.RequestAborted);
-            }
-            else if (Art.ParseLookupKey(key) is var (la, lb, lt))
-            {
-                await nasSlots.WaitAsync(ctx.RequestAborted);
-                try { bytes = await OnlineCover(http, la, lb, lt, ctx.RequestAborted); } finally { nasSlots.Release(); }
-            }
-            else if (key.StartsWith("nf") && s.Nas is { } n)
-            {
-                var parts = Encoding.UTF8.GetString(Convert.FromBase64String(Pad(key[2..].Replace('-', '+').Replace('_', '/')))).Split('\n');
-                if (parts.Length >= 4)
+                if (key.StartsWith("jf") && s.Jellyfin is { } a)
                 {
-                    await nasSlots.WaitAsync(ctx.RequestAborted);
-                    try { bytes = await Task.Run(() => { try { return NasClient.FolderCover(n, parts[0]) ?? NasClient.EmbeddedCover(n, parts[0]); } catch (Exception e) { log.LogDebug(e, "NAS cover failed"); return null; } }); }
-                    finally { nasSlots.Release(); }
-                    bytes ??= await OnlineCover(http, parts[1], parts[2], parts[3], ctx.RequestAborted);
+                    using var req = jf.Authorized(a, jf.ImageUrl(a, key[2..], 500));
+                    using var res = await http.SendAsync(req, ct);
+                    if (res.IsSuccessStatusCode) bytes = await res.Content.ReadAsByteArrayAsync(ct);
+                }
+                else if (Art.ExternalUrl(key) is { } external)
+                {
+                    using var res = await http.GetAsync(external, ct);
+                    if (res.IsSuccessStatusCode) bytes = await res.Content.ReadAsByteArrayAsync(ct);
+                }
+                else if (Art.ParseLookupKey(key) is var (la, lb, lt))
+                {
+                    await nasSlots.WaitAsync(ct);
+                    try { bytes = await OnlineCover(http, la, lb, lt, ct); } finally { nasSlots.Release(); }
+                }
+                else if (key.StartsWith("nf") && s.Nas is { } n)
+                {
+                    var parts = Encoding.UTF8.GetString(Convert.FromBase64String(Pad(key[2..].Replace('-', '+').Replace('_', '/')))).Split('\n');
+                    if (parts.Length >= 4)
+                    {
+                        await nasSlots.WaitAsync(ct);
+                        try { bytes = await Task.Run(() => { try { return NasClient.FolderCover(n, parts[0]) ?? NasClient.EmbeddedCover(n, parts[0]); } catch (Exception e) { log.LogDebug(e, "NAS cover failed"); return null; } }, ct); }
+                        finally { nasSlots.Release(); }
+                        bytes ??= await OnlineCover(http, parts[1], parts[2], parts[3], ct);
+                    }
                 }
             }
-            if (bytes is null) return Results.NotFound();
+            catch (OperationCanceledException) when (!ctx.RequestAborted.IsCancellationRequested) { log.LogDebug("cover lookup timed out for {Key}", key); }
+            catch (HttpRequestException) { }
+            if (bytes is null)
+            {
+                if (artMisses.Count > 2000) artMisses.Clear();
+                artMisses[key] = DateTime.UtcNow;
+                return Results.NotFound();
+            }
             await File.WriteAllBytesAsync(file, bytes);
+            ctx.Response.Headers.CacheControl = Kept;
             return Results.File(bytes, "image/jpeg");
         }).RequireAuthorization();
     }
+
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> artMisses = new();
 
     static string Pad(string b) => b.PadRight(b.Length + (4 - b.Length % 4) % 4, '=');
 
@@ -178,7 +198,8 @@ public static class MediaEndpoints
                     if (ep == "search" && Matching.NormTitle(o["title"]?.GetValue<string>() ?? "") == Matching.NormTitle(title)) s += 10;
                     return s;
                 }
-                var hit = mine.OrderByDescending(Score).FirstOrDefault();
+                // a result that matches neither the album nor the song is another release by the artist: no cover is better than a wrong one
+                var hit = mine.Where(o => Score(o) >= 10 || (album.Length == 0 && ep == "search/album")).OrderByDescending(Score).FirstOrDefault();
                 var url = hit?["cover_big"]?.GetValue<string>() ?? hit?["album"]?["cover_big"]?.GetValue<string>();
                 var name = ep == "search" ? hit?["album"]?["title"]?.GetValue<string>() : hit?["title"]?.GetValue<string>();
                 if (!string.IsNullOrEmpty(url)) return (name ?? "", url);

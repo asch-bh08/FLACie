@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
+import com.ipodemu.library.AudioFacts
 import com.ipodemu.library.Track
 import com.ipodemu.playback.LiveAnalysis
 import kotlin.math.max
@@ -60,9 +61,9 @@ import kotlin.math.pow
 import kotlin.math.sqrt
 
 /** What the player knows about the file it is playing right now. */
-internal class AudioInfo(val codec: String, val lossless: Boolean, val sampleRate: Int, val channels: Int, val kbps: Int, val bits: Int) {
-    /** Lossless and better than CD: more than 16 bits, or above 44.1 kHz. */
-    val hiRes: Boolean get() = lossless && (sampleRate > 44_100 || bits > 16)
+internal data class AudioInfo(val codec: String, val lossless: Boolean, val sampleRate: Int, val channels: Int, val kbps: Int, val bits: Int) {
+    /** Lossless and better than CD: more than 16 bits, or above 44.1 kHz (the one rule, [com.ipodemu.library.QualityRule]); unknown values never make a file Hi-Res. */
+    val hiRes: Boolean get() = com.ipodemu.library.QualityRule.isHiRes(lossless, sampleRate, bits)
     val tier: String get() = when {
         hiRes -> "Hi-Res"
         lossless -> "Lossless"
@@ -73,29 +74,71 @@ internal class AudioInfo(val codec: String, val lossless: Boolean, val sampleRat
     val sampling: String get() = listOfNotNull(bits.takeIf { it > 0 }?.let { "$it-bit" }, sampleRate.takeIf { it > 0 }?.let { "%.1f kHz".format(it / 1000.0) }).joinToString(" / ")
 }
 
+/** What the player's audio renderer reports for the item it is playing right now (taken only when that item is the song asked about). */
+internal class DecoderFormat(val mime: String, val pcmBits: Int, val sampleRate: Int, val channels: Int, val kbps: Int)
+
+/**
+ * The format of one song, from one place with one rule. Real metadata comes first: the facts FLACie Web (ffprobe / Jellyfin) or the tag reader found for
+ * THIS file ([facts]). The renderer's format ([decoder]) is used only when the caller has checked it belongs to this very song (the current item, playing),
+ * because between two songs the renderer still reports the previous song's rate and a Hi-Res song would lend its badge to the next one. What is not known
+ * stays 0, and 0 never makes a file Hi-Res.
+ */
+internal fun buildAudioInfo(facts: AudioFacts.Fact?, ext: String, decoder: DecoderFormat?, liveRate: Int, liveChannels: Int, size: Long, durationMs: Long): AudioInfo {
+    val mime = decoder?.mime ?: ""
+    val factCodec = facts?.codec?.lowercase() ?: ""
+    val codec = when {
+        factCodec == "flac" || mime.contains("flac") || (factCodec.isEmpty() && ext == "flac") -> "FLAC"
+        factCodec == "alac" || mime.contains("alac") || (factCodec.isEmpty() && ext == "alac") -> "ALAC"
+        factCodec in setOf("mp3", "mpeg", "mpegaudio") || mime.contains("mpeg") || (factCodec.isEmpty() && ext == "mp3") -> "MP3"
+        factCodec == "aac" || mime.contains("mp4a") || mime.contains("aac") || (factCodec.isEmpty() && ext in setOf("m4a", "aac")) -> "AAC"
+        factCodec == "opus" || mime.contains("opus") || (factCodec.isEmpty() && ext == "opus") -> "Opus"
+        factCodec == "vorbis" || mime.contains("vorbis") || (factCodec.isEmpty() && ext == "ogg") -> "Vorbis"
+        factCodec in setOf("wav", "pcm", "aiff", "pcm_s16le", "pcm_s24le", "pcm_s32le") || mime.contains("raw") || (factCodec.isEmpty() && ext in setOf("wav", "aiff")) -> "WAV"
+        factCodec.isNotEmpty() -> factCodec.uppercase()
+        else -> ext.uppercase()
+    }
+    val lossless = codec in setOf("FLAC", "ALAC", "WAV")
+    val rate = facts?.rate?.takeIf { it > 0 } ?: decoder?.sampleRate?.takeIf { it > 0 } ?: 0
+    val bits = facts?.depth?.takeIf { it > 0 } ?: decoder?.pcmBits?.takeIf { it > 0 } ?: 0
+    var kbps = facts?.kbps?.takeIf { it > 0 } ?: decoder?.kbps?.takeIf { it > 0 } ?: 0
+    if (kbps == 0 && size > 0 && durationMs > 0) kbps = (size * 8 / durationMs).toInt()   // display only; never used for the Hi-Res decision
+    val channels = decoder?.channels?.takeIf { it > 0 } ?: if (decoder != null) liveChannels else 0
+    // the live analysis rate (the spectrum axis) belongs to what is playing now, so it too only counts for the playing song
+    val axisRate = if (rate > 0) rate else if (decoder != null) liveRate else 0
+    return AudioInfo(codec, lossless, axisRate, channels, kbps, bits)
+}
+
 @OptIn(UnstableApi::class)
 @Suppress("DEPRECATION")
 internal fun audioInfo(app: com.ipodemu.App, t: Track): AudioInfo {
-    val f = app.player.exo.audioFormat
-    val mime = f?.sampleMimeType ?: ""
+    val exo = app.player.exo
+    // the renderer's format counts only while THIS song is the current item and playing: during a skip it is still the previous song's
+    val own = exo.playbackState == androidx.media3.common.Player.STATE_READY && (exo.currentMediaItem?.localConfiguration?.tag as? Track)?.path == t.path
+    val f = if (own) exo.audioFormat else null
+    val bits = when (f?.pcmEncoding) { C.ENCODING_PCM_16BIT -> 16; C.ENCODING_PCM_24BIT -> 24; C.ENCODING_PCM_32BIT, C.ENCODING_PCM_FLOAT -> 0; else -> 0 }   // 32-bit / float is the OUTPUT format of the audio pipeline, not the file's depth
+    val kbps = ((f?.bitrate ?: -1).takeIf { it > 0 } ?: (f?.peakBitrate ?: -1).takeIf { it > 0 } ?: 0) / 1000
+    val dec = if (f != null) DecoderFormat(f.sampleMimeType ?: "", bits, f.sampleRate.takeIf { it > 0 } ?: 0, f.channelCount.takeIf { it > 0 } ?: 0, kbps) else null
     val ext = t.filePath.substringAfterLast('.', "").lowercase().takeIf { it.length in 2..5 } ?: ""
-    val codec = when {
-        mime.contains("flac") || ext == "flac" -> "FLAC"
-        mime.contains("alac") || ext == "alac" -> "ALAC"
-        mime.contains("mpeg") || ext == "mp3" -> "MP3"
-        mime.contains("mp4a") || mime.contains("aac") || ext in setOf("m4a", "aac") -> "AAC"
-        mime.contains("opus") || ext == "opus" -> "Opus"
-        mime.contains("vorbis") || ext == "ogg" -> "Vorbis"
-        mime.contains("raw") || ext in setOf("wav", "aiff") -> "WAV"
-        else -> ext.uppercase()
-    }
-    val bits = when (f?.pcmEncoding) { C.ENCODING_PCM_16BIT -> 16; C.ENCODING_PCM_24BIT -> 24; C.ENCODING_PCM_32BIT, C.ENCODING_PCM_FLOAT -> 32; else -> 0 }
-    var kbps = ((f?.bitrate ?: -1).takeIf { it > 0 } ?: (f?.peakBitrate ?: -1).takeIf { it > 0 } ?: 0) / 1000
-    if (kbps == 0 && t.size > 0 && t.durationMs > 0) kbps = (t.size * 8 / t.durationMs).toInt()
     val live = app.player.live
-    return AudioInfo(codec, codec in setOf("FLAC", "ALAC", "WAV"), f?.sampleRate?.takeIf { it > 0 } ?: live.sampleRate, f?.channelCount?.takeIf { it > 0 } ?: live.channels, kbps, bits)
+    return buildAudioInfo(AudioFacts.of(t), ext, dec, live.sampleRate, live.channels, t.size, t.durationMs)
 }
 
+/** The song's [AudioInfo], refreshed while it is on screen: the facts can arrive after the song starts and the renderer's format only once it is playing, and a skip must never leave the previous song's value behind. */
+@androidx.compose.runtime.Composable
+internal fun rememberAudioInfo(app: com.ipodemu.App, t: Track): AudioInfo {
+    @Suppress("UNUSED_VARIABLE") val factsVersion = AudioFacts.version
+    var info by remember(t.path) { mutableStateOf(audioInfo(app, t)) }
+    androidx.compose.runtime.LaunchedEffect(t.path, factsVersion) {
+        var logged: AudioInfo? = null
+        while (true) {
+            val n = audioInfo(app, t)
+            if (n != info) info = n
+            if (n != logged) { logged = n; android.util.Log.d("FLACieBadge", "${t.title}: ${n.codec} ${n.bits}/${n.sampleRate} lossless=${n.lossless} hiRes=${n.hiRes}") }
+            kotlinx.coroutines.delay(400)
+        }
+    }
+    return info
+}
 /** Where an MP3 at this file's bitrate usually stops (0 = not an MP3, no marker); set by the panel, read by the spectrum drawing. */
 private var cutHz = 0
 private var cutLabel = ""
@@ -118,7 +161,7 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     var mode by rememberSaveable { mutableStateOf("curve") }
-    val info = remember(t.path, snap.playing) { audioInfo(app, t) }
+    val info = rememberAudioInfo(app, t)
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val analysis = remember {
         val am = ctx.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager

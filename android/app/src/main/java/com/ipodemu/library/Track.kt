@@ -36,10 +36,6 @@ data class Track(
     internal val matchKeyC: String by lazy(LazyThreadSafetyMode.PUBLICATION) { matchKey(title, artist) }
     internal val fileKeyC: String? by lazy(LazyThreadSafetyMode.PUBLICATION) { computeFileKey(this) }
     internal val mergeKeyC: String by lazy(LazyThreadSafetyMode.PUBLICATION) { matchKeyC + "|" + album.lowercase().replace(editionRe, "").filter { it.isLetterOrDigit() } }
-    /** "[Hi-Res]" in the file name (what a Hi-Res download is filed with): URL-decoding the path is not repeated for every row that draws a badge. */
-    internal val hiResNameC: Boolean by lazy(LazyThreadSafetyMode.PUBLICATION) {
-        (filePath.ifEmpty { path }).let { p -> try { java.net.URLDecoder.decode(p, "UTF-8") } catch (_: Exception) { p } }.contains("[Hi-Res]", ignoreCase = true)
-    }
     /** Title, artist and album folded the way Explore's filter box folds a query (SearchRank.words), glued: computed once instead of per keystroke per song. */
     internal val searchGlueC: String by lazy(LazyThreadSafetyMode.PUBLICATION) { SearchRank.words("$title $artist $album").joinToString("") }
     internal val albumNormC: String by lazy(LazyThreadSafetyMode.PUBLICATION) { album.lowercase().replace(editionRe, "").filter { it.isLetterOrDigit() } }
@@ -126,6 +122,6 @@ private fun searchFold(s: String): String =
     java.text.Normalizer.normalize(s.lowercase().replace("&", " and ").replace("+", " and "), java.text.Normalizer.Form.NFD).replace(diacritics, "")
 private val diacritics = Regex("""\p{Mn}+""")
 
-/** Hi-Res: the real format says lossless above CD quality (see [AudioFacts]); a file the server has not read yet is judged by the "[Hi-Res]" a Hi-Res download is filed with. */
+/** Hi-Res: the file's real format says lossless above CD quality (see [AudioFacts] and [QualityRule]). A file whose format is not known yet is NOT Hi-Res: no guess from its name, extension or bit rate. */
 val Track.hiRes: Boolean
-    get() = AudioFacts.of(this)?.hiRes ?: hiResNameC
+    get() = AudioFacts.of(this)?.hiRes ?: false

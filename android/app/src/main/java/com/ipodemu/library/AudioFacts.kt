@@ -13,12 +13,11 @@ import java.io.File
  */
 object AudioFacts {
     class Fact(val codec: String, val rate: Int, val depth: Int, val kbps: Int) {
-        val lossless: Boolean get() = codec in LOSSLESS
-        /** Lossless and better than CD: more than 16 bits, or above 44.1 kHz. */
-        val hiRes: Boolean get() = lossless && (depth > 16 || rate > 44_100)
+        val lossless: Boolean get() = QualityRule.isLossless(codec)
+        /** Lossless and better than CD: more than 16 bits, or above 44.1 kHz (the one rule, [QualityRule]). */
+        val hiRes: Boolean get() = QualityRule.isHiRes(lossless, rate, depth)
     }
 
-    private val LOSSLESS = setOf("flac", "alac", "wav", "pcm", "aiff", "ape", "wavpack", "wv", "dsd", "tta", "pcm_s16le", "pcm_s24le", "pcm_s32le", "hi-res")
     @Volatile private var map: Map<String, Fact> = emptyMap()
     /** Songs the server was still reading when it last answered. */
     @Volatile var pending = 0; private set

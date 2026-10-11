@@ -161,7 +161,7 @@ fun ModernNowPlayingBody(snap: PlayerSnap, nav: PlayerNav) {
 private fun FormatChips(t: Track, snap: PlayerSnap) {
     val app = LocalApp.current
     val sc = LocalScheme.current
-    val ai = remember(t.path, snap.playing) { audioInfo(app, t) }
+    val ai = rememberAudioInfo(app, t)
     // like the web: separate badges (source pink, format green when lossless, then rate and bit rate), wrapping onto a second line rather than being cut off
     val green = Color(0xFF4EE0A1)
     val badges = listOfNotNull(

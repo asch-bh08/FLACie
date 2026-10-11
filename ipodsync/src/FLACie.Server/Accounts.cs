@@ -15,7 +15,7 @@ namespace FLACie.Server;
 /// </summary>
 public sealed record Live(Connect Connect, Jam Jam);
 
-public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log, ImportManager imports, UserStateStore states, DataPaths paths)
+public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log, ImportManager imports, UserStateStore states, DataPaths paths, TokenCache tokens)
 {
     readonly ConcurrentDictionary<string, UserSession> sessions = new();
     /// <summary>Sign-in cookies whose Jellyfin token Jellyfin has refused (a hash of the token, when): such a browser is signed out instead of being left half signed in (no playlists, no admin).</summary>
@@ -51,7 +51,7 @@ public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log, I
             var kind = p.FindFirst("kind")?.Value ?? "jellyfin";
             JellyfinAccount? j = p.FindFirst("jf.token") is { } t ? new(p.FindFirst("jf.server")!.Value, p.FindFirst("jf.user")!.Value, p.FindFirst("jf.name")?.Value ?? "", t.Value) : null;
             NasAccount? n = p.FindFirst("nas.host") is { } h ? new(h.Value, V(p, "nas.share"), V(p, "nas.folder"), V(p, "nas.user"), V(p, "nas.pass"), V(p, "nas.domain")) : null;
-            var us = new UserSession(kind, j, n) { Id = key, CachePath = Path.Combine(paths.Root, "library", key + ".json") }; states.Remember(us);
+            var us = new UserSession(kind, j, n) { Id = key, CachePath = Path.Combine(paths.Root, "library", key + ".json"), FactsSink = (t, mi) => { FormatIndex.Current?.Set(t, mi); InfoService.Current?.Remember(t, mi); } }; states.Remember(us);
             _ = Task.Run(async () =>
             {
                 try { await us.LoadAsync(jf); }
@@ -59,7 +59,7 @@ public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log, I
                 {
                     log.LogWarning(e, "Loading library failed");
                     // Jellyfin refused this sign-in (a token it has since dropped): do not keep the half-loaded session, or the next sign-in of the same user would reuse its dead token
-                    if (e is UnauthorizedAccessException) { if (TokenKey(p) is { Length: > 0 } dk) deadTokens[dk] = DateTime.UtcNow; sessions.TryRemove(new KeyValuePair<string, UserSession>(key, us)); if (live.TryGetValue(us, out var l)) { l.Connect.Dispose(); live.Remove(us); } }
+                    if (e is UnauthorizedAccessException) { if (TokenKey(p) is { Length: > 0 } dk) deadTokens[dk] = DateTime.UtcNow; if (p.FindFirst("jf.token")?.Value is { Length: > 0 } dead) tokens.Invalidate(dead); sessions.TryRemove(new KeyValuePair<string, UserSession>(key, us)); if (live.TryGetValue(us, out var l)) { l.Connect.Dispose(); live.Remove(us); } }
                 }
                 imports.Resume(us);
             });
@@ -156,7 +156,7 @@ public static class AuthEndpoints
         app.MapPost("/auth/logout", async (HttpContext ctx, SessionStore store, JellyfinClient jf) =>
         {
             var s = store.For(ctx.User);
-            if (s.Jellyfin is { } a && s.Kind == "jellyfin") try { await jf.SignOutAsync(a); } catch { }
+            if (s.Jellyfin is { } a && s.Kind == "jellyfin") { ctx.RequestServices.GetRequiredService<TokenCache>().Invalidate(a.Token); try { await jf.SignOutAsync(a); } catch { } }
             store.Forget(ctx.User);
             await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             return Results.Redirect("/login");

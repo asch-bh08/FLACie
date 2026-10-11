@@ -80,6 +80,12 @@ const wav = (() => {
   return b;
 })();
 let flakyFailed = false;
+const counts = { usersMe: 0, items: 0, item: 0, stream: 0, image: 0 };
+// the library listing carries MediaSources/MediaStreams when asked (Fields=MediaSources,MediaStreams), like Jellyfin: plain songs are CD-quality FLAC.
+// The Hi-Res lab songs are left out on purpose, so 1e-hires.spec.ts keeps exercising the per-song read (with its one HTTP 500).
+const withSources = (x) => (x.Id.startsWith('s') && x.Id !== 's1'
+  ? { ...x, MediaSources: [{ Container: 'flac', Path: x.Path, Size: 20_000_000, Bitrate: 1_000_000, RunTimeTicks: x.RunTimeTicks, MediaStreams: [{ Type: 'Audio', Codec: 'flac', Channels: 2, BitRate: 1_000_000, SampleRate: 44100, BitDepth: 16 }] }] }
+  : x);
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 const me = { Id: 'u1', Name: 'tester', Policy: { IsAdministrator: true } };
 let prefs = { Id: 'ipodplayer', Client: 'ipodplayer', CustomPrefs: {} };
@@ -99,6 +105,14 @@ http
   .createServer(async (req, res) => {
     const u = new URL(req.url, 'http://x');
     const p = u.pathname, q = u.searchParams, m = req.method;
+    // request counter for the load tests: GET /__counts (totals by kind since the last POST /__reset). Not part of Jellyfin; no auth.
+    if (p === '/__counts') return json(res, 200, counts);
+    if (p === '/__reset') { for (const k of Object.keys(counts)) counts[k] = 0; return json(res, 200, counts); }
+    if (p === '/Users/Me') counts.usersMe++;
+    else if (/^\/Users\/u1\/Items\/[^/]+$/.test(p)) counts.item++;
+    else if (p === '/Users/u1/Items') counts.items++;
+    else if (/^\/Audio\/[^/]+\/stream/.test(p)) counts.stream++;
+    else if (/^\/Items\/[^/]+\/Images\//.test(p)) counts.image++;
     if (p === '/System/Info/Public') return json(res, 200, { ServerName: 'Mock Jellyfin', Version: '10.10.0', Id: 'mock' });
     if (p === '/Users/AuthenticateByName' && m === 'POST') {
       const b = JSON.parse((await readBody(req)) || '{}');
@@ -122,7 +136,7 @@ http
       if (itemM[1] === 'h6' && !flakyFailed) { flakyFailed = true; return json(res, 500, { error: 'hiccup' }); }
       return json(res, 200, labItem(songs.find((x) => x.Id === itemM[1])));
     }
-    if (/^\/Audio\/h[1-8]\/stream/.test(p)) {
+    if (/^\/Audio\/(h[1-8]|s([2-9]|[1-9]\d))\/stream/.test(p)) {
       const mm = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
       const from = mm && mm[1] !== '' ? +mm[1] : 0, to = mm && mm[2] !== '' ? Math.min(+mm[2], wav.length - 1) : wav.length - 1;
       res.writeHead(mm ? 206 : 200, { 'content-type': 'audio/wav', 'accept-ranges': 'bytes', 'content-length': to - from + 1, ...(mm ? { 'content-range': `bytes ${from}-${to}/${wav.length}` } : {}) });
@@ -137,7 +151,8 @@ http
       if (q.get('Filters') === 'IsFavorite') return json(res, 200, { Items: [], TotalRecordCount: 0 });
       if (q.get('IncludeItemTypes') === 'Audio') {
         const start = Number(q.get('StartIndex') || 0), limit = Number(q.get('Limit') || 1500);
-        return json(res, 200, { Items: songs.slice(start, start + limit), TotalRecordCount: songs.length, StartIndex: start });
+        const page = songs.slice(start, start + limit);
+        return json(res, 200, { Items: (q.get('Fields') || '').includes('MediaStreams') ? page.map(withSources) : page, TotalRecordCount: songs.length, StartIndex: start });
       }
       return json(res, 200, { Items: [], TotalRecordCount: 0 });
     }

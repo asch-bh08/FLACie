@@ -11,8 +11,12 @@ public sealed record JellyfinAccount(string Server, string UserId, string UserNa
 
 /// <summary>Talks to a Jellyfin server as one user: sign-in (password or Quick Connect), the music library, playlists and
 /// the profile stored in the user's display preferences (same place and format as the Android app, so they share it).</summary>
-public sealed partial class JellyfinClient(HttpClient http, string deviceId, string deviceName = "FLACie Web")
+public sealed partial class JellyfinClient(HttpClient http, string deviceId, string deviceName = "FLACie Web", JellyfinGate? gate = null)
 {
+    /// <summary>Marks a request message as one for Jellyfin, so <see cref="GatedHandler"/> lets it through the gate.</summary>
+    public static readonly HttpRequestOptionsKey<bool> GateKey = new("flacie.gate");
+    /// <summary>The one door to Jellyfin: concurrency limit, priorities, circuit breaker (see <see cref="JellyfinGate"/>).</summary>
+    public JellyfinGate Gate { get; } = gate ?? new JellyfinGate();
     public const string Client = "ipodplayer"; // the Android app's client id: changing it would orphan saved profiles
     public const string Version = "0.8";
     /// <summary>The name sent with every request. It has to stay the same as the one the device signed in with.</summary>
@@ -26,6 +30,9 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
     }
 
     public string DeviceId => deviceId;
+
+    /// <summary>How many calls this client made to Jellyfin in the last minute, by kind (for the admin dashboard).</summary>
+    public JellyfinCallStats Stats { get; } = new();
 
     /// <summary>When this machine reaches Jellyfin at a different address than the users do (a Docker host that cannot loop back to its
     /// own public/Tailscale address), requests to <see cref="PublicBase"/> are sent to <see cref="InternalBase"/> instead. Accounts and the
@@ -52,19 +59,33 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
 
     async Task<JsonNode?> Send(HttpMethod method, string url, string? token, JsonNode? body, CancellationToken ct)
     {
-        using var req = new HttpRequestMessage(method, Route(url));
-        req.Headers.TryAddWithoutValidation("Authorization", Auth(token));
-        if (body is not null) req.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
-        else if (method == HttpMethod.Post) req.Content = new StringContent("", Encoding.UTF8, "application/json");
-        using var res = await http.SendAsync(req, ct);
-        if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized) throw new UnauthorizedAccessException("Jellyfin didn't accept that sign-in.");
-        if (!res.IsSuccessStatusCode)
+        async Task<string> Once(CancellationToken c)
         {
-            // Jellyfin says what is wrong in the body (e.g. a SyncPlay refusal); keep it so the page can show it
-            var why = (await res.Content.ReadAsStringAsync(ct)).Trim();
-            throw new HttpRequestException($"{(int)res.StatusCode} {res.ReasonPhrase}{(why.Length > 0 && why.Length < 300 ? ": " + why : "")}", null, res.StatusCode);
+            Stats.HitUrl(url);
+            using var req = new HttpRequestMessage(method, Route(url));
+            req.Headers.TryAddWithoutValidation("Authorization", Auth(token));
+            if (body is not null) req.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
+            else if (method == HttpMethod.Post) req.Content = new StringContent("", Encoding.UTF8, "application/json");
+            using var res = await http.SendAsync(req, c);
+            if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized) throw new UnauthorizedAccessException("Jellyfin didn't accept that sign-in.");
+            if (!res.IsSuccessStatusCode)
+            {
+                // Jellyfin says what is wrong in the body (e.g. a SyncPlay refusal); keep it so the page can show it
+                var why = (await res.Content.ReadAsStringAsync(c)).Trim();
+                var msg = $"{(int)res.StatusCode} {res.ReasonPhrase}{(why.Length > 0 && why.Length < 300 ? ": " + why : "")}";
+                if ((int)res.StatusCode >= 500 || res.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                {
+                    var ra = res.Headers.RetryAfter is { } r ? r.Delta ?? (r.Date is { } d ? d - DateTimeOffset.UtcNow : null) : null;
+                    throw new JellyfinHttpException(res.StatusCode, msg, ra);
+                }
+                throw new HttpRequestException(msg, null, res.StatusCode);
+            }
+            return await res.Content.ReadAsStringAsync(c);
         }
-        var text = await res.Content.ReadAsStringAsync(ct);
+        // every request waits its turn at the gate; only reads are retried, and identical reads in flight at the same moment are one request
+        var text = method == HttpMethod.Get
+            ? await Gate.RunSharedAsync($"GET {url}|{token}", JellyfinGate.Current, Once, ct)
+            : await Gate.RunAsync(JellyfinGate.Current, Once, ct, maxRetries: 0);
         return string.IsNullOrWhiteSpace(text) ? null : JsonNode.Parse(text);
     }
 
@@ -103,27 +124,54 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
 
     // ---- library ----
 
-    /// <summary>Every song the user can see. The first page says how many there are; the rest are fetched side by side, which is several times faster than one after another.</summary>
-    public async Task<List<Track>> AllAudioAsync(JellyfinAccount a, CancellationToken ct = default)
+    /// <summary>Every song the user can see.</summary>
+    public async Task<List<Track>> AllAudioAsync(JellyfinAccount a, CancellationToken ct = default, Action<List<Track>>? progress = null, Action<Track, MediaInfo>? facts = null) =>
+        (await ListAudioAsync(a, null, ct, progress, facts)).Tracks;
+
+    /// <summary>The songs of a listing, the newest DateLastSaved among them (the cursor for the next delta) and the library's total.</summary>
+    public sealed record AudioListing(List<Track> Tracks, string? MaxSaved, int Total);
+
+    public const int ListingPage = 500;
+
+    /// <summary>
+    /// The library in pages of <see cref="ListingPage"/> songs, each song with its streams (codec, bit depth, sample rate, bit rate) so nobody has to ask for them one by one:
+    /// <paramref name="facts"/> gets every song's real facts, <paramref name="progress"/> the songs so far after each page (so a first sync can show songs while it runs).
+    /// With <paramref name="since"/> (a DateLastSaved from an earlier listing) only songs saved since then come back: a delta.
+    /// </summary>
+    public async Task<AudioListing> ListAudioAsync(JellyfinAccount a, string? since, CancellationToken ct = default, Action<List<Track>>? progress = null, Action<Track, MediaInfo>? facts = null)
     {
-        const int size = 1500;
-        async Task<(List<Track> Items, int Total)> Page(int start)
+        var sync = new object(); var all = new List<Track>(); string? maxSaved = null;
+        var after = since is null ? "" : "&MinDateLastSaved=" + Uri.EscapeDataString(since);
+        async Task<int> Page(int start)
         {
-            var page = await Send(HttpMethod.Get, $"{a.Server}/Users/{a.UserId}/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=Path,DateCreated,Genres&EnableUserData=false&StartIndex={start}&Limit={size}", a.Token, null, ct);
-            var items = page?["Items"]?.AsArray();
-            return (items is null ? [] : items.OfType<JsonNode>().Select(o => ToTrack(a.Server, o)).ToList(), page?["TotalRecordCount"]?.GetValue<int>() ?? 0);
+            var page = await Send(HttpMethod.Get, $"{a.Server}/Users/{a.UserId}/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=Path,DateCreated,DateLastSaved,Genres,MediaSources,MediaStreams&EnableUserData=false&StartIndex={start}&Limit={ListingPage}{after}", a.Token, null, ct);
+            var items = page?["Items"]?.AsArray().OfType<JsonObject>().ToList() ?? [];
+            var tracks = items.Select(o => (Track: ToTrack(a.Server, o), Info: ParseMediaInfo(o), Saved: o["DateLastSaved"]?.GetValue<string>())).ToList();
+            List<Track>? snapshot = null;
+            lock (sync)
+            {
+                foreach (var (t, info, saved) in tracks)
+                {
+                    all.Add(t);
+                    if (info is { Known: true }) facts?.Invoke(t, info);
+                    if (saved is not null && (maxSaved is null || string.CompareOrdinal(saved, maxSaved) > 0)) maxSaved = saved;
+                }
+                if (progress is not null) snapshot = [.. all];
+            }
+            if (snapshot is not null) progress!(TrackTitles.CleanAll(snapshot));
+            return page?["TotalRecordCount"]?.GetValue<int>() ?? 0;
         }
-        var (first, total) = await Page(0);
-        var all = new List<Track>(first);
-        if (first.Count < size || total <= first.Count) return TrackTitles.CleanAll(all);
-        using var gate = new SemaphoreSlim(4);
-        var rest = await Task.WhenAll(Enumerable.Range(1, (total - 1) / size).Select(async i =>
+        var total = await Page(0);
+        if (total > ListingPage)
         {
-            await gate.WaitAsync(ct);
-            try { return (await Page(i * size)).Items; } finally { gate.Release(); }
-        }));
-        foreach (var r in rest) all.AddRange(r);
-        return TrackTitles.CleanAll(all);
+            using var gate = new SemaphoreSlim(4);
+            await Task.WhenAll(Enumerable.Range(1, (total - 1) / ListingPage).Select(async i =>
+            {
+                await gate.WaitAsync(ct);
+                try { await Page(i * ListingPage); } finally { gate.Release(); }
+            }));
+        }
+        return new AudioListing(TrackTitles.CleanAll(all), maxSaved, total);
     }
 
     /// <summary>
@@ -163,8 +211,8 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         // folder.jpg would put one cover on every song in a folder; a catalog lookup when neither exists
         // a song on a compilation gets its own album's cover from the catalog, whatever the file's embedded picture is
         var art = Art.OnCompilation(artist, Str("AlbumArtist"), Str("Album")) && Art.LookupKey(artist, "", Str("Name")) is { } own ? own
-                : o["ImageTags"]?["Primary"] is not null ? "jf" + id
-                : albumId.Length > 0 && o["AlbumPrimaryImageTag"] is not null ? "jf" + albumId
+                : o["ImageTags"]?["Primary"] is JsonValue pt ? "jf" + id + "~" + pt.ToString()
+                : albumId.Length > 0 && o["AlbumPrimaryImageTag"] is JsonValue at ? "jf" + albumId + "~" + at.ToString()
                 : Art.LookupKey(artist, Str("Album"), Str("Name"));
         DateTime.TryParse(Str("DateCreated"), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var created);
         return new Track($"{server}/Audio/{id}/stream?static=true", Str("Name"), artist, Str("Album"), Str("AlbumArtist").Length > 0 ? Str("AlbumArtist") : artist,
@@ -189,10 +237,12 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
     }
 
     public string StreamUrl(JellyfinAccount a, string itemId) => $"{a.Server}/Audio/{itemId}/stream?static=true";
-    public string ImageUrl(JellyfinAccount a, string itemId, int width = 400) => $"{a.Server}/Items/{itemId}/Images/Primary?maxWidth={width}&quality=90";
+    /// <summary>A cover. Always the same parameters for the same use (a fixed width and quality, the item's image tag), so Jellyfin's own image cache answers repeats. width 0 = the original.</summary>
+    public string ImageUrl(JellyfinAccount a, string itemId, int width = 400, string? tag = null, bool webp = false) =>
+        $"{a.Server}/Items/{itemId}/Images/Primary?" + (width > 0 ? $"maxWidth={width}&quality={(webp ? 80 : 90)}" : "quality=100") + (webp ? "&format=Webp" : "") + (tag is { Length: > 0 } ? $"&tag={Uri.EscapeDataString(tag)}" : "");
 
     /// <summary>A request with this user's token, for proxying audio and covers.</summary>
-    public HttpRequestMessage Authorized(JellyfinAccount a, string url) { var r = new HttpRequestMessage(HttpMethod.Get, Route(url)); r.Headers.TryAddWithoutValidation("Authorization", Auth(a.Token)); return r; }
+    public HttpRequestMessage Authorized(JellyfinAccount a, string url) { Stats.HitUrl(url); var r = new HttpRequestMessage(HttpMethod.Get, Route(url)); r.Options.Set(GateKey, true); r.Headers.TryAddWithoutValidation("Authorization", Auth(a.Token)); return r; }
 
     // ---- profile ----
 

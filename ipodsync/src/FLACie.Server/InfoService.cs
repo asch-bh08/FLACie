@@ -10,14 +10,23 @@ namespace FLACie.Server;
 /// Cached, because the Info panel is opened often and a NAS read costs a round trip.</summary>
 public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, DownloadLog log)
 {
+    /// <summary>The running instance, so the library listing can hand over the facts it carries.</summary>
+    public static InfoService? Current { get; set; }
     readonly ConcurrentDictionary<string, MediaInfo> cache = new();
 
     /// <summary>Test hook: replaces the real source read.</summary>
     public Func<UserSession, Track, Task<MediaInfo>>? Reader { get; set; }
     public int RetryDelayMs { get; set; } = 400;
 
-    public async Task<MediaInfo> GetAsync(UserSession s, Track t)
+    /// <summary>Keeps a real read that came from somewhere else (the bulk read of the library), so the Info panel does not ask again.</summary>
+    public void Remember(Track t, MediaInfo info) { if (info.Known) cache[t.Path] = info; }
+
+    /// <summary>Reads at once, whoever is playing: the song a person is looking at never waits. <paramref name="retry"/> false is for the background probe, which
+    /// makes one attempt and leaves a failure to its back-off instead of asking again three times.</summary>
+    public async Task<MediaInfo> GetAsync(UserSession s, Track t, bool retry = true)
     {
+        // the song a person is looking at is read first; the background probe's reads wait behind everything
+        using var prio = JellyfinGate.Use(retry ? GatePriority.Playing : GatePriority.Background);
         if (!cache.TryGetValue(t.Path, out var info))
         {
             // only a real read is kept: a failed or partial one (extension fallback, no rate/depth/bit rate) is returned for now but never cached,
@@ -25,7 +34,7 @@ public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, Downlo
             for (var attempt = 0; ; attempt++)
             {
                 info = await (Reader?.Invoke(s, t) ?? ReadAsync(s, t));
-                if (info.Known || attempt >= 2) break;
+                if (info.Known || !retry || attempt >= 2) break;
                 await Task.Delay(RetryDelayMs);
             }
             if (info.Known) { cache[t.Path] = info; FormatIndex.Current?.Set(t, info); }

@@ -69,6 +69,7 @@ public sealed class UserSession
             var tmp = CachePath + ".tmp";
             File.WriteAllText(tmp, System.Text.Json.JsonSerializer.Serialize(Library.Songs.Where(t => t.Source != TrackSource.Cloud).ToList()));
             File.Move(tmp, CachePath, true);
+            if (SyncCursor is { } cur && CursorFile is { } cfile) File.WriteAllText(cfile, cur);
         }
         catch (Exception) { }
     }
@@ -78,6 +79,8 @@ public sealed class UserSession
     {
         await gate.WaitAsync(ct);
         Loading = true; LoadCache(); Changed?.Invoke();
+        // with a saved library to show, the refresh is background work; with nothing to show yet, the person is waiting for it
+        using var prio = JellyfinGate.Use(Library.Songs.Count > 0 ? GatePriority.Background : GatePriority.Visible);
         try
         {
             // newest profile copy from every account this user has
@@ -98,7 +101,23 @@ public sealed class UserSession
             List<Track> jfTracks = [], nasTracks = [];
             Problem = profileProblem;
             if (Jellyfin is { } ja)
-                try { jfTracks = await jf.AllAudioAsync(ja, ct); }
+                try
+                {
+                    // a first sync (nothing saved from last time) shows songs as the pages arrive; a refresh waits and swaps in the whole list
+                    var firstSync = Library.Songs.Count == 0; var published = 0;
+                    // a library kept from last time with a cursor: ask only for what changed since, and trust it when the count still matches Jellyfin's
+                    var merged = firstSync ? null : await TryDeltaAsync(jf, ja, ct);
+                    if (merged is not null) jfTracks = merged;
+                    else
+                    {
+                        var listing = await jf.ListAudioAsync(ja, null, ct, firstSync ? partial =>
+                        {
+                            if (partial.Count <= published) return;
+                            published = partial.Count; Library = WithDownloads(Library.Merge(partial, [])); Changed?.Invoke();
+                        } : null, FactsSink);
+                        jfTracks = listing.Tracks; SyncCursor = listing.MaxSaved;
+                    }
+                }
                 catch (UnauthorizedAccessException) { if (Kind == "nas") Jellyfin = null; else throw; }
                 catch (Exception e) { Problem = $"Jellyfin: {e.Message}"; }
             if (Nas is { } na)
@@ -111,6 +130,65 @@ public sealed class UserSession
             if (StripQualityTags()) try { await SaveAsync(jf, ct); } catch (Exception) { }
         }
         finally { Loading = false; gate.Release(); Changed?.Invoke(); }
+    }
+
+    /// <summary>Where each song's real audio facts (from the library listing) are handed to, normally the server's format index.</summary>
+    public Action<Track, MediaInfo>? FactsSink { get; set; }
+    /// <summary>The newest DateLastSaved seen in the Jellyfin listing: the next sync asks only for songs saved after it.</summary>
+    public string? SyncCursor { get; private set; }
+
+    string? CursorFile => CachePath is null ? null : CachePath + ".cursor";
+
+    async Task<List<Track>?> TryDeltaAsync(JellyfinClient jf, JellyfinAccount a, CancellationToken ct)
+    {
+        try
+        {
+            SyncCursor ??= CursorFile is { } cf && File.Exists(cf) ? File.ReadAllText(cf).Trim() : null;
+            if (SyncCursor is not { Length: > 0 } cursor) return null;
+            var l = await jf.ListAudioAsync(a, cursor, ct, null, FactsSink);
+            var changed = new HashSet<string>(l.Tracks.Select(t => Norm(t.JellyfinId)));
+            var merged = Library.Songs.Where(t => t.Source == TrackSource.Jellyfin && !changed.Contains(Norm(t.JellyfinId))).Concat(l.Tracks).ToList();
+            if (await JellyfinSongCountAsync(jf, ct) != merged.Count) return null;   // something was removed (or never seen): list everything again
+            if (l.MaxSaved is not null) SyncCursor = l.MaxSaved;
+            return merged;
+        }
+        catch (UnauthorizedAccessException) { throw; }
+        catch (Exception) { return null; }
+    }
+
+    static string Norm(string? id) => (id ?? "").Replace("-", "").ToLowerInvariant();
+
+    /// <summary>Folds a delta into the library: songs Jellyfin saved again replace their old record (or are added), removed ones disappear. NAS songs and downloads stay.</summary>
+    public void ApplyDelta(IReadOnlyList<Track> changed, IReadOnlyCollection<string> removedIds)
+    {
+        var drop = new HashSet<string>(removedIds.Select(Norm).Concat(changed.Select(t => Norm(t.JellyfinId))));
+        var jfNow = Library.Songs.Where(t => t.Source == TrackSource.Jellyfin && !drop.Contains(Norm(t.JellyfinId))).Concat(changed).ToList();
+        var nas = Library.Songs.Where(t => t.Source == TrackSource.Nas).ToList();
+        Library = WithDownloads(Library.Merge(jfNow, nas));
+        Changed?.Invoke();
+    }
+
+    /// <summary>Asks Jellyfin only for what changed since the last sync (background priority), folds it in and moves the cursor on. Returns how many songs changed or went.
+    /// <paramref name="removedIds"/> are songs a LibraryChanged message from Jellyfin's socket said were removed.</summary>
+    public async Task<int> SyncDeltaAsync(JellyfinClient jf, IReadOnlyCollection<string>? removedIds = null, CancellationToken ct = default)
+    {
+        if (Jellyfin is not { } a || SyncCursor is null || Loading) return 0;
+        using var prio = JellyfinGate.Use(GatePriority.Background);
+        var listing = await jf.ListAudioAsync(a, SyncCursor, ct, null, FactsSink);
+        var gone = removedIds ?? [];
+        if (listing.Tracks.Count == 0 && gone.Count == 0) return 0;
+        ApplyDelta(listing.Tracks, gone);
+        if (listing.MaxSaved is not null) SyncCursor = listing.MaxSaved;
+        SaveCache();
+        return listing.Tracks.Count + gone.Count;
+    }
+
+    /// <summary>How many songs Jellyfin says the user has (one tiny request), to notice removals a socket message missed.</summary>
+    public async Task<int> JellyfinSongCountAsync(JellyfinClient jf, CancellationToken ct = default)
+    {
+        if (Jellyfin is not { } a) return -1;
+        using var prio = JellyfinGate.Use(GatePriority.Background);
+        return (await jf.GetAsync(a, $"/Users/{a.UserId}/Items?IncludeItemTypes=Audio&Recursive=true&Limit=1&EnableImages=false&EnableUserData=false&Fields=", ct))?["TotalRecordCount"]?.GetValue<int>() ?? -1;
     }
 
     static string S(JsonObject o, string k) => o[k]?.GetValue<string>() ?? "";

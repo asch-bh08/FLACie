@@ -384,11 +384,32 @@ window.flacie = (() => {
     try { navigator.mediaSession.setActionHandler("enterpictureinpicture", () => { pip.toggle(); }); } catch { }
   }
   let outside = null, pendingLoad = 0, lastLoadAt = -1e9;
+  // The next song's first bytes are fetched early (a second audio element, preload=auto), so a skip starts at once. One prefetch at a time, started only
+  // once the current song can play (the song asked for gets the connection and the server first), and replaced, never added to, when the queue moves on.
+  let pre = null, preTok = 0, preTimer = 0;
+  const dropPre = () => { if (pre) { try { pre.removeAttribute("src"); pre.load(); } catch { } pre = null; } };
+  const prefetch = (u) => {
+    const tok = ++preTok; clearTimeout(preTimer);
+    if (!u) { dropPre(); return; }
+    if (pre && pre.dataset.u === u) return;
+    const go = () => {
+      if (tok !== preTok) return;
+      preTimer = setTimeout(() => {
+        if (tok !== preTok || (pre && pre.dataset.u === u)) return;
+        dropPre();
+        pre = new Audio(); pre.preload = "auto"; pre.dataset.u = u; pre.src = u;
+        window.__flaciePrefetches = (window.__flaciePrefetches || 0) + 1;
+      }, 400);
+    };
+    audio.addEventListener("canplay", go, { once: true });
+    if (audio.src && audio.readyState >= 3) go();
+  };
   return {
+    prefetchOpen() { return pre ? 1 : 0; },
     pipSupported() { return pip.supported(); },
     pipActive() { return pip.active(); },
     pipToggle() { return pip.toggle(); },
-    load(ref, url, title, artist, album, art, autoplay, dur, startAt) {
+    load(ref, url, title, artist, album, art, autoplay, dur, startAt, nextUrl) {
       dotnet = ref;
       pip.meta(title, artist, art);
       if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title, artist, album, artwork: art ? [{ src: art, sizes: "500x500", type: "image/jpeg" }] : [] });
@@ -406,6 +427,7 @@ window.flacie = (() => {
       lastLoadAt = now;
       if (pendingLoad) { clearTimeout(pendingLoad); pendingLoad = 0; }
       if (burst) { audio.pause(); audio.removeAttribute("src"); audio.load(); pendingLoad = setTimeout(open, 150); } else open();
+      prefetch(nextUrl);   // after the new source is set (or the old one cleared): "can play" then means this song
     },
     loadsStarted() { return lastLoadAt; },
     // starts the Info tab's live view; false when this browser can't do it

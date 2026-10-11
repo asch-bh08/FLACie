@@ -34,13 +34,15 @@ builder.Services.AddCascadingAuthenticationState();
 // FLACIE_SERVICE_ROUTES: "public=>internal" pairs, so this server reaches a download service on its own machine without going through the public name
 var serviceRoutes = ServiceRouteHandler.Parse(builder.Configuration["FLACIE_SERVICE_ROUTES"]);
 builder.Services.AddHttpClient("jellyfin", c => c.Timeout = TimeSpan.FromSeconds(60));
-builder.Services.AddHttpClient("media", c => { c.Timeout = Timeout.InfiniteTimeSpan; c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); }).AddHttpMessageHandler(() => new ServiceRouteHandler(serviceRoutes));
+builder.Services.AddHttpClient("media", c => { c.Timeout = Timeout.InfiniteTimeSpan; c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); }).AddHttpMessageHandler(() => new ServiceRouteHandler(serviceRoutes)).AddHttpMessageHandler(sp => new GatedHandler(sp.GetRequiredService<JellyfinGate>()));
+builder.Services.AddSingleton(sp => new JellyfinGate { Streaming = () => sp.GetRequiredService<PlaybackActivity>().OpenStreams > 0 });
 builder.Services.AddHttpClient("catalog", c => { c.Timeout = TimeSpan.FromSeconds(12); c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); });
 // the yt-dlp call (search, search, download) and the open-source file fetches run for minutes: the call carries its own time limit, so no client one
 builder.Services.AddHttpClient("downloads-long", c => { c.Timeout = Timeout.InfiniteTimeSpan; c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); }).AddHttpMessageHandler(() => new ServiceRouteHandler(serviceRoutes));
 builder.Services.AddHttpClient("downloads", c => { c.Timeout = TimeSpan.FromSeconds(30); c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); }).AddHttpMessageHandler(() => new ServiceRouteHandler(serviceRoutes));
 builder.Services.AddSingleton(sp => new WebCatalog(sp.GetRequiredService<IHttpClientFactory>().CreateClient("catalog")));
 builder.Services.AddSingleton(new DataPaths(dataDir));
+builder.Services.AddSingleton(new CoverStore(Path.Combine(dataDir, "art")));
 builder.Services.AddSingleton<UserStateStore>();
 builder.Services.AddSingleton<StorageGuard>();
 builder.Services.AddSingleton<ActivityLog>();
@@ -57,17 +59,20 @@ builder.Services.AddSingleton<AutoplayPlanner>();
 builder.Services.AddSingleton<ImportManager>();
 builder.Services.AddSingleton<ChartsService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ChartsService>());
-builder.Services.AddSingleton<InfoService>();
+builder.Services.AddSingleton(sp => InfoService.Current = new InfoService(sp.GetRequiredService<JellyfinClient>(), sp.GetRequiredService<IHttpClientFactory>(), sp.GetRequiredService<DownloadLog>()));
 builder.Services.AddSingleton<FormatIndex>();
+builder.Services.AddSingleton<PlaybackActivity>();
+builder.Services.AddSingleton<TokenCache>();
 builder.Services.AddSingleton<FormatProbeService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FormatProbeService>());
 builder.Services.AddHostedService<ProfileSyncService>();
+builder.Services.AddHostedService<LibrarySyncService>();
 builder.Services.AddSingleton(sp => new LyricsService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("catalog"), sp.GetRequiredService<JellyfinClient>(), Path.Combine(dataDir, "lyrics")));
 // one device id per server install, so Jellyfin lists FLACie Web as one device
 var deviceIdFile = Path.Combine(dataDir, "device-id");
 if (!File.Exists(deviceIdFile)) File.WriteAllText(deviceIdFile, Guid.NewGuid().ToString("N"));
 var deviceId = File.ReadAllText(deviceIdFile).Trim();
-builder.Services.AddSingleton(sp => new JellyfinClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient("jellyfin"), deviceId)
+builder.Services.AddSingleton(sp => new JellyfinClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient("jellyfin"), deviceId, gate: sp.GetRequiredService<JellyfinGate>())
 {
     // FLACIE_JELLYFIN_INTERNAL_URL: where this server reaches Jellyfin when that differs from FLACIE_JELLYFIN_URL (e.g. http://127.0.0.1:8096)
     PublicBase = builder.Configuration["FLACIE_JELLYFIN_URL"] is { Length: > 0 } pub ? JellyfinClient.Normalise(pub) : null,
@@ -174,6 +179,10 @@ if (builder.Configuration["FLACIE_DEBUG"] == "1")
 }
 // who and what is asking, for the admin dashboard (the address as the server sees it)
 app.MapGet("/api/whoami", (HttpContext ctx) => Results.Json(new { ip = ctx.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "", ua = ctx.Request.Headers.UserAgent.ToString() })).RequireAuthorization();
+// what this server asks of Jellyfin, for the administrators: calls in the last minute by kind, so an overload can be traced next time
+app.MapGet("/api/admin/load", (HttpContext ctx, SessionStore store, JellyfinClient jf, PlaybackActivity act, FormatProbeService probe, FormatIndex idx, IConfiguration conf) =>
+    !AdminAccess.Is(store.For(ctx.User), conf) ? Results.StatusCode(403)
+    : Results.Json(new { jellyfinCallsLastMinute = jf.Stats.LastMinute(), jellyfinCallsSinceStart = jf.Stats.Totals(), openStreams = act.OpenStreams, busy = act.Busy, probePending = probe.Pending, indexed = idx.Count, backingOff = idx.MissCount, desktopShell = ChartsService.InDesktopShell })).RequireAuthorization();
 app.MapGet("/healthz", () => Results.Ok("ok"));
 app.MapGet("/licenses", () => Results.Text(AppInfo.Licenses(), "text/plain; charset=utf-8"));
 app.Lifetime.ApplicationStarted.Register(() => { var a = app.Services.GetRequiredService<ActivityLog>(); a.Add("server", "", "FLACie started"); _ = app.Services.GetRequiredService<Notifier>().NotifyAsync("started", "Server started", "FLACie is up again.", 2, "rocket"); });

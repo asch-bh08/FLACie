@@ -40,17 +40,31 @@ public sealed partial class JellyfinClient
     /// <summary>The audio stream's real format from Jellyfin (codec, bit rate, sample rate, bit depth, channels, size, original path).</summary>
     public async Task<MediaInfo?> MediaInfoAsync(JellyfinAccount a, string id, CancellationToken ct = default)
     {
-        try
-        {
-            if (await GetAsync(a, $"/Users/{a.UserId}/Items/{id}", ct) is not JsonObject o || o["MediaSources"] is not JsonArray { Count: > 0 } ms || ms[0] is not JsonObject src) return null;
-            var s = (src["MediaStreams"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault(x => x["Type"]?.GetValue<string>() == "Audio");
-            int I(JsonNode? n) => n is JsonValue v && v.TryGetValue<int>(out var i) ? i : 0;
-            long L(JsonNode? n) => n is JsonValue v && v.TryGetValue<long>(out var i) ? i : 0;
-            var bits = s is null ? 0 : I(s["BitDepth"]) is > 0 and var bd ? bd : 0;
-            return new MediaInfo(src["Container"]?.GetValue<string>() ?? "", s?["Codec"]?.GetValue<string>() ?? "", (int)((s is null ? 0 : L(s["BitRate"])) is > 0 and var br ? br / 1000 : L(src["Bitrate"]) / 1000),
-                s is null ? 0 : I(s["SampleRate"]), bits, s is null ? 0 : I(s["Channels"]), L(src["Size"]), L(src["RunTimeTicks"]) is > 0 and var rt ? rt / 10_000 : L(o["RunTimeTicks"]) / 10_000,
-                src["Path"]?.GetValue<string>() ?? "", "Jellyfin");
-        }
+        try { return await GetAsync(a, $"/Users/{a.UserId}/Items/{id}", ct) is JsonObject o ? ParseMediaInfo(o) : null; }
         catch (Exception) { return null; }
     }
+
+    /// <summary>The facts one Jellyfin item record carries (null when it has no media source). Shared by the single-song read and the bulk read.</summary>
+    public static MediaInfo? ParseMediaInfo(JsonObject o)
+    {
+        if (o["MediaSources"] is not JsonArray { Count: > 0 } ms || ms[0] is not JsonObject src) return null;
+        var s = (src["MediaStreams"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault(x => x["Type"]?.GetValue<string>() == "Audio");
+        int I(JsonNode? n) => n is JsonValue v && v.TryGetValue<int>(out var i) ? i : 0;
+        long L(JsonNode? n) => n is JsonValue v && v.TryGetValue<long>(out var i) ? i : 0;
+        var bits = s is null ? 0 : I(s["BitDepth"]) is > 0 and var bd ? bd : 0;
+        return new MediaInfo(src["Container"]?.GetValue<string>() ?? "", s?["Codec"]?.GetValue<string>() ?? "", (int)((s is null ? 0 : L(s["BitRate"])) is > 0 and var br ? br / 1000 : L(src["Bitrate"]) / 1000),
+            s is null ? 0 : I(s["SampleRate"]), bits, s is null ? 0 : I(s["Channels"]), L(src["Size"]), L(src["RunTimeTicks"]) is > 0 and var rt ? rt / 10_000 : L(o["RunTimeTicks"]) / 10_000,
+            src["Path"]?.GetValue<string>() ?? "", "Jellyfin");
+    }
+
+    /// <summary>One page of the library with each song's streams, for the format index: a page is hundreds of songs in one request (the
+    /// alternative is one request per song). Returns each item id with its facts (null when Jellyfin has none) and the library's total.</summary>
+    public async Task<(List<(string Id, MediaInfo? Info)> Items, int Total)> MediaInfoPageAsync(JellyfinAccount a, int start, int limit, CancellationToken ct = default)
+    {
+        var page = await GetAsync(a, $"/Users/{a.UserId}/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=MediaSources,MediaStreams&EnableUserData=false&EnableImages=false&StartIndex={start}&Limit={limit}", ct);
+        return (ParseMediaInfoPage(page), page?["TotalRecordCount"]?.GetValue<int>() ?? 0);
+    }
+
+    public static List<(string Id, MediaInfo? Info)> ParseMediaInfoPage(JsonNode? page) =>
+        (page?["Items"] as JsonArray ?? []).OfType<JsonObject>().Where(o => o["Id"] is JsonValue).Select(o => (o["Id"]!.GetValue<string>(), ParseMediaInfo(o))).ToList();
 }

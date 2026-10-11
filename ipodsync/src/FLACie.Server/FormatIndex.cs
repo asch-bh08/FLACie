@@ -21,17 +21,36 @@ public sealed class FormatIndex
     public static FormatIndex? Current { get; private set; }
 
     readonly ConcurrentDictionary<string, AudioFacts> facts = new();
-    readonly string file;
-    int dirty;
+    /// <summary>Songs whose read gave nothing usable: how many times in a row, and the earliest time to try again (<see cref="ProbeBackoff"/>). Kept on disk.</summary>
+    public sealed record Miss(int Fails, DateTime Next);
+    readonly ConcurrentDictionary<string, Miss> misses = new();
+    readonly string file, missFile;
+    int dirty, missDirty;
     public int Count => facts.Count;
+    public int MissCount => misses.Count;
 
     public FormatIndex(DataPaths paths)
     {
         file = Path.Combine(paths.Root, "audiofacts.json");
+        missFile = Path.Combine(paths.Root, "audiofacts-misses.json");
         try { if (File.Exists(file) && JsonSerializer.Deserialize<Dictionary<string, AudioFacts>>(File.ReadAllText(file)) is { } d) foreach (var (k, v) in d) facts[k] = v; }
         catch (Exception) { /* a damaged cache is just re-probed */ }
+        try { if (File.Exists(missFile) && JsonSerializer.Deserialize<Dictionary<string, Miss>>(File.ReadAllText(missFile)) is { } m) foreach (var (k, v) in m) misses[k] = v; }
+        catch (Exception) { }
         Current = this;
     }
+
+    /// <summary>True when the song has no real read and is not waiting out a back-off: the background probe may try it now.</summary>
+    public bool Due(Track t, DateTime now) => !misses.TryGetValue(Key(t), out var m) || now >= m.Next;
+
+    /// <summary>A read of this song gave nothing: leave it alone for longer each time (1 h, 6 h, 24 h, 7 d).</summary>
+    public void MarkMiss(Track t, DateTime now)
+    {
+        misses.AddOrUpdate(Key(t), _ => new Miss(1, now + ProbeBackoff.Delay(1)), (_, old) => new Miss(old.Fails + 1, now + ProbeBackoff.Delay(old.Fails + 1)));
+        Interlocked.Exchange(ref missDirty, 1);
+    }
+
+    public Miss? MissOf(Track t) => misses.TryGetValue(Key(t), out var m) ? m : null;
 
     public static string Key(Track t) => t.Path;
     public AudioFacts? Get(Track t) => facts.TryGetValue(Key(t), out var f) ? f : null;
@@ -45,61 +64,19 @@ public sealed class FormatIndex
         // a worse partial read never replaces a more complete fact
         facts.AddOrUpdate(Key(t), f, (_, old) => Score(f) >= Score(old) ? f : old);
         Interlocked.Exchange(ref dirty, 1);
+        if (misses.TryRemove(Key(t), out _)) Interlocked.Exchange(ref missDirty, 1);
     }
 
     static int Score(AudioFacts f) => (f.Rate > 0 ? 4 : 0) + (f.Depth > 0 ? 2 : 0) + (f.Kbps > 0 ? 1 : 0);
 
     public void Flush()
     {
-        if (Interlocked.Exchange(ref dirty, 0) == 0) return;
-        try { var tmp = file + ".tmp"; File.WriteAllText(tmp, JsonSerializer.Serialize(facts)); File.Move(tmp, file, true); }
-        catch (Exception) { Interlocked.Exchange(ref dirty, 1); }
-    }
-}
-
-/// <summary>Walks every signed-in library and reads the real format of each song that has no entry yet. Resumable: what is already in the
-/// index is skipped, and the index is saved every few hundred songs, so a restart carries on where it stopped.</summary>
-public sealed class FormatProbeService(SessionStore sessions, InfoService info, FormatIndex index, ILogger<FormatProbeService> log) : BackgroundService
-{
-    public int Pending { get; private set; }
-
-    protected override async Task ExecuteAsync(CancellationToken ct)
-    {
-        await Task.Delay(TimeSpan.FromSeconds(20), ct);
-        while (!ct.IsCancellationRequested)
-        {
-            try { await PassAsync(ct); }
-            catch (OperationCanceledException) { break; }
-            catch (Exception e) { log.LogWarning(e, "format probe pass failed"); }
-            await Task.Delay(TimeSpan.FromMinutes(5), ct);
-        }
-    }
-
-    async Task PassAsync(CancellationToken ct)
-    {
-        foreach (var s in sessions.Active.ToList())
-        {
-            var todo = s.Library.Songs.Where(t => t.Source is TrackSource.Jellyfin or TrackSource.Nas or TrackSource.Cloud && !index.Has(t)).ToList();
-            Pending = todo.Count;
-            if (todo.Count == 0) continue;
-            log.LogInformation("probing {n} songs for real audio facts", todo.Count);
-            var sem = new SemaphoreSlim(6);
-            int done = 0;
-            await Task.WhenAll(todo.Select(async t =>
-            {
-                await sem.WaitAsync(ct);
-                try { await info.GetAsync(s, t); }
-                catch (OperationCanceledException) { throw; }
-                catch (Exception) { }
-                finally
-                {
-                    sem.Release(); Pending = Math.Max(0, Pending - 1);
-                    if (Interlocked.Increment(ref done) % 200 == 0) index.Flush();
-                }
-            }));
-            index.Flush();
-        }
-        Pending = 0;
+        if (Interlocked.Exchange(ref dirty, 0) != 0)
+            try { var tmp = file + ".tmp"; File.WriteAllText(tmp, JsonSerializer.Serialize(facts)); File.Move(tmp, file, true); }
+            catch (Exception) { Interlocked.Exchange(ref dirty, 1); }
+        if (Interlocked.Exchange(ref missDirty, 0) != 0)
+            try { var tmp = missFile + ".tmp"; File.WriteAllText(tmp, JsonSerializer.Serialize(misses)); File.Move(tmp, missFile, true); }
+            catch (Exception) { Interlocked.Exchange(ref missDirty, 1); }
     }
 }
 
@@ -109,6 +86,7 @@ public sealed class ProfileSyncService(SessionStore sessions, JellyfinClient jf,
 {
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
+        using var prio = JellyfinGate.Use(GatePriority.Background);
         while (!ct.IsCancellationRequested)
         {
             try { await Task.Delay(TimeSpan.FromSeconds(20), ct); } catch (OperationCanceledException) { break; }

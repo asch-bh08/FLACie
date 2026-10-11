@@ -12,6 +12,7 @@ public static class ApiEndpoints
     public static void MapApi(this WebApplication app)
     {
         var fixedServer = app.Configuration["FLACIE_JELLYFIN_URL"];
+        var whoFlights = new SingleFlight<TokenCache.Who?>();
 
         async Task<UserSession?> Who(HttpContext ctx, SessionStore store, JellyfinClient jf)
         {
@@ -24,13 +25,25 @@ public static class ApiEndpoints
             server = JellyfinClient.Normalise(server);
             var known = fixedServer is not null || store.Active.Any(s => s.Jellyfin?.Server == server);
             if (!known) return null;
+            // a burst of calls with one token asks Jellyfin once: the answer is kept for TokenCache.Window (sign-out and any 401 drop it at once)
+            var tokens = ctx.RequestServices.GetRequiredService<TokenCache>();
             try
             {
-                var me = await jf.GetAsync(new JellyfinAccount(server, "", "", token), "/Users/Me");
-                var id = me?["Id"]?.GetValue<string>();
-                if (id is null) return null;
-                return store.For(SessionStore.Principal(new JellyfinAccount(server, id, me?["Name"]?.GetValue<string>() ?? "", token), null));
+                var known2 = tokens.Get(server, token);
+                // calls arriving together while the answer is not known yet share one question to Jellyfin
+                known2 ??= await whoFlights.RunAsync(server + "|" + token, async () =>
+                {
+                    var me = await jf.GetAsync(new JellyfinAccount(server, "", "", token), "/Users/Me");
+                    var id = me?["Id"]?.GetValue<string>();
+                    if (id is null) return null;
+                    var who = new TokenCache.Who(id, me?["Name"]?.GetValue<string>() ?? "");
+                    tokens.Put(server, token, who);
+                    return who;
+                });
+                if (known2 is null) return null;
+                return store.For(SessionStore.Principal(new JellyfinAccount(server, known2.UserId, known2.Name, token), null));
             }
+            catch (UnauthorizedAccessException) { tokens.Invalidate(token); return null; }
             catch (Exception) { return null; }
         }
 

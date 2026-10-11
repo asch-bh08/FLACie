@@ -263,6 +263,20 @@ fun SettingsScreen(nav: PlayerNav, dashboard: Boolean = false) {
                     SettingRow("Face buttons", if (prefs.swapFaceButtons) "Nintendo" else "Xbox") { prefs.swapFaceButtons = !prefs.swapFaceButtons }
                 }
             }
+            // what FLACie may ask the Android system for: music on this phone, notifications (Android 13+). Only shown while something is off.
+            if (ui.mediaAccess != com.ipodemu.Access.GRANTED || ui.notifAccess == com.ipodemu.Access.DENIED || ui.notifAccess == com.ipodemu.Access.ASK) {
+                item { SectionHeader("Permissions") }
+                item {
+                    Card {
+                        if (ui.mediaAccess != com.ipodemu.Access.GRANTED) SettingRow("Music on this phone", if (ui.mediaAccess == com.ipodemu.Access.DENIED) "Open settings" else "Allow", chevron = true) {
+                            if (ui.mediaAccess == com.ipodemu.Access.DENIED) ui.permissions?.openAppSettings() else ui.permissions?.request(com.ipodemu.Need.MEDIA)
+                        }
+                        if (ui.notifAccess == com.ipodemu.Access.DENIED || ui.notifAccess == com.ipodemu.Access.ASK) SettingRow("Notifications", if (ui.notifAccess == com.ipodemu.Access.DENIED) "Open settings" else "Allow", chevron = true) {
+                            if (ui.notifAccess == com.ipodemu.Access.DENIED) ui.permissions?.openAppSettings() else ui.permissions?.request(com.ipodemu.Need.NOTIFICATIONS)
+                        }
+                    }
+                }
+            }
             item { SectionHeader("Account") }
             item {
                 Card {

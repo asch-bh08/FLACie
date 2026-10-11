@@ -1,7 +1,13 @@
 package com.ipodemu.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import com.ipodemu.Need
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,6 +54,8 @@ fun LoginScreen() {
                 app.library.connectJellyfin(p.accountServer, p.accountToken)
         }
     }
+    val guestFocus = remember { FocusRequester() }
+    LaunchedEffect(page) { if (page == 3) try { guestFocus.requestFocus() } catch (_: Exception) {} }
     androidx.activity.compose.BackHandler(enabled = page != 0) { acct.cancelQuickConnect(); page = 0 }
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -61,10 +69,12 @@ fun LoginScreen() {
             Txt("FLACie", size = 32f, weight = FontWeight.Bold, color = Color.White)
             when (page) {
                 0 -> {
-                    Txt("Sign in to keep your music, playlists and settings in sync on every device.", size = 16f, color = Color(0xCCFFFFFF), maxLines = 3)
-                    LoginChoice("Sign in with Jellyfin", "Use a Jellyfin server account. Streams your server anywhere.", primary = true) { page = 1 }
+                    Txt("Choose where your music comes from. Sign in to keep your music, playlists and settings in sync on every device.", size = 16f, color = Color(0xCCFFFFFF), maxLines = 6)
+                    LoginChoice("Sign in with Jellyfin", "Use a Jellyfin server account. Streams your server anywhere.", primary = true, focusFirst = true) { page = 1 }
                     LoginChoice("Sign in with a NAS", "Use the login for a network share (SMB). Plays the music on it and keeps your profile there.") { page = 2 }
-                    LoginChoice("Continue as guest", "This device's music only, no internet needed. Nothing is synced.") { page = 3 }
+                    LoginChoice("Music on this device", "Play the music stored on this phone. No account and no internet needed. Nothing is synced.") { page = 3 }
+                    Txt("What FLACie will ask for, and when", size = 15f, weight = FontWeight.SemiBold, color = Color.White, maxLines = 3)
+                    Txt("Nothing right now. Music on this device: access to the music files on this phone, only if you pick it. Notifications: so the player shows controls on the lock screen, asked the first time you play something.", size = 14f, color = Color(0xBBFFFFFF), maxLines = 12)
                 }
                 1 -> {
                     Txt("Sign in with Jellyfin", size = 20f, weight = FontWeight.SemiBold, color = Color.White)
@@ -77,9 +87,18 @@ fun LoginScreen() {
                     GlossPill("Back", { page = 0 }, icon = Glyph.BACK, height = 40.dp)
                 }
                 else -> {
-                    Txt("Continue as guest?", size = 20f, weight = FontWeight.SemiBold, color = Color.White)
-                    Txt("Guest mode plays the music stored on this device and nothing else: no servers, no downloads, no syncing. Anything set up earlier on this device is removed from it. Sign in at any time from Settings to use servers.", size = 15f, color = Color(0xCCFFFFFF), maxLines = 8)
-                    GlossPill("Start as guest", { app.library.forgetAllServices(); ui.setLogin("guest") }, primary = true, height = 44.dp)
+                    Txt("Music on this device", size = 20f, weight = FontWeight.SemiBold, color = Color.White)
+                    Txt("This plays the music stored on this device and nothing else: no servers, no downloads, no syncing. Anything set up earlier on this device is removed from it. Sign in at any time from Settings to use servers.", size = 15f, color = Color(0xCCFFFFFF), maxLines = 12)
+                    Txt(PermissionText.MEDIA_REASON, size = 15f, weight = FontWeight.SemiBold, color = Color.White, maxLines = 4)
+                    Txt("Android will ask you to allow it next.", size = 14f, color = Color(0xBBFFFFFF), maxLines = 4)
+                    GlossPill("Allow access and start", {
+                        app.library.forgetAllServices(); ui.setLogin("guest")
+                        // the reason was on this page; now the system prompt (no-op if the music permission is already held)
+                        ui.permissions?.request(Need.MEDIA)
+                    }, Modifier.fillMaxWidth().focusRequester(guestFocus), primary = true, height = 44.dp)
+                    GlossPill("Start without access", {
+                        app.library.forgetAllServices(); app.prefs.mediaAsked = true; ui.setLogin("guest"); ui.permissions?.decline(Need.MEDIA)
+                    }, Modifier.fillMaxWidth(), height = 44.dp)
                     GlossPill("Back", { page = 0 }, icon = Glyph.BACK, height = 40.dp)
                 }
             }
@@ -111,16 +130,23 @@ fun NasSignInForm() {
 }
 
 @Composable
-private fun LoginChoice(title: String, detail: String, primary: Boolean = false, onClick: () -> Unit) {
+private fun LoginChoice(title: String, detail: String, primary: Boolean = false, focusFirst: Boolean = false, onClick: () -> Unit) {
     val sc = LocalScheme.current
+    // D-pad / gamepad: the first choice starts focused (A picks it), and the focused one gets a visible ring
+    val src = remember { MutableInteractionSource() }
+    val focused by src.collectIsFocusedAsState()
+    val fr = remember { FocusRequester() }
+    if (focusFirst) LaunchedEffect(Unit) { try { fr.requestFocus() } catch (_: Exception) {} }
+    val shape = RoundedCornerShape(16.dp)
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+        Modifier.fillMaxWidth().then(if (focusFirst) Modifier.focusRequester(fr) else Modifier).clip(shape)
             .background(if (primary) sc.accent.copy(alpha = 0.18f) else Color(0x14FFFFFF))
-            .clickable(onClick = onClick)
+            .border(if (focused) 2.5.dp else 0.dp, if (focused) Color.White else Color.Transparent, shape)
+            .clickable(interactionSource = src, indication = null, onClick = onClick)
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Txt(title, size = 18f, weight = FontWeight.SemiBold, color = Color.White)
-        Txt(detail, size = 14f, color = Color(0xBBFFFFFF), maxLines = 4)
+        Txt(title, size = 18f, weight = FontWeight.SemiBold, color = Color.White, maxLines = 3)
+        Txt(detail, size = 14f, color = Color(0xBBFFFFFF), maxLines = 8)
     }
 }

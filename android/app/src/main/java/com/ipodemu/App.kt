@@ -43,7 +43,7 @@ class App : Application() {
         ui.setLogin(prefs.loginMode)
         lyrics = com.ipodemu.library.LyricsProvider(this)
         // fetch lyrics as each song starts, so they are ready (and cached) before Now Playing asks
-        player.onTrackStarted = { t -> userData.recordPlay(t.path); bg.launch { lyrics.get(t) }; plays.started(t, bg) }
+        player.onTrackStarted = { t -> userData.recordPlay(t.path); bg.launch { lyrics.get(t) }; plays.started(t, bg); ui.permissions?.playbackStarted() }
         account = com.ipodemu.library.AccountSync(this)
         connect = com.ipodemu.library.JellyfinConnect(this)
         connect.attach(); connect.refresh()

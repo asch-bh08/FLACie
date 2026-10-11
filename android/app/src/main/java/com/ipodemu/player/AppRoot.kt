@@ -91,6 +91,8 @@ fun AppRoot(activity: MainActivity) {
             if (ui.remoteOpen) overlay { RemoteScreen() }
             if (ui.devicesOpen) overlay { DevicesScreen() }
             if (ui.jamOpen) overlay { JamScreen() }
+            // why we are about to ask for a permission (music on this phone, notifications): never before sign-in
+            ui.permissionReason?.let { need -> if (ui.loginMode.isNotEmpty()) overlay { PermissionReasonScreen(need) } }
             // first run and after signing out: nothing else until the user signs in or picks guest
             if (ui.loginMode.isEmpty()) overlay { LoginScreen() }
         }

@@ -84,6 +84,11 @@ class UiState(private val prefs: Prefs) {
     var loginMode by mutableStateOf(prefs.loginMode); private set
     fun setLogin(mode: String) { prefs.loginMode = mode; loginMode = mode }
     val guest: Boolean get() = loginMode == "guest"
+    /** Permission state for the screens, kept current by MainActivity ([permissions]); [permissionReason] raises the "why we ask" card. */
+    var mediaAccess by mutableStateOf(Access.GRANTED)
+    var notifAccess by mutableStateOf(Access.GRANTED)
+    var permissionReason by mutableStateOf<Need?>(null)
+    var permissions: PermissionActions? = null
 
     fun refreshFromPrefs() { com.ipodemu.player.Tweaks.load(prefs); normalise(); uiTheme = prefs.uiTheme; viewMode = prefs.viewMode; model = prefs.model; colorway = prefs.colorway; dynamicColor = prefs.dynamicColor; rev++ }
 

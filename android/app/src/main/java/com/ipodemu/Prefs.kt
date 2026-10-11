@@ -258,6 +258,13 @@ class Prefs(ctx: Context) {
     var loginMode: String
         get() = sp.getString("loginMode", "") ?: ""
         set(v) = sp.edit().putString("loginMode", v).apply()
+    /** Whether the system prompt for the music / notification permission has been shown: a refusal then offers "open settings" instead of asking again. */
+    var mediaAsked: Boolean
+        get() = sp.getBoolean("mediaAsked", false)
+        set(v) = sp.edit().putBoolean("mediaAsked", v).apply()
+    var notifAsked: Boolean
+        get() = sp.getBoolean("notifAsked", false)
+        set(v) = sp.edit().putBoolean("notifAsked", v).apply()
     /** Stable per-install id Jellyfin needs for its session/device bookkeeping. */
     val deviceId: String
         get() = sp.getString("deviceid", null) ?: java.util.UUID.randomUUID().toString().also { sp.edit().putString("deviceid", it).apply() }

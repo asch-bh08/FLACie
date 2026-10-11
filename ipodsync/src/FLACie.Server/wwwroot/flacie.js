@@ -13,6 +13,12 @@ window.flacie = (() => {
   audio.addEventListener("play", () => send("OnState", true));
   audio.addEventListener("pause", () => send("OnState", false));
   audio.addEventListener("ended", () => send("OnEnded"));
+  // buffering: the play button shows a spinner (html.buffering) from the moment a song is asked for until it has data to play
+  const root = document.documentElement;
+  const buffering = on => { root.classList.toggle("buffering", !!on); };
+  const check = () => buffering(audio.src && !audio.paused && audio.readyState < 3 && !audio.error);
+  ["loadstart", "waiting", "stalled", "seeking", "play"].forEach(ev => audio.addEventListener(ev, check));
+  ["playing", "canplay", "canplaythrough", "seeked", "pause", "emptied", "error", "ended"].forEach(ev => audio.addEventListener(ev, check));
   // a dropped connection mid-song: pick up again at the same second. A song the browser can't decode (e.g. WMA) fails
   // the same way every time, so after three tries it is skipped instead of retried forever.
   let failures = 0, failedSrc = "";
@@ -285,6 +291,18 @@ window.flacie = (() => {
     b.classList.toggle("away", d > 0 && y > 160); lastY = y;
   }, { passive: true });
   document.addEventListener("keydown", e => { if (e.key === "Escape" && npRef) window.flacie.npBack(); });
+  // keyboard shortcuts for the player: Space play/pause, Left/Right seek 5 s, N next, P previous. Ignored while typing and on controls that use the key themselves.
+  document.addEventListener("keydown", e => {
+    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || !audio.src) return;
+    const t = e.target, tag = t && t.tagName ? t.tagName.toLowerCase() : "";
+    if (tag === "input" || tag === "textarea" || tag === "select" || (t && t.isContentEditable)) return;
+    const k = e.key;
+    if (k === " " || k === "Spacebar") { if (tag === "button" || tag === "a" || tag === "summary") return; e.preventDefault(); if (audio.paused) audio.play().catch(() => {}); else audio.pause(); }
+    else if (k === "ArrowRight") { e.preventDefault(); audio.currentTime = Math.min(audio.duration || Infinity, audio.currentTime + 5); }
+    else if (k === "ArrowLeft") { e.preventDefault(); audio.currentTime = Math.max(0, audio.currentTime - 5); }
+    else if (k === "n" || k === "N") send("OnNext");
+    else if (k === "p" || k === "P") send("OnPrev");
+  });
   // a song row's "..." menu closes on a click outside it or Escape: press its own toggle, which Blazor already handles
   const closeRowMenu = () => document.querySelector(".track button[aria-expanded=true]")?.click();
   document.addEventListener("pointerdown", e => { if (!e.target.closest(".track .menu, .track button[aria-expanded]")) closeRowMenu(); }, true);
@@ -378,6 +396,7 @@ window.flacie = (() => {
       const open = () => {
         pendingLoad = 0;
         audio.src = url;
+        if (autoplay) buffering(true);
         if (startAt > 0) audio.addEventListener("loadedmetadata", () => { audio.currentTime = startAt; }, { once: true });
         if (autoplay) audio.play().catch(() => send("OnState", false)); else { audio.pause(); send("OnState", false); }
       };

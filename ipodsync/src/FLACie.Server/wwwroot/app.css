@@ -1321,3 +1321,13 @@ body:has(.remote-now.solo) .az-rail { bottom: calc(var(--tabs, 0px) + var(--remo
 }
 @media (max-height: 480px) { .az-rail { display: none; } .content:has(.az-rail) { padding-right: clamp(16px, 4vw, 44px); } }
 @media (max-width: 1024px) and (orientation: portrait) and (max-height: 560px) { .np-top { min-height: 44px; padding-top: 4px; } .np-main { overflow-y: auto; scrollbar-width: none; gap: 6px; } .np-cover-btn { min-height: 0; } .np-meta .pills, .np-artist + .pills { display: none; } .np-volume { display: none; } .np-titles h2 { font-size: 20px; } .np-controls { padding-bottom: 4px; } .np-tabs button { padding: 8px 4px 7px; flex-direction: row; justify-content: center; } }
+
+/* buffering: a spinner ring on the play buttons while the song has no data yet */
+.play { position: relative; }
+html.buffering .play::after { content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 3px solid transparent; border-top-color: var(--accent); border-right-color: var(--accent); animation: buf-spin .8s linear infinite; pointer-events: none; }
+html.buffering .play .ic { opacity: .55; }
+@keyframes buf-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { html.buffering .play::after { animation-duration: 2.4s; } }
+
+.notfound { text-align: center; padding: 48px 0; }
+.notfound .chips { justify-content: center; }

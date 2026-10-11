@@ -1,7 +1,7 @@
 @page "/artist/{Name}"
 @attribute [Authorize]
 @inherits UserComponent
-@{ var a = Lib.Artists.FirstOrDefault(x => x.Name == Uri.UnescapeDataString(Name)); }
+@{ var a = Lib.Artists.FirstOrDefault(x => string.Equals(x.Name, Uri.UnescapeDataString(Name), StringComparison.OrdinalIgnoreCase)); }
 @if (a is null)
 {
     <p class="status">@(Session.Loading ? "Loading…" : "This artist isn't in your library.")</p>

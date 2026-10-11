@@ -131,6 +131,11 @@ app.Use((ctx, next) =>
     return next();
 });
 if (!app.Environment.IsDevelopment()) app.UseExceptionHandler("/error", createScopeForErrors: true);
+// an address nothing answers (and not a file or an API call) gets the FLACie "page not found" page instead of the browser's bare 404
+app.UseWhen(c => HttpMethods.IsGet(c.Request.Method) && c.Request.Headers.Accept.ToString().Contains("text/html", StringComparison.OrdinalIgnoreCase)
+        && !new[] { "/api", "/art", "/stream", "/auth", "/debug", "/_framework", "/_blazor", "/licenses" }.Any(p => c.Request.Path.StartsWithSegments(p)),
+    b => b.UseStatusCodePagesWithReExecute("/not-found"));
+app.UseRouting();   // after the status pages, so a re-executed request is routed again
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
@@ -170,6 +175,7 @@ if (builder.Configuration["FLACIE_DEBUG"] == "1")
 // who and what is asking, for the admin dashboard (the address as the server sees it)
 app.MapGet("/api/whoami", (HttpContext ctx) => Results.Json(new { ip = ctx.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "", ua = ctx.Request.Headers.UserAgent.ToString() })).RequireAuthorization();
 app.MapGet("/healthz", () => Results.Ok("ok"));
+app.MapGet("/licenses", () => Results.Text(AppInfo.Licenses(), "text/plain; charset=utf-8"));
 app.Lifetime.ApplicationStarted.Register(() => { var a = app.Services.GetRequiredService<ActivityLog>(); a.Add("server", "", "FLACie started"); _ = app.Services.GetRequiredService<Notifier>().NotifyAsync("started", "Server started", "FLACie is up again.", 2, "rocket"); });
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.Run();

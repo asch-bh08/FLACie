@@ -1,0 +1,6 @@
+@* "Page not found", inside the FLACie layout when signed in (and on its own page when not), with a way back home. *@
+@{ RenderFragment content = @<div class="notfound" role="alert"><h1>Page not found</h1><p class="sub">There is nothing at this address. It may have moved, or the link is mistyped.</p><div class="chips"><a class="btn primary" href="/">Go home</a><a class="btn" href="/search">Search</a></div></div>; }
+<AuthorizeView>
+    <Authorized><MainLayout Body="content" /></Authorized>
+    <NotAuthorized><main class="login"><div class="login-card">@content</div></main></NotAuthorized>
+</AuthorizeView>

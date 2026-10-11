@@ -1,4 +1,4 @@
-package com.ipodemu.playback
+﻿package com.ipodemu.playback
 
 import android.content.Context
 import android.net.ConnectivityManager
@@ -74,11 +74,13 @@ class Prefetcher(private val ctx: Context, private val newSource: () -> CacheDat
     private val pool = Executors.newSingleThreadExecutor { r -> Thread(r, "prefetch").also { it.isDaemon = true } }
     private var job: Future<*>? = null
     @Volatile private var cancelled = false
+    // the download in progress: Thread.interrupt does not stop a blocked socket read, CacheWriter.cancel() does (a skip burst used to queue behind it)
+    @Volatile private var writer: CacheWriter? = null
     @Volatile var lastNote: String = ""; private set
 
     /** Fetches [uris] in order (skipping what is already there). Replaces any earlier request. */
     fun fetch(uris: List<Uri>) {
-        job?.cancel(true); cancelled = true
+        cancelled = true; writer?.cancel(); job?.cancel(true)
         if (uris.isEmpty()) return
         cancelled = false
         val mine = uris
@@ -86,9 +88,11 @@ class Prefetcher(private val ctx: Context, private val newSource: () -> CacheDat
             for (u in mine) {
                 if (cancelled || Thread.currentThread().isInterrupted) return@submit
                 try {
-                    val writer = CacheWriter(newSource(), DataSpec(u), null, null)
+                    val w = CacheWriter(newSource(), DataSpec(u), null, null)
+                    writer = w
+                    if (cancelled) return@submit
                     lastNote = "caching ${u.lastPathSegment}"
-                    writer.cache()
+                    w.cache()
                     lastNote = "cached ${u.lastPathSegment}"
                 } catch (_: Exception) {
                     // a failed piece is simply fetched by the player when its turn comes
@@ -98,7 +102,7 @@ class Prefetcher(private val ctx: Context, private val newSource: () -> CacheDat
         }
     }
 
-    fun stop() { cancelled = true; job?.cancel(true) }
+    fun stop() { cancelled = true; writer?.cancel(); job?.cancel(true) }
 }
 
 /** Tells when the connection came back or changed, so a stalled stream can be nudged at once instead of waiting out a timeout. */

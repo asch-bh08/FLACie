@@ -1,4 +1,4 @@
-package com.ipodemu.playback
+﻿package com.ipodemu.playback
 
 import android.content.Context
 import android.content.Intent

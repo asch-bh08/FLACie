@@ -72,6 +72,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -236,7 +237,8 @@ fun PlayerHost(nav: PlayerNav) {
         // and the reverse on switching to Modern: a tab screen pushed on top of Home becomes its own tab root, so the nav highlights it
         if (modern && nav.stack.size > 1 && Tab.entries.any { it.root == nav.top }) androidx.compose.runtime.SideEffect { Tab.entries.firstOrNull { it.root == nav.top }?.let { nav.selectTab(it) } }
         BackHandler(enabled = modern && !ui.pickerOpen && nav.sheet == null && nav.nameDialog == null && !nav.nowPlaying && nav.stack.size == 1 && nav.top != Screen.Home) { nav.selectTab(Tab.HOME) }
-        BoxWithConstraints(Modifier.fillMaxSize()) {
+        // what is covered (Now Playing, a menu, a dialog) must not take D-pad focus: Down used to walk into the page underneath
+        BoxWithConstraints(Modifier.fillMaxSize().focusProperties { canFocus = !(nav.nowPlaying || nav.sheet != null || nav.nameDialog != null) }) {
         // Modern: a navigation rail when there is width to spare (unfolded Fold, tablet, landscape, the square RG Rotate),
         // a bottom bar on portrait phones and the Fold cover screen
         val rail = modern && (maxWidth >= 600.dp || maxWidth >= maxHeight)
@@ -273,7 +275,7 @@ fun PlayerHost(nav: PlayerNav) {
             nav.nowPlaying,
             enter = slideInVertically(tween(320)) { it } + fadeIn(tween(200)),
             exit = slideOutVertically(tween(260)) { it } + fadeOut(tween(200)),
-        ) { Box(Modifier.graphicsLayer { translationX = backDrag }) { NowPlayingScreen(snap, nav) } }
+        ) { Box(Modifier.graphicsLayer { translationX = backDrag }.focusProperties { canFocus = nav.sheet == null && nav.nameDialog == null }) { NowPlayingScreen(snap, nav) } }
         nav.sheet?.let { s -> ActionSheet(s.title, s.subtitle, s.items) { nav.sheet = null } }
         nav.nameDialog?.let { done -> NameDialog(done, nav.nameDialogRename) { nav.nameDialog = null; nav.nameDialogRename = null } }
     }
@@ -328,8 +330,8 @@ fun TrackRow(
     val rCode = app.prefs.swipeRowRight; val lCode = app.prefs.swipeRowLeft
     // built once per (track, favourite, settings): stable objects keep the row's pointer handlers from restarting
     val hw = LocalHardware.current   // the faithful device view has no swipe shortcuts
-    // a narrow screen (the 360 dp RG Rotate, with its 80 dp rail): the badges would leave the title room for 7 letters, so the source badge goes and Hi-Res moves under the title
-    val narrow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 440
+    // a narrow screen (a phone, or the 480 dp wide RG Rotate with its 80 dp rail): the badges would leave the title room for 7 letters, so the source badge goes and Hi-Res moves under the title
+    val narrow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 520
     val right = remember(t, fav, rCode, hw) { if (hw) null else swipeAction(rCode, app, t, fav, ctx) }
     val left = remember(t, fav, lCode, hw) { if (hw) null else swipeAction(lCode, app, t, fav, ctx) }
     SwipeRow(right = right, left = left, modifier = modifier) {

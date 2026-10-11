@@ -1,4 +1,4 @@
-package com.ipodemu.library
+﻿package com.ipodemu.library
 
 import android.content.Context
 import android.os.Handler
@@ -195,7 +195,7 @@ class Library(ctx: Context, val art: ArtCache) {
     fun requestDownload(artist: String, title: String, album: String, durationMs: Long = 0, hiRes: Boolean = false, fallbackToNormal: Boolean = true) {
         val key = songKey(artist, title)
         if (downloads[key]?.stage.let { it != null && it != DownloadStage.DONE && it != DownloadStage.FAILED }) return
-        val label = "${title.ifBlank { album }} · $artist${if (hiRes) " (Hi-Res)" else ""}"
+        val label = "${title.ifBlank { album }} Â· $artist${if (hiRes) " (Hi-Res)" else ""}"
         runningDownloads[key] = RunningDownload(java.util.UUID.randomUUID().toString(), label, "Search", CoverLookup.key(artist, album, title))
         scope.launch {
             val report: (DownloadStatus) -> Unit = { status -> onStatus(key, status, DownloadEntry(artist, title.ifBlank { album }, album, "", 0, "")) }
@@ -207,7 +207,7 @@ class Library(ctx: Context, val art: ArtCache) {
     fun requestAlbum(a: WebCatalog.Album) {
         val key = albumKey(a)
         if (downloads[key]?.stage.let { it != null && it != DownloadStage.DONE && it != DownloadStage.FAILED }) return
-        runningDownloads[key] = RunningDownload(java.util.UUID.randomUUID().toString(), "${a.cleanTitle} · ${a.artist}", "Search", null)
+        runningDownloads[key] = RunningDownload(java.util.UUID.randomUUID().toString(), "${a.cleanTitle} Â· ${a.artist}", "Search", null)
         // the entry's empty path makes Recently Downloaded list the album's songs
         scope.launch { downloader.downloadAlbum(a) { status -> onStatus(key, status, DownloadEntry(a.artist, a.cleanTitle, a.cleanTitle, "", 0, "")) } }
     }
@@ -553,10 +553,16 @@ class Library(ctx: Context, val art: ArtCache) {
     private fun nasTagsRead(list: List<Track>) {
         if (prefs.nasHost.isBlank()) return
         nasTracks = list
-        rebuild()
+        // a rebuild of the whole library (and the list redraws it causes) costs seconds of CPU and heaps of garbage on a big library, and batches arrive every
+        // few seconds: at most one rebuild per 2 min while the scan runs (the last batch always gets one)
+        val wait = 120_000 - (android.os.SystemClock.elapsedRealtime() - lastNasRebuild)
+        if (wait <= 0) { lastNasRebuild = android.os.SystemClock.elapsedRealtime(); rebuild() }
+        else if (nasRebuildJob?.isActive != true) nasRebuildJob = scope.launch { kotlinx.coroutines.delay(wait); lastNasRebuild = android.os.SystemClock.elapsedRealtime(); rebuild() }
         remoteSaveJob?.cancel()
         remoteSaveJob = scope.launch { kotlinx.coroutines.delay(6_000); saveRemote() }
     }
+    private var lastNasRebuild = 0L
+    private var nasRebuildJob: Job? = null
     private var remoteSaveJob: Job? = null
 
     /** Settings > NAS's "Connect" button: tests the share, saves it, and does the first scan+merge right away. */
@@ -810,11 +816,23 @@ class Library(ctx: Context, val art: ArtCache) {
 
     @Synchronized private fun saveRemote() {
         try {
-            fun arr(ts: List<Track>) = JSONArray().also { a -> ts.forEach { a.put(toJson(it)) } }
+            // streamed to the file: one JSON tree of every song (tens of thousands) ran the heap out of memory
             val tmp = File(remoteFile.path + ".tmp")
-            tmp.writeText(JSONObject().put("jf", arr(jellyfinTracks)).put("px", arr(plexTracks)).put("nas", arr(nasTracks)).put("dl", arr(downloaded)).toString())
+            android.util.JsonWriter(tmp.bufferedWriter(Charsets.UTF_8, 1 shl 16)).use { w ->
+                w.beginObject()
+                for ((k, ts) in listOf("jf" to jellyfinTracks, "px" to plexTracks, "nas" to nasTracks, "dl" to downloaded)) {
+                    w.name(k).beginArray(); for (t in ts) writeTrack(w, t); w.endArray()
+                }
+                w.endObject()
+            }
             tmp.renameTo(remoteFile)
         } catch (_: Exception) {}
+    }
+
+    private fun writeTrack(w: android.util.JsonWriter, t: Track) {
+        w.beginObject().name("p").value(t.path).name("ti").value(t.title).name("ar").value(t.artist).name("al").value(t.album).name("aa").value(t.albumArtist)
+            .name("g").value(t.genre).name("tn").value(t.trackNo.toLong()).name("dn").value(t.discNo.toLong()).name("d").value(t.durationMs).name("y").value(t.year.toLong())
+            .name("m").value(t.isMusic).name("k").value(t.artKey ?: "").name("mt").value(t.mtime).name("s").value(t.size).name("src").value(t.source.name).name("fp").value(t.filePath).name("ot").value(t.origTitle).endObject()
     }
 
     private fun notifyChange() { main.post { onChange?.invoke(); for (o in observers) o() } }
@@ -865,11 +883,7 @@ class Library(ctx: Context, val art: ArtCache) {
                 val tmp = File(mergedFile.path + ".tmp")
                 android.util.JsonWriter(tmp.bufferedWriter(Charsets.UTF_8, 1 shl 16)).use { w ->
                     w.beginArray()
-                    for (t in all) {
-                        w.beginObject().name("p").value(t.path).name("ti").value(t.title).name("ar").value(t.artist).name("al").value(t.album).name("aa").value(t.albumArtist)
-                            .name("g").value(t.genre).name("tn").value(t.trackNo.toLong()).name("dn").value(t.discNo.toLong()).name("d").value(t.durationMs).name("y").value(t.year.toLong())
-                            .name("m").value(t.isMusic).name("k").value(t.artKey ?: "").name("mt").value(t.mtime).name("s").value(t.size).name("src").value(t.source.name).name("fp").value(t.filePath).name("ot").value(t.origTitle).endObject()
-                    }
+                    for (t in all) writeTrack(w, t)
                     w.endArray()
                 }
                 tmp.renameTo(mergedFile)

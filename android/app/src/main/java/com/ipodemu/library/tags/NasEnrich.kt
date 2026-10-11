@@ -1,4 +1,4 @@
-package com.ipodemu.library.tags
+﻿package com.ipodemu.library.tags
 
 import com.ipodemu.library.NasCover
 import com.ipodemu.library.Track
@@ -95,7 +95,7 @@ object NasTagMerge {
  * Fills in tags for the NAS files the cache has not seen: a few files at a time, publishing the improved list every
  * few hundred files (or seconds) so the library fills in while it is in use, and saving the cache as it goes.
  */
-class NasTagEnricher(private val cache: NasTagCache, private val parallel: Int = 4) {
+class NasTagEnricher(private val cache: NasTagCache, private val parallel: Int = 2, private val minPublishGapMs: Long = 0) {
     /** What is known right now (from the cache only): used to show the list immediately. */
     fun fromCache(entries: List<NasEntry>): Pair<List<Track>, List<CachedTags?>> {
         val tags = entries.map { cache.get(it.base.path, it.base.size, it.base.mtime) }
@@ -126,7 +126,7 @@ class NasTagEnricher(private val cache: NasTagCache, private val parallel: Int =
             coroutineScope {
                 repeat(parallel.coerceAtLeast(1)) {
                     launch(Dispatchers.IO) {
-                        while (isActive) {
+                        try { while (isActive) {
                             val k = next.getAndIncrement()
                             if (k >= todo.size) break
                             val i = todo[k]
@@ -159,12 +159,12 @@ class NasTagEnricher(private val cache: NasTagCache, private val parallel: Int =
                             synchronized(lock) {
                                 sinceLast++; sinceSave++
                                 val now = System.nanoTime()
-                                if (sinceLast >= PUBLISH_EVERY || (sinceLast > 0 && now - lastPublish > 3_000_000_000L)) { doPublish = true; sinceLast = 0; lastPublish = now }
+                                if ((sinceLast >= PUBLISH_EVERY || (sinceLast > 0 && now - lastPublish > 3_000_000_000L)) && now - lastPublish >= minPublishGapMs * 1_000_000L) { doPublish = true; sinceLast = 0; lastPublish = now }
                                 if (sinceSave >= 1000) { doSave = true; sinceSave = 0 }
                             }
                             if (doSave) cache.save()
                             if (doPublish) publishNow()
-                        }
+                        } } finally { try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_DEFAULT) } catch (_: Throwable) {} }
                     }
                 }
             }

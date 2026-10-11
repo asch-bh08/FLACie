@@ -127,7 +127,7 @@ public sealed class SlskdClient(HttpClient http, string url, string apiKey)
 
     // ---- ranking ----
 
-    static readonly string[] Variants = ["remix", "live", "instrumental", "karaoke", "acapella", "cover", "sped", "slowed", "nightcore", "8d", "reverb", "edit", "demo", "mix"];
+    static readonly string[] Variants = ["piano", "acoustic", "orchestral", "unplugged", "stripped", "lullaby", "tribute", "reprise", "extended", "remix", "live", "instrumental", "karaoke", "acapella", "cover", "sped", "slowed", "nightcore", "8d", "reverb", "edit", "demo", "mix"];
 
     static List<string> Tokens(string s) => Regex.Replace(s.ToLowerInvariant(), @"[^\p{L}\p{N}]+", " ").Split(' ').Where(t => t.Length > 0 && t != "the").ToList();
 

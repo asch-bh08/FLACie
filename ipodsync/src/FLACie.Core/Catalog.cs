@@ -136,7 +136,7 @@ public sealed class WebCatalog(HttpClient http)
 
     static readonly Regex TrailingGroup = new(@"\s*[(\[]([^)\]]*)[)\]]\s*$", RegexOptions.Compiled);
     // a different recording of the song: these stay in the title (a "(Live)" or "(Remix)" is not the song itself)
-    static readonly Regex VersionWord = new(@"\b(live|remix|mix|acoustic|instrumental|demo|cover|karaoke|session|unplugged|vip|rework|bootleg|extended|sped|slowed|reverb|a cappella|acapella|nightcore)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    static readonly Regex VersionWord = new(@"\b(live|remix|mix|acoustic|instrumental|demo|cover|karaoke|session|unplugged|vip|rework|bootleg|extended|sped|slowed|reverb|a cappella|acapella|nightcore|piano|orchestral|stripped|lullaby|tribute|reprise|string|strings)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     static readonly Regex PartMarker = new(@"^\s*(pt|part)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     static readonly Regex DashNote = new(@"\s+-\s+(?:\d{4}\s+)?(?:remaster(?:ed)?|from\b|single version|album version|original (?:motion picture )?soundtrack|mono\b|stereo\b|bonus|deluxe|explicit|clean|radio edit)[^-]*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 

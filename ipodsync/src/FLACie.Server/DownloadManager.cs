@@ -58,6 +58,7 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
         public readonly List<DownloadJob> List = [];
         public readonly Dictionary<string, Task<DownloadResult>> InFlight = [];
         public readonly Dictionary<string, DateTime> Failed = [];
+        public readonly RecentKeys Succeeded = new(500);
         public event Action? Changed;
         public void Raise() => Changed?.Invoke();
     }
@@ -185,6 +186,9 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
 
     static string Key(string artist, string title) => Matching.MatchKey(title, artist);
 
+    /// <summary>True when this song was fetched successfully lately (the last 500 per user), so autoplay does not download it again.</summary>
+    public bool RecentlyFetched(UserSession s, string artist, string title) => For(s).Succeeded.Contains(Key(artist, title));
+
     /// <summary>True when this song was tried a little while ago and nothing was found, so it isn't searched for again at once.</summary>
     public bool RecentlyFailed(UserSession s, string artist, string title)
     {
@@ -198,6 +202,7 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
         var j = For(s); var key = Key(artist, title);
         lock (j.InFlight)
         {
+            if (kind == "Autoplay" && j.Succeeded.Contains(key)) return Task.FromResult(new DownloadResult(true, [], "Fetched recently"));
             if (j.InFlight.TryGetValue(key, out var running)) return running;
             var task = Task.Run(() => FetchCore(s, j, kind, artist, title, album, artUrl, durationMs, ct));
             j.InFlight[key] = task;
@@ -228,4 +233,13 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
         jobs.Raise();
         return new(job.Stage == DownloadStage.Done, got, last);
     }
+}
+
+/// <summary>A bounded, thread-safe memory of keys: when full, the oldest is forgotten.</summary>
+public sealed class RecentKeys(int capacity)
+{
+    readonly Queue<string> order = new(); readonly HashSet<string> set = [];
+    public void Add(string key) { lock (set) { if (!set.Add(key)) return; order.Enqueue(key); while (order.Count > capacity) set.Remove(order.Dequeue()); } }
+    public bool Contains(string key) { lock (set) return set.Contains(key); }
+    public int Count { get { lock (set) return set.Count; } }
 }

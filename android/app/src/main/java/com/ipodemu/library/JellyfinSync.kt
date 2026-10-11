@@ -23,7 +23,7 @@ class JellyfinIndex {
 
     val size: Int get() = synchronized(this) { byId.size }
     fun tracks(): List<Track> = synchronized(this) { snapshot ?: ArrayList(byId.values).also { snapshot = it } }
-    fun has(id: String) = synchronized(this) { byId.containsKey(id) }
+    fun has(id: String) = synchronized(this) { byId.containsKey(id.replace("-", "").lowercase()) }
 
     fun idOf(t: Track): String? = ID_RE.find(t.path)?.groupValues?.get(1)?.lowercase()
 
@@ -34,12 +34,12 @@ class JellyfinIndex {
     /** Inserts or replaces; returns how many were new. */
     fun upsert(items: List<Pair<String, Track>>): Int = synchronized(this) {
         var added = 0
-        for ((id, t) in items) { if (byId.put(id.lowercase(), t) == null) added++ }
+        for ((id, t) in items) { if (byId.put(id.replace("-", "").lowercase(), t) == null) added++ }
         snapshot = null; added
     }
 
     fun remove(ids: Collection<String>): List<Track> = synchronized(this) {
-        val gone = ids.mapNotNull { byId.remove(it.lowercase()) }
+        val gone = ids.mapNotNull { byId.remove(it.replace("-", "").lowercase()) }
         if (gone.isNotEmpty()) snapshot = null
         gone
     }
@@ -89,6 +89,8 @@ class JellyfinSync(
     private val pageSize: Int = 500,
     private val clock: () -> Long = { System.currentTimeMillis() },
     private val publishGapMs: Long = 1500,
+    /** The server's song count is compared with ours at most this often (a deletion is also pushed by the live socket). */
+    private val countEveryMs: Long = 30 * 60_000L,
 ) {
     private val running = AtomicBoolean(false)
     @Volatile private var again = false
@@ -96,6 +98,11 @@ class JellyfinSync(
     @Volatile var lastError: String? = null; private set
     var fullPasses = 0; private set
     var deltaPasses = 0; private set
+    /** When the count was last compared (epoch ms; saved with the cursor so a quick restart does not repeat it). */
+    @Volatile var lastCountAt = 0L
+    @Volatile private var countWanted = false
+    /** A library change message arrived: the next pass also compares the count. */
+    fun wantCount() { countWanted = true }
 
     /** Runs a pass (full when no pass has finished yet, else a delta). A call while one runs makes it run once more afterwards. */
     suspend fun sync() {
@@ -154,7 +161,8 @@ class JellyfinSync(
         if (index.cursor.isEmpty()) index.cursor = "0001-01-01T00:00:00.0000000Z"   // an empty library is still a finished pass
         fullPasses++
         sink.publish(index.tracks(), true); sink.persist(); sink.cursorChanged(index.cursor)
-        checkCount()
+        // the pass itself is done and saved; a failing count check only means it is tried again with the next pass
+        try { checkCount(); sink.cursorChanged(index.cursor) } catch (e: CancellationException) { throw e } catch (_: Exception) { }
     }
 
     private suspend fun delta() {
@@ -163,7 +171,11 @@ class JellyfinSync(
         var start = 0; var maxSaved = ""
         while (true) {
             val p = api.page(start, pageSize, since)
-            for (it in p.items) { changed[it.id.lowercase()] = it; if (it.savedAt > maxSaved) maxSaved = it.savedAt }
+            // MinDateLastSaved is inclusive: the newest song of the last pass comes back every time; it is a change only if it is newer than the cursor or new to us
+            for (it in p.items) {
+                if (it.savedAt <= since && index.has(it.id)) continue
+                changed[it.id.lowercase()] = it; if (it.savedAt > maxSaved) maxSaved = it.savedAt
+            }
             start += p.items.size
             if (p.items.isEmpty() || start >= p.total) break
         }
@@ -177,12 +189,18 @@ class JellyfinSync(
             sink.publish(index.tracks(), true); sink.persist()
             if (maxSaved.isNotEmpty()) sink.cursorChanged(index.cursor)
         }
-        checkCount()
+        // the count costs one more (tiny) request: only when something changed, a change message came, or it has not been compared for a while
+        if (changed.isNotEmpty() || countWanted || clock() - lastCountAt >= countEveryMs) {
+            checkCount()
+            sink.cursorChanged(index.cursor)   // saves lastCountAt with the cursor
+        }
     }
 
     /** The server's count differs from ours: something was deleted (or missed). Compare ids. */
     private suspend fun checkCount() {
+        countWanted = false
         val n = api.count()
+        lastCountAt = clock()
         if (n < 0 || n == index.size) return
         val ids = api.allIds()
         val gone = index.retainOnly(ids)

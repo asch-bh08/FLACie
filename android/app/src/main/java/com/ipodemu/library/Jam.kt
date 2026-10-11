@@ -15,14 +15,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
-import java.util.concurrent.TimeUnit
 
 /**
  * Jams: listening together on Jellyfin's SyncPlay. Anyone signed in to the same Jellyfin server can start a Jam or join
@@ -45,7 +40,6 @@ class Jam(private val app: App) {
     private val prefs get() = app.prefs
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val main = Handler(Looper.getMainLooper())
-    private val http = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(15, TimeUnit.SECONDS).build()
     private var playlist: List<Entry> = emptyList()
     private var playingIndex = 0
     private var playing = false

@@ -86,18 +86,27 @@ internal class DecoderFormat(val mime: String, val pcmBits: Int, val sampleRate:
 internal fun buildAudioInfo(facts: AudioFacts.Fact?, ext: String, decoder: DecoderFormat?, liveRate: Int, liveChannels: Int, size: Long, durationMs: Long): AudioInfo {
     val mime = decoder?.mime ?: ""
     val factCodec = facts?.codec?.lowercase() ?: ""
-    val codec = when {
-        factCodec == "flac" || mime.contains("flac") || (factCodec.isEmpty() && ext == "flac") -> "FLAC"
-        factCodec == "alac" || mime.contains("alac") || (factCodec.isEmpty() && ext == "alac") -> "ALAC"
-        factCodec in setOf("mp3", "mpeg", "mpegaudio") || mime.contains("mpeg") || (factCodec.isEmpty() && ext == "mp3") -> "MP3"
-        factCodec == "aac" || mime.contains("mp4a") || mime.contains("aac") || (factCodec.isEmpty() && ext in setOf("m4a", "aac")) -> "AAC"
-        factCodec == "opus" || mime.contains("opus") || (factCodec.isEmpty() && ext == "opus") -> "Opus"
-        factCodec == "vorbis" || mime.contains("vorbis") || (factCodec.isEmpty() && ext == "ogg") -> "Vorbis"
-        factCodec in setOf("wav", "pcm", "aiff", "pcm_s16le", "pcm_s24le", "pcm_s32le") || mime.contains("raw") || (factCodec.isEmpty() && ext in setOf("wav", "aiff")) -> "WAV"
-        factCodec.isNotEmpty() -> factCodec.uppercase()
+    // the file's own facts name its codec; the renderer's mime type and the extension are only for when the facts are not known (never the other way round)
+    val codec = if (factCodec.isNotEmpty()) when {
+        factCodec == "flac" -> "FLAC"
+        factCodec == "alac" -> "ALAC"
+        factCodec in setOf("mp3", "mpeg", "mpegaudio") -> "MP3"
+        factCodec == "aac" -> "AAC"
+        factCodec == "opus" -> "Opus"
+        factCodec == "vorbis" -> "Vorbis"
+        factCodec in setOf("wav", "pcm", "aiff") || factCodec.startsWith("pcm_") -> "WAV"
+        else -> factCodec.uppercase()
+    } else when {
+        mime.contains("flac") || ext == "flac" -> "FLAC"
+        mime.contains("alac") || ext == "alac" -> "ALAC"
+        mime.contains("mpeg") || ext == "mp3" -> "MP3"
+        mime.contains("mp4a") || mime.contains("aac") || ext in setOf("m4a", "aac") -> "AAC"
+        mime.contains("opus") || ext == "opus" -> "Opus"
+        mime.contains("vorbis") || ext == "ogg" -> "Vorbis"
+        mime.contains("raw") || ext in setOf("wav", "aiff") -> "WAV"
         else -> ext.uppercase()
     }
-    val lossless = codec in setOf("FLAC", "ALAC", "WAV")
+    val lossless = codec in setOf("FLAC", "ALAC", "WAV") || (factCodec.isNotEmpty() && com.ipodemu.library.QualityRule.isLossless(factCodec))
     val rate = facts?.rate?.takeIf { it > 0 } ?: decoder?.sampleRate?.takeIf { it > 0 } ?: 0
     val bits = facts?.depth?.takeIf { it > 0 } ?: decoder?.pcmBits?.takeIf { it > 0 } ?: 0
     var kbps = facts?.kbps?.takeIf { it > 0 } ?: decoder?.kbps?.takeIf { it > 0 } ?: 0

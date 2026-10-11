@@ -12,9 +12,11 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.util.concurrent.Executors
 import java.util.concurrent.ThreadFactory
@@ -71,6 +73,8 @@ class ArtCache(private val dir: File) {
         override fun freeBytes() = try { StatFs(dir.path).availableBytes } catch (_: Exception) { Long.MAX_VALUE }
         override fun totalBytes() = try { StatFs(dir.path).totalBytes } catch (_: Exception) { 0L }
     }
+    /** Which pictures the canvas themes still ask for (a drawn row asks every frame it is on screen): a request nobody asks for any more is dropped. */
+    private val scroll = ScrollWatch(SCROLLED_OFF_AFTER)
     @Volatile private var savesSinceCheck = 0
     @Volatile private var indexLoaded = false
     /** inSampleSize for the 240 px row covers on screens that show them small (44-56 dp rows: 120 px is sharp even at 3x density). */
@@ -128,20 +132,27 @@ class ArtCache(private val dir: File) {
         val fx = jfFetch ?: return f.takeIf { exists }
         synchronized(this) { fetchFailed[ik]?.let { if (System.currentTimeMillis() - it < 3 * 60_000) return f.takeIf { exists } } }
         val e = index.entry(ik)
-        val r = try { fx(jfId(key), full, e?.want, if (exists) e?.etag else null, p) }
+        // the Now Playing size has no entry of its own until it was fetched once: it follows the listing's tag of the cover
+        val want = e?.want ?: if (full) index.entry(key)?.want else null
+        val r = try { fx(jfId(key), full, want, if (exists) e?.etag else null, p) }
         catch (c: CancellationException) { throw c }
         catch (_: Exception) { null }
         if (r == null) { synchronized(this) { fetchFailed[ik] = System.currentTimeMillis() }; return f.takeIf { exists } }
         if (r.code == 304 && exists) {
-            index.saved(ik, e?.want, e?.etag); saveIndexSoon(); touch(f)
+            index.saved(ik, want, e?.etag); saveIndexSoon(); touch(f)
             return f
+        }
+        if (r.code == 404) {
+            // the server has no picture here: remembered (until its listing reports a tag, or a day passes), not asked for again on every scroll
+            index.noPicture(ik); saveIndexSoon()
+            return f.takeIf { exists }
         }
         if (r.code in 200..299 && r.body.isNotEmpty()) {
             withContext(Dispatchers.IO) {
                 jfDir.mkdirs()
                 val tmp = File(f.path + ".tmp"); tmp.writeBytes(r.body); f.delete(); tmp.renameTo(f)
             }
-            index.saved(ik, e?.want, r.headers["etag"]); saveIndexSoon()
+            index.saved(ik, want, r.headers["etag"]); saveIndexSoon()
             synchronized(this) { fetchFailed.remove(ik); mem.remove(ik); mem.remove("t$key") }
             if (full) trimFull() else if (++savesSinceCheck >= 40) { savesSinceCheck = 0; withContext(Dispatchers.IO) { checkSpace() } }
             return f
@@ -193,7 +204,6 @@ class ArtCache(private val dir: File) {
     // ---- other covers -------------------------------------------------------------------------------------------
 
     private fun ensure(key: String): File {
-        if (isJf(key)) return runBlocking { ensureJf(key, false, Priority.VISIBLE) } ?: file(key)
         val f = file(key)
         if (f.exists()) return f
         val fx = fetcher ?: return f
@@ -230,14 +240,36 @@ class ArtCache(private val dir: File) {
     private fun memKey(key: String, thumb: Boolean, full: Boolean) = if (full) "F$key" else if (thumb) "t$key" else key
     private fun sampleFor(key: String, thumb: Boolean, full: Boolean) = if (full) 1 else if (!thumb) 1 else if (isJf(key)) jfThumbSample else thumbSample
 
-    /** [thumb] = small version for list rows; otherwise the full-size image ([full] = the Now Playing size, Jellyfin covers only). */
+    /**
+     * For the canvas themes (they draw every frame and cannot await): a cached bitmap or null, with the picture loaded in the background and
+     * [onLoaded] called when it arrives. [thumb] = the small version for list rows. A Jellyfin cover is requested through the gate (Visible
+     * priority) and the request is dropped when the row is no longer being drawn (it scrolled away) before it was served.
+     */
     fun get(key: String?, thumb: Boolean = false): Bitmap? {
         if (key == null) return null
         val ck = memKey(key, thumb, false)
+        val n = scroll.draw()
+        val jf = isJf(key)
         synchronized(this) {
             mem.get(ck)?.let { return it }
-            if (ck in missing || ck in pending) return null
+            if (ck in missing) return null
+            if (jf) scroll.want(ck, n)
+            if (ck in pending) return null
             pending.add(ck)
+        }
+        if (jf) {
+            ioScope.launch {
+                var b: Bitmap? = null
+                try {
+                    val f = untilScrolledOff(ck) { ensureJf(key, false, Priority.VISIBLE) }
+                    if (f != null && f.exists()) b = withContext(decoder) {
+                        try { BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = sampleFor(key, thumb, false) }) } catch (_: Exception) { null }
+                    }
+                } catch (_: CancellationException) { /* scrolled away: nobody is waiting for it */ } catch (_: Exception) { }
+                synchronized(this@ArtCache) { pending.remove(ck); scroll.done(ck); if (b != null) mem.put(ck, b) }
+                if (b != null) main.post { onLoaded?.invoke() }
+            }
+            return null
         }
         exec.execute {
             val f = ensure(key)
@@ -247,7 +279,7 @@ class ArtCache(private val dir: File) {
             synchronized(this) {
                 pending.remove(ck)
                 // a remote cover that failed may be retried later (see ensure); only a local miss is final
-                if (b == null) { if ((fetcher == null && !isJf(key)) || has(key)) missing.add(ck) } else { mem.put(ck, b) }
+                if (b == null) { if (fetcher == null || has(key)) missing.add(ck) } else { mem.put(ck, b) }
                 Unit
             }
             if (b != null) main.post { onLoaded?.invoke() }
@@ -255,10 +287,16 @@ class ArtCache(private val dir: File) {
         return null
     }
 
+    private suspend fun <T> untilScrolledOff(ck: String, block: suspend () -> T): T = coroutineScope {
+        val work = async { block() }
+        val dog = launch { while (true) { delay(700); if (scroll.scrolledOff(ck)) { work.cancel(); break } } }
+        try { work.await() } finally { dog.cancel() }
+    }
+
     /** Cached bitmap if already in memory (never loads). */
     fun peek(key: String?, thumb: Boolean = false, full: Boolean = false): Bitmap? {
         if (key == null) return null
-        return synchronized(this) { mem.get(memKey(key, thumb, full)) }
+        return synchronized(this) { mem.get(memKey(key, thumb, full && isJf(key))) }
     }
 
     /**
@@ -268,16 +306,17 @@ class ArtCache(private val dir: File) {
      */
     suspend fun load(key: String?, thumb: Boolean = false, full: Boolean = false, priority: Priority = Priority.VISIBLE): Bitmap? {
         if (key == null) return null
-        val ck = memKey(key, thumb, full)
-        synchronized(this) { mem.get(ck)?.let { return it }; if (ck in missing) return null }
         val jf = isJf(key)
-        val f: File = if (jf) ensureJf(key, full, priority) ?: return null
+        val big = full && jf   // only Jellyfin covers have a second (Now Playing) size
+        val ck = memKey(key, thumb, big)
+        synchronized(this) { mem.get(ck)?.let { return it }; if (ck in missing) return null }
+        val f: File = if (jf) ensureJf(key, big, priority) ?: return null
             else { if (fetcher != null) withContext(Dispatchers.IO) { ensure(key) }; file(key) }
         return withContext(decoder) {
             // many rows share one album cover: the second one queued finds the first one's bitmap here instead of decoding it again
             synchronized(this@ArtCache) { mem.get(ck) }?.let { return@withContext it }
             val b = try {
-                if (f.exists()) BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = sampleFor(key, thumb, full) }) else null
+                if (f.exists()) BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = sampleFor(key, thumb, big) }) else null
             } catch (_: Exception) { null }
             synchronized(this@ArtCache) {
                 // only a local miss is final (a remote cover that failed is retried, see ensure)
@@ -288,11 +327,11 @@ class ArtCache(private val dir: File) {
         }
     }
 
-    /** Downloads the cover file if missing (background priority), then calls [done] on the main thread when it exists. */
-    fun prefetch(key: String?, done: (() -> Unit)? = null) {
+    /** Downloads the cover file if missing (background priority unless [priority] says the song is playing), then calls [done] on the main thread when it exists. */
+    fun prefetch(key: String?, done: (() -> Unit)? = null, priority: Priority = Priority.BACKGROUND) {
         if (key == null) return
         if (has(key) && !(isJf(key) && index.needsFetch(key, true))) { done?.let { main.post(it) }; return }
-        if (isJf(key)) { ioScope.launch { try { if (ensureJf(key, false, Priority.BACKGROUND)?.exists() == true) done?.let { main.post(it) } } catch (_: Exception) {} }; return }
+        if (isJf(key)) { ioScope.launch { try { if (ensureJf(key, false, priority)?.exists() == true) done?.let { main.post(it) } } catch (_: Exception) {} }; return }
         exec.execute { if (ensure(key).exists()) done?.let { main.post(it) } }
     }
 
@@ -304,5 +343,12 @@ class ArtCache(private val dir: File) {
 
     @Synchronized fun forgetMisses() { missing.clear(); fetchFailed.clear() }
 
-    companion object { const val MAX_PX = 320; const val FULL_KEEP = 30 }
+    /** The best picture on disk for notifications and the lock screen: the Now Playing size when it was fetched, else the row size; null when neither is there. */
+    fun bestFile(key: String?): File? {
+        if (key == null) return null
+        if (isJf(key)) fullFile(key).takeIf { it.exists() }?.let { return it }
+        return file(key).takeIf { it.exists() }
+    }
+
+    companion object { const val MAX_PX = 320; const val FULL_KEEP = 30; const val SCROLLED_OFF_AFTER = 80 }
 }

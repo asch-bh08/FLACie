@@ -31,7 +31,24 @@ import java.util.concurrent.Future
 object StreamSupport {
     @Volatile private var cache: SimpleCache? = null
     fun cache(ctx: Context): SimpleCache = cache ?: synchronized(this) {
-        cache ?: SimpleCache(File(ctx.cacheDir, "stream"), LeastRecentlyUsedCacheEvictor(768L * 1024 * 1024), StandaloneDatabaseProvider(ctx)).also { cache = it }
+        cache ?: SimpleCache(File(ctx.cacheDir, "stream"), LeastRecentlyUsedCacheEvictor(maxBytes(ctx.cacheDir)), StandaloneDatabaseProvider(ctx)).also { cache = it }
+    }
+
+    /** Not a fixed number: a quarter of what the device has free for it, between 768 MB and 6 GB (the oldest pieces go first beyond that). */
+    internal fun maxBytes(dir: File): Long {
+        val free = try { android.os.StatFs(dir.path).availableBytes } catch (_: Exception) { 0L }
+        return (free / 4).coerceIn(768L * 1024 * 1024, 6L * 1024 * 1024 * 1024)
+    }
+
+    /** Bytes of audio kept for replay and ahead-of-play (Settings > Cache). */
+    fun sizeBytes(ctx: Context): Long = try { cache(ctx).cacheSpace } catch (_: Exception) { 0L }
+
+    /** Settings > Clear cache: every cached song piece that is not being read right now. */
+    fun clear(ctx: Context) {
+        try {
+            val c = cache(ctx)
+            for (k in c.keys.toList()) try { c.removeResource(k) } catch (_: Exception) { }
+        } catch (_: Exception) { }
     }
 
     /** Buffers 3-10 minutes ahead (a FLAC is about 7 MB a minute), starts after 1.5 s of audio, and after running dry waits for 6 s so it doesn't stutter in and out. */

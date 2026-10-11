@@ -253,6 +253,30 @@ fun SettingsScreen(nav: PlayerNav, dashboard: Boolean = false) {
                 }
             }
             if (!dashboard) {
+            item { SectionHeader("Storage") }
+            item {
+                Card {
+                    // covers (one 240 px picture per album, kept until the phone runs low on space), the saved song list, and audio kept for replay
+                    val scope = androidx.compose.runtime.rememberCoroutineScope()
+                    var bytes by remember { mutableStateOf(-1L) }
+                    var clearing by remember { mutableStateOf(false) }
+                    var cleared by remember { mutableIntStateOf(0) }
+                    androidx.compose.runtime.LaunchedEffect(rev, cleared) {
+                        bytes = try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { app.cacheBytes() } } catch (_: Exception) { -1L }
+                    }
+                    SettingRow("Cache", if (bytes < 0) "Counting..." else cacheSizeLabel(bytes)) { }
+                    SettingRow("Clear cache", if (clearing) "Clearing..." else "Covers and saved audio") {
+                        if (!clearing) {
+                            clearing = true
+                            scope.launch {
+                                try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { app.clearCaches() } } finally { clearing = false; cleared++ }
+                            }
+                        }
+                    }
+                }
+            }
+            }
+            if (!dashboard) {
             item { SectionHeader("Controls") }
             item {
                 Card {
@@ -301,6 +325,13 @@ private fun Card(content: @Composable () -> Unit) {
     Column(Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(14.dp)).background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(14.dp))) { content() }
 }
 val SWIPE_ACTIONS = listOf("Off", "Play next", "Favorite", "Add to queue")
+
+/** "0 KB", "812 KB", "12.4 MB", "1.3 GB": the Cache line of Settings. */
+fun cacheSizeLabel(bytes: Long): String = when {
+    bytes < 1024L * 1024 -> "${(bytes.coerceAtLeast(0) + 1023) / 1024} KB"
+    bytes < 1024L * 1024 * 1024 -> "%.1f MB".format(java.util.Locale.US, bytes / 1048576.0)
+    else -> "%.1f GB".format(java.util.Locale.US, bytes / 1073741824.0)
+}
 
 fun brightnessLabel(b: Float) = if (b < 0f) "System" else "${(b * 100).toInt()}%"
 

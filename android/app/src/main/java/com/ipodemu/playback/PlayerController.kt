@@ -39,7 +39,7 @@ import kotlin.math.ln
  * accept that exposure here. DefaultDataSource (see below) only ever hands this factory http(s)
  * and smb URIs -- file:/content:/asset: local tracks are handled by Android's own readers first. */
 @OptIn(UnstableApi::class)
-private class MultiServerDataSource(private val prefs: Prefs) : DataSource {
+private class MultiServerDataSource(private val prefs: Prefs, private val priority: com.ipodemu.library.Priority) : DataSource {
     // generous timeouts: a seek over Tailscale can take a few seconds to answer, and the default gave up mid-seek
     private val http = DefaultHttpDataSource.Factory().setConnectTimeoutMs(15_000).setReadTimeoutMs(20_000)
         .setAllowCrossProtocolRedirects(true).createDataSource()
@@ -66,6 +66,10 @@ private class MultiServerDataSource(private val prefs: Prefs) : DataSource {
         val plexUrl = prefs.plexUrl.trimEnd('/')
         val moverUrl = prefs.fileMoverUrl.trimEnd('/')
         http.clearAllRequestProperties()
+        // every open of a Jellyfin stream takes a slot at the one gate for as long as the connection is being made (not for the whole song), so a skip burst
+        // or a prefetch can never flood the server; the playing song goes first, a prefetch waits behind everything and while the server is slow
+        val acct = prefs.accountServer.trimEnd('/')
+        val jellyfin = (jfUrl.isNotBlank() && uriStr.startsWith(jfUrl)) || (acct.isNotBlank() && uriStr.startsWith(acct))
         when {
             jfUrl.isNotBlank() && uriStr.startsWith(jfUrl) -> http.setRequestProperty("Authorization", com.ipodemu.library.JellyfinAuth.header(prefs.jellyfinApiKey))
             plexUrl.isNotBlank() && uriStr.startsWith(plexUrl) -> http.setRequestProperty("X-Plex-Token", prefs.plexToken)
@@ -74,7 +78,10 @@ private class MultiServerDataSource(private val prefs: Prefs) : DataSource {
                 http.setRequestProperty("X-Emby-Token", prefs.accountToken); http.setRequestProperty("X-Jellyfin-Server", prefs.accountServer.trimEnd('/'))
             }
         }
-        return http.open(dataSpec)
+        if (!jellyfin) return http.open(dataSpec)
+        return com.ipodemu.library.JellyfinNet.gate.withPermitBlocking(priority, "stream", { e ->
+            (e as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode ?: 0
+        }) { http.open(dataSpec) }
     }
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
@@ -89,8 +96,8 @@ private class MultiServerDataSource(private val prefs: Prefs) : DataSource {
 }
 
 @OptIn(UnstableApi::class)
-private class MultiServerDataSourceFactory(private val prefs: Prefs) : DataSource.Factory {
-    override fun createDataSource(): DataSource = MultiServerDataSource(prefs)
+private class MultiServerDataSourceFactory(private val prefs: Prefs, private val priority: com.ipodemu.library.Priority = com.ipodemu.library.Priority.PLAYING) : DataSource.Factory {
+    override fun createDataSource(): DataSource = MultiServerDataSource(prefs, priority)
 }
 
 class PlayerController(private val ctx: Context, private val prefs: Prefs) {
@@ -101,6 +108,12 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private val upstream = DefaultDataSource.Factory(ctx, MultiServerDataSourceFactory(prefs))
     @OptIn(UnstableApi::class)
     private val cacheSource = CacheDataSource.Factory().setCache(StreamSupport.cache(ctx)).setUpstreamDataSourceFactory(upstream)
+        .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+
+    /** The prefetcher's own source: the same cache, but its Jellyfin opens wait at Background priority (behind the playing song and the visible rows). */
+    @OptIn(UnstableApi::class)
+    private val prefetchSource = CacheDataSource.Factory().setCache(StreamSupport.cache(ctx))
+        .setUpstreamDataSourceFactory(DefaultDataSource.Factory(ctx, MultiServerDataSourceFactory(prefs, com.ipodemu.library.Priority.BACKGROUND)))
         .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
     @OptIn(UnstableApi::class)
@@ -136,7 +149,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         override fun seekToPreviousMediaItem() { this@PlayerController.prev() }
     }
     @OptIn(UnstableApi::class)
-    private val prefetcher = Prefetcher(ctx) { cacheSource.createDataSource() as CacheDataSource }
+    private val prefetcher = Prefetcher(ctx) { prefetchSource.createDataSource() as CacheDataSource }
     private val netWatch = NetworkWatch(ctx) { Handler(Looper.getMainLooper()).post { nudge() } }
 
     var onChange: (() -> Unit)? = null
@@ -236,10 +249,11 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             val item = exo.getMediaItemAt(i)
             val t = item.localConfiguration?.tag as? Track ?: continue
             if (item.mediaMetadata.artworkUri != null || t.artKey == null) continue
-            app.art.prefetch(t.artKey) {
+            // the song that plays asks first; the next two are background work
+            app.art.prefetch(t.artKey, {
                 val n = (0 until exo.mediaItemCount).firstOrNull { exo.getMediaItemAt(it).localConfiguration?.tag === t } ?: return@prefetch
                 if (exo.getMediaItemAt(n).mediaMetadata.artworkUri == null) exo.replaceMediaItem(n, item(t))
-            }
+            }, if (i == idx) com.ipodemu.library.Priority.PLAYING else com.ipodemu.library.Priority.BACKGROUND)
         }
     }
 
@@ -346,7 +360,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         exo.removeMediaItem(index); queue = queueTracks(); fire()
     }
 
-    fun clearQueue() { handler.removeCallbacks(commitBurst); burstTarget = -1; exo.stop(); exo.clearMediaItems(); queue = emptyList(); try { queueFile.delete() } catch (_: Exception) {}; fire() }
+    fun clearQueue() { handler.removeCallbacks(commitBurst); burst.reset(); exo.stop(); exo.clearMediaItems(); queue = emptyList(); try { queueFile.delete() } catch (_: Exception) {}; fire() }
 
     fun skipTo(index: Int) { if (interceptor?.skipTo(index) == true) return; exo.seekTo(index, 0L); exo.play() }
 
@@ -442,11 +456,11 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     // ---- skip bursts ------------------------------------------------------------------------------------------------------------
     // Presses of Next/Previous that follow each other within BURST_MS are not each sent to the player (every one made it open a stream that the
     // next press abandoned: 45 presses took 25 s to settle). The first press acts at once; the rest only move a target, shown in the UI
-    // straight away, and the player jumps there once, SETTLE_MS after the last press.
-    @Volatile private var burstTarget = -1
-    private var lastSkipAt = 0L
+    // straight away, and the player jumps there once, SETTLE_MS after the last press. The decision itself is [SkipBurst] (unit-tested).
+    private val burst = SkipBurst(BURST_MS)
+    private val burstTarget: Int get() = burst.target
     private val commitBurst = Runnable {
-        val t = burstTarget; burstTarget = -1
+        val t = burst.settle()
         if (t in 0 until exo.mediaItemCount) exo.seekTo(t, 0L)
         fire()
     }
@@ -458,16 +472,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         return if (i == C.INDEX_UNSET) (if (forward) 0 else from) else i
     }
     private fun skip(forward: Boolean): Boolean {
-        val now = android.os.SystemClock.uptimeMillis()
-        val inBurst = burstTarget >= 0 || now - lastSkipAt < BURST_MS
-        lastSkipAt = now
-        if (!inBurst) return false
-        val from = if (burstTarget >= 0) burstTarget else exo.currentMediaItemIndex
-        val to = stepIndex(from, forward)
-        if (to < 0) return true
-        burstTarget = to
-        handler.removeCallbacks(commitBurst); handler.postDelayed(commitBurst, SETTLE_MS)
-        fire()
+        val r = burst.press(android.os.SystemClock.uptimeMillis(), exo.currentMediaItemIndex) { from -> stepIndex(from, forward) }
+        if (r == SkipBurst.Press.ACT_NOW) return false
+        if (r == SkipBurst.Press.MOVED) { handler.removeCallbacks(commitBurst); handler.postDelayed(commitBurst, SETTLE_MS); fire() }
         return true
     }
     fun next() {
@@ -619,7 +626,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         val app = App.of(ctx)
         // artwork by file URI (decoded off the main thread by Media3), not embedded bytes: reading and attaching ~600 covers made
         // every Play tap slow and made each track change hitch on the main thread
-        val art = t.artKey?.let { k -> app.art.file(k).takeIf { it.exists() } }
+        val art = app.art.bestFile(t.artKey)
         val md = MediaMetadata.Builder().setTitle(t.title).setArtist(t.artist.ifEmpty { null }).setAlbumTitle(t.album.ifEmpty { null })
         if (art != null) md.setArtworkUri(Uri.fromFile(art))
         val uri = if (t.path.startsWith("content:") || t.path.startsWith("file:") || t.path.startsWith("http:") ||

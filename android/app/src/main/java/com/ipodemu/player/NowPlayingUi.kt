@@ -204,7 +204,7 @@ private fun NpArt(key: String?, modifier: Modifier) {
     val app = LocalApp.current
     ArtImage(
         key, modifier.trackSwipe({ app.player.prev() }, { app.player.next() }).aspectRatio(1f).shadow(28.dp, RoundedCornerShape(20.dp), clip = false, ambientColor = Color.Black, spotColor = Color.Black),
-        corner = 20.dp,
+        corner = 20.dp, full = true,
     )
 }
 

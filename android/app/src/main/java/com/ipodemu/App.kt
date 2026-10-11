@@ -31,6 +31,10 @@ class App : Application() {
         art = ArtCache(File(filesDir, "art2"))
         // row thumbnails: a 44 dp row is 66 px at 240 dpi, so 80 px (1/4 of the 320 px file) is plenty and decodes in about half the time
         art.thumbSample = if (resources.displayMetrics.density <= 1.6f) 4 else 3
+        // Jellyfin row covers are 240 px files: half size is sharp on ordinary screens, full size on dense ones
+        art.jfThumbSample = if (resources.displayMetrics.density <= 2.0f) 2 else 1
+        art.start()
+        com.ipodemu.library.JellyfinNet.startLogging()
         library = Library(this, art)
         player = PlayerController(this, prefs)
         ui = UiState(prefs)
@@ -51,6 +55,9 @@ class App : Application() {
         account = com.ipodemu.library.AccountSync(this)
         connect = com.ipodemu.library.JellyfinConnect(this)
         connect.attach(); connect.refresh()
+        // Jellyfin's live socket tells the library about changes (a delta pass instead of polling); with the socket down the library looks every 15 minutes
+        library.socketUp = { connect.connected }
+        connect.listeners.add { type, data -> library.onServerMessage(type, data) }
         jam = com.ipodemu.library.Jam(this)
         userData.onChanged = { account.schedulePush() }
         library.onServicesChanged = { account.schedulePush() }
@@ -61,6 +68,12 @@ class App : Application() {
         // pick up changes made on other devices (playlists, newly added services) every launch
         account.sync()
     }
+
+    /** Settings > Cache: covers, the saved song list and facts, and the audio kept for replay. */
+    fun cacheBytes(): Long = library.cacheBytes(com.ipodemu.playback.StreamSupport.sizeBytes(this))
+
+    /** Settings > Clear cache (see [Library.clearCache]). */
+    fun clearCaches() { library.clearCache(); com.ipodemu.playback.StreamSupport.clear(this) }
 
     companion object {
         fun of(ctx: Context) = ctx.applicationContext as App

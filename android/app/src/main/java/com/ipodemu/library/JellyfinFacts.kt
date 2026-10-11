@@ -8,8 +8,12 @@ import org.json.JSONObject
  * and the spectrogram axis. Nothing is guessed: a value Jellyfin does not give stays 0 and never makes a file Hi-Res ([QualityRule]).
  */
 object JellyfinFacts {
-    /** Listing fields that carry the facts, the delta cursor and the cover tags. */
-    const val FIELDS = "Path,DateCreated,Genres,MediaSources,DateLastSaved"
+    /**
+     * Listing fields that carry the facts, the delta cursor and the cover tags. Jellyfin sends a song's streams (codec, sample rate, bit depth,
+     * bit rate) only when MediaSources / MediaStreams are asked for; AlbumId, AlbumPrimaryImageTag and ImageTags come with every item.
+     * [parse] reads the streams from inside the media source or from the item itself, so either shape works.
+     */
+    const val FIELDS = "Path,DateCreated,Genres,MediaSources,MediaStreams,DateLastSaved"
 
     class Parsed(val fact: AudioFacts.Fact?, val size: Long)
 

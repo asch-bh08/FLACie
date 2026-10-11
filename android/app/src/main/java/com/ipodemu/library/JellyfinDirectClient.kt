@@ -40,14 +40,11 @@ class JellyfinDirectClient {
         return if (arr.length() == 0) null else arr.getJSONObject(0).getString("Id")
     }
 
-    private fun listUrl(url: String, userId: String, extra: String) =
-        "${base(url)}/Users/$userId/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&EnableUserData=false$extra"
+    private fun listUrl(url: String, userId: String, extra: String) = listUrlOf(url, userId, extra)
 
     /** One page of the audio catalog, with the stream facts, cover tags and save dates. [minSaved] = only items saved since then (the delta). */
     suspend fun page(url: String, apiKey: String, userId: String, startIndex: Int, limit: Int, minSaved: String? = null, priority: Priority = Priority.BACKGROUND): Page {
-        val since = if (minSaved.isNullOrEmpty()) "" else "&MinDateLastSaved=${URLEncoder.encode(minSaved, "UTF-8")}"
-        val json = JSONObject(get(listUrl(url, userId, "&Fields=${JellyfinFacts.FIELDS}&EnableImageTypes=Primary&ImageTypeLimit=1&StartIndex=$startIndex&Limit=$limit$since"),
-            apiKey, priority, "list", heavy = true))
+        val json = JSONObject(get(pageUrl(url, userId, startIndex, limit, minSaved), apiKey, priority, "list", heavy = true))
         val arr = json.optJSONArray("Items") ?: JSONArray()
         return Page(itemsFrom(url, arr), json.optInt("TotalRecordCount", startIndex + arr.length()))
     }
@@ -125,6 +122,15 @@ class JellyfinDirectClient {
     }
 
     companion object {
+        internal fun listUrlOf(url: String, userId: String, extra: String) =
+            "${url.trimEnd('/')}/Users/$userId/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&EnableUserData=false$extra"
+
+        /** The request for one listing page: the streams' facts, cover tags and save dates ride along; [minSaved] = only items saved since then (the delta). */
+        internal fun pageUrl(url: String, userId: String, startIndex: Int, limit: Int, minSaved: String? = null): String {
+            val since = if (minSaved.isNullOrEmpty()) "" else "&MinDateLastSaved=${URLEncoder.encode(minSaved, "UTF-8")}"
+            return listUrlOf(url, userId, "&Fields=${JellyfinFacts.FIELDS}&EnableImageTypes=Primary&ImageTypeLimit=1&StartIndex=$startIndex&Limit=$limit$since")
+        }
+
         /** Listing JSON to items. [base] is the server URL without a trailing slash. Pure (unit-tested). */
         internal fun itemsOf(base: String, arr: JSONArray): List<Item> {
             fun str(o: JSONObject, key: String) = if (o.isNull(key)) "" else fixMojibake(o.optString(key))
@@ -158,22 +164,37 @@ class JellyfinDirectClient {
     }
 }
 
-/** "jf<id>" of the item whose Primary image is the cover: the track's own picture (embedded art differs per song) when it has
- * one, else the album's. The album's image is often one folder.jpg shared by everything in the folder, so preferring it put the
- * same cover on unrelated songs. */
-internal fun artKeyOf(o: JSONObject): String? {
+/** The picture that stands for a song: which item owns it ([key], "jf" + that item's id) and that picture's [tag] (a hash: it changes when the picture does). */
+internal class CoverRef(val key: String, val tag: String?)
+
+private val variousRe = Regex("^(various( artists)?|v\\.?a\\.?|compilations?)$", RegexOption.IGNORE_CASE)
+
+/**
+ * One cover per ALBUM: a real Jellyfin gives every song with embedded art its own ImageTags.Primary, so using the song's own picture would
+ * make every song a separate cover (a request and a file each). The album's picture (AlbumId + AlbumPrimaryImageTag) is shared by all of its
+ * songs: one request, one file. Exceptions: a compilation ("Various Artists": the songs belong to different artists, their own picture is
+ * the right one) and a song whose album has no picture (its own, if it has one).
+ */
+internal fun coverOf(o: JSONObject): CoverRef? {
+    val id = o.optString("Id")
     val albumId = o.optString("AlbumId")
-    if (o.optJSONObject("ImageTags")?.has("Primary") == true) return "jf" + o.getString("Id")
-    if (albumId.isNotEmpty() && !o.isNull("AlbumPrimaryImageTag")) return "jf$albumId"
-    return if (albumId.isNotEmpty()) "jf$albumId" else null
+    val own = o.optJSONObject("ImageTags")?.optString("Primary")?.takeIf { it.isNotEmpty() }
+    val albumTag = if (o.isNull("AlbumPrimaryImageTag")) null else o.optString("AlbumPrimaryImageTag").takeIf { it.isNotEmpty() }
+    val albumArtist = (if (o.isNull("AlbumArtist")) "" else o.optString("AlbumArtist")).trim()
+    val compilation = albumArtist.isNotEmpty() && variousRe.matches(albumArtist)
+    return when {
+        albumId.isNotEmpty() && albumTag != null && !compilation -> CoverRef("jf$albumId", albumTag)
+        own != null && id.isNotEmpty() -> CoverRef("jf$id", own)
+        albumId.isNotEmpty() && albumTag != null -> CoverRef("jf$albumId", albumTag)
+        albumId.isNotEmpty() -> CoverRef("jf$albumId", null)   // the server did not say there is a picture: tried once, remembered if it has none
+        else -> null
+    }
 }
 
-/** The tag of the picture [artKeyOf] points to (null when the item says nothing): a new tag means the picture changed on the server. */
-internal fun coverTagOf(o: JSONObject): String? {
-    val own = o.optJSONObject("ImageTags")?.optString("Primary")?.takeIf { it.isNotEmpty() }
-    if (own != null) return own
-    return if (o.isNull("AlbumPrimaryImageTag")) null else o.optString("AlbumPrimaryImageTag").takeIf { it.isNotEmpty() }
-}
+internal fun artKeyOf(o: JSONObject): String? = coverOf(o)?.key
+
+/** The tag of the picture [artKeyOf] points to (null when the item says nothing). */
+internal fun coverTagOf(o: JSONObject): String? = coverOf(o)?.tag
 
 /** An ISO time with a fixed 7-digit fraction, so two of them compare as plain strings ("" when absent). */
 internal fun normIso(s: String): String {

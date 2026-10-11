@@ -125,7 +125,7 @@ class JellyfinConnect(private val app: App) {
                     np?.optString("Id"), np?.optString("Name").orEmpty(), np?.optJSONArray("Artists")?.optString(0) ?: np?.optString("AlbumArtist").orEmpty(),
                     (ps?.optLong("PositionTicks") ?: 0) / 10_000, (np?.optLong("RunTimeTicks") ?: 0) / 10_000, ps?.optBoolean("IsPaused") ?: true,
                     q, q.indexOf(np?.optString("Id")).coerceAtLeast(0),
-                    artKey = np?.let { n -> if (n.optJSONObject("ImageTags")?.has("Primary") == true) "jf" + n.optString("Id") else n.optString("AlbumId").takeIf { it.isNotBlank() }?.let { "jf$it" } ?: "jf" + n.optString("Id") },
+                    artKey = np?.let { n -> artKeyOf(n) ?: ("jf" + n.optString("Id")) },   // the same rule as the listing: the album's picture, so the file is shared
                 )
             }
             .sortedWith(compareBy({ !it.isSelf }, { it.itemId == null }, { it.device }))
@@ -171,7 +171,7 @@ class JellyfinConnect(private val app: App) {
             path = "${prefs.accountServer.trimEnd('/')}/Audio/$id/stream?static=true", title = o.optString("Name"), filePath = o.optString("Path"),
             artist = o.optJSONArray("Artists")?.optString(0) ?: o.optString("AlbumArtist"), album = o.optString("Album"), albumArtist = o.optString("AlbumArtist"),
             genre = "", trackNo = o.optInt("IndexNumber"), discNo = o.optInt("ParentIndexNumber"), durationMs = o.optLong("RunTimeTicks") / 10_000, year = o.optInt("ProductionYear"),
-            isMusic = true, artKey = o.optString("AlbumId").takeIf { it.isNotBlank() }?.let { "jf$it" } ?: "jf$id", mtime = 0, size = 0, source = TrackSource.JELLYFIN,
+            isMusic = true, artKey = artKeyOf(o) ?: "jf$id", mtime = 0, size = 0, source = TrackSource.JELLYFIN,
         ))).first()
     } catch (_: Exception) { null }
 
@@ -181,7 +181,12 @@ class JellyfinConnect(private val app: App) {
         val base = prefs.accountServer.trimEnd('/').replaceFirst("http", "ws")
         val req = Request.Builder().url("$base/socket?ApiKey=${prefs.accountToken}&deviceId=${prefs.deviceId}").build()
         ws = http.newWebSocket(req, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) { android.util.Log.d("FLACieConnect", "socket open"); main.post { connected = true; reportedItem = null; report(false) }; loadSessions() }
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                android.util.Log.d("FLACieConnect", "socket open"); reconnectAttempt = 0
+                main.post { connected = true; reportedItem = null; report(false) }; loadSessions()
+                // the library may have changed while the socket was down: whoever follows the library (Library) catches up with one delta
+                for (l in listeners) try { l("SocketOpen", null) } catch (_: Exception) {}
+            }
             override fun onMessage(webSocket: WebSocket, text: String) {
                 val m = try { JSONObject(text) } catch (_: Exception) { return }
                 val type = m.optString("MessageType"); val data = m.optJSONObject("Data")
@@ -198,10 +203,24 @@ class JellyfinConnect(private val app: App) {
         })
     }
 
+    @Volatile private var reconnectAttempt = 0
+    @Volatile private var reconnecting = false
+
+    /** Seconds before reconnect attempt [n]: 2, 4, 8 ... capped at 60, with jitter so many phones do not return at the same second. Pure. */
+    internal fun reconnectDelayMs(n: Int, random: Double = Math.random()): Long = reconnectDelay(n, random)
+
     private fun dropped() {
         ws = null; main.post { connected = false }
-        // reconnect after a network change or server restart
-        if (wantSocket) scope.launch { delay(5_000); if (wantSocket && ws == null && available) openSocket() }
+        // reconnect after a network change or server restart, with growing waits (a down server is not asked every 5 s forever)
+        if (wantSocket && !reconnecting) {
+            reconnecting = true
+            val wait = reconnectDelayMs(reconnectAttempt++)
+            scope.launch {
+                delay(wait)
+                reconnecting = false
+                if (wantSocket && ws == null && available) openSocket()
+            }
+        }
     }
 
     private fun onPlaystate(d: JSONObject?) {

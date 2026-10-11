@@ -81,12 +81,8 @@ public static class AlacServe
         catch (Exception) { return false; }
         if (opened is not var (src, info)) return false;
         var total = AlacWav.TotalLength(info);
-        long from = 0, to = total - 1; var partial = false;
-        if (RangeHeaderValue.TryParse(ctx.Request.Headers.Range.ToString(), out var range) && range.Ranges.FirstOrDefault() is { } r)
-        {
-            from = r.From ?? Math.Max(0, total - (r.To ?? 0)); to = r.From is null ? total - 1 : Math.Min(r.To ?? total - 1, total - 1); partial = true;
-        }
-        if (from > to || from >= total) { ctx.Response.Headers.ContentRange = $"bytes */{total}"; ctx.Response.StatusCode = 416; return true; }
+        var (satisfiable, partial, from, to) = ByteRanges.Resolve(ctx.Request.Headers.Range.ToString(), total);
+        if (!satisfiable) { ctx.Response.Headers.ContentRange = $"bytes */{total}"; ctx.Response.StatusCode = 416; return true; }
         ctx.Response.StatusCode = partial ? 206 : 200;
         ctx.Response.ContentType = "audio/wav";
         ctx.Response.ContentLength = to - from + 1;
@@ -95,5 +91,28 @@ public static class AlacServe
         try { await AlacWav.WriteAsync(ctx.Response.Body, src, info, from, to, ctx.RequestAborted); }
         catch (OperationCanceledException) { }
         return true;
+    }
+}
+
+/// <summary>What a Range header asks for, of a body [size] bytes long. Only "bytes" ranges count (any other unit is ignored, as is a header that does not parse, so
+/// the whole body is sent); of several ranges the first is answered. An empty body is a normal 200, not a 416.</summary>
+public static class ByteRanges
+{
+    public static (bool Satisfiable, bool Partial, long From, long To) Resolve(string header, long size)
+    {
+        if (RangeHeaderValue.TryParse(header, out var h) && h.Unit.Equals("bytes", StringComparison.OrdinalIgnoreCase) && h.Ranges.FirstOrDefault() is { } r)
+        {
+            long from, to;
+            if (r.From is null)
+            {
+                var last = r.To ?? 0;
+                if (last <= 0) return (false, true, 0, 0);
+                from = Math.Max(0, size - last); to = size - 1;
+            }
+            else { from = r.From.Value; to = Math.Min(r.To ?? size - 1, size - 1); }
+            if (from >= size || from > to) return (false, true, 0, 0);
+            return (true, true, from, to);
+        }
+        return (true, false, 0, size - 1);
     }
 }

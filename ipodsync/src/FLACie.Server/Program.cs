@@ -108,6 +108,18 @@ app.Use((ctx, next) =>
     if (ctx.Items["viaProxy"] is true && ctx.Request.Host.Host.EndsWith(".ts.net", StringComparison.OrdinalIgnoreCase)) ctx.Request.Scheme = "https";
     return next();
 });
+// a request line with "." or ".." path segments (browsers fold these away before sending) is a path trick: Kestrel would quietly turn "/art/.." into "/"
+app.Use((ctx, next) =>
+{
+    var raw = ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpRequestFeature>()?.RawTarget ?? "";
+    var q = raw.IndexOfAny(['?', '#']); var p = q < 0 ? raw : raw[..q];
+    if (p.Length > 0 && Uri.UnescapeDataString(p).Split('/', '\\').Any(seg => seg is "." or ".."))
+    {
+        ctx.Response.StatusCode = 400;
+        return Task.CompletedTask;
+    }
+    return next();
+});
 app.Use((ctx, next) =>
 {
     var h = ctx.Response.Headers;

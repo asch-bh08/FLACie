@@ -1,4 +1,4 @@
-package com.ipodemu.player
+﻿package com.ipodemu.player
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -51,10 +51,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 private val EXPLORE_SORTS = mapOf(
-    "Songs" to listOf("az" to "Title A–Z", "za" to "Title Z–A", "artist" to "Artist", "new" to "Recently added", "year" to "Newest year", "oldest" to "Oldest year", "long" to "Longest"),
-    "Albums" to listOf("az" to "Name A–Z", "za" to "Name Z–A", "artist" to "Artist", "new" to "Recently added", "year" to "Newest year", "oldest" to "Oldest year", "long" to "Most songs"),
-    "Artists" to listOf("az" to "Name A–Z", "za" to "Name Z–A", "long" to "Most songs"),
-    "Genres" to listOf("az" to "Name A–Z", "za" to "Name Z–A", "long" to "Most songs"),
+    "Songs" to listOf("az" to "Title Aâ€“Z", "za" to "Title Zâ€“A", "artist" to "Artist", "new" to "Recently added", "year" to "Newest year", "oldest" to "Oldest year", "long" to "Longest"),
+    "Albums" to listOf("az" to "Name Aâ€“Z", "za" to "Name Zâ€“A", "artist" to "Artist", "new" to "Recently added", "year" to "Newest year", "oldest" to "Oldest year", "long" to "Most songs"),
+    "Artists" to listOf("az" to "Name Aâ€“Z", "za" to "Name Zâ€“A", "long" to "Most songs"),
+    "Genres" to listOf("az" to "Name Aâ€“Z", "za" to "Name Zâ€“A", "long" to "Most songs"),
 )
 
 private val DEPTHS = listOf("16" to "16-bit", "24" to "24-bit", "32" to "32-bit")
@@ -117,13 +117,13 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
     fun qualityName(q: String) = when (q) { "lossless" -> "Lossless"; "lossy" -> "Lossy"; "hires" -> "Hi-Res"; else -> "Any" }
     fun openFilters() {
         nav.sheet = SheetSpec("Filters", null, listOf(
-            SheetItem("Genre · " + genre.ifEmpty { "Any" }, Glyph.NOTE) { pick("Genre", null, listOf("" to "Any") + choices.first.map { it to it }, genre) { genre = it } },
-            SheetItem("Decade · " + decade.ifEmpty { "Any" }, Glyph.CLOCK) { pick("Decade", null, listOf("" to "Any") + choices.second.map { it to it }, decade) { decade = it } },
-            SheetItem("Quality · " + qualityName(quality), Glyph.STAR) { pick("Quality", null, listOf("" to "Any", "lossless" to "Lossless (FLAC, ALAC…)", "lossy" to "Lossy (MP3, AAC…)", "hires" to "✦ Hi-Res"), quality) { quality = it } },
-            SheetItem("Codec · " + (CODECS.firstOrNull { it.first == codec }?.second ?: "Any"), Glyph.NOTE) { pick("Codec", pendingNote, listOf("" to "Any") + CODECS, codec) { codec = it } },
-            SheetItem("Bit rate · " + (KBPS.firstOrNull { it.first == kbps }?.second ?: "Any"), Glyph.INFO) { pick("Bit rate", pendingNote, listOf("" to "Any") + KBPS, kbps) { kbps = it } },
-            SheetItem("Bit depth · " + (DEPTHS.firstOrNull { it.first == depth }?.second ?: "Any"), Glyph.INFO) { pick("Bit depth", pendingNote, listOf("" to "Any") + DEPTHS, depth) { depth = it } },
-            SheetItem("Sample rate · " + (RATES.firstOrNull { it.first == rate }?.second ?: "Any"), Glyph.INFO) { pick("Sample rate", pendingNote, listOf("" to "Any") + RATES, rate) { rate = it } },
+            SheetItem("Genre Â· " + genre.ifEmpty { "Any" }, Glyph.NOTE) { pick("Genre", null, listOf("" to "Any") + choices.first.map { it to it }, genre) { genre = it } },
+            SheetItem("Decade Â· " + decade.ifEmpty { "Any" }, Glyph.CLOCK) { pick("Decade", null, listOf("" to "Any") + choices.second.map { it to it }, decade) { decade = it } },
+            SheetItem("Quality Â· " + qualityName(quality), Glyph.STAR) { pick("Quality", null, listOf("" to "Any", "lossless" to "Lossless (FLAC, ALACâ€¦)", "lossy" to "Lossy (MP3, AACâ€¦)", "hires" to "âœ¦ Hi-Res"), quality) { quality = it } },
+            SheetItem("Codec Â· " + (CODECS.firstOrNull { it.first == codec }?.second ?: "Any"), Glyph.NOTE) { pick("Codec", pendingNote, listOf("" to "Any") + CODECS, codec) { codec = it } },
+            SheetItem("Bit rate Â· " + (KBPS.firstOrNull { it.first == kbps }?.second ?: "Any"), Glyph.INFO) { pick("Bit rate", pendingNote, listOf("" to "Any") + KBPS, kbps) { kbps = it } },
+            SheetItem("Bit depth Â· " + (DEPTHS.firstOrNull { it.first == depth }?.second ?: "Any"), Glyph.INFO) { pick("Bit depth", pendingNote, listOf("" to "Any") + DEPTHS, depth) { depth = it } },
+            SheetItem("Sample rate Â· " + (RATES.firstOrNull { it.first == rate }?.second ?: "Any"), Glyph.INFO) { pick("Sample rate", pendingNote, listOf("" to "Any") + RATES, rate) { rate = it } },
         ) + (if (genre.isNotEmpty() || decade.isNotEmpty() || quality.isNotEmpty() || depth.isNotEmpty() || rate.isNotEmpty() || codec.isNotEmpty() || kbps.isNotEmpty()) listOf(SheetItem("Clear all filters", Glyph.CLOSE) { genre = ""; decade = ""; quality = ""; depth = ""; rate = ""; codec = ""; kbps = "" }) else emptyList()))
     }
     val activeFilters = listOf(genre, decade, quality, depth, rate, codec, kbps).count { it.isNotEmpty() }
@@ -145,7 +145,7 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
                 }
                 if (query.isNotEmpty()) Box(Modifier.size(28.dp).clip(RoundedCornerShape(14.dp)).clickable { query = "" }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.CLOSE, Modifier.size(14.dp), sc.onBgDim) }
             }
-            GlossPill(if (activeFilters > 0) "Filters · $activeFilters" else "Filters", { openFilters() }, icon = Glyph.LIST, primary = activeFilters > 0, height = 46.dp)
+            GlossPill(if (activeFilters > 0) "Filters Â· $activeFilters" else "Filters", { openFilters() }, icon = Glyph.LIST, primary = activeFilters > 0, height = 46.dp)
             IconAction(Glyph.DOWN, "Sort: " + (sorts?.firstOrNull { it.first == sort }?.second ?: ""), {
                 nav.sheet = SheetSpec("Sort", null, (sorts ?: emptyList()).map { (id, label) -> SheetItem(label, if (id == sort) Glyph.CHECK else Glyph.LIST) { sort = id } })
             }, size = 46.dp)
@@ -196,8 +196,9 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
         }
     }
 }
+}
 
-/** The charts the server reads (Top Songs, Pop, Hip-Hop…): play the ones you have, download the ones you don't. */
+/** The charts the server reads (Top Songs, Pop, Hip-Hopâ€¦): play the ones you have, download the ones you don't. */
 @Composable
 private fun ChartsPanel(nav: PlayerNav, snap: PlayerSnap) {
     val app = LocalApp.current
@@ -224,7 +225,7 @@ private fun ChartsPanel(nav: PlayerNav, snap: PlayerSnap) {
     val list = songs
     when {
         error != null -> EmptyState("Couldn't load the chart: " + error!!)
-        list == null -> EmptyState("Loading the chart…")
+        list == null -> EmptyState("Loading the chartâ€¦")
         list.isEmpty() -> EmptyState("The chart couldn't be loaded right now")
         else -> {
             val have = list.count { owned.containsKey(matchKey(it.title, it.artist)) }

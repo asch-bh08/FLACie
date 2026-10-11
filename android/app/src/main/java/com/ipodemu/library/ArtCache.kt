@@ -1,4 +1,4 @@
-package com.ipodemu.library
+﻿package com.ipodemu.library
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -127,6 +127,7 @@ class ArtCache(private val dir: File) {
             synchronized(this@ArtCache) {
                 // only a local miss is final (a remote cover that failed is retried, see ensure)
                 if (b != null) mem.put(ck, b) else if (fetcher == null) missing.add(ck)
+                Unit
             }
             b
         }

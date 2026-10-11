@@ -1,4 +1,4 @@
-package com.ipodemu.library
+﻿package com.ipodemu.library
 
 import com.ipodemu.library.tags.NasArtKeys
 import com.ipodemu.library.tags.TagReader
@@ -30,8 +30,9 @@ object NasCover {
     }
 
     /** The picture embedded in the album's files again (the saved thumbnail is gone): the named file, else the first few of the folder. */
-    private fun fetchEmbedded(key: String, user: String, pass: String, domain: String): ByteArray? = try {
+    private fun fetchEmbedded(key: String, user: String, pass: String, domain: String): ByteArray? {
         val (folder, album, name) = NasArtKeys.parse(key) ?: return null
+        return try {
         val ctx = NasSmb.context(user, pass, domain)
         val dir = jcifs.smb.SmbFile(folder, ctx)
         val files = dir.listFiles().filter { it.isFile && NasSmb.isAudio(it.name) }
@@ -43,7 +44,8 @@ object NasCover {
             if (tags?.art != null && (name.isNotEmpty() || tags.album.trim().lowercase() == album)) { found = tags.art; break }
         }
         found
-    } catch (_: Exception) { null }
+        } catch (_: Exception) { null }
+    }
 
     private fun folderImage(folderUrl: String, user: String, pass: String, domain: String): ByteArray? = try {
         val dir = jcifs.smb.SmbFile(folderUrl, NasSmb.context(user, pass, domain))

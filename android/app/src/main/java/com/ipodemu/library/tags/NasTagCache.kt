@@ -1,4 +1,4 @@
-package com.ipodemu.library.tags
+﻿package com.ipodemu.library.tags
 
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
@@ -71,7 +71,7 @@ class NasTagCache(private val file: File?) {
 
     @Synchronized fun put(path: String, tags: CachedTags) { map[path] = tags; dirty = true }
 
-    @Synchronized val count: Int get() = map.size
+    val count: Int @Synchronized get() = map.size
 
     /** Drops entries for files that are gone (called with the paths of a complete listing). */
     @Synchronized fun retainOnly(paths: Set<String>) {

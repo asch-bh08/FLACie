@@ -163,15 +163,23 @@ public sealed class UserSession
     public async Task SaveAsync(JellyfinClient jf, CancellationToken ct = default)
     {
         if (!ProfileLoaded) return;
-        Profile["updated"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); profileSeen = Math.Max(profileSeen, Profile["updated"]!.GetValue<long>());
-        Profile["v"] = 2;
-        if (Jellyfin is { } a) Profile["account"] = new JsonObject { ["server"] = a.Server, ["userId"] = a.UserId, ["user"] = a.UserName, ["token"] = a.Token };
-        var services = Profile["services"] as JsonObject ?? new JsonObject();
-        if (Nas is { } n) services["nas"] = new JsonObject { ["host"] = n.Host, ["share"] = n.Share, ["folder"] = n.Folder, ["user"] = n.User, ["pass"] = n.Password, ["domain"] = n.Domain };
-        Profile["services"] = services;
+        // one save at a time touches the shared profile object: an import saves from several tasks at once, and a JsonObject read from Jellyfin is initialised lazily,
+        // so two threads setting a key together wrote it twice (an unreadable profile: the next sign-in failed to load the library)
+        string compact, indented;
+        lock (listLock)
+        {
+            Profile["updated"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); profileSeen = Math.Max(profileSeen, Profile["updated"]!.GetValue<long>());
+            Profile["v"] = 2;
+            if (Jellyfin is { } a) Profile["account"] = new JsonObject { ["server"] = a.Server, ["userId"] = a.UserId, ["user"] = a.UserName, ["token"] = a.Token };
+            var services = Profile["services"] as JsonObject ?? new JsonObject();
+            if (Nas is { } n) services["nas"] = new JsonObject { ["host"] = n.Host, ["share"] = n.Share, ["folder"] = n.Folder, ["user"] = n.User, ["pass"] = n.Password, ["domain"] = n.Domain };
+            Profile["services"] = services;
+            compact = Profile.ToJsonString();
+            indented = Nas is null ? "" : Profile.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        }
         Exception? failure = null;
-        if (Nas is { } na) try { await Task.Run(() => NasClient.WriteText(na, na.ProfilePath, Profile.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true })), ct); } catch (Exception e) { failure = e; }
-        if (Jellyfin is { } ja) try { await jf.PushProfileAsync(ja, Profile, ct); } catch (Exception e) { failure = e; }
+        if (Nas is { } na) try { await Task.Run(() => NasClient.WriteText(na, na.ProfilePath, indented), ct); } catch (Exception e) { failure = e; }
+        if (Jellyfin is { } ja) try { await jf.PushProfileAsync(ja, compact, ct); } catch (Exception e) { failure = e; }
         if (failure is not null) throw failure;
     }
 

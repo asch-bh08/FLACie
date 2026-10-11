@@ -36,6 +36,12 @@ data class Track(
     internal val matchKeyC: String by lazy(LazyThreadSafetyMode.PUBLICATION) { matchKey(title, artist) }
     internal val fileKeyC: String? by lazy(LazyThreadSafetyMode.PUBLICATION) { computeFileKey(this) }
     internal val mergeKeyC: String by lazy(LazyThreadSafetyMode.PUBLICATION) { matchKeyC + "|" + album.lowercase().replace(editionRe, "").filter { it.isLetterOrDigit() } }
+    /** "[Hi-Res]" in the file name (what a Hi-Res download is filed with): URL-decoding the path is not repeated for every row that draws a badge. */
+    internal val hiResNameC: Boolean by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        (filePath.ifEmpty { path }).let { p -> try { java.net.URLDecoder.decode(p, "UTF-8") } catch (_: Exception) { p } }.contains("[Hi-Res]", ignoreCase = true)
+    }
+    /** Title, artist and album folded the way Explore's filter box folds a query (SearchRank.words), glued: computed once instead of per keystroke per song. */
+    internal val searchGlueC: String by lazy(LazyThreadSafetyMode.PUBLICATION) { SearchRank.words("$title $artist $album").joinToString("") }
     internal val albumNormC: String by lazy(LazyThreadSafetyMode.PUBLICATION) { album.lowercase().replace(editionRe, "").filter { it.isLetterOrDigit() } }
 }
 
@@ -61,6 +67,7 @@ private val spaces = Regex(" +")
 /** Same song regardless of which source spelled the credits how. */
 fun matchKey(title: String, artist: String): String = "${normTitle(title)}|${primaryArtist(artist)}"
 val Track.matchKey: String get() = matchKeyC
+val Track.searchGlue: String get() = searchGlueC
 internal val editionRe = Regex("""[(\[][^)\]]*[)\]]""")
 
 /** Identity of the underlying file for sources that can share one (Jellyfin serves the same NAS share the app also
@@ -121,5 +128,4 @@ private val diacritics = Regex("""\p{Mn}+""")
 
 /** Hi-Res: the real format says lossless above CD quality (see [AudioFacts]); a file the server has not read yet is judged by the "[Hi-Res]" a Hi-Res download is filed with. */
 val Track.hiRes: Boolean
-    get() = AudioFacts.of(this)?.hiRes
-        ?: (filePath.ifEmpty { path }).let { p -> try { java.net.URLDecoder.decode(p, "UTF-8") } catch (_: Exception) { p } }.contains("[Hi-Res]", ignoreCase = true)
+    get() = AudioFacts.of(this)?.hiRes ?: hiResNameC

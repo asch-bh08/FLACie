@@ -1,18 +1,41 @@
 package com.ipodemu.library
 
+import com.ipodemu.library.tags.NasEntry
+import com.ipodemu.library.tags.NasTagCache
+import com.ipodemu.library.tags.NasTagEnricher
+import com.ipodemu.library.tags.CachedTags
 import jcifs.smb.SmbFile
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
  * Browses an SMB/CIFS network share directly from the phone -- a plain "\\server\share" NAS, no
- * Jellyfin/Plex media server required. There's no metadata API for a raw share, so titles/artists/
- * albums are inferred from the folder layout: files directly under the configured folder get no
- * artist/album, one level down is treated as "Artist/file", two levels down as "Artist/Album/file"
- * (the common layout used by iTunes-style and most NAS music folders). Track numbers are stripped
- * from filenames like "03 - Song.mp3" for a cleaner title.
+ * Jellyfin/Plex media server required. The listing comes first, with titles/artists/albums inferred from the folder
+ * layout: files directly under the configured folder get no artist/album, one level down is treated as
+ * "Artist/file", two levels down as "Artist/Album/file" (the common layout used by iTunes-style and most NAS music
+ * folders). Track numbers are stripped from filenames like "03 - Song.mp3" for a cleaner title.
+ *
+ * Then the real tags are read in the background (see [NasTagEnricher]): a few KB-to-hundreds-of-KB range reads per
+ * file, four files at a time, remembered in [tagCacheFile] by path+size+mtime so a rescan only reads new or changed
+ * files. The improved list is handed to `onUpdate` in batches while that runs.
  */
-class NasDirectClient {
+class NasDirectClient(
+    private val tagCacheFile: File? = null,
+    private val hasArt: (String) -> Boolean = { false },
+    private val saveArt: (String, ByteArray) -> Unit = { _, _ -> },
+) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Volatile private var enrichJob: Job? = null
+    private val cache by lazy { NasTagCache(tagCacheFile).also { it.load() } }
+
+    /** True while the background tag reading of the last scan is still going. */
+    val enriching: Boolean get() = enrichJob?.isActive == true
+
     suspend fun testConnection(host: String, share: String, folder: String, username: String, password: String, domain: String): Pair<Boolean, String?> =
         withContext(Dispatchers.IO) {
             try {
@@ -26,21 +49,57 @@ class NasDirectClient {
             }
         }
 
-    suspend fun scanTracks(host: String, share: String, folder: String, username: String, password: String, domain: String): List<Track> =
+    /**
+     * Lists the share and returns the tracks right away (names, plus whatever the tag cache already knows). When
+     * [onUpdate] is given, files without cached tags are read in the background and [onUpdate] is called with the
+     * full improved list every few hundred files; a new scan cancels the previous one's background reading.
+     */
+    suspend fun scanTracks(
+        host: String, share: String, folder: String, username: String, password: String, domain: String,
+        onUpdate: ((List<Track>) -> Unit)? = null,
+    ): List<Track> =
         withContext(Dispatchers.IO) {
+            enrichJob?.cancel()
             val ctx = NasSmb.context(username, password, domain)
             val root = SmbFile(NasSmb.rootUrl(host, share, folder), ctx)
-            val out = ArrayList<Track>()
+            val entries = ArrayList<NasEntry>()
             // artist folders at the top level tell which side of a loose "X - Y" file name is the artist
             knownArtists = try { root.listFiles().filter { it.isDirectory }.mapTo(HashSet()) { primaryArtist(it.name.trimEnd('/')) } } catch (_: Exception) { emptySet() }
-            walk(root, out, depth = 0, artist = null, album = null)
-            out
+            walk(root, entries, depth = 0, artist = null, album = null)
+            val enricher = NasTagEnricher(cache)
+            if (entries.isNotEmpty()) cache.retainOnly(entries.mapTo(HashSet(entries.size * 2)) { it.base.path })
+            val (tracks, tags) = enricher.fromCache(entries)
+            publishFacts(entries, tags)
+            if (onUpdate != null && tags.any { it == null }) {
+                enrichJob = scope.launch {
+                    try {
+                        enricher.run(entries, tags,
+                            open = { e -> NasSmbAccess(SmbFile(e.base.path, ctx), e.base.size) },
+                            hasArt = hasArt, saveArt = saveArt,
+                            publish = { t, g -> publishFacts(entries, g); onUpdate(t) })
+                    } catch (_: Exception) { /* the share went away: what was read is cached, the rest comes next scan */ }
+                }
+            }
+            tracks
         }
+
+    /** Stream facts (sample rate, bit depth, bit rate) the tags gave, for the Hi-Res badge on files the server has no facts for. */
+    private fun publishFacts(entries: List<NasEntry>, tags: List<CachedTags?>) {
+        val facts = HashMap<String, AudioFacts.Fact>()
+        for (i in entries.indices) {
+            val c = tags[i] ?: continue
+            if (!c.ok || c.sampleRate <= 0) continue
+            val key = entries[i].base.fileKey ?: continue
+            facts[key] = AudioFacts.Fact(c.codec, c.sampleRate, c.bitDepth, c.bitrateKbps)
+        }
+        if (facts.isNotEmpty()) AudioFacts.putLocal(facts)
+    }
 
     @Volatile private var knownArtists: Set<String> = emptySet()
 
-    private fun walk(dir: SmbFile, out: MutableList<Track>, depth: Int, artist: String?, album: String?) {
+    private fun walk(dir: SmbFile, out: MutableList<NasEntry>, depth: Int, artist: String?, album: String?) {
         val children = try { dir.listFiles() } catch (_: Exception) { return }
+        val hasImage = children.any { !it.name.endsWith("/") && NasCover.isImage(it.name) }
         for (f in children) {
             try {
                 if (f.isDirectory) {
@@ -59,7 +118,7 @@ class NasDirectClient {
                     ?.let { s -> if (primaryArtist(s[1]) in knownArtists && primaryArtist(s[0]) !in knownArtists) listOf(s[1], s[0]) else s }
                 val title = split?.get(1) ?: cleaned
                 val credit = split?.get(0) ?: artist
-                out += Track(
+                val track = Track(
                     path = f.canonicalPath,
                     title = title,
                     artist = credit ?: "",
@@ -77,6 +136,7 @@ class NasDirectClient {
                     size = f.length(),
                     source = TrackSource.NAS,
                 )
+                out += NasEntry(track, f.parent, hasImage)
             } catch (_: Exception) { /* one bad entry (permissions, a broken link) shouldn't stop the whole scan */ }
         }
     }

@@ -165,8 +165,8 @@ class JellyfinConnect(private val app: App) {
     }
 
     /** A Jellyfin song this library hasn't listed: streamed by id with whatever Jellyfin says it is. */
-    fun streamTrack(id: String): Track? = try {
-        val o = JSONObject(get("/Users/${prefs.accountUserId}/Items/$id"))
+    suspend fun streamTrack(id: String): Track? = try {
+        val o = JSONObject(get("/Users/${prefs.accountUserId}/Items/$id", "info"))
         TrackTitles.cleanAll(listOf(Track(
             path = "${prefs.accountServer.trimEnd('/')}/Audio/$id/stream?static=true", title = o.optString("Name"), filePath = o.optString("Path"),
             artist = o.optJSONArray("Artists")?.optString(0) ?: o.optString("AlbumArtist"), album = o.optString("Album"), albumArtist = o.optString("AlbumArtist"),
@@ -236,15 +236,17 @@ class JellyfinConnect(private val app: App) {
     // same client and device as the sign-in, so this is one session in Jellyfin, not a second
     private fun auth() = "MediaBrowser Client=\"${AccountSync.CLIENT}\", Device=\"${android.os.Build.MODEL.replace("\"", "")}\", DeviceId=\"${prefs.deviceId}\", Version=\"${AccountSync.VERSION}\", Token=\"${prefs.accountToken}\""
 
-    private fun get(path: String): String =
-        http.newCall(Request.Builder().url(prefs.accountServer.trimEnd('/') + path).header("Authorization", auth()).build()).execute().use { r ->
-            if (!r.isSuccessful) throw java.io.IOException("HTTP ${r.code}"); r.body?.string().orEmpty()
-        }
+    // every request goes through the one Jellyfin gate (the socket above is the only thing that does not)
+    private suspend fun get(path: String, kind: String = "session"): String {
+        val r = JellyfinNet.gate.execute(GateRequest("GET", prefs.accountServer.trimEnd('/') + path, mapOf("Authorization" to auth()), kind = kind), Priority.VISIBLE)
+        if (!r.ok) throw java.io.IOException("HTTP ${r.code}"); return r.text
+    }
 
     fun post(path: String, body: JSONObject?) = scope.launch {
         try {
-            http.newCall(Request.Builder().url(prefs.accountServer.trimEnd('/') + path).header("Authorization", auth())
-                .post((body?.toString() ?: "").toRequestBody("application/json".toMediaType())).build()).execute().use { r -> if (!r.isSuccessful) android.util.Log.d("FLACieConnect", "post ${path.take(40)} -> HTTP ${r.code}") }
-        } catch (e: Exception) { android.util.Log.d("FLACieConnect", "post $path failed: ${e.message}") }
+            val r = JellyfinNet.send("POST", prefs.accountServer.trimEnd('/') + path, mapOf("Authorization" to auth()), (body?.toString() ?: "").toByteArray(), "application/json", Priority.VISIBLE, "report")
+            if (!r.ok) android.util.Log.d("FLACieConnect", "post ${path.take(40)} -> HTTP ${r.code}")
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (e: Exception) { android.util.Log.d("FLACieConnect", "post $path failed: ${e.message}") }
     }
 }

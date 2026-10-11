@@ -83,7 +83,104 @@ class Library(ctx: Context, val art: ArtCache) {
     private val scanner = Scanner(ctx, art)
     private val sync = SyncClient()
     private val jellyfin = JellyfinDirectClient()
+    private val covers = CoverFetcher(JellyfinNet.gate)
     @Volatile private var jellyfinUserId: String? = null
+    private val jfIndex = JellyfinIndex()
+    private val jfStateFile = File(ctx.filesDir, "jf-sync.json")
+    private val jfFactsFile = File(ctx.filesDir, "jf-facts.json")
+    /** Set by the app: whether the live Jellyfin socket is up (when it is, changes arrive by push and nothing polls). */
+    @Volatile var socketUp: () -> Boolean = { false }
+    private var jfDebounce: Job? = null
+    private var jfPoll: Job? = null
+
+    /** The Jellyfin server as [JellyfinSync] sees it: the current url, key and user at the moment of each request. */
+    private val jfApi = object : JfApi {
+        private suspend fun ctxOf(): Triple<String, String, String> {
+            val url = prefs.jellyfinUrl; val key = prefs.jellyfinApiKey
+            if (url.isBlank() || key.isBlank()) throw java.io.IOException("No Jellyfin server")
+            val uid = jellyfinUserId ?: jellyfinUser(url, key)?.also { jellyfinUserId = it } ?: throw java.io.IOException("No Jellyfin user")
+            return Triple(url, key, uid)
+        }
+        override suspend fun page(startIndex: Int, limit: Int, minSaved: String?) = ctxOf().let { (u, k, i) -> jellyfin.page(u, k, i, startIndex, limit, minSaved) }
+        override suspend fun count() = ctxOf().let { (u, k, i) -> jellyfin.count(u, k, i) }
+        override suspend fun allIds() = ctxOf().let { (u, k, i) -> jellyfin.allIds(u, k, i) }
+        override suspend fun byIds(ids: List<String>) = ctxOf().let { (u, k, i) -> jellyfin.byIds(u, k, i, ids) }
+    }
+
+    private val jfSink = object : JfSink {
+        override fun clean(tracks: List<Track>, wholeLibrary: Boolean): List<Track> {
+            if (wholeLibrary) jellyfin.knownArtists = TrackTitles.knownArtistsOf(tracks)
+            return TrackTitles.cleanAll(tracks, jellyfin.knownArtists)
+        }
+        override fun publish(tracks: List<Track>, complete: Boolean) {
+            jellyfinTracks = tracks; jellyfinConnected = true
+            if (complete) applyJellyfinMerge() else rebuild()
+            notifyChange()
+        }
+        override fun facts(add: Map<String, AudioFacts.Fact>, removedKeys: List<String>) { AudioFacts.putJellyfin(add); AudioFacts.removeJellyfin(removedKeys) }
+        override fun coverTags(tags: Map<String, String>) { art.noteTags(tags) }
+        override fun cursorChanged(cursor: String) { writeJfState(cursor) }
+        override fun persist() { AudioFacts.saveJellyfin(jfFactsFile) }
+    }
+    val jfSync = JellyfinSync(jfApi, jfIndex, jfSink)
+
+    private fun writeJfState(cursor: String) {
+        try { jfStateFile.writeText(JSONObject().put("cursor", cursor).put("url", prefs.jellyfinUrl.trimEnd('/')).put("user", jellyfinUserId ?: prefs.accountUserId).toString()) } catch (_: Exception) {}
+    }
+
+    /** Restores the delta cursor if the saved state is for the server and user in use now; any other state is dropped (a full pass follows). */
+    private fun restoreJfState() {
+        try {
+            if (jellyfinTracks.isEmpty()) return
+            jfIndex.replaceAll(jellyfinTracks)   // shown at once; a state-less list (older version) is replaced by a full pass once it is complete
+            if (!jfStateFile.exists()) return
+            val o = JSONObject(jfStateFile.readText())
+            val sameServer = o.optString("url") == prefs.jellyfinUrl.trimEnd('/') && prefs.jellyfinUrl.isNotBlank()
+            val sameUser = prefs.accountUserId.isBlank() || o.optString("user") == prefs.accountUserId
+            if (sameServer && sameUser && jfIndex.size > 0) jfIndex.cursor = o.optString("cursor")
+        } catch (_: Exception) {}
+    }
+
+    private fun resetJellyfin() {
+        jfIndex.clear(); AudioFacts.clearJellyfin()
+        try { jfStateFile.delete(); jfFactsFile.delete() } catch (_: Exception) {}
+    }
+
+    /** Messages from Jellyfin's live socket: library changes start a delta pass (a burst of scan messages becomes one), deletions apply at once. */
+    fun onServerMessage(type: String, data: JSONObject?) {
+        when (type) {
+            "LibraryChanged" -> {
+                val gone = data?.optJSONArray("ItemsRemoved")?.let { a -> (0 until a.length()).map { a.optString(it) } } ?: emptyList()
+                if (gone.isNotEmpty()) jfSync.removed(gone)
+                syncJellyfinSoon()
+            }
+            "UserDataChanged" -> syncJellyfinSoon()
+        }
+    }
+
+    private fun syncJellyfinSoon() {
+        jfDebounce?.cancel()
+        jfDebounce = scope.launch { kotlinx.coroutines.delay(4_000); mergeJellyfin() }
+    }
+
+    /** Fallback when the socket is down: look for changes every 15 minutes (a delta is one small request). */
+    private fun startJfPoll() {
+        if (jfPoll?.isActive == true) return
+        jfPoll = scope.launch { while (true) { kotlinx.coroutines.delay(15 * 60_000L); if (!socketUp()) mergeJellyfin() } }
+    }
+
+    /** Size of the cache Settings shows: covers and the saved library index. */
+    fun cacheBytes(): Long = art.sizeBytes() + listOf(remoteFile, jfStateFile, jfFactsFile).sumOf { if (it.exists()) it.length() else 0L }
+
+    /** Settings > Clear cache: covers and the library index go (not the sign-in); the library is read from Jellyfin again. */
+    fun clearCache() {
+        art.clearAll()
+        resetJellyfin()
+        jellyfinTracks = emptyList()
+        try { remoteFile.delete() } catch (_: Exception) {}
+        rebuild(); notifyChange()
+        mergeJellyfin()
+    }
     private val plex = PlexDirectClient()
     @Volatile private var plexSectionKey: String? = null
     // NAS songs get real tags (and embedded covers) read in the background; what was read is kept in nas-tags.bin
@@ -96,11 +193,12 @@ class Library(ctx: Context, val art: ArtCache) {
 
     init {
         // covers for streamed tracks are fetched the first time they are shown, then kept on disk like scanned ones
+        // Jellyfin covers: fixed sizes, through the gate, once per picture (see ArtCache); the other sources below as before
+        art.jfFetch = { id, full, tag, etag, p ->
+            if (prefs.jellyfinUrl.isBlank()) null else covers.fetch(prefs.jellyfinUrl, prefs.jellyfinApiKey, id, full, tag, etag, p)
+        }
         art.fetcher = { key ->
             when {
-                key.startsWith("jf") && prefs.jellyfinUrl.isNotBlank() ->
-                    CoverLookup.bytes("${prefs.jellyfinUrl.trimEnd('/')}/Items/${key.substring(2)}/Images/Primary?maxWidth=640&quality=90",
-                        mapOf("Authorization" to JellyfinAuth.header(prefs.jellyfinApiKey)))
                 key.startsWith("px") && prefs.plexUrl.isNotBlank() ->
                     CoverLookup.bytes("${prefs.plexUrl.trimEnd('/')}/library/metadata/${key.substring(2)}/thumb", mapOf("X-Plex-Token" to prefs.plexToken))
                 key.startsWith("it") -> CoverLookup.fetch(key)
@@ -433,12 +531,11 @@ class Library(ctx: Context, val art: ArtCache) {
         val url = prefs.jellyfinUrl
         val key = prefs.jellyfinApiKey
         if (url.isBlank() || key.isBlank()) return
+        startJfPoll()
         scope.launch {
             try {
-                val userId = jellyfinUserId ?: jellyfinUser(url, key)?.also { jellyfinUserId = it } ?: return@launch
-                jellyfinTracks = jellyfin.allAudio(url, key, userId)
-                jellyfinConnected = true
-                applyJellyfinMerge()
+                // the first pass on this server pages through everything (at Background priority); later ones ask only for what changed since
+                jfSync.sync()
             } catch (_: Exception) { /* offline or unreachable -- keep showing what's already there */ }
         }
     }
@@ -453,6 +550,7 @@ class Library(ctx: Context, val art: ArtCache) {
         prefs.lidarrUrl = ""; prefs.lidarrApiKey = ""; prefs.slskdUrl = ""; prefs.slskdApiKey = ""; prefs.fileMoverUrl = ""; prefs.fileMoverApiKey = ""
         jellyfinUserId = null; jellyfinConnected = false; plexConnected = false; nasConnected = false; lidarrConnected = false
         jellyfinStatus = null
+        resetJellyfin()
         jellyfinTracks = emptyList(); plexTracks = emptyList(); nasTracks = emptyList(); downloaded = emptyList()
         rebuild(); saveRemote()
     }
@@ -461,6 +559,7 @@ class Library(ctx: Context, val art: ArtCache) {
     fun disconnectJellyfin() {
         prefs.jellyfinUrl = ""; prefs.jellyfinApiKey = ""
         jellyfinUserId = null; jellyfinConnected = false; jellyfinStatus = null; jellyfinTracks = emptyList()
+        resetJellyfin()
         onServicesChanged?.invoke()
         rebuild(); saveRemote()
     }
@@ -474,13 +573,16 @@ class Library(ctx: Context, val art: ArtCache) {
                 if (!ok) { jellyfinStatus = "Could not connect: $info"; jellyfinConnected = false; return@launch }
                 val userId = jellyfinUser(url, apiKey)
                 if (userId == null) { jellyfinStatus = "Connected, but this server has no users."; jellyfinConnected = false; return@launch }
+                // another server or user than the saved list belongs to: start that list from scratch
+                if ((prefs.jellyfinUrl.isNotBlank() && prefs.jellyfinUrl.trimEnd('/') != url.trimEnd('/')) || (jellyfinUserId != null && jellyfinUserId != userId)) { resetJellyfin(); jellyfinTracks = emptyList() }
                 jellyfinUserId = userId
                 prefs.jellyfinUrl = url; prefs.jellyfinApiKey = apiKey
                 onServicesChanged?.invoke()
-                jellyfinTracks = jellyfin.allAudio(url, apiKey, userId)
                 jellyfinConnected = true
                 jellyfinStatus = info?.let { "Connected to $it" } ?: "Connected"
-                applyJellyfinMerge()
+                notifyChange()
+                startJfPoll()
+                jfSync.sync()
             } catch (e: Exception) {
                 jellyfinStatus = "Could not connect: ${e.message}"; jellyfinConnected = false
             } finally {
@@ -807,6 +909,8 @@ class Library(ctx: Context, val art: ArtCache) {
             }
             fun list(k: String) = parsed[k] ?: emptyList()
             if (jellyfinTracks.isEmpty()) jellyfinTracks = TrackTitles.cleanAll(list("jf"))
+            AudioFacts.loadJellyfin(jfFactsFile)
+            restoreJfState()
             if (plexTracks.isEmpty()) plexTracks = list("px")
             if (nasTracks.isEmpty()) nasTracks = list("nas")
             val week2 = System.currentTimeMillis() - 14L * 86_400_000

@@ -1,111 +1,111 @@
 package com.ipodemu.library
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URL
+import java.net.URLEncoder
 
 /**
  * Talks to a Jellyfin server directly from the phone -- no PC or ipodsync involved, so playback
- * doesn't depend on anything else being turned on. Auth is a server-issued API key (Jellyfin
- * dashboard > Advanced > API Keys), sent as the Authorization: MediaBrowser header for every request here (Jellyfin 12 refuses X-Emby-Token).
+ * doesn't depend on anything else being turned on. Auth is a server-issued API key or the signed-in user's token, sent as the
+ * Authorization: MediaBrowser header for every request here (Jellyfin 12 refuses X-Emby-Token).
+ *
+ * Every request goes through [JellyfinNet] (the one gate to the server: limited concurrency, priorities, back-off), the bulk listing at
+ * Background priority so it never competes with what the user is looking at or listening to.
  *
  * Stream URLs this returns deliberately do NOT carry the key (unlike a plain HTML <audio src>,
  * which has no other way to authenticate): PlayerController attaches the Authorization header as a real HTTP
- * header per-request instead (see JellyfinAuthDataSource), so the key never ends up in a URL,
+ * header per-request instead (see MultiServerDataSource), so the key never ends up in a URL,
  * request log, or track path string.
  */
 class JellyfinDirectClient {
-    suspend fun testConnection(url: String, apiKey: String): Pair<Boolean, String?> = withContext(Dispatchers.IO) {
-        try {
-            val json = JSONObject(get("${base(url)}/System/Info", apiKey))
-            true to json.optString("ServerName").ifEmpty { null }
-        } catch (e: Exception) {
-            false to (e.message ?: "Connection failed")
-        }
+    /** One song of a listing: the track, what Jellyfin knows about the file, and the bits the delta sync and the cover store need. */
+    class Item(
+        val id: String, val track: Track, val fact: AudioFacts.Fact?, val savedAt: String,
+        /** Cover key ("jf" + id of the item that owns the picture) and that picture's tag; the tag changes when the picture does. */
+        val coverKey: String?, val coverTag: String?,
+    )
+    class Page(val items: List<Item>, val total: Int)
+
+    suspend fun testConnection(url: String, apiKey: String): Pair<Boolean, String?> = try {
+        val json = JSONObject(get("${base(url)}/System/Info", apiKey, Priority.VISIBLE, "info"))
+        true to json.optString("ServerName").ifEmpty { null }
+    } catch (e: Exception) {
+        false to (e.message ?: "Connection failed")
     }
 
     /** Jellyfin's API is keyed per-user; this app just uses the first account on the server. */
-    suspend fun firstUserId(url: String, apiKey: String): String? = withContext(Dispatchers.IO) {
-        val arr = JSONArray(get("${base(url)}/Users", apiKey))
-        if (arr.length() == 0) null else arr.getJSONObject(0).getString("Id")
+    suspend fun firstUserId(url: String, apiKey: String): String? {
+        val arr = JSONArray(get("${base(url)}/Users", apiKey, Priority.VISIBLE, "info"))
+        return if (arr.length() == 0) null else arr.getJSONObject(0).getString("Id")
     }
 
-    /** The Jellyfin library is usually much bigger than one page, so this pages through the full
-     * audio catalog (not just "recently added") via StartIndex/Limit until it's all been fetched. */
-    suspend fun allAudio(url: String, apiKey: String, userId: String, pageSize: Int = 2500): List<Track> = withContext(Dispatchers.IO) {
-        val out = ArrayList<Track>()
-        var startIndex = 0
+    private fun listUrl(url: String, userId: String, extra: String) =
+        "${base(url)}/Users/$userId/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&EnableUserData=false$extra"
+
+    /** One page of the audio catalog, with the stream facts, cover tags and save dates. [minSaved] = only items saved since then (the delta). */
+    suspend fun page(url: String, apiKey: String, userId: String, startIndex: Int, limit: Int, minSaved: String? = null, priority: Priority = Priority.BACKGROUND): Page {
+        val since = if (minSaved.isNullOrEmpty()) "" else "&MinDateLastSaved=${URLEncoder.encode(minSaved, "UTF-8")}"
+        val json = JSONObject(get(listUrl(url, userId, "&Fields=${JellyfinFacts.FIELDS}&EnableImageTypes=Primary&ImageTypeLimit=1&StartIndex=$startIndex&Limit=$limit$since"),
+            apiKey, priority, "list", heavy = true))
+        val arr = json.optJSONArray("Items") ?: JSONArray()
+        return Page(itemsFrom(url, arr), json.optInt("TotalRecordCount", startIndex + arr.length()))
+    }
+
+    /** How many audio items the server has (no items are sent): a cheap way to notice deletions. */
+    suspend fun count(url: String, apiKey: String, userId: String, priority: Priority = Priority.BACKGROUND): Int =
+        JSONObject(get(listUrl(url, userId, "&Limit=0"), apiKey, priority, "count")).optInt("TotalRecordCount", -1)
+
+    /** Every audio item id on the server (no fields), for finding what was deleted. */
+    suspend fun allIds(url: String, apiKey: String, userId: String, priority: Priority = Priority.BACKGROUND): Set<String> {
+        val out = HashSet<String>(); var start = 0
         while (true) {
-            val endpoint = "${base(url)}/Users/$userId/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=Path,DateCreated,Genres&EnableUserData=false&StartIndex=$startIndex&Limit=$pageSize"
-            val json = JSONObject(get(endpoint, apiKey))
+            val json = JSONObject(get(listUrl(url, userId, "&EnableImages=false&ImageTypeLimit=0&Fields=&StartIndex=$start&Limit=2000"), apiKey, priority, "ids", heavy = true))
             val arr = json.optJSONArray("Items") ?: JSONArray()
-            out += tracksFrom(url, arr)
+            for (i in 0 until arr.length()) out += arr.getJSONObject(i).getString("Id").lowercase()
             if (arr.length() == 0) break
-            startIndex += arr.length()
-            val total = json.optInt("TotalRecordCount", startIndex)
-            if (startIndex >= total) break
+            start += arr.length()
+            if (start >= json.optInt("TotalRecordCount", start)) break
         }
-        // songs whose title is just their file name get the artist and title read out of it (see TrackTitles)
-        knownArtists = TrackTitles.knownArtistsOf(out)
-        TrackTitles.cleanAll(out, knownArtists)
+        return out
+    }
+
+    /** Full details of specific items (ids the server has that this phone does not). */
+    suspend fun byIds(url: String, apiKey: String, userId: String, ids: List<String>, priority: Priority = Priority.BACKGROUND): List<Item> {
+        val out = ArrayList<Item>()
+        for (chunk in ids.chunked(100)) {
+            val json = JSONObject(get(listUrl(url, userId, "&Fields=${JellyfinFacts.FIELDS}&EnableImageTypes=Primary&ImageTypeLimit=1&Ids=${chunk.joinToString(",")}"), apiKey, priority, "list", heavy = true))
+            out += itemsFrom(url, json.optJSONArray("Items") ?: JSONArray())
+        }
+        return out
     }
 
     /** Artists seen on properly tagged songs in the last full listing, for a search's untagged songs. */
-    @Volatile private var knownArtists: Set<String> = emptySet()
+    @Volatile var knownArtists: Set<String> = emptySet()
 
-    suspend fun search(url: String, apiKey: String, userId: String, term: String, limit: Int = 50): List<Track> = withContext(Dispatchers.IO) {
-        if (term.isBlank()) return@withContext emptyList()
-        val q = java.net.URLEncoder.encode(term, "UTF-8")
-        val json = JSONObject(get("${base(url)}/Users/$userId/Items?IncludeItemTypes=Audio&Recursive=true&SearchTerm=$q&Limit=$limit", apiKey))
-        TrackTitles.cleanAll(tracksFrom(url, json.optJSONArray("Items") ?: JSONArray()), knownArtists)
+    suspend fun search(url: String, apiKey: String, userId: String, term: String, limit: Int = 50): List<Track> {
+        if (term.isBlank()) return emptyList()
+        val q = URLEncoder.encode(term, "UTF-8")
+        val json = JSONObject(get("${base(url)}/Users/$userId/Items?IncludeItemTypes=Audio&Recursive=true&SearchTerm=$q&Limit=$limit", apiKey, Priority.VISIBLE, "search"))
+        return TrackTitles.cleanAll(itemsFrom(url, json.optJSONArray("Items") ?: JSONArray()).map { it.track }, knownArtists)
     }
 
-    private fun tracksFrom(url: String, arr: JSONArray): List<Track> {
-        fun str(o: JSONObject, key: String) = if (o.isNull(key)) "" else fixMojibake(o.optString(key))
-        return List(arr.length()) { i ->
-            val o = arr.getJSONObject(i)
-            val id = o.getString("Id")
-            val artist = fixMojibake(if (!o.isNull("AlbumArtist") && o.optString("AlbumArtist").isNotEmpty()) o.optString("AlbumArtist")
-                else o.optJSONArray("Artists")?.takeIf { it.length() > 0 }?.getString(0) ?: "")
-            Track(
-                path = "${base(url)}/Audio/$id/stream?static=true",
-                title = str(o, "Name").ifEmpty { "(untitled)" },
-                artist = artist,
-                album = str(o, "Album"),
-                albumArtist = artist,
-                genre = fixMojibake(o.optJSONArray("Genres")?.takeIf { it.length() > 0 }?.getString(0) ?: ""),
-                trackNo = 0,
-                discNo = 0,
-                durationMs = o.optLong("RunTimeTicks") / 10_000L,
-                year = 0,
-                isMusic = true,
-                artKey = artKeyOf(o),
-                mtime = jfDate(o.optString("DateCreated")),
-                size = 0L,
-                source = TrackSource.JELLYFIN,
-                filePath = str(o, "Path"),
-            )
-        }
-    }
+    private fun itemsFrom(url: String, arr: JSONArray): List<Item> = itemsOf(base(url), arr)
 
     /** Scans just this artist's folder instead of the whole library, so a freshly-downloaded track
      * shows up as fast as possible: finds the artist's existing item (if Jellyfin already knows
      * about them from other albums) and asks for a recursive refresh of just that item's path via
      * /Library/Media/Updated. A brand-new artist with no existing Jellyfin item has no known path
      * to target, so that case falls back to a full library scan instead. */
-    suspend fun scanArtistFolder(url: String, apiKey: String, artist: String): Unit = withContext(Dispatchers.IO) {
-        val userId = firstUserId(url, apiKey) ?: return@withContext
-        val q = java.net.URLEncoder.encode(artist, "UTF-8")
-        val json = JSONObject(get("${base(url)}/Users/$userId/Items?IncludeItemTypes=MusicArtist&Recursive=true&SearchTerm=$q&Limit=1", apiKey))
+    suspend fun scanArtistFolder(url: String, apiKey: String, artist: String) {
+        val userId = firstUserId(url, apiKey) ?: return
+        val q = URLEncoder.encode(artist, "UTF-8")
+        val json = JSONObject(get("${base(url)}/Users/$userId/Items?IncludeItemTypes=MusicArtist&Recursive=true&SearchTerm=$q&Limit=1", apiKey, Priority.VISIBLE, "search"))
         val items = json.optJSONArray("Items")
         val path = items?.takeIf { it.length() > 0 }?.getJSONObject(0)?.optString("Path")?.takeIf { it.isNotEmpty() }
         if (path == null) {
             post("${base(url)}/Library/Refresh", apiKey, null)
-            return@withContext
+            return
         }
         val body = JSONObject().put("Updates", JSONArray().put(JSONObject().put("Path", path).put("UpdateType", "Modified")))
         post("${base(url)}/Library/Media/Updated", apiKey, body)
@@ -113,36 +113,47 @@ class JellyfinDirectClient {
 
     private fun base(url: String) = url.trimEnd('/')
 
-    private fun get(url: String, apiKey: String): String {
-        val conn = URL(url).openConnection() as HttpURLConnection
-        conn.connectTimeout = 5000
-        conn.readTimeout = 15000
-        conn.requestMethod = "GET"
-        conn.setRequestProperty("Authorization", JellyfinAuth.header(apiKey))
-        try {
-            if (conn.responseCode !in 200..299) throw IOException("HTTP ${conn.responseCode}")
-            return conn.inputStream.bufferedReader().use { it.readText() }
-        } finally {
-            conn.disconnect()
-        }
+    private suspend fun get(url: String, apiKey: String, priority: Priority, kind: String, heavy: Boolean = false): String {
+        val r = JellyfinNet.get(url, apiKey, priority, kind, heavy)
+        if (!r.ok) throw IOException("HTTP ${r.code}")
+        return r.text
     }
 
-    private fun post(url: String, apiKey: String, body: JSONObject?) {
-        val conn = URL(url).openConnection() as HttpURLConnection
-        conn.connectTimeout = 5000
-        conn.readTimeout = 15000
-        conn.requestMethod = "POST"
-        conn.setRequestProperty("Authorization", JellyfinAuth.header(apiKey))
-        if (body != null) {
-            conn.doOutput = true
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-        }
-        try {
-            if (conn.responseCode !in 200..299) throw IOException("HTTP ${conn.responseCode}")
-            conn.inputStream.close()
-        } finally {
-            conn.disconnect()
+    private suspend fun post(url: String, apiKey: String, body: JSONObject?) {
+        val r = JellyfinNet.send("POST", url, mapOf("Authorization" to JellyfinAuth.header(apiKey)), body?.toString()?.toByteArray(Charsets.UTF_8), "application/json", Priority.VISIBLE, "admin")
+        if (!r.ok) throw IOException("HTTP ${r.code}")
+    }
+
+    companion object {
+        /** Listing JSON to items. [base] is the server URL without a trailing slash. Pure (unit-tested). */
+        internal fun itemsOf(base: String, arr: JSONArray): List<Item> {
+            fun str(o: JSONObject, key: String) = if (o.isNull(key)) "" else fixMojibake(o.optString(key))
+            return List(arr.length()) { i ->
+                val o = arr.getJSONObject(i)
+                val id = o.getString("Id")
+                val artist = fixMojibake(if (!o.isNull("AlbumArtist") && o.optString("AlbumArtist").isNotEmpty()) o.optString("AlbumArtist")
+                    else o.optJSONArray("Artists")?.takeIf { it.length() > 0 }?.getString(0) ?: "")
+                val parsed = JellyfinFacts.parse(o)
+                val t = Track(
+                    path = "$base/Audio/$id/stream?static=true",
+                    title = str(o, "Name").ifEmpty { "(untitled)" },
+                    artist = artist,
+                    album = str(o, "Album"),
+                    albumArtist = artist,
+                    genre = fixMojibake(o.optJSONArray("Genres")?.takeIf { it.length() > 0 }?.getString(0) ?: ""),
+                    trackNo = 0,
+                    discNo = 0,
+                    durationMs = o.optLong("RunTimeTicks") / 10_000L,
+                    year = 0,
+                    isMusic = true,
+                    artKey = artKeyOf(o),
+                    mtime = jfDate(o.optString("DateCreated")),
+                    size = parsed.size,
+                    source = TrackSource.JELLYFIN,
+                    filePath = str(o, "Path"),
+                )
+                Item(id, t, parsed.fact, normIso(o.optString("DateLastSaved")), t.artKey, coverTagOf(o))
+            }
         }
     }
 }
@@ -155,6 +166,21 @@ internal fun artKeyOf(o: JSONObject): String? {
     if (o.optJSONObject("ImageTags")?.has("Primary") == true) return "jf" + o.getString("Id")
     if (albumId.isNotEmpty() && !o.isNull("AlbumPrimaryImageTag")) return "jf$albumId"
     return if (albumId.isNotEmpty()) "jf$albumId" else null
+}
+
+/** The tag of the picture [artKeyOf] points to (null when the item says nothing): a new tag means the picture changed on the server. */
+internal fun coverTagOf(o: JSONObject): String? {
+    val own = o.optJSONObject("ImageTags")?.optString("Primary")?.takeIf { it.isNotEmpty() }
+    if (own != null) return own
+    return if (o.isNull("AlbumPrimaryImageTag")) null else o.optString("AlbumPrimaryImageTag").takeIf { it.isNotEmpty() }
+}
+
+/** An ISO time with a fixed 7-digit fraction, so two of them compare as plain strings ("" when absent). */
+internal fun normIso(s: String): String {
+    if (s.length < 19) return ""
+    val head = s.substring(0, 19)
+    val frac = if (s.length > 20 && s[19] == '.') s.substring(20).takeWhile { it.isDigit() } else ""
+    return head + "." + frac.padEnd(7, '0').take(7) + "Z"
 }
 
 /** Jellyfin's "2026-09-28T17:58:38.7227291Z" as epoch millis (0 if absent), so Recently Added orders Jellyfin songs by

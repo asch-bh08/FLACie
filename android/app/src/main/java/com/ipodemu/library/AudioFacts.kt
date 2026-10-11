@@ -27,7 +27,41 @@ object AudioFacts {
     /** Facts the phone read from the files' own tags (NAS songs), used where the server has none. */
     private val local = java.util.concurrent.ConcurrentHashMap<String, Fact>()
 
-    fun of(t: Track): Fact? = t.fileKey?.let { map[it] ?: local[it] }
+    /** Facts Jellyfin itself gave with the song listing (see [JellyfinFacts]); needs no other server. */
+    private val jf = java.util.concurrent.ConcurrentHashMap<String, Fact>()
+
+    /** Order: FLACie Web's table (when it has the file), then Jellyfin's own, then what the phone read from the NAS file's tags. */
+    fun of(t: Track): Fact? = t.fileKey?.let { map[it] ?: jf[it] ?: local[it] }
+
+    fun putJellyfin(facts: Map<String, Fact>) { if (facts.isEmpty()) return; jf.putAll(facts); version++ }
+    fun removeJellyfin(keys: Collection<String>) { if (keys.isEmpty()) return; keys.forEach { jf.remove(it) }; version++ }
+    fun clearJellyfin() { jf.clear(); version++ }
+    val jellyfinSize: Int get() = jf.size
+
+    fun saveJellyfin(file: File) {
+        try {
+            val tmp = File(file.path + ".tmp")
+            android.util.JsonWriter(tmp.bufferedWriter(Charsets.UTF_8, 1 shl 16)).use { w ->
+                w.beginObject()
+                for ((k, f) in jf) { w.name(k).beginArray().value(f.codec).value(f.rate.toLong()).value(f.depth.toLong()).value(f.kbps.toLong()).endArray() }
+                w.endObject()
+            }
+            file.delete(); tmp.renameTo(file)
+        } catch (_: Exception) { }
+    }
+
+    fun loadJellyfin(file: File) {
+        try {
+            if (!file.exists()) return
+            val out = HashMap<String, Fact>()
+            android.util.JsonReader(file.bufferedReader(Charsets.UTF_8, 1 shl 16)).use { r ->
+                r.beginObject()
+                while (r.hasNext()) { val k = r.nextName(); r.beginArray(); out[k] = Fact(r.nextString(), r.nextInt(), r.nextInt(), r.nextInt()); r.endArray() }
+                r.endObject()
+            }
+            jf.putAll(out); version++
+        } catch (_: Exception) { }
+    }
 
     /** The tag reader's findings for NAS files; the server's table, when it has the file, still wins. */
     fun putLocal(facts: Map<String, Fact>) {

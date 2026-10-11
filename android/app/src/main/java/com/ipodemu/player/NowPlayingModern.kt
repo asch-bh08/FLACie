@@ -362,10 +362,13 @@ private fun PlayDisc(playing: Boolean, size: Dp, focus: FocusRequester, onClick:
     val focused by src.collectIsFocusedAsState()
     Box(
         Modifier.size(size).focusRequester(focus).clip(CircleShape).background(Color.White)
-            .then(if (focused) Modifier.border(3.dp, sc.accent, CircleShape) else Modifier)
             .clickable(src, null, onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { GlyphIcon(if (playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(size * 0.45f), Color.Black) }
+    ) {
+        // the focus ring is inset and in the accent: a white ring on the white disc cannot be seen
+        if (focused) Box(Modifier.fillMaxSize().padding(3.dp).border(3.dp, sc.accent, CircleShape))
+        GlyphIcon(if (playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(size * 0.45f), Color.Black)
+    }
 }
 
 @Composable

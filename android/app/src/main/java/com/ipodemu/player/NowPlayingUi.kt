@@ -298,6 +298,7 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
     Box(
         Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp).height(62.dp).clip(RoundedCornerShape(14.dp))
             .background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(14.dp))
+            .focusRing(RoundedCornerShape(14.dp))
             .clickable { nav.nowPlaying = true }
     ) {
         Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {

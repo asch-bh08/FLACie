@@ -140,14 +140,9 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
         if (tab == "Charts") { ChartsPanel(nav, snap); return@Column }
         // one line: the filter box, Filters (with how many are on) and Sort
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Row(Modifier.weight(1f).height(46.dp).clip(RoundedCornerShape(16.dp)).background(Palette.surface2).border(1.dp, if (query.isNotEmpty()) sc.accent else Color(0x22FFFFFF), RoundedCornerShape(16.dp)).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                GlyphIcon(Glyph.SEARCH, Modifier.size(18.dp), sc.onBgDim)
-                Box(Modifier.padding(start = 10.dp).weight(1f)) {
-                    if (query.isEmpty()) Txt(when (tab) { "Songs" -> "Search songs"; "Albums" -> "Search albums"; "Artists" -> "Search artists"; else -> "Search genres" }, size = 16f, color = sc.onBgDim)
-                    BasicTextField(query, { query = it }, singleLine = true, cursorBrush = SolidColor(sc.accent), textStyle = TextStyle(color = sc.onBg, fontSize = 15.sp), modifier = Modifier.fillMaxWidth())
-                }
-                if (query.isNotEmpty()) Box(Modifier.size(28.dp).clip(RoundedCornerShape(14.dp)).clickable { query = "" }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.CLOSE, Modifier.size(14.dp), sc.onBgDim) }
-            }
+            SearchPill(query, { query = it }, when (tab) { "Songs" -> "Search songs"; "Albums" -> "Search albums"; "Artists" -> "Search artists"; else -> "Search genres" }, Modifier.weight(1f), height = 46.dp, trailing = {
+                if (query.isNotEmpty()) Box(Modifier.size(32.dp).clip(RoundedCornerShape(16.dp)).clickable { query = "" }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.CLOSE, Modifier.size(14.dp), sc.onBgDim) }
+            })
             GlossPill(if (activeFilters > 0) "Filters · $activeFilters" else "Filters", { openFilters() }, icon = Glyph.LIST, primary = activeFilters > 0, height = 46.dp)
             IconAction(Glyph.DOWN, "Sort: " + (sorts?.firstOrNull { it.first == sort }?.second ?: ""), {
                 nav.sheet = SheetSpec("Sort", null, (sorts ?: emptyList()).map { (id, label) -> SheetItem(label, if (id == sort) Glyph.CHECK else Glyph.LIST) { sort = id } })

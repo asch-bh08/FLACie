@@ -843,7 +843,7 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
         DetailKind.ARTIST -> lib.artists().firstOrNull { it.name == d.id }?.let { title = it.name; tracks = it.tracks; art = it.artKey }
         DetailKind.GENRE -> lib.genres().firstOrNull { it.name == d.id }?.let { title = it.name; tracks = it.tracks; art = it.artKey }
         DetailKind.FOLDER -> lib.playlists().firstOrNull { it.name == d.id }?.let { title = it.name; tracks = it.tracks; art = it.artKey }
-        DetailKind.USER -> ud.playlists.firstOrNull { it.id == d.id }?.let { title = it.name; tracks = it.paths.mapNotNull { p -> lib.resolve(p, ud.meta[p]) }; art = tracks.firstNotNullOfOrNull { t -> t.artKey }; userId = it.id }
+        DetailKind.USER -> ud.playlists.firstOrNull { it.id == d.id }?.let { title = it.name; tracks = ud.visiblePaths(it.id).mapNotNull { p -> lib.resolve(p, ud.meta[p]) }; art = tracks.firstNotNullOfOrNull { t -> t.artKey }; userId = it.id }
         DetailKind.FAVORITES -> { title = "Favorites"; tracks = ud.favorites.mapNotNull { lib.resolve(it, ud.meta[it]) }.distinctBy { it.path }; art = tracks.firstNotNullOfOrNull { it.artKey } }
         DetailKind.RECENT -> { title = "Recently Played"; tracks = ud.recents.mapNotNull { by[it] ?: lib.resolve(it, ud.meta[it]) }; art = tracks.firstNotNullOfOrNull { it.artKey } }
         DetailKind.DOWNLOADS -> { title = "Recently Downloaded"; tracks = recentDownloads(app); art = tracks.firstNotNullOfOrNull { it.artKey } }
@@ -857,7 +857,12 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
     val missing = if (userId != null && app.library.loaded) ud.playlists.firstOrNull { it.id == userId }?.paths.orEmpty().filter { lib.resolve(it, ud.meta[it]) == null }.mapNotNull { ud.meta[it] }.filter { it.first.isNotBlank() } else emptyList()
     Column(Modifier.fillMaxSize()) {
         TopBar(title.ifEmpty { "Playlist" }, nav, showBack = true)
-        if (tracks.isEmpty() && missing.isEmpty()) { EmptyState(if (d.kind == DetailKind.FAVORITES) "Tap the heart on a song to add it here" else "Nothing here yet"); return@Column }
+        if (tracks.isEmpty() && missing.isEmpty()) {
+            // an emptied playlist keeps its Play / Rename / Delete buttons (the only way to rename or delete it from its own page)
+            if (userId != null) Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) { DetailHeader(art, title, subtitle.ifEmpty { info }, if (subtitle.isEmpty()) "" else info, tracks, nav, userId) }
+            Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState(if (d.kind == DetailKind.FAVORITES) "Tap the heart on a song to add it here" else "Nothing here yet") }
+            return@Column
+        }
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val wide = maxWidth > 620.dp && maxWidth > maxHeight * 1.25f
             if (wide) {
@@ -973,19 +978,10 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         val imeUp = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
         if (!imeUp) TopBar("Search", nav, showBack = true)
         else Spacer(Modifier.windowInsetsTopHeight(androidx.compose.foundation.layout.WindowInsets.statusBars))
-        Row(
-            Modifier.padding(16.dp).fillMaxWidth().height(46.dp).clip(RoundedCornerShape(50)).background(Color(0x26FFFFFF)).border(1.dp, sc.cardBorder, RoundedCornerShape(50)).padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            GlyphIcon(Glyph.SEARCH, Modifier.size(20.dp), sc.onBgDim)
-            Box(Modifier.weight(1f)) {
-                if (query.isEmpty()) Txt("Songs, albums, artists", size = 16f, color = sc.onBgDim)
-                BasicTextField(query, { query = it }, singleLine = true, cursorBrush = SolidColor(sc.accent), textStyle = TextStyle(color = sc.onBg, fontSize = 16.sp), modifier = Modifier.fillMaxWidth().focusRequester(fr),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(autoCorrect = false, imeAction = androidx.compose.ui.text.input.ImeAction.Search),
-                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { searchFocus.clearFocus() }))
-            }
-            if (query.isNotEmpty()) IconAction(Glyph.CLOSE, "Clear search", { query = "" }, tint = sc.onBgDim, size = 40.dp, iconScale = 0.45f)
-        }
+        SearchPill(query, { query = it }, "Songs, albums, artists", Modifier.padding(16.dp), shape = RoundedCornerShape(50), background = Color(0x26FFFFFF), borderColor = sc.cardBorder,
+            height = 46.dp, textSize = 16f, onSubmit = { searchFocus.clearFocus() }, trailing = {
+                if (query.isNotEmpty()) IconAction(Glyph.CLOSE, "Clear search", { query = "" }, tint = sc.onBgDim, size = 44.dp, iconScale = 0.45f)
+            })
         val r = results
         val w = web
         val q = query.trim()
@@ -1359,8 +1355,9 @@ private fun playlistSongItems(app: App, id: String, t: Track): List<SheetItem> {
     if (i > 0) { items += SheetItem("Move up", Glyph.CHEVRON) { ud.move(id, i, i - 1) }; items += SheetItem("Move to top", Glyph.CHEVRON) { ud.move(id, i, 0) } }
     if (i < p.paths.lastIndex) items += SheetItem("Move down", Glyph.CHEVRON) { ud.move(id, i, i + 1) }
     items += SheetItem("Remove from playlist", Glyph.CLOSE) {
-        val path = ud.removeAt(id, i)
-        if (path != null) app.ui.say("Removed \"${t.title}\" from ${p.name}", "Undo") { ud.insertAt(id, i, path) }
+        // not gone until the Undo message has run out: Undo just cancels it
+        val path = ud.removeLater(id, i)
+        if (path != null) app.ui.say("Removed \"${t.title}\" from ${p.name}", "Undo") { ud.cancelRemoval() }
     }
     return items
 }

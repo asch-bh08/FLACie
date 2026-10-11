@@ -97,7 +97,7 @@ fun IconAction(g: Glyph, label: String, onClick: () -> Unit, tint: Color = Local
     val focused by src.collectIsFocusedAsState()
     val pressed by src.collectIsPressedAsState()
     Box(
-        Modifier.size(size).pressSpring(pressed, 0.82f).clip(CircleShape).background(if (focused || pressed) Color(0x33FFFFFF) else Color.Transparent)
+        Modifier.size(size).pressSpring(pressed, 0.82f).clip(CircleShape).background(if (focused || pressed) Color(0x33FFFFFF) else Color.Transparent).ringWhen(focused, CircleShape)
             .semanticsLabel(label).wheelTracked().clickable(src, null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { GlyphIcon(g, Modifier.size(size * iconScale).bumpOnChange(g), tint) }   // a heart turning solid bounces
@@ -155,7 +155,7 @@ private fun NavItem(t: Tab, selected: Boolean, modifier: Modifier, onClick: () -
     Column(modifier.wheelTracked().clickable(src, null, onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Box(
             Modifier.size(width = 56.dp, height = 28.dp).clip(RoundedCornerShape(14.dp))
-                .background(if (selected) sc.accent.copy(alpha = .16f) else if (focused) Color(0x22FFFFFF) else Color.Transparent),
+                .background(if (selected) sc.accent.copy(alpha = .16f) else if (focused) Color(0x22FFFFFF) else Color.Transparent).ringWhen(focused, RoundedCornerShape(14.dp)),
             contentAlignment = Alignment.Center,
         ) { GlyphIcon(t.glyph, Modifier.size(22.dp), col) }
         Txt(t.label, Modifier.padding(top = 3.dp), size = 11.5f, weight = if (selected) FontWeight.SemiBold else FontWeight.Normal, color = col, align = TextAlign.Center)

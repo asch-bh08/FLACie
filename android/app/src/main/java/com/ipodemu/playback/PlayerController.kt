@@ -127,6 +127,14 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         // is what starved the stream around locking and unlocking the phone
         .setWakeMode(C.WAKE_MODE_NETWORK)
         .build()
+    /** What the media session (media buttons, notification, Bluetooth) controls: Next and Previous go through the skip-burst handling too. */
+    @OptIn(UnstableApi::class)
+    val sessionPlayer: Player = object : androidx.media3.common.ForwardingPlayer(exo) {
+        override fun seekToNext() { this@PlayerController.next() }
+        override fun seekToNextMediaItem() { this@PlayerController.next() }
+        override fun seekToPrevious() { this@PlayerController.prev() }
+        override fun seekToPreviousMediaItem() { this@PlayerController.prev() }
+    }
     @OptIn(UnstableApi::class)
     private val prefetcher = Prefetcher(ctx) { cacheSource.createDataSource() as CacheDataSource }
     private val netWatch = NetworkWatch(ctx) { Handler(Looper.getMainLooper()).post { nudge() } }
@@ -145,17 +153,20 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
 
     /** Minutes until playback pauses; 0 = off. */
     var sleepMinutes = 0; private set
-    private val sleepRunnable = Runnable { exo.pause(); sleepMinutes = 0; fire() }
+    /** When the sleep timer fires (uptime clock), 0 = off; [sleepRemainingMs] is what the UI counts down. */
+    var sleepEndsAt = 0L; private set
+    private val sleepRunnable = Runnable { exo.pause(); sleepMinutes = 0; sleepEndsAt = 0L; prefs.sleepEndsAtWall = 0L; fire() }
+    val sleepRemainingMs: Long get() = if (sleepEndsAt == 0L) 0L else (sleepEndsAt - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0L)
 
-    val current: Track? get() = exo.currentMediaItem?.localConfiguration?.tag as? Track
+    val current: Track? get() = (if (burstTarget in 0 until exo.mediaItemCount) exo.getMediaItemAt(burstTarget) else exo.currentMediaItem)?.localConfiguration?.tag as? Track
     val isPlaying: Boolean get() = exo.isPlaying
     /** Playing, or about to (loading after a seek, reconnecting): what the Play/Pause button shows and toggles. Showing Play
      * while it was only loading made a tap pause the reload instead of resuming. */
     val wantsToPlay: Boolean get() = exo.playWhenReady && exo.playerError == null && exo.playbackState != Player.STATE_IDLE && exo.playbackState != Player.STATE_ENDED
     val hasQueue: Boolean get() = exo.mediaItemCount > 0
-    val positionMs: Long get() = exo.currentPosition.coerceAtLeast(0)
+    val positionMs: Long get() = if (burstTarget >= 0) 0L else exo.currentPosition.coerceAtLeast(0)
     val durationMs: Long get() = current?.durationMs?.takeIf { it > 0 } ?: exo.duration.takeIf { it > 0 } ?: 0L
-    val queueIndex: Int get() = exo.currentMediaItemIndex
+    val queueIndex: Int get() = if (burstTarget >= 0) burstTarget else exo.currentMediaItemIndex
 
     var volume: Float
         get() = prefs.volume.coerceAtMost(prefs.volumeLimit / 100f)
@@ -166,6 +177,11 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         applyModes()
         exo.addListener(object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) { fire() }
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                handler.removeCallbacks(persistTick)
+                if (isPlaying) handler.postDelayed(persistTick, 5_000L) else persistNow()
+            }
+            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) { handler.removeCallbacks(persistSoon); handler.postDelayed(persistSoon, 1_500L) }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 // a metadata-only swap (refreshArtwork) also reports a transition; that's not a new play
                 (mediaItem?.localConfiguration?.tag as? Track)?.let { if (it !== lastStarted || reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) onTrackStarted?.invoke(it); lastStarted = it }
@@ -225,6 +241,39 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                 if (exo.getMediaItemAt(n).mediaMetadata.artworkUri == null) exo.replaceMediaItem(n, item(t))
             }
         }
+    }
+
+    // ---- the queue survives the app being killed ----------------------------------------------------------------------------------
+    private val queueFile = File(ctx.filesDir, "queue.json")
+    private val writer = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "queue-save").also { it.isDaemon = true } }
+    private val persistSoon = Runnable { persistNow() }
+    private val persistTick = object : Runnable {
+        override fun run() { persistNow(); if (exo.isPlaying) handler.postDelayed(this, 5_000L) }
+    }
+    /** Writes the queue, the current song and the position (in the background). Never writes an empty queue: a cleared player keeps the last state. */
+    fun persistNow() {
+        if (!hasQueue || burstTarget >= 0) return
+        val tracks = queueTracks(); if (tracks.isEmpty()) return
+        val idx = exo.currentMediaItemIndex.coerceIn(0, tracks.lastIndex); val pos = exo.currentPosition
+        writer.execute {
+            try {
+                val tmp = File(queueFile.path + ".tmp")
+                tmp.writeText(QueueStore.encode(tracks, idx, pos), Charsets.UTF_8)
+                if (!tmp.renameTo(queueFile)) { queueFile.delete(); tmp.renameTo(queueFile) }
+            } catch (_: Exception) {}
+        }
+    }
+    /** At start-up: the queue, song and position of last time, paused (nothing plays by itself). Songs whose file is gone are dropped. */
+    fun restoreQueue() {
+        if (hasQueue) return
+        try {
+            if (!queueFile.exists()) return
+            val s = QueueStore.decode(queueFile.readText(Charsets.UTF_8)) { QueueStore.stillThere(it) { p -> File(p).exists() } } ?: return
+            queue = s.tracks
+            lastStarted = s.tracks[s.index]   // a restore is not a new play (no history entry, no plays report)
+            exo.setMediaItems(s.tracks.map(::item), s.index, s.positionMs)
+            exo.playWhenReady = false
+        } catch (_: Exception) {}
     }
 
     fun applyModes() {
@@ -296,7 +345,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         exo.removeMediaItem(index); queue = queueTracks(); fire()
     }
 
-    fun clearQueue() { exo.stop(); exo.clearMediaItems(); queue = emptyList(); fire() }
+    fun clearQueue() { handler.removeCallbacks(commitBurst); burstTarget = -1; exo.stop(); exo.clearMediaItems(); queue = emptyList(); try { queueFile.delete() } catch (_: Exception) {}; fire() }
 
     fun skipTo(index: Int) { if (interceptor?.skipTo(index) == true) return; exo.seekTo(index, 0L); exo.play() }
 
@@ -305,7 +354,21 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     fun setSleepTimer(minutes: Int) {
         handler.removeCallbacks(sleepRunnable)
         sleepMinutes = minutes
-        if (minutes > 0) handler.postDelayed(sleepRunnable, minutes * 60_000L)
+        if (minutes > 0) {
+            sleepEndsAt = android.os.SystemClock.elapsedRealtime() + minutes * 60_000L
+            prefs.sleepEndsAtWall = System.currentTimeMillis() + minutes * 60_000L
+            handler.postDelayed(sleepRunnable, minutes * 60_000L)
+        } else { sleepEndsAt = 0L; prefs.sleepEndsAtWall = 0L }
+        fire()
+    }
+    /** After a kill and restart: a sleep timer that was still running carries on for what was left of it (it never fires late while playing nothing). */
+    fun restoreSleepTimer() {
+        val left = prefs.sleepEndsAtWall - System.currentTimeMillis()
+        if (prefs.sleepEndsAtWall == 0L) return
+        if (left <= 0L) { prefs.sleepEndsAtWall = 0L; return }
+        sleepMinutes = ((left + 59_999L) / 60_000L).toInt()
+        sleepEndsAt = android.os.SystemClock.elapsedRealtime() + left
+        handler.postDelayed(sleepRunnable, left)
     }
 
     // ---- equalizer ---------------------------------------------------------
@@ -373,9 +436,45 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private var retries = 0
     private var lastStarted: Track? = null
     private var retryKey: Pair<Int, String>? = null
-    fun next() { if (interceptor?.next() == true) return; if (exo.hasNextMediaItem()) exo.seekToNextMediaItem() else if (hasQueue) exo.seekTo(0, 0L) }
+    // ---- skip bursts ------------------------------------------------------------------------------------------------------------
+    // Presses of Next/Previous that follow each other within BURST_MS are not each sent to the player (every one made it open a stream that the
+    // next press abandoned: 45 presses took 25 s to settle). The first press acts at once; the rest only move a target, shown in the UI
+    // straight away, and the player jumps there once, SETTLE_MS after the last press.
+    @Volatile private var burstTarget = -1
+    private var lastSkipAt = 0L
+    private val commitBurst = Runnable {
+        val t = burstTarget; burstTarget = -1
+        if (t in 0 until exo.mediaItemCount) exo.seekTo(t, 0L)
+        fire()
+    }
+    private fun stepIndex(from: Int, forward: Boolean): Int {
+        val tl = exo.currentTimeline
+        if (tl.isEmpty) return -1
+        val repeat = if (exo.repeatMode == Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_OFF else exo.repeatMode
+        val i = if (forward) tl.getNextWindowIndex(from, repeat, exo.shuffleModeEnabled) else tl.getPreviousWindowIndex(from, repeat, exo.shuffleModeEnabled)
+        return if (i == C.INDEX_UNSET) (if (forward) 0 else from) else i
+    }
+    private fun skip(forward: Boolean): Boolean {
+        val now = android.os.SystemClock.uptimeMillis()
+        val inBurst = burstTarget >= 0 || now - lastSkipAt < BURST_MS
+        lastSkipAt = now
+        if (!inBurst) return false
+        val from = if (burstTarget >= 0) burstTarget else exo.currentMediaItemIndex
+        val to = stepIndex(from, forward)
+        if (to < 0) return true
+        burstTarget = to
+        handler.removeCallbacks(commitBurst); handler.postDelayed(commitBurst, SETTLE_MS)
+        fire()
+        return true
+    }
+    fun next() {
+        if (interceptor?.next() == true) return
+        if (skip(true)) return
+        if (exo.hasNextMediaItem()) exo.seekToNextMediaItem() else if (hasQueue) exo.seekTo(0, 0L)
+    }
     fun prev() {
         if (interceptor?.prev() == true) return
+        if (skip(false)) return
         if (exo.currentPosition > 3000 || !exo.hasPreviousMediaItem()) exo.seekTo(0) else exo.seekToPreviousMediaItem()
     }
     fun seekBy(ms: Long) { if (interceptor?.seek((exo.currentPosition + ms).coerceAtLeast(0)) == true) return; ensurePrepared(); exo.seekTo((exo.currentPosition + ms).coerceIn(0, (durationMs - 500).coerceAtLeast(0))) }
@@ -530,6 +629,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     }
 
     companion object {
+        const val BURST_MS = 400L
+        const val SETTLE_MS = 250L
         private val REF_HZ = floatArrayOf(60f, 230f, 910f, 3600f, 14000f)
         /** dB gains at 60 / 230 / 910 / 3.6k / 14k Hz. "Off" is absent (no effect attached). */
         val EQ_PRESETS: Map<String, FloatArray> = linkedMapOf(

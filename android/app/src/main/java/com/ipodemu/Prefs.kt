@@ -99,6 +99,10 @@ class Prefs(ctx: Context) {
         get() = sp.getFloat("brightness", -1f)
         set(v) = sp.edit().putFloat("brightness", v).apply()
     /** Max playback volume, percent. */
+    /** Wall-clock time the sleep timer fires (0 = off), so a timer carries on after the app was killed. */
+    var sleepEndsAtWall: Long
+        get() = sp.getLong("sleepEndsAt", 0L)
+        set(v) = sp.edit().putLong("sleepEndsAt", v).apply()
     var volumeLimit: Int
         get() = sp.getInt("vollimit", 100)
         set(v) = sp.edit().putInt("vollimit", v).apply()

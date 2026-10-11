@@ -407,6 +407,7 @@ fun IpodRow(
     val src = remember { MutableInteractionSource() }
     // pressed or focused, from ONE collector (the two collectIs...AsState calls were two coroutines per row, and a list builds dozens of rows while it scrolls)
     val hiState = remember { androidx.compose.runtime.mutableStateOf(false) }
+    val ringState = remember { androidx.compose.runtime.mutableStateOf(false) }
     LaunchedEffect(src) {
         val presses = ArrayList<androidx.compose.foundation.interaction.PressInteraction.Press>()
         var focused = false
@@ -419,9 +420,11 @@ fun IpodRow(
                 is androidx.compose.foundation.interaction.FocusInteraction.Unfocus -> focused = false
             }
             hiState.value = presses.isNotEmpty() || focused
+            ringState.value = focused
         }
     }
     val hi = hiState.value
+    val ring = ringState.value
     // what wheelTracked() does, without the composed{} modifier (its remember + node chain per row was measurable on a 10 000-song list)
     val wheelFr = remember { androidx.compose.ui.focus.FocusRequester() }
     Row(
@@ -434,6 +437,7 @@ fun IpodRow(
                 if (hi && style.glossy) drawRect(Brush.verticalGradient(listOf(Color(0x40FFFFFF), Color.Transparent)), size = Size(size.width, size.height * .5f))
             } else Modifier)
             .focusRequester(wheelFr).onFocusChanged { if (it.isFocused) WheelFocus.last = wheelFr }
+            .then(if (ring) Modifier.border(FocusRingWidth, Color.White, RoundedCornerShape(10.dp)) else Modifier)
             .combinedClickable(interactionSource = src, indication = null, onClick = onClick, onLongClick = onLong)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,

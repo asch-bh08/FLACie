@@ -170,7 +170,8 @@ fun rememberPosition(player: PlayerController, active: Boolean): State<Long> {
     val pos = remember { mutableLongStateOf(player.positionMs) }
     LaunchedEffect(active) {
         pos.longValue = player.positionMs
-        while (active && isActive) { pos.longValue = player.positionMs; delay(250) }
+        // paused: a slower re-read, so a seek made while paused still moves the bar and the time
+        while (isActive) { pos.longValue = player.positionMs; delay(if (active) 250 else 500) }
     }
     return pos
 }

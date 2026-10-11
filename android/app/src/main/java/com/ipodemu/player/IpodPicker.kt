@@ -1,4 +1,4 @@
-package com.ipodemu.player
+﻿package com.ipodemu.player
 
 import androidx.compose.foundation.horizontalScroll
 import androidx.activity.compose.BackHandler
@@ -390,7 +390,7 @@ private fun IpodCarousel(model: Model, ci: Int) {
             // floor glow
             Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp).width(220.dp).height(16.dp).clip(CircleShape).background(Brush.radialGradient(listOf(Color(0x66000000), Color.Transparent))))
             androidx.compose.foundation.pager.HorizontalPager(
-                pager, Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 118.dp), pageSpacing = (-34).dp, beyondBoundsPageCount = 1,
+                pager, Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 118.dp), pageSpacing = (-34).dp, beyondViewportPageCount = 1,
             ) { page ->
                 val m = all[page]
                 val offset = (pager.currentPage - page) + pager.currentPageOffsetFraction   // 0 centred, + left of centre, - right

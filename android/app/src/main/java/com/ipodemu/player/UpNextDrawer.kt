@@ -1,4 +1,4 @@
-package com.ipodemu.player
+﻿package com.ipodemu.player
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -81,7 +81,7 @@ fun PanePager(nav: PaneNav, modifier: Modifier = Modifier, order: List<String> =
     // a pill moves the pager; a finger moves the pager and then tells the pill. Neither fights the other: the pager is only driven while it is still, and only reports once it has come to rest
     androidx.compose.runtime.LaunchedEffect(nav.pane) { val i = order.indexOf(navNow.pane); if (i >= 0 && !pager.isScrollInProgress && pager.currentPage != i) pager.animateScrollToPage(i) }
     androidx.compose.runtime.LaunchedEffect(pager) { androidx.compose.runtime.snapshotFlow { pager.targetPage }.collect { p -> if (order[p] != navNow.pane) navNow.go(order[p]) } }
-    androidx.compose.foundation.pager.HorizontalPager(pager, modifier, pageSpacing = 12.dp, beyondBoundsPageCount = 0, flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(pager, snapPositionalThreshold = 0.25f)) { p ->
+    androidx.compose.foundation.pager.HorizontalPager(pager, modifier, pageSpacing = 12.dp, beyondViewportPageCount = 0, flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(pager, snapPositionalThreshold = 0.25f)) { p ->
         Box(Modifier.fillMaxSize().graphicsLayer {
             // the page slides away a little and fades as it leaves the centre
             val off = kotlin.math.abs(pager.currentPage - p + pager.currentPageOffsetFraction).coerceIn(0f, 1f)
@@ -135,7 +135,7 @@ private fun DrawerRow(t: Track, current: Boolean, onClick: () -> Unit) {
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Txt(t.title, size = 15f, weight = FontWeight.SemiBold, color = if (current) sc.accent else sc.onBg, maxLines = 2)
-            Txt(listOf(t.artist, t.album).filter { it.isNotEmpty() }.joinToString(" · "), size = 12.5f, color = sc.onBgDim, maxLines = 2)
+            Txt(listOf(t.artist, t.album).filter { it.isNotEmpty() }.joinToString(" Â· "), size = 12.5f, color = sc.onBgDim, maxLines = 2)
             if (note != null) NoteChip(note)
         }
         if (t.durationMs > 0) Txt(fmtTime(t.durationMs), size = 12.5f, color = sc.onBgDim)

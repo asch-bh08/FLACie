@@ -536,14 +536,15 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                             Box(Modifier.weight(1f)) { SectionHeader(sh.title) }
                             GlossPill("Play all", { app.player.play(sh.tracks, 0, null, sh.title) }, icon = Glyph.PLAY, height = 28.dp)
                         }
-                        QuickPicks(sh.tracks, nav) { i -> app.player.play(sh.tracks, i, null, sh.title) }; return@items
-                    }
+                        QuickPicks(sh.tracks, nav) { i -> app.player.play(sh.tracks, i, null, sh.title) }
+                    } else {
                     SectionHeader(sh.title)
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         if (sh.tracks.isNotEmpty()) itemsIndexed(sh.tracks) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(sh.tracks, i, null, sh.title) } }
                         else items(sh.albums, key = { it.tracks.first().albumKey }) { g -> AlbumCard(g, Modifier.width(150.dp)) { nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) } }
                     }
                 }
+                    }
             }
             // playlists are one tap away here as well as in the Playlists tab
             val lists = shownPlaylists(app); val by0 = lib.byPath()

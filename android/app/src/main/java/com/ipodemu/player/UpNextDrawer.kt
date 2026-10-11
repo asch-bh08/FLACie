@@ -1,4 +1,4 @@
-﻿package com.ipodemu.player
+package com.ipodemu.player
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -135,7 +135,7 @@ private fun DrawerRow(t: Track, current: Boolean, onClick: () -> Unit) {
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Txt(t.title, size = 15f, weight = FontWeight.SemiBold, color = if (current) sc.accent else sc.onBg, maxLines = 2)
-            Txt(listOf(t.artist, t.album).filter { it.isNotEmpty() }.joinToString(" Â· "), size = 12.5f, color = sc.onBgDim, maxLines = 2)
+            Txt(listOf(t.artist, t.album).filter { it.isNotEmpty() }.joinToString(" · "), size = 12.5f, color = sc.onBgDim, maxLines = 2)
             if (note != null) NoteChip(note)
         }
         if (t.durationMs > 0) Txt(fmtTime(t.durationMs), size = 12.5f, color = sc.onBgDim)

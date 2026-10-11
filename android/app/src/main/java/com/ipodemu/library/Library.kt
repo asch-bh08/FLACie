@@ -1,4 +1,4 @@
-﻿package com.ipodemu.library
+package com.ipodemu.library
 
 import android.content.Context
 import android.os.Handler
@@ -195,7 +195,7 @@ class Library(ctx: Context, val art: ArtCache) {
     fun requestDownload(artist: String, title: String, album: String, durationMs: Long = 0, hiRes: Boolean = false, fallbackToNormal: Boolean = true) {
         val key = songKey(artist, title)
         if (downloads[key]?.stage.let { it != null && it != DownloadStage.DONE && it != DownloadStage.FAILED }) return
-        val label = "${title.ifBlank { album }} Â· $artist${if (hiRes) " (Hi-Res)" else ""}"
+        val label = "${title.ifBlank { album }} · $artist${if (hiRes) " (Hi-Res)" else ""}"
         runningDownloads[key] = RunningDownload(java.util.UUID.randomUUID().toString(), label, "Search", CoverLookup.key(artist, album, title))
         scope.launch {
             val report: (DownloadStatus) -> Unit = { status -> onStatus(key, status, DownloadEntry(artist, title.ifBlank { album }, album, "", 0, "")) }
@@ -207,7 +207,7 @@ class Library(ctx: Context, val art: ArtCache) {
     fun requestAlbum(a: WebCatalog.Album) {
         val key = albumKey(a)
         if (downloads[key]?.stage.let { it != null && it != DownloadStage.DONE && it != DownloadStage.FAILED }) return
-        runningDownloads[key] = RunningDownload(java.util.UUID.randomUUID().toString(), "${a.cleanTitle} Â· ${a.artist}", "Search", null)
+        runningDownloads[key] = RunningDownload(java.util.UUID.randomUUID().toString(), "${a.cleanTitle} · ${a.artist}", "Search", null)
         // the entry's empty path makes Recently Downloaded list the album's songs
         scope.launch { downloader.downloadAlbum(a) { status -> onStatus(key, status, DownloadEntry(a.artist, a.cleanTitle, a.cleanTitle, "", 0, "")) } }
     }

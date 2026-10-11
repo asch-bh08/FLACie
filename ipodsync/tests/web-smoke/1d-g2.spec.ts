@@ -70,7 +70,7 @@ test.describe('signed in', () => {
     test(`full-screen Now Playing at ${w}x${h}: cover clear of the header, the title block and the bars; title visible`, async ({ page }) => {
       await page.setViewportSize({ width: w, height: h });
       await playFirst(page);
-      await page.getByRole('button', { name: 'Open Now Playing' }).click({ force: true });
+      await page.getByRole('button', { name: 'Open Now Playing' }).click();   // no force: wait until the bar has finished sliding in
       await expect(page.locator('.np')).toBeVisible();
       await page.waitForTimeout(1200);
       const r = await page.evaluate(() => {

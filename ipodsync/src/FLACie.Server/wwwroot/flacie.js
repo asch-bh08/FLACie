@@ -365,7 +365,7 @@ window.flacie = (() => {
     // Chrome can open the mini player by itself when you switch to another tab while music plays
     try { navigator.mediaSession.setActionHandler("enterpictureinpicture", () => { pip.toggle(); }); } catch { }
   }
-  let outside = null;
+  let outside = null, pendingLoad = 0, lastLoadAt = -1e9;
   return {
     pipSupported() { return pip.supported(); },
     pipActive() { return pip.active(); },
@@ -373,12 +373,22 @@ window.flacie = (() => {
     load(ref, url, title, artist, album, art, autoplay, dur, startAt) {
       dotnet = ref;
       pip.meta(title, artist, art);
-      audio.src = url;
-      if (startAt > 0) audio.addEventListener("loadedmetadata", () => { audio.currentTime = startAt; }, { once: true });
       if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title, artist, album, artwork: art ? [{ src: art, sizes: "500x500", type: "image/jpeg" }] : [] });
       document.title = title ? `${title} · ${artist}` : "FLACie";
-      if (autoplay) audio.play().catch(() => send("OnState", false)); else { audio.pause(); send("OnState", false); }
+      const open = () => {
+        pendingLoad = 0;
+        audio.src = url;
+        if (startAt > 0) audio.addEventListener("loadedmetadata", () => { audio.currentTime = startAt; }, { once: true });
+        if (autoplay) audio.play().catch(() => send("OnState", false)); else { audio.pause(); send("OnState", false); }
+      };
+      // A burst of skips: songs the user passes over never open a stream. The first load of a burst starts at once (a single play is not
+      // delayed); a load that follows another within half a second drops whatever was loading and waits 150 ms for the next skip.
+      const now = performance.now(), burst = now - lastLoadAt < 500;
+      lastLoadAt = now;
+      if (pendingLoad) { clearTimeout(pendingLoad); pendingLoad = 0; }
+      if (burst) { audio.pause(); audio.removeAttribute("src"); audio.load(); pendingLoad = setTimeout(open, 150); } else open();
     },
+    loadsStarted() { return lastLoadAt; },
     // starts the Info tab's live view; false when this browser can't do it
     viz(id, style, rate, cutHz, cutLabel) {
       vizCut = cutHz | 0; vizCutLabel = cutLabel || "";
@@ -500,7 +510,7 @@ window.flacie = (() => {
     ready() { return audio.readyState >= 3; },
     pause() { audio.pause(); },
     // the X on the bar: stop and let go of the file
-    stop() { audio.pause(); audio.removeAttribute("src"); audio.load(); document.title = "FLACie"; if ("mediaSession" in navigator) navigator.mediaSession.metadata = null; },
+    stop() { if (pendingLoad) { clearTimeout(pendingLoad); pendingLoad = 0; } audio.pause(); audio.removeAttribute("src"); audio.load(); document.title = "FLACie"; if ("mediaSession" in navigator) navigator.mediaSession.metadata = null; },
     seek(s) { if (isFinite(s)) audio.currentTime = s; },
     volume(v) {
       // the graphs read their own twin of the stream at full volume, so they look the same at any volume

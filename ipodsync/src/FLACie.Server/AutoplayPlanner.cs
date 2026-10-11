@@ -32,6 +32,7 @@ public sealed class AutoplayPlanner(WebCatalog catalog, DownloadManager download
         {
             if (n >= max) break;
             if (downloads.RecentlyFailed(s, song.Artist, song.Title)) continue;
+            if (downloads.RecentlyFetched(s, song.Artist, song.Title)) continue;
             if (!guard.Ok(s)) break;
             n++;
             _ = downloads.FetchAsync(s, "Autoplay", song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs)

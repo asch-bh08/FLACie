@@ -17,6 +17,7 @@ public static class PlaylistImport
     public static List<ImportedPlaylist> Parse(string fileName, byte[] bytes)
     {
         var text = Decode(bytes);
+        RejectNonText(text);
         var name = Path.GetFileNameWithoutExtension(fileName);
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
         var head = text.TrimStart().Length > 200 ? text.TrimStart()[..200] : text.TrimStart();
@@ -35,7 +36,19 @@ public static class PlaylistImport
         if (b.Length >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF) return Encoding.UTF8.GetString(b, 3, b.Length - 3);
         if (b.Length >= 2 && b[0] == 0xFF && b[1] == 0xFE) return Encoding.Unicode.GetString(b, 2, b.Length - 2);
         if (b.Length >= 2 && b[0] == 0xFE && b[1] == 0xFF) return Encoding.BigEndianUnicode.GetString(b, 2, b.Length - 2);
-        try { return new UTF8Encoding(false, true).GetString(b); } catch (Exception) { return Encoding.Latin1.GetString(b); }
+        try { return new UTF8Encoding(false, true).GetString(b); } catch (DecoderFallbackException) { throw new InvalidDataException("That file isn't valid UTF-8 text."); }
+    }
+
+    /// <summary>Binary junk, JSON/HTML and absurdly long lines are not a playlist: refuse them instead of importing garbage "songs".</summary>
+    static void RejectNonText(string text)
+    {
+        foreach (var c in text)
+            if ((c < ' ' && c != '\t' && c != '\r' && c != '\n') || c == '�')
+                throw new InvalidDataException("That doesn't look like a text playlist (it has binary or unreadable content).");
+        var head = text.TrimStart();
+        if (head.StartsWith('{') || head.StartsWith('[') || head.StartsWith("<!doctype html", StringComparison.OrdinalIgnoreCase) || head.StartsWith("<html", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("That doesn't look like a playlist.");
+        if (text.Split('\n').Any(l => l.Length > 1000)) throw new InvalidDataException("That doesn't look like a playlist (a line is far too long).");
     }
 
     // ---- plain text ----

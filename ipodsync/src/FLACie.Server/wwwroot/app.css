@@ -1287,3 +1287,9 @@ main.content:has(.az-rail) .tracks { padding-right: 16px; }
 .hp input[type=range]::-moz-range-thumb { opacity: 1; width: 22px; height: 22px; background: #fff; box-shadow: 0 1px 6px #0008; }
 .hp input[type=range]:hover::-webkit-slider-runnable-track { background: linear-gradient(to right, var(--accent) var(--fill, 50%), var(--surface-3) var(--fill, 50%)); }
 .hp-scale { margin-top: -2px; }
+
+/* phone tab bar with many links (an administrator has 11): one scrollable row, every link at least 44px wide and tall, none hidden or squeezed over its neighbour */
+@media (max-width: 760px) {
+  .app:not(.full) .rail { overflow-x: auto; overflow-y: hidden; justify-content: flex-start; -webkit-overflow-scrolling: touch; }
+  .app:not(.full) .rail a { display: flex !important; flex: 0 0 auto; min-width: 64px; min-height: 44px; padding: 6px 8px; overflow: visible; font-size: 11px; }
+}

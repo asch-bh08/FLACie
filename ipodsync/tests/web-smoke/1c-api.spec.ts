@@ -1,4 +1,5 @@
 import { test, expect, request as pwRequest, APIRequestContext } from '@playwright/test';
+import * as net from 'node:net';
 
 // The HTTP API and the media endpoints, probed directly (no browser): who may call what, malformed input, ranges, path tricks, headers.
 // Runs before 2-login.spec.ts, which trips the sign-in throttle for this address on purpose. Makes no failed sign-ins itself.
@@ -166,6 +167,13 @@ test.describe('signed in', () => {
     expect(j.file).toBe('evil.m3u');
     expect((await web.post('/api/import', { headers: { ...TOKEN, 'content-type': 'text/plain' }, data: '' })).status()).toBe(400);
     expect((await web.post('/api/import', { headers: { ...TOKEN, 'content-type': 'text/plain' }, data: '\u0000\u0001\u0002' })).status()).toBe(400);
+    // invalid UTF-8, a playlist-less JSON body and a binary blob with a NUL in the middle are refused; plain song names and m3u keep working
+    const bad = (data: Buffer | string) => web.post('/api/import', { headers: { ...TOKEN, 'content-type': 'application/octet-stream' }, data });
+    expect((await bad(Buffer.from([0xc3, 0x28, 0x0a, 0x80, 0x81]))).status()).toBe(400);
+    expect((await bad(Buffer.from('Artist - Song\0\n'))).status()).toBe(400);
+    expect((await bad('{"not":"a playlist"}')).status()).toBe(400);
+    expect((await web.post('/api/import?name=a.txt', { headers: { ...TOKEN, 'content-type': 'text/plain' }, data: 'Some Song Name\n' })).status()).toBe(200);
+    expect((await web.post('/api/import?name=a.m3u', { headers: { ...TOKEN, 'content-type': 'text/plain' }, data: '#EXTM3U\n#EXTINF:1,Nobody - Nothing Two\nx.mp3\n' })).status()).toBe(200);
     // an unknown import id is a harmless no-op, not an error and not somebody else's import
     expect((await web.post('/api/import/not-a-real-id/cancel', { headers: TOKEN })).status()).toBe(200);
   });
@@ -223,7 +231,20 @@ test.describe('/art', () => {
   });
 
   test('keys with separators, dots or absurd length are 400', async () => {
-    for (const k of ['..%2f..%2fetc%2fpasswd', '..', 'a%5Cb', 'a'.repeat(401)]) expect((await web.get('/art/' + k)).status(), k).toBe(400);
+    for (const k of ['..%2f..%2fetc%2fpasswd', 'a%5Cb', 'a'.repeat(401)]) expect((await web.get('/art/' + k)).status(), k).toBe(400);
+  });
+
+  test('a literal /art/.. (sent without path normalisation) is never answered with the app page', async ({ baseURL }) => {
+    // Playwright and browsers fold "/art/.." into "/", so send the request line by hand
+    const u = new URL(baseURL!);
+    const cookie = (await web.storageState()).cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+    const raw = await new Promise<string>((resolve, reject) => {
+      const s = net.connect(Number(u.port), u.hostname, () => s.write(`GET /art/.. HTTP/1.1\r\nHost: ${u.host}\r\nCookie: ${cookie}\r\nX-Emby-Token: mock-token\r\nConnection: close\r\n\r\n`));
+      let buf = ''; s.on('data', (d) => (buf += d)); s.on('end', () => resolve(buf)); s.on('error', reject);
+    });
+    const status = Number(/^HTTP\/1\.1 (\d+)/.exec(raw)?.[1]);
+    expect([400, 404], raw.slice(0, 200)).toContain(status);
+    expect(raw.toLowerCase()).not.toContain('<!doctype html');
   });
 
   test('keys that are not real covers are a quick 404, never a 500', async () => {

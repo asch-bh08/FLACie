@@ -164,6 +164,40 @@ test('an unknown address shows a page, not a crash', async ({ page }) => {
   expect(res?.status()).toBeLessThan(500);
 });
 
+for (const width of [375, 320]) {
+  test(`at ${width}px wide the bottom bar is one scrollable row: no page overflow, every link reachable, no overlap, each >= 44px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 700 });
+    await page.goto('/');
+    const rail = page.locator('#main-rail');
+    await expect(rail).toBeVisible();
+    const boxes = await rail.locator('a').evaluateAll((as) => as.map((a) => { const r = a.getBoundingClientRect(); return { href: a.getAttribute('href'), x: r.x, w: r.width, h: r.height, shown: getComputedStyle(a).display !== 'none' }; }));
+    expect(boxes.length).toBeGreaterThanOrEqual(8);
+    for (const b of boxes) { expect(b.shown, b.href ?? '').toBe(true); expect(b.w, b.href ?? '').toBeGreaterThanOrEqual(44); expect(b.h, b.href ?? '').toBeGreaterThanOrEqual(44); }
+    for (let i = 1; i < boxes.length; i++) expect(boxes[i].x, boxes[i].href ?? '').toBeGreaterThanOrEqual(boxes[i - 1].x + boxes[i - 1].w - 0.5);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    // the last link can be scrolled into view and used
+    const last = rail.locator('a').last();
+    await last.scrollIntoViewIfNeeded();
+    const lb = await last.boundingBox();
+    expect(lb && lb.x >= 0 && lb.x + lb.width <= width + 1).toBe(true);
+    await last.click();
+    await expect(page).not.toHaveURL(/\/$/);
+  });
+}
+
+test('a burst of skips opens a stream only for the song you stop on', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as any).flacie);
+  const s1 = encodeURIComponent('http://127.0.0.1:8196/Audio/s1/stream?static=true');
+  const urls: string[] = [];
+  page.on('request', (r) => { if (r.url().includes('/stream?p=')) urls.push(r.url()); });
+  await page.evaluate((p) => { for (let i = 0; i < 10; i++) (window as any).flacie.load(null, `/stream?p=${p}&skip=${i}`, 'T' + i, 'A', 'B', '', false, 0, 0); }, s1);
+  await page.waitForTimeout(1500);
+  expect(urls.length, urls.join('\n')).toBeLessThanOrEqual(2);
+  expect(urls.some((u) => u.endsWith('skip=9'))).toBe(true);
+  expect(urls.filter((u) => !u.endsWith('skip=0') && !u.endsWith('skip=9'))).toEqual([]);
+});
+
 test('signing out returns to the login page', async ({ page }) => {
   await page.request.post('/auth/logout', { maxRedirects: 0 });
   await page.goto('/songs');

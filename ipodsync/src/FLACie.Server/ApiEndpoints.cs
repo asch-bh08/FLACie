@@ -12,6 +12,7 @@ public static class ApiEndpoints
     public static void MapApi(this WebApplication app)
     {
         var fixedServer = app.Configuration["FLACIE_JELLYFIN_URL"];
+        var whoFlights = new SingleFlight<TokenCache.Who?>();
 
         async Task<UserSession?> Who(HttpContext ctx, SessionStore store, JellyfinClient jf)
         {
@@ -29,14 +30,17 @@ public static class ApiEndpoints
             try
             {
                 var known2 = tokens.Get(server, token);
-                if (known2 is null)
+                // calls arriving together while the answer is not known yet share one question to Jellyfin
+                known2 ??= await whoFlights.RunAsync(server + "|" + token, async () =>
                 {
                     var me = await jf.GetAsync(new JellyfinAccount(server, "", "", token), "/Users/Me");
                     var id = me?["Id"]?.GetValue<string>();
                     if (id is null) return null;
-                    known2 = new TokenCache.Who(id, me?["Name"]?.GetValue<string>() ?? "");
-                    tokens.Put(server, token, known2);
-                }
+                    var who = new TokenCache.Who(id, me?["Name"]?.GetValue<string>() ?? "");
+                    tokens.Put(server, token, who);
+                    return who;
+                });
+                if (known2 is null) return null;
                 return store.For(SessionStore.Principal(new JellyfinAccount(server, known2.UserId, known2.Name, token), null));
             }
             catch (UnauthorizedAccessException) { tokens.Invalidate(token); return null; }

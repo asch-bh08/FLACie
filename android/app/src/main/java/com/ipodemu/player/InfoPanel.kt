@@ -319,7 +319,10 @@ private class Gfx(
         if (cutHz > 0 && maxHz > cutHz) {
             val x = cutHz.toFloat() / maxHz * w
             d.drawLine(Color(0x4DFFFFFF), Offset(x, top), Offset(x, bottom), 1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4 * dp, 4 * dp)))
-            text(cutLabel, x - 5 * dp, top + 10 * dp, align = Paint.Align.RIGHT)
+            // the label sits left of the line; when the line is near the left edge (a Hi-Res file's wide axis) it would run off the panel: put it right of the line
+            paint.textSize = 11f * dp
+            if (x - 5 * dp - paint.measureText(cutLabel) < 0f) text(cutLabel, x + 5 * dp, top + 10 * dp, align = Paint.Align.LEFT)
+            else text(cutLabel, x - 5 * dp, top + 10 * dp, align = Paint.Align.RIGHT)
         }
         val xs = FloatArray(use); val ys = FloatArray(use); val pxs = FloatArray(use); val pys = FloatArray(use)
         for (i in 0 until use) {

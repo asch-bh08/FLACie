@@ -22,6 +22,9 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.ipodemu.App
+import com.ipodemu.Need
+import com.ipodemu.PermissionActions
+import com.ipodemu.PermissionPlan
 import com.ipodemu.player.AppRoot
 import com.ipodemu.player.PlayerKeys
 
@@ -37,7 +40,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        ensurePermission()
+        app.ui.permissions = permissionActions   // no system prompt here: see the permissions section below
         app.library.start()
         // Debug aid: `am start --es fake 1080x2400` letterboxes the UI into that aspect ratio to test layouts.
         // `--es fakedp 360` also renders it at that width in dp (e.g. a Z Fold cover screen), and `--es fakecutout 32`
@@ -105,6 +108,7 @@ class MainActivity : ComponentActivity() {
         idleHandler.removeCallbacks(idleCheck); idleHandler.postDelayed(idleCheck, 1000)
         applyBrightness()
         super.onResume()
+        refreshPermissions()
         ipodView?.updateHinge()
         hideSystemBars()
     }
@@ -122,20 +126,51 @@ class MainActivity : ComponentActivity() {
         ipodView?.updateHinge()
     }
 
-    private fun ensurePermission() {
-        val perm = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
-        val wanted = ArrayList<String>()
-        if (checkSelfPermission(perm) != PackageManager.PERMISSION_GRANTED) wanted += perm
-        // Android 13+ needs this for the playback notification / lock-screen controls to show.
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) wanted += Manifest.permission.POST_NOTIFICATIONS
-        if (wanted.isNotEmpty()) requestPermissions(wanted.toTypedArray(), 1)
+    // ---- permissions: never asked at launch. The screens show why first (sign-in screen, the reason card), then call request() ----
+
+    private val sdk get() = Build.VERSION.SDK_INT
+    private fun grantedSet(): Set<String> = listOf(Need.MEDIA, Need.NOTIFICATIONS)
+        .mapNotNull { PermissionPlan.permission(it, sdk) }.filterTo(HashSet()) { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+    private fun asked(need: Need) = if (need == Need.MEDIA) app.prefs.mediaAsked else app.prefs.notifAsked
+
+    private val permissionActions = object : PermissionActions {
+        override fun request(need: Need) {
+            val p = PermissionPlan.permission(need, sdk) ?: return
+            if (checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED) { refreshPermissions(); return }
+            if (need == Need.MEDIA) app.prefs.mediaAsked = true else app.prefs.notifAsked = true
+            app.ui.permissionReason = null
+            requestPermissions(arrayOf(p), if (need == Need.MEDIA) REQ_MEDIA else REQ_NOTIF)
+            refreshPermissions()
+        }
+        override fun decline(need: Need) {
+            if (need == Need.MEDIA) app.prefs.mediaAsked = true else app.prefs.notifAsked = true
+            app.ui.permissionReason = null
+            refreshPermissions()
+        }
+        override fun openAppSettings() {
+            try { startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", packageName, null))) } catch (_: Exception) {}
+        }
+        override fun playbackStarted() {
+            if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) || app.ui.permissionReason != null) return
+            if (PermissionPlan.askNotificationsNow(app.ui.loginMode, sdk, grantedSet(), app.prefs.notifAsked, playing = true)) app.ui.permissionReason = Need.NOTIFICATIONS
+        }
+    }
+
+    /** Re-read what is granted (settings can change it behind our back) and, for someone using this device's music, raise the reason card once. */
+    private fun refreshPermissions() {
+        val g = grantedSet()
+        app.ui.mediaAccess = PermissionPlan.access(Need.MEDIA, sdk, g, asked(Need.MEDIA))
+        app.ui.notifAccess = PermissionPlan.access(Need.NOTIFICATIONS, sdk, g, asked(Need.NOTIFICATIONS))
+        if (app.ui.permissionReason == null && PermissionPlan.askMediaNow(app.ui.loginMode, sdk, g, app.prefs.mediaAsked)) app.ui.permissionReason = Need.MEDIA
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        val i = permissions.indexOfFirst { it == Manifest.permission.READ_EXTERNAL_STORAGE || it == Manifest.permission.READ_MEDIA_AUDIO }
-        if (i >= 0 && grantResults.getOrNull(i) == PackageManager.PERMISSION_GRANTED) app.library.rescan()
+        if (requestCode == REQ_MEDIA && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) app.library.rescan()
+        refreshPermissions()
     }
+
+    private companion object { const val REQ_MEDIA = 1; const val REQ_NOTIF = 2 }
 
     // Backlight timeout for the Player views (the click-wheel view keeps its own dimming): dim after N idle seconds, wake on input.
     private val idleHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -181,6 +216,7 @@ class MainActivity : ComponentActivity() {
     override fun onPause() { idleHandler.removeCallbacks(idleCheck); super.onPause() }
 
     override fun onDestroy() {
+        if (app.ui.permissions === permissionActions) app.ui.permissions = null
         ipodView?.release()
         ipodView = null
         super.onDestroy()

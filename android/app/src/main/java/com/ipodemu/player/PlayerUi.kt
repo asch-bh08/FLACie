@@ -505,6 +505,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             if (!modern) item { NowPlayingCard(snap, nav) { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } } }
+            if (com.ipodemu.PermissionPlan.showMediaNotice(app.ui.loginMode, app.ui.mediaAccess)) item { MediaAccessNotice(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             item {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlossPill("Shuffle All", { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } }, icon = Glyph.SHUFFLE, height = 32.dp)

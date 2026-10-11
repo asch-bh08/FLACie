@@ -72,3 +72,12 @@ Gapless transitions, Hi-Res playback and the Hi-Res badge on a 48 kHz file, EQ o
 ## Hard rules (unchanged)
 Never type or ask for passwords or tokens (Quick Connect is approved by the owner); never write to a real iPod; never delete NAS files;
 on frank touch only `flacie-web`; no YouTube download source; features ship on Android, web and Windows together; say plainly what was tested and what was not.
+
+## STATUS UPDATE (end of session, usage limit reached)
+Merged into release/beta50 and pushed: fix/web-g1, fix/web-g2 (87 .NET, 107 Playwright pass on that branch), fix/android-g2 (99 Android unit tests pass).
+NOT yet done: merged-tree full test run (Gradle + dotnet + Playwright on release/beta50 HEAD), emulator crash-loop result (agent was still running: see docs/test-run/G-emu.md if it finished),
+Fold crash gate (Fold removed from test: crash fix UNVERIFIED on a real Fold; Compose BOM 2024.09.03 + Home early-return removal + Quick picks BoxWithConstraints removal are candidates only),
+first-NAS-scan jank proof (needs fresh install + owner sign-in), version bump already done (65 / 1.0-beta50, MSI 0.50.0 / 51),
+docs/release-notes-beta50.md + CHANGELOG, final APK/MSI build, gh release, frank redeploy. NOTHING is released or deployed.
+Open from reports: G-win.md (desktop), G-rg.md (RG), G2-android.md, G2-web.md. Not fixed: BUG-5 background MEDIA_PLAY routing, one slow Jellyfin song after skip bursts, O5 device label, queue reorder (feature, not included).
+By-ear checks for the owner: gapless, Hi-Res badge on a 48 kHz file, EQ on/off, headphone volume, skip burst on a real song.

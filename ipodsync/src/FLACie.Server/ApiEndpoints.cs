@@ -19,6 +19,8 @@ public static class ApiEndpoints
             // with a fixed Jellyfin the token is checked there, whatever address the phone uses for the same server (LAN, Tailscale, public)
             var server = fixedServer ?? ctx.Request.Headers["X-Jellyfin-Server"].FirstOrDefault();
             if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(server)) return null;
+            // the token ends up inside an Authorization header sent to Jellyfin: a Jellyfin token is hex, so anything with quotes, commas or spaces is not one (and must not add parameters to that header)
+            if (token.Length > 256 || token.Any(c => c is '"' or ',' or ' ' or '\\' or ';' || char.IsControl(c))) return null;
             server = JellyfinClient.Normalise(server);
             var known = fixedServer is not null || store.Active.Any(s => s.Jellyfin?.Server == server);
             if (!known) return null;
@@ -44,8 +46,11 @@ public static class ApiEndpoints
         {
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
             if (ctx.Request.ContentLength is > 20 * 1024 * 1024) return Results.BadRequest(new { error = "That file is too big (limit 20 MB)." });
+            // a body sent in chunks has no length to check up front: the server stops reading at the limit
+            if (ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit) limit.MaxRequestBodySize = 20 * 1024 * 1024;
             using var ms = new MemoryStream();
-            await ctx.Request.Body.CopyToAsync(ms);
+            try { await ctx.Request.Body.CopyToAsync(ms); }
+            catch (Microsoft.AspNetCore.Http.BadHttpRequestException) { return Results.Json(new { error = "That file is too big (limit 20 MB)." }, statusCode: 413); }
             try { return Results.Ok(Summary(imports.Start(s, string.IsNullOrWhiteSpace(name) ? "playlist.txt" : Path.GetFileName(name), ms.ToArray(), replace == true))); }
             catch (InvalidDataException e) { return Results.BadRequest(new { error = e.Message }); }
         }).DisableAntiforgery();

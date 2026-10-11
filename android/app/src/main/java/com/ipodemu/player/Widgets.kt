@@ -405,18 +405,35 @@ fun IpodRow(
     val sc = LocalScheme.current
     val style = LocalStyle.current
     val src = remember { MutableInteractionSource() }
-    val pressed by src.collectIsPressedAsState()
-    val focused by src.collectIsFocusedAsState()
-    val hi = pressed || focused
+    // pressed or focused, from ONE collector (the two collectIs...AsState calls were two coroutines per row, and a list builds dozens of rows while it scrolls)
+    val hiState = remember { androidx.compose.runtime.mutableStateOf(false) }
+    LaunchedEffect(src) {
+        val presses = ArrayList<androidx.compose.foundation.interaction.PressInteraction.Press>()
+        var focused = false
+        src.interactions.collect { i ->
+            when (i) {
+                is androidx.compose.foundation.interaction.PressInteraction.Press -> presses.add(i)
+                is androidx.compose.foundation.interaction.PressInteraction.Release -> presses.remove(i.press)
+                is androidx.compose.foundation.interaction.PressInteraction.Cancel -> presses.remove(i.press)
+                is androidx.compose.foundation.interaction.FocusInteraction.Focus -> focused = true
+                is androidx.compose.foundation.interaction.FocusInteraction.Unfocus -> focused = false
+            }
+            hiState.value = presses.isNotEmpty() || focused
+        }
+    }
+    val hi = hiState.value
+    // what wheelTracked() does, without the composed{} modifier (its remember + node chain per row was measurable on a 10 000-song list)
+    val wheelFr = remember { androidx.compose.ui.focus.FocusRequester() }
     Row(
         modifier.fillMaxWidth().height(if (Tweaks.compact) height * 0.84f else height)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .background(if (hi && style.modern) androidx.compose.ui.graphics.SolidColor(Palette.surface2) else if (hi) Brush.verticalGradient(listOf(sc.accentLight, sc.accentDark)) else Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent)))
-            .drawBehind {
+            // nothing is painted behind an idle row (it used to draw a transparent gradient shader per row, every frame)
+            .then(if (hi && style.modern) Modifier.background(Palette.surface2) else if (hi) Modifier.background(Brush.verticalGradient(listOf(sc.accentLight, sc.accentDark))) else Modifier)
+            .then(if (!style.modern || (hi && style.glossy)) Modifier.drawBehind {
                 if (!hi && !style.modern) drawLine(sc.onBg.copy(alpha = .1f), Offset(size.height, size.height - 1f), Offset(size.width, size.height - 1f), 1f)
                 if (hi && style.glossy) drawRect(Brush.verticalGradient(listOf(Color(0x40FFFFFF), Color.Transparent)), size = Size(size.width, size.height * .5f))
-            }
-            .wheelTracked()
+            } else Modifier)
+            .focusRequester(wheelFr).onFocusChanged { if (it.isFocused) WheelFocus.last = wheelFr }
             .combinedClickable(interactionSource = src, indication = null, onClick = onClick, onLongClick = onLong)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -436,7 +453,8 @@ fun rememberArt(key: String?, thumb: Boolean): Bitmap? {
     val art = LocalApp.current.art
     // keyed state: produceState kept the previous song's cover on screen while the next one loaded (or for good when it had none)
     val state = remember(key, thumb) { mutableStateOf(art.peek(key, thumb)) }
-    LaunchedEffect(key, thumb) { if (state.value == null) state.value = art.load(key, thumb) }
+    // no coroutine at all for a cover that is already in memory (most rows of a list you scroll back through)
+    if (state.value == null && key != null) LaunchedEffect(key, thumb) { state.value = art.load(key, thumb) }
     return state.value
 }
 
@@ -444,11 +462,15 @@ fun rememberArt(key: String?, thumb: Boolean): Bitmap? {
 fun ArtImage(key: String?, modifier: Modifier = Modifier, thumb: Boolean = false, corner: Dp = 8.dp, circle: Boolean = false) {
     val bmp = rememberArt(key, thumb)
     val sc = LocalScheme.current
-    val shape = if (circle) CircleShape else RoundedCornerShape(corner)
+    val shape = remember(circle, corner) { if (circle) CircleShape else RoundedCornerShape(corner) }
     val img = remember(bmp) { bmp?.asImageBitmap() }
-    Box(modifier.clip(shape).background(Brush.linearGradient(listOf(sc.onBg.copy(alpha = .16f), sc.onBg.copy(alpha = .05f)))), contentAlignment = Alignment.Center) {
+    // the placeholder gradient is only drawn while there is no cover: a gradient shader behind every loaded cover was wasted work per row per frame
+    Box(modifier.clip(shape), contentAlignment = Alignment.Center) {
         if (img != null) Image(img, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        else GlyphIcon(Glyph.NOTE, Modifier.fillMaxSize(0.42f), sc.onBg.copy(alpha = .35f))
+        else {
+            Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(sc.onBg.copy(alpha = .16f), sc.onBg.copy(alpha = .05f)))))
+            GlyphIcon(Glyph.NOTE, Modifier.fillMaxSize(0.42f), sc.onBg.copy(alpha = .35f))
+        }
     }
 }
 

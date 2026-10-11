@@ -26,8 +26,11 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         prefs = Prefs(this)
-        File(filesDir, "art").deleteRecursively()   // the old cover folder (covers changed in Jellyfin showed stale): covers are fetched again, into a new one
+        // the old cover folder (covers changed in Jellyfin showed stale): covers are fetched again, into a new one; deleted off the main thread
+        bg.launch { File(filesDir, "art").deleteRecursively() }
         art = ArtCache(File(filesDir, "art2"))
+        // row thumbnails: a 44 dp row is 66 px at 240 dpi, so 80 px (1/4 of the 320 px file) is plenty and decodes in about half the time
+        art.thumbSample = if (resources.displayMetrics.density <= 1.6f) 4 else 3
         library = Library(this, art)
         player = PlayerController(this, prefs)
         ui = UiState(prefs)

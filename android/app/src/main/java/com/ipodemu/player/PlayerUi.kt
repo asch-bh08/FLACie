@@ -178,7 +178,9 @@ fun rememberPosition(player: PlayerController, active: Boolean): State<Long> {
 fun fmtTime(ms: Long): String {
     val s = (ms / 1000).coerceAtLeast(0)
     val h = s / 3600
-    return if (h > 0) "%d:%02d:%02d".format(h, s % 3600 / 60, s % 60) else "%d:%02d".format(s / 60, s % 60)
+    // String.format is slow on Android (a Formatter and a Locale lookup per call) and a song list formats one time per row
+    fun two(n: Long) = if (n < 10) "0$n" else "$n"
+    return if (h > 0) "$h:" + two(s % 3600 / 60) + ":" + two(s % 60) else "" + (s / 60) + ":" + two(s % 60)
 }
 
 fun songCount(n: Int) = if (n == 1) "1 song" else "$n songs"
@@ -350,8 +352,9 @@ fun TrackRow(
                 if (fav) GlyphIcon(Glyph.HEART_FILLED, Modifier.size(18.dp), sc.accent)
                 if (hiRes) HiResBadge()
                 SourceBadge(t.source)
-                if (t.durationMs > 0) Txt(fmtTime(t.durationMs), size = 13f, color = rowDim())
-                Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = "More options for ${t.title}" }.clickable { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, contentAlignment = Alignment.Center) {
+                if (t.durationMs > 0) Txt(remember(t.durationMs) { fmtTime(t.durationMs) }, size = 13f, color = rowDim())
+                val moreLabel = remember(t.title) { "More options for ${t.title}" }
+                Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = moreLabel }.clickable { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, contentAlignment = Alignment.Center) {
                     GlyphIcon(Glyph.MORE, Modifier.size(22.dp), rowDim())
                 }
             }
@@ -359,7 +362,7 @@ fun TrackRow(
     ) { hi ->
         Column {
             Txt(t.title, size = 16f, weight = if (isCurrent) FontWeight.Bold else FontWeight.Medium, color = if (hi) Color.White else if (isCurrent) sc.accent else sc.onBg)
-            val sub = listOf(t.artist, t.album).filter { it.isNotEmpty() }.joinToString(" - ")
+            val sub = remember(t.artist, t.album) { if (t.artist.isEmpty()) t.album else if (t.album.isEmpty()) t.artist else t.artist + " - " + t.album }
             if (sub.isNotEmpty()) Txt(sub, size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
         }
     }
@@ -697,13 +700,13 @@ fun SongList(
     }
     val groups = remember(tracks, sections) { if (sections > 0) tracks.withIndex().groupBy { letterOf(sortKey(if (sections == 2) it.value.artist.ifEmpty { "#" } else it.value.title)) } else emptyMap() }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-        if (header != null) item { header() }
+        if (header != null) item(contentType = "header") { header() }
         if (sections > 0) {
             groups.forEach { (l, list) ->
-                stickyHeader(key = "h$l") { LetterHeader(l) }
-                items(list, key = { "${it.index}${it.value.path}" }) { row(it.index, it.value) }
+                stickyHeader(key = "h$l", contentType = "letter") { LetterHeader(l) }
+                items(list, key = { "${it.index}${it.value.path}" }, contentType = { "song" }) { row(it.index, it.value) }
             }
-        } else itemsIndexed(tracks, key = { i, t -> "$i${t.path}" }) { i, t -> row(i, t) }
+        } else itemsIndexed(tracks, key = { i, t -> "$i${t.path}" }, contentType = { _, _ -> "song" }) { i, t -> row(i, t) }
         item { CountFooter(songCount(tracks.size) + totalTime(tracks)) }
         if (missing.isNotEmpty()) {
             item { SectionHeader("Not in your library") }
@@ -737,8 +740,8 @@ internal fun GroupList(groups: List<Group>, nav: PlayerNav, circle: Boolean, tar
     val sections = remember(groups) { groups.groupBy { letterOf(sortKey(it.name)) } }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         sections.forEach { (l, list) ->
-            stickyHeader(key = "h$l") { LetterHeader(l) }
-            items(list, key = { it.name + "|" + (it.tracks.firstOrNull()?.path ?: "") }) { g ->
+            stickyHeader(key = "h$l", contentType = "letter") { LetterHeader(l) }
+            items(list, key = { it.name + "|" + (it.tracks.firstOrNull()?.path ?: "") }, contentType = { "group" }) { g ->
             IpodRow({ nav.push(target(g)) }, height = 56.dp,
                 leading = { ArtImage(g.artKey, Modifier.size(44.dp), thumb = true, corner = 10.dp, circle = circle) },
                 trailing = { CountChevron(g.tracks.size) }) { hi ->

@@ -47,11 +47,8 @@ import com.ipodemu.library.Track
 import com.ipodemu.library.matchKey
 import com.ipodemu.library.sortKey
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-
-private val LOSSLESS = setOf("flac", "alac", "wav", "aiff", "aif", "ape", "wv", "dsf", "tta")
-private fun ext(t: Track) = (t.filePath.ifEmpty { t.path.substringBefore('?') }).substringAfterLast('.', "").lowercase()
-private fun decadeOf(y: Int) = if (y >= 1900) "${y / 10 * 10}s" else ""
 
 private val EXPLORE_SORTS = mapOf(
     "Songs" to listOf("az" to "Title A–Z", "za" to "Title Z–A", "artist" to "Artist", "new" to "Recently added", "year" to "Newest year", "oldest" to "Oldest year", "long" to "Longest"),
@@ -62,31 +59,12 @@ private val EXPLORE_SORTS = mapOf(
 
 private val DEPTHS = listOf("16" to "16-bit", "24" to "24-bit", "32" to "32-bit")
 private val RATES = listOf("lo" to "Below 44.1 kHz", "44" to "44.1 kHz", "48" to "48 kHz", "88" to "88.2 kHz", "96" to "96 kHz", "176" to "176.4 kHz", "192" to "192 kHz and up")
-private fun rateBand(hz: Int, band: String) = when (band) {
-    "lo" -> hz in 1..43_999; "44" -> hz in 44_000..44_200; "48" -> hz in 47_900..48_100; "88" -> hz in 88_000..88_300
-    "96" -> hz in 95_900..96_100; "176" -> hz in 176_000..176_500; "192" -> hz >= 191_900; else -> true
-}
 private val CODECS = listOf("flac" to "FLAC", "alac" to "ALAC (Apple Lossless)", "wav" to "WAV / PCM", "aiff" to "AIFF", "ape" to "APE", "wv" to "WavPack", "dsd" to "DSD", "mp3" to "MP3", "aac" to "AAC / M4A", "ogg" to "Ogg Vorbis", "opus" to "Opus", "wma" to "WMA")
 private val KBPS = listOf(
     "128" to "128 kbps or lower", "192" to "129 to 192 kbps", "256" to "193 to 256 kbps", "320" to "257 to 320 kbps", "700" to "321 to 700 kbps", "900" to "701 to 900 kbps",
     "1000" to "901 to 1,000 kbps", "1500" to "1,001 to 1,500 kbps", "2000" to "1,501 to 2,000 kbps", "3000" to "2,001 to 3,000 kbps", "4000" to "3,001 to 4,000 kbps",
     "5000" to "4,001 to 5,000 kbps", "max" to "Above 5,000 kbps",
 )
-private fun kbpsBand(k: Int, band: String) = k > 0 && when (band) {
-    "128" -> k <= 128; "192" -> k in 129..192; "256" -> k in 193..256; "320" -> k in 257..320; "700" -> k in 321..700; "900" -> k in 701..900; "1000" -> k in 901..1000
-    "1500" -> k in 1001..1500; "2000" -> k in 1501..2000; "3000" -> k in 2001..3000; "4000" -> k in 3001..4000; "5000" -> k in 4001..5000; "max" -> k > 5000; else -> true
-}
-/** The codec family of a song ("flac", "mp3", "aac" ...): the real codec when the server read it, else the file extension. */
-private fun codecFamily(t: Track): String {
-    val c = (AudioFacts.of(t)?.codec?.takeIf { it.isNotEmpty() } ?: ext(t)).lowercase()
-    return when {
-        "alac" in c -> "alac"; "flac" in c -> "flac"; "mp3" in c || "mpeg" in c || c == "mp2" -> "mp3"
-        "aac" in c || "m4a" in c || "mp4" in c -> "aac"; "opus" in c -> "opus"; "vorbis" in c || "ogg" in c || c == "oga" -> "ogg"
-        "wma" in c || "asf" in c -> "wma"; "wavpack" in c || c == "wv" -> "wv"; "pcm" in c || "wav" in c -> "wav"
-        "aif" in c -> "aiff"; "ape" in c || "monkey" in c -> "ape"; "dsd" in c || "dsf" in c || "dff" in c -> "dsd"; else -> ""
-    }
-}
-
 /** Explore: the library cut five ways (songs, albums, artists, genres, charts) with a text filter, A to Z, genre, decade, lossless or lossy and a sort. */
 @Composable
 fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
@@ -95,7 +73,6 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     val lib = app.library
-    app.userData.rev
     var tab by rememberSaveable { mutableStateOf("Songs") }
     var query by rememberSaveable { mutableStateOf("") }
     var letter by rememberSaveable { mutableStateOf("") }
@@ -110,24 +87,27 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
     val sorts = EXPLORE_SORTS[tab]
     if (sorts != null && sorts.none { it.first == sort }) sort = "az"
     val libRev = LocalLibRev.current
-    val songs = remember(libRev) { lib.songs() }
-    val choices = remember(libRev) {
-        val gs = songs.filter { it.genre.isNotBlank() }.groupBy { it.genre.trim().lowercase() }.filter { it.value.size >= 3 }.map { it.value.first().genre.trim() }.sortedBy { it.lowercase() }
-        gs to songs.map { decadeOf(it.year) }.filter { it.isNotEmpty() }.distinct().sortedDescending()
+    // the genre and decade lists are only needed when the Filters sheet opens: worked out in the background, not on the main thread
+    val choices by androidx.compose.runtime.produceState(emptyList<String>() to emptyList<String>(), libRev) {
+        value = withContext(Dispatchers.Default) {
+            val songs = lib.songs()
+            val gs = songs.filter { it.genre.isNotBlank() }.groupBy { it.genre.trim().lowercase() }.filter { it.value.size >= 3 }.map { it.value.first().genre.trim() }.sortedBy { it.lowercase() }
+            gs to songs.map { decadeOf(it.year) }.filter { it.isNotEmpty() }.distinct().sortedDescending()
+        }
     }
-    val filtering = query.isNotBlank() || letter.isNotEmpty() || genre.isNotEmpty() || decade.isNotEmpty() || quality.isNotEmpty() || depth.isNotEmpty() || rate.isNotEmpty() || codec.isNotEmpty() || kbps.isNotEmpty()
-    val words = remember(query) { SearchRank.words(query) }
-    // text matching: exact first; only when nothing at all matches exactly, within a few typos
-    fun exactHit(vararg fields: String): Boolean { val glue = SearchRank.words(fields.joinToString(" ")).joinToString(""); return words.all { glue.contains(it) } }
-    val fuzzy = remember(query, libRev) { words.isNotEmpty() && songs.none { exactHit(it.title, it.artist, it.album) } }
-    fun hit(vararg fields: String): Boolean = if (words.isEmpty()) true else if (fuzzy) SearchRank.fuzzyHit(words, fields.joinToString(" ")) else exactHit(*fields)
-    fun match(t: Track) = (genre.isEmpty() || t.genre.trim().equals(genre, true)) && (decade.isEmpty() || decadeOf(t.year) == decade) &&
-        (quality.isEmpty() || (if (quality == "hires") t.hiRes else (quality == "lossless") == (AudioFacts.of(t)?.lossless ?: (ext(t) in LOSSLESS)))) &&
-        (depth.isEmpty() || AudioFacts.of(t)?.let { it.depth > 0 && it.depth.toString() == depth } == true) &&
-        (rate.isEmpty() || AudioFacts.of(t)?.let { rateBand(it.rate, rate) } == true) &&
-        (codec.isEmpty() || codecFamily(t) == codec) &&
-        (kbps.isEmpty() || AudioFacts.of(t)?.let { kbpsBand(it.kbps, kbps) } == true)
-    fun letterOk(name: String) = letter.isEmpty() || letterOf(sortKey(name)) == letter
+    val q = ExploreQuery(tab, query, letter, genre, decade, quality, depth, rate, codec, kbps, sort)
+    val filtering = q.filtering
+    // the filtered and sorted list is worked out on a background thread (10 000 songs on the main thread froze the screen on every keystroke
+    // or filter change); the previous list stays up until the new one is ready, and typing waits for a short pause
+    val result by androidx.compose.runtime.produceState<ExploreResult?>(
+        if (tab == "Songs" && !filtering && sort == "az") lib.songs().let { ExploreResult("Songs", it, emptyList(), false, it.size) } else null,
+        tab, query, letter, genre, decade, quality, depth, rate, codec, kbps, sort, libRev, AudioFacts.version,
+    ) {
+        if (tab == "Charts") return@produceState
+        if (query.isNotBlank()) delay(150)
+        value = withContext(Dispatchers.Default) { ExploreEngine.run(q, lib.songs(), { lib.albums() }, { lib.artists() }, { lib.genres() }) }
+    }
+    val r = result?.takeIf { it.tab == tab }
 
     // the pickers live in one tidy Filters sheet instead of a row of seven pills
     fun pick(title: String, subtitle: String?, options: List<Pair<String, String>>, current: String, set: (String) -> Unit) {
@@ -170,7 +150,7 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
                 nav.sheet = SheetSpec("Sort", null, (sorts ?: emptyList()).map { (id, label) -> SheetItem(label, if (id == sort) Glyph.CHECK else Glyph.LIST) { sort = id } })
             }, size = 46.dp)
         }
-        if (fuzzy && query.isNotBlank()) Txt("No exact match for \"${query.trim()}\", showing the closest matches", Modifier.padding(horizontal = 20.dp, vertical = 2.dp), size = 13f, color = sc.accent)
+        if (r?.fuzzy == true && query.isNotBlank()) Txt("No exact match for \"${query.trim()}\", showing the closest matches", Modifier.padding(horizontal = 20.dp, vertical = 2.dp), size = 13f, color = sc.accent)
         // what is on, each one tappable to turn off (only shown when something is)
         if (activeFilters > 0 || letter.isNotEmpty()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (letter.isNotEmpty()) GlossPill("Letter $letter", { letter = "" }, icon = Glyph.CLOSE, height = 32.dp)
@@ -196,54 +176,24 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
             }
         }
         Box(Modifier.fillMaxSize().padding(end = 32.dp)) {
-        when (tab) {
+        if (r != null) when (tab) {
             "Songs" -> {
-                val list = remember(songs, query, letter, genre, decade, quality, depth, rate, codec, kbps, sort) {
-                    songs.filter { letterOk(it.title) && match(it) && hit(it.title, it.artist, it.album) }.let { l ->
-                        when (sort) {
-                            "za" -> l.sortedByDescending { sortKey(it.title) }; "artist" -> l.sortedWith(compareBy({ sortKey(it.artist) }, { it.album }, { it.discNo }, { it.trackNo }))
-                            "new" -> l.sortedByDescending { it.mtime }; "year" -> l.sortedByDescending { it.year }; "oldest" -> l.filter { it.year > 0 }.sortedBy { it.year }
-                            "long" -> l.sortedByDescending { it.durationMs }; else -> l
-                        }
-                    }
-                }
+                val list = r.songs
                 // "Playing from Songs" in the queue, as on the web
                 androidx.compose.runtime.DisposableEffect(Unit) { nav.playContext = "Songs"; onDispose { if (nav.playContext == "Songs") nav.playContext = null } }
                 if (list.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No songs yet")
                 else SongList(list, nav, snap, showArt = true, header = {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                         GlossPill("Shuffle", { app.player.play(list, list.indices.random(), true) }, icon = Glyph.SHUFFLE, primary = true, height = 34.dp)
-                        Txt(if (filtering) "${list.size} of ${songs.size} songs" else songCount(list.size), Modifier.weight(1f), size = 13f, color = sc.onBgDim, align = androidx.compose.ui.text.style.TextAlign.End)
+                        Txt(if (filtering) "${list.size} of ${r.total} songs" else songCount(list.size), Modifier.weight(1f), size = 13f, color = sc.onBgDim, align = androidx.compose.ui.text.style.TextAlign.End)
                     }
                 })
             }
-            "Albums" -> {
-                val list = remember(libRev, query, letter, genre, decade, quality, depth, rate, codec, kbps, sort) {
-                    lib.albums().filter { g -> letterOk(g.name) && hit(g.name, g.tracks.first().albumArtist.ifEmpty { g.tracks.first().artist }) && g.tracks.any { match(it) } }.let { l ->
-                        when (sort) {
-                            "za" -> l.sortedByDescending { sortKey(it.name) }; "artist" -> l.sortedBy { sortKey(it.tracks.first().albumArtist.ifEmpty { it.tracks.first().artist }) }
-                            "new" -> l.sortedByDescending { g -> g.tracks.maxOf { it.mtime } }; "year" -> l.sortedByDescending { g -> g.tracks.maxOf { it.year } }
-                            "oldest" -> l.filter { g -> g.tracks.any { it.year > 0 } }.sortedBy { g -> g.tracks.filter { it.year > 0 }.minOf { it.year } }
-                            "long" -> l.sortedByDescending { it.tracks.size }; else -> l
-                        }
-                    }
-                }
-                if (list.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No albums yet") else AlbumGrid(list, nav)
-            }
-            "Artists" -> {
-                val list = remember(libRev, query, letter, genre, decade, quality, depth, rate, codec, kbps, sort) {
-                    lib.artists().filter { letterOk(it.name) && hit(it.name) && it.tracks.any { t -> match(t) } }.let { l -> when (sort) { "za" -> l.sortedByDescending { sortKey(it.name) }; "long" -> l.sortedByDescending { it.tracks.size }; else -> l } }
-                }
-                if (list.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No artists yet") else GroupList(list, nav, circle = true) { Screen.Detail(DetailKind.ARTIST, it.name) }
-            }
-            else -> {
-                val list = remember(libRev, query, letter, genre, decade, quality, depth, rate, codec, kbps, sort) {
-                    lib.genres().filter { letterOk(it.name) && hit(it.name) && it.tracks.any { t -> match(t) } }.let { l -> when (sort) { "za" -> l.sortedByDescending { sortKey(it.name) }; "long" -> l.sortedByDescending { it.tracks.size }; else -> l } }
-                }
-                if (list.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No genres yet") else GroupList(list, nav, circle = false) { Screen.Detail(DetailKind.GENRE, it.name) }
-            }
+            "Albums" -> if (r.groups.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No albums yet") else AlbumGrid(r.groups, nav)
+            "Artists" -> if (r.groups.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No artists yet") else GroupList(r.groups, nav, circle = true) { Screen.Detail(DetailKind.ARTIST, it.name) }
+            else -> if (r.groups.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No genres yet") else GroupList(r.groups, nav, circle = false) { Screen.Detail(DetailKind.GENRE, it.name) }
         }
-}        }
+        }
     }
 }
 

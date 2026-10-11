@@ -6,7 +6,12 @@ import android.os.Handler
 import android.os.Looper
 import android.util.LruCache
 import java.io.File
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.withContext
 import java.util.concurrent.Executors
+import java.util.concurrent.ThreadFactory
 
 /**
  * Cover-art store. Thumbnails are 320px JPEGs on disk; [get] never blocks: it returns a cached bitmap or null
@@ -18,7 +23,16 @@ class ArtCache(private val dir: File) {
     }
     private val missing = HashSet<String>()
     private val pending = HashSet<String>()
-    private val exec = Executors.newFixedThreadPool(4)
+    /** Decode and download threads run at background priority: on a low-power SoC they must never compete with the UI and render threads. */
+    private val bgThreads = ThreadFactory { r ->
+        Thread({ try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) } catch (_: Exception) {}; r.run() }, "art").apply { isDaemon = true }
+    }
+    private val exec = Executors.newFixedThreadPool(4, bgThreads)
+    /** Bounded decoder for Compose rows: a fast fling used to start up to 64 JPEG decodes at once (Dispatchers.IO). Two threads; a row that scrolled away
+     * is cancelled before it ever runs. */
+    private val decoder: CoroutineDispatcher = Executors.newFixedThreadPool(2, bgThreads).asCoroutineDispatcher()
+    /** inSampleSize for row thumbnails (320 px / n). 4 gives 80 px, still sharper than a 44 dp row at 240 dpi (66 px); set by the app from the screen density. */
+    @Volatile var thumbSample = 3
     private val main = Handler(Looper.getMainLooper())
     private var notifyQueued = false
 
@@ -78,7 +92,7 @@ class ArtCache(private val dir: File) {
         exec.execute {
             val f = ensure(key)
             val b = try {
-                if (f.exists()) BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { if (thumb) inSampleSize = 3 }) else null
+                if (f.exists()) BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { if (thumb) inSampleSize = thumbSample }) else null
             } catch (_: Exception) { null }
             synchronized(this) {
                 pending.remove(ck)
@@ -97,17 +111,23 @@ class ArtCache(private val dir: File) {
         return synchronized(this) { mem.get(if (thumb) "t$key" else key) }
     }
 
-    /** Loads (or returns the cached) bitmap for Compose callers; decoding runs on IO. */
+    /** Loads (or returns the cached) bitmap for Compose callers. The download (remote covers only) runs on IO, the decode on the bounded [decoder]. */
     suspend fun load(key: String?, thumb: Boolean = false): Bitmap? {
         if (key == null) return null
         val ck = if (thumb) "t$key" else key
-        synchronized(this) { mem.get(ck)?.let { return it } }
-        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val f = ensure(key)
+        synchronized(this) { mem.get(ck)?.let { return it }; if (ck in missing) return null }
+        if (fetcher != null) withContext(Dispatchers.IO) { ensure(key) }
+        return withContext(decoder) {
+            // many rows share one album cover: the second one queued finds the first one's bitmap here instead of decoding it again
+            synchronized(this@ArtCache) { mem.get(ck) }?.let { return@withContext it }
+            val f = file(key)
             val b = try {
-                if (f.exists()) BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { if (thumb) inSampleSize = 3 }) else null
+                if (f.exists()) BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { if (thumb) inSampleSize = thumbSample }) else null
             } catch (_: Exception) { null }
-            if (b != null) synchronized(this@ArtCache) { mem.put(ck, b) }
+            synchronized(this@ArtCache) {
+                // only a local miss is final (a remote cover that failed is retried, see ensure)
+                if (b != null) mem.put(ck, b) else if (fetcher == null) missing.add(ck)
+            }
             b
         }
     }

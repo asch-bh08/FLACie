@@ -36,7 +36,12 @@ public sealed class PlayTracker
     readonly Func<bool> enabled;
     readonly object gate = new();
     readonly Dictionary<(string User, string Key), Song> songs = [];
-    readonly Dictionary<(string User, string Key), string?> via = [];   // what /stream decided for this song: null = Jellyfin
+    readonly Dictionary<(string User, string Key), (string? Source, DateTime At)> via = [];   // what /stream decided for this song: null = Jellyfin
+    /// <summary>Most songs / source decisions kept at once. A client that never stops sending new keys must not grow the server's memory without end.</summary>
+    const int MaxTracked = 5000;
+
+    /// <summary>How many songs and source decisions are held right now (for tests and diagnostics).</summary>
+    public (int Songs, int Sources) Tracked { get { lock (gate) return (songs.Count, via.Count); } }
     readonly Dictionary<string, Run> runs = [];
     readonly Dictionary<string, string> names = [];
 
@@ -50,18 +55,31 @@ public sealed class PlayTracker
     /// <summary>The stream endpoint resolved this song to a source. [source] is null for Jellyfin, or a label ("NAS", "direct") for a play Jellyfin does not see.</summary>
     public void Served(string user, string key, string? source)
     {
-        lock (gate) via[(user, key)] = source;
+        if (!enabled()) return;
+        lock (gate)
+        {
+            via[(user, key)] = (source, now());
+            if (via.Count > MaxTracked) Evict(via, v => v.At);
+        }
+    }
+
+    // drops the oldest tenth of a dictionary that grew past its limit
+    static void Evict<V>(Dictionary<(string User, string Key), V> d, Func<V, DateTime> when)
+    {
+        foreach (var k in d.OrderBy(p => when(p.Value)).Take(Math.Max(1, d.Count / 10)).Select(p => p.Key).ToList()) d.Remove(k);
     }
 
     /// <summary>A song was loaded in a player: its listening clock starts from zero.</summary>
     public void Begin(string user, string userName, string key, string title, string artist, string device, string? context = null)
     {
+        if (!enabled()) return;
         lock (gate)
         {
             names[user] = userName;
             if (!songs.TryGetValue((user, key), out var s)) songs[(user, key)] = s = new();
             s.Title = title; s.Artist = artist; s.Device = device; s.Context = context ?? "";
             s.Listened = 0; s.LastTick = null; s.Decided = false; s.InRun = false; s.Touched = now();
+            if (songs.Count > MaxTracked) Evict(songs, x => x.Touched);
         }
     }
 
@@ -83,7 +101,7 @@ public sealed class PlayTracker
             s.LastTick = playing ? t : null;
             if (s.Decided || s.Listened < MinListen.TotalSeconds) goto done;
             s.Decided = true;
-            if (!via.TryGetValue((user, key), out var src) || src is null) goto done;    // Jellyfin, or never resolved here: not ours to announce
+            if (!via.TryGetValue((user, key), out var decided) || decided.Source is not { } src) goto done;    // Jellyfin, or never resolved here: not ours to announce
             if (s.CountedAt is { } at && t - at < Debounce) goto done;                    // the same song again straight away is the same play
             s.CountedAt = t; s.InRun = true;
             runs.TryGetValue(user, out var run);
@@ -110,6 +128,10 @@ public sealed class PlayTracker
                 say.Add(Summary(user, run)); runs.Remove(user);
             }
             foreach (var k in songs.Where(p => t - p.Value.Touched > TimeSpan.FromHours(1)).Select(p => p.Key).ToList()) { songs.Remove(k); via.Remove(k); }
+            // a source decision whose song was never loaded here (a stream request, a "progress" report) has no song entry to retire it with
+            foreach (var k in via.Where(p => t - p.Value.At > TimeSpan.FromHours(1) && !songs.ContainsKey(p.Key)).Select(p => p.Key).ToList()) via.Remove(k);
+            // a user's name is only needed while that user has a run or a song
+            foreach (var u in names.Keys.Where(u => !runs.ContainsKey(u) && !songs.Keys.Any(k => k.User == u)).ToList()) names.Remove(u);
         }
         foreach (var (title, msg) in say) publish(title, msg);
     }

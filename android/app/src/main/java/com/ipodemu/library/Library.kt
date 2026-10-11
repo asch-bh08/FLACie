@@ -86,7 +86,8 @@ class Library(ctx: Context, val art: ArtCache) {
     @Volatile private var jellyfinUserId: String? = null
     private val plex = PlexDirectClient()
     @Volatile private var plexSectionKey: String? = null
-    private val nas = NasDirectClient()
+    // NAS songs get real tags (and embedded covers) read in the background; what was read is kept in nas-tags.bin
+    private val nas = NasDirectClient(File(ctx.filesDir, "nas-tags.bin"), hasArt = { art.has(it) }, saveArt = { k, b -> art.save(k, b) })
     private val lidarr = LidarrClient()
     private val slskd = SlskdClient()
     private val fileMover = FileMoverClient()
@@ -532,12 +533,23 @@ class Library(ctx: Context, val art: ArtCache) {
         if (host.isBlank() || share.isBlank()) return
         scope.launch {
             try {
-                nasTracks = nas.scanTracks(host, share, prefs.nasFolder, prefs.nasUsername, prefs.nasPassword, prefs.nasDomain)
+                nasTracks = nas.scanTracks(host, share, prefs.nasFolder, prefs.nasUsername, prefs.nasPassword, prefs.nasDomain, onUpdate = ::nasTagsRead)
                 nasConnected = true
                 applyNasMerge()
             } catch (_: Exception) { /* offline or unreachable -- keep showing what's already there */ }
         }
     }
+
+    /** A batch of NAS files had their tags read: the improved list replaces the name-guessed one and the library is rebuilt
+     * (the stored copy is written once reading is done, not per batch). */
+    private fun nasTagsRead(list: List<Track>) {
+        if (prefs.nasHost.isBlank()) return
+        nasTracks = list
+        rebuild()
+        remoteSaveJob?.cancel()
+        remoteSaveJob = scope.launch { kotlinx.coroutines.delay(6_000); saveRemote() }
+    }
+    private var remoteSaveJob: Job? = null
 
     /** Settings > NAS's "Connect" button: tests the share, saves it, and does the first scan+merge right away. */
     fun connectNas(host: String, share: String, folder: String, username: String, password: String, domain: String) {
@@ -547,7 +559,7 @@ class Library(ctx: Context, val art: ArtCache) {
             try {
                 val (ok, info) = nas.testConnection(host, share, folder, username, password, domain)
                 if (!ok) { nasStatus = "Could not connect: $info"; nasConnected = false; return@launch }
-                val found = nas.scanTracks(host, share, folder, username, password, domain)
+                val found = nas.scanTracks(host, share, folder, username, password, domain, onUpdate = ::nasTagsRead)
                 prefs.nasHost = host; prefs.nasShare = share; prefs.nasFolder = folder
                 prefs.nasUsername = username; prefs.nasPassword = password; prefs.nasDomain = domain
                 onServicesChanged?.invoke()

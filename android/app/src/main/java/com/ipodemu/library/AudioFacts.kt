@@ -25,7 +25,16 @@ object AudioFacts {
     /** Changes whenever a new table arrives, so a screen that reads it (a badge, a filter) draws again. */
     var version by mutableIntStateOf(0); private set
 
-    fun of(t: Track): Fact? = t.fileKey?.let { map[it] }
+    /** Facts the phone read from the files' own tags (NAS songs), used where the server has none. */
+    private val local = java.util.concurrent.ConcurrentHashMap<String, Fact>()
+
+    fun of(t: Track): Fact? = t.fileKey?.let { map[it] ?: local[it] }
+
+    /** The tag reader's findings for NAS files; the server's table, when it has the file, still wins. */
+    fun putLocal(facts: Map<String, Fact>) {
+        local.putAll(facts)
+        version++
+    }
     val size: Int get() = map.size
 
     fun load(file: File) {

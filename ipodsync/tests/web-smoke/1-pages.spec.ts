@@ -185,6 +185,19 @@ for (const width of [375, 320]) {
   });
 }
 
+test('a burst of skips opens a stream only for the song you stop on', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as any).flacie);
+  const s1 = encodeURIComponent('http://127.0.0.1:8196/Audio/s1/stream?static=true');
+  const urls: string[] = [];
+  page.on('request', (r) => { if (r.url().includes('/stream?p=')) urls.push(r.url()); });
+  await page.evaluate((p) => { for (let i = 0; i < 10; i++) (window as any).flacie.load(null, `/stream?p=${p}&skip=${i}`, 'T' + i, 'A', 'B', '', false, 0, 0); }, s1);
+  await page.waitForTimeout(1500);
+  expect(urls.length, urls.join('\n')).toBeLessThanOrEqual(2);
+  expect(urls.some((u) => u.endsWith('skip=9'))).toBe(true);
+  expect(urls.filter((u) => !u.endsWith('skip=0') && !u.endsWith('skip=9'))).toEqual([]);
+});
+
 test('signing out returns to the login page', async ({ page }) => {
   await page.request.post('/auth/logout', { maxRedirects: 0 });
   await page.goto('/songs');

@@ -10,6 +10,7 @@ public partial class MainPage : ContentPage
 	{
 		InitializeComponent();
 #if WINDOWS
+		MigrateOldSettingsFolder();
 		if (Platforms.Windows.FlacieHost.Available)
 		{
 			modeBar.IsVisible = true;
@@ -19,6 +20,26 @@ public partial class MainPage : ContentPage
 		else Paint(false);
 #endif
 	}
+
+#if WINDOWS
+	/// <summary>
+	/// Preferences used to live in %LOCALAPPDATA%\User Name\dev.ashley.ipodsync (MAUI's template placeholder publisher); the
+	/// publisher is now FLACie. Copy the old file across once so the remembered mode survives.
+	/// </summary>
+	static void MigrateOldSettingsFolder()
+	{
+		try
+		{
+			var root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+			var old = Path.Combine(root, "User Name", "dev.ashley.ipodsync", "Settings", "preferences.dat");
+			var now = Path.Combine(root, "FLACie", "dev.ashley.ipodsync", "Settings", "preferences.dat");
+			if (!File.Exists(old) || File.Exists(now)) return;
+			Directory.CreateDirectory(Path.GetDirectoryName(now)!);
+			File.Copy(old, now);
+		}
+		catch (Exception) { }
+	}
+#endif
 
 	void OnFlacieClicked(object? sender, EventArgs e) => _ = ShowAsync(true);
 	void OnIpodClicked(object? sender, EventArgs e) => _ = ShowAsync(false);

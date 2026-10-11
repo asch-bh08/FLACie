@@ -28,6 +28,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -128,7 +131,9 @@ fun QuickPicks(tracks: List<com.ipodemu.library.Track>, nav: PlayerNav, onPlay: 
     val app = LocalApp.current
     val sc = LocalScheme.current
     val pages = remember(tracks) { tracks.chunked(4) }
-    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+    // the screen width (not BoxWithConstraints: a SubcomposeLayout nested in a lazy item was a suspect in a Compose slot-table crash)
+    val maxWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
+    Box(Modifier.fillMaxWidth()) {
         val gap = 14.dp; val side = 16.dp
         val cols = (maxWidth / 330.dp).toInt().coerceIn(1, 3)
         // one column: a sliver (24dp) of the next page shows, so it is clear there is more; several columns: whole pages
@@ -142,8 +147,13 @@ fun QuickPicks(tracks: List<com.ipodemu.library.Track>, nav: PlayerNav, onPlay: 
                 Column(Modifier.width(pageW)) {
                     page.forEachIndexed { ri, t ->
                         val idx = pi * 4 + ri
+                        // a focus ring for the D-pad / keyboard (the row had no indication at all)
+                        var focused by remember { androidx.compose.runtime.mutableStateOf(false) }
                         Row(
-                            Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(10.dp)).clickable { onPlay(idx) }.padding(vertical = 6.dp),
+                            Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(10.dp))
+                                .border(if (focused) 2.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(10.dp))
+                                .onFocusChanged { focused = it.isFocused }
+                                .clickable { onPlay(idx) }.padding(vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
                             ArtImage(t.artKey, Modifier.size(52.dp), thumb = true, corner = 8.dp)
@@ -151,7 +161,7 @@ fun QuickPicks(tracks: List<com.ipodemu.library.Track>, nav: PlayerNav, onPlay: 
                                 Txt(t.title, size = 15f, weight = FontWeight.SemiBold, maxLines = 1)
                                 Txt(t.artist, size = 12.5f, color = sc.onBgDim, maxLines = 1)
                             }
-                            Box(Modifier.size(40.dp).clip(CircleShape).clickable { openTrackSheet(app, nav, t) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.MORE, Modifier.size(20.dp), sc.onBgDim) }
+                            Box(Modifier.size(44.dp).clip(CircleShape).clickable { openTrackSheet(app, nav, t) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.MORE, Modifier.size(20.dp), sc.onBgDim) }
                         }
                     }
                 }

@@ -273,8 +273,8 @@ private fun Pill(g: Glyph, label: String, active: Boolean, onClick: () -> Unit) 
     val focused by src.collectIsFocusedAsState()
     val ink = if (active) sc.accent.readableInk() else Color.White
     Row(
-        Modifier.height(38.dp).clip(RoundedCornerShape(19.dp)).background(if (active) sc.accent else Color(0x1FFFFFFF))
-            .then(if (focused) Modifier.border(2.dp, Color.White, RoundedCornerShape(19.dp)) else Modifier)
+        Modifier.height(44.dp).clip(RoundedCornerShape(22.dp)).background(if (active) sc.accent else Color(0x1FFFFFFF))
+            .then(if (focused) Modifier.border(2.dp, Color.White, RoundedCornerShape(22.dp)) else Modifier)
             .semantics { contentDescription = label }
             .clickable(src, null, onClick = onClick).padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),

@@ -129,10 +129,13 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
     val activeFilters = listOf(genre, decade, quality, depth, rate, codec, kbps).count { it.isNotEmpty() }
 
     Column(Modifier.fillMaxSize()) {
-        ModernTopBar("Explore", null) { IconAction(Glyph.HEART, "Favorites and sources", { nav.push(Screen.Sources) }) }
+        // a short screen (the RG Rotate is 360 dp tall): no title bar, so the header leaves room for the list; Favorites moves into the row of views
+        val shortScreen = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500
+        if (!shortScreen) ModernTopBar("Explore", null) { IconAction(Glyph.HEART, "Favorites and sources", { nav.push(Screen.Sources) }) }
         // the five views, as one quiet row
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             for (t in listOf("Songs", "Albums", "Artists", "Genres", "Charts")) GlossPill(t, { tab = t }, primary = tab == t, height = 38.dp)
+            if (shortScreen) IconAction(Glyph.HEART, "Favorites and sources", { nav.push(Screen.Sources) })
         }
         if (tab == "Charts") { ChartsPanel(nav, snap); return@Column }
         // one line: the filter box, Filters (with how many are on) and Sort

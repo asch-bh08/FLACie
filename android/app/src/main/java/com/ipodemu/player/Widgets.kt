@@ -347,7 +347,7 @@ fun GlossPill(
     else Brush.verticalGradient(listOf(Color(0x52FFFFFF), Color(0x1AFFFFFF)))
     Row(
         modifier
-            .height(height)
+            .height(maxOf(height, 44.dp))   // a touch target of at least 44 dp
             .pressSpring(pressed, 0.92f)
             .clip(shape).background(brush)
             .then(if (modern && !focused) (if (primary) Modifier else Modifier.border(1.dp, Palette.line, shape)) else Modifier.border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else Color(0x40FFFFFF), shape))
@@ -533,7 +533,7 @@ fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, onNudge: (Float) -> Unit, 
     // pointerInput(Unit) outlives recompositions: call the latest onSeek, not the one captured before the track had a duration.
     val seek by androidx.compose.runtime.rememberUpdatedState(onSeek)
     Box(
-        modifier.height(36.dp)
+        modifier.height(44.dp)
             .onKeyEvent {
                 if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionLeft) { onNudge(-1f); true }
                 else if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionRight) { onNudge(1f); true } else false

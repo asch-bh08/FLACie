@@ -30,7 +30,6 @@ import com.ipodemu.player.PlayerKeys
 
 class MainActivity : ComponentActivity() {
     // touches and keys stamp this, so background work (the NAS tag scan) can wait for the screen to be left alone
-    override fun onUserInteraction() { super.onUserInteraction(); com.ipodemu.library.tags.UserActivity.last = android.os.SystemClock.elapsedRealtime() }
 
     /** The click-wheel view, when that mode is showing (it needs raw key/hat events). */
     var ipodView: IpodView? = null
@@ -190,6 +189,8 @@ class MainActivity : ComponentActivity() {
         }
     }
     private fun wake() {
+        // every touch and key event (a long scroll sends hundreds): background work such as the NAS tag scan waits while this is recent
+        com.ipodemu.library.tags.UserActivity.last = android.os.SystemClock.elapsedRealtime()
         lastInput = android.os.SystemClock.uptimeMillis()
         if (dimmed) { dimmed = false; applyBrightness() }
     }

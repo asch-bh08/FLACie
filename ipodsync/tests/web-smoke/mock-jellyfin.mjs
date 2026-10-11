@@ -36,6 +36,50 @@ for (let a = 0; a < artists.length; a++) {
     }
   }
 }
+// ---- Hi-Res lab (1e-hires.spec.ts): exact MediaStreams, so the badge can be checked against the real facts. Deterministic, no randomness ----
+// [codec, container, bitDepth, sampleRate, bitRate bps, file name, expected badge]
+const labSpec = [
+  ['flac', 'flac', 24, 96000, 2800000, 'Lab 1.flac'],
+  ['flac', 'flac', 16, 44100, 1700000, 'Lab 2.flac'],
+  ['flac', 'flac', 16, 44100, 2000000, 'Lab 3.flac'],
+  ['flac', 'flac', 16, 44100, 1411000, 'Lab 4 [Hi-Res].flac'],   // named Hi-Res, really CD quality
+  ['flac', 'flac', 24, 44100, 1900000, 'Lab 5.flac'],
+  ['flac', 'flac', 16, 48000, 1300000, 'Lab 6.flac'],            // the one whose first Jellyfin item request fails (HTTP 500 once)
+  ['mp3', 'mp3', 0, 44100, 320000, 'Lab 7.mp3'],
+  ['flac', 'flac', 24, 192000, 5000000, 'Lab 8.flac'],
+];
+const lab = labSpec.map((s, i) => ({
+  Id: `h${i + 1}`,
+  Name: s[5].replace(/\.\w+$/, ''),
+  Artists: ['Hires Lab'],
+  AlbumArtist: 'Hires Lab',
+  Album: 'Lab Album',
+  AlbumId: 'alLab',
+  IndexNumber: i + 1,
+  ParentIndexNumber: 1,
+  RunTimeTicks: 120 * 10_000_000,
+  ProductionYear: 2020,
+  Path: `/music/Hires Lab/Lab Album/${s[5]}`,
+  Genres: ['Electronic'],
+  DateCreated: new Date(Date.UTC(2025, 0, 1 + i)).toISOString(),
+  ImageTags: { Primary: 'x' },
+  MediaType: 'Audio',
+}));
+songs.push(...lab);
+const labItem = (x) => {
+  const s = labSpec[Number(x.Id.slice(1)) - 1];
+  const stream = { Type: 'Audio', Codec: s[0], Channels: 2, BitRate: s[4], SampleRate: s[3] };
+  if (s[2] > 0) stream.BitDepth = s[2];
+  return { ...x, MediaSources: [{ Container: s[1], Path: x.Path, Size: 5_000_000, Bitrate: s[4], RunTimeTicks: x.RunTimeTicks, MediaStreams: [stream] }] };
+};
+// a tiny silent WAV for the lab songs (the browser plays it whatever the "format" claims)
+const wav = (() => {
+  const rate = 8000, n = rate * 3, b = Buffer.alloc(44 + n * 2);
+  b.write('RIFF', 0); b.writeUInt32LE(36 + n * 2, 4); b.write('WAVEfmt ', 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22);
+  b.writeUInt32LE(rate, 24); b.writeUInt32LE(rate * 2, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(n * 2, 40);
+  return b;
+})();
+let flakyFailed = false;
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 const me = { Id: 'u1', Name: 'tester', Policy: { IsAdministrator: true } };
 let prefs = { Id: 'ipodplayer', Client: 'ipodplayer', CustomPrefs: {} };
@@ -71,6 +115,18 @@ http
         return json(res, 204);
       }
       return json(res, 200, prefs);
+    }
+    // one lab song's own item (its streams): the 6th fails once with HTTP 500, like a Jellyfin that hiccups during a burst of skips
+    const itemM = /^\/Users\/u1\/Items\/(h[1-8])$/.exec(p);
+    if (itemM) {
+      if (itemM[1] === 'h6' && !flakyFailed) { flakyFailed = true; return json(res, 500, { error: 'hiccup' }); }
+      return json(res, 200, labItem(songs.find((x) => x.Id === itemM[1])));
+    }
+    if (/^\/Audio\/h[1-8]\/stream/.test(p)) {
+      const mm = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
+      const from = mm && mm[1] !== '' ? +mm[1] : 0, to = mm && mm[2] !== '' ? Math.min(+mm[2], wav.length - 1) : wav.length - 1;
+      res.writeHead(mm ? 206 : 200, { 'content-type': 'audio/wav', 'accept-ranges': 'bytes', 'content-length': to - from + 1, ...(mm ? { 'content-range': `bytes ${from}-${to}/${wav.length}` } : {}) });
+      return res.end(wav.subarray(from, to + 1));
     }
     if (p === '/Users/u1/Items') {
       // what this account has played in any Jellyfin app: a few songs by Aurora Vale, played a lot

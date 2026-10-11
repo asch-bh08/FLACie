@@ -258,6 +258,14 @@
         var got = await Infos.GetAsync(Session, t);
         if (infoFor == t.Path) { info = got; infoLoading = false; }
         await InvokeAsync(StateHasChanged);
+        // the source could not tell yet (nothing was cached): ask again a few times, for this song only, so a hiccup never leaves a guess on screen
+        for (var retry = 0; retry < 4 && infoFor == t.Path && !got.Known; retry++)
+        {
+            await Task.Delay(2000);
+            if (infoFor != t.Path) return;
+            got = await Infos.GetAsync(Session, t);
+            if (infoFor == t.Path && got.Known) { info = got; await InvokeAsync(StateHasChanged); }
+        }
     }
 
     async Task LoadLyrics()

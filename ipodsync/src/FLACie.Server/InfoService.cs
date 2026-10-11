@@ -12,9 +12,24 @@ public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, Downlo
 {
     readonly ConcurrentDictionary<string, MediaInfo> cache = new();
 
+    /// <summary>Test hook: replaces the real source read.</summary>
+    public Func<UserSession, Track, Task<MediaInfo>>? Reader { get; set; }
+    public int RetryDelayMs { get; set; } = 400;
+
     public async Task<MediaInfo> GetAsync(UserSession s, Track t)
     {
-        if (!cache.TryGetValue(t.Path, out var info)) { cache[t.Path] = info = await ReadAsync(s, t); FormatIndex.Current?.Set(t, info); }
+        if (!cache.TryGetValue(t.Path, out var info))
+        {
+            // only a real read is kept: a failed or partial one (extension fallback, no rate/depth/bit rate) is returned for now but never cached,
+            // so the next ask reads the source again. A few quick retries ride out a hiccup during a burst of skips.
+            for (var attempt = 0; ; attempt++)
+            {
+                info = await (Reader?.Invoke(s, t) ?? ReadAsync(s, t));
+                if (info.Known || attempt >= 2) break;
+                await Task.Delay(RetryDelayMs);
+            }
+            if (info.Known) { cache[t.Path] = info; FormatIndex.Current?.Set(t, info); }
+        }
         // where it came from is looked up each time (a song downloaded a moment ago has no record until the download finishes)
         var rec = log.FindByFile(info.Path.Length > 0 ? info.Path : t.Path);
         if (rec is not null) return info with { Origin = "downloaded", OriginSource = rec.Source ?? "", OriginAt = rec.FinishedAt };
@@ -61,9 +76,7 @@ public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, Downlo
     {
         var src = t.FilePath ?? (t.Source == TrackSource.Jellyfin ? "" : t.Path);
         if (t.Source == TrackSource.Cloud && src.IndexOf("path=", StringComparison.Ordinal) is var at and >= 0) src = Uri.UnescapeDataString(src[(at + 5)..]);
-        // a Hi-Res download is filed as "Artist - Title [Hi-Res]": say so instead of the plain format
-        try { if (Uri.UnescapeDataString(src).Contains("[Hi-Res]", StringComparison.OrdinalIgnoreCase)) return "HI-RES"; } catch (Exception) { }
-        // the real facts (ffprobe / Jellyfin) beat the extension: an old 24-bit FLAC with no tag in its name is still Hi-Res
+        // only the real facts (ffprobe / Jellyfin / TagLib) say Hi-Res: never the file name, bit rate or extension. Until they are known the plain extension shows.
         if (FormatIndex.Current?.Get(t) is { HiRes: true }) return "HI-RES";
         var e = MediaInfo.FromExtension(src).ToUpperInvariant();
         return e switch { "" => "", "MPEG" => "MP3", "M4A" => "M4A", _ => e };

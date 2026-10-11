@@ -7,10 +7,14 @@ public sealed record MediaInfo(string Container, string Codec, int BitrateKbps, 
 {
     /// <summary>Containers and codecs a browser cannot decode; Jellyfin converts them for playback.</summary>
     public static readonly HashSet<string> NotPlayableInBrowsers = ["wma", "asf", "ape", "wv", "tta"];
-    public static readonly HashSet<string> LosslessCodecs = ["flac", "alac", "wav", "pcm", "aiff", "ape", "wavpack", "wv", "dsd", "tta", "pcm_s16le", "pcm_s24le", "pcm_s32le", "hi-res"];
+    public static readonly HashSet<string> LosslessCodecs = ["flac", "alac", "wav", "pcm", "aiff", "ape", "wavpack", "wv", "dsd", "tta", "pcm_s16le", "pcm_s24le", "pcm_s32le"];
     public bool Lossless => LosslessCodecs.Contains(Codec.ToLowerInvariant()) || LosslessCodecs.Contains(Container.ToLowerInvariant());
     /// <summary>Hi-Res: lossless at more than CD quality (more than 16 bits, or above 44.1 kHz).</summary>
-    public bool HiRes => Lossless && (BitDepth > 16 || SampleRateHz > 44_100);
+    public bool HiRes => IsHiRes(Lossless, BitDepth, SampleRateHz);
+    /// <summary>The one Hi-Res rule, used by every surface: lossless AND (more than 16 bits OR more than 44.1 kHz). Only the file's real facts count: never a bit rate, an extension, a file name or a hint.</summary>
+    public static bool IsHiRes(bool lossless, int bitDepth, int sampleRateHz) => lossless && (bitDepth > 16 || sampleRateHz > 44_100);
+    /// <summary>The real facts are known (a source reported a rate, depth or bit rate).</summary>
+    public bool Known => SampleRateHz > 0 || BitDepth > 0 || BitrateKbps > 0;
 
     /// <summary>"FLAC", "MP3" ... for a badge.</summary>
     public string Format => (Codec.Length > 0 ? Codec : Container).ToUpperInvariant() switch { "MPEG" or "MPEGAUDIO" => "MP3", "AAC" => "AAC", var f => f };

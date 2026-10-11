@@ -9,7 +9,7 @@ public sealed record AudioFacts(string Codec, int Rate, int Depth, int Kbps, int
 {
     public bool Lossless => MediaInfo.LosslessCodecs.Contains(Codec.ToLowerInvariant());
     /// <summary>Lossless and better than CD: more than 16 bits or more than 44.1 kHz.</summary>
-    public bool HiRes => Lossless && (Depth > 16 || Rate > 44_100);
+    public bool HiRes => MediaInfo.IsHiRes(Lossless, Depth, Rate);
     public bool Known => Rate > 0 || Depth > 0 || Kbps > 0;
 }
 
@@ -42,9 +42,12 @@ public sealed class FormatIndex
         var codec = i.Codec.Length > 0 ? i.Codec : i.Container;
         var f = new AudioFacts(codec.ToLowerInvariant(), i.SampleRateHz, i.BitDepth, i.BitrateKbps, i.Channels);
         if (!f.Known) return;   // the source could not tell: leave it unprobed so it is tried again later
-        facts[Key(t)] = f;
+        // a worse partial read never replaces a more complete fact
+        facts.AddOrUpdate(Key(t), f, (_, old) => Score(f) >= Score(old) ? f : old);
         Interlocked.Exchange(ref dirty, 1);
     }
+
+    static int Score(AudioFacts f) => (f.Rate > 0 ? 4 : 0) + (f.Depth > 0 ? 2 : 0) + (f.Kbps > 0 ? 1 : 0);
 
     public void Flush()
     {

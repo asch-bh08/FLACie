@@ -5,10 +5,18 @@
   upgrades in place (same UpgradeCode, MajorUpgrade). iPod backups live in Documents\ipodsync and are never
   touched by install/uninstall.
 -->
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
   <Package Name="FLACie" Manufacturer="FLACie" Version="$(Version)" Scope="perUser"
            UpgradeCode="B480A45D-C957-4961-8E9C-6D1802B43BAC" Compressed="yes">
     <MajorUpgrade DowngradeErrorMessage="A newer version of FLACie is already installed." />
+
+    <!-- Close the running app (WM_CLOSE: it stops its server child itself) before files are replaced or removed, on upgrade
+         and uninstall alike; then end the player server if anything is still holding it. Without this Restart Manager only
+         queued the old files for deletion at the next reboot and the old app kept running. Matching is by image name. -->
+    <util:CloseApplication Id="CloseFlacieApp" Target="IpodSync.Maui.exe" CloseMessage="yes" EndSessionMessage="no"
+                           Timeout="20" RebootPrompt="no" Description="FLACie is running and has to be closed first." Sequence="1" />
+    <util:CloseApplication Id="CloseFlacieServer" Target="FLACie.Server.exe" CloseMessage="no" TerminateProcess="1"
+                           Timeout="5" RebootPrompt="no" Sequence="2" />
     <MediaTemplate EmbedCab="yes" />
     <Icon Id="AppIcon" SourceFile="$(PublishDir)\IpodSync.Maui.exe" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon" />

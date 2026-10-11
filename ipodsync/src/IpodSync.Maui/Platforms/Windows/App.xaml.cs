@@ -60,6 +60,11 @@ public partial class App : MauiWinUIApplication
 				try { Directory.Move(old, folder); } catch (Exception) { }
 			}
 			Directory.CreateDirectory(folder);
+			// the legacy folder left behind by 0.49 (the new profile already exists): remove exactly that folder, best effort
+			if (Directory.Exists(old) && string.Equals(Path.GetFileName(old), "IpodSync.Maui.exe.WebView2", StringComparison.Ordinal))
+			{
+				try { Directory.Delete(old, true); } catch (Exception) { }
+			}
 			Environment.SetEnvironmentVariable("WEBVIEW2_USER_DATA_FOLDER", folder);
 		}
 		catch (Exception) { }

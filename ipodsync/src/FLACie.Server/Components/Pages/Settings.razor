@@ -6,7 +6,7 @@
 <PageTitle>Settings · FLACie</PageTitle>
 <header class="page-head"><h1>Settings</h1></header>
 <nav class="subnav" aria-label="Settings sections">
-    <a href="/settings#playback">Playback</a><a href="/settings#look">Look and feel</a><a href="/settings#sources">Music sources</a><a href="/settings#account">Account</a><a href="/downloads">Download log</a>@if (admin) { <a href="/dashboard">Dashboard</a> }
+    <a href="/settings#playback">Playback</a><a href="/settings#look">Look and feel</a><a href="/settings#sources">Music sources</a><a href="/settings#account">Account</a><a href="/settings#about">About</a><a href="/downloads">Download log</a>@if (admin) { <a href="/dashboard">Dashboard</a> }
 </nav>
 
 <section class="panel set" id="playback">
@@ -106,7 +106,20 @@
     </div>
 </section>
 
+<section class="panel set" id="about">
+    <div class="set-head"><h2>About</h2><p class="hint">What is running here.</p></div>
+    <dl class="kv">
+        <dt>Version</dt><dd id="about-version">@AppInfo.Version</dd>
+        <dt>Server</dt><dd id="about-server">@ServerUrl</dd>
+        <dt>Data folder</dt><dd id="about-data">@DataFolder</dd>
+        <dt>Licences</dt><dd><a href="/licenses" target="_blank" rel="noopener">Third-party licences</a></dd>
+    </dl>
+</section>
+
 @code {
+    [Inject] NavigationManager NavM { get; set; } = default!;
+    string ServerUrl => NavM.BaseUri.TrimEnd('/');
+    string DataFolder => Conf["FLACIE_DATA"] is { Length: > 0 } d ? d : Path.Combine(AppContext.BaseDirectory, "data");
     [Inject] UserStateStore States { get; set; } = default!;
     UserState State => States.For(Session);
     string host = "", share = "", folder = "", nuser = "", npass = "", jserver = "", juser = "", jpass = "";

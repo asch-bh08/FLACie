@@ -236,15 +236,14 @@ class Jam(private val app: App) {
 
     private fun auth() = "MediaBrowser Client=\"${AccountSync.CLIENT}\", Device=\"${android.os.Build.MODEL.replace("\"", "")}\", DeviceId=\"${prefs.deviceId}\", Version=\"${AccountSync.VERSION}\", Token=\"${prefs.accountToken}\""
 
-    private fun get(path: String): String =
-        http.newCall(Request.Builder().url(prefs.accountServer.trimEnd('/') + path).header("Authorization", auth()).build()).execute().use { r ->
-            if (!r.isSuccessful) throw java.io.IOException("HTTP ${r.code}"); r.body?.string().orEmpty()
-        }
+    // through the one Jellyfin gate; a Jam's commands and clock pings are time-critical, so they go first
+    private suspend fun get(path: String): String {
+        val r = JellyfinNet.gate.execute(GateRequest("GET", prefs.accountServer.trimEnd('/') + path, mapOf("Authorization" to auth()), kind = "jam"), Priority.PLAYING)
+        if (!r.ok) throw java.io.IOException("HTTP ${r.code}"); return r.text
+    }
 
-    private fun post(path: String, body: JSONObject?) {
-        http.newCall(Request.Builder().url(prefs.accountServer.trimEnd('/') + path).header("Authorization", auth())
-            .post((body?.toString() ?: "").toRequestBody("application/json".toMediaType())).build()).execute().use { r ->
-            if (!r.isSuccessful) throw java.io.IOException("HTTP ${r.code}")
-        }
+    private suspend fun post(path: String, body: JSONObject?) {
+        val r = JellyfinNet.send("POST", prefs.accountServer.trimEnd('/') + path, mapOf("Authorization" to auth()), (body?.toString() ?: "").toByteArray(), "application/json", Priority.PLAYING, "jam")
+        if (!r.ok) throw java.io.IOException("HTTP ${r.code}")
     }
 }

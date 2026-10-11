@@ -10,6 +10,7 @@ public sealed class Library
     readonly Dictionary<string, Track> byPath;
     readonly Dictionary<string, Track> byMatch;
     readonly Dictionary<string, Track> byJellyfinId;
+    readonly Dictionary<string, Track> byOrigTitle = new();
 
     public static readonly Library Empty = new([]);
 
@@ -22,6 +23,7 @@ public sealed class Library
             byPath.TryAdd(t.Path, t);
             byMatch.TryAdd(Matching.MatchKey(t), t);
             if (t.JellyfinId is { } id) byJellyfinId.TryAdd(id, t);
+            if (t.OrigTitle.Length > 0) byOrigTitle.TryAdd(Matching.NormTitle(t.OrigTitle), t);
         }
         Albums = tracks.GroupBy(t => t.AlbumKey)
             .Select(g => { var l = g.OrderBy(t => t.DiscNo).ThenBy(t => t.TrackNo).ThenBy(t => Matching.SortKey(t.Title)).ToList(); return new Group(l[0].Album.Length > 0 ? l[0].Album : "Unknown Album", l, l.Select(t => t.ArtKey).FirstOrDefault(k => k is not null)); })
@@ -36,7 +38,8 @@ public sealed class Library
 
     /// <summary>A playlist or favourite entry: the exact file, else this library's copy of the same song.</summary>
     public Track? Resolve(string path, string title, string artist) =>
-        ByPath(path) ?? (Matching.JellyfinIdIn(path) is { } id ? ByJellyfinId(id) : null) ?? byMatch.GetValueOrDefault(Matching.MatchKey(title, artist));
+        ByPath(path) ?? (Matching.JellyfinIdIn(path) is { } id ? ByJellyfinId(id) : null) ?? byMatch.GetValueOrDefault(Matching.MatchKey(title, artist))
+        ?? (byOrigTitle.GetValueOrDefault(Matching.NormTitle(title)) is { } o && (artist.Length == 0 || Matching.PrimaryArtist(artist) == Matching.PrimaryArtist(o.Artist)) ? o : null); // saved under the file name it showed before TrackTitles
 
     public IReadOnlyList<Group> RecentAlbums(int n = 24) => Albums.OrderByDescending(g => g.Tracks.Max(t => t.AddedMs)).Take(n).ToList();
 

@@ -45,7 +45,7 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
     /// <summary>One song by Jellyfin id, for songs another device sends that this library hasn't listed.</summary>
     public async Task<Track?> TrackAsync(JellyfinAccount a, string id, CancellationToken ct = default)
     {
-        try { return await GetAsync(a, $"/Users/{a.UserId}/Items/{id}", ct) is { } o ? ToTrack(a.Server, o) : null; } catch (Exception) { return null; }
+        try { return await GetAsync(a, $"/Users/{a.UserId}/Items/{id}", ct) is { } o ? TrackTitles.CleanAll([ToTrack(a.Server, o)])[0] : null; } catch (Exception) { return null; }
     }
 
     string Auth(string? token) => $"MediaBrowser Client=\"{ClientName}\", Device=\"{deviceName}\", DeviceId=\"{deviceId}\", Version=\"{Version}\"" + (token is null ? "" : $", Token=\"{token}\"");
@@ -115,7 +115,7 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         }
         var (first, total) = await Page(0);
         var all = new List<Track>(first);
-        if (first.Count < size || total <= first.Count) return all;
+        if (first.Count < size || total <= first.Count) return TrackTitles.CleanAll(all);
         using var gate = new SemaphoreSlim(4);
         var rest = await Task.WhenAll(Enumerable.Range(1, (total - 1) / size).Select(async i =>
         {
@@ -123,7 +123,7 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
             try { return (await Page(i * size)).Items; } finally { gate.Release(); }
         }));
         foreach (var r in rest) all.AddRange(r);
-        return all;
+        return TrackTitles.CleanAll(all);
     }
 
     /// <summary>

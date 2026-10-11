@@ -24,19 +24,23 @@ public static class MediaEndpoints
         // a page of album tiles asks for dozens of covers at once; a NAS answers a few at a time reliably
         var nasSlots = new SemaphoreSlim(4);
 
-        app.MapGet("/stream", async (HttpContext ctx, string p, SessionStore store, JellyfinClient jf, IHttpClientFactory hf, AlacCache alac, PlayTracker plays, Notifier notify, PlaybackActivity activity) =>
+        // pre=1 marks the page's early read of the NEXT song (a second audio element, so a skip starts at once): background work that does not count as a play, is
+        // never ahead of a song someone waits for, waits out a slow Jellyfin, and asks only for the start of the file (a small Range), never the whole song.
+        app.MapGet("/stream", async (HttpContext ctx, string p, bool? pre, SessionStore store, JellyfinClient jf, IHttpClientFactory hf, AlacCache alac, PlayTracker plays, Notifier notify, PlaybackActivity activity) =>
         {
             var s = store.For(ctx.User);
             var t = s.FindByPath(p);
             if (t is null) return Results.NotFound();
-            using var busy = activity.BeginStream();   // background jobs wait while a song is being served
-            using var prio = JellyfinGate.Use(GatePriority.Playing);   // and the song being played goes to the front of every queue
+            var early = pre == true;
+            using var busy = early ? null : activity.BeginStream();   // background jobs wait while a song is being served
+            using var prio = JellyfinGate.Use(early ? GatePriority.Prefetch : GatePriority.Playing);   // and the song being played goes to the front of every queue
             // where this play really comes from, decided here where the stream is resolved: Jellyfin plays are announced by Jellyfin's own watcher, so only
             // NAS files and the file mover's direct fallback (a song Jellyfin has not scanned yet) are ever reported as "music played"
-            plays.Served(s.Id, t.Path, t.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "direct", TrackSource.Jellyfin when notify.Current.JellyfinPlays => "Jellyfin", _ => null });
+            if (!early) plays.Served(s.Id, t.Path, t.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "direct", TrackSource.Jellyfin when notify.Current.JellyfinPlays => "Jellyfin", _ => null });
             async Task<IResult> Proxy(HttpRequestMessage req, bool ranges = true)
             {
-                if (ranges && ctx.Request.Headers.Range.Count > 0) req.Headers.TryAddWithoutValidation("Range", ctx.Request.Headers.Range.ToString());
+                if (ranges && ctx.Request.Headers.Range.Count > 0) req.Headers.TryAddWithoutValidation("Range", early ? PrefetchRange(ctx.Request.Headers.Range.ToString()) : ctx.Request.Headers.Range.ToString());
+                else if (ranges && early) req.Headers.TryAddWithoutValidation("Range", PrefetchRange(""));
                 // the browser gave up (a skip, a closed tab): RequestAborted cancels the call to Jellyfin too, so it stops reading the file at once
                 try
                 {
@@ -50,6 +54,13 @@ public static class MediaEndpoints
                     await body.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
                 }
                 catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested) { }
+                // Jellyfin is not answering (the gate's breaker is open): say so at once and when to try again, instead of an error page
+                catch (JellyfinUnavailableException e) when (!ctx.Response.HasStarted)
+                {
+                    ctx.Response.StatusCode = 503;
+                    ctx.Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(e.Wait.TotalSeconds)).ToString();
+                }
+                catch (HttpRequestException) when (!ctx.Response.HasStarted) { ctx.Response.StatusCode = 502; }
                 return Results.Empty;
             }
             // Apple Lossless: browsers cannot decode it, so the server decodes it itself and sends WAV (any other .m4a goes on as it is)
@@ -75,6 +86,7 @@ public static class MediaEndpoints
                 try { size = await Task.Run(() => NasClient.Size(n, rel)); } catch (FileNotFoundException) { return Results.NotFound(); }
                 var (satisfiable, partial, from, to) = ByteRanges.Resolve(ctx.Request.Headers.Range.ToString(), size);
                 if (!satisfiable) { ctx.Response.Headers.ContentRange = $"bytes */{size}"; return Results.StatusCode(416); }
+                if (early && from == 0 && to - from + 1 > PrefetchBytes) { to = PrefetchBytes - 1; partial = true; }
                 ctx.Response.StatusCode = partial ? 206 : 200;
                 ctx.Response.ContentType = Mime.GetValueOrDefault(Path.GetExtension(rel).TrimStart('.'), "application/octet-stream");
                 ctx.Response.ContentLength = to - from + 1;
@@ -102,18 +114,22 @@ public static class MediaEndpoints
             // tag-keyed and picture-URL-keyed covers never change; any other is kept a day by the browser (then a 304 from the saved copy). A missing one is remembered only briefly.
             var Kept = tagged || Art.ExternalUrl(key) is not null ? "private, max-age=31536000, immutable" : "private, max-age=86400, stale-while-revalidate=604800";
             const string Briefly = "private, max-age=30";
-            // an untagged Jellyfin cover can be changed (fixed in Jellyfin): its saved copy is trusted for three days, then fetched again
+            // a saved cover is never asked for again. A Jellyfin key carries the picture's image tag (a changed picture is a new key), so there is nothing to re-check;
+            // only a key without a tag (kept by an old library cache) is trusted for three days, then fetched again.
             if (covers.Find(key, variant) is { } have && !(isJf && !tagged && File.GetLastWriteTimeUtc(have) < DateTime.UtcNow.AddDays(-3))) { ctx.Response.Headers.CacheControl = Kept; return Cover(have); }
             ctx.Response.Headers.CacheControl = Briefly;
             // a cover that was just looked for and not found is not looked for again at once (a page of tiles would ask again and again)
             if (artMisses.TryGetValue(flightKey, out var missedAt) && DateTime.UtcNow - missedAt < TimeSpan.FromMinutes(3)) return Results.NotFound();
             var s = store.For(ctx.User);
-            // one lookup per cover however many tiles ask at once (single flight); it runs on its own clock, so a tile that is scrolled away does not cancel it for the others
-            async Task<string?> Fetch()
+            // one lookup per cover however many tiles ask at once (single flight): a tile that is scrolled away leaves the others their cover, and when EVERY tile that
+            // wanted it is gone (the browser aborted its requests) the lookup is cancelled: still queued at the gate, it never reaches Jellyfin; already sent, it stops.
+            // The big Now Playing cover is the one cover a person waits for (the gate's top priority); rows and tiles are "visible".
+            using var prio = JellyfinGate.Use(full ? GatePriority.Playing : GatePriority.Visible);
+            async Task<CoverResult> Fetch(CancellationToken flight)
             {
-                byte[]? bytes = null; var type = "image/jpeg";
+                byte[]? bytes = null; var type = "image/jpeg"; var transient = false;
                 var http = hf.CreateClient("media");   // no client timeout (it carries audio): every cover lookup gets its own, so a stalled server never holds a slot for good
-                using var limit = new CancellationTokenSource();
+                using var limit = CancellationTokenSource.CreateLinkedTokenSource(flight);
                 limit.CancelAfter(TimeSpan.FromSeconds(15));
                 var ct = limit.Token;
                 try
@@ -125,6 +141,7 @@ public static class MediaEndpoints
                         using var req = jf.Authorized(a, jf.ImageUrl(a, id, full ? 0 : 240, tag, webp: !full));
                         using var res = await http.SendAsync(req, ct);
                         if (res.IsSuccessStatusCode) { bytes = await res.Content.ReadAsByteArrayAsync(ct); type = res.Content.Headers.ContentType?.MediaType ?? "image/jpeg"; }
+                        else transient = (int)res.StatusCode >= 500 || res.StatusCode == System.Net.HttpStatusCode.TooManyRequests;   // Jellyfin is struggling: not "this cover does not exist"
                     }
                     else if (Art.ExternalUrl(key) is { } external)
                     {
@@ -148,24 +165,41 @@ public static class MediaEndpoints
                         }
                     }
                 }
-                catch (OperationCanceledException) { log.LogDebug("cover lookup timed out for {Key}", key); }
+                catch (OperationCanceledException) when (flight.IsCancellationRequested) { throw; }   // nobody wants it any more
+                catch (OperationCanceledException) { log.LogDebug("cover lookup timed out for {Key}", key); transient = true; }
+                catch (JellyfinUnavailableException) { transient = true; }   // the gate's breaker is open: Jellyfin has been failing
                 catch (HttpRequestException) { }
                 catch (FormatException) { }   // a key that is not valid base64 is just a cover that does not exist
                 if (bytes is null)
                 {
+                    // a cover Jellyfin could not give right now (a 5xx, a timeout, an open breaker) is not remembered as missing: the next view asks again
+                    if (transient) return new CoverResult(null, true);
                     if (artMisses.Count > 2000) artMisses.Clear();
                     artMisses[flightKey] = DateTime.UtcNow;
-                    return null;
+                    return new CoverResult(null, false);
                 }
-                return await covers.SaveAsync(key, variant, bytes, type);
+                return new CoverResult(await covers.SaveAsync(key, variant, bytes, type), false);
             }
-            string? saved;
-            try { saved = await coverFlights.RunAsync(flightKey, Fetch, ctx.RequestAborted); }
+            CoverResult got;
+            try { got = await coverFlights.RunAsync(flightKey, Fetch, ctx.RequestAborted); }
             catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested) { return Results.Empty; }
-            if (saved is null) return Results.NotFound();
+            if (got.File is not { } saved) return got.Transient ? Results.StatusCode(503) : Results.NotFound();
             ctx.Response.Headers.CacheControl = Kept;
             return Cover(saved);
         }).RequireAuthorization();
+    }
+
+    /// <summary>How much of the next song the early read asks for: enough for it to start at once, nowhere near the whole file.</summary>
+    public const int PrefetchBytes = 1 << 20;
+
+    /// <summary>The Range an early read of the next song is held to: the first <see cref="PrefetchBytes"/> (an open-ended or larger request from the start is cut to it).</summary>
+    public static string PrefetchRange(string asked)
+    {
+        var cap = "bytes=0-" + (PrefetchBytes - 1);
+        if (asked.Length == 0) return cap;
+        var m = System.Text.RegularExpressions.Regex.Match(asked.Trim(), @"^bytes=0-(\d*)$");
+        if (!m.Success) return asked;   // a read from elsewhere in the file (a seek of the prefetch element) is left as it is
+        return m.Groups[1].Value.Length > 0 && long.TryParse(m.Groups[1].Value, out var to) && to < PrefetchBytes - 1 ? asked : cap;
     }
 
     /// <summary>The saved cover with a validator (ETag and Last-Modified), so a browser that asks again is answered 304 without a body.</summary>
@@ -176,7 +210,10 @@ public static class MediaEndpoints
         return Results.File(file, CoverStore.TypeOf(file), lastModified: new DateTimeOffset(fi.LastWriteTimeUtc), entityTag: tag);
     }
 
-    static readonly SingleFlight<string?> coverFlights = new();
+    /// <summary>What a cover lookup came to: the saved file, or nothing (<see cref="Transient"/>: Jellyfin could not answer right now, so it is not a cover that does not exist).</summary>
+    sealed record CoverResult(string? File, bool Transient);
+
+    static readonly SingleFlight<CoverResult> coverFlights = new();
 
     static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> artMisses = new();
 

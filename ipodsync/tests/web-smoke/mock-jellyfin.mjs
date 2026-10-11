@@ -66,6 +66,9 @@ const lab = labSpec.map((s, i) => ({
   MediaType: 'Audio',
 }));
 songs.push(...lab);
+// like a real Jellyfin: every item names its album's picture (AlbumPrimaryImageTag) as well as its own, and says when it was last saved
+const saved0 = new Date(Date.UTC(2025, 5, 1)).toISOString();
+for (const x of songs) { x.AlbumPrimaryImageTag = 'at-' + x.AlbumId; x.DateLastSaved = saved0; }
 const labItem = (x) => {
   const s = labSpec[Number(x.Id.slice(1)) - 1];
   const stream = { Type: 'Audio', Codec: s[0], Channels: 2, BitRate: s[4], SampleRate: s[3] };
@@ -80,7 +83,11 @@ const wav = (() => {
   return b;
 })();
 let flakyFailed = false;
-const counts = { usersMe: 0, items: 0, item: 0, stream: 0, image: 0 };
+const counts = { usersMe: 0, items: 0, item: 0, stream: 0, image: 0, streamAborted: 0, streamCapped: 0, imageRepeats: 0, imageFull: 0, imageRow: 0 };
+// every picture asked for, by item + tag + size, so a test can see a cover fetched twice or at a size nobody should use
+const images = new Map();
+// GET /__stream?delay=ms makes the song streams slow (ms between chunks), so a stream the server drops half way is visible as streamAborted
+let streamDelay = 0;
 // the library listing carries MediaSources/MediaStreams when asked (Fields=MediaSources,MediaStreams), like Jellyfin: plain songs are CD-quality FLAC.
 // The Hi-Res lab songs are left out on purpose, so 1e-hires.spec.ts keeps exercising the per-song read (with its one HTTP 500).
 const withSources = (x) => (x.Id.startsWith('s') && x.Id !== 's1'
@@ -107,7 +114,17 @@ http
     const p = u.pathname, q = u.searchParams, m = req.method;
     // request counter for the load tests: GET /__counts (totals by kind since the last POST /__reset). Not part of Jellyfin; no auth.
     if (p === '/__counts') return json(res, 200, counts);
-    if (p === '/__reset') { for (const k of Object.keys(counts)) counts[k] = 0; return json(res, 200, counts); }
+    if (p === '/__reset') { for (const k of Object.keys(counts)) counts[k] = 0; images.clear(); return json(res, 200, counts); }
+    if (p === '/__images') return json(res, 200, { total: counts.image, distinct: images.size, repeats: counts.imageRepeats, variants: [...new Set([...images.keys()].map((k) => k.split('|').slice(2).join('|')))], urls: Object.fromEntries(images) });
+    if (p === '/__stream') { streamDelay = Number(q.get('delay') || 0); return json(res, 200, { delay: streamDelay }); }
+    // /__touch?id=s5&name=New title: the song was saved again (what a metadata edit does); the next MinDateLastSaved question returns it
+    if (p === '/__touch') {
+      const x = songs.find((s) => s.Id === q.get('id'));
+      if (!x) return json(res, 404, {});
+      if (q.get('name')) x.Name = q.get('name');
+      x.DateLastSaved = new Date().toISOString();
+      return json(res, 200, { id: x.Id, saved: x.DateLastSaved });
+    }
     if (p === '/Users/Me') counts.usersMe++;
     else if (/^\/Users\/u1\/Items\/[^/]+$/.test(p)) counts.item++;
     else if (p === '/Users/u1/Items') counts.items++;
@@ -140,7 +157,15 @@ http
       const mm = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
       const from = mm && mm[1] !== '' ? +mm[1] : 0, to = mm && mm[2] !== '' ? Math.min(+mm[2], wav.length - 1) : wav.length - 1;
       res.writeHead(mm ? 206 : 200, { 'content-type': 'audio/wav', 'accept-ranges': 'bytes', 'content-length': to - from + 1, ...(mm ? { 'content-range': `bytes ${from}-${to}/${wav.length}` } : {}) });
-      return res.end(wav.subarray(from, to + 1));
+      if (mm && mm[2] === '1048575') counts.streamCapped++;   // the server's early read of the next song asks for the first megabyte only
+      res.on('close', () => { if (!res.writableFinished) counts.streamAborted++; });
+      const body = wav.subarray(from, to + 1);
+      if (streamDelay > 0) {
+        const chunks = 6, size = Math.ceil(body.length / chunks);
+        for (let i = 0; i < chunks; i++) { if (res.destroyed) return; res.write(body.subarray(i * size, (i + 1) * size)); await new Promise((r) => setTimeout(r, streamDelay)); }
+        return res.end();
+      }
+      return res.end(body);
     }
     if (p === '/Users/u1/Items') {
       // what this account has played in any Jellyfin app: a few songs by Aurora Vale, played a lot
@@ -151,8 +176,11 @@ http
       if (q.get('Filters') === 'IsFavorite') return json(res, 200, { Items: [], TotalRecordCount: 0 });
       if (q.get('IncludeItemTypes') === 'Audio') {
         const start = Number(q.get('StartIndex') || 0), limit = Number(q.get('Limit') || 1500);
-        const page = songs.slice(start, start + limit);
-        return json(res, 200, { Items: (q.get('Fields') || '').includes('MediaStreams') ? page.map(withSources) : page, TotalRecordCount: songs.length, StartIndex: start });
+        // MinDateLastSaved is inclusive, like Jellyfin's
+        const since = q.get('MinDateLastSaved');
+        const list = since ? songs.filter((x) => new Date(x.DateLastSaved) >= new Date(since)) : songs;
+        const page = list.slice(start, start + limit);
+        return json(res, 200, { Items: (q.get('Fields') || '').includes('MediaStreams') ? page.map(withSources) : page, TotalRecordCount: list.length, StartIndex: start });
       }
       return json(res, 200, { Items: [], TotalRecordCount: 0 });
     }
@@ -165,6 +193,10 @@ http
       return res.end(alacFile.subarray(from, to + 1));
     }
     if (/^\/Items\/[^/]+\/Images\//.test(p)) {
+      const key = `${p.split('/')[2]}|${q.get('tag') || ''}|w=${q.get('maxWidth') || 'full'} q=${q.get('quality') || ''} ${q.get('format') || ''}`;
+      if (images.has(key)) counts.imageRepeats++;
+      images.set(key, (images.get(key) || 0) + 1);
+      if (q.get('maxWidth')) counts.imageRow++; else counts.imageFull++;
       res.writeHead(200, { 'content-type': 'image/png' });
       return res.end(png);
     }

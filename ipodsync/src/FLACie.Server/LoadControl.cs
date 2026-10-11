@@ -92,21 +92,51 @@ public sealed class TokenCache
 }
 
 /// <summary>Several callers asking for the same thing at once share one lookup (a page of tiles asks for the same cover many times).
-/// The lookup runs on its own, so one caller giving up does not cancel it for the others.</summary>
+/// The lookup runs on its own, so one caller giving up does not cancel it for the others; when the LAST caller has given up (every tile that wanted it was
+/// scrolled away, or the browser closed) the lookup's own token is cancelled, so a request still waiting for Jellyfin is dropped instead of finishing for nobody.</summary>
 public sealed class SingleFlight<T>
 {
-    readonly ConcurrentDictionary<string, Lazy<Task<T>>> running = new();
-    int started;
+    sealed class Flight { public Task<T> Task = null!; public readonly CancellationTokenSource Cts = new(); public int Refs; }
+    readonly Dictionary<string, Flight> running = new();
+    int started, abandoned;
     /// <summary>How many lookups really ran (callers that shared one count once).</summary>
     public int Started => Volatile.Read(ref started);
+    /// <summary>How many lookups were cancelled because every caller had given up.</summary>
+    public int Abandoned => Volatile.Read(ref abandoned);
 
-    public Task<T> RunAsync(string key, Func<Task<T>> work, CancellationToken caller = default)
+    public Task<T> RunAsync(string key, Func<Task<T>> work, CancellationToken caller = default) => RunAsync(key, _ => work(), caller);
+
+    public async Task<T> RunAsync(string key, Func<CancellationToken, Task<T>> work, CancellationToken caller = default)
     {
-        var lazy = running.GetOrAdd(key, k => new Lazy<Task<T>>(() =>
+        Flight f;
+        lock (running)
         {
-            Interlocked.Increment(ref started);
-            return Task.Run(async () => { try { return await work(); } finally { running.TryRemove(key, out _); } });
-        }));
-        return lazy.Value.WaitAsync(caller);
+            if (!running.TryGetValue(key, out f!))
+            {
+                var fl = f = new Flight();
+                Interlocked.Increment(ref started);
+                running[key] = fl;
+                fl.Task = Task.Run(async () =>
+                {
+                    try { return await work(fl.Cts.Token); }
+                    finally { lock (running) { if (running.TryGetValue(key, out var cur) && ReferenceEquals(cur, fl)) running.Remove(key); } }
+                });
+            }
+            f.Refs++;
+        }
+        try { return await f.Task.WaitAsync(caller); }
+        catch (OperationCanceledException) when (caller.IsCancellationRequested)
+        {
+            lock (running)
+            {
+                if (--f.Refs <= 0 && !f.Task.IsCompleted)
+                {
+                    if (running.TryGetValue(key, out var cur) && ReferenceEquals(cur, f)) running.Remove(key);   // the next asker starts a fresh lookup
+                    Interlocked.Increment(ref abandoned);
+                    try { f.Cts.Cancel(); } catch (ObjectDisposedException) { }
+                }
+            }
+            throw;
+        }
     }
 }

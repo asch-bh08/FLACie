@@ -28,7 +28,7 @@
         await base.OnInitializedAsync();
         if (Live is { } l)
         {
-            poll = new Timer(_ => { _ = l.Connect.LoadSessionsAsync(); }, null, 1000, 4000);
+            poll = new Timer(_ => { _ = l.Connect.RefreshSessionsAsync(); }, null, 1000, 4000);
             tick = new Timer(_ => { if (Remote(l) is not null) InvokeAsync(StateHasChanged); }, null, 1000, 1000);
         }
     }

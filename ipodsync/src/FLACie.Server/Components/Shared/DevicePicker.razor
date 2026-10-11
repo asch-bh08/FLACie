@@ -40,7 +40,7 @@
     {
         open = !open; poll?.Dispose(); poll = null;
         if (open) { self ??= DotNetObjectReference.Create(this); _ = Js.InvokeVoidAsync("flacie.watchOutside", ".devpick", self); } else _ = Js.InvokeVoidAsync("flacie.unwatchOutside");
-        if (open && Live is { } l) { _ = l.Connect.LoadSessionsAsync(); poll = new Timer(_ => { _ = l.Connect.LoadSessionsAsync(); }, null, 3000, 3000); }
+        if (open && Live is { } l) { _ = l.Connect.RefreshSessionsAsync(); poll = new Timer(_ => { _ = l.Connect.RefreshSessionsAsync(); }, null, 3000, 3000); }
     }
     /// <summary>Called from the page when a click lands outside the popup, or Escape is pressed.</summary>
     [JSInvokable] public void Dismiss() { if (!open) return; open = false; poll?.Dispose(); poll = null; _ = Js.InvokeVoidAsync("flacie.unwatchOutside"); InvokeAsync(StateHasChanged); }

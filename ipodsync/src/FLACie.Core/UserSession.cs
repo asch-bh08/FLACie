@@ -30,6 +30,7 @@ public sealed class UserSession
     {
         if (Jellyfin is not { } a || DateTime.UtcNow - PlayStatsAt < maxAge) return;
         PlayStatsAt = DateTime.UtcNow;   // set first, so a slow or failing read is not started again by every page
+        using var prio = JellyfinGate.Use(GatePriority.Background);   // the Quick picks can wait for a quiet moment
         try { PlayStats = await jf.PlayStatsAsync(a, ct); Changed?.Invoke(); } catch (Exception) { }
     }
     public DateTime LoadedAt { get; private set; }
@@ -69,9 +70,23 @@ public sealed class UserSession
             var tmp = CachePath + ".tmp";
             File.WriteAllText(tmp, System.Text.Json.JsonSerializer.Serialize(Library.Songs.Where(t => t.Source != TrackSource.Cloud).ToList()));
             File.Move(tmp, CachePath, true);
+            // the cursor and the set of Jellyfin ids it covers travel with the library: after a restart only what changed since is asked for
             if (SyncCursor is { } cur && CursorFile is { } cfile) File.WriteAllText(cfile, cur);
+            if (knownIds is { } ids && IdsFile is { } ifile) { File.WriteAllLines(ifile + ".tmp", ids); File.Move(ifile + ".tmp", ifile, true); }
         }
         catch (Exception) { }
+    }
+
+    /// <summary>The Jellyfin id of every song seen in the listings and deltas so far (before the library merged duplicates away), normalised. Lets a restart tell what Jellyfin
+    /// removed without listing every song again. Null when not known (an older cache): the next sync lists everything once.</summary>
+    HashSet<string>? knownIds;
+    string? IdsFile => CachePath is null ? null : CachePath + ".ids";
+    public int KnownSongCount => knownIds?.Count ?? 0;
+
+    /// <summary>Drops the saved library, cursor and id list (the Clear cache button): the next start lists everything again.</summary>
+    public void ForgetCache()
+    {
+        foreach (var f in new[] { CachePath, CursorFile, IdsFile }) try { if (f is not null && File.Exists(f)) File.Delete(f); } catch (Exception) { }
     }
 
 
@@ -105,7 +120,9 @@ public sealed class UserSession
                 {
                     // a first sync (nothing saved from last time) shows songs as the pages arrive; a refresh waits and swaps in the whole list
                     var firstSync = Library.Songs.Count == 0; var published = 0;
-                    // a library kept from last time with a cursor: ask only for what changed since, and trust it when the count still matches Jellyfin's
+                    // listing the library is background work (it is held while a song is being served or Jellyfin is slow); the songs show as pages arrive
+                    using var listingPrio = JellyfinGate.Use(GatePriority.Background);
+                    // a library kept from last time with a cursor: ask only for what changed since, and trust it when the ids still add up to Jellyfin's count
                     var merged = firstSync ? null : await TryDeltaAsync(jf, ja, ct);
                     if (merged is not null) jfTracks = merged;
                     else
@@ -116,6 +133,7 @@ public sealed class UserSession
                             published = partial.Count; Library = WithDownloads(Library.Merge(partial, [])); Changed?.Invoke();
                         } : null, FactsSink);
                         jfTracks = listing.Tracks; SyncCursor = listing.MaxSaved;
+                        knownIds = listing.Tracks.Select(t => Norm(t.JellyfinId)).Where(s => s.Length > 0).ToHashSet();
                     }
                 }
                 catch (UnauthorizedAccessException) { if (Kind == "nas") Jellyfin = null; else throw; }
@@ -126,7 +144,7 @@ public sealed class UserSession
             // a failed fetch must not replace the library kept from last time with nothing
             if (!(jfTracks.Count == 0 && nasTracks.Count == 0 && Problem is not null && Library.Songs.Count > 0)) Library = WithDownloads(Library.Merge(jfTracks, nasTracks));
             LoadedAt = DateTime.UtcNow; SaveCache();
-            _ = RefreshPlayStatsAsync(jf, TimeSpan.Zero, ct);
+            // (the play counts for the Quick picks are read by the Home page when it is opened, not here: two big requests nobody may ever need)
             if (StripQualityTags()) try { await SaveAsync(jf, ct); } catch (Exception) { }
         }
         finally { Loading = false; gate.Release(); Changed?.Invoke(); }
@@ -144,16 +162,33 @@ public sealed class UserSession
         try
         {
             SyncCursor ??= CursorFile is { } cf && File.Exists(cf) ? File.ReadAllText(cf).Trim() : null;
-            if (SyncCursor is not { Length: > 0 } cursor) return null;
-            var l = await jf.ListAudioAsync(a, cursor, ct, null, FactsSink);
+            knownIds ??= IdsFile is { } idf && File.Exists(idf) ? File.ReadAllLines(idf).Where(s => s.Length > 0).ToHashSet() : null;
+            if (SyncCursor is not { Length: > 0 } cursor || knownIds is null) return null;   // nothing to build on (a first run, or an older cache): list everything once
+            var known = knownIds;
+            var l = await jf.ListAudioAsync(a, cursor, ct, null, FactsSink, id => known.Contains(id));
             var changed = new HashSet<string>(l.Tracks.Select(t => Norm(t.JellyfinId)));
             var merged = Library.Songs.Where(t => t.Source == TrackSource.Jellyfin && !changed.Contains(Norm(t.JellyfinId))).Concat(l.Tracks).ToList();
-            if (await JellyfinSongCountAsync(jf, ct) != merged.Count) return null;   // something was removed (or never seen): list everything again
+            var ids = new HashSet<string>(knownIds); ids.UnionWith(changed);
+            // one tiny request: does Jellyfin's count still match the songs we know? If not, something was removed (or never seen): find out which (ids only)
+            var total = await JellyfinSongCountAsync(jf, ct);
+            if (total >= 0 && total != ids.Count)
+            {
+                var now = (await jf.ListAudioIdsAsync(a, ct)).Select(Norm).ToHashSet();
+                if (now.Any(id => !ids.Contains(id))) return null;   // songs this library never saw: list everything again
+                ids.IntersectWith(now);
+                merged = merged.Where(t => now.Contains(Norm(t.JellyfinId))).ToList();
+            }
+            knownIds = ids;
             if (l.MaxSaved is not null) SyncCursor = l.MaxSaved;
             return merged;
         }
         catch (UnauthorizedAccessException) { throw; }
-        catch (Exception) { return null; }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        // Jellyfin refused the question itself (a cursor it cannot read): start over with a full listing
+        catch (HttpRequestException h) when (h.StatusCode == System.Net.HttpStatusCode.BadRequest) { return null; }
+        // Jellyfin is slow, failing or its breaker is open: keep what we have (it is background work), the next change message or the
+        // 15-minute check asks again. Listing 10,000 songs again now, against a server that is struggling, is the one thing not to do.
+        catch (Exception) { return Library.Songs.Where(t => t.Source == TrackSource.Jellyfin).ToList(); }
     }
 
     static string Norm(string? id) => (id ?? "").Replace("-", "").ToLowerInvariant();
@@ -161,10 +196,12 @@ public sealed class UserSession
     /// <summary>Folds a delta into the library: songs Jellyfin saved again replace their old record (or are added), removed ones disappear. NAS songs and downloads stay.</summary>
     public void ApplyDelta(IReadOnlyList<Track> changed, IReadOnlyCollection<string> removedIds)
     {
-        var drop = new HashSet<string>(removedIds.Select(Norm).Concat(changed.Select(t => Norm(t.JellyfinId))));
+        var gone = removedIds.Select(Norm).ToHashSet();
+        var drop = new HashSet<string>(gone.Concat(changed.Select(t => Norm(t.JellyfinId))));
         var jfNow = Library.Songs.Where(t => t.Source == TrackSource.Jellyfin && !drop.Contains(Norm(t.JellyfinId))).Concat(changed).ToList();
         var nas = Library.Songs.Where(t => t.Source == TrackSource.Nas).ToList();
         Library = WithDownloads(Library.Merge(jfNow, nas));
+        if (knownIds is { } ids) { ids.ExceptWith(gone); foreach (var t in changed) { var n = Norm(t.JellyfinId); if (n.Length > 0) ids.Add(n); } }
         Changed?.Invoke();
     }
 
@@ -174,13 +211,31 @@ public sealed class UserSession
     {
         if (Jellyfin is not { } a || SyncCursor is null || Loading) return 0;
         using var prio = JellyfinGate.Use(GatePriority.Background);
-        var listing = await jf.ListAudioAsync(a, SyncCursor, ct, null, FactsSink);
+        var known = knownIds;
+        var listing = await jf.ListAudioAsync(a, SyncCursor, ct, null, FactsSink, known is null ? null : id => known.Contains(id));
         var gone = removedIds ?? [];
         if (listing.Tracks.Count == 0 && gone.Count == 0) return 0;
         ApplyDelta(listing.Tracks, gone);
         if (listing.MaxSaved is not null) SyncCursor = listing.MaxSaved;
         SaveCache();
         return listing.Tracks.Count + gone.Count;
+    }
+
+    /// <summary>Checks that the songs this library knows are the ones Jellyfin has: one tiny count request, and only when it differs a listing of ids (no streams, no pictures).
+    /// Songs Jellyfin no longer has are dropped (their number is returned). -1 when Jellyfin has songs this library never saw (the caller lists again).</summary>
+    public async Task<int> ReconcileAsync(JellyfinClient jf, CancellationToken ct = default)
+    {
+        if (Jellyfin is not { } a || knownIds is not { } known || Loading) return 0;
+        using var prio = JellyfinGate.Use(GatePriority.Background);
+        var total = await JellyfinSongCountAsync(jf, ct);
+        if (total < 0 || total == known.Count) return 0;
+        var now = (await jf.ListAudioIdsAsync(a, ct)).Select(Norm).ToHashSet();
+        if (now.Any(id => !known.Contains(id))) return -1;
+        var gone = known.Where(id => !now.Contains(id)).ToList();
+        if (gone.Count == 0) return 0;
+        ApplyDelta([], gone);
+        SaveCache();
+        return gone.Count;
     }
 
     /// <summary>How many songs Jellyfin says the user has (one tiny request), to notice removals a socket message missed.</summary>

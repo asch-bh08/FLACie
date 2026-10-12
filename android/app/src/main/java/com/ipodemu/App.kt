@@ -14,6 +14,8 @@ class App : Application() {
     lateinit var library: Library; private set
     lateinit var player: PlayerController; private set
     lateinit var ui: UiState; private set
+    /** Home's shelves as the last run left them (see HomeSnapshot): what the first frame draws before the library has loaded. */
+    @Volatile var homeSnapshot: com.ipodemu.library.HomeSnapshot.Data? = null; private set
     lateinit var userData: com.ipodemu.library.UserData; private set
     lateinit var account: com.ipodemu.library.AccountSync; private set
     lateinit var connect: com.ipodemu.library.JellyfinConnect; private set
@@ -38,6 +40,9 @@ class App : Application() {
         com.ipodemu.library.JellyfinNet.startLogging()
         library = Boot.span("Library()") { Library(this, art) }
         player = Boot.span("PlayerController()") { PlayerController(this, prefs) }
+        // the first screen's songs and covers come from this small file and the cover cache, not from the whole saved library
+        homeSnapshot = Boot.span("home snapshot read") { com.ipodemu.library.HomeSnapshot.read(File(filesDir, "home.json")) }
+        homeSnapshot?.let { art.warm(com.ipodemu.library.HomeSnapshot.coverKeys(it)) }
         ui = UiState(prefs)
         Boot.span("restoreQueue") { player.restoreQueue(); player.restoreSleepTimer() }
         userData = com.ipodemu.library.UserData(this)
@@ -69,7 +74,7 @@ class App : Application() {
         // downloads finished within the last hour (before a restart) keep their "Recently downloaded" tag
         library.tags.seed(userData.downloads.map { Triple(it.title, it.artist, it.time) }, System.currentTimeMillis())
         // pick up changes made on other devices (playlists, newly added services) every launch
-        account.sync()
+        account.sync(background = true)
         Boot.mark("Application.onCreate end")
     }
 

@@ -35,7 +35,7 @@ class JellyfinGateTest {
 
     private fun TestScope.rig(cfg: GateConfig = GateConfig(), busy: Boolean = false, transport: suspend (GateRequest) -> GateResponse) = Rig(this, cfg, busy, transport)
 
-    private val one = GateConfig(initialLimit = 1, minLimit = 1, maxLimit = 1, playingReserve = 0)
+    private val one = GateConfig(initialLimit = 1, minLimit = 1, maxLimit = 1, playingReserve = 0, visibleFloor = 1)   // one at a time: the tests of ordering and cancelling need a single slot (the production floor for visible rows is 4)
 
     @Test fun concurrencyLimitIsRespected() = runTest {
         var cur = 0; var max = 0

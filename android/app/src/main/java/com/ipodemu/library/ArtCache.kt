@@ -123,6 +123,21 @@ class ArtCache(private val dir: File) {
 
     private fun touch(f: File) { val n = System.currentTimeMillis(); if (n - f.lastModified() > 6 * 3600_000L) try { f.setLastModified(n) } catch (_: Exception) {} }
 
+    /**
+     * [ensureJf], asking again with a growing pause (0.4 s, 0.8 s ... 15 s) while a failure looks temporary, for as long as the caller waits ([attempts] unlimited: a
+     * row on screen, which cancels this when it scrolls away) or [attempts] times (background work, which then rests for [BACKGROUND_REST_MS]).
+     * Before, one failed answer left the row without its picture for three minutes and nothing asked again until the row was drawn anew.
+     */
+    private suspend fun ensureJfRetrying(key: String, full: Boolean, p: Priority, attempts: Int = Int.MAX_VALUE): File? {
+        val ik = if (full) "F$key" else key
+        if (attempts != Int.MAX_VALUE) synchronized(this) { fetchFailed[ik]?.let { if (System.currentTimeMillis() - it < BACKGROUND_REST_MS) return (if (full) fullFile(key) else file(key)).takeIf { f -> f.exists() } } }
+        return retryTransient(attempts, exhausted = {
+            synchronized(this) { fetchFailed[ik] = System.currentTimeMillis() }
+            (if (full) fullFile(key) else file(key)).takeIf { it.exists() }
+        }) { ensureJf(key, full, p).also { synchronized(this) { fetchFailed.remove(ik) } } }
+    }
+
+    /** Throws [TransientFailure] when the failure is temporary; returns the file (maybe not there: "no picture") when it is settled. */
     private suspend fun ensureJf(key: String, full: Boolean, p: Priority): File? {
         loadIndex()
         val f = if (full) fullFile(key) else file(key)
@@ -130,15 +145,15 @@ class ArtCache(private val dir: File) {
         val exists = f.exists()
         if (!index.needsFetch(ik, exists)) { touch(f); return f }
         val fx = jfFetch ?: return f.takeIf { exists }
-        synchronized(this) { fetchFailed[ik]?.let { if (System.currentTimeMillis() - it < 3 * 60_000) return f.takeIf { exists } } }
         val e = index.entry(ik)
         // the Now Playing size has no entry of its own until it was fetched once: it follows the listing's tag of the cover
         val want = e?.want ?: if (full) index.entry(key)?.want else null
         val r = try { fx(jfId(key), full, want, if (exists) e?.etag else null, p) }
         catch (c: CancellationException) { throw c }
-        catch (x: Exception) { android.util.Log.i("FLACieCover", "${key.take(10)} failed: ${x.javaClass.simpleName} ${x.message}"); null }
-        if (r != null && r.code !in 200..299 && r.code != 304) android.util.Log.i("FLACieCover", "${key.take(10)} http ${r.code}")
-        if (r == null) { synchronized(this) { fetchFailed[ik] = System.currentTimeMillis() }; return f.takeIf { exists } }
+        catch (x: Exception) { android.util.Log.i("FLACieCover", "${key.take(10)} failed: ${x.javaClass.simpleName} ${x.message}"); throw TransientFailure() }
+        // null = no server is set up: nothing to ask
+        if (r == null) return f.takeIf { exists }
+        if (r.code !in 200..299 && r.code != 304) android.util.Log.i("FLACieCover", "${key.take(12)} http ${r.code} want=$want full=$full")
         if (r.code == 304 && exists) {
             index.saved(ik, want, e?.etag); saveIndexSoon(); touch(f)
             return f
@@ -158,8 +173,7 @@ class ArtCache(private val dir: File) {
             if (full) trimFull() else if (++savesSinceCheck >= 40) { savesSinceCheck = 0; withContext(Dispatchers.IO) { checkSpace() } }
             return f
         }
-        synchronized(this) { fetchFailed[ik] = System.currentTimeMillis() }
-        return f.takeIf { exists }
+        throw TransientFailure()
     }
 
     /** Only the last few Now Playing pictures are kept. */
@@ -262,7 +276,7 @@ class ArtCache(private val dir: File) {
             ioScope.launch {
                 var b: Bitmap? = null
                 try {
-                    val f = untilScrolledOff(ck) { ensureJf(key, false, Priority.VISIBLE) }
+                    val f = untilScrolledOff(ck) { ensureJfRetrying(key, false, Priority.VISIBLE) }
                     if (f != null && f.exists()) b = withContext(decoder) {
                         try { BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = sampleFor(key, thumb, false) }) } catch (_: Exception) { null }
                     }
@@ -311,7 +325,7 @@ class ArtCache(private val dir: File) {
         val big = full && jf   // only Jellyfin covers have a second (Now Playing) size
         val ck = memKey(key, thumb, big)
         synchronized(this) { mem.get(ck)?.let { return it }; if (ck in missing) return null }
-        val f: File = if (jf) ensureJf(key, big, priority) ?: return null
+        val f: File = if (jf) ensureJfRetrying(key, big, priority) ?: return null
             else { if (fetcher != null) withContext(Dispatchers.IO) { ensure(key) }; file(key) }
         return withContext(decoder) {
             // many rows share one album cover: the second one queued finds the first one's bitmap here instead of decoding it again
@@ -319,6 +333,7 @@ class ArtCache(private val dir: File) {
             val b = try {
                 if (f.exists()) BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = sampleFor(key, thumb, big) }) else null
             } catch (_: Exception) { null }
+            if (b == null && jf) android.util.Log.i("FLACieCover", "${key.take(12)} nothing to show: file exists=${f.exists()} len=${f.length()}")
             synchronized(this@ArtCache) {
                 // only a local miss is final (a remote cover that failed is retried, see ensure)
                 if (b != null) mem.put(ck, b) else if (fetcher == null && !jf) missing.add(ck)
@@ -332,14 +347,25 @@ class ArtCache(private val dir: File) {
     fun prefetch(key: String?, done: (() -> Unit)? = null, priority: Priority = Priority.BACKGROUND) {
         if (key == null) return
         if (has(key) && !(isJf(key) && index.needsFetch(key, true))) { done?.let { main.post(it) }; return }
-        if (isJf(key)) { ioScope.launch { try { if (ensureJf(key, false, priority)?.exists() == true) done?.let { main.post(it) } } catch (_: Exception) {} }; return }
+        if (isJf(key)) { ioScope.launch { try { if (ensureJfRetrying(key, false, priority, BACKGROUND_ATTEMPTS)?.exists() == true) done?.let { main.post(it) } } catch (_: Exception) {} }; return }
         exec.execute { if (ensure(key).exists()) done?.let { main.post(it) } }
     }
 
     /** Fetches the Now Playing size of this song's cover (cheap when already saved) so the big cover is sharp the moment it is shown. */
     fun prefetchFull(key: String?) {
         if (key == null || !isJf(key)) return
-        ioScope.launch { try { ensureJf(key, true, Priority.PLAYING) } catch (_: Exception) {} }
+        ioScope.launch { try { ensureJfRetrying(key, true, Priority.PLAYING, BACKGROUND_ATTEMPTS) } catch (_: Exception) {} }
+    }
+
+    /**
+     * The first screens' covers, asked for before the first frame does: each one is brought from disk into memory (decoded on the bounded decoder) or, when the disk
+     * lacks it, fetched as work for rows on screen. A row that is composed meanwhile finds it in memory or shares the same request.
+     */
+    fun warm(keys: List<Pair<String, Boolean>>) {
+        for ((k, thumb) in keys) {
+            if (peek(k, thumb) != null) continue
+            ioScope.launch { try { load(k, thumb, false, Priority.VISIBLE) } catch (_: Exception) {} }
+        }
     }
 
     @Synchronized fun forgetMisses() { missing.clear(); fetchFailed.clear() }
@@ -351,5 +377,9 @@ class ArtCache(private val dir: File) {
         return file(key).takeIf { it.exists() }
     }
 
-    companion object { const val MAX_PX = 320; const val FULL_KEEP = 30; const val SCROLLED_OFF_AFTER = 80 }
+    companion object {
+        const val MAX_PX = 320; const val FULL_KEEP = 30; const val SCROLLED_OFF_AFTER = 80
+        /** Background and prefetch requests give up after this many failures and rest for [BACKGROUND_REST_MS]. */
+        const val BACKGROUND_ATTEMPTS = 3; const val BACKGROUND_REST_MS = 30_000L
+    }
 }

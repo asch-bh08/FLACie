@@ -113,7 +113,7 @@ class Library(ctx: Context, val art: ArtCache) {
             return TrackTitles.cleanAll(tracks, jellyfin.knownArtists)
         }
         override fun publish(tracks: List<Track>, complete: Boolean) {
-            jellyfinTracks = tracks; jellyfinConnected = true
+            jellyfinTracks = CoverVetting.vet(tracks); jellyfinConnected = true
             if (complete) applyJellyfinMerge() else rebuild()
             notifyChange()
         }
@@ -504,6 +504,7 @@ class Library(ctx: Context, val art: ArtCache) {
                     com.ipodemu.Boot.span("library load()") { load() }; com.ipodemu.Boot.span("library showSavedLibrary()") { showSavedLibrary() }
                     com.ipodemu.Boot.span("library loadRemote()") { loadRemote() }; com.ipodemu.Boot.span("library rebuild()") { rebuild() }; loaded = true
                     com.ipodemu.Boot.mark("library loaded: ${tracks.size} songs, ${jellyfinTracks.size} jellyfin")
+                    notifyChange()   // Home waits for this before it works its shelves out again from the whole library
                 }
                 if (source == Source.LOCAL) { mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd(); checkFileMover() }
                 runScan()
@@ -940,18 +941,26 @@ class Library(ctx: Context, val art: ArtCache) {
             if (!remoteFile.exists()) return
             // streamed straight into tracks: building a JSONObject tree for several MB of tracks took seconds on a phone
             val parsed = HashMap<String, List<Track>>()
+            var cleanedWith = 0   // the title-cleaning rules the saved Jellyfin list was already cleaned with (see TrackTitles.RULES)
+            com.ipodemu.Boot.mark("loadRemote: parse start")
             android.util.JsonReader(remoteFile.bufferedReader(Charsets.UTF_8, 1 shl 16)).use { r ->
                 r.beginObject()
                 while (r.hasNext()) {
                     val k = r.nextName()
-                    if (k in REMOTE_KEYS) { val out = ArrayList<Track>(); r.beginArray(); while (r.hasNext()) out += readTrack(r); r.endArray(); parsed[k] = out } else r.skipValue()
+                    if (k == "cv") cleanedWith = r.nextInt()
+                    else if (k in REMOTE_KEYS) { val out = ArrayList<Track>(); r.beginArray(); while (r.hasNext()) out += readTrack(r); r.endArray(); parsed[k] = out } else r.skipValue()
                 }
                 r.endObject()
             }
             fun list(k: String) = parsed[k] ?: emptyList()
-            if (jellyfinTracks.isEmpty()) jellyfinTracks = TrackTitles.cleanAll(list("jf"))
-            AudioFacts.loadJellyfin(jfFactsFile)
-            restoreJfState()
+            com.ipodemu.Boot.mark("loadRemote: parsed")
+            if (jellyfinTracks.isNotEmpty()) jellyfinTracks = com.ipodemu.Boot.span("loadRemote: vet covers") { CoverVetting.vet(jellyfinTracks) }
+            // the list was saved after cleaning: cleaning it again gives the same titles (about half a second of CPU for 10,000 songs), so only a list saved with older rules is cleaned
+            if (jellyfinTracks.isEmpty()) jellyfinTracks = if (cleanedWith == TrackTitles.RULES) list("jf") else com.ipodemu.Boot.span("loadRemote: cleanAll") { TrackTitles.cleanAll(list("jf")) }
+            // a list from before the stamp (or from older rules) is saved again once, stamped, so the next launch skips the cleaning
+            if (cleanedWith != TrackTitles.RULES && jellyfinTracks.isNotEmpty()) remoteSaveJob = scope.launch { kotlinx.coroutines.delay(8_000); saveRemote() }
+            com.ipodemu.Boot.span("loadRemote: facts") { AudioFacts.loadJellyfin(jfFactsFile) }
+            com.ipodemu.Boot.span("loadRemote: restoreJfState") { restoreJfState() }
             if (plexTracks.isEmpty()) plexTracks = list("px")
             if (nasTracks.isEmpty()) nasTracks = list("nas")
             val week2 = System.currentTimeMillis() - 14L * 86_400_000
@@ -964,7 +973,7 @@ class Library(ctx: Context, val art: ArtCache) {
             // streamed to the file: one JSON tree of every song (tens of thousands) ran the heap out of memory
             val tmp = File(remoteFile.path + ".tmp")
             android.util.JsonWriter(tmp.bufferedWriter(Charsets.UTF_8, 1 shl 16)).use { w ->
-                w.beginObject()
+                w.beginObject().name("cv").value(TrackTitles.RULES.toLong())
                 for ((k, ts) in listOf("jf" to jellyfinTracks, "px" to plexTracks, "nas" to nasTracks, "dl" to downloaded)) {
                     w.name(k).beginArray(); for (t in ts) writeTrack(w, t); w.endArray()
                 }
@@ -974,11 +983,7 @@ class Library(ctx: Context, val art: ArtCache) {
         } catch (_: Exception) {}
     }
 
-    private fun writeTrack(w: android.util.JsonWriter, t: Track) {
-        w.beginObject().name("p").value(t.path).name("ti").value(t.title).name("ar").value(t.artist).name("al").value(t.album).name("aa").value(t.albumArtist)
-            .name("g").value(t.genre).name("tn").value(t.trackNo.toLong()).name("dn").value(t.discNo.toLong()).name("d").value(t.durationMs).name("y").value(t.year.toLong())
-            .name("m").value(t.isMusic).name("k").value(t.artKey ?: "").name("mt").value(t.mtime).name("s").value(t.size).name("src").value(t.source.name).name("fp").value(t.filePath).name("ot").value(t.origTitle).endObject()
-    }
+    private fun writeTrack(w: android.util.JsonWriter, t: Track) = TrackJson.write(w, t)
 
     private fun notifyChange() { main.post { onChange?.invoke(); for (o in observers) o() } }
 
@@ -1036,20 +1041,7 @@ class Library(ctx: Context, val art: ArtCache) {
         }
     }
 
-    private fun readTrack(r: android.util.JsonReader): Track {
-        var p = ""; var ti = ""; var ar = ""; var al = ""; var aa = ""; var g = ""; var tn = 0; var dn = 0; var d = 0L; var y = 0; var m = false
-        var k = ""; var mt = 0L; var s = 0L; var src = ""; var fp = ""; var ot = ""
-        r.beginObject()
-        while (r.hasNext()) when (r.nextName()) {
-            "p" -> p = r.nextString(); "ti" -> ti = r.nextString(); "ar" -> ar = r.nextString(); "al" -> al = r.nextString(); "aa" -> aa = r.nextString()
-            "g" -> g = r.nextString(); "tn" -> tn = r.nextInt(); "dn" -> dn = r.nextInt(); "d" -> d = r.nextLong(); "y" -> y = r.nextInt(); "m" -> m = r.nextBoolean()
-            "k" -> k = r.nextString(); "mt" -> mt = r.nextLong(); "s" -> s = r.nextLong(); "src" -> src = r.nextString(); "fp" -> fp = r.nextString(); "ot" -> ot = r.nextString()
-            else -> r.skipValue()
-        }
-        r.endObject()
-        return Track(p, fixMojibake(ti), fixMojibake(ar), fixMojibake(al), fixMojibake(aa), g, tn, dn, d, y, m, k.ifEmpty { null }, mt, s,
-            source = TrackSource.entries.firstOrNull { it.name == src } ?: TrackSource.LOCAL, filePath = fp, origTitle = ot)
-    }
+    private fun readTrack(r: android.util.JsonReader): Track = TrackJson.read(r)
 
     companion object {
         private val REMOTE_KEYS = setOf("jf", "px", "nas", "dl")

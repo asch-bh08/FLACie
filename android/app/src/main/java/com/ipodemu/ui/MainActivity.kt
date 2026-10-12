@@ -47,7 +47,6 @@ class MainActivity : ComponentActivity() {
         Boot.mark("MainActivity.onCreate start")
         // test aid, like the fake extras below: `am start --ez clearcovers true` starts with an empty cover cache (what Settings > Clear cache does for covers)
         if (intent?.getBooleanExtra("clearcovers", false) == true) app.art.clearAll()
-        app.library.start()
         // Debug aid: `am start --es fake 1080x2400` letterboxes the UI into that aspect ratio to test layouts.
         // `--es fakedp 360` also renders it at that width in dp (e.g. a Z Fold cover screen), and `--es fakecutout 32`
         // simulates a camera cutout that tall at the top, for checking safe-area handling on a device without one.
@@ -71,9 +70,17 @@ class MainActivity : ComponentActivity() {
         Boot.mark("MainActivity.onCreate end")
         window.decorView.viewTreeObserver.addOnDrawListener(object : android.view.ViewTreeObserver.OnDrawListener {
             private var n = 0
-            override fun onDraw() { if (++n <= 3) Boot.mark("frame $n drawn"); if (n >= 3) window.decorView.post { window.decorView.viewTreeObserver.removeOnDrawListener(this) } }
+            override fun onDraw() {
+                if (++n <= 3) Boot.mark("frame $n drawn")
+                if (n == 1) window.decorView.post { startLibrary() }   // loading the saved library competes with the first frame for the CPU: it starts once that is on screen
+                if (n >= 3) window.decorView.post { window.decorView.viewTreeObserver.removeOnDrawListener(this) }
+            }
         })
+        window.decorView.postDelayed({ startLibrary() }, 1500)   // never later than this, even if no frame is drawn (screen off)
     }
+
+    private var libraryStarted = false
+    private fun startLibrary() { if (libraryStarted) return; libraryStarted = true; Boot.mark("library.start()"); app.library.start() }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

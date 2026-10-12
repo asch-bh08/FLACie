@@ -55,9 +55,9 @@ object CoverProbe {
     private fun startReports() {
         val h = android.os.Handler(android.os.Looper.getMainLooper())
         // the first cover slot appears when the first screen is drawn; 1 s, 3 s and 10 s are counted from the process start (the tap on the icon)
-        for (s in longArrayOf(1000, 2000, 3000, 5000, 10000)) {
+        for (s in longArrayOf(250, 500, 1000, 2000, 3000, 5000, 10000)) {
             val wait = s - Boot.sinceStart()
-            h.postDelayed({ report("t=${s / 1000}s") }, wait.coerceAtLeast(0))
+            h.postDelayed({ report((if (s < 1000) "t=${s}ms" else "t=${s / 1000}s")) }, wait.coerceAtLeast(0))
         }
     }
 }

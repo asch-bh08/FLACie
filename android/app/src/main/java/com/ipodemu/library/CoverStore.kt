@@ -158,3 +158,30 @@ class ScrollWatch(private val after: Int = 80) {
     @Synchronized fun done(key: String) { wanted.remove(key) }
     @Synchronized fun scrolledOff(key: String): Boolean { val last = wanted[key] ?: return true; return draws.get() - last > after }
 }
+
+/** A failure that is probably temporary (no answer, a 5xx / 429, an empty body, the gate refusing): worth asking again. */
+internal class TransientFailure : Exception()
+
+/** The pause before the [n]th new try (1-based): 0.4 s, 0.8 s, 1.6 s ... up to 15 s, each between 70 % and 130 % of that so many rows do not all ask at the same instant. */
+internal fun backoffMs(n: Int, random: Double): Long = ((400L shl (n - 1).coerceIn(0, 6)).coerceAtMost(15_000L) * (0.7 + 0.6 * random)).toLong()
+
+/**
+ * Runs [block], and again after a [backoffMs] pause each time it throws [TransientFailure], at most [attempts] times (unlimited by default: a row on screen keeps asking until it
+ * gets its picture or scrolls away, which cancels this). [exhausted] gives the result when the attempts ran out. Cancellation always goes through.
+ */
+internal suspend fun <T> retryTransient(
+    attempts: Int = Int.MAX_VALUE,
+    sleep: suspend (Long) -> Unit = { kotlinx.coroutines.delay(it) },
+    random: () -> Double = { kotlin.random.Random.nextDouble() },
+    exhausted: () -> T,
+    block: suspend () -> T,
+): T {
+    var n = 0
+    while (true) {
+        try { return block() }
+        catch (_: TransientFailure) {
+            if (++n >= attempts) return exhausted()
+            sleep(backoffMs(n, random()))
+        }
+    }
+}

@@ -149,8 +149,9 @@ fun QuickPicks(tracks: List<com.ipodemu.library.Track>, nav: PlayerNav, onPlay: 
                         val idx = pi * 4 + ri
                         // a focus ring for the D-pad / keyboard (the row had no indication at all)
                         var focused by remember { androidx.compose.runtime.mutableStateOf(false) }
+                        val tagged = isTagged(t)   // a download tag takes a third line
                         Row(
-                            Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(10.dp))
+                            Modifier.fillMaxWidth().height(if (tagged) 78.dp else 64.dp).clip(RoundedCornerShape(10.dp))
                                 .border(if (focused) 2.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(10.dp))
                                 .onFocusChanged { focused = it.isFocused }
                                 .clickable { onPlay(idx) }.padding(vertical = 6.dp),
@@ -160,6 +161,7 @@ fun QuickPicks(tracks: List<com.ipodemu.library.Track>, nav: PlayerNav, onPlay: 
                             Column(Modifier.weight(1f)) {
                                 Txt(t.title, size = 15f, weight = FontWeight.SemiBold, maxLines = 1)
                                 Txt(t.artist, size = 12.5f, color = sc.onBgDim, maxLines = 1)
+                                if (tagged) DownloadTagLine(t, size = 11f)
                             }
                             Box(Modifier.size(44.dp).clip(CircleShape).clickable { openTrackSheet(app, nav, t) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.MORE, Modifier.size(20.dp), sc.onBgDim) }
                         }

@@ -98,7 +98,22 @@ class FlacieWebClient(private val prefs: Prefs) {
         } } } ?: emptyList()
         return ServerDownloads(run, log)
     }
-    fun account(): AccountStats = JSONObject(send("/api/account", "GET")).let { AccountStats(it.optInt("songs"), it.optInt("albums"), it.optInt("artists"), it.optInt("playlists"), it.optInt("favourites"), it.optBoolean("admin")) }
+    /**
+     * Tells FLACie Web a download finished on this phone (`POST /api/downloaded`, the Jellyfin token in `X-Emby-Token` like `/api/played`).
+     * [body] comes from [DownloadReport.json]. Returns the HTTP status; throws only when the server cannot be reached. Nothing is logged here.
+     */
+    fun reportDownloaded(body: String): Int {
+        val c = open("/api/downloaded", "POST")
+        c.connectTimeout = 5_000; c.readTimeout = 8_000
+        try {
+            val b = body.toByteArray()
+            c.doOutput = true; c.setRequestProperty("Content-Type", "application/json"); c.setFixedLengthStreamingMode(b.size)
+            c.outputStream.use { it.write(b) }
+            return c.responseCode
+        } finally { c.disconnect() }
+    }
+
+    fun account(): AccountStats =JSONObject(send("/api/account", "GET")).let { AccountStats(it.optInt("songs"), it.optInt("albums"), it.optInt("artists"), it.optInt("playlists"), it.optInt("favourites"), it.optBoolean("admin")) }
 
     /** A chart (0 = Top Songs; the ids come from [settings]), as the server read it from the public charts. */
     fun chart(id: Int): List<ChartSong> { val a = JSONArray(send("/api/charts/$id", "GET")); return List(a.length()) { a.getJSONObject(it).let { o -> ChartSong(o.optInt("rank"), o.optString("title"), o.optString("artist"), o.optString("art").takeIf { s -> s.isNotBlank() && s != "null" }) } } }

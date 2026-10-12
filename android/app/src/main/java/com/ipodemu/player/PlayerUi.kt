@@ -327,6 +327,7 @@ fun TrackRow(
     val sc = LocalScheme.current
     val fav by app.userData.favState(t.path)   // per-track state: a favourite toggle recomposes only this row
     val hiRes = remember(t, AudioFacts.version) { t.hiRes }   // not worked out again on every recomposition while scrolling
+    val tagged = isTagged(t)   // a download tag (running, recently finished, failed) takes a third line under the artist
     val isCurrent = snap.track?.path == t.path
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val rCode = app.prefs.swipeRowRight; val lCode = app.prefs.swipeRowLeft
@@ -341,7 +342,7 @@ fun TrackRow(
     // tapping the song that is already playing opens the player (or resumes it) instead of starting it over; any tap puts the keyboard away
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val tap = { focus.clearFocus(); keyboard?.hide(); if (isCurrent) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else onPlay() }
-    IpodRow(onClick = tap, onLong = { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, height = 56.dp,
+    IpodRow(onClick = tap, onLong = { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, height = if (tagged) 74.dp else 56.dp,
         leading = {
             if (showArt) Box(Modifier.size(42.dp)) {
                 ArtImage(t.artKey, Modifier.fillMaxSize(), thumb = true, corner = 8.dp)
@@ -374,6 +375,7 @@ fun TrackRow(
                 HiResBadge(compact = true)
                 if (sub.isNotEmpty()) Txt(sub, Modifier.weight(1f), size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
             } else if (sub.isNotEmpty()) Txt(sub, size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
+            if (tagged) DownloadTagLine(t, hi = hi)
         }
     }
     }
@@ -394,7 +396,7 @@ private fun SourceBadge(source: com.ipodemu.library.TrackSource) {
     if (!Tweaks.badges || !LocalApp.current.library.mixedSources) return
     val color = sourceColor(source)
     Box(Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.16f)).padding(horizontal = 7.dp, vertical = 3.dp)) {
-        Txt(if (source == com.ipodemu.library.TrackSource.NAS) "NAS" else if (source == com.ipodemu.library.TrackSource.CLOUD) "Streaming" else source.name.lowercase().replaceFirstChar { it.uppercase() }, size = 11f, weight = FontWeight.SemiBold, color = color)
+        Txt(com.ipodemu.library.SourceLabel.badge(source), size = 11f, weight = FontWeight.SemiBold, color = color)
     }
 }
 
@@ -627,6 +629,7 @@ private fun TrackCard(t: Track, modifier: Modifier = Modifier, onClick: () -> Un
         ArtImage(t.artKey, Modifier.fillMaxWidth().aspectRatio(1f).border(if (focused) 3.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(12.dp)), thumb = true, corner = 12.dp)
         Txt(t.title, Modifier.padding(top = 8.dp), size = 13f, weight = FontWeight.SemiBold)
         Txt(t.artist, size = 12f, color = sc.onBgDim)
+        DownloadTagLine(t, size = 11f)
         Box(Modifier.padding(top = 4.dp)) { SourceBadge(t.source) }
     }
 }
@@ -695,7 +698,7 @@ private fun SourceFilterChips(all: List<Track>, current: com.ipodemu.library.Tra
         chip("All", null, all.size)
         for (s in com.ipodemu.library.TrackSource.entries) {
             val n = counts[s] ?: continue
-            chip(s.name.lowercase().replaceFirstChar { it.uppercase() }, s, n)
+            chip(com.ipodemu.library.SourceLabel.badge(s), s, n)
         }
     }
 }
@@ -1067,7 +1070,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 itemsIndexed(shown, key = { i, s -> "ws$i${s.artist}${s.title}" }) { _, s ->
                     val owned = ownedSongs[com.ipodemu.library.matchKey(s.title, s.artist)]
                     val status = dl[app.library.songKey(s.artist, s.title)]
-                    WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.message ?: "${s.artist} · ${s.album}", s.artUrl, owned, status,
+                    WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.let { st -> if (st.stage == DownloadStage.FAILED) st.message else "Downloading · " + com.ipodemu.library.DownloadTags.stageText(st.stage, st.message) } ?: "${s.artist} · ${s.album}", s.artUrl, owned, status,
                         onPlay = { searchFocus.clearFocus(); owned?.let { if (snap.track?.path == it.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(it), 0, null) } } },
                         onDownload = { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs) },
                         // the three-line menu: Download, Hi-Res (administrators, per song, after a confirmation: the files are several times the size), Find on YouTube
@@ -1151,7 +1154,8 @@ private fun WebRow(title: String, subtitle: String, imageUrl: String?, owned: Tr
     val sc = LocalScheme.current
     val busy = status != null && status.stage != DownloadStage.DONE && status.stage != DownloadStage.FAILED
     val failed = status?.stage == DownloadStage.FAILED
-    IpodRow({ if (owned != null) onPlay() else if (!busy) onDownload() }, height = 60.dp,
+    val tagged = owned != null && isTagged(owned)   // a song fetched just now: "Recently downloaded · 5s ago" under the line
+    IpodRow({ if (owned != null) onPlay() else if (!busy) onDownload() }, height = if (tagged) 76.dp else 60.dp,
         leading = { RemoteArtImage(imageUrl, Modifier.size(48.dp), corner = 8.dp) },
         trailing = {
             when {
@@ -1167,6 +1171,7 @@ private fun WebRow(title: String, subtitle: String, imageUrl: String?, owned: Tr
         Column {
             Txt(title, size = 15f, color = if (hi) Color.White else sc.onBg, maxLines = 1)
             Txt(subtitle, size = 12f, color = if (failed && !hi) Color(0xFFFF9C9C) else if (hi) Color(0xDDFFFFFF) else sc.onBgDim, maxLines = 1)
+            if (tagged && owned != null) DownloadTagLine(owned, hi = hi, size = 11f)
         }
     }
 }
@@ -1195,6 +1200,7 @@ private fun TopResultCard(t: Track, onPlay: () -> Unit) {
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
             Txt(t.title, size = 18f, weight = FontWeight.Bold, color = sc.onBg, maxLines = 1)
             Txt(t.artist, size = 14f, color = sc.onBgDim, maxLines = 1)
+            DownloadTagLine(t, size = 12f)
             Box(Modifier.padding(top = 4.dp)) { SourceBadge(t.source) }
         }
         Box(Modifier.size(44.dp).clip(CircleShape).background(sc.accent).semantics { contentDescription = "Play" }.clickable(onClick = onPlay), contentAlignment = Alignment.Center) {
@@ -1256,7 +1262,8 @@ private fun QueueScreen(nav: PlayerNav, snap: PlayerSnap) {
                 val cur = i == snap.index
                 val remove = remember(i, t) { SwipeAction("Remove", Glyph.CLOSE, { Color(0xFFD9423F) }) { removeFromQueueWithUndo(app, i) } }
                 SwipeRow(right = remove, left = remove) {
-                IpodRow({ app.player.skipTo(i) }, height = 56.dp, onLong = { nav.sheet = queueRowSheet(app, t, i, snap.index, q.size) },
+                val tagged = isTagged(t)
+                IpodRow({ app.player.skipTo(i) }, height = if (tagged) 74.dp else 56.dp, onLong = { nav.sheet = queueRowSheet(app, t, i, snap.index, q.size) },
                     leading = { Box(Modifier.width(30.dp), contentAlignment = Alignment.Center) { if (cur) EqualizerBars(Modifier.size(18.dp), snap.playing, sc.accent) else Txt("${i + 1}", size = 14f, color = sc.onBgDim) } },
                     trailing = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1267,6 +1274,7 @@ private fun QueueScreen(nav: PlayerNav, snap: PlayerSnap) {
                     Column {
                         Txt(t.title, size = 16f, weight = if (cur) FontWeight.Bold else FontWeight.Medium, color = if (hi) Color.White else if (cur) sc.accent else sc.onBg)
                         Txt(t.artist, size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
+                        if (tagged) DownloadTagLine(t, hi = hi)
                     }
                 }
                 }

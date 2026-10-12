@@ -300,6 +300,9 @@ class Library(ctx: Context, val art: ArtCache) {
     /** Downloads in progress on this phone (with their story so far) and the log of finished ones, for the Downloads screen. */
     val runningDownloads = java.util.concurrent.ConcurrentHashMap<String, RunningDownload>()
     val downloadLog = DownloadLog(ctx)
+    /** What the status tags under songs say (running / recently finished / failed), see [DownloadTags]. */
+    val tags = DownloadTagStore()
+    private val web = FlacieWebClient(prefs)
     fun songKey(artist: String, title: String) = "s|" + matchKey(title, artist)
     fun albumKey(a: WebCatalog.Album) = "a|${a.id}"
 
@@ -310,7 +313,7 @@ class Library(ctx: Context, val art: ArtCache) {
         val label = "${title.ifBlank { album }} · $artist${if (hiRes) " (Hi-Res)" else ""}"
         runningDownloads[key] = RunningDownload(java.util.UUID.randomUUID().toString(), label, "Search", CoverLookup.key(artist, album, title))
         scope.launch {
-            val report: (DownloadStatus) -> Unit = { status -> onStatus(key, status, DownloadEntry(artist, title.ifBlank { album }, album, "", 0, "")) }
+            val report: (DownloadStatus) -> Unit = { status -> onStatus(key, status, DownloadEntry(artist, title.ifBlank { album }, album, "", 0, ""), tagKey = if (title.isBlank()) null else matchKey(title, artist), durationMs = durationMs) }
             if (hiRes) downloader.downloadHiRes(artist, title, album, durationMs, fallbackToNormal, report) else downloader.download(artist, title, album, durationMs, report)
         }
     }
@@ -337,18 +340,34 @@ class Library(ctx: Context, val art: ArtCache) {
         }
     }
 
-    private fun onStatus(key: String, status: DownloadStatus, entry: DownloadEntry) {
+    private fun onStatus(key: String, status: DownloadStatus, entry: DownloadEntry, tagKey: String? = null, durationMs: Long = 0) {
         downloadStatus = status
         track(key, status)
         downloads[key] = status
+        tags.onStatus(tagKey, status, System.currentTimeMillis())
         addDownloadedTracks(status.newTracks)
         notifyChange()
         if (status.stage == DownloadStage.DONE) {
+            reportToWeb(DownloadReport.itemsFor(entry.artist, if (tagKey == null) "" else entry.title, entry.album, durationMs, status, System.currentTimeMillis()))
             refreshAfterDownload()
             val t = status.newTracks.singleOrNull()
             val e = if (t != null) DownloadEntry(t.artist, t.title, t.album, t.path, System.currentTimeMillis(), status.source.orEmpty())
                 else entry.copy(album = status.newTracks.firstOrNull()?.album ?: entry.album, time = System.currentTimeMillis(), source = status.source.orEmpty())
             main.post { onDownloaded?.invoke(e) }
+        }
+    }
+
+    /**
+     * Tells FLACie Web (when this account has one configured) that these songs were downloaded, so it can show them as recently downloaded,
+     * add them to the user's session and stop offering them again. Fire and forget on its own coroutine: one retry, nothing is shown, nothing
+     * blocks the download or playback, and only the outcome (never a token or an address) is logged.
+     */
+    private fun reportToWeb(items: List<DownloadReport.Item>) {
+        if (items.isEmpty() || !web.available) return
+        scope.launch(Dispatchers.IO) {
+            var ok = 0
+            for (i in items) if (DownloadReport.deliver(i, { web.reportDownloaded(DownloadReport.json(it)) })) ok++
+            android.util.Log.d("FLACie", "download report to FLACie Web: $ok of ${items.size} accepted")
         }
     }
 

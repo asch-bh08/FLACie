@@ -233,10 +233,15 @@ private fun ChartsPanel(nav: PlayerNav, snap: PlayerSnap) {
                 itemsIndexed(list, key = { _, s -> "${s.rank}${s.title}" }) { _, s ->
                     val mine = owned[matchKey(s.title, s.artist)]
                     val status = app.library.downloads[app.library.songKey(s.artist, s.title)]
-                    IpodRow({ if (mine != null) { app.player.play(listOf(mine), 0, null) } else app.library.requestDownload(s.artist, s.title, "", 0) }, height = 58.dp,
+                    val tagKey = matchKey(s.title, s.artist)
+                    val tagged = isTagged(tagKey, mine?.let { com.ipodemu.library.DownloadTags.cloudAdded(it) })
+                    IpodRow({ if (mine != null) { app.player.play(listOf(mine), 0, null) } else app.library.requestDownload(s.artist, s.title, "", 0) }, height = if (tagged) 74.dp else 58.dp,
                         leading = { Box(Modifier.width(34.dp), contentAlignment = Alignment.Center) { Txt("${s.rank}", size = 15f, weight = FontWeight.Bold, color = sc.onBgDim) } },
                         trailing = { Txt(if (mine != null) "Play" else status?.message?.take(16) ?: "Download", size = 13f, color = sc.accent) }) { _ ->
-                        Column { Txt(s.title, size = 16f, weight = FontWeight.Medium); Txt(s.artist, size = 13f, color = sc.onBgDim) }
+                        Column {
+                            Txt(s.title, size = 16f, weight = FontWeight.Medium); Txt(s.artist, size = 13f, color = sc.onBgDim)
+                            if (tagged) DownloadTagLine(tagKey, mine?.let { com.ipodemu.library.DownloadTags.cloudAdded(it) })
+                        }
                     }
                 }
             }

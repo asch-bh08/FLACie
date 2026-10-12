@@ -52,8 +52,8 @@ test.describe.serial('Up next editing', () => {
     await expect(page.getByRole('button', { name: 'Move Lab 8 down' })).toBeDisabled();
     await page.getByRole('button', { name: 'Move Lab 2 down' }).click();
     await expect.poll(() => upNext(page)).toEqual(['Lab 4', 'Lab 2', 'Lab 3', 'Lab 5', 'Lab 6', 'Lab 7', 'Lab 8']);
-    // play next: straight to the top
-    await page.getByRole('button', { name: 'Play Lab 7 next' }).click();
+    // play next: straight to the top (the button's name has no "next" in it on purpose: the specs find the player's Next button by that word)
+    await page.getByRole('button', { name: 'Move Lab 7 to the top of the queue' }).click();
     await expect.poll(() => upNext(page)).toEqual(['Lab 7', 'Lab 4', 'Lab 2', 'Lab 3', 'Lab 5', 'Lab 6', 'Lab 8']);
     // remove (with the keyboard: focus the button and press Enter)
     const rm = page.getByRole('button', { name: 'Remove Lab 3 from the queue' });
@@ -79,7 +79,7 @@ test.describe.serial('Up next editing', () => {
     expect(await nowTitle(page)).toBe('Lab 7');
     expect(await upNext(page)).toEqual(['Lab 4', 'Lab 2', 'Lab 5', 'Lab 6', 'Lab 8']);
     // and edits go on from there
-    await page.getByRole('button', { name: 'Play Lab 8 next' }).click();
+    await page.getByRole('button', { name: 'Move Lab 8 to the top of the queue' }).click();
     await expect.poll(() => upNext(page)).toEqual(['Lab 8', 'Lab 4', 'Lab 2', 'Lab 5', 'Lab 6']);
     await page.reload();
     await expect(page.getByRole('button', { name: 'Open Now Playing' })).toBeVisible({ timeout: 40_000 });

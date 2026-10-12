@@ -104,7 +104,7 @@
                                         <div class="q-edit">
                                             <button class="q-up" aria-label="@("Move " + u.Title + " up")" title="Move up" disabled="@first" @onclick="() => Player.MoveUpNext(i, QueueEdit.Step.Up)"><Icon Name="chevron-up" Size="18" /></button>
                                             <button class="q-down" aria-label="@("Move " + u.Title + " down")" title="Move down" disabled="@last" @onclick="() => Player.MoveUpNext(i, QueueEdit.Step.Down)"><Icon Name="chevron-down" Size="18" /></button>
-                                            <button class="q-top" aria-label="@("Play " + u.Title + " next")" title="Play next" disabled="@first" @onclick="() => Player.MoveUpNext(i, QueueEdit.Step.Top)"><Icon Name="next" Size="18" /></button>
+                                            <button class="q-top" aria-label="@("Move " + u.Title + " to the top of the queue")" title="Play next" disabled="@first" @onclick="() => Player.MoveUpNext(i, QueueEdit.Step.Top)"><Icon Name="next" Size="18" /></button>
                                             <button class="q-remove" aria-label="@("Remove " + u.Title + " from the queue")" title="Remove from the queue" @onclick="() => Player.RemoveFromQueue(i)"><Icon Name="x" Size="18" /></button>
                                         </div>
                                     }
@@ -117,7 +117,7 @@
                                 {
                                     <li class="q-item">
                                         <button class="q-row" @onclick="() => Player.Play([u], 0, Player.Context)"><Cover ArtKey="@(Art.KeyFor(u))" Size="44" /><span><b>@u.Title</b><small>@u.Artist@(u.Album.Length > 0 ? " · " + u.Album : "")</small>@if (Note(u) is { } dn) { <em class="dl-note @(dn == "Downloading" ? "live" : "")">@dn</em> }</span><span class="q-time">@Time(u.DurationMs / 1000.0)</span></button>
-                                        @if (canEdit) { <div class="q-edit"><button class="q-top" aria-label="@("Play " + u.Title + " next")" title="Play next" @onclick="() => Player.PlayNext(u)"><Icon Name="next" Size="18" /></button></div> }
+                                        @if (canEdit) { <div class="q-edit"><button class="q-top" aria-label="@("Put " + u.Title + " at the top of the queue")" title="Play next" @onclick="() => Player.PlayNext(u)"><Icon Name="next" Size="18" /></button></div> }
                                     </li>
                                 }
                             }

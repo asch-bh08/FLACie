@@ -127,7 +127,7 @@ requirements 1-7 and 9 of the owner's list and built, run and tested here (mock 
 - Remembered across a reload: the queue is now saved IN PLAY ORDER (a few songs before the current one, up to 300 after), and restored as it stands (no new shuffle),
   so an arranged or shuffled queue comes back as it was, paused at the second it was left (the existing mechanism, same key per account in this browser).
 - UI (`NowPlaying.razor` Up next, full-screen player and the Windows app): each upcoming row has real buttons with labels: "Move <song> up", "Move <song> down",
-  "Play <song> next", "Remove <song> from the queue" (first row: up / play next disabled; last row: down disabled). The autoplay suggestions below get "Play <song> next".
+  "Play <song> next", "Remove <song> from the queue" (first row: up / play next disabled; last row: down disabled). The autoplay suggestions below get "Put <song> at the top of the queue" (tooltip "Play next"). (No label contains the word "next" as a button name: a Playwright name match on "Next" for the player's skip button would otherwise find them.)
   There is no remove button on the playing row (removing it is in `PlayerState` and unit tested, not offered in the UI: the song that plays stays).
 - Not changed: drag and drop (none), the phone app's Undo toast (the web has no undo for a removal; the song can be put back with Play next from its album).
 

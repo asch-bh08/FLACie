@@ -81,7 +81,7 @@ Request JSON: `{ "artist", "title", "album"?, "durationMs"?, "path"?, "source"?,
 ## Results (this branch)
 
 * `dotnet test`: 231 passed (187 before + 44 new).
-* Playwright, whole suite on a fresh server: 130 passed (the 119 of beta 53 + 10 new in `1i-download-tags.spec.ts` + 1 more already in the count of the last run).
+* Playwright, whole suite on a fresh server: 130 passed in total, including the 10 new ones in `1i-download-tags.spec.ts` (the handoff counted 119 before; the other 1 is whatever that count missed, nothing was skipped or removed).
   One earlier full run had the 320 px bottom-bar spec fail once (width 0) and passed when run again; not reproduced.
 
 ## Not tested / notes

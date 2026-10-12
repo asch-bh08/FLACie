@@ -111,3 +111,41 @@ requirements 1-7 and 9 of the owner's list and built, run and tested here (mock 
 - The player's own error handler (three retries, then skip) will walk through a queue while the breaker is open (each 503 is fast). Not changed.
 - Real Jellyfin behaviour (inclusive MinDateLastSaved, WebSocket LibraryChanged, 429 headers, image tags) is from its documented behaviour and the mock; none of it
   was run against a real server.
+
+---
+
+# Follow-up on `beta52/server-features`: Up next editing on the web, label of the desktop app's own client
+
+## Queue editing (web, and the Windows app: same pages)
+- `FLACie.Core/QueueEdit.cs`: pure arithmetic with the semantics of the Android `QueueEdit.kt`, over the web player's two orders (the queue list and the play
+  order, an array of queue indices). `Reorder` (up, down, top = "Play next") only refills the slots after the current song, so moving never changes what plays;
+  `Remove` (another song: nothing else changes; the playing song: the one that follows takes over, with repeat-all the first one after the last, with nothing after it
+  the one before waits paused, the last one out closes the player); `InsertNext` (a song put next lands right after the current one in whatever order is in use).
+- `PlayerState`: `MoveUpNext(queueIndex, step)`, `RemoveFromQueue(queueIndex)`, `CanEdit` (not while another device is being remote-controlled), `UpNextCount`.
+  `AddNext` no longer rebuilds the play order (it used to throw away a shuffle or an arrangement); repeat-all wraps to the first song of the arranged order and only
+  reshuffles when shuffle is on.
+- Remembered across a reload: the queue is now saved IN PLAY ORDER (a few songs before the current one, up to 300 after), and restored as it stands (no new shuffle),
+  so an arranged or shuffled queue comes back as it was, paused at the second it was left (the existing mechanism, same key per account in this browser).
+- UI (`NowPlaying.razor` Up next, full-screen player and the Windows app): each upcoming row has real buttons with labels: "Move <song> up", "Move <song> down",
+  "Move <song> to the top of the queue" (tooltip "Play next"), "Remove <song> from the queue" (first row: up / top disabled; last row: down disabled). The autoplay suggestions below get "Put <song> at the top of the queue" (tooltip "Play next"). (No label contains the word "next" as a button name: a Playwright name match on "Next" for the player's skip button would otherwise find them.)
+  There is no remove button on the playing row (removing it is in `PlayerState` and unit tested, not offered in the UI: the song that plays stays).
+- Not changed: drag and drop (none), the phone app's Undo toast (the web has no undo for a removal; the song can be put back with Play next from its album).
+
+## Label of the desktop app's own client
+- `ClientLabel.Of(browser, os, desktopShell, loopback)`: in the Windows app's copy of the server (`FLACIE_PARENT_PID`) the embedded WebView2 (Edge's engine, "Edge" on
+  "Windows", seen from the loopback address: the only address that server listens on) is shown as **FLACie for Windows** on the dashboard, in the device list
+  and in the device picker; any other browser keeps its own name, and a normal server never renames anything. `ClientLabel.Device` does the same for the player's
+  own row in Devices / the picker ("FLACie Web" -> "FLACie for Windows" in the app only). The Jellyfin device name "FLACie Web" and the client id `ipodplayer`
+  that are sent to Jellyfin are unchanged (asserted in a test).
+
+## Tests
+- `dotnet test`: 187 passed, 0 failed (168 on the previous branch + 19 new in `QueueTests`: arithmetic incl. a randomized run of 200 queues, the player with a fake
+  JS runtime (moves, removals, play next in an arranged and a shuffled queue, restore from the saved list), label derivation, device label, the web client label
+  with the shell variable).
+- Playwright `1h-queue.spec.ts`: Up next of the mock's Hires Lab album: up / down / play next / remove (the last with the keyboard: focus + Enter), disabled
+  edges, the playing song untouched and its clock still running, Next goes to the song moved to the top, and the arranged queue is restored after two reloads.
+- Full Playwright suite on this branch (one worker, fresh `.data-smoke`/`.pub-smoke`): **119 passed, 0 failed** (7.2 min). Along the way: the first
+  version of the Up next button labels contained the word "next" ("Play X next") and the existing specs' `getByRole('button', {name: 'Next'}).first()` found them
+  (a skip became "Put Static 14 next"): labels renamed, see above. `1h-queue` pauses the mock's 3-second songs while it edits (they end by themselves
+  otherwise). `1f-load` "20 skips" stream bound raised from 6 to 10 after one run counted 8 on a loaded machine (prefetch reads count as streams; still far below 20).
+  One run also had the 320 px bottom-bar spec fail once (a link measured 0 wide right after navigation) and pass on the next runs: a timing flake, not changed.

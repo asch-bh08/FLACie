@@ -21,7 +21,7 @@
                 {
                     <div class="dev">
                         <Icon Name="devices" Size="22" />
-                        <span><b>@s.Device</b><small>@(s.ItemId is null ? s.Client : (s.Paused ? "Paused · " : "Playing ") + s.Title + " · " + s.Artist)</small></span>
+                        <span><b>@ClientLabel.Device(s.Device, s.IsSelf, ClientLabel.InDesktopShell)</b><small>@(s.ItemId is null ? s.Client : (s.Paused ? "Paused · " : "Playing ") + s.Title + " · " + s.Artist)</small></span>
                         <span class="dev-actions">
                             @if (s.ItemId is not null) { <button class="btn" @onclick="() => TakeOver(live, s)">Play here</button> }
                             @if (Player.Current?.JellyfinId is not null) { <button class="btn" @onclick="() => Send(live, s)">Send here</button> }

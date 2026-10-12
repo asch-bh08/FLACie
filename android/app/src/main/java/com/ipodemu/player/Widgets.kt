@@ -548,9 +548,9 @@ fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, onNudge: (Float) -> Unit, 
     val focused by src.collectIsFocusedAsState()
     // after the finger lifts the knob stays where it was let go until playback reports that position (it used to jump back to the old place for up to a quarter of a second, then forward)
     var pending by remember { mutableStateOf<Float?>(null) }
-    val shown = (drag ?: pending ?: fraction).coerceIn(0f, 1f)
-    androidx.compose.runtime.LaunchedEffect(pending, fraction) { val p = pending; if (p != null && kotlin.math.abs(fraction - p) < 0.012f) pending = null }
-    androidx.compose.runtime.LaunchedEffect(pending) { if (pending != null) { kotlinx.coroutines.delay(1500); pending = null } }
+    val shown = SeekHold.shown(drag, pending, fraction)
+    androidx.compose.runtime.LaunchedEffect(pending, fraction) { if (SeekHold.settled(pending, fraction)) pending = null }
+    androidx.compose.runtime.LaunchedEffect(pending) { if (pending != null) { kotlinx.coroutines.delay(SeekHold.GIVE_UP_MS); pending = null } }
     val scrub by androidx.compose.runtime.rememberUpdatedState(onScrub)
     androidx.compose.runtime.LaunchedEffect(drag, pending) { scrub(drag ?: pending) }
     // pointerInput(Unit) outlives recompositions: call the latest onSeek, not the one captured before the track had a duration.

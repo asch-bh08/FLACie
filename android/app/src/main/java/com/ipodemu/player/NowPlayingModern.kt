@@ -165,8 +165,8 @@ private fun FormatChips(t: Track, snap: PlayerSnap) {
     // like the web: separate badges (source pink, format green when lossless, then rate and bit rate), wrapping onto a second line rather than being cut off
     val green = Color(0xFF4EE0A1)
     val badges = listOfNotNull(
-        // a new download's pill is a quiet grey like the web's; the other sources keep the accent
-        if (t.source == com.ipodemu.library.TrackSource.CLOUD) Triple(com.ipodemu.library.SourceLabel.line(t.source), sc.onBgDim, false)
+        // a new download's pill is "Streaming" in blue like the web's (a fixed blue, not the accent); the other sources keep the accent
+        if (t.source == com.ipodemu.library.TrackSource.CLOUD) Triple(com.ipodemu.library.SourceLabel.line(t.source), Color(0xFF6DB3FF), true)
         else Triple(com.ipodemu.library.SourceLabel.line(t.source), sc.accent, true),
         (if (ai.hiRes) "Hi-Res" else ai.codec.takeIf { it.isNotEmpty() })?.let { Triple(it, if (ai.hiRes) Color(0xFFFFC857) else if (ai.lossless) green else sc.onBgDim, ai.lossless || ai.hiRes) },
         ai.sampling.takeIf { it.isNotEmpty() }?.let { Triple(it, sc.onBgDim, false) },

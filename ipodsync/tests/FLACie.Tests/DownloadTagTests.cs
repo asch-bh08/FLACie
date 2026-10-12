@@ -155,9 +155,9 @@ public class DownloadTagTests : IDisposable
     [Fact]
     public void Source_labels_match_the_phone()
     {
-        Assert.Equal("New download", SourceLabel.Short(TrackSource.Cloud));
-        Assert.Equal("Streaming from new download", SourceLabel.PlayingFrom(TrackSource.Cloud));
-        Assert.Equal("Streaming from new download", SourceLabel.PlayingFromLine(TrackSource.Cloud));
+        Assert.Equal("Streaming", SourceLabel.Short(TrackSource.Cloud));
+        Assert.Equal("Streaming", SourceLabel.PlayingFrom(TrackSource.Cloud));
+        Assert.Equal("Streaming", SourceLabel.PlayingFromLine(TrackSource.Cloud));
         Assert.Equal("NAS", SourceLabel.Short(TrackSource.Nas));
         Assert.Equal("Playing from NAS", SourceLabel.PlayingFromLine(TrackSource.Nas));
         Assert.Equal("Playing from Jellyfin", SourceLabel.PlayingFromLine(TrackSource.Jellyfin));
@@ -275,8 +275,8 @@ public class DownloadTagTests : IDisposable
         Assert.Equal(DownloadTagState.None, m.StatusOf(s, old.Artist, old.Title, old).State);
         Assert.Null(m.StatusOf(s, old.Artist, old.Title, old).Text(Now));
         // the list badge and the source line only depend on where the song plays from, never on its age
-        Assert.Equal("New download", SourceLabel.Short(old.Source));
-        Assert.Equal("Streaming from new download", SourceLabel.PlayingFrom(old.Source));
+        Assert.Equal("Streaming", SourceLabel.Short(old.Source));
+        Assert.Equal("Streaming", SourceLabel.PlayingFrom(old.Source));
     }
 
     [Fact]

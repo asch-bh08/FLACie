@@ -101,7 +101,7 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 5px; font-
 .pills { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .badge { font-size: 11px; font-weight: 700; letter-spacing: .02em; padding: 3px 9px; border-radius: 999px; background: #2a1520; color: #ff8fab; white-space: nowrap; }
 .badge.nas { background: #102231; color: var(--blue); }
-.badge.cloud { background: #14261c; color: var(--ok); }
+.badge.cloud { background: #12233b; color: #6db3ff; }
 .badge.fmt { background: var(--surface-3); color: var(--dim); }
 .badge.fmt.lossless { background: #1d2a1c; color: #b8f0a8; }
 .badge.plain { background: var(--surface-2); color: var(--dim); font-weight: 600; }
@@ -1347,5 +1347,5 @@ html.buffering .play .ic { opacity: .55; }
 .pick .dl-tag .dl-tag-text { display: flex; }
 .card .dl-tag { font-size: 11px; margin-top: 0; }
 /* the Now Playing source pill is a quiet pill like the format ones (it used to be a green pill) */
-.np-titles .pills .badge.cloud { background: var(--surface-2); color: var(--dim); font-weight: 600; }
+.np-titles .pills .badge.cloud { background: #12233b; color: #6db3ff; font-weight: 600; }
 @media (orientation: landscape) and (max-height: 520px) and (max-width: 760px) { .bar-text .dl-tag { display: none; } }

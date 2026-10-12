@@ -54,6 +54,7 @@ object TagClock {
 
 private val RecentInk = Color(0xFF4EE0A1)
 private val FailedInk = Color(0xFFFF9C9C)
+private val StreamingInk = Color(0xFF6DB3FF)
 
 /**
  * The status tag under a song's artist: "Downloading · <stage>", "Recently downloaded · 12s ago" (within an hour of the download finishing),
@@ -90,6 +91,7 @@ fun DownloadTagLine(
         hi -> Color(0xEEFFFFFF)
         tag is DownloadTag.Failed -> FailedInk
         tag is DownloadTag.Recent -> RecentInk
+        tag is DownloadTag.NewDownload -> StreamingInk   // "Streaming": the same fixed blue as the badge and the pill
         else -> sc.onBgDim   // running and "New download": the quiet secondary text colour (the accent changes with the user's setting)
     }
     BasicText(

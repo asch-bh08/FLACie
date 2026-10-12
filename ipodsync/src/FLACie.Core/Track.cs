@@ -172,12 +172,12 @@ public static partial class Matching
 public static class SourceLabel
 {
     /// <summary>The badge in song lists.</summary>
-    public const string NewDownload = "New download";
+    public const string NewDownload = "Streaming";
     /// <summary>The source line in Now Playing and the Info panel for a new download.</summary>
-    public const string StreamingFromNewDownload = "Streaming from new download";
+    public const string StreamingFromNewDownload = "Streaming";
     public static string Short(TrackSource s) => s switch { TrackSource.Nas => "NAS", TrackSource.Cloud => NewDownload, _ => s.ToString() };
     public const string StreamingHint = "A song you just downloaded, played straight from your server while it is filed into the library. After the next Jellyfin scan it becomes a normal library song.";
-    /// <summary>The source named in the full-screen player's pill and the Info panel: "Streaming from new download", or the plain source.</summary>
+    /// <summary>The source named in the full-screen player's pill and the Info panel: "Streaming" for a new download, or the plain source.</summary>
     public static string PlayingFrom(TrackSource s) => s == TrackSource.Cloud ? StreamingFromNewDownload : Short(s);
     /// <summary>The small line above the full-screen player: "Playing from NAS", or for a new download the same words as its pill (no "Playing from Streaming from ...").</summary>
     public static string PlayingFromLine(TrackSource s) => s == TrackSource.Cloud ? StreamingFromNewDownload : "Playing from " + Short(s);

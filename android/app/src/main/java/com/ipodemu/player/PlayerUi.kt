@@ -391,11 +391,11 @@ private fun sourceColor(s: com.ipodemu.library.TrackSource): Color = when (s) {
     com.ipodemu.library.TrackSource.JELLYFIN -> Color(0xFFFF6FAE)
     com.ipodemu.library.TrackSource.PLEX -> Color(0xFFE5A00D)
     com.ipodemu.library.TrackSource.NAS -> Color(0xFF5FB8E0)
-    com.ipodemu.library.TrackSource.CLOUD -> Color(0xFF6FD6A3)   // the web's .badge.cloud text (--ok)
+    com.ipodemu.library.TrackSource.CLOUD -> Color(0xFF6DB3FF)   // the web's .badge.cloud text (blue)
 }
 /** The badge background: a tint of its own colour, except the new-download badge, which is the web's #14261c. */
 private fun sourceBack(s: com.ipodemu.library.TrackSource, color: Color): Color =
-    if (s == com.ipodemu.library.TrackSource.CLOUD) Color(0xFF14261C) else color.copy(alpha = 0.16f)
+    if (s == com.ipodemu.library.TrackSource.CLOUD) Color(0xFF12233B) else color.copy(alpha = 0.16f)
 
 @Composable
 private fun SourceBadge(source: com.ipodemu.library.TrackSource) {

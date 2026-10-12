@@ -189,13 +189,14 @@ class DownloadTagsTest {
     // ---- wording ---------------------------------------------------------------------------------------------------------------------------
 
     @Test fun theBadgeAndTheSourceLineSayTheSameAsTheWeb() {
-        assertEquals("New download", SourceLabel.badge(TrackSource.CLOUD))
-        assertEquals("Streaming from new download", SourceLabel.line(TrackSource.CLOUD))
+        assertEquals("Streaming", SourceLabel.badge(TrackSource.CLOUD))
+        assertEquals("Streaming", SourceLabel.line(TrackSource.CLOUD))
         assertEquals("NAS", SourceLabel.badge(TrackSource.NAS))
         assertEquals("Jellyfin", SourceLabel.badge(TrackSource.JELLYFIN))
         assertEquals("Jellyfin", SourceLabel.line(TrackSource.JELLYFIN))
         assertEquals("Local", SourceLabel.line(TrackSource.LOCAL))
-        for (s in TrackSource.entries) assertFalse("nobody sees the word Streaming alone as a badge", SourceLabel.badge(s) == "Streaming")
+        // beta 54 forbade the word "Streaming" alone as a badge; the owner asked for exactly that again (blue), and only for a new download
+        for (s in TrackSource.entries) assertEquals("only a new download is called Streaming: $s", s == TrackSource.CLOUD, SourceLabel.badge(s) == "Streaming")
     }
 
     // ---- the one ticker ------------------------------------------------------------------------------------------------------------------
@@ -245,13 +246,13 @@ class DownloadTagsTest {
         assertEquals("Downloading 55%...", DownloadTags.text(DownloadTag.Downloading("Downloading 55%..."), now, TagForm.COMPACT))
         assertEquals("Downloading", DownloadTags.text(DownloadTag.Downloading("Searching Soulseek..."), now, TagForm.COMPACT))
         assertEquals("Couldn't download", DownloadTags.text(DownloadTag.Failed(now - min), now, TagForm.AGE_ONLY))
-        assertEquals("New download", DownloadTags.text(DownloadTag.NewDownload, now, TagForm.COMPACT))
+        assertEquals("Streaming", DownloadTags.text(DownloadTag.NewDownload, now, TagForm.COMPACT))
     }
 
     @Test fun aCloudSongPastTheHourKeepsAQuietNewDownloadMarker() {
         // Cloud, added three hours ago, no job: not recent, but still not a library song
         assertEquals(DownloadTag.NewDownload, DownloadTags.resolve(now, null, null, null, now - 180 * min, isCloud = true))
-        assertEquals("New download", DownloadTags.text(DownloadTag.NewDownload, now))
+        assertEquals("Streaming", DownloadTags.text(DownloadTag.NewDownload, now))
         assertFalse("no age, no ticking", DownloadTags.ticks(DownloadTag.NewDownload))
         assertNull(DownloadTags.expiresAt(DownloadTag.NewDownload))
         // inside the hour it is the age; a running job still wins; an old finish still falls to the marker

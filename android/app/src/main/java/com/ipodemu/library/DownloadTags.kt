@@ -10,10 +10,10 @@ import java.util.concurrent.ConcurrentHashMap
  * Pure strings, so the badge, the Info panel and Now Playing cannot drift apart.
  */
 object SourceLabel {
-    /** The small badge in song lists (it used to say "Streaming"). */
-    const val NEW_DOWNLOAD = "New download"
+    /** The small badge in song lists: "Streaming" in blue (beta 54 said "New download"; the owner asked for "Streaming" again). */
+    const val NEW_DOWNLOAD = "Streaming"
     /** The source line of Now Playing and Info. */
-    const val STREAMING_FROM_NEW_DOWNLOAD = "Streaming from new download"
+    const val STREAMING_FROM_NEW_DOWNLOAD = "Streaming"
 
     private fun plain(s: TrackSource) = s.name.lowercase().replaceFirstChar { it.uppercase() }
 
@@ -110,7 +110,7 @@ object DownloadTags {
      */
     fun text(tag: DownloadTag, nowMs: Long, form: TagForm = TagForm.FULL): String? = when (tag) {
         DownloadTag.None -> null
-        DownloadTag.NewDownload -> "New download"
+        DownloadTag.NewDownload -> SourceLabel.NEW_DOWNLOAD
         is DownloadTag.Downloading -> {
             val st = tag.stage.trim()
             if (form == TagForm.FULL) runningText(st) else if (st.startsWith("Downloading", ignoreCase = true)) st else "Downloading"

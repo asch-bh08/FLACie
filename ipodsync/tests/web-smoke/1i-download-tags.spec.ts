@@ -228,7 +228,7 @@ test.describe.serial('download tags', () => {
 
   // ---- the owner's story: "P" by JME downloaded on the phone ----
 
-  test('a download the phone reported is found by Search, is "New download" and carries the tag', async () => {
+  test('a download the phone reported is found by Search, shows the blue "Streaming" badge and carries the tag', async () => {
     const before = await account();
     const r = await report({ artist: 'JME', title: 'P', album: 'Famous?', durationMs: 123000, path: fmPath('Music/JME/JME - P.flac'), source: 'soulseek', finishedAtMs: Date.now() - 1000 });
     expect(await r.json()).toEqual({ ok: true, known: true });
@@ -236,7 +236,8 @@ test.describe.serial('download tags', () => {
     await live('/search?q=' + encodeURIComponent('P JME'));
     const hit = page.locator('.tracks .track', { has: page.locator('.track-title', { hasText: /^P$/ }) }).first();
     await expect(hit).toBeVisible({ timeout: 20_000 });
-    await expect(hit.locator('.badge.cloud')).toHaveText('New download');
+    await expect(hit.locator('.badge.cloud')).toHaveText('Streaming');
+    await expect(hit.locator('.badge.cloud')).toHaveCSS('color', 'rgb(109, 179, 255)');   // blue, a fixed colour (not the accent)
     await expect(hit.locator('.dl-tag')).toHaveText(RECENT);
     // no second "Download" is offered for it in the same results
     await expect(page.locator('.track', { has: page.locator('.track-title', { hasText: /^P$/ }) }).getByRole('button', { name: /^Download$/ })).toHaveCount(0);
@@ -253,15 +254,16 @@ test.describe.serial('download tags', () => {
     await expect(page.locator('.bar-text .dl-tag')).toHaveText(RECENT);
     expect(await page.locator('.bar-text small').first().innerText()).toBe('JME');
     await openNowPlaying();
-    await expect(page.locator('.np-where')).toHaveText('Streaming from new download');
-    await expect(page.locator('.np-titles .pills .badge.cloud')).toHaveText('Streaming from new download');
+    await expect(page.locator('.np-where')).toHaveText('Streaming');
+    await expect(page.locator('.np-titles .pills .badge.cloud')).toHaveText('Streaming');
+    await expect(page.locator('.np-titles .pills .badge.cloud')).toHaveCSS('color', 'rgb(109, 179, 255)');
     await expect(page.locator('.np-titles .dl-tag')).toHaveText(RECENT);
     await expect(page.locator('.upnext li.now .dl-tag')).toHaveText(RECENT);
     // one quiet line (a dot beside the words), not stacked: the queue lays its spans out in columns
     expect((await page.locator('.upnext li.now .dl-tag').boundingBox())!.height).toBeLessThan(22);
     // the Info panel names the source the same way
     await page.getByRole('tab', { name: 'Info' }).click();
-    await expect(page.locator('.kv dt', { hasText: 'Source' }).locator('xpath=following-sibling::dd[1]')).toContainText('Streaming from new download', { timeout: 20_000 });
+    await expect(page.locator('.kv dt', { hasText: 'Source' }).locator('xpath=following-sibling::dd[1]')).toContainText('Streaming', { timeout: 20_000 });
     await page.getByRole('tab', { name: 'Up next' }).click();
 
     // the age ticks in the browser: paused, so nothing on the server changes, yet the words move on and the element is the same one
@@ -411,7 +413,7 @@ test.describe.serial('download tags', () => {
     await expect(more.getByRole('button', { name: /^Download$/ })).toHaveCount(0);
     // and a fresh search finds it among the library's songs, not under More music
     await live('/search?q=' + encodeURIComponent('Report Me'));
-    await expect(page.locator('ol.tracks li.track', { has: page.locator('.track-title', { hasText: /^Report Me$/ }) }).locator('.badge.cloud')).toHaveText('New download', { timeout: 20_000 });
+    await expect(page.locator('ol.tracks li.track', { has: page.locator('.track-title', { hasText: /^Report Me$/ }) }).locator('.badge.cloud')).toHaveText('Streaming', { timeout: 20_000 });
     await expect(page.locator('ul.tracks li.track', { has: page.locator('.track-title', { hasText: /^Report Me$/ }) })).toHaveCount(0);
   });
 

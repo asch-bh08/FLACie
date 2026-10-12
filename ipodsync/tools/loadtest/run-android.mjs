@@ -11,6 +11,8 @@
 //   skip-burst    play a song, 40 x KEYCODE_MEDIA_NEXT 60-100 ms apart in one on-device loop; streams opened / aborted
 //   warm-start    am force-stop, launch again (library on disk): time to songs, requests in the first 60 s
 //   kill-restore  play a song, kill the app, relaunch: does the queue come back, is the crash buffer clean
+//   covers        (run after first-sync) cold starts with an EMPTY cover cache (`am start --ez clearcovers true`), --cover-runs times: how many cover slots on screen have their
+//                 picture after 0.25 / 0.5 / 1 / 2 / 3 / 5 / 10 s (the app's own FLACieProbe lines), when the first frame drew Home, how many image requests the mock saw
 // Result JSON has the same shape as run-web.mjs (scenarios -> first-sync / scrolling / skip-burst / warm-start), shell "android", plus kill-restore and gate lines.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -27,7 +29,7 @@ const SCEN = arg('scenarios', 'first-sync,scrolling,skip-burst,warm-start,kill-r
 const SHOTS = arg('shots', `C:\\wt\\android-shots\\${LABEL}-${PROFILE}`), APK = arg('apk', '');
 const SKIP_IN_APP = process.argv.includes('--skip-in-app');
 const SKIP_PARALLEL = process.argv.includes('--skip-parallel');
-const SKIP_SLEEP = arg('skip-sleep', '0.01');
+const SKIP_SLEEP = arg('skip-sleep', '0.01'), COVER_RUNS = Number(arg('cover-runs', 3));
 const SCROLL_SECONDS = Number(arg('scroll-seconds', 40)), SKIPS = Number(arg('skips', 40));
 setAdb(arg('adb', ''));
 const PKG = 'com.ipodemu';
@@ -279,12 +281,36 @@ async function scenarioKillRestore() {
   log(`kill-restore: restored ${restored}, crash buffer lines ${crash.length}`);
 }
 
+// the app logs "<ms since process start> ms  t=<n>s visible=<slots on screen> withCover=<slots with their picture> pct=..." (FLACieProbe) and "... home: shelves drawn" (FLACieBoot)
+async function scenarioCovers() {
+  const out = { runs: [] };
+  result.scenarios.covers = out;
+  for (let r = 1; r <= COVER_RUNS; r++) {
+    forceStop(); await sleep(2000);
+    sh('logcat -c', { quiet: true });
+    await reset();
+    sh(`am start -W -n ${PKG}/.ui.MainActivity --ez clearcovers true`, { quiet: true });
+    await sleep(16000);
+    const lines = sh('logcat -d -s FLACieProbe FLACieBoot FLACieCover', { quiet: true }).split('\n');
+    const at = {};
+    for (const l of lines) { const m = /t=(\d+(?:ms|s)) visible=(\d+) withCover=(\d+) pct=(\d+)/.exec(l); if (m) at[m[1]] = { visible: Number(m[2]), withCover: Number(m[3]), pct: Number(m[4]) }; }
+    const shelves = lines.map((l) => /(\d+) ms\s+home: shelves drawn/.exec(l)).find(Boolean);
+    const st = await stats();
+    const gone = lines.filter((l) => /FLACieCover.*(failed|http \d+)/.test(l)).length;
+    out.runs.push({ run: r, shelvesDrawnMs: shelves ? Number(shelves[1]) : null, coverAt: at, coverFailuresLogged: gone, imageRequests: st.byKind.image ?? 0, failed: st.failed, throttled: st.throttled });
+    shot(path.join(SHOTS, `covers-run${r}.png`));
+    log(`covers run ${r}: ${JSON.stringify(at['1s'])} @1s, ${JSON.stringify(at['3s'])} @3s, ${JSON.stringify(at['10s'])} @10s; image requests ${st.byKind.image ?? 0}`);
+  }
+  const pct = (k) => out.runs.map((x) => x.coverAt[k]?.pct).filter((v) => v !== undefined);
+  out.summary = { pctAt1s: pct('1s'), pctAt3s: pct('3s'), pctAt10s: pct('10s') };
+}
+
 async function main() {
   fs.mkdirSync(SHOTS, { recursive: true });
   try { result.versionName = /versionName=(\S+)/.exec(sh(`dumpsys package ${PKG}`, { quiet: true }))?.[1]; } catch { }
   sh('logcat -G 16M', { quiet: true });   // the gate logs a lot: keep a whole scenario in the buffer
   await startMock();
-  const table = { 'first-sync': scenarioFirstSync, scrolling: scenarioScrolling, 'skip-burst': scenarioSkipBurst, 'warm-start': scenarioWarmStart, 'kill-restore': scenarioKillRestore };
+  const table = { 'first-sync': scenarioFirstSync, scrolling: scenarioScrolling, 'skip-burst': scenarioSkipBurst, 'warm-start': scenarioWarmStart, 'kill-restore': scenarioKillRestore, covers: scenarioCovers };
   for (const name of SCEN) {
     if (!table[name]) continue;
     try { await table[name](); }

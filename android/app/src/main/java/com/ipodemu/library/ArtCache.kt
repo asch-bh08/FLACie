@@ -143,7 +143,10 @@ class ArtCache(private val dir: File) {
         val f = if (full) fullFile(key) else file(key)
         val ik = if (full) "F$key" else key
         val exists = f.exists()
-        if (!index.needsFetch(ik, exists)) { touch(f); return f }
+        if (!index.needsFetch(ik, exists)) {
+            if (!exists) index.entry(ik)?.let { e -> android.util.Log.i("FLACieCover", "${key.take(12)} not asked: miss remembered at ${e.missAt} tag=${e.missTag} want=${e.want}") }
+            touch(f); return f
+        }
         val fx = jfFetch ?: return f.takeIf { exists }
         val e = index.entry(ik)
         // the Now Playing size has no entry of its own until it was fetched once: it follows the listing's tag of the cover
@@ -164,10 +167,7 @@ class ArtCache(private val dir: File) {
             return f.takeIf { exists }
         }
         if (r.code in 200..299 && r.body.isNotEmpty()) {
-            withContext(Dispatchers.IO) {
-                jfDir.mkdirs()
-                val tmp = File(f.path + ".tmp"); tmp.writeBytes(r.body); f.delete(); tmp.renameTo(f)
-            }
+            withContext(Dispatchers.IO) { CoverFiles.saveAtomically(f, r.body) }
             index.saved(ik, want, r.headers["etag"]); saveIndexSoon()
             synchronized(this) { fetchFailed.remove(ik); mem.remove(ik); mem.remove("t$key") }
             if (full) trimFull() else if (++savesSinceCheck >= 40) { savesSinceCheck = 0; withContext(Dispatchers.IO) { checkSpace() } }
@@ -277,8 +277,12 @@ class ArtCache(private val dir: File) {
                 var b: Bitmap? = null
                 try {
                     val f = untilScrolledOff(ck) { ensureJfRetrying(key, false, Priority.VISIBLE) }
-                    if (f != null && f.exists()) b = withContext(decoder) {
-                        try { BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = sampleFor(key, thumb, false) }) } catch (_: Exception) { null }
+                    if (f != null && f.exists()) {
+                        b = withContext(decoder) {
+                            try { BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = sampleFor(key, thumb, false) }) } catch (_: Exception) { null }
+                        }
+                        // a saved picture that does not decode is removed: the next draw of the row fetches it again
+                        if (b == null) { f.delete(); index.forgetFile(key) }
                     }
                 } catch (_: CancellationException) { /* scrolled away: nobody is waiting for it */ } catch (_: Exception) { }
                 synchronized(this@ArtCache) { pending.remove(ck); scroll.done(ck); if (b != null) mem.put(ck, b) }
@@ -325,21 +329,27 @@ class ArtCache(private val dir: File) {
         val big = full && jf   // only Jellyfin covers have a second (Now Playing) size
         val ck = memKey(key, thumb, big)
         synchronized(this) { mem.get(ck)?.let { return it }; if (ck in missing) return null }
-        val f: File = if (jf) ensureJfRetrying(key, big, priority) ?: return null
-            else { if (fetcher != null) withContext(Dispatchers.IO) { ensure(key) }; file(key) }
-        return withContext(decoder) {
-            // many rows share one album cover: the second one queued finds the first one's bitmap here instead of decoding it again
-            synchronized(this@ArtCache) { mem.get(ck) }?.let { return@withContext it }
-            val b = try {
-                if (f.exists()) BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = sampleFor(key, thumb, big) }) else null
-            } catch (_: Exception) { null }
-            if (b == null && jf) android.util.Log.i("FLACieCover", "${key.take(12)} nothing to show: file exists=${f.exists()} len=${f.length()}")
-            synchronized(this@ArtCache) {
-                // only a local miss is final (a remote cover that failed is retried, see ensure)
-                if (b != null) mem.put(ck, b) else if (fetcher == null && !jf) missing.add(ck)
-                Unit
+        var damaged = 0
+        while (true) {
+            val f: File = if (jf) ensureJfRetrying(key, big, priority) ?: return null
+                else { if (fetcher != null) withContext(Dispatchers.IO) { ensure(key) }; file(key) }
+            val b = withContext(decoder) {
+                // many rows share one album cover: the second one queued finds the first one's bitmap here instead of decoding it again
+                synchronized(this@ArtCache) { mem.get(ck) }?.let { return@withContext it }
+                val b = try {
+                    if (f.exists()) BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = sampleFor(key, thumb, big) }) else null
+                } catch (_: Exception) { null }
+                synchronized(this@ArtCache) {
+                    // only a local miss is final (a remote cover that failed is retried, see ensure)
+                    if (b != null) mem.put(ck, b) else if (fetcher == null && !jf) missing.add(ck)
+                    Unit
+                }
+                b
             }
-            b
+            if (b != null || !jf || !f.exists() || ++damaged > 2) return b
+            // a saved picture that does not decode (damaged by an older version's writes, or cut short): removed, and fetched again
+            android.util.Log.i("FLACieCover", "${key.take(12)} saved copy does not decode (len=${f.length()}): fetched again")
+            f.delete(); index.forgetFile(if (big) "F$key" else key)
         }
     }
 

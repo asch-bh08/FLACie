@@ -55,7 +55,8 @@ const wav = (() => {
   b.writeUInt32LE(rate, 24); b.writeUInt32LE(rate * 2, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(n * 2, 40);
   return b;
 })();
-const jpeg = Buffer.from('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=', 'base64');
+// a picture Android's decoder accepts (a 1x1 PNG, sent for every size and format: clients only sniff it); the earlier hand-made 1x1 JPEG did not decode, which a cover test would show as "no cover"
+const jpeg = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 const me = { Id: 'u1', Name: 'tester', Policy: { IsAdministrator: true } };
 let prefs = { Id: 'ipodplayer', Client: 'ipodplayer', CustomPrefs: {} };
 
@@ -161,7 +162,7 @@ http.createServer(async (req, res) => {
     const seen = (imageSeen.get(req.url) ?? 0) + 1; imageSeen.set(req.url, seen);
     if (seen === 1) stats.imageUrls++; else stats.imageRepeats++;
     if (req.headers['if-none-match'] === etag) { stats.notModified++; res.writeHead(304); return res.end(); }
-    res.writeHead(200, { 'content-type': 'image/jpeg', etag, 'cache-control': 'public, max-age=31536000' });
+    res.writeHead(200, { 'content-type': 'image/png', etag, 'cache-control': 'public, max-age=31536000' });
     return res.end(jpeg);
   }
   if (m === 'GET') return json(res, 200, { Items: [], TotalRecordCount: 0 });

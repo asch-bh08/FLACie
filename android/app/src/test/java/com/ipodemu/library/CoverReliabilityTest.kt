@@ -192,3 +192,31 @@ class CoverReliabilityTest {
         assertEquals("only as many as asked", 1, HomeSnapshot.coverKeys(data, 1).size)
     }
 }
+
+/** The race behind covers that stayed placeholders: many rows of one album fetched the same picture at once. */
+class CoverFilesTest {
+    private fun dir(): java.io.File = java.nio.file.Files.createTempDirectory("covers").toFile()
+
+    @Test fun aSavedPictureIsWholeAndNothingIsLeftBehind() {
+        val d = dir(); val target = java.io.File(d, "abc.r"); val bytes = ByteArray(9692) { (it % 251).toByte() }
+        CoverFiles.saveAtomically(target, bytes)
+        assertTrue(bytes.contentEquals(target.readBytes()))
+        assertEquals(listOf("abc.r"), d.list()!!.toList())
+        d.deleteRecursively()
+    }
+
+    @Test fun twentyRowsSavingTheSamePictureAtOnceNeverShowAMissingOrHalfWrittenFile() {
+        val d = dir(); val target = java.io.File(d, "album.r"); val bytes = ByteArray(200_000) { (it * 7 % 253).toByte() }
+        val bad = java.util.concurrent.atomic.AtomicInteger(); val stop = java.util.concurrent.atomic.AtomicBoolean(false)
+        CoverFiles.saveAtomically(target, bytes)   // the picture is on disk from the first writer on: a reader must never see it missing or cut short again
+        val reader = Thread { while (!stop.get()) { val f = target; if (!f.exists() || f.length() != bytes.size.toLong()) bad.incrementAndGet() } }
+        reader.start()
+        val writers = (1..20).map { Thread { repeat(25) { CoverFiles.saveAtomically(target, bytes) } } }
+        writers.forEach { it.start() }; writers.forEach { it.join() }
+        stop.set(true); reader.join()
+        assertEquals("a reader saw the file missing or cut short this many times", 0, bad.get())
+        assertTrue(bytes.contentEquals(target.readBytes()))
+        assertEquals("no temporary files left", listOf("album.r"), d.list()!!.toList())
+        d.deleteRecursively()
+    }
+}

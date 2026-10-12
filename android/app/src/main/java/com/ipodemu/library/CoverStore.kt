@@ -185,3 +185,24 @@ internal suspend fun <T> retryTransient(
         }
     }
 }
+
+/** Saving a cover picture so that rows asking for the same one at the same moment can never see, or leave behind, a missing or half-written file. */
+object CoverFiles {
+    private val counter = java.util.concurrent.atomic.AtomicLong()
+
+    /**
+     * Writes [bytes] to a file of its own next to [target] and renames it over [target] in one step. Before, every writer used one shared temporary name and deleted
+     * [target] before the rename: with several songs of one album on screen (they share one cover), two downloads of the same picture wrote the same temporary file,
+     * and one of them deleted the finished picture the other was about to decode, so some rows kept the placeholder for good.
+     */
+    fun saveAtomically(target: File, bytes: ByteArray) {
+        target.parentFile?.mkdirs()
+        val tmp = File(target.parentFile, target.name + "." + java.lang.Long.toHexString(System.nanoTime()) + "." + counter.incrementAndGet() + ".tmp")
+        try {
+            tmp.writeBytes(bytes)
+            // one step that replaces an existing file (File.renameTo does not on Windows, where the tests run)
+            try { java.nio.file.Files.move(tmp.toPath(), target.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING) }
+            catch (_: java.nio.file.AtomicMoveNotSupportedException) { java.nio.file.Files.move(tmp.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING) }
+        } finally { if (tmp.exists()) tmp.delete() }
+    }
+}

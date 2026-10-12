@@ -1,0 +1,126 @@
+{
+ "startedAt": "2026-10-12T07:03:13.730Z",
+ "checks": [
+  {
+   "name": "installed build",
+   "pass": true,
+   "detail": "1.0-beta52"
+  },
+  {
+   "name": "first-launch screen shows Sign in with Jellyfin",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "Quick Connect sign-in completes",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "name": "library loads (10000 songs listed)",
+   "pass": true,
+   "detail": "10000 songs after 30 s"
+  },
+  {
+   "name": "scrolling moves the list",
+   "pass": true,
+   "detail": "Song 1 -> Song 1061"
+  },
+  {
+   "name": "a song plays (media session PLAYING)",
+   "pass": true,
+   "detail": "Song 1062"
+  },
+  {
+   "name": "40-skip burst ends playing the song 40 places on",
+   "pass": true,
+   "detail": "Song 1062 -> Song 1099, ready 13634 ms, 72 requests, streams 15 opened / 11 aborted"
+  },
+  {
+   "name": "pause works",
+   "pass": true,
+   "detail": "state 2"
+  },
+  {
+   "name": "relaunch restores the queue (mini player names the paused song)",
+   "pass": true,
+   "detail": "paused on Song 1099 at 1981 ms"
+  },
+  {
+   "name": "relaunch is not auto-playing",
+   "pass": true,
+   "detail": "state 0"
+  },
+  {
+   "name": "Settings > Storage shows a cache size",
+   "pass": true,
+   "detail": "Cache | 8.3 MB |  | "
+  },
+  {
+   "name": "Clear cache runs",
+   "pass": true,
+   "detail": "Cache | 7.6 MB |  | Clear cache"
+  },
+  {
+   "name": "library stays after Clear cache",
+   "pass": true,
+   "detail": "10000 songs"
+  },
+  {
+   "name": "Up next lists songs with a More button",
+   "pass": true,
+   "detail": "6 rows with More"
+  },
+  {
+   "name": "row sheet offers Play next / Move up / Move down / Remove",
+   "pass": true,
+   "detail": "Play next, Move up, Move down, Remove from queue"
+  },
+  {
+   "name": "Move down changes the order",
+   "pass": true,
+   "detail": "Song 1, Song 10, Song 100, Song 1000, Song 10000 -> Song 1, Song 10, Song 1000, Song 100, Song 10000"
+  },
+  {
+   "name": "the playing song stays current after Move down",
+   "pass": true,
+   "detail": "Song 1 now Song 1"
+  },
+  {
+   "name": "Move up changes the order",
+   "pass": true,
+   "detail": "Song 1, Song 10, Song 1000, Song 100, Song 10000 -> Song 1, Song 10, Song 100, Song 1000, Song 10000"
+  },
+  {
+   "name": "Remove takes the song out of Up next",
+   "pass": true,
+   "detail": "removed Song 100"
+  },
+  {
+   "name": "the playing song stays current after Remove",
+   "pass": true,
+   "detail": "Song 1"
+  },
+  {
+   "name": "no crash of com.ipodemu in the crash buffer",
+   "pass": true,
+   "detail": "processes in the crash buffer: com.google.android.bluetooth"
+  },
+  {
+   "name": "crash buffer is completely clean (system processes included)",
+   "pass": false,
+   "detail": "10-12 08:04:48.442   874   874 E AndroidRuntime: FATAL EXCEPTION: main\r / 10-12 08:04:48.442   874   874 E AndroidRuntime: Process: com.google.android.bluetooth, PID: 874\r / 10-12 08:04:48.442   874   874 E AndroidRuntime: java.lang.OutOfMemoryError: Failed to allocate a 32 byte allocation with 385528 free bytes and 376KB until OOM, target footprint 201326592, growth limit 201326592; giving up on allocation because <1% of heap free after GC.\r / 10-12 08:04:48.442   874   874 E AndroidRuntime: \tat android.os.Parcel.nativeReadString8(Native Method)\r"
+  },
+  {
+   "name": "no ANR in com.ipodemu",
+   "pass": true,
+   "detail": ""
+  }
+ ],
+ "gateLines": 16,
+ "systemUiAnrDialogsDismissed": 0,
+ "versionName": "1.0-beta52",
+ "finishedAt": "2026-10-12T07:06:32.336Z",
+ "passed": 22,
+ "failed": 1
+}

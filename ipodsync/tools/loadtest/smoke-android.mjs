@@ -119,8 +119,8 @@ async function main() {
   await sleep(4000);   // the queue is written to disk a moment after changes
   sh(`am force-stop ${PKG}`); await sleep(2500);
   launch(); await sleep(6000);
-  ui = await waitUi((x) => x.some((q) => /^Song \d+$/.test(label(q)) && q.cy > 1900) || has(x, titleOf(paused.description)), 60000, 2000);
-  const mini = ui && find(ui, titleOf(paused.description), { minY: 1700 });
+  ui = await waitUi((x) => x.some((q) => /^Song \d+$/.test(label(q)) && q.cy > 1950) || has(x, titleOf(paused.description)), 60000, 2000);
+  const mini = ui && find(ui, titleOf(paused.description), { minY: 1950 });
   shot(S('06-relaunched'));
   check('relaunch restores the queue (mini player names the paused song)', !!mini, `paused on ${titleOf(paused.description)} at ${paused.position} ms`);
   const mini2 = ui && ui.filter((q) => /^Song \d+$/.test(label(q)) && q.cy > 1700).map(label);
@@ -139,7 +139,10 @@ async function main() {
   shot(S('07-settings-storage'));
   check('Settings > Storage shows a cache size', !!cacheLine && /\d/.test(rowText(cacheLine, 'Cache') ?? ''), rowText(cacheLine ?? [], 'Cache') ?? 'no Cache row');
   if (cacheLine) {
-    const clr = find(cacheLine, 'Clear cache'); tapNode(clr); await sleep(5000);
+    let clr = find(cacheLine, 'Clear cache');
+    for (let i = 0; i < 5 && !clr; i++) { sh('cmd input swipe 500 1700 500 1300 200'); await sleep(900); cacheLine = dump() ?? cacheLine; clr = find(cacheLine, 'Clear cache'); }
+    if (!clr) throw new Error('Clear cache row not found');
+    tapNode(clr); await sleep(5000);
     const after = dump();
     shot(S('08-cache-cleared'));
     check('Clear cache runs', !!after && !has(after, 'Clearing'), rowText(after ?? [], 'Cache') ?? '');
@@ -156,7 +159,7 @@ async function main() {
   const cur = mediaSession();
   // open Now Playing (tap the mini player), then the queue pane
   ui = dump();
-  const miniNode = ui && ui.filter((q) => /^Song \d+$/.test(label(q)) && q.cy > 1700)[0];
+  const miniNode = ui && ui.filter((q) => /^Song \d+$/.test(label(q)) && q.cy > 1950 && q.cy < 2150)[0];
   if (miniNode) { tapAt(400, miniNode.cy); await sleep(2500); }
   shot(S('10-now-playing'));
   ui = dump();
@@ -167,9 +170,9 @@ async function main() {
   const more = ui ? ui.filter((q) => /^More for Song \d+/.test(q.desc)) : [];
   check('Up next lists songs with a More button', more.length >= 2, `${more.length} rows with More`);
   if (more.length >= 2) {
-    const names = (u) => u.filter((q) => /^Song \d+$/.test(label(q))).map(label);
+    const names = (u) => u.filter((q) => /^More for Song \d+/.test(q.desc)).sort((a, b) => a.cy - b.cy).map((q) => q.desc.replace('More for ', ''));
     const list0 = names(ui);
-    const target1 = more[1];   // second upcoming row
+    const target1 = more[2];   // the second upcoming row (more[0] is the playing song, more[1] the next one: no Move up / Play next there)
     tapNode(target1); await sleep(1500);
     shot(S('12-up-next-sheet'));
     let sheet = dump();
@@ -182,8 +185,8 @@ async function main() {
     check('the playing song stays current after Move down', titleOf(mediaSession().description) === titleOf(cur.description), `${titleOf(cur.description)} now ${titleOf(mediaSession().description)}`);
     // Move up the same song again
     const more2 = ui ? ui.filter((q) => /^More for Song \d+/.test(q.desc)) : [];
-    if (more2.length >= 3) {
-      tapNode(more2[2]); await sleep(1500);
+    if (more2.length >= 4) {
+      tapNode(more2[3]); await sleep(1500);
       sheet = dump(); const up = sheet && find(sheet, 'Move up');
       if (up) { tapNode(up); await sleep(1500); }
       ui = dump(); const list2 = ui ? names(ui) : [];
@@ -191,9 +194,9 @@ async function main() {
     }
     // Remove one
     const more3 = ui ? ui.filter((q) => /^More for Song \d+/.test(q.desc)) : [];
-    if (more3.length >= 2) {
-      const victim = /Song \d+/.exec(more3[1].desc)[0];
-      tapNode(more3[1]); await sleep(1500);
+    if (more3.length >= 3) {
+      const victim = /Song \d+/.exec(more3[2].desc)[0];
+      tapNode(more3[2]); await sleep(1500);
       sheet = dump(); const rm = sheet && find(sheet, 'Remove from queue');
       if (rm) { tapNode(rm); await sleep(1500); }
       ui = dump(); const list3 = ui ? names(ui) : [];
@@ -205,7 +208,9 @@ async function main() {
 
   // 9. crashes and ANRs
   const crash = sh('logcat -b crash -d', { quiet: true }).split('\n').filter((l) => l.trim() && !/^-+ beginning/.test(l));
-  check('crash buffer is clean', crash.length === 0, crash.slice(0, 5).join(' / '));
+  const procs = [...new Set(crash.map((l) => /Process: ([\w.:]+)/.exec(l)?.[1]).filter(Boolean))];
+  check('no crash of com.ipodemu in the crash buffer', !crash.some((l) => /com\.ipodemu/.test(l)), `processes in the crash buffer: ${procs.join(', ') || 'none'}`);
+  check('crash buffer is completely clean (system processes included)', crash.length === 0, crash.slice(0, 4).join(' / '));
   const anr = sh('logcat -d -b main,system', { quiet: true }).split('\n').filter((l) => /ANR in com\.ipodemu|isn't responding.*ipodemu/.test(l));
   check('no ANR in com.ipodemu', anr.length === 0, anr.slice(0, 3).join(' / '));
   const gate = sh('logcat -d -s FLACieGate', { quiet: true }).split('\n').filter((l) => /FLACieGate/.test(l));

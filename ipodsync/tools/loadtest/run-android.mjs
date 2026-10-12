@@ -289,6 +289,9 @@ async function main() {
     if (!table[name]) continue;
     try { await table[name](); }
     catch (e) { result.scenarios[name] = { ...(result.scenarios[name] ?? {}), error: String(e?.message ?? e) }; log(`${name} FAILED: ${e?.message ?? e}`); shot(path.join(SHOTS, `${name}-failed.png`)); }
+    // the crash buffer is read before the next scenario clears logcat; each entry names the process that died
+    const cr = crashLog();
+    result.crash = { ...(result.crash ?? {}), [name]: { lines: cr.length, processes: [...new Set(cr.map((l) => /Process: ([\w.:]+)/.exec(l)?.[1]).filter(Boolean))], head: cr.slice(0, 8) } };
     const gl = gateLines();
     try { fs.writeFileSync(path.join(SHOTS, 'gate-' + name + '.txt'), gl.join('\n')); } catch { }
     result.gate = { ...(result.gate ?? {}), [name]: { lines: gl.length, first: gl.slice(0, 15), last: gl.slice(-25) } };

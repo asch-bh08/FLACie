@@ -1,0 +1,215 @@
+{
+ "label": "before",
+ "shell": "android",
+ "profile": "fast",
+ "items": 10000,
+ "window": 20,
+ "startedAt": "2026-10-12T07:00:50.192Z",
+ "apk": "FLACie-1.0-beta51.apk",
+ "scenarios": {
+  "first-sync": {
+   "timeToFirstSongsMs": 14068,
+   "timeToAllSongsMs": 14068,
+   "timeline": [
+    {
+     "t": 9,
+     "requests": 18,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 14,
+     "requests": 29,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 18,
+     "requests": 29,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 22,
+     "requests": 30,
+     "inFlight": 0,
+     "songs": 10000
+    }
+   ],
+   "signInAttempts": 1,
+   "tFirstScreenShown": 1791788461647,
+   "signInMs": 6786,
+   "songsShown": 10000,
+   "firstSongsCount": 10000,
+   "atAll": {
+    "total": 29,
+    "byKind": {
+     "other": 13,
+     "items": 5,
+     "socket": 1,
+     "image": 10
+    },
+    "peakInFlight": 1,
+    "peakPerSecond": 10,
+    "throttled": 0,
+    "failed": 0,
+    "images": 10,
+    "imageUrls": 10,
+    "imageRepeats": 0,
+    "imageVariants": {
+     "640px-default-q90": 10
+    },
+    "notModified": 0,
+    "streamsOpened": 0,
+    "streamsAborted": 0,
+    "streamsCompleted": 0,
+    "itemsPages": 4,
+    "itemsDeltas": 0,
+    "itemsWithStreams": 0,
+    "avgLatencyMs": 3,
+    "maxLatencyMs": 16,
+    "seconds": 39
+   },
+   "server": {
+    "firstItemsPageMs": 2981,
+    "lastItemsPageMs": 9492,
+    "itemsPagesTotal": 4,
+    "requestsAfterSec": {
+     "5": 13,
+     "10": 18,
+     "30": 30,
+     "60": 30,
+     "120": 30
+    }
+   },
+   "final": {
+    "total": 30,
+    "byKind": {
+     "other": 14,
+     "items": 5,
+     "socket": 1,
+     "image": 10
+    },
+    "peakInFlight": 1,
+    "peakPerSecond": 10,
+    "throttled": 0,
+    "failed": 0,
+    "images": 10,
+    "imageUrls": 10,
+    "imageRepeats": 0,
+    "imageVariants": {
+     "640px-default-q90": 10
+    },
+    "notModified": 0,
+    "streamsOpened": 0,
+    "streamsAborted": 0,
+    "streamsCompleted": 0,
+    "itemsPages": 4,
+    "itemsDeltas": 0,
+    "itemsWithStreams": 0,
+    "avgLatencyMs": 2,
+    "maxLatencyMs": 16,
+    "seconds": 47
+   },
+   "pssMb": 119
+  },
+  "skip-burst": {
+   "skips": 40,
+   "keysSent": 40,
+   "burstMs": 12677,
+   "keySpacingMs": 312,
+   "keysIssuedInMs": 12490,
+   "allKeysTakenInMs": 12510,
+   "lastSongReadyMs": 13876,
+   "readyBy": "target",
+   "startedPlayingMs": 1305,
+   "appInBackground": false,
+   "queueStep": 40,
+   "titleBefore": "Song 1, Artist 001, Artist 001 Album 1",
+   "titleAfter": "Song 1033, Artist 233, Artist 233 Album 2",
+   "total": 128,
+   "byKind": {
+    "stream": 33,
+    "other": 43,
+    "image": 52
+   },
+   "peakInFlight": 3,
+   "peakPerSecond": 16,
+   "throttled": 0,
+   "failed": 0,
+   "images": 52,
+   "imageUrls": 34,
+   "imageRepeats": 18,
+   "imageVariants": {
+    "640px-default-q90": 52
+   },
+   "notModified": 0,
+   "streamsOpened": 18,
+   "streamsAborted": 10,
+   "streamsCompleted": 23,
+   "itemsPages": 0,
+   "itemsDeltas": 0,
+   "itemsWithStreams": 0,
+   "avgLatencyMs": 108,
+   "maxLatencyMs": 1612,
+   "seconds": 18
+  }
+ },
+ "notes": [],
+ "versionName": "1.0-beta51",
+ "crash": {
+  "first-sync": {
+   "lines": 0,
+   "processes": [],
+   "head": []
+  },
+  "skip-burst": {
+   "lines": 16,
+   "processes": [
+    "com.google.android.bluetooth"
+   ],
+   "head": [
+    "10-12 08:02:01.781   820  4786 E AndroidRuntime: FATAL EXCEPTION: binder:820_D\r",
+    "10-12 08:02:01.781   820  4786 E AndroidRuntime: Process: com.google.android.bluetooth, PID: 820\r",
+    "10-12 08:02:01.781   820  4786 E AndroidRuntime: java.lang.OutOfMemoryError: Failed to allocate a 24 byte allocation with 139560 free bytes and 136KB until OOM, target footprint 201326592, growth limit 201326592; giving up on allocation because <1% of heap free after GC.\r",
+    "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.media.session.MediaSession$QueueItem$1.createFromParcel(MediaSession.java:1489)\r",
+    "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.media.session.MediaSession$QueueItem$1.createFromParcel(MediaSession.java:1485)\r",
+    "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.content.pm.BaseParceledListSlice.readCreator(BaseParceledListSlice.java:131)\r",
+    "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.content.pm.BaseParceledListSlice.readVerifyAndAddElement(BaseParceledListSlice.java:115)\r",
+    "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.content.pm.BaseParceledListSlice.<init>(BaseParceledListSlice.java:98)\r"
+   ]
+  }
+ },
+ "gate": {
+  "first-sync": {
+   "lines": 0,
+   "first": [],
+   "last": []
+  },
+  "skip-burst": {
+   "lines": 0,
+   "first": [],
+   "last": []
+  }
+ },
+ "crashBufferAtEnd": [
+  "10-12 08:02:01.781   820  4786 E AndroidRuntime: FATAL EXCEPTION: binder:820_D\r",
+  "10-12 08:02:01.781   820  4786 E AndroidRuntime: Process: com.google.android.bluetooth, PID: 820\r",
+  "10-12 08:02:01.781   820  4786 E AndroidRuntime: java.lang.OutOfMemoryError: Failed to allocate a 24 byte allocation with 139560 free bytes and 136KB until OOM, target footprint 201326592, growth limit 201326592; giving up on allocation because <1% of heap free after GC.\r",
+  "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.media.session.MediaSession$QueueItem$1.createFromParcel(MediaSession.java:1489)\r",
+  "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.media.session.MediaSession$QueueItem$1.createFromParcel(MediaSession.java:1485)\r",
+  "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.content.pm.BaseParceledListSlice.readCreator(BaseParceledListSlice.java:131)\r",
+  "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.content.pm.BaseParceledListSlice.readVerifyAndAddElement(BaseParceledListSlice.java:115)\r",
+  "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.content.pm.BaseParceledListSlice.<init>(BaseParceledListSlice.java:98)\r",
+  "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.content.pm.ParceledListSlice.<init>(ParceledListSlice.java:42)\r",
+  "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.content.pm.ParceledListSlice.<init>(Unknown Source:0)\r",
+  "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.content.pm.ParceledListSlice$1.createFromParcel(ParceledListSlice.java:80)\r",
+  "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.content.pm.ParceledListSlice$1.createFromParcel(ParceledListSlice.java:78)\r",
+  "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.os.Parcel.readTypedObject(Parcel.java:4025)\r",
+  "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.media.session.ISessionControllerCallback$Stub.onTransact(ISessionControllerCallback.java:166)\r",
+  "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.os.Binder.execTransactInternal(Binder.java:1344)\r",
+  "10-12 08:02:01.781   820  4786 E AndroidRuntime: \tat android.os.Binder.execTransact(Binder.java:1275)\r"
+ ],
+ "anrDialogsDismissed": 0,
+ "finishedAt": "2026-10-12T07:02:06.121Z"
+}

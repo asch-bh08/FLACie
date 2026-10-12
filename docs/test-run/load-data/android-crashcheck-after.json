@@ -1,0 +1,191 @@
+{
+ "label": "after",
+ "shell": "android",
+ "profile": "fast",
+ "items": 10000,
+ "window": 20,
+ "startedAt": "2026-10-12T06:58:27.430Z",
+ "apk": "FLACie-1.0-beta52-8c1cdfa.apk",
+ "scenarios": {
+  "first-sync": {
+   "timeToFirstSongsMs": 14339,
+   "timeToAllSongsMs": null,
+   "timeline": [
+    {
+     "t": 9,
+     "requests": 39,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 14,
+     "requests": 43,
+     "inFlight": 0,
+     "songs": 5000
+    },
+    {
+     "t": 20,
+     "requests": 46,
+     "inFlight": 0,
+     "songs": 6000
+    },
+    {
+     "t": 24,
+     "requests": 50,
+     "inFlight": 0,
+     "songs": 7000
+    }
+   ],
+   "signInAttempts": 1,
+   "tFirstScreenShown": 1791788315620,
+   "signInMs": 6625,
+   "songsShown": 7000,
+   "firstSongsCount": 5000,
+   "server": {
+    "firstItemsPageMs": 3479,
+    "lastItemsPageMs": 20072,
+    "itemsPagesTotal": 14,
+    "requestsAfterSec": {
+     "5": 13,
+     "10": 41,
+     "30": 47,
+     "60": 47,
+     "120": 47
+    }
+   },
+   "final": {
+    "total": 50,
+    "byKind": {
+     "other": 14,
+     "items": 18,
+     "socket": 1,
+     "image": 17
+    },
+    "peakInFlight": 1,
+    "peakPerSecond": 11,
+    "throttled": 0,
+    "failed": 0,
+    "images": 17,
+    "imageUrls": 17,
+    "imageRepeats": 0,
+    "imageVariants": {
+     "240px-webp-q80": 17
+    },
+    "notModified": 0,
+    "streamsOpened": 0,
+    "streamsAborted": 0,
+    "streamsCompleted": 0,
+    "itemsPages": 17,
+    "itemsDeltas": 0,
+    "itemsWithStreams": 17,
+    "avgLatencyMs": 2,
+    "maxLatencyMs": 6,
+    "seconds": 44
+   },
+   "pssMb": 135
+  },
+  "skip-burst": {
+   "skips": 40,
+   "keysSent": 40,
+   "burstMs": 16855,
+   "keySpacingMs": 414,
+   "keysIssuedInMs": 16550,
+   "allKeysTakenInMs": 16670,
+   "lastSongReadyMs": 18567,
+   "readyBy": "target",
+   "startedPlayingMs": 1396,
+   "appInBackground": false,
+   "queueStep": 41,
+   "titleBefore": "Song 1, Artist 001, Artist 001 Album 1",
+   "titleAfter": "Song 1034, Artist 234, Artist 234 Album 2",
+   "total": 88,
+   "byKind": {
+    "stream": 41,
+    "other": 43,
+    "image": 3,
+    "items": 1
+   },
+   "peakInFlight": 4,
+   "peakPerSecond": 8,
+   "throttled": 0,
+   "failed": 0,
+   "images": 3,
+   "imageUrls": 3,
+   "imageRepeats": 0,
+   "imageVariants": {
+    "240px-webp-q80": 3
+   },
+   "notModified": 0,
+   "streamsOpened": 22,
+   "streamsAborted": 14,
+   "streamsCompleted": 28,
+   "itemsPages": 1,
+   "itemsDeltas": 0,
+   "itemsWithStreams": 1,
+   "avgLatencyMs": 212,
+   "maxLatencyMs": 1674,
+   "seconds": 23
+  }
+ },
+ "notes": [],
+ "versionName": "1.0-beta52",
+ "crash": {
+  "first-sync": {
+   "lines": 0,
+   "processes": [],
+   "head": []
+  },
+  "skip-burst": {
+   "lines": 7,
+   "processes": [
+    "com.google.android.bluetooth"
+   ],
+   "head": [
+    "10-12 07:59:43.327   844  4561 E AndroidRuntime: FATAL EXCEPTION: binder:844_9\r",
+    "10-12 07:59:43.327   844  4561 E AndroidRuntime: Process: com.google.android.bluetooth, PID: 844\r",
+    "10-12 07:59:43.327   844  4561 E AndroidRuntime: java.lang.OutOfMemoryError: Failed to allocate a 24 byte allocation with 363056 free bytes and 354KB until OOM, target footprint 201326592, growth limit 201326592; giving up on allocation because <1% of heap free after GC.\r",
+    "10-12 07:59:43.327   844  4561 E AndroidRuntime: \tat android.os.Parcel.createTypedArrayList(Parcel.java:3669)\r",
+    "10-12 07:59:43.327   844  4561 E AndroidRuntime: \tat android.media.IPlaybackConfigDispatcher$Stub.onTransact(IPlaybackConfigDispatcher.java:89)\r",
+    "10-12 07:59:43.327   844  4561 E AndroidRuntime: \tat android.os.Binder.execTransactInternal(Binder.java:1344)\r",
+    "10-12 07:59:43.327   844  4561 E AndroidRuntime: \tat android.os.Binder.execTransact(Binder.java:1275)\r"
+   ]
+  }
+ },
+ "gate": {
+  "first-sync": {
+   "lines": 3,
+   "first": [
+    "10-12 07:58:50.925  3206  3273 D FLACieGate: queued=0 inflight=0 peak=1 limit=5 breaker=CLOSED total=2 retries=0 coalesced=0 rejected=0 failed=0 avgMs=419 kinds=account:2\r",
+    "10-12 07:59:00.925  3206  3272 D FLACieGate: queued=0 inflight=0 peak=6 limit=7 breaker=CLOSED total=41 retries=0 coalesced=7 rejected=0 failed=0 avgMs=55 kinds=account:10,cover:17,info:1,list:10,report:1,session:2\r",
+    "10-12 07:59:10.928  3206  3273 D FLACieGate: queued=0 inflight=0 peak=6 limit=8 breaker=CLOSED total=48 retries=0 coalesced=7 rejected=0 failed=0 avgMs=45 kinds=account:10,cover:17,info:1,list:16,report:1,session:3\r"
+   ],
+   "last": [
+    "10-12 07:58:50.925  3206  3273 D FLACieGate: queued=0 inflight=0 peak=1 limit=5 breaker=CLOSED total=2 retries=0 coalesced=0 rejected=0 failed=0 avgMs=419 kinds=account:2\r",
+    "10-12 07:59:00.925  3206  3272 D FLACieGate: queued=0 inflight=0 peak=6 limit=7 breaker=CLOSED total=41 retries=0 coalesced=7 rejected=0 failed=0 avgMs=55 kinds=account:10,cover:17,info:1,list:10,report:1,session:2\r",
+    "10-12 07:59:10.928  3206  3273 D FLACieGate: queued=0 inflight=0 peak=6 limit=8 breaker=CLOSED total=48 retries=0 coalesced=7 rejected=0 failed=0 avgMs=45 kinds=account:10,cover:17,info:1,list:16,report:1,session:3\r"
+   ]
+  },
+  "skip-burst": {
+   "lines": 2,
+   "first": [
+    "10-12 07:59:30.941  3206  3271 D FLACieGate: queued=1 inflight=2 peak=6 limit=8 breaker=CLOSED total=104 retries=0 coalesced=10 rejected=0 failed=0 avgMs=206 kinds=account:10,cover:18,info:1,list:20,lyrics:13,report:21,session:5,stream:16\r",
+    "10-12 07:59:40.942  3206  3272 D FLACieGate: queued=1 inflight=0 peak=6 limit=4 breaker=CLOSED total=142 retries=0 coalesced=18 rejected=0 failed=1 avgMs=159 kinds=account:10,cover:20,info:1,list:20,lyrics:19,report:42,session:6,stream:24\r"
+   ],
+   "last": [
+    "10-12 07:59:30.941  3206  3271 D FLACieGate: queued=1 inflight=2 peak=6 limit=8 breaker=CLOSED total=104 retries=0 coalesced=10 rejected=0 failed=0 avgMs=206 kinds=account:10,cover:18,info:1,list:20,lyrics:13,report:21,session:5,stream:16\r",
+    "10-12 07:59:40.942  3206  3272 D FLACieGate: queued=1 inflight=0 peak=6 limit=4 breaker=CLOSED total=142 retries=0 coalesced=18 rejected=0 failed=1 avgMs=159 kinds=account:10,cover:20,info:1,list:20,lyrics:19,report:42,session:6,stream:24\r"
+   ]
+  }
+ },
+ "crashBufferAtEnd": [
+  "10-12 07:59:43.327   844  4561 E AndroidRuntime: FATAL EXCEPTION: binder:844_9\r",
+  "10-12 07:59:43.327   844  4561 E AndroidRuntime: Process: com.google.android.bluetooth, PID: 844\r",
+  "10-12 07:59:43.327   844  4561 E AndroidRuntime: java.lang.OutOfMemoryError: Failed to allocate a 24 byte allocation with 363056 free bytes and 354KB until OOM, target footprint 201326592, growth limit 201326592; giving up on allocation because <1% of heap free after GC.\r",
+  "10-12 07:59:43.327   844  4561 E AndroidRuntime: \tat android.os.Parcel.createTypedArrayList(Parcel.java:3669)\r",
+  "10-12 07:59:43.327   844  4561 E AndroidRuntime: \tat android.media.IPlaybackConfigDispatcher$Stub.onTransact(IPlaybackConfigDispatcher.java:89)\r",
+  "10-12 07:59:43.327   844  4561 E AndroidRuntime: \tat android.os.Binder.execTransactInternal(Binder.java:1344)\r",
+  "10-12 07:59:43.327   844  4561 E AndroidRuntime: \tat android.os.Binder.execTransact(Binder.java:1275)\r"
+ ],
+ "anrDialogsDismissed": 0,
+ "finishedAt": "2026-10-12T06:59:45.994Z"
+}

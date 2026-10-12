@@ -14,7 +14,7 @@ param(
   [string]$Apk, [string]$Label = 'run', [string]$Profile = 'fast', [int]$Window = 120, [int]$Port = 8296, [int]$Items = 10000,
   [string]$Out = '', [string]$Scenarios = 'first-sync,scrolling,skip-burst,warm-start,kill-restore',
   [string]$Avd = 'flacie_phone', [int]$Memory = 2048, [switch]$HoldOnly, [int]$HoldMinutes = 14, [string]$StopFile = "$env:TEMP\flacie-android-stop",
-  [switch]$Reuse, [string]$Shots = '', [int]$BootTimeoutSec = 420, [string]$Driver = 'run-android.mjs'
+  [switch]$Reuse, [string]$Shots = '', [int]$BootTimeoutSec = 420, [string]$Driver = 'run-android.mjs', [string]$Extra = ''
 )
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -59,6 +59,13 @@ try {
   Adb shell input keyevent KEYCODE_WAKEUP | Out-Null
   Adb shell wm dismiss-keyguard | Out-Null
   Adb shell svc power stayon true | Out-Null
+  # the emulator sometimes boots without a default route (the app then says "Jellyfin is not answering"): toggling Wi-Fi brings it back
+  for ($try = 0; $try -lt 4; $try++) {
+    $ping = (Adb shell 'ping -c 1 -W 2 10.0.2.2 >/dev/null 2>&1 && echo up || echo down') -join ''
+    if ($ping.Trim() -eq 'up') { break }
+    Log "no route to the host (10.0.2.2): toggling Wi-Fi (try $($try + 1))"
+    Adb shell svc wifi disable | Out-Null; Start-Sleep -Seconds 3; Adb shell svc wifi enable | Out-Null; Start-Sleep -Seconds 12
+  }
   # the build under test, installed fresh (run-android.mjs grants the notification permission and keeps music-file access off,
   # so the emulator's own sdcard files never mix into the mock's 10,000 songs)
   if ($Apk) {
@@ -77,6 +84,7 @@ try {
     $node = (Get-Command node).Source
     $args2 = @((Join-Path $here $Driver), '--label', $Label, '--profile', $Profile, '--window', "$Window", '--port', "$Port", '--items', "$Items",
                '--out', $Out, '--scenarios', $Scenarios, '--adb', $adb, '--shots', $Shots)
+    if ($Extra) { $args2 += @($Extra -split ' ' | Where-Object { $_ }) }
     if ($Apk) { $args2 += @('--apk', (Resolve-Path $Apk).Path) }
     Log "driver: node $($args2 -join ' ')"
     # own process with its output in files (PowerShell 5.1 turns a native command's stderr into errors; the driver logs a lot to stderr)

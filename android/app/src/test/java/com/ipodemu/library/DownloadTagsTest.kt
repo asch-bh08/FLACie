@@ -125,7 +125,8 @@ class DownloadTagsTest {
         assertEquals(DownloadTag.Downloading("Downloading 42%..."), s.statusOf(key, now + 5_000))
         s.onStatus(key, st(DownloadStage.DONE, "\"P\" is ready to play", "soulseek", tracks = listOf(track("P", "JME", TrackSource.CLOUD, now + 9_000))), now + 9_000)
         assertEquals(DownloadTag.Recent(now + 9_000), s.statusOf(key, now + 10_000))
-        assertEquals("Recently downloaded · 1s ago", DownloadTags.text(s.statusOf(key, now + 10_000), now + 10_000))
+        assertEquals("Recently downloaded · just now", DownloadTags.text(s.statusOf(key, now + 10_000), now + 10_000))
+        assertEquals("Recently downloaded · 6s ago", DownloadTags.text(s.statusOf(key, now + 15_000), now + 15_000))
         // and an hour later it is a normal song again
         assertEquals(DownloadTag.None, s.statusOf(key, now + 9_000 + 60 * min))
     }

@@ -38,7 +38,11 @@ Wording is identical to the web: the strings live in `SourceLabel` and `Download
 
 ## Tests (JVM)
 
-RESULTS_PLACEHOLDER
+`:app:testDebugUnitTest`: **268 tests, 2 skipped (as before), 0 failed** (was 236 + 2 skipped in beta 53; +32 new, no existing test changed or weakened).
+`:app:assembleDebug`: builds.
+
+- `DownloadTagsTest` (21): age label table (under 5 s, seconds, minutes, exactly 60 min is over, a week, future within and beyond a minute), precedence (running > finished > Cloud added time; old finish falls through; failure vs success, the later wins), tag text (identical to the web), expiry and which tags tick, request reads "Starting...", the store as `Library` feeds it (running -> stage changes -> done -> an hour later nothing; a "had nothing" note keeps the stage; failure then retry; an album tags each filed song; same song under another spelling; seeded history keeps only the window), Cloud added time, the badge and source-line wording, and the one ticker's reference counting.
+- `DownloadReportTest` (11): body fields, no path for a Lidarr grab, an album is reported per song and capped, nothing without artist and title, known sources only, no extra keys, one send on success, one retry on 5xx and on a network error, 400/401/403/404/429 final, two network errors never throw.
 
 ## Not tested / not done
 

@@ -32,6 +32,12 @@ private val VIEW_NAMES = listOf("iPod Player", "iPod Emulator", "Click Wheel Ful
 
 @Composable
 fun SettingsScreen(nav: PlayerNav, dashboard: Boolean = false) {
+    // Settings is drawn on the flat dark palette in every mode, so its text must come from that palette too (the light iPod Player skin has dark ink: unreadable on these cards)
+    androidx.compose.runtime.CompositionLocalProvider(LocalScheme provides remember { buildModernScheme(null) }) { SettingsBody(nav, dashboard) }
+}
+
+@Composable
+private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
     LocalLibRev.current
     val app = LocalApp.current
     val sc = LocalScheme.current

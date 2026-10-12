@@ -170,20 +170,16 @@ internal class CoverRef(val key: String, val tag: String?)
 private val variousRe = Regex("^(various( artists)?|v\\.?a\\.?|compilations?)$", RegexOption.IGNORE_CASE)
 
 /**
- * One cover per ALBUM: a real Jellyfin gives every song with embedded art its own ImageTags.Primary, so using the song's own picture would
- * make every song a separate cover (a request and a file each). The album's picture (AlbumId + AlbumPrimaryImageTag) is shared by all of its
- * songs: one request, one file. Exceptions: a compilation ("Various Artists": the songs belong to different artists, their own picture is
- * the right one) and a song whose album has no picture (its own, if it has one).
+ * The song's own picture first (its Primary image and that picture's tag). The album's picture (AlbumId + AlbumPrimaryImageTag) is only the fallback for a
+ * song that has none: on a real Jellyfin AlbumId is not reliable (songs of many different albums were seen sharing one AlbumId, so one wrong picture for
+ * all of them), so it must never win over what the song itself carries. A compilation ("Various Artists") uses the song's own picture as well.
  */
 internal fun coverOf(o: JSONObject): CoverRef? {
     val id = o.optString("Id")
     val albumId = o.optString("AlbumId")
     val own = o.optJSONObject("ImageTags")?.optString("Primary")?.takeIf { it.isNotEmpty() }
     val albumTag = if (o.isNull("AlbumPrimaryImageTag")) null else o.optString("AlbumPrimaryImageTag").takeIf { it.isNotEmpty() }
-    val albumArtist = (if (o.isNull("AlbumArtist")) "" else o.optString("AlbumArtist")).trim()
-    val compilation = albumArtist.isNotEmpty() && variousRe.matches(albumArtist)
     return when {
-        albumId.isNotEmpty() && albumTag != null && !compilation -> CoverRef("jf$albumId", albumTag)
         own != null && id.isNotEmpty() -> CoverRef("jf$id", own)
         albumId.isNotEmpty() && albumTag != null -> CoverRef("jf$albumId", albumTag)
         albumId.isNotEmpty() -> CoverRef("jf$albumId", null)   // the server did not say there is a picture: tried once, remembered if it has none

@@ -244,15 +244,13 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         string Str(string k) => o[k]?.GetValue<string>() ?? "";
         var artist = (o["Artists"] as JsonArray)?.FirstOrDefault()?.GetValue<string>() ?? Str("AlbumArtist");
         var albumId = Str("AlbumId");
-        // a song on a compilation gets its own album's cover from the catalog, whatever the file's embedded picture is.
-        // Otherwise the ALBUM's picture (AlbumId + its image tag) when the item says it has one: every song of an album then shares one key, so one
-        // cover is fetched, kept and cached for the whole album (Jellyfin gives each song with embedded art its own tag: ten thousand covers otherwise).
-        // On a compilation each song keeps its own picture (the album's is just one of them); a catalog lookup when no picture exists at all.
+        // A song's cover is its OWN picture (the item's Primary image and its tag) when it has one. The album's picture (AlbumId + AlbumPrimaryImageTag) is only
+        // the fallback for a song without one: on a real Jellyfin AlbumId is not reliable (songs of many different albums were seen sharing one AlbumId, and so one
+        // wrong picture), so it must never win over what the song itself carries. A song on a compilation gets its own cover from the catalog, as before.
         var onCompilation = Art.OnCompilation(artist, Str("AlbumArtist"), Str("Album"));
         var art = onCompilation && Art.LookupKey(artist, "", Str("Name")) is { } own ? own
-                : !onCompilation && albumId.Length > 0 && o["AlbumPrimaryImageTag"] is JsonValue at ? "jf" + albumId + "~" + at.ToString()
                 : o["ImageTags"]?["Primary"] is JsonValue pt ? "jf" + id + "~" + pt.ToString()
-                : albumId.Length > 0 && o["AlbumPrimaryImageTag"] is JsonValue at2 ? "jf" + albumId + "~" + at2.ToString()
+                : albumId.Length > 0 && o["AlbumPrimaryImageTag"] is JsonValue at ? "jf" + albumId + "~" + at.ToString()
                 : Art.LookupKey(artist, Str("Album"), Str("Name"));
         DateTime.TryParse(Str("DateCreated"), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var created);
         return new Track($"{server}/Audio/{id}/stream?static=true", Str("Name"), artist, Str("Album"), Str("AlbumArtist").Length > 0 ? Str("AlbumArtist") : artist,
@@ -266,8 +264,9 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
     public static string? ItemArtKey(JsonNode? item)
     {
         if (item is null) return null;
-        if (item["AlbumId"]?.GetValue<string>() is { Length: > 0 } album && item["AlbumPrimaryImageTag"] is JsonValue at) return "jf" + album + "~" + at;
+        // the item's own picture first (see ToTrack: AlbumId is not reliable), the album's only when the item has none
         if (item["Id"]?.GetValue<string>() is { Length: > 0 } id && item["ImageTags"]?["Primary"] is JsonValue pt) return "jf" + id + "~" + pt;
+        if (item["AlbumId"]?.GetValue<string>() is { Length: > 0 } album && item["AlbumPrimaryImageTag"] is JsonValue at) return "jf" + album + "~" + at;
         return null;
     }
 

@@ -124,10 +124,12 @@ class Library(ctx: Context, val art: ArtCache) {
     }
     val jfSync = JellyfinSync(jfApi, jfIndex, jfSink)
 
+    private val STATE_VERSION = 2
+
     private fun writeJfState(cursor: String) {
         try {
             jfStateFile.writeText(JSONObject().put("cursor", cursor).put("url", prefs.jellyfinUrl.trimEnd('/')).put("user", jellyfinUserId ?: prefs.accountUserId)
-                .put("count", jfSync.lastCountAt).toString())
+                .put("count", jfSync.lastCountAt).put("v", STATE_VERSION).toString())
         } catch (_: Exception) {}
     }
 
@@ -138,6 +140,7 @@ class Library(ctx: Context, val art: ArtCache) {
             jfIndex.replaceAll(jellyfinTracks)   // shown at once; a state-less list (older version) is replaced by a full pass once it is complete
             if (!jfStateFile.exists()) return
             val o = JSONObject(jfStateFile.readText())
+            if (o.optInt("v", 1) < STATE_VERSION) return   // an older list holds cover keys built from AlbumId (beta 52): a full pass replaces it
             val sameServer = o.optString("url") == prefs.jellyfinUrl.trimEnd('/') && prefs.jellyfinUrl.isNotBlank()
             val sameUser = prefs.accountUserId.isBlank() || o.optString("user") == prefs.accountUserId
             if (sameServer && sameUser && jfIndex.size > 0) { jfIndex.cursor = o.optString("cursor"); jfSync.lastCountAt = o.optLong("count", 0L) }

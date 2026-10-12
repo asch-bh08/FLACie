@@ -51,7 +51,7 @@ public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log, I
             var kind = p.FindFirst("kind")?.Value ?? "jellyfin";
             JellyfinAccount? j = p.FindFirst("jf.token") is { } t ? new(p.FindFirst("jf.server")!.Value, p.FindFirst("jf.user")!.Value, p.FindFirst("jf.name")?.Value ?? "", t.Value) : null;
             NasAccount? n = p.FindFirst("nas.host") is { } h ? new(h.Value, V(p, "nas.share"), V(p, "nas.folder"), V(p, "nas.user"), V(p, "nas.pass"), V(p, "nas.domain")) : null;
-            var us = new UserSession(kind, j, n) { Id = key, CachePath = Path.Combine(paths.Root, "library", key + ".json"), FactsSink = (t, mi) => { FormatIndex.Current?.Set(t, mi); InfoService.Current?.Remember(t, mi); } }; states.Remember(us);
+            var us = new UserSession(kind, j, n) { Id = key, CachePath = LibraryCachePath(paths.Root, key), FactsSink = (t, mi) => { FormatIndex.Current?.Set(t, mi); InfoService.Current?.Remember(t, mi); } }; states.Remember(us);
             _ = Task.Run(async () =>
             {
                 try { await us.LoadAsync(jf); }
@@ -82,6 +82,18 @@ public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log, I
         if (sessions.TryRemove(Key(p), out var s) && live.TryGetValue(s, out var l)) { l.Connect.Dispose(); live.Remove(s); }
     }
     static string V(ClaimsPrincipal p, string k) => p.FindFirst(k)?.Value ?? "";
+
+    /// <summary>
+    /// Where an account's saved library lives. The "v2" name starts a fresh cache: beta 52 saved cover keys built from Jellyfin's AlbumId, which is not reliable
+    /// (many songs of different albums share one and so one wrong picture), and a saved library would have kept serving them. The old files are removed.
+    /// </summary>
+    static string LibraryCachePath(string root, string key)
+    {
+        var dir = Path.Combine(root, "library");
+        foreach (var suffix in new[] { ".json", ".json.cursor", ".json.ids", ".json.tmp" })
+            try { var f = Path.Combine(dir, key + suffix); if (File.Exists(f)) File.Delete(f); } catch (Exception) { }
+        return Path.Combine(dir, key + ".v2.json");
+    }
 }
 
 public static class AuthEndpoints

@@ -135,7 +135,7 @@ test.describe.serial('beta 52 load', () => {
     const first = await images(request);
     expect(first.total, 'covers fetched for the first view').toBeGreaterThan(0);
     expect(first.repeats, 'a cover asked for twice').toBe(0);
-    // an album's songs share their album's picture: 11 albums in the mock, one request each at the most
+    // the Albums page shows one picture per album (11 albums in the mock): one request each at the most
     expect(first.distinct).toBeLessThanOrEqual(11);
     // one fixed size for rows and tiles: 240 px WebP at quality 80, nothing else
     for (const v of first.variants) expect(v, 'cover variant').toBe('w=240 q=80 Webp');

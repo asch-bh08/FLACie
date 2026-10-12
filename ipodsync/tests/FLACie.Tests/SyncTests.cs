@@ -267,21 +267,29 @@ public class SyncTests
         Assert.Equal("not a date", JellyfinClient.AfterCursor("not a date"));
     }
 
+    // beta 52 made the album's picture win ("one cover per album"). On a real Jellyfin AlbumId is not reliable: songs of a dozen different albums shared one
+    // AlbumId and so one wrong picture on every one of them. A song's own picture wins; the album's is only the fallback.
     [Fact]
-    public void The_songs_of_an_album_share_one_cover_unless_it_is_a_compilation()
+    public void A_song_keeps_its_own_picture_and_the_albums_is_only_the_fallback()
     {
         string KeyOf(JsonObject o) => JellyfinClient.ToTrack("http://jf", o).ArtKey!;
         var fake = new FakeJellyfin(0);
         var a = KeyOf(fake.Song(24)); var b = KeyOf(fake.Song(25));
-        Assert.Equal(a, b);                                        // two songs of album 2: one cover, one request, one file
-        Assert.Equal("jf" + FakeJellyfin.Hex(100002) + "~albumtag2", a);
-        // no album picture: the song's own
-        var s = fake.Song(30); s.Remove("AlbumPrimaryImageTag");
-        Assert.Equal("jf" + FakeJellyfin.Hex(30) + "~own30", KeyOf(s));
+        Assert.Equal("jf" + FakeJellyfin.Hex(24) + "~own24", a);   // the song's own picture, though the album (AlbumId + tag) is there too
+        Assert.Equal("jf" + FakeJellyfin.Hex(25) + "~own25", b);
+        // songs of different albums that (wrongly) carry the same AlbumId must not end up with one picture
+        var x = fake.Song(50); var y = fake.Song(80);
+        x["AlbumId"] = Hex32("shared"); y["AlbumId"] = Hex32("shared"); x["AlbumPrimaryImageTag"] = "sharedtag"; y["AlbumPrimaryImageTag"] = "sharedtag";
+        Assert.NotEqual(KeyOf(x), KeyOf(y));
+        // no own picture: the album's
+        var s = fake.Song(30); ((JsonObject)s["ImageTags"]!).Remove("Primary");
+        Assert.Equal("jf" + FakeJellyfin.Hex(100002) + "~albumtag2", KeyOf(s));
         // a compilation's songs get their own album's cover from the catalog (the existing rule is kept), whatever pictures Jellyfin has
         var comp = fake.Song(40, album: "Now That's What I Call Music 99"); comp["AlbumArtist"] = "Various Artists";
         Assert.StartsWith("it", KeyOf(comp));
     }
+
+    static string Hex32(string seed) => Convert.ToHexString(System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes(seed))).ToLowerInvariant();
 
     [Fact]
     public void A_listing_item_with_odd_shapes_is_still_a_song()

@@ -117,13 +117,22 @@ class JellyfinListingTest {
 
     // ---- cover identity -----------------------------------------------------------------------------------------
 
-    @Test fun songsOfOneAlbumShareOneCover() {
-        val second = flac24.replace("${SONG}", "${SONG2}").replace("songtag1", "songtag2").replace("Song One", "Song Two")
-        val items = JellyfinDirectClient.itemsOf(base, list(flac24, second))
-        assertEquals("jfbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb1", items[0].track.artKey)
-        assertEquals(items[0].track.artKey, items[1].track.artKey)
-        assertEquals("albumtag1", items[0].coverTag); assertEquals("albumtag1", items[1].coverTag)
-        assertEquals("one request, one file", 1, items.map { it.coverKey to it.coverTag }.toSet().size)
+    // beta 52 let the album's picture win ("one cover per album"); on a real Jellyfin AlbumId is not reliable (songs of a dozen different albums
+    // shared one AlbumId and so one wrong picture), so a song's own picture must always win and the album's is only the fallback
+    @Test fun aSongKeepsItsOwnPictureEvenWhenTheAlbumIdIsShared() {
+        val second = flac24.replace("${SONG}", "${SONG2}").replace("songtag1", "songtag2").replace("Song One", "Song Two").replace("\"Album\":\"Album\"", "\"Album\":\"Another Album\"")
+        val items = JellyfinDirectClient.itemsOf(base, list(flac24, second))   // both carry the same (bogus) AlbumId and AlbumPrimaryImageTag
+        assertEquals("jfaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1", items[0].track.artKey)
+        assertEquals("jfaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2", items[1].track.artKey)
+        assertEquals("songtag1", items[0].coverTag); assertEquals("songtag2", items[1].coverTag)
+        assertEquals("each song its own picture", 2, items.map { it.coverKey to it.coverTag }.toSet().size)
+    }
+
+    @Test fun aSongWithoutItsOwnPictureFallsBackToTheAlbumsPicture() {
+        val o = flac24.replace("\"ImageTags\":{\"Primary\":\"songtag1\"},", "\"ImageTags\":{},")
+        val it = JellyfinDirectClient.itemsOf(base, list(o)).single()
+        assertEquals("jfbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb1", it.track.artKey)
+        assertEquals("albumtag1", it.coverTag)
     }
 
     @Test fun aCompilationKeepsEachSongsOwnPicture() {

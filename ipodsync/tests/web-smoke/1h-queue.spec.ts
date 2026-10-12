@@ -44,6 +44,7 @@ test.describe.serial('Up next editing', () => {
     await expect.poll(() => page.evaluate(() => (window as any).flacie.ready()), { timeout: 15_000 }).toBe(true);
     const clock = async () => (await page.locator('.player .seek span').first().innerText()).trim();
     // the mock's songs are 3 seconds long: pause, so the queue does not move on by itself while the edits are made
+    await expect.poll(clock, { timeout: 10_000 }).not.toBe('0:00');
     await page.getByRole('button', { name: 'Pause', exact: true }).first().click();
     await expect(page.getByRole('button', { name: 'Play', exact: true }).first()).toBeVisible();
     const c0 = await clock();

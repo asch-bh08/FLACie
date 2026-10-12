@@ -32,7 +32,12 @@ sealed class DownloadTag {
     data class Recent(val finishedMs: Long) : DownloadTag()
     /** A fetch failed at [atMs], within the window. */
     data class Failed(val atMs: Long) : DownloadTag()
+    /** A Cloud song (filed by the file mover, not yet listed by Jellyfin) that is past the recent window: a quiet "New download" marker, no age. */
+    object NewDownload : DownloadTag()
 }
+
+/** How much of the tag text fits: the whole wording, a short wording for narrow places (cards, the Up next pane), or only the age (never cut). */
+enum class TagForm { FULL, COMPACT, AGE_ONLY }
 
 /** The pure rules of the download tags (the same contract as FLACie Web's `DownloadStatusOf` / `AgeLabel`). */
 object DownloadTags {
@@ -45,12 +50,14 @@ object DownloadTags {
      * The age text of a download that finished at [finishedMs]: "just now" under 5 s, "Ns ago" under a minute, "N min ago" under an hour,
      * null when it finished a window ago or more, or lies in the future by more than a minute.
      */
-    fun ageLabel(nowMs: Long, finishedMs: Long): String? {
+    fun ageLabel(nowMs: Long, finishedMs: Long, compact: Boolean = false): String? {
         val age = nowMs - finishedMs
         if (age < -FUTURE_SLACK_MS || age >= WINDOW_MS) return null
         return when {
             age < 5_000L -> "just now"
             age < 60_000L -> "${age / 1000}s ago"
+            // the compact form is for narrow places: "4m ago" instead of "4 min ago"
+            compact -> "${age / 60_000L}m ago"
             else -> "${age / 60_000L} min ago"
         }
     }
@@ -60,6 +67,8 @@ object DownloadTags {
 
     /** A Cloud song's own added time (the file mover's copy, stamped when it was filed); null for every other source. */
     fun cloudAdded(t: Track): Long? = if (t.source == TrackSource.CLOUD && t.mtime > 0) t.mtime else null
+    /** Whether this song is a Cloud (new download) track. */
+    fun isCloud(t: Track): Boolean = t.source == TrackSource.CLOUD
 
     /** The stage text of a running job: the request itself reads as "Starting...", the rest is the job's own message. */
     fun stageText(stage: DownloadStage, message: String): String =
@@ -67,23 +76,48 @@ object DownloadTags {
 
     /**
      * ONE lookup, in this order: a running job > a finished (or failed) one within the window > a Cloud song's own added time within the window.
-     * A failure only wins over a success when it is the later of the two. [cloudAddedMs] is the song's added time when it is a Cloud track, else null.
+     * A failure only wins over a success when it is the later of the two. [cloudAddedMs] is the song's added time when it is a Cloud track, else null;
+     * [isCloud] marks a Cloud track (past the window it keeps a plain "New download" marker).
      */
-    fun resolve(nowMs: Long, runningStage: String?, finishedMs: Long?, failedMs: Long?, cloudAddedMs: Long?): DownloadTag {
+    fun resolve(nowMs: Long, runningStage: String?, finishedMs: Long?, failedMs: Long?, cloudAddedMs: Long?, isCloud: Boolean = false): DownloadTag {
         if (runningStage != null) return DownloadTag.Downloading(runningStage)
         val fin = finishedMs?.takeIf { within(nowMs, it) }
         val fail = failedMs?.takeIf { within(nowMs, it) }
         if (fail != null && (fin == null || fail > fin)) return DownloadTag.Failed(fail)
         if (fin != null) return DownloadTag.Recent(fin)
         if (within(nowMs, cloudAddedMs)) return DownloadTag.Recent(cloudAddedMs!!)
+        // a Cloud song past the window is still not a library song yet: say so quietly (phone rows have no room for the source badge)
+        if (isCloud) return DownloadTag.NewDownload
         return DownloadTag.None
     }
 
-    /** The text of a tag at [nowMs]: "Recently downloaded · 1s ago", "Downloading · Searching Soulseek...", "Couldn't download", or null (no tag). */
-    fun text(tag: DownloadTag, nowMs: Long): String? = when (tag) {
+    /**
+     * The running-job text: "Downloading · Searching Soulseek...". A stage message that already starts with the word ("Downloading 55%...") is shown
+     * as it is, so the word is never doubled. The same rule as FLACie Web.
+     */
+    fun runningText(stage: String): String {
+        val st = stage.trim()
+        return when {
+            st.isEmpty() -> "Downloading"
+            st.startsWith("Downloading", ignoreCase = true) -> st
+            else -> "Downloading · $st"
+        }
+    }
+
+    /**
+     * The text of a tag at [nowMs]: "Recently downloaded · 1s ago", "Downloading · Searching Soulseek...", "Couldn't download", "New download", or null
+     * (no tag). [form] picks how much of it a narrow place gets: COMPACT reads "Downloaded · 4m ago", AGE_ONLY just "4m ago"; the age is never cut.
+     */
+    fun text(tag: DownloadTag, nowMs: Long, form: TagForm = TagForm.FULL): String? = when (tag) {
         DownloadTag.None -> null
-        is DownloadTag.Downloading -> if (tag.stage.isBlank()) "Downloading" else "Downloading · ${tag.stage}"
-        is DownloadTag.Recent -> ageLabel(nowMs, tag.finishedMs)?.let { "Recently downloaded · $it" }
+        DownloadTag.NewDownload -> "New download"
+        is DownloadTag.Downloading -> {
+            val st = tag.stage.trim()
+            if (form == TagForm.FULL) runningText(st) else if (st.startsWith("Downloading", ignoreCase = true)) st else "Downloading"
+        }
+        is DownloadTag.Recent -> ageLabel(nowMs, tag.finishedMs, compact = form != TagForm.FULL)?.let { age ->
+            when (form) { TagForm.FULL -> "Recently downloaded · $age"; TagForm.COMPACT -> "Downloaded · $age"; TagForm.AGE_ONLY -> age }
+        }
         is DownloadTag.Failed -> if (within(nowMs, tag.atMs)) "Couldn't download" else null
     }
 
@@ -152,8 +186,8 @@ class DownloadTagStore {
     }
 
     /** The tag of the song [key] at [nowMs]; [cloudAddedMs] is its added time when it is a Cloud track. */
-    fun statusOf(key: String, nowMs: Long, cloudAddedMs: Long? = null): DownloadTag =
-        DownloadTags.resolve(nowMs, running[key], finished[key], failed[key], cloudAddedMs)
+    fun statusOf(key: String, nowMs: Long, cloudAddedMs: Long? = null, isCloud: Boolean = false): DownloadTag =
+        DownloadTags.resolve(nowMs, running[key], finished[key], failed[key], cloudAddedMs, isCloud)
 
     private fun prune(nowMs: Long) {
         if (finished.size > 256) finished.entries.removeIf { !DownloadTags.within(nowMs, it.value) }

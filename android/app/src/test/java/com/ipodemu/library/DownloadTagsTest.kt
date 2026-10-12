@@ -211,4 +211,62 @@ class DownloadTagsTest {
         assertEquals(0, r.users)
         assertTrue("and it can start again", r.acquire())
     }
+
+    // ---- the doubled word, narrow forms, the quiet "New download" ---------------------------------------------------------------------------
+
+    @Test fun theWordDownloadingIsNeverDoubled() {
+        assertEquals("Downloading 55%...", DownloadTags.runningText("Downloading 55%..."))
+        assertEquals("Downloading from Jamendo...", DownloadTags.runningText("Downloading from Jamendo..."))
+        assertEquals("downloading 3%", DownloadTags.runningText("downloading 3%"))
+        assertEquals("Downloading · Searching Soulseek...", DownloadTags.runningText("Searching Soulseek..."))
+        assertEquals("Downloading · Waiting for a peer...", DownloadTags.runningText("Waiting for a peer..."))
+        assertEquals("Downloading", DownloadTags.runningText(""))
+        assertEquals("Downloading", DownloadTags.runningText("   "))
+        assertEquals("Downloading 40%...", DownloadTags.text(DownloadTag.Downloading("Downloading 40%..."), now))
+        assertEquals("Downloading · Starting...", DownloadTags.text(DownloadTag.Downloading("Starting..."), now))
+    }
+
+    @Test fun theCompactFormKeepsTheAge() {
+        val t = DownloadTag.Recent(now - 4 * min)
+        assertEquals("Recently downloaded · 4 min ago", DownloadTags.text(t, now, TagForm.FULL))
+        assertEquals("Downloaded · 4m ago", DownloadTags.text(t, now, TagForm.COMPACT))
+        assertEquals("4m ago", DownloadTags.text(t, now, TagForm.AGE_ONLY))
+        val fresh = DownloadTag.Recent(now)
+        assertEquals("Downloaded · just now", DownloadTags.text(fresh, now, TagForm.COMPACT))
+        assertEquals("just now", DownloadTags.text(fresh, now, TagForm.AGE_ONLY))
+        assertEquals("Downloaded · 23s ago", DownloadTags.text(DownloadTag.Recent(now - 23_000), now, TagForm.COMPACT))
+        assertEquals("Downloaded · 59m ago", DownloadTags.text(DownloadTag.Recent(now - 59 * min - 5_000), now, TagForm.COMPACT))
+        assertNull("the window is the same in every form", DownloadTags.text(DownloadTag.Recent(now - 60 * min), now, TagForm.COMPACT))
+        assertEquals("1m ago", DownloadTags.ageLabel(now, now - 60_000, compact = true))
+        assertEquals("1 min ago", DownloadTags.ageLabel(now, now - 60_000))
+    }
+
+    @Test fun otherTagsStayShortInNarrowForms() {
+        assertEquals("Downloading 55%...", DownloadTags.text(DownloadTag.Downloading("Downloading 55%..."), now, TagForm.COMPACT))
+        assertEquals("Downloading", DownloadTags.text(DownloadTag.Downloading("Searching Soulseek..."), now, TagForm.COMPACT))
+        assertEquals("Couldn't download", DownloadTags.text(DownloadTag.Failed(now - min), now, TagForm.AGE_ONLY))
+        assertEquals("New download", DownloadTags.text(DownloadTag.NewDownload, now, TagForm.COMPACT))
+    }
+
+    @Test fun aCloudSongPastTheHourKeepsAQuietNewDownloadMarker() {
+        // Cloud, added three hours ago, no job: not recent, but still not a library song
+        assertEquals(DownloadTag.NewDownload, DownloadTags.resolve(now, null, null, null, now - 180 * min, isCloud = true))
+        assertEquals("New download", DownloadTags.text(DownloadTag.NewDownload, now))
+        assertFalse("no age, no ticking", DownloadTags.ticks(DownloadTag.NewDownload))
+        assertNull(DownloadTags.expiresAt(DownloadTag.NewDownload))
+        // inside the hour it is the age; a running job still wins; an old finish still falls to the marker
+        assertEquals(DownloadTag.Recent(now - 5 * min), DownloadTags.resolve(now, null, null, null, now - 5 * min, isCloud = true))
+        assertEquals(DownloadTag.Downloading("x"), DownloadTags.resolve(now, "x", null, null, now - 180 * min, isCloud = true))
+        assertEquals(DownloadTag.NewDownload, DownloadTags.resolve(now, null, now - 120 * min, null, null, isCloud = true))
+        // a library (Jellyfin) song never gets it
+        assertEquals(DownloadTag.None, DownloadTags.resolve(now, null, null, null, null, isCloud = false))
+    }
+
+    @Test fun theStoreSaysNewDownloadForAnOldCloudTrackOnly() {
+        val s = DownloadTagStore()
+        val cloud = track("Old", "Artist", TrackSource.CLOUD, now - 5 * 24 * 60 * min)
+        val jf = track("Jf", "Artist", TrackSource.JELLYFIN, now - 5 * 24 * 60 * min)
+        assertEquals(DownloadTag.NewDownload, s.statusOf(cloud.matchKey, now, DownloadTags.cloudAdded(cloud), DownloadTags.isCloud(cloud)))
+        assertEquals(DownloadTag.None, s.statusOf(jf.matchKey, now, DownloadTags.cloudAdded(jf), DownloadTags.isCloud(jf)))
+    }
 }

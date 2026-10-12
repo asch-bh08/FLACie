@@ -2,6 +2,8 @@ package com.ipodemu.library
 
 import android.os.Handler
 import android.os.Looper
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import com.ipodemu.App
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +23,18 @@ class Autoplay(private val app: App) {
     private val related = HashMap<String, Pair<Long, List<WebCatalog.Song>>>()
     private val waiting = LinkedHashMap<String, WebCatalog.Song>() // requested songs, by matchKey, to join the queue when they land
     @Volatile private var working = false
+    /** Paths of the songs Autoplay itself put in the queue (Up next draws a divider above the first of them). */
+    private val added = HashSet<String>()
+    /** Changes whenever the set of requested suggestions changes (Up next redraws). */
+    var rev by androidx.compose.runtime.mutableIntStateOf(0); private set
+
+    fun isAutoplay(t: Track): Boolean = synchronized(added) { t.path in added }
+    private fun mark(list: List<Track>) { synchronized(added) { list.forEach { added.add(it.path) }; if (added.size > 400) { val keep = added.toList().takeLast(200); added.clear(); added.addAll(keep) } } }
+
+    /** The suggestions asked for and not yet in the queue, in the order they were chosen (= the order they will play); Up next shows them, display only. */
+    fun pending(): List<UpNextMerge.Pending> = if (!app.prefs.autoplay) emptyList() else synchronized(waiting) {
+        waiting.map { (k, s) -> UpNextMerge.Pending(k, s.title, s.artist, s.album, s.durationMs, s.artUrl) }
+    }
 
     /** The player calls this as a song starts when little is left after it. */
     fun queueLow() {
@@ -64,27 +78,37 @@ class Autoplay(private val app: App) {
         take(mates.shuffled().asSequence(), 3)
         if (seed.genre.isNotEmpty()) take(songs.asSequence().filter { it.genre.equals(seed.genre, true) }.shuffled(), 3)
         take(songs.asSequence().shuffled(), 6)
-        if (pick.isNotEmpty()) withContext(Dispatchers.Main) { app.player.appendAutoplay(pick) }
+        if (pick.isNotEmpty()) withContext(Dispatchers.Main) { mark(pick); app.player.appendAutoplay(pick) }
 
         // songs the library lacks: ask for the next few now so they are there in time
         if (app.prefs.autoplayFetch && lib.downloadsConfigured()) {
             suggestions.asSequence().filter { lib.findSong(it.title, it.artist) == null && it.matchKey !in seen }.take(5).forEach { s ->
                 val k = matchKey(s.title, s.artist)
                 synchronized(waiting) { if (waiting.containsKey(k)) return@forEach; waiting[k] = s }
+                // the tag (and the Up next row) is there at once, before the job's first status arrives
                 lib.requestDownload(s.artist, s.title, s.album, s.durationMs)
+                main.post { rev++ }
             }
         }
     }
 
-    /** A download finished: if Autoplay asked for it, it joins the end of the queue. */
+    /**
+     * A download finished: if Autoplay asked for it, it joins the end of the queue. Its suggestion row stays in Up next until the song is really in
+     * the queue (the library needs a moment to list it), so there is never a gap or a duplicate at the switch.
+     */
     fun downloaded(e: DownloadEntry) {
         val k = matchKey(e.title, e.artist)
-        val was = synchronized(waiting) { waiting.remove(k) } ?: return
-        if (!app.prefs.autoplay) return
-        main.postDelayed({
-            val t = app.library.findSong(was.title, was.artist) ?: return@postDelayed
-            if (t.matchKey !in app.player.queueTracks().map { it.matchKey }) app.player.appendAutoplay(listOf(t))
-        }, 1500)
+        val was = synchronized(waiting) { waiting[k] } ?: return
+        if (!app.prefs.autoplay) { synchronized(waiting) { waiting.remove(k) }; rev++; return }
+        fun attempt(left: Int) {
+            val t = app.library.findSong(was.title, was.artist)
+            if (t != null) {
+                if (t.matchKey !in app.player.queueTracks().map { it.matchKey }) { mark(listOf(t)); app.player.appendAutoplay(listOf(t)) }
+                synchronized(waiting) { waiting.remove(k) }
+                rev++
+            } else if (left > 0) main.postDelayed({ attempt(left - 1) }, 1500) else { synchronized(waiting) { waiting.remove(k) }; rev++ }
+        }
+        main.postDelayed({ attempt(6) }, 1500)
     }
 
     private val WebCatalog.Song.matchKey get() = matchKey(title, artist)

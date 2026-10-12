@@ -312,6 +312,8 @@ class Library(ctx: Context, val art: ArtCache) {
         if (downloads[key]?.stage.let { it != null && it != DownloadStage.DONE && it != DownloadStage.FAILED }) return
         val label = "${title.ifBlank { album }} · $artist${if (hiRes) " (Hi-Res)" else ""}"
         runningDownloads[key] = RunningDownload(java.util.UUID.randomUUID().toString(), label, "Search", CoverLookup.key(artist, album, title))
+        // the tag is there at once (before the job's first status): a row asked to download shows "Downloading · Starting..." immediately
+        if (title.isNotBlank()) tags.onStatus(matchKey(title, artist), DownloadStatus(DownloadStage.REQUESTED, ""), System.currentTimeMillis())
         scope.launch {
             val report: (DownloadStatus) -> Unit = { status -> onStatus(key, status, DownloadEntry(artist, title.ifBlank { album }, album, "", 0, ""), tagKey = if (title.isBlank()) null else matchKey(title, artist), durationMs = durationMs) }
             if (hiRes) downloader.downloadHiRes(artist, title, album, durationMs, fallbackToNormal, report) else downloader.download(artist, title, album, durationMs, report)

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -30,6 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ipodemu.App
 import com.ipodemu.library.Track
+import com.ipodemu.library.UpNextMerge
+import com.ipodemu.library.matchKey
 import com.ipodemu.playback.QueueEdit
 
 /**
@@ -97,6 +100,7 @@ fun QueuePanel(snap: PlayerSnap, modifier: Modifier = Modifier) {
     val more = next.size >= 30
     val from = app.player.contextName ?: "Your queue"
     val cur = snap.track
+    val plan = rememberUpNextPlan(next, snap.count, snap.rev, snap.track?.path)
     // the queue sits on a slightly raised card, so the player beside it stands out
     LazyColumn(modifier.clip(RoundedCornerShape(18.dp)).background(Color(0x14FFFFFF)), contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)) {
         item {
@@ -118,8 +122,50 @@ fun QueuePanel(snap: PlayerSnap, modifier: Modifier = Modifier) {
         if (cur != null) item { DrawerRow(cur, current = true, onClick = {}, onMore = nav?.let { n -> { n.sheet = upNextSheet(app, cur, snap.index, -1, next.size, more, true) } }) }
         if (next.isEmpty()) item { Txt("Nothing queued after this song.", Modifier.padding(horizontal = 4.dp, vertical = 8.dp), size = 14f, color = sc.onBgDim) }
         itemsIndexed(next, key = { _, p -> p.first }) { pos, p ->
-            DrawerRow(p.second, current = false, onMore = nav?.let { n -> { n.sheet = upNextSheet(app, p.second, p.first, pos, next.size, more, false) } }) { app.player.skipTo(p.first) }
+            Column(Modifier.fillMaxWidth()) {
+                if (p.first == plan.dividerBefore) AutoplayDivider()
+                DrawerRow(p.second, current = false, onMore = nav?.let { n -> { n.sheet = upNextSheet(app, p.second, p.first, pos, next.size, more, false) } }) { app.player.skipTo(p.first) }
+            }
         }
+        // Autoplay suggestions still being fetched: display only (not queue items, so the indices and actions above are untouched)
+        if (plan.dividerAtEnd) item(key = "ap-divider") { AutoplayDivider() }
+        items(plan.pending, key = { "ap-" + it.pending.key }) { PendingDrawerRow(it) }
+    }
+}
+
+/** The merge of the queue with the suggestions Autoplay is fetching, for display (see [UpNextMerge]); redraws as they start, land or fail. */
+@Composable
+fun rememberUpNextPlan(next: List<Pair<Int, Track>>, queueCount: Int, queueRev: Int, current: String?): UpNextMerge.Plan {
+    val app = LocalApp.current
+    val ap = app.autoplay
+    ap.rev                              // a suggestion was asked for, landed or was given up
+    app.library.tags.structRev          // a download started, finished or failed
+    val queueKeys = remember(queueCount, queueRev, current) { app.player.queueTracks().mapTo(HashSet()) { it.matchKey } }
+    val now = System.currentTimeMillis()
+    return UpNextMerge.plan(next, queueKeys, { ap.isAutoplay(it) }, ap.pending()) { k -> app.library.tags.statusOf(k, now) }
+}
+
+/** "Autoplay · up next after this": the divider above the songs Autoplay added (and above the ones it is still fetching). */
+@Composable
+fun AutoplayDivider() {
+    val sc = LocalScheme.current
+    Txt(UpNextMerge.DIVIDER, Modifier.padding(start = 4.dp, end = 4.dp, top = 14.dp, bottom = 6.dp), size = 12f, weight = FontWeight.Bold, color = sc.onBgDim)
+}
+
+/** A suggestion that is being fetched: cover, title, artist and its tag. Not playable, not removable, not focusable. */
+@Composable
+fun PendingDrawerRow(r: UpNextMerge.PendingRow) {
+    val sc = LocalScheme.current
+    val p = r.pending
+    val narrow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 520
+    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        RemoteArtImage(p.artUrl, Modifier.size(46.dp), corner = 7.dp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Txt(p.title, size = 15f, weight = FontWeight.SemiBold, color = sc.onBg, maxLines = 2)
+            Txt(listOf(p.artist, p.album).filter { it.isNotEmpty() }.joinToString(" · "), size = 12.5f, color = sc.onBgDim, maxLines = 2)
+            DownloadTagLine(p.key, null, compact = narrow)
+        }
+        if (p.durationMs > 0) Txt(fmtTime(p.durationMs), size = 12.5f, color = sc.onBgDim)
     }
 }
 
@@ -135,7 +181,7 @@ private fun DrawerRow(t: Track, current: Boolean, onMore: (() -> Unit)? = null, 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Txt(t.title, size = 15f, weight = FontWeight.SemiBold, color = if (current) sc.accent else sc.onBg, maxLines = 2)
             Txt(listOf(t.artist, t.album).filter { it.isNotEmpty() }.joinToString(" · "), size = 12.5f, color = sc.onBgDim, maxLines = 2)
-            DownloadTagLine(t)
+            DownloadTagLine(t, compact = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 520)
         }
         if (t.durationMs > 0) Txt(fmtTime(t.durationMs), size = 12.5f, color = sc.onBgDim)
         if (onMore != null) Box(

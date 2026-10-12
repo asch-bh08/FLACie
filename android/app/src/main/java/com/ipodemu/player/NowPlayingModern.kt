@@ -165,7 +165,9 @@ private fun FormatChips(t: Track, snap: PlayerSnap) {
     // like the web: separate badges (source pink, format green when lossless, then rate and bit rate), wrapping onto a second line rather than being cut off
     val green = Color(0xFF4EE0A1)
     val badges = listOfNotNull(
-        Triple(com.ipodemu.library.SourceLabel.line(t.source), sc.accent, true),
+        // a new download's pill is a quiet grey like the web's; the other sources keep the accent
+        if (t.source == com.ipodemu.library.TrackSource.CLOUD) Triple(com.ipodemu.library.SourceLabel.line(t.source), sc.onBgDim, false)
+        else Triple(com.ipodemu.library.SourceLabel.line(t.source), sc.accent, true),
         (if (ai.hiRes) "Hi-Res" else ai.codec.takeIf { it.isNotEmpty() })?.let { Triple(it, if (ai.hiRes) Color(0xFFFFC857) else if (ai.lossless) green else sc.onBgDim, ai.lossless || ai.hiRes) },
         ai.sampling.takeIf { it.isNotEmpty() }?.let { Triple(it, sc.onBgDim, false) },
         ai.kbps.takeIf { it > 0 }?.let { Triple("$it kbps", sc.onBgDim, false) },
@@ -264,7 +266,7 @@ private fun InfoRow(snap: PlayerSnap, nav: PlayerNav) {
                 Column(Modifier.weight(1f)) {
                     Txt(t.title, size = 16f, weight = FontWeight.Bold, maxLines = 1)
                     Txt((listOf(t.artist.ifEmpty { "Unknown Artist" }) + tags).joinToString(" · "), size = 12.5f, color = sc.onBgDim, maxLines = 1)
-                    DownloadTagLine(t, size = 11.5f)
+                    DownloadTagLine(t, size = 11.5f, showNew = false)   // the one-line title block already names the source
                 }
                 IconAction(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Unfavorite" else "Favorite", { app.userData.toggleFavorite(t.path) }, tint = if (fav) sc.accent else sc.onBg)
             }
@@ -276,7 +278,7 @@ private fun InfoRow(snap: PlayerSnap, nav: PlayerNav) {
                         Txt(t.artist.ifEmpty { "Unknown Artist" }, Modifier.padding(top = 2.dp).clickable(enabled = t.artist.isNotEmpty()) {
                             nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist }))
                         }, size = 16f, color = sc.onBgDim, maxLines = 2)
-                        DownloadTagLine(t, Modifier.padding(top = 3.dp), size = 13f)
+                        DownloadTagLine(t, Modifier.padding(top = 3.dp), size = 13f, showNew = false)   // the pill below already says "Streaming from new download"
                     }
                     IconAction(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Unfavorite" else "Favorite", { app.userData.toggleFavorite(t.path) }, tint = if (fav) sc.accent else sc.onBg)
                 }

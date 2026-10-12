@@ -49,7 +49,7 @@ Tests: `MediaKeysTest` (4).
 
 ## Test counts
 
-See the end of this file (filled in after the final run).
+`:app:testDebugUnitTest`: **235 tests, 2 skipped (as before), 0 failed** (was 193; +34 `QueueEditTest`, +4 `QueueStoreTest`, +4 `MediaKeysTest`). `:app:assembleDebug`: builds. No existing test was changed or weakened.
 
 ## Not tested
 

@@ -75,6 +75,7 @@ public sealed class Library
     /// <summary>Jellyfin songs, then NAS songs Jellyfin doesn't have, de-duplicated.</summary>
     public static Library Merge(IReadOnlyList<Track> jellyfin, IReadOnlyList<Track> nas)
     {
+        jellyfin = CoverVetting.Vet(jellyfin);   // an album picture only for songs that really belong to that album (AlbumId is shared by unrelated albums on a real Jellyfin)
         var acc = new List<Track>();
         var seen = new HashSet<string>();
         var anySong = new HashSet<string>();

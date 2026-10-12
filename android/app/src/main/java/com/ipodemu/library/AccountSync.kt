@@ -123,7 +123,10 @@ class AccountSync(private val app: App) {
     // ---- profile sync -------------------------------------------------------------------------------------------
 
     /** Pull + merge + push. Run at sign-in, at app start, and from Settings > Account > Sync now. */
-    fun sync() { if (prefs.signedIn) run("Syncing...") { syncNow() } }
+    /** [background]: the sync at launch is nobody's wait, so its requests queue behind everything the screen is asking for (the covers). */
+    fun sync(background: Boolean = false) { if (prefs.signedIn) run("Syncing...") { if (background) kotlinx.coroutines.withContext(BackgroundWork) { syncNow() } else syncNow() } }
+
+    private object BackgroundWork : kotlin.coroutines.AbstractCoroutineContextElement(Key) { object Key : kotlin.coroutines.CoroutineContext.Key<BackgroundWork> }
 
     private var pushJob: Job? = null
     /** Debounced push after a local change (playlist edit, favourite, a service connected). */
@@ -466,8 +469,9 @@ class AccountSync(private val app: App) {
     /** Every request to the Jellyfin server goes through the one gate ([JellyfinNet]): shared slots, back-off on 5xx/429 (GET only, twice at most), a breaker. */
     private suspend fun http(method: String, url: String, token: String?, body: String?): Pair<Int, String> {
         val headers = mapOf("Authorization" to authHeader(token))
-        val r = if (method == "GET") JellyfinNet.gate.execute(GateRequest("GET", url, headers, kind = "account"), Priority.VISIBLE)
-        else JellyfinNet.send(method, url, headers, body?.toByteArray(Charsets.UTF_8), if (body != null) "application/json" else null, Priority.VISIBLE, "account")
+        val prio = if (kotlin.coroutines.coroutineContext[BackgroundWork.Key] != null) Priority.BACKGROUND else Priority.VISIBLE
+        val r = if (method == "GET") JellyfinNet.gate.execute(GateRequest("GET", url, headers, kind = "account"), prio)
+        else JellyfinNet.send(method, url, headers, body?.toByteArray(Charsets.UTF_8), if (body != null) "application/json" else null, prio, "account")
         return r.code to r.text
     }
 

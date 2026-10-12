@@ -497,12 +497,22 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     val recentsKey = app.userData.recents.firstOrNull()
     // the shelves are worked out in the background (they shuffle and sort the whole library several times: that on the main thread was the stutter
     // when scrolling Home and when coming back to it after playing something) and kept, so the last ones show at once
-    var home by remember { androidx.compose.runtime.mutableStateOf(HomeCache.last) }
+    // the shelves of the last run are on disk (HomeSnapshot): a cold start draws Home from them at once
+    var home by remember { androidx.compose.runtime.mutableStateOf(HomeCache.last ?: app.homeSnapshot?.let { HomeData(it.shelves, it.moods) }) }
     LaunchedEffect(libRev, hour, recentsKey) {
+        // ...and works them out again only once the whole library has loaded, not after every step of loading it (each pass shuffles and sorts all of it)
+        if (home != null && !lib.loaded) return@LaunchedEffect
+        // a burst of library changes (each merge notifies) restarts this effect: only the last one builds
+        if (home != null) delay(300)
         val d = kotlinx.coroutines.withContext(Dispatchers.Default) {
-            try { HomeData(com.ipodemu.library.HomeShelves.build(lib, app.userData, System.currentTimeMillis(), com.ipodemu.library.TasteData.jf, com.ipodemu.library.TasteData.hits), com.ipodemu.library.HomeShelves.moodsAvailable(lib)) } catch (e: Exception) { android.util.Log.w("FLACie", "Home shelves failed", e); null }
+            try { com.ipodemu.Boot.span("HomeShelves.build") { HomeData(com.ipodemu.library.HomeShelves.build(lib, app.userData, System.currentTimeMillis(), com.ipodemu.library.TasteData.jf, com.ipodemu.library.TasteData.hits), com.ipodemu.library.HomeShelves.moodsAvailable(lib)) } } catch (e: Exception) { android.util.Log.w("FLACie", "Home shelves failed", e); null }
         }
-        if (d != null) { HomeCache.last = d; home = d }
+        if (d != null) {
+            HomeCache.last = d; home = d
+            if (d.shelves.isNotEmpty()) kotlinx.coroutines.withContext(Dispatchers.IO) {
+                try { com.ipodemu.library.HomeSnapshot.write(java.io.File(app.filesDir, "home.json"), com.ipodemu.library.HomeSnapshot.Data(d.shelves, d.moods)) } catch (_: Exception) {}
+            }
+        }
         // then, once an hour, learn from Jellyfin's play counts and the artists' best-known songs, and build the shelves again with them
         val before = com.ipodemu.library.TasteData.hits.size + com.ipodemu.library.TasteData.jf.size
         kotlinx.coroutines.withContext(Dispatchers.IO) { com.ipodemu.library.TasteData.refresh(app, lib) }
@@ -514,6 +524,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
         }
     }
     val shelves = home?.shelves ?: emptyList()
+    androidx.compose.runtime.SideEffect { com.ipodemu.Boot.once(if (shelves.isNotEmpty()) "home: shelves drawn" else "home: first composition (no shelves yet)") }
     val moodList = home?.moods ?: emptyList()
     var mood by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     app.userData.rev

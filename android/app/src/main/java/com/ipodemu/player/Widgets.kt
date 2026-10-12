@@ -462,9 +462,15 @@ fun rememberArt(key: String?, thumb: Boolean, full: Boolean = false): Bitmap? {
     // keyed state: produceState kept the previous song's cover on screen while the next one loaded (or for good when it had none)
     val exact = remember(key, thumb, full) { art.peek(key, thumb, full) }
     val state = remember(key, thumb, full) { mutableStateOf(exact ?: if (full) art.peek(key, thumb = false) else null) }
+    val token = remember { Any() }
+    if (key != null && !full) {
+        androidx.compose.runtime.DisposableEffect(token, key, thumb) { com.ipodemu.CoverProbe.enter(token, key, state.value != null); onDispose { com.ipodemu.CoverProbe.exit(token) } }
+    }
     // no coroutine at all for a cover that is already in memory (most rows of a list you scroll back through)
     if (exact == null && key != null) LaunchedEffect(key, thumb, full) {
-        art.load(key, thumb, full, if (full) com.ipodemu.library.Priority.PLAYING else com.ipodemu.library.Priority.VISIBLE)?.let { state.value = it }
+        val b = art.load(key, thumb, full, if (full) com.ipodemu.library.Priority.PLAYING else com.ipodemu.library.Priority.VISIBLE)
+        if (b == null) android.util.Log.i("FLACieCover", "no bitmap for ${key.take(10)} (thumb=$thumb)")
+        b?.let { state.value = it; com.ipodemu.CoverProbe.loaded(token); com.ipodemu.Boot.once("first cover loaded") }
     }
     return state.value
 }

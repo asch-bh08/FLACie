@@ -8,6 +8,9 @@ package com.ipodemu.library
  * The same rules, with the same test table, live in FLACie.Core/TrackTitles.cs: keep the two in step.
  */
 object TrackTitles {
+    /** Bump whenever [clean] / [cleanAll] change what they produce: a saved Jellyfin list stamped with another number is cleaned again once when it is loaded. */
+    const val RULES = 1
+
     /** What a clean did: the new title and artist. [title] equals the input name when nothing was recognised. */
     data class Result(val title: String, val artist: String, val cleaned: Boolean)
 

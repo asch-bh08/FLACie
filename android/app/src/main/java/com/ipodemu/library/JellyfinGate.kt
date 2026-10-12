@@ -47,6 +47,8 @@ class GateConfig(
     val initialLimit: Int = 5, val minLimit: Int = 1, val maxLimit: Int = 8,
     /** Playing work may run this many above the limit, so the song that plays never queues behind covers. */
     val playingReserve: Int = 2,
+    /** Rows on screen may always run this many at once, whatever the limit has dropped to: a slow answer to one heavy request must not leave the visible covers waiting one at a time. */
+    val visibleFloor: Int = 4,
     val slowMs: Long = 2500, val heavySlowMs: Long = 25_000, val fastMs: Long = 400, val growAfter: Int = 15,
     val maxRetries: Int = 2, val backoffBaseMs: Long = 400, val backoffMaxMs: Long = 15_000, val retryAfterMaxMs: Long = 30_000,
     val breakerFailures: Int = 6, val breakerCooldownMs: Long = 10_000, val breakerMaxCooldownMs: Long = 60_000,
@@ -138,7 +140,7 @@ class JellyfinGate(
         catch (e: Throwable) { code = codeOf(e); throw e }
         finally {
             release(w)
-            if (code != -1) outcome(code, now() - t0, false, null, probe) else if (probe) synchronized(lock) { probing = false }
+            if (code != -1) outcome(code, now() - t0, false, null, probe, kind.startsWith("cover")) else if (probe) synchronized(lock) { probing = false }
         }
     }
 
@@ -184,7 +186,7 @@ class JellyfinGate(
             }
             val dt = now() - t0
             val code = resp?.code ?: 0
-            outcome(code, dt, req.heavy, resp?.retryAfterMs, probe)
+            outcome(code, dt, req.heavy, resp?.retryAfterMs, probe, req.kind.startsWith("cover"))
             val retryable = req.method == "GET" && (err != null || code == 429 || code in 500..599)
             if (!retryable || attempt >= cfg.maxRetries) {
                 if (err != null) throw err
@@ -264,7 +266,11 @@ class JellyfinGate(
     private fun pumpLocked() {
         while (queue.isNotEmpty()) {
             val w = queue.first()
-            val cap = if (w.priority == Priority.PLAYING) limit + cfg.playingReserve else limit
+            val cap = when (w.priority) {
+                Priority.PLAYING -> limit + cfg.playingReserve
+                Priority.VISIBLE -> maxOf(limit, cfg.visibleFloor)
+                else -> limit
+            }
             if (inFlight >= cap) break
             if (w.priority == Priority.BACKGROUND && !backgroundOkLocked()) break
             queue.pollFirst()
@@ -300,7 +306,8 @@ class JellyfinGate(
         }
     }
 
-    private fun outcome(code: Int, ms: Long, heavy: Boolean, retryAfter: Long?, probe: Boolean) = synchronized(lock) {
+    /** [cover]: a picture the server has to resize is slow the first time whatever its load (an empty cover cache on a phone asks for hundreds): only errors count against the limit, not the time. */
+    private fun outcome(code: Int, ms: Long, heavy: Boolean, retryAfter: Long?, probe: Boolean, cover: Boolean = false) = synchronized(lock) {
         val t = now()
         val failed = code == 0 || code in 500..599
         val throttled = code == 429
@@ -320,8 +327,9 @@ class JellyfinGate(
         } else {
             consecutiveFailures = 0
             if (breaker != BreakerState.CLOSED && breakerStateLocked() == BreakerState.HALF_OPEN) { breaker = BreakerState.CLOSED; cooldown = cfg.breakerCooldownMs }
-            if (!heavy) { avgMs = if (lastSampleAt == 0L || avgMs == 0.0) ms.toDouble() else avgMs * 0.8 + ms * 0.2; lastSampleAt = t }
-            if (ms > (if (heavy) cfg.heavySlowMs else cfg.slowMs)) { limit = maxOf(cfg.minLimit, limit / 2); fastRun = 0 }
+            if (!heavy && !cover) { avgMs = if (lastSampleAt == 0L || avgMs == 0.0) ms.toDouble() else avgMs * 0.8 + ms * 0.2; lastSampleAt = t }
+            if (cover) { /* the time a picture takes says nothing about the server's load */ }
+            else if (ms > (if (heavy) cfg.heavySlowMs else cfg.slowMs)) { limit = maxOf(cfg.minLimit, limit / 2); fastRun = 0 }
             else if (ms <= cfg.fastMs || heavy) {
                 if (++fastRun >= cfg.growAfter) { fastRun = 0; if (limit < cfg.maxLimit) limit++ }
             } else fastRun = 0

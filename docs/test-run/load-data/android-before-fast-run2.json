@@ -1,7 +1,7 @@
 {
  "label": "before",
  "shell": "android",
- "profile": "fast,slow,flaky",
+ "profile": "fast",
  "items": 10000,
  "window": 120,
  "startedAt": "2026-10-12T01:47:17.434Z",
@@ -394,7 +394,9 @@
    "crashBuffer": []
   }
  },
- "notes": [],
+ "notes": [
+  "second fast run of beta 51 (the matrix script was given the profile list as one string, so the mock stayed on its default fast switches); the kill-restore criterion is the final one"
+ ],
  "versionName": "1.0-beta51",
  "gate": {
   "first-sync": [],

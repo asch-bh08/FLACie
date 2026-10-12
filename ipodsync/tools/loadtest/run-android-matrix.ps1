@@ -4,6 +4,7 @@
 param([Parameter(Mandatory=$true)][string]$Apk, [Parameter(Mandatory=$true)][string]$Label, [int]$Window = 120,
       [string[]]$Profiles = @('fast','slow','flaky','ratelimit'), [string]$Out = 'C:\FLACie\docs\test-run\load-data', [int]$Port = 8296)
 $ErrorActionPreference = 'Continue'
+$Profiles = @($Profiles | ForEach-Object { $_ -split ',' } | Where-Object { $_ })   # powershell -File passes a comma list as one string
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 New-Item -ItemType Directory -Force $Out | Out-Null
 foreach ($p in $Profiles) {

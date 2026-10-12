@@ -264,30 +264,34 @@ async function scenarioKillRestore() {
   await sleep(2500);
   const afterKill = mediaSession();
   launch();
-  let restored = false, ui = null, media = null;
+  // restored = the app is back with a queue: its media session names a song again (songs are 3 s long and the queue keeps advancing, so it need not be
+  // the very song that was playing when the process was killed; sameSong / queueDelta say how far apart they are)
+  let restored = false, media = null;
   for (let i = 0; i < 40 && !restored; i++) {
     await sleep(1500);
     media = mediaSession();
-    ui = dump();
-    // the queue is back when the media session has the song again, or the mini player on screen names it
-    if ((media.description && media.description === before.description) || (before.description && has(ui, before.description.split(',')[0]))) restored = true;
+    if (media.found && /^Song \d+/.test(media.description ?? '')) restored = true;
   }
+  const pb = queuePos(before.description), pa = queuePos(media?.description);
   const crash = crashLog();
   shot(path.join(SHOTS, 'kill-restore-end.png'));
-  result.scenarios['kill-restore'] = { playedBefore: before.description, sessionAfterKill: afterKill.found, sessionAfterRelaunch: media, queueRestored: restored, crashBufferLines: crash.length, crashBuffer: crash.slice(0, 20) };
+  result.scenarios['kill-restore'] = { playedBefore: before.description, sessionAfterKill: afterKill.found, sessionAfterRelaunch: media, queueRestored: restored, sameSong: !!media?.description && media.description === before.description, queueDelta: pb !== null && pa !== null ? pa - pb : null, crashBufferLines: crash.length, crashBuffer: crash.slice(0, 20) };
   log(`kill-restore: restored ${restored}, crash buffer lines ${crash.length}`);
 }
 
 async function main() {
   fs.mkdirSync(SHOTS, { recursive: true });
   try { result.versionName = /versionName=(\S+)/.exec(sh(`dumpsys package ${PKG}`, { quiet: true }))?.[1]; } catch { }
+  sh('logcat -G 16M', { quiet: true });   // the gate logs a lot: keep a whole scenario in the buffer
   await startMock();
   const table = { 'first-sync': scenarioFirstSync, scrolling: scenarioScrolling, 'skip-burst': scenarioSkipBurst, 'warm-start': scenarioWarmStart, 'kill-restore': scenarioKillRestore };
   for (const name of SCEN) {
     if (!table[name]) continue;
     try { await table[name](); }
     catch (e) { result.scenarios[name] = { ...(result.scenarios[name] ?? {}), error: String(e?.message ?? e) }; log(`${name} FAILED: ${e?.message ?? e}`); shot(path.join(SHOTS, `${name}-failed.png`)); }
-    result.gate = { ...(result.gate ?? {}), [name]: gateLines().slice(-40) };
+    const gl = gateLines();
+    try { fs.writeFileSync(path.join(SHOTS, 'gate-' + name + '.txt'), gl.join('\n')); } catch { }
+    result.gate = { ...(result.gate ?? {}), [name]: { lines: gl.length, first: gl.slice(0, 15), last: gl.slice(-25) } };
     fs.writeFileSync(OUT, JSON.stringify(result, null, 1));
   }
   result.crashBufferAtEnd = crashLog().slice(0, 30);

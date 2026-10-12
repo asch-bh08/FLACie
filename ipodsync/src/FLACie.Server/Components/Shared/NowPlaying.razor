@@ -25,9 +25,10 @@
                         <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" Class="np-dl" />
                         <div class="pills">
                             <span class="badge @t.Source.ToString().ToLowerInvariant()">@SourceName(t)</span>
-                            @if (info is not null && info.Format.Length > 0) { <span class="badge fmt @(info.HiRes ? "hires" : info.Lossless ? "lossless" : "")">@(info.HiRes ? "✦ Hi-Res" : info.Format)</span> }
-                            @if (info is not null && info.Sampling.Length > 0) { <span class="badge plain">@info.Sampling</span> }
-                            @if (info is not null && info.BitrateKbps > 0) { <span class="badge plain">@info.BitrateKbps kbps</span> }
+                            @* the file's facts belong to the song they were read for: a new song shows none until its own are in (never the last song's Hi-Res badge for a moment) *@
+                            @if (shownInfo is { Format.Length: > 0 } fi) { <span class="badge fmt @(fi.HiRes ? "hires" : fi.Lossless ? "lossless" : "")">@(fi.HiRes ? "✦ Hi-Res" : fi.Format)</span> }
+                            @if (shownInfo is { Sampling.Length: > 0 } si) { <span class="badge plain">@si.Sampling</span> }
+                            @if (shownInfo is { BitrateKbps: > 0 } bi) { <span class="badge plain">@bi.BitrateKbps kbps</span> }
                         </div>
                     </div>
                     <button class="icon-btn lg @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="24" /></button>
@@ -146,7 +147,7 @@
                     }
                     else
                     {
-                        <TrackInfoPanel Track="t" Info="info" Loading="infoLoading" Album="@(realAlbumFor == t.Path ? realAlbum : null)" />
+                        <TrackInfoPanel Track="t" Info="shownInfo" Loading="@(infoLoading || infoFor != t.Path)" Album="@(realAlbumFor == t.Path ? realAlbum : null)" />
                     }
                 </div>
             </section>
@@ -208,6 +209,7 @@
     public override void Dispose() { infoCts?.Cancel(); self?.Dispose(); _ = Js.InvokeVoidAsync("flacie.npReset").AsTask().ContinueWith(_ => { }); base.Dispose(); }
     Lyrics? lyrics; bool lyricsLoading; string? lyricsFor;
     MediaInfo? info; bool infoLoading; string? infoFor;
+    MediaInfo? shownInfo => Player.Current is { } cur && infoFor == cur.Path ? info : null;
     string? lyricsPushed;
 
     // on a phone the panel is a sheet over the cover: a tab opens it, the same tab again closes it (on a wide screen it is always there)

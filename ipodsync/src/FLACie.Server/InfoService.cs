@@ -59,12 +59,12 @@ public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, Downlo
             else if (t.Source == TrackSource.Cloud && s.Services is { FileMoverUrl.Length: > 0 } svc && t.Path.StartsWith(svc.FileMoverUrl.TrimEnd('/'), StringComparison.Ordinal))
             {
                 var dest = Uri.UnescapeDataString(t.Path[(t.Path.IndexOf("path=", StringComparison.Ordinal) + 5)..]);
-                info = await ProbeAsync(svc, dest, t) ?? new MediaInfo(MediaInfo.FromExtension(dest), MediaInfo.FromExtension(dest), 0, 0, 0, 0, 0, t.DurationMs, dest, "Streaming");
+                info = await ProbeAsync(svc, dest, t) ?? new MediaInfo(MediaInfo.FromExtension(dest), MediaInfo.FromExtension(dest), 0, 0, 0, 0, 0, t.DurationMs, dest, SourceLabel.StreamingFromNewDownload);
             }
         }
         catch (Exception) { }
         var ext = MediaInfo.FromExtension(t.FilePath ?? t.Path);
-        info ??= new MediaInfo(ext, ext, 0, 0, 0, 0, 0, t.DurationMs, t.FilePath ?? "", t.Source == TrackSource.Nas ? "NAS" : SourceLabel.Short(t.Source));
+        info ??= new MediaInfo(ext, ext, 0, 0, 0, 0, 0, t.DurationMs, t.FilePath ?? "", SourceLabel.PlayingFrom(t.Source));
         // Jellyfin reports its own path; the extension badge needs a codec even when a source left it blank
         if (info.Codec.Length == 0 && info.Container.Length == 0) info = info with { Codec = ext };
         return info;
@@ -81,7 +81,7 @@ public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, Downlo
         long L(string k) => j[k] is JsonValue v && v.TryGetValue<long>(out var i) ? i : 0;
         var codec = j["codec"]?.GetValue<string>() ?? "";
         var ext = MediaInfo.FromExtension(dest);
-        return new MediaInfo(ext, codec.Length > 0 ? codec : ext, I("bitrateKbps"), I("sampleRate"), I("bitDepth"), I("channels"), L("size"), L("durationMs") > 0 ? L("durationMs") : t.DurationMs, dest, "Streaming");
+        return new MediaInfo(ext, codec.Length > 0 ? codec : ext, I("bitrateKbps"), I("sampleRate"), I("bitDepth"), I("channels"), L("size"), L("durationMs") > 0 ? L("durationMs") : t.DurationMs, dest, SourceLabel.StreamingFromNewDownload);
     }
 
     /// <summary>The short format name from what is already known (the file extension), so a list can badge songs without asking anyone.</summary>

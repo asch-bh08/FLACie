@@ -17,6 +17,9 @@ public sealed class DownloadJob(string id, string label, string? artKey, string 
     /// <summary>Where it came from: Search (the user asked), Autoplay (fetched ahead for the queue), Import (a playlist file) or Chart.</summary>
     public string Kind { get; } = kind;
     public DateTime At { get; } = DateTime.UtcNow;
+    string? key;
+    /// <summary>What the song is matched by (title and lead artist, like the rest of the app); empty for a job with no song name.</summary>
+    public string Key => key ??= Title.Length > 0 ? Matching.MatchKey(Title, Artist) : "";
     public DateTime? FinishedAt { get; internal set; }
     public DownloadStage Stage { get; internal set; } = DownloadStage.Requested;
     public string Message { get; internal set; } = "Requested";
@@ -59,6 +62,13 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
         public readonly Dictionary<string, Task<DownloadResult>> InFlight = [];
         public readonly Dictionary<string, DateTime> Failed = [];
         public readonly RecentKeys Succeeded = new(500);
+        /// <summary>For the tags under songs (see <see cref="DownloadManager.StatusOf"/>): the song downloads running now, and when each song last finished or failed
+        /// (unix ms, by match key), kept only for the "recent" window. Under <see cref="Sync"/>.</summary>
+        public readonly object Sync = new();
+        public readonly HashSet<DownloadJob> Active = [];
+        public readonly Dictionary<string, long> LastDone = [];
+        public readonly Dictionary<string, long> LastFailed = [];
+        public bool Seeded;
         public event Action? Changed;
         public void Raise() => Changed?.Invoke();
     }
@@ -78,6 +88,7 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
     {
         var j = For(s); var job = new DownloadJob(Guid.NewGuid().ToString("N"), label, artUrl is null ? null : Art.ExternalKey(artUrl), kind, artist, title, album, durationMs, artUrl, isAlbum);
         lock (j.List) { j.List.Insert(0, job); while (j.List.Count > 400) { var i = j.List.FindLastIndex(x => x.Finished); if (i < 0) break; j.List.RemoveAt(i); } }
+        if (!isAlbum && job.Key.Length > 0) lock (j.Sync) j.Active.Add(job);
         j.Raise();
         return job;
     }
@@ -93,7 +104,7 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
                 await work(coordinator, st =>
                 {
                     job.Apply(st);
-                    if (st.NewTracks is { Count: > 0 } t) s.AddDownloaded(t);
+                    if (st.NewTracks is { Count: > 0 } t) { s.AddDownloaded(t); NoteDone(jobs, t); }
                     jobs.Raise();
                 });
             }
@@ -122,6 +133,7 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
     {
         job.FinishedAt ??= DateTime.UtcNow;
         try { log.Add(job.ToRecord(s)); } catch (Exception) { }
+        NoteFinished(jobs, job);
         if (job.Stage == DownloadStage.Done && job.File is not null) ScanSoon(s);
         // "Dad downloaded ...": only what the user asked for (searches), not songs fetched ahead for the queue, charts or imports (those have their own messages)
         if (job.Stage == DownloadStage.Done && job.Kind == "Search") digest.Done(s.Id, s.DisplayName, job.Title.Length > 0 ? $"{job.Title} - {job.Artist}" : job.Label);
@@ -134,6 +146,134 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
         var key = Matching.MatchKey(title, artist);
         var j = For(s);
         lock (j.List) return j.List.FirstOrDefault(x => x.Title.Length > 0 && Matching.MatchKey(x.Title, x.Artist) == key);
+    }
+
+    // ---- the tag under a song: "Downloading · <stage>", "Recently downloaded · 1m ago", "Couldn't download" ----
+
+    static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    static long Ms(DateTime t) => new DateTimeOffset(t.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(t, DateTimeKind.Utc) : t.ToUniversalTime()).ToUnixTimeMilliseconds();
+
+    /// <summary>Keeps only what is still inside the window, so the two maps stay as small as the downloads of the last hour.</summary>
+    static void Prune(Dictionary<string, long> map, long nowMs)
+    {
+        if (map.Count < 2000) return;
+        foreach (var k in map.Where(kv => nowMs - kv.Value > DownloadTags.RecentWindowMs).Select(kv => kv.Key).ToList()) map.Remove(k);
+    }
+
+    static void Newest(Dictionary<string, long> map, string key, long ms) { if (key.Length > 0 && (!map.TryGetValue(key, out var old) || ms > old)) map[key] = ms; }
+
+    /// <summary>A job is over: it is no longer "running", and its end is remembered for the tag (a success or a failure, by song).</summary>
+    void NoteFinished(Jobs j, DownloadJob job)
+    {
+        if (job.IsAlbum || job.Key.Length == 0) return;
+        var at = Ms(job.FinishedAt ?? DateTime.UtcNow);
+        lock (j.Sync)
+        {
+            j.Active.Remove(job);
+            if (job.Stage == DownloadStage.Done) { Newest(j.LastDone, job.Key, at); j.Succeeded.Add(job.Key); }
+            else Newest(j.LastFailed, job.Key, at);
+            Prune(j.LastDone, at); Prune(j.LastFailed, at);
+        }
+    }
+
+    /// <summary>Songs that arrived (an album's, or a song found under another name) are recent downloads too, and are not fetched again.</summary>
+    static void NoteDone(Jobs j, IEnumerable<Track> tracks)
+    {
+        var now = NowMs();
+        lock (j.Sync)
+            foreach (var t in tracks)
+            {
+                var k = Matching.MatchKey(t);
+                Newest(j.LastDone, k, now); j.Succeeded.Add(k);
+            }
+    }
+
+    /// <summary>The last hour of the log, read once per session: downloads from before a restart, and the phone's reports, count as recent too.</summary>
+    void Seed(UserSession s, Jobs j)
+    {
+        lock (j.Sync) { if (j.Seeded) return; j.Seeded = true; }
+        var now = NowMs();
+        IReadOnlyList<DownloadRecord> mine;
+        try { mine = log.For(s.Id); } catch (Exception) { return; }
+        lock (j.Sync)
+            foreach (var r in mine.Take(600))
+            {
+                if (r.IsAlbum || r.Title.Length == 0) continue;
+                var at = Ms(r.FinishedAt);
+                if (now - at > DownloadTags.RecentWindowMs) continue;
+                var k = Matching.MatchKey(r.Title, r.Artist);
+                if (r.Done) { Newest(j.LastDone, k, at); j.Succeeded.Add(k); } else Newest(j.LastFailed, k, at);
+            }
+    }
+
+    /// <summary>
+    /// What to say under a song (the one lookup behind every tag): a download running for it now, else how long ago it finished (only within the last hour; a "new
+    /// download" song also counts from the time it was added), else a recent failure, else nothing. Songs are matched by title and lead artist like the rest of the app.
+    /// </summary>
+    public DownloadTagStatus StatusOf(UserSession s, string artist, string title, Track? track = null, long? nowMs = null) =>
+        title.Length == 0 ? DownloadTagStatus.None : StatusOfKey(s, Matching.MatchKey(title, artist), track is { Source: TrackSource.Cloud } ? track.AddedMs : 0, nowMs);
+
+    /// <summary>The same, for a key the caller already worked out (a list that asks for every row on every change).</summary>
+    public DownloadTagStatus StatusOfKey(UserSession s, string key, long cloudAddedMs = 0, long? nowMs = null)
+    {
+        var j = For(s);
+        Seed(s, j);
+        var now = nowMs ?? NowMs();
+        string? running = null; long done = 0, failed = 0;
+        lock (j.Sync)
+        {
+            foreach (var a in j.Active) if (a.Key == key && !a.Finished) { running = a.Message; break; }
+            j.LastDone.TryGetValue(key, out done); j.LastFailed.TryGetValue(key, out failed);
+        }
+        return DownloadTags.Resolve(running, done, failed, cloudAddedMs, now);
+    }
+
+    // ---- a download the phone did itself and reported (POST /api/downloaded) ----
+
+    static readonly object ReportLock = new();
+    static readonly Dictionary<string, Queue<long>> ReportTimes = [];
+    /// <summary>At most this many reports per user per hour.</summary>
+    public const int ReportsPerHour = 200;
+
+    /// <summary>True when this user may still report a download (at most <see cref="ReportsPerHour"/> in any hour); counts the call.</summary>
+    public static bool TakeReportTurn(string userId, long nowMs)
+    {
+        lock (ReportLock)
+        {
+            if (!ReportTimes.TryGetValue(userId, out var q)) ReportTimes[userId] = q = new();
+            while (q.Count > 0 && nowMs - q.Peek() > 3_600_000) q.Dequeue();
+            if (q.Count >= ReportsPerHour) return false;
+            q.Enqueue(nowMs);
+            if (ReportTimes.Count > 2000) foreach (var k in ReportTimes.Where(kv => kv.Value.Count == 0).Select(kv => kv.Key).ToList()) ReportTimes.Remove(k);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// The phone finished a download on its own and says so: it is written to the log (so the Downloads page and the tag see it, and it survives a restart), the song counts as
+    /// fetched (Autoplay and Search do not fetch it again) and, when <paramref name="track"/> is given, it is a playable "new download" song in this session at once.
+    /// A library scan is asked for, like after a download of our own.
+    /// </summary>
+    public void Reported(UserSession s, string artist, string title, string album, long durationMs, string? source, long finishedMs, string? file, Track? track)
+    {
+        var j = For(s);
+        var at = DateTimeOffset.FromUnixTimeMilliseconds(finishedMs).UtcDateTime;
+        var label = $"{title} · {artist}";
+        try
+        {
+            log.Add(new DownloadRecord
+            {
+                Id = Guid.NewGuid().ToString("N"), UserId = s.Id, UserName = s.DisplayName, Label = label, Title = title, Artist = artist, Kind = "Phone", StartedAt = at, FinishedAt = at,
+                Outcome = "done", Source = source, Message = $"\"{title}\" was downloaded on the phone", File = file, Album = album, DurationMs = durationMs,
+                ArtKey = track?.ArtKey,
+            });
+        }
+        catch (Exception) { }
+        var key = Matching.MatchKey(title, artist);
+        lock (j.Sync) { Newest(j.LastDone, key, finishedMs); j.Succeeded.Add(key); }
+        if (track is not null) s.AddDownloaded([track]);
+        ScanSoon(s);
+        j.Raise();
     }
 
     public void Song(UserSession s, CatalogSong song, bool hiRes = false, bool fallbackToNormal = true) =>
@@ -221,7 +361,7 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
             await coordinator.DownloadAsync(artist, title, album, artUrl, durationMs, st =>
             {
                 job.Apply(st); if (!st.Miss) last = st.Message;
-                if (st.NewTracks is { Count: > 0 } t) { got.AddRange(t); s.AddDownloaded(t); }
+                if (st.NewTracks is { Count: > 0 } t) { got.AddRange(t); s.AddDownloaded(t); NoteDone(jobs, t); }
                 jobs.Raise();
             }, ct);
         }

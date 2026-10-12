@@ -54,12 +54,12 @@ else
         <section class="kv-sec">
             <h4>File</h4>
             <dl class="kv">
-                <dt>Source</dt><dd><span class="badge @Track.Source.ToString().ToLowerInvariant()" title="@(Track.Source == TrackSource.Cloud ? SourceLabel.StreamingHint : "Where this song is played from")">@Info.Source</span></dd>
+                <dt>Source</dt><dd><span class="badge @Track.Source.ToString().ToLowerInvariant()" title="@(Track.Source == TrackSource.Cloud ? SourceLabel.StreamingHint : "Where this song is played from")">@(Track.Source == TrackSource.Cloud ? SourceLabel.StreamingFromNewDownload : Info.Source)</span></dd>
                 <dt>Came from</dt><dd>@Origin</dd>
                 @if (Info.Codec.Length > 0) { <dt>Codec</dt><dd>@Info.Codec.ToUpperInvariant()@(Info.Container.Length > 0 && !string.Equals(Info.Container, Info.Codec, StringComparison.OrdinalIgnoreCase) ? " in " + Info.Container.ToUpperInvariant() : "")</dd> }
                 @if (Info.SizeBytes > 0) { <dt>Size</dt><dd>@Size(Info.SizeBytes)</dd> }
                 @if (Info.Path.Length > 0) { <dt>Location</dt><dd class="path">@Info.Path</dd> }
-                <dt>Playing</dt><dd>@(Converted ? "Converted to MP3 by Jellyfin, because browsers can't play " + Info.Format + " files" : Track.Source == TrackSource.Cloud ? "Streaming from your server: a new download that Jellyfin has not scanned yet. Original file, not converted." : "Original file, streamed without converting")</dd>
+                <dt>Playing</dt><dd>@(Converted ? "Converted to MP3 by Jellyfin, because browsers can't play " + Info.Format + " files" : Track.Source == TrackSource.Cloud ? "Streaming from new download: played straight from your server until Jellyfin has scanned it. Original file, not converted." : "Original file, streamed without converting")</dd>
                 <dt>Playback</dt><dd>@Playback</dd>
             </dl>
         </section>

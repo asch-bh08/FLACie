@@ -167,11 +167,18 @@ public static partial class Matching
 }
 
 /// <summary>How a song's source is named on screen. A song that was just downloaded is played straight from the user's server (the file mover) while
-/// Jellyfin has not scanned it yet; that is called "Streaming", and it turns into a normal Jellyfin song at the next library scan.</summary>
+/// Jellyfin has not scanned it yet; that is called a "new download", and it turns into a normal Jellyfin song at the next library scan. The same words are
+/// used on the phone (Android: SourceLabel).</summary>
 public static class SourceLabel
 {
-    public static string Short(TrackSource s) => s switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "Streaming", _ => s.ToString() };
+    /// <summary>The badge in song lists.</summary>
+    public const string NewDownload = "New download";
+    /// <summary>The source line in Now Playing and the Info panel for a new download.</summary>
+    public const string StreamingFromNewDownload = "Streaming from new download";
+    public static string Short(TrackSource s) => s switch { TrackSource.Nas => "NAS", TrackSource.Cloud => NewDownload, _ => s.ToString() };
     public const string StreamingHint = "A song you just downloaded, played straight from your server while it is filed into the library. After the next Jellyfin scan it becomes a normal library song.";
-    /// <summary>"Playing from ..." in the full-screen player.</summary>
-    public static string PlayingFrom(TrackSource s) => s == TrackSource.Cloud ? "your server (new download)" : Short(s);
+    /// <summary>The source named in the full-screen player's pill and the Info panel: "Streaming from new download", or the plain source.</summary>
+    public static string PlayingFrom(TrackSource s) => s == TrackSource.Cloud ? StreamingFromNewDownload : Short(s);
+    /// <summary>The small line above the full-screen player: "Playing from NAS", or for a new download the same words as its pill (no "Playing from Streaming from ...").</summary>
+    public static string PlayingFromLine(TrackSource s) => s == TrackSource.Cloud ? StreamingFromNewDownload : "Playing from " + Short(s);
 }

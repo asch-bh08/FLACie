@@ -31,7 +31,7 @@ else
             @for (var i = 0; i < moodTracks.Count; i++)
             {
                 var idx = i; var t = moodTracks[i];
-                <li><button class="pick" @onclick="() => PlayFull(moodTracks, idx, mood)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small></span></button></li>
+                <li><button class="pick" @onclick="() => PlayFull(moodTracks, idx, mood)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
             }
         </ul>
     </section>
@@ -67,7 +67,7 @@ else
                     @for (var i = 0; i < sh.Tracks.Count && i < 12; i++)
                     {
                         var idx = i; var t = sh.Tracks[i];
-                        <li><button class="pick" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small></span></button></li>
+                        <li><button class="pick" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
                     }
                 </ul>
             }
@@ -81,6 +81,7 @@ else
                             <Cover ArtKey="@(t.ArtKey)" Class="square" />
                             <span class="card-title">@t.Title</span>
                             <span class="card-sub">@t.Artist</span>
+                            <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" />
                         </button>
                     }
                 </div>

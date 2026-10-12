@@ -171,7 +171,7 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
         {
             j.Active.Remove(job);
             if (job.Stage == DownloadStage.Done) { Newest(j.LastDone, job.Key, at); j.Succeeded.Add(job.Key); }
-            else Newest(j.LastFailed, job.Key, at);
+            else if (job.Message != "Cancelled") Newest(j.LastFailed, job.Key, at);   // a fetch nobody wants any more is not a failure to show
             Prune(j.LastDone, at); Prune(j.LastFailed, at);
         }
     }

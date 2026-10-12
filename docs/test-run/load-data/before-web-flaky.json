@@ -1,0 +1,146 @@
+{
+ "label": "before",
+ "shell": "web",
+ "profile": "flaky",
+ "items": 10000,
+ "window": 120,
+ "startedAt": "2026-10-11T22:23:00.389Z",
+ "scenarios": {
+  "first-sync": {
+   "timeToFirstSongsMs": null,
+   "timeToAllSongsMs": null,
+   "timeline": [
+    {
+     "t": 1,
+     "requests": 7,
+     "inFlight": 0,
+     "songs": 0
+    },
+    {
+     "t": 11,
+     "requests": 18,
+     "inFlight": 0,
+     "songs": 0
+    },
+    {
+     "t": 21,
+     "requests": 21,
+     "inFlight": 0,
+     "songs": 0
+    },
+    {
+     "t": 31,
+     "requests": 24,
+     "inFlight": 0,
+     "songs": 0
+    },
+    {
+     "t": 41,
+     "requests": 27,
+     "inFlight": 0,
+     "songs": 0
+    },
+    {
+     "t": 51,
+     "requests": 30,
+     "inFlight": 0,
+     "songs": 0
+    },
+    {
+     "t": 62,
+     "requests": 33,
+     "inFlight": 0,
+     "songs": 0
+    },
+    {
+     "t": 72,
+     "requests": 36,
+     "inFlight": 0,
+     "songs": 0
+    },
+    {
+     "t": 82,
+     "requests": 39,
+     "inFlight": 0,
+     "songs": 0
+    },
+    {
+     "t": 92,
+     "requests": 42,
+     "inFlight": 0,
+     "songs": 0
+    },
+    {
+     "t": 102,
+     "requests": 46,
+     "inFlight": 0,
+     "songs": 0
+    },
+    {
+     "t": 112,
+     "requests": 48,
+     "inFlight": 0,
+     "songs": 0
+    }
+   ],
+   "songsShown": 0,
+   "final": {
+    "total": 51,
+    "byKind": {
+     "other": 40,
+     "socket": 1,
+     "users/me": 1,
+     "items": 9
+    },
+    "peakInFlight": 4,
+    "peakPerSecond": 14,
+    "throttled": 0,
+    "failed": 7,
+    "images": 0,
+    "imageUrls": 0,
+    "imageRepeats": 0,
+    "imageVariants": {},
+    "notModified": 0,
+    "streamsOpened": 0,
+    "streamsAborted": 0,
+    "streamsCompleted": 0,
+    "itemsPages": 5,
+    "itemsDeltas": 0,
+    "avgLatencyMs": 47,
+    "maxLatencyMs": 78,
+    "seconds": 122
+   }
+  },
+  "warm-start": {
+   "signedIn": true,
+   "timeToFirstSongsMs": null,
+   "timeToAllSongsMs": null,
+   "total": 34,
+   "byKind": {
+    "other": 23,
+    "socket": 1,
+    "users/me": 1,
+    "items": 9
+   },
+   "peakInFlight": 4,
+   "peakPerSecond": 14,
+   "throttled": 0,
+   "failed": 8,
+   "images": 0,
+   "imageUrls": 0,
+   "imageRepeats": 0,
+   "imageVariants": {},
+   "notModified": 0,
+   "streamsOpened": 0,
+   "streamsAborted": 0,
+   "streamsCompleted": 0,
+   "itemsPages": 4,
+   "itemsDeltas": 0,
+   "avgLatencyMs": 48,
+   "maxLatencyMs": 63,
+   "seconds": 65
+  }
+ },
+ "notes": [],
+ "finishedAt": "2026-10-11T22:26:09.761Z"
+}

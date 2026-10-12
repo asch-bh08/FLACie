@@ -79,9 +79,13 @@ try {
                '--out', $Out, '--scenarios', $Scenarios, '--adb', $adb, '--shots', $Shots)
     if ($Apk) { $args2 += @('--apk', (Resolve-Path $Apk).Path) }
     Log "driver: node $($args2 -join ' ')"
-    & $node @args2
-    Log "driver exit code $LASTEXITCODE"
-    $script:driverExit = $LASTEXITCODE
+    # own process with its output in files (PowerShell 5.1 turns a native command's stderr into errors; the driver logs a lot to stderr)
+    $qargs = ($args2 | ForEach-Object { '"' + $_ + '"' }) -join ' '
+    $o = Join-Path $Shots 'driver.out.txt'; $e = Join-Path $Shots 'driver.err.txt'
+    $p = Start-Process -FilePath $node -ArgumentList $qargs -NoNewWindow -Wait -PassThru -RedirectStandardOutput $o -RedirectStandardError $e
+    Get-Content $o, $e -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_ }
+    Log "driver exit code $($p.ExitCode)"
+    $script:driverExit = $p.ExitCode
   }
 }
 finally {

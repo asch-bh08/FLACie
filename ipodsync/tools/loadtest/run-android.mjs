@@ -25,7 +25,9 @@ const WINDOW = Number(arg('window', 120)), ITEMS = Number(arg('items', 10000)), 
 const OUT = arg('out', path.join(here, `result-android-${LABEL}-${PROFILE}.json`));
 const SCEN = arg('scenarios', 'first-sync,scrolling,skip-burst,warm-start,kill-restore').split(',');
 const SHOTS = arg('shots', `C:\\wt\\android-shots\\${LABEL}-${PROFILE}`), APK = arg('apk', '');
-const SKIP_SLEEP = arg('skip-sleep', '0.02');
+const SKIP_IN_APP = process.argv.includes('--skip-in-app');
+const SKIP_PARALLEL = process.argv.includes('--skip-parallel');
+const SKIP_SLEEP = arg('skip-sleep', '0.01');
 const SCROLL_SECONDS = Number(arg('scroll-seconds', 40)), SKIPS = Number(arg('skips', 40));
 setAdb(arg('adb', ''));
 const PKG = 'com.ipodemu';
@@ -34,6 +36,8 @@ const MOCK = `http://127.0.0.1:${PORT}`, DEVICE_MOCK = `http://10.0.2.2:${PORT}`
 const jget = async (u) => (await fetch(u)).json();
 const stats = () => jget(`${MOCK}/__stats`);
 const reset = () => fetch(`${MOCK}/__reset`);
+process.on('uncaughtException', (e) => { console.error('UNCAUGHT', e?.stack ?? e); });
+process.on('unhandledRejection', (e) => { console.error('UNHANDLED', e?.stack ?? e); });
 const log = (...a) => console.error(`[${LABEL}/android/${PROFILE}]`, ...a);
 const pick = (s) => ({ total: s.total, byKind: s.byKind, peakInFlight: s.peakInFlight, peakPerSecond: s.peakPerSecond, throttled: s.throttled, failed: s.failed,
   images: s.byKind.image ?? 0, imageUrls: s.imageUrls, imageRepeats: s.imageRepeats, imageVariants: s.imageVariants, notModified: s.notModified,
@@ -43,8 +47,7 @@ const pick = (s) => ({ total: s.total, byKind: s.byKind, peakInFlight: s.peakInF
 // ---- the mock ----
 let mock = null;
 async function startMock() {
-  mock = spawn('node', [path.join(here, 'mock.mjs'), '--port', String(PORT), '--host', '127.0.0.1', '--items', String(ITEMS), '--streamms', '1500'], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
-  mock.stderr.on('data', (d) => process.stderr.write(d));
+  mock = spawn('node', [path.join(here, 'mock.mjs'), '--port', String(PORT), '--host', '127.0.0.1', '--items', String(ITEMS), '--streamms', '1500'], { stdio: 'ignore', windowsHide: true });
   for (let i = 0; i < 100; i++) { try { if ((await fetch(`${MOCK}/System/Info/Public`)).ok) break; } catch { } await sleep(200); }
   await fetch(`${MOCK}/__profile?name=${PROFILE}`);
   await reset();
@@ -181,28 +184,47 @@ async function startSong() {
   return { ok: false, ms: Date.now() - t, media: mediaSession() };
 }
 
+// the queue is the Songs list in Title A-Z order (the mock names its songs 'Song 1'..'Song N'), so a title tells where in the queue the player is
+let azIndex = null;
+const queuePos = (desc) => { const m = /^(Song \d+)/.exec(desc ?? ''); if (!m) return null; azIndex ??= new Map(Array.from({ length: ITEMS }, (_, i) => 'Song ' + (i + 1)).sort().map((t, i) => [t, i])); return azIndex.get(m[1]) ?? null; };
+
 async function scenarioSkipBurst() {
   const sp = await startSong();
   if (!sp.ok) { shot(path.join(SHOTS, 'skip-no-play.png')); throw new Error('playback never started: ' + JSON.stringify(sp.media)); }
   await sleep(1500);
+  // The media keys go to the app through the media session, like headset / lock-screen / notification buttons. With the app in the background the software-rendered
+  // emulator does not have to draw a 10,000-row list on every skip, so the number measured is the player and the requests, not the emulator's frame rate.
+  if (!SKIP_IN_APP) { key('KEYCODE_HOME'); await sleep(2000); }
   const before = mediaSession();
   await reset();
   sh('logcat -c', { quiet: true });
   const tb = Date.now();
   // each key is issued in the background (cmd input is ~50 ms to start, and waits for the app to take the event): the keys are SKIP_SLEEP + ~50 ms apart however slow the app is
-  const out = sh(`up() { cut -d" " -f1 /proc/uptime; }; i=0; u0=$(up); while [ $i -lt ${SKIPS} ]; do cmd input keyevent 87 & sleep ${SKIP_SLEEP}; i=$((i+1)); done; u1=$(up); wait; u2=$(up); echo done=$i up=$u0,$u1,$u2`, { timeout: 180000 });
+  const out = sh(`up() { cut -d" " -f1 /proc/uptime; }; i=0; u0=$(up); while [ $i -lt ${SKIPS} ]; do cmd input keyevent 87 ${SKIP_PARALLEL ? "&" : ""}; sleep ${SKIP_SLEEP}; i=$((i+1)); done; u1=$(up); wait; u2=$(up); echo done=$i up=$u0,$u1,$u2`, { timeout: 180000 });
   const burstMs = Date.now() - tb;
-  const up = /up=([d.]+),([d.]+),([d.]+)/.exec(out);
+  const up = /up=([0-9.]+),([0-9.]+),([0-9.]+)/.exec(out);
   const keyIssueMs = up ? Math.round((Number(up[2]) - Number(up[1])) * 1000) : null, keyAllMs = up ? Math.round((Number(up[3]) - Number(up[1])) * 1000) : null;
-  let playingMs = null, last = null, stable = 0, media = null;
-  for (let i = 0; i < 120; i++) {
+  // ready = PLAYING again on the song the 40 skips lead to (the player may jump there once, a moment after the last key); a build that lands elsewhere is
+  // caught by the fallback: PLAYING with the same title for about 2 s
+  const startPos = queuePos(before.description), target = startPos === null ? null : startPos + SKIPS;
+  let playingMs = null, readyBy = null, last = null, stable = 0, media = null;
+  for (let i = 0; i < 160 && playingMs === null; i++) {
     media = mediaSession();
-    if (media.state === 3) { if (media.description === last) stable++; else stable = 0; if (stable >= 1) { playingMs = Date.now() - tb; break; } last = media.description; }
+    const pos = queuePos(media.description);
+    if (media.state === 3 && target !== null && pos !== null && pos >= target) { playingMs = Date.now() - tb; readyBy = 'target'; break; }
     await sleep(250);
+  }
+  if (playingMs === null) {
+    for (let i = 0; i < 80; i++) {
+      media = mediaSession();
+      if (media.state === 3) { if (media.description === last) stable++; else { stable = 0; last = media.description; } if (stable >= 8) { playingMs = Date.now() - tb; readyBy = 'stable-title'; break; } } else stable = 0;
+      await sleep(250);
+    }
   }
   await sleep(4000);
   const st = pick(await stats());
-  result.scenarios['skip-burst'] = { skips: SKIPS, keysSent: Number(/done=(\d+)/.exec(out)?.[1] ?? 0), burstMs, keySpacingMs: keyIssueMs ? Math.round(keyIssueMs / SKIPS) : null, keysIssuedInMs: keyIssueMs, allKeysTakenInMs: keyAllMs, lastSongReadyMs: playingMs, startedPlayingMs: sp.ms, titleBefore: before.description, titleAfter: media?.description, ...st };
+  if (!SKIP_IN_APP) { launch(); await sleep(3000); }
+  result.scenarios['skip-burst'] = { skips: SKIPS, keysSent: Number(/done=(\d+)/.exec(out)?.[1] ?? 0), burstMs, keySpacingMs: keyIssueMs ? Math.round(keyIssueMs / SKIPS) : null, keysIssuedInMs: keyIssueMs, allKeysTakenInMs: keyAllMs, lastSongReadyMs: playingMs, readyBy, startedPlayingMs: sp.ms, appInBackground: !SKIP_IN_APP, queueStep: queuePos(media?.description) !== null && queuePos(before.description) !== null ? queuePos(media.description) - queuePos(before.description) : null, titleBefore: before.description, titleAfter: media?.description, ...st };
   shot(path.join(SHOTS, 'skip-burst-end.png'));
   log(`skip-burst: ${before.description} -> ${media?.description}, burst ${burstMs} ms, ready after ${playingMs} ms, requests ${st.total} (streams ${st.streamsOpened}, aborted ${st.streamsAborted}), peak ${st.peakInFlight}`);
 }

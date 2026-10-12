@@ -18,10 +18,11 @@ The Now Playing source pill is now a quiet neutral pill like the format pills (i
 
 ### The tag
 
-* `FLACie.Core/DownloadTags.cs`: the pure rule. `RecentWindowMs` = 60 minutes; `AgeLabel(nowMs, finishedMs)` returns null when the download finished more than
-  an hour ago or lies in the future by more than a minute, "just now" under 5 s, "Ns ago" under a minute, "N min ago" under an hour. `Resolve` decides the status:
+* `FLACie.Core/DownloadTags.cs`: the pure rule. `RecentWindowMs` = 60 minutes; `AgeLabel(nowMs, finishedMs, compact)` returns null when the download finished
+  an hour ago or longer (same as the phone) or lies in the future by more than a minute, "just now" under 5 s, "Ns ago" under a minute, "N min ago" (compact: "Nm ago")
+  under an hour. `Resolve` decides the status:
   a running download (its stage message) beats a finished one (newest finish, or for a "new download" song the time it was added), which beats a failure (a
-  failure never hides a success). Exactly 60:00.000 still reads "60 min ago" (only "more than the window" is dropped).
+  failure never hides a success).
 * `DownloadManager.StatusOf(session, artist, title, track?)` / `StatusOfKey`: the one lookup. Songs are matched by `Matching.MatchKey(title, artist)`. State per
   user: the running song jobs, and the last finish / failure of each song within the window; it is filled from finished jobs, from songs that arrived with an album
   download, from the phone's reports and, once per session, from the last hour of the download log (so downloads from before a restart count and a record from two
@@ -71,6 +72,38 @@ Request JSON: `{ "artist", "title", "album"?, "durationMs"?, "path"?, "source"?,
 * Changed existing tests: `1c-api.spec.ts` lists `POST /api/downloaded` among the calls that are 401 without a token. No strings asserted by existing specs or
   tests changed (none asserted the old labels).
 
+## Beta 54 verification follow-up (after the deploy)
+
+1. **Doubled word.** The one rule, `DownloadTags.DownloadingText(msg)`: a message that already starts with "Downloading" is shown as it is, otherwise
+   `"Downloading · " + msg`; no message gives "Downloading". Seen on screen: `Downloading 33%...` (not "Downloading · Downloading 33%...") in the player card and in
+   the autoplay rows. Tested in xunit (9 cases, also that the compact form does not touch a running stage) and in the spec.
+2. **Autoplay lists.** A suggestion that is being fetched is not in the library, so no list could hold it and nothing said it was coming (the same finding as on the
+   phone). Now `PlayerState.AutoplayFetching` (suggestions of the playing song that have a running download and are not in the library, via
+   `AutoplayPlanner.Fetching` / `DownloadManager.RunningSongs`) gives each a row of its own:
+   * in the "Autoplay · up next after this" list (queue ran out), under the songs already there;
+   * in the autoplay part of the queue ("Autoplay · similar to what you were playing"), at its end;
+   * the row reads title, artist · album, `Downloading · <stage>` (live), duration; when it lands the row is replaced by the ordinary row, tagged
+     `Recently downloaded · Ns ago` (ticking). Now Playing redraws only when the set of fetching songs changes.
+   Spec: the stand-in catalog (`FLACIE_CATALOG_REDIRECT`, see below) suggests three songs; asserted: 3 placeholder rows, each `Downloading · ...`, then
+   `Downloading · Waiting for a peer...`, then `Downloading 33%...`, then none left and each song's row has `Recently downloaded · ...`; then Next, the queue's autoplay
+   part shows the earlier songs with their tags and the next suggestions as placeholder rows at its end, which also disappear when they land.
+3. **Narrow places.** The text for a tag is the same pure function in `flacie.js` (`flacieDl.tagText(ms, compact)`) and in C# (`DownloadTagStatus.Text(now, compact)`,
+   `DownloadTags.AgeLabel(.., compact)`), tested against the phone's strings: `Downloaded · just now`, `Downloaded · 12s ago`, `Downloaded · 4m ago`; the full form is
+   `Recently downloaded · 4 min ago`. Compact is used in cards always, in the player bar up to 900 px window width, and in every other list up to 560 px.
+   The markup is `dl-pre` (the words) + ` · ` + `dl-age`: when the column is too small the words get the ellipsis, the age never does (checked at 420 px: the age element
+   is whole inside the column).
+4. **"New download" older than an hour.** The list badge is `SourceLabel.Short(Cloud)` whatever the age, and the tag lookup returns nothing for a Cloud song added
+   more than an hour ago (xunit: `A_new_download_song_older_than_an_hour_keeps_its_badge_and_has_an_empty_tag_line`). It cannot be aged inside a browser spec (a phone report
+   is clamped to ten minutes back), so the DOM side is covered by the badge rendering from `Source` alone, not by waiting an hour.
+
+Also: the Search "More music" rule (a song already playable is "In your library" and not offered again) is now driven in a spec through the stand-in catalog: a song is
+offered, the phone reports it without the page being reloaded, the same row turns into a disabled "In your library" with the tag, and a fresh search lists it among the
+library's songs with the "New download" badge.
+
+**Test seam.** `FLACIE_CATALOG_REDIRECT=http://127.0.0.1:<port>` (loopback only, unset in production) makes the "catalog" HTTP client ask Deezer / iTunes /
+MusicBrainz / ListenBrainz at `<address>/<their host><path>` (`CatalogRedirectHandler`). `playwright.config.ts` sets it to the stand-in in `1i-download-tags.spec.ts`
+(port 8197, refused while that spec is not running), which also makes every spec independent of the internet.
+
 ## Also fixed on the way
 
 * Now Playing showed the previous song's file facts (a Hi-Res badge, sampling, kbps) for a moment after a skip, before the new song's were read. The full-screen
@@ -80,7 +113,7 @@ Request JSON: `{ "artist", "title", "album"?, "durationMs"?, "path"?, "source"?,
 
 ## Results (this branch)
 
-* `dotnet test`: 231 passed (187 before + 44 new).
+* `dotnet test`: 250 passed (187 before + 63 new).
 * Playwright, whole suite on a fresh server: 130 passed in total, including the 10 new ones in `1i-download-tags.spec.ts` (the handoff counted 119 before; the other 1 is whatever that count missed, nothing was skipped or removed).
   One earlier full run had the 320 px bottom-bar spec fail once (width 0) and passed when run again; not reproduced.
 
@@ -92,4 +125,3 @@ Request JSON: `{ "artist", "title", "album"?, "durationMs"?, "path"?, "source"?,
   not forced in a spec.
 * Phone widths: the tag is one nowrap line with an ellipsis; it is hidden in the short landscape player bar. Not checked on a real phone or on the RG Rotate.
 * The Windows app was not built here; it embeds this server unchanged.
-

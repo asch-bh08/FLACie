@@ -566,14 +566,20 @@ window.flacie = (() => {
 
 // Download tags ("Recently downloaded · 5s ago", see DownloadTag.razor). The age is worked out here once a second from the age the server gave when it drew the
 // line, so the page is not drawn again for it and the line never moves. The wording and the 60 minute window are the server's (DownloadTags.AgeLabel) and the phone's.
+// In narrow places (a card, the player bar on a narrow window, any list on a phone) the short form is used: "Downloaded · 4m ago".
 window.flacieDl = (() => {
   const WINDOW = 60 * 60 * 1000, FUTURE = 60 * 1000;
-  const ageLabel = ms => {
-    if (ms > WINDOW || ms < -FUTURE) return null;
+  const ageLabel = (ms, compact) => {
+    if (ms >= WINDOW || ms < -FUTURE) return null;
     if (ms < 5000) return "just now";
     if (ms < 60000) return Math.floor(ms / 1000) + "s ago";
-    return Math.floor(ms / 60000) + " min ago";
+    return Math.floor(ms / 60000) + (compact ? "m ago" : " min ago");
   };
+  // the whole line for a download that finished ms ago: "Recently downloaded · 4 min ago" or, compact, "Downloaded · 4m ago"; null once it is over an hour
+  const tagText = (ms, compact) => { const a = ageLabel(ms, compact); return a === null ? null : (compact ? "Downloaded" : "Recently downloaded") + " · " + a; };
+  const narrow = window.matchMedia("(max-width: 560px)"), wide = window.matchMedia("(max-width: 900px)");
+  // cards are narrow whatever the window; the player bar's text column is small below 900 px; everything else is short on a phone
+  const compactFor = el => !!el.closest(".card") || (el.closest(".player") ? wide.matches : narrow.matches);
   const live = document.getElementsByClassName("dl-age");
   const tick = () => {
     if (live.length === 0) return;
@@ -583,16 +589,22 @@ window.flacieDl = (() => {
       const tag = el.closest(".dl-tag");
       // drawn again by the server: start from the age it gave this time
       if (el.__given !== given) { el.__given = given; el.__t0 = now; if (tag) tag.hidden = false; }
-      const label = ageLabel(Number(given) + (now - el.__t0));
+      const compact = compactFor(el);
+      const label = ageLabel(Number(given) + (now - el.__t0), compact);
       // an hour has passed: it is a normal library song again, the line goes away
       if (label === null) { if (tag) tag.hidden = true; continue; }
       const text = el.firstChild;
       if (text && text.nodeType === 3) { if (text.nodeValue !== label) text.nodeValue = label; }
       else if (el.textContent !== label) el.textContent = label;
+      const pre = tag && tag.querySelector(".dl-pre[data-compact]");
+      if (pre) { const w = compact ? pre.getAttribute("data-compact") : pre.getAttribute("data-full"); if (pre.textContent !== w) pre.textContent = w; }
     }
   };
   setInterval(tick, 1000);
-  return { ageLabel, tick };
+  // a tag that was just drawn (or drawn again with a new age) is put right at once, not up to a second later
+  try { new MutationObserver(tick).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-age"] }); } catch { }
+  for (const m of [narrow, wide]) try { m.addEventListener("change", tick); } catch { }
+  return { ageLabel, tagText, tick };
 })();
 
 // Personal look-and-feel tweaks (Settings > Look and feel), kept in this browser and applied on every page load

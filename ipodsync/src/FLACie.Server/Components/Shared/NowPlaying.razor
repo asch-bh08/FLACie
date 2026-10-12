@@ -90,7 +90,7 @@
                         </label>
                         <ol class="upnext">
                             <li class="now"><div class="q-row"><Cover ArtKey="@(Art.KeyFor(t))" Size="44" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span><em class="eq @(Player.Playing ? "on" : "")" aria-label="Now playing"><i></i><i></i><i></i></em></div></li>
-                            @{ var shownAuto = false; var upNext = Player.UpNext(30).ToList(); var upTotal = Player.UpNextCount; var canEdit = Player.CanEdit; }
+                            @{ var shownAuto = false; var fetching = Player.AutoplayFetching; var upNext = Player.UpNext(30).ToList(); var upTotal = Player.UpNextCount; var canEdit = Player.CanEdit; }
                             @for (var k = 0; k < upNext.Count; k++)
                             {
                                 var (i, u) = upNext[k]; var first = k == 0; var last = k == upTotal - 1;
@@ -112,7 +112,12 @@
                                     }
                                 </li>
                             }
-                            @if (!Player.UpNext(1).Any() && Player.Autoplay && Player.AutoplayNext.Count > 0)
+                            @if (shownAuto)
+                            {
+                                @* the autoplay part of the queue: songs being fetched for it are listed under the ones already there *@
+                                @foreach (var f in fetching) { @Pending(f) }
+                            }
+                            @if (!Player.UpNext(1).Any() && Player.Autoplay && (Player.AutoplayNext.Count > 0 || fetching.Count > 0))
                             {
                                 <li class="q-divider">Autoplay · up next after this</li>
                                 @foreach (var u in Player.AutoplayNext)
@@ -122,9 +127,10 @@
                                         @if (canEdit) { <div class="q-edit"><button class="q-top" aria-label="@("Put " + u.Title + " at the top of the queue")" title="Play next" @onclick="() => Player.PlayNext(u)"><Icon Name="next" Size="18" /></button></div> }
                                     </li>
                                 }
+                                @foreach (var f in fetching) { @Pending(f) }
                             }
                         </ol>
-                        @if (!Player.UpNext(1).Any() && (!Player.Autoplay || Player.AutoplayNext.Count == 0)) { <p class="hint">Nothing after this song. Turn Autoplay on to keep the music going.</p> }
+                        @if (!Player.UpNext(1).Any() && (!Player.Autoplay || (Player.AutoplayNext.Count == 0 && fetching.Count == 0))) { <p class="hint">Nothing after this song. Turn Autoplay on to keep the music going.</p> }
                     }
                     else if (tab == "lyrics")
                     {
@@ -205,8 +211,23 @@
         try { await Js.InvokeVoidAsync("flacie.npBack"); } catch (Exception) { await OnClose.InvokeAsync(); }
     }
     string TabTitle => tab switch { "lyrics" => "Lyrics", "info" => "Info", _ => "Up next" };
-    // the "Downloading · ..." / "Recently downloaded · 1s ago" line under a song is the DownloadTag component: it follows the downloads by itself
-    public override void Dispose() { infoCts?.Cancel(); self?.Dispose(); _ = Js.InvokeVoidAsync("flacie.npReset").AsTask().ContinueWith(_ => { }); base.Dispose(); }
+    // the "Downloading · ..." / "Recently downloaded · 1s ago" line under a song is the DownloadTag component: it follows the downloads by itself. What this player has to
+    // watch is which Autoplay suggestions are being fetched (they get a row of their own until they land), so a download starting or ending redraws it only when that changes.
+    [Inject] DownloadManager Dls { get; set; } = default!;
+    Action? onDls; string fetchSig = "";
+    string FetchSig() => string.Join(";", Player.AutoplayFetching.Select(f => f.Title + "|" + f.Artist));
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        fetchSig = FetchSig();
+        onDls = () => { var sig = FetchSig(); if (sig == fetchSig) return; fetchSig = sig; _ = InvokeAsync(StateHasChanged); };
+        Dls.Subscribe(Session, onDls);
+    }
+    /// <summary>A suggestion that is being downloaded and is not in the library yet: a row that says so, then the song itself takes its place.</summary>
+    RenderFragment Pending(CatalogSong f) => @<li class="q-item q-pending">
+        <div class="q-row"><Cover ArtKey="@(f.ArtUrl is null ? null : Art.ExternalKey(f.ArtUrl))" Size="44" /><span><b>@f.Title</b><small>@f.Artist@(f.Album.Length > 0 ? " · " + f.Album : "")</small><DownloadTag Session="Session" Artist="@f.Artist" Title="@f.Title" /></span><span class="q-time">@Time(f.DurationMs / 1000.0)</span></div>
+    </li>;
+    public override void Dispose() { infoCts?.Cancel(); if (onDls is not null) Dls.Unsubscribe(Session, onDls); self?.Dispose(); _ = Js.InvokeVoidAsync("flacie.npReset").AsTask().ContinueWith(_ => { }); base.Dispose(); }
     Lyrics? lyrics; bool lyricsLoading; string? lyricsFor;
     MediaInfo? info; bool infoLoading; string? infoFor;
     MediaInfo? shownInfo => Player.Current is { } cur && infoFor == cur.Path ? info : null;

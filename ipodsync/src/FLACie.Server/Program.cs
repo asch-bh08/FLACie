@@ -36,7 +36,9 @@ var serviceRoutes = ServiceRouteHandler.Parse(builder.Configuration["FLACIE_SERV
 builder.Services.AddHttpClient("jellyfin", c => c.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.AddHttpClient("media", c => { c.Timeout = Timeout.InfiniteTimeSpan; c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); }).AddHttpMessageHandler(() => new ServiceRouteHandler(serviceRoutes)).AddHttpMessageHandler(sp => new GatedHandler(sp.GetRequiredService<JellyfinGate>()));
 builder.Services.AddSingleton(sp => new JellyfinGate { Streaming = () => sp.GetRequiredService<PlaybackActivity>().OpenStreams > 0 });
-builder.Services.AddHttpClient("catalog", c => { c.Timeout = TimeSpan.FromSeconds(12); c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); });
+var catalogClient = builder.Services.AddHttpClient("catalog", c => { c.Timeout = TimeSpan.FromSeconds(12); c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); });
+// test seam (see CatalogRedirectHandler): only with FLACIE_CATALOG_REDIRECT set to a loopback address
+if (CatalogRedirectHandler.Parse(builder.Configuration["FLACIE_CATALOG_REDIRECT"]) is { } catalogRedirect) catalogClient.AddHttpMessageHandler(() => new CatalogRedirectHandler(catalogRedirect));
 // the yt-dlp call (search, search, download) and the open-source file fetches run for minutes: the call carries its own time limit, so no client one
 builder.Services.AddHttpClient("downloads-long", c => { c.Timeout = Timeout.InfiniteTimeSpan; c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); }).AddHttpMessageHandler(() => new ServiceRouteHandler(serviceRoutes));
 builder.Services.AddHttpClient("downloads", c => { c.Timeout = TimeSpan.FromSeconds(30); c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); }).AddHttpMessageHandler(() => new ServiceRouteHandler(serviceRoutes));

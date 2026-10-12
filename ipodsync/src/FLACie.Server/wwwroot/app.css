@@ -1330,17 +1330,21 @@ html.buffering .play .ic { opacity: .55; }
 /* ---- download tag (beta 54): the one small line under a song's artist everywhere songs are listed ("Downloading · Searching Soulseek...", "Recently downloaded · 1s ago").
    It is the same quiet status text as the download line in the search results (.track-dl); the age ticks in place, so nothing around it moves. ---- */
 .dl-tag { min-width: 0; max-width: 100%; margin-top: 2px; font-size: 12px; line-height: 1.35; font-variant-numeric: tabular-nums; }
-.dl-tag .dl-tag-text { min-width: 0; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dl-tag .dl-age { font-variant-numeric: tabular-nums; }
+.dl-tag .dl-tag-text { min-width: 0; display: flex; flex-direction: row; align-items: baseline; white-space: nowrap; }
+/* the words give way first (with an ellipsis), the age after them is never cut */
+.dl-tag .dl-pre { min-width: 0; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-tag .dl-dot, .dl-tag .dl-age { flex: none; display: block; white-space: pre; font-variant-numeric: tabular-nums; }
 .bar-text .dl-tag { margin-top: 1px; }
 .np-titles .dl-tag { margin-top: 0; font-size: 13px; }
 .q-row .dl-tag { font-size: 11px; margin-top: 2px; }
 /* the queue gives every span inside it a column layout: the tag keeps its dot beside its text, left aligned */
 .upnext .dl-tag { flex-direction: row; align-items: center; text-align: left; }
 .upnext .dl-tag > span { display: block; }
+.upnext .dl-tag .dl-tag-text { display: flex; }
 /* the home lists give every span inside them a column layout: the tag keeps its dot beside its text */
 .pick .dl-tag { flex-direction: row; font-size: 11px; }
 .pick .dl-tag > span { display: block; }
+.pick .dl-tag .dl-tag-text { display: flex; }
 .card .dl-tag { font-size: 11px; margin-top: 0; }
 /* the Now Playing source pill is a quiet pill like the format ones (it used to be a green pill) */
 .np-titles .pills .badge.cloud { background: var(--surface-2); color: var(--dim); font-weight: 600; }

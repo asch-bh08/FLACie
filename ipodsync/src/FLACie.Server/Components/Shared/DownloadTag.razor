@@ -14,11 +14,13 @@
         <i aria-hidden="true"></i>
         @if (shown.State == DownloadTagState.Recent)
         {
-            <span class="dl-tag-text">@DownloadTags.RecentWord · <time class="dl-age" data-age="@(now - shown.AtMs)">@DownloadTags.AgeLabel(now, shown.AtMs)</time></span>
+            @* "Recently downloaded · 4 min ago": flacie.js moves the age on every second and, in narrow places (cards, a phone), says "Downloaded · 4m ago"; the age is
+               never the part that is cut off, the first words give way first *@
+            <span class="dl-tag-text"><span class="dl-pre" data-full="@DownloadTags.RecentWord" data-compact="@DownloadTags.CompactWord">@DownloadTags.RecentWord</span><span class="dl-dot"> · </span><time class="dl-age" data-age="@(now - shown.AtMs)">@DownloadTags.AgeLabel(now, shown.AtMs)</time></span>
         }
         else
         {
-            <span class="dl-tag-text">@text</span>
+            <span class="dl-tag-text"><span class="dl-pre">@text</span></span>
         }
     </span>
 }

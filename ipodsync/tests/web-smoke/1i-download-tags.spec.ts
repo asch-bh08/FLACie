@@ -14,7 +14,6 @@ const ORIGIN = `http://127.0.0.1:${FM}`;
 const TOKEN = { 'X-Emby-Token': 'mock-token' };
 const JSONH = { ...TOKEN, 'content-type': 'application/json' };
 
-const state = { release: false, searchText: new Map<string, string>(), queued: [] as string[], moves: [] as { from: string; to: string }[], keys: new Set<string>(), files: 0 };
 const wav = (() => {
   const rate = 8000, n = rate * 3, b = Buffer.alloc(44 + n * 2);
   b.write('RIFF', 0); b.writeUInt32LE(36 + n * 2, 4); b.write('WAVEfmt ', 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22);
@@ -23,6 +22,14 @@ const wav = (() => {
 })();
 const LANTERN = '@@share\\Music\\Brass Monkeys\\Brass Monkeys - Lantern 12 [Hi-Res].flac';
 
+// what the stand-in catalog (Deezer's address, redirected by FLACIE_CATALOG_REDIRECT) offers. A lookup of an artist's songs (what Autoplay asks when a song plays) answers
+// with songs of that artist the library lacks, "Fetch Me One" ...; they are what Autoplay suggests and fetches. "Report Me" is what the Search page finds.
+const FETCH_ALL = ['Fetch Me One', 'Fetch Me Two', 'Fetch Me Three', 'Fetch Me Four', 'Fetch Me Five'];
+const titleCase = (x: string) => x.replace(/\b\w/g, (c) => c.toUpperCase());
+const deezerSong = (title: string, artist: string, i: number) => ({ id: 900 + i, title, duration: 200, artist: { name: artist }, album: { title: 'Phantom Album', cover_xl: '' } });
+const fetchFile = (artist: string, t: string) => `@@share/Music/${artist}/${artist} - ${t}.flac`;
+
+const state = { release: false, bytes: 0, suggest: FETCH_ALL.slice(0, 3), searchText: new Map<string, string>(), queued: [] as string[], moves: [] as { from: string; to: string }[], keys: new Set<string>(), files: 0 };
 const server = http.createServer((req, res) => {
   let body = '';
   req.on('data', (c) => (body += c));
@@ -36,15 +43,18 @@ const server = http.createServer((req, res) => {
       const sm = /^\/api\/v0\/searches\/([^/]+)$/.exec(api);
       if (sm) {
         if (req.method !== 'GET') return json(200, {});
-        const wanted = /lantern/i.test(state.searchText.get(sm[1]) ?? '');
+        const text = state.searchText.get(sm[1]) ?? '';
+        const files: unknown[] = [];
+        if (/lantern/i.test(text)) files.push({ filename: LANTERN, size: 30_000_000, length: 234, bitDepth: 24, sampleRate: 96000 });
+        if (/fetch me/i.test(text)) { const artist = titleCase(text.split(/ fetch me/i)[0].trim()); for (const t of FETCH_ALL) files.push({ filename: fetchFile(artist, t), size: 30_000_000, length: 200 }); }
         if (u.searchParams.get('includeResponses')) {
-          return json(200, { responses: wanted ? [{ username: 'peer1', hasFreeUploadSlot: true, uploadSpeed: 2_000_000, queueLength: 0, files: [{ filename: LANTERN, size: 30_000_000, length: 234, bitDepth: 24, sampleRate: 96000 }] }] : [] });
+          return json(200, { responses: files.length ? [{ username: 'peer1', hasFreeUploadSlot: true, uploadSpeed: 2_000_000, queueLength: 0, files }] : [] });
         }
-        return json(200, { isComplete: true, state: 'Completed, ResponseLimitReached', responseCount: wanted ? 1 : 0 });
+        return json(200, { isComplete: true, state: 'Completed, ResponseLimitReached', responseCount: files.length ? 1 : 0 });
       }
       if (api === '/api/v0/transfers/downloads/peer1') {
         if (req.method === 'POST') { for (const f of JSON.parse(body || '[]')) state.queued.push(f.filename); return json(200, {}); }
-        return json(200, { directories: [{ directory: 'x', files: state.queued.map((f) => ({ filename: f, id: 't1', state: state.release ? 'Completed, Succeeded' : 'InProgress', bytesTransferred: state.release ? 30_000_000 : 0 })) }] });
+        return json(200, { directories: [{ directory: 'x', files: state.queued.map((f) => ({ filename: f, id: 't1', state: state.release ? 'Completed, Succeeded' : 'InProgress', bytesTransferred: state.release ? 30_000_000 : state.bytes })) }] });
       }
       if (api.startsWith('/api/v0/transfers/downloads/')) return json(200, {});
       return json(404, {});
@@ -55,6 +65,16 @@ const server = http.createServer((req, res) => {
       if (p === '/fm/file') { state.files++; res.writeHead(200, { 'content-type': 'audio/wav', 'content-length': wav.length, 'accept-ranges': 'bytes' }); return res.end(wav); }
       return json(404, {});
     }
+    // the public catalogs, as FLACie Web asks for them when FLACIE_CATALOG_REDIRECT points here (see playwright.config.ts): "/<host><path>"
+    if (p === '/api.deezer.com/search') {
+      const q = u.searchParams.get('q') ?? '';
+      if (/report me/i.test(q)) return json(200, { data: [deezerSong('Report Me', 'Aurora Vale', 99)] });
+      return json(200, { data: state.suggest.map((t, i) => deezerSong(t, titleCase(q.trim()), i)) });
+    }
+    if (p.startsWith('/api.deezer.com/')) return json(200, { data: [] });
+    if (p.startsWith('/musicbrainz.org/')) return json(200, { artists: [] });
+    if (p === '/itunes.apple.com/search') return json(200, { results: [] });
+    if (p.includes('/rss/topsongs')) return json(200, { feed: { entry: [] } });
     json(404, {});
   });
 });
@@ -263,9 +283,9 @@ test.describe.serial('download tags', () => {
   test('the age label and the one hour window in the browser are the shared rule', async () => {
     const r = await page.evaluate(() => {
       const f = (window as any).flacieDl.ageLabel as (ms: number) => string | null;
-      return [0, 4999, 5000, 59_999, 60_000, 61_000, 10 * 60_000, 3_599_999, 3_600_001, 7 * 24 * 3600_000, -30_000, -60_000, -60_001].map(f);
+      return [0, 4999, 5000, 59_999, 60_000, 61_000, 10 * 60_000, 3_599_999, 3_600_000, 3_600_001, 7 * 24 * 3600_000, -30_000, -60_000, -60_001].map((x) => f(x, false));
     });
-    expect(r).toEqual(['just now', 'just now', '5s ago', '59s ago', '1 min ago', '1 min ago', '10 min ago', '59 min ago', null, null, 'just now', 'just now', null]);
+    expect(r).toEqual(['just now', 'just now', '5s ago', '59s ago', '1 min ago', '1 min ago', '10 min ago', '59 min ago', null, null, null, 'just now', 'just now', null]);
     // a tag that reaches an hour goes away by itself (no server round trip): a stand-in 1 s short of the hour
     await page.evaluate(() => {
       const t = document.createElement('span');
@@ -299,7 +319,7 @@ test.describe.serial('download tags', () => {
     // Home: no tag on a shelf song unless it is recent (the shelves are the library's own songs)
     await live('/');
     await expect(page.locator('.shelf').first()).toBeVisible({ timeout: 20_000 });
-    for (const tag of await page.locator('.shelf .dl-tag').allInnerTexts()) expect(tag.replace(/\s+/g, ' ')).toMatch(/^Recently downloaded · /);
+    for (const tag of await page.locator('.shelf .dl-tag').allInnerTexts()) expect(tag.replace(/\s+/g, ' ')).toMatch(/^(Recently downloaded|Downloaded) · /);   // a card says it short
   });
 
   test('the queue: Up next tags the recent download, not the others', async () => {
@@ -353,8 +373,13 @@ test.describe.serial('download tags', () => {
     const sub = await page.locator('.bar-text small').first().boundingBox(), tag = await page.locator('.bar-text .dl-tag').boundingBox();
     expect(tag!.y).toBeGreaterThanOrEqual(sub!.y + sub!.height - 1);
 
+    // the transfer's own message already starts with "Downloading": it is shown as it is, the word is not said twice
+    state.bytes = 10_000_000;
+    await expect(page.locator('.bar-text .dl-tag')).toHaveText('Downloading 33%...', { timeout: 30_000 });
+    expect(await page.locator('.bar-text .dl-tag').innerText()).not.toContain('Downloading · Downloading');
+
     // the transfer ends: the same song now says it was downloaded
-    state.release = true;
+    state.release = true; state.bytes = 0;
     await expect(page.locator('.bar-text .dl-tag')).toHaveText(RECENT, { timeout: 60_000 });
     await expect(page.locator('.bar-text .dl-tag')).toHaveText(/^Recently downloaded · (just now|\d+s ago)$/);
     // asked of the file mover with the keys the user saved, and filed as "Artist - Title [Hi-Res].flac"
@@ -367,6 +392,125 @@ test.describe.serial('download tags', () => {
     await openAlbum();
     await expect(row('Lantern 12').locator('.dl-tag')).toHaveText(RECENT);
     await expect(row('Harbour 11').locator('.dl-tag')).toHaveText(/min ago$/);
+  });
+
+
+  // ---- Search "More music": a song the phone reported is no longer offered ----
+
+  test('Search "More music" offers a catalog song, and once it is in the library (the phone reported it) it is "In your library" and tagged', async () => {
+    await live('/search?q=' + encodeURIComponent('Report Me'));
+    const more = page.locator('ul.tracks li.track', { has: page.locator('.track-title', { hasText: /^Report Me$/ }) });
+    await expect(more).toBeVisible({ timeout: 20_000 });
+    await expect(more.getByRole('button', { name: /^Download$/ }).first()).toBeEnabled();
+    await expect(more.locator('.dl-tag')).toHaveCount(0);
+    const r = await report({ artist: 'Aurora Vale', title: 'Report Me', album: 'Phantom Album', durationMs: 200000, path: fmPath('Aurora Vale/Aurora Vale - Report Me.flac'), source: 'soulseek' });
+    expect(await r.json()).toEqual({ ok: true, known: true });
+    // the page was not reloaded: the same row now says it is in the library, is not offered again and carries the tag
+    await expect(more.getByRole('button', { name: 'In your library' })).toBeDisabled({ timeout: 15_000 });
+    await expect(more.locator('.dl-tag')).toHaveText(RECENT);
+    await expect(more.getByRole('button', { name: /^Download$/ })).toHaveCount(0);
+    // and a fresh search finds it among the library's songs, not under More music
+    await live('/search?q=' + encodeURIComponent('Report Me'));
+    await expect(page.locator('ol.tracks li.track', { has: page.locator('.track-title', { hasText: /^Report Me$/ }) }).locator('.badge.cloud')).toHaveText('New download', { timeout: 20_000 });
+    await expect(page.locator('ul.tracks li.track', { has: page.locator('.track-title', { hasText: /^Report Me$/ }) })).toHaveCount(0);
+  });
+
+  // ---- Autoplay: suggestions being fetched have rows of their own, then they are ordinary tagged rows ----
+
+  test('Autoplay lists: a suggestion being fetched says "Downloading · ...", in the "up next after this" list and in the autoplay part of the queue, then "Recently downloaded"', async () => {
+    test.setTimeout(240_000);
+    state.release = false; state.bytes = 0; state.suggest = FETCH_ALL.slice(0, 3);
+    await page.request.post('/api/settings', { headers: JSONH, data: '{"prefetch":true}' });
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await live('/artist/Aurora%20Vale');
+    await page.getByRole('link', { name: /Aurora Album 1/ }).first().click();
+    await expect(page.locator('.tracks .track')).toHaveCount(4, { timeout: 20_000 });
+    // Autoplay on (a first song, then the switch), then the last song of the album starts: nothing is queued after it, so Autoplay's list is what comes next
+    await row('Velvet 1').locator('.track-main').click();
+    await expect(page.locator('.bar-text b')).toHaveText('Velvet 1', { timeout: 20_000 });
+    await pause();
+    await openNowPlaying();
+    const autoplay = page.locator('.switch-row', { hasText: 'Add similar songs' }).locator('input');
+    if (!(await autoplay.isChecked())) await autoplay.check();
+    await closeNowPlaying();
+    await row('Lantern 4').locator('.track-main').click();
+    await expect(page.locator('.bar-text b')).toHaveText('Lantern 4', { timeout: 20_000 });
+    await pause();
+    await openNowPlaying();
+    const pending = page.locator('.upnext li.q-pending');
+    // the three suggestions the catalog gave and the library lacks are being fetched: a row each, saying so, under the divider
+    await expect(pending).toHaveCount(3, { timeout: 60_000 });
+    await expect(page.locator('.upnext .q-divider', { hasText: 'Autoplay · up next after this' })).toBeVisible();
+    for (const t of FETCH_ALL.slice(0, 3)) await expect(pending.filter({ has: page.locator('b', { hasText: new RegExp(`^${t}$`) }) }).locator('.dl-tag')).toHaveText(/^Downloading/);
+    for (let i = 0; i < 3; i++) await expect(pending.nth(i).locator('.dl-tag')).toHaveText('Downloading · Waiting for a peer...', { timeout: 60_000 });
+    // a transfer's own "Downloading 33%..." is shown as it is
+    state.bytes = 10_000_000;
+    for (let i = 0; i < 3; i++) await expect(pending.nth(i).locator('.dl-tag')).toHaveText('Downloading 33%...', { timeout: 30_000 });
+    // they land: no placeholder is left, each is an ordinary row of the list with "Recently downloaded"
+    state.release = true; state.bytes = 0;
+    await expect(pending).toHaveCount(0, { timeout: 90_000 });
+    for (const t of FETCH_ALL.slice(0, 3)) await expect(qrow(t).locator('.dl-tag'), t).toHaveText(RECENT, { timeout: 20_000 });
+
+    // the autoplay part of the queue: the queue ran out, Autoplay's songs follow; the new song's suggestions are being fetched and are listed at the end of that part
+    state.release = false; state.bytes = 0; state.suggest = FETCH_ALL.slice(3);
+    await page.getByRole('button', { name: 'Next', exact: true }).first().click();
+    await pause();
+    await expect(page.locator('.upnext .q-divider', { hasText: 'Autoplay · similar to what you were playing' })).toBeVisible({ timeout: 20_000 });
+    await expect(pending).toHaveCount(2, { timeout: 60_000 });
+    for (let i = 0; i < 2; i++) await expect(pending.nth(i).locator('.dl-tag')).toHaveText(/^Downloading/);
+    // they come after the songs already in the autoplay part, which carry their own tags (the earlier fetches)
+    const rows = page.locator('.upnext li.q-item');
+    const n = await rows.count();
+    expect(await rows.nth(n - 1).getAttribute('class')).toContain('q-pending');
+    await expect(page.locator('.upnext li.q-item:not(.q-pending) .dl-tag').first()).toHaveText(RECENT);
+    // they land too
+    state.release = true;
+    await expect(pending).toHaveCount(0, { timeout: 90_000 });
+    await page.request.post('/api/settings', { headers: JSONH, data: '{"prefetch":false}' });
+    await closeNowPlaying();
+  });
+
+  // ---- narrow places: the short form, and the age is never the part that is cut ----
+
+  test('narrow places say "Downloaded · 4m ago": the player bar on a phone, cards; the age is never cut off', async () => {
+    // the one function the browser uses (the server's twin is DownloadTags.AgeLabel / DownloadTagStatus.Text)
+    const t = await page.evaluate(() => {
+      const f = (window as any).flacieDl.tagText as (ms: number, compact: boolean) => string | null;
+      return [f(0, true), f(12_000, true), f(240_000, true), f(240_000, false), f(12_000, false), f(0, false), f(3_599_999, true), f(3_600_000, true), f(3_600_001, false)];
+    });
+    expect(t).toEqual(['Downloaded · just now', 'Downloaded · 12s ago', 'Downloaded · 4m ago', 'Recently downloaded · 4 min ago', 'Recently downloaded · 12s ago', 'Recently downloaded · just now', 'Downloaded · 59m ago', null, null]);
+
+    // a card (Home shelves, album cards) is narrow whatever the window: a tag in one says it short even at 1280 px
+    await page.evaluate(() => {
+      const c = document.createElement('div');
+      c.className = 'card'; c.id = 'card-probe'; c.style.width = '150px';
+      c.innerHTML = '<span class="track-dl dl-tag ok"><i></i><span class="dl-tag-text"><span class="dl-pre" data-full="Recently downloaded" data-compact="Downloaded">Recently downloaded</span><span class="dl-dot"> · </span><time class="dl-age" data-age="240000">4 min ago</time></span></span>';
+      document.body.appendChild(c);
+      (window as any).flacieDl.tick();
+    });
+    await expect(page.locator('#card-probe .dl-tag')).toHaveText('Downloaded · 4m ago');
+    await page.evaluate(() => document.getElementById('card-probe')?.remove());
+
+    // the phone-wide player bar and list row of a real tag
+    await live('/search?q=' + encodeURIComponent('P JME'));
+    const hit = page.locator('ol.tracks li.track', { has: page.locator('.track-title', { hasText: /^P$/ }) }).first();
+    await expect(hit.locator('.dl-tag')).toHaveText(RECENT, { timeout: 20_000 });
+    await hit.locator('.track-main').click();
+    await expect(page.locator('.bar-text b')).toHaveText('P', { timeout: 20_000 });
+    await pause();
+    await expect(page.locator('.bar-text .dl-tag')).toHaveText(RECENT);       // room: the full words
+    await page.setViewportSize({ width: 420, height: 800 });
+    const compact = /^Downloaded · (just now|\d+s ago|\d+m ago)$/;
+    await expect(page.locator('.bar-text .dl-tag')).toHaveText(compact, { timeout: 10_000 });
+    await expect(hit.locator('.dl-tag')).toHaveText(compact);
+    // the age is whole: inside the column it sits in, to the end of its text
+    const age = await page.locator('.bar-text .dl-age').boundingBox(), col = await page.locator('.bar-text').boundingBox();
+    expect(age!.width).toBeGreaterThan(10);
+    expect(age!.x + age!.width).toBeLessThanOrEqual(col!.x + col!.width + 1);
+    const clipped = await page.locator('.bar-text .dl-age').evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+    expect(clipped).toBe(false);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await expect(page.locator('.bar-text .dl-tag')).toHaveText(RECENT, { timeout: 10_000 });
   });
 
   // ---- the limit on reports (last: it uses the hour's quota up) ----

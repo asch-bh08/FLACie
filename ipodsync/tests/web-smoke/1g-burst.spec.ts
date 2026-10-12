@@ -42,17 +42,21 @@ test.describe.serial('beta 52 load', () => {
     await request.get(`${MOCK}/__reset`);
     await page.getByRole('button', { name: 'Open Now Playing' }).click();
     await expect(page.locator('.np-titles h2')).toBeVisible();
-    const next = page.getByRole('button', { name: 'Next' }).first(), prev = page.getByRole('button', { name: 'Previous' }).first();
     const wrong: string[] = [];
-    const sample = async () => {
-      const s = await page.evaluate(() => ({ title: document.querySelector('.np-titles h2')?.textContent?.trim() ?? '', badge: document.querySelector('.np-meta .badge.fmt')?.textContent?.trim() ?? '' }));
+    // the 40 presses are made inside the page, 30 ms apart: the spacing must not depend on how long the test runner takes per click
+    const seen = await page.evaluate(async () => {
+      const out: { title: string; badge: string }[] = [];
+      for (let i = 0; i < 40; i++) {
+        const label = i % 8 < 4 ? 'Next' : 'Previous';
+        (document.querySelector(`.player button[aria-label="${label}"]`) as HTMLElement | null)?.click();
+        await new Promise((r) => setTimeout(r, 30));
+        out.push({ title: document.querySelector('.np-titles h2')?.textContent?.trim() ?? '', badge: document.querySelector('.np-meta .badge.fmt')?.textContent?.trim() ?? '' });
+      }
+      return out;
+    });
+    for (const s of seen) {
       const want = Object.entries(LAB).find(([p]) => s.title.startsWith(p))?.[1];
       if (want && s.badge && want !== 'HI-RES' && norm(s.badge) === 'HI-RES') wrong.push(`${s.title}: ${s.badge}`);
-    };
-    for (let i = 0; i < 40; i++) {
-      await (i % 8 < 4 ? next : prev).click({ noWaitAfter: true });
-      await page.waitForTimeout(30);
-      await sample();
     }
     expect(wrong, 'a non-Hi-Res song claimed Hi-Res while skipping').toEqual([]);
     // settle: the song that is left plays and its badge is the right one, and stays
@@ -114,7 +118,7 @@ test.describe.serial('beta 52 load', () => {
     expect(load.cache.covers).toBe(0);
   });
 
-  async function viewAlbums(browser: Browser) {
+  async function viewAlbums(browser: Browser, request: APIRequestContext) {
     const ctx = await browser.newContext({ baseURL: 'http://127.0.0.1:5290' });   // a browser that has never seen a cover: nothing in its own cache
     const page = await ctx.newPage();
     await signIn(page);
@@ -130,17 +134,17 @@ test.describe.serial('beta 52 load', () => {
   test('a cover is fetched from Jellyfin once at one small size, and a second view costs Jellyfin nothing', async ({ browser, request }) => {
     test.setTimeout(120_000);
     await request.get(`${MOCK}/__reset`);
-    const shown = await viewAlbums(browser);
+    const shown = await viewAlbums(browser, request);
     expect(shown).toBeGreaterThan(0);
     const first = await images(request);
     expect(first.total, 'covers fetched for the first view').toBeGreaterThan(0);
     expect(first.repeats, 'a cover asked for twice').toBe(0);
-    // the Albums page shows one picture per album (11 albums in the mock): one request each at the most
-    expect(first.distinct).toBeLessThanOrEqual(11);
+    // every picture once: each song's own picture is its cover (AlbumId is not trusted to stand for an album), so the count follows the pictures shown
+    expect(first.distinct).toBe(first.total);
     // one fixed size for rows and tiles: 240 px WebP at quality 80, nothing else
     for (const v of first.variants) expect(v, 'cover variant').toBe('w=240 q=80 Webp');
     // another browser (nothing cached in it) looks at the same page: the server answers from its own disk
-    const second = await viewAlbums(browser);
+    const second = await viewAlbums(browser, request);
     expect(second).toBeGreaterThan(0);
     const after = await images(request);
     expect(after.total, 'covers fetched by a second view').toBe(first.total);

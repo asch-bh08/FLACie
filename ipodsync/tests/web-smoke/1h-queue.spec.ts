@@ -43,6 +43,11 @@ test.describe.serial('Up next editing', () => {
     expect(await upNext(page)).toEqual(['Lab 2', 'Lab 3', 'Lab 4', 'Lab 5', 'Lab 6', 'Lab 7', 'Lab 8']);
     await expect.poll(() => page.evaluate(() => (window as any).flacie.ready()), { timeout: 15_000 }).toBe(true);
     const clock = async () => (await page.locator('.player .seek span').first().innerText()).trim();
+    // the mock's songs are 3 seconds long: pause, so the queue does not move on by itself while the edits are made
+    await page.getByRole('button', { name: 'Pause', exact: true }).first().click();
+    await expect(page.getByRole('button', { name: 'Play', exact: true }).first()).toBeVisible();
+    const c0 = await clock();
+    expect(c0).not.toBe('0:00');
 
     // up: the first row cannot go up (disabled), another row swaps with the one above it
     await expect(page.getByRole('button', { name: 'Move Lab 2 up' })).toBeDisabled();
@@ -61,15 +66,15 @@ test.describe.serial('Up next editing', () => {
     await page.keyboard.press('Enter');
     await expect.poll(() => upNext(page)).toEqual(['Lab 7', 'Lab 4', 'Lab 2', 'Lab 5', 'Lab 6', 'Lab 8']);
 
-    // what plays was never touched: same song, still playing, the clock still runs
+    // what plays was never touched: same song, at the same second (nothing was loaded again), still paused where it was
     expect(await nowTitle(page)).toBe('Lab 1');
-    await expect(page.getByRole('button', { name: 'Pause' }).first()).toBeVisible();
-    const c0 = await clock(); await page.waitForTimeout(1500);
-    expect(await clock()).not.toBe(c0);
+    expect(await clock()).toBe(c0);
+    await expect(page.getByRole('button', { name: 'Play', exact: true }).first()).toBeVisible();
 
     // Next goes to the song that was moved to the top, and the list follows
     await page.getByRole('button', { name: 'Next' }).first().click();
     await expect.poll(() => nowTitle(page)).toBe('Lab 7');
+    await page.getByRole('button', { name: 'Pause', exact: true }).first().click();   // (3 s songs: hold it here)
     await expect.poll(() => upNext(page)).toEqual(['Lab 4', 'Lab 2', 'Lab 5', 'Lab 6', 'Lab 8']);
 
     // a reload (a new page over the same browser storage): the last song comes back paused with Up next as it was arranged

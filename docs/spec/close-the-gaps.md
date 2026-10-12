@@ -4,11 +4,11 @@ Status: **specification only, nothing in this document is built yet.** It is wri
 
 Goal: match or beat Plexamp and Symfonium on features, and make FLACie feel hand-made.
 Non-negotiables (from the owner, and from the repo's hard rules):
-1. **Jellyfin-only keeps working from any network.** Every feature must work with nothing but a Jellyfin URL and a Jellyfin user. flacie-web, MusicBrainz, ListenBrainz, Soulseek/Lidarr and the rest are optional layers; their absence degrades a feature, never breaks the app.
+1. **Jellyfin-only keeps working from any network.** Every feature must work with nothing but a Jellyfin URL and a Jellyfin user. flacie-web, MusicBrainz, Soulseek/Lidarr and the rest are optional layers; their absence degrades a feature, never breaks the app.
 2. **Every feature ships on Android, web and Windows together**, unless platform-specific (Android Auto, Cast sender on Android; Windows media keys / tray on Windows). When one platform cannot have a feature, the release notes say so.
 3. **YouTube (yt-dlp) is allowed only as an opt-in source, flagged "Use at your own risk"** (owner decision, 2026-10-12, replacing the earlier ban). It is **off by default**, switched on per install in Settings behind a plain-language warning (it can breach YouTube's terms and copyright law, the risk is the user's, FLACie does not endorse it), shown as a visibly separate source ("YouTube · at your own risk"), never tried automatically, never first in the race, never bundled in the Play-style distribution. The repo already has the plumbing (`ipodsync/tools/ytdl`, the file mover's ytdl call, `DownloadCoordinator`). No Explo. The other internet sources stay (Soulseek, Lidarr, Jamendo, Audius, Internet Archive, SoundCloud).
-4. **Central request gate.** Every Jellyfin request goes through `JellyfinGate` (Android) / the server gate (web) with priorities. MusicBrainz, Cover Art Archive and ListenBrainz get **their own gates** (own rate limits, own circuit breakers), never sharing Jellyfin's slots.
-5. **No secrets in chat or in the repo.** The owner types a ListenBrainz token into Settings themselves; tokens are stored like the existing service keys and never logged.
+4. **Central request gate.** Every Jellyfin request goes through `JellyfinGate` (Android) / the server gate (web) with priorities. MusicBrainz, Cover Art Archive get **their own gates** (own rate limits, own circuit breakers), never sharing Jellyfin's slots.
+5. **No secrets in chat or in the repo.** Any token a feature needs is typed by the owner into Settings and stored like the existing service keys; never logged.
 6. **Never overwrite existing user tags or covers silently.** Every metadata/cover change is a visible choice with undo.
 7. **A song's own picture still wins** by default; `CoverVetting` stays; wrong covers must not regress (tests below).
 8. Honest "Tested / Not tested" per release; we cannot hear audio, so by-ear items are listed for the owner.
@@ -16,15 +16,9 @@ Non-negotiables (from the owner, and from the repo's hard rules):
 
 ---
 
-## 0. Answer first: do we need ListenBrainz?
+## 0. ListenBrainz: CUT (owner decision, 2026-10-12)
 
-**No, not for the core product, and not to compete with Plexamp/Symfonium.** You use YouTube Music, which has no scrobble export that ListenBrainz reads, so there is no listening history there to bring across, and nothing in this programme requires it.
-
-What ListenBrainz is, plainly: a free, open scrobble service (the non-commercial cousin of Last.fm) from the MetaBrainz foundation. You make a free account at listenbrainz.org, copy the "user token" from your profile page, and paste it into an app. The app then (a) sends "I played this" events, and (b) can ask for recommendations and similar artists built from *your* history.
-
-What it would give FLACie that nothing else here does: recommendations and "similar artists" based on listening data, and weekly mixes (the Explo-style feature). What it costs: you must start scrobbling (FLACie would do it for you from your Jellyfin plays), and recommendations are poor until a few weeks of history exist. Several of its endpoints (similar artists, MusicBrainz lookups) need no token at all **[verify]**.
-
-**Decision proposed in this spec:** ListenBrainz is **optional and off by default**, and moves to the **last** part of Phase 3. The weekly mixes, radio and mix builder are designed to run first on data FLACie already has (Jellyfin play counts and favourites, genres, years, the existing Deezer "artist top songs" feed, MusicBrainz relations), with ListenBrainz as an extra signal when a token is present. If you never enter a token, you lose only the "recommendations from the wider world" signal, not a feature. You can cut ListenBrainz from the programme entirely without breaking any other phase.
+ListenBrainz is **out of the programme**: no token field, no scrobbling, no recommendations from it, no gate, no tests. The owner uses YouTube Music and does not need it. Everything that would have used it (weekly mixes, radio, mix builder) runs on signals FLACie already has: Jellyfin play counts, favourites and ratings, genres and years, the local play log, Deezer related-artist top songs (already a dependency family), MusicBrainz relations (Phase 2) and the on-device similarity engine. The weekly mixes are therefore weaker than a real recommender and say so in the UI. If it is ever wanted back, the similarity interface (section 4.1) has a slot for an external artist-similarity signal.
 
 ---
 
@@ -36,7 +30,7 @@ Output: `docs/research/` — `symfonium.md`, `plexamp.md`, `gap-table.md`, `apis
 |---|---|---|
 | A: Symfonium | public docs/site, Play Store listing text, public changelog | feature inventory, grouped (library, offline, playback, EQ/ReplayGain, lyrics, Auto/Cast, widgets, backup, tags/metadata, UI) |
 | B: Plexamp | public Plex support pages, Plexamp release notes, marketing page | same grouping, plus Plex-server-dependent features flagged as "needs a server we do not have" |
-| C: APIs | MusicBrainz API + rate-limit page, Cover Art Archive docs, ListenBrainz API docs, LRCLIB docs, Deezer public API terms | `apis.md`: endpoints we would use, auth, **rate limits**, required User-Agent, licensing/attribution, caching rules, what is allowed commercially/personally |
+| C: APIs | MusicBrainz API + rate-limit page, Cover Art Archive docs, LRCLIB docs, Deezer public API terms | `apis.md`: endpoints we would use, auth, **rate limits**, required User-Agent, licensing/attribution, caching rules, what is allowed commercially/personally |
 | D: Design references | public marketing screenshots only | `design-references.md`: what each app does for type, motion, colour, empty states; no screenshots committed (link only) |
 
 I then merge A+B+current FLACie capabilities into `gap-table.md`: one row per feature: *what, Plexamp?, Symfonium?, FLACie today, effort (S/M/L/XL), value (1-5), platform scope, depends-on, phase*. Ranked by value ÷ effort. The ordering in sections 2-5 below is my prior; the table may reorder items inside a phase but not move an item across phases without telling you.
@@ -139,7 +133,7 @@ Suggested internal split (each its own beta if it is large): **1a** media sessio
 
 ## 4. Phase 3: discovery and mixes
 
-Ordering inside the phase: **radio engine → mix builder + smart playlists → weekly mixes → ListenBrainz (optional)**. The engine comes first because everything else is a front end to it.
+Ordering inside the phase: **radio engine → mix builder + smart playlists → weekly mixes**. The engine comes first because everything else is a front end to it.
 
 ### 4.1 Similarity engine ("cheap first")
 One `Similarity` interface: `score(seed, candidate)` and `candidates(seed)`, combining weighted signals, each optional:
@@ -147,7 +141,7 @@ One `Similarity` interface: `score(seed, candidate)` and `candidates(seed)`, com
 2. **Era**: year distance.
 3. **Jellyfin "similar items"** (`/Items/{id}/Similar`) **[verify quality for music on 10.11]**.
 4. **My history**: play counts, favourites, ratings, skips (new signal from the local play log), time-of-day affinity.
-5. **External artist similarity** where available: MusicBrainz artist relations; Deezer "related artists" (already a dependency family); ListenBrainz similar-artists if enabled.
+5. **External artist similarity** where available: MusicBrainz artist relations; Deezer "related artists" (already a dependency family); .
 6. **Audio features (later):** a slot reserved in the interface for BPM/key/energy/embedding from an analysis pass. Not built now. Data model has a nullable `AudioFeatures` blob per track so adding it later needs no migration of callers.
 The engine runs on-device from the saved library (no network needed for 1-4), is deterministic given a seed (testable), and diversifies (max N per artist, no immediate repeats). Same code semantics in Kotlin and C# (ported with shared test vectors, as already done for `TrackTitles`).
 
@@ -158,20 +152,14 @@ Artist / album / song / genre / decade radio = engine with a seed; endless (tops
 Multi-select albums and artists → generate. Controls: familiar ↔ new slider, mood (existing mood list), era range, genre include/exclude, length, "include songs I don't own" (only suggestions, see 4.4), a preview list with per-row swap/remove, **Save as playlist** (a Jellyfin playlist, so it exists everywhere). 
 
 ### 4.4 Weekly Explore mixes (native, Explo-style)
-- Weekly job (web server if present; otherwise on-device at app open, at most once a week): build a playlist of ~30 tracks from recommendation signals (§4.1; plus ListenBrainz recommendations if enabled), **match to the library** (the existing `matchKey` logic: title+artist, album tolerant), owned tracks play immediately, **unowned tracks show a "Request" button** that hands `artist/title/album` to the existing `DownloadCoordinator` (Soulseek, Lidarr, Jamendo, Audius, Internet Archive, SoundCloud). YouTube is used only if the owner enabled that opt-in source, and then last; the Request path is exactly the existing Search > Download path, with its existing safeguards and the owner's existing quality rule.
+- Weekly job (web server if present; otherwise on-device at app open, at most once a week): build a playlist of ~30 tracks from recommendation signals (§4.1), **match to the library** (the existing `matchKey` logic: title+artist, album tolerant), owned tracks play immediately, **unowned tracks show a "Request" button** that hands `artist/title/album` to the existing `DownloadCoordinator` (Soulseek, Lidarr, Jamendo, Audius, Internet Archive, SoundCloud). YouTube is used only if the owner enabled that opt-in source, and then last; the Request path is exactly the existing Search > Download path, with its existing safeguards and the owner's existing quality rule.
 - Weekly cadence, "last week's mix" kept, "keep this track" promotes it to the library playlist, "dismiss" feeds the engine a negative.
-- **Honest limitation:** without ListenBrainz the "new" tracks come from Deezer related-artist top songs + MusicBrainz relations: weaker than a real recommender. Said in the UI, not hidden.
+- **Honest limitation:** the "new" tracks come from Deezer related-artist top songs + MusicBrainz relations: weaker than a real recommender. Said in the UI, not hidden.
 
 ### 4.5 Smart playlists
 Rules builder (all/any): genre, year (range), rating, quality (lossless / Hi-Res / lossy, via audio facts), recently added (n days), never played, last played, play count, artist, album, downloaded. Live (re-evaluated), limit + sort, saved as a **FLACie smart playlist** in the shared profile (Jellyfin has no smart-playlist concept; the definition syncs, the membership is computed per device, with an optional "materialise to a Jellyfin playlist now" button). Same rules engine in Kotlin and C# with shared fixtures.
 
-### 4.6 ListenBrainz (optional, last)
-- Settings: a token field (typed by you; stored with the other service keys; never logged; "Test token" button calls `validate-token`). Off by default; the whole section is hidden until you flip "Use ListenBrainz".
-- Submit: `now playing` and `single` listens (after 50 % or 4 min, per LB's rule **[verify]**) from every client; offline queue; own gate (LB documents rate-limit headers **[verify]**); deletes/undo not implemented.
-- Pull: recommendations, similar artists/recordings, LB-Radio-style playlists **[verify these endpoints are public and stable; some live under "labs"/experimental]**. Matched through MusicBrainz MBIDs (Phase 2 makes this much better).
-- If you never turn it on, nothing in §4.1-4.5 changes. If LB is down or the token is wrong, the mixes silently fall back to local signals and Settings shows one quiet line saying why.
-
-**Phase 3 effort:** engine L, radio M, builder L, weekly M, smart playlists L, ListenBrainz M. **Value:** radio 5, builder 4, smart playlists 4, weekly 4, ListenBrainz 2 for you specifically.
+**Phase 3 effort:** engine L, radio M, builder L, weekly M, smart playlists L. **Value:** radio 5, builder 4, smart playlists 4, weekly 4 2 for you specifically.
 
 ---
 
@@ -190,7 +178,7 @@ Treat as a real design pass with its own audit, not a colour tweak.
 ---
 
 ## 6. Phase 5: verify and release
-- **Jellyfin-only regression:** fresh install, a fresh account, a Jellyfin URL and nothing else (no flacie-web, no MusicBrainz reachability, no ListenBrainz token, no NAS, no download sources): every screen loads, every feature either works or shows an honest "needs X" state, no crash, no request to a service the owner did not configure. A scripted emulator run + a manual Fold run.
+- **Jellyfin-only regression:** fresh install, a fresh account, a Jellyfin URL and nothing else (no flacie-web, no MusicBrainz reachability, no NAS, no download sources): every screen loads, every feature either works or shows an honest "needs X" state, no crash, no request to a service the owner did not configure. A scripted emulator run + a manual Fold run.
 - **Load:** re-run the 10,000-song mock matrix (fast/slow/flaky/ratelimit) before/after; budgets in §7.
 - **Platforms:** Fold (wireless adb), emulator (throttled/flaky), web (Playwright), Windows MSI (build + install/upgrade/uninstall test on this PC if the owner allows an install; otherwise "built, not installed").
 - **By-ear list for the owner:** crossfade feel and length, gapless on an album, loudness levelling between a quiet and a loud album, EQ presets on the owner's headphones, sleep-timer fade, speed with pitch correction.
@@ -203,7 +191,6 @@ Treat as a real design pass with its own audit, not a colour tweak.
 | Visible rows with a cover after 1 s / 3 s / 10 s (warm / empty cache) | 100 % of rows that have a picture on the server |
 | Jellyfin requests, 10,000-song mock first sync, 2 min | ≤ beta 52 numbers (67 requests); no per-song requests; covers fetched once |
 | MusicBrainz | ≤ 1 request/s sustained, only on user action or a low-priority background fill, never at launch |
-| ListenBrainz | its own gate; zero requests when no token |
 | Peak simultaneous Jellyfin requests | ≤ gate limit (visible floor 4) |
 | Tests | Android unit, .NET, Playwright all green at each beta; no test weakened to pass |
 
@@ -211,7 +198,7 @@ Treat as a real design pass with its own audit, not a colour tweak.
 - **Agents:** research agents (Phase 0) in parallel, read-only. For build phases: **one agent per independent feature in its own git worktree and branch** (`phase1/offline`, `phase1/eq`, ...), **only one agent drives the Fold at any time** (a lock file in the scratchpad; emulator work does not need it). Agents commit often and push their branch; **I read each report, diff the branch, rerun its tests myself, and only then merge** to the phase integration branch (`phase1/integration`). Agents that hit the 5-hour usage limit resume from their branch.
 - **Parity rule:** a feature is "done" only when Android, web and Windows each have it (or the platform exception is written in the notes). The shared logic (similarity, smart-playlist rules, fade planner, loudness maths, cover precedence, MusicBrainz matching) is specified once, with **shared test vectors** (JSON fixtures) that both the Kotlin and C# test suites load, so the ports cannot drift.
 - **Betas:** beta 56 = cold start + covers (in progress, see below). Then beta 57 = Phase 1a ... one beta per sub-phase, each with release notes, all tests green, signed with the same key.
-- **Order of risk:** media session window (fixes a real defect) → offline → loudness/EQ/crossfade → lyrics/ratings/stats → Auto/Cast → MusicBrainz → cover picker → engine/radio → mixes → ListenBrainz → design pass (design foundations are started early as a small token PR so later features are built on them, the sweeping restyle comes after the features exist).
+- **Order of risk:** media session window (fixes a real defect) → offline → loudness/EQ/crossfade → lyrics/ratings/stats → Auto/Cast → MusicBrainz → cover picker → engine/radio → mixes → design pass (design foundations are started early as a small token PR so later features are built on them, the sweeping restyle comes after the features exist).
 
 ## 9. Risks and things I cannot do alone
 - **Cannot hear audio** (crossfade, loudness, EQ, gapless): by-ear list for you.
@@ -223,7 +210,7 @@ Treat as a real design pass with its own audit, not a colour tweak.
 - **API facts marked [verify]** are unverified until Phase 0.
 
 ## 10. What I need from you before Phase 1 (decisions, with my defaults)
-1. ListenBrainz: **default = optional, last, off** (per §0). Say "cut it" to drop it.
+1. ~~ListenBrainz~~ cut (section 0).
 2. Do you drive with this phone (Android Auto) and own a Chromecast? **Default = build Auto (DHU-tested), build Cast (untested)**; say which to drop.
 3. Do you listen to spoken word (podcasts/audiobooks)? **Default = playback speed ships, per-item memory only.**
 4. MusicBrainz contact string for the User-Agent: **default = the GitHub project URL**, not your email.

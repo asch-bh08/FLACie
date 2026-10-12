@@ -1,0 +1,238 @@
+{
+ "label": "after",
+ "shell": "desktop",
+ "profile": "fast",
+ "items": 10000,
+ "window": 120,
+ "startedAt": "2026-10-12T02:05:55.833Z",
+ "scenarios": {
+  "first-sync": {
+   "timeToFirstSongsMs": 800,
+   "timeToAllSongsMs": 2817,
+   "timeline": [
+    {
+     "t": 1,
+     "requests": 12,
+     "inFlight": 0,
+     "songs": 500
+    },
+    {
+     "t": 11,
+     "requests": 34,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 21,
+     "requests": 37,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 31,
+     "requests": 40,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 41,
+     "requests": 43,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 51,
+     "requests": 46,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 62,
+     "requests": 49,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 72,
+     "requests": 52,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 82,
+     "requests": 55,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 92,
+     "requests": 58,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 102,
+     "requests": 61,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 112,
+     "requests": 64,
+     "inFlight": 0,
+     "songs": 10000
+    }
+   ],
+   "atAll": {
+    "total": 32,
+    "byKind": {
+     "other": 5,
+     "users/me": 1,
+     "socket": 1,
+     "items": 20,
+     "image": 5
+    },
+    "peakInFlight": 1,
+    "peakPerSecond": 14,
+    "throttled": 0,
+    "failed": 0,
+    "images": 5,
+    "imageUrls": 5,
+    "imageRepeats": 0,
+    "imageVariants": {
+     "240px-webp-q80": 5
+    },
+    "notModified": 0,
+    "streamsOpened": 0,
+    "streamsAborted": 0,
+    "streamsCompleted": 0,
+    "itemsPages": 20,
+    "itemsDeltas": 0,
+    "avgLatencyMs": 3,
+    "maxLatencyMs": 15,
+    "seconds": 4
+   },
+   "songsShown": 10000,
+   "final": {
+    "total": 67,
+    "byKind": {
+     "other": 40,
+     "users/me": 1,
+     "socket": 1,
+     "items": 20,
+     "image": 5
+    },
+    "peakInFlight": 1,
+    "peakPerSecond": 14,
+    "throttled": 0,
+    "failed": 0,
+    "images": 5,
+    "imageUrls": 5,
+    "imageRepeats": 0,
+    "imageVariants": {
+     "240px-webp-q80": 5
+    },
+    "notModified": 0,
+    "streamsOpened": 0,
+    "streamsAborted": 0,
+    "streamsCompleted": 0,
+    "itemsPages": 20,
+    "itemsDeltas": 0,
+    "avgLatencyMs": 2,
+    "maxLatencyMs": 15,
+    "seconds": 121
+   }
+  },
+  "scrolling": {
+   "steps": 330,
+   "px": 619610,
+   "scrollHeight": 620510,
+   "ms": 41255,
+   "coversOnScreen": 23,
+   "coversLoaded": 23,
+   "settleMs": 5,
+   "total": 841,
+   "byKind": {
+    "image": 829,
+    "other": 12
+   },
+   "peakInFlight": 1,
+   "peakPerSecond": 22,
+   "throttled": 0,
+   "failed": 0,
+   "images": 829,
+   "imageUrls": 829,
+   "imageRepeats": 0,
+   "imageVariants": {
+    "240px-webp-q80": 829
+   },
+   "notModified": 0,
+   "streamsOpened": 0,
+   "streamsAborted": 0,
+   "streamsCompleted": 0,
+   "itemsPages": 0,
+   "itemsDeltas": 0,
+   "avgLatencyMs": 0,
+   "maxLatencyMs": 1,
+   "seconds": 41
+  },
+  "skip-burst": {
+   "skips": 40,
+   "burstMs": 4230,
+   "lastSongReadyMs": 6068,
+   "total": 51,
+   "byKind": {
+    "stream": 4,
+    "other": 47
+   },
+   "peakInFlight": 2,
+   "peakPerSecond": 10,
+   "throttled": 0,
+   "failed": 0,
+   "images": 0,
+   "imageUrls": 0,
+   "imageRepeats": 0,
+   "imageVariants": {},
+   "notModified": 0,
+   "streamsOpened": 4,
+   "streamsAborted": 1,
+   "streamsCompleted": 2,
+   "itemsPages": 0,
+   "itemsDeltas": 0,
+   "avgLatencyMs": 63,
+   "maxLatencyMs": 1544,
+   "seconds": 10
+  },
+  "warm-start": {
+   "signedIn": true,
+   "timeToFirstSongsMs": 1898,
+   "timeToAllSongsMs": 1898,
+   "total": 25,
+   "byKind": {
+    "other": 21,
+    "socket": 1,
+    "users/me": 1,
+    "items": 2
+   },
+   "peakInFlight": 1,
+   "peakPerSecond": 8,
+   "throttled": 0,
+   "failed": 0,
+   "images": 0,
+   "imageUrls": 0,
+   "imageRepeats": 0,
+   "imageVariants": {},
+   "notModified": 0,
+   "streamsOpened": 0,
+   "streamsAborted": 0,
+   "streamsCompleted": 0,
+   "itemsPages": 2,
+   "itemsDeltas": 1,
+   "avgLatencyMs": 0,
+   "maxLatencyMs": 1,
+   "seconds": 60
+  }
+ },
+ "notes": [],
+ "finishedAt": "2026-10-12T02:09:56.436Z"
+}

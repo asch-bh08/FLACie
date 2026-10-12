@@ -1,0 +1,409 @@
+{
+ "label": "before",
+ "shell": "android",
+ "profile": "fast,slow,flaky",
+ "items": 10000,
+ "window": 120,
+ "startedAt": "2026-10-12T01:47:17.434Z",
+ "apk": "FLACie-1.0-beta51.apk",
+ "scenarios": {
+  "first-sync": {
+   "timeToFirstSongsMs": 13890,
+   "timeToAllSongsMs": 13890,
+   "timeline": [
+    {
+     "t": 10,
+     "requests": 18,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 14,
+     "requests": 29,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 18,
+     "requests": 29,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 22,
+     "requests": 30,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 26,
+     "requests": 30,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 30,
+     "requests": 31,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 34,
+     "requests": 31,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 38,
+     "requests": 32,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 42,
+     "requests": 32,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 45,
+     "requests": 33,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 49,
+     "requests": 33,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 53,
+     "requests": 34,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 57,
+     "requests": 34,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 61,
+     "requests": 37,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 65,
+     "requests": 37,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 69,
+     "requests": 38,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 73,
+     "requests": 38,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 77,
+     "requests": 39,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 80,
+     "requests": 39,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 84,
+     "requests": 40,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 88,
+     "requests": 40,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 92,
+     "requests": 41,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 96,
+     "requests": 41,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 100,
+     "requests": 42,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 104,
+     "requests": 42,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 108,
+     "requests": 43,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 111,
+     "requests": 43,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 115,
+     "requests": 46,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 119,
+     "requests": 46,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 123,
+     "requests": 46,
+     "inFlight": 0,
+     "songs": 10000
+    }
+   ],
+   "signInAttempts": 1,
+   "tFirstScreenShown": 1791769648240,
+   "signInMs": 6997,
+   "songsShown": 10000,
+   "firstSongsCount": 10000,
+   "atAll": {
+    "total": 29,
+    "byKind": {
+     "other": 13,
+     "items": 5,
+     "socket": 1,
+     "image": 10
+    },
+    "peakInFlight": 1,
+    "peakPerSecond": 11,
+    "throttled": 0,
+    "failed": 0,
+    "images": 10,
+    "imageUrls": 10,
+    "imageRepeats": 0,
+    "imageVariants": {
+     "640px-default-q90": 10
+    },
+    "notModified": 0,
+    "streamsOpened": 0,
+    "streamsAborted": 0,
+    "streamsCompleted": 0,
+    "itemsPages": 4,
+    "itemsDeltas": 0,
+    "itemsWithStreams": 0,
+    "avgLatencyMs": 3,
+    "maxLatencyMs": 17,
+    "seconds": 35
+   },
+   "server": {
+    "firstItemsPageMs": 3021,
+    "lastItemsPageMs": 9834,
+    "itemsPagesTotal": 4,
+    "requestsAfterSec": {
+     "5": 13,
+     "10": 18,
+     "30": 31,
+     "60": 35,
+     "120": 46
+    }
+   },
+   "final": {
+    "total": 46,
+    "byKind": {
+     "other": 28,
+     "items": 5,
+     "socket": 3,
+     "image": 10
+    },
+    "peakInFlight": 1,
+    "peakPerSecond": 11,
+    "throttled": 0,
+    "failed": 0,
+    "images": 10,
+    "imageUrls": 10,
+    "imageRepeats": 0,
+    "imageVariants": {
+     "640px-default-q90": 10
+    },
+    "notModified": 0,
+    "streamsOpened": 0,
+    "streamsAborted": 0,
+    "streamsCompleted": 0,
+    "itemsPages": 4,
+    "itemsDeltas": 0,
+    "itemsWithStreams": 0,
+    "avgLatencyMs": 2,
+    "maxLatencyMs": 17,
+    "seconds": 144
+   },
+   "pssMb": 71
+  },
+  "scrolling": {
+   "swipes": 149,
+   "ms": 39580,
+   "swipesPerSecond": 3.8,
+   "total": 915,
+   "byKind": {
+    "image": 898,
+    "other": 8,
+    "stream": 8,
+    "socket": 1
+   },
+   "peakInFlight": 3,
+   "peakPerSecond": 33,
+   "throttled": 0,
+   "failed": 0,
+   "images": 898,
+   "imageUrls": 898,
+   "imageRepeats": 0,
+   "imageVariants": {
+    "640px-default-q90": 898
+   },
+   "notModified": 0,
+   "streamsOpened": 6,
+   "streamsAborted": 2,
+   "streamsCompleted": 5,
+   "itemsPages": 0,
+   "itemsDeltas": 0,
+   "itemsWithStreams": 0,
+   "avgLatencyMs": 5,
+   "maxLatencyMs": 1600,
+   "seconds": 43
+  },
+  "skip-burst": {
+   "skips": 40,
+   "keysSent": 40,
+   "burstMs": 2468,
+   "keySpacingMs": 59,
+   "keysIssuedInMs": 2370,
+   "allKeysTakenInMs": 2380,
+   "lastSongReadyMs": 14749,
+   "readyBy": "target",
+   "startedPlayingMs": 697,
+   "appInBackground": true,
+   "queueStep": 41,
+   "titleBefore": "Song 1806, Artist 206, Artist 206 Album 1",
+   "titleAfter": "Song 1843, Artist 243, Artist 243 Album 4",
+   "total": 63,
+   "byKind": {
+    "stream": 14,
+    "other": 44,
+    "image": 5
+   },
+   "peakInFlight": 2,
+   "peakPerSecond": 14,
+   "throttled": 0,
+   "failed": 0,
+   "images": 5,
+   "imageUrls": 4,
+   "imageRepeats": 1,
+   "imageVariants": {
+    "640px-default-q90": 5
+   },
+   "notModified": 0,
+   "streamsOpened": 12,
+   "streamsAborted": 2,
+   "streamsCompleted": 12,
+   "itemsPages": 0,
+   "itemsDeltas": 0,
+   "itemsWithStreams": 0,
+   "avgLatencyMs": 256,
+   "maxLatencyMs": 1580,
+   "seconds": 19
+  },
+  "warm-start": {
+   "signedIn": true,
+   "timeToFirstSongsMs": 12540,
+   "timeToAllSongsMs": 12540,
+   "songsShown": 10000,
+   "firstSongsCount": 10000,
+   "total": 34,
+   "byKind": {
+    "other": 15,
+    "socket": 2,
+    "image": 12,
+    "items": 5
+   },
+   "peakInFlight": 1,
+   "peakPerSecond": 10,
+   "throttled": 0,
+   "failed": 0,
+   "images": 12,
+   "imageUrls": 12,
+   "imageRepeats": 0,
+   "imageVariants": {
+    "640px-default-q90": 12
+   },
+   "notModified": 0,
+   "streamsOpened": 0,
+   "streamsAborted": 0,
+   "streamsCompleted": 0,
+   "itemsPages": 4,
+   "itemsDeltas": 0,
+   "itemsWithStreams": 0,
+   "avgLatencyMs": 2,
+   "maxLatencyMs": 11,
+   "seconds": 61,
+   "pssMb": 124
+  },
+  "kill-restore": {
+   "playedBefore": "Song 10, Artist 010, Artist 010 Album 1",
+   "sessionAfterKill": false,
+   "sessionAfterRelaunch": {
+    "found": true,
+    "state": 0,
+    "description": "Song 1844, Artist 244, Artist 244 Album 4",
+    "position": 2137,
+    "queueTitle": "null, size=300"
+   },
+   "queueRestored": true,
+   "sameSong": false,
+   "queueDelta": 939,
+   "crashBufferLines": 0,
+   "crashBuffer": []
+  }
+ },
+ "notes": [],
+ "versionName": "1.0-beta51",
+ "gate": {
+  "first-sync": [],
+  "scrolling": [],
+  "skip-burst": [],
+  "warm-start": [],
+  "kill-restore": []
+ },
+ "crashBufferAtEnd": [],
+ "anrDialogsDismissed": 0,
+ "finishedAt": "2026-10-12T01:53:30.006Z"
+}

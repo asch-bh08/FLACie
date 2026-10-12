@@ -1,0 +1,292 @@
+{
+ "label": "before",
+ "shell": "android",
+ "profile": "flaky",
+ "items": 10000,
+ "window": 120,
+ "startedAt": "2026-10-12T01:11:33.067Z",
+ "apk": "FLACie-1.0-beta51.apk",
+ "scenarios": {
+  "first-sync": {
+   "timeToFirstSongsMs": null,
+   "timeToAllSongsMs": null,
+   "timeline": [
+    {
+     "t": 9,
+     "requests": 16,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 13,
+     "requests": 17,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 17,
+     "requests": 17,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 21,
+     "requests": 18,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 25,
+     "requests": 18,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 29,
+     "requests": 19,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 33,
+     "requests": 19,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 37,
+     "requests": 20,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 41,
+     "requests": 20,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 45,
+     "requests": 21,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 48,
+     "requests": 21,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 52,
+     "requests": 22,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 56,
+     "requests": 22,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 60,
+     "requests": 25,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 64,
+     "requests": 25,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 68,
+     "requests": 26,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 72,
+     "requests": 26,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 76,
+     "requests": 27,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 80,
+     "requests": 27,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 84,
+     "requests": 28,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 88,
+     "requests": 28,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 92,
+     "requests": 29,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 96,
+     "requests": 29,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 100,
+     "requests": 30,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 104,
+     "requests": 30,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 108,
+     "requests": 31,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 112,
+     "requests": 31,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 115,
+     "requests": 34,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 119,
+     "requests": 34,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 123,
+     "requests": 35,
+     "inFlight": 0,
+     "songs": -1
+    }
+   ],
+   "signInAttempts": 1,
+   "tFirstScreenShown": 1791767507834,
+   "signInMs": 6367,
+   "songsShown": 0,
+   "server": {
+    "firstItemsPageMs": 3412,
+    "lastItemsPageMs": 3412,
+    "itemsPagesTotal": 1,
+    "requestsAfterSec": {
+     "5": 10,
+     "10": 16,
+     "30": 19,
+     "60": 22,
+     "120": 34
+    }
+   },
+   "final": {
+    "total": 35,
+    "byKind": {
+     "other": 29,
+     "items": 3,
+     "socket": 3
+    },
+    "peakInFlight": 2,
+    "peakPerSecond": 8,
+    "throttled": 0,
+    "failed": 2,
+    "images": 0,
+    "imageUrls": 0,
+    "imageRepeats": 0,
+    "imageVariants": {},
+    "notModified": 0,
+    "streamsOpened": 0,
+    "streamsAborted": 0,
+    "streamsCompleted": 0,
+    "itemsPages": 1,
+    "itemsDeltas": 0,
+    "itemsWithStreams": 0,
+    "avgLatencyMs": 48,
+    "maxLatencyMs": 62,
+    "seconds": 149
+   },
+   "pssMb": 51
+  },
+  "scrolling": {
+   "error": "no Songs list to scroll"
+  },
+  "skip-burst": {
+   "error": "playback never started: {\"found\":false,\"state\":null,\"description\":null,\"position\":null,\"queueTitle\":null}"
+  },
+  "warm-start": {
+   "signedIn": true,
+   "timeToFirstSongsMs": null,
+   "timeToAllSongsMs": null,
+   "songsShown": 0,
+   "total": 19,
+   "byKind": {
+    "other": 13,
+    "items": 4,
+    "socket": 2
+   },
+   "peakInFlight": 3,
+   "peakPerSecond": 4,
+   "throttled": 0,
+   "failed": 4,
+   "images": 0,
+   "imageUrls": 0,
+   "imageRepeats": 0,
+   "imageVariants": {},
+   "notModified": 0,
+   "streamsOpened": 0,
+   "streamsAborted": 0,
+   "streamsCompleted": 0,
+   "itemsPages": 0,
+   "itemsDeltas": 0,
+   "itemsWithStreams": 0,
+   "avgLatencyMs": 50,
+   "maxLatencyMs": 64,
+   "seconds": 61,
+   "pssMb": 37
+  },
+  "kill-restore": {
+   "error": "playback never started: {\"found\":false,\"state\":null,\"description\":null,\"position\":null,\"queueTitle\":null}"
+  }
+ },
+ "notes": [],
+ "versionName": "1.0-beta51",
+ "gate": {
+  "first-sync": [],
+  "scrolling": [],
+  "skip-burst": [],
+  "warm-start": [],
+  "kill-restore": []
+ },
+ "crashBufferAtEnd": [],
+ "anrDialogsDismissed": 0,
+ "finishedAt": "2026-10-12T01:26:53.802Z"
+}

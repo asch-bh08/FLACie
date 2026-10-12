@@ -3,7 +3,8 @@
 Public-safe. Private details (server names, addresses, how the owner's server is deployed to) are in `docs/private/HANDOFF-2026-10-12.md` (git-ignored; also in the handoff folder on the Pi share). Read `docs/test-run/OVERNIGHT-SUMMARY-b52-b55.md` first: it says what happened since beta 51 and what is NOT done.
 
 ## State
-- Latest release: **v1.0.0-beta55** (Android 1.0-beta55 / versionCode 70, Windows MSI 0.55.0, FLACie Web 1.0-beta55). `main` = `release/beta52` (the branch name is historical; it carries betas 52 to 55). FLACie Web beta 55 is deployed on the owner's server.
+- **Update 2026-10-12 (late): v1.0.0-beta56 is released** (Android 71, MSI 0.56.0, Web 1.0-beta56; cold start from a saved Home, covers that all arrive, wrong album covers vetted; see `docs/test-run/K-coldstart-covers.md`). The next work is the programme in `docs/spec/close-the-gaps.md` (spec only, tracked as GitHub issues with the label `programme`, milestones Phase 0-5). Tests at beta 56: Android 302 (2 skipped), .NET 257, Playwright 133.
+- Previous: **v1.0.0-beta55** (Android 70, MSI 0.55.0, FLACie Web 1.0-beta55).
 - Releases and notes: `gh release list`; `docs/release-notes-beta5x.md`; `CHANGELOG.md`.
 - Tests at the end: .NET 250, Playwright 133, Android unit 280 (2 skipped). All pass.
 - Branches `beta54/server` and `beta54/android` were merged; `beta52/*`, `fix/*` branches are history.

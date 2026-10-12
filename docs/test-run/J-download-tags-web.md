@@ -70,3 +70,26 @@ Request JSON: `{ "artist", "title", "album"?, "durationMs"?, "path"?, "source"?,
   and the player card, then "Recently downloaded · just now".
 * Changed existing tests: `1c-api.spec.ts` lists `POST /api/downloaded` among the calls that are 401 without a token. No strings asserted by existing specs or
   tests changed (none asserted the old labels).
+
+## Also fixed on the way
+
+* Now Playing showed the previous song's file facts (a Hi-Res badge, sampling, kbps) for a moment after a skip, before the new song's were read. The full-screen
+  player now shows file facts only for the song they were read for. (The beta 52 burst spec caught it once the tags made renders a little slower.)
+* The Playwright dashboard step has to wait for the page's live connection before typing in bound fields (an event sent before it opens is lost): the spec waits
+  for the `_blazor` socket.
+
+## Results (this branch)
+
+* `dotnet test`: 231 passed (187 before + 44 new).
+* Playwright, whole suite on a fresh server: 130 passed (the 119 of beta 53 + 10 new in `1i-download-tags.spec.ts` + 1 more already in the count of the last run).
+  One earlier full run had the 320 px bottom-bar spec fail once (width 0) and passed when run again; not reproduced.
+
+## Not tested / notes
+
+* Search "More music" (an online catalog) was not driven in a spec: it needs the public catalog on the test machine. The rule behind it ("In your library" instead of
+  Download for a song that is already playable) is a render-time lookup; the library result list is covered.
+* Autoplay-fetched songs in the two Autoplay lists use the same component and lookup as Up next (covered); the lists themselves need the online catalog and were
+  not forced in a spec.
+* Phone widths: the tag is one nowrap line with an ellipsis; it is hidden in the short landscape player bar. Not checked on a real phone or on the RG Rotate.
+* The Windows app was not built here; it embeds this server unchanged.
+

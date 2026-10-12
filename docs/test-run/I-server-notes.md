@@ -76,7 +76,7 @@ requirements 1-7 and 9 of the owner's list and built, run and tested here (mock 
   Unknown stays the plain extension / "FLAC" until real facts exist. `1e-hires.spec.ts` passes unchanged.
 
 ## Tests
-- `dotnet test` (ipodsync/tests/FLACie.Tests): **167 passed, 0 failed** (128 before: +39 new in `GateTests`, `SyncTests`, `CacheTests`):
+- `dotnet test` (ipodsync/tests/FLACie.Tests): **168 passed, 0 failed** (128 before: +40 new in `GateTests`, `SyncTests`, `CacheTests`):
   gate: concurrency limit, priority order, 429 + Retry-After, max 2 retries, jitter and cap, non-server failures not retried, queued cancel, in-flight cancel
   (neutral for the limit), breaker open / fast fail / half-open / probe / close, queued requests failed at once, coalescing and its cancellation (one asker
   leaves / all leave), background held while streaming and while slow, prefetch rules, AIMD grow/shrink/floor, big-answer yardstick, ambient priority.
@@ -85,7 +85,8 @@ requirements 1-7 and 9 of the owner's list and built, run and tested here (mock 
   removals, reconcile, failing Jellyfin keeps the cache, cursor tick, album cover identity, remote-session art key.
   cache: no deletion with room, LRU only when low and only as much as needed, fresh covers protected, report and Clear, lyrics eviction, single-flight
   cancellation, prefetch Range, format index self-flush, badge/Info agreement for PCM.
-- Playwright (`ipodsync/tests/web-smoke`, the whole suite, one worker): see the final report for the last run. New `1g-burst.spec.ts` (6 tests): 40 skips with a
+- Playwright (`ipodsync/tests/web-smoke`, the whole suite, one worker): **118 passed, 0 failed** (7.2 min; the last full run was made before the final one-line
+  `ToTrack` robustness change, which `dotnet test` covers). New `1g-burst.spec.ts` (6 tests): 40 skips with a
   bounded stream count and a Hi-Res badge that is never wrong and stable once settled; abandoned streams are cut on the Jellyfin side (mock `streamAborted`);
   the early read is a 1 MiB Range; Settings cache line + Clear cache; a cover is fetched once at 240 px WebP q80 (11 albums in the mock: at most 11 requests,
   none repeated) and a second browser costs Jellyfin 0 image requests; only Now Playing asks for the full picture.
@@ -95,6 +96,12 @@ requirements 1-7 and 9 of the owner's list and built, run and tested here (mock 
   always "low").
 - Mock (`tests/web-smoke/mock-jellyfin.mjs`): items carry `AlbumPrimaryImageTag` and `DateLastSaved`, `MinDateLastSaved` (inclusive), `/__images`,
   `/__stream?delay=ms`, `/__touch?id=&name=`, counters `streamAborted`, `streamCapped`, `imageRepeats`, `imageFull`, `imageRow`.
+
+## Measured here (FLACie Web published build against `tools/loadtest/mock.mjs`, 10,000 songs, 300 ms latency, one run each, not a benchmark)
+- Cold first sync: 20 library pages (each 500 songs with their streams), 27 requests in all (2 `/Users/Me`, 4 other, 1 socket), peak 2 in flight, about 12 s
+  until all 10,000 songs showed; 0 per-song info calls.
+- Warm restart (same data folder): 10 requests (profile, `/Users/Me` x2, one delta, one count, the socket, a few small ones), 0 full listing pages; songs on
+  screen from the saved listing before the delta answered. `/api/admin/load` showed gate limit 6, peak 2, no retries, breaker closed.
 
 ## Open issues / not done
 - The Windows app's other pages that talk to Jellyfin through `IpodSync.Core`/`IpodSync.Shared` (the iPod-sync tabs) use their own, older client and are NOT

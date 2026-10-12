@@ -242,7 +242,7 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
     {
         var id = o["Id"]!.GetValue<string>();
         string Str(string k) => o[k]?.GetValue<string>() ?? "";
-        var artist = o["Artists"]?.AsArray().FirstOrDefault()?.GetValue<string>() ?? Str("AlbumArtist");
+        var artist = (o["Artists"] as JsonArray)?.FirstOrDefault()?.GetValue<string>() ?? Str("AlbumArtist");
         var albumId = Str("AlbumId");
         // a song on a compilation gets its own album's cover from the catalog, whatever the file's embedded picture is.
         // Otherwise the ALBUM's picture (AlbumId + its image tag) when the item says it has one: every song of an album then shares one key, so one
@@ -258,7 +258,7 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         return new Track($"{server}/Audio/{id}/stream?static=true", Str("Name"), artist, Str("Album"), Str("AlbumArtist").Length > 0 ? Str("AlbumArtist") : artist,
             o["IndexNumber"]?.GetValue<int>() ?? 0, o["ParentIndexNumber"]?.GetValue<int>() ?? 0, (o["RunTimeTicks"]?.GetValue<long>() ?? 0) / 10_000,
             o["ProductionYear"]?.GetValue<int>() ?? 0, art, created == default ? 0 : new DateTimeOffset(created).ToUnixTimeMilliseconds(),
-            TrackSource.Jellyfin, Str("Path"), id, o["Genres"]?.AsArray().FirstOrDefault()?.GetValue<string>() ?? "");
+            TrackSource.Jellyfin, Str("Path"), id, (o["Genres"] as JsonArray)?.FirstOrDefault()?.GetValue<string>() ?? "");   // (a server that sends one genre as a plain string must not fail the whole listing)
     }
 
     /// <summary>The cover key of a Jellyfin item record (what another device is playing, a session's NowPlayingItem): the album's picture with its image tag (the same key

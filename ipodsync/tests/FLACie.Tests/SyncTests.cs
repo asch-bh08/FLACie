@@ -284,6 +284,15 @@ public class SyncTests
     }
 
     [Fact]
+    public void A_listing_item_with_odd_shapes_is_still_a_song()
+    {
+        var fake = new FakeJellyfin(0);
+        var s = fake.Song(3); s["Genres"] = "Rock"; s["Artists"] = "Solo";   // plain strings where Jellyfin sends arrays
+        var t = JellyfinClient.ToTrack("http://jf", s);
+        Assert.Equal("Song 3", t.Title);
+    }
+
+    [Fact]
     public void The_cover_of_what_another_device_plays_has_the_same_key_the_library_uses()
     {
         var fake = new FakeJellyfin(0);

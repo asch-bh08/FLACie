@@ -1335,6 +1335,9 @@ html.buffering .play .ic { opacity: .55; }
 .bar-text .dl-tag { margin-top: 1px; }
 .np-titles .dl-tag { margin-top: 0; font-size: 13px; }
 .q-row .dl-tag { font-size: 11px; margin-top: 2px; }
+/* the queue gives every span inside it a column layout: the tag keeps its dot beside its text, left aligned */
+.upnext .dl-tag { flex-direction: row; align-items: center; text-align: left; }
+.upnext .dl-tag > span { display: block; }
 /* the home lists give every span inside them a column layout: the tag keeps its dot beside its text */
 .pick .dl-tag { flex-direction: row; font-size: 11px; }
 .pick .dl-tag > span { display: block; }

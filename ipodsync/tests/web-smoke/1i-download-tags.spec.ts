@@ -237,6 +237,8 @@ test.describe.serial('download tags', () => {
     await expect(page.locator('.np-titles .pills .badge.cloud')).toHaveText('Streaming from new download');
     await expect(page.locator('.np-titles .dl-tag')).toHaveText(RECENT);
     await expect(page.locator('.upnext li.now .dl-tag')).toHaveText(RECENT);
+    // one quiet line (a dot beside the words), not stacked: the queue lays its spans out in columns
+    expect((await page.locator('.upnext li.now .dl-tag').boundingBox())!.height).toBeLessThan(22);
     // the Info panel names the source the same way
     await page.getByRole('tab', { name: 'Info' }).click();
     await expect(page.locator('.kv dt', { hasText: 'Source' }).locator('xpath=following-sibling::dd[1]')).toContainText('Streaming from new download', { timeout: 20_000 });

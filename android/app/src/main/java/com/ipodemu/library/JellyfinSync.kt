@@ -217,3 +217,25 @@ class JellyfinSync(
         if (gone.isNotEmpty() || fetched.isNotEmpty()) { sink.publish(index.tracks(), true); sink.persist(); sink.cursorChanged(index.cursor) }
     }
 }
+
+/** What a message from Jellyfin's live socket means for the song list. */
+internal class ServerChange(
+    /** Ids the server says it removed: dropped from the phone at once. */
+    val removed: List<String>,
+    /** Start one (debounced) delta pass. */
+    val sync: Boolean,
+    /** The next pass also compares the server's song count. */
+    val wantCount: Boolean,
+    /** Only if the phone has not synced for a while ("SocketOpen": the socket was down, changes may have been missed). */
+    val onlyIfStale: Boolean = false,
+)
+
+/** Pure: the reaction to one socket message, or null when it does not concern the list (play counts, favourites, sessions...). */
+internal fun serverChange(type: String, data: org.json.JSONObject?): ServerChange? = when (type) {
+    "LibraryChanged" -> ServerChange(
+        removed = data?.optJSONArray("ItemsRemoved")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } } ?: emptyList(),
+        sync = true, wantCount = true,
+    )
+    "SocketOpen" -> ServerChange(emptyList(), sync = true, wantCount = false, onlyIfStale = true)
+    else -> null   // UserDataChanged and the rest: the song list does not depend on them
+}

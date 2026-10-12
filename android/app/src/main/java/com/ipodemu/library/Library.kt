@@ -155,15 +155,10 @@ class Library(ctx: Context, val art: ArtCache) {
      * touch the song list, so they start nothing. "SocketOpen" is JellyfinConnect's own: after a gap the phone catches up with one delta.
      */
     fun onServerMessage(type: String, data: JSONObject?) {
-        when (type) {
-            "LibraryChanged" -> {
-                val gone = data?.optJSONArray("ItemsRemoved")?.let { a -> (0 until a.length()).map { a.optString(it) } } ?: emptyList()
-                if (gone.isNotEmpty()) jfSync.removed(gone)
-                jfSync.wantCount()
-                syncJellyfinSoon()
-            }
-            "SocketOpen" -> if (System.currentTimeMillis() - lastJfSyncAt > 2 * 60_000L) syncJellyfinSoon()
-        }
+        val c = serverChange(type, data) ?: return
+        if (c.removed.isNotEmpty()) jfSync.removed(c.removed)
+        if (c.wantCount) jfSync.wantCount()
+        if (c.sync && (!c.onlyIfStale || System.currentTimeMillis() - lastJfSyncAt > 2 * 60_000L)) syncJellyfinSoon()
     }
 
     @Volatile private var lastJfSyncAt = 0L

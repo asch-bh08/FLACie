@@ -90,3 +90,70 @@ So the owner's "blue" is the accent-coloured pill and "Downloading" tag on a pho
 3. Show the badge (or at least the tag) in phone-width song rows, or accept that the tag is the only marker there.
 4. Autoplay: put a "Downloading..." placeholder row for a suggestion that is being fetched, or list them in the queue as they are requested.
 5. Home cards: let the tag wrap or show only the age.
+
+---
+
+# Round 2 (APK built from `release/beta52` HEAD `a301480`, versionCode 69)
+
+Same method as round 1: fresh emulator (AVD `flacie_phone`, 1080x2400 at 420 dpi), the release APK installed, mock Jellyfin, the same stand-in slskd / file mover / FLACie Web, the same case ("P" by JME, then autoplay songs from the real online catalog). The stand-in got one extra switch, "make these searches find nothing", to force a failed fetch. No app code was changed. Screenshots: `C:\wt\verify\r2shots\` (not committed).
+
+## Round 2 result
+
+| # | What | Result |
+|---|---|---|
+| 1 | No doubled "Downloading" | PASS |
+| 2 | Autoplay rows for songs being fetched (Up next pane and Up Next screen), then normal rows, no duplicate; failure then disappears | PASS, with two observations (below) |
+| 3 | Colours; none follows the accent, with Pink AND Blue accent | PASS |
+| 4 | Narrow places: Home cards, top result, Up next pane on the 411 dp phone | PASS |
+| 5 | Cloud song older than 60 min shows "New download" on a phone row | PASS |
+| 6 | Round 1 PASS items | PASS (report POST, 60 minute expiry, crash buffer, 720x720 at 480 dp) |
+
+### 1. No doubled word - PASS
+- Search row of the catalog song while it runs: `Downloading · Waiting for a peer...` (`03-dl-waiting.png`), then `Downloading 40%...` with `40%` at the right (`04-dl-40pct.png`). Round 1 said "Downloading · Downloading 40%...".
+- Autoplay rows: `Downloading 40%...` (`08-upnext-pending-40pct.png`), `Downloading 60%...` (`30-rg-queue-screen-60pct.png`).
+
+### 2. Autoplay rows - PASS
+Up next pane, phone (`07-upnext-pending-a.png`, `-b`, `-c`, `08-upnext-pending-40pct.png`):
+- With the playing song "P", the divider `Autoplay · up next after this` sits above the first queued Autoplay song (library songs "Song 4", "Song 191", ...).
+- Below the library songs, the fetched-ahead songs are display-only rows (no "..." button): `96 F**kries / JME · Integrity> / Downloading`, then London, Heatwave (feat. Ms. D), Gameshow, Lock Doh. With the transfers held at 40 %: `Downloading 40%...` on each.
+- After the transfers finished (`09-switch-1.png`): the rows turn into queue rows with the "..." button and `Downloaded · just now`, then `Downloaded · 13s ago` (`09-switch-end.png`). The same five songs, no duplicate row at the switch, none missing.
+- Up Next screen (720x720 at 480 dp, where "Up next" opens the screen; `29-rg-queue-screen-a.png`, `-b`, `30-rg-queue-screen-end.png`, `30-rg-queue-screen-60pct.png`, `31-rg-switch-1.png`, `33-rg-final-bottom.png`): `Autoplay · up next after this` divider above Song 6; below the library songs the fetched-ahead rows `Hide & Seek / Stormzy · Hide & Seek / Downloading 60%...`, `24 Hours`, `Big For Your Boots`, `Wiley Flow`; on landing `Downloaded · just now` then `Downloaded · 1m ago`; final list has each song once (Hide & Seek, Wiley Flow, 24 Hours, Vossi Bop and Big For Your Boots).
+- Failure: with the stand-in finding nothing for two of the suggestions, they showed `Couldn't download` (Boasty, Fester Skank; `10-fail-c.png`) in reddish text, next to rows that were still `Downloading`. They stay while within the hour and were gone with the clock at +61 minutes (`20-upnext-clock-plus61.png`: Boasty and Fester Skank no longer listed).
+
+Observations (not failures of the listed expectations):
+- On the 411 dp phone the pane shows only `Downloading` for a pending row while it waits ("Waiting for a peer...", "Searching Soulseek..." are not shown); the stage text appears only once it starts with "Downloading" (`Downloading 40%...`). Wider places show the stage (`Downloading · Waiting for a peer...` in the search row).
+- The divider needs the app to have added the song in the same run. After the app was restarted (force-stop, start) the restored queue shows the downloaded songs with their tag but no divider (`23-rg-queue-a.png`, `23-rg-queue-c.png`).
+
+### 3. Colours - PASS (pixel values read from the screenshots)
+Checked with Settings > Accent colour Default (pink #FF4D73) and Blue (#4D9BFF).
+
+| Element | Pink accent | Blue accent | Web |
+|---|---|---|---|
+| "Recently downloaded · 3 min ago" / "Downloaded · 4m ago" | #4EE0A1 green | #4EE0A1 | green |
+| "Downloading ..." (pending row, search row) | #A9A6B3 grey, secondary text | #A9A6B3 | dim |
+| "New download" tag on a song row (older than an hour) | grey, secondary | grey | - |
+| "Couldn't download" | #FF9C9C reddish | #FF9C9C | danger red |
+| Pill "Streaming from new download" | grey text #A9A6B3 on a grey tint (`13-np-pink.png`) | same (`16-np-blue.png`) | quiet grey pill |
+| "New download" badge (Home cards, top result) | #6FD6A3 green on a green tint (`14-home-pink.png`) | #6FD6A3 (`15-home-blue.png`) | `--ok` #6fd6a3 on #14261c |
+
+The accent itself is visibly blue in the same screens ("Up next" chip #4D9BFF, play ring, selected tab) and none of the tags moved with it. Round 1's lilac badge and accent-coloured pill are gone.
+
+### 4. Narrow places - PASS
+- Home "Listen again" cards: `Downloaded · 4m ago`, `Downloaded · 5m ago` in full, and the green `New download` badge under it (`14-home-pink.png`).
+- Top result card: `Downloaded · 25s ago` and the `New download` badge (`06-playing.png`); the Songs row under it: `Recently downloaded · 25s ago`.
+- Up next pane on the 411 dp phone: `Downloaded · 39s ago` (playing row, `07-upnext-pending-a.png`), `Downloaded · 13s ago` (`09-switch-end.png`); no cut age (round 1 had "4 min a...").
+- Quick picks and mini player keep the full wording `Recently downloaded · 4 min ago`; the mini player and the 480 dp screen fit on one line.
+
+### 5. Cloud song older than 60 minutes - PASS
+Clock set 61 minutes ahead. Explore > Songs (`19-explore-clock-plus61.png`) shows each downloaded song's row with `New download` in the tag line (grey), same row height as a tagged row; the mini player says `New download`; the green "Recently downloaded" tags are gone (compare `18-explore-before-clock.png`). Up next at +61 min (`20-upnext-clock-plus61.png`) shows the mini player's `Streaming from new download · WAV ...` with no age tag.
+
+### 6. Previous PASS items
+- Report to FLACie Web: 12 downloads in this run, 12 POSTs to `/web/api/downloaded` in the stand-in log, 12 `download report to FLACie Web: 1 of 1 accepted` lines; the six POSTs read since the last reset were six different songs, body keys `album, artist, durationMs, finishedAtMs, path, source, title` only. The first one, "P" by JME, arrived within a second of its finish.
+- 60 minute expiry: PASS (as above, `19`/`20`).
+- `adb logcat -b crash -d`: 0 bytes. No ANR of com.ipodemu.
+- 720x720 at 480 dp: no overflow in the mini player, Now Playing (`22-rg-np.png`: title two lines, `Recently downloaded · 6 min ago` and the grey pill below), Home, search and the Up Next screen (`29`-`33`).
+
+## Round 2 not tested
+- Landscape phone, tablet and Fold; iPod canvas themes.
+- Real Soulseek / Lidarr / open sources (stand-in served Soulseek only).
+- The failure tag was produced by an empty search (stand-in), and the clock jump at +61 min also made three still-held downloads give up at once, so their `Couldn't download` at +61 min (`20-upnext-clock-plus61.png`) is an artefact of the clock change, not evidence of the 60 minute rule for failures; the rule is shown by Boasty and Fester Skank disappearing.

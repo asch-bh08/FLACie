@@ -28,6 +28,8 @@ class LiveAudio : TeeAudioProcessor.AudioBufferSink {
     @Volatile var sampleRate = 44100; private set
     @Volatile var channels = 2; private set
     private var encoding = C.ENCODING_PCM_16BIT
+    /** Only while a live graph is on screen: otherwise every decoded buffer is left alone (the tap used to convert every sample of every song, on the audio thread, for nobody). */
+    @Volatile var watching = false
 
     override fun flush(sampleRateHz: Int, channelCount: Int, encoding: Int) {
         this.sampleRate = sampleRateHz; channels = channelCount; this.encoding = encoding
@@ -35,6 +37,7 @@ class LiveAudio : TeeAudioProcessor.AudioBufferSink {
     }
 
     override fun handleBuffer(buffer: ByteBuffer) {
+        if (!watching) return
         val b = buffer.asReadOnlyBuffer().order(ByteOrder.LITTLE_ENDIAN)
         val ch = max(1, channels)
         val bytes = when (encoding) { C.ENCODING_PCM_16BIT -> 2; C.ENCODING_PCM_24BIT -> 3; C.ENCODING_PCM_32BIT, C.ENCODING_PCM_FLOAT -> 4; C.ENCODING_PCM_8BIT -> 1; else -> return }
@@ -94,10 +97,19 @@ class LiveAnalysis(private val live: LiveAudio, private val gain: () -> Float = 
     private val cosT = FloatArray(fftSize / 2) { cos(2 * PI * it / fftSize).toFloat() }
     private val sinT = FloatArray(fftSize / 2) { sin(2 * PI * it / fftSize).toFloat() }
 
+    /** Switches the tap on while a graph is shown. */
+    fun watch(on: Boolean) { live.watching = on }
+
+    private var gainAt = 0L; private var gainNow = 1f
+
+    /** Runs off the main thread (about 40 times a second); the screen only reads the finished numbers. */
     fun update() {
         active = live.latest(left, right, fftSize)
         // the graphs show what comes out of the speaker: the player's volume and the phone's volume are applied to the tapped sound
-        val g = gain().coerceIn(0f, 1f)
+        // (the phone's volume is a call to the system: asked four times a second, not on every pass)
+        val nowMs = android.os.SystemClock.elapsedRealtime()
+        if (nowMs - gainAt > 250) { gainNow = gain(); gainAt = nowMs }
+        val g = gainNow.coerceIn(0f, 1f)
         if (g < 0.999f) for (i in 0 until fftSize) { left[i] *= g; right[i] *= g }
         if (!active) { for (i in 0 until bins) { smooth[i] *= 0.7f; freq[i] = toByte(smooth[i]) }; return }
         for (i in 0 until fftSize) { re[i] = (left[i] + right[i]) * 0.5f * window[i]; im[i] = 0f }

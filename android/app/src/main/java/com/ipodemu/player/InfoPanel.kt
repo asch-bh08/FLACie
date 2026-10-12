@@ -322,8 +322,17 @@ private fun LiveGraph(mode: String, analysis: LiveAnalysis, playing: Boolean, he
     val sc = LocalScheme.current
     val state = remember(mode) { GraphState() }
     var frameNs by remember { mutableLongStateOf(0L) }
+    // the tap on the sound is only on while a graph is shown
+    androidx.compose.runtime.DisposableEffect(analysis) { analysis.watch(true); onDispose { analysis.watch(false) } }
+    // the analysis (a 2048-point transform and 1,024 logarithms) runs on a background thread about 40 times a second: on the main thread, once per frame (120 a second on the Fold),
+    // it took frames from the screen, and waiting for the audio thread's lock after each new song made it stutter
+    LaunchedEffect(analysis) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            while (true) { analysis.update(); kotlinx.coroutines.delay(24) }
+        }
+    }
     LaunchedEffect(mode) {
-        while (true) androidx.compose.runtime.withFrameNanos { ns -> analysis.update(); frameNs = ns }
+        while (true) androidx.compose.runtime.withFrameNanos { ns -> frameNs = ns }
     }
     val paint = remember { Paint(Paint.ANTI_ALIAS_FLAG) }
 

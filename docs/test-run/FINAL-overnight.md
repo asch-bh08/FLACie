@@ -1,3 +1,5 @@
+> **Update 2026-10-12:** this report covers the night (beta 52). Betas 53, 54 and 55 followed the same day: see `OVERNIGHT-SUMMARY-b52-b55.md` (what happened, what is not done) and `../NEXT-SESSION-START-HERE.md`.
+
 # Final report of the overnight run (2026-10-11 evening to 2026-10-12), beta 52
 
 Branch `release/beta52` (merged into `main` and released as `v1.0.0-beta52`, see "Release" below). Log of every step: `docs/test-run/LOG-overnight.md`. Numbers: `docs/test-run/I-load.md`. Release notes (Tested / Not tested, owner checklist): `docs/release-notes-beta52.md`.

@@ -540,13 +540,19 @@ fun EqualizerBars(modifier: Modifier = Modifier, playing: Boolean, color: Color)
 
 /** iPod-style progress track with a knob; drag or tap to seek, left/right keys nudge. */
 @Composable
-fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, onNudge: (Float) -> Unit, modifier: Modifier = Modifier) {
+fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, onNudge: (Float) -> Unit, modifier: Modifier = Modifier, onScrub: (Float?) -> Unit = {}) {
     val sc = LocalScheme.current
     val style = LocalStyle.current
     var drag by remember { mutableStateOf<Float?>(null) }
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
-    val shown = (drag ?: fraction).coerceIn(0f, 1f)
+    // after the finger lifts the knob stays where it was let go until playback reports that position (it used to jump back to the old place for up to a quarter of a second, then forward)
+    var pending by remember { mutableStateOf<Float?>(null) }
+    val shown = (drag ?: pending ?: fraction).coerceIn(0f, 1f)
+    androidx.compose.runtime.LaunchedEffect(pending, fraction) { val p = pending; if (p != null && kotlin.math.abs(fraction - p) < 0.012f) pending = null }
+    androidx.compose.runtime.LaunchedEffect(pending) { if (pending != null) { kotlinx.coroutines.delay(1500); pending = null } }
+    val scrub by androidx.compose.runtime.rememberUpdatedState(onScrub)
+    androidx.compose.runtime.LaunchedEffect(drag, pending) { scrub(drag ?: pending) }
     // pointerInput(Unit) outlives recompositions: call the latest onSeek, not the one captured before the track had a duration.
     val seek by androidx.compose.runtime.rememberUpdatedState(onSeek)
     Box(
@@ -571,7 +577,7 @@ fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, onNudge: (Float) -> Unit, 
                         c.consume()
                         if (!c.pressed) { lifted = true; break }
                     }
-                    if (lifted) drag?.let { seek(it) }
+                    if (lifted) drag?.let { pending = it; seek(it) }
                     drag = null
                 }
             },

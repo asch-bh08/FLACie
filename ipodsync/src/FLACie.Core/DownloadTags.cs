@@ -8,11 +8,11 @@ public readonly record struct DownloadTagStatus(DownloadTagState State, string M
     public static readonly DownloadTagStatus None = new(DownloadTagState.None);
 
     /// <summary>The whole line as shown ("Recently downloaded · 1s ago", "Downloading · Searching Soulseek...", "Couldn't download"), or null when there is nothing to say
-    /// (no state, or a recent download that has just aged out of the window).</summary>
-    public string? Text(long nowMs) => State switch
+    /// (no state, or a recent download that has just aged out of the window). <paramref name="compact"/> is the short form for narrow places: "Downloaded · 4m ago".</summary>
+    public string? Text(long nowMs, bool compact = false) => State switch
     {
-        DownloadTagState.Downloading => Message.Length > 0 ? DownloadTags.DownloadingWord + " · " + Message : DownloadTags.DownloadingWord,
-        DownloadTagState.Recent => DownloadTags.AgeLabel(nowMs, AtMs) is { } age ? DownloadTags.RecentWord + " · " + age : null,
+        DownloadTagState.Downloading => DownloadTags.DownloadingText(Message),
+        DownloadTagState.Recent => DownloadTags.AgeLabel(nowMs, AtMs, compact) is { } age ? (compact ? DownloadTags.CompactWord : DownloadTags.RecentWord) + " · " + age : null,
         DownloadTagState.Failed => DownloadTags.FailedText,
         _ => null,
     };
@@ -31,20 +31,33 @@ public static class DownloadTags
     public const long FutureSlackMs = 60_000;
 
     public const string RecentWord = "Recently downloaded";
+    /// <summary>The short form of <see cref="RecentWord"/> for narrow places (cards, the player bar on a phone).</summary>
+    public const string CompactWord = "Downloaded";
     public const string DownloadingWord = "Downloading";
     public const string FailedText = "Couldn't download";
 
     /// <summary>
-    /// How long ago a download finished: "just now" (under 5 s), "Ns ago" (under a minute), "N min ago" (under an hour). Null when it finished more than
-    /// <see cref="RecentWindowMs"/> ago, or lies in the future by more than a minute (not believable): then the song carries no tag.
+    /// How long ago a download finished: "just now" (under 5 s), "Ns ago" (under a minute), "N min ago" (under an hour; "Nm ago" when <paramref name="compact"/>).
+    /// Null when it finished a window (60 minutes) ago or longer, or lies in the future by more than a minute (not believable): then the song carries no tag.
     /// </summary>
-    public static string? AgeLabel(long nowMs, long finishedMs)
+    public static string? AgeLabel(long nowMs, long finishedMs, bool compact = false)
     {
         var age = nowMs - finishedMs;
-        if (age > RecentWindowMs || age < -FutureSlackMs) return null;
+        if (age >= RecentWindowMs || age < -FutureSlackMs) return null;
         if (age < 5_000) return "just now";
         if (age < 60_000) return (age / 1000) + "s ago";
-        return (age / 60_000) + " min ago";
+        return compact ? (age / 60_000) + "m ago" : (age / 60_000) + " min ago";
+    }
+
+    /// <summary>
+    /// The text of a running download: the stage message after "Downloading · ", except that a message which already starts with "Downloading" ("Downloading 55%...")
+    /// is shown as it is, so the word is never doubled. No message: just "Downloading".
+    /// </summary>
+    public static string DownloadingText(string? message)
+    {
+        var msg = (message ?? "").Trim();
+        if (msg.Length == 0) return DownloadingWord;
+        return msg.StartsWith(DownloadingWord, StringComparison.Ordinal) ? msg : DownloadingWord + " · " + msg;
     }
 
     /// <summary>True while a download that finished at <paramref name="finishedMs"/> counts as recent.</summary>

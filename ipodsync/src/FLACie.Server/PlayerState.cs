@@ -39,6 +39,16 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
     public IReadOnlyList<Track> AutoplayNext => autoplayNext;
     public int AutoplayFrom { get; private set; } = -1;
     List<Track> autoplayNext = [];
+    /// <summary>Suggestions for the song playing that are being downloaded right now and are not in the library yet: the queue lists them as "Downloading · ..." rows
+    /// and they turn into ordinary rows (tagged "Recently downloaded") when they land.</summary>
+    public IReadOnlyList<CatalogSong> AutoplayFetching
+    {
+        get
+        {
+            if (!Autoplay || planner is null || session is null || suggested.Count == 0 || library?.Invoke() is not { } lib) return [];
+            return planner.Fetching(session, suggested).Where(f => lib.Find(f.Title, f.Artist) is null).ToList();
+        }
+    }
     Func<Library>? library;
     public void SetLibrary(Func<Library> f) => library = f;
     Func<Track, IReadOnlyList<Track>>? related;

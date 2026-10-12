@@ -228,6 +228,13 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
         return DownloadTags.Resolve(running, done, failed, cloudAddedMs, now);
     }
 
+    /// <summary>The songs being downloaded for this user right now (every kind), keyed by <see cref="DownloadJob.Key"/>.</summary>
+    public IReadOnlyList<DownloadJob> RunningSongs(UserSession s)
+    {
+        var j = For(s);
+        lock (j.Sync) return j.Active.Where(a => !a.Finished).ToList();
+    }
+
     // ---- a download the phone did itself and reported (POST /api/downloaded) ----
 
     static readonly object ReportLock = new();

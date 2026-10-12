@@ -23,6 +23,18 @@ public sealed class AutoplayPlanner(WebCatalog catalog, DownloadManager download
         return songs;
     }
 
+    /// <summary>
+    /// The suggestions of the song playing that are being fetched right now (in the lookup's order): they are not in the library yet, so no list can hold them, but the
+    /// queue shows each as a row saying "Downloading · ..." until it lands.
+    /// </summary>
+    public IReadOnlyList<CatalogSong> Fetching(UserSession s, IEnumerable<CatalogSong> suggested)
+    {
+        var running = downloads.RunningSongs(s);
+        if (running.Count == 0) return [];
+        var keys = running.Select(j => j.Key).ToHashSet();
+        return suggested.Where(x => keys.Contains(Matching.MatchKey(x.Title, x.Artist))).DistinctBy(x => Matching.MatchKey(x.Title, x.Artist)).ToList();
+    }
+
     /// <summary>Starts fetching up to [max] of the songs the library doesn't have, [onEach] called as each arrives (or fails).</summary>
     public void Prefetch(UserSession s, IEnumerable<CatalogSong> wanted, int max, Action onEach)
     {

@@ -31,6 +31,8 @@ export default defineConfig({
         ASPNETCORE_ENVIRONMENT: 'Production',
         FLACIE_JELLYFIN_URL: `http://127.0.0.1:${MOCK}`,
         FLACIE_DATA: '.data-smoke',
+        // the public music catalogs are asked at the stand-in inside 1i-download-tags.spec.ts (127.0.0.1:8197) instead of the internet: refused outside that spec
+        FLACIE_CATALOG_REDIRECT: `http://127.0.0.1:${process.env.FM_PORT || 8197}`,
         // the cover cache only evicts when the disk is nearly full: a small test disk must not empty it in the middle of a run
         FLACIE_CACHE_MIN_FREE_MB: '1',
         FLACIE_CACHE_MIN_FREE_PERCENT: '0',

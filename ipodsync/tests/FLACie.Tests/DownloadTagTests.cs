@@ -32,6 +32,52 @@ public class DownloadTagTests : IDisposable
         Assert.Equal(want, DownloadTags.AgeLabel(1_760_000_000_000, 1_760_000_000_000 - ageMs));
     }
 
+    [Fact]
+    public void The_window_ends_at_sixty_minutes_exactly_like_the_phone()
+    {
+        var now = 1_760_000_000_000;
+        Assert.Equal("59 min ago", DownloadTags.AgeLabel(now, now - Hour + 1));
+        Assert.Null(DownloadTags.AgeLabel(now, now - Hour));            // the phone: "a window ago or more" is gone
+        Assert.Null(DownloadTags.AgeLabel(now, now - Hour, compact: true));
+    }
+
+    [Theory]
+    [InlineData(0, "Downloaded · just now")]
+    [InlineData(4_999, "Downloaded · just now")]
+    [InlineData(12_000, "Downloaded · 12s ago")]
+    [InlineData(59_999, "Downloaded · 59s ago")]
+    [InlineData(60_000, "Downloaded · 1m ago")]
+    [InlineData(4 * Min, "Downloaded · 4m ago")]
+    [InlineData(Hour - 1, "Downloaded · 59m ago")]
+    public void The_compact_line_for_narrow_places_matches_the_phone(long ageMs, string want)
+    {
+        var now = 1_760_000_000_000;
+        var st = new DownloadTagStatus(DownloadTagState.Recent, "", now - ageMs);
+        Assert.Equal(want, st.Text(now, compact: true));
+        Assert.Equal(want["Downloaded · ".Length..], DownloadTags.AgeLabel(now, now - ageMs, compact: true));
+        // the full line is unchanged by the flag's existence
+        Assert.StartsWith("Recently downloaded · ", st.Text(now));
+        Assert.Equal(want.Contains("m ago") ? "Recently downloaded · " + (ageMs / Min) + " min ago" : "Recently downloaded · " + want["Downloaded · ".Length..], st.Text(now));
+        Assert.Null(new DownloadTagStatus(DownloadTagState.Recent, "", now - Hour).Text(now, compact: true));
+    }
+
+    [Theory]
+    [InlineData("Searching Soulseek...", "Downloading · Searching Soulseek...")]
+    [InlineData("Waiting for a peer...", "Downloading · Waiting for a peer...")]
+    [InlineData("Downloading 55%...", "Downloading 55%...")]
+    [InlineData("Downloading from Internet Archive...", "Downloading from Internet Archive...")]
+    [InlineData("Downloading", "Downloading")]
+    [InlineData("  Downloading 40%...  ", "Downloading 40%...")]
+    [InlineData("Filing into the library...", "Downloading · Filing into the library...")]
+    [InlineData("downloading 3%...", "Downloading · downloading 3%...")]      // the rule is exact: a prefix test on the word as written
+    [InlineData("", "Downloading")]
+    public void A_stage_that_already_starts_with_Downloading_is_not_prefixed_again(string message, string want)
+    {
+        Assert.Equal(want, DownloadTags.DownloadingText(message));
+        Assert.Equal(want, new DownloadTagStatus(DownloadTagState.Downloading, message).Text(1, compact: false));
+        Assert.Equal(want, new DownloadTagStatus(DownloadTagState.Downloading, message).Text(1, compact: true));   // the short form does not change a running stage
+    }
+
     [Theory]
     [InlineData(Hour + 1)]
     [InlineData(2 * Hour)]
@@ -219,6 +265,43 @@ public class DownloadTagTests : IDisposable
         // a Jellyfin song "added" a minute ago (a file copied in by hand) was not downloaded here
         var jf = new Track("http://jf.test/Audio/abc/stream", "T4", "A", "Album", "A", 1, 1, 200_000, 2020, null, Now - Min, TrackSource.Jellyfin);
         Assert.Equal(DownloadTagState.None, m.StatusOf(s, "A", "T4", jf).State);
+    }
+
+    [Fact]
+    public void A_new_download_song_older_than_an_hour_keeps_its_badge_and_has_an_empty_tag_line()
+    {
+        var (m, _, s) = Make();
+        var old = Cloud("A", "Old One", Now - 3 * Hour);
+        Assert.Equal(DownloadTagState.None, m.StatusOf(s, old.Artist, old.Title, old).State);
+        Assert.Null(m.StatusOf(s, old.Artist, old.Title, old).Text(Now));
+        // the list badge and the source line only depend on where the song plays from, never on its age
+        Assert.Equal("New download", SourceLabel.Short(old.Source));
+        Assert.Equal("Streaming from new download", SourceLabel.PlayingFrom(old.Source));
+    }
+
+    [Fact]
+    public async Task Autoplay_suggestions_being_fetched_are_listed_until_they_land()
+    {
+        var (m, _, s) = Make();
+        SetUpServices(s);
+        var guard = new StorageGuard(new UserStateStore(new DataPaths(dir), new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider()));
+        var planner = new AutoplayPlanner(new WebCatalog(new HttpClient(new Blocked())), m, new UserStateStore(new DataPaths(dir), new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider()), guard);
+        var one = new CatalogSong("Artist", "Fetch One", "Album", null, 200_000, 0, 0);
+        var two = new CatalogSong("Artist", "Fetch Two", "Album", null, 200_000, 0, 0);
+        var other = new CatalogSong("Artist", "Not Fetched", "Album", null, 200_000, 0, 0);
+        Assert.Empty(planner.Fetching(s, [one, two, other]));
+        using var cts = new CancellationTokenSource();
+        var t1 = m.FetchAsync(s, "Autoplay", one.Artist, one.Title, one.Album, null, one.DurationMs, cts.Token);
+        var t2 = m.FetchAsync(s, "Autoplay", two.Artist, two.Title, two.Album, null, two.DurationMs, cts.Token);
+        await Until(() => planner.Fetching(s, [one, two, other]).Count == 2);
+        Assert.Equal(new[] { "Fetch One", "Fetch Two" }, planner.Fetching(s, [two, one, other]).Select(x => x.Title).OrderBy(x => x).ToArray());
+        Assert.Equal("Fetch Two", planner.Fetching(s, [two, one, other])[0].Title);           // the lookup's order is kept
+        Assert.Equal(2, m.RunningSongs(s).Count);
+        Assert.Equal(DownloadTagState.Downloading, m.StatusOf(s, "Artist", "Fetch One").State);
+        cts.Cancel();
+        await Until(() => t1.IsCompleted && t2.IsCompleted);
+        await Until(() => planner.Fetching(s, [one, two, other]).Count == 0);                   // gone from the list once over
+        Assert.Empty(m.RunningSongs(s));
     }
 
     [Fact]

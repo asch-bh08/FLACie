@@ -371,9 +371,12 @@ class ArtCache(private val dir: File) {
      * The first screens' covers, asked for before the first frame does: each one is brought from disk into memory (decoded on the bounded decoder) or, when the disk
      * lacks it, fetched as work for rows on screen. A row that is composed meanwhile finds it in memory or shares the same request.
      */
-    fun warm(keys: List<Pair<String, Boolean>>) {
-        for ((k, thumb) in keys) {
-            if (peek(k, thumb) != null) continue
+    fun warm(keys: List<Pair<String, Boolean>>, fetchFirst: Int = WARM_FETCH) {
+        keys.forEachIndexed { i, (k, thumb) ->
+            if (peek(k, thumb) != null) return@forEachIndexed
+            // a picture the disk has is decoded into memory for all of them; one it lacks is asked of the server only for the first few (what the first frame shows): the rows ask for
+            // the rest themselves as they are drawn, and an empty cover cache must not cost the server 48 requests for pictures nobody looks at
+            if (i >= fetchFirst && !has(k)) return@forEachIndexed
             ioScope.launch { try { load(k, thumb, false, Priority.VISIBLE) } catch (_: Exception) {} }
         }
     }
@@ -391,5 +394,7 @@ class ArtCache(private val dir: File) {
         const val MAX_PX = 320; const val FULL_KEEP = 30; const val SCROLLED_OFF_AFTER = 80
         /** Background and prefetch requests give up after this many failures and rest for [BACKGROUND_REST_MS]. */
         const val BACKGROUND_ATTEMPTS = 3; const val BACKGROUND_REST_MS = 30_000L
+        /** How many of the first screens' covers [warm] fetches from the server when the disk lacks them. */
+        const val WARM_FETCH = 12
     }
 }

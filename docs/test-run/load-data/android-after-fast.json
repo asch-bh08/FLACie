@@ -1,0 +1,475 @@
+{
+ "label": "after",
+ "shell": "android",
+ "profile": "fast",
+ "items": 10000,
+ "window": 120,
+ "startedAt": "2026-10-12T05:33:26.338Z",
+ "apk": "FLACie-1.0-beta52-8c1cdfa.apk",
+ "scenarios": {
+  "first-sync": {
+   "timeToFirstSongsMs": 13835,
+   "timeToAllSongsMs": 45967,
+   "timeline": [
+    {
+     "t": 9,
+     "requests": 32,
+     "inFlight": 0,
+     "songs": -1
+    },
+    {
+     "t": 14,
+     "requests": 37,
+     "inFlight": 0,
+     "songs": 3500
+    },
+    {
+     "t": 19,
+     "requests": 40,
+     "inFlight": 0,
+     "songs": 4500
+    },
+    {
+     "t": 24,
+     "requests": 42,
+     "inFlight": 0,
+     "songs": 5500
+    },
+    {
+     "t": 29,
+     "requests": 45,
+     "inFlight": 0,
+     "songs": 6500
+    },
+    {
+     "t": 33,
+     "requests": 47,
+     "inFlight": 0,
+     "songs": 7500
+    },
+    {
+     "t": 37,
+     "requests": 50,
+     "inFlight": 0,
+     "songs": 8500
+    },
+    {
+     "t": 42,
+     "requests": 52,
+     "inFlight": 0,
+     "songs": 9000
+    },
+    {
+     "t": 46,
+     "requests": 56,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 50,
+     "requests": 56,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 54,
+     "requests": 57,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 58,
+     "requests": 59,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 62,
+     "requests": 60,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 66,
+     "requests": 60,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 70,
+     "requests": 61,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 73,
+     "requests": 61,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 77,
+     "requests": 62,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 81,
+     "requests": 62,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 85,
+     "requests": 63,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 89,
+     "requests": 63,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 93,
+     "requests": 64,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 97,
+     "requests": 64,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 101,
+     "requests": 65,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 104,
+     "requests": 65,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 108,
+     "requests": 67,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 112,
+     "requests": 67,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 116,
+     "requests": 68,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 120,
+     "requests": 68,
+     "inFlight": 0,
+     "songs": 10000
+    },
+    {
+     "t": 124,
+     "requests": 69,
+     "inFlight": 0,
+     "songs": 10000
+    }
+   ],
+   "signInAttempts": 1,
+   "tFirstScreenShown": 1791783220463,
+   "signInMs": 6784,
+   "songsShown": 10000,
+   "firstSongsCount": 3500,
+   "atAll": {
+    "total": 56,
+    "byKind": {
+     "other": 17,
+     "items": 23,
+     "socket": 1,
+     "image": 15
+    },
+    "peakInFlight": 1,
+    "peakPerSecond": 7,
+    "throttled": 0,
+    "failed": 0,
+    "images": 15,
+    "imageUrls": 14,
+    "imageRepeats": 1,
+    "imageVariants": {
+     "240px-webp-q80": 15
+    },
+    "notModified": 0,
+    "streamsOpened": 0,
+    "streamsAborted": 0,
+    "streamsCompleted": 0,
+    "itemsPages": 22,
+    "itemsDeltas": 1,
+    "itemsWithStreams": 21,
+    "avgLatencyMs": 2,
+    "maxLatencyMs": 6,
+    "seconds": 72
+   },
+   "server": {
+    "firstItemsPageMs": 3035,
+    "lastItemsPageMs": 45968,
+    "itemsPagesTotal": 22,
+    "requestsAfterSec": {
+     "5": 13,
+     "10": 32,
+     "30": 46,
+     "60": 59,
+     "120": 68
+    }
+   },
+   "final": {
+    "total": 69,
+    "byKind": {
+     "other": 28,
+     "items": 23,
+     "socket": 3,
+     "image": 15
+    },
+    "peakInFlight": 1,
+    "peakPerSecond": 7,
+    "throttled": 0,
+    "failed": 0,
+    "images": 15,
+    "imageUrls": 14,
+    "imageRepeats": 1,
+    "imageVariants": {
+     "240px-webp-q80": 15
+    },
+    "notModified": 0,
+    "streamsOpened": 0,
+    "streamsAborted": 0,
+    "streamsCompleted": 0,
+    "itemsPages": 22,
+    "itemsDeltas": 1,
+    "itemsWithStreams": 21,
+    "avgLatencyMs": 2,
+    "maxLatencyMs": 6,
+    "seconds": 150
+   },
+   "pssMb": 86
+  },
+  "scrolling": {
+   "swipes": 149,
+   "ms": 39743,
+   "swipesPerSecond": 3.7,
+   "total": 111,
+   "byKind": {
+    "image": 103,
+    "other": 7,
+    "socket": 1
+   },
+   "peakInFlight": 1,
+   "peakPerSecond": 6,
+   "throttled": 0,
+   "failed": 0,
+   "images": 103,
+   "imageUrls": 75,
+   "imageRepeats": 28,
+   "imageVariants": {
+    "240px-webp-q80": 103
+   },
+   "notModified": 0,
+   "streamsOpened": 0,
+   "streamsAborted": 0,
+   "streamsCompleted": 0,
+   "itemsPages": 0,
+   "itemsDeltas": 0,
+   "itemsWithStreams": 0,
+   "avgLatencyMs": 0,
+   "maxLatencyMs": 1,
+   "seconds": 43
+  },
+  "skip-burst": {
+   "skips": 40,
+   "keysSent": 40,
+   "burstMs": 2879,
+   "keySpacingMs": 68,
+   "keysIssuedInMs": 2720,
+   "allKeysTakenInMs": 2750,
+   "lastSongReadyMs": 8685,
+   "readyBy": "target",
+   "startedPlayingMs": 1356,
+   "appInBackground": true,
+   "queueStep": 40,
+   "titleBefore": "Song 1828, Artist 228, Artist 228 Album 3",
+   "titleAfter": "Song 1864, Artist 264, Artist 264 Album 1",
+   "total": 61,
+   "byKind": {
+    "stream": 15,
+    "other": 43,
+    "image": 3
+   },
+   "peakInFlight": 2,
+   "peakPerSecond": 10,
+   "throttled": 0,
+   "failed": 0,
+   "images": 3,
+   "imageUrls": 2,
+   "imageRepeats": 1,
+   "imageVariants": {
+    "240px-webp-q80": 3
+   },
+   "notModified": 0,
+   "streamsOpened": 10,
+   "streamsAborted": 2,
+   "streamsCompleted": 13,
+   "itemsPages": 0,
+   "itemsDeltas": 0,
+   "itemsWithStreams": 0,
+   "avgLatencyMs": 214,
+   "maxLatencyMs": 1594,
+   "seconds": 13
+  },
+  "warm-start": {
+   "signedIn": true,
+   "timeToFirstSongsMs": 10390,
+   "timeToAllSongsMs": 10390,
+   "songsShown": 10000,
+   "firstSongsCount": 10000,
+   "total": 20,
+   "byKind": {
+    "other": 15,
+    "socket": 2,
+    "items": 3
+   },
+   "peakInFlight": 1,
+   "peakPerSecond": 4,
+   "throttled": 0,
+   "failed": 0,
+   "images": 0,
+   "imageUrls": 0,
+   "imageRepeats": 0,
+   "imageVariants": {},
+   "notModified": 0,
+   "streamsOpened": 0,
+   "streamsAborted": 0,
+   "streamsCompleted": 0,
+   "itemsPages": 2,
+   "itemsDeltas": 2,
+   "itemsWithStreams": 2,
+   "avgLatencyMs": 1,
+   "maxLatencyMs": 2,
+   "seconds": 63,
+   "pssMb": 131
+  },
+  "kill-restore": {
+   "playedBefore": "Song 1, Artist 001, Artist 001 Album 1",
+   "sessionAfterKill": false,
+   "sessionAfterRelaunch": {
+    "found": true,
+    "state": 0,
+    "description": "Song 1865, Artist 265, Artist 265 Album 1",
+    "position": 2001,
+    "queueTitle": "null, size=300"
+   },
+   "queueRestored": true,
+   "sameSong": false,
+   "queueDelta": 963,
+   "crashBufferLines": 0,
+   "crashBuffer": []
+  }
+ },
+ "notes": [],
+ "versionName": "1.0-beta52",
+ "gate": {
+  "first-sync": {
+   "lines": 12,
+   "first": [
+    "10-12 06:33:59.716  3238  3288 D FLACieGate: queued=0 inflight=1 peak=4 limit=6 breaker=CLOSED total=22 retries=0 coalesced=4 rejected=0 failed=0 avgMs=267 kinds=account:8,cover:7,info:1,list:4,report:1,session:1\r",
+    "10-12 06:34:09.721  3238  3288 D FLACieGate: queued=0 inflight=0 peak=4 limit=7 breaker=CLOSED total=37 retries=0 coalesced=13 rejected=0 failed=0 avgMs=87 kinds=account:10,cover:14,info:1,list:9,report:1,session:2\r",
+    "10-12 06:34:19.722  3238  3286 D FLACieGate: queued=0 inflight=0 peak=4 limit=7 breaker=CLOSED total=42 retries=0 coalesced=13 rejected=0 failed=0 avgMs=72 kinds=account:10,cover:14,info:1,list:13,report:1,session:3\r",
+    "10-12 06:34:29.726  3238  3288 D FLACieGate: queued=0 inflight=0 peak=4 limit=7 breaker=CLOSED total=49 retries=0 coalesced=13 rejected=0 failed=0 avgMs=53 kinds=account:10,cover:14,info:1,list:18,report:1,session:5\r",
+    "10-12 06:34:39.727  3238  3287 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=55 retries=0 coalesced=13 rejected=0 failed=0 avgMs=122 kinds=account:10,count:1,cover:15,info:1,list:21,report:1,session:6\r",
+    "10-12 06:34:49.730  3238  4361 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=57 retries=0 coalesced=13 rejected=0 failed=0 avgMs=161 kinds=account:10,count:1,cover:15,info:1,list:21,report:1,session:8\r",
+    "10-12 06:34:59.731  3238  4361 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=58 retries=0 coalesced=13 rejected=0 failed=0 avgMs=129 kinds=account:10,count:1,cover:15,info:1,list:21,report:1,session:9\r",
+    "10-12 06:35:09.732  3238  4369 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=60 retries=0 coalesced=13 rejected=0 failed=0 avgMs=266 kinds=account:10,count:1,cover:15,info:1,list:21,report:1,session:11\r",
+    "10-12 06:35:19.733  3238  4369 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=61 retries=0 coalesced=13 rejected=0 failed=0 avgMs=315 kinds=account:10,count:1,cover:15,info:1,list:21,report:1,session:12\r",
+    "10-12 06:35:29.736  3238  3285 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=62 retries=0 coalesced=13 rejected=0 failed=0 avgMs=356 kinds=account:10,count:1,cover:15,info:1,list:21,report:1,session:13\r",
+    "10-12 06:35:39.737  3238  4369 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=63 retries=0 coalesced=13 rejected=0 failed=0 avgMs=393 kinds=account:10,count:1,cover:15,info:1,list:21,report:1,session:14\r",
+    "10-12 06:35:49.738  3238  4369 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=65 retries=0 coalesced=13 rejected=0 failed=0 avgMs=436 kinds=account:10,count:1,cover:15,info:1,list:21,report:1,session:16\r"
+   ],
+   "last": [
+    "10-12 06:33:59.716  3238  3288 D FLACieGate: queued=0 inflight=1 peak=4 limit=6 breaker=CLOSED total=22 retries=0 coalesced=4 rejected=0 failed=0 avgMs=267 kinds=account:8,cover:7,info:1,list:4,report:1,session:1\r",
+    "10-12 06:34:09.721  3238  3288 D FLACieGate: queued=0 inflight=0 peak=4 limit=7 breaker=CLOSED total=37 retries=0 coalesced=13 rejected=0 failed=0 avgMs=87 kinds=account:10,cover:14,info:1,list:9,report:1,session:2\r",
+    "10-12 06:34:19.722  3238  3286 D FLACieGate: queued=0 inflight=0 peak=4 limit=7 breaker=CLOSED total=42 retries=0 coalesced=13 rejected=0 failed=0 avgMs=72 kinds=account:10,cover:14,info:1,list:13,report:1,session:3\r",
+    "10-12 06:34:29.726  3238  3288 D FLACieGate: queued=0 inflight=0 peak=4 limit=7 breaker=CLOSED total=49 retries=0 coalesced=13 rejected=0 failed=0 avgMs=53 kinds=account:10,cover:14,info:1,list:18,report:1,session:5\r",
+    "10-12 06:34:39.727  3238  3287 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=55 retries=0 coalesced=13 rejected=0 failed=0 avgMs=122 kinds=account:10,count:1,cover:15,info:1,list:21,report:1,session:6\r",
+    "10-12 06:34:49.730  3238  4361 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=57 retries=0 coalesced=13 rejected=0 failed=0 avgMs=161 kinds=account:10,count:1,cover:15,info:1,list:21,report:1,session:8\r",
+    "10-12 06:34:59.731  3238  4361 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=58 retries=0 coalesced=13 rejected=0 failed=0 avgMs=129 kinds=account:10,count:1,cover:15,info:1,list:21,report:1,session:9\r",
+    "10-12 06:35:09.732  3238  4369 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=60 retries=0 coalesced=13 rejected=0 failed=0 avgMs=266 kinds=account:10,count:1,cover:15,info:1,list:21,report:1,session:11\r",
+    "10-12 06:35:19.733  3238  4369 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=61 retries=0 coalesced=13 rejected=0 failed=0 avgMs=315 kinds=account:10,count:1,cover:15,info:1,list:21,report:1,session:12\r",
+    "10-12 06:35:29.736  3238  3285 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=62 retries=0 coalesced=13 rejected=0 failed=0 avgMs=356 kinds=account:10,count:1,cover:15,info:1,list:21,report:1,session:13\r",
+    "10-12 06:35:39.737  3238  4369 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=63 retries=0 coalesced=13 rejected=0 failed=0 avgMs=393 kinds=account:10,count:1,cover:15,info:1,list:21,report:1,session:14\r",
+    "10-12 06:35:49.738  3238  4369 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=65 retries=0 coalesced=13 rejected=0 failed=0 avgMs=436 kinds=account:10,count:1,cover:15,info:1,list:21,report:1,session:16\r"
+   ]
+  },
+  "scrolling": {
+   "lines": 4,
+   "first": [
+    "10-12 06:36:09.741  3238  5236 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=83 retries=0 coalesced=41 rejected=0 failed=0 avgMs=57 kinds=account:10,count:1,cover:31,info:1,list:21,report:1,session:18\r",
+    "10-12 06:36:19.749  3238  4361 D FLACieGate: queued=0 inflight=1 peak=4 limit=8 breaker=CLOSED total=110 retries=0 coalesced=66 rejected=0 failed=0 avgMs=49 kinds=account:10,count:1,cover:57,info:1,list:21,report:1,session:19\r",
+    "10-12 06:36:29.756  3238  3285 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=134 retries=0 coalesced=82 rejected=0 failed=0 avgMs=19 kinds=account:10,count:1,cover:79,info:1,list:21,report:1,session:21\r",
+    "10-12 06:36:39.799  3238  3285 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=166 retries=0 coalesced=111 rejected=0 failed=0 avgMs=16 kinds=account:10,count:1,cover:109,info:1,list:21,report:1,session:23\r"
+   ],
+   "last": [
+    "10-12 06:36:09.741  3238  5236 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=83 retries=0 coalesced=41 rejected=0 failed=0 avgMs=57 kinds=account:10,count:1,cover:31,info:1,list:21,report:1,session:18\r",
+    "10-12 06:36:19.749  3238  4361 D FLACieGate: queued=0 inflight=1 peak=4 limit=8 breaker=CLOSED total=110 retries=0 coalesced=66 rejected=0 failed=0 avgMs=49 kinds=account:10,count:1,cover:57,info:1,list:21,report:1,session:19\r",
+    "10-12 06:36:29.756  3238  3285 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=134 retries=0 coalesced=82 rejected=0 failed=0 avgMs=19 kinds=account:10,count:1,cover:79,info:1,list:21,report:1,session:21\r",
+    "10-12 06:36:39.799  3238  3285 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=166 retries=0 coalesced=111 rejected=0 failed=0 avgMs=16 kinds=account:10,count:1,cover:109,info:1,list:21,report:1,session:23\r"
+   ]
+  },
+  "skip-burst": {
+   "lines": 2,
+   "first": [
+    "10-12 06:37:59.811  3238  5232 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=201 retries=0 coalesced=119 rejected=0 failed=0 avgMs=86 kinds=account:10,count:1,cover:118,info:1,list:22,lyrics:4,report:6,session:33,stream:6\r",
+    "10-12 06:38:09.815  3238  5235 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=251 retries=0 coalesced=123 rejected=0 failed=0 avgMs=115 kinds=account:10,count:1,cover:121,info:1,list:22,lyrics:6,report:43,session:34,stream:13\r"
+   ],
+   "last": [
+    "10-12 06:37:59.811  3238  5232 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=201 retries=0 coalesced=119 rejected=0 failed=0 avgMs=86 kinds=account:10,count:1,cover:118,info:1,list:22,lyrics:4,report:6,session:33,stream:6\r",
+    "10-12 06:38:09.815  3238  5235 D FLACieGate: queued=0 inflight=0 peak=4 limit=8 breaker=CLOSED total=251 retries=0 coalesced=123 rejected=0 failed=0 avgMs=115 kinds=account:10,count:1,cover:121,info:1,list:22,lyrics:6,report:43,session:34,stream:13\r"
+   ]
+  },
+  "warm-start": {
+   "lines": 6,
+   "first": [
+    "10-12 06:38:28.871  6517  6535 D FLACieGate: queued=0 inflight=0 peak=3 limit=5 breaker=CLOSED total=10 retries=0 coalesced=0 rejected=0 failed=0 avgMs=45 kinds=account:4,list:2,report:2,session:2\r",
+    "10-12 06:38:38.871  6517  6539 D FLACieGate: queued=0 inflight=0 peak=3 limit=5 breaker=CLOSED total=12 retries=0 coalesced=0 rejected=0 failed=0 avgMs=131 kinds=account:4,list:2,report:2,session:4\r",
+    "10-12 06:38:48.873  6517  6539 D FLACieGate: queued=0 inflight=0 peak=3 limit=5 breaker=CLOSED total=13 retries=0 coalesced=0 rejected=0 failed=0 avgMs=207 kinds=account:4,list:2,report:2,session:5\r",
+    "10-12 06:38:58.875  6517  6539 D FLACieGate: queued=0 inflight=0 peak=3 limit=5 breaker=CLOSED total=14 retries=0 coalesced=0 rejected=0 failed=0 avgMs=269 kinds=account:4,list:2,report:2,session:6\r",
+    "10-12 06:39:08.877  6517  6539 D FLACieGate: queued=0 inflight=0 peak=3 limit=5 breaker=CLOSED total=15 retries=0 coalesced=0 rejected=0 failed=0 avgMs=317 kinds=account:4,list:2,report:2,session:7\r",
+    "10-12 06:39:18.878  6517  6537 D FLACieGate: queued=0 inflight=0 peak=3 limit=5 breaker=CLOSED total=18 retries=0 coalesced=0 rejected=0 failed=0 avgMs=415 kinds=account:4,list:2,report:3,session:9\r"
+   ],
+   "last": [
+    "10-12 06:38:28.871  6517  6535 D FLACieGate: queued=0 inflight=0 peak=3 limit=5 breaker=CLOSED total=10 retries=0 coalesced=0 rejected=0 failed=0 avgMs=45 kinds=account:4,list:2,report:2,session:2\r",
+    "10-12 06:38:38.871  6517  6539 D FLACieGate: queued=0 inflight=0 peak=3 limit=5 breaker=CLOSED total=12 retries=0 coalesced=0 rejected=0 failed=0 avgMs=131 kinds=account:4,list:2,report:2,session:4\r",
+    "10-12 06:38:48.873  6517  6539 D FLACieGate: queued=0 inflight=0 peak=3 limit=5 breaker=CLOSED total=13 retries=0 coalesced=0 rejected=0 failed=0 avgMs=207 kinds=account:4,list:2,report:2,session:5\r",
+    "10-12 06:38:58.875  6517  6539 D FLACieGate: queued=0 inflight=0 peak=3 limit=5 breaker=CLOSED total=14 retries=0 coalesced=0 rejected=0 failed=0 avgMs=269 kinds=account:4,list:2,report:2,session:6\r",
+    "10-12 06:39:08.877  6517  6539 D FLACieGate: queued=0 inflight=0 peak=3 limit=5 breaker=CLOSED total=15 retries=0 coalesced=0 rejected=0 failed=0 avgMs=317 kinds=account:4,list:2,report:2,session:7\r",
+    "10-12 06:39:18.878  6517  6537 D FLACieGate: queued=0 inflight=0 peak=3 limit=5 breaker=CLOSED total=18 retries=0 coalesced=0 rejected=0 failed=0 avgMs=415 kinds=account:4,list:2,report:3,session:9\r"
+   ]
+  },
+  "kill-restore": {
+   "lines": 0,
+   "first": [],
+   "last": []
+  }
+ },
+ "crashBufferAtEnd": [],
+ "anrDialogsDismissed": 0,
+ "finishedAt": "2026-10-12T05:39:37.085Z"
+}

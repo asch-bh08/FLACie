@@ -14,7 +14,7 @@ param(
   [string]$Apk, [string]$Label = 'run', [string]$Profile = 'fast', [int]$Window = 120, [int]$Port = 8296, [int]$Items = 10000,
   [string]$Out = '', [string]$Scenarios = 'first-sync,scrolling,skip-burst,warm-start,kill-restore',
   [string]$Avd = 'flacie_phone', [int]$Memory = 2048, [switch]$HoldOnly, [int]$HoldMinutes = 14, [string]$StopFile = "$env:TEMP\flacie-android-stop",
-  [switch]$Reuse, [string]$Shots = '', [int]$BootTimeoutSec = 420
+  [switch]$Reuse, [string]$Shots = '', [int]$BootTimeoutSec = 420, [string]$Driver = 'run-android.mjs'
 )
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -75,7 +75,7 @@ try {
     while ((Get-Date) -lt $end -and -not (Test-Path $StopFile)) { Start-Sleep -Seconds 2 }
   } else {
     $node = (Get-Command node).Source
-    $args2 = @((Join-Path $here 'run-android.mjs'), '--label', $Label, '--profile', $Profile, '--window', "$Window", '--port', "$Port", '--items', "$Items",
+    $args2 = @((Join-Path $here $Driver), '--label', $Label, '--profile', $Profile, '--window', "$Window", '--port', "$Port", '--items', "$Items",
                '--out', $Out, '--scenarios', $Scenarios, '--adb', $adb, '--shots', $Shots)
     if ($Apk) { $args2 += @('--apk', (Resolve-Path $Apk).Path) }
     Log "driver: node $($args2 -join ' ')"

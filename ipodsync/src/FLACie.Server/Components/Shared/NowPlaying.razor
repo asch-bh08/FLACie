@@ -7,7 +7,7 @@
     <div class="np-shade"></div>
     <header class="np-top">
         <button class="icon-btn" @onclick="Back" aria-label="Close Now Playing"><Icon Name="chevron-down" Size="24" /></button>
-        <span class="np-where">Playing from @(t is null ? "" : SourceName(t))</span>
+        <span class="np-where">@(t is null ? "" : SourceLabel.PlayingFromLine(t.Source))</span>
         <a class="icon-btn np-set" href="/settings" aria-label="Settings"><Icon Name="settings" Size="22" /></a><span class="np-spacer"></span>
     </header>
     @if (t is not null)
@@ -22,11 +22,13 @@
                     <div class="np-titles">
                         <h2>@t.Title</h2>
                         <p class="np-artist"><a href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="() => GoArtist(t)" @onclick:preventDefault="true">@t.Artist</a>@(AlbumOf(t).Length > 0 ? " · " + AlbumOf(t) : "")</p>
+                        <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" Class="np-dl" />
                         <div class="pills">
                             <span class="badge @t.Source.ToString().ToLowerInvariant()">@SourceName(t)</span>
-                            @if (info is not null && info.Format.Length > 0) { <span class="badge fmt @(info.HiRes ? "hires" : info.Lossless ? "lossless" : "")">@(info.HiRes ? "✦ Hi-Res" : info.Format)</span> }
-                            @if (info is not null && info.Sampling.Length > 0) { <span class="badge plain">@info.Sampling</span> }
-                            @if (info is not null && info.BitrateKbps > 0) { <span class="badge plain">@info.BitrateKbps kbps</span> }
+                            @* the file's facts belong to the song they were read for: a new song shows none until its own are in (never the last song's Hi-Res badge for a moment) *@
+                            @if (shownInfo is { Format.Length: > 0 } fi) { <span class="badge fmt @(fi.HiRes ? "hires" : fi.Lossless ? "lossless" : "")">@(fi.HiRes ? "✦ Hi-Res" : fi.Format)</span> }
+                            @if (shownInfo is { Sampling.Length: > 0 } si) { <span class="badge plain">@si.Sampling</span> }
+                            @if (shownInfo is { BitrateKbps: > 0 } bi) { <span class="badge plain">@bi.BitrateKbps kbps</span> }
                         </div>
                     </div>
                     <button class="icon-btn lg @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="24" /></button>
@@ -87,7 +89,7 @@
                             <i class="switch" aria-hidden="true"></i>
                         </label>
                         <ol class="upnext">
-                            <li class="now"><div class="q-row"><Cover ArtKey="@(Art.KeyFor(t))" Size="44" /><span><b>@t.Title</b><small>@t.Artist</small></span><em class="eq @(Player.Playing ? "on" : "")" aria-label="Now playing"><i></i><i></i><i></i></em></div></li>
+                            <li class="now"><div class="q-row"><Cover ArtKey="@(Art.KeyFor(t))" Size="44" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span><em class="eq @(Player.Playing ? "on" : "")" aria-label="Now playing"><i></i><i></i><i></i></em></div></li>
                             @{ var shownAuto = false; var upNext = Player.UpNext(30).ToList(); var upTotal = Player.UpNextCount; var canEdit = Player.CanEdit; }
                             @for (var k = 0; k < upNext.Count; k++)
                             {
@@ -98,7 +100,7 @@
                                     <li class="q-divider">Autoplay · similar to what you were playing</li>
                                 }
                                 <li class="q-item">
-                                    <button class="q-row" @onclick="() => Player.SkipTo(i)"><Cover ArtKey="@(Art.KeyFor(u))" Size="44" /><span><b>@u.Title</b><small>@u.Artist@(u.Album.Length > 0 ? " · " + u.Album : "")</small>@if (Note(u) is { } dn) { <em class="dl-note @(dn == "Downloading" ? "live" : "")">@dn</em> }</span><span class="q-time">@Time(u.DurationMs / 1000.0)</span></button>
+                                    <button class="q-row" @onclick="() => Player.SkipTo(i)"><Cover ArtKey="@(Art.KeyFor(u))" Size="44" /><span><b>@u.Title</b><small>@u.Artist@(u.Album.Length > 0 ? " · " + u.Album : "")</small><DownloadTag Session="Session" Artist="@u.Artist" Title="@u.Title" Track="u" /></span><span class="q-time">@Time(u.DurationMs / 1000.0)</span></button>
                                     @if (canEdit)
                                     {
                                         <div class="q-edit">
@@ -116,7 +118,7 @@
                                 @foreach (var u in Player.AutoplayNext)
                                 {
                                     <li class="q-item">
-                                        <button class="q-row" @onclick="() => Player.Play([u], 0, Player.Context)"><Cover ArtKey="@(Art.KeyFor(u))" Size="44" /><span><b>@u.Title</b><small>@u.Artist@(u.Album.Length > 0 ? " · " + u.Album : "")</small>@if (Note(u) is { } dn) { <em class="dl-note @(dn == "Downloading" ? "live" : "")">@dn</em> }</span><span class="q-time">@Time(u.DurationMs / 1000.0)</span></button>
+                                        <button class="q-row" @onclick="() => Player.Play([u], 0, Player.Context)"><Cover ArtKey="@(Art.KeyFor(u))" Size="44" /><span><b>@u.Title</b><small>@u.Artist@(u.Album.Length > 0 ? " · " + u.Album : "")</small><DownloadTag Session="Session" Artist="@u.Artist" Title="@u.Title" Track="u" /></span><span class="q-time">@Time(u.DurationMs / 1000.0)</span></button>
                                         @if (canEdit) { <div class="q-edit"><button class="q-top" aria-label="@("Put " + u.Title + " at the top of the queue")" title="Play next" @onclick="() => Player.PlayNext(u)"><Icon Name="next" Size="18" /></button></div> }
                                     </li>
                                 }
@@ -145,7 +147,7 @@
                     }
                     else
                     {
-                        <TrackInfoPanel Track="t" Info="info" Loading="infoLoading" Album="@(realAlbumFor == t.Path ? realAlbum : null)" />
+                        <TrackInfoPanel Track="t" Info="shownInfo" Loading="@(infoLoading || infoFor != t.Path)" Album="@(realAlbumFor == t.Path ? realAlbum : null)" />
                     }
                 </div>
             </section>
@@ -203,35 +205,15 @@
         try { await Js.InvokeVoidAsync("flacie.npBack"); } catch (Exception) { await OnClose.InvokeAsync(); }
     }
     string TabTitle => tab switch { "lyrics" => "Lyrics", "info" => "Info", _ => "Up next" };
-    Action? onDls;
-    protected override async Task OnInitializedAsync()
-    {
-        await base.OnInitializedAsync();
-        // the little "Downloading" / "Downloaded just now" line under a queued song follows the downloads as they change
-        onDls = () => InvokeAsync(StateHasChanged);
-        Dls.Subscribe(Session, onDls);
-    }
-    public override void Dispose() { infoCts?.Cancel(); if (onDls is not null) Dls.Unsubscribe(Session, onDls); self?.Dispose(); _ = Js.InvokeVoidAsync("flacie.npReset").AsTask().ContinueWith(_ => { }); base.Dispose(); }
+    // the "Downloading · ..." / "Recently downloaded · 1s ago" line under a song is the DownloadTag component: it follows the downloads by itself
+    public override void Dispose() { infoCts?.Cancel(); self?.Dispose(); _ = Js.InvokeVoidAsync("flacie.npReset").AsTask().ContinueWith(_ => { }); base.Dispose(); }
     Lyrics? lyrics; bool lyricsLoading; string? lyricsFor;
     MediaInfo? info; bool infoLoading; string? infoFor;
+    MediaInfo? shownInfo => Player.Current is { } cur && infoFor == cur.Path ? info : null;
     string? lyricsPushed;
 
     // on a phone the panel is a sheet over the cover: a tab opens it, the same tab again closes it (on a wide screen it is always there)
     ElementReference npEl;
-    [Inject] DownloadLog DlLog { get; set; } = default!;
-    [Inject] DownloadManager Dls { get; set; } = default!;
-    Dictionary<string, DownloadRecord>? dlIdx; string? dlIdxFor;
-    /// <summary>"Downloaded just now / today / this week" for a song FLACie fetched (from this account's download history); null for the rest.</summary>
-    string? Note(Track u)
-    {
-        var key = Session.Jellyfin?.UserId ?? Session.Nas?.User ?? "guest";
-        var finished = Dls.JobsOf(Session).Count(j => j.Finished);
-        if (dlIdx is null || dlIdxFor != Player.Current?.Path + "|" + finished) { dlIdx = DlLog.DoneIndex(key); dlIdxFor = Player.Current?.Path + "|" + finished; }
-        if (Dls.JobsOf(Session).Any(j => !j.Finished && string.Equals(j.Title, u.Title, StringComparison.OrdinalIgnoreCase) && string.Equals(j.Artist, u.Artist, StringComparison.OrdinalIgnoreCase))) return "Downloading";
-        if (!dlIdx.TryGetValue(DownloadLog.FileKey(u.FilePath ?? u.Path), out var r) && !dlIdx.TryGetValue(DownloadLog.TitleKey(u.Title, u.Artist), out r)) return Dls.RecentlyFailed(Session, u.Artist, u.Title) ? "Couldn't be downloaded" : null;
-        var age = DateTime.UtcNow - r.FinishedAt.ToUniversalTime();
-        return age.TotalHours < 1 ? "Downloaded just now" : age.TotalDays < 1 ? "Downloaded today" : age.TotalDays < 7 ? "Downloaded this week" : "Downloaded";
-    }
     void OpenQueue() { tab = "queue"; panelOpen = true; }
     void PeekKey(KeyboardEventArgs e) { if (e.Key is "Enter" or " ") OpenQueue(); }
     bool panelOpen;

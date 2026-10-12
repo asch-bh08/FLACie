@@ -55,7 +55,7 @@ else
                 @foreach (var m in missing)
                 {
                     var e = m;
-                    <li class="track gone"><span class="track-main"><Cover Size="44" /><span class="track-text"><span class="track-title">@e.Title</span><span class="track-sub">@e.Artist</span></span></span>
+                    <li class="track gone"><span class="track-main"><Cover Size="44" /><span class="track-text"><span class="track-title">@e.Title</span><span class="track-sub">@e.Artist</span><DownloadTag Session="Session" Artist="@e.Artist" Title="@e.Title" /></span></span>
                         <button class="btn" disabled="@(!Session.Services.Any || asked.Contains(Key(e)))" @onclick="() => Get([e])">@(asked.Contains(Key(e)) ? "Requested" : "Download")</button></li>
                 }
             </ul>

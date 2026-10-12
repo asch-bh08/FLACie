@@ -13,6 +13,7 @@
                 <span class="track-text">
                     <span class="track-title">@t.Title</span>
                     <span class="track-sub">@t.Artist@(ShowAlbum && t.Album.Length > 0 ? " · " + t.Album : "")@(t.Year > 0 ? " · " + t.Year : "")</span>
+                    <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" />
                 </span>
             </button>
             <span class="pills">

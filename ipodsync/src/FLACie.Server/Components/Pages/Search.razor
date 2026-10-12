@@ -58,22 +58,24 @@ else
                 @foreach (var s in webSongs)
                 {
                     var jb = Downloads.JobFor(Session, s.Artist, s.Title); var hiKey = FLACie.Core.Matching.MatchKey(s.Title, s.Artist);
+                    // already playable now (a download that just finished, or one the phone reported): never offered again
+                    var inLib = Lib.Find(s.Title, s.Artist) is not null;
                     <li class="track @(hiAsk == hiKey ? "asking" : "")">
                         <span class="track-main">
                             <Cover ArtKey="@(s.ArtUrl is null ? null : Art.ExternalKey(s.ArtUrl))" Size="44" />
-                            <span class="track-text"><span class="track-title">@s.Title</span><span class="track-sub">@s.Artist@(s.Album.Length > 0 ? " · " + s.Album : "")</span>@if (jb is not null) { <span class="track-dl @(jb.Stage == DownloadStage.Failed ? "bad" : jb.Stage == DownloadStage.Done ? "ok" : "")"><i aria-hidden="true"></i>@jb.Message@(jb.Current is { } c && !jb.Finished ? " · " + OpenSourceSettings.Name(c) : jb.Source is { } src ? " · from " + OpenSourceSettings.Name(src) : "")</span> }</span>
+                            <span class="track-text"><span class="track-title">@s.Title</span><span class="track-sub">@s.Artist@(s.Album.Length > 0 ? " · " + s.Album : "")</span>@if (jb is { Stage: DownloadStage.Failed }) { <span class="track-dl bad"><i aria-hidden="true"></i>@jb.Message</span> } else { <DownloadTag Session="Session" Artist="@s.Artist" Title="@s.Title" /> }</span>
                         </span>
                         <span class="track-time">@Time(s.DurationMs / 1000.0)</span>
                         <span class="track-actions">
-                        <button class="btn" disabled="@(!Session.Services.Any || jb is { Finished: false })" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />@(jb is { Finished: false } ? "Downloading…" : jb is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button>
+                        <button class="btn" disabled="@(!Session.Services.Any || jb is { Finished: false } || inLib)" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />@(jb is { Finished: false } ? "Downloading…" : inLib ? "In your library" : jb is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button>
                         <span class="dl-more">
                             <button class="icon-btn" aria-haspopup="menu" aria-expanded="@((dlMenu == hiKey) ? "true" : "false")" aria-label="More download options for @s.Title" @onclick="() => dlMenu = dlMenu == hiKey ? null : hiKey"><Icon Name="lines" Size="20" /></button>
                             @if (dlMenu == hiKey)
                             {
                                 <button class="scrim" aria-label="Close" @onclick="() => dlMenu = null"></button>
                                 <div class="dl-menu" role="menu">
-                                    <button role="menuitem" disabled="@(!Session.Services.Any || jb is { Finished: false })" @onclick="() => { dlMenu = null; Downloads.Song(Session, s); }"><Icon Name="download" Size="16" />Download</button>
-                                    @if (isAdmin && Session.Services.SoulseekReady) { <button role="menuitem" class="hi" disabled="@(jb is { Finished: false })" @onclick="() => { dlMenu = null; hiAsk = hiKey; }"><span aria-hidden="true">✦</span> Hi-Res download…</button> }
+                                    <button role="menuitem" disabled="@(!Session.Services.Any || jb is { Finished: false } || inLib)" @onclick="() => { dlMenu = null; Downloads.Song(Session, s); }"><Icon Name="download" Size="16" />Download</button>
+                                    @if (isAdmin && Session.Services.SoulseekReady) { <button role="menuitem" class="hi" disabled="@(jb is { Finished: false } || inLib)" @onclick="() => { dlMenu = null; hiAsk = hiKey; }"><span aria-hidden="true">✦</span> Hi-Res download…</button> }
                                     <a role="menuitem" href="https://www.youtube.com/results?search_query=@Uri.EscapeDataString(s.Artist + " " + s.Title)" target="_blank" rel="noopener" @onclick="() => dlMenu = null">Find on YouTube</a>
                                 </div>
                             }

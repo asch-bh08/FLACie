@@ -564,6 +564,37 @@ window.flacie = (() => {
   };
 })();
 
+// Download tags ("Recently downloaded · 5s ago", see DownloadTag.razor). The age is worked out here once a second from the age the server gave when it drew the
+// line, so the page is not drawn again for it and the line never moves. The wording and the 60 minute window are the server's (DownloadTags.AgeLabel) and the phone's.
+window.flacieDl = (() => {
+  const WINDOW = 60 * 60 * 1000, FUTURE = 60 * 1000;
+  const ageLabel = ms => {
+    if (ms > WINDOW || ms < -FUTURE) return null;
+    if (ms < 5000) return "just now";
+    if (ms < 60000) return Math.floor(ms / 1000) + "s ago";
+    return Math.floor(ms / 60000) + " min ago";
+  };
+  const live = document.getElementsByClassName("dl-age");
+  const tick = () => {
+    if (live.length === 0) return;
+    const now = performance.now();
+    for (const el of live) {
+      const given = el.getAttribute("data-age");
+      const tag = el.closest(".dl-tag");
+      // drawn again by the server: start from the age it gave this time
+      if (el.__given !== given) { el.__given = given; el.__t0 = now; if (tag) tag.hidden = false; }
+      const label = ageLabel(Number(given) + (now - el.__t0));
+      // an hour has passed: it is a normal library song again, the line goes away
+      if (label === null) { if (tag) tag.hidden = true; continue; }
+      const text = el.firstChild;
+      if (text && text.nodeType === 3) { if (text.nodeValue !== label) text.nodeValue = label; }
+      else if (el.textContent !== label) el.textContent = label;
+    }
+  };
+  setInterval(tick, 1000);
+  return { ageLabel, tick };
+})();
+
 // Personal look-and-feel tweaks (Settings > Look and feel), kept in this browser and applied on every page load
 window.flacieUi = (() => {
   const KEY = "flacie.ui";

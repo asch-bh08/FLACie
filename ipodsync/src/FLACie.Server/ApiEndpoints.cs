@@ -158,6 +158,40 @@ public static class ApiEndpoints
             return Results.NoContent();
         }).DisableAntiforgery();
 
+        // "I downloaded this on the phone": the phone does its own downloads (its slskd and file mover), so the server never saw them. Telling it makes the song show as
+        // recently downloaded here, playable as a "new download" before Jellyfin has scanned it, and not offered (or fetched by Autoplay) again.
+        // { artist, title, album?, durationMs?, path?, source?, finishedAtMs? } -> { ok, known }; known is true when the song is playable here now.
+        app.MapPost("/api/downloaded", async (HttpContext ctx, SessionStore store, JellyfinClient jf, DownloadManager downloads) =>
+        {
+            if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
+            const int MaxBody = 16 * 1024;
+            if (ctx.Request.ContentLength is > MaxBody) return Results.Json(new { error = "That report is too big." }, statusCode: 413);
+            if (ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit) limit.MaxRequestBodySize = MaxBody;
+            System.Text.Json.Nodes.JsonObject? body;
+            try { body = await System.Text.Json.Nodes.JsonNode.ParseAsync(ctx.Request.Body) as System.Text.Json.Nodes.JsonObject; }
+            catch (System.Text.Json.JsonException) { body = null; }
+            catch (Microsoft.AspNetCore.Http.BadHttpRequestException) { return Results.Json(new { error = "That report is too big." }, statusCode: 413); }
+            if (body is null) return Results.BadRequest(new { error = "Send a JSON object." });
+            string? Str(string k, int max) => body[k] is System.Text.Json.Nodes.JsonValue v && v.TryGetValue<string>(out var x) && x.Trim() is { Length: > 0 } t ? (t.Length > max ? t[..max] : t) : null;
+            var artist = Str("artist", 200); var title = Str("title", 200);
+            if (artist is null || title is null) return Results.BadRequest(new { error = "Say which song: artist and title." });
+            var album = Str("album", 200) ?? "";
+            long Num(string k) => body[k] is System.Text.Json.Nodes.JsonValue v && v.TryGetValue<long>(out var n) ? n : 0;
+            var durationMs = Num("durationMs") is > 0 and <= 86_400_000 and var d ? d : 0;
+            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            if (!DownloadManager.TakeReportTurn(s.Id, now)) return Results.Json(new { error = "Too many reports; try again later." }, statusCode: 429);
+            // a client's clock must not backdate or future-date a download: at most ten minutes back, never ahead
+            var finished = DownloadTags.ClampReported(Num("finishedAtMs"), now);
+            var source = Str("source", 20)?.ToLowerInvariant() is { } src && DownloadReports.Sources.Contains(src) ? src : null;
+            // the path is trusted only when it is a file of this user's own file mover (never fetched from anywhere else)
+            var path = Str("path", 2000) is { } p && DownloadReports.AcceptPath(s.Services.FileMoverUrl, p) ? p : null;
+            Track? track = path is null ? null
+                : new Track(path, title, artist, album, artist, 0, 0, durationMs, 0, Art.LookupKey(artist, album, title), finished, TrackSource.Cloud);
+            downloads.Reported(s, artist, title, album, durationMs, source, finished, path is null ? null : DownloadReports.RelativeFile(path), track);
+            var known = track is not null || s.Library.Find(title, artist) is not null || s.Library.FindLoose(title, artist) is not null;
+            return Results.Json(new { ok = true, known });
+        }).DisableAntiforgery();
+
         // the real format of every song the server has read (ffprobe / Jellyfin, never guessed from the extension), keyed like the apps key a file
         // (the last three path segments): the phone uses it for the Hi-Res badge and the Explore quality filter. [codec, sampleRate, bitDepth, kbps]
         // an Apple Lossless song as WAV, for players (the phone app) that have no ALAC decoder: this server decodes it itself, with the caller's own Jellyfin sign-in
@@ -200,6 +234,39 @@ public static class ApiEndpoints
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
             imports.Cancel(s, id); return Results.Ok();
         }).DisableAntiforgery();
+    }
+}
+
+/// <summary>Rules for what the phone says in POST /api/downloaded.</summary>
+public static class DownloadReports
+{
+    public static readonly HashSet<string> Sources = ["soulseek", "lidarr", "ytdl", "archive", "audius", "jamendo"];
+
+    /// <summary>
+    /// A reported path is accepted only when it is exactly this user's file mover address followed by <c>/file?path=</c> and a relative file path: no other host, no
+    /// other endpoint, no extra query parameters, no way out of the music folder (absolute paths, "..", control characters).
+    /// </summary>
+    public static bool AcceptPath(string fileMoverUrl, string path)
+    {
+        var fm = fileMoverUrl.Trim().TrimEnd('/');
+        if (fm.Length == 0 || path.Length > 2000) return false;
+        var prefix = fm + "/file?path=";
+        if (!path.StartsWith(prefix, StringComparison.Ordinal)) return false;
+        var rel = path[prefix.Length..];
+        if (rel.Length == 0 || rel.Any(c => c is '&' or '#' or '?' or ' ' || char.IsControl(c))) return false;
+        string decoded;
+        try { decoded = Uri.UnescapeDataString(rel); } catch (Exception) { return false; }
+        if (decoded.Length == 0 || decoded.Any(char.IsControl)) return false;
+        if (decoded[0] is '/' or '\\' || (decoded.Length > 1 && decoded[1] == ':')) return false;
+        return !decoded.Replace('\\', '/').Split('/').Any(seg => seg == "..");
+    }
+
+    /// <summary>The file's path relative to the file mover's root (what the download log keeps), from an accepted path.</summary>
+    public static string? RelativeFile(string path)
+    {
+        var i = path.IndexOf("/file?path=", StringComparison.Ordinal);
+        if (i < 0) return null;
+        try { return Uri.UnescapeDataString(path[(i + "/file?path=".Length)..]); } catch (Exception) { return null; }
     }
 }
 

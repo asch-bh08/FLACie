@@ -1,0 +1,60 @@
+@implements IDisposable
+@inject DownloadManager Dls
+@* The small line under a song's artist: "Downloading · Searching Soulseek...", "Recently downloaded · 1s ago" (for an hour after it finished), "Couldn't download".
+   Every list that shows songs uses this one component; the lookup behind it is DownloadManager.StatusOf. It follows the downloads by itself, and the age ticks in the
+   browser (flacie.js, once a second) so the page is not drawn again. *@
+@{
+    var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    shown = Current(now);
+    var text = shown.Text(now);
+}
+@if (text is not null)
+{
+    <span class="track-dl dl-tag @(shown.State == DownloadTagState.Recent ? "ok" : shown.State == DownloadTagState.Failed ? "bad" : "") @Class" data-dl="@shown.State.ToString().ToLowerInvariant()">
+        <i aria-hidden="true"></i>
+        @if (shown.State == DownloadTagState.Recent)
+        {
+            <span class="dl-tag-text">@DownloadTags.RecentWord · <time class="dl-age" data-age="@(now - shown.AtMs)">@DownloadTags.AgeLabel(now, shown.AtMs)</time></span>
+        }
+        else
+        {
+            <span class="dl-tag-text">@text</span>
+        }
+    </span>
+}
+@code {
+    [Parameter, EditorRequired] public UserSession Session { get; set; } = default!;
+    [Parameter] public string Artist { get; set; } = "";
+    [Parameter] public string Title { get; set; } = "";
+    /// <summary>The song itself when it is in a list: a "new download" song counts as recent from the time it was added.</summary>
+    [Parameter] public Track? Track { get; set; }
+    /// <summary>Extra CSS class for the spot the tag sits in.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    string key = "", keyFor = "";
+    long cloudAddedMs;
+    UserSession? subscribedTo;
+    Action? onChanged;
+    DownloadTagStatus shown;
+
+    protected override void OnParametersSet()
+    {
+        // the match key is a few regular expressions: worked out again only when the song changed
+        var id = Title + "\n" + Artist;
+        if (id != keyFor) { keyFor = id; key = Title.Length == 0 ? "" : Matching.MatchKey(Title, Artist); }
+        cloudAddedMs = Track is { Source: TrackSource.Cloud } t ? t.AddedMs : 0;
+        if (!ReferenceEquals(subscribedTo, Session))
+        {
+            Unsubscribe();
+            // a download of this song started, moved on or ended: draw again, but only this tag and only when what it says would be different
+            onChanged = () => { if (Current(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) != shown) _ = InvokeAsync(StateHasChanged); };
+            Dls.Subscribe(Session, onChanged);
+            subscribedTo = Session;
+        }
+    }
+
+    DownloadTagStatus Current(long now) => key.Length == 0 ? DownloadTagStatus.None : Dls.StatusOfKey(Session, key, cloudAddedMs, now);
+
+    void Unsubscribe() { if (subscribedTo is not null && onChanged is not null) Dls.Unsubscribe(subscribedTo, onChanged); subscribedTo = null; }
+    public void Dispose() => Unsubscribe();
+}

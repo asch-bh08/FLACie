@@ -219,7 +219,7 @@ private fun NpInfo(snap: PlayerSnap, center: Boolean) {
     Column(Modifier.fillMaxWidth().trackSwipe({ app.player.prev() }, { app.player.next() }), horizontalAlignment = if (center) Alignment.CenterHorizontally else Alignment.Start) {
         Txt(t.title, Modifier.fillMaxWidth(), size = 24f, weight = FontWeight.Bold, align = a)
         Txt(t.artist.ifEmpty { "Unknown Artist" }, Modifier.fillMaxWidth().padding(top = 2.dp), size = 17f, color = sc.accentLight, align = a)
-        DownloadTagLine(t, Modifier.padding(top = 2.dp), size = 12.5f, align = a)
+        DownloadTagLine(t, Modifier.padding(top = 2.dp), size = 12.5f, align = a, showNew = false)
         if (t.album.isNotEmpty()) Txt(t.album, Modifier.fillMaxWidth(), size = 14f, color = sc.onBgDim, align = a)
     }
 }

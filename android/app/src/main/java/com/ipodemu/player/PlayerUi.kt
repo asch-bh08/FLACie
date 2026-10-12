@@ -327,7 +327,6 @@ fun TrackRow(
     val sc = LocalScheme.current
     val fav by app.userData.favState(t.path)   // per-track state: a favourite toggle recomposes only this row
     val hiRes = remember(t, AudioFacts.version) { t.hiRes }   // not worked out again on every recomposition while scrolling
-    val tagged = isTagged(t)   // a download tag (running, recently finished, failed) takes a third line under the artist
     val isCurrent = snap.track?.path == t.path
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val rCode = app.prefs.swipeRowRight; val lCode = app.prefs.swipeRowLeft
@@ -335,6 +334,10 @@ fun TrackRow(
     val hw = LocalHardware.current   // the faithful device view has no swipe shortcuts
     // a narrow screen (a phone, or the 480 dp wide RG Rotate with its 80 dp rail): the badges would leave the title room for 7 letters, so the source badge goes and Hi-Res moves under the title
     val narrow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 520
+    // a download tag (running, recently finished, failed, or "New download" for a Cloud song past the hour) takes a third line under the artist;
+    // the "New download" marker is left to the row's own badge where that is shown
+    val badgeShown = !narrow && Tweaks.badges && app.library.mixedSources
+    val tagged = isTagged(t, showNew = !badgeShown)
     val right = remember(t, fav, rCode, hw) { if (hw) null else swipeAction(rCode, app, t, fav, ctx) }
     val left = remember(t, fav, lCode, hw) { if (hw) null else swipeAction(lCode, app, t, fav, ctx) }
     SwipeRow(right = right, left = left, modifier = modifier) {
@@ -375,7 +378,7 @@ fun TrackRow(
                 HiResBadge(compact = true)
                 if (sub.isNotEmpty()) Txt(sub, Modifier.weight(1f), size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
             } else if (sub.isNotEmpty()) Txt(sub, size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
-            if (tagged) DownloadTagLine(t, hi = hi)
+            if (tagged) DownloadTagLine(t, hi = hi, showNew = !badgeShown)
         }
     }
     }
@@ -388,14 +391,17 @@ private fun sourceColor(s: com.ipodemu.library.TrackSource): Color = when (s) {
     com.ipodemu.library.TrackSource.JELLYFIN -> Color(0xFFFF6FAE)
     com.ipodemu.library.TrackSource.PLEX -> Color(0xFFE5A00D)
     com.ipodemu.library.TrackSource.NAS -> Color(0xFF5FB8E0)
-    com.ipodemu.library.TrackSource.CLOUD -> Color(0xFFB27CE0)
+    com.ipodemu.library.TrackSource.CLOUD -> Color(0xFF6FD6A3)   // the web's .badge.cloud text (--ok)
 }
+/** The badge background: a tint of its own colour, except the new-download badge, which is the web's #14261c. */
+private fun sourceBack(s: com.ipodemu.library.TrackSource, color: Color): Color =
+    if (s == com.ipodemu.library.TrackSource.CLOUD) Color(0xFF14261C) else color.copy(alpha = 0.16f)
 
 @Composable
 private fun SourceBadge(source: com.ipodemu.library.TrackSource) {
     if (!Tweaks.badges || !LocalApp.current.library.mixedSources) return
     val color = sourceColor(source)
-    Box(Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.16f)).padding(horizontal = 7.dp, vertical = 3.dp)) {
+    Box(Modifier.clip(RoundedCornerShape(50)).background(sourceBack(source, color)).padding(horizontal = 7.dp, vertical = 3.dp)) {
         Txt(com.ipodemu.library.SourceLabel.badge(source), size = 11f, weight = FontWeight.SemiBold, color = color)
     }
 }
@@ -629,7 +635,7 @@ private fun TrackCard(t: Track, modifier: Modifier = Modifier, onClick: () -> Un
         ArtImage(t.artKey, Modifier.fillMaxWidth().aspectRatio(1f).border(if (focused) 3.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(12.dp)), thumb = true, corner = 12.dp)
         Txt(t.title, Modifier.padding(top = 8.dp), size = 13f, weight = FontWeight.SemiBold)
         Txt(t.artist, size = 12f, color = sc.onBgDim)
-        DownloadTagLine(t, size = 11f)
+        DownloadTagLine(t, size = 11f, compact = true, showNew = !(Tweaks.badges && LocalApp.current.library.mixedSources))
         Box(Modifier.padding(top = 4.dp)) { SourceBadge(t.source) }
     }
 }
@@ -1070,7 +1076,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 itemsIndexed(shown, key = { i, s -> "ws$i${s.artist}${s.title}" }) { _, s ->
                     val owned = ownedSongs[com.ipodemu.library.matchKey(s.title, s.artist)]
                     val status = dl[app.library.songKey(s.artist, s.title)]
-                    WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.let { st -> if (st.stage == DownloadStage.FAILED) st.message else "Downloading · " + com.ipodemu.library.DownloadTags.stageText(st.stage, st.message) } ?: "${s.artist} · ${s.album}", s.artUrl, owned, status,
+                    WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.let { st -> if (st.stage == DownloadStage.FAILED) st.message else com.ipodemu.library.DownloadTags.runningText(com.ipodemu.library.DownloadTags.stageText(st.stage, st.message)) } ?: "${s.artist} · ${s.album}", s.artUrl, owned, status,
                         onPlay = { searchFocus.clearFocus(); owned?.let { if (snap.track?.path == it.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(it), 0, null) } } },
                         onDownload = { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs) },
                         // the three-line menu: Download, Hi-Res (administrators, per song, after a confirmation: the files are several times the size), Find on YouTube
@@ -1200,7 +1206,7 @@ private fun TopResultCard(t: Track, onPlay: () -> Unit) {
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
             Txt(t.title, size = 18f, weight = FontWeight.Bold, color = sc.onBg, maxLines = 1)
             Txt(t.artist, size = 14f, color = sc.onBgDim, maxLines = 1)
-            DownloadTagLine(t, size = 12f)
+            DownloadTagLine(t, size = 12f, compact = true, showNew = !(Tweaks.badges && LocalApp.current.library.mixedSources))
             Box(Modifier.padding(top = 4.dp)) { SourceBadge(t.source) }
         }
         Box(Modifier.size(44.dp).clip(CircleShape).background(sc.accent).semantics { contentDescription = "Play" }.clickable(onClick = onPlay), contentAlignment = Alignment.Center) {
@@ -1257,8 +1263,13 @@ private fun QueueScreen(nav: PlayerNav, snap: PlayerSnap) {
         if (q.isEmpty()) { EmptyState("The queue is empty"); return@Column }
         // opens on the song playing now (what already played stays above it)
         val list = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = snap.index.coerceIn(0, q.size - 1))
+        // the songs Autoplay added, and the suggestions it is still fetching (display only, after the queue's own rows)
+        val upcoming = q.withIndex().filter { it.index > snap.index }.map { it.index to it.value }
+        val plan = rememberUpNextPlan(upcoming, snap.count, snap.rev, snap.track?.path)
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 24.dp)) {
             itemsIndexed(q, key = { i, t -> "$i${t.path}" }) { i, t ->
+                Column(Modifier.fillMaxWidth()) {
+                if (i == plan.dividerBefore) AutoplayDivider()
                 val cur = i == snap.index
                 val remove = remember(i, t) { SwipeAction("Remove", Glyph.CLOSE, { Color(0xFFD9423F) }) { removeFromQueueWithUndo(app, i) } }
                 SwipeRow(right = remove, left = remove) {
@@ -1274,11 +1285,14 @@ private fun QueueScreen(nav: PlayerNav, snap: PlayerSnap) {
                     Column {
                         Txt(t.title, size = 16f, weight = if (cur) FontWeight.Bold else FontWeight.Medium, color = if (hi) Color.White else if (cur) sc.accent else sc.onBg)
                         Txt(t.artist, size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
-                        if (tagged) DownloadTagLine(t, hi = hi)
+                        if (tagged) DownloadTagLine(t, hi = hi, compact = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 520)
                     }
                 }
                 }
+                }
             }
+            if (plan.dividerAtEnd) item(key = "ap-divider") { AutoplayDivider() }
+            items(plan.pending, key = { "ap-" + it.pending.key }) { PendingDrawerRow(it) }
         }
     }
 }

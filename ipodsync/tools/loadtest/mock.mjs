@@ -7,6 +7,7 @@
 //   --capacity n   the server works on at most n requests at once; the rest wait their turn (a small, busy Jellyfin: more parallel
 //                  requests do not finish sooner, they only wait longer). 0 = unlimited.
 //   --streamms ms  an audio answer takes this long to send (so a stream the client abandons is seen as aborted, not as complete)
+//   --wavsec 3     length of every song's audio in seconds (3; use 180 to test seeking)  --nopic 1  three songs the server has no picture for at all
 //   --album-art 1  tracks also carry their album's cover (AlbumId + AlbumPrimaryImageTag), as a Jellyfin with embedded art does (default 1)
 // The same switches can be changed while it runs:  GET /__config?latency=300&jitter=100&flaky=0.1&ratelimit=40
 // Account: tester / pw (administrator), token "mock-token". Library: user id "u1", 10,000 audio items by default.
@@ -45,12 +46,20 @@ for (let i = 0; i < N; i++) {
     ImageTags: { Primary: 'tag' + (i % 997) }, ...(ALBUM_ART ? { AlbumPrimaryImageTag: 'alb' + (al % (artists.length * 5)) } : {}), MediaType: 'Audio', Type: 'Audio', _kind: k,
   });
 }
+// songs the server has no picture for at all (not for the song, not for its album): the app must look one up in the public catalog, one lookup per album (--nopic 0 turns them off)
+if (Number(arg('nopic', 1)) !== 0) for (let j = 0; j < 3; j++) {
+  const i = N + j, id = hex(i), k = kinds[0];
+  songs.push({ Id: id, Name: ['Out of Space', 'Charly', 'Fire'][j], Artists: ['The Prodigy'], AlbumArtist: 'The Prodigy', Album: 'Experience', AlbumId: hex(2_000_000), IndexNumber: j + 1, ParentIndexNumber: 1,
+    RunTimeTicks: 150 * 10_000_000, ProductionYear: 1992, Path: `/music/The Prodigy/Experience/0${j + 1} ${['Out of Space', 'Charly', 'Fire'][j]}.flac`, Genres: ['Electronic'],
+    DateCreated: new Date(base + i * 60_000).toISOString(), DateLastSaved: new Date(base + i * 60_000).toISOString(), ImageTags: {}, MediaType: 'Audio', Type: 'Audio', _kind: k, _nopic: true });
+}
+const noPic = new Set(songs.filter((x) => x._nopic).flatMap((x) => [x.Id, x.AlbumId]));
 const sources = (x) => ({ ...strip(x), MediaSources: [{ Container: x._kind[1], Path: x.Path, Size: 20_000_000, Bitrate: x._kind[4], RunTimeTicks: x.RunTimeTicks,
   MediaStreams: [{ Type: 'Audio', Codec: x._kind[0], Channels: 2, BitRate: x._kind[4], SampleRate: x._kind[3], ...(x._kind[2] ? { BitDepth: x._kind[2] } : {}) }] }] });
-const strip = (x) => { const { _kind, ...r } = x; return r; };
+const strip = (x) => { const { _kind, _nopic, ...r } = x; return r; };
 
 const wav = (() => {
-  const rate = 8000, n = rate * 3, b = Buffer.alloc(44 + n * 2);
+  const rate = 8000, n = rate * Number(arg('wavsec', 3)), b = Buffer.alloc(44 + n * 2);
   b.write('RIFF', 0); b.writeUInt32LE(36 + n * 2, 4); b.write('WAVEfmt ', 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22);
   b.writeUInt32LE(rate, 24); b.writeUInt32LE(rate * 2, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(n * 2, 40);
   return b;

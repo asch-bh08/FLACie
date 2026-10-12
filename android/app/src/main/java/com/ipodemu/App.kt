@@ -81,7 +81,7 @@ class App : Application() {
     /** The covers of the songs about to play (and the one just before) are made ready, so skipping shows the cover at once. */
     private fun warmAroundCurrent() {
         val q = player.queue; val i = player.queueIndex
-        art.warmAround((i - 1..i + 4).mapNotNull { q.getOrNull(it)?.artKey }, (i - 1..i + 2).mapNotNull { q.getOrNull(it)?.artKey })
+        val keys = q.map { it.artKey }; art.warmAround(com.ipodemu.library.WarmPlan.rows(keys, i), com.ipodemu.library.WarmPlan.large(keys, i))
     }
 
     /** Settings > Cache: covers, the saved song list and facts, and the audio kept for replay. */

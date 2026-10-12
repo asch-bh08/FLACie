@@ -49,6 +49,7 @@ const pick = (s) => ({ total: s.total, byKind: s.byKind, peakInFlight: s.peakInF
 // ---- the mock ----
 let mock = null;
 async function startMock() {
+  if (process.env.MOCK_EXTERNAL) { await fetch(`${MOCK}/__profile?name=${PROFILE}`); await reset(); return; }   // a mock started by hand (e.g. with --wavsec 180)
   mock = spawn('node', [path.join(here, 'mock.mjs'), '--port', String(PORT), '--host', '127.0.0.1', '--items', String(ITEMS), '--streamms', '1500'], { stdio: 'ignore', windowsHide: true });
   for (let i = 0; i < 100; i++) { try { if ((await fetch(`${MOCK}/System/Info/Public`)).ok) break; } catch { } await sleep(200); }
   await fetch(`${MOCK}/__profile?name=${PROFILE}`);

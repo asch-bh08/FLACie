@@ -136,7 +136,8 @@ class ArtCache(private val dir: File) {
         val want = e?.want ?: if (full) index.entry(key)?.want else null
         val r = try { fx(jfId(key), full, want, if (exists) e?.etag else null, p) }
         catch (c: CancellationException) { throw c }
-        catch (_: Exception) { null }
+        catch (x: Exception) { android.util.Log.i("FLACieCover", "${key.take(10)} failed: ${x.javaClass.simpleName} ${x.message}"); null }
+        if (r != null && r.code !in 200..299 && r.code != 304) android.util.Log.i("FLACieCover", "${key.take(10)} http ${r.code}")
         if (r == null) { synchronized(this) { fetchFailed[ik] = System.currentTimeMillis() }; return f.takeIf { exists } }
         if (r.code == 304 && exists) {
             index.saved(ik, want, e?.etag); saveIndexSoon(); touch(f)

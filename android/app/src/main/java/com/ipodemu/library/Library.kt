@@ -500,7 +500,11 @@ class Library(ctx: Context, val art: ArtCache) {
         scanning = true; scanCount = 0
         job = scope.launch {
             try {
-                if (!loaded) { load(); showSavedLibrary(); loadRemote(); rebuild(); loaded = true }
+                if (!loaded) {
+                    com.ipodemu.Boot.span("library load()") { load() }; com.ipodemu.Boot.span("library showSavedLibrary()") { showSavedLibrary() }
+                    com.ipodemu.Boot.span("library loadRemote()") { loadRemote() }; com.ipodemu.Boot.span("library rebuild()") { rebuild() }; loaded = true
+                    com.ipodemu.Boot.mark("library loaded: ${tracks.size} songs, ${jellyfinTracks.size} jellyfin")
+                }
                 if (source == Source.LOCAL) { mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd(); checkFileMover() }
                 runScan()
             } catch (_: Exception) {

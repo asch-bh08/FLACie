@@ -25,6 +25,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        Boot.mark("Application.onCreate start")
         prefs = Prefs(this)
         // the old cover folder (covers changed in Jellyfin showed stale): covers are fetched again, into a new one; deleted off the main thread
         bg.launch { File(filesDir, "art").deleteRecursively() }
@@ -35,10 +36,10 @@ class App : Application() {
         art.jfThumbSample = if (resources.displayMetrics.density <= 2.0f) 2 else 1
         art.start()
         com.ipodemu.library.JellyfinNet.startLogging()
-        library = Library(this, art)
-        player = PlayerController(this, prefs)
+        library = Boot.span("Library()") { Library(this, art) }
+        player = Boot.span("PlayerController()") { PlayerController(this, prefs) }
         ui = UiState(prefs)
-        player.restoreQueue(); player.restoreSleepTimer()
+        Boot.span("restoreQueue") { player.restoreQueue(); player.restoreSleepTimer() }
         userData = com.ipodemu.library.UserData(this)
         // one-off: on-device playlists that never reached the account stay out of Playlists; new ones always show
         if (!prefs.playlistsMigrated) { prefs.hiddenPlaylists = userData.playlists.filter { it.jfId == null && it.paths.isNotEmpty() }.mapTo(HashSet()) { it.id }; prefs.playlistsMigrated = true }
@@ -69,6 +70,7 @@ class App : Application() {
         library.tags.seed(userData.downloads.map { Triple(it.title, it.artist, it.time) }, System.currentTimeMillis())
         // pick up changes made on other devices (playlists, newly added services) every launch
         account.sync()
+        Boot.mark("Application.onCreate end")
     }
 
     /** Settings > Cache: covers, the saved song list and facts, and the audio kept for replay. */

@@ -514,6 +514,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
         }
     }
     val shelves = home?.shelves ?: emptyList()
+    androidx.compose.runtime.SideEffect { com.ipodemu.Boot.once(if (shelves.isNotEmpty()) "home: shelves drawn" else "home: first composition (no shelves yet)") }
     val moodList = home?.moods ?: emptyList()
     var mood by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     app.userData.rev

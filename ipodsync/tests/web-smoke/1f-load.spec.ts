@@ -20,6 +20,7 @@ test.describe.serial('server load', () => {
     await signIn(page);
     // what this test counts is what happens from here on (the specs before it have read their own songs one by one)
     await request.get(`${MOCK}/__reset`);
+    const itemsBefore = (await (await page.request.get('/api/admin/load')).json()).jellyfinCallsSinceStart.items as number;
     // the background read starts about 20 s after the server; poll the admin counters until the plain songs are indexed
     let load: any = {};
     await expect.poll(async () => {
@@ -29,7 +30,7 @@ test.describe.serial('server load', () => {
     const c = await counts(request);
     // 48 songs would have been 48 single-song requests one by one; the bulk read is one library page
     expect(c.item, 'single-song reads').toBeLessThan(10);
-    expect(load.jellyfinCallsSinceStart.items, 'library pages').toBeLessThan(12);
+    expect(load.jellyfinCallsSinceStart.items - itemsBefore, 'library pages and deltas asked for since this test began').toBeLessThan(12);
     // the songs the bulk read could not tell are left alone for an hour instead of five minutes
     expect(load.backingOff).toBeGreaterThanOrEqual(1);
     expect(load.desktopShell).toBe(false);
@@ -38,6 +39,7 @@ test.describe.serial('server load', () => {
   test('a burst of 30 API calls asks Jellyfin who the token is only a few times', async ({ request }) => {
     const h = { 'X-Emby-Token': 'mock-token' };
     await request.get(`${MOCK}/__reset`);
+    const itemsBefore = (await (await page.request.get('/api/admin/load')).json()).jellyfinCallsSinceStart.items as number;
     const first = await Promise.all(Array.from({ length: 30 }, () => request.get('/api/account', { headers: h })));
     for (const r of first) expect(r.status()).toBe(200);
     for (let i = 0; i < 30; i++) expect((await request.get('/api/account', { headers: h })).status()).toBe(200);
@@ -57,6 +59,7 @@ test.describe.serial('server load', () => {
     await expect(page.locator('.player')).toBeVisible();
     await expect.poll(async () => (await page.locator('.player .seek span').first().innerText()), { timeout: 15_000 }).not.toBe('0:00');
     await request.get(`${MOCK}/__reset`);
+    const itemsBefore = (await (await page.request.get('/api/admin/load')).json()).jellyfinCallsSinceStart.items as number;
     const next = page.getByRole('button', { name: 'Next' }).first();
     const t0 = Date.now();
     for (let i = 0; i < 20; i++) { await next.click({ noWaitAfter: true }); await page.waitForTimeout(60); }

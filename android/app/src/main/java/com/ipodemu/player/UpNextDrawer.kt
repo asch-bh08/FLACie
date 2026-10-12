@@ -24,12 +24,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ipodemu.App
 import com.ipodemu.library.DownloadStage
 import com.ipodemu.library.Track
 import com.ipodemu.library.matchKey
+import com.ipodemu.playback.QueueEdit
 
 /** "Downloading", "Downloaded just now / today / this week", or null for a song that was not fetched by the app. */
 fun downloadNote(app: App, t: Track): String? {
@@ -67,6 +70,31 @@ private fun NoteChip(text: String) {
  */
 class PaneNav(val pane: String, val toggle: (String) -> Unit, val go: (String) -> Unit, val wide: Boolean = false)
 val LocalPane = androidx.compose.runtime.staticCompositionLocalOf<PaneNav?> { null }
+/** The player's navigation state, for panes that open an action sheet (the queue's per-song actions). */
+val LocalPlayerNav = androidx.compose.runtime.staticCompositionLocalOf<PlayerNav?> { null }
+
+/** Takes the song at queue [index] out of the queue, with an Undo message (the same pattern as removing a song from a playlist). */
+fun removeFromQueueWithUndo(app: App, index: Int) {
+    val r = app.player.removeAt(index)
+    if (r == null) { if (app.player.hasQueue && !app.player.canEditQueue) app.ui.say("A Jam's queue is shared; it cannot be changed from here", warn = true); return }
+    app.ui.say("Removed \"${r.track.title}\" from Up next", "Undo") { app.player.undoRemoval(r) }
+}
+
+/**
+ * The actions of one song in Up next, as a sheet (reachable with touch and with the d-pad / gamepad, which have no drag): play next, move up,
+ * move down, remove. [pos] is its place among the [count] upcoming songs shown ([more] when further ones follow); the current song can only be removed.
+ */
+fun upNextSheet(app: App, t: Track, index: Int, pos: Int, count: Int, more: Boolean, current: Boolean): SheetSpec {
+    val items = ArrayList<SheetItem>()
+    if (!current && app.player.canEditQueue) {
+        val a = QueueEdit.rowActions(pos, count, more)
+        if (a.top) items += SheetItem("Play next", Glyph.CHEVRON) { app.player.moveUpNext(index, QueueEdit.Step.TOP) }
+        if (a.up) items += SheetItem("Move up", Glyph.CHEVRON) { app.player.moveUpNext(index, QueueEdit.Step.UP) }
+        if (a.down) items += SheetItem("Move down", Glyph.CHEVRON) { app.player.moveUpNext(index, QueueEdit.Step.DOWN) }
+    }
+    items += SheetItem("Remove from queue", Glyph.CLOSE) { removeFromQueueWithUndo(app, index) }
+    return SheetSpec(t.title, t.artist.ifEmpty { null }, items)
+}
 val PANES = listOf("lyrics", "art", "info", "queue")
 /** The tabs of the wide layout, in the web's order. */
 val SIDE_PANES = listOf("queue", "lyrics", "info")
@@ -96,7 +124,9 @@ fun QueuePanel(snap: PlayerSnap, modifier: Modifier = Modifier) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     app.userData.rev
-    val next = remember(snap.track?.path, snap.index, snap.shuffle, snap.repeat, snap.count) { app.player.upNext(30) }
+    val nav = LocalPlayerNav.current
+    val next = remember(snap.track?.path, snap.index, snap.shuffle, snap.repeat, snap.count, snap.rev) { app.player.upNext(30) }
+    val more = next.size >= 30
     val from = app.player.contextName ?: "Your queue"
     val cur = snap.track
     // the queue sits on a slightly raised card, so the player beside it stands out
@@ -117,14 +147,16 @@ fun QueuePanel(snap: PlayerSnap, modifier: Modifier = Modifier) {
                 SwitchPill(on)
             }
         }
-        if (cur != null) item { DrawerRow(cur, current = true, onClick = {}) }
+        if (cur != null) item { DrawerRow(cur, current = true, onClick = {}, onMore = nav?.let { n -> { n.sheet = upNextSheet(app, cur, snap.index, -1, next.size, more, true) } }) }
         if (next.isEmpty()) item { Txt("Nothing queued after this song.", Modifier.padding(horizontal = 4.dp, vertical = 8.dp), size = 14f, color = sc.onBgDim) }
-        itemsIndexed(next, key = { _, p -> p.first }) { _, p -> DrawerRow(p.second, current = false) { app.player.skipTo(p.first) } }
+        itemsIndexed(next, key = { _, p -> p.first }) { pos, p ->
+            DrawerRow(p.second, current = false, onMore = nav?.let { n -> { n.sheet = upNextSheet(app, p.second, p.first, pos, next.size, more, false) } }) { app.player.skipTo(p.first) }
+        }
     }
 }
 
 @Composable
-private fun DrawerRow(t: Track, current: Boolean, onClick: () -> Unit) {
+private fun DrawerRow(t: Track, current: Boolean, onMore: (() -> Unit)? = null, onClick: () -> Unit) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     val note = downloadNote(app, t)
@@ -139,5 +171,9 @@ private fun DrawerRow(t: Track, current: Boolean, onClick: () -> Unit) {
             if (note != null) NoteChip(note)
         }
         if (t.durationMs > 0) Txt(fmtTime(t.durationMs), size = 12.5f, color = sc.onBgDim)
+        if (onMore != null) Box(
+            Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = "More for ${t.title}" }.clickable(onClick = onMore),
+            contentAlignment = Alignment.Center,
+        ) { GlyphIcon(Glyph.MORE, Modifier.size(20.dp), sc.onBgDim) }
     }
 }

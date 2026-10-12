@@ -205,6 +205,12 @@ class MainActivity : ComponentActivity() {
             }
         }
         if (!wheelMode) PlayerKeys.translate(this, event)?.let { return it }
+        // the click-wheel view never saw a bare PLAY or PAUSE key (PlayerKeys is not used there, KeyMapper only knows PLAY_PAUSE), so it fell through to
+        // the system, which can send it to the app that last had the audio focus instead of this one
+        if (wheelMode && com.ipodemu.input.MediaKeys.handles(event.keyCode)) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 && com.ipodemu.input.MediaKeys.shouldToggle(event.keyCode, app.player.wantsToPlay)) app.player.toggle()
+            return true
+        }
         return super.dispatchKeyEvent(event)
     }
 

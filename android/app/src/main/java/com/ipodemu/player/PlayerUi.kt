@@ -156,14 +156,14 @@ class PlayerNav {
 
 /** What the player is doing, as one immutable snapshot for composition. */
 @androidx.compose.runtime.Immutable
-data class PlayerSnap(val track: Track?, val playing: Boolean, val shuffle: Boolean, val repeat: Int, val index: Int, val count: Int)
+data class PlayerSnap(val track: Track?, val playing: Boolean, val shuffle: Boolean, val repeat: Int, val index: Int, val count: Int, val rev: Int = 0)
 
 @Composable
 fun rememberSnap(player: PlayerController, prefs: Prefs): PlayerSnap {
     var tick by remember { mutableIntStateOf(0) }
     DisposableEffect(player) { val d = player.observe { tick++ }; onDispose { d() } }
     @Suppress("UNUSED_EXPRESSION") tick
-    return PlayerSnap(player.current, player.wantsToPlay, prefs.shuffle, prefs.repeat, player.queueIndex, player.queue.size)
+    return PlayerSnap(player.current, player.wantsToPlay, prefs.shuffle, prefs.repeat, player.queueIndex, player.queue.size, player.queueRev)
 }
 
 @Composable
@@ -275,7 +275,9 @@ fun PlayerHost(nav: PlayerNav) {
             nav.nowPlaying,
             enter = slideInVertically(tween(320)) { it } + fadeIn(tween(200)),
             exit = slideOutVertically(tween(260)) { it } + fadeOut(tween(200)),
-        ) { Box(Modifier.graphicsLayer { translationX = backDrag }.focusProperties { canFocus = nav.sheet == null && nav.nameDialog == null }) { NowPlayingScreen(snap, nav) } }
+        ) { Box(Modifier.graphicsLayer { translationX = backDrag }.focusProperties { canFocus = nav.sheet == null && nav.nameDialog == null }) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalPlayerNav provides nav) { NowPlayingScreen(snap, nav) }
+        } }
         nav.sheet?.let { s -> ActionSheet(s.title, s.subtitle, s.items) { nav.sheet = null } }
         nav.nameDialog?.let { done -> NameDialog(done, nav.nameDialogRename) { nav.nameDialog = null; nav.nameDialogRename = null } }
     }
@@ -1252,11 +1254,16 @@ private fun QueueScreen(nav: PlayerNav, snap: PlayerSnap) {
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 24.dp)) {
             itemsIndexed(q, key = { i, t -> "$i${t.path}" }) { i, t ->
                 val cur = i == snap.index
-                val remove = remember(i, t) { SwipeAction("Remove", Glyph.CLOSE, { Color(0xFFD9423F) }) { app.player.removeFromQueue(i) } }
+                val remove = remember(i, t) { SwipeAction("Remove", Glyph.CLOSE, { Color(0xFFD9423F) }) { removeFromQueueWithUndo(app, i) } }
                 SwipeRow(right = remove, left = remove) {
-                IpodRow({ app.player.skipTo(i) }, height = 56.dp,
+                IpodRow({ app.player.skipTo(i) }, height = 56.dp, onLong = { nav.sheet = queueRowSheet(app, t, i, snap.index, q.size) },
                     leading = { Box(Modifier.width(30.dp), contentAlignment = Alignment.Center) { if (cur) EqualizerBars(Modifier.size(18.dp), snap.playing, sc.accent) else Txt("${i + 1}", size = 14f, color = sc.onBgDim) } },
-                    trailing = { Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = "Remove ${t.title}" }.clickable { app.player.removeFromQueue(i) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.CLOSE, Modifier.size(18.dp), sc.onBgDim) } }) { hi ->
+                    trailing = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = "More for ${t.title}" }.clickable { nav.sheet = queueRowSheet(app, t, i, snap.index, q.size) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.MORE, Modifier.size(18.dp), sc.onBgDim) }
+                            Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = "Remove ${t.title}" }.clickable { removeFromQueueWithUndo(app, i) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.CLOSE, Modifier.size(18.dp), sc.onBgDim) }
+                        }
+                    }) { hi ->
                     Column {
                         Txt(t.title, size = 16f, weight = if (cur) FontWeight.Bold else FontWeight.Medium, color = if (hi) Color.White else if (cur) sc.accent else sc.onBg)
                         Txt(t.artist, size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
@@ -1266,6 +1273,18 @@ private fun QueueScreen(nav: PlayerNav, snap: PlayerSnap) {
             }
         }
     }
+}
+
+/** The Up Next screen lists the queue in its stored order: its row actions move a song in that order (the playing song keeps playing). */
+private fun queueRowSheet(app: App, t: Track, i: Int, current: Int, count: Int): SheetSpec {
+    val items = ArrayList<SheetItem>()
+    if (app.player.canEditQueue) {
+        if (com.ipodemu.playback.QueueEdit.playNextTarget(current, i) != null) items += SheetItem("Play next", Glyph.CHEVRON) { app.player.playNextInQueue(i) }
+        if (i > 0) items += SheetItem("Move up", Glyph.CHEVRON) { app.player.moveInQueue(i, i - 1) }
+        if (i < count - 1) items += SheetItem("Move down", Glyph.CHEVRON) { app.player.moveInQueue(i, i + 1) }
+    }
+    items += SheetItem("Remove from queue", Glyph.CLOSE) { removeFromQueueWithUndo(app, i) }
+    return SheetSpec(t.title, t.artist.ifEmpty { null }, items)
 }
 
 // ---- iPod list conventions ----------------------------------------------------------------------------------------

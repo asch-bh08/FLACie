@@ -160,6 +160,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** Invoked when a new track starts (for recently played). */
     var onTrackStarted: ((Track) -> Unit)? = null
     var queue: List<Track> = emptyList(); private set
+    /** Counts every change of the queue's songs or order (also a reorder that leaves the count and the current song alone), so the UI can refresh its list. */
+    var queueRev = 0; private set
 
     private val handler = Handler(Looper.getMainLooper())
     private var equalizer: Equalizer? = null
@@ -197,7 +199,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) { handler.removeCallbacks(persistSoon); handler.postDelayed(persistSoon, 1_500L) }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 // a metadata-only swap (refreshArtwork) also reports a transition; that's not a new play
-                (mediaItem?.localConfiguration?.tag as? Track)?.let { if (it !== lastStarted || reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) onTrackStarted?.invoke(it); lastStarted = it }
+                (mediaItem?.localConfiguration?.tag as? Track)?.let { if (!quietTransition && (it !== lastStarted || reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)) onTrackStarted?.invoke(it); lastStarted = it }
                 refreshArtwork()
                 checkQueueLow()
                 adaptUpcoming(); schedulePrefetch()
@@ -269,10 +271,12 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (!hasQueue || burstTarget >= 0) return
         val tracks = queueTracks(); if (tracks.isEmpty()) return
         val idx = exo.currentMediaItemIndex.coerceIn(0, tracks.lastIndex); val pos = exo.currentPosition
+        // a shuffled queue keeps its play order (a reordered Up next must come back as it was left)
+        val order = if (exo.shuffleModeEnabled && tracks.size == exo.mediaItemCount) playOrderNow() else null
         writer.execute {
             try {
                 val tmp = File(queueFile.path + ".tmp")
-                tmp.writeText(QueueStore.encode(tracks, idx, pos), Charsets.UTF_8)
+                tmp.writeText(QueueStore.encode(tracks, idx, pos, order), Charsets.UTF_8)
                 if (!tmp.renameTo(queueFile)) { queueFile.delete(); tmp.renameTo(queueFile) }
             } catch (_: Exception) {}
         }
@@ -286,6 +290,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             queue = s.tracks
             lastStarted = s.tracks[s.index]   // a restore is not a new play (no history entry, no plays report)
             exo.setMediaItems(s.tracks.map(::item), s.index, s.positionMs)
+            s.shuffleOrder?.let { setShuffleOrderQuiet(it) }
             exo.playWhenReady = false
             ensureService()   // a paused session, so the media buttons and the notification reach the restored queue
         } catch (_: Exception) {}
@@ -336,13 +341,13 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     fun addNext(t: Track) {
         if (interceptor?.enqueue(t, true) == true) return
         if (!hasQueue) { play(listOf(t), 0, shuffle = false); return }
-        exo.addMediaItem(exo.currentMediaItemIndex + 1, item(t)); queue = queueTracks(); fire()
+        exo.addMediaItem(exo.currentMediaItemIndex + 1, item(t)); queueChanged()
     }
 
     /** Autoplay's songs go on the end of the queue. */
     fun appendAutoplay(list: List<Track>) {
         if (list.isEmpty() || !hasQueue) return
-        exo.addMediaItems(list.map(::item)); queue = queueTracks(); fire()
+        exo.addMediaItems(list.map(::item)); queueChanged()
     }
     /** Autoplay fills the queue when at most one more song follows the current one. */
     fun checkQueueLow() { if (prefs.repeat == 0 && exo.mediaItemCount > 0 && exo.mediaItemCount - exo.currentMediaItemIndex <= 2) onQueueLow?.invoke() }
@@ -352,13 +357,130 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     fun addToQueue(t: Track) {
         if (interceptor?.enqueue(t, false) == true) return
         if (!hasQueue) { play(listOf(t), 0, shuffle = false); return }
-        exo.addMediaItem(item(t)); queue = queueTracks(); fire()
+        exo.addMediaItem(item(t)); queueChanged()
     }
 
-    fun removeFromQueue(index: Int) {
-        if (index !in 0 until exo.mediaItemCount) return
-        exo.removeMediaItem(index); queue = queueTracks(); fire()
+    private fun queueChanged() { queue = queueTracks(); queueRev++; fire() }
+    /** After a user edit of the queue: refresh the UI, the preloaded songs (the next ones may be different now) and the file on disk. */
+    private fun edited() { queueChanged(); adaptUpcoming(); schedulePrefetch(); persistNow() }
+
+    // ---- editing the queue (Up next) ---------------------------------------------------------------------------------------------
+    // The arithmetic is [QueueEdit] (unit-tested); this applies it to the player. The playing song keeps playing through every edit: ExoPlayer
+    // tracks the current item across move/remove, and removing the current song first jumps to the one that plays next (see [QueueEdit.removePlan]).
+
+    /** A song taken out of the queue, with what Undo needs to put it back. */
+    class QueueRemoval(val track: Track, val index: Int, val after: Track?)
+
+    /** Queue edits are for the local player; in a Jam the group owns the queue. */
+    val canEditQueue: Boolean get() = interceptor == null && hasQueue
+
+    /** True while a queue edit moves the player to another song itself, so the history and the plays report do not count it as heard. */
+    private var quietTransition = false
+
+    /** A pending skip burst is settled first, so the edit works on the song that is really playing. */
+    private fun settleBurst() { if (burstTarget >= 0) { handler.removeCallbacks(commitBurst); commitBurst.run() } }
+
+    private fun trackAt(i: Int): Track? = if (i in 0 until exo.mediaItemCount) exo.getMediaItemAt(i).localConfiguration?.tag as? Track else null
+
+    /** The queue indices of all songs in the order they play (the queue order, or the shuffle order with shuffle on). */
+    fun playOrderNow(): IntArray {
+        val n = exo.mediaItemCount
+        if (!exo.shuffleModeEnabled) return IntArray(n) { it }
+        val tl = exo.currentTimeline
+        val out = IntArray(n); var i = tl.getFirstWindowIndex(true); var k = 0
+        while (i != C.INDEX_UNSET && k < n) { out[k++] = i; i = tl.getNextWindowIndex(i, Player.REPEAT_MODE_OFF, true) }
+        return if (k == n) out else IntArray(n) { it }
     }
+
+    @OptIn(UnstableApi::class)
+    private fun setShuffleOrderQuiet(order: IntArray) {
+        if (!QueueEdit.isPermutation(order, exo.mediaItemCount)) return
+        exo.setShuffleOrder(androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder(order, System.nanoTime()))
+    }
+
+    private val repeatAll: Boolean get() = exo.repeatMode == Player.REPEAT_MODE_ALL
+
+    /**
+     * Moves the upcoming song with queue index [index] one place up or down in Up next, or to the top ("Play next"). Works in the shuffle order
+     * with shuffle on, in the queue order otherwise. Returns false when nothing changed (not upcoming, already at that end, a Jam).
+     */
+    fun moveUpNext(index: Int, step: QueueEdit.Step): Boolean {
+        if (!canEditQueue) return false
+        settleBurst()
+        if (index !in 0 until exo.mediaItemCount) return false
+        val cur = exo.currentMediaItemIndex
+        val order = playOrderNow()
+        if (exo.shuffleModeEnabled) {
+            val next = QueueEdit.reorder(order, cur, repeatAll, index, step) ?: return false
+            setShuffleOrderQuiet(next)
+        } else {
+            val moves = QueueEdit.linearMoves(cur, QueueEdit.upcoming(order, cur, repeatAll), index, step)
+            if (moves.isEmpty()) return false
+            for ((from, to) in moves) exo.moveMediaItem(from, to)
+        }
+        edited()
+        return true
+    }
+
+    /** Moves the song at queue index [from] to [to] in the queue order (the Up Next screen lists that order). The current song keeps playing. */
+    fun moveInQueue(from: Int, to: Int): Boolean {
+        if (!canEditQueue) return false
+        settleBurst()
+        val n = exo.mediaItemCount
+        if (from !in 0 until n || to !in 0 until n || from == to) return false
+        exo.moveMediaItem(from, to)
+        edited()
+        return true
+    }
+
+    /** "Play next" in the queue order: just after the current song. */
+    fun playNextInQueue(index: Int): Boolean {
+        val target = QueueEdit.playNextTarget(exo.currentMediaItemIndex, index) ?: return false
+        return moveInQueue(index, target)
+    }
+
+    /**
+     * Takes the song at queue index [index] out. Returns what [undoRemoval] needs, or null when nothing was removed. Removing the playing song
+     * starts the one that plays next (it stays paused if playback was paused); with none after it, the one before it becomes current, paused.
+     */
+    fun removeAt(index: Int): QueueRemoval? {
+        if (!canEditQueue) return null
+        settleBurst()
+        val track = trackAt(index) ?: return null
+        val order = playOrderNow()
+        val plan = QueueEdit.removePlan(order, exo.currentMediaItemIndex, index, repeatAll) ?: return null
+        val at = order.indexOf(index)
+        val removal = QueueRemoval(track, index, if (at > 0) trackAt(order[at - 1]) else null)
+        if (plan.emptiesQueue) { clearQueue(); return removal }
+        if (plan.jumpTo >= 0) {
+            // a jump to the song before it (the end of the queue) is not a play of that song
+            quietTransition = plan.pauseAfterJump
+            try {
+                exo.seekTo(plan.jumpTo, 0L)
+                if (plan.pauseAfterJump) exo.pause()
+            } finally { quietTransition = false }
+        }
+        exo.removeMediaItem(index)
+        edited()
+        return removal
+    }
+
+    /** Puts a removed song back where it was (in the shuffle order: right after the song that played before it). The current song is not changed. */
+    fun undoRemoval(r: QueueRemoval) {
+        if (interceptor != null) return
+        if (!hasQueue) { playFrom(listOf(r.track), 0, 0L, paused = true); return }
+        settleBurst()
+        val at = r.index.coerceIn(0, exo.mediaItemCount)
+        exo.addMediaItem(at, item(r.track))
+        if (exo.shuffleModeEnabled) {
+            val after = r.after?.let { a -> (0 until exo.mediaItemCount).firstOrNull { it != at && trackAt(it) == a } } ?: -1
+            setShuffleOrderQuiet(QueueEdit.placeAfter(playOrderNow(), at, after))
+        }
+        edited()
+    }
+
+    /** Kept for callers that remove without Undo. */
+    fun removeFromQueue(index: Int) { removeAt(index) }
 
     fun clearQueue() { handler.removeCallbacks(commitBurst); burst.reset(); exo.stop(); exo.clearMediaItems(); queue = emptyList(); try { queueFile.delete() } catch (_: Exception) {}; fire() }
 

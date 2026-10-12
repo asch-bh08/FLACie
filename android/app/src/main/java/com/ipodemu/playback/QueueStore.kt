@@ -15,9 +15,11 @@ object QueueStore {
     private const val BEHIND = 20
     const val VERSION = 1
 
-    class Saved(val tracks: List<Track>, val index: Int, val positionMs: Long)
+    /** [shuffleOrder]: the play order (indices into [tracks]) of a shuffled queue, or null when none was saved or it no longer fits. */
+    class Saved(val tracks: List<Track>, val index: Int, val positionMs: Long, val shuffleOrder: IntArray? = null)
 
-    fun encode(tracks: List<Track>, index: Int, positionMs: Long): String {
+    /** [shuffleOrder] (queue indices in play order, whole queue) is kept for the window that is written, so a reordered shuffle survives a kill. */
+    fun encode(tracks: List<Track>, index: Int, positionMs: Long, shuffleOrder: IntArray? = null): String {
         val i = index.coerceIn(0, (tracks.size - 1).coerceAtLeast(0))
         val from = (i - BEHIND).coerceAtLeast(0).coerceAtMost((tracks.size - MAX).coerceAtLeast(0))
         val window = tracks.subList(from, minOf(tracks.size, from + MAX))
@@ -26,7 +28,13 @@ object QueueStore {
             .put("p", t.path).put("ti", t.title).put("ar", t.artist).put("al", t.album).put("aa", t.albumArtist).put("g", t.genre)
             .put("tn", t.trackNo).put("dn", t.discNo).put("d", t.durationMs).put("y", t.year).put("m", t.isMusic)
             .put("k", t.artKey ?: "").put("mt", t.mtime).put("s", t.size).put("src", t.source.name).put("fp", t.filePath).put("ot", t.origTitle))
-        return JSONObject().put("v", VERSION).put("i", i - from).put("pos", positionMs.coerceAtLeast(0)).put("t", a).toString()
+        val root = JSONObject().put("v", VERSION).put("i", i - from).put("pos", positionMs.coerceAtLeast(0)).put("t", a)
+        if (shuffleOrder != null && shuffleOrder.size == tracks.size) {
+            val so = JSONArray()
+            for (v in shuffleOrder) if (v >= from && v < from + window.size) so.put(v - from)
+            root.put("so", so)
+        }
+        return root.toString()
     }
 
     /**
@@ -39,17 +47,27 @@ object QueueStore {
         val arr = root.optJSONArray("t") ?: return null
         val saved = root.optInt("i", 0)
         val out = ArrayList<Track>(); var index = -1; var currentKept = false
+        val newIndex = IntArray(arr.length()) { -1 }   // saved position -> position after dropping what is gone (-1: dropped)
         for (n in 0 until arr.length()) {
             val o = arr.optJSONObject(n) ?: continue
             val t = try { track(o) } catch (_: Exception) { continue }
             val ok = keep(t)
             if (n == saved) currentKept = ok
-            if (ok) { if (n >= saved && index < 0) index = out.size; out.add(t) }
+            if (ok) { if (n >= saved && index < 0) index = out.size; newIndex[n] = out.size; out.add(t) }
         }
         if (out.isEmpty()) return null
         if (index < 0) index = out.lastIndex   // everything from the current song on is gone: the last song left
         val pos = if (currentKept) root.optLong("pos", 0L).coerceAtLeast(0L) else 0L
-        return Saved(out, index, pos)
+        // the saved play order, minus the songs that were dropped; only used when it is still a permutation of what is left
+        val so = root.optJSONArray("so")
+        var order: IntArray? = null
+        if (so != null && so.length() == arr.length()) {
+            val mapped = ArrayList<Int>(out.size)
+            for (k in 0 until so.length()) { val v = so.optInt(k, -1); if (v in newIndex.indices && newIndex[v] >= 0) mapped.add(newIndex[v]) }
+            val a = mapped.toIntArray()
+            if (QueueEdit.isPermutation(a, out.size)) order = a
+        }
+        return Saved(out, index, pos, order)
     }
 
     private fun track(o: JSONObject) = Track(

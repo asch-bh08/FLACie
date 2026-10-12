@@ -182,8 +182,8 @@ internal fun coverOf(o: JSONObject): CoverRef? {
     return when {
         own != null && id.isNotEmpty() -> CoverRef("jf$id", own)
         albumId.isNotEmpty() && albumTag != null -> CoverRef("jf$albumId", albumTag)
-        albumId.isNotEmpty() -> CoverRef("jf$albumId", null)   // the server did not say there is a picture: tried once, remembered if it has none
-        else -> null
+        // the server says neither the song nor its album has a picture: the public catalog (as the web does), one lookup per album, instead of a placeholder
+        else -> CoverLookup.key(o.optString("AlbumArtist").ifBlank { o.optJSONArray("Artists")?.optString(0).orEmpty() }, o.optString("Album"), if (o.optString("Album").isBlank()) o.optString("Name") else "")?.let { CoverRef(it, null) }
     }
 }
 

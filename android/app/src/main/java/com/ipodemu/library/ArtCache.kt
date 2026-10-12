@@ -361,6 +361,15 @@ class ArtCache(private val dir: File) {
         exec.execute { if (ensure(key).exists()) done?.let { main.post(it) } }
     }
 
+    /**
+     * Brings the covers of the songs around the current one into memory (row size for [rows], the large Now Playing size for [large]) as background work, so that a skip
+     * shows the next cover at once instead of the placeholder for a moment.
+     */
+    fun warmAround(rows: List<String>, large: List<String>) {
+        for (k in rows) if (peek(k, false) == null) ioScope.launch { try { load(k, false, false, Priority.BACKGROUND) } catch (_: Exception) {} }
+        for (k in large) if (isJf(k) && peek(k, false, true) == null) ioScope.launch { try { load(k, false, true, Priority.BACKGROUND) } catch (_: Exception) {} }
+    }
+
     /** Fetches the Now Playing size of this song's cover (cheap when already saved) so the big cover is sharp the moment it is shown. */
     fun prefetchFull(key: String?) {
         if (key == null || !isJf(key)) return

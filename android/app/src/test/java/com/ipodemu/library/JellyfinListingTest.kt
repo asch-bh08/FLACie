@@ -151,10 +151,10 @@ class JellyfinListingTest {
         assertEquals("songtag1", it.coverTag)
     }
 
-    @Test fun aSongWithNoPictureAnywhereStillPointsAtItsAlbumWithoutATag() {
+    @Test fun aSongWithNoPictureAnywhereGetsTheCatalogLookupOfItsAlbum() {
         val o = flac24.replace(",\"AlbumPrimaryImageTag\":\"albumtag1\"", "").replace("\"ImageTags\":{\"Primary\":\"songtag1\"},", "\"ImageTags\":{},")
         val it = JellyfinDirectClient.itemsOf(base, list(o)).single()
-        assertEquals("jfbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb1", it.track.artKey)
+        assertTrue("an album lookup key (artist + album, shared by the album's songs), not a server picture", it.track.artKey!!.startsWith("it"))
         assertNull(it.coverTag)
         val bare = item("""{"Id":"cc","Name":"X"}""")
         assertNull(artKeyOf(bare)); assertNull(coverTagOf(bare))

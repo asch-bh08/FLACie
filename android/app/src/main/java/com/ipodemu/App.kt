@@ -57,7 +57,7 @@ class App : Application() {
         ui.setLogin(prefs.loginMode)
         lyrics = com.ipodemu.library.LyricsProvider(this)
         // fetch lyrics as each song starts, so they are ready (and cached) before Now Playing asks
-        player.onTrackStarted = { t -> userData.recordPlay(t.path); bg.launch { lyrics.get(t) }; plays.started(t, bg); ui.permissions?.playbackStarted() }
+        player.onTrackStarted = { t -> userData.recordPlay(t.path); warmAroundCurrent(); bg.launch { lyrics.get(t) }; plays.started(t, bg); ui.permissions?.playbackStarted() }
         account = com.ipodemu.library.AccountSync(this)
         connect = com.ipodemu.library.JellyfinConnect(this)
         connect.attach(); connect.refresh()
@@ -76,6 +76,12 @@ class App : Application() {
         // pick up changes made on other devices (playlists, newly added services) every launch
         account.sync(background = true)
         Boot.mark("Application.onCreate end")
+    }
+
+    /** The covers of the songs about to play (and the one just before) are made ready, so skipping shows the cover at once. */
+    private fun warmAroundCurrent() {
+        val q = player.queue; val i = player.queueIndex
+        art.warmAround((i - 1..i + 4).mapNotNull { q.getOrNull(it)?.artKey }, (i - 1..i + 2).mapNotNull { q.getOrNull(it)?.artKey })
     }
 
     /** Settings > Cache: covers, the saved song list and facts, and the audio kept for replay. */

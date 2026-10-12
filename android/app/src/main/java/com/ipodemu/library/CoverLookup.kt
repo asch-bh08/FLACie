@@ -16,7 +16,7 @@ object CoverLookup {
     fun key(artist: String, album: String, title: String): String? {
         if (artist.isBlank() || (album.isBlank() && title.isBlank())) return null
         val raw = "$artist\n$album\n$title".take(150)
-        return "it" + Base64.encodeToString(raw.toByteArray(), Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+        return "it" + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(raw.toByteArray())
     }
 
     /** Resolves an "it" key to image bytes (blocking). */

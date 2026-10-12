@@ -361,11 +361,12 @@ private fun Seek(snap: PlayerSnap) {
     val sc = LocalScheme.current
     val pos by rememberPosition(app.player, snap.playing)
     val dur = app.player.durationMs
+    var scrub by remember { mutableStateOf<Float?>(null) }   // where the knob is while it is dragged or settling: the time follows it
     Column(Modifier.fillMaxWidth()) {
         SeekBar(if (dur > 0) pos.toFloat() / dur else 0f, onSeek = { f -> if (dur > 0) app.player.seekTo((f * dur).toLong()) },
-            onNudge = { d -> app.player.seekBy((d * 5000).toLong()) }, Modifier.fillMaxWidth())
+            onNudge = { d -> app.player.seekBy((d * 5000).toLong()) }, Modifier.fillMaxWidth(), onScrub = { scrub = it })
         Row(Modifier.fillMaxWidth()) {
-            Txt(fmtTime(pos), Modifier.weight(1f), size = 12f, color = sc.onBgDim)
+            Txt(fmtTime(scrub?.let { (it * dur).toLong() } ?: pos), Modifier.weight(1f), size = 12f, color = sc.onBgDim)
             Txt(fmtTime(dur.coerceAtLeast(0)), size = 12f, color = sc.onBgDim)
         }
     }

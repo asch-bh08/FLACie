@@ -46,7 +46,7 @@ class CoverReliabilityTest {
         val album = "jf" + id(900)
         val ts = listOf(jf(1, "You Could Have It So Much Better", album), jf(2, "Franz Ferdinand", album), jf(3, "Franz Ferdinand", album))
         val out = CoverVetting.vet(ts)
-        assertTrue(out.all { it.artKey == null })
+        assertTrue("the catalog lookup of the song itself, never the shared album picture", out.all { it.artKey!!.startsWith("it") })
     }
 
     @Test fun songsWithNoAlbumNameNeverBorrowAnAlbumsPicture() {
@@ -54,14 +54,14 @@ class CoverReliabilityTest {
         val ts = listOf(jf(1, "Athlete", album), jf(2, "", album), jf(3, "<Unknown>", album))
         val out = CoverVetting.vet(ts)
         assertEquals(album, out[0].artKey)
-        assertNull("blank album", out[1].artKey)
-        assertEquals("<Unknown> is not a name, but the song is no album either: it is of no album, not of 'Athlete'", null, out[2].artKey)
+        assertTrue("blank album: a lookup by title, not Athlete's picture", out[1].artKey!!.startsWith("it"))
+        assertTrue("<Unknown> is not a name either", out[2].artKey!!.startsWith("it"))
     }
 
     @Test fun aGarbageAlbumIdWithManySongsGivesThemAllNoCover() {
         val album = "jf" + id(900)
         val ts = (1..50).map { jf(it, if (it % 3 == 0) "" else "Album $it", album) }
-        assertTrue(CoverVetting.vet(ts).all { it.artKey == null })
+        assertTrue(CoverVetting.vet(ts).all { it.artKey!!.startsWith("it") })
     }
 
     @Test fun otherSourcesAndMissingKeysAreLeftAlone() {

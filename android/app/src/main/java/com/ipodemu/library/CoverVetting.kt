@@ -32,11 +32,14 @@ object CoverVetting {
         val out = ArrayList<Track>(tracks.size)
         for (t in tracks) {
             val k = t.artKey
-            if (k != null && t.source == TrackSource.JELLYFIN && k.startsWith("jf") && !isOwn(t, k) && owner[k] != albumName(t)) { out += t.copy(artKey = null); changed = true }
+            if (k != null && t.source == TrackSource.JELLYFIN && k.startsWith("jf") && !isOwn(t, k) && owner[k] != albumName(t)) { out += t.copy(artKey = catalogKey(t)); changed = true }
             else out += t
         }
         return if (changed) out else tracks
     }
+
+    /** A catalog lookup for a song the server has no usable picture for: one per album (its songs share the key and the one download), by title when there is no album name. */
+    fun catalogKey(t: Track): String? = CoverLookup.key(t.albumArtist.ifBlank { t.artist }, if (blank(albumName(t))) "" else t.album, if (blank(albumName(t))) t.title else "")
 
     /** True when the key is this song's own item (its own picture). */
     fun isOwn(t: Track, key: String): Boolean = itemId.find(t.path)?.groupValues?.get(1)?.equals(key.substring(2), true) == true

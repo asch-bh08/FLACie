@@ -226,7 +226,7 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
             "Track" to t.trackNo.takeIf { it > 0 }?.let { (if (t.discNo > 1) "${t.discNo}-" else "") + it }, "Length" to t.durationMs.takeIf { it > 0 }?.let { fmtTime(it) },
         ), "SONG")
         Detail(listOf(
-            "Source" to (if (t.source == com.ipodemu.library.TrackSource.CLOUD) "Streaming (a new download, played from your server)" else t.source.name.lowercase().replaceFirstChar { it.uppercase() }), "Codec" to info.codec.takeIf { it.isNotEmpty() },
+            "Source" to com.ipodemu.library.SourceLabel.line(t.source), "Codec" to info.codec.takeIf { it.isNotEmpty() },
             "Size" to t.size.takeIf { it > 0 }?.let { if (it >= 1L shl 30) "%.2f GB".format(it / 1073741824.0) else "%.1f MB".format(it / 1048576.0) },
             "Location" to t.filePath.takeIf { it.isNotEmpty() },
             "Playback" to playbackLine(ctx, info),

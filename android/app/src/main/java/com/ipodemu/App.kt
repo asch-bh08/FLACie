@@ -65,6 +65,8 @@ class App : Application() {
         plays = com.ipodemu.library.PlaysReporter(prefs, player, bg)
         player.onQueueLow = { autoplay.queueLow() }
         library.onDownloaded = { userData.recordDownload(it); autoplay.downloaded(it) }
+        // downloads finished within the last hour (before a restart) keep their "Recently downloaded" tag
+        library.tags.seed(userData.downloads.map { Triple(it.title, it.artist, it.time) }, System.currentTimeMillis())
         // pick up changes made on other devices (playlists, newly added services) every launch
         account.sync()
     }

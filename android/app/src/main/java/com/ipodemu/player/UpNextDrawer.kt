@@ -29,40 +29,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ipodemu.App
-import com.ipodemu.library.DownloadStage
 import com.ipodemu.library.Track
-import com.ipodemu.library.matchKey
 import com.ipodemu.playback.QueueEdit
-
-/** "Downloading", "Downloaded just now / today / this week", or null for a song that was not fetched by the app. */
-fun downloadNote(app: App, t: Track): String? {
-    val lib = app.library
-    lib.downloads[lib.songKey(t.artist, t.title)]?.let { if (it.stage != DownloadStage.DONE && it.stage != DownloadStage.FAILED) return "Downloading" }
-    val key = matchKey(t.title, t.artist)
-    val e = app.userData.downloads.firstOrNull { matchKey(it.title, it.artist) == key } ?: return null
-    val age = if (e.time > 0) System.currentTimeMillis() - e.time else Long.MAX_VALUE
-    return when {
-        age < 3_600_000L -> "Downloaded just now"
-        age < 86_400_000L -> "Downloaded today"
-        age < 7 * 86_400_000L -> "Downloaded this week"
-        else -> "Downloaded"
-    }
-}
-
-/** A small, clearly visible tag under a song's title: pink while it is downloading, green once it was fetched (brighter the fresher it is). */
-@Composable
-private fun NoteChip(text: String) {
-    val live = text == "Downloading"
-    val fresh = text.endsWith("just now") || text.endsWith("today")
-    val ink = if (live) LocalScheme.current.accent else if (fresh) Color(0xFF4EE0A1) else Color(0xFF8FC9B0)
-    Row(
-        Modifier.clip(RoundedCornerShape(50)).background(ink.copy(alpha = .18f)).padding(horizontal = 9.dp, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        GlyphIcon(Glyph.DOWN, Modifier.size(12.dp), ink)
-        Txt(text, size = 12f, weight = FontWeight.Bold, color = ink)
-    }
-}
 
 /**
  * The panes of the full-screen player, left to right: Lyrics, the cover, Info, Up next. Swipe sideways to move between them (a swipe
@@ -159,7 +127,6 @@ fun QueuePanel(snap: PlayerSnap, modifier: Modifier = Modifier) {
 private fun DrawerRow(t: Track, current: Boolean, onMore: (() -> Unit)? = null, onClick: () -> Unit) {
     val app = LocalApp.current
     val sc = LocalScheme.current
-    val note = downloadNote(app, t)
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (current) sc.accent.copy(alpha = .14f) else Color.Transparent).clickable(onClick = onClick).then(if (current) Modifier.drawBehind { drawRect(sc.accent, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)) } else Modifier).padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         Box(Modifier.size(46.dp)) {
             ArtImage(t.artKey, Modifier.fillMaxSize(), thumb = true, corner = 7.dp)
@@ -168,7 +135,7 @@ private fun DrawerRow(t: Track, current: Boolean, onMore: (() -> Unit)? = null, 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Txt(t.title, size = 15f, weight = FontWeight.SemiBold, color = if (current) sc.accent else sc.onBg, maxLines = 2)
             Txt(listOf(t.artist, t.album).filter { it.isNotEmpty() }.joinToString(" · "), size = 12.5f, color = sc.onBgDim, maxLines = 2)
-            if (note != null) NoteChip(note)
+            DownloadTagLine(t)
         }
         if (t.durationMs > 0) Txt(fmtTime(t.durationMs), size = 12.5f, color = sc.onBgDim)
         if (onMore != null) Box(

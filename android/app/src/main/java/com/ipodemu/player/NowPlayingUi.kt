@@ -75,6 +75,7 @@ fun MiniPlayer(snap: PlayerSnap, nav: PlayerNav) {
             Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                 Txt(t.title, size = 14f, weight = FontWeight.SemiBold)
                 Txt(t.artist.ifEmpty { t.album }, size = 12f, color = sc.onBgDim)
+                DownloadTagLine(t, size = 10.5f)
             }
             GlossButton({ app.player.toggle() }, label = if (snap.playing) "Pause" else "Play", size = 38.dp, primary = true) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(20.dp), Color.White) }
             Box(Modifier.size(6.dp))
@@ -109,6 +110,7 @@ fun NowPlayingCard(snap: PlayerSnap, nav: PlayerNav, onShuffleAll: () -> Unit) {
                     Txt(if (snap.playing) "NOW PLAYING" else "PAUSED", size = 11f, weight = FontWeight.Bold, color = sc.accentLight)
                     Txt(t.title, size = 16f, weight = FontWeight.Bold)
                     Txt(t.artist.ifEmpty { t.album }, size = 13f, color = sc.onBgDim)
+                    DownloadTagLine(t, size = 11f)
                 } else {
                     Txt("Nothing playing", size = 16f, weight = FontWeight.Bold)
                     Txt("Tap to shuffle your library", size = 13f, color = sc.onBgDim)
@@ -217,6 +219,7 @@ private fun NpInfo(snap: PlayerSnap, center: Boolean) {
     Column(Modifier.fillMaxWidth().trackSwipe({ app.player.prev() }, { app.player.next() }), horizontalAlignment = if (center) Alignment.CenterHorizontally else Alignment.Start) {
         Txt(t.title, Modifier.fillMaxWidth(), size = 24f, weight = FontWeight.Bold, align = a)
         Txt(t.artist.ifEmpty { "Unknown Artist" }, Modifier.fillMaxWidth().padding(top = 2.dp), size = 17f, color = sc.accentLight, align = a)
+        DownloadTagLine(t, Modifier.padding(top = 2.dp), size = 12.5f, align = a)
         if (t.album.isNotEmpty()) Txt(t.album, Modifier.fillMaxWidth(), size = 14f, color = sc.onBgDim, align = a)
     }
 }
@@ -308,6 +311,7 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Txt(t.title, size = 15f, weight = FontWeight.SemiBold)
                 Txt(t.artist.ifEmpty { t.album }, size = 13f, color = sc.onBgDim)
+                DownloadTagLine(t, size = 11f)
             }
             // instant way to the Devices screen (hand this song to another device, or take over theirs) while other devices are signed in
             val hasOthers by remember { androidx.compose.runtime.derivedStateOf { app.connect.sessions.any { !it.isSelf } } }

@@ -7,6 +7,8 @@ const MOCK = 8196, WEB = 5290;
 export default defineConfig({
   testDir: '.',
   testMatch: '*.spec.ts',
+  // writes a few finished downloads of known ages into the test account's download log (see global-setup.ts)
+  globalSetup: './global-setup.ts',
   timeout: 60_000,
   expect: { timeout: 15_000 },
   workers: 1,

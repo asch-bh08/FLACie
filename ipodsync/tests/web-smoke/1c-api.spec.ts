@@ -25,7 +25,7 @@ test.afterAll(async () => { await web.dispose(); });
 test.describe('anonymous callers', () => {
   const calls: [string, string][] = [
     ['GET', '/api/account'], ['GET', '/api/import'], ['POST', '/api/import'], ['GET', '/api/settings'], ['POST', '/api/settings'], ['POST', '/api/charts/run'],
-    ['GET', '/api/charts/0'], ['POST', '/api/played'], ['GET', '/api/alac?id=00000000000000000000000000000000'], ['GET', '/api/audiofacts'], ['GET', '/api/downloads'],
+    ['GET', '/api/charts/0'], ['POST', '/api/played'], ['GET', '/api/alac?id=00000000000000000000000000000000'], ['GET', '/api/audiofacts'], ['GET', '/api/downloads'], ['POST', '/api/downloaded'],
     ['POST', '/api/import/abc/cancel'],
   ];
   for (const [m, p] of calls) {

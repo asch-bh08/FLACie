@@ -42,7 +42,12 @@ builder.Services.AddHttpClient("downloads-long", c => { c.Timeout = Timeout.Infi
 builder.Services.AddHttpClient("downloads", c => { c.Timeout = TimeSpan.FromSeconds(30); c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); }).AddHttpMessageHandler(() => new ServiceRouteHandler(serviceRoutes));
 builder.Services.AddSingleton(sp => new WebCatalog(sp.GetRequiredService<IHttpClientFactory>().CreateClient("catalog")));
 builder.Services.AddSingleton(new DataPaths(dataDir));
-builder.Services.AddSingleton(new CoverStore(Path.Combine(dataDir, "art")));
+// the disk-space rule of the cover cache: nothing is deleted while free space is above max(FLACIE_CACHE_MIN_FREE_MB, FLACIE_CACHE_MIN_FREE_PERCENT of the volume)
+builder.Services.AddSingleton(new CoverStore(Path.Combine(dataDir, "art"))
+{
+    MinFloorBytes = builder.Configuration.GetValue("FLACIE_CACHE_MIN_FREE_MB", 2048L) << 20,
+    MinFreePercent = builder.Configuration.GetValue("FLACIE_CACHE_MIN_FREE_PERCENT", 10),
+});
 builder.Services.AddSingleton<CacheService>();
 builder.Services.AddHostedService<CacheJanitor>();
 builder.Services.AddSingleton<UserStateStore>();

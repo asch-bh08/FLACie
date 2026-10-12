@@ -66,6 +66,15 @@ public class CacheTests
     }
 
     [Fact]
+    public async Task A_cover_just_saved_survives_even_a_nearly_full_disk_so_the_request_that_fetched_it_can_be_answered()
+    {
+        var s = new CoverStore(Dir()) { MinFloorBytes = 2000, Space = () => (10, 10_000) };   // always "low"
+        for (var i = 0; i < 30; i++) await s.SaveAsync("jf" + i + "~t", CoverStore.Row, new byte[100], "image/webp");   // the 25th save runs the eviction
+        Assert.Equal(30, s.Size().Count);                           // all of them are minutes old at the most: nothing may go
+        Assert.NotNull(s.Find("jf24~t", CoverStore.Row));
+        Assert.Equal(0, s.EvictIfLow());
+    }
+    [Fact]
     public async Task The_cache_report_counts_covers_library_lyrics_and_formats_and_Clear_empties_all_but_the_format_index()
     {
         var root = Dir();

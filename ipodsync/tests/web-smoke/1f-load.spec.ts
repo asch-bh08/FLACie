@@ -18,6 +18,8 @@ test.describe.serial('server load', () => {
   test('the format index is filled from a few big library pages, not one request per song', async ({ page, request }) => {
     test.setTimeout(150_000);
     await signIn(page);
+    // what this test counts is what happens from here on (the specs before it have read their own songs one by one)
+    await request.get(`${MOCK}/__reset`);
     // the background read starts about 20 s after the server; poll the admin counters until the plain songs are indexed
     let load: any = {};
     await expect.poll(async () => {

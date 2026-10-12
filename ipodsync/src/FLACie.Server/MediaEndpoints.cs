@@ -26,12 +26,12 @@ public static class MediaEndpoints
 
         // pre=1 marks the page's early read of the NEXT song (a second audio element, so a skip starts at once): background work that does not count as a play, is
         // never ahead of a song someone waits for, waits out a slow Jellyfin, and asks only for the start of the file (a small Range), never the whole song.
-        app.MapGet("/stream", async (HttpContext ctx, string p, bool? pre, SessionStore store, JellyfinClient jf, IHttpClientFactory hf, AlacCache alac, PlayTracker plays, Notifier notify, PlaybackActivity activity) =>
+        app.MapGet("/stream", async (HttpContext ctx, string p, string? pre, SessionStore store, JellyfinClient jf, IHttpClientFactory hf, AlacCache alac, PlayTracker plays, Notifier notify, PlaybackActivity activity) =>
         {
             var s = store.For(ctx.User);
             var t = s.FindByPath(p);
             if (t is null) return Results.NotFound();
-            var early = pre == true;
+            var early = pre is "1" or "true";
             using var busy = early ? null : activity.BeginStream();   // background jobs wait while a song is being served
             using var prio = JellyfinGate.Use(early ? GatePriority.Prefetch : GatePriority.Playing);   // and the song being played goes to the front of every queue
             // where this play really comes from, decided here where the stream is resolved: Jellyfin plays are announced by Jellyfin's own watcher, so only
@@ -206,6 +206,7 @@ public static class MediaEndpoints
     static IResult Cover(string file)
     {
         var fi = new FileInfo(file);
+        if (!fi.Exists) return Results.NotFound();   // (cleared or evicted between the lookup and now)
         var tag = new Microsoft.Net.Http.Headers.EntityTagHeaderValue("\"" + fi.Length.ToString("x") + "-" + fi.LastWriteTimeUtc.Ticks.ToString("x") + "\"");
         return Results.File(file, CoverStore.TypeOf(file), lastModified: new DateTimeOffset(fi.LastWriteTimeUtc), entityTag: tag);
     }

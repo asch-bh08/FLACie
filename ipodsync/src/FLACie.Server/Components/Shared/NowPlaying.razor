@@ -196,7 +196,7 @@
         onDls = () => InvokeAsync(StateHasChanged);
         Dls.Subscribe(Session, onDls);
     }
-    public override void Dispose() { if (onDls is not null) Dls.Unsubscribe(Session, onDls); self?.Dispose(); _ = Js.InvokeVoidAsync("flacie.npReset").AsTask().ContinueWith(_ => { }); base.Dispose(); }
+    public override void Dispose() { infoCts?.Cancel(); if (onDls is not null) Dls.Unsubscribe(Session, onDls); self?.Dispose(); _ = Js.InvokeVoidAsync("flacie.npReset").AsTask().ContinueWith(_ => { }); base.Dispose(); }
     Lyrics? lyrics; bool lyricsLoading; string? lyricsFor;
     MediaInfo? info; bool infoLoading; string? infoFor;
     string? lyricsPushed;
@@ -250,22 +250,33 @@
         await InvokeAsync(StateHasChanged);
     }
 
+    CancellationTokenSource? infoCts;
+
     async Task LoadInfo()
     {
         if (Player.Current is not { } t) return;
+        // the song before this one is no longer wanted: its read is cancelled (a request still queued at the gate never reaches Jellyfin)
+        infoCts?.Cancel();
+        var cts = infoCts = new CancellationTokenSource(); var ct = cts.Token;
         infoFor = t.Path; infoLoading = true; info = null;
         await InvokeAsync(StateHasChanged);
-        var got = await Infos.GetAsync(Session, t);
-        if (infoFor == t.Path) { info = got; infoLoading = false; }
-        await InvokeAsync(StateHasChanged);
-        // the source could not tell yet (nothing was cached): ask again a few times, for this song only, so a hiccup never leaves a guess on screen
-        for (var retry = 0; retry < 4 && infoFor == t.Path && !got.Known; retry++)
+        try
         {
-            await Task.Delay(2000);
-            if (infoFor != t.Path) return;
-            got = await Infos.GetAsync(Session, t);
-            if (infoFor == t.Path && got.Known) { info = got; await InvokeAsync(StateHasChanged); }
+            // a burst of skips must not ask Jellyfin about every song it passes: a song whose facts are not known yet waits a moment, and is dropped if the queue moved on
+            if (!Infos.IsCached(t)) { await Task.Delay(300, ct); if (infoFor != t.Path) return; }
+            var got = await Infos.GetAsync(Session, t, ct: ct);
+            if (infoFor == t.Path) { info = got; infoLoading = false; }
+            await InvokeAsync(StateHasChanged);
+            // the source could not tell yet (nothing was cached): ask again a few times, for this song only, so a hiccup never leaves a guess on screen
+            for (var retry = 0; retry < 4 && infoFor == t.Path && !got.Known; retry++)
+            {
+                await Task.Delay(2000, ct);
+                if (infoFor != t.Path) return;
+                got = await Infos.GetAsync(Session, t, ct: ct);
+                if (infoFor == t.Path && got.Known) { info = got; await InvokeAsync(StateHasChanged); }
+            }
         }
+        catch (OperationCanceledException) { }
     }
 
     async Task LoadLyrics()

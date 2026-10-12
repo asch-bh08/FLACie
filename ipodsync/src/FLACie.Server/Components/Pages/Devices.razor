@@ -75,7 +75,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
-        if (Live is { } l) { _ = l.Connect.LoadSessionsAsync(); poll = new Timer(_ => { _ = l.Connect.LoadSessionsAsync(); }, null, 4000, 4000); }
+        if (Live is { } l) { _ = l.Connect.RefreshSessionsAsync(); poll = new Timer(_ => { _ = l.Connect.RefreshSessionsAsync(); }, null, 4000, 4000); }
     }
     public override void Dispose() { poll?.Dispose(); base.Dispose(); }
 }

@@ -7,11 +7,17 @@ namespace FLACie.Server;
 /// <summary>What the server has learned about each .m4a (is it Apple Lossless, and where its frames are), kept so a player's many Range requests cost one look.</summary>
 public sealed class AlacCache
 {
-    readonly ConcurrentDictionary<string, Task<AlacInfo?>> cache = new();
+    readonly ConcurrentDictionary<string, (Task<AlacInfo?> Task, long Used)> cache = new();
+    long clock;
+    /// <summary>How many songs' layouts are kept in memory (each is a frame table, about 100 KB). A full cache drops the least recently used quarter, never everything at once
+    /// (that made every playing .m4a read its layout from Jellyfin again).</summary>
+    public const int Capacity = 1500;
     public Task<AlacInfo?> Get(string key, Func<Task<AlacInfo?>> make)
     {
-        if (cache.Count > 400) cache.Clear();
-        var t = cache.GetOrAdd(key, _ => make());
+        if (cache.Count > Capacity)
+            foreach (var old in cache.OrderBy(kv => kv.Value.Used).Take(Capacity / 4).Select(kv => kv.Key).ToList()) cache.TryRemove(old, out _);
+        var used = Interlocked.Increment(ref clock);
+        var t = cache.AddOrUpdate(key, _ => (make(), used), (_, e) => (e.Task, used)).Task;
         // a failed look (the file was busy, the network blinked) is not remembered
         _ = t.ContinueWith(x => { if (x.IsFaulted) cache.TryRemove(key, out _); }, TaskScheduler.Default);
         return t;

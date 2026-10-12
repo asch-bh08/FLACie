@@ -3,8 +3,10 @@ using System.Net;
 namespace FLACie.Core;
 
 /// <summary>Who is asking, which decides who waits: a song that is playing (its stream and its info) goes first, what is on screen (rows, their covers) next,
-/// and background work (library sync, probes) only when nothing else is waiting, the server is not slow and nobody is streaming.</summary>
-public enum GatePriority { Playing = 0, Visible = 1, Background = 2 }
+/// and background work (library sync, probes, charts) only when nothing else is waiting, the server is not slow and nobody is streaming.
+/// <see cref="Prefetch"/> is background work too (the start of the next song), but it is made to run while the current song streams (that is its job),
+/// so it is not held by an open stream, only by a slow server, an open breaker or anything more important waiting.</summary>
+public enum GatePriority { Playing = 0, Visible = 1, Background = 2, Prefetch = 3 }
 
 public enum BreakerState { Closed, Open, HalfOpen }
 
@@ -66,9 +68,9 @@ public sealed class JellyfinGate
     public Random Rng { get; set; } = new();
 
     readonly object lk = new();
-    readonly LinkedList<Waiter>[] queues = [new(), new(), new()];
-    int inFlight, bgInFlight, limit, peak, fastRun, consecutiveFailures;
-    long retries, coalescedCount, fastFails, lastShrinkAt = long.MinValue, openUntil;
+    readonly LinkedList<Waiter>[] queues = [new(), new(), new(), new()];
+    int inFlight, bgInFlight, preInFlight, limit, peak, fastRun, consecutiveFailures;
+    long retries, coalescedCount, fastFails, lastShrinkAt = -1_000_000_000_000, openUntil;   // (not long.MinValue: "now - that" would overflow and the first shrink would be skipped)
     double ewma;
     bool haveEwma, probeInFlight, redispatchScheduled;
     BreakerState state = BreakerState.Closed;
@@ -79,14 +81,16 @@ public sealed class JellyfinGate
 
     public int Limit { get { lock (lk) return limit; } }
     public BreakerState Breaker { get { lock (lk) { Tick(); return state; } } }
-    public GateMetrics Metrics() { lock (lk) { Tick(); return new(queues.Sum(q => q.Count), inFlight, peak, limit, state, retries, coalescedCount, fastFails, ewma, queues[2].Count); } }
+    public GateMetrics Metrics() { lock (lk) { Tick(); return new(queues.Sum(q => q.Count), inFlight, peak, limit, state, retries, coalescedCount, fastFails, ewma, queues[2].Count + queues[3].Count); } }
 
     // ---- running a request ----
 
     /// <summary>Runs <paramref name="send"/> under the gate. Transient failures (429, 5xx, timeouts, connection errors) are retried up to
     /// <paramref name="maxRetries"/> times after a jittered back-off (or the server's Retry-After); other exceptions come straight back.
     /// <paramref name="classify"/> lets a caller that returns a response instead of throwing say which responses count as a failure.</summary>
-    public async Task<T> RunAsync<T>(GatePriority priority, Func<CancellationToken, Task<T>> send, CancellationToken ct, int? maxRetries = null, Func<T, Exception?>? classify = null)
+    /// <param name="slowMs">What counts as slow for this call (a page of 500 songs with their streams legitimately takes longer than a cover): its time is scaled
+    /// so that it is judged against <see cref="GateOptions.SlowMs"/> as a fraction of this. Default: <see cref="GateOptions.SlowMs"/>.</param>
+    public async Task<T> RunAsync<T>(GatePriority priority, Func<CancellationToken, Task<T>> send, CancellationToken ct, int? maxRetries = null, Func<T, Exception?>? classify = null, int? slowMs = null)
     {
         var allowed = maxRetries ?? Options.MaxRetries;
         for (var attempt = 0; ; attempt++)
@@ -95,10 +99,10 @@ public sealed class JellyfinGate
             var t0 = NowMs();
             Exception? fail = null, thrown = null; T result = default!; var ok = false;
             try { result = await send(ct); fail = classify?.Invoke(result); ok = fail is null; }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested) { Release(priority, t0, Outcome.Neutral); throw; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { Release(priority, t0, Outcome.Neutral, slowMs); throw; }
             catch (Exception e) when (IsTransient(e)) { fail = thrown = e; }
-            catch { Release(priority, t0, Outcome.Success); throw; }   // the server answered (401, 404 ...): not a failure of the server
-            Release(priority, t0, ok ? Outcome.Success : Outcome.Failure);
+            catch { Release(priority, t0, Outcome.Success, slowMs); throw; }   // the server answered (401, 404 ...): not a failure of the server
+            Release(priority, t0, ok ? Outcome.Success : Outcome.Failure, slowMs);
             if (ok) return result;
             if (attempt >= allowed || ct.IsCancellationRequested || Breaker == BreakerState.Open)
             {
@@ -118,17 +122,18 @@ public sealed class JellyfinGate
     sealed class Shared { public required Task Task; public required CancellationTokenSource Cts; public int Refs; public required Type Type; }
 
     /// <summary>Like <see cref="RunAsync{T}"/>, but callers with the same <paramref name="key"/> (method + URL + token) at the same time share one request.</summary>
-    public async Task<T> RunSharedAsync<T>(string key, GatePriority priority, Func<CancellationToken, Task<T>> send, CancellationToken ct)
+    public async Task<T> RunSharedAsync<T>(string key, GatePriority priority, Func<CancellationToken, Task<T>> send, CancellationToken ct, int? slowMs = null)
     {
         Shared entry;
         lock (shared)
         {
-            if (shared.TryGetValue(key, out var e) && e.Type == typeof(T)) { e.Refs++; entry = e; Interlocked.Increment(ref coalescedCount); }
+            // only a request that is still running is shared: one that has just finished (its entry is removed a moment later) must not answer a question asked after it
+            if (shared.TryGetValue(key, out var e) && e.Type == typeof(T) && !e.Task.IsCompleted) { e.Refs++; entry = e; Interlocked.Increment(ref coalescedCount); }
             else
             {
                 var cts = new CancellationTokenSource();
                 entry = new Shared { Cts = cts, Refs = 1, Type = typeof(T), Task = null! };
-                var task = RunAsync(priority, send, cts.Token);
+                var task = RunAsync(priority, send, cts.Token, slowMs: slowMs);
                 entry.Task = task;
                 shared[key] = entry;
                 _ = task.ContinueWith(_ => { lock (shared) { if (shared.TryGetValue(key, out var cur) && ReferenceEquals(cur, entry)) shared.Remove(key); } cts.Dispose(); }, TaskScheduler.Default);
@@ -162,11 +167,14 @@ public sealed class JellyfinGate
             w.Node = queues[(int)p].AddLast(w);
         }
         if (ct.CanBeCanceled)
-            ct.Register(() =>
+        {
+            var reg = ct.Register(() =>
             {
                 lock (lk) { if (w.Node?.List is { } l) { l.Remove(w.Node); w.Node = null; } else return; }
                 w.Start.TrySetCanceled(ct);
             });
+            _ = w.Start.Task.ContinueWith(_ => reg.Dispose(), TaskScheduler.Default);   // a granted or cancelled waiter no longer needs the callback
+        }
         Dispatch();
         return w.Start.Task;
     }
@@ -198,13 +206,20 @@ public sealed class JellyfinGate
                 while (inFlight < limit)
                 {
                     if (state == BreakerState.HalfOpen && probeInFlight) break;
-                    var q = queues.FirstOrDefault(x => x.Count > 0);
-                    if (q is null) break;
-                    var w = q.First!.Value;
-                    if (w.P == GatePriority.Background && !BackgroundMayRun()) { hold = true; break; }
-                    q.RemoveFirst(); w.Node = null;
+                    // the most important waiter that may run now; a held background waiter does not block a prefetch behind it
+                    LinkedList<Waiter>? from = null;
+                    foreach (var q in queues)
+                    {
+                        if (q.Count == 0) continue;
+                        if (MayRun(q.First!.Value.P)) { from = q; break; }
+                        hold = true;
+                    }
+                    if (from is null) break;
+                    var w = from.First!.Value;
+                    from.RemoveFirst(); w.Node = null;
                     inFlight++; peak = Math.Max(peak, inFlight);
                     if (w.P == GatePriority.Background) bgInFlight++;
+                    if (w.P == GatePriority.Prefetch) preInFlight++;
                     if (state == BreakerState.HalfOpen) probeInFlight = true;
                     (grant ??= []).Add(w);
                 }
@@ -215,7 +230,13 @@ public sealed class JellyfinGate
         if (grant is not null) foreach (var w in grant) w.Start.TrySetResult(true);
     }
 
-    bool BackgroundMayRun() => !Streaming() && !Slow && bgInFlight < Options.MaxBackground && bgInFlight < Math.Max(1, limit - 1) && queues[0].Count == 0 && queues[1].Count == 0;
+    bool MayRun(GatePriority p) => p switch   // lk held
+    {
+        GatePriority.Background => !Streaming() && !Slow && bgInFlight < Options.MaxBackground && bgInFlight < Math.Max(1, limit - 1) && queues[0].Count == 0 && queues[1].Count == 0,
+        // the next song's start: one at a time, never while Jellyfin is slow, never ahead of what someone is waiting for, and a slot is always left for them
+        GatePriority.Prefetch => !Slow && preInFlight < 1 && queues[0].Count == 0 && queues[1].Count == 0 && inFlight < Math.Max(1, limit - 1),
+        _ => true,
+    };
 
     async Task ReDispatchLaterAsync()
     {
@@ -226,12 +247,13 @@ public sealed class JellyfinGate
 
     enum Outcome { Success, Failure, Neutral }
 
-    void Release(GatePriority p, long startedAt, Outcome o)
+    void Release(GatePriority p, long startedAt, Outcome o, int? slowMs = null)
     {
         lock (lk)
         {
-            inFlight--; if (p == GatePriority.Background) bgInFlight--;
+            inFlight--; if (p == GatePriority.Background) bgInFlight--; if (p == GatePriority.Prefetch) preInFlight--;
             var ms = Math.Max(0, NowMs() - startedAt);
+            if (slowMs is > 0 && slowMs.Value > Options.SlowMs) ms = ms * Options.SlowMs / slowMs.Value;   // a big answer is judged by its own yardstick
             if (o != Outcome.Neutral)
             {
                 ewma = haveEwma ? ewma * 0.8 + ms * 0.2 : ms; haveEwma = true; lastSampleAt = NowMs();

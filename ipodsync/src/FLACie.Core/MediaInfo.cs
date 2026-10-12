@@ -61,7 +61,7 @@ public sealed partial class JellyfinClient
     /// alternative is one request per song). Returns each item id with its facts (null when Jellyfin has none) and the library's total.</summary>
     public async Task<(List<(string Id, MediaInfo? Info)> Items, int Total)> MediaInfoPageAsync(JellyfinAccount a, int start, int limit, CancellationToken ct = default)
     {
-        var page = await GetAsync(a, $"/Users/{a.UserId}/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=MediaSources,MediaStreams&EnableUserData=false&EnableImages=false&StartIndex={start}&Limit={limit}", ct);
+        var page = await GetAsync(a, $"/Users/{a.UserId}/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=MediaSources,MediaStreams&EnableUserData=false&EnableImages=false&StartIndex={start}&Limit={limit}", ct, BigAnswerMs);
         return (ParseMediaInfoPage(page), page?["TotalRecordCount"]?.GetValue<int>() ?? 0);
     }
 

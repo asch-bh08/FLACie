@@ -397,7 +397,7 @@ window.flacie = (() => {
       preTimer = setTimeout(() => {
         if (tok !== preTok || (pre && pre.dataset.u === u)) return;
         dropPre();
-        pre = new Audio(); pre.preload = "auto"; pre.dataset.u = u; pre.src = u;
+        pre = new Audio(); pre.preload = "auto"; pre.dataset.u = u; pre.src = u + (u.includes("?") ? "&" : "?") + "pre=1";   // pre=1: the server reads only its first megabyte, as background work
         window.__flaciePrefetches = (window.__flaciePrefetches || 0) + 1;
       }, 400);
     };

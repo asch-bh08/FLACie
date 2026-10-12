@@ -98,7 +98,7 @@
         <dt>FLACie data</dt><dd>@Bytes(r.DataBytes)</dd>
         @foreach (var (name, bytes) in r.DataParts) { <dt class="sub-k">@name</dt><dd>@Bytes(bytes)</dd> }
     </dl>
-    <p class="hint">Covers and lyrics are caches: they can be emptied by deleting the folders and fill up again as you browse.</p>
+    <CacheLine />
 </section>
 }
 @code {

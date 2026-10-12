@@ -21,9 +21,12 @@ public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, Downlo
     /// <summary>Keeps a real read that came from somewhere else (the bulk read of the library), so the Info panel does not ask again.</summary>
     public void Remember(Track t, MediaInfo info) { if (info.Known) cache[t.Path] = info; }
 
+    /// <summary>The real facts of this song are already known (no request is needed to show them).</summary>
+    public bool IsCached(Track t) => cache.ContainsKey(t.Path);
+
     /// <summary>Reads at once, whoever is playing: the song a person is looking at never waits. <paramref name="retry"/> false is for the background probe, which
     /// makes one attempt and leaves a failure to its back-off instead of asking again three times.</summary>
-    public async Task<MediaInfo> GetAsync(UserSession s, Track t, bool retry = true)
+    public async Task<MediaInfo> GetAsync(UserSession s, Track t, bool retry = true, CancellationToken ct = default)
     {
         // the song a person is looking at is read first; the background probe's reads wait behind everything
         using var prio = JellyfinGate.Use(retry ? GatePriority.Playing : GatePriority.Background);
@@ -33,9 +36,10 @@ public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, Downlo
             // so the next ask reads the source again. A few quick retries ride out a hiccup during a burst of skips.
             for (var attempt = 0; ; attempt++)
             {
-                info = await (Reader?.Invoke(s, t) ?? ReadAsync(s, t));
+                info = await (Reader?.Invoke(s, t) ?? ReadAsync(s, t, ct));
+                ct.ThrowIfCancellationRequested();   // the person moved on: a read that was cut short is not an answer
                 if (info.Known || !retry || attempt >= 2) break;
-                await Task.Delay(RetryDelayMs);
+                await Task.Delay(RetryDelayMs, ct);
             }
             if (info.Known) { cache[t.Path] = info; FormatIndex.Current?.Set(t, info); }
         }
@@ -45,12 +49,12 @@ public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, Downlo
         return info with { Origin = t.Source == TrackSource.Cloud ? "downloaded" : "library" };
     }
 
-    async Task<MediaInfo> ReadAsync(UserSession s, Track t)
+    async Task<MediaInfo> ReadAsync(UserSession s, Track t, CancellationToken ct = default)
     {
         MediaInfo? info = null;
         try
         {
-            if (t.Source == TrackSource.Jellyfin && s.Jellyfin is { } a && t.JellyfinId is { } id) info = await jf.MediaInfoAsync(a, id);
+            if (t.Source == TrackSource.Jellyfin && s.Jellyfin is { } a && t.JellyfinId is { } id) info = await jf.MediaInfoAsync(a, id, ct);
             else if (t.Source == TrackSource.Nas && s.Nas is { } n) info = await Task.Run(() => NasClient.Probe(n, NasClient.RelPath(n, t.Path)));
             else if (t.Source == TrackSource.Cloud && s.Services is { FileMoverUrl.Length: > 0 } svc && t.Path.StartsWith(svc.FileMoverUrl.TrimEnd('/'), StringComparison.Ordinal))
             {

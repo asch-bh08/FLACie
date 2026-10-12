@@ -7,15 +7,17 @@ namespace FLACie.Server;
 /// <summary>
 /// Keeps each signed-in library current without listing it again: Jellyfin's WebSocket says when the library or play data changed (LibraryChanged,
 /// UserDataChanged), and then only songs saved since the last sync are asked for (<see cref="UserSession.SyncDeltaAsync"/>, background priority), after a short
-/// pause so a burst of messages is one request. A long fallback (15 minutes) covers a dropped socket and checks Jellyfin's song count, which catches removals a message missed.
-/// The Windows app's copy reacts to socket messages only.
+/// pause so a burst of messages is one request. A long fallback (15 minutes) covers a dropped socket and checks Jellyfin's song count against the songs this
+/// library knows, which catches removals a message missed (<see cref="UserSession.ReconcileAsync"/>: one tiny request, and a list of ids only when the count differs).
+/// The Windows app's copy reacts to socket messages only (no timer of its own).
 /// </summary>
 public sealed class LibrarySyncService(SessionStore sessions, JellyfinClient jf, ILogger<LibrarySyncService> log) : BackgroundService
 {
     public static readonly TimeSpan Debounce = TimeSpan.FromSeconds(8);
     public static readonly TimeSpan Fallback = TimeSpan.FromMinutes(15);
 
-    sealed class State { public bool Subscribed; public long DirtySince; public ConcurrentBag<string> Removed = []; public DateTime LastRun = DateTime.UtcNow; }
+    /// <summary>Which live connection this state is subscribed to: a user who signed out and in again has a new one, which must be listened to again.</summary>
+    sealed class State { public object? Connection; public long DirtySince; public ConcurrentBag<string> Removed = []; public DateTime LastRun = DateTime.UtcNow; }
     readonly ConcurrentDictionary<string, State> states = new();
 
     /// <summary>The item ids a LibraryChanged message says were removed.</summary>
@@ -42,9 +44,9 @@ public sealed class LibrarySyncService(SessionStore sessions, JellyfinClient jf,
                 var st = states.GetOrAdd(s.Id, _ => new State());
                 try
                 {
-                    if (!st.Subscribed && sessions.LiveFor(s) is { } live)
+                    if (sessions.LiveFor(s) is { } live && !ReferenceEquals(st.Connection, live.Connect))
                     {
-                        st.Subscribed = true;
+                        st.Connection = live.Connect;
                         live.Connect.Message += (type, data) =>
                         {
                             if (Note(type, data, st.Removed.Add)) Interlocked.CompareExchange(ref st.DirtySince, DateTime.UtcNow.Ticks, 0);
@@ -58,15 +60,19 @@ public sealed class LibrarySyncService(SessionStore sessions, JellyfinClient jf,
                     st.LastRun = DateTime.UtcNow;
                     var n = await s.SyncDeltaAsync(jf, removed, ct);
                     if (n > 0) log.LogInformation("library of {user}: {n} songs changed", s.DisplayName, n);
-                    // the long poll also compares Jellyfin's count with ours: a mismatch means a removal nobody told us about
-                    var mine = s.Library.Songs.Count(t => t.Source == TrackSource.Jellyfin);
-                    if (due && await s.JellyfinSongCountAsync(jf, ct) is var total and >= 0 && total != mine)
+                    // the long poll also compares what Jellyfin has with what we know: a difference means a removal nobody told us about
+                    if (due)
                     {
-                        log.LogInformation("library of {user}: song count differs from Jellyfin ({a} vs {b}), listing again", s.DisplayName, mine, total);
-                        await s.LoadAsync(jf, ct);
+                        var gone = await s.ReconcileAsync(jf, ct);
+                        if (gone > 0) log.LogInformation("library of {user}: {n} songs are gone from Jellyfin", s.DisplayName, gone);
+                        else if (gone < 0)
+                        {
+                            log.LogInformation("library of {user}: Jellyfin has songs this library never saw, listing again", s.DisplayName);
+                            await s.LoadAsync(jf, ct);
+                        }
                     }
                 }
-                catch (OperationCanceledException) { throw; }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
                 catch (Exception e) { log.LogDebug(e, "library sync failed for {user}", s.DisplayName); }
             }
         }

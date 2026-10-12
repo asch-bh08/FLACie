@@ -23,7 +23,13 @@ public sealed class CoverStore
         Space = () => { try { var d = new DriveInfo(Path.GetPathRoot(this.dir)!); return (d.AvailableFreeSpace, d.TotalSize); } catch (Exception) { return (long.MaxValue, long.MaxValue); } };
     }
 
-    public long MinFreeBytes { get { var (_, total) = Space(); return Math.Max(2L << 30, total / 10); } }
+    /// <summary>The least free space worth keeping on the volume (2 GB): below it or below 10 % of the volume, the least recently used covers are deleted.</summary>
+    public long MinFloorBytes { get; set; } = 2L << 30;
+    /// <summary>The share of the volume that is kept free (10 %).</summary>
+    public int MinFreePercent { get; set; } = 10;
+    public long MinFreeBytes { get { var (_, total) = Space(); return Math.Max(MinFloorBytes, total / 100 * MinFreePercent); } }
+    /// <summary>A cover saved or looked at in the last few minutes is never evicted: it is on its way to a page (or is the one just fetched for the request being answered).</summary>
+    public static readonly TimeSpan Protected = TimeSpan.FromMinutes(5);
 
     static string Name(string key) => Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(key)));
     static string Ext(string contentType) => contentType switch { "image/webp" => ".webp", "image/jpeg" => ".jpg", "image/png" => ".png", "image/gif" => ".gif", _ => ".img" };
@@ -49,7 +55,7 @@ public sealed class CoverStore
         var tmp = file + "." + Guid.NewGuid().ToString("N") + ".tmp";
         await File.WriteAllBytesAsync(tmp, bytes);
         File.Move(tmp, file, true);
-        if (Interlocked.Increment(ref saves) % 25 == 0) EvictIfLow();
+        if (Interlocked.Increment(ref saves) % 25 == 0) EvictIfLow();   // (what was just saved is protected: see Protected)
         return file;
     }
 
@@ -67,9 +73,11 @@ public sealed class CoverStore
         if (free >= min) return 0;
         var want = (long)(min * 1.25) - free;   // bytes to give back
         var n = 0; long freed = 0;
+        var fresh = DateTime.UtcNow - Protected;
         foreach (var f in Files().OrderBy(f => f.LastAccessTimeUtc).ThenBy(f => f.LastWriteTimeUtc).ToList())
         {
             if (freed >= want) break;
+            if (f.LastAccessTimeUtc > fresh) continue;
             try { var len = f.Length; f.Delete(); freed += len; n++; } catch (Exception) { }
         }
         return n;

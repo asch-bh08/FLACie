@@ -59,15 +59,25 @@ public sealed class FormatIndex
     public void Set(Track t, MediaInfo i)
     {
         var codec = i.Codec.Length > 0 ? i.Codec : i.Container;
+        // the Info panel's rule is "the codec OR the container says lossless" (a raw PCM variant such as pcm_f32le in a WAV): keep the badge in step with it
+        if (i.Lossless && !MediaInfo.LosslessCodecs.Contains(codec.ToLowerInvariant()) && i.Container.Length > 0) codec = i.Container;
         var f = new AudioFacts(codec.ToLowerInvariant(), i.SampleRateHz, i.BitDepth, i.BitrateKbps, i.Channels);
         if (!f.Known) return;   // the source could not tell: leave it unprobed so it is tried again later
         // a worse partial read never replaces a more complete fact
         facts.AddOrUpdate(Key(t), f, (_, old) => Score(f) >= Score(old) ? f : old);
-        Interlocked.Exchange(ref dirty, 1);
+        MarkDirty();
         if (misses.TryRemove(Key(t), out _)) Interlocked.Exchange(ref missDirty, 1);
     }
 
     static int Score(AudioFacts f) => (f.Rate > 0 ? 4 : 0) + (f.Depth > 0 ? 2 : 0) + (f.Kbps > 0 ? 1 : 0);
+
+    /// <summary>A change is written to disk a few seconds later (one write for a burst, such as a library listing carrying thousands of songs), by whoever made it: the Windows app's copy has no probe loop to do it.</summary>
+    /// <summary>How long a change waits before it is written (a burst is one write).</summary>
+    public static TimeSpan FlushDelay { get; set; } = TimeSpan.FromSeconds(8);
+    void MarkDirty()
+    {
+        if (Interlocked.Exchange(ref dirty, 1) == 0) _ = Task.Delay(FlushDelay).ContinueWith(_ => Flush(), TaskScheduler.Default);
+    }
 
     public void Flush()
     {

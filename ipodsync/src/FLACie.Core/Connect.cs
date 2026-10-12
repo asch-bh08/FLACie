@@ -72,8 +72,10 @@ public sealed class Connect : IDisposable
 
     async Task Loop(CancellationToken ct)
     {
+        var failures = 0;
         while (!ct.IsCancellationRequested)
         {
+            var wasConnected = false;
             try
             {
                 using var sock = new ClientWebSocket();
@@ -85,7 +87,7 @@ public sealed class Connect : IDisposable
                     ["SupportedCommands"] = new JsonArray("SetVolume", "Mute", "Unmute", "DisplayMessage", "PlayState", "Play", "PlayNext", "PlayMediaSource"),
                     ["SupportsMediaControl"] = true, ["SupportsPersistentIdentifier"] = true,
                 });
-                reportedItem = null; SetConnected(true); Report(false); _ = LoadSessionsAsync();
+                reportedItem = null; SetConnected(true); wasConnected = true; Report(false); _ = LoadSessionsAsync();
                 var buf = new byte[16 * 1024];
                 while (sock.State == WebSocketState.Open && !ct.IsCancellationRequested)
                 {
@@ -100,7 +102,9 @@ public sealed class Connect : IDisposable
             catch (OperationCanceledException) { }
             catch (Exception) { }
             SetConnected(false); ws = null;
-            try { await Task.Delay(5000, ct); } catch (OperationCanceledException) { }
+            // a Jellyfin that is down is not asked every 5 seconds for ever: 5 s, 10 s, 20 s ... up to a minute, and back to 5 s after a connection that worked
+            failures = wasConnected ? 0 : Math.Min(failures + 1, 4);
+            try { await Task.Delay(TimeSpan.FromSeconds(Math.Min(60, 5 * Math.Pow(2, Math.Max(0, failures - 1)))), ct); } catch (OperationCanceledException) { }
         }
     }
 
@@ -216,6 +220,10 @@ public sealed class Connect : IDisposable
 
     // ---- the user's sessions ----
 
+    DateTime lastSessionsAt = DateTime.MinValue;
+    /// <summary>For pollers (the device pickers, several tabs of one user): reads the sessions unless they were read a moment ago, so two tabs cost Jellyfin one request.</summary>
+    public Task RefreshSessionsAsync() => DateTime.UtcNow - lastSessionsAt < TimeSpan.FromMilliseconds(1500) ? Task.CompletedTask : LoadSessionsAsync();
+
     public async Task LoadSessionsAsync()
     {
         if (!Available) return;
@@ -235,9 +243,9 @@ public sealed class Connect : IDisposable
                 np?["Id"]?.GetValue<string>(), np?["Name"]?.GetValue<string>() ?? "",
                 (np?["Artists"] as JsonArray)?.FirstOrDefault()?.GetValue<string>() ?? np?["AlbumArtist"]?.GetValue<string>() ?? "",
                 (ps?["PositionTicks"]?.GetValue<long>() ?? 0) / 10_000, (np?["RunTimeTicks"]?.GetValue<long>() ?? 0) / 10_000, ps?["IsPaused"]?.GetValue<bool>() ?? true, q,
-                np?["ImageTags"]?["Primary"] is not null ? "jf" + np["Id"]?.GetValue<string>() : np?["AlbumPrimaryImageTag"] is not null ? "jf" + np["AlbumId"]?.GetValue<string>() : null));
+                JellyfinClient.ItemArtKey(np)));
         }
-        SessionsAsOf = DateTime.UtcNow;
+        SessionsAsOf = lastSessionsAt = DateTime.UtcNow;
         Sessions = list.OrderBy(s => !s.IsSelf).ThenBy(s => s.ItemId is null).ThenBy(s => s.Device).ToList();
         Changed?.Invoke();
     }

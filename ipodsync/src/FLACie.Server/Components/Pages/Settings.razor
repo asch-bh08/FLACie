@@ -31,6 +31,7 @@
         <dt>Library</dt><dd>@Lib.Songs.Count songs · @Lib.Albums.Count albums@(Session.Loading ? " (loading…)" : "")</dd>
     </dl>
     <div class="row-actions"><button class="btn" @onclick="Reload" disabled="@Session.Loading">Reload library</button></div>
+    <CacheLine />
     @if (Session.Problem is { } p) { <p class="form-error">@p</p> }
     @if (Session.Nas is null)
     {

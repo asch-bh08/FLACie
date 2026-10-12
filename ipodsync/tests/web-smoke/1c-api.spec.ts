@@ -226,8 +226,10 @@ test.describe('/art', () => {
   test('a Jellyfin cover is served and cached', async () => {
     const r = await web.get('/art/jfs1');
     expect(r.status()).toBe(200);
-    expect(r.headers()['content-type']).toBe('image/jpeg');
-    expect(r.headers()['cache-control']).toContain('max-age=604800');
+    // the picture is served as the type Jellyfin gave it (a WebP row cover from a real one), and the browser may keep it (an untagged key a day, a tagged one for good)
+    expect(r.headers()['content-type']).toMatch(/^image\//);
+    expect(r.headers()['cache-control']).toMatch(/max-age=\d{5,}/);
+    expect(r.headers()['etag'], 'a validator, so a second ask can be answered 304').toBeTruthy();
   });
 
   test('keys with separators, dots or absurd length are 400', async () => {

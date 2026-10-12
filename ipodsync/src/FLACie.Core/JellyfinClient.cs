@@ -42,7 +42,7 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
     string Route(string url) => InternalBase is { Length: > 0 } i && PublicBase is { Length: > 0 } p && url.StartsWith(p, StringComparison.OrdinalIgnoreCase) ? i.TrimEnd('/') + url[p.Length..] : url;
 
     /// <summary>A GET on the user's Jellyfin server with their token (JSON, or null for an empty reply).</summary>
-    public Task<JsonNode?> GetAsync(JellyfinAccount a, string path, CancellationToken ct = default) => Send(HttpMethod.Get, a.Server + path, a.Token, null, ct);
+    public Task<JsonNode?> GetAsync(JellyfinAccount a, string path, CancellationToken ct = default, int? slowMs = null) => Send(HttpMethod.Get, a.Server + path, a.Token, null, ct, slowMs);
     public Task<JsonNode?> PostAsync(JellyfinAccount a, string path, JsonNode? body = null, CancellationToken ct = default) => Send(HttpMethod.Post, a.Server + path, a.Token, body, ct);
     public Task<JsonNode?> DeleteAsync(JellyfinAccount a, string path, CancellationToken ct = default) => Send(HttpMethod.Delete, a.Server + path, a.Token, null, ct);
 
@@ -57,7 +57,10 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
 
     string Auth(string? token) => $"MediaBrowser Client=\"{ClientName}\", Device=\"{deviceName}\", DeviceId=\"{deviceId}\", Version=\"{Version}\"" + (token is null ? "" : $", Token=\"{token}\"");
 
-    async Task<JsonNode?> Send(HttpMethod method, string url, string? token, JsonNode? body, CancellationToken ct)
+    /// <summary>Raised with the token whenever Jellyfin answers 401 to a request made with it, so whoever remembers who a token belongs to can forget it at once.</summary>
+    public event Action<string>? TokenRefused;
+
+    async Task<JsonNode?> Send(HttpMethod method, string url, string? token, JsonNode? body, CancellationToken ct, int? slowMs = null)
     {
         async Task<string> Once(CancellationToken c)
         {
@@ -67,7 +70,11 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
             if (body is not null) req.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
             else if (method == HttpMethod.Post) req.Content = new StringContent("", Encoding.UTF8, "application/json");
             using var res = await http.SendAsync(req, c);
-            if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized) throw new UnauthorizedAccessException("Jellyfin didn't accept that sign-in.");
+            if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                if (token is not null) try { TokenRefused?.Invoke(token); } catch (Exception) { }
+                throw new UnauthorizedAccessException("Jellyfin didn't accept that sign-in.");
+            }
             if (!res.IsSuccessStatusCode)
             {
                 // Jellyfin says what is wrong in the body (e.g. a SyncPlay refusal); keep it so the page can show it
@@ -84,8 +91,8 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         }
         // every request waits its turn at the gate; only reads are retried, and identical reads in flight at the same moment are one request
         var text = method == HttpMethod.Get
-            ? await Gate.RunSharedAsync($"GET {url}|{token}", JellyfinGate.Current, Once, ct)
-            : await Gate.RunAsync(JellyfinGate.Current, Once, ct, maxRetries: 0);
+            ? await Gate.RunSharedAsync($"GET {url}|{token}", JellyfinGate.Current, Once, ct, slowMs)
+            : await Gate.RunAsync(JellyfinGate.Current, Once, ct, maxRetries: 0, slowMs: slowMs);
         return string.IsNullOrWhiteSpace(text) ? null : JsonNode.Parse(text);
     }
 
@@ -132,19 +139,47 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
     public sealed record AudioListing(List<Track> Tracks, string? MaxSaved, int Total);
 
     public const int ListingPage = 500;
+    /// <summary>What counts as slow for an answer that carries hundreds of songs with their streams.</summary>
+    public const int BigAnswerMs = 12_000;
+
+    /// <summary>
+    /// Jellyfin's MinDateLastSaved is inclusive: asking with the newest DateLastSaved seen would bring that very song back with every delta (and a "changed"
+    /// library that never settles). The cursor is therefore moved on by one tick (100 ns), so only songs saved after it come back.
+    /// </summary>
+    public static string AfterCursor(string cursor) =>
+        DateTime.TryParse(cursor, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var d) && d.Ticks < DateTime.MaxValue.Ticks
+            ? d.AddTicks(1).ToString("O", CultureInfo.InvariantCulture) : cursor;
+
+    /// <summary>The Jellyfin id of every song the user can see, and nothing else (a light listing: no streams, no pictures). Used to find songs that were removed.</summary>
+    public async Task<HashSet<string>> ListAudioIdsAsync(JellyfinAccount a, CancellationToken ct = default)
+    {
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var start = 0; ; start += 2000)
+        {
+            var page = await Send(HttpMethod.Get, $"{a.Server}/Users/{a.UserId}/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=&EnableImages=false&EnableUserData=false&EnableTotalRecordCount=false&StartIndex={start}&Limit=2000", a.Token, null, ct, BigAnswerMs);
+            var items = page?["Items"]?.AsArray();
+            if (items is null || items.Count == 0) break;
+            foreach (var o in items) if (o?["Id"]?.GetValue<string>() is { Length: > 0 } id) ids.Add(id.Replace("-", ""));
+            if (items.Count < 2000) break;
+        }
+        return ids;
+    }
 
     /// <summary>
     /// The library in pages of <see cref="ListingPage"/> songs, each song with its streams (codec, bit depth, sample rate, bit rate) so nobody has to ask for them one by one:
     /// <paramref name="facts"/> gets every song's real facts, <paramref name="progress"/> the songs so far after each page (so a first sync can show songs while it runs).
-    /// With <paramref name="since"/> (a DateLastSaved from an earlier listing) only songs saved since then come back: a delta.
+    /// With <paramref name="since"/> (a DateLastSaved from an earlier listing) only songs saved since then come back: a delta. A song saved exactly at that moment that
+    /// <paramref name="alreadyKnown"/> (by normalised id) says the library has is the one the cursor came from, not a change: a Jellyfin that answers "since" inclusively
+    /// would hand it back with every delta.
     /// </summary>
-    public async Task<AudioListing> ListAudioAsync(JellyfinAccount a, string? since, CancellationToken ct = default, Action<List<Track>>? progress = null, Action<Track, MediaInfo>? facts = null)
+    public async Task<AudioListing> ListAudioAsync(JellyfinAccount a, string? since, CancellationToken ct = default, Action<List<Track>>? progress = null, Action<Track, MediaInfo>? facts = null, Func<string, bool>? alreadyKnown = null)
     {
-        var sync = new object(); var all = new List<Track>(); string? maxSaved = null;
-        var after = since is null ? "" : "&MinDateLastSaved=" + Uri.EscapeDataString(since);
+        var sync = new object(); var all = new List<Track>(); string? maxSaved = null; long maxTicks = long.MinValue;
+        var after = since is null ? "" : "&MinDateLastSaved=" + Uri.EscapeDataString(AfterCursor(since));
         async Task<int> Page(int start)
         {
-            var page = await Send(HttpMethod.Get, $"{a.Server}/Users/{a.UserId}/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=Path,DateCreated,DateLastSaved,Genres,MediaSources,MediaStreams&EnableUserData=false&StartIndex={start}&Limit={ListingPage}{after}", a.Token, null, ct);
+            // a page of 500 songs with their streams is a big answer: it is judged by its own (long) yardstick, not as "Jellyfin is slow"
+            var page = await Send(HttpMethod.Get, $"{a.Server}/Users/{a.UserId}/Items?IncludeItemTypes=Audio&Recursive=true&SortBy=SortName&Fields=Path,DateCreated,DateLastSaved,Genres,MediaSources,MediaStreams&EnableUserData=false&StartIndex={start}&Limit={ListingPage}{after}", a.Token, null, ct, BigAnswerMs);
             var items = page?["Items"]?.AsArray().OfType<JsonObject>().ToList() ?? [];
             var tracks = items.Select(o => (Track: ToTrack(a.Server, o), Info: ParseMediaInfo(o), Saved: o["DateLastSaved"]?.GetValue<string>())).ToList();
             List<Track>? snapshot = null;
@@ -152,9 +187,11 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
             {
                 foreach (var (t, info, saved) in tracks)
                 {
+                    // newest by time, not by text (a fraction of a second is written with as many digits as it needs)
+                    if (saved is not null && DateTime.TryParse(saved, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var savedAt) && savedAt.Ticks > maxTicks) { maxTicks = savedAt.Ticks; maxSaved = saved; }
+                    if (since is not null && saved == since && alreadyKnown is not null && t.JellyfinId is { } jid && alreadyKnown(jid.Replace("-", "").ToLowerInvariant())) continue;
                     all.Add(t);
                     if (info is { Known: true }) facts?.Invoke(t, info);
-                    if (saved is not null && (maxSaved is null || string.CompareOrdinal(saved, maxSaved) > 0)) maxSaved = saved;
                 }
                 if (progress is not null) snapshot = [.. all];
             }
@@ -205,20 +242,33 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
     {
         var id = o["Id"]!.GetValue<string>();
         string Str(string k) => o[k]?.GetValue<string>() ?? "";
-        var artist = o["Artists"]?.AsArray().FirstOrDefault()?.GetValue<string>() ?? Str("AlbumArtist");
+        var artist = (o["Artists"] as JsonArray)?.FirstOrDefault()?.GetValue<string>() ?? Str("AlbumArtist");
         var albumId = Str("AlbumId");
-        // the song's own picture first (embedded art differs per song); the album's only when the song has none, because a shared
-        // folder.jpg would put one cover on every song in a folder; a catalog lookup when neither exists
-        // a song on a compilation gets its own album's cover from the catalog, whatever the file's embedded picture is
-        var art = Art.OnCompilation(artist, Str("AlbumArtist"), Str("Album")) && Art.LookupKey(artist, "", Str("Name")) is { } own ? own
+        // a song on a compilation gets its own album's cover from the catalog, whatever the file's embedded picture is.
+        // Otherwise the ALBUM's picture (AlbumId + its image tag) when the item says it has one: every song of an album then shares one key, so one
+        // cover is fetched, kept and cached for the whole album (Jellyfin gives each song with embedded art its own tag: ten thousand covers otherwise).
+        // On a compilation each song keeps its own picture (the album's is just one of them); a catalog lookup when no picture exists at all.
+        var onCompilation = Art.OnCompilation(artist, Str("AlbumArtist"), Str("Album"));
+        var art = onCompilation && Art.LookupKey(artist, "", Str("Name")) is { } own ? own
+                : !onCompilation && albumId.Length > 0 && o["AlbumPrimaryImageTag"] is JsonValue at ? "jf" + albumId + "~" + at.ToString()
                 : o["ImageTags"]?["Primary"] is JsonValue pt ? "jf" + id + "~" + pt.ToString()
-                : albumId.Length > 0 && o["AlbumPrimaryImageTag"] is JsonValue at ? "jf" + albumId + "~" + at.ToString()
+                : albumId.Length > 0 && o["AlbumPrimaryImageTag"] is JsonValue at2 ? "jf" + albumId + "~" + at2.ToString()
                 : Art.LookupKey(artist, Str("Album"), Str("Name"));
         DateTime.TryParse(Str("DateCreated"), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var created);
         return new Track($"{server}/Audio/{id}/stream?static=true", Str("Name"), artist, Str("Album"), Str("AlbumArtist").Length > 0 ? Str("AlbumArtist") : artist,
             o["IndexNumber"]?.GetValue<int>() ?? 0, o["ParentIndexNumber"]?.GetValue<int>() ?? 0, (o["RunTimeTicks"]?.GetValue<long>() ?? 0) / 10_000,
             o["ProductionYear"]?.GetValue<int>() ?? 0, art, created == default ? 0 : new DateTimeOffset(created).ToUnixTimeMilliseconds(),
-            TrackSource.Jellyfin, Str("Path"), id, o["Genres"]?.AsArray().FirstOrDefault()?.GetValue<string>() ?? "");
+            TrackSource.Jellyfin, Str("Path"), id, (o["Genres"] as JsonArray)?.FirstOrDefault()?.GetValue<string>() ?? "");   // (a server that sends one genre as a plain string must not fail the whole listing)
+    }
+
+    /// <summary>The cover key of a Jellyfin item record (what another device is playing, a session's NowPlayingItem): the album's picture with its image tag (the same key
+    /// the library uses, so it is already on disk), else the item's own, always with the tag (a key without one could never be told from a changed picture).</summary>
+    public static string? ItemArtKey(JsonNode? item)
+    {
+        if (item is null) return null;
+        if (item["AlbumId"]?.GetValue<string>() is { Length: > 0 } album && item["AlbumPrimaryImageTag"] is JsonValue at) return "jf" + album + "~" + at;
+        if (item["Id"]?.GetValue<string>() is { Length: > 0 } id && item["ImageTags"]?["Primary"] is JsonValue pt) return "jf" + id + "~" + pt;
+        return null;
     }
 
     /// <summary>The user's own playlists with their songs' item ids.</summary>
@@ -274,7 +324,7 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         long bytes = 0; var songs = 0;
         for (var start = 0; ; start += 1000)
         {
-            var page = await Send(HttpMethod.Get, $"{a.Server}/Users/{a.UserId}/Items?IncludeItemTypes=Audio&Recursive=true&Fields=MediaSources&EnableUserData=false&EnableImages=false&StartIndex={start}&Limit=1000", a.Token, null, ct);
+            var page = await Send(HttpMethod.Get, $"{a.Server}/Users/{a.UserId}/Items?IncludeItemTypes=Audio&Recursive=true&Fields=MediaSources&EnableUserData=false&EnableImages=false&StartIndex={start}&Limit=1000", a.Token, null, ct, BigAnswerMs);
             var items = page?["Items"]?.AsArray();
             if (items is null || items.Count == 0) break;
             foreach (var o in items) { songs++; bytes += o?["MediaSources"]?.AsArray().FirstOrDefault()?["Size"]?.GetValue<long>() ?? 0; }

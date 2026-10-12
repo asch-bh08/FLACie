@@ -1,0 +1,32 @@
+@inherits UserComponent
+@inject CacheService Cache
+@inject IConfiguration Conf
+@* How much the server keeps on disk so it need not ask Jellyfin again, and a button to empty it (administrators: the cache is shared by everyone on this server). *@
+@{ var r = report ?? Cache.Report(); }
+<dl class="kv" id="cache">
+    <dt>Cache</dt>
+    <dd><span id="cache-size">@Bytes(r.Total)</span> <span class="hint" id="cache-parts">covers @Bytes(r.Covers) · library @Bytes(r.Library) · lyrics @Bytes(r.Lyrics) · formats @Bytes(r.FormatIndex)</span></dd>
+</dl>
+<div class="row-actions">
+    @if (AdminAccess.Is(Session, Conf))
+    {
+        <button class="btn" id="clear-cache" @onclick="ClearAsync" disabled="@busy">@(busy ? "Clearing…" : "Clear cache")</button>
+    }
+    <span class="hint" id="cache-note">@(note ?? "Nothing is deleted while the disk has room; only when its free space is low are the least recently used covers removed. Clearing empties covers, lyrics and the saved library list; they are fetched again as you browse.")</span>
+</div>
+@code {
+    CacheReport? report;
+    bool busy;
+    string? note;
+
+    static string Bytes(long b) => StorageService.Bytes(b);
+
+    async Task ClearAsync()
+    {
+        busy = true; StateHasChanged();
+        var freed = await Task.Run(() => Cache.Clear());
+        report = Cache.Report();
+        note = $"Cache cleared ({Bytes(freed)} freed).";
+        busy = false;
+    }
+}

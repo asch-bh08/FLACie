@@ -29,7 +29,7 @@ else
             @foreach (var c in cards)
             {
                 <article class="jf-card">
-                    <div class="jf-top @(c.Playing ? "art" : "idle")" style="@(c.Playing && c.ArtKey is not null ? $"background-image:linear-gradient(to bottom,#000b,#0004 38%,#000d),url('/art/{Uri.EscapeDataString(c.ArtKey)}?v=2')" : "")">
+                    <div class="jf-top @(c.Playing ? "art" : "idle")" style="@(c.Playing && c.ArtKey is not null ? $"background-image:linear-gradient(to bottom,#000b,#0004 38%,#000d),url('/art/{Uri.EscapeDataString(c.ArtKey)}?v=3')" : "")">
                         <div class="jf-head"><Icon Name="devices" Size="26" /><div><b>@c.Title</b><small>@c.Sub</small></div></div>
                         <div class="jf-line">
                             <span>@(c.Playing ? c.Track : "Last activity " + c.Seen)</span>
@@ -203,6 +203,7 @@ else
     bool allowed; NotifyConfig cfg = new(); string token = ""; string? notifyMsg; bool testing;
     (long Free, long Total)? space; int activeDownloads, runningImports;
     Timer? timer;
+    DateTime sessionsAt;
     string? open;
     void Toggle(string k) { open = open == k ? null : k; Recount(); }
     void Recount() { if (open != "songs") return; lossless = Lib.Songs.Count(t => FLACie.Core.MediaInfo.LosslessCodecs.Contains(InfoService.QuickFormat(t).ToLowerInvariant())); unknownFmt = Lib.Songs.Count(t => InfoService.QuickFormat(t).Length == 0); }
@@ -235,7 +236,10 @@ else
         if (Session.Jellyfin is not { } a) { error = "Signed in without Jellyfin: only browsers are listed."; await BuildCards(); return; }
         try
         {
+            // the page redraws every 3 s, but Jellyfin is asked for its sessions at most every 6 s (and not at all while this tab is hidden: the timer stops with the page)
+            if (sessions.Count > 0 && DateTime.UtcNow - sessionsAt < TimeSpan.FromSeconds(6)) { await BuildCards(); return; }
             var node = await Jellyfin.GetAsync(a, "/Sessions?ActiveWithinSeconds=960");
+            sessionsAt = DateTime.UtcNow;
             var list = new List<Dev>();
             foreach (var o in node?.AsArray() ?? [])
             {
@@ -273,7 +277,7 @@ else
     async Task Act(Card c, string what)
     {
         if (c.Do is { } d) { try { await d(what); Log.Add("admin", Session.DisplayName, $"{what} on {c.Title} ({c.User})"); } catch (Exception) { } }
-        await Task.Delay(400); await Refresh2(); StateHasChanged();
+        sessionsAt = DateTime.MinValue; await Task.Delay(400); await Refresh2(); StateHasChanged();
     }
 
     static void Add(List<(string K, string V)> rows, string k, string? v) { if (!string.IsNullOrWhiteSpace(v)) rows.Add((k, v!)); }
@@ -316,7 +320,7 @@ else
             var c = new Card
             {
                 Key = "j" + d.Id, Title = d.Device, Sub = (d.Client + " " + d.Version).Trim(), User = d.User, Seen = Ago(d.LastActivity), Playing = d.Playing, Paused = d.Paused,
-                ArtKey = d.ItemId is null ? null : "jf" + d.ItemId, Track = d.Title ?? "", Artist = d.Artist ?? "", PosMs = d.PositionMs, DurMs = d.DurationMs,
+                ArtKey = d.ItemId is null ? null : JellyfinClient.ItemArtKey(item), Track = d.Title ?? "", Artist = d.Artist ?? "", PosMs = d.PositionMs, DurMs = d.DurationMs,
                 Do = d.Controllable ? (k => Cmd(d, k switch { "prev" => "PreviousTrack", "next" => "NextTrack", "toggle" => "PlayPause", _ => "Stop" })) : null,
             };
             if (d.Playing)
@@ -356,7 +360,7 @@ else
     async Task Cmd(Dev d, string cmd)
     {
         try { await Jellyfin.PostAsync(Session.Jellyfin!, $"/Sessions/{d.Id}/Playing/{cmd}", null); Log.Add("admin", Session.DisplayName, $"{cmd} on {d.Device} ({d.User})"); } catch (Exception) { }
-        await Task.Delay(500); await Refresh2();
+        sessionsAt = DateTime.MinValue; await Task.Delay(500); await Refresh2();
     }
 
     void SaveNotify() { Notify.Save(cfg, token.Length > 0 ? token : null); token = ""; notifyMsg = "Saved."; }

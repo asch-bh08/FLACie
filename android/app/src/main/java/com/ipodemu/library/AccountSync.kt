@@ -15,8 +15,6 @@ import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URL
 import java.net.URLEncoder
 
 /**
@@ -180,7 +178,7 @@ class AccountSync(private val app: App) {
         return "${prefs.accountServer}/DisplayPreferences/$PREFS_ID?userId=$uid&client=$CLIENT"
     }
 
-    private fun pull(): JSONObject? {
+    private suspend fun pull(): JSONObject? {
         val (code, text) = http("GET", prefsUrl(), prefs.accountToken, null)
         if (code == 401) {
             // signed in with the NAS: a Jellyfin token from an old profile copy has expired; drop it, keep the NAS session
@@ -312,7 +310,7 @@ class AccountSync(private val app: App) {
      * token's device: Connect and Jams would then talk as that other device. Mint one for this install by approving our own Quick
      * Connect request with the borrowed token (no password involved). If anything fails the borrowed token is kept.
      */
-    private fun rebindToThisDevice() {
+    private suspend fun rebindToThisDevice() {
         val base = prefs.accountServer; val old = prefs.accountToken
         try {
             val (ic, it) = http("POST", "$base/QuickConnect/Initiate", null, null)
@@ -374,7 +372,7 @@ class AccountSync(private val app: App) {
         kotlinx.coroutines.withContext(Dispatchers.Main) { app.userData.mergeJellyfin(out, since) }
     }
 
-    private fun mirrorPlaylists() {
+    private suspend fun mirrorPlaylists() {
         val base = prefs.accountServer; val token = prefs.accountToken; val uid = prefs.accountUserId
         // the stored ids point at playlists on the account's server; a different Jellyfin can't be mirrored to
         val ud = app.userData
@@ -465,21 +463,12 @@ class AccountSync(private val app: App) {
         "MediaBrowser Client=\"$CLIENT\", Device=\"${android.os.Build.MODEL.replace("\"", "")}\", DeviceId=\"${prefs.deviceId}\", Version=\"$VERSION\"" +
             (token?.let { ", Token=\"$it\"" } ?: "")
 
-    private fun http(method: String, url: String, token: String?, body: String?): Pair<Int, String> {
-        val conn = URL(url).openConnection() as HttpURLConnection
-        conn.connectTimeout = 8000; conn.readTimeout = 20000
-        conn.requestMethod = method
-        conn.setRequestProperty("Authorization", authHeader(token))
-        if (body != null) {
-            conn.doOutput = true
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-        }
-        try {
-            val code = conn.responseCode
-            val text = (if (code in 200..299) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() } ?: ""
-            return code to text
-        } finally { conn.disconnect() }
+    /** Every request to the Jellyfin server goes through the one gate ([JellyfinNet]): shared slots, back-off on 5xx/429 (GET only, twice at most), a breaker. */
+    private suspend fun http(method: String, url: String, token: String?, body: String?): Pair<Int, String> {
+        val headers = mapOf("Authorization" to authHeader(token))
+        val r = if (method == "GET") JellyfinNet.gate.execute(GateRequest("GET", url, headers, kind = "account"), Priority.VISIBLE)
+        else JellyfinNet.send(method, url, headers, body?.toByteArray(Charsets.UTF_8), if (body != null) "application/json" else null, Priority.VISIBLE, "account")
+        return r.code to r.text
     }
 
     companion object {

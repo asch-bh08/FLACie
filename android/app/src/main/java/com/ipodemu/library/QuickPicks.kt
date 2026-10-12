@@ -26,7 +26,7 @@ object TasteData {
     val jfIdRe = Regex("/Audio/([0-9a-fA-F]{32})/stream")
 
     /** Reads Jellyfin's counts and the artists' best-known songs, at most once an hour. Blocking: run it off the main thread. Never throws. */
-    fun refresh(app: App, lib: Library, force: Boolean = false) {
+    suspend fun refresh(app: App, lib: Library, force: Boolean = false) {
         val now = System.currentTimeMillis()
         if (!force && now - at < 3_600_000L) return
         at = now
@@ -45,16 +45,15 @@ object TasteData {
         } catch (_: Exception) { }
     }
 
-    private fun fetchJellyfin(server: String, userId: String, token: String, deviceId: String): List<JfPlay> {
+    private suspend fun fetchJellyfin(server: String, userId: String, token: String, deviceId: String): List<JfPlay> {
         val res = LinkedHashMap<String, JfPlay>()
-        fun pull(filter: String, sort: String) {
+        suspend fun pull(filter: String, sort: String) {
             val url = "$server/Users/$userId/Items?IncludeItemTypes=Audio&Recursive=true&Filters=$filter&SortBy=$sort&SortOrder=Descending&EnableUserData=true&EnableImages=false&EnableTotalRecordCount=false&Limit=3000"
-            val c = URL(url).openConnection() as HttpURLConnection
-            c.connectTimeout = 10_000; c.readTimeout = 60_000
-            c.setRequestProperty("Authorization", JellyfinAuth.header(token, deviceId))
-            try {
-                if (c.responseCode !in 200..299) return
-                val items = JSONObject(c.inputStream.bufferedReader().use { it.readText() }).optJSONArray("Items") ?: return
+            // through the gate, as background work (it waits for the screen to be left alone and for the server not to be slow)
+            val r = JellyfinNet.gate.execute(GateRequest("GET", url, mapOf("Authorization" to JellyfinAuth.header(token, deviceId)), kind = "taste", heavy = true), Priority.BACKGROUND)
+            run {
+                if (!r.ok) return
+                val items = JSONObject(r.text).optJSONArray("Items") ?: return
                 for (i in 0 until items.length()) {
                     val o = items.getJSONObject(i); val id = o.optString("Id").replace("-", "").lowercase(); if (id.isBlank()) continue
                     val ud = o.optJSONObject("UserData")
@@ -62,7 +61,7 @@ object TasteData {
                     val old = res[id]
                     res[id] = JfPlay(id, max(old?.plays ?: 0, ud?.optInt("PlayCount") ?: 0), max(old?.lastMs ?: 0L, last), (old?.favourite ?: false) || (ud?.optBoolean("IsFavorite") ?: false))
                 }
-            } finally { c.disconnect() }
+            }
         }
         pull("IsPlayed", "PlayCount")
         try { pull("IsFavorite", "SortName") } catch (_: Exception) { }

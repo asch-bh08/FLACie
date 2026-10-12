@@ -20,6 +20,12 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+/** Wait before reconnect attempt [attempt] (0 = first): 2 s, 4 s, 8 s ... capped at 60 s, shortened by up to half by [random] (0..1) as jitter. */
+internal fun reconnectDelay(attempt: Int, random: Double): Long {
+    val ceil = (2_000L shl attempt.coerceIn(0, 10)).coerceAtMost(60_000L)
+    return (ceil * (1.0 - 0.5 * random.coerceIn(0.0, 1.0))).toLong()
+}
+
 /** OkHttp underneath the gate: one shared connection pool, a call that is cancelled when its coroutine is. */
 fun okGateTransport(client: OkHttpClient): GateTransport = { req ->
     suspendCancellableCoroutine { cont: CancellableContinuation<GateResponse> ->
@@ -51,7 +57,8 @@ fun okGateTransport(client: OkHttpClient): GateTransport = { req ->
  */
 object JellyfinNet {
     private val client: OkHttpClient by lazy {
-        OkHttpClient.Builder().connectTimeout(8, TimeUnit.SECONDS).readTimeout(25, TimeUnit.SECONDS).callTimeout(60, TimeUnit.SECONDS)
+        // a 500-song page with stream facts is a big answer from a busy server: read timeout 45 s, whole call 90 s (a timeout is retried twice at most)
+        OkHttpClient.Builder().connectTimeout(8, TimeUnit.SECONDS).readTimeout(45, TimeUnit.SECONDS).callTimeout(90, TimeUnit.SECONDS)
             .dispatcher(Dispatcher().apply { maxRequests = 64; maxRequestsPerHost = 32 }).followRedirects(true).build()
     }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

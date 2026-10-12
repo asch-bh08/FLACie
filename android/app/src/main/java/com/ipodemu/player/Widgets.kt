@@ -452,19 +452,26 @@ fun IpodRow(
 
 // ---- artwork ------------------------------------------------------------------------------------------------------
 
+/**
+ * The cover as a bitmap: from memory at once, else loaded by a coroutine that lives and dies with the composable (a row that scrolls away
+ * cancels its request in the gate). [full] = the Now Playing size (Jellyfin covers: one 960 px picture per song, the row-size one shows while it loads).
+ */
 @Composable
-fun rememberArt(key: String?, thumb: Boolean): Bitmap? {
+fun rememberArt(key: String?, thumb: Boolean, full: Boolean = false): Bitmap? {
     val art = LocalApp.current.art
     // keyed state: produceState kept the previous song's cover on screen while the next one loaded (or for good when it had none)
-    val state = remember(key, thumb) { mutableStateOf(art.peek(key, thumb)) }
+    val exact = remember(key, thumb, full) { art.peek(key, thumb, full) }
+    val state = remember(key, thumb, full) { mutableStateOf(exact ?: if (full) art.peek(key, thumb = false) else null) }
     // no coroutine at all for a cover that is already in memory (most rows of a list you scroll back through)
-    if (state.value == null && key != null) LaunchedEffect(key, thumb) { state.value = art.load(key, thumb) }
+    if (exact == null && key != null) LaunchedEffect(key, thumb, full) {
+        art.load(key, thumb, full, if (full) com.ipodemu.library.Priority.PLAYING else com.ipodemu.library.Priority.VISIBLE)?.let { state.value = it }
+    }
     return state.value
 }
 
 @Composable
-fun ArtImage(key: String?, modifier: Modifier = Modifier, thumb: Boolean = false, corner: Dp = 8.dp, circle: Boolean = false) {
-    val bmp = rememberArt(key, thumb)
+fun ArtImage(key: String?, modifier: Modifier = Modifier, thumb: Boolean = false, corner: Dp = 8.dp, circle: Boolean = false, full: Boolean = false) {
+    val bmp = rememberArt(key, thumb, full)
     val sc = LocalScheme.current
     val shape = remember(circle, corner) { if (circle) CircleShape else RoundedCornerShape(corner) }
     val img = remember(bmp) { bmp?.asImageBitmap() }

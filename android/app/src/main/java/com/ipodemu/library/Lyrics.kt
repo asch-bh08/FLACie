@@ -48,17 +48,21 @@ class LyricsProvider(private val app: App) {
         } catch (_: Exception) {}
     }
 
-    private fun fetch(t: Track): Lyrics? =
+    private suspend fun fetch(t: Track): Lyrics? =
         fromJellyfin(t) ?: fromSidecar(t) ?: fromLrclib(t)
 
     private val jfId = Regex("/Audio/([0-9a-fA-F]{32})/stream")
 
-    private fun fromJellyfin(t: Track): Lyrics? {
+    private suspend fun fromJellyfin(t: Track): Lyrics? {
         val p = app.prefs
         val id = jfId.find(t.path)?.groupValues?.get(1)
             ?: app.library.jellyfinByKey()[t.matchKey]?.let { jfId.find(it.path)?.groupValues?.get(1) } ?: return null
         if (p.jellyfinUrl.isBlank() || p.jellyfinApiKey.isBlank()) return null
-        val body = http("${p.jellyfinUrl.trimEnd('/')}/Audio/$id/Lyrics", mapOf("Authorization" to JellyfinAuth.header(p.jellyfinApiKey))) ?: return null
+        // the Jellyfin request goes through the gate (the song on screen: Visible priority); LRCLIB below is a different server
+        val body = try {
+            val r = JellyfinNet.get("${p.jellyfinUrl.trimEnd('/')}/Audio/$id/Lyrics", p.jellyfinApiKey, Priority.VISIBLE, "lyrics")
+            if (r.ok) r.text else null
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null } ?: return null
         return try {
             val arr = JSONObject(body).optJSONArray("Lyrics") ?: return null
             val lines = List(arr.length()) { i -> arr.getJSONObject(i).let { LyricLine(if (it.has("Start")) it.optLong("Start") / 10_000 else -1, it.optString("Text")) } }

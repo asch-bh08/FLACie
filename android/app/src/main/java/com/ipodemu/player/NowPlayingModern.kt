@@ -426,7 +426,7 @@ private fun NpArtModern(t: Track, modifier: Modifier) {
     ArtImage(
         t.artKey, modifier.popIn(t.path, 0.88f)
             .shadow(24.dp, RoundedCornerShape(12.dp), clip = false, ambientColor = Color.Black, spotColor = Color.Black),
-        corner = 12.dp,
+        corner = 12.dp, full = true,
     )
 }
 

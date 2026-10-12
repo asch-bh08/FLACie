@@ -125,7 +125,10 @@ class Library(ctx: Context, val art: ArtCache) {
     val jfSync = JellyfinSync(jfApi, jfIndex, jfSink)
 
     private fun writeJfState(cursor: String) {
-        try { jfStateFile.writeText(JSONObject().put("cursor", cursor).put("url", prefs.jellyfinUrl.trimEnd('/')).put("user", jellyfinUserId ?: prefs.accountUserId).toString()) } catch (_: Exception) {}
+        try {
+            jfStateFile.writeText(JSONObject().put("cursor", cursor).put("url", prefs.jellyfinUrl.trimEnd('/')).put("user", jellyfinUserId ?: prefs.accountUserId)
+                .put("count", jfSync.lastCountAt).toString())
+        } catch (_: Exception) {}
     }
 
     /** Restores the delta cursor if the saved state is for the server and user in use now; any other state is dropped (a full pass follows). */
@@ -137,7 +140,7 @@ class Library(ctx: Context, val art: ArtCache) {
             val o = JSONObject(jfStateFile.readText())
             val sameServer = o.optString("url") == prefs.jellyfinUrl.trimEnd('/') && prefs.jellyfinUrl.isNotBlank()
             val sameUser = prefs.accountUserId.isBlank() || o.optString("user") == prefs.accountUserId
-            if (sameServer && sameUser && jfIndex.size > 0) jfIndex.cursor = o.optString("cursor")
+            if (sameServer && sameUser && jfIndex.size > 0) { jfIndex.cursor = o.optString("cursor"); jfSync.lastCountAt = o.optLong("count", 0L) }
         } catch (_: Exception) {}
     }
 
@@ -146,19 +149,26 @@ class Library(ctx: Context, val art: ArtCache) {
         try { jfStateFile.delete(); jfFactsFile.delete() } catch (_: Exception) {}
     }
 
-    /** Messages from Jellyfin's live socket: library changes start a delta pass (a burst of scan messages becomes one), deletions apply at once. */
+    /**
+     * Messages from Jellyfin's live socket (JellyfinConnect passes them on): a library change starts one delta pass instead of any polling (a burst of
+     * scan messages becomes one pass), and what the server says it removed leaves the phone at once. Play counts and favourites (UserDataChanged) do not
+     * touch the song list, so they start nothing. "SocketOpen" is JellyfinConnect's own: after a gap the phone catches up with one delta.
+     */
     fun onServerMessage(type: String, data: JSONObject?) {
-        when (type) {
-            "LibraryChanged" -> {
-                val gone = data?.optJSONArray("ItemsRemoved")?.let { a -> (0 until a.length()).map { a.optString(it) } } ?: emptyList()
-                if (gone.isNotEmpty()) jfSync.removed(gone)
-                syncJellyfinSoon()
-            }
-            "UserDataChanged" -> syncJellyfinSoon()
-        }
+        val c = serverChange(type, data) ?: return
+        if (c.removed.isNotEmpty()) jfSync.removed(c.removed)
+        if (c.wantCount) jfSync.wantCount()
+        if (c.sync && (!c.onlyIfStale || System.currentTimeMillis() - lastJfSyncAt > 2 * 60_000L)) syncJellyfinSoon()
     }
 
+    @Volatile private var lastJfSyncAt = 0L
+    private var jfDebounceSince = 0L
     private fun syncJellyfinSoon() {
+        val now = System.currentTimeMillis()
+        val pending = jfDebounce?.isActive == true
+        // a long scan sends a message every few seconds: wait for quiet, but never longer than 30 s from the first message
+        if (pending && now - jfDebounceSince >= 30_000L) return
+        if (!pending) jfDebounceSince = now
         jfDebounce?.cancel()
         jfDebounce = scope.launch { kotlinx.coroutines.delay(4_000); mergeJellyfin() }
     }
@@ -169,17 +179,18 @@ class Library(ctx: Context, val art: ArtCache) {
         jfPoll = scope.launch { while (true) { kotlinx.coroutines.delay(15 * 60_000L); if (!socketUp()) mergeJellyfin() } }
     }
 
-    /** Size of the cache Settings shows: covers and the saved library index. */
-    fun cacheBytes(): Long = art.sizeBytes() + listOf(remoteFile, jfStateFile, jfFactsFile).sumOf { if (it.exists()) it.length() else 0L }
+    /** What Settings > Cache shows: the saved covers, the saved song list (with its facts and cursor) and the audio kept for replay and ahead-of-play. */
+    fun cacheBytes(streamBytes: Long = 0L): Long =
+        art.sizeBytes() + listOf(remoteFile, mergedFile, jfStateFile, jfFactsFile).sumOf { if (it.exists()) it.length() else 0L } + streamBytes
 
-    /** Settings > Clear cache: covers and the library index go (not the sign-in); the library is read from Jellyfin again. */
+    /**
+     * Settings > Clear cache: every saved cover (and what the app remembered about them) goes, and the audio kept for replay. The song list, its stream
+     * facts, the sign-in and the playlists stay: the list is what makes the next start instant, and it costs the server nothing to keep. Covers
+     * come back one by one, only for what is on screen.
+     */
     fun clearCache() {
         art.clearAll()
-        resetJellyfin()
-        jellyfinTracks = emptyList()
-        try { remoteFile.delete() } catch (_: Exception) {}
-        rebuild(); notifyChange()
-        mergeJellyfin()
+        notifyChange()
     }
     private val plex = PlexDirectClient()
     @Volatile private var plexSectionKey: String? = null
@@ -536,6 +547,7 @@ class Library(ctx: Context, val art: ArtCache) {
             try {
                 // the first pass on this server pages through everything (at Background priority); later ones ask only for what changed since
                 jfSync.sync()
+                lastJfSyncAt = System.currentTimeMillis()
             } catch (_: Exception) { /* offline or unreachable -- keep showing what's already there */ }
         }
     }
@@ -583,6 +595,7 @@ class Library(ctx: Context, val art: ArtCache) {
                 notifyChange()
                 startJfPoll()
                 jfSync.sync()
+                lastJfSyncAt = System.currentTimeMillis()
             } catch (e: Exception) {
                 jellyfinStatus = "Could not connect: ${e.message}"; jellyfinConnected = false
             } finally {

@@ -119,7 +119,7 @@ fun RemoteScreen() {
                 return@Column
             }
             Box(Modifier.fillMaxWidth()) {
-                ArtImage(s.artKey ?: "jf${s.itemId}", Modifier.align(Alignment.Center).fillMaxWidth(0.86f).aspectRatio(1f).popIn(s.itemId, 0.9f), thumb = false, corner = 14.dp)
+                ArtImage(s.artKey ?: "jf${s.itemId}", Modifier.align(Alignment.Center).fillMaxWidth(0.86f).aspectRatio(1f).popIn(s.itemId, 0.9f), thumb = false, corner = 14.dp, full = true)
             }
             Column(Modifier.fillMaxWidth().riseIn(80, s.itemId), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Column {

@@ -11,27 +11,42 @@ import java.io.File
  * Keys are the cover keys ("jf" + item id); the Now Playing size has its own entries (prefix "F").
  */
 class CoverIndex {
-    class Entry(var stored: String?, var want: String?, var etag: String?)
+    /** [missAt] / [missTag]: the server said it has no picture (404) at that time while the listing's tag was [missTag]: not asked again until the tag changes or [MISS_TTL_MS] passes. */
+    class Entry(var stored: String?, var want: String?, var etag: String?, var missAt: Long = 0L, var missTag: String? = null)
 
     private val map = HashMap<String, Entry>()
     @Volatile var dirty = false; private set
 
     @Synchronized fun entry(key: String): Entry? = map[key]
 
-    /** A file that exists is current unless the server reported another tag for it. A missing file always needs a fetch. */
-    @Synchronized fun needsFetch(key: String, fileExists: Boolean): Boolean {
-        if (!fileExists) return true
-        val e = map[key] ?: return false
+    /**
+     * A file that exists is current unless the server reported another tag for it. A missing file needs a fetch, except when the server
+     * already said "no picture" for this very tag a short while ago (an album without art would otherwise be asked for again and again).
+     */
+    @Synchronized fun needsFetch(key: String, fileExists: Boolean, now: Long = System.currentTimeMillis()): Boolean {
+        val e = map[key]
+        if (!fileExists) {
+            if (e != null && e.missAt > 0 && e.missTag == e.want && now - e.missAt < MISS_TTL_MS) return false
+            return true
+        }
+        e ?: return false
         return e.want != null && e.want != e.stored
+    }
+
+    /** The server answered 404: there is no picture for [key] at its current tag. */
+    @Synchronized fun noPicture(key: String, now: Long = System.currentTimeMillis()) {
+        val e = map.getOrPut(key) { Entry(null, null, null) }
+        e.missAt = now; e.missTag = e.want; dirty = true
     }
 
     /** The server's listing says these covers have these tags. Returns the keys whose saved picture is now out of date. */
     @Synchronized fun noteWanted(tags: Map<String, String>): List<String> {
         val changed = ArrayList<String>()
         for ((k, t) in tags) {
+            // the Now Playing size has an entry only once it was fetched (not a second entry for every cover of a 10,000-song library)
             for (key in listOf(k, "F$k")) {
                 val e = map[key]
-                if (e == null) { map[key] = Entry(null, t, null); dirty = true }
+                if (e == null) { if (key == k) { map[key] = Entry(null, t, null); dirty = true } }
                 else if (e.want != t) { e.want = t; dirty = true; if (e.stored != null && e.stored != t) changed += key }
             }
         }
@@ -42,6 +57,7 @@ class CoverIndex {
     @Synchronized fun saved(key: String, tag: String?, etag: String?) {
         val e = map.getOrPut(key) { Entry(null, tag, null) }
         e.stored = tag ?: e.want; e.etag = etag ?: e.etag
+        e.missAt = 0L; e.missTag = null
         if (tag != null) e.want = e.want ?: tag
         dirty = true
     }
@@ -54,7 +70,7 @@ class CoverIndex {
 
     @Synchronized fun toJson(): String {
         val o = JSONObject()
-        for ((k, e) in map) o.put(k, org.json.JSONArray().put(e.stored ?: "").put(e.want ?: "").put(e.etag ?: ""))
+        for ((k, e) in map) o.put(k, org.json.JSONArray().put(e.stored ?: "").put(e.want ?: "").put(e.etag ?: "").put(e.missAt).put(e.missTag ?: ""))
         dirty = false
         return o.toString()
     }
@@ -63,10 +79,13 @@ class CoverIndex {
         val o = JSONObject(raw)
         for (k in o.keys()) {
             val a = o.getJSONArray(k)
-            map[k] = Entry(a.optString(0).ifEmpty { null }, a.optString(1).ifEmpty { null }, a.optString(2).ifEmpty { null })
+            map[k] = Entry(a.optString(0).ifEmpty { null }, a.optString(1).ifEmpty { null }, a.optString(2).ifEmpty { null }, a.optLong(3, 0L), a.optString(4).ifEmpty { null })
         }
     }
 }
+
+/** How long a "the server has no picture" answer is believed (a new picture normally arrives with a new tag in the listing, which ends it at once). */
+private const val MISS_TTL_MS = 24L * 3600_000L
 
 /** Cover URLs: one fixed size per use, so the server's own resized-image cache is hit every time. */
 object JellyfinCovers {
@@ -101,8 +120,14 @@ object CacheEvictor {
         return (target - info.freeBytes()).coerceAtLeast(0)
     }
 
-    /** Deletes the oldest [files] until the shortfall (plus a 5 % margin of the target) is covered. Returns the deleted files. */
-    fun evict(files: List<File>, info: StorageInfo): List<File> {
+    /** Files touched in the last half hour are never deleted: on a device that stays short of space the pictures being used right now must survive. */
+    const val PROTECT_MS = 30 * 60_000L
+
+    /**
+     * Deletes the least recently used [files] (oldest first) until the shortfall (plus a 5 % margin of the target) is covered, and only while
+     * the device is short of space. Returns the deleted files.
+     */
+    fun evict(files: List<File>, info: StorageInfo, now: Long = System.currentTimeMillis()): List<File> {
         val short = needed(info)
         if (short <= 0) return emptyList()
         val goal = short + (maxOf((info.totalBytes() * MIN_FREE_FRACTION).toLong(), MIN_FREE_BYTES) / 20)
@@ -110,9 +135,26 @@ object CacheEvictor {
         val out = ArrayList<File>()
         for (f in files.sortedBy { it.lastModified() }) {
             if (freed >= goal) break
+            if (now - f.lastModified() < PROTECT_MS) break   // sorted oldest first: everything after this is newer still
             val len = f.length()
             if (f.delete()) { freed += len; out += f }
         }
         return out
     }
+}
+
+/**
+ * Which pictures are still being asked for. The canvas themes draw rows every frame and cannot cancel anything: each draw of a row calls
+ * [draw] + [want]. A request whose key was not asked for during the last [after] draws belongs to a row that scrolled away. A screen that
+ * is not redrawn never counts as scrolled away (nothing newer was asked for).
+ */
+class ScrollWatch(private val after: Int = 80) {
+    private val draws = java.util.concurrent.atomic.AtomicLong()
+    private val wanted = HashMap<String, Long>()
+
+    /** One picture was asked for by a draw; returns the draw number to pass to [want]. */
+    fun draw(): Long = draws.incrementAndGet()
+    @Synchronized fun want(key: String, n: Long) { wanted[key] = n }
+    @Synchronized fun done(key: String) { wanted.remove(key) }
+    @Synchronized fun scrolledOff(key: String): Boolean { val last = wanted[key] ?: return true; return draws.get() - last > after }
 }

@@ -144,3 +144,8 @@ requirements 1-7 and 9 of the owner's list and built, run and tested here (mock 
   with the shell variable).
 - Playwright `1h-queue.spec.ts`: Up next of the mock's Hires Lab album: up / down / play next / remove (the last with the keyboard: focus + Enter), disabled
   edges, the playing song untouched and its clock still running, Next goes to the song moved to the top, and the arranged queue is restored after two reloads.
+- Full Playwright suite on this branch (one worker, fresh `.data-smoke`/`.pub-smoke`): **119 passed, 0 failed** (7.2 min). Along the way: the first
+  version of the Up next button labels contained the word "next" ("Play X next") and the existing specs' `getByRole('button', {name: 'Next'}).first()` found them
+  (a skip became "Put Static 14 next"): labels renamed, see above. `1h-queue` pauses the mock's 3-second songs while it edits (they end by themselves
+  otherwise). `1f-load` "20 skips" stream bound raised from 6 to 10 after one run counted 8 on a loaded machine (prefetch reads count as streams; still far below 20).
+  One run also had the 320 px bottom-bar spec fail once (a link measured 0 wide right after navigation) and pass on the next runs: a timing flake, not changed.

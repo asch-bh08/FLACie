@@ -53,10 +53,11 @@ for (const shell of ['web', 'desktop']) {
     if (b?.error || a?.error) out.push(`_Run problems:_ ${b?.error ? 'before: ' + String(b.error).split('\n')[0] : ''} ${a?.error ? 'after: ' + String(a.error).split('\n')[0] : ''}`, '');
   }
 }
+let androidHeader = false;
 for (const p of profiles) {
   const b = read(`android-before-${p}.json`), a = read(`android-after-${p}.json`);
   if (!b && !a) continue;
-  if (!out.includes('### Android (emulator)')) out.push('### Android (emulator, software rendered; request counts only)');
+  if (!androidHeader) { androidHeader = true; out.push('### Android (emulator, software rendered; request counts only)'); }
   out.push(`#### Server: ${profileText[p]}`, rows(b, a), '');
 }
 console.log(out.join('\n'));

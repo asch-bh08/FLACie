@@ -331,6 +331,12 @@ button.q-row:hover { background: #ffffff12; }
 .q-row small { color: var(--dim); }
 .q-row b, .q-row small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .q-time { color: var(--dim); font-size: 13px; font-variant-numeric: tabular-nums; }
+.q-item { display: flex; align-items: center; gap: 2px; }
+.q-item > .q-row { flex: 1; min-width: 0; width: auto; }
+.q-edit { display: flex; flex: none; }
+.upnext .q-edit button { width: 34px; height: 34px; padding: 0; justify-content: center; border-radius: 8px; color: var(--dim); }
+.upnext .q-edit button:hover:not(:disabled), .upnext .q-edit button:focus-visible { color: inherit; background: #ffffff1c; }
+.upnext .q-edit button:disabled { opacity: .3; cursor: default; }
 .q-divider { margin: 16px 8px 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); }
 .eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 16px; margin-right: 6px; }
 .eq i { width: 3px; height: 4px; background: var(--accent); border-radius: 1px; }

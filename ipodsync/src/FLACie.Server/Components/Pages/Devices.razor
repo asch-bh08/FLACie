@@ -21,7 +21,7 @@ else
                 @if (s.ItemId is not null) { <Cover ArtKey="@s.ArtKey" Size="72" /> } else { <span class="dev-ic"><Icon Name="@kind.Icon" Size="30" /></span> }
             </div>
             <div class="dev-main">
-                <div class="dev-name"><b>@s.Device</b>
+                <div class="dev-name"><b>@ClientLabel.Device(s.Device, s.IsSelf, ClientLabel.InDesktopShell)</b>
                     <span class="dev-chips">
                         <em class="dev-chip">@kind.Label</em>
                         @if (s.IsSelf) { <em class="dev-chip you">This browser</em> }

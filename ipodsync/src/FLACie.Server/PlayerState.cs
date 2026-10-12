@@ -141,8 +141,11 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         var now = Environment.TickCount64;
         if (!force && now - lastStash < 5_000) return;
         lastStash = now;
-        var from = Math.Max(0, Index - 50);
-        var json = System.Text.Json.JsonSerializer.Serialize(new { q = Queue.Skip(from).Take(300).Select(t => t.Path), i = Index - from, p = Position, s = Shuffle, r = Repeat });
+        // the songs in the order they will be reached (so a move or a removal in Up next, and a shuffle, come back as they were), a few before the current one and many after
+        var seq = order.Count == Queue.Count ? order.Select(i => Queue[i]).ToList() : Queue;
+        var at = Math.Max(0, order.Count == Queue.Count ? order.IndexOf(Index) : Index);
+        var from = Math.Max(0, at - 50);
+        var json = System.Text.Json.JsonSerializer.Serialize(new { q = seq.Skip(from).Take(300).Select(t => t.Path), i = at - from, p = Position, s = Shuffle, r = Repeat });
         _ = js.InvokeVoidAsync("flacie.stash", stashKey, json).AsTask().ContinueWith(_ => { });
     }
 
@@ -162,7 +165,8 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
             var tracks = r.GetProperty("q").EnumerateArray().Select(e => s.FindByPath(e.GetString() ?? "")).OfType<Track>().ToList();
             if (tracks.Count == 0) return;
             Shuffle = r.TryGetProperty("s", out var sh) && sh.GetBoolean(); Repeat = r.TryGetProperty("r", out var rp) ? rp.GetInt32() : 0;
-            await PlayFromAsync(tracks, Math.Clamp(r.GetProperty("i").GetInt32(), 0, tracks.Count - 1), (long)(r.GetProperty("p").GetDouble() * 1000), true);
+            // the list was saved in play order: it is played as it stands, not shuffled again
+            await StartAsync(tracks, Math.Clamp(r.GetProperty("i").GetInt32(), 0, tracks.Count - 1), (long)(r.GetProperty("p").GetDouble() * 1000), true, Context, keepOrder: true);
         }
         catch (Exception) { }
     }
@@ -194,12 +198,12 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
 
     public Task PlayFromAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused) => StartAsync(list, index, positionMs, paused, Context);
 
-    async Task StartAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused, string? context)
+    async Task StartAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused, string? context, bool keepOrder = false)
     {
         if (list.Count == 0) return;
         Context = context; AutoplayFrom = -1; autoplayNext = [];
         Queue = list.ToList(); Index = Math.Clamp(index, 0, Queue.Count - 1);
-        Reorder();
+        if (keepOrder) order = Enumerable.Range(0, Queue.Count).ToList(); else Reorder();
         await Load(!paused, positionMs / 1000.0);
     }
 
@@ -222,7 +226,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         if (Queue.Count == 0) return;
         var pos = order.IndexOf(Index);
         if (pos + 1 < order.Count) Index = order[pos + 1];
-        else if (Repeat == 1) { Reorder(); Index = order[0]; }
+        else if (Repeat == 1) { if (Shuffle) Reorder(); Index = order[0]; }   // (a shuffled queue is shuffled again; a queue the person arranged is played again as arranged)
         else if (Autoplay && autoplayNext.Count > 0)
         {
             // the queue ran out: carry on with songs like the last one, so the music never just stops
@@ -250,10 +254,50 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         if (index >= 0 && index < Queue.Count) { Index = index; await Load(true); }
     }
 
+    // ---- editing Up next (see QueueEdit for the arithmetic) ----
+
+    /// <summary>The queue can be edited here (not while another device is being remote-controlled).</summary>
+    public bool CanEdit => Interceptor is null && Current is not null && order.Count == Queue.Count;
+
+    /// <summary>Moves an upcoming song (by its queue index) one place up or down in Up next, or to the top ("Play next"). The current song, and what is playing, are untouched.</summary>
+    public void MoveUpNext(int queueIndex, QueueEdit.Step step)
+    {
+        if (!CanEdit) return;
+        if (QueueEdit.Reorder(order, Index, false, queueIndex, step) is not { } moved) return;
+        order = moved;
+        Stash(true); Changed?.Invoke();
+    }
+
+    /// <summary>Takes a song out of the queue. Another song than the playing one: nothing else changes. The playing one: the song that follows starts (it stays paused if
+    /// playback was paused); with nothing after it the one before becomes current, paused. The last song out closes the player.</summary>
+    public async Task RemoveFromQueue(int queueIndex)
+    {
+        if (!CanEdit || queueIndex < 0 || queueIndex >= Queue.Count) return;
+        if (QueueEdit.Remove(order, Index, queueIndex, Repeat == 1) is not { } r) return;
+        var wasPlaying = Playing;
+        Queue.RemoveAt(queueIndex);
+        if (AutoplayFrom >= 0) { if (queueIndex < AutoplayFrom) AutoplayFrom--; if (AutoplayFrom >= Queue.Count) AutoplayFrom = -1; }
+        if (Queue.Count == 0 || r.Current < 0) { order = []; Index = -1; await StopAsync(); return; }
+        order = r.Order; Index = r.Current;
+        if (r.CurrentRemoved) { await Load(autoplay: !r.Stopped && wasPlaying); return; }
+        RefreshSuggestions(); Stash(true); Changed?.Invoke();
+    }
+
     public void PlayNext(Track t) { if (Interceptor?.Enqueue(t, true) == true) return; AddNext(t); }
     public void AddToQueue(Track t) { if (Interceptor?.Enqueue(t, false) == true) return; AddLast(t); }
 
-    public void AddNext(Track t) { if (Current is null) { _ = PlayFromAsync([t], 0, 0, false); return; } Queue.Insert(Index + 1, t); Reorder(keepCurrentFirst: true); Changed?.Invoke(); }
+    public void AddNext(Track t)
+    {
+        if (Current is null) { _ = PlayFromAsync([t], 0, 0, false); return; }
+        if (order.Count != Queue.Count) Reorder();
+        var at = Index + 1;
+        Queue.Insert(at, t);
+        // right after the current song in play order, whatever that order is (the queue's, a shuffle's, or one the person arranged); later indices shift up
+        var (o, cur) = QueueEdit.InsertNext(order, Index, at);
+        order = o; Index = cur;
+        if (AutoplayFrom >= at) AutoplayFrom++;
+        RefreshSuggestions(); Stash(true); Changed?.Invoke();
+    }
     public void AddLast(Track t) { if (Current is null) { _ = PlayFromAsync([t], 0, 0, false); return; } Queue.Add(t); order.Add(Queue.Count - 1); Changed?.Invoke(); }
 
     public void ToggleShuffle() { Shuffle = !Shuffle; Reorder(keepCurrentFirst: true); Changed?.Invoke(); }
@@ -267,6 +311,9 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         var rest = order.Where(i => i != Index).OrderBy(_ => Random.Shared.Next()).ToList();
         order = keepCurrentFirst && Index >= 0 ? [Index, .. rest] : rest;
     }
+
+    /// <summary>How many songs follow the current one in play order.</summary>
+    public int UpNextCount { get { var pos = order.IndexOf(Index); return pos < 0 ? 0 : order.Count - pos - 1; } }
 
     public IEnumerable<(int Index, Track Track)> UpNext(int n)
     {

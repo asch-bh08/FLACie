@@ -39,7 +39,6 @@ test.describe.serial('server load', () => {
   test('a burst of 30 API calls asks Jellyfin who the token is only a few times', async ({ request }) => {
     const h = { 'X-Emby-Token': 'mock-token' };
     await request.get(`${MOCK}/__reset`);
-    const itemsBefore = (await (await page.request.get('/api/admin/load')).json()).jellyfinCallsSinceStart.items as number;
     const first = await Promise.all(Array.from({ length: 30 }, () => request.get('/api/account', { headers: h })));
     for (const r of first) expect(r.status()).toBe(200);
     for (let i = 0; i < 30; i++) expect((await request.get('/api/account', { headers: h })).status()).toBe(200);
@@ -59,7 +58,6 @@ test.describe.serial('server load', () => {
     await expect(page.locator('.player')).toBeVisible();
     await expect.poll(async () => (await page.locator('.player .seek span').first().innerText()), { timeout: 15_000 }).not.toBe('0:00');
     await request.get(`${MOCK}/__reset`);
-    const itemsBefore = (await (await page.request.get('/api/admin/load')).json()).jellyfinCallsSinceStart.items as number;
     const next = page.getByRole('button', { name: 'Next' }).first();
     const t0 = Date.now();
     for (let i = 0; i < 20; i++) { await next.click({ noWaitAfter: true }); await page.waitForTimeout(60); }

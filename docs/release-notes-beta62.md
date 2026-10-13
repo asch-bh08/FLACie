@@ -13,7 +13,7 @@ Beta 62 (Android 77, MSI 0.62.0, FLACie Web 1.0-beta62). Still a beta, not a 1.0
 **New: fade between songs (Android and web)**
 - Settings > Fade between songs (Android), Fade (web full-screen player): the end of a song fades out and the next song fades in over 2 to 12 seconds. It is a fade, not an overlap (a true crossfade needs two players at once). The tracks of one album that follow each other are not faded, so gapless albums stay gapless. Off by default.
 
-**Changed (web): the speed, sleep timer, volume and fade controls are redesigned.** They were a row of labelled form boxes; they are now three small pills under the player (Speed, Sleep timer, Sound), each opening a short menu above it (speeds as a grid; Sound holds "Even out volume" and the fade choices). Skip back 10 / forward 30 are small pills in the same row when they apply.
+**Changed (web): the speed, sleep timer, volume and fade controls are redesigned.** They were a row of labelled form boxes; they are now three small icon buttons in the same row as the heart and More (Speed, Sleep timer, Sound), each opening a short menu (speeds as a grid; Sound holds "Even out volume" and the fade choices). The icon turns accent-coloured when the setting is not at its default; the tooltip says the value. Skip back 10 / forward 30 are small buttons in that row when they apply.
 
 **Small:** shuffle and repeat show a dot under the icon when on (not colour alone).
 

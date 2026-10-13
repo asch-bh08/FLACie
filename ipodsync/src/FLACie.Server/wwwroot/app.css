@@ -1409,3 +1409,12 @@ html.buffering .play .ic { opacity: .55; }
 .chip-pop .seg { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
 .chip-pop .seg button { min-width: 0; padding: 7px 0; }
 .sound-row { min-width: 300px; }
+
+/* the three controls sit in the heart / More row as icon buttons: no row of their own */
+.speed-sleep { display: flex; align-items: center; justify-content: flex-start; gap: 0; margin-top: 0; flex-wrap: nowrap; }
+.chip-menu.on > .icon-btn .ic, .icon-btn.chip-ico.on { color: var(--accent); }
+.speed-sleep .chip-pop { left: auto; right: -40px; transform: none; }
+.icon-btn.skip span { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.icon-btn.chip-ico { color: var(--ink); opacity: .85; }
+.icon-btn.chip-ico:hover, .icon-btn.chip-ico[aria-expanded="true"] { opacity: 1; }
+.icon-btn.chip-ico.on { color: var(--accent); opacity: 1; }

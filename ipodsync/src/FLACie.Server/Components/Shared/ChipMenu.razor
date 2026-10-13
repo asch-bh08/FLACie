@@ -2,10 +2,18 @@
 @inject IJSRuntime Js
 @* A small pill that opens a short menu above it (closes on a click elsewhere or Escape): the app's own look, without the label-and-value boxes of a form. *@
 <div class="chip-menu @(open ? "open" : "") @(Active ? "on" : "")" @ref="root">
-    <button type="button" class="chipbtn" aria-haspopup="menu" aria-expanded="@(open ? "true" : "false")" aria-label="@Label" @onclick="Toggle">
-        @if (IconName is not null) { <Icon Name="@IconName" Size="16" /> }
-        <span>@Text</span>
-    </button>
+    @if (IconOnly)
+    {
+        @* the same kind of button as the heart, shuffle and repeat: an icon, tinted when the setting is not at its default *@
+        <button type="button" class="icon-btn lg chip-ico @(Active ? "on" : "")" aria-haspopup="menu" aria-expanded="@(open ? "true" : "false")" aria-label="@Label: @Text" title="@Label: @Text" @onclick="Toggle"><Icon Name="@IconName" Size="24" /></button>
+    }
+    else
+    {
+        <button type="button" class="chipbtn" aria-haspopup="menu" aria-expanded="@(open ? "true" : "false")" aria-label="@Label" @onclick="Toggle">
+            @if (IconName is not null) { <Icon Name="@IconName" Size="16" /> }
+            <span>@Text</span>
+        </button>
+    }
     @if (open)
     {
         <div class="menu chip-pop @Class" role="menu" aria-label="@Label" @onclick:stopPropagation="true">@ChildContent</div>
@@ -17,6 +25,8 @@
     /// <summary>What the pill shows ("1.25x", "12 min left").</summary>
     [Parameter, EditorRequired] public string Text { get; set; } = "";
     [Parameter] public string? IconName { get; set; }
+    /// <summary>Show only the icon (the label and value go to the tooltip and the screen reader).</summary>
+    [Parameter] public bool IconOnly { get; set; }
     /// <summary>True when the setting is not at its default: the pill is tinted.</summary>
     [Parameter] public bool Active { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }

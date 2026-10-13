@@ -5,3 +5,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "ipodemu"
 include(":app")
+include(":autosim")

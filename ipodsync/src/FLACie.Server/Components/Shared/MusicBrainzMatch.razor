@@ -1,0 +1,64 @@
+@inject MusicBrainzClient Mb
+@inject MbOverlay Overlay
+@* The song's match on MusicBrainz (the open music database): asked only when a person presses the button (at most one request a second, cached), shown with a score,
+   and kept beside the library when chosen. It never changes the file, the tags or Jellyfin. *@
+<section class="mb" id="mb-match" aria-label="MusicBrainz match">
+    <h4>MusicBrainz</h4>
+    @if (Choice is { } c)
+    {
+        <p class="mb-chosen">Your match: <b>@c.Title</b> by @c.Artist@(c.Album.Length > 0 ? ", " + c.Album : "")@(c.Year is { } y ? " (" + y + ")" : "").
+            <a href="https://musicbrainz.org/recording/@c.Mbid" target="_blank" rel="noopener noreferrer">View on MusicBrainz</a></p>
+        <div class="mb-actions">
+            <button class="pill-btn" @onclick="Search" disabled="@busy">Change…</button>
+            <button class="pill-btn" @onclick="Forget">Forget this match</button>
+        </div>
+    }
+    else
+    {
+        <p class="hint">Not looked up yet. FLACie asks MusicBrainz only when you press the button, and never changes your files or your Jellyfin.</p>
+        <div class="mb-actions"><button class="pill-btn" @onclick="Search" disabled="@busy">Find on MusicBrainz</button></div>
+    }
+    @if (busy) { <p class="hint" role="status">Looking it up…</p> }
+    @if (error is not null) { <p class="hint" role="alert">@error</p> }
+    @if (results is not null)
+    {
+        @if (results.Count == 0) { <p class="hint">MusicBrainz knows nothing like this song.</p> }
+        else
+        {
+            <ul class="mb-results">
+                @foreach (var (cand, score) in results)
+                {
+                    var cc = cand;
+                    <li>
+                        <span class="mb-score" title="How well it fits this song">@((int)score)%</span>
+                        <span class="mb-text"><b>@cand.Title</b><small>@cand.Artist@(cand.Album.Length > 0 ? " · " + cand.Album : "")@(cand.Year is { } yy ? " · " + yy : "")@(cand.LengthMs is { } ms ? " · " + (ms / 60000) + ":" + (ms / 1000 % 60).ToString("00") : "")</small></span>
+                        <button class="pill-btn" @onclick="() => Use(cc)">Use this match</button>
+                    </li>
+                }
+            </ul>
+        }
+    }
+</section>
+@code {
+    [Parameter] public Track Track { get; set; } = default!;
+    bool busy; string? error; string? forPath;
+    IReadOnlyList<(MbCandidate Candidate, double Score)>? results;
+    MbChoice? Choice => Overlay.Get(Track);
+
+    protected override void OnParametersSet()
+    {
+        // a new song: nothing from the last one stays on screen
+        if (forPath != Track.Path) { forPath = Track.Path; results = null; error = null; busy = false; }
+    }
+
+    async Task Search()
+    {
+        var t = Track; busy = true; error = null; results = null;
+        try { results = MbMatching.Rank(t, await Mb.SearchRecordingAsync(t, interactive: true)); }
+        catch (Exception) { error = "MusicBrainz did not answer. Try again in a minute."; }
+        finally { busy = false; }
+    }
+
+    void Use(MbCandidate c) { Overlay.Set(Track, c); results = null; }
+    void Forget() { Overlay.Clear(Track); results = null; }
+}

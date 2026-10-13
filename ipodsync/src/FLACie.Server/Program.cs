@@ -42,6 +42,11 @@ if (CatalogRedirectHandler.Parse(builder.Configuration["FLACIE_CATALOG_REDIRECT"
 // the yt-dlp call (search, search, download) and the open-source file fetches run for minutes: the call carries its own time limit, so no client one
 builder.Services.AddHttpClient("downloads-long", c => { c.Timeout = Timeout.InfiniteTimeSpan; c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); }).AddHttpMessageHandler(() => new ServiceRouteHandler(serviceRoutes));
 builder.Services.AddHttpClient("downloads", c => { c.Timeout = TimeSpan.FromSeconds(30); c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); }).AddHttpMessageHandler(() => new ServiceRouteHandler(serviceRoutes));
+// MusicBrainz: its own client (no default User-Agent, the app sets a descriptive one), its own 1 request/second gate, a disk cache; asked only when a person presses a button
+var mbClient = builder.Services.AddHttpClient("musicbrainz", c => c.Timeout = TimeSpan.FromSeconds(15));
+if (CatalogRedirectHandler.Parse(builder.Configuration["FLACIE_CATALOG_REDIRECT"]) is { } mbRedirect) mbClient.AddHttpMessageHandler(() => new CatalogRedirectHandler(mbRedirect));
+builder.Services.AddSingleton(sp => new MusicBrainzClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient("musicbrainz"), MusicBrainzClient.UserAgentFor(AppInfo.Version, builder.Configuration["FLACIE_MB_CONTACT"]), Path.Combine(dataDir, "mb-cache")));
+builder.Services.AddSingleton(new MbOverlay(Path.Combine(dataDir, "mb-overlay.json")));
 builder.Services.AddSingleton(sp => new WebCatalog(sp.GetRequiredService<IHttpClientFactory>().CreateClient("catalog")));
 builder.Services.AddSingleton(new DataPaths(dataDir));
 // the disk-space rule of the cover cache: nothing is deleted while free space is above max(FLACIE_CACHE_MIN_FREE_MB, FLACIE_CACHE_MIN_FREE_PERCENT of the volume)

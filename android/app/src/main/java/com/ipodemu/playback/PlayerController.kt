@@ -881,8 +881,10 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             t.path.startsWith("https:") || t.path.startsWith("smb:")) Uri.parse(t.path) else Uri.fromFile(File(t.path))
         // formats the phone cannot decode (WMA, APE ...) are converted by Jellyfin on the way, like the data saver does
         val own = ownAlacUri(t)
-        val hls = if (own == null && (dataSaver || needsTranscode(t))) hlsUri(t) else null
-        return MediaItem.Builder().setMediaId(t.path).setUri(own ?: hls ?: uri).setTag(t).also { if (hls != null) it.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8) }
+        // a song kept offline plays from its file (unless this phone needs the server to convert it): no network, no data used, no waiting
+        val local = if (own == null && !needsTranscode(t)) app.offline.localFile(t) else null
+        val hls = if (own == null && local == null && (dataSaver || needsTranscode(t))) hlsUri(t) else null
+        return MediaItem.Builder().setMediaId(t.path).setUri(own ?: (local?.let { Uri.fromFile(it) }) ?: hls ?: uri).setTag(t).also { if (hls != null) it.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8) }
             .setMediaMetadata(md.build()).build()
     }
 

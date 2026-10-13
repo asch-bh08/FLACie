@@ -114,6 +114,18 @@ class Prefs(ctx: Context) {
     var placeMemory: String
         get() = sp.getString("placeMem", "") ?: ""
         set(v) = sp.edit().putString("placeMem", v).apply()
+    /** Offline downloads: only on Wi-Fi (or any unmetered network) unless this is switched off. */
+    var offlineWifiOnly: Boolean
+        get() = sp.getBoolean("offWifi", true)
+        set(v) = sp.edit().putBoolean("offWifi", v).apply()
+    /** Keep favourites offline automatically (and let them go when they stop being favourites). */
+    var offlineAutoFavorites: Boolean
+        get() = sp.getBoolean("offAuto", false)
+        set(v) = sp.edit().putBoolean("offAuto", v).apply()
+    /** The most automatic downloads may use, in GB (0 = no limit). */
+    var offlineLimitGb: Int
+        get() = sp.getInt("offLimitGb", 5)
+        set(v) = sp.edit().putInt("offLimitGb", v).apply()
     var volumeLimit: Int
         get() = sp.getInt("vollimit", 100)
         set(v) = sp.edit().putInt("vollimit", v).apply()

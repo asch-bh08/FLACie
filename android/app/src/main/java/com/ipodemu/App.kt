@@ -17,6 +17,7 @@ class App : Application() {
     /** Home's shelves as the last run left them (see HomeSnapshot): what the first frame draws before the library has loaded. */
     @Volatile var homeSnapshot: com.ipodemu.library.HomeSnapshot.Data? = null; private set
     lateinit var userData: com.ipodemu.library.UserData; private set
+    lateinit var offline: com.ipodemu.library.offline.OfflineManager; private set
     lateinit var account: com.ipodemu.library.AccountSync; private set
     lateinit var connect: com.ipodemu.library.JellyfinConnect; private set
     lateinit var jam: com.ipodemu.library.Jam; private set
@@ -46,6 +47,10 @@ class App : Application() {
         ui = UiState(prefs)
         Boot.span("restoreQueue") { player.restoreQueue(); player.restoreSleepTimer() }
         userData = com.ipodemu.library.UserData(this)
+        offline = com.ipodemu.library.offline.OfflineManager(this, prefs)
+        // favourites kept offline follow the favourites list (a pause first, so a run of taps is one change)
+        userData.onFavoritesChanged = { offlineSyncSoon() }
+        bg.launch { kotlinx.coroutines.delay(30_000); offlineSyncSoon() }
         // one-off: on-device playlists that never reached the account stay out of Playlists; new ones always show
         if (!prefs.playlistsMigrated) { prefs.hiddenPlaylists = userData.playlists.filter { it.jfId == null && it.paths.isNotEmpty() }.mapTo(HashSet()) { it.id }; prefs.playlistsMigrated = true }
         // installs from before the login screen go straight in, as whatever they were already using
@@ -76,6 +81,18 @@ class App : Application() {
         // pick up changes made on other devices (playlists, newly added services) every launch
         account.sync(background = true)
         Boot.mark("Application.onCreate end")
+    }
+
+    private var offlineSyncJob: kotlinx.coroutines.Job? = null
+    /** Brings the offline favourites in line with the favourites list (only when the setting is on). */
+    fun offlineSyncSoon() {
+        if (!prefs.offlineAutoFavorites) return
+        offlineSyncJob?.cancel()
+        offlineSyncJob = bg.launch {
+            kotlinx.coroutines.delay(2_000)
+            val favs = userData.favorites.toList().mapNotNull { library.resolve(it, userData.meta[it]) }
+            offline.syncFavorites(favs)
+        }
     }
 
     /** The covers of the songs about to play (and the one just before) are made ready, so skipping shows the cover at once. */

@@ -114,6 +114,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
             item { SectionHeader("Playback") }
             item {
                 Card {
+                    SettingRow("Offline and storage", if (app.offline.doneCount > 0) "${app.offline.doneCount} songs, ${com.ipodemu.library.offline.OfflineMath.formatBytes(app.offline.usedBytes)}" else "None", chevron = true) { nav.push(Screen.Offline) }
                     SettingRow("Autoplay", if (prefs.autoplay) "On" else "Off", toggle = true) { prefs.autoplay = !prefs.autoplay }
                     SettingRow("Fetch ahead", if (prefs.autoplayFetch) "On" else "Off", toggle = true) { prefs.autoplayFetch = !prefs.autoplayFetch }
                     SettingRow("Streaming quality", listOf("Automatic", "Always full", "Data saver")[prefs.streamQuality.coerceIn(0, 2)]) { prefs.streamQuality = (prefs.streamQuality + 1) % 3 }
@@ -326,7 +327,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
 }
 
 @Composable
-private fun Card(content: @Composable () -> Unit) {
+internal fun Card(content: @Composable () -> Unit) {
     val sc = LocalScheme.current
     Column(Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(14.dp)).background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(14.dp))) { content() }
 }

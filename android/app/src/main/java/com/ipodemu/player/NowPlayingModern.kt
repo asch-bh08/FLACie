@@ -239,6 +239,7 @@ private fun Controls(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boolea
     ActionRow(snap, nav, lyricsToggle, spread = true, info = info)
     Seek(snap)
     Transport(snap)
+    LongItemControls(snap)
     }
 }
 
@@ -319,6 +320,7 @@ private fun ActionRow(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boole
                 openTrackSheet(app, nav, t, listOf(
                     SheetItem("Add to playlist", Glyph.PLUS) { nav.sheet = playlistPicker(app, nav, t) },
                     SheetItem("Equalizer" + if (app.prefs.eq != "Off") "  (${app.prefs.eq})" else "", Glyph.LIST) { nav.sheet = eqSheet(app) },
+                    SheetItem("Speed" + if (app.player.speed != 1f) "  (${com.ipodemu.playback.SpeedPolicy.label(app.player.speed)})" else "", Glyph.CLOCK) { nav.sheet = speedSheet(app) },
                     SheetItem("Sleep timer", Glyph.CLOCK) { nav.sheet = sleepSheet(app) },
                 ))
             }
@@ -331,6 +333,8 @@ private fun ActionRow(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boole
         if (info != null) Pill(Glyph.INFO, "Info", info.first, info.second)
         val pn = LocalPane.current
         Pill(Glyph.QUEUE, "Up next", pn?.pane == "queue") { if (pn != null) pn.toggle("queue") else nav.openQueueFromPlayer() }
+        Pill(Glyph.CLOCK, if (app.player.speed != 1f) com.ipodemu.playback.SpeedPolicy.label(app.player.speed) else "Speed", app.player.speed != 1f) { nav.sheet = speedSheet(app) }
+        Pill(Glyph.CLOCK, if (app.player.sleepMode != com.ipodemu.playback.SleepMode.OFF) sleepStatus(app) else "Sleep", app.player.sleepMode != com.ipodemu.playback.SleepMode.OFF) { nav.sheet = sleepSheet(app) }
         Pill(Glyph.LIST, "Equalizer", app.prefs.eq != "Off") { nav.sheet = eqSheet(app) }
         Pill(Glyph.PLUS, "Add to playlist", false) { nav.sheet = playlistPicker(app, nav, t) }
         Pill(Glyph.MORE, "More", false) { openTrackSheet(app, nav, t, (if (info != null && !info.first) listOf(SheetItem("Song info", Glyph.INFO) { info.second() }) else emptyList()) + SheetItem("Sleep timer", Glyph.CLOCK) { nav.sheet = sleepSheet(app) }) }
@@ -517,4 +521,30 @@ private fun ArtOrPanel(t: Track, snap: PlayerSnap, lyrics: Boolean, info: Boolea
     }
     if (pn == null) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content(if (info) "info" else if (lyrics) "lyrics" else "art") }
     else PanePager(pn, Modifier.fillMaxSize(), page = content)
+}
+
+/** Skip back 10 s and forward 30 s, for spoken word, long items and any changed speed. */
+@Composable
+private fun LongItemControls(snap: PlayerSnap) {
+    val app = LocalApp.current
+    val t = snap.track ?: return
+    if (!com.ipodemu.playback.SpeedPolicy.showLongItemControls(t.genre, app.player.durationMs, app.player.speed)) return
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+        TextPill("Back 10 s", "Back 10 seconds") { app.player.skipBy(-10_000L) }
+        Spacer(Modifier.width(12.dp))
+        TextPill("Forward 30 s", "Forward 30 seconds") { app.player.skipBy(30_000L) }
+    }
+}
+
+@Composable
+private fun TextPill(text: String, description: String, onClick: () -> Unit) {
+    val src = remember { MutableInteractionSource() }
+    val focused by src.collectIsFocusedAsState()
+    Box(
+        Modifier.height(44.dp).clip(RoundedCornerShape(22.dp)).background(Color(0x1FFFFFFF))
+            .then(if (focused) Modifier.border(2.dp, Color.White, RoundedCornerShape(22.dp)) else Modifier)
+            .semantics { contentDescription = description }
+            .clickable(src, null, onClick = onClick).padding(horizontal = 18.dp),
+        contentAlignment = Alignment.Center,
+    ) { Txt(text, size = 14f, weight = FontWeight.SemiBold, color = Color.White, maxLines = 1) }
 }

@@ -103,6 +103,17 @@ class Prefs(ctx: Context) {
     var sleepEndsAtWall: Long
         get() = sp.getLong("sleepEndsAt", 0L)
         set(v) = sp.edit().putLong("sleepEndsAt", v).apply()
+    /** Remembered playback speed per item ("key=speed" lines, see ItemMemory) and the speed last used on spoken word. */
+    var speedMemory: String
+        get() = sp.getString("speedMem", "") ?: ""
+        set(v) = sp.edit().putString("speedMem", v).apply()
+    var spokenSpeed: Float
+        get() = sp.getFloat("spokenSpeed", 1f)
+        set(v) = sp.edit().putFloat("spokenSpeed", v).apply()
+    /** Where long items (audiobooks, podcasts, mixes over 20 minutes) were left, per item. */
+    var placeMemory: String
+        get() = sp.getString("placeMem", "") ?: ""
+        set(v) = sp.edit().putString("placeMem", v).apply()
     var volumeLimit: Int
         get() = sp.getInt("vollimit", 100)
         set(v) = sp.edit().putInt("vollimit", v).apply()

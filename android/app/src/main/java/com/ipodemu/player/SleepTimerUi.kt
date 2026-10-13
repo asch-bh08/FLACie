@@ -31,17 +31,16 @@ fun formatSleepLeft(ms: Long): String {
     return if (s >= 60L) "${(s + 59L) / 60L} min left" else "$s s left"
 }
 
-/** The time left on the sleep timer, kept current while it runs; null while it is off. */
+/** The sleep timer state as text ("14 min left", "End of this song (2 min left)"), kept current while it runs; null while it is off. */
 @Composable
 fun rememberSleepLeft(app: App): String? {
-    var end by remember { mutableStateOf(app.player.sleepEndsAt) }
-    DisposableEffect(app) { val un = app.player.observe { end = app.player.sleepEndsAt }; onDispose { un() } }
-    val label by produceState<String?>(if (end == 0L) null else formatSleepLeft(app.player.sleepRemainingMs), end) {
-        if (end == 0L) { value = null; return@produceState }
+    var mode by remember { mutableStateOf(app.player.sleepMode) }
+    DisposableEffect(app) { val un = app.player.observe { mode = app.player.sleepMode }; onDispose { un() } }
+    val label by produceState<String?>(if (mode == com.ipodemu.playback.SleepMode.OFF) null else sleepStatus(app), mode) {
+        if (mode == com.ipodemu.playback.SleepMode.OFF) { value = null; return@produceState }
         while (true) {
-            val left = app.player.sleepRemainingMs
-            value = formatSleepLeft(left)
-            delay(if (left > 60_000L) 10_000L else 1_000L)
+            value = sleepStatus(app)
+            delay(if ((app.player.sleepRemainingOrNull ?: Long.MAX_VALUE) > 60_000L) 10_000L else 1_000L)
         }
     }
     return label

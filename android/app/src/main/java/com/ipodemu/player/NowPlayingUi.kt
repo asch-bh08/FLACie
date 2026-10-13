@@ -277,7 +277,7 @@ private fun NpExtras(snap: PlayerSnap, nav: PlayerNav) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
             GlossButton({ app.userData.toggleFavorite(t.path) }, label = if (fav) "Unfavorite" else "Favorite", size = 40.dp, primary = fav) { GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(22.dp), Color.White) }
             GlossButton({ nav.sheet = eqSheet(app) }, label = "Equalizer", size = 44.dp) { GlyphIcon(Glyph.LIST, Modifier.size(22.dp), Color.White) }
-            GlossButton({ nav.sheet = sleepSheet(app) }, label = "Sleep timer", size = 44.dp, primary = app.player.sleepMinutes > 0) { GlyphIcon(Glyph.CLOCK, Modifier.size(22.dp), Color.White) }
+            GlossButton({ nav.sheet = sleepSheet(app) }, label = "Sleep timer", size = 44.dp, primary = app.player.sleepMode != com.ipodemu.playback.SleepMode.OFF) { GlyphIcon(Glyph.CLOCK, Modifier.size(22.dp), Color.White) }
             GlossButton({ openTrackSheet(app, nav, t) }, label = "More", size = 44.dp) { GlyphIcon(Glyph.MORE, Modifier.size(22.dp), Color.White) }
         }
     }
@@ -287,8 +287,36 @@ fun eqSheet(app: com.ipodemu.App) = SheetSpec("Equalizer", app.prefs.eq, PlayerC
     SheetItem(if (app.prefs.eq == n) "$n  (on)" else n, if (app.prefs.eq == n) Glyph.CHECK else Glyph.LIST) { app.prefs.eq = n; app.player.applyEq() }
 })
 
-fun sleepSheet(app: com.ipodemu.App) = SheetSpec("Sleep Timer", if (app.player.sleepMinutes > 0) formatSleepLeft(app.player.sleepRemainingMs) else "Off",
-    listOf(0, 15, 30, 60, 90, 120).map { m -> SheetItem(if (m == 0) "Off" else "$m minutes", Glyph.CLOCK) { app.player.setSleepTimer(m) } })
+fun sleepSheet(app: com.ipodemu.App): SheetSpec {
+    val p = app.player
+    val armed = p.sleepMode != com.ipodemu.playback.SleepMode.OFF
+    val items = ArrayList<SheetItem>()
+    if (armed) items += SheetItem("Add ${com.ipodemu.playback.SleepPlan.EXTEND_MIN} minutes", Glyph.PLUS) { p.extendSleep() }
+    items += SheetItem("End of this song", Glyph.CLOCK) { p.setSleepEndOfTrack() }
+    items += SheetItem("End of this album", Glyph.CLOCK) { p.setSleepEndOfAlbum() }
+    for (m in listOf(15, 30, 60, 90, 120)) items += SheetItem("$m minutes", Glyph.CLOCK) { p.setSleepTimer(m) }
+    if (armed) items += SheetItem("Off", Glyph.CLOSE) { p.setSleepTimer(0) }
+    return SheetSpec("Sleep Timer", if (armed) sleepStatus(app) else "Off", items)
+}
+
+/** What the timer is waiting for and how long is left, for the sheet and the chip. */
+fun sleepStatus(app: com.ipodemu.App): String {
+    val p = app.player
+    val left = p.sleepRemainingOrNull?.let { formatSleepLeft(it) }
+    return when (p.sleepMode) {
+        com.ipodemu.playback.SleepMode.OFF -> "Off"
+        com.ipodemu.playback.SleepMode.MINUTES -> left ?: "Timer"
+        else -> com.ipodemu.playback.SleepPlan.label(p.sleepMode) + (left?.let { " ($it)" } ?: "")
+    }
+}
+
+fun speedSheet(app: com.ipodemu.App): SheetSpec {
+    val cur = app.player.speed
+    return SheetSpec("Playback speed", com.ipodemu.playback.SpeedPolicy.label(cur) + " (kept for this item)", com.ipodemu.playback.SpeedPolicy.STEPS.map { s ->
+        val on = Math.abs(s - cur) < 0.001f
+        SheetItem(com.ipodemu.playback.SpeedPolicy.label(s) + (if (on) "  (on)" else if (s == 1f) "  (normal)" else ""), if (on) Glyph.CHECK else Glyph.CLOCK) { app.player.setSpeed(s) }
+    })
+}
 
 /** Modern mini player: a floating rounded bar above the navigation, cover + title + play/next, thin progress line. */
 @Composable

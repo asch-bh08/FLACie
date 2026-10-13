@@ -114,7 +114,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
             item { SectionHeader("Playback") }
             item {
                 Card {
-                    SettingRow("Offline and storage", if (app.offline.doneCount > 0) "${app.offline.doneCount} songs, ${com.ipodemu.library.offline.OfflineMath.formatBytes(app.offline.usedBytes)}" else "None", chevron = true) { nav.push(Screen.Offline) }
+                    SettingRow("Offline and storage", if (app.offline.doneCount > 0) "${com.ipodemu.library.offline.OfflineMath.songs(app.offline.doneCount)}, ${com.ipodemu.library.offline.OfflineMath.formatBytes(app.offline.usedBytes)}" else "None", chevron = true) { nav.push(Screen.Offline) }
                     SettingRow("Autoplay", if (prefs.autoplay) "On" else "Off", toggle = true) { prefs.autoplay = !prefs.autoplay }
                     SettingRow("Fetch ahead", if (prefs.autoplayFetch) "On" else "Off", toggle = true) { prefs.autoplayFetch = !prefs.autoplayFetch }
                     SettingRow("Streaming quality", listOf("Automatic", "Always full", "Data saver")[prefs.streamQuality.coerceIn(0, 2)]) { prefs.streamQuality = (prefs.streamQuality + 1) % 3 }

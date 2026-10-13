@@ -161,6 +161,9 @@ object OfflineMath {
     }
     private fun stem(name: String) = name.substringBeforeLast('.', name).let { s -> if (s.isEmpty()) name else s }
 
+    /** "1 song", "3 songs". */
+    fun songs(n: Int): String = if (n == 1) "1 song" else "$n songs"
+
     /** "1.4 GB", "230 MB", "12 KB". */
     fun formatBytes(b: Long): String {
         val v = b.coerceAtLeast(0L).toDouble()

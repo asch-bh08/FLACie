@@ -48,7 +48,7 @@ fun OfflineScreen(nav: PlayerNav) {
                 item {
                     Card {
                         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Txt("${m.doneCount} songs, ${OfflineMath.formatBytes(used)}", size = 17f, weight = FontWeight.SemiBold)
+                            Txt("${OfflineMath.songs(m.doneCount)}, ${OfflineMath.formatBytes(used)}", size = 17f, weight = FontWeight.SemiBold)
                             Txt("${OfflineMath.formatBytes(m.freeBytes)} free on the phone", size = 13f, color = sc.onBgDim)
                             val pending = m.pendingCount; val failed = m.failedCount
                             if (pending > 0) Txt(m.statusLine.ifEmpty { "$pending waiting to download" }, size = 13f, color = sc.accent)
@@ -72,7 +72,7 @@ fun OfflineScreen(nav: PlayerNav) {
                 items(entries.sortedWith(compareBy({ it.state != OfflineState.DONE }, { -it.addedMs })), key = { it.key }) { e ->
                     OfflineEntryRow(e, onPlay = { play(app, entries, e) }, onRemove = { m.remove(e.path) })
                 }
-                if (entries.isNotEmpty()) item { Card { OfflineRow("Remove all downloads") { nav.sheet = SheetSpec("Remove all downloads?", "${m.doneCount} songs, ${OfflineMath.formatBytes(used)}", listOf(
+                if (entries.isNotEmpty()) item { Card { OfflineRow("Remove all downloads") { nav.sheet = SheetSpec("Remove all downloads?", "${OfflineMath.songs(m.doneCount)}, ${OfflineMath.formatBytes(used)}", listOf(
                     SheetItem("Yes, remove them all", Glyph.CLOSE) { m.removeAll() }, SheetItem("Keep them", Glyph.CHECK) { })) } } }
             }
         }

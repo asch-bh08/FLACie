@@ -126,6 +126,8 @@ class OfflineModelTest {
         assertEquals("0 B", OfflineMath.formatBytes(-5)); assertEquals("12 KB", OfflineMath.formatBytes(12_000)); assertEquals("230 MB", OfflineMath.formatBytes(230_000_000)); assertEquals("1.4 GB", OfflineMath.formatBytes(1_400_000_000))
     }
 
+    @Test fun songCount() { assertEquals("1 song", OfflineMath.songs(1)); assertEquals("0 songs", OfflineMath.songs(0)); assertEquals("12 songs", OfflineMath.songs(12)) }
+
     @Test fun sizeEstimate() {
         assertEquals(1234L, OfflineMath.estimateBytes(t(1, size = 1234))); assertEquals(40_000_000L, OfflineMath.estimateBytes(t(1, dur = 0)))
         assertTrue(OfflineMath.estimateBytes(t(1, dur = 600_000)) > OfflineMath.estimateBytes(t(1, dur = 60_000)))

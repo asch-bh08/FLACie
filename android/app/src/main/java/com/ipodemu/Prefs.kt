@@ -134,6 +134,10 @@ class Prefs(ctx: Context) {
     var mbContact: String
         get() = sp.getString("mbContact", "") ?: ""
         set(v) = sp.edit().putString("mbContact", v.trim()).apply()
+    /** Fade between songs, in seconds (0 = off): the end of a song fades out and the next fades in (not across the tracks of one album). */
+    var fadeSecs: Int
+        get() = sp.getInt("fadeSecs", 0)
+        set(v) = sp.edit().putInt("fadeSecs", v).apply()
     var volumeLimit: Int
         get() = sp.getInt("vollimit", 100)
         set(v) = sp.edit().putInt("vollimit", v).apply()

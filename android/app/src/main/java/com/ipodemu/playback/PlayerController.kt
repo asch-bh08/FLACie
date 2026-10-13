@@ -281,7 +281,23 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private var fade = 1f
     /** The levelling factor of the song that plays (see [Loudness]); 1 when the setting is off or the server gave no gain. */
     private var loud = 1f
-    private fun applyOutputVolume() { exo.volume = Loudness.output(volume, fade, loud) }
+    private fun applyOutputVolume() { exo.volume = Loudness.output(volume, fade * xfade, loud) }
+    /** The fade between songs (see [FadeBetween]): 1 in the middle of a song. */
+    private var xfade = 1f
+    private val xfadeTick = object : Runnable {
+        override fun run() {
+            val secs = prefs.fadeSecs
+            if (secs <= 0 || !exo.isPlaying) { if (xfade != 1f) { xfade = 1f; applyOutputVolume() }; return }
+            val i = exo.currentMediaItemIndex; val q = queue
+            // the neighbours in PLAY order (a shuffled queue is not played in list order)
+            val flags = FadeBetween.flags(exo.previousMediaItemIndex.takeIf { it >= 0 }?.let { q.getOrNull(it) }, q.getOrNull(i), exo.nextMediaItemIndex.takeIf { it >= 0 }?.let { q.getOrNull(it) })
+            val g = FadeBetween.gain(exo.currentPosition, durationMs, secs * 1000L, flags)
+            if (Math.abs(g - xfade) > 0.01f || (g == 1f && xfade != 1f)) { xfade = g; applyOutputVolume() }
+            handler.postDelayed(this, 150L)
+        }
+    }
+    /** The setting was changed, or playback started: runs (or stops) the fade ticker. */
+    fun applyFade() { handler.removeCallbacks(xfadeTick); if (prefs.fadeSecs > 0 && exo.isPlaying) handler.post(xfadeTick) else if (xfade != 1f) { xfade = 1f; applyOutputVolume() } }
     private fun levelFor(t: Track?): Float = Loudness.factor(t?.let { com.ipodemu.library.AudioFacts.of(it)?.gainDb } ?: Float.NaN, prefs.levelVolume)
     /** The setting was switched: the song that plays follows at once. */
     fun applyLeveling() { loud = levelFor(current); applyOutputVolume() }
@@ -294,6 +310,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 handler.removeCallbacks(persistTick)
                 if (isPlaying) handler.postDelayed(persistTick, 5_000L) else persistNow()
+                applyFade()
             }
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) { handler.removeCallbacks(persistSoon); handler.postDelayed(persistSoon, 1_500L) }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {

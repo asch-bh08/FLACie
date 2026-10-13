@@ -18,7 +18,10 @@ Beta 62 (Android 77, MSI 0.62.0, FLACie Web 1.0-beta62). Still a beta, not a 1.0
 **Small:** shuffle and repeat show a dot under the icon when on (not colour alone).
 
 **Tested** (this build)
-- See the end of this file.
+- Android unit tests: 404 run, 2 skipped (as before), 0 failed (about 40 new: browse tree, MusicBrainz and Cover Art Archive, fade rules). .NET tests: 299 pass. Browser tests: 142 pass (new: MusicBrainz match, cover choice, icon controls, volume levelling, fade).
+- Release APK versionCode 77, signed with the owner's key (SHA-256 6a4eb335...97a106); installed over a clean emulator, signed in to the mock with Quick Connect, played, skipped, killed and restarted (queue restored), 0 crash lines, covers 100 % by 3 s in two of three runs and by 10 s in all.
+- On the emulator: the Android Auto library service through the in-app probe (see above), and the MusicBrainz sheet against the real MusicBrainz ("Charly" by The Prodigy: 7 ranked candidates with percentages; it was a single lookup).
+- The MSI (0.62.0) was built, not installed. FLACie Web was deployed.
 
 **Not tested**
 - Nothing on a phone or in a car. The fade was tested by its rules (unit tests) and on the web in the browser; not by ear on Android. The Cover Art Archive and MusicBrainz were tested against stand-ins (and the one real call is yours to try).

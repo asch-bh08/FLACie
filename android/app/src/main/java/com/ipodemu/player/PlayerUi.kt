@@ -1489,7 +1489,7 @@ private fun mbSearch(app: App, nav: PlayerNav, t: Track) {
         val items = ArrayList<SheetItem>()
         if (ranked == null) items += SheetItem("MusicBrainz did not answer. Try again in a minute.", Glyph.CLOSE) { }
         else if (ranked.isEmpty()) items += SheetItem("MusicBrainz knows nothing like this song.", Glyph.CLOSE) { }
-        else for ((c, score) in ranked) items += SheetItem("${score.toInt()}%  ${c.title} - ${c.artist}" + (if (c.album.isNotEmpty()) " (${c.album})" else "") + (c.year?.let { "  $it" } ?: ""), Glyph.CHECK) {
+        else for ((c, score) in ranked) items += SheetItem("${score.toInt()}%  ${c.title} - ${c.artist}" + (if (c.album.isNotEmpty()) " (${c.album})" else "") + (c.year?.let { "  $it" } ?: ""), Glyph.NOTE) {
             app.mb.overlay.set(app.mb.keyOf(t), c); app.ui.say("Matched: ${c.title}")
         }
         nav.sheet = SheetSpec("MusicBrainz match", "Pick the right one; nothing is changed in your files", items)

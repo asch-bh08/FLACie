@@ -91,4 +91,21 @@ test.describe.serial('speed and sleep', () => {
     await pick(page, 'Volume', 'As recorded');
     await expect.poll(vol).toBeCloseTo(base, 3);
   });
+
+  test('fade between songs fades the start of the first track of an album and is off by default', async ({ page }) => {
+    test.setTimeout(120_000);
+    await signIn(page);
+    await playLab(page);
+    const gain = () => page.evaluate(() => (window as any).flacie.xfade() as number);
+    await page.evaluate(() => (window as any).flacie.seek(0.4));
+    await expect.poll(gain, { timeout: 5_000 }).toBe(1);   // off by default: no fade
+    await pick(page, 'Fade', '4 s');
+    await page.evaluate(() => (window as any).flacie.seek(0.4));
+    await expect.poll(gain, { timeout: 10_000 }).toBeLessThan(0.9);   // the first track of an album fades in
+    await page.evaluate(() => (window as any).flacie.seek(2));
+    await expect.poll(gain, { timeout: 10_000 }).toBe(1);
+    await pick(page, 'Fade', 'Off');
+    await page.evaluate(() => (window as any).flacie.seek(0.4));
+    await expect.poll(gain, { timeout: 10_000 }).toBe(1);
+  });
 });

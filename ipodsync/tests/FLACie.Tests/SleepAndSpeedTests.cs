@@ -129,3 +129,25 @@ public class LoudnessTests
         Assert.Null(new Track("p", "t", "a", "al", "a", 1, 1, 1000, 0, null, 0, TrackSource.Jellyfin).GainDb);
     }
 }
+
+public class FadeBetweenTests
+{
+    static Track T(string album, int no, int disc = 1, string artist = "A") => new("p" + album + no + disc, "t" + no, artist, album, artist, no, disc, 200_000, 0, null, 0, TrackSource.Jellyfin);
+
+    [Fact] public void NextTrackOfTheSameAlbumIsContinuous()
+    {
+        Assert.True(FadeBetween.Continuous(T("X", 3), T("X", 4))); Assert.True(FadeBetween.Continuous(T("X", 12), T("X", 1, disc: 2)));
+        Assert.False(FadeBetween.Continuous(T("X", 3), T("X", 5))); Assert.False(FadeBetween.Continuous(T("X", 3), T("Y", 4))); Assert.False(FadeBetween.Continuous(T("X", 3, artist: "A"), T("X", 4, artist: "B")));
+        Assert.False(FadeBetween.Continuous(null, T("X", 1))); Assert.False(FadeBetween.Continuous(T("", 1), T("", 2)));
+    }
+
+    [Fact] public void FlagsAndGain()
+    {
+        var (fin, fout) = FadeBetween.Flags(T("X", 1), T("X", 2), T("Y", 1)); Assert.False(fin); Assert.True(fout);
+        Assert.Equal(1, FadeBetween.Gain(100_000, 200_000, 4_000, true, true)); Assert.Equal(0, FadeBetween.Gain(0, 200_000, 4_000, true, true));
+        Assert.Equal(0.5, FadeBetween.Gain(2_000, 200_000, 4_000, true, true), 3); Assert.Equal(0.5, FadeBetween.Gain(198_000, 200_000, 4_000, true, true), 3);
+        Assert.Equal(1, FadeBetween.Gain(0, 200_000, 4_000, false, true)); Assert.Equal(1, FadeBetween.Gain(0, 200_000, 0, true, true)); Assert.Equal(1, FadeBetween.Gain(0, 0, 4_000, true, true));
+        Assert.Equal(1, FadeBetween.Gain(3_000, 6_000, 12_000, true, true));
+        for (long p = -5_000; p <= 205_000; p += 777) { var g = FadeBetween.Gain(p, 200_000, 8_000, true, true); Assert.InRange(g, 0, 1); }
+    }
+}

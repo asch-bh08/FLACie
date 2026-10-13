@@ -2,8 +2,18 @@
 // reports time, state and the end of each song back. Media Session gives lock-screen and headphone controls.
 window.flacie = (() => {
   const audio = new Audio();
-  let baseVolume = 1, fadeGain = 1, loudGain = 1;
-  const applyVol = () => { audio.volume = Math.min(1, Math.max(0, baseVolume * fadeGain * loudGain)); };
+  let baseVolume = 1, fadeGain = 1, loudGain = 1, xfadeGain = 1, xfadeSecs = 0, xfadeIn = false, xfadeOut = false, xfadeRaf = 0;
+  const applyVol = () => { audio.volume = Math.min(1, Math.max(0, baseVolume * fadeGain * loudGain * xfadeGain)); };
+  // fade between songs: the end fades out and the start fades in (not across the tracks of one album); the same arithmetic as the app: cosine, over at most a third of the song
+  const cosFade = (rem, f) => rem >= f ? 1 : rem <= 0 ? 0 : 0.5 - 0.5 * Math.cos(Math.PI * rem / f);
+  const xfadeStep = () => {
+    xfadeRaf = 0;
+    if (xfadeSecs <= 0 || audio.paused || !isFinite(audio.duration) || audio.duration <= 0) { if (xfadeGain !== 1) { xfadeGain = 1; applyVol(); } if (xfadeSecs > 0) xfadeRaf = requestAnimationFrame(xfadeStep); return; }
+    const f = Math.min(xfadeSecs, audio.duration / 3);
+    const g = Math.min(xfadeIn ? cosFade(audio.currentTime, f) : 1, xfadeOut ? cosFade(audio.duration - audio.currentTime, f) : 1);
+    if (Math.abs(g - xfadeGain) > 0.002) { xfadeGain = g; applyVol(); }
+    xfadeRaf = requestAnimationFrame(xfadeStep);
+  };
   try { const v = parseFloat(localStorage.getItem("flacie.volume")); if (v >= 0 && v <= 1) { audio.volume = v; baseVolume = v; } } catch { }
   audio.preload = "auto";
   let dotnet = null, lastSent = 0;
@@ -565,6 +575,12 @@ window.flacie = (() => {
     },
     // the sleep timer's fade-out scales the volume the person set
     fade(g) { fadeGain = Math.min(1, Math.max(0, Number(g))); applyVol(); return audio.volume; },
+    xfade(secs, fin, fout) {
+      if (secs === undefined || secs === null) return xfadeGain;
+      xfadeSecs = Math.max(0, Number(secs) || 0); xfadeIn = !!fin; xfadeOut = !!fout;
+      if (xfadeSecs <= 0) { xfadeGain = 1; applyVol(); } else if (!xfadeRaf) xfadeRaf = requestAnimationFrame(xfadeStep);
+      return xfadeGain;
+    },
     // even out volume: the song's own gain as a multiplier (1 = untouched)
     loud(f) { if (f === undefined || f === null) return audio.volume; loudGain = Math.min(4, Math.max(0, Number(f) || 1)); applyVol(); return audio.volume; },
     volume(v) {

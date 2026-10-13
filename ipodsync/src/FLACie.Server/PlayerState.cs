@@ -196,6 +196,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         Position = startAt; Duration = t.DurationMs / 1000.0;
         await ApplyItemSpeedAsync(t);
         await ApplyLevelAsync(t);
+        await ApplyFadeAsync(t);
         if (plays is not null && session is not null) plays.Begin(session.Id, session.DisplayName, t.Path, t.Title, t.Artist, "FLACie Web", Context);
         Stash(true);
         RefreshSuggestions(); _ = PlanAsync(t); Started?.Invoke(t);
@@ -441,6 +442,27 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         LevelVolume = on; levelLoaded = true;
         try { await js.InvokeVoidAsync("flacie.stash", "flacie.level", on ? "1" : "0"); } catch (Exception) { }
         if (Current is { } t) await ApplyLevelAsync(t);
+        Changed?.Invoke();
+    }
+
+    /// <summary>Fade between songs, in seconds (0 = off; kept in this browser).</summary>
+    public int FadeSecs { get; private set; }
+    bool fadeLoaded;
+
+    async Task ApplyFadeAsync(Track t)
+    {
+        if (!fadeLoaded) { fadeLoaded = true; try { if (int.TryParse(await js.InvokeAsync<string?>("flacie.unstash", "flacie.fade"), out var n) && FadeBetween.Choices.Contains(n)) FadeSecs = n; } catch (Exception) { } }
+        var pos = order.IndexOf(Index);
+        Track? prev = pos > 0 ? Queue[order[pos - 1]] : null, next = pos >= 0 && pos + 1 < order.Count ? Queue[order[pos + 1]] : null;
+        var (fin, fout) = FadeBetween.Flags(prev, t, next);
+        try { await js.InvokeVoidAsync("flacie.xfade", FadeSecs, fin, fout); } catch (Exception) { }
+    }
+
+    public async Task SetFadeSecsAsync(int secs)
+    {
+        FadeSecs = FadeBetween.Choices.Contains(secs) ? secs : 0; fadeLoaded = true;
+        try { await js.InvokeVoidAsync("flacie.stash", "flacie.fade", FadeSecs.ToString()); } catch (Exception) { }
+        if (Current is { } t) await ApplyFadeAsync(t);
         Changed?.Invoke();
     }
 

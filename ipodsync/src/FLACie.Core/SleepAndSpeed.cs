@@ -168,3 +168,29 @@ public static class Loudness
         return Math.Pow(10, Math.Clamp(g, -MaxCutDb, MaxBoostDb) / 20);
     }
 }
+
+/// <summary>"Fade between songs" (the same rules as the Android app's FadeBetween.kt): a song's end fades out and the next one's start fades in, except across the tracks of one album.</summary>
+public static class FadeBetween
+{
+    public static readonly int[] Choices = [0, 2, 4, 6, 8, 12];
+    static string Norm(string s) => s.Trim().ToLowerInvariant();
+
+    public static bool Continuous(Track? cur, Track? next)
+    {
+        if (cur is null || next is null) return false;
+        if (Norm(cur.Album).Length == 0 || Norm(cur.Album) != Norm(next.Album)) return false;
+        if (Norm(cur.AlbumArtist.Length > 0 ? cur.AlbumArtist : cur.Artist) != Norm(next.AlbumArtist.Length > 0 ? next.AlbumArtist : next.Artist)) return false;
+        return cur.TrackNo > 0 && next.TrackNo > 0 ? (next.DiscNo == cur.DiscNo && next.TrackNo == cur.TrackNo + 1) || (next.DiscNo == cur.DiscNo + 1 && next.TrackNo == 1) : true;
+    }
+
+    public static (bool FadeIn, bool FadeOut) Flags(Track? prev, Track? cur, Track? next) => (!Continuous(prev, cur), !Continuous(cur, next));
+
+    public static double Gain(long positionMs, long durationMs, long fadeMs, bool fadeIn, bool fadeOut)
+    {
+        if (fadeMs <= 0 || durationMs <= 0) return 1;
+        var f = Math.Min(fadeMs, durationMs / 3);
+        var up = fadeIn ? SleepPlan.FadeGain(Math.Max(0, positionMs), f) : 1;
+        var down = fadeOut ? SleepPlan.FadeGain(Math.Max(0, durationMs - positionMs), f) : 1;
+        return Math.Min(up, down);
+    }
+}

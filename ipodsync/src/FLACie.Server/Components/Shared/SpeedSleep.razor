@@ -5,6 +5,7 @@
     <div class="speed-sleep" id="speed-sleep">
         <Dropdown Label="Speed" Class="mini" ShowAny="false" Value="@SpeedKey" Options="SpeedOptions" ValueChanged="OnSpeed" />
         <Dropdown Label="Volume" Class="mini" ShowAny="false" Value="@(Player.LevelVolume ? "level" : "normal")" Options="LevelOptions" ValueChanged="OnLevel" />
+        <Dropdown Label="Fade" Class="mini" ShowAny="false" Value="@FadeKey" Options="FadeOptions" ValueChanged="OnFade" />
         <Dropdown Label="Sleep" Class="mini" ShowAny="false" Value="@SleepKey" Options="SleepOptions" ValueChanged="OnSleep" />
         @if (SpeedPolicy.ShowLongItemControls(t.Genre, t.DurationMs, Player.Speed))
         {
@@ -18,6 +19,10 @@
     static readonly IReadOnlyList<DropOption> SpeedOptions = SpeedPolicy.Steps.Select(s => new DropOption(SpeedPolicy.Label(s), SpeedPolicy.Label(s) + (s == 1 ? " (normal)" : ""))).ToList();
 
     static readonly IReadOnlyList<DropOption> LevelOptions = [new("normal", "As recorded"), new("level", "Even out")];
+
+    static readonly IReadOnlyList<DropOption> FadeOptions = FadeBetween.Choices.Select(n => new DropOption(n.ToString(), n == 0 ? "Off" : n + " s")).ToList();
+    string FadeKey => Player.FadeSecs.ToString();
+    Task OnFade(string v) => Player.SetFadeSecsAsync(int.TryParse(v, out var n) ? n : 0);
 
     string SleepKey => Player.SleepMode switch { SleepMode.EndOfTrack => "track", SleepMode.EndOfAlbum => "album", SleepMode.Minutes => "timer", _ => "off" };
 

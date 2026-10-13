@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- tells Android Auto that this app is a media app (it then finds the media library service and browses it) -->
+<automotiveApp>
+    <uses name="media" />
+</automotiveApp>

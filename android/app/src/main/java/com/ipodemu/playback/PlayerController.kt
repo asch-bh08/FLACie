@@ -141,12 +141,31 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         .setWakeMode(C.WAKE_MODE_NETWORK)
         .build()
     /** What the media session (media buttons, notification, Bluetooth) controls: Next and Previous go through the skip-burst handling too. */
+    /** Resolving a browse id (a car or a voice request asks to play an album, a playlist, a song of a list) reads the library: off the main thread. */
+    private val browseExec = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "browse-play").also { it.isDaemon = true } }
+    private fun isBrowseId(id: String) = id.startsWith("s:") || id.startsWith("pl:") || id.startsWith("al:") || id.startsWith("ar:")
+    /** A controller (Android Auto, a head unit, a voice command) asked to play browse items: the songs of the list they come from are queued here with the normal player, so the queue, history and everything else behave as if it was played in the app. */
+    private fun playBrowse(items: List<MediaItem>): Boolean {
+        val id = items.firstOrNull()?.mediaId ?: return false
+        if (!isBrowseId(id)) return false
+        browseExec.execute {
+            val r = try { BrowseTree.resolve(id, AppBrowseSource(App.of(ctx))) } catch (_: Exception) { null }
+            if (r != null) handler.post { play(r.tracks, r.index) }
+        }
+        return true
+    }
     @OptIn(UnstableApi::class)
     val sessionPlayer: Player = object : androidx.media3.common.ForwardingPlayer(exo) {
         override fun seekToNext() { this@PlayerController.next() }
         override fun seekToNextMediaItem() { this@PlayerController.next() }
         override fun seekToPrevious() { this@PlayerController.prev() }
         override fun seekToPreviousMediaItem() { this@PlayerController.prev() }
+        override fun setMediaItems(mediaItems: MutableList<MediaItem>) { if (!playBrowse(mediaItems)) super.setMediaItems(mediaItems) }
+        override fun setMediaItems(mediaItems: MutableList<MediaItem>, resetPosition: Boolean) { if (!playBrowse(mediaItems)) super.setMediaItems(mediaItems, resetPosition) }
+        override fun setMediaItems(mediaItems: MutableList<MediaItem>, startIndex: Int, startPositionMs: Long) { if (!playBrowse(mediaItems)) super.setMediaItems(mediaItems, startIndex, startPositionMs) }
+        override fun setMediaItem(mediaItem: MediaItem) { if (!playBrowse(listOf(mediaItem))) super.setMediaItem(mediaItem) }
+        override fun setMediaItem(mediaItem: MediaItem, startPositionMs: Long) { if (!playBrowse(listOf(mediaItem))) super.setMediaItem(mediaItem, startPositionMs) }
+        override fun setMediaItem(mediaItem: MediaItem, resetPosition: Boolean) { if (!playBrowse(listOf(mediaItem))) super.setMediaItem(mediaItem, resetPosition) }
         // The session must not publish the whole queue: with 10,000 songs the list handed to a Bluetooth head unit, Android Auto or the system media card is what ran
         // the phone out of memory. Without the timeline command Media3 shows controllers just the current item (title, artist, artwork, position); Next and Previous stay.
         override fun getAvailableCommands(): Player.Commands = SessionWindow.commands(super.getAvailableCommands())

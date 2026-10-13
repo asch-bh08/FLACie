@@ -49,13 +49,18 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+        <!-- Android Auto finds this app by this entry, and reads covers from the provider below -->
+        <meta-data android:name="com.google.android.gms.car.application" android:resource="@xml/automotive_app_desc" />
+        <provider android:name=".playback.ArtProvider" android:authorities="com.ipodemu.art" android:exported="true" />
         <service android:name=".library.offline.DownloadService" android:exported="false" android:foregroundServiceType="dataSync" />
         <service
             android:name=".playback.PlaybackService"
             android:exported="true"
             android:foregroundServiceType="mediaPlayback">
             <intent-filter>
+                <action android:name="androidx.media3.session.MediaLibraryService" />
                 <action android:name="androidx.media3.session.MediaSessionService" />
+                <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
         </service>
         <!-- a headset or Bluetooth button reaches the player even when the app was closed: the service restarts and the queue of last time (paused) is what it plays -->

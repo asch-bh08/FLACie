@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
         Boot.mark("MainActivity.onCreate start")
         // test aid, like the fake extras below: `am start --ez clearcovers true` starts with an empty cover cache (what Settings > Clear cache does for covers)
         if (intent?.getBooleanExtra("clearcovers", false) == true) app.art.clearAll()
+        if (intent?.getBooleanExtra("browseprobe", false) == true) com.ipodemu.playback.BrowseProbe.run(applicationContext)
         // Debug aid: `am start --es fake 1080x2400` letterboxes the UI into that aspect ratio to test layouts.
         // `--es fakedp 360` also renders it at that width in dp (e.g. a Z Fold cover screen), and `--es fakecutout 32`
         // simulates a camera cutout that tall at the top, for checking safe-area handling on a device without one.

@@ -92,7 +92,7 @@ fun ModernTopBar(title: String, onBack: (() -> Unit)?, actions: @Composable () -
 
 /** A 48dp icon button (Material minimum touch target) -- the Modern theme's top-bar and toolbar action. */
 @Composable
-fun IconAction(g: Glyph, label: String, onClick: () -> Unit, tint: Color = LocalScheme.current.onBg, size: Dp = 48.dp, iconScale: Float = 0.5f) {
+fun IconAction(g: Glyph, label: String, onClick: () -> Unit, tint: Color = LocalScheme.current.onBg, size: Dp = 48.dp, iconScale: Float = 0.5f, dot: Boolean = false) {
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
     val pressed by src.collectIsPressedAsState()
@@ -100,7 +100,11 @@ fun IconAction(g: Glyph, label: String, onClick: () -> Unit, tint: Color = Local
         Modifier.size(size).pressSpring(pressed, 0.82f).clip(CircleShape).background(if (focused || pressed) Color(0x33FFFFFF) else Color.Transparent).ringWhen(focused, CircleShape)
             .semanticsLabel(label).wheelTracked().clickable(src, null, onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { GlyphIcon(g, Modifier.size(size * iconScale).bumpOnChange(g), tint) }   // a heart turning solid bounces
+    ) {
+        GlyphIcon(g, Modifier.size(size * iconScale).bumpOnChange(g), tint)   // a heart turning solid bounces
+        // a toggle that is on says so with more than colour: a dot under the glyph
+        if (dot) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = size * 0.12f).size(4.dp).clip(CircleShape).background(tint))
+    }
 }
 
 private fun Modifier.semanticsLabel(label: String) = this.semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button }

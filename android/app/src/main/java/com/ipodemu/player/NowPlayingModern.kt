@@ -434,12 +434,12 @@ private fun Transport(snap: PlayerSnap) {
         val big = min(58.dp, maxWidth * 0.19f)
         val small = min(46.dp, maxWidth * 0.15f)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            IconAction(Glyph.SHUFFLE, if (snap.shuffle) "Shuffle on" else "Shuffle off", { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() }, tint = if (snap.shuffle) sc.accent else sc.onBgDim, size = small, iconScale = 0.52f)
+            IconAction(Glyph.SHUFFLE, if (snap.shuffle) "Shuffle on" else "Shuffle off", { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() }, tint = if (snap.shuffle) sc.accent else sc.onBgDim, size = small, iconScale = 0.52f, dot = snap.shuffle)
             IconAction(Glyph.PREV, "Previous", { app.player.prev() }, size = big, iconScale = 0.56f)
             PlayDisc(snap.playing, play, playFocus) { app.player.toggle() }
             IconAction(Glyph.NEXT, "Next", { app.player.next() }, size = big, iconScale = 0.56f)
             IconAction(if (snap.repeat == 2) Glyph.REPEAT_ONE else Glyph.REPEAT, when (snap.repeat) { 1 -> "Repeat all"; 2 -> "Repeat one"; else -> "Repeat off" }, { app.prefs.repeat = (app.prefs.repeat + 1) % 3; app.player.applyModes() },
-                tint = if (snap.repeat != 0) sc.accent else sc.onBgDim, size = small, iconScale = 0.52f)
+                tint = if (snap.repeat != 0) sc.accent else sc.onBgDim, size = small, iconScale = 0.52f, dot = snap.repeat != 0)
         }
     }
 }

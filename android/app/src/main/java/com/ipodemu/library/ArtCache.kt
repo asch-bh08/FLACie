@@ -80,6 +80,11 @@ class ArtCache(private val dir: File) {
     /** inSampleSize for the 240 px row covers on screens that show them small (44-56 dp rows: 120 px is sharp even at 3x density). */
     @Volatile var jfThumbSample = 2
 
+    /** Covers a person chose to replace a cover with (see MbService); null until the service exists. */
+    @Volatile var pins: com.ipodemu.library.mb.CoverPins? = null
+    /** A pin was set or removed: the pictures kept in memory for this key are dropped, so the next draw reads the right file. */
+    fun pinChanged(key: String) { synchronized(this) { mem.remove(key); mem.remove("t$key"); mem.remove("F$key") } }
+
     private fun isJf(key: String) = key.startsWith("jf") && key.length > 2
     private fun jfId(key: String) = key.substring(2)
     private fun fullFile(key: String) = File(jfDir, jfId(key) + ".f")
@@ -329,6 +334,11 @@ class ArtCache(private val dir: File) {
         val big = full && jf   // only Jellyfin covers have a second (Now Playing) size
         val ck = memKey(key, thumb, big)
         synchronized(this) { mem.get(ck)?.let { return it }; if (ck in missing) return null }
+        // a cover the person chose wins over the one from the server or the catalog
+        pins?.file(key)?.let { pf ->
+            val b = withContext(decoder) { try { BitmapFactory.decodeFile(pf.path, BitmapFactory.Options().apply { inSampleSize = sampleFor(key, thumb, big) }) } catch (_: Exception) { null } }
+            if (b != null) { synchronized(this) { mem.put(ck, b) }; return b }
+        }
         var damaged = 0
         while (true) {
             val f: File = if (jf) ensureJfRetrying(key, big, priority) ?: return null
@@ -395,6 +405,7 @@ class ArtCache(private val dir: File) {
     /** The best picture on disk for notifications and the lock screen: the Now Playing size when it was fetched, else the row size; null when neither is there. */
     fun bestFile(key: String?): File? {
         if (key == null) return null
+        pins?.file(key)?.let { return it }
         if (isJf(key)) fullFile(key).takeIf { it.exists() }?.let { return it }
         return file(key).takeIf { it.exists() }
     }

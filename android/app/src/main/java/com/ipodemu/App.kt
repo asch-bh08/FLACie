@@ -18,6 +18,7 @@ class App : Application() {
     @Volatile var homeSnapshot: com.ipodemu.library.HomeSnapshot.Data? = null; private set
     lateinit var userData: com.ipodemu.library.UserData; private set
     lateinit var offline: com.ipodemu.library.offline.OfflineManager; private set
+    lateinit var mb: com.ipodemu.library.mb.MbService; private set
     lateinit var account: com.ipodemu.library.AccountSync; private set
     lateinit var connect: com.ipodemu.library.JellyfinConnect; private set
     lateinit var jam: com.ipodemu.library.Jam; private set
@@ -47,6 +48,7 @@ class App : Application() {
         ui = UiState(prefs)
         // the player asks the offline library which songs are on the phone while it rebuilds the queue: it must exist first
         offline = com.ipodemu.library.offline.OfflineManager(this, prefs)
+        mb = com.ipodemu.library.mb.MbService(this, prefs, art)
         Boot.span("restoreQueue") { player.restoreQueue(); player.restoreSleepTimer() }
         userData = com.ipodemu.library.UserData(this)
         // favourites kept offline follow the favourites list (a pause first, so a run of taps is one change)

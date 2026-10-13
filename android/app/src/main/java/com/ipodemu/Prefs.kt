@@ -130,6 +130,10 @@ class Prefs(ctx: Context) {
     var levelVolume: Boolean
         get() = sp.getBoolean("levelVol", false)
         set(v) = sp.edit().putBoolean("levelVol", v).apply()
+    /** Where MusicBrainz can reach the person behind the app (their User-Agent asks for one); empty = the project page. */
+    var mbContact: String
+        get() = sp.getString("mbContact", "") ?: ""
+        set(v) = sp.edit().putString("mbContact", v.trim()).apply()
     var volumeLimit: Int
         get() = sp.getInt("vollimit", 100)
         set(v) = sp.edit().putInt("vollimit", v).apply()

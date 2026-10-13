@@ -429,6 +429,7 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
             if (off.state == com.ipodemu.library.offline.OfflineState.FAILED) app.offline.enqueue(listOf(t), com.ipodemu.library.offline.OfflineReason.MANUAL) else app.offline.remove(t.path)
         }
     }
+    if (t.isMusic) items += SheetItem("MusicBrainz match...", Glyph.INFO) { musicBrainzSheet(app, nav, t) }
     if (t.isMusic && t.album.isNotEmpty()) items += SheetItem("Go to album", Glyph.ALBUM) { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ALBUM, t.albumKey)) }
     if (t.isMusic && t.artist.isNotEmpty()) items += SheetItem("Go to artist", Glyph.ARTIST) { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist })) }
     items += extra
@@ -1463,5 +1464,34 @@ private fun SearchIdle(nav: PlayerNav) {
                 genres.forEach { g -> GlossPill(g.name, { nav.push(Screen.Detail(DetailKind.GENRE, g.name)) }, height = 36.dp) }
             }
         }
+    }
+}
+
+/** The song's match on MusicBrainz (the open music database): asked only when chosen here; the choice is kept beside the library and never written into the file or Jellyfin. */
+fun musicBrainzSheet(app: App, nav: PlayerNav, t: Track) {
+    val mb = app.mb; val key = mb.keyOf(t)
+    val chosen = mb.overlay.get(key)
+    if (chosen == null) { mbSearch(app, nav, t); return }
+    val items = ArrayList<SheetItem>()
+    items += SheetItem("Find a different match", Glyph.SEARCH) { mbSearch(app, nav, t) }
+    if (chosen.releaseMbid != null || chosen.releaseGroupMbid != null) items += SheetItem("Use the cover from the Cover Art Archive", Glyph.ALBUM) {
+        app.ui.say("Looking for a cover...")
+        mb.useFrontCover(t, chosen) { r -> app.ui.say(when (r) { 1 -> "Cover replaced. It shows from the next screen you open."; 0 -> "The Cover Art Archive has no picture for this release."; else -> "The Cover Art Archive did not answer." }) }
+    }
+    if (t.artKey != null && mb.pins.has(t.artKey!!)) items += SheetItem("Use the original cover", Glyph.CLOSE) { mb.originalCover(t); app.ui.say("Original cover back. It shows from the next screen you open.") }
+    items += SheetItem("Forget this match", Glyph.CLOSE) { mb.overlay.clear(key); app.ui.say("Match forgotten") }
+    nav.sheet = SheetSpec("MusicBrainz", chosen.title + " - " + chosen.artist + (if (chosen.album.isNotEmpty()) " (" + chosen.album + ")" else ""), items)
+}
+
+private fun mbSearch(app: App, nav: PlayerNav, t: Track) {
+    nav.sheet = SheetSpec("MusicBrainz", "Looking it up...", emptyList())
+    app.mb.search(t) { ranked ->
+        val items = ArrayList<SheetItem>()
+        if (ranked == null) items += SheetItem("MusicBrainz did not answer. Try again in a minute.", Glyph.CLOSE) { }
+        else if (ranked.isEmpty()) items += SheetItem("MusicBrainz knows nothing like this song.", Glyph.CLOSE) { }
+        else for ((c, score) in ranked) items += SheetItem("${score.toInt()}%  ${c.title} - ${c.artist}" + (if (c.album.isNotEmpty()) " (${c.album})" else "") + (c.year?.let { "  $it" } ?: ""), Glyph.CHECK) {
+            app.mb.overlay.set(app.mb.keyOf(t), c); app.ui.say("Matched: ${c.title}")
+        }
+        nav.sheet = SheetSpec("MusicBrainz match", "Pick the right one; nothing is changed in your files", items)
     }
 }

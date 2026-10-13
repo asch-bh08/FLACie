@@ -1349,3 +1349,21 @@ html.buffering .play .ic { opacity: .55; }
 /* the Now Playing source pill is a quiet pill like the format ones (it used to be a green pill) */
 .np-titles .pills .badge.cloud { background: #12233b; color: #6db3ff; font-weight: 600; }
 @media (orientation: landscape) and (max-height: 520px) and (max-width: 760px) { .bar-text .dl-tag { display: none; } }
+
+/* speed, sleep timer and long-item skips under the full-screen player's controls */
+.speed-sleep { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-top: 4px; }
+.dd.mini .dd-btn { height: 38px; font-size: 13px; padding: 0 8px 0 10px; }
+.dd.mini .dd-label { color: var(--dim); }
+.pill-btn { height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 13px; font-weight: 600; cursor: pointer; }
+.pill-btn:hover { border-color: color-mix(in srgb, var(--ink) 30%, var(--line)); }
+.pill-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* the full-screen player's seek bar: a thicker track, a knob that is always there and grows under the finger (the bar at the foot stays slim) */
+.seek.big input[type=range] { height: 28px; }
+.seek.big input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 8px; transition: height .12s; }
+.seek.big input[type=range]::-moz-range-track, .seek.big input[type=range]::-moz-range-progress { height: 8px; border-radius: 8px; }
+.seek.big input[type=range]::-webkit-slider-thumb { width: 16px; height: 16px; margin-top: -4px; opacity: 1; transition: transform .12s; }
+.seek.big input[type=range]::-moz-range-thumb { width: 16px; height: 16px; opacity: 1; }
+.seek.big input[type=range]:active::-webkit-slider-runnable-track { height: 10px; }
+.seek.big input[type=range]:active::-webkit-slider-thumb { transform: scale(1.5); margin-top: -3px; }
+@media (prefers-reduced-motion: reduce) { .seek.big input[type=range]::-webkit-slider-runnable-track, .seek.big input[type=range]::-webkit-slider-thumb { transition: none; } }

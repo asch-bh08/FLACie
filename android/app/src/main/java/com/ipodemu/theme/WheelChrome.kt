@@ -33,26 +33,27 @@ object WheelChrome {
             c.drawPath(path, Gfx.p)
         }
 
-        // labels
+        // labels: kept readable (4.5:1) on the ring whatever the colourway
+        val label = ContrastClamp.ensure(s.label, s.ringLight)
         val lr = r * 0.72f
-        Gfx.text(c, "MENU", cx, cy - lr + r * 0.06f, r * 0.13f, s.label, Gfx.SANS_BOLD, Paint.Align.CENTER)
+        Gfx.text(c, "MENU", cx, cy - lr + r * 0.06f, r * 0.13f, label, Gfx.SANS_BOLD, Paint.Align.CENTER)
         val h = r * 0.13f
         // next |>>|
         run {
             val x = cx + lr - h; val y = cy
-            Gfx.triangle(c, x - h * 0.6f, y, h, s.label); Gfx.triangle(c, x + h * 0.2f, y, h, s.label)
-            Gfx.rect(c, x + h * 1.05f, y - h / 2, x + h * 1.05f + h * 0.18f, y + h / 2, s.label)
+            Gfx.triangle(c, x - h * 0.6f, y, h, label); Gfx.triangle(c, x + h * 0.2f, y, h, label)
+            Gfx.rect(c, x + h * 1.05f, y - h / 2, x + h * 1.05f + h * 0.18f, y + h / 2, label)
         }
         // prev |<<|
         run {
             val x = cx - lr + h; val y = cy
-            Gfx.triangle(c, x + h * 0.6f, y, h, s.label, false); Gfx.triangle(c, x - h * 0.2f, y, h, s.label, false)
-            Gfx.rect(c, x - h * 1.05f - h * 0.18f, y - h / 2, x - h * 1.05f, y + h / 2, s.label)
+            Gfx.triangle(c, x + h * 0.6f, y, h, label, false); Gfx.triangle(c, x - h * 0.2f, y, h, label, false)
+            Gfx.rect(c, x - h * 1.05f - h * 0.18f, y - h / 2, x - h * 1.05f, y + h / 2, label)
         }
         // play/pause
         run {
             val x = cx - h * 0.9f; val y = cy + lr - h * 0.2f
-            Gfx.triangle(c, x, y, h, s.label); Gfx.pause(c, x + h * 1.2f, y, h * 0.9f, s.label)
+            Gfx.triangle(c, x, y, h, label); Gfx.pause(c, x + h * 1.2f, y, h * 0.9f, label)
         }
 
         // center button

@@ -2,6 +2,7 @@
 
 One line per decision or result. Honest: skipped or untested things are said so.
 
+- Phase 0 research: docs/research/{symfonium,plexamp,apis,design-references,gap-table}.md written (two sonnet subagents + me); spec close-the-gaps.md got a "Phase 0 findings" section (MusicBrainz, CAA, LRCLIB, Deezer resolved or marked open; Jellyfin-specific [verify]s need a real server). Plexamp rows are from secondary sources (Plex pages 403).
 - Start: main = v1.0.0-beta57 (bac708f). No Fold (assumed unavailable per U1); emulator `flacie_phone` + mock + Playwright only. adb was not on PATH; added from the SDK for this session.
 - C: has only ~5 GB free; the 4 GB floor limits parallel builds. Builds run one at a time; own build output is deleted if short.
 - Scope decision: the prompt lists far more than one night. Order kept: U7 (verify beta 57 fixes + regression tests) -> beta 58; then the specs (player redesign, iPod redesign) as docs; the large features (offline downloads, Auto/Cast, research docs) are NOT started unless time allows, and are not half-released.

@@ -221,3 +221,11 @@ Treat as a real design pass with its own audit, not a colour tweak.
 
 ## Appendix: where the in-progress beta 56 stands (so nothing is lost)
 Branch `perf/coldstart-covers` (pushed): cold start (Home from a saved snapshot: shelves on screen at ~65-90 ms instead of 785-1074 ms on the Fold), library load after the first frame, covers (atomic save fixing a real race, retry with backoff, visible-row gate floor, wrong album covers vetted: 1,807 of 10,325 songs on the real library, same rule on the web server). Remaining before release: Playwright run, release build + signing check, Fold final numbers, release notes, web redeploy. The programme above starts after beta 56 is out.
+
+## Phase 0 findings (2026-10-13, from `docs/research/`)
+What the research resolved, and what it did not:
+- **MusicBrainz**: about 1 request/second per IP on average, excess answered with HTTP 503; a descriptive User-Agent of the form `App/version ( contact )` is required, generic ones are throttled; core data CC0, free for non-commercial use. Confirmed by the MusicBrainz API and rate-limiting pages. **Still open:** an explicit caching rule (none published), the exact 503/`Retry-After` behaviour.
+- **Cover Art Archive**: `/release/<MBID>/front[-250|-500|-1200]` and `/release-group/<MBID>/front`; 404 = no art; no published rate limit (stay polite, cache negatives); **image licensing is not stated**: treat as display-only, never redistribute. Confirmed.
+- **LRCLIB**: no published rate limit or terms found; keep it optional, cached, one request per song. Not confirmed.
+- **Deezer**: terms allow non-commercial use only and say artwork belongs to Deezer or the rights holders. **This constrains the catalog cover lookup the app already uses** (beta 57's no-picture songs): keep it a fallback, cached, never written back into the user's files. Rate limit and image sizes not confirmed (pages are login-gated).
+- **Still [verify] and needing a real Jellyfin 10.11** (read-only, authenticated; not available to the research or the mock): `NormalizationGain`/LUFS fields, `UserData.Rating` write support, `ProviderIds.MusicBrainz*`, `/Items/{id}/Similar` quality for music, download/stream endpoint behaviour for original files, web storage quota for the Service Worker design.

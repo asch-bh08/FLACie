@@ -174,8 +174,75 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     var sleepMinutes = 0; private set
     /** When the sleep timer fires (uptime clock), 0 = off; [sleepRemainingMs] is what the UI counts down. */
     var sleepEndsAt = 0L; private set
-    private val sleepRunnable = Runnable { exo.pause(); sleepMinutes = 0; sleepEndsAt = 0L; prefs.sleepEndsAtWall = 0L; fire() }
-    val sleepRemainingMs: Long get() = if (sleepEndsAt == 0L) 0L else (sleepEndsAt - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0L)
+    /** What the sleep timer waits for (see [SleepPlan]); MINUTES uses [sleepEndsAt]. */
+    var sleepMode = SleepMode.OFF; private set
+    private var sleepArmedPath: String? = null
+    private val sleepRunnable = Runnable { sleepTick() }
+    /** Time left until the timer fires (real time, so a faster speed shortens what is left of a song); null when off or not known (a song of unknown length). */
+    val sleepRemainingOrNull: Long? get() = when (sleepMode) {
+        SleepMode.OFF -> null
+        SleepMode.MINUTES -> (sleepEndsAt - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0L)
+        SleepMode.END_OF_TRACK -> SleepPlan.trackRemaining(exo.currentPosition, durationMs)?.let { (it / speed).toLong() }
+        SleepMode.END_OF_ALBUM -> SleepPlan.albumRemaining(queue, queueIndex, exo.currentPosition)?.let { (it / speed).toLong() }
+    }
+    val sleepRemainingMs: Long get() = sleepRemainingOrNull ?: 0L
+    private fun sleepFired() {
+        exo.pause(); sleepMode = SleepMode.OFF; sleepMinutes = 0; sleepEndsAt = 0L; sleepArmedPath = null; prefs.sleepEndsAtWall = 0L
+        fade = 1f; applyOutputVolume(); stopShake(); handler.removeCallbacks(sleepRunnable); fire()
+    }
+    private fun sleepTick() {
+        if (sleepMode == SleepMode.OFF) return
+        val left = sleepRemainingOrNull
+        // "end of this song": a different song has started (a skip, or the end came before the tick): the moment has passed
+        if (sleepMode == SleepMode.END_OF_TRACK && sleepArmedPath != null && current?.path != sleepArmedPath) { sleepFired(); return }
+        if (left != null && left <= (if (sleepMode == SleepMode.MINUTES) 0L else 250L)) { sleepFired(); return }
+        val g = if (left == null) 1f else SleepPlan.fadeGain(left)
+        if (g != fade) { fade = g; applyOutputVolume() }
+        if (SleepPlan.canExtend(sleepMode, left)) startShake() else stopShake()
+        handler.postDelayed(sleepRunnable, if (left != null && left <= SleepPlan.FADE_MS + 1_000L) 250L else 1_000L)
+    }
+    private fun armSleep(mode: SleepMode) {
+        handler.removeCallbacks(sleepRunnable)
+        sleepMode = mode; sleepArmedPath = if (mode == SleepMode.END_OF_TRACK) current?.path else null
+        if (mode != SleepMode.MINUTES) { sleepMinutes = 0; sleepEndsAt = 0L; prefs.sleepEndsAtWall = 0L }
+        if (mode == SleepMode.OFF) { fade = 1f; applyOutputVolume(); stopShake() } else handler.post(sleepRunnable)
+        fire()
+    }
+    /** "End of this song" / "End of this album": playback pauses (after a fade-out) when it ends. */
+    fun setSleepEndOfTrack() = armSleep(SleepMode.END_OF_TRACK)
+    fun setSleepEndOfAlbum() = armSleep(SleepMode.END_OF_ALBUM)
+    /** Adds [SleepPlan.EXTEND_MIN] minutes to what is left (a song-or-album timer becomes a minutes timer). */
+    fun extendSleep() {
+        if (sleepMode == SleepMode.OFF) return
+        val left = sleepRemainingOrNull ?: 0L
+        val now = android.os.SystemClock.elapsedRealtime()
+        sleepEndsAt = SleepPlan.extend(now + left, now); sleepMinutes = ((sleepEndsAt - now + 59_999L) / 60_000L).toInt()
+        prefs.sleepEndsAtWall = System.currentTimeMillis() + (sleepEndsAt - now)
+        fade = 1f; applyOutputVolume()
+        handler.removeCallbacks(sleepRunnable); sleepMode = SleepMode.MINUTES; sleepArmedPath = null; handler.post(sleepRunnable); fire()
+    }
+
+    // shaking the phone in the last stretch of the timer extends it
+    private val shake = ShakeDetector {
+        handler.post { extendSleep(); android.widget.Toast.makeText(ctx, "Sleep timer +" + SleepPlan.EXTEND_MIN + " min", android.widget.Toast.LENGTH_SHORT).show() }
+    }
+    private var shaking = false
+    private val shakeListener = object : android.hardware.SensorEventListener {
+        override fun onSensorChanged(e: android.hardware.SensorEvent) { shake.onSample(e.values[0], e.values[1], e.values[2], android.os.SystemClock.elapsedRealtime()) }
+        override fun onAccuracyChanged(s: android.hardware.Sensor?, a: Int) {}
+    }
+    private fun startShake() {
+        if (shaking) return
+        try {
+            val sm = ctx.getSystemService(Context.SENSOR_SERVICE) as android.hardware.SensorManager
+            sm.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER)?.let { shaking = sm.registerListener(shakeListener, it, android.hardware.SensorManager.SENSOR_DELAY_UI) }
+        } catch (_: Exception) {}
+    }
+    private fun stopShake() {
+        if (!shaking) return
+        shaking = false
+        try { (ctx.getSystemService(Context.SENSOR_SERVICE) as android.hardware.SensorManager).unregisterListener(shakeListener) } catch (_: Exception) {}
+    }
 
     val current: Track? get() = (if (burstTarget in 0 until exo.mediaItemCount) exo.getMediaItemAt(burstTarget) else exo.currentMediaItem)?.localConfiguration?.tag as? Track
     val isPlaying: Boolean get() = exo.isPlaying
@@ -189,10 +256,14 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
 
     var volume: Float
         get() = prefs.volume.coerceAtMost(prefs.volumeLimit / 100f)
-        set(v) { prefs.volume = v.coerceIn(0f, prefs.volumeLimit / 100f); exo.volume = prefs.volume; fire() }
+        set(v) { prefs.volume = v.coerceIn(0f, prefs.volumeLimit / 100f); applyOutputVolume(); fire() }
+
+    /** The sleep timer's fade-out scales the volume; 1 = untouched. */
+    private var fade = 1f
+    private fun applyOutputVolume() { exo.volume = volume * fade }
 
     init {
-        exo.volume = volume
+        applyOutputVolume()
         applyModes()
         exo.addListener(object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) { fire() }
@@ -206,6 +277,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                 (mediaItem?.localConfiguration?.tag as? Track)?.let { if (!quietTransition && (it !== lastStarted || reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)) onTrackStarted?.invoke(it); lastStarted = it }
                 refreshArtwork()
                 checkQueueLow()
+                (mediaItem?.localConfiguration?.tag as? Track)?.let { startedItem(it) }
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && (sleepMode == SleepMode.END_OF_TRACK || sleepMode == SleepMode.END_OF_ALBUM)) sleepFired()
                 adaptUpcoming(); schedulePrefetch()
                 // a song ending on its own: a Jam moves the whole group on instead (see Jam)
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) onAutoAdvance?.invoke()
@@ -218,6 +291,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             }
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
                 if (reason == Player.DISCONTINUITY_REASON_SEEK || reason == Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT) seeking = true
+                if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION || reason == Player.DISCONTINUITY_REASON_SKIP) rememberPlace(oldPosition.mediaItem?.localConfiguration?.tag as? Track, oldPosition.positionMs, finished = reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION)
             }
             override fun onAudioSessionIdChanged(audioSessionId: Int) { applyEq() }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -275,6 +349,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (!hasQueue || burstTarget >= 0) return
         val tracks = queueTracks(); if (tracks.isEmpty()) return
         val idx = exo.currentMediaItemIndex.coerceIn(0, tracks.lastIndex); val pos = exo.currentPosition
+        rememberPlace(tracks[idx], pos)
         // a shuffled queue keeps its play order (a reordered Up next must come back as it was left)
         val order = if (exo.shuffleModeEnabled && tracks.size == exo.mediaItemCount) playOrderNow() else null
         writer.execute {
@@ -490,7 +565,55 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
 
     fun skipTo(index: Int) { if (interceptor?.skipTo(index) == true) return; exo.seekTo(index, 0L); exo.play() }
 
-    fun applyVolumeLimit() { exo.volume = volume }
+    fun applyVolumeLimit() { applyOutputVolume() }
+
+    // ---- speed and long items ------------------------------------------------------------------------------------------------------
+    // 0.5x to 3x with the pitch kept (pitch 1). The speed is remembered per item (spoken word and anything you changed), the speed last used on spoken
+    // word is the default for the next audiobook or podcast, and a long item (20 minutes or more) remembers where you stopped. Rules: [SpeedPolicy].
+    private val speedMem = ItemMemory.decode(prefs.speedMemory, 400)
+    private val placeMem = ItemMemory.decode(prefs.placeMemory, 100)
+    var speed = 1f; private set
+
+    private fun applySpeed(s: Float) {
+        speed = SpeedPolicy.clamp(s)
+        exo.playbackParameters = androidx.media3.common.PlaybackParameters(speed, 1f)
+    }
+
+    /** Sets the speed and remembers it for this item (and as the spoken-word default when the item is spoken). */
+    fun setSpeed(s: Float) {
+        applySpeed(s)
+        current?.let { t ->
+            val spoken = SpeedPolicy.isSpoken(t.genre)
+            speedMem.set(SpeedPolicy.keyOf(t.path), if (spoken || speed != 1f) speed.toDouble() else null)
+            prefs.speedMemory = speedMem.encode()
+            if (spoken) prefs.spokenSpeed = speed
+        }
+        fire()
+    }
+    fun stepSpeed(up: Boolean) = setSpeed(SpeedPolicy.step(speed, up))
+
+    /** Skip back 10 s / forward 30 s inside the item (the long-item buttons). */
+    fun skipBy(ms: Long) { seekTo((exo.currentPosition + ms).coerceIn(0L, (durationMs - 1_000L).coerceAtLeast(0L))) }
+
+    /** A new song starts: its remembered speed (else the spoken-word default, else 1x) and, for a long item, where it was left. */
+    private fun startedItem(t: Track) {
+        val saved = speedMem.get(SpeedPolicy.keyOf(t.path))?.toFloat()
+        applySpeed(saved ?: if (SpeedPolicy.isSpoken(t.genre)) prefs.spokenSpeed else 1f)
+        if (!quietTransition && exo.currentPosition < 2_000L) {
+            val at = SpeedPolicy.resumeAt(placeMem.get(SpeedPolicy.keyOf(t.path))?.toLong(), t.durationMs.takeIf { it > 0 } ?: exo.duration.coerceAtLeast(0L))
+            if (at > 0L) exo.seekTo(exo.currentMediaItemIndex, at)
+        }
+    }
+
+    /** Stores (or clears) the place of a long item; called with the current item while playing and with the old item when a song changes. */
+    private fun rememberPlace(t: Track?, positionMs: Long, finished: Boolean = false) {
+        if (t == null) return
+        val dur = t.durationMs
+        if (!SpeedPolicy.isLong(dur)) return
+        val key = SpeedPolicy.keyOf(t.path)
+        if (finished) placeMem.set(key, null) else if (SpeedPolicy.shouldSavePlace(positionMs, dur)) placeMem.set(key, positionMs.toDouble()) else if (positionMs >= dur - SpeedPolicy.FINISHED_MS) placeMem.set(key, null) else return
+        prefs.placeMemory = placeMem.encode()
+    }
 
     fun setSleepTimer(minutes: Int) {
         handler.removeCallbacks(sleepRunnable)
@@ -498,9 +621,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (minutes > 0) {
             sleepEndsAt = android.os.SystemClock.elapsedRealtime() + minutes * 60_000L
             prefs.sleepEndsAtWall = System.currentTimeMillis() + minutes * 60_000L
-            handler.postDelayed(sleepRunnable, minutes * 60_000L)
-        } else { sleepEndsAt = 0L; prefs.sleepEndsAtWall = 0L }
-        fire()
+            armSleep(SleepMode.MINUTES)
+        } else { sleepEndsAt = 0L; prefs.sleepEndsAtWall = 0L; armSleep(SleepMode.OFF) }
     }
     /** After a kill and restart: a sleep timer that was still running carries on for what was left of it (it never fires late while playing nothing). */
     fun restoreSleepTimer() {
@@ -509,7 +631,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (left <= 0L) { prefs.sleepEndsAtWall = 0L; return }
         sleepMinutes = ((left + 59_999L) / 60_000L).toInt()
         sleepEndsAt = android.os.SystemClock.elapsedRealtime() + left
-        handler.postDelayed(sleepRunnable, left)
+        armSleep(SleepMode.MINUTES)
     }
 
     // ---- equalizer ---------------------------------------------------------
@@ -759,8 +881,10 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             t.path.startsWith("https:") || t.path.startsWith("smb:")) Uri.parse(t.path) else Uri.fromFile(File(t.path))
         // formats the phone cannot decode (WMA, APE ...) are converted by Jellyfin on the way, like the data saver does
         val own = ownAlacUri(t)
-        val hls = if (own == null && (dataSaver || needsTranscode(t))) hlsUri(t) else null
-        return MediaItem.Builder().setMediaId(t.path).setUri(own ?: hls ?: uri).setTag(t).also { if (hls != null) it.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8) }
+        // a song kept offline plays from its file (unless this phone needs the server to convert it): no network, no data used, no waiting
+        val local = if (own == null && !needsTranscode(t)) app.offline.localFile(t) else null
+        val hls = if (own == null && local == null && (dataSaver || needsTranscode(t))) hlsUri(t) else null
+        return MediaItem.Builder().setMediaId(t.path).setUri(own ?: (local?.let { Uri.fromFile(it) }) ?: hls ?: uri).setTag(t).also { if (hls != null) it.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8) }
             .setMediaMetadata(md.build()).build()
     }
 

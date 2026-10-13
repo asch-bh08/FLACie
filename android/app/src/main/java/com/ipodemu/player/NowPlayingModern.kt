@@ -13,6 +13,10 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -239,6 +243,7 @@ private fun Controls(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boolea
     ActionRow(snap, nav, lyricsToggle, spread = true, info = info)
     Seek(snap)
     Transport(snap)
+    LongItemControls(snap)
     }
 }
 
@@ -319,6 +324,7 @@ private fun ActionRow(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boole
                 openTrackSheet(app, nav, t, listOf(
                     SheetItem("Add to playlist", Glyph.PLUS) { nav.sheet = playlistPicker(app, nav, t) },
                     SheetItem("Equalizer" + if (app.prefs.eq != "Off") "  (${app.prefs.eq})" else "", Glyph.LIST) { nav.sheet = eqSheet(app) },
+                    SheetItem("Speed" + if (app.player.speed != 1f) "  (${com.ipodemu.playback.SpeedPolicy.label(app.player.speed)})" else "", Glyph.CLOCK) { nav.sheet = speedSheet(app) },
                     SheetItem("Sleep timer", Glyph.CLOCK) { nav.sheet = sleepSheet(app) },
                 ))
             }
@@ -331,6 +337,8 @@ private fun ActionRow(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boole
         if (info != null) Pill(Glyph.INFO, "Info", info.first, info.second)
         val pn = LocalPane.current
         Pill(Glyph.QUEUE, "Up next", pn?.pane == "queue") { if (pn != null) pn.toggle("queue") else nav.openQueueFromPlayer() }
+        Pill(Glyph.CLOCK, if (app.player.speed != 1f) com.ipodemu.playback.SpeedPolicy.label(app.player.speed) else "Speed", app.player.speed != 1f) { nav.sheet = speedSheet(app) }
+        Pill(Glyph.CLOCK, if (app.player.sleepMode != com.ipodemu.playback.SleepMode.OFF) sleepStatus(app) else "Sleep", app.player.sleepMode != com.ipodemu.playback.SleepMode.OFF) { nav.sheet = sleepSheet(app) }
         Pill(Glyph.LIST, "Equalizer", app.prefs.eq != "Off") { nav.sheet = eqSheet(app) }
         Pill(Glyph.PLUS, "Add to playlist", false) { nav.sheet = playlistPicker(app, nav, t) }
         Pill(Glyph.MORE, "More", false) { openTrackSheet(app, nav, t, (if (info != null && !info.first) listOf(SheetItem("Song info", Glyph.INFO) { info.second() }) else emptyList()) + SheetItem("Sleep timer", Glyph.CLOCK) { nav.sheet = sleepSheet(app) }) }
@@ -362,12 +370,39 @@ private fun Seek(snap: PlayerSnap) {
     val pos by rememberPosition(app.player, snap.playing)
     val dur = app.player.durationMs
     var scrub by remember { mutableStateOf<Float?>(null) }   // where the knob is while it is dragged or settling: the time follows it
+    // the right-hand time is what is left (a tap on it shows the whole length instead)
+    var remaining by remember { mutableStateOf(true) }
+    val buffered = if (dur > 0) (app.player.exo.bufferedPosition.toFloat() / dur).coerceIn(0f, 1f) else 0f
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    // read by a screen reader: "Seek, 1 minute 37 seconds of 5 minutes 2 seconds", with actions to jump
+    val a11y = Modifier.semantics {
+        contentDescription = "Seek"
+        stateDescription = ScrubModel.stateDescription(pos, dur)
+        customActions = listOf(
+            androidx.compose.ui.semantics.CustomAccessibilityAction("Back 10 seconds") { app.player.skipBy(-10_000L); true },
+            androidx.compose.ui.semantics.CustomAccessibilityAction("Forward 30 seconds") { app.player.skipBy(30_000L); true },
+        )
+    }
     Column(Modifier.fillMaxWidth()) {
         SeekBar(if (dur > 0) pos.toFloat() / dur else 0f, onSeek = { f -> if (dur > 0) app.player.seekTo((f * dur).toLong()) },
-            onNudge = { d -> app.player.seekBy((d * 5000).toLong()) }, Modifier.fillMaxWidth(), onScrub = { scrub = it })
-        Row(Modifier.fillMaxWidth()) {
-            Txt(fmtTime(scrub?.let { (it * dur).toLong() } ?: pos), Modifier.weight(1f), size = 12f, color = sc.onBgDim)
-            Txt(fmtTime(dur.coerceAtLeast(0)), size = 12f, color = sc.onBgDim)
+            onNudge = { d -> app.player.seekBy((d * 5000).toLong()) }, Modifier.fillMaxWidth().then(a11y), onScrub = { scrub = it }, thick = true, buffered = buffered)
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().height(28.dp)) {
+            val s = scrub
+            val widthPx = with(density) { maxWidth.toPx() }
+            if (s != null && dur > 0) {
+                // the scrub pill: the time under the finger, centred under the knob (replaces the elapsed time while dragging)
+                val bw = with(density) { 56.dp.toPx() }
+                val left = ScrubModel.bubbleLeft(s, with(density) { 12.dp.toPx() }, widthPx - with(density) { 24.dp.toPx() }, bw, widthPx)
+                Box(Modifier.offset { androidx.compose.ui.unit.IntOffset(left.toInt(), 0) }.size(width = 56.dp, height = 26.dp).clip(RoundedCornerShape(13.dp)).background(sc.accent),
+                    contentAlignment = Alignment.Center) {
+                    Txt(ScrubModel.bubbleText(s, dur), size = 13f, weight = FontWeight.Bold, color = sc.accent.readableInk(), maxLines = 1)
+                }
+            } else {
+                Txt(fmtTime(pos), Modifier.align(Alignment.CenterStart), size = 12f, color = sc.onBgDim)
+            }
+            Txt(if (remaining) ScrubModel.remainingText(pos, dur) else fmtTime(dur.coerceAtLeast(0)),
+                Modifier.align(Alignment.CenterEnd).clickable(onClickLabel = if (remaining) "Show total length" else "Show time left") { remaining = !remaining }.padding(vertical = 4.dp),
+                size = 12f, color = sc.onBgDim)
         }
     }
 }
@@ -414,14 +449,20 @@ private fun PlayDisc(playing: Boolean, size: Dp, focus: FocusRequester, onClick:
     val sc = LocalScheme.current
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
+    val pressed by src.collectIsPressedAsState()
     Box(
-        Modifier.size(size).focusRequester(focus).clip(CircleShape).background(Color.White)
+        Modifier.size(size).pressSpring(pressed, 0.94f).focusRequester(focus).clip(CircleShape).background(Color.White)
             .clickable(src, null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         // the focus ring is inset and in the accent: a white ring on the white disc cannot be seen
         if (focused) Box(Modifier.fillMaxSize().padding(3.dp).border(3.dp, sc.accent, CircleShape))
-        GlyphIcon(if (playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(size * 0.45f), Color.Black)
+        // the glyph morphs (a short scale-and-fade) instead of swapping; no motion when animations are off
+        androidx.compose.animation.AnimatedContent(playing, label = "playPause", transitionSpec = {
+            if (Tweaks.motion) (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(140)) + androidx.compose.animation.scaleIn(androidx.compose.animation.core.tween(160), initialScale = 0.6f)) togetherWith
+                (androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(90)) + androidx.compose.animation.scaleOut(androidx.compose.animation.core.tween(120), targetScale = 0.6f))
+            else androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
+        }) { p -> GlyphIcon(if (p) Glyph.PAUSE else Glyph.PLAY, Modifier.size(size * 0.45f), Color.Black) }
     }
 }
 
@@ -517,4 +558,30 @@ private fun ArtOrPanel(t: Track, snap: PlayerSnap, lyrics: Boolean, info: Boolea
     }
     if (pn == null) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content(if (info) "info" else if (lyrics) "lyrics" else "art") }
     else PanePager(pn, Modifier.fillMaxSize(), page = content)
+}
+
+/** Skip back 10 s and forward 30 s, for spoken word, long items and any changed speed. */
+@Composable
+private fun LongItemControls(snap: PlayerSnap) {
+    val app = LocalApp.current
+    val t = snap.track ?: return
+    if (!com.ipodemu.playback.SpeedPolicy.showLongItemControls(t.genre, app.player.durationMs, app.player.speed)) return
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+        TextPill("Back 10 s", "Back 10 seconds") { app.player.skipBy(-10_000L) }
+        Spacer(Modifier.width(12.dp))
+        TextPill("Forward 30 s", "Forward 30 seconds") { app.player.skipBy(30_000L) }
+    }
+}
+
+@Composable
+private fun TextPill(text: String, description: String, onClick: () -> Unit) {
+    val src = remember { MutableInteractionSource() }
+    val focused by src.collectIsFocusedAsState()
+    Box(
+        Modifier.height(44.dp).clip(RoundedCornerShape(22.dp)).background(Color(0x1FFFFFFF))
+            .then(if (focused) Modifier.border(2.dp, Color.White, RoundedCornerShape(22.dp)) else Modifier)
+            .semantics { contentDescription = description }
+            .clickable(src, null, onClick = onClick).padding(horizontal = 18.dp),
+        contentAlignment = Alignment.Center,
+    ) { Txt(text, size = 14f, weight = FontWeight.SemiBold, color = Color.White, maxLines = 1) }
 }

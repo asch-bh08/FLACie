@@ -47,10 +47,14 @@ class UserData(ctx: Context) {
     /** Per-track observable flag: toggling one favourite recomposes only that row, not every row. */
     fun favState(path: String): androidx.compose.runtime.State<Boolean> = favStates.getOrPut(path) { androidx.compose.runtime.mutableStateOf(path in favorites) }
 
+    /** Called after a favourite is added or removed (the offline library follows it). */
+    var onFavoritesChanged: (() -> Unit)? = null
+
     fun toggleFavorite(path: String) {
         if (!favorites.remove(path)) favorites.add(path)
         favStates[path]?.value = path in favorites
         changed()
+        onFavoritesChanged?.invoke()
     }
 
     fun recordDownload(e: DownloadEntry) {

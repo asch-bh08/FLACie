@@ -58,7 +58,7 @@
                 </div>
                 <div class="seek big">
                     <span>@Time(Player.Position)</span>
-                    <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" style="--fill:@(Player.Duration > 0 ? Math.Clamp(hold.Value(Player.Position) / Player.Duration * 100, 0, 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "0")%" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
+                    <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" aria-valuetext="@Spoken(Player.Position, Player.Duration)" style="--fill:@(Player.Duration > 0 ? Math.Clamp(hold.Value(Player.Position) / Player.Duration * 100, 0, 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "0")%" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
                     <span>@Time(Player.Duration)</span>
                 </div>
                 <div class="np-controls">
@@ -69,6 +69,7 @@
                     <button class="icon-btn lg @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="22" /></button>
                 </div>
                 <div class="np-volume"><VolumeControl /></div>
+                <SpeedSleep />
             </section>
             <section class="np-side">
                 <div class="np-tabs" role="tablist">

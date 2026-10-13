@@ -1,0 +1,44 @@
+@inherits UserComponent
+@* Playback speed, the sleep timer and (for spoken word, long items or a changed speed) skip back 10 / forward 30, under the controls of the full-screen player. *@
+@if (Player.Current is { } t)
+{
+    <div class="speed-sleep" id="speed-sleep">
+        <Dropdown Label="Speed" Class="mini" ShowAny="false" Value="@SpeedKey" Options="SpeedOptions" ValueChanged="OnSpeed" />
+        <Dropdown Label="Sleep" Class="mini" ShowAny="false" Value="@SleepKey" Options="SleepOptions" ValueChanged="OnSleep" />
+        @if (SpeedPolicy.ShowLongItemControls(t.Genre, t.DurationMs, Player.Speed))
+        {
+            <button class="pill-btn" @onclick="() => Player.SkipByAsync(-10)" aria-label="Back 10 seconds">Back 10 s</button>
+            <button class="pill-btn" @onclick="() => Player.SkipByAsync(30)" aria-label="Forward 30 seconds">Forward 30 s</button>
+        }
+    </div>
+}
+@code {
+    string SpeedKey => SpeedPolicy.Label(Player.Speed);
+    static readonly IReadOnlyList<DropOption> SpeedOptions = SpeedPolicy.Steps.Select(s => new DropOption(SpeedPolicy.Label(s), SpeedPolicy.Label(s) + (s == 1 ? " (normal)" : ""))).ToList();
+
+    string SleepKey => Player.SleepMode switch { SleepMode.EndOfTrack => "track", SleepMode.EndOfAlbum => "album", SleepMode.Minutes => "timer", _ => "off" };
+
+    IReadOnlyList<DropOption> SleepOptions
+    {
+        get
+        {
+            var l = new List<DropOption> { new("off", "Off"), new("track", Player.SleepMode == SleepMode.EndOfTrack ? Player.SleepStatus() : "End of this song"), new("album", Player.SleepMode == SleepMode.EndOfAlbum ? Player.SleepStatus() : "End of this album") };
+            if (Player.SleepMode == SleepMode.Minutes) l.Add(new("timer", Player.SleepStatus()));
+            foreach (var m in new[] { 15, 30, 60, 90, 120 }) l.Add(new("m" + m, m + " minutes"));
+            if (Player.SleepMode != SleepMode.Off) l.Add(new("extend", "Add " + SleepPlan.ExtendMinutes + " minutes"));
+            return l;
+        }
+    }
+
+    Task OnSpeed(string v) => Player.SetSpeedAsync(double.Parse(v.TrimEnd('x'), System.Globalization.CultureInfo.InvariantCulture));
+
+    Task OnSleep(string v) => v switch
+    {
+        "off" => Player.SetSleepAsync(SleepMode.Off),
+        "track" => Player.SetSleepAsync(SleepMode.EndOfTrack),
+        "album" => Player.SetSleepAsync(SleepMode.EndOfAlbum),
+        "extend" => Player.ExtendSleepAsync(),
+        _ when v.StartsWith('m') && int.TryParse(v[1..], out var m) => Player.SetSleepAsync(SleepMode.Minutes, m),
+        _ => Task.CompletedTask,
+    };
+}

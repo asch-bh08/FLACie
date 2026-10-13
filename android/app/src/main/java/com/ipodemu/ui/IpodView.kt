@@ -53,6 +53,15 @@ class IpodView(context: Context) : View(context) {
     private val handler = Handler(Looper.getMainLooper())
     private val feedback = Feedback(context, prefs, this)
     private val physics = WheelPhysics()
+    // after a fast flick the wheel coasts on (slowing down), handing out the same detents; any new touch stops it
+    private val inertia = com.ipodemu.input.WheelInertia()
+    private val inertiaRunnable = object : Runnable {
+        override fun run() {
+            val n = inertia.step(android.os.SystemClock.uptimeMillis())
+            if (n != 0) dispatch(Input.Scroll(n))
+            if (inertia.active) postOnAnimation(this)
+        }
+    }
 
     private var theme: IpodTheme = Themes.create(prefs)
     private val menu = MenuBuilder(app) { row -> applyTheme(row) }
@@ -552,6 +561,7 @@ class IpodView(context: Context) : View(context) {
         val gain = floatArrayOf(1f, 1.5f, 2.2f, 3.2f)[prefs.wheelAccel.coerceIn(0, 3)]
         physics.config = physics.config.copy(degPerDetent = deg, maxGain = gain)
         if (!physics.down(e.x, e.y, e.eventTime)) return false
+        inertia.stop(); removeCallbacks(inertiaRunnable)
         glowX = e.x; glowY = e.y; glowOn = physics.pendingZone != Zone.CENTER
         seekHeld = false
         pressed = physics.pendingZone
@@ -569,9 +579,11 @@ class IpodView(context: Context) : View(context) {
             MotionEvent.ACTION_UP -> {
                 handler.removeCallbacks(holdRunnable)
                 glowOn = false
+                val v = physics.velocityDps; val wasRotating = physics.isRotating
                 val z = physics.up(e.x, e.y, e.eventTime)
                 pressed = null
                 if (z != null && !seekHeld) tapZone(z)
+                if (wasRotating && !seekHeld && inertia.start(v, e.eventTime)) postOnAnimation(inertiaRunnable)
                 seekHeld = false
                 invalidate()
             }

@@ -538,14 +538,19 @@ fun EqualizerBars(modifier: Modifier = Modifier, playing: Boolean, color: Color)
     }
 }
 
-/** iPod-style progress track with a knob; drag or tap to seek, left/right keys nudge. */
+/**
+ * Progress track with a knob; drag or tap to seek, left/right keys nudge. [thick] is the Now Playing look (modern style): an 8 dp track that grows to 10 dp
+ * under the finger, a bigger knob, a lighter [buffered] stretch behind the played part, and a haptic tick each tenth of the bar while dragging.
+ */
 @Composable
-fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, onNudge: (Float) -> Unit, modifier: Modifier = Modifier, onScrub: (Float?) -> Unit = {}) {
+fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, onNudge: (Float) -> Unit, modifier: Modifier = Modifier, onScrub: (Float?) -> Unit = {}, thick: Boolean = false, buffered: Float = 0f) {
     val sc = LocalScheme.current
     val style = LocalStyle.current
+    val big = thick && style.modern
     var drag by remember { mutableStateOf<Float?>(null) }
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     // after the finger lifts the knob stays where it was let go until playback reports that position (it used to jump back to the old place for up to a quarter of a second, then forward)
     var pending by remember { mutableStateOf<Float?>(null) }
     val shown = SeekHold.shown(drag, pending, fraction)
@@ -555,8 +560,14 @@ fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, onNudge: (Float) -> Unit, 
     androidx.compose.runtime.LaunchedEffect(drag, pending) { scrub(drag ?: pending) }
     // pointerInput(Unit) outlives recompositions: call the latest onSeek, not the one captured before the track had a duration.
     val seek by androidx.compose.runtime.rememberUpdatedState(onSeek)
+    // the track and the knob grow under the finger (settle at once when animations are off)
+    val dragging = drag != null
+    val trackTarget = if (big) (if (dragging) 10f else 8f) else if (style.modern) 4f else 8f
+    val knobTarget = if (big) (if (dragging) 12f else 8f) else if (dragging || focused) 11f else if (style.modern) 7f else 8f
+    val trackDp by androidx.compose.animation.core.animateFloatAsState(trackTarget, if (Tweaks.motion) androidx.compose.animation.core.tween(120) else androidx.compose.animation.core.snap(), label = "track")
+    val knobDp by androidx.compose.animation.core.animateFloatAsState(knobTarget, if (Tweaks.motion) androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMedium) else androidx.compose.animation.core.snap(), label = "knob")
     Box(
-        modifier.height(44.dp)
+        modifier.height(if (big) 48.dp else 44.dp)
             .onKeyEvent {
                 if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionLeft) { onNudge(-1f); true }
                 else if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionRight) { onNudge(1f); true } else false
@@ -573,7 +584,9 @@ fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, onNudge: (Float) -> Unit, 
                     while (true) {
                         val ev = awaitPointerEvent()
                         val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                        val prev = drag ?: 0f
                         drag = ((c.position.x - 12.dp.toPx()) / (size.width - 24.dp.toPx()).coerceAtLeast(1f)).coerceIn(0f, 1f)
+                        if (ScrubModel.tickCrossed(prev, drag ?: prev)) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                         c.consume()
                         if (!c.pressed) { lifted = true; break }
                     }
@@ -583,15 +596,18 @@ fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, onNudge: (Float) -> Unit, 
             },
         contentAlignment = Alignment.CenterStart,
     ) {
-        Canvas(Modifier.fillMaxWidth().height(36.dp)) {
+        Canvas(Modifier.fillMaxWidth().height(if (big) 40.dp else 36.dp)) {
             val modern = style.modern
-            val th = (if (modern) 4.dp else 8.dp).toPx(); val cy = size.height / 2
+            val th = trackDp.dp.toPx(); val cy = size.height / 2
             val pad = 12.dp.toPx(); val tw = size.width - 2 * pad   // the knob's radius of room at each end: it is never cut off at the start or the end
-            drawRoundRect(sc.onBg.copy(alpha = .22f), Offset(pad, cy - th / 2), Size(tw, th), androidx.compose.ui.geometry.CornerRadius(th / 2))
+            val round = androidx.compose.ui.geometry.CornerRadius(th / 2)
+            drawRoundRect(sc.onBg.copy(alpha = .22f), Offset(pad, cy - th / 2), Size(tw, th), round)
+            // what is already loaded, ahead of the playing position
+            if (big && buffered > shown) drawRoundRect(sc.onBg.copy(alpha = .38f), Offset(pad, cy - th / 2), Size(tw * buffered.coerceIn(0f, 1f), th), round)
             val fx = pad + tw * shown
-            if (fx > pad && modern) drawRoundRect(sc.onBg, Offset(pad, cy - th / 2), Size(fx - pad, th), androidx.compose.ui.geometry.CornerRadius(th / 2))
-            else if (fx > pad) drawRoundRect(Brush.verticalGradient(listOf(sc.accentLight, sc.accentDark), cy - th / 2, cy + th / 2), Offset(pad, cy - th / 2), Size(fx - pad, th), androidx.compose.ui.geometry.CornerRadius(th / 2))
-            drawCircle(Color.White, if (drag != null || focused) 11.dp.toPx() else if (modern) 7.dp.toPx() else 8.dp.toPx(), Offset(fx, cy))
+            if (fx > pad && modern) drawRoundRect(sc.onBg, Offset(pad, cy - th / 2), Size(fx - pad, th), round)
+            else if (fx > pad) drawRoundRect(Brush.verticalGradient(listOf(sc.accentLight, sc.accentDark), cy - th / 2, cy + th / 2), Offset(pad, cy - th / 2), Size(fx - pad, th), round)
+            drawCircle(Color.White, knobDp.dp.toPx(), Offset(fx, cy))
             if (!modern) drawCircle(sc.accent, 4.dp.toPx(), Offset(fx, cy))
         }
     }

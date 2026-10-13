@@ -118,6 +118,7 @@ sealed interface Screen {
     data object Queue : Screen
     data object Settings : Screen
     data object Dashboard : Screen
+    data object Offline : Screen
     data object Music : Screen
     /** Modern theme's Library tab. */
     data object Library : Screen
@@ -156,14 +157,14 @@ class PlayerNav {
 
 /** What the player is doing, as one immutable snapshot for composition. */
 @androidx.compose.runtime.Immutable
-data class PlayerSnap(val track: Track?, val playing: Boolean, val shuffle: Boolean, val repeat: Int, val index: Int, val count: Int, val rev: Int = 0)
+data class PlayerSnap(val track: Track?, val playing: Boolean, val shuffle: Boolean, val repeat: Int, val index: Int, val count: Int, val rev: Int = 0, val speed: Float = 1f, val sleep: com.ipodemu.playback.SleepMode = com.ipodemu.playback.SleepMode.OFF)
 
 @Composable
 fun rememberSnap(player: PlayerController, prefs: Prefs): PlayerSnap {
     var tick by remember { mutableIntStateOf(0) }
     DisposableEffect(player) { val d = player.observe { tick++ }; onDispose { d() } }
     @Suppress("UNUSED_EXPRESSION") tick
-    return PlayerSnap(player.current, player.wantsToPlay, prefs.shuffle, prefs.repeat, player.queueIndex, player.queue.size, player.queueRev)
+    return PlayerSnap(player.current, player.wantsToPlay, prefs.shuffle, prefs.repeat, player.queueIndex, player.queue.size, player.queueRev, player.speed, player.sleepMode)
 }
 
 @Composable
@@ -294,6 +295,7 @@ private fun ScreenContent(screen: Screen, nav: PlayerNav, snap: PlayerSnap) {
         Screen.Queue -> QueueScreen(nav, snap)
         Screen.Settings -> SettingsScreen(nav)
         Screen.Dashboard -> SettingsScreen(nav, dashboard = true)
+        Screen.Offline -> OfflineScreen(nav)
         Screen.Music -> MusicMenu(nav)
         Screen.Library -> ExploreScreen(nav, snap)
         Screen.Sources -> LibraryHome(nav)
@@ -420,6 +422,13 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
     items += SheetItem("Add to queue", Glyph.QUEUE) { app.player.addToQueue(t) }
     items += SheetItem(if (ud.isFavorite(t.path)) "Remove from favorites" else "Add to favorites", if (ud.isFavorite(t.path)) Glyph.HEART_FILLED else Glyph.HEART) { ud.toggleFavorite(t.path) }
     items += SheetItem("Add to playlist...", Glyph.PLUS) { nav.sheet = playlistPicker(app, nav, t) }
+    if (t.source == com.ipodemu.library.TrackSource.JELLYFIN) {
+        val off = app.offline.entry(t.path)
+        if (off == null) items += SheetItem("Download for offline", Glyph.DOWN) { val n = app.offline.enqueue(listOf(t), com.ipodemu.library.offline.OfflineReason.MANUAL); app.ui.say(if (n > 0) "Downloading \"${t.title}\"" else "Already offline") }
+        else items += SheetItem(when (off.state) { com.ipodemu.library.offline.OfflineState.DONE -> "Remove download"; com.ipodemu.library.offline.OfflineState.FAILED -> "Download failed: try again"; else -> "Cancel download" }, if (off.state == com.ipodemu.library.offline.OfflineState.FAILED) Glyph.DOWN else Glyph.CLOSE) {
+            if (off.state == com.ipodemu.library.offline.OfflineState.FAILED) app.offline.enqueue(listOf(t), com.ipodemu.library.offline.OfflineReason.MANUAL) else app.offline.remove(t.path)
+        }
+    }
     if (t.isMusic && t.album.isNotEmpty()) items += SheetItem("Go to album", Glyph.ALBUM) { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ALBUM, t.albumKey)) }
     if (t.isMusic && t.artist.isNotEmpty()) items += SheetItem("Go to artist", Glyph.ARTIST) { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist })) }
     items += extra

@@ -2,7 +2,8 @@
 // reports time, state and the end of each song back. Media Session gives lock-screen and headphone controls.
 window.flacie = (() => {
   const audio = new Audio();
-  try { const v = parseFloat(localStorage.getItem("flacie.volume")); if (v >= 0 && v <= 1) audio.volume = v; } catch { }
+  let baseVolume = 1, fadeGain = 1;
+  try { const v = parseFloat(localStorage.getItem("flacie.volume")); if (v >= 0 && v <= 1) { audio.volume = v; baseVolume = v; } } catch { }
   audio.preload = "auto";
   let dotnet = null, lastSent = 0;
   const send = (m, ...a) => dotnet && dotnet.invokeMethodAsync(m, ...a).catch(() => {});
@@ -553,11 +554,21 @@ window.flacie = (() => {
     // the X on the bar: stop and let go of the file
     stop() { if (pendingLoad) { clearTimeout(pendingLoad); pendingLoad = 0; } audio.pause(); audio.removeAttribute("src"); audio.load(); document.title = "FLACie"; if ("mediaSession" in navigator) navigator.mediaSession.metadata = null; },
     seek(s) { if (isFinite(s)) audio.currentTime = s; },
+    // playback speed with the pitch kept (setting src reloads the element, which would reset playbackRate: the default is set too)
+    rate(r) {
+      if (r === undefined || r === null) return audio.playbackRate;
+      const x = Math.min(3, Math.max(0.5, Number(r) || 1));
+      audio.defaultPlaybackRate = x; audio.playbackRate = x;
+      audio.preservesPitch = true; audio.mozPreservesPitch = true; audio.webkitPreservesPitch = true;
+      return audio.playbackRate;
+    },
+    // the sleep timer's fade-out scales the volume the person set
+    fade(g) { fadeGain = Math.min(1, Math.max(0, Number(g))); audio.volume = baseVolume * fadeGain; return audio.volume; },
     volume(v) {
       // the graphs read their own twin of the stream at full volume, so they look the same at any volume
-      if (v === undefined || v === null) return audio.volume;
+      if (v === undefined || v === null) return baseVolume;
       const x = Math.min(1, Math.max(0, v));
-      audio.volume = x;
+      baseVolume = x; audio.volume = x * fadeGain;
       try { localStorage.setItem("flacie.volume", String(x)); } catch { }
       return x;
     },

@@ -1,0 +1,27 @@
+@inherits UserComponent
+@* The song's stars, as an icon button beside the heart: opens five stars to pick from. Kept in the profile (so every device sees it) and written to Jellyfin when the song is a Jellyfin one. *@
+@if (Player.Current is { } t)
+{
+    var stars = Session.Rating(t);
+    <ChipMenu Label="Rating" IconOnly="true" IconName="@(stars > 0 ? "star-fill" : "star")" Text="@Ratings.Label(stars)" Active="@(stars > 0)">
+        <div class="stars" role="group" aria-label="Rate this song">
+            @for (var i = 1; i <= 5; i++)
+            {
+                var n = i;
+                <button type="button" class="star @(n <= stars ? "on" : "")" aria-label="@Ratings.Label(n)" aria-pressed="@(n == stars ? "true" : "false")" @onclick="() => Rate(t, n == stars ? 0 : n)"><Icon Name="@(n <= stars ? "star-fill" : "star")" Size="26" /></button>
+            }
+        </div>
+        @if (stars > 0) { <button role="menuitem" class="danger" @onclick="() => Rate(t, 0)"><span>Clear the rating</span></button> }
+    </ChipMenu>
+}
+@code {
+    [Inject] JellyfinClient Jf { get; set; } = default!;
+
+    void Rate(Track t, int stars)
+    {
+        Session.SetRating(t, stars);
+        SaveProfile();
+        // the stars also go to Jellyfin as the item's own rating (best effort)
+        if (t.JellyfinId is { Length: > 0 } id && Session.Jellyfin is { } a) _ = Task.Run(async () => { try { await Jf.SetRatingAsync(a, id, stars); } catch { } });
+    }
+}

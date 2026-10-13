@@ -28,6 +28,33 @@ class SimActivity : Activity() {
                 fun <T> call(block: () -> ListenableFuture<T>): T { val f = SettableFuture.create<T>(); h.post { try { f.setFuture(block()) } catch (e: Throwable) { f.setException(e) } }; return f.get() }
                 fun <T> onLooper(block: () -> T): T { val f = SettableFuture.create<T>(); h.post { try { f.set(block()) } catch (e: Throwable) { f.setException(e) } }; return f.get() }
                 Log.i(tag, "connected as ${packageName} uid=${android.os.Process.myUid()}")
+                // "observe": the phone is already playing a big queue; look at what a head unit is shown of it and drive it
+                if (intent.getBooleanExtra("observe", false)) {
+                    fun describe(tag2: String) = onLooper { "$tag2: items=${b.mediaItemCount} index=${b.currentMediaItemIndex} title='${b.mediaMetadata.title}' playing=${b.isPlaying} shuffle=${b.shuffleModeEnabled} repeat=${b.repeatMode} speed=${b.playbackParameters.speed}" }
+                    Log.i(tag, describe("seen"))
+                    val titles = onLooper { (0 until minOf(b.mediaItemCount, 400)).map { b.getMediaItemAt(it).mediaMetadata.title.toString() } }
+                    Log.i(tag, "window first=${titles.firstOrNull()} last=${titles.lastOrNull()} size=${titles.size}")
+                    val art = onLooper { b.getMediaItemAt(b.currentMediaItemIndex).mediaMetadata.artworkUri?.toString() }
+                    Log.i(tag, "current artwork uri: $art")
+                    onLooper { b.seekToDefaultPosition(minOf(b.currentMediaItemIndex + 5, b.mediaItemCount - 1)) }; Thread.sleep(2500)
+                    Log.i(tag, describe("after picking the 5th upcoming item"))
+                    onLooper { b.seekToNextMediaItem() }; Thread.sleep(2000)
+                    Log.i(tag, describe("after next"))
+                    onLooper { b.seekToPreviousMediaItem() }; Thread.sleep(2000)
+                    Log.i(tag, describe("after previous"))
+                    onLooper { b.shuffleModeEnabled = true }; Thread.sleep(1500)
+                    Log.i(tag, describe("after shuffle on"))
+                    val sh = onLooper { (0 until minOf(b.mediaItemCount, 400)).map { b.getMediaItemAt(it).mediaMetadata.title.toString() } }
+                    Log.i(tag, "shuffled window starts: ${sh.take(6)}")
+                    onLooper { b.shuffleModeEnabled = false; b.repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL }; Thread.sleep(1500)
+                    Log.i(tag, describe("after repeat all"))
+                    onLooper { b.repeatMode = androidx.media3.common.Player.REPEAT_MODE_OFF; b.setPlaybackSpeed(1.5f) }; Thread.sleep(1500)
+                    Log.i(tag, describe("after speed 1.5"))
+                    onLooper { b.setPlaybackSpeed(1f); b.pause() }; Thread.sleep(1000)
+                    Log.i(tag, describe("after pause"))
+                    Log.i(tag, "sim done")
+                    return@Thread
+                }
                 val root = call { b.getLibraryRoot(null) }
                 Log.i(tag, "root=${root.value?.mediaId} code=${root.resultCode}")
                 fun kids(id: String, n: Int = 50): List<MediaItem> = call { b.getChildren(id, 0, n, null) }.value?.toList() ?: emptyList()

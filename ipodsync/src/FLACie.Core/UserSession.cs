@@ -356,6 +356,15 @@ public sealed class UserSession
             foreach (var rf in (remote["favorites"] as JsonArray ?? []).OfType<JsonObject>())
                 if (!favs.OfType<JsonObject>().Any(f => S(f, "p") == S(rf, "p") || Matching.MatchKey(S(f, "t"), S(f, "a")) == Matching.MatchKey(S(rf, "t"), S(rf, "a")))) { favs.Add(JsonNode.Parse(rf.ToJsonString())); changed = true; }
             Profile["playlists"] = mine; Profile["deleted"] = deleted; Profile["favorites"] = favs;
+            // ratings: per song the newest choice wins
+            var ratings = Profile["ratings"] as JsonArray ?? new JsonArray();
+            foreach (var rr in (remote["ratings"] as JsonArray ?? []).OfType<JsonObject>())
+            {
+                var lr = ratings.OfType<JsonObject>().FirstOrDefault(r => S(r, "p") == S(rr, "p") || Matching.MatchKey(S(r, "t"), S(r, "a")) == Matching.MatchKey(S(rr, "t"), S(rr, "a")));
+                if (lr is null) { ratings.Add(JsonNode.Parse(rr.ToJsonString())); changed = true; }
+                else if ((rr["w"]?.GetValue<long>() ?? 0) > (lr["w"]?.GetValue<long>() ?? 0)) { lr["r"] = rr["r"]?.DeepClone(); lr["w"] = rr["w"]?.DeepClone(); changed = true; }
+            }
+            Profile["ratings"] = ratings;
         }
         profileSeen = seen;
         if (changed) { ProfileRev++; Changed?.Invoke(); }
@@ -379,6 +388,30 @@ public sealed class UserSession
         if (hit is not null) arr.Remove(hit); else arr.Insert(0, EntryJson(t));
         Profile["favorites"] = arr; Changed?.Invoke();
     }
+
+    // ---- star ratings (in the profile: 1 to 5, kept with the song's path and title so they follow it across sources) ----
+
+    JsonObject? RatingEntry(Track t) => (Profile["ratings"] as JsonArray ?? []).OfType<JsonObject>().FirstOrDefault(r => S(r, "p") == t.Path || Matching.MatchKey(S(r, "t"), S(r, "a")) == Matching.MatchKey(t));
+
+    /// <summary>The song's stars, 0 when it is not rated.</summary>
+    public int Rating(Track t) => RatingEntry(t) is { } r ? Ratings.Clamp(r["r"]?.GetValue<int>() ?? 0) : 0;
+
+    /// <summary>Rates a song (0 clears it). The time is kept so the newest choice wins when two devices disagree.</summary>
+    public void SetRating(Track t, int stars)
+    {
+        stars = Ratings.Clamp(stars);
+        var arr = Profile["ratings"] as JsonArray ?? new JsonArray();
+        var hit = RatingEntry(t);
+        if (hit is not null) arr.Remove(hit);
+        if (stars > 0) arr.Insert(0, new JsonObject { ["p"] = t.Path, ["t"] = t.Title, ["a"] = t.Artist, ["r"] = stars, ["w"] = Now() });
+        else arr.Insert(0, new JsonObject { ["p"] = t.Path, ["t"] = t.Title, ["a"] = t.Artist, ["r"] = 0, ["w"] = Now() });   // a cleared rating is kept (with its time) so the clearing wins over an older rating elsewhere
+        while (arr.Count > 5000) arr.RemoveAt(arr.Count - 1);
+        Profile["ratings"] = arr; Changed?.Invoke();
+    }
+
+    /// <summary>The rated songs, newest rating first (cleared ones left out).</summary>
+    public IReadOnlyList<(PlaylistEntry Entry, int Stars)> Rated => (Profile["ratings"] as JsonArray ?? []).OfType<JsonObject>()
+        .Where(r => (r["r"]?.GetValue<int>() ?? 0) > 0).Select(r => (Entry(r), r["r"]!.GetValue<int>())).ToList();
 
     // ---- play history (in the profile, so Listen again follows the account) ----
 

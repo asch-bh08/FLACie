@@ -1418,3 +1418,9 @@ html.buffering .play .ic { opacity: .55; }
 .icon-btn.chip-ico { color: var(--ink); opacity: .85; }
 .icon-btn.chip-ico:hover, .icon-btn.chip-ico[aria-expanded="true"] { opacity: 1; }
 .icon-btn.chip-ico.on { color: var(--accent); opacity: 1; }
+
+/* star rating menu */
+.stars { display: flex; gap: 2px; padding: 4px 6px 6px; }
+.chip-pop .stars button.star { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; border-radius: 10px; color: var(--dim); }
+.chip-pop .stars button.star:hover { background: var(--surface-3); color: var(--ink); }
+.chip-pop .stars button.star.on { color: #ffc94d; }

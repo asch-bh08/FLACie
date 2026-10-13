@@ -194,3 +194,13 @@ public static class FadeBetween
         return Math.Min(up, down);
     }
 }
+
+/// <summary>Star ratings (the same rules as the Android app's Ratings.kt): 1 to 5 stars kept in the profile, written to Jellyfin as a rating of 2 to 10.</summary>
+public static class Ratings
+{
+    public static int Clamp(int stars) => Math.Clamp(stars, 0, 5);
+    /// <summary>Jellyfin's UserData.Rating runs 0 to 10.</summary>
+    public static double ToJellyfin(int stars) => Clamp(stars) * 2.0;
+    public static int FromJellyfin(double rating) => double.IsNaN(rating) ? 0 : Clamp((int)Math.Round(rating / 2.0, MidpointRounding.AwayFromZero));
+    public static string Label(int stars) => stars <= 0 ? "not rated" : stars == 1 ? "1 star" : stars + " stars";
+}

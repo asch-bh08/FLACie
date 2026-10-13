@@ -44,6 +44,18 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
     /// <summary>A GET on the user's Jellyfin server with their token (JSON, or null for an empty reply).</summary>
     public Task<JsonNode?> GetAsync(JellyfinAccount a, string path, CancellationToken ct = default, int? slowMs = null) => Send(HttpMethod.Get, a.Server + path, a.Token, null, ct, slowMs);
     public Task<JsonNode?> PostAsync(JellyfinAccount a, string path, JsonNode? body = null, CancellationToken ct = default) => Send(HttpMethod.Post, a.Server + path, a.Token, body, ct);
+    /// <summary>Writes the stars to Jellyfin as the item's rating (0 to 10); the newer endpoint first, the older one when the server does not know it. Best effort: a failure changes nothing here.</summary>
+    public async Task<bool> SetRatingAsync(JellyfinAccount a, string itemId, int stars, CancellationToken ct = default)
+    {
+        var body = new JsonObject { ["Rating"] = Ratings.ToJellyfin(stars) };
+        foreach (var path in new[] { $"/UserItems/{itemId}/UserData?userId={a.UserId}", $"/Users/{a.UserId}/Items/{itemId}/UserData" })
+        {
+            try { await PostAsync(a, path, body, ct); return true; }
+            catch (Exception) { }
+        }
+        return false;
+    }
+
     public Task<JsonNode?> DeleteAsync(JellyfinAccount a, string path, CancellationToken ct = default) => Send(HttpMethod.Delete, a.Server + path, a.Token, null, ct);
 
     /// <summary>The live connection Jellyfin's remote-control and SyncPlay messages arrive on.</summary>

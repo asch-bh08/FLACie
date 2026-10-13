@@ -151,3 +151,35 @@ public class FadeBetweenTests
         for (long p = -5_000; p <= 205_000; p += 777) { var g = FadeBetween.Gain(p, 200_000, 8_000, true, true); Assert.InRange(g, 0, 1); }
     }
 }
+
+public class RatingTests
+{
+    static Track T(string? path = null, string title = "Song", string artist = "Art") => new(path ?? ("http://jf/Audio/" + title + "/stream"), title, artist, "Al", artist, 1, 1, 1000, 0, null, 0, TrackSource.Jellyfin);
+    static UserSession S() => new("jellyfin", new JellyfinAccount("http://jf.test", "u1", "tester", "tok"), null) { Id = "r1" };
+
+    [Fact] public void StarsMapToJellyfinsTenPointScaleAndBack()
+    {
+        Assert.Equal(8.0, Ratings.ToJellyfin(4)); Assert.Equal(10.0, Ratings.ToJellyfin(9)); Assert.Equal(0.0, Ratings.ToJellyfin(-3));
+        Assert.Equal(4, Ratings.FromJellyfin(8)); Assert.Equal(4, Ratings.FromJellyfin(7.4)); Assert.Equal(0, Ratings.FromJellyfin(double.NaN)); Assert.Equal(5, Ratings.FromJellyfin(20));
+        Assert.Equal("not rated", Ratings.Label(0)); Assert.Equal("1 star", Ratings.Label(1)); Assert.Equal("5 stars", Ratings.Label(5));
+    }
+
+    [Fact] public void ARatingIsKeptAndFoundByPathOrByTitleAndArtist()
+    {
+        var s = S(); var t = T();
+        Assert.Equal(0, s.Rating(t));
+        s.SetRating(t, 4); Assert.Equal(4, s.Rating(t));
+        Assert.Equal(4, s.Rating(T("/other/path.flac")));   // the same song from another source
+        Assert.Equal(0, s.Rating(T(title: "Another song")));
+        s.SetRating(t, 2); Assert.Equal(2, s.Rating(t)); Assert.Single(s.Rated);
+        s.SetRating(t, 9); Assert.Equal(5, s.Rating(t));
+        s.SetRating(t, 0); Assert.Equal(0, s.Rating(t)); Assert.Empty(s.Rated);
+    }
+
+    [Fact] public void RatedListsNewestFirst()
+    {
+        var s = S();
+        s.SetRating(T(title: "A"), 3); s.SetRating(T(title: "B"), 5);
+        Assert.Equal(["B", "A"], s.Rated.Select(r => r.Entry.Title).ToArray()); Assert.Equal([5, 3], s.Rated.Select(r => r.Stars).ToArray());
+    }
+}

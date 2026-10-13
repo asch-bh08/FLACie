@@ -251,6 +251,7 @@ class AccountSync(private val app: App) {
             .put("user", p.accountUserName).put("token", p.accountToken) else JSONObject.NULL
         val built = JSONObject().put("v", 2).put("updated", System.currentTimeMillis()).put("services", services).put("account", account)
             .put("favorites", JSONArray().also { a -> ud.favorites.toList().forEach { a.put(meta(it)) } })
+            .put("ratings", ud.ratings.toJson())
             .put("playlists", lists)
             .put("deleted", JSONArray(ud.deletedPlaylists.toList()))
             .put("hidden", JSONArray(p.hiddenPlaylists.toList()))
@@ -303,7 +304,8 @@ class AccountSync(private val app: App) {
         val deleted = r.optJSONArray("deleted")?.let { a -> List(a.length()) { a.getString(it) } } ?: emptyList()
         // old on-device playlists hidden on another install stay hidden here
         r.optJSONArray("hidden")?.let { a -> p.hiddenPlaylists = p.hiddenPlaylists + List(a.length()) { a.getString(it) } }
-        kotlinx.coroutines.withContext(Dispatchers.Main) { app.userData.mergeRemote(incomingFavs, incoming, deleted) }
+        val incomingRatings = app.userData.ratings.parse(r.optJSONArray("ratings"))
+        kotlinx.coroutines.withContext(Dispatchers.Main) { app.userData.mergeRemote(incomingFavs, incoming, deleted); app.userData.mergeRatings(incomingRatings) }
         if (restored > 0) app.library.reconnectAll()
         return restored
     }

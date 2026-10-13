@@ -86,6 +86,7 @@ import androidx.compose.ui.unit.sp
 import com.ipodemu.App
 import com.ipodemu.Prefs
 import com.ipodemu.library.Group
+import com.ipodemu.library.RatingStore
 import com.ipodemu.library.Track
 import com.ipodemu.library.hiRes
 import com.ipodemu.library.AudioFacts
@@ -429,6 +430,7 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
             if (off.state == com.ipodemu.library.offline.OfflineState.FAILED) app.offline.enqueue(listOf(t), com.ipodemu.library.offline.OfflineReason.MANUAL) else app.offline.remove(t.path)
         }
     }
+    items += SheetItem("Rate" + (app.userData.rating(t).takeIf { it > 0 }?.let { "  (" + RatingStore.label(it) + ")" } ?: "") + "...", Glyph.STAR) { nav.sheet = ratingSheet(app, t) }
     if (t.isMusic) items += SheetItem("MusicBrainz match...", Glyph.INFO) { musicBrainzSheet(app, nav, t) }
     if (t.isMusic && t.album.isNotEmpty()) items += SheetItem("Go to album", Glyph.ALBUM) { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ALBUM, t.albumKey)) }
     if (t.isMusic && t.artist.isNotEmpty()) items += SheetItem("Go to artist", Glyph.ARTIST) { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist })) }
@@ -1494,4 +1496,13 @@ private fun mbSearch(app: App, nav: PlayerNav, t: Track) {
         }
         nav.sheet = SheetSpec("MusicBrainz match", "Pick the right one; nothing is changed in your files", items)
     }
+}
+
+/** The stars of a song: five to one, and clear. Kept in the profile (every device sees them) and written to Jellyfin. */
+fun ratingSheet(app: App, t: Track): SheetSpec {
+    val cur = app.userData.rating(t)
+    val items = ArrayList<SheetItem>()
+    for (n in 5 downTo 1) items += SheetItem(RatingStore.label(n) + (if (n == cur) "  (on)" else ""), if (n == cur) Glyph.CHECK else Glyph.STAR) { app.userData.setRating(t, n); app.ui.say("Rated \"${t.title}\": " + RatingStore.label(n)) }
+    if (cur > 0) items += SheetItem("Clear the rating", Glyph.CLOSE) { app.userData.setRating(t, 0) }
+    return SheetSpec("Rate", t.title, items)
 }

@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.min
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.ipodemu.library.Lyrics
+import com.ipodemu.library.RatingStore
 import com.ipodemu.library.Track
 
 /**
@@ -274,6 +275,7 @@ private fun InfoRow(snap: PlayerSnap, nav: PlayerNav) {
                     DownloadTagLine(t, size = 11.5f, showNew = false)   // the one-line title block already names the source
                 }
                 IconAction(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Unfavorite" else "Favorite", { app.userData.toggleFavorite(t.path) }, tint = if (fav) sc.accent else sc.onBg)
+                    IconAction(Glyph.STAR, "Rating: " + RatingStore.label(app.userData.rating(t)), { nav.sheet = ratingSheet(app, t) }, tint = if (app.userData.rating(t) > 0) sc.accent else sc.onBg)
             }
         } else {
             Column(Modifier.fillMaxWidth()) {
@@ -286,6 +288,7 @@ private fun InfoRow(snap: PlayerSnap, nav: PlayerNav) {
                         DownloadTagLine(t, Modifier.padding(top = 3.dp), size = 13f, showNew = false)   // the pill below already says "Streaming from new download"
                     }
                     IconAction(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Unfavorite" else "Favorite", { app.userData.toggleFavorite(t.path) }, tint = if (fav) sc.accent else sc.onBg)
+                    IconAction(Glyph.STAR, "Rating: " + RatingStore.label(app.userData.rating(t)), { nav.sheet = ratingSheet(app, t) }, tint = if (app.userData.rating(t) > 0) sc.accent else sc.onBg)
                 }
                 FormatChips(t, snap)   // the whole width of the column, so the badges stay on one line
                 if (pn?.wide == true) Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {

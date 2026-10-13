@@ -32,6 +32,7 @@
                         </div>
                     </div>
                     <button class="icon-btn lg @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="24" /></button>
+                    <RatingMenu />
                     <SpeedSleep />
                     <div class="np-more">
                         <button class="icon-btn lg" @onclick="ToggleMore" aria-label="More options" aria-haspopup="menu" aria-expanded="@(more ? "true" : "false")"><Icon Name="more" Size="24" /></button>

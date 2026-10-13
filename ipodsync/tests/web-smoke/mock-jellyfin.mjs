@@ -126,6 +126,13 @@ http
       x.DateLastSaved = new Date().toISOString();
       return json(res, 200, { id: x.Id, saved: x.DateLastSaved });
     }
+    // the ratings (UserData.Rating) the app wrote: /__userdata lists them
+    if (m === 'POST' && (/^\/UserItems\/[^/]+\/UserData$/.test(p) || /^\/Users\/u1\/Items\/[^/]+\/UserData$/.test(p))) {
+      const id = p.split('/').filter(Boolean).at(-2); const body = await readBody(req).catch(() => '');
+      let r = null; try { r = JSON.parse(body || '{}').Rating ?? null; } catch { }
+      (globalThis.__ratings ??= {})[id] = r; return json(res, 204, {});
+    }
+    if (p === '/__userdata') return json(res, 200, globalThis.__ratings ?? {});
     if (p === '/Users/Me') counts.usersMe++;
     else if (/^\/Users\/u1\/Items\/[^/]+$/.test(p)) counts.item++;
     else if (p === '/Users/u1/Items') counts.items++;

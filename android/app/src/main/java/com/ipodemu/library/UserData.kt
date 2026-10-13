@@ -43,6 +43,13 @@ class UserData(ctx: Context) {
 
     fun isFavorite(path: String) = path in favorites
 
+    /** Star ratings (see [RatingStore]); [onRated] lets the app write a rating to Jellyfin. */
+    val ratings = RatingStore()
+    var onRated: ((Track, Int) -> Unit)? = null
+    fun rating(t: Track): Int { @Suppress("UNUSED_EXPRESSION") rev; return ratings.get(t) }
+    fun setRating(t: Track, stars: Int) { ratings.set(t, stars); changed(); onRated?.invoke(t, RatingStore.clamp(stars)) }
+    fun mergeRatings(incoming: List<RatingEntry>) { if (ratings.merge(incoming)) changed(sync = false) }
+
     private val favStates = HashMap<String, androidx.compose.runtime.MutableState<Boolean>>()
     /** Per-track observable flag: toggling one favourite recomposes only that row, not every row. */
     fun favState(path: String): androidx.compose.runtime.State<Boolean> = favStates.getOrPut(path) { androidx.compose.runtime.mutableStateOf(path in favorites) }
@@ -202,6 +209,7 @@ class UserData(ctx: Context) {
         try {
             if (!file.exists()) return
             val o = JSONObject(file.readText())
+            ratings.load(o.optJSONArray("ratings"))
             o.optJSONArray("fav")?.let { a -> for (i in 0 until a.length()) favorites.add(a.getString(i)) }
             o.optJSONObject("plays")?.let { p -> p.keys().forEach { k -> plays[k] = p.optInt(k) } }
             o.optJSONArray("recent")?.let { a -> for (i in 0 until a.length()) recents.add(a.getString(i)) }
@@ -233,6 +241,7 @@ class UserData(ctx: Context) {
             val o = try {
                 JSONObject().also { o ->
                     o.put("fav", JSONArray(favorites.toList()))
+                    o.put("ratings", ratings.toJson())
                     o.put("recent", JSONArray(recents.toList()))
                     o.put("dl", JSONArray().also { a -> downloads.toList().forEach { d -> a.put(JSONObject().put("a", d.artist).put("t", d.title).put("al", d.album).put("p", d.path).put("w", d.time).put("s", d.source)) } })
                     o.put("plays", JSONObject().also { p -> plays.toMap().forEach { (k, v) -> p.put(k, v) } })

@@ -53,6 +53,7 @@ class App : Application() {
         userData = com.ipodemu.library.UserData(this)
         // favourites kept offline follow the favourites list (a pause first, so a run of taps is one change)
         userData.onFavoritesChanged = { offlineSyncSoon() }
+        userData.onRated = { t, stars -> rateOnJellyfin(t, stars) }
         bg.launch { kotlinx.coroutines.delay(30_000); offlineSyncSoon() }
         // one-off: on-device playlists that never reached the account stay out of Playlists; new ones always show
         if (!prefs.playlistsMigrated) { prefs.hiddenPlaylists = userData.playlists.filter { it.jfId == null && it.paths.isNotEmpty() }.mapTo(HashSet()) { it.id }; prefs.playlistsMigrated = true }
@@ -84,6 +85,23 @@ class App : Application() {
         // pick up changes made on other devices (playlists, newly added services) every launch
         account.sync(background = true)
         Boot.mark("Application.onCreate end")
+    }
+
+    /** A rating is also written to Jellyfin as the item's own rating (0 to 10); the newer endpoint first, the older one when the server does not have it. Best effort. */
+    private fun rateOnJellyfin(t: com.ipodemu.library.Track, stars: Int) {
+        val id = Regex("/Audio/([0-9a-fA-F]{32})/").find(t.path)?.groupValues?.get(1) ?: return
+        val server = prefs.accountServer.ifBlank { prefs.jellyfinUrl }.trimEnd('/'); val token = prefs.accountToken.ifBlank { prefs.jellyfinApiKey }
+        val userId = prefs.accountUserId
+        if (server.isBlank() || token.isBlank() || userId.isBlank()) return
+        bg.launch {
+            val body = org.json.JSONObject().put("Rating", com.ipodemu.library.RatingStore.toJellyfin(stars)).toString().toByteArray()
+            for (path in com.ipodemu.library.RatingStore.jellyfinPaths(userId, id)) {
+                try {
+                    val r = com.ipodemu.library.JellyfinNet.send("POST", server + path, mapOf("Authorization" to com.ipodemu.library.JellyfinAuth.header(token)), body, "application/json", com.ipodemu.library.Priority.BACKGROUND, "rating")
+                    if (r.ok) return@launch
+                } catch (_: Exception) { }
+            }
+        }
     }
 
     private var offlineSyncJob: kotlinx.coroutines.Job? = null

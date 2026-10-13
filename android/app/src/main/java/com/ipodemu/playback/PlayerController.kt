@@ -145,7 +145,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private val browseExec = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "browse-play").also { it.isDaemon = true } }
     private fun isBrowseId(id: String) = id.startsWith("s:") || id.startsWith("pl:") || id.startsWith("al:") || id.startsWith("ar:")
     /** A controller (Android Auto, a head unit, a voice command) asked to play browse items: the songs of the list they come from are queued here with the normal player, so the queue, history and everything else behave as if it was played in the app. */
-    private fun playBrowse(items: List<MediaItem>): Boolean {
+    internal fun playBrowse(items: List<MediaItem>): Boolean {
         val id = items.firstOrNull()?.mediaId ?: return false
         if (!isBrowseId(id)) return false
         browseExec.execute {
@@ -154,23 +154,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         }
         return true
     }
+    /** What the system media session (media buttons, notification, Bluetooth, Android Auto) controls: a window of the queue, commands sent here (see [SessionPlayer]). */
     @OptIn(UnstableApi::class)
-    val sessionPlayer: Player = object : androidx.media3.common.ForwardingPlayer(exo) {
-        override fun seekToNext() { this@PlayerController.next() }
-        override fun seekToNextMediaItem() { this@PlayerController.next() }
-        override fun seekToPrevious() { this@PlayerController.prev() }
-        override fun seekToPreviousMediaItem() { this@PlayerController.prev() }
-        override fun setMediaItems(mediaItems: MutableList<MediaItem>) { if (!playBrowse(mediaItems)) super.setMediaItems(mediaItems) }
-        override fun setMediaItems(mediaItems: MutableList<MediaItem>, resetPosition: Boolean) { if (!playBrowse(mediaItems)) super.setMediaItems(mediaItems, resetPosition) }
-        override fun setMediaItems(mediaItems: MutableList<MediaItem>, startIndex: Int, startPositionMs: Long) { if (!playBrowse(mediaItems)) super.setMediaItems(mediaItems, startIndex, startPositionMs) }
-        override fun setMediaItem(mediaItem: MediaItem) { if (!playBrowse(listOf(mediaItem))) super.setMediaItem(mediaItem) }
-        override fun setMediaItem(mediaItem: MediaItem, startPositionMs: Long) { if (!playBrowse(listOf(mediaItem))) super.setMediaItem(mediaItem, startPositionMs) }
-        override fun setMediaItem(mediaItem: MediaItem, resetPosition: Boolean) { if (!playBrowse(listOf(mediaItem))) super.setMediaItem(mediaItem, resetPosition) }
-        // The session must not publish the whole queue: with 10,000 songs the list handed to a Bluetooth head unit, Android Auto or the system media card is what ran
-        // the phone out of memory. Without the timeline command Media3 shows controllers just the current item (title, artist, artwork, position); Next and Previous stay.
-        override fun getAvailableCommands(): Player.Commands = SessionWindow.commands(super.getAvailableCommands())
-        override fun isCommandAvailable(command: Int): Boolean = SessionWindow.allowed(command) && super.isCommandAvailable(command)
-    }
+    val sessionPlayer: Player by lazy { SessionPlayer(this, prefs) }
     @OptIn(UnstableApi::class)
     private val prefetcher = Prefetcher(ctx) { prefetchSource.createDataSource() as CacheDataSource }
     private val netWatch = NetworkWatch(ctx) { Handler(Looper.getMainLooper()).post { nudge() } }

@@ -1,4 +1,6 @@
-# FLACie: pick-up guide after beta 61 (2026-10-13)
+# FLACie: pick-up guide after beta 62 (2026-10-13)
+
+**Update: v1.0.0-beta62 is released and deployed** (Android 77, MSI 0.62.0, Web 1.0-beta62; rollback tag `flacie-web:rollback-2026-10-13-pre62`). Adds the Android Auto/Bluetooth media library service (probe-verified on the emulator, never in a car/DHU), MusicBrainz + Cover Art Archive on Android, the web cover picker, fade between songs (A+W), and the web speed/sleep/sound controls as icon buttons beside the heart and More. Tests: Android 404 / 2 skipped / 0 failed, .NET 299, Playwright 142. **Not built:** Chromecast (needs a device and a player refactor), ratings (Jellyfin write unchecked), shared-element cover transition, iPod LCD renderer/Cover Flow, a queue window for the system session. Beta 61 text follows.
 
 **Update: v1.0.0-beta61 is released and deployed** (Android 76, MSI 0.61.0, Web 1.0-beta61; rollback tag `flacie-web:rollback-2026-10-13-pre61`). Adds even out volume (Jellyfin NormalizationGain; A + W; off by default) and the MusicBrainz match in the web Info panel (own 1 req/s gate, cache, User-Agent; choice kept beside the library). Tests: Android 372 / 2 skipped / 0 failed, .NET 289, Playwright 138. **Not built:** cover picker (Cover Art Archive; needs an override key through Art.KeyFor and PlayerState.Load because /art caches by key as immutable), MusicBrainz on Android, Android Auto, Cast, crossfade, windowed queue, ratings. Everything below is the beta 60 text.
 

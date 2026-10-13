@@ -20,3 +20,6 @@ One line per decision or result. Honest: skipped or untested things are said so.
 - Beta 61 released + web deployed (rollback tag flacie-web:rollback-2026-10-13-pre61, /healthz ok, other containers untouched). Android 372 tests, .NET 289, Playwright 138; APK install-tested on the emulator (kill-restore ok).
 - Beta 62 content: Android Auto library service (BrowseTree + probe-verified on the emulator), MusicBrainz + CAA on Android, cover picker (web), fade between songs (A+W), dots. NOT built: Cast, ratings, shared-element transition, iPod LCD/Cover Flow, session queue window (reasons in the release notes).
 - Beta 62 released + web deployed (rollback tag flacie-web:rollback-2026-10-13-pre62, /healthz ok). Android 404/2/0, .NET 299, Playwright 142. After the owner said the web speed/sleep controls were ugly and awkwardly placed they became icon buttons in the heart/More row.
+
+## Shared-element cover transition
+- Mini player cover now flies into the Now Playing cover (SharedTransitionLayout, SharedCover.kt); the mini bar gets a real fade exit. Checked on the emulator at animator scale 10 (mid-frame shows the cover growing from the bar). Unit tests green.

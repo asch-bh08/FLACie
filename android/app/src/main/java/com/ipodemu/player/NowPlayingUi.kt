@@ -335,7 +335,7 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
             .clickable { nav.nowPlaying = true }
     ) {
         Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            ArtImage(t.artKey, Modifier.size(48.dp).popIn(t.path, 0.7f), thumb = true, corner = 6.dp)
+            ArtImage(t.artKey, Modifier.size(48.dp).sharedCover().popIn(t.path, 0.7f), thumb = true, corner = 6.dp)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Txt(t.title, size = 15f, weight = FontWeight.SemiBold)
                 Txt(t.artist.ifEmpty { t.album }, size = 13f, color = sc.onBgDim)

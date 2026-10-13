@@ -202,6 +202,7 @@ fun rememberLibRev(lib: com.ipodemu.library.Library): Int {
 }
 
 
+@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 fun PlayerHost(nav: PlayerNav) {
     val app = LocalApp.current
@@ -233,6 +234,8 @@ fun PlayerHost(nav: PlayerNav) {
     Box(
         Modifier.fillMaxSize().edgeSwipeBack(backEnabled, swipeZone, { backDrag = it }) { if (nav.nowPlaying) nav.nowPlaying = false else nav.pop() },
     ) {
+        androidx.compose.animation.SharedTransitionLayout(Modifier.fillMaxSize()) {
+        val sharedLayout = this
         val modern = LocalStyle.current.modern
         // the iPod theme has no tabs: its stack must always start at Home (a Modern tab root like Settings would make Back exit)
         if (!modern && nav.stack.first() != Screen.Home) androidx.compose.runtime.SideEffect { if (nav.stack.first() != Screen.Home) nav.stack.add(0, Screen.Home) }
@@ -265,9 +268,14 @@ fun PlayerHost(nav: PlayerNav) {
             val remoteId by remember { androidx.compose.runtime.derivedStateOf { app.connect.remoteNow()?.id } }
             if (remoteId != null && !snap.playing && !nav.nowPlaying && modern && !LocalHardware.current) {
                 AnimatedVisibility(remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }, enter = slideInVertically(androidx.compose.animation.core.spring(0.8f, 380f)) { it } + androidx.compose.animation.fadeIn(tween(160))) { RemoteMiniPlayer(remoteId!!) }
-            } else if (snap.track != null && !nav.nowPlaying && (modern || nav.top != Screen.Home) && !LocalHardware.current) {
-                // the bar slides up from the bottom the first time a song starts (and when coming back from the full player)
-                AnimatedVisibility(remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }, enter = slideInVertically(androidx.compose.animation.core.spring(0.8f, 380f)) { it } + androidx.compose.animation.fadeIn(tween(160))) { MiniPlayer(snap, nav) }
+            } else {
+                val showMini = snap.track != null && !nav.nowPlaying && (modern || nav.top != Screen.Home) && !LocalHardware.current
+                val miniState = remember { androidx.compose.animation.core.MutableTransitionState(false) }
+                miniState.targetState = showMini
+                // the bar slides up from the bottom the first time a song starts (and when coming back from the full player); it fades out as the full player opens, the cover flies on
+                AnimatedVisibility(miniState, enter = slideInVertically(androidx.compose.animation.core.spring(0.8f, 380f)) { it } + androidx.compose.animation.fadeIn(tween(160)), exit = fadeOut(tween(160))) {
+                    androidx.compose.runtime.CompositionLocalProvider(LocalSharedCover provides SharedCoverScope(sharedLayout, this)) { snap.track?.let { MiniPlayer(snap, nav) } }
+                }
             }
             if (modern && !rail) BottomNav(nav)
         }
@@ -278,10 +286,11 @@ fun PlayerHost(nav: PlayerNav) {
             enter = slideInVertically(tween(320)) { it } + fadeIn(tween(200)),
             exit = slideOutVertically(tween(260)) { it } + fadeOut(tween(200)),
         ) { Box(Modifier.graphicsLayer { translationX = backDrag }.focusProperties { canFocus = nav.sheet == null && nav.nameDialog == null }) {
-            androidx.compose.runtime.CompositionLocalProvider(LocalPlayerNav provides nav) { NowPlayingScreen(snap, nav) }
+            androidx.compose.runtime.CompositionLocalProvider(LocalPlayerNav provides nav, LocalSharedCover provides SharedCoverScope(sharedLayout, this@AnimatedVisibility)) { NowPlayingScreen(snap, nav) }
         } }
         nav.sheet?.let { s -> ActionSheet(s.title, s.subtitle, s.items) { nav.sheet = null } }
         nav.nameDialog?.let { done -> NameDialog(done, nav.nameDialogRename) { nav.nameDialog = null; nav.nameDialogRename = null } }
+        }
     }
     }
 }

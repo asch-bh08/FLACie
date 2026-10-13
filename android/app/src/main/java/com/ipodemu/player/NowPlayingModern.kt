@@ -473,7 +473,7 @@ private fun PlayDisc(playing: Boolean, size: Dp, focus: FocusRequester, onClick:
 private fun NpArtModern(t: Track, modifier: Modifier) {
     val app = LocalApp.current
     ArtImage(
-        t.artKey, modifier.popIn(t.path, 0.88f)
+        t.artKey, modifier.sharedCover().popIn(t.path, 0.88f)
             .shadow(24.dp, RoundedCornerShape(12.dp), clip = false, ambientColor = Color.Black, spotColor = Color.Black),
         corner = 12.dp, full = true,
     )

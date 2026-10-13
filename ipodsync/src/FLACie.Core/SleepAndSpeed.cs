@@ -155,3 +155,16 @@ public static class TimeSpeech
 
     public static string Position(double positionSeconds, double durationSeconds) => durationSeconds > 0 ? Spoken(positionSeconds) + " of " + Spoken(durationSeconds) : Spoken(positionSeconds);
 }
+
+/// <summary>"Even out volume" (the same rule as the Android app's Loudness.kt): Jellyfin's measured gain in dB as a volume multiplier, clamped.</summary>
+public static class Loudness
+{
+    public const double MaxCutDb = 15, MaxBoostDb = 6;
+
+    /// <summary>1 when the setting is off or the song has no gain.</summary>
+    public static double Factor(double? gainDb, bool enabled)
+    {
+        if (!enabled || gainDb is not { } g || double.IsNaN(g) || double.IsInfinity(g)) return 1;
+        return Math.Pow(10, Math.Clamp(g, -MaxCutDb, MaxBoostDb) / 20);
+    }
+}

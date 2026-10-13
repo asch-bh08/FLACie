@@ -126,6 +126,10 @@ class Prefs(ctx: Context) {
     var offlineLimitGb: Int
         get() = sp.getInt("offLimitGb", 5)
         set(v) = sp.edit().putInt("offLimitGb", v).apply()
+    /** Even out volume: songs are turned up or down by the gain Jellyfin measured for them (off by default). */
+    var levelVolume: Boolean
+        get() = sp.getBoolean("levelVol", false)
+        set(v) = sp.edit().putBoolean("levelVol", v).apply()
     var volumeLimit: Int
         get() = sp.getInt("vollimit", 100)
         set(v) = sp.edit().putInt("vollimit", v).apply()

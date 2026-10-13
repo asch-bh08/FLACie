@@ -123,6 +123,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             SheetItem(if (prefs.eq == n) "$n  (on)" else n, if (prefs.eq == n) Glyph.CHECK else Glyph.LIST) { prefs.eq = n; app.player.applyEq() }
                         })
                     }
+                    SettingRow("Even out volume", if (prefs.levelVolume) "On" else "Off", toggle = true) { prefs.levelVolume = !prefs.levelVolume; app.player.applyLeveling() }
                     SettingRow("Volume limit", if (prefs.volumeLimit == 100) "Off" else "${prefs.volumeLimit}%") {
                         prefs.volumeLimit = limits[(limits.indexOf(prefs.volumeLimit).coerceAtLeast(0) + 1) % limits.size]; app.player.applyVolumeLimit()
                     }

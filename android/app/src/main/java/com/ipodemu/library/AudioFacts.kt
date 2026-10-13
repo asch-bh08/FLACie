@@ -12,7 +12,8 @@ import java.io.File
  * by the same file key the library merge uses. Songs the server has not read yet simply have no entry.
  */
 object AudioFacts {
-    class Fact(val codec: String, val rate: Int, val depth: Int, val kbps: Int) {
+    /** [gainDb]: the gain Jellyfin measured to bring the song to a common loudness (NaN when the server gave none). */
+    class Fact(val codec: String, val rate: Int, val depth: Int, val kbps: Int, val gainDb: Float = Float.NaN) {
         val lossless: Boolean get() = QualityRule.isLossless(codec)
         /** Lossless and better than CD: more than 16 bits, or above 44.1 kHz (the one rule, [QualityRule]). */
         val hiRes: Boolean get() = QualityRule.isHiRes(lossless, rate, depth)
@@ -43,7 +44,7 @@ object AudioFacts {
             val tmp = File(file.path + ".tmp")
             android.util.JsonWriter(tmp.bufferedWriter(Charsets.UTF_8, 1 shl 16)).use { w ->
                 w.beginObject()
-                for ((k, f) in jf) { w.name(k).beginArray().value(f.codec).value(f.rate.toLong()).value(f.depth.toLong()).value(f.kbps.toLong()).endArray() }
+                for ((k, f) in jf) { w.name(k).beginArray().value(f.codec).value(f.rate.toLong()).value(f.depth.toLong()).value(f.kbps.toLong()).also { if (!f.gainDb.isNaN()) w.value(f.gainDb.toDouble()) }.endArray() }
                 w.endObject()
             }
             file.delete(); tmp.renameTo(file)
@@ -56,7 +57,7 @@ object AudioFacts {
             val out = HashMap<String, Fact>()
             android.util.JsonReader(file.bufferedReader(Charsets.UTF_8, 1 shl 16)).use { r ->
                 r.beginObject()
-                while (r.hasNext()) { val k = r.nextName(); r.beginArray(); out[k] = Fact(r.nextString(), r.nextInt(), r.nextInt(), r.nextInt()); r.endArray() }
+                while (r.hasNext()) { val k = r.nextName(); r.beginArray(); val codec = r.nextString(); val rate = r.nextInt(); val depth = r.nextInt(); val kbps = r.nextInt(); val gain = if (r.hasNext()) r.nextDouble().toFloat() else Float.NaN; out[k] = Fact(codec, rate, depth, kbps, gain); r.endArray() }
                 r.endObject()
             }
             jf.putAll(out); version++

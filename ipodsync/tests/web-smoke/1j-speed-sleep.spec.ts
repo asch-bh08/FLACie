@@ -78,4 +78,17 @@ test.describe.serial('speed and sleep', () => {
     await expect(page.locator('#speed-sleep .dd', { hasText: 'Sleep' })).toContainText('Off');
     expect(await page.locator('.np-titles h2').innerText()).toBe(title);   // the next song did not start
   });
+
+  test('even out volume turns a loud song down by the gain Jellyfin measured', async ({ page }) => {
+    test.setTimeout(120_000);
+    await signIn(page);
+    await playLab(page);
+    const vol = () => page.evaluate(() => (window as any).flacie.loud() as number);
+    const base = await page.evaluate(() => (window as any).flacie.volume() as number);
+    await expect.poll(vol).toBeCloseTo(base, 3);   // off by default: untouched
+    await pick(page, 'Volume', 'Even out');
+    await expect.poll(vol).toBeCloseTo(base * 0.501, 2);   // -6 dB
+    await pick(page, 'Volume', 'As recorded');
+    await expect.poll(vol).toBeCloseTo(base, 3);
+  });
 });

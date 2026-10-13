@@ -195,6 +195,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
             t.ArtKey is null ? null : "/art/" + Uri.EscapeDataString(t.ArtKey) + "?v=3", autoplay, t.DurationMs / 1000.0, startAt, PrefetchUrl());
         Position = startAt; Duration = t.DurationMs / 1000.0;
         await ApplyItemSpeedAsync(t);
+        await ApplyLevelAsync(t);
         if (plays is not null && session is not null) plays.Begin(session.Id, session.DisplayName, t.Path, t.Title, t.Artist, "FLACie Web", Context);
         Stash(true);
         RefreshSuggestions(); _ = PlanAsync(t); Started?.Invoke(t);
@@ -423,6 +424,24 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         if (Current is not { } t || !SpeedPolicy.IsLong(t.DurationMs)) return;
         placeMem.Set(SpeedPolicy.KeyOf(t.Path), null);
         _ = js.InvokeVoidAsync("flacie.stash", "flacie.places", placeMem.Encode()).AsTask().ContinueWith(_ => { });
+    }
+
+    /// <summary>Even out volume: songs are turned up or down by the gain Jellyfin measured (kept in this browser; off by default).</summary>
+    public bool LevelVolume { get; private set; }
+    bool levelLoaded;
+
+    async Task ApplyLevelAsync(Track t)
+    {
+        if (!levelLoaded) { levelLoaded = true; try { LevelVolume = await js.InvokeAsync<string?>("flacie.unstash", "flacie.level") == "1"; } catch (Exception) { } }
+        try { await js.InvokeVoidAsync("flacie.loud", Loudness.Factor(t.GainDb, LevelVolume)); } catch (Exception) { }
+    }
+
+    public async Task SetLevelVolumeAsync(bool on)
+    {
+        LevelVolume = on; levelLoaded = true;
+        try { await js.InvokeVoidAsync("flacie.stash", "flacie.level", on ? "1" : "0"); } catch (Exception) { }
+        if (Current is { } t) await ApplyLevelAsync(t);
+        Changed?.Invoke();
     }
 
     public SleepMode SleepMode { get; private set; }

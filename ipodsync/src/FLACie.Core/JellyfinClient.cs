@@ -256,7 +256,8 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         return new Track($"{server}/Audio/{id}/stream?static=true", Str("Name"), artist, Str("Album"), Str("AlbumArtist").Length > 0 ? Str("AlbumArtist") : artist,
             o["IndexNumber"]?.GetValue<int>() ?? 0, o["ParentIndexNumber"]?.GetValue<int>() ?? 0, (o["RunTimeTicks"]?.GetValue<long>() ?? 0) / 10_000,
             o["ProductionYear"]?.GetValue<int>() ?? 0, art, created == default ? 0 : new DateTimeOffset(created).ToUnixTimeMilliseconds(),
-            TrackSource.Jellyfin, Str("Path"), id, (o["Genres"] as JsonArray)?.FirstOrDefault()?.GetValue<string>() ?? "");   // (a server that sends one genre as a plain string must not fail the whole listing)
+            TrackSource.Jellyfin, Str("Path"), id, (o["Genres"] as JsonArray)?.FirstOrDefault()?.GetValue<string>() ?? "",
+            GainDb: o["NormalizationGain"] is JsonValue g && g.TryGetValue<double>(out var gd) ? gd : null);   // (a server that sends one genre as a plain string must not fail the whole listing; NormalizationGain is the loudness gain Jellyfin measured)
     }
 
     /// <summary>The cover key of a Jellyfin item record (what another device is playing, a session's NowPlayingItem): the album's picture with its image tag (the same key

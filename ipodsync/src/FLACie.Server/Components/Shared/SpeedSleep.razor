@@ -4,6 +4,7 @@
 {
     <div class="speed-sleep" id="speed-sleep">
         <Dropdown Label="Speed" Class="mini" ShowAny="false" Value="@SpeedKey" Options="SpeedOptions" ValueChanged="OnSpeed" />
+        <Dropdown Label="Volume" Class="mini" ShowAny="false" Value="@(Player.LevelVolume ? "level" : "normal")" Options="LevelOptions" ValueChanged="OnLevel" />
         <Dropdown Label="Sleep" Class="mini" ShowAny="false" Value="@SleepKey" Options="SleepOptions" ValueChanged="OnSleep" />
         @if (SpeedPolicy.ShowLongItemControls(t.Genre, t.DurationMs, Player.Speed))
         {
@@ -15,6 +16,8 @@
 @code {
     string SpeedKey => SpeedPolicy.Label(Player.Speed);
     static readonly IReadOnlyList<DropOption> SpeedOptions = SpeedPolicy.Steps.Select(s => new DropOption(SpeedPolicy.Label(s), SpeedPolicy.Label(s) + (s == 1 ? " (normal)" : ""))).ToList();
+
+    static readonly IReadOnlyList<DropOption> LevelOptions = [new("normal", "As recorded"), new("level", "Even out")];
 
     string SleepKey => Player.SleepMode switch { SleepMode.EndOfTrack => "track", SleepMode.EndOfAlbum => "album", SleepMode.Minutes => "timer", _ => "off" };
 
@@ -29,6 +32,8 @@
             return l;
         }
     }
+
+    Task OnLevel(string v) => Player.SetLevelVolumeAsync(v == "level");
 
     Task OnSpeed(string v) => Player.SetSpeedAsync(double.Parse(v.TrimEnd('x'), System.Globalization.CultureInfo.InvariantCulture));
 

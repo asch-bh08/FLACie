@@ -61,6 +61,7 @@ const lab = labSpec.map((s, i) => ({
   ProductionYear: 2020,
   Path: `/music/Hires Lab/Lab Album/${s[5]}`,
   Genres: ['Electronic'],
+  NormalizationGain: -6,   // the loudness gain Jellyfin measured (the loud lab songs are turned down 6 dB when volume levelling is on)
   DateCreated: new Date(Date.UTC(2025, 0, 1 + i)).toISOString(),
   ImageTags: { Primary: 'x' },
   MediaType: 'Audio',

@@ -260,7 +260,12 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
 
     /** The sleep timer's fade-out scales the volume; 1 = untouched. */
     private var fade = 1f
-    private fun applyOutputVolume() { exo.volume = volume * fade }
+    /** The levelling factor of the song that plays (see [Loudness]); 1 when the setting is off or the server gave no gain. */
+    private var loud = 1f
+    private fun applyOutputVolume() { exo.volume = Loudness.output(volume, fade, loud) }
+    private fun levelFor(t: Track?): Float = Loudness.factor(t?.let { com.ipodemu.library.AudioFacts.of(it)?.gainDb } ?: Float.NaN, prefs.levelVolume)
+    /** The setting was switched: the song that plays follows at once. */
+    fun applyLeveling() { loud = levelFor(current); applyOutputVolume() }
 
     init {
         applyOutputVolume()
@@ -597,6 +602,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
 
     /** A new song starts: its remembered speed (else the spoken-word default, else 1x) and, for a long item, where it was left. */
     private fun startedItem(t: Track) {
+        loud = levelFor(t); applyOutputVolume()
         val saved = speedMem.get(SpeedPolicy.keyOf(t.path))?.toFloat()
         applySpeed(saved ?: if (SpeedPolicy.isSpoken(t.genre)) prefs.spokenSpeed else 1f)
         if (!quietTransition && exo.currentPosition < 2_000L) {

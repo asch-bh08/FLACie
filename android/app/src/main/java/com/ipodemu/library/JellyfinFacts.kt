@@ -32,6 +32,7 @@ object JellyfinFacts {
         val rate = audio.optInt("SampleRate", 0)
         val depth = audio.optInt("BitDepth", 0)
         val bps = audio.optLong("BitRate", 0L).takeIf { it > 0 } ?: src?.optLong("Bitrate", 0L) ?: 0L
-        return Parsed(AudioFacts.Fact(codec, rate, depth, (bps / 1000).toInt()), size)
+        val gain = if (item.has("NormalizationGain") && !item.isNull("NormalizationGain")) item.optDouble("NormalizationGain").toFloat() else Float.NaN
+        return Parsed(AudioFacts.Fact(codec, rate, depth, (bps / 1000).toInt(), gain), size)
     }
 }

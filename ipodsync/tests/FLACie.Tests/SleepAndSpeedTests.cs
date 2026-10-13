@@ -111,3 +111,21 @@ public class TimeSpeechTests
         Assert.Equal("1 minute 37 seconds of 5 minutes 2 seconds", TimeSpeech.Position(97, 302)); Assert.Equal("10 seconds", TimeSpeech.Position(10, 0));
     }
 }
+
+public class LoudnessTests
+{
+    [Fact] public void OffOrUnknownChangesNothing() { Assert.Equal(1, Loudness.Factor(-6, false)); Assert.Equal(1, Loudness.Factor(null, true)); Assert.Equal(1, Loudness.Factor(double.NaN, true)); }
+
+    [Fact] public void DecibelsBecomeAFactorAndExtremesAreClamped()
+    {
+        Assert.Equal(1, Loudness.Factor(0, true), 4); Assert.Equal(0.5012, Loudness.Factor(-6, true), 3); Assert.Equal(1.9953, Loudness.Factor(6, true), 3);
+        Assert.Equal(Loudness.Factor(-15, true), Loudness.Factor(-40, true)); Assert.Equal(Loudness.Factor(6, true), Loudness.Factor(20, true));
+    }
+
+    [Fact] public void JellyfinGainIsReadIntoTheTrack()
+    {
+        var t = new Track("p", "t", "a", "al", "a", 1, 1, 1000, 0, null, 0, TrackSource.Jellyfin, GainDb: -7.25);
+        Assert.Equal(-7.25, t.GainDb);
+        Assert.Null(new Track("p", "t", "a", "al", "a", 1, 1, 1000, 0, null, 0, TrackSource.Jellyfin).GainDb);
+    }
+}

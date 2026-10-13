@@ -2,7 +2,8 @@
 // reports time, state and the end of each song back. Media Session gives lock-screen and headphone controls.
 window.flacie = (() => {
   const audio = new Audio();
-  let baseVolume = 1, fadeGain = 1;
+  let baseVolume = 1, fadeGain = 1, loudGain = 1;
+  const applyVol = () => { audio.volume = Math.min(1, Math.max(0, baseVolume * fadeGain * loudGain)); };
   try { const v = parseFloat(localStorage.getItem("flacie.volume")); if (v >= 0 && v <= 1) { audio.volume = v; baseVolume = v; } } catch { }
   audio.preload = "auto";
   let dotnet = null, lastSent = 0;
@@ -563,12 +564,14 @@ window.flacie = (() => {
       return audio.playbackRate;
     },
     // the sleep timer's fade-out scales the volume the person set
-    fade(g) { fadeGain = Math.min(1, Math.max(0, Number(g))); audio.volume = baseVolume * fadeGain; return audio.volume; },
+    fade(g) { fadeGain = Math.min(1, Math.max(0, Number(g))); applyVol(); return audio.volume; },
+    // even out volume: the song's own gain as a multiplier (1 = untouched)
+    loud(f) { if (f === undefined || f === null) return audio.volume; loudGain = Math.min(4, Math.max(0, Number(f) || 1)); applyVol(); return audio.volume; },
     volume(v) {
       // the graphs read their own twin of the stream at full volume, so they look the same at any volume
       if (v === undefined || v === null) return baseVolume;
       const x = Math.min(1, Math.max(0, v));
-      baseVolume = x; audio.volume = x * fadeGain;
+      baseVolume = x; applyVol();
       try { localStorage.setItem("flacie.volume", String(x)); } catch { }
       return x;
     },

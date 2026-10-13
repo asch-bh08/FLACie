@@ -147,6 +147,10 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         override fun seekToNextMediaItem() { this@PlayerController.next() }
         override fun seekToPrevious() { this@PlayerController.prev() }
         override fun seekToPreviousMediaItem() { this@PlayerController.prev() }
+        // The session must not publish the whole queue: with 10,000 songs the list handed to a Bluetooth head unit, Android Auto or the system media card is what ran
+        // the phone out of memory. Without the timeline command Media3 shows controllers just the current item (title, artist, artwork, position); Next and Previous stay.
+        override fun getAvailableCommands(): Player.Commands = SessionWindow.commands(super.getAvailableCommands())
+        override fun isCommandAvailable(command: Int): Boolean = SessionWindow.allowed(command) && super.isCommandAvailable(command)
     }
     @OptIn(UnstableApi::class)
     private val prefetcher = Prefetcher(ctx) { prefetchSource.createDataSource() as CacheDataSource }

@@ -157,14 +157,14 @@ class PlayerNav {
 
 /** What the player is doing, as one immutable snapshot for composition. */
 @androidx.compose.runtime.Immutable
-data class PlayerSnap(val track: Track?, val playing: Boolean, val shuffle: Boolean, val repeat: Int, val index: Int, val count: Int, val rev: Int = 0)
+data class PlayerSnap(val track: Track?, val playing: Boolean, val shuffle: Boolean, val repeat: Int, val index: Int, val count: Int, val rev: Int = 0, val speed: Float = 1f, val sleep: com.ipodemu.playback.SleepMode = com.ipodemu.playback.SleepMode.OFF)
 
 @Composable
 fun rememberSnap(player: PlayerController, prefs: Prefs): PlayerSnap {
     var tick by remember { mutableIntStateOf(0) }
     DisposableEffect(player) { val d = player.observe { tick++ }; onDispose { d() } }
     @Suppress("UNUSED_EXPRESSION") tick
-    return PlayerSnap(player.current, player.wantsToPlay, prefs.shuffle, prefs.repeat, player.queueIndex, player.queue.size, player.queueRev)
+    return PlayerSnap(player.current, player.wantsToPlay, prefs.shuffle, prefs.repeat, player.queueIndex, player.queue.size, player.queueRev, player.speed, player.sleepMode)
 }
 
 @Composable

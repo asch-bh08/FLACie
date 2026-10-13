@@ -312,7 +312,7 @@ fun sleepStatus(app: com.ipodemu.App): String {
 
 fun speedSheet(app: com.ipodemu.App): SheetSpec {
     val cur = app.player.speed
-    return SheetSpec("Playback speed", com.ipodemu.playback.SpeedPolicy.label(cur) + " (kept for this item)", com.ipodemu.playback.SpeedPolicy.STEPS.map { s ->
+    return SheetSpec("Playback speed", com.ipodemu.playback.SpeedPolicy.label(cur) + (if (cur != 1f) " (kept for this item)" else ""), com.ipodemu.playback.SpeedPolicy.STEPS.map { s ->
         val on = Math.abs(s - cur) < 0.001f
         SheetItem(com.ipodemu.playback.SpeedPolicy.label(s) + (if (on) "  (on)" else if (s == 1f) "  (normal)" else ""), if (on) Glyph.CHECK else Glyph.CLOCK) { app.player.setSpeed(s) }
     })

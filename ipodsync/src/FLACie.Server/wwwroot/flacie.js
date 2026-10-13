@@ -396,6 +396,7 @@ window.flacie = (() => {
     try { navigator.mediaSession.setActionHandler("enterpictureinpicture", () => { pip.toggle(); }); } catch { }
   }
   let outside = null, pendingLoad = 0, lastLoadAt = -1e9;
+  let ipod = null;
   // The next song's first bytes are fetched early (a second audio element, preload=auto), so a skip starts at once. One prefetch at a time, started only
   // once the current song can play (the song asked for gets the connection and the server first), and replaced, never added to, when the queue moves on.
   let pre = null, preTok = 0, preTimer = 0;
@@ -521,6 +522,36 @@ window.flacie = (() => {
       const m = document.getElementById("components-reconnect-modal");
       if (m) new MutationObserver(check).observe(m, { attributes: true, attributeFilter: ["class"] });
       document.addEventListener("components-reconnect-state-changed", check);
+    },
+    // iPod mode: fit the device to the window, focus it for the keys, and turn drags on the wheel into degrees (sent a few times a second, the page turns them into detents)
+    ipodInit(stage, device, wheel, ref) {
+      window.flacie.ipodDispose();
+      const fit = () => { const s = Math.min(innerWidth / 360, innerHeight / 600, 2.2); device.style.setProperty("--s", String(Math.max(0.4, s))); };
+      fit(); addEventListener("resize", fit); stage.focus();
+      let last = null, acc = 0, moved = 0, timer = null, local = 0;
+      const ang = e => { const r = wheel.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI; };
+      const flush = () => { if (acc !== 0) { const d = acc; acc = 0; ref.invokeMethodAsync("Turned", d).catch(() => { }); } };
+      const down = e => {
+        if (e.target.closest(".ipod-center")) return;
+        const r = wheel.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+        if (Math.hypot(dx, dy) > r.width / 2) return;
+        last = ang(e); moved = 0; local = 0; timer = setInterval(flush, 30); wheel.classList.add("turning");
+      };
+      const move = e => {
+        if (last === null) return;
+        let d = ang(e) - last; last = ang(e);
+        if (d > 180) d -= 360; if (d < -180) d += 360;
+        acc += d; moved += Math.abs(d); local += d;
+        while (Math.abs(local) >= 15) { local -= Math.sign(local) * 15; try { navigator.vibrate && navigator.vibrate(3); } catch { } }
+      };
+      const up = () => { if (last === null) return; last = null; clearInterval(timer); flush(); ref.invokeMethodAsync("Released").catch(() => { }); wheel.classList.remove("turning"); };
+      wheel.addEventListener("pointerdown", down); addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up);
+      ipod = { fit, down, move, up, wheel };
+    },
+    ipodDispose() {
+      if (!ipod) return;
+      removeEventListener("resize", ipod.fit); ipod.wheel.removeEventListener("pointerdown", ipod.down);
+      removeEventListener("pointermove", ipod.move); removeEventListener("pointerup", ipod.up); removeEventListener("pointercancel", ipod.up); ipod = null;
     },
     // a song's menu is a short scrollable list: bring its last part (the Hi-Res question) into view
     menuToEnd() { document.querySelectorAll(".menu").forEach(m => { m.scrollTop = m.scrollHeight; }); },

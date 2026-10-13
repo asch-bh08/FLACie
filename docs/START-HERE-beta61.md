@@ -1,4 +1,6 @@
-# FLACie: pick-up guide after beta 60 (2026-10-13)
+# FLACie: pick-up guide after beta 61 (2026-10-13)
+
+**Update: v1.0.0-beta61 is released and deployed** (Android 76, MSI 0.61.0, Web 1.0-beta61; rollback tag `flacie-web:rollback-2026-10-13-pre61`). Adds even out volume (Jellyfin NormalizationGain; A + W; off by default) and the MusicBrainz match in the web Info panel (own 1 req/s gate, cache, User-Agent; choice kept beside the library). Tests: Android 372 / 2 skipped / 0 failed, .NET 289, Playwright 138. **Not built:** cover picker (Cover Art Archive; needs an override key through Art.KeyFor and PlayerState.Load because /art caches by key as immutable), MusicBrainz on Android, Android Auto, Cast, crossfade, windowed queue, ratings. Everything below is the beta 60 text.
 
 Supersedes START-HERE-beta59.md (read its "Gotchas"). Also read `docs/OVERNIGHT-LOG.md`, `docs/BY-HAND-CHECKS.md`, `docs/spec/close-the-gaps.md`, `docs/research/gap-table.md`.
 

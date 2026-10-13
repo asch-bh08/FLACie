@@ -3,6 +3,7 @@
 Public-safe. Private details (server names, addresses, how the owner's server is deployed to) are in `docs/private/HANDOFF-2026-10-12.md` (git-ignored; also in the handoff folder on the Pi share). Read `docs/test-run/OVERNIGHT-SUMMARY-b52-b55.md` first: it says what happened since beta 51 and what is NOT done.
 
 ## State
+- **Update 2026-10-13: v1.0.0-beta59** (Android 74, MSI 0.59.0): the media session hides the queue from Bluetooth/Auto/lock screen (SessionWindow). Not tested on a real Bluetooth device.
 - **Update 2026-10-13: v1.0.0-beta58 is released** (Android 73, MSI 0.58.0): Settings fix in the iPod Player skin, regression tests for beta 57, see `docs/OVERNIGHT-LOG.md` and the by-hand list `docs/BY-HAND-CHECKS.md`. Specs: `docs/spec/player-redesign.md`, `ipod-mode-redesign.md` (not built). Tests: Android 309 (2 skipped), .NET 257, Playwright 133.
 - **Update 2026-10-12 (late): v1.0.0-beta56 is released** (Android 71, MSI 0.56.0, Web 1.0-beta56; cold start from a saved Home, covers that all arrive, wrong album covers vetted; see `docs/test-run/K-coldstart-covers.md`). The next work is the programme in `docs/spec/close-the-gaps.md` (spec only, tracked as GitHub issues with the label `programme`, milestones Phase 0-5). Tests at beta 56: Android 302 (2 skipped), .NET 257, Playwright 133.
 - Previous: **v1.0.0-beta55** (Android 70, MSI 0.55.0, FLACie Web 1.0-beta55).

@@ -23,3 +23,10 @@ One line per decision or result. Honest: skipped or untested things are said so.
 
 ## Shared-element cover transition
 - Mini player cover now flies into the Now Playing cover (SharedTransitionLayout, SharedCover.kt); the mini bar gets a real fade exit. Checked on the emulator at animator scale 10 (mid-frame shows the cover growing from the bar). Unit tests green.
+
+## Chromecast
+- Not built, decision recorded in docs/spec/chromecast.md: a receiver cannot send the Authorization header, so casting needs a token in the URL on another device. Left for the owner (revocable cast key or server relay).
+
+## iPod mode (web + Windows) and Android iPod
+- New /ipod page (device art, LCD, wheel by drag/mouse wheel/keys, Music > Artists/Albums/Songs/Favorites, Playlists, Shuffle, Now Playing with volume on the wheel); IpodNav + WheelDetents pure and unit-tested; Playwright spec 1m-ipod (menus, wheel drag, keys, playback, small window, black model). Windows inherits it through the embedded server (menu: iPod mode).
+- Android: Cover Flow page in the Classic theme, scrollbar, bezel inner shadow. Checked on the emulator (docs/img/ipod-coverflow-android.png).

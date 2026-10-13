@@ -41,6 +41,7 @@ public abstract class UserComponent : ComponentBase, IDisposable
     /// <summary>Writes the profile to the user's accounts in the background (after a playlist or favourite edit).</summary>
     protected void SaveProfile() => _ = Task.Run(async () => { try { await Session.SaveAsync(Jellyfin); } catch { } });
 
+    protected static string Spoken(double pos, double dur) => TimeSpeech.Position(pos, dur);
     protected static string Time(double s) => s <= 0 || double.IsNaN(s) ? "0:00" : $"{(int)s / 60}:{(int)s % 60:00}";
     protected static string AlbumLink(Group g) => "/album/" + Uri.EscapeDataString(g.Tracks[0].AlbumKey);
 

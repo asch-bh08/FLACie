@@ -100,3 +100,14 @@ public class SleepAndSpeedTests
         Assert.Equal("k=1.25", m.Encode());
     }
 }
+
+public class TimeSpeechTests
+{
+    [Fact] public void SpokenTimesMatchTheAndroidWording()
+    {
+        Assert.Equal("1 minute 37 seconds", TimeSpeech.Spoken(97)); Assert.Equal("5 minutes 2 seconds", TimeSpeech.Spoken(302)); Assert.Equal("45 seconds", TimeSpeech.Spoken(45));
+        Assert.Equal("0 seconds", TimeSpeech.Spoken(0)); Assert.Equal("0 seconds", TimeSpeech.Spoken(double.NaN)); Assert.Equal("1 second", TimeSpeech.Spoken(1));
+        Assert.Equal("1 hour 2 minutes", TimeSpeech.Spoken(3720)); Assert.Equal("2 hours", TimeSpeech.Spoken(7200)); Assert.Equal("1 minute", TimeSpeech.Spoken(60));
+        Assert.Equal("1 minute 37 seconds of 5 minutes 2 seconds", TimeSpeech.Position(97, 302)); Assert.Equal("10 seconds", TimeSpeech.Position(10, 0));
+    }
+}

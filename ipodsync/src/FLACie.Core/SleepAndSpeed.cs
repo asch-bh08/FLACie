@@ -138,3 +138,20 @@ public sealed class ItemMemory(int cap = 400)
         return m;
     }
 }
+
+/// <summary>How a screen reader says a time (the same wording as the Android seek bar: "1 minute 37 seconds of 5 minutes 2 seconds").</summary>
+public static class TimeSpeech
+{
+    public static string Spoken(double seconds)
+    {
+        var total = (long)Math.Max(0, double.IsNaN(seconds) || double.IsInfinity(seconds) ? 0 : seconds);
+        var h = total / 3600; var m = total % 3600 / 60; var s = total % 60;
+        var parts = new List<string>();
+        if (h > 0) parts.Add(h == 1 ? "1 hour" : $"{h} hours");
+        if (m > 0) parts.Add(m == 1 ? "1 minute" : $"{m} minutes");
+        if (s > 0 || parts.Count == 0) parts.Add(s == 1 ? "1 second" : $"{s} seconds");
+        return string.Join(" ", parts);
+    }
+
+    public static string Position(double positionSeconds, double durationSeconds) => durationSeconds > 0 ? Spoken(positionSeconds) + " of " + Spoken(durationSeconds) : Spoken(positionSeconds);
+}

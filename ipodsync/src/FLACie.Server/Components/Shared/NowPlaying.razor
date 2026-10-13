@@ -58,7 +58,7 @@
                 </div>
                 <div class="seek big">
                     <span>@Time(Player.Position)</span>
-                    <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" style="--fill:@(Player.Duration > 0 ? Math.Clamp(hold.Value(Player.Position) / Player.Duration * 100, 0, 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "0")%" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
+                    <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" aria-valuetext="@Spoken(Player.Position, Player.Duration)" style="--fill:@(Player.Duration > 0 ? Math.Clamp(hold.Value(Player.Position) / Player.Duration * 100, 0, 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "0")%" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
                     <span>@Time(Player.Duration)</span>
                 </div>
                 <div class="np-controls">

@@ -1357,3 +1357,13 @@ html.buffering .play .ic { opacity: .55; }
 .pill-btn { height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 13px; font-weight: 600; cursor: pointer; }
 .pill-btn:hover { border-color: color-mix(in srgb, var(--ink) 30%, var(--line)); }
 .pill-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* the full-screen player's seek bar: a thicker track, a knob that is always there and grows under the finger (the bar at the foot stays slim) */
+.seek.big input[type=range] { height: 28px; }
+.seek.big input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 8px; transition: height .12s; }
+.seek.big input[type=range]::-moz-range-track, .seek.big input[type=range]::-moz-range-progress { height: 8px; border-radius: 8px; }
+.seek.big input[type=range]::-webkit-slider-thumb { width: 16px; height: 16px; margin-top: -4px; opacity: 1; transition: transform .12s; }
+.seek.big input[type=range]::-moz-range-thumb { width: 16px; height: 16px; opacity: 1; }
+.seek.big input[type=range]:active::-webkit-slider-runnable-track { height: 10px; }
+.seek.big input[type=range]:active::-webkit-slider-thumb { transform: scale(1.5); margin-top: -3px; }
+@media (prefers-reduced-motion: reduce) { .seek.big input[type=range]::-webkit-slider-runnable-track, .seek.big input[type=range]::-webkit-slider-thumb { transition: none; } }

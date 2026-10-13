@@ -192,7 +192,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         self ??= DotNetObjectReference.Create(this);
         if (startAt <= 0) startAt = ResumeFor(t);   // a long item (audiobook, podcast, long mix) starts where it was left
         await js.InvokeVoidAsync("flacie.load", self, "/stream?p=" + Uri.EscapeDataString(t.Path), t.Title, t.Artist, t.Album,
-            t.ArtKey is null ? null : "/art/" + Uri.EscapeDataString(t.ArtKey) + "?v=3", autoplay, t.DurationMs / 1000.0, startAt, PrefetchUrl());
+            t.ArtKey is null ? null : "/art/" + Uri.EscapeDataString(CoverOverrides.Map(t.ArtKey)!) + "?v=3", autoplay, t.DurationMs / 1000.0, startAt, PrefetchUrl());
         Position = startAt; Duration = t.DurationMs / 1000.0;
         await ApplyItemSpeedAsync(t);
         await ApplyLevelAsync(t);

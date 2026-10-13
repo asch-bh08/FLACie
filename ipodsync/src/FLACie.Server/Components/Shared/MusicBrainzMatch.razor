@@ -1,5 +1,7 @@
 @inject MusicBrainzClient Mb
 @inject MbOverlay Overlay
+@inject CoverArtArchiveClient Caa
+@inject CoverOverrides Covers
 @* The song's match on MusicBrainz (the open music database): asked only when a person presses the button (at most one request a second, cached), shown with a score,
    and kept beside the library when chosen. It never changes the file, the tags or Jellyfin. *@
 <section class="mb" id="mb-match" aria-label="MusicBrainz match">
@@ -11,6 +13,8 @@
         <div class="mb-actions">
             <button class="pill-btn" @onclick="Search" disabled="@busy">Change…</button>
             <button class="pill-btn" @onclick="Forget">Forget this match</button>
+            @if (c.ReleaseMbid is not null || c.ReleaseGroupMbid is not null) { <button class="pill-btn" @onclick="ChooseCover" disabled="@busy">Choose a cover…</button> }
+            @if (ArtKeyOf is { } ak && Covers.Has(ak)) { <button class="pill-btn" @onclick="OriginalCover">Use the original cover</button> }
         </div>
     }
     else
@@ -20,6 +24,22 @@
     }
     @if (busy) { <p class="hint" role="status">Looking it up…</p> }
     @if (error is not null) { <p class="hint" role="alert">@error</p> }
+    @if (pictures is not null)
+    {
+        @if (pictures.Count == 0) { <p class="hint">The Cover Art Archive has no pictures for this release.</p> }
+        else
+        {
+            <p class="hint">Pictures from the Cover Art Archive. Choosing one replaces the cover shown for this song and its album in FLACie only; your files and Jellyfin are not changed.</p>
+            <ul class="mb-pics">
+                @foreach (var (img, data) in pictures)
+                {
+                    var im = img;
+                    <li><img src="@data" alt="@(string.Join(", ", img.Types).Length > 0 ? string.Join(", ", img.Types) + " cover" : "Cover")" width="96" height="96" /><button class="pill-btn" @onclick="() => UseCover(im)" disabled="@busy">Use this cover</button></li>
+                }
+            </ul>
+        }
+    }
+    @if (coverDone) { <p class="hint" role="status" id="mb-cover-done">Cover replaced. It shows from the next screen you open.</p> }
     @if (results is not null)
     {
         @if (results.Count == 0) { <p class="hint">MusicBrainz knows nothing like this song.</p> }
@@ -41,14 +61,16 @@
 </section>
 @code {
     [Parameter] public Track Track { get; set; } = default!;
-    bool busy; string? error; string? forPath;
+    bool busy, coverDone; string? error; string? forPath;
+    IReadOnlyList<(CaaImage Image, string Data)>? pictures;
+    string? ArtKeyOf => Art.KeyFor(Track);
     IReadOnlyList<(MbCandidate Candidate, double Score)>? results;
     MbChoice? Choice => Overlay.Get(Track);
 
     protected override void OnParametersSet()
     {
         // a new song: nothing from the last one stays on screen
-        if (forPath != Track.Path) { forPath = Track.Path; results = null; error = null; busy = false; }
+        if (forPath != Track.Path) { forPath = Track.Path; results = null; pictures = null; coverDone = false; error = null; busy = false; }
     }
 
     async Task Search()
@@ -58,6 +80,41 @@
         catch (Exception) { error = "MusicBrainz did not answer. Try again in a minute."; }
         finally { busy = false; }
     }
+
+    async Task ChooseCover()
+    {
+        if (Choice is not { } c) return;
+        busy = true; error = null; pictures = null; coverDone = false;
+        try
+        {
+            var list = (await Caa.ListAsync(c.ReleaseMbid, c.ReleaseGroupMbid)).Take(12).ToList();
+            var shown = new List<(CaaImage, string)>();
+            foreach (var im in list)
+            {
+                var bytes = await Caa.FetchAsync(im.Thumb);
+                if (bytes is not null && CoverArtArchiveClient.Sniff(bytes) is { } mime) shown.Add((im, "data:" + mime + ";base64," + Convert.ToBase64String(bytes)));
+            }
+            pictures = shown;
+        }
+        catch (Exception) { error = "The Cover Art Archive did not answer. Try again in a minute."; }
+        finally { busy = false; }
+    }
+
+    async Task UseCover(CaaImage im)
+    {
+        if (ArtKeyOf is not { } key) { error = "This song has no cover to replace."; return; }
+        busy = true; error = null;
+        try
+        {
+            var bytes = await Caa.FetchAsync(im.Full) ?? await Caa.FetchAsync(im.Thumb);
+            if (bytes is null || Covers.Set(key, bytes, "Cover Art Archive " + im.Id) is null) error = "That picture could not be fetched.";
+            else { pictures = null; coverDone = true; }
+        }
+        catch (Exception) { error = "The Cover Art Archive did not answer. Try again in a minute."; }
+        finally { busy = false; }
+    }
+
+    void OriginalCover() { if (ArtKeyOf is { } key) { Covers.Clear(key); coverDone = true; } }
 
     void Use(MbCandidate c) { Overlay.Set(Track, c); results = null; }
     void Forget() { Overlay.Clear(Track); results = null; }

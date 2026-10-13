@@ -1378,3 +1378,7 @@ html.buffering .play .ic { opacity: .55; }
 .mb-text { display: grid; min-width: 0; }
 .mb-text b, .mb-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mb-text small { color: var(--dim); }
+
+.mb-pics { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 12px; }
+.mb-pics li { display: grid; gap: 6px; justify-items: center; }
+.mb-pics img { border-radius: 10px; object-fit: cover; background: var(--bg); border: 1px solid var(--line); }

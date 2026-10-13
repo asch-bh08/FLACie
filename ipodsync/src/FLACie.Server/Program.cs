@@ -45,7 +45,10 @@ builder.Services.AddHttpClient("downloads", c => { c.Timeout = TimeSpan.FromSeco
 // MusicBrainz: its own client (no default User-Agent, the app sets a descriptive one), its own 1 request/second gate, a disk cache; asked only when a person presses a button
 var mbClient = builder.Services.AddHttpClient("musicbrainz", c => c.Timeout = TimeSpan.FromSeconds(15));
 if (CatalogRedirectHandler.Parse(builder.Configuration["FLACIE_CATALOG_REDIRECT"]) is { } mbRedirect) mbClient.AddHttpMessageHandler(() => new CatalogRedirectHandler(mbRedirect));
-builder.Services.AddSingleton(sp => new MusicBrainzClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient("musicbrainz"), MusicBrainzClient.UserAgentFor(AppInfo.Version, builder.Configuration["FLACIE_MB_CONTACT"]), Path.Combine(dataDir, "mb-cache")));
+builder.Services.AddSingleton<MusicBrainzGate>();   // one gate for everything that asks MusicBrainz or the Cover Art Archive
+builder.Services.AddSingleton(sp => new MusicBrainzClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient("musicbrainz"), MusicBrainzClient.UserAgentFor(AppInfo.Version, builder.Configuration["FLACIE_MB_CONTACT"]), Path.Combine(dataDir, "mb-cache"), sp.GetRequiredService<MusicBrainzGate>()));
+builder.Services.AddSingleton(sp => new CoverArtArchiveClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient("musicbrainz"), MusicBrainzClient.UserAgentFor(AppInfo.Version, builder.Configuration["FLACIE_MB_CONTACT"]), sp.GetRequiredService<MusicBrainzGate>()));
+builder.Services.AddSingleton(_ => CoverOverrides.Current = new CoverOverrides(Path.Combine(dataDir, "art-override")));   // covers a person chose (the original cover and the files are never touched)
 builder.Services.AddSingleton(new MbOverlay(Path.Combine(dataDir, "mb-overlay.json")));
 builder.Services.AddSingleton(sp => new WebCatalog(sp.GetRequiredService<IHttpClientFactory>().CreateClient("catalog")));
 builder.Services.AddSingleton(new DataPaths(dataDir));

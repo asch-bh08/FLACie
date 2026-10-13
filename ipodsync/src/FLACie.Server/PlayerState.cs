@@ -190,9 +190,11 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         if (t is null) return;
         if (connect is not null && !ReferenceEquals(connect.Host, this)) connect.Host = this; // this tab is the one playing now
         self ??= DotNetObjectReference.Create(this);
+        if (startAt <= 0) startAt = ResumeFor(t);   // a long item (audiobook, podcast, long mix) starts where it was left
         await js.InvokeVoidAsync("flacie.load", self, "/stream?p=" + Uri.EscapeDataString(t.Path), t.Title, t.Artist, t.Album,
             t.ArtKey is null ? null : "/art/" + Uri.EscapeDataString(t.ArtKey) + "?v=3", autoplay, t.DurationMs / 1000.0, startAt, PrefetchUrl());
         Position = startAt; Duration = t.DurationMs / 1000.0;
+        await ApplyItemSpeedAsync(t);
         if (plays is not null && session is not null) plays.Begin(session.Id, session.DisplayName, t.Path, t.Title, t.Artist, "FLACie Web", Context);
         Stash(true);
         RefreshSuggestions(); _ = PlanAsync(t); Started?.Invoke(t);
@@ -333,15 +335,168 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
 
     // ---- from flacie.js ----
 
-    [JSInvokable] public void OnTime(double pos, double dur) { PlaybackActivity.Current?.Heartbeat(); Position = pos; if (dur > 0 && !double.IsInfinity(dur)) Duration = dur; Stash(false); PlayTick(); Changed?.Invoke(); }
+    [JSInvokable] public void OnTime(double pos, double dur) { PlaybackActivity.Current?.Heartbeat(); Position = pos; if (dur > 0 && !double.IsInfinity(dur)) Duration = dur; Stash(false); RememberPlace(); SleepTick(); PlayTick(); Changed?.Invoke(); }
     [JSInvokable] public void OnState(bool playing) { Playing = playing; PlayTick(); Changed?.Invoke(); }
     [JSInvokable] public async Task OnEnded()
     {
+        if (SleepEndsHere()) { ClearPlace(); await SleepFireAsync(); return; }
+        ClearPlace();
         if (OnAutoAdvance is { } hand) { hand(); return; }
         if (Repeat == 2) { await SeekRawAsync(0); await js.InvokeVoidAsync("flacie.play"); } else await NextAsync();
     }
     [JSInvokable] public Task OnNext() => Next();
     [JSInvokable] public Task OnPrev() => Prev();
+
+    // ---- speed, long items and the sleep timer (the rules are in SleepAndSpeed.cs, shared with the Android app's behaviour) ----
+
+    public double Speed { get; private set; } = 1;
+    ItemMemory speedMem = new(), placeMem = new(100);
+    double spokenSpeed = 1; bool memoryLoaded; long lastPlaceSave;
+
+    /// <summary>Reads the remembered speeds and places kept in this browser (once).</summary>
+    public async Task LoadSpeedMemoryAsync()
+    {
+        if (memoryLoaded) return;
+        memoryLoaded = true;
+        try
+        {
+            speedMem = ItemMemory.Decode(await js.InvokeAsync<string?>("flacie.unstash", "flacie.speeds"));
+            placeMem = ItemMemory.Decode(await js.InvokeAsync<string?>("flacie.unstash", "flacie.places"), 100);
+            if (double.TryParse(await js.InvokeAsync<string?>("flacie.unstash", "flacie.spokenspeed"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var s)) spokenSpeed = SpeedPolicy.Clamp(s);
+        }
+        catch (Exception) { }
+    }
+
+    async Task ApplyItemSpeedAsync(Track t)
+    {
+        await LoadSpeedMemoryAsync();
+        var saved = speedMem.Get(SpeedPolicy.KeyOf(t.Path));
+        await ApplySpeedAsync(saved ?? (SpeedPolicy.IsSpoken(t.Genre) ? spokenSpeed : 1));
+    }
+
+    async Task ApplySpeedAsync(double s)
+    {
+        Speed = SpeedPolicy.Clamp(s);
+        try { await js.InvokeVoidAsync("flacie.rate", Speed); } catch (Exception) { }
+    }
+
+    /// <summary>Sets the speed (pitch kept) and remembers it for this item; on spoken word it is also the default for the next one.</summary>
+    public async Task SetSpeedAsync(double s)
+    {
+        await LoadSpeedMemoryAsync();
+        await ApplySpeedAsync(s);
+        if (Current is { } t)
+        {
+            var spoken = SpeedPolicy.IsSpoken(t.Genre);
+            speedMem.Set(SpeedPolicy.KeyOf(t.Path), spoken || Speed != 1 ? Speed : null);
+            if (spoken) spokenSpeed = Speed;
+            try
+            {
+                await js.InvokeVoidAsync("flacie.stash", "flacie.speeds", speedMem.Encode());
+                if (spoken) await js.InvokeVoidAsync("flacie.stash", "flacie.spokenspeed", Speed.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+            }
+            catch (Exception) { }
+        }
+        Changed?.Invoke();
+    }
+
+    /// <summary>Skip back 10 s / forward 30 s inside the song.</summary>
+    public Task SkipByAsync(double seconds) => Seek(Math.Clamp(Position + seconds, 0, Math.Max(0, Duration - 1)));
+
+    double ResumeFor(Track t) => SpeedPolicy.ResumeAt(placeMem.Get(SpeedPolicy.KeyOf(t.Path)) is { } p ? (long)p : null, t.DurationMs) / 1000.0;
+
+    void RememberPlace()
+    {
+        if (Current is not { } t || !SpeedPolicy.IsLong(t.DurationMs)) return;
+        var now = Environment.TickCount64;
+        if (now - lastPlaceSave < 5_000) return;
+        lastPlaceSave = now;
+        var ms = (long)(Position * 1000);
+        if (SpeedPolicy.ShouldSavePlace(ms, t.DurationMs)) placeMem.Set(SpeedPolicy.KeyOf(t.Path), ms);
+        else if (ms >= t.DurationMs - SpeedPolicy.FinishedMs) placeMem.Set(SpeedPolicy.KeyOf(t.Path), null);
+        else return;
+        _ = js.InvokeVoidAsync("flacie.stash", "flacie.places", placeMem.Encode()).AsTask().ContinueWith(_ => { });
+    }
+
+    void ClearPlace()
+    {
+        if (Current is not { } t || !SpeedPolicy.IsLong(t.DurationMs)) return;
+        placeMem.Set(SpeedPolicy.KeyOf(t.Path), null);
+        _ = js.InvokeVoidAsync("flacie.stash", "flacie.places", placeMem.Encode()).AsTask().ContinueWith(_ => { });
+    }
+
+    public SleepMode SleepMode { get; private set; }
+    DateTime sleepEndsUtc; string? sleepArmedPath; double fade = 1;
+
+    List<Track> PlayOrderTracks() => order.Select(i => Queue[i]).ToList();
+
+    /// <summary>Time left until the timer fires, in real time (a faster speed shortens what is left of a song); null when off or not known.</summary>
+    public long? SleepRemainingMs()
+    {
+        var pos = (long)(Position * 1000);
+        long? left = SleepMode switch
+        {
+            SleepMode.Minutes => Math.Max(0, (long)(sleepEndsUtc - DateTime.UtcNow).TotalMilliseconds),
+            SleepMode.EndOfTrack => SleepPlan.TrackRemaining(pos, Current?.DurationMs ?? 0),
+            SleepMode.EndOfAlbum => SleepPlan.AlbumRemaining(PlayOrderTracks(), order.IndexOf(Index), pos),
+            _ => null,
+        };
+        return left is { } l && SleepMode != SleepMode.Minutes ? (long)(l / Speed) : left;
+    }
+
+    public string SleepStatus()
+    {
+        if (SleepMode == SleepMode.Off) return "Off";
+        var left = SleepRemainingMs() is { } l ? SleepPlan.FormatLeft(l) : null;
+        return SleepMode == SleepMode.Minutes ? left ?? "Timer" : SleepPlan.Label(SleepMode) + (left is null ? "" : $" ({left})");
+    }
+
+    public async Task SetSleepAsync(SleepMode mode, int minutes = 0)
+    {
+        SleepMode = mode; sleepArmedPath = mode == SleepMode.EndOfTrack ? Current?.Path : null;
+        if (mode == SleepMode.Minutes) sleepEndsUtc = DateTime.UtcNow.AddMinutes(minutes);
+        if (mode == SleepMode.Off) await SetFadeAsync(1);
+        Changed?.Invoke();
+    }
+
+    /// <summary>Adds the extend minutes to what is left (a song or album timer becomes a minutes timer).</summary>
+    public async Task ExtendSleepAsync()
+    {
+        if (SleepMode == SleepMode.Off) return;
+        var now = DateTime.UtcNow;
+        var left = SleepRemainingMs() ?? 0;
+        sleepEndsUtc = SleepPlan.Extend(now.AddMilliseconds(left), now); SleepMode = SleepMode.Minutes; sleepArmedPath = null;
+        await SetFadeAsync(1);
+        Changed?.Invoke();
+    }
+
+    async Task SetFadeAsync(double g) { fade = g; try { await js.InvokeVoidAsync("flacie.fade", g); } catch (Exception) { } }
+
+    bool SleepEndsHere() => SleepMode switch
+    {
+        SleepMode.EndOfTrack => true,
+        SleepMode.EndOfAlbum => SleepPlan.AlbumEndsAfter(PlayOrderTracks(), order.IndexOf(Index)),
+        _ => false,
+    };
+
+    async Task SleepFireAsync()
+    {
+        SleepMode = SleepMode.Off; sleepArmedPath = null;
+        await SetFadeAsync(1);
+        try { await js.InvokeVoidAsync("flacie.pause"); } catch (Exception) { }
+        Changed?.Invoke();
+    }
+
+    void SleepTick()
+    {
+        if (SleepMode == SleepMode.Off) return;
+        // "end of this song": a different song has started (a skip): the moment has passed
+        if (SleepMode == SleepMode.EndOfTrack && sleepArmedPath is not null && Current?.Path != sleepArmedPath) { _ = SleepFireAsync(); return; }
+        var left = SleepRemainingMs();
+        if (left is { } l && l <= (SleepMode == SleepMode.Minutes ? 0 : 250)) { _ = SleepFireAsync(); return; }
+        var g = left is { } r ? SleepPlan.FadeGain(r) : 1;
+        if (Math.Abs(g - fade) > 0.01) _ = SetFadeAsync(g);
+    }
 
     /// <summary>Stops the music and closes the player: the queue is emptied and the bar goes away. It is what the X on the bar does.</summary>
     public async Task StopAsync()

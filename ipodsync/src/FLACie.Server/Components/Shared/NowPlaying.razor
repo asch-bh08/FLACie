@@ -69,6 +69,7 @@
                     <button class="icon-btn lg @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="22" /></button>
                 </div>
                 <div class="np-volume"><VolumeControl /></div>
+                <SpeedSleep />
             </section>
             <section class="np-side">
                 <div class="np-tabs" role="tablist">

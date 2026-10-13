@@ -96,6 +96,11 @@ class SleepAndSpeedTest {
         assertEquals(3f, SpeedPolicy.clamp(9f), 0f); assertEquals(0.5f, SpeedPolicy.clamp(0.1f), 0f); assertEquals(1f, SpeedPolicy.clamp(Float.NaN), 0f)
     }
 
+    @Test fun cycleGoesUpAndWrapsToNormal() {
+        assertEquals(1.25f, SpeedPolicy.cycle(1.0f), 0f); assertEquals(1.5f, SpeedPolicy.cycle(1.25f), 0f); assertEquals(3.0f, SpeedPolicy.cycle(2.5f), 0f)
+        assertEquals(1.0f, SpeedPolicy.cycle(3.0f), 0f); assertEquals(0.75f, SpeedPolicy.cycle(0.5f), 0f)
+    }
+
     @Test fun speedLabels() {
         assertEquals("1x", SpeedPolicy.label(1f)); assertEquals("1.25x", SpeedPolicy.label(1.25f)); assertEquals("0.5x", SpeedPolicy.label(0.5f)); assertEquals("3x", SpeedPolicy.label(3f)); assertEquals("1.5x", SpeedPolicy.label(1.5f))
     }

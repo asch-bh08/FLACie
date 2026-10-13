@@ -20,6 +20,9 @@ object SpeedPolicy {
         return if (up) STEPS.firstOrNull { it > c + 0.001f } ?: STEPS.last() else STEPS.lastOrNull { it < c - 0.001f } ?: STEPS.first()
     }
 
+    /** What a tap on the session's speed button does: the next step up, and from the fastest back to 1x. */
+    fun cycle(s: Float): Float { val n = step(s, true); return if (n <= clamp(s) + 0.001f) 1.0f else n }
+
     /** "1x", "1.25x", "0.5x". */
     fun label(s: Float): String {
         val c = clamp(s)

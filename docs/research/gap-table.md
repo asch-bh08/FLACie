@@ -12,14 +12,14 @@ Sources: `symfonium.md`, `plexamp.md` (public docs and press; Plex's own pages r
 | Android Auto | yes | yes (+ voice) | no | L | high for drivers | A | 1e |
 | Chromecast | yes | yes | no | M | medium | A | 1e |
 | Crossfade / gapless | yes | yes | gapless yes; crossfade no | M | medium | A, W | 1c |
-| Loudness normalisation (ReplayGain / R128) | yes | yes | no | M | high | A, W | 1c |
+| Loudness normalisation (ReplayGain / R128) | yes | yes | **beta 61**: Jellyfin NormalizationGain, off by default (A, W); not tried against a real Jellyfin | M | high | A, W | 1c |
 | Parametric EQ, per-device profiles | ~ | yes | basic presets (ToneEngine) | M | medium | A | 1c |
-| Synced lyrics (embedded, LRC, LRCLIB) | yes | yes | lyrics panel exists (embedded); LRCLIB not wired | S-M | medium | A, W | 1d |
+| Synced lyrics (embedded, LRC, LRCLIB) | yes | yes | **built before beta 60** (Jellyfin lyrics, sidecar .lrc, LRCLIB; Android and web) | - | - | A, W | done |
 | Ratings (stars), play counts, stats | yes | yes | favourites + play counts; no stars | M | medium | A, W | 1d |
 | Smart playlists / mix builder | yes (radios, mixes) | yes | no | L | high | A, W | 3 |
 | Radio / similarity (artist, album, genre, decade) | yes (sonic, server-side) | ~ (mixes) | Explore + autoplay planner | L | high | A, W | 3 |
 | Multiple queues / save queue | ~ | yes | one queue, saved lists | M | low-medium | A, W | later |
-| MusicBrainz match + "fix this match" | ~ | no | no | M | medium | W first | 2 |
+| MusicBrainz match + "fix this match" | ~ | no | **beta 61 (web)**: Info panel match you choose, own 1 req/s gate, cache; Android not built | M | medium | W first | 2 |
 | Cover picker (embedded, folder, CAA, upload) | ~ | yes (art sources) | catalog lookup (Deezer/iTunes), vetting; no picker | M | medium | A, W | 2 |
 | Library browse, search, filters, A-Z index | yes | yes | yes | - | - | - | done |
 | Home shelves, quick picks, saved-snapshot cold start | yes | yes | yes (beta 56/57) | - | - | - | done |

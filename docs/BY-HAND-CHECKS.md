@@ -18,3 +18,7 @@ Each beta adds its items; tick them off on the Fold. Nothing here was verified o
 - [ ] Offline: download a song and an album's worth, put the phone in flight mode, play them; switch Wi-Fi only off/on; "Keep favourites offline" with a small limit; remove one; remove all. Watch the Jellyfin server load while downloading (should be one song at a time).
 - [ ] Seek bar (new look): drag along the whole bar: the ticks, the pill under your finger, the bar growing; tap-to-seek; TalkBack reading "Seek ..." and the Back 10 / Forward 30 actions; the play button morph.
 - [ ] iPod wheel: flick fast and let go: it should coast and stop smoothly; touch to stop it.
+
+## Beta 61
+- [ ] Even out volume (Android Settings, web Volume): does your Jellyfin give a gain at all? Turn it on, play a loud and a quiet song one after the other: they should sound closer in level. Check there is no pumping or clipping at the +6 dB end.
+- [ ] MusicBrainz match (web Info tab): press Find on a few songs (a well-known one, a live one, an obscure one); check the best match comes first; choose one, reload: it is still there; Forget this match.

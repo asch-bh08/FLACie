@@ -64,7 +64,7 @@ class PlaybackService : MediaSessionService() {
 
     private fun layout(): ImmutableList<CommandButton> {
         val app = App.of(this)
-        val fav = app.player.current?.let { app.userData.isFavorite(it.path) } == true
+        val fav = isFavorite(app)
         val speed = app.player.speed
         return ImmutableList.of(
             CommandButton.Builder().setDisplayName(if (fav) "Remove from favourites" else "Favourite").setIconResId(if (fav) R.drawable.ic_fav_on else R.drawable.ic_fav)
@@ -73,11 +73,14 @@ class PlaybackService : MediaSessionService() {
         )
     }
 
+    /** The service can start (to hold the restored queue) before the favourites are loaded: until then, not a favourite. */
+    private fun isFavorite(app: App): Boolean = try { app.player.current?.let { app.userData.isFavorite(it.path) } == true } catch (_: UninitializedPropertyAccessException) { false }
+
     /** Sets the custom buttons again when what they show (the heart, the speed) has changed. */
     private fun refreshLayout(force: Boolean) {
         val s = session ?: return
         val app = App.of(this)
-        val key = (app.player.current?.path ?: "") + "|" + (app.player.current?.let { app.userData.isFavorite(it.path) } == true) + "|" + app.player.speed
+        val key = (app.player.current?.path ?: "") + "|" + isFavorite(app) + "|" + app.player.speed
         if (!force && key == lastLayoutKey) return
         lastLayoutKey = key
         s.setCustomLayout(layout())

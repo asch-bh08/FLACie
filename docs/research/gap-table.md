@@ -4,11 +4,11 @@ Sources: `symfonium.md`, `plexamp.md` (public docs and press; Plex's own pages r
 
 | Feature | Plexamp | Symfonium | FLACie today | Effort | Value | Scope | Phase |
 |---|---|---|---|---|---|---|---|
-| Offline downloads (manual + auto) | yes | yes (offline-first) | partial: downloads exist only via the slskd/Lidarr acquisition path, no "make available offline" from Jellyfin | L | high | A, W (Service Worker), X (disk) | 1b |
-| Resumable download queue, Wi-Fi only, storage manager | yes | yes | no | M | high | A first | 1b |
-| Playback speed 0.5-3x, per-item memory | ~yes | yes | **new in feature/phase1a** (A, W) | S | medium (spoken word) | A, W, X | 1a |
-| Sleep timer: end of track/album, fade | ~yes | yes | **new in feature/phase1a** (was minutes only) | S | medium | A, W, X | 1a |
-| Media session: current item only, custom actions | n/a | yes | beta 59 (item only); favourite + speed buttons in feature/phase1a | S | high (Bluetooth OOM) | A | 1a |
+| Offline downloads (manual + auto) | yes | yes (offline-first) | **Android: built in beta 60** (manual + favourites, resumable, Wi-Fi only). Web/Windows: not applicable (Blazor Server; Windows keeps a disk cache) | L | high | A | 1b |
+| Resumable download queue, Wi-Fi only, storage manager | yes | yes | **Android: built in beta 60** | M | high | A | 1b |
+| Playback speed 0.5-3x, per-item memory | ~yes | yes | **beta 60** (A, W; Windows via the web UI) | S | medium (spoken word) | A, W, X | 1a |
+| Sleep timer: end of track/album, fade | ~yes | yes | **beta 60** (A, W) | S | medium | A, W, X | 1a |
+| Media session: current item only, custom actions | n/a | yes | beta 59 (item only); beta 60 adds favourite + speed buttons | S | high (Bluetooth OOM) | A | 1a |
 | Android Auto | yes | yes (+ voice) | no | L | high for drivers | A | 1e |
 | Chromecast | yes | yes | no | M | medium | A | 1e |
 | Crossfade / gapless | yes | yes | gapless yes; crossfade no | M | medium | A, W | 1c |
@@ -26,7 +26,7 @@ Sources: `symfonium.md`, `plexamp.md` (public docs and press; Plex's own pages r
 | Multi-server / multi-source | Plex only | Jellyfin, Plex, Emby, Subsonic, local | Jellyfin + NAS + Plex + web | - | - | - | done (breadth) |
 | Offline-first library DB | ~ | yes | cached list, not a full offline DB | L | medium | A | with 1b |
 | Widgets, Wear OS, car mode | yes (some) | yes (widgets, Wear) | no | M | low-medium | A | later |
-| Visual polish / motion language | strong | strong | mixed; specs written (player, iPod) | L | high | A, W | 4 |
+| Visual polish / motion language | strong | strong | beta 60: new seek bar + play/pause morph (A), seek bar CSS (W), wheel inertia + label contrast; the rest of the specs (player, iPod) not built | L | high | A, W | 4 |
 | Pricing model | free app, Plex Pass for some | paid | free, open | - | - | - | - |
 
 ## Reading it

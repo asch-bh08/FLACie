@@ -32,5 +32,6 @@ Web: the same bar (CSS, `input type=range` with `aria-valuetext`), bubble, buffe
 ## Tests and acceptance
 Unit: `ScrubModel` (fraction -> time text, remaining, delta), contrast clamp, reduced-motion switch. Emulator: screenshots at phone, tablet and `--es fake 720x720` square; scrub with `input motionevent`, tap-to-seek, D-pad nudge; TalkBack text read from `uiautomator dump`. By hand (owner): seek feel, haptics, motion, one-hand reach.
 
-## Not started
-Nothing in this spec is built yet (see `docs/OVERNIGHT-LOG.md`).
+## Status (beta 60)
+Built (Android): thicker growing seek track with a buffered stretch, scrub pill, haptic ticks every tenth, time left, TalkBack state text and Back 10 / Forward 30 actions, play/pause morph, spring press on the play disc, reduced-motion respected (Tweaks.motion). Built (web): thicker seek bar with a persistent knob, spoken position (aria-valuetext). Pure logic with tests: ScrubModel, TimeSpeech.
+Not built: 56 dp previous/next targets with a visible press state, shuffle/repeat dot states, shared-element cover transition, cover colours with contrast clamps on Now Playing, the one-icon-set pass (Phase 4), web play/pause morph.

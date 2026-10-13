@@ -45,9 +45,10 @@ class App : Application() {
         homeSnapshot = Boot.span("home snapshot read") { com.ipodemu.library.HomeSnapshot.read(File(filesDir, "home.json")) }
         homeSnapshot?.let { art.warm(com.ipodemu.library.HomeSnapshot.coverKeys(it)) }
         ui = UiState(prefs)
+        // the player asks the offline library which songs are on the phone while it rebuilds the queue: it must exist first
+        offline = com.ipodemu.library.offline.OfflineManager(this, prefs)
         Boot.span("restoreQueue") { player.restoreQueue(); player.restoreSleepTimer() }
         userData = com.ipodemu.library.UserData(this)
-        offline = com.ipodemu.library.offline.OfflineManager(this, prefs)
         // favourites kept offline follow the favourites list (a pause first, so a run of taps is one change)
         userData.onFavoritesChanged = { offlineSyncSoon() }
         bg.launch { kotlinx.coroutines.delay(30_000); offlineSyncSoon() }

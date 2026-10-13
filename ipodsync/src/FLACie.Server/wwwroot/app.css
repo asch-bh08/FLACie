@@ -1382,3 +1382,30 @@ html.buffering .play .ic { opacity: .55; }
 .mb-pics { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 12px; }
 .mb-pics li { display: grid; gap: 6px; justify-items: center; }
 .mb-pics img { border-radius: 10px; object-fit: cover; background: var(--bg); border: 1px solid var(--line); }
+
+/* speed, sleep and sound pills under the full-screen player's controls (replaces the first, form-like version) */
+.speed-sleep { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; }
+.chip-menu { position: relative; }
+.chipbtn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--surface-2); color: var(--ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; font-variant-numeric: tabular-nums; white-space: nowrap; transition: background .15s; }
+.chipbtn:hover { background: var(--surface-3); }
+.chipbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chip-menu.on > .chipbtn, .chip-menu.open > .chipbtn { background: color-mix(in srgb, var(--accent) 22%, var(--surface-2)); }
+.chip-menu.on > .chipbtn .ic { color: var(--accent); }
+.chip-pop { right: auto; top: auto; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); min-width: 190px; max-height: 300px; z-index: 60; }
+.chip-pop button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+.chip-pop button.sel { color: var(--accent); }
+.chip-pop button.danger { color: #ff7b7b; }
+.sound-row { padding: 6px 8px 10px; min-width: 270px; }
+.sound-fade { display: grid; gap: 8px; padding: 10px 8px 6px; border-top: 1px solid var(--line); font-size: 14px; }
+.sound-fade small { color: var(--dim); }
+.seg { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip-pop .seg button { flex: 1; min-width: 40px; justify-content: center; padding: 7px 8px; border-radius: 8px; background: var(--surface-3); font-size: 12px; font-weight: 600; }
+.chip-pop .seg button.sel { background: var(--accent); color: #fff; }
+@media (prefers-reduced-motion: reduce) { .chipbtn { transition: none; } }
+.chip-pop.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; min-width: 232px; }
+.chip-pop.grid button { justify-content: center; padding: 10px 8px; font-variant-numeric: tabular-nums; }
+.chip-pop.grid button.sel { background: var(--accent); color: #fff; }
+.chip-menu.open { z-index: 90; }
+.chip-pop .seg { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.chip-pop .seg button { min-width: 0; padding: 7px 0; }
+.sound-row { min-width: 300px; }

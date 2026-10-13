@@ -22,3 +22,8 @@ Each beta adds its items; tick them off on the Fold. Nothing here was verified o
 ## Beta 61
 - [ ] Even out volume (Android Settings, web Volume): does your Jellyfin give a gain at all? Turn it on, play a loud and a quiet song one after the other: they should sound closer in level. Check there is no pumping or clipping at the +6 dB end.
 - [ ] MusicBrainz match (web Info tab): press Find on a few songs (a well-known one, a live one, an obscure one); check the best match comes first; choose one, reload: it is still there; Forget this match.
+
+## Beta 62
+- [ ] Android Auto / car: in the car (or the Desktop Head Unit) open FLACie: the six folders, a page of songs with covers, play from Favourites (the list queues), search by voice ("play ..."), the favourite and speed buttons. Check covers load (they come from the app's content provider).
+- [ ] Fade between songs (Android Settings / web Fade): set 4 s; skip between two albums: the end fades and the next starts soft; play an album straight through: no fade at the joins.
+- [ ] MusicBrainz match + cover (Android song menu, web Info tab): pick a match, use the Cover Art Archive cover, check it shows (Android: after leaving the screen), then use the original again.

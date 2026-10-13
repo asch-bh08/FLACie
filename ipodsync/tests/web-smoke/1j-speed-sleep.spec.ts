@@ -1,6 +1,7 @@
 import { test, expect, Page } from '@playwright/test';
 
-// Beta 60: playback speed with a per-item memory, the sleep timer (minutes, end of song, extend) and the long-item skips in the full-screen player.
+// Speed, sleep timer, volume levelling and fade between songs in the full-screen player: three pills (Speed, Sleep timer, Sound) that open short menus above them,
+// and skip back 10 / forward 30 for long items.
 async function signIn(page: Page) {
   await page.goto('/login');
   await page.locator('#jf-form summary').click();
@@ -23,12 +24,34 @@ async function playLab(page: Page) {
 }
 
 const rate = (page: Page) => page.evaluate(() => (window as any).flacie.rate() as number);
+const pill = (page: Page, label: string) => page.locator('#speed-sleep').getByRole('button', { name: label, exact: true });
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+async function open(page: Page, label: string) { await pill(page, label).click(); await expect(page.locator('#speed-sleep .chip-pop')).toBeVisible(); }
+/** Opens a pill's menu and picks the entry that starts with [option]. */
 async function pick(page: Page, label: string, option: string) {
-  await page.locator('#speed-sleep .dd', { hasText: label }).locator('.dd-btn').click();
-  await page.locator('#speed-sleep .dd-opt', { hasText: option }).first().click();
+  await open(page, label);
+  await page.locator('#speed-sleep .chip-pop button').filter({ hasText: new RegExp('^\\s*' + esc(option)) }).first().click();
 }
 
 test.describe.serial('speed and sleep', () => {
+  test('the pills are small and tidy: three of them in one row, no form boxes', async ({ page }) => {
+    test.setTimeout(120_000);
+    await signIn(page);
+    await playLab(page);
+    for (const n of ['Speed', 'Sleep timer', 'Sound']) await expect(pill(page, n)).toBeVisible();
+    await expect(page.locator('#speed-sleep .dd')).toHaveCount(0);
+    const boxes = await page.locator('#speed-sleep .chipbtn').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()));
+    expect(boxes.length).toBeGreaterThanOrEqual(3);
+    for (const b of boxes) expect(b.height).toBeLessThanOrEqual(40);
+    expect(new Set(boxes.map((b) => Math.round(b.top))).size, 'one row').toBe(1);
+    await expect(pill(page, 'Speed')).toHaveText('1x');
+    await expect(pill(page, 'Sleep timer')).toHaveText('Sleep');
+    await expect(pill(page, 'Sound')).toHaveText('Sound');
+    // pictures for a person to look at (test-results is not kept)
+    await open(page, 'Speed'); await page.screenshot({ path: 'test-results/pills-speed.png' });
+    await open(page, 'Sound'); await page.screenshot({ path: 'test-results/pills-sound.png' });
+  });
+
   test('speed changes the audio rate with the pitch kept, is remembered per song, and shows the long-item skips', async ({ page }) => {
     test.setTimeout(120_000);
     await signIn(page);
@@ -37,6 +60,7 @@ test.describe.serial('speed and sleep', () => {
     await expect(page.getByRole('button', { name: 'Back 10 seconds' })).toHaveCount(0);   // an ordinary song at 1x: no long-item buttons
     await pick(page, 'Speed', '1.5x');
     await expect.poll(() => rate(page)).toBe(1.5);
+    await expect(pill(page, 'Speed')).toHaveText('1.5x');
     expect(await page.evaluate(() => { const a = new Audio(); return 'preservesPitch' in a; })).toBe(true);
     await expect(page.getByRole('button', { name: 'Back 10 seconds' })).toBeVisible();      // a changed speed shows them
     await expect(page.getByRole('button', { name: 'Forward 30 seconds' })).toBeVisible();
@@ -54,15 +78,14 @@ test.describe.serial('speed and sleep', () => {
     test.setTimeout(120_000);
     await signIn(page);
     await playLab(page);
-    await expect(page.locator('#speed-sleep .dd', { hasText: 'Sleep' })).toContainText('Off');
-    await pick(page, 'Sleep', '15 minutes');
-    await expect(page.locator('#speed-sleep .dd', { hasText: 'Sleep' })).toContainText(/1[45] min left/, { timeout: 10_000 });
-    await pick(page, 'Sleep', 'Add 15 minutes');
-    await expect(page.locator('#speed-sleep .dd', { hasText: 'Sleep' })).toContainText(/(29|30) min left/, { timeout: 10_000 });
-    await pick(page, 'Sleep', 'End of this song');
-    await expect(page.locator('#speed-sleep .dd', { hasText: 'Sleep' })).toContainText(/End of this song/, { timeout: 10_000 });
-    await pick(page, 'Sleep', 'Off');
-    await expect(page.locator('#speed-sleep .dd', { hasText: 'Sleep' })).toContainText('Off');
+    await pick(page, 'Sleep timer', '15 minutes');
+    await expect(pill(page, 'Sleep timer')).toContainText(/1[45] min left/, { timeout: 10_000 });
+    await pick(page, 'Sleep timer', 'Add 15 minutes');
+    await expect(pill(page, 'Sleep timer')).toContainText(/(29|30) min left/, { timeout: 10_000 });
+    await pick(page, 'Sleep timer', 'End of this song');
+    await expect(pill(page, 'Sleep timer')).toContainText(/End of this song/, { timeout: 10_000 });
+    await pick(page, 'Sleep timer', 'Turn off');
+    await expect(pill(page, 'Sleep timer')).toHaveText('Sleep');
   });
 
   test('"end of this song" pauses at the end instead of playing the next song', async ({ page }) => {
@@ -70,12 +93,12 @@ test.describe.serial('speed and sleep', () => {
     await signIn(page);
     await playLab(page);
     await expect(page.getByRole('button', { name: 'Pause' }).first()).toBeVisible({ timeout: 15_000 });
-    await pick(page, 'Sleep', 'End of this song');
+    await pick(page, 'Sleep timer', 'End of this song');
     const title = await page.locator('.np-titles h2').innerText();
     // run the song to its end
     await page.evaluate(() => (window as any).flacie.seek(1e6));
     await expect(page.getByRole('button', { name: 'Play' }).first()).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator('#speed-sleep .dd', { hasText: 'Sleep' })).toContainText('Off');
+    await expect(pill(page, 'Sleep timer')).toHaveText('Sleep');
     expect(await page.locator('.np-titles h2').innerText()).toBe(title);   // the next song did not start
   });
 
@@ -86,10 +109,13 @@ test.describe.serial('speed and sleep', () => {
     const vol = () => page.evaluate(() => (window as any).flacie.loud() as number);
     const base = await page.evaluate(() => (window as any).flacie.volume() as number);
     await expect.poll(vol).toBeCloseTo(base, 3);   // off by default: untouched
-    await pick(page, 'Volume', 'Even out');
+    await open(page, 'Sound');
+    await page.locator('.sound-row').click();
     await expect.poll(vol).toBeCloseTo(base * 0.501, 2);   // -6 dB
-    await pick(page, 'Volume', 'As recorded');
+    await expect(pill(page, 'Sound')).toHaveText('Even out');
+    await page.locator('.sound-row').click();
     await expect.poll(vol).toBeCloseTo(base, 3);
+    await expect(pill(page, 'Sound')).toHaveText('Sound');
   });
 
   test('fade between songs fades the start of the first track of an album and is off by default', async ({ page }) => {
@@ -99,13 +125,24 @@ test.describe.serial('speed and sleep', () => {
     const gain = () => page.evaluate(() => (window as any).flacie.xfade() as number);
     await page.evaluate(() => (window as any).flacie.seek(0.4));
     await expect.poll(gain, { timeout: 5_000 }).toBe(1);   // off by default: no fade
-    await pick(page, 'Fade', '4 s');
+    await open(page, 'Sound');
+    await page.locator('.seg button').filter({ hasText: /^4 s$/ }).click();
+    await expect(pill(page, 'Sound')).toHaveText('Fade 4 s');
     await page.evaluate(() => (window as any).flacie.seek(0.4));
     await expect.poll(gain, { timeout: 10_000 }).toBeLessThan(0.9);   // the first track of an album fades in
     await page.evaluate(() => (window as any).flacie.seek(2));
     await expect.poll(gain, { timeout: 10_000 }).toBe(1);
-    await pick(page, 'Fade', 'Off');
+    await page.locator('.seg button').filter({ hasText: /^Off$/ }).click();
     await page.evaluate(() => (window as any).flacie.seek(0.4));
     await expect.poll(gain, { timeout: 10_000 }).toBe(1);
+  });
+
+  test('a click elsewhere closes a menu', async ({ page }) => {
+    test.setTimeout(120_000);
+    await signIn(page);
+    await playLab(page);
+    await open(page, 'Speed');
+    await page.locator('.np-top').click({ position: { x: 5, y: 5 } });
+    await expect(page.locator('#speed-sleep .chip-pop')).toHaveCount(0);
   });
 });

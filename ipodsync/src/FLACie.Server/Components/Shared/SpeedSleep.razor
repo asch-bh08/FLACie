@@ -1,54 +1,59 @@
 @inherits UserComponent
-@* Playback speed, the sleep timer and (for spoken word, long items or a changed speed) skip back 10 / forward 30, under the controls of the full-screen player. *@
+@* Under the controls of the full-screen player: three small pills (speed, sleep timer, sound) and, for spoken word, long items or a changed speed, skip back 10 / forward 30. *@
 @if (Player.Current is { } t)
 {
     <div class="speed-sleep" id="speed-sleep">
-        <Dropdown Label="Speed" Class="mini" ShowAny="false" Value="@SpeedKey" Options="SpeedOptions" ValueChanged="OnSpeed" />
-        <Dropdown Label="Volume" Class="mini" ShowAny="false" Value="@(Player.LevelVolume ? "level" : "normal")" Options="LevelOptions" ValueChanged="OnLevel" />
-        <Dropdown Label="Fade" Class="mini" ShowAny="false" Value="@FadeKey" Options="FadeOptions" ValueChanged="OnFade" />
-        <Dropdown Label="Sleep" Class="mini" ShowAny="false" Value="@SleepKey" Options="SleepOptions" ValueChanged="OnSleep" />
+        <ChipMenu @ref="speedMenu" Label="Speed" Class="grid" IconName="gauge" Text="@SpeedPolicy.Label(Player.Speed)" Active="@(Player.Speed != 1)">
+            @foreach (var s in SpeedPolicy.Steps)
+            {
+                var v = s; var on = Math.Abs(v - Player.Speed) < 0.001;
+                <button role="menuitemradio" aria-checked="@(on ? "true" : "false")" class="@(on ? "sel" : "")" @onclick="() => PickSpeed(v)"><span>@SpeedPolicy.Label(v)</span></button>
+            }
+        </ChipMenu>
+
+        <ChipMenu @ref="sleepMenu" Label="Sleep timer" IconName="moon" Text="@(Player.SleepMode == SleepMode.Off ? "Sleep" : Player.SleepStatus())" Active="@(Player.SleepMode != SleepMode.Off)">
+            @if (Player.SleepMode != SleepMode.Off) { <button role="menuitem" @onclick="() => PickSleep(Player.ExtendSleepAsync())"><span>Add @SleepPlan.ExtendMinutes minutes</span></button> }
+            <button role="menuitemradio" aria-checked="@(Player.SleepMode == SleepMode.EndOfTrack ? "true" : "false")" @onclick="() => PickSleep(Player.SetSleepAsync(SleepMode.EndOfTrack))"><span>End of this song</span>@if (Player.SleepMode == SleepMode.EndOfTrack) { <Icon Name="check" Size="16" /> }</button>
+            <button role="menuitemradio" aria-checked="@(Player.SleepMode == SleepMode.EndOfAlbum ? "true" : "false")" @onclick="() => PickSleep(Player.SetSleepAsync(SleepMode.EndOfAlbum))"><span>End of this album</span>@if (Player.SleepMode == SleepMode.EndOfAlbum) { <Icon Name="check" Size="16" /> }</button>
+            @foreach (var m in new[] { 15, 30, 60, 90, 120 })
+            {
+                var mm = m;
+                <button role="menuitem" @onclick="() => PickSleep(Player.SetSleepAsync(SleepMode.Minutes, mm))"><span>@mm minutes</span></button>
+            }
+            @if (Player.SleepMode != SleepMode.Off) { <button role="menuitem" class="danger" @onclick="() => PickSleep(Player.SetSleepAsync(SleepMode.Off))"><span>Turn off</span></button> }
+        </ChipMenu>
+
+        <ChipMenu @ref="soundMenu" Label="Sound" IconName="wave" Text="@SoundText" Active="@(Player.LevelVolume || Player.FadeSecs > 0)" CloseOnChoice="false">
+            <label class="switch-row sound-row">
+                <span><b>Even out volume</b><small>Loud songs down, quiet ones up</small></span>
+                <input type="checkbox" role="switch" aria-label="Even out volume" checked="@Player.LevelVolume" @onchange="e => Player.SetLevelVolumeAsync((bool)(e.Value ?? false))" />
+                <i class="switch" aria-hidden="true"></i>
+            </label>
+            <div class="sound-fade">
+                <b>Fade between songs</b>
+                <div class="seg" role="group" aria-label="Fade between songs">
+                    @foreach (var n in FadeBetween.Choices)
+                    {
+                        var nn = n;
+                        <button type="button" class="@(Player.FadeSecs == nn ? "sel" : "")" aria-pressed="@(Player.FadeSecs == nn ? "true" : "false")" @onclick="() => Player.SetFadeSecsAsync(nn)">@(nn == 0 ? "Off" : nn + " s")</button>
+                    }
+                </div>
+                <small>Not between the tracks of one album.</small>
+            </div>
+        </ChipMenu>
+
         @if (SpeedPolicy.ShowLongItemControls(t.Genre, t.DurationMs, Player.Speed))
         {
-            <button class="pill-btn" @onclick="() => Player.SkipByAsync(-10)" aria-label="Back 10 seconds">Back 10 s</button>
-            <button class="pill-btn" @onclick="() => Player.SkipByAsync(30)" aria-label="Forward 30 seconds">Forward 30 s</button>
+            <button class="chipbtn" @onclick="() => Player.SkipByAsync(-10)" aria-label="Back 10 seconds"><span>−10 s</span></button>
+            <button class="chipbtn" @onclick="() => Player.SkipByAsync(30)" aria-label="Forward 30 seconds"><span>+30 s</span></button>
         }
     </div>
 }
 @code {
-    string SpeedKey => SpeedPolicy.Label(Player.Speed);
-    static readonly IReadOnlyList<DropOption> SpeedOptions = SpeedPolicy.Steps.Select(s => new DropOption(SpeedPolicy.Label(s), SpeedPolicy.Label(s) + (s == 1 ? " (normal)" : ""))).ToList();
+    ChipMenu? speedMenu, sleepMenu, soundMenu;
 
-    static readonly IReadOnlyList<DropOption> LevelOptions = [new("normal", "As recorded"), new("level", "Even out")];
+    string SoundText => Player.LevelVolume && Player.FadeSecs > 0 ? "Even · fade" : Player.LevelVolume ? "Even out" : Player.FadeSecs > 0 ? $"Fade {Player.FadeSecs} s" : "Sound";
 
-    static readonly IReadOnlyList<DropOption> FadeOptions = FadeBetween.Choices.Select(n => new DropOption(n.ToString(), n == 0 ? "Off" : n + " s")).ToList();
-    string FadeKey => Player.FadeSecs.ToString();
-    Task OnFade(string v) => Player.SetFadeSecsAsync(int.TryParse(v, out var n) ? n : 0);
-
-    string SleepKey => Player.SleepMode switch { SleepMode.EndOfTrack => "track", SleepMode.EndOfAlbum => "album", SleepMode.Minutes => "timer", _ => "off" };
-
-    IReadOnlyList<DropOption> SleepOptions
-    {
-        get
-        {
-            var l = new List<DropOption> { new("off", "Off"), new("track", Player.SleepMode == SleepMode.EndOfTrack ? Player.SleepStatus() : "End of this song"), new("album", Player.SleepMode == SleepMode.EndOfAlbum ? Player.SleepStatus() : "End of this album") };
-            if (Player.SleepMode == SleepMode.Minutes) l.Add(new("timer", Player.SleepStatus()));
-            foreach (var m in new[] { 15, 30, 60, 90, 120 }) l.Add(new("m" + m, m + " minutes"));
-            if (Player.SleepMode != SleepMode.Off) l.Add(new("extend", "Add " + SleepPlan.ExtendMinutes + " minutes"));
-            return l;
-        }
-    }
-
-    Task OnLevel(string v) => Player.SetLevelVolumeAsync(v == "level");
-
-    Task OnSpeed(string v) => Player.SetSpeedAsync(double.Parse(v.TrimEnd('x'), System.Globalization.CultureInfo.InvariantCulture));
-
-    Task OnSleep(string v) => v switch
-    {
-        "off" => Player.SetSleepAsync(SleepMode.Off),
-        "track" => Player.SetSleepAsync(SleepMode.EndOfTrack),
-        "album" => Player.SetSleepAsync(SleepMode.EndOfAlbum),
-        "extend" => Player.ExtendSleepAsync(),
-        _ when v.StartsWith('m') && int.TryParse(v[1..], out var m) => Player.SetSleepAsync(SleepMode.Minutes, m),
-        _ => Task.CompletedTask,
-    };
+    async Task PickSpeed(double v) { await Player.SetSpeedAsync(v); speedMenu?.Close(); }
+    async Task PickSleep(Task work) { await work; sleepMenu?.Close(); }
 }

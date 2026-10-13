@@ -3,7 +3,7 @@ package com.ipodemu.nav
 enum class Icon { NONE, MUSIC, VOICE, EXTRAS, BROWSE, PLAYLISTS, ARTISTS, ALBUMS, SONGS, GENRES, SETTINGS, SHUFFLE, NOW_PLAYING }
 
 /** What a list contains; themes use it to pick row style (e.g. art thumbnails on albums). */
-enum class Kind { MENU, SONGS, ALBUMS, ARTISTS, MEMOS, SETTINGS, GENERIC }
+enum class Kind { MENU, SONGS, ALBUMS, ARTISTS, MEMOS, SETTINGS, GENERIC, COVERFLOW }
 
 class Item(
     val title: String,

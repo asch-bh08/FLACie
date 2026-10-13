@@ -74,7 +74,11 @@ fun DrawScope.drawIpodBody(m: Model, cw: Colorway, withWheel: Boolean = true) {
         }
     } else {
         val m2 = w * m.bezelInset
+        // a light line under the bezel (it is sunk into the body), then the bezel, then the shadow it throws on the glass
+        drawRoundRect(Color(if (dark) 0x22FFFFFF else 0xCCFFFFFF.toInt()), Offset(sx - m2, sy - m2 + 1.6f), Size(sw + 2 * m2, sh + 2 * m2), CornerRadius(m2 * 1.6f))
         drawRoundRect(cw.bezel.c(), Offset(sx - m2, sy - m2), Size(sw + 2 * m2, sh + 2 * m2), CornerRadius(m2 * 1.6f))
+        drawRoundRect(Brush.verticalGradient(listOf(Color(0xCC000000), Color.Transparent), sy, sy + m2 * 1.6f + sh * 0.05f), Offset(sx, sy), Size(sw, m2 * 1.6f + sh * 0.05f), CornerRadius(w * 0.012f))
+        drawRoundRect(Color(0x33FFFFFF), Offset(sx, sy), Size(sw, sh), CornerRadius(w * 0.012f), style = Stroke(1f))
         if (withWheel) drawIntoCanvas { c -> WheelChrome.draw(c.nativeCanvas, m.wheelCx * w, m.wheelCy * h, m.wheelR * w, cw.wheel, null) }
     }
 }

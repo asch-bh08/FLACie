@@ -235,10 +235,19 @@ class ClassicTheme(
         } else {
             val frac = if (np.durMs > 0) np.posMs.toFloat() / np.durMs else 0f
             bar(c, 14f, W - 14f, by, frac)
-            if (np.hudActive) Gfx.triangle(c, 14f + (W - 28f) * frac.coerceIn(0f, 1f) - 4f, by + 12f, 7f, 0xFF000000.toInt(), false)
+            if (np.hudActive) diamond(c, 14f + (W - 28f) * frac.coerceIn(0f, 1f), by)   // the scrub diamond of the Classic
             Gfx.text(c, MenuBuilder.fmtTime(np.posMs), 14f, by + 22f, 11f, 0xFF000000.toInt())
             Gfx.text(c, "-" + MenuBuilder.fmtTime((np.durMs - np.posMs).coerceAtLeast(0)), W - 14f, by + 22f, 11f, 0xFF000000.toInt(), Gfx.SANS, Paint.Align.RIGHT)
         }
+    }
+
+    private val diamondPath = android.graphics.Path()
+    private val diamondPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private fun diamond(c: Canvas, x: Float, cy: Float) {
+        val r = 8f
+        diamondPath.reset(); diamondPath.moveTo(x, cy - r); diamondPath.lineTo(x + r, cy); diamondPath.lineTo(x, cy + r); diamondPath.lineTo(x - r, cy); diamondPath.close()
+        diamondPaint.style = Paint.Style.FILL; diamondPaint.shader = android.graphics.LinearGradient(x, cy - r, x, cy + r, 0xFFFFFFFF.toInt(), 0xFF9AA3AE.toInt(), android.graphics.Shader.TileMode.CLAMP); c.drawPath(diamondPath, diamondPaint)
+        diamondPaint.shader = null; diamondPaint.style = Paint.Style.STROKE; diamondPaint.strokeWidth = 1.4f; diamondPaint.color = 0xFF000000.toInt(); c.drawPath(diamondPath, diamondPaint)
     }
 
     private fun bar(c: Canvas, l: Float, r: Float, cy: Float, frac: Float) {

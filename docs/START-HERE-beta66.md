@@ -1,4 +1,6 @@
-# FLACie: pick-up guide after beta 65 (2026-10-14)
+# FLACie: pick-up guide after beta 66 (2026-10-14)
+
+**Update: v1.0.0-beta66 is released and deployed** (Android 81, MSI 0.66.0, Web 1.0-beta66; rollback tag `flacie-web:rollback-2026-10-14-pre66`). The touch iPods run their own iPod OS (IpodTouchOs.razor), Extras with Clock/Stopwatch, Now Playing rating mode, IpodContent (shared library menus, unit-tested), a layout test over 9 models x 11 window shapes, and a fix for lost/swapped letters in the search boxes (TextBox.razor: the browser keeps the text). Tests: Android 414/2/0, .NET 334, Playwright 158. 1i-download-tags "Autoplay lists" is intermittent (unexplained).
 
 **Update: v1.0.0-beta65 is released and deployed** (Android 80, MSI 0.65.0, Web 1.0-beta65; rollback tag `flacie-web:rollback-2026-10-14-pre65`). Fixes the iPod mode (covers were never shown: a string literal instead of a binding; the fit was lost on a look change; a panel with the playing cover and the pickers; wheel/scroll ergonomics) and adds Cover Flow to the Android nano/classic 6-7 skins. Tests: Android 414/2/0, .NET 329, Playwright 153. Chromecast stays a decision for the owner.
 

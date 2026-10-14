@@ -45,3 +45,6 @@ One line per decision or result. Honest: skipped or untested things are said so.
 - User feedback: the web iPod mode was ugly, hard to use, did not fit, changed size on a look change, and had no cover art. Causes: `ArtKey="c.ArtKey"` was a string literal (no @), the JS-set zoom lived on an element Blazor re-rendered, and the picker was hidden behind a button. Fixed, plus a docked panel with the playing cover and pickers; tests now assert real cover keys and the fit. Android: Cover Flow also in the nano/classic 6-7 theme. Android 414/2/0, .NET 329, Playwright 153; release APK run on the emulator clean.
 
 - Beta 65 released and web deployed (rollback tag flacie-web:rollback-2026-10-14-pre65, only flacie-web recreated, /healthz ok). https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta65
+
+## Beta 66
+- User: iPod screen CSS messy, not an OS, must work at all sizes, test and verify; and web search typing drops/swaps letters. Built the touch iPod OS, Extras, rating mode, IpodContent core, an overlap/outside/size layout test (9 models x 11 shapes + wheel-only), TextBox (browser-side debounce; the server never writes into a focused box). Another session ("New skills") is building a desk workspace look on branch ipod/desk from my commit; coordination by message.

@@ -33,6 +33,8 @@ public sealed class IpodPrefs
     public int ClickVolume { get => clickVolume; set => clickVolume = Math.Clamp(value, 0, 2); }
     public int VolumeLimit { get => volumeLimit; set => volumeLimit = VolumeLimits.Contains(value) ? value : 100; }
     public HashSet<string> HiddenMenu { get; } = [];
+    /// <summary>Which sleep-timer step is on (an index into <see cref="SleepMinutes"/>); not saved, a timer does not outlive the page.</summary>
+    public int SleepChoice { get; set; }
 
     /// <summary>Pick another iPod: its first colour is shown (as on the Android emulator).</summary>
     public void ChooseModel(string id) { Model = id; Color = 0; }

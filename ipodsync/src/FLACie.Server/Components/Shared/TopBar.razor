@@ -11,7 +11,7 @@
     else {
     <form class="top-search" role="search" @onsubmit="Go">
         <Icon Name="search" Size="18" />
-        <input type="search" placeholder="Search songs, albums, artists, or music to download" aria-label="Search" value="@q" @oninput="OnInput" autocomplete="off" />
+        <TextBox Type="search" Placeholder="Search songs, albums, artists, or music to download" Label="Search" Value="@q" ValueChanged="OnText" DelayMs="300" />
         @if (q.Length > 0) { <button type="button" class="icon-btn" aria-label="Clear search" @onclick="Clear"><Icon Name="x" Size="16" /></button> }
     </form>
     }
@@ -39,7 +39,6 @@
     [Parameter] public EventCallback OnMenu { get; set; }
     string q = "";
     bool open;
-    CancellationTokenSource? pending;
     string Initial => Session.DisplayName.Length > 0 ? Session.DisplayName[..1].ToUpperInvariant() : "?";
 
     protected override async Task OnInitializedAsync()
@@ -73,16 +72,10 @@
         if (m != q) q = m;
     }
 
-    // typing searches as you go, after a short pause; the Search page follows the address
-    async Task OnInput(ChangeEventArgs e)
-    {
-        q = e.Value?.ToString() ?? "";
-        pending?.Cancel(); var cts = pending = new CancellationTokenSource();
-        try { await Task.Delay(300, cts.Token); } catch (OperationCanceledException) { return; }
-        Navigate();
-    }
+    // typing searches as you go, after a short pause (the box waits in the browser); the Search page follows the address
+    void OnText(string text) { q = text; Navigate(); }
 
-    void Go() { pending?.Cancel(); Navigate(); }
+    void Go() { Navigate(); }
     void Clear() { q = ""; Navigate(); }
     void Navigate()
     {
@@ -90,5 +83,5 @@
         Nav.NavigateTo("/search" + (q.Trim().Length > 0 ? "?q=" + Uri.EscapeDataString(q) : ""), replace: onSearch);
     }
 
-    public override void Dispose() { Nav.LocationChanged -= OnLocation; pending?.Cancel(); base.Dispose(); }
+    public override void Dispose() { Nav.LocationChanged -= OnLocation; base.Dispose(); }
 }

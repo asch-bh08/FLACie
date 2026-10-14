@@ -8,21 +8,22 @@
 @* The iPod mode: every iPod of the Android emulator (23 models, their colours, the mono / colour / nano screens, Cover Flow, the settings), on the page and in the Windows app.
    Wheel by drag, tap, hold and flick; mouse wheel; keys: arrows, Enter, Esc, Space. Touch models show the FLACie player in their screen. *@
 <div class="ipod-stage @(flat ? "flat" : "") @(color.Dark ? "dark" : "") @(panel ? "dock-open" : "")" data-testid="ipod" data-model="@model.Id" data-color="@color.Name" data-look="@(flat ? "wheel" : "device")" style="@StageStyle">
-    <div class="ipod-area" @ref="stage" tabindex="0" @onkeydown="Key" @onwheel="OnMouseWheel" @onwheel:preventDefault @onclick="FocusStage" data-testid="ipod-keys" aria-label="iPod: arrow keys scroll, Enter selects, Escape goes back">
+    <div class="ipod-area" @ref="stage" tabindex="0" @onkeydown="Key" @onwheel="OnMouseWheel" @onwheel:preventDefault="@(!model.Touch)" @onclick="FocusStage" data-testid="ipod-keys" aria-label="iPod: arrow keys scroll, Enter selects, Escape goes back">
       <div class="ipod-fit" @ref="fitEl">
         <div class="ipod fam-@FamClass @(model.Touch ? "touch" : "click") @(model.Buttons ? "btns" : "")" @ref="device" data-testid="ipod-device" data-w="@F(Bw)" data-h="@F(Bh)" style="@DeviceStyle">
         @if (model.Touch)
         {
             <div class="ipod-face" style="@FaceStyle"></div>
-            <div class="ipod-glass" style="@ScreenStyle" data-testid="ipod-touch-screen"><iframe src="/" title="FLACie" loading="lazy"></iframe></div>
-            @if (model.Home) { <div class="ipod-home" style="@HomeStyle" aria-hidden="true"><i></i></div> }
+            <div class="ipod-glass" style="@ScreenStyle" data-testid="ipod-touch-screen"><div class="ios-scale" style="@TouchScaleStyle"><IpodTouchOs @ref="touchOs" Prefs="prefs" W="TouchW" H="TouchH" Compact="@(TouchW < 300)" Clock="@clock" Battery="@battery" /></div></div>
+            @if (model.Home) { <div class="ipod-home" style="@HomeStyle" role="button" aria-label="Home" title="Home (Esc)" data-testid="ipod-home-button" @onclick="TouchHome"><i></i></div> }
         }
         else
         {
             <div class="ipod-bezel" style="@BezelStyle"></div>
             <div class="ipod-lcd fam-@FamClass @LcdTheme @(narrow ? "narrow" : "") @(tall ? "tall" : "")" style="@ScreenStyle" data-testid="ipod-lcd">
                 <div class="lcd-in" style="@LcdInStyle">
-                    @if (showNow && Player.Current is { } t) { @NowPlaying(t) }
+                    @if (tool != "") { @ToolScreen() }
+                    else if (showNow && Player.Current is { } t) { @NowPlaying(t) }
                     else if (nav.Kind == IpodKind.CoverFlow) { @CoverFlow() }
                     else { @ListScreen() }
                 </div>
@@ -120,10 +121,10 @@
 @code {
     // ---------------------------------------------------------------- screens (RenderFragments)
 
-    RenderFragment Header(string title) => @<div class="lcd-hdr" data-testid="ipod-header">
+    RenderFragment Header(string title, string? right = null) => @<div class="lcd-hdr" data-testid="ipod-header">
         <span class="lcd-play">@if (Player.Current is not null) { @(Player.Playing ? "▶" : "❚❚") }</span>
         <b class="lcd-fade" @key="title" data-testid="ipod-title">@title</b>
-        <span class="lcd-right">@if (prefs.Clock && clock.Length > 0) { <span class="lcd-clock">@clock</span> }<span class="lcd-batt @(charging ? "chg" : "")" style="--lvl:@battery%"></span></span>
+        <span class="lcd-right">@if (right is not null) { <span class="lcd-clock" data-testid="ipod-count">@right</span> }@if (prefs.Clock && clock.Length > 0) { <span class="lcd-clock">@clock</span> }<span class="lcd-batt @(charging ? "chg" : "")" style="--lvl:@battery%"></span></span>
     </div>;
 
     RenderFragment ListScreen() => @<text>
@@ -136,7 +137,7 @@
                         var idx = i;
                         <li class="@(i == nav.Selected ? "sel" : "")" data-testid="ipod-row" @onclick="() => RowClick(idx)">
                             @if (r.Checked is not null) { <i class="lcd-tick">@(r.Checked == true ? "✓" : "")</i> }
-                            @if (narrow && IsArtKind) { <span class="lcd-thumb"><Cover ArtKey="@(r.ArtKey)" Class="lcd-art" /></span> }
+                            @if (narrow && Fam == IpodFamily.Nano && IsArtKind) { <span class="lcd-thumb"><Cover ArtKey="@(r.ArtKey)" Class="lcd-art" /></span> }
                             <span class="lcd-label">@r.Label</span>
                             @if (r.Value is not null) { <span class="lcd-val">@r.Value</span> }
                             @if (r.Opens) { <em>›</em> }
@@ -185,22 +186,34 @@
         else { <div class="cf-cap"><b>No Albums</b></div> }
     </div>;
 
+    RenderFragment ToolScreen() => @<text>
+        @Header(tool == "clock" ? "Clock" : "Stopwatch")
+        <div class="tool" data-testid="ipod-tool">
+            <div class="tool-time" data-testid="ipod-tool-time">@(tool == "clock" ? (clock.Length > 0 ? clock : DateTime.Now.ToString("t")) : Watch())</div>
+            <div class="tool-sub">@(tool == "clock" ? dateText : (running ? "Select: stop" : "Select: start") + "  ·  ⏮ reset")</div>
+        </div>
+    </text>;
+
     RenderFragment NowPlaying(Track t) => @<text>
-        @Header("Now Playing")
+        @Header("Now Playing", tall && Fam == IpodFamily.Nano && Player.Queue.Count > 1 ? (Player.Index + 1) + " of " + Player.Queue.Count : null)
         <div class="lnp" data-testid="ipod-np">
             <div class="lnp-art"><Cover ArtKey="@(t.ArtKey)" Class="lcd-art" /></div>
             <div class="lnp-meta">
                 @if (Player.Queue.Count > 1) { <small data-testid="ipod-np-count">@(Player.Index + 1) of @Player.Queue.Count</small> }
                 <b data-testid="ipod-np-title">@t.Title</b><span>@t.Artist</span><span class="lnp-album">@t.Album</span>
             </div>
-            @if (hudOn && !scrub)
+            @if (hudOn && npMode == 2)
+            {
+                <div class="lnp-hud rate" data-testid="ipod-rating" aria-label="Rating"><span class="stars">@Stars(Session.Rating(t))</span></div>
+            }
+            else if (hudOn && npMode == 0)
             {
                 <div class="lnp-hud vol" data-testid="ipod-volume"><Icon Name="stop" Size="9" /><div class="lnp-bar @(FamClass == "mono" ? "blocks" : "")">@if (FamClass == "mono") { @for (var b = 0; b < 16; b++) { <i class="@(b < (int)(Player.Volume * 16 + 0.001) ? "on" : "")"></i> } } else { <i style="width:@Pc(Player.Volume)%"></i> }</div><Icon Name="play" Size="9" /></div>
             }
             else
             {
                 <div class="lnp-hud time" data-testid="ipod-time">
-                    <div class="lnp-bar @(hudOn && scrub ? "knob" : "")"><i style="width:@Pct()%"></i>@if (hudOn && scrub) { <u class="knob" style="left:@Pct()%" data-testid="ipod-scrub"></u> }</div>
+                    <div class="lnp-bar @(hudOn && npMode == 1 ? "knob" : "")"><i style="width:@Pct()%"></i>@if (hudOn && npMode == 1) { <u class="knob" style="left:@Pct()%" data-testid="ipod-scrub"></u> }</div>
                     <div class="lnp-times"><span>@Fmt(Player.Position)</span><span>-@Fmt(Math.Max(0, Player.Duration - Player.Position))</span></div>
                 </div>
             }
@@ -215,14 +228,18 @@
     readonly List<IReadOnlyList<Track>?> tracks = [];
     readonly List<IReadOnlyList<Group>?> groups = [];
     ElementReference stage, device, wheel, fitEl;
+    IpodTouchOs? touchOs;
     string pickGroup = IpodModels.Classic;
     double wheelAcc;
     DotNetObjectReference<Ipod>? self;
+    bool scrub => npMode == 1;
+    int npMode;
+    string tool = "", dateText = "";
+    bool running; DateTime watchStart; TimeSpan watchBase; System.Threading.Timer? watchTimer;
     bool first2 = true; string lastFitKey = "";
-    bool showNow, scrub, panel = true, started, loaded, inited, initTouch;
+    bool showNow, panel = true, started, loaded, inited, initTouch;
     DateTime hudUntil = DateTime.MinValue;
     string clock = ""; int battery = 100; bool charging;
-    int sleepChoice, speedChoice = 1;
     System.Threading.Timer? ticker; CancellationTokenSource? hudCts;
 
     IpodModel model => prefs.CurrentModel;
@@ -247,6 +264,8 @@
     double Bh => flat ? FlatSh + 22 + 2 * FlatR + 16 : Bw / model.Aspect;
     double FlatSh => Bw * Lcd.H / Lcd.W;
     double FlatR => Bw * 0.36;
+    /// <summary>A scale factor with enough digits that the screen ends exactly at its bezel (two digits were up to a pixel off at a big zoom).</summary>
+    static string K(double v) => v.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
     string F(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     string Pc(double v) => (v * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     double Sx => flat ? 0 : model.Screen.L * Bw; double Sy => flat ? 0 : model.Screen.T * Bh; double Sw => flat ? Bw : model.Screen.W * Bw; double Sh => flat ? FlatSh : model.Screen.H * Bh;
@@ -258,7 +277,12 @@
         $"--flat1:{IpodModels.Lighten(color.Top, 0.2)};--flat2:{color.Bottom}";
     string ScreenStyle => $"left:{F(Sx)}px;top:{F(Sy)}px;width:{F(Sw)}px;height:{F(Sh)}px";
     string BezelStyle { get { var b = model.BezelInset * Bw; return $"left:{F(Sx - b)}px;top:{F(Sy - b)}px;width:{F(Sw + 2 * b)}px;height:{F(Sh + 2 * b)}px;border-radius:{F(Math.Max(3, b * 1.6))}px"; } }
-    string LcdInStyle => $"width:{Lcd.W}px;height:{Lcd.H}px;transform:scale({F(Sw / Lcd.W)},{F(Sh / Lcd.H)})";
+    int TouchW => model.Id.StartsWith("nano") ? 240 : 320;
+    int TouchH => (int)Math.Round(TouchW * Sh / Sw);
+    string TouchScaleStyle => $"width:{TouchW}px;height:{TouchH}px;transform:scale({K(Sw / TouchW)},{K(Sh / TouchH)})";
+    void TouchHome() { touchOs?.GoHome(); _ = FocusStage(); }
+
+    string LcdInStyle => $"width:{Lcd.W}px;height:{Lcd.H}px;transform:scale({K(Sw / Lcd.W)},{K(Sh / Lcd.H)})";
     string FaceStyle { get { var i = 0.02 * Bw; return $"left:{F(i)}px;top:{F(i)}px;right:{F(i)}px;bottom:{F(i)}px;border-radius:{F(model.Radius * Bw * 0.9)}px"; } }
     string HomeStyle { get { var cy = (model.Screen.B + (1 - model.Screen.B) * 0.5) * Bh; var r = 0.085 * Bw; return $"left:{F(Bw / 2 - r)}px;top:{F(cy - r)}px;width:{F(2 * r)}px;height:{F(2 * r)}px"; } }
     string WheelStyle => $"left:{F(WCx - WR)}px;top:{F(WCy - WR)}px;width:{F(2 * WR)}px;height:{F(2 * WR)}px";
@@ -335,26 +359,9 @@
         nav.Push(title, rows, kind); tracks.Add(ts); groups.Add(gs);
     }
 
-    static string Songs(int n) => n == 1 ? "1 song" : n + " songs";
-
-    IReadOnlyList<IpodRow> SongRows(IReadOnlyList<Track> ts)
-    {
-        var rows = new List<IpodRow>(ts.Count + 1);
-        if (ts.Count > 1) rows.Add(new IpodRow("Shuffle", "t:shuffle", false, ArtKey: ts.Select(t => t.ArtKey).FirstOrDefault(a => a is not null), Detail: Songs(ts.Count)));
-        for (var i = 0; i < ts.Count; i++) { var t = ts[i]; rows.Add(new IpodRow(t.Title, "t:" + i, false, ArtKey: t.ArtKey, Sub: t.Artist, Detail: string.Join("  ·  ", new[] { t.Album, Fmt(t.DurationMs / 1000.0) }.Where(x => x.Length > 0)))); }
-        return rows;
-    }
-
-    static IReadOnlyList<IpodRow> GroupRows(IReadOnlyList<Group> gs, string prefix, bool artistSub) =>
-        gs.Select((g, i) => new IpodRow(g.Name, prefix + i, ArtKey: g.ArtKey, Sub: artistSub ? g.Tracks.FirstOrDefault()?.Artist : null, Detail: Songs(g.Tracks.Count))).ToList();
-
-    IReadOnlyList<Group> GenreGroups() => Lib.Songs.GroupBy(t => string.IsNullOrWhiteSpace(t.Genre) ? "Unknown" : t.Genre.Trim(), StringComparer.OrdinalIgnoreCase)
-        .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase).Select(g => new Group(g.Key, g.ToList(), g.Select(t => t.ArtKey).FirstOrDefault(a => a is not null))).ToList();
-
     IReadOnlyList<Group> PlaylistGroups() => Session.Playlists.Select(p => { var ts = Session.Resolve(p.Entries); return new Group(p.Name, ts, ts.Select(t => t.ArtKey).FirstOrDefault(a => a is not null)); }).ToList();
 
-    IpodPlayback PlaybackInfo => new(Player.Shuffle, Player.Repeat, Player.Speed, Player.SleepMode == SleepMode.Off ? 0 : IpodPrefs.SleepMinutes[Math.Clamp(sleepChoice, 1, IpodPrefs.SleepMinutes.Length - 1)], Player.FadeSecs, Player.LevelVolume,
-        Lib.Songs.Count, Session.Playlists.Count, AppInfo.Version);
+    IpodPlayback PlaybackInfo => IpodActions.Info(Player, prefs, Lib, Session.Playlists.Count);
 
     /// <summary>The rows of the level on top when they depend on a setting (so a change shows at once, the highlight kept).</summary>
     void RefreshLevel(string? id = null)
@@ -388,14 +395,14 @@
             case "center": await Press(); break;
             case "menu": Menu(); break;
             case "next": await Player.Next(); if (showNow) Hud(); break;
-            case "prev": await Player.Prev(); if (showNow) Hud(); break;
+            case "prev": if (tool == "stopwatch") WatchReset(); else { await Player.Prev(); if (showNow) Hud(); } break;
             case "play": await Player.Toggle(); break;
         }
         StateHasChanged();
     }
     [JSInvokable] public async Task Hold(string zone)
     {
-        if (zone == "menu") { showNow = false; nav.ToRoot(); TrimStacks(); RefreshRoot(); Feedback("press"); }
+        if (zone == "menu") { showNow = false; tool = ""; StopRender(); nav.ToRoot(); TrimStacks(); RefreshRoot(); Feedback("press"); }
         else { await Player.SkipByAsync(zone == "next" ? 4 : -4); Hud(); }
         StateHasChanged();
     }
@@ -406,8 +413,9 @@
     {
         if (showNow)
         {
-            if (!scrub) { var cap = prefs.VolumeLimit / 100.0; await Player.SetVolumeAsync(Math.Clamp(Player.Volume + n / 32.0, 0, cap)); }
-            else await Player.SkipByAsync(n * Math.Max(1, Player.Duration / 120.0));
+            if (npMode == 0) { var cap = prefs.VolumeLimit / 100.0; await Player.SetVolumeAsync(Math.Clamp(Player.Volume + n / 32.0, 0, cap)); }
+            else if (npMode == 1) await Player.SkipByAsync(n * Math.Max(1, Player.Duration / 120.0));
+            else if (Player.Current is { } cur) Rate(cur, Math.Clamp(Session.Rating(cur) + n, 0, 5));
             Feedback("tick"); Hud(); await InvokeAsync(StateHasChanged); return;
         }
         if (nav.Turn(n)) { Feedback("tick"); await InvokeAsync(StateHasChanged); }
@@ -422,6 +430,7 @@
 
     void OnMouseWheel(WheelEventArgs e)
     {
+        if (model.Touch) return;
         wheelAcc += e.DeltaMode == 0 ? e.DeltaY : e.DeltaY * 40;
         var n = (int)(wheelAcc / 50); if (n == 0 && Math.Abs(e.DeltaY) >= 1 && Math.Abs(wheelAcc) >= 1 && (DateTime.UtcNow - lastWheel).TotalMilliseconds > 250) n = Math.Sign(wheelAcc);
         lastWheel = DateTime.UtcNow;
@@ -431,6 +440,14 @@
 
     async Task Key(KeyboardEventArgs e)
     {
+        if (model.Touch)
+        {
+            if (e.Key is "Escape" or "Backspace") { touchOs?.Back(); }
+            else if (e.Key == " ") await Player.Toggle();
+            else if (e.Key == "ArrowRight") await Player.Next();
+            else if (e.Key == "ArrowLeft") await Player.Prev();
+            return;
+        }
         switch (e.Key)
         {
             case "ArrowDown": await Turn(1); break;
@@ -438,7 +455,7 @@
             case "Enter": Feedback("press"); await Press(); break;
             case "Escape": case "Backspace": Menu(); break;
             case "ArrowRight": await Player.Next(); if (showNow) Hud(); break;
-            case "ArrowLeft": await Player.Prev(); if (showNow) Hud(); break;
+            case "ArrowLeft": if (tool == "stopwatch") WatchReset(); else { await Player.Prev(); if (showNow) Hud(); } break;
             case " ": await Player.Toggle(); break;
         }
     }
@@ -447,7 +464,7 @@
 
     void Menu()
     {
-        if (panel) { panel = false; return; }
+        if (tool != "") { tool = ""; StopRender(); return; }
         if (showNow) { showNow = false; return; }
         if (nav.Back()) { TrimStacks(); if (nav.Depth == 1) RefreshRoot(); }
     }
@@ -463,7 +480,9 @@
 
     async Task Press()
     {
-        if (showNow) { scrub = !scrub; Hud(); return; }
+        if (tool == "stopwatch") { WatchToggle(); return; }
+        if (tool != "") return;
+        if (showNow) { npMode = (npMode + 1) % 3; Hud(); return; }
         var row = nav.Current; if (row is null) return;
         var id = row.Id;
         if (id.StartsWith("cyc:")) { await CycleSetting(id[4..]); return; }
@@ -471,21 +490,18 @@
         if (id.StartsWith("set:model:")) { ChooseModel(id[10..]); return; }
         if (id.StartsWith("set:color:")) { prefs.Color = int.Parse(id.AsSpan(10)); Save(); RefreshColorLevel(); return; }
         if (id.StartsWith("m:group:")) { var g = id[8..]; Open(IpodMenus.GroupTitle(g), IpodMenus.Models(g, prefs.Model), IpodKind.Settings, "m:models"); return; }
+        if (IpodContent.Level(id, Lib, PlaylistGroups) is { } lv) { Open(lv.Title, lv.Rows, lv.Kind, id, lv.Tracks, lv.Groups); return; }
         switch (id)
         {
             case "m:none": break;
+            case "m:clock": tool = "clock"; _ = LoadDate(); break;
+            case "m:stopwatch": tool = "stopwatch"; if (running) StartRender(); break;
             case "m:music": Open(IpodMenus.MusicTitle(Fam), IpodMenus.Music(Fam), IpodKind.Menu, id); break;
             case "m:browse": Open("Browse", IpodMenus.Music(IpodFamily.Mono), IpodKind.Menu, id); break;
             case "m:extras": Open("Extras", IpodMenus.Extras(), IpodKind.Menu, id); break;
             case "m:memos": Open("Voice Memos", [new IpodRow("No Memos", "m:none", false)], IpodKind.Memos, id); break;
-            case "m:pl": { var gs = PlaylistGroups(); Open("Playlists", gs.Count == 0 ? [new IpodRow("None", "m:none", false)] : GroupRows(gs, "p:", false), IpodKind.Albums, id, null, gs); break; }
-            case "m:artists": { var gs = Lib.Artists; Open("Artists", gs.Count == 0 ? [new IpodRow("None", "m:none", false)] : GroupRows(gs, "a:", false), IpodKind.Artists, id, null, gs); break; }
-            case "m:albums": { var gs = Lib.Albums; Open("Albums", gs.Count == 0 ? [new IpodRow("None", "m:none", false)] : GroupRows(gs, "b:", true), IpodKind.Albums, id, null, gs); break; }
-            case "m:genres": { var gs = GenreGroups(); Open("Genres", gs.Count == 0 ? [new IpodRow("None", "m:none", false)] : GroupRows(gs, "g:", false), IpodKind.Albums, id, null, gs); break; }
-            case "m:songs": Open("Songs", SongRows(Lib.Songs), IpodKind.Songs, id, Lib.Songs); break;
-            case "m:cover": { var gs = Lib.Albums; Open("Cover Flow", gs.Count == 0 ? [new IpodRow("None", "m:none", false)] : GroupRows(gs, "c:", true), gs.Count == 0 ? IpodKind.Menu : IpodKind.CoverFlow, id, null, gs); break; }
-            case "m:shuffle": if (Lib.Songs.Count > 0) { await Player.ShuffleAll(Lib.Songs, "iPod"); showNow = Player.Current is not null; scrub = false; } break;
-            case "m:np": if (Player.Current is not null) { showNow = true; scrub = false; Hud(); } break;
+            case "m:shuffle": if (Lib.Songs.Count > 0) { await Player.ShuffleAll(Lib.Songs, "iPod"); showNow = Player.Current is not null; npMode = 0; } break;
+            case "m:np": if (Player.Current is not null) { showNow = true; npMode = 0; Hud(); } break;
             case "m:settings": Open("Settings", IpodMenus.Settings(), IpodKind.Settings, id); break;
             case "m:appearance": Open("Appearance", IpodMenus.Appearance(prefs), IpodKind.Settings, id); break;
             case "m:models": Open("Model", IpodMenus.ModelGroups(), IpodKind.Settings, "m:modelgroups"); break;
@@ -506,26 +522,12 @@
     async Task PressContent(string id)
     {
         var level = nav.Depth - 1;
-        var ts = tracks[level]; var gs = groups[level];
-        if (id.StartsWith("t:") && ts is not null)
+        var (next, play) = IpodContent.Open(id, new IpodLevel(nav.Title, nav.Rows, nav.Kind, tracks[level], groups[level]));
+        if (next is not null) Open(next.Title, next.Rows, next.Kind, "", next.Tracks, next.Groups);
+        else if (play is not null)
         {
-            if (id == "t:shuffle") { await Player.ShuffleAll(ts, "iPod"); showNow = Player.Current is not null; scrub = false; return; }
-            if (int.TryParse(id.AsSpan(2), out var i) && i < ts.Count) { await Player.Play(ts, i, "iPod"); showNow = true; scrub = false; Hud(); }
-        }
-        else if (id.Length > 2 && gs is not null && int.TryParse(id.AsSpan(2), out var gi) && gi >= 0 && gi < gs.Count)
-        {
-            var g = gs[gi];
-            if (id.StartsWith("a:"))
-            {
-                var albums = g.Tracks.GroupBy(t => t.Album).Select(x => new Group(string.IsNullOrEmpty(x.Key) ? "Unknown Album" : x.Key, x.ToList(), x.Select(t => t.ArtKey).FirstOrDefault(a => a is not null))).ToList();
-                if (albums.Count <= 1) { Open(g.Name, SongRows(g.Tracks), IpodKind.Songs, "", g.Tracks); return; }
-                // "All Songs" first (the artist itself), then each album: ids b:0, b:1 ... line up with this list
-                var list = new List<Group> { g }; list.AddRange(albums);
-                var rows = new List<IpodRow> { new("All Songs", "b:0", ArtKey: g.ArtKey, Detail: Songs(g.Tracks.Count)) };
-                for (var k = 0; k < albums.Count; k++) rows.Add(new IpodRow(albums[k].Name, "b:" + (k + 1), ArtKey: albums[k].ArtKey, Detail: Songs(albums[k].Tracks.Count)));
-                Open(g.Name, rows, IpodKind.Albums, "", null, list);
-            }
-            else Open(g.Name, SongRows(g.Tracks), IpodKind.Songs, "", g.Tracks);
+            if (play.Shuffle) await Player.ShuffleAll(play.List, "iPod"); else await Player.Play(play.List, play.Index, "iPod");
+            showNow = Player.Current is not null; npMode = 0; if (showNow) Hud();
         }
     }
 
@@ -533,26 +535,9 @@
 
     async Task CycleSetting(string name)
     {
-        switch (name)
-        {
-            case "shuffle": Player.ToggleShuffle(); break;
-            case "repeat": Player.CycleRepeat(); break;
-            case "speed": { double[] steps = [0.75, 1, 1.25, 1.5, 2, 3, 0.5]; speedChoice = (Array.FindIndex(steps, s => Math.Abs(s - Player.Speed) < 0.01) + 1) % steps.Length; await Player.SetSpeedAsync(steps[speedChoice]); break; }
-            case "level": await Player.SetLevelVolumeAsync(!Player.LevelVolume); break;
-            case "fade": { var ch = FadeBetween.Choices.ToList(); var next = ch[(Math.Max(0, ch.IndexOf(Player.FadeSecs)) + 1) % ch.Count]; await Player.SetFadeSecsAsync(next); break; }
-            case "sleep":
-                sleepChoice = Player.SleepMode == SleepMode.Off ? 1 : (sleepChoice + 1) % IpodPrefs.SleepMinutes.Length;
-                if (sleepChoice == 0) await Player.SetSleepAsync(SleepMode.Off); else await Player.SetSleepAsync(SleepMode.Minutes, IpodPrefs.SleepMinutes[sleepChoice]);
-                break;
-            default:
-                if (prefs.Cycle(name))
-                {
-                    if (name == "volumeLimit" && Player.Volume > prefs.VolumeLimit / 100.0) await Player.SetVolumeAsync(prefs.VolumeLimit / 100.0);
-                    if (name is "look") { var keep = nav.Selected; Save(); ApplyLook(); RebuildAll(); nav.Select(keep); return; }
-                    Fit(); Save();
-                }
-                break;
-        }
+        if (!await IpodActions.CycleAsync(name, prefs, Player)) return;
+        if (name == "look") { var keep = nav.Selected; Save(); ApplyLook(); RebuildAll(); nav.Select(keep); return; }
+        if (name is "wheelSpeed" or "wheelAccel" or "clicker" or "clickVolume" or "volumeLimit" or "clock") { Fit(); Save(); }
         RefreshLevel();
     }
 
@@ -584,12 +569,29 @@
 
     // ---------------------------------------------------------------- bits
 
+    // ---------------------------------------------------------------- Extras: clock and stopwatch, and the stars
+
+    async Task LoadDate() { try { dateText = await Js.InvokeAsync<string>("flacie.ipodDate"); await InvokeAsync(StateHasChanged); } catch (Exception) { } }
+    TimeSpan Elapsed => running ? watchBase + (DateTime.UtcNow - watchStart) : watchBase;
+    string Watch() { var t = Elapsed; return $"{(int)t.TotalMinutes:00}:{t.Seconds:00}.{t.Milliseconds / 10:00}"; }
+    void WatchToggle() { if (running) { watchBase = Elapsed; running = false; StopRender(); } else { watchStart = DateTime.UtcNow; running = true; StartRender(); } }
+    void WatchReset() { watchBase = TimeSpan.Zero; if (running) watchStart = DateTime.UtcNow; }
+    void StartRender() { watchTimer ??= new System.Threading.Timer(_ => InvokeAsync(StateHasChanged), null, 100, 100); }
+    void StopRender() { watchTimer?.Dispose(); watchTimer = null; }
+
+    static string Stars(int n) => new string('★', n) + new string('☆', 5 - n);
+    void Rate(Track t, int stars)
+    {
+        Session.SetRating(t, stars); SaveProfile();
+        if (t.JellyfinId is { Length: > 0 } id && Session.Jellyfin is { } a) _ = Task.Run(async () => { try { await Jellyfin.SetRatingAsync(a, id, stars); } catch { } });
+    }
+
     string Pct() => Player.Duration > 0 ? Pc(Math.Clamp(Player.Position / Player.Duration, 0, 1)) : "0";
-    static string Fmt(double s) { var t = TimeSpan.FromSeconds(Math.Max(0, s)); return t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}" : $"{(int)t.TotalMinutes}:{t.Seconds:00}"; }
+    static string Fmt(double s) => IpodContent.Time(s);
 
     public async ValueTask DisposeAsync()
     {
-        hudCts?.Cancel(); ticker?.Dispose();
+        hudCts?.Cancel(); ticker?.Dispose(); watchTimer?.Dispose();
         try { await Js.InvokeVoidAsync("flacie.ipodDispose"); } catch (Exception) { }
         self?.Dispose();
     }

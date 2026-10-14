@@ -56,7 +56,7 @@ test.describe('signed in', () => {
 
   test('Settings > About shows the version, the server, the data folder and the licences', async ({ page }) => {
     await page.goto('/settings');
-    await expect(page.locator('#about-version')).toHaveText('1.0-beta65');
+    await expect(page.locator('#about-version')).toHaveText('1.0-beta66');
     await expect(page.locator('#about-server')).toContainText('127.0.0.1');
     await expect(page.locator('#about-data')).not.toBeEmpty();
     const lic = page.locator('#about a[href="/licenses"]');

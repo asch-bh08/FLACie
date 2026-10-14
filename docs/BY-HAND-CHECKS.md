@@ -2,6 +2,12 @@
 
 Each beta adds its items; tick them off on the Fold. Nothing here was verified on a device unless it says so.
 
+## Beta 66
+- [ ] **Type in the search box** (the top one, Explore, and the Downloads filter): do letters still get lost or swapped?
+- [ ] A touch iPod (touch 5, nano 7): does it feel like an iPod OS (home screen, Music tabs, Now Playing, Settings, Clock, Stopwatch)? Drag a list with the mouse, use the Home button.
+- [ ] On the wheel iPods: Extras (Clock, Stopwatch), and the stars on Now Playing (press the middle button twice).
+- [ ] The iPod page on your own screen at the sizes you use (also a phone-sized window): anything cut off or overlapping?
+
 ## Beta 65
 - [ ] iPod mode on your own screen: does it fill the window in both looks, and is the panel (cover, model, colour, look) clear? Do the covers show in the lists, the preview pane, Now Playing and Cover Flow?
 - [ ] Android: Cover Flow on a nano / classic 6-7 skin with a real library.

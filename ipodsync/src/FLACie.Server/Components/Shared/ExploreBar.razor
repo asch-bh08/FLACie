@@ -6,7 +6,7 @@
     <div class="x-top">
         @if (!Compact)
         {
-        <label class="x-search"><Icon Name="search" Size="20" /><input type="search" placeholder="@Placeholder" aria-label="Search this list" value="@X.Query" autocomplete="off" spellcheck="false" @oninput="e => Set(() => X.Query = e.Value?.ToString() ?? string.Empty)" />
+        <label class="x-search"><Icon Name="search" Size="20" /><TextBox Type="search" Placeholder="@Placeholder" Label="Search this list" Value="@X.Query" ValueChanged="v => Set(() => X.Query = v)" DelayMs="150" />
             @if (X.Query.Length > 0) { <button type="button" class="x-clear" aria-label="Clear search" @onclick="() => Set(() => X.Query = string.Empty)"><Icon Name="x" Size="16" /></button> }
         </label>
         <Dropdown Class="x-sort" Label="Sort" ShowAny="false" Options="sortOptions" Value="@SortValue" ValueChanged="v => Set(() => SortValue = v)" />

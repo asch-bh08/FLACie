@@ -62,7 +62,7 @@ test.describe.serial('ipod mode', () => {
       await page.goto('about:blank');
       await openIpod(page, { model: id });
       await expect(page.locator(`.ipod.fam-${fam}`)).toBeVisible();
-      if (fam === 'touch') await expect(page.getByTestId('ipod-touch-screen').locator('iframe')).toBeVisible();
+      if (fam === 'touch') { await expect(page.getByTestId('ios')).toBeVisible(); await expect(page.getByTestId('ios-home')).toBeVisible(); }
       else { await expect(page.getByTestId('ipod-lcd')).toBeVisible(); await expect(rows(page).first()).toBeVisible(); await expect(page.getByTestId('ipod-wheel')).toBeVisible(); }
       await page.getByTestId('ipod-gear').click();
       await expect(page.locator('.ipod-panel .ipod-chip.swatch')).toHaveCount(+colours);
@@ -86,7 +86,7 @@ test.describe.serial('ipod mode', () => {
     await expect(page.getByTestId('ipod-pane')).toHaveCount(0);       // the colour video menus have no preview
 
     await page.goto('about:blank'); await openIpod(page, { model: 'classic6' });
-    expect(await labels(page)).toEqual(['Music', 'Cover Flow', 'Voice Memos', 'Settings', 'Shuffle Songs']);
+    expect(await labels(page)).toEqual(['Music', 'Cover Flow', 'Extras', 'Settings', 'Shuffle Songs']);
     await expect(page.getByTestId('ipod-pane')).toBeVisible();        // nano / classic: the preview tile beside the main menu
     await page.getByTestId('ipod-keys').focus();
     await page.keyboard.press('Enter');
@@ -224,12 +224,12 @@ test.describe.serial('ipod mode', () => {
     await expect(stage(page)).toHaveAttribute('data-model', 'nano3', { timeout: 20_000 });
     await expect(stage(page)).toHaveAttribute('data-color', 'Black');
 
-    // Main Menu: hide "Voice Memos"; Reset brings everything back
+    // Main Menu: hide "Extras"; Reset brings everything back
     await page.getByTestId('ipod-keys').focus();
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');    // Settings
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');    // Main Menu
     await expect(title(page)).toHaveText('Main Menu');
-    expect(await labels(page)).toEqual(['Cover Flow', 'Voice Memos', 'Shuffle Songs']);
+    expect(await labels(page)).toEqual(['Cover Flow', 'Extras', 'Shuffle Songs']);
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
     await expect(sel(page).locator('.lcd-tick')).toHaveText('');
     await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
@@ -292,13 +292,192 @@ test.describe.serial('ipod mode', () => {
     await page.locator('.ipod-panel .ipod-chip[data-look="device"]').click();
     await page.locator('.ipod-panel [data-group="touch"]').click();
     await page.locator('.ipod-panel .ipod-chip[data-model="touch5"]').click();
-    await expect(page.getByTestId('ipod-touch-screen').locator('iframe')).toBeVisible();
+    await expect(page.getByTestId('ios')).toBeVisible();
     await expect(page.getByTestId('ipod-wheel')).toHaveCount(0);
-    const frame = page.frameLocator('[data-testid=ipod-touch-screen] iframe');
-    await expect(frame.locator('body')).toBeVisible({ timeout: 20_000 });
     await page.locator('.ipod-panel [data-group="Classic"]').click();
     await page.locator('.ipod-panel .ipod-chip[data-model="video5"]').click();    // back to a wheel
     await expect(page.getByTestId('ipod-wheel')).toBeVisible();
+  });
+
+  test('touch iPods run their own system: home screen, Music with tabs, Now Playing, Settings, Clock, Stopwatch', async ({ page }) => {
+    test.setTimeout(180_000);
+    await signIn(page);
+    await page.setViewportSize({ width: 1366, height: 768 });
+    for (const model of ['touch5', 'touch1', 'nano7']) {
+      await page.goto('about:blank');
+      await openIpod(page, { model });
+      const app = () => page.getByTestId('ios').getAttribute('data-app');
+      await expect.poll(app).toBe('home');
+      await expect(page.locator('.ios-app[data-app="music"]').first()).toBeVisible();
+      await page.locator('.ios-grid .ios-app[data-app="music"]').click();
+      await expect.poll(app).toBe('music');
+      await expect(page.getByTestId('ios-tabs')).toBeVisible();
+      // Songs tab is the default: rows with covers, titles and artists
+      await expect(page.getByTestId('ios-row').first()).toBeVisible();
+      await page.locator('[data-tab="Artists"]').click();
+      await expect(page.locator('.ios-nav b')).toHaveText('Artists');
+      await page.getByTestId('ios-row').first().click();                    // an artist opens (its albums or its songs)
+      await expect(page.getByTestId('ios-back')).toBeVisible();
+      await page.getByTestId('ios-back').click();
+      await expect(page.locator('.ios-nav b')).toHaveText('Artists');
+      await page.locator('[data-tab="Songs"]').click();
+      await expect(page.locator('.ios-nav b')).toHaveText('Songs');
+      await page.getByTestId('ios-row').nth(1).click();                      // play a song: Now Playing opens
+      await expect.poll(app, { timeout: 20_000 }).toBe('now');
+      await expect(page.getByTestId('ios-np-title')).not.toHaveText('');
+      await page.getByTestId('ios-play').click();                            // pause, then play again
+      await page.getByTestId('ios-play').click();
+      await page.getByTestId('ios-scrub').click({ position: { x: 40, y: 4 } });
+      await page.getByTestId('ios-back').click();
+      await expect.poll(app).toBe('music');
+      // Settings: a row cycles its setting
+      await page.getByTestId('ios-now').click(); await expect.poll(app).toBe('now');
+      await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+      await page.getByTestId('ipod-keys').focus();
+      await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+      await expect.poll(app).toBe('home');
+      await page.locator('.ios-grid .ios-app[data-app="settings"]').click();
+      await expect(page.getByTestId('ios-settings')).toBeVisible();
+      const shuffle = page.getByTestId('ios-setting').first();
+      await expect(shuffle.locator('.ios-v')).toHaveText(/Off|Songs/);
+      const before = await shuffle.locator('.ios-v').textContent();
+      await shuffle.click();
+      await expect(shuffle.locator('.ios-v')).not.toHaveText(before!);
+      await page.getByTestId('ios-back').click();
+      // Clock and Stopwatch
+      await page.locator('.ios-grid .ios-app[data-app="clock"]').click();
+      await expect(page.getByTestId('ios-clock')).toBeVisible(); await page.getByTestId('ios-back').click();
+      await page.locator('.ios-grid .ios-app[data-app="stopwatch"]').click();
+      await expect(page.getByTestId('ios-sw-time')).toHaveText('00:00.00');
+      await page.getByTestId('ios-sw-go').click(); await page.waitForTimeout(700);
+      await page.getByTestId('ios-sw-go').click();
+      await expect(page.getByTestId('ios-sw-time')).not.toHaveText('00:00.00');
+      await page.getByTestId('ios-sw-reset').click(); await expect(page.getByTestId('ios-sw-time')).toHaveText('00:00.00');
+      await page.getByTestId('ios-back').click();
+      if (model === 'touch5') { await page.locator('.ios-grid .ios-app[data-app="music"]').click(); await page.getByTestId('ipod-home-button').click(); await expect.poll(app).toBe('home'); }   // the Home button
+    }
+  });
+
+  test('Extras: clock and stopwatch; Now Playing has a rating mode', async ({ page }) => {
+    test.setTimeout(150_000);
+    await signIn(page);
+    await page.setViewportSize({ width: 1200, height: 800 });
+    for (const model of ['ipod4', 'video5', 'classic6']) {
+      await page.goto('about:blank');
+      await openIpod(page, { model });
+      await page.getByTestId('ipod-keys').focus();
+      const mono = model === 'ipod4';
+      for (let i = 0; i < (mono ? 2 : 2); i++) await page.keyboard.press('ArrowDown');
+      await expect(sel(page)).toContainText('Extras'); await page.keyboard.press('Enter');
+      await expect(title(page)).toHaveText('Extras');
+      expect(await labels(page)).toEqual(['Clock', 'Stopwatch', 'Voice Memos']);
+      await page.keyboard.press('Enter');
+      await expect(title(page)).toHaveText('Clock');
+      await expect(page.getByTestId('ipod-tool-time')).toHaveText(/\d{1,2}:\d{2}/);
+      await page.keyboard.press('Escape'); await expect(title(page)).toHaveText('Extras');
+      await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
+      await expect(title(page)).toHaveText('Stopwatch');
+      await expect(page.getByTestId('ipod-tool-time')).toHaveText('00:00.00');
+      await page.keyboard.press('Enter'); await page.waitForTimeout(800); await page.keyboard.press('Enter');     // start, stop
+      await expect(page.getByTestId('ipod-tool-time')).not.toHaveText('00:00.00');
+      await page.keyboard.press('ArrowLeft');                                                                      // reset
+      await expect(page.getByTestId('ipod-tool-time')).toHaveText('00:00.00');
+      await page.keyboard.press('Escape'); await expect(title(page)).toHaveText('Extras');
+      await page.keyboard.press('Escape');
+      // Now Playing: the middle button goes volume -> scrub -> stars -> volume; the wheel sets the stars
+      await page.keyboard.press('ArrowUp'); await page.keyboard.press('ArrowUp'); await page.keyboard.press('ArrowUp');
+      await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown');
+      await expect(sel(page)).toContainText('Shuffle Songs'); await page.keyboard.press('Enter');
+      await expect(page.getByTestId('ipod-np')).toBeVisible({ timeout: 20_000 });
+      await page.keyboard.press('Enter'); await expect(page.getByTestId('ipod-scrub')).toBeVisible();
+      await page.keyboard.press('Enter'); await expect(page.getByTestId('ipod-rating')).toBeVisible();
+      await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown');
+      await expect(page.getByTestId('ipod-rating')).toContainText('★★★☆☆');
+      await page.keyboard.press('ArrowUp'); await expect(page.getByTestId('ipod-rating')).toContainText('★★☆☆☆');
+      await page.keyboard.press('Enter'); await expect(page.getByTestId('ipod-volume')).toBeVisible();
+    }
+  });
+
+  test('every iPod is laid out cleanly at every window size and shape', async ({ page }) => {
+    test.setTimeout(600_000);
+    await signIn(page);
+    const sizes: Array<[number, number]> = [[1920, 1080], [1366, 768], [1024, 768], [768, 1024], [390, 844], [360, 640], [320, 568], [2560, 1080], [1200, 400], [900, 300], [500, 500]];
+    const models = ['ipod1', 'mini', 'video5', 'nano2', 'classic6', 'nano4', 'nano6', 'touch5', 'nano7'];
+    // the screen's text must be inside the screen, the device inside the free area, and nothing may scroll sideways
+    const problems = async (touch: boolean) => page.evaluate((isTouch) => {
+      const out: string[] = [];
+      const box = (e: Element) => e.getBoundingClientRect();
+      // the rectangle the letters really occupy (an element can be wider than its text)
+      const ink = (e: Element) => { if (e.matches('.ios-back, .ios-now')) return box(e); const r = document.createRange(); r.selectNodeContents(e); return r.getBoundingClientRect(); };
+      const area = box(document.querySelector('[data-testid=ipod-keys]')!), dev = box(document.querySelector('[data-testid=ipod-device]')!);
+      if (dev.left < area.left - 1 || dev.right > area.right + 1 || dev.top < area.top - 1 || dev.bottom > area.bottom + 1) out.push('device outside the free area');
+      if (dev.width < 40 || dev.height < 60) out.push('device tiny');
+      const root = document.querySelector(isTouch ? '[data-testid=ios]' : '.lcd-in')!, screen = box(document.querySelector(isTouch ? '[data-testid=ipod-touch-screen]' : '[data-testid=ipod-lcd]')!);
+      for (const e of root.querySelectorAll('*')) {
+        if (e.closest('.cf-item, .ios-list, .ios-settings, svg')) continue;
+        const own = [...e.childNodes].some((n) => n.nodeType === 3 && (n.textContent || '').trim().length > 0);
+        if (!own) continue;
+        const r = ink(e);
+        if (r.width === 0 || r.height === 0) continue;
+        if (r.left < screen.left - 1.5 || r.right > screen.right + 1.5 || r.top < screen.top - 1.5 || r.bottom > screen.bottom + 1.5) out.push('text outside the screen: ' + (e.textContent || '').trim().slice(0, 24));
+      }
+      const hasText = (e: Element) => [...e.childNodes].some((n) => n.nodeType === 3 && (n.textContent || '').trim().length > 0);
+      const texts = [...root.querySelectorAll('*')].filter((e) => !e.closest('.cf-item, svg') && (e.matches('.ios-back, .ios-now') || hasText(e)) && box(e).width > 0);
+      for (let i = 0; i < texts.length; i++) for (let j = i + 1; j < texts.length; j++) {
+        if (texts[i].contains(texts[j]) || texts[j].contains(texts[i])) continue;
+        const a = ink(texts[i]), b = ink(texts[j]); const w = Math.min(a.right, b.right) - Math.max(a.left, b.left), h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        if (w > 3 && h > 3) out.push('text on text: ' + (texts[i].textContent || '').trim().slice(0, 16) + ' / ' + (texts[j].textContent || '').trim().slice(0, 16));
+      }
+      if (document.documentElement.scrollWidth > innerWidth + 1) out.push('page scrolls sideways');
+      return out;
+    }, touch);
+    for (const model of models) {
+      for (const [w, h] of sizes) {
+        await page.setViewportSize({ width: w, height: h });
+        await page.goto('about:blank');
+        await openIpod(page, { model });
+        await page.waitForTimeout(250);
+        const touch = model === 'touch5' || model === 'nano7' || model === 'nano6';
+        const bad = await problems(touch);
+        expect(bad, model + ' at ' + w + 'x' + h).toEqual([]);
+        if (w === 1366 || w === 390 || w === 320) {
+          // the song screen, Now Playing and the settings page too
+          if (touch) { await page.locator('.ios-grid .ios-app[data-app="music"]').click(); await page.getByTestId('ios-row').nth(1).click(); await expect(page.getByTestId('ios-np')).toBeVisible({ timeout: 20_000 }); }
+          else {
+            await page.getByTestId('ipod-keys').focus();
+            for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowDown');
+            await expect(sel(page)).toContainText('Shuffle Songs'); await page.keyboard.press('Enter');
+            await expect(page.getByTestId('ipod-np')).toBeVisible({ timeout: 20_000 });
+          }
+          await page.waitForTimeout(300);
+          expect(await problems(touch), model + ' playing at ' + w + 'x' + h).toEqual([]);
+          if (!touch) {
+            // and the settings pages: long names beside their values
+            await page.keyboard.press('Escape');
+            for (let i = 0; i < 6; i++) await page.keyboard.press('ArrowUp');
+            for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowDown');
+            await expect(sel(page)).toContainText('Settings'); await page.keyboard.press('Enter');
+            await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
+            await expect(title(page)).toHaveText('Playback'); await page.waitForTimeout(300);
+            expect(await problems(false), model + ' playback settings at ' + w + 'x' + h).toEqual([]);
+            await page.keyboard.press('Escape'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
+            await expect(title(page)).toHaveText('Controls'); await page.waitForTimeout(300);
+            expect(await problems(false), model + ' controls at ' + w + 'x' + h).toEqual([]);
+          }
+        }
+      }
+    }
+    // the wheel-only look (no body: the screen across the top, the wheel under it) at the same shapes
+    for (const model of ['ipod1', 'classic6', 'nano4']) {
+      for (const [w, h] of sizes) {
+        await page.setViewportSize({ width: w, height: h });
+        await page.goto('about:blank');
+        await openIpod(page, { model, look: 0 });
+        await page.waitForTimeout(250);
+        await expect(stage(page)).toHaveAttribute('data-look', 'wheel');
+        expect(await problems(false), model + ' wheel only at ' + w + 'x' + h).toEqual([]);
+      }
+    }
   });
 
   test('cover art shows: in the lists, the pane, Now Playing, Cover Flow and the panel', async ({ page }) => {

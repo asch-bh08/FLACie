@@ -14,7 +14,7 @@
     <a href="/downloads#running">Running <b>@running.Count</b></a><a href="/downloads#failed">Failed <b>@failed.Count</b></a><a href="/downloads#soulseek">Soulseek <b>@soulseek.Count</b></a><a href="/downloads#lidarr">Lidarr <b>@lidarr.Count</b></a><a href="/downloads#open">YouTube and open sources <b>@open.Count</b></a>
 </nav>
 <div class="dl-tools">
-    <input type="search" class="dl-filter" placeholder="Filter by song, artist or user" aria-label="Filter downloads" @bind="filter" @bind:event="oninput" />
+    <TextBox Type="search" Class="dl-filter" Placeholder="Filter by song, artist or user" Label="Filter downloads" Value="@filter" ValueChanged="v => filter = v" DelayMs="150" />
     @if (admin) { <label class="dl-every"><input type="checkbox" checked="@everyone" @onchange="e => everyone = (bool)(e.Value ?? false)" /> Everyone's downloads</label> }
 </div>
 

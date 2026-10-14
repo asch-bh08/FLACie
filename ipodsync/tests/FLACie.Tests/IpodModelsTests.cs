@@ -133,7 +133,7 @@ public class IpodMenusTests
     {
         Assert.Equal(["Playlists", "Browse", "Extras", "Settings", "Shuffle Songs"], L(IpodMenus.Root(IpodFamily.Mono, None, false)));
         Assert.Equal(["Music", "Cover Flow", "Extras", "Settings", "Shuffle Songs"], L(IpodMenus.Root(IpodFamily.Video, None, false)));
-        Assert.Equal(["Music", "Cover Flow", "Voice Memos", "Settings", "Shuffle Songs", "Now Playing"], L(IpodMenus.Root(IpodFamily.Nano, None, true)));
+        Assert.Equal(["Music", "Cover Flow", "Extras", "Settings", "Shuffle Songs", "Now Playing"], L(IpodMenus.Root(IpodFamily.Nano, None, true)));
         Assert.Equal(["No Music", "Music", "Cover Flow", "Extras", "Settings", "Shuffle Songs"], L(IpodMenus.Root(IpodFamily.Video, None, false, anyMusic: false)));
         Assert.Equal("iPod", IpodMenus.RootTitle);
     }

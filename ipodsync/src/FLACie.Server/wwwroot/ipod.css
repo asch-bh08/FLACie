@@ -151,11 +151,15 @@
 .fam-nano .lnp-times { padding: 0 16px; color: var(--npdim); }
 .fam-nano .lnp-hud.vol { padding: 0 16px; color: var(--npdim); }
 .fam-nano .lnp { background: linear-gradient(var(--np1), var(--np2)); }
-.fam-nano.tall .lnp-art { left: 30px; top: 36px; width: 180px; height: 180px; }
-.fam-nano.tall .lnp-meta { left: 12px; right: 12px; top: 226px; text-align: center; align-items: center; }
-.fam-nano.tall .lnp-meta b { font-size: 19px; margin: 0 0 4px; }
-.fam-nano.tall .lnp-meta small { order: -1; position: absolute; right: 0; top: -214px; margin: 0; }
-.fam-nano.tall .lnp-hud { top: 280px; }
+.fam-nano.tall .lnp-art { left: 33px; top: 32px; width: 174px; height: 174px; }
+/* the tall screen has room for the title and one line for artist and album (as on the real iPod), the bar sits under them */
+.fam-nano.tall .lnp-meta { left: 10px; right: 10px; top: 214px; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: baseline; text-align: center; column-gap: 0; }
+.fam-nano.tall .lnp-meta b { flex: 0 0 100%; font-size: 19px; margin: 0 0 3px; }
+.fam-nano.tall .lnp-meta span { font-size: 13px; margin: 0; max-width: 100%; }
+.fam-nano.tall .lnp-meta span:not(.lnp-album)::after { content: "  -  "; white-space: pre; }
+.fam-nano.tall .lnp-meta span:last-of-type::after { content: none; }
+.fam-nano.tall .lnp-meta small { display: none; }
+.fam-nano.tall .lnp-hud { top: 272px; }
 .fam-nano .cf { background: linear-gradient(#000, #22252b); }
 
 /* ---------------- the wheel */
@@ -230,3 +234,117 @@
 @media (prefers-reduced-motion: reduce) { .lcd-list.slide-in, .lcd-list.slide-back, .lcd-fade, .cf-item { animation: none; transition: none; } }
 .ipod-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .ipod.touch::after { background: linear-gradient(rgba(255,255,255,.10), transparent 30%); }
+
+/* ---------------- the touch iPods: iPod touch 1-7 and nano 6-7 have a system of their own (home screen, Music with a tab bar, Now Playing, Settings, Clock, Stopwatch), drawn in points (320 wide, 240 for the nanos) and scaled into the glass */
+.ios-scale { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.ios { position: relative; display: flex; flex-direction: column; overflow: hidden; background: #fff; color: #000; font: 16px/1.25 "Helvetica Neue", Helvetica, Arial, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+.ios * { box-sizing: border-box; letter-spacing: normal; text-transform: none; }
+:where(.ios) button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-align: inherit; }
+.ios b { font-weight: 600; } .ios small { font-size: 12px; }
+.ios-status { position: relative; z-index: 6; flex: none; height: 20px; display: flex; align-items: center; justify-content: space-between; padding: 0 6px; font-size: 12px; font-weight: 700; color: #fff; background: linear-gradient(#4a4a4a, #000); }
+.ios-time { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; pointer-events: none; }
+.ios-batt-wrap { display: flex; align-items: center; gap: 4px; z-index: 1; font-weight: 600; }
+.ios-pct { font-size: 11px; font-weight: 600; }
+.ios-batt { position: relative; width: 22px; height: 10px; border: 1px solid #fff; border-radius: 3px; background: linear-gradient(90deg, #fff var(--lvl, 100%), transparent var(--lvl, 100%)); }
+.ios-batt::after { content: ""; position: absolute; right: -3px; top: 2px; width: 2px; height: 4px; background: #fff; }
+
+/* home */
+.ios-home { position: relative; flex: 1; display: flex; flex-direction: column; background: radial-gradient(ellipse at 50% 0%, #4d73b5 0%, #1e3566 55%, #0b1530 100%); color: #fff; }
+.ios-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px 4px; padding: 20px 8px 0; align-content: start; flex: 1; }
+.ios.compact .ios-grid { grid-template-columns: repeat(3, 1fr); gap: 14px 2px; padding-top: 14px; }
+.ios-app { display: flex; flex-direction: column; align-items: center; gap: 5px; color: #fff; font-size: 11px; text-shadow: 0 1px 2px rgba(0,0,0,.7); }
+.ios-icon { width: 57px; height: 57px; border-radius: 13px; display: grid; place-items: center; color: #fff; position: relative; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.18); background: linear-gradient(#8a8f98, #4a4e57); }
+.ios.compact .ios-icon { width: 50px; height: 50px; }
+.ios-icon::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 50%; background: linear-gradient(rgba(255,255,255,.5), rgba(255,255,255,.08)); border-radius: 13px 13px 40% 40% / 13px 13px 14% 14%; pointer-events: none; }
+.ios-icon .ic, .ios-icon svg { position: relative; z-index: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.4)); }
+.ios-icon-music { background: linear-gradient(#ff9d4d, #e0481b); }
+.ios-icon-now { background: linear-gradient(#69d27b, #1f8f3a); }
+.ios-icon-settings { background: linear-gradient(#b8bcc4, #6c717b); }
+.ios-icon-clock { background: linear-gradient(#f4f4f6, #b9bcc3); color: #111; }
+.ios-icon-stopwatch { background: linear-gradient(#444a55, #14171c); }
+.ios-icon-flacie { background: linear-gradient(#ff5e87, #9b3bd1); }
+.ios-dots { display: flex; justify-content: center; gap: 6px; padding: 6px 0 8px; }
+.ios-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.35); } .ios-dots i.on { background: #fff; }
+.ios-dock { flex: none; height: 76px; display: flex; justify-content: center; gap: 22px; align-items: center; background: linear-gradient(rgba(255,255,255,.22), rgba(255,255,255,.1)); border-top: 1px solid rgba(255,255,255,.3); }
+
+/* navigation bar, lists, tab bar */
+.ios-nav { position: relative; flex: none; height: 44px; display: flex; align-items: center; justify-content: center; color: #fff; text-shadow: 0 -1px 0 rgba(0,0,0,.45);
+  background: linear-gradient(#a7b8d0, #8399b8 50%, #7189ae 51%, #6a83a8); border-bottom: 1px solid #2d405e; }
+.ios.compact .ios-nav { height: 38px; }
+.ios-nav.dark { background: linear-gradient(#6b6b6b, #3a3a3a 50%, #232323 51%, #0f0f0f); border-bottom-color: #000; }
+.ios-nav b { font-size: 18px; max-width: 52%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ios-back, .ios-now { position: absolute; top: 7px; height: 30px; max-width: 40%; padding: 0 10px; border-radius: 6px; font-size: 13px; font-weight: 700; color: #fff; line-height: 28px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 -1px 0 rgba(0,0,0,.5);
+  background: linear-gradient(#8ea5c6, #5873a0 50%, #4a6694 51%, #5876a3); border: 1px solid #2b3f63; box-shadow: 0 1px 0 rgba(255,255,255,.35) inset; }
+.ios.compact .ios-back, .ios.compact .ios-now { top: 4px; }
+.ios-nav.dark .ios-back { background: linear-gradient(#8a8a8a, #4b4b4b 50%, #333 51%, #4d4d4d); border-color: #000; }
+.ios-back { left: 6px; padding-left: 18px; } .ios-back::before { content: ""; position: absolute; left: 6px; top: 9px; width: 9px; height: 9px; border-left: 2px solid #fff; border-bottom: 2px solid #fff; transform: rotate(45deg); }
+.ios-now { right: 6px; }
+.ios-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; background: #fff; cursor: grab; }
+.ios-scroll::-webkit-scrollbar { display: none; }
+.ios-row { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 3px 12px 3px 10px; border-bottom: 1px solid #d7d7da; background: #fff; cursor: pointer; position: relative; }
+.ios.compact .ios-row { min-height: 40px; }
+.ios-row:active { background: linear-gradient(#58a6f2, #1f68cf); color: #fff; } .ios-row:active small, .ios-row:active .ios-v { color: #e4eefc; }
+.ios-row.chev::after { content: ""; flex: none; width: 8px; height: 8px; border-top: 2px solid #b8b8bd; border-right: 2px solid #b8b8bd; transform: rotate(45deg); margin-left: 2px; }
+.ios-thumb { flex: none; width: 38px; height: 38px; overflow: hidden; border-radius: 3px; background: #dfe2e8; box-shadow: 0 0 0 1px rgba(0,0,0,.18); }
+.ios-art, .ios .cover { width: 100%; height: 100%; border-radius: 0; }
+.ios-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ios-t b, .ios-t small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ios-t b { font-size: 16px; } .ios-t small { color: #7a7d86; }
+.ios-v { color: #385487; font-size: 15px; flex: none; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ios-more, .ios-empty { padding: 18px; text-align: center; color: #8a8d96; font-size: 14px; }
+.ios-tabs { flex: none; height: 49px; display: flex; background: linear-gradient(#3b3b3b, #0a0a0a 50%, #000); border-top: 1px solid #000; }
+.ios.compact .ios-tabs { height: 44px; }
+.ios-tabs button { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; color: #a7a7ab; font-size: 10px; font-weight: 600; margin: 3px 2px; border-radius: 5px; }
+.ios-tabs button.on { color: #fff; background: linear-gradient(rgba(255,255,255,.28), rgba(255,255,255,.08)); }
+.ios-tabs button.on .ic { color: #5fb0ff; }
+
+/* now playing */
+.ios-np { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 12px 20px 10px; color: #fff; background: radial-gradient(ellipse at 50% 20%, #3d3f46, #121214 75%); }
+.ios-np-art { width: min(100%, 52%); aspect-ratio: 1; flex: none; box-shadow: 0 6px 18px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.12); background: #2a2c33; }
+.ios.compact .ios-np-art { width: 46%; }
+.ios-np-meta { display: flex; flex-direction: column; align-items: center; text-align: center; max-width: 100%; margin-top: 6px; }
+.ios-np-meta b { font-size: 17px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ios-np-meta span { color: #d4d6dd; font-size: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ios-np-meta small { color: #8d909a; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ios-stars { display: flex; gap: 2px; } .ios-stars button { color: #4b4e57; padding: 2px; } .ios-stars button.on { color: #ffc94d; }
+.ios-scrub, .ios-vbar { height: 9px; border-radius: 5px; background: linear-gradient(#222, #4a4a4a); box-shadow: 0 1px 0 rgba(255,255,255,.2), inset 0 1px 2px rgba(0,0,0,.7); overflow: hidden; cursor: pointer; }
+.ios-scrub { width: 100%; margin-top: 4px; } .ios-scrub i, .ios-vbar i { display: block; height: 100%; background: linear-gradient(#7cc0ff, #1c6bd8); }
+.ios-times { width: 100%; display: flex; justify-content: space-between; font-size: 11px; color: #a7aab3; }
+.ios-ctl { display: flex; align-items: center; justify-content: center; gap: 28px; margin: 2px 0; }
+.ios-ctl button { width: 44px; height: 44px; display: grid; place-items: center; color: #fff; border-radius: 50%; } .ios-ctl button.big { width: 56px; height: 56px; }
+.ios-ctl button:active { background: rgba(255,255,255,.18); }
+.ios-vol { width: 100%; display: flex; align-items: center; gap: 8px; color: #a7aab3; cursor: pointer; } .ios-vbar { flex: 1; }
+
+/* settings, clock, stopwatch */
+.ios-settings { background: #d9dce3; padding: 8px 8px 14px; cursor: grab; }
+.ios-settings h4 { margin: 10px 10px 5px; font-size: 14px; font-weight: 700; color: #4d5260; text-shadow: 0 1px 0 #fff; }
+.ios-group { border: 1px solid #a9adb7; border-radius: 9px; overflow: hidden; background: #fff; }
+.ios-group .ios-row:last-child { border-bottom: 0; }
+.ios-clock { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #fff; background: #000; }
+.ios-bigtime { font-size: 54px; font-weight: 200; font-variant-numeric: tabular-nums; } .ios-bigtime.mono { font-size: 44px; }
+.ios.compact .ios-bigtime { font-size: 38px; } .ios.compact .ios-bigtime.mono { font-size: 32px; }
+.ios-date { color: #a9adb7; font-size: 15px; }
+.ios-swbtns { display: flex; gap: 16px; } .ios-swbtns button { min-width: 88px; padding: 10px 0; border-radius: 8px; font-weight: 700; text-align: center; color: #fff; background: linear-gradient(#777, #333); border: 1px solid #000; }
+.ios-swbtns button.go { background: linear-gradient(#6fd07d, #1f8f3a); } .ios-swbtns button.stop { background: linear-gradient(#f27474, #b3261e); }
+.ipod-home { cursor: pointer; }
+
+/* the iPod OS tools (Extras): clock and stopwatch */
+.tool { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
+.tool-time { font-size: 40px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.tool-sub { font-size: 12px; opacity: .75; }
+.fam-mono .tool-time { font-size: 28px; } .fam-mono .tool-sub { font-size: 10px; }
+.fam-video .tool { background: #fff; } .fam-nano .tool { background: linear-gradient(var(--np1), var(--np2)); }
+.fam-nano .tool-time { color: var(--nptitle); } .fam-nano .tool-sub { color: var(--npdim); }
+.lnp-hud.rate { text-align: center; } .lnp-hud.rate .stars { font-size: 26px; letter-spacing: .12em; color: #f5a623; }
+.fam-mono .lnp-hud.rate .stars { color: var(--ink); font-size: 20px; } .fam-nano .lnp-hud.rate .stars { color: #f5a623; }
+/* the screen's own text never picks anything up from the site's styles */
+.ipod-lcd *, .ios * { text-shadow: none; }
+.ipod-lcd { line-height: normal; }
+
+/* a short touch screen (the nano 6): Now Playing keeps the cover, the title, the bar and the buttons */
+.ios.short .ios-np { padding: 6px 14px 4px; gap: 3px; }
+.ios.short .ios-np-art { width: auto; height: 64px; }
+.ios.short .ios-np-meta { margin-top: 1px; } .ios.short .ios-np-meta b { font-size: 14px; } .ios.short .ios-np-meta span { font-size: 12px; } .ios.short .ios-np-meta small, .ios.short .ios-stars, .ios.short .ios-vol { display: none; }
+.ios.short .ios-scrub { margin-top: 2px; } .ios.short .ios-ctl { gap: 18px; margin: 0; } .ios.short .ios-ctl button { width: 34px; height: 34px; } .ios.short .ios-ctl button.big { width: 42px; height: 42px; }
+.ios.short .ios-tabs { height: 40px; }
+.ios.compact .ios-nav b { font-size: 14px; max-width: 42%; } .ios.compact .ios-back, .ios.compact .ios-now { max-width: 31%; padding: 0 6px 0 16px; font-size: 12px; } .ios.compact .ios-back::before { left: 5px; }

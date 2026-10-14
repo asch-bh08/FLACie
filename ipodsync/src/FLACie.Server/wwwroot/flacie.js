@@ -396,7 +396,7 @@ window.flacie = (() => {
     try { navigator.mediaSession.setActionHandler("enterpictureinpicture", () => { pip.toggle(); }); } catch { }
   }
   let outside = null, pendingLoad = 0, lastLoadAt = -1e9;
-  let ipod = null;
+  let ipod = null, touchOs = null;
   // The next song's first bytes are fetched early (a second audio element, preload=auto), so a skip starts at once. One prefetch at a time, started only
   // once the current song can play (the song asked for gets the connection and the server first), and replaced, never added to, when the queue moves on.
   let pre = null, preTok = 0, preTimer = 0;
@@ -614,6 +614,47 @@ window.flacie = (() => {
     },
     ipodClock() { return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); },
     async ipodBattery() { try { const b = await navigator.getBattery(); return [Math.round(b.level * 100), b.charging]; } catch { return [100, false]; } },
+    // a text box the server never rewrites while it is being typed in (see TextBox.razor): the browser debounces and tells the server once
+    textBox(el, ref, value, ms) {
+      if (!el) return;
+      el.value = value;
+      let t = null; const send = () => { clearTimeout(t); t = null; ref.invokeMethodAsync("OnText", el.value).catch(() => { }); };
+      const input = () => { clearTimeout(t); t = setTimeout(send, ms); };
+      const key = e => { if (e.key === "Enter" && t !== null) send(); };
+      const search = () => send();   // the x of a search box
+      el.addEventListener("input", input); el.addEventListener("keydown", key); el.addEventListener("search", search);
+      el._tb = { input, key, search, flush: () => { if (t !== null) send(); } };
+    },
+    textBoxSet(el, value) { if (el && document.activeElement !== el && el.value !== value) el.value = value; },
+    textBoxOff(el) { if (el && el._tb) { el.removeEventListener("input", el._tb.input); el.removeEventListener("keydown", el._tb.key); el.removeEventListener("search", el._tb.search); el._tb = null; } },
+    ipodDate() { return new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }); },
+    // the touch iPods' scrolling: a mouse can drag a list like a finger does (touch screens scroll by themselves); a drag is not a tap; the end of a long list asks for more rows
+    iosInit(root) {
+      window.flacie.iosDispose();
+      let sc = null, y0 = 0, top0 = 0, dragged = false, k = 1;
+      const down = e => {
+        if (e.pointerType !== "mouse" || e.button !== 0) return;
+        sc = e.target.closest(".touchOs-scroll"); if (!sc) return;
+        const r = root.getBoundingClientRect(); k = r.width / (root.offsetWidth || 1) || 1;
+        y0 = e.clientY; top0 = sc.scrollTop; dragged = false;
+      };
+      const move = e => { if (!sc) return; const dy = e.clientY - y0; if (!dragged && Math.abs(dy) > 5) dragged = true; if (dragged) sc.scrollTop = top0 - dy / k; };
+      const up = () => { sc = null; setTimeout(() => { dragged = false; }, 0); };
+      const click = e => { if (dragged) { e.stopPropagation(); e.preventDefault(); } };
+      root.addEventListener("pointerdown", down); addEventListener("pointermove", move); addEventListener("pointerup", up); root.addEventListener("click", click, true);
+      touchOs = { root, down, move, up, click, io: null };
+    },
+    iosMore(el, ref) {
+      if (!touchOs || !el) return;
+      if (touchOs.io) touchOs.io.disconnect();
+      touchOs.io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { touchOs.io.disconnect(); ref.invokeMethodAsync("More").catch(() => { }); } }, { rootMargin: "300px" });
+      touchOs.io.observe(el);
+    },
+    iosDispose() {
+      if (!touchOs) return;
+      touchOs.root.removeEventListener("pointerdown", touchOs.down); removeEventListener("pointermove", touchOs.move); removeEventListener("pointerup", touchOs.up); touchOs.root.removeEventListener("click", touchOs.click, true);
+      if (touchOs.io) touchOs.io.disconnect(); touchOs = null;
+    },
     ipodDispose() {
       if (!ipod) return;
       try { ipod.ro && ipod.ro.disconnect(); ipod.mo && ipod.mo.disconnect(); } catch { }

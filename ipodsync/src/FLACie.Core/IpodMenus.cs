@@ -28,7 +28,7 @@ public static class IpodMenus
     {
         IpodFamily.Mono => [new("Playlists", "m:pl"), new("Browse", "m:browse"), new("Extras", "m:extras"), new("Settings", "m:settings"), new("Shuffle Songs", "m:shuffle", false)],
         IpodFamily.Video => [new("Music", "m:music"), new("Cover Flow", "m:cover"), new("Extras", "m:extras"), new("Settings", "m:settings"), new("Shuffle Songs", "m:shuffle", false)],
-        _ => [new("Music", "m:music"), new("Cover Flow", "m:cover"), new("Voice Memos", "m:memos"), new("Settings", "m:settings"), new("Shuffle Songs", "m:shuffle", false)],
+        _ => [new("Music", "m:music"), new("Cover Flow", "m:cover"), new("Extras", "m:extras"), new("Settings", "m:settings"), new("Shuffle Songs", "m:shuffle", false)],
     };
 
     public static string MusicTitle(IpodFamily family) => family == IpodFamily.Mono ? "Browse" : "Music";
@@ -37,7 +37,8 @@ public static class IpodMenus
         ? [new("Artists", "m:artists"), new("Albums", "m:albums"), new("Songs", "m:songs"), new("Genres", "m:genres")]
         : [new("Playlists", "m:pl"), new("Artists", "m:artists"), new("Albums", "m:albums"), new("Songs", "m:songs"), new("Genres", "m:genres")];
 
-    public static IReadOnlyList<IpodRow> Extras() => [new("Voice Memos", "m:memos")];
+    /// <summary>Extras: the clock and the stopwatch of the iPod OS, and the voice memos (there are none on the web).</summary>
+    public static IReadOnlyList<IpodRow> Extras() => [new("Clock", "m:clock", false), new("Stopwatch", "m:stopwatch", false), new("Voice Memos", "m:memos")];
 
     public static IReadOnlyList<IpodRow> Settings() =>
     [

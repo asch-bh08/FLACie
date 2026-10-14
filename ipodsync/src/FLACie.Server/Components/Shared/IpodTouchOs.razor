@@ -1,0 +1,273 @@
+@inherits UserComponent
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+@inject JellyfinClient Jf
+@* The system of the touch iPods (iPod touch 1 to 7, nano 6 and 7): a home screen of apps, the Music app with its tab bar, Now Playing, Settings, Clock and Stopwatch.
+   Drawn at the real screen's size in points (320 wide, 240 for the nanos) and scaled into the glass like the wheel iPods' screens. *@
+<div class="ios @(Compact ? "compact" : "") @(H < 300 ? "short" : "")" style="width:@(W)px;height:@(H)px" @ref="root" data-testid="ios" data-app="@app">
+    <div class="ios-status" data-testid="ios-status">
+        <span class="ios-carrier">iPod</span>
+        <span class="ios-time">@(Clock.Length > 0 ? Clock : DateTime.Now.ToString("t"))</span>
+        <span class="ios-batt-wrap"><span class="ios-pct">@Battery%</span><span class="ios-batt" style="--lvl:@Battery%"></span></span>
+    </div>
+
+    @if (app == "home")
+    {
+        <div class="ios-home" data-testid="ios-home">
+            <div class="ios-grid">
+                @foreach (var a in Apps())
+                {
+                    var id = a.Id;
+                    <button type="button" class="ios-app" data-app="@id" tabindex="-1" @onclick="() => Launch(id)">
+                        <span class="ios-icon ios-icon-@id">@AppGlyph(id)</span>
+                        <span class="ios-label">@a.Label</span>
+                    </button>
+                }
+            </div>
+            <div class="ios-dots"><i class="on"></i><i></i></div>
+            <div class="ios-dock">
+                <button type="button" class="ios-app" data-app="music" tabindex="-1" @onclick='() => Launch("music")'><span class="ios-icon ios-icon-music">@AppGlyph("music")</span></button>
+                <button type="button" class="ios-app" data-app="settings" tabindex="-1" @onclick='() => Launch("settings")'><span class="ios-icon ios-icon-settings">@AppGlyph("settings")</span></button>
+            </div>
+        </div>
+    }
+    else if (app == "music")
+    {
+        var cur = Cur;
+        <div class="ios-nav" data-testid="ios-nav">
+            @if (levels.Count > 0) { <button type="button" class="ios-back" tabindex="-1" data-testid="ios-back" @onclick="() => Back()"><span>@BackLabel</span></button> }
+            <b>@cur.Title</b>
+            @if (Player.Current is not null) { <button type="button" class="ios-now" tabindex="-1" data-testid="ios-now" @onclick='() => Launch("now")'>Now Playing</button> }
+        </div>
+        <div class="ios-scroll ios-list" data-testid="ios-list" @key="levelKey">
+            @foreach (var (r, i) in cur.Rows.Take(limit).Select((r, i) => (r, i)))
+            {
+                var row = r;
+                <div class="ios-row @(r.Opens ? "chev" : "")" data-testid="ios-row" @onclick="() => Tap(row)">
+                    @if (r.ArtKey is not null || cur.Kind is IpodKind.Songs or IpodKind.Albums or IpodKind.Artists) { <span class="ios-thumb"><Cover ArtKey="@r.ArtKey" Class="ios-art" /></span> }
+                    <span class="ios-t"><b>@r.Label</b>@if (!string.IsNullOrEmpty(r.Sub ?? (cur.Kind == IpodKind.Songs ? null : r.Detail))) { <small>@(r.Sub ?? r.Detail)</small> }</span>
+                    @if (r.Value is not null) { <span class="ios-v">@r.Value</span> }
+                </div>
+            }
+            @if (cur.Rows.Count > limit) { <div class="ios-more" @ref="sentinel">Loading…</div> }
+            @if (cur.Rows.Count == 0) { <div class="ios-empty">Nothing here</div> }
+        </div>
+        <div class="ios-tabs" data-testid="ios-tabs">
+            @for (var i = 0; i < Tabs.Length; i++)
+            {
+                var ti = i;
+                <button type="button" class="@(ti == tab ? "on" : "")" tabindex="-1" data-tab="@Tabs[ti].Label" @onclick="() => SetTab(ti)"><Icon Name="@Tabs[ti].Icon" Size="20" /><span>@Tabs[ti].Label</span></button>
+            }
+        </div>
+    }
+    else if (app == "now" && Player.Current is { } t)
+    {
+        var stars = Session.Rating(t);
+        <div class="ios-nav dark" data-testid="ios-nav"><button type="button" class="ios-back" tabindex="-1" data-testid="ios-back" @onclick="() => Back()"><span>@(backTo == "home" ? "Home" : "Music")</span></button><b>Now Playing</b></div>
+        <div class="ios-np" data-testid="ios-np">
+            <div class="ios-np-art"><Cover ArtKey="@t.ArtKey" Class="ios-art" /></div>
+            <div class="ios-np-meta"><b data-testid="ios-np-title">@t.Title</b><span>@t.Artist</span><small>@t.Album</small></div>
+            <div class="ios-stars" aria-label="Rating">
+                @for (var n = 1; n <= 5; n++) { var nn = n; <button type="button" class="@(nn <= stars ? "on" : "")" tabindex="-1" aria-label="@Ratings.Label(nn)" @onclick="() => Rate(t, nn == stars ? 0 : nn)"><Icon Name="star-fill" Size="16" /></button> }
+            </div>
+            <div class="ios-scrub" data-testid="ios-scrub" @onclick="Seek"><i style="width:@Pc(Player.Duration > 0 ? Player.Position / Player.Duration : 0)%"></i></div>
+            <div class="ios-times"><span>@IpodContent.Time(Player.Position)</span><span>-@IpodContent.Time(Math.Max(0, Player.Duration - Player.Position))</span></div>
+            <div class="ios-ctl">
+                <button type="button" tabindex="-1" aria-label="Previous" data-testid="ios-prev" @onclick="() => Player.Prev()"><Icon Name="prev" Size="28" /></button>
+                <button type="button" class="big" tabindex="-1" aria-label="@(Player.Playing ? "Pause" : "Play")" data-testid="ios-play" @onclick="() => Player.Toggle()"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="34" /></button>
+                <button type="button" tabindex="-1" aria-label="Next" data-testid="ios-next" @onclick="() => Player.Next()"><Icon Name="next" Size="28" /></button>
+            </div>
+            <div class="ios-vol" data-testid="ios-vol" @onclick="SetVolume"><Icon Name="stop" Size="10" /><div class="ios-vbar"><i style="width:@Pc(Player.Volume)%"></i></div><Icon Name="play" Size="10" /></div>
+        </div>
+    }
+    else if (app == "settings")
+    {
+        <div class="ios-nav" data-testid="ios-nav"><button type="button" class="ios-back" tabindex="-1" data-testid="ios-back" @onclick="() => Back()"><span>Home</span></button><b>Settings</b></div>
+        <div class="ios-scroll ios-settings" data-testid="ios-settings">
+            @{ var info = IpodActions.Info(Player, Prefs, Lib, Session.Playlists.Count); }
+            <h4>Playback</h4>
+            <div class="ios-group">
+                @foreach (var r in IpodMenus.PlaybackPage(info, Prefs))
+                {
+                    var row = r;
+                    <div class="ios-row" data-testid="ios-setting" @onclick="() => CycleRow(row)"><span class="ios-t"><b>@r.Label</b></span><span class="ios-v">@r.Value</span></div>
+                }
+            </div>
+            <h4>This iPod</h4>
+            <div class="ios-group">
+                <div class="ios-row"><span class="ios-t"><b>Model</b></span><span class="ios-v">@Prefs.CurrentModel.Name</span></div>
+                <div class="ios-row"><span class="ios-t"><b>Colour</b></span><span class="ios-v">@Prefs.CurrentColor.Name</span></div>
+                <div class="ios-row"><span class="ios-t"><b>Songs</b></span><span class="ios-v">@Lib.Songs.Count</span></div>
+                <div class="ios-row"><span class="ios-t"><b>Version</b></span><span class="ios-v">@AppInfo.Version</span></div>
+            </div>
+            <h4>FLACie</h4>
+            <div class="ios-group">
+                <div class="ios-row chev" @onclick='() => Nav.NavigateTo("/settings")'><span class="ios-t"><b>FLACie Settings</b></span></div>
+                <div class="ios-row chev" @onclick='() => Nav.NavigateTo("/account")'><span class="ios-t"><b>Account</b></span></div>
+                <div class="ios-row chev" @onclick='() => Nav.NavigateTo("/")'><span class="ios-t"><b>Open FLACie</b></span></div>
+            </div>
+        </div>
+    }
+    else if (app == "clock")
+    {
+        <div class="ios-nav dark" data-testid="ios-nav"><button type="button" class="ios-back" tabindex="-1" data-testid="ios-back" @onclick="() => Back()"><span>Home</span></button><b>Clock</b></div>
+        <div class="ios-clock" data-testid="ios-clock"><div class="ios-bigtime">@(Clock.Length > 0 ? Clock : DateTime.Now.ToString("t"))</div><div class="ios-date">@dateText</div></div>
+    }
+    else if (app == "stopwatch")
+    {
+        <div class="ios-nav dark" data-testid="ios-nav"><button type="button" class="ios-back" tabindex="-1" data-testid="ios-back" @onclick="() => Back()"><span>Home</span></button><b>Stopwatch</b></div>
+        <div class="ios-clock" data-testid="ios-stopwatch">
+            <div class="ios-bigtime mono" data-testid="ios-sw-time">@Watch()</div>
+            <div class="ios-swbtns"><button type="button" tabindex="-1" data-testid="ios-sw-reset" @onclick="WatchReset">Reset</button><button type="button" class="@(running ? "stop" : "go")" tabindex="-1" data-testid="ios-sw-go" @onclick="WatchToggle">@(running ? "Stop" : "Start")</button></div>
+        </div>
+    }
+    else { <div class="ios-empty" data-testid="ios-fallback" @onclick='() => Launch("home")'>Nothing is playing.<br />Tap to go home.</div> }
+</div>
+
+@code {
+    [Parameter] public IpodPrefs Prefs { get; set; } = new();
+    [Parameter] public int W { get; set; } = 320;
+    [Parameter] public int H { get; set; } = 480;
+    [Parameter] public bool Compact { get; set; }
+    [Parameter] public string Clock { get; set; } = "";
+    [Parameter] public int Battery { get; set; } = 100;
+
+    record AppDef(string Id, string Label);
+    record TabDef(string Label, string Icon);
+    static readonly TabDef[] Tabs = [new("Playlists", "playlists"), new("Artists", "artists"), new("Songs", "songs"), new("Albums", "albums"), new("More", "lines")];
+
+    ElementReference root, sentinel;
+    DotNetObjectReference<IpodTouchOs>? self;
+    string app = "home", backTo = "home", dateText = "";
+    int tab = 2, limit = 80;
+    readonly List<IpodLevel> levels = [];
+    readonly Dictionary<int, IpodLevel> roots = [];
+    string levelKey => tab + ":" + levels.Count + ":" + (levels.Count > 0 ? levels[^1].Title : "");
+    bool running; DateTime watchStart; TimeSpan watchBase; System.Threading.Timer? watchTimer;
+    bool observing;
+
+    IEnumerable<AppDef> Apps()
+    {
+        yield return new("music", "Music");
+        if (Player.Current is not null) yield return new("now", "Now Playing");
+        yield return new("clock", "Clock");
+        yield return new("stopwatch", "Stopwatch");
+        yield return new("settings", "Settings");
+        yield return new("flacie", "FLACie");
+    }
+
+    RenderFragment AppGlyph(string id) => id switch
+    {
+        "music" => @<Icon Name="note" Size="30" Weight="1.7" />,
+        "now" => @<Icon Name="play" Size="26" />,
+        "settings" => @<Icon Name="settings" Size="30" Weight="1.6" />,
+        "stopwatch" => @<Icon Name="gauge" Size="30" Weight="1.6" />,
+        "clock" => @<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9.2" /><path d="M12 6.5V12l3.6 2.2" /></svg>,
+        _ => @<Icon Name="wave" Size="30" Weight="1.6" />,
+    };
+
+    IpodLevel Cur => levels.Count > 0 ? levels[^1] : Root(tab);
+
+    IpodLevel Root(int t)
+    {
+        if (roots.TryGetValue(t, out var r)) return r;
+        r = t switch
+        {
+            0 => IpodContent.Level("m:pl", Lib, Playlists)!,
+            1 => IpodContent.Level("m:artists", Lib, Playlists)!,
+            2 => IpodContent.Level("m:songs", Lib, Playlists)!,
+            3 => IpodContent.Level("m:albums", Lib, Playlists)!,
+            _ => new IpodLevel("More", [new IpodRow("Genres", "m:genres"), new IpodRow("Shuffle Songs", "m:shuffle", false)], IpodKind.Menu),
+        };
+        if (Lib.Songs.Count > 0 || t == 4) roots[t] = r;   // a library that is still loading is read again
+        return r;
+    }
+
+    IReadOnlyList<Group> Playlists() => Session.Playlists.Select(p => { var ts = Session.Resolve(p.Entries); return new Group(p.Name, ts, ts.Select(x => x.ArtKey).FirstOrDefault(a => a is not null)); }).ToList();
+
+    string BackLabel => levels.Count > 1 ? levels[^2].Title : Root(tab).Title;
+    static string Pc(double v) => (Math.Clamp(v, 0, 1) * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    // ---------------------------------------------------------------- navigation (the page calls these for the home button and Esc)
+
+    public void GoHome() { app = "home"; StateHasChanged(); }
+
+    /// <summary>One step back: a level up, then home. False at the home screen (nothing to go back to).</summary>
+    public bool Back()
+    {
+        if (app == "home") return false;
+        if (app == "music" && levels.Count > 0) { levels.RemoveAt(levels.Count - 1); limit = 80; }
+        else if (app == "now" && backTo == "music") app = "music";
+        else app = "home";
+        StateHasChanged(); return true;
+    }
+
+    void Launch(string id)
+    {
+        switch (id)
+        {
+            case "flacie": Nav.NavigateTo("/"); return;
+            case "now": backTo = app == "music" ? "music" : "home"; app = Player.Current is null ? "home" : "now"; break;
+            default: app = id; break;
+        }
+        if (id == "clock") _ = LoadDate();
+    }
+
+    void SetTab(int i) { tab = i; levels.Clear(); limit = 80; }
+
+    async Task Tap(IpodRow row)
+    {
+        var cur = Cur;
+        if (row.Id == "m:shuffle") { if (Lib.Songs.Count > 0) { await Player.ShuffleAll(Lib.Songs, "iPod"); ShowNow(); } return; }
+        if (row.Id == "m:none") return;
+        if (IpodContent.Level(row.Id, Lib, Playlists) is { } lv) { Push(lv); return; }
+        var (next, play) = IpodContent.Open(row.Id, cur);
+        if (next is not null) Push(next);
+        else if (play is not null)
+        {
+            if (play.Shuffle) await Player.ShuffleAll(play.List, "iPod"); else await Player.Play(play.List, play.Index, "iPod");
+            ShowNow();
+        }
+    }
+
+    void Push(IpodLevel l) { levels.Add(l); limit = 80; }
+    void ShowNow() { if (Player.Current is not null) { backTo = "music"; app = "now"; } }
+
+    async Task CycleRow(IpodRow r) { if (r.Id.StartsWith("cyc:")) await IpodActions.CycleAsync(r.Id[4..], Prefs, Player); }
+
+    // ---------------------------------------------------------------- Now Playing
+
+    void Rate(Track t, int stars)
+    {
+        Session.SetRating(t, stars); SaveProfile();
+        if (t.JellyfinId is { Length: > 0 } id && Session.Jellyfin is { } a) _ = Task.Run(async () => { try { await Jf.SetRatingAsync(a, id, stars); } catch { } });
+    }
+
+    async Task Seek(MouseEventArgs e) { if (Player.Duration > 0) await Player.Seek(Math.Clamp(e.OffsetX / (W - 40.0), 0, 1) * Player.Duration); }
+    async Task SetVolume(MouseEventArgs e) { var w = W - 40.0 - 36; await Player.SetVolumeAsync(Math.Clamp((e.OffsetX - 18) / w, 0, 1) * Prefs.VolumeLimit / 100.0); }
+
+    // ---------------------------------------------------------------- clock and stopwatch
+
+    async Task LoadDate() { try { dateText = await Js.InvokeAsync<string>("flacie.ipodDate"); await InvokeAsync(StateHasChanged); } catch (Exception) { } }
+
+    TimeSpan Elapsed => running ? watchBase + (DateTime.UtcNow - watchStart) : watchBase;
+    string Watch() { var t = Elapsed; return $"{(int)t.TotalMinutes:00}:{t.Seconds:00}.{t.Milliseconds / 10:00}"; }
+    void WatchToggle()
+    {
+        if (running) { watchBase = Elapsed; running = false; watchTimer?.Dispose(); watchTimer = null; }
+        else { watchStart = DateTime.UtcNow; running = true; watchTimer = new System.Threading.Timer(_ => InvokeAsync(StateHasChanged), null, 100, 100); }
+    }
+    void WatchReset() { watchBase = TimeSpan.Zero; if (running) watchStart = DateTime.UtcNow; }
+
+    // ---------------------------------------------------------------- long lists: more rows as the end comes into view
+
+    [JSInvokable] public void More() { limit += 120; InvokeAsync(StateHasChanged); }
+
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        if (first) { self = DotNetObjectReference.Create(this); try { await Js.InvokeVoidAsync("flacie.iosInit", root); } catch (Exception) { } }
+        if (app == "music" && Cur.Rows.Count > limit && self is not null) { try { await Js.InvokeVoidAsync("flacie.iosMore", sentinel, self); } catch (Exception) { } }
+    }
+
+    public async ValueTask DisposeAsync() { watchTimer?.Dispose(); try { await Js.InvokeVoidAsync("flacie.iosDispose"); } catch (Exception) { } self?.Dispose(); }
+}

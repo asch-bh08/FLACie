@@ -1,0 +1,33 @@
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+@* A text box that is never rewritten by the server while a person types in it. A bound box on a live server circuit sends every key to the server and the server sends the text back: when
+   typing is quicker than the round trip, the late answer puts older text over newer letters (letters vanish or swap). Here the browser keeps the text, waits for a pause, and then tells the
+   server once; the server only sets the text itself (a cleared search, a shared link) when the box is not being typed in. *@
+<input @ref="el" type="@Type" class="@Class" placeholder="@Placeholder" aria-label="@Label" autocomplete="off" spellcheck="false" />
+@code {
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string Type { get; set; } = "search";
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public string? Label { get; set; }
+    /// <summary>How long the browser waits after the last key before telling the server.</summary>
+    [Parameter] public int DelayMs { get; set; } = 250;
+
+    ElementReference el;
+    DotNetObjectReference<TextBox>? self;
+
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        try
+        {
+            if (first) { self = DotNetObjectReference.Create(this); await Js.InvokeVoidAsync("flacie.textBox", el, self, Value ?? "", DelayMs); }
+            else await Js.InvokeVoidAsync("flacie.textBoxSet", el, Value ?? "");
+        }
+        catch (Exception) { }
+    }
+
+    [JSInvokable] public Task OnText(string text) => ValueChanged.InvokeAsync(text);
+
+    public async ValueTask DisposeAsync() { try { await Js.InvokeVoidAsync("flacie.textBoxOff", el); } catch (Exception) { } self?.Dispose(); }
+}

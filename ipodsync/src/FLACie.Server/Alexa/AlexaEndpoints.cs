@@ -63,6 +63,17 @@ public static class AlexaEndpoints
             return Results.Json(new { code = c.Code, expires = c.Expires });
         }).RequireAuthorization();
 
+        // the library as Alexa music-skill catalogs (JSON), for `ask smapi upload-catalog`; ?type=AMAZON.MusicRecording | MusicAlbum | MusicGroup | MusicPlaylist, ?since=<n> is not needed: ids are stable
+        app.MapGet("/api/alexa/catalog", (HttpContext ctx, string? type, SessionStore sessions, AlexaStore store) =>
+        {
+            if (!store.Config.Enabled) return Results.NotFound();
+            var s = sessions.For(ctx.User);
+            if (s.Loading || s.Library.Songs.Count == 0) return Results.StatusCode(503);
+            var c = AlexaCatalog.Build(s.Library.Songs, s.Playlists);
+            if (type is null) return Results.Json(new { counts = c.Counts, types = c.Catalogs.Keys });
+            return c.Catalogs.TryGetValue(type, out var cat) ? Results.Text(cat.ToJsonString(), "application/json") : Results.NotFound();
+        }).RequireAuthorization();
+
         // signed links only: t = a song (an MP3 for the speaker), a = its cover
         app.MapGet("/alexa/stream/{kind}/{file}", async (HttpContext ctx, string kind, string file, string? u, long? e, string? s, AlexaStore store, AlexaUrlSigner signer, SessionAlexaDirectory dir, JellyfinClient jf, IHttpClientFactory hf, PlaybackActivity activity) =>
         {

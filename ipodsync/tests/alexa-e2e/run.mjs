@@ -93,7 +93,9 @@ r = await send(body(intent('LinkIntent', { code }))); check('the same code canno
 const alexaJson = fs.readFileSync(path.join(data, 'alexa.json'), 'utf8'); check('the stored link holds no plain Jellyfin token', !alexaJson.includes('mock-token'));
 
 // ---- 3. playing ----
-await new Promise((res) => setTimeout(res, 1500));   // the library loads in the background after the first sign-in
+const tLoad = Date.now();
+for (let i = 0; i < 480; i++) { const x = await send(body(intent('PlayIntent', { query: 'aurora vale' }))); if (!/still loading/i.test(say(x))) break; await new Promise((res) => setTimeout(res, 500)); }
+check(`the library was ready ${((Date.now() - tLoad) / 1000).toFixed(1)} s after the first linked request`, true);   // the library loads in the background after the first request
 r = await send(body({ type: 'LaunchRequest' })); check('launch greets a linked account', /What would you like to hear/i.test(say(r)), say(r));
 r = await send(body(intent('PlayIntent', { query: 'aurora vale' })));
 let play = playOf(r); check('"play Aurora Vale" gives an AudioPlayer.Play', !!play, say(r) + JSON.stringify(r.json).slice(0, 200));
@@ -129,6 +131,33 @@ let finished = ''; for (let i = 0; i < 40 && !finished; i++) { await new Promise
 check('"is it ready" reports the outcome (no download service is set up here, so a failure is expected)', /couldn't get/i.test(finished), finished);
 r = await send(body({ type: 'LaunchRequest' })); check('the outcome is also told on the next launch', /couldn't download Flurbo Zanzibar/i.test(say(r)), say(r));
 const dl = await (await fetch(base + '/api/downloads', { headers: { 'X-Emby-Token': 'mock-token', 'X-Jellyfin-Server': `http://127.0.0.1:${MOCK}` } })).text(); check('the download is in the Downloads log tagged Alexa', /Alexa/.test(dl) && /Flurbo Zanzibar/.test(dl), dl.slice(0, 300));
+
+
+// ---- 6. load: BIG_SONGS=10000 node run.mjs ----
+if (Number(process.env.BIG_SONGS || 0) > 0) {
+  const total = Number(process.env.BIG_SONGS);
+  let ready = false; const t0 = Date.now();
+  for (let i = 0; i < 240 && !ready; i++) { const x = await send(body(intent('PlayIntent', { query: `big song ${total - 1}` }))); ready = !!playOf(x); if (i % 20 === 0) console.log('  waiting:', say(x).slice(0, 100)); if (!ready) await new Promise((res) => setTimeout(res, 500)); }
+  check(`a ${total} song library answers exact title requests`, ready);
+  const before = await (await fetch(`http://127.0.0.1:${MOCK}/__counts`)).json();
+  const times = [];
+  const phrases = [() => `big song ${Math.floor(Math.random() * total)}`, () => `big artist ${Math.floor(Math.random() * 400)}`, () => `the album big album ${Math.floor(Math.random() * 1200)}`, () => 'big sog ' + Math.floor(Math.random() * total)];
+  for (let i = 0; i < 200; i++) {
+    const t = performance.now();
+    const x = await send(body(intent('PlayIntent', { query: phrases[i % phrases.length]() })));
+    times.push(performance.now() - t);
+    if (i % 5 === 0) await send(body(intent('AMAZON.NextIntent')));
+    if (i % 7 === 0) await send(body({ type: 'AudioPlayer.PlaybackNearlyFinished', token: playOf(x)?.audioItem?.stream?.token ?? '1:0:0', offsetInMilliseconds: 1000 }));
+  }
+  times.sort((a, b) => a - b);
+  const p50 = times[100], p95 = times[190], max = times[199];
+  check(`200 voice requests on ${total} songs: median ${p50.toFixed(0)} ms, p95 ${p95.toFixed(0)} ms, max ${max.toFixed(0)} ms (Alexa gives about 8000 ms)`, p50 < 400 && p95 < 2000 && max < 6000, `${p50} ${p95} ${max}`);
+  const t1 = performance.now(); const cat = await fetch(base + '/api/alexa/catalog?type=AMAZON.MusicRecording', { headers: { cookie } }); const cj = await cat.json(); const exportMs = performance.now() - t1;
+  check(`catalog export of ${total} songs (${(JSON.stringify(cj).length / 1024 / 1024).toFixed(1)} MB) takes ${exportMs.toFixed(0)} ms`, cat.status === 200 && cj.entities.length >= total && exportMs < 8000, `${cat.status} ${cj.entities?.length} ${exportMs}`);
+  const after = await (await fetch(`http://127.0.0.1:${MOCK}/__counts`)).json();
+  const calls = (after.items - before.items) + (after.item - before.item) + (after.usersMe - before.usersMe);
+  check(`Jellyfin was asked ${calls} times for items during 200 requests and the export (no call per song)`, calls <= 10, JSON.stringify({ before, after }));
+}
 
 // ---- 5. disabled / revoked ----
 check('the server log has no token or code', !log.includes('mock-token') && !log.includes(code), '');

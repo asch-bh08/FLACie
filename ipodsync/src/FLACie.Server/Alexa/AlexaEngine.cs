@@ -50,16 +50,26 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
     readonly Dictionary<IAlexaUser, (IReadOnlyList<Track> Songs, IReadOnlyList<Playlist> Lists, VoiceMatcher M)> matchers = new(ReferenceEqualityComparer.Instance!);
     readonly object gate = new();
 
+    /// <summary>
+    /// The index of a person's library. It is rebuilt when the library (or a playlist) changes, but never while someone waits for an answer: the old index answers until the new one is
+    /// ready (a 10,000 song build takes a second or two). Only the very first build is waited for.
+    /// </summary>
     VoiceMatcher MatcherFor(IAlexaUser u)
     {
         lock (gate)
         {
-            // rebuilt only when the library (or the playlists) is a different list than last time
-            if (matchers.TryGetValue(u, out var m) && ReferenceEquals(m.Songs, u.Songs) && ReferenceEquals(m.Lists, u.Playlists)) return m.M;
             var songs = u.Songs; var lists = u.Playlists;
+            if (matchers.TryGetValue(u, out var m))
+            {
+                if (ReferenceEquals(m.Songs, songs) && ReferenceEquals(m.Lists, lists)) return m.M;
+                if (!building.Add(u)) return m.M;
+                _ = Task.Run(() => { var fresh = new VoiceMatcher(songs, lists); lock (gate) { matchers[u] = (songs, lists, fresh); building.Remove(u); } });
+                return m.M;
+            }
             var built = new VoiceMatcher(songs, lists); matchers[u] = (songs, lists, built); return built;
         }
     }
+    readonly HashSet<IAlexaUser> building = new(ReferenceEqualityComparer.Instance!);
 
     public static string Token(AlexaQueue q, int index, int pass) => $"{q.Serial}:{index}:{pass}";
     static bool TryToken(string? token, out long serial, out int index, out int pass)

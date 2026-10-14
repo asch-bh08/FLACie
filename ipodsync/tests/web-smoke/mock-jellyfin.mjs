@@ -36,6 +36,12 @@ for (let a = 0; a < artists.length; a++) {
     }
   }
 }
+// BIG_SONGS=10000 (the Alexa load test, tests/alexa-e2e): that many more songs, so a 10,000 song library can be listed. Unset, nothing changes.
+for (let i = 0; i < Number(process.env.BIG_SONGS || 0); i++) {
+  const n = songs.length + 1, a = i % 400;
+  songs.push({ Id: `b${i}`, Name: `Big Song ${i}`, Artists: [`Big Artist ${a}`], AlbumArtist: `Big Artist ${a}`, Album: `Big Album ${i % 1200}`, AlbumId: `bal${i % 1200}`, IndexNumber: 1 + (i % 12), ParentIndexNumber: 1,
+    RunTimeTicks: 2_000_000_000, ProductionYear: 1970 + (i % 50), Path: `/music/big/${i}.flac`, Genres: [genres[i % 5]], DateCreated: new Date(Date.UTC(2023, 0, 1) + i * 60_000).toISOString(), ImageTags: { Primary: 'x' }, MediaType: 'Audio' });
+}
 // ---- Hi-Res lab (1e-hires.spec.ts): exact MediaStreams, so the badge can be checked against the real facts. Deterministic, no randomness ----
 // [codec, container, bitDepth, sampleRate, bitRate bps, file name, expected badge]
 const labSpec = [

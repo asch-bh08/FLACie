@@ -156,6 +156,8 @@ public sealed class VoiceMatcher
 
     readonly List<Ent> ents = [];
     readonly Dictionary<string, List<int>> grams = [];
+    /// <summary>Folded name to the entities with exactly that name: a name said exactly is always a candidate, however many look alike.</summary>
+    readonly Dictionary<string, List<int>> byFold = [];
     readonly IReadOnlyList<Track> songs;
     readonly IReadOnlyList<Playlist> playlists;
 
@@ -210,6 +212,7 @@ public sealed class VoiceMatcher
     {
         if (e.Names.Length == 0) return;
         var id = ents.Count; ents.Add(e);
+        foreach (var n in e.Names.Concat(e.Composites)) { if (!byFold.TryGetValue(n.Fold, out var same)) byFold[n.Fold] = same = []; if (same.Count < 200 && !same.Contains(id)) same.Add(id); }
         var seen = new HashSet<string>();
         foreach (var f in e.Names.Concat(extra ?? []))
         {
@@ -226,17 +229,23 @@ public sealed class VoiceMatcher
         for (var i = 0; i + 2 <= k.Length; i++) yield return "~" + k.Substring(i, 2);
     }
 
+    /// <summary>The entities worth scoring: every exact name, and the ones sharing the most (rare) letter groups with what was said.</summary>
     int[] Candidates(IEnumerable<Form> queries, int take = 90)
     {
-        var counts = new Dictionary<int, int>();
+        var score = new Dictionary<int, double>();
+        var exact = new HashSet<int>();
+        var total = Math.Max(2, ents.Count);
         foreach (var q in queries)
-            foreach (var g in Grams(q))
+        {
+            if (byFold.TryGetValue(q.Fold, out var same)) foreach (var id in same) exact.Add(id);
+            foreach (var g in Grams(q).Distinct())
                 if (grams.TryGetValue(g, out var l))
                 {
-                    if (l.Count > 6000) continue;   // a gram in most of a huge library says nothing
-                    foreach (var id in l) counts[id] = counts.GetValueOrDefault(id) + 1;
+                    var w = Math.Log((double)total / l.Count) + 0.1;   // a group found in few names says more than one found in most
+                    foreach (var id in l) score[id] = score.GetValueOrDefault(id) + w;
                 }
-        return counts.OrderByDescending(kv => kv.Value).Take(take).Select(kv => kv.Key).ToArray();
+        }
+        return exact.Concat(score.OrderByDescending(kv => kv.Value).Select(kv => kv.Key).Where(id => !exact.Contains(id)).Take(take)).ToArray();
     }
 
     // ---- matching ----

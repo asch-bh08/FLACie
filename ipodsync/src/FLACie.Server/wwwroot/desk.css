@@ -127,3 +127,21 @@
   .desk-media:hover, .desk-media:focus-visible, .desk-media.on { transform: perspective(60cqh) rotateX(8deg); }
   .desk-media.tape .reel.spin { animation: none; }
 }
+
+/* ---------------- shell finishes (desk only): clear acrylic shows a board inside; anodised is brushed metal in the model's colour */
+.desk .ipod { transition: background .4s, box-shadow .4s, filter .4s; }
+.desk .ipod.finish-acrylic { background: linear-gradient(160deg, rgba(235, 244, 252, .5), rgba(200, 222, 240, .28) 55%, rgba(225, 238, 250, .42)); backdrop-filter: blur(2px);
+  box-shadow: 0 1.4cqh 2.6cqh var(--shadow), inset 0 0 0 1.5px rgba(255, 255, 255, .85), inset 0 0 0 3px rgba(150, 190, 220, .35), inset 0 2px 3px rgba(255, 255, 255, .9); }
+.desk .ipod.finish-acrylic::before { content: ""; position: absolute; inset: 6%; border-radius: calc(var(--rad, 26px) * .8); z-index: 0; pointer-events: none; opacity: .55;
+  background:
+    linear-gradient(#2f6b4f, #2f6b4f) 18% 62% / 64% 26% no-repeat,                          /* the battery */
+    repeating-linear-gradient(90deg, transparent 0 9px, rgba(212, 175, 55, .5) 9px 10px),   /* traces */
+    repeating-linear-gradient(0deg, transparent 0 13px, rgba(212, 175, 55, .35) 13px 14px),
+    linear-gradient(#1e5a3c, #14402b); }
+.desk .ipod.finish-acrylic::after { background: linear-gradient(115deg, rgba(255, 255, 255, .55), transparent 30%, transparent 70%, rgba(255, 255, 255, .2)); }
+.desk .ipod.finish-anodised { background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0) 0 1px, rgba(255, 255, 255, .07) 1px 2px, rgba(0, 0, 0, .05) 2px 3px),
+    linear-gradient(115deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, .45) 45%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(var(--top, #c9cbd0), var(--bottom, #8d9096));
+  filter: saturate(1.15) contrast(1.05); }
+@media (prefers-reduced-motion: reduce) { .desk .ipod { transition: none; } }

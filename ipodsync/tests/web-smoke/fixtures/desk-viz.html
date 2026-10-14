@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>desk.js harness</title>
+<!-- Drives wwwroot/desk.js on its own (1n-ipod-desk.spec.ts): a stand-in flacie.vizFrame() gives a moving spectrum, or nothing with ?null=1 (no analyser: the monitor idles). -->
+<style>body { margin: 0; background: #111; } .desk { width: 640px; height: 360px; } canvas { width: 640px; height: 360px; display: block; }</style>
+<div class="desk" id="scene"><canvas id="c"></canvas></div>
+<script>
+  const none = new URLSearchParams(location.search).has('null');
+  let t = 0;
+  window.flacie = {
+    vizFrame() {
+      if (none) return null;
+      t += 0.05;
+      const freq = new Uint8Array(1024), wave = new Uint8Array(2048);
+      for (let i = 0; i < freq.length; i++) freq[i] = Math.max(0, 220 - i / 5 + 30 * Math.sin(t + i / 40));
+      for (let i = 0; i < wave.length; i++) wave[i] = 128 + 90 * Math.sin(t * 4 + i / 30);
+      return { freq, wave, playing: true };
+    },
+    vizRelease() { window.released = (window.released || 0) + 1; },
+  };
+</script>
+<script src="../../../src/FLACie.Server/wwwroot/desk.js"></script>

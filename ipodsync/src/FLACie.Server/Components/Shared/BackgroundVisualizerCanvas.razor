@@ -1,0 +1,39 @@
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+@* The iPod desk's monitor: a canvas in a bezel on a stand, drawn by desk.js from the player's own analyser (bars, waveform or particles), idle when nothing plays. *@
+<div class="desk-monitor" data-testid="desk-monitor" aria-hidden="true">
+    <div class="desk-screen"><canvas @ref="canvas" data-testid="desk-viz"></canvas></div>
+    <div class="desk-stand"></div>
+</div>
+
+@code {
+    /// <summary>bars, wave or particles.</summary>
+    [Parameter] public string Style { get; set; } = "bars";
+    /// <summary>What the idle picture says (the song's title; FLACie when empty).</summary>
+    [Parameter] public string Title { get; set; } = "";
+    /// <summary>The element that gets --bass (the desk scene).</summary>
+    [Parameter] public ElementReference? Scene { get; set; }
+
+    ElementReference canvas;
+    bool started;
+    string sentStyle = "", sentTitle = "";
+
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        try
+        {
+            if (first) { started = true; sentStyle = Style; sentTitle = Title; await Js.InvokeVoidAsync("desk.vizStart", canvas, Style, Scene, Title); return; }
+            if (!started) return;
+            if (Style != sentStyle) { sentStyle = Style; await Js.InvokeVoidAsync("desk.vizStyle", Style); }
+            if (Title != sentTitle) { sentTitle = Title; await Js.InvokeVoidAsync("desk.vizTitle", Title); }
+        }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { }   // prerendering: no browser yet
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (!started) return;
+        try { await Js.InvokeVoidAsync("desk.vizStop"); } catch (JSDisconnectedException) { } catch (InvalidOperationException) { }
+    }
+}

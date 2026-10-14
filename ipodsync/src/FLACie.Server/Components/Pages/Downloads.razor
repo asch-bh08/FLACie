@@ -128,7 +128,7 @@
         retryNote = n == 0 ? "Nothing to retry." : $"Trying {n} song{(n == 1 ? "" : "s")} again. They show under Running now.";
     }
 
-    static string KindText(string kind) => kind switch { "Search" => "You asked for it", "Autoplay" => "Fetched ahead for Autoplay", "Playlist" => "From a playlist", "Import" => "From an import", "Chart" => "Daily charts", "Phone" => "Downloaded on your phone", _ => kind };
+    static string KindText(string kind) => kind switch { "Search" => "You asked for it", "Autoplay" => "Fetched ahead for Autoplay", "Playlist" => "From a playlist", "Import" => "From an import", "Chart" => "Daily charts", "Phone" => "Downloaded on your phone", "Alexa" => "Requested from Alexa", _ => kind };
     static string Iso(DateTime utc) => DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToString("o");
     static string Took(TimeSpan t) => t.TotalSeconds < 1 ? "under a second" : t.TotalSeconds < 90 ? $"{(int)t.TotalSeconds} s" : t.TotalMinutes < 90 ? $"{(int)t.TotalMinutes} min" : $"{(int)t.TotalHours} h";
     static string Ago(DateTime utc)

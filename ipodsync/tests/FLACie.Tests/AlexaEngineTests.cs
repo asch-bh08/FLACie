@@ -8,6 +8,8 @@ namespace FLACie.Tests;
 sealed class FakeUser : IAlexaUser
 {
     public string Name => "ash";
+    public bool Ready { get; set; } = true;
+    public string? Problem { get; set; }
     public List<Track> Library = [];
     public List<Playlist> Lists = [];
     public IReadOnlyList<Track> Songs { get; set; } = [];
@@ -129,6 +131,21 @@ public class AlexaEngineTests
         using var r = Standard(); r.Cfg.Downloads = false; var said = new List<string>();
         var reply = await r.Engine.PlayAsync(r.U, "L", VoiceParser.FromRaw("play flurbo zanzibar"), s => { said.Add(s); return Task.CompletedTask; });
         Assert.Empty(said); Assert.Empty(r.U.Requests); Assert.Contains("turned off", reply.Speech);
+    }
+
+    [Fact] public async Task WhileTheLibraryLoadsNothingIsSearchedOrDownloaded()
+    {
+        using var r = Standard(); r.U.Ready = false;
+        var reply = await r.Engine.PlayAsync(r.U, "L", VoiceParser.FromRaw("play flurbo zanzibar song"));
+        Assert.Empty(r.U.Requests); Assert.Contains("still loading", reply.Speech);
+        r.U.Problem = "401"; Assert.Contains("can't reach", (await r.Engine.PlayAsync(r.U, "L", VoiceParser.FromRaw("play x y"))).Speech);
+    }
+
+    [Fact] public async Task ACatalogHitThatIsAlreadyInTheLibraryIsJustPlayed()
+    {
+        using var r = Standard(); r.U.NextRequest = new("The Weeknd", "Save Your Tears", InLibrary: true);
+        var reply = await r.Engine.PlayAsync(r.U, "L", VoiceParser.FromRaw("play flurbo zanzibar song"));
+        Assert.Equal("Save Your Tears", reply.Play!.Track.Title); Assert.Null(r.Q.LastDownloadKey);
     }
 
     [Fact] public async Task NotFoundAtTheCatalogToo()

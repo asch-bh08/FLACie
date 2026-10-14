@@ -1,0 +1,106 @@
+@using FLACie.Server.Alexa
+@inherits UserComponent
+@inject AlexaStore Alexa
+@inject AlexaPublic AlexaAddr
+@inject AlexaProactive AlexaPush
+@inject SessionAlexaDirectory AlexaDir
+@inject AlexaQueues AlexaQueueStore
+@inject IConfiguration Conf
+
+<section class="panel set" id="alexa">
+    <div class="set-head"><h2>Alexa</h2><p class="hint">Play your library on an Echo: "Alexa, ask FLACie to play Blinding Lights". Off until an administrator switches it on. Setup steps are in the self-hosting guide.</p></div>
+    @if (admin)
+    {
+        <label class="switch-row">
+            <span><b>Enable Alexa</b><small>Lets the FLACie skill talk to this server. Every request from Amazon is checked (signature, certificate, time, skill id); anything else is refused.</small></span>
+            <input type="checkbox" role="switch" checked="@cfg.Enabled" @onchange="e => Change(c => c.Enabled = (bool)(e.Value ?? false))" />
+            <i class="switch" aria-hidden="true"></i>
+        </label>
+        <label class="switch-row">
+            <span><b>Alexa can download songs</b><small>When a song is not in the library, Alexa searches for it and downloads it (Soulseek, Lidarr, Jamendo, Audius, Internet Archive, SoundCloud). Off: Alexa only says it is not there.</small></span>
+            <input type="checkbox" role="switch" checked="@cfg.Downloads" @onchange="e => Change(c => c.Downloads = (bool)(e.Value ?? false))" />
+            <i class="switch" aria-hidden="true"></i>
+        </label>
+        <div class="form">
+            <label for="alexa-skill">Skill ID</label>
+            <input id="alexa-skill" @bind="skillIds" placeholder="amzn1.ask.skill.…" autocomplete="off" />
+            <button class="btn" @onclick="() => Change(c => c.SkillIds = skillIds.Trim())">Save skill ID</button>
+        </div>
+        <dl class="kv">
+            <dt>Endpoint for the skill</dt><dd id="alexa-endpoint">@(AlexaAddr.Base.Length > 0 ? AlexaAddr.Base + "/alexa/skill" : "Learned from the first request, or set FLACIE_PUBLIC_URL (an https address on port 443)")</dd>
+            <dt>Notifications</dt><dd>@(AlexaPush.Configured ? "Ready (FLACIE_ALEXA_CLIENT_ID is set)" : "Off: set FLACIE_ALEXA_CLIENT_ID and FLACIE_ALEXA_CLIENT_SECRET to be told on the Echo when a download is ready. Without them Alexa tells you the next time you talk to it.")</dd>
+        </dl>
+    }
+    else
+    {
+        <p class="hint">Alexa is @(cfg.Enabled ? "on" : "off") on this server. Only an administrator can change that.</p>
+    }
+
+    @if (Session.Jellyfin is not null && cfg.Enabled)
+    {
+        <div class="set-head"><h3>Link your Alexa</h3></div>
+        @if (pair is null)
+        {
+            <p class="hint">Make a one-time code, then say to your Echo: "Alexa, ask FLACie to link", and answer with "my code is" and the six digits. The code works once, for ten minutes.</p>
+            <div class="row-actions"><button class="btn primary" @onclick="NewCode">Create a code</button></div>
+        }
+        else
+        {
+            <p>Say: <b>"my code is @string.Join(' ', pair.Code.ToCharArray())"</b></p>
+            <p class="hint">Valid until @(pair.Expires.ToLocalTime().ToString("HH:mm")). Open the FLACie skill first ("Alexa, open FLACie").</p>
+            <div class="row-actions"><button class="btn" @onclick="() => pair = null">Done</button></div>
+        }
+    }
+
+    @if (mine.Count > 0)
+    {
+        <div class="set-head"><h3>Linked Alexa accounts</h3></div>
+        <ul class="list">
+            @foreach (var l in mine)
+            {
+                <li>
+                    <span><b>@l.Name</b> · linked @l.LinkedAt.ToLocalTime().ToString("d MMM yyyy")@(l.LastSeen > DateTime.MinValue ? $" · last used {l.LastSeen.ToLocalTime():d MMM HH:mm}" : "")@(l.CanNotify ? " · notifications on" : "")</span>
+                    <button class="btn danger" @onclick="() => Revoke(l.Id)">Revoke access</button>
+                </li>
+            }
+        </ul>
+        @if (admin && mine.Count > 1) { <div class="row-actions"><button class="btn danger" @onclick="RevokeAll">Revoke all</button></div> }
+    }
+</section>
+
+@code {
+    AlexaConfig cfg = new();
+    string skillIds = "";
+    PairingCode? pair;
+    IReadOnlyList<AlexaLink> mine = [];
+    bool admin => AdminAccess.Is(Session, Conf);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        Load();
+    }
+
+    void Load()
+    {
+        cfg = Alexa.Config; skillIds = cfg.SkillIds;
+        var owner = Session.Jellyfin is { } j ? AlexaStore.OwnerOf(j) : "";
+        mine = Alexa.Links.Where(l => admin || l.Owner == owner).ToList();
+    }
+
+    void Change(Action<AlexaConfig> change) { Alexa.Update(change); Load(); }
+    void NewCode() { if (Session.Jellyfin is { } j) pair = Alexa.NewCode(j); }
+
+    void Revoke(string id)
+    {
+        var owner = Session.Jellyfin is { } j ? AlexaStore.OwnerOf(j) : "";
+        if (Alexa.Revoke(id, admin ? null : owner)) { AlexaQueueStore.Forget(id); AlexaDir.Forget(id); }
+        Load();
+    }
+
+    void RevokeAll()
+    {
+        foreach (var l in Alexa.Links) { AlexaQueueStore.Forget(l.Id); AlexaDir.Forget(l.Id); }
+        Alexa.RevokeAll(); Load();
+    }
+}

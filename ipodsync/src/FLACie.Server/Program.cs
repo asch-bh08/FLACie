@@ -1,6 +1,7 @@
 using FLACie.Core;
 using FLACie.Server;
 using FLACie.Server.Components;
+using FLACie.Server.Alexa;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
@@ -117,6 +118,8 @@ builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>
 builder.Services.AddSingleton<LoginThrottle>();
 builder.Services.AddSingleton<AlacCache>();
 builder.Services.AddSingleton<HitsService>();
+// Alexa (off until switched on in Settings): the skill endpoint, signed stream links, pairing
+builder.Services.AddAlexa(dataDir);
 
 var app = builder.Build();
 // hosted by the Windows app: stop when that app does, so closing it never leaves a server running
@@ -172,6 +175,7 @@ app.MapStaticAssets();
 app.MapAuth();
 app.MapMedia(dataDir);
 app.MapApi();
+app.MapAlexa();
 // local diagnostics only (FLACIE_DEBUG=1): the signed-in user's own Jellyfin, GET or POST, so a session problem can be looked at directly
 if (builder.Configuration["FLACIE_DEBUG"] == "1")
 {

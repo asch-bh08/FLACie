@@ -4,7 +4,7 @@ using FLACie.Core;
 namespace FLACie.Server.Alexa;
 
 /// <summary>A song Alexa has been asked to download.</summary>
-public sealed record AlexaRequested(string Artist, string Title);
+public sealed record AlexaRequested(string Artist, string Title, bool InLibrary = false);
 
 /// <summary>One download as the voice side needs it: running, done (with the library path when the song can be played) or failed.</summary>
 public sealed record AlexaDownload(string Artist, string Title, string State, string Message, DateTime At);
@@ -13,6 +13,9 @@ public sealed record AlexaDownload(string Artist, string Title, string State, st
 public interface IAlexaUser
 {
     string Name { get; }
+    /// <summary>False while the library is still loading (or Jellyfin cannot be reached): a song that is "not found" then means nothing, so nothing is searched or downloaded.</summary>
+    bool Ready { get; }
+    string? Problem { get; }
     IReadOnlyList<Track> Songs { get; }
     IReadOnlyList<Playlist> Playlists { get; }
     Track? Find(string path);
@@ -82,6 +85,7 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
     public async Task<Reply> PlayAsync(IAlexaUser u, string linkId, VoiceQuery query, Func<string, Task>? progress = null, CancellationToken ct = default)
     {
         var q = queues.For(linkId);
+        if (!u.Ready) return Reply.Say(u.Problem is { Length: > 0 } ? "I can't reach your music library right now." : "I'm still loading your library. Try again in a moment.");
         var m = MatcherFor(u).Match(query);
         lock (q) q.Pending = null;
         switch (m.Decision)
@@ -155,6 +159,8 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
         AlexaRequested? req;
         try { req = await u.RequestDownloadAsync(words, ct); } catch (OperationCanceledException) { throw; } catch (Exception) { req = null; }
         if (req is null) return Reply.Say($"I don't have {Phonetic.SpeechSafe(words)}, and I couldn't find it to download.");
+        if (req.InLibrary && u.FindSong(req.Artist, req.Title) is { JellyfinId.Length: > 0 } have)
+            return Start(u, linkId, q, new VoiceMatch(MatchKind.Track, have, 1.0, ""), query);
         lock (q) { q.PendingTitle = $"{req.Title} by {req.Artist}"; q.LastDownloadKey = Matching.MatchKey(req.Title, req.Artist); q.LastDownloadAt = null; }
         queues.Save(linkId);
         return Reply.Say($"I'm downloading {Phonetic.SpeechSafe(req.Title)} by {Phonetic.SpeechSafe(req.Artist)} now. I'll tell you when it's ready.", end: true) with { AskNotifyPermission = true };

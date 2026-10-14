@@ -8,7 +8,7 @@ namespace FLACie.Server;
 public sealed class CatalogRedirectHandler(Uri origin) : DelegatingHandler
 {
     static readonly HashSet<string> Hosts = new(StringComparer.OrdinalIgnoreCase)
-        { "api.deezer.com", "itunes.apple.com", "musicbrainz.org", "coverartarchive.org", "labs.api.listenbrainz.org" };
+        { "api.deezer.com", "itunes.apple.com", "musicbrainz.org", "coverartarchive.org", "labs.api.listenbrainz.org", "s3.amazonaws.com" };   // s3.amazonaws.com: where Alexa's signing certificate is fetched (see AlexaGuards)
 
     /// <summary>The loopback address from the setting, or null when it is unset or is not a loopback http address (then nothing is redirected).</summary>
     public static Uri? Parse(string? setting) =>

@@ -22,6 +22,8 @@ public sealed class AlexaLink
     /// <summary>Hash of the Alexa userId (the lookup key).</summary>
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
+    /// <summary>Hash of the FLACie account (server and user) behind the link, so a person can see and revoke their own links.</summary>
+    public string Owner { get; set; } = "";
     public string Secret { get; set; } = "";   // protected JSON: the account behind the link, and the raw Alexa userId
     public DateTime LinkedAt { get; set; } = DateTime.UtcNow;
     public DateTime LastSeen { get; set; }
@@ -77,6 +79,8 @@ public sealed class AlexaStore
         catch (Exception) { }
     }
 
+    public static string OwnerOf(JellyfinAccount a) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("flacie-owner|" + a.Server + "|" + a.UserId)))[..16];
+
     public static string HashUser(string alexaUserId) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("flacie-alexa|" + alexaUserId)))[..32];
 
     // ---- pairing ----
@@ -110,7 +114,7 @@ public sealed class AlexaStore
             if (!codes.Remove(digits, out var pc)) { failures[id] = failures.GetValueOrDefault(id) + 1; if (failures.Count > 500) failures.Clear(); return null; }
             failures.Remove(id);
             links.RemoveAll(l => l.Id == id);
-            var link = new AlexaLink { Id = id, Name = pc.Name, LinkedAt = clock(), LastSeen = clock(), Locale = locale, Secret = protector.Protect(JsonSerializer.Serialize(new LinkSecret(alexaUserId, pc.Account.Server, pc.Account.UserId, pc.Account.UserName, pc.Account.Token))) };
+            var link = new AlexaLink { Id = id, Name = pc.Name, Owner = OwnerOf(pc.Account), LinkedAt = clock(), LastSeen = clock(), Locale = locale, Secret = protector.Protect(JsonSerializer.Serialize(new LinkSecret(alexaUserId, pc.Account.Server, pc.Account.UserId, pc.Account.UserName, pc.Account.Token))) };
             links.Add(link);
             Save();
             return link;
@@ -153,6 +157,24 @@ public sealed class AlexaStore
             return res;
         }
     }
+
+    /// <summary>The account behind a link id (what a signed stream URL names), null when revoked.</summary>
+    public JellyfinAccount? AccountForLink(string linkId)
+    {
+        lock (gate)
+        {
+            var l = links.FirstOrDefault(x => x.Id == linkId); if (l is null) return null;
+            try { var s = JsonSerializer.Deserialize<LinkSecret>(protector.Unprotect(l.Secret))!; return new JellyfinAccount(s.Server, s.UserId, s.UserName, s.Token); } catch (Exception) { return null; }
+        }
+    }
+
+    /// <summary>The link whose id hashes to this short value (the u= of a signed URL).</summary>
+    public string? LinkIdByUrlHash(string u) { lock (gate) return links.FirstOrDefault(l => AlexaUrlSigner.UserHash(l.Id) == u)?.Id; }
+
+    public bool IsNotifiable(string alexaUserId) { var id = HashUser(alexaUserId); lock (gate) return links.FirstOrDefault(l => l.Id == id)?.CanNotify == true; }
+
+    /// <summary>A person revokes their own link (owner must match); null owner = an administrator, any link.</summary>
+    public bool Revoke(string linkId, string? owner) { lock (gate) { var n = links.RemoveAll(l => l.Id == linkId && (owner is null || l.Owner == owner)); if (n > 0) Save(); return n > 0; } }
 
     public bool Revoke(string linkId) { lock (gate) { var n = links.RemoveAll(l => l.Id == linkId); if (n > 0) Save(); return n > 0; } }
     public int RevokeAll() { lock (gate) { var n = links.Count; links.Clear(); Save(); return n; } }

@@ -5,7 +5,7 @@ settings in their own Jellyfin user settings (or in a `.flacie` folder on their 
 anyone else: you run the server, you own the data.
 
 Contents: [Jellyfin only](#a-jellyfin-only) · [NAS only](#b-nas-only-no-jellyfin) · [HTTPS and reverse proxy](#https-and-reverse-proxy) ·
-[Upgrading](#upgrading) · [Backups](#backups) · [Environment variables](#environment-variables) · [Troubleshooting](#troubleshooting) ·
+[Alexa](ALEXA.md) · [Upgrading](#upgrading) · [Backups](#backups) · [Environment variables](#environment-variables) · [Troubleshooting](#troubleshooting) ·
 [Security notes](../SECURITY.md)
 
 You need Docker (with Compose) on any machine that can reach your Jellyfin or NAS. The image runs on amd64 and arm64 (Raspberry Pi 4/5 included).
@@ -161,6 +161,7 @@ The Android app is a separate download (APK on the GitHub release page; enable i
 | `FLACIE_SERVICE_ROUTES` | (not set) | Comma separated `public=>internal` pairs, for example `https://files.example.com/filemove=>http://127.0.0.1:8090`. This server sends its own requests for a download service's public address to the internal one, so a DNS or tunnel problem on the public name cannot stop downloads when the service runs on the same machine. The address saved in people's profiles (and used by the phone) is not changed. |
 | `FLACIE_DATA` | `/data` in Docker | The data folder (see Backups). |
 | `PUID`, `PGID` | `1654` | Docker only: run as this user/group so the files in the mounted folder belong to you (`id` shows yours). |
+| `FLACIE_PUBLIC_URL`, `FLACIE_ALEXA_SKILL_IDS`, `FLACIE_ALEXA_CLIENT_ID`, `FLACIE_ALEXA_CLIENT_SECRET` | (not set) | Only for the optional [Alexa](ALEXA.md) skill (off until switched on in Settings): the public https address Alexa reaches this server at, the allowed skill id(s), and the skill's Login with Amazon client id and secret for "your download is ready" notifications. |
 | `FLACIE_NTFY_URL`, `FLACIE_NTFY_TOPIC`, `FLACIE_NTFY_TOKEN` | (not set) | First-start defaults for push notifications through an [ntfy](https://ntfy.sh) server. Later changes are made in the dashboard. |
 | `FLACIE_JAMENDO_CLIENT_ID` | (not set) | Your own free [Jamendo](https://devportal.jamendo.com) client id, to offer Jamendo's artist-approved downloads. |
 | `FLACIE_DEBUG` | (not set) | `1` turns on local debug endpoints (loopback only). **Never set this on a server other people can reach.** |

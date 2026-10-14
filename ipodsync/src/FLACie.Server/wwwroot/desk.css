@@ -73,3 +73,57 @@
 }
 @media (max-height: 639px) { .desk-front { height: 11cqh; } }
 @media (prefers-reduced-motion: reduce) { .desk-spk .woofer { transform: none; transition: none; } }
+
+/* ---------------- the shelf: cassettes or CD cases standing on a low ledge; a row that scrolls sideways when there are more than fit */
+.desk-shelf { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 1.6cqh; padding: 2.2cqh 3cqh .9cqh; overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x mandatory; scrollbar-width: none; justify-content: safe center;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); }
+.desk-shelf::-webkit-scrollbar { display: none; }
+.desk-front::before { content: ""; position: absolute; left: 1%; right: 1%; bottom: 0; height: 1.4cqh; border-radius: .4cqh; z-index: -1;
+  background: linear-gradient(#8b5a2f, #5c3818); box-shadow: 0 .8cqh 1.4cqh var(--shadow), inset 0 1px 0 rgba(255, 225, 180, .35); }
+.desk-matte .desk-front::before { background: linear-gradient(#3a3c41, #1f2023); box-shadow: 0 .8cqh 1.4cqh var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .12); }
+.desk-shelf-empty { margin: auto auto 2.6cqh; padding: .6cqh 1.6cqh; border-radius: 99px; font: 500 1.5cqh/1.3 "Segoe UI", system-ui, sans-serif; color: rgba(255, 255, 255, .85); background: rgba(0, 0, 0, .35); }
+
+.desk-media { position: relative; flex: none; scroll-snap-align: center; padding: 0; margin: 0 0 .9cqh; border: 0; background: none; cursor: pointer; color: #1b1b1f;
+  font: 600 1.25cqh/1.15 "Segoe UI", system-ui, sans-serif; text-align: left; transform-origin: 50% 100%; transform: perspective(60cqh) rotateX(8deg);
+  transition: transform .18s ease-out, filter .18s ease-out; filter: drop-shadow(0 .6cqh .6cqh rgba(0, 0, 0, .35)); }
+.desk-media:hover, .desk-media:focus-visible { transform: perspective(60cqh) rotateX(8deg) translateY(-8px); filter: drop-shadow(0 1.2cqh 1.2cqh rgba(0, 0, 0, .4)) drop-shadow(0 0 1.2cqh hsl(var(--hue) 90% 62% / .75)); outline: none; }
+.desk-media.on { transform: perspective(60cqh) rotateX(8deg) translateY(-5px); }
+.desk-media .led { position: absolute; right: .7cqh; top: .7cqh; width: .8cqh; height: .8cqh; border-radius: 50%; background: rgba(0, 0, 0, .35); }
+.desk-media.on .led { background: #6dff8f; box-shadow: 0 0 .8cqh #6dff8f; }
+.desk-media b, .desk-media small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.desk-media small { font-weight: 400; font-size: 1.05cqh; opacity: .7; }
+.desk-media .art { display: block; overflow: hidden; background: #c9c3b8; }
+.desk-art, .desk-media .art .cover { width: 100%; height: 100%; border-radius: 0; display: block; object-fit: cover; }
+
+/* a cassette: smoky shell, a J-card with the cover and the name, a window with two reels */
+.desk-media.tape .shell { position: relative; display: block; width: 16cqh; height: 10.2cqh; border-radius: .8cqh; padding: .7cqh;
+  background: linear-gradient(rgba(60, 60, 68, .92), rgba(28, 28, 34, .95)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14), inset 0 .3cqh .4cqh rgba(255, 255, 255, .12); }
+.desk-media.tape .jcard { display: flex; gap: .6cqh; align-items: center; height: 4.6cqh; padding: .4cqh; border-radius: .4cqh;
+  background: linear-gradient(90deg, hsl(var(--hue) 70% 58%) 0 .6cqh, #f4efe4 .6cqh); }
+.desk-media.tape .jcard .art { width: 3.8cqh; height: 3.8cqh; margin-left: .5cqh; border-radius: .2cqh; flex: none; }
+.desk-media.tape .txt { min-width: 0; flex: 1; }
+.desk-media.tape .window { position: absolute; left: 22%; right: 22%; bottom: 1cqh; height: 3cqh; border-radius: 1.5cqh; display: flex; align-items: center; justify-content: space-between; padding: 0 .5cqh;
+  background: linear-gradient(rgba(20, 20, 24, .9), rgba(60, 50, 40, .85)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12); }
+.desk-media.tape .reel { width: 2.4cqh; height: 2.4cqh; border-radius: 50%; display: block;
+  background: radial-gradient(circle, #111 0 18%, #f4f4f4 20% 30%, transparent 32%), conic-gradient(#e9e9e9 0 10%, transparent 10% 33%, #e9e9e9 33% 43%, transparent 43% 66%, #e9e9e9 66% 76%, transparent 76%), #4a3b2e; }
+.desk-media.tape .reel.spin { animation: desk-reel 1.6s linear infinite; }
+@keyframes desk-reel { to { transform: rotate(360deg); } }
+
+/* a CD jewel case: the cover under glass, the hinge on the left, the disc's edge showing */
+.desk-media.cd .case { position: relative; display: block; width: 10.6cqh; height: 10.6cqh; border-radius: .3cqh; padding: .2cqh .2cqh .2cqh 1.1cqh;
+  background: linear-gradient(90deg, rgba(30, 30, 34, .95) 0 1cqh, rgba(225, 230, 236, .55) 1cqh); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .5); }
+.desk-media.cd .art { width: 100%; height: 100%; }
+.desk-media.cd .glass { position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(125deg, rgba(255, 255, 255, .45), rgba(255, 255, 255, 0) 38%, rgba(255, 255, 255, 0) 70%, rgba(255, 255, 255, .18)); pointer-events: none; }
+.desk-media.cd .disc { position: absolute; right: -1.2cqh; top: 50%; width: 9cqh; height: 9cqh; translate: 0 -50%; border-radius: 50%; z-index: -1;
+  background: radial-gradient(circle, transparent 0 14%, #cfd3da 15% 18%, transparent 19%), conic-gradient(#d7dbe2, #f6f2ff, #c9e6ff, #ffe1f3, #d7dbe2); transition: right .18s ease-out; }
+.desk-media.cd:hover .disc, .desk-media.cd.on .disc { right: -3cqh; }
+.desk-media.cd .cd-label { display: block; width: 10.6cqh; margin-top: .4cqh; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .7); }
+.desk-wood .desk-media.cd .cd-label { color: #fff8ec; }
+
+@media (max-height: 639px) { .desk-media { zoom: .8; } }
+@media (prefers-reduced-motion: reduce) {
+  .desk-media, .desk-media .disc { transition: none; }
+  .desk-media:hover, .desk-media:focus-visible, .desk-media.on { transform: perspective(60cqh) rotateX(8deg); }
+  .desk-media.tape .reel.spin { animation: none; }
+}

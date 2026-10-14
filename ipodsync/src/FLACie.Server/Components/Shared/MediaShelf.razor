@@ -1,0 +1,40 @@
+@using FLACie.Core
+@* The iPod desk's shelf: one cassette (or CD case) per source (Up Next, Favourites, each playlist) with its cover on the label; a click plays it.
+   The playing one stands raised with a lit dot, and a tape's reels turn while it plays. Styles: desk.css. *@
+<div class="desk-shelf @(Style == 1 ? "cds" : "tapes")" data-testid="desk-shelf">
+    @if (Sources.Count == 0)
+    {
+        <p class="desk-shelf-empty">Your playlists will show up here.</p>
+    }
+    @for (var i = 0; i < Sources.Count; i++)
+    {
+        var s = Sources[i];
+        var on = s.Id == ActiveId;
+        <button type="button" class="desk-media @(Style == 1 ? "cd" : "tape") @(on ? "on" : "")" data-testid="desk-media" data-source="@s.Id"
+                aria-label="Play @s.Label" aria-pressed="@(on ? "true" : "false")" title="@s.Label · @s.Sub" style="--hue:@(i * 47 % 360)" @onclick="() => OnPick.InvokeAsync(s)">
+            @if (Style == 1)
+            {
+                <span class="case"><span class="art"><Cover ArtKey="@s.ArtKey" Class="desk-art" /></span><i class="glass"></i><i class="disc"></i></span>
+                <span class="cd-label"><b>@s.Label</b><small>@s.Sub</small></span>
+            }
+            else
+            {
+                <span class="shell">
+                    <span class="jcard"><span class="art"><Cover ArtKey="@s.ArtKey" Class="desk-art" /></span><span class="txt"><b>@s.Label</b><small>@s.Sub</small></span></span>
+                    <span class="window"><i class="reel @(on && Playing ? "spin" : "")"></i><i class="reel @(on && Playing ? "spin" : "")"></i></span>
+                </span>
+            }
+            <i class="led"></i>
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<DeskSource> Sources { get; set; } = [];
+    /// <summary>The id of the source that is playing (DeskSources.ActiveId), or null.</summary>
+    [Parameter] public string? ActiveId { get; set; }
+    /// <summary>0 cassettes, 1 CD cases.</summary>
+    [Parameter] public int Style { get; set; }
+    [Parameter] public bool Playing { get; set; }
+    [Parameter] public EventCallback<DeskSource> OnPick { get; set; }
+}

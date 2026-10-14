@@ -33,3 +33,5 @@ One line per decision or result. Honest: skipped or untested things are said so.
 
 ## Beta 63 released
 - Android 78 / MSI 0.63.0 / Web 1.0-beta63. Android 414/2/0, .NET 311, Playwright green (test isolation fixed: MusicBrainz cache cleared per run). Emulator run of the release APK clean (kill-restore ok, 0 crash lines). MSI built, not installed. Disk was 3.7 GB: freed emulator snapshots (C:wt is a protected path, left alone).
+
+- Beta 63 web deployed to frank (rollback tag flacie-web:rollback-2026-10-14-pre63, only flacie-web recreated, /healthz ok locally and on the public name; other containers untouched). Release: https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta63 (APK 78 signed with the owner key, MSI 0.63.0 built not installed). Playwright 145 pass; found and fixed along the way: cover choice not redrawn while paused, Enter/Space double-fire on the iPod page.

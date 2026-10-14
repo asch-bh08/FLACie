@@ -38,3 +38,5 @@ One line per decision or result. Honest: skipped or untested things are said so.
 
 ## Beta 64
 - iPod mode on the web/Windows rebuilt to match the Android emulator (user request): 23 models + colours, 3 screen families, Cover Flow 3D, settings tree, wheel zones/hold/inertia/accel, touch models in an iframe, picker panel. Tests: .NET 329, Playwright 151, Android 414/2/0 (no Android code change). Disk fell to 1.7 GB mid-run: deleted emulator snapshots + own build output (snapshots come back whenever the emulator runs and shuts down), the disk then recovered and the release APK was run on the emulator (clean: kill-restore ok, 0 crash lines).
+
+- Beta 64 released and web deployed (rollback tag flacie-web:rollback-2026-10-14-pre64, only flacie-web recreated, /healthz ok locally and on the public name). https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta64

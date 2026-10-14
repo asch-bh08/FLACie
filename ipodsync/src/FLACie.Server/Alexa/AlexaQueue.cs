@@ -4,6 +4,9 @@ namespace FLACie.Server.Alexa;
 
 public enum AlexaRepeat { Off, One, All }
 
+/// <summary>A disambiguation question waiting for an answer: the query to run again, and how many choices were offered.</summary>
+public sealed class Pending { public string Query { get; set; } = ""; public int Count { get; set; } public DateTime At { get; set; } }
+
 /// <summary>
 /// What one linked Alexa account is playing: the list (by FLACie track path), where it is, shuffle and repeat, and the offset to resume from.
 /// Pure state with no I/O, so it can be tested; <see cref="AlexaQueues"/> keeps one per link and saves it.
@@ -20,8 +23,17 @@ public sealed class AlexaQueue
     /// <summary>Changes with every track change; the AudioPlayer token. A late event for an older token is ignored.</summary>
     public long Serial { get; set; }
     public string Title { get; set; } = "";
-    public string? LastDownloadPath { get; set; }
+    /// <summary>How many times the list (or the song, with repeat one) has come round; part of the AudioPlayer token so a repeat is a new stream.</summary>
+    public int Pass { get; set; }
+    public int FailStreak { get; set; }
+    /// <summary>The song most recently requested through Alexa (match key and spoken name), for "play it" and "is it ready".</summary>
+    public string? LastDownloadKey { get; set; }
     public string? PendingTitle { get; set; }
+    public DateTime? LastDownloadAt { get; set; }
+    /// <summary>What to tell the person next time they talk to FLACie (a download ended).</summary>
+    public string? Notice { get; set; }
+    /// <summary>A question that was asked and not answered yet ("Did you mean ...?").</summary>
+    public Pending? Pending { get; set; }
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     [System.Text.Json.Serialization.JsonIgnore] public Random Rng { get; set; } = Random.Shared;

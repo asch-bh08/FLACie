@@ -88,7 +88,7 @@
         mine = Alexa.Links.Where(l => admin || l.Owner == owner).ToList();
     }
 
-    void Change(Action<AlexaConfig> change) { Alexa.Update(change); Load(); }
+    void Change(Action<AlexaConfig> change) { if (!admin) return; Alexa.Update(change); Load(); }
     void NewCode() { if (Session.Jellyfin is { } j) pair = Alexa.NewCode(j); }
 
     void Revoke(string id)

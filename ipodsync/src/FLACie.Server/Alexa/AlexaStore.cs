@@ -45,7 +45,8 @@ public sealed class AlexaStore
     public static readonly TimeSpan CodeLife = TimeSpan.FromMinutes(10);
     readonly string file; readonly IDataProtector protector; readonly object gate = new();
     readonly Dictionary<string, PairingCode> codes = [];
-    readonly Dictionary<string, int> failures = [];
+    readonly Dictionary<string, (int Count, DateTime At)> failures = [];
+    static readonly TimeSpan LockLife = TimeSpan.FromMinutes(10);
     readonly Func<DateTime> clock;
     AlexaConfig cfg = new();
     List<AlexaLink> links = [];
@@ -66,7 +67,7 @@ public sealed class AlexaStore
     public AlexaConfig Config { get { lock (gate) return new() { Enabled = cfg.Enabled, Downloads = cfg.Downloads, SkillIds = cfg.SkillIds }; } }
     public void Update(Action<AlexaConfig> change) { lock (gate) { change(cfg); Save(); } }
     /// <summary>The links without their secrets, for the Settings page.</summary>
-    public IReadOnlyList<AlexaLink> Links { get { lock (gate) return links.Select(l => new AlexaLink { Id = l.Id, Name = l.Name, LinkedAt = l.LinkedAt, LastSeen = l.LastSeen, CanNotify = l.CanNotify, Locale = l.Locale }).ToList(); } }
+    public IReadOnlyList<AlexaLink> Links { get { lock (gate) return links.Select(l => new AlexaLink { Id = l.Id, Name = l.Name, Owner = l.Owner, LinkedAt = l.LinkedAt, LastSeen = l.LastSeen, CanNotify = l.CanNotify, Locale = l.Locale }).ToList(); } }
 
     void Save()
     {
@@ -110,8 +111,9 @@ public sealed class AlexaStore
         lock (gate)
         {
             Prune();
-            if (failures.GetValueOrDefault(id) >= 5) return null;
-            if (!codes.Remove(digits, out var pc)) { failures[id] = failures.GetValueOrDefault(id) + 1; if (failures.Count > 500) failures.Clear(); return null; }
+            if (failures.TryGetValue(id, out var f) && clock() - f.At > LockLife) failures.Remove(id);   // the lock-out ends after 10 minutes: a few typos must not shut the owner out for good
+            if (failures.TryGetValue(id, out f) && f.Count >= 5) return null;
+            if (!codes.Remove(digits, out var pc)) { failures[id] = (failures.GetValueOrDefault(id).Count + 1, clock()); if (failures.Count > 500) failures.Clear(); return null; }
             failures.Remove(id);
             links.RemoveAll(l => l.Id == id);
             var link = new AlexaLink { Id = id, Name = pc.Name, Owner = OwnerOf(pc.Account), LinkedAt = clock(), LastSeen = clock(), Locale = locale, Secret = protector.Protect(JsonSerializer.Serialize(new LinkSecret(alexaUserId, pc.Account.Server, pc.Account.UserId, pc.Account.UserName, pc.Account.Token))) };

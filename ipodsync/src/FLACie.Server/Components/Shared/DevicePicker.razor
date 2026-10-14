@@ -1,6 +1,7 @@
 @inherits UserComponent
 @implements IDisposable
 @inject IJSRuntime Js
+@inject FLACie.Server.Alexa.AlexaNow AlexaDevices
 @* Connect from the player bar: this browser and the account's other players, what each is playing, and one click to move the music. *@
 @if (Live is { } live)
 {
@@ -28,7 +29,17 @@
                         </span>
                     </div>
                 }
-                @if (others.Count == 0) { <p class="hint">No other device is signed in right now. Open FLACie on your phone with this account and it appears here.</p> }
+                @foreach (var e in AlexaDevices.For(Session))
+                {
+                    <div class="dev">
+                        <Icon Name="devices" Size="22" />
+                        <span><b>@e.Name</b><small>@(e.Current is null ? "Nothing playing" : (e.Playing ? "Playing " : "Paused · ") + e.Current.Title + " · " + e.Current.Artist)</small></span>
+                        <span class="dev-actions">
+                            @if (e.Current is not null) { <button class="btn" @onclick="() => TakeOverAlexa(e)">Play here</button> }
+                        </span>
+                    </div>
+                }
+                @if (others.Count == 0 && !AlexaDevices.For(Session).Any()) { <p class="hint">No other device is signed in right now. Open FLACie on your phone with this account and it appears here.</p> }
                 <a class="btn ghost" href="/devices" @onclick="() => open = false">All devices and Jams</a>
             </div>
         }
@@ -45,6 +56,8 @@
     /// <summary>Called from the page when a click lands outside the popup, or Escape is pressed.</summary>
     [JSInvokable] public void Dismiss() { if (!open) return; open = false; poll?.Dispose(); poll = null; _ = Js.InvokeVoidAsync("flacie.unwatchOutside"); InvokeAsync(StateHasChanged); }
     async Task TakeOver(Live l, ConnectSession s) { open = false; await l.Connect.TakeOverAsync(s); }
+    /// <summary>The Echo keeps playing until someone tells it to stop (a skill cannot stop an Echo by itself).</summary>
+    async Task TakeOverAlexa(FLACie.Server.Alexa.AlexaDevice e) { open = false; if (e.Queue.Count > 0) await Player.PlayFromAsync(e.Queue, e.Index, e.PositionMs, false); }
     async Task Send(Live l, ConnectSession s) { open = false; await l.Connect.SendToAsync(s); }
     public override void Dispose() { poll?.Dispose(); self?.Dispose(); try { _ = Js.InvokeVoidAsync("flacie.unwatchOutside"); } catch (Exception) { } base.Dispose(); }
 }

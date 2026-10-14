@@ -46,6 +46,7 @@ public sealed class AlexaRequestVerifier(IAlexaCertSource source, string? skillI
     readonly Func<DateTimeOffset> now = clock ?? (() => DateTimeOffset.UtcNow);
     readonly HashSet<string> skills = new((skillIds ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), StringComparer.Ordinal);
     readonly ConcurrentDictionary<string, Cached> cache = new();
+    readonly ConcurrentDictionary<string, DateTimeOffset> failedFetch = new();
 
     sealed record Cached(X509Certificate2 Leaf, X509Certificate2Collection Chain, long Seq);
     long seq;
@@ -117,8 +118,15 @@ public sealed class AlexaRequestVerifier(IAlexaCertSource source, string? skillI
             if (CheckChain(c.Leaf, c.Chain) is null) return (c.Leaf, "");
             cache.TryRemove(key, out _);
         }
+        // a certificate address that could not be fetched is not asked for again for 30 seconds (a flood of made-up addresses must not become a flood of downloads)
+        if (failedFetch.TryGetValue(key, out var failedAt) && now() - failedAt < TimeSpan.FromSeconds(30)) return (null, "cert-fetch-failed");
         byte[] pem;
-        try { pem = await source.FetchAsync(url, ct); } catch (Exception) when (!ct.IsCancellationRequested) { return (null, "cert-fetch-failed"); }
+        try { pem = await source.FetchAsync(url, ct); }
+        catch (Exception) when (!ct.IsCancellationRequested)
+        {
+            if (failedFetch.Count > 200) failedFetch.Clear();
+            failedFetch[key] = now(); return (null, "cert-fetch-failed");
+        }
         if (pem is null || pem.Length == 0 || pem.Length > MaxCertBytes) return (null, "cert-size");
         var certs = new X509Certificate2Collection();
         try

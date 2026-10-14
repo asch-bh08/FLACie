@@ -177,3 +177,54 @@ public class AlexaStoreTests
         Assert.Equal(["A", "B"], s.UsersOf("http://jf", "u1").Select(x => x.AlexaUserId).OrderBy(x => x).ToList());
     }
 }
+
+public class AlexaNowTests
+{
+    [Fact] public void AnEchoShowsAsADeviceOnlyWhileItHasSomethingRecent()
+    {
+        var dir = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var me = new JellyfinAccount("http://jf", "u1", "ash", "T");
+            var store = new AlexaStore(new DataPaths(dir), DataProtectionProvider.Create(new DirectoryInfo(Path.Combine(dir, "keys"))), new ConfigurationBuilder().Build());
+            var queues = new AlexaQueues(new DataPaths(dir));
+            var now = new AlexaNow(store, queues);
+            var s = new UserSession("jellyfin", me, null);
+            var t1 = FakeUser.T("One", "Band"); var t2 = FakeUser.T("Two", "Band");
+            s.Extra[t1.Path] = t1; s.Extra[t2.Path] = t2;
+            Assert.Empty(now.For(s));   // Alexa is off
+            store.Update(c => c.Enabled = true);
+            var link = store.Redeem("A", store.NewCode(me).Code, "")!;
+            Assert.Empty(now.For(s));   // nothing played yet
+            var q = queues.For(link.Id); q.Set([t1.Path, t2.Path], 1); q.OffsetMs = 9000;
+            var d = Assert.Single(now.For(s));
+            Assert.Equal("Two", d.Current!.Title); Assert.Equal(9000, d.PositionMs); Assert.Equal(1, d.Index); Assert.Equal(2, d.Queue.Count); Assert.True(d.Playing);
+            var other = new UserSession("jellyfin", new JellyfinAccount("http://jf", "u2", "bob", "T"), null);
+            Assert.Empty(now.For(other));   // someone else's Echo is not shown
+            q.UpdatedAt = DateTime.UtcNow - TimeSpan.FromHours(13);
+            Assert.Empty(now.For(s));   // stale
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+}
+
+public class AlexaSecurityEdgeTests
+{
+    [Fact] public void TheLockOutEndsAfterTenMinutesSoTyposNeverShutTheOwnerOutForGood()
+    {
+        var dir = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var now = new DateTime(2026, 10, 14, 12, 0, 0, DateTimeKind.Utc);
+            var s = new AlexaStore(new DataPaths(dir), DataProtectionProvider.Create(new DirectoryInfo(Path.Combine(dir, "k"))), new ConfigurationBuilder().Build(), () => now);
+            var me = new JellyfinAccount("http://jf", "u1", "ash", "T");
+            for (var i = 0; i < 5; i++) Assert.Null(s.Redeem("A", "11111" + i, ""));
+            var code = s.NewCode(me).Code;
+            Assert.Null(s.Redeem("A", code, ""));   // locked
+            now += TimeSpan.FromMinutes(11);
+            var fresh = s.NewCode(me).Code;
+            Assert.NotNull(s.Redeem("A", fresh, ""));   // allowed again
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+}

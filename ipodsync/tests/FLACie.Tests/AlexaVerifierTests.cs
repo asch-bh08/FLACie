@@ -277,15 +277,20 @@ public class AlexaVerifierTests
     }
 
     [Fact]
-    public async Task Cert_fetch_failure_rejected_and_not_cached()
+    public async Task Cert_fetch_failure_rejected_and_retried_only_after_thirty_seconds()
     {
         using var p = new Pki();
         var src = new FakeSource(p.Pem()) { Throw = new HttpRequestException("boom") };
-        var v = Make(p, src);
-        var body = Body();
+        var t = Now;
+        var v = Make(p, src, clock: () => t);
+        var body = Body(ts: t);
         Assert.False((await v.VerifyAsync(GoodUrl, p.Sign(body), null, body)).Ok);
         src.Throw = null;
-        Assert.True((await v.VerifyAsync(GoodUrl, p.Sign(body), null, body)).Ok);
+        Assert.False((await v.VerifyAsync(GoodUrl, p.Sign(body), null, body)).Ok);   // inside the 30 seconds: not asked again
+        Assert.Equal(1, src.Calls);
+        t += TimeSpan.FromSeconds(31);
+        var fresh = Body(ts: t);
+        Assert.True((await v.VerifyAsync(GoodUrl, p.Sign(fresh), null, fresh)).Ok);
         Assert.Equal(2, src.Calls);
     }
 
@@ -381,5 +386,21 @@ public class AlexaVerifierTests
     {
         var l = new AlexaRateLimiter(() => Now, perMinute: 1);
         Assert.True(l.TryTake(null!)); Assert.False(l.TryTake(""));
+    }
+}
+
+public class AlexaVerifierFloodTests
+{
+    sealed class CountingSource : IAlexaCertSource { public int Calls; public Task<byte[]> FetchAsync(Uri url, CancellationToken ct) { Calls++; throw new HttpRequestException("no"); } }
+
+    [Fact] public async Task AFailedCertificateAddressIsNotFetchedAgainWithinThirtySeconds()
+    {
+        var src = new CountingSource(); var t = new DateTimeOffset(2026, 10, 14, 12, 0, 0, TimeSpan.Zero);
+        var v = new AlexaRequestVerifier(src, "amzn1.ask.skill.x", () => t);
+        var body = System.Text.Encoding.UTF8.GetBytes("{}"); var sig = Convert.ToBase64String(new byte[256]);
+        for (var i = 0; i < 5; i++) Assert.Equal("cert-fetch-failed", (await v.VerifyAsync("https://s3.amazonaws.com/echo.api/x.pem", sig, null, body)).Reason);
+        Assert.Equal(1, src.Calls);
+        t += TimeSpan.FromSeconds(31); await v.VerifyAsync("https://s3.amazonaws.com/echo.api/x.pem", sig, null, body);
+        Assert.Equal(2, src.Calls);
     }
 }

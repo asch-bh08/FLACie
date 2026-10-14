@@ -12,6 +12,7 @@ public static class AlexaEndpoints
         services.AddSingleton<AlexaQueues>();
         services.AddSingleton(sp => new AlexaEngine(sp.GetRequiredService<AlexaQueues>(), () => sp.GetRequiredService<AlexaStore>().Config));
         services.AddSingleton<AlexaPublic>();
+        services.AddSingleton<AlexaNow>();
         services.AddSingleton(new AlexaUrlSigner(AlexaUrlSigner.LoadOrCreateSecret(Path.Combine(dataDir, "alexa-url.key")), () => DateTime.UtcNow));
         services.AddSingleton<AlexaProactive>();
         services.AddSingleton<IProgressive, HttpProgressive>();

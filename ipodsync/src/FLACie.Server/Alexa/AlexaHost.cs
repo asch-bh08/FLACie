@@ -177,3 +177,29 @@ public sealed class AlexaProactive(IHttpClientFactory hf, IConfiguration conf, I
         catch (Exception e) { log.LogWarning("Alexa notification failed: {Kind}", e.GetType().Name); return false; }
     }
 }
+
+/// <summary>An Echo as a Connect device: what it was last told to play, for the device list in the player bar (read only; an Echo can be handed over to the app but not driven from it,
+/// because a skill can only answer Alexa's requests, never start or stop playback on its own).</summary>
+public sealed record AlexaDevice(string LinkId, string Name, Track? Current, bool Playing, long PositionMs, IReadOnlyList<Track> Queue, int Index);
+
+public sealed class AlexaNow(AlexaStore store, AlexaQueues queues)
+{
+    public static readonly TimeSpan Recent = TimeSpan.FromHours(12);
+
+    public IReadOnlyList<AlexaDevice> For(UserSession s)
+    {
+        if (!store.Config.Enabled || s.Jellyfin is not { } account) return [];
+        var owner = AlexaStore.OwnerOf(account);
+        var res = new List<AlexaDevice>();
+        foreach (var link in store.Links.Where(l => l.Owner == owner))
+        {
+            var q = queues.For(link.Id);
+            if (q.Empty || DateTime.UtcNow - q.UpdatedAt > Recent) continue;
+            var from = Math.Max(0, q.Index - 5);
+            var tracks = q.Order.Skip(from).Take(100).Select(s.FindByPath).OfType<Track>().ToList();
+            var cur = q.Current is { } p ? s.FindByPath(p) : null;
+            res.Add(new(link.Id, "Echo (Alexa)", cur, q.Playing, q.OffsetMs, tracks, cur is null ? 0 : Math.Max(0, tracks.FindIndex(t => t.Path == cur.Path))));
+        }
+        return res;
+    }
+}

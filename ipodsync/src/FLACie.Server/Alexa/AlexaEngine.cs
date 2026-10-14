@@ -94,6 +94,8 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
 
     public async Task<Reply> PlayAsync(IAlexaUser u, string linkId, VoiceQuery query, Func<string, Task>? progress = null, CancellationToken ct = default)
     {
+        static string? Cap(string? x) => x is { Length: > 200 } ? x[..200] : x;   // what is heard is never this long; the limit keeps a flood of text from costing anything
+        query = query with { Title = Cap(query.Title), Artist = Cap(query.Artist), Album = Cap(query.Album), Playlist = Cap(query.Playlist), Raw = Cap(query.Raw), SimilarTo = Cap(query.SimilarTo) };
         var q = queues.For(linkId);
         if (!u.Ready) return Reply.Say(u.Problem is { Length: > 0 } ? "I can't reach your music library right now." : "I'm still loading your library. Try again in a moment.");
         var m = MatcherFor(u).Match(query);

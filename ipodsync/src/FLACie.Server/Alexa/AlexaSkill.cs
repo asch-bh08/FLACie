@@ -45,9 +45,15 @@ public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirec
             return Slot(request, "code") is { Length: > 0 } spoken ? Link(userId, spoken, locale) : Speak(store.IsLinked(userId) ? "FLACie is already linked to your account." : LinkText, end: false);
 
         // the person allowed (or took back) notifications in the Alexa app: the skill-event subscription in the manifest sends this
+        if (type == "AlexaSkillEvent.ProactiveSubscriptionChanged")
+        {
+            store.Touch(userId, locale, (request["request"]?["body"]?["subscriptions"] as JsonArray)?.Count > 0);
+            return Empty();
+        }
         if (type.StartsWith("AlexaSkillEvent.SkillPermission", StringComparison.Ordinal))
         {
-            var scopes = (request["request"]?["body"]?["acceptedPermissions"] as JsonArray)?.Select(p => (string?)p?["scope"]).ToList() ?? [];
+            // Amazon names the scope "permissionScope"; "scope" is accepted too (the shape was written from the documentation and has not met a real event)
+            var scopes = (request["request"]?["body"]?["acceptedPermissions"] as JsonArray)?.Select(p => (string?)p?["permissionScope"] ?? (string?)p?["scope"]).ToList() ?? [];
             store.Touch(userId, locale, type == "AlexaSkillEvent.SkillPermissionAccepted" ? scopes.Contains(NotifyPermission) : type == "AlexaSkillEvent.SkillPermissionChanged" ? scopes.Contains(NotifyPermission) : null);
             return Empty();
         }

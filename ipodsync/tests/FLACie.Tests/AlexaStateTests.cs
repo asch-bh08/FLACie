@@ -228,3 +228,60 @@ public class AlexaSecurityEdgeTests
         finally { Directory.Delete(dir, true); }
     }
 }
+
+public class AlexaReviewFixTests
+{
+    [Fact] public void ACodeStartingWithZeroIsRedeemedWhenAlexaHearsItAsANumber()
+    {
+        var dir = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var s = new AlexaStore(new DataPaths(dir), DataProtectionProvider.Create(new DirectoryInfo(Path.Combine(dir, "k"))), new ConfigurationBuilder().Build());
+            var me = new JellyfinAccount("http://jf", "u1", "ash", "T");
+            for (var i = 0; i < 400; i++)
+            {
+                var code = s.NewCode(me).Code;
+                if (!code.StartsWith('0')) continue;
+                Assert.NotNull(s.Redeem("A", code.TrimStart('0'), "")); return;
+            }
+            Assert.Fail("no code with a leading zero came up in 400 tries");
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact] public void AnUnreadableStateFileIsKeptNotOverwritten()
+    {
+        var dir = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "alexa.json"), "{ this is not json");
+            var s = new AlexaStore(new DataPaths(dir), DataProtectionProvider.Create(new DirectoryInfo(Path.Combine(dir, "k"))), new ConfigurationBuilder().Build());
+            s.Update(c => c.Enabled = true);
+            Assert.Single(Directory.GetFiles(dir, "alexa.json.unreadable-*"));
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact] public async Task AFailedLinedUpSongIsSkippedNotRetried()
+    {
+        var dir = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var songs = Enumerable.Range(1, 4).Select(i => FakeUser.T("Song " + i, "Band", "Alb", i)).ToList();
+            var u = new FakeUser { Songs = songs }; var queues = new AlexaQueues(new DataPaths(dir)); var e = new AlexaEngine(queues, () => new AlexaConfig());
+            var first = await e.PlayAsync(u, "L", VoiceParser.FromRaw("play the album alb"));
+            e.Started("L", first.Play!.Token);
+            var lined = e.NearlyFinished(u, "L", first.Play.Token)!;   // song 2 is lined up but never starts
+            var after = e.Failed(u, "L", lined.Token)!;
+            Assert.Equal("Song 3", after.Track.Title);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact] public void AnUnloadedSessionIsNotReadyButALoadedEmptyOneIs()
+    {
+        var s = new UserSession("jellyfin", new JellyfinAccount("http://jf", "u1", "ash", "T"), null);
+        var u = new SessionAlexaUser(s, null!, null!, null!, (_, _, _, _) => { });
+        Assert.False(u.Ready);   // nothing has been loaded yet: "not found" would mean nothing
+    }
+}

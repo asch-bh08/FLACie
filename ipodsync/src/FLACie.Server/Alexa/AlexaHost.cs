@@ -15,6 +15,7 @@ public sealed class AlexaPublic(IConfiguration conf)
     {
         // Alexa only plays https on port 443
         if (!r.Host.HasValue) return;
+        if (learned is not null) return;   // the first verified request names the address; set FLACIE_PUBLIC_URL to pin it
         var host = r.Host.Host; if (r.Host.Port is { } p && p != 443) return;
         learned = "https://" + host;
     }
@@ -25,7 +26,8 @@ public sealed class SessionAlexaUser(UserSession s, JellyfinClient jf, DownloadM
 {
     public UserSession Session { get; } = s;
     public string Name => s.DisplayName;
-    public bool Ready => !s.Loading && s.Library.Songs.Count > 0 && s.Problem is null;
+    /// <summary>Loaded once (an empty library is a real answer: the first song can be fetched), and not loading now.</summary>
+    public bool Ready => !s.Loading && s.Problem is null && (s.Library.Songs.Count > 0 || s.LoadedAt != default);
     public string? Problem => s.Problem;
     public IReadOnlyList<Track> Songs => s.Library.Songs;
 
@@ -108,6 +110,7 @@ public sealed class SessionAlexaDirectory(AlexaStore store, SessionStore session
             engine.Value.DownloadEnded(linkId, artist, title, ok, msg);
             _ = proactive.NotifyAsync(alexaUserId, title, artist, ok, store.IsNotifiable(alexaUserId));
         });
+        if (users.TryGetValue(linkId, out var old)) engine.Value.Forget(old);
         users[linkId] = user;
         return (linkId, user);
     }
@@ -119,7 +122,7 @@ public sealed class SessionAlexaDirectory(AlexaStore store, SessionStore session
         return account is null ? null : sessions.For(SessionStore.Principal(account, null));
     }
 
-    public void Forget(string linkId) => users.TryRemove(linkId, out _);
+    public void Forget(string linkId) { if (users.TryRemove(linkId, out var old)) engine.Value.Forget(old); }
 }
 
 /// <summary>"A progressive response": a short message spoken while the answer is still being worked out.</summary>

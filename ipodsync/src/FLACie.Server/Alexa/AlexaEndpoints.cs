@@ -32,9 +32,9 @@ public static class AlexaEndpoints
         {
             if (!store.Config.Enabled) return Results.NotFound();
             var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "?";
-            if (!guards.PerAddress.TryTake(ip)) return Results.StatusCode(429);
+            if (!guards.PerAddress.TryTake(ip)) { log.LogWarning("Alexa request refused: rate-limit"); return Results.StatusCode(429); }
             // read at most 1 MB
-            if (ctx.Request.ContentLength is > AlexaRequestVerifier.MaxBodyBytes) return Results.StatusCode(413);
+            if (ctx.Request.ContentLength is > AlexaRequestVerifier.MaxBodyBytes) { log.LogWarning("Alexa request refused: too-large"); return Results.StatusCode(413); }
             using var ms = new MemoryStream();
             var buf = new byte[8192]; int n;
             while ((n = await ctx.Request.Body.ReadAsync(buf, ctx.RequestAborted)) > 0) { ms.Write(buf, 0, n); if (ms.Length > AlexaRequestVerifier.MaxBodyBytes) return Results.StatusCode(413); }
@@ -90,7 +90,6 @@ public static class AlexaEndpoints
             if (store.LinkIdByUrlHash(u) is not { } linkId) return Results.NotFound();
             var session = dir.SessionOf(linkId, out _);
             if (session?.Jellyfin is not { } a) return Results.NotFound();
-            ctx.Response.Headers.CacheControl = "private, max-age=3600";
             var http = hf.CreateClient("media");
 
             async Task<IResult> Proxy(HttpRequestMessage req, string type)
@@ -99,7 +98,10 @@ public static class AlexaEndpoints
                 try
                 {
                     using var res = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
+                    // an upstream refusal (a Jellyfin sign-in that was dropped) is a bad gateway, not audio; only a good answer is kept in a cache
+                    if ((int)res.StatusCode is 401 or 403) { ctx.Response.StatusCode = 502; return Results.Empty; }
                     ctx.Response.StatusCode = (int)res.StatusCode;
+                    if (res.IsSuccessStatusCode) ctx.Response.Headers.CacheControl = "private, max-age=3600";
                     ctx.Response.ContentType = type;
                     foreach (var h in new[] { "Content-Length", "Content-Range", "Accept-Ranges" })
                         if (res.Content.Headers.TryGetValues(h, out var v) || res.Headers.TryGetValues(h, out v)) ctx.Response.Headers[h] = v.ToArray();

@@ -5,7 +5,7 @@ Optional and **off by default**. Jellyfin-only keeps working from any network wi
 With it on, you can say to an Echo:
 
 - "Alexa, ask FLACie to play Blinding Lights" / "play XTC" / "play my Road Trip playlist" / "play something like Radiohead" / "play the album OK Computer"
-- "next", "previous", "pause", "resume", "shuffle on", "repeat", "I like this", "I don't like this", "what's playing", "add this to my Road Trip playlist"
+- "next", "previous", "pause", "resume", "shuffle on", "loop on" (repeat the list), "start over" (restart the song), "I like this", "I don't like this", "what's playing", "add this to my Road Trip playlist"
 - If a song is not in your library, Alexa says so and searches for it. It asks Soulseek, Lidarr, Jamendo, Audius, the Internet Archive and SoundCloud through the same downloader the Search page uses, tags it **Requested from Alexa** in the Downloads log, and tells you when it is ready ("is it ready?", "play the last download", and a notification on the Echo if you set that up below).
 
 Why "ask FLACie" and not just "play ...": Amazon only lets its Music Skill API, not a custom skill, be a default music service, and that API needs an AWS Lambda in us-east-1 and US English. The reasons, the full feature table (what is built, what cannot be done, what is for later) and the sources are in [alexa/PLAN.md](alexa/PLAN.md) and [alexa/RESEARCH.md](alexa/RESEARCH.md).
@@ -29,11 +29,11 @@ flacie.example.com {
 }
 ```
 
-With Tailscale Funnel, mount only the path if your version supports it (`tailscale funnel --set-path /alexa ...`); otherwise use a proxy as above. FLACie logs every refused Alexa request (reason only) so you can see what reaches it.
+With Tailscale Funnel, mount only the path if your version supports it (`tailscale funnel --set-path /alexa ...`); otherwise use a proxy as above. FLACie logs every refused Alexa request (a reason only; also too-large and rate-limited ones) so you can see what reaches it.
 
 ## Setup
 
-1. **Turn it on in FLACie.** Settings > Alexa (administrators): switch on *Enable Alexa*. Leave *Alexa can download songs* on or off as you like. The environment variable `FLACIE_PUBLIC_URL=https://flacie.example.com` makes the address explicit (otherwise it is learned from the first Alexa request).
+1. **Turn it on in FLACie.** Settings > Alexa (administrators): switch on *Enable Alexa*. Leave *Alexa can download songs* on or off as you like. Set `FLACIE_PUBLIC_URL=https://flacie.example.com` in the container: it is the address put into the song links. (Without it, the address of the first verified request is used.)
 2. **Install ask-cli and sign in yourself.** `npm install -g ask-cli`, then `ask configure` (it opens the Amazon login in your browser). Nobody else, and none of FLACie's scripts, ever sees that login.
 3. **Deploy the skill.** From the repository:
    ```
@@ -41,7 +41,7 @@ With Tailscale Funnel, mount only the path if your version supports it (`tailsca
    alexa-skill/deploy.sh https://flacie.example.com                    (macOS, Linux)
    ```
    It creates a development-stage skill named FLACie (invocation name "flacie") on your account from `alexa-skill/skill-package`, with the endpoint set to your address. Nothing is submitted for certification. If Amazon refuses a one-word invocation name, change `invocationName` in `alexa-skill/skill-package/interactionModels/custom/*.json` to "flacie player" and deploy again.
-4. **Tell FLACie which skill is allowed.** Copy the skill id (`amzn1.ask.skill....`) printed by the deploy into Settings > Alexa > *Skill ID*. Until you do, every request is refused. (`FLACIE_ALEXA_SKILL_IDS` does the same from the environment; several ids can be separated by commas.)
+4. **Tell FLACie which skill is allowed.** Copy the skill id (`amzn1.ask.skill....`) printed by the deploy into Settings > Alexa > *Skill ID*. Until you do, every request is refused. (`FLACIE_ALEXA_SKILL_IDS` gives the first-start value from the environment; once Settings holds a value, Settings wins. Several ids can be separated by commas.)
 5. **Enable the skill in the Alexa app** (More > Skills & Games > Your Skills > Dev). Then say "Alexa, open FLACie".
 6. **Link your Alexa to your FLACie.** In Settings > Alexa press *Create a code*. Within ten minutes say: "Alexa, open FLACie" and then "my code is 4 8 2 9 1 7". The code works once.
 7. **Notifications (optional).** In the developer console open the skill's *Permissions* and *Login with Amazon* security profile, put its client id and secret in the server's environment as `FLACIE_ALEXA_CLIENT_ID` and `FLACIE_ALEXA_CLIENT_SECRET`, and restart. The first time Alexa starts a download it shows a permission card in the Alexa app; allow notifications there. Without this, the same message is simply spoken the next time you talk to FLACie.
@@ -52,7 +52,7 @@ With Tailscale Funnel, mount only the path if your version supports it (`tailsca
 - Allowlist only. An Alexa account is served only after it said a pairing code made by a signed-in person. *Revoke access* in Settings (each person for their own links, administrators for all) removes the stored sign-in at once.
 - The Jellyfin sign-in behind a link is stored encrypted with the server's data-protection keys (in `/data`). It is never written to a log, never put in a URL and never sent to Amazon.
 - Songs reach the Echo through short-lived signed links (`/alexa/stream/t/<song>.mp3?u=...&e=...&s=...`, six hours). The link proves itself with a signature; it holds no Jellyfin token. Anyone who gets a link can stream that one song until it expires, which is how Echo devices work (they cannot send a password).
-- Requests are rate limited per address and per Alexa account, and everything the server does for Alexa goes through the same request gate as the rest of FLACie (it does not add load on Jellyfin per song).
+- Requests are rate limited per address and per Alexa account, and Jellyfin is only ever asked through the same request gate as the rest of FLACie (library listing and catalog export make no call per song; each song that plays is one proxied stream or transcode, like the browser player).
 - Turn the download switch off in Settings and Alexa can never start a download.
 
 ## Limitations

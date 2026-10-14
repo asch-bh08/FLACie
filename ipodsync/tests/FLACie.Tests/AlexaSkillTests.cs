@@ -104,8 +104,12 @@ public class AlexaSkillTests
         using var r = new Rig(linked: false);
         r.Store.Redeem(Alexa, r.Store.NewCode(new JellyfinAccount("http://jf", "u1", "ash", "T")).Code, "en-GB");
         Assert.False(r.Store.IsNotifiable(Alexa));
-        var accepted = Req(new() { ["type"] = "AlexaSkillEvent.SkillPermissionAccepted", ["body"] = new JsonObject { ["acceptedPermissions"] = new JsonArray(new JsonObject { ["scope"] = AlexaSkill.NotifyPermission }) } });
+        var accepted = Req(new() { ["type"] = "AlexaSkillEvent.SkillPermissionAccepted", ["body"] = new JsonObject { ["acceptedPermissions"] = new JsonArray(new JsonObject { ["permissionScope"] = AlexaSkill.NotifyPermission }) } });
         Assert.Equal("", Speech(await r.Send(accepted))); Assert.True(r.Store.IsNotifiable(Alexa));
+        var sub = Req(new() { ["type"] = "AlexaSkillEvent.ProactiveSubscriptionChanged", ["body"] = new JsonObject { ["subscriptions"] = new JsonArray() } });
+        await r.Send(sub); Assert.False(r.Store.IsNotifiable(Alexa));
+        sub["request"]!["body"]!["subscriptions"] = new JsonArray(new JsonObject { ["eventName"] = "AMAZON.MediaContent.Available" });
+        await r.Send(sub); Assert.True(r.Store.IsNotifiable(Alexa));
         var changed = Req(new() { ["type"] = "AlexaSkillEvent.SkillPermissionChanged", ["body"] = new JsonObject { ["acceptedPermissions"] = new JsonArray() } });
         await r.Send(changed); Assert.False(r.Store.IsNotifiable(Alexa));
     }

@@ -28,7 +28,7 @@ Key: **Do** = built in this work. **Can't** = not possible, with the reason. **L
 |---|---|---|
 | Play song / artist / album / playlist | **Do** | Our own slots and fuzzy and phonetic matching (`VoiceMatcher`). |
 | Play genre, decade, "recently added", "my library" | **Do** | Built as a made-up playlist from the library. |
-| "Something like <artist>" | **Do** | Uses the existing taste/similarity code, otherwise Jellyfin similarity. |
+| "Something like <artist>" | **Do** (simple) | The artist's own songs first, then songs of other artists in the same genres and years, from your library. It is not an audio-similarity radio. |
 | Pause, resume, stop, next, previous, start over | **Do** | `AMAZON.*` intents and `PlaybackController`. |
 | Shuffle, repeat one/all | **Do** | `AMAZON.ShuffleOn/Off`, `LoopOn/Off`, `RepeatIntent`. |
 | What's playing / who sings this | **Do** | Custom intent (needs "ask flacie"); title and artist are also shown on screens. |
@@ -41,7 +41,7 @@ Key: **Do** = built in this work. **Can't** = not possible, with the reason. **L
 | Now playing card on Echo Show and Fire TV | **Do** | Title, subtitle, cover art and background (all four are sent together). |
 | Progressive "searching…" message | **Do** | `VoicePlayer.Speak`, max 5, only from intents. |
 | Pair an Alexa account | **Do** | One-time six digit code from Settings (no OAuth server needed). Allowlist only, revoke button. |
-| Show Alexa in Connect as a playing device | **Do** | Read-only "Echo plays X" row with hand-over to the app. Remote control of an Echo from the app is limited to pause/skip because it only works through our own queue. |
+| Show Alexa in Connect as a playing device | **Do** | Read-only "Echo (Alexa)" row in the devices menu with hand-over to the app ("Play here"). Controlling an Echo from the app is **not possible**: a skill can only answer Alexa's requests, never start or stop playback by itself. |
 | Sleep timer | **Can't** (not as a skill feature) | Not documented for third-party skills. "Alexa, stop playing in 30 minutes" is a device feature; test whether it works with the skill (listed in the by-ear script). |
 | Alarms with music, routines with music | **Can't** for B | Built-in alarms cannot target a custom skill. Routines may call "ask flacie…" as a custom action (to test). A might support alarms. |
 | Multi-room groups | **Can't** for B (inferred) | Custom AudioPlayer skills do not join native groups. A: documented, **Later**. |

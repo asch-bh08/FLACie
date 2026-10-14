@@ -85,6 +85,8 @@ r = await send(body(intent('PlayIntent', { query: 'aurora vale' }))); check('an 
 const login = await fetch(base + '/auth/jellyfin', { method: 'POST', redirect: 'manual', body: new URLSearchParams({ user: 'tester', password: 'pw' }) });
 const cookie = (login.headers.getSetCookie?.() || []).map((c) => c.split(';')[0]).join('; ');
 check('signed in to FLACie as the mock user', login.status === 302 && cookie.includes('flacie'), login.status);
+const settings = await (await fetch(base + '/settings', { headers: { cookie } })).text();
+check('the Settings page has the Alexa section with the enable switch (administrator)', settings.includes('id="alexa"') && settings.includes('Enable Alexa') && settings.includes('Alexa can download songs') && settings.includes('Create a code'), settings.slice(0, 200));
 const codeRes = await fetch(base + '/api/alexa/code', { method: 'POST', headers: { cookie } }); const code = (await codeRes.json()).code;
 check('a pairing code was made', /^\d{6}$/.test(code), code);
 r = await send(body(intent('LinkIntent', { code: '000000' }))); check('a wrong code does not link', /didn't work/i.test(say(r)), say(r));

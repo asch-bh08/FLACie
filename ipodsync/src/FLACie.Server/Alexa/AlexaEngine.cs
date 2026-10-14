@@ -63,12 +63,15 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
             {
                 if (ReferenceEquals(m.Songs, songs) && ReferenceEquals(m.Lists, lists)) return m.M;
                 if (!building.Add(u)) return m.M;
-                _ = Task.Run(() => { var fresh = new VoiceMatcher(songs, lists); lock (gate) { matchers[u] = (songs, lists, fresh); building.Remove(u); } });
+                _ = Task.Run(() => { try { var fresh = new VoiceMatcher(songs, lists); lock (gate) matchers[u] = (songs, lists, fresh); } catch (Exception) { } finally { lock (gate) building.Remove(u); } });
                 return m.M;
             }
             var built = new VoiceMatcher(songs, lists); matchers[u] = (songs, lists, built); return built;
         }
     }
+    /// <summary>The index of a person who is no longer served (their session was replaced, or access was revoked).</summary>
+    public void Forget(IAlexaUser u) { lock (gate) { matchers.Remove(u); building.Remove(u); } }
+
     readonly HashSet<IAlexaUser> building = new(ReferenceEqualityComparer.Instance!);
 
     public static string Token(AlexaQueue q, int index, int pass) => $"{q.Serial}:{index}:{pass}";
@@ -80,6 +83,11 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
     }
 
     AlexaTrackPlay? PlayCurrent(IAlexaUser u, AlexaQueue q, long offset)
+    {
+        lock (q) return PlayCurrentLocked(u, q, offset);
+    }
+
+    AlexaTrackPlay? PlayCurrentLocked(IAlexaUser u, AlexaQueue q, long offset)
     {
         for (var guard = 0; guard < 50 && q.Current is { } path; guard++)
         {
@@ -245,7 +253,7 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
     public void Position(string linkId, string? token, long offsetMs)
     {
         var q = queues.For(linkId);
-        if (TryToken(token, out var serial, out var idx, out _) && serial == q.Serial && idx == q.Index) { q.OffsetMs = Math.Max(0, offsetMs); }
+        lock (q) { if (TryToken(token, out var serial, out var idx, out _) && serial == q.Serial && idx == q.Index) q.OffsetMs = Math.Max(0, offsetMs); }
     }
 
     public Reply Next(IAlexaUser u, string linkId)
@@ -342,8 +350,8 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
     public void Started(string linkId, string? token)
     {
         var q = queues.For(linkId);
-        if (!TryToken(token, out var serial, out var idx, out var pass) || serial != q.Serial || idx < 0 || idx >= q.Order.Count) return;
-        lock (q) { q.Index = idx; q.Pass = pass; q.Playing = true; q.OffsetMs = 0; q.FailStreak = 0; }
+        if (!TryToken(token, out var serial, out var idx, out var pass)) return;
+        lock (q) { if (serial != q.Serial || idx < 0 || idx >= q.Order.Count) return; q.Index = idx; q.Pass = pass; q.Playing = true; q.OffsetMs = 0; q.FailStreak = 0; }
         queues.Save(linkId);
     }
 
@@ -385,8 +393,9 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
     public AlexaTrackPlay? Failed(IAlexaUser u, string linkId, string? token)
     {
         var q = queues.For(linkId);
-        if (!TryToken(token, out var serial, out _, out _) || serial != q.Serial) return null;
-        bool moved; lock (q) { q.FailStreak++; moved = q.FailStreak <= 3 && q.Next(true); }
+        if (!TryToken(token, out var serial, out var idx, out _) || serial != q.Serial) return null;
+        // the song that failed may be the one that was lined up, which never "started": count from it, so it is skipped and not tried again
+        bool moved; lock (q) { if (idx >= 0 && idx < q.Order.Count) q.Index = idx; q.FailStreak++; moved = q.FailStreak <= 3 && q.Next(true); }
         queues.Save(linkId);
         return moved ? PlayCurrent(u, q, 0) : null;
     }

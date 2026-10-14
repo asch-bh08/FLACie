@@ -103,7 +103,7 @@ public sealed class AlexaRequestVerifier(IAlexaCertSource source, string? skillI
     {
         url = null;
         if (string.IsNullOrWhiteSpace(s) || !Uri.TryCreate(s.Trim(), UriKind.Absolute, out var u)) return false;
-        if (u.Scheme != Uri.UriSchemeHttps || u.UserInfo.Length > 0 || u.Port != 443) return false;
+        if (u.Scheme != Uri.UriSchemeHttps || u.UserInfo.Length > 0 || u.Port != 443 || u.Query.Length > 0 || u.Fragment.Length > 0) return false;   // no query: it would make every request a new cache key
         if (!string.Equals(u.Host, "s3.amazonaws.com", StringComparison.OrdinalIgnoreCase)) return false;
         var p = u.AbsolutePath;
         if (p.Contains('%') || p.Contains('\\') || !p.StartsWith("/echo.api/", StringComparison.Ordinal)) return false;

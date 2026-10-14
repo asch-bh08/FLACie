@@ -404,3 +404,15 @@ public class AlexaVerifierFloodTests
         Assert.Equal(2, src.Calls);
     }
 }
+
+public class AlexaCertUrlQueryTests
+{
+    [Fact] public async Task ACertificateAddressWithAQueryOrFragmentIsRefused()
+    {
+        var v = new AlexaRequestVerifier(new NeverSource(), "amzn1.ask.skill.x");
+        var body = System.Text.Encoding.UTF8.GetBytes("{}"); var sig = Convert.ToBase64String(new byte[256]);
+        foreach (var url in new[] { "https://s3.amazonaws.com/echo.api/echo-api-cert.pem?x=1", "https://s3.amazonaws.com/echo.api/echo-api-cert.pem#f" })
+            Assert.Equal("bad-cert-url", (await v.VerifyAsync(url, sig, null, body)).Reason);
+    }
+    sealed class NeverSource : IAlexaCertSource { public Task<byte[]> FetchAsync(Uri url, CancellationToken ct) => throw new InvalidOperationException("must not be fetched"); }
+}

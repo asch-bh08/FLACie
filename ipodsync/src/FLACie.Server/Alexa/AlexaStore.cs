@@ -58,7 +58,7 @@ public sealed class AlexaStore
         {
             if (File.Exists(file) && JsonSerializer.Deserialize<State>(File.ReadAllText(file)) is { } s) { cfg = s.Config ?? new(); links = s.Links ?? []; }
         }
-        catch (Exception) { }
+        catch (Exception) { try { File.Copy(file, file + ".unreadable-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss"), true); } catch (Exception) { } }   // keep what could not be read: the next save would overwrite it
         if (cfg.SkillIds.Length == 0 && conf["FLACIE_ALEXA_SKILL_IDS"] is { Length: > 0 } ids) cfg.SkillIds = ids;
     }
 
@@ -107,6 +107,7 @@ public sealed class AlexaStore
     public AlexaLink? Redeem(string alexaUserId, string spokenCode, string locale)
     {
         var digits = new string((spokenCode ?? "").Where(char.IsDigit).ToArray());
+        if (digits.Length is > 0 and < 6) digits = digits.PadLeft(6, '0');   // Alexa hears "0 1 2 3 4 5" as the number 12345
         var id = HashUser(alexaUserId);
         lock (gate)
         {

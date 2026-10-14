@@ -37,12 +37,13 @@
                 }
             </div>
         </div>
-        <div class="ipod-wheel" @ref="wheel" data-testid="ipod-wheel">
-            <button class="wl wl-menu" @onclick="Menu" aria-label="Menu" data-testid="ipod-menu">MENU</button>
-            <button class="wl wl-next" @onclick="Next" aria-label="Next song" data-testid="ipod-next">⏭</button>
-            <button class="wl wl-prev" @onclick="Prev" aria-label="Previous song" data-testid="ipod-prev">⏮</button>
-            <button class="wl wl-play" @onclick="Player.Toggle" aria-label="Play or pause" data-testid="ipod-play">⏯</button>
-            <button class="ipod-center" @onclick="Press" aria-label="Select" data-testid="ipod-center"></button>
+        @* the wheel never takes the focus: a focused button would also act on Enter and Space, on top of the key handler of the stage *@
+        <div class="ipod-wheel" @ref="wheel" data-testid="ipod-wheel" @onmousedown:preventDefault>
+            <button tabindex="-1" class="wl wl-menu" @onclick="Menu" aria-label="Menu" data-testid="ipod-menu">MENU</button>
+            <button tabindex="-1" class="wl wl-next" @onclick="Next" aria-label="Next song" data-testid="ipod-next">⏭</button>
+            <button tabindex="-1" class="wl wl-prev" @onclick="Prev" aria-label="Previous song" data-testid="ipod-prev">⏮</button>
+            <button tabindex="-1" class="wl wl-play" @onclick="Player.Toggle" aria-label="Play or pause" data-testid="ipod-play">⏯</button>
+            <button tabindex="-1" class="ipod-center" @onclick="Press" aria-label="Select" data-testid="ipod-center"></button>
         </div>
     </div>
 </div>

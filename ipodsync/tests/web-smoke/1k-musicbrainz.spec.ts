@@ -48,6 +48,8 @@ async function openInfo(page: Page) {
   await expect(page.locator('.tracks .track')).toHaveCount(8, { timeout: 20_000 });
   await page.locator('.tracks .track-main').first().click();
   await expect(page.getByRole('button', { name: 'Open Now Playing' })).toBeVisible({ timeout: 20_000 });
+  // the mock's songs are 3 seconds long: stop at once, or the queue moves on to Lab 2 while the test is looking
+  await page.getByRole('button', { name: 'Pause' }).first().click();
   await page.getByRole('button', { name: 'Open Now Playing' }).click();
   await page.getByRole('tab', { name: 'Info' }).click();
   await expect(page.locator('#mb-match')).toBeVisible({ timeout: 20_000 });
@@ -55,7 +57,7 @@ async function openInfo(page: Page) {
 
 test.describe.serial('musicbrainz match', () => {
   test.beforeAll(async () => { await new Promise<void>((ok) => server.listen(FM, '127.0.0.1', ok)); });
-  test.afterAll(async () => { await new Promise<void>((ok) => server.close(() => ok())); });
+  test.afterAll(async () => { await new Promise<void>((ok) => { server.close(() => ok()); server.closeAllConnections(); }); });   // the server under test keeps its connections alive; close would wait for them
 
   test('nothing is asked until the button is pressed; then the best match comes first and the choice is kept', async ({ page }) => {
     test.setTimeout(120_000);

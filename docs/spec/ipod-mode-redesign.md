@@ -1,6 +1,6 @@
 # iPod mode redesign
 
-Status: spec, written 2026-10-13 (U4 of the overnight prompt). Built so far (beta 60): wheel inertia (WheelInertia, tested) and wheel label contrast (ContrastClamp, tested); the LCD renderer, device art, menu transitions, per-generation Now Playing and Cover Flow are not built. The current themes stay untouched until a new one passes the same tests (D-pad/keys, wheel physics `WheelPhysicsTest`, square layout via `--es fake WxH`).
+Status (beta 63): built: Classic Cover Flow, list scrollbar, scrub diamond, bezel inner shadow (Android); the whole iPod mode on the web and Windows (/ipod, IpodNav + WheelDetents tested). Not built: integer-scaled logical-resolution LCD with a bitmap font, title cross-fade, Cover Flow on the other themes. Original spec, written 2026-10-13 (U4 of the overnight prompt). Built so far (beta 60): wheel inertia (WheelInertia, tested) and wheel label contrast (ContrastClamp, tested); the LCD renderer, device art, menu transitions, per-generation Now Playing and Cover Flow are not built. The current themes stay untouched until a new one passes the same tests (D-pad/keys, wheel physics `WheelPhysicsTest`, square layout via `--es fake WxH`).
 
 ## What exists today (emulator, beta 57)
 Three modes in Settings > Mode > iPod appearance: **iPod Player** (flat app in iPod colours), **iPod Emulator** (device body + screen + wheel), **Click Wheel Fullscreen** (menus + wheel without body). Models and colourways come from `theme/Themes`. Screens: `img/ipod-emulator-today.png`, `img/ipod-player-home-today.png`.

@@ -528,6 +528,9 @@ window.flacie = (() => {
       window.flacie.ipodDispose();
       const fit = () => { const s = Math.min(innerWidth / 360, innerHeight / 600, 2.2); device.style.setProperty("--s", String(Math.max(0.4, s))); };
       fit(); addEventListener("resize", fit); stage.focus();
+      // the keys the device uses are the device's alone: a focused button must not also click on Enter or Space, and the page-wide shortcuts (Space, arrows) must not act as well
+      const keys = e => { if (["Enter", " ", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) e.preventDefault(); };
+      stage.addEventListener("keydown", keys);
       let last = null, acc = 0, moved = 0, timer = null, local = 0;
       const ang = e => { const r = wheel.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI; };
       const flush = () => { if (acc !== 0) { const d = acc; acc = 0; ref.invokeMethodAsync("Turned", d).catch(() => { }); } };
@@ -546,11 +549,11 @@ window.flacie = (() => {
       };
       const up = () => { if (last === null) return; last = null; clearInterval(timer); flush(); ref.invokeMethodAsync("Released").catch(() => { }); wheel.classList.remove("turning"); };
       wheel.addEventListener("pointerdown", down); addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up);
-      ipod = { fit, down, move, up, wheel };
+      ipod = { fit, down, move, up, wheel, stage, keys };
     },
     ipodDispose() {
       if (!ipod) return;
-      removeEventListener("resize", ipod.fit); ipod.wheel.removeEventListener("pointerdown", ipod.down);
+      removeEventListener("resize", ipod.fit); ipod.wheel.removeEventListener("pointerdown", ipod.down); ipod.stage.removeEventListener("keydown", ipod.keys);
       removeEventListener("pointermove", ipod.move); removeEventListener("pointerup", ipod.up); removeEventListener("pointercancel", ipod.up); ipod = null;
     },
     // a song's menu is a short scrollable list: bring its last part (the Hi-Res question) into view

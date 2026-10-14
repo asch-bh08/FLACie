@@ -2,6 +2,14 @@
 
 Each beta adds its items; tick them off on the Fold. Nothing here was verified on a device unless it says so.
 
+## Beta 63
+- [ ] Stars: rate a song (button beside the heart), then look at it in Jellyfin (the song's rating should be stars x 2). Rate on the phone, open the web: same stars.
+- [ ] Lock screen / Bluetooth / car: the Up next list shows the queue around the song; next, previous and picking a song work; with a 10,000-song queue nothing hangs.
+- [ ] Cover transition: open Now Playing from the mini player, and close it again; the cover should fly, not jump.
+- [ ] iPod mode on the web / Windows (account menu > iPod mode): wheel feel by finger and by mouse, keys, volume on Now Playing. Black model: add ?c=black.
+- [ ] Android iPod Classic: Cover Flow (Cover Flow in the main menu), scrollbar, scrub diamond (press the middle on Now Playing).
+- [ ] Chromecast: decide how a receiver may fetch songs (docs/spec/chromecast.md).
+
 ## Beta 57 / 58
 - [ ] Seek bar feel: drag, tap, release. The knob should stay where you let go (no jump back), the time under it follows your finger.
 - [ ] Skip feel: press Next several times quickly. The next cover should show at once, not the placeholder note.

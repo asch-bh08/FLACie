@@ -30,3 +30,6 @@ One line per decision or result. Honest: skipped or untested things are said so.
 ## iPod mode (web + Windows) and Android iPod
 - New /ipod page (device art, LCD, wheel by drag/mouse wheel/keys, Music > Artists/Albums/Songs/Favorites, Playlists, Shuffle, Now Playing with volume on the wheel); IpodNav + WheelDetents pure and unit-tested; Playwright spec 1m-ipod (menus, wheel drag, keys, playback, small window, black model). Windows inherits it through the embedded server (menu: iPod mode).
 - Android: Cover Flow page in the Classic theme, scrollbar, bezel inner shadow. Checked on the emulator (docs/img/ipod-coverflow-android.png).
+
+## Beta 63 released
+- Android 78 / MSI 0.63.0 / Web 1.0-beta63. Android 414/2/0, .NET 311, Playwright green (test isolation fixed: MusicBrainz cache cleared per run). Emulator run of the release APK clean (kill-restore ok, 0 crash lines). MSI built, not installed. Disk was 3.7 GB: freed emulator snapshots (C:wt is a protected path, left alone).

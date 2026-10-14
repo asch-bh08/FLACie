@@ -2,6 +2,7 @@
 @inject MbOverlay Overlay
 @inject CoverArtArchiveClient Caa
 @inject CoverOverrides Covers
+@inject PlayerState Player
 @* The song's match on MusicBrainz (the open music database): asked only when a person presses the button (at most one request a second, cached), shown with a score,
    and kept beside the library when chosen. It never changes the file, the tags or Jellyfin. *@
 <section class="mb" id="mb-match" aria-label="MusicBrainz match">
@@ -108,13 +109,13 @@
         {
             var bytes = await Caa.FetchAsync(im.Full) ?? await Caa.FetchAsync(im.Thumb);
             if (bytes is null || Covers.Set(key, bytes, "Cover Art Archive " + im.Id) is null) error = "That picture could not be fetched.";
-            else { pictures = null; coverDone = true; }
+            else { pictures = null; coverDone = true; Player.Redraw(); }
         }
         catch (Exception) { error = "The Cover Art Archive did not answer. Try again in a minute."; }
         finally { busy = false; }
     }
 
-    void OriginalCover() { if (ArtKeyOf is { } key) { Covers.Clear(key); coverDone = true; } }
+    void OriginalCover() { if (ArtKeyOf is { } key) { Covers.Clear(key); coverDone = true; Player.Redraw(); } }
 
     void Use(MbCandidate c) { Overlay.Set(Track, c); results = null; }
     void Forget() { Overlay.Clear(Track); results = null; }

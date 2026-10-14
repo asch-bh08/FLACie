@@ -62,9 +62,12 @@ test.describe.serial('ipod mode', () => {
 
     // a song from Music > Songs
     await page.getByTestId('ipod-center').click();
-    await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown');
+    await expect(title(page)).toHaveText('Music');          // each step is awaited: a key sent before the last one is drawn would act on the old menu
+    await page.keyboard.press('ArrowDown'); await expect(sel(page)).toHaveText(/Albums/);
+    await page.keyboard.press('ArrowDown'); await expect(sel(page)).toHaveText(/Songs/);
     await page.keyboard.press('Enter');
     await expect(title(page)).toHaveText('Songs');
+    await expect(sel(page)).toHaveText(/Harbour/);
     await expect(rows(page).first()).toBeVisible();
     await page.keyboard.press('Enter');
     await expect(page.getByTestId('ipod-np')).toBeVisible({ timeout: 20_000 });
@@ -86,6 +89,8 @@ test.describe.serial('ipod mode', () => {
     await page.setViewportSize({ width: 360, height: 640 });
     await page.goto('/ipod?c=black');
     await expect(rows(page)).toHaveCount(6, { timeout: 20_000 });
+    await expect(page.getByTestId('ipod-device')).toBeVisible();
+    await page.waitForTimeout(300);   // the fit script has run
     const b = (await page.getByTestId('ipod-device').boundingBox())!;
     expect(b.x).toBeGreaterThanOrEqual(0); expect(b.y).toBeGreaterThanOrEqual(0);
     expect(b.x + b.width).toBeLessThanOrEqual(360 + 1); expect(b.y + b.height).toBeLessThanOrEqual(640 + 1);

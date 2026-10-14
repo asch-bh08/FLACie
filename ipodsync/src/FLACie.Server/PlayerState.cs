@@ -126,6 +126,8 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
 
     public Track? Current => Index >= 0 && Index < Queue.Count ? Queue[Index] : null;
     public event Action? Changed;
+    /// <summary>Something the player shows changed from outside it (a chosen cover): draw it again now, paused or not.</summary>
+    public void Redraw() => Changed?.Invoke();
     /// <summary>A page that starts music asks the player bar to open the full-screen player.</summary>
     public event Action? FullScreenRequested;
     public void RequestFullScreen() => FullScreenRequested?.Invoke();

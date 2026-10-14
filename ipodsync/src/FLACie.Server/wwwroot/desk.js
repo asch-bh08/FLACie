@@ -97,7 +97,7 @@ window.desk = (() => {
     vizStart(canvas, style, scene, title) {
       this.vizStop(true);
       if (!canvas || !canvas.getContext) return;
-      const s = loop = { canvas, g: canvas.getContext('2d'), scene: scene || null, style: views[style] ? style : 'bars', title: title || '', raf: 0, last: 0, t: 0 };
+      const s = loop = { canvas, g: canvas.getContext('2d'), scene: scene || canvas.closest('.desk'), style: views[style] ? style : 'bars', title: title || '', raf: 0, last: 0, t: 0 };
       s.ro = new ResizeObserver(() => size(s)); s.ro.observe(canvas);
       size(s); s.raf = requestAnimationFrame(tick);
     },

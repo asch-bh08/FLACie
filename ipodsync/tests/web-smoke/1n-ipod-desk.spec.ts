@@ -26,9 +26,13 @@ test.describe('desk visualiser on its own (desk.js harness)', () => {
     }
     // the bass reaches the scene as a CSS variable (the woofers move with it)
     expect(Number(await page.evaluate(() => getComputedStyle(document.getElementById('scene')!).getPropertyValue('--bass')))).toBeGreaterThan(0);
+    // started with no scene (the Razor component can't pass its parent's element on the first render): the canvas finds its .desk itself
+    await page.evaluate(() => { const w = window as any; w.desk.vizStop(); document.getElementById('scene')!.style.removeProperty('--bass'); w.desk.vizStart(document.getElementById('c'), 'bars', null, ''); });
+    await page.waitForTimeout(300);
+    expect(Number(await page.evaluate(() => getComputedStyle(document.getElementById('scene')!).getPropertyValue('--bass') || '0'))).toBeGreaterThan(0);
     await page.evaluate(() => (window as any).desk.vizStop());
     expect(await page.evaluate(() => (window as any).desk.loops())).toBe(0);
-    expect(await page.evaluate(() => (window as any).released)).toBe(1);
+    expect(await page.evaluate(() => (window as any).released)).toBe(2);   // each stop that ends the desk releases the analyser
 
     // no analyser (iOS, no AudioContext, nothing played yet): the monitor still shows its idle picture
     await page.goto(harness('?null=1'));

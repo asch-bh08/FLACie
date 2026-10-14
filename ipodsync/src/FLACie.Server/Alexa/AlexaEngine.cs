@@ -375,6 +375,16 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
 
     // ---- notices ----
 
+    /// <summary>True the first time only: the permission card for notifications is shown once per link.</summary>
+    public bool ShouldAskPermission(string linkId)
+    {
+        var q = queues.For(linkId);
+        lock (q) { if (q.AskedNotify) return false; q.AskedNotify = true; }
+        queues.Save(linkId);
+        return true;
+    }
+
+
     /// <summary>A download Alexa asked for has ended: remember what to tell the person (the next time they talk to FLACie, and as a notification).</summary>
     public void DownloadEnded(string linkId, string artist, string title, bool ok, string message)
     {

@@ -32,6 +32,8 @@ public sealed class AlexaQueue
     public DateTime? LastDownloadAt { get; set; }
     /// <summary>What to tell the person next time they talk to FLACie (a download ended).</summary>
     public string? Notice { get; set; }
+    /// <summary>The permission card for notifications has been shown once; it is not shown again and again.</summary>
+    public bool AskedNotify { get; set; }
     /// <summary>A question that was asked and not answered yet ("Did you mean ...?").</summary>
     public Pending? Pending { get; set; }
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

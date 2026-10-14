@@ -7,8 +7,10 @@
 <PageTitle>iPod · FLACie</PageTitle>
 @* The iPod mode: every iPod of the Android emulator (23 models, their colours, the mono / colour / nano screens, Cover Flow, the settings), on the page and in the Windows app.
    Wheel by drag, tap, hold and flick; mouse wheel; keys: arrows, Enter, Esc, Space. Touch models show the FLACie player in their screen. *@
-<div class="ipod-stage @(flat ? "flat" : "") @(color.Dark ? "dark" : "")" @ref="stage" tabindex="0" @onkeydown="Key" @onwheel="OnMouseWheel" @onwheel:preventDefault data-testid="ipod" data-model="@model.Id" data-color="@color.Name" data-look="@(flat ? "wheel" : "device")" style="@StageStyle">
-    <div class="ipod fam-@FamClass @(model.Touch ? "touch" : "click") @(model.Buttons ? "btns" : "")" @ref="device" data-testid="ipod-device" data-w="@Bw" data-h="@Bh" style="@DeviceStyle">
+<div class="ipod-stage @(flat ? "flat" : "") @(color.Dark ? "dark" : "") @(panel ? "dock-open" : "")" data-testid="ipod" data-model="@model.Id" data-color="@color.Name" data-look="@(flat ? "wheel" : "device")" style="@StageStyle">
+    <div class="ipod-area" @ref="stage" tabindex="0" @onkeydown="Key" @onwheel="OnMouseWheel" @onwheel:preventDefault @onclick="FocusStage" data-testid="ipod-keys" aria-label="iPod: arrow keys scroll, Enter selects, Escape goes back">
+      <div class="ipod-fit" @ref="fitEl">
+        <div class="ipod fam-@FamClass @(model.Touch ? "touch" : "click") @(model.Buttons ? "btns" : "")" @ref="device" data-testid="ipod-device" data-w="@F(Bw)" data-h="@F(Bh)" style="@DeviceStyle">
         @if (model.Touch)
         {
             <div class="ipod-face" style="@FaceStyle"></div>
@@ -25,57 +27,94 @@
                     else { @ListScreen() }
                 </div>
             </div>
-            <div class="ipod-wheel" @ref="wheel" data-testid="ipod-wheel" style="@WheelStyle">
+            <div class="ipod-wheel" @ref="wheel" data-testid="ipod-wheel" style="@WheelStyle" title="Drag around the ring to scroll. Tap MENU, the arrows, play/pause or the middle. Hold the arrows to seek, hold MENU to go home.">
                 @if (model.Buttons)
                 {
-                    <div class="wb wb-menu" data-testid="ipod-menu" aria-label="Menu"><span>MENU</span></div>
-                    <div class="wb wb-next" data-testid="ipod-next" aria-label="Next song"><Icon Name="next" Size="12" /></div>
-                    <div class="wb wb-prev" data-testid="ipod-prev" aria-label="Previous song"><Icon Name="prev" Size="12" /></div>
-                    <div class="wb wb-play" data-testid="ipod-play" aria-label="Play or pause"><Icon Name="play" Size="10" /><Icon Name="pause" Size="10" /></div>
+                    <div class="wb wb-menu" data-testid="ipod-menu" aria-label="Menu" title="Menu (Esc)"><span>MENU</span></div>
+                    <div class="wb wb-next" data-testid="ipod-next" aria-label="Next song" title="Next (right arrow)"><Icon Name="next" Size="12" /></div>
+                    <div class="wb wb-prev" data-testid="ipod-prev" aria-label="Previous song" title="Previous (left arrow)"><Icon Name="prev" Size="12" /></div>
+                    <div class="wb wb-play" data-testid="ipod-play" aria-label="Play or pause" title="Play / pause (Space)"><Icon Name="play" Size="10" /><Icon Name="pause" Size="10" /></div>
                 }
                 else
                 {
-                    <span class="wl wl-menu" data-testid="ipod-menu" aria-label="Menu">MENU</span>
-                    <span class="wl wl-next" data-testid="ipod-next" aria-label="Next song"><Icon Name="next" Size="16" /></span>
-                    <span class="wl wl-prev" data-testid="ipod-prev" aria-label="Previous song"><Icon Name="prev" Size="16" /></span>
-                    <span class="wl wl-play" data-testid="ipod-play" aria-label="Play or pause"><Icon Name="play" Size="12" /><Icon Name="pause" Size="12" /></span>
+                    <span class="wl wl-menu" data-testid="ipod-menu" aria-label="Menu" title="Menu (Esc)">MENU</span>
+                    <span class="wl wl-next" data-testid="ipod-next" aria-label="Next song" title="Next (right arrow)"><Icon Name="next" Size="16" /></span>
+                    <span class="wl wl-prev" data-testid="ipod-prev" aria-label="Previous song" title="Previous (left arrow)"><Icon Name="prev" Size="16" /></span>
+                    <span class="wl wl-play" data-testid="ipod-play" aria-label="Play or pause" title="Play / pause (Space)"><Icon Name="play" Size="12" /><Icon Name="pause" Size="12" /></span>
                 }
-                <div class="ipod-center" data-testid="ipod-center" aria-label="Select"></div>
+                <div class="ipod-center" data-testid="ipod-center" aria-label="Select" title="Select (Enter)"></div>
             </div>
         }
+        </div>
+      </div>
     </div>
-    <button class="ipod-gear" type="button" tabindex="-1" aria-label="Choose an iPod" data-testid="ipod-gear" @onclick="() => panel = !panel" @onmousedown:preventDefault><Icon Name="settings" Size="18" /></button>
-    <a class="ipod-exit" href="/" tabindex="-1" aria-label="Back to FLACie" data-testid="ipod-exit"><Icon Name="chevron-left" Size="18" /></a>
-    @if (panel)
-    {
-        <div class="ipod-panel" data-testid="ipod-panel" @onclick:stopPropagation>
-            <h2>Choose an iPod</h2>
-            @foreach (var g in IpodModels.Groups)
+    <a class="ipod-exit" href="/" aria-label="Back to FLACie" title="Back to FLACie" data-testid="ipod-exit"><Icon Name="chevron-left" Size="18" /></a>
+    <button class="ipod-gear" type="button" tabindex="-1" aria-label="@(panel ? "Hide the panel" : "Show the panel")" title="Panel: pick an iPod, colour and look" data-testid="ipod-gear" @onclick="TogglePanel"><Icon Name="settings" Size="18" /></button>
+    <aside class="ipod-dock ipod-panel @(panel ? "open" : "")" data-testid="ipod-panel" aria-label="iPod panel">
+        <h2>iPod</h2>
+        <section class="dock-np" data-testid="ipod-dock-np">
+            @if (Player.Current is { } cur)
             {
-                <h3>@IpodMenus.GroupTitle(g)</h3>
-                <div class="ipod-chips">
-                    @foreach (var m in IpodModels.InGroup(g))
-                    {
-                        <button type="button" class="ipod-chip @(m.Id == model.Id ? "on" : "")" data-model="@m.Id" @onclick="() => PickModel(m.Id)" title="@m.Blurb">@m.GenLabel @(m.Group == IpodModels.TouchGroup ? "" : "")<small>@m.Year</small></button>
-                    }
+                <div class="dock-cover"><Cover ArtKey="@cur.ArtKey" Full="true" Class="dock-art" /></div>
+                <div class="dock-meta"><b>@cur.Title</b><span>@cur.Artist</span><small>@cur.Album</small></div>
+                <div class="dock-bar"><i style="width:@Pct()%"></i></div>
+                <div class="dock-times"><span>@Fmt(Player.Position)</span><span>-@Fmt(Math.Max(0, Player.Duration - Player.Position))</span></div>
+                <div class="dock-ctl">
+                    <button type="button" aria-label="Previous" @onclick="() => Player.Prev()" tabindex="-1"><Icon Name="prev" Size="18" /></button>
+                    <button type="button" class="big" aria-label="@(Player.Playing ? "Pause" : "Play")" @onclick="() => Player.Toggle()" tabindex="-1"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="22" /></button>
+                    <button type="button" aria-label="Next" @onclick="() => Player.Next()" tabindex="-1"><Icon Name="next" Size="18" /></button>
                 </div>
             }
-            <h3>Colour</h3>
+            else { <p class="dock-empty">Nothing is playing. Pick a song on the iPod: Music &rsaquo; Songs, or Shuffle Songs.</p> }
+        </section>
+        <section>
+            <h3>Model</h3>
+            <div class="dock-seg" role="tablist">
+                @foreach (var g in IpodModels.Groups)
+                {
+                    var gg = g;
+                    <button type="button" class="@(gg == pickGroup ? "on" : "")" data-group="@gg" tabindex="-1" @onclick="() => pickGroup = gg">@GroupShort(gg)</button>
+                }
+            </div>
+            <div class="dock-models">
+                @foreach (var m in IpodModels.InGroup(pickGroup))
+                {
+                    <button type="button" class="ipod-chip @(m.Id == model.Id ? "on" : "")" data-model="@m.Id" tabindex="-1" @onclick="() => PickModel(m.Id)" title="@m.Blurb"><span>@m.Name</span><small>@m.Year</small></button>
+                }
+            </div>
+        </section>
+        <section>
+            <h3>Colour <small>@color.Name</small></h3>
             <div class="ipod-chips">
                 @for (var i = 0; i < model.Colors.Count; i++)
                 {
                     var ci = i;
-                    <button type="button" class="ipod-chip swatch @(ci == prefs.Color ? "on" : "")" data-color="@model.Colors[ci].Name" @onclick="() => PickColor(ci)" title="@model.Colors[ci].Name" style="--sw1:@model.Colors[ci].Top;--sw2:@model.Colors[ci].Bottom"></button>
+                    <button type="button" class="ipod-chip swatch @(ci == prefs.Color ? "on" : "")" data-color="@model.Colors[ci].Name" tabindex="-1" @onclick="() => PickColor(ci)" title="@model.Colors[ci].Name" aria-label="@model.Colors[ci].Name" style="--sw1:@model.Colors[ci].Top;--sw2:@model.Colors[ci].Bottom"></button>
                 }
             </div>
-            <h3>Look</h3>
-            <div class="ipod-chips">
-                <button type="button" class="ipod-chip @(!flat ? "on" : "")" data-look="device" @onclick="() => PickLook(IpodPrefs.LookDevice)">Device</button>
-                <button type="button" class="ipod-chip @(flat ? "on" : "")" data-look="wheel" @onclick="() => PickLook(IpodPrefs.LookWheelOnly)">Wheel only</button>
-            </div>
+        </section>
+        @if (!model.Touch)
+        {
+            <section>
+                <h3>Look</h3>
+                <div class="dock-seg">
+                    <button type="button" class="ipod-chip @(!flat ? "on" : "")" data-look="device" tabindex="-1" @onclick="() => PickLook(IpodPrefs.LookDevice)">Device</button>
+                    <button type="button" class="ipod-chip @(flat ? "on" : "")" data-look="wheel" tabindex="-1" @onclick="() => PickLook(IpodPrefs.LookWheelOnly)">Wheel only</button>
+                </div>
+            </section>
+        }
+        <section class="dock-help">
+            <h3>How to use</h3>
+            <ul>
+                <li><b>Scroll</b> with the mouse wheel, the up/down keys, or by dragging round the ring.</li>
+                <li><b>Select</b>: click the middle, or Enter. <b>Back</b>: MENU, or Esc.</li>
+                <li><b>Next / previous</b>: the sides of the ring or the left/right keys; hold to seek.</li>
+                <li><b>Play / pause</b>: the bottom of the ring, or Space.</li>
+                <li>Everything is also in <b>Settings</b> on the iPod itself.</li>
+            </ul>
             <p class="ipod-blurb">@model.Name · @model.Year. @model.Blurb</p>
-        </div>
-    }
+        </section>
+    </aside>
 </div>
 
 @code {
@@ -97,7 +136,7 @@
                         var idx = i;
                         <li class="@(i == nav.Selected ? "sel" : "")" data-testid="ipod-row" @onclick="() => RowClick(idx)">
                             @if (r.Checked is not null) { <i class="lcd-tick">@(r.Checked == true ? "✓" : "")</i> }
-                            @if (narrow && IsArtKind) { <span class="lcd-thumb"><Cover ArtKey="r.ArtKey" Class="lcd-art" /></span> }
+                            @if (narrow && IsArtKind) { <span class="lcd-thumb"><Cover ArtKey="@(r.ArtKey)" Class="lcd-art" /></span> }
                             <span class="lcd-label">@r.Label</span>
                             @if (r.Value is not null) { <span class="lcd-val">@r.Value</span> }
                             @if (r.Opens) { <em>›</em> }
@@ -116,7 +155,7 @@
         {
             @if (Player.Current is { } pt && tall)
             {
-                <div class="pane-art"><Cover ArtKey="pt.ArtKey" Class="lcd-art" /></div>
+                <div class="pane-art"><Cover ArtKey="@(pt.ArtKey)" Class="lcd-art" /></div>
                 <small class="pane-acc">NOW PLAYING</small><b>@pt.Title</b><span>@(pt.Artist.Length > 0 ? pt.Artist : pt.Album)</span>
             }
             else if (nav.Current is { } cur)
@@ -126,7 +165,7 @@
         }
         else if (nav.Current is { } c)
         {
-            <div class="pane-art"><Cover ArtKey="c.ArtKey" Class="lcd-art" /></div>
+            <div class="pane-art"><Cover ArtKey="@(c.ArtKey)" Class="lcd-art" /></div>
             <b>@c.Label</b>
             @if (!string.IsNullOrEmpty(c.Sub)) { <span class="pane-acc">@c.Sub</span> }
             @if (!string.IsNullOrEmpty(c.Detail)) { <small>@c.Detail</small> }
@@ -139,7 +178,7 @@
             @for (var i = Math.Max(0, nav.Selected - 4); i <= Math.Min(nav.Rows.Count - 1, nav.Selected + 4); i++)
             {
                 var off = i - nav.Selected;
-                <div class="cf-item @(off == 0 ? "mid" : "")" style="@CfStyle(off)" data-off="@off"><Cover ArtKey="nav.Rows[i].ArtKey" Class="lcd-art" /></div>
+                <div class="cf-item @(off == 0 ? "mid" : "")" style="@CfStyle(off)" data-off="@off"><Cover ArtKey="@(nav.Rows[i].ArtKey)" Class="lcd-art" /></div>
             }
         </div>
         @if (nav.Current is { } c) { <div class="cf-cap"><b data-testid="ipod-cf-title">@c.Label</b><span>@c.Sub</span></div> }
@@ -149,7 +188,7 @@
     RenderFragment NowPlaying(Track t) => @<text>
         @Header("Now Playing")
         <div class="lnp" data-testid="ipod-np">
-            <div class="lnp-art"><Cover ArtKey="t.ArtKey" Class="lcd-art" /></div>
+            <div class="lnp-art"><Cover ArtKey="@(t.ArtKey)" Class="lcd-art" /></div>
             <div class="lnp-meta">
                 @if (Player.Queue.Count > 1) { <small data-testid="ipod-np-count">@(Player.Index + 1) of @Player.Queue.Count</small> }
                 <b data-testid="ipod-np-title">@t.Title</b><span>@t.Artist</span><span class="lnp-album">@t.Album</span>
@@ -175,9 +214,12 @@
     IpodPrefs prefs = new();
     readonly List<IReadOnlyList<Track>?> tracks = [];
     readonly List<IReadOnlyList<Group>?> groups = [];
-    ElementReference stage, device, wheel;
+    ElementReference stage, device, wheel, fitEl;
+    string pickGroup = IpodModels.Classic;
+    double wheelAcc;
     DotNetObjectReference<Ipod>? self;
-    bool showNow, scrub, panel, started, loaded, inited, initTouch;
+    bool first2 = true; string lastFitKey = "";
+    bool showNow, scrub, panel = true, started, loaded, inited, initTouch;
     DateTime hudUntil = DateTime.MinValue;
     string clock = ""; int battery = 100; bool charging;
     int sleepChoice, speedChoice = 1;
@@ -252,17 +294,23 @@
             ticker = new System.Threading.Timer(_ => { RefreshClock(); InvokeAsync(StateHasChanged); }, null, 20_000, 20_000);
             StateHasChanged(); return;
         }
+        var fitKey = model.Id + flat;
+        if (loaded && fitKey != lastFitKey) { lastFitKey = fitKey; _ = Js.InvokeVoidAsync("flacie.ipodFit").AsTask(); }
         var wantTouch = model.Touch;
         if (loaded && (!inited || initTouch != wantTouch))
         {
             inited = true; initTouch = wantTouch;
-            try { object? w = wantTouch ? null : wheel; await Js.InvokeVoidAsync("flacie.ipodInit", stage, device, w, self, new { deg = prefs.DegreesPerDetent }); } catch (Exception) { }
+            try { object? w = wantTouch ? null : wheel; var wide = await Js.InvokeAsync<bool>("flacie.ipodInit", stage, device, w, self, new { deg = prefs.DegreesPerDetent }, fitEl); if (first2) { first2 = false; panel = wide; StateHasChanged(); } } catch (Exception) { }
         }
     }
 
     void RefreshClock() { try { clock = DateTime.Now.ToString("t"); } catch (Exception) { } _ = ClockFromBrowser(); }
     async Task ClockFromBrowser() { try { var c = await Js.InvokeAsync<string>("flacie.ipodClock"); if (!string.IsNullOrEmpty(c) && c != clock) { clock = c; await InvokeAsync(StateHasChanged); } } catch (Exception) { } }
     async Task RefreshBattery() { try { var b = await Js.InvokeAsync<System.Text.Json.JsonElement>("flacie.ipodBattery"); battery = b[0].GetInt32(); charging = b[1].GetBoolean(); } catch (Exception) { } }
+
+    static string GroupShort(string g) => g == IpodModels.Classic ? "Classic" : g == IpodModels.Mini ? "mini" : g == IpodModels.Nano ? "nano" : "touch";
+    async Task FocusStage() { try { await stage.FocusAsync(); } catch (Exception) { } }
+    void TogglePanel() { panel = !panel; _ = Js.InvokeVoidAsync("flacie.ipodFit").AsTask(); }
 
     void Fit() { nav.VisibleRows = RowsFit; detents.DegreesPerDetent = prefs.DegreesPerDetent; }
 
@@ -372,7 +420,14 @@
         _ = Task.Delay(2300, tok).ContinueWith(t => { if (!t.IsCanceled) InvokeAsync(StateHasChanged); });
     }
 
-    void OnMouseWheel(WheelEventArgs e) { var n = e.DeltaY > 0 ? 1 : e.DeltaY < 0 ? -1 : 0; if (n != 0) _ = Turn(n); }
+    void OnMouseWheel(WheelEventArgs e)
+    {
+        wheelAcc += e.DeltaMode == 0 ? e.DeltaY : e.DeltaY * 40;
+        var n = (int)(wheelAcc / 50); if (n == 0 && Math.Abs(e.DeltaY) >= 1 && Math.Abs(wheelAcc) >= 1 && (DateTime.UtcNow - lastWheel).TotalMilliseconds > 250) n = Math.Sign(wheelAcc);
+        lastWheel = DateTime.UtcNow;
+        if (n != 0) { wheelAcc = 0; _ = Turn(n); }
+    }
+    DateTime lastWheel = DateTime.MinValue;
 
     async Task Key(KeyboardEventArgs e)
     {
@@ -511,9 +566,10 @@
 
     void RefreshColorLevel() { nav.Replace(IpodMenus.Colors(model, prefs.Color)); }
 
-    void PickModel(string id) { ChooseModel(id); }
-    void PickColor(int i) { prefs.Color = i; Save(); }
-    void PickLook(int look) { prefs.Look = look; Save(); ApplyLook(); RebuildAll(); }
+    /// <summary>From the panel: the iPod starts again at its main menu (from Settings on the device itself the person stays in Settings).</summary>
+    void PickModel(string id) { prefs.ChooseModel(id); Save(); pickGroup = model.Group; showNow = false; Root(); _ = FocusStage(); }
+    void PickColor(int i) { prefs.Color = i; Save(); _ = FocusStage(); }
+    void PickLook(int look) { prefs.Look = look; Save(); showNow = false; Root(); _ = FocusStage(); }
 
     void ApplyLook() { Fit(); }
 

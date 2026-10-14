@@ -525,19 +525,23 @@ window.flacie = (() => {
     },
     // iPod mode: fit the device to the window, focus it for the keys, and run the wheel: a drag around the ring becomes degrees (sent a few times a second; the page turns them into
     // list rows), a tap is a zone (MENU, next, previous, play/pause, the middle button), a press held on next/previous seeks and held on MENU goes home, and a flick coasts on.
-    ipodInit(stage, device, wheel, ref, cfg) {
+    ipodInit(stage, device, wheel, ref, cfg, fitEl) {
       window.flacie.ipodDispose();
+      // the device is zoomed to fill the free area (the window less the panel); the zoom sits on a wrapper the page never re-renders, so a change of model or look cannot wipe it
       const fit = () => {
         const w = +device.dataset.w || 300, h = +device.dataset.h || 500;
-        const s = Math.min(innerWidth / (w + 24), innerHeight / (h + 24), 2.2);
-        device.style.setProperty("--s", String(Math.max(0.3, s)));
+        const s = Math.max(0.3, Math.min((stage.clientWidth - 24) / w, (stage.clientHeight - 24) / h, 3));
+        fitEl.style.zoom = String(s);
       };
       fit(); addEventListener("resize", fit); stage.focus();
+      const ro = new ResizeObserver(fit); ro.observe(stage);
+      const mo = new MutationObserver(fit); mo.observe(device, { attributes: true, attributeFilter: ["data-w", "data-h"] });
+      const cleanup = { ro, mo };
       // the keys the device uses are the device's alone: a focused button must not also click on Enter or Space, and the page-wide shortcuts (Space, arrows) must not act as well
       const keys = e => { if (["Enter", " ", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) e.preventDefault(); };
       stage.addEventListener("keydown", keys);
-      if (!wheel) { ipod = { fit, wheel: null, stage, keys }; return; }   // touch models: no wheel, the screen is the FLACie player
-      const st = ipod = { fit, wheel, stage, keys, cfg: cfg || { deg: 34 }, last: null, acc: 0, moved: 0, rotating: false, zone: null, held: false, timer: null, hold: null, samples: [], coast: 0, ctx: null };
+      if (!wheel) { ipod = { fit, wheel: null, stage, keys, ...cleanup }; return innerWidth >= 860; }   // touch models: no wheel, the screen is the FLACie player
+      const st = ipod = { ...cleanup, fit, wheel, stage, keys, cfg: cfg || { deg: 34 }, last: null, acc: 0, moved: 0, rotating: false, zone: null, held: false, timer: null, hold: null, samples: [], coast: 0, ctx: null };
       const ang = e => { const r = wheel.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI; };
       const zoneOf = e => {
         const r = wheel.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy), R = r.width / 2;
@@ -592,6 +596,7 @@ window.flacie = (() => {
       };
       st.down = down; st.move = move; st.up = up;
       wheel.addEventListener("pointerdown", down); addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up);
+      return innerWidth >= 860;
     },
     ipodConfig(cfg) { if (ipod) ipod.cfg = cfg; },
     ipodFit() { if (ipod) ipod.fit(); },
@@ -611,6 +616,7 @@ window.flacie = (() => {
     async ipodBattery() { try { const b = await navigator.getBattery(); return [Math.round(b.level * 100), b.charging]; } catch { return [100, false]; } },
     ipodDispose() {
       if (!ipod) return;
+      try { ipod.ro && ipod.ro.disconnect(); ipod.mo && ipod.mo.disconnect(); } catch { }
       removeEventListener("resize", ipod.fit); if (ipod.wheel) ipod.wheel.removeEventListener("pointerdown", ipod.down); ipod.stage.removeEventListener("keydown", ipod.keys);
       removeEventListener("pointermove", ipod.move); removeEventListener("pointerup", ipod.up); removeEventListener("pointercancel", ipod.up);
       clearInterval(ipod.timer); clearTimeout(ipod.hold); if (ipod.coast) cancelAnimationFrame(ipod.coast); try { ipod.ctx && ipod.ctx.close(); } catch { } ipod = null;

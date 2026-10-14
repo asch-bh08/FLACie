@@ -1,8 +1,8 @@
 /* iPod mode (/ipod): every iPod of the Android emulator on the page. The body is 300 px wide (everything else a fraction of it) and zoomed to fit the window; the screen is drawn at the
    logical size of the real device (160x128, 320x240, 240x320) and scaled into its bezel, so edges stay in proportion at any size. */
-.ipod-stage { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--backdrop, #0b0c0e) 70%, #3a3d45), var(--backdrop, #0b0c0e) 78%); outline: none; overflow: hidden; }
+.ipod-stage { position: fixed; inset: 0; display: flex; overflow: hidden; color: #eee; background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--backdrop, #0b0c0e) 70%, #3a3d45), var(--backdrop, #0b0c0e) 78%); }
 .ipod-stage.flat { background: linear-gradient(var(--flat1, #444), var(--flat2, #222)); }
-.ipod { --s: 1; position: relative; zoom: var(--s); flex: none; border-radius: var(--rad, 26px); user-select: none; -webkit-user-select: none; touch-action: none; font-family: "Lucida Grande", "Segoe UI", Verdana, sans-serif;
+.ipod { position: relative; flex: none; border-radius: var(--rad, 26px); user-select: none; -webkit-user-select: none; touch-action: none; font-family: "Lucida Grande", "Segoe UI", Verdana, sans-serif;
   background: linear-gradient(var(--top, #fff), var(--bottom, #ddd));
   box-shadow: 0 30px 60px rgba(0,0,0,.55), 0 4px 10px rgba(0,0,0,.4), inset 0 0 0 1.5px var(--edge, #999), inset 0 2px 2px rgba(255,255,255,.85), inset 0 -2px 4px rgba(0,0,0,.2); }
 .ipod::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(rgba(255,255,255,.4), transparent 42%); }
@@ -48,7 +48,7 @@
 .pane-tile { width: 96px; height: 96px; border-radius: 12px; display: grid; place-items: center; color: #fff; margin-top: 18px; background: linear-gradient(#7fb6ff, #1f63c6); box-shadow: 0 1px 0 rgba(255,255,255,.4) inset; -webkit-box-reflect: below 4px linear-gradient(transparent 60%, rgba(255,255,255,.25)); }
 
 /* now playing */
-.lnp { position: relative; flex: 1; }
+.lnp { position: absolute; inset: 0; }   /* tops below are measured from the top of the screen; the title bar sits above (z-index) */
 .lnp > * { position: absolute; }
 .lnp-art { overflow: hidden; }
 .lnp-meta { display: flex; flex-direction: column; min-width: 0; }
@@ -184,19 +184,49 @@
 .ipod-home { position: absolute; z-index: 2; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 1.6px rgba(160,162,168,.85), 0 1px 2px rgba(0,0,0,.6); background: radial-gradient(circle at 50% 30%, rgba(255,255,255,.1), transparent); }
 .ipod-home i { width: 34%; height: 34%; border: 1.4px solid rgba(160,162,168,.8); border-radius: 3px; }
 
-/* ---------------- chrome around the device */
-.ipod-gear, .ipod-exit { position: fixed; top: 10px; z-index: 20; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.18); background: rgba(20,20,24,.7); color: #e8e8ec; cursor: pointer; backdrop-filter: blur(6px); }
-.ipod-gear { right: 10px; } .ipod-exit { left: 10px; }
-.ipod-gear:hover, .ipod-exit:hover { background: rgba(60,60,70,.85); }
-.ipod-panel { position: fixed; top: 52px; right: 10px; z-index: 19; width: min(340px, calc(100vw - 20px)); max-height: calc(100vh - 70px); overflow: auto; padding: 14px; border-radius: 14px; background: rgba(22,22,28,.96); color: #eee; border: 1px solid rgba(255,255,255,.12); box-shadow: 0 16px 40px rgba(0,0,0,.6); font: 13px/1.35 "Segoe UI", system-ui, sans-serif; }
-.ipod-panel h2 { margin: 0 0 6px; font-size: 16px; } .ipod-panel h3 { margin: 12px 0 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #9aa0ac; }
-.ipod-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.ipod-chips .ipod-chip { display: inline-flex; flex-direction: column; align-items: center; min-width: 46px; padding: 5px 8px; border-radius: 10px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.05); color: #eee; cursor: pointer; font: inherit; font-weight: 600; }
-.ipod-chips .ipod-chip small { font-size: 10px; font-weight: 400; color: #9aa0ac; }
-.ipod-chips .ipod-chip.on { border-color: #4a9bff; background: rgba(74,155,255,.22); }
-.ipod-chips .ipod-chip.swatch { min-width: 30px; width: 30px; height: 30px; padding: 0; border-radius: 50%; background: linear-gradient(var(--sw1), var(--sw2)); }
-.ipod-chips .ipod-chip.swatch.on { box-shadow: 0 0 0 2px #4a9bff; }
-.ipod-blurb { margin: 12px 0 0; color: #b6bbc6; }
+/* ---------------- the free area, the zoom wrapper and the panel */
+.ipod-area { flex: 1; min-width: 0; min-height: 0; display: grid; place-items: center; outline: none; overflow: hidden; position: relative; }
+.ipod-fit { display: block; flex: none; }   /* zoom is set by the page script on this wrapper (the page never re-renders its style) */
+.ipod-gear, .ipod-exit { position: fixed; top: 12px; z-index: 30; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.18); background: rgba(20,20,24,.72); color: #e8e8ec; cursor: pointer; backdrop-filter: blur(6px); }
+.ipod-gear { right: 12px; } .ipod-exit { left: 12px; }
+.ipod-gear:hover, .ipod-exit:hover { background: rgba(70,70,84,.9); }
+.ipod-dock { flex: 0 0 340px; margin-right: -340px; box-sizing: border-box; width: 340px; height: 100%; overflow: auto; padding: 16px 16px 24px; background: rgba(16,16,22,.94); border-left: 1px solid rgba(255,255,255,.1); transition: margin .25s ease, transform .25s ease; font: 13px/1.4 "Segoe UI", system-ui, sans-serif; color: #e7e8ee; z-index: 20; }
+.ipod-dock.open { margin-right: 0; }
+.ipod-dock h2 { margin: 2px 52px 12px 0; font-size: 18px; font-weight: 700; }
+.ipod-dock h3 { margin: 18px 0 8px; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: #9ba1ae; display: flex; align-items: baseline; justify-content: space-between; }
+.ipod-dock h3 small { font-size: 12px; letter-spacing: 0; text-transform: none; color: #cfd3dc; }
+.dock-np { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 16px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); }
+.dock-cover { width: 58%; margin: 0 auto; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: #22252c; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+.dock-cover .cover, .dock-art { width: 100%; height: 100%; border-radius: 0; }
+.dock-meta { display: flex; flex-direction: column; margin-top: 6px; min-width: 0; }
+.dock-meta b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .dock-meta span { color: #cfd3dc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .dock-meta small { color: #8e94a1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dock-bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,.14); overflow: hidden; margin-top: 4px; } .dock-bar i { display: block; height: 100%; background: #4a9bff; }
+.dock-times { display: flex; justify-content: space-between; font-size: 11px; color: #8e94a1; }
+.dock-ctl { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 2px; }
+.dock-ctl button { width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255,255,255,.08); color: #fff; display: grid; place-items: center; cursor: pointer; }
+.dock-ctl button.big { width: 52px; height: 52px; background: #fff; color: #111; }
+.dock-ctl button:hover { background: rgba(255,255,255,.18); } .dock-ctl button.big:hover { background: #e8e8f0; }
+.dock-empty { margin: 4px 2px; color: #a4a9b5; }
+.dock-seg { display: flex; gap: 4px; padding: 3px; border-radius: 12px; background: rgba(255,255,255,.06); }
+.dock-seg button { flex: 1; padding: 7px 4px; border: 0; border-radius: 9px; background: transparent; color: #cfd3dc; font: inherit; font-weight: 600; cursor: pointer; }
+.dock-seg button.on { background: #4a9bff; color: #fff; }
+.dock-seg button.ipod-chip { flex-direction: row; justify-content: center; }
+.dock-models { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; max-height: 210px; overflow: auto; }
+.ipod-chip { display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); color: #e7e8ee; font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
+.ipod-chip small { font-size: 11px; font-weight: 400; color: #8e94a1; }
+.ipod-chip:hover { background: rgba(255,255,255,.1); }
+.ipod-chip.on { border-color: #4a9bff; background: rgba(74,155,255,.2); }
+.dock-seg .ipod-chip { border: 0; background: transparent; } .dock-seg .ipod-chip.on { background: #4a9bff; color: #fff; }
+.ipod-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ipod-chip.swatch { width: 32px; height: 32px; padding: 0; border-radius: 50%; background: linear-gradient(var(--sw1), var(--sw2)); border: 1px solid rgba(255,255,255,.3); }
+.ipod-chip.swatch.on { box-shadow: 0 0 0 2px #121218, 0 0 0 4px #4a9bff; }
+.dock-help ul { margin: 0; padding: 0 0 0 16px; color: #b6bbc6; display: flex; flex-direction: column; gap: 5px; } .dock-help b { color: #e7e8ee; }
+.ipod-blurb { margin: 14px 0 0; color: #8e94a1; font-size: 12px; }
+@media (max-width: 859px) {
+  .ipod-dock { position: fixed; left: 0; right: 0; bottom: 0; top: auto; width: auto; height: auto; max-height: 64vh; margin: 0; flex: none; border-left: 0; border-top: 1px solid rgba(255,255,255,.12); border-radius: 18px 18px 0 0; transform: translateY(105%); box-shadow: 0 -12px 40px rgba(0,0,0,.5); }
+  .ipod-dock.open { transform: none; }
+  .ipod-dock h2 { margin-right: 0; }
+}
 @media (prefers-reduced-motion: reduce) { .lcd-list.slide-in, .lcd-list.slide-back, .lcd-fade, .cf-item { animation: none; transition: none; } }
 .ipod-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .ipod.touch::after { background: linear-gradient(rgba(255,255,255,.10), transparent 30%); }

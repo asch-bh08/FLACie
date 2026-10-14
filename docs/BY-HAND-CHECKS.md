@@ -2,6 +2,10 @@
 
 Each beta adds its items; tick them off on the Fold. Nothing here was verified on a device unless it says so.
 
+## Beta 65
+- [ ] iPod mode on your own screen: does it fill the window in both looks, and is the panel (cover, model, colour, look) clear? Do the covers show in the lists, the preview pane, Now Playing and Cover Flow?
+- [ ] Android: Cover Flow on a nano / classic 6-7 skin with a real library.
+
 ## Beta 64
 - [ ] iPod mode on the web / Windows: try a few of the 23 models and colours (account menu > iPod mode, or the sliders button): the mono LCD of the early iPods, the colour video menus, the nano/classic screens, a touch model. Do they look like the real thing to you?
 - [ ] The wheel with a finger: speed settings (Settings > Controls), the flick, hold next/previous to seek, hold MENU, the clicker sound and haptics (Controls > Clicker), Cover Flow.

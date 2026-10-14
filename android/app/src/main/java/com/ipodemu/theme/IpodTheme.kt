@@ -149,10 +149,13 @@ abstract class ListTheme : IpodTheme {
     protected fun rowsVisible(): Int = floor((logicalH - headerH - footerH) / rowH).toInt()
 
     override fun maxScroll(page: ListPage): Float =
+        if (page.kind == com.ipodemu.nav.Kind.COVERFLOW) (page.source.size - 1).coerceAtLeast(0).toFloat() else maxScrollRows(page)
+    private fun maxScrollRows(page: ListPage): Float =
         (page.source.size - (logicalH - headerH - footerH) / rowH).coerceAtLeast(0f)
 
     override fun targetScroll(page: ListPage): Float {
         if (page.free) return page.scroll
+        if (page.kind == com.ipodemu.nav.Kind.COVERFLOW) return page.selected.toFloat()
         val rows = rowsVisible()
         val max = (page.source.size - rows).coerceAtLeast(0).toFloat()
         var t = page.scroll

@@ -88,13 +88,13 @@ test.describe.serial('ipod mode', () => {
     await page.goto('about:blank'); await openIpod(page, { model: 'classic6' });
     expect(await labels(page)).toEqual(['Music', 'Cover Flow', 'Voice Memos', 'Settings', 'Shuffle Songs']);
     await expect(page.getByTestId('ipod-pane')).toBeVisible();        // nano / classic: the preview tile beside the main menu
-    await page.getByTestId('ipod').focus();
+    await page.getByTestId('ipod-keys').focus();
     await page.keyboard.press('Enter');
     await expect(title(page)).toHaveText('Music');
     expect(await labels(page)).toEqual(['Playlists', 'Artists', 'Albums', 'Songs', 'Genres']);
 
     await page.goto('about:blank'); await openIpod(page, { model: 'ipod4' });
-    await page.getByTestId('ipod').focus();
+    await page.getByTestId('ipod-keys').focus();
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
     await expect(title(page)).toHaveText('Browse');
     expect(await labels(page)).toEqual(['Artists', 'Albums', 'Songs', 'Genres']);
@@ -105,7 +105,7 @@ test.describe.serial('ipod mode', () => {
     await signIn(page);
     await page.setViewportSize({ width: 700, height: 900 });
     await openIpod(page, { model: 'video5' });
-    await page.getByTestId('ipod').focus();
+    await page.getByTestId('ipod-keys').focus();
     await page.keyboard.press('Enter');                               // Music
     await expect(title(page)).toHaveText('Music');
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown');
@@ -145,7 +145,7 @@ test.describe.serial('ipod mode', () => {
     await signIn(page);
     await page.setViewportSize({ width: 700, height: 900 });
     await openIpod(page, { model: 'classic6' });
-    await page.getByTestId('ipod').focus();
+    await page.getByTestId('ipod-keys').focus();
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
     await expect(title(page)).toHaveText('Cover Flow');
     await expect(page.getByTestId('ipod-coverflow')).toBeVisible();
@@ -173,7 +173,7 @@ test.describe.serial('ipod mode', () => {
     await signIn(page);
     await page.setViewportSize({ width: 700, height: 900 });
     await openIpod(page, { model: 'ipod4' });
-    await page.getByTestId('ipod').focus();
+    await page.getByTestId('ipod-keys').focus();
     // Settings (4th row of the mono menu) > Controls
     for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowDown');
     await expect(sel(page)).toContainText('Settings'); await page.keyboard.press('Enter');
@@ -225,7 +225,7 @@ test.describe.serial('ipod mode', () => {
     await expect(stage(page)).toHaveAttribute('data-color', 'Black');
 
     // Main Menu: hide "Voice Memos"; Reset brings everything back
-    await page.getByTestId('ipod').focus();
+    await page.getByTestId('ipod-keys').focus();
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');    // Settings
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');    // Main Menu
     await expect(title(page)).toHaveText('Main Menu');
@@ -249,7 +249,7 @@ test.describe.serial('ipod mode', () => {
     await signIn(page);
     await page.setViewportSize({ width: 700, height: 900 });
     await openIpod(page, { model: 'video5' });
-    await page.getByTestId('ipod').focus();
+    await page.getByTestId('ipod-keys').focus();
     await page.keyboard.press('Enter');                               // Music
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');   // Songs
     await expect(title(page)).toHaveText('Songs');
@@ -280,6 +280,7 @@ test.describe.serial('ipod mode', () => {
     await page.setViewportSize({ width: 800, height: 900 });
     await openIpod(page, { model: 'ipod4' });
     await page.getByTestId('ipod-gear').click();
+    await page.locator('.ipod-panel [data-group="nano"]').click();
     await page.locator('.ipod-panel .ipod-chip[data-model="nano4"]').click();
     await expect(stage(page)).toHaveAttribute('data-model', 'nano4');
     const l = (await page.getByTestId('ipod-lcd').boundingBox())!; expect(l.height).toBeGreaterThan(l.width * 1.1);   // the tall nano has a portrait screen
@@ -289,13 +290,83 @@ test.describe.serial('ipod mode', () => {
     await expect(stage(page)).toHaveAttribute('data-look', 'wheel');
     const l2 = (await page.getByTestId('ipod-lcd').boundingBox())!; expect(l2.width).toBeGreaterThan(l2.height);          // wheel only: the landscape screen
     await page.locator('.ipod-panel .ipod-chip[data-look="device"]').click();
+    await page.locator('.ipod-panel [data-group="touch"]').click();
     await page.locator('.ipod-panel .ipod-chip[data-model="touch5"]').click();
     await expect(page.getByTestId('ipod-touch-screen').locator('iframe')).toBeVisible();
     await expect(page.getByTestId('ipod-wheel')).toHaveCount(0);
     const frame = page.frameLocator('[data-testid=ipod-touch-screen] iframe');
     await expect(frame.locator('body')).toBeVisible({ timeout: 20_000 });
+    await page.locator('.ipod-panel [data-group="Classic"]').click();
     await page.locator('.ipod-panel .ipod-chip[data-model="video5"]').click();    // back to a wheel
     await expect(page.getByTestId('ipod-wheel')).toBeVisible();
+  });
+
+  test('cover art shows: in the lists, the pane, Now Playing, Cover Flow and the panel', async ({ page }) => {
+    test.setTimeout(150_000);
+    await signIn(page);
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await openIpod(page, { model: 'video5' });
+    await page.getByTestId('ipod-keys').focus();
+    await page.keyboard.press('Enter');
+    for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter'); await page.keyboard.press('ArrowDown');
+    await expect(page.getByTestId('ipod-pane')).toBeVisible();
+    // every cover on the screen asks for a real picture (a key from the library, never the name of a variable) and gets one
+    const covers = async (scope: string) => page.evaluate((sel) => [...document.querySelectorAll(sel + ' img')].map((i) => ({ src: i.getAttribute('src') || '', ok: (i as HTMLImageElement).naturalWidth > 0 })), scope);
+    await expect.poll(async () => (await covers('.ipod-lcd')).length).toBeGreaterThan(0);
+    for (const c of await covers('.ipod-lcd')) expect(c.src).toMatch(/^\/art\/[^?]+\?v=3/), expect(c.src).not.toContain('ArtKey');
+    await expect.poll(async () => (await covers('.ipod-lcd')).every((c) => c.ok)).toBe(true);
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('ipod-np')).toBeVisible({ timeout: 20_000 });
+    await expect.poll(async () => { const c = await covers('.lnp-art'); return c.length > 0 && c.every((x) => x.ok && !x.src.includes('ArtKey')); }).toBe(true);
+    // the panel shows the same cover, big
+    await expect(page.getByTestId('ipod-dock-np')).toBeVisible();
+    await expect.poll(async () => { const c = await covers('.dock-cover'); return c.length > 0 && c.every((x) => x.ok); }).toBe(true);
+    // and Cover Flow
+    await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+    await page.keyboard.press('ArrowUp');
+    await page.goto('about:blank'); await openIpod(page, { model: 'classic6' });
+    await page.getByTestId('ipod-keys').focus(); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
+    await expect(page.getByTestId('ipod-coverflow')).toBeVisible();
+    await expect.poll(async () => { const c = await covers('.cf'); return c.length > 1 && c.every((x) => x.ok && !x.src.includes('ArtKey')); }).toBe(true);
+  });
+
+  test('the device fills the free space in both looks, the panel is there on a wide window and the keys survive a click on it', async ({ page }) => {
+    test.setTimeout(150_000);
+    await signIn(page);
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await openIpod(page, { model: 'classic6' });
+    await expect(page.getByTestId('ipod-panel')).toHaveClass(/open/);                      // wide window: the panel is open
+    const area = async () => (await page.getByTestId('ipod-keys').boundingBox())!;
+    const dev = async () => (await page.getByTestId('ipod-device').boundingBox())!;
+    const fitted = async (label: string) => {
+      await page.waitForTimeout(500);
+      const a = await area(), d = await dev();
+      expect(d.height, label + ' fills the height').toBeGreaterThan(a.height * 0.85); expect(d.height, label + ' fits the height').toBeLessThanOrEqual(a.height);
+      expect(d.width, label + ' fits the width').toBeLessThanOrEqual(a.width);
+      expect(d.x, label + ' stays inside').toBeGreaterThanOrEqual(a.x - 1); expect(d.x + d.width).toBeLessThanOrEqual(a.x + a.width + 1);
+      return d.height;
+    };
+    const h1 = await fitted('device');
+    await page.locator('.ipod-panel [data-look="wheel"]').click();
+    const h2 = await fitted('wheel only');
+    await page.locator('.ipod-panel [data-look="device"]').click();
+    const h3 = await fitted('device again');
+    expect(Math.abs(h3 - h1), 'going back to the device gives the same size as the first time').toBeLessThan(2);
+    expect(Math.abs(h2 - h1)).toBeLessThan(h1 * 0.15);
+    // a click on the panel does not take the keys away (and a focused button must not act on Enter as well)
+    await page.locator('.ipod-panel .ipod-chip.swatch').nth(1).click();
+    await expect(stage(page)).toHaveAttribute('data-color', 'Black');
+    await page.keyboard.press('Enter');
+    await expect(title(page)).toHaveText('Music');                                       // once, not twice
+    // narrow window: the panel starts closed and the gear opens it
+    await page.setViewportSize({ width: 600, height: 800 });
+    await page.reload();
+    await expect(stage(page)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('ipod-panel')).not.toHaveClass(/open/);
+    await page.getByTestId('ipod-gear').click();
+    await expect(page.getByTestId('ipod-panel')).toHaveClass(/open/);
+    const b = (await page.getByTestId('ipod-device').boundingBox())!; expect(b.x).toBeGreaterThanOrEqual(0); expect(b.x + b.width).toBeLessThanOrEqual(601);
   });
 
   test('the device fits small windows and the black model loads', async ({ page }) => {

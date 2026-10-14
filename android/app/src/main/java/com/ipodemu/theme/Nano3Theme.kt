@@ -77,6 +77,7 @@ class Nano3Theme(
     override fun buildRoot(b: MenuBuilder): ListPage = b.rootPage {
         b.statusItems() + listOf(
             b.musicItem { musicMenu(b) },
+            b.coverFlowItem(),
             b.voiceMemosItem(),
             b.settingsItem(),
             b.shuffleItem(),
@@ -115,6 +116,7 @@ class Nano3Theme(
     }
 
     private fun drawList(c: Canvas, page: ListPage, ctx: DrawCtx) {
+        if (page.kind == Kind.COVERFLOW) { CoverFlow.draw(c, page, ctx, W, H); return }
         Gfx.rect(c, 0f, 0f, W, H, pal.bg)
         val split = !narrow && (page.kind == Kind.MENU || hasArtPane(page))
         val listW = if (split) PREVIEW_X else W

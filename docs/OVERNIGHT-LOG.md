@@ -43,3 +43,5 @@ One line per decision or result. Honest: skipped or untested things are said so.
 
 ## Beta 65
 - User feedback: the web iPod mode was ugly, hard to use, did not fit, changed size on a look change, and had no cover art. Causes: `ArtKey="c.ArtKey"` was a string literal (no @), the JS-set zoom lived on an element Blazor re-rendered, and the picker was hidden behind a button. Fixed, plus a docked panel with the playing cover and pickers; tests now assert real cover keys and the fit. Android: Cover Flow also in the nano/classic 6-7 theme. Android 414/2/0, .NET 329, Playwright 153; release APK run on the emulator clean.
+
+- Beta 65 released and web deployed (rollback tag flacie-web:rollback-2026-10-14-pre65, only flacie-web recreated, /healthz ok). https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta65

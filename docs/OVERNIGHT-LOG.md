@@ -48,3 +48,5 @@ One line per decision or result. Honest: skipped or untested things are said so.
 
 ## Beta 66
 - User: iPod screen CSS messy, not an OS, must work at all sizes, test and verify; and web search typing drops/swaps letters. Built the touch iPod OS, Extras, rating mode, IpodContent core, an overlap/outside/size layout test (9 models x 11 shapes + wheel-only), TextBox (browser-side debounce; the server never writes into a focused box). Another session ("New skills") is building a desk workspace look on branch ipod/desk from my commit; coordination by message.
+
+- Beta 66 released and web deployed (rollback tag flacie-web:rollback-2026-10-14-pre66, only flacie-web recreated, /healthz ok). https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta66

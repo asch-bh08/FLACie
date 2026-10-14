@@ -47,6 +47,22 @@ public class IpodNavTests
         n.Replace([]); Assert.Null(n.Current); Assert.False(n.Turn(1));
     }
 
+    [Fact] public void LowerLevelsCanBeReplacedAndTheStackCanGoHome()
+    {
+        var n = new IpodNav(4); n.Push("A", Rows(6)); n.Turn(3); n.Push("B", Rows(3), IpodKind.Songs); n.Push("C", Rows(3));
+        Assert.Equal(IpodKind.Menu, n.Kind); Assert.Equal(3, n.SelectedAt(0)); Assert.Equal(-1, n.SelectedAt(9));
+        n.ReplaceAt(0, Rows(2)); Assert.Equal(1, n.SelectedAt(0)); n.ReplaceAt(7, Rows(1));
+        Assert.True(n.ToRoot()); Assert.Equal(1, n.Depth); Assert.Equal(-1, n.LastMove); Assert.False(n.ToRoot());
+        Assert.True(n.Select(0)); Assert.False(n.Select(5)); Assert.Equal(0, n.Selected);
+        n.Push("S", Rows(3), IpodKind.Songs); Assert.Equal(IpodKind.Songs, n.Kind);
+    }
+
+    [Fact] public void TheScreenSizeCanChangeUnderneath()
+    {
+        var n = new IpodNav(3); n.Push("A", Rows(10)); n.Turn(9); Assert.Equal(7, n.Top);
+        n.VisibleRows = 8; Assert.Equal(2, n.Top); Assert.Equal(8, n.Visible.Count()); n.VisibleRows = 1; Assert.Equal(2, n.VisibleRows);
+    }
+
     [Fact] public void EmptyNavDoesNothing()
     {
         var n = new IpodNav(); Assert.Null(n.Current); Assert.False(n.Turn(1)); Assert.False(n.Back()); Assert.Equal(-1, n.Selected); Assert.Empty(n.Visible); Assert.Null(n.Thumb);

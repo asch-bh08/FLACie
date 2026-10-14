@@ -1,4 +1,6 @@
-# FLACie: pick-up guide after beta 63 (2026-10-13)
+# FLACie: pick-up guide after beta 64 (2026-10-14)
+
+**Update: v1.0.0-beta64 is released and deployed** (Android 79, MSI 0.64.0, Web 1.0-beta64; rollback tag `flacie-web:rollback-2026-10-14-pre64`). The web/Windows iPod mode now has all 23 models and colours, the three screen families, Cover Flow, Genres, the full settings tree and the wheel feel settings (docs/release-notes-beta64.md). Android code unchanged from 63. Tests: Android 414/2/0, .NET 329, Playwright 151.
 
 **Update: v1.0.0-beta63 is released and deployed** (Android 78, MSI 0.63.0, Web 1.0-beta63; rollback tag `flacie-web:rollback-2026-10-14-pre63`). Adds star ratings (A + W + Jellyfin write), the session queue window (lock screen / Bluetooth / Auto), the shared cover transition, iPod mode on the web and Windows (/ipod), Cover Flow + scrollbar + scrub diamond on the Android Classic. Chromecast NOT built on purpose: docs/spec/chromecast.md. Tests: Android 414/2/0, .NET 311, Playwright green.
 

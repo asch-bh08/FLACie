@@ -2,6 +2,11 @@
 
 Each beta adds its items; tick them off on the Fold. Nothing here was verified on a device unless it says so.
 
+## Beta 64
+- [ ] iPod mode on the web / Windows: try a few of the 23 models and colours (account menu > iPod mode, or the sliders button): the mono LCD of the early iPods, the colour video menus, the nano/classic screens, a touch model. Do they look like the real thing to you?
+- [ ] The wheel with a finger: speed settings (Settings > Controls), the flick, hold next/previous to seek, hold MENU, the clicker sound and haptics (Controls > Clicker), Cover Flow.
+- [ ] Windows: the iPod page inside the installed app.
+
 ## Beta 63
 - [ ] Stars: rate a song (button beside the heart), then look at it in Jellyfin (the song's rating should be stars x 2). Rate on the phone, open the web: same stars.
 - [ ] Lock screen / Bluetooth / car: the Up next list shows the queue around the song; next, previous and picking a song work; with a 10,000-song queue nothing hangs.

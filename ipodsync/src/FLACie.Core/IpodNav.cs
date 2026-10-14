@@ -1,7 +1,10 @@
 namespace FLACie.Core;
 
-/// <summary>One line of an iPod menu. <see cref="Id"/> tells the page what it opens or plays; <see cref="Opens"/> draws the right-hand arrow.</summary>
-public sealed record IpodRow(string Label, string Id, bool Opens = true);
+/// <summary>One line of an iPod menu. <see cref="Id"/> tells the page what it opens or plays; <see cref="Opens"/> draws the right-hand arrow; <see cref="Value"/> is the setting shown on the right; <see cref="Checked"/> draws a tick (or room for one).</summary>
+/// <summary>What a list holds: the screen picks its look from it (an artwork pane for songs, albums and artists; Cover Flow; plain settings rows).</summary>
+public enum IpodKind { Menu, Songs, Albums, Artists, Settings, Memos, CoverFlow, Generic }
+
+public sealed record IpodRow(string Label, string Id, bool Opens = true, string? Value = null, bool? Checked = null, string? ArtKey = null, string? Sub = null, string? Detail = null);
 
 /// <summary>
 /// The menu stack of the iPod mode (web and Windows): titles, rows, the highlighted row and the scroll position per level, driven by wheel turns (whole detents),
@@ -9,10 +12,13 @@ public sealed record IpodRow(string Label, string Id, bool Opens = true);
 /// </summary>
 public sealed class IpodNav(int visibleRows = 6)
 {
-    sealed class Frame(string title, IReadOnlyList<IpodRow> rows) { public string Title = title; public IReadOnlyList<IpodRow> Rows = rows; public int Selected; public int Top; }
+    sealed class Frame(string title, IReadOnlyList<IpodRow> rows, IpodKind kind) { public string Title = title; public IReadOnlyList<IpodRow> Rows = rows; public IpodKind Kind = kind; public int Selected; public int Top; }
 
     readonly List<Frame> stack = [];
-    public int VisibleRows { get; } = Math.Max(2, visibleRows);
+    int visible = Math.Max(2, visibleRows);
+    /// <summary>Rows that fit the screen (the family and size decide); changing it keeps every level's highlight on screen.</summary>
+    public int VisibleRows { get => visible; set { visible = Math.Max(2, value); foreach (var f in stack) Scroll(f); } }
+    public IpodKind Kind => stack.Count == 0 ? IpodKind.Menu : stack[^1].Kind;
     /// <summary>+1 after going deeper, -1 after going back, 0 otherwise: the page uses it for the slide direction.</summary>
     public int LastMove { get; private set; }
 
@@ -26,12 +32,25 @@ public sealed class IpodNav(int visibleRows = 6)
     /// <summary>The scrollbar thumb as fractions of the track (start, length), or null when everything fits.</summary>
     public (double Start, double Length)? Thumb => Rows.Count <= VisibleRows ? null : ((double)Top / Rows.Count, (double)VisibleRows / Rows.Count);
 
-    public void Push(string title, IReadOnlyList<IpodRow> rows) { stack.Add(new Frame(title, rows)); LastMove = 1; }
+    public void Push(string title, IReadOnlyList<IpodRow> rows, IpodKind kind = IpodKind.Menu) { stack.Add(new Frame(title, rows, kind)); LastMove = 1; }
+    /// <summary>The highlighted row of a level by depth (0 = the main menu), or -1.</summary>
+    public int SelectedAt(int depth) => depth >= 0 && depth < stack.Count ? stack[depth].Selected : -1;
+    /// <summary>Move the highlight of the current level straight to a row (a tap on it).</summary>
+    public bool Select(int index) { if (stack.Count == 0 || index < 0 || index >= Rows.Count) return false; var f = stack[^1]; f.Selected = index; Scroll(f); LastMove = 0; return true; }
+    /// <summary>Drop every level above the first (MENU held: back to the main menu).</summary>
+    public bool ToRoot() { if (stack.Count <= 1) return false; stack.RemoveRange(1, stack.Count - 1); LastMove = -1; return true; }
     /// <summary>Replace the rows of the current level (a list that finished loading) keeping the highlight where it was.</summary>
     public void Replace(IReadOnlyList<IpodRow> rows)
     {
         if (stack.Count == 0) return;
         var f = stack[^1]; f.Rows = rows; f.Selected = Math.Clamp(f.Selected, 0, Math.Max(0, rows.Count - 1)); Scroll(f);
+    }
+
+    /// <summary>Replace the rows of a lower level (the main menu, after a setting or a song started changed what it lists).</summary>
+    public void ReplaceAt(int depth, IReadOnlyList<IpodRow> rows)
+    {
+        if (depth < 0 || depth >= stack.Count) return;
+        var f = stack[depth]; f.Rows = rows; f.Selected = Math.Clamp(f.Selected, 0, Math.Max(0, rows.Count - 1)); Scroll(f);
     }
 
     /// <summary>MENU: one level up; false at the top (nothing to go back to).</summary>
@@ -59,7 +78,7 @@ public sealed class IpodNav(int visibleRows = 6)
 public sealed class WheelDetents(double degreesPerDetent = 15)
 {
     double carry;
-    public double DegreesPerDetent { get; } = degreesPerDetent > 0 ? degreesPerDetent : 15;
+    public double DegreesPerDetent { get; set; } = degreesPerDetent > 0 ? degreesPerDetent : 15;
     /// <summary>Angle change since the last event, in degrees (wraps at +/-180 are folded in).</summary>
     public int Feed(double deltaDegrees)
     {
@@ -70,5 +89,7 @@ public sealed class WheelDetents(double degreesPerDetent = 15)
         carry -= n * DegreesPerDetent;
         return n;
     }
+    /// <summary>Same, with the speed-up of a fast spin: <paramref name="gain"/> multiplies the movement (see <see cref="WheelFeel.Gain"/>).</summary>
+    public int Feed(double deltaDegrees, double gain) => Feed(deltaDegrees * Math.Max(1, gain));
     public void Release() => carry = 0;
 }

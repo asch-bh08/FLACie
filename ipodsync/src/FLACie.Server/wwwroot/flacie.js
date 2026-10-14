@@ -523,38 +523,97 @@ window.flacie = (() => {
       if (m) new MutationObserver(check).observe(m, { attributes: true, attributeFilter: ["class"] });
       document.addEventListener("components-reconnect-state-changed", check);
     },
-    // iPod mode: fit the device to the window, focus it for the keys, and turn drags on the wheel into degrees (sent a few times a second, the page turns them into detents)
-    ipodInit(stage, device, wheel, ref) {
+    // iPod mode: fit the device to the window, focus it for the keys, and run the wheel: a drag around the ring becomes degrees (sent a few times a second; the page turns them into
+    // list rows), a tap is a zone (MENU, next, previous, play/pause, the middle button), a press held on next/previous seeks and held on MENU goes home, and a flick coasts on.
+    ipodInit(stage, device, wheel, ref, cfg) {
       window.flacie.ipodDispose();
-      const fit = () => { const s = Math.min(innerWidth / 360, innerHeight / 600, 2.2); device.style.setProperty("--s", String(Math.max(0.4, s))); };
+      const fit = () => {
+        const w = +device.dataset.w || 300, h = +device.dataset.h || 500;
+        const s = Math.min(innerWidth / (w + 24), innerHeight / (h + 24), 2.2);
+        device.style.setProperty("--s", String(Math.max(0.3, s)));
+      };
       fit(); addEventListener("resize", fit); stage.focus();
       // the keys the device uses are the device's alone: a focused button must not also click on Enter or Space, and the page-wide shortcuts (Space, arrows) must not act as well
       const keys = e => { if (["Enter", " ", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) e.preventDefault(); };
       stage.addEventListener("keydown", keys);
-      let last = null, acc = 0, moved = 0, timer = null, local = 0;
+      if (!wheel) { ipod = { fit, wheel: null, stage, keys }; return; }   // touch models: no wheel, the screen is the FLACie player
+      const st = ipod = { fit, wheel, stage, keys, cfg: cfg || { deg: 34 }, last: null, acc: 0, moved: 0, rotating: false, zone: null, held: false, timer: null, hold: null, samples: [], coast: 0, ctx: null };
       const ang = e => { const r = wheel.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI; };
-      const flush = () => { if (acc !== 0) { const d = acc; acc = 0; ref.invokeMethodAsync("Turned", d).catch(() => { }); } };
+      const zoneOf = e => {
+        const r = wheel.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy), R = r.width / 2;
+        if (d > R) return null;
+        if (d < R * 0.36) return "center";
+        const a = Math.atan2(dy, dx) * 180 / Math.PI;
+        return a >= -135 && a < -45 ? "menu" : a >= -45 && a < 45 ? "next" : a >= 45 && a < 135 ? "play" : "prev";
+      };
+      const flush = () => { if (st.acc !== 0) { const d = st.acc; st.acc = 0; const v = Math.abs(speed()); ref.invokeMethodAsync("Turned", d, v).catch(() => { }); } };
+      const speed = () => {
+        const s = st.samples; if (s.length < 2) return 0;
+        const a = s[0], b = s[s.length - 1], dt = b.t - a.t; return dt > 0 ? (b.a - a.a) * 1000 / dt : 0;
+      };
       const down = e => {
-        if (e.target.closest(".ipod-center")) return;
-        const r = wheel.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
-        if (Math.hypot(dx, dy) > r.width / 2) return;
-        last = ang(e); moved = 0; local = 0; timer = setInterval(flush, 30); wheel.classList.add("turning");
+        const z = zoneOf(e); if (!z) return;
+        st.coast && cancelAnimationFrame(st.coast); st.coast = 0;
+        st.zone = z; st.last = ang(e); st.moved = 0; st.slop = 0; st.rotating = false; st.held = false; st.samples = [{ t: performance.now(), a: 0 }]; st.total = 0;
+        st.timer = setInterval(flush, 30);
+        wheel.classList.add("turning");
+        st.hold = setTimeout(() => {
+          if (st.rotating || st.last === null) return;
+          if (st.zone === "next" || st.zone === "prev") { st.held = true; const go = () => { if (st.last === null) return; ref.invokeMethodAsync("Hold", st.zone).catch(() => { }); st.hold = setTimeout(go, 130); }; go(); }
+          else if (st.zone === "menu") { st.held = true; ref.invokeMethodAsync("Hold", "menu").catch(() => { }); }
+        }, 500);
       };
       const move = e => {
-        if (last === null) return;
-        let d = ang(e) - last; last = ang(e);
+        if (st.last === null) return;
+        let d = ang(e) - st.last; st.last = ang(e);
         if (d > 180) d -= 360; if (d < -180) d += 360;
-        acc += d; moved += Math.abs(d); local += d;
-        while (Math.abs(local) >= 15) { local -= Math.sign(local) * 15; try { navigator.vibrate && navigator.vibrate(3); } catch { } }
+        st.moved += Math.abs(d); st.slop = (st.slop || 0) + d;
+        if (st.zone !== "center" && st.moved > 8 && !st.rotating) { st.rotating = true; d = st.slop; }   // the first few degrees are not lost
+        if (!st.rotating) return;
+        st.total += d; st.acc += d;
+        const s = st.samples; s.push({ t: performance.now(), a: st.total }); while (s.length > 2 && s[s.length - 1].t - s[0].t > 100) s.shift();
       };
-      const up = () => { if (last === null) return; last = null; clearInterval(timer); flush(); ref.invokeMethodAsync("Released").catch(() => { }); wheel.classList.remove("turning"); };
+      const up = () => {
+        if (st.last === null) return; st.last = null; clearInterval(st.timer); clearTimeout(st.hold); wheel.classList.remove("turning");
+        const v = speed(), zone = st.zone, rotating = st.rotating, held = st.held; flush();
+        if (!rotating && !held) ref.invokeMethodAsync("Zone", zone).catch(() => { });
+        if (rotating && Math.abs(v) >= 300) {
+          // the coast of a flick: slows down exponentially (350 ms), at most 40 rows in all, ends at a hair above standstill; a touch stops it
+          let w = v, t0 = performance.now(), sent = 0; const limit = 40 * (st.cfg.deg || 34);
+          const step = t => {
+            const dt = Math.min(100, t - t0); t0 = t; w *= Math.exp(-dt / 350);
+            const d = w * dt / 1000; sent += Math.abs(d);
+            if (Math.abs(w) < 45 || sent > limit) { st.coast = 0; ref.invokeMethodAsync("Released").catch(() => { }); return; }
+            ref.invokeMethodAsync("Turned", d, Math.abs(w)).catch(() => { });
+            st.coast = requestAnimationFrame(step);
+          };
+          st.coast = requestAnimationFrame(step);
+        } else ref.invokeMethodAsync("Released").catch(() => { });
+      };
+      st.down = down; st.move = move; st.up = up;
       wheel.addEventListener("pointerdown", down); addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up);
-      ipod = { fit, down, move, up, wheel, stage, keys };
     },
+    ipodConfig(cfg) { if (ipod) ipod.cfg = cfg; },
+    ipodFit() { if (ipod) ipod.fit(); },
+    // the clicker: a short tick from the page (Web Audio), a press a little lower; the phone buzzes where it can
+    ipodTick(kind, sound, vol, haptic) {
+      try {
+        if (haptic && navigator.vibrate) navigator.vibrate(kind === "press" ? 8 : 3);
+        if (!sound) return;
+        const ctx = ipod && (ipod.ctx || (ipod.ctx = new (window.AudioContext || window.webkitAudioContext)())); if (!ctx) return;
+        const o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime, level = [0.04, 0.1, 0.22][vol] ?? 0.1;
+        o.type = "square"; o.frequency.value = kind === "press" ? 900 : 1900;
+        g.gain.setValueAtTime(level, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+        o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + 0.035);
+      } catch { }
+    },
+    ipodClock() { return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); },
+    async ipodBattery() { try { const b = await navigator.getBattery(); return [Math.round(b.level * 100), b.charging]; } catch { return [100, false]; } },
     ipodDispose() {
       if (!ipod) return;
-      removeEventListener("resize", ipod.fit); ipod.wheel.removeEventListener("pointerdown", ipod.down); ipod.stage.removeEventListener("keydown", ipod.keys);
-      removeEventListener("pointermove", ipod.move); removeEventListener("pointerup", ipod.up); removeEventListener("pointercancel", ipod.up); ipod = null;
+      removeEventListener("resize", ipod.fit); if (ipod.wheel) ipod.wheel.removeEventListener("pointerdown", ipod.down); ipod.stage.removeEventListener("keydown", ipod.keys);
+      removeEventListener("pointermove", ipod.move); removeEventListener("pointerup", ipod.up); removeEventListener("pointercancel", ipod.up);
+      clearInterval(ipod.timer); clearTimeout(ipod.hold); if (ipod.coast) cancelAnimationFrame(ipod.coast); try { ipod.ctx && ipod.ctx.close(); } catch { } ipod = null;
     },
     // a song's menu is a short scrollable list: bring its last part (the Hi-Res question) into view
     menuToEnd() { document.querySelectorAll(".menu").forEach(m => { m.scrollTop = m.scrollHeight; }); },

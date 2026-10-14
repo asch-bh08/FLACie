@@ -1,0 +1,99 @@
+{
+  "manifest": {
+    "manifestVersion": "1.0",
+    "publishingInformation": {
+      "locales": {
+        "en-GB": {
+          "name": "FLACie",
+          "summary": "Play your own music library with FLACie.",
+          "description": "Plays the music in your own Jellyfin library through your FLACie server. Ask for a song, an artist, an album or a playlist. If a song is not in your library, FLACie can search for it and download it. For personal use on your own account.",
+          "examplePhrases": [
+            "Alexa, open flacie",
+            "Alexa, ask flacie to play Blinding Lights",
+            "Alexa, ask flacie to play my road trip playlist"
+          ],
+          "keywords": [
+            "music",
+            "flacie"
+          ]
+        },
+        "en-US": {
+          "name": "FLACie",
+          "summary": "Play your own music library with FLACie.",
+          "description": "Plays the music in your own Jellyfin library through your FLACie server. Ask for a song, an artist, an album or a playlist. If a song is not in your library, FLACie can search for it and download it. For personal use on your own account.",
+          "examplePhrases": [
+            "Alexa, open flacie",
+            "Alexa, ask flacie to play Blinding Lights",
+            "Alexa, ask flacie to play my road trip playlist"
+          ],
+          "keywords": [
+            "music",
+            "flacie"
+          ]
+        }
+      },
+      "isAvailableWorldwide": false,
+      "distributionCountries": [
+        "GB",
+        "US"
+      ],
+      "testingInstructions": "Personal development-stage skill for the owner's own account. Not for store submission.",
+      "category": "MUSIC_AND_AUDIO"
+    },
+    "apis": {
+      "custom": {
+        "endpoint": {
+          "uri": "https://YOUR-FLACIE-HOST/alexa/skill",
+          "sslCertificateType": "Trusted"
+        },
+        "interfaces": [
+          {
+            "type": "AUDIO_PLAYER"
+          }
+        ]
+      }
+    },
+    "permissions": [
+      {
+        "name": "alexa::devices:all:notifications:write"
+      }
+    ],
+    "events": {
+      "endpoint": {
+        "uri": "https://YOUR-FLACIE-HOST/alexa/skill",
+        "sslCertificateType": "Trusted"
+      },
+      "subscriptions": [
+        {
+          "eventName": "SKILL_PERMISSION_ACCEPTED"
+        },
+        {
+          "eventName": "SKILL_PERMISSION_CHANGED"
+        }
+      ],
+      "publications": [
+        {
+          "eventName": "AMAZON.MediaContent.Available"
+        },
+        {
+          "eventName": "AMAZON.MessageAlert.Activated"
+        }
+      ]
+    },
+    "privacyAndCompliance": {
+      "allowsPurchases": false,
+      "usesPersonalInfo": false,
+      "isChildDirected": false,
+      "isExportCompliant": true,
+      "containsAds": false,
+      "locales": {
+        "en-GB": {
+          "privacyPolicyUrl": "https://YOUR-FLACIE-HOST/licenses"
+        },
+        "en-US": {
+          "privacyPolicyUrl": "https://YOUR-FLACIE-HOST/licenses"
+        }
+      }
+    }
+  }
+}

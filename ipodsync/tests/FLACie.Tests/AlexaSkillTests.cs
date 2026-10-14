@@ -91,6 +91,25 @@ public class AlexaSkillTests
         Assert.Contains("linked", Speech(ok)); Assert.True(r.Store.IsLinked(Alexa));
     }
 
+    [Fact] public async Task LinkWithNoDigitsExplainsAndAlreadyLinkedSaysSo()
+    {
+        using var r = new Rig(linked: false);
+        Assert.Contains("create a code", Speech(await r.Send(Intent("LinkIntent"))));
+        r.Store.Redeem(Alexa, r.Store.NewCode(new JellyfinAccount("http://jf", "u1", "ash", "T")).Code, "");
+        Assert.Contains("already linked", Speech(await r.Send(Intent("LinkIntent"))));
+    }
+
+    [Fact] public async Task PermissionEventsSwitchNotificationsOnAndOff()
+    {
+        using var r = new Rig(linked: false);
+        r.Store.Redeem(Alexa, r.Store.NewCode(new JellyfinAccount("http://jf", "u1", "ash", "T")).Code, "en-GB");
+        Assert.False(r.Store.IsNotifiable(Alexa));
+        var accepted = Req(new() { ["type"] = "AlexaSkillEvent.SkillPermissionAccepted", ["body"] = new JsonObject { ["acceptedPermissions"] = new JsonArray(new JsonObject { ["scope"] = AlexaSkill.NotifyPermission }) } });
+        Assert.Equal("", Speech(await r.Send(accepted))); Assert.True(r.Store.IsNotifiable(Alexa));
+        var changed = Req(new() { ["type"] = "AlexaSkillEvent.SkillPermissionChanged", ["body"] = new JsonObject { ["acceptedPermissions"] = new JsonArray() } });
+        await r.Send(changed); Assert.False(r.Store.IsNotifiable(Alexa));
+    }
+
     [Fact] public async Task MissingUserIdGivesAnEmptyAnswer()
     {
         using var r = new Rig();
@@ -121,6 +140,25 @@ public class AlexaSkillTests
         var q = System.Web.HttpUtility.ParseQueryString(new Uri(url).Query); var id = Path.GetFileNameWithoutExtension(new Uri(url).AbsolutePath);
         Assert.Equal(SignedUrlResult.OK, r.Signer.Verify("t", id, "mp3", q["u"]!, long.Parse(q["e"]!), q["s"]!));
         Assert.Equal(AlexaUrlSigner.UserHash("LINK1"), q["u"]);
+    }
+
+    [Theory]
+    [InlineData("PlayAlbumIntent", "ok computer", "Playing the album")]
+    [InlineData("PlayArtistIntent", "radiohead", "Playing Radiohead.")]
+    [InlineData("PlaySimilarIntent", "radiohead", "Playing music like Radiohead.")]
+    [InlineData("PlaySongIntent", "creep", "Playing Creep by Radiohead.")]
+    public async Task EachKindOfPlayKeepsItsMeaning(string intent, string said, string expect)
+    {
+        using var r = new Rig(); r.U.Songs = [.. r.U.Songs, FakeUser.T("Karma Police", "Radiohead", "OK Computer", 2), FakeUser.T("Paranoid Android", "Radiohead", "OK Computer", 1)];
+        var res = await r.Send(Intent(intent, ("query", said)));
+        Assert.StartsWith(expect, Speech(res).Replace("<speak>", "")); Assert.NotNull(Play(res));
+    }
+
+    [Fact] public async Task APlaylistIntentFindsThePlaylistNotASong()
+    {
+        using var r = new Rig(); r.U.Lists[0].Entries.Add(new("/p/The Weeknd/Blinding Lights", "Blinding Lights", "The Weeknd"));
+        var res = await r.Send(Intent("PlayPlaylistIntent", ("query", "road trip")));
+        Assert.Contains("Playing your Road Trip playlist", Speech(res)); Assert.NotNull(Play(res));
     }
 
     [Fact] public async Task PlayWithNoWordsAsksWhatToPlay()

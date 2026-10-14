@@ -24,13 +24,16 @@ public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirec
     public const string NotifyPermission = "alexa::devices:all:notifications:write";
     readonly Func<DateTime> now = clock ?? (() => DateTime.UtcNow);
 
+    /// <summary>Every custom intent this class answers; the interaction model must list exactly these (plus the built-ins), checked by a test.</summary>
+    public static readonly string[] CustomIntents = ["PlayIntent", "PlaySongIntent", "PlayAlbumIntent", "PlayPlaylistIntent", "PlayArtistIntent", "PlaySimilarIntent", "PlayRecentIntent", "PlayLibraryIntent", "PlayLastDownloadIntent", "IsItReadyIntent", "WhatsDownloadingIntent", "WhatsPlayingIntent", "LikeIntent", "DislikeIntent", "AddToPlaylistIntent", "ChooseIntent", "LinkIntent"];
+
     public const string HelpText = "You can say: play Blinding Lights, play Radiohead, play my Road Trip playlist, play something like Radiohead, or what's playing. If I don't have a song, I can download it.";
     const string LinkText = "To use FLACie, open Settings in FLACie, choose Alexa, and create a code. Then say: my code is, followed by the six digits.";
 
     public async Task<JsonObject> HandleAsync(JsonNode request, CancellationToken ct = default)
     {
         var type = (string?)request["request"]?["type"] ?? "";
-        var userId = (string?)request["context"]?["System"]?["user"]?["userId"] ?? (string?)request["session"]?["user"]?["userId"] ?? "";
+        var userId = (string?)request["context"]?["System"]?["user"]?["userId"] ?? (string?)request["session"]?["user"]?["userId"] ?? (string?)request["request"]?["body"]?["userId"] ?? "";
         var locale = (string?)request["request"]?["locale"] ?? "";
         log?.LogInformation("Alexa request {Type} {Intent}", type, (string?)request["request"]?["intent"]?["name"] ?? "");
 
@@ -39,7 +42,15 @@ public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirec
 
         // the pairing code is the one thing an unlinked account may do
         if (type == "IntentRequest" && (string?)request["request"]?["intent"]?["name"] == "LinkIntent")
-            return Link(userId, Slot(request, "code") ?? "", locale);
+            return Slot(request, "code") is { Length: > 0 } spoken ? Link(userId, spoken, locale) : Speak(store.IsLinked(userId) ? "FLACie is already linked to your account." : LinkText, end: false);
+
+        // the person allowed (or took back) notifications in the Alexa app: the skill-event subscription in the manifest sends this
+        if (type.StartsWith("AlexaSkillEvent.SkillPermission", StringComparison.Ordinal))
+        {
+            var scopes = (request["request"]?["body"]?["acceptedPermissions"] as JsonArray)?.Select(p => (string?)p?["scope"]).ToList() ?? [];
+            store.Touch(userId, locale, type == "AlexaSkillEvent.SkillPermissionAccepted" ? scopes.Contains(NotifyPermission) : type == "AlexaSkillEvent.SkillPermissionChanged" ? scopes.Contains(NotifyPermission) : null);
+            return Empty();
+        }
 
         var found = directory.Resolve(userId);
         if (found is null)
@@ -93,6 +104,12 @@ public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirec
                 var words = Slot(request, "query") ?? "";
                 if (words.Trim().Length == 0) return Reply.Say("What would you like to hear?", end: false);
                 return await engine.PlayAsync(user, link, VoiceParser.FromRaw("play " + words), Progress, ct);
+            // the words that named the kind ("the album ...") are not in the slot, so each kind is its own intent and puts them back for the parser
+            case "PlaySongIntent" or "PlayAlbumIntent" or "PlayPlaylistIntent" or "PlayArtistIntent" or "PlaySimilarIntent":
+                var what = (Slot(request, "query") ?? "").Trim();
+                if (what.Length == 0) return Reply.Say("What would you like to hear?", end: false);
+                var phrase = name switch { "PlaySongIntent" => "play the song ", "PlayAlbumIntent" => "play the album ", "PlayArtistIntent" => "play songs by ", "PlaySimilarIntent" => "play something like ", _ => "play my " } + what + (name == "PlayPlaylistIntent" ? " playlist" : "");
+                return await engine.PlayAsync(user, link, VoiceParser.FromRaw(phrase), Progress, ct);
             case "PlayRecentIntent": return engine.PlayRecent(user, link);
             case "PlayLibraryIntent": return engine.PlayLibrary(user, link);
             case "PlayLastDownloadIntent": return engine.PlayLastDownload(user, link);

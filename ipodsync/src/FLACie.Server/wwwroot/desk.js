@@ -49,6 +49,8 @@ window.desk = (() => {
   function paint(b, now) {
     const el = s.el;
     prop(el, '--low', b.low.toFixed(2)); prop(el, '--mid', b.mid.toFixed(2)); prop(el, '--high', b.high.toFixed(2)); prop(el, '--beat', s.beat.toFixed(2));
+    // the coffee follows the bass (desk.css draws its surface from --bass)
+    if (s.coffee) prop(s.coffee, '--bass', (s.reduced ? 0.2 : b.low).toFixed(2));
     // arcs per bud: bass, mids, highs
     const lv = [b.low, b.mid, b.high];
     for (const p of s.arcs) {
@@ -86,14 +88,14 @@ window.desk = (() => {
     const b = scaled(bands(), dt);
     // beats: the (scaled) bass jumping clearly above its last half second, at most one every 280 ms
     s.avg += (b.low - s.avg) * Math.min(1, dt / 0.5);
-    if (b.live && b.low > 0.6 && b.low - s.avg > 0.3 && now - s.lastBeat > 280) { s.lastBeat = now; s.beat = 1; s.beats++; ripple(); }
+    if (b.live && b.low > 0.6 && b.low - s.avg > 0.3 && now - s.lastBeat > 280) { s.lastBeat = now; s.beat = 1; s.beats++; ripple(b.low - s.avg); }
     s.beat *= Math.pow(0.02, dt);   // the beat fades in about a second
     paint(b, now);
   }
 
-  function ripple() {
-    // a ring on the coffee's surface (gone again when its animation ends)
-    if (s.coffee) { const r = document.createElement('i'); r.className = 'desk-ring'; s.coffee.appendChild(r); setTimeout(() => r.remove(), 1300); }
+  function ripple(hit) {
+    // a ring on the coffee's surface, spreading further on a harder kick (gone again when its animation ends)
+    if (s.coffee) { const r = document.createElement('i'); r.className = 'desk-ring'; r.style.setProperty('--k', (3.5 + 3 * Math.min(1, hit || 0.5)).toFixed(2)); s.coffee.appendChild(r); setTimeout(() => r.remove(), 1300); }
     if (!s.rippleBox) return;
     for (const g of s.buds) {
       const c = document.createElementNS(NS, 'circle');
@@ -133,7 +135,7 @@ window.desk = (() => {
     for (let i = 0; i < n; i++) {
       const l = lines[i];
       l.classList.toggle('on', i <= cur);
-      if (i === cur) { if (!l.classList.contains('writing')) { l.style.setProperty('--dur', Math.min(3200, Math.max(900, 600 + l.textContent.length * 45)) + 'ms'); l.classList.add('writing'); } }
+      if (i === cur) { if (!l.classList.contains('writing')) { l.classList.add('writing'); writeIn(l, Math.min(3200, Math.max(900, 600 + l.textContent.length * 45))); } }
       else l.classList.remove('writing');
     }
     const l = lines[cur]; if (!l) { box.scrollTop = 0; return; }
@@ -141,6 +143,33 @@ window.desk = (() => {
     const bottom = l.offsetTop + l.offsetHeight;
     if (l.offsetHeight > box.clientHeight || l.offsetTop < box.scrollTop) box.scrollTop = l.offsetTop;
     else if (bottom > box.scrollTop + box.clientHeight) box.scrollTop = bottom - box.clientHeight;
+  }
+
+  // the pen: the line is revealed left to right, a row at a time (a wrapped line's second row only once the first is written), at one speed throughout.
+  // One animation of a clip polygon down the rows' right edges: rows already written are open to their end, the row being written up to the pen, the rest shut.
+  function writeIn(l, ms) {
+    if (s.reduced || !l.animate) return;
+    const box = l.getBoundingClientRect(), r = document.createRange(); r.selectNodeContents(l);
+    const byTop = new Map();
+    for (const q of r.getClientRects()) {
+      if (q.width <= 0) continue;
+      const k = Math.round(q.top - box.top), row = byTop.get(k);
+      if (row) { row.l = Math.min(row.l, q.left - box.left); row.r = Math.max(row.r, q.right - box.left); }
+      else byTop.set(k, { t: q.top - box.top, b: q.bottom - box.top, l: q.left - box.left, r: q.right - box.left });
+    }
+    const rows = [...byTop.values()].sort((a, b) => a.t - b.t);
+    if (!rows.length) return;
+    rows[rows.length - 1].b = Math.max(rows[rows.length - 1].b, box.height);
+    const poly = (k, x) => {
+      const pts = [[0, 0]];
+      rows.forEach((row, j) => { const e = j < k ? box.width : j === k ? x : 0; pts.push([e, j === 0 ? 0 : row.t], [e, j === rows.length - 1 ? box.height + 2 : rows[j + 1].t]); });
+      pts.push([0, box.height + 2]);
+      return `polygon(${pts.map(([x, y]) => `${x.toFixed(1)}px ${y.toFixed(1)}px`).join(', ')})`;
+    };
+    const total = rows.reduce((n, row) => n + Math.max(1, row.r), 0);
+    const frames = [{ clipPath: poly(0, 0), offset: 0 }]; let done = 0;
+    rows.forEach((row, k) => { done += Math.max(1, row.r); frames.push({ clipPath: poly(k, row.r + 2), offset: Math.min(1, done / total) }); });
+    l.animate(frames, { duration: ms, easing: 'linear' });
   }
 
   const loadImage = async (url, cors) => { const img = new Image(); if (cors) img.crossOrigin = 'anonymous'; img.src = url; try { await img.decode(); return img; } catch { return null; } };

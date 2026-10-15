@@ -194,6 +194,35 @@ test.describe('desk engine on its own (desk.js harness)', () => {
     expect(st.lines).toBeGreaterThanOrEqual(2); expect(st.cut).toBe(false);
   });
 
+  test('a line that wraps is written row by row: nothing of the second row appears before the first is done', async ({ page }) => {
+    await page.goto(journal('?n=3&long=1'));
+    await page.addStyleTag({ content: '.desk-journal { rotate: none !important; }' });   // (straight, so each row's box on screen is that row alone)
+    await startJournal(page);
+    await page.evaluate(() => { (window as any).t = 1.3; }); await page.waitForTimeout(250);
+    // the pen held part way through the first row, then at the end; ink is counted in the second row's box (dark pixels of the handwriting)
+    const rows = await page.evaluate(() => {
+      const l = document.querySelector('[data-testid=desk-lyric].writing') as HTMLElement, r = document.createRange(); r.selectNodeContents(l);
+      const byTop = new Map<number, DOMRect>(); for (const q of r.getClientRects()) if (q.width > 0) byTop.set(Math.round(q.top), q);
+      return [...byTop.values()].sort((a, b) => a.top - b.top).map((q) => ({ x: q.left, y: q.top, width: q.width, height: q.height }));
+    });
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+    const hold = (f: number) => page.evaluate((frac) => { const l = document.querySelector('[data-testid=desk-lyric].writing')!; for (const a of l.getAnimations()) { a.pause(); a.currentTime = Number(a.effect!.getComputedTiming().endTime) * frac; } }, f);
+    const ink = async (clip: { x: number; y: number; width: number; height: number }) => {
+      const png = await page.screenshot({ clip });
+      return page.evaluate(async (b64) => {
+        const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+        const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d')!; g.drawImage(img, 0, 0);
+        const d = g.getImageData(0, 0, c.width, c.height).data; let n = 0;
+        for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] < 330) n++;
+        return n;
+      }, png.toString('base64'));
+    };
+    await hold(0.3);
+    expect(await ink(rows[1]), 'ink in the second row while the first is being written').toBe(0);
+    await hold(1);
+    expect(await ink(rows[1]), 'ink in the second row at the end').toBeGreaterThan(20);
+  });
+
   test('the line being sung is always in view, on a desk and on a phone, however far into the song', async ({ page }) => {
     for (const [w, h] of [[1600, 900], [1280, 720], [390, 844], [360, 640]]) {
       await page.goto(journal(`?w=${w}&h=${h}&n=16&long=1`)); await startJournal(page);
@@ -215,6 +244,25 @@ test.describe('desk engine on its own (desk.js harness)', () => {
     const later = lows.slice(10);   // after the first half second: the level has found the song
     expect(Math.max(...later) - Math.min(...later), 'how far the bass level swings').toBeGreaterThan(0.4);
     expect(await page.evaluate(() => (window as any).desk.beats())).toBeGreaterThanOrEqual(2);
+  });
+
+  test('the coffee is a bass visualiser: its surface follows the bass all the time, from the same analyser read as the earbuds', async ({ page }) => {
+    await page.goto(harness());
+    await page.evaluate(() => (window as any).desk.start(document.getElementById('scene'), { reduced: false }));
+    await page.waitForTimeout(600);
+    const st = await page.evaluate(() => new Promise<{ swing: number; calls: number }>((done) => {
+      const cup = document.querySelector('[data-coffee]') as HTMLElement, seen: number[] = []; const c0 = (window as any).vizCalls;
+      const iv = setInterval(() => seen.push(Number(getComputedStyle(cup).getPropertyValue('--bass'))), 40);
+      setTimeout(() => { clearInterval(iv); done({ swing: Math.max(...seen) - Math.min(...seen), calls: (window as any).vizCalls - c0 }); }, 1000);
+    }));
+    expect(st.swing, 'how far the coffee follows the bass').toBeGreaterThan(0.4);
+    expect(st.calls, 'analyser reads in a second (one per frame, shared with the earbuds)').toBeLessThanOrEqual(65);
+    // mobile data: the coffee stays calm (no analyser at all)
+    await page.goto(harness('?metered=1'));
+    await page.evaluate(() => (window as any).desk.start(document.getElementById('scene'), { reduced: false }));
+    await page.waitForTimeout(800);
+    const calm = await page.evaluate(() => ({ calls: (window as any).vizCalls || 0, rings: document.querySelector('[data-coffee]')!.children.length }));
+    expect(calm).toEqual({ calls: 0, rings: 0 });
   });
 
   test('the coffee ripples on the beat', async ({ page }) => {

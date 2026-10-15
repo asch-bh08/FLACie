@@ -34,8 +34,7 @@
 .j-lines { position: absolute; left: 4.2cqh; top: 12.9cqh; right: 1.5cqh; height: calc(3.32cqh * 8); overflow: hidden; font-size: 2.05cqh; line-height: 3.32cqh; }
 .j-lines div { display: none; overflow-wrap: anywhere; }
 .j-lines div.on { display: block; }
-.j-lines div.writing { clip-path: inset(0 100% 0 0); animation: desk-write var(--dur, 2s) steps(28) forwards; }
-@keyframes desk-write { to { clip-path: inset(0 0 0 0); } }
+/* (the line being sung is written in by desk.js, a row at a time) */
 .j-date { position: absolute; right: 2.5cqh; bottom: 2.4cqh; font-size: 1.6cqh; opacity: .7; }
 
 /* ---------------- the polaroid */
@@ -75,10 +74,15 @@
 .desk-coffee .cup { position: absolute; left: 50%; top: 50%; width: 62%; height: 62%; translate: -50% -50%; border-radius: 50%; background: radial-gradient(circle at 40% 36%, #ffffff, #f0ece4 60%, #d8d2c6); box-shadow: 0 .6cqh 1.2cqh rgba(50,28,10,.25); }
 .desk-coffee .cup::before { content: ""; position: absolute; inset: 9%; border-radius: 50%; background: radial-gradient(circle at 46% 42%, #8a5a34 0, #5a3518 45%, #3a2010 75%); box-shadow: inset 0 .4cqh .8cqh rgba(0,0,0,.45); }
 .desk-coffee .cup::after { content: ""; position: absolute; inset: 9%; border-radius: 50%; background: radial-gradient(circle at 38% 34%, rgba(255,235,200,.45), transparent 22%); }
-/* the coffee's surface: it trembles with the beat, and desk.js drops a ring on it on every beat */
-.desk-coffee .liquid { position: absolute; inset: 9%; border-radius: 50%; overflow: hidden; scale: calc(1 + var(--beat, 0) * .012); }
-.desk-ring { position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; box-shadow: 0 0 0 .22cqh rgba(255,226,190,.42), inset 0 0 0 .12cqh rgba(40,18,6,.35); animation: desk-ring 1.2s ease-out forwards; }
-@keyframes desk-ring { from { scale: 1; opacity: .9; } to { scale: 5.5; opacity: 0; } }
+/* the coffee is a bass visualiser (desk.js sets --bass every frame, from the same analyser read as the earbuds): standing rings on its surface brighten
+   and spread with the bass, the light on it drifts with it, a hard beat sloshes it, and every beat drops a ring that spreads further the harder the kick */
+.desk-coffee .liquid { position: absolute; inset: 9%; border-radius: 50%; overflow: hidden; translate: calc(var(--beat, 0) * .35cqh) calc(var(--beat, 0) * -.2cqh); scale: calc(1 + var(--beat, 0) * .02); }
+.desk-coffee .liquid::before { content: ""; position: absolute; inset: -12%; border-radius: 50%; opacity: calc(var(--bass, 0) * .9); scale: calc(.82 + var(--bass, 0) * .34);
+  background: repeating-radial-gradient(circle, rgba(255,230,200,0) 0 1.05cqh, rgba(255,230,200,.5) 1.2cqh, rgba(255,230,200,0) 1.35cqh, rgba(40,18,6,.4) 1.55cqh, rgba(40,18,6,0) 1.75cqh 2.1cqh); }
+.desk-coffee .liquid::after { content: ""; position: absolute; left: 24%; top: 20%; width: 34%; height: 20%; border-radius: 50%; background: radial-gradient(rgba(255,240,220,.6), transparent 70%);
+  translate: calc(var(--bass, 0) * .6cqh) calc(var(--bass, 0) * .4cqh); scale: calc(1 + var(--bass, 0) * .3); }
+.desk-ring { position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; box-shadow: 0 0 0 .22cqh rgba(255,226,190,.45), inset 0 0 0 .12cqh rgba(40,18,6,.35); animation: desk-ring 1.2s ease-out forwards; }
+@keyframes desk-ring { from { scale: 1; opacity: .95; } to { scale: var(--k, 5.5); opacity: 0; } }
 .desk-coffee .handle { position: absolute; right: -16%; top: 42%; width: 24%; height: 16%; z-index: -1; border-radius: 2cqh; background: linear-gradient(#f6f3ec, #dcd6ca); box-shadow: .2cqh .4cqh .6cqh rgba(50,28,10,.25); }
 .desk-steam { left: 81%; top: 37cqh; width: 26cqh; height: 44cqh; overflow: visible; pointer-events: none; z-index: 3; }
 .desk-steam path { fill: none; stroke: rgba(255,250,240,.75); stroke-width: 7; stroke-linecap: round; filter: blur(4px); opacity: 0; animation: desk-rise 7s ease-in-out infinite; }
@@ -123,6 +127,5 @@
 /* ---------------- less motion: the desk holds still (lyrics appear whole) */
 @media (prefers-reduced-motion: reduce) {
   .desk-slats, .desk-sun-drift, .desk-grain, .desk .disc, .desk-steam path, .desk-open, .desk-case { animation: none !important; transition: none !important; }
-  .j-lines div.writing { animation: none; clip-path: none; }
   .desk-steam { display: none; }
 }

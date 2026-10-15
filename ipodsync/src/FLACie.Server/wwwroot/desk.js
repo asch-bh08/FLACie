@@ -52,10 +52,12 @@ window.desk = (() => {
     // the coffee follows the bass (desk.css draws its surface from --bass)
     if (s.coffee) prop(s.coffee, '--bass', (s.reduced ? 0.2 : b.low).toFixed(2));
     // the VU meter's needle: bass and mids, with a meter's ballistics (it eases to the level in about a tenth of a second); at rest on the left stop without music
-    if (s.needle) {
-      const target = b.live ? -42 + 84 * Math.min(1, 0.55 * b.low + 0.45 * b.mid) : -42;
-      s.vu += (target - s.vu) * Math.min(1, (s.dt || 0.016) / 0.12);
-      prop(s.needle, '--a', s.vu.toFixed(1));
+    // (more than one in a scene: data-band picks what a needle follows, low, mid, high, or by default bass and mids together)
+    for (const n of s.needles) {
+      const band = n.dataset.band, lv = band === 'low' ? b.low : band === 'mid' ? b.mid : band === 'high' ? b.high : 0.55 * b.low + 0.45 * b.mid;
+      const target = b.live ? -42 + 84 * Math.min(1, lv) : -42;
+      n._vu = (n._vu ?? -42) + (target - (n._vu ?? -42)) * Math.min(1, (s.dt || 0.016) / 0.12);
+      prop(n, '--a', n._vu.toFixed(1));
     }
     // arcs per bud: bass, mids, highs
     const lv = [b.low, b.mid, b.high];
@@ -219,7 +221,7 @@ window.desk = (() => {
       for (const p of pulses) { const ref = document.querySelector(p.getAttribute('href')); try { lengths.set(p, ref ? ref.getTotalLength() : 1000); } catch { lengths.set(p, 1000); } }
       s = { el, reduced, raf: 0, last: 0, lastDust: 0, avg: 0.2, lastBeat: 0, beat: 0, beats: 0,
         arcs: [...el.querySelectorAll('[data-arc]')], pulses, lengths, buds: [...el.querySelectorAll('[data-bud]')],
-        rippleBox: el.querySelector('[data-ripples]'), dust: el.querySelector('canvas[data-dust]'), coffee: el.querySelector('[data-coffee]'), needle: el.querySelector('[data-needle]'), vu: -42,
+        rippleBox: el.querySelector('[data-ripples]'), dust: el.querySelector('canvas[data-dust]'), coffee: el.querySelector('[data-coffee]'), needles: [...el.querySelectorAll('[data-needle]')],
         motes: Array.from({ length: 60 }, () => ({ x: Math.random(), y: Math.random(), r: 0.6 + Math.random() * 1.6, vx: (Math.random() - 0.5) * 0.0001, vy: -0.00003 - Math.random() * 0.0001, tw: Math.random() * 6.28 })) };
       // reduced motion: one still frame (no analyser, no loop)
       if (reduced) paint(CALM, performance.now()); else s.raf = requestAnimationFrame(tick);

@@ -12,6 +12,10 @@ public sealed class IpodPrefs
     public static readonly string[] ClickerNames = ["Off", "Sound", "Haptic", "Both"];
     public static readonly string[] ClickVolumeNames = ["Quiet", "Medium", "Loud"];
     public static readonly string[] LookNames = ["Wheel Only", "Device", "Desk"];
+    /// <summary>The listening scenes the page can show: the iPod (with its looks), or a car stereo, a hi-fi with a turntable, a boombox, a MiniDisc system.</summary>
+    public const int SceneIpod = 0, SceneCar = 1, SceneHifi = 2, SceneBoombox = 3, SceneMinidisc = 4;
+    public static readonly string[] SceneNames = ["iPod", "Car", "Hi-Fi", "Boombox", "MiniDisc"];
+    public static readonly string[] SceneKeys = ["ipod", "car", "hifi", "boombox", "minidisc"];
     public static readonly int[] VolumeLimits = [100, 85, 70, 50];
     public static readonly int[] SleepMinutes = [0, 15, 30, 60, 90, 120];
     /// <summary>Entries that cannot be hidden from the main menu (as on the Android emulator).</summary>
@@ -23,6 +27,8 @@ public sealed class IpodPrefs
     /// <summary>Index into the model's colours; always valid for the model.</summary>
     public int Color { get => color; set => color = Math.Clamp(value, 0, IpodModels.Get(model).Colors.Count - 1); }
     public int Look { get; set; } = LookDevice;
+    public int Scene { get => scene; set => scene = value >= SceneIpod && value <= SceneMinidisc ? value : SceneIpod; }
+    int scene = SceneIpod;
     /// <summary>Settings > Appearance > Display: the clock in the title bar.</summary>
     public bool Clock { get; set; }
     int wheelSpeed = 2, wheelAccel = 1, clicker, clickVolume = 1, volumeLimit = 100;
@@ -66,13 +72,13 @@ public sealed class IpodPrefs
         }
     }
 
-    public void Reset() { model = IpodModels.DefaultId; color = 0; Look = LookDevice; Clock = false; wheelSpeed = 2; wheelAccel = 1; clicker = 0; clickVolume = 1; volumeLimit = 100; HiddenMenu.Clear(); Desk.Reset(); }
+    public void Reset() { model = IpodModels.DefaultId; color = 0; Look = LookDevice; Clock = false; wheelSpeed = 2; wheelAccel = 1; clicker = 0; clickVolume = 1; volumeLimit = 100; HiddenMenu.Clear(); Desk.Reset(); scene = SceneIpod; }
 
     public string ToJson() => new JsonObject
     {
         ["model"] = model, ["color"] = color, ["look"] = Look, ["clock"] = Clock, ["speed"] = wheelSpeed, ["accel"] = wheelAccel, ["clicker"] = clicker, ["clickVol"] = clickVolume, ["limit"] = volumeLimit,
         ["hidden"] = new JsonArray(HiddenMenu.Order().Select(h => (JsonNode?)JsonValue.Create(h)).ToArray()),
-        ["desk"] = Desk.ToJson(),
+        ["desk"] = Desk.ToJson(), ["scene"] = scene,
     }.ToJsonString();
 
     /// <summary>Reads what <see cref="ToJson"/> wrote; anything missing or broken keeps its default (a bad value never breaks the page).</summary>
@@ -87,7 +93,7 @@ public sealed class IpodPrefs
             if (o["model"] is JsonValue m && m.TryGetValue<string>(out var id)) p.Model = id;
             p.Color = I("color", 0); p.Clock = o["clock"] is JsonValue ck && ck.TryGetValue<bool>(out var cb) && cb; p.Look = I("look", LookDevice) switch { LookWheelOnly => LookWheelOnly, LookDesk => LookDesk, _ => LookDevice };
             p.WheelSpeed = I("speed", 2); p.WheelAccel = I("accel", 1); p.Clicker = I("clicker", 0); p.ClickVolume = I("clickVol", 1); p.VolumeLimit = I("limit", 100);
-            p.Desk = DeskOptions.FromJson(o["desk"]);
+            p.Desk = DeskOptions.FromJson(o["desk"]); p.Scene = I("scene", SceneIpod);
             if (o["hidden"] is JsonArray a) foreach (var h in a.OfType<JsonValue>()) if (h.TryGetValue<string>(out var s) && !FixedMenu.Contains(s)) p.HiddenMenu.Add(s);
         }
         catch (JsonException) { return new IpodPrefs(); }

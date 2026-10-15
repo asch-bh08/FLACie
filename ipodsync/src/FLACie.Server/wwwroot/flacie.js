@@ -669,6 +669,8 @@ window.flacie = (() => {
       } catch { }
     },
     ipodClock() { return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); },
+    // room for the panel beside the stage (what ipodInit answers for the iPod; the other scenes ask this)
+    wideScreen() { return innerWidth >= 860; },
     async ipodBattery() { try { const b = await navigator.getBattery(); return [Math.round(b.level * 100), b.charging]; } catch { return [100, false]; } },
     // a text box the server never rewrites while it is being typed in (see TextBox.razor): the browser debounces and tells the server once
     textBox(el, ref, value, ms) {

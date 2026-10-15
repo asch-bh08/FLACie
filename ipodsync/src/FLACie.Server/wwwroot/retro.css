@@ -1,0 +1,110 @@
+/* iPod mode › Scene: the listening scenes beside the iPod (RetroScene.razor and one component per scene). Each scene is a size container: landscape, or on a
+   tall window (narrower than 1.15 to 1) a portrait layout; everything is placed in its units. desk.js sets --low --mid --high --beat on the scene from the
+   player's one analyser, and turns the meter needles (data-needle: --a, degrees from upright). Reduced motion: everything holds still. */
+.retro { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; container: retro / size; isolation: isolate; font-family: "Helvetica Neue", Arial, sans-serif; }
+.retro button { font: inherit; color: inherit; }
+.retro [data-ctl], .retro [data-media] { cursor: pointer; }
+.retro .hand { font-family: "Desk Hand", "Segoe Print", "Bradley Hand", cursive; }
+.retro :focus-visible { outline: 2px solid #4a9bff; outline-offset: 2px; }
+
+/* ================================================================ the car stereo: night, rain, a single-DIN head unit */
+.car { position: absolute; inset: 0; background: #07080c; }
+/* the city beyond the windshield, out of focus: lights drifting slowly as if the car rolls on */
+.car-city { position: absolute; left: -10%; right: -10%; top: 0; height: 56%; filter: blur(1.1cqh) saturate(1.35) brightness(1.25);
+  background: linear-gradient(#0b0f1d 0%, #151a33 55%, #2a1d2e 85%, #3a2430); }
+.car-city i { position: absolute; inset: 0; animation: car-drift 40s linear infinite;
+  background: radial-gradient(3.4cqh 3.4cqh at 8% 64%, rgba(255,190,90,.95), transparent 70%), radial-gradient(4.6cqh 4.6cqh at 17% 74%, rgba(255,90,70,.85), transparent 70%),
+    radial-gradient(3.6cqh 3.6cqh at 29% 58%, rgba(120,190,255,.85), transparent 70%), radial-gradient(5.4cqh 5.4cqh at 41% 78%, rgba(255,210,140,.9), transparent 70%),
+    radial-gradient(3cqh 3cqh at 53% 61%, rgba(255,120,200,.8), transparent 70%), radial-gradient(5cqh 5cqh at 66% 75%, rgba(255,170,80,.9), transparent 70%),
+    radial-gradient(3.6cqh 3.6cqh at 78% 60%, rgba(140,255,200,.7), transparent 70%), radial-gradient(6cqh 6cqh at 90% 80%, rgba(255,80,60,.85), transparent 70%),
+    radial-gradient(2.4cqh 2.4cqh at 35% 45%, rgba(255,240,200,.6), transparent 70%), radial-gradient(2.2cqh 2.2cqh at 72% 42%, rgba(200,220,255,.55), transparent 70%); }
+.car-city i:nth-child(2) { animation-duration: 26s; opacity: .7; transform: scale(1.3); background-position: 30% 10%; }
+.car-city i:nth-child(3) { animation-duration: 60s; opacity: .45; filter: blur(.8cqh);
+  background: radial-gradient(6cqh 4cqh at 20% 85%, rgba(255,140,60,.6), transparent 70%), radial-gradient(8cqh 5cqh at 70% 88%, rgba(255,60,60,.5), transparent 70%); }
+@keyframes car-drift { from { translate: 0 0; } to { translate: -12% 0; } }
+/* rain on the glass: drops, and runs going down */
+.car-rain { position: absolute; left: 0; right: 0; top: 0; height: 52%; pointer-events: none; }
+.car-rain i { position: absolute; inset: 0; background-size: 13cqh 15cqh; animation: car-rain 7s linear infinite; opacity: .8;
+  background-image: radial-gradient(.5cqh .62cqh at 20% 30%, rgba(225,232,255,.7) 40%, transparent 72%), radial-gradient(.32cqh .4cqh at 70% 62%, rgba(225,232,255,.55) 40%, transparent 72%),
+    radial-gradient(.42cqh .5cqh at 46% 86%, rgba(225,232,255,.6) 40%, transparent 72%), radial-gradient(.26cqh .3cqh at 88% 18%, rgba(225,232,255,.5) 40%, transparent 72%); }
+.car-rain i:nth-child(2) { background-size: 8cqh 9cqh; animation-duration: 4.5s; opacity: .5; background-position: 4cqh 3cqh; }
+@keyframes car-rain { from { background-position-y: 0, 0, 0, 0; } to { background-position-y: 15cqh, 15cqh, 15cqh, 15cqh; } }
+/* the wiper: a dark blade sweeping the glass every few seconds */
+.car-wiper { position: absolute; left: 18%; top: 50%; width: 0; height: 0; z-index: 1; }
+.car-wiper i { position: absolute; left: 0; bottom: 0; width: 1cqh; height: 52cqh; margin-left: -.5cqh; border-radius: .5cqh; background: linear-gradient(90deg, #050506, #1d1f24, #050506);
+  transform-origin: 50% 100%; rotate: -78deg; animation: car-wipe 6s ease-in-out infinite; box-shadow: .4cqh 0 .8cqh rgba(0,0,0,.6); }
+@keyframes car-wipe { 0%, 62%, 100% { rotate: -78deg; } 76% { rotate: 62deg; } 90% { rotate: -78deg; } }
+/* the dashboard */
+.car-dash { position: absolute; left: -5%; right: -5%; top: 46%; bottom: 0; border-radius: 50% 50% 0 0 / 12% 12% 0 0;
+  background: radial-gradient(120% 80% at 50% 0%, #2a2b30, #15161a 60%, #0c0d10), #121317; box-shadow: 0 -.6cqh 1.4cqh rgba(0,0,0,.8), inset 0 .4cqh .3cqh rgba(255,255,255,.06); }
+.car-dash::before { content: ""; position: absolute; inset: 0; border-radius: inherit; opacity: .35; background-image: radial-gradient(rgba(255,255,255,.08) 1px, transparent 1.2px); background-size: .6cqh .6cqh; }
+.car-vent { position: absolute; top: 8%; width: 22cqh; height: 7cqh; border-radius: 1.4cqh; background: repeating-linear-gradient(#08090b 0 .7cqh, #2b2d33 .7cqh 1.1cqh); box-shadow: inset 0 0 0 .4cqh #1b1c21, 0 .2cqh 0 rgba(255,255,255,.05); }
+.car-vent { display: none; }   /* (on a wide window the unit fills the dash; the vents show on a phone, above it) */
+/* the head unit: single DIN (180 x 50 mm) */
+.car-unit { position: absolute; left: 50%; top: 9%; translate: -50% 0; width: min(84cqw, 106cqh); aspect-ratio: 180 / 50; display: grid; grid-template-columns: 15% 1fr 17%; gap: 1.6%; padding: 1.4% 1.8%; box-sizing: border-box;
+  border-radius: .8cqh; background: linear-gradient(#2b2c31, #17181c 40%, #101114); box-shadow: inset 0 0 0 .25cqh #3a3b42, inset 0 .3cqh .2cqh rgba(255,255,255,.12), 0 1.2cqh 2cqh rgba(0,0,0,.7); container: unit / inline-size; }
+.cu-knob { align-self: center; justify-self: center; width: 80%; aspect-ratio: 1; border-radius: 50%; border: 0; padding: 0; cursor: pointer; position: relative;
+  background: conic-gradient(from 0deg, #5a5b62, #2a2b30, #6a6b72, #2a2b30, #5a5b62, #2a2b30, #6a6b72, #2a2b30, #5a5b62); box-shadow: 0 .6cqh 1cqh rgba(0,0,0,.6), inset 0 0 0 .4cqh #1c1d21; rotate: var(--r, 0deg); transition: rotate .2s ease; }
+.cu-knob i { position: absolute; left: 50%; top: 8%; width: 6%; height: 20%; margin-left: -3%; border-radius: 1cqh; background: #ffb347; box-shadow: 0 0 .8cqh #ff9a2a; }
+.cu-mid { display: grid; grid-template-rows: 9% 1fr 26%; gap: 4%; min-width: 0; }
+/* the CD slot: a dark line; the disc slides out of it on eject */
+.cu-slot { position: relative; border-radius: 1cqh; background: linear-gradient(#000, #26272c); box-shadow: inset 0 .2cqh .3cqh #000; cursor: pointer; }
+.cu-disc { position: absolute; left: 50%; top: 50%; width: 30cqw; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; pointer-events: none; opacity: 0; clip-path: inset(0 0 50% 0); transition: translate .6s ease, opacity .3s;
+  background: radial-gradient(circle, transparent 0 6%, #d9dbe0 6.5% 15%, transparent 15.5%), var(--art, linear-gradient(#ccc, #999)) center / cover, conic-gradient(#ddd, #eadcf0, #d4e6f2, #ddd); }
+.cu-disc.out { opacity: 1; translate: -50% -78%; pointer-events: auto; }
+/* the display: amber dots on black glass */
+.cu-display { position: relative; overflow: hidden; border-radius: .6cqh; background: radial-gradient(120% 140% at 50% 0%, #1b1208, #070402); box-shadow: inset 0 0 0 .2cqh #000, inset 0 .4cqh 1.2cqh rgba(0,0,0,.9);
+  color: #ffb347; text-shadow: 0 0 .5cqh rgba(255,160,60,.9), 0 0 1.6cqh rgba(255,120,30,.5); font-family: "Consolas", "Lucida Console", "Courier New", monospace; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  display: grid; grid-template-rows: 1fr auto; padding: 1.2% 2.2%; }
+.cu-line1 { overflow: hidden; white-space: nowrap; font-size: 3.9cqw; align-self: center; }
+.cu-line1 span { display: inline-block; padding-left: 100%; animation: cu-ticker calc(var(--len, 20) * .32s + 4s) linear infinite; }
+@keyframes cu-ticker { to { translate: -100% 0; } }
+.cu-line2 { display: flex; justify-content: space-between; font-size: 2.1cqw; opacity: .85; padding-bottom: .5%; }
+.cu-tune { position: absolute; inset: 0; display: grid; place-items: center; white-space: nowrap; font-size: 3.4cqw; background: #070402; animation: cu-tune 1.6s steps(8) forwards; }
+@keyframes cu-tune { 0% { opacity: 1; letter-spacing: .32em; } 70% { opacity: 1; letter-spacing: .12em; } 100% { opacity: 0; visibility: hidden; } }
+.cu-dots { position: absolute; inset: 0; pointer-events: none; background-image: radial-gradient(transparent 55%, rgba(0,0,0,.55) 60%); background-size: .45cqw .45cqw; }
+.cu-presets { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1.2%; }
+.cu-pre { position: relative; border: 0; border-radius: .5cqh; padding: 0 2%; background: linear-gradient(#3a3b41, #1d1e22); box-shadow: inset 0 .2cqh 0 rgba(255,255,255,.14), 0 .3cqh .4cqh rgba(0,0,0,.6);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; color: #d9dbe2; }
+.cu-pre b { font-size: 2.4cqw; line-height: 1; }
+.cu-pre small { font-size: 1.25cqw; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .7; }
+.cu-pre:active, .cu-keys button:active { translate: 0 .15cqh; box-shadow: inset 0 .2cqh .3cqh rgba(0,0,0,.7); }
+.cu-pre:disabled { opacity: .45; cursor: default; }
+.cu-keys { display: grid; grid-template-columns: 1fr 1fr; gap: 6%; align-content: center; }
+.cu-keys button { aspect-ratio: 1.4; border: 0; border-radius: .6cqh; background: linear-gradient(#45464d, #232428); box-shadow: inset 0 .2cqh 0 rgba(255,255,255,.16), 0 .3cqh .5cqh rgba(0,0,0,.6); font-size: 2.6cqw; color: #e6e7ec; }
+.cu-keys [data-ctl=play] { color: #ffb347; }
+.cu-brand { position: absolute; right: 2.4%; bottom: 3%; font-size: 1.3cqw; letter-spacing: .3em; color: #8d8f98; }
+/* the climate dials under the unit */
+.car-climate { position: absolute; left: 50%; bottom: 3%; translate: -50% 0; display: flex; gap: 6cqh; }
+.car-climate .dial { position: relative; width: 9cqh; aspect-ratio: 1; border-radius: 50%; border: 0; padding: 0; cursor: pointer; rotate: var(--r, 0deg); transition: rotate .25s ease;
+  background: conic-gradient(#3b3c42, #222327, #3b3c42, #222327, #3b3c42); box-shadow: 0 .6cqh 1cqh rgba(0,0,0,.6), inset 0 0 0 .5cqh #17181b; }
+.car-climate .dial i { position: absolute; left: 50%; top: 10%; width: 8%; height: 24%; margin-left: -4%; border-radius: 1cqh; background: #e6e7ec; }
+.car-climate .dial.temp { box-shadow: 0 .6cqh 1cqh rgba(0,0,0,.6), inset 0 0 0 .5cqh #17181b, 0 0 0 .5cqh rgba(80,140,255,.25); }
+.car-climate .dial.temp::after { content: ""; position: absolute; inset: -.9cqh; border-radius: 50%; z-index: -1; background: conic-gradient(from -120deg, #3d7bff, #ff4d3d 240deg, transparent 240deg); opacity: .5; }
+
+/* portrait (a phone): the windshield above, the unit as a tall faceplate, the dials below */
+@container retro (aspect-ratio < 23 / 20) {
+  .car-city, .car-rain { height: 40%; }
+  .car-wiper { left: 10%; top: 38%; }
+  .car-wiper i { height: 46cqw; }
+  .car-dash { top: 34%; border-radius: 50% 50% 0 0 / 6% 6% 0 0; }
+  .car-vent { display: block; top: 3%; width: 30cqw; height: 4cqh; } .car-vent.l { left: 6%; } .car-vent.r { right: 6%; }
+  .car-unit { top: 13%; width: 94cqw; aspect-ratio: auto; grid-template-columns: 1fr; grid-template-rows: auto auto; padding: 4%; gap: 3%; }
+  .cu-mid { grid-template-rows: 2.4cqh 13cqh 11cqh; gap: 1.2cqh; }
+  .cu-knob { display: none; }
+  .cu-keys { grid-template-columns: repeat(4, 1fr); gap: 3%; }
+  .cu-keys button { aspect-ratio: 1.6; font-size: 6cqw; }
+  .cu-line1 { font-size: 7.4cqw; } .cu-line2 { font-size: 4cqw; } .cu-tune { font-size: 6cqw; }
+  .cu-pre b { font-size: 5cqw; } .cu-pre small { font-size: 2.6cqw; }
+  .cu-disc { width: 60cqw; }
+  .cu-brand { display: none; }
+  .car-climate { bottom: 5%; gap: 8cqw; } .car-climate .dial { width: 18cqw; }
+}
+
+/* reduced motion: the car stands, the rain and the wiper hold, the display does not scroll */
+@media (prefers-reduced-motion: reduce) {
+  .car-city i, .car-rain i, .car-wiper i, .cu-line1 span, .cu-tune { animation: none !important; }
+  .cu-tune { display: none; }
+  .cu-line1 span { padding-left: 0; text-overflow: ellipsis; }
+  .cu-knob, .car-climate .dial, .cu-disc { transition: none; }
+}

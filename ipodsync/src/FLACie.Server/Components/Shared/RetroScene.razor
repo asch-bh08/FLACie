@@ -1,0 +1,44 @@
+@using FLACie.Core
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+@inject PlayerState Player
+@* A listening scene beside the iPod (iPod panel › Scene): the car stereo, the hi-fi, the boombox or the MiniDisc system. desk.js runs its moving parts from
+   the player's one analyser (--low --mid --high --beat on the scene, meter needles: data-needle), so no scene fetches a song twice. Styles: retro.css. *@
+<div class="retro retro-@Key" data-testid="retro" data-scene="@Key" data-playing="@(Player.Playing ? "true" : "false")" @ref="root">
+    @switch (Kind)
+    {
+        case IpodPrefs.SceneCar: <RetroCar /> break;
+        case IpodPrefs.SceneHifi: <RetroHifi /> break;
+        case IpodPrefs.SceneBoombox: <RetroBoombox /> break;
+        case IpodPrefs.SceneMinidisc: <RetroMinidisc /> break;
+    }
+</div>
+
+@code {
+    [Parameter] public int Kind { get; set; }
+    string Key => IpodPrefs.SceneKeys[Math.Clamp(Kind, 0, IpodPrefs.SceneKeys.Length - 1)];
+
+    ElementReference root;
+    int startedFor = -1;
+    bool started;
+
+    protected override void OnInitialized() => Player.Changed += Refresh;
+    void Refresh() => _ = InvokeAsync(StateHasChanged);
+
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        // the moving parts read the scene's elements once at start: start again for another scene
+        if (startedFor == Kind) return;
+        startedFor = Kind;
+        try { await Js.InvokeVoidAsync("desk.start", root, new { }); started = true; } catch (Exception e) when (Gone(e)) { }
+    }
+
+    static bool Gone(Exception e) => e is JSDisconnectedException or JSException or InvalidOperationException or OperationCanceledException;
+
+    public async ValueTask DisposeAsync()
+    {
+        Player.Changed -= Refresh;
+        if (!started) return;
+        try { await Js.InvokeVoidAsync("desk.stop"); } catch (Exception e) when (Gone(e)) { }
+    }
+}

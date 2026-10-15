@@ -7,8 +7,9 @@
 <PageTitle>iPod · FLACie</PageTitle>
 @* The iPod mode: every iPod of the Android emulator (23 models, their colours, the mono / colour / nano screens, Cover Flow, the settings), on the page and in the Windows app.
    Wheel by drag, tap, hold and flick; mouse wheel; keys: arrows, Enter, Esc, Space. Touch models show the FLACie player in their screen. *@
-<div class="ipod-stage @(flat ? "flat" : "") @(color.Dark ? "dark" : "") @(panel ? "dock-open" : "")" data-testid="ipod" data-model="@model.Id" data-color="@color.Name" data-look="@(desk ? "desk" : flat ? "wheel" : "device")" style="@StageStyle">
-    @if (desk)
+<div class="ipod-stage @(flat ? "flat" : "") @(color.Dark ? "dark" : "") @(panel ? "dock-open" : "")" data-testid="ipod" data-model="@model.Id" data-color="@color.Name" data-look="@(desk ? "desk" : flat ? "wheel" : "device")" data-scene="@IpodPrefs.SceneKeys[prefs.Scene]" style="@StageStyle">
+    @if (retro) { <RetroScene Kind="@prefs.Scene" /> }
+    else if (desk)
     {
         <DeskScene Jack="@DeskJacks.For(model.Id)" Aspect="@model.Aspect" Radius="@model.Radius" Journal="@DeskJournalPart" Cds="@DeskCdsPart" Polaroid="@DeskPolaroidPart"
                    Options="@prefs.Desk" Dock="@(prefs.Desk.Dock && DeskJacks.HasDock(model.Id))" Props="@DeskPropsPart">@Area()</DeskScene>
@@ -33,6 +34,18 @@
             }
             else { <p class="dock-empty">Nothing is playing. Pick a song on the iPod: Music &rsaquo; Songs, or Shuffle Songs.</p> }
         </section>
+        <section data-testid="scene-options">
+            <h3>Scene</h3>
+            <div class="scene-chips">
+                @for (var i = 0; i < IpodPrefs.SceneNames.Length; i++)
+                {
+                    var k = i;
+                    <button type="button" class="ipod-chip @(prefs.Scene == k ? "on" : "")" data-scene="@IpodPrefs.SceneKeys[k]" aria-pressed="@(prefs.Scene == k ? "true" : "false")" tabindex="-1" @onclick="() => PickScene(k)">@IpodPrefs.SceneNames[k]</button>
+                }
+            </div>
+        </section>
+        @if (!retro)
+        {
         <section>
             <h3>Model</h3>
             <div class="dock-seg" role="tablist">
@@ -86,6 +99,7 @@
                     @DeskOpt("pencil", "Pencil", prefs.Desk.Pencil, d => d.Pencil = !d.Pencil)
                 </div>
             </section>
+        }
         }
         <section class="dock-help">
             <h3>How to use</h3>
@@ -274,7 +288,17 @@
     IpodModel model => prefs.CurrentModel;
     IpodColor color => prefs.CurrentColor;
     bool flat => prefs.Look == IpodPrefs.LookWheelOnly && !model.Touch;
-    bool desk => prefs.Look == IpodPrefs.LookDesk;
+    bool desk => prefs.Look == IpodPrefs.LookDesk && !retro;
+    // another listening scene instead of the iPod (iPod panel › Scene): the stage shows it, and the iPod's own parts are put away
+    bool retro => prefs.Scene != IpodPrefs.SceneIpod;
+    void PickScene(int k)
+    {
+        if (k == prefs.Scene) return;
+        prefs.Scene = k; Save();
+        if (retro) { _ = Js.InvokeVoidAsync("flacie.ipodDispose").AsTask(); }
+        inited = false; lastFitKey = "";   // (back on the iPod: its wheel, keys and fit are set up again)
+        showNow = !retro && Player.Current is not null; npMode = 0;
+    }
     bool initDesk;
 
     // ---------------------------------------------------------------- the desk: the journal (lyrics), the polaroid, the next CDs
@@ -437,6 +461,12 @@
         }
         _ = DeskLyricsFollow();
         if (desk && !deskDayAsked) { deskDayAsked = true; _ = DeskDayFromBrowser(); }
+        if (retro)
+        {
+            // another scene: no iPod to fit or wire up; the panel starts open only where there is room for it beside the scene
+            if (first2 && loaded) { first2 = false; try { panel = await Js.InvokeAsync<bool>("flacie.wideScreen"); StateHasChanged(); } catch (Exception) { } }
+            return;
+        }
         var fitKey = model.Id + flat + desk;
         if (loaded && fitKey != lastFitKey) { lastFitKey = fitKey; _ = Js.InvokeVoidAsync("flacie.ipodFit").AsTask(); }
         var wantTouch = model.Touch;

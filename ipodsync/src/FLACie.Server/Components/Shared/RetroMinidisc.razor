@@ -1,0 +1,11 @@
+@inherits RetroBase
+@* The Minidisc scene (being built: the full hardware follows). Bound to the player like every scene: the song, play/pause, previous, next, an album coming up. *@
+<div class="retro-basic">
+    <div class="retro-basic-unit" data-testid="retro-unit">
+        <div data-testid="retro-title">@(Now?.Title ?? "Nothing playing")</div>
+        <button type="button" data-ctl="prev" aria-label="Previous" @onclick="Prev">⏮</button>
+        <button type="button" data-ctl="play" aria-label="@(Playing ? "Pause" : "Play")" @onclick="Toggle">⏯</button>
+        <button type="button" data-ctl="next" aria-label="Next" @onclick="Next">⏭</button>
+        @foreach (var a in NextAlbums.Take(1)) { <button type="button" data-media="album" data-album="@a.Album" @onclick="() => PlayAlbum(a)">@a.Album</button> }
+    </div>
+</div>

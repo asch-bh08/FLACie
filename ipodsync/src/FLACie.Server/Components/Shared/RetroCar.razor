@@ -1,0 +1,77 @@
+@inherits RetroBase
+@* The car stereo scene: a night dashboard seen through a rain-streaked windshield (city lights blurred beyond it, the wiper sweeping), a single-DIN head unit
+   with an amber dot-matrix display, a CD slot, a volume knob, six presets and the transport keys, and the climate dials under it. Bound to the player:
+   play/pause, previous, next; eject pauses and the disc slides out (a click on it, or the slot, plays again); the display "tunes" to a station on every
+   new song; the presets are your playlists, then the albums coming up; the knob is the volume (turned by scrolling or the arrow keys; pressed, it mutes). Styles: retro.css. *@
+<div class="car">
+    <div class="car-city" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="car-rain" aria-hidden="true"><i></i><i></i></div>
+    <div class="car-wiper" aria-hidden="true"><i></i></div>
+    <div class="car-dash">
+        <div class="car-vent l" aria-hidden="true"></div><div class="car-vent r" aria-hidden="true"></div>
+        <div class="car-unit" data-testid="retro-unit">
+            <button type="button" class="cu-knob" data-testid="car-knob" role="slider" aria-label="Volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@VolPct"
+                    style="--r:@((-135 + 270 * Player.Volume).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))deg"
+                    title="Turn for the volume (scroll or arrow keys); press to mute" @onclick="() => Player.ToggleMuteAsync()" @onwheel="KnobWheel" @onwheel:preventDefault="true" @onkeydown="KnobKey"><i></i></button>
+            <div class="cu-mid">
+                <div class="cu-slot" data-testid="car-slot" @onclick="Insert" title="@(ejected ? "Put the disc back in" : "")">
+                    <i class="cu-disc @(ejected ? "out" : "")" data-testid="car-disc" style="@ArtStyle"></i>
+                </div>
+                <div class="cu-display" data-testid="car-display">
+                    <div class="cu-line1" data-testid="retro-title"><span style="--len:@Ticker.Length">@Ticker</span></div>
+                    <div class="cu-line2"><span>@(Now is null ? "NO DISC" : ejected ? "EJECT" : $"TRK {TrackNo:00}")</span><span>@(Now is null ? "--:--" : Clock(Position))</span><span>@(Playing ? "CD ▸" : "CD ❚❚")</span></div>
+                    @if (Now is not null) { <div class="cu-tune" @key="Now.Path" aria-hidden="true">TUNING&nbsp;&nbsp;FM @Freq</div> }
+                    <i class="cu-dots" aria-hidden="true"></i>
+                </div>
+                <div class="cu-presets">
+                    @for (var i = 0; i < Presets.Count; i++)
+                    {
+                        var p = Presets[i]; var n = i + 1;
+                        <button type="button" class="cu-pre" data-preset="@n" data-media="@(p.Tape is null ? "album" : "playlist")" data-album="@p.Album?.Album" aria-label="@($"Preset {n}: {p.Name}")" title="@p.Name" @onclick="() => PlayPreset(p)"><b>@n</b><small>@p.Name</small></button>
+                    }
+                    @for (var i = Presets.Count; i < 6; i++) { <button type="button" class="cu-pre" disabled><b>@(i + 1)</b><small>—</small></button> }
+                </div>
+            </div>
+            <div class="cu-keys">
+                <button type="button" data-ctl="eject" aria-label="Eject" @onclick="Eject">⏏</button>
+                <button type="button" data-ctl="prev" aria-label="Previous" @onclick="Prev">⏮</button>
+                <button type="button" data-ctl="play" aria-label="@(Playing ? "Pause" : "Play")" @onclick="PlayKey">⏯</button>
+                <button type="button" data-ctl="next" aria-label="Next" @onclick="Next">⏭</button>
+            </div>
+            <span class="cu-brand" aria-hidden="true">FLACIE · CD-1</span>
+        </div>
+        <div class="car-climate" aria-hidden="true">
+            <button type="button" tabindex="-1" class="dial temp" style="--r:@(climate[0])deg" @onclick="() => Turn(0)"><i></i></button>
+            <button type="button" tabindex="-1" class="dial fan" style="--r:@(climate[1])deg" @onclick="() => Turn(1)"><i></i></button>
+            <button type="button" tabindex="-1" class="dial mode" style="--r:@(climate[2])deg" @onclick="() => Turn(2)"><i></i></button>
+        </div>
+    </div>
+</div>
+
+@code {
+    bool ejected;
+    readonly int[] climate = [-30, 20, 60];
+
+    sealed record Preset(string Name, DeskTapes.Tape? Tape, FLACie.Core.DeskAlbum? Album);
+    /// <summary>The six presets: your playlists first, then the albums coming up.</summary>
+    List<Preset> Presets => [.. Playlists.Take(6).Select(t => new Preset(t.Name, t, null)).Concat(NextAlbums.Select(a => new Preset(a.Album, null, a))).Take(6)];
+
+    string Ticker => Now is null ? "INSERT DISC" : $"{Now.Title}  —  {Now.Artist}".ToUpperInvariant();
+    string Freq => (87.5 + Hash(Now?.Path) % 205 / 10.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+    int VolPct => (int)Math.Round(Player.Volume * 100);
+    string ArtStyle => Now?.ArtKey is { } k ? $"--art:url('/art/{Uri.EscapeDataString(FLACie.Core.CoverOverrides.Map(k)!)}?v=3')" : "";
+
+    async Task PlayKey() { if (ejected) { await Insert(); return; } await Toggle(); }
+    async Task Eject() { ejected = true; await Pause(); }
+    async Task Insert() { if (!ejected) return; ejected = false; await Resume(); }
+    async Task PlayPreset(Preset p) { ejected = false; if (p.Tape is { } t) await PlayPlaylist(t); else if (p.Album is { } a) await PlayAlbum(a); }
+
+    Task KnobWheel(WheelEventArgs e) => SetVolume(Player.Volume + (e.DeltaY < 0 ? 0.05 : -0.05));
+    Task KnobKey(KeyboardEventArgs e) => e.Key switch
+    {
+        "ArrowUp" or "ArrowRight" => SetVolume(Player.Volume + 0.05),
+        "ArrowDown" or "ArrowLeft" => SetVolume(Player.Volume - 0.05),
+        _ => Task.CompletedTask,
+    };
+    void Turn(int i) { climate[i] = climate[i] >= 120 ? -120 : climate[i] + 30; }
+}

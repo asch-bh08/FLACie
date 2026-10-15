@@ -28,6 +28,13 @@ jcifs-ng is compiled into the app, and TagLibSharp is compiled into the native i
 | Open Sans font (Windows app) | Apache-2.0 |
 | Playwright (tests only, not shipped) | Apache-2.0 |
 
+## Fonts and pictures (iPod mode, Desk look)
+
+| Asset | Source | Licence |
+|---|---|---|
+| Caveat handwriting font (`wwwroot/desk/caveat-*.woff2`) | The Caveat Project Authors, via Fontsource | SIL Open Font License 1.1 ([text](ipodsync/src/FLACie.Server/wwwroot/desk/OFL-caveat.txt)) |
+| Oak veneer texture (`wwwroot/desk/oak.jpg`, resized) | Poly Haven, "Oak Veneer 05" | CC0 (public domain) |
+
 ## Not bundled
 
 FLACie does **not** ship or link ffmpeg, ffprobe, yt-dlp, slskd, Lidarr or Jellyfin. If you install them yourself (the optional download

@@ -5,61 +5,49 @@ namespace FLACie.Tests;
 
 public class DeskSourcesTests
 {
-    static Track T(string title, string? art = null) =>
-        new("p/" + title, title, "Ann", "First", "Ann", 1, 1, 200_000, 2000, art, 0, TrackSource.Jellyfin);
+    static Track T(string title, string album, string artist = "Ann", string? art = null) =>
+        new("p/" + title, title, artist, album, artist, 1, 1, 200_000, 2000, art ?? "k-" + album, 0, TrackSource.Jellyfin);
 
-    static PlaylistEntry E(Track t) => new(t.Path, t.Title, t.Artist);
-    static Playlist P(string id, params Track[] ts) => new(id, "List " + id, 0, null, ts.Select(E).ToList());
+    static int[] Seq(int n) => Enumerable.Range(0, n).ToArray();
 
-    // resolves an entry to its track by path; anything not in the known set is dropped (as UserSession.Resolve does for songs that are gone)
-    static Func<IEnumerable<PlaylistEntry>, IReadOnlyList<Track>> Resolver(params Track[] known) =>
-        es => es.Select(e => known.FirstOrDefault(k => k.Path == e.Path)).OfType<Track>().ToList();
-
-    static readonly Track A = T("a", "ka"), B = T("b", "kb"), C = T("c", "kc"), NoArt = T("n");
-
-    [Fact] public void UpNextOnlyWhilePlayingAndStartsAtTheCurrentSong()
+    [Fact] public void NextSkipsTheCurrentAlbumAndRepeats()
     {
-        var s = DeskSources.Build([A, B, C], 1, [], [], Resolver());
-        var up = Assert.Single(s);
-        Assert.Equal("upnext", up.Id); Assert.Equal("Up Next", up.Label); Assert.Equal("2 songs", up.Sub); Assert.Equal("kb", up.ArtKey);
-        Assert.Equal([B, C], up.Tracks);
-        Assert.Empty(DeskSources.Build([], -1, [], [], Resolver()));
-        Assert.Empty(DeskSources.Build([A, B], -1, [], [], Resolver()));
+        Track[] q = [T("a1", "A"), T("a2", "A"), T("b1", "B"), T("b2", "B"), T("c1", "C"), T("a3", "A"), T("d1", "D")];
+        var next = DeskSources.Next(q, Seq(q.Length), 0);
+        Assert.Equal(["b", "c", "d"], next.Select(n => n.Album.ToLowerInvariant()).ToArray());
+        Assert.Equal([2, 4, 6], next.Select(n => n.QueueIndex).ToArray());
+        Assert.Equal("b1", next[0].First.Title); Assert.Equal("k-B", next[0].ArtKey); Assert.Equal("Ann", next[0].Artist);
     }
 
-    [Fact] public void OneSongSaysSong() => Assert.Equal("1 song", DeskSources.Build([A, B], 1, [], [], Resolver())[0].Sub);
-
-    [Fact] public void FavouritesSkippedWhenEmpty()
+    [Fact] public void FollowsPlayOrderNotQueueOrder()
     {
-        Assert.Empty(DeskSources.Build([], -1, [], [], Resolver(A, B)));
-        var fav = Assert.Single(DeskSources.Build([], -1, [E(A), E(B)], [], Resolver(A, B)));
-        Assert.Equal("favorites", fav.Id); Assert.Equal("Favourites", fav.Label); Assert.Equal("2 songs", fav.Sub);
-        Assert.Empty(DeskSources.Build([], -1, [E(A)], [], Resolver()));   // favourites that resolve to nothing are skipped too
+        Track[] q = [T("a", "A"), T("b", "B"), T("c", "C")];
+        var next = DeskSources.Next(q, [2, 0, 1], 2);   // playing C first, then A, then B
+        Assert.Equal(["A", "B"], next.Select(n => n.Album).ToArray());
+        Assert.Equal([0, 1], next.Select(n => n.QueueIndex).ToArray());
     }
 
-    [Fact] public void PlaylistsInOrderSkippingEmptyOnes()
+    [Fact] public void ShortAndEmptyQueues()
     {
-        var s = DeskSources.Build([], -1, [], [P("P1", A, B), P("P2", C), P("P3", A)], Resolver(A, B));
-        Assert.Equal(["pl:P1", "pl:P3"], s.Select(x => x.Id).ToArray());
-        Assert.Equal(["List P1", "List P3"], s.Select(x => x.Label).ToArray());
-        Assert.Equal("2 songs", s[0].Sub);
+        Assert.Empty(DeskSources.Next([], [], -1));
+        Track[] one = [T("a1", "A"), T("a2", "A")];
+        Assert.Empty(DeskSources.Next(one, Seq(2), 0));
+        Track[] many = [T("a", "A"), T("b", "B"), T("c", "C"), T("d", "D"), T("e", "E")];
+        Assert.Equal(2, DeskSources.Next(many, Seq(5), 0, count: 2).Count);
+        Assert.Empty(DeskSources.Next(many, Seq(5), 4));   // the last song: nothing after it
+        Assert.Empty(DeskSources.Next(many, Seq(5), 9));   // an index outside the queue
     }
 
-    [Fact] public void ArtIsTheFirstTrackThatHasArt()
+    [Fact] public void AnOrderThatDoesNotMatchTheQueueFallsBackToQueueOrder()
     {
-        var s = DeskSources.Build([], -1, [], [P("x", NoArt, B, C), P("y", NoArt)], Resolver(NoArt, B, C));
-        Assert.Equal("kb", s[0].ArtKey); Assert.Null(s[1].ArtKey);
+        Track[] q = [T("a", "A"), T("b", "B"), T("c", "C")];
+        Assert.Equal(["B", "C"], DeskSources.Next(q, [0, 1], 0).Select(n => n.Album).ToArray());
     }
 
-    [Fact] public void OrderIsUpNextFavouritesThenPlaylists() =>
-        Assert.Equal(["upnext", "favorites", "pl:P1"], DeskSources.Build([A], 0, [E(B)], [P("P1", C)], Resolver(A, B, C)).Select(x => x.Id).ToArray());
-
-    [Fact] public void ActiveIdReadsTheDeskContext()
+    [Fact] public void AlbumKeyIgnoresCaseAndFallsBackToPath()
     {
-        Assert.Equal("pl:P1", DeskSources.ActiveId("desk:pl:P1", true));
-        Assert.Equal("upnext", DeskSources.ActiveId("album:x", true));
-        Assert.Equal("upnext", DeskSources.ActiveId(null, true));
-        Assert.Null(DeskSources.ActiveId(null, false));
-        Assert.Null(DeskSources.ActiveId("desk:pl:P1", false));
+        Assert.Equal(DeskSources.AlbumKey(T("x", "Album", "Ann")), DeskSources.AlbumKey(T("y", "ALBUM", "ann")));
+        Assert.NotEqual(DeskSources.AlbumKey(T("x", "Album", "Ann")), DeskSources.AlbumKey(T("y", "Album", "Bob")));
+        Assert.Equal("p/z", DeskSources.AlbumKey(T("z", "")));
     }
 }

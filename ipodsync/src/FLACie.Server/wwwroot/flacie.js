@@ -455,6 +455,8 @@ window.flacie = (() => {
     // the iPod desk's earbuds: one frame of the same analyser (the graph is built on first use and follows the song); null where it can't run
     vizFrame() {
       if (!buildGraph(0) || !an) return null;
+      // a context opened before any click (a reload in the Desk look) stays suspended: ask again once the song plays, which a click started
+      if (actx.state === "suspended" && !audio.paused) actx.resume().catch(() => { });
       syncTwin();
       const wave = new Uint8Array(an.fftSize); an.getByteTimeDomainData(wave);
       return { freq: freqData(), wave, playing: !audio.paused };

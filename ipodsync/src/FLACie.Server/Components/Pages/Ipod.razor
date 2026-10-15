@@ -261,7 +261,7 @@
     [Inject] MbOverlay MbChoices { get; set; } = default!;
     [Inject] CoverArtArchiveClient Caa { get; set; } = default!;
     Lyrics? deskLyrics; string? deskLyricsFor;
-    readonly Dictionary<string, string?> discArts = [];
+    readonly DeskDiscArts discArts = new();
     IReadOnlyList<DeskAlbum> DeskNext => DeskSources.Next(Player.Queue, Player.PlayOrder, Player.Index);
 
     RenderFragment DeskJournalPart => @<DeskJournal Title="@Player.Current?.Title" Artist="@Player.Current?.Artist" Lines="@(deskLyrics?.Lines.Select(l => l.Text).ToList() ?? [])" Current="@DeskLyrics.CurrentLine(deskLyrics, Player.Position, Player.Duration)" />;
@@ -273,21 +273,10 @@
     /// <summary>The next album's own disc picture (Cover Art Archive "Medium") when the user matched its release on MusicBrainz; looked up once, after the desk is up.</summary>
     string? DiscArtFor(IReadOnlyList<DeskAlbum> next)
     {
-        if (next.Count == 0) return null;
-        var a = next[0];
-        if (discArts.TryGetValue(a.Key, out var known)) return known;
-        discArts[a.Key] = null;
-        if (MbChoices.Get(a.First) is { ReleaseMbid: { Length: > 0 } release } choice)
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    var images = await Caa.ListAsync(release, choice.ReleaseGroupMbid);
-                    if (images.FirstOrDefault(i => i.Types.Contains("Medium", StringComparer.OrdinalIgnoreCase)) is { } disc) { discArts[a.Key] = disc.Thumb; await InvokeAsync(StateHasChanged); }
-                }
-                catch (Exception) { }   // no picture: the desk prints one from the cover
-            });
-        return null;
+        if (next.Count == 0 || MbChoices.Get(next[0].First) is not { ReleaseMbid: { Length: > 0 } release } choice) return null;
+        return discArts.Get(next[0].Key,
+            async () => (await Caa.ListAsync(release, choice.ReleaseGroupMbid)).FirstOrDefault(i => i.Types.Contains("Medium", StringComparer.OrdinalIgnoreCase))?.Thumb,
+            () => InvokeAsync(StateHasChanged));
     }
 
     /// <summary>The journal's lyrics follow the song; an answer for a song that is no longer playing is dropped.</summary>

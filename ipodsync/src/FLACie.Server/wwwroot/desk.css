@@ -104,6 +104,7 @@
   .desk-ipod { left: 50%; top: 45cqh; height: 52cqh; }
   .desk-journal { left: 5%; top: 2.5cqh; width: 26cqh; height: 15cqh; rotate: -3deg; }
   .desk-journal .j-lines { top: 8.5cqh; font-size: 1.7cqh; line-height: 2.6cqh; }
+  .desk-journal .j-lines div:not(:nth-last-child(-n + 2)) { display: none; }   /* the small page holds two lines: the one being sung and the one before */
   .desk-journal .j-title { font-size: 2cqh; top: 1.4cqh; }
   .desk-journal .j-date, .desk-polaroid, .desk-stack, .desk-coffee, .desk-steam { display: none; }
   .desk-open { left: 4%; top: 83cqh; width: 24cqh; height: 10.5cqh; rotate: -4deg; }

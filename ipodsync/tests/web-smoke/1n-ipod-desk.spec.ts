@@ -43,6 +43,28 @@ test.describe('desk engine on its own (desk.js harness)', () => {
     expect(errors).toEqual([]);
   });
 
+  test('vizFrame wakes an analyser the browser opened suspended (a reload of /ipod in the Desk look) once the song plays', async ({ page }) => {
+    const errors = errorsOf(page);
+    await page.goto(pathToFileURL(path.join(__dirname, 'fixtures', 'viz-resume.html')).href);
+    expect(await page.evaluate(() => (window as any).flacie.vizFrame() !== null)).toBe(true);
+    const asked = await page.evaluate(() => (window as any).resumes);
+    // still suspended, the song now playing (the user pressed play): the next frame asks again
+    await page.evaluate(() => { (window as any).playing = true; (window as any).flacie.vizFrame(); });
+    expect(await page.evaluate(() => (window as any).resumes)).toBeGreaterThan(asked);
+    expect(errors).toEqual([]);
+  });
+
+  test('the journal always shows the line being sung, on a desk and on a phone', async ({ page }) => {
+    for (const [w, h] of [[1600, 900], [1280, 720], [390, 760], [360, 640]]) {
+      await page.goto(pathToFileURL(path.join(__dirname, 'fixtures', 'desk-journal.html')).href + `?w=${w}&h=${h}`);
+      const pageBox = (await page.locator('.desk-journal .page').boundingBox())!;
+      const sung = (await page.locator('.writing').boundingBox())!;
+      expect(sung, `${w}x${h}: the line being sung is shown`).not.toBeNull();
+      expect(sung.y + sung.height, `${w}x${h}: the line being sung is on the page`).toBeLessThanOrEqual(pageBox.y + pageBox.height + 1);
+      expect(sung.y, `${w}x${h}: below the title`).toBeGreaterThan(pageBox.y);
+    }
+  });
+
   test('no analyser: a calm fixed pulse, no beats, no errors', async ({ page }) => {
     const errors = errorsOf(page);
     await page.goto(harness('?null=1'));

@@ -1,4 +1,6 @@
-# FLACie: pick-up guide after beta 66 (2026-10-14)
+# FLACie: pick-up guide after beta 67 (2026-10-15)
+
+**Update: v1.0.0-beta67 is released and deployed** (Android 82, MSI 0.67.0, Web 1.0-beta67; rollback tag `flacie-web:rollback-2026-10-15-pre67`). One fix: mouse-dragging a touch iPod list (a rename had broken the class the drag script looks for), with a test. It also carries the Alexa work another session merged and deployed on 2026-10-14 (off by default, docs/alexa/STATUS.md). Another session is building an iPod desk look on branch ipod/desk (worktree C:\\wt\\desk); keep .ipod-area the size of the free space. Never stop test servers by image name (ipodsync/tools/stop-test-servers.ps1). Tests: Android 414/2/0, .NET 636, Playwright 153 + 3 load-related failures that passed on rerun.
 
 **Update: v1.0.0-beta66 is released and deployed** (Android 81, MSI 0.66.0, Web 1.0-beta66; rollback tag `flacie-web:rollback-2026-10-14-pre66`). The touch iPods run their own iPod OS (IpodTouchOs.razor), Extras with Clock/Stopwatch, Now Playing rating mode, IpodContent (shared library menus, unit-tested), a layout test over 9 models x 11 window shapes, and a fix for lost/swapped letters in the search boxes (TextBox.razor: the browser keeps the text). Tests: Android 414/2/0, .NET 334, Playwright 158. 1i-download-tags "Autoplay lists" is intermittent (unexplained).
 

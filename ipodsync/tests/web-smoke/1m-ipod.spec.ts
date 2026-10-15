@@ -314,6 +314,15 @@ test.describe.serial('ipod mode', () => {
       await expect(page.getByTestId('ios-tabs')).toBeVisible();
       // Songs tab is the default: rows with covers, titles and artists
       await expect(page.getByTestId('ios-row').first()).toBeVisible();
+      // a mouse drags the list like a finger: it scrolls, and the drag is not a tap on the row under it
+      {
+        const list = page.getByTestId('ios-list'); const lb = (await list.boundingBox())!;
+        const x = lb.x + lb.width / 2, y = lb.y + lb.height * 0.8;
+        await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y - 40, { steps: 4 }); await page.mouse.move(x, y - lb.height * 0.6, { steps: 8 }); await page.mouse.up();
+        await expect.poll(() => list.evaluate((e) => e.scrollTop)).toBeGreaterThan(40);
+        expect(await app()).toBe('music');
+        await list.evaluate((e) => { e.scrollTop = 0; });
+      }
       await page.locator('[data-tab="Artists"]').click();
       await expect(page.locator('.ios-nav b')).toHaveText('Artists');
       await page.getByTestId('ios-row').first().click();                    // an artist opens (its albums or its songs)

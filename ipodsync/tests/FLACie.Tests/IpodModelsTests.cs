@@ -62,6 +62,23 @@ public class IpodPrefsTests
         Assert.Equal(0, p.Clicker); Assert.False(p.ClickSound); Assert.False(p.Haptics);
     }
 
+    [Fact] public void DeskLookRoundTrips()
+    {
+        var p = new IpodPrefs { Look = IpodPrefs.LookDesk };
+        Assert.Equal(IpodPrefs.LookDesk, IpodPrefs.FromJson(p.ToJson()).Look);
+        Assert.Equal("Desk", IpodPrefs.LookNames[IpodPrefs.LookDesk]);
+    }
+
+    [Fact] public void TheIpodsOwnLookToggleSkipsDesk()
+    {
+        var p = new IpodPrefs { Look = IpodPrefs.LookDesk };
+        p.Cycle("look"); Assert.Equal(IpodPrefs.LookDevice, p.Look);
+        p.Cycle("look"); Assert.Equal(IpodPrefs.LookWheelOnly, p.Look);
+        p.Cycle("look"); Assert.Equal(IpodPrefs.LookDevice, p.Look);
+    }
+
+    [Fact] public void UnknownLookFallsBackToDevice() => Assert.Equal(IpodPrefs.LookDevice, IpodPrefs.FromJson("""{"look":7}""").Look);
+
     [Fact] public void AnotherModelStartsWithItsFirstColourAndColoursStayInRange()
     {
         var p = new IpodPrefs(); p.ChooseModel("nano4"); p.Color = 7; Assert.Equal(7, p.Color); Assert.Equal("Red", p.CurrentColor.Name);

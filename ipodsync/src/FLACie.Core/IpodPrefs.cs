@@ -6,12 +6,12 @@ namespace FLACie.Core;
 /// <summary>The settings of the iPod mode (model, colour, look, wheel feel, clicker, hidden main-menu entries), kept per browser and saved as JSON. Pure and unit-tested.</summary>
 public sealed class IpodPrefs
 {
-    public const int LookWheelOnly = 0, LookDevice = 1;
+    public const int LookWheelOnly = 0, LookDevice = 1, LookDesk = 2;
     public static readonly string[] SpeedNames = ["Very Slow", "Slow", "Medium", "Fast", "Very Fast"];
     public static readonly string[] AccelNames = ["Off", "Low", "Normal", "High"];
     public static readonly string[] ClickerNames = ["Off", "Sound", "Haptic", "Both"];
     public static readonly string[] ClickVolumeNames = ["Quiet", "Medium", "Loud"];
-    public static readonly string[] LookNames = ["Wheel Only", "Device"];
+    public static readonly string[] LookNames = ["Wheel Only", "Device", "Desk"];
     public static readonly int[] VolumeLimits = [100, 85, 70, 50];
     public static readonly int[] SleepMinutes = [0, 15, 30, 60, 90, 120];
     /// <summary>Entries that cannot be hidden from the main menu (as on the Android emulator).</summary>
@@ -57,7 +57,7 @@ public sealed class IpodPrefs
             case "wheelAccel": WheelAccel = (wheelAccel + 1) % AccelNames.Length; return true;
             case "clicker": Clicker = (clicker + 1) % ClickerNames.Length; return true;
             case "clickVolume": ClickVolume = (clickVolume + 1) % ClickVolumeNames.Length; return true;
-            case "look": Look = Look == LookDevice ? LookWheelOnly : LookDevice; return true;
+            case "look": Look = Look == LookDevice ? LookWheelOnly : LookDevice; return true;   // the iPod's own setting toggles Device / Wheel Only; from Desk it goes to Device
             case "clock": Clock = !Clock; return true;
             case "volumeLimit": VolumeLimit = VolumeLimits[(Array.IndexOf(VolumeLimits, volumeLimit) + 1) % VolumeLimits.Length]; return true;
             default: return false;
@@ -82,7 +82,7 @@ public sealed class IpodPrefs
             if (JsonNode.Parse(json) is not JsonObject o) return p;
             int I(string k, int d) => o[k] is JsonValue v && v.TryGetValue<int>(out var n) ? n : d;
             if (o["model"] is JsonValue m && m.TryGetValue<string>(out var id)) p.Model = id;
-            p.Color = I("color", 0); p.Clock = o["clock"] is JsonValue ck && ck.TryGetValue<bool>(out var cb) && cb; p.Look = I("look", LookDevice) == LookWheelOnly ? LookWheelOnly : LookDevice;
+            p.Color = I("color", 0); p.Clock = o["clock"] is JsonValue ck && ck.TryGetValue<bool>(out var cb) && cb; p.Look = I("look", LookDevice) switch { LookWheelOnly => LookWheelOnly, LookDesk => LookDesk, _ => LookDevice };
             p.WheelSpeed = I("speed", 2); p.WheelAccel = I("accel", 1); p.Clicker = I("clicker", 0); p.ClickVolume = I("clickVol", 1); p.VolumeLimit = I("limit", 100);
             if (o["hidden"] is JsonArray a) foreach (var h in a.OfType<JsonValue>()) if (h.TryGetValue<string>(out var s) && !FixedMenu.Contains(s)) p.HiddenMenu.Add(s);
         }

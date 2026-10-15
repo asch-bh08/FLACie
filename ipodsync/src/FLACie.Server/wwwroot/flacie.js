@@ -294,6 +294,34 @@ window.flacie = (() => {
   // a device lying turned (the Desk look tilts it a few degrees): its angle, from the CSS rotate of it and what holds it; and the zoom it is drawn at (the page's fit)
   const tiltOf = el => { let a = 0; for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const m = /^(-?[\d.]+)deg$/.exec(getComputedStyle(n).rotate || ""); if (m) a += +m[1]; } return a; };
   const zoomOf = el => { let z = 1; for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const v = parseFloat(getComputedStyle(n).zoom); if (v > 0) z *= v; } return z; };
+  // the iPod screens' long text (as on a real iPod): a line too long for the screen scrolls inside itself, pausing at both ends (ipod.css: .mq, from how far,
+  // --mq, and how long, --mqt; still, with an ellipsis, when motion is reduced). A line is measured again only when its text changes, the highlighted row
+  // moves, or the screen's size changes, so the clock and the progress bar ticking never restart it
+  const MQ = ".lcd-list li.sel .lcd-label, .lnp-meta b, .lnp-meta span, .cf-cap b, .cf-cap span, .ios-np-meta b, .ios-np-meta span, .ios-np-meta small";
+  const marquee = root => {
+    const measure = e => {
+      e.classList.remove("mq");
+      const over = e.matches(MQ) ? e.scrollWidth - e.clientWidth : 0;
+      if (over > 2) { e.style.setProperty("--mq", -(over + 6) + "px"); e.style.setProperty("--mqt", (4 + over / 30).toFixed(1) + "s"); void e.offsetWidth; e.classList.add("mq"); }
+    };
+    const all = () => { root.querySelectorAll(".mq").forEach(measure); root.querySelectorAll(MQ).forEach(measure); };
+    let queued = new Set(), frame = 0;
+    const flush = () => { frame = 0; const q = queued; queued = new Set(); q.forEach(measure); };
+    const touched = n => {
+      const el = n.nodeType === 1 ? n : n.parentElement; if (!el) return;
+      // a line whose text changed; or, a row that became (or stopped being) the highlighted one, its label
+      const line = el.closest(MQ); if (line) queued.add(line);
+      if (el.matches && el.matches(".lcd-list li")) { const l = el.querySelector(".lcd-label"); if (l) queued.add(l); }
+      el.querySelectorAll && el.querySelectorAll(MQ).forEach(x => queued.add(x));
+      if (!frame) frame = requestAnimationFrame(flush);
+    };
+    const mo = new MutationObserver(rs => { for (const r of rs) { touched(r.target); r.addedNodes.forEach(touched); } });
+    mo.observe(root, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["class"] });
+    let w = root.clientWidth, h = root.clientHeight;
+    const ro = new ResizeObserver(() => { if (root.clientWidth !== w || root.clientHeight !== h) { w = root.clientWidth; h = root.clientHeight; all(); } });
+    ro.observe(root); all();
+    return { stop() { mo.disconnect(); ro.disconnect(); if (frame) cancelAnimationFrame(frame); } };
+  };
   let npRef = null, npPushed = false;
   const npClosed = () => { const r = npRef; npRef = null; npPushed = false; document.body.classList.remove("np-open"); if (r) r.invokeMethodAsync("Closed").catch(() => { }); };
   // Back onto a "#now-playing" entry (after following a link out of the full-screen player) brings the player back instead of landing on the bare page
@@ -561,7 +589,7 @@ window.flacie = (() => {
       fit(); addEventListener("resize", fit); stage.focus();
       const ro = new ResizeObserver(fit); ro.observe(stage);
       const mo = new MutationObserver(fit); mo.observe(device, { attributes: true, attributeFilter: ["data-w", "data-h"] });
-      const cleanup = { ro, mo };
+      const cleanup = { ro, mo, mq: marquee(stage) };
       // the keys the device uses are the device's alone: a focused button must not also click on Enter or Space, and the page-wide shortcuts (Space, arrows) must not act as well
       const keys = e => { if (["Enter", " ", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) e.preventDefault(); };
       stage.addEventListener("keydown", keys);
@@ -686,7 +714,7 @@ window.flacie = (() => {
     },
     ipodDispose() {
       if (!ipod) return;
-      try { ipod.ro && ipod.ro.disconnect(); ipod.mo && ipod.mo.disconnect(); } catch { }
+      try { ipod.ro && ipod.ro.disconnect(); ipod.mo && ipod.mo.disconnect(); ipod.mq && ipod.mq.stop(); } catch { }
       removeEventListener("resize", ipod.fit); if (ipod.wheel) ipod.wheel.removeEventListener("pointerdown", ipod.down); ipod.stage.removeEventListener("keydown", ipod.keys);
       removeEventListener("pointermove", ipod.move); removeEventListener("pointerup", ipod.up); removeEventListener("pointercancel", ipod.up);
       clearInterval(ipod.timer); clearTimeout(ipod.hold); if (ipod.coast) cancelAnimationFrame(ipod.coast); try { ipod.ctx && ipod.ctx.close(); } catch { } ipod = null;

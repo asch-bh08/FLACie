@@ -409,6 +409,8 @@ test.describe.serial('ipod mode', () => {
 
   test('every iPod is laid out cleanly at every window size and shape', async ({ page }) => {
     test.setTimeout(600_000);
+    // (still text: a line too long for its screen scrolls otherwise, and its letters would be measured mid-scroll; 1q-ipod-marquee covers the scrolling)
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await signIn(page);
     const sizes: Array<[number, number]> = [[1920, 1080], [1366, 768], [1024, 768], [768, 1024], [390, 844], [360, 640], [320, 568], [2560, 1080], [1200, 400], [900, 300], [500, 500]];
     const models = ['ipod1', 'mini', 'video5', 'nano2', 'classic6', 'nano4', 'nano6', 'touch5', 'nano7'];

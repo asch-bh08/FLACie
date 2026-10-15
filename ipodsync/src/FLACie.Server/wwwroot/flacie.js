@@ -88,6 +88,9 @@ window.flacie = (() => {
     if (audio.paused !== twin.paused) { if (audio.paused) twin.pause(); else twin.play().catch(() => { }); }
   };
   ["play", "pause", "seeked", "loadstart", "ratechange"].forEach(ev => audio.addEventListener(ev, syncTwin));
+  // the twin is a second download of the song: it stops while the tab is hidden (nothing is drawn then), and the graphs open it again when they are shown
+  document.addEventListener("visibilitychange", () => { if (document.hidden && actx) closeGraph(); });
+  let vizRate = 0;   // the rate the Info tab's graph was opened at (to open it again)
   const buildGraph = (rate) => {
     if (ios || !AC) return false;
     const key = String(rate || 0);
@@ -278,7 +281,8 @@ window.flacie = (() => {
   const vizDraw = (ts) => {
     if (!vizOn) return;
     requestAnimationFrame(vizDraw);
-    const cv = document.getElementById("viz"); if (!cv || !an) return;
+    const cv = document.getElementById("viz"); if (!cv) return;
+    if (!an && !buildGraph(vizRate)) return;   // (closed while the tab was hidden)
     if (ts - lastSync > 500) { lastSync = ts; syncTwin(); }
     const dpr = window.devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
     if (!w || !h) return;
@@ -447,8 +451,8 @@ window.flacie = (() => {
     // starts the Info tab's live view; false when this browser can't do it
     viz(id, style, rate, cutHz, cutLabel) {
       vizCut = cutHz | 0; vizCutLabel = cutLabel || "";
-      vizStyle = views[style] ? style : "curve"; vs = {};
-      if (!buildGraph(rate | 0) || !an) return false;
+      vizStyle = views[style] ? style : "curve"; vs = {}; vizRate = rate | 0;
+      if (!buildGraph(vizRate) || !an) return false;
       if (!vizOn) { vizOn = true; requestAnimationFrame(vizDraw); }
       return true;
     },
@@ -465,6 +469,8 @@ window.flacie = (() => {
       return deskFrame;
     },
     vizRelease() { if (!vizOn) closeGraph(); },
+    // mobile data (or Data Saver): the graphs' second copy of the song is not fetched without asking. Chrome on Android says so; elsewhere nothing is reported (not metered)
+    metered() { const c = navigator.connection; return !!c && (c.saveData === true || c.type === "cellular"); },
     // the output device's own rate: a context made with no rate takes it
     outputRate() { try { if (!AC) return 0; const c = new AC(); const r = c.sampleRate; c.close(); return r; } catch { return 0; } },
     // what this browser is, for the admin dashboard

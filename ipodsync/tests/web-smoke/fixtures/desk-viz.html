@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
 <head><meta charset="utf-8"><title>desk.js harness</title>
-<!-- Drives wwwroot/desk.js on its own (1n-ipod-desk.spec.ts): a stand-in flacie.vizFrame() (window.vizCalls counts the calls) whose low bins kick twice a second, or nothing with ?null=1. -->
+<!-- Drives wwwroot/desk.js on its own (1n-ipod-desk.spec.ts): a stand-in flacie.vizFrame() (window.vizCalls counts the calls) whose low bins kick twice a second, or nothing with ?null=1; ?metered=1 is a phone on mobile data. -->
 <style>body { margin: 0; } .desk { width: 800px; height: 450px; position: relative; } canvas { position: absolute; inset: 0; width: 100%; height: 100%; }</style>
 </head>
 <body>
@@ -17,7 +17,7 @@
 </div>
 <div class="disc" id="disc"></div>
 <script>
-  const none = new URLSearchParams(location.search).has('null');
+  const none = new URLSearchParams(location.search).has('null'), cell = new URLSearchParams(location.search).has('metered');
   window.flacie = {
     vizFrame() {
       window.vizCalls = (window.vizCalls || 0) + 1;
@@ -27,6 +27,7 @@
       for (let i = 0; i < 1024; i++) freq[i] = i >= 1 && i <= 8 ? (kick ? 240 : 40) : i <= 40 ? 120 : i <= 160 ? 70 : 10;
       return { freq, wave: new Uint8Array(2048).fill(128), playing: true };
     },
+    metered() { return cell; },
     vizRelease() { window.released = (window.released || 0) + 1; },
   };
 </script>

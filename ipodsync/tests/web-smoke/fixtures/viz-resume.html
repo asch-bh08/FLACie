@@ -2,15 +2,15 @@
 <meta charset="utf-8">
 <title>vizFrame resume harness</title>
 <!-- flacie.js on its own with a stand-in AudioContext that starts suspended, as a browser makes one opened before any click.
-     window.resumes counts the calls; window.playing stands in for the audio element playing. -->
+     window.resumes, window.contexts and window.closes count the calls; window.playing stands in for the audio element playing. -->
 <script>
-  window.resumes = 0; window.playing = false;
+  window.resumes = 0; window.playing = false; window.contexts = 0; window.closes = 0;
   class FakeNode { connect() { } }
   class FakeAnalyser extends FakeNode { constructor() { super(); this.fftSize = 2048; this.frequencyBinCount = 1024; } getByteFrequencyData() { } getByteTimeDomainData() { } }
   class FakeAC {
-    constructor() { this.state = 'suspended'; this.sampleRate = 48000; this.destination = new FakeNode(); }
+    constructor() { window.contexts++; this.state = 'suspended'; this.sampleRate = 48000; this.destination = new FakeNode(); }
     resume() { window.resumes++; return Promise.resolve(); }
-    close() { }
+    close() { window.closes++; }
     createMediaElementSource() { return new FakeNode(); }
     createGain() { const g = new FakeNode(); g.gain = { value: 1 }; return g; }
     createAnalyser() { return new FakeAnalyser(); }

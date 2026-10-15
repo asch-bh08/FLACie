@@ -111,6 +111,48 @@ test.describe('desk engine on its own (desk.js harness)', () => {
     expect(st.syncs).toBeLessThanOrEqual(2);
   });
 
+  test('on mobile data the earbuds keep the calm pulse and never open the analyser (no second copy of the song)', async ({ page }) => {
+    await page.goto(harness('?metered=1'));
+    await page.evaluate(() => (window as any).desk.start(document.getElementById('scene'), { reduced: false }));
+    await page.waitForTimeout(1200);
+    const st = await page.evaluate(() => ({ calls: (window as any).vizCalls || 0, beats: (window as any).desk.beats(), low: Number(getComputedStyle(document.getElementById('scene')!).getPropertyValue('--low')) }));
+    expect(st.calls).toBe(0); expect(st.beats).toBe(0);
+    expect(st.low).toBeCloseTo(0.2, 1);
+  });
+
+  test('mobile data is told from the browser\'s connection: cellular or Data Saver; Wi-Fi, a cable or no answer is not', async ({ page }) => {
+    await page.goto(pathToFileURL(path.join(__dirname, 'fixtures', 'viz-resume.html')).href);
+    const seen = await page.evaluate(() => {
+      const f = (window as any).flacie, set = (c: unknown) => Object.defineProperty(navigator, 'connection', { value: c, configurable: true });
+      const out: Record<string, boolean> = {};
+      set({ type: 'cellular', saveData: false }); out.cellular = f.metered();
+      set({ type: 'wifi', saveData: true }); out.saveData = f.metered();
+      set({ type: 'wifi', saveData: false }); out.wifi = f.metered();
+      set({ effectiveType: '4g' }); out.desktop = f.metered();
+      set(undefined); out.none = f.metered();
+      return out;
+    });
+    expect(seen).toEqual({ cellular: true, saveData: true, wifi: false, desktop: false, none: false });
+  });
+
+  test('the analyser\'s copy of the song stops while the tab is hidden, and comes back when it is shown again', async ({ page }) => {
+    await page.goto(pathToFileURL(path.join(__dirname, 'fixtures', 'viz-resume.html')).href);
+    const st = await page.evaluate(() => {
+      const f = (window as any).flacie; let hidden = false;
+      Object.defineProperty(document, 'hidden', { get: () => hidden, configurable: true });
+      Object.defineProperty(document, 'visibilityState', { get: () => (hidden ? 'hidden' : 'visible'), configurable: true });
+      f.vizFrame(); const open = (window as any).contexts;
+      hidden = true; document.dispatchEvent(new Event('visibilitychange'));
+      const closedWhenHidden = (window as any).closes;
+      hidden = false; document.dispatchEvent(new Event('visibilitychange'));
+      const back = f.vizFrame() !== null;
+      return { open, closedWhenHidden, back, contexts: (window as any).contexts };
+    });
+    expect(st.open).toBe(1);
+    expect(st.closedWhenHidden).toBe(1);
+    expect(st.back).toBe(true); expect(st.contexts).toBe(2);
+  });
+
   test('vizFrame wakes an analyser the browser opened suspended (a reload of /ipod in the Desk look) once the song plays', async ({ page }) => {
     const errors = errorsOf(page);
     await page.goto(pathToFileURL(path.join(__dirname, 'fixtures', 'viz-resume.html')).href);

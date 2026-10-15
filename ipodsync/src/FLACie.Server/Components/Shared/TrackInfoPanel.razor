@@ -35,6 +35,7 @@ else
                 </div>
             }
             else if (unavailable) { <p class="viz-off">The live graphs aren't available in this browser.</p> }
+            else if (onData && !allowData) { <p class="viz-off">The live graphs are paused on mobile data: they stream a second copy of the song, about as much data again. <button type="button" class="btn ghost" @onclick="ShowAnyway">Show anyway</button></p> }
             else { <canvas id="viz" class="viz @mode @(Info.HiRes ? "tall" : "")" role="img" aria-label="@Title"></canvas> }
         </div>
 
@@ -76,6 +77,9 @@ else
     // curve = live spectrum, leds = bars, wall = scrolling spectrogram, loud = loudness meter, stereo = phase scope and L/R meters, rate = bit rate
     string mode = "curve";
     string? shown; bool unavailable;
+    // mobile data (or Data Saver): the live graphs wait until asked, because they stream a second copy of the song; on Wi-Fi and desktops they start at once
+    bool? metered; bool onData => metered == true; bool allowData;
+    void ShowAnyway() { allowData = true; shown = null; }
     double outRate = -1;
 
     bool Converted => Info is not null && MediaInfo.NotPlayableInBrowsers.Contains(Info.Codec.ToLowerInvariant()) || MediaInfo.NotPlayableInBrowsers.Contains(Info?.Container.ToLowerInvariant() ?? "");
@@ -157,6 +161,8 @@ else
             if (mode == "rate") { if (shown != "rate") { shown = "rate"; await Safe(() => Js.InvokeVoidAsync("flacie.vizStop").AsTask()); } return; }
             var key = mode + "|" + track.Path + "|" + info.SampleRateHz;   // a new song can run at another rate, which needs a new graph
             if (shown == key || unavailable) return;
+            if (metered is null) { try { metered = await Js.InvokeAsync<bool>("flacie.metered"); } catch (Exception) { metered = false; } if (onData) { StateHasChanged(); return; } }
+            if (onData && !allowData) return;
             shown = key;
             try { if (!await Js.InvokeAsync<bool>("flacie.viz", "viz", mode, info.SampleRateHz, CutHz, CutLabel)) { unavailable = true; StateHasChanged(); } } catch (Exception) { }
         }

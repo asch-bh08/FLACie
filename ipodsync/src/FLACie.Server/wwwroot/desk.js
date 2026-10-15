@@ -1,7 +1,7 @@
 // iPod mode, Look › Desk: the moving parts of the desk. One loop reads the player's analyser (flacie.vizFrame) and turns it into the earbuds' sound:
 // arcs from each bud (bass, mids, highs), a ring on every beat, current running down the cable, a small twitch of the buds, and CSS variables
 // (--low --mid --high --beat) the scene's light leak breathes with. Also the dust in the sun, the discs (the release's own picture, or a print from the cover)
-// and the viewer's own date. Without an analyser (iOS, nothing played yet) it keeps a calm fixed pulse and no beats. It sleeps while the tab is hidden;
+// and the viewer's own date. Without an analyser (iOS, nothing played yet, a phone on mobile data) it keeps a calm fixed pulse and no beats. It sleeps while the tab is hidden;
 // with reduced motion it paints one still frame and no loop at all. Only what changed is written to the page.
 window.desk = (() => {
   const NS = 'http://www.w3.org/2000/svg';
@@ -10,6 +10,10 @@ window.desk = (() => {
 
   const mean = (f, a, b) => { let t = 0; for (let i = a; i <= b; i++) t += f[i]; return t / (b - a + 1) / 255; };
   function bands() {
+    // mobile data: no second copy of the song for the earbuds, just the calm pulse (and the analyser let go if it was open)
+    let cell = false; try { cell = !!(window.flacie && window.flacie.metered && window.flacie.metered()); } catch { }
+    if (cell) { if (!s.calm) { s.calm = true; try { window.flacie.vizRelease && window.flacie.vizRelease(); } catch { } } return CALM; }
+    s.calm = false;
     let f = null;
     try { f = window.flacie && window.flacie.vizFrame ? window.flacie.vizFrame() : null; } catch { f = null; }
     if (!f || !f.playing || !f.freq || f.freq.length < 161) return CALM;

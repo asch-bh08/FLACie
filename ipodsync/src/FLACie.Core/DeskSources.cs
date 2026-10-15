@@ -27,12 +27,21 @@ public static class DeskSources
             var qi = play[p];
             if (qi < 0 || qi >= queue.Count) continue;
             var t = queue[qi];
-            var key = AlbumKey(t);
-            if (!seen.Add(key)) continue;
-            var tracks = Enumerable.Range(0, queue.Count).Where(i => AlbumKey(queue[i]) == key).OrderBy(i => queue[i].DiscNo).ThenBy(i => queue[i].TrackNo).ThenBy(i => i).ToList();
-            result.Add(new DeskAlbum(key, t.Album, t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist, t.ArtKey, qi, t, tracks));
+            if (!seen.Add(AlbumKey(t))) continue;
+            result.Add(Album(queue, qi));
         }
         return result;
+    }
+
+    /// <summary>The album playing now (the open CD on the desk, its disc in the tray): the album of the song at queue position <paramref name="index"/>; null when nothing plays.</summary>
+    public static DeskAlbum? Current(IReadOnlyList<Track> queue, int index) => index >= 0 && index < queue.Count ? Album(queue, index) : null;
+
+    // the album of the song at queue position qi, with all its songs in the queue in album order (disc, then track number)
+    static DeskAlbum Album(IReadOnlyList<Track> queue, int qi)
+    {
+        var t = queue[qi]; var key = AlbumKey(t);
+        var tracks = Enumerable.Range(0, queue.Count).Where(i => AlbumKey(queue[i]) == key).OrderBy(i => queue[i].DiscNo).ThenBy(i => queue[i].TrackNo).ThenBy(i => i).ToList();
+        return new DeskAlbum(key, t.Album, t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist, t.ArtKey, qi, t, tracks);
     }
 
     /// <summary>Which album a song belongs to (album artist and album, ignoring case); a song with no album stands on its own.</summary>

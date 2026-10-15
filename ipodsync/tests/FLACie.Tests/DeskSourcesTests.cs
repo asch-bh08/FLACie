@@ -66,6 +66,16 @@ public class DeskSourcesTests
         Assert.Equal([3, 5, 1, 4], b.Tracks.ToArray());
     }
 
+    [Fact] public void TheOpenCdIsTheAlbumPlayingNow()
+    {
+        Track Tn(string title, string album, int no) => T(title, album) with { TrackNo = no };
+        Track[] q = [Tn("a2", "A", 2), Tn("b1", "B", 1), Tn("a1", "A", 1)];
+        var now = DeskSources.Current(q, 0)!;
+        Assert.Equal("A", now.Album); Assert.Equal(0, now.QueueIndex); Assert.Equal("a2", now.First.Title);
+        Assert.Equal([2, 0], now.Tracks.ToArray());                       // the whole album, in album order
+        Assert.Null(DeskSources.Current(q, -1)); Assert.Null(DeskSources.Current(q, 3)); Assert.Null(DeskSources.Current([], 0));
+    }
+
     [Fact] public void AlbumKeyIgnoresCaseAndFallsBackToPath()
     {
         Assert.Equal(DeskSources.AlbumKey(T("x", "Album", "Ann")), DeskSources.AlbumKey(T("y", "ALBUM", "ann")));

@@ -1,7 +1,7 @@
 // iPod mode, Look › Desk: the moving parts of the desk. One loop reads the player's analyser (flacie.vizFrame) and turns it into the earbuds' sound:
-// arcs from each bud (bass, mids, highs), a ring on every beat, current running down the cable, a small twitch of the buds, and CSS variables
+// arcs from each bud (bass, mids, highs; each against the song's own range), a ring on every beat (and on the coffee), current running down the cable, a small twitch of the buds, and CSS variables
 // (--low --mid --high --beat) the scene's light leak breathes with. Also the dust in the sun, the discs (the release's own picture, or a print from the cover)
-// and the viewer's own date. Without an analyser (iOS, nothing played yet, a phone on mobile data) it keeps a calm fixed pulse and no beats. It sleeps while the tab is hidden;
+// the viewer's own date, and the journal's lyrics (timed from the song's own clock). Without an analyser (iOS, nothing played yet, a phone on mobile data) it keeps a calm fixed pulse and no beats. It sleeps while the tab is hidden;
 // with reduced motion it paints one still frame and no loop at all. Only what changed is written to the page.
 window.desk = (() => {
   const NS = 'http://www.w3.org/2000/svg';
@@ -20,8 +20,25 @@ window.desk = (() => {
     return { low: mean(f.freq, 1, 8), mid: mean(f.freq, 9, 40), high: mean(f.freq, 41, 160), live: true };
   }
 
+  // each band against the song's own recent range: its peak (falls back over about 3 s) and its floor (rises over about 2 s). Partly the level against the
+  // peak (a steady song still glows), mostly where it sits between floor and peak (what moves): a quietly mastered song moves as much as a loud one
+  const BANDS = ['low', 'mid', 'high'];
+  function scaled(b, dt) {
+    if (!b.live) { s.peak = null; return b; }
+    if (!s.peak) { s.peak = [b.low, b.mid, b.high]; s.floor = [b.low, b.mid, b.high]; }
+    const out = { live: true };
+    BANDS.forEach((k, j) => {
+      const raw = b[k];
+      s.peak[j] = Math.max(raw, s.peak[j] - (s.peak[j] - raw) * Math.min(1, dt / 3));
+      s.floor[j] = Math.min(raw, s.floor[j] + (raw - s.floor[j]) * Math.min(1, dt / 2));
+      const top = Math.max(0.04, s.peak[j]), span = Math.max(0.05, s.peak[j] - s.floor[j]);
+      out[k] = Math.min(1, Math.max(0, 0.35 * raw / top + 0.65 * (raw - s.floor[j]) / span));
+    });
+    return out;
+  }
+
   function arcPath(j, lv) {
-    const r = 30 + j * 11 + lv * 6, a = (0.55 + j * 0.08) * (0.6 + 0.4 * lv);   // the arcs open out of the shell, away from the stem
+    const r = 30 + j * 11 + lv * 14, a = (0.55 + j * 0.08) * (0.55 + 0.45 * lv);   // the arcs open out of the shell, away from the stem
     const x = (Math.sin(a) * r).toFixed(1), y = (-Math.cos(a) * r).toFixed(1);
     return `M ${-x} ${y} A ${r.toFixed(1)} ${r.toFixed(1)} 0 0 1 ${x} ${y}`;
   }
@@ -36,7 +53,7 @@ window.desk = (() => {
     const lv = [b.low, b.mid, b.high];
     for (const p of s.arcs) {
       const j = +p.dataset.arc, v = s.reduced ? 0.25 : lv[j];
-      attr(p, 'd', arcPath(j, v)); attr(p, 'opacity', (0.12 + 0.75 * v * (1 - j * 0.15)).toFixed(2));
+      attr(p, 'd', arcPath(j, v)); attr(p, 'opacity', (0.12 + 0.85 * v * (1 - j * 0.12)).toFixed(2));
     }
     if (s.reduced) return;
     // current down the cable: faster, longer and brighter with the bass
@@ -49,8 +66,8 @@ window.desk = (() => {
     }
     // the buds twitch on the bass
     s.buds.forEach((g, i) => {
-      const k = s.beat < 0.005 ? 0 : s.beat, x = k ? (Math.sin(t * 61 + i) * k * 0.8).toFixed(2) : '0', y = k ? (Math.cos(t * 53 + i) * k * 0.8).toFixed(2) : '0';
-      const shell = g.firstElementChild, v = k ? `scale(${(1 + k * 0.05).toFixed(3)}) translate(${x}px, ${y}px)` : '';
+      const k = s.beat < 0.005 ? 0 : s.beat, x = k ? (Math.sin(t * 61 + i) * k * 1.4).toFixed(2) : '0', y = k ? (Math.cos(t * 53 + i) * k * 1.4).toFixed(2) : '0';
+      const shell = g.firstElementChild, v = k ? `scale(${(1 + k * 0.09).toFixed(3)}) translate(${x}px, ${y}px)` : '';
       if (shell._tf !== v) { shell._tf = v; shell.style.transform = v; }
     });
     // rings growing out of the buds
@@ -66,15 +83,17 @@ window.desk = (() => {
     s.raf = requestAnimationFrame(tick);
     if (document.hidden || now - s.last < 15) return;
     const dt = Math.min(0.1, (now - (s.last || now)) / 1000); s.last = now;
-    const b = bands();
-    // beats: the bass jumping clearly above its recent level, at most one every 280 ms
+    const b = scaled(bands(), dt);
+    // beats: the (scaled) bass jumping clearly above its last half second, at most one every 280 ms
     s.avg += (b.low - s.avg) * Math.min(1, dt / 0.5);
-    if (b.live && b.low - s.avg > 0.12 && now - s.lastBeat > 280) { s.lastBeat = now; s.beat = 1; s.beats++; ripple(); }
+    if (b.live && b.low > 0.6 && b.low - s.avg > 0.3 && now - s.lastBeat > 280) { s.lastBeat = now; s.beat = 1; s.beats++; ripple(); }
     s.beat *= Math.pow(0.02, dt);   // the beat fades in about a second
     paint(b, now);
   }
 
   function ripple() {
+    // a ring on the coffee's surface (gone again when its animation ends)
+    if (s.coffee) { const r = document.createElement('i'); r.className = 'desk-ring'; s.coffee.appendChild(r); setTimeout(() => r.remove(), 1300); }
     if (!s.rippleBox) return;
     for (const g of s.buds) {
       const c = document.createElementNS(NS, 'circle');
@@ -96,6 +115,34 @@ window.desk = (() => {
   }
 
   // cors: the picture is drawn into a canvas (which must stay readable); the disc picture is only shown, from FLACie itself
+  // the journal's lyrics, timed from the song's own clock (flacie.clock) ten times a second, whatever the motion setting: every line up to the one being
+  // sung is shown, that one is written in (its --dur from its length), and it is kept in view when the page is full. A quarter second early: the pen
+  // starts as the line is sung. Lines without times are spread over the song.
+  const LEAD = 0.25;
+  function follow() {
+    const box = s && s.el.querySelector('.j-lines'); if (!box) return;
+    const lines = box.children, n = lines.length; if (!n) return;
+    let c = null; try { c = window.flacie && window.flacie.clock ? window.flacie.clock() : null; } catch { c = null; }
+    if (!c) return;
+    const t = c[0], d = c[1], at = (t + LEAD) * 1000;
+    let cur = -1;
+    if ('synced' in box.dataset) { for (let i = 0; i < n; i++) { if (+lines[i].dataset.ms <= at) cur = i; else break; } }
+    else cur = d > 0 ? Math.min(n - 1, Math.floor((t + LEAD) / d * n)) : n - 1;
+    if (box._cur === cur && box._first === lines[0] && box._n === n) return;   // nothing changed (a new song brings new elements)
+    box._cur = cur; box._first = lines[0]; box._n = n;
+    for (let i = 0; i < n; i++) {
+      const l = lines[i];
+      l.classList.toggle('on', i <= cur);
+      if (i === cur) { if (!l.classList.contains('writing')) { l.style.setProperty('--dur', Math.min(3200, Math.max(900, 600 + l.textContent.length * 45)) + 'ms'); l.classList.add('writing'); } }
+      else l.classList.remove('writing');
+    }
+    const l = lines[cur]; if (!l) { box.scrollTop = 0; return; }
+    // its end at the bottom of the box (a line taller than the box, on a phone: its start, where the pen begins)
+    const bottom = l.offsetTop + l.offsetHeight;
+    if (l.offsetHeight > box.clientHeight || l.offsetTop < box.scrollTop) box.scrollTop = l.offsetTop;
+    else if (bottom > box.scrollTop + box.clientHeight) box.scrollTop = bottom - box.clientHeight;
+  }
+
   const loadImage = async (url, cors) => { const img = new Image(); if (cors) img.crossOrigin = 'anonymous'; img.src = url; try { await img.decode(); return img; } catch { return null; } };
 
   return {
@@ -108,10 +155,11 @@ window.desk = (() => {
       for (const p of pulses) { const ref = document.querySelector(p.getAttribute('href')); try { lengths.set(p, ref ? ref.getTotalLength() : 1000); } catch { lengths.set(p, 1000); } }
       s = { el, reduced, raf: 0, last: 0, lastDust: 0, avg: 0.2, lastBeat: 0, beat: 0, beats: 0,
         arcs: [...el.querySelectorAll('[data-arc]')], pulses, lengths, buds: [...el.querySelectorAll('[data-bud]')],
-        rippleBox: el.querySelector('[data-ripples]'), dust: el.querySelector('canvas[data-dust]'),
+        rippleBox: el.querySelector('[data-ripples]'), dust: el.querySelector('canvas[data-dust]'), coffee: el.querySelector('[data-coffee]'),
         motes: Array.from({ length: 60 }, () => ({ x: Math.random(), y: Math.random(), r: 0.6 + Math.random() * 1.6, vx: (Math.random() - 0.5) * 0.0001, vy: -0.00003 - Math.random() * 0.0001, tw: Math.random() * 6.28 })) };
       // reduced motion: one still frame (no analyser, no loop)
       if (reduced) paint(CALM, performance.now()); else s.raf = requestAnimationFrame(tick);
+      s.lyrics = setInterval(follow, 100); follow();
       // the scene's shape decides its layout (and the cable's route, drawn on the server): tell it when it turns portrait or landscape
       if (opts && opts.ref) {
         let last = !!opts.portrait;
@@ -122,8 +170,9 @@ window.desk = (() => {
     /** keep: another start follows straight away (the analyser stays open). */
     stop(keep) {
       if (!s) return;
-      cancelAnimationFrame(s.raf); if (s.ro) s.ro.disconnect();
+      cancelAnimationFrame(s.raf); clearInterval(s.lyrics); if (s.ro) s.ro.disconnect();
       if (s.rippleBox) s.rippleBox.replaceChildren();
+      if (s.coffee) s.coffee.replaceChildren();
       s = null;
       if (!keep) { try { window.flacie && window.flacie.vizRelease && window.flacie.vizRelease(); } catch { } }
     },

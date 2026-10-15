@@ -69,10 +69,17 @@ test.describe.serial('desk look on /ipod', () => {
     const b = (await page.getByTestId('ipod-wheel').boundingBox())!;
     await page.mouse.click(b.x + b.width / 2 + b.width * 0.42, b.y + b.height / 2); await page.waitForTimeout(500);
     await expect(page.getByTestId('ipod-np-title')).not.toHaveText(song, { timeout: 10_000 });
-    // a click on the open CD plays that album: the note moves on to the album after it
-    const before = (await page.locator('[data-testid=desk-note] span').textContent())!.trim();
+    // the open CD is the album playing now (its disc in the tray); a click on it pauses and plays
+    const album = (await page.locator('.lnp-album').textContent())!.trim();
+    expect(await page.getByTestId('desk-open-cd').getAttribute('aria-label')).toMatch(new RegExp(`^Now playing: ${album.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} by `));
     await page.getByTestId('desk-open-cd').click();
-    await expect(page.locator('[data-testid=desk-note] span')).not.toHaveText(before, { timeout: 10_000 });
+    await expect(page.getByTestId('desk-disc')).toHaveClass(/paused/);
+    await page.getByTestId('desk-open-cd').click();
+    await expect(page.getByTestId('desk-disc')).not.toHaveClass(/paused/);
+    // a CD from the stack plays that album: it becomes the one playing
+    const stacked = (await page.getByTestId('desk-case').last().getAttribute('aria-label'))!.replace(/^Play /, '').replace(/ by .*$/, '');
+    await page.getByTestId('desk-case').last().click();
+    await expect(page.locator('.lnp-album')).toHaveText(stacked, { timeout: 10_000 });
     // Escape leaves Now Playing
     await page.getByTestId('ipod-keys').focus(); await page.keyboard.press('Escape');
     await expect(page.getByTestId('ipod-np')).toHaveCount(0);
@@ -87,6 +94,24 @@ test.describe.serial('desk look on /ipod', () => {
     const b0 = await selIndex(page); await dragWheel(page, 120); const onDesk = (await selIndex(page)) - b0;
     expect(onStage).toBeGreaterThan(0);
     expect(onDesk).toBe(onStage);
+  });
+
+  test('opening iPod mode while a song is playing starts on Now Playing (a wheel iPod and a touch iPod)', async ({ page }) => {
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    await page.goto('/songs');
+    await page.locator('.track', { has: page.locator('.track-title', { hasText: /^Velvet 1$|^Paper 2$|^Lantern \d+$/ }) }).first().locator('button.track-main').click();
+    await expect(page.locator('.player')).toBeVisible();
+    // the player keeps playing across the move to /ipod (the same page connection)
+    await page.evaluate(() => (window as any).Blazor.navigateTo('/ipod'));   // (what the menu's iPod mode link does: the same page connection, the song still playing)
+    await expect(page.getByTestId('ipod')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('ipod-np')).toBeVisible({ timeout: 10_000 });
+    // a touch iPod: its Now Playing app
+    await page.locator('.ipod-panel .dock-seg [data-group]').nth(3).click();
+    await page.locator('.ipod-panel .ipod-chip[data-model="touch5"]').click();
+    await page.goto('/songs');
+    await page.locator('.track', { has: page.locator('.track-title', { hasText: /^Velvet 1$|^Paper 2$|^Lantern \d+$/ }) }).first().locator('button.track-main').click();
+    await page.evaluate(() => (window as any).Blazor.navigateTo('/ipod'));   // (what the menu's iPod mode link does: the same page connection, the song still playing)
+    await expect(page.getByTestId('ios')).toHaveAttribute('data-app', 'now', { timeout: 10_000 });
   });
 
   test('the tilted iPod\'s wheel keeps its own zones: a tap just outside the middle button is the ring, just inside it is the button', async ({ page }) => {
@@ -122,7 +147,7 @@ test.describe.serial('desk look on /ipod', () => {
     await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
     await openDesk(page, { model: 'classic6', look: 2 });
     await shuffle(page);
-    const cd = page.getByTestId('desk-open-cd');
+    const cd = page.getByTestId('desk-case').last();
     await expect(cd).toHaveAttribute('tabindex', '0'); await expect(cd).toHaveAttribute('role', 'button');
     await expect(cd).toHaveAttribute('aria-label', /^Play .+ by .+/);
     const before = (await page.locator('[data-testid=desk-note] span').textContent())!.trim();
@@ -166,6 +191,44 @@ test.describe.serial('desk look on /ipod', () => {
     await expect(page.getByTestId('desk-lyric')).toHaveCount(0);
     expect(errors).toEqual([]);
     await ctx.close();
+  });
+
+  test('the earbud cable has no kinks and runs straight into the splitter (top and bottom jacks, desk and phone)', async ({ page }) => {
+    await signIn(page);
+    for (const [w, h] of [[1600, 900], [390, 844]]) {
+      await page.setViewportSize({ width: w, height: h });
+      for (const model of ['classic6', 'nano3']) {
+        await openDesk(page, { model, look: 2 }); await page.waitForTimeout(600);
+        const st = await page.evaluate(() => {
+          const p = document.querySelector('#desk-cable') as SVGPathElement, L = p.getTotalLength();
+          let worst = 0, prev: number | null = null;
+          for (let s = 0; s + 3 <= L; s += 3) {
+            const a = p.getPointAtLength(s), b = p.getPointAtLength(s + 3), ang = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+            if (prev !== null) { let d = Math.abs(ang - prev); if (d > 180) d = 360 - d; worst = Math.max(worst, d); }
+            prev = ang;
+          }
+          const a = p.getPointAtLength(L - 6), b = p.getPointAtLength(L), end = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+          // the splitter: a rounded bar turned so its long side runs along the cable (rotate(r) turns its up-down axis to r + 90 degrees)
+          const g = document.querySelector('[data-splitter]')!.getAttribute('transform')!, r = Number(/rotate\((-?[\d.]+)\)/.exec(g)![1]);
+          let off = Math.abs(end - (r + 90)); if (off > 180) off = 360 - off;
+          // the two leads out of the splitter: no hairpins either
+          let leads = 0;
+          for (const id of ['#desk-lead-l', '#desk-lead-r']) {
+            const q = document.querySelector(id) as SVGPathElement, M = q.getTotalLength(); let pa: number | null = null;
+            for (let s = 0; s + 3 <= M; s += 3) {
+              const a1 = q.getPointAtLength(s), b1 = q.getPointAtLength(s + 3), ang = Math.atan2(b1.y - a1.y, b1.x - a1.x) * 180 / Math.PI;
+              if (pa !== null) { let d = Math.abs(ang - pa); if (d > 180) d = 360 - d; leads = Math.max(leads, d); }
+              pa = ang;
+            }
+          }
+          return { worst, off, leads };
+        });
+        expect(st.worst, `${model} at ${w}x${h}: sharpest turn over 3 units of cable`).toBeLessThan(25);
+        expect(st.leads, `${model} at ${w}x${h}: sharpest turn over 3 units of the leads`).toBeLessThan(25);
+        expect(st.off, `${model} at ${w}x${h}: the cable meets the splitter along it`).toBeLessThan(12);
+        await page.evaluate(() => localStorage.removeItem('flacie.ipod'));
+      }
+    }
   });
 
   test('every family sits on the desk', async ({ page }) => {

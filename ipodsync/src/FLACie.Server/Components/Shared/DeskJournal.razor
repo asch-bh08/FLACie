@@ -1,13 +1,17 @@
-@* The iPod desk's journal: the playing song's title and artist in handwriting, and its lyrics written in, the line being sung last (desk.css animates it
-   like a pen, unless motion is reduced). No lyrics: just the title. Nothing playing: a note saying so. *@
+@using FLACie.Core
+@* The iPod desk's journal: the playing song's title and artist in handwriting, and its lyrics. Every line is here with its time (data-ms); desk.js shows
+   them as they are sung, from the song's own clock in the browser (no round trip to the server, so no lag), writes the line being sung like a pen
+   (unless motion is reduced) and keeps it in view when the page is full. A long line wraps onto the next rule. No lyrics: just the title.
+   Nothing playing: a note saying so. *@
 <div class="desk-journal lift" data-testid="desk-journal">
     <div class="page">
         <div class="j-title">@(string.IsNullOrEmpty(Title) ? "nothing playing" : Title)@if (!string.IsNullOrEmpty(Artist)) { <small>@Artist</small> }</div>
-        <div class="j-lines">
-            @for (var i = Math.Max(0, Current - (Shown - 1)); i <= Current && i < Lines.Count; i++)
+        <div class="j-lines" data-synced="@(Synced ? "" : null)">
+            @for (var i = 0; i < Lines.Count; i++)
             {
                 var line = Lines[i];
-                <div @key="i" class="@(i == Current ? "writing" : "")" data-testid="desk-lyric" style="--dur:@Math.Clamp(600 + line.Length * 45, 900, 3200)ms">@line</div>
+                @* keyed by the song too: a new song's lines are new elements, so nothing desk.js marked on the old ones carries over *@
+                <div @key="(SongKey, i)" data-testid="desk-lyric" data-ms="@(Synced ? line.TimeMs : null)">@line.Text</div>
             }
         </div>
         <div class="j-date" data-testid="desk-date">@Date</div>
@@ -17,10 +21,11 @@
 @code {
     [Parameter] public string? Title { get; set; }
     [Parameter] public string? Artist { get; set; }
-    [Parameter] public IReadOnlyList<string> Lines { get; set; } = [];
-    /// <summary>The line being sung (-1 before the first).</summary>
-    [Parameter] public int Current { get; set; } = -1;
+    [Parameter] public IReadOnlyList<LyricLine> Lines { get; set; } = [];
+    /// <summary>The lines carry times; otherwise desk.js spreads them over the song.</summary>
+    [Parameter] public bool Synced { get; set; }
+    /// <summary>Which song the lines belong to.</summary>
+    [Parameter] public string? SongKey { get; set; }
     /// <summary>The viewer's own day ("15 oct"), from their browser; empty until it answers.</summary>
     [Parameter] public string Date { get; set; } = "";
-    const int Shown = 8;
 }

@@ -10,7 +10,7 @@
     @Polaroid
     @Journal
     @Cds
-    <div class="desk-coffee lift" data-testid="desk-coffee" aria-hidden="true"><div class="saucer"></div><div class="cup"><div class="handle"></div></div></div>
+    <div class="desk-coffee lift" data-testid="desk-coffee" aria-hidden="true"><div class="saucer"></div><div class="cup"><div class="handle"></div><div class="liquid" data-coffee></div></div></div>
     <svg class="desk-steam" viewBox="0 0 200 340" aria-hidden="true"><path d="M 100 330 C 80 280, 130 250, 105 200 S 80 120, 110 70"/><path d="M 120 330 C 140 280, 95 240, 125 190 S 145 110, 120 60"/><path d="M 80 330 C 60 270, 105 230, 85 180 S 60 110, 90 50"/></svg>
 
     <div class="desk-ipod" style="@SlotStyle">
@@ -47,7 +47,7 @@
           <g filter="url(#desk-glow)"><use data-pulse="a" href="#desk-cable" stroke="#ffd29a" stroke-width="3.8"/><use data-pulse="b" href="#desk-cable" stroke="#fff1d8" stroke-width="2.2"/></g>
         </g>
         <g data-ripples fill="none"></g>
-        <g transform="translate(@F(Sx + 6.1) @F(Sy + 5.1)) rotate(-50.2)"><rect x="-4" y="-9" width="8" height="18" rx="3.8" fill="url(#desk-stem)" stroke="rgba(0,0,0,.14)" stroke-width=".7"/><rect x="-2.2" y="-6.5" width="1.9" height="12" rx=".95" fill="#fff" opacity=".9"/></g>
+        <g data-splitter transform="translate(@F(X(6.1)) @F(Sy + 5.1)) rotate(@F(Flip ? 50.2 : -50.2))"><rect x="-4" y="-9" width="8" height="18" rx="3.8" fill="url(#desk-stem)" stroke="rgba(0,0,0,.14)" stroke-width=".7"/><rect x="-2.2" y="-6.5" width="1.9" height="12" rx=".95" fill="#fff" opacity=".9"/></g>
         @foreach (var (x, y, r) in Buds)
         {
           <g class="desk-bud-shadow"><g data-bud data-cx="@F(x)" data-cy="@F(y)" transform="translate(@F(x) @F(y)) rotate(@F(r))"><g><use href="#desk-bud"/></g><g fill="none" stroke="#fff4e2" stroke-linecap="round"><path data-arc="0" stroke-width="2.6"/><path data-arc="1" stroke-width="2.1"/><path data-arc="2" stroke-width="1.6"/></g></g></g>
@@ -95,29 +95,50 @@
     const double H = 400;
     double Wd => H * Math.Max(0.2, Aspect);
     double Jx => Jack.X * Wd;
-    // where the cable splits for the two buds: to the right of the iPod, a little above its bottom. Portrait: under the iPod, left of its middle (the iPod lies
-    // turned 7 degrees, which swings what lies under it to the right), so the buds lie in the band under it, between the CDs and the coffee
-    // (landscape: a wide iPod, the square nano, splits no further right than beside a classic, clear of the coffee)
-    double Sx => portrait ? Wd / 2 - 84 : Math.Min(Wd + 120, 360);
-    double Sy => portrait ? H + 30 : H - 55;
-    // a point of the leads or the buds, given from the split
-    string P(double dx, double dy) => $"{F(Sx + dx)} {F(Sy + dy)}";
+    // where the cable splits for the two buds: to the right of the iPod, a little above its bottom (a wide iPod, the square nano: no further right than beside
+    // a classic, clear of the coffee). Portrait: under the iPod, left of its middle (the iPod lies turned 7 degrees, which swings what lies under it to the
+    // right), so the buds lie in the band under it; there the cable comes down the iPod's right side, so the splitter and the buds are mirrored (Flip) and the
+    // cable comes into the splitter from the right.
+    double Sx => portrait ? Wd / 2 - 84 : Math.Min(Wd + 120, Math.Max(360, Wd + 70));
+    double Sy => portrait ? H + 45 : H - 55;
+    bool Flip => portrait && (Jack.Edge == JackEdge.Top || Jx > Sx + 15);   // (a bottom jack left of the split comes in from the left: not mirrored)
+    // the direction the splitter runs (the cable comes in along it): down and right, or mirrored, down and left
+    double Axis => Flip ? 140.2 : 39.8;
+    // a point of the splitter, the leads or the buds, given from the split (mirrored when flipped)
+    double X(double dx) => Sx + (Flip ? -dx : dx);
+    string P(double dx, double dy) => $"{F(X(dx))} {F(Sy + dy)}";
 
+    // the cable, from the jack to the splitter, through points with the direction it runs at each: one curve per stretch whose handles follow those
+    // directions, so it never kinks, and it ends running along the splitter
     string CablePath => portrait
         ? (Jack.Edge == JackEdge.Top
-            ? $"M {F(Jx)} -14 C {F(Jx)} -44, {F(Jx + 70)} -52, {F(Wd - 4)} -26 S {F(Wd + 50)} {F(120)}, {F(Wd + 22)} {F(260)} S {F(Wd + 30)} {F(H + 10)}, {F(Wd - 30)} {F(H + 34)} S {F(Sx + 30)} {F(Sy - 6)}, {F(Sx)} {F(Sy)}"
-            : $"M {F(Jx)} {F(H + 14)} C {F(Jx)} {F(H + 40)}, {F(Jx + 60)} {F(H + 50)}, {F(Sx - 40)} {F(H + 24)} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}")
+            ? Smooth((Jx, -14, -90), (Jx + 60, -50, -5), (Wd - 4, -26, 25), (Wd + 45, 120, 92), (Wd + 24, 280, 98), (Wd + 12, H - 6, 125), (Sx, Sy, Axis))
+            : Smooth((Jx, H + 14, 90), (Sx, Sy, Axis)))
         : Jack.Edge == JackEdge.Top
-        ? $"M {F(Jx)} -14 C {F(Jx)} -60, {F(Jx - 50)} -92, {F(Jx - 90)} -72 S {F(Jx - 114)} 6, {F(Jx - 42)} -28 S {F(Jx + 110)} -112, {F(Wd + 12)} -62 S {F(Wd + 94)} {F(70)}, {F(Wd + 64)} {F(160)} S {F(Wd - 4)} {F(270)}, {F(Wd + 60)} {F(286)} S {F(Wd + 164)} {F(248)}, {F(Wd + 152)} {F(306)} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}"
-        : $"M {F(Jx)} {F(H + 14)} C {F(Jx)} {F(H + 58)}, {F(Jx + 70)} {F(H + 76)}, {F(Jx + 140)} {F(H + 46)} S {F(Wd + 60)} {F(H - 6)}, {F(Wd + 96)} {F(H - 36)} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}";
-    string LeadL => $"M {F(Sx + 11.6)} {F(Sy + 11.7)} C {P(25.4, 23.2)}, {P(-20, 35)}, {P(-40, 50)} S {P(-55, 73)}, {P(-60, 80)}";
-    string LeadR => $"M {F(Sx + 13.6)} {F(Sy + 9.3)} C {P(30.5, 23.4)}, {P(52, 27)}, {P(60, 40)} S {P(68, 59)}, {P(70, 65)}";
+        ? Smooth((Jx, -14, -90), (Jx - 45, -82, 180), (Jx - 82, -30, 90), (Jx - 40, -12, -15), (Wd * 0.6, -60, -5), (Wd + 28, -30, 50), (Wd + 52, 120, 95), (Wd + 30, 250, 75), (Sx, Sy, Axis))
+        : Smooth((Jx, H + 14, 90), (Math.Max(Jx + 60, Sx - 110), H + 50, 0), (Math.Max(Sx - 70, Wd + 14), Sy - 20, -90), (Math.Max(Sx - 40, Wd + 30), Sy - 55, 0), (Sx, Sy, Axis));   // (out along the bottom, up the right side, over into the splitter)
+    static string Smooth(params (double X, double Y, double A)[] p)
+    {
+        var sb = new System.Text.StringBuilder($"M {F(p[0].X)} {F(p[0].Y)}");
+        for (var i = 0; i + 1 < p.Length; i++)
+        {
+            var (x0, y0, a0) = p[i]; var (x1, y1, a1) = p[i + 1];
+            var k = Math.Sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0)) / 3;
+            double r0 = a0 * Math.PI / 180, r1 = a1 * Math.PI / 180;
+            sb.Append($" C {F(x0 + Math.Cos(r0) * k)} {F(y0 + Math.Sin(r0) * k)}, {F(x1 - Math.Cos(r1) * k)} {F(y1 - Math.Sin(r1) * k)}, {F(x1)} {F(y1)}");
+        }
+        return sb.ToString();
+    }
+    // the two leads leave the bottom of the splitter in a narrow V (one straight down, one along the splitter) and curve out to their buds
+    string LeadL => Lead((13, 10.9, 90), (-60, 80, 124));
+    string LeadR => Lead((13, 10.9, 30), (70, 65, 68));
+    string Lead(params (double Dx, double Dy, double A)[] p) => Smooth(p.Select(q => (X(q.Dx), Sy + q.Dy, Flip ? 180 - q.A : q.A)).ToArray());
     // each bud sits beyond the end of its lead, its stem pointing back along it
     (double X, double Y, double R)[] Buds => [Bud(-91.6, 127.4, -60, 80), Bud(91.2, 117.9, 70, 65)];
     (double X, double Y, double R) Bud(double dx, double dy, double leadX, double leadY)
     {
-        double vx = leadX - dx, vy = leadY - dy;
-        return (Sx + dx, Sy + dy, Math.Atan2(-vx, vy) * 180 / Math.PI);
+        double vx = (leadX - dx) * (Flip ? -1 : 1), vy = leadY - dy;
+        return (X(dx), Sy + dy, Math.Atan2(-vx, vy) * 180 / Math.PI);
     }
 
     string SlotStyle => $"--aspect:{F(Aspect * 1000)}/1000";

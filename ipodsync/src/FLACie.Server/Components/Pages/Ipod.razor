@@ -262,11 +262,12 @@
     Lyrics? deskLyrics; string? deskLyricsFor;
     // the viewer's own day (their clock, not the server's): "15 oct" for the journal, "thursday" for the polaroid; empty until the browser answers
     string deskDate = "", deskWeekday = ""; bool deskDayAsked;
+    DeskAlbum? DeskNow => DeskSources.Current(Player.Queue, Player.Index);
     IReadOnlyList<DeskAlbum> DeskNext => DeskSources.Next(Player.Queue, Player.PlayOrder, Player.Index, wrap: Player.Repeat == 1);
 
-    RenderFragment DeskJournalPart => @<DeskJournal Title="@Player.Current?.Title" Artist="@Player.Current?.Artist" Lines="@(deskLyrics?.Lines.Select(l => l.Text).ToList() ?? [])" Current="@DeskLyrics.CurrentLine(deskLyrics, Player.Position, Player.Duration)" Date="@deskDate" />;
+    RenderFragment DeskJournalPart => @<DeskJournal Title="@Player.Current?.Title" Artist="@Player.Current?.Artist" Lines="@(deskLyrics?.Lines ?? [])" Synced="@(deskLyrics?.Synced ?? false)" SongKey="@deskLyricsFor" Date="@deskDate" />;
     RenderFragment DeskPolaroidPart => @<div class="desk-polaroid lift" data-testid="desk-polaroid"><Cover ArtKey="@Player.Current?.ArtKey" /><span>@(deskWeekday.Length > 0 ? deskWeekday + " ♡" : "♡")</span></div>;
-    RenderFragment DeskCdsPart => @<DeskCds Next="@DeskNext" DiscUrl="@DiscUrlFor(DeskNext)" Playing="@Player.Playing" OnPlay="@DeskPlay" />;
+    RenderFragment DeskCdsPart => @<DeskCds Now="@DeskNow" Next="@DeskNext" DiscUrl="@DiscUrlFor(DeskNow)" Playing="@Player.Playing" OnPlay="@DeskPlay" OnToggle="@(() => Player.Toggle())" />;
 
     // a CD played while shuffling plays the whole album, in album order, then the shuffle carries on; otherwise the queue goes on from that album
     async Task DeskPlay(DeskAlbum a) { if (Player.Shuffle) await Player.PlayRun(a.Tracks); else await Player.SkipTo(a.QueueIndex); await FocusStage(); }
@@ -281,11 +282,11 @@
         catch (Exception) { }
     }
 
-    /// <summary>Where the next album's own disc picture (Cover Art Archive "Medium") is asked for, when the user matched its release on MusicBrainz: FLACie's
+    /// <summary>Where the playing album's own disc picture (Cover Art Archive "Medium") is asked for, when the user matched its release on MusicBrainz: FLACie's
     /// /desk/disc (the server fetches and keeps it); the browser falls back to a print made from the cover when there is none.</summary>
-    string? DiscUrlFor(IReadOnlyList<DeskAlbum> next)
+    string? DiscUrlFor(DeskAlbum? album)
     {
-        if (next.Count == 0 || MbChoices.Get(next[0].First) is not { ReleaseMbid: var release } || !DeskDiscPictures.ValidId(release)) return null;
+        if (album is null || MbChoices.Get(album.First) is not { ReleaseMbid: var release } || !DeskDiscPictures.ValidId(release)) return null;
         return $"/desk/disc/{release}";
     }
 
@@ -368,6 +369,8 @@
             self = DotNetObjectReference.Create(this);
             try { var json = await Js.InvokeAsync<string?>("flacie.unstash", "flacie.ipod"); prefs = IpodPrefs.FromJson(json); } catch (Exception) { }
             loaded = true; Fit(); Root(); RefreshClock(); await RefreshBattery();
+            // opened while a song plays: start on Now Playing (MENU goes to the menu, as on an iPod picked up mid-song)
+            if (Player.Current is not null) { showNow = true; npMode = 0; }
             ticker = new System.Threading.Timer(_ => { RefreshClock(); InvokeAsync(StateHasChanged); }, null, 20_000, 20_000);
             StateHasChanged(); return;
         }

@@ -164,15 +164,71 @@ test.describe('desk engine on its own (desk.js harness)', () => {
     expect(errors).toEqual([]);
   });
 
-  test('the journal always shows the line being sung, on a desk and on a phone', async ({ page }) => {
-    for (const [w, h] of [[1600, 900], [1280, 720], [390, 760], [360, 640]]) {
-      await page.goto(pathToFileURL(path.join(__dirname, 'fixtures', 'desk-journal.html')).href + `?w=${w}&h=${h}`);
-      const pageBox = (await page.locator('.desk-journal .page').boundingBox())!;
-      const sung = (await page.locator('.writing').boundingBox())!;
-      expect(sung, `${w}x${h}: the line being sung is shown`).not.toBeNull();
-      expect(sung.y + sung.height, `${w}x${h}: the line being sung is on the page`).toBeLessThanOrEqual(pageBox.y + pageBox.height + 1);
-      expect(sung.y, `${w}x${h}: below the title`).toBeGreaterThan(pageBox.y);
+  const journal = (q: string) => pathToFileURL(path.join(__dirname, 'fixtures', 'desk-journal.html')).href + q;
+  const startJournal = (page: import('@playwright/test').Page, reduced = false) => page.evaluate((r) => (window as any).desk.start(document.getElementById('desk'), { reduced: r }), reduced);
+  const shownLines = (page: import('@playwright/test').Page) => page.evaluate(() => ({
+    shown: [...document.querySelectorAll('[data-testid=desk-lyric]')].filter((l) => getComputedStyle(l).display !== 'none').map((l) => l.textContent!.split(':')[0]),
+    writing: document.querySelector('[data-testid=desk-lyric].writing')?.textContent?.split(':')[0] ?? null,
+  }));
+
+  test('the journal follows the song\'s own clock, a hair early (the pen starts as the line is sung)', async ({ page }) => {
+    await page.goto(journal('?n=6')); await startJournal(page);
+    await page.evaluate(() => { (window as any).t = 0.1; }); await page.waitForTimeout(300);
+    expect(await shownLines(page)).toEqual({ shown: ['line 0'], writing: 'line 0' });
+    await page.evaluate(() => { (window as any).t = 1.0; }); await page.waitForTimeout(300);   // line 2 starts at 1.2 s: shown from about 0.95 s
+    expect(await shownLines(page)).toEqual({ shown: ['line 0', 'line 1', 'line 2'], writing: 'line 2' });
+    await page.evaluate(() => { (window as any).t = 0.3; }); await page.waitForTimeout(300);   // a seek back
+    expect((await shownLines(page)).writing).toBe('line 0');
+  });
+
+  test('lyrics without times are spread over the song; reduced motion still follows the song', async ({ page }) => {
+    await page.goto(journal('?n=4&plain=1')); await startJournal(page, true);
+    await page.evaluate(() => { (window as any).t = 31; }); await page.waitForTimeout(300);   // 60 s song, 4 lines: the third quarter
+    expect(await shownLines(page)).toEqual({ shown: ['line 0', 'line 1', 'line 2'], writing: 'line 2' });
+  });
+
+  test('a long line wraps onto the next rule instead of being cut off', async ({ page }) => {
+    await page.goto(journal('?n=3&long=1')); await startJournal(page);
+    await page.evaluate(() => { (window as any).t = 1.3; }); await page.waitForTimeout(300);
+    const st = await page.evaluate(() => { const l = document.querySelector('[data-testid=desk-lyric].writing') as HTMLElement; return { lines: Math.round(l.getBoundingClientRect().height / parseFloat(getComputedStyle(l).lineHeight)), cut: l.scrollWidth > l.clientWidth + 1 }; });
+    expect(st.lines).toBeGreaterThanOrEqual(2); expect(st.cut).toBe(false);
+  });
+
+  test('the line being sung is always in view, on a desk and on a phone, however far into the song', async ({ page }) => {
+    for (const [w, h] of [[1600, 900], [1280, 720], [390, 844], [360, 640]]) {
+      await page.goto(journal(`?w=${w}&h=${h}&n=16&long=1`)); await startJournal(page);
+      await page.evaluate(() => { (window as any).t = 8.6; }); await page.waitForTimeout(400);   // line 14 of 16, after several long ones
+      const box = (await page.locator('.j-lines').boundingBox())!, sung = (await page.locator('[data-testid=desk-lyric].writing').boundingBox())!;
+      expect(sung.y, `${w}x${h}: the line being sung is not above the lines' box`).toBeGreaterThanOrEqual(box.y - 1);
+      // (a line taller than the box, on a phone: its start is at the top of the box)
+      if (sung.height <= box.height + 1) expect(sung.y + sung.height, `${w}x${h}: nor below it`).toBeLessThanOrEqual(box.y + box.height + 1);
+      else expect(Math.abs(sung.y - box.y), `${w}x${h}: a tall line starts at the top`).toBeLessThanOrEqual(1);
+      expect(sung.x, `${w}x${h}: on screen`).toBeGreaterThanOrEqual(0);
     }
+  });
+
+  test('a quietly mastered song moves the earbuds as much as a loud one, and its kicks are beats', async ({ page }) => {
+    await page.goto(harness('?quiet=1'));
+    await page.evaluate(() => (window as any).desk.start(document.getElementById('scene'), { reduced: false }));
+    const lows: number[] = [];
+    for (let i = 0; i < 40; i++) { await page.waitForTimeout(50); lows.push(await page.evaluate(() => Number(getComputedStyle(document.getElementById('scene')!).getPropertyValue('--low')))); }
+    const later = lows.slice(10);   // after the first half second: the level has found the song
+    expect(Math.max(...later) - Math.min(...later), 'how far the bass level swings').toBeGreaterThan(0.4);
+    expect(await page.evaluate(() => (window as any).desk.beats())).toBeGreaterThanOrEqual(2);
+  });
+
+  test('the coffee ripples on the beat', async ({ page }) => {
+    await page.goto(harness());
+    const rings = await page.evaluate(() => new Promise<number>((done) => {
+      let n = 0; const mo = new MutationObserver((rs) => rs.forEach((r) => { n += r.addedNodes.length; }));
+      mo.observe(document.querySelector('[data-coffee]')!, { childList: true });
+      (window as any).desk.start(document.getElementById('scene'), { reduced: false });
+      setTimeout(() => { mo.disconnect(); done(n); }, 2000);
+    }));
+    expect(rings).toBeGreaterThanOrEqual(2);
+    // the rings go again (no pile of old ones)
+    await page.waitForTimeout(1500);
+    expect(await page.evaluate(() => document.querySelector('[data-coffee]')!.children.length)).toBeLessThanOrEqual(4);
   });
 
   test('no analyser: a calm fixed pulse, no beats, no errors', async ({ page }) => {

@@ -1,7 +1,9 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>desk journal harness</title>
-<!-- the journal as DeskJournal.razor renders it, eight lines with the line being sung last, in a desk of ?w= by ?h= pixels, styled by the real desk.css -->
+<!-- The journal as DeskJournal.razor renders it, in a desk of ?w= by ?h= pixels, styled by the real desk.css and driven by the real desk.js.
+     ?n= lines (default 12), one every 0.6 s (?plain=1: lyrics without times); ?long=1 makes every third line a long sentence. window.t is the song's
+     position in seconds (flacie.clock() stands in for the player), window.d its length. -->
 <link rel="stylesheet" href="../../../src/FLACie.Server/wwwroot/desk.css">
 <style>html, body { margin: 0; }</style>
 <div class="desk" id="desk">
@@ -18,6 +20,14 @@
 <script>
   const q = new URLSearchParams(location.search), d = document.getElementById('desk');
   d.style.width = (q.get('w') || 1600) + 'px'; d.style.height = (q.get('h') || 900) + 'px';
-  const lines = document.getElementById('lines');
-  for (let i = 0; i < 8; i++) { const l = document.createElement('div'); l.dataset.testid = 'desk-lyric'; l.textContent = 'line ' + i; if (i === 7) l.className = 'writing'; lines.appendChild(l); }
+  const lines = document.getElementById('lines'), n = +(q.get('n') || 12), plain = q.has('plain');
+  if (!plain) lines.dataset.synced = '';
+  for (let i = 0; i < n; i++) {
+    const l = document.createElement('div'); l.dataset.testid = 'desk-lyric'; if (!plain) l.dataset.ms = String(i * 600);
+    l.textContent = q.has('long') && i % 3 === 2 ? `line ${i}: a much longer sentence that keeps on going well past the edge of the journal page` : `line ${i}`;
+    lines.appendChild(l);
+  }
+  window.t = 0; window.d = 60;
+  window.flacie = { clock() { return [window.t, window.d, false]; }, vizFrame() { return null; }, vizRelease() { } };
 </script>
+<script src="../../../src/FLACie.Server/wwwroot/desk.js"></script>

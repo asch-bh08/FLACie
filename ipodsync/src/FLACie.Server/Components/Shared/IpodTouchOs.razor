@@ -192,6 +192,9 @@
 
     public void GoHome() { app = "home"; StateHasChanged(); }
 
+    // opened while a song plays: start in Now Playing (back goes to the home screen)
+    protected override async Task OnInitializedAsync() { await base.OnInitializedAsync(); if (Player.Current is not null) { app = "now"; backTo = "home"; } }
+
     /// <summary>One step back: a level up, then home. False at the home screen (nothing to go back to).</summary>
     public bool Back()
     {

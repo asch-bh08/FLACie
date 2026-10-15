@@ -117,6 +117,7 @@ window.flacie = (() => {
 
   const db = (x) => 20 * Math.log10(Math.max(x, 1e-6));
   let deskFrame = null, deskSync = 0;   // the iPod desk's frame (vizFrame)
+  const clockOut = [0, 0, true];
   const freqData = () => { const d = new Uint8Array(an.frequencyBinCount); an.getByteFrequencyData(d); return d; };
   const fill = (g, x, y, w, h, r, color, alpha) => { g.globalAlpha = alpha; g.fillStyle = color; g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); g.globalAlpha = 1; };
   // black, deep purple, magenta, orange, pale yellow: easy to read on a dark page
@@ -469,6 +470,8 @@ window.flacie = (() => {
       return deskFrame;
     },
     vizRelease() { if (!vizOn) closeGraph(); },
+    // the song's own clock, read in the page (the iPod desk's journal times its lyrics with it): [position s, length s, paused], the same array each time
+    clock() { clockOut[0] = audio.currentTime || 0; clockOut[1] = isFinite(audio.duration) ? audio.duration : 0; clockOut[2] = audio.paused; return clockOut; },
     // mobile data (or Data Saver): the graphs' second copy of the song is not fetched without asking. Chrome on Android says so; elsewhere nothing is reported (not metered)
     metered() { const c = navigator.connection; return !!c && (c.saveData === true || c.type === "cellular"); },
     // the output device's own rate: a context made with no rate takes it

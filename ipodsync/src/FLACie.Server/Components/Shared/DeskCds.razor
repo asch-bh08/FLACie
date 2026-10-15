@@ -1,8 +1,8 @@
 @using FLACie.Core
 @inject IJSRuntime Js
 @* The iPod desk's CDs: the album playing now lies open (its booklet, and its disc spinning in the tray: the release's own disc picture when FLACie has one,
-   otherwise a print made from the cover); a click on it pauses and plays. The next two albums lie in a small stack (the next one on top), with a note
-   saying what is up next; a click on one plays that album. Every CD is a button (Tab, Enter, Space). Styles: desk.css. *@
+   otherwise a print made from the cover); a click on it pauses and plays. The next two albums lie in a small stack (the next one on top); a click on one
+   plays that album. (What is up next, song by song, is on the queue card: DeskQueue.) Every CD is a button (Tab, Enter, Space). Styles: desk.css. *@
 @if (Now is { } now)
 {
 <div class="desk-open lift" data-testid="desk-open-cd" role="button" tabindex="0" aria-label="@($"Now playing: {now.Album} by {now.Artist}")" title="@(Playing ? "Pause" : "Play")" @onclick="Toggle" @onkeydown="ToggleKey">
@@ -18,14 +18,11 @@
         <div class="desk-case lift s@(k + 1)" data-testid="desk-case" role="button" tabindex="0" aria-label="@($"Play {Next[k].Album} by {Next[k].Artist}")" title="Play @Next[k].Album" @onclick="() => Pick(k)" @onkeydown="e => Key(e, k)"><Cover ArtKey="@Next[k].ArtKey" Class="desk-art" /></div>
     }
 </div>
-<div class="desk-note lift" data-testid="desk-note">
-    <small>Up next</small><span>@(Next.Count > 0 ? $"{Next[0].Album} · {Next[0].Artist}" : "nothing queued")</span>
-</div>
 
 @code {
     /// <summary>The album playing now (the open CD); null when nothing plays.</summary>
     [Parameter] public DeskAlbum? Now { get; set; }
-    /// <summary>The albums after it, in play order (the stack and the note).</summary>
+    /// <summary>The albums after it, in play order (the stack).</summary>
     [Parameter] public IReadOnlyList<DeskAlbum> Next { get; set; } = [];
     /// <summary>Where FLACie serves the playing album's own disc picture (/desk/disc/…), when its release is known; null otherwise.</summary>
     [Parameter] public string? DiscUrl { get; set; }

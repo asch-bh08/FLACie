@@ -1,0 +1,43 @@
+@using FLACie.Core
+@* The iPod desk's queue card (an index card beside the CDs): the song playing (its title in handwriting; artist, album and year) and the songs coming up
+   next in play order (title, artist, length), with how many more are in the queue. A click (or Enter or Space) on one plays it. Styles: desk.css. *@
+<div class="desk-queue lift" data-testid="desk-queue">
+    <div class="q-now">
+        <small>now playing</small>
+        @if (Now is { } t)
+        {
+            <b class="desk-hand" data-q="title">@t.Title</b>
+            <span data-q="meta">@Meta(t)</span>
+        }
+        else { <b class="desk-hand" data-q="title">nothing playing</b> }
+    </div>
+    <div class="q-next">
+        <small>up next</small>
+        @if (Next.Count == 0) { <span class="q-empty desk-hand">nothing queued</span> }
+        else
+        {
+            <ol>
+                @for (var i = 0; i < Next.Count; i++)
+                {
+                    var (track, index) = Next[i];
+                    <li><button type="button" data-q="next" aria-label="@($"Play {track.Title} by {track.Artist}")" @onclick="() => OnSkip.InvokeAsync(index)">
+                        <span class="t desk-hand">@track.Title</span><span class="a">@track.Artist</span><span class="d">@Length(track.DurationMs)</span>
+                    </button></li>
+                }
+            </ol>
+            @if (More > 0) { <span class="q-more">and @More more in the queue</span> }
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public Track? Now { get; set; }
+    /// <summary>The songs coming up next, in play order, with where each sits in the queue.</summary>
+    [Parameter] public IReadOnlyList<(Track Track, int Index)> Next { get; set; } = [];
+    /// <summary>How many more songs follow those.</summary>
+    [Parameter] public int More { get; set; }
+    [Parameter] public EventCallback<int> OnSkip { get; set; }
+
+    static string Meta(Track t) => string.Join(" · ", new[] { t.Artist, t.Album, t.Year > 0 ? t.Year.ToString() : "" }.Where(x => x.Length > 0));
+    static string Length(long ms) => ms > 0 ? TimeSpan.FromMilliseconds(ms).ToString(ms >= 3_600_000 ? @"h\:mm\:ss" : @"m\:ss") : "";
+}

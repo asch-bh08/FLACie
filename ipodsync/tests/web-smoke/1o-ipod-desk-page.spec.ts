@@ -46,7 +46,7 @@ test.describe.serial('desk look on /ipod', () => {
     await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
     await openDesk(page, { model: 'classic6', look: 2 });
     await expect(page.getByTestId('desk')).toBeVisible();
-    for (const id of ['ipod-keys', 'ipod-device', 'ipod-panel', 'ipod-gear', 'desk-journal', 'desk-polaroid', 'desk-coffee', 'desk-earbuds', 'desk-note']) await expect(page.getByTestId(id)).toBeVisible();
+    for (const id of ['ipod-keys', 'ipod-device', 'ipod-panel', 'ipod-gear', 'desk-journal', 'desk-polaroid', 'desk-coffee', 'desk-earbuds', 'desk-queue']) await expect(page.getByTestId(id)).toBeVisible();
     await expect(page.getByTestId('ipod')).toHaveAttribute('data-look', 'desk');
     await expect(page.locator('.ipod-panel .ipod-chip[data-look="desk"]')).toHaveClass(/on/);
     expect(await page.evaluate(() => (window as any).desk.loops())).toBe(1);
@@ -59,10 +59,9 @@ test.describe.serial('desk look on /ipod', () => {
     await openDesk(page, { model: 'classic6', look: 2 });
     await shuffle(page);
     const song = (await page.getByTestId('ipod-np-title').textContent())!.trim();
-    await expect(page.locator('.j-title')).toContainText(song);
+    await expect(page.getByTestId('desk-journal').locator('.j-title')).toContainText(song);
     await expect(page.getByTestId('desk-open-cd')).toBeVisible();
-    const next = (await page.locator('[data-testid=desk-note] span').textContent())!.trim();
-    expect(next).not.toBe('nothing queued');
+    await expect(page.locator('[data-q=next]').first()).toBeVisible();
     // the disc gets its print, made from the cover in the browser (it never travels to the server: it is bigger than a Blazor message)
     await expect.poll(() => page.getByTestId('desk-disc').evaluate((d) => getComputedStyle(d).getPropertyValue('--art')), { timeout: 10_000 }).toContain('data:image/png');
     // the wheel's next zone skips the song
@@ -114,6 +113,28 @@ test.describe.serial('desk look on /ipod', () => {
     await expect(page.getByTestId('ios')).toHaveAttribute('data-app', 'now', { timeout: 10_000 });
   });
 
+  test('the queue card: the song playing (title, artist, album, year), the next songs in play order, and a click on one plays it', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    await openDesk(page, { model: 'classic6', look: 2 });
+    await shuffle(page);
+    const card = page.getByTestId('desk-queue');
+    await expect(card.locator('[data-q=title]')).toHaveText((await page.getByTestId('ipod-np-title').textContent())!.trim());
+    await expect(card.locator('[data-q=meta]')).toContainText((await page.locator('.lnp-album').textContent())!.trim());
+    await expect(card.locator('[data-q=meta]')).toHaveText(/\b(19|20)\d\d\b/);   // the year
+    await expect(page.locator('[data-q=next]')).toHaveCount(4);
+    await expect(card).toContainText(/more in the queue/);
+    // the first one is what plays next
+    const first = (await page.locator('[data-q=next] .t').first().textContent())!.trim();
+    await page.getByTestId('ipod-keys').focus(); await page.keyboard.press('ArrowRight');
+    await expect(page.getByTestId('ipod-np-title')).toHaveText(first, { timeout: 5_000 });
+    // a click on a later one plays it
+    const third = (await page.locator('[data-q=next] .t').nth(2).textContent())!.trim();
+    await page.locator('[data-q=next]').nth(2).click();
+    await expect(page.getByTestId('ipod-np-title')).toHaveText(third, { timeout: 5_000 });
+    expect(errors).toEqual([]);
+  });
+
   test('the tilted iPod\'s wheel keeps its own zones: a tap just outside the middle button is the ring, just inside it is the button', async ({ page }) => {
     await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
     await openDesk(page, { model: 'classic6', look: 2 });
@@ -153,10 +174,10 @@ test.describe.serial('desk look on /ipod', () => {
     const cd = page.getByTestId('desk-case').last();
     await expect(cd).toHaveAttribute('tabindex', '0'); await expect(cd).toHaveAttribute('role', 'button');
     await expect(cd).toHaveAttribute('aria-label', /^Play .+ by .+/);
-    const before = (await page.locator('[data-testid=desk-note] span').textContent())!.trim();
+    const before = (await page.locator('[data-q=next] .t').first().textContent())!.trim();
     const screen = await page.getByTestId('ipod-np-title').textContent();
     await cd.focus(); await page.keyboard.press('Enter');
-    await expect(page.locator('[data-testid=desk-note] span')).not.toHaveText(before, { timeout: 10_000 });
+    await expect(page.locator('[data-q=next] .t').first()).not.toHaveText(before, { timeout: 10_000 });
     await expect(page.getByTestId('ipod-np')).toBeVisible();   // the iPod did not take the Enter as its own (still Now Playing)
     expect(await page.getByTestId('ipod-np-title').textContent()).not.toBe(screen);
     expect(errors).toEqual([]);
@@ -188,8 +209,9 @@ test.describe.serial('desk look on /ipod', () => {
     const errors = consoleErrors(page);
     await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
     await openDesk(page, { model: 'classic6', look: 2 });
-    await expect(page.locator('.j-title')).toHaveText('nothing playing');
-    await expect(page.locator('[data-testid=desk-note] span')).toHaveText('nothing queued');
+    await expect(page.getByTestId('desk-journal').locator('.j-title')).toHaveText('nothing playing');
+    await expect(page.getByTestId('desk-queue')).toContainText('nothing queued');
+    await expect(page.locator('[data-q=next]')).toHaveCount(0);
     await expect(page.getByTestId('desk-open-cd')).toHaveCount(0);
     await expect(page.getByTestId('desk-lyric')).toHaveCount(0);
     expect(errors).toEqual([]);
@@ -240,12 +262,10 @@ test.describe.serial('desk look on /ipod', () => {
     await openDesk(page, { model: 'classic6', look: 2 });
     const opt = (k: string) => page.locator(`[data-testid=desk-options] [data-desk-opt="${k}"]`);
     await expect(page.getByTestId('desk-options')).toBeVisible();
-    // a new desk: earbuds, and everything but the tracklist (the iPod in its dock, the pencil on the notebook, the VU amp, the cassette and the MiniDiscs)
+    // a new desk: earbuds, the iPod in its dock, the pencil on the notebook, the VU amp, the cassette and the MiniDiscs
     await expect(page.locator('[data-desk-phones="0"]')).toHaveClass(/on/);
     for (const id of ['desk-vu', 'desk-cassette', 'desk-minidiscs', 'desk-pencil', 'desk-dock']) await expect(page.getByTestId(id), id).toBeVisible();
-    await expect(page.getByTestId('desk-tracklist')).toHaveCount(0);
-    // the tracklist on; the others off and on again; the VU meter left off
-    await opt('tracks').click(); await expect(page.getByTestId('desk-tracklist')).toBeVisible(); await expect(opt('tracks')).toHaveClass(/on/);
+    // the others off and on again; the VU meter left off
     for (const [k, id] of [['md', 'desk-minidiscs'], ['pencil', 'desk-pencil'], ['dock', 'desk-dock'], ['tape', 'desk-cassette']]) {
       await opt(k).click(); await expect(page.getByTestId(id)).toHaveCount(0); await expect(opt(k)).not.toHaveClass(/on/);
       await opt(k).click(); await expect(page.getByTestId(id)).toBeVisible();
@@ -273,14 +293,20 @@ test.describe.serial('desk look on /ipod', () => {
     const stamp = Date.now().toString(36), tape = `Tape ${stamp}`, disc = `Disc ${stamp}`;
     // two playlists with a song each (made in the app: Playlists page, then Now Playing › More › Add to playlist)
     const songs: Record<string, string> = {};
-    for (const [name, song] of [[disc, /^Paper d+$/], [tape, /^Velvet d+$/]] as const) {
-      await page.goto('/playlists'); await page.getByLabel('New playlist name').fill(name); await page.getByRole('button', { name: 'Create' }).click();
+    for (const [name, nth] of [[disc, 0], [tape, 1]] as const) {   // (the first two songs of the list: the list only draws the rows in view)
+      await page.goto('/playlists');
+      // (typed again until the page is live: a name typed before it connects never reaches the server, and Create stays off)
+      await expect(async () => { await page.getByLabel('New playlist name').fill(''); await page.getByLabel('New playlist name').fill(name); await expect(page.getByRole('button', { name: 'Create' })).toBeEnabled({ timeout: 1000 }); }).toPass({ timeout: 20_000 });
+      await page.getByRole('button', { name: 'Create' }).click();
       await page.waitForURL(/\/playlist\//);
       await page.goto('/songs');
-      const row = page.locator('.track', { has: page.locator('.track-title', { hasText: song }) }).first();
+      // a song whose title is not the other playlist's (the mock library has songs of the same name on different albums)
+      let row = page.locator('.track').nth(nth);
+      for (let i = nth; Object.values(songs).includes((await row.locator('.track-title').textContent())!.trim()); i++) row = page.locator('.track').nth(i + 1);
       songs[name] = (await row.locator('.track-title').textContent())!.trim();
       await row.locator('button.track-main').click();
       await page.getByRole('button', { name: 'Open Now Playing' }).click();
+      await expect(page.locator('.np-titles h2')).toHaveText(songs[name]);   // (Now Playing on this song before its menu adds it)
       await page.getByRole('button', { name: 'More options' }).first().click();
       await page.getByRole('menuitem', { name: /Add to playlist/ }).click();
       await page.getByRole('menuitem', { name }).click();
@@ -293,11 +319,14 @@ test.describe.serial('desk look on /ipod', () => {
     // the newest playlist is the cassette, the others the MiniDiscs
     await expect(page.getByTestId('desk-cassette')).toContainText(tape);
     await expect(page.getByTestId('desk-minidiscs')).toContainText(disc);
-    await page.getByTestId('desk-cassette').click();
-    await expect(page.getByTestId('ipod-np-title')).toHaveText(songs[tape], { timeout: 10_000 });
+    // (the mock's songs last 3 s and a one-song playlist goes on to autoplay: watch the title from the click on)
+    const watch = () => page.evaluate(() => { (window as any).seen = []; (window as any).seenTimer = setInterval(() => { const t = document.querySelector('[data-testid=ipod-np-title]')?.textContent?.trim(); if (t) (window as any).seen.push(t); }, 50); });
+    const saw = (title: string) => expect.poll(() => page.evaluate(() => (window as any).seen as string[]), { timeout: 8_000 }).toContain(title);
+    await watch(); await page.getByTestId('desk-cassette').click();
+    await saw(songs[tape]);
     await expect(page.locator('.desk-cassette .reel').first()).not.toHaveClass(/paused/);
-    await page.locator('[data-testid=desk-minidiscs] [data-md]').filter({ hasText: disc }).click();
-    await expect(page.getByTestId('ipod-np-title')).toHaveText(songs[disc], { timeout: 10_000 });
+    await watch(); await page.locator('[data-testid=desk-minidiscs] [data-md]').filter({ hasText: disc }).click();
+    await saw(songs[disc]);
   });
 
   test('the VU meter\'s needle is driven by the desk (the mock songs are silent: its swing is checked in the desk.js harness)', async ({ page }) => {
@@ -330,16 +359,18 @@ test.describe.serial('desk look on /ipod', () => {
     for (const [w, h] of [[1280, 720], [1920, 1080], [2560, 1080], [390, 844]]) {
       await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(900);
       const deskBox = (await page.getByTestId('desk').boundingBox())!;
-      // a phone frames a closer look at the same desk: the journal, the CD and the coffee may run off its edges (their size stays the desk's), but the journal's
-      // title, the note and the iPod are in view, and the disc and the coffee are at least partly in the frame
-      const whole = w < h ? ['desk-note', 'ipod-device'] : ['desk-journal', 'desk-note', 'ipod-device'];
+      // a phone frames a closer look at the same desk: the journal and the coffee may run off its edges (their size stays the desk's), but the journal's
+      // title, the queue card and the iPod are in view, and the coffee is at least partly in the frame
+      const whole = w < h ? ['desk-queue', 'ipod-device'] : ['desk-journal', 'desk-queue', 'ipod-device'];
       for (const id of whole) {
         const b = await page.getByTestId(id).boundingBox(); if (!b) continue;
         expect(inside(b, deskBox, 30), `${id} at ${w}x${h}`).toBe(true);
       }
       if (w < h) {
-        expect(inside((await page.locator('.j-title').boundingBox())!, deskBox, 30), `journal title at ${w}x${h}`).toBe(true);
-        for (const sel of ['[data-testid=desk-disc]', '.desk-coffee .saucer']) {
+        expect(inside((await page.getByTestId('desk-journal').locator('.j-title').boundingBox())!, deskBox, 30), `journal title at ${w}x${h}`).toBe(true);
+        // (on a phone the queue card takes the open CD's corner: what plays and what is next are on it)
+        expect(inside((await page.getByTestId('desk-queue').boundingBox())!, deskBox, 30), `queue card at ${w}x${h}`).toBe(true);
+        for (const sel of ['.desk-coffee .saucer']) {
           const b = (await page.locator(sel).boundingBox())!;
           expect(b.x < deskBox.x + deskBox.width && b.y < deskBox.y + deskBox.height && b.x + b.width > deskBox.x, `${sel} in the frame at ${w}x${h}`).toBe(true);
         }

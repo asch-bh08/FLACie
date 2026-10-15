@@ -6,23 +6,22 @@ namespace FLACie.Tests;
 /// <summary>The iPod desk's options (iPod panel › Desk): which props lie on the desk, kept with the other iPod settings.</summary>
 public class DeskOptionsTests
 {
-    [Fact] public void ANewDeskHasEverythingButTheTracklist()
+    [Fact] public void ANewDeskHasEverything()
     {
         // the workspace: the iPod in its dock, the notebook with its pencil, the VU amp, the CDs with the cassette and the MiniDiscs, earbuds
         var d = new IpodPrefs().Desk;
         Assert.Equal(DeskOptions.Earbuds, d.Phones);
         Assert.True(d.Vu); Assert.True(d.Cassette); Assert.True(d.Minidiscs); Assert.True(d.Dock); Assert.True(d.Pencil);
-        Assert.False(d.Tracklist);
     }
 
     [Fact] public void TheChoicesAreKeptWithTheIpodSettings()
     {
         var p = new IpodPrefs();
-        p.Desk.Phones = DeskOptions.Studio; p.Desk.Vu = false; p.Desk.Minidiscs = true; p.Desk.Dock = true; p.Desk.Pencil = true; p.Desk.Tracklist = true; p.Desk.Cassette = false;
+        p.Desk.Phones = DeskOptions.Studio; p.Desk.Vu = false; p.Desk.Minidiscs = false; p.Desk.Dock = false; p.Desk.Pencil = false; p.Desk.Cassette = false;
         var back = IpodPrefs.FromJson(p.ToJson()).Desk;
         Assert.Equal(DeskOptions.Studio, back.Phones);
         Assert.False(back.Vu); Assert.False(back.Cassette);
-        Assert.True(back.Minidiscs); Assert.True(back.Dock); Assert.True(back.Pencil); Assert.True(back.Tracklist);
+        Assert.False(back.Minidiscs); Assert.False(back.Dock); Assert.False(back.Pencil);
     }
 
     [Fact] public void SettingsFromBeforeTheOptionsOrBrokenOnesGiveTheDefaults()

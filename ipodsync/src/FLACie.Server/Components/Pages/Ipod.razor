@@ -84,7 +84,6 @@
                     @DeskOpt("md", "MiniDiscs", prefs.Desk.Minidiscs, d => d.Minidiscs = !d.Minidiscs)
                     @if (DeskJacks.HasDock(model.Id)) { @DeskOpt("dock", "Dock", prefs.Desk.Dock, d => d.Dock = !d.Dock) }
                     @DeskOpt("pencil", "Pencil", prefs.Desk.Pencil, d => d.Pencil = !d.Pencil)
-                    @DeskOpt("tracks", "Tracklist", prefs.Desk.Tracklist, d => d.Tracklist = !d.Tracklist)
                 </div>
             </section>
         }
@@ -289,7 +288,16 @@
 
     RenderFragment DeskJournalPart => @<DeskJournal Title="@Player.Current?.Title" Artist="@Player.Current?.Artist" Lines="@(deskLyrics?.Lines ?? [])" Synced="@(deskLyrics?.Synced ?? false)" SongKey="@deskLyricsFor" Date="@deskDate" />;
     RenderFragment DeskPolaroidPart => @<div class="desk-polaroid lift" data-testid="desk-polaroid"><Cover ArtKey="@Player.Current?.ArtKey" /><span>@(deskWeekday.Length > 0 ? deskWeekday + " ♡" : "♡")</span></div>;
-    RenderFragment DeskCdsPart => @<DeskCds Now="@DeskNow" Next="@DeskNext" DiscUrl="@DiscUrlFor(DeskNow)" Playing="@Player.Playing" OnPlay="@DeskPlay" OnToggle="@(() => Player.Toggle())" />;
+    RenderFragment DeskCdsPart => @<text>
+        <DeskCds Now="@DeskNow" Next="@DeskNext" DiscUrl="@DiscUrlFor(DeskNow)" Playing="@Player.Playing" OnPlay="@DeskPlay" OnToggle="@(() => Player.Toggle())" />
+        <DeskQueue Now="@Player.Current" Next="@DeskQueueNext" More="@DeskQueueMore" OnSkip="@DeskSkip" />
+    </text>;
+    // the queue card: the next four songs in play order (round again with repeat all), and how many more
+    const int DeskQueueShown = 4;
+    List<int> DeskUpcoming => QueueEdit.Upcoming(Player.PlayOrder, Player.Index, Player.Repeat == 1);
+    IReadOnlyList<(Track Track, int Index)> DeskQueueNext => DeskUpcoming.Take(DeskQueueShown).Where(i => i >= 0 && i < Player.Queue.Count).Select(i => (Player.Queue[i], i)).ToList();
+    int DeskQueueMore => Math.Max(0, DeskUpcoming.Count - DeskQueueShown);
+    async Task DeskSkip(int index) { await Player.SkipTo(index); await FocusStage(); }
 
     // the desk's options (iPod panel › Desk)
     RenderFragment DeskOpt(string key, string name, bool on, Action<DeskOptions> flip) =>
@@ -318,28 +326,8 @@
         await Player.Play(tracks, 0, p.Name);
         showNow = true; npMode = 0; await FocusStage();
     }
-    // the tracklist: the next three songs in play order
-    IEnumerable<Track> DeskNextSongs
-    {
-        get
-        {
-            var order = Player.PlayOrder; var at = -1;
-            for (var i = 0; i < order.Count; i++) if (order[i] == Player.Index) { at = i; break; }
-            if (at < 0) return [];
-            return order.Skip(at + 1).Take(3).Where(i => i >= 0 && i < Player.Queue.Count).Select(i => Player.Queue[i]);
-        }
-    }
     RenderFragment DeskPropsPart => @<text>
         <DeskTapes Playlists="@DeskTapesList" Cassette="@prefs.Desk.Cassette" Minidiscs="@prefs.Desk.Minidiscs" Playing="@Player.Playing" OnPlay="@DeskPlayTape" />
-        @if (prefs.Desk.Tracklist)
-        {
-            var next = DeskNextSongs.ToList();
-            <div class="desk-tracklist lift" data-testid="desk-tracklist">
-                <b class="desk-hand">next up</b>
-                @for (var i = 0; i < next.Count; i++) { <span class="desk-hand">@(i + 1). @next[i].Title <small>@TimeSpan.FromMilliseconds(next[i].DurationMs).ToString(@"m\:ss")</small></span> }
-                @if (next.Count == 0) { <span class="desk-hand">nothing queued</span> }
-            </div>
-        }
     </text>;
 
     // a CD played while shuffling plays the whole album, in album order, then the shuffle carries on; otherwise the queue goes on from that album

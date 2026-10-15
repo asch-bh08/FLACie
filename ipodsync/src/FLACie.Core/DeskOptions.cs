@@ -21,12 +21,10 @@ public sealed class DeskOptions
     public bool Dock { get; set; } = true;
     /// <summary>A pencil lying across the journal.</summary>
     public bool Pencil { get; set; } = true;
-    /// <summary>A strip of masking tape with the next songs written on it.</summary>
-    public bool Tracklist { get; set; }
 
-    public void Reset() { phones = Earbuds; Vu = true; Cassette = true; Minidiscs = true; Dock = true; Pencil = true; Tracklist = false; }
+    public void Reset() { phones = Earbuds; Vu = true; Cassette = true; Minidiscs = true; Dock = true; Pencil = true; }
 
-    public JsonObject ToJson() => new() { ["phones"] = phones, ["vu"] = Vu, ["tape"] = Cassette, ["md"] = Minidiscs, ["dock"] = Dock, ["pencil"] = Pencil, ["tracks"] = Tracklist };
+    public JsonObject ToJson() => new() { ["phones"] = phones, ["vu"] = Vu, ["tape"] = Cassette, ["md"] = Minidiscs, ["dock"] = Dock, ["pencil"] = Pencil };
 
     /// <summary>Reads what <see cref="ToJson"/> wrote; anything missing or of the wrong kind keeps its default.</summary>
     public static DeskOptions FromJson(JsonNode? node)
@@ -35,7 +33,7 @@ public sealed class DeskOptions
         if (node is not JsonObject o) return d;
         bool B(string k, bool def) => o[k] is JsonValue v && v.TryGetValue<bool>(out var b) ? b : def;
         if (o["phones"] is JsonValue p && p.TryGetValue<int>(out var n)) d.Phones = n;
-        d.Vu = B("vu", true); d.Cassette = B("tape", true); d.Minidiscs = B("md", true); d.Dock = B("dock", true); d.Pencil = B("pencil", true); d.Tracklist = B("tracks", false);
+        d.Vu = B("vu", true); d.Cassette = B("tape", true); d.Minidiscs = B("md", true); d.Dock = B("dock", true); d.Pencil = B("pencil", true);
         return d;
     }
 }

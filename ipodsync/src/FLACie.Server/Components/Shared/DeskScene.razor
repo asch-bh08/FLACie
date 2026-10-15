@@ -154,7 +154,7 @@
     // a classic, clear of the coffee). Portrait: under the iPod, left of its middle (the iPod lies turned 7 degrees, which swings what lies under it to the
     // right), so the buds lie in the band under it; there the cable comes down the iPod's right side, so the splitter and the buds are mirrored (Flip) and the
     // cable comes into the splitter from the right.
-    double Sx => portrait ? Wd / 2 - 67 : Math.Min(Wd + 120, Math.Max(360, Wd + 70));
+    double Sx => portrait ? Wd / 2 - 52 : Math.Min(Wd + 120, Math.Max(360, Wd + 70));
     double Sy => portrait ? (DockOut ? H + 60 : H + 45) : H - 55;
     bool Flip => portrait && (Jack.Edge == JackEdge.Top || (DockOut ? DockStart.X : Jx) > Sx);   // (a bottom jack left of the split comes in from the left: not mirrored)
     // the direction the splitter runs (the cable comes in along it): down and right, or mirrored, down and left
@@ -168,7 +168,7 @@
     string CablePath => Studio ? Coiled(StudioRoute, StudioCoil) : Smooth(EarbudRoute);
     (double X, double Y, double A)[] EarbudRoute => portrait
         ? (Jack.Edge == JackEdge.Top
-            ? [(Jx, -14, -90), (Jx + 60, -50, -5), (Wd - 4, -26, 25), (Wd + 45, 120, 92), (Wd + 24, 280, 98), (Wd + 12, H - 6, 125), (Sx, Sy, Axis)]
+            ? [(Jx, -14, -90), (Jx + 34, -32, 0), (Wd - 14, -28, 18), (Wd + 40, 110, 92), (Wd + 24, 280, 98), (Wd + 12, H - 6, 125), (Sx, Sy, Axis)]   // (close over the iPod's top: the queue card lies above)
             : DockOut ? [DockStart, (Sx, Sy, Axis)] : [(Jx, H + 14, 90), (Sx, Sy, Axis)])
         : Jack.Edge == JackEdge.Top
         ? [(Jx, -14, -90), (Jx - 45, -82, 180), (Jx - 82, -30, 90), (Jx - 40, -12, -15), (Wd * 0.6, -60, -5), (Wd + 28, -30, 50), (Wd + 52, 120, 95), (Wd + 30, 250, 75), (Sx, Sy, Axis)]

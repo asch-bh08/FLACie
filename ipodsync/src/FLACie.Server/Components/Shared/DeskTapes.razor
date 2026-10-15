@@ -17,12 +17,12 @@
 @if (Minidiscs)
 {
     var discs = Playlists.Skip(1).Take(3).ToList();
-    <div class="desk-minidiscs" data-testid="desk-minidiscs">
+    <div class="desk-minidiscs lift" data-testid="desk-minidiscs">
         @for (var i = Math.Max(discs.Count, 2) - 1; i >= 0; i--)
         {
             var d = i < discs.Count ? discs[i] : null;
-            <div class="md lift @(i % 2 == 0 ? "blue" : "smoke")" data-md style="--i:@i" role="button" tabindex="0" aria-disabled="@(d is null ? "true" : null)" aria-label="@(d is null ? "A blank MiniDisc" : $"Play {d.Name}")"
-                 @onclick="() => Pick(d)" @onkeydown="e => Key(e, d)"><i class="shutter"></i><span class="desk-hand">@(d?.Name ?? "")</span></div>
+            <div class="md @(i % 2 == 0 ? "blue" : "smoke")" data-md style="--i:@i" role="button" tabindex="0" aria-disabled="@(d is null ? "true" : null)" aria-label="@(d is null ? "A blank MiniDisc" : $"Play {d.Name}")"
+                 @onclick="() => Pick(d)" @onkeydown="e => Key(e, d)"><i class="disc"></i><i class="shutter"></i><span class="desk-hand">@(d?.Name ?? "")</span><b>MD</b></div>
         }
     </div>
 }

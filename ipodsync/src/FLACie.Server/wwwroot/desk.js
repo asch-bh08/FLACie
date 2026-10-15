@@ -92,11 +92,17 @@ window.desk = (() => {
         rippleBox: el.querySelector('[data-ripples]'), dust: el.querySelector('canvas[data-dust]'),
         motes: Array.from({ length: 60 }, () => ({ x: Math.random(), y: Math.random(), r: 0.6 + Math.random() * 1.6, vx: (Math.random() - 0.5) * 0.0001, vy: -0.00003 - Math.random() * 0.0001, tw: Math.random() * 6.28 })) };
       s.raf = requestAnimationFrame(tick);
+      // the scene's shape decides its layout (and the cable's route, drawn on the server): tell it when it turns portrait or landscape
+      if (opts && opts.ref) {
+        let last = !!opts.portrait;
+        const check = () => { const p = el.clientWidth / Math.max(1, el.clientHeight) < 4 / 3; if (p !== last) { last = p; opts.ref.invokeMethodAsync('SetPortrait', p).catch(() => { }); } };
+        s.ro = new ResizeObserver(check); s.ro.observe(el); check();
+      }
     },
     /** keep: another start follows straight away (the analyser stays open). */
     stop(keep) {
       if (!s) return;
-      cancelAnimationFrame(s.raf);
+      cancelAnimationFrame(s.raf); if (s.ro) s.ro.disconnect();
       if (s.rippleBox) s.rippleBox.replaceChildren();
       s = null;
       if (!keep) { try { window.flacie && window.flacie.vizRelease && window.flacie.vizRelease(); } catch { } }

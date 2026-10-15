@@ -1,0 +1,25 @@
+@* The iPod desk's journal: the playing song's title and artist in handwriting, and its lyrics written in, the line being sung last (desk.css animates it
+   like a pen, unless motion is reduced). No lyrics: just the title. Nothing playing: a note saying so. *@
+<div class="desk-journal lift" data-testid="desk-journal">
+    <div class="page">
+        <div class="j-title">@(string.IsNullOrEmpty(Title) ? "nothing playing" : Title)@if (!string.IsNullOrEmpty(Artist)) { <small>@Artist</small> }</div>
+        <div class="j-lines">
+            @for (var i = Math.Max(0, Current - (Shown - 1)); i <= Current && i < Lines.Count; i++)
+            {
+                var line = Lines[i];
+                <div @key="i" class="@(i == Current ? "writing" : "")" data-testid="desk-lyric" style="--dur:@Math.Clamp(600 + line.Length * 45, 900, 3200)ms">@line</div>
+            }
+        </div>
+        <div class="j-date">@Date</div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Artist { get; set; }
+    [Parameter] public IReadOnlyList<string> Lines { get; set; } = [];
+    /// <summary>The line being sung (-1 before the first).</summary>
+    [Parameter] public int Current { get; set; } = -1;
+    const int Shown = 8;
+    static string Date => DateTime.Now.ToString("d MMM", System.Globalization.CultureInfo.InvariantCulture).ToLowerInvariant();
+}

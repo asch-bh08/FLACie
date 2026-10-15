@@ -1,0 +1,144 @@
+@using FLACie.Core
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+@* iPod mode, Look › Desk: the iPod (ChildContent, the page's own emulator, unchanged) lying on a sunlit desk, seen from above, with its earbuds plugged in
+   (they are the visualiser: desk.js), a journal, a polaroid, the next CDs and a coffee around it; blinds light and a film finish over everything.
+   The look comes from the approved mock-up; styles in desk.css. *@
+<div class="desk" data-testid="desk" @ref="scene">
+  <div class="desk-wood"></div>
+  <div class="desk-scene">
+    @Polaroid
+    @Journal
+    @Cds
+    <div class="desk-coffee lift" data-testid="desk-coffee" aria-hidden="true"><div class="saucer"></div><div class="cup"><div class="handle"></div></div></div>
+    <svg class="desk-steam" viewBox="0 0 200 340" aria-hidden="true"><path d="M 100 330 C 80 280, 130 250, 105 200 S 80 120, 110 70"/><path d="M 120 330 C 140 280, 95 240, 125 190 S 145 110, 120 60"/><path d="M 80 330 C 60 270, 105 230, 85 180 S 60 110, 90 50"/></svg>
+
+    <div class="desk-ipod" style="@SlotStyle">
+      <svg class="desk-earbuds" data-testid="desk-earbuds" viewBox="0 0 240 @F(H)" aria-hidden="true">
+        <defs>
+          <path id="desk-cable" d="@CablePath"/>
+          <path id="desk-lead-l" d="@LeadL"/><path id="desk-lead-r" d="@LeadR"/>
+          <radialGradient id="desk-shell" cx=".34" cy=".3" r=".8"><stop offset="0" stop-color="#ffffff"/><stop offset=".35" stop-color="#f8f7f3"/><stop offset=".75" stop-color="#e2dfd8"/><stop offset="1" stop-color="#bfbab1"/></radialGradient>
+          <linearGradient id="desk-stem" x1="0" x2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#f1efea"/><stop offset="1" stop-color="#c9c5bd"/></linearGradient>
+          <radialGradient id="desk-ring" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#f4f5f7"/><stop offset=".6" stop-color="#b9bcc2"/><stop offset="1" stop-color="#8d9097"/></radialGradient>
+          <radialGradient id="desk-grille-shade" cx=".5" cy=".5" r=".5"><stop offset=".7" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></radialGradient>
+          <pattern id="desk-mesh" width="2.6" height="2.6" patternUnits="userSpaceOnUse"><rect width="2.6" height="2.6" fill="#a6a8ac"/><circle cx="1.3" cy="1.3" r=".75" fill="#55585c"/></pattern>
+          <filter id="desk-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <g id="desk-bud">
+            <path d="M -9 10 C -9 22, -6.5 40, -6 50 L 6 50 C 6.5 40, 9 22, 9 10 Z" fill="url(#desk-stem)"/>
+            <path d="M -9 10 C -9 22, -6.5 40, -6 50 L 6 50 C 6.5 40, 9 22, 9 10" fill="none" stroke="rgba(0,0,0,.12)" stroke-width=".7"/>
+            <path d="M -5 16 C -5 26, -3.6 38, -3.4 46" stroke="#fff" stroke-width="2.4" stroke-linecap="round" fill="none" opacity=".9"/>
+            <rect x="-6.6" y="48" width="13.2" height="9" rx="3.2" fill="#e9e6e0" stroke="rgba(0,0,0,.12)" stroke-width=".7"/>
+            <ellipse rx="23" ry="20.5" fill="url(#desk-shell)"/><ellipse rx="23" ry="20.5" fill="none" stroke="rgba(0,0,0,.13)" stroke-width=".8"/>
+            <ellipse cy="12" rx="12" ry="5" fill="rgba(0,0,0,.08)"/>
+            <g transform="translate(3 -3) rotate(-18)">
+              <ellipse rx="16" ry="12.5" fill="url(#desk-ring)"/><ellipse rx="13.6" ry="10.4" fill="url(#desk-mesh)"/><ellipse rx="13.6" ry="10.4" fill="url(#desk-grille-shade)"/>
+              <ellipse rx="16" ry="12.5" fill="none" stroke="rgba(0,0,0,.18)" stroke-width=".6"/>
+              <path d="M -13 -5 A 15 11.5 0 0 1 2 -12" stroke="rgba(255,255,255,.9)" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+            </g>
+            <path d="M -19 -6 A 21 19 0 0 1 -6 -18.5" stroke="#fff" stroke-width="3.4" fill="none" stroke-linecap="round" opacity=".95"/><circle cx="-14" cy="-12" r="1.6" fill="#fff"/>
+          </g>
+        </defs>
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <g class="desk-cable-shadow" transform="translate(3 7)"><use href="#desk-cable" stroke="rgba(50,28,10,.34)" stroke-width="5.4"/><use href="#desk-lead-l" stroke="rgba(50,28,10,.34)" stroke-width="4.4"/><use href="#desk-lead-r" stroke="rgba(50,28,10,.34)" stroke-width="4.4"/></g>
+          <use href="#desk-cable" stroke="#d6d3cc" stroke-width="5"/><use href="#desk-cable" stroke="#f4f2ec" stroke-width="3.6" transform="translate(-.5 -.5)"/><use href="#desk-cable" stroke="#ffffff" stroke-width="1.2" transform="translate(-1.1 -1.1)"/>
+          <use href="#desk-lead-l" stroke="#d6d3cc" stroke-width="4"/><use href="#desk-lead-l" stroke="#f6f4ee" stroke-width="2.8" transform="translate(-.4 -.4)"/>
+          <use href="#desk-lead-r" stroke="#d6d3cc" stroke-width="4"/><use href="#desk-lead-r" stroke="#f6f4ee" stroke-width="2.8" transform="translate(-.4 -.4)"/>
+          <g filter="url(#desk-glow)"><use data-pulse="a" href="#desk-cable" stroke="#ffd29a" stroke-width="3.8"/><use data-pulse="b" href="#desk-cable" stroke="#fff1d8" stroke-width="2.2"/></g>
+        </g>
+        <g data-ripples fill="none"></g>
+        <g transform="translate(@F(Sx + 6.1) @F(Sy + 5.1)) rotate(-50.2)"><rect x="-4" y="-9" width="8" height="18" rx="3.8" fill="url(#desk-stem)" stroke="rgba(0,0,0,.14)" stroke-width=".7"/><rect x="-2.2" y="-6.5" width="1.9" height="12" rx=".95" fill="#fff" opacity=".9"/></g>
+        @foreach (var (x, y, r) in Buds)
+        {
+          <g class="desk-bud-shadow"><g data-bud data-cx="@F(x)" data-cy="@F(y)" transform="translate(@F(x) @F(y)) rotate(@F(r))"><g><use href="#desk-bud"/></g><g fill="none" stroke="#fff4e2" stroke-linecap="round"><path data-arc="0" stroke-width="2.6"/><path data-arc="1" stroke-width="2.1"/><path data-arc="2" stroke-width="1.6"/></g></g></g>
+        }
+        <g transform="translate(@F(Jx) @F(Jack.Edge == JackEdge.Top ? 0 : H)) rotate(@(Jack.Edge == JackEdge.Top ? 0 : 180))"><rect x="-6.5" y="-18" width="13" height="20" rx="3" fill="url(#desk-stem)" stroke="rgba(0,0,0,.14)" stroke-width=".8"/><rect x="-4" y="-16" width="3" height="15" rx="1.5" fill="#fff" opacity=".9"/></g>
+      </svg>
+      <div class="desk-ipod-edge" style="@EdgeStyle"></div>
+      @ChildContent
+    </div>
+  </div>
+
+  <svg class="desk-light" viewBox="0 0 1600 900" preserveAspectRatio="none" aria-hidden="true">
+    <defs>
+      <filter id="desk-soft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="7"/></filter>
+      <mask id="desk-sun" maskUnits="userSpaceOnUse" x="0" y="0" width="1600" height="900"><rect width="1600" height="900" fill="#000"/><g class="desk-sun-drift"><g class="desk-slats" filter="url(#desk-soft)">@Slats("#fff")</g></g></mask>
+      <mask id="desk-shade" maskUnits="userSpaceOnUse" x="0" y="0" width="1600" height="900"><rect width="1600" height="900" fill="#fff"/><g class="desk-sun-drift"><g class="desk-slats" filter="url(#desk-soft)">@Slats("#000")</g></g></mask>
+      <radialGradient id="desk-vig" cx="50%" cy="50%" r="72%"><stop offset=".5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2a160a" stop-opacity=".5"/></radialGradient>
+    </defs>
+    <rect width="1600" height="900" fill="#3a2010" opacity=".2" mask="url(#desk-shade)" style="mix-blend-mode: multiply"/>
+    <rect width="1600" height="900" fill="#ffc48a" opacity=".32" mask="url(#desk-sun)" style="mix-blend-mode: soft-light"/>
+    <rect width="1600" height="900" fill="url(#desk-vig)"/>
+  </svg>
+  <canvas class="desk-dust" data-dust aria-hidden="true"></canvas>
+  <div class="desk-film desk-fade"></div><div class="desk-film desk-wash"></div><div class="desk-film desk-cool"></div><div class="desk-film desk-leak"></div><div class="desk-film desk-grain"></div>
+</div>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Journal { get; set; }
+    [Parameter] public RenderFragment? Cds { get; set; }
+    [Parameter] public RenderFragment? Polaroid { get; set; }
+    [Parameter] public DeskJack Jack { get; set; } = DeskJacks.For("");
+    /// <summary>The device's width / height (the slot takes its shape, so the page's fit fills it).</summary>
+    [Parameter] public double Aspect { get; set; } = 0.6;
+    /// <summary>The device's corner radius as a fraction of its width (for the thickness edge under it).</summary>
+    [Parameter] public double Radius { get; set; } = 0.1;
+
+    ElementReference scene;
+    bool started, portrait;
+    DotNetObjectReference<DeskScene>? self;
+    [JSInvokable] public void SetPortrait(bool p) { if (p == portrait) return; portrait = p; StateHasChanged(); }
+
+    static string F(double v) => v.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+    // the cable is drawn in the device's own units: 240 across, H down
+    double H => 240 / Math.Max(0.2, Aspect);
+    double Jx => Jack.X * 240;
+    // where the cable splits for the two buds: to the right of the iPod, a little above its bottom
+    double Sx => portrait ? 180 : 360; double Sy => portrait ? H + 30 : H - 55;   // portrait: the buds lie under the iPod, not beside it
+    double Y(double y) => y > 0 ? y * H / 400 : y;   // the mock-up's route was drawn for a 400-high iPod: the part along the body stretches with it
+
+    string CablePath => portrait
+        ? (Jack.Edge == JackEdge.Top
+            ? $"M {F(Jx)} -14 C {F(Jx)} -44, {F(Jx + 70)} -52, 236 -26 S 290 {F(Y(120))}, 262 {F(Y(260))} S 236 {F(H - 10)}, {F(Sx - 14)} {F(H + 16)} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}"
+            : $"M {F(Jx)} {F(H + 14)} C {F(Jx)} {F(H + 40)}, {F(Jx + 60)} {F(H + 50)}, {F(Sx - 40)} {F(H + 24)} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}")
+        : Jack.Edge == JackEdge.Top
+        ? $"M {F(Jx)} -14 C {F(Jx)} -60, {F(Jx - 50)} -92, {F(Jx - 90)} -72 S {F(Jx - 114)} 6, {F(Jx - 42)} -28 S {F(Jx + 110)} -112, 252 -62 S 334 {F(Y(70))}, 304 {F(Y(160))} S 236 {F(Y(270))}, 300 {F(Y(286))} S 404 {F(Y(248))}, 392 {F(Y(306))} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}"
+        : $"M {F(Jx)} {F(H + 14)} C {F(Jx)} {F(H + 58)}, {F(Jx + 70)} {F(H + 76)}, {F(Jx + 140)} {F(H + 46)} S 300 {F(H - 6)}, 336 {F(H - 36)} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}";
+    string LeadL => $"M {F(Sx + 11.6)} {F(Sy + 11.7)} C {F(Sx + 25.4)} {F(Sy + 23.2)}, {F(Sx - 20)} {F(Sy + 35)}, {F(Sx - 40)} {F(Sy + 50)} S {F(Sx - 55)} {F(Sy + 73)}, {F(Sx - 60)} {F(Sy + 80)}";
+    string LeadR => $"M {F(Sx + 13.6)} {F(Sy + 9.3)} C {F(Sx + 30.5)} {F(Sy + 23.4)}, {F(Sx + 52)} {F(Sy + 27)}, {F(Sx + 60)} {F(Sy + 40)} S {F(Sx + 68)} {F(Sy + 59)}, {F(Sx + 70)} {F(Sy + 65)}";
+    // each bud sits beyond the end of its lead, its stem lined up with it
+    (double X, double Y, double R)[] Buds => [(Sx - 91.6, Sy + 127.4, -146.3), (Sx + 91.2, Sy + 117.9, 158.2)];
+
+    string SlotStyle => $"--aspect:{F(Aspect * 1000)}/1000";
+    string EdgeStyle => $"border-radius:{F(Radius * 100)}% / {F(Radius * Aspect * 100)}%";
+
+    RenderFragment Slats(string fill) => __builder =>
+    {
+        for (var i = 0; i < 14; i++)
+        {
+            var y = -380 + i * 82; const int h = 50;
+            <polygon points="@($"{-80 + i * 18},{y} {1500 + i * 18},{y + 420} {1500 + i * 18},{y + 420 + h} {-80 + i * 18},{y + h}")" fill="@fill" opacity="@F(0.55 + 0.45 * Math.Sin(i * 0.35 + 0.6))" />
+        }
+    };
+
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        // the moving parts read the SVG once at start: start again when the cable route changes (another model)
+        var key = $"{Jack}|{F(Aspect)}|{portrait}";
+        if (first || key != startedFor)
+        {
+            startedFor = key;
+            self ??= DotNetObjectReference.Create(this);
+            try { await Js.InvokeVoidAsync("desk.start", scene, new { @ref = self, portrait }); started = true; } catch (JSDisconnectedException) { } catch (InvalidOperationException) { }
+        }
+    }
+    string? startedFor;
+
+    public async ValueTask DisposeAsync()
+    {
+        self?.Dispose();
+        if (!started) return;
+        try { await Js.InvokeVoidAsync("desk.stop"); } catch (JSDisconnectedException) { } catch (InvalidOperationException) { }
+    }
+}

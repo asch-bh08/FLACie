@@ -1,0 +1,47 @@
+@using FLACie.Core
+@inject IJSRuntime Js
+@* The iPod desk's CDs: the next album lying open (its booklet, and the disc in the tray: the release's own disc picture when one is known,
+   otherwise a print made from the cover), the two after it in a small stack, and a note. A click plays that album. Styles: desk.css. *@
+<div class="desk-open lift @(Next.Count == 0 ? "empty" : "")" data-testid="desk-open-cd" title="@(Next.Count > 0 ? $"Play {Next[0].Album}" : "")" @onclick="() => Pick(0)">
+    <div class="lid">@if (Next.Count > 0) { <Cover ArtKey="@Next[0].ArtKey" Class="desk-art" /> }</div>
+    <div class="tray"><div class="disc @(Playing ? "" : "paused")" data-testid="desk-disc" style="@DiscStyle"></div></div>
+    <div class="hinge"></div>
+</div>
+<div class="desk-stack" data-testid="desk-stack">
+    @for (var i = Math.Min(Next.Count, 3) - 1; i >= 1; i--)
+    {
+        var k = i;
+        <div class="desk-case lift s@(k)" data-testid="desk-case" title="Play @Next[k].Album" @onclick="() => Pick(k)"><Cover ArtKey="@Next[k].ArtKey" Class="desk-art" /></div>
+    }
+</div>
+<div class="desk-note lift" data-testid="desk-note">
+    @if (Next.Count > 0) { <small>Up next</small><span>@Next[0].Album · @Next[0].Artist</span> }
+    else { <small>Up next</small><span>end of queue</span> }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<DeskAlbum> Next { get; set; } = [];
+    /// <summary>The release's own disc picture (Cover Art Archive "Medium"), when known.</summary>
+    [Parameter] public string? DiscArt { get; set; }
+    [Parameter] public bool Playing { get; set; }
+    [Parameter] public EventCallback<DeskAlbum> OnPlay { get; set; }
+
+    string? printFor, print;
+    string DiscStyle => (DiscArt ?? (printFor == Next.FirstOrDefault()?.Key ? print : null)) is { } url ? $"--art:url('{url}')" : "";
+
+    Task Pick(int i) => i < Next.Count ? OnPlay.InvokeAsync(Next[i]) : Task.CompletedTask;
+
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        // no disc picture: print one from the cover, once per album
+        if (DiscArt is not null || Next.Count == 0 || Next[0].ArtKey is null || printFor == Next[0].Key) return;
+        var a = Next[0]; printFor = a.Key; print = null;
+        try
+        {
+            var url = $"/art/{Uri.EscapeDataString(CoverOverrides.Map(a.ArtKey)!)}?v=3";
+            print = await Js.InvokeAsync<string?>("desk.discPrint", url, a.Artist, a.Album);
+            if (printFor == a.Key && print is not null) StateHasChanged();
+        }
+        catch (JSDisconnectedException) { } catch (InvalidOperationException) { } catch (JSException) { }
+    }
+}

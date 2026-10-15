@@ -108,3 +108,111 @@
   .cu-line1 span { padding-left: 0; text-overflow: ellipsis; }
   .cu-knob, .car-climate .dial, .cu-disc { transition: none; }
 }
+
+/* ================================================================ the hi-fi: a 1970s living room, a wood console, a turntable and a receiver */
+.hifi { position: absolute; inset: 0; background: #2a190f; }
+/* the wall: warm striped paper in lamplight, a framed print, the lamp, a plant */
+.hf-wall { position: absolute; inset: 0 0 38% 0; background: repeating-linear-gradient(90deg, rgba(255,220,170,.035) 0 1.6cqh, rgba(0,0,0,.05) 1.6cqh 3.2cqh), linear-gradient(#5a3a24, #3f2717 70%, #2e1c10); }
+.hf-glow { position: absolute; left: -10%; top: -20%; width: 70%; height: 140%; background: radial-gradient(closest-side, rgba(255,190,110,.55), rgba(255,160,80,.18) 55%, transparent); mix-blend-mode: screen; }
+.hf-frame { position: absolute; left: 42%; top: 10%; width: 26cqh; height: 20cqh; padding: 1.4cqh; background: linear-gradient(135deg, #8a6440, #5e4128); box-shadow: 0 1.4cqh 2cqh rgba(0,0,0,.45), inset 0 0 0 .3cqh rgba(255,230,190,.2); }
+.hf-frame b { display: block; height: 100%; background: radial-gradient(circle at 30% 40%, #e09a4a 0 18%, transparent 19%), radial-gradient(circle at 62% 58%, #c75a3a 0 22%, transparent 23%), radial-gradient(circle at 78% 30%, #e8c27a 0 10%, transparent 11%), #f1e4cc; box-shadow: inset 0 0 0 .2cqh rgba(0,0,0,.15); }
+.hf-lamp { position: absolute; left: 8%; top: 8%; width: 18cqh; height: 52cqh; }
+.hf-lamp .shade { position: absolute; left: 0; top: 0; width: 100%; height: 13cqh; clip-path: polygon(18% 0, 82% 0, 100% 100%, 0 100%); background: linear-gradient(90deg, #e9c48a, #fff1cf 45%, #d9a861); box-shadow: 0 0 6cqh rgba(255,200,120,.6); }
+.hf-lamp .stem { position: absolute; left: 50%; top: 13cqh; width: .9cqh; bottom: 0; translate: -50% 0; background: linear-gradient(90deg, #6e5130, #c99a5e, #6e5130); }
+.hf-plant { position: absolute; right: 4%; bottom: -2%; height: 64%; filter: drop-shadow(1cqh 1.6cqh 1.4cqh rgba(0,0,0,.4)); }
+/* the console: walnut veneer, its top seen from a little above, its front with the receiver and two speakers */
+.hf-console { position: absolute; left: 0; right: 0; bottom: 0; height: 47%; }
+.hf-top { position: absolute; left: 0; right: 0; top: 0; height: 22%; background: linear-gradient(#7a4f2c, #5c3a20); box-shadow: inset 0 .4cqh .4cqh rgba(255,220,170,.18), 0 .6cqh .8cqh rgba(0,0,0,.4); }
+.hf-front { position: absolute; left: 0; right: 0; top: 22%; bottom: 0; display: flex; align-items: center; justify-content: center; gap: 3%;
+  background: repeating-linear-gradient(90deg, rgba(0,0,0,.06) 0 .25cqh, transparent .25cqh 1.1cqh, rgba(255,220,180,.04) 1.1cqh 1.3cqh, transparent 1.3cqh 2.4cqh), linear-gradient(#5a381e, #43290f); }
+.hf-speaker { width: 22cqh; height: 78%; border-radius: .8cqh; background: radial-gradient(circle, rgba(0,0,0,.25) 1px, transparent 1.3px) 0 0 / .5cqh .5cqh, linear-gradient(#3b2a20, #2a1d15);
+  box-shadow: inset 0 0 0 .5cqh #6b4524, inset 0 0 2cqh rgba(0,0,0,.6); display: grid; place-items: center; }
+.hf-speaker i { width: 70%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #1a1410 0 18%, #2c221a 19% 52%, #1d1611 53% 70%, #2a2018 71%); opacity: .55;
+  scale: calc(1 + var(--low, .2) * .05); box-shadow: 0 0 0 .3cqh rgba(0,0,0,.25); }
+/* the turntable, lying on the console (drawn flat, then laid back) */
+.hf-deck { position: absolute; left: 50%; top: -34cqh; width: 62cqh; height: 44cqh; translate: -62% 0; perspective: 120cqh; }
+.hf-plinth { position: absolute; inset: 0; border-radius: 1cqh; transform-origin: 50% 100%; transform: rotateX(52deg); transform-style: preserve-3d;
+  background: repeating-linear-gradient(92deg, rgba(0,0,0,.08) 0 .3cqh, transparent .3cqh 1.2cqh), linear-gradient(135deg, #8b5a31, #5f3a1d 60%, #4a2c14); box-shadow: 0 2cqh 3cqh rgba(0,0,0,.55), inset 0 0 0 .4cqh rgba(255,220,170,.12); }
+.hf-platter { position: absolute; left: 5%; top: 7%; width: 64%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #9aa0a8, #c9cdd3 60%, #7d828a 72%, #b7bcc3 74%);
+  box-shadow: 0 .6cqh 1cqh rgba(0,0,0,.5); }
+.hf-record { position: absolute; inset: 3%; border-radius: 50%; animation: desk-spin calc(1.8s / var(--spd, 1)) linear infinite;
+  background: radial-gradient(circle, transparent 0 33%, transparent 34%), repeating-radial-gradient(circle, #111 0 .25cqh, #1d1d1f .25cqh .4cqh), #111;
+  box-shadow: inset 0 0 0 .3cqh #0a0a0a; }
+.hf-record::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 20deg, transparent, rgba(255,255,255,.14) 6%, transparent 13%, transparent 50%, rgba(255,255,255,.1) 56%, transparent 63%); }
+.hf-record.paused { animation-play-state: paused; }
+.hf-label { position: absolute; inset: 33%; border-radius: 50%; background: var(--art, radial-gradient(circle, #d7462e, #a5301c)) center / cover; box-shadow: 0 0 0 .2cqh rgba(0,0,0,.4); }
+.hf-spindle { position: absolute; left: 50%; top: 50%; width: 3%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #f0f0f0, #8a8d93); }
+.hf-groove { position: absolute; inset: 3%; border-radius: 50%; border: 0; background: transparent; cursor: crosshair; }
+/* the tonearm: its pivot at the top right; at rest beside the record, on it while playing (--arm) */
+.hf-arm-base { position: absolute; right: 9%; top: 9%; width: 9%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #f2f3f5, #9ea2a8 70%, #6f737a); box-shadow: 0 .6cqh .8cqh rgba(0,0,0,.5); }
+.hf-arm { position: absolute; right: 13.5%; top: 13.5%; width: 0; height: 0; rotate: calc(var(--arm, 0) * 1deg); transition: rotate 1.2s cubic-bezier(.4, .1, .3, 1); }
+.hf-arm .rod { position: absolute; left: -.5cqh; top: 0; width: 1cqh; height: 30cqh; border-radius: .5cqh; background: linear-gradient(90deg, #8d9198, #f4f5f7, #9ba0a6); box-shadow: .6cqh .6cqh .6cqh rgba(0,0,0,.35); transform-origin: 50% 0; rotate: 8deg; }
+.hf-arm .head { position: absolute; left: -5cqh; top: 28cqh; width: 4.2cqh; height: 6cqh; border-radius: .6cqh; background: linear-gradient(#2d2e33, #121215); rotate: 8deg; transform-origin: 100% 0; box-shadow: .4cqh .6cqh .6cqh rgba(0,0,0,.4); }
+/* (in the tilted plinth the browser stacks by depth: the controls stand a pixel above its surface, over the platter) */
+.hf-start, .hf-pitch, .hf-arm, .hf-arm-base { transform: translateZ(2px); }
+.hf-start { position: absolute; left: 5%; bottom: 7%; padding: .6cqh 1.4cqh; border: 0; border-radius: .5cqh; font-size: 1.5cqh; letter-spacing: .16em; color: #f3ead9; background: linear-gradient(#3a3b40, #1b1c20); box-shadow: 0 .4cqh .5cqh rgba(0,0,0,.5); }
+.hf-pitch { position: absolute; right: 6%; bottom: 7%; width: 24%; display: flex; flex-direction: column; gap: .4cqh; font-size: 1.2cqh; letter-spacing: .18em; color: #f3ead9; }
+.hf-pitch input { width: 100%; accent-color: #d9a861; }
+.hf-badge { position: absolute; right: 36%; bottom: 8%; font-size: 1.4cqh; color: #f3ead9; opacity: .7; letter-spacing: .1em; }
+/* the card beside it, in handwriting */
+.hf-card { position: absolute; left: 4%; top: -12cqh; width: 26cqh; padding: 1.4cqh 1.6cqh; rotate: -3deg; background: #f6efe0; color: #2f3b55; border-radius: .3cqh; box-shadow: 0 1cqh 1.6cqh rgba(0,0,0,.45);
+  background-image: repeating-linear-gradient(transparent 0 2.7cqh, rgba(90,120,160,.2) 2.7cqh 2.8cqh); }
+.hf-card small { display: block; font-size: 1cqh; letter-spacing: .2em; text-transform: uppercase; color: #9a7b55; }
+.hf-card b { display: block; font-size: 2.7cqh; line-height: 1.15; margin-top: .4cqh; overflow-wrap: anywhere; }
+.hf-card span { display: block; font-size: 2cqh; }
+.hf-card em { display: block; font-style: normal; font-size: 1.3cqh; color: #55607a; margin-top: .4cqh; }
+/* the crate of sleeves: they stand in a wooden crate, leaning back; the front one is the one that plays */
+.hf-crate { position: absolute; right: 4%; top: -24cqh; width: 32cqh; height: 30cqh; }
+.hf-crate::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 42%; border-radius: .4cqh; background: repeating-linear-gradient(90deg, rgba(0,0,0,.08) 0 .3cqh, transparent .3cqh 1.4cqh), linear-gradient(#b07a46, #8a5a2e);
+  box-shadow: 0 1cqh 1.4cqh rgba(0,0,0,.5), inset 0 .3cqh 0 rgba(255,230,190,.3); z-index: 2; pointer-events: none; }
+.hf-sleeves { position: absolute; inset: 0 6% 0; }
+.sleeve { position: absolute; left: 50%; bottom: 8%; width: 24cqh; aspect-ratio: 1; padding: 0; border: 0; border-radius: .2cqh; overflow: hidden; cursor: pointer; background: #e9e1cf;
+  translate: -50% calc(var(--o) * -2.6cqh); scale: calc(1 - var(--o) * .04); filter: brightness(calc(1 - var(--o) * .12)); z-index: calc(10 - var(--o)); transition: translate .3s ease, scale .3s ease;
+  box-shadow: 0 -.4cqh 1cqh rgba(0,0,0,.35); }
+.sleeve.front { translate: -50% -1.2cqh; z-index: 11; }
+.sleeve.front:hover { translate: -50% -3.6cqh; }
+.sleeve .sleeve-art { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 0; }
+.sleeve .sleeve-pl { position: absolute; inset: 12%; display: grid; place-items: center; font-size: 2.6cqh; color: #2f3b55; text-align: center; background: repeating-linear-gradient(45deg, #efe4cc 0 1cqh, #e6d8b8 1cqh 2cqh); }
+.hf-empty { position: absolute; left: 0; right: 0; bottom: 48%; text-align: center; color: #f3ead9; font-size: 2.2cqh; }
+.hf-flip { position: absolute; bottom: 10%; z-index: 3; width: 4.4cqh; height: 4.4cqh; border-radius: 50%; border: 0; background: rgba(20,12,6,.55); color: #f3ead9; font-size: 2.6cqh; line-height: 1; }
+.hf-flip.prev { left: -2%; } .hf-flip.next { right: -2%; }
+.hf-flip:disabled { opacity: .3; }
+/* the receiver: brushed silver, two green meters, the long tuning dial, the weighted knob, the switches */
+.hf-receiver { position: relative; width: min(64cqw, 92cqh); height: 74%; border-radius: .6cqh; display: grid; grid-template-columns: 28% 1fr 16%; grid-template-rows: 1fr auto; gap: 3% 2.4%; padding: 2.4% 2.6% 2%; box-sizing: border-box;
+  background: repeating-linear-gradient(90deg, rgba(255,255,255,.08) 0 .12cqh, rgba(0,0,0,.04) .12cqh .3cqh), linear-gradient(#e8e9eb, #bfc2c7 55%, #d4d6da); box-shadow: inset 0 0 0 .3cqh #8d9096, 0 1.2cqh 2cqh rgba(0,0,0,.6); container: rcv / inline-size; }
+.hf-meters { display: flex; gap: 6%; }
+.hf-meter { position: relative; flex: 1; border-radius: .4cqh; overflow: hidden; background: radial-gradient(120% 100% at 50% 100%, #9cf5a8, #3fbf6a 55%, #187a3a); box-shadow: inset 0 0 0 .25cqh #1a1b1e, inset 0 .4cqh 1.2cqh rgba(0,0,0,.5), 0 0 2cqh rgba(80,255,140,.35); }
+.hf-meter::before { content: ""; position: absolute; left: 12%; right: 12%; top: 22%; height: 60%; border-radius: 50% 50% 0 0 / 100% 100% 0 0; border-top: .3cqh solid rgba(10,40,20,.6); }
+.hf-meter .needle { position: absolute; left: 50%; bottom: -14%; width: .3cqh; height: 82%; margin-left: -.15cqh; background: #111; transform-origin: 50% 100%; rotate: calc(var(--a, -42) * 1deg); }
+.hf-meter span { position: absolute; left: 0; right: 0; bottom: 6%; text-align: center; font-size: 1.4cqw; letter-spacing: .2em; color: rgba(5,40,15,.75); font-weight: 700; }
+.hf-dial { position: relative; border-radius: .4cqh; background: linear-gradient(#0f1a14, #050806); box-shadow: inset 0 0 0 .25cqh #1a1b1e; overflow: hidden; display: grid; grid-template-rows: 1fr 1fr; padding: 1% 3%; }
+.hf-scale { display: flex; justify-content: space-between; align-items: center; font-size: 1.9cqw; color: #8affb0; text-shadow: 0 0 .8cqh rgba(80,255,140,.8); letter-spacing: .05em; }
+.hf-scale b { font-size: 1.4cqw; opacity: .7; }
+.hf-scale.am { color: #ffcf7a; text-shadow: 0 0 .8cqh rgba(255,190,80,.7); }
+.hf-pointer { position: absolute; top: 6%; bottom: 6%; left: calc(4% + var(--p, 0) * 86%); width: .35cqh; background: #ff4d3d; box-shadow: 0 0 1cqh #ff4d3d; transition: left .3s linear; }
+.hf-tune { align-self: center; justify-self: center; width: 92%; aspect-ratio: 1; border-radius: 50%; border: 0; padding: 0; position: relative; cursor: ns-resize; rotate: var(--r, 0deg); transition: rotate .3s ease;
+  background: repeating-conic-gradient(#9da1a8 0 4deg, #e3e5e8 4deg 8deg); box-shadow: 0 1cqh 1.4cqh rgba(0,0,0,.5), inset 0 0 0 .8cqh #c9ccd1; }
+.hf-tune i { position: absolute; left: 50%; top: 10%; width: 8%; height: 18%; margin-left: -4%; border-radius: 1cqh; background: #33363c; }
+.hf-switches { grid-column: 1 / -1; display: flex; gap: 2%; justify-content: center; }
+.hf-switches button { flex: 0 0 auto; min-width: 12%; padding: .7cqh 1.4cqh; border: 0; border-radius: .4cqh; font-size: 1.6cqw; letter-spacing: .14em; color: #2a2c30; background: linear-gradient(#f7f8f9, #b8bcc2); box-shadow: 0 .4cqh .5cqh rgba(0,0,0,.4), inset 0 .15cqh 0 #fff; }
+.hf-switches .phono i { display: inline-block; width: 1cqh; height: 1cqh; margin-left: .6cqh; border-radius: 50%; background: #5a2a20; vertical-align: middle; }
+.hf-switches .phono i.on { background: #ff5a3d; box-shadow: 0 0 1cqh #ff5a3d; }
+.hf-brand { position: absolute; left: 3%; bottom: -3.4cqh; font-size: 1.2cqh; letter-spacing: .28em; color: #e8dccb; opacity: .7; white-space: nowrap; }
+
+@container retro (aspect-ratio < 23 / 20) {
+  .hf-wall { inset: 0 0 62% 0; }
+  .hf-frame, .hf-crate, .hf-speaker, .hf-brand, .hf-plant { display: none; }
+  .hf-lamp { left: 4%; top: 6%; height: 30cqh; width: 12cqh; } .hf-plant { height: 58%; }
+  .hf-console { height: 74%; }
+  .hf-top { height: 48%; }
+  .hf-deck { left: 50%; top: -14%; width: 92cqw; height: 66cqw; translate: -50% 0; }
+  .hf-card { left: auto; right: 5%; top: -23cqh; width: 46cqw; rotate: 3deg; }   /* (pinned on the wall, beside the lamp) */
+  .hf-front { top: 48%; }
+  .hf-receiver { width: 94cqw; height: 80%; grid-template-columns: 1fr 22%; grid-template-rows: 30% 1fr auto; }
+  .hf-meters { grid-column: 1 / -1; }
+  .hf-meter span { font-size: 2.4cqw; } .hf-scale { font-size: 3.2cqw; } .hf-switches button { font-size: 2.8cqw; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hf-record { animation: none !important; }
+  .hf-arm, .hf-pointer, .hf-tune, .sleeve { transition: none; }
+}

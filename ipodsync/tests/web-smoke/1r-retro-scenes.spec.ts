@@ -25,6 +25,8 @@ async function playInScene(page: Page, scene: string, size: [number, number] = [
   await expect(page.locator(`[data-testid=retro][data-scene=${scene}]`)).toBeVisible({ timeout: 20_000 });
 }
 const title = (page: Page) => page.getByTestId('retro-title');
+/** Waits for a song to start from its beginning: the mock's songs last 3 s, so what a test does next has a whole song's time, not the end of one. */
+const freshSong = (page: Page) => expect.poll(async () => (await page.locator('.dock-times span').first().textContent())?.trim(), { timeout: 10_000, intervals: [50] }).toBe('0:00');
 const playing = (page: Page) => page.getByTestId('retro').getAttribute('data-playing');
 type Box = { x: number; y: number; width: number; height: number };
 const inside = (a: Box, b: Box, slack = 2) => a.x >= b.x - slack && a.y >= b.y - slack && a.x + a.width <= b.x + b.width + slack && a.y + a.height <= b.y + b.height + slack;
@@ -37,8 +39,8 @@ test.describe.serial('listening scenes', () => {
     await page.goto('/ipod');
     await expect(page.getByTestId('ipod-device')).toBeVisible({ timeout: 20_000 });
     for (const s of ['car', 'hifi', 'boombox', 'minidisc']) {
-      await page.locator(`[data-testid=scene-options] [data-scene=${s}]`).click();
-      await expect(page.locator(`[data-testid=retro][data-scene=${s}]`)).toBeVisible();
+      // (clicked again until the page is live: a click before it connects does nothing)
+      await expect(async () => { await page.locator(`[data-testid=scene-options] [data-scene=${s}]`).click(); await expect(page.locator(`[data-testid=retro][data-scene=${s}]`)).toBeVisible({ timeout: 1000 }); }).toPass({ timeout: 20_000 });
       await expect(page.getByTestId('ipod-device')).toHaveCount(0);
       await expect(page.locator('.ipod-panel [data-group]')).toHaveCount(0);   // the iPod's model picker is put away
     }
@@ -54,7 +56,7 @@ test.describe.serial('listening scenes', () => {
     expect(errors).toEqual([]);
   });
 
-  for (const scene of ['car']) {
+  for (const scene of ['car', 'hifi']) {
     test(`${scene}: shows the song, and play/pause, next, previous and its media drive the player`, async ({ page }) => {
       const errors = consoleErrors(page);
       await signIn(page);
@@ -62,6 +64,7 @@ test.describe.serial('listening scenes', () => {
       const np = (await page.locator('.dock-meta b').textContent())!.trim();
       await expect(title(page)).toContainText(np, { ignoreCase: true });
       await expect.poll(() => playing(page)).toBe('true');
+      await freshSong(page);
       await page.locator('[data-testid=retro] [data-ctl=play]').first().click();
       await expect.poll(() => playing(page)).toBe('false');
       await page.locator('[data-testid=retro] [data-ctl=play]').first().click();
@@ -104,4 +107,40 @@ test.describe.serial('listening scenes', () => {
       expect(running).toBe(0);
     });
   }
+
+  test('hifi: the record turns while playing and the tonearm follows the song; the record seeks, the pitch slider sets the speed, the crate flips and plays', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page);
+    await playInScene(page, 'hifi');
+    const rec = page.getByTestId('hifi-record');
+    await freshSong(page);
+    await expect.poll(() => rec.evaluate((r) => r.getAnimations().some((a) => a.playState === 'running'))).toBe(true);
+    // the tonearm is on the record while it plays
+    const arm = () => page.getByTestId('hifi-arm').evaluate((a) => parseFloat(getComputedStyle(a).getPropertyValue('--arm')) || 0);
+    await expect.poll(arm).toBeGreaterThan(10);   // (on the record, past the lead-in; the mock's songs last 3 s, so how far in changes fast)
+    // paused: the record stops, the arm lifts back to its rest
+    await page.locator('[data-testid=retro] [data-ctl=play]').first().click();
+    await expect.poll(() => rec.evaluate((r) => r.getAnimations().some((a) => a.playState === 'running'))).toBe(false);
+    await expect.poll(arm).toBe(0);
+    await page.locator('[data-testid=retro] [data-ctl=play]').first().click();
+    // a click near the record's centre seeks far into the song (the mock's songs last 3 s: from a fresh start, 2 s in within a second is the seek)
+    await freshSong(page);
+    const box = (await page.getByTestId('hifi-groove').boundingBox())!;
+    await page.mouse.click(box.x + box.width * 0.5 + box.width * 0.2, box.y + box.height * 0.5);
+    await expect.poll(async () => { const t = (await page.locator('.dock-times span').first().textContent())!.trim(); const [m, sec] = t.split(':').map(Number); return m * 60 + sec; }, { timeout: 900, intervals: [50] }).toBeGreaterThanOrEqual(2);
+    // the pitch slider sets the speed
+    await page.getByTestId('hifi-pitch').fill('1.06');
+    await expect(page.getByTestId('hifi-pitch')).toHaveAttribute('aria-valuetext', '+6%');
+    // the crate: flipping changes the front sleeve; the front one plays (paused first: the mock's 3 s songs would move the albums coming up meanwhile)
+    await page.locator('[data-testid=retro] [data-ctl=play]').first().click();
+    await expect.poll(() => playing(page)).toBe('false');
+    const front = () => page.locator('[data-testid=hifi-crate] .sleeve.front').getAttribute('data-album');
+    const f0 = await front();
+    await page.getByTestId('hifi-flip-next').click();
+    await expect.poll(front).not.toBe(f0);
+    const f1 = (await front())!;
+    await page.locator('[data-testid=hifi-crate] .sleeve.front').click();
+    await expect(page.locator('.dock-meta small')).toHaveText(f1, { timeout: 5000 });
+    expect(errors).toEqual([]);
+  });
 });

@@ -1,11 +1,128 @@
 @inherits RetroBase
-@* The Hifi scene (being built: the full hardware follows). Bound to the player like every scene: the song, play/pause, previous, next, an album coming up. *@
-<div class="retro-basic">
-    <div class="retro-basic-unit" data-testid="retro-unit">
-        <div data-testid="retro-title">@(Now?.Title ?? "Nothing playing")</div>
-        <button type="button" data-ctl="prev" aria-label="Previous" @onclick="Prev">⏮</button>
-        <button type="button" data-ctl="play" aria-label="@(Playing ? "Pause" : "Play")" @onclick="Toggle">⏯</button>
-        <button type="button" data-ctl="next" aria-label="Next" @onclick="Next">⏭</button>
-        @foreach (var a in NextAlbums.Take(1)) { <button type="button" data-media="album" data-album="@a.Album" @onclick="() => PlayAlbum(a)">@a.Album</button> }
+@inject IJSRuntime Js
+@* The hi-fi scene: a 1970s living room (a warm wall, a lamp, a plant) and a wood-veneer console. On top, a direct-drive turntable: the record (its label is
+   the cover) turns while the song plays, at the speed the pitch slider sets; the tonearm tracks in across the groove as the song goes on and lifts back
+   when it stops; a click on the record seeks (nearer the middle, further in). A crate of sleeves beside it: the albums coming up, then your playlists;
+   flip through, and the front one plays. In the console, a silver receiver: two green meters on the music (one analyser read: desk.js), the tuning dial
+   whose pointer goes along with the song, a weighted tuning knob (turn it to seek), and the switches. A quiet needle-drop crackle on a new song.
+   Styles: retro.css. *@
+<div class="hifi">
+    <div class="hf-wall" aria-hidden="true">
+        <i class="hf-glow"></i><i class="hf-frame"><b></b></i>
+        <div class="hf-lamp"><i class="shade"></i><i class="stem"></i></div>
+        <svg class="hf-plant" viewBox="0 0 200 260"><path d="M100 250 C 98 200, 104 150, 100 90" stroke="#2f4a2a" stroke-width="5" fill="none"/>
+            <path d="M100 150 C 60 140, 30 110, 22 70 C 55 80, 85 100, 100 150 Z" fill="#3f6b3a"/><path d="M100 120 C 140 100, 168 70, 178 30 C 140 46, 110 80, 100 120 Z" fill="#4c7d44"/>
+            <path d="M100 95 C 80 70, 76 40, 88 10 C 104 36, 108 66, 100 95 Z" fill="#5a8c4f"/><path d="M100 185 C 140 180, 170 160, 186 130 C 150 128, 118 150, 100 185 Z" fill="#355d31"/>
+            <path d="M100 205 C 60 205, 30 190, 14 165 C 50 160, 84 178, 100 205 Z" fill="#2f532c"/><rect x="62" y="222" width="76" height="38" rx="6" fill="#a0583a"/><rect x="58" y="218" width="84" height="10" rx="4" fill="#b8694a"/></svg>
+    </div>
+    <div class="hf-console">
+        <div class="hf-top">
+            <div class="hf-deck" data-testid="retro-unit">
+                <div class="hf-plinth">
+                    <div class="hf-platter">
+                        <div class="hf-record @(Playing ? "" : "paused")" data-testid="hifi-record" style="@RecordStyle"><i class="hf-label"></i><i class="hf-spindle"></i></div>
+                        <button type="button" class="hf-groove" data-testid="hifi-groove" aria-label="Drop the needle: nearer the middle goes further into the song" @onclick="SeekAt"></button>
+                    </div>
+                    <i class="hf-arm-base"></i>
+                    <div class="hf-arm" data-testid="hifi-arm" style="--arm:@ArmDeg"><i class="rod"></i><i class="head"></i></div>
+                    <button type="button" class="hf-start" data-ctl="play" aria-label="@(Playing ? "Stop" : "Start")" @onclick="Toggle">START · STOP</button>
+                    <label class="hf-pitch">PITCH
+                        <input type="range" data-testid="hifi-pitch" data-ctl="pitch" min="0.92" max="1.08" step="0.01" value="@Inv(Player.Speed)" aria-valuetext="@PitchText" @onchange="PitchChange" />
+                    </label>
+                    <span class="hf-badge">33⅓</span>
+                </div>
+            </div>
+            <div class="hf-card" data-testid="retro-title">
+                <small>now spinning</small>
+                <b class="hand">@(Now?.Title ?? "nothing on the deck")</b>
+                @if (Now is { } t) { <span class="hand">@t.Artist</span><em>@string.Join(" · ", new[] { t.Album, t.Year > 0 ? t.Year.ToString() : "" }.Where(x => x.Length > 0))</em> }
+            </div>
+            <div class="hf-crate" data-testid="hifi-crate">
+                <div class="hf-sleeves">
+                    @for (var i = Sleeves.Count - 1; i >= 0; i--)
+                    {
+                        var k = i; var sl = Sleeves[k]; var off = k - front;
+                        if (off < 0) continue;
+                        <button type="button" class="sleeve @(off == 0 ? "front" : "")" style="--o:@off" tabindex="@(off == 0 ? 0 : -1)" data-media="@(off != 0 ? null : sl.Album is null ? "playlist" : "album")" data-album="@sl.Album?.Album"
+                                aria-label="@($"Play {sl.Name}")" @onclick="() => PlaySleeve(sl, off)">
+                            @if (sl.Album is { } a) { <Cover ArtKey="@a.ArtKey" Class="sleeve-art" /> }
+                            else { <span class="sleeve-pl hand">@sl.Name</span> }
+                        </button>
+                    }
+                    @if (Sleeves.Count == 0) { <span class="hf-empty hand">the crate is empty</span> }
+                </div>
+                <button type="button" class="hf-flip prev" data-testid="hifi-flip-prev" aria-label="Flip back" @onclick="() => Flip(-1)" disabled="@(front == 0)">‹</button>
+                <button type="button" class="hf-flip next" data-testid="hifi-flip-next" aria-label="Flip on" @onclick="() => Flip(1)" disabled="@(front >= Sleeves.Count - 1)">›</button>
+            </div>
+        </div>
+        <div class="hf-front">
+            <div class="hf-speaker l" aria-hidden="true"><i></i></div>
+            <div class="hf-receiver">
+                <div class="hf-meters">
+                    <div class="hf-meter"><i class="needle" data-needle data-band="low"></i><span>SIGNAL</span></div>
+                    <div class="hf-meter"><i class="needle" data-needle data-band="high"></i><span>TUNING</span></div>
+                </div>
+                <div class="hf-dial">
+                    <div class="hf-scale fm"><span>88</span><span>92</span><span>96</span><span>100</span><span>104</span><span>108</span><b>FM</b></div>
+                    <div class="hf-scale am"><span>53</span><span>70</span><span>90</span><span>110</span><span>130</span><span>160</span><b>AM</b></div>
+                    <i class="hf-pointer" style="--p:@Inv(Progress)"></i>
+                </div>
+                <button type="button" class="hf-tune" data-testid="hifi-tune" aria-label="Tuning: turn to seek" title="Turn (scroll) to seek" style="--r:@Inv(-150 + 300 * Progress)deg" @onwheel="TuneWheel" @onwheel:preventDefault="true"><i></i></button>
+                <div class="hf-switches">
+                    <button type="button" data-ctl="prev" aria-label="Previous" @onclick="Prev">◀◀</button>
+                    <button type="button" data-ctl="play" class="phono" aria-label="@(Playing ? "Pause" : "Play")" @onclick="Toggle">PHONO <i class="@(Playing ? "on" : "")"></i></button>
+                    <button type="button" data-ctl="next" aria-label="Next" @onclick="Next">▶▶</button>
+                </div>
+                <span class="hf-brand">FLACIE&nbsp;&nbsp;SR-70&nbsp;&nbsp;STEREO RECEIVER</span>
+            </div>
+            <div class="hf-speaker r" aria-hidden="true"><i></i></div>
+        </div>
     </div>
 </div>
+
+@code {
+    int front;
+    string? lastSong;
+
+    sealed record Sleeve(string Name, FLACie.Core.DeskAlbum? Album, DeskTapes.Tape? Tape);
+    /// <summary>The crate: the albums coming up, then your playlists.</summary>
+    List<Sleeve> Sleeves => [.. NextAlbums.Select(a => new Sleeve(a.Album, a, null)), .. Playlists.Take(6).Select(t => new Sleeve(t.Name, null, t))];
+
+    static string Inv(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+    // the tonearm: at rest (0) when the record stops; on the record from the lead-in (18 degrees) to the run-out (40) as the song goes on
+    string ArmDeg => Playing && Now is not null ? Inv(18 + 22 * Progress) : "0";
+    string RecordStyle => $"--spd:{Inv(Math.Max(0.5, Player.Speed))}" + (Now?.ArtKey is { } k ? $";--art:url('/art/{Uri.EscapeDataString(FLACie.Core.CoverOverrides.Map(k)!)}?v=3')" : "");
+    string PitchText { get { var pc = (int)Math.Round((Player.Speed - 1) * 100); return pc == 0 ? "0%" : pc > 0 ? $"+{pc}%" : $"{pc}%"; } }
+
+    async Task SeekAt(MouseEventArgs e)
+    {
+        // the groove runs from the edge (the start) to the label (the end); OffsetX/Y are within the record's square
+        var size = Math.Max(1, (double)groovePx);
+        double dx = e.OffsetX - size / 2, dy = e.OffsetY - size / 2, r = Math.Sqrt(dx * dx + dy * dy) / (size / 2);
+        await Seek(Math.Clamp((1 - r) / (1 - 0.34), 0, 1));
+    }
+    int groovePx = 300;
+    async Task TuneWheel(WheelEventArgs e) => await Seek(Progress + (e.DeltaY < 0 ? 0.03 : -0.03));
+    async Task PitchChange(ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v)) await Player.SetSpeedAsync(Math.Clamp(v, 0.92, 1.08));
+    }
+    void Flip(int d) => front = Math.Clamp(front + d, 0, Math.Max(0, Sleeves.Count - 1));
+    async Task PlaySleeve(Sleeve s, int off)
+    {
+        if (off != 0) { front += off; return; }   // (a sleeve behind is pulled to the front first)
+        if (s.Tape is { } t) await PlayPlaylist(t); else if (s.Album is { } a) await PlayAlbum(a);
+        front = 0;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        if (first) { try { groovePx = await Js.InvokeAsync<int>("retro.size", ".hf-groove"); } catch (Exception) { } }
+        // a new song: the needle drops (a short quiet crackle; never with reduced motion)
+        if (Now?.Path is { } p && p != lastSong)
+        {
+            var wasPlaying = lastSong is not null; lastSong = p;
+            if (wasPlaying) { try { await Js.InvokeVoidAsync("retro.crackle"); } catch (Exception) { } }
+        }
+    }
+}

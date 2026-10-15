@@ -133,6 +133,15 @@ window.desk = (() => {
       try { return cv.toDataURL('image/png'); } catch { return null; }   // a cover from another site without CORS: the caller keeps the plain disc
     },
 
+    /** Prints the disc for a cover straight onto the disc element (the picture never goes back to the server: it is far bigger than a Blazor message). */
+    async discPrintInto(el, coverUrl, artist, album) {
+      if (!el) return false;
+      const want = coverUrl + '|' + album; el.dataset.printFor = want;
+      const url = await this.discPrint(coverUrl, artist, album);
+      if (!url || el.dataset.printFor !== want) return false;   // another album came up meanwhile
+      el.style.setProperty('--art', `url("${url}")`); return true;
+    },
+
     /** Writes a lyric line into an element, left to right like a pen (instantly with reduced motion). */
     writeLine(el, text, ms) {
       if (!el) return;

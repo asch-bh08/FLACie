@@ -14,7 +14,7 @@
     <svg class="desk-steam" viewBox="0 0 200 340" aria-hidden="true"><path d="M 100 330 C 80 280, 130 250, 105 200 S 80 120, 110 70"/><path d="M 120 330 C 140 280, 95 240, 125 190 S 145 110, 120 60"/><path d="M 80 330 C 60 270, 105 230, 85 180 S 60 110, 90 50"/></svg>
 
     <div class="desk-ipod" style="@SlotStyle">
-      <svg class="desk-earbuds" data-testid="desk-earbuds" viewBox="0 0 240 @F(H)" aria-hidden="true">
+      <svg class="desk-earbuds" data-testid="desk-earbuds" viewBox="0 0 @F(Wd) 400" aria-hidden="true">
         <defs>
           <path id="desk-cable" d="@CablePath"/>
           <path id="desk-lead-l" d="@LeadL"/><path id="desk-lead-r" d="@LeadR"/>
@@ -91,20 +91,21 @@
     [JSInvokable] public void SetPortrait(bool p) { if (p == portrait) return; portrait = p; StateHasChanged(); }
 
     static string F(double v) => v.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
-    // the cable is drawn in the device's own units: 240 across, H down
-    double H => 240 / Math.Max(0.2, Aspect);
-    double Jx => Jack.X * 240;
+    // the cable is drawn in the device's own units: 400 down (so buds and cable are the same size beside every iPod), Wd across
+    const double H = 400;
+    double Wd => H * Math.Max(0.2, Aspect);
+    double Jx => Jack.X * Wd;
     // where the cable splits for the two buds: to the right of the iPod, a little above its bottom
-    double Sx => portrait ? 180 : 360; double Sy => portrait ? H + 30 : H - 55;   // portrait: the buds lie under the iPod, not beside it
-    double Y(double y) => y > 0 ? y * H / 400 : y;   // the mock-up's route was drawn for a 400-high iPod: the part along the body stretches with it
+    double Sx => portrait ? Wd - 90 : Wd + 120; double Sy => portrait ? H + 30 : H - 55;   // portrait: the buds lie under the iPod, not beside it
+    static double Y(double y) => y;
 
     string CablePath => portrait
         ? (Jack.Edge == JackEdge.Top
-            ? $"M {F(Jx)} -14 C {F(Jx)} -44, {F(Jx + 70)} -52, 236 -26 S 290 {F(Y(120))}, 262 {F(Y(260))} S 236 {F(H - 10)}, {F(Sx - 14)} {F(H + 16)} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}"
+            ? $"M {F(Jx)} -14 C {F(Jx)} -44, {F(Jx + 70)} -52, {F(Wd - 4)} -26 S {F(Wd + 50)} {F(Y(120))}, {F(Wd + 22)} {F(Y(260))} S {F(Wd - 4)} {F(H - 10)}, {F(Sx - 14)} {F(H + 16)} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}"
             : $"M {F(Jx)} {F(H + 14)} C {F(Jx)} {F(H + 40)}, {F(Jx + 60)} {F(H + 50)}, {F(Sx - 40)} {F(H + 24)} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}")
         : Jack.Edge == JackEdge.Top
-        ? $"M {F(Jx)} -14 C {F(Jx)} -60, {F(Jx - 50)} -92, {F(Jx - 90)} -72 S {F(Jx - 114)} 6, {F(Jx - 42)} -28 S {F(Jx + 110)} -112, 252 -62 S 334 {F(Y(70))}, 304 {F(Y(160))} S 236 {F(Y(270))}, 300 {F(Y(286))} S 404 {F(Y(248))}, 392 {F(Y(306))} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}"
-        : $"M {F(Jx)} {F(H + 14)} C {F(Jx)} {F(H + 58)}, {F(Jx + 70)} {F(H + 76)}, {F(Jx + 140)} {F(H + 46)} S 300 {F(H - 6)}, 336 {F(H - 36)} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}";
+        ? $"M {F(Jx)} -14 C {F(Jx)} -60, {F(Jx - 50)} -92, {F(Jx - 90)} -72 S {F(Jx - 114)} 6, {F(Jx - 42)} -28 S {F(Jx + 110)} -112, {F(Wd + 12)} -62 S {F(Wd + 94)} {F(Y(70))}, {F(Wd + 64)} {F(Y(160))} S {F(Wd - 4)} {F(Y(270))}, {F(Wd + 60)} {F(Y(286))} S {F(Wd + 164)} {F(Y(248))}, {F(Wd + 152)} {F(Y(306))} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}"
+        : $"M {F(Jx)} {F(H + 14)} C {F(Jx)} {F(H + 58)}, {F(Jx + 70)} {F(H + 76)}, {F(Jx + 140)} {F(H + 46)} S {F(Wd + 60)} {F(H - 6)}, {F(Wd + 96)} {F(H - 36)} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}";
     string LeadL => $"M {F(Sx + 11.6)} {F(Sy + 11.7)} C {F(Sx + 25.4)} {F(Sy + 23.2)}, {F(Sx - 20)} {F(Sy + 35)}, {F(Sx - 40)} {F(Sy + 50)} S {F(Sx - 55)} {F(Sy + 73)}, {F(Sx - 60)} {F(Sy + 80)}";
     string LeadR => $"M {F(Sx + 13.6)} {F(Sy + 9.3)} C {F(Sx + 30.5)} {F(Sy + 23.4)}, {F(Sx + 52)} {F(Sy + 27)}, {F(Sx + 60)} {F(Sy + 40)} S {F(Sx + 68)} {F(Sy + 59)}, {F(Sx + 70)} {F(Sy + 65)}";
     // each bud sits beyond the end of its lead, its stem lined up with it

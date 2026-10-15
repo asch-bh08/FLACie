@@ -137,6 +137,8 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
     public Action? OnAutoAdvance { get; set; }
     DotNetObjectReference<PlayerState>? self;
     List<int> order = [];
+    /// <summary>The play order (play position → queue position): the queue as it will actually play, shuffle included.</summary>
+    public IReadOnlyList<int> PlayOrder => order;
     Connect? connect;
 
     IReadOnlyList<Track> IPlayerHost.Queue => Queue;

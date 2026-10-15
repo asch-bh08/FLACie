@@ -651,7 +651,7 @@ window.flacie = (() => {
       let sc = null, y0 = 0, top0 = 0, dragged = false, k = 1;
       const down = e => {
         if (e.pointerType !== "mouse" || e.button !== 0) return;
-        sc = e.target.closest(".touchOs-scroll"); if (!sc) return;
+        sc = e.target.closest(".ios-scroll"); if (!sc) return;
         const r = root.getBoundingClientRect(); k = r.width / (root.offsetWidth || 1) || 1;
         y0 = e.clientY; top0 = sc.scrollTop; dragged = false;
       };

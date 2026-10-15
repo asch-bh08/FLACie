@@ -92,6 +92,19 @@ public class QueueTests
     }
 
     [Fact]
+    public void A_run_played_from_here_comes_next_in_its_own_order_and_the_rest_keeps_its_place()
+    {
+        // shuffled [3, 0, 5, 1, 4, 2], playing 0: the album 4, 1, 5 (in that order) is played now, then the shuffle carries on with what was left (2)
+        Assert.Equal([3, 0, 4, 1, 5, 2], QueueEdit.PlayRunNext([3, 0, 5, 1, 4, 2], 0, [4, 1, 5]));
+        // a song of the run that was already played comes round again with it
+        Assert.Equal([0, 2, 3, 1, 4, 5], QueueEdit.PlayRunNext(Seq, 2, [3, 1]));
+        // the current song is never part of the run (it is playing): the rest of the run follows it
+        Assert.Equal([1, 0, 4, 5, 2, 3], QueueEdit.PlayRunNext(Seq, 1, [0, 1, 4, 5]));
+        // indices outside the queue and repeats are dropped
+        Assert.Equal([0, 1, 2, 3, 4, 5], QueueEdit.PlayRunNext(Seq, 0, [1, 1, 9, -1]));
+    }
+
+    [Fact]
     public void Any_run_of_edits_keeps_a_valid_play_order_and_moves_never_change_the_current_song()
     {
         var rnd = new Random(7);
@@ -195,6 +208,21 @@ public class QueueTests
         var (p, _) = await Player(1);
         await p.RemoveFromQueue(0);
         Assert.Null(p.Current); Assert.Empty(p.Queue);
+    }
+
+    [Fact]
+    public async Task A_run_played_while_shuffling_plays_every_song_of_it_then_the_shuffle_carries_on()
+    {
+        var (p, js) = await Player(8, 3, shuffle: true);
+        var before = Next(p);                                          // what the shuffle had still to come
+        await p.PlayRun([6, 1, 4]);                                    // an album, in album order
+        Assert.Equal("Song 6", p.Current!.Title); Assert.Equal(2, js.Loads);
+        Assert.Equal(["Song 1", "Song 4"], Next(p).Take(2).ToArray());
+        Assert.Equal(before.Where(t => t is not ("Song 6" or "Song 1" or "Song 4")).ToArray(), Next(p).Skip(2).ToArray());
+        Assert.True(p.Shuffle);
+        await p.NextAsync(); Assert.Equal("Song 1", p.Current!.Title);
+        await p.NextAsync(); Assert.Equal("Song 4", p.Current!.Title);
+        await p.PlayRun([]); await p.PlayRun([p.Index]); Assert.Equal("Song 4", p.Current!.Title);   // nothing to play: nothing changes
     }
 
     [Fact]

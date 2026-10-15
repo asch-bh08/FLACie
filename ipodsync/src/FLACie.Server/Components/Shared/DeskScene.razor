@@ -95,21 +95,30 @@
     const double H = 400;
     double Wd => H * Math.Max(0.2, Aspect);
     double Jx => Jack.X * Wd;
-    // where the cable splits for the two buds: to the right of the iPod, a little above its bottom
-    double Sx => portrait ? Wd - 90 : Wd + 120; double Sy => portrait ? H + 30 : H - 55;   // portrait: the buds lie under the iPod, not beside it
-    static double Y(double y) => y;
+    // where the cable splits for the two buds: to the right of the iPod, a little above its bottom. Portrait: under the iPod, left of its middle (the iPod lies
+    // turned 7 degrees, which swings what lies under it to the right), so the buds lie in the band under it, between the CDs and the coffee
+    // (landscape: a wide iPod, the square nano, splits no further right than beside a classic, clear of the coffee)
+    double Sx => portrait ? Wd / 2 - 84 : Math.Min(Wd + 120, 360);
+    double Sy => portrait ? H + 30 : H - 55;
+    // a point of the leads or the buds, given from the split
+    string P(double dx, double dy) => $"{F(Sx + dx)} {F(Sy + dy)}";
 
     string CablePath => portrait
         ? (Jack.Edge == JackEdge.Top
-            ? $"M {F(Jx)} -14 C {F(Jx)} -44, {F(Jx + 70)} -52, {F(Wd - 4)} -26 S {F(Wd + 50)} {F(Y(120))}, {F(Wd + 22)} {F(Y(260))} S {F(Wd - 4)} {F(H - 10)}, {F(Sx - 14)} {F(H + 16)} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}"
+            ? $"M {F(Jx)} -14 C {F(Jx)} -44, {F(Jx + 70)} -52, {F(Wd - 4)} -26 S {F(Wd + 50)} {F(120)}, {F(Wd + 22)} {F(260)} S {F(Wd + 30)} {F(H + 10)}, {F(Wd - 30)} {F(H + 34)} S {F(Sx + 30)} {F(Sy - 6)}, {F(Sx)} {F(Sy)}"
             : $"M {F(Jx)} {F(H + 14)} C {F(Jx)} {F(H + 40)}, {F(Jx + 60)} {F(H + 50)}, {F(Sx - 40)} {F(H + 24)} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}")
         : Jack.Edge == JackEdge.Top
-        ? $"M {F(Jx)} -14 C {F(Jx)} -60, {F(Jx - 50)} -92, {F(Jx - 90)} -72 S {F(Jx - 114)} 6, {F(Jx - 42)} -28 S {F(Jx + 110)} -112, {F(Wd + 12)} -62 S {F(Wd + 94)} {F(Y(70))}, {F(Wd + 64)} {F(Y(160))} S {F(Wd - 4)} {F(Y(270))}, {F(Wd + 60)} {F(Y(286))} S {F(Wd + 164)} {F(Y(248))}, {F(Wd + 152)} {F(Y(306))} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}"
+        ? $"M {F(Jx)} -14 C {F(Jx)} -60, {F(Jx - 50)} -92, {F(Jx - 90)} -72 S {F(Jx - 114)} 6, {F(Jx - 42)} -28 S {F(Jx + 110)} -112, {F(Wd + 12)} -62 S {F(Wd + 94)} {F(70)}, {F(Wd + 64)} {F(160)} S {F(Wd - 4)} {F(270)}, {F(Wd + 60)} {F(286)} S {F(Wd + 164)} {F(248)}, {F(Wd + 152)} {F(306)} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}"
         : $"M {F(Jx)} {F(H + 14)} C {F(Jx)} {F(H + 58)}, {F(Jx + 70)} {F(H + 76)}, {F(Jx + 140)} {F(H + 46)} S {F(Wd + 60)} {F(H - 6)}, {F(Wd + 96)} {F(H - 36)} S {F(Sx - 18)} {F(Sy - 15)}, {F(Sx)} {F(Sy)}";
-    string LeadL => $"M {F(Sx + 11.6)} {F(Sy + 11.7)} C {F(Sx + 25.4)} {F(Sy + 23.2)}, {F(Sx - 20)} {F(Sy + 35)}, {F(Sx - 40)} {F(Sy + 50)} S {F(Sx - 55)} {F(Sy + 73)}, {F(Sx - 60)} {F(Sy + 80)}";
-    string LeadR => $"M {F(Sx + 13.6)} {F(Sy + 9.3)} C {F(Sx + 30.5)} {F(Sy + 23.4)}, {F(Sx + 52)} {F(Sy + 27)}, {F(Sx + 60)} {F(Sy + 40)} S {F(Sx + 68)} {F(Sy + 59)}, {F(Sx + 70)} {F(Sy + 65)}";
-    // each bud sits beyond the end of its lead, its stem lined up with it
-    (double X, double Y, double R)[] Buds => [(Sx - 91.6, Sy + 127.4, -146.3), (Sx + 91.2, Sy + 117.9, 158.2)];
+    string LeadL => $"M {F(Sx + 11.6)} {F(Sy + 11.7)} C {P(25.4, 23.2)}, {P(-20, 35)}, {P(-40, 50)} S {P(-55, 73)}, {P(-60, 80)}";
+    string LeadR => $"M {F(Sx + 13.6)} {F(Sy + 9.3)} C {P(30.5, 23.4)}, {P(52, 27)}, {P(60, 40)} S {P(68, 59)}, {P(70, 65)}";
+    // each bud sits beyond the end of its lead, its stem pointing back along it
+    (double X, double Y, double R)[] Buds => [Bud(-91.6, 127.4, -60, 80), Bud(91.2, 117.9, 70, 65)];
+    (double X, double Y, double R) Bud(double dx, double dy, double leadX, double leadY)
+    {
+        double vx = leadX - dx, vy = leadY - dy;
+        return (Sx + dx, Sy + dy, Math.Atan2(-vx, vy) * 180 / Math.PI);
+    }
 
     string SlotStyle => $"--aspect:{F(Aspect * 1000)}/1000";
     string EdgeStyle => $"border-radius:{F(Radius * 100)}% / {F(Radius * Aspect * 100)}%";
@@ -131,15 +140,18 @@
         {
             startedFor = key;
             self ??= DotNetObjectReference.Create(this);
-            try { await Js.InvokeVoidAsync("desk.start", scene, new { @ref = self, portrait }); started = true; } catch (JSDisconnectedException) { } catch (InvalidOperationException) { }
+            try { await Js.InvokeVoidAsync("desk.start", scene, new { @ref = self, portrait }); started = true; } catch (Exception e) when (Gone(e)) { }
         }
     }
     string? startedFor;
+
+    // the page went away under the call (the circuit closed, the call was cancelled, desk.js was not there or threw): nothing to undo
+    static bool Gone(Exception e) => e is JSDisconnectedException or JSException or InvalidOperationException or OperationCanceledException;
 
     public async ValueTask DisposeAsync()
     {
         self?.Dispose();
         if (!started) return;
-        try { await Js.InvokeVoidAsync("desk.stop"); } catch (JSDisconnectedException) { } catch (InvalidOperationException) { }
+        try { await Js.InvokeVoidAsync("desk.stop"); } catch (Exception e) when (Gone(e)) { }
     }
 }

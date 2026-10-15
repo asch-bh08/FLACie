@@ -3,7 +3,7 @@ import { defineConfig } from '@playwright/test';
 // Starts a fake Jellyfin (mock-jellyfin.mjs) and FLACie Web pointed at it, then drives the real pages in Chromium.
 // Needs the .NET 9 SDK. Run: npm ci && npx playwright install chromium && npm test
 // The last spec trips the login throttle on purpose, so a second local run needs a fresh server (stop the dotnet process first).
-// MOCK_PORT / WEB_PORT move both servers, so a second checkout can run its specs without reusing another run's servers (1m/1n need nothing else; specs that name 8196/5290 themselves still need the defaults)
+// MOCK_PORT / WEB_PORT move both servers, so a second checkout can run its specs without reusing another run's servers (every spec follows them)
 const MOCK = Number(process.env.MOCK_PORT || 8196), WEB = Number(process.env.WEB_PORT || 5290);
 export default defineConfig({
   testDir: '.',

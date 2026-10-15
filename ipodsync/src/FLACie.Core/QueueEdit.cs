@@ -94,4 +94,17 @@ public static class QueueEdit
         shifted.Insert(p + 1, at);
         return (shifted, newCurrent);
     }
+
+    /// <summary>
+    /// The play order when a run of songs (queue indices, e.g. one album, in its own order) is played from here: the run right after the current song, then what was
+    /// still to come without it. Songs of the run already played come round again with it; the current song, indices outside the order and repeats are left out of the run.
+    /// </summary>
+    public static List<int> PlayRunNext(IReadOnlyList<int> order, int current, IReadOnlyList<int> run)
+    {
+        var inOrder = order.ToHashSet();
+        var r = run.Where(i => i != current && inOrder.Contains(i)).Distinct().ToList();
+        var taken = r.ToHashSet();
+        var p = order.ToList().IndexOf(current);
+        return [.. order.Take(p + 1).Where(i => !taken.Contains(i)), .. r, .. order.Skip(p + 1).Where(i => !taken.Contains(i))];
+    }
 }

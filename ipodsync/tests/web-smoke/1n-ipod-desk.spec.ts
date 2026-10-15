@@ -43,6 +43,74 @@ test.describe('desk engine on its own (desk.js harness)', () => {
     expect(errors).toEqual([]);
   });
 
+  test('the disc: the old album goes at once, a late answer is dropped, the release\'s own picture first, else a print from the cover', async ({ page }) => {
+    const errors = errorsOf(page);
+    await page.goto(harness());
+    const st = await page.evaluate(async () => {
+      const d = (window as any).desk, el = document.getElementById('disc')!, art = () => el.style.getPropertyValue('--art');
+      const png = (c: string) => { const k = document.createElement('canvas'); k.width = k.height = 32; const g = k.getContext('2d')!; g.fillStyle = c; g.fillRect(0, 0, 32, 32); return k.toDataURL(); };
+      const A = png('#c33'), B = png('#33c'), own = png('#3c3');
+      // the print for A is slow; B comes up meanwhile
+      const print = d.discPrint.bind(d); let releaseA: () => void = () => { };
+      d.discPrint = (c: string, ...r: string[]) => c === A ? new Promise((res) => { releaseA = () => print(c, ...r).then(res); }) : print(c, ...r);
+      el.style.setProperty('--art', 'url("old.png")');
+      const pA = d.discInto(el, null, A, 'Ann', 'First');
+      const cleared = art();
+      const okB = await d.discInto(el, null, B, 'Bob', 'Second'); const printedB = art();
+      releaseA(); const okA = await pA;
+      const afterLate = art();
+      const okOwn = await d.discInto(el, own, A, 'Ann', 'First'); const ownArt = art();
+      const okMissing = await d.discInto(el, 'missing-disc.png', B, 'Bob', 'Second'); const fallback = art();
+      await d.discInto(el, null, null, 'Cy', 'Third'); const nothing = art();
+      return { cleared, okB, printedB: printedB.slice(0, 26), okA, same: afterLate === printedB, okOwn, ownArt: ownArt.includes(own), okMissing, fallback: fallback.slice(0, 26), nothing };
+    });
+    expect(st.cleared).toBe('');                        // no moment of the old album's disc on the new album
+    expect(st.okB).toBe(true); expect(st.printedB).toBe('url("data:image/png;base64');
+    expect(st.okA).toBe(false); expect(st.same).toBe(true);   // the late print for A did not replace B's
+    expect(st.okOwn).toBe(true); expect(st.ownArt).toBe(true);
+    expect(st.okMissing).toBe(true); expect(st.fallback).toBe('url("data:image/png;base64');
+    expect(st.nothing).toBe('');
+    expect(errors.filter((e) => !e.startsWith('Failed to load resource'))).toEqual([]);   // (the missing disc picture, on purpose)
+  });
+
+  test('reduced motion: one still frame, no loop reading the analyser', async ({ page }) => {
+    await page.goto(harness());
+    await page.evaluate(() => (window as any).desk.start(document.getElementById('scene'), { reduced: true }));
+    await page.waitForTimeout(700);
+    const st = await page.evaluate(() => ({ calls: (window as any).vizCalls || 0, arc: document.querySelector('[data-arc="0"]')!.getAttribute('d') }));
+    expect(st.calls).toBeLessThanOrEqual(1);
+    expect(st.arc).toMatch(/^M /);
+  });
+
+  test('a calm fixed pulse writes nothing frame after frame (no analyser: only the current along the cable moves)', async ({ page }) => {
+    await page.goto(harness('?null=1'));
+    await page.evaluate(() => (window as any).desk.start(document.getElementById('scene'), { reduced: false }));
+    await page.waitForTimeout(400);
+    const writes = await page.evaluate(() => new Promise<number>((done) => {
+      let n = 0; const mo = new MutationObserver((rs) => { n += rs.length; });
+      const scene = document.getElementById('scene')!;
+      mo.observe(scene, { attributes: true, attributeFilter: ['style'] });
+      document.querySelectorAll('[data-arc], [data-bud] > g').forEach((x) => mo.observe(x, { attributes: true }));
+      setTimeout(() => { mo.disconnect(); done(n); }, 600);
+    }));
+    expect(writes).toBe(0);
+  });
+
+  test('vizFrame hands back the same buffers each frame and keeps the analyser\'s copy of the song in step a few times a second', async ({ page }) => {
+    await page.goto(pathToFileURL(path.join(__dirname, 'fixtures', 'viz-resume.html')).href);
+    const st = await page.evaluate(() => {
+      const f = (window as any).flacie; (window as any).playing = true;
+      let srcReads = 0; const d = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src')!;
+      Object.defineProperty(HTMLMediaElement.prototype, 'src', { get() { srcReads++; return d.get!.call(this); }, set(v) { d.set!.call(this, v); }, configurable: true });
+      const a = f.vizFrame(); srcReads = 0;
+      let b = a; for (let i = 0; i < 60; i++) b = f.vizFrame();   // a second of frames
+      return { same: a.freq === b.freq, wave: 'wave' in a, syncs: srcReads };
+    });
+    expect(st.same).toBe(true);
+    expect(st.wave).toBe(false);
+    expect(st.syncs).toBeLessThanOrEqual(2);
+  });
+
   test('vizFrame wakes an analyser the browser opened suspended (a reload of /ipod in the Desk look) once the song plays', async ({ page }) => {
     const errors = errorsOf(page);
     await page.goto(pathToFileURL(path.join(__dirname, 'fixtures', 'viz-resume.html')).href);

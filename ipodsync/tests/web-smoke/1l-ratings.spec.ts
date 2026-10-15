@@ -1,7 +1,7 @@
 import { test, expect, Page } from '@playwright/test';
 
 // Star ratings: the stars button beside the heart, kept in the profile (so it follows the account), written to Jellyfin as a rating of 0-10.
-const MOCK = 'http://127.0.0.1:8196';
+const MOCK = `http://127.0.0.1:${process.env.MOCK_PORT || 8196}`;   // (playwright.config.ts: MOCK_PORT moves the stand-in)
 async function signIn(page: Page) {
   await page.goto('/login');
   await page.locator('#jf-form summary').click();

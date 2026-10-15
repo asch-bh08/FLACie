@@ -58,7 +58,6 @@
   background: conic-gradient(from 200deg, transparent, rgba(255,255,255,.7) 7%, transparent 15%, transparent 50%, rgba(255,255,255,.5) 57%, transparent 65%), radial-gradient(circle, transparent 0 93%, rgba(255,200,240,.9) 94%, rgba(180,230,255,.9) 97%, transparent 99%); }
 .desk .disc.paused { animation-play-state: paused; }
 @keyframes desk-spin { to { rotate: 360deg; } }
-.desk-open.empty .lid { background: rgba(230,236,242,.25); }
 .desk-stack { left: 66%; top: 31cqh; width: 22cqh; height: 19.4cqh; }
 .desk-case { position: absolute; inset: 0; border-radius: .45cqh; background: rgba(232,238,244,.35); box-shadow: inset 0 0 0 .16cqh rgba(255,255,255,.55); cursor: pointer; transition: translate .25s ease; }
 .desk-case .desk-art { left: 9%; top: 2.5%; width: 89.5%; height: 95%; }
@@ -69,13 +68,13 @@
 .desk-note small { display: block; font: 700 .95cqh/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .18em; text-transform: uppercase; color: #9a7b55; margin-bottom: .6cqh; }
 
 /* ---------------- coffee */
-.desk-coffee { left: 84%; top: 74cqh; width: 30cqh; height: 30cqh; translate: -50% -50%; }
+.desk-coffee { left: 86.5%; top: 75cqh; width: 30cqh; height: 30cqh; translate: -50% -50%; }
 .desk-coffee .saucer { position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 42% 38%, #fbfaf6, #ece8df 62%, #d9d3c7 70%, #efebe3 72%, #e2ddd3); }
 .desk-coffee .cup { position: absolute; left: 50%; top: 50%; width: 62%; height: 62%; translate: -50% -50%; border-radius: 50%; background: radial-gradient(circle at 40% 36%, #ffffff, #f0ece4 60%, #d8d2c6); box-shadow: 0 .6cqh 1.2cqh rgba(50,28,10,.25); }
 .desk-coffee .cup::before { content: ""; position: absolute; inset: 9%; border-radius: 50%; background: radial-gradient(circle at 46% 42%, #8a5a34 0, #5a3518 45%, #3a2010 75%); box-shadow: inset 0 .4cqh .8cqh rgba(0,0,0,.45); }
 .desk-coffee .cup::after { content: ""; position: absolute; inset: 9%; border-radius: 50%; background: radial-gradient(circle at 38% 34%, rgba(255,235,200,.45), transparent 22%); }
 .desk-coffee .handle { position: absolute; right: -16%; top: 42%; width: 24%; height: 16%; z-index: -1; border-radius: 2cqh; background: linear-gradient(#f6f3ec, #dcd6ca); box-shadow: .2cqh .4cqh .6cqh rgba(50,28,10,.25); }
-.desk-steam { left: 78.5%; top: 36cqh; width: 26cqh; height: 44cqh; overflow: visible; pointer-events: none; z-index: 3; }
+.desk-steam { left: 81%; top: 37cqh; width: 26cqh; height: 44cqh; overflow: visible; pointer-events: none; z-index: 3; }
 .desk-steam path { fill: none; stroke: rgba(255,250,240,.75); stroke-width: 7; stroke-linecap: round; filter: blur(4px); opacity: 0; animation: desk-rise 7s ease-in-out infinite; }
 .desk-steam path:nth-child(2) { animation-delay: -2.3s; stroke-width: 4.5; } .desk-steam path:nth-child(3) { animation-delay: -4.6s; stroke-width: 5.5; }
 @keyframes desk-rise { 0% { opacity: 0; transform: translate(0, 40px) scaleY(.7); } 25% { opacity: .75; } 70% { opacity: .35; } 100% { opacity: 0; transform: translate(-30px, -60px) scaleY(1.15) rotate(-6deg); } }
@@ -98,17 +97,21 @@
 /* the panel, the gear and the exit stay above the desk */
 .ipod-stage:has(.desk) .ipod-dock { z-index: 20; }
 
-/* ---------------- portrait (a tall window, a phone): the iPod big in the middle, the journal above, the CD and the note around it */
-@container desk (aspect-ratio < 4 / 3) {
+/* ---------------- portrait (a tall window, a phone): the frame is a closer look at the same desk. Everything keeps its size beside the iPod (a phone does not
+   shrink the coffee or the CDs); what does not fit runs off the edge, as in a photo. The journal comes in from the left (its title and the line being sung above
+   the iPod, the rest of the page under it), the open CD from the right (the disc in frame, the booklet off it), the next CDs with the note from the bottom left,
+   the coffee from the bottom right, the earbuds lie between. Below 1.15 wide to 1 high (desk.js portrait() says the same); a laptop window with the panel open
+   (about 4:3) keeps the whole desk. No polaroid (no room), no steam (it would rise over the iPod). */
+@container desk (aspect-ratio < 23 / 20) {
   .desk-scene { width: min(100cqw, 47.37cqh); aspect-ratio: 9 / 19; }
-  .desk-ipod { left: 50%; top: 45cqh; height: 52cqh; }
-  .desk-journal { left: 5%; top: 2.5cqh; width: 26cqh; height: 15cqh; rotate: -3deg; }
-  .desk-journal .j-lines { top: 8.5cqh; font-size: 1.7cqh; line-height: 2.6cqh; }
-  .desk-journal .j-lines div:not(:nth-last-child(-n + 2)) { display: none; }   /* the small page holds two lines: the one being sung and the one before */
-  .desk-journal .j-title { font-size: 2cqh; top: 1.4cqh; }
-  .desk-journal .j-date, .desk-polaroid, .desk-stack, .desk-coffee, .desk-steam { display: none; }
-  .desk-open { left: 4%; top: 83cqh; width: 24cqh; height: 10.5cqh; rotate: -4deg; }
-  .desk-note { left: 62%; top: 6cqh; font-size: 1.5cqh; max-width: 16cqh; rotate: 5deg; }
+  .desk-ipod { left: 50%; top: 46cqh; height: 52cqh; }
+  .desk-journal { left: -2.5cqh; top: 1cqh; rotate: -6deg; }
+  .desk-journal .j-lines div:not(:nth-last-child(-n + 2)) { display: none; }   /* above the iPod there is room for two lines: the one being sung and the one before */
+  .desk-open { left: 22cqh; top: 1.5cqh; width: 50cqh; height: 22cqh; rotate: 6deg; flex-direction: row-reverse; }
+  .desk-stack { left: -9cqh; top: 80cqh; }
+  .desk-note { left: 3%; top: 76.5cqh; rotate: -5deg; max-width: 19cqh; }
+  .desk-coffee { left: 101%; top: 95cqh; }
+  .desk-polaroid, .desk-steam { display: none; }
 }
 
 /* ---------------- less motion: the desk holds still (lyrics appear whole) */

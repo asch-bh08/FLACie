@@ -10,7 +10,7 @@
                 <div @key="i" class="@(i == Current ? "writing" : "")" data-testid="desk-lyric" style="--dur:@Math.Clamp(600 + line.Length * 45, 900, 3200)ms">@line</div>
             }
         </div>
-        <div class="j-date">@Date</div>
+        <div class="j-date" data-testid="desk-date">@Date</div>
     </div>
 </div>
 
@@ -20,6 +20,7 @@
     [Parameter] public IReadOnlyList<string> Lines { get; set; } = [];
     /// <summary>The line being sung (-1 before the first).</summary>
     [Parameter] public int Current { get; set; } = -1;
+    /// <summary>The viewer's own day ("15 oct"), from their browser; empty until it answers.</summary>
+    [Parameter] public string Date { get; set; } = "";
     const int Shown = 8;
-    static string Date => DateTime.Now.ToString("d MMM", System.Globalization.CultureInfo.InvariantCulture).ToLowerInvariant();
 }

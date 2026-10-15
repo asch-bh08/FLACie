@@ -98,6 +98,18 @@ public static class MediaEndpoints
             return Results.NotFound();
         }).RequireAuthorization();
 
+        // the iPod desk's disc pictures: a release's own "Medium" picture from the Cover Art Archive, fetched here (the browser only ever asks FLACie) and kept for
+        // everyone; only for a release someone matched on MusicBrainz. No picture: 404, and the desk prints a disc from the cover.
+        app.MapGet("/desk/disc/{release}", async (HttpContext ctx, string release, MbOverlay choices, DeskDiscPictures discs) =>
+        {
+            if (!DeskDiscPictures.ValidId(release) || choices.ByRelease(release) is not { } choice) return Results.NotFound();
+            DiscPicture? pic;
+            try { pic = await discs.GetAsync(release, DeskDiscPictures.ValidId(choice.ReleaseGroupMbid) ? choice.ReleaseGroupMbid : null, ctx.RequestAborted); }
+            catch (OperationCanceledException) { return Results.Empty; }
+            ctx.Response.Headers.CacheControl = pic is null ? "private, max-age=600" : "private, max-age=604800";
+            return pic is null ? Results.NotFound() : Results.Bytes(pic.Bytes, pic.Mime);
+        }).RequireAuthorization();
+
         // covers, cached on disk by key (shared between users: a cover is the same picture for everyone). A Jellyfin cover's key carries Jellyfin's image tag
         // ("jf<item>~<tag>"), so the picture behind a key never changes: it is fetched once, kept for good and cached by the browser for good. Rows get one fixed
         // small size (240 px WebP, quality 80, a request Jellyfin's own image cache can answer); only the Now Playing cover asks for the original (?s=full).

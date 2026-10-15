@@ -183,7 +183,10 @@ public class MusicBrainzTests
             var o = new MbOverlay(file); var c = MusicBrainzClient.Parse(Json)[0];
             Assert.Null(o.Get(T())); o.Set(T(), c);
             Assert.Equal("r1", new MbOverlay(file).Get(T())!.Mbid);   // survives a restart
+            Assert.Equal("rg1", o.ByRelease("REL1")!.ReleaseGroupMbid);   // the iPod desk serves a disc picture only for a release someone matched
+            Assert.Null(o.ByRelease("rel2"));
             o.Clear(T()); Assert.Null(new MbOverlay(file).Get(T()));
+            Assert.Null(o.ByRelease("rel1"));
         }
         finally { try { File.Delete(file); } catch (Exception) { } }
     }

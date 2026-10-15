@@ -220,6 +220,8 @@ public sealed class MbOverlay(string file)
 
     public static string KeyOf(Track t) => t.JellyfinId is { Length: > 0 } id ? id : SpeedPolicy.KeyOf(t.Path);
     public MbChoice? Get(Track t) { lock (lk) return Load().GetValueOrDefault(KeyOf(t)); }
+    /// <summary>A choice someone made for a song on this release (any of them), or null.</summary>
+    public MbChoice? ByRelease(string releaseMbid) { lock (lk) return Load().Values.FirstOrDefault(c => string.Equals(c.ReleaseMbid, releaseMbid, StringComparison.OrdinalIgnoreCase)); }
 
     public void Set(Track t, MbCandidate c)
     {

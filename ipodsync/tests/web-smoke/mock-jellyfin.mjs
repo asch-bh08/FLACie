@@ -161,6 +161,9 @@ http
       }
       return json(res, 200, prefs);
     }
+    // every song has synced lyrics, a line every 0.6 s (Jellyfin's shape: Start in 100 ns ticks); the iPod desk writes them into its journal
+    const lyricsM = /^\/Audio\/([^/]+)\/Lyrics$/.exec(p);
+    if (lyricsM) return json(res, 200, { Metadata: {}, Lyrics: Array.from({ length: 12 }, (_, i) => ({ Start: i * 6_000_000, Text: `mock lyric ${i + 1} for ${lyricsM[1]}` })) });
     // one lab song's own item (its streams): the 6th fails once with HTTP 500, like a Jellyfin that hiccups during a burst of skips
     const itemM = /^\/Users\/u1\/Items\/(h[1-8])$/.exec(p);
     if (itemM) {

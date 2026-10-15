@@ -272,6 +272,20 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         if (index >= 0 && index < Queue.Count) { Index = index; await Load(true); }
     }
 
+    /// <summary>Plays these songs of the queue (queue indices, e.g. one album in album order) one after another from here; then the play order carries on
+    /// with what was still to come (a shuffle stays a shuffle). Remote-controlling another device: that device skips to the first of them.</summary>
+    public async Task PlayRun(IReadOnlyList<int> run)
+    {
+        if (run.Count == 0) return;
+        if (Interceptor is not null) { await SkipTo(run[0]); return; }
+        if (order.Count != Queue.Count) Reorder();
+        var next = QueueEdit.PlayRunNext(order, Index, run);
+        var pos = next.IndexOf(Index);
+        if (pos + 1 >= next.Count || !run.Contains(next[pos + 1])) return;
+        order = next; Index = next[pos + 1];
+        await Load(true);
+    }
+
     // ---- editing Up next (see QueueEdit for the arithmetic) ----
 
     /// <summary>The queue can be edited here (not while another device is being remote-controlled).</summary>

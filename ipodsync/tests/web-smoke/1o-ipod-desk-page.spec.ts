@@ -89,6 +89,71 @@ test.describe.serial('desk look on /ipod', () => {
     expect(onDesk).toBe(onStage);
   });
 
+  test('the tilted iPod\'s wheel keeps its own zones: a tap just outside the middle button is the ring, just inside it is the button', async ({ page }) => {
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    await openDesk(page, { model: 'classic6', look: 2 });
+    const title = page.getByTestId('ipod-title'), home = (await title.textContent())!.trim(), row = await selIndex(page);
+    // the wheel lies turned 7 degrees: its box on screen is bigger than the wheel by cos 7 + sin 7; the device's own right is 7 degrees up from the screen's
+    const b = (await page.getByTestId('ipod-wheel').boundingBox())!, t = (-7 * Math.PI) / 180;
+    const R = b.width / 2 / (Math.cos(t) + Math.abs(Math.sin(t)));   // the middle button ends at 0.36 of the wheel
+    const tap = async (d: number) => { await page.mouse.click(b.x + b.width / 2 + d * R * Math.cos(t), b.y + b.height / 2 + d * R * Math.sin(t)); await page.waitForTimeout(500); };
+    await tap(0.39);                                       // the ring's next zone: a menu stays where it is
+    await expect(title).toHaveText(home); expect(await selIndex(page)).toBe(row);
+    await tap(0.3);                                        // the middle button: the selected row opens
+    await expect(title).not.toHaveText(home);
+  });
+
+  test('the CDs are keys too: Tab to one, Enter plays it', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    await openDesk(page, { model: 'classic6', look: 2 });
+    await shuffle(page);
+    const cd = page.getByTestId('desk-open-cd');
+    await expect(cd).toHaveAttribute('tabindex', '0'); await expect(cd).toHaveAttribute('role', 'button');
+    await expect(cd).toHaveAttribute('aria-label', /^Play .+ by .+/);
+    const before = (await page.locator('[data-testid=desk-note] span').textContent())!.trim();
+    const screen = await page.getByTestId('ipod-np-title').textContent();
+    await cd.focus(); await page.keyboard.press('Enter');
+    await expect(page.locator('[data-testid=desk-note] span')).not.toHaveText(before, { timeout: 10_000 });
+    await expect(page.getByTestId('ipod-np')).toBeVisible();   // the iPod did not take the Enter as its own (still Now Playing)
+    expect(await page.getByTestId('ipod-np-title').textContent()).not.toBe(screen);
+    expect(errors).toEqual([]);
+  });
+
+  test('the journal and the polaroid keep the viewer\'s own day, and the lyrics are written in as they are sung', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2031-02-03T10:00:00'));   // a Monday, not the server's day
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    await openDesk(page, { model: 'classic6', look: 2 });
+    await expect(page.getByTestId('desk-date')).toHaveText('3 feb', { timeout: 10_000 });
+    await expect(page.locator('.desk-polaroid > span')).toHaveText('monday ♡');
+    await shuffle(page);
+    await expect(page.getByTestId('desk-lyric').first()).toContainText('mock lyric', { timeout: 15_000 });
+    const pageBox = (await page.locator('.desk-journal .page').boundingBox())!, sung = (await page.locator('[data-testid=desk-lyric].writing').boundingBox())!;
+    expect(sung.y + sung.height).toBeLessThanOrEqual(pageBox.y + pageBox.height + 1);
+  });
+
+  test('the disc picture comes from FLACie only, for a release someone matched, and only for someone signed in', async ({ page, request }) => {
+    await signIn(page);
+    const res = await page.request.get('/desk/disc/6b3f1d2e-0000-4000-8000-000000000001');
+    expect(res.status()).toBe(404);   // nobody matched this release
+    expect((await page.request.get('/desk/disc/not-an-id')).status()).toBe(404);
+    const anon = await request.get('/desk/disc/6b3f1d2e-0000-4000-8000-000000000001', { maxRedirects: 0 });
+    expect([401, 302]).toContain(anon.status());
+  });
+
+  test('an empty desk: nothing playing, nothing queued, no CD, no errors', async ({ browser }) => {
+    const ctx = await browser.newContext(); const page = await ctx.newPage();
+    const errors = consoleErrors(page);
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    await openDesk(page, { model: 'classic6', look: 2 });
+    await expect(page.locator('.j-title')).toHaveText('nothing playing');
+    await expect(page.locator('[data-testid=desk-note] span')).toHaveText('nothing queued');
+    await expect(page.getByTestId('desk-open-cd')).toHaveCount(0);
+    await expect(page.getByTestId('desk-lyric')).toHaveCount(0);
+    expect(errors).toEqual([]);
+    await ctx.close();
+  });
+
   test('every family sits on the desk', async ({ page }) => {
     const errors = consoleErrors(page);
     await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
@@ -109,12 +174,26 @@ test.describe.serial('desk look on /ipod', () => {
     await signIn(page);
     await page.setViewportSize({ width: 1280, height: 720 });
     await openDesk(page, { model: 'classic6', look: 2 });
+    await shuffle(page);   // music on: the CD is on the desk
     for (const [w, h] of [[1280, 720], [1920, 1080], [2560, 1080], [390, 844]]) {
       await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(900);
       const deskBox = (await page.getByTestId('desk').boundingBox())!;
-      for (const id of ['desk-journal', 'desk-note', 'ipod-device']) {
+      // a phone frames a closer look at the same desk: the journal, the CD and the coffee may run off its edges (their size stays the desk's), but the journal's
+      // title, the note and the iPod are in view, and the disc and the coffee are at least partly in the frame
+      const whole = w < h ? ['desk-note', 'ipod-device'] : ['desk-journal', 'desk-note', 'ipod-device'];
+      for (const id of whole) {
         const b = await page.getByTestId(id).boundingBox(); if (!b) continue;
         expect(inside(b, deskBox, 30), `${id} at ${w}x${h}`).toBe(true);
+      }
+      if (w < h) {
+        expect(inside((await page.locator('.j-title').boundingBox())!, deskBox, 30), `journal title at ${w}x${h}`).toBe(true);
+        for (const sel of ['[data-testid=desk-disc]', '.desk-coffee .saucer']) {
+          const b = (await page.locator(sel).boundingBox())!;
+          expect(b.x < deskBox.x + deskBox.width && b.y < deskBox.y + deskBox.height && b.x + b.width > deskBox.x, `${sel} in the frame at ${w}x${h}`).toBe(true);
+        }
+        // the coffee keeps its size beside the iPod (about half the iPod's height, as on the desk)
+        const cup = (await page.locator('.desk-coffee .saucer').boundingBox())!, dev = (await page.getByTestId('ipod-device').boundingBox())!;
+        expect(cup.height / dev.height, `coffee to iPod at ${w}x${h}`).toBeGreaterThan(0.45);
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${w}x${h} scrolls sideways`).toBe(true);
       if (w < h) expect(((await page.getByTestId('ipod-device').boundingBox())!.height) / h, 'portrait iPod size').toBeGreaterThan(0.45);

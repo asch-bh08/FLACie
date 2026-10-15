@@ -29,7 +29,7 @@ Success means:
 - **Everything follows playback:** the journal, Polaroid, CDs and note follow the real queue and the real song. The visualiser follows the real audio.
 - **Clicking a CD plays it:** clicking the open CD or a CD in the stack plays that album.
 - **No WebGL, light to run:** comfortable on a phone. It pauses when the tab is hidden, and it calms down under `prefers-reduced-motion`.
-- **Layouts:** a landscape layout for wide windows and a portrait one for phones. Nothing is clipped and there is no horizontal scroll.
+- **Layouts:** a landscape layout for wide windows and a portrait one for phones. There is no horizontal scroll. On a phone, things at the edges of the desk run off the frame, as in a photo; the iPod, the journal's title and the note are never clipped.
 - **Tests stay green:** existing tests and `1m-ipod.spec.ts` pass unchanged.
 
 ## 2. Architecture
@@ -119,11 +119,14 @@ Removed from the branch: the v1 components and CSS (`DeskEnvironment`, `Backgrou
   - CDs and note top right
   - coffee bottom right
   - earbuds in the space below and right of the iPod
-- **Portrait layout** (< 4:3):
-  - the iPod centred and large
-  - the journal above it (lyrics, 3 lines)
-  - CDs below left, coffee below right, earbuds curling under
-  - the Polaroid hidden
+- **Portrait layout** (narrower than 1.15:1, so a laptop window with the side panel open still gets the landscape desk). The frame is a closer look at the same desk: every object keeps its landscape size next to the iPod, and whatever does not fit runs off the edge.
+  - the iPod centred and large (about half the height)
+  - the journal comes in from the top left: its title and the last two lyric lines show above the iPod, and the rest of the page lies under it
+  - the open CD comes in from the top right, with the disc in frame and the booklet off the edge
+  - the next CDs come in from the bottom left, with the Up next note on them
+  - the coffee comes in from the bottom right
+  - the earbuds lie in the band between, with the same shape as on the landscape desk
+  - the Polaroid and the steam are hidden; the steam would rise over the iPod
 - **Reduced motion:** no sway, drift, steam, spin, twitch or rings. Lyrics appear without the writing animation, and the arcs are static and dim.
 
 ## 4. Behaviour and edge cases

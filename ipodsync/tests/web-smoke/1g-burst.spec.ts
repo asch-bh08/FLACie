@@ -6,7 +6,7 @@ import { test, expect, Page, APIRequestContext, Browser } from '@playwright/test
 //  - the next song's early read is a small Range request
 //  - Settings shows the cache size and a Clear cache button
 //  - a cover is fetched from Jellyfin once, at one small size, and a second view (another browser) costs Jellyfin nothing
-const MOCK = 'http://127.0.0.1:8196';
+const MOCK = `http://127.0.0.1:${process.env.MOCK_PORT || 8196}`;   // (playwright.config.ts: MOCK_PORT moves the stand-in)
 const counts = async (r: APIRequestContext) => (await r.get(`${MOCK}/__counts`)).json() as Promise<Record<string, number>>;
 const images = async (r: APIRequestContext) => (await r.get(`${MOCK}/__images`)).json() as Promise<{ total: number; distinct: number; repeats: number; variants: string[]; urls: Record<string, number> }>;
 
@@ -119,7 +119,7 @@ test.describe.serial('beta 52 load', () => {
   });
 
   async function viewAlbums(browser: Browser, request: APIRequestContext) {
-    const ctx = await browser.newContext({ baseURL: 'http://127.0.0.1:5290' });   // a browser that has never seen a cover: nothing in its own cache
+    const ctx = await browser.newContext({ baseURL: `http://127.0.0.1:${process.env.WEB_PORT || 5290}` });   // a browser that has never seen a cover: nothing in its own cache
     const page = await ctx.newPage();
     await signIn(page);
     await page.goto('/albums');

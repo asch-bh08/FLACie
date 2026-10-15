@@ -113,6 +113,7 @@ window.flacie = (() => {
   };
 
   const db = (x) => 20 * Math.log10(Math.max(x, 1e-6));
+  let deskFrame = null, deskSync = 0;   // the iPod desk's frame (vizFrame)
   const freqData = () => { const d = new Uint8Array(an.frequencyBinCount); an.getByteFrequencyData(d); return d; };
   const fill = (g, x, y, w, h, r, color, alpha) => { g.globalAlpha = alpha; g.fillStyle = color; g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); g.globalAlpha = 1; };
   // black, deep purple, magenta, orange, pale yellow: easy to read on a dark page
@@ -452,14 +453,16 @@ window.flacie = (() => {
       return true;
     },
     vizStop() { vizOn = false; closeGraph(); },
-    // the iPod desk's earbuds: one frame of the same analyser (the graph is built on first use and follows the song); null where it can't run
+    // the iPod desk's earbuds: one frame of the same analyser (the graph is built on first use and follows the song); null where it can't run.
+    // Called every frame: the same buffer each time, and the silent twin is put back in step twice a second (play, pause and seek do it at once anyway).
     vizFrame() {
       if (!buildGraph(0) || !an) return null;
       // a context opened before any click (a reload in the Desk look) stays suspended: ask again once the song plays, which a click started
       if (actx.state === "suspended" && !audio.paused) actx.resume().catch(() => { });
-      syncTwin();
-      const wave = new Uint8Array(an.fftSize); an.getByteTimeDomainData(wave);
-      return { freq: freqData(), wave, playing: !audio.paused };
+      const now = performance.now(); if (now - deskSync > 500) { deskSync = now; syncTwin(); }
+      if (!deskFrame || deskFrame.freq.length !== an.frequencyBinCount) deskFrame = { freq: new Uint8Array(an.frequencyBinCount), playing: false };
+      an.getByteFrequencyData(deskFrame.freq); deskFrame.playing = !audio.paused;
+      return deskFrame;
     },
     vizRelease() { if (!vizOn) closeGraph(); },
     // the output device's own rate: a context made with no rate takes it
@@ -552,12 +555,16 @@ window.flacie = (() => {
       stage.addEventListener("keydown", keys);
       if (!wheel) { ipod = { fit, wheel: null, stage, keys, ...cleanup }; return innerWidth >= 860; }   // touch models: no wheel, the screen is the FLACie player
       const st = ipod = { ...cleanup, fit, wheel, stage, keys, cfg: cfg || { deg: 34 }, last: null, acc: 0, moved: 0, rotating: false, zone: null, held: false, timer: null, hold: null, samples: [], coast: 0, ctx: null };
-      const ang = e => { const r = wheel.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI; };
+      // a device lying turned (the Desk look tilts it a few degrees): its own angle, from the CSS rotate of the wheel and what holds it. The box on screen is then
+      // bigger than the wheel (by |cos| + |sin|), and the zones turn with the device; read at each press (the look can change between presses)
+      const tiltOf = el => { let a = 0; for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const m = /^(-?[\d.]+)deg$/.exec(getComputedStyle(n).rotate || ""); if (m) a += +m[1]; } return a; };
+      const ang = e => { const r = wheel.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI - (st.tilt || 0); };
       const zoneOf = e => {
-        const r = wheel.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy), R = r.width / 2;
+        const tilt = st.tilt = tiltOf(wheel), t = tilt * Math.PI / 180;
+        const r = wheel.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy), R = r.width / 2 / (Math.abs(Math.cos(t)) + Math.abs(Math.sin(t)));
         if (d > R) return null;
         if (d < R * 0.36) return "center";
-        const a = Math.atan2(dy, dx) * 180 / Math.PI;
+        let a = Math.atan2(dy, dx) * 180 / Math.PI - tilt; if (a < -180) a += 360; if (a >= 180) a -= 360;
         return a >= -135 && a < -45 ? "menu" : a >= -45 && a < 45 ? "next" : a >= 45 && a < 135 ? "play" : "prev";
       };
       const flush = () => { if (st.acc !== 0) { const d = st.acc; st.acc = 0; const v = Math.abs(speed()); ref.invokeMethodAsync("Turned", d, v).catch(() => { }); } };

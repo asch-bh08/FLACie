@@ -103,6 +103,20 @@ test.describe.serial('desk look on /ipod', () => {
     await expect(title).not.toHaveText(home);
   });
 
+  test('a mouse drags the tilted touch iPod\'s list as far as the pointer goes (along the iPod)', async ({ page }) => {
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    await openDesk(page, { model: 'touch5', look: 2 });
+    await page.locator('.ios-grid .ios-app[data-app="music"]').click();
+    const list = page.getByTestId('ios-list'); await expect(page.getByTestId('ios-row').first()).toBeVisible();
+    const lb = (await list.boundingBox())!, zoom = await page.locator('.ipod-fit').evaluate((e) => parseFloat(getComputedStyle(e).zoom) || 1);
+    const x = lb.x + lb.width / 2, y = lb.y + lb.height * 0.8, D = 200;
+    await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y - 40, { steps: 4 }); await page.mouse.move(x, y - D, { steps: 10 }); await page.mouse.up();
+    // the iPod lies turned 7 degrees: a drag straight up the screen moves along the iPod by D cos 7, and the list moves that far in its own (zoomed) pixels
+    const want = (D * Math.cos((7 * Math.PI) / 180)) / zoom;
+    await expect.poll(() => list.evaluate((e) => e.scrollTop)).toBeGreaterThan(want * 0.96);
+    expect(await list.evaluate((e) => e.scrollTop)).toBeLessThan(want * 1.04);
+  });
+
   test('the CDs are keys too: Tab to one, Enter plays it', async ({ page }) => {
     const errors = consoleErrors(page);
     await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });

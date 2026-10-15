@@ -118,8 +118,10 @@ test.describe.serial('desk look on /ipod', () => {
     await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
     await openDesk(page, { model: 'classic6', look: 2 });
     const title = page.getByTestId('ipod-title'), home = (await title.textContent())!.trim(), row = await selIndex(page);
-    // the wheel lies turned 7 degrees: its box on screen is bigger than the wheel by cos 7 + sin 7; the device's own right is 7 degrees up from the screen's
-    const b = (await page.getByTestId('ipod-wheel').boundingBox())!, t = (-7 * Math.PI) / 180;
+    // the wheel lies turned (the desk's tilt): its box on screen is bigger than the wheel by |cos| + |sin|; the device's own right is turned as much from the screen's
+    const tilt = await page.locator('.desk-ipod').evaluate((e) => parseFloat(getComputedStyle(e).rotate) || 0);
+    expect(Math.abs(tilt)).toBeGreaterThan(1);
+    const b = (await page.getByTestId('ipod-wheel').boundingBox())!, t = (tilt * Math.PI) / 180;
     const R = b.width / 2 / (Math.cos(t) + Math.abs(Math.sin(t)));   // the middle button ends at 0.36 of the wheel
     const tap = async (d: number) => { await page.mouse.click(b.x + b.width / 2 + d * R * Math.cos(t), b.y + b.height / 2 + d * R * Math.sin(t)); await page.waitForTimeout(500); };
     await tap(0.39);                                       // the ring's next zone: a menu stays where it is
@@ -136,8 +138,9 @@ test.describe.serial('desk look on /ipod', () => {
     const lb = (await list.boundingBox())!, zoom = await page.locator('.ipod-fit').evaluate((e) => parseFloat(getComputedStyle(e).zoom) || 1);
     const x = lb.x + lb.width / 2, y = lb.y + lb.height * 0.8, D = 200;
     await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x, y - 40, { steps: 4 }); await page.mouse.move(x, y - D, { steps: 10 }); await page.mouse.up();
-    // the iPod lies turned 7 degrees: a drag straight up the screen moves along the iPod by D cos 7, and the list moves that far in its own (zoomed) pixels
-    const want = (D * Math.cos((7 * Math.PI) / 180)) / zoom;
+    // the iPod lies turned (the desk's tilt): a drag straight up the screen moves along the iPod by D cos(tilt), and the list moves that far in its own (zoomed) pixels
+    const tilt = await page.locator('.desk-ipod').evaluate((e) => parseFloat(getComputedStyle(e).rotate) || 0);
+    const want = (D * Math.cos((tilt * Math.PI) / 180)) / zoom;
     await expect.poll(() => list.evaluate((e) => e.scrollTop)).toBeGreaterThan(want * 0.96);
     expect(await list.evaluate((e) => e.scrollTop)).toBeLessThan(want * 1.04);
   });
@@ -229,6 +232,78 @@ test.describe.serial('desk look on /ipod', () => {
         await page.evaluate(() => localStorage.removeItem('flacie.ipod'));
       }
     }
+  });
+
+  test('the Desk options: the props come and go, studio headphones swap the earbuds, the dock only on 30-pin iPods, kept across a reload', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    await openDesk(page, { model: 'classic6', look: 2 });
+    const opt = (k: string) => page.locator(`[data-testid=desk-options] [data-desk-opt="${k}"]`);
+    await expect(page.getByTestId('desk-options')).toBeVisible();
+    // a new desk: earbuds, and everything but the tracklist (the iPod in its dock, the pencil on the notebook, the VU amp, the cassette and the MiniDiscs)
+    await expect(page.locator('[data-desk-phones="0"]')).toHaveClass(/on/);
+    for (const id of ['desk-vu', 'desk-cassette', 'desk-minidiscs', 'desk-pencil', 'desk-dock']) await expect(page.getByTestId(id), id).toBeVisible();
+    await expect(page.getByTestId('desk-tracklist')).toHaveCount(0);
+    // the tracklist on; the others off and on again; the VU meter left off
+    await opt('tracks').click(); await expect(page.getByTestId('desk-tracklist')).toBeVisible(); await expect(opt('tracks')).toHaveClass(/on/);
+    for (const [k, id] of [['md', 'desk-minidiscs'], ['pencil', 'desk-pencil'], ['dock', 'desk-dock'], ['tape', 'desk-cassette']]) {
+      await opt(k).click(); await expect(page.getByTestId(id)).toHaveCount(0); await expect(opt(k)).not.toHaveClass(/on/);
+      await opt(k).click(); await expect(page.getByTestId(id)).toBeVisible();
+    }
+    await opt('vu').click(); await expect(page.getByTestId('desk-vu')).toHaveCount(0);
+    // studio headphones: a coiled cable to a gold adapter, no earbuds
+    await page.locator('[data-desk-phones="1"]').click();
+    await expect(page.getByTestId('desk-adapter')).toBeVisible();
+    await expect(page.locator('[data-bud]')).toHaveCount(0);
+    // kept across a reload
+    await page.reload(); await expect(page.getByTestId('desk')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('desk-adapter')).toBeVisible(); await expect(page.getByTestId('desk-vu')).toHaveCount(0); await expect(page.getByTestId('desk-dock')).toBeVisible();
+    // a Lightning iPod has no dock to offer (and none on the desk)
+    await page.locator('.ipod-panel .dock-seg [data-group]').nth(3).click();
+    await page.locator('.ipod-panel .ipod-chip[data-model="touch5"]').click();
+    await expect(opt('dock')).toHaveCount(0); await expect(page.getByTestId('desk-dock')).toHaveCount(0);
+    // the options belong to the desk look
+    await page.locator('.ipod-panel .ipod-chip[data-look="device"]').click();
+    await expect(page.getByTestId('desk-options')).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('the cassette and the MiniDiscs are your playlists: their labels, and a click plays them', async ({ page }) => {
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    const stamp = Date.now().toString(36), tape = `Tape ${stamp}`, disc = `Disc ${stamp}`;
+    // two playlists with a song each (made in the app: Playlists page, then Now Playing › More › Add to playlist)
+    const songs: Record<string, string> = {};
+    for (const [name, song] of [[disc, /^Paper d+$/], [tape, /^Velvet d+$/]] as const) {
+      await page.goto('/playlists'); await page.getByLabel('New playlist name').fill(name); await page.getByRole('button', { name: 'Create' }).click();
+      await page.waitForURL(/\/playlist\//);
+      await page.goto('/songs');
+      const row = page.locator('.track', { has: page.locator('.track-title', { hasText: song }) }).first();
+      songs[name] = (await row.locator('.track-title').textContent())!.trim();
+      await row.locator('button.track-main').click();
+      await page.getByRole('button', { name: 'Open Now Playing' }).click();
+      await page.getByRole('button', { name: 'More options' }).first().click();
+      await page.getByRole('menuitem', { name: /Add to playlist/ }).click();
+      await page.getByRole('menuitem', { name }).click();
+    }
+    await page.goto('/songs');
+    await page.locator('.track', { has: page.locator('.track-title', { hasText: /^Lantern \d+$/ }) }).first().locator('button.track-main').click();
+    await page.evaluate(() => localStorage.setItem('flacie.ipod', JSON.stringify({ model: 'classic6', look: 2, desk: { md: true } })));   // (read when iPod mode opens)
+    await page.evaluate(() => (window as any).Blazor.navigateTo('/ipod'));
+    await expect(page.getByTestId('desk')).toBeVisible({ timeout: 20_000 });
+    // the newest playlist is the cassette, the others the MiniDiscs
+    await expect(page.getByTestId('desk-cassette')).toContainText(tape);
+    await expect(page.getByTestId('desk-minidiscs')).toContainText(disc);
+    await page.getByTestId('desk-cassette').click();
+    await expect(page.getByTestId('ipod-np-title')).toHaveText(songs[tape], { timeout: 10_000 });
+    await expect(page.locator('.desk-cassette .reel').first()).not.toHaveClass(/paused/);
+    await page.locator('[data-testid=desk-minidiscs] [data-md]').filter({ hasText: disc }).click();
+    await expect(page.getByTestId('ipod-np-title')).toHaveText(songs[disc], { timeout: 10_000 });
+  });
+
+  test('the VU meter\'s needle is driven by the desk (the mock songs are silent: its swing is checked in the desk.js harness)', async ({ page }) => {
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    await openDesk(page, { model: 'classic6', look: 2 });
+    await expect.poll(() => page.locator('[data-needle]').evaluate((n) => (n as HTMLElement).style.getPropertyValue('--a'))).toMatch(/^-?\d/);
   });
 
   test('every family sits on the desk', async ({ page }) => {

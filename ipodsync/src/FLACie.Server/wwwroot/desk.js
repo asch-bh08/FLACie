@@ -1,5 +1,5 @@
 // iPod mode, Look › Desk: the moving parts of the desk. One loop reads the player's analyser (flacie.vizFrame) and turns it into the earbuds' sound:
-// arcs from each bud (bass, mids, highs; each against the song's own range), a ring on every beat (and on the coffee), current running down the cable, a small twitch of the buds, and CSS variables
+// a VU meter's needle, arcs from each bud (bass, mids, highs; each against the song's own range), a ring on every beat (and on the coffee), current running down the cable, a small twitch of the buds, and CSS variables
 // (--low --mid --high --beat) the scene's light leak breathes with. Also the dust in the sun, the discs (the release's own picture, or a print from the cover)
 // the viewer's own date, and the journal's lyrics (timed from the song's own clock). Without an analyser (iOS, nothing played yet, a phone on mobile data) it keeps a calm fixed pulse and no beats. It sleeps while the tab is hidden;
 // with reduced motion it paints one still frame and no loop at all. Only what changed is written to the page.
@@ -51,6 +51,12 @@ window.desk = (() => {
     prop(el, '--low', b.low.toFixed(2)); prop(el, '--mid', b.mid.toFixed(2)); prop(el, '--high', b.high.toFixed(2)); prop(el, '--beat', s.beat.toFixed(2));
     // the coffee follows the bass (desk.css draws its surface from --bass)
     if (s.coffee) prop(s.coffee, '--bass', (s.reduced ? 0.2 : b.low).toFixed(2));
+    // the VU meter's needle: bass and mids, with a meter's ballistics (it eases to the level in about a tenth of a second); at rest on the left stop without music
+    if (s.needle) {
+      const target = b.live ? -42 + 84 * Math.min(1, 0.55 * b.low + 0.45 * b.mid) : -42;
+      s.vu += (target - s.vu) * Math.min(1, (s.dt || 0.016) / 0.12);
+      prop(s.needle, '--a', s.vu.toFixed(1));
+    }
     // arcs per bud: bass, mids, highs
     const lv = [b.low, b.mid, b.high];
     for (const p of s.arcs) {
@@ -85,7 +91,7 @@ window.desk = (() => {
     s.raf = requestAnimationFrame(tick);
     if (document.hidden || now - s.last < 15) return;
     const dt = Math.min(0.1, (now - (s.last || now)) / 1000); s.last = now;
-    const b = scaled(bands(), dt);
+    const b = scaled(bands(), dt); s.dt = dt;
     // beats: the (scaled) bass jumping clearly above its last half second, at most one every 280 ms
     s.avg += (b.low - s.avg) * Math.min(1, dt / 0.5);
     if (b.live && b.low > 0.6 && b.low - s.avg > 0.3 && now - s.lastBeat > 280) { s.lastBeat = now; s.beat = 1; s.beats++; ripple(b.low - s.avg); }
@@ -131,6 +137,7 @@ window.desk = (() => {
     if ('synced' in box.dataset) { for (let i = 0; i < n; i++) { if (+lines[i].dataset.ms <= at) cur = i; else break; } }
     else cur = d > 0 ? Math.min(n - 1, Math.floor((t + LEAD) / d * n)) : n - 1;
     if (box._cur === cur && box._first === lines[0] && box._n === n) return;   // nothing changed (a new song brings new elements)
+    if (box._first !== lines[0]) box._page = 0;
     box._cur = cur; box._first = lines[0]; box._n = n;
     for (let i = 0; i < n; i++) {
       const l = lines[i];
@@ -138,11 +145,39 @@ window.desk = (() => {
       if (i === cur) { if (!l.classList.contains('writing')) { l.classList.add('writing'); writeIn(l, Math.min(3200, Math.max(900, 600 + l.textContent.length * 45))); } }
       else l.classList.remove('writing');
     }
-    const l = lines[cur]; if (!l) { box.scrollTop = 0; return; }
-    // its end at the bottom of the box (a line taller than the box, on a phone: its start, where the pen begins)
-    const bottom = l.offsetTop + l.offsetHeight;
-    if (l.offsetHeight > box.clientHeight || l.offsetTop < box.scrollTop) box.scrollTop = l.offsetTop;
-    else if (bottom > box.scrollTop + box.clientHeight) box.scrollTop = bottom - box.clientHeight;
+    const l = lines[cur]; if (!l) { box.scrollLeft = 0; box._page = 0; return; }
+    // the page the line being sung is on: the lines flow in page columns (two a spread in the notebook, one a note on a phone); show its spread or note,
+    // turning the page (or peeling the note off) when the song goes on to the next one
+    const cs = getComputedStyle(box), per = parseInt(cs.columnCount, 10) || 1, gap = parseFloat(cs.columnGap) || 0;
+    const step = (box.clientWidth - gap * (per - 1)) / per + gap;
+    const page = Math.floor(Math.max(0, Math.round(l.offsetLeft / step)) / per), target = page * per * step;
+    if (Math.abs(box.scrollLeft - target) > 1) {
+      if (page === (box._page || 0) + 1 && !s.reduced) turnPage(box, per);
+      box.scrollLeft = target;
+    }
+    box._page = page;
+  }
+
+  // a page turn (the notebook: the right page turns over to the left about the spine) or a peel (a sticky note lifts off the pad): a copy of the journal
+  // as it was is laid over it and goes, while the journal itself shows the next spread or note underneath. Short and quiet.
+  function turnPage(box, per) {
+    const j = box.closest('.desk-journal'); if (!j || !j.animate) return;
+    const ghost = j.cloneNode(true);
+    ghost.removeAttribute('data-testid'); ghost.querySelectorAll('[data-testid]').forEach((n) => n.removeAttribute('data-testid'));
+    ghost.querySelectorAll('.writing').forEach((n) => n.classList.remove('writing'));
+    ghost.classList.add(per > 1 ? 'j-turn' : 'j-peel'); ghost.setAttribute('aria-hidden', 'true');
+    j.after(ghost);
+    const gl = ghost.querySelector('.j-lines'); if (gl) gl.scrollLeft = box.scrollLeft;
+    let a;
+    if (per > 1) {
+      ghost.style.clipPath = 'inset(-3% -3% -3% 50%)'; ghost.style.transformOrigin = '50% 50%'; ghost.style.backfaceVisibility = 'hidden';
+      a = ghost.animate([{ transform: 'perspective(160cqh) rotateY(0deg)' }, { transform: 'perspective(160cqh) rotateY(-178deg)' }], { duration: 850, easing: 'cubic-bezier(.45,.05,.35,1)' });
+    } else {
+      ghost.style.transformOrigin = '30% 0%';
+      a = ghost.animate([{ transform: 'translate(0, 0) rotate(0deg)', opacity: 1 }, { transform: 'translate(0, -2%) rotate(-2deg)', opacity: 1, offset: .25 }, { transform: 'translate(9%, -18%) rotate(9deg)', opacity: 0 }], { duration: 700, easing: 'cubic-bezier(.3,.1,.3,1)' });
+    }
+    const done = () => ghost.remove();
+    a.onfinish = done; a.oncancel = done; setTimeout(done, 1600);
   }
 
   // the pen: the line is revealed left to right, a row at a time (a wrapped line's second row only once the first is written), at one speed throughout.
@@ -184,7 +219,7 @@ window.desk = (() => {
       for (const p of pulses) { const ref = document.querySelector(p.getAttribute('href')); try { lengths.set(p, ref ? ref.getTotalLength() : 1000); } catch { lengths.set(p, 1000); } }
       s = { el, reduced, raf: 0, last: 0, lastDust: 0, avg: 0.2, lastBeat: 0, beat: 0, beats: 0,
         arcs: [...el.querySelectorAll('[data-arc]')], pulses, lengths, buds: [...el.querySelectorAll('[data-bud]')],
-        rippleBox: el.querySelector('[data-ripples]'), dust: el.querySelector('canvas[data-dust]'), coffee: el.querySelector('[data-coffee]'),
+        rippleBox: el.querySelector('[data-ripples]'), dust: el.querySelector('canvas[data-dust]'), coffee: el.querySelector('[data-coffee]'), needle: el.querySelector('[data-needle]'), vu: -42,
         motes: Array.from({ length: 60 }, () => ({ x: Math.random(), y: Math.random(), r: 0.6 + Math.random() * 1.6, vx: (Math.random() - 0.5) * 0.0001, vy: -0.00003 - Math.random() * 0.0001, tw: Math.random() * 6.28 })) };
       // reduced motion: one still frame (no analyser, no loop)
       if (reduced) paint(CALM, performance.now()); else s.raf = requestAnimationFrame(tick);

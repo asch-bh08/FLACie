@@ -1,10 +1,11 @@
 @using FLACie.Core
-@* The iPod desk's journal: the playing song's title and artist in handwriting, and its lyrics. Every line is here with its time (data-ms); desk.js shows
+@* The iPod desk's journal: an open notebook (on a phone, a pad of sticky notes) with the playing song's title and artist in handwriting, and its lyrics. Every line is here with its time (data-ms); desk.js shows
    them as they are sung, from the song's own clock in the browser (no round trip to the server, so no lag), writes the line being sung like a pen
    (unless motion is reduced) and keeps it in view when the page is full. A long line wraps onto the next rule. No lyrics: just the title.
    Nothing playing: a note saying so. *@
 <div class="desk-journal lift" data-testid="desk-journal">
     <div class="page">
+        <i class="sheet left"></i><i class="sheet right"></i>
         <div class="j-title">@(string.IsNullOrEmpty(Title) ? "nothing playing" : Title)@if (!string.IsNullOrEmpty(Artist)) { <small>@Artist</small> }</div>
         <div class="j-lines" data-synced="@(Synced ? "" : null)">
             @for (var i = 0; i < Lines.Count; i++)

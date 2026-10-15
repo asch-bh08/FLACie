@@ -33,6 +33,8 @@ public sealed class IpodPrefs
     public int ClickVolume { get => clickVolume; set => clickVolume = Math.Clamp(value, 0, 2); }
     public int VolumeLimit { get => volumeLimit; set => volumeLimit = VolumeLimits.Contains(value) ? value : 100; }
     public HashSet<string> HiddenMenu { get; } = [];
+    /// <summary>The desk look's props (iPod panel › Desk).</summary>
+    public DeskOptions Desk { get; private set; } = new();
     /// <summary>Which sleep-timer step is on (an index into <see cref="SleepMinutes"/>); not saved, a timer does not outlive the page.</summary>
     public int SleepChoice { get; set; }
 
@@ -64,12 +66,13 @@ public sealed class IpodPrefs
         }
     }
 
-    public void Reset() { model = IpodModels.DefaultId; color = 0; Look = LookDevice; Clock = false; wheelSpeed = 2; wheelAccel = 1; clicker = 0; clickVolume = 1; volumeLimit = 100; HiddenMenu.Clear(); }
+    public void Reset() { model = IpodModels.DefaultId; color = 0; Look = LookDevice; Clock = false; wheelSpeed = 2; wheelAccel = 1; clicker = 0; clickVolume = 1; volumeLimit = 100; HiddenMenu.Clear(); Desk.Reset(); }
 
     public string ToJson() => new JsonObject
     {
         ["model"] = model, ["color"] = color, ["look"] = Look, ["clock"] = Clock, ["speed"] = wheelSpeed, ["accel"] = wheelAccel, ["clicker"] = clicker, ["clickVol"] = clickVolume, ["limit"] = volumeLimit,
         ["hidden"] = new JsonArray(HiddenMenu.Order().Select(h => (JsonNode?)JsonValue.Create(h)).ToArray()),
+        ["desk"] = Desk.ToJson(),
     }.ToJsonString();
 
     /// <summary>Reads what <see cref="ToJson"/> wrote; anything missing or broken keeps its default (a bad value never breaks the page).</summary>
@@ -84,6 +87,7 @@ public sealed class IpodPrefs
             if (o["model"] is JsonValue m && m.TryGetValue<string>(out var id)) p.Model = id;
             p.Color = I("color", 0); p.Clock = o["clock"] is JsonValue ck && ck.TryGetValue<bool>(out var cb) && cb; p.Look = I("look", LookDevice) switch { LookWheelOnly => LookWheelOnly, LookDesk => LookDesk, _ => LookDevice };
             p.WheelSpeed = I("speed", 2); p.WheelAccel = I("accel", 1); p.Clicker = I("clicker", 0); p.ClickVolume = I("clickVol", 1); p.VolumeLimit = I("limit", 100);
+            p.Desk = DeskOptions.FromJson(o["desk"]);
             if (o["hidden"] is JsonArray a) foreach (var h in a.OfType<JsonValue>()) if (h.TryGetValue<string>(out var s) && !FixedMenu.Contains(s)) p.HiddenMenu.Add(s);
         }
         catch (JsonException) { return new IpodPrefs(); }

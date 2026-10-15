@@ -10,7 +10,8 @@
 <div class="ipod-stage @(flat ? "flat" : "") @(color.Dark ? "dark" : "") @(panel ? "dock-open" : "")" data-testid="ipod" data-model="@model.Id" data-color="@color.Name" data-look="@(desk ? "desk" : flat ? "wheel" : "device")" style="@StageStyle">
     @if (desk)
     {
-        <DeskScene Jack="@DeskJacks.For(model.Id)" Aspect="@model.Aspect" Radius="@model.Radius" Journal="@DeskJournalPart" Cds="@DeskCdsPart" Polaroid="@DeskPolaroidPart">@Area()</DeskScene>
+        <DeskScene Jack="@DeskJacks.For(model.Id)" Aspect="@model.Aspect" Radius="@model.Radius" Journal="@DeskJournalPart" Cds="@DeskCdsPart" Polaroid="@DeskPolaroidPart"
+                   Options="@prefs.Desk" Dock="@(prefs.Desk.Dock && DeskJacks.HasDock(model.Id))" Props="@DeskPropsPart">@Area()</DeskScene>
     }
     else { @Area() }
     <a class="ipod-exit" href="/" aria-label="Back to FLACie" title="Back to FLACie" data-testid="ipod-exit"><Icon Name="chevron-left" Size="18" /></a>
@@ -66,6 +67,27 @@
                 <button type="button" class="ipod-chip @(desk ? "on" : "")" data-look="desk" tabindex="-1" @onclick="() => PickLook(IpodPrefs.LookDesk)">Desk</button>
             </div>
         </section>
+        @if (desk)
+        {
+            <section data-testid="desk-options">
+                <h3>Desk</h3>
+                <div class="dock-seg">
+                    @for (var i = 0; i < DeskOptions.PhonesNames.Length; i++)
+                    {
+                        var k = i;
+                        <button type="button" class="ipod-chip @(prefs.Desk.Phones == k ? "on" : "")" data-desk-phones="@k" tabindex="-1" @onclick="() => DeskSet(d => d.Phones = k)">@DeskOptions.PhonesNames[k]</button>
+                    }
+                </div>
+                <div class="desk-opts">
+                    @DeskOpt("vu", "VU meter", prefs.Desk.Vu, d => d.Vu = !d.Vu)
+                    @DeskOpt("tape", "Cassette", prefs.Desk.Cassette, d => d.Cassette = !d.Cassette)
+                    @DeskOpt("md", "MiniDiscs", prefs.Desk.Minidiscs, d => d.Minidiscs = !d.Minidiscs)
+                    @if (DeskJacks.HasDock(model.Id)) { @DeskOpt("dock", "Dock", prefs.Desk.Dock, d => d.Dock = !d.Dock) }
+                    @DeskOpt("pencil", "Pencil", prefs.Desk.Pencil, d => d.Pencil = !d.Pencil)
+                    @DeskOpt("tracks", "Tracklist", prefs.Desk.Tracklist, d => d.Tracklist = !d.Tracklist)
+                </div>
+            </section>
+        }
         <section class="dock-help">
             <h3>How to use</h3>
             <ul>
@@ -268,6 +290,57 @@
     RenderFragment DeskJournalPart => @<DeskJournal Title="@Player.Current?.Title" Artist="@Player.Current?.Artist" Lines="@(deskLyrics?.Lines ?? [])" Synced="@(deskLyrics?.Synced ?? false)" SongKey="@deskLyricsFor" Date="@deskDate" />;
     RenderFragment DeskPolaroidPart => @<div class="desk-polaroid lift" data-testid="desk-polaroid"><Cover ArtKey="@Player.Current?.ArtKey" /><span>@(deskWeekday.Length > 0 ? deskWeekday + " ♡" : "♡")</span></div>;
     RenderFragment DeskCdsPart => @<DeskCds Now="@DeskNow" Next="@DeskNext" DiscUrl="@DiscUrlFor(DeskNow)" Playing="@Player.Playing" OnPlay="@DeskPlay" OnToggle="@(() => Player.Toggle())" />;
+
+    // the desk's options (iPod panel › Desk)
+    RenderFragment DeskOpt(string key, string name, bool on, Action<DeskOptions> flip) =>
+        @<button type="button" class="ipod-chip @(on ? "on" : "")" data-desk-opt="@key" aria-pressed="@(on ? "true" : "false")" tabindex="-1" @onclick="() => DeskSet(flip)">@name</button>;
+    void DeskSet(Action<DeskOptions> change) { change(prefs.Desk); Save(); }
+
+    // the tapes: your playlists (newest first, only those with songs in this library), worked out again only when a playlist changes
+    List<DeskTapes.Tape> deskTapes = []; string deskTapesKey = "";
+    IReadOnlyList<DeskTapes.Tape> DeskTapesList
+    {
+        get
+        {
+            if (!prefs.Desk.Cassette && !prefs.Desk.Minidiscs) return [];
+            var key = string.Join(",", Session.Playlists.Select(p => $"{p.Id}:{p.Modified}:{p.Entries.Count}"));
+            if (key != deskTapesKey)
+            {
+                deskTapesKey = key;
+                deskTapes = Session.Playlists.OrderByDescending(p => p.Modified).Select(p => new DeskTapes.Tape(p.Id, p.Name, Session.Resolve(p.Entries).Count)).Where(t => t.Count > 0).ToList();
+            }
+            return deskTapes;
+        }
+    }
+    async Task DeskPlayTape(DeskTapes.Tape tape)
+    {
+        if (Session.Playlists.FirstOrDefault(p => p.Id == tape.Id) is not { } p || Session.Resolve(p.Entries) is not { Count: > 0 } tracks) return;
+        await Player.Play(tracks, 0, p.Name);
+        showNow = true; npMode = 0; await FocusStage();
+    }
+    // the tracklist: the next three songs in play order
+    IEnumerable<Track> DeskNextSongs
+    {
+        get
+        {
+            var order = Player.PlayOrder; var at = -1;
+            for (var i = 0; i < order.Count; i++) if (order[i] == Player.Index) { at = i; break; }
+            if (at < 0) return [];
+            return order.Skip(at + 1).Take(3).Where(i => i >= 0 && i < Player.Queue.Count).Select(i => Player.Queue[i]);
+        }
+    }
+    RenderFragment DeskPropsPart => @<text>
+        <DeskTapes Playlists="@DeskTapesList" Cassette="@prefs.Desk.Cassette" Minidiscs="@prefs.Desk.Minidiscs" Playing="@Player.Playing" OnPlay="@DeskPlayTape" />
+        @if (prefs.Desk.Tracklist)
+        {
+            var next = DeskNextSongs.ToList();
+            <div class="desk-tracklist lift" data-testid="desk-tracklist">
+                <b class="desk-hand">next up</b>
+                @for (var i = 0; i < next.Count; i++) { <span class="desk-hand">@(i + 1). @next[i].Title <small>@TimeSpan.FromMilliseconds(next[i].DurationMs).ToString(@"m\:ss")</small></span> }
+                @if (next.Count == 0) { <span class="desk-hand">nothing queued</span> }
+            </div>
+        }
+    </text>;
 
     // a CD played while shuffling plays the whole album, in album order, then the shuffle carries on; otherwise the queue goes on from that album
     async Task DeskPlay(DeskAlbum a) { if (Player.Shuffle) await Player.PlayRun(a.Tracks); else await Player.SkipTo(a.QueueIndex); await FocusStage(); }

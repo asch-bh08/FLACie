@@ -223,6 +223,51 @@ test.describe('desk engine on its own (desk.js harness)', () => {
     expect(await ink(rows[1]), 'ink in the second row at the end').toBeGreaterThan(20);
   });
 
+  // the lines on show, as page columns: the x of each shown line's page
+  const pagesShown = (page: import('@playwright/test').Page) => page.evaluate(() => {
+    // in the journal's own layout (it lies tilted on the desk): which page columns the shown lines are in, of those in view
+    const box = document.querySelector('.j-lines') as HTMLElement;
+    const xs = [...document.querySelectorAll('[data-testid=desk-lyric].on')].map((l) => (l as HTMLElement).offsetLeft - box.scrollLeft).filter((x) => x >= -2 && x < box.clientWidth - 2).map((x) => Math.round(x / 10));
+    return [...new Set(xs)].length;
+  });
+
+  test('on a big screen the journal is an open notebook: the lyrics fill the left page, then the right, then the page turns', async ({ page }) => {
+    await page.goto(journal('?w=1600&h=900&n=40')); await startJournal(page);
+    await page.evaluate(() => { (window as any).t = 3.4; }); await page.waitForTimeout(400);   // lines 0 to 6: the left page, full (seven rules)
+    expect(await pagesShown(page)).toBe(1);
+    await page.evaluate(() => { (window as any).t = 7.6; }); await page.waitForTimeout(400);   // line 12: on the right page too
+    expect(await pagesShown(page)).toBe(2);
+    // the spread fills: the right page turns over (a turning page for a moment), and the line being sung is on the fresh spread
+    const turned = await page.evaluate(() => new Promise<boolean>((done) => {
+      const mo = new MutationObserver(() => { if (document.querySelector('.j-turn')) { mo.disconnect(); done(true); } });
+      mo.observe(document.body, { childList: true, subtree: true }); (window as any).t = 10.6; setTimeout(() => done(false), 1500);
+    }));
+    expect(turned, 'a page turned').toBe(true);
+    await page.waitForTimeout(1200);
+    expect(await page.locator('.j-turn').count(), 'the turning page is gone again').toBe(0);
+    const box = (await page.locator('.j-lines').boundingBox())!, sung = (await page.locator('[data-testid=desk-lyric].writing').boundingBox())!;
+    expect(sung.x).toBeGreaterThanOrEqual(box.x - 1); expect(sung.x + sung.width).toBeLessThanOrEqual(box.x + box.width + 1);
+    expect(await pagesShown(page)).toBeLessThanOrEqual(2);
+  });
+
+  test('on a phone the journal is a pad of sticky notes: a full note peels off to the next', async ({ page }) => {
+    await page.goto(journal('?w=390&h=844&n=20')); await startJournal(page);
+    await page.evaluate(() => { (window as any).t = 0.7; }); await page.waitForTimeout(400);
+    expect(await pagesShown(page)).toBe(1);
+    const peeled = await page.evaluate(() => new Promise<boolean>((done) => {
+      const mo = new MutationObserver(() => { if (document.querySelector('.j-peel')) { mo.disconnect(); done(true); } });
+      mo.observe(document.body, { childList: true, subtree: true }); (window as any).t = 3.1; setTimeout(() => done(false), 1500);
+    }));
+    expect(peeled, 'a note peeled off').toBe(true);
+    await page.waitForTimeout(1200);
+    expect(await page.locator('.j-peel').count()).toBe(0);
+    expect(await pagesShown(page)).toBe(1);
+    // reduced motion: the next note shows at once, nothing peels
+    await page.goto(journal('?w=390&h=844&n=20')); await startJournal(page, true);
+    await page.evaluate(() => { (window as any).t = 3.1; }); await page.waitForTimeout(400);
+    expect(await page.locator('.j-peel').count()).toBe(0);
+  });
+
   test('the line being sung is always in view, on a desk and on a phone, however far into the song', async ({ page }) => {
     for (const [w, h] of [[1600, 900], [1280, 720], [390, 844], [360, 640]]) {
       await page.goto(journal(`?w=${w}&h=${h}&n=16&long=1`)); await startJournal(page);
@@ -263,6 +308,18 @@ test.describe('desk engine on its own (desk.js harness)', () => {
     await page.waitForTimeout(800);
     const calm = await page.evaluate(() => ({ calls: (window as any).vizCalls || 0, rings: document.querySelector('[data-coffee]')!.children.length }));
     expect(calm).toEqual({ calls: 0, rings: 0 });
+  });
+
+  test('the VU meter\'s needle swings with the music, from the same analyser read, and rests on mobile data', async ({ page }) => {
+    await page.goto(harness());
+    await page.evaluate(() => (window as any).desk.start(document.getElementById('scene'), { reduced: false }));
+    const angles: number[] = [];
+    for (let i = 0; i < 30; i++) { await page.waitForTimeout(50); angles.push(await page.evaluate(() => Number((document.querySelector('[data-needle]') as HTMLElement).style.getPropertyValue('--a')))); }
+    expect(Math.max(...angles) - Math.min(...angles), 'needle swing in degrees').toBeGreaterThan(15);
+    await page.goto(harness('?metered=1'));
+    await page.evaluate(() => (window as any).desk.start(document.getElementById('scene'), { reduced: false }));
+    await page.waitForTimeout(600);
+    expect(await page.evaluate(() => Number((document.querySelector('[data-needle]') as HTMLElement).style.getPropertyValue('--a')))).toBeLessThan(-30);   // at rest, near the left stop
   });
 
   test('the coffee ripples on the beat', async ({ page }) => {

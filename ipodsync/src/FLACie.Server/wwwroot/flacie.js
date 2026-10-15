@@ -291,6 +291,9 @@ window.flacie = (() => {
     const css = getComputedStyle(document.documentElement);
     views[vizStyle](Object.assign({ g: cv.getContext("2d"), w, h, dpr, ts, playing: !audio.paused, c: { accent: css.getPropertyValue("--accent").trim() || "#ff4d8d", dim: css.getPropertyValue("--faint").trim() || "#8a8a94", ink: css.getPropertyValue("--ink").trim() || "#f4f3f7" } }));
   };
+  // a device lying turned (the Desk look tilts it a few degrees): its angle, from the CSS rotate of it and what holds it; and the zoom it is drawn at (the page's fit)
+  const tiltOf = el => { let a = 0; for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const m = /^(-?[\d.]+)deg$/.exec(getComputedStyle(n).rotate || ""); if (m) a += +m[1]; } return a; };
+  const zoomOf = el => { let z = 1; for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const v = parseFloat(getComputedStyle(n).zoom); if (v > 0) z *= v; } return z; };
   let npRef = null, npPushed = false;
   const npClosed = () => { const r = npRef; npRef = null; npPushed = false; document.body.classList.remove("np-open"); if (r) r.invokeMethodAsync("Closed").catch(() => { }); };
   // Back onto a "#now-playing" entry (after following a link out of the full-screen player) brings the player back instead of landing on the bare page
@@ -566,7 +569,6 @@ window.flacie = (() => {
       const st = ipod = { ...cleanup, fit, wheel, stage, keys, cfg: cfg || { deg: 34 }, last: null, acc: 0, moved: 0, rotating: false, zone: null, held: false, timer: null, hold: null, samples: [], coast: 0, ctx: null };
       // a device lying turned (the Desk look tilts it a few degrees): its own angle, from the CSS rotate of the wheel and what holds it. The box on screen is then
       // bigger than the wheel (by |cos| + |sin|), and the zones turn with the device; read at each press (the look can change between presses)
-      const tiltOf = el => { let a = 0; for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const m = /^(-?[\d.]+)deg$/.exec(getComputedStyle(n).rotate || ""); if (m) a += +m[1]; } return a; };
       const ang = e => { const r = wheel.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI - (st.tilt || 0); };
       const zoneOf = e => {
         const tilt = st.tilt = tiltOf(wheel), t = tilt * Math.PI / 180;
@@ -657,14 +659,15 @@ window.flacie = (() => {
     // the touch iPods' scrolling: a mouse can drag a list like a finger does (touch screens scroll by themselves); a drag is not a tap; the end of a long list asks for more rows
     iosInit(root) {
       window.flacie.iosDispose();
-      let sc = null, y0 = 0, top0 = 0, dragged = false, k = 1;
+      let sc = null, x0 = 0, y0 = 0, top0 = 0, dragged = false, k = 1, t = 0;
       const down = e => {
         if (e.pointerType !== "mouse" || e.button !== 0) return;
         sc = e.target.closest(".ios-scroll"); if (!sc) return;
-        const r = root.getBoundingClientRect(); k = r.width / (root.offsetWidth || 1) || 1;
-        y0 = e.clientY; top0 = sc.scrollTop; dragged = false;
+        // the list's own pixels per screen pixel (the fit's zoom), and the way the device lies (a drag is measured along it)
+        k = zoomOf(root) || 1; t = tiltOf(root) * Math.PI / 180;
+        x0 = e.clientX; y0 = e.clientY; top0 = sc.scrollTop; dragged = false;
       };
-      const move = e => { if (!sc) return; const dy = e.clientY - y0; if (!dragged && Math.abs(dy) > 5) dragged = true; if (dragged) sc.scrollTop = top0 - dy / k; };
+      const move = e => { if (!sc) return; const dy = -(e.clientX - x0) * Math.sin(t) + (e.clientY - y0) * Math.cos(t); if (!dragged && Math.abs(dy) > 5) dragged = true; if (dragged) sc.scrollTop = top0 - dy / k; };
       const up = () => { sc = null; setTimeout(() => { dragged = false; }, 0); };
       const click = e => { if (dragged) { e.stopPropagation(); e.preventDefault(); } };
       root.addEventListener("pointerdown", down); addEventListener("pointermove", move); addEventListener("pointerup", up); root.addEventListener("click", click, true);

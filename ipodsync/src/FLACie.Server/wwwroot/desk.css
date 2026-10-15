@@ -7,11 +7,12 @@
 .desk-wood { position: absolute; inset: -3%; background: url(desk/oak.jpg) center / max(70cqh, 40cqw) auto; filter: sepia(.3) saturate(.88) brightness(.97) contrast(.98); }
 .desk-scene { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: min(100cqw, 177.78cqh); aspect-ratio: 16 / 9; container-type: size; filter: saturate(.86) contrast(1.03); }
 .desk-scene > * { position: absolute; }
-.desk .lift { filter: drop-shadow(.15cqh .3cqh .25cqh rgba(50,28,10,.35)) drop-shadow(.8cqh 1.6cqh 1.6cqh rgba(50,28,10,.22)); }
+.desk { --desk-shadow: drop-shadow(.15cqh .3cqh .25cqh rgba(50,28,10,.35)) drop-shadow(.8cqh 1.6cqh 1.6cqh rgba(50,28,10,.22)); }
+.desk .lift, .desk-pencil, .desk-adapter { filter: var(--desk-shadow); }   /* one shadow for every prop: grounded on the same wood under the same light */
 .desk-hand, .desk-journal, .desk-polaroid span, .desk-note span { font-family: "Desk Hand", "Segoe Print", "Bradley Hand", cursive; }
 
 /* ---------------- the iPod's place: rotated a little; the page's .ipod-area fills it and its fit sizes the device to the inner box */
-.desk-ipod { left: 44%; top: 48cqh; height: 56cqh; aspect-ratio: var(--aspect, .6); box-sizing: content-box; padding: 12px; translate: -50% -50%; rotate: -7deg; }
+.desk-ipod { left: 46%; top: 47cqh; height: 56cqh; aspect-ratio: var(--aspect, .6); box-sizing: content-box; padding: 12px; translate: -50% -50%; rotate: -4deg; }
 .desk-ipod > .ipod-area { position: absolute; inset: 0; z-index: 2; }
 .desk-ipod-edge { position: absolute; left: 12px; top: 12px; right: 12px; bottom: 12px; z-index: 1; translate: .45cqh .75cqh;
   background: linear-gradient(135deg, #f3f4f6, #b9bdc3 35%, #eef0f2 52%, #9da2a9 75%, #d9dce0);
@@ -22,29 +23,36 @@
 .desk-cable-shadow { filter: blur(.25cqh); }
 .desk-bud-shadow { filter: drop-shadow(3px 6px 3px rgba(50,28,10,.38)) drop-shadow(6px 14px 10px rgba(50,28,10,.22)); }
 
-/* ---------------- the journal */
-.desk-journal { left: 8%; top: 12cqh; width: 33cqh; height: 44cqh; rotate: -5deg; }
-.desk-journal .page { position: absolute; inset: 0; border-radius: .6cqh; background: #f4ecd8; overflow: hidden; box-shadow: inset 0 .25cqh 0 rgba(255,255,255,.6);
-  background-image: repeating-linear-gradient(transparent 0 3.2cqh, rgba(90,120,160,.22) 3.2cqh 3.32cqh), linear-gradient(90deg, rgba(0,0,0,.05), transparent 12%, transparent 88%, rgba(0,0,0,.05)); }
-.desk-journal .page::before { content: ""; position: absolute; left: 3cqh; top: 0; bottom: 0; width: .14cqh; background: rgba(200,90,90,.35); }
-.j-title { position: absolute; left: 4.2cqh; top: 2.4cqh; right: 2cqh; font-size: 2.5cqh; font-weight: 700; line-height: 3.2cqh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* ---------------- the journal: an open notebook. The lyrics fill the left page, then the right (two page columns: desk.js shows the spread with the line being
+   sung, and turns the page when the spread is full). On a phone (below): a pad of sticky notes, one note at a time, the full one peeling off */
+.desk-journal { left: 2.5%; top: 6cqh; width: 54cqh; height: 40cqh; rotate: -2deg; }
+.desk-journal .page { position: absolute; inset: 0; }
+.desk-journal .page::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: .35cqh; translate: -50% 0; background: linear-gradient(90deg, rgba(60,40,20,.12), rgba(60,40,20,.35), rgba(60,40,20,.12)); }
+.desk-journal .sheet { position: absolute; top: 0; bottom: 0; width: 50%; background: #f4ecd8; background-image: repeating-linear-gradient(transparent 0 3.2cqh, rgba(90,120,160,.22) 3.2cqh 3.32cqh); }
+.desk-journal .sheet.left { left: 0; border-radius: .6cqh 0 0 .6cqh; box-shadow: inset -1.8cqh 0 1.8cqh -1.2cqh rgba(60,40,20,.28), inset 0 .25cqh 0 rgba(255,255,255,.6); }
+.desk-journal .sheet.right { right: 0; border-radius: 0 .6cqh .6cqh 0; box-shadow: inset 1.8cqh 0 1.8cqh -1.2cqh rgba(60,40,20,.28), inset 0 .25cqh 0 rgba(255,255,255,.6); }
+.desk-journal .sheet::before { content: ""; position: absolute; left: 3cqh; top: 0; bottom: 0; width: .14cqh; background: rgba(200,90,90,.35); }
+/* the copy of the journal desk.js lays over it for a page turn or a peel (gone when it ends) */
+.desk-journal.j-turn, .desk-journal.j-peel { z-index: 3; pointer-events: none; }
+.j-title { position: absolute; left: 4.2cqh; top: 2.4cqh; width: calc(50% - 6.2cqh); font-size: 2.5cqh; font-weight: 700; line-height: 3.2cqh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .j-title small { display: block; font-size: .72em; font-weight: 400; opacity: .7; line-height: 1.2; margin-top: -.6cqh; overflow: hidden; text-overflow: ellipsis; }
 .j-title::after { content: ""; display: block; height: .25cqh; width: 70%; background: currentColor; opacity: .55; border-radius: 1cqh; rotate: -.6deg; }
-/* eight rules of lyrics (a whole number of rules, so the text stays on them when desk.js scrolls the line being sung into view); a long line wraps */
-.j-lines { position: absolute; left: 4.2cqh; top: 12.9cqh; right: 1.5cqh; height: calc(3.32cqh * 8); overflow: hidden; font-size: 2.05cqh; line-height: 3.32cqh; }
-.j-lines div { display: none; overflow-wrap: anywhere; }
+/* seven rules of lyrics a page, in two page columns lined up with the two pages (each 22.3cqh wide, 5.7cqh apart: a page's margins and the spine);
+   more lines flow on into further columns, out of sight until the page turns. A long line wraps onto the next rule */
+.j-lines { position: absolute; left: 4.2cqh; top: 12.9cqh; width: calc(100% - 5.7cqh); height: calc(3.32cqh * 7); column-count: 2; column-gap: 5.7cqh; column-fill: auto; overflow: hidden; font-size: 2.05cqh; line-height: 3.32cqh; }
+.j-lines div { display: none; overflow-wrap: anywhere; break-inside: avoid; }
 .j-lines div.on { display: block; }
 /* (the line being sung is written in by desk.js, a row at a time) */
 .j-date { position: absolute; right: 2.5cqh; bottom: 2.4cqh; font-size: 1.6cqh; opacity: .7; }
 
 /* ---------------- the polaroid */
-.desk-polaroid { left: 9%; top: 63cqh; width: 17cqh; padding: 1.1cqh 1.1cqh 4.4cqh; background: #f7f4ee; rotate: -8deg; }
+.desk-polaroid { left: 19.5%; top: 52cqh; width: 15cqh; padding: 1cqh 1cqh 3.9cqh; background: #f7f4ee; rotate: 4deg; }
 .desk-polaroid .cover { width: 100%; height: auto; aspect-ratio: 1; border-radius: 0; filter: saturate(.85) sepia(.15) contrast(.95); }
 .desk-polaroid span { position: absolute; left: 0; right: 0; bottom: 1.1cqh; text-align: center; font-size: 1.8cqh; color: #3a2c1e; }
 
 /* ---------------- the CDs */
 .desk-art.cover, .desk .desk-art { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 0; filter: saturate(.85) sepia(.12); }
-.desk-open { left: 61%; top: 7cqh; width: 46cqh; height: 20.2cqh; rotate: 5deg; display: flex; cursor: pointer; transition: translate .25s ease; }
+.desk-open { left: 63%; top: 6cqh; width: 46cqh; height: 20.2cqh; rotate: 3deg; display: flex; cursor: pointer; transition: translate .25s ease; }
 .desk-open:hover, .desk-case:hover { translate: 0 -1cqh; }
 .desk-open .lid, .desk-open .tray { position: relative; width: 50%; height: 100%; border-radius: .45cqh; }
 .desk-open .lid { background: rgba(230,236,242,.4); box-shadow: inset 0 0 0 .18cqh rgba(255,255,255,.6); }
@@ -59,17 +67,17 @@
   background: conic-gradient(from 200deg, transparent, rgba(255,255,255,.7) 7%, transparent 15%, transparent 50%, rgba(255,255,255,.5) 57%, transparent 65%), radial-gradient(circle, transparent 0 93%, rgba(255,200,240,.9) 94%, rgba(180,230,255,.9) 97%, transparent 99%); }
 .desk .disc.paused { animation-play-state: paused; }
 @keyframes desk-spin { to { rotate: 360deg; } }
-.desk-stack { left: 66%; top: 31cqh; width: 22cqh; height: 19.4cqh; }
+.desk-stack { left: 63.5%; top: 31cqh; width: 22cqh; height: 19.4cqh; }
 .desk-case { position: absolute; inset: 0; border-radius: .45cqh; background: rgba(232,238,244,.35); box-shadow: inset 0 0 0 .16cqh rgba(255,255,255,.55); cursor: pointer; transition: translate .25s ease; }
 .desk-case .desk-art { left: 9%; top: 2.5%; width: 89.5%; height: 95%; }
 .desk-case::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 8%; border-radius: inherit; background: linear-gradient(90deg, #121214, #2c2c30); z-index: 1; }
 .desk-case::after { content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 1; pointer-events: none; background: linear-gradient(118deg, rgba(255,255,255,.34), rgba(255,255,255,.05) 32%, transparent 33%, transparent 80%, rgba(255,255,255,.12)); }
-.desk-case.s1 { rotate: -6deg; } .desk-case.s2 { rotate: 8deg; translate: 22% 14%; } .desk-case.s2:hover { translate: 22% 12%; }
-.desk-note { left: 79%; top: 30cqh; rotate: -4deg; padding: 1cqh 1.5cqh; background: #f8f1dc; color: #3a2c1e; font-size: 1.9cqh; max-width: 30cqh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.desk-case.s1 { rotate: -3deg; } .desk-case.s2 { rotate: 4deg; translate: 14% 9%; } .desk-case.s2:hover { translate: 14% 7%; }
+.desk-note { left: 80%; top: 29cqh; rotate: -3deg; padding: 1cqh 1.5cqh; background: #f8f1dc; color: #3a2c1e; font-size: 1.9cqh; max-width: 30cqh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .desk-note small { display: block; font: 700 .95cqh/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .18em; text-transform: uppercase; color: #9a7b55; margin-bottom: .6cqh; }
 
 /* ---------------- coffee */
-.desk-coffee { left: 86.5%; top: 75cqh; width: 30cqh; height: 30cqh; translate: -50% -50%; }
+.desk-coffee { left: 89%; top: 79cqh; width: 30cqh; height: 30cqh; translate: -50% -50%; }
 .desk-coffee .saucer { position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 42% 38%, #fbfaf6, #ece8df 62%, #d9d3c7 70%, #efebe3 72%, #e2ddd3); }
 .desk-coffee .cup { position: absolute; left: 50%; top: 50%; width: 62%; height: 62%; translate: -50% -50%; border-radius: 50%; background: radial-gradient(circle at 40% 36%, #ffffff, #f0ece4 60%, #d8d2c6); box-shadow: 0 .6cqh 1.2cqh rgba(50,28,10,.25); }
 .desk-coffee .cup::before { content: ""; position: absolute; inset: 9%; border-radius: 50%; background: radial-gradient(circle at 46% 42%, #8a5a34 0, #5a3518 45%, #3a2010 75%); box-shadow: inset 0 .4cqh .8cqh rgba(0,0,0,.45); }
@@ -84,10 +92,75 @@
 .desk-ring { position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; box-shadow: 0 0 0 .22cqh rgba(255,226,190,.45), inset 0 0 0 .12cqh rgba(40,18,6,.35); animation: desk-ring 1.2s ease-out forwards; }
 @keyframes desk-ring { from { scale: 1; opacity: .95; } to { scale: var(--k, 5.5); opacity: 0; } }
 .desk-coffee .handle { position: absolute; right: -16%; top: 42%; width: 24%; height: 16%; z-index: -1; border-radius: 2cqh; background: linear-gradient(#f6f3ec, #dcd6ca); box-shadow: .2cqh .4cqh .6cqh rgba(50,28,10,.25); }
-.desk-steam { left: 81%; top: 37cqh; width: 26cqh; height: 44cqh; overflow: visible; pointer-events: none; z-index: 3; }
+.desk-steam { left: 84%; top: 57cqh; width: 20cqh; height: 26cqh; overflow: visible; pointer-events: none; z-index: 3; }
 .desk-steam path { fill: none; stroke: rgba(255,250,240,.75); stroke-width: 7; stroke-linecap: round; filter: blur(4px); opacity: 0; animation: desk-rise 7s ease-in-out infinite; }
 .desk-steam path:nth-child(2) { animation-delay: -2.3s; stroke-width: 4.5; } .desk-steam path:nth-child(3) { animation-delay: -4.6s; stroke-width: 5.5; }
 @keyframes desk-rise { 0% { opacity: 0; transform: translate(0, 40px) scaleY(.7); } 25% { opacity: .75; } 70% { opacity: .35; } 100% { opacity: 0; transform: translate(-30px, -60px) scaleY(1.15) rotate(-6deg); } }
+
+/* ---------------- the Desk options' props (iPod panel › Desk) */
+/* the VU meter amp: brushed metal seen from above, a backlit meter under glass whose needle desk.js drives (--a, degrees from upright), two knobs */
+.desk-vu { left: 3%; top: 52cqh; width: 26cqh; height: 14cqh; rotate: -2deg; border-radius: .7cqh;
+  background: repeating-linear-gradient(90deg, rgba(255,255,255,.07) 0 .12cqh, rgba(0,0,0,.05) .12cqh .24cqh), linear-gradient(160deg, #e6e7ea, #b9bcc2 45%, #d7d9dd 60%, #a7abb2);
+  box-shadow: inset 0 .2cqh 0 rgba(255,255,255,.7), inset 0 -.25cqh .3cqh rgba(0,0,0,.25); }
+.desk-vu .vu-face { position: absolute; left: 4%; top: 12%; width: 62%; height: 76%; border-radius: .5cqh; overflow: hidden; background: radial-gradient(120% 90% at 50% 100%, #fff3c4, #f3dc93 55%, #d9b766); box-shadow: inset 0 0 0 .25cqh #2a2a2e, inset 0 .5cqh 1cqh rgba(0,0,0,.35); }
+.desk-vu .vu-scale { position: absolute; inset: 6% 4% 0; width: 92%; height: 94%; font-family: "Helvetica Neue", Arial, sans-serif; }
+.desk-vu .needle { position: absolute; left: 50%; bottom: -8%; width: .22cqh; height: 92%; margin-left: -.11cqh; background: linear-gradient(#b8211a, #2a0d08); transform-origin: 50% 100%; rotate: calc(var(--a, -42) * 1deg); border-radius: .2cqh; box-shadow: .3cqh .4cqh .3cqh rgba(0,0,0,.25); }
+.desk-vu .pivot { position: absolute; left: 50%; bottom: -5%; width: 2.2cqh; height: 2.2cqh; translate: -50% 0; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #555, #111); }
+.desk-vu .glass { position: absolute; inset: 0; background: linear-gradient(125deg, rgba(255,255,255,.45), rgba(255,255,255,0) 35%, rgba(255,255,255,0) 70%, rgba(255,255,255,.15)); pointer-events: none; }
+.desk-vu .vu-knobs { position: absolute; right: 5%; top: 18%; bottom: 18%; width: 24%; display: flex; flex-direction: column; justify-content: space-between; align-items: center; }
+.desk-vu .vu-knobs i { width: 4.6cqh; height: 4.6cqh; border-radius: 50%; background: conic-gradient(from 20deg, #2b2b2f, #6d6d74, #2b2b2f, #55555b, #2b2b2f); box-shadow: 0 .3cqh .5cqh rgba(0,0,0,.4), inset 0 0 0 .25cqh #1a1a1d; }
+
+/* the cassette (one of your playlists): smoke shell, paper label in handwriting, reels that turn while music plays */
+.desk-cassette { left: 80.5%; top: 37cqh; width: 25cqh; height: 15.6cqh; rotate: 3deg; cursor: pointer; transition: translate .25s ease; }
+.desk-cassette:hover { translate: 0 -1cqh; }
+.desk-cassette[aria-disabled="true"] { cursor: default; }
+.desk-cassette .shell { position: absolute; inset: 0; border-radius: .9cqh; background: linear-gradient(160deg, rgba(60,62,70,.92), rgba(28,29,33,.95)); box-shadow: inset 0 0 0 .2cqh rgba(255,255,255,.12), inset 0 .3cqh .4cqh rgba(255,255,255,.08); }
+.desk-cassette .label { position: absolute; left: 6%; right: 6%; top: 7%; height: 56%; border-radius: .4cqh; background: linear-gradient(#f5ecd3, #eadfc0); box-shadow: inset 0 -1.2cqh 0 #d8574a, inset 0 -1.5cqh 0 #f5ecd3; color: #2f3b55; overflow: hidden; }
+.desk-cassette .label span { position: absolute; left: 6%; right: 6%; top: 6%; font-size: 2.2cqh; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.desk-cassette .label small { position: absolute; left: 6%; bottom: 30%; font: 600 1cqh/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #8a6a44; }
+.desk-cassette .window { position: absolute; left: 24%; right: 24%; top: 33%; height: 22%; border-radius: 1cqh; background: rgba(20,20,24,.85); box-shadow: inset 0 0 0 .15cqh rgba(255,255,255,.2); display: flex; align-items: center; justify-content: space-between; padding: 0 3%; }
+.desk-cassette .tape { position: absolute; left: 22%; right: 22%; top: 30%; bottom: 30%; background: linear-gradient(#4a2c18, #2b170b); border-radius: .3cqh; }
+.desk-cassette .reel { position: relative; z-index: 1; width: 2.8cqh; height: 2.8cqh; border-radius: 50%; background: radial-gradient(circle, #222 0 22%, transparent 23%), conic-gradient(#f2f2f0 0 10%, #bdbdb8 10% 16%, #f2f2f0 16% 26%, #bdbdb8 26% 33%, #f2f2f0 33% 43%, #bdbdb8 43% 50%, #f2f2f0 50% 60%, #bdbdb8 60% 66%, #f2f2f0 66% 76%, #bdbdb8 76% 83%, #f2f2f0 83% 93%, #bdbdb8 93%); animation: desk-spin 2.6s linear infinite; }
+.desk-cassette .reel.paused { animation-play-state: paused; }
+.desk-cassette .screw { position: absolute; width: .9cqh; height: .9cqh; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #c9c9cc, #6e6e74); }
+.desk-cassette .screw:nth-of-type(1) { left: 2.5%; top: 4%; } .desk-cassette .screw:nth-of-type(2) { right: 2.5%; top: 4%; }
+.desk-cassette .screw:nth-of-type(3) { left: 2.5%; bottom: 5%; } .desk-cassette .screw:nth-of-type(4) { right: 2.5%; bottom: 5%; }
+
+/* the MiniDiscs (more of your playlists): a small fanned stack of see-through squares with metal shutters */
+.desk-minidiscs { left: 64%; top: 56cqh; width: 9.5cqh; height: 10.2cqh; }
+.desk-minidiscs .md { position: absolute; inset: 0; border-radius: .5cqh; cursor: pointer; translate: calc(var(--i) * 6cqh) 0; rotate: calc(var(--i) * 3deg - 3deg);
+  box-shadow: inset 0 0 0 .15cqh rgba(255,255,255,.35); transition: translate .25s ease; overflow: hidden; }
+.desk-minidiscs .md.blue { background: linear-gradient(150deg, rgba(90,150,230,.85), rgba(40,80,170,.85)); }
+.desk-minidiscs .md.smoke { background: linear-gradient(150deg, rgba(120,120,130,.85), rgba(55,55,65,.88)); }
+.desk-minidiscs .md:hover { translate: calc(var(--i) * 6cqh) -.8cqh; }
+.desk-minidiscs .md[aria-disabled="true"] { cursor: default; }
+.desk-minidiscs .shutter { position: absolute; left: 22%; right: 22%; top: 0; height: 46%; background: linear-gradient(90deg, #9a9ca2, #e3e5e8 40%, #a6a9ae); border-radius: 0 0 .2cqh .2cqh; }
+.desk-minidiscs .md span { position: absolute; left: 8%; right: 8%; bottom: 8%; padding: .2cqh .4cqh; border-radius: .2cqh; background: #f5ecd3; color: #2f3b55; font-size: 1.2cqh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1.2cqh; }
+
+/* the pencil across the journal: sharpened tip, yellow body, ferrule, eraser */
+.desk-pencil { left: 7%; top: 40cqh; width: 30cqh; height: 1.7cqh; rotate: -5deg; z-index: 1; border-radius: .2cqh;
+  background: linear-gradient(#f6d24a, #f3c623 40%, #d9a514 60%, #f0c43a); }
+.desk-pencil .tip { position: absolute; right: 100%; top: 0; width: 3.4cqh; height: 100%; background: linear-gradient(90deg, #2d2d2d 0 22%, #e8c9a0 22%); clip-path: polygon(0 50%, 100% 0, 100% 100%); }
+.desk-pencil .ferrule { position: absolute; left: 100%; top: -2%; width: 2.2cqh; height: 104%; background: repeating-linear-gradient(90deg, #b9bcc1 0 .3cqh, #e9ebee .3cqh .55cqh); }
+.desk-pencil .eraser { position: absolute; left: calc(100% + 2.2cqh); top: 0; width: 2.2cqh; height: 100%; border-radius: 0 .5cqh .5cqh 0; background: linear-gradient(#f2a3a8, #e07f88); }
+
+/* the tracklist: a strip of masking tape with the next songs in handwriting */
+.desk-tracklist { left: 3%; top: 84cqh; rotate: -2deg; display: flex; gap: 1.6cqh; align-items: baseline; max-width: 60cqh; padding: .7cqh 1.6cqh; color: #2f3b55; font-size: 1.7cqh; white-space: nowrap; overflow: hidden;
+  background: linear-gradient(rgba(236,222,180,.94), rgba(222,206,160,.94)); clip-path: polygon(0 8%, 2% 0, 98% 6%, 100% 0, 99% 92%, 100% 100%, 2% 96%, 0 100%); }
+.desk-tracklist b { font-size: .8em; text-transform: uppercase; letter-spacing: .1em; opacity: .7; }
+.desk-tracklist small { font-size: .8em; opacity: .65; }
+
+/* the dock: glossy white under the iPod's bottom edge (the iPod lies flat, plugged in) */
+.desk-dock { position: absolute; left: calc(12px - 5%); right: calc(12px - 5%); bottom: calc(12px - 7%); height: 15%; z-index: 0; border-radius: 18% / 45%;
+  background: linear-gradient(#ffffff, #eef0f3 45%, #cfd3d9); box-shadow: 0 .4cqh .6cqh rgba(50,28,10,.3), 0 1.6cqh 2.4cqh rgba(50,28,10,.2), inset 0 -.4cqh .6cqh rgba(0,0,0,.12); }
+.desk-dock .lip { position: absolute; left: 8%; right: 8%; bottom: 14%; height: 12%; border-radius: 1cqh; background: linear-gradient(rgba(255,255,255,.9), rgba(255,255,255,0)); }
+
+/* the studio cable's loose gold 1/4" adapter */
+.desk-adapter { filter: drop-shadow(1.5px 3px 2px rgba(50,28,10,.35)); }
+
+/* the panel's Desk options */
+.desk-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.desk-opts .ipod-chip { justify-content: center; }
 
 /* ---------------- light and film, over everything */
 .desk-light, .desk-dust, .desk-film { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
@@ -115,17 +188,22 @@
 @container desk (aspect-ratio < 23 / 20) {
   .desk-scene { width: min(100cqw, 47.37cqh); aspect-ratio: 9 / 19; }
   .desk-ipod { left: 50%; top: 46cqh; height: 52cqh; }
-  .desk-journal { left: -2.5cqh; top: 1cqh; rotate: -6deg; }
-  .desk-journal .j-lines { height: calc(3.32cqh * 2); }   /* above the iPod there is room for two rules: the line being sung (and the one before, or its wrap) */
-  .desk-open { left: 22cqh; top: 1.5cqh; width: 50cqh; height: 22cqh; rotate: 6deg; flex-direction: row-reverse; }
+  /* the journal is a pad of sticky notes: one note at a time, three rules of lyrics on it; the note under it shows at its edge */
+  .desk-journal { left: 3%; top: 3.6cqh; width: 21cqh; height: 18.6cqh; rotate: -3deg; }   /* (below the page's back button) */
+  .desk-journal .sheet.right, .desk-journal .page::after, .desk-journal .j-date, .desk-journal .sheet::before { display: none; }
+  .desk-journal .sheet.left { width: 100%; border-radius: .25cqh; background: linear-gradient(170deg, #fff4ad, #fbe47a); box-shadow: inset 0 1.4cqh 1.2cqh -1cqh rgba(255,255,255,.55); }
+  .desk-journal::after { content: ""; position: absolute; inset: 0; z-index: -1; translate: .45cqh .6cqh; rotate: 2.5deg; border-radius: .25cqh; background: #f2d865; }
+  .desk-journal .j-title { left: 1.6cqh; top: 1.3cqh; width: auto; right: 1.4cqh; font-size: 2.1cqh; line-height: 2.8cqh; }
+  .desk-journal .j-lines { left: 1.6cqh; top: 7.4cqh; width: calc(100% - 3.2cqh); height: calc(3.32cqh * 3); column-count: 1; column-gap: 3.2cqh; font-size: 1.9cqh; }
+  .desk-open { left: 22cqh; top: 1.5cqh; width: 50cqh; height: 22cqh; rotate: 3deg; flex-direction: row-reverse; }
   .desk-stack { left: -9cqh; top: 80cqh; }
   .desk-note { left: 3%; top: 76.5cqh; rotate: -5deg; max-width: 19cqh; }
   .desk-coffee { left: 101%; top: 95cqh; }
-  .desk-polaroid, .desk-steam { display: none; }
+  .desk-polaroid, .desk-steam, .desk-minidiscs, .desk-tracklist, .desk-vu, .desk-cassette, .desk-pencil { display: none; }
 }
 
 /* ---------------- less motion: the desk holds still (lyrics appear whole) */
 @media (prefers-reduced-motion: reduce) {
-  .desk-slats, .desk-sun-drift, .desk-grain, .desk .disc, .desk-steam path, .desk-open, .desk-case { animation: none !important; transition: none !important; }
+  .desk-slats, .desk-sun-drift, .desk-grain, .desk .disc, .desk-steam path, .desk-open, .desk-case, .desk-cassette .reel { animation: none !important; transition: none !important; }
   .desk-steam { display: none; }
 }

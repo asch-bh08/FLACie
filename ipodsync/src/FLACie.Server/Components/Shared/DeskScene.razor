@@ -9,12 +9,35 @@
   <div class="desk-scene">
     @Polaroid
     @Journal
+    @if (Options.Pencil) { <div class="desk-pencil" data-testid="desk-pencil" aria-hidden="true"><i class="tip"></i><i class="ferrule"></i><i class="eraser"></i></div> }
     @Cds
+    @if (Options.Vu)
+    {
+      <div class="desk-vu lift" data-testid="desk-vu" aria-hidden="true">
+        <div class="vu-face">
+          <svg class="vu-scale" viewBox="0 0 100 60">
+            <path d="M 12 46 A 46 46 0 0 1 88 46" fill="none" stroke="#3a2a1a" stroke-width=".7"/>
+            <path d="M 70.6 22.6 A 46 46 0 0 1 88 46" fill="none" stroke="#c0392b" stroke-width="2.2"/>
+            @foreach (var (deg, label) in VuTicks)
+            {
+              var r = deg * Math.PI / 180;
+              <line x1="@F(50 + Math.Sin(r) * 41)" y1="@F(60 - Math.Cos(r) * 41)" x2="@F(50 + Math.Sin(r) * 46)" y2="@F(60 - Math.Cos(r) * 46)" stroke="@(deg >= 22 ? "#c0392b" : "#3a2a1a")" stroke-width=".8"/>
+              @((MarkupString)$"<text x=\"{F(50 + Math.Sin(r) * 35)}\" y=\"{F(60 - Math.Cos(r) * 35 + 2)}\" text-anchor=\"middle\" font-size=\"5.2\" fill=\"{(deg >= 22 ? "#c0392b" : "#3a2a1a")}\">{label}</text>")
+            }
+            <text x="50" y="44" text-anchor="middle" font-size="8" font-weight="700" fill="#3a2a1a">VU</text>
+          </svg>
+          <i class="needle" data-needle></i><i class="pivot"></i><i class="glass"></i>
+        </div>
+        <div class="vu-knobs"><i></i><i></i></div>
+      </div>
+    }
+    @Props
     <div class="desk-coffee lift" data-testid="desk-coffee" aria-hidden="true"><div class="saucer"></div><div class="cup"><div class="handle"></div><div class="liquid" data-coffee></div></div></div>
     <svg class="desk-steam" viewBox="0 0 200 340" aria-hidden="true"><path d="M 100 330 C 80 280, 130 250, 105 200 S 80 120, 110 70"/><path d="M 120 330 C 140 280, 95 240, 125 190 S 145 110, 120 60"/><path d="M 80 330 C 60 270, 105 230, 85 180 S 60 110, 90 50"/></svg>
 
     <div class="desk-ipod" style="@SlotStyle">
-      <svg class="desk-earbuds" data-testid="desk-earbuds" viewBox="0 0 @F(Wd) 400" aria-hidden="true">
+      @if (Dock) { <div class="desk-dock" data-testid="desk-dock" aria-hidden="true"><i class="lip"></i></div> }
+      <svg class="desk-earbuds @(Studio ? "studio" : "")" data-testid="desk-earbuds" viewBox="0 0 @F(Wd) 400" aria-hidden="true">
         <defs>
           <path id="desk-cable" d="@CablePath"/>
           <path id="desk-lead-l" d="@LeadL"/><path id="desk-lead-r" d="@LeadR"/>
@@ -23,6 +46,7 @@
           <radialGradient id="desk-ring" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#f4f5f7"/><stop offset=".6" stop-color="#b9bcc2"/><stop offset="1" stop-color="#8d9097"/></radialGradient>
           <radialGradient id="desk-grille-shade" cx=".5" cy=".5" r=".5"><stop offset=".7" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></radialGradient>
           <pattern id="desk-mesh" width="2.6" height="2.6" patternUnits="userSpaceOnUse"><rect width="2.6" height="2.6" fill="#a6a8ac"/><circle cx="1.3" cy="1.3" r=".75" fill="#55585c"/></pattern>
+          <linearGradient id="desk-gold" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#7a5a14"/><stop offset=".35" stop-color="#f6dc86"/><stop offset=".6" stop-color="#c99a2e"/><stop offset="1" stop-color="#7d5a12"/></linearGradient>
           <filter id="desk-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
           <g id="desk-bud">
             <path d="M -9 10 C -9 22, -6.5 40, -6 50 L 6 50 C 6.5 40, 9 22, 9 10 Z" fill="url(#desk-stem)"/>
@@ -40,19 +64,36 @@
           </g>
         </defs>
         <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+          @if (Studio)
+          {
+            <g class="desk-cable-shadow" transform="translate(3 7)"><use href="#desk-cable" stroke="rgba(30,16,6,.45)" stroke-width="6.4"/></g>
+            <use href="#desk-cable" stroke="#121214" stroke-width="5.6"/><use href="#desk-cable" stroke="#2c2c31" stroke-width="3.4" transform="translate(-.5 -.5)"/><use href="#desk-cable" stroke="#6a6a72" stroke-width=".9" transform="translate(-1.2 -1.2)"/>
+          }
+          else
+          {
           <g class="desk-cable-shadow" transform="translate(3 7)"><use href="#desk-cable" stroke="rgba(50,28,10,.34)" stroke-width="5.4"/><use href="#desk-lead-l" stroke="rgba(50,28,10,.34)" stroke-width="4.4"/><use href="#desk-lead-r" stroke="rgba(50,28,10,.34)" stroke-width="4.4"/></g>
           <use href="#desk-cable" stroke="#d6d3cc" stroke-width="5"/><use href="#desk-cable" stroke="#f4f2ec" stroke-width="3.6" transform="translate(-.5 -.5)"/><use href="#desk-cable" stroke="#ffffff" stroke-width="1.2" transform="translate(-1.1 -1.1)"/>
           <use href="#desk-lead-l" stroke="#d6d3cc" stroke-width="4"/><use href="#desk-lead-l" stroke="#f6f4ee" stroke-width="2.8" transform="translate(-.4 -.4)"/>
           <use href="#desk-lead-r" stroke="#d6d3cc" stroke-width="4"/><use href="#desk-lead-r" stroke="#f6f4ee" stroke-width="2.8" transform="translate(-.4 -.4)"/>
+          }
           <g filter="url(#desk-glow)"><use data-pulse="a" href="#desk-cable" stroke="#ffd29a" stroke-width="3.8"/><use data-pulse="b" href="#desk-cable" stroke="#fff1d8" stroke-width="2.2"/></g>
         </g>
+        @if (Studio)
+        {
+          var (ex, ey, ea) = StudioEnd;
+          <g transform="translate(@F(ex) @F(ey)) rotate(@F(ea))"><rect x="-1" y="-5.2" width="17" height="10.4" rx="3.4" fill="#151517"/><rect x="2" y="-5.2" width="1.2" height="10.4" fill="#2e2e33"/><rect x="5" y="-5.2" width="1.2" height="10.4" fill="#2e2e33"/><rect x="16" y="-2.2" width="13" height="4.4" rx="1.6" fill="#d9dbe0"/><rect x="21" y="-2.2" width="1" height="4.4" fill="#55585e"/><rect x="25" y="-2.2" width="1" height="4.4" fill="#55585e"/></g>
+          <g data-testid="desk-adapter" class="desk-adapter" transform="translate(@F(ex + 26) @F(ey + 22)) rotate(@F(ea + 24))"><rect x="0" y="-6.5" width="30" height="13" rx="2.6" fill="url(#desk-gold)"/><path d="M 6 -6.5 v 13 M 10 -6.5 v 13 M 14 -6.5 v 13" stroke="rgba(90,62,10,.55)" stroke-width="1"/><rect x="30" y="-4.6" width="4" height="9.2" fill="#111"/><rect x="34" y="-4.2" width="13" height="8.4" rx="1.2" fill="url(#desk-gold)"/><rect x="47" y="-3.4" width="3" height="6.8" fill="#111"/><path d="M 50 -3.6 h 4 a 3.6 3.6 0 0 1 0 7.2 h -4 z" fill="url(#desk-gold)"/><rect x="2" y="-5" width="26" height="2" rx="1" fill="#fff6d0" opacity=".55"/></g>
+        }
+        else
+        {
         <g data-ripples fill="none"></g>
         <g data-splitter transform="translate(@F(X(6.1)) @F(Sy + 5.1)) rotate(@F(Flip ? 50.2 : -50.2))"><rect x="-4" y="-9" width="8" height="18" rx="3.8" fill="url(#desk-stem)" stroke="rgba(0,0,0,.14)" stroke-width=".7"/><rect x="-2.2" y="-6.5" width="1.9" height="12" rx=".95" fill="#fff" opacity=".9"/></g>
         @foreach (var (x, y, r) in Buds)
         {
           <g class="desk-bud-shadow"><g data-bud data-cx="@F(x)" data-cy="@F(y)" transform="translate(@F(x) @F(y)) rotate(@F(r))"><g><use href="#desk-bud"/></g><g fill="none" stroke="#fff4e2" stroke-linecap="round"><path data-arc="0" stroke-width="2.6"/><path data-arc="1" stroke-width="2.1"/><path data-arc="2" stroke-width="1.6"/></g></g></g>
         }
-        <g transform="translate(@F(Jx) @F(Jack.Edge == JackEdge.Top ? 0 : H)) rotate(@(Jack.Edge == JackEdge.Top ? 0 : 180))"><rect x="-6.5" y="-18" width="13" height="20" rx="3" fill="url(#desk-stem)" stroke="rgba(0,0,0,.14)" stroke-width=".8"/><rect x="-4" y="-16" width="3" height="15" rx="1.5" fill="#fff" opacity=".9"/></g>
+        }
+        <g transform="@(DockOut ? (portrait ? $"translate({F(Sx + 60)} {F(H + 28)}) rotate(180)" : $"translate({F(Wd + 18)} {F(H + 24)}) rotate(90)") : $"translate({F(Jx)} {F(Jack.Edge == JackEdge.Top ? 0 : H)}) rotate({(Jack.Edge == JackEdge.Top ? 0 : 180)})")"><rect x="-6.5" y="-18" width="13" height="20" rx="3" fill="url(#desk-stem)" stroke="rgba(0,0,0,.14)" stroke-width=".8"/><rect x="-4" y="-16" width="3" height="15" rx="1.5" fill="#fff" opacity=".9"/></g>
       </svg>
       <div class="desk-ipod-edge" style="@EdgeStyle"></div>
       @ChildContent
@@ -84,6 +125,20 @@
     [Parameter] public double Aspect { get; set; } = 0.6;
     /// <summary>The device's corner radius as a fraction of its width (for the thickness edge under it).</summary>
     [Parameter] public double Radius { get; set; } = 0.1;
+    /// <summary>The desk's options (iPod panel › Desk).</summary>
+    [Parameter] public DeskOptions Options { get; set; } = new();
+    /// <summary>The dock is on and this iPod has the 30-pin connector.</summary>
+    [Parameter] public bool Dock { get; set; }
+    /// <summary>The page's props that know about your music: the tapes and the tracklist.</summary>
+    [Parameter] public RenderFragment? Props { get; set; }
+
+    bool Studio => Options.Phones == DeskOptions.Studio;
+    // a bottom jack in a dock: the cable leaves from the dock's line-out on its right instead
+    bool DockOut => Dock && Jack.Edge == JackEdge.Bottom;
+    // (on a phone the plug comes out of the dock's front edge, pointing down towards the buds; on the desk out of its right end)
+    (double X, double Y, double A) DockStart => portrait ? (Sx + 60, H + 44, 90) : (Wd + 32, H + 24, 0);
+    // the VU meter's scale: degrees from upright, and the marks
+    static readonly (double Deg, string Label)[] VuTicks = [(-42, "20"), (-27, "10"), (-17, "7"), (-8, "5"), (2, "3"), (13, "1"), (22, "0"), (31, "1"), (42, "3")];
 
     ElementReference scene;
     bool started, portrait;
@@ -99,9 +154,9 @@
     // a classic, clear of the coffee). Portrait: under the iPod, left of its middle (the iPod lies turned 7 degrees, which swings what lies under it to the
     // right), so the buds lie in the band under it; there the cable comes down the iPod's right side, so the splitter and the buds are mirrored (Flip) and the
     // cable comes into the splitter from the right.
-    double Sx => portrait ? Wd / 2 - 84 : Math.Min(Wd + 120, Math.Max(360, Wd + 70));
-    double Sy => portrait ? H + 45 : H - 55;
-    bool Flip => portrait && (Jack.Edge == JackEdge.Top || Jx > Sx + 15);   // (a bottom jack left of the split comes in from the left: not mirrored)
+    double Sx => portrait ? Wd / 2 - 67 : Math.Min(Wd + 120, Math.Max(360, Wd + 70));
+    double Sy => portrait ? (DockOut ? H + 60 : H + 45) : H - 55;
+    bool Flip => portrait && (Jack.Edge == JackEdge.Top || (DockOut ? DockStart.X : Jx) > Sx);   // (a bottom jack left of the split comes in from the left: not mirrored)
     // the direction the splitter runs (the cable comes in along it): down and right, or mirrored, down and left
     double Axis => Flip ? 140.2 : 39.8;
     // a point of the splitter, the leads or the buds, given from the split (mirrored when flipped)
@@ -110,14 +165,69 @@
 
     // the cable, from the jack to the splitter, through points with the direction it runs at each: one curve per stretch whose handles follow those
     // directions, so it never kinks, and it ends running along the splitter
-    string CablePath => portrait
+    string CablePath => Studio ? Coiled(StudioRoute, StudioCoil) : Smooth(EarbudRoute);
+    (double X, double Y, double A)[] EarbudRoute => portrait
         ? (Jack.Edge == JackEdge.Top
-            ? Smooth((Jx, -14, -90), (Jx + 60, -50, -5), (Wd - 4, -26, 25), (Wd + 45, 120, 92), (Wd + 24, 280, 98), (Wd + 12, H - 6, 125), (Sx, Sy, Axis))
-            : Smooth((Jx, H + 14, 90), (Sx, Sy, Axis)))
+            ? [(Jx, -14, -90), (Jx + 60, -50, -5), (Wd - 4, -26, 25), (Wd + 45, 120, 92), (Wd + 24, 280, 98), (Wd + 12, H - 6, 125), (Sx, Sy, Axis)]
+            : DockOut ? [DockStart, (Sx, Sy, Axis)] : [(Jx, H + 14, 90), (Sx, Sy, Axis)])
         : Jack.Edge == JackEdge.Top
-        ? Smooth((Jx, -14, -90), (Jx - 45, -82, 180), (Jx - 82, -30, 90), (Jx - 40, -12, -15), (Wd * 0.6, -60, -5), (Wd + 28, -30, 50), (Wd + 52, 120, 95), (Wd + 30, 250, 75), (Sx, Sy, Axis))
-        : Smooth((Jx, H + 14, 90), (Math.Max(Jx + 60, Sx - 110), H + 50, 0), (Math.Max(Sx - 70, Wd + 14), Sy - 20, -90), (Math.Max(Sx - 40, Wd + 30), Sy - 55, 0), (Sx, Sy, Axis));   // (out along the bottom, up the right side, over into the splitter)
-    static string Smooth(params (double X, double Y, double A)[] p)
+        ? [(Jx, -14, -90), (Jx - 45, -82, 180), (Jx - 82, -30, 90), (Jx - 40, -12, -15), (Wd * 0.6, -60, -5), (Wd + 28, -30, 50), (Wd + 52, 120, 95), (Wd + 30, 250, 75), (Sx, Sy, Axis)]
+        // (out along the bottom, up the right side, over into the splitter)
+        : [.. (DockOut ? new[] { (DockStart.X, DockStart.Y, -40.0) } : [(Jx, H + 14, 90), (Math.Max(Jx + 60, Sx - 110), H + 50, 0)]),
+           (Math.Max(Sx - 70, Wd + 14), Sy - 20, -90), (Math.Max(Sx - 40, Wd + 30), Sy - 55, 0), (Sx, Sy, Axis)];
+
+    // the studio cable: round the iPod like the earbuds' cable, wound into coils on one stretch (StudioCoil: from that point to the next), ending at its plug
+    // with the loose gold adapter beside it
+    (double X, double Y, double A)[] StudioRoute => portrait
+        ? (Jack.Edge == JackEdge.Top
+            ? [(Jx, -14, -90), (Jx + 60, -50, -5), (Wd - 4, -26, 25), (Wd + 45, 120, 92), (Wd + 30, 290, 100), (Wd - 20, H + 50, 160), (Wd / 2 - 70, H + 64, 185)]
+            : [.. (DockOut ? new[] { DockStart } : [(Jx, H + 14, 90)]), (Wd / 2 + 50, H + 46, 10), (Wd - 10, H + 70, 20), (Wd + 10, H + 112, 100)])
+        : Jack.Edge == JackEdge.Top
+        ? [(Jx, -14, -90), (Jx + 60, -50, -5), (Wd - 4, -26, 25), (Wd + 45, 120, 92), (Wd + 40, 290, 95), (Wd + 120, H + 15, 10), (Wd + 170, H, -15)]
+        : [.. (DockOut ? new[] { DockStart } : [(Jx, H + 14, 90), (Jx + 70, H + 50, 0)]), (Wd + 30, H + 40, -10), (Wd + 120, H + 10, -15), (Wd + 170, H - 5, -15)];
+    int StudioCoil => StudioRoute.Length - 3;
+    (double X, double Y, double A) StudioEnd => StudioRoute[^1];
+
+    /// <summary>The route as smooth curves, but stretch <paramref name="coil"/> (from that point to the next) wound into the loops a coiled cord makes, seen from above.</summary>
+    static string Coiled((double X, double Y, double A)[] p, int coil)
+    {
+        // the smooth route, sampled finely, with which stretch each sample is on
+        var pts = new List<(double X, double Y, int Seg)>();
+        for (var i = 0; i + 1 < p.Length; i++)
+        {
+            var (x0, y0, a0) = p[i]; var (x3, y3, a1) = p[i + 1];
+            var k = Math.Sqrt((x3 - x0) * (x3 - x0) + (y3 - y0) * (y3 - y0)) / 3;
+            double x1 = x0 + Math.Cos(a0 * Math.PI / 180) * k, y1 = y0 + Math.Sin(a0 * Math.PI / 180) * k, x2 = x3 - Math.Cos(a1 * Math.PI / 180) * k, y2 = y3 - Math.Sin(a1 * Math.PI / 180) * k;
+            for (var j = 0; j < 40; j++)
+            {
+                double t = j / 40.0, u = 1 - t;
+                pts.Add((u * u * u * x0 + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x3, u * u * u * y0 + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y3, i));
+            }
+        }
+        pts.Add((p[^1].X, p[^1].Y, p.Length - 2));
+        // the coiled stretch: its length, for the ramp in and out
+        double coilLen = 0; for (var i = 1; i < pts.Count; i++) if (pts[i].Seg == coil) coilLen += Math.Sqrt(Math.Pow(pts[i].X - pts[i - 1].X, 2) + Math.Pow(pts[i].Y - pts[i - 1].Y, 2));
+        const double R = 9, Pitch = 9.5;   // a loop's size, and how far the cord goes on in one loop
+        var sb = new System.Text.StringBuilder($"M {F(pts[0].X)} {F(pts[0].Y)}");
+        double along = 0, phase = 0;
+        for (var i = 1; i < pts.Count; i++)
+        {
+            var (x, y, seg) = pts[i]; double dx = x - pts[i - 1].X, dy = y - pts[i - 1].Y, ds = Math.Sqrt(dx * dx + dy * dy);
+            if (seg != coil || ds == 0) { sb.Append($" L {F(x)} {F(y)}"); continue; }
+            // walk this sample in small steps, winding as it goes (the loops grow in over the first 20 units and fade out over the last 20)
+            var steps = Math.Max(1, (int)Math.Ceiling(ds / 1.2));
+            double tx = dx / ds, ty = dy / ds;
+            for (var j = 1; j <= steps; j++)
+            {
+                along += ds / steps; phase += 2 * Math.PI * (ds / steps) / Pitch;
+                var env = Math.Clamp(Math.Min(along, coilLen - along) / 20, 0, 1);
+                double bx = pts[i - 1].X + dx * j / steps, by = pts[i - 1].Y + dy * j / steps, a = R * env;
+                sb.Append($" L {F(bx + tx * a * 0.9 * (Math.Cos(phase) - 1) * env - ty * a * Math.Sin(phase))} {F(by + ty * a * 0.9 * (Math.Cos(phase) - 1) * env + tx * a * Math.Sin(phase))}");
+            }
+        }
+        return sb.ToString();
+    }
+    static string Smooth((double X, double Y, double A)[] p)
     {
         var sb = new System.Text.StringBuilder($"M {F(p[0].X)} {F(p[0].Y)}");
         for (var i = 0; i + 1 < p.Length; i++)
@@ -132,7 +242,7 @@
     // the two leads leave the bottom of the splitter in a narrow V (one straight down, one along the splitter) and curve out to their buds
     string LeadL => Lead((13, 10.9, 90), (-60, 80, 124));
     string LeadR => Lead((13, 10.9, 30), (70, 65, 68));
-    string Lead(params (double Dx, double Dy, double A)[] p) => Smooth(p.Select(q => (X(q.Dx), Sy + q.Dy, Flip ? 180 - q.A : q.A)).ToArray());
+    string Lead(params (double Dx, double Dy, double A)[] p) => Smooth([.. p.Select(q => (X(q.Dx), Sy + q.Dy, Flip ? 180 - q.A : q.A))]);
     // each bud sits beyond the end of its lead, its stem pointing back along it
     (double X, double Y, double R)[] Buds => [Bud(-91.6, 127.4, -60, 80), Bud(91.2, 117.9, 70, 65)];
     (double X, double Y, double R) Bud(double dx, double dy, double leadX, double leadY)
@@ -156,7 +266,7 @@
     protected override async Task OnAfterRenderAsync(bool first)
     {
         // the moving parts read the SVG once at start: start again when the cable route changes (another model)
-        var key = $"{Jack}|{F(Aspect)}|{portrait}";
+        var key = $"{Jack}|{F(Aspect)}|{portrait}|{Studio}|{Dock}|{Options.Vu}";
         if (first || key != startedFor)
         {
             startedFor = key;

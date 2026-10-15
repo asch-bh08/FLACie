@@ -1,4 +1,6 @@
-# FLACie: pick-up guide after beta 67 (2026-10-15)
+# FLACie: pick-up guide after beta 68 (2026-10-15)
+
+**Update: v1.0.0-beta68 is released and deployed** (Android 83, MSI 0.68.0, Web 1.0-beta68; rollback tag `flacie-web:rollback-2026-10-15-pre68`). Released by the "New skills" session at the owner's request. Adds the iPod desk look (Look › Desk on /ipod: DeskScene/DeskJournal/DeskCds, desk.js, desk.css; server-side disc pictures at /desk/disc/{release} via DeskDiscPictures) and stops the analyser twin from downloading a song twice on mobile data (flacie.metered(); the desk keeps a calm pulse, the Info tab's live graphs wait for "Show anyway"; the twin also closes while the tab is hidden). Every Playwright spec now follows MOCK_PORT / WEB_PORT / FM_PORT. Design: docs/superpowers/specs/2026-10-14-ipod-desk-workspace-design.md. Tests: see docs/release-notes-beta68.md.
 
 **Update: v1.0.0-beta67 is released and deployed** (Android 82, MSI 0.67.0, Web 1.0-beta67; rollback tag `flacie-web:rollback-2026-10-15-pre67`). One fix: mouse-dragging a touch iPod list (a rename had broken the class the drag script looks for), with a test. It also carries the Alexa work another session merged and deployed on 2026-10-14 (off by default, docs/alexa/STATUS.md). Another session is building an iPod desk look on branch ipod/desk (worktree C:\\wt\\desk); keep .ipod-area the size of the free space. Never stop test servers by image name (ipodsync/tools/stop-test-servers.ps1). Tests: Android 414/2/0, .NET 636, Playwright 153 + 3 load-related failures that passed on rerun.
 

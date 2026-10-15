@@ -55,3 +55,8 @@ One line per decision or result. Honest: skipped or untested things are said so.
 - Another session found that mouse-dragging touch iPod lists never worked (my rename of ios -> touchOs also renamed the class .ios-scroll in flacie.js). Fixed with a test that fails on the old script. The same session's tests collided with mine (I stopped dotnet/node by image name, which killed its servers): new tools/stop-test-servers.ps1, stop by port only. Main already carried the Alexa session's merged and deployed work; this release includes it as is.
 
 - Beta 67 released and web deployed (rollback tag flacie-web:rollback-2026-10-15-pre67, only flacie-web recreated, /healthz ok). https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta67
+
+## Beta 68 (released by the "New skills" session, at the owner's request while this run was inactive)
+- The iPod desk look from branch ipod/desk (spec, plan, independent review and its findings fixed, phone layout reworked at the owner's request) and the mobile-data saving for the analyser twin. Merged to main as a fast-forward of ipod/desk.
+
+- Beta 68 released and web deployed (rollback tag flacie-web:rollback-2026-10-15-pre68, only the flacie service recreated, /healthz ok). https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta68

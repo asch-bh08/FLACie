@@ -452,6 +452,14 @@ window.flacie = (() => {
       return true;
     },
     vizStop() { vizOn = false; closeGraph(); },
+    // the iPod desk's earbuds: one frame of the same analyser (the graph is built on first use and follows the song); null where it can't run
+    vizFrame() {
+      if (!buildGraph(0) || !an) return null;
+      syncTwin();
+      const wave = new Uint8Array(an.fftSize); an.getByteTimeDomainData(wave);
+      return { freq: freqData(), wave, playing: !audio.paused };
+    },
+    vizRelease() { if (!vizOn) closeGraph(); },
     // the output device's own rate: a context made with no rate takes it
     outputRate() { try { if (!AC) return 0; const c = new AC(); const r = c.sampleRate; c.close(); return r; } catch { return 0; } },
     // what this browser is, for the admin dashboard

@@ -56,6 +56,18 @@ test.describe.serial('long text on the iPod screens scrolls', () => {
     expect(await longText(page, '.lnp-album', '[data-testid=ipod-lcd]')).toEqual({ moving: true, inside: true, clip: true });
   });
 
+  test('Now Playing on the black-and-white iPods: the title, artist and album scroll inside the screen', async ({ page }) => {
+    // (their lines are centred: each grew as wide as its text, so it never overflowed itself and never scrolled; the screen's edge cut it off)
+    await signIn(page); await page.setViewportSize({ width: 1366, height: 768 });
+    for (const model of ['ipod3', 'mini2']) {
+      await page.goto('about:blank');
+      await openIpod(page, { model, look: 1 });
+      await shuffle(page);
+      for (const sel of ['[data-testid=ipod-np-title]', '.lnp-meta span:not(.lnp-album)', '.lnp-album'])
+        expect(await longText(page, sel, '[data-testid=ipod-lcd]'), `${model} ${sel}`).toEqual({ moving: true, inside: true, clip: true });
+    }
+  });
+
   test('the title bar (an album or playlist name) on a colour and a mono iPod, and the touch iPods\' title', async ({ page }) => {
     await signIn(page); await page.setViewportSize({ width: 1366, height: 768 });
     for (const model of ['classic6', 'ipod4']) {

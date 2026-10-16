@@ -94,6 +94,7 @@
 .fam-mono .lnp-meta { left: 4px; right: 4px; top: 14px; text-align: center; align-items: center; font-size: 11px; line-height: 16px; }
 .fam-mono .lnp-meta small { order: -1; font-size: 11px; }
 .fam-mono .lnp-meta .lnp-album { display: block; }
+.fam-mono .lnp-meta b, .fam-mono .lnp-meta span { max-width: 100%; }   /* (centred lines grow to their text: held to the screen's width, a long one scrolls instead of running off it) */
 .fam-mono .lnp-hud { top: 78px; }
 .fam-mono .lnp-bar { height: 5px; margin: 0 8px; border: 1px solid var(--ink); }
 .fam-mono .lnp-bar i { background: var(--ink); }

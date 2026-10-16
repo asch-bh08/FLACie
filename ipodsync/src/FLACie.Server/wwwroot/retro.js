@@ -20,7 +20,21 @@ window.retro = (() => {
   });
   const end = () => { drag = null; };
   document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
+  // a fader (a range input marked data-fader, see-through over the slider drawn under it): its cap (--v, 0 at the bottom to 1 at the top, on the input's
+  // parent) follows the pointer at once; the server draws it again as the player took it a moment later
+  document.addEventListener('input', (e) => {
+    const i = e.target; if (!(i instanceof HTMLInputElement) || !i.matches('[data-fader]') || !i.parentElement) return;
+    const lo = +i.min || 0, hi = +i.max || 100, v = (i.valueAsNumber - lo) / Math.max(1, hi - lo);
+    i.parentElement.style.setProperty('--v', Math.min(1, Math.max(0, v)).toFixed(3));
+  });
   return {
+    /** The player's EQ as set (five bands, dB) and whether MEGA BASS is on (on, the bass band runs about 9 dB above its own setting). */
+    eqState() {
+      const f = window.flacie; if (!f || !f.eqGet) return { bands: [0, 0, 0, 0, 0], mega: false };
+      const bands = f.eqGet(); let mega = false;
+      try { mega = f.bassLevel() - bands[0] > 4.5; } catch { }
+      return { bands, mega };
+    },
     /** A scene is on show: its display lines (.rt-mq) scroll like the iPod's, from their first letter, only when too long (flacie.js marquee). */
     start(root) { if (mq) mq.stop(); mq = root && window.flacie && flacie.marqueeIn ? flacie.marqueeIn(root, ".rt-mq") : null; },
     stop() { if (mq) mq.stop(); mq = null; },

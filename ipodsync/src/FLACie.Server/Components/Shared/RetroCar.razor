@@ -69,7 +69,6 @@
 
     string Ticker => Now is null ? "INSERT DISC" : $"{Now.Title}  —  {Now.Artist}".ToUpperInvariant();
     string Freq => (87.5 + Hash(Now?.Path) % 205 / 10.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
-    int VolPct => (int)Math.Round(Player.Volume * 100);
     string ArtStyle => Now?.ArtKey is { } k ? $"--art:url('/art/{Uri.EscapeDataString(FLACie.Core.CoverOverrides.Map(k)!)}?v=3')" : "";
 
     async Task PlayKey() { if (ejected) { await Insert(); return; } await Toggle(); }

@@ -1,5 +1,4 @@
 @inherits RetroBase
-@inject IJSRuntime Js
 @* The Discman scene: a portable CD player in brushed silver, seen straight down on a plain surface, black earbud wires snaking out of the 3.5 mm jack on its
    side. Its lid opens (OPEN) to show the disc spinning while the music plays: the disc carries a print of the album's cover (desk.js discInto, the same
    print as the iPod desk's CD). Along its front edge, a backlit segment LCD with the song (CD-Text, scrolling when long), the track and the time, and the keys: previous, play/pause, next, stop
@@ -66,6 +65,7 @@
 
     protected override async Task OnAfterRenderAsync(bool first)
     {
+        await base.OnAfterRenderAsync(first);
         // the disc's print: the album playing, made from its cover in the browser (desk.js; the same as the desk's CD)
         var a = NowAlbum;
         var key = a is null ? "" : $"{a.Key}|{a.ArtKey}";

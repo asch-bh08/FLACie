@@ -295,7 +295,7 @@
   box-shadow: 0 0 0 1cqw #c9ccd1, 0 0 0 1.4cqw #8d9096, inset 0 0 2cqw rgba(0,0,0,.8); }
 .bb-spk .woofer { position: absolute; inset: 22%; border-radius: 50%; background: radial-gradient(circle, #3a3b40 0 16%, #1c1d21 17% 46%, #0e0f12 47%); scale: calc(1 + var(--low, .2) * .07 + var(--beat, 0) * .04); opacity: .9; will-change: scale; }
 .bb-spk .tweeter { position: absolute; left: 44%; top: 6%; width: 12%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #e6e7ea, #75787e); scale: calc(1 + var(--high, .1) * .12); will-change: scale; }
-.bb-mid { display: grid; grid-template-rows: 8% 1fr 19% 13%; gap: 3%; min-width: 0; }
+.bb-mid { display: grid; grid-template-rows: 8% 1fr 22% 13%; gap: 3%; min-width: 0; }   /* (the EQ's row tall enough that a slider is something to take hold of) */
 .bb-radio { position: relative; border-radius: .6cqw; background: #0b0c0e; overflow: hidden; display: grid; place-items: center; color: #9fc6ff; font-size: 1.15cqw; letter-spacing: .12em; box-shadow: inset 0 0 0 .2cqw #3a3b40; }
 .bb-radio i { position: absolute; top: 10%; bottom: 10%; left: calc(6% + var(--p, 0) * 88%); width: .25cqw; background: #ff4d3d; box-shadow: 0 0 .6cqw #ff4d3d; transition: left .3s linear; }
 .bb-decks { display: grid; grid-template-columns: 1fr 1fr; gap: 3%; }
@@ -316,12 +316,28 @@
 .bb-row { display: grid; grid-template-columns: 26% 1fr; gap: 4%; }
 .bb-counter { display: grid; place-items: center; border-radius: .5cqw; background: linear-gradient(#111, #2a2b30); color: #f2f2f0; font: 700 2.6cqw/1 "Consolas", "Courier New", monospace; letter-spacing: .35em; padding-left: .35em;
   box-shadow: inset 0 0 0 .2cqw #45474e; background-image: linear-gradient(90deg, transparent 32%, rgba(255,255,255,.08) 33% 34%, transparent 35% 65%, rgba(255,255,255,.08) 66% 67%, transparent 68%); }
-.bb-eq { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4%; }
-.bb-eq .eq { position: relative; border-radius: .3cqw; background: linear-gradient(90deg, transparent 46%, #050506 46% 54%, transparent 54%); display: flex; flex-direction: column; justify-content: flex-end; }
-.bb-eq .eq i { position: absolute; left: 8%; right: 8%; height: 26%; border-radius: .2cqw; background: linear-gradient(#e6e7ea, #8d9096); box-shadow: 0 .2cqw .3cqw rgba(0,0,0,.5); transition: translate .12s linear; bottom: 10%; translate: 0 -7.7%; will-change: translate; }
-/* (a slider rides up to 62% of its slot (its own height is 26% of it, so 238.5% of itself), moved rather than laid out and drawn again every frame) */
-.bb-eq .eq[data-band=low] i { translate: 0 calc(var(--low, .2) * -238.5%); } .bb-eq .eq[data-band=mid] i { translate: 0 calc(var(--mid, .15) * -238.5%); } .bb-eq .eq[data-band=high] i { translate: 0 calc(var(--high, .1) * -238.5%); }
-.bb-eq .eq small { position: absolute; left: 0; right: 0; bottom: -1.4cqw; text-align: center; font-size: .8cqw; color: #9a9ca4; }
+/* the graphic EQ: five sliders (the player's own bands, 100 Hz to 8 kHz) and VOL. Each is a slot with a scale beside it, a cap that sits where the band is set
+   (--v, 0 at the bottom to 1 at the top; it moves only when the setting does, as on a real one), a small light in the cap that glows with its band of the music
+   (desk.js's --low --mid --high on the EQ: an opacity, nothing laid out again), and a see-through range input over it all that takes the drag, the wheel and
+   the keys. (Their own names: app.css's .eq, the playing song's little bars, once shrank these to 3 by 4 px specks.) */
+.bb-eq { display: grid; grid-template-columns: repeat(5, 1fr) 1.15fr; gap: 3%; padding-bottom: 1.7cqw; box-sizing: border-box; min-height: 0; }
+.bb-fader { position: relative; min-width: 0; min-height: 0; }
+.bb-fader::before { content: ""; position: absolute; left: 10%; right: 10%; top: 10%; bottom: 10%; pointer-events: none; opacity: .5;
+  background: repeating-linear-gradient(#c9ccd3 0 .1cqw, transparent .1cqw 25%) 0 0 / 100% calc(100% + .1cqw); -webkit-mask: linear-gradient(90deg, #000 0 26%, transparent 26% 74%, #000 74%); mask: linear-gradient(90deg, #000 0 26%, transparent 26% 74%, #000 74%); }   /* (ticks at +12, +6, 0, -6, -12) */
+.bb-fader .bb-slot { position: absolute; left: 50%; top: 6%; bottom: 6%; width: .42cqw; translate: -50% 0; border-radius: .3cqw; background: #050506; box-shadow: inset 0 .1cqw .2cqw #000, 0 0 0 .1cqw rgba(255,255,255,.08); }
+/* (the cap is a fifth of the slider's height and rides four of its own heights: --v moves it, a transform only) */
+.bb-fader .bb-cap { position: absolute; left: 16%; right: 16%; top: 0; height: 20%; border-radius: .25cqw; pointer-events: none; will-change: translate; translate: 0 calc((1 - var(--v, .5)) * 400%); transition: translate .08s linear;
+  background: linear-gradient(#f4f5f7, #cdd0d5 40%, #8d9096 52%, #b9bcc2); box-shadow: 0 .25cqw .35cqw rgba(0,0,0,.55), inset 0 .1cqw 0 rgba(255,255,255,.85); }
+.bb-fader .bb-cap b { position: absolute; left: 28%; right: 28%; top: 40%; height: 20%; border-radius: .2cqw; background: radial-gradient(closest-side, #ffb199, #ff5a3d 60%, #b8321e); opacity: .3; }
+.bb-fader[data-lv=low] .bb-cap b { opacity: calc(.22 + var(--low, .2) * .78); } .bb-fader[data-lv=mid] .bb-cap b { opacity: calc(.22 + var(--mid, .15) * .78); } .bb-fader[data-lv=high] .bb-cap b { opacity: calc(.22 + var(--high, .1) * .78); }
+.bb-fader.vol .bb-cap { background: linear-gradient(#3b3d44, #25272c 50%, #1a1b1f); box-shadow: 0 .25cqw .35cqw rgba(0,0,0,.6), inset 0 .1cqw 0 rgba(255,255,255,.2); }
+.bb-fader.vol .bb-cap b { left: 10%; right: 10%; top: 44%; height: 12%; background: #ffd34d; opacity: .9; }
+.bb-fader input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; opacity: 0; cursor: ns-resize; writing-mode: vertical-lr; direction: rtl; -webkit-appearance: none; appearance: none; background: transparent; }
+.bb-fader input::-webkit-slider-thumb { -webkit-appearance: none; width: 100%; height: 1.2cqw; }
+.bb-fader input::-moz-range-thumb { width: 100%; height: 1.2cqw; border: 0; }
+.bb-fader:has(input:focus-visible) .bb-cap { outline: 2px solid #4a9bff; outline-offset: 2px; }
+.bb-fader small { position: absolute; left: -20%; right: -20%; bottom: -1.7cqw; text-align: center; font-size: .85cqw; letter-spacing: .04em; color: #9a9ca4; pointer-events: none; }
+.bb-fader.vol small { color: #e6c35a; font-weight: 700; }
 .bb-keys { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.4%; }
 .bb-keys button { border: 0; border-radius: .5cqw .5cqw .3cqw .3cqw; font-size: 1.15cqw; font-weight: 700; letter-spacing: .06em; color: #1c1d21; background: linear-gradient(#f2f3f5, #b9bcc2); box-shadow: 0 .45cqw 0 #6f737a, 0 .7cqw .6cqw rgba(0,0,0,.5); }
 .bb-keys button:active { translate: 0 .35cqw; box-shadow: 0 .1cqw 0 #6f737a; }
@@ -342,15 +358,17 @@
   .bb-sticker.s1, .bb-sticker.s3 { display: none; }   /* (no room beside the keys on a phone: the star stays) */
   .bb-body { grid-template-columns: 1fr 1fr; grid-template-rows: 30% 1fr; padding: 8% 4% 4%; }
   .bb-spk { width: min(36cqw, 21cqh); justify-self: center; }   /* (by the height too: on a squarer stage they would grow out of their row over the dial) */ .bb-spk.r { grid-column: 2; grid-row: 1; }
-  .bb-mid { grid-column: 1 / -1; grid-row: 2; grid-template-rows: 6% 1fr 14% 12%; }
+  .bb-mid { grid-column: 1 / -1; grid-row: 2; grid-template-rows: 6% 1fr 19% 11%; }
   .bb-radio { font-size: 2.4cqw; } .bb-deck small { font-size: 2cqw; } .bb-cass span { font-size: 3.2cqw; } .bb-counter { font-size: 5.4cqw; }
-  .bb-keys button { font-size: 2.6cqw; } .bb-win .reel { width: 6cqw; } .bb-eq .eq small { font-size: 1.8cqw; bottom: -2.6cqw; }
+  .bb-keys button { font-size: 2.6cqw; } .bb-win .reel { width: 6cqw; }
+  .bb-eq { padding-bottom: 3cqw; } .bb-fader small { font-size: 2cqw; bottom: -3cqw; } .bb-fader .bb-slot { width: .9cqw; }
+  .bb-fader input::-webkit-slider-thumb { height: 2.4cqw; } .bb-fader input::-moz-range-thumb { height: 2.4cqw; }
   .bb-sticker.s1 { font-size: 2.6cqw; } .bb-sticker.s2 { width: 7cqw; height: 7cqw; font-size: 4.6cqw; } .bb-sticker.s3 { font-size: 2.4cqw; }
   .bb-bench .battery { top: 74%; } .bb-bench .b3 { top: 70%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .bb-win .reel { animation: none !important; }
-  .bb-door, .bb-eq .eq i, .bb-radio i, .bb-deck.open .bb-cass { transition: none; }
+  .bb-door, .bb-fader .bb-cap, .bb-radio i, .bb-deck.open .bb-cass { transition: none; }
 }
 
 /* ================================================================ the MiniDisc system: a dorm desk, a micro component system, a stack of MiniDiscs */

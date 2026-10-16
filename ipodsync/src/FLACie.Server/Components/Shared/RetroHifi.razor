@@ -1,5 +1,4 @@
 @inherits RetroBase
-@inject IJSRuntime Js
 @* The hi-fi scene: a 1970s living room (a warm wall, a lamp, a plant) and a wood-veneer console. On top, a direct-drive turntable: the record (its label is
    the cover) turns while the song plays, at the speed the pitch slider sets; the tonearm tracks in across the groove as the song goes on and lifts back
    when it stops; a click on the record seeks (nearer the middle, further in). A crate of sleeves beside it: the albums coming up, then your playlists;
@@ -88,7 +87,6 @@
     /// <summary>The crate: the albums coming up, then your playlists.</summary>
     List<Sleeve> Sleeves => [.. NextAlbums.Select(a => new Sleeve(a.Album, a, null)), .. Playlists.Take(6).Select(t => new Sleeve(t.Name, null, t))];
 
-    static string Inv(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
     // the tonearm: at rest (0) when the record stops; on the record from the lead-in (18 degrees) to the run-out (40) as the song goes on
     string ArmDeg => Playing && Now is not null ? Inv(18 + 22 * Progress) : "0";
     string RecordStyle => $"--spd:{Inv(Math.Max(0.5, Player.Speed))}" + (Now?.ArtKey is { } k ? $";--art:url('/art/{Uri.EscapeDataString(FLACie.Core.CoverOverrides.Map(k)!)}?v=3')" : "");
@@ -117,6 +115,7 @@
 
     protected override async Task OnAfterRenderAsync(bool first)
     {
+        await base.OnAfterRenderAsync(first);
         if (first) { try { groovePx = await Js.InvokeAsync<int>("retro.size", ".hf-groove"); } catch (Exception) { } }
         // a new song: the needle drops (a short quiet crackle; never with reduced motion)
         if (Now?.Path is { } p && p != lastSong)

@@ -32,6 +32,8 @@ const playing = (page: Page) => page.getByTestId('retro').getAttribute('data-pla
 const turns = (l: Locator) => l.evaluate(async (d: HTMLElement) => { const a = d.style.rotate; await new Promise((r) => setTimeout(r, 250)); return d.style.rotate !== a; });
 type Box = { x: number; y: number; width: number; height: number };
 const inside = (a: Box, b: Box, slack = 2) => a.x >= b.x - slack && a.y >= b.y - slack && a.x + a.width <= b.x + b.width + slack && a.y + a.height <= b.y + b.height + slack;
+/** The scenes that show the line being sung and what the file is (one by one, as each gets its display). */
+const SINGING = new Set<string>([]);
 
 test.describe.serial('listening scenes', () => {
   test('the panel switches scenes, keeps the choice, and the iPod comes back working', async ({ page }) => {
@@ -101,8 +103,42 @@ test.describe.serial('listening scenes', () => {
         expect(inside(unit, root, 4), `${scene} unit inside the scene at ${w}x${h}`).toBe(true);
         expect(unit.width, `${scene} unit not tiny at ${w}x${h}`).toBeGreaterThan(Math.min(root.width, root.height) * 0.45);
         await expect(title(page)).toBeVisible();
+        // the line being sung and what the file is: on the device itself, at every size
+        if (SINGING.has(scene)) for (const id of ['retro-lyric', 'retro-format']) {
+          const b = await page.getByTestId(id).boundingBox();
+          expect(!!b && inside(b, root, 4) && b.width > 30 && b.height > 6, `${scene} ${id} shown inside the scene at ${w}x${h}`).toBe(true);
+        }
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${w}x${h} scrolls sideways`).toBe(true);
       }
+    });
+
+    if (SINGING.has(scene)) test(`${scene}: shows the line being sung, in time with the song, and what the file is`, async ({ page }) => {
+      const errors = consoleErrors(page);
+      await signIn(page);
+      await playInScene(page, scene);
+      // what the file is (the mock's songs: CD-quality FLAC), once FLACie has read it
+      const format = page.getByTestId('retro-format');
+      await expect(format).toBeVisible();
+      await expect(format).toContainText(/FLAC/);
+      await expect(format).toContainText(/44\.1/, { timeout: 10_000 });
+      // the line being sung: the one whose time has come by the song's own clock (the mock: a line every 0.6 s)
+      const sung = () => page.getByTestId('retro-lyric').evaluate((box) => {
+        const at = (window as any).flacie.clock()[0] * 1000;
+        const lines = [...box.querySelectorAll('[data-ms]')] as HTMLElement[];
+        const cur = lines.findIndex((l) => l.classList.contains('cur'));
+        if (cur < 0) return `none at ${Math.round(at)} ms (${lines.length} lines)`;
+        const ms = +lines[cur].dataset.ms!, next = lines[cur + 1] ? +lines[cur + 1].dataset.ms! : Infinity;
+        return ms <= at + 400 && next > at - 250 ? 'in time' : `line ${cur} (${ms} ms) at ${Math.round(at)} ms`;
+      });
+      await expect.poll(sung, { timeout: 10_000, intervals: [100] }).toBe('in time');
+      const line = page.locator('[data-testid=retro-lyric] .cur');
+      await expect(line).toBeVisible();
+      await expect(line).toContainText(/mock lyric \d+/);
+      // and it goes on with the song
+      const first = (await line.textContent())!;
+      await expect(page.locator('[data-testid=retro-lyric] .cur')).not.toHaveText(first, { timeout: 3000 });
+      await expect.poll(sung, { timeout: 5_000, intervals: [100] }).toBe('in time');
+      expect(errors).toEqual([]);
     });
 
     test(`${scene}: every control takes a real click at every size (nothing lies over it)`, async ({ page }) => {
@@ -247,7 +283,7 @@ test.describe.serial('listening scenes', () => {
     expect(errors).toEqual([]);
   });
 
-  test('boombox: deck A turns while playing and its counter runs; stop/eject pauses and opens the door; the EQ follows the music', async ({ page }) => {
+  test('boombox: deck A turns while playing and its counter runs; stop/eject pauses and opens the door', async ({ page }) => {
     const errors = consoleErrors(page);
     await signIn(page);
     await playInScene(page, 'boombox');
@@ -256,7 +292,6 @@ test.describe.serial('listening scenes', () => {
     const turning = () => turns(reels.first());
     await expect.poll(turning).toBe(true);
     await expect(page.getByTestId('boombox-counter')).toHaveText(/^\d{3}$/);
-    await expect(page.locator('[data-testid=retro] .bb-eq [data-band]')).toHaveCount(5);
     await page.locator('[data-testid=retro] [data-ctl=eject]').click();
     await expect.poll(() => playing(page)).toBe('false');
     await expect(page.getByTestId('boombox-deck-a')).toHaveClass(/open/);
@@ -265,6 +300,48 @@ test.describe.serial('listening scenes', () => {
     await page.locator('[data-testid=retro] [data-ctl=play]').first().click();
     await expect.poll(() => playing(page)).toBe('true');
     await expect(page.getByTestId('boombox-deck-a')).not.toHaveClass(/open/);
+    expect(errors).toEqual([]);
+  });
+
+  test('boombox: the five EQ sliders are the real EQ: big enough to see, they show its bands as set, and a drag or a key sets one; VOL is the real volume', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page);
+    // an EQ kept from last time: the bass up, the treble down
+    await page.addInitScript(() => { try { localStorage.setItem('flacie.eq', '6,0,0,0,-6'); } catch { } });
+    await playInScene(page, 'boombox');
+    const faders = page.locator('[data-testid=retro] .bb-eq input[data-band]');
+    await expect(faders).toHaveCount(5);
+    expect(await page.locator('[data-testid=retro] .bb-eq small').allTextContents()).toEqual(['100', '400', '1k', '3k', '8k', 'VOL']);
+    // (they were 3 by 4 px specks: app.css's own .eq, the playing song's little bars, sized them)
+    const caps = page.locator('[data-testid=retro] .bb-eq .bb-cap');
+    for (let i = 0; i < 5; i++) {
+      const cap = (await caps.nth(i).boundingBox())!, f = (await faders.nth(i).boundingBox())!;
+      expect(cap.width, `cap ${i} wide enough`).toBeGreaterThan(14); expect(cap.height, `cap ${i} tall enough`).toBeGreaterThan(5);
+      expect(f.height, `slider ${i} long enough to drag`).toBeGreaterThan(45);
+    }
+    // they show the EQ as it is set (a real graphic EQ's sliders show the setting, not the music)
+    await expect(faders.nth(0)).toHaveValue('6'); await expect(faders.nth(2)).toHaveValue('0'); await expect(faders.nth(4)).toHaveValue('-6');
+    const capY = async (i: number) => (await caps.nth(i).boundingBox())!.y;
+    expect(await capY(0)).toBeLessThan(await capY(2)); expect(await capY(2)).toBeLessThan(await capY(4));
+    // a drag on the 1 kHz slider, from the middle to near its top, lifts that band of the music
+    const f = (await faders.nth(2).boundingBox())!;
+    await page.mouse.move(f.x + f.width / 2, f.y + f.height / 2); await page.mouse.down();
+    await page.mouse.move(f.x + f.width / 2, f.y + f.height * 0.08, { steps: 8 }); await page.mouse.up();
+    await expect.poll(() => page.evaluate(() => (window as any).flacie.eqGet()[2])).toBeGreaterThan(6);
+    await expect.poll(() => page.evaluate(() => (window as any).flacie.toneLevel().bands[2])).toBeGreaterThan(5);
+    await expect.poll(() => capY(2)).toBeLessThan(await capY(0));
+    // the keys move one by a decibel
+    await faders.nth(4).focus(); await page.keyboard.press('ArrowUp');
+    await expect.poll(() => page.evaluate(() => (window as any).flacie.eqGet()[4])).toBe(-5);
+    await expect(faders.nth(4)).toHaveAttribute('aria-valuetext', '-5 dB');
+    // VOL: the player's volume
+    const vol = page.locator('[data-testid=retro] .bb-eq input[data-ctl=volume]');
+    const real = () => page.evaluate(() => Math.round((window as any).flacie.volume() * 100));
+    await expect(vol).toHaveValue(String(await real()));
+    const before = await real();
+    await vol.focus(); await page.keyboard.press('ArrowDown');
+    await expect.poll(real).toBe(before - 5);
+    await expect(vol).toHaveValue(String(before - 5));
     expect(errors).toEqual([]);
   });
 

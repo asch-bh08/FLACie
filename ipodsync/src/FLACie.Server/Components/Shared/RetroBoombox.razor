@@ -1,6 +1,7 @@
 @inherits RetroBase
-@* The boombox scene: a workbench in a workshop (pegboard, spare batteries) and a dual-cassette boombox with stickers on it. Its woofers move with the bass and
-   its EQ sliders with the bands (the one analyser read: desk.js). Deck A holds the album playing: its reels turn while it plays and the counter runs with the
+@* The boombox scene: a workbench in a workshop (pegboard, spare batteries) and a dual-cassette boombox with stickers on it. Its woofers move with the bass (the
+   one analyser read: desk.js). Its graphic EQ is the player's own (100 Hz to 8 kHz: drag a slider, scroll it or use the arrow keys; it shows the band as set,
+   as a real one does, and only the light in its cap glows with the music), and VOL beside it the player's volume. Deck A holds the album playing: its reels turn while it plays and the counter runs with the
    song; the keys are rewind (previous), play/pause, fast-forward (next) and stop/eject (pause; the door drops open). Deck B holds the album coming up, or your
    newest playlist when nothing comes up: a click plays it. A strip of tape on the top says what is playing. Styles: retro.css. *@
 <div class="boombox">
@@ -36,8 +37,23 @@
                 </div>
                 <div class="bb-row">
                     <div class="bb-counter" data-testid="boombox-counter" aria-label="Tape counter">@Counter</div>
-                    <div class="bb-eq" data-viz aria-label="Equaliser">
-                        @foreach (var (band, label) in Eq) { <div class="eq" data-band="@band"><i></i><small>@label</small></div> }
+                    <div class="bb-eq" data-viz role="group" aria-label="Graphic equaliser and volume">
+                        @for (var i = 0; i < 5; i++)
+                        {
+                            var k = i;
+                            <div class="bb-fader" data-lv="@Lv[k]" style="--v:@Inv((Eq[k] + 12) / 24.0)">
+                                <i class="bb-slot" aria-hidden="true"></i><i class="bb-cap" aria-hidden="true"><b></b></i>
+                                <input type="range" min="-12" max="12" step="1" value="@Eq[k]" data-band="@k" data-fader data-wheel aria-label="@($"EQ {EqHz[k]} Hz")" aria-valuetext="@Db(Eq[k])"
+                                       @oninput="e => BandInput(e, k)" @onwheel="e => BandWheel(e, k)" />
+                                <small>@EqHz[k]</small>
+                            </div>
+                        }
+                        <div class="bb-fader vol" style="--v:@Inv(VolNow)">
+                            <i class="bb-slot" aria-hidden="true"></i><i class="bb-cap" aria-hidden="true"><b></b></i>
+                            <input type="range" min="0" max="100" step="5" value="@VolPct" data-ctl="volume" data-fader data-wheel aria-label="Volume" aria-valuetext="@($"{VolPct}%")"
+                                   @oninput="VolInput" @onwheel="VolWheel" />
+                            <small>VOL</small>
+                        </div>
                     </div>
                 </div>
                 <div class="bb-keys">
@@ -56,13 +72,13 @@
 
 @code {
     bool open;
-    static readonly (string Band, string Label)[] Eq = [("low", "60"), ("low", "250"), ("mid", "1k"), ("high", "4k"), ("high", "12k")];
+    // which of the music's bands each slider's light glows with (desk.js: --low --mid --high on the EQ)
+    static readonly string[] Lv = ["low", "low", "mid", "high", "high"];
     sealed record Tape(string Name, FLACie.Core.DeskAlbum? Album, PlaylistTape? List);
     /// <summary>Deck B: the album coming up, or (nothing coming up) your newest playlist.</summary>
     Tape? DeckB => NextAlbums.FirstOrDefault() is { } a ? new Tape(a.Album, a, null) : Playlists.FirstOrDefault() is { } t ? new Tape(t.Name, null, t) : null;
     // the tape counter: three wheels, the song's seconds (it wraps at 999 like the real thing)
     string Counter => ((int)Position % 1000).ToString("000");
-    static string Inv(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
 
     async Task PlayKey() { if (open) { open = false; await Resume(); return; } await Toggle(); }
     async Task Eject() { open = true; await Pause(); }

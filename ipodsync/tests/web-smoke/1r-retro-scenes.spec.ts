@@ -133,6 +133,21 @@ test.describe.serial('listening scenes', () => {
       }
     });
 
+    if (scene === 'car' || scene === 'minidisc') test(`${scene}: the display shows a long title from its first letter, then scrolls it; a short one holds still`, async ({ page }) => {
+      await signIn(page);
+      await playInScene(page, scene);
+      const probe = (text: string) => page.getByTestId('retro-title').evaluate(async (e, t) => {
+        const host = (e.querySelector('span') ?? e) as HTMLElement; host.textContent = t;
+        await new Promise((r) => setTimeout(r, 400));
+        const node = host.firstChild!; const r = document.createRange(); r.setStart(node, 0); r.setEnd(node, 1);
+        const first = r.getBoundingClientRect(), box = e.getBoundingClientRect();
+        const anim = (el: Element) => getComputedStyle(el).animationName;
+        return { firstShown: first.left >= box.left - 1 && first.right <= box.right + 1, moving: [e, host].some((x) => anim(x) !== 'none'), clip: getComputedStyle(e).overflow === 'hidden' };
+      }, text);
+      expect(await probe('TEENAGE DREAM (THE COMPLETE CONFECTION, DELUXE EDITION)')).toEqual({ firstShown: true, moving: true, clip: true });
+      expect(await probe('TEENAGE')).toEqual({ firstShown: true, moving: false, clip: true });
+    });
+
     test(`${scene}: reduced motion holds the scene still`, async ({ page }) => {
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await signIn(page);
@@ -142,6 +157,23 @@ test.describe.serial('listening scenes', () => {
       expect(running).toBe(0);
     });
   }
+
+  test('car: the presets are radio stations named for your genres; a press plays the station and the display says so', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page);
+    await playInScene(page, 'car');
+    const keys = page.locator('[data-testid=retro] .cu-pre[data-media=genre]');
+    await expect(keys).toHaveCount(5);   // (the mock's five genres; the sixth key is an album coming up)
+    const names = (await keys.locator('small').allTextContents()).map((s) => s.trim());
+    expect(names.sort()).toEqual(['CLASSIC', 'ELECTRO', 'JAZZ', 'POP', 'ROCK']);
+    for (const n of names) expect(n).toMatch(/^[A-Z&-]{1,8}$/);
+    const rock = page.locator('[data-testid=retro] .cu-pre[data-media=genre]', { has: page.locator('small', { hasText: /^ROCK$/ }) });
+    await rock.click();
+    await expect(rock).toHaveClass(/\bon\b/);
+    await expect(page.getByTestId('car-display')).toContainText('ROCK');
+    await expect.poll(() => playing(page)).toBe('true');
+    expect(errors).toEqual([]);
+  });
 
   test('hifi: the record turns while playing and the tonearm follows the song; the record seeks, the pitch slider sets the speed, the crate flips and plays', async ({ page }) => {
     const errors = consoleErrors(page);

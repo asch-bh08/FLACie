@@ -298,21 +298,21 @@ window.flacie = (() => {
   // --mq, and how long, --mqt; still, with an ellipsis, when motion is reduced). A line is measured again only when its text changes, the highlighted row
   // moves, or the screen's size changes, so the clock and the progress bar ticking never restart it
   const MQ = ".lcd-hdr b, .lcd-pane b, .lcd-pane span, .lcd-pane small, .ios-nav b, .lcd-list li.sel .lcd-label, .lnp-meta b, .lnp-meta span, .cf-cap b, .cf-cap span, .ios-np-meta b, .ios-np-meta span, .ios-np-meta small";
-  const marquee = root => {
+  const marquee = (root, sel = MQ) => {
     const measure = e => {
       e.classList.remove("mq");
-      const over = e.matches(MQ) ? e.scrollWidth - e.clientWidth : 0;
+      const over = e.matches(sel) ? e.scrollWidth - e.clientWidth : 0;
       if (over > 2) { e.style.setProperty("--mq", -(over + 6) + "px"); e.style.setProperty("--mqt", (4 + over / 30).toFixed(1) + "s"); void e.offsetWidth; e.classList.add("mq"); }
     };
-    const all = () => { root.querySelectorAll(".mq").forEach(measure); root.querySelectorAll(MQ).forEach(measure); };
+    const all = () => { root.querySelectorAll(".mq").forEach(measure); root.querySelectorAll(sel).forEach(measure); };
     let queued = new Set(), frame = 0;
     const flush = () => { frame = 0; const q = queued; queued = new Set(); q.forEach(measure); };
     const touched = n => {
       const el = n.nodeType === 1 ? n : n.parentElement; if (!el) return;
       // a line whose text changed; or, a row that became (or stopped being) the highlighted one, its label
-      const line = el.closest(MQ); if (line) queued.add(line);
+      const line = el.closest(sel); if (line) queued.add(line);
       if (el.matches && el.matches(".lcd-list li")) { const l = el.querySelector(".lcd-label"); if (l) queued.add(l); }
-      el.querySelectorAll && el.querySelectorAll(MQ).forEach(x => queued.add(x));
+      el.querySelectorAll && el.querySelectorAll(sel).forEach(x => queued.add(x));
       if (!frame) frame = requestAnimationFrame(flush);
     };
     const mo = new MutationObserver(rs => { for (const r of rs) { touched(r.target); r.addedNodes.forEach(touched); } });
@@ -671,6 +671,8 @@ window.flacie = (() => {
     ipodClock() { return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); },
     // room for the panel beside the stage (what ipodInit answers for the iPod; the other scenes ask this)
     wideScreen() { return innerWidth >= 860; },
+    /** The same scrolling for other screens (the listening scenes' displays): the lines matching sel under root. Returns { stop() }. */
+    marqueeIn(root, sel) { return marquee(root, sel); },
     async ipodBattery() { try { const b = await navigator.getBattery(); return [Math.round(b.level * 100), b.charging]; } catch { return [100, false]; } },
     // a text box the server never rewrites while it is being typed in (see TextBox.razor): the browser debounces and tells the server once
     textBox(el, ref, value, ms) {

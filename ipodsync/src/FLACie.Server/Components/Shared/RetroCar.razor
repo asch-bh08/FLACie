@@ -2,7 +2,7 @@
 @* The car stereo scene: a night dashboard seen through a rain-streaked windshield (city lights blurred beyond it, the wiper sweeping), a single-DIN head unit
    with an amber dot-matrix display, a CD slot, a volume knob, six presets and the transport keys, and the climate dials under it. Bound to the player:
    play/pause, previous, next; eject pauses and the disc slides out (a click on it, or the slot, plays again); the display "tunes" to a station on every
-   new song; the presets are your playlists, then the albums coming up; the knob is the volume (turned by scrolling or the arrow keys; pressed, it mutes). Styles: retro.css. *@
+   new song; the presets are radio stations made from your biggest genres (ROCK, POP, ...: each shuffles its genre), then the albums coming up; the knob is the volume (turned by scrolling or the arrow keys; pressed, it mutes). Styles: retro.css. *@
 <div class="car">
     <div class="car-city" aria-hidden="true"><i></i><i></i><i></i></div>
     <div class="car-rain" aria-hidden="true"><i></i><i></i></div>
@@ -18,8 +18,8 @@
                     <i class="cu-disc @(ejected ? "out" : "")" data-testid="car-disc" style="@ArtStyle"></i>
                 </div>
                 <div class="cu-display" data-testid="car-display">
-                    <div class="cu-line1" data-testid="retro-title"><span style="--len:@Ticker.Length">@Ticker</span></div>
-                    <div class="cu-line2"><span>@(Now is null ? "NO DISC" : ejected ? "EJECT" : $"TRK {TrackNo:00}")</span><span>@(Now is null ? "--:--" : Clock(Position))</span><span>@(Playing ? "CD ▸" : "CD ❚❚")</span></div>
+                    <div class="cu-line1 rt-mq" data-testid="retro-title">@Ticker</div>
+                    <div class="cu-line2"><span>@(Now is null ? "NO DISC" : ejected ? "EJECT" : $"TRK {TrackNo:00}")</span><span>@(Now is null ? "--:--" : Clock(Position))</span><span>@(Source) @(Playing ? "▸" : "❚❚")</span></div>
                     @if (Now is not null) { <div class="cu-tune" @key="Now.Path" aria-hidden="true">TUNING&nbsp;&nbsp;FM @Freq</div> }
                     <i class="cu-dots" aria-hidden="true"></i>
                 </div>
@@ -27,7 +27,7 @@
                     @for (var i = 0; i < Presets.Count; i++)
                     {
                         var p = Presets[i]; var n = i + 1;
-                        <button type="button" class="cu-pre" data-preset="@n" data-media="@(p.Tape is null ? "album" : "playlist")" data-album="@p.Album?.Album" aria-label="@($"Preset {n}: {p.Name}")" title="@p.Name" @onclick="() => PlayPreset(p)"><b>@n</b><small>@p.Name</small></button>
+                        <button type="button" class="cu-pre @(p.Station is { } ps && Player.Context == Ctx(ps) ? "on" : "")" data-preset="@n" data-media="@(p.Station is null ? "album" : "genre")" data-album="@p.Album?.Album" aria-label="@($"Preset {n}: {p.Title}")" title="@p.Title" @onclick="() => PlayPreset(p)"><b>@n</b><small>@p.Name</small></button>
                     }
                     @for (var i = Presets.Count; i < 6; i++) { <button type="button" class="cu-pre" disabled><b>@(i + 1)</b><small>—</small></button> }
                 </div>
@@ -52,9 +52,17 @@
     bool ejected;
     readonly int[] climate = [-30, 20, 60];
 
-    sealed record Preset(string Name, DeskTapes.Tape? Tape, FLACie.Core.DeskAlbum? Album);
-    /// <summary>The six presets: your playlists first, then the albums coming up.</summary>
-    List<Preset> Presets => [.. Playlists.Take(6).Select(t => new Preset(t.Name, t, null)).Concat(NextAlbums.Select(a => new Preset(a.Album, null, a))).Take(6)];
+    sealed record Preset(string Name, string Title, FLACie.Core.CarPresets.Station? Station, FLACie.Core.DeskAlbum? Album);
+    /// <summary>The six presets: a station for each of your biggest genres, then (keys left over) the albums coming up.</summary>
+    List<Preset> Presets => [.. Stations.Select(s => new Preset(s.Label, s.Genre, s, null)).Concat(NextAlbums.Select(a => new Preset(Short(a.Album), a.Album, null, a))).Take(6)];
+    // (grouped again only when the library changes: the scene redraws on every tick of the song)
+    IReadOnlyList<FLACie.Core.CarPresets.Station> Stations { get { var songs = Lib.Songs; if (!ReferenceEquals(songs, stationsOf) || songs.Count != stationsCount) { stationsOf = songs; stationsCount = songs.Count; stations = FLACie.Core.CarPresets.Stations(songs); } return stations; } }
+    IReadOnlyList<FLACie.Core.CarPresets.Station> stations = []; object? stationsOf; int stationsCount = -1;
+    /// <summary>What the display says is playing: the station when a preset started it, else the CD.</summary>
+    string Source => Stations.FirstOrDefault(s => Ctx(s) == Player.Context) is { } s ? s.Label : "CD";
+    /// <summary>The name a station plays under (the player shows it as where the music comes from).</summary>
+    static string Ctx(FLACie.Core.CarPresets.Station s) => $"{s.Genre} radio";
+    static string Short(string album) => album.Length <= 10 ? album.ToUpperInvariant() : album[..9].TrimEnd().ToUpperInvariant() + "…";
 
     string Ticker => Now is null ? "INSERT DISC" : $"{Now.Title}  —  {Now.Artist}".ToUpperInvariant();
     string Freq => (87.5 + Hash(Now?.Path) % 205 / 10.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
@@ -64,7 +72,7 @@
     async Task PlayKey() { if (ejected) { await Insert(); return; } await Toggle(); }
     async Task Eject() { ejected = true; await Pause(); }
     async Task Insert() { if (!ejected) return; ejected = false; await Resume(); }
-    async Task PlayPreset(Preset p) { ejected = false; if (p.Tape is { } t) await PlayPlaylist(t); else if (p.Album is { } a) await PlayAlbum(a); }
+    async Task PlayPreset(Preset p) { ejected = false; if (p.Station is { } s) await Player.ShuffleAll(s.Tracks, Ctx(s)); else if (p.Album is { } a) await PlayAlbum(a); }
 
     Task KnobWheel(WheelEventArgs e) => SetVolume(Player.Volume + (e.DeltaY < 0 ? 0.05 : -0.05));
     Task KnobKey(KeyboardEventArgs e) => e.Key switch

@@ -14,8 +14,8 @@
             </div>
             <div class="md-face">
                 <div class="md-lcd" data-testid="md-lcd">
-                    <div class="l1" data-testid="retro-title"><span style="--len:@Line1.Length">@Line1</span></div>
-                    <div class="l2"><span>@(Now?.Artist ?? "MINIDISC")</span></div>
+                    <div class="l1 rt-mq" data-testid="retro-title">@Line1</div>
+                    <div class="l2 rt-mq">@(Now?.Artist ?? "MINIDISC")</div>
                     <div class="l3"><span>@(Now is null ? "NO DISC" : ejected ? "OPEN" : $"TR {TrackNo:00}")</span><span>@(Now is null ? "--:--" : Clock(Position))</span><span class="@(Playing && !ejected ? "on" : "")">▶</span></div>
                 </div>
                 <div class="md-jog" data-testid="md-jog" role="slider" tabindex="0" aria-label="Jog dial: turn to skip" aria-valuetext="@(Now?.Title ?? "")" style="--r:@(jog)deg"

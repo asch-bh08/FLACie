@@ -3,7 +3,11 @@ window.retro = (() => {
   let ctx = null;
   // a knob or dial turned by the wheel (data-wheel) keeps the page from scrolling under it: Blazor's own wheel listener is passive, so it can't
   document.addEventListener('wheel', (e) => { if (e.target instanceof Element && e.target.closest('[data-wheel]')) e.preventDefault(); }, { passive: false, capture: true });
+  let mq = null;
   return {
+    /** A scene is on show: its display lines (.rt-mq) scroll like the iPod's, from their first letter, only when too long (flacie.js marquee). */
+    start(root) { if (mq) mq.stop(); mq = root && window.flacie && flacie.marqueeIn ? flacie.marqueeIn(root, ".rt-mq") : null; },
+    stop() { if (mq) mq.stop(); mq = null; },
     /** An element's own width in CSS pixels (a click's offset is measured in them, whatever turns or tilts the element). */
     size(sel) { const e = document.querySelector(sel); return e ? Math.round(e.offsetWidth) : 300; },
     /** The needle dropping into the groove: a soft thump and a short crackle, made here (Web Audio, quiet; never with reduced motion). */

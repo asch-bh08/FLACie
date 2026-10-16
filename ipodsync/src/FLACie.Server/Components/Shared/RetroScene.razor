@@ -30,7 +30,7 @@
         // the moving parts read the scene's elements once at start: start again for another scene
         if (startedFor == Kind) return;
         startedFor = Kind;
-        try { await Js.InvokeVoidAsync("desk.start", root, new { }); started = true; } catch (Exception e) when (Gone(e)) { }
+        try { await Js.InvokeVoidAsync("desk.start", root, new { }); await Js.InvokeVoidAsync("retro.start", root); started = true; } catch (Exception e) when (Gone(e)) { }
     }
 
     static bool Gone(Exception e) => e is JSDisconnectedException or JSException or InvalidOperationException or OperationCanceledException;
@@ -39,6 +39,6 @@
     {
         Player.Changed -= Refresh;
         if (!started) return;
-        try { await Js.InvokeVoidAsync("desk.stop"); } catch (Exception e) when (Gone(e)) { }
+        try { await Js.InvokeVoidAsync("desk.stop"); await Js.InvokeVoidAsync("retro.stop"); } catch (Exception e) when (Gone(e)) { }
     }
 }

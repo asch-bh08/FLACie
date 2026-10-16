@@ -1,6 +1,8 @@
 /* iPod mode › Scene: the listening scenes beside the iPod (RetroScene.razor and one component per scene). Each scene is a size container: landscape, or on a
    tall window (narrower than 1.15 to 1) a portrait layout; everything is placed in its units. desk.js sets --low --mid --high --beat on the scene from the
    player's one analyser, and turns the meter needles (data-needle: --a, degrees from upright). Reduced motion: everything holds still. */
+/* the car's and the MiniDisc's displays: DotGothic16 (OFL 1.1, wwwroot/fonts/OFL-dotgothic16.txt), a dot-matrix face */
+@font-face { font-family: "Dot Matrix"; src: url(fonts/dotgothic16.woff2) format("woff2"); font-weight: 400; font-display: block; }
 .retro { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; container: retro / size; isolation: isolate; font-family: "Helvetica Neue", Arial, sans-serif; }
 .retro button { font: inherit; color: inherit; }
 .retro [data-ctl], .retro [data-media] { cursor: pointer; }
@@ -54,11 +56,9 @@
 .cu-disc.out { opacity: 1; translate: -50% -78%; pointer-events: auto; }
 /* the display: amber dots on black glass */
 .cu-display { position: relative; overflow: hidden; border-radius: .6cqh; background: radial-gradient(120% 140% at 50% 0%, #1b1208, #070402); box-shadow: inset 0 0 0 .2cqh #000, inset 0 .4cqh 1.2cqh rgba(0,0,0,.9);
-  color: #ffb347; text-shadow: 0 0 .5cqh rgba(255,160,60,.9), 0 0 1.6cqh rgba(255,120,30,.5); font-family: "Consolas", "Lucida Console", "Courier New", monospace; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: #ffb347; text-shadow: 0 0 .5cqh rgba(255,160,60,.9), 0 0 1.6cqh rgba(255,120,30,.5); font-family: "Dot Matrix", "Consolas", "Lucida Console", monospace; font-weight: 400; letter-spacing: .12em; text-transform: uppercase;
   display: grid; grid-template-rows: 1fr auto; padding: 1.2% 2.2%; }
 .cu-line1 { overflow: hidden; white-space: nowrap; font-size: 3.9cqw; align-self: center; }
-.cu-line1 span { display: inline-block; padding-left: 100%; animation: cu-ticker calc(var(--len, 20) * .32s + 4s) linear infinite; }
-@keyframes cu-ticker { to { translate: -100% 0; } }
 .cu-line2 { display: flex; justify-content: space-between; font-size: 2.1cqw; opacity: .85; padding-bottom: .5%; }
 .cu-tune { position: absolute; inset: 0; display: grid; place-items: center; white-space: nowrap; font-size: 3.4cqw; background: #070402; animation: cu-tune 1.6s steps(8) forwards; }
 @keyframes cu-tune { 0% { opacity: 1; letter-spacing: .32em; } 70% { opacity: 1; letter-spacing: .12em; } 100% { opacity: 0; visibility: hidden; } }
@@ -70,6 +70,9 @@
 .cu-pre small { font-size: 1.25cqw; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .7; }
 .cu-pre:active, .cu-keys button:active { translate: 0 .15cqh; box-shadow: inset 0 .2cqh .3cqh rgba(0,0,0,.7); }
 .cu-pre:disabled { opacity: .45; cursor: default; }
+.cu-pre small { letter-spacing: .08em; font-weight: 700; }
+.cu-pre.on { box-shadow: inset 0 .2cqh 0 rgba(255,255,255,.14), inset 0 0 0 .15cqh rgba(255,170,70,.55), 0 0 1.2cqh rgba(255,150,40,.35); }   /* (the station playing: its key lit) */
+.cu-pre.on b, .cu-pre.on small { color: #ffb347; opacity: 1; text-shadow: 0 0 .6cqh rgba(255,160,60,.8); }
 .cu-keys { display: grid; grid-template-columns: 1fr 1fr; gap: 6%; align-content: center; }
 .cu-keys button { aspect-ratio: 1.4; border: 0; border-radius: .6cqh; background: linear-gradient(#45464d, #232428); box-shadow: inset 0 .2cqh 0 rgba(255,255,255,.16), 0 .3cqh .5cqh rgba(0,0,0,.6); font-size: 2.6cqw; color: #e6e7ec; }
 .cu-keys [data-ctl=play] { color: #ffb347; }
@@ -105,9 +108,8 @@
 
 /* reduced motion: the car stands, the rain and the wiper hold, the display does not scroll */
 @media (prefers-reduced-motion: reduce) {
-  .car-city i, .car-rain i, .car-wiper i, .cu-line1 span, .cu-tune { animation: none !important; }
+  .car-city i, .car-rain i, .car-wiper i, .cu-tune { animation: none !important; }
   .cu-tune { display: none; }
-  .cu-line1 span { padding-left: 0; text-overflow: ellipsis; }
   .cu-knob, .car-climate .dial, .cu-disc { transition: none; }
 }
 
@@ -331,10 +333,9 @@
   background: repeating-linear-gradient(90deg, rgba(255,255,255,.12) 0 .12cqh, rgba(0,0,0,.035) .12cqh .3cqh), linear-gradient(#e9ebee, #b9bdc3 60%, #d2d5da); box-shadow: 0 2cqh 2.4cqh rgba(0,0,0,.3), inset 0 0 0 .3cqh rgba(0,0,0,.08); }
 .md-lcd { border-radius: .6cqh; padding: 3% 5%; overflow: hidden; display: grid; grid-template-rows: 1.2fr 1fr 1fr; align-items: center; position: relative;
   background: radial-gradient(120% 120% at 50% 0%, #4c8dff, #1f56c9 60%, #10307a); box-shadow: inset 0 0 0 .3cqh #0c1d45, inset 0 .4cqh 1.2cqh rgba(0,0,0,.4), 0 0 3cqh rgba(80,150,255,.35);
-  color: #eaf3ff; text-shadow: 0 0 .7cqh rgba(190,220,255,.9); font-family: "Consolas", "Lucida Console", "Courier New", monospace; font-weight: 700; letter-spacing: .1em; }
+  color: #eaf3ff; text-shadow: 0 0 .7cqh rgba(190,220,255,.9); font-family: "Dot Matrix", "Consolas", "Lucida Console", monospace; font-weight: 400; letter-spacing: .1em; }
 .md-lcd::after { content: ""; position: absolute; inset: 0; pointer-events: none; background-image: radial-gradient(transparent 55%, rgba(0,20,60,.35) 60%); background-size: .38cqw .38cqw; }
 .md-lcd .l1 { overflow: hidden; white-space: nowrap; font-size: 4.4cqw; }
-.md-lcd .l1 span { display: inline-block; padding-left: 100%; animation: cu-ticker calc(var(--len, 20) * .32s + 4s) linear infinite; }
 .md-lcd .l2 { font-size: 2.6cqw; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .md-lcd .l3 { display: flex; justify-content: space-between; font-size: 2.6cqw; }
 .md-lcd .l3 .on { color: #b8ffcf; text-shadow: 0 0 .8cqh #6dff9c; }
@@ -369,6 +370,5 @@
   .md-stack { left: 4%; bottom: 3%; } .md-desk .mug { right: 6%; top: auto; bottom: 4%; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .md-lcd .l1 span { animation: none !important; padding-left: 0; }
   .md-jog, .md-jog-center, .md-disc, .md-d { transition: none; }
 }

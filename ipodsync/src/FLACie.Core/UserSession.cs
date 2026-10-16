@@ -375,6 +375,28 @@ public sealed class UserSession
     public void AddJellyfin(JellyfinAccount a) { Jellyfin = a; Changed?.Invoke(); }
     public void AddNas(NasAccount n) { Nas = n; Changed?.Invoke(); }
 
+    // ---- small settings kept with the account (in the profile under "settings": key -> { json, at }), so they follow the person to every device ----
+
+    /// <summary>A setting kept with the account (its JSON, and when it was set, in Unix ms); null when there is none.</summary>
+    public (string Json, long At)? GetSetting(string key)
+    {
+        lock (listLock)
+            return Profile["settings"]?[key] is JsonObject o && o["json"] is JsonValue j && j.TryGetValue<string>(out var json)
+                ? (json, o["at"] is JsonValue a && a.TryGetValue<long>(out var at) ? at : 0) : null;
+    }
+
+    /// <summary>Keeps a setting with the account (saved with the profile: SaveAsync). One set earlier than the one kept is ignored.</summary>
+    public void SetSetting(string key, string json, long at)
+    {
+        lock (listLock)
+        {
+            var all = Profile["settings"] as JsonObject ?? new JsonObject();
+            if (all[key] is JsonObject old && old["at"] is JsonValue a && a.TryGetValue<long>(out var was) && was > at) return;
+            all[key] = new JsonObject { ["json"] = json, ["at"] = at };
+            Profile["settings"] = all;
+        }
+    }
+
     // ---- favourites and playlists (in the profile) ----
 
     public IReadOnlyList<PlaylistEntry> Favorites => (Profile["favorites"] as JsonArray ?? []).OfType<JsonObject>().Select(Entry).ToList();

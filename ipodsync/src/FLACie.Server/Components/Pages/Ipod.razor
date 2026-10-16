@@ -94,7 +94,7 @@
                 <div class="desk-opts">
                     @DeskOpt("vu", "Preamp", prefs.Desk.Vu, d => d.Vu = !d.Vu)
                     @DeskOpt("ticket", "Ticket", prefs.Desk.Ticket, d => d.Ticket = !d.Ticket)
-                    @DeskOpt("picks", "Picks", prefs.Desk.Picks, d => d.Picks = !d.Picks)
+                    @DeskOpt("usb", "USB & clip", prefs.Desk.Usb, d => d.Usb = !d.Usb)
                     @DeskOpt("pencil", "Pencil", prefs.Desk.Pencil, d => d.Pencil = !d.Pencil)
                 </div>
             </section>
@@ -371,9 +371,9 @@
         @<button type="button" class="ipod-chip @(on ? "on" : "")" data-desk-opt="@key" aria-pressed="@(on ? "true" : "false")" tabindex="-1" @onclick="() => DeskSet(flip)">@name</button>;
     void DeskSet(Action<DeskOptions> change) { change(prefs.Desk); Save(); }
 
-    // the keepsakes beside the CDs: a ticket stub for the artist playing, guitar picks
+    // the keepsakes: a ticket stub for the artist playing, a USB stick and a paperclip
     RenderFragment DeskPropsPart => @<text>
-        <DeskKeepsakes Ticket="@prefs.Desk.Ticket" Picks="@prefs.Desk.Picks" Artist="@Player.Current?.Artist" Year="@(Player.Current?.Year ?? 0)" />
+        <DeskKeepsakes Ticket="@prefs.Desk.Ticket" Usb="@prefs.Desk.Usb" Artist="@Player.Current?.Artist" Year="@(Player.Current?.Year ?? 0)" />
     </text>;
 
     // a CD played while shuffling plays the whole album, in album order, then the shuffle carries on; otherwise the queue goes on from that album
@@ -474,7 +474,9 @@
         if (first)
         {
             self = DotNetObjectReference.Create(this);
-            try { var json = await Js.InvokeAsync<string?>("flacie.unstash", "flacie.ipod"); prefs = IpodPrefs.FromJson(json); } catch (Exception) { }
+            await LoadPrefs();
+            // the volume the music plays at (kept in the browser): read here too, iPod mode opened straight away has no player bar to read it
+            try { await Player.LoadVolumeAsync(); } catch (Exception) { }
             loaded = true; Fit(); Root(); RefreshClock(); await RefreshBattery();
             // opened while a song plays: start on Now Playing (MENU goes to the menu, as on an iPod picked up mid-song)
             if (Player.Current is not null) { showNow = true; npMode = 0; }
@@ -509,7 +511,31 @@
 
     void Fit() { nav.VisibleRows = RowsFit; detents.DegreesPerDetent = prefs.DegreesPerDetent; }
 
-    void Save() { _ = Js.InvokeVoidAsync("flacie.stash", "flacie.ipod", prefs.ToJson()).AsTask(); _ = Js.InvokeVoidAsync("flacie.ipodConfig", new { deg = prefs.DegreesPerDetent }).AsTask(); }
+    // the iPod's settings (model, colour, look, scene, desk, wheel...) are kept in this browser and with the account (the profile), so they follow the person to
+    // another browser, device or the Windows app (whose server's port, and so its storage, changes each launch). The newer copy wins when the page opens.
+    void Save()
+    {
+        var json = prefs.ToJson(); var at = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        _ = Js.InvokeVoidAsync("flacie.stash", "flacie.ipod", json).AsTask(); _ = Js.InvokeVoidAsync("flacie.stash", "flacie.ipod.at", at.ToString()).AsTask();
+        Session.SetSetting("ipod", json, at); SaveAccountSoon();
+        _ = Js.InvokeVoidAsync("flacie.ipodConfig", new { deg = prefs.DegreesPerDetent }).AsTask();
+    }
+    async Task LoadPrefs()
+    {
+        string? json = null; long localAt = 0;
+        try { json = await Js.InvokeAsync<string?>("flacie.unstash", "flacie.ipod"); long.TryParse(await Js.InvokeAsync<string?>("flacie.unstash", "flacie.ipod.at"), out localAt); } catch (Exception) { }
+        // the account's copy, unless this browser's is newer; a copy here without a time (kept before settings went with the account) counts as the newest
+        if (Session.GetSetting("ipod") is { } acc && (json is null || (localAt > 0 && acc.At > localAt))) json = acc.Json;
+        else if (json is not null) { Session.SetSetting("ipod", json, localAt > 0 ? localAt : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()); SaveAccountSoon(); }
+        prefs = IpodPrefs.FromJson(json);
+    }
+    // (a knob turned or a chip clicked a few times saves the profile once, a moment later)
+    CancellationTokenSource? accountSave;
+    void SaveAccountSoon()
+    {
+        accountSave?.Cancel(); var cts = accountSave = new CancellationTokenSource();
+        _ = Task.Delay(1500, cts.Token).ContinueWith(t => { if (!t.IsCanceled) SaveProfile(); }, TaskScheduler.Default);
+    }
 
     // ---------------------------------------------------------------- menus
 
@@ -723,9 +749,10 @@
     void RefreshColorLevel() { nav.Replace(IpodMenus.Colors(model, prefs.Color)); }
 
     /// <summary>From the panel: the iPod starts again at its main menu (from Settings on the device itself the person stays in Settings).</summary>
-    void PickModel(string id) { prefs.ChooseModel(id); Save(); pickGroup = model.Group; showNow = false; Root(); _ = FocusStage(); }
+    // (a song playing: the iPod comes back on Now Playing, whatever changed)
+    void PickModel(string id) { prefs.ChooseModel(id); Save(); pickGroup = model.Group; Root(); showNow = Player.Current is not null; npMode = 0; _ = FocusStage(); }
     void PickColor(int i) { prefs.Color = i; Save(); _ = FocusStage(); }
-    void PickLook(int look) { prefs.Look = look; Save(); showNow = false; Root(); _ = FocusStage(); }
+    void PickLook(int look) { prefs.Look = look; Save(); Root(); showNow = Player.Current is not null; npMode = 0; _ = FocusStage(); }
 
     void ApplyLook() { Fit(); }
 

@@ -285,6 +285,54 @@ test.describe.serial('desk look on /ipod', () => {
     await page.evaluate(() => (window as any).flacie.eq([0, 0, 0, 0, 0]));
   });
 
+  test('the iPod\'s look, colour and desk go with the account: another browser (nothing stored there) opens the same desk', async ({ page, browser }) => {
+    const errors = consoleErrors(page);
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    await openDesk(page, { model: 'classic6', look: 2 });
+    const swatch = page.locator('.ipod-panel .ipod-chip.swatch').nth(1);
+    const colour = (await swatch.getAttribute('data-color'))!;
+    await expect(async () => { await swatch.click(); await expect(page.getByTestId('ipod')).toHaveAttribute('data-color', colour, { timeout: 1000 }); }).toPass({ timeout: 20_000 });
+    await page.locator('[data-testid=desk-options] [data-desk-opt=pencil]').click();
+    await expect(page.getByTestId('desk-pencil')).toHaveCount(0);
+    await page.waitForTimeout(2500);   // (the profile is saved a moment after the last change)
+    // a fresh browser: the same account, nothing in its storage
+    const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } }); const other = await ctx.newPage();
+    await signIn(other); await other.goto('/ipod');
+    await expect(other.getByTestId('ipod')).toHaveAttribute('data-model', 'classic6', { timeout: 20_000 });
+    await expect(other.getByTestId('ipod')).toHaveAttribute('data-look', 'desk');
+    await expect(other.getByTestId('ipod')).toHaveAttribute('data-color', colour);
+    await expect(other.getByTestId('desk')).toBeVisible();
+    await expect(other.getByTestId('desk-pencil')).toHaveCount(0);
+    await ctx.close();
+    // (back as it was, for the tests after)
+    await page.locator('[data-testid=desk-options] [data-desk-opt=pencil]').click();
+    await page.locator('.ipod-panel .ipod-chip.swatch').first().click();
+    await page.waitForTimeout(2000);
+    expect(errors).toEqual([]);
+  });
+
+  test('the preamp\'s VOLUME is the volume the music plays at, also when iPod mode is opened straight away (no player bar on the page)', async ({ page }) => {
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    await page.addInitScript(() => { try { localStorage.setItem('flacie.volume', '0.4'); } catch { } });
+    await openDesk(page, { model: 'classic6', look: 2 });
+    await expect(page.getByTestId('desk-preamp').locator('[data-knob=vol]')).toHaveAttribute('aria-valuenow', '40', { timeout: 10_000 });
+    expect(await page.evaluate(() => Math.round((window as any).flacie.volume() * 100))).toBe(40);
+  });
+
+  test('a song playing: changing the model or the look comes back on Now Playing', async ({ page }) => {
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    await openDesk(page, { model: 'classic6', look: 2 });
+    await shuffle(page);
+    await page.getByTestId('ipod-keys').focus(); await page.keyboard.press('Escape');
+    await expect(page.getByTestId('ipod-np')).toHaveCount(0);
+    await page.locator('.ipod-panel .ipod-chip[data-model="video5"]').click();
+    await expect(page.getByTestId('ipod')).toHaveAttribute('data-model', 'video5');
+    await expect(page.getByTestId('ipod-np')).toBeVisible();
+    await page.getByTestId('ipod-keys').focus(); await page.keyboard.press('Escape');
+    await page.locator('.ipod-panel .ipod-chip[data-look="device"]').click();
+    await expect(page.getByTestId('ipod-np')).toBeVisible();
+  });
+
   test('the CDs are keys too: Tab to the rack, the arrow keys pick one, Enter plays it', async ({ page }) => {
     const errors = consoleErrors(page);
     await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
@@ -381,17 +429,17 @@ test.describe.serial('desk look on /ipod', () => {
     await openDesk(page, { model: 'classic6', look: 2 });
     const opt = (k: string) => page.locator(`[data-testid=desk-options] [data-desk-opt="${k}"]`);
     await expect(page.getByTestId('desk-options')).toBeVisible();
-    // a new desk: earbuds, the pencil by the notebook, the preamp, the concert ticket (the guitar picks are there to choose); the iPod lies on the desk
+    // a new desk: earbuds, the pencil by the notebook, the preamp, the concert ticket, a USB stick and a paperclip (no guitar picks any more); the iPod lies on the desk
     // itself (no dock, no option for one); no cassette or MiniDiscs any more
     await expect(page.locator('[data-desk-phones="0"]')).toHaveClass(/on/);
     for (const id of ['desk-preamp', 'desk-ticket', 'desk-pencil']) await expect(page.getByTestId(id), id).toBeVisible();
-    await expect(page.getByTestId('desk-picks')).toHaveCount(0); await expect(opt('picks')).not.toHaveClass(/on/);
+    await expect(page.getByTestId('desk-usb')).toBeVisible(); await expect(page.getByTestId('desk-clip')).toBeVisible(); await expect(opt('usb')).toHaveClass(/on/);
+    await expect(page.getByTestId('desk-picks')).toHaveCount(0); await expect(opt('picks')).toHaveCount(0);
     for (const id of ['desk-cassette', 'desk-minidiscs']) await expect(page.getByTestId(id), id).toHaveCount(0);
     for (const k of ['tape', 'md']) await expect(opt(k), k).toHaveCount(0);
     await expect(page.getByTestId('desk-dock')).toHaveCount(0); await expect(opt('dock')).toHaveCount(0);
-    // the picks on and off; the others off and on again; the preamp left off
-    await opt('picks').click(); await expect(page.getByTestId('desk-picks')).toBeVisible(); await opt('picks').click(); await expect(page.getByTestId('desk-picks')).toHaveCount(0);
-    for (const [k, id] of [['pencil', 'desk-pencil'], ['ticket', 'desk-ticket']]) {
+    // the others off and on again; the preamp left off
+    for (const [k, id] of [['usb', 'desk-usb'], ['pencil', 'desk-pencil'], ['ticket', 'desk-ticket']]) {
       await opt(k).click(); await expect(page.getByTestId(id)).toHaveCount(0); await expect(opt(k)).not.toHaveClass(/on/);
       await opt(k).click(); await expect(page.getByTestId(id)).toBeVisible();
     }
@@ -414,7 +462,7 @@ test.describe.serial('desk look on /ipod', () => {
     await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
     await openDesk(page, { model: 'classic6', look: 2 });
     await expect(page.getByTestId('desk-ticket')).toBeVisible();
-    await expect(page.getByTestId('desk-picks')).toHaveCount(0);   // (off unless chosen: the desk stays uncluttered)
+    await expect(page.getByTestId('desk-usb')).toBeVisible();
     await shuffle(page);
     const artist = () => page.locator('[data-testid=ipod-np-title] + span').textContent().then((s) => s!.trim().toUpperCase());
     await expect(page.getByTestId('desk-ticket')).toContainText(await artist(), { timeout: 10_000 });
@@ -425,7 +473,7 @@ test.describe.serial('desk look on /ipod', () => {
     await expect(page.getByTestId('desk-ticket')).toContainText(await artist(), { timeout: 10_000 });
     await page.getByTestId('desk-open-cd').click();
     // the props lie apart: none on another
-    const ids = ['desk-ticket', 'desk-rack', 'desk-pop', 'desk-open-cd', 'desk-np', 'desk-preamp', 'desk-journal', 'desk-coffee'];
+    const ids = ['desk-ticket', 'desk-usb', 'desk-clip', 'desk-rack', 'desk-pop', 'desk-open-cd', 'desk-np', 'desk-preamp', 'desk-journal', 'desk-coffee'];
     const boxes = await Promise.all(ids.map(async (id) => [id, (await page.getByTestId(id).boundingBox())!] as const));
     for (const [a, p] of boxes) for (const [b, q] of boxes) if (a < b) {
       const o = Math.max(0, Math.min(p.x + p.width, q.x + q.width) - Math.max(p.x, q.x)) * Math.max(0, Math.min(p.y + p.height, q.y + q.height) - Math.max(p.y, q.y));

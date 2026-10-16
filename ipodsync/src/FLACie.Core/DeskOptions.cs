@@ -15,24 +15,24 @@ public sealed class DeskOptions
     public bool Vu { get; set; } = true;
     /// <summary>A concert ticket stub for the artist playing.</summary>
     public bool Ticket { get; set; } = true;
-    /// <summary>A couple of guitar picks (off unless chosen: the desk stays uncluttered).</summary>
-    public bool Picks { get; set; }
+    /// <summary>A silver USB stick and a bent paperclip (an iPod reset tool) by the ticket.</summary>
+    public bool Usb { get; set; } = true;
     /// <summary>A pencil lying by the journal.</summary>
     public bool Pencil { get; set; } = true;
 
-    public void Reset() { phones = Earbuds; Vu = true; Ticket = true; Picks = false; Pencil = true; }
+    public void Reset() { phones = Earbuds; Vu = true; Ticket = true; Usb = true; Pencil = true; }
 
-    public JsonObject ToJson() => new() { ["phones"] = phones, ["vu"] = Vu, ["ticket"] = Ticket, ["picks"] = Picks, ["pencil"] = Pencil };
+    public JsonObject ToJson() => new() { ["phones"] = phones, ["vu"] = Vu, ["ticket"] = Ticket, ["usb"] = Usb, ["pencil"] = Pencil };
 
-    /// <summary>Reads what <see cref="ToJson"/> wrote; anything missing or of the wrong kind keeps its default (and the old "dock", "tape" and "md" keys, from
-    /// when the desk had a dock, a cassette and MiniDiscs, are ignored).</summary>
+    /// <summary>Reads what <see cref="ToJson"/> wrote; anything missing or of the wrong kind keeps its default (and the old "dock", "tape", "md" and "picks" keys,
+    /// from when the desk had a dock, a cassette, MiniDiscs and guitar picks, are ignored).</summary>
     public static DeskOptions FromJson(JsonNode? node)
     {
         var d = new DeskOptions();
         if (node is not JsonObject o) return d;
         bool B(string k, bool def) => o[k] is JsonValue v && v.TryGetValue<bool>(out var b) ? b : def;
         if (o["phones"] is JsonValue p && p.TryGetValue<int>(out var n)) d.Phones = n;
-        d.Vu = B("vu", true); d.Ticket = B("ticket", true); d.Picks = B("picks", false); d.Pencil = B("pencil", true);
+        d.Vu = B("vu", true); d.Ticket = B("ticket", true); d.Usb = B("usb", true); d.Pencil = B("pencil", true);
         return d;
     }
 }

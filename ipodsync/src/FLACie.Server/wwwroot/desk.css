@@ -16,7 +16,7 @@
 .desk-rack { margin-top: calc(var(--gap) * -.35); }
 .desk-pencil { margin-top: calc(var(--gap) * -.7); }   /* (it stays with the notebook) */
 .desk-vu, .desk-np { margin-top: calc(var(--gap) * .3); }
-.desk-ticket, .desk-picks { margin-top: calc(var(--gap) * .75); }
+.desk-ticket { margin-top: calc(var(--gap) * .75); }
 .desk-coffee, .desk-steam { margin-top: calc(var(--gap) * .85); }
 .desk { --desk-shadow: drop-shadow(.15cqh .3cqh .25cqh rgba(50,28,10,.35)) drop-shadow(.8cqh 1.6cqh 1.6cqh rgba(50,28,10,.22)); }
 .desk .lift, .desk-pencil, .desk-adapter { filter: var(--desk-shadow); }   /* one shadow for every prop: grounded on the same wood under the same light */
@@ -131,7 +131,7 @@
 .desk-pop li span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .desk-pop li em { font-style: normal; color: #8a8f9c; }
 .desk-pop .pop-more { color: #8a8f9c !important; letter-spacing: .06em !important; font-weight: 600 !important; }
 .desk-pop:hover .pop-case, .desk-pop:focus-visible .pop-case { translate: 0 -.6cqh; box-shadow: inset 0 0 0 .16cqh rgba(255,255,255,.75), 0 0 1.4cqh rgba(255,214,150,.5); }
-/* the keepsakes: a concert ticket stub (the artist playing) with its torn-off end, and two guitar picks */
+/* the keepsakes: a concert ticket stub (the artist playing) with its torn-off end, a USB stick and a paperclip */
 .desk-ticket { left: 3.5%; top: 72cqh; width: 26cqh; height: 10cqh; rotate: -4deg; display: flex; color: #2b2320; border-radius: .3cqh;
   background: linear-gradient(90deg, #f3e7cc 0 69%, #efe1c2 69%); box-shadow: 0 .35cqh .6cqh rgba(50,28,10,.3); font-family: "Helvetica Neue", Arial, sans-serif; overflow: hidden; }
 .desk-ticket::before { content: ""; position: absolute; left: 0; right: 31%; top: 0; height: 1.1cqh; background: linear-gradient(90deg, #c8452f, #e0873a); }
@@ -141,12 +141,20 @@
 .desk-ticket .stub-main span { font-size: 1cqh; letter-spacing: .1em; white-space: nowrap; }
 .desk-ticket .stub-tear { flex: 1; min-width: 0; white-space: nowrap; display: flex; flex-direction: column; justify-content: center; gap: .2cqh; padding: 0 .8cqh; font-size: .95cqh; letter-spacing: .04em; }
 .desk-ticket .stub-tear small { font-weight: 800; font-size: .9cqh; }
-.desk-picks { left: 19.5%; top: 84cqh; width: 11cqh; height: 6cqh; }
-.desk-picks .pick { position: absolute; top: 0; width: 4.6cqh; height: 5.2cqh; border-radius: 50% 50% 46% 46% / 42% 42% 58% 58%; clip-path: polygon(50% 100%, 0 32%, 8% 8%, 50% 0, 92% 8%, 100% 32%);
-  box-shadow: inset 0 .3cqh .4cqh rgba(255,255,255,.35); filter: drop-shadow(.2cqh .35cqh .25cqh rgba(50,28,10,.35)); display: grid; place-items: center; }
-.desk-picks .pick b { font: 800 .9cqh/1 "Helvetica Neue", Arial, sans-serif; color: rgba(255,255,255,.8); margin-top: -.6cqh; }
-.desk-picks .p1 { left: 0; rotate: -18deg; background: radial-gradient(circle at 40% 30%, #f3a142, #c96b14); }
-.desk-picks .p2 { left: 5.4cqh; top: .8cqh; rotate: 24deg; background: radial-gradient(circle at 40% 30%, #5a6de0, #2e3a9a); }
+/* the USB stick: a brushed-silver body with an engraved size and a little LED, the metal plug with its two square holes, a lanyard loop; and a paperclip
+   beside it, its outer leg bent straight out (an iPod reset tool) */
+.desk-usb { left: 5.5%; top: 86cqh; width: 15cqh; height: 3.6cqh; rotate: -8deg; display: flex; align-items: center; }
+.desk-usb .plug { position: relative; flex: 0 0 3.4cqh; height: 74%; border-radius: .25cqh 0 0 .25cqh; background: linear-gradient(#f4f5f7, #a7abb2 55%, #d9dce0); box-shadow: inset 0 0 0 .1cqh rgba(0,0,0,.18); display: flex; align-items: center; justify-content: space-evenly; padding: 0 .3cqh; box-sizing: border-box; }
+.desk-usb .plug b { width: .7cqh; height: .7cqh; background: #3a3d44; border-radius: .08cqh; }
+.desk-usb .body { position: relative; flex: 1; height: 100%; border-radius: .25cqh 1.4cqh 1.4cqh .25cqh;
+  background: repeating-linear-gradient(90deg, rgba(255,255,255,.14) 0 .1cqh, rgba(0,0,0,.04) .1cqh .24cqh), linear-gradient(#f1f2f4, #b6bac1 50%, #e3e5e8 70%, #9da1a8);
+  box-shadow: inset 0 .15cqh .1cqh rgba(255,255,255,.8), inset 0 -.2cqh .3cqh rgba(0,0,0,.2); display: flex; align-items: center; padding-left: 1cqh; box-sizing: border-box; }
+.desk-usb .body span { font: 800 .95cqh/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .12em; color: rgba(60,64,72,.6); }
+.desk-usb .led { position: absolute; right: 2.2cqh; top: 50%; width: .55cqh; height: .55cqh; translate: 0 -50%; border-radius: 50%; background: #2e7d3a; box-shadow: inset 0 .1cqh .1cqh rgba(0,0,0,.5); }
+.desk-usb .loop { position: absolute; right: -1.4cqh; top: 50%; width: 2cqh; height: 1.6cqh; translate: 0 -50%; border: .28cqh solid #8d929a; border-left: 0; border-radius: 0 1cqh 1cqh 0; }
+.desk-clip { position: absolute; left: 16%; top: 87cqh; width: 12cqh; height: 4cqh; rotate: 14deg; overflow: visible; filter: var(--desk-shadow); }
+.desk-clip path { fill: none; stroke: #b9bdc4; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.desk-usb, .desk-clip { margin-top: calc(var(--gap) * .75); }
 
 /* ---------------- coffee */
 .desk-coffee { left: 92%; top: 88cqh; width: 26cqh; height: 26cqh; translate: -50% -50%; }   /* (in the corner, under the CD that pops out) */
@@ -265,7 +273,7 @@
   .desk-pop .pop-notes { padding: .8cqh .9cqh; rotate: 1.5deg; }
   .desk-pop .pop-notes small { font-size: .85cqh; } .desk-pop .pop-notes b { font-size: 1.7cqh; } .desk-pop .pop-notes > span { font-size: 1cqh; }
   .desk-pop ol, .desk-pop .pop-more { display: none; }
-  .desk-open, .desk-rack, .desk-ticket, .desk-picks, .desk-np { display: none; }   /* (the CDs and keepsakes: the iPod shows the album, the card says what is next; the earbuds have the bottom to themselves) */
+  .desk-open, .desk-rack, .desk-ticket, .desk-usb, .desk-clip, .desk-np { display: none; }   /* (the CDs and keepsakes: the iPod shows the album, the card says what is next; the earbuds have the bottom to themselves) */
   .desk-coffee { left: 112%; top: 99cqh; }   /* (in the corner, clear of the earbuds) */
   .desk-steam, .desk-tracklist, .desk-vu, .desk-pencil { display: none; }
 }

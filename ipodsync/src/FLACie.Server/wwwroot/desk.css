@@ -36,8 +36,13 @@
 .desk-hand, .desk-journal, .desk-np b, .desk-pop b { font-family: "Desk Hand", "Segoe Print", "Bradley Hand", cursive; }
 
 /* ---------------- the iPod's place: rotated a little; the page's .ipod-area fills it and its fit sizes the device to the inner box */
-.desk-ipod { left: 46%; top: 47cqh; height: 56cqh; aspect-ratio: var(--aspect, .6); box-sizing: content-box; padding: 12px; translate: -50% -50%; rotate: -4deg; }
+.desk-ipod { left: 46%; top: 47cqh; height: 56cqh; aspect-ratio: var(--aspect, .6); box-sizing: content-box; padding: 12px; translate: -50% -50%; --tilt: -4deg; rotate: var(--tilt); }
 .desk-ipod > .ipod-area { position: absolute; inset: 0; z-index: 2; }
+/* the tilt is drawn into the iPod's layer, not applied to it: the area (which the compositor keeps as its own layer, as the iPod lies over the earbuds and the
+   journal) is turned back upright and the fit inside it turned the tilt again, so the layer is axis-aligned and the compositor never rotates a bitmap of the
+   screen. The net rotation is still the tilt (flacie.js tiltOf() adds them up for the wheel and the touch drag). Nothing is clipped by the upright area. */
+.desk-ipod > .ipod-area { rotate: calc(var(--tilt) * -1); will-change: transform; overflow: visible; }
+.desk-ipod > .ipod-area > .ipod-fit { rotate: var(--tilt); }
 /* the iPod's side, showing past its face on the right and along the bottom: its real back (DeskScene sets data-back and the tones from the model and its
    colour). A conic gradient from the middle, so each stretch of the side has its own light: the right side runs from about 30deg to 150deg, the bottom from
    150deg to 210deg. Polished steel (the early iPods, the classics, the 1st and 3rd nanos, the first touches) mirrors the room: hard bright bands where it

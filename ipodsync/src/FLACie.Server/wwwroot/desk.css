@@ -7,6 +7,17 @@
 .desk-wood { position: absolute; inset: -3%; background: url(desk/oak.jpg) center / max(70cqh, 40cqw) auto; filter: sepia(.3) saturate(.88) brightness(.97) contrast(.98); }
 .desk-scene { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: min(100cqw, 177.78cqh); aspect-ratio: 16 / 9; container-type: size; filter: saturate(.86) contrast(1.03); }
 .desk-scene > * { position: absolute; }
+/* the desk taller than 16:9 (the panel open, a 4:3 or 16:10 screen): the scene stays 16:9 (everything keeps its size), and the spare height above and below it
+   (--gap, each side: registered as a length so it is worked out against the desk, not the scene) spreads the props out: the top row moves up, the bottom row
+   down, the iPod and what lies around it in the middle stay. No spare height (a wide window), nothing moves */
+@property --gap { syntax: "<length>"; inherits: true; initial-value: 0px; }
+.desk-scene { --gap: max(0px, calc((100cqh - min(100cqw, 177.78cqh) * .5625) / 2)); }
+.desk-journal, .desk-open { margin-top: calc(var(--gap) * -.75); }
+.desk-rack { margin-top: calc(var(--gap) * -.35); }
+.desk-pencil { margin-top: calc(var(--gap) * -.7); }   /* (it stays with the notebook) */
+.desk-vu, .desk-np { margin-top: calc(var(--gap) * .3); }
+.desk-ticket, .desk-picks { margin-top: calc(var(--gap) * .75); }
+.desk-coffee, .desk-steam { margin-top: calc(var(--gap) * .85); }
 .desk { --desk-shadow: drop-shadow(.15cqh .3cqh .25cqh rgba(50,28,10,.35)) drop-shadow(.8cqh 1.6cqh 1.6cqh rgba(50,28,10,.22)); }
 .desk .lift, .desk-pencil, .desk-adapter { filter: var(--desk-shadow); }   /* one shadow for every prop: grounded on the same wood under the same light */
 .desk-hand, .desk-journal, .desk-np b, .desk-pop b { font-family: "Desk Hand", "Segoe Print", "Bradley Hand", cursive; }
@@ -237,7 +248,7 @@
    the coffee from the bottom right, the earbuds lie between. Below 1.15 wide to 1 high (desk.js portrait() says the same); a laptop window with the panel open
    (about 4:3) keeps the whole desk. No polaroid (no room), no steam (it would rise over the iPod). */
 @container desk (aspect-ratio < 23 / 20) {
-  .desk-scene { width: min(100cqw, 47.37cqh); aspect-ratio: 9 / 19; }
+  .desk-scene { width: min(100cqw, 47.37cqh); aspect-ratio: 9 / 19; --gap: 0px; }   /* (a phone has its own layout: nothing spreads) */
   /* a band across the top for the sticky note and the queue card (they never reach the iPod or its cable), the iPod under it, the earbuds under that */
   .desk-ipod { left: 50%; top: 48.5cqh; height: 47cqh; }
   /* the journal is a pad of sticky notes: one note at a time, three rules of lyrics on it; the note under it shows at its edge */

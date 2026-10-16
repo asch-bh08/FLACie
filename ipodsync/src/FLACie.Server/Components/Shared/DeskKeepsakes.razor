@@ -1,0 +1,38 @@
+@* The iPod desk's keepsakes beside the CD stand: a concert ticket stub for the artist playing (its seat and date stay the same for that artist), and a
+   couple of guitar picks. To look at, not to press. Styles: desk.css. *@
+@if (Ticket)
+{
+<div class="desk-ticket lift" data-testid="desk-ticket" aria-hidden="true">
+    <div class="stub-main">
+        <small>LIVE · @Live</small>
+        <b>@ArtistLine</b>
+        <span>@When</span>
+    </div>
+    <div class="stub-tear">
+        <small>ADMIT ONE</small>
+        <span>SEC @Section</span><span>ROW @Row</span><span>SEAT @Seat</span>
+    </div>
+</div>
+}
+@if (Picks)
+{
+<div class="desk-picks" data-testid="desk-picks" aria-hidden="true"><i class="pick p1"><b>.73</b></i><i class="pick p2"><b>MED</b></i></div>
+}
+
+@code {
+    [Parameter] public bool Ticket { get; set; }
+    [Parameter] public bool Picks { get; set; }
+    /// <summary>The artist playing; empty when nothing plays (then the stub is a blank one).</summary>
+    [Parameter] public string? Artist { get; set; }
+    /// <summary>The song's year (0 when unknown): the stub is from that year's tour.</summary>
+    [Parameter] public int Year { get; set; }
+
+    string ArtistLine => string.IsNullOrWhiteSpace(Artist) ? "—" : Artist.Trim().ToUpperInvariant();
+    int H { get { unchecked { var h = 17; foreach (var c in Artist ?? "") h = h * 31 + c; return h & 0x7fffffff; } } }
+    static readonly string[] Months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    string When => $"{1 + H % 28:00} {Months[H / 28 % 12]} {(Year > 0 ? Year : 2006)}";
+    string Live => Year > 0 ? $"{Year} TOUR" : "ON TOUR";
+    string Section => ((char)('A' + H / 7 % 8)).ToString();
+    int Row => 1 + H / 13 % 24;
+    int Seat => 1 + H / 31 % 40;
+}

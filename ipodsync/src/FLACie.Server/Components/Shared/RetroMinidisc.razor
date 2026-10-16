@@ -47,7 +47,7 @@
 @code {
     bool ejected;
     int jog;
-    sealed record Disc(string Name, FLACie.Core.DeskAlbum? Album, DeskTapes.Tape? List);
+    sealed record Disc(string Name, FLACie.Core.DeskAlbum? Album, PlaylistTape? List);
     /// <summary>The MiniDiscs on the desk: the albums coming up, then your playlists (five at most).</summary>
     List<Disc> Discs => [.. NextAlbums.Take(3).Select(a => new Disc(a.Album, a, null)).Concat(Playlists.Select(t => new Disc(t.Name, null, t))).Take(5)];
     string Line1 => Now?.Title.ToUpperInvariant() ?? "INSERT DISC";

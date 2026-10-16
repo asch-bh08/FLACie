@@ -61,21 +61,38 @@ test.describe.serial('desk look on /ipod', () => {
     const song = (await page.getByTestId('ipod-np-title').textContent())!.trim();
     await expect(page.getByTestId('desk-journal').locator('.j-title')).toContainText(song);
     await expect(page.getByTestId('desk-open-cd')).toBeVisible();
+    await expect(page.getByTestId('desk-stand')).toBeVisible();
     await expect(page.locator('[data-q=next]').first()).toBeVisible();
     // the disc gets its print, made from the cover in the browser (it never travels to the server: it is bigger than a Blazor message)
     await expect.poll(() => page.getByTestId('desk-disc').evaluate((d) => getComputedStyle(d).getPropertyValue('--art')), { timeout: 10_000 }).toContain('data:image/png');
+    // the acrylic stand: the next album in the front slot, its cover whole (the queue card's next song is from it); behind it the ones after lean back,
+    // only their top edges showing
+    const front = page.locator('[data-testid=desk-stand] [data-front]');
+    await expect(front.locator('img, .cover').first()).toBeVisible();
+    const stand = (await page.getByTestId('desk-stand').boundingBox())!, fb = (await front.boundingBox())!;
+    const edges = page.locator('[data-testid=desk-stand] .edge');
+    expect(await edges.count()).toBeGreaterThanOrEqual(1);
+    for (const e of await edges.all()) {
+      const b = (await e.boundingBox())!;
+      expect(b.y + b.height, 'an edge behind the front case').toBeLessThanOrEqual(fb.y + fb.height * 0.2);
+      expect(b.height, 'only its top edge shows').toBeLessThan(fb.height * 0.25);
+      expect(b.x >= stand.x - 2 && b.x + b.width <= stand.x + stand.width + 2, 'in the stand').toBe(true);
+    }
+    // the open CD and the stand lie apart
+    const open = (await page.getByTestId('desk-open-cd').boundingBox())!;
+    expect(open.y + open.height, 'the open CD above the stand').toBeLessThanOrEqual(stand.y + 4);
     // the wheel's next zone skips the song
     const b = (await page.getByTestId('ipod-wheel').boundingBox())!;
     await page.mouse.click(b.x + b.width / 2 + b.width * 0.42, b.y + b.height / 2); await page.waitForTimeout(500);
     await expect(page.getByTestId('ipod-np-title')).not.toHaveText(song, { timeout: 10_000 });
     // the open CD is the album playing now (its disc in the tray); a click on it pauses and plays
     const album = (await page.locator('.lnp-album').textContent())!.trim();
-    expect(await page.getByTestId('desk-open-cd').getAttribute('aria-label')).toMatch(new RegExp(`^Now playing: ${album.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} by `));
+    expect((await page.getByTestId('desk-open-cd').getAttribute('aria-label'))!.startsWith(`Now playing: ${album} by `)).toBe(true);
     await page.getByTestId('desk-open-cd').click();
     await expect(page.getByTestId('desk-disc')).toHaveClass(/paused/);
     await page.getByTestId('desk-open-cd').click();
     await expect(page.getByTestId('desk-disc')).not.toHaveClass(/paused/);
-    // a CD from the stack plays that album: it becomes the one playing
+    // a CD from the rack plays that album: it becomes the one playing
     const stacked = (await page.getByTestId('desk-case').last().getAttribute('aria-label'))!.replace(/^Play /, '').replace(/ by .*$/, '');
     await page.getByTestId('desk-case').last().click();
     await expect(page.locator('.lnp-album')).toHaveText(stacked, { timeout: 10_000 });
@@ -262,12 +279,15 @@ test.describe.serial('desk look on /ipod', () => {
     await openDesk(page, { model: 'classic6', look: 2 });
     const opt = (k: string) => page.locator(`[data-testid=desk-options] [data-desk-opt="${k}"]`);
     await expect(page.getByTestId('desk-options')).toBeVisible();
-    // a new desk: earbuds, the pencil on the notebook, the VU amp, the cassette and the MiniDiscs; the iPod lies on the desk itself (no dock, no option for one)
+    // a new desk: earbuds, the pencil by the notebook, the VU amp, the concert ticket and the guitar picks; the iPod lies on the desk itself (no dock, no
+    // option for one); no cassette or MiniDiscs any more
     await expect(page.locator('[data-desk-phones="0"]')).toHaveClass(/on/);
-    for (const id of ['desk-vu', 'desk-cassette', 'desk-minidiscs', 'desk-pencil']) await expect(page.getByTestId(id), id).toBeVisible();
+    for (const id of ['desk-vu', 'desk-ticket', 'desk-picks', 'desk-pencil']) await expect(page.getByTestId(id), id).toBeVisible();
+    for (const id of ['desk-cassette', 'desk-minidiscs']) await expect(page.getByTestId(id), id).toHaveCount(0);
+    for (const k of ['tape', 'md']) await expect(opt(k), k).toHaveCount(0);
     await expect(page.getByTestId('desk-dock')).toHaveCount(0); await expect(opt('dock')).toHaveCount(0);
     // the others off and on again; the VU meter left off
-    for (const [k, id] of [['md', 'desk-minidiscs'], ['pencil', 'desk-pencil'], ['tape', 'desk-cassette']]) {
+    for (const [k, id] of [['picks', 'desk-picks'], ['pencil', 'desk-pencil'], ['ticket', 'desk-ticket']]) {
       await opt(k).click(); await expect(page.getByTestId(id)).toHaveCount(0); await expect(opt(k)).not.toHaveClass(/on/);
       await opt(k).click(); await expect(page.getByTestId(id)).toBeVisible();
     }
@@ -285,45 +305,38 @@ test.describe.serial('desk look on /ipod', () => {
     expect(errors).toEqual([]);
   });
 
-  test('the cassette and the MiniDiscs are your playlists: their labels, and a click plays them', async ({ page }) => {
+  test('the keepsakes: a concert ticket stub for the artist playing (it follows the song), and guitar picks', async ({ page }) => {
+    const errors = consoleErrors(page);
     await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
-    const stamp = Date.now().toString(36), tape = `Tape ${stamp}`, disc = `Disc ${stamp}`;
-    // two playlists with a song each (made in the app: Playlists page, then Now Playing › More › Add to playlist)
-    const songs: Record<string, string> = {};
-    for (const [name, nth] of [[disc, 0], [tape, 1]] as const) {   // (the first two songs of the list: the list only draws the rows in view)
-      await page.goto('/playlists');
-      // (typed again until the page is live: a name typed before it connects never reaches the server, and Create stays off)
-      await expect(async () => { await page.getByLabel('New playlist name').fill(''); await page.getByLabel('New playlist name').fill(name); await expect(page.getByRole('button', { name: 'Create' })).toBeEnabled({ timeout: 1000 }); }).toPass({ timeout: 20_000 });
-      await page.getByRole('button', { name: 'Create' }).click();
-      await page.waitForURL(/\/playlist\//);
-      await page.goto('/songs');
-      // a song whose title is not the other playlist's (the mock library has songs of the same name on different albums)
-      let row = page.locator('.track').nth(nth);
-      for (let i = nth; Object.values(songs).includes((await row.locator('.track-title').textContent())!.trim()); i++) row = page.locator('.track').nth(i + 1);
-      songs[name] = (await row.locator('.track-title').textContent())!.trim();
-      await row.locator('button.track-main').click();
-      await page.getByRole('button', { name: 'Open Now Playing' }).click();
-      await expect(page.locator('.np-titles h2')).toHaveText(songs[name]);   // (Now Playing on this song before its menu adds it)
-      await page.getByRole('button', { name: 'More options' }).first().click();
-      await page.getByRole('menuitem', { name: /Add to playlist/ }).click();
-      await page.getByRole('menuitem', { name }).click();
+    await openDesk(page, { model: 'classic6', look: 2 });
+    await expect(page.getByTestId('desk-ticket')).toBeVisible();
+    await expect(page.getByTestId('desk-picks')).toBeVisible();
+    await shuffle(page);
+    const artist = () => page.locator('[data-testid=ipod-np-title] + span').textContent().then((s) => s!.trim().toUpperCase());
+    await expect(page.getByTestId('desk-ticket')).toContainText(await artist(), { timeout: 10_000 });
+    await expect(page.getByTestId('desk-ticket')).toContainText('ADMIT ONE');
+    // another artist's song: the stub is for them (the mock's songs last 3 s: wait for an artist change)
+    const first = await artist();
+    await expect.poll(artist, { timeout: 20_000 }).not.toBe(first);
+    await expect(page.getByTestId('desk-ticket')).toContainText(await artist(), { timeout: 10_000 });
+    // the props lie apart: none on another, none on the CD stand
+    const boxes = await Promise.all(['desk-ticket', 'desk-picks', 'desk-stand', 'desk-queue'].map(async (id) => [id, (await page.getByTestId(id).boundingBox())!] as const));
+    for (const [a, p] of boxes) for (const [b, q] of boxes) if (a < b) {
+      const o = Math.max(0, Math.min(p.x + p.width, q.x + q.width) - Math.max(p.x, q.x)) * Math.max(0, Math.min(p.y + p.height, q.y + q.height) - Math.max(p.y, q.y));
+      expect(o / Math.min(p.width * p.height, q.width * q.height), `${a} on ${b}`).toBeLessThan(0.04);
     }
-    await page.goto('/songs');
-    await page.locator('.track', { has: page.locator('.track-title', { hasText: /^Lantern \d+$/ }) }).first().locator('button.track-main').click();
-    await page.evaluate(() => localStorage.setItem('flacie.ipod', JSON.stringify({ model: 'classic6', look: 2, desk: { md: true } })));   // (read when iPod mode opens)
-    await page.evaluate(() => (window as any).Blazor.navigateTo('/ipod'));
-    await expect(page.getByTestId('desk')).toBeVisible({ timeout: 20_000 });
-    // the newest playlist is the cassette, the others the MiniDiscs
-    await expect(page.getByTestId('desk-cassette')).toContainText(tape);
-    await expect(page.getByTestId('desk-minidiscs')).toContainText(disc);
-    // (the mock's songs last 3 s and a one-song playlist goes on to autoplay: watch the title from the click on)
-    const watch = () => page.evaluate(() => { (window as any).seen = []; (window as any).seenTimer = setInterval(() => { const t = document.querySelector('[data-testid=ipod-np-title]')?.textContent?.trim(); if (t) (window as any).seen.push(t); }, 50); });
-    const saw = (title: string) => expect.poll(() => page.evaluate(() => (window as any).seen as string[]), { timeout: 8_000 }).toContain(title);
-    await watch(); await page.getByTestId('desk-cassette').click();
-    await saw(songs[tape]);
-    await expect(page.locator('.desk-cassette .reel').first()).not.toHaveClass(/paused/);
-    await watch(); await page.locator('[data-testid=desk-minidiscs] [data-md]').filter({ hasText: disc }).click();
-    await saw(songs[disc]);
+    // and the earbud cable lies across none of the props
+    const crossed = await page.evaluate(() => {
+      const path = document.getElementById('desk-cable') as unknown as SVGPathElement, m = path.getScreenCTM()!, L = path.getTotalLength(), out: string[] = [];
+      const pts = Array.from({ length: 301 }, (_, i) => { const q = path.getPointAtLength(L * i / 300); return new DOMPoint(q.x, q.y).matrixTransform(m); });
+      for (const s of ['.desk-stand', '.desk-ticket', '.desk-picks', '.desk-queue', '.desk-journal', '.desk-vu', '.desk-polaroid']) {
+        const q = document.querySelector(s)!.getBoundingClientRect();
+        if (pts.some((t) => t.x > q.left + 2 && t.x < q.right - 2 && t.y > q.top + 2 && t.y < q.bottom - 2)) out.push(s);
+      }
+      return out;
+    });
+    expect(crossed).toEqual([]);
+    expect(errors).toEqual([]);
   });
 
   test('the VU meter\'s needle is driven by the desk (the mock songs are silent: its swing is checked in the desk.js harness)', async ({ page }) => {

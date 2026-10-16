@@ -20,17 +20,17 @@ public abstract class RetroBase : UserComponent
     protected DeskAlbum? NowAlbum => DeskSources.Current(Player.Queue, Player.Index);
 
     /// <summary>Your playlists that have songs in this library, newest first.</summary>
-    protected IReadOnlyList<DeskTapes.Tape> Playlists
+    protected IReadOnlyList<PlaylistTape> Playlists
     {
         get
         {
             if (Session is null) return [];   // (the first render comes before the session is known)
             var key = string.Join(",", Session.Playlists.Select(p => $"{p.Id}:{p.Modified}:{p.Entries.Count}"));
-            if (key != tapesKey) { tapesKey = key; tapes = Session.Playlists.OrderByDescending(p => p.Modified).Select(p => new DeskTapes.Tape(p.Id, p.Name, Session.Resolve(p.Entries).Count)).Where(t => t.Count > 0).ToList(); }
+            if (key != tapesKey) { tapesKey = key; tapes = Session.Playlists.OrderByDescending(p => p.Modified).Select(p => new PlaylistTape(p.Id, p.Name, Session.Resolve(p.Entries).Count)).Where(t => t.Count > 0).ToList(); }
             return tapes;
         }
     }
-    List<DeskTapes.Tape> tapes = []; string tapesKey = "";
+    List<PlaylistTape> tapes = []; string tapesKey = "";
 
     protected Task Toggle() => Player.Toggle();
     protected Task Next() => Player.Next();
@@ -41,7 +41,7 @@ public abstract class RetroBase : UserComponent
     protected Task SetVolume(double v) => Player.SetVolumeAsync(Math.Clamp(v, 0, 1));
 
     /// <summary>Plays one of your playlists from its first song.</summary>
-    protected async Task PlayPlaylist(DeskTapes.Tape tape)
+    protected async Task PlayPlaylist(PlaylistTape tape)
     {
         if (Session.Playlists.FirstOrDefault(p => p.Id == tape.Id) is { } p && Session.Resolve(p.Entries) is { Count: > 0 } tracks) await Player.Play(tracks, 0, p.Name);
     }

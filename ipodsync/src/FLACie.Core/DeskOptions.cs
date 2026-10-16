@@ -13,26 +13,26 @@ public sealed class DeskOptions
     int phones = Earbuds;
     /// <summary>A brushed-metal amp with a VU meter whose needle follows the music.</summary>
     public bool Vu { get; set; } = true;
-    /// <summary>A cassette whose reels turn while music plays; its label is one of your playlists, and a click plays it.</summary>
-    public bool Cassette { get; set; } = true;
-    /// <summary>A small stack of MiniDiscs, each one of your playlists.</summary>
-    public bool Minidiscs { get; set; } = true;
-    /// <summary>A pencil lying across the journal.</summary>
+    /// <summary>A concert ticket stub for the artist playing.</summary>
+    public bool Ticket { get; set; } = true;
+    /// <summary>A couple of guitar picks.</summary>
+    public bool Picks { get; set; } = true;
+    /// <summary>A pencil lying by the journal.</summary>
     public bool Pencil { get; set; } = true;
 
-    public void Reset() { phones = Earbuds; Vu = true; Cassette = true; Minidiscs = true; Pencil = true; }
+    public void Reset() { phones = Earbuds; Vu = true; Ticket = true; Picks = true; Pencil = true; }
 
-    public JsonObject ToJson() => new() { ["phones"] = phones, ["vu"] = Vu, ["tape"] = Cassette, ["md"] = Minidiscs, ["pencil"] = Pencil };
+    public JsonObject ToJson() => new() { ["phones"] = phones, ["vu"] = Vu, ["ticket"] = Ticket, ["picks"] = Picks, ["pencil"] = Pencil };
 
-    /// <summary>Reads what <see cref="ToJson"/> wrote; anything missing or of the wrong kind keeps its default (and the old "dock" key, from when the desk had
-    /// a dock, is ignored).</summary>
+    /// <summary>Reads what <see cref="ToJson"/> wrote; anything missing or of the wrong kind keeps its default (and the old "dock", "tape" and "md" keys, from
+    /// when the desk had a dock, a cassette and MiniDiscs, are ignored).</summary>
     public static DeskOptions FromJson(JsonNode? node)
     {
         var d = new DeskOptions();
         if (node is not JsonObject o) return d;
         bool B(string k, bool def) => o[k] is JsonValue v && v.TryGetValue<bool>(out var b) ? b : def;
         if (o["phones"] is JsonValue p && p.TryGetValue<int>(out var n)) d.Phones = n;
-        d.Vu = B("vu", true); d.Cassette = B("tape", true); d.Minidiscs = B("md", true); d.Pencil = B("pencil", true);
+        d.Vu = B("vu", true); d.Ticket = B("ticket", true); d.Picks = B("picks", true); d.Pencil = B("pencil", true);
         return d;
     }
 }

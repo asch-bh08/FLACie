@@ -93,8 +93,8 @@
                 </div>
                 <div class="desk-opts">
                     @DeskOpt("vu", "VU meter", prefs.Desk.Vu, d => d.Vu = !d.Vu)
-                    @DeskOpt("tape", "Cassette", prefs.Desk.Cassette, d => d.Cassette = !d.Cassette)
-                    @DeskOpt("md", "MiniDiscs", prefs.Desk.Minidiscs, d => d.Minidiscs = !d.Minidiscs)
+                    @DeskOpt("ticket", "Ticket", prefs.Desk.Ticket, d => d.Ticket = !d.Ticket)
+                    @DeskOpt("picks", "Picks", prefs.Desk.Picks, d => d.Picks = !d.Picks)
                     @DeskOpt("pencil", "Pencil", prefs.Desk.Pencil, d => d.Pencil = !d.Pencil)
                 </div>
             </section>
@@ -330,7 +330,7 @@
     // the viewer's own day (their clock, not the server's): "15 oct" for the journal, "thursday" for the polaroid; empty until the browser answers
     string deskDate = "", deskWeekday = ""; bool deskDayAsked;
     DeskAlbum? DeskNow => DeskSources.Current(Player.Queue, Player.Index);
-    IReadOnlyList<DeskAlbum> DeskNext => DeskSources.Next(Player.Queue, Player.PlayOrder, Player.Index, wrap: Player.Repeat == 1);
+    IReadOnlyList<DeskAlbum> DeskNext => DeskSources.Next(Player.Queue, Player.PlayOrder, Player.Index, 4, Player.Repeat == 1);
 
     RenderFragment DeskJournalPart => @<DeskJournal Title="@Player.Current?.Title" Artist="@Player.Current?.Artist" Lines="@(deskLyrics?.Lines ?? [])" Synced="@(deskLyrics?.Synced ?? false)" SongKey="@deskLyricsFor" Date="@deskDate" />;
     RenderFragment DeskPolaroidPart => @<div class="desk-polaroid lift" data-testid="desk-polaroid"><Cover ArtKey="@Player.Current?.ArtKey" /><span>@(deskWeekday.Length > 0 ? deskWeekday + " ♡" : "♡")</span></div>;
@@ -350,30 +350,9 @@
         @<button type="button" class="ipod-chip @(on ? "on" : "")" data-desk-opt="@key" aria-pressed="@(on ? "true" : "false")" tabindex="-1" @onclick="() => DeskSet(flip)">@name</button>;
     void DeskSet(Action<DeskOptions> change) { change(prefs.Desk); Save(); }
 
-    // the tapes: your playlists (newest first, only those with songs in this library), worked out again only when a playlist changes
-    List<DeskTapes.Tape> deskTapes = []; string deskTapesKey = "";
-    IReadOnlyList<DeskTapes.Tape> DeskTapesList
-    {
-        get
-        {
-            if (!prefs.Desk.Cassette && !prefs.Desk.Minidiscs) return [];
-            var key = string.Join(",", Session.Playlists.Select(p => $"{p.Id}:{p.Modified}:{p.Entries.Count}"));
-            if (key != deskTapesKey)
-            {
-                deskTapesKey = key;
-                deskTapes = Session.Playlists.OrderByDescending(p => p.Modified).Select(p => new DeskTapes.Tape(p.Id, p.Name, Session.Resolve(p.Entries).Count)).Where(t => t.Count > 0).ToList();
-            }
-            return deskTapes;
-        }
-    }
-    async Task DeskPlayTape(DeskTapes.Tape tape)
-    {
-        if (Session.Playlists.FirstOrDefault(p => p.Id == tape.Id) is not { } p || Session.Resolve(p.Entries) is not { Count: > 0 } tracks) return;
-        await Player.Play(tracks, 0, p.Name);
-        showNow = true; npMode = 0; await FocusStage();
-    }
+    // the keepsakes beside the CDs: a ticket stub for the artist playing, guitar picks
     RenderFragment DeskPropsPart => @<text>
-        <DeskTapes Playlists="@DeskTapesList" Cassette="@prefs.Desk.Cassette" Minidiscs="@prefs.Desk.Minidiscs" Playing="@Player.Playing" OnPlay="@DeskPlayTape" />
+        <DeskKeepsakes Ticket="@prefs.Desk.Ticket" Picks="@prefs.Desk.Picks" Artist="@Player.Current?.Artist" Year="@(Player.Current?.Year ?? 0)" />
     </text>;
 
     // a CD played while shuffling plays the whole album, in album order, then the shuffle carries on; otherwise the queue goes on from that album

@@ -57,7 +57,7 @@
 @code {
     bool open;
     static readonly (string Band, string Label)[] Eq = [("low", "60"), ("low", "250"), ("mid", "1k"), ("high", "4k"), ("high", "12k")];
-    sealed record Tape(string Name, FLACie.Core.DeskAlbum? Album, DeskTapes.Tape? List);
+    sealed record Tape(string Name, FLACie.Core.DeskAlbum? Album, PlaylistTape? List);
     /// <summary>Deck B: the album coming up, or (nothing coming up) your newest playlist.</summary>
     Tape? DeckB => NextAlbums.FirstOrDefault() is { } a ? new Tape(a.Album, a, null) : Playlists.FirstOrDefault() is { } t ? new Tape(t.Name, null, t) : null;
     // the tape counter: three wheels, the song's seconds (it wraps at 999 like the real thing)

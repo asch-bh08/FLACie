@@ -84,7 +84,7 @@
     int front;
     string? lastSong;
 
-    sealed record Sleeve(string Name, FLACie.Core.DeskAlbum? Album, DeskTapes.Tape? Tape);
+    sealed record Sleeve(string Name, FLACie.Core.DeskAlbum? Album, PlaylistTape? Tape);
     /// <summary>The crate: the albums coming up, then your playlists.</summary>
     List<Sleeve> Sleeves => [.. NextAlbums.Select(a => new Sleeve(a.Album, a, null)), .. Playlists.Take(6).Select(t => new Sleeve(t.Name, null, t))];
 

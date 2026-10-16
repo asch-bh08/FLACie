@@ -8,25 +8,25 @@ public class DeskOptionsTests
 {
     [Fact] public void ANewDeskHasEverything()
     {
-        // the workspace: the iPod, the notebook with its pencil, the VU amp, the CDs with the cassette and the MiniDiscs, earbuds
+        // the workspace: the iPod, the notebook with its pencil, the VU amp, the CDs in their stand, a concert ticket and guitar picks, earbuds
         var d = new IpodPrefs().Desk;
         Assert.Equal(DeskOptions.Earbuds, d.Phones);
-        Assert.True(d.Vu); Assert.True(d.Cassette); Assert.True(d.Minidiscs); Assert.True(d.Pencil);
+        Assert.True(d.Vu); Assert.True(d.Ticket); Assert.True(d.Picks); Assert.True(d.Pencil);
     }
 
     [Fact] public void TheChoicesAreKeptWithTheIpodSettings()
     {
         var p = new IpodPrefs();
-        p.Desk.Phones = DeskOptions.Studio; p.Desk.Vu = false; p.Desk.Minidiscs = false; p.Desk.Pencil = false; p.Desk.Cassette = false;
+        p.Desk.Phones = DeskOptions.Studio; p.Desk.Vu = false; p.Desk.Picks = false; p.Desk.Pencil = false; p.Desk.Ticket = false;
         var back = IpodPrefs.FromJson(p.ToJson()).Desk;
         Assert.Equal(DeskOptions.Studio, back.Phones);
-        Assert.False(back.Vu); Assert.False(back.Cassette);
-        Assert.False(back.Minidiscs); Assert.False(back.Pencil);
+        Assert.False(back.Vu); Assert.False(back.Ticket);
+        Assert.False(back.Picks); Assert.False(back.Pencil);
     }
 
     [Fact] public void SettingsFromBeforeTheOptionsOrBrokenOnesGiveTheDefaults()
     {
-        Assert.True(IpodPrefs.FromJson("""{"model":"classic6","look":2}""").Desk.Cassette);
+        Assert.True(IpodPrefs.FromJson("""{"model":"classic6","look":2}""").Desk.Ticket);
         var broken = IpodPrefs.FromJson("""{"desk":{"phones":7,"vu":"yes","dock":3}}""").Desk;
         Assert.Equal(DeskOptions.Earbuds, broken.Phones); Assert.True(broken.Vu);
         Assert.True(IpodPrefs.FromJson("""{"desk":[1,2]}""").Desk.Vu);
@@ -46,5 +46,14 @@ public class DeskOptionsTests
         Assert.False(p.Desk.Vu);
         Assert.DoesNotContain("dock", p.ToJson());
         Assert.Null(typeof(DeskOptions).GetProperty("Dock"));
+    }
+
+    [Fact] public void TheCassetteAndMiniDiscsAreGoneAndTheirOldSettingsAreDropped()
+    {
+        // (the owner asked for them to go: a concert ticket and guitar picks lie there now)
+        var p = IpodPrefs.FromJson("""{"desk":{"tape":false,"md":false}}""");
+        Assert.True(p.Desk.Ticket); Assert.True(p.Desk.Picks);
+        Assert.DoesNotContain("\"tape\"", p.ToJson()); Assert.DoesNotContain("\"md\"", p.ToJson());
+        Assert.Null(typeof(DeskOptions).GetProperty("Cassette")); Assert.Null(typeof(DeskOptions).GetProperty("Minidiscs"));
     }
 }

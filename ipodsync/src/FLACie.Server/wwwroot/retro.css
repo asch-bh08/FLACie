@@ -12,6 +12,16 @@
 .retro-car .desk-wash { opacity: .12; } .retro-car .desk-fade { background: rgba(30,30,60,.12); }
 .retro-car .desk-leak { background: radial-gradient(60cqh 48cqh at 100% 0%, rgba(255,60,140,.55), rgba(120,60,255,.18) 45%, transparent 70%), radial-gradient(34cqh 44cqh at 0% 100%, rgba(60,140,255,.3), transparent 70%); }
 .retro-car .desk-dust { opacity: .35; }
+/* the hi-fi: lamplight in the evening, no sun; a warm amber glow from the lamp's corner, a deeper fade */
+.retro-hifi .desk-leak { background: radial-gradient(70cqh 60cqh at 8% 18%, rgba(255,170,80,.6), rgba(255,130,50,.2) 45%, transparent 70%); }
+.retro-hifi .desk-wash { background: linear-gradient(160deg, #f0c890, #e2b07a); opacity: .22; } .retro-hifi .desk-dust { opacity: .5; }
+/* the boombox: a low golden sun in a workshop */
+.retro-boombox .desk-leak { background: radial-gradient(60cqh 48cqh at 100% 0%, rgba(255,150,60,.7), rgba(255,110,40,.2) 45%, transparent 70%); }
+/* the MiniDisc: a hazy, slightly cool afternoon in a dorm room */
+.retro-minidisc .desk-wash { background: linear-gradient(160deg, #eef0f2, #e6e2dc); opacity: .2; } .retro-minidisc .desk-cool { opacity: .22; }
+.retro-minidisc .desk-leak { opacity: calc(.14 + var(--beat, 0) * .25); background: radial-gradient(60cqh 48cqh at 100% 0%, rgba(255,210,170,.6), transparent 70%); }
+/* the Discman: a bright, soft morning on the linen */
+.retro-discman .desk-fade { background: rgba(255,250,240,.1); } .retro-discman .desk-leak { opacity: calc(.16 + var(--beat, 0) * .25); }
 .retro :focus-visible { outline: 2px solid #4a9bff; outline-offset: 2px; }
 
 /* ================================================================ the car stereo: night, rain, a single-DIN head unit */

@@ -14,14 +14,22 @@
         case IpodPrefs.SceneDiscman: <RetroDiscman /> break;
     }
     @* the desk's light and film over every scene, so they all read as one set of photographs *@
-    <DeskFilm Id="@($"retro-{Key}")" Shade="@Light.Shade" Sun="@Light.Sun" Class="@($"film-{Key}")" />
+    <DeskFilm Id="@($"retro-{Key}")" Shade="@Light.Shade" Sun="@Light.Sun" Blur="@Light.Blur" Class="@($"film-{Key}")" />
 </div>
 
 @code {
     [Parameter] public int Kind { get; set; }
     string Key => IpodPrefs.SceneKeys[Math.Clamp(Kind, 0, IpodPrefs.SceneKeys.Length - 1)];
-    // the light through the blinds in each scene: none at night in the car, the lamp-lit evening for the hi-fi, daylight for the others
-    (double Shade, double Sun) Light => Kind switch { IpodPrefs.SceneCar => (0, 0), IpodPrefs.SceneHifi => (0.16, 0.18), _ => (0.2, 0.32) };
+    // each scene's own light (the blinds' shade, the sun through them, how soft their edges are): the car at night and the hi-fi's lamp-lit evening have no
+    // blinds at all; the boombox's workshop a low warm sun; the MiniDisc's dorm a hazy afternoon; the Discman's linen a bright, gentle morning
+    (double Shade, double Sun, double Blur) Light => Kind switch
+    {
+        IpodPrefs.SceneCar or IpodPrefs.SceneHifi => (0, 0, 7),
+        IpodPrefs.SceneBoombox => (0.1, 0.24, 9),
+        IpodPrefs.SceneMinidisc => (0.06, 0.16, 16),
+        IpodPrefs.SceneDiscman => (0.08, 0.2, 12),
+        _ => (0.2, 0.32, 7),
+    };
 
     ElementReference root;
     int startedFor = -1;

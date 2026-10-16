@@ -2,7 +2,7 @@
    desk.js into canvas[data-dust]), and a film finish (a lifted fade, a warm wash, a cool tint, a light leak that breathes with the beat, grain). Styles: desk.css. *@
 <svg class="desk-light @Class" viewBox="0 0 1600 900" preserveAspectRatio="none" aria-hidden="true">
   <defs>
-    <filter id="@(Id)-soft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="7"/></filter>
+    <filter id="@(Id)-soft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="@F(Blur)"/></filter>
     <mask id="@(Id)-sun" maskUnits="userSpaceOnUse" x="0" y="0" width="1600" height="900"><rect width="1600" height="900" fill="#000"/><g class="desk-sun-drift"><g class="desk-slats" filter="url(#@(Id)-soft)">@Slats("#fff")</g></g></mask>
     <mask id="@(Id)-shade" maskUnits="userSpaceOnUse" x="0" y="0" width="1600" height="900"><rect width="1600" height="900" fill="#fff"/><g class="desk-sun-drift"><g class="desk-slats" filter="url(#@(Id)-soft)">@Slats("#000")</g></g></mask>
     <radialGradient id="@(Id)-vig" cx="50%" cy="50%" r="72%"><stop offset=".5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2a160a" stop-opacity=".5"/></radialGradient>
@@ -20,6 +20,8 @@
     /// <summary>How deep the blinds' shade and how warm the sun is (a night scene turns both down).</summary>
     [Parameter] public double Shade { get; set; } = 0.2;
     [Parameter] public double Sun { get; set; } = 0.32;
+    /// <summary>How soft the blinds' edges are (a hazy afternoon: very soft).</summary>
+    [Parameter] public double Blur { get; set; } = 7;
     [Parameter] public string? Class { get; set; }
 
     static string F(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);

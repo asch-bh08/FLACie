@@ -1,9 +1,10 @@
 @using FLACie.Core
 @inject IJSRuntime Js
-@* The iPod desk's CDs. The album playing now lies open on the desk (its booklet, and its disc spinning in the tray: the release's own disc picture when
-   FLACie has one, otherwise a print made from the cover); a click on it pauses and plays. The albums coming up stand in a clear acrylic stand, seen from
-   above: the next one in the front slot, its cover whole; behind it the ones after lean back in the rack, only their top edges showing. A click on one
-   plays that album. (What is up next, song by song, is on the queue card: DeskQueue.) Every CD is a button (Tab, Enter, Space). Styles: desk.css. *@
+@* The iPod desk's CDs, and what comes next. The album playing now lies open (its booklet, and its disc spinning in the tray: the release's own disc picture
+   when FLACie has one, otherwise a print made from the cover); a click on it pauses and plays. The albums coming up stand in a wooden rack in play order,
+   their spines up. One is picked (at rest the next one): it lifts in the rack, and its case pops out and lies flat beside it, bigger, saying when it comes
+   (UP NEXT, 2nd, 3rd...) with its album, artist, year and the songs from it in the queue. Hovering a spine, the wheel over the rack or the arrow keys pick
+   another; a click (or Enter) plays it. Styles: desk.css. *@
 @if (Now is { } now)
 {
 <div class="desk-open lift" data-testid="desk-open-cd" role="button" tabindex="0" aria-label="@($"Now playing: {now.Album} by {now.Artist}")" title="@(Playing ? "Pause" : "Play")" @onclick="Toggle" @onkeydown="ToggleKey">
@@ -12,33 +13,45 @@
     <div class="hinge"></div>
 </div>
 }
-<div class="desk-stand lift" data-testid="desk-stand">
-    <i class="slab" aria-hidden="true"></i>
-    <div class="rack">
-        @for (var i = Math.Min(Next.Count, 4) - 1; i >= 1; i--)
+<div class="desk-rack lift" data-testid="desk-rack" data-sel="@Sel" data-wheel role="listbox" tabindex="0" aria-label="Up next: hover, scroll or use the arrow keys to look through the CDs; Enter plays one"
+     aria-activedescendant="@(Next.Count > 0 ? $"desk-cd-{Sel}" : null)" @onwheel="Wheel" @onkeydown="Key">
+    <i class="rack-wood" aria-hidden="true"></i>
+    <div class="rack-row">
+        @for (var i = 0; i < Next.Count; i++)
         {
             var k = i; var a = Next[k];
-            <div class="edge" data-testid="desk-case" style="--i:@(k - 1)" role="button" tabindex="0" aria-label="@($"Play {a.Album} by {a.Artist}")" title="Play @a.Album" @onclick="() => Pick(k)" @onkeydown="e => Key(e, k)">
-                <Cover ArtKey="@a.ArtKey" Class="desk-art" /><span class="spine">@a.Album · @a.Artist</span>
+            <div class="spine @(k == Sel ? "sel" : "")" id="desk-cd-@k" data-testid="desk-spine" data-album="@a.Album" style="--i:@k" role="option" aria-selected="@(k == Sel ? "true" : "false")"
+                 aria-label="@($"{Ord(k)}: {a.Album} by {a.Artist}")" @onmouseenter="() => Select(k)" @onclick="() => Pick(k)">
+                <Cover ArtKey="@a.ArtKey" Class="spine-art" /><span class="spine-label">@a.Album</span><b class="spine-no">@(k + 1)</b>
             </div>
         }
+        @if (Next.Count == 0) { <span class="rack-empty hand">nothing queued</span> }
     </div>
-    @if (Next.Count > 0)
-    {
-        var a0 = Next[0];
-        <div class="front" data-testid="desk-case" data-front role="button" tabindex="0" aria-label="@($"Play {a0.Album} by {a0.Artist}")" title="Up next: @a0.Album" @onclick="() => Pick(0)" @onkeydown="e => Key(e, 0)">
-            <Cover ArtKey="@a0.ArtKey" Class="desk-art" /><i class="hinge" aria-hidden="true"></i><i class="glare" aria-hidden="true"></i>
-        </div>
-    }
-    else { <div class="front empty" aria-hidden="true"></div> }
-    <i class="lip" aria-hidden="true"></i>
 </div>
+@if (Picked is { } p)
+{
+<div class="desk-pop lift" @key="p.Key" data-testid="desk-pop" data-album="@p.Album" role="button" tabindex="0" aria-label="@($"Play {p.Album} by {p.Artist} ({Ord(Sel)})")" title="Play @p.Album"
+     @onclick="() => Pick(Sel)" @onkeydown="PopKey">
+    <div class="pop-case"><Cover ArtKey="@p.ArtKey" Class="desk-art" /><i class="hinge" aria-hidden="true"></i><i class="glare" aria-hidden="true"></i></div>
+    <div class="pop-notes">
+        <small data-pop="label">@Ord(Sel)</small>
+        <b class="hand">@p.Album</b>
+        <span>@(p.First.Year > 0 ? $"{p.Artist} · {p.First.Year}" : p.Artist)</span>
+        <ol data-pop="songs">
+            @foreach (var t in Songs(p).Take(5)) { <li><span>@t.Title</span><em>@Clock(t.DurationMs)</em></li> }
+        </ol>
+        @if (Songs(p).Count > 5) { <small class="pop-more">+ @(Songs(p).Count - 5) more</small> }
+    </div>
+</div>
+}
 
 @code {
     /// <summary>The album playing now (the open CD); null when nothing plays.</summary>
     [Parameter] public DeskAlbum? Now { get; set; }
-    /// <summary>The albums after it, in play order (the stand: the first in front).</summary>
+    /// <summary>The albums after it, in play order (the rack).</summary>
     [Parameter] public IReadOnlyList<DeskAlbum> Next { get; set; } = [];
+    /// <summary>The queue (the songs a CD in the rack holds are queue positions).</summary>
+    [Parameter] public IReadOnlyList<Track> Queue { get; set; } = [];
     /// <summary>Where FLACie serves the playing album's own disc picture (/desk/disc/…), when its release is known; null otherwise.</summary>
     [Parameter] public string? DiscUrl { get; set; }
     [Parameter] public bool Playing { get; set; }
@@ -47,11 +60,39 @@
 
     ElementReference disc;
     string? discFor;
+    int sel; string? selKey;
+    int Sel => Next.Count == 0 ? 0 : Math.Clamp(sel, 0, Next.Count - 1);
+    DeskAlbum? Picked => Next.Count == 0 ? null : Next[Sel];
 
-    Task Pick(int i) => i < Next.Count ? OnPlay.InvokeAsync(Next[i]) : Task.CompletedTask;
-    Task Key(KeyboardEventArgs e, int i) => e.Key is "Enter" or " " ? Pick(i) : Task.CompletedTask;
+    protected override void OnParametersSet()
+    {
+        // the queue moved on: the same album stays picked if it is still coming, otherwise the next one is
+        var at = selKey is null ? -1 : Next.ToList().FindIndex(a => a.Key == selKey);
+        sel = at >= 0 ? at : 0; selKey = Next.Count > 0 ? Next[sel].Key : null;
+    }
+
+    void Select(int k) { if (k < 0 || k >= Next.Count) return; sel = k; selKey = Next[k].Key; }
+    Task Pick(int i) => i >= 0 && i < Next.Count ? OnPlay.InvokeAsync(Next[i]) : Task.CompletedTask;
+    void Wheel(WheelEventArgs e) => Select(Sel + ((e.DeltaY != 0 ? e.DeltaY : e.DeltaX) > 0 ? 1 : -1));
+    Task Key(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "ArrowRight" or "ArrowDown": Select(Sel + 1); break;
+            case "ArrowLeft" or "ArrowUp": Select(Sel - 1); break;
+            case "Home": Select(0); break;
+            case "End": Select(Next.Count - 1); break;
+            case "Enter" or " ": return Pick(Sel);
+        }
+        return Task.CompletedTask;
+    }
+    Task PopKey(KeyboardEventArgs e) => e.Key is "Enter" or " " ? Pick(Sel) : Task.CompletedTask;
     Task Toggle() => OnToggle.InvokeAsync();
     Task ToggleKey(KeyboardEventArgs e) => e.Key is "Enter" or " " ? Toggle() : Task.CompletedTask;
+
+    List<Track> Songs(DeskAlbum a) => [.. a.Tracks.Where(i => i >= 0 && i < Queue.Count).Select(i => Queue[i])];
+    static string Ord(int k) => k switch { 0 => "up next", 1 => "2nd", 2 => "3rd", _ => $"{k + 1}th" };
+    static string Clock(long ms) { var t = TimeSpan.FromMilliseconds(Math.Max(0, ms)); return t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss"); }
 
     protected override async Task OnAfterRenderAsync(bool first)
     {

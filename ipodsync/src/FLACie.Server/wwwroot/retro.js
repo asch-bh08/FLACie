@@ -4,6 +4,22 @@ window.retro = (() => {
   // a knob or dial turned by the wheel (data-wheel) keeps the page from scrolling under it: Blazor's own wheel listener is passive, so it can't
   document.addEventListener('wheel', (e) => { if (e.target instanceof Element && e.target.closest('[data-wheel]')) e.preventDefault(); }, { passive: false, capture: true });
   let mq = null;
+  // a knob (data-knob) turned by dragging up or down: every 12 px is one step, sent to the knob as an arrow key, so the knob's own key handler does the rest
+  let drag = null;
+  document.addEventListener('pointerdown', (e) => {
+    const k = e.target instanceof Element && e.target.closest('[data-knob]'); if (!k || e.button !== 0) return;
+    drag = { k, y: e.clientY }; k.focus(); try { k.setPointerCapture(e.pointerId); } catch { } e.preventDefault();
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    let d = drag.y - e.clientY;
+    while (Math.abs(d) >= 12) {
+      const up = d > 0; drag.k.dispatchEvent(new KeyboardEvent('keydown', { key: up ? 'ArrowUp' : 'ArrowDown', bubbles: true }));
+      drag.y -= up ? 12 : -12; d = drag.y - e.clientY;
+    }
+  });
+  const end = () => { drag = null; };
+  document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
   return {
     /** A scene is on show: its display lines (.rt-mq) scroll like the iPod's, from their first letter, only when too long (flacie.js marquee). */
     start(root) { if (mq) mq.stop(); mq = root && window.flacie && flacie.marqueeIn ? flacie.marqueeIn(root, ".rt-mq") : null; },

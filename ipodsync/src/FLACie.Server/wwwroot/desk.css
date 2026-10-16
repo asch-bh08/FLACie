@@ -9,7 +9,7 @@
 .desk-scene > * { position: absolute; }
 .desk { --desk-shadow: drop-shadow(.15cqh .3cqh .25cqh rgba(50,28,10,.35)) drop-shadow(.8cqh 1.6cqh 1.6cqh rgba(50,28,10,.22)); }
 .desk .lift, .desk-pencil, .desk-adapter { filter: var(--desk-shadow); }   /* one shadow for every prop: grounded on the same wood under the same light */
-.desk-hand, .desk-journal, .desk-polaroid span { font-family: "Desk Hand", "Segoe Print", "Bradley Hand", cursive; }
+.desk-hand, .desk-journal, .desk-np b, .desk-pop b { font-family: "Desk Hand", "Segoe Print", "Bradley Hand", cursive; }
 
 /* ---------------- the iPod's place: rotated a little; the page's .ipod-area fills it and its fit sizes the device to the inner box */
 .desk-ipod { left: 46%; top: 47cqh; height: 56cqh; aspect-ratio: var(--aspect, .6); box-sizing: content-box; padding: 12px; translate: -50% -50%; rotate: -4deg; }
@@ -51,10 +51,17 @@
 /* (the line being sung is written in by desk.js, a row at a time) */
 .j-date { position: absolute; right: 2.5cqh; bottom: 2.4cqh; font-size: 1.6cqh; opacity: .7; }
 
-/* ---------------- the polaroid */
-.desk-polaroid { left: 19.5%; top: 52cqh; width: 15cqh; padding: 1cqh 1cqh 3.9cqh; background: #f7f4ee; rotate: 4deg; }
-.desk-polaroid .cover { width: 100%; height: auto; aspect-ratio: 1; border-radius: 0; filter: saturate(.85) sepia(.15) contrast(.95); }
-.desk-polaroid span { position: absolute; left: 0; right: 0; bottom: 1.1cqh; text-align: center; font-size: 1.8cqh; color: #3a2c1e; }
+/* ---------------- the Now Playing card: a stiff cream card where the polaroid was, the cover on it, the song in handwriting, and what the file is typed
+   along its foot */
+.desk-np { left: 23.2%; top: 50.5cqh; width: 19.5cqh; padding: 1.1cqh 1.1cqh 1.3cqh; background: #f7f3ea; rotate: 2.5deg; color: #2f3b55; border-radius: .2cqh; }
+.desk-np .np-art { position: relative; width: 100%; aspect-ratio: 1; }
+.desk-np .np-art .desk-art { filter: saturate(.85) sepia(.1) contrast(.96); }
+.desk-np .np-text { display: grid; gap: .15cqh; margin-top: .8cqh; min-width: 0; }
+.desk-np small { font: 800 .95cqh/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .18em; text-transform: uppercase; color: #9a7b55; }
+.desk-np b { font-size: 2.3cqh; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.desk-np span { font: 500 1.15cqh/1.3 "Helvetica Neue", Arial, sans-serif; color: #55607a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.desk-np .np-format { margin-top: .5cqh; padding-top: .45cqh; border-top: .12cqh dashed rgba(60,70,100,.35); font: 500 1.05cqh/1.3 "IBM Plex Mono", "Consolas", monospace; color: #3a4258; white-space: normal; }
+.desk-np .np-format b { font: 700 1.05cqh/1.3 "IBM Plex Mono", "Consolas", monospace; color: #c0392b; }
 
 /* ---------------- the CDs */
 .desk-art.cover, .desk .desk-art { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 0; filter: saturate(.85) sepia(.12); }
@@ -74,30 +81,47 @@
 .desk-open .lid::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(118deg, rgba(255,255,255,.3), rgba(255,255,255,.05) 30%, transparent 31%); pointer-events: none; }
 .desk-open .tray { background: #141416; box-shadow: inset 0 0 0 .18cqh rgba(255,255,255,.28); }
 .desk-open .hinge { position: absolute; left: 50%; top: 0; bottom: 0; width: 1.1cqh; translate: -50% 0; background: linear-gradient(90deg, #0d0d0f, #2a2a2e, #0d0d0f); border-radius: .3cqh; }
-/* the albums coming up in a clear acrylic stand lying on the desk, seen from above: the next in the front slot, its cover whole; behind it the ones after
-   lean back in the rack, their top edges showing (the top of each cover through its case, a paper spine strip), the nearest first */
-.desk-stand { left: 64.2%; top: 28.5cqh; width: 22.6cqh; height: 33.4cqh; rotate: 2deg; }   /* (right of the earbud cable, left of the queue card) */
-.desk-stand .slab { position: absolute; inset: 0; border-radius: .9cqh; background: linear-gradient(160deg, rgba(235,245,252,.26), rgba(210,228,240,.12) 45%, rgba(235,245,252,.22));
-  box-shadow: inset 0 0 0 .16cqh rgba(255,255,255,.55), inset .5cqh .5cqh 1cqh rgba(255,255,255,.25), inset -.4cqh -.4cqh .8cqh rgba(80,100,120,.18), 0 .5cqh 1.2cqh rgba(50,28,10,.22); backdrop-filter: blur(.5px) saturate(1.05); }
-.desk-stand .rack { position: absolute; left: 1.1cqh; right: 1.1cqh; top: 1.2cqh; height: 11.2cqh; }
-.desk-stand .edge { position: absolute; left: 0; right: 0; bottom: calc(var(--i) * 3.7cqh); height: 3.1cqh; overflow: hidden; cursor: pointer; border-radius: .3cqh .3cqh .15cqh .15cqh;
-  background: #1c1c20; box-shadow: inset 0 0 0 .14cqh rgba(255,255,255,.35), 0 .35cqh .45cqh rgba(40,25,10,.35), 0 .55cqh 0 -.25cqh rgba(255,255,255,.45); transition: translate .2s ease; }
-.desk-stand .edge .desk-art { top: 0; left: 0; width: 100%; height: 22cqh; object-fit: cover; object-position: top; filter: saturate(.8) brightness(.82); }
-.desk-stand .edge::after { content: ""; position: absolute; inset: 0; background: linear-gradient(rgba(255,255,255,.4), rgba(255,255,255,0) 30%, rgba(0,0,0,.25)); pointer-events: none; }
-.desk-stand .edge .spine { position: absolute; left: 8%; right: 8%; bottom: .35cqh; z-index: 1; padding: .1cqh .5cqh; border-radius: .15cqh; background: rgba(245,240,228,.92); color: #2f3b55;
-  font: 700 1.05cqh/1.25 "Helvetica Neue", Arial, sans-serif; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.desk-stand .edge:hover, .desk-stand .edge:focus-visible { translate: 0 -.7cqh; }
-.desk-stand .front { position: absolute; left: 1.1cqh; right: 1.1cqh; top: 12.9cqh; height: 18.2cqh; transition: translate .2s ease; border-radius: .45cqh; cursor: pointer; overflow: hidden;
-  background: rgba(232,238,244,.35); box-shadow: inset 0 0 0 .16cqh rgba(255,255,255,.6), 0 .5cqh .7cqh rgba(40,25,10,.4); }
-.desk-stand .front .desk-art { left: 9%; top: 2.5%; width: 89.5%; height: 95%; }
-.desk-stand .front .hinge { position: absolute; left: 0; top: 0; bottom: 0; width: 8%; background: linear-gradient(90deg, rgba(20,20,24,.75), rgba(60,62,70,.5) 60%, rgba(255,255,255,.25)); }
-.desk-stand .front .glare { position: absolute; inset: 0; background: linear-gradient(118deg, rgba(255,255,255,.35), rgba(255,255,255,0) 32%, rgba(255,255,255,0) 70%, rgba(255,255,255,.18)); pointer-events: none; }
-.desk-stand .front:not(.empty):hover, .desk-stand .front:focus-visible { translate: 0 -.6cqh; }
-.desk-stand .front.empty { cursor: default; background: rgba(232,238,244,.18); }
-.desk-stand .lip { position: absolute; left: .5cqh; right: .5cqh; bottom: .6cqh; height: 1.4cqh; border-radius: .4cqh; background: linear-gradient(rgba(255,255,255,.5), rgba(210,228,240,.15)); box-shadow: inset 0 .1cqh 0 rgba(255,255,255,.7); pointer-events: none; }
-
+/* the albums coming up: a low wooden rack lying on the desk, seen from above, the CDs standing in it side by side in play order, their spines up (the top
+   of each cover through its case, a paper strip with the album, its place in the queue). The one picked lifts out of its slot a little and glows */
+.desk-rack { left: 66.5%; top: 29.5cqh; width: 50cqh; height: 20.5cqh; rotate: 1.5deg; outline: none; }
+.desk-rack .rack-wood { position: absolute; inset: 0; border-radius: .7cqh; background: linear-gradient(rgba(255,230,190,.12), rgba(50,28,10,.3)), url(desk/oak.jpg) center / 60cqh auto;
+  box-shadow: inset 0 .35cqh .3cqh rgba(255,240,215,.35), inset 0 -.5cqh .6cqh rgba(40,22,8,.35), inset 0 0 0 .2cqh rgba(60,36,16,.4); }
+.desk-rack .rack-wood::after { content: ""; position: absolute; left: 1.6cqh; right: 1.6cqh; top: 2.2cqh; bottom: 2.2cqh; border-radius: .3cqh; background: rgba(30,16,6,.55);
+  box-shadow: inset 0 .5cqh .9cqh rgba(0,0,0,.55); }   /* (the well the CDs stand in) */
+.desk-rack:focus-visible .rack-wood { box-shadow: inset 0 0 0 .3cqh rgba(255,236,190,.9), inset 0 -.5cqh .6cqh rgba(40,22,8,.35); }
+.desk-rack .rack-row { position: absolute; left: 2.2cqh; right: 2.2cqh; top: 2.4cqh; bottom: 2.4cqh; display: flex; gap: .55cqh; }
+.spine { position: relative; flex: 0 0 5.05cqh; height: 100%; overflow: hidden; cursor: pointer; border-radius: .2cqh; background: #18181c;
+  box-shadow: inset 0 0 0 .14cqh rgba(255,255,255,.3), 0 .35cqh .4cqh rgba(0,0,0,.5); transition: translate .22s cubic-bezier(.3,.6,.3,1.3), box-shadow .22s ease, filter .22s ease; filter: brightness(.72) saturate(.85); }
+.spine > * { pointer-events: none; }   /* (the spine itself takes the pointer: its art overhangs, clipped) */
+.spine .spine-art { position: absolute; inset: -40% -160%; width: auto; height: auto; border-radius: 0; filter: blur(.25cqh) saturate(.9); }
+.spine::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(255,255,255,.35), rgba(255,255,255,0) 30%, rgba(0,0,0,.28)); pointer-events: none; }
+.spine-label { position: absolute; left: 50%; top: 1.1cqh; bottom: 2.6cqh; z-index: 1; translate: -50% 0; writing-mode: vertical-rl; padding: .5cqh .15cqh; border-radius: .15cqh;
+  background: rgba(245,240,228,.93); color: #2f3b55; font: 700 1.15cqh/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .05em; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-height: calc(100% - 3.7cqh); }
+.spine-no { position: absolute; left: 0; right: 0; bottom: .55cqh; z-index: 1; text-align: center; font: 800 1.15cqh/1 "Helvetica Neue", Arial, sans-serif; color: rgba(255,255,255,.85); text-shadow: 0 .1cqh .2cqh rgba(0,0,0,.6); }
+.spine.sel { translate: 0 -2.4cqh; filter: none; z-index: 2; box-shadow: inset 0 0 0 .18cqh rgba(255,244,214,.9), 0 0 1.4cqh rgba(255,214,150,.55), 0 1.1cqh 1.1cqh rgba(0,0,0,.45); }
+.rack-empty { position: absolute; inset: 0; display: grid; place-items: center; font-size: 2.2cqh; color: #f3e6cf; }
+/* the CD picked: its case out of the rack, lying flat, bigger, with a note of when it comes and what is on it; it pops out each time another is picked */
+.desk-pop { left: 68.5%; top: 53.5cqh; width: 46cqh; height: 20.5cqh; rotate: -1.5deg; display: flex; gap: 1.4cqh; cursor: pointer; outline: none;
+  animation: desk-pop .42s cubic-bezier(.25,.8,.3,1.15) both; transform-origin: 30% 0; }
+@keyframes desk-pop { from { opacity: 0; transform: translateY(-5cqh) scale(.55, .2); } 60% { opacity: 1; } to { opacity: 1; transform: none; } }
+.desk-pop .pop-case { position: relative; flex: 0 0 23cqh; height: 100%; border-radius: .45cqh; overflow: hidden; background: rgba(232,238,244,.35); box-shadow: inset 0 0 0 .16cqh rgba(255,255,255,.6); transition: translate .2s ease; }
+.desk-pop .pop-case .desk-art { left: 9%; top: 2.5%; width: 89.5%; height: 95%; }
+.desk-pop .hinge { position: absolute; left: 0; top: 0; bottom: 0; width: 8%; background: linear-gradient(90deg, rgba(20,20,24,.75), rgba(60,62,70,.5) 60%, rgba(255,255,255,.25)); }
+.desk-pop .glare { position: absolute; inset: 0; background: linear-gradient(118deg, rgba(255,255,255,.35), rgba(255,255,255,0) 32%, rgba(255,255,255,0) 70%, rgba(255,255,255,.18)); pointer-events: none; }
+.desk-pop .pop-notes { flex: 1; min-width: 0; padding: 1.2cqh 1.4cqh; border-radius: .3cqh; background: #f6f0e1; color: #2f3b55; display: flex; flex-direction: column; gap: .2cqh;
+  background-image: repeating-linear-gradient(transparent 0 2.45cqh, rgba(90,120,160,.16) 2.45cqh 2.55cqh); rotate: 2.5deg; }
+.desk-pop .pop-notes small { font: 800 1.1cqh/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .18em; text-transform: uppercase; color: #c0392b; }
+.desk-pop .pop-notes b { font-size: 2.3cqh; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.desk-pop .pop-notes > span { font: 500 1.2cqh/1.3 "Helvetica Neue", Arial, sans-serif; color: #55607a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.desk-pop ol { list-style: none; margin: .4cqh 0 0; padding: 0; display: grid; gap: .15cqh; counter-reset: s; }
+.desk-pop li { display: grid; grid-template-columns: 1.6cqh minmax(0, 1fr) auto; column-gap: .5cqh; font: 500 1.15cqh/1.45 "Helvetica Neue", Arial, sans-serif; counter-increment: s; }
+.desk-pop li::before { content: counter(s); color: #8a8f9c; }
+.desk-pop li span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .desk-pop li em { font-style: normal; color: #8a8f9c; }
+.desk-pop .pop-more { color: #8a8f9c !important; letter-spacing: .06em !important; font-weight: 600 !important; }
+.desk-pop:hover .pop-case, .desk-pop:focus-visible .pop-case { translate: 0 -.6cqh; box-shadow: inset 0 0 0 .16cqh rgba(255,255,255,.75), 0 0 1.4cqh rgba(255,214,150,.5); }
 /* the keepsakes: a concert ticket stub (the artist playing) with its torn-off end, and two guitar picks */
-.desk-ticket { left: 3.5%; top: 73.5cqh; width: 26cqh; height: 10cqh; rotate: -4deg; display: flex; color: #2b2320; border-radius: .3cqh;
+.desk-ticket { left: 3.5%; top: 72cqh; width: 26cqh; height: 10cqh; rotate: -4deg; display: flex; color: #2b2320; border-radius: .3cqh;
   background: linear-gradient(90deg, #f3e7cc 0 69%, #efe1c2 69%); box-shadow: 0 .35cqh .6cqh rgba(50,28,10,.3); font-family: "Helvetica Neue", Arial, sans-serif; overflow: hidden; }
 .desk-ticket::before { content: ""; position: absolute; left: 0; right: 31%; top: 0; height: 1.1cqh; background: linear-gradient(90deg, #c8452f, #e0873a); }
 .desk-ticket .stub-main { position: relative; flex: 0 0 69%; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: .3cqh; padding: 1.4cqh 1.2cqh .6cqh; box-sizing: border-box; border-right: .16cqh dashed rgba(60,40,30,.45); }
@@ -106,34 +130,15 @@
 .desk-ticket .stub-main span { font-size: 1cqh; letter-spacing: .1em; white-space: nowrap; }
 .desk-ticket .stub-tear { flex: 1; min-width: 0; white-space: nowrap; display: flex; flex-direction: column; justify-content: center; gap: .2cqh; padding: 0 .8cqh; font-size: .95cqh; letter-spacing: .04em; }
 .desk-ticket .stub-tear small { font-weight: 800; font-size: .9cqh; }
-.desk-picks { left: 25%; top: 75cqh; width: 11cqh; height: 6cqh; }
+.desk-picks { left: 19.5%; top: 84cqh; width: 11cqh; height: 6cqh; }
 .desk-picks .pick { position: absolute; top: 0; width: 4.6cqh; height: 5.2cqh; border-radius: 50% 50% 46% 46% / 42% 42% 58% 58%; clip-path: polygon(50% 100%, 0 32%, 8% 8%, 50% 0, 92% 8%, 100% 32%);
   box-shadow: inset 0 .3cqh .4cqh rgba(255,255,255,.35); filter: drop-shadow(.2cqh .35cqh .25cqh rgba(50,28,10,.35)); display: grid; place-items: center; }
 .desk-picks .pick b { font: 800 .9cqh/1 "Helvetica Neue", Arial, sans-serif; color: rgba(255,255,255,.8); margin-top: -.6cqh; }
 .desk-picks .p1 { left: 0; rotate: -18deg; background: radial-gradient(circle at 40% 30%, #f3a142, #c96b14); }
 .desk-picks .p2 { left: 5.4cqh; top: .8cqh; rotate: 24deg; background: radial-gradient(circle at 40% 30%, #5a6de0, #2e3a9a); }
 
-/* the queue card: an index card beside the CDs. The song playing (its title in handwriting; artist, album, year) and the next songs in play order,
-   numbered, each a button (a click plays it) */
-.desk-queue { left: 80.5%; top: 27cqh; width: 33cqh; rotate: 2deg; padding: 1.5cqh 1.8cqh 1.7cqh; color: #2f3b55; border-radius: .4cqh; background-color: #fbf8f1;
-  background-image: linear-gradient(transparent 0 4.4cqh, rgba(200,90,90,.45) 4.4cqh 4.55cqh, transparent 4.55cqh), repeating-linear-gradient(transparent 0 3.05cqh, rgba(90,120,160,.18) 3.05cqh 3.17cqh); }
-.desk-queue small { display: block; font: 700 1.05cqh/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: #9a7b55; }
-.q-now b { display: block; margin-top: .5cqh; font-size: 2.6cqh; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.q-now span { display: block; font: 500 1.35cqh/1.35 "Helvetica Neue", Arial, sans-serif; color: #55607a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.q-next { margin-top: 1.5cqh; }
-.q-next ol { list-style: none; margin: .5cqh 0 0; padding: 0; counter-reset: q; }
-.q-next li { counter-increment: q; }
-.q-next button { display: grid; grid-template-columns: 2cqh minmax(0, 1fr) auto; column-gap: .8cqh; width: 100%; padding: .4cqh .4cqh; border: 0; border-radius: .3cqh; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.q-next button::before { content: counter(q); grid-row: 1 / 3; font: 700 1.2cqh/2.5cqh "Helvetica Neue", Arial, sans-serif; color: #9a7b55; }
-.q-next button:hover, .q-next button:focus-visible { background: rgba(74,155,255,.13); outline: none; }
-.q-next .t { grid-column: 2; font-size: 2cqh; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.q-next .a { grid-column: 2; font: 500 1.15cqh/1.25 "Helvetica Neue", Arial, sans-serif; color: #6a7388; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.q-next .d { grid-column: 3; grid-row: 1; font: 500 1.15cqh/2.5cqh "Helvetica Neue", Arial, sans-serif; color: #8a8f9c; }
-.q-more, .q-empty { display: block; margin-top: .5cqh; font-size: 1.6cqh; color: #6a7388; }
-.q-more { font: 500 1.15cqh/1.4 "Helvetica Neue", Arial, sans-serif; padding-left: 3.2cqh; }
-
 /* ---------------- coffee */
-.desk-coffee { left: 90%; top: 86cqh; width: 30cqh; height: 30cqh; translate: -50% -50%; }
+.desk-coffee { left: 92%; top: 88cqh; width: 26cqh; height: 26cqh; translate: -50% -50%; }   /* (in the corner, under the CD that pops out) */
 .desk-coffee .saucer { position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 42% 38%, #fbfaf6, #ece8df 62%, #d9d3c7 70%, #efebe3 72%, #e2ddd3); }
 .desk-coffee .cup { position: absolute; left: 50%; top: 50%; width: 62%; height: 62%; translate: -50% -50%; border-radius: 50%; background: radial-gradient(circle at 40% 36%, #ffffff, #f0ece4 60%, #d8d2c6); box-shadow: 0 .6cqh 1.2cqh rgba(50,28,10,.25); }
 .desk-coffee .cup::before { content: ""; position: absolute; inset: 9%; border-radius: 50%; background: radial-gradient(circle at 46% 42%, #8a5a34 0, #5a3518 45%, #3a2010 75%); box-shadow: inset 0 .4cqh .8cqh rgba(0,0,0,.45); }
@@ -148,7 +153,7 @@
 .desk-ring { position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; box-shadow: 0 0 0 .22cqh rgba(255,226,190,.45), inset 0 0 0 .12cqh rgba(40,18,6,.35); animation: desk-ring 1.2s ease-out forwards; }
 @keyframes desk-ring { from { scale: 1; opacity: .95; } to { scale: var(--k, 5.5); opacity: 0; } }
 .desk-coffee .handle { position: absolute; right: -16%; top: 42%; width: 24%; height: 16%; z-index: -1; border-radius: 2cqh; background: linear-gradient(#f6f3ec, #dcd6ca); box-shadow: .2cqh .4cqh .6cqh rgba(50,28,10,.25); }
-.desk-steam { left: 87%; top: 66cqh; width: 20cqh; height: 26cqh; overflow: visible; pointer-events: none; z-index: 3; }
+.desk-steam { left: 89.5%; top: 70cqh; width: 20cqh; height: 26cqh; overflow: visible; pointer-events: none; z-index: 3; }
 .desk-steam path { fill: none; stroke: rgba(255,250,240,.75); stroke-width: 7; stroke-linecap: round; filter: blur(4px); opacity: 0; animation: desk-rise 7s ease-in-out infinite; }
 .desk-steam path:nth-child(2) { animation-delay: -2.3s; stroke-width: 4.5; } .desk-steam path:nth-child(3) { animation-delay: -4.6s; stroke-width: 5.5; }
 @keyframes desk-rise { 0% { opacity: 0; transform: translate(0, 40px) scaleY(.7); } 25% { opacity: .75; } 70% { opacity: .35; } 100% { opacity: 0; transform: translate(-30px, -60px) scaleY(1.15) rotate(-6deg); } }
@@ -163,7 +168,19 @@
 .desk-vu .needle { position: absolute; left: 50%; bottom: -8%; width: .22cqh; height: 92%; margin-left: -.11cqh; background: linear-gradient(#b8211a, #2a0d08); transform-origin: 50% 100%; rotate: calc(var(--a, -42) * 1deg); border-radius: .2cqh; box-shadow: .3cqh .4cqh .3cqh rgba(0,0,0,.25); }
 .desk-vu .pivot { position: absolute; left: 50%; bottom: -5%; width: 2.2cqh; height: 2.2cqh; translate: -50% 0; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #555, #111); }
 .desk-vu .glass { position: absolute; inset: 0; background: linear-gradient(125deg, rgba(255,255,255,.45), rgba(255,255,255,0) 35%, rgba(255,255,255,0) 70%, rgba(255,255,255,.15)); pointer-events: none; }
-.desk-vu .vu-knobs { position: absolute; right: 5%; top: 18%; bottom: 18%; width: 24%; display: flex; flex-direction: column; justify-content: space-between; align-items: center; }
+/* the preamp: the VU meter, and three knobs (VOLUME bigger, BASS and TREBLE) with their marks; a knob turns to --r */
+.desk-preamp { width: 34cqh; height: 15cqh; top: 52.5cqh; rotate: -1.5deg; }
+.desk-preamp .vu-face { width: 46%; }
+.pre-knobs { position: absolute; left: 53%; right: 3.5%; top: 10%; bottom: 20%; display: flex; align-items: center; justify-content: space-around; }
+.pre-knob { display: flex; flex-direction: column; align-items: center; gap: .55cqh; }
+.pre-knob small { font: 800 .85cqh/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .14em; color: #3c3f45; }
+.pre-knob .knob { position: relative; width: 4.2cqh; height: 4.2cqh; padding: 0; border: 0; border-radius: 50%; cursor: ns-resize; touch-action: none; rotate: var(--r, 0deg); transition: rotate .12s ease;
+  background: conic-gradient(from 20deg, #2b2b2f, #6d6d74, #2b2b2f, #55555b, #2b2b2f); box-shadow: 0 .3cqh .5cqh rgba(0,0,0,.4), inset 0 0 0 .25cqh #1a1a1d; }
+.pre-knob.big .knob { width: 6cqh; height: 6cqh; background: radial-gradient(circle at 40% 35%, #f2f3f5, #b9bdc4 62%, #8d9198); box-shadow: 0 .35cqh .6cqh rgba(0,0,0,.4), inset 0 0 0 .3cqh #9ea2a8; }
+.pre-knob .knob i { position: absolute; left: 50%; top: 8%; width: 9%; height: 26%; margin-left: -4.5%; border-radius: 1cqh; background: #f1f1ee; }
+.pre-knob.big .knob i { background: #c0392b; }
+.pre-knob .knob:focus-visible { outline: .25cqh solid rgba(255,236,190,.95); outline-offset: .3cqh; }
+.pre-brand { position: absolute; left: 4%; bottom: 4%; font: 800 .8cqh/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .3em; color: #6f737a; }
 .desk-vu .vu-knobs i { width: 4.6cqh; height: 4.6cqh; border-radius: 50%; background: conic-gradient(from 20deg, #2b2b2f, #6d6d74, #2b2b2f, #55555b, #2b2b2f); box-shadow: 0 .3cqh .5cqh rgba(0,0,0,.4), inset 0 0 0 .25cqh #1a1a1d; }
 
 
@@ -215,19 +232,20 @@
   .desk-journal::after { content: ""; position: absolute; inset: 0; z-index: -1; translate: .45cqh .6cqh; rotate: 2.5deg; border-radius: .25cqh; background: #f2d865; }
   .desk-journal .j-title { left: 1.5cqh; top: 1cqh; width: auto; right: 1.4cqh; font-size: 1.9cqh; line-height: 2.4cqh; }
   .desk-journal .j-lines { left: 1.5cqh; top: 5.6cqh; width: calc(100% - 3cqh); height: calc(2.9cqh * 3); column-count: 1; column-gap: 3cqh; font-size: 1.75cqh; line-height: 2.9cqh; }
-  /* the queue card in the top right corner, opposite the lyrics (the iPod's screen shows the title, so the card gives the artist, album and year, and the next
-     two songs); the open CD steps aside here (its album is on the iPod's screen) */
-  .desk-queue { left: 47%; top: 2.6cqh; width: 20cqh; max-height: 16.5cqh; overflow: hidden; padding: .9cqh 1.2cqh 1cqh; rotate: 2deg; }
-  .desk-queue .q-now b, .desk-queue .q-more, .desk-queue .q-next li:nth-child(n + 3), .desk-queue .q-next .a { display: none; }
-  .desk-queue .q-now span { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }   /* (two lines: the year stays in view) */
-  .desk-open, .desk-stand, .desk-ticket, .desk-picks { display: none; }   /* (the CDs and keepsakes: the iPod shows the album, the card says what is next; the earbuds have the bottom to themselves) */
-  .desk-queue .q-next { margin-top: .9cqh; }
+  /* the next CD in the top right corner, opposite the lyrics (the open CD and the rack step aside here: the iPod's screen shows the album playing); small,
+     its case and a note of what it is; the wheel over it goes through the ones after */
+  .desk-pop { left: 46%; top: 2.6cqh; width: 18cqh; height: 9.6cqh; gap: .7cqh; rotate: 2deg; }
+  .desk-pop .pop-case { flex-basis: 9.6cqh; }
+  .desk-pop .pop-notes { padding: .8cqh .9cqh; rotate: 1.5deg; }
+  .desk-pop .pop-notes small { font-size: .85cqh; } .desk-pop .pop-notes b { font-size: 1.7cqh; } .desk-pop .pop-notes > span { font-size: 1cqh; }
+  .desk-pop ol, .desk-pop .pop-more { display: none; }
+  .desk-open, .desk-rack, .desk-ticket, .desk-picks, .desk-np { display: none; }   /* (the CDs and keepsakes: the iPod shows the album, the card says what is next; the earbuds have the bottom to themselves) */
   .desk-coffee { left: 112%; top: 99cqh; }   /* (in the corner, clear of the earbuds) */
-  .desk-polaroid, .desk-steam, .desk-tracklist, .desk-vu, .desk-pencil { display: none; }
+  .desk-steam, .desk-tracklist, .desk-vu, .desk-pencil { display: none; }
 }
 
 /* ---------------- less motion: the desk holds still (lyrics appear whole) */
 @media (prefers-reduced-motion: reduce) {
-  .desk-slats, .desk-sun-drift, .desk-grain, .desk .disc, .desk-steam path, .desk-open, .desk-stand .edge, .desk-stand .front { animation: none !important; transition: none !important; }
+  .desk-slats, .desk-sun-drift, .desk-grain, .desk .disc, .desk-steam path, .desk-open, .spine, .desk-pop, .desk-pop .pop-case, .pre-knob .knob { animation: none !important; transition: none !important; }
   .desk-steam { display: none; }
 }

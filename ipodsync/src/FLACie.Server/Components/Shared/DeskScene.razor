@@ -11,26 +11,7 @@
     @Journal
     @if (Options.Pencil) { <div class="desk-pencil" data-testid="desk-pencil" aria-hidden="true"><i class="tip"></i><i class="ferrule"></i><i class="eraser"></i></div> }
     @Cds
-    @if (Options.Vu)
-    {
-      <div class="desk-vu lift" data-testid="desk-vu" aria-hidden="true">
-        <div class="vu-face">
-          <svg class="vu-scale" viewBox="0 0 100 60">
-            <path d="M 12 46 A 46 46 0 0 1 88 46" fill="none" stroke="#3a2a1a" stroke-width=".7"/>
-            <path d="M 70.6 22.6 A 46 46 0 0 1 88 46" fill="none" stroke="#c0392b" stroke-width="2.2"/>
-            @foreach (var (deg, label) in VuTicks)
-            {
-              var r = deg * Math.PI / 180;
-              <line x1="@F(50 + Math.Sin(r) * 41)" y1="@F(60 - Math.Cos(r) * 41)" x2="@F(50 + Math.Sin(r) * 46)" y2="@F(60 - Math.Cos(r) * 46)" stroke="@(deg >= 22 ? "#c0392b" : "#3a2a1a")" stroke-width=".8"/>
-              @((MarkupString)$"<text x=\"{F(50 + Math.Sin(r) * 35)}\" y=\"{F(60 - Math.Cos(r) * 35 + 2)}\" text-anchor=\"middle\" font-size=\"5.2\" fill=\"{(deg >= 22 ? "#c0392b" : "#3a2a1a")}\">{label}</text>")
-            }
-            <text x="50" y="44" text-anchor="middle" font-size="8" font-weight="700" fill="#3a2a1a">VU</text>
-          </svg>
-          <i class="needle" data-needle></i><i class="pivot"></i><i class="glass"></i>
-        </div>
-        <div class="vu-knobs"><i></i><i></i></div>
-      </div>
-    }
+    @if (Options.Vu) { <DeskPreamp /> }
     @Props
     <div class="desk-coffee lift" data-testid="desk-coffee" aria-hidden="true"><div class="saucer"></div><div class="cup"><div class="handle"></div><div class="liquid" data-coffee></div></div></div>
     <svg class="desk-steam" viewBox="0 0 200 340" aria-hidden="true"><path d="M 100 330 C 80 280, 130 250, 105 200 S 80 120, 110 70"/><path d="M 120 330 C 140 280, 95 240, 125 190 S 145 110, 120 60"/><path d="M 80 330 C 60 270, 105 230, 85 180 S 60 110, 90 50"/></svg>
@@ -118,8 +99,6 @@
     [Parameter] public RenderFragment? Props { get; set; }
 
     bool Studio => Options.Phones == DeskOptions.Studio;
-    // the VU meter's scale: degrees from upright, and the marks
-    static readonly (double Deg, string Label)[] VuTicks = [(-42, "20"), (-27, "10"), (-17, "7"), (-8, "5"), (2, "3"), (13, "1"), (22, "0"), (31, "1"), (42, "3")];
 
     ElementReference scene;
     bool started, portrait;

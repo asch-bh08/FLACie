@@ -2,7 +2,6 @@
 // reports time, state and the end of each song back. Media Session gives lock-screen and headphone controls.
 window.flacie = (() => {
   const audio = new Audio();
-  let bassCtx = null, bassF = null;   // Mega Bass (bass()): made the first time it is switched on
   let baseVolume = 1, fadeGain = 1, loudGain = 1, xfadeGain = 1, xfadeSecs = 0, xfadeIn = false, xfadeOut = false, xfadeRaf = 0;
   const applyVol = () => { audio.volume = Math.min(1, Math.max(0, baseVolume * fadeGain * loudGain * xfadeGain)); };
   // fade between songs: the end fades out and the start fades in (not across the tracks of one album); the same arithmetic as the app: cosine, over at most a third of the song
@@ -17,6 +16,25 @@ window.flacie = (() => {
   };
   try { const v = parseFloat(localStorage.getItem("flacie.volume")); if (v >= 0 && v <= 1) { audio.volume = v; baseVolume = v; } } catch { }
   audio.preload = "auto";
+  // the tone controls (tone(), bass()): two shelves the music goes through, made the first time they are needed; what was set last time comes back
+  let toneCtx = null, toneLowF = null, toneHighF = null, toneLow = 0, toneHigh = 0, mega = false;
+  try { const t = (localStorage.getItem("flacie.tone") || "").split(",").map(Number); if (t.length === 2 && t.every(Number.isFinite)) { toneLow = t[0]; toneHigh = t[1]; } } catch { }
+  const toneGraph = () => {
+    if (toneLowF) return true;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext; toneCtx = new AC(); const src = toneCtx.createMediaElementSource(audio);
+      toneLowF = toneCtx.createBiquadFilter(); toneLowF.type = "lowshelf"; toneLowF.frequency.value = 100; toneLowF.gain.value = 0;
+      toneHighF = toneCtx.createBiquadFilter(); toneHighF.type = "highshelf"; toneHighF.frequency.value = 6000; toneHighF.gain.value = 0;
+      src.connect(toneLowF); toneLowF.connect(toneHighF); toneHighF.connect(toneCtx.destination); return true;
+    } catch { toneCtx = toneLowF = toneHighF = null; return false; }
+  };
+  const toneApply = () => {
+    if (!toneLowF) return;
+    if (toneCtx.state === "suspended") toneCtx.resume().catch(() => { });
+    toneLowF.gain.setTargetAtTime(toneLow + (mega ? 9 : 0), toneCtx.currentTime, 0.04); toneHighF.gain.setTargetAtTime(toneHigh, toneCtx.currentTime, 0.04);
+  };
+  // a tone kept from last time is put back as the music starts (a page can only start its audio after a click or a key)
+  audio.addEventListener("play", () => { if (toneLowF) { if (toneCtx.state === "suspended") toneCtx.resume().catch(() => { }); } else if ((toneLow || toneHigh) && toneGraph()) toneApply(); });
   let dotnet = null, lastSent = 0;
   const send = (m, ...a) => dotnet && dotnet.invokeMethodAsync(m, ...a).catch(() => {});
   audio.addEventListener("timeupdate", () => {
@@ -672,19 +690,28 @@ window.flacie = (() => {
     ipodClock() { return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); },
     // room for the panel beside the stage (what ipodInit answers for the iPod; the other scenes ask this)
     wideScreen() { return innerWidth >= 860; },
-    /** Mega Bass (the Discman scene): a low shelf of about +9 dB under 100 Hz on the music itself. The player's audio goes through Web Audio only from
-     *  the first time it is switched on (an element once routed cannot be taken back, so off is a shelf of 0 dB: nothing changes). Returns whether it is on. */
+    /** Mega Bass (the Discman scene): about +9 dB more on the bass shelf (on top of the preamp's own bass). Returns whether it is on. */
     bass(on) {
       on = !!on;
-      if (on && !bassF) {
-        try { const AC = window.AudioContext || window.webkitAudioContext; bassCtx = new AC(); const src = bassCtx.createMediaElementSource(audio); bassF = bassCtx.createBiquadFilter(); bassF.type = "lowshelf"; bassF.frequency.value = 100; bassF.gain.value = 0; src.connect(bassF); bassF.connect(bassCtx.destination); }
-        catch { bassCtx = bassF = null; return false; }
-      }
-      if (bassF) { if (bassCtx.state === "suspended") bassCtx.resume().catch(() => { }); bassF.gain.setTargetAtTime(on ? 9 : 0, bassCtx.currentTime, 0.04); }
-      return on;
+      if (on && !toneGraph()) return false;
+      mega = on; toneApply(); return mega;
     },
-    /** The bass shelf's gain now, in dB (0 when Mega Bass was never switched on). */
-    bassLevel() { return bassF ? bassF.gain.value : 0; },
+    /** The bass shelf's gain now, in dB (0 while the music has never gone through the tone controls). */
+    bassLevel() { return toneLowF ? toneLowF.gain.value : 0; },
+    /** The preamp's tone (the iPod desk): a bass shelf under 100 Hz and a treble shelf over 6 kHz, each -12..+12 dB, kept for next time. The music goes
+     *  through Web Audio only once a knob is turned off flat (an element once routed cannot be taken back; flat is then a shelf of 0 dB, nothing changes).
+     *  Returns [bass, treble] as set. */
+    tone(low, high) {
+      low = Math.max(-12, Math.min(12, Math.round(Number(low) || 0))); high = Math.max(-12, Math.min(12, Math.round(Number(high) || 0)));
+      if ((low || high) && !toneGraph()) return [toneLow, toneHigh];
+      toneLow = low; toneHigh = high; toneApply();
+      try { localStorage.setItem("flacie.tone", `${low},${high}`); } catch { }
+      return [toneLow, toneHigh];
+    },
+    /** The tone as set (also before the music has gone through it: what was kept from last time). */
+    toneGet() { return [toneLow, toneHigh]; },
+    /** The shelves' gains now, in dB. */
+    toneLevel() { return { low: toneLowF ? toneLowF.gain.value : 0, high: toneHighF ? toneHighF.gain.value : 0 }; },
     /** The same scrolling for other screens (the listening scenes' displays): the lines matching sel under root. Returns { stop() }. */
     marqueeIn(root, sel) { return marquee(root, sel); },
     async ipodBattery() { try { const b = await navigator.getBattery(); return [Math.round(b.level * 100), b.charging]; } catch { return [100, false]; } },

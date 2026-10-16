@@ -170,6 +170,9 @@ http
       if (itemM[1] === 'h6' && !flakyFailed) { flakyFailed = true; return json(res, 500, { error: 'hiccup' }); }
       return json(res, 200, labItem(songs.find((x) => x.Id === itemM[1])));
     }
+    // any other song's own item, as Jellyfin answers it: with its streams (CD-quality FLAC, as in the library listing)
+    const songM = /^\/Users\/u1\/Items\/(s\d+)$/.exec(p);
+    if (songM && songs.some((x) => x.Id === songM[1])) return json(res, 200, withSources(songs.find((x) => x.Id === songM[1])));
     if (/^\/Audio\/(h[1-8]|s([2-9]|[1-9]\d))\/stream/.test(p)) {
       const mm = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
       const from = mm && mm[1] !== '' ? +mm[1] : 0, to = mm && mm[2] !== '' ? Math.min(+mm[2], wav.length - 1) : wav.length - 1;

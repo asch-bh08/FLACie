@@ -11,16 +11,16 @@ public sealed class DeskOptions
     /// <summary>Earbuds (the visualiser in their arcs), or Studio: a coiled studio cable ending at a loose gold 1/4" adapter.</summary>
     public int Phones { get => phones; set => phones = value is Earbuds or Studio ? value : Earbuds; }
     int phones = Earbuds;
-    /// <summary>A brushed-metal amp with a VU meter whose needle follows the music.</summary>
+    /// <summary>A brushed-metal preamp: a VU meter whose needle follows the music, and knobs for the volume, bass and treble.</summary>
     public bool Vu { get; set; } = true;
     /// <summary>A concert ticket stub for the artist playing.</summary>
     public bool Ticket { get; set; } = true;
-    /// <summary>A couple of guitar picks.</summary>
-    public bool Picks { get; set; } = true;
+    /// <summary>A couple of guitar picks (off unless chosen: the desk stays uncluttered).</summary>
+    public bool Picks { get; set; }
     /// <summary>A pencil lying by the journal.</summary>
     public bool Pencil { get; set; } = true;
 
-    public void Reset() { phones = Earbuds; Vu = true; Ticket = true; Picks = true; Pencil = true; }
+    public void Reset() { phones = Earbuds; Vu = true; Ticket = true; Picks = false; Pencil = true; }
 
     public JsonObject ToJson() => new() { ["phones"] = phones, ["vu"] = Vu, ["ticket"] = Ticket, ["picks"] = Picks, ["pencil"] = Pencil };
 
@@ -32,7 +32,7 @@ public sealed class DeskOptions
         if (node is not JsonObject o) return d;
         bool B(string k, bool def) => o[k] is JsonValue v && v.TryGetValue<bool>(out var b) ? b : def;
         if (o["phones"] is JsonValue p && p.TryGetValue<int>(out var n)) d.Phones = n;
-        d.Vu = B("vu", true); d.Ticket = B("ticket", true); d.Picks = B("picks", true); d.Pencil = B("pencil", true);
+        d.Vu = B("vu", true); d.Ticket = B("ticket", true); d.Picks = B("picks", false); d.Pencil = B("pencil", true);
         return d;
     }
 }

@@ -1,0 +1,25 @@
+@using FLACie.Core
+@* The iPod desk's Now Playing card, on the left where the polaroid was: a stiff cream card with the cover, the song, its artist, album and year, and what the
+   file is, typed along the bottom (its format, bit depth and rate, bitrate: what FLACie read from the file, as in the Info tab). Styles: desk.css. *@
+<div class="desk-np lift" data-testid="desk-np">
+    <div class="np-art"><Cover ArtKey="@Now?.ArtKey" Class="desk-art" /></div>
+    <div class="np-text">
+        <small>now playing</small>
+        @if (Now is { } t)
+        {
+            <b class="hand" data-np="title">@t.Title</b>
+            <span data-np="artist">@t.Artist</span>
+            <span data-np="album">@(t.Year > 0 ? $"{t.Album} · {t.Year}" : t.Album)</span>
+            <span class="np-format" data-np="format">@if (Format.Length > 0) { <b>@Codec</b> @Rest }</span>
+        }
+        else { <b class="hand">nothing playing</b> }
+    </div>
+</div>
+
+@code {
+    [Parameter] public Track? Now { get; set; }
+    /// <summary>What the file is, e.g. "FLAC · 24-bit / 96 kHz · 2,304 kbps" (its first part, the codec, in bold); empty until known.</summary>
+    [Parameter] public string Format { get; set; } = "";
+    string Codec => Format.Split(" · ", 2)[0];
+    string Rest => Format.Contains(" · ") ? " · " + Format.Split(" · ", 2)[1] : "";
+}

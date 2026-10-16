@@ -113,8 +113,9 @@ test.describe.serial('listening scenes', () => {
       });
       for (const [w, h] of [[1600, 900], [1024, 768], [768, 1024], [390, 844]]) {
         await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(600);
-        // on a narrow screen the panel is a sheet over the scene: put it away (as anyone would to use the scene)
-        const over = async () => { const p = await page.getByTestId('ipod-panel').boundingBox(); const r = (await page.getByTestId('retro').boundingBox())!; return !!p && (await page.getByTestId('ipod-panel').evaluate((e) => e.classList.contains('open'))) && p.x < r.x + r.width - 1 && p.x + p.width > r.x + 1 && p.y < r.y + r.height - 1 && p.y + p.height > r.y + 1; };
+        // on a narrow screen the panel is a sheet over the scene: put it away (as anyone would to use the scene), and wait until it has slid off (where it
+        // is, not its class: it slides)
+        const over = async () => { const p = await page.getByTestId('ipod-panel').boundingBox(); const r = (await page.getByTestId('retro').boundingBox())!; return !!p && p.x < r.x + r.width - 1 && p.x + p.width > r.x + 1 && p.y < r.y + r.height - 1 && p.y + p.height > r.y + 1; };
         if (await over()) { await page.evaluate(() => { (window as any).__swallow = false; }); await page.getByTestId('ipod-gear').click(); await expect.poll(over).toBe(false); await page.evaluate(() => { (window as any).__swallow = true; }); await page.waitForTimeout(400); }
         const controls = page.locator('[data-testid=retro] :is(button, input, [role=slider]):not([tabindex="-1"]):not(:disabled):visible');
         const n = await controls.count();

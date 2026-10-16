@@ -4,7 +4,8 @@
 @* iPod mode, Look › Desk: the iPod (ChildContent, the page's own emulator, unchanged) lying on a sunlit desk, seen from above, with its earbuds plugged in
    (they are the visualiser: desk.js), a journal, a polaroid, the next CDs and a coffee around it; blinds light and a film finish over everything.
    The look comes from the approved mock-up; styles in desk.css. *@
-<div class="desk" data-testid="desk" @ref="scene">
+@* (a coloured iPod lends the desk its colour: --desk-accent, which desk.css hands to a few things on it; a silver, white or black one leaves the desk its own) *@
+<div class="desk @(Finish.Accent is null ? "" : "tinted")" data-testid="desk" @ref="scene" style="@(Finish.Accent is { } accent ? $"--desk-accent:{accent}" : null)">
   <div class="desk-wood"></div>
   <div class="desk-scene">
     @Polaroid

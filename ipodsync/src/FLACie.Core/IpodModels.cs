@@ -5,6 +5,12 @@ namespace FLACie.Core;
 /// <summary>Which on-screen UI family a model uses (the Android emulator's families): the 2001-2004 mono screens, the colour "video" menus, and the later nano/classic menus. Touch models have no wheel.</summary>
 public enum IpodFamily { Mono, Video, Nano, Touch }
 
+/// <summary>How a wheel iPod's controls are laid out, as on the real one: the 1st generation's scroll wheel turned (a mechanical wheel) and the 2nd's was touch
+/// sensitive, both inside a ring of four buttons (MENU at the top, previous on the left, next on the right, play/pause at the bottom); the 3rd generation's
+/// touch wheel has nothing printed on it, its four buttons are a row of round touch buttons between the screen and the wheel (previous, MENU, play/pause,
+/// next); from the 4th generation on the buttons are the click wheel itself.</summary>
+public enum IpodControls { ClickWheel, ScrollWheel, TouchWheel, TouchRow }
+
 /// <summary>The colours of a click wheel (CSS colours).</summary>
 public sealed record IpodWheelStyle(string RingLight, string RingDark, string Edge, string CenterLight, string CenterDark, string CenterEdge, string Label);
 
@@ -27,9 +33,13 @@ public readonly record struct IpodRect(double L, double T, double R, double B)
 /// <summary>One iPod: its UI family, proportions (fractions of the body) and colours. Ported from the Android emulator's model list.</summary>
 public sealed record IpodModel(
     string Id, string Name, IpodFamily Family, double Aspect, IpodRect Screen, double WheelCx, double WheelCy, double WheelR, double Radius, double BezelInset,
-    IReadOnlyList<IpodColor> Colors, bool Portrait, bool Buttons, int Year, string Blurb, bool Touch, string Group, int Gen, bool Home)
+    IReadOnlyList<IpodColor> Colors, bool Portrait, IpodControls Controls, int Year, string Blurb, bool Touch, string Group, int Gen, bool Home)
 {
     public string GenLabel => Gen switch { 1 => "1st", 2 => "2nd", 3 => "3rd", _ => Gen + "th" };
+    /// <summary>Four separate buttons on a ring around the wheel (the 1st and 2nd generations).</summary>
+    public bool Buttons => Controls is IpodControls.ScrollWheel or IpodControls.TouchWheel;
+    /// <summary>A row of four round touch buttons between the screen and the wheel (the 3rd generation).</summary>
+    public bool KeyRow => Controls == IpodControls.TouchRow;
 }
 
 /// <summary>The logical screen of a model in a look: the pixels the real device had (160x128, 320x240, or 240x320 for the tall nanos), later scaled to the screen.</summary>
@@ -83,17 +93,18 @@ public static class IpodModels
         SlimScreen = new(0.125, 0.06, 0.875, 0.317), Mono1 = new(0.15, 0.06, 0.85, 0.396), Mono4 = new(0.171, 0.07, 0.829, 0.384), MiniScreen = new(0.175, 0.06, 0.825, 0.349);
 
     static IpodModel Click(string id, string name, string group, int gen, int year, IpodFamily fam, double aspect, IpodRect screen, double wcy, double wr, double radius, double bezel,
-        IpodColor[] colors, string blurb, bool portrait = false, bool buttons = false) =>
-        new(id, name, fam, aspect, screen, 0.5, wcy, wr, radius, bezel, colors, portrait, buttons, year, blurb, false, group, gen, false);
+        IpodColor[] colors, string blurb, bool portrait = false, IpodControls controls = IpodControls.ClickWheel) =>
+        new(id, name, fam, aspect, screen, 0.5, wcy, wr, radius, bezel, colors, portrait, controls, year, blurb, false, group, gen, false);
 
     static IpodModel TouchModel(string id, string name, string group, int gen, int year, double aspect, IpodRect screen, double radius, IpodColor[] colors, string blurb, bool home = true) =>
-        new(id, name, IpodFamily.Touch, aspect, screen, 0.5, 0.5, 0, radius, 0.02, colors, true, false, year, blurb, true, group, gen, home);
+        new(id, name, IpodFamily.Touch, aspect, screen, 0.5, 0.5, 0, radius, 0.02, colors, true, IpodControls.ClickWheel, year, blurb, true, group, gen, home);
 
     public static readonly IReadOnlyList<IpodModel> All =
     [
-        Click("ipod1", "iPod (1st gen)", Classic, 1, 2001, IpodFamily.Mono, 0.6, Mono1, 0.7, 0.36, 0.07, 0.03, [Cream], "The original: 5 GB, mechanical scroll wheel and a mono screen.", buttons: true),
-        Click("ipod2", "iPod (2nd gen)", Classic, 2, 2002, IpodFamily.Mono, 0.6, Mono1, 0.7, 0.36, 0.07, 0.03, [Cream], "Up to 20 GB and Windows support. Still the mechanical wheel.", buttons: true),
-        Click("ipod3", "iPod (3rd gen)", Classic, 3, 2003, IpodFamily.Mono, 0.605, Mono4, 0.70, 0.31, 0.085, 0.028, [White], "Thinner, with a touch-sensitive wheel and dock connector."),
+        Click("ipod1", "iPod (1st gen)", Classic, 1, 2001, IpodFamily.Mono, 0.6, Mono1, 0.7, 0.36, 0.07, 0.03, [Cream], "The original: 5 GB, mechanical scroll wheel and a mono screen.", controls: IpodControls.ScrollWheel),
+        Click("ipod2", "iPod (2nd gen)", Classic, 2, 2002, IpodFamily.Mono, 0.6, Mono1, 0.7, 0.36, 0.07, 0.03, [Cream], "Up to 20 GB and Windows support. Still the mechanical wheel.", controls: IpodControls.TouchWheel),
+        // (the 3rd generation's wheel is smaller and lower than the click wheel's: the row of buttons sits between it and the screen)
+        Click("ipod3", "iPod (3rd gen)", Classic, 3, 2003, IpodFamily.Mono, 0.605, Mono4, 0.735, 0.275, 0.085, 0.028, [White], "Thinner, with a touch-sensitive wheel and dock connector.", controls: IpodControls.TouchRow),
         Click("ipod4", "iPod (4th gen)", Classic, 4, 2004, IpodFamily.Mono, 0.597, Mono4, 0.70, 0.31, 0.085, 0.028, [White, U2], "The Click Wheel arrives. Mono screen, plus a U2 edition."),
         Click("video5", "iPod video (5th gen)", Classic, 5, 2005, IpodFamily.Video, 0.597, ClassicScreen, 0.703, 0.335, 0.085, 0.028, [White, Black(false)], "Colour 2.5\" screen and video playback."),
         Click("classic6", "iPod classic (6th gen)", Classic, 6, 2007, IpodFamily.Nano, 0.597, ClassicScreen, 0.703, 0.335, 0.085, 0.028, [Silver, Black(true)], "All-metal 160 GB classic with the modern menus and Cover Flow."),

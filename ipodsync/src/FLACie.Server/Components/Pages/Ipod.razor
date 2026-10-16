@@ -144,7 +144,7 @@
     RenderFragment Area() => @<text>
     <div class="ipod-area" @ref="stage" tabindex="0" @onkeydown="Key" @onwheel="OnMouseWheel" @onwheel:preventDefault="@(!model.Touch)" @onclick="FocusStage" data-testid="ipod-keys" aria-label="iPod: arrow keys scroll, Enter selects, Escape goes back">
       <div class="ipod-fit" @ref="fitEl">
-        <div class="ipod fam-@FamClass @(model.Touch ? "touch" : "click") @(model.Buttons ? "btns" : "")" @ref="device" data-testid="ipod-device" data-w="@F(Bw)" data-h="@F(Bh)" style="@DeviceStyle">
+        <div class="ipod fam-@FamClass @(model.Touch ? "touch" : "click ctl-" + ControlsKey) @(model.Buttons ? "btns" : "")" @ref="device" data-testid="ipod-device" data-controls="@(model.Touch ? null : ControlsKey)" data-w="@F(Bw)" data-h="@F(Bh)" style="@DeviceStyle">
         @if (model.Touch)
         {
             <div class="ipod-face" style="@FaceStyle"></div>
@@ -162,7 +162,18 @@
                     else { @ListScreen() }
                 </div>
             </div>
-            <div class="ipod-wheel" @ref="wheel" data-testid="ipod-wheel" style="@WheelStyle" title="Drag around the ring to scroll. Tap MENU, the arrows, play/pause or the middle. Hold the arrows to seek, hold MENU to go home.">
+            @if (model.KeyRow)
+            {
+                @* the 3rd generation's four touch buttons, lit red-orange, in a row between the screen and the wheel (flacie.js presses them by their data-zone, as the ring's zones) *@
+                <div class="ipod-keyrow" data-testid="ipod-keyrow" style="@KeyRowStyle">
+                    <div class="ipod-key" style="left:21%" data-zone="prev" data-testid="ipod-prev" aria-label="Previous song" title="Previous (left arrow); hold to rewind"><Icon Name="prev" Size="15" /></div>
+                    <div class="ipod-key" style="left:40.33%" data-zone="menu" data-testid="ipod-menu" aria-label="Menu" title="Menu (Esc); hold to go home"><span>MENU</span></div>
+                    <div class="ipod-key" style="left:59.67%" data-zone="play" data-testid="ipod-play" aria-label="Play or pause" title="Play / pause (Space)"><Icon Name="play" Size="12" /><Icon Name="pause" Size="12" /></div>
+                    <div class="ipod-key" style="left:79%" data-zone="next" data-testid="ipod-next" aria-label="Next song" title="Next (right arrow); hold to fast-forward"><Icon Name="next" Size="15" /></div>
+                </div>
+            }
+            <div class="ipod-wheel" @ref="wheel" data-testid="ipod-wheel" style="@WheelStyle" title="@(model.KeyRow ? "Drag around the wheel to scroll; press the middle to select. The buttons above it are MENU, previous, next and play/pause." : "Drag around the ring to scroll. Tap MENU, the arrows, play/pause or the middle. Hold the arrows to seek, hold MENU to go home.")">
+                @* (the 3rd generation's wheel has nothing printed on it: only the middle button) *@
                 @if (model.Buttons)
                 {
                     <div class="wb wb-menu" data-testid="ipod-menu" aria-label="Menu" title="Menu (Esc)"><span>MENU</span></div>
@@ -170,7 +181,7 @@
                     <div class="wb wb-prev" data-testid="ipod-prev" aria-label="Previous song" title="Previous (left arrow)"><Icon Name="prev" Size="12" /></div>
                     <div class="wb wb-play" data-testid="ipod-play" aria-label="Play or pause" title="Play / pause (Space)"><Icon Name="play" Size="10" /><Icon Name="pause" Size="10" /></div>
                 }
-                else
+                else if (!model.KeyRow)
                 {
                     <span class="wl wl-menu" data-testid="ipod-menu" aria-label="Menu" title="Menu (Esc)">MENU</span>
                     <span class="wl wl-next" data-testid="ipod-next" aria-label="Next song" title="Next (right arrow)"><Icon Name="next" Size="16" /></span>
@@ -423,7 +434,7 @@
     // device geometry: the body is 300 px wide; everything else is a fraction of it
     const double Bw = 300;
     // the device look follows the real proportions; "wheel only" is the faceplate: the screen across the top and the wheel under it, whatever the model
-    double Bh => flat ? FlatSh + 22 + 2 * FlatR + 16 : Bw / model.Aspect;
+    double Bh => flat ? FlatSh + 22 + KeyRoom + 2 * FlatR + 16 : Bw / model.Aspect;
     double FlatSh => Bw * Lcd.H / Lcd.W;
     double FlatR => Bw * 0.36;
     /// <summary>A scale factor with enough digits that the screen ends exactly at its bezel (two digits were up to a pixel off at a big zoom).</summary>
@@ -431,7 +442,16 @@
     string F(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     string Pc(double v) => (v * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     double Sx => flat ? 0 : model.Screen.L * Bw; double Sy => flat ? 0 : model.Screen.T * Bh; double Sw => flat ? Bw : model.Screen.W * Bw; double Sh => flat ? FlatSh : model.Screen.H * Bh;
-    double WCx => flat ? Bw / 2 : model.WheelCx * Bw; double WCy => flat ? FlatSh + 22 + FlatR : model.WheelCy * Bh; double WR => flat ? FlatR : model.WheelR * Bw;
+    double WCx => flat ? Bw / 2 : model.WheelCx * Bw; double WCy => flat ? FlatSh + 22 + KeyRoom + FlatR : model.WheelCy * Bh; double WR => flat ? FlatR : model.WheelR * Bw;
+    // the 3rd generation's row of buttons: round, 14% of the body wide, centred between the screen's bezel and the wheel (in the wheel-only look a band of
+    // its own between the screen and the wheel, so that look is taller by as much)
+    double KeyD => 0.14 * Bw;
+    double KeyRoom => model.KeyRow && flat ? KeyD + 14 : 0;
+    double KeyCy => flat ? FlatSh + 18 + KeyD / 2 : (Sy + Sh + model.BezelInset * Bw + WCy - WR) / 2;
+    string KeyRowStyle => $"top:{F(KeyCy - KeyD / 2)}px;height:{F(KeyD)}px;--kd:{F(KeyD)}px";
+    /// <summary>The controls, for the CSS and the page script: "click" (the click wheel), "scroll" (the 1st generation's turning wheel in its ring of buttons),
+    /// "touch" (the 2nd's touch wheel in the same ring), "row" (the 3rd's touch wheel under its row of buttons).</summary>
+    string ControlsKey => model.Controls switch { IpodControls.ScrollWheel => "scroll", IpodControls.TouchWheel => "touch", IpodControls.TouchRow => "row", _ => "click" };
 
     string StageStyle => $"--backdrop:{color.Backdrop}";
     string DeviceStyle => $"width:{F(Bw)}px;height:{F(Bh)}px;--top:{color.Top};--bottom:{color.Bottom};--edge:{color.Edge};--bezel:{color.Bezel};--rad:{F(model.Radius * Bw)}px;" +

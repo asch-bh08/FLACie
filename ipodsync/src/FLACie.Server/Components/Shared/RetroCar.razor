@@ -12,7 +12,7 @@
         <div class="car-unit" data-testid="retro-unit">
             <button type="button" class="cu-knob" data-testid="car-knob" role="slider" aria-label="Volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@VolPct"
                     style="--r:@((-135 + 270 * Player.Volume).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))deg"
-                    title="Turn for the volume (scroll or arrow keys); press to mute" @onclick="() => Player.ToggleMuteAsync()" @onwheel="KnobWheel" @onwheel:preventDefault="true" @onkeydown="KnobKey"><i></i></button>
+                    title="Turn for the volume (scroll or arrow keys); press to mute" @onclick="() => Player.ToggleMuteAsync()" @onwheel="KnobWheel" data-wheel @onkeydown="KnobKey"><i></i></button>
             <div class="cu-mid">
                 <div class="cu-slot" data-testid="car-slot" @onclick="Insert" title="@(ejected ? "Put the disc back in" : "")">
                     <i class="cu-disc @(ejected ? "out" : "")" data-testid="car-disc" style="@ArtStyle"></i>

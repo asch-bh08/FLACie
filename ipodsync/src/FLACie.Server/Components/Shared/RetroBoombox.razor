@@ -1,11 +1,70 @@
 @inherits RetroBase
-@* The Boombox scene (being built: the full hardware follows). Bound to the player like every scene: the song, play/pause, previous, next, an album coming up. *@
-<div class="retro-basic">
-    <div class="retro-basic-unit" data-testid="retro-unit">
-        <div data-testid="retro-title">@(Now?.Title ?? "Nothing playing")</div>
-        <button type="button" data-ctl="prev" aria-label="Previous" @onclick="Prev">⏮</button>
-        <button type="button" data-ctl="play" aria-label="@(Playing ? "Pause" : "Play")" @onclick="Toggle">⏯</button>
-        <button type="button" data-ctl="next" aria-label="Next" @onclick="Next">⏭</button>
-        @foreach (var a in NextAlbums.Take(1)) { <button type="button" data-media="album" data-album="@a.Album" @onclick="() => PlayAlbum(a)">@a.Album</button> }
+@* The boombox scene: a workbench in a workshop (pegboard, spare batteries) and a dual-cassette boombox with stickers on it. Its woofers move with the bass and
+   its EQ sliders with the bands (the one analyser read: desk.js). Deck A holds the album playing: its reels turn while it plays and the counter runs with the
+   song; the keys are rewind (previous), play/pause, fast-forward (next) and stop/eject (pause; the door drops open). Deck B holds the album coming up, or your
+   newest playlist when nothing comes up: a click plays it. A strip of tape on the top says what is playing. Styles: retro.css. *@
+<div class="boombox">
+    <div class="bb-wall" aria-hidden="true"><i class="tool saw"></i><i class="tool wrench"></i><i class="tool hammer"></i></div>
+    <div class="bb-bench" aria-hidden="true"><i class="battery"></i><i class="battery b2"></i><i class="battery b3"></i></div>
+    <div class="bb-unit" data-testid="retro-unit">
+        <div class="bb-handle" aria-hidden="true"></div>
+        <div class="bb-tape" data-testid="retro-title"><span class="hand">@(Now is { } n ? $"{n.Title} — {n.Artist}" : "nothing in the deck")</span></div>
+        <div class="bb-body">
+            <div class="bb-spk l" aria-hidden="true"><i class="woofer"></i><i class="tweeter"></i></div>
+            <div class="bb-mid">
+                <div class="bb-radio" aria-hidden="true"><span>FM 88 · 92 · 96 · 100 · 104 · 108</span><i style="--p:@Inv(Progress)"></i></div>
+                <div class="bb-decks">
+                    <div class="bb-deck @(open ? "open" : "")" data-testid="boombox-deck-a">
+                        <small>DECK A · PLAY</small>
+                        <div class="bb-cass">
+                            <span class="hand">@(NowAlbum?.Album ?? "—")</span>
+                            <div class="bb-win"><i class="reel @(Playing && !open ? "" : "paused")"></i><i class="ribbon"></i><i class="reel @(Playing && !open ? "" : "paused")"></i></div>
+                        </div>
+                        <i class="bb-door" aria-hidden="true"></i>
+                    </div>
+                    <div class="bb-deck b">
+                        <small>DECK B · NEXT</small>
+                        @if (DeckB is { } b)
+                        {
+                            <button type="button" class="bb-cass" data-media="@(b.Album is null ? "playlist" : "album")" data-album="@b.Album?.Album" aria-label="@($"Play {b.Name}")" @onclick="() => PlayB(b)">
+                                <span class="hand">@b.Name</span>
+                                <div class="bb-win"><i class="reel paused"></i><i class="ribbon"></i><i class="reel paused"></i></div>
+                            </button>
+                        }
+                        else { <div class="bb-cass empty"><span class="hand">empty</span></div> }
+                    </div>
+                </div>
+                <div class="bb-row">
+                    <div class="bb-counter" data-testid="boombox-counter" aria-label="Tape counter">@Counter</div>
+                    <div class="bb-eq" aria-label="Equaliser">
+                        @foreach (var (band, label) in Eq) { <div class="eq" data-band="@band"><i></i><small>@label</small></div> }
+                    </div>
+                </div>
+                <div class="bb-keys">
+                    <button type="button" class="rec" tabindex="-1" aria-hidden="true">● REC</button>
+                    <button type="button" data-ctl="prev" aria-label="Rewind: previous song" @onclick="Prev">◀◀ REW</button>
+                    <button type="button" data-ctl="play" aria-label="@(Playing ? "Pause" : "Play")" @onclick="PlayKey">▶ ❚❚</button>
+                    <button type="button" data-ctl="next" aria-label="Fast forward: next song" @onclick="Next">FF ▶▶</button>
+                    <button type="button" data-ctl="eject" aria-label="Stop and eject" @onclick="Eject">■ ⏏</button>
+                </div>
+            </div>
+            <div class="bb-spk r" aria-hidden="true"><i class="woofer"></i><i class="tweeter"></i></div>
+        </div>
+        <i class="bb-sticker s1" aria-hidden="true">MIXTAPE</i><i class="bb-sticker s2" aria-hidden="true">★</i><i class="bb-sticker s3" aria-hidden="true">LOUD!</i>
     </div>
 </div>
+
+@code {
+    bool open;
+    static readonly (string Band, string Label)[] Eq = [("low", "60"), ("low", "250"), ("mid", "1k"), ("high", "4k"), ("high", "12k")];
+    sealed record Tape(string Name, FLACie.Core.DeskAlbum? Album, DeskTapes.Tape? List);
+    /// <summary>Deck B: the album coming up, or (nothing coming up) your newest playlist.</summary>
+    Tape? DeckB => NextAlbums.FirstOrDefault() is { } a ? new Tape(a.Album, a, null) : Playlists.FirstOrDefault() is { } t ? new Tape(t.Name, null, t) : null;
+    // the tape counter: three wheels, the song's seconds (it wraps at 999 like the real thing)
+    string Counter => ((int)Position % 1000).ToString("000");
+    static string Inv(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+
+    async Task PlayKey() { if (open) { open = false; await Resume(); return; } await Toggle(); }
+    async Task Eject() { open = true; await Pause(); }
+    async Task PlayB(Tape t) { open = false; if (t.List is { } l) await PlayPlaylist(l); else if (t.Album is { } a) await PlayAlbum(a); }
+}

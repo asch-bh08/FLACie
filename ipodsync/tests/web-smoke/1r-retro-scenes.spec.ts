@@ -43,11 +43,16 @@ test.describe.serial('listening scenes', () => {
       await expect(async () => { await page.locator(`[data-testid=scene-options] [data-scene=${s}]`).click(); await expect(page.locator(`[data-testid=retro][data-scene=${s}]`)).toBeVisible({ timeout: 1000 }); }).toPass({ timeout: 20_000 });
       await expect(page.getByTestId('ipod-device')).toHaveCount(0);
       await expect(page.locator('.ipod-panel [data-group]')).toHaveCount(0);   // the iPod's model picker is put away
+      // the help is the scene's own, not the iPod's click wheel
+      await expect(page.getByTestId('scene-help')).toBeVisible();
+      await expect(page.getByTestId('scene-help')).not.toContainText('click the middle');
     }
+    await expect(page.getByTestId('scene-help')).toContainText('Jog dial');
     await page.reload(); await expect(page.locator('[data-testid=retro][data-scene=minidisc]')).toBeVisible({ timeout: 20_000 });
     await page.locator('[data-testid=scene-options] [data-scene=ipod]').click();
     await expect(page.getByTestId('ipod-device')).toBeVisible();
     await expect(page.getByTestId('retro')).toHaveCount(0);
+    await expect(page.getByTestId('scene-help')).toHaveCount(0);
     // the iPod works again: its keys move the menu
     await page.getByTestId('ipod-keys').focus();
     const sel = () => page.locator('[data-testid=ipod-row]').evaluateAll((rs) => rs.findIndex((r) => r.classList.contains('sel')));
@@ -56,7 +61,7 @@ test.describe.serial('listening scenes', () => {
     expect(errors).toEqual([]);
   });
 
-  for (const scene of ['car', 'hifi']) {
+  for (const scene of ['car', 'hifi', 'boombox', 'minidisc']) {
     test(`${scene}: shows the song, and play/pause, next, previous and its media drive the player`, async ({ page }) => {
       const errors = consoleErrors(page);
       await signIn(page);
@@ -141,6 +146,49 @@ test.describe.serial('listening scenes', () => {
     const f1 = (await front())!;
     await page.locator('[data-testid=hifi-crate] .sleeve.front').click();
     await expect(page.locator('.dock-meta small')).toHaveText(f1, { timeout: 5000 });
+    expect(errors).toEqual([]);
+  });
+
+  test('boombox: deck A turns while playing and its counter runs; stop/eject pauses and opens the door; the EQ follows the music', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page);
+    await playInScene(page, 'boombox');
+    await freshSong(page);
+    const reels = page.locator('[data-testid=boombox-deck-a] .reel');
+    const turning = () => reels.first().evaluate((r) => r.getAnimations().some((a) => a.playState === 'running'));
+    await expect.poll(turning).toBe(true);
+    await expect(page.getByTestId('boombox-counter')).toHaveText(/^\d{3}$/);
+    await expect(page.locator('[data-testid=retro] .bb-eq [data-band]')).toHaveCount(5);
+    await page.locator('[data-testid=retro] [data-ctl=eject]').click();
+    await expect.poll(() => playing(page)).toBe('false');
+    await expect(page.getByTestId('boombox-deck-a')).toHaveClass(/open/);
+    await expect.poll(turning).toBe(false);
+    // play closes the door and plays
+    await page.locator('[data-testid=retro] [data-ctl=play]').first().click();
+    await expect.poll(() => playing(page)).toBe('true');
+    await expect(page.getByTestId('boombox-deck-a')).not.toHaveClass(/open/);
+    expect(errors).toEqual([]);
+  });
+
+  test('minidisc: the LCD shows the song and its track; the jog dial skips; eject pauses and pops the disc up', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page);
+    await playInScene(page, 'minidisc');
+    await freshSong(page);
+    await expect(page.getByTestId('md-lcd')).toContainText(/TR\s*\d+/);
+    const np = (await page.locator('.dock-meta b').textContent())!.trim();
+    // the jog dial: a turn on (scroll down) is the next song
+    await page.getByTestId('md-jog').hover(); await page.mouse.wheel(0, 120);
+    await expect(page.locator('.dock-meta b')).not.toHaveText(np, { timeout: 3000 });
+    // its centre plays and pauses (once the song skipped to is audibly under way: a pause while it still loads is taken back when it starts)
+    await expect(page.locator('.dock-times span').first()).toHaveText('0:01', { timeout: 10_000 });
+    await page.getByTestId('md-jog-center').click();
+    await expect.poll(() => playing(page)).toBe('false');
+    await page.getByTestId('md-jog-center').click();
+    await expect.poll(() => playing(page)).toBe('true');
+    await page.locator('[data-testid=retro] [data-ctl=eject]').click();
+    await expect.poll(() => playing(page)).toBe('false');
+    await expect(page.getByTestId('md-disc')).toHaveClass(/out/);
     expect(errors).toEqual([]);
   });
 });

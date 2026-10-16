@@ -1,6 +1,8 @@
 // iPod mode › Scene: small helpers for the listening scenes (desk.js runs their moving parts: the analyser, the needles, the bands).
 window.retro = (() => {
   let ctx = null;
+  // a knob or dial turned by the wheel (data-wheel) keeps the page from scrolling under it: Blazor's own wheel listener is passive, so it can't
+  document.addEventListener('wheel', (e) => { if (e.target instanceof Element && e.target.closest('[data-wheel]')) e.preventDefault(); }, { passive: false, capture: true });
   return {
     /** An element's own width in CSS pixels (a click's offset is measured in them, whatever turns or tilts the element). */
     size(sel) { const e = document.querySelector(sel); return e ? Math.round(e.offsetWidth) : 300; },

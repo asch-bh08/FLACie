@@ -1,11 +1,62 @@
 @inherits RetroBase
-@* The Minidisc scene (being built: the full hardware follows). Bound to the player like every scene: the song, play/pause, previous, next, an album coming up. *@
-<div class="retro-basic">
-    <div class="retro-basic-unit" data-testid="retro-unit">
-        <div data-testid="retro-title">@(Now?.Title ?? "Nothing playing")</div>
-        <button type="button" data-ctl="prev" aria-label="Previous" @onclick="Prev">⏮</button>
-        <button type="button" data-ctl="play" aria-label="@(Playing ? "Pause" : "Play")" @onclick="Toggle">⏯</button>
-        <button type="button" data-ctl="next" aria-label="Next" @onclick="Next">⏭</button>
-        @foreach (var a in NextAlbums.Take(1)) { <button type="button" data-media="album" data-album="@a.Album" @onclick="() => PlayAlbum(a)">@a.Album</button> }
+@* The MiniDisc scene: a clean 2000s dorm desk, and a micro component system in brushed aluminium between two small speakers. The disc playing sits in its
+   top-loading slot (eject pauses and pops it up; a click on it, or play, goes on); the blue backlit LCD shows the song, its artist, the track and the time;
+   the jog-shuttle dial skips when turned (scroll, drag, or the arrow keys) and plays or pauses when its centre is pressed. A stack of MiniDiscs on the desk:
+   the albums coming up and your playlists, each plays. Styles: retro.css. *@
+<div class="mdsys">
+    <div class="md-wall" aria-hidden="true"><i class="poster"></i><i class="lights"></i></div>
+    <div class="md-desk" aria-hidden="true"><i class="mug"></i></div>
+    <div class="md-system">
+        <div class="md-spk l" aria-hidden="true"><i></i><i class="tw"></i></div>
+        <div class="md-main" data-testid="retro-unit">
+            <div class="md-top">
+                <div class="md-slot"><i class="md-disc @(ejected ? "out" : "")" data-testid="md-disc" title="@(ejected ? "Put the disc back" : "")" @onclick="Insert"><b>MD</b><span class="hand">@(NowAlbum?.Album ?? "")</span></i></div>
+            </div>
+            <div class="md-face">
+                <div class="md-lcd" data-testid="md-lcd">
+                    <div class="l1" data-testid="retro-title"><span style="--len:@Line1.Length">@Line1</span></div>
+                    <div class="l2"><span>@(Now?.Artist ?? "MINIDISC")</span></div>
+                    <div class="l3"><span>@(Now is null ? "NO DISC" : ejected ? "OPEN" : $"TR {TrackNo:00}")</span><span>@(Now is null ? "--:--" : Clock(Position))</span><span class="@(Playing && !ejected ? "on" : "")">▶</span></div>
+                </div>
+                <div class="md-jog" data-testid="md-jog" role="slider" tabindex="0" aria-label="Jog dial: turn to skip" aria-valuetext="@(Now?.Title ?? "")" style="--r:@(jog)deg"
+                     @onwheel="JogWheel" data-wheel @onkeydown="JogKey">
+                    <i class="ring"></i>
+                    <button type="button" class="md-jog-center" data-testid="md-jog-center" data-ctl="play" aria-label="@(Playing ? "Pause" : "Play")" @onclick="PlayKey">▶❚❚</button>
+                </div>
+                <div class="md-btns">
+                    <button type="button" data-ctl="prev" aria-label="Previous" @onclick="() => Skip(-1)">⏮</button>
+                    <button type="button" data-ctl="next" aria-label="Next" @onclick="() => Skip(1)">⏭</button>
+                    <button type="button" data-ctl="eject" aria-label="Eject" @onclick="Eject">⏏</button>
+                </div>
+                <span class="md-brand">FLACIE&nbsp;&nbsp;MD-2000</span>
+            </div>
+        </div>
+        <div class="md-spk r" aria-hidden="true"><i></i><i class="tw"></i></div>
+    </div>
+    <div class="md-stack">
+        @for (var i = 0; i < Discs.Count; i++)
+        {
+            var d = Discs[i];
+            <button type="button" class="md-d @(i % 3 == 0 ? "blue" : i % 3 == 1 ? "smoke" : "red")" style="--i:@i" data-media="@(d.Album is null ? "playlist" : "album")" data-album="@d.Album?.Album" aria-label="@($"Play {d.Name}")" @onclick="() => PlayDisc(d)">
+                <i class="disc"></i><i class="shutter"></i><span class="hand">@d.Name</span>
+            </button>
+        }
     </div>
 </div>
+
+@code {
+    bool ejected;
+    int jog;
+    sealed record Disc(string Name, FLACie.Core.DeskAlbum? Album, DeskTapes.Tape? List);
+    /// <summary>The MiniDiscs on the desk: the albums coming up, then your playlists (five at most).</summary>
+    List<Disc> Discs => [.. NextAlbums.Take(3).Select(a => new Disc(a.Album, a, null)).Concat(Playlists.Select(t => new Disc(t.Name, null, t))).Take(5)];
+    string Line1 => Now?.Title.ToUpperInvariant() ?? "INSERT DISC";
+
+    async Task Skip(int d) { jog += d * 30; ejected = false; if (d > 0) await Next(); else await Prev(); }
+    Task JogWheel(WheelEventArgs e) => Skip(e.DeltaY > 0 ? 1 : -1);
+    Task JogKey(KeyboardEventArgs e) => e.Key switch { "ArrowRight" or "ArrowDown" => Skip(1), "ArrowLeft" or "ArrowUp" => Skip(-1), " " or "Enter" => PlayKey(), _ => Task.CompletedTask };
+    async Task PlayKey() { if (ejected) { await Insert(); return; } await Toggle(); }
+    async Task Eject() { ejected = true; await Pause(); }
+    async Task Insert() { if (!ejected) return; ejected = false; await Resume(); }
+    async Task PlayDisc(Disc d) { ejected = false; if (d.List is { } l) await PlayPlaylist(l); else if (d.Album is { } a) await PlayAlbum(a); }
+}

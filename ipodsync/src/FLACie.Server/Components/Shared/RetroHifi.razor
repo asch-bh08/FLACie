@@ -67,7 +67,7 @@
                     <div class="hf-scale am"><span>53</span><span>70</span><span>90</span><span>110</span><span>130</span><span>160</span><b>AM</b></div>
                     <i class="hf-pointer" style="--p:@Inv(Progress)"></i>
                 </div>
-                <button type="button" class="hf-tune" data-testid="hifi-tune" aria-label="Tuning: turn to seek" title="Turn (scroll) to seek" style="--r:@Inv(-150 + 300 * Progress)deg" @onwheel="TuneWheel" @onwheel:preventDefault="true"><i></i></button>
+                <button type="button" class="hf-tune" data-testid="hifi-tune" aria-label="Tuning: turn to seek" title="Turn (scroll) to seek" style="--r:@Inv(-150 + 300 * Progress)deg" @onwheel="TuneWheel" data-wheel><i></i></button>
                 <div class="hf-switches">
                     <button type="button" data-ctl="prev" aria-label="Previous" @onclick="Prev">◀◀</button>
                     <button type="button" data-ctl="play" class="phono" aria-label="@(Playing ? "Pause" : "Play")" @onclick="Toggle">PHONO <i class="@(Playing ? "on" : "")"></i></button>

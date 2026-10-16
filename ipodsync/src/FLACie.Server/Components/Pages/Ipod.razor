@@ -101,6 +101,18 @@
             </section>
         }
         }
+        @if (retro)
+        {
+        <section class="dock-help" data-testid="scene-help">
+            <h3>How to use</h3>
+            <ul>
+                @foreach (var line in SceneHelp[prefs.Scene]) { <li>@((MarkupString)line)</li> }
+                <li>Click a <b>disc, record or tape</b> lying about to play it. The music never stops when you switch scenes.</li>
+            </ul>
+        </section>
+        }
+        else
+        {
         <section class="dock-help">
             <h3>How to use</h3>
             <ul>
@@ -112,10 +124,21 @@
             </ul>
             <p class="ipod-blurb">@model.Name · @model.Year. @model.Blurb</p>
         </section>
+        }
     </aside>
 </div>
 
 @code {
+    // the help for each retro scene (index = IpodPrefs.Scene; the iPod's own help is the list above)
+    static readonly string[][] SceneHelp =
+    [
+        [],
+        ["<b>Play / pause</b>, <b>next</b> and <b>previous</b>: the head unit's keys.", "<b>Volume</b>: turn the knob (scroll or the arrow keys); press it to mute.", "<b>Presets 1–6</b>: your playlists, then the albums coming up.", "<b>Eject</b> slides the CD out; click the slot to play on."],
+        ["<b>Play / pause</b>: START · STOP on the turntable, or PHONO on the receiver.", "<b>Next / previous</b>: ◀◀ and ▶▶ on the receiver. Turn the <b>tuning knob</b> (scroll) to seek.", "Click the <b>record</b> to drop the needle: nearer the middle goes further in.", "<b>Pitch</b>: the slider changes the speed. <b>Crate</b>: flip through and click the front sleeve."],
+        ["<b>REW / FF</b>: previous and next. <b>▶ ❚❚</b>: play or pause.", "<b>Stop / eject</b> drops the door open; play shuts it.", "<b>Deck B</b> holds what comes next: click the tape to play it."],
+        ["<b>Jog dial</b>: turn it (scroll or the arrow keys) to skip; press the middle to play or pause.", "<b>Eject</b> pops the disc up; click it to put it back.", "The <b>MiniDiscs</b> on the desk are the albums coming up and your playlists."],
+    ];
+
     // ---------------------------------------------------------------- the iPod itself (on the stage, or lying on the desk)
 
     RenderFragment Area() => @<text>

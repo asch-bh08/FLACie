@@ -658,20 +658,37 @@ window.flacie = (() => {
         const s = st.samples; if (s.length < 2) return 0;
         const a = s[0], b = s[s.length - 1], dt = b.t - a.t; return dt > 0 ? (b.a - a.a) * 1000 / dt : 0;
       };
-      const down = e => {
-        const z = zoneOf(e); if (!z) return;
-        st.coast && cancelAnimationFrame(st.coast); st.coast = 0;
-        st.zone = z; st.last = ang(e); st.moved = 0; st.slop = 0; st.rotating = false; st.held = false; st.samples = [{ t: performance.now(), a: 0 }]; st.total = 0;
-        st.timer = setInterval(flush, 30);
-        wheel.classList.add("turning");
+      // the 3rd generation's wheel only scrolls (and its middle selects): its MENU, previous, next and play/pause are the row of buttons above it, so a tap
+      // on its ring is no button (read at each press: the model can change while the wheel stays)
+      const ringless = () => device.dataset.controls === "row";
+      // a press held on next/previous seeks (again and again while held), held on MENU goes home: the ring's zones and the 3rd generation's buttons alike
+      const holdLater = () => {
         st.hold = setTimeout(() => {
-          if (st.rotating || st.last === null) return;
+          if (st.rotating || st.last === null || (!st.key && ringless())) return;
           if (st.zone === "next" || st.zone === "prev") { st.held = true; const go = () => { if (st.last === null) return; ref.invokeMethodAsync("Hold", st.zone).catch(() => { }); st.hold = setTimeout(go, 130); }; go(); }
           else if (st.zone === "menu") { st.held = true; ref.invokeMethodAsync("Hold", "menu").catch(() => { }); }
         }, 500);
       };
+      const down = e => {
+        const z = zoneOf(e); if (!z) return;
+        st.coast && cancelAnimationFrame(st.coast); st.coast = 0;
+        st.zone = z; st.key = null; st.last = ang(e); st.moved = 0; st.slop = 0; st.rotating = false; st.held = false; st.samples = [{ t: performance.now(), a: 0 }]; st.total = 0;
+        st.timer = setInterval(flush, 30);
+        wheel.classList.add("turning");
+        holdLater();
+      };
+      // a button of its own (the 3rd generation's row, data-zone="menu" etc.): pressed like that zone of the ring, never turned. Listened for on the device,
+      // as the row comes and goes with the model while the device stays
+      const keyDown = e => {
+        const k = e.target.closest && e.target.closest("[data-zone]"); if (!k || !device.contains(k) || (e.pointerType === "mouse" && e.button !== 0)) return;
+        e.preventDefault();
+        st.coast && cancelAnimationFrame(st.coast); st.coast = 0;
+        st.zone = k.dataset.zone; st.key = k; st.last = 0; st.moved = 0; st.slop = 0; st.rotating = false; st.held = false; st.samples = []; st.total = 0;
+        k.classList.add("down");
+        holdLater();
+      };
       const move = e => {
-        if (st.last === null) return;
+        if (st.last === null || st.key) return;
         let d = ang(e) - st.last; st.last = ang(e);
         if (d > 180) d -= 360; if (d < -180) d += 360;
         st.moved += Math.abs(d); st.slop = (st.slop || 0) + d;
@@ -682,8 +699,9 @@ window.flacie = (() => {
       };
       const up = () => {
         if (st.last === null) return; st.last = null; clearInterval(st.timer); clearTimeout(st.hold); wheel.classList.remove("turning");
+        const key = st.key; if (key) { key.classList.remove("down"); st.key = null; }
         const v = speed(), zone = st.zone, rotating = st.rotating, held = st.held; flush();
-        if (!rotating && !held) ref.invokeMethodAsync("Zone", zone).catch(() => { });
+        if (!rotating && !held && (key || zone === "center" || !ringless())) ref.invokeMethodAsync("Zone", zone).catch(() => { });
         if (rotating && Math.abs(v) >= 300) {
           // the coast of a flick: slows down exponentially (350 ms), at most 40 rows in all, ends at a hair above standstill; a touch stops it
           let w = v, t0 = performance.now(), sent = 0; const limit = 40 * (st.cfg.deg || 34);
@@ -697,8 +715,8 @@ window.flacie = (() => {
           st.coast = requestAnimationFrame(step);
         } else ref.invokeMethodAsync("Released").catch(() => { });
       };
-      st.down = down; st.move = move; st.up = up;
-      wheel.addEventListener("pointerdown", down); addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up);
+      st.down = down; st.move = move; st.up = up; st.keyDown = keyDown; st.device = device;
+      wheel.addEventListener("pointerdown", down); device.addEventListener("pointerdown", keyDown); addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up);
       return innerWidth >= 860;
     },
     ipodConfig(cfg) { if (ipod) ipod.cfg = cfg; },
@@ -798,7 +816,7 @@ window.flacie = (() => {
     ipodDispose() {
       if (!ipod) return;
       try { ipod.ro && ipod.ro.disconnect(); ipod.mo && ipod.mo.disconnect(); ipod.mq && ipod.mq.stop(); } catch { }
-      removeEventListener("resize", ipod.fit); if (ipod.wheel) ipod.wheel.removeEventListener("pointerdown", ipod.down); ipod.stage.removeEventListener("keydown", ipod.keys);
+      removeEventListener("resize", ipod.fit); if (ipod.wheel) ipod.wheel.removeEventListener("pointerdown", ipod.down); if (ipod.device) ipod.device.removeEventListener("pointerdown", ipod.keyDown); ipod.stage.removeEventListener("keydown", ipod.keys);
       removeEventListener("pointermove", ipod.move); removeEventListener("pointerup", ipod.up); removeEventListener("pointercancel", ipod.up);
       clearInterval(ipod.timer); clearTimeout(ipod.hold); if (ipod.coast) cancelAnimationFrame(ipod.coast); try { ipod.ctx && ipod.ctx.close(); } catch { } ipod = null;
     },

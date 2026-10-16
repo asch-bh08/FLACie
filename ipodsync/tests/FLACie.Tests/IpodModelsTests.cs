@@ -40,6 +40,19 @@ public class IpodModelsTests
         Assert.True(IpodModels.Get("ipod1").Buttons && IpodModels.Get("ipod2").Buttons && !IpodModels.Get("ipod3").Buttons);
     }
 
+    [Fact] public void EachWheelHasTheControlsOfTheRealIpod()
+    {
+        Assert.Equal(IpodControls.ScrollWheel, IpodModels.Get("ipod1").Controls);       // the turning wheel, four buttons around it
+        Assert.Equal(IpodControls.TouchWheel, IpodModels.Get("ipod2").Controls);        // the same ring of buttons round a touch wheel
+        Assert.Equal(IpodControls.TouchRow, IpodModels.Get("ipod3").Controls);          // a row of four touch buttons above a plain touch wheel
+        Assert.True(IpodModels.Get("ipod3").KeyRow && !IpodModels.Get("ipod3").Buttons && !IpodModels.Get("ipod1").KeyRow);
+        Assert.All(IpodModels.All.Where(m => !m.Touch && !(m.Group == IpodModels.Classic && m.Gen <= 3)), m => Assert.Equal(IpodControls.ClickWheel, m.Controls));   // the 4th generation on, the minis, the nanos
+        // the 3rd generation's wheel sits lower and smaller than the click wheel, leaving room under the screen for the row (buttons 14% of the body wide;
+        // the wheel's radius is a fraction of the width, its centre of the height)
+        var g3 = IpodModels.Get("ipod3"); Assert.True(g3.WheelR < IpodModels.Get("ipod4").WheelR);
+        Assert.True(g3.WheelCy - g3.WheelR * g3.Aspect > g3.Screen.B + g3.BezelInset * g3.Aspect + 0.14 * g3.Aspect + 0.04);
+    }
+
     [Fact] public void ColoursAreTheOnesOfTheAndroidEmulator()
     {
         Assert.Equal(["Silver", "Black"], IpodModels.Get("classic6").Colors.Select(c => c.Name).ToArray());

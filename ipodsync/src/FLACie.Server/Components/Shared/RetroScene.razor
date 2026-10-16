@@ -13,11 +13,15 @@
         case IpodPrefs.SceneMinidisc: <RetroMinidisc /> break;
         case IpodPrefs.SceneDiscman: <RetroDiscman /> break;
     }
+    @* the desk's light and film over every scene, so they all read as one set of photographs *@
+    <DeskFilm Id="@($"retro-{Key}")" Shade="@Light.Shade" Sun="@Light.Sun" Class="@($"film-{Key}")" />
 </div>
 
 @code {
     [Parameter] public int Kind { get; set; }
     string Key => IpodPrefs.SceneKeys[Math.Clamp(Kind, 0, IpodPrefs.SceneKeys.Length - 1)];
+    // the light through the blinds in each scene: none at night in the car, the lamp-lit evening for the hi-fi, daylight for the others
+    (double Shade, double Sun) Light => Kind switch { IpodPrefs.SceneCar => (0, 0), IpodPrefs.SceneHifi => (0.16, 0.18), _ => (0.2, 0.32) };
 
     ElementReference root;
     int startedFor = -1;

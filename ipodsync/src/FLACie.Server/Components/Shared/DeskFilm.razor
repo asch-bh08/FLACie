@@ -1,0 +1,34 @@
+@* The iPod desk's light and film, shared by the desk and the listening scenes: sun through blinds (light and shade, drifting slowly), dust in the sun (drawn by
+   desk.js into canvas[data-dust]), and a film finish (a lifted fade, a warm wash, a cool tint, a light leak that breathes with the beat, grain). Styles: desk.css. *@
+<svg class="desk-light @Class" viewBox="0 0 1600 900" preserveAspectRatio="none" aria-hidden="true">
+  <defs>
+    <filter id="@(Id)-soft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="7"/></filter>
+    <mask id="@(Id)-sun" maskUnits="userSpaceOnUse" x="0" y="0" width="1600" height="900"><rect width="1600" height="900" fill="#000"/><g class="desk-sun-drift"><g class="desk-slats" filter="url(#@(Id)-soft)">@Slats("#fff")</g></g></mask>
+    <mask id="@(Id)-shade" maskUnits="userSpaceOnUse" x="0" y="0" width="1600" height="900"><rect width="1600" height="900" fill="#fff"/><g class="desk-sun-drift"><g class="desk-slats" filter="url(#@(Id)-soft)">@Slats("#000")</g></g></mask>
+    <radialGradient id="@(Id)-vig" cx="50%" cy="50%" r="72%"><stop offset=".5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2a160a" stop-opacity=".5"/></radialGradient>
+  </defs>
+  <rect width="1600" height="900" fill="#3a2010" opacity="@F(Shade)" mask="url(#@(Id)-shade)" style="mix-blend-mode: multiply"/>
+  <rect width="1600" height="900" fill="#ffc48a" opacity="@F(Sun)" mask="url(#@(Id)-sun)" style="mix-blend-mode: soft-light"/>
+  <rect width="1600" height="900" fill="url(#@(Id)-vig)"/>
+</svg>
+<canvas class="desk-dust" data-dust aria-hidden="true"></canvas>
+<div class="desk-film desk-fade"></div><div class="desk-film desk-wash"></div><div class="desk-film desk-cool"></div><div class="desk-film desk-leak"></div><div class="desk-film desk-grain"></div>
+
+@code {
+    /// <summary>A prefix for the light's ids (one desk or scene on a page at a time; distinct all the same).</summary>
+    [Parameter] public string Id { get; set; } = "desk";
+    /// <summary>How deep the blinds' shade and how warm the sun is (a night scene turns both down).</summary>
+    [Parameter] public double Shade { get; set; } = 0.2;
+    [Parameter] public double Sun { get; set; } = 0.32;
+    [Parameter] public string? Class { get; set; }
+
+    static string F(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+    RenderFragment Slats(string fill) => __builder =>
+    {
+        for (var i = 0; i < 14; i++)
+        {
+            var y = -380 + i * 82; const int h = 50;
+            <polygon points="@($"{-80 + i * 18},{y} {1500 + i * 18},{y + 420} {1500 + i * 18},{y + 420 + h} {-80 + i * 18},{y + h}")" fill="@fill" opacity="@F(0.55 + 0.45 * Math.Sin(i * 0.35 + 0.6))" />
+        }
+    };
+}

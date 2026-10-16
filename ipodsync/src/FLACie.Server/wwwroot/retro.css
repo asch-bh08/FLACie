@@ -7,6 +7,11 @@
 .retro button { font: inherit; color: inherit; }
 .retro [data-ctl], .retro [data-media] { cursor: pointer; }
 .retro .hand { font-family: "Desk Hand", "Segoe Print", "Bradley Hand", cursive; }
+/* the desk's film over the scenes (DeskFilm): the night drive keeps its own cool dark, the leak turned neon */
+.retro .desk-light, .retro .desk-dust, .retro .desk-film { z-index: 30; }
+.retro-car .desk-wash { opacity: .12; } .retro-car .desk-fade { background: rgba(30,30,60,.12); }
+.retro-car .desk-leak { background: radial-gradient(60cqh 48cqh at 100% 0%, rgba(255,60,140,.55), rgba(120,60,255,.18) 45%, transparent 70%), radial-gradient(34cqh 44cqh at 0% 100%, rgba(60,140,255,.3), transparent 70%); }
+.retro-car .desk-dust { opacity: .35; }
 .retro :focus-visible { outline: 2px solid #4a9bff; outline-offset: 2px; }
 
 /* ================================================================ the car stereo: night, rain, a single-DIN head unit */
@@ -481,4 +486,34 @@
 @media (prefers-reduced-motion: reduce) {
   .dm-disc { animation: none !important; }
   .dm-lid, .dm-cd { transition: none; }
+}
+
+/* ================================================================ the photographic pass: real surfaces under the desk's light and film (CC0 textures from
+   Poly Haven, re-toned: wwwroot/retro/*.jpg) in place of flat fills; one soft shadow for the props, as on the desk */
+.retro { --prop-shadow: drop-shadow(.15cqh .3cqh .25cqh rgba(40,24,10,.35)) drop-shadow(.8cqh 1.6cqh 1.6cqh rgba(40,24,10,.22)); }
+/* the Discman lies on oatmeal linen, softly creased */
+.dm-surface { background: radial-gradient(70% 55% at 30% 40%, rgba(255,250,240,.18), transparent 60%), radial-gradient(60% 60% at 80% 85%, rgba(60,45,30,.16), transparent 70%), url(retro/linen.jpg) center / 46cqh auto; }
+.dm-surface::after { opacity: 0; }
+.dm-cds .dm-cd, .dm-wires ellipse { filter: var(--prop-shadow); }
+/* the boombox: a plywood pegboard behind it (holes drawn over the wood), an oak bench under it */
+.bb-wall { background: radial-gradient(circle, rgba(25,15,6,.85) .3cqh, rgba(25,15,6,.35) .45cqh, transparent .55cqh) 0 0 / 3cqh 3cqh, linear-gradient(rgba(255,235,205,.12), rgba(60,38,18,.18)), url(retro/plywood.jpg) center / 60cqh auto; }
+.bb-wall .tool { display: none; }
+.bb-bench { background: linear-gradient(rgba(255,230,190,.14), rgba(40,22,8,.35)), url(desk/oak.jpg) center / 70cqh auto; box-shadow: inset 0 .6cqh .6cqh rgba(255,235,200,.25), inset 0 1.6cqh 2.4cqh rgba(0,0,0,.18); }
+.bb-unit { filter: var(--prop-shadow); }
+.bb-bench .battery { filter: var(--prop-shadow); box-shadow: none; }
+/* the MiniDisc room: a plaster wall with a print of the album playing taped to it, a light oak desk */
+.md-wall { background: linear-gradient(rgba(255,252,246,.25), rgba(70,55,40,.12)), url(retro/plaster.jpg) center / 50cqh auto; }
+.md-wall .lights { display: none; }
+.md-wall .poster { left: 7%; top: 8%; width: 30cqh; height: auto; aspect-ratio: 1; padding: 1.4cqh; rotate: -2.5deg; background: #f4efe4; box-shadow: none; filter: var(--prop-shadow); }
+.md-wall .poster::after { content: none; }
+.md-wall .poster .cover { position: relative; width: 100%; height: 100%; border-radius: 0; filter: saturate(.85) sepia(.12) contrast(.96); }
+.md-wall .poster .tape { position: absolute; top: -1.6cqh; width: 7cqh; height: 2.6cqh; background: rgba(240,230,200,.72); box-shadow: 0 .1cqh .3cqh rgba(0,0,0,.12); }
+.md-wall .poster .tape.l { left: -1.8cqh; rotate: -32deg; } .md-wall .poster .tape.r { right: -1.8cqh; rotate: 28deg; }
+.md-desk { background: linear-gradient(rgba(255,245,230,.18), rgba(60,40,20,.22)), url(retro/oak-light.jpg) center / 60cqh auto; box-shadow: inset 0 .4cqh 0 rgba(255,255,255,.35), 0 -.2cqh 0 rgba(0,0,0,.08); }
+.md-system, .md-stack, .md-desk .mug { filter: var(--prop-shadow); }
+/* the car: a soft-touch dashboard */
+.car-dash { background: radial-gradient(120% 80% at 50% 0%, rgba(30,31,36,.55), rgba(10,11,14,.8) 60%, rgba(6,6,8,.9)), url(retro/dash.jpg) center / 26cqh auto, #121317; }
+.car-dash::before { opacity: 0; }
+@container retro (aspect-ratio < 23 / 20) {
+  .md-wall .poster { left: 6%; top: 10%; width: 34cqw; }
 }

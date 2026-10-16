@@ -99,19 +99,7 @@
     </div>
   </div>
 
-  <svg class="desk-light" viewBox="0 0 1600 900" preserveAspectRatio="none" aria-hidden="true">
-    <defs>
-      <filter id="desk-soft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="7"/></filter>
-      <mask id="desk-sun" maskUnits="userSpaceOnUse" x="0" y="0" width="1600" height="900"><rect width="1600" height="900" fill="#000"/><g class="desk-sun-drift"><g class="desk-slats" filter="url(#desk-soft)">@Slats("#fff")</g></g></mask>
-      <mask id="desk-shade" maskUnits="userSpaceOnUse" x="0" y="0" width="1600" height="900"><rect width="1600" height="900" fill="#fff"/><g class="desk-sun-drift"><g class="desk-slats" filter="url(#desk-soft)">@Slats("#000")</g></g></mask>
-      <radialGradient id="desk-vig" cx="50%" cy="50%" r="72%"><stop offset=".5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2a160a" stop-opacity=".5"/></radialGradient>
-    </defs>
-    <rect width="1600" height="900" fill="#3a2010" opacity=".2" mask="url(#desk-shade)" style="mix-blend-mode: multiply"/>
-    <rect width="1600" height="900" fill="#ffc48a" opacity=".32" mask="url(#desk-sun)" style="mix-blend-mode: soft-light"/>
-    <rect width="1600" height="900" fill="url(#desk-vig)"/>
-  </svg>
-  <canvas class="desk-dust" data-dust aria-hidden="true"></canvas>
-  <div class="desk-film desk-fade"></div><div class="desk-film desk-wash"></div><div class="desk-film desk-cool"></div><div class="desk-film desk-leak"></div><div class="desk-film desk-grain"></div>
+  <DeskFilm />
 </div>
 
 @code {
@@ -247,14 +235,6 @@
     string SlotStyle => $"--aspect:{F(Aspect * 1000)}/1000";
     string EdgeStyle => $"border-radius:{F(Radius * 100)}% / {F(Radius * Aspect * 100)}%";
 
-    RenderFragment Slats(string fill) => __builder =>
-    {
-        for (var i = 0; i < 14; i++)
-        {
-            var y = -380 + i * 82; const int h = 50;
-            <polygon points="@($"{-80 + i * 18},{y} {1500 + i * 18},{y + 420} {1500 + i * 18},{y + 420 + h} {-80 + i * 18},{y + h}")" fill="@fill" opacity="@F(0.55 + 0.45 * Math.Sin(i * 0.35 + 0.6))" />
-        }
-    };
 
     protected override async Task OnAfterRenderAsync(bool first)
     {

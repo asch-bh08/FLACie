@@ -38,9 +38,9 @@ window.desk = (() => {
     return out;
   }
 
-  // the preamp's spectrum (its SPECTRUM meter): sixteen bars from 40 Hz to 16 kHz on a log scale, each a column of segments, the top ones red like the VU's
+  // the preamp's spectrum (its SPECTRUM meter): sixteen bars from 40 Hz up to half the song's sample rate (what it can hold) on a log scale, each a column of segments, the top ones red like the VU's
   // red zone; they fall back slowly, with a peak segment that lingers. Drawn only while the meter shows it, from the same frame as everything else
-  const SPEC_N = 16, SPEC_LO = 40, SPEC_HI = 16000, SPEC_SEGS = 12;
+  const SPEC_N = 16, SPEC_LO = 40, SPEC_SEGS = 12;
   function spectrum(b) {
     let c = s.spec; if (!c || !c.isConnected) c = s.spec = s.el.querySelector('canvas[data-spectrum]');   // (the preamp put away and back: a new canvas)
     if (!c || !c.offsetParent) return;
@@ -50,6 +50,7 @@ window.desk = (() => {
     const g = c.getContext('2d'), W = c.width, H = c.height, f = s.frame, dt = s.dt || 0.016;
     if (!s.specV) { s.specV = new Float32Array(SPEC_N); s.specP = new Float32Array(SPEC_N); }
     const live = b.live && f && f.freq && f.rate, binHz = live ? f.rate / 2 / f.freq.length : 1;
+    const SPEC_HI = live ? Math.min(f.rate, f.fileRate || f.rate) / 2 : 22050;
     for (let i = 0; i < SPEC_N; i++) {
       let v = 0;
       if (live) {
@@ -164,7 +165,8 @@ window.desk = (() => {
   // the journal's lyrics, timed from the song's own clock (flacie.clock) ten times a second, whatever the motion setting: every line up to the one being
   // sung is shown, that one is written in (its --dur from its length), and it is kept in view when the page is full. A quarter second early: the pen
   // starts as the line is sung. Lines without times are spread over the song.
-  const LEAD = 0.25;
+  const LEAD = 0.35;
+  // (the pen writes a line in 0.6 to 1.8 s: quick enough that it is written while it is sung, not after)
   function follow() {
     const box = s && s.el.querySelector('.j-lines'); if (!box) return;
     const lines = box.children, n = lines.length; if (!n) return;
@@ -180,7 +182,7 @@ window.desk = (() => {
     for (let i = 0; i < n; i++) {
       const l = lines[i];
       l.classList.toggle('on', i <= cur);
-      if (i === cur) { if (!l.classList.contains('writing')) { l.classList.add('writing'); writeIn(l, Math.min(3200, Math.max(900, 600 + l.textContent.length * 45))); } }
+      if (i === cur) { if (!l.classList.contains('writing')) { l.classList.add('writing'); writeIn(l, Math.min(1800, Math.max(600, 300 + l.textContent.length * 26))); } }
       else l.classList.remove('writing');
     }
     const l = lines[cur]; if (!l) { box.scrollLeft = 0; box._page = 0; return; }

@@ -48,9 +48,9 @@
 .j-title { position: absolute; left: 4.2cqh; top: 2.4cqh; width: calc(50% - 6.2cqh); font-size: 2.5cqh; font-weight: 700; line-height: 3.2cqh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .j-title small { display: block; font-size: .72em; font-weight: 400; opacity: .7; line-height: 1.2; margin-top: -.6cqh; overflow: hidden; text-overflow: ellipsis; }
 .j-title::after { content: ""; display: block; height: .25cqh; width: 70%; background: currentColor; opacity: .55; border-radius: 1cqh; rotate: -.6deg; }
-/* seven rules of lyrics a page, in two page columns lined up with the two pages (each 22.3cqh wide, 5.7cqh apart: a page's margins and the spine);
+/* eight rules of lyrics a page (from the rule under the title to the one above the foot), in two page columns lined up with the two pages (each 22.3cqh wide, 5.7cqh apart: a page's margins and the spine);
    more lines flow on into further columns, out of sight until the page turns. A long line wraps onto the next rule */
-.j-lines { position: absolute; left: 4.2cqh; top: 14.1cqh; width: calc(100% - 5.7cqh); height: calc(3.32cqh * 7); column-count: 2; column-gap: 5.7cqh; column-fill: auto; overflow: hidden; font-size: 2.05cqh; line-height: 3.32cqh; }
+.j-lines { position: absolute; left: 4.2cqh; top: 10.78cqh; width: calc(100% - 5.7cqh); height: calc(3.32cqh * 8); column-count: 2; column-gap: 5.7cqh; column-fill: auto; overflow: hidden; font-size: 2.05cqh; line-height: 3.32cqh; }
 /* (the block starts so that each line's baseline sits on a printed rule, as a pen writes: the rules are every 3.32cqh, so is the line height) */
 .j-lines div { display: none; overflow-wrap: anywhere; break-inside: avoid; transform-origin: 0 70%; }
 /* ballpoint ink that bleeds a little into the paper, and a hand that never writes two lines at quite the same angle (within half a degree) */

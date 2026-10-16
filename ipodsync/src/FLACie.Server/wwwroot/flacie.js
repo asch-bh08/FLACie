@@ -534,12 +534,13 @@ window.flacie = (() => {
     // the iPod desk's earbuds: one frame of the same analyser (the graph is built on first use and follows the song); null where it can't run.
     // Called every frame: the same buffer each time, and the silent twin is put back in step twice a second (play, pause and seek do it at once anyway).
     vizFrame() {
-      if (!buildGraph(0) || !an) return null;
+      // (opened at the file's own rate when it is known, so the spectrum reaches half of it: 48 kHz for a 96 kHz file)
+      if (!buildGraph(toneRateHint) || !an) return null;
       // a context opened before any click (a reload in the Desk look) stays suspended: ask again once the song plays, which a click started
       if (actx.state === "suspended" && !audio.paused) actx.resume().catch(() => { });
       const now = performance.now(); if (now - deskSync > 500) { deskSync = now; syncTwin(); }
       if (!deskFrame || deskFrame.freq.length !== an.frequencyBinCount) deskFrame = { freq: new Uint8Array(an.frequencyBinCount), playing: false };
-      an.getByteFrequencyData(deskFrame.freq); deskFrame.playing = !audio.paused; deskFrame.rate = actx.sampleRate;
+      an.getByteFrequencyData(deskFrame.freq); deskFrame.playing = !audio.paused; deskFrame.rate = actx.sampleRate; deskFrame.fileRate = toneRateHint;
       return deskFrame;
     },
     vizRelease() { if (!vizOn) closeGraph(); },

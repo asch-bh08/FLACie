@@ -12,7 +12,7 @@
     else if (desk)
     {
         <DeskScene Jack="@DeskJacks.For(model.Id)" Aspect="@model.Aspect" Radius="@model.Radius" Journal="@DeskJournalPart" Cds="@DeskCdsPart" Polaroid="@DeskPolaroidPart"
-                   Options="@prefs.Desk" Props="@DeskPropsPart" MeterReadout="@DeskRateLine">@Area()</DeskScene>
+                   Options="@prefs.Desk" Props="@DeskPropsPart" MeterReadout="@DeskRateLine" MeterRate="@DeskRate">@Area()</DeskScene>
     }
     else { @Area() }
     <a class="ipod-exit" href="/" aria-label="Back to FLACie" title="Back to FLACie" data-testid="ipod-exit"><Icon Name="chevron-left" Size="18" /></a>
@@ -343,6 +343,7 @@
     // song it passes), until then the extension and a bit rate from its size
     MediaInfo? deskInfo; string? deskInfoFor; CancellationTokenSource? deskInfoCts;
     string DeskFormatLine => Player.Current is { } t ? DeskFormat.Line(deskInfoFor == t.Path ? deskInfo : null, t) : "";
+    int DeskRate => Player.Current is { } t && deskInfoFor == t.Path && deskInfo is { SampleRateHz: > 0 } i ? i.SampleRateHz : 0;
     // the preamp's meter: what the file is played at ("44.1 kHz · 16-bit")
     string DeskRateLine => Player.Current is { } t && deskInfoFor == t.Path && deskInfo is { SampleRateHz: > 0 } i
         ? (i.SampleRateHz % 1000 == 0 ? $"{i.SampleRateHz / 1000}" : $"{i.SampleRateHz / 1000.0:0.#}") + " kHz" + (i.BitDepth > 0 ? $" · {i.BitDepth}-bit" : "") : "";

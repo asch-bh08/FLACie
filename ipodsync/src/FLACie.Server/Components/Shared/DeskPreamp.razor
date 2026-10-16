@@ -22,9 +22,9 @@
       </svg>
       <i class="needle" data-needle></i><i class="pivot"></i>
     </div>
-    <div class="face-spec" aria-label="Spectrum, 40 Hz to 16 kHz">
+    <div class="face-spec" aria-label="@($"Spectrum, 40 Hz to {Khz(Nyquist)}")">
       <canvas data-spectrum aria-hidden="true"></canvas>
-      <div class="hz" aria-hidden="true"><span>40</span><span>160</span><span>630</span><span>2.5k</span><span>10k</span><span>Hz</span></div>
+      <div class="hz" aria-hidden="true">@foreach (var hz in Marks) { <span>@Short(hz)</span> }<span>Hz</span></div>
     </div>
     <div class="face-eq">
       @for (var i = 0; i < 5; i++)
@@ -69,6 +69,13 @@
 @code {
     /// <summary>What the file is played at, e.g. "44.1 kHz · 16-bit" (empty until known).</summary>
     [Parameter] public string Readout { get; set; } = "";
+    /// <summary>The playing file's sample rate in Hz (0 until known): the spectrum reaches half of it.</summary>
+    [Parameter] public int Rate { get; set; }
+    double Nyquist => (Rate > 0 ? Rate : 44100) / 2.0;
+    // five marks on the spectrum's log scale, 40 Hz to the top
+    IEnumerable<double> Marks => Enumerable.Range(0, 5).Select(i => 40 * Math.Pow(Nyquist / 40, i / 4.0));
+    static string Short(double hz) => hz >= 1000 ? (hz >= 10_000 ? $"{hz / 1000:0}k" : $"{hz / 1000:0.#}k") : $"{hz:0}";
+    static string Khz(double hz) => $"{hz / 1000:0.#} kHz";
 
     // the VU meter's scale: degrees from upright, and the marks
     static readonly (double Deg, string Label)[] VuTicks = [(-42, "20"), (-27, "10"), (-17, "7"), (-8, "5"), (2, "3"), (13, "1"), (22, "0"), (31, "1"), (42, "3")];

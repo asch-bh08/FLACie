@@ -175,9 +175,9 @@ test.describe('desk engine on its own (desk.js harness)', () => {
     await page.goto(journal('?n=6')); await startJournal(page);
     await page.evaluate(() => { (window as any).t = 0.1; }); await page.waitForTimeout(300);
     expect(await shownLines(page)).toEqual({ shown: ['line 0'], writing: 'line 0' });
-    await page.evaluate(() => { (window as any).t = 1.0; }); await page.waitForTimeout(300);   // line 2 starts at 1.2 s: shown from about 0.95 s
+    await page.evaluate(() => { (window as any).t = 1.0; }); await page.waitForTimeout(300);   // line 2 starts at 1.2 s: shown from about 0.85 s
     expect(await shownLines(page)).toEqual({ shown: ['line 0', 'line 1', 'line 2'], writing: 'line 2' });
-    await page.evaluate(() => { (window as any).t = 0.3; }); await page.waitForTimeout(300);   // a seek back
+    await page.evaluate(() => { (window as any).t = 0.2; }); await page.waitForTimeout(300);   // a seek back (line 1 starts at 0.6 s: shown from 0.25 s)
     expect((await shownLines(page)).writing).toBe('line 0');
   });
 
@@ -273,7 +273,7 @@ test.describe('desk engine on its own (desk.js harness)', () => {
     expect(turned, 'a page turned').toBe(true);
     await page.waitForTimeout(1200);
     expect(await page.locator('.j-turn').count(), 'the turning page is gone again').toBe(0);
-    const box = (await page.locator('.j-lines').boundingBox())!, sung = (await page.locator('[data-testid=desk-lyric].writing').boundingBox())!;
+    const box = (await page.getByTestId('desk-journal').locator('.j-lines').boundingBox())!, sung = (await page.locator('[data-testid=desk-lyric].writing').boundingBox())!;
     expect(sung.x).toBeGreaterThanOrEqual(box.x - 1); expect(sung.x + sung.width).toBeLessThanOrEqual(box.x + box.width + 1);
     expect(await pagesShown(page)).toBeLessThanOrEqual(2);
   });
@@ -300,7 +300,7 @@ test.describe('desk engine on its own (desk.js harness)', () => {
     for (const [w, h] of [[1600, 900], [1280, 720], [390, 844], [360, 640]]) {
       await page.goto(journal(`?w=${w}&h=${h}&n=16&long=1`)); await startJournal(page);
       await page.evaluate(() => { (window as any).t = 8.6; }); await page.waitForTimeout(400);   // line 14 of 16, after several long ones
-      const box = (await page.locator('.j-lines').boundingBox())!, sung = (await page.locator('[data-testid=desk-lyric].writing').boundingBox())!;
+      const box = (await page.getByTestId('desk-journal').locator('.j-lines').boundingBox())!, sung = (await page.locator('[data-testid=desk-lyric].writing').boundingBox())!;
       expect(sung.y, `${w}x${h}: the line being sung is not above the lines' box`).toBeGreaterThanOrEqual(box.y - 1);
       // (a line taller than the box, on a phone: its start is at the top of the box)
       if (sung.height <= box.height + 1) expect(sung.y + sung.height, `${w}x${h}: nor below it`).toBeLessThanOrEqual(box.y + box.height + 1);

@@ -249,7 +249,9 @@ test.describe.serial('desk look on /ipod', () => {
     await expect(amp).toHaveAttribute('data-meter-mode', 'spec');
     await expect(amp.locator('canvas[data-spectrum]')).toBeVisible();
     await expect(amp.locator('[data-needle]')).toBeHidden();
-    await expect(amp.locator('.face-spec .hz')).toContainText('10k');
+    // its scale reaches half the song's sample rate (a 44.1 kHz song: 22 kHz), and the analyser is opened at the song's own rate to see that high
+    await expect(amp.locator('.face-spec .hz')).toContainText('22k');
+    await expect.poll(() => page.evaluate(() => (window as any).flacie.vizFrame()?.fileRate)).toBe(44100);
     await expect(amp.locator('.face-spec .hz')).toContainText('Hz');
     // the EQ: five bands, each one shaping the music
     await amp.locator('[data-meter=eq]').click();

@@ -11,7 +11,7 @@
     @Journal
     @if (Options.Pencil) { <div class="desk-pencil" data-testid="desk-pencil" aria-hidden="true"><i class="tip"></i><i class="ferrule"></i><i class="eraser"></i></div> }
     @Cds
-    @if (Options.Vu) { <DeskPreamp Readout="@MeterReadout" /> }
+    @if (Options.Vu) { <DeskPreamp Readout="@MeterReadout" Rate="@MeterRate" /> }
     @Props
     <div class="desk-coffee lift" data-testid="desk-coffee" aria-hidden="true"><div class="saucer"></div><div class="cup"><div class="handle"></div><div class="liquid" data-coffee></div></div></div>
     <svg class="desk-steam" viewBox="0 0 200 340" aria-hidden="true"><path d="M 100 330 C 80 280, 130 250, 105 200 S 80 120, 110 70"/><path d="M 120 330 C 140 280, 95 240, 125 190 S 145 110, 120 60"/><path d="M 80 330 C 60 270, 105 230, 85 180 S 60 110, 90 50"/></svg>
@@ -97,6 +97,8 @@
     [Parameter] public DeskOptions Options { get; set; } = new();
     /// <summary>What the playing file is played at, for the preamp's meter ("44.1 kHz · 16-bit"; empty until known).</summary>
     [Parameter] public string MeterReadout { get; set; } = "";
+    /// <summary>The playing file's sample rate in Hz (0 until known).</summary>
+    [Parameter] public int MeterRate { get; set; }
     /// <summary>The page's props that know about your music: the tapes and the tracklist.</summary>
     [Parameter] public RenderFragment? Props { get; set; }
 

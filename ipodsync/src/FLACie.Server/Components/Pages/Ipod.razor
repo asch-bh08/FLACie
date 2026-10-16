@@ -12,7 +12,7 @@
     else if (desk)
     {
         <DeskScene Jack="@DeskJacks.For(model.Id)" Aspect="@model.Aspect" Radius="@model.Radius" Journal="@DeskJournalPart" Cds="@DeskCdsPart" Polaroid="@DeskPolaroidPart"
-                   Options="@prefs.Desk" Props="@DeskPropsPart" MeterReadout="@DeskRateLine" MeterRate="@DeskRate">@Area()</DeskScene>
+                   Options="@prefs.Desk" Props="@DeskPropsPart" MeterReadout="@DeskRateLine" MeterRate="@DeskRate" Finish="@DeskFinishes.For(model, color)">@Area()</DeskScene>
     }
     else { @Area() }
     <a class="ipod-exit" href="/" aria-label="Back to FLACie" title="Back to FLACie" data-testid="ipod-exit"><Icon Name="chevron-left" Size="18" /></a>

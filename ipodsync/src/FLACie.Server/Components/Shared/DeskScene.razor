@@ -4,7 +4,8 @@
 @* iPod mode, Look › Desk: the iPod (ChildContent, the page's own emulator, unchanged) lying on a sunlit desk, seen from above, with its earbuds plugged in
    (they are the visualiser: desk.js), a journal, a polaroid, the next CDs and a coffee around it; blinds light and a film finish over everything.
    The look comes from the approved mock-up; styles in desk.css. *@
-<div class="desk" data-testid="desk" @ref="scene">
+@* (a coloured iPod lends the desk its colour: --desk-accent, which desk.css hands to a few things on it; a silver, white or black one leaves the desk its own) *@
+<div class="desk @(Finish.Accent is null ? "" : "tinted")" data-testid="desk" @ref="scene" style="@(Finish.Accent is { } accent ? $"--desk-accent:{accent}" : null)">
   <div class="desk-wood"></div>
   <div class="desk-scene">
     @Polaroid
@@ -105,7 +106,7 @@
           <svg class="desk-bud" data-bud data-cx="@F(x)" data-cy="@F(y)" viewBox="-26 -24 52 84" aria-hidden="true" style="@BudStyle(x, y, r)"><g><use href="#desk-bud"/></g></svg>
         }
       }
-      <div class="desk-ipod-edge" style="@EdgeStyle"></div>
+      <div class="desk-ipod-edge" data-back="@(Finish.Back == DeskBack.Aluminium ? "aluminium" : "steel")" style="@EdgeStyle"></div>
       @ChildContent
     </div>
   </div>
@@ -131,6 +132,8 @@
     [Parameter] public int MeterRate { get; set; }
     /// <summary>The page's props that know about your music: the tapes and the tracklist.</summary>
     [Parameter] public RenderFragment? Props { get; set; }
+    /// <summary>The iPod's finish (its back, seen at its edge beside it: steel, or aluminium in its colour) and the accent the desk takes from its colour.</summary>
+    [Parameter] public DeskFinish Finish { get; set; } = DeskFinishes.For(IpodModels.Get(null), IpodModels.Get(null).Colors[0]);
 
     bool Studio => Options.Phones == DeskOptions.Studio;
 
@@ -251,7 +254,8 @@
         $"left:calc(12px + (100% - 24px) * {P((x - 26) / Wd)});top:calc(12px + (100% - 24px) * {P((y - 24) / H)});width:calc((100% - 24px) * {P(52 / Wd)});" +
         $"height:calc((100% - 24px) * {P(84 / H)});rotate:{F(r)}deg";
     static string P(double v) => v.ToString("0.#####", System.Globalization.CultureInfo.InvariantCulture);
-    string EdgeStyle => $"border-radius:{F(Radius * 100)}% / {F(Radius * Aspect * 100)}%";
+    // the edge: the device's shape, in the tones of its back (desk.css draws steel or aluminium from them)
+    string EdgeStyle => $"border-radius:{F(Radius * 100)}% / {F(Radius * Aspect * 100)}%;--back-light:{Finish.Light};--back-mid:{Finish.Mid};--back-dark:{Finish.Dark}";
 
 
     protected override async Task OnAfterRenderAsync(bool first)

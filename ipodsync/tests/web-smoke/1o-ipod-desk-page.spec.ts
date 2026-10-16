@@ -38,6 +38,12 @@ async function dragWheel(page: Page, degrees: number) {
 }
 type Box = { x: number; y: number; width: number; height: number };
 const inside = (a: Box, b: Box, slack = 2) => a.x >= b.x - slack && a.y >= b.y - slack && a.x + a.width <= b.x + b.width + slack && a.y + a.height <= b.y + b.height + slack;
+/** The first colour in a CSS colour or gradient, as [r, g, b] (a color-mix() is given as color(srgb r g b), each 0 to 1). */
+const rgb3 = (s: string) => {
+  const m = s.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/), k = s.match(/color\(srgb ([\d.]+) ([\d.]+) ([\d.]+)/);
+  const at = (x: RegExpMatchArray | null) => x ? x.index! : Infinity;
+  return at(m) < at(k) ? [+m![1], +m![2], +m![3]] : k ? [1, 2, 3].map((i) => Math.round(+k[i] * 255)) : null;
+};
 const selIndex = (page: Page) => page.locator('[data-testid=ipod-row]').evaluateAll((rs) => rs.findIndex((r) => r.classList.contains('sel')));
 
 test.describe.serial('desk look on /ipod', () => {
@@ -518,6 +524,71 @@ test.describe.serial('desk look on /ipod', () => {
       expect(dev.height, `${model} fills its place`).toBeGreaterThan(slot.height * 0.6);
       expect(inside(dev, { x: 0, y: 0, width: 1600, height: 900 }), `${model} on screen`).toBe(true);
     }
+    expect(errors).toEqual([]);
+  });
+
+  test('the iPod\'s edge on the desk is its real back: steel behind a classic, the colour picked on an aluminium mini, and it follows the swatches', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    // the edge's colours, averaged (what it is drawn with), and how far from grey they are
+    const edge = page.locator('.desk-ipod-edge');
+    const tone = () => edge.evaluate((e) => {
+      const cs = getComputedStyle(e), all = [...cs.backgroundImage.matchAll(/rgba?\((\d+),\s*(\d+),\s*(\d+)/g)].map((m) => [+m[1], +m[2], +m[3]]);
+      const avg = [0, 1, 2].map((i) => all.reduce((n, c) => n + c[i], 0) / Math.max(1, all.length));
+      return { r: avg[0], g: avg[1], b: avg[2], chroma: Math.max(...avg) - Math.min(...avg), stops: all.length };
+    });
+    await openDesk(page, { model: 'mini', look: 2, color: 1 });   // a blue mini: anodised aluminium all round
+    await expect(page.getByTestId('ipod')).toHaveAttribute('data-color', 'Blue');
+    await expect(edge).toHaveAttribute('data-back', 'aluminium');
+    let t = await tone();
+    expect(t.stops).toBeGreaterThan(2);
+    expect(t.b, 'a blue mini\'s edge is blue').toBeGreaterThan(t.r + 40);
+    // another colour from the panel: the edge follows at once
+    await page.locator('.ipod-panel .swatch[data-color="Pink"]').click();
+    await expect(page.getByTestId('ipod')).toHaveAttribute('data-color', 'Pink');
+    await expect.poll(async () => { const p = await tone(); return p.r > p.b + 25 && p.r > p.g + 40; }, { message: 'a pink mini\'s edge is pink' }).toBe(true);
+    // a black classic: its front is black aluminium, its back polished steel, mirroring the warm room (not a cold silver)
+    await openDesk(page, { model: 'classic6', look: 2, color: 1 });
+    await expect(page.getByTestId('ipod')).toHaveAttribute('data-color', 'Black');
+    await expect(edge).toHaveAttribute('data-back', 'steel');
+    t = await tone();
+    expect(t.chroma, 'steel is not coloured').toBeLessThan(30);
+    expect(t.r, 'steel mirrors the warm desk').toBeGreaterThanOrEqual(t.b);
+    expect(errors).toEqual([]);
+  });
+
+  test('the desk takes the iPod\'s colour: the ticket\'s band, the preamp\'s pointer, the USB stick\'s light, the sticky notes; a silver iPod leaves it its warm red', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    // the colours the accented things are drawn in (the first colour of a gradient), as [r, g, b]
+    const colours = () => page.evaluate(() => {
+      const rgb = (s: string) => { const m = s.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/), k = s.match(/color\(srgb ([\d.]+) ([\d.]+) ([\d.]+)/); return m ? [+m[1], +m[2], +m[3]] : k ? [1, 2, 3].map((i) => Math.round(+k[i] * 255)) : null; };
+      const q = (sel: string) => document.querySelector(sel)!;
+      return {
+        band: rgb(getComputedStyle(q('.desk-ticket'), '::before').backgroundImage),
+        pointer: rgb(getComputedStyle(q('.pre-knob.big .knob i')).backgroundColor),
+        light: rgb(getComputedStyle(q('.desk-usb .led')).backgroundColor),
+        key: rgb(getComputedStyle(q('.pre-modes button.on')).color),
+      };
+    });
+    const blueish = (c: number[] | null) => !!c && c[2] > c[0] + 30;
+    const pinkish = (c: number[] | null) => !!c && c[0] > c[1] + 40 && c[2] > c[1] + 10;
+    await openDesk(page, { model: 'nano2', look: 2, color: 1 });   // a blue nano
+    await expect(page.getByTestId('ipod')).toHaveAttribute('data-color', 'Blue');
+    let c = await colours();
+    for (const [k, v] of Object.entries(c)) expect(blueish(v), `${k} with a blue iPod: ${v}`).toBe(true);
+    // another colour from the panel: the desk follows
+    await page.locator('.ipod-panel .swatch[data-color="Pink"]').click();
+    await expect.poll(async () => { const p = await colours(); return pinkish(p.band) && pinkish(p.pointer) && pinkish(p.light); }, { message: 'the desk turns pink' }).toBe(true);
+    // the sticky notes on a phone are the colour too
+    await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(600);
+    const note = rgb3(await page.locator('[data-testid=desk-journal] .sheet.left').evaluate((e) => getComputedStyle(e).backgroundImage));
+    expect(pinkish(note), `the sticky note with a pink iPod: ${note}`).toBe(true);
+    // a silver classic: the desk's own colours (the red pointer, the red-to-amber band, the green light, yellow notes)
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await openDesk(page, { model: 'classic6', look: 2, color: 0 });
+    c = await colours();
+    expect(c).toEqual({ band: [200, 69, 47], pointer: [192, 57, 43], light: [46, 125, 58], key: [122, 36, 24] });
     expect(errors).toEqual([]);
   });
 

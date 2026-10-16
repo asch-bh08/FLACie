@@ -172,14 +172,16 @@
                     <div class="ipod-key" style="left:79%" data-zone="next" data-testid="ipod-next" aria-label="Next song" title="Next (right arrow); hold to fast-forward"><Icon Name="next" Size="15" /></div>
                 </div>
             }
-            <div class="ipod-wheel" @ref="wheel" data-testid="ipod-wheel" style="@WheelStyle" title="@(model.KeyRow ? "Drag around the wheel to scroll; press the middle to select. The buttons above it are MENU, previous, next and play/pause." : "Drag around the ring to scroll. Tap MENU, the arrows, play/pause or the middle. Hold the arrows to seek, hold MENU to go home.")">
+            <div class="ipod-wheel" @ref="wheel" data-testid="ipod-wheel" style="@WheelStyle" title="@(model.KeyRow ? "Drag around the wheel to scroll; press the middle to select. The buttons above it are MENU, previous, next and play/pause." : "Drag around the scroll wheel to scroll. Tap MENU, the arrows, play/pause or the middle. Hold the arrows to seek, hold MENU to go home.")">
                 @* (the 3rd generation's wheel has nothing printed on it: only the middle button) *@
                 @if (model.Buttons)
                 {
-                    <div class="wb wb-menu" data-testid="ipod-menu" aria-label="Menu" title="Menu (Esc)"><span>MENU</span></div>
-                    <div class="wb wb-next" data-testid="ipod-next" aria-label="Next song" title="Next (right arrow)"><Icon Name="next" Size="12" /></div>
-                    <div class="wb wb-prev" data-testid="ipod-prev" aria-label="Previous song" title="Previous (left arrow)"><Icon Name="prev" Size="12" /></div>
-                    <div class="wb wb-play" data-testid="ipod-play" aria-label="Play or pause" title="Play / pause (Space)"><Icon Name="play" Size="10" /><Icon Name="pause" Size="10" /></div>
+                    @* the 1st and 2nd generations: four buttons on a ring (MENU top, previous left, next right, play/pause bottom) round the scroll wheel *@
+                    <div class="wscroll"></div>
+                    <span class="wl wl-menu" data-testid="ipod-menu" aria-label="Menu" title="Menu (Esc)">MENU</span>
+                    <span class="wl wl-next" data-testid="ipod-next" aria-label="Next song" title="Next (right arrow)"><Icon Name="next" Size="11" /></span>
+                    <span class="wl wl-prev" data-testid="ipod-prev" aria-label="Previous song" title="Previous (left arrow)"><Icon Name="prev" Size="11" /></span>
+                    <span class="wl wl-play" data-testid="ipod-play" aria-label="Play or pause" title="Play / pause (Space)"><Icon Name="play" Size="9" /><Icon Name="pause" Size="9" /></span>
                 }
                 else if (!model.KeyRow)
                 {

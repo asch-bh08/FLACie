@@ -107,7 +107,7 @@ public static class IpodModels
     public static readonly IReadOnlyList<IpodModel> All =
     [
         Click("ipod1", "iPod (1st gen)", Classic, 1, 2001, IpodFamily.Mono, 0.6, Mono1, 0.7, 0.36, 0.07, 0.03, [Cream], "The original: 5 GB, mechanical scroll wheel and a mono screen.", controls: IpodControls.ScrollWheel),
-        Click("ipod2", "iPod (2nd gen)", Classic, 2, 2002, IpodFamily.Mono, 0.6, Mono1, 0.7, 0.36, 0.07, 0.03, [Cream], "Up to 20 GB and Windows support. Still the mechanical wheel.", controls: IpodControls.TouchWheel),
+        Click("ipod2", "iPod (2nd gen)", Classic, 2, 2002, IpodFamily.Mono, 0.6, Mono1, 0.7, 0.36, 0.07, 0.03, [Cream], "Up to 20 GB and Windows support, with a touch-sensitive wheel.", controls: IpodControls.TouchWheel),
         // (the 3rd generation's wheel is smaller and lower than the click wheel's: the row of buttons sits between it and the screen)
         Click("ipod3", "iPod (3rd gen)", Classic, 3, 2003, IpodFamily.Mono, 0.605, Mono4, 0.735, 0.275, 0.085, 0.028, [White], "Thinner, with a touch-sensitive wheel and dock connector.", controls: IpodControls.TouchRow),
         Click("ipod4", "iPod (4th gen)", Classic, 4, 2004, IpodFamily.Mono, 0.597, Mono4, 0.70, 0.31, 0.085, 0.028, [White, U2], "The Click Wheel arrives. Mono screen, plus a U2 edition."),

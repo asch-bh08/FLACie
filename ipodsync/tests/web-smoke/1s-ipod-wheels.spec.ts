@@ -101,6 +101,35 @@ test.describe.serial('the click-wheel iPods have their real controls', () => {
     expect(k2.y).toBeGreaterThan(l2.y + l2.height); expect(k2.y + k2.height).toBeLessThan(w2.y);
   });
 
+  test('the 1st and 2nd generations: MENU, previous, next and play/pause on a ring of four buttons around the scroll wheel, no bubbles', async ({ page }) => {
+    test.setTimeout(120_000);
+    await signIn(page); await page.setViewportSize({ width: 1366, height: 900 });
+    for (const [model, kind] of [['ipod1', 'scroll'], ['ipod2', 'touch']]) {
+      await page.goto('about:blank');
+      await openIpod(page, { model, look: 1 });
+      await expect(page.getByTestId('ipod-device')).toHaveAttribute('data-controls', kind);
+      await expect(page.locator('.wb')).toHaveCount(0);
+      await expect(page.getByTestId('ipod-keyrow')).toHaveCount(0);
+      const wheel = await box(page, '[data-testid=ipod-wheel]'), scroll = await box(page, '[data-testid=ipod-wheel] .wscroll'), centre = await box(page, '[data-testid=ipod-center]');
+      const c = mid(wheel), R = wheel.width / 2, rs = scroll.width / 2;
+      expect(rs, model + ': the scroll wheel inside the ring').toBeLessThan(R * 0.85); expect(rs).toBeGreaterThan(R * 0.6);
+      expect(centre.width / 2).toBeLessThan(rs * 0.6);
+      // each label sits on the ring, outside the scroll wheel, at its own side
+      const at: Record<string, { x: number; y: number }> = {};
+      for (const k of ['menu', 'prev', 'next', 'play']) {
+        const p = mid(await box(page, `[data-testid=ipod-wheel] [data-testid=ipod-${k}]`)); at[k] = p;
+        const d = Math.hypot(p.x - c.x, p.y - c.y);
+        expect(d, `${model} ${k} on the ring`).toBeGreaterThan(rs); expect(d).toBeLessThan(R);
+      }
+      expect(at.menu.y).toBeLessThan(c.y - rs); expect(at.play.y).toBeGreaterThan(c.y + rs);
+      expect(at.prev.x).toBeLessThan(c.x - rs); expect(at.next.x).toBeGreaterThan(c.x + rs);
+      // the ring's buttons work: MENU at the top goes back
+      await page.getByTestId('ipod-keys').focus();
+      await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await expect(title(page)).toHaveText('Browse');
+      await page.mouse.click(at.menu.x, at.menu.y); await expect(title(page)).toHaveText('iPod');
+    }
+  });
+
   test('the iPod mini: the 2nd generation\'s wheel is lettered in the colour of its body, the 1st generation\'s in grey', async ({ page }) => {
     test.setTimeout(120_000);
     await signIn(page); await page.setViewportSize({ width: 1366, height: 900 });

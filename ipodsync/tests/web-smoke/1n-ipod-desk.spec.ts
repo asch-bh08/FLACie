@@ -223,6 +223,34 @@ test.describe('desk engine on its own (desk.js harness)', () => {
     expect(await ink(rows[1]), 'ink in the second row at the end').toBeGreaterThan(20);
   });
 
+  for (const fit of ['zoom: .6', 'transform: scale(.6); transform-origin: 0 0']) test(`the pen finishes every line, last letter included, on a desk scaled to fit the window (${fit.split(':')[0]})`, async ({ page }) => {
+    await page.setViewportSize({ width: 1700, height: 1000 });
+    await page.goto(journal('?n=3&w=2600&h=1460'));
+    await page.addStyleTag({ content: `.desk-journal { rotate: none !important; } #desk { ${fit}; } .j-lines div { rotate: none !important; translate: none !important; }` });
+    await startJournal(page);
+    await page.evaluate(() => { (window as any).t = 0.1; }); await page.waitForTimeout(250);
+    const l = page.locator('[data-testid=desk-lyric].writing');
+    const box = (await l.boundingBox())!;
+    const clip = { x: box.x - 4, y: box.y - 4, width: box.width + 8, height: box.height + 8 };
+    const ink = async () => {
+      const png = await page.screenshot({ clip });
+      return page.evaluate(async (b64) => {
+        const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+        const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d')!; g.drawImage(img, 0, 0);
+        const d = g.getImageData(0, 0, c.width, c.height).data; let n = 0;
+        for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] < 420) n++;
+        return n;
+      }, png.toString('base64'));
+    };
+    // the animation's last moment, against the line with no clip at all
+    await l.evaluate((e) => { for (const a of e.getAnimations()) { a.pause(); a.currentTime = Number(a.effect!.getComputedTiming().endTime) - 1; } });
+    const end = await ink();
+    await l.evaluate((e) => { for (const a of e.getAnimations()) a.cancel(); });
+    const whole = await ink();
+    expect(whole).toBeGreaterThan(20);
+    expect(end, 'ink at the end of the pen stroke vs the whole line').toBeGreaterThanOrEqual(whole * 0.98);
+  });
+
   // the lines on show, as page columns: the x of each shown line's page
   const pagesShown = (page: import('@playwright/test').Page) => page.evaluate(() => {
     // in the journal's own layout (it lies tilted on the desk): which page columns the shown lines are in, of those in view
@@ -276,7 +304,7 @@ test.describe('desk engine on its own (desk.js harness)', () => {
       expect(sung.y, `${w}x${h}: the line being sung is not above the lines' box`).toBeGreaterThanOrEqual(box.y - 1);
       // (a line taller than the box, on a phone: its start is at the top of the box)
       if (sung.height <= box.height + 1) expect(sung.y + sung.height, `${w}x${h}: nor below it`).toBeLessThanOrEqual(box.y + box.height + 1);
-      else expect(Math.abs(sung.y - box.y), `${w}x${h}: a tall line starts at the top`).toBeLessThanOrEqual(1);
+      else expect(Math.abs(sung.y - box.y), `${w}x${h}: a tall line starts at the top`).toBeLessThanOrEqual(2);   // (2 px: each line lies at its own slight angle, up to half a degree)
       expect(sung.x, `${w}x${h}: on screen`).toBeGreaterThanOrEqual(0);
     }
   });

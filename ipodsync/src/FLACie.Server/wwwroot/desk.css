@@ -164,8 +164,8 @@
 .desk-minidiscs .shutter { position: absolute; left: 6%; width: 62%; top: 0; height: 15%; background: linear-gradient(#e6e8ec, #a9adb4 55%, #d4d7dc); border-radius: 0 0 .15cqh .15cqh; box-shadow: inset 0 -.08cqh 0 rgba(0,0,0,.25); }
 .desk-minidiscs .md span { position: absolute; left: 10%; right: 10%; top: 30%; height: 38%; padding: .3cqh .4cqh; border-radius: .25cqh; background: #f5ecd3; color: #2f3b55; font-size: 1.15cqh; line-height: 1.2; overflow: hidden; overflow-wrap: anywhere; }
 
-/* the pencil across the journal: sharpened tip, yellow body, ferrule, eraser */
-.desk-pencil { left: 7%; top: 40cqh; width: 30cqh; height: 1.7cqh; rotate: -5deg; z-index: 1; border-radius: .2cqh;
+/* the pencil on the desk under the journal (never on it: a page turning would go through it): sharpened tip, yellow body, ferrule, eraser */
+.desk-pencil { left: 8.5%; top: 48.3cqh; width: 30cqh; height: 1.7cqh; rotate: -2.5deg; z-index: 1; border-radius: .2cqh;
   background: linear-gradient(#f6d24a, #f3c623 40%, #d9a514 60%, #f0c43a); }
 .desk-pencil .tip { position: absolute; right: 100%; top: 0; width: 3.4cqh; height: 100%; background: linear-gradient(90deg, #2d2d2d 0 22%, #e8c9a0 22%); clip-path: polygon(0 50%, 100% 0, 100% 100%); }
 .desk-pencil .ferrule { position: absolute; left: 100%; top: -2%; width: 2.2cqh; height: 104%; background: repeating-linear-gradient(90deg, #b9bcc1 0 .3cqh, #e9ebee .3cqh .55cqh); }

@@ -184,28 +184,32 @@ window.desk = (() => {
 
   // the pen: the line is revealed left to right, a row at a time (a wrapped line's second row only once the first is written), at one speed throughout.
   // One animation of a clip polygon down the rows' right edges: rows already written are open to their end, the row being written up to the pen, the rest shut.
+  // The rows are measured on screen, but the polygon is in the line's own pixels: the desk is scaled to fit the window (and may be zoomed), so every
+  // measure is divided by that scale, or the pen stops short and the last letter is cut. Handwriting also reaches past its own box: the pen goes on a little.
   function writeIn(l, ms) {
     if (s.reduced || !l.animate) return;
-    const box = l.getBoundingClientRect(), r = document.createRange(); r.selectNodeContents(l);
+    const scr = l.getBoundingClientRect(), r = document.createRange(); r.selectNodeContents(l);
+    const k = scr.width > 0 && l.offsetWidth > 0 ? l.offsetWidth / scr.width : 1, over = parseFloat(getComputedStyle(l).fontSize) * 0.6 || 8;
+    const box = { left: scr.left, top: scr.top, width: l.offsetWidth + over, height: l.offsetHeight };
     const byTop = new Map();
     for (const q of r.getClientRects()) {
       if (q.width <= 0) continue;
-      const k = Math.round(q.top - box.top), row = byTop.get(k);
-      if (row) { row.l = Math.min(row.l, q.left - box.left); row.r = Math.max(row.r, q.right - box.left); }
-      else byTop.set(k, { t: q.top - box.top, b: q.bottom - box.top, l: q.left - box.left, r: q.right - box.left });
+      const key = Math.round(q.top - box.top), row = byTop.get(key);
+      if (row) { row.l = Math.min(row.l, (q.left - box.left) * k); row.r = Math.max(row.r, (q.right - box.left) * k); }
+      else byTop.set(key, { t: (q.top - box.top) * k, b: (q.bottom - box.top) * k, l: (q.left - box.left) * k, r: (q.right - box.left) * k });
     }
     const rows = [...byTop.values()].sort((a, b) => a.t - b.t);
     if (!rows.length) return;
     rows[rows.length - 1].b = Math.max(rows[rows.length - 1].b, box.height);
     const poly = (k, x) => {
-      const pts = [[0, 0]];
+      const pts = [[-over, 0]];
       rows.forEach((row, j) => { const e = j < k ? box.width : j === k ? x : 0; pts.push([e, j === 0 ? 0 : row.t], [e, j === rows.length - 1 ? box.height + 2 : rows[j + 1].t]); });
-      pts.push([0, box.height + 2]);
+      pts.push([-over, box.height + 2]);
       return `polygon(${pts.map(([x, y]) => `${x.toFixed(1)}px ${y.toFixed(1)}px`).join(', ')})`;
     };
     const total = rows.reduce((n, row) => n + Math.max(1, row.r), 0);
     const frames = [{ clipPath: poly(0, 0), offset: 0 }]; let done = 0;
-    rows.forEach((row, k) => { done += Math.max(1, row.r); frames.push({ clipPath: poly(k, row.r + 2), offset: Math.min(1, done / total) }); });
+    rows.forEach((row, j) => { done += Math.max(1, row.r); frames.push({ clipPath: poly(j, row.r + over), offset: Math.min(1, done / total) }); });
     l.animate(frames, { duration: ms, easing: 'linear' });
   }
 

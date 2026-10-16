@@ -398,6 +398,9 @@ test.describe.serial('desk look on /ipod', () => {
         return { worst: Math.max(...off), sheet: !!sheet, angles };
       });
       expect(r.worst, `baseline off the rule at ${w}x${h}`).toBeLessThan(0.12);
+      // the pencil lies on the desk beside the notebook, not on its pages (a page turns over them)
+      const pen = (await page.getByTestId('desk-pencil').boundingBox())!, book = (await page.getByTestId('desk-journal').boundingBox())!;
+      expect(Math.max(0, Math.min(pen.x + pen.width, book.x + book.width) - Math.max(pen.x, book.x)) * Math.max(0, Math.min(pen.y + pen.height, book.y + book.height) - Math.max(pen.y, book.y)), `pencil on the notebook at ${w}x${h}`).toBeLessThan(pen.width * pen.height * 0.05);
       for (const a of r.angles) expect(Math.abs(a)).toBeLessThanOrEqual(0.5);
       if (r.angles.length > 1) expect(new Set(r.angles).size).toBeGreaterThan(1);
     }

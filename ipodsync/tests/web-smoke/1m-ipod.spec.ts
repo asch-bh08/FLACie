@@ -16,7 +16,19 @@ const sel = (page: Page) => page.locator('[data-testid=ipod-row].sel');
 const title = (page: Page) => page.getByTestId('ipod-title');
 const labels = async (page: Page) => (await page.locator('[data-testid=ipod-row] .lcd-label').allTextContents()).map((s) => s.trim());
 const stage = (page: Page) => page.getByTestId('ipod');
-const shot = async (page: Page, name: string) => { await page.mouse.move(5, 5); await page.waitForTimeout(600); await page.screenshot({ path: `../../../docs/img/ipod-web-${name}.png` }); };
+// the screenshots in docs/img are only rewritten on request (IPOD_SHOTS=1), so a plain test run leaves the repository clean
+const SHOTS = !!process.env.IPOD_SHOTS;
+const shot = async (page: Page, name: string) => { if (!SHOTS) return; await page.mouse.move(5, 5); await page.waitForTimeout(600); await page.screenshot({ path: `../../../docs/img/ipod-web-${name}.png` }); };
+/** Stop the song (the mock's last three seconds, and a new one would start the rating again at none): Space until the title bar shows "paused", and it stays so for a moment. */
+async function holdStill(page: Page) {
+  const state = () => page.locator('[data-testid=ipod-header] .lcd-play').first().textContent();
+  for (let i = 0; i < 8; i++) {
+    if ((await state())?.includes('❚❚')) { await page.waitForTimeout(500); if ((await state())?.includes('❚❚')) return; }
+    else await page.keyboard.press('Space');
+    await page.waitForTimeout(350);
+  }
+  throw new Error('could not pause the song');
+}
 const selText = async (page: Page) => (await sel(page).locator('.lcd-label').textContent()) ?? '';
 
 /** Open /ipod showing a given model/colour/look (the page keeps these in the browser, so they are seeded before it loads). */
@@ -67,7 +79,7 @@ test.describe.serial('ipod mode', () => {
       await page.getByTestId('ipod-gear').click();
       await expect(page.locator('.ipod-panel .ipod-chip.swatch')).toHaveCount(+colours);
       await page.getByTestId('ipod-gear').click();
-      if (shots.has(id)) { await page.mouse.move(5, 5); await page.waitForTimeout(500); await page.screenshot({ path: `../../../docs/img/ipod-web-${id}.png` }); }
+      if (SHOTS && shots.has(id)) { await page.mouse.move(5, 5); await page.waitForTimeout(500); await page.screenshot({ path: `../../../docs/img/ipod-web-${id}.png` }); }
     }
   });
 
@@ -398,6 +410,7 @@ test.describe.serial('ipod mode', () => {
       await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown');
       await expect(sel(page)).toContainText('Shuffle Songs'); await page.keyboard.press('Enter');
       await expect(page.getByTestId('ipod-np')).toBeVisible({ timeout: 20_000 });
+      await holdStill(page);
       await page.keyboard.press('Enter'); await expect(page.getByTestId('ipod-scrub')).toBeVisible();
       await page.keyboard.press('Enter'); await expect(page.getByTestId('ipod-rating')).toBeVisible();
       await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown');

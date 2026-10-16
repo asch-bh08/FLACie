@@ -219,13 +219,96 @@
 .os-nano7 .ios-stub { background: #fff; color: #000; }
 .os-nano7 .ios-stub .ios-icon { width: 64px; height: 64px; }
 
+/* ---------------------------------------------------------------- iPod nano 6 (2010): four icons to a page on a wallpaper the colour of the iPod; black lists;
+   the cover filling the square screen */
+.ios.os-nano6 { --tint: #8a8d93; font-family: "Helvetica Neue", -apple-system, "Segoe UI", Arial, sans-serif; background: #000; color: #fff; }
+.os-nano6 .ios-status { height: 16px; padding: 0 5px; background: #000; color: #fff; font-size: 10px; }
+.os-nano6 .ios-batt { width: 18px; height: 8px; border-radius: 2px; }
+.os-nano6 .ios-batt::after { top: 1.5px; height: 3px; }
+.os-nano6[data-app=home] .ios-status, .os-nano6[data-app=now] .ios-status { position: absolute; left: 0; right: 0; top: 0; background: transparent; z-index: 7; }
+.os-nano6 .ios-home { background: radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--tint) 85%, #fff) 0%, color-mix(in srgb, var(--tint) 75%, #000) 55%, color-mix(in srgb, var(--tint) 18%, #000) 100%); }
+.os-nano6 .ios-npage { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; padding: 18px 8px 0; animation: ios-page .22s ease both; }
+.os-nano6 .ios-app { justify-content: center; gap: 4px; font-size: 12px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+.os-nano6 .ios-icon { width: 70px; height: 70px; border-radius: 15px; box-shadow: 0 2px 4px rgba(0,0,0,.5); background: linear-gradient(#8a8f98, #4a4e57); }
+.os-nano6 .ios-icon::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 50%; background: linear-gradient(rgba(255,255,255,.45), rgba(255,255,255,.08)); border-radius: 15px 15px 40% 40% / 15px 15px 14% 14%; pointer-events: none; }
+.os-nano6 .ios-icon svg, .os-nano6 .ios-icon .ic { width: 38px; height: 38px; }
+.os-nano6 .ios-icon-music { background: linear-gradient(#ffa452, #e2511a); }
+.os-nano6 .ios-icon-now { background: #222; } .os-nano6 .ios-icon-now .cover { width: 100%; height: 100%; }
+.os-nano6 .ios-icon-radio { background: linear-gradient(#9a9ea6, #45484f); }
+.os-nano6 .ios-icon-fitness { background: linear-gradient(#5c5f66, #16171a); color: #9be15d; }
+.os-nano6 .ios-icon-photos { background: linear-gradient(#7cc4ff, #2a78d6); }
+.os-nano6 .ios-icon-clock { background: linear-gradient(#fff, #c9ccd2); color: #111; }
+.os-nano6 .ios-icon-stopwatch { background: linear-gradient(#55595f, #1b1c20); color: #ffb340; }
+.os-nano6 .ios-icon-podcasts { background: linear-gradient(#b673e8, #6a2bb3); }
+.os-nano6 .ios-icon-settings { background: linear-gradient(#b8bcc4, #6c717b); }
+.os-nano6 .ios-icon-flacie { background: linear-gradient(#ff5e87, #9b3bd1); }
+.os-nano6 .ios-icon-videos { background: linear-gradient(#444a55, #14171c); }
+/* lists: big white type on black, about four rows at a time, a slim bar with the name of the list */
+.os-nano6 .ios-nav { height: 28px; background: linear-gradient(#3a3a3c, #1a1a1b); border-bottom: 1px solid #000; color: #fff; text-shadow: none; }
+.os-nano6 .ios-nav b { font-size: 14px; font-weight: 700; max-width: 56%; }
+.os-nano6 .ios-back, .os-nano6 .ios-now { top: 0; height: 28px; width: 34px; max-width: 34px; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.os-nano6 .ios-back span, .os-nano6 .ios-now span { display: none; }
+.os-nano6 .ios-back { left: 0; } .os-nano6 .ios-back::before { left: 12px; top: 9px; width: 9px; height: 9px; border-width: 0 0 2.5px 2.5px; border-color: #fff; }
+.os-nano6 .ios-now { right: 0; } .os-nano6 .ios-now::after { content: ""; position: absolute; left: 12px; top: 9px; border-left: 9px solid #fff; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+.os-nano6 .ios-scroll { background: #000; touch-action: pan-y; }
+.os-nano6 .ios-row { min-height: 49px; gap: 8px; padding: 2px 12px; border-bottom: 1px solid #2c2c2e; background: #000; color: #fff; }
+.os-nano6 .ios-row:active { background: linear-gradient(#3d86f0, #1a5dd0); }
+.os-nano6 .ios-row.chev::after { width: 7px; height: 7px; border-width: 2px 2px 0 0; border-color: #6d6d72; }
+.os-nano6 .ios-t b { font-size: 17px; font-weight: 700; } .os-nano6 .ios-t small { font-size: 12px; color: #98989d; }
+.os-nano6 .ios-row.cur .ios-t b { color: #5fa8ff; }
+.os-nano6 .ios-row.shuf .ic { color: #fff; }
+.os-nano6 .ios-v { color: #98989d; font-size: 13px; }
+.os-nano6 .ios-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 2px; }
+.os-nano6 .ios-tile { cursor: pointer; } .os-nano6 .ios-tile-art { display: block; aspect-ratio: 1; overflow: hidden; background: #1c1c1e; }
+.os-nano6 .ios-tile b, .os-nano6 .ios-tile small { display: none; }
+/* Now Playing: the cover is the screen; a tap brings the controls over it */
+.os-nano6 .ios-np { position: absolute; inset: 0; padding: 0; background: #000; color: #fff; }
+.os-nano6 .ios-np-art { position: absolute; inset: 0; width: auto; aspect-ratio: auto; box-shadow: none; background: #1c1c1e; cursor: pointer; }
+.os-nano6 .ios-np-top, .os-nano6 .ios-np-bot { z-index: 2; }   /* (over the cover's picture, which ranks above its placeholder) */
+.os-nano6 .ios-np-top { position: absolute; left: 0; right: 0; top: 0; padding: 16px 8px 18px 0; display: flex; align-items: flex-start; background: linear-gradient(rgba(0,0,0,.82), rgba(0,0,0,.55) 70%, transparent); }
+.os-nano6 .ios-np-top .ios-back { position: relative; flex: none; height: 34px; }
+.os-nano6 .ios-np-top .ios-back::before { top: 12px; }
+.os-nano6 .ios-np-meta { flex: 1; min-width: 0; align-items: center; margin: 0; padding-right: 26px; }
+.os-nano6 .ios-np-meta b { font-size: 15px; font-weight: 700; } .os-nano6 .ios-np-meta span { font-size: 12px; color: #c7c7cc; }
+.os-nano6 .ios-np-bot { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 14px 2px; display: flex; flex-direction: column; align-items: center; background: linear-gradient(transparent, rgba(0,0,0,.6) 30%, rgba(0,0,0,.85)); }
+.os-nano6 .ios-np .ios-ctl { gap: 26px; color: #fff; }
+.os-nano6 .ios-np .ios-ctl button { width: 46px; height: 42px; color: #fff; }
+.os-nano6 .ios-np .ios-vol { color: #c7c7cc; } .os-nano6 .ios-np .ios-bar { color: #fff; }
+.os-nano6 .ios-np .ios-bar .trk { background: rgba(255,255,255,.3); }
+.os-nano6 .ios-np .ios-vol .ios-bar u, .os-nano6 .ios-np .ios-bar u { width: 12px; height: 12px; margin: -6px 0 0 -6px; background: #fff; }
+.os-nano6 .ios-np .ios-times { width: 100%; font-size: 11px; color: #c7c7cc; }
+.os-nano6 .ios-np .ios-modes { width: 120px; color: #fff; }
+.os-nano6 .ios-np-dots { display: flex; justify-content: center; }
+.os-nano6 .ios-np-dots button { width: 16px; height: 14px; display: grid; place-items: center; }
+.os-nano6 .ios-np-dots button i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.4); }
+.os-nano6 .ios-np-dots button.on i { background: #fff; }
+/* settings, the clock face, the rest */
+.os-nano6 .ios-settings { background: #000; padding: 0 0 10px; }
+.os-nano6 .ios-settings h4 { margin: 10px 12px 2px; font-size: 11px; color: #98989d; text-shadow: none; text-transform: uppercase; }
+.os-nano6 .ios-group { border: 0; border-radius: 0; background: #000; }
+.os-nano6 .ios-settings .ios-row { min-height: 40px; } .os-nano6 .ios-settings .ios-t b { font-size: 14px; }
+.os-nano6 .ios-nav.dark { background: linear-gradient(#3a3a3c, #1a1a1b); }
+.os-nano6 .ios-clock { background: #000; gap: 6px; cursor: pointer; }
+.os-nano6 .ios-bigtime { font-size: 40px; font-weight: 300; } .os-nano6 .ios-bigtime.mono { font-size: 30px; }
+.os-nano6 .ios-date { font-size: 12px; }
+.os-nano6 .ios-face { width: 186px; height: 186px; }
+.os-nano6 .ios-face .rim { fill: #fff; stroke: #c9ccd2; stroke-width: 3; }
+.os-nano6 .ios-face .hr { stroke: #111; stroke-width: 3.5; } .os-nano6 .ios-face .mn { stroke: #777; stroke-width: 1.2; }
+.os-nano6 .ios-face .hh { stroke: #111; stroke-width: 7; stroke-linecap: round; } .os-nano6 .ios-face .mh { stroke: #111; stroke-width: 4.5; stroke-linecap: round; }
+.os-nano6 .ios-face .hub { fill: #f2a33a; }
+.os-nano6 .ios-swbtns { gap: 10px; } .os-nano6 .ios-swbtns button { min-width: 74px; padding: 8px 0; font-size: 14px; }
+.os-nano6 .ios-stub small { font-size: 11px; } .os-nano6 .ios-stub b { font-size: 15px; }
+.os-nano6 .ios-stub .ios-icon { width: 52px; height: 52px; border-radius: 12px; }
+
 /* ---------------------------------------------------------------- the bodies: white fronts, the nanos' buttons */
 .ipod.touch.light-face .ipod-face { box-shadow: inset 0 0 0 1px rgba(0,0,0,.08), inset 0 0 3px rgba(0,0,0,.15); }
 .ipod.touch.light-face .ipod-home { box-shadow: inset 0 0 0 1.6px rgba(150,152,158,.75), 0 1px 1px rgba(255,255,255,.8); background: radial-gradient(circle at 50% 35%, #fff, #ececef); }
 .ipod.touch.light-face .ipod-home i { border-color: rgba(150,152,158,.7); }
 .ipod.m-nano7 .ipod-home i { width: 0; height: 0; border: 0; }   /* (the nano 7's Home button is plain) */
 .ipod.m-nano7 .ipod-home { transform: scale(.82); }
-/* the nano 7 has volume, play/pause between them, on its left side */
-.ipod.m-nano7::before { content: ""; position: absolute; z-index: -1; border-radius: 3px; background: linear-gradient(var(--top), var(--bottom)); box-shadow: inset 0 0 0 1px var(--edge); }
+/* the nano 6's Sleep/Wake and volume buttons stand up from its top edge; the nano 7 has volume, play/pause between them, on its left side */
+.ipod.m-nano6::before, .ipod.m-nano7::before { content: ""; position: absolute; z-index: -1; border-radius: 3px; background: linear-gradient(var(--top), var(--bottom)); box-shadow: inset 0 0 0 1px var(--edge); }
+.ipod.m-nano6::before { top: -3px; left: 16%; width: 16%; height: 6px;
+  box-shadow: inset 0 0 0 1px var(--edge), 128px 0 0 -0.5px var(--bottom), 154px 0 0 -0.5px var(--bottom); }
 .ipod.m-nano7::before { left: -3px; top: 17%; width: 6px; height: 7%;
   box-shadow: inset 0 0 0 1px var(--edge), 0 52px 0 -0.5px var(--bottom), 0 104px 0 -0.5px var(--bottom); }

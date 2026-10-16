@@ -54,6 +54,30 @@ async function playFromSongs(page: Page, model: string) {
 }
 
 test.describe('touch iPod systems', () => {
+  test('the nano 6 pages its home screen with a swipe and the dots, four apps to a page', async ({ page }) => {
+    await signIn(page); await page.setViewportSize({ width: 1200, height: 900 });
+    await openIpod(page, 'nano6');
+    const first = await homeApps(page);
+    expect(first).toEqual(['music', 'radio', 'fitness', 'photos']);
+    const dots = page.locator('[data-testid=ios-dots] button');
+    await expect(dots).toHaveCount(3);
+    await expect(dots.nth(0)).toHaveClass(/on/);
+    await swipe(page, 'left');
+    expect(await app(page)).toBe('home');                                   // a swipe over an icon is not a tap on it
+    await expect(dots.nth(1)).toHaveClass(/on/);
+    const second = await homeApps(page);
+    expect(second).toEqual(['clock', 'stopwatch', 'podcasts', 'settings']);
+    await swipe(page, 'left'); await expect(dots.nth(2)).toHaveClass(/on/);
+    expect(await homeApps(page)).toEqual(['flacie']);
+    await swipe(page, 'left'); await expect(dots.nth(2)).toHaveClass(/on/);  // the last page stays
+    await swipe(page, 'right'); await expect(dots.nth(1)).toHaveClass(/on/);
+    await dots.nth(0).click(); await expect(dots.nth(0)).toHaveClass(/on/);
+    expect(await homeApps(page)).toEqual(first);
+    // the dots are easy to hit
+    const d = await dots.nth(0).evaluate((e: HTMLElement) => ({ w: e.offsetWidth, h: e.offsetHeight }));
+    expect(d.w).toBeGreaterThanOrEqual(18); expect(d.h).toBeGreaterThanOrEqual(18);
+  });
+
   test('the nano 7 shows six round apps a page and swipes to the next', async ({ page }) => {
     await signIn(page); await page.setViewportSize({ width: 1200, height: 900 });
     await openIpod(page, 'nano7');
@@ -72,7 +96,7 @@ test.describe('touch iPod systems', () => {
     await expect.poll(() => app(page)).toBe('home');
   });
 
-  for (const model of ['touch6', 'touch7', 'nano7']) {
+  for (const model of ['touch6', 'touch7', 'nano7', 'nano6']) {
     test(`${model}: home screen, Music, Now Playing and back`, async ({ page }) => {
       test.setTimeout(90_000);
       const errors: string[] = []; page.on('pageerror', (e) => errors.push(String(e)));
@@ -156,7 +180,7 @@ test.describe('touch iPod systems', () => {
     });
     for (const [w, h] of [[1366, 768], [390, 844]] as Array<[number, number]>) {
       await page.setViewportSize({ width: w, height: h });
-      for (const model of ['touch6', 'touch7', 'nano7']) {
+      for (const model of ['touch6', 'touch7', 'nano7', 'nano6']) {
         await openIpod(page, model);
         expect(await problems(), model + ' home at ' + w).toEqual([]);
         await playFromSongs(page, model);

@@ -113,7 +113,7 @@ public static class IpodModels
         Click("nano3", "iPod nano (3rd gen)", Nano, 3, 2007, IpodFamily.Nano, 0.751, NanoScreen, 0.777, 0.245, 0.075, 0.022, [Silver, Black(true), Blue, Green, Red], "The squat \"fatty\" nano with the menus and preview pane."),
         Click("nano4", "iPod nano (4th gen)", Nano, 4, 2008, IpodFamily.Nano, 0.43, NanoTall, 0.745, 0.33, 0.12, 0.03, [Silver, Black(true), Purple, Blue, Green, Yellow, Orange, Red, Pink], "Tall and curved, with a portrait screen.", portrait: true),
         Click("nano5", "iPod nano (5th gen)", Nano, 5, 2009, IpodFamily.Nano, 0.43, new IpodRect(0.105, 0.065, 0.895, 0.515), 0.75, 0.33, 0.12, 0.03, [Silver, Black(true), Purple, Blue, Green, Yellow, Orange, Red, Pink], "Adds a video camera. Nine colours.", portrait: true),
-        TouchModel("nano6", "iPod nano (6th gen)", Nano, 6, 2010, 0.94, new IpodRect(0.06, 0.07, 0.94, 0.93), 0.16,
+        TouchModel("nano6", "iPod nano (6th gen)", Nano, 6, 2010, 0.94, new IpodRect(0.13, 0.1522, 0.87, 0.8478), 0.12,
             [TouchSilver, TouchBlack, TouchMetal("Blue", "#6FA6D8"), TouchMetal("Green", "#83BE62"), TouchMetal("Orange", "#E48A3C"), TouchMetal("Pink", "#E9A6B4"), TouchMetal("Red", "#C8323C")], "A tiny multi-touch clip. No wheel at all.", home: false),
         TouchModel("nano7", "iPod nano (7th gen)", Nano, 7, 2012, 0.518, new IpodRect(0.119, 0.083, 0.881, 0.79349), 0.13,
             [WSilver, TSlate, Front(TouchMetal("Blue", "#6FA6D8")), Front(TouchMetal("Purple", "#9B7CC3")), WPink, WYellow, WRed], "Tall multi-touch nano with a Home button."),

@@ -380,6 +380,29 @@ test.describe.serial('desk look on /ipod', () => {
     }
   });
 
+  test('the journal\'s handwriting sits on the printed rules, each line at its own slight angle', async ({ page }) => {
+    await signIn(page);
+    for (const [w, h] of [[1600, 900], [1280, 720]]) {
+      await page.setViewportSize({ width: w, height: h });
+      await page.goto('/songs'); await page.locator('.track').first().locator('button.track-main').click();
+      await page.evaluate(() => localStorage.setItem('flacie.ipod', JSON.stringify({ model: 'classic6', look: 2, panel: false })));
+      await page.evaluate(() => (window as any).Blazor.navigateTo('/ipod'));
+      await expect(page.locator('[data-testid=desk-journal] .j-lines div.on').first()).toBeVisible({ timeout: 15_000 });
+      const r = await page.getByTestId('desk-journal').evaluate((j) => {
+        const sheet = j.querySelector('.sheet.left') as HTMLElement, lines = [...j.querySelectorAll('.j-lines div.on')] as HTMLElement[];
+        // the rule spacing in px: the line height (they are the same by design); the rules are the bottom 0.12/3.32 of each band
+        const step = parseFloat(getComputedStyle(j.querySelector('.j-lines')!).lineHeight), rule0 = step * (3.26 / 3.32);
+        const top = (el: HTMLElement) => { let y = 0; for (let n: HTMLElement | null = el; n && n !== j; n = n.offsetParent as HTMLElement | null) y += n.offsetTop; return y; };
+        const off = lines.map((d) => { const s = document.createElement('span'); s.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline'; d.prepend(s); const y = top(s); s.remove(); const k = Math.round((y - rule0) / step); return Math.abs(y - (rule0 + k * step)) / step; });
+        const angles = lines.map((d) => parseFloat(getComputedStyle(d).rotate) || 0);
+        return { worst: Math.max(...off), sheet: !!sheet, angles };
+      });
+      expect(r.worst, `baseline off the rule at ${w}x${h}`).toBeLessThan(0.12);
+      for (const a of r.angles) expect(Math.abs(a)).toBeLessThanOrEqual(0.5);
+      if (r.angles.length > 1) expect(new Set(r.angles).size).toBeGreaterThan(1);
+    }
+  });
+
   test('on a narrow screen the sticky note and the queue card sit above the iPod, clear of it and of the earbud cable', async ({ page }) => {
     await signIn(page);
     for (const model of ['classic6', 'nano3', 'mini2']) {

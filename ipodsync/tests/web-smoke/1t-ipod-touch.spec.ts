@@ -54,7 +54,25 @@ async function playFromSongs(page: Page, model: string) {
 }
 
 test.describe('touch iPod systems', () => {
-  for (const model of ['touch6', 'touch7']) {
+  test('the nano 7 shows six round apps a page and swipes to the next', async ({ page }) => {
+    await signIn(page); await page.setViewportSize({ width: 1200, height: 900 });
+    await openIpod(page, 'nano7');
+    const first = await homeApps(page);
+    expect(first).toHaveLength(6);
+    for (const a of ['music', 'clock', 'stopwatch', 'settings']) expect(first).toContain(a);
+    await swipe(page, 'left');
+    const second = await homeApps(page);
+    expect(second.length).toBeGreaterThan(0); expect(second).not.toContain('music');
+    await swipe(page, 'right');
+    expect(await homeApps(page)).toEqual(first);
+    // a swipe to the right inside an app goes back
+    await page.locator('.ios-grid .ios-app[data-app="settings"]').click();
+    await expect(page.getByTestId('ios-settings')).toBeVisible();
+    await swipe(page, 'right');
+    await expect.poll(() => app(page)).toBe('home');
+  });
+
+  for (const model of ['touch6', 'touch7', 'nano7']) {
     test(`${model}: home screen, Music, Now Playing and back`, async ({ page }) => {
       test.setTimeout(90_000);
       const errors: string[] = []; page.on('pageerror', (e) => errors.push(String(e)));
@@ -138,7 +156,7 @@ test.describe('touch iPod systems', () => {
     });
     for (const [w, h] of [[1366, 768], [390, 844]] as Array<[number, number]>) {
       await page.setViewportSize({ width: w, height: h });
-      for (const model of ['touch6', 'touch7']) {
+      for (const model of ['touch6', 'touch7', 'nano7']) {
         await openIpod(page, model);
         expect(await problems(), model + ' home at ' + w).toEqual([]);
         await playFromSongs(page, model);

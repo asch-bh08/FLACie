@@ -176,7 +176,7 @@
     static readonly TabDef[] Ios12Tabs = [new("Library", "albums", "m:library"), new("For You", "heart", "m:foryou"), new("Browse", "globe", "m:browse"), new("Radio", "wave", "m:radio")];
 
     /// <summary>The system this model runs (see the comment at the top).</summary>
-    string Os => Model switch { "touch6" or "touch7" => "flat", _ => "classic" };
+    string Os => Model switch { "touch6" or "touch7" => "flat", "nano7" => "nano7", _ => "classic" };
     TabDef[] TabSet => Os == "flat" ? (Model == "touch7" ? Ios12Tabs : Ios8Tabs) : ClassicTabs;
     bool Nano => Os is "nano6" or "nano7";
     string HomeLabel => Os == "classic" ? "Home" : Nano ? "" : "Home";

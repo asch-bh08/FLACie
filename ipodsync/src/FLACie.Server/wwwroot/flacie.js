@@ -16,25 +16,44 @@ window.flacie = (() => {
   };
   try { const v = parseFloat(localStorage.getItem("flacie.volume")); if (v >= 0 && v <= 1) { audio.volume = v; baseVolume = v; } } catch { }
   audio.preload = "auto";
-  // the tone controls (tone(), bass()): two shelves the music goes through, made the first time they are needed; what was set last time comes back
-  let toneCtx = null, toneLowF = null, toneHighF = null, toneLow = 0, toneHigh = 0, mega = false;
-  try { const t = (localStorage.getItem("flacie.tone") || "").split(",").map(Number); if (t.length === 2 && t.every(Number.isFinite)) { toneLow = t[0]; toneHigh = t[1]; } } catch { }
+  // the EQ (eq(), tone(), bass()): five bands the music goes through (a bass shelf, three peaks, a treble shelf), made the first time one is moved off
+  // flat; what was set last time comes back. Once the music goes through them, the analysers tap the same graph (no second copy of the song: buildGraph)
+  const EQ_HZ = [100, 400, 1000, 3000, 8000];
+  let toneCtx = null, eqF = null, eqAn = null, eqL = null, eqR = null, eqGains = [0, 0, 0, 0, 0], mega = false, toneRateHint = 0;
+  try {
+    const e = (localStorage.getItem("flacie.eq") || "").split(",").map(Number);
+    if (e.length === 5 && e.every(Number.isFinite)) eqGains = e;
+    else { const t = (localStorage.getItem("flacie.tone") || "").split(",").map(Number); if (t.length === 2 && t.every(Number.isFinite)) eqGains = [t[0], 0, 0, 0, t[1]]; }
+  } catch { }
+  const eqFlat = () => eqGains.every((g) => !g);
   const toneGraph = () => {
-    if (toneLowF) return true;
+    if (eqF) return true;
     try {
-      const AC = window.AudioContext || window.webkitAudioContext; toneCtx = new AC(); const src = toneCtx.createMediaElementSource(audio);
-      toneLowF = toneCtx.createBiquadFilter(); toneLowF.type = "lowshelf"; toneLowF.frequency.value = 100; toneLowF.gain.value = 0;
-      toneHighF = toneCtx.createBiquadFilter(); toneHighF.type = "highshelf"; toneHighF.frequency.value = 6000; toneHighF.gain.value = 0;
-      src.connect(toneLowF); toneLowF.connect(toneHighF); toneHighF.connect(toneCtx.destination); return true;
-    } catch { toneCtx = toneLowF = toneHighF = null; return false; }
+      const AC = window.AudioContext || window.webkitAudioContext;
+      // opened at the file's own rate when it is known, so the song is not resampled on its way through
+      try { toneCtx = toneRateHint >= 8000 && toneRateHint <= 192000 ? new AC({ sampleRate: toneRateHint, latencyHint: "playback" }) : new AC({ latencyHint: "playback" }); } catch { toneCtx = new AC(); }
+      const src = toneCtx.createMediaElementSource(audio);
+      eqF = EQ_HZ.map((hz, i) => { const f = toneCtx.createBiquadFilter(); f.type = i === 0 ? "lowshelf" : i === 4 ? "highshelf" : "peaking"; f.frequency.value = hz; f.Q.value = 0.9; f.gain.value = 0; return f; });
+      let at = src; for (const f of eqF) { at.connect(f); at = f; }
+      at.connect(toneCtx.destination);
+      // the analysers on what is heard (the earbuds, the meters, the Info tab's graphs read these instead of a second copy)
+      eqAn = toneCtx.createAnalyser(); eqAn.fftSize = 2048; eqAn.smoothingTimeConstant = 0.7; at.connect(eqAn);
+      const up = toneCtx.createGain(); up.channelCount = 2; up.channelCountMode = "explicit"; up.channelInterpretation = "speakers";
+      const split = toneCtx.createChannelSplitter(2); eqL = toneCtx.createAnalyser(); eqR = toneCtx.createAnalyser(); eqL.fftSize = eqR.fftSize = 2048; eqL.smoothingTimeConstant = eqR.smoothingTimeConstant = 0;
+      at.connect(up); up.connect(split); split.connect(eqL, 0); split.connect(eqR, 1);
+      if (typeof onPlaybackGraph === "function") onPlaybackGraph();
+      return true;
+    } catch { toneCtx = eqF = eqAn = eqL = eqR = null; return false; }
   };
+  let onPlaybackGraph = null;   // (set below: the twin is let go once the music itself can be read)
   const toneApply = () => {
-    if (!toneLowF) return;
+    if (!eqF) return;
     if (toneCtx.state === "suspended") toneCtx.resume().catch(() => { });
-    toneLowF.gain.setTargetAtTime(toneLow + (mega ? 9 : 0), toneCtx.currentTime, 0.04); toneHighF.gain.setTargetAtTime(toneHigh, toneCtx.currentTime, 0.04);
+    eqF.forEach((f, i) => f.gain.setTargetAtTime(eqGains[i] + (i === 0 && mega ? 9 : 0), toneCtx.currentTime, 0.04));
   };
-  // a tone kept from last time is put back as the music starts (a page can only start its audio after a click or a key)
-  audio.addEventListener("play", () => { if (toneLowF) { if (toneCtx.state === "suspended") toneCtx.resume().catch(() => { }); } else if ((toneLow || toneHigh) && toneGraph()) toneApply(); });
+  const eqSave = () => { try { localStorage.setItem("flacie.eq", eqGains.join(",")); localStorage.removeItem("flacie.tone"); } catch { } };
+  // an EQ kept from last time is put back as the music starts (a page can only start its audio after a click or a key)
+  audio.addEventListener("play", () => { if (eqF) { if (toneCtx.state === "suspended") toneCtx.resume().catch(() => { }); } else if (!eqFlat() && toneGraph()) toneApply(); });
   let dotnet = null, lastSent = 0;
   const send = (m, ...a) => dotnet && dotnet.invokeMethodAsync(m, ...a).catch(() => {});
   audio.addEventListener("timeupdate", () => {
@@ -91,14 +110,16 @@ window.flacie = (() => {
   // Live views for the Info tab: spectrum, bars, spectrogram, loudness, stereo. Playback itself goes straight from the audio element to the
   // output (no Web Audio in its path, so the browser never resamples it to a fixed rate). The graphs read a silent twin of the same stream
   // through an AudioContext opened at the file's own sample rate, so the spectrum reaches the file's real Nyquist. Not done on iOS.
+  // Once the music itself goes through Web Audio (the EQ or Mega Bass is on), the graphs read that instead, and the twin (a second download) is let go.
   let actx = null, an = null, anL = null, anR = null, twin = null, vizOn = false, vizStyle = "curve", vs = {}, vh = null, vp = null, cp = null, ctxKey = "", vizCut = 0, vizCutLabel = "";
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const AC = window.AudioContext || window.webkitAudioContext;
   const closeGraph = () => {
     if (twin) { try { twin.pause(); twin.removeAttribute("src"); twin.load(); } catch { } twin = null; }
-    if (actx) { try { actx.close(); } catch { } }
+    if (actx && actx !== toneCtx) { try { actx.close(); } catch { } }   // (the playback graph is the music itself: never closed here)
     actx = an = anL = anR = null; ctxKey = "";
   };
+  onPlaybackGraph = () => { if (twin || (actx && actx !== toneCtx)) closeGraph(); };
   const syncTwin = () => {
     if (!twin || !audio.src) return;
     if (twin.src !== audio.src) twin.src = audio.src;
@@ -111,6 +132,8 @@ window.flacie = (() => {
   document.addEventListener("visibilitychange", () => { if (document.hidden && actx) closeGraph(); });
   let vizRate = 0;   // the rate the Info tab's graph was opened at (to open it again)
   const buildGraph = (rate) => {
+    // the music itself goes through Web Audio (the EQ): read it there, one download
+    if (eqF) { if (actx !== toneCtx) { closeGraph(); actx = toneCtx; an = eqAn; anL = eqL; anR = eqR; ctxKey = "play"; } return true; }
     if (ios || !AC) return false;
     const key = String(rate || 0);
     if (actx && ctxKey === key) return true;
@@ -516,7 +539,7 @@ window.flacie = (() => {
       if (actx.state === "suspended" && !audio.paused) actx.resume().catch(() => { });
       const now = performance.now(); if (now - deskSync > 500) { deskSync = now; syncTwin(); }
       if (!deskFrame || deskFrame.freq.length !== an.frequencyBinCount) deskFrame = { freq: new Uint8Array(an.frequencyBinCount), playing: false };
-      an.getByteFrequencyData(deskFrame.freq); deskFrame.playing = !audio.paused;
+      an.getByteFrequencyData(deskFrame.freq); deskFrame.playing = !audio.paused; deskFrame.rate = actx.sampleRate;
       return deskFrame;
     },
     vizRelease() { if (!vizOn) closeGraph(); },
@@ -690,28 +713,38 @@ window.flacie = (() => {
     ipodClock() { return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); },
     // room for the panel beside the stage (what ipodInit answers for the iPod; the other scenes ask this)
     wideScreen() { return innerWidth >= 860; },
-    /** Mega Bass (the Discman scene): about +9 dB more on the bass shelf (on top of the preamp's own bass). Returns whether it is on. */
+    /** Mega Bass (the Discman scene): about +9 dB more on the bass band (on top of the EQ's own). Returns whether it is on. */
     bass(on) {
       on = !!on;
       if (on && !toneGraph()) return false;
       mega = on; toneApply(); return mega;
     },
-    /** The bass shelf's gain now, in dB (0 while the music has never gone through the tone controls). */
-    bassLevel() { return toneLowF ? toneLowF.gain.value : 0; },
-    /** The preamp's tone (the iPod desk): a bass shelf under 100 Hz and a treble shelf over 6 kHz, each -12..+12 dB, kept for next time. The music goes
-     *  through Web Audio only once a knob is turned off flat (an element once routed cannot be taken back; flat is then a shelf of 0 dB, nothing changes).
-     *  Returns [bass, treble] as set. */
-    tone(low, high) {
-      low = Math.max(-12, Math.min(12, Math.round(Number(low) || 0))); high = Math.max(-12, Math.min(12, Math.round(Number(high) || 0)));
-      if ((low || high) && !toneGraph()) return [toneLow, toneHigh];
-      toneLow = low; toneHigh = high; toneApply();
-      try { localStorage.setItem("flacie.tone", `${low},${high}`); } catch { }
-      return [toneLow, toneHigh];
+    /** The bass band's gain now, in dB (0 while the music has never gone through the EQ). */
+    bassLevel() { return eqF ? eqF[0].gain.value : 0; },
+    /** The EQ (the iPod desk's preamp): five bands, -12..+12 dB each, kept for next time. The music goes through Web Audio only once a band is moved off
+     *  flat (an element once routed cannot be taken back; flat is then 0 dB everywhere, nothing changes). Returns the bands as set. */
+    eq(bands) {
+      const b = EQ_HZ.map((_, i) => Math.max(-12, Math.min(12, Math.round(Number(bands && bands[i]) || 0))));
+      if (b.some((g) => g) && !toneGraph()) return eqGains.slice();
+      eqGains = b; toneApply(); eqSave(); return eqGains.slice();
     },
-    /** The tone as set (also before the music has gone through it: what was kept from last time). */
-    toneGet() { return [toneLow, toneHigh]; },
-    /** The shelves' gains now, in dB. */
-    toneLevel() { return { low: toneLowF ? toneLowF.gain.value : 0, high: toneHighF ? toneHighF.gain.value : 0 }; },
+    eqGet() { return eqGains.slice(); },
+    /** The band centres, in Hz. */
+    eqBands() { return EQ_HZ.slice(); },
+    /** The preamp's BASS and TREBLE knobs: the outer two bands. Returns [bass, treble] as set. */
+    tone(low, high) { const b = eqGains.slice(); b[0] = Number(low) || 0; b[4] = Number(high) || 0; const r = this.eq(b); return [r[0], r[4]]; },
+    toneGet() { return [eqGains[0], eqGains[4]]; },
+    /** The bands' gains now, in dB: { low, high, bands }. */
+    toneLevel() { const g = eqF ? eqF.map((f) => f.gain.value) : [0, 0, 0, 0, 0]; return { low: g[0], high: g[4], bands: g }; },
+    /** The file's own sample rate, when known: the EQ's graph is opened at it (made later, it is not resampled on its way through). */
+    toneRate(hz) { toneRateHint = Number(hz) || 0; },
+    /** What the visualisers read: "playback" (the music itself, through the EQ: one download), "twin" (a silent second copy), or "" (nothing open). */
+    vizSource() { return actx && actx === toneCtx ? "playback" : twin ? "twin" : ""; },
+    /** The meter the preamp shows ("vu", "spec" or "eq"), kept for next time. */
+    meter(m) {
+      if (m === "vu" || m === "spec" || m === "eq") { try { localStorage.setItem("flacie.meter", m); } catch { } return m; }
+      try { const v = localStorage.getItem("flacie.meter"); return v === "spec" || v === "eq" ? v : "vu"; } catch { return "vu"; }
+    },
     /** The same scrolling for other screens (the listening scenes' displays): the lines matching sel under root. Returns { stop() }. */
     marqueeIn(root, sel) { return marquee(root, sel); },
     async ipodBattery() { try { const b = await navigator.getBattery(); return [Math.round(b.level * 100), b.charging]; } catch { return [100, false]; } },

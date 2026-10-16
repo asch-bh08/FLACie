@@ -16,6 +16,7 @@ window.desk = (() => {
     s.calm = false;
     let f = null;
     try { f = window.flacie && window.flacie.vizFrame ? window.flacie.vizFrame() : null; } catch { f = null; }
+    s.frame = f;
     if (!f || !f.playing || !f.freq || f.freq.length < 161) return CALM;
     return { low: mean(f.freq, 1, 8), mid: mean(f.freq, 9, 40), high: mean(f.freq, 41, 160), live: true };
   }
@@ -35,6 +36,40 @@ window.desk = (() => {
       out[k] = Math.min(1, Math.max(0, 0.35 * raw / top + 0.65 * (raw - s.floor[j]) / span));
     });
     return out;
+  }
+
+  // the preamp's spectrum (its SPECTRUM meter): sixteen bars from 40 Hz to 16 kHz on a log scale, each a column of segments, the top ones red like the VU's
+  // red zone; they fall back slowly, with a peak segment that lingers. Drawn only while the meter shows it, from the same frame as everything else
+  const SPEC_N = 16, SPEC_LO = 40, SPEC_HI = 16000, SPEC_SEGS = 12;
+  function spectrum(b) {
+    let c = s.spec; if (!c || !c.isConnected) c = s.spec = s.el.querySelector('canvas[data-spectrum]');   // (the preamp put away and back: a new canvas)
+    if (!c || !c.offsetParent) return;
+    const w = c.clientWidth, h = c.clientHeight; if (!w || !h) return;
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+    const g = c.getContext('2d'), W = c.width, H = c.height, f = s.frame, dt = s.dt || 0.016;
+    if (!s.specV) { s.specV = new Float32Array(SPEC_N); s.specP = new Float32Array(SPEC_N); }
+    const live = b.live && f && f.freq && f.rate, binHz = live ? f.rate / 2 / f.freq.length : 1;
+    for (let i = 0; i < SPEC_N; i++) {
+      let v = 0;
+      if (live) {
+        const lo = SPEC_LO * Math.pow(SPEC_HI / SPEC_LO, i / SPEC_N), hi = SPEC_LO * Math.pow(SPEC_HI / SPEC_LO, (i + 1) / SPEC_N);
+        const a = Math.max(1, Math.floor(lo / binHz)), z = Math.min(f.freq.length - 1, Math.max(a, Math.ceil(hi / binHz)));
+        for (let k = a; k <= z; k++) v = Math.max(v, f.freq[k]); v /= 255;
+      }
+      s.specV[i] = Math.max(v, s.specV[i] - dt * 1.6);
+      s.specP[i] = Math.max(s.specV[i], s.specP[i] - dt * 0.35);
+    }
+    g.clearRect(0, 0, W, H);
+    const gap = W * 0.012, bw = (W - gap * (SPEC_N + 1)) / SPEC_N, sh = H / SPEC_SEGS;
+    for (let i = 0; i < SPEC_N; i++) {
+      const x = gap + i * (bw + gap), on = Math.round(s.specV[i] * SPEC_SEGS), pk = Math.min(SPEC_SEGS - 1, Math.round(s.specP[i] * SPEC_SEGS));
+      for (let j = 0; j < SPEC_SEGS; j++) {
+        const y = H - (j + 1) * sh, red = j >= SPEC_SEGS - 3, lit = j < on || (j === pk && pk > 0);
+        g.fillStyle = lit ? (red ? '#c0392b' : '#3a2a1a') : 'rgba(58,42,26,.1)';
+        g.fillRect(x, y + sh * 0.18, bw, sh * 0.64);
+      }
+    }
   }
 
   function arcPath(j, lv) {
@@ -59,6 +94,7 @@ window.desk = (() => {
       n._vu = (n._vu ?? -42) + (target - (n._vu ?? -42)) * Math.min(1, (s.dt || 0.016) / 0.12);
       prop(n, '--a', n._vu.toFixed(1));
     }
+    spectrum(b);
     // arcs per bud: bass, mids, highs
     const lv = [b.low, b.mid, b.high];
     for (const p of s.arcs) {

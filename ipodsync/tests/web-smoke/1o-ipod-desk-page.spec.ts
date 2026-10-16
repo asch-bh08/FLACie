@@ -233,6 +233,58 @@ test.describe.serial('desk look on /ipod', () => {
     expect(await list.evaluate((e) => e.scrollTop)).toBeLessThan(want * 1.04);
   });
 
+  test('the preamp\'s meter: VU, a spectrum in Hz, or a five-band EQ; it says the file\'s rate in kHz; the choice is kept', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    await openDesk(page, { model: 'classic6', look: 2 });
+    await shuffle(page);
+    await page.getByTestId('desk-open-cd').click();   // (paused, so the song and its facts stay put)
+    const amp = page.getByTestId('desk-preamp');
+    await expect(amp).toHaveAttribute('data-meter-mode', 'vu');
+    await expect(amp.locator('[data-needle]')).toBeVisible();
+    // what the file is played at (the mock's songs: CD-quality FLAC)
+    await expect(amp.getByTestId('desk-rate')).toHaveText('44.1 kHz · 16-bit', { timeout: 10_000 });
+    // the spectrum: its bars on a canvas, the scale in Hz
+    await amp.locator('[data-meter=spec]').click();
+    await expect(amp).toHaveAttribute('data-meter-mode', 'spec');
+    await expect(amp.locator('canvas[data-spectrum]')).toBeVisible();
+    await expect(amp.locator('[data-needle]')).toBeHidden();
+    await expect(amp.locator('.face-spec .hz')).toContainText('10k');
+    await expect(amp.locator('.face-spec .hz')).toContainText('Hz');
+    // the EQ: five bands, each one shaping the music
+    await amp.locator('[data-meter=eq]').click();
+    const sliders = amp.locator('[data-band]');
+    await expect(sliders).toHaveCount(5);
+    await sliders.nth(2).focus(); for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowUp');
+    await expect(sliders.nth(2)).toHaveAttribute('aria-valuenow', '4');
+    await expect.poll(() => page.evaluate(() => (window as any).flacie.eqGet()[2])).toBe(4);
+    await expect.poll(() => page.evaluate(() => (window as any).flacie.toneLevel().bands[2])).toBeGreaterThan(3.5);
+    // the meter and the EQ are kept for next time
+    await page.reload(); await expect(page.getByTestId('desk-preamp')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('desk-preamp')).toHaveAttribute('data-meter-mode', 'eq');
+    await expect(page.getByTestId('desk-preamp').locator('[data-band]').nth(2)).toHaveAttribute('aria-valuenow', '4');
+    await page.evaluate(() => { (window as any).flacie.eq([0, 0, 0, 0, 0]); (window as any).flacie.meter('vu'); });
+    expect(errors).toEqual([]);
+  });
+
+  test('one download: once the EQ is on, the earbuds and meters read the music itself, not a second copy of the song', async ({ page }) => {
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    await page.addInitScript(() => { try { localStorage.removeItem('flacie.eq'); localStorage.removeItem('flacie.tone'); } catch { } });
+    await openDesk(page, { model: 'classic6', look: 2 });
+    await shuffle(page);
+    // the EQ flat: the music plays untouched, and the visualisers read a silent copy (as before)
+    await expect.poll(() => page.evaluate(() => (window as any).flacie.vizSource())).toBe('twin');
+    // the EQ on: the music goes through Web Audio anyway, so the visualisers read that, and the copy is let go
+    const bass = page.getByTestId('desk-preamp').locator('[data-knob=bass]');
+    await bass.focus(); await page.keyboard.press('ArrowUp');
+    await expect.poll(() => page.evaluate(() => (window as any).flacie.vizSource())).toBe('playback');
+    // and nothing asks for the copy again while it plays on (the earbuds still have their frames)
+    await page.waitForTimeout(1200);
+    expect(await page.evaluate(() => (window as any).flacie.vizSource())).toBe('playback');
+    expect(await page.evaluate(() => !!(window as any).flacie.vizFrame())).toBe(true);
+    await page.evaluate(() => (window as any).flacie.eq([0, 0, 0, 0, 0]));
+  });
+
   test('the CDs are keys too: Tab to the rack, the arrow keys pick one, Enter plays it', async ({ page }) => {
     const errors = consoleErrors(page);
     await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
@@ -379,10 +431,14 @@ test.describe.serial('desk look on /ipod', () => {
       const o = Math.max(0, Math.min(p.x + p.width, q.x + q.width) - Math.max(p.x, q.x)) * Math.max(0, Math.min(p.y + p.height, q.y + q.height) - Math.max(p.y, q.y));
       expect(o / Math.min(p.width * p.height, q.width * q.height), `${a} on ${b}`).toBeLessThan(0.04);
     }
-    // and the earbud cable lies across none of them
+    // and the earbuds (the cable, both leads, both buds) lie across none of them
     const crossed = await page.evaluate(() => {
-      const path = document.getElementById('desk-cable') as unknown as SVGPathElement, m = path.getScreenCTM()!, L = path.getTotalLength(), out: string[] = [];
-      const pts = Array.from({ length: 301 }, (_, i) => { const q = path.getPointAtLength(L * i / 300); return new DOMPoint(q.x, q.y).matrixTransform(m); });
+      const out: string[] = [], pts: DOMPoint[] = [];
+      for (const id of ['desk-cable', 'desk-lead-l', 'desk-lead-r']) {
+        const path = document.getElementById(id) as unknown as SVGPathElement, m = path.getScreenCTM()!, L = path.getTotalLength();
+        for (let i = 0; i <= 300; i++) { const q = path.getPointAtLength(L * i / 300); pts.push(new DOMPoint(q.x, q.y).matrixTransform(m)); }
+      }
+      for (const b of document.querySelectorAll('[data-bud] > g')) { const q = b.getBoundingClientRect(); for (const fx of [0, .5, 1]) for (const fy of [0, .5, 1]) pts.push(new DOMPoint(q.left + q.width * fx, q.top + q.height * fy)); }
       for (const s of ['.desk-rack', '.desk-pop', '.desk-ticket', '.desk-journal', '.desk-preamp', '.desk-np', '.desk-open']) {
         const q = document.querySelector(s)!.getBoundingClientRect();
         if (pts.some((t) => t.x > q.left + 2 && t.x < q.right - 2 && t.y > q.top + 2 && t.y < q.bottom - 2)) out.push(s);

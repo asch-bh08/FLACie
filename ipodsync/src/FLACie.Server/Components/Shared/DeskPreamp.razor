@@ -1,51 +1,84 @@
 @implements IDisposable
 @inject IJSRuntime Js
 @inject PlayerState Player
-@* The iPod desk's preamp: a small brushed-metal box with the VU meter (its needle: desk.js, from the one analyser read) and three knobs. VOLUME is the player's
-   volume; BASS and TREBLE shape the music itself (flacie.js tone(): two shelves, kept for next time). A knob turns with the wheel, the arrow keys, or a drag
+@* The iPod desk's preamp: a small brushed-metal box with a meter window and three knobs. The window shows one of three meters, picked with the small keys
+   under it (kept for next time): VU (the needle), SPECTRUM (sixteen bars, 40 Hz to 16 kHz: desk.js draws them from the same analyser read as the needle),
+   or EQ (five sliders, 100 Hz to 8 kHz). A strip across its top says what the file is played at (its sample rate and bit depth, when known). VOLUME is the
+   player's volume; BASS and TREBLE are the EQ's outer bands (flacie.js eq(): kept for next time). A knob turns with the wheel, the arrow keys, or a drag
    up and down (retro.js turns a drag into arrow keys). Styles: desk.css. *@
-<div class="desk-vu desk-preamp lift" data-testid="desk-preamp">
-  <div class="vu-face" aria-hidden="true">
-    <svg class="vu-scale" viewBox="0 0 100 60">
-      <path d="M 12 46 A 46 46 0 0 1 88 46" fill="none" stroke="#3a2a1a" stroke-width=".7"/>
-      <path d="M 70.6 22.6 A 46 46 0 0 1 88 46" fill="none" stroke="#c0392b" stroke-width="2.2"/>
-      @foreach (var (deg, label) in VuTicks)
+<div class="desk-vu desk-preamp lift meter-@mode" data-testid="desk-preamp" data-meter-mode="@mode">
+  <div class="vu-face">
+    <div class="face-vu" aria-hidden="true">
+      <svg class="vu-scale" viewBox="0 0 100 60">
+        <path d="M 12 46 A 46 46 0 0 1 88 46" fill="none" stroke="#3a2a1a" stroke-width=".7"/>
+        <path d="M 70.6 22.6 A 46 46 0 0 1 88 46" fill="none" stroke="#c0392b" stroke-width="2.2"/>
+        @foreach (var (deg, label) in VuTicks)
+        {
+          var r = deg * Math.PI / 180;
+          <line x1="@F(50 + Math.Sin(r) * 41)" y1="@F(60 - Math.Cos(r) * 41)" x2="@F(50 + Math.Sin(r) * 46)" y2="@F(60 - Math.Cos(r) * 46)" stroke="@(deg >= 22 ? "#c0392b" : "#3a2a1a")" stroke-width=".8"/>
+          @((MarkupString)$"<text x=\"{F(50 + Math.Sin(r) * 35)}\" y=\"{F(60 - Math.Cos(r) * 35 + 2)}\" text-anchor=\"middle\" font-size=\"5.2\" fill=\"{(deg >= 22 ? "#c0392b" : "#3a2a1a")}\">{label}</text>")
+        }
+        <text x="50" y="44" text-anchor="middle" font-size="8" font-weight="700" fill="#3a2a1a">VU</text>
+      </svg>
+      <i class="needle" data-needle></i><i class="pivot"></i>
+    </div>
+    <div class="face-spec" aria-label="Spectrum, 40 Hz to 16 kHz">
+      <canvas data-spectrum aria-hidden="true"></canvas>
+      <div class="hz" aria-hidden="true"><span>40</span><span>160</span><span>630</span><span>2.5k</span><span>10k</span><span>Hz</span></div>
+    </div>
+    <div class="face-eq">
+      @for (var i = 0; i < 5; i++)
       {
-        var r = deg * Math.PI / 180;
-        <line x1="@F(50 + Math.Sin(r) * 41)" y1="@F(60 - Math.Cos(r) * 41)" x2="@F(50 + Math.Sin(r) * 46)" y2="@F(60 - Math.Cos(r) * 46)" stroke="@(deg >= 22 ? "#c0392b" : "#3a2a1a")" stroke-width=".8"/>
-        @((MarkupString)$"<text x=\"{F(50 + Math.Sin(r) * 35)}\" y=\"{F(60 - Math.Cos(r) * 35 + 2)}\" text-anchor=\"middle\" font-size=\"5.2\" fill=\"{(deg >= 22 ? "#c0392b" : "#3a2a1a")}\">{label}</text>")
+        var k = i;
+        <div class="eq-band">
+          <button type="button" class="fader" data-band="@k" data-knob="eq@(k)" data-wheel role="slider" aria-orientation="vertical" aria-label="@($"EQ {EqNames[k]} Hz")"
+                  aria-valuemin="-12" aria-valuemax="12" aria-valuenow="@bands[k]" aria-valuetext="@Db(bands[k])" style="--v:@F((bands[k] + 12) / 24.0)"
+                  @onkeydown="e => BandKey(e, k)" @onwheel="e => BandWheel(e, k)"><i class="cap"></i></button>
+          <small>@EqNames[k]</small>
+        </div>
       }
-      <text x="50" y="44" text-anchor="middle" font-size="8" font-weight="700" fill="#3a2a1a">VU</text>
-    </svg>
-    <i class="needle" data-needle></i><i class="pivot"></i><i class="glass"></i>
+    </div>
+    @if (Readout.Length > 0) { <span class="pre-rate" data-testid="desk-rate">@Readout</span> }
+    <i class="glass" aria-hidden="true"></i>
+  </div>
+  <div class="pre-modes" role="radiogroup" aria-label="Meter">
+    @foreach (var (m, name) in Modes)
+    {
+      <button type="button" class="@(mode == m ? "on" : "")" data-meter="@m" role="radio" aria-checked="@(mode == m ? "true" : "false")" @onclick="() => Pick(m)">@name</button>
+    }
   </div>
   <div class="pre-knobs">
     <div class="pre-knob big">
       <button type="button" class="knob" data-knob="vol" data-wheel role="slider" aria-label="Volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@VolPct"
-              style="--r:@F(-135 + 270 * Player.Volume)deg" @onkeydown="VolKey" @onwheel="VolWheel"><i></i></button>
+              style="--r:@F(-135 + 270 * VolNow)deg" @onkeydown="VolKey" @onwheel="VolWheel"><i></i></button>
       <small>VOLUME</small>
     </div>
     <div class="pre-knob">
-      <button type="button" class="knob" data-knob="bass" data-wheel role="slider" aria-label="Bass" aria-valuemin="-12" aria-valuemax="12" aria-valuenow="@low" aria-valuetext="@Db(low)"
-              style="--r:@F(low * 11.25)deg" @onkeydown="e => ToneKey(e, true)" @onwheel="e => ToneWheel(e, true)"><i></i></button>
+      <button type="button" class="knob" data-knob="bass" data-wheel role="slider" aria-label="Bass" aria-valuemin="-12" aria-valuemax="12" aria-valuenow="@bands[0]" aria-valuetext="@Db(bands[0])"
+              style="--r:@F(bands[0] * 11.25)deg" @onkeydown="e => BandKey(e, 0)" @onwheel="e => BandWheel(e, 0)"><i></i></button>
       <small>BASS</small>
     </div>
     <div class="pre-knob">
-      <button type="button" class="knob" data-knob="treble" data-wheel role="slider" aria-label="Treble" aria-valuemin="-12" aria-valuemax="12" aria-valuenow="@high" aria-valuetext="@Db(high)"
-              style="--r:@F(high * 11.25)deg" @onkeydown="e => ToneKey(e, false)" @onwheel="e => ToneWheel(e, false)"><i></i></button>
+      <button type="button" class="knob" data-knob="treble" data-wheel role="slider" aria-label="Treble" aria-valuemin="-12" aria-valuemax="12" aria-valuenow="@bands[4]" aria-valuetext="@Db(bands[4])"
+              style="--r:@F(bands[4] * 11.25)deg" @onkeydown="e => BandKey(e, 4)" @onwheel="e => BandWheel(e, 4)"><i></i></button>
       <small>TREBLE</small>
     </div>
   </div>
-  <span class="pre-brand" aria-hidden="true">FLACIE · PRE-1</span>
 </div>
 
 @code {
+    /// <summary>What the file is played at, e.g. "44.1 kHz · 16-bit" (empty until known).</summary>
+    [Parameter] public string Readout { get; set; } = "";
+
     // the VU meter's scale: degrees from upright, and the marks
     static readonly (double Deg, string Label)[] VuTicks = [(-42, "20"), (-27, "10"), (-17, "7"), (-8, "5"), (2, "3"), (13, "1"), (22, "0"), (31, "1"), (42, "3")];
+    static readonly (string Key, string Name)[] Modes = [("vu", "VU"), ("spec", "SPECTRUM"), ("eq", "EQ")];
+    static readonly string[] EqNames = ["100", "400", "1k", "3k", "8k"];
     static string F(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
     static string Db(int v) => v == 0 ? "flat" : $"{(v > 0 ? "+" : "")}{v} dB";
-    int VolPct => (int)Math.Round(Player.Volume * 100);
-    int low, high;
+    int VolPct => (int)Math.Round(VolNow * 100);
+    int[] bands = [0, 0, 0, 0, 0];
+    string mode = "vu";
 
     protected override void OnInitialized() => Player.Changed += Refresh;
     void Refresh() => _ = InvokeAsync(StateHasChanged);
@@ -54,32 +87,38 @@
     protected override async Task OnAfterRenderAsync(bool first)
     {
         if (!first) return;
-        try { var t = await Js.InvokeAsync<int[]>("flacie.toneGet"); if (t is [var l, var h]) { low = l; high = h; StateHasChanged(); } } catch (Exception e) when (Gone(e)) { }
+        try
+        {
+            var b = await Js.InvokeAsync<int[]>("flacie.eqGet"); if (b is { Length: 5 }) bands = b;
+            mode = await Js.InvokeAsync<string>("flacie.meter", (object?)null);
+            StateHasChanged();
+        }
+        catch (Exception e) when (Gone(e)) { }
     }
     static bool Gone(Exception e) => e is JSDisconnectedException or JSException or InvalidOperationException or OperationCanceledException or TaskCanceledException;
 
-    Task Vol(double v) => Player.SetVolumeAsync(Math.Clamp(Math.Round(v * 20) / 20, 0, 1));
+    async Task Pick(string m) { mode = m; try { await Js.InvokeAsync<string>("flacie.meter", m); } catch (Exception e) when (Gone(e)) { } }
+
+    // (the knob keeps where it was turned to: two quick turns add up even before the player has taken the first)
+    double? volWant;
+    double VolNow => volWant ?? Player.Volume;
+    async Task Vol(double v) { v = Math.Clamp(Math.Round(v * 20) / 20, 0, 1); volWant = v; await Player.SetVolumeAsync(v); if (Math.Abs(Player.Volume - v) < 0.001 && volWant == v) volWant = null; }
     Task VolKey(KeyboardEventArgs e) => e.Key switch
     {
-        "ArrowUp" or "ArrowRight" => Vol(Player.Volume + .05), "ArrowDown" or "ArrowLeft" => Vol(Player.Volume - .05),
+        "ArrowUp" or "ArrowRight" => Vol(VolNow + .05), "ArrowDown" or "ArrowLeft" => Vol(VolNow - .05),
         "Home" => Vol(0), "End" => Vol(1), _ => Task.CompletedTask,
     };
-    Task VolWheel(WheelEventArgs e) => Vol(Player.Volume + (e.DeltaY < 0 ? .05 : -.05));
+    Task VolWheel(WheelEventArgs e) => Vol(VolNow + (e.DeltaY < 0 ? .05 : -.05));
 
-    async Task Tone(bool bass, int v)
+    async Task Band(int i, int v)
     {
-        v = Math.Clamp(v, -12, 12);
-        if (bass) low = v; else high = v;
-        try { var t = await Js.InvokeAsync<int[]>("flacie.tone", low, high); if (t is [var l, var h]) { low = l; high = h; } } catch (Exception e) when (Gone(e)) { }
+        var next = (int[])bands.Clone(); next[i] = Math.Clamp(v, -12, 12); bands = next;
+        try { var got = await Js.InvokeAsync<int[]>("flacie.eq", bands); if (got is { Length: 5 }) bands = got; } catch (Exception e) when (Gone(e)) { }
     }
-    Task ToneKey(KeyboardEventArgs e, bool bass)
+    Task BandKey(KeyboardEventArgs e, int i) => e.Key switch
     {
-        var v = bass ? low : high;
-        return e.Key switch
-        {
-            "ArrowUp" or "ArrowRight" => Tone(bass, v + 1), "ArrowDown" or "ArrowLeft" => Tone(bass, v - 1),
-            "Home" or "0" => Tone(bass, 0), _ => Task.CompletedTask,
-        };
-    }
-    Task ToneWheel(WheelEventArgs e, bool bass) => Tone(bass, (bass ? low : high) + (e.DeltaY < 0 ? 1 : -1));
+        "ArrowUp" or "ArrowRight" => Band(i, bands[i] + 1), "ArrowDown" or "ArrowLeft" => Band(i, bands[i] - 1),
+        "Home" or "0" => Band(i, 0), _ => Task.CompletedTask,
+    };
+    Task BandWheel(WheelEventArgs e, int i) => Band(i, bands[i] + (e.DeltaY < 0 ? 1 : -1));
 }

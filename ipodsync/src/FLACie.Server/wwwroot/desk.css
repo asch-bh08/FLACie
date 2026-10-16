@@ -83,7 +83,7 @@
 .desk-open .hinge { position: absolute; left: 50%; top: 0; bottom: 0; width: 1.1cqh; translate: -50% 0; background: linear-gradient(90deg, #0d0d0f, #2a2a2e, #0d0d0f); border-radius: .3cqh; }
 /* the albums coming up: a low wooden rack lying on the desk, seen from above, the CDs standing in it side by side in play order, their spines up (the top
    of each cover through its case, a paper strip with the album, its place in the queue). The one picked lifts out of its slot a little and glows */
-.desk-rack { left: 66.5%; top: 29.5cqh; width: 50cqh; height: 20.5cqh; rotate: 1.5deg; outline: none; }
+.desk-rack { left: 66.5%; top: 28.5cqh; width: 50cqh; height: 18.5cqh; rotate: 1.5deg; outline: none; }
 .desk-rack .rack-wood { position: absolute; inset: 0; border-radius: .7cqh; background: linear-gradient(rgba(255,230,190,.12), rgba(50,28,10,.3)), url(desk/oak.jpg) center / 60cqh auto;
   box-shadow: inset 0 .35cqh .3cqh rgba(255,240,215,.35), inset 0 -.5cqh .6cqh rgba(40,22,8,.35), inset 0 0 0 .2cqh rgba(60,36,16,.4); }
 .desk-rack .rack-wood::after { content: ""; position: absolute; left: 1.6cqh; right: 1.6cqh; top: 2.2cqh; bottom: 2.2cqh; border-radius: .3cqh; background: rgba(30,16,6,.55);
@@ -102,10 +102,10 @@
 .spine.sel { translate: 0 -2.4cqh; filter: none; z-index: 2; box-shadow: inset 0 0 0 .18cqh rgba(255,244,214,.9), 0 0 1.4cqh rgba(255,214,150,.55), 0 1.1cqh 1.1cqh rgba(0,0,0,.45); }
 .rack-empty { position: absolute; inset: 0; display: grid; place-items: center; font-size: 2.2cqh; color: #f3e6cf; }
 /* the CD picked: its case out of the rack, lying flat, bigger, with a note of when it comes and what is on it; it pops out each time another is picked */
-.desk-pop { left: 68.5%; top: 53.5cqh; width: 46cqh; height: 20.5cqh; rotate: -1.5deg; display: flex; gap: 1.4cqh; cursor: pointer; outline: none;
+.desk-pop { left: 74%; top: 49.5cqh; width: 42cqh; height: 18.5cqh; rotate: -1.5deg; display: flex; gap: 1.4cqh; cursor: pointer; outline: none;
   animation: desk-pop .42s cubic-bezier(.25,.8,.3,1.15) both; transform-origin: 30% 0; }
 @keyframes desk-pop { from { opacity: 0; transform: translateY(-5cqh) scale(.55, .2); } 60% { opacity: 1; } to { opacity: 1; transform: none; } }
-.desk-pop .pop-case { position: relative; flex: 0 0 23cqh; height: 100%; border-radius: .45cqh; overflow: hidden; background: rgba(232,238,244,.35); box-shadow: inset 0 0 0 .16cqh rgba(255,255,255,.6); transition: translate .2s ease; }
+.desk-pop .pop-case { position: relative; flex: 0 0 20.5cqh; height: 100%; border-radius: .45cqh; overflow: hidden; background: rgba(232,238,244,.35); box-shadow: inset 0 0 0 .16cqh rgba(255,255,255,.6); transition: translate .2s ease; }
 .desk-pop .pop-case .desk-art { left: 9%; top: 2.5%; width: 89.5%; height: 95%; }
 .desk-pop .hinge { position: absolute; left: 0; top: 0; bottom: 0; width: 8%; background: linear-gradient(90deg, rgba(20,20,24,.75), rgba(60,62,70,.5) 60%, rgba(255,255,255,.25)); }
 .desk-pop .glare { position: absolute; inset: 0; background: linear-gradient(118deg, rgba(255,255,255,.35), rgba(255,255,255,0) 32%, rgba(255,255,255,0) 70%, rgba(255,255,255,.18)); pointer-events: none; }
@@ -168,10 +168,26 @@
 .desk-vu .needle { position: absolute; left: 50%; bottom: -8%; width: .22cqh; height: 92%; margin-left: -.11cqh; background: linear-gradient(#b8211a, #2a0d08); transform-origin: 50% 100%; rotate: calc(var(--a, -42) * 1deg); border-radius: .2cqh; box-shadow: .3cqh .4cqh .3cqh rgba(0,0,0,.25); }
 .desk-vu .pivot { position: absolute; left: 50%; bottom: -5%; width: 2.2cqh; height: 2.2cqh; translate: -50% 0; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #555, #111); }
 .desk-vu .glass { position: absolute; inset: 0; background: linear-gradient(125deg, rgba(255,255,255,.45), rgba(255,255,255,0) 35%, rgba(255,255,255,0) 70%, rgba(255,255,255,.15)); pointer-events: none; }
-/* the preamp: the VU meter, and three knobs (VOLUME bigger, BASS and TREBLE) with their marks; a knob turns to --r */
-.desk-preamp { width: 34cqh; height: 15cqh; top: 52.5cqh; rotate: -1.5deg; }
-.desk-preamp .vu-face { width: 46%; }
-.pre-knobs { position: absolute; left: 53%; right: 3.5%; top: 10%; bottom: 20%; display: flex; align-items: center; justify-content: space-around; }
+/* the preamp: the meter window (VU, SPECTRUM or EQ, picked with the keys under it), a strip saying what the file is played at, and three knobs (VOLUME
+   bigger, BASS and TREBLE) with their marks; a knob turns to --r */
+.desk-preamp { width: 35cqh; height: 17cqh; top: 52cqh; rotate: -1.5deg; }
+.desk-preamp .vu-face { top: 7%; width: 47%; height: 66%; }
+.desk-preamp .face-vu, .desk-preamp .face-spec, .desk-preamp .face-eq { position: absolute; inset: 0; display: none; }
+.desk-preamp.meter-vu .face-vu, .desk-preamp.meter-spec .face-spec { display: block; }
+.desk-preamp.meter-eq .face-eq { display: flex; }
+.desk-preamp .face-spec canvas { position: absolute; left: 5%; right: 5%; top: 20%; bottom: 22%; width: 90%; height: 58%; }
+.desk-preamp .hz { position: absolute; left: 5%; right: 5%; bottom: 5%; display: flex; justify-content: space-between; font: 700 .72cqh/1 "Helvetica Neue", Arial, sans-serif; color: #3a2a1a; letter-spacing: .02em; }
+.desk-preamp .face-eq { justify-content: space-around; align-items: stretch; padding: 1.6cqh .6cqh .5cqh; box-sizing: border-box; }
+.desk-preamp .eq-band { display: flex; flex-direction: column; align-items: center; gap: .2cqh; min-width: 0; }
+.desk-preamp .eq-band small { font: 700 .72cqh/1 "Helvetica Neue", Arial, sans-serif; color: #3a2a1a; }
+.pre-rate { position: absolute; left: 4%; top: 5%; z-index: 1; font: 600 .78cqh/1 "IBM Plex Mono", "Consolas", monospace; letter-spacing: .04em; color: #7a2418; pointer-events: none; }
+.desk-preamp .glass { z-index: 2; }
+.pre-modes { position: absolute; left: 4%; bottom: 5%; width: 47%; display: flex; gap: 3%; }
+.pre-modes button { flex: 1; padding: .3cqh 0; border: 0; border-radius: .3cqh; cursor: pointer; font: 800 .74cqh/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .1em; color: #3c3f45;
+  background: linear-gradient(#f4f5f7, #c9ccd2); box-shadow: 0 .15cqh .2cqh rgba(0,0,0,.35), inset 0 .08cqh 0 #fff; }
+.pre-modes button.on { color: #7a2418; background: linear-gradient(#c9ccd2, #e6e8eb); box-shadow: inset 0 .15cqh .25cqh rgba(0,0,0,.35); }
+.pre-modes button:focus-visible { outline: .2cqh solid rgba(255,236,190,.95); }
+.pre-knobs { position: absolute; left: 54%; right: 3%; top: 10%; bottom: 14%; display: flex; align-items: center; justify-content: space-around; }
 .pre-knob { display: flex; flex-direction: column; align-items: center; gap: .55cqh; }
 .pre-knob small { font: 800 .85cqh/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .14em; color: #3c3f45; }
 .pre-knob .knob { position: relative; width: 4.2cqh; height: 4.2cqh; padding: 0; border: 0; border-radius: 50%; cursor: ns-resize; touch-action: none; rotate: var(--r, 0deg); transition: rotate .12s ease;
@@ -180,7 +196,6 @@
 .pre-knob .knob i { position: absolute; left: 50%; top: 8%; width: 9%; height: 26%; margin-left: -4.5%; border-radius: 1cqh; background: #f1f1ee; }
 .pre-knob.big .knob i { background: #c0392b; }
 .pre-knob .knob:focus-visible { outline: .25cqh solid rgba(255,236,190,.95); outline-offset: .3cqh; }
-.pre-brand { position: absolute; left: 4%; bottom: 4%; font: 800 .8cqh/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .3em; color: #6f737a; }
 .desk-vu .vu-knobs i { width: 4.6cqh; height: 4.6cqh; border-radius: 50%; background: conic-gradient(from 20deg, #2b2b2f, #6d6d74, #2b2b2f, #55555b, #2b2b2f); box-shadow: 0 .3cqh .5cqh rgba(0,0,0,.4), inset 0 0 0 .25cqh #1a1a1d; }
 
 
@@ -246,6 +261,13 @@
 
 /* ---------------- less motion: the desk holds still (lyrics appear whole) */
 @media (prefers-reduced-motion: reduce) {
-  .desk-slats, .desk-sun-drift, .desk-grain, .desk .disc, .desk-steam path, .desk-open, .spine, .desk-pop, .desk-pop .pop-case, .pre-knob .knob { animation: none !important; transition: none !important; }
+  .desk-slats, .desk-sun-drift, .desk-grain, .desk .disc, .desk-steam path, .desk-open, .spine, .desk-pop, .desk-pop .pop-case, .pre-knob .knob, .desk-preamp .fader .cap { animation: none !important; transition: none !important; }
   .desk-steam { display: none; }
 }
+/* the EQ's faders: a thin slot with a centre (flat) mark; a small metal cap at --v (0 at the bottom, 1 at the top) */
+.desk-preamp .face-eq { background: linear-gradient(transparent calc(50% - .05cqh), rgba(58,42,26,.35) calc(50% - .05cqh) calc(50% + .05cqh), transparent calc(50% + .05cqh)); }
+.desk-preamp .fader { position: relative; flex: 1; width: 2cqh; padding: 0; border: 0; background: transparent; cursor: ns-resize; touch-action: none; }
+.desk-preamp .fader::before { content: ""; position: absolute; left: 50%; top: .5cqh; bottom: .5cqh; width: .32cqh; translate: -50% 0; border-radius: .2cqh; background: #2a1d12; box-shadow: inset 0 .1cqh .1cqh rgba(0,0,0,.6); }
+.desk-preamp .fader .cap { position: absolute; left: 50%; bottom: calc(var(--v, .5) * (100% - 1cqh)); width: 1.9cqh; height: 1cqh; translate: -50% 0; border-radius: .2cqh;
+  background: linear-gradient(#f4f5f7, #a9adb4); box-shadow: 0 .15cqh .2cqh rgba(0,0,0,.45), inset 0 -.12cqh 0 #c0392b; transition: bottom .1s ease; }
+.desk-preamp .fader:focus-visible { outline: .2cqh solid rgba(122,36,24,.8); outline-offset: .1cqh; border-radius: .3cqh; }

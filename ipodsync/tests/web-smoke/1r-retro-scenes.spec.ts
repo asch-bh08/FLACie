@@ -122,7 +122,8 @@ test.describe.serial('listening scenes', () => {
         for (let i = 0; i < n; i++) {
           const c = controls.nth(i);
           const b = await c.boundingBox(); if (!b) continue;
-          const x = b.x + b.width / 2, y = b.y + b.height / 2;
+          // (a quarter in from the left, half way down: inside every knob and button, and the side a fanned stack of discs leaves showing)
+          const x = b.x + b.width / 4, y = b.y + b.height / 2;
           if (x < 0 || y < 0 || x > w || y > h) continue;   // (off the edge of a phone's frame, like a photo)
           await page.mouse.click(x, y);
           const ok = await c.evaluate((el) => { const t = (window as any).__hit as Element | null; return !!t && (el === t || el.contains(t)); });

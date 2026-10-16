@@ -42,6 +42,26 @@
 .car-dash::before { content: ""; position: absolute; inset: 0; border-radius: inherit; opacity: .35; background-image: radial-gradient(rgba(255,255,255,.08) 1px, transparent 1.2px); background-size: .6cqh .6cqh; }
 .car-vent { position: absolute; top: 8%; width: 22cqh; height: 7cqh; border-radius: 1.4cqh; background: repeating-linear-gradient(#08090b 0 .7cqh, #2b2d33 .7cqh 1.1cqh); box-shadow: inset 0 0 0 .4cqh #1b1c21, 0 .2cqh 0 rgba(255,255,255,.05); }
 .car-vent { display: none; }   /* (on a wide window the unit fills the dash; the vents show on a phone, above it) */
+/* the centre console: a bezel of grained plastic the head unit is set into, its own two vents above, the climate panel under it, a seam down each side */
+.car-console { position: absolute; left: 50%; top: 2.5%; bottom: -2%; width: calc(min(84cqw, 106cqh) + 9cqh); translate: -50% 0; border-radius: 2.2cqh 2.2cqh 0 0; pointer-events: none;
+  clip-path: polygon(1.5% 0, 98.5% 0, 100% 100%, 0 100%);
+  background: radial-gradient(rgba(255,255,255,.07) .6px, transparent 1px) 0 0 / .45cqh .45cqh, radial-gradient(rgba(0,0,0,.35) .6px, transparent 1px) .2cqh .25cqh / .5cqh .5cqh, linear-gradient(#26272c, #1a1b1f 30%, #111215);
+  box-shadow: inset 0 .35cqh .3cqh rgba(255,255,255,.08), inset 0 0 0 .3cqh #0a0a0c, inset 0 -3cqh 4cqh rgba(0,0,0,.5); }
+.car-console .seam { position: absolute; inset: 0 3.2%; border-left: .18cqh solid rgba(0,0,0,.7); border-right: .18cqh solid rgba(0,0,0,.7); box-shadow: -.15cqh 0 0 rgba(255,255,255,.05), .15cqh 0 0 rgba(255,255,255,.05); }
+.car-console .cvent { display: none; }
+/* the glovebox on the passenger side: its seam and latch in the dash */
+.car-glove { position: absolute; right: 2.5%; top: 18%; width: 15cqw; height: 26cqh; border-radius: 1.6cqh 1.6cqh 2.4cqh 2.4cqh; pointer-events: none;
+  box-shadow: inset 0 0 0 .2cqh rgba(0,0,0,.75), 0 0 0 .15cqh rgba(255,255,255,.04), inset 0 .6cqh 1cqh rgba(0,0,0,.3); }
+.car-glove .latch { position: absolute; left: 50%; top: 12%; width: 5cqh; height: 1.6cqh; translate: -50% 0; border-radius: .8cqh; background: linear-gradient(#2c2d33, #141519); box-shadow: inset 0 .2cqh .2cqh rgba(255,255,255,.1), 0 .2cqh .3cqh rgba(0,0,0,.6); }
+/* from the driver's seat: the headliner's curve along the top, the A-pillars down the sides of the glass, the mirror, the glass darker towards its edges */
+.car-cabin { position: absolute; left: 0; right: 0; top: 0; height: 50%; pointer-events: none; z-index: 1;
+  background: radial-gradient(130% 120% at 50% 70%, transparent 55%, rgba(0,0,4,.65) 100%); }
+.car-cabin .liner { position: absolute; left: -10%; right: -10%; top: -6cqh; height: 13cqh; border-radius: 0 0 50% 50% / 0 0 100% 100%; background: linear-gradient(#0b0b0e, #18191d); box-shadow: 0 .6cqh 1.2cqh rgba(0,0,0,.7); }
+.car-cabin .pillar { position: absolute; top: 0; height: 93%; width: 13%; background: linear-gradient(90deg, #060608, #17181c 70%, #0c0c0f); box-shadow: 0 0 2cqh rgba(0,0,0,.8); }
+.car-cabin .pillar.l { left: -2%; clip-path: polygon(0 0, 100% 0, 38% 100%, 0 100%); }
+.car-cabin .pillar.r { right: -2%; clip-path: polygon(0 0, 100% 0, 100% 100%, 62% 100%); }
+.car-cabin .mirror { position: absolute; left: 50%; top: 4cqh; width: 22cqh; height: 6.5cqh; translate: -50% 0; border-radius: 1.4cqh / 2.4cqh; background: linear-gradient(#202127, #0c0c10); box-shadow: inset 0 0 0 .4cqh #121317, inset 0 .9cqh 1.4cqh rgba(120,140,190,.18), 0 .8cqh 1.4cqh rgba(0,0,0,.6); }
+.car-cabin .mirror::before { content: ""; position: absolute; left: 50%; top: -4cqh; width: 1.4cqh; height: 4cqh; translate: -50% 0; background: #0d0d10; }
 /* the head unit: single DIN (180 x 50 mm) */
 .car-unit { position: absolute; left: 50%; top: 9%; translate: -50% 0; width: min(84cqw, 106cqh); aspect-ratio: 180 / 50; display: grid; grid-template-columns: 15% 1fr 17%; gap: 1.6%; padding: 1.4% 1.8%; box-sizing: border-box;
   border-radius: .8cqh; background: linear-gradient(#2b2c31, #17181c 40%, #101114); box-shadow: inset 0 0 0 .25cqh #3a3b42, inset 0 .3cqh .2cqh rgba(255,255,255,.12), 0 1.2cqh 2cqh rgba(0,0,0,.7); container: unit / inline-size; }
@@ -78,7 +98,8 @@
 .cu-keys [data-ctl=play] { color: #ffb347; }
 .cu-brand { position: absolute; right: 2.4%; bottom: 3%; font-size: 1.3cqw; letter-spacing: .3em; color: #8d8f98; }
 /* the climate dials under the unit */
-.car-climate { position: absolute; left: 50%; bottom: 3%; translate: -50% 0; display: flex; gap: 6cqh; }
+.car-climate { position: absolute; left: 50%; bottom: 3%; translate: -50% 0; display: flex; gap: 6cqh; padding: 1.6cqh 4cqh; border-radius: 1.6cqh;
+  background: linear-gradient(#141518, #0d0e10); box-shadow: inset 0 .3cqh .6cqh rgba(0,0,0,.8), inset 0 0 0 .2cqh rgba(255,255,255,.04), 0 .2cqh 0 rgba(255,255,255,.05); }   /* (a recessed panel in the console) */
 .car-climate .dial { position: relative; width: 9cqh; aspect-ratio: 1; border-radius: 50%; border: 0; padding: 0; cursor: pointer; rotate: var(--r, 0deg); transition: rotate .25s ease;
   background: conic-gradient(#3b3c42, #222327, #3b3c42, #222327, #3b3c42); box-shadow: 0 .6cqh 1cqh rgba(0,0,0,.6), inset 0 0 0 .5cqh #17181b; }
 .car-climate .dial i { position: absolute; left: 50%; top: 10%; width: 8%; height: 24%; margin-left: -4%; border-radius: 1cqh; background: #e6e7ec; }
@@ -103,7 +124,10 @@
   .cu-pre b { font-size: 5cqw; } .cu-pre small { font-size: 2.6cqw; }
   .cu-disc { width: 60cqw; }
   .cu-brand { display: none; }
-  .car-climate { position: relative; left: auto; bottom: auto; translate: none; gap: 8cqw; } .car-climate .dial { width: min(18cqw, 8cqh); }
+  .car-climate { position: relative; left: auto; bottom: auto; translate: none; gap: 8cqw; padding: 1.4cqh 6cqw; }
+  .car-console { position: absolute; width: 99cqw; top: 1.2cqh; border-radius: 3cqw 3cqw 0 0; }
+  .car-glove { display: none; }
+  .car-cabin .mirror { top: 3cqh; width: 26cqw; height: 4.4cqh; } .car-cabin .pillar { width: 9%; } .car-climate .dial { width: min(18cqw, 8cqh); }
 }
 
 /* reduced motion: the car stands, the rain and the wiper hold, the display does not scroll */

@@ -126,9 +126,10 @@
 .hf-plant { position: absolute; right: 4%; bottom: -2%; height: 64%; filter: drop-shadow(1cqh 1.6cqh 1.4cqh rgba(0,0,0,.4)); }
 /* the console: walnut veneer, its top seen from a little above, its front with the receiver and two speakers */
 .hf-console { position: absolute; left: 0; right: 0; bottom: 0; height: 47%; }
-.hf-top { position: absolute; left: 0; right: 0; top: 0; height: 22%; background: linear-gradient(#7a4f2c, #5c3a20); box-shadow: inset 0 .4cqh .4cqh rgba(255,220,170,.18), 0 .6cqh .8cqh rgba(0,0,0,.4); }
+/* (walnut: Poly Haven "American Walnut Veneer", CC0, wwwroot/retro/walnut.jpg, under a warm tint) */
+.hf-top { position: absolute; left: 0; right: 0; top: 0; height: 22%; background: linear-gradient(rgba(122,79,44,.35), rgba(60,36,18,.55)), url(retro/walnut.jpg) 0 0 / 60cqh auto; box-shadow: inset 0 .4cqh .4cqh rgba(255,220,170,.18), 0 .6cqh .8cqh rgba(0,0,0,.4); }
 .hf-front { position: absolute; left: 0; right: 0; top: 22%; bottom: 0; display: flex; align-items: center; justify-content: center; gap: 3%;
-  background: repeating-linear-gradient(90deg, rgba(0,0,0,.06) 0 .25cqh, transparent .25cqh 1.1cqh, rgba(255,220,180,.04) 1.1cqh 1.3cqh, transparent 1.3cqh 2.4cqh), linear-gradient(#5a381e, #43290f); }
+  background: linear-gradient(rgba(70,40,18,.45), rgba(40,22,8,.65)), url(retro/walnut.jpg) 0 0 / 70cqh auto; box-shadow: inset 0 .5cqh .8cqh rgba(0,0,0,.35); }
 .hf-speaker { width: 22cqh; height: 78%; border-radius: .8cqh; background: radial-gradient(circle, rgba(0,0,0,.25) 1px, transparent 1.3px) 0 0 / .5cqh .5cqh, linear-gradient(#3b2a20, #2a1d15);
   box-shadow: inset 0 0 0 .5cqh #6b4524, inset 0 0 2cqh rgba(0,0,0,.6); display: grid; place-items: center; }
 .hf-speaker i { width: 70%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #1a1410 0 18%, #2c221a 19% 52%, #1d1611 53% 70%, #2a2018 71%); opacity: .55;
@@ -136,7 +137,7 @@
 /* the turntable, lying on the console (drawn flat, then laid back) */
 .hf-deck { position: absolute; left: 50%; top: -34cqh; width: 62cqh; height: 44cqh; translate: -62% 0; perspective: 120cqh; }
 .hf-plinth { position: absolute; inset: 0; border-radius: 1cqh; transform-origin: 50% 100%; transform: rotateX(52deg); transform-style: preserve-3d;
-  background: repeating-linear-gradient(92deg, rgba(0,0,0,.08) 0 .3cqh, transparent .3cqh 1.2cqh), linear-gradient(135deg, #8b5a31, #5f3a1d 60%, #4a2c14); box-shadow: 0 2cqh 3cqh rgba(0,0,0,.55), inset 0 0 0 .4cqh rgba(255,220,170,.12); }
+  background: linear-gradient(135deg, rgba(150,95,50,.25), rgba(60,34,14,.45)), url(retro/walnut.jpg) 0 0 / 50cqh auto; box-shadow: 0 2cqh 3cqh rgba(0,0,0,.55), inset 0 0 0 .4cqh rgba(255,220,170,.14), inset 0 0 0 .55cqh rgba(0,0,0,.25); }
 .hf-platter { position: absolute; left: 5%; top: 7%; width: 64%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #9aa0a8, #c9cdd3 60%, #7d828a 72%, #b7bcc3 74%);
   box-shadow: 0 .6cqh 1cqh rgba(0,0,0,.5); }
 .hf-record { position: absolute; inset: 3%; border-radius: 50%; animation: desk-spin calc(1.8s / var(--spd, 1)) linear infinite;
@@ -166,15 +167,23 @@
 .hf-card b { display: block; font-size: 2.7cqh; line-height: 1.15; margin-top: .4cqh; overflow-wrap: anywhere; }
 .hf-card span { display: block; font-size: 2cqh; }
 .hf-card em { display: block; font-style: normal; font-size: 1.3cqh; color: #55607a; margin-top: .4cqh; }
-/* the crate of sleeves: they stand in a wooden crate, leaning back; the front one is the one that plays */
+/* the crate of sleeves: a wooden flip-through bin (back board, two side panels, a low front); the sleeves stand in it leaning back, each showing the top
+   of its cover and a paper edge; the front one, tipped forward, is the one that plays */
 .hf-crate { position: absolute; right: 4%; top: -24cqh; width: 32cqh; height: 30cqh; }
+.hf-crate::before { content: ""; position: absolute; left: 3%; right: 3%; top: 4%; bottom: 30%; z-index: 0; border-radius: .3cqh; background: linear-gradient(rgba(40,22,8,.55), rgba(20,10,4,.7)), url(retro/walnut.jpg) 0 0 / 40cqh auto; box-shadow: inset 0 0 2cqh rgba(0,0,0,.6); }
+.hf-crate .hf-sleeves::before, .hf-crate .hf-sleeves::after { content: ""; position: absolute; bottom: 0; width: 7%; height: 92%; z-index: 20; pointer-events: none;
+  background: linear-gradient(rgba(150,95,50,.2), rgba(50,28,10,.5)), url(retro/walnut.jpg) 0 0 / 40cqh auto; box-shadow: inset 0 0 0 .2cqh rgba(255,220,170,.15), 0 .8cqh 1.2cqh rgba(0,0,0,.45); }
+.hf-crate .hf-sleeves::before { left: -7%; clip-path: polygon(0 18%, 100% 0, 100% 100%, 0 100%); }
+.hf-crate .hf-sleeves::after { right: -7%; clip-path: polygon(0 0, 100% 18%, 100% 100%, 0 100%); }
 .hf-crate::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 42%; border-radius: .4cqh; background: repeating-linear-gradient(90deg, rgba(0,0,0,.08) 0 .3cqh, transparent .3cqh 1.4cqh), linear-gradient(#b07a46, #8a5a2e);
-  box-shadow: 0 1cqh 1.4cqh rgba(0,0,0,.5), inset 0 .3cqh 0 rgba(255,230,190,.3); z-index: 2; pointer-events: none; }
-.hf-sleeves { position: absolute; inset: 0 6% 0; }
+  box-shadow: 0 1cqh 1.4cqh rgba(0,0,0,.5), inset 0 .3cqh 0 rgba(255,230,190,.3); z-index: 21; pointer-events: none; }
+.hf-crate::after { background: linear-gradient(rgba(150,95,50,.15), rgba(60,34,14,.45)), url(retro/walnut.jpg) 0 0 / 40cqh auto !important; }
+.hf-sleeves { position: absolute; inset: 0 6% 0; perspective: 60cqh; }
 .sleeve { position: absolute; left: 50%; bottom: 8%; width: 24cqh; aspect-ratio: 1; padding: 0; border: 0; border-radius: .2cqh; overflow: hidden; cursor: pointer; background: #e9e1cf;
-  translate: -50% calc(var(--o) * -2.6cqh); scale: calc(1 - var(--o) * .04); filter: brightness(calc(1 - var(--o) * .12)); z-index: calc(10 - var(--o)); transition: translate .3s ease, scale .3s ease;
-  box-shadow: 0 -.4cqh 1cqh rgba(0,0,0,.35); }
-.sleeve.front { translate: -50% -1.2cqh; z-index: 11; }
+  translate: -50% calc(var(--o) * -2.2cqh); scale: calc(1 - var(--o) * .035); filter: brightness(calc(1 - var(--o) * .1)); z-index: calc(10 - var(--o)); transition: translate .3s ease, scale .3s ease;
+  transform: rotateX(calc(-6deg - var(--o) * 1.5deg)); transform-origin: 50% 100%;
+  box-shadow: 0 -.6cqh 1.2cqh rgba(0,0,0,.55), inset 0 .35cqh 0 rgba(255,255,255,.55), inset 0 .5cqh .4cqh rgba(0,0,0,.25); }   /* (the paper edge along each top, the gap's shadow behind) */
+.sleeve.front { translate: -50% -1.2cqh; z-index: 11; transform: rotateX(4deg); box-shadow: 0 1cqh 1.6cqh rgba(0,0,0,.55), inset 0 .3cqh 0 rgba(255,255,255,.4); }
 .sleeve.front:hover { translate: -50% -3.6cqh; }
 .sleeve .sleeve-art { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 0; }
 .sleeve .sleeve-pl { position: absolute; inset: 12%; display: grid; place-items: center; font-size: 2.6cqh; color: #2f3b55; text-align: center; background: repeating-linear-gradient(45deg, #efe4cc 0 1cqh, #e6d8b8 1cqh 2cqh); }
@@ -184,7 +193,7 @@
 .hf-flip:disabled { opacity: .3; }
 /* the receiver: brushed silver, two green meters, the long tuning dial, the weighted knob, the switches */
 .hf-receiver { position: relative; width: min(64cqw, 92cqh); height: 74%; border-radius: .6cqh; display: grid; grid-template-columns: 28% 1fr 16%; grid-template-rows: 1fr auto; gap: 3% 2.4%; padding: 2.4% 2.6% 2%; box-sizing: border-box;
-  background: repeating-linear-gradient(90deg, rgba(255,255,255,.08) 0 .12cqh, rgba(0,0,0,.04) .12cqh .3cqh), linear-gradient(#e8e9eb, #bfc2c7 55%, #d4d6da); box-shadow: inset 0 0 0 .3cqh #8d9096, 0 1.2cqh 2cqh rgba(0,0,0,.6); container: rcv / inline-size; }
+  background: linear-gradient(105deg, rgba(255,255,255,0) 20%, rgba(255,255,255,.45) 32%, rgba(255,255,255,0) 44%, rgba(255,255,255,0) 70%, rgba(255,255,255,.2) 78%, rgba(255,255,255,0) 86%), repeating-linear-gradient(90deg, rgba(255,255,255,.08) 0 .12cqh, rgba(0,0,0,.04) .12cqh .3cqh), linear-gradient(#ecedef, #bfc2c7 55%, #d8dadd); box-shadow: inset 0 0 0 .3cqh #8d9096, inset 0 .35cqh 0 rgba(255,255,255,.8), inset 0 -.4cqh .6cqh rgba(0,0,0,.18), 0 1.2cqh 2cqh rgba(0,0,0,.6); container: rcv / inline-size; }
 .hf-meters { display: flex; gap: 6%; }
 .hf-meter { position: relative; flex: 1; border-radius: .4cqh; overflow: hidden; background: radial-gradient(120% 100% at 50% 100%, #9cf5a8, #3fbf6a 55%, #187a3a); box-shadow: inset 0 0 0 .25cqh #1a1b1e, inset 0 .4cqh 1.2cqh rgba(0,0,0,.5), 0 0 2cqh rgba(80,255,140,.35); }
 .hf-meter::before { content: ""; position: absolute; left: 12%; right: 12%; top: 22%; height: 60%; border-radius: 50% 50% 0 0 / 100% 100% 0 0; border-top: .3cqh solid rgba(10,40,20,.6); }

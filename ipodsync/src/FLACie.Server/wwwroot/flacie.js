@@ -340,7 +340,7 @@ window.flacie = (() => {
   // the iPod screens' long text (as on a real iPod): a line too long (the title bar, the highlighted row, Now Playing) for the screen scrolls inside itself, pausing at both ends (ipod.css: .mq, from how far,
   // --mq, and how long, --mqt; still, with an ellipsis, when motion is reduced). A line is measured again only when its text changes, the highlighted row
   // moves, or the screen's size changes, so the clock and the progress bar ticking never restart it
-  const MQ = ".lcd-hdr b, .lcd-pane b, .lcd-pane span, .lcd-pane small, .ios-nav b, .lcd-list li.sel .lcd-label, .lnp-meta b, .lnp-meta span, .cf-cap b, .cf-cap span, .ios-np-meta b, .ios-np-meta span, .ios-np-meta small";
+  const MQ = ".lcd-hdr b, .lcd-pane b, .lcd-pane span, .lcd-pane small, .ios-nav b, .lcd-list li.sel .lcd-label, .lnp-meta b, .lnp-meta span, .cf-cap b, .cf-cap span, .ios-np-meta b, .ios-np-meta span, .ios-np-meta small, .ios-mini-t b";
   const marquee = (root, sel = MQ) => {
     const measure = e => {
       if (e.classList.contains("mq")) e.classList.remove("mq");
@@ -767,19 +767,30 @@ window.flacie = (() => {
     textBoxSet(el, value) { if (el && document.activeElement !== el && el.value !== value) el.value = value; },
     textBoxOff(el) { if (el && el._tb) { el.removeEventListener("input", el._tb.input); el.removeEventListener("keydown", el._tb.key); el.removeEventListener("search", el._tb.search); el._tb = null; } },
     ipodDate() { return new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }); },
-    // the touch iPods' scrolling: a mouse can drag a list like a finger does (touch screens scroll by themselves); a drag is not a tap; the end of a long list asks for more rows
-    iosInit(root) {
+    // the touch iPods' scrolling: a mouse can drag a list like a finger does (touch screens scroll by themselves); a drag is not a tap; the end of a long list asks for more rows.
+    // A quick sideways swipe (a finger or a mouse, at least 40 points of the screen, mostly sideways) is told to the system (Swipe: +1 to the left, -1 to the right),
+    // which pages the nanos' home screens and goes back; a swipe is not a tap either
+    iosInit(root, ref) {
       window.flacie.iosDispose();
-      let sc = null, x0 = 0, y0 = 0, top0 = 0, dragged = false, k = 1, t = 0;
+      let sc = null, x0 = 0, y0 = 0, top0 = 0, dragged = false, k = 1, t = 0, sw = null;
       const down = e => {
-        if (e.pointerType !== "mouse" || e.button !== 0) return;
+        if (e.button !== 0 && e.pointerType === "mouse") return;
+        // the screen's own points per screen pixel (the fit's zoom and the screen's scale), and the way the device lies (a drag is measured along it)
+        t = tiltOf(root) * Math.PI / 180;
+        sw = { x: e.clientX, y: e.clientY, at: performance.now(), s: (root.getBoundingClientRect().width / (root.offsetWidth || 1)) / (Math.abs(Math.cos(t)) + Math.abs(Math.sin(t))) || 1 };
+        if (e.pointerType !== "mouse") return;
         sc = e.target.closest(".ios-scroll"); if (!sc) return;
-        // the list's own pixels per screen pixel (the fit's zoom), and the way the device lies (a drag is measured along it)
-        k = zoomOf(root) || 1; t = tiltOf(root) * Math.PI / 180;
+        k = zoomOf(root) || 1;
         x0 = e.clientX; y0 = e.clientY; top0 = sc.scrollTop; dragged = false;
       };
       const move = e => { if (!sc) return; const dy = -(e.clientX - x0) * Math.sin(t) + (e.clientY - y0) * Math.cos(t); if (!dragged && Math.abs(dy) > 5) dragged = true; if (dragged) sc.scrollTop = top0 - dy / k; };
-      const up = () => { sc = null; setTimeout(() => { dragged = false; }, 0); };
+      const up = e => {
+        if (sw && e && e.clientX !== undefined && ref) {
+          const ddx = e.clientX - sw.x, ddy = e.clientY - sw.y, dx = (ddx * Math.cos(t) + ddy * Math.sin(t)) / sw.s, dy = (-ddx * Math.sin(t) + ddy * Math.cos(t)) / sw.s;
+          if (Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy) * 1.5 && performance.now() - sw.at < 900) { dragged = true; ref.invokeMethodAsync("Swipe", dx < 0 ? 1 : -1).catch(() => { }); }
+        }
+        sw = null; sc = null; setTimeout(() => { dragged = false; }, 0);
+      };
       const click = e => { if (dragged) { e.stopPropagation(); e.preventDefault(); } };
       root.addEventListener("pointerdown", down); addEventListener("pointermove", move); addEventListener("pointerup", up); root.addEventListener("click", click, true);
       touchOs = { root, down, move, up, click, io: null };

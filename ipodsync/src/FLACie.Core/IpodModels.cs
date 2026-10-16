@@ -13,6 +13,8 @@ public sealed record IpodColor(string Name, string Top, string Bottom, string Ed
 {
     /// <summary>Dark body: the highlight on it is lighter and the wheel labels need to be light.</summary>
     public bool Dark => DarkUi || Luma(Top) < 0.38;
+    /// <summary>A white front around the screen (the touch 6 and 7 and the nano 7 in every colour but the grey one).</summary>
+    public bool LightFace => Luma(Bezel) > 0.6;
     static double Luma(string css) { var (r, g, b) = Rgb(css); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0; }
     public static (int R, int G, int B) Rgb(string css) => (int.Parse(css[1..3], NumberStyles.HexNumber), int.Parse(css[3..5], NumberStyles.HexNumber), int.Parse(css[5..7], NumberStyles.HexNumber));
 }
@@ -78,6 +80,10 @@ public static class IpodModels
     static readonly IpodColor TouchWhite = new("White", "#FFFFFF", "#DDDEE1", "#9A9CA2", WhiteWheel, false, "#F6F6F8", DefaultBackdrop);
     static readonly IpodColor TSlate = TouchMetal("Space Gray", "#6B6E75"), TGold = TouchMetal("Gold", "#D9BC94"), TPink = TouchMetal("Pink", "#E9A6B4"), TYellow = TouchMetal("Yellow", "#F2D95A"),
         TBlue = TouchMetal("Blue", "#6FA6D8"), TRed = TouchMetal("(PRODUCT)RED", "#C8323C"), TSilver5 = TouchMetal("Silver", "#C9CCD2");
+    // the white fronts of the 2012 nano and the 2015 and 2019 touch (all but the grey ones, whose fronts are black)
+    const string WhiteFront = "#F3F3F5";
+    static IpodColor Front(IpodColor c) => c with { Bezel = WhiteFront };
+    static readonly IpodColor WSilver = Front(TSilver5), WGold = Front(TGold), WPink = Front(TPink), WBlue = Front(TBlue), WRed = Front(TRed), WYellow = Front(TYellow);
 
     static readonly IpodRect NanoScreen = new(0.1125, 0.088, 0.8875, 0.5245), ClassicScreen = new(0.115, 0.05, 0.885, 0.395), NanoTall = new(0.105, 0.06, 0.895, 0.51),
         SlimScreen = new(0.125, 0.06, 0.875, 0.317), Mono1 = new(0.15, 0.06, 0.85, 0.396), Mono4 = new(0.171, 0.07, 0.829, 0.384), MiniScreen = new(0.175, 0.06, 0.825, 0.349);
@@ -116,8 +122,8 @@ public static class IpodModels
         TouchModel("touch3", "iPod touch (3rd gen)", TouchGroup, 3, 2009, 0.55, new IpodRect(0.1, 0.125, 0.9, 0.8), 0.11, [TouchSilver], "Faster, with Voice Control."),
         TouchModel("touch4", "iPod touch (4th gen)", TouchGroup, 4, 2010, 0.53, new IpodRect(0.09, 0.125, 0.91, 0.8), 0.12, [TouchBlack, TouchWhite], "Retina display and cameras."),
         TouchModel("touch5", "iPod touch (5th gen)", TouchGroup, 5, 2012, 0.475, new IpodRect(0.06, 0.115, 0.94, 0.855), 0.13, [TSilver5, TSlate, TPink, TYellow, TBlue, TRed], "4-inch screen, colours and a loop."),
-        TouchModel("touch6", "iPod touch (6th gen)", TouchGroup, 6, 2015, 0.475, new IpodRect(0.06, 0.115, 0.94, 0.855), 0.13, [TSlate, TSilver5, TGold, TPink, TBlue, TRed], "A8 chip and Apple Music."),
-        TouchModel("touch7", "iPod touch (7th gen)", TouchGroup, 7, 2019, 0.475, new IpodRect(0.06, 0.115, 0.94, 0.855), 0.13, [TSlate, TSilver5, TGold, TPink, TBlue, TRed], "The last iPod: A10 Fusion and up to 256 GB."),
+        TouchModel("touch6", "iPod touch (6th gen)", TouchGroup, 6, 2015, 0.475, new IpodRect(0.07425, 0.14104, 0.92575, 0.85896), 0.13, [TSlate, WSilver, WGold, WPink, WBlue, WRed], "A8 chip and Apple Music."),
+        TouchModel("touch7", "iPod touch (7th gen)", TouchGroup, 7, 2019, 0.475, new IpodRect(0.07425, 0.14104, 0.92575, 0.85896), 0.13, [TSlate, WSilver, WGold, WPink, WBlue, WRed], "The last iPod: A10 Fusion and up to 256 GB."),
     ];
 
     public static IpodModel Get(string? id) => All.FirstOrDefault(m => m.Id == id) ?? All.First(m => m.Id == DefaultId);

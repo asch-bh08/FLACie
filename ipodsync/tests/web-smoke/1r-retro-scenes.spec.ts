@@ -103,6 +103,35 @@ test.describe.serial('listening scenes', () => {
       }
     });
 
+    test(`${scene}: every control takes a real click at every size (nothing lies over it)`, async ({ page }) => {
+      await signIn(page);
+      await playInScene(page, scene);
+      // a real pointer press reports where it landed and goes no further (so nothing plays or pauses meanwhile)
+      await page.evaluate(() => {
+        const w = window as any; w.__hit = null; w.__swallow = true;
+        for (const t of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) window.addEventListener(t, (e) => { if (!w.__swallow) return; if (t === 'pointerdown') w.__hit = e.target; e.stopImmediatePropagation(); e.preventDefault(); }, true);
+      });
+      for (const [w, h] of [[1600, 900], [1024, 768], [768, 1024], [390, 844]]) {
+        await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(600);
+        // on a narrow screen the panel is a sheet over the scene: put it away (as anyone would to use the scene)
+        const over = async () => { const p = await page.getByTestId('ipod-panel').boundingBox(); const r = (await page.getByTestId('retro').boundingBox())!; return !!p && (await page.getByTestId('ipod-panel').evaluate((e) => e.classList.contains('open'))) && p.x < r.x + r.width - 1 && p.x + p.width > r.x + 1 && p.y < r.y + r.height - 1 && p.y + p.height > r.y + 1; };
+        if (await over()) { await page.evaluate(() => { (window as any).__swallow = false; }); await page.getByTestId('ipod-gear').click(); await expect.poll(over).toBe(false); await page.evaluate(() => { (window as any).__swallow = true; }); await page.waitForTimeout(400); }
+        const controls = page.locator('[data-testid=retro] :is(button, input, [role=slider]):not([tabindex="-1"]):not(:disabled):visible');
+        const n = await controls.count();
+        expect(n, `${scene} has controls at ${w}x${h}`).toBeGreaterThan(2);
+        for (let i = 0; i < n; i++) {
+          const c = controls.nth(i);
+          const b = await c.boundingBox(); if (!b) continue;
+          const x = b.x + b.width / 2, y = b.y + b.height / 2;
+          if (x < 0 || y < 0 || x > w || y > h) continue;   // (off the edge of a phone's frame, like a photo)
+          await page.mouse.click(x, y);
+          const ok = await c.evaluate((el) => { const t = (window as any).__hit as Element | null; return !!t && (el === t || el.contains(t)); });
+          const got = ok ? '' : await page.evaluate(() => { const t = (window as any).__hit as Element | null; return t ? `${t.tagName}.${t.className}` : 'nothing'; });
+          expect(ok, `${scene} at ${w}x${h}: ${await c.evaluate((el) => el.getAttribute('aria-label') || el.getAttribute('data-ctl') || el.className)} is covered by ${got}`).toBe(true);
+        }
+      }
+    });
+
     test(`${scene}: reduced motion holds the scene still`, async ({ page }) => {
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await signIn(page);

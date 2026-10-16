@@ -87,18 +87,20 @@
   .car-city, .car-rain { height: 40%; }
   .car-wiper { left: 10%; top: 38%; }
   .car-wiper i { height: 46cqw; }
-  .car-dash { top: 34%; border-radius: 50% 50% 0 0 / 6% 6% 0 0; }
+  /* the dash stacks: the head unit, then the climate dials under it (so they never meet, whatever the height) */
+  .car-dash { top: 34%; border-radius: 50% 50% 0 0 / 6% 6% 0 0; display: flex; flex-direction: column; align-items: center; gap: 2cqh; padding-top: 4cqh; box-sizing: border-box; }
   .car-vent { display: block; top: 3%; width: 30cqw; height: 4cqh; } .car-vent.l { left: 6%; } .car-vent.r { right: 6%; }
-  .car-unit { top: 13%; width: 94cqw; aspect-ratio: auto; grid-template-columns: 1fr; grid-template-rows: auto auto; padding: 4%; gap: 3%; }
+  .car-unit { position: relative; left: auto; top: auto; translate: none; width: 94cqw; aspect-ratio: auto; grid-template-columns: 1fr 20%; grid-template-rows: auto auto; padding: 4%; gap: 3%; }
+  .car-unit .cu-mid { grid-column: 1 / -1; grid-row: 1; } .car-unit .cu-keys { grid-column: 1; grid-row: 2; } .car-unit .cu-knob { grid-column: 2; grid-row: 2; }
   .cu-mid { grid-template-rows: 2.4cqh 13cqh 11cqh; gap: 1.2cqh; }
-  .cu-knob { display: none; }
+  .cu-knob { width: min(100%, 11cqh); }
   .cu-keys { grid-template-columns: repeat(4, 1fr); gap: 3%; }
   .cu-keys button { aspect-ratio: 1.6; font-size: 6cqw; }
   .cu-line1 { font-size: 7.4cqw; } .cu-line2 { font-size: 4cqw; } .cu-tune { font-size: 6cqw; }
   .cu-pre b { font-size: 5cqw; } .cu-pre small { font-size: 2.6cqw; }
   .cu-disc { width: 60cqw; }
   .cu-brand { display: none; }
-  .car-climate { bottom: 5%; gap: 8cqw; } .car-climate .dial { width: 18cqw; }
+  .car-climate { position: relative; left: auto; bottom: auto; translate: none; gap: 8cqw; } .car-climate .dial { width: min(18cqw, 8cqh); }
 }
 
 /* reduced motion: the car stands, the rain and the wiper hold, the display does not scroll */
@@ -142,7 +144,8 @@
 .hf-record.paused { animation-play-state: paused; }
 .hf-label { position: absolute; inset: 33%; border-radius: 50%; background: var(--art, radial-gradient(circle, #d7462e, #a5301c)) center / cover; box-shadow: 0 0 0 .2cqh rgba(0,0,0,.4); }
 .hf-spindle { position: absolute; left: 50%; top: 50%; width: 3%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #f0f0f0, #8a8d93); }
-.hf-groove { position: absolute; inset: 3%; border-radius: 50%; border: 0; background: transparent; cursor: crosshair; }
+.hf-groove { position: absolute; inset: 3%; border-radius: 50%; border: 0; background: transparent; cursor: crosshair; clip-path: inset(0 0 24% 0); pointer-events: auto; }
+.hf-platter, .hf-record { pointer-events: none; }   /* (only the groove takes clicks on the record: the rest is to look at, and must not sit between START and the pointer) */   /* (not the record's lower edge, under START: in the tilted plane Chrome hands clicks there to the groove; every radius stays in reach above) */
 /* the tonearm: its pivot at the top right; at rest beside the record, on it while playing (--arm) */
 .hf-arm-base { position: absolute; right: 9%; top: 9%; width: 9%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #f2f3f5, #9ea2a8 70%, #6f737a); box-shadow: 0 .6cqh .8cqh rgba(0,0,0,.5); }
 .hf-arm { position: absolute; right: 13.5%; top: 13.5%; width: 0; height: 0; rotate: calc(var(--arm, 0) * 1deg); transition: rotate 1.2s cubic-bezier(.4, .1, .3, 1); }
@@ -205,8 +208,8 @@
   .hf-lamp { left: 4%; top: 6%; height: 30cqh; width: 12cqh; } .hf-plant { height: 58%; }
   .hf-console { height: 74%; }
   .hf-top { height: 48%; }
-  .hf-deck { left: 50%; top: -14%; width: 92cqw; height: 66cqw; translate: -50% 0; }
-  .hf-card { left: auto; right: 5%; top: -23cqh; width: 46cqw; rotate: 3deg; }   /* (pinned on the wall, beside the lamp) */
+  .hf-deck { left: 50%; top: -14%; height: min(112%, 66cqw); width: auto; aspect-ratio: 92 / 66; translate: -50% 0; }   /* (never taller than its shelf: a squarer stage would slide it under the receiver) */
+  .hf-card { left: auto; right: 15%; top: -23cqh; width: 46cqw; rotate: 3deg; }   /* (pinned on the wall, beside the lamp) */
   .hf-front { top: 48%; }
   .hf-receiver { width: 94cqw; height: 80%; grid-template-columns: 1fr 22%; grid-template-rows: 30% 1fr auto; }
   .hf-meters { grid-column: 1 / -1; }
@@ -285,7 +288,7 @@
   .bb-tape { top: 1.5%; max-width: 70%; font-size: 3.4cqw; }
   .bb-sticker.s1, .bb-sticker.s3 { display: none; }   /* (no room beside the keys on a phone: the star stays) */
   .bb-body { grid-template-columns: 1fr 1fr; grid-template-rows: 30% 1fr; padding: 8% 4% 4%; }
-  .bb-spk { width: 78%; justify-self: center; } .bb-spk.r { grid-column: 2; grid-row: 1; }
+  .bb-spk { width: min(36cqw, 21cqh); justify-self: center; }   /* (by the height too: on a squarer stage they would grow out of their row over the dial) */ .bb-spk.r { grid-column: 2; grid-row: 1; }
   .bb-mid { grid-column: 1 / -1; grid-row: 2; grid-template-rows: 6% 1fr 14% 12%; }
   .bb-radio { font-size: 2.4cqw; } .bb-deck small { font-size: 2cqw; } .bb-cass span { font-size: 3.2cqw; } .bb-counter { font-size: 5.4cqw; }
   .bb-keys button { font-size: 2.6cqw; } .bb-win .reel { width: 6cqw; } .bb-eq .eq small { font-size: 1.8cqw; bottom: -2.6cqw; }
@@ -358,10 +361,10 @@
   .md-wall .poster { left: 8%; top: 12%; width: 26cqw; height: 34cqw; }
   .md-system { bottom: 26%; flex-direction: column; align-items: center; gap: 0; }
   .md-spk { display: none; }
-  .md-main { width: 94cqw; }
+  .md-main { width: min(94cqw, 80cqh); }
   .md-face { aspect-ratio: auto; grid-template-columns: 1fr; grid-template-rows: auto auto auto; gap: 3cqw; padding: 5%; }
-  .md-lcd { height: 24cqw; } .md-jog { grid-row: auto; grid-column: 1; width: 46cqw; justify-self: center; }
-  .md-lcd .l1 { font-size: 7cqw; } .md-lcd .l2, .md-lcd .l3 { font-size: 4.4cqw; } .md-btns button { font-size: 4.6cqw; } .md-jog .md-jog-center { font-size: 3.4cqw; }
+  .md-lcd { height: min(24cqw, 13cqh); } .md-jog { grid-row: auto; grid-column: 1; width: min(46cqw, 24cqh); justify-self: center; }   /* (capped by the height: a squarer stage must not push the slot off the top) */
+  .md-lcd .l1 { font-size: min(7cqw, 4cqh); } .md-lcd .l2, .md-lcd .l3 { font-size: min(4.4cqw, 2.5cqh); } .md-btns button { font-size: min(4.6cqw, 2.7cqh); } .md-jog .md-jog-center { font-size: min(3.4cqw, 2cqh); }
   .md-btns { justify-content: center; } .md-btns button { width: 13%; }
   .md-stack { left: 4%; bottom: 3%; } .md-desk .mug { right: 6%; top: auto; bottom: 4%; }
 }

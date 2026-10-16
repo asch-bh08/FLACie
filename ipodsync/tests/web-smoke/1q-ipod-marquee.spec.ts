@@ -26,12 +26,14 @@ async function shuffle(page: Page) {
   await expect(page.getByTestId('ipod-np')).toBeVisible({ timeout: 20_000 });
 }
 const LONG = 'A Remarkably Long Song Title That Never Fits On An iPod Screen (Extended Version)';
-/** Puts a long text in an element and reports its scrolling: whether it moves, and whether its own box stays inside the screen. */
+/** Puts a long text in an element and reports its scrolling: whether it moves (its scroll running, and under way: not started again and again), and whether
+ *  its own box stays inside the screen. */
 const longText = (page: Page, sel: string, screenSel: string) => page.evaluate(async ([s, scr, text]) => {
   const e = document.querySelector(s) as HTMLElement; e.textContent = text;
   await new Promise((r) => setTimeout(r, 900));
   const cs = getComputedStyle(e), b = e.getBoundingClientRect(), sb = document.querySelector(scr)!.getBoundingClientRect();
-  return { moving: cs.animationName.includes('ipod-mq') && cs.animationPlayState === 'running', inside: b.left >= sb.left - 1.5 && b.right <= sb.right + 1.5, clip: cs.overflow === 'hidden' };
+  const run = e.getAnimations().find((a) => (a as CSSAnimation).animationName?.includes('ipod-mq'));
+  return { moving: cs.animationName.includes('ipod-mq') && cs.animationPlayState === 'running' && Number(run?.currentTime ?? 0) > 400, inside: b.left >= sb.left - 1.5 && b.right <= sb.right + 1.5, clip: cs.overflow === 'hidden' };
 }, [sel, screenSel, LONG] as const);
 
 test.describe.serial('long text on the iPod screens scrolls', () => {
@@ -42,6 +44,14 @@ test.describe.serial('long text on the iPod screens scrolls', () => {
     expect(await page.locator('[data-testid=ipod-row].sel .lcd-label').evaluate((e) => getComputedStyle(e).animationName)).toBe('none');
     expect(await longText(page, '[data-testid=ipod-row].sel .lcd-label', '[data-testid=ipod-lcd]')).toEqual({ moving: true, inside: true, clip: true });
     await shuffle(page);
+    // a line is measured when it changes, not on every frame (each measure once counted as a change: every line on the screen measured itself again, sixty
+    // times a second, for as long as the page was open, and a long one started its scroll again each time)
+    const changes = await page.evaluate(async () => {
+      let n = 0; const mo = new MutationObserver((rs) => { n += rs.length; });
+      mo.observe(document.querySelector('[data-testid=ipod-lcd]')!, { subtree: true, attributes: true, attributeFilter: ['class'] });
+      await new Promise((r) => setTimeout(r, 1000)); mo.disconnect(); return n;
+    });
+    expect(changes).toBeLessThan(10);
     expect(await longText(page, '[data-testid=ipod-np-title]', '[data-testid=ipod-lcd]')).toEqual({ moving: true, inside: true, clip: true });
     expect(await longText(page, '.lnp-album', '[data-testid=ipod-lcd]')).toEqual({ moving: true, inside: true, clip: true });
   });

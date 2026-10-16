@@ -104,7 +104,8 @@ window.flacie = (() => {
         }
       }
     }
-    requestAnimationFrame(lyricTick);
+    // every frame while synced lyrics play; otherwise four times a second is plenty (a loop on every frame keeps the browser drawing frames on every page)
+    if (lyr && !audio.paused) requestAnimationFrame(lyricTick); else setTimeout(lyricTick, 250);
   };
   requestAnimationFrame(lyricTick);
   // Live views for the Info tab: spectrum, bars, spectrogram, loudness, stereo. Playback itself goes straight from the audio element to the
@@ -342,13 +343,16 @@ window.flacie = (() => {
   const MQ = ".lcd-hdr b, .lcd-pane b, .lcd-pane span, .lcd-pane small, .ios-nav b, .lcd-list li.sel .lcd-label, .lnp-meta b, .lnp-meta span, .cf-cap b, .cf-cap span, .ios-np-meta b, .ios-np-meta span, .ios-np-meta small";
   const marquee = (root, sel = MQ) => {
     const measure = e => {
-      e.classList.remove("mq");
+      if (e.classList.contains("mq")) e.classList.remove("mq");
       const over = e.matches(sel) ? e.scrollWidth - e.clientWidth : 0;
       if (over > 2) { e.style.setProperty("--mq", -(over + 6) + "px"); e.style.setProperty("--mqt", (4 + over / 30).toFixed(1) + "s"); void e.offsetWidth; e.classList.add("mq"); }
     };
-    const all = () => { root.querySelectorAll(".mq").forEach(measure); root.querySelectorAll(sel).forEach(measure); };
+    // (measuring changes a line's class, which the observer below sees: those changes are taken off its list, or every line measured itself again on every
+    // frame for as long as the screen was open, and a long one started its scroll over each time)
+    const all = () => { root.querySelectorAll(".mq").forEach(measure); root.querySelectorAll(sel).forEach(measure); mo.takeRecords(); };
     let queued = new Set(), frame = 0;
-    const flush = () => { frame = 0; const q = queued; queued = new Set(); q.forEach(measure); };
+    const seen = rs => { for (const r of rs) { touched(r.target); r.addedNodes.forEach(touched); } };
+    const flush = () => { frame = 0; seen(mo.takeRecords()); const q = queued; queued = new Set(); q.forEach(measure); mo.takeRecords(); };
     const touched = n => {
       const el = n.nodeType === 1 ? n : n.parentElement; if (!el) return;
       // a line whose text changed; or, a row that became (or stopped being) the highlighted one, its label
@@ -357,7 +361,7 @@ window.flacie = (() => {
       el.querySelectorAll && el.querySelectorAll(sel).forEach(x => queued.add(x));
       if (!frame) frame = requestAnimationFrame(flush);
     };
-    const mo = new MutationObserver(rs => { for (const r of rs) { touched(r.target); r.addedNodes.forEach(touched); } });
+    const mo = new MutationObserver(seen);
     mo.observe(root, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["class"] });
     let w = root.clientWidth, h = root.clientHeight;
     const ro = new ResizeObserver(() => { if (root.clientWidth !== w || root.clientHeight !== h) { w = root.clientWidth; h = root.clientHeight; all(); } });

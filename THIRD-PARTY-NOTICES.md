@@ -34,6 +34,8 @@ jcifs-ng is compiled into the app, and TagLibSharp is compiled into the native i
 |---|---|---|
 | Caveat handwriting font (`wwwroot/desk/caveat-*.woff2`) | The Caveat Project Authors, via Fontsource | SIL Open Font License 1.1 ([text](ipodsync/src/FLACie.Server/wwwroot/desk/OFL-caveat.txt)) |
 | Oak veneer texture (`wwwroot/desk/oak.jpg`, resized) | Poly Haven, "Oak Veneer 05" | CC0 (public domain) |
+| Pixelify Sans pixel font (`wwwroot/fonts/pixelify-sans.woff2`, the early iPods' screens) | The Pixelify Sans Project Authors, via Google Fonts | SIL Open Font License 1.1 ([text](ipodsync/src/FLACie.Server/wwwroot/fonts/OFL-pixelify.txt)) |
+| DotGothic16 dot-matrix font (`wwwroot/fonts/dotgothic16.woff2`, the car and MiniDisc displays) | The DotGothic16 Project Authors, via Google Fonts | SIL Open Font License 1.1 ([text](ipodsync/src/FLACie.Server/wwwroot/fonts/OFL-dotgothic16.txt)) |
 
 ## Not bundled
 

@@ -294,10 +294,10 @@ window.flacie = (() => {
   // a device lying turned (the Desk look tilts it a few degrees): its angle, from the CSS rotate of it and what holds it; and the zoom it is drawn at (the page's fit)
   const tiltOf = el => { let a = 0; for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const m = /^(-?[\d.]+)deg$/.exec(getComputedStyle(n).rotate || ""); if (m) a += +m[1]; } return a; };
   const zoomOf = el => { let z = 1; for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const v = parseFloat(getComputedStyle(n).zoom); if (v > 0) z *= v; } return z; };
-  // the iPod screens' long text (as on a real iPod): a line too long for the screen scrolls inside itself, pausing at both ends (ipod.css: .mq, from how far,
+  // the iPod screens' long text (as on a real iPod): a line too long (the title bar, the highlighted row, Now Playing) for the screen scrolls inside itself, pausing at both ends (ipod.css: .mq, from how far,
   // --mq, and how long, --mqt; still, with an ellipsis, when motion is reduced). A line is measured again only when its text changes, the highlighted row
   // moves, or the screen's size changes, so the clock and the progress bar ticking never restart it
-  const MQ = ".lcd-list li.sel .lcd-label, .lnp-meta b, .lnp-meta span, .cf-cap b, .cf-cap span, .ios-np-meta b, .ios-np-meta span, .ios-np-meta small";
+  const MQ = ".lcd-hdr b, .lcd-pane b, .lcd-pane span, .lcd-pane small, .ios-nav b, .lcd-list li.sel .lcd-label, .lnp-meta b, .lnp-meta span, .cf-cap b, .cf-cap span, .ios-np-meta b, .ios-np-meta span, .ios-np-meta small";
   const marquee = root => {
     const measure = e => {
       e.classList.remove("mq");

@@ -46,6 +46,20 @@ test.describe.serial('long text on the iPod screens scrolls', () => {
     expect(await longText(page, '.lnp-album', '[data-testid=ipod-lcd]')).toEqual({ moving: true, inside: true, clip: true });
   });
 
+  test('the title bar (an album or playlist name) on a colour and a mono iPod, and the touch iPods\' title', async ({ page }) => {
+    await signIn(page); await page.setViewportSize({ width: 1366, height: 768 });
+    for (const model of ['classic6', 'ipod4']) {
+      await page.goto('about:blank');
+      await openIpod(page, { model, look: 1 });
+      expect(await longText(page, '.lcd-hdr b', '[data-testid=ipod-lcd]'), model).toEqual({ moving: true, inside: true, clip: true });
+    }
+    await page.goto('about:blank');
+    await openIpod(page, { model: 'touch5', look: 1 });
+    await expect(async () => { await page.locator('.ios-app[data-app=music]').first().click(); await expect(page.getByTestId('ios')).toHaveAttribute('data-app', 'music', { timeout: 1000 }); }).toPass({ timeout: 20_000 });
+    await expect(page.locator('[data-testid=ios-nav] b')).toBeVisible();
+    expect(await longText(page, '[data-testid=ios-nav] b', '[data-testid=ipod-touch-screen]')).toEqual({ moving: true, inside: true, clip: true });
+  });
+
   test('the touch iPods\' Now Playing', async ({ page }) => {
     await signIn(page); await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/songs');

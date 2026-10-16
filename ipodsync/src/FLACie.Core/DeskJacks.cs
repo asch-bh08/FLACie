@@ -19,7 +19,4 @@ public static class DeskJacks
         _ => TopLeft,
     };
 
-    /// <summary>The iPods with the 30-pin dock connector: the 3rd generation on, the minis, nanos 1 to 6 and touches 1 to 4 (the 1st and 2nd generations had FireWire,
-    /// the 7th nano and the 5th touch on Lightning).</summary>
-    public static bool HasDock(string modelId) => modelId is not ("ipod1" or "ipod2" or "nano7" or "touch5" or "touch6" or "touch7");
 }

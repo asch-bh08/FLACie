@@ -36,7 +36,6 @@
     <svg class="desk-steam" viewBox="0 0 200 340" aria-hidden="true"><path d="M 100 330 C 80 280, 130 250, 105 200 S 80 120, 110 70"/><path d="M 120 330 C 140 280, 95 240, 125 190 S 145 110, 120 60"/><path d="M 80 330 C 60 270, 105 230, 85 180 S 60 110, 90 50"/></svg>
 
     <div class="desk-ipod" style="@SlotStyle">
-      @if (Dock) { <div class="desk-dock" data-testid="desk-dock" aria-hidden="true"><i class="lip"></i></div> }
       <svg class="desk-earbuds @(Studio ? "studio" : "")" data-testid="desk-earbuds" viewBox="0 0 @F(Wd) 400" aria-hidden="true">
         <defs>
           <path id="desk-cable" d="@CablePath"/>
@@ -93,7 +92,7 @@
           <g class="desk-bud-shadow"><g data-bud data-cx="@F(x)" data-cy="@F(y)" transform="translate(@F(x) @F(y)) rotate(@F(r))"><g><use href="#desk-bud"/></g><g fill="none" stroke="#fff4e2" stroke-linecap="round"><path data-arc="0" stroke-width="2.6"/><path data-arc="1" stroke-width="2.1"/><path data-arc="2" stroke-width="1.6"/></g></g></g>
         }
         }
-        <g transform="@(DockOut ? (portrait ? $"translate({F(Sx + 60)} {F(H + 28)}) rotate(180)" : $"translate({F(Wd + 18)} {F(H + 24)}) rotate(90)") : $"translate({F(Jx)} {F(Jack.Edge == JackEdge.Top ? 0 : H)}) rotate({(Jack.Edge == JackEdge.Top ? 0 : 180)})")"><rect x="-6.5" y="-18" width="13" height="20" rx="3" fill="url(#desk-stem)" stroke="rgba(0,0,0,.14)" stroke-width=".8"/><rect x="-4" y="-16" width="3" height="15" rx="1.5" fill="#fff" opacity=".9"/></g>
+        <g transform="@($"translate({F(Jx)} {F(Jack.Edge == JackEdge.Top ? 0 : H)}) rotate({(Jack.Edge == JackEdge.Top ? 0 : 180)})")"><rect x="-6.5" y="-18" width="13" height="20" rx="3" fill="url(#desk-stem)" stroke="rgba(0,0,0,.14)" stroke-width=".8"/><rect x="-4" y="-16" width="3" height="15" rx="1.5" fill="#fff" opacity=".9"/></g>
       </svg>
       <div class="desk-ipod-edge" style="@EdgeStyle"></div>
       @ChildContent
@@ -127,16 +126,10 @@
     [Parameter] public double Radius { get; set; } = 0.1;
     /// <summary>The desk's options (iPod panel › Desk).</summary>
     [Parameter] public DeskOptions Options { get; set; } = new();
-    /// <summary>The dock is on and this iPod has the 30-pin connector.</summary>
-    [Parameter] public bool Dock { get; set; }
     /// <summary>The page's props that know about your music: the tapes and the tracklist.</summary>
     [Parameter] public RenderFragment? Props { get; set; }
 
     bool Studio => Options.Phones == DeskOptions.Studio;
-    // a bottom jack in a dock: the cable leaves from the dock's line-out on its right instead
-    bool DockOut => Dock && Jack.Edge == JackEdge.Bottom;
-    // (on a phone the plug comes out of the dock's front edge, pointing down towards the buds; on the desk out of its right end)
-    (double X, double Y, double A) DockStart => portrait ? (Sx + 60, H + 44, 90) : (Wd + 32, H + 24, 0);
     // the VU meter's scale: degrees from upright, and the marks
     static readonly (double Deg, string Label)[] VuTicks = [(-42, "20"), (-27, "10"), (-17, "7"), (-8, "5"), (2, "3"), (13, "1"), (22, "0"), (31, "1"), (42, "3")];
 
@@ -155,8 +148,8 @@
     // right), so the buds lie in the band under it; there the cable comes down the iPod's right side, so the splitter and the buds are mirrored (Flip) and the
     // cable comes into the splitter from the right.
     double Sx => portrait ? Wd / 2 - 52 : Math.Min(Wd + 120, Math.Max(360, Wd + 70));
-    double Sy => portrait ? (DockOut ? H + 60 : H + 45) : H - 55;
-    bool Flip => portrait && (Jack.Edge == JackEdge.Top || (DockOut ? DockStart.X : Jx) > Sx);   // (a bottom jack left of the split comes in from the left: not mirrored)
+    double Sy => portrait ? H + 45 : H - 55;
+    bool Flip => portrait && (Jack.Edge == JackEdge.Top || Jx > Sx);   // (a bottom jack left of the split comes in from the left: not mirrored)
     // the direction the splitter runs (the cable comes in along it): down and right, or mirrored, down and left
     double Axis => Flip ? 140.2 : 39.8;
     // a point of the splitter, the leads or the buds, given from the split (mirrored when flipped)
@@ -169,11 +162,11 @@
     (double X, double Y, double A)[] EarbudRoute => portrait
         ? (Jack.Edge == JackEdge.Top
             ? [(Jx, -14, -90), (Jx + 34, -32, 0), (Wd - 14, -28, 18), (Wd + 40, 110, 92), (Wd + 24, 280, 98), (Wd + 12, H - 6, 125), (Sx, Sy, Axis)]   // (close over the iPod's top: the queue card lies above)
-            : DockOut ? [DockStart, (Sx, Sy, Axis)] : [(Jx, H + 14, 90), (Sx, Sy, Axis)])
+            : [(Jx, H + 14, 90), (Sx, Sy, Axis)])
         : Jack.Edge == JackEdge.Top
         ? [(Jx, -14, -90), (Jx - 45, -82, 180), (Jx - 82, -30, 90), (Jx - 40, -12, -15), (Wd * 0.6, -60, -5), (Wd + 28, -30, 50), (Wd + 52, 120, 95), (Wd + 30, 250, 75), (Sx, Sy, Axis)]
         // (out along the bottom, up the right side, over into the splitter)
-        : [.. (DockOut ? new[] { (DockStart.X, DockStart.Y, -40.0) } : [(Jx, H + 14, 90), (Math.Max(Jx + 60, Sx - 110), H + 50, 0)]),
+        : [(Jx, H + 14, 90), (Math.Max(Jx + 60, Sx - 110), H + 50, 0),
            (Math.Max(Sx - 70, Wd + 14), Sy - 20, -90), (Math.Max(Sx - 40, Wd + 30), Sy - 55, 0), (Sx, Sy, Axis)];
 
     // the studio cable: round the iPod like the earbuds' cable, wound into coils on one stretch (StudioCoil: from that point to the next), ending at its plug
@@ -181,10 +174,10 @@
     (double X, double Y, double A)[] StudioRoute => portrait
         ? (Jack.Edge == JackEdge.Top
             ? [(Jx, -14, -90), (Jx + 60, -50, -5), (Wd - 4, -26, 25), (Wd + 45, 120, 92), (Wd + 30, 290, 100), (Wd - 20, H + 50, 160), (Wd / 2 - 70, H + 64, 185)]
-            : [.. (DockOut ? new[] { DockStart } : [(Jx, H + 14, 90)]), (Wd / 2 + 50, H + 46, 10), (Wd - 10, H + 70, 20), (Wd + 10, H + 112, 100)])
+            : [(Jx, H + 14, 90), (Wd / 2 + 50, H + 46, 10), (Wd - 10, H + 70, 20), (Wd + 10, H + 112, 100)])
         : Jack.Edge == JackEdge.Top
         ? [(Jx, -14, -90), (Jx + 60, -50, -5), (Wd - 4, -26, 25), (Wd + 45, 120, 92), (Wd + 40, 290, 95), (Wd + 120, H + 15, 10), (Wd + 170, H, -15)]
-        : [.. (DockOut ? new[] { DockStart } : [(Jx, H + 14, 90), (Jx + 70, H + 50, 0)]), (Wd + 30, H + 40, -10), (Wd + 120, H + 10, -15), (Wd + 170, H - 5, -15)];
+        : [(Jx, H + 14, 90), (Jx + 70, H + 50, 0), (Wd + 30, H + 40, -10), (Wd + 120, H + 10, -15), (Wd + 170, H - 5, -15)];
     int StudioCoil => StudioRoute.Length - 3;
     (double X, double Y, double A) StudioEnd => StudioRoute[^1];
 
@@ -266,7 +259,7 @@
     protected override async Task OnAfterRenderAsync(bool first)
     {
         // the moving parts read the SVG once at start: start again when the cable route changes (another model)
-        var key = $"{Jack}|{F(Aspect)}|{portrait}|{Studio}|{Dock}|{Options.Vu}";
+        var key = $"{Jack}|{F(Aspect)}|{portrait}|{Studio}|{Options.Vu}";
         if (first || key != startedFor)
         {
             startedFor = key;

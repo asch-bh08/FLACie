@@ -256,17 +256,18 @@ test.describe.serial('desk look on /ipod', () => {
     }
   });
 
-  test('the Desk options: the props come and go, studio headphones swap the earbuds, the dock only on 30-pin iPods, kept across a reload', async ({ page }) => {
+  test('the Desk options: the props come and go, studio headphones swap the earbuds, no dock, kept across a reload', async ({ page }) => {
     const errors = consoleErrors(page);
     await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
     await openDesk(page, { model: 'classic6', look: 2 });
     const opt = (k: string) => page.locator(`[data-testid=desk-options] [data-desk-opt="${k}"]`);
     await expect(page.getByTestId('desk-options')).toBeVisible();
-    // a new desk: earbuds, the iPod in its dock, the pencil on the notebook, the VU amp, the cassette and the MiniDiscs
+    // a new desk: earbuds, the pencil on the notebook, the VU amp, the cassette and the MiniDiscs; the iPod lies on the desk itself (no dock, no option for one)
     await expect(page.locator('[data-desk-phones="0"]')).toHaveClass(/on/);
-    for (const id of ['desk-vu', 'desk-cassette', 'desk-minidiscs', 'desk-pencil', 'desk-dock']) await expect(page.getByTestId(id), id).toBeVisible();
+    for (const id of ['desk-vu', 'desk-cassette', 'desk-minidiscs', 'desk-pencil']) await expect(page.getByTestId(id), id).toBeVisible();
+    await expect(page.getByTestId('desk-dock')).toHaveCount(0); await expect(opt('dock')).toHaveCount(0);
     // the others off and on again; the VU meter left off
-    for (const [k, id] of [['md', 'desk-minidiscs'], ['pencil', 'desk-pencil'], ['dock', 'desk-dock'], ['tape', 'desk-cassette']]) {
+    for (const [k, id] of [['md', 'desk-minidiscs'], ['pencil', 'desk-pencil'], ['tape', 'desk-cassette']]) {
       await opt(k).click(); await expect(page.getByTestId(id)).toHaveCount(0); await expect(opt(k)).not.toHaveClass(/on/);
       await opt(k).click(); await expect(page.getByTestId(id)).toBeVisible();
     }
@@ -277,11 +278,7 @@ test.describe.serial('desk look on /ipod', () => {
     await expect(page.locator('[data-bud]')).toHaveCount(0);
     // kept across a reload
     await page.reload(); await expect(page.getByTestId('desk')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByTestId('desk-adapter')).toBeVisible(); await expect(page.getByTestId('desk-vu')).toHaveCount(0); await expect(page.getByTestId('desk-dock')).toBeVisible();
-    // a Lightning iPod has no dock to offer (and none on the desk)
-    await page.locator('.ipod-panel .dock-seg [data-group]').nth(3).click();
-    await page.locator('.ipod-panel .ipod-chip[data-model="touch5"]').click();
-    await expect(opt('dock')).toHaveCount(0); await expect(page.getByTestId('desk-dock')).toHaveCount(0);
+    await expect(page.getByTestId('desk-adapter')).toBeVisible(); await expect(page.getByTestId('desk-vu')).toHaveCount(0);
     // the options belong to the desk look
     await page.locator('.ipod-panel .ipod-chip[data-look="device"]').click();
     await expect(page.getByTestId('desk-options')).toHaveCount(0);

@@ -12,7 +12,7 @@
     else if (desk)
     {
         <DeskScene Jack="@DeskJacks.For(model.Id)" Aspect="@model.Aspect" Radius="@model.Radius" Journal="@DeskJournalPart" Cds="@DeskCdsPart" Polaroid="@DeskPolaroidPart"
-                   Options="@prefs.Desk" Dock="@(prefs.Desk.Dock && DeskJacks.HasDock(model.Id))" Props="@DeskPropsPart">@Area()</DeskScene>
+                   Options="@prefs.Desk" Props="@DeskPropsPart">@Area()</DeskScene>
     }
     else { @Area() }
     <a class="ipod-exit" href="/" aria-label="Back to FLACie" title="Back to FLACie" data-testid="ipod-exit"><Icon Name="chevron-left" Size="18" /></a>
@@ -95,7 +95,6 @@
                     @DeskOpt("vu", "VU meter", prefs.Desk.Vu, d => d.Vu = !d.Vu)
                     @DeskOpt("tape", "Cassette", prefs.Desk.Cassette, d => d.Cassette = !d.Cassette)
                     @DeskOpt("md", "MiniDiscs", prefs.Desk.Minidiscs, d => d.Minidiscs = !d.Minidiscs)
-                    @if (DeskJacks.HasDock(model.Id)) { @DeskOpt("dock", "Dock", prefs.Desk.Dock, d => d.Dock = !d.Dock) }
                     @DeskOpt("pencil", "Pencil", prefs.Desk.Pencil, d => d.Pencil = !d.Pencil)
                 </div>
             </section>

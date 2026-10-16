@@ -1,0 +1,78 @@
+@inherits RetroBase
+@inject IJSRuntime Js
+@* The Discman scene: a portable CD player in brushed silver, seen straight down on a plain surface, black earbud wires snaking out of the 3.5 mm jack on its
+   side. Its lid opens (OPEN) to show the disc spinning while the music plays: the disc carries a print of the album's cover (desk.js discInto, the same
+   print as the iPod desk's CD). Along its front edge, a backlit segment LCD with the song (CD-Text, scrolling when long), the track and the time, and the keys: previous, play/pause, next, stop
+   (pause, back to the song's start), and MEGA BASS (the player's own bass shelf, flacie.js bass()). Beside it, the CDs coming up: a click plays one.
+   Styles: retro.css. *@
+<div class="discman">
+    <div class="dm-surface" aria-hidden="true"></div>
+    <div class="dm-player" data-testid="retro-unit">
+        <svg class="dm-wires" viewBox="0 0 400 400" aria-hidden="true">
+            <path d="M10 170 C -60 175, -95 240, -80 300 S -120 380, -150 392" />
+            <path d="M-80 300 C -60 340, -30 360, -28 410" />
+            <g transform="translate(-150 392) rotate(28)"><ellipse rx="17" ry="21" /><circle r="9" class="mesh" /></g>
+            <g transform="translate(-28 410) rotate(-14)"><ellipse rx="17" ry="21" /><circle r="9" class="mesh" /></g>
+        </svg>
+        <i class="dm-jack" aria-hidden="true"></i>
+        <div class="dm-body">
+            <div class="dm-well" aria-hidden="@(open ? "false" : "true")">
+                <div class="dm-disc @(Playing ? "" : "paused")" data-testid="dm-disc" @ref="disc"><i class="hole"></i></div>
+                <i class="dm-spindle"></i>
+            </div>
+            <div class="dm-lid @(open ? "open" : "")" data-testid="dm-lid" aria-hidden="true">
+                <i class="ring"></i><span class="dm-brand">FLACIE<small>PORTABLE COMPACT DISC PLAYER · ESP</small></span>
+            </div>
+            <div class="dm-front">
+                <div class="dm-lcd" data-testid="dm-lcd" aria-label="Track and time">
+                    <span class="cdtext rt-mq" data-testid="retro-title">@(Now is null ? "NO DISC" : $"{Now.Title} · {Now.Artist}")</span>
+                    <small>TRACK</small><b class="seg">@(Now is null ? "--" : TrackNo.ToString("00"))</b>
+                    <b class="seg time" data-testid="dm-time">@(Now is null ? "-:--" : Clock(Position))</b>
+                    <small class="bass @(bass ? "on" : "")">MEGA BASS</small><small class="state">@(Playing ? "▶" : "❚❚")</small>
+                </div>
+                <div class="dm-keys">
+                    <button type="button" data-ctl="prev" aria-label="Previous" @onclick="Prev">⏮</button>
+                    <button type="button" data-ctl="play" class="big" aria-label="@(Playing ? "Pause" : "Play")" @onclick="Toggle">▶❚❚</button>
+                    <button type="button" data-ctl="next" aria-label="Next" @onclick="Next">⏭</button>
+                    <button type="button" data-ctl="stop" aria-label="Stop" @onclick="Stop">■</button>
+                    <button type="button" data-ctl="bass" class="bass @(bass ? "on" : "")" aria-pressed="@(bass ? "true" : "false")" aria-label="Mega Bass" @onclick="Bass">MEGA<br />BASS</button>
+                </div>
+            </div>
+            <button type="button" class="dm-open" data-ctl="open" aria-pressed="@(open ? "true" : "false")" aria-label="@(open ? "Close the lid" : "Open the lid")" @onclick="() => open = !open">OPEN</button>
+        </div>
+    </div>
+    <div class="dm-cds">
+        @for (var i = 0; i < Math.Min(NextAlbums.Count, 3); i++)
+        {
+            var a = NextAlbums[i];
+            <button type="button" class="dm-cd" style="--i:@i" data-media="album" data-album="@a.Album" aria-label="@($"Play {a.Album}")" title="@a.Album" @onclick="() => PlayAlbum(a)">
+                <Cover ArtKey="@a.ArtKey" Class="dm-art" /><i class="glare"></i>
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    bool open, bass;
+    ElementReference disc;
+    string? discFor;
+
+    async Task Stop() { await Pause(); await Seek(0); }
+    async Task Bass()
+    {
+        var want = !bass;
+        try { bass = await Js.InvokeAsync<bool>("flacie.bass", want); } catch (Exception e) when (e is JSDisconnectedException or JSException or InvalidOperationException or OperationCanceledException) { }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        // the disc's print: the album playing, made from its cover in the browser (desk.js; the same as the desk's CD)
+        var a = NowAlbum;
+        var key = a is null ? "" : $"{a.Key}|{a.ArtKey}";
+        if (a is null || key == discFor) return;
+        discFor = key;
+        var cover = a.ArtKey is null ? null : $"/art/{Uri.EscapeDataString(FLACie.Core.CoverOverrides.Map(a.ArtKey)!)}?v=3";
+        try { await Js.InvokeAsync<bool>("desk.discInto", disc, null, cover, a.Artist, a.Album); }
+        catch (Exception e) when (e is JSDisconnectedException or JSException or InvalidOperationException or OperationCanceledException) { }
+    }
+}

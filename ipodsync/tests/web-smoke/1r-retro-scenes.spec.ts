@@ -20,7 +20,7 @@ async function playInScene(page: Page, scene: string, size: [number, number] = [
   await page.goto('/songs');
   await page.locator('.track').first().locator('button.track-main').click();
   await expect(page.locator('.player')).toBeVisible();
-  await page.evaluate((s) => localStorage.setItem('flacie.ipod', JSON.stringify({ model: 'classic6', look: 1, scene: ['ipod', 'car', 'hifi', 'boombox', 'minidisc'].indexOf(s) })), scene);
+  await page.evaluate((s) => localStorage.setItem('flacie.ipod', JSON.stringify({ model: 'classic6', look: 1, scene: ['ipod', 'car', 'hifi', 'boombox', 'minidisc', 'discman'].indexOf(s) })), scene);
   await page.evaluate(() => (window as any).Blazor.navigateTo('/ipod'));
   await expect(page.locator(`[data-testid=retro][data-scene=${scene}]`)).toBeVisible({ timeout: 20_000 });
 }
@@ -38,7 +38,7 @@ test.describe.serial('listening scenes', () => {
     await page.addInitScript(() => { try { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('flacie.ipod', JSON.stringify({ model: 'classic6', look: 1 })); } } catch { } });
     await page.goto('/ipod');
     await expect(page.getByTestId('ipod-device')).toBeVisible({ timeout: 20_000 });
-    for (const s of ['car', 'hifi', 'boombox', 'minidisc']) {
+    for (const s of ['car', 'hifi', 'boombox', 'minidisc', 'discman']) {
       // (clicked again until the page is live: a click before it connects does nothing)
       await expect(async () => { await page.locator(`[data-testid=scene-options] [data-scene=${s}]`).click(); await expect(page.locator(`[data-testid=retro][data-scene=${s}]`)).toBeVisible({ timeout: 1000 }); }).toPass({ timeout: 20_000 });
       await expect(page.getByTestId('ipod-device')).toHaveCount(0);
@@ -47,8 +47,8 @@ test.describe.serial('listening scenes', () => {
       await expect(page.getByTestId('scene-help')).toBeVisible();
       await expect(page.getByTestId('scene-help')).not.toContainText('click the middle');
     }
-    await expect(page.getByTestId('scene-help')).toContainText('Jog dial');
-    await page.reload(); await expect(page.locator('[data-testid=retro][data-scene=minidisc]')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('scene-help')).toContainText('MEGA BASS');
+    await page.reload(); await expect(page.locator('[data-testid=retro][data-scene=discman]')).toBeVisible({ timeout: 20_000 });
     await page.locator('[data-testid=scene-options] [data-scene=ipod]').click();
     await expect(page.getByTestId('ipod-device')).toBeVisible();
     await expect(page.getByTestId('retro')).toHaveCount(0);
@@ -61,7 +61,7 @@ test.describe.serial('listening scenes', () => {
     expect(errors).toEqual([]);
   });
 
-  for (const scene of ['car', 'hifi', 'boombox', 'minidisc']) {
+  for (const scene of ['car', 'hifi', 'boombox', 'minidisc', 'discman']) {
     test(`${scene}: shows the song, and play/pause, next, previous and its media drive the player`, async ({ page }) => {
       const errors = consoleErrors(page);
       await signIn(page);
@@ -157,6 +157,39 @@ test.describe.serial('listening scenes', () => {
       expect(running).toBe(0);
     });
   }
+
+  test('discman: the album art printed on the disc; the lid opens to show it spinning; the LCD shows the track and time; stop, skip and MEGA BASS work', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page);
+    await playInScene(page, 'discman');
+    await freshSong(page);
+    // the segment LCD: the track number and the time
+    await expect(page.getByTestId('dm-lcd')).toContainText(/TRACK\s*\d+/);
+    await expect(page.getByTestId('dm-time')).toHaveText(/^\d{1,2}:\d{2}$/);
+    // the disc carries a print of the album's cover
+    await expect.poll(() => page.getByTestId('dm-disc').evaluate((d) => getComputedStyle(d).getPropertyValue('--art')), { timeout: 10_000 }).toContain('data:image/png');
+    // the lid opens (OPEN) and shows the disc spinning while it plays; it shuts again
+    await expect(page.getByTestId('dm-lid')).not.toHaveClass(/open/);
+    await page.locator('[data-testid=retro] [data-ctl=open]').click();
+    await expect(page.getByTestId('dm-lid')).toHaveClass(/open/);
+    await expect.poll(() => page.getByTestId('dm-disc').evaluate((d) => d.getAnimations().some((a) => a.playState === 'running'))).toBe(true);
+    await page.locator('[data-testid=retro] [data-ctl=open]').click();
+    await expect(page.getByTestId('dm-lid')).not.toHaveClass(/open/);
+    // stop: paused, back to the song's start; play goes on
+    await page.locator('[data-testid=retro] [data-ctl=stop]').click();
+    await expect.poll(() => playing(page)).toBe('false');
+    await expect(page.getByTestId('dm-time')).toHaveText('0:00');
+    await page.locator('[data-testid=retro] [data-ctl=play]').click();
+    await expect.poll(() => playing(page)).toBe('true');
+    // MEGA BASS: its light, and the player's bass shelf (about +9 dB) on, then off again
+    await page.locator('[data-testid=retro] [data-ctl=bass]').click();
+    await expect(page.locator('[data-testid=retro] [data-ctl=bass]')).toHaveClass(/\bon\b/);
+    await expect.poll(() => page.evaluate(() => (window as any).flacie.bassLevel())).toBeGreaterThan(6);
+    await page.locator('[data-testid=retro] [data-ctl=bass]').click();
+    await expect(page.locator('[data-testid=retro] [data-ctl=bass]')).not.toHaveClass(/\bon\b/);
+    await expect.poll(() => page.evaluate(() => (window as any).flacie.bassLevel())).toBeLessThan(0.5);
+    expect(errors).toEqual([]);
+  });
 
   test('car: the presets are radio stations named for your genres; a press plays the station and the display says so', async ({ page }) => {
     const errors = consoleErrors(page);

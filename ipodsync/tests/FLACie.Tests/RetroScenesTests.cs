@@ -9,7 +9,7 @@ public class RetroScenesTests
     [Fact] public void TheIpodIsTheSceneUntilAnotherIsChosen() => Assert.Equal(IpodPrefs.SceneIpod, new IpodPrefs().Scene);
 
     [Theory]
-    [InlineData(IpodPrefs.SceneCar)] [InlineData(IpodPrefs.SceneHifi)] [InlineData(IpodPrefs.SceneBoombox)] [InlineData(IpodPrefs.SceneMinidisc)] [InlineData(IpodPrefs.SceneIpod)]
+    [InlineData(IpodPrefs.SceneCar)] [InlineData(IpodPrefs.SceneHifi)] [InlineData(IpodPrefs.SceneBoombox)] [InlineData(IpodPrefs.SceneMinidisc)] [InlineData(IpodPrefs.SceneDiscman)] [InlineData(IpodPrefs.SceneIpod)]
     public void TheSceneIsKept(int scene)
     {
         var p = new IpodPrefs { Scene = scene };
@@ -25,8 +25,8 @@ public class RetroScenesTests
 
     [Fact] public void EverySceneHasAName()
     {
-        Assert.Equal(["iPod", "Car", "Hi-Fi", "Boombox", "MiniDisc"], IpodPrefs.SceneNames);
-        Assert.Equal(["ipod", "car", "hifi", "boombox", "minidisc"], IpodPrefs.SceneKeys);
+        Assert.Equal(["iPod", "Car", "Hi-Fi", "Boombox", "MiniDisc", "Discman"], IpodPrefs.SceneNames);
+        Assert.Equal(["ipod", "car", "hifi", "boombox", "minidisc", "discman"], IpodPrefs.SceneKeys);
     }
 
     [Fact] public void ResetGoesBackToTheIpod()

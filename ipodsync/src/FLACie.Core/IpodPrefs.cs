@@ -13,9 +13,9 @@ public sealed class IpodPrefs
     public static readonly string[] ClickVolumeNames = ["Quiet", "Medium", "Loud"];
     public static readonly string[] LookNames = ["Wheel Only", "Device", "Desk"];
     /// <summary>The listening scenes the page can show: the iPod (with its looks), or a car stereo, a hi-fi with a turntable, a boombox, a MiniDisc system.</summary>
-    public const int SceneIpod = 0, SceneCar = 1, SceneHifi = 2, SceneBoombox = 3, SceneMinidisc = 4;
-    public static readonly string[] SceneNames = ["iPod", "Car", "Hi-Fi", "Boombox", "MiniDisc"];
-    public static readonly string[] SceneKeys = ["ipod", "car", "hifi", "boombox", "minidisc"];
+    public const int SceneIpod = 0, SceneCar = 1, SceneHifi = 2, SceneBoombox = 3, SceneMinidisc = 4, SceneDiscman = 5;
+    public static readonly string[] SceneNames = ["iPod", "Car", "Hi-Fi", "Boombox", "MiniDisc", "Discman"];
+    public static readonly string[] SceneKeys = ["ipod", "car", "hifi", "boombox", "minidisc", "discman"];
     public static readonly int[] VolumeLimits = [100, 85, 70, 50];
     public static readonly int[] SleepMinutes = [0, 15, 30, 60, 90, 120];
     /// <summary>Entries that cannot be hidden from the main menu (as on the Android emulator).</summary>
@@ -27,7 +27,7 @@ public sealed class IpodPrefs
     /// <summary>Index into the model's colours; always valid for the model.</summary>
     public int Color { get => color; set => color = Math.Clamp(value, 0, IpodModels.Get(model).Colors.Count - 1); }
     public int Look { get; set; } = LookDevice;
-    public int Scene { get => scene; set => scene = value >= SceneIpod && value <= SceneMinidisc ? value : SceneIpod; }
+    public int Scene { get => scene; set => scene = value >= SceneIpod && value <= SceneDiscman ? value : SceneIpod; }
     int scene = SceneIpod;
     /// <summary>Settings > Appearance > Display: the clock in the title bar.</summary>
     public bool Clock { get; set; }

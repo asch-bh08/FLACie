@@ -372,3 +372,80 @@
 @media (prefers-reduced-motion: reduce) {
   .md-jog, .md-jog-center, .md-disc, .md-d { transition: none; }
 }
+
+/* ================================================================ the Discman: a portable CD player in brushed silver, straight down on a plain surface */
+@font-face { font-family: "Segment LCD"; src: url(fonts/dseg7-classic-bold.woff2) format("woff2"); font-weight: 700; font-display: block; }   /* DSEG7 (OFL 1.1, wwwroot/fonts/OFL-dseg.txt) */
+.discman { position: absolute; inset: 0; background: #d9d6d0; }
+.dm-surface { position: absolute; inset: 0; background: radial-gradient(120% 90% at 40% 35%, #ebe8e2, #cfcbc3 70%, #bdb8af);
+  box-shadow: inset 0 0 18cqh rgba(60,50,40,.18); }
+.dm-surface::after { content: ""; position: absolute; inset: 0; opacity: .35; background-image: radial-gradient(rgba(0,0,0,.08) .5px, transparent .8px), radial-gradient(rgba(255,255,255,.25) .5px, transparent .8px);
+  background-size: .5cqh .5cqh, .7cqh .7cqh; background-position: 0 0, .25cqh .3cqh; }
+.dm-player { position: absolute; left: 41%; top: 50%; width: min(64cqh, 50cqw); aspect-ratio: 1 / 1.1; translate: -50% -50%; rotate: -4deg; }
+.dm-wires { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; z-index: 0; pointer-events: none; }
+.dm-wires path { fill: none; stroke: #121214; stroke-width: 3.6; stroke-linecap: round; filter: drop-shadow(1px 3px 2px rgba(0,0,0,.3)); }
+.dm-wires ellipse { fill: #18181b; stroke: #2c2c31; stroke-width: 2; filter: drop-shadow(2px 5px 4px rgba(0,0,0,.35)); }
+.dm-wires .mesh { fill: #3a3a40; }
+.dm-jack { position: absolute; left: -1.2%; top: 41%; width: 3.2%; height: 4%; border-radius: .3cqh; background: linear-gradient(90deg, #111, #444); z-index: 1; }
+.dm-body { position: absolute; inset: 0; z-index: 1; border-radius: 22% / 20%; container: dm / inline-size;
+  background: radial-gradient(circle at 50% 42%, transparent 0 44%, rgba(0,0,0,.06) 44.4%, transparent 45%), repeating-radial-gradient(circle at 50% 42%, rgba(255,255,255,.16) 0 .12cqh, rgba(0,0,0,.035) .12cqh .3cqh),
+    linear-gradient(150deg, #f4f5f7, #c9ccd2 45%, #e6e8eb 70%, #b5b9c0);
+  box-shadow: 0 2.4cqh 3.4cqh rgba(40,32,24,.35), 0 .6cqh 1cqh rgba(40,32,24,.25), inset 0 .3cqh .4cqh rgba(255,255,255,.8), inset 0 -.6cqh 1cqh rgba(0,0,0,.18); }
+/* under the lid: the dark well and the disc in it */
+.dm-well { position: absolute; left: 7%; right: 7%; top: 5%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #2a2b30, #111215 70%); box-shadow: inset 0 .6cqh 1.4cqh rgba(0,0,0,.8); }
+.dm-disc { position: absolute; inset: 4%; border-radius: 50%; animation: dm-spin 1.1s linear infinite;
+  background: var(--art, conic-gradient(from 30deg, #d9dce2, #f1e4f0, #d4e8f3, #f2eed6, #dcefd8, #d9dce2)) center / cover;
+  box-shadow: inset 0 0 0 .2cqh rgba(255,255,255,.6), 0 .2cqh .5cqh rgba(0,0,0,.5); }
+.dm-disc::after { content: ""; position: absolute; inset: 0; border-radius: 50%; mix-blend-mode: soft-light; background: conic-gradient(from 200deg, transparent, rgba(255,255,255,.75) 7%, transparent 15%, transparent 50%, rgba(255,255,255,.5) 57%, transparent 65%); }
+.dm-disc .hole { position: absolute; left: 50%; top: 50%; width: 15%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; background: radial-gradient(circle, #111 0 40%, rgba(230,232,236,.9) 42% 100%); }
+.dm-disc.paused { animation-play-state: paused; }
+@keyframes dm-spin { to { rotate: 360deg; } }
+.dm-spindle { position: absolute; left: 50%; top: 50%; width: 6%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #f2f3f5, #8d929a); box-shadow: 0 .2cqh .3cqh rgba(0,0,0,.6); }
+/* the lid: hinged at the back; OPEN swings it up (seen from above it folds back over the hinge, its underside showing) */
+.dm-lid { position: absolute; left: 7%; right: 7%; top: 5%; aspect-ratio: 1; border-radius: 50%; transform-origin: 50% 0; transform: perspective(110cqh) rotateX(0deg); transition: transform .55s cubic-bezier(.3,.1,.25,1);
+  background: repeating-radial-gradient(circle, rgba(255,255,255,.18) 0 .1cqh, rgba(0,0,0,.04) .1cqh .26cqh), radial-gradient(circle at 45% 35%, #fbfbfc, #d3d6db 60%, #b9bdc4);
+  box-shadow: 0 .5cqh .8cqh rgba(0,0,0,.25), inset 0 0 0 .25cqh rgba(255,255,255,.7), inset 0 -.4cqh .8cqh rgba(0,0,0,.12); z-index: 2; }
+.dm-lid .ring { position: absolute; inset: 30%; border-radius: 50%; box-shadow: inset 0 0 0 .2cqh rgba(0,0,0,.08), 0 0 0 .15cqh rgba(255,255,255,.7); }
+.dm-brand { position: absolute; left: 0; right: 0; top: 68%; text-align: center; font: 800 4.6cqw/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .3em; color: #565b63; }   /* (cqw here: the body's own width) */
+.dm-brand small { display: block; margin-top: 1.2cqw; font-size: 1.6cqw; letter-spacing: .22em; font-weight: 600; opacity: .8; }
+.dm-lid.open { transform: perspective(110cqh) rotateX(-112deg); background: linear-gradient(#6c7078, #3c3f45); }
+.dm-lid.open .ring, .dm-lid.open .dm-brand { opacity: 0; }
+/* the front edge: the backlit segment LCD and the keys */
+.dm-front { position: absolute; left: 6%; right: 6%; bottom: 4%; height: 13.5%; display: flex; align-items: center; gap: 3%; z-index: 3; }
+.dm-lcd { position: relative; flex: 0 0 38%; height: 100%; border-radius: 1.4cqw; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto auto; align-content: center; align-items: end; column-gap: 7%; row-gap: .5cqw; padding: 0 6%; box-sizing: border-box;
+  background: linear-gradient(#b9e3c4, #96cfa6); box-shadow: inset 0 .3cqh .6cqh rgba(0,40,10,.35), inset 0 0 0 .2cqh rgba(0,0,0,.25), 0 0 1.6cqh rgba(150,230,170,.35); color: #142a18; overflow: hidden; }
+.dm-lcd .cdtext { grid-column: 1 / -1; grid-row: 1; min-width: 0; overflow: hidden; white-space: nowrap; font: 700 1.9cqw/1.15 "Dot Matrix", "Consolas", monospace; letter-spacing: .06em; text-transform: uppercase; }
+.dm-lcd small { font: 700 1.6cqw/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .12em; opacity: .75; grid-column: 1; grid-row: 2; }
+.dm-lcd .seg { font: 700 4.2cqw/1 "Segment LCD", "Consolas", monospace; letter-spacing: .05em; grid-column: 1; grid-row: 3; }
+.dm-lcd .time { grid-column: 2; grid-row: 2 / 4; align-self: center; justify-self: end; font-size: 5.6cqw; }
+.dm-lcd .bass { position: absolute; right: 5%; bottom: 8%; font-size: 1.3cqw; opacity: .12; }
+.dm-lcd .bass.on { opacity: .85; }
+.dm-lcd .state { display: none; }
+.dm-keys { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 2%; }
+.dm-keys button { flex: 0 0 auto; width: 7.6cqw; height: 7.6cqw; border-radius: 50%; border: 0; padding: 0; font-size: 2.6cqw; color: #3a3e45; cursor: pointer;
+  background: radial-gradient(circle at 40% 30%, #fdfdfe, #c4c8ce 70%, #a5aab2); box-shadow: 0 .35cqh .5cqh rgba(0,0,0,.3), inset 0 -.2cqh .3cqh rgba(0,0,0,.12); }
+.dm-keys button.big { width: 9.6cqw; height: 9.6cqw; font-size: 2.8cqw; letter-spacing: -.1em; }
+.dm-keys button:active { translate: 0 .15cqh; box-shadow: 0 .1cqh .2cqh rgba(0,0,0,.3), inset 0 .2cqh .3cqh rgba(0,0,0,.2); }
+.dm-keys button.bass { width: 10.4cqw; height: 6cqw; border-radius: 3cqw; font: 800 1.45cqw/1.05 "Helvetica Neue", Arial, sans-serif; letter-spacing: .08em; position: relative; }
+.dm-keys button.bass::after { content: ""; position: absolute; right: -.5cqw; top: -.5cqw; width: 1.6cqw; height: 1.6cqw; border-radius: 50%; background: #5a2a20; box-shadow: inset 0 .1cqh .2cqh rgba(0,0,0,.5); }
+.dm-keys button.bass.on::after { background: #ff6a3d; box-shadow: 0 0 .8cqh #ff6a3d, 0 0 1.6cqh rgba(255,106,61,.6); }
+.dm-open { position: absolute; right: -2.4%; top: 30%; width: 4%; height: 12%; border: 0; border-radius: .8cqw; padding: 0; cursor: pointer; z-index: 3; writing-mode: vertical-rl;
+  font: 800 1.5cqw/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .14em; color: #3a3e45; background: linear-gradient(90deg, #a9aeb6, #eef0f2 60%, #b9bdc4); box-shadow: .2cqh .3cqh .5cqh rgba(0,0,0,.3); }
+.dm-open[aria-pressed="true"] { translate: 0 1cqh; }
+/* the CDs coming up, lying fanned beside the player */
+.dm-cds { position: absolute; left: 72%; top: 22%; width: 24cqh; height: 50cqh; }
+.dm-cd { position: absolute; left: 0; top: calc(var(--i) * 12cqh); width: 24cqh; aspect-ratio: 1.13; padding: 0; border: 0; border-radius: .5cqh; cursor: pointer; overflow: hidden; rotate: calc(var(--i) * 5deg - 6deg);
+  background: rgba(232,238,244,.4); box-shadow: inset 0 0 0 .16cqh rgba(255,255,255,.6), 0 .6cqh 1cqh rgba(40,32,24,.35); transition: translate .2s ease; }
+.dm-cd .dm-art { position: absolute; left: 9%; top: 2.5%; width: 89.5%; height: 95%; border-radius: 0; }
+.dm-cd::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 8%; z-index: 1; background: linear-gradient(90deg, rgba(20,20,24,.75), rgba(60,62,70,.5) 60%, rgba(255,255,255,.25)); }
+.dm-cd .glare { position: absolute; inset: 0; z-index: 1; background: linear-gradient(118deg, rgba(255,255,255,.35), rgba(255,255,255,0) 32%, rgba(255,255,255,0) 70%, rgba(255,255,255,.18)); pointer-events: none; }
+.dm-cd:hover, .dm-cd:focus-visible { translate: -1cqh -.6cqh; }
+
+@container retro (aspect-ratio < 23 / 20) {
+  .dm-player { left: 50%; top: 40%; width: min(80cqw, 50cqh); rotate: -3deg; }
+  .dm-cds { left: 8%; top: auto; bottom: 4%; width: 84cqw; height: 22cqw; }
+  .dm-cd { top: 0; left: calc(var(--i) * 28cqw); width: 26cqw; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dm-disc { animation: none !important; }
+  .dm-lid, .dm-cd { transition: none; }
+}

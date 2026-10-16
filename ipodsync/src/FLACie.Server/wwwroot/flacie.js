@@ -2,6 +2,7 @@
 // reports time, state and the end of each song back. Media Session gives lock-screen and headphone controls.
 window.flacie = (() => {
   const audio = new Audio();
+  let bassCtx = null, bassF = null;   // Mega Bass (bass()): made the first time it is switched on
   let baseVolume = 1, fadeGain = 1, loudGain = 1, xfadeGain = 1, xfadeSecs = 0, xfadeIn = false, xfadeOut = false, xfadeRaf = 0;
   const applyVol = () => { audio.volume = Math.min(1, Math.max(0, baseVolume * fadeGain * loudGain * xfadeGain)); };
   // fade between songs: the end fades out and the start fades in (not across the tracks of one album); the same arithmetic as the app: cosine, over at most a third of the song
@@ -671,6 +672,19 @@ window.flacie = (() => {
     ipodClock() { return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); },
     // room for the panel beside the stage (what ipodInit answers for the iPod; the other scenes ask this)
     wideScreen() { return innerWidth >= 860; },
+    /** Mega Bass (the Discman scene): a low shelf of about +9 dB under 100 Hz on the music itself. The player's audio goes through Web Audio only from
+     *  the first time it is switched on (an element once routed cannot be taken back, so off is a shelf of 0 dB: nothing changes). Returns whether it is on. */
+    bass(on) {
+      on = !!on;
+      if (on && !bassF) {
+        try { const AC = window.AudioContext || window.webkitAudioContext; bassCtx = new AC(); const src = bassCtx.createMediaElementSource(audio); bassF = bassCtx.createBiquadFilter(); bassF.type = "lowshelf"; bassF.frequency.value = 100; bassF.gain.value = 0; src.connect(bassF); bassF.connect(bassCtx.destination); }
+        catch { bassCtx = bassF = null; return false; }
+      }
+      if (bassF) { if (bassCtx.state === "suspended") bassCtx.resume().catch(() => { }); bassF.gain.setTargetAtTime(on ? 9 : 0, bassCtx.currentTime, 0.04); }
+      return on;
+    },
+    /** The bass shelf's gain now, in dB (0 when Mega Bass was never switched on). */
+    bassLevel() { return bassF ? bassF.gain.value : 0; },
     /** The same scrolling for other screens (the listening scenes' displays): the lines matching sel under root. Returns { stop() }. */
     marqueeIn(root, sel) { return marquee(root, sel); },
     async ipodBattery() { try { const b = await navigator.getBattery(); return [Math.round(b.level * 100), b.charging]; } catch { return [100, false]; } },

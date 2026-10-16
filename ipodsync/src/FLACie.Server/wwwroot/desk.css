@@ -5,7 +5,8 @@
 
 .desk { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; container: desk / size; isolation: isolate; background: #8a6a4c; color: #2f3b55; }
 .desk-wood { position: absolute; inset: -3%; background: url(desk/oak.jpg) center / max(70cqh, 40cqw) auto; filter: sepia(.3) saturate(.88) brightness(.97) contrast(.98); }
-.desk-scene { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: min(100cqw, 177.78cqh); aspect-ratio: 16 / 9; container-type: size; filter: saturate(.86) contrast(1.03); }
+.desk-scene { position: absolute; inset: 0; margin: auto; width: min(100cqw, 177.78cqh); height: min(56.25cqw, 100cqh); aspect-ratio: 16 / 9;   /* (centred by layout, not a translate: that left the filter's surface on a fractional pixel and the compositor resampled the whole desk, iPod included) */
+  container-type: size; filter: saturate(.86) contrast(1.03); }
 .desk-scene > * { position: absolute; }
 /* the desk taller than 16:9 (the panel open, a 4:3 or 16:10 screen): the scene stays 16:9 (everything keeps its size), and the spare height above and below it
    (--gap, each side: registered as a length so it is worked out against the desk, not the scene) spreads the props out: the top row moves up, the bottom row
@@ -286,7 +287,7 @@
    the coffee from the bottom right, the earbuds lie between. Below 1.15 wide to 1 high (desk.js portrait() says the same); a laptop window with the panel open
    (about 4:3) keeps the whole desk. No polaroid (no room), no steam (it would rise over the iPod). */
 @container desk (aspect-ratio < 23 / 20) {
-  .desk-scene { width: min(100cqw, 47.37cqh); aspect-ratio: 9 / 19; --gap: 0px; }   /* (a phone has its own layout: nothing spreads) */
+  .desk-scene { width: min(100cqw, 47.37cqh); height: min(211.11cqw, 100cqh); aspect-ratio: 9 / 19; --gap: 0px; }   /* (a phone has its own layout: nothing spreads) */
   /* a band across the top for the sticky note and the queue card (they never reach the iPod or its cable), the iPod under it, the earbuds under that */
   .desk-ipod { left: 50%; top: 48.5cqh; height: 47cqh; }
   /* the journal is a pad of sticky notes: one note at a time, three rules of lyrics on it; the note under it shows at its edge */

@@ -83,8 +83,9 @@ window.desk = (() => {
   const prop = (el, name, v) => { const m = el._props || (el._props = {}); if (m[name] !== v) { m[name] = v; el.style.setProperty(name, v); } };
 
   function paint(b, now) {
-    const el = s.el;
-    prop(el, '--low', b.low.toFixed(2)); prop(el, '--mid', b.mid.toFixed(2)); prop(el, '--high', b.high.toFixed(2)); prop(el, '--beat', s.beat.toFixed(2));
+    // written on the few things that follow them (data-viz), not on the scene: a variable changed there is worked out again for everything inside it
+    const vl = b.low.toFixed(2), vm = b.mid.toFixed(2), vh = b.high.toFixed(2), vb = s.beat.toFixed(2);
+    for (const v of s.viz) { prop(v, '--low', vl); prop(v, '--mid', vm); prop(v, '--high', vh); prop(v, '--beat', vb); }
     // the coffee follows the bass (desk.css draws its surface from --bass)
     if (s.coffee) prop(s.coffee, '--bass', (s.reduced ? 0.2 : b.low).toFixed(2));
     // the VU meter's needle: bass and mids, with a meter's ballistics (it eases to the level in about a tenth of a second); at rest on the left stop without music
@@ -103,6 +104,15 @@ window.desk = (() => {
       attr(p, 'd', arcPath(j, v)); attr(p, 'opacity', (0.12 + 0.85 * v * (1 - j * 0.12)).toFixed(2));
     }
     if (s.reduced) return;
+    // the discs turn (still while paused), the steam rises and the coffee's rings spread: on these frames, which are drawn anyway (animations of
+    // their own would draw frames between them, and every frame puts the whole screen together again under the film)
+    // (the desk's CD once in 10 s; a record, a tape's reels or a Discman's disc at their own speed: data-spin, in degrees a second)
+    for (const d of s.el.querySelectorAll('[data-spin]')) { if (d.classList.contains('paused')) continue; d._rot = ((d._rot || 0) + (parseFloat(d.dataset.spin) || 36) * s.dt) % 360; d.style.rotate = d._rot.toFixed(1) + 'deg'; }
+    steam(now / 1000); writing(now);
+    for (const r of s.rings) {
+      const p = Math.min(1, (now - r._born) / 1200), e = 1 - Math.pow(1 - p, 2.2);   // (easing out)
+      r.style.scale = (1 + (r._k - 1) * e).toFixed(3); r.style.opacity = (0.95 * (1 - e)).toFixed(3);
+    }
     // current down the cable: faster, longer and brighter with the bass
     const t = now / 1000, low = 0.35 + 0.65 * Math.min(1, b.low * 1.4), speed = 150 + 230 * low;
     for (const p of s.pulses) {
@@ -114,8 +124,8 @@ window.desk = (() => {
     // the buds twitch on the bass
     s.buds.forEach((g, i) => {
       const k = s.beat < 0.005 ? 0 : s.beat, x = k ? (Math.sin(t * 61 + i) * k * 1.4).toFixed(2) : '0', y = k ? (Math.cos(t * 53 + i) * k * 1.4).toFixed(2) : '0';
-      const shell = g.firstElementChild, v = k ? `scale(${(1 + k * 0.09).toFixed(3)}) translate(${x}px, ${y}px)` : '';
-      if (shell._tf !== v) { shell._tf = v; shell.style.transform = v; }
+      const v = k ? `scale(${(1 + k * 0.09).toFixed(3)}) translate(${x}px, ${y}px)` : '';
+      if (g._tf !== v) { g._tf = v; g.style.transform = v; }
     });
     // rings growing out of the buds
     for (const c of [...s.rippleBox?.children || []]) {
@@ -125,10 +135,23 @@ window.desk = (() => {
     if (now - s.lastDust > 40) { s.lastDust = now; dust(); }
   }
 
+  // three wisps over the coffee, a third of the way apart: each rises, sways left and spreads over 7 s, fading in quickly and out slowly
+  function steam(t) {
+    s.steam.forEach((w, i) => {
+      const p = ((t + i * 7 / 3) / 7) % 1, e = p * p * (3 - 2 * p);
+      const o = p < 0.25 ? 0.8 * p / 0.25 : p < 0.7 ? 0.8 - 0.45 * (p - 0.25) / 0.45 : 0.35 * (1 - p) / 0.3;
+      w.style.transform = `translate(${(-35 * e).toFixed(1)}%, ${(10 - 170 * e).toFixed(1)}%) scale(${(0.7 + 0.55 * e).toFixed(3)}, ${(0.6 + 0.75 * e).toFixed(3)}) rotate(${(-8 * e).toFixed(1)}deg)`;
+      w.style.opacity = o.toFixed(3);
+    });
+  }
+
   function tick(now) {
     if (!s) return;
     s.raf = requestAnimationFrame(tick);
-    if (document.hidden || now - s.last < 15) return;
+    // 30 frames a second while music plays, 15 while it does not (nothing then moves but the steam, the dust and the current down the cable): every frame makes the
+    // browser put the whole desk together again under its light and film, so fewer frames is most of what this page costs
+    const idle = !(s.frame && s.frame.playing) && s.beat < 0.05;
+    if (document.hidden || now - s.last < (idle ? 66 : 31)) return;
     const dt = Math.min(0.1, (now - (s.last || now)) / 1000); s.last = now;
     const b = scaled(bands(), dt); s.dt = dt;
     // beats: the (scaled) bass jumping clearly above its last half second, at most one every 280 ms
@@ -140,7 +163,10 @@ window.desk = (() => {
 
   function ripple(hit) {
     // a ring on the coffee's surface, spreading further on a harder kick (gone again when its animation ends)
-    if (s.coffee) { const r = document.createElement('i'); r.className = 'desk-ring'; r.style.setProperty('--k', (3.5 + 3 * Math.min(1, hit || 0.5)).toFixed(2)); s.coffee.appendChild(r); setTimeout(() => r.remove(), 1300); }
+    if (s.coffee) {
+      const r = document.createElement('i'); r.className = 'desk-ring'; r._k = 3.5 + 3 * Math.min(1, hit || 0.5); r._born = performance.now(); s.coffee.appendChild(r); s.rings.push(r);
+      setTimeout(() => { r.remove(); if (s) s.rings = s.rings.filter((x) => x !== r); }, 1300);
+    }
     if (!s.rippleBox) return;
     for (const g of s.buds) {
       const c = document.createElementNS(NS, 'circle');
@@ -149,11 +175,34 @@ window.desk = (() => {
     }
   }
 
+  // the film's colours for this scene (desk.css, on the canvas), read again when the canvas changes size
+  function film(cv) {
+    const cs = getComputedStyle(cv), v = (n) => cs.getPropertyValue(n).trim();
+    return { fade: v('--film-fade'), a: v('--leak-a'), b: v('--leak-b'), c: v('--leak-c'), o: parseFloat(v('--leak-o')) || 0, beat: parseFloat(v('--leak-beat')) || 0 };
+  }
+  // a colour with no alpha left (a gradient's end: towards the same colour, clear, not towards clear black)
+  const clear = (c) => /^rgba?\(/.test(c) ? c.replace(/^rgba?\(([^,]+),([^,]+),([^,)]+).*$/, 'rgba($1,$2,$3,0)') : 'rgba(0,0,0,0)';
+  // one leak: an ellipse rx by ry round (x, y), through the stops given ([offset, colour]), clear at 70%
+  function leak(g, x, y, rx, ry, stops) {
+    if (!stops[0][1] || stops[0][1] === 'transparent') return;
+    g.save(); g.translate(x, y); g.scale(1, ry / rx);
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, rx);
+    for (const [o, c] of stops) gr.addColorStop(o, c);
+    gr.addColorStop(0.7, clear(stops[stops.length - 1][1]));
+    g.fillStyle = gr; g.fillRect(-rx, -rx, 2 * rx, 2 * rx); g.restore();
+  }
   function dust() {
     const cv = s.dust; if (!cv) return;
     const W = cv.clientWidth, H = cv.clientHeight; if (!W || !H) return;
-    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    if (cv.width !== W || cv.height !== H || !s.film) { cv.width = W; cv.height = H; s.film = film(cv); }
     const g = cv.getContext('2d'); g.clearRect(0, 0, W, H);
+    // the lifted fade, and the light leak breathing with the beat (under the dust)
+    const f = s.film;
+    if (f.fade && f.fade !== 'transparent') { g.fillStyle = f.fade; g.fillRect(0, 0, W, H); }
+    g.globalAlpha = Math.min(1, f.o + f.beat * (s.reduced ? 0 : s.beat));
+    leak(g, W, 0, 0.6 * H, 0.48 * H, f.b && f.b !== 'transparent' ? [[0, f.a], [0.45, f.b]] : [[0, f.a]]);
+    leak(g, 0, H, 0.34 * H, 0.44 * H, [[0, f.c]]);
+    g.globalAlpha = 1;
     for (const m of s.motes) {
       m.x += m.vx + Math.sin(m.tw) * 0.00003; m.y += m.vy; m.tw += 0.012; if (m.y < -0.02) { m.y = 1.02; m.x = Math.random(); }
       const a = 0.1 + 0.32 * (0.5 + 0.5 * Math.sin(m.tw * 1.7));
@@ -224,8 +273,10 @@ window.desk = (() => {
   // One animation of a clip polygon down the rows' right edges: rows already written are open to their end, the row being written up to the pen, the rest shut.
   // The rows are measured on screen, but the polygon is in the line's own pixels: the desk is scaled to fit the window (and may be zoomed), so every
   // measure is divided by that scale, or the pen stops short and the last letter is cut. Handwriting also reaches past its own box: the pen goes on a little.
+  // a line written out by hand: uncovered (a clip path) left to right, a row at a time, over ms. desk.js's loop moves it on, on the frames it draws anyway
+  // (an animation of its own would draw a frame of the notebook sixty times a second)
   function writeIn(l, ms) {
-    if (s.reduced || !l.animate) return;
+    if (s.reduced) return;
     const scr = l.getBoundingClientRect(), r = document.createRange(); r.selectNodeContents(l);
     const k = scr.width > 0 && l.offsetWidth > 0 ? l.offsetWidth / scr.width : 1, over = parseFloat(getComputedStyle(l).fontSize) * 0.6 || 8;
     const box = { left: scr.left, top: scr.top, width: l.offsetWidth + over, height: l.offsetHeight };
@@ -246,9 +297,20 @@ window.desk = (() => {
       return `polygon(${pts.map(([x, y]) => `${x.toFixed(1)}px ${y.toFixed(1)}px`).join(', ')})`;
     };
     const total = rows.reduce((n, row) => n + Math.max(1, row.r), 0);
-    const frames = [{ clipPath: poly(0, 0), offset: 0 }]; let done = 0;
-    rows.forEach((row, j) => { done += Math.max(1, row.r); frames.push({ clipPath: poly(j, row.r + over), offset: Math.min(1, done / total) }); });
-    l.animate(frames, { duration: ms, easing: 'linear' });
+    s.writes = (s.writes || []).filter((w) => w.l !== l);
+    s.writes.push({ l, rows, total, over, poly, born: performance.now(), ms });
+    l.style.clipPath = poly(0, 0);
+  }
+  function writing(now) {
+    if (!s.writes || !s.writes.length) return;
+    s.writes = s.writes.filter((w) => {
+      const p = s.hold != null ? s.hold : (now - w.born) / w.ms;
+      if (p >= 1 || !w.l.isConnected) { w.l.style.clipPath = ''; return false; }
+      let d = p * w.total, j = 0;
+      while (j < w.rows.length - 1 && d > Math.max(1, w.rows[j].r)) { d -= Math.max(1, w.rows[j].r); j++; }
+      w.l.style.clipPath = w.poly(j, Math.min(1, d / Math.max(1, w.rows[j].r)) * (w.rows[j].r + w.over));
+      return true;
+    });
   }
 
   const loadImage = async (url, cors) => { const img = new Image(); if (cors) img.crossOrigin = 'anonymous'; img.src = url; try { await img.decode(); return img; } catch { return null; } };
@@ -264,9 +326,10 @@ window.desk = (() => {
       s = { el, reduced, raf: 0, last: 0, lastDust: 0, avg: 0.2, lastBeat: 0, beat: 0, beats: 0,
         arcs: [...el.querySelectorAll('[data-arc]')], pulses, lengths, buds: [...el.querySelectorAll('[data-bud]')],
         rippleBox: el.querySelector('[data-ripples]'), dust: el.querySelector('canvas[data-dust]'), coffee: el.querySelector('[data-coffee]'), needles: [...el.querySelectorAll('[data-needle]')],
+        viz: el.querySelectorAll('[data-viz]').length ? [...el.querySelectorAll('[data-viz]')] : [el], steam: [...el.querySelectorAll('.desk-steam i')], rings: [],
         motes: Array.from({ length: 60 }, () => ({ x: Math.random(), y: Math.random(), r: 0.6 + Math.random() * 1.6, vx: (Math.random() - 0.5) * 0.0001, vy: -0.00003 - Math.random() * 0.0001, tw: Math.random() * 6.28 })) };
       // reduced motion: one still frame (no analyser, no loop)
-      if (reduced) paint(CALM, performance.now()); else s.raf = requestAnimationFrame(tick);
+      if (reduced) { paint(CALM, performance.now()); dust(); } else s.raf = requestAnimationFrame(tick);
       s.lyrics = setInterval(follow, 100); follow();
       // the scene's shape decides its layout (and the cable's route, drawn on the server): tell it when it turns portrait or landscape
       if (opts && opts.ref) {
@@ -285,6 +348,12 @@ window.desk = (() => {
       if (!keep) { try { window.flacie && window.flacie.vizRelease && window.flacie.vizRelease(); } catch { } }
     },
     loops() { return s && s.raf ? 1 : 0; },
+    /** For tests: holds the line being written at a fraction of its stroke (null: ends it at once, the line whole). */
+    holdWrite(f) {
+      if (!s) return;
+      if (f == null) { for (const w of s.writes || []) w.l.style.clipPath = ''; s.writes = []; s.hold = null; return; }
+      s.hold = f; writing(performance.now());
+    },
     beats() { return s ? s.beats : 0; },
     /** The portrait layout: a scene narrower than this (desk.css's @container desk query says the same). */
     portrait(w, h) { return w / Math.max(1, h) < 1.15; },

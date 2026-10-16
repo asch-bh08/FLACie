@@ -20,7 +20,7 @@
             <div class="hf-deck" data-testid="retro-unit">
                 <div class="hf-plinth">
                     <div class="hf-platter">
-                        <div class="hf-record @(Playing ? "" : "paused")" data-testid="hifi-record" style="@RecordStyle"><i class="hf-label"></i><i class="hf-spindle"></i></div>
+                        <div class="hf-record @(Playing ? "" : "paused")" data-testid="hifi-record" data-spin="@Inv(200 * Math.Max(0.5, Player.Speed))" style="@RecordStyle"><i class="hf-label"></i><i class="hf-spindle"></i></div>
                         <button type="button" class="hf-groove" data-testid="hifi-groove" aria-label="Drop the needle: nearer the middle goes further into the song" @onclick="SeekAt"></button>
                     </div>
                     <i class="hf-arm-base"></i>
@@ -56,7 +56,7 @@
             </div>
         </div>
         <div class="hf-front">
-            <div class="hf-speaker l" aria-hidden="true"><i></i></div>
+            <div class="hf-speaker l" data-viz aria-hidden="true"><i></i></div>
             <div class="hf-receiver">
                 <div class="hf-meters">
                     <div class="hf-meter"><i class="needle" data-needle data-band="low"></i><span>SIGNAL</span></div>
@@ -75,7 +75,7 @@
                 </div>
                 <span class="hf-brand">FLACIE&nbsp;&nbsp;SR-70&nbsp;&nbsp;STEREO RECEIVER</span>
             </div>
-            <div class="hf-speaker r" aria-hidden="true"><i></i></div>
+            <div class="hf-speaker r" data-viz aria-hidden="true"><i></i></div>
         </div>
     </div>
 </div>

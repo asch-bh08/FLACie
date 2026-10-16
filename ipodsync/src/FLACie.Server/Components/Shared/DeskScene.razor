@@ -13,8 +13,8 @@
     @Cds
     @if (Options.Vu) { <DeskPreamp Readout="@MeterReadout" Rate="@MeterRate" /> }
     @Props
-    <div class="desk-coffee lift" data-testid="desk-coffee" aria-hidden="true"><div class="saucer"></div><div class="cup"><div class="handle"></div><div class="liquid" data-coffee></div></div></div>
-    <svg class="desk-steam" viewBox="0 0 200 340" aria-hidden="true"><path d="M 100 330 C 80 280, 130 250, 105 200 S 80 120, 110 70"/><path d="M 120 330 C 140 280, 95 240, 125 190 S 145 110, 120 60"/><path d="M 80 330 C 60 270, 105 230, 85 180 S 60 110, 90 50"/></svg>
+    <div class="desk-coffee lift" data-testid="desk-coffee" aria-hidden="true"><div class="saucer"></div><div class="cup"><div class="handle"></div><div class="liquid" data-coffee data-viz></div></div></div>
+    <div class="desk-steam" aria-hidden="true"><i></i><i></i><i></i></div>
 
     <div class="desk-ipod" style="@SlotStyle">
       <svg class="desk-earbuds @(Studio ? "studio" : "")" data-testid="desk-earbuds" viewBox="0 0 @F(Wd) 400" aria-hidden="true">
@@ -27,7 +27,6 @@
           <radialGradient id="desk-grille-shade" cx=".5" cy=".5" r=".5"><stop offset=".7" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></radialGradient>
           <pattern id="desk-mesh" width="2.6" height="2.6" patternUnits="userSpaceOnUse"><rect width="2.6" height="2.6" fill="#a6a8ac"/><circle cx="1.3" cy="1.3" r=".75" fill="#55585c"/></pattern>
           <linearGradient id="desk-gold" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#7a5a14"/><stop offset=".35" stop-color="#f6dc86"/><stop offset=".6" stop-color="#c99a2e"/><stop offset="1" stop-color="#7d5a12"/></linearGradient>
-          <filter id="desk-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
           <g id="desk-bud">
             <path d="M -9 10 C -9 22, -6.5 40, -6 50 L 6 50 C 6.5 40, 9 22, 9 10 Z" fill="url(#desk-stem)"/>
             <path d="M -9 10 C -9 22, -6.5 40, -6 50 L 6 50 C 6.5 40, 9 22, 9 10" fill="none" stroke="rgba(0,0,0,.12)" stroke-width=".7"/>
@@ -56,8 +55,36 @@
           <use href="#desk-lead-l" stroke="#d6d3cc" stroke-width="4"/><use href="#desk-lead-l" stroke="#f6f4ee" stroke-width="2.8" transform="translate(-.4 -.4)"/>
           <use href="#desk-lead-r" stroke="#d6d3cc" stroke-width="4"/><use href="#desk-lead-r" stroke="#f6f4ee" stroke-width="2.8" transform="translate(-.4 -.4)"/>
           }
-          <g filter="url(#desk-glow)"><use data-pulse="a" href="#desk-cable" stroke="#ffd29a" stroke-width="3.8"/><use data-pulse="b" href="#desk-cable" stroke="#fff1d8" stroke-width="2.2"/></g>
         </g>
+        @* the buds with their shadows, still: the buds drawn over them (on the layer above the moving parts) twitch on the beat without their shadows being
+           worked out again *@
+        @if (!Studio)
+        {
+          foreach (var (x, y, r) in Buds)
+          {
+            <g class="desk-bud-shadow"><g transform="translate(@F(x) @F(y)) rotate(@F(r))"><use href="#desk-bud"/></g></g>
+          }
+        }
+      </svg>
+      @* what moves with the music (the current down the cable, the rings, the arcs from the buds) on a layer of its own over the cable and under the buds: the
+         blurred shadows and the buds' drop shadows are not drawn again every frame. Its glow is wider, fainter strokes (a blur filter would be worked out
+         again on every frame) *@
+      <svg class="desk-earbuds desk-earbuds-live" viewBox="0 0 @F(Wd) 400" aria-hidden="true">
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <use data-pulse="a" href="#desk-cable" stroke="#ffb870" stroke-width="11" stroke-opacity=".14"/><use data-pulse="a" href="#desk-cable" stroke="#ffc68a" stroke-width="7" stroke-opacity=".3"/>
+          <use data-pulse="b" href="#desk-cable" stroke="#fff1d8" stroke-width="6" stroke-opacity=".3"/>
+          <use data-pulse="a" href="#desk-cable" stroke="#ffd29a" stroke-width="3.8"/><use data-pulse="b" href="#desk-cable" stroke="#fff1d8" stroke-width="2.2"/>
+        </g>
+        @if (!Studio)
+        {
+        <g data-ripples fill="none"></g>
+        @foreach (var (x, y, r) in Buds)
+        {
+          <g transform="translate(@F(x) @F(y)) rotate(@F(r))" fill="none" stroke="#fff4e2" stroke-linecap="round"><path data-arc="0" stroke-width="2.6"/><path data-arc="1" stroke-width="2.1"/><path data-arc="2" stroke-width="1.6"/></g>
+        }
+        }
+      </svg>
+      <svg class="desk-earbuds desk-earbuds-top" viewBox="0 0 @F(Wd) 400" aria-hidden="true">
         @if (Studio)
         {
           var (ex, ey, ea) = StudioEnd;
@@ -66,15 +93,18 @@
         }
         else
         {
-        <g data-ripples fill="none"></g>
         <g data-splitter transform="translate(@F(X(6.1)) @F(Sy + 5.1)) rotate(@F(Flip ? 50.2 : -50.2))"><rect x="-4" y="-9" width="8" height="18" rx="3.8" fill="url(#desk-stem)" stroke="rgba(0,0,0,.14)" stroke-width=".7"/><rect x="-2.2" y="-6.5" width="1.9" height="12" rx=".95" fill="#fff" opacity=".9"/></g>
-        @foreach (var (x, y, r) in Buds)
-        {
-          <g class="desk-bud-shadow"><g data-bud data-cx="@F(x)" data-cy="@F(y)" transform="translate(@F(x) @F(y)) rotate(@F(r))"><g><use href="#desk-bud"/></g><g fill="none" stroke="#fff4e2" stroke-linecap="round"><path data-arc="0" stroke-width="2.6"/><path data-arc="1" stroke-width="2.1"/><path data-arc="2" stroke-width="1.6"/></g></g></g>
-        }
         }
         <g transform="@($"translate({F(Jx)} {F(Jack.Edge == JackEdge.Top ? 0 : H)}) rotate({(Jack.Edge == JackEdge.Top ? 0 : 180)})")"><rect x="-6.5" y="-18" width="13" height="20" rx="3" fill="url(#desk-stem)" stroke="rgba(0,0,0,.14)" stroke-width=".8"/><rect x="-4" y="-16" width="3" height="15" rx="1.5" fill="#fff" opacity=".9"/></g>
       </svg>
+      @* the buds, each a small drawing of its own the GPU moves when it twitches on the beat (nothing is drawn again) *@
+      @if (!Studio)
+      {
+        foreach (var (x, y, r) in Buds)
+        {
+          <svg class="desk-bud" data-bud data-cx="@F(x)" data-cy="@F(y)" viewBox="-26 -24 52 84" aria-hidden="true" style="@BudStyle(x, y, r)"><g><use href="#desk-bud"/></g></svg>
+        }
+      }
       <div class="desk-ipod-edge" style="@EdgeStyle"></div>
       @ChildContent
     </div>
@@ -216,6 +246,11 @@
     }
 
     string SlotStyle => $"--aspect:{F(Aspect * 1000)}/1000";
+    // a bud's own drawing over the earbuds' (which fill the slot inside its 12px margin, Wd by 400): its box round the bud, turned about the bud's centre
+    string BudStyle(double x, double y, double r) =>
+        $"left:calc(12px + (100% - 24px) * {P((x - 26) / Wd)});top:calc(12px + (100% - 24px) * {P((y - 24) / H)});width:calc((100% - 24px) * {P(52 / Wd)});" +
+        $"height:calc((100% - 24px) * {P(84 / H)});rotate:{F(r)}deg";
+    static string P(double v) => v.ToString("0.#####", System.Globalization.CultureInfo.InvariantCulture);
     string EdgeStyle => $"border-radius:{F(Radius * 100)}% / {F(Radius * Aspect * 100)}%";
 
 

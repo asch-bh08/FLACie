@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page, Locator } from '@playwright/test';
 
 // The listening scenes beside the iPod (/ipod, panel › Scene): a car stereo, a hi-fi with a turntable, a boombox, a MiniDisc system. Every scene shows the
 // song playing and drives the real player (play/pause, next, previous, media that play an album or a playlist), fits a desktop and a phone, and holds still
@@ -28,6 +28,8 @@ const title = (page: Page) => page.getByTestId('retro-title');
 /** Waits for a song to start from its beginning: the mock's songs last 3 s, so what a test does next has a whole song's time, not the end of one. */
 const freshSong = (page: Page) => expect.poll(async () => (await page.locator('.dock-times span').first().textContent())?.trim(), { timeout: 10_000, intervals: [50] }).toBe('0:00');
 const playing = (page: Page) => page.getByTestId('retro').getAttribute('data-playing');
+/** Whether a record, reel or disc is turning (desk.js turns them on its own frames): its angle a quarter second apart. */
+const turns = (l: Locator) => l.evaluate(async (d: HTMLElement) => { const a = d.style.rotate; await new Promise((r) => setTimeout(r, 250)); return d.style.rotate !== a; });
 type Box = { x: number; y: number; width: number; height: number };
 const inside = (a: Box, b: Box, slack = 2) => a.x >= b.x - slack && a.y >= b.y - slack && a.x + a.width <= b.x + b.width + slack && a.y + a.height <= b.y + b.height + slack;
 
@@ -173,7 +175,7 @@ test.describe.serial('listening scenes', () => {
     await expect(page.getByTestId('dm-lid')).not.toHaveClass(/open/);
     await page.locator('[data-testid=retro] [data-ctl=open]').click();
     await expect(page.getByTestId('dm-lid')).toHaveClass(/open/);
-    await expect.poll(() => page.getByTestId('dm-disc').evaluate((d) => d.getAnimations().some((a) => a.playState === 'running'))).toBe(true);
+    await expect.poll(() => turns(page.getByTestId('dm-disc'))).toBe(true);
     await page.locator('[data-testid=retro] [data-ctl=open]').click();
     await expect(page.getByTestId('dm-lid')).not.toHaveClass(/open/);
     // stop: paused, back to the song's start; play goes on
@@ -215,13 +217,13 @@ test.describe.serial('listening scenes', () => {
     await playInScene(page, 'hifi');
     const rec = page.getByTestId('hifi-record');
     await freshSong(page);
-    await expect.poll(() => rec.evaluate((r) => r.getAnimations().some((a) => a.playState === 'running'))).toBe(true);
+    await expect.poll(() => turns(rec)).toBe(true);
     // the tonearm is on the record while it plays
     const arm = () => page.getByTestId('hifi-arm').evaluate((a) => parseFloat(getComputedStyle(a).getPropertyValue('--arm')) || 0);
     await expect.poll(arm).toBeGreaterThan(10);   // (on the record, past the lead-in; the mock's songs last 3 s, so how far in changes fast)
     // paused: the record stops, the arm lifts back to its rest
     await page.locator('[data-testid=retro] [data-ctl=play]').first().click();
-    await expect.poll(() => rec.evaluate((r) => r.getAnimations().some((a) => a.playState === 'running'))).toBe(false);
+    await expect.poll(() => turns(rec)).toBe(false);
     await expect.poll(arm).toBe(0);
     await page.locator('[data-testid=retro] [data-ctl=play]').first().click();
     // a click near the record's centre seeks far into the song (the mock's songs last 3 s: from a fresh start, 2 s in within a second is the seek)
@@ -251,7 +253,7 @@ test.describe.serial('listening scenes', () => {
     await playInScene(page, 'boombox');
     await freshSong(page);
     const reels = page.locator('[data-testid=boombox-deck-a] .reel');
-    const turning = () => reels.first().evaluate((r) => r.getAnimations().some((a) => a.playState === 'running'));
+    const turning = () => turns(reels.first());
     await expect.poll(turning).toBe(true);
     await expect(page.getByTestId('boombox-counter')).toHaveText(/^\d{3}$/);
     await expect(page.locator('[data-testid=retro] .bb-eq [data-band]')).toHaveCount(5);

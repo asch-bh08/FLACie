@@ -206,7 +206,7 @@ test.describe('desk engine on its own (desk.js harness)', () => {
       return [...byTop.values()].sort((a, b) => a.top - b.top).map((q) => ({ x: q.left, y: q.top, width: q.width, height: q.height }));
     });
     expect(rows.length).toBeGreaterThanOrEqual(2);
-    const hold = (f: number) => page.evaluate((frac) => { const l = document.querySelector('[data-testid=desk-lyric].writing')!; for (const a of l.getAnimations()) { a.pause(); a.currentTime = Number(a.effect!.getComputedTiming().endTime) * frac; } }, f);
+    const hold = (f: number) => page.evaluate((frac) => (window as any).desk.holdWrite(frac), f);
     const ink = async (clip: { x: number; y: number; width: number; height: number }) => {
       const png = await page.screenshot({ clip });
       return page.evaluate(async (b64) => {
@@ -243,9 +243,9 @@ test.describe('desk engine on its own (desk.js harness)', () => {
       }, png.toString('base64'));
     };
     // the animation's last moment, against the line with no clip at all
-    await l.evaluate((e) => { for (const a of e.getAnimations()) { a.pause(); a.currentTime = Number(a.effect!.getComputedTiming().endTime) - 1; } });
+    await page.evaluate(() => (window as any).desk.holdWrite(0.999));
     const end = await ink();
-    await l.evaluate((e) => { for (const a of e.getAnimations()) a.cancel(); });
+    await page.evaluate(() => (window as any).desk.holdWrite(null));
     const whole = await ink();
     expect(whole).toBeGreaterThan(20);
     expect(end, 'ink at the end of the pen stroke vs the whole line').toBeGreaterThanOrEqual(whole * 0.98);

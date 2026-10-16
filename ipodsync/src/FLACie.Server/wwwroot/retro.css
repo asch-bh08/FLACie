@@ -16,36 +16,38 @@
 .retro-hifi .desk-leak { background: radial-gradient(70cqh 60cqh at 8% 18%, rgba(255,170,80,.6), rgba(255,130,50,.2) 45%, transparent 70%); }
 .retro-hifi .desk-wash { background: linear-gradient(160deg, #f0c890, #e2b07a); opacity: .22; } .retro-hifi .desk-dust { opacity: .5; }
 /* the boombox: a low golden sun in a workshop */
-.retro-boombox .desk-leak { background: radial-gradient(60cqh 48cqh at 100% 0%, rgba(255,150,60,.7), rgba(255,110,40,.2) 45%, transparent 70%); }
+.retro-boombox .desk-dust { --leak-a: rgba(255,150,60,.7); --leak-b: rgba(255,110,40,.2); --leak-c: transparent; }
 /* the MiniDisc: a hazy, slightly cool afternoon in a dorm room */
-.retro-minidisc .desk-wash { background: linear-gradient(160deg, #eef0f2, #e6e2dc); opacity: .2; } .retro-minidisc .desk-cool { opacity: .22; }
-.retro-minidisc .desk-leak { opacity: calc(.14 + var(--beat, 0) * .25); background: radial-gradient(60cqh 48cqh at 100% 0%, rgba(255,210,170,.6), transparent 70%); }
+.retro-minidisc .desk-wash { background: linear-gradient(160deg, #d9e2e6, #cfd6d8); opacity: .28; }
+.retro-minidisc .desk-dust { --leak-o: .14; --leak-beat: .25; --leak-a: rgba(255,210,170,.6); --leak-b: rgba(255,210,170,.21); --leak-c: transparent; }
 /* the Discman: a bright, soft morning on the linen */
-.retro-discman .desk-fade { background: rgba(255,250,240,.1); } .retro-discman .desk-leak { opacity: calc(.16 + var(--beat, 0) * .25); }
+.retro-discman .desk-dust { --film-fade: rgba(255,250,240,.1); --leak-o: .16; --leak-beat: .25; }
 .retro :focus-visible { outline: 2px solid #4a9bff; outline-offset: 2px; }
 
 /* ================================================================ the car stereo: night, rain, a single-DIN head unit */
 .car { position: absolute; inset: 0; background: #07080c; }
 /* the city beyond the windshield, out of focus: lights drifting slowly as if the car rolls on */
-.car-city { position: absolute; left: -10%; right: -10%; top: 0; height: 56%; filter: blur(1.1cqh) saturate(1.35) brightness(1.25);
+.car-city { position: absolute; left: -10%; right: -10%; top: 0; height: 56%; filter: saturate(1.35) brightness(1.25);
   background: linear-gradient(#0b0f1d 0%, #151a33 55%, #2a1d2e 85%, #3a2430); }
-.car-city i { position: absolute; inset: 0; animation: car-drift 40s linear infinite;
+.car-city i { position: absolute; inset: 0; will-change: translate; animation: car-drift 40s linear infinite;
   background: radial-gradient(3.4cqh 3.4cqh at 8% 64%, rgba(255,190,90,.95), transparent 70%), radial-gradient(4.6cqh 4.6cqh at 17% 74%, rgba(255,90,70,.85), transparent 70%),
     radial-gradient(3.6cqh 3.6cqh at 29% 58%, rgba(120,190,255,.85), transparent 70%), radial-gradient(5.4cqh 5.4cqh at 41% 78%, rgba(255,210,140,.9), transparent 70%),
     radial-gradient(3cqh 3cqh at 53% 61%, rgba(255,120,200,.8), transparent 70%), radial-gradient(5cqh 5cqh at 66% 75%, rgba(255,170,80,.9), transparent 70%),
     radial-gradient(3.6cqh 3.6cqh at 78% 60%, rgba(140,255,200,.7), transparent 70%), radial-gradient(6cqh 6cqh at 90% 80%, rgba(255,80,60,.85), transparent 70%),
     radial-gradient(2.4cqh 2.4cqh at 35% 45%, rgba(255,240,200,.6), transparent 70%), radial-gradient(2.2cqh 2.2cqh at 72% 42%, rgba(200,220,255,.55), transparent 70%); }
 .car-city i:nth-child(2) { animation-duration: 26s; opacity: .7; transform: scale(1.3); background-position: 30% 10%; }
-.car-city i:nth-child(3) { animation-duration: 60s; opacity: .45; filter: blur(.8cqh);
+.car-city i:nth-child(3) { animation-duration: 60s; opacity: .45;
   background: radial-gradient(6cqh 4cqh at 20% 85%, rgba(255,140,60,.6), transparent 70%), radial-gradient(8cqh 5cqh at 70% 88%, rgba(255,60,60,.5), transparent 70%); }
 @keyframes car-drift { from { translate: 0 0; } to { translate: -12% 0; } }
 /* rain on the glass: drops, and runs going down */
-.car-rain { position: absolute; left: 0; right: 0; top: 0; height: 52%; pointer-events: none; }
-.car-rain i { position: absolute; inset: 0; background-size: 13cqh 15cqh; animation: car-rain 7s linear infinite; opacity: .8;
+/* (the drops are drawn once, a tile taller than the glass, and the sheet slides down a tile and starts again: moved, not drawn again every frame) */
+.car-rain { position: absolute; left: 0; right: 0; top: 0; height: 52%; pointer-events: none; overflow: hidden; }
+.car-rain i { position: absolute; inset: -15cqh 0 0 0; background-size: 13cqh 15cqh; will-change: translate; animation: car-rain 7s linear infinite; opacity: .8;
   background-image: radial-gradient(.5cqh .62cqh at 20% 30%, rgba(225,232,255,.7) 40%, transparent 72%), radial-gradient(.32cqh .4cqh at 70% 62%, rgba(225,232,255,.55) 40%, transparent 72%),
     radial-gradient(.42cqh .5cqh at 46% 86%, rgba(225,232,255,.6) 40%, transparent 72%), radial-gradient(.26cqh .3cqh at 88% 18%, rgba(225,232,255,.5) 40%, transparent 72%); }
-.car-rain i:nth-child(2) { background-size: 8cqh 9cqh; animation-duration: 4.5s; opacity: .5; background-position: 4cqh 3cqh; }
-@keyframes car-rain { from { background-position-y: 0, 0, 0, 0; } to { background-position-y: 15cqh, 15cqh, 15cqh, 15cqh; } }
+.car-rain i:nth-child(2) { inset: -18cqh 0 0 0; background-size: 8cqh 9cqh; animation-name: car-rain-fine; animation-duration: 4.5s; opacity: .5; background-position: 4cqh 3cqh; }
+@keyframes car-rain { to { translate: 0 15cqh; } }
+@keyframes car-rain-fine { to { translate: 0 18cqh; } }
 /* the wiper: a dark blade sweeping the glass every few seconds */
 .car-wiper { position: absolute; left: 18%; top: 50%; width: 0; height: 0; z-index: 1; }
 .car-wiper i { position: absolute; left: 0; bottom: 0; width: 1cqh; height: 52cqh; margin-left: -.5cqh; border-radius: .5cqh; background: linear-gradient(90deg, #050506, #1d1f24, #050506);
@@ -172,14 +174,14 @@
 .hf-speaker { width: 22cqh; height: 78%; border-radius: .8cqh; background: radial-gradient(circle, rgba(0,0,0,.25) 1px, transparent 1.3px) 0 0 / .5cqh .5cqh, linear-gradient(#3b2a20, #2a1d15);
   box-shadow: inset 0 0 0 .5cqh #6b4524, inset 0 0 2cqh rgba(0,0,0,.6); display: grid; place-items: center; }
 .hf-speaker i { width: 70%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #1a1410 0 18%, #2c221a 19% 52%, #1d1611 53% 70%, #2a2018 71%); opacity: .55;
-  scale: calc(1 + var(--low, .2) * .05); box-shadow: 0 0 0 .3cqh rgba(0,0,0,.25); }
+  scale: calc(1 + var(--low, .2) * .05); box-shadow: 0 0 0 .3cqh rgba(0,0,0,.25); will-change: scale; }
 /* the turntable, lying on the console (drawn flat, then laid back) */
 .hf-deck { position: absolute; left: 50%; top: -34cqh; width: 62cqh; height: 44cqh; translate: -62% 0; perspective: 120cqh; }
 .hf-plinth { position: absolute; inset: 0; border-radius: 1cqh; transform-origin: 50% 100%; transform: rotateX(52deg); transform-style: preserve-3d;
   background: linear-gradient(135deg, rgba(150,95,50,.25), rgba(60,34,14,.45)), url(retro/walnut.jpg) 0 0 / 50cqh auto; box-shadow: 0 2cqh 3cqh rgba(0,0,0,.55), inset 0 0 0 .4cqh rgba(255,220,170,.14), inset 0 0 0 .55cqh rgba(0,0,0,.25); }
 .hf-platter { position: absolute; left: 5%; top: 7%; width: 64%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #9aa0a8, #c9cdd3 60%, #7d828a 72%, #b7bcc3 74%);
   box-shadow: 0 .6cqh 1cqh rgba(0,0,0,.5); }
-.hf-record { position: absolute; inset: 3%; border-radius: 50%; animation: desk-spin calc(1.8s / var(--spd, 1)) linear infinite;
+.hf-record { position: absolute; inset: 3%; border-radius: 50%; will-change: rotate;   /* (turned by desk.js, 33⅓ at the song's speed, data-spin degrees a second) */
   background: radial-gradient(circle, transparent 0 33%, transparent 34%), repeating-radial-gradient(circle, #111 0 .25cqh, #1d1d1f .25cqh .4cqh), #111;
   box-shadow: inset 0 0 0 .3cqh #0a0a0a; }
 .hf-record::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 20deg, transparent, rgba(255,255,255,.14) 6%, transparent 13%, transparent 50%, rgba(255,255,255,.1) 56%, transparent 63%); }
@@ -291,8 +293,8 @@
   background: linear-gradient(#2f3035, #1a1b1f 50%, #121316); box-shadow: inset 0 0 0 .5cqw #50525a, inset 0 .6cqw .4cqw rgba(255,255,255,.12), inset 0 -.8cqw 1cqw rgba(0,0,0,.5); }
 .bb-spk { position: relative; border-radius: 50%; align-self: center; aspect-ratio: 1; background: radial-gradient(circle, rgba(0,0,0,.6) .22cqw, transparent .3cqw) 0 0 / .8cqw .8cqw, radial-gradient(circle, #2a2b30, #15161a);
   box-shadow: 0 0 0 1cqw #c9ccd1, 0 0 0 1.4cqw #8d9096, inset 0 0 2cqw rgba(0,0,0,.8); }
-.bb-spk .woofer { position: absolute; inset: 22%; border-radius: 50%; background: radial-gradient(circle, #3a3b40 0 16%, #1c1d21 17% 46%, #0e0f12 47%); scale: calc(1 + var(--low, .2) * .07 + var(--beat, 0) * .04); opacity: .9; }
-.bb-spk .tweeter { position: absolute; left: 44%; top: 6%; width: 12%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #e6e7ea, #75787e); scale: calc(1 + var(--high, .1) * .12); }
+.bb-spk .woofer { position: absolute; inset: 22%; border-radius: 50%; background: radial-gradient(circle, #3a3b40 0 16%, #1c1d21 17% 46%, #0e0f12 47%); scale: calc(1 + var(--low, .2) * .07 + var(--beat, 0) * .04); opacity: .9; will-change: scale; }
+.bb-spk .tweeter { position: absolute; left: 44%; top: 6%; width: 12%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #e6e7ea, #75787e); scale: calc(1 + var(--high, .1) * .12); will-change: scale; }
 .bb-mid { display: grid; grid-template-rows: 8% 1fr 19% 13%; gap: 3%; min-width: 0; }
 .bb-radio { position: relative; border-radius: .6cqw; background: #0b0c0e; overflow: hidden; display: grid; place-items: center; color: #9fc6ff; font-size: 1.15cqw; letter-spacing: .12em; box-shadow: inset 0 0 0 .2cqw #3a3b40; }
 .bb-radio i { position: absolute; top: 10%; bottom: 10%; left: calc(6% + var(--p, 0) * 88%); width: .25cqw; background: #ff4d3d; box-shadow: 0 0 .6cqw #ff4d3d; transition: left .3s linear; }
@@ -304,7 +306,7 @@
 .bb-cass.empty span { opacity: .5; }
 .bb-win { flex: 1; margin: 5% 12% 9%; border-radius: 1.4cqw; background: rgba(10,10,12,.85); display: flex; align-items: center; justify-content: space-between; padding: 0 5%; position: relative; }
 .bb-win .ribbon { position: absolute; left: 24%; right: 24%; top: 32%; bottom: 32%; background: linear-gradient(#4a2c18, #2b170b); }
-.bb-win .reel { position: relative; z-index: 1; width: 3cqw; aspect-ratio: 1; border-radius: 50%; animation: desk-spin 2.2s linear infinite;
+.bb-win .reel { position: relative; z-index: 1; width: 3cqw; aspect-ratio: 1; border-radius: 50%; will-change: rotate;
   background: radial-gradient(circle, #222 0 22%, transparent 23%), conic-gradient(#f2f2f0 0 10%, #bdbdb8 10% 16%, #f2f2f0 16% 26%, #bdbdb8 26% 33%, #f2f2f0 33% 43%, #bdbdb8 43% 50%, #f2f2f0 50% 60%, #bdbdb8 60% 66%, #f2f2f0 66% 76%, #bdbdb8 76% 83%, #f2f2f0 83% 93%, #bdbdb8 93%); }
 .bb-win .reel.paused { animation-play-state: paused; }
 .bb-door { position: absolute; inset: 0; border-radius: .6cqw; background: linear-gradient(160deg, rgba(255,255,255,.14), rgba(255,255,255,.03) 40%, rgba(255,255,255,.08)); box-shadow: inset 0 0 0 .2cqw rgba(255,255,255,.12);
@@ -316,8 +318,9 @@
   box-shadow: inset 0 0 0 .2cqw #45474e; background-image: linear-gradient(90deg, transparent 32%, rgba(255,255,255,.08) 33% 34%, transparent 35% 65%, rgba(255,255,255,.08) 66% 67%, transparent 68%); }
 .bb-eq { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4%; }
 .bb-eq .eq { position: relative; border-radius: .3cqw; background: linear-gradient(90deg, transparent 46%, #050506 46% 54%, transparent 54%); display: flex; flex-direction: column; justify-content: flex-end; }
-.bb-eq .eq i { position: absolute; left: 8%; right: 8%; height: 26%; border-radius: .2cqw; background: linear-gradient(#e6e7ea, #8d9096); box-shadow: 0 .2cqw .3cqw rgba(0,0,0,.5); transition: bottom .12s linear; bottom: 12%; }
-.bb-eq .eq[data-band=low] i { bottom: calc(10% + var(--low, .2) * 62%); } .bb-eq .eq[data-band=mid] i { bottom: calc(10% + var(--mid, .15) * 62%); } .bb-eq .eq[data-band=high] i { bottom: calc(10% + var(--high, .1) * 62%); }
+.bb-eq .eq i { position: absolute; left: 8%; right: 8%; height: 26%; border-radius: .2cqw; background: linear-gradient(#e6e7ea, #8d9096); box-shadow: 0 .2cqw .3cqw rgba(0,0,0,.5); transition: translate .12s linear; bottom: 10%; translate: 0 -7.7%; will-change: translate; }
+/* (a slider rides up to 62% of its slot (its own height is 26% of it, so 238.5% of itself), moved rather than laid out and drawn again every frame) */
+.bb-eq .eq[data-band=low] i { translate: 0 calc(var(--low, .2) * -238.5%); } .bb-eq .eq[data-band=mid] i { translate: 0 calc(var(--mid, .15) * -238.5%); } .bb-eq .eq[data-band=high] i { translate: 0 calc(var(--high, .1) * -238.5%); }
 .bb-eq .eq small { position: absolute; left: 0; right: 0; bottom: -1.4cqw; text-align: center; font-size: .8cqw; color: #9a9ca4; }
 .bb-keys { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.4%; }
 .bb-keys button { border: 0; border-radius: .5cqw .5cqw .3cqw .3cqw; font-size: 1.15cqw; font-weight: 700; letter-spacing: .06em; color: #1c1d21; background: linear-gradient(#f2f3f5, #b9bcc2); box-shadow: 0 .45cqw 0 #6f737a, 0 .7cqw .6cqw rgba(0,0,0,.5); }
@@ -365,7 +368,7 @@
 .md-system { position: absolute; left: 50%; bottom: 25%; translate: -50% 0; display: flex; align-items: flex-end; gap: 2cqh; }
 .md-spk { width: 22cqh; height: 34cqh; border-radius: .8cqh; background: linear-gradient(90deg, #c9ccd1, #eef0f2 40%, #b5b9bf); box-shadow: 0 1.6cqh 2cqh rgba(0,0,0,.25), inset 0 0 0 .3cqh rgba(255,255,255,.5);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.6cqh; }
-.md-spk i { width: 70%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #5a5d63 0 14%, #2a2c30 15% 50%, #3c3f45 51% 60%, #1c1d21 61%); scale: calc(1 + var(--low, .2) * .05); box-shadow: 0 0 0 .5cqh #9da1a8; }
+.md-spk i { width: 70%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #5a5d63 0 14%, #2a2c30 15% 50%, #3c3f45 51% 60%, #1c1d21 61%); scale: calc(1 + var(--low, .2) * .05); box-shadow: 0 0 0 .5cqh #9da1a8; will-change: scale; }
 .md-spk i.tw { width: 26%; scale: calc(1 + var(--high, .1) * .1); }
 .md-main { position: relative; width: min(54cqw, 82cqh); container: mdu / inline-size; }
 .md-top { position: relative; height: 6cqh; border-radius: .6cqh .6cqh 0 0; background: linear-gradient(#f2f3f5, #c4c8ce); box-shadow: inset 0 .2cqh 0 #fff; }
@@ -440,13 +443,12 @@
   box-shadow: 0 2.4cqh 3.4cqh rgba(40,32,24,.35), 0 .6cqh 1cqh rgba(40,32,24,.25), inset 0 .3cqh .4cqh rgba(255,255,255,.8), inset 0 -.6cqh 1cqh rgba(0,0,0,.18); }
 /* under the lid: the dark well and the disc in it */
 .dm-well { position: absolute; left: 7%; right: 7%; top: 5%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #2a2b30, #111215 70%); box-shadow: inset 0 .6cqh 1.4cqh rgba(0,0,0,.8); }
-.dm-disc { position: absolute; inset: 4%; border-radius: 50%; animation: dm-spin 1.1s linear infinite;
+.dm-disc { position: absolute; inset: 4%; border-radius: 50%; will-change: rotate;
   background: var(--art, conic-gradient(from 30deg, #d9dce2, #f1e4f0, #d4e8f3, #f2eed6, #dcefd8, #d9dce2)) center / cover;
   box-shadow: inset 0 0 0 .2cqh rgba(255,255,255,.6), 0 .2cqh .5cqh rgba(0,0,0,.5); }
 .dm-disc::after { content: ""; position: absolute; inset: 0; border-radius: 50%; mix-blend-mode: soft-light; background: conic-gradient(from 200deg, transparent, rgba(255,255,255,.75) 7%, transparent 15%, transparent 50%, rgba(255,255,255,.5) 57%, transparent 65%); }
 .dm-disc .hole { position: absolute; left: 50%; top: 50%; width: 15%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; background: radial-gradient(circle, #111 0 40%, rgba(230,232,236,.9) 42% 100%); }
 .dm-disc.paused { animation-play-state: paused; }
-@keyframes dm-spin { to { rotate: 360deg; } }
 .dm-spindle { position: absolute; left: 50%; top: 50%; width: 6%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #f2f3f5, #8d929a); box-shadow: 0 .2cqh .3cqh rgba(0,0,0,.6); }
 /* the lid: hinged at the back; OPEN swings it up (seen from above it folds back over the hinge, its underside showing) */
 .dm-lid { position: absolute; left: 7%; right: 7%; top: 5%; aspect-ratio: 1; border-radius: 50%; transform-origin: 50% 0; transform: perspective(110cqh) rotateX(0deg); transition: transform .55s cubic-bezier(.3,.1,.25,1);
@@ -500,7 +502,10 @@
 
 /* ================================================================ the photographic pass: real surfaces under the desk's light and film (CC0 textures from
    Poly Haven, re-toned: wwwroot/retro/*.jpg) in place of flat fills; one soft shadow for the props, as on the desk */
-.retro { --prop-shadow: drop-shadow(.15cqh .3cqh .25cqh rgba(40,24,10,.35)) drop-shadow(.8cqh 1.6cqh 1.6cqh rgba(40,24,10,.22)); }
+.retro { --prop-shadow: drop-shadow(.15cqh .3cqh .25cqh rgba(40,24,10,.35)) drop-shadow(.8cqh 1.6cqh 1.6cqh rgba(40,24,10,.22));
+  --prop-box: .15cqh .3cqh .25cqh rgba(40,24,10,.35), .8cqh 1.6cqh 1.6cqh rgba(40,24,10,.22); }
+/* (a unit whose speakers move with the music has the shadow as a box shadow, drawn once: a drop shadow is worked out again over the whole unit every frame
+   anything in it moves) */
 /* the Discman lies on oatmeal linen, softly creased */
 .dm-surface { background: radial-gradient(70% 55% at 30% 40%, rgba(255,250,240,.18), transparent 60%), radial-gradient(60% 60% at 80% 85%, rgba(60,45,30,.16), transparent 70%), url(retro/linen.jpg) center / 46cqh auto; }
 .dm-surface::after { opacity: 0; }
@@ -509,7 +514,8 @@
 .bb-wall { background: radial-gradient(circle, rgba(25,15,6,.85) .3cqh, rgba(25,15,6,.35) .45cqh, transparent .55cqh) 0 0 / 3cqh 3cqh, linear-gradient(rgba(255,235,205,.12), rgba(60,38,18,.18)), url(retro/plywood.jpg) center / 60cqh auto; }
 .bb-wall .tool { display: none; }
 .bb-bench { background: linear-gradient(rgba(255,230,190,.14), rgba(40,22,8,.35)), url(desk/oak.jpg) center / 70cqh auto; box-shadow: inset 0 .6cqh .6cqh rgba(255,235,200,.25), inset 0 1.6cqh 2.4cqh rgba(0,0,0,.18); }
-.bb-unit { filter: var(--prop-shadow); }
+.bb-unit { filter: none; }
+.bb-body { box-shadow: inset 0 0 0 .5cqw #50525a, inset 0 .6cqw .4cqw rgba(255,255,255,.12), inset 0 -.8cqw 1cqw rgba(0,0,0,.5), var(--prop-box); }
 .bb-bench .battery { filter: var(--prop-shadow); box-shadow: none; }
 /* the MiniDisc room: a plaster wall with a print of the album playing taped to it, a light oak desk */
 .md-wall { background: linear-gradient(rgba(255,252,246,.25), rgba(70,55,40,.12)), url(retro/plaster.jpg) center / 50cqh auto; }
@@ -520,7 +526,8 @@
 .md-wall .poster .tape { position: absolute; top: -1.6cqh; width: 7cqh; height: 2.6cqh; background: rgba(240,230,200,.72); box-shadow: 0 .1cqh .3cqh rgba(0,0,0,.12); }
 .md-wall .poster .tape.l { left: -1.8cqh; rotate: -32deg; } .md-wall .poster .tape.r { right: -1.8cqh; rotate: 28deg; }
 .md-desk { background: linear-gradient(rgba(255,245,230,.18), rgba(60,40,20,.22)), url(retro/oak-light.jpg) center / 60cqh auto; box-shadow: inset 0 .4cqh 0 rgba(255,255,255,.35), 0 -.2cqh 0 rgba(0,0,0,.08); }
-.md-system, .md-stack, .md-desk .mug { filter: var(--prop-shadow); }
+.md-stack, .md-desk .mug { filter: var(--prop-shadow); }
+.md-main { border-radius: .6cqh .6cqh .8cqh .8cqh; box-shadow: var(--prop-box); }
 /* the car: a soft-touch dashboard */
 .car-dash { background: radial-gradient(120% 80% at 50% 0%, rgba(30,31,36,.55), rgba(10,11,14,.8) 60%, rgba(6,6,8,.9)), url(retro/dash.jpg) center / 26cqh auto, #121317; }
 .car-dash::before { opacity: 0; }

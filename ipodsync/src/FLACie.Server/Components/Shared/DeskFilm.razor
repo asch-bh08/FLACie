@@ -1,5 +1,6 @@
 @* The iPod desk's light and film, shared by the desk and the listening scenes: sun through blinds (light and shade, drifting slowly), dust in the sun (drawn by
-   desk.js into canvas[data-dust]), and a film finish (a lifted fade, a warm wash, a cool tint, a light leak that breathes with the beat, grain). Styles: desk.css. *@
+   desk.js into canvas[data-dust]), and a film finish (a lifted fade and a light leak that breathes with the beat, drawn by desk.js with the dust; a warm wash; grain: each a layer the whole screen is
+   blended through on every frame, and held in the GPU's memory at the screen's size, so as few as give the look). Styles: desk.css. *@
 <svg class="desk-light @Class" viewBox="0 0 1600 900" preserveAspectRatio="none" aria-hidden="true">
   <defs>
     <filter id="@(Id)-soft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="@F(Blur)"/></filter>
@@ -11,8 +12,8 @@
   <rect width="1600" height="900" fill="#ffc48a" opacity="@F(Sun)" mask="url(#@(Id)-sun)" style="mix-blend-mode: soft-light"/>
   <rect width="1600" height="900" fill="url(#@(Id)-vig)"/>
 </svg>
-<canvas class="desk-dust" data-dust aria-hidden="true"></canvas>
-<div class="desk-film desk-fade"></div><div class="desk-film desk-wash"></div><div class="desk-film desk-cool"></div><div class="desk-film desk-leak"></div><div class="desk-film desk-grain"></div>
+<canvas class="desk-dust" data-dust data-viz aria-hidden="true"></canvas>
+<div class="desk-film desk-wash"></div><div class="desk-film desk-grain"></div>
 
 @code {
     /// <summary>A prefix for the light's ids (one desk or scene on a page at a time; distinct all the same).</summary>

@@ -9,7 +9,7 @@
 {
 <div class="desk-open lift" data-testid="desk-open-cd" role="button" tabindex="0" aria-label="@($"Now playing: {now.Album} by {now.Artist}")" title="@(Playing ? "Pause" : "Play")" @onclick="Toggle" @onkeydown="ToggleKey">
     <div class="lid"><Cover ArtKey="@now.ArtKey" Class="desk-art" /></div>
-    <div class="tray"><div class="disc @(Playing ? "" : "paused")" data-testid="desk-disc" @ref="disc"></div></div>
+    <div class="tray"><div class="disc @(Playing ? "" : "paused")" data-testid="desk-disc" data-spin @ref="disc"></div></div>
     <div class="hinge"></div>
 </div>
 }

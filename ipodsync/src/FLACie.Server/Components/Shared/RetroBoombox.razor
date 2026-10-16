@@ -10,7 +10,7 @@
         <div class="bb-handle" aria-hidden="true"></div>
         <div class="bb-tape" data-testid="retro-title"><span class="hand">@(Now is { } n ? $"{n.Title} — {n.Artist}" : "nothing in the deck")</span></div>
         <div class="bb-body">
-            <div class="bb-spk l" aria-hidden="true"><i class="woofer"></i><i class="tweeter"></i></div>
+            <div class="bb-spk l" data-viz aria-hidden="true"><i class="woofer"></i><i class="tweeter"></i></div>
             <div class="bb-mid">
                 <div class="bb-radio" aria-hidden="true"><span>FM 88 · 92 · 96 · 100 · 104 · 108</span><i style="--p:@Inv(Progress)"></i></div>
                 <div class="bb-decks">
@@ -18,7 +18,7 @@
                         <small>DECK A · PLAY</small>
                         <div class="bb-cass">
                             <span class="hand">@(NowAlbum?.Album ?? "—")</span>
-                            <div class="bb-win"><i class="reel @(Playing && !open ? "" : "paused")"></i><i class="ribbon"></i><i class="reel @(Playing && !open ? "" : "paused")"></i></div>
+                            <div class="bb-win"><i class="reel @(Playing && !open ? "" : "paused")" data-spin="164"></i><i class="ribbon"></i><i class="reel @(Playing && !open ? "" : "paused")" data-spin="164"></i></div>
                         </div>
                         <i class="bb-door" aria-hidden="true"></i>
                     </div>
@@ -36,7 +36,7 @@
                 </div>
                 <div class="bb-row">
                     <div class="bb-counter" data-testid="boombox-counter" aria-label="Tape counter">@Counter</div>
-                    <div class="bb-eq" aria-label="Equaliser">
+                    <div class="bb-eq" data-viz aria-label="Equaliser">
                         @foreach (var (band, label) in Eq) { <div class="eq" data-band="@band"><i></i><small>@label</small></div> }
                     </div>
                 </div>
@@ -48,7 +48,7 @@
                     <button type="button" data-ctl="eject" aria-label="Stop and eject" @onclick="Eject">■ ⏏</button>
                 </div>
             </div>
-            <div class="bb-spk r" aria-hidden="true"><i class="woofer"></i><i class="tweeter"></i></div>
+            <div class="bb-spk r" data-viz aria-hidden="true"><i class="woofer"></i><i class="tweeter"></i></div>
         </div>
         <i class="bb-sticker s1" aria-hidden="true">MIXTAPE</i><i class="bb-sticker s2" aria-hidden="true">★</i><i class="bb-sticker s3" aria-hidden="true">LOUD!</i>
     </div>

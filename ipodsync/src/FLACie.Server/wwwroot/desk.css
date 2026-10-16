@@ -31,9 +31,20 @@
 /* ---------------- the iPod's place: rotated a little; the page's .ipod-area fills it and its fit sizes the device to the inner box */
 .desk-ipod { left: 46%; top: 47cqh; height: 56cqh; aspect-ratio: var(--aspect, .6); box-sizing: content-box; padding: 12px; translate: -50% -50%; rotate: -4deg; }
 .desk-ipod > .ipod-area { position: absolute; inset: 0; z-index: 2; }
+/* the iPod's side, showing past its face on the right and along the bottom: its real back (DeskScene sets data-back and the tones from the model and its
+   colour). A conic gradient from the middle, so each stretch of the side has its own light: the right side runs from about 30deg to 150deg, the bottom from
+   150deg to 210deg. Polished steel (the early iPods, the classics, the 1st and 3rd nanos, the first touches) mirrors the room: hard bright bands where it
+   catches the window, dark ones where it mirrors the desk, the corner lit. Anodised aluminium (the minis, most nanos, the late touches) is satin in the
+   body's own colour: the same light, softer */
 .desk-ipod-edge { position: absolute; left: 12px; top: 12px; right: 12px; bottom: 12px; z-index: 1; translate: .45cqh .75cqh;
-  background: linear-gradient(135deg, #f3f4f6, #b9bdc3 35%, #eef0f2 52%, #9da2a9 75%, #d9dce0);
+  --back-light: #faf6ef; --back-mid: #998e81; --back-dark: #463c33;
+  background: conic-gradient(var(--back-mid) 0deg, var(--back-light) 37deg, var(--back-mid) 50deg, var(--back-dark) 76deg, var(--back-mid) 104deg, var(--back-dark) 128deg,
+    var(--back-light) 146deg, var(--back-light) 151deg, var(--back-mid) 162deg, var(--back-dark) 178deg, var(--back-mid) 191deg, var(--back-light) 199deg, var(--back-dark) 211deg,
+    var(--back-mid) 240deg, var(--back-light) 300deg, var(--back-mid) 360deg);
   filter: drop-shadow(.3cqh .6cqh .4cqh rgba(50,28,10,.42)) drop-shadow(1.4cqh 3cqh 2.6cqh rgba(50,28,10,.28)); }
+.desk-ipod-edge[data-back="aluminium"] {
+  background: conic-gradient(var(--back-mid) 0deg, var(--back-light) 40deg, var(--back-mid) 76deg, var(--back-mid) 104deg, var(--back-dark) 128deg,
+    var(--back-light) 149deg, var(--back-mid) 166deg, var(--back-dark) 196deg, var(--back-mid) 220deg, var(--back-light) 280deg, var(--back-mid) 360deg); }
 .desk .ipod { box-shadow: inset 0 0 0 1.5px var(--edge, #999), inset 0 2px 2px rgba(255,255,255,.85), inset 0 -2px 4px rgba(0,0,0,.2), 0 1px 2px rgba(50,28,10,.35); }
 .desk .ipod::after { background: linear-gradient(118deg, rgba(255,255,255,0) 18%, rgba(255,255,255,.45) 27%, rgba(255,255,255,0) 40%, rgba(255,255,255,0) 62%, rgba(255,255,255,.18) 68%, rgba(255,255,255,0) 76%); }
 .desk-earbuds { position: absolute; left: 12px; top: 12px; width: calc(100% - 24px); height: calc(100% - 24px); overflow: visible; z-index: 0; pointer-events: none; }

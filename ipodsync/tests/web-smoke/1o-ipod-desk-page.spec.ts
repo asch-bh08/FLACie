@@ -521,6 +521,36 @@ test.describe.serial('desk look on /ipod', () => {
     expect(errors).toEqual([]);
   });
 
+  test('the iPod\'s edge on the desk is its real back: steel behind a classic, the colour picked on an aluminium mini, and it follows the swatches', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+    // the edge's colours, averaged (what it is drawn with), and how far from grey they are
+    const edge = page.locator('.desk-ipod-edge');
+    const tone = () => edge.evaluate((e) => {
+      const cs = getComputedStyle(e), all = [...cs.backgroundImage.matchAll(/rgba?\((\d+),\s*(\d+),\s*(\d+)/g)].map((m) => [+m[1], +m[2], +m[3]]);
+      const avg = [0, 1, 2].map((i) => all.reduce((n, c) => n + c[i], 0) / Math.max(1, all.length));
+      return { r: avg[0], g: avg[1], b: avg[2], chroma: Math.max(...avg) - Math.min(...avg), stops: all.length };
+    });
+    await openDesk(page, { model: 'mini', look: 2, color: 1 });   // a blue mini: anodised aluminium all round
+    await expect(page.getByTestId('ipod')).toHaveAttribute('data-color', 'Blue');
+    await expect(edge).toHaveAttribute('data-back', 'aluminium');
+    let t = await tone();
+    expect(t.stops).toBeGreaterThan(2);
+    expect(t.b, 'a blue mini\'s edge is blue').toBeGreaterThan(t.r + 40);
+    // another colour from the panel: the edge follows at once
+    await page.locator('.ipod-panel .swatch[data-color="Pink"]').click();
+    await expect(page.getByTestId('ipod')).toHaveAttribute('data-color', 'Pink');
+    await expect.poll(async () => { const p = await tone(); return p.r > p.b + 25 && p.r > p.g + 40; }, { message: 'a pink mini\'s edge is pink' }).toBe(true);
+    // a black classic: its front is black aluminium, its back polished steel, mirroring the warm room (not a cold silver)
+    await openDesk(page, { model: 'classic6', look: 2, color: 1 });
+    await expect(page.getByTestId('ipod')).toHaveAttribute('data-color', 'Black');
+    await expect(edge).toHaveAttribute('data-back', 'steel');
+    t = await tone();
+    expect(t.chroma, 'steel is not coloured').toBeLessThan(30);
+    expect(t.r, 'steel mirrors the warm desk').toBeGreaterThanOrEqual(t.b);
+    expect(errors).toEqual([]);
+  });
+
   test('fits at desktop sizes, and a portrait phone keeps the iPod big', async ({ page }) => {
     await signIn(page);
     await page.setViewportSize({ width: 1280, height: 720 });

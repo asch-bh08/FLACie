@@ -60,3 +60,8 @@ One line per decision or result. Honest: skipped or untested things are said so.
 - The iPod desk look from branch ipod/desk (spec, plan, independent review and its findings fixed, phone layout reworked at the owner's request) and the mobile-data saving for the analyser twin. Merged to main as a fast-forward of ipod/desk.
 
 - Beta 68 released and web deployed (rollback tag flacie-web:rollback-2026-10-15-pre68, only the flacie service recreated, /healthz ok). https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta68
+
+## Beta 69 (released by the "New skills" session, at the owner's request)
+- The listening scenes (car, hi-fi, boombox, MiniDisc) and the desk work since beta 68, from branch ipod/desk, with main (2431101, this run's test fix) merged in first. Main fast-forwarded to it.
+
+- Beta 69 released and web deployed (rollback tag flacie-web:rollback-2026-10-16-pre69, only the flacie service recreated, /healthz ok). https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-beta69

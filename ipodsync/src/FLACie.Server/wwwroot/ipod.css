@@ -171,7 +171,7 @@
 
 /* ---------------- the wheel */
 .ipod-wheel { position: absolute; z-index: 3; border-radius: 50%; cursor: grab; touch-action: none;
-  background: radial-gradient(circle at 50% 30%, var(--wr1), var(--wr2) 88%); box-shadow: 0 2px 5px rgba(0,0,0,.3), inset 0 0 0 1.5px var(--wedge), inset 0 1px 2px rgba(255,255,255,.7), inset 0 -3px 8px rgba(0,0,0,.12); }
+  background: radial-gradient(circle at 50% 22%, var(--wr1), var(--wr2) 125%); box-shadow: 0 0 0 1px rgba(0,0,0,.2), 0 1px 0 1px rgba(255,255,255,.4), inset 0 0 0 1px var(--wedge), inset 0 1px 2px rgba(0,0,0,.12); }
 .ipod-wheel.turning { cursor: grabbing; }
 .wl { position: absolute; color: var(--wlabel); font: 700 12px/1 "Lucida Grande", "Segoe UI", sans-serif; letter-spacing: .05em; display: flex; align-items: center; justify-content: center; gap: 1px; padding: 10px; border-radius: 8px; cursor: pointer; }
 .wl .ic { fill: currentColor; }

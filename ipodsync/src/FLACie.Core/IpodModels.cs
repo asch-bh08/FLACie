@@ -85,7 +85,9 @@ public static class IpodModels
     static readonly IpodColor Silver = new("Silver", "#E9EAED", "#BCBEC4", "#8C8F96", WhiteWheel, false, DefaultBezel, DefaultBackdrop);
     static readonly IpodColor White = new("White", "#FFFFFF", "#DBDBDE", "#9C9CA1", ClassicWheel, false, DefaultBezel, DefaultBackdrop);
     static readonly IpodColor Cream = new("White", "#FBFAF5", "#E0DED3", "#A9A79C", WhiteWheel, false, "#3A3B38", DefaultBackdrop);
-    static readonly IpodColor U2 = new("U2 Special", "#3A3B40", "#0E0E10", "#000000", Tinted("#C1272D", "#FFFFFF"), false, "#000000", "#1A1B1E");
+    /// <summary>The U2 edition's wheel and select button: solid red, lettered in near-black.</summary>
+    static readonly IpodWheelStyle U2Wheel = new("#C4252B", "#C1272D", "#8A1A1F", "#C6272D", "#BE252B", "#8A1A1F", "#1A1A1C");
+    static readonly IpodColor U2 = new("U2 Special", "#3A3B40", "#0E0E10", "#000000", U2Wheel, false, "#000000", "#1A1B1E");
     static readonly IpodColor Blue = Metal("Blue", "#5C97D0"), Green = Metal("Green", "#76B048"), Red = Metal("Red", "#C93A40"), Pink = Metal("Pink", "#E27BAA"), Gold = Metal("Gold", "#C4A24E"),
         Purple = Metal("Purple", "#9367B8"), Orange = Metal("Orange", "#D9772C"), Yellow = Metal("Yellow", "#E2BE2E");
     static readonly IpodColor TouchSilver = new("Silver", "#EDEEF0", "#B9BCC2", "#8B8E95", WhiteWheel, false, "#08080A", DefaultBackdrop);
@@ -113,13 +115,13 @@ public static class IpodModels
         Click("ipod4", "iPod (4th gen)", Classic, 4, 2004, IpodFamily.Mono, 0.597, Mono4, 0.70, 0.31, 0.085, 0.028, [White, U2], "The Click Wheel arrives. Mono screen, plus a U2 edition."),
         Click("video5", "iPod video (5th gen)", Classic, 5, 2005, IpodFamily.Video, 0.597, ClassicScreen, 0.703, 0.335, 0.085, 0.028, [White, Black(false)], "Colour 2.5\" screen and video playback."),
         Click("classic6", "iPod classic (6th gen)", Classic, 6, 2007, IpodFamily.Nano, 0.597, ClassicScreen, 0.703, 0.335, 0.085, 0.028, [Silver, Black(true)], "All-metal 160 GB classic with the modern menus and Cover Flow."),
-        Click("classic7", "iPod classic (7th gen)", Classic, 7, 2009, IpodFamily.Nano, 0.59, ClassicScreen, 0.703, 0.335, 0.085, 0.028, [Silver, Black(true)], "The last classic: 160 GB, thinner, same great menus."),
+        Click("classic7", "iPod classic (7th gen)", Classic, 7, 2009, IpodFamily.Nano, 0.597, ClassicScreen, 0.703, 0.335, 0.085, 0.028, [Silver, Black(true)], "The last classic: 160 GB, thinner, same great menus."),
         Click("mini", "iPod mini (1st gen)", Mini, 1, 2004, IpodFamily.Mono, 0.556, MiniScreen, 0.665, 0.35, 0.1, 0.03,
             [Mini1("Silver", "#B4B7BD"), Mini1("Blue", "#8DB5DA"), Mini1("Green", "#A5C98E"), Mini1("Pink", "#E3A5C3"), Mini1("Gold", "#D2BA7E")], "Small aluminium body in five colours."),
         Click("mini2", "iPod mini (2nd gen)", Mini, 2, 2005, IpodFamily.Mono, 0.556, MiniScreen, 0.665, 0.35, 0.1, 0.03,
             [Mini2("Silver", "#B4B7BD"), Mini2("Blue", "#3F8FD6"), Mini2("Green", "#5DB83C"), Mini2("Pink", "#E7609F")], "Longer battery life, brighter colours and a wheel lettered to match."),
         Click("nano1", "iPod nano (1st gen)", Nano, 1, 2005, IpodFamily.Video, 0.457, SlimScreen, 0.66, 0.32, 0.1, 0.03, [White, Black(false)], "Pencil-thin flash player that replaced the mini."),
-        Click("nano2", "iPod nano (2nd gen)", Nano, 2, 2006, IpodFamily.Video, 0.451, SlimScreen, 0.66, 0.32, 0.09, 0.03, [Silver, Blue, Green, Pink, Red, Gold], "Anodised aluminium in six colours."),
+        Click("nano2", "iPod nano (2nd gen)", Nano, 2, 2006, IpodFamily.Video, 0.451, SlimScreen, 0.66, 0.32, 0.09, 0.03, [Silver, Blue, Green, Pink, Red, Black(false)], "Anodised aluminium in six colours, black among them."),
         Click("nano3", "iPod nano (3rd gen)", Nano, 3, 2007, IpodFamily.Nano, 0.751, NanoScreen, 0.777, 0.245, 0.075, 0.022, [Silver, Black(true), Blue, Green, Red], "The squat \"fatty\" nano with the menus and preview pane."),
         Click("nano4", "iPod nano (4th gen)", Nano, 4, 2008, IpodFamily.Nano, 0.43, NanoTall, 0.745, 0.33, 0.12, 0.03, [Silver, Black(true), Purple, Blue, Green, Yellow, Orange, Red, Pink], "Tall and curved, with a portrait screen.", portrait: true),
         Click("nano5", "iPod nano (5th gen)", Nano, 5, 2009, IpodFamily.Nano, 0.43, new IpodRect(0.105, 0.065, 0.895, 0.515), 0.75, 0.33, 0.12, 0.03, [Silver, Black(true), Purple, Blue, Green, Yellow, Orange, Red, Pink], "Adds a video camera. Nine colours.", portrait: true),

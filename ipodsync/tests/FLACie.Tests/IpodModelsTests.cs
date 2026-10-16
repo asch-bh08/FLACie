@@ -205,4 +205,13 @@ public class IpodMenusTests
         var cols = IpodMenus.Colors(IpodModels.Get("nano4"), 2); Assert.Equal(9, cols.Count); Assert.Equal("Purple", cols.Single(r => r.Checked == true).Label); Assert.Equal("set:color:2", cols[2].Id);
         Assert.Equal(23, IpodMenus.ModelGroups().Sum(g => IpodMenus.Models(g.Id[8..], "").Count));
     }
+
+    [Fact] public void TheAuditedModelsLookLikeTheRealOnes()
+    {
+        Assert.Equal(["Silver", "Blue", "Green", "Pink", "Red", "Black"], IpodModels.Get("nano2").Colors.Select(c => c.Name).ToArray());
+        Assert.Equal(IpodModels.Get("classic6").Aspect, IpodModels.Get("classic7").Aspect, 3);
+        var u2 = IpodModels.Get("ipod4").Colors[1].Wheel;   // solid red, near-black lettering
+        Assert.Equal("#1A1A1C", u2.Label);
+        Assert.Equal("#C4252B", u2.RingLight); Assert.Equal("#C1272D", u2.RingDark);
+    }
 }

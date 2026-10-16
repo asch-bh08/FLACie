@@ -87,14 +87,49 @@ test.describe.serial('the click-wheel iPods have their real controls', () => {
     await expect(page.getByTestId('ipod-np-title')).not.toHaveText(first, { timeout: 10_000 });
     await page.locator('[data-testid=ipod-keyrow] [data-testid=ipod-prev]').click();
     await expect(page.getByTestId('ipod-np-title')).toHaveText(first, { timeout: 10_000 });
-    const before = (await playState(page).textContent())!.trim();
-    await page.locator('[data-testid=ipod-keyrow] [data-testid=ipod-play]').click();
-    await expect(playState(page)).not.toHaveText(before, { timeout: 10_000 });
+    // (the mock's songs are only a few seconds long, so the state is sampled and the button pressed again until the press shows)
+    await expect(async () => {
+      const before = (await playState(page).textContent())!.trim();
+      await page.locator('[data-testid=ipod-keyrow] [data-testid=ipod-play]').click();
+      await expect(playState(page)).not.toHaveText(before, { timeout: 1_500 });
+    }).toPass({ timeout: 15_000 });
 
     // the wheel-only look keeps the row between the screen and the wheel
     await page.locator('.ipod-panel .ipod-chip[data-look="wheel"]').click();
     await expect(page.getByTestId('ipod')).toHaveAttribute('data-look', 'wheel');
     const l2 = await box(page, '[data-testid=ipod-lcd]'), w2 = await box(page, '[data-testid=ipod-wheel]'), k2 = await box(page, '[data-testid=ipod-keyrow] [data-testid=ipod-menu]');
     expect(k2.y).toBeGreaterThan(l2.y + l2.height); expect(k2.y + k2.height).toBeLessThan(w2.y);
+  });
+
+  test('the iPod mini: the 2nd generation\'s wheel is lettered in the colour of its body, the 1st generation\'s in grey', async ({ page }) => {
+    test.setTimeout(120_000);
+    await signIn(page); await page.setViewportSize({ width: 1366, height: 900 });
+    const swatches = page.locator('.ipod-panel .ipod-chip.swatch');
+    const read = () => page.evaluate(() => {
+      const label = getComputedStyle(document.querySelector('[data-testid=ipod-wheel] .wl-menu')!).color;
+      const body = getComputedStyle(document.querySelector('[data-testid=ipod-device]')!).getPropertyValue('--bottom').trim();
+      const ring = getComputedStyle(document.querySelector('[data-testid=ipod-device]')!).getPropertyValue('--wr2').trim();
+      const toRgb = (hex: string) => `rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`;
+      return { label, body: toRgb(body), ring: toRgb(ring) };
+    });
+    for (const [model, count] of [['mini2', 4], ['mini', 5]] as const) {
+      await page.goto('about:blank');
+      await openIpod(page, { model, look: 1 });
+      await expect(swatches).toHaveCount(count);
+      for (let i = 0; i < count; i++) {
+        const was = await page.getByTestId('ipod').getAttribute('data-color');
+        await swatches.nth(i).click();
+        if (i > 0) await expect(page.getByTestId('ipod')).not.toHaveAttribute('data-color', was!);
+        const name = (await page.getByTestId('ipod').getAttribute('data-color'))!;
+        await page.waitForTimeout(150);
+        const { label, body, ring } = await read();
+        const L = hsl(label), B = hsl(body), W = hsl(ring);
+        if (model === 'mini') { expect(L.s, `${model} ${name}: grey lettering`).toBeLessThan(0.12); continue; }
+        if (name === 'Silver') { expect(L.s, 'silver lettering on the silver mini').toBeLessThan(0.15); continue; }
+        expect(L.s, `${model} ${name}: coloured lettering`).toBeGreaterThan(0.35);
+        expect(hueGap(L.h, B.h), `${model} ${name}: the body's colour`).toBeLessThan(20);
+        expect(L.l, `${model} ${name}: readable on the wheel`).toBeLessThan(W.l - 0.15);
+      }
+    }
   });
 });

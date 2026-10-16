@@ -73,7 +73,12 @@ public static class IpodModels
 
     static IpodColor Metal(string name, string baseColor, IpodWheelStyle? wheel = null) =>
         new(name, Lighten(baseColor, 0.38), Darken(baseColor, 0.1), Darken(baseColor, 0.4), wheel ?? WhiteWheel, false, DefaultBezel, DefaultBackdrop);
-    static IpodColor TintedMetal(string name, string baseColor) => Metal(name, baseColor, Tinted(Lighten(baseColor, 0.45)));
+    /// <summary>An iPod mini: a pale wheel tinted with the body's colour, lettered in the given colour.</summary>
+    static IpodColor TintedMetal(string name, string baseColor, string label) => Metal(name, baseColor, Tinted(Lighten(baseColor, 0.62), label));
+    /// <summary>The 1st generation mini: muted colours, the wheel lettered in grey.</summary>
+    static IpodColor Mini1(string name, string baseColor) => TintedMetal(name, baseColor, "#8E9096");
+    /// <summary>The 2nd generation mini: saturated colours, the wheel lettered in the colour of the body (the silver one stays grey).</summary>
+    static IpodColor Mini2(string name, string baseColor) => TintedMetal(name, baseColor, Darken(baseColor, 0.08));
     static IpodColor Black(bool darkUi) => new("Black", "#44464D", "#17181B", "#000000", DarkWheel, darkUi, "#000000", "#1A1B1E");
     static IpodColor TouchMetal(string name, string baseColor) => new(name, Lighten(baseColor, 0.34), Darken(baseColor, 0.08), Darken(baseColor, 0.4), WhiteWheel, false, DefaultBezel, DefaultBackdrop);
 
@@ -110,9 +115,9 @@ public static class IpodModels
         Click("classic6", "iPod classic (6th gen)", Classic, 6, 2007, IpodFamily.Nano, 0.597, ClassicScreen, 0.703, 0.335, 0.085, 0.028, [Silver, Black(true)], "All-metal 160 GB classic with the modern menus and Cover Flow."),
         Click("classic7", "iPod classic (7th gen)", Classic, 7, 2009, IpodFamily.Nano, 0.59, ClassicScreen, 0.703, 0.335, 0.085, 0.028, [Silver, Black(true)], "The last classic: 160 GB, thinner, same great menus."),
         Click("mini", "iPod mini (1st gen)", Mini, 1, 2004, IpodFamily.Mono, 0.556, MiniScreen, 0.665, 0.35, 0.1, 0.03,
-            [TintedMetal("Silver", "#B4B7BD"), TintedMetal("Blue", "#6FA8DC"), TintedMetal("Green", "#7FBF5A"), TintedMetal("Pink", "#E68FB5"), TintedMetal("Gold", "#D4B45E")], "Small aluminium body in five colours."),
+            [Mini1("Silver", "#B4B7BD"), Mini1("Blue", "#8DB5DA"), Mini1("Green", "#A5C98E"), Mini1("Pink", "#E3A5C3"), Mini1("Gold", "#D2BA7E")], "Small aluminium body in five colours."),
         Click("mini2", "iPod mini (2nd gen)", Mini, 2, 2005, IpodFamily.Mono, 0.556, MiniScreen, 0.665, 0.35, 0.1, 0.03,
-            [TintedMetal("Silver", "#B4B7BD"), TintedMetal("Blue", "#6FA8DC"), TintedMetal("Green", "#7FBF5A"), TintedMetal("Pink", "#E68FB5")], "Longer battery life and a brighter wheel."),
+            [Mini2("Silver", "#B4B7BD"), Mini2("Blue", "#3F8FD6"), Mini2("Green", "#5DB83C"), Mini2("Pink", "#E7609F")], "Longer battery life, brighter colours and a wheel lettered to match."),
         Click("nano1", "iPod nano (1st gen)", Nano, 1, 2005, IpodFamily.Video, 0.457, SlimScreen, 0.66, 0.32, 0.1, 0.03, [White, Black(false)], "Pencil-thin flash player that replaced the mini."),
         Click("nano2", "iPod nano (2nd gen)", Nano, 2, 2006, IpodFamily.Video, 0.451, SlimScreen, 0.66, 0.32, 0.09, 0.03, [Silver, Blue, Green, Pink, Red, Gold], "Anodised aluminium in six colours."),
         Click("nano3", "iPod nano (3rd gen)", Nano, 3, 2007, IpodFamily.Nano, 0.751, NanoScreen, 0.777, 0.245, 0.075, 0.022, [Silver, Black(true), Blue, Green, Red], "The squat \"fatty\" nano with the menus and preview pane."),

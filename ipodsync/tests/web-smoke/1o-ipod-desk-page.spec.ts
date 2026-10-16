@@ -380,6 +380,29 @@ test.describe.serial('desk look on /ipod', () => {
     }
   });
 
+  test('on a narrow screen the sticky note and the queue card sit above the iPod, clear of it and of the earbud cable', async ({ page }) => {
+    await signIn(page);
+    for (const model of ['classic6', 'nano3', 'mini2']) {
+      for (const [w, h] of [[390, 844], [360, 640], [768, 1024]]) {
+        await page.setViewportSize({ width: w, height: h });
+        await page.goto('about:blank');
+        await openDesk(page, { model, look: 2, panel: false });
+        await page.waitForTimeout(900);
+        const r = await page.evaluate(() => {
+          const box = (s: string) => { const e = document.querySelector(s); if (!e) return null; const q = e.getBoundingClientRect(); return q.width ? q : null; };
+          const over = (a: DOMRect | null, c: DOMRect | null) => a && c ? Math.max(0, Math.min(a.right, c.right) - Math.max(a.left, c.left)) * Math.max(0, Math.min(a.bottom, c.bottom) - Math.max(a.top, c.top)) : 0;
+          const inside = (x: number, y: number, q: DOMRect | null) => !!q && x > q.left + 2 && x < q.right - 2 && y > q.top + 2 && y < q.bottom - 2;
+          const note = box('[data-testid=desk-journal]'), card = box('[data-testid=desk-queue]'), ipod = box('[data-testid=ipod-device]');
+          const path = document.getElementById('desk-cable') as unknown as SVGPathElement; const m = path.getScreenCTM()!; const L = path.getTotalLength();
+          let onNote = 0, onCard = 0;
+          for (let i = 0; i <= 200; i++) { const q = path.getPointAtLength(L * i / 200); const s = new DOMPoint(q.x, q.y).matrixTransform(m); if (inside(s.x, s.y, note)) onNote++; if (inside(s.x, s.y, card)) onCard++; }
+          return { noteOnIpod: Math.round(over(note, ipod)), cardOnIpod: Math.round(over(card, ipod)), onNote, onCard, above: !!note && !!card && !!ipod && note.top < ipod.top && card.top < ipod.top };
+        });
+        expect(r, `${model} at ${w}x${h}`).toEqual({ noteOnIpod: 0, cardOnIpod: 0, onNote: 0, onCard: 0, above: true });
+      }
+    }
+  });
+
   test('remembers the desk look, and leaves it', async ({ page }) => {
     await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
     await openDesk(page, { model: 'classic6', look: 1 });

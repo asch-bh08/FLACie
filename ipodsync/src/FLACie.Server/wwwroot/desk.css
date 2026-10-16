@@ -197,24 +197,25 @@
    (about 4:3) keeps the whole desk. No polaroid (no room), no steam (it would rise over the iPod). */
 @container desk (aspect-ratio < 23 / 20) {
   .desk-scene { width: min(100cqw, 47.37cqh); aspect-ratio: 9 / 19; }
-  .desk-ipod { left: 50%; top: 46cqh; height: 52cqh; }
+  /* a band across the top for the sticky note and the queue card (they never reach the iPod or its cable), the iPod under it, the earbuds under that */
+  .desk-ipod { left: 50%; top: 48.5cqh; height: 47cqh; }
   /* the journal is a pad of sticky notes: one note at a time, three rules of lyrics on it; the note under it shows at its edge */
-  .desk-journal { left: 3%; top: 3.6cqh; width: 21cqh; height: 18.6cqh; rotate: -3deg; }   /* (below the page's back button) */
+  .desk-journal { left: 3%; top: 3.4cqh; width: 20cqh; height: 15cqh; rotate: -2.5deg; }   /* (below the page's back button) */
   .desk-journal .sheet.right, .desk-journal .page::after, .desk-journal .j-date, .desk-journal .sheet::before { display: none; }
   .desk-journal .sheet.left { width: 100%; border-radius: .25cqh; background: linear-gradient(170deg, #fff4ad, #fbe47a); box-shadow: inset 0 1.4cqh 1.2cqh -1cqh rgba(255,255,255,.55); }
   .desk-journal::after { content: ""; position: absolute; inset: 0; z-index: -1; translate: .45cqh .6cqh; rotate: 2.5deg; border-radius: .25cqh; background: #f2d865; }
-  .desk-journal .j-title { left: 1.6cqh; top: 1.3cqh; width: auto; right: 1.4cqh; font-size: 2.1cqh; line-height: 2.8cqh; }
-  .desk-journal .j-lines { left: 1.6cqh; top: 7.4cqh; width: calc(100% - 3.2cqh); height: calc(3.32cqh * 3); column-count: 1; column-gap: 3.2cqh; font-size: 1.9cqh; }
+  .desk-journal .j-title { left: 1.5cqh; top: 1cqh; width: auto; right: 1.4cqh; font-size: 1.9cqh; line-height: 2.4cqh; }
+  .desk-journal .j-lines { left: 1.5cqh; top: 5.6cqh; width: calc(100% - 3cqh); height: calc(2.9cqh * 3); column-count: 1; column-gap: 3cqh; font-size: 1.75cqh; line-height: 2.9cqh; }
   .desk-open { left: 22cqh; top: 1.5cqh; width: 50cqh; height: 22cqh; rotate: 3deg; flex-direction: row-reverse; }
   .desk-stack { left: -9cqh; top: 80cqh; }
   /* the queue card in the top right corner, opposite the lyrics (the iPod's screen shows the title, so the card gives the artist, album and year, and the next
      two songs); the open CD steps aside here (its album is on the iPod's screen) */
-  .desk-queue { left: 47%; top: 2.6cqh; width: 20cqh; padding: .9cqh 1.2cqh 1cqh; rotate: 2deg; }
+  .desk-queue { left: 47%; top: 2.6cqh; width: 20cqh; max-height: 16.5cqh; overflow: hidden; padding: .9cqh 1.2cqh 1cqh; rotate: 2deg; }
   .desk-queue .q-now b, .desk-queue .q-more, .desk-queue .q-next li:nth-child(n + 3), .desk-queue .q-next .a { display: none; }
   .desk-queue .q-now span { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }   /* (two lines: the year stays in view) */
   .desk-open, .desk-stack { display: none; }   /* (and the next CDs: the card says what is next; the earbuds have the bottom to themselves) */
   .desk-queue .q-next { margin-top: .9cqh; }
-  .desk-coffee { left: 104%; top: 96cqh; }
+  .desk-coffee { left: 112%; top: 99cqh; }   /* (in the corner, clear of the earbuds) */
   .desk-polaroid, .desk-steam, .desk-minidiscs, .desk-tracklist, .desk-vu, .desk-cassette, .desk-pencil { display: none; }
 }
 

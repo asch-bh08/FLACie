@@ -161,7 +161,7 @@
     string CablePath => Studio ? Coiled(StudioRoute, StudioCoil) : Smooth(EarbudRoute);
     (double X, double Y, double A)[] EarbudRoute => portrait
         ? (Jack.Edge == JackEdge.Top
-            ? [(Jx, -14, -90), (Jx + 34, -32, 0), (Wd - 14, -28, 18), (Wd + 40, 110, 92), (Wd + 24, 280, 98), (Wd + 12, H - 6, 125), (Sx, Sy, Axis)]   // (close over the iPod's top: the queue card lies above)
+            ? [(Jx, -14, -90), (Jx + 24, -27, 0), (Wd - 16, -21, 12), (Wd + 36, 110, 92), (Wd + 24, 280, 98), (Wd + 12, H - 6, 125), (Sx, Sy, Axis)]   // (low over the iPod's top: the sticky note and the queue card lie above)
             : [(Jx, H + 14, 90), (Sx, Sy, Axis)])
         : Jack.Edge == JackEdge.Top
         ? [(Jx, -14, -90), (Jx - 45, -82, 180), (Jx - 82, -30, 90), (Jx - 40, -12, -15), (Wd * 0.6, -60, -5), (Wd + 28, -30, 50), (Wd + 52, 120, 95), (Wd + 30, 250, 75), (Sx, Sy, Axis)]
@@ -173,7 +173,7 @@
     // with the loose gold adapter beside it
     (double X, double Y, double A)[] StudioRoute => portrait
         ? (Jack.Edge == JackEdge.Top
-            ? [(Jx, -14, -90), (Jx + 60, -50, -5), (Wd - 4, -26, 25), (Wd + 45, 120, 92), (Wd + 30, 290, 100), (Wd - 20, H + 50, 160), (Wd / 2 - 70, H + 64, 185)]
+            ? [(Jx, -14, -90), (Jx + 50, -22, -3), (Wd - 8, -18, 22), (Wd + 42, 120, 92), (Wd + 30, 290, 100), (Wd - 20, H + 50, 160), (Wd / 2 - 70, H + 64, 185)]
             : [(Jx, H + 14, 90), (Wd / 2 + 50, H + 46, 10), (Wd - 10, H + 70, 20), (Wd + 10, H + 112, 100)])
         : Jack.Edge == JackEdge.Top
         ? [(Jx, -14, -90), (Jx + 60, -50, -5), (Wd - 4, -26, 25), (Wd + 45, 120, 92), (Wd + 40, 290, 95), (Wd + 120, H + 15, 10), (Wd + 170, H, -15)]

@@ -2,17 +2,26 @@
 @implements IAsyncDisposable
 @inject IJSRuntime Js
 @inject JellyfinClient Jf
-@* The system of the touch iPods (iPod touch 1 to 7, nano 6 and 7): a home screen of apps, the Music app with its tab bar, Now Playing, Settings, Clock and Stopwatch.
-   Drawn at the real screen's size in points (320 wide, 240 for the nanos) and scaled into the glass like the wheel iPods' screens. *@
-<div class="ios @(Compact ? "compact" : "") @(H < 300 ? "short" : "")" style="width:@(W)px;height:@(H)px" @ref="root" data-testid="ios" data-app="@app">
+@* The system of the touch iPods (iPod touch 1 to 7, nano 6 and 7): a home screen of apps, the Music app, Now Playing, Settings, Clock and Stopwatch.
+   Drawn at the real screen's size in points (320 wide, 240 for the nanos) and scaled into the glass like the wheel iPods' screens.
+   Each generation runs the system it shipped with (Os): "classic" is the glossy iPhone OS look of the iPod touch 1 to 5 (to be redone on its own later);
+   "flat" is the flat Music app of iOS 8 to 12 (touch 6: iOS 8/9, the tabs Radio, Playlists, Artists, Songs, More; touch 7: iOS 10 to 12, a big "Library"
+   title, For You, Browse, Radio), with the mini player above the tab bar and Now Playing as a card; "nano7" is the 2012 nano's flat system (round icons, six
+   to a page, a white list, a black Now Playing); "nano6" the 2010 square nano's (four icons to a page on a wallpaper the colour of the iPod, black lists,
+   the cover filling the screen with the controls over it on a tap). Styles: ipod.css (classic) and ipod-touch.css (the others). *@
+<div class="ios os-@Os @(Model == "touch7" ? "big-titles" : "") @(Os == "classic" && Compact ? "compact" : "") @(Os == "classic" && H < 300 ? "short" : "")" style="width:@(W)px;height:@(H)px;@TintStyle" @ref="root" data-testid="ios" data-app="@app" data-os="@Os">
     <div class="ios-status" data-testid="ios-status">
-        <span class="ios-carrier">iPod</span>
-        <span class="ios-time">@(Clock.Length > 0 ? Clock : DateTime.Now.ToString("t"))</span>
-        <span class="ios-batt-wrap"><span class="ios-pct">@Battery%</span><span class="ios-batt" style="--lvl:@Battery%"></span></span>
+        <span class="ios-carrier">@if (Os == "nano6" || Os == "nano7") { @if (Player.Current is not null) { <i class="ios-st-play @(Player.Playing ? "" : "paused")"></i> } } else { @("iPod") }</span>
+        @if (Os != "nano6") { <span class="ios-time">@ClockText</span> }
+        <span class="ios-batt-wrap">@if (Os != "nano6") { <span class="ios-pct">@Battery%</span> }<span class="ios-batt" style="--lvl:@Battery%"></span></span>
     </div>
 
     @if (app == "home")
     {
+        @if (Os is "nano6" or "nano7") { @NanoHome() }
+        else if (Os == "flat") { @FlatHome() }
+        else
+        {
         <div class="ios-home" data-testid="ios-home">
             <div class="ios-grid">
                 @foreach (var a in Apps())
@@ -30,10 +39,12 @@
                 <button type="button" class="ios-app" data-app="settings" tabindex="-1" @onclick='() => Launch("settings")'><span class="ios-icon ios-icon-settings">@AppGlyph("settings")</span></button>
             </div>
         </div>
+        }
     }
+    else if (app == "music" && Os != "classic") { @ListApp() }
     else if (app == "music")
     {
-        var cur = Cur;
+        var cur = Cur.L;
         <div class="ios-nav" data-testid="ios-nav">
             @if (levels.Count > 0) { <button type="button" class="ios-back" tabindex="-1" data-testid="ios-back" @onclick="() => Back()"><span>@BackLabel</span></button> }
             <b>@cur.Title</b>
@@ -53,12 +64,18 @@
             @if (cur.Rows.Count == 0) { <div class="ios-empty">Nothing here</div> }
         </div>
         <div class="ios-tabs" data-testid="ios-tabs">
-            @for (var i = 0; i < Tabs.Length; i++)
+            @for (var i = 0; i < TabSet.Length; i++)
             {
                 var ti = i;
-                <button type="button" class="@(ti == tab ? "on" : "")" tabindex="-1" data-tab="@Tabs[ti].Label" @onclick="() => SetTab(ti)"><Icon Name="@Tabs[ti].Icon" Size="20" /><span>@Tabs[ti].Label</span></button>
+                <button type="button" class="@(ti == Tab ? "on" : "")" tabindex="-1" data-tab="@TabSet[ti].Label" @onclick="() => SetTab(ti)"><Icon Name="@TabSet[ti].Icon" Size="20" /><span>@TabSet[ti].Label</span></button>
             }
         </div>
+    }
+    else if (app == "now" && Player.Current is { } nt && Os != "classic")
+    {
+        @if (Os == "nano6") { @NanoSixNow(nt) }
+        else if (Os == "nano7") { @NanoSevenNow(nt) }
+        else { @FlatNow(nt) }
     }
     else if (app == "now" && Player.Current is { } t)
     {
@@ -82,7 +99,7 @@
     }
     else if (app == "settings")
     {
-        <div class="ios-nav" data-testid="ios-nav"><button type="button" class="ios-back" tabindex="-1" data-testid="ios-back" @onclick="() => Back()"><span>Home</span></button><b>Settings</b></div>
+        <div class="ios-nav" data-testid="ios-nav"><button type="button" class="ios-back" tabindex="-1" data-testid="ios-back" @onclick="() => Back()"><span>@HomeLabel</span></button><b>Settings</b></div>
         <div class="ios-scroll ios-settings" data-testid="ios-settings">
             @{ var info = IpodActions.Info(Player, Prefs, Lib, Session.Playlists.Count); }
             <h4>Playback</h4>
@@ -110,15 +127,27 @@
     }
     else if (app == "clock")
     {
-        <div class="ios-nav dark" data-testid="ios-nav"><button type="button" class="ios-back" tabindex="-1" data-testid="ios-back" @onclick="() => Back()"><span>Home</span></button><b>Clock</b></div>
-        <div class="ios-clock" data-testid="ios-clock"><div class="ios-bigtime">@(Clock.Length > 0 ? Clock : DateTime.Now.ToString("t"))</div><div class="ios-date">@dateText</div></div>
+        <div class="ios-nav dark" data-testid="ios-nav"><button type="button" class="ios-back" tabindex="-1" data-testid="ios-back" @onclick="() => Back()"><span>@HomeLabel</span></button><b>Clock</b></div>
+        <div class="ios-clock @(Os == "nano6" && analogue ? "face" : "")" data-testid="ios-clock" @onclick="ToggleFace">
+            @if (Os == "nano6" && analogue) { @Face() }
+            else { <div class="ios-bigtime">@ClockText</div><div class="ios-date">@dateText</div> }
+        </div>
     }
     else if (app == "stopwatch")
     {
-        <div class="ios-nav dark" data-testid="ios-nav"><button type="button" class="ios-back" tabindex="-1" data-testid="ios-back" @onclick="() => Back()"><span>Home</span></button><b>Stopwatch</b></div>
+        <div class="ios-nav dark" data-testid="ios-nav"><button type="button" class="ios-back" tabindex="-1" data-testid="ios-back" @onclick="() => Back()"><span>@HomeLabel</span></button><b>Stopwatch</b></div>
         <div class="ios-clock" data-testid="ios-stopwatch">
             <div class="ios-bigtime mono" data-testid="ios-sw-time">@Watch()</div>
             <div class="ios-swbtns"><button type="button" tabindex="-1" data-testid="ios-sw-reset" @onclick="WatchReset">Reset</button><button type="button" class="@(running ? "stop" : "go")" tabindex="-1" data-testid="ios-sw-go" @onclick="WatchToggle">@(running ? "Stop" : "Start")</button></div>
+        </div>
+    }
+    else if (app is "videos" or "podcasts" or "fitness")
+    {
+        <div class="ios-nav" data-testid="ios-nav"><button type="button" class="ios-back" tabindex="-1" data-testid="ios-back" @onclick="() => Back()"><span>@HomeLabel</span></button><b>@AppName(app)</b></div>
+        <div class="ios-stub" data-testid="ios-stub">
+            <span class="ios-icon ios-icon-@app">@AppGlyph(app)</span>
+            <b>@(app == "videos" ? "No Videos" : app == "podcasts" ? "No Podcasts" : "0 steps today")</b>
+            <small>@(app == "videos" ? "Videos you add to FLACie will appear here." : app == "podcasts" ? "Podcasts you add to FLACie will appear here." : "Walks and runs are counted while you carry your iPod.")</small>
         </div>
     }
     else { <div class="ios-empty" data-testid="ios-fallback" @onclick='() => Launch("home")'>Nothing is playing.<br />Tap to go home.</div> }
@@ -131,20 +160,43 @@
     [Parameter] public bool Compact { get; set; }
     [Parameter] public string Clock { get; set; } = "";
     [Parameter] public int Battery { get; set; } = 100;
+    /// <summary>The model id (touch1..touch7, nano6, nano7): which system it runs.</summary>
+    [Parameter] public string Model { get; set; } = "";
+    /// <summary>The colour of the iPod's body (the nano 6's wallpaper follows it, as the real one's did).</summary>
+    [Parameter] public string Tint { get; set; } = "#8A8D93";
 
     record AppDef(string Id, string Label);
-    record TabDef(string Label, string Icon);
-    static readonly TabDef[] Tabs = [new("Playlists", "playlists"), new("Artists", "artists"), new("Songs", "songs"), new("Albums", "albums"), new("More", "lines")];
+    record TabDef(string Label, string Icon, string Root);
+    /// <summary>A level of a list app and how it is drawn: "list" rows, a "grid" of covers, or the touch 7's "library" (its menu over a grid of the newest albums).</summary>
+    sealed record Lv(IpodLevel L, string View = "list");
+
+    static readonly TabDef[] ClassicTabs = [new("Playlists", "playlists", "m:pl"), new("Artists", "artists", "m:artists"), new("Songs", "songs", "m:songs"), new("Albums", "albums", "m:albums"), new("More", "lines", "m:more")];
+    // iOS 8: iTunes Radio first; iOS 10-12: Library, For You, Browse, Radio (Search, which needs a keyboard, is left out)
+    static readonly TabDef[] Ios8Tabs = [new("Radio", "wave", "m:radio"), new("Playlists", "playlists", "m:pl"), new("Artists", "artists", "m:artists"), new("Songs", "songs", "m:songs"), new("More", "more", "m:more")];
+    static readonly TabDef[] Ios12Tabs = [new("Library", "albums", "m:library"), new("For You", "heart", "m:foryou"), new("Browse", "globe", "m:browse"), new("Radio", "wave", "m:radio")];
+
+    /// <summary>The system this model runs (see the comment at the top).</summary>
+    string Os => Model switch { "touch6" or "touch7" => "flat", "nano6" => "nano6", "nano7" => "nano7", _ => "classic" };
+    TabDef[] TabSet => Os == "flat" ? (Model == "touch7" ? Ios12Tabs : Ios8Tabs) : ClassicTabs;
+    bool Nano => Os is "nano6" or "nano7";
+    string HomeLabel => Os == "classic" ? "Home" : Nano ? "" : "Home";
+    string TintStyle => Os == "nano6" ? $"--tint:{Tint}" : "";
+    string ClockText => Clock.Length > 0 ? Clock : DateTime.Now.ToString("t");
 
     ElementReference root, sentinel;
     DotNetObjectReference<IpodTouchOs>? self;
     string app = "home", backTo = "home", dateText = "";
-    int tab = 2, limit = 80;
-    readonly List<IpodLevel> levels = [];
-    readonly Dictionary<int, IpodLevel> roots = [];
-    string levelKey => tab + ":" + levels.Count + ":" + (levels.Count > 0 ? levels[^1].Title : "");
+    int tab = -1, limit = 80, page;
+    bool analogue = true, npUi = true, opened;
+    int npPage;
+    string listApp = "music";
+    Lv? rootOverride;
+    readonly List<Lv> levels = [];
+    readonly Dictionary<int, Lv> roots = [];
+    string levelKey => listApp + tab + ":" + levels.Count + ":" + (levels.Count > 0 ? levels[^1].L.Title : "");
     bool running; DateTime watchStart; TimeSpan watchBase; System.Threading.Timer? watchTimer;
-    bool observing;
+
+    int Tab => tab >= 0 ? tab : (tab = Math.Max(0, Array.FindIndex(TabSet, x => x.Label is "Songs" or "Library")));
 
     IEnumerable<AppDef> Apps()
     {
@@ -156,41 +208,299 @@
         yield return new("flacie", "FLACie");
     }
 
+    // the nanos' home screens: the nano 7 six round icons to a page (the apps that work first: the real one lets you move them), the nano 6 four,
+    // with Now Playing first while something plays, as on the real one
+    List<AppDef> NanoApps()
+    {
+        if (Os == "nano7") return [new("music", "Music"), new("photos", "Photos"), new("clock", "Clock"), new("stopwatch", "Stopwatch"), new("settings", "Settings"), new("radio", "Radio"),
+            new("videos", "Videos"), new("podcasts", "Podcasts"), new("fitness", "Fitness"), new("flacie", "FLACie")];
+        var l = new List<AppDef>();
+        if (Player.Current is not null) l.Add(new("now", "Now Playing"));
+        l.AddRange([new("music", "Music"), new("radio", "Radio"), new("fitness", "Fitness"), new("photos", "Photos"), new("clock", "Clock"), new("stopwatch", "Stopwatch"), new("podcasts", "Podcasts"), new("settings", "Settings"), new("flacie", "FLACie")]);
+        return l;
+    }
+    int PerPage => Os == "nano6" ? 4 : 6;
+    int Pages => (NanoApps().Count + PerPage - 1) / PerPage;
+
+    static string AppName(string id) => id switch { "music" => "Music", "now" => "Now Playing", "clock" => "Clock", "stopwatch" => "Stopwatch", "settings" => "Settings", "photos" => "Photos", "radio" => "Radio", "videos" => "Videos", "podcasts" => "Podcasts", "fitness" => "Fitness", _ => "FLACie" };
+
+    RenderFragment AppButton(string id, string label) => @<button type="button" class="ios-app" data-app="@id" tabindex="-1" @onclick="() => Launch(id)">
+        <span class="ios-icon ios-icon-@id">@AppGlyph(id)</span>
+        <span class="ios-label">@label</span>
+    </button>;
+
+    // ---------------------------------------------------------------- home screens
+
+    // iOS 8-12: flat icons on a soft wallpaper, Music in the frosted dock
+    RenderFragment FlatHome() => @<div class="ios-home" data-testid="ios-home">
+        <div class="ios-grid ios-page">
+            @AppButton("clock", "Clock") @AppButton("stopwatch", "Stopwatch") @AppButton("settings", "Settings") @AppButton("flacie", "FLACie")
+        </div>
+        <div class="ios-dots"><i class="on"></i></div>
+        <div class="ios-dock">
+            @AppButton("music", "Music") @AppButton("videos", "Videos") @AppButton("photos", "Photos") @AppButton("podcasts", "Podcasts")
+        </div>
+    </div>;
+
+    RenderFragment NanoHome() => @<div class="ios-home" data-testid="ios-home">
+        <div class="ios-grid ios-npage" @key="page">
+            @foreach (var a in NanoApps().Skip(Math.Min(page, Pages - 1) * PerPage).Take(PerPage))
+            {
+                @AppButton(a.Id, a.Label)
+            }
+        </div>
+        <div class="ios-dots" data-testid="ios-dots">
+            @for (var i = 0; i < Pages; i++)
+            {
+                var pi = i;
+                <button type="button" class="@(pi == Math.Min(page, Pages - 1) ? "on" : "")" tabindex="-1" aria-label="Page @(pi + 1)" @onclick="() => page = pi"><i></i></button>
+            }
+        </div>
+    </div>;
+
+    // ---------------------------------------------------------------- the list apps (Music; on the nanos Radio and Photos too)
+
+    RenderFragment ListApp()
+    {
+        var lv = Cur; var cur = lv.L;
+        var tabs = listApp == "music" && Os != "nano6";
+        var big = Os == "flat" && Model == "touch7" && levels.Count == 0 && listApp == "music";
+        var back = levels.Count > 0 || Os == "nano6" || listApp != "music";
+        return @<text>
+        <div class="ios-nav @(big ? "big" : "")" data-testid="ios-nav">
+            @if (back) { <button type="button" class="ios-back" tabindex="-1" data-testid="ios-back" @onclick="() => Back()"><span>@BackLabel</span></button> }
+            <b>@cur.Title</b>
+            @if (Player.Current is not null && Os != "flat") { <button type="button" class="ios-now" tabindex="-1" data-testid="ios-now" aria-label="Now Playing" @onclick='() => Launch("now")'><span>@(Os == "nano7" ? "Now Playing" : "")</span></button> }
+        </div>
+        <div class="ios-scroll ios-list @("v-" + lv.View)" data-testid="ios-list" @key="levelKey">
+            @if (lv.View == "library")
+            {
+                @foreach (var r in cur.Rows) { var row = r; <div class="ios-row chev lib" data-testid="ios-row" @onclick="() => Tap(row)"><span class="ios-t"><b>@r.Label</b></span></div> }
+                <h3 class="ios-sect">Recently Added</h3>
+                <div class="ios-tiles">@Tiles(cur, IpodContent.GroupRows(cur.Groups ?? [], "b:", true))</div>
+            }
+            else if (lv.View == "grid") { <div class="ios-tiles">@Tiles(cur, cur.Rows)</div> }
+            else
+            {
+                @foreach (var r in cur.Rows.Take(limit))
+                {
+                    var row = r; var sub = r.Id.StartsWith("t:") && r.Id != "t:shuffle" ? r.Sub : r.Sub ?? r.Detail;
+                    <div class="ios-row @(r.Opens ? "chev" : "") @(r.Id == "t:shuffle" ? "shuf" : "") @(Playing(cur, r) ? "cur" : "")" data-testid="ios-row" @onclick="() => Tap(row)">
+                        @if (Thumb(r)) { <span class="ios-thumb @(r.Id.StartsWith("a:") ? "round" : "")"><Cover ArtKey="@r.ArtKey" Class="ios-art" /></span> }
+                        <span class="ios-t"><b>@r.Label</b>@if (!string.IsNullOrEmpty(sub) && r.Id != "t:shuffle") { <small>@sub</small> }</span>
+                        @if (r.Id == "t:shuffle") { <Icon Name="shuffle" Size="16" /> }
+                        @if (r.Value is not null) { <span class="ios-v">@r.Value</span> }
+                    </div>
+                }
+                @if (cur.Rows.Count > limit) { <div class="ios-more" @ref="sentinel">Loading…</div> }
+                @if (cur.Rows.Count == 0) { <div class="ios-empty">@(Lib.Songs.Count == 0 ? "Loading…" : "Nothing here")</div> }
+            }
+        </div>
+        @if (Os == "flat" && Player.Current is { } mt) { @Mini(mt) }
+        @if (tabs)
+        {
+            <div class="ios-tabs" data-testid="ios-tabs">
+                @for (var i = 0; i < TabSet.Length; i++)
+                {
+                    var ti = i;
+                    <button type="button" class="@(ti == Tab ? "on" : "")" tabindex="-1" data-tab="@TabSet[ti].Label" @onclick="() => SetTab(ti)"><Icon Name="@TabSet[ti].Icon" Size="22" Weight="1.6" /><span>@TabSet[ti].Label</span></button>
+                }
+            </div>
+        }
+        @if (photo is { } ph) { <div class="ios-photo" data-testid="ios-photo" @onclick="() => photo = null"><Cover ArtKey="@ph" Full="true" Class="ios-art" /></div> }
+        </text>;
+    }
+    string? photo;
+
+    RenderFragment Tiles(IpodLevel cur, IReadOnlyList<IpodRow> rows) => @<text>
+        @foreach (var r in rows.Take(limit))
+        {
+            var row = r;
+            <div class="ios-tile" data-testid="ios-row" @onclick="() => TapTile(cur, row)"><span class="ios-tile-art"><Cover ArtKey="@r.ArtKey" Class="ios-art" /></span>@if (listApp != "photos") { <b>@r.Label</b><small>@(r.Sub ?? r.Detail)</small> }</div>
+        }
+    </text>;
+
+    // iOS 8.4 to 12: what is playing, in a bar above the tab bar; a tap opens Now Playing
+    RenderFragment Mini(Track t) => @<div class="ios-mini" data-testid="ios-mini" @onclick='() => Launch("now")'>
+        <span class="ios-thumb"><Cover ArtKey="@t.ArtKey" Class="ios-art" /></span>
+        <span class="ios-mini-t"><b>@t.Title</b></span>
+        <button type="button" tabindex="-1" aria-label="@(Player.Playing ? "Pause" : "Play")" @onclick="() => Player.Toggle()" @onclick:stopPropagation><Icon Name="@(Player.Playing ? "pause" : "play")" Size="22" /></button>
+        <button type="button" tabindex="-1" aria-label="Next" @onclick="() => Player.Next()" @onclick:stopPropagation><Icon Name="next" Size="22" /></button>
+    </div>;
+
+    bool Thumb(IpodRow r) => Os switch
+    {
+        "flat" => (r.Id.StartsWith("t:") && r.Id != "t:shuffle") || r.Id.StartsWith("b:") || r.Id.StartsWith("a:") || r.Id.StartsWith("p:") || r.Id.StartsWith("r:"),
+        "nano7" => (r.Id.StartsWith("t:") && r.Id != "t:shuffle") || r.Id.StartsWith("b:") || r.Id.StartsWith("r:"),
+        _ => false,
+    };
+    bool Playing(IpodLevel l, IpodRow r) => Player.Current is { } c && l.Tracks is { } ts && r.Id.StartsWith("t:") && int.TryParse(r.Id.AsSpan(2), out var i) && i < ts.Count && ts[i].Path == c.Path;
+
+    // ---------------------------------------------------------------- Now Playing
+
+    // the scrubber and the volume are measured in points: a click's offset over the bar's own width (the bar's insides never take the click)
+    RenderFragment Bar(string testid, double frac, double w, Func<MouseEventArgs, Task> at) =>
+        @<div class="ios-bar" data-testid="@testid" style="width:@(F(w))px" @onclick="at"><i class="trk"><i style="width:@Pc(frac)%"></i></i><u style="left:@Pc(frac)%"></u></div>;
+
+    RenderFragment Times() => @<div class="ios-times"><span>@IpodContent.Time(Player.Position)</span><span>-@IpodContent.Time(Math.Max(0, Player.Duration - Player.Position))</span></div>;
+    double Frac => Player.Duration > 0 ? Player.Position / Player.Duration : 0;
+
+    RenderFragment Controls(int size) => @<div class="ios-ctl">
+        <button type="button" tabindex="-1" aria-label="Previous" data-testid="ios-prev" @onclick="() => Player.Prev()"><Icon Name="prev" Size="@size" /></button>
+        <button type="button" class="big" tabindex="-1" aria-label="@(Player.Playing ? "Pause" : "Play")" data-testid="ios-play" @onclick="() => Player.Toggle()"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="@(size + 6)" /></button>
+        <button type="button" tabindex="-1" aria-label="Next" data-testid="ios-next" @onclick="() => Player.Next()"><Icon Name="next" Size="@size" /></button>
+    </div>;
+
+    RenderFragment Volume(double w) => @<div class="ios-vol" data-testid="ios-vol-row"><Icon Name="stop" Size="9" />@Bar("ios-vol", Player.Volume, w, e => VolAt(e, w))<Icon Name="play" Size="9" /></div>;
+
+    RenderFragment Modes() => @<div class="ios-modes">
+        <button type="button" tabindex="-1" class="@(Player.Repeat > 0 ? "on" : "")" aria-label="Repeat" data-testid="ios-repeat" @onclick="() => Player.CycleRepeat()"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="18" /></button>
+        @if (Os == "flat" && Player.Current is { } rt)
+        {
+            var stars = Session.Rating(rt);
+            <span class="ios-stars" aria-label="Rating">@for (var n = 1; n <= 5; n++) { var nn = n; <button type="button" class="@(nn <= stars ? "on" : "")" tabindex="-1" aria-label="@Ratings.Label(nn)" @onclick="() => Rate(rt, nn == stars ? 0 : nn)"><Icon Name="star-fill" Size="13" /></button> }</span>
+        }
+        <button type="button" tabindex="-1" class="@(Player.Shuffle ? "on" : "")" aria-label="Shuffle" data-testid="ios-shuffle" @onclick="() => Player.ToggleShuffle()"><Icon Name="shuffle" Size="18" /></button>
+    </div>;
+
+    // iOS 8-12: Now Playing as a card over the screen it came from: a grabber to close it, the big cover (smaller while paused, as on iOS 11 and 12), the
+    // scrubber, the title (the artist in the Music app's red), the controls, the volume, repeat, stars and shuffle
+    RenderFragment FlatNow(Track t) => @<div class="ios-np np-card @(Player.Playing ? "" : "paused")" data-testid="ios-np">
+        <button type="button" class="ios-back np-grab" tabindex="-1" data-testid="ios-back" aria-label="Close" @onclick="() => Back()"><i></i></button>
+        <div class="ios-np-art" data-testid="ios-np-art"><Cover ArtKey="@t.ArtKey" Full="true" Class="ios-art" /></div>
+        @Bar("ios-scrub", Frac, W - 48, e => SeekAt(e, W - 48))
+        @Times()
+        <div class="ios-np-meta"><b data-testid="ios-np-title">@t.Title</b><span>@(t.Album.Length > 0 ? t.Artist + " — " + t.Album : t.Artist)</span></div>
+        @Controls(30)
+        @Volume(W - 80)
+        @Modes()
+    </div>;
+
+    // the nano 7: the cover across the top, then a black panel with the scrubber, the title, the controls and the volume (flat white glyphs)
+    RenderFragment NanoSevenNow(Track t) => @<div class="ios-np" data-testid="ios-np">
+        <div class="ios-np-head">
+            <button type="button" class="ios-back" tabindex="-1" data-testid="ios-back" aria-label="Back" @onclick="() => Back()"><span></span></button>
+            <small>@(Player.Queue.Count > 1 ? $"{Player.Index + 1} of {Player.Queue.Count}" : "")</small>
+            @Modes()
+        </div>
+        <div class="ios-np-art" data-testid="ios-np-art"><Cover ArtKey="@t.ArtKey" Full="true" Class="ios-art" /></div>
+        @Bar("ios-scrub", Frac, W - 24, e => SeekAt(e, W - 24))
+        @Times()
+        <div class="ios-np-meta"><b data-testid="ios-np-title">@t.Title</b><span>@t.Artist</span></div>
+        @Controls(24)
+        @Volume(W - 52)
+    </div>;
+
+    // the nano 6: the cover fills the screen; a tap shows (or hides) the controls over it: the title on top, then, a swipe apart, the play controls and the
+    // volume, or the scrubber with repeat and shuffle
+    RenderFragment NanoSixNow(Track t) => @<div class="ios-np @(npUi ? "ui" : "")" data-testid="ios-np">
+        <div class="ios-np-art" data-testid="ios-np-art" @onclick="() => npUi = !npUi"><Cover ArtKey="@t.ArtKey" Full="true" Class="ios-art" /></div>
+        @if (npUi)
+        {
+            <div class="ios-np-top">
+                <button type="button" class="ios-back" tabindex="-1" data-testid="ios-back" aria-label="Back" @onclick="() => Back()"><span></span></button>
+                <div class="ios-np-meta"><b data-testid="ios-np-title">@t.Title</b><span>@t.Artist</span></div>
+            </div>
+            <div class="ios-np-bot">
+                @if (npPage == 0) { @Controls(26) @Volume(W - 60) }
+                else { @Times() @Bar("ios-scrub", Frac, W - 40, e => SeekAt(e, W - 40)) @Modes() }
+                <div class="ios-np-dots">@for (var i = 0; i < 2; i++) { var pi = i; <button type="button" tabindex="-1" class="@(pi == npPage ? "on" : "")" aria-label="@(pi == 0 ? "Controls" : "Options")" @onclick="() => npPage = pi"><i></i></button> }</div>
+            </div>
+        }
+    </div>;
+
+    // the nano 6's clock face (its Clock app; a tap turns it digital and back)
+    RenderFragment Face()
+    {
+        var (h, m) = HourMinute();
+        var ha = (h % 12 + m / 60.0) * 30; var ma = m * 6;
+        return @<svg class="ios-face" viewBox="0 0 200 200" width="200" height="200" aria-label="@ClockText">
+            <circle cx="100" cy="100" r="96" class="rim" />
+            @for (var i = 0; i < 60; i++) { var a = i * 6; <line x1="100" y1="@(i % 5 == 0 ? 10 : 8)" x2="100" y2="@(i % 5 == 0 ? 24 : 15)" class="@(i % 5 == 0 ? "hr" : "mn")" transform="rotate(@a 100 100)" /> }
+            <line x1="100" y1="112" x2="100" y2="52" class="hh" transform="rotate(@(F(ha)) 100 100)" />
+            <line x1="100" y1="116" x2="100" y2="22" class="mh" transform="rotate(@(F(ma)) 100 100)" />
+            <circle cx="100" cy="100" r="5" class="hub" />
+        </svg>;
+    }
+    (int H, int M) HourMinute()
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(ClockText, @"(\d{1,2})\D(\d{2})");
+        if (!m.Success) return (DateTime.Now.Hour, DateTime.Now.Minute);
+        var h = int.Parse(m.Groups[1].Value);
+        if (ClockText.Contains("PM", StringComparison.OrdinalIgnoreCase) && h < 12) h += 12;
+        return (h, int.Parse(m.Groups[2].Value));
+    }
+
+    // ---------------------------------------------------------------- icons
+
     RenderFragment AppGlyph(string id) => id switch
     {
         "music" => @<Icon Name="note" Size="30" Weight="1.7" />,
-        "now" => @<Icon Name="play" Size="26" />,
-        "settings" => @<Icon Name="settings" Size="30" Weight="1.6" />,
-        "stopwatch" => @<Icon Name="gauge" Size="30" Weight="1.6" />,
+        "now" => Os == "nano6" && Player.Current is { } c ? @<Cover ArtKey="@c.ArtKey" Class="ios-art" /> : @<Icon Name="play" Size="26" />,
+        "settings" => @<svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor"><path d="M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8zm8.9 2.1-2-.3a7 7 0 0 0-.8-1.9l1.2-1.6a.6.6 0 0 0 0-.8l-1.3-1.3a.6.6 0 0 0-.8 0l-1.6 1.2a7 7 0 0 0-1.9-.8l-.3-2a.6.6 0 0 0-.6-.5h-1.8a.6.6 0 0 0-.6.5l-.3 2a7 7 0 0 0-1.9.8L6.6 4.8a.6.6 0 0 0-.8 0L4.5 6.1a.6.6 0 0 0 0 .8l1.2 1.6a7 7 0 0 0-.8 1.9l-2 .3a.6.6 0 0 0-.5.6v1.8c0 .3.2.6.5.6l2 .3c.2.7.4 1.3.8 1.9l-1.2 1.6a.6.6 0 0 0 0 .8l1.3 1.3c.2.2.6.2.8 0l1.6-1.2c.6.4 1.2.6 1.9.8l.3 2c0 .3.3.5.6.5h1.8c.3 0 .6-.2.6-.5l.3-2c.7-.2 1.3-.4 1.9-.8l1.6 1.2c.2.2.6.2.8 0l1.3-1.3a.6.6 0 0 0 0-.8l-1.2-1.6c.4-.6.6-1.2.8-1.9l2-.3c.3 0 .5-.3.5-.6v-1.8a.6.6 0 0 0-.5-.6z" /></svg>,
+        "stopwatch" => @<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="13.5" r="7.5" /><path d="M12 13.5V9.5M10 2.8h4M12 2.8V6M18.2 6.6l1.4-1.4" /></svg>,
         "clock" => @<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9.2" /><path d="M12 6.5V12l3.6 2.2" /></svg>,
+        "photos" => @<svg viewBox="0 0 24 24" width="34" height="34">@for (var i = 0; i < 8; i++) { <ellipse cx="12" cy="6.6" rx="2.6" ry="4.6" fill="@PetalColours[i]" opacity=".88" transform="rotate(@(i * 45) 12 12)" /> }</svg>,
+        "radio" => @<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="11" r="2" /><path d="M12 13v8M8.2 7.2a5.4 5.4 0 0 0 0 7.6M15.8 7.2a5.4 5.4 0 0 1 0 7.6M5.4 4.4a9.4 9.4 0 0 0 0 13.2M18.6 4.4a9.4 9.4 0 0 1 0 13.2" /></svg>,
+        "videos" => @<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="1.5" /><path d="M3 7l3.5-3.5M9 7l3.5-3.5M15 7l3.5-3.5" /><path d="M10 11v5l4.5-2.5z" fill="currentColor" /></svg>,
+        "podcasts" => @<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="10" r="2.2" fill="currentColor" /><path d="M11 21l-.4-6.5a1.4 1.4 0 0 1 2.8 0L13 21zM7.8 14.2a6 6 0 1 1 8.4 0M5.2 17a9.6 9.6 0 1 1 13.6 0" /></svg>,
+        "fitness" => @<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="14.5" cy="4.5" r="1.8" fill="currentColor" /><path d="M8 21l3-5.5 3 2.5 1.5 3M11 15.5l1-5.5-3.5 1.5L7 14M12 10l3 3 3-.5" /></svg>,
         _ => @<Icon Name="wave" Size="30" Weight="1.6" />,
     };
+    static readonly string[] PetalColours = ["#f4c22b", "#f39233", "#e9465b", "#c34fa0", "#7d5ac8", "#3d8fe0", "#33b5a4", "#7cc04b"];
 
-    IpodLevel Cur => levels.Count > 0 ? levels[^1] : Root(tab);
+    // ---------------------------------------------------------------- levels
 
-    IpodLevel Root(int t)
+    Lv Cur => levels.Count > 0 ? levels[^1] : rootOverride ?? Root(Os == "nano6" ? -1 : Tab);
+
+    Lv Root(int t)
     {
         if (roots.TryGetValue(t, out var r)) return r;
-        r = t switch
-        {
-            0 => IpodContent.Level("m:pl", Lib, Playlists)!,
-            1 => IpodContent.Level("m:artists", Lib, Playlists)!,
-            2 => IpodContent.Level("m:songs", Lib, Playlists)!,
-            3 => IpodContent.Level("m:albums", Lib, Playlists)!,
-            _ => new IpodLevel("More", [new IpodRow("Genres", "m:genres"), new IpodRow("Shuffle Songs", "m:shuffle", false)], IpodKind.Menu),
-        };
-        if (Lib.Songs.Count > 0 || t == 4) roots[t] = r;   // a library that is still loading is read again
+        r = t < 0 ? new Lv(new IpodLevel("Music", [new("Playlists", "m:pl"), new("Artists", "m:artists"), new("Albums", "m:albums"), new("Songs", "m:songs"), new("Genres", "m:genres")], IpodKind.Menu)) : LevelFor(TabSet[t].Root);
+        if (Lib.Songs.Count > 0 || t < 0 || TabSet[t].Root == "m:more") roots[t] = r;   // a library that is still loading is read again
         return r;
+    }
+
+    Lv LevelFor(string id)
+    {
+        switch (id)
+        {
+            case "m:more":
+                return new Lv(Os == "classic" ? new IpodLevel("More", [new IpodRow("Genres", "m:genres"), new IpodRow("Shuffle Songs", "m:shuffle", false)], IpodKind.Menu)
+                    : new IpodLevel("More", [new IpodRow("Albums", "m:albums"), new IpodRow("Genres", "m:genres"), new IpodRow("Shuffle Songs", "m:shuffle", false)], IpodKind.Menu));
+            case "m:radio":
+                {
+                    var gs = IpodContent.Genres(Lib);
+                    return new Lv(new IpodLevel("Radio", gs.Select((g, i) => new IpodRow(g.Name + " Radio", "r:" + i, false, ArtKey: g.ArtKey, Sub: Os == "flat" ? "Station · " + IpodContent.Count(g.Tracks.Count) : $"{88.1 + i * 1.6:0.0} FM")).ToList(), IpodKind.Albums, null, gs));
+                }
+            case "m:library":
+                return new Lv(new IpodLevel("Library", [new("Playlists", "m:pl"), new("Artists", "m:artists"), new("Albums", "m:albums"), new("Songs", "m:songs"), new("Genres", "m:genres")], IpodKind.Menu, null, Lib.RecentAlbums(12)), "library");
+            case "m:foryou":
+                {
+                    // a mix of the library's albums that changes once a day
+                    var day = DateTime.Today.DayOfYear;
+                    var gs = Lib.Albums.OrderBy(g => (g.Name.GetHashCode() ^ day * 7919) & 0x7fffffff).Take(24).ToList();
+                    return new Lv(new IpodLevel("For You", IpodContent.GroupRows(gs, "b:", true), IpodKind.Albums, null, gs), "grid");
+                }
+            case "m:browse": { var g = IpodContent.Level("m:genres", Lib, Playlists)!; return new Lv(g with { Title = "Browse" }); }
+            case "m:photos":
+                {
+                    var gs = Lib.Albums.Where(g => g.ArtKey is not null).ToList();
+                    return new Lv(new IpodLevel("Photos", IpodContent.GroupRows(gs, "b:", false), IpodKind.Albums, null, gs), "grid");
+                }
+        }
+        return new Lv(IpodContent.Level(id, Lib, Playlists) ?? new IpodLevel("", [], IpodKind.Menu));
     }
 
     IReadOnlyList<Group> Playlists() => Session.Playlists.Select(p => { var ts = Session.Resolve(p.Entries); return new Group(p.Name, ts, ts.Select(x => x.ArtKey).FirstOrDefault(a => a is not null)); }).ToList();
 
-    string BackLabel => levels.Count > 1 ? levels[^2].Title : Root(tab).Title;
+    string BackLabel => levels.Count > 1 ? levels[^2].L.Title : levels.Count == 1 ? (rootOverride ?? Root(Os == "nano6" ? -1 : Tab)).L.Title : Os == "classic" ? Root(Tab).L.Title : "";
     static string Pc(double v) => (Math.Clamp(v, 0, 1) * 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    static string F(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 
     // ---------------------------------------------------------------- navigation (the page calls these for the home button and Esc)
 
-    public void GoHome() { app = "home"; StateHasChanged(); }
+    public void GoHome() { app = "home"; page = 0; photo = null; StateHasChanged(); }
 
     // opened while a song plays: start in Now Playing (back goes to the home screen)
     protected override async Task OnInitializedAsync() { await base.OnInitializedAsync(); if (Player.Current is not null) { app = "now"; backTo = "home"; } }
@@ -198,11 +508,24 @@
     /// <summary>One step back: a level up, then home. False at the home screen (nothing to go back to).</summary>
     public bool Back()
     {
-        if (app == "home") return false;
-        if (app == "music" && levels.Count > 0) { levels.RemoveAt(levels.Count - 1); limit = 80; }
+        if (app == "home") { if (page > 0) { page = 0; StateHasChanged(); return true; } return false; }
+        if (photo is not null) photo = null;
+        else if (app == "music" && levels.Count > 0) { levels.RemoveAt(levels.Count - 1); limit = 80; }
         else if (app == "now" && backTo == "music") app = "music";
         else app = "home";
         StateHasChanged(); return true;
+    }
+
+    /// <summary>A sideways swipe on the screen (flacie.js): the nanos page their home screens and go back with a swipe to the right; the nano 6 swaps the
+    /// controls over its cover; iOS goes back with one too.</summary>
+    [JSInvokable]
+    public void Swipe(int dir)
+    {
+        if (Os == "classic") return;
+        if (app == "home") { if (Nano) page = Math.Clamp(page + dir, 0, Pages - 1); }
+        else if (app == "now" && Os == "nano6" && npUi) { if (dir > 0 || npPage > 0) npPage = Math.Clamp(npPage + dir, 0, 1); else Back(); }
+        else if (dir < 0) Back();
+        InvokeAsync(StateHasChanged);
     }
 
     void Launch(string id)
@@ -210,7 +533,15 @@
         switch (id)
         {
             case "flacie": Nav.NavigateTo("/"); return;
-            case "now": backTo = app == "music" ? "music" : "home"; app = Player.Current is null ? "home" : "now"; break;
+            case "now": backTo = app == "music" ? "music" : "home"; app = Player.Current is null ? "home" : "now"; npUi = true; npPage = 0; break;
+            case "music":
+                if (listApp != "music") { levels.Clear(); limit = 80; }
+                listApp = "music"; rootOverride = null; app = "music";
+                // the nano 6 opens its Music app where it was left: the first time, in Songs (Music, a step back, lists the rest)
+                if (Os == "nano6" && !opened && levels.Count == 0) { opened = true; Push(LevelFor("m:songs")); }
+                break;
+            case "radio" or "photos" when Os != "classic":
+                listApp = id; levels.Clear(); limit = 80; photo = null; rootOverride = LevelFor(id == "radio" ? "m:radio" : "m:photos"); app = "music"; break;
             default: app = id; break;
         }
         if (id == "clock") _ = LoadDate();
@@ -220,12 +551,13 @@
 
     async Task Tap(IpodRow row)
     {
-        var cur = Cur;
+        var cur = Cur.L;
         if (row.Id == "m:shuffle") { if (Lib.Songs.Count > 0) { await Player.ShuffleAll(Lib.Songs, "iPod"); ShowNow(); } return; }
         if (row.Id == "m:none") return;
-        if (IpodContent.Level(row.Id, Lib, Playlists) is { } lv) { Push(lv); return; }
+        if (row.Id.StartsWith("r:") && cur.Groups is { } st && int.TryParse(row.Id.AsSpan(2), out var si) && si < st.Count) { await Player.ShuffleAll(st[si].Tracks, "iPod"); ShowNow(); return; }
+        if (row.Id.StartsWith("m:")) { Push(LevelFor(row.Id)); return; }
         var (next, play) = IpodContent.Open(row.Id, cur);
-        if (next is not null) Push(next);
+        if (next is not null) Push(new Lv(next));
         else if (play is not null)
         {
             if (play.Shuffle) await Player.ShuffleAll(play.List, "iPod"); else await Player.Play(play.List, play.Index, "iPod");
@@ -233,8 +565,18 @@
         }
     }
 
-    void Push(IpodLevel l) { levels.Add(l); limit = 80; }
-    void ShowNow() { if (Player.Current is not null) { backTo = "music"; app = "now"; } }
+    // a cover in a grid: an album opens (in Photos it is shown big, a tap puts it away)
+    async Task TapTile(IpodLevel cur, IpodRow row)
+    {
+        if (listApp == "photos") { photo = row.ArtKey; return; }
+        var lv = cur.Groups is not null && cur.Rows.All(r => r.Id != row.Id) ? cur with { Rows = IpodContent.GroupRows(cur.Groups, "b:", true) } : cur;
+        var (next, _) = IpodContent.Open(row.Id, lv);
+        if (next is not null) Push(new Lv(next));
+        await Task.CompletedTask;
+    }
+
+    void Push(Lv l) { levels.Add(l); limit = 80; }
+    void ShowNow() { if (Player.Current is not null) { backTo = "music"; app = "now"; npUi = true; npPage = 0; } }
 
     async Task CycleRow(IpodRow r) { if (r.Id.StartsWith("cyc:")) await IpodActions.CycleAsync(r.Id[4..], Prefs, Player); }
 
@@ -248,9 +590,12 @@
 
     async Task Seek(MouseEventArgs e) { if (Player.Duration > 0) await Player.Seek(Math.Clamp(e.OffsetX / (W - 40.0), 0, 1) * Player.Duration); }
     async Task SetVolume(MouseEventArgs e) { var w = W - 40.0 - 36; await Player.SetVolumeAsync(Math.Clamp((e.OffsetX - 18) / w, 0, 1) * Prefs.VolumeLimit / 100.0); }
+    async Task SeekAt(MouseEventArgs e, double w) { if (Player.Duration > 0) await Player.Seek(Math.Clamp(e.OffsetX / w, 0, 1) * Player.Duration); }
+    async Task VolAt(MouseEventArgs e, double w) => await Player.SetVolumeAsync(Math.Clamp(e.OffsetX / w, 0, 1) * Prefs.VolumeLimit / 100.0);
 
     // ---------------------------------------------------------------- clock and stopwatch
 
+    void ToggleFace() { if (Os == "nano6") analogue = !analogue; }
     async Task LoadDate() { try { dateText = await Js.InvokeAsync<string>("flacie.ipodDate"); await InvokeAsync(StateHasChanged); } catch (Exception) { } }
 
     TimeSpan Elapsed => running ? watchBase + (DateTime.UtcNow - watchStart) : watchBase;
@@ -268,8 +613,8 @@
 
     protected override async Task OnAfterRenderAsync(bool first)
     {
-        if (first) { self = DotNetObjectReference.Create(this); try { await Js.InvokeVoidAsync("flacie.iosInit", root); } catch (Exception) { } }
-        if (app == "music" && Cur.Rows.Count > limit && self is not null) { try { await Js.InvokeVoidAsync("flacie.iosMore", sentinel, self); } catch (Exception) { } }
+        if (first) { self = DotNetObjectReference.Create(this); try { await Js.InvokeVoidAsync("flacie.iosInit", root, self); } catch (Exception) { } }
+        if (app == "music" && Cur.View == "list" && Cur.L.Rows.Count > limit && self is not null) { try { await Js.InvokeVoidAsync("flacie.iosMore", sentinel, self); } catch (Exception) { } }
     }
 
     public async ValueTask DisposeAsync() { watchTimer?.Dispose(); try { await Js.InvokeVoidAsync("flacie.iosDispose"); } catch (Exception) { } self?.Dispose(); }

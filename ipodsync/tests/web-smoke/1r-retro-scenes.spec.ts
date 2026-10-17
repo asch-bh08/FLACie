@@ -33,7 +33,7 @@ const turns = (l: Locator) => l.evaluate(async (d: HTMLElement) => { const a = d
 type Box = { x: number; y: number; width: number; height: number };
 const inside = (a: Box, b: Box, slack = 2) => a.x >= b.x - slack && a.y >= b.y - slack && a.x + a.width <= b.x + b.width + slack && a.y + a.height <= b.y + b.height + slack;
 /** The scenes that show the line being sung and what the file is (one by one, as each gets its display). */
-const SINGING = new Set<string>(['car', 'hifi']);
+const SINGING = new Set<string>(['car', 'hifi', 'minidisc']);
 
 test.describe.serial('listening scenes', () => {
   test('the panel switches scenes, keeps the choice, and the iPod comes back working', async ({ page }) => {
@@ -402,6 +402,31 @@ test.describe.serial('listening scenes', () => {
     await vol.focus(); await page.keyboard.press('ArrowDown');
     await expect.poll(real).toBe(before - 5);
     await expect(vol).toHaveValue(String(before - 5));
+    expect(errors).toEqual([]);
+  });
+
+  test('minidisc: the EQ button steps the real EQ and the LCD names the sound; VOL - and + are the real volume and the LCD shows it', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page);
+    await playInScene(page, 'minidisc');
+    const eq = () => page.evaluate(() => (window as any).flacie.eqGet());
+    await expect(page.getByTestId('md-eq-name')).toHaveText('EQ FLAT');
+    await page.locator('[data-testid=retro] [data-ctl=eq]').click();
+    await expect(page.getByTestId('md-eq-name')).toHaveText('EQ ROCK');
+    await expect.poll(eq).toEqual([5, 2, -2, 2, 5]);
+    await page.locator('[data-testid=retro] [data-ctl=eq]').click();
+    await expect(page.getByTestId('md-eq-name')).toHaveText('EQ POP');
+    await expect.poll(eq).toEqual([-1, 2, 4, 2, -1]);
+    const real = () => page.evaluate(() => Math.round((window as any).flacie.volume() * 100));
+    const lcd = async () => Number(((await page.getByTestId('md-vol').textContent()) ?? '').replace(/\D/g, ''));
+    const start = await real();
+    expect(await lcd()).toBe(Math.round(start / 5));
+    await page.locator('[data-testid=retro] [data-ctl=vol-down]').click();
+    await expect.poll(real).toBe(start - 5);
+    await expect.poll(lcd).toBe(Math.round((start - 5) / 5));
+    await page.locator('[data-testid=retro] [data-ctl=vol-up]').click();
+    await page.locator('[data-testid=retro] [data-ctl=vol-up]').click();
+    await expect.poll(real).toBe(Math.min(100, start + 5));
     expect(errors).toEqual([]);
   });
 

@@ -43,6 +43,14 @@ public abstract class RetroBase : UserComponent
     }
     /// <summary>Sets one band.</summary>
     protected Task SetBand(int i, int v) { var next = (int[])Eq.Clone(); next[i] = v; return SetEq(next); }
+    // the EQ key: the next sound of SceneEq's round (FLAT, ROCK, POP...) on the player's own EQ; a setting made by hand elsewhere (the boombox's sliders...) is kept to come back to
+    int[]? eqCustom;
+    protected string EqName => SceneEq.NameOf(Eq);
+    protected Task EqKey()
+    {
+        if (EqName == SceneEq.Custom) eqCustom = (int[])Eq.Clone();
+        return SetEq(SceneEq.Next(Eq, eqCustom));
+    }
     /// <summary>A band's slider moved (a range input's value).</summary>
     protected Task BandInput(ChangeEventArgs e, int i) => int.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var v) ? SetBand(i, v) : Task.CompletedTask;
     /// <summary>A band turned or slid by the wheel: a decibel a notch.</summary>

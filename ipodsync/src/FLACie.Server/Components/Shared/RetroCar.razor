@@ -86,13 +86,5 @@
         "ArrowDown" or "ArrowLeft" => SetVolume(Player.Volume - 0.05),
         _ => Task.CompletedTask,
     };
-    // the EQ key: the next sound of SceneEq's round (FLAT, ROCK, POP...) on the player's own EQ; a setting made by hand elsewhere (the boombox's sliders...) is kept to come back to
-    int[]? eqCustom;
-    string EqName => SceneEq.NameOf(Eq);
-    Task EqKey()
-    {
-        if (EqName == SceneEq.Custom) eqCustom = (int[])Eq.Clone();
-        return SetEq(SceneEq.Next(Eq, eqCustom));
-    }
     void Turn(int i) { climate[i] = climate[i] >= 120 ? -120 : climate[i] + 30; }
 }

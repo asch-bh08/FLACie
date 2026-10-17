@@ -1,7 +1,7 @@
 @inherits RetroBase
 @* The MiniDisc scene: a clean 2000s dorm desk, and a micro component system in brushed aluminium between two small speakers. The disc playing sits in its
-   top-loading slot (eject pauses and pops it up; a click on it, or play, goes on); the blue backlit LCD shows the song, its artist, the track and the time;
-   the jog-shuttle dial skips when turned (scroll, drag, or the arrow keys) and plays or pauses when its centre is pressed. A stack of MiniDiscs on the desk:
+   top-loading slot (eject pauses and pops it up; a click on it, or play, goes on); the blue backlit LCD shows what the file is and the sound in use (EQ), the song, the line being sung (its artist between lines), the track, the time and the volume;
+   the jog-shuttle dial skips when turned (scroll, drag, or the arrow keys) and plays or pauses when its centre is pressed. The EQ button steps the sounds of the player's own EQ; VOL - and + are its volume. A stack of MiniDiscs on the desk:
    the albums coming up and your playlists, each plays. Styles: retro.css. *@
 <div class="mdsys">
     <div class="md-wall" aria-hidden="true"><div class="poster"><Cover ArtKey="@NowAlbum?.ArtKey" /><i class="tape l"></i><i class="tape r"></i></div></div>
@@ -14,9 +14,10 @@
             </div>
             <div class="md-face">
                 <div class="md-lcd" data-testid="md-lcd">
+                    <div class="l0"><span class="rt-mq" data-testid="retro-format">@(Now is null ? "NO DISC" : Format)</span><span data-testid="md-eq-name">EQ @EqName</span></div>
                     <div class="l1 rt-mq" data-testid="retro-title">@Line1</div>
-                    <div class="l2 rt-mq">@(Now?.Artist ?? "MINIDISC")</div>
-                    <div class="l3"><span>@(Now is null ? "NO DISC" : ejected ? "OPEN" : $"TR {TrackNo:00}")</span><span>@(Now is null ? "--:--" : Clock(Position))</span><span class="@(Playing && !ejected ? "on" : "")">▶</span></div>
+                    @LyricsBox(Now?.Artist ?? "MINIDISC", "l2")
+                    <div class="l3"><span>@(Now is null ? "NO DISC" : ejected ? "OPEN" : $"TR {TrackNo:00}")</span><span>@(Now is null ? "--:--" : Clock(Position))</span><span data-testid="md-vol">VOL @(VolPct / 5)</span><span class="@(Playing && !ejected ? "on" : "")">▶</span></div>
                 </div>
                 <div class="md-jog" data-testid="md-jog" role="slider" tabindex="0" aria-label="Jog dial: turn to skip" aria-valuetext="@(Now?.Title ?? "")" style="--r:@(jog)deg"
                      @onwheel="JogWheel" data-wheel @onkeydown="JogKey">
@@ -27,6 +28,9 @@
                     <button type="button" data-ctl="prev" aria-label="Previous" @onclick="() => Skip(-1)">⏮</button>
                     <button type="button" data-ctl="next" aria-label="Next" @onclick="() => Skip(1)">⏭</button>
                     <button type="button" data-ctl="eject" aria-label="Eject" @onclick="Eject">⏏</button>
+                    <button type="button" class="txt" data-ctl="eq" aria-label="@($"Sound: {EqName}. Press for the next")" title="@($"Sound: {EqName} (press for the next)")" @onclick="EqKey">EQ</button>
+                    <button type="button" data-ctl="vol-down" aria-label="Volume down" title="Volume down" @onclick="() => Vol(VolNow - .05)">−</button>
+                    <button type="button" data-ctl="vol-up" aria-label="Volume up" title="Volume up" @onclick="() => Vol(VolNow + .05)">+</button>
                 </div>
                 <span class="md-brand">FLACIE&nbsp;&nbsp;MD-2000</span>
             </div>

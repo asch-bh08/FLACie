@@ -425,12 +425,15 @@
 /* the face: the blue LCD, the jog dial, the buttons */
 .md-face { position: relative; display: grid; grid-template-columns: 1fr 34%; grid-template-rows: 1fr auto; gap: 4% 5%; padding: 5% 5% 6%; aspect-ratio: 2.1; box-sizing: border-box; border-radius: 0 0 .8cqh .8cqh;
   background: repeating-linear-gradient(90deg, rgba(255,255,255,.12) 0 .12cqh, rgba(0,0,0,.035) .12cqh .3cqh), linear-gradient(#e9ebee, #b9bdc3 60%, #d2d5da); box-shadow: 0 2cqh 2.4cqh rgba(0,0,0,.3), inset 0 0 0 .3cqh rgba(0,0,0,.08); }
-.md-lcd { border-radius: .6cqh; padding: 3% 5%; overflow: hidden; display: grid; grid-template-rows: 1.2fr 1fr 1fr; align-items: center; position: relative;
+.md-lcd { border-radius: .6cqh; padding: 3% 5%; overflow: hidden; display: grid; grid-template-rows: auto 1.3fr 1fr auto; align-items: center; position: relative;
   background: radial-gradient(120% 120% at 50% 0%, #4c8dff, #1f56c9 60%, #10307a); box-shadow: inset 0 0 0 .3cqh #0c1d45, inset 0 .4cqh 1.2cqh rgba(0,0,0,.4), 0 0 3cqh rgba(80,150,255,.35);
   color: #eaf3ff; text-shadow: 0 0 .7cqh rgba(190,220,255,.9); font-family: "Dot Matrix", "Consolas", "Lucida Console", monospace; font-weight: 400; letter-spacing: .1em; }
 .md-lcd::after { content: ""; position: absolute; inset: 0; pointer-events: none; background-image: radial-gradient(transparent 55%, rgba(0,20,60,.35) 60%); background-size: .38cqw .38cqw; }
-.md-lcd .l1 { overflow: hidden; white-space: nowrap; font-size: 4.4cqw; }
-.md-lcd .l2 { font-size: 2.6cqw; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.md-lcd .l0 { display: flex; justify-content: space-between; gap: 3%; font-size: 2.1cqw; opacity: .8; white-space: nowrap; min-width: 0; }
+.md-lcd .l0 span:first-child { flex: 1 1 0; min-width: 0; overflow: hidden; } .md-lcd .l0 span:last-child { flex: none; }
+.md-lcd .l1 { overflow: hidden; white-space: nowrap; font-size: 3.8cqw; }
+.md-lcd .l2 { font-size: 2.6cqw; opacity: .9; }
+.md-lcd .l2 > div { overflow: hidden; }
 .md-lcd .l3 { display: flex; justify-content: space-between; font-size: 2.6cqw; }
 .md-lcd .l3 .on { color: #b8ffcf; text-shadow: 0 0 .8cqh #6dff9c; }
 .md-jog { position: relative; grid-row: 1 / 3; grid-column: 2; align-self: center; aspect-ratio: 1; border-radius: 50%; cursor: grab;
@@ -438,8 +441,9 @@
 .md-jog .ring { position: absolute; inset: 9%; border-radius: 50%; background: radial-gradient(circle, #eef0f2, #c3c7cc 70%, #9da1a8); box-shadow: inset 0 .3cqh .4cqh rgba(255,255,255,.7), inset 0 -.3cqh .5cqh rgba(0,0,0,.2); }
 .md-jog .ring::after { content: ""; position: absolute; left: 50%; top: 6%; width: 3%; height: 10%; margin-left: -1.5%; border-radius: 1cqh; background: #4c8dff; box-shadow: 0 0 .6cqh #4c8dff; }
 .md-jog .md-jog-center { position: absolute; inset: 30%; border-radius: 50%; border: 0; rotate: calc(-1 * var(--r, 0deg)); font-size: 1.6cqw; font-weight: 800; letter-spacing: -.1em; color: #2a2c30; background: radial-gradient(circle at 40% 35%, #ffffff, #c9ccd1); box-shadow: 0 .3cqh .5cqh rgba(0,0,0,.3); transition: rotate .25s ease; }
-.md-btns { display: flex; gap: 6%; align-items: center; }
-.md-btns button { width: 16%; aspect-ratio: 1; border-radius: 50%; border: 0; font-size: 2.2cqw; color: #2a2c30; background: radial-gradient(circle at 40% 35%, #ffffff, #b9bdc3); box-shadow: 0 .3cqh .4cqh rgba(0,0,0,.3); }
+.md-btns { display: flex; gap: 3.5%; align-items: center; }
+.md-btns button.txt { font-size: 1.8cqw; font-weight: 800; letter-spacing: .04em; }
+.md-btns button { width: 12.5%; aspect-ratio: 1; border-radius: 50%; border: 0; font-size: 2.2cqw; color: #2a2c30; background: radial-gradient(circle at 40% 35%, #ffffff, #b9bdc3); box-shadow: 0 .3cqh .4cqh rgba(0,0,0,.3); }
 .md-brand { position: absolute; left: 5%; bottom: 2.4%; font-size: 1.3cqw; letter-spacing: .3em; color: #6f737a; }
 /* the MiniDiscs on the desk: fanned out, see-through tints, the disc showing, the shutter, a label */
 .md-stack { position: absolute; left: 5%; bottom: 3%; height: 15cqh; width: 40cqh; }
@@ -458,9 +462,9 @@
   .md-spk { display: none; }
   .md-main { width: min(94cqw, 80cqh); }
   .md-face { aspect-ratio: auto; grid-template-columns: 1fr; grid-template-rows: auto auto auto; gap: 3cqw; padding: 5%; }
-  .md-lcd { height: min(24cqw, 13cqh); } .md-jog { grid-row: auto; grid-column: 1; width: min(46cqw, 24cqh); justify-self: center; }   /* (capped by the height: a squarer stage must not push the slot off the top) */
-  .md-lcd .l1 { font-size: min(7cqw, 4cqh); } .md-lcd .l2, .md-lcd .l3 { font-size: min(4.4cqw, 2.5cqh); } .md-btns button { font-size: min(4.6cqw, 2.7cqh); } .md-jog .md-jog-center { font-size: min(3.4cqw, 2cqh); }
-  .md-btns { justify-content: center; } .md-btns button { width: 13%; }
+  .md-lcd { height: min(36cqw, 17cqh); } .md-jog { grid-row: auto; grid-column: 1; width: min(46cqw, 24cqh); justify-self: center; }   /* (capped by the height: a squarer stage must not push the slot off the top) */
+  .md-lcd .l0 { font-size: min(3.6cqw, 2.1cqh); } .md-lcd .l1 { font-size: min(6.2cqw, 3.6cqh); } .md-lcd .l2, .md-lcd .l3 { font-size: min(4.2cqw, 2.4cqh); } .md-btns button.txt { font-size: min(3.4cqw, 2cqh); } .md-btns button { font-size: min(4.6cqw, 2.7cqh); } .md-jog .md-jog-center { font-size: min(3.4cqw, 2cqh); }
+  .md-btns { justify-content: center; } .md-btns button { width: 11.5%; }
   .md-stack { left: 4%; bottom: 3%; } .md-desk .mug { right: 6%; top: auto; bottom: 4%; }
 }
 @media (prefers-reduced-motion: reduce) {

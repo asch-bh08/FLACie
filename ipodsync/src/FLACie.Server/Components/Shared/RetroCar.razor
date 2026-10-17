@@ -1,6 +1,6 @@
 @inherits RetroBase
 @* The car stereo scene: a night dashboard seen through a rain-streaked windshield (city lights blurred beyond it, the wiper sweeping), a single-DIN head unit
-   with an amber dot-matrix display, a CD slot, a volume knob, six presets and the transport keys, and the climate dials under it. Bound to the player:
+   with an amber dot-matrix display (what the file is and the EQ, the title, the line being sung, the track), a CD slot, an EQ key stepping the sounds, a volume knob, six presets and the transport keys, and the climate dials under it. Bound to the player:
    play/pause, previous, next; eject pauses and the disc slides out (a click on it, or the slot, plays again); the display "tunes" to a station on every
    new song; the presets are radio stations made from your biggest genres (ROCK, POP, ...: each shuffles its genre), then the albums coming up; the knob is the volume (turned by scrolling or the arrow keys; pressed, it mutes). Styles: retro.css. *@
 <div class="car">
@@ -21,7 +21,9 @@
                     <i class="cu-disc @(ejected ? "out" : "")" data-testid="car-disc" style="@ArtStyle"></i>
                 </div>
                 <div class="cu-display" data-testid="car-display">
+                    <div class="cu-line0"><span data-testid="retro-format" class="rt-mq">@(Now is null ? "NO DISC" : Format)</span><span data-testid="car-eq-name">EQ @EqName</span></div>
                     <div class="cu-line1 rt-mq" data-testid="retro-title">@Ticker</div>
+                    @LyricsBox(Now?.Album, "cu-lyric")
                     <div class="cu-line2"><span>@(Now is null ? "NO DISC" : ejected ? "EJECT" : $"TRK {TrackNo:00}")</span><span>@(Now is null ? "--:--" : Clock(Position))</span><span>@(Source) @(Playing ? "▸" : "❚❚")</span></div>
                     @if (Now is not null) { <div class="cu-tune" @key="Now.Path" aria-hidden="true">TUNING&nbsp;&nbsp;FM @Freq</div> }
                     <i class="cu-dots" aria-hidden="true"></i>
@@ -40,6 +42,7 @@
                 <button type="button" data-ctl="prev" aria-label="Previous" @onclick="Prev">⏮</button>
                 <button type="button" data-ctl="play" aria-label="@(Playing ? "Pause" : "Play")" @onclick="PlayKey">⏯</button>
                 <button type="button" data-ctl="next" aria-label="Next" @onclick="Next">⏭</button>
+                <button type="button" data-ctl="eq" aria-label="@($"EQ: {EqName}. Press for the next sound")" title="@($"Sound: {EqName} (press for the next)")" @onclick="EqKey">EQ</button>
             </div>
             <span class="cu-brand" aria-hidden="true">FLACIE · CD-1</span>
         </div>

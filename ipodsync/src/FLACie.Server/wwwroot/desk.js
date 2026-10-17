@@ -247,6 +247,24 @@ window.desk = (() => {
     box._page = page;
   }
 
+  // the listening scenes' displays (RetroLyrics: a box marked data-lyrics, a line each, data-line): the same clock, but they show only the line being sung
+  // (.cur), with no pen and no pages; kept apart from the journal's. Each box is looked at again only when its song's lines or the line sung changed.
+  function sing() {
+    const boxes = s && s.el.querySelectorAll('[data-lyrics]'); if (!boxes || !boxes.length) return;
+    let c = null; try { c = window.flacie && window.flacie.clock ? window.flacie.clock() : null; } catch { c = null; }
+    if (!c) return;
+    const t = c[0], d = c[1], at = (t + LEAD) * 1000;
+    for (const box of boxes) {
+      const lines = box.querySelectorAll(':scope > [data-line]'), n = lines.length;
+      let cur = -1;
+      if (n && 'synced' in box.dataset) { for (let i = 0; i < n; i++) { if (+lines[i].dataset.ms <= at) cur = i; else break; } }
+      else if (n) cur = d > 0 ? Math.min(n - 1, Math.floor((t + LEAD) / d * n)) : -1;
+      if (box._cur === cur && box._first === lines[0] && box._n === n) continue;
+      box._cur = cur; box._first = lines[0]; box._n = n;
+      for (let i = 0; i < n; i++) lines[i].classList.toggle('cur', i === cur);
+    }
+  }
+
   // a page turn (the notebook: the right page is lifted by its bottom corner and folded over the spine) or a peel (a sticky note: its corner curls up and over, then the
   // note comes away): paper folding, in two dimensions. The corner C is taken to a point Q; the crease is the perpendicular bisector of C and Q, and the part of the
   // leaf beyond it lies folded back, mirrored in the crease. For a page turn Q goes round to the mirror of C in the spine, where the crease is the spine itself.
@@ -401,7 +419,7 @@ window.desk = (() => {
         motes: Array.from({ length: 60 }, () => ({ x: Math.random(), y: Math.random(), r: 0.6 + Math.random() * 1.6, vx: (Math.random() - 0.5) * 0.0001, vy: -0.00003 - Math.random() * 0.0001, tw: Math.random() * 6.28 })) };
       // reduced motion: one still frame (no analyser, no loop)
       if (reduced) { paint(CALM, performance.now()); dust(); } else s.raf = requestAnimationFrame(tick);
-      s.lyrics = setInterval(follow, 100); follow();
+      s.lyrics = setInterval(() => { follow(); sing(); }, 100); follow(); sing();
       // the scene's shape decides its layout (and the cable's route, drawn on the server): tell it when it turns portrait or landscape
       if (opts && opts.ref) {
         let last = !!opts.portrait;

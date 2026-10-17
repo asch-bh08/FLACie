@@ -43,6 +43,14 @@ public abstract class RetroBase : UserComponent
     }
     /// <summary>Sets one band.</summary>
     protected Task SetBand(int i, int v) { var next = (int[])Eq.Clone(); next[i] = v; return SetEq(next); }
+    // the EQ key: the next sound of SceneEq's round (FLAT, ROCK, POP...) on the player's own EQ; a setting made by hand elsewhere (the boombox's sliders...) is kept to come back to
+    int[]? eqCustom;
+    protected string EqName => SceneEq.NameOf(Eq);
+    protected Task EqKey()
+    {
+        if (EqName == SceneEq.Custom) eqCustom = (int[])Eq.Clone();
+        return SetEq(SceneEq.Next(Eq, eqCustom));
+    }
     /// <summary>A band's slider moved (a range input's value).</summary>
     protected Task BandInput(ChangeEventArgs e, int i) => int.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var v) ? SetBand(i, v) : Task.CompletedTask;
     /// <summary>A band turned or slid by the wheel: a decibel a notch.</summary>
@@ -75,6 +83,21 @@ public abstract class RetroBase : UserComponent
 
     protected static bool Gone(Exception e) => e is JSDisconnectedException or JSException or InvalidOperationException or OperationCanceledException;
     protected static string Inv(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>The playing song's lyrics and what the file is (from the page).</summary>
+    [CascadingParameter] protected RetroSong? Song { get; set; }
+    /// <summary>What the file is, short enough for a small display ("FLAC 16/44.1 1000K"); empty with nothing playing.</summary>
+    protected string Format => Now is { } t ? DeskFormat.Short(Song?.Info, t) : "";
+    /// <summary>The playing song's lyrics, for <see cref="RetroLyrics"/>.</summary>
+    protected RenderFragment LyricsBox(string? fallback, string? cls = null) => b =>
+    {
+        b.OpenComponent<RetroLyrics>(0);
+        b.AddComponentParameter(1, nameof(RetroLyrics.Lyrics), Song?.Lyrics);
+        b.AddComponentParameter(2, nameof(RetroLyrics.SongKey), Song?.SongKey);
+        b.AddComponentParameter(3, nameof(RetroLyrics.Fallback), fallback);
+        b.AddComponentParameter(4, nameof(RetroLyrics.Class), cls);
+        b.CloseComponent();
+    };
 
     protected Track? Now => Player.Current;
     protected bool Playing => Player.Playing;

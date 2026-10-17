@@ -33,7 +33,7 @@ const turns = (l: Locator) => l.evaluate(async (d: HTMLElement) => { const a = d
 type Box = { x: number; y: number; width: number; height: number };
 const inside = (a: Box, b: Box, slack = 2) => a.x >= b.x - slack && a.y >= b.y - slack && a.x + a.width <= b.x + b.width + slack && a.y + a.height <= b.y + b.height + slack;
 /** The scenes that show the line being sung and what the file is (one by one, as each gets its display). */
-const SINGING = new Set<string>([]);
+const SINGING = new Set<string>(['car', 'hifi', 'minidisc']);
 
 test.describe.serial('listening scenes', () => {
   test('the panel switches scenes, keeps the choice, and the iPod comes back working', async ({ page }) => {
@@ -247,6 +247,30 @@ test.describe.serial('listening scenes', () => {
     expect(errors).toEqual([]);
   });
 
+  test('car: the EQ key steps the sounds of the real EQ, and the display names the sound', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page);
+    await playInScene(page, 'car');
+    const eq = () => page.evaluate(() => (window as any).flacie.eqGet());
+    const key = page.locator('[data-testid=retro] [data-ctl=eq]');
+    await expect(page.getByTestId('car-eq-name')).toHaveText('EQ FLAT');
+    const seen: string[] = [];
+    for (const [name, bands] of [['ROCK', [5, 2, -2, 2, 5]], ['POP', [-1, 2, 4, 2, -1]], ['JAZZ', [3, 1, -1, 2, 3]], ['CLASSIC', [2, 0, -1, 1, 3]], ['VOCAL', [-2, 0, 3, 3, 0]], ['BASS', [8, 3, 0, 0, 0]], ['FLAT', [0, 0, 0, 0, 0]]] as [string, number[]][]) {
+      await key.click();
+      await expect(page.getByTestId('car-eq-name')).toHaveText(`EQ ${name}`);
+      await expect.poll(eq).toEqual(bands);   // (the music goes through it, and the desk's preamp shows the same)
+      seen.push(name);
+    }
+    expect(seen).toHaveLength(7);
+    // a setting made by hand is CUSTOM, and the key goes to FLAT from it
+    await page.evaluate(() => (window as any).flacie.eq([1, 2, 3, 4, 5]));
+    await page.reload(); await expect(page.locator('[data-testid=retro][data-scene=car]')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('car-eq-name')).toHaveText('EQ CUSTOM');
+    await key.click();
+    await expect(page.getByTestId('car-eq-name')).toHaveText('EQ FLAT');
+    expect(errors).toEqual([]);
+  });
+
   test('hifi: the record turns while playing and the tonearm follows the song; the record seeks, the pitch slider sets the speed, the crate flips and plays', async ({ page }) => {
     const errors = consoleErrors(page);
     await signIn(page);
@@ -280,6 +304,42 @@ test.describe.serial('listening scenes', () => {
     const f1 = (await front())!;
     await page.locator('[data-testid=hifi-crate] .sleeve.front').click();
     await expect(page.locator('.dock-meta small')).toHaveText(f1, { timeout: 5000 });
+    expect(errors).toEqual([]);
+  });
+
+  test('hifi: BASS and TREBLE are the real EQ bands and VOLUME the real volume: knobs that show them, turn by keys, scroll and drag', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page);
+    await page.addInitScript(() => { try { localStorage.setItem('flacie.eq', '4,0,0,0,-3'); } catch { } });
+    await playInScene(page, 'hifi');
+    const bass = page.getByTestId('hifi-bass'), treble = page.getByTestId('hifi-treble'), vol = page.getByTestId('hifi-volume');
+    const eq = () => page.evaluate(() => (window as any).flacie.eqGet());
+    // they show the EQ as it is set
+    await expect(bass).toHaveAttribute('aria-valuenow', '4'); await expect(treble).toHaveAttribute('aria-valuenow', '-3');
+    await expect(bass).toHaveAttribute('aria-valuetext', '+4 dB');
+    const rot = (l: any) => l.evaluate((e: HTMLElement) => parseFloat(e.style.getPropertyValue('--r')));
+    expect(await rot(bass)).toBeGreaterThan(await rot(treble));
+    // keys: a decibel a press; the music's own bands move
+    await bass.focus(); await page.keyboard.press('ArrowUp');
+    await expect.poll(async () => (await eq())[0]).toBe(5);
+    await expect(bass).toHaveAttribute('aria-valuenow', '5');
+    await expect.poll(() => page.evaluate(() => (window as any).flacie.toneLevel().low)).toBeGreaterThan(4);
+    // scroll turns the treble down, a drag up turns it up (12 px a step)
+    await treble.hover(); await page.mouse.wheel(0, 120);
+    await expect.poll(async () => (await eq())[4]).toBe(-4);
+    const b = (await treble.boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2 - 40, { steps: 6 }); await page.mouse.up();
+    await expect.poll(async () => (await eq())[4]).toBeGreaterThanOrEqual(-1);
+    // the middle bands are left as they were
+    expect((await eq()).slice(1, 4)).toEqual([0, 0, 0]);
+    // volume
+    const real = () => page.evaluate(() => Math.round((window as any).flacie.volume() * 100));
+    await expect(vol).toHaveAttribute('aria-valuenow', String(await real()));
+    const before = await real();
+    await vol.focus(); await page.keyboard.press('ArrowDown');
+    await expect.poll(real).toBe(before - 5);
+    await expect(vol).toHaveAttribute('aria-valuenow', String(before - 5));
     expect(errors).toEqual([]);
   });
 
@@ -342,6 +402,31 @@ test.describe.serial('listening scenes', () => {
     await vol.focus(); await page.keyboard.press('ArrowDown');
     await expect.poll(real).toBe(before - 5);
     await expect(vol).toHaveValue(String(before - 5));
+    expect(errors).toEqual([]);
+  });
+
+  test('minidisc: the EQ button steps the real EQ and the LCD names the sound; VOL - and + are the real volume and the LCD shows it', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page);
+    await playInScene(page, 'minidisc');
+    const eq = () => page.evaluate(() => (window as any).flacie.eqGet());
+    await expect(page.getByTestId('md-eq-name')).toHaveText('EQ FLAT');
+    await page.locator('[data-testid=retro] [data-ctl=eq]').click();
+    await expect(page.getByTestId('md-eq-name')).toHaveText('EQ ROCK');
+    await expect.poll(eq).toEqual([5, 2, -2, 2, 5]);
+    await page.locator('[data-testid=retro] [data-ctl=eq]').click();
+    await expect(page.getByTestId('md-eq-name')).toHaveText('EQ POP');
+    await expect.poll(eq).toEqual([-1, 2, 4, 2, -1]);
+    const real = () => page.evaluate(() => Math.round((window as any).flacie.volume() * 100));
+    const lcd = async () => Number(((await page.getByTestId('md-vol').textContent()) ?? '').replace(/\D/g, ''));
+    const start = await real();
+    expect(await lcd()).toBe(Math.round(start / 5));
+    await page.locator('[data-testid=retro] [data-ctl=vol-down]').click();
+    await expect.poll(real).toBe(start - 5);
+    await expect.poll(lcd).toBe(Math.round((start - 5) / 5));
+    await page.locator('[data-testid=retro] [data-ctl=vol-up]').click();
+    await page.locator('[data-testid=retro] [data-ctl=vol-up]').click();
+    await expect.poll(real).toBe(Math.min(100, start + 5));
     expect(errors).toEqual([]);
   });
 

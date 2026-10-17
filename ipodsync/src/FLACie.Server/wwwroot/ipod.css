@@ -1,5 +1,9 @@
 /* the black-and-white iPods' screens: Chicago Kare (MIT, wwwroot/fonts/LICENSE-chicago-kare.txt), a faithful pixel copy of Chicago, the face those iPods drew everything in; its pixel is 1/16 em, so it is only crisp at 16px (= Chicago 12) */
 @font-face { font-family: "iPod Chicago"; src: url(fonts/chicago-kare.woff2) format("woff2"); font-weight: 400; font-display: block; }
+/* the 5th generation and the first nanos: Source Sans 3 (OFL 1.1), Myriad's near cousin, as their Podium Sans was drawn from Myriad */
+@font-face { font-family: "iPod Myriad"; src: url(fonts/source-sans-3.woff2) format("woff2"); font-weight: 200 900; font-display: block; }
+/* the classic and the 3rd-5th nanos (Helvetica Bold) and the touch iPods and 6th nano (Helvetica): Arimo (OFL 1.1), Helvetica's metric twin */
+@font-face { font-family: "iPod Helvetica"; src: url(fonts/arimo.woff2) format("woff2"); font-weight: 400 700; font-display: block; }
 /* iPod mode (/ipod): every iPod of the Android emulator on the page. The body is 300 px wide (everything else a fraction of it) and zoomed to fit the window; the screen is drawn at the
    logical size of the real device (160x128, 320x240, 240x320) and scaled into its bezel, so edges stay in proportion at any size. */
 .ipod-stage { position: fixed; inset: 0; display: flex; overflow: hidden; color: #eee; background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--backdrop, #0b0c0e) 70%, #3a3d45), var(--backdrop, #0b0c0e) 78%); }
@@ -108,7 +112,8 @@
 .fam-mono .cf { background: var(--lcd); color: var(--ink); }
 
 /* ---------------- video (320x240): the colour iPod video and the first nanos */
-.fam-video .lcd-in { background: #fff; color: #000; font-family: "Lucida Grande", "Segoe UI", Verdana, sans-serif; }
+.fam-video .lcd-in { background: #fff; color: #000; font-family: "iPod Myriad", "Myriad Pro", "Segoe UI", sans-serif; font-weight: 600; }   /* (menus semibold, as on the real screen) */
+.fam-video .lcd-in b { font-weight: 700; } .fam-video .lcd-in small { font-weight: 400; }
 .fam-video .lcd-hdr { height: 22px; background: linear-gradient(#fff, #cfd2d8); border-bottom: 1px solid #8e9299; padding: 0 6px; }
 .fam-video .lcd-hdr b { font-size: 13px; }
 .fam-video .lcd-list li { height: 24px; padding: 0 10px 0 8px; font-size: 15px; }
@@ -136,9 +141,11 @@
 .pal-dark { --bg: #111215; --hdr1: #3c3f47; --hdr2: #1a1c21; --hdrline: #000; --hdrink: #f2f3f5; --ink: #f2f3f5; --sub: #8b909b; --line: #23252b; --sel1: #4a9bff; --sel2: #1f62d6; --selink: #fff; --selsub: #d7e6ff; --chev: #6c717c;
   --pane1: #22242c; --pane2: #040405; --paneink: #fff; --paneacc: #63a9ff; --panedim: #9ba1ae; --np1: #1c1e23; --np2: #0a0b0d; --nptitle: #fff; --npartist: #c7cad1; --npalbum: #8b909b; --npdim: #8b909b; --artframe: #3a3d45; --artbg: #2a2d34; --bar1: #2a2d34; --bar2: #3d4048; --baredge: #555a66; }
 .fam-nano .lcd-in, .fam-touch .lcd-in { background: var(--bg); color: var(--ink); }
+.fam-nano .lcd-in { font-family: "iPod Helvetica", "Helvetica Neue", Arial, sans-serif; font-weight: 700; }   /* (the classic and the 3rd-5th nanos set everything in Helvetica Bold) */
+.fam-nano .lcd-in small { font-weight: 400; }
 .fam-nano .lcd-hdr { height: 26px; background: linear-gradient(var(--hdr1), var(--hdr2)); border-bottom: 1px solid var(--hdrline); color: var(--hdrink); padding: 0 7px; }
 .fam-nano .lcd-hdr b { font-size: 14px; }
-.fam-nano .lcd-list li { height: 27px; padding: 0 10px; font-size: 15px; font-weight: 500; border-bottom: 1px solid var(--line); box-sizing: border-box; }
+.fam-nano .lcd-list li { height: 27px; padding: 0 10px; font-size: 15px; font-weight: 700; border-bottom: 1px solid var(--line); box-sizing: border-box; }
 .fam-nano.tall .lcd-list li { height: 38px; font-size: 21px; }
 .fam-nano .lcd-list li.sel { background: linear-gradient(var(--sel1), var(--sel2)); color: var(--selink); border-bottom-color: transparent; box-shadow: inset 0 1px 0 rgba(255,255,255,.35); }
 .fam-nano .lcd-list li em { color: var(--chev); } .fam-nano .lcd-list li.sel em { color: var(--selink); }
@@ -147,7 +154,7 @@
 .fam-nano .lcd-scroll { right: 2px; width: 3px; border-radius: 2px; background: transparent; }
 .fam-nano .lcd-scroll i { background: rgba(85,90,102,.55); border-radius: 2px; }
 .fam-nano .lcd-pane { background: linear-gradient(var(--pane1), var(--pane2)); border-left: 1px solid #000; color: var(--paneink); }
-.fam-nano .pane-acc { color: var(--paneacc); font-weight: 500; font-size: 11.5px; } .fam-nano .lcd-pane small { color: var(--panedim); font-size: 10.5px; }
+.fam-nano .pane-acc { color: var(--paneacc); font-weight: 700; font-size: 11.5px; } .fam-nano .lcd-pane small { color: var(--panedim); font-size: 10.5px; }
 .fam-nano .lcd-pane b { font-size: 13.5px; } .fam-nano .pane-art { box-shadow: 0 0 0 1px rgba(255,255,255,.27); background: #3a3e47; }
 .fam-nano .lnp-art { left: 16px; top: 38px; width: 126px; height: 126px; background: var(--artbg); box-shadow: 0 0 0 1px var(--artframe); -webkit-box-reflect: below 2px linear-gradient(transparent 82%, rgba(255,255,255,.2)); }
 .fam-nano .lnp-meta { left: 156px; right: 10px; top: 38px; }

@@ -1,11 +1,12 @@
+@page "/retro"
 @page "/ipod"
 @attribute [Authorize]
 @layout EmptyLayout
 @implements IAsyncDisposable
 @inherits UserComponent
 @inject IJSRuntime Js
-<PageTitle>iPod · FLACie</PageTitle>
-@* The iPod mode: every iPod of the Android emulator (23 models, their colours, the mono / colour / nano screens, Cover Flow, the settings), on the page and in the Windows app.
+<PageTitle>Retro · FLACie</PageTitle>
+@* Retro (once called iPod mode; /ipod still opens it): every iPod of the Android emulator (23 models, their colours, the mono / colour / nano screens, Cover Flow, the settings), on the page and in the Windows app.
    Wheel by drag, tap, hold and flick; mouse wheel; keys: arrows, Enter, Esc, Space. Touch models show the FLACie player in their screen. *@
 <div class="ipod-stage @(flat ? "flat" : "") @(color.Dark ? "dark" : "") @(panel ? "dock-open" : "")" data-testid="ipod" data-model="@model.Id" data-color="@color.Name" data-look="@(desk ? "desk" : flat ? "wheel" : "device")" data-scene="@IpodPrefs.SceneKeys[prefs.Scene]" style="@StageStyle">
     @if (retro) { <RetroScene Kind="@prefs.Scene" Song="@RetroSongNow" /> }
@@ -16,9 +17,9 @@
     }
     else { @Area() }
     <a class="ipod-exit" href="/" aria-label="Back to FLACie" title="Back to FLACie" data-testid="ipod-exit"><Icon Name="chevron-left" Size="18" /></a>
-    <button class="ipod-gear" type="button" tabindex="-1" aria-label="@(panel ? "Hide the panel" : "Show the panel")" title="Panel: pick an iPod, colour and look" data-testid="ipod-gear" @onclick="TogglePanel"><Icon Name="settings" Size="18" /></button>
-    <aside class="ipod-dock ipod-panel @(panel ? "open" : "")" data-testid="ipod-panel" aria-label="iPod panel">
-        <h2>iPod</h2>
+    <button class="ipod-gear" type="button" tabindex="-1" aria-label="@(panel ? "Hide the panel" : "Show the panel")" title="Panel: pick an iPod, a scene, colour and look" data-testid="ipod-gear" @onclick="TogglePanel"><Icon Name="settings" Size="18" /></button>
+    <aside class="ipod-dock ipod-panel @(panel ? "open" : "")" data-testid="ipod-panel" aria-label="Retro panel">
+        <h2>Retro</h2>
         <section class="dock-np" data-testid="ipod-dock-np">
             @if (Player.Current is { } cur)
             {
@@ -512,7 +513,7 @@
         {
             self = DotNetObjectReference.Create(this);
             await LoadPrefs();
-            // the volume the music plays at (kept in the browser): read here too, iPod mode opened straight away has no player bar to read it
+            // the volume the music plays at (kept in the browser): read here too, Retro opened straight away has no player bar to read it
             try { await Player.LoadVolumeAsync(); } catch (Exception) { }
             loaded = true; Fit(); Root(); RefreshClock(); await RefreshBattery();
             // opened while a song plays: start on Now Playing (MENU goes to the menu, as on an iPod picked up mid-song)

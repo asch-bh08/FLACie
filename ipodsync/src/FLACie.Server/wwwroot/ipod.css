@@ -25,13 +25,13 @@
 .lcd-batt { position: relative; width: 20px; height: 9px; border: 1px solid currentColor; border-radius: 2px; box-sizing: border-box; background: linear-gradient(90deg, currentColor var(--lvl, 100%), transparent var(--lvl, 100%)); }
 .lcd-batt::after { content: ""; position: absolute; right: -3px; top: 2px; width: 2px; height: 3px; background: currentColor; }
 .lcd-batt.chg { background: linear-gradient(90deg, #56b14e var(--lvl, 100%), transparent var(--lvl, 100%)); }
-.lcd-fade { animation: lcd-fade .24s ease both; }
+.lcd-fade { animation: lcd-fade .24s ease backwards; }
 @keyframes lcd-fade { from { opacity: 0 } to { opacity: 1 } }
 .lcd-body { position: relative; flex: 1; display: flex; min-height: 0; }
 .lcd-list-wrap { position: relative; flex: 1; overflow: hidden; min-width: 0; }
 .lcd-body.split .lcd-list-wrap { flex: 0 0 55%; }
 .lcd-list { list-style: none; margin: 0; padding: 0; }
-.lcd-list.slide-in { animation: lcd-in .24s ease both; } .lcd-list.slide-back { animation: lcd-back .24s ease both; }
+.lcd-list.slide-in { animation: lcd-in .24s ease backwards; } .lcd-list.slide-back { animation: lcd-back .24s ease backwards; }
 @keyframes lcd-in { from { transform: translateX(100%) } to { transform: none } }
 @keyframes lcd-back { from { transform: translateX(-100%) } to { transform: none } }
 .lcd-list li { display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; cursor: default; }

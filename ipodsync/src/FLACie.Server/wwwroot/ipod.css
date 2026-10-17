@@ -3,6 +3,8 @@
 /* iPod mode (/ipod): every iPod of the Android emulator on the page. The body is 300 px wide (everything else a fraction of it) and zoomed to fit the window; the screen is drawn at the
    logical size of the real device (160x128, 320x240, 240x320) and scaled into its bezel, so edges stay in proportion at any size. */
 .ipod-stage { position: fixed; inset: 0; display: flex; overflow: hidden; color: #eee; background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--backdrop, #0b0c0e) 70%, #3a3d45), var(--backdrop, #0b0c0e) 78%); }
+/* (before the saved choice is read: an empty page-sized stage, so no other device shows first) */
+.ipod-stage.ipod-booting { background: var(--backdrop, #0b0c0e); }
 .ipod-stage.flat { background: linear-gradient(var(--flat1, #444), var(--flat2, #222)); }
 .ipod { position: relative; flex: none; border-radius: var(--rad, 26px); user-select: none; -webkit-user-select: none; touch-action: none; font-family: "Lucida Grande", "Segoe UI", Verdana, sans-serif;
   background: linear-gradient(var(--top, #fff), var(--bottom, #ddd));

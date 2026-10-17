@@ -36,6 +36,9 @@ public class IpodModelsTests
         Assert.Equal(new IpodScreenSize(320, 240), IpodModels.ScreenSize(IpodModels.Get("video5"), true));
         Assert.Equal(new IpodScreenSize(240, 320), IpodModels.ScreenSize(IpodModels.Get("nano4"), true));
         Assert.Equal(new IpodScreenSize(320, 240), IpodModels.ScreenSize(IpodModels.Get("nano4"), false));
+        // the 5th generation's 2.2" screen is taller than the 4th's 2": 240x376
+        Assert.Equal(new IpodScreenSize(240, 376), IpodModels.ScreenSize(IpodModels.Get("nano5"), true));
+        var s5 = IpodModels.Get("nano5").Screen; Assert.InRange((s5.R - s5.L) * 0.43 / (s5.B - s5.T), 0.62, 0.66);   // (its shape on the body: 240 by 376)
         Assert.Equal(IpodFamily.Mono, IpodModels.Get("ipod3").Family); Assert.Equal(IpodFamily.Video, IpodModels.Get("nano1").Family); Assert.Equal(IpodFamily.Nano, IpodModels.Get("classic7").Family);
         Assert.True(IpodModels.Get("ipod1").Buttons && IpodModels.Get("ipod2").Buttons && !IpodModels.Get("ipod3").Buttons);
     }

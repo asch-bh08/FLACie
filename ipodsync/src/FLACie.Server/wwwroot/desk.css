@@ -36,7 +36,7 @@
 .desk-hand, .desk-journal, .desk-np b, .desk-pop b { font-family: "Desk Hand", "Segoe Print", "Bradley Hand", cursive; }
 
 /* ---------------- the iPod's place: rotated a little; the page's .ipod-area fills it and its fit sizes the device to the inner box */
-.desk-ipod { left: 46%; top: 47cqh; height: 56cqh; aspect-ratio: var(--aspect, .6); box-sizing: content-box; padding: 12px; translate: -50% -50%; --tilt: -4deg; rotate: var(--tilt); }
+.desk-ipod { left: 48%; top: 49cqh; height: 68cqh; aspect-ratio: var(--aspect, .6); box-sizing: content-box; padding: 12px; translate: -50% -50%; --tilt: -4deg; rotate: var(--tilt); }
 .desk-ipod > .ipod-area { position: absolute; inset: 0; z-index: 2; }
 /* the tilt is drawn into the iPod's layer, not applied to it: the area (which the compositor keeps as its own layer, as the iPod lies over the earbuds and the
    journal) is turned back upright and the fit inside it turned the tilt again, so the layer is axis-aligned and the compositor never rotates a bitmap of the

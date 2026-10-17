@@ -1,8 +1,8 @@
 import { test, expect, Page } from '@playwright/test';
 
-// The systems of the later touch iPods (/ipod): the iPod touch 6 (iOS 8-9 Music), the iPod touch 7 (iOS 10-12 Music), the nano 7 (the flat 2012 system) and
-// the nano 6 (the 2010 square one). Each goes home screen -> Music -> Now Playing; the nanos page their home screens with a swipe or the dots and go back with
-// a swipe to the right; the controls lie on top of what they cover and are big enough for a finger. (1m-ipod covers the touch 1-5 and the shared contract.)
+// The systems of the touch iPods (/ipod): the iPod touch 1 to 3 (iPhone OS 1 to 3), the touch 4 (iOS 4-5), the touch 5 (iOS 6), the touch 6 (iOS 8-9 Music),
+// the touch 7 (iOS 10-12 Music), the nano 7 (the flat 2012 system) and the nano 6 (the 2010 square one). Each goes home screen -> Music -> Now Playing; the nanos page their home screens with a swipe or the dots and go back with
+// a swipe to the right; the controls lie on top of what they cover and are big enough for a finger. (1m-ipod covers the shared contract.)
 async function signIn(page: Page) {
   await page.goto('/login');
   await page.locator('#jf-form summary').click();
@@ -160,6 +160,86 @@ test.describe('touch iPod systems', () => {
     });
   }
 
+  // the glossy iPhone OS systems: each generation has its own chrome, the same apps and the same ways in and out
+  const OLD: Record<string, { tabs: string[]; status: 'black' | 'grey' | 'blue' }> = {
+    touch1: { tabs: ['Playlists', 'Artists', 'Songs', 'Videos', 'More'], status: 'black' },
+    touch2: { tabs: ['Playlists', 'Artists', 'Songs', 'Videos', 'More'], status: 'grey' },
+  };
+  const lum = (c: string) => { const m = c.match(/\d+/g)!.map(Number); return (m[0] + m[1] + m[2]) / 3; };
+  const timeInk = (page: Page) => page.locator('[data-testid=ios-status] .ios-time').evaluate((e) => getComputedStyle(e).color);
+  for (const model of Object.keys(OLD)) {
+    test(`${model}: home screen, Music with its tab bar, Now Playing (cover panel), back`, async ({ page }) => {
+      test.setTimeout(90_000);
+      const spec = OLD[model];
+      const errors: string[] = []; page.on('pageerror', (e) => errors.push(String(e)));
+      await signIn(page); await page.setViewportSize({ width: 1200, height: 900 });
+      await openIpod(page, model);
+      await expect(page.getByTestId('ios')).toHaveAttribute('data-os', 'classic');
+      await expect(page.getByTestId('ios')).toHaveClass(new RegExp('m-' + model + '\\b'));
+      // home: the apps on the page, four in the dock (with their names); the status bar over the wallpaper is black with white letters
+      await expect(page.locator('.ios-grid .ios-app[data-app="music"]')).toHaveCount(1);
+      await expect(page.locator('.ios-dock .ios-app')).toHaveCount(4);
+      await expect(page.locator('.ios-dock .ios-label').first()).toBeVisible();
+      expect(lum(await timeInk(page))).toBeGreaterThan(200);
+      // an app of the dock; inside an app the status bar is the generation's own: black (touch 1), grey with dark letters (touch 2, 3), blue like the navigation bar (touch 4, 5)
+      await page.locator('.ios-dock .ios-app[data-app="videos"]').click();
+      await expect.poll(() => app(page)).toBe('videos');
+      await expect(page.getByTestId('ios-stub')).toContainText('No Videos');
+      if (spec.status === 'grey') expect(lum(await timeInk(page)), 'dark letters on the grey bar').toBeLessThan(110); else expect(lum(await timeInk(page))).toBeGreaterThan(200);
+      await page.getByTestId('ios-back').click(); await expect.poll(() => app(page)).toBe('home');
+      await page.locator('.ios-dock .ios-app[data-app="photos"]').click();
+      await expect.poll(() => app(page)).toBe('photos'); await expect(page.getByTestId('ios-stub')).toContainText('No Photos');
+      await page.getByTestId('ipod-home-button').click(); await expect.poll(() => app(page)).toBe('home');
+      // Music: the tab bar of the generation
+      await page.locator('.ios-grid .ios-app[data-app="music"]').click();
+      await expect.poll(() => app(page)).toBe('music');
+      await expect(page.locator('[data-tab]')).toHaveText(spec.tabs);
+      if (spec.tabs.includes('Videos')) {
+        await page.locator('[data-tab="Videos"]').click();
+        await expect(page.locator('.ios-nav b')).toHaveText('Videos'); await expect(page.locator('.ios-empty')).toContainText('No Videos');
+      }
+      await page.locator('[data-tab="Artists"]').click(); await expect(page.locator('.ios-nav b')).toHaveText('Artists');
+      await page.getByTestId('ios-row').first().click();
+      await page.getByTestId('ios-back').click(); await expect(page.locator('.ios-nav b')).toHaveText('Artists');
+      await page.locator('[data-tab="Songs"]').click(); await expect(page.locator('.ios-nav b')).toHaveText('Songs');
+      expect((await points(page, 'ios-row')).h).toBeGreaterThanOrEqual(44);   // finger-sized rows
+      await page.getByTestId('ios-row').nth(1).click();
+      await expect.poll(() => app(page), { timeout: 20_000 }).toBe('now');
+      await expect(page.getByTestId('ios-np-title')).not.toHaveText('');
+      for (const id of ['ios-play', 'ios-next', 'ios-prev', 'ios-back', 'ios-scrub', 'ios-vol']) expect(await onTop(page, id), id + ' on top').toBe(true);
+      for (const id of ['ios-play', 'ios-prev', 'ios-next']) { const b = await points(page, id); expect(Math.min(b.w, b.h), id).toBeGreaterThanOrEqual(44); }
+      // pause and play; the scrubber and the volume bar take a tap
+      await page.getByTestId('ios-play').click(); await page.getByTestId('ios-play').click();
+      await page.getByTestId('ios-scrub').click({ position: { x: 60, y: 8 } });
+      await page.getByTestId('ios-vol').click({ position: { x: 30, y: 8 } });
+      // a tap on the cover brings the panel with the stars, repeat and shuffle (they are not on the front)
+      await expect(page.getByTestId('ios-repeat')).toHaveCount(0);
+      await page.getByTestId('ios-np-art').click();
+      await expect(page.getByTestId('ios-repeat')).toBeVisible();
+      for (const id of ['ios-repeat', 'ios-shuffle']) { expect(await onTop(page, id), id + ' on top').toBe(true); const b = await points(page, id); expect(Math.min(b.w, b.h), id).toBeGreaterThanOrEqual(40); }
+      await page.getByTestId('ios-shuffle').click(); await expect(page.getByTestId('ios-shuffle')).toHaveClass(/on/);
+      await page.getByTestId('ios-shuffle').click(); await expect(page.getByTestId('ios-shuffle')).not.toHaveClass(/on/);
+      const stars = page.locator('.ios-np-panel .ios-stars button');
+      await expect(stars).toHaveCount(5);
+      await stars.nth(3).click(); await expect(page.locator('.ios-np-panel .ios-stars button.on')).toHaveCount(4);
+      await stars.nth(3).click(); await expect(page.locator('.ios-np-panel .ios-stars button.on')).toHaveCount(0);
+      await page.getByTestId('ios-np-art').click(); await expect(page.getByTestId('ios-repeat')).toHaveCount(0);
+      // the way back: Now Playing returns to the list, whose "Now Playing" button comes back to it
+      await page.getByTestId('ios-back').click(); await expect.poll(() => app(page)).toBe('music');
+      await page.getByTestId('ios-now').click(); await expect.poll(() => app(page)).toBe('now');
+      await page.getByTestId('ipod-home-button').click(); await expect.poll(() => app(page)).toBe('home');
+      // settings and the stopwatch keep working
+      await page.locator('.ios-grid .ios-app[data-app="settings"]').click();
+      const row = page.getByTestId('ios-setting').first(); const before = await row.locator('.ios-v').textContent();
+      await row.click(); await expect(row.locator('.ios-v')).not.toHaveText(before!);
+      await page.getByTestId('ios-back').click();
+      await page.locator('.ios-grid .ios-app[data-app="stopwatch"]').click();
+      await page.getByTestId('ios-sw-go').click(); await page.waitForTimeout(500); await page.getByTestId('ios-sw-go').click();
+      await expect(page.getByTestId('ios-sw-time')).not.toHaveText('00:00.00');
+      expect(errors).toEqual([]);
+    });
+  }
+
   test('nothing on the new systems spills off the screen or lies text on text', async ({ page }) => {
     test.setTimeout(240_000);
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -180,7 +260,7 @@ test.describe('touch iPod systems', () => {
     });
     for (const [w, h] of [[1366, 768], [390, 844]] as Array<[number, number]>) {
       await page.setViewportSize({ width: w, height: h });
-      for (const model of ['touch6', 'touch7', 'nano7', 'nano6']) {
+      for (const model of ['touch1', 'touch2', 'touch6', 'touch7', 'nano7', 'nano6']) {
         await openIpod(page, model);
         expect(await problems(), model + ' home at ' + w).toEqual([]);
         await playFromSongs(page, model);

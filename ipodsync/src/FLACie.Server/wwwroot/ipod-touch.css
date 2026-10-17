@@ -1,4 +1,5 @@
-/* The touch iPods' own systems, beside the glossy one of ipod.css (the iPod touch 1 to 5, "classic"): IpodTouchOs.razor puts os-flat (the iPod touch 6 and 7: the
+/* The touch iPods' own systems, with the glossy iPhone OS of the iPod touch 1 to 5 at the end of this file ("classic", the base is in ipod.css, then the classes
+   m-touch1 .. m-touch5 of each generation): IpodTouchOs.razor puts os-flat (the iPod touch 6 and 7: the
    flat Music app of iOS 8 to 12), os-nano7 (the 2012 nano) or os-nano6 (the 2010 square nano) on the screen's root. Everything is in the screen's own points
    (320 wide, 240 on the nanos) and scaled into the glass. Nothing here moves by itself: no blur or shadow filters on what moves, no endless animations. */
 
@@ -312,3 +313,100 @@
   box-shadow: inset 0 0 0 1px var(--edge), 128px 0 0 -0.5px var(--bottom), 154px 0 0 -0.5px var(--bottom); }
 .ipod.m-nano7::before { left: -3px; top: 17%; width: 6px; height: 7%;
   box-shadow: inset 0 0 0 1px var(--edge), 0 52px 0 -0.5px var(--bottom), 0 104px 0 -0.5px var(--bottom); }
+
+/* ---------------------------------------------------------------- iPod touch 1 to 5: the glossy iPhone OS. What they share is first (home, bars, rows, Now Playing's parts),
+   then each generation in its own colours: touch 1 (iPhone OS 1, 2007), touch 2 (OS 2, 2008), touch 3 (OS 3, 2009), touch 4 (iOS 4-5, 2010) and touch 5 (iOS 6, 2012). */
+.ios.os-classic { font-family: "Helvetica Neue", Helvetica, Arial, "Segoe UI", sans-serif; --art: 204px; --below: 30px; --btn: linear-gradient(#8ea5c6, #5873a0 50%, #4a6694 51%, #5876a3); }
+.os-classic .ios-home { background: #000; }
+.os-classic .ios-grid { gap: 18px 0; padding: 22px 8px 0; }
+.os-classic .ios-app { font-size: 11px; font-weight: 500; }
+.os-classic .ios-label { max-width: 76px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,.85); }
+.os-classic .ios-icon { width: 57px; height: 57px; border-radius: 12px; }
+.os-classic .ios-icon-clock { background: linear-gradient(#45464b, #0a0a0c); }
+.os-classic .ios-icon-videos { background: linear-gradient(#777b86, #1b1c20); }
+.os-classic .ios-icon-photos { background: linear-gradient(#fff, #cdd1d9); }
+.os-classic .ios-dots { padding: 4px 0 7px; }
+.os-classic .ios-dock { display: grid; grid-template-columns: repeat(4, 1fr); align-items: center; justify-items: center; gap: 0; height: 90px; padding: 0 8px 2px; border-top: 0; position: relative; }
+.os-classic .ios-dock .ios-app { gap: 4px; }
+/* the navigation bar: a pointed back button, bold white title with its dark edge */
+.os-classic .ios-nav b { font-size: 18px; font-weight: 700; text-shadow: 0 -1px 0 rgba(0,0,0,.55); }
+.os-classic .ios-now { text-shadow: 0 -1px 0 rgba(0,0,0,.55); border: 0; background: var(--btn); box-shadow: inset 0 1px 0 rgba(255,255,255,.35); font-weight: 700; }
+.os-classic .ios-back, .os-classic .ios-now { font-size: 14px; }
+.os-classic .ios-back { text-shadow: 0 -1px 0 rgba(0,0,0,.55); border: 0; border-radius: 0; box-shadow: none; background: var(--btn); padding: 0 10px 0 17px; font-weight: 700;
+  clip-path: polygon(13px 0, calc(100% - 5px) 0, 100% 5px, 100% calc(100% - 5px), calc(100% - 5px) 100%, 13px 100%, 0 50%); }
+.os-classic .ios-back::before { content: none; }
+.os-classic .ios-nav.dark .ios-back { background: var(--btn); }
+/* lists: finger-sized white rows, the title in bold */
+.os-classic .ios-scroll { touch-action: pan-y; }
+.os-classic .ios-row { min-height: 46px; padding: 4px 12px 4px 12px; }
+.os-classic .ios-row .ios-t b { font-size: 17px; font-weight: 700; }
+.os-classic .ios-row .ios-t small { font-size: 13px; color: #7d8089; }
+.os-classic .ios-row.chev::after { width: 7px; height: 7px; border-color: #8a8d97; }
+.os-classic .ios-thumb { width: 40px; height: 40px; border-radius: 2px; }
+.os-classic .ios-empty { padding: 40px 18px; font-size: 17px; color: #7d8089; }
+.os-classic .ios-tabs button .ic { width: 22px; height: 22px; }
+.os-classic .ios-tabs button { font-size: 10px; font-weight: 700; }
+.os-classic .ios-stub .ios-icon { width: 76px; height: 76px; border-radius: 16px; }
+.os-classic .ios-stub { color: #222; background: #fff; }
+.os-classic .ios-settings { background: #d6d8de; }
+
+/* Now Playing: the cover at the top, the track under it, a bar of controls at the foot; a tap on the cover turns up the panel with the stars, repeat and shuffle */
+.os-classic .ios-np { align-items: center; gap: 0; padding: 8px 0 0; color: #fff; }
+.os-classic .ios-np-art { position: relative; flex: none; width: var(--art); height: var(--art); margin: 0; aspect-ratio: auto; cursor: pointer; box-shadow: 0 0 0 1px rgba(255,255,255,.14); background: #222; }
+.os-classic .ios-np-art > .cover, .os-classic .ios-np-art > img { position: absolute; inset: 0; width: 100%; height: 100%; }
+.os-classic .ios-np-meta { width: 100%; margin: var(--below) 0 0; padding: 0 16px; gap: 0; }
+.os-classic .ios-np-meta b { font-size: 17px; font-weight: 700; line-height: 1.35; }
+.os-classic .ios-np-meta span { font-size: 14px; line-height: 1.3; color: #c3c6ce; }
+.os-classic .ios-np-meta small { font-size: 13px; line-height: 1.25; color: #8d909a; }
+.os-classic .ios-np-bar { width: 100%; margin-top: auto; padding: 5px 16px 8px; display: flex; flex-direction: column; align-items: center; gap: 0; position: relative; }
+.os-classic .ios-scrubrow { display: flex; align-items: center; gap: 4px; width: 100%; }
+.os-classic .ios-scrubrow > span { flex: none; width: 36px; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.os-classic .ios-scrubrow > span:first-child { text-align: left; } .os-classic .ios-scrubrow > span:last-child { text-align: right; }
+.os-classic .ios-np .ios-ctl { display: flex; gap: 22px; margin: 0; }
+.os-classic .ios-np .ios-ctl button { width: 64px; height: 48px; border-radius: 8px; color: #fff; display: grid; place-items: center; }
+.os-classic .ios-np .ios-ctl button.big { width: 72px; height: 48px; }
+.os-classic .ios-np .ios-ctl button:active { background: rgba(255,255,255,.16); }
+.os-classic .ios-np .ios-vol { display: flex; align-items: center; gap: 8px; width: 100%; color: #b4b7bf; cursor: default; }
+.os-classic .ios-np .ios-vol .ios-bar { flex: none; }
+.os-classic .ios-np .ios-bar { color: #fff; }
+.os-classic .ios-np .ios-bar .trk { height: 6px; margin-top: -3px; border-radius: 3px; background: rgba(0,0,0,.55); box-shadow: 0 0 0 .5px rgba(255,255,255,.28), inset 0 1px 2px rgba(0,0,0,.7); }
+.os-classic .ios-np .ios-bar .trk i { background: linear-gradient(#bfe0ff, #3d8fe8 50%, #1b6fd6 51%, #5aa6f4); }
+.os-classic .ios-np .ios-bar u { width: 16px; height: 16px; margin: -8px 0 0 -8px; background: radial-gradient(circle at 50% 30%, #fff, #b7bac2 70%); box-shadow: 0 0 0 .5px rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.6); }
+.os-classic .ios-np-panel { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: rgba(0,0,0,.74); cursor: default; }
+.os-classic .ios-np-panel .ios-stars { display: flex; gap: 0; }
+.os-classic .ios-np-panel .ios-stars button { width: 36px; height: 44px; padding: 0; display: grid; place-items: center; color: #8c8f98; }
+.os-classic .ios-np-panel .ios-stars button.on { color: #ffcf4d; }
+.os-classic .ios-np-panel .ios-modes { display: flex; gap: 8px; }
+.os-classic .ios-np-panel .ios-modes button { width: 88px; height: 44px; display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 8px; font-size: 13px; font-weight: 700; color: #d6d8de;
+  background: linear-gradient(#6a6c73, #2c2d31 50%, #17181b 51%, #2a2b30); box-shadow: 0 0 0 .5px #000, inset 0 1px 0 rgba(255,255,255,.3); }
+.os-classic .ios-np-panel .ios-modes button.on { color: #fff; background: linear-gradient(#7db8ff, #2f7be0 50%, #1d62c6 51%, #3a86e8); }
+
+/* ---- touch 1 (iPhone OS 1): black status bar, a glossy blue-black navigation bar, icons on black, a glossy grey dock, a reflective cover over a translucent black bar */
+.ios.m-touch1, .ios.m-touch2, .ios.m-touch3 { --btn: linear-gradient(#7f93b6, #3f5580 48%, #2a3d63 50%, #3b5078); --art: 204px; --below: 30px; }
+.ios.m-touch1 .ios-status, .ios.m-touch2 .ios-status, .ios.m-touch3 .ios-status { background: linear-gradient(#3b3b3e, #000); }
+.ios.m-touch1 .ios-nav, .ios.m-touch2 .ios-nav, .ios.m-touch3 .ios-nav { background: linear-gradient(#66789c 0%, #43567c 48%, #2a3c62 50%, #16233f 100%); border-bottom: 1px solid #000; box-shadow: inset 0 1px 0 rgba(255,255,255,.28); }
+.ios.m-touch1 .ios-nav.dark, .ios.m-touch2 .ios-nav.dark, .ios.m-touch3 .ios-nav.dark { background: linear-gradient(#4a5368 0%, #2b3347 48%, #151b2b 50%, #0a0e18 100%); }
+.ios.m-touch1 .ios-tabs, .ios.m-touch2 .ios-tabs, .ios.m-touch3 .ios-tabs { background: linear-gradient(#5d5d62 0%, #2e2e32 48%, #000 50%, #0d0d0f 100%); border-top: 1px solid #000; }
+.ios.m-touch1 .ios-tabs button, .ios.m-touch2 .ios-tabs button, .ios.m-touch3 .ios-tabs button { margin: 3px 1px; border-radius: 5px; color: #9fa0a8; }
+.ios.m-touch1 .ios-tabs button.on, .ios.m-touch2 .ios-tabs button.on, .ios.m-touch3 .ios-tabs button.on { color: #fff; background: linear-gradient(#4c5d80, #1e2a46); box-shadow: inset 0 1px 0 rgba(255,255,255,.28), 0 0 0 .5px #000; }
+.ios.m-touch1 .ios-tabs button.on .ic, .ios.m-touch2 .ios-tabs button.on .ic, .ios.m-touch3 .ios-tabs button.on .ic { color: #62b4ff; }
+.ios.m-touch1 [data-kind=Songs] .ios-thumb, .ios.m-touch1 [data-kind=Artists] .ios-thumb, .ios.m-touch2 [data-kind=Songs] .ios-thumb, .ios.m-touch2 [data-kind=Artists] .ios-thumb, .ios.m-touch3 [data-kind=Songs] .ios-thumb, .ios.m-touch3 [data-kind=Artists] .ios-thumb { display: none; }
+.ios.m-touch1 .ios-row:active, .ios.m-touch2 .ios-row:active, .ios.m-touch3 .ios-row:active { background: linear-gradient(#58a6f2, #1f68cf); color: #fff; }
+.ios.m-touch1 .ios-home { background: radial-gradient(ellipse 90% 40% at 50% 100%, #1b1e27, transparent 80%), #000; }
+.ios.m-touch1 .ios-dock { background: linear-gradient(#8d9099 0%, #565961 48%, #3a3c43 50%, #2b2d32 100%); box-shadow: inset 0 1px 0 rgba(255,255,255,.5); }
+.ios.m-touch1 .ios-icon { box-shadow: 0 1px 3px rgba(0,0,0,.9), inset 0 0 0 1px rgba(255,255,255,.2); border-radius: 11px; }
+.ios.m-touch1 .ios-np { background: radial-gradient(ellipse 90% 55% at 50% 22%, #2c2f36, #08080a 80%); }
+.ios.m-touch1 .ios-np-art, .ios.m-touch2 .ios-np-art, .ios.m-touch3 .ios-np-art { -webkit-box-reflect: below 2px linear-gradient(transparent 82%, rgba(255,255,255,.34)); }
+.ios.m-touch1 .ios-np-bar { background: linear-gradient(rgba(70,72,78,.62), rgba(0,0,0,.78) 55%); box-shadow: inset 0 1px 0 rgba(255,255,255,.22); }
+.ios.m-touch1 .ios-np-bar .ios-scrubrow > span { color: #d4d6dc; }
+.ios.m-touch1 .ios-np .ios-ctl button { color: #f4f4f6; }
+
+/* ---- touch 2 (iPhone OS 2): the same family; a grey status bar inside the apps, a chrome dock */
+.ios.m-touch2 .ios-status, .ios.m-touch3 .ios-status { background: linear-gradient(#3b3b3e, #000); }
+.ios.m-touch2:not([data-app=home]):not([data-app=now]) .ios-status, .ios.m-touch3:not([data-app=home]):not([data-app=now]) .ios-status { background: linear-gradient(#eceef1, #b4b8c0); color: #1d1f24; box-shadow: inset 0 -1px 0 rgba(0,0,0,.3); }
+.ios.m-touch2:not([data-app=home]):not([data-app=now]) .ios-batt, .ios.m-touch3:not([data-app=home]):not([data-app=now]) .ios-batt { border-color: #1d1f24; background: linear-gradient(90deg, #1d1f24 var(--lvl, 100%), transparent var(--lvl, 100%)); }
+.ios.m-touch2:not([data-app=home]):not([data-app=now]) .ios-batt::after, .ios.m-touch3:not([data-app=home]):not([data-app=now]) .ios-batt::after { background: #1d1f24; }
+.ios.m-touch2 .ios-home { background: radial-gradient(ellipse 110% 60% at 50% 0%, #34507f 0%, transparent 75%), radial-gradient(ellipse 80% 40% at 50% 100%, #1d2a44, transparent 80%), #0a1020; }
+.ios.m-touch2 .ios-dock { background: linear-gradient(rgba(224,227,233,.96) 0%, rgba(160,164,174,.96) 48%, rgba(124,128,139,.96) 50%, rgba(170,174,183,.96) 100%); box-shadow: inset 0 1px 0 #fff, 0 -1px 0 rgba(0,0,0,.45); }
+.ios.m-touch2 .ios-np { background: radial-gradient(ellipse 90% 55% at 50% 22%, #33363e, #0a0a0c 80%); }
+.ios.m-touch2 .ios-np-bar { background: linear-gradient(rgba(96,100,110,.7), rgba(8,8,10,.82) 52%); box-shadow: inset 0 1px 0 rgba(255,255,255,.3); }

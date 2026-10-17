@@ -32,8 +32,6 @@ const playing = (page: Page) => page.getByTestId('retro').getAttribute('data-pla
 const turns = (l: Locator) => l.evaluate(async (d: HTMLElement) => { const a = d.style.rotate; await new Promise((r) => setTimeout(r, 250)); return d.style.rotate !== a; });
 type Box = { x: number; y: number; width: number; height: number };
 const inside = (a: Box, b: Box, slack = 2) => a.x >= b.x - slack && a.y >= b.y - slack && a.x + a.width <= b.x + b.width + slack && a.y + a.height <= b.y + b.height + slack;
-/** The scenes that show the line being sung and what the file is (one by one, as each gets its display). */
-const SINGING = new Set<string>(['car', 'hifi', 'minidisc', 'discman']);
 
 test.describe.serial('listening scenes', () => {
   test('the panel switches scenes, keeps the choice, and the iPod comes back working', async ({ page }) => {
@@ -104,7 +102,7 @@ test.describe.serial('listening scenes', () => {
         expect(unit.width, `${scene} unit not tiny at ${w}x${h}`).toBeGreaterThan(Math.min(root.width, root.height) * 0.45);
         await expect(title(page)).toBeVisible();
         // the line being sung and what the file is: on the device itself, at every size
-        if (SINGING.has(scene)) for (const id of ['retro-lyric', 'retro-format']) {
+        for (const id of ['retro-lyric', 'retro-format']) {
           const b = await page.getByTestId(id).boundingBox();
           expect(!!b && inside(b, root, 4) && b.width > 30 && b.height > 6, `${scene} ${id} shown inside the scene at ${w}x${h}`).toBe(true);
         }
@@ -112,7 +110,7 @@ test.describe.serial('listening scenes', () => {
       }
     });
 
-    if (SINGING.has(scene)) test(`${scene}: shows the line being sung, in time with the song, and what the file is`, async ({ page }) => {
+    test(`${scene}: shows the line being sung, in time with the song, and what the file is`, async ({ page }) => {
       const errors = consoleErrors(page);
       await signIn(page);
       await playInScene(page, scene);

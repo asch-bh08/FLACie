@@ -322,6 +322,9 @@
 .bb-spk .tweeter { position: absolute; left: 44%; top: 6%; width: 12%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #e6e7ea, #75787e); scale: calc(1 + var(--high, .1) * .12); will-change: scale; }
 .bb-mid { display: grid; grid-template-rows: 8% 1fr 22% 13%; gap: 3%; min-width: 0; }   /* (the EQ's row tall enough that a slider is something to take hold of) */
 .bb-radio { position: relative; border-radius: .6cqw; background: #0b0c0e; overflow: hidden; display: grid; place-items: center; color: #9fc6ff; font-size: 1.15cqw; letter-spacing: .12em; box-shadow: inset 0 0 0 .2cqw #3a3b40; }
+.bb-radio .bb-lyric { width: 100%; padding: 0 3%; box-sizing: border-box; text-align: center; font-size: 1.5cqw; text-shadow: 0 0 .6cqw rgba(120,170,255,.7); }
+.bb-radio .bb-lyric > div { text-align: center; }
+.bb-deck small.bb-fmt { letter-spacing: .1em; color: #b9bdc6; white-space: nowrap; overflow: hidden; margin-top: -3%; }
 .bb-radio i { position: absolute; top: 10%; bottom: 10%; left: calc(6% + var(--p, 0) * 88%); width: .25cqw; background: #ff4d3d; box-shadow: 0 0 .6cqw #ff4d3d; transition: left .3s linear; }
 .bb-decks { display: grid; grid-template-columns: 1fr 1fr; gap: 3%; }
 .bb-deck { position: relative; border-radius: .6cqw; background: #0a0a0c; box-shadow: inset 0 0 0 .3cqw #45474e; padding: 6% 5% 5%; display: flex; flex-direction: column; gap: 5%; overflow: hidden; perspective: 40cqw; }
@@ -384,7 +387,7 @@
   .bb-body { grid-template-columns: 1fr 1fr; grid-template-rows: 30% 1fr; padding: 8% 4% 4%; }
   .bb-spk { width: min(36cqw, 21cqh); justify-self: center; }   /* (by the height too: on a squarer stage they would grow out of their row over the dial) */ .bb-spk.r { grid-column: 2; grid-row: 1; }
   .bb-mid { grid-column: 1 / -1; grid-row: 2; grid-template-rows: 6% 1fr 19% 11%; }
-  .bb-radio { font-size: 2.4cqw; } .bb-deck small { font-size: 2cqw; } .bb-cass span { font-size: 3.2cqw; } .bb-counter { font-size: 5.4cqw; }
+  .bb-radio { font-size: 2.4cqw; } .bb-radio .bb-lyric { font-size: 3.2cqw; } .bb-deck small { font-size: 2cqw; } .bb-cass span { font-size: 3.2cqw; } .bb-counter { font-size: 5.4cqw; }
   .bb-keys button { font-size: 2.6cqw; } .bb-win .reel { width: 6cqw; }
   .bb-eq { padding-bottom: 3cqw; } .bb-fader small { font-size: 2cqw; bottom: -3cqw; } .bb-fader .bb-slot { width: .9cqw; }
   .bb-fader input::-webkit-slider-thumb { height: 2.4cqw; } .bb-fader input::-moz-range-thumb { height: 2.4cqw; }

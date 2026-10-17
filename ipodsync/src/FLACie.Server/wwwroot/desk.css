@@ -129,7 +129,7 @@
 .desk .disc.paused { animation-play-state: paused; }
 @keyframes desk-spin { to { rotate: 360deg; } }
 /* the album playing: its case lying open, the booklet in the lid, the disc spinning in the tray */
-.desk-open { left: 63%; top: 6cqh; width: 46cqh; height: 20.2cqh; rotate: 3deg; display: flex; cursor: pointer; transition: translate .25s ease; }
+.desk-open { left: 66.5%; top: 5cqh; width: 46cqh; height: 20.2cqh; rotate: 3deg; display: flex; cursor: pointer; transition: translate .25s ease; }
 .desk-open:hover { translate: 0 -1cqh; }
 .desk-open .lid, .desk-open .tray { position: relative; width: 50%; height: 100%; border-radius: .45cqh; }
 .desk-open .lid { background: rgba(230,236,242,.4); box-shadow: inset 0 0 0 .18cqh rgba(255,255,255,.6); }

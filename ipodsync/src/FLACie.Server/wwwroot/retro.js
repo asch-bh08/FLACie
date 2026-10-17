@@ -32,7 +32,7 @@ window.retro = (() => {
     eqState() {
       const f = window.flacie; if (!f || !f.eqGet) return { bands: [0, 0, 0, 0, 0], mega: false };
       const bands = f.eqGet(); let mega = false;
-      try { mega = f.bassLevel() - bands[0] > 4.5; } catch { }
+      try { mega = f.megaOn ? f.megaOn() : f.bassLevel() - bands[0] > 4.5; } catch { }
       return { bands, mega };
     },
     /** A scene is on show: its display lines (.rt-mq) scroll like the iPod's, from their first letter, only when too long (flacie.js marquee). */

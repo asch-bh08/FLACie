@@ -3,7 +3,7 @@
    one analyser read: desk.js). Its graphic EQ is the player's own (100 Hz to 8 kHz: drag a slider, scroll it or use the arrow keys; it shows the band as set,
    as a real one does, and only the light in its cap glows with the music), and VOL beside it the player's volume. Deck A holds the album playing: its reels turn while it plays and the counter runs with the
    song; the keys are rewind (previous), play/pause, fast-forward (next) and stop/eject (pause; the door drops open). Deck B holds the album coming up, or your
-   newest playlist when nothing comes up: a click plays it. A strip of tape on the top says what is playing. Styles: retro.css. *@
+   newest playlist when nothing comes up: a click plays it. A strip of tape on the top says what is playing; deck A also says what the file is, and the radio strip shows the line being sung (the tuning scale between lines). Styles: retro.css. *@
 <div class="boombox">
     <div class="bb-wall" aria-hidden="true"></div>
     <div class="bb-bench" aria-hidden="true"><i class="battery"></i><i class="battery b2"></i><i class="battery b3"></i></div>
@@ -13,10 +13,11 @@
         <div class="bb-body">
             <div class="bb-spk l" data-viz aria-hidden="true"><i class="woofer"></i><i class="tweeter"></i></div>
             <div class="bb-mid">
-                <div class="bb-radio" aria-hidden="true"><span>FM 88 · 92 · 96 · 100 · 104 · 108</span><i style="--p:@Inv(Progress)"></i></div>
+                <div class="bb-radio">@LyricsBox("FM 88 · 92 · 96 · 100 · 104 · 108", "bb-lyric")<i aria-hidden="true" style="--p:@Inv(Progress)"></i></div>
                 <div class="bb-decks">
                     <div class="bb-deck @(open ? "open" : "")" data-testid="boombox-deck-a">
                         <small>DECK A · PLAY</small>
+                        <small class="bb-fmt rt-mq" data-testid="retro-format">@(Now is null ? "NO TAPE" : Format)</small>
                         <div class="bb-cass">
                             <span class="hand">@(NowAlbum?.Album ?? "—")</span>
                             <div class="bb-win"><i class="reel @(Playing && !open ? "" : "paused")" data-spin="164"></i><i class="ribbon"></i><i class="reel @(Playing && !open ? "" : "paused")" data-spin="164"></i></div>

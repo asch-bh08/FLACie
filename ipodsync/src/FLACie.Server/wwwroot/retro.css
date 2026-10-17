@@ -322,6 +322,9 @@
 .bb-spk .tweeter { position: absolute; left: 44%; top: 6%; width: 12%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #e6e7ea, #75787e); scale: calc(1 + var(--high, .1) * .12); will-change: scale; }
 .bb-mid { display: grid; grid-template-rows: 8% 1fr 22% 13%; gap: 3%; min-width: 0; }   /* (the EQ's row tall enough that a slider is something to take hold of) */
 .bb-radio { position: relative; border-radius: .6cqw; background: #0b0c0e; overflow: hidden; display: grid; place-items: center; color: #9fc6ff; font-size: 1.15cqw; letter-spacing: .12em; box-shadow: inset 0 0 0 .2cqw #3a3b40; }
+.bb-radio .bb-lyric { width: 100%; padding: 0 3%; box-sizing: border-box; text-align: center; font-size: 1.5cqw; text-shadow: 0 0 .6cqw rgba(120,170,255,.7); }
+.bb-radio .bb-lyric > div { text-align: center; }
+.bb-deck small.bb-fmt { letter-spacing: .1em; color: #b9bdc6; white-space: nowrap; overflow: hidden; margin-top: -3%; }
 .bb-radio i { position: absolute; top: 10%; bottom: 10%; left: calc(6% + var(--p, 0) * 88%); width: .25cqw; background: #ff4d3d; box-shadow: 0 0 .6cqw #ff4d3d; transition: left .3s linear; }
 .bb-decks { display: grid; grid-template-columns: 1fr 1fr; gap: 3%; }
 .bb-deck { position: relative; border-radius: .6cqw; background: #0a0a0c; box-shadow: inset 0 0 0 .3cqw #45474e; padding: 6% 5% 5%; display: flex; flex-direction: column; gap: 5%; overflow: hidden; perspective: 40cqw; }
@@ -384,7 +387,7 @@
   .bb-body { grid-template-columns: 1fr 1fr; grid-template-rows: 30% 1fr; padding: 8% 4% 4%; }
   .bb-spk { width: min(36cqw, 21cqh); justify-self: center; }   /* (by the height too: on a squarer stage they would grow out of their row over the dial) */ .bb-spk.r { grid-column: 2; grid-row: 1; }
   .bb-mid { grid-column: 1 / -1; grid-row: 2; grid-template-rows: 6% 1fr 19% 11%; }
-  .bb-radio { font-size: 2.4cqw; } .bb-deck small { font-size: 2cqw; } .bb-cass span { font-size: 3.2cqw; } .bb-counter { font-size: 5.4cqw; }
+  .bb-radio { font-size: 2.4cqw; } .bb-radio .bb-lyric { font-size: 3.2cqw; } .bb-deck small { font-size: 2cqw; } .bb-cass span { font-size: 3.2cqw; } .bb-counter { font-size: 5.4cqw; }
   .bb-keys button { font-size: 2.6cqw; } .bb-win .reel { width: 6cqw; }
   .bb-eq { padding-bottom: 3cqw; } .bb-fader small { font-size: 2cqw; bottom: -3cqw; } .bb-fader .bb-slot { width: .9cqw; }
   .bb-fader input::-webkit-slider-thumb { height: 2.4cqw; } .bb-fader input::-moz-range-thumb { height: 2.4cqw; }
@@ -537,6 +540,36 @@
 .dm-cd .glare { position: absolute; inset: 0; z-index: 1; background: linear-gradient(118deg, rgba(255,255,255,.35), rgba(255,255,255,0) 32%, rgba(255,255,255,0) 70%, rgba(255,255,255,.18)); pointer-events: none; }
 .dm-cd:hover, .dm-cd:focus-visible { translate: -1cqh -.6cqh; }
 
+/* the wired remote: its cable runs up under the player; the LCD (the same green as the player's) shows the file, the line sung and the volume */
+.dm-remote { position: absolute; left: 72%; top: 76%; width: 30cqh; aspect-ratio: 1.7; rotate: 3deg; container: rm / inline-size; box-sizing: border-box; border-radius: 9% / 14%;
+  background: linear-gradient(150deg, #eceef1, #c3c7cd 55%, #dfe1e5); box-shadow: 0 1.2cqh 1.8cqh rgba(40,32,24,.35), inset 0 .2cqh .3cqh rgba(255,255,255,.8), inset 0 -.3cqh .5cqh rgba(0,0,0,.15); }
+.dm-player { z-index: 2; } .dm-remote { z-index: 1; }
+.rm-in { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto; gap: 5cqw; padding: 5cqw; box-sizing: border-box; }
+.dm-rcable { position: absolute; right: 78%; bottom: 84%; width: 70%; overflow: visible; z-index: -1; pointer-events: none; }
+.dm-rcable path { fill: none; stroke: #121214; stroke-width: 3.4; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.rm-lcd { min-width: 0; border-radius: 2.4cqw; padding: 3cqw 4cqw; display: grid; grid-template-rows: auto 1fr auto; gap: 1.5cqw; align-items: center; box-sizing: border-box; overflow: hidden;
+  background: linear-gradient(#b9e3c4, #96cfa6); box-shadow: inset 0 .3cqh .6cqh rgba(0,40,10,.35), inset 0 0 0 .2cqh rgba(0,0,0,.25), 0 0 1.4cqh rgba(150,230,170,.35); color: #142a18; font-family: "Dot Matrix", "Consolas", monospace; letter-spacing: .05em; text-transform: uppercase; }
+.rm-l0 { display: flex; justify-content: space-between; gap: 3cqw; font-size: 4.6cqw; line-height: 1.15; white-space: nowrap; min-width: 0; }
+.rm-l0 span { flex: 1 1 0; min-width: 0; overflow: hidden; }
+.rm-l0 small { flex: none; font: 700 3.4cqw/1.2 "Helvetica Neue", Arial, sans-serif; letter-spacing: .1em; opacity: .12; }
+.rm-l0 small.on { opacity: .9; }
+.rm-lyric { font-size: 5.6cqw; line-height: 1.2; font-weight: 700; }
+.rm-lyric > div { overflow: hidden; }
+.rm-l2 { display: flex; justify-content: space-between; font: 700 4.6cqw/1 "Segment LCD", "Consolas", monospace; }
+.rm-keys { display: flex; align-items: center; justify-content: center; gap: 8cqw; }
+.rm-keys small { font: 800 3.6cqw/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .16em; color: #5a5e66; }
+.rm-keys button { width: 13cqw; aspect-ratio: 1; border-radius: 50%; border: 0; padding: 0; font-size: 7cqw; line-height: 1; color: #3a3e45; cursor: pointer;
+  background: radial-gradient(circle at 40% 30%, #fdfdfe, #c4c8ce 70%, #a5aab2); box-shadow: 0 .35cqh .5cqh rgba(0,0,0,.3), inset 0 -.2cqh .3cqh rgba(0,0,0,.12); }
+.rm-keys button:active { translate: 0 .15cqh; }
+
+@container retro (aspect-ratio < 23 / 20) {
+  .dm-remote { left: 50%; top: 66%; translate: -50% 0; width: min(72cqw, 44cqh); aspect-ratio: 2.5; rotate: 2deg; }
+  .rm-in { grid-template-rows: none; grid-template-columns: 1fr auto; gap: 4cqw; align-items: center; }
+  .dm-rcable { right: auto; left: 18%; bottom: 96%; width: 40%; scale: -1 1; }
+  .rm-keys { flex-direction: column; gap: 3cqw; } .rm-keys small { order: 2; display: none; }
+  .rm-keys button { width: 15cqw; font-size: 8cqw; }
+  .rm-l0 { font-size: 5cqw; } .rm-lyric { font-size: 6cqw; } .rm-l2 { font-size: 5cqw; }
+}
 @container retro (aspect-ratio < 23 / 20) {
   .dm-player { left: 50%; top: 40%; width: min(80cqw, 50cqh); rotate: -3deg; }
   .dm-cds { left: 8%; top: auto; bottom: 4%; width: 84cqw; height: 22cqw; }

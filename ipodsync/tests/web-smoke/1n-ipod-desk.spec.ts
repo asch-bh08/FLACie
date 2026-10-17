@@ -278,6 +278,41 @@ test.describe('desk engine on its own (desk.js harness)', () => {
     expect(await pagesShown(page)).toBeLessThanOrEqual(2);
   });
 
+  test('the page turn folds the right page over the spine: the old left page stays until the turning page covers it, and the pen waits for the page to land', async ({ page }) => {
+    await page.goto(journal('?w=1600&h=900&n=40')); await startJournal(page);
+    await page.evaluate(() => { (window as any).t = 7.6; }); await page.waitForTimeout(400);   // a full spread: lines 0 to 12 on it
+    const clipOf = () => page.evaluate(() => (document.querySelector('[data-testid=desk-lyric].writing') as HTMLElement | null)?.style.clipPath ?? null);
+    await page.evaluate(() => { (window as any).t = 10.6; });
+    await page.locator('.j-turn').waitFor({ state: 'attached', timeout: 1500 });
+    // just after it starts: the ghost has the old spread's first line still showing on its left, the journal underneath has moved on
+    const st = await page.evaluate(() => {
+      const g = document.querySelector('.j-turn')!, anims = g.getAnimations({ subtree: true });
+      anims.forEach((a) => a.pause());
+      const left = g.querySelector('.jt-left')!, fliplayer = g.querySelector('.jt-flap');
+      const vis = (el: Element) => [...el.querySelectorAll('.j-lines div.on')].filter((d) => { const l = el.querySelector('.j-lines') as HTMLElement; return (d as HTMLElement).offsetLeft - l.scrollLeft >= -2 && (d as HTMLElement).offsetLeft - l.scrollLeft < l.clientWidth; }).map((d) => d.textContent);
+      const real = document.querySelector('[data-testid=desk-journal]') as HTMLElement;
+      return { layers: g.children.length, anims: anims.length, oldLeft: vis(left), flap: !!fliplayer, realFirst: (real.querySelector('.j-lines div.on') as HTMLElement).textContent,
+        realScroll: (real.querySelector('.j-lines') as HTMLElement).scrollLeft, pageShadow: getComputedStyle(g.querySelector('.page')!).boxShadow };
+    });
+    expect(st.layers, 'old left, old right, the revealed shade, the flap and its shadows').toBeGreaterThanOrEqual(5);
+    expect(st.anims, 'the fold is animated').toBeGreaterThanOrEqual(4);
+    expect(st.oldLeft, 'the old left page keeps its ink until covered').toContain('line 0');
+    expect(st.realScroll, 'the journal beneath already shows the next spread').toBeGreaterThan(0);
+    expect(st.pageShadow, 'the copy has no shadow of its own (the journal under it has)').toBe('none');
+    // half-way through the leaf is mid-fold: its flap is moved (rotated or mirrored), not still flat on the right
+    const mid = await page.evaluate(() => { const g = document.querySelector('.j-turn')!; g.getAnimations({ subtree: true }).forEach((a) => { a.currentTime = 450; }); const f = g.querySelector('.jt-flap') as HTMLElement; return { t: getComputedStyle(f).transform, clip: getComputedStyle(f).clipPath }; });
+    expect(mid.t).not.toBe('none'); expect(mid.clip).toContain('polygon');
+    // the pen waits while the page turns
+    const shut = await clipOf(); expect(shut, 'the new line is shut').toBeTruthy();
+    await page.evaluate(() => { document.querySelector('.j-turn')!.getAnimations({ subtree: true }).forEach((a) => { a.currentTime = 400; a.play(); }); });
+    await page.waitForTimeout(250);
+    expect(await page.locator('.j-turn').count(), 'still turning').toBe(1);
+    expect(await clipOf(), 'the pen has not moved while the page is up').toBe(shut);
+    await page.locator('.j-turn').waitFor({ state: 'detached', timeout: 2500 });
+    await expect.poll(clipOf, { message: 'the pen writes once the page has landed', timeout: 1500 }).not.toBe(shut);
+    expect(await pagesShown(page)).toBeLessThanOrEqual(2);
+  });
+
   test('on a phone the journal is a pad of sticky notes: a full note peels off to the next', async ({ page }) => {
     await page.goto(journal('?w=390&h=844&n=20')); await startJournal(page);
     await page.evaluate(() => { (window as any).t = 0.7; }); await page.waitForTimeout(400);
@@ -287,6 +322,17 @@ test.describe('desk engine on its own (desk.js harness)', () => {
       mo.observe(document.body, { childList: true, subtree: true }); (window as any).t = 3.1; setTimeout(() => done(false), 1500);
     }));
     expect(peeled, 'a note peeled off').toBe(true);
+    {
+      // paper peeling off: the old note is still whole (cut along the fold), its back curls over it, and a shaded strip lies on the note beneath
+      const pl = await page.evaluate(() => {
+        const g = document.querySelector('.j-peel')!, anims = g.getAnimations({ subtree: true }); anims.forEach((a) => { a.currentTime = 250; a.pause(); });
+        const f = g.querySelector('.jt-flap') as HTMLElement | null;
+        return { flap: !!f, flapT: f ? getComputedStyle(f).transform : '', note: g.querySelector('.jt-right .j-lines')?.textContent ?? '', shade: !!g.querySelector('.jt-shade'), ghostT: getComputedStyle(g).transform, anims: anims.length };
+      });
+      expect(pl.flap, 'the back of the note curls over').toBe(true); expect(pl.flapT).not.toBe('none'); expect(pl.shade).toBe(true);
+      expect(pl.note, 'the old note is still whole under the curl').toContain('line 0');
+      await page.evaluate(() => { document.querySelector('.j-peel')!.getAnimations({ subtree: true }).forEach((a) => a.play()); });
+    }
     await page.waitForTimeout(1200);
     expect(await page.locator('.j-peel').count()).toBe(0);
     expect(await pagesShown(page)).toBe(1);

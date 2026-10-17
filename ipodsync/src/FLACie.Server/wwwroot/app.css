@@ -702,6 +702,8 @@ button.stat.on { border-color: var(--accent); background: color-mix(in srgb, var
    the whole screen: header, a cover that takes whatever height is left, title, seek, controls, and the three tabs along the bottom;
    a tab opens its panel as a sheet over the cover */
 .np-set { display: none; }
+/* Retro sits in the full-screen player's header at every size, where the spacer was on a wide window */
+.np-retro { display: grid; } .np-top .np-spacer { display: none; }
 @media (max-width: 1024px) and (orientation: portrait) {
   .np { top: 0; bottom: 0; z-index: 70; padding-top: env(safe-area-inset-top, 0px); }
   .np-top { padding: 8px 8px 0; min-height: 56px; }

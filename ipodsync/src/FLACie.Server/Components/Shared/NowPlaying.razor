@@ -8,7 +8,7 @@
     <header class="np-top">
         <button class="icon-btn" @onclick="Back" aria-label="Close Now Playing"><Icon Name="chevron-down" Size="24" /></button>
         <span class="np-where">@(t is null ? "" : SourceLabel.PlayingFromLine(t.Source))</span>
-        <a class="icon-btn np-set" href="/settings" aria-label="Settings"><Icon Name="settings" Size="22" /></a><span class="np-spacer"></span>
+        <a class="icon-btn np-retro" href="/retro" aria-label="Retro" title="Retro" data-testid="np-retro"><Icon Name="retro" Size="22" /></a><a class="icon-btn np-set" href="/settings" aria-label="Settings"><Icon Name="settings" Size="22" /></a><span class="np-spacer"></span>
     </header>
     @if (t is not null)
     {

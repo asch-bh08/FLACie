@@ -46,4 +46,41 @@ test.describe.serial('Retro', () => {
     await expect(page).toHaveURL(/\/retro$/);
     await expect(page.getByTestId('ipod-device')).toBeVisible({ timeout: 20_000 });
   });
+
+  async function play(page: Page, w: number, h: number) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto('/songs');
+    await page.locator('.track').first().locator('button.track-main').click();
+    await expect(page.locator('.player')).toBeVisible({ timeout: 20_000 });
+  }
+  for (const [w, h] of [[1600, 900], [390, 844]]) {
+    test(`Retro is reachable from the player bar, the full-screen player and the account menu at ${w}x${h}`, async ({ page }) => {
+      await signIn(page);
+      // the player bar
+      await play(page, w, h);
+      await expect(page.getByTestId('bar-retro')).toBeVisible();
+      await expect(page.getByTestId('bar-retro')).toHaveAttribute('aria-label', 'Retro');
+      await page.screenshot({ path: `test-results/retro-bar-${w}.png` });
+      await page.getByTestId('bar-retro').click();
+      await expect(page).toHaveURL(/\/retro$/);
+      await expect(page.getByTestId('ipod')).toBeVisible({ timeout: 20_000 });
+      // the full-screen player
+      await play(page, w, h);
+      await page.getByRole('button', { name: 'Open Now Playing' }).click();
+      await expect(page.getByTestId('np-retro')).toBeVisible();
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `test-results/retro-fullscreen-${w}.png` });
+      await page.getByTestId('np-retro').click();
+      await expect(page).toHaveURL(/\/retro$/);
+      await expect(page.getByTestId('ipod')).toBeVisible({ timeout: 20_000 });
+      // the account menu
+      await page.goto('/');
+      const item = page.getByRole('menuitem', { name: 'Retro' });
+      await expect(async () => { if (!(await item.isVisible())) await page.getByRole('button', { name: /^Account/ }).click(); await expect(item).toBeVisible({ timeout: 1500 }); }).toPass({ timeout: 20_000 });
+      await page.screenshot({ path: `test-results/retro-account-${w}.png` });
+      await item.click();
+      await expect(page).toHaveURL(/\/retro$/);
+      await expect(page.getByTestId('ipod')).toBeVisible({ timeout: 20_000 });
+    });
+  }
 });

@@ -263,6 +263,8 @@ test.describe.serial('desk look on /ipod', () => {
     await amp.locator('[data-meter=eq]').click();
     const sliders = amp.locator('[data-band]');
     await expect(sliders).toHaveCount(5);
+    // (the faders show once the page has answered the click: a hidden control takes no focus, so the arrow keys would go nowhere)
+    await expect(amp).toHaveAttribute('data-meter-mode', 'eq'); await expect(sliders.nth(2)).toBeVisible();
     await sliders.nth(2).focus(); for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowUp');
     await expect(sliders.nth(2)).toHaveAttribute('aria-valuenow', '4');
     await expect.poll(() => page.evaluate(() => (window as any).flacie.eqGet()[2])).toBe(4);

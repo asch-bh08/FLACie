@@ -117,10 +117,14 @@
     };
     Task VolWheel(WheelEventArgs e) => Vol(VolNow + (e.DeltaY < 0 ? .05 : -.05));
 
+    // (quick key presses each wait for the page's answer: only the answer to the latest press is taken, or an older one would set the fader back a step and
+    // the next press would add to that, losing a step)
+    int bandSeq;
     async Task Band(int i, int v)
     {
         var next = (int[])bands.Clone(); next[i] = Math.Clamp(v, -12, 12); bands = next;
-        try { var got = await Js.InvokeAsync<int[]>("flacie.eq", bands); if (got is { Length: 5 }) bands = got; } catch (Exception e) when (Gone(e)) { }
+        var mine = ++bandSeq;
+        try { var got = await Js.InvokeAsync<int[]>("flacie.eq", next); if (mine == bandSeq && got is { Length: 5 }) bands = got; } catch (Exception e) when (Gone(e)) { }
     }
     Task BandKey(KeyboardEventArgs e, int i) => e.Key switch
     {

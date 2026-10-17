@@ -8,7 +8,7 @@
 @* The iPod mode: every iPod of the Android emulator (23 models, their colours, the mono / colour / nano screens, Cover Flow, the settings), on the page and in the Windows app.
    Wheel by drag, tap, hold and flick; mouse wheel; keys: arrows, Enter, Esc, Space. Touch models show the FLACie player in their screen. *@
 <div class="ipod-stage @(flat ? "flat" : "") @(color.Dark ? "dark" : "") @(panel ? "dock-open" : "")" data-testid="ipod" data-model="@model.Id" data-color="@color.Name" data-look="@(desk ? "desk" : flat ? "wheel" : "device")" data-scene="@IpodPrefs.SceneKeys[prefs.Scene]" style="@StageStyle">
-    @if (retro) { <RetroScene Kind="@prefs.Scene" /> }
+    @if (retro) { <RetroScene Kind="@prefs.Scene" Song="@RetroSongNow" /> }
     else if (desk)
     {
         <DeskScene Jack="@DeskJacks.For(model.Id)" Aspect="@model.Aspect" Radius="@model.Radius" Journal="@DeskJournalPart" Cds="@DeskCdsPart" Polaroid="@DeskPolaroidPart"
@@ -132,7 +132,7 @@
     static readonly string[][] SceneHelp =
     [
         [],
-        ["<b>Play / pause</b>, <b>next</b> and <b>previous</b>: the head unit's keys.", "<b>Volume</b>: turn the knob (scroll or the arrow keys); press it to mute.", "<b>Presets 1–6</b>: stations made from your biggest genres (each shuffles its genre), then the albums coming up.", "<b>Eject</b> slides the CD out; click the slot to play on."],
+        ["<b>Play / pause</b>, <b>next</b> and <b>previous</b>: the head unit's keys.", "<b>EQ</b> steps the sounds (flat, rock, pop, jazz...): the music itself changes, and the display names it.", "The display shows what the file is, the title and the line being sung.", "<b>Volume</b>: turn the knob (scroll or the arrow keys); press it to mute.", "<b>Presets 1–6</b>: stations made from your biggest genres (each shuffles its genre), then the albums coming up.", "<b>Eject</b> slides the CD out; click the slot to play on."],
         ["<b>Play / pause</b>: START · STOP on the turntable, or PHONO on the receiver.", "<b>Next / previous</b>: ◀◀ and ▶▶ on the receiver. Turn the <b>tuning knob</b> (scroll) to seek.", "Click the <b>record</b> to drop the needle: nearer the middle goes further in.", "<b>Pitch</b>: the slider changes the speed. <b>Crate</b>: flip through and click the front sleeve."],
         ["<b>REW / FF</b>: previous and next. <b>▶ ❚❚</b>: play or pause.", "<b>Stop / eject</b> drops the door open; play shuts it.", "<b>Deck B</b> holds what comes next: click the tape to play it.", "The <b>EQ sliders</b> are the music's own EQ (100 Hz to 8 kHz): drag one, scroll it or use the arrow keys. <b>VOL</b> is the volume."],
         ["<b>Jog dial</b>: turn it (scroll or the arrow keys) to skip; press the middle to play or pause.", "<b>Eject</b> pops the disc up; click it to put it back.", "The <b>MiniDiscs</b> on the desk are the albums coming up and your playlists."],
@@ -360,9 +360,23 @@
     // the preamp's meter: what the file is played at ("44.1 kHz · 16-bit")
     string DeskRateLine => Player.Current is { } t && deskInfoFor == t.Path && deskInfo is { SampleRateHz: > 0 } i
         ? (i.SampleRateHz % 1000 == 0 ? $"{i.SampleRateHz / 1000}" : $"{i.SampleRateHz / 1000.0:0.#}") + " kHz" + (i.BitDepth > 0 ? $" · {i.BitDepth}-bit" : "") : "";
+    // the listening scenes' displays show the same: the line being sung (desk.js sings it from the song's own clock) and what the file is. One record, made
+    // again only when what is in it changes (the scene is drawn again on every tick of the song)
+    RetroSong? retroSong;
+    RetroSong RetroSongNow
+    {
+        get
+        {
+            var path = Player.Current?.Path;
+            var lines = deskLyricsFor == path ? deskLyrics : null; var info = deskInfoFor == path ? deskInfo : null;
+            if (retroSong is null || !ReferenceEquals(retroSong.Lyrics, lines) || !ReferenceEquals(retroSong.Info, info) || retroSong.SongKey != deskLyricsFor)
+                retroSong = new RetroSong(lines, deskLyricsFor, info);
+            return retroSong;
+        }
+    }
     async Task DeskInfoFollow()
     {
-        if (!desk || Player.Current is not { } t || t.Path == deskInfoFor) return;
+        if (!(desk || retro) || Player.Current is not { } t || t.Path == deskInfoFor) return;
         deskInfoCts?.Cancel(); var cts = deskInfoCts = new CancellationTokenSource(); var ct = cts.Token;
         deskInfoFor = t.Path; deskInfo = null;
         try
@@ -414,7 +428,7 @@
     /// <summary>The journal's lyrics follow the song; an answer for a song that is no longer playing is dropped.</summary>
     async Task DeskLyricsFollow()
     {
-        if (!desk || Player.Current is not { } t || t.Path == deskLyricsFor) return;
+        if (!(desk || retro) || Player.Current is not { } t || t.Path == deskLyricsFor) return;
         deskLyricsFor = t.Path; deskLyrics = null;
         Lyrics? got = null;
         try { got = await LyricsSvc.GetAsync(t, Session.Jellyfin); } catch (Exception) { }

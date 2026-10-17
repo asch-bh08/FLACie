@@ -5,6 +5,7 @@
 @* A listening scene beside the iPod (iPod panel › Scene): the car stereo, the hi-fi, the boombox or the MiniDisc system. desk.js runs its moving parts from
    the player's one analyser (--low --mid --high --beat on the scene, meter needles: data-needle), so no scene fetches a song twice. Styles: retro.css. *@
 <div class="retro retro-@Key" data-testid="retro" data-scene="@Key" data-playing="@(Player.Playing ? "true" : "false")" @ref="root">
+    <CascadingValue Value="Song">
     @switch (Kind)
     {
         case IpodPrefs.SceneCar: <RetroCar /> break;
@@ -13,12 +14,15 @@
         case IpodPrefs.SceneMinidisc: <RetroMinidisc /> break;
         case IpodPrefs.SceneDiscman: <RetroDiscman /> break;
     }
+    </CascadingValue>
     @* the desk's light and film over every scene, so they all read as one set of photographs *@
     <DeskFilm Id="@($"retro-{Key}")" Shade="@Light.Shade" Sun="@Light.Sun" Blur="@Light.Blur" Class="@($"film-{Key}")" />
 </div>
 
 @code {
     [Parameter] public int Kind { get; set; }
+    /// <summary>The playing song's lyrics and what the file is (read in the page, as the desk's are); the scenes' displays show them.</summary>
+    [Parameter] public RetroSong? Song { get; set; }
     string Key => IpodPrefs.SceneKeys[Math.Clamp(Kind, 0, IpodPrefs.SceneKeys.Length - 1)];
     // each scene's own light (the blinds' shade, the sun through them, how soft their edges are): the car at night and the hi-fi's lamp-lit evening have no
     // blinds at all; the boombox's workshop a low warm sun; the MiniDisc's dorm a hazy afternoon; the Discman's linen a bright, gentle morning

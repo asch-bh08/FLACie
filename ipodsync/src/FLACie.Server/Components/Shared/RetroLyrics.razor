@@ -1,0 +1,23 @@
+@using FLACie.Core
+@* The line being sung, on a scene's display. Every line is here with its time (data-ms); desk.js (sing) marks the one whose time has come by the song's own
+   clock (.cur, ten times a second, no round trip to the server) and only that one is shown. A line too long for the display scrolls (rt-mq). Between lines, or
+   with no lyrics, the fallback (the artist, the album...) is shown instead. *@
+<div class="rt-ly @Class" data-testid="retro-lyric" data-lyrics data-synced="@(Lyrics is { Synced: true } ? "" : null)">
+    @if (Lyrics is { } l)
+    {
+        for (var i = 0; i < l.Lines.Count; i++)
+        {
+            @* keyed by the song too: a new song's lines are new elements, so nothing desk.js marked on the old ones carries over *@
+            <div @key="(SongKey, i)" class="rt-mq" data-line data-ms="@(l.Synced ? l.Lines[i].TimeMs : null)">@l.Lines[i].Text</div>
+        }
+    }
+    <div class="rt-fb rt-mq">@Fallback</div>
+</div>
+
+@code {
+    [Parameter] public Lyrics? Lyrics { get; set; }
+    [Parameter] public string? SongKey { get; set; }
+    /// <summary>Shown while no line is being sung.</summary>
+    [Parameter] public string? Fallback { get; set; }
+    [Parameter] public string? Class { get; set; }
+}

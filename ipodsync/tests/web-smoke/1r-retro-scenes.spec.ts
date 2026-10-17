@@ -33,7 +33,7 @@ const turns = (l: Locator) => l.evaluate(async (d: HTMLElement) => { const a = d
 type Box = { x: number; y: number; width: number; height: number };
 const inside = (a: Box, b: Box, slack = 2) => a.x >= b.x - slack && a.y >= b.y - slack && a.x + a.width <= b.x + b.width + slack && a.y + a.height <= b.y + b.height + slack;
 /** The scenes that show the line being sung and what the file is (one by one, as each gets its display). */
-const SINGING = new Set<string>([]);
+const SINGING = new Set<string>(['car']);
 
 test.describe.serial('listening scenes', () => {
   test('the panel switches scenes, keeps the choice, and the iPod comes back working', async ({ page }) => {
@@ -244,6 +244,30 @@ test.describe.serial('listening scenes', () => {
     await expect(rock).toHaveClass(/\bon\b/);
     await expect(page.getByTestId('car-display')).toContainText('ROCK');
     await expect.poll(() => playing(page)).toBe('true');
+    expect(errors).toEqual([]);
+  });
+
+  test('car: the EQ key steps the sounds of the real EQ, and the display names the sound', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page);
+    await playInScene(page, 'car');
+    const eq = () => page.evaluate(() => (window as any).flacie.eqGet());
+    const key = page.locator('[data-testid=retro] [data-ctl=eq]');
+    await expect(page.getByTestId('car-eq-name')).toHaveText('EQ FLAT');
+    const seen: string[] = [];
+    for (const [name, bands] of [['ROCK', [5, 2, -2, 2, 5]], ['POP', [-1, 2, 4, 2, -1]], ['JAZZ', [3, 1, -1, 2, 3]], ['CLASSIC', [2, 0, -1, 1, 3]], ['VOCAL', [-2, 0, 3, 3, 0]], ['BASS', [8, 3, 0, 0, 0]], ['FLAT', [0, 0, 0, 0, 0]]] as [string, number[]][]) {
+      await key.click();
+      await expect(page.getByTestId('car-eq-name')).toHaveText(`EQ ${name}`);
+      await expect.poll(eq).toEqual(bands);   // (the music goes through it, and the desk's preamp shows the same)
+      seen.push(name);
+    }
+    expect(seen).toHaveLength(7);
+    // a setting made by hand is CUSTOM, and the key goes to FLAT from it
+    await page.evaluate(() => (window as any).flacie.eq([1, 2, 3, 4, 5]));
+    await page.reload(); await expect(page.locator('[data-testid=retro][data-scene=car]')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('car-eq-name')).toHaveText('EQ CUSTOM');
+    await key.click();
+    await expect(page.getByTestId('car-eq-name')).toHaveText('EQ FLAT');
     expect(errors).toEqual([]);
   });
 

@@ -76,6 +76,21 @@ public abstract class RetroBase : UserComponent
     protected static bool Gone(Exception e) => e is JSDisconnectedException or JSException or InvalidOperationException or OperationCanceledException;
     protected static string Inv(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
 
+    /// <summary>The playing song's lyrics and what the file is (from the page).</summary>
+    [CascadingParameter] protected RetroSong? Song { get; set; }
+    /// <summary>What the file is, short enough for a small display ("FLAC 16/44.1 1000K"); empty with nothing playing.</summary>
+    protected string Format => Now is { } t ? DeskFormat.Short(Song?.Info, t) : "";
+    /// <summary>The playing song's lyrics, for <see cref="RetroLyrics"/>.</summary>
+    protected RenderFragment LyricsBox(string? fallback, string? cls = null) => b =>
+    {
+        b.OpenComponent<RetroLyrics>(0);
+        b.AddComponentParameter(1, nameof(RetroLyrics.Lyrics), Song?.Lyrics);
+        b.AddComponentParameter(2, nameof(RetroLyrics.SongKey), Song?.SongKey);
+        b.AddComponentParameter(3, nameof(RetroLyrics.Fallback), fallback);
+        b.AddComponentParameter(4, nameof(RetroLyrics.Class), cls);
+        b.CloseComponent();
+    };
+
     protected Track? Now => Player.Current;
     protected bool Playing => Player.Playing;
     protected double Position => Player.Position;

@@ -70,14 +70,24 @@
 .desk-journal { left: 2.5%; top: 6cqh; width: 54cqh; height: 40cqh; rotate: -2deg; }
 .desk-journal .page { position: absolute; inset: 0; border-radius: .6cqh; }
 /* (its own layer, with a box shadow rather than the props' drop shadow: a line being written redraws the notebook alone, and no blurred shadow with it) */
-.desk-journal { will-change: transform; } .desk-journal .page { box-shadow: var(--desk-box); }
-.desk-journal .page::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: .35cqh; translate: -50% 0; background: linear-gradient(90deg, rgba(60,40,20,.12), rgba(60,40,20,.35), rgba(60,40,20,.12)); }
-.desk-journal .sheet { position: absolute; top: 0; bottom: 0; width: 50%; background: #f4ecd8; background-image: repeating-linear-gradient(transparent 0 3.2cqh, rgba(90,120,160,.22) 3.2cqh 3.32cqh); }
-.desk-journal .sheet.left { left: 0; border-radius: .6cqh 0 0 .6cqh; box-shadow: inset -1.8cqh 0 1.8cqh -1.2cqh rgba(60,40,20,.28), inset 0 .25cqh 0 rgba(255,255,255,.6); }
-.desk-journal .sheet.right { right: 0; border-radius: 0 .6cqh .6cqh 0; box-shadow: inset 1.8cqh 0 1.8cqh -1.2cqh rgba(60,40,20,.28), inset 0 .25cqh 0 rgba(255,255,255,.6); }
+.desk-journal { will-change: transform; }
+/* a real notebook: a cloth cover showing round the pages (the iPod's colour, dulled like leather), a block of pages with their edges stepped, a sewn gutter that curves
+   the paper down into the spine with a thread stitched along it, a satin ribbon lying in the gutter with its tail out at the foot, and a warm, faintly fibrous paper.
+   Plain gradients and box shadows only (no image, no filter), so a line being written redraws a few flat layers */
+.desk-journal::before { content: ""; position: absolute; z-index: -1; inset: -1cqh -1.1cqh -1.3cqh; border-radius: 1cqh .9cqh 1.1cqh 1cqh; box-shadow: var(--desk-box), inset 0 0 0 .12cqh rgba(255,255,255,.1), inset 0 .2cqh .3cqh rgba(255,255,255,.18);
+  background: linear-gradient(90deg, rgba(0,0,0,.18), rgba(255,255,255,.07) 49%, rgba(0,0,0,.3) 50%, rgba(255,255,255,.06) 51%, rgba(0,0,0,.1)), linear-gradient(150deg, color-mix(in srgb, var(--desk-accent, #8a4a32) 52%, #3a2316), color-mix(in srgb, var(--desk-accent, #8a4a32) 38%, #1f130b)); }
+.desk-journal .page::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 2.6cqh; translate: -50% 0; pointer-events: none;
+  background: repeating-linear-gradient(180deg, #f1e6c6 0 .9cqh, transparent .9cqh 1.8cqh) 50% 0 / .24cqh 100% no-repeat, linear-gradient(90deg, transparent, rgba(60,40,20,.1) 22%, rgba(60,40,20,.34) 50%, rgba(60,40,20,.1) 78%, transparent); }
+.desk-journal .sheet { position: absolute; top: 0; bottom: 0; width: 50%; background: repeating-linear-gradient(transparent 0 3.2cqh, rgba(90,120,160,.22) 3.2cqh 3.32cqh), repeating-linear-gradient(88deg, rgba(120,90,50,.035) 0 .12cqh, transparent .12cqh .5cqh), radial-gradient(120% 100% at 50% 35%, #f7f0dc, #eee3c6); }
+.desk-journal .sheet.left { left: 0; border-radius: .6cqh 0 0 .6cqh; box-shadow: inset -1.8cqh 0 1.8cqh -1.2cqh rgba(60,40,20,.28), inset 0 .25cqh 0 rgba(255,255,255,.6), -.2cqh .25cqh 0 #e8dec2, -.4cqh .5cqh 0 #d6cbae, -.6cqh .75cqh 0 #e6dcc0, -.8cqh 1cqh 0 #cfc4a6; }
+.desk-journal .sheet.right { right: 0; border-radius: 0 .6cqh .6cqh 0; box-shadow: inset 1.8cqh 0 1.8cqh -1.2cqh rgba(60,40,20,.28), inset 0 .25cqh 0 rgba(255,255,255,.6), .2cqh .25cqh 0 #e8dec2, .4cqh .5cqh 0 #d6cbae, .6cqh .75cqh 0 #e6dcc0, .8cqh 1cqh 0 #cfc4a6; }
 .desk-journal .sheet::before { content: ""; position: absolute; left: 3cqh; top: 0; bottom: 0; width: .14cqh; background: rgba(200,90,90,.35); }
+.desk-journal .sheet.right::after { content: ""; position: absolute; z-index: 1; left: -.55cqh; width: 1cqh; top: 0; bottom: -1.5cqh; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - .55cqh), 0 100%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--desk-accent, #b3412f) 70%, #000), color-mix(in srgb, var(--desk-accent, #b3412f) 100%, #fff 18%) 42%, color-mix(in srgb, var(--desk-accent, #b3412f) 70%, #000)); }
 /* the copy of the journal desk.js lays over it for a page turn or a peel (gone when it ends) */
 .desk-journal.j-turn, .desk-journal.j-peel { z-index: 3; pointer-events: none; }
+.j-turn::before, .j-peel::before, .j-peel::after { display: none; } .j-turn .page, .j-peel .page { box-shadow: none; }
+.j-turn .page::after, .j-turn .sheet.right::after { display: block; }
 .j-title { position: absolute; left: 4.2cqh; top: 2.4cqh; width: calc(50% - 6.2cqh); font-size: 2.5cqh; font-weight: 700; line-height: 3.2cqh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .j-title small { display: block; font-size: .72em; font-weight: 400; opacity: .7; line-height: 1.2; margin-top: -.6cqh; overflow: hidden; text-overflow: ellipsis; }
 .j-title::after { content: ""; display: block; height: .25cqh; width: 70%; background: currentColor; opacity: .55; border-radius: 1cqh; rotate: -.6deg; }
@@ -92,6 +102,8 @@
 .j-lines div:nth-child(4n + 3) { rotate: .5deg; translate: -.1cqh 0; } .j-lines div:nth-child(4n) { rotate: -.45deg; }
 .j-lines div:nth-child(7n + 3) { rotate: -.15deg; }
 .j-lines div.on { display: block; }
+/* (a last empty column after the lines: the spread of a page's first line is two columns, and the second has to exist for the page to be scrolled to it, or the turn lands a column short and jumps later) */
+.j-lines::after { content: ""; display: block; break-before: column; height: 1px; }
 /* (the line being sung is written in by desk.js, a row at a time) */
 .j-date { position: absolute; right: 2.5cqh; bottom: 2.4cqh; font-size: 1.6cqh; opacity: .7; }
 
@@ -298,7 +310,7 @@
   /* the journal is a pad of sticky notes: one note at a time, three rules of lyrics on it; the note under it shows at its edge */
   .desk-journal { left: 3%; top: 3.4cqh; width: 20cqh; height: 15cqh; rotate: -2.5deg; }   /* (below the page's back button) */
   .desk-journal.lift { filter: var(--desk-shadow); } .desk-journal .page { box-shadow: none; }   /* (the note under the top one has the shadow too) */
-  .desk-journal .sheet.right, .desk-journal .page::after, .desk-journal .j-date, .desk-journal .sheet::before { display: none; }
+  .desk-journal::before, .desk-journal .sheet.right, .desk-journal .page::after, .desk-journal .j-date, .desk-journal .sheet::before { display: none; }
   .desk-journal .sheet.left { width: 100%; border-radius: .25cqh; background: linear-gradient(170deg, var(--note-a, #fff4ad), var(--note-b, #fbe47a)); box-shadow: inset 0 1.4cqh 1.2cqh -1cqh rgba(255,255,255,.55); }
   .desk-journal::after { content: ""; position: absolute; inset: 0; z-index: -1; translate: .45cqh .6cqh; rotate: 2.5deg; border-radius: .25cqh; background: var(--note-under, #f2d865); }
   .desk-journal .j-title { left: 1.5cqh; top: 1cqh; width: auto; right: 1.4cqh; font-size: 1.9cqh; line-height: 2.4cqh; }

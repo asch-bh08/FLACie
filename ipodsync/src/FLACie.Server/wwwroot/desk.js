@@ -241,32 +241,103 @@ window.desk = (() => {
     const step = (box.clientWidth - gap * (per - 1)) / per + gap;
     const page = Math.floor(Math.max(0, Math.round(l.offsetLeft / step)) / per), target = page * per * step;
     if (Math.abs(box.scrollLeft - target) > 1) {
-      if (page === (box._page || 0) + 1 && !s.reduced) turnPage(box, per);
+      if (page === (box._page || 0) + 1 && !s.reduced) turnPage(box, per, target);
       box.scrollLeft = target;
     }
     box._page = page;
   }
 
-  // a page turn (the notebook: the right page turns over to the left about the spine) or a peel (a sticky note lifts off the pad): a copy of the journal
-  // as it was is laid over it and goes, while the journal itself shows the next spread or note underneath. Short and quiet.
-  function turnPage(box, per) {
+  // a page turn (the notebook: the right page is lifted by its bottom corner and folded over the spine) or a peel (a sticky note: its corner curls up and over, then the
+  // note comes away): paper folding, in two dimensions. The corner C is taken to a point Q; the crease is the perpendicular bisector of C and Q, and the part of the
+  // leaf beyond it lies folded back, mirrored in the crease. For a page turn Q goes round to the mirror of C in the spine, where the crease is the spine itself.
+  // A copy of the journal as it was is laid over it in layers, and the journal itself shows the next spread or note underneath:
+  //   jt-left   the old left page, which stays until the turning page covers it        jt-right   the old right page (the old note), cut along the crease
+  //   jt-shade  a shadow on what the leaf uncovers                                     jt-fshadow the folded part's shadow (two steps, no blur)
+  //   jt-flap   the folded part: the BACK of the leaf, which is the new left page (a plain note back for a peel), shaded along the crease like a curl
+  // The folded part of a page is the new state mirrored in the spine and then in the crease, which is one turn about a point. Everything is a few element.animate
+  // calls on transform and clip-path (many short steps, so the fold is smooth), once, and gone when it ends.
+  const TURN_MS = 900, PEEL_MS = 760;
+  function turnPage(box, per, target) {
     const j = box.closest('.desk-journal'); if (!j || !j.animate) return;
-    const ghost = j.cloneNode(true);
-    ghost.removeAttribute('data-testid'); ghost.querySelectorAll('[data-testid]').forEach((n) => n.removeAttribute('data-testid'));
-    ghost.querySelectorAll('.writing').forEach((n) => n.classList.remove('writing'));
-    ghost.classList.add(per > 1 ? 'j-turn' : 'j-peel'); ghost.setAttribute('aria-hidden', 'true');
-    j.after(ghost);
-    const gl = ghost.querySelector('.j-lines'); if (gl) gl.scrollLeft = box.scrollLeft;
-    let a;
-    if (per > 1) {
-      ghost.style.clipPath = 'inset(-3% -3% -3% 50%)'; ghost.style.transformOrigin = '50% 50%'; ghost.style.backfaceVisibility = 'hidden';
-      a = ghost.animate([{ transform: 'perspective(160cqh) rotateY(0deg)' }, { transform: 'perspective(160cqh) rotateY(-178deg)' }], { duration: 850, easing: 'cubic-bezier(.45,.05,.35,1)' });
-    } else {
-      ghost.style.transformOrigin = '30% 0%';
-      a = ghost.animate([{ transform: 'translate(0, 0) rotate(0deg)', opacity: 1 }, { transform: 'translate(0, -2%) rotate(-2deg)', opacity: 1, offset: .25 }, { transform: 'translate(9%, -18%) rotate(9deg)', opacity: 0 }], { duration: 700, easing: 'cubic-bezier(.3,.1,.3,1)' });
+    const W = j.offsetWidth, H = j.offsetHeight; if (W < 8 || H < 8) return;
+    const turn = per > 1, ms = turn ? TURN_MS : PEEL_MS, S = W / 2, L = (W + H) * 2;
+    j.parentNode.querySelectorAll('.j-turn, .j-peel').forEach((n) => n.remove());
+    const ghost = j.cloneNode(false);
+    ghost.removeAttribute('data-testid'); ghost.classList.remove('lift'); ghost.classList.add(turn ? 'j-turn' : 'j-peel'); ghost.setAttribute('aria-hidden', 'true');
+    const px = (v) => v.toFixed(1) + 'px';
+    const layer = (cls, css, parent) => { const d = document.createElement('div'); d.className = cls; d.style.cssText = 'position:absolute;inset:0;pointer-events:none;transform-origin:0 0;' + (css || ''); (parent || ghost).appendChild(d); return d; };
+    const copyPage = (parent, scroll) => {   // (a copy of the journal's page, its lines scrolled to a spread)
+      const c = j.querySelector('.page').cloneNode(true);
+      c.querySelectorAll('[data-testid]').forEach((n) => n.removeAttribute('data-testid')); c.querySelectorAll('.writing').forEach((n) => n.classList.remove('writing'));
+      parent.appendChild(c); return { c, scroll };
+    };
+    const pending = [];
+    const page = (parent, scroll) => { pending.push(copyPage(parent, scroll)); };
+    const poly = (mx, my, nx, ny, sign) => {   // the half plane sign * (P - M) . n >= 0, as a four cornered polygon far larger than the page
+      const tx = -ny, ty = nx, ax = sign * nx, ay = sign * ny, pt = (x, y) => px(x) + ' ' + px(y);
+      return `polygon(${pt(mx + tx * L, my + ty * L)}, ${pt(mx - tx * L, my - ty * L)}, ${pt(mx - tx * L + ax * L, my - ty * L + ay * L)}, ${pt(mx + tx * L + ax * L, my + ty * L + ay * L)})`;
+    };
+    const fold = (qx, qy) => { let dx = W - qx, dy = H - qy, d = Math.hypot(dx, dy); if (d < 1e-3) { dx = .7; dy = .7; d = 1; } return { mx: (W + qx) / 2, my: (H + qy) / 2, nx: dx / d, ny: dy / d }; };
+    const mirror = (f) => `translate(${px(f.mx)}, ${px(f.my)}) rotate(${(2 * (Math.atan2(f.ny, f.nx) + Math.PI / 2)).toFixed(4)}rad) scale(1, -1) translate(${px(-f.mx)}, ${px(-f.my)})`;
+    const band = (parent, w, bg) => layer('jt-strip', `inset:auto;left:0;top:0;width:${px(w)};height:${px(3 * H + 2 * W)};background:${bg};transform-origin:0 0;`, parent);
+    const bandT = (g) => `translate(${px(g.mx)}, ${px(g.my)}) rotate(${Math.atan2(g.ny, g.nx).toFixed(4)}rad) translate(0, ${px(-1.5 * H - W)})`;
+    const N = turn ? 40 : 28, frames = [];
+    for (let i = 0; i <= N; i++) {
+      const u = i / N;
+      if (turn) {
+        const th = Math.max(0.004, Math.PI * (0.5 - 0.5 * Math.cos(Math.PI * u)));
+        frames.push(fold(S + S * Math.cos(th) - 0.25 * S * Math.sin(th) * (1 - th / Math.PI), H - 0.2 * H * Math.sin(th)));
+      } else {
+        const k = Math.min(1, u / 0.62), e = 0.5 - 0.5 * Math.cos(Math.PI * k);
+        frames.push(fold(W - W * 0.78 * Math.max(e, 0.004), H - H * 0.74 * Math.max(e, 0.004)));
+      }
     }
-    const done = () => ghost.remove();
-    a.onfinish = done; a.oncancel = done; setTimeout(done, 1600);
+    const opts = { duration: ms, easing: 'linear', fill: 'both' };
+    const mk = (el, e) => el.animate(frames.map((f, i) => {
+      const o = { offset: i / N }; if (e.transform) o.transform = e.transform(f); if (e.clip) o.clipPath = e.clip(f); return o;
+    }), opts);
+    const shadeBg = 'linear-gradient(90deg, rgba(45,26,10,.34), rgba(45,26,10,.12) 35%, rgba(45,26,10,0))';
+    const curlBg = 'linear-gradient(90deg, rgba(48,28,10,.38), rgba(255,255,255,.2) 14%, rgba(255,255,255,0) 36%, rgba(48,28,10,.1))';
+    const oldScroll = box.scrollLeft;
+    let main, extra = null;
+    if (turn) {
+      const xs = (f) => ({ mx: 2 * S - f.mx, my: f.my, nx: -f.nx, ny: f.ny });   // the crease as the new left page sees it (mirrored in the spine)
+      const flapT = (f, dx, dy) => `translate(${px(dx || 0)}, ${px(dy || 0)}) ${mirror(f)} translate(${px(S)}, 0) scale(-1, 1) translate(${px(-S)}, 0)`;
+      const flapClip = (f) => { const g = xs(f); return poly(g.mx, g.my, g.nx, g.ny, 1); };
+      const left = layer('jt-left', 'clip-path:inset(-6% 50% -6% -6%);'); page(left, oldScroll);
+      const sh = layer('jt-shade', 'clip-path:inset(0 0 0 50%);'); mk(band(sh, 0.2 * H, shadeBg), { transform: bandT });
+      const right = layer('jt-right'); page(layer('jt-in', 'clip-path:inset(-6% -6% -6% 50%);', right), oldScroll);
+      mk(right, { clip: (f) => poly(f.mx, f.my, f.nx, f.ny, -1) });
+      for (const [dx, dy, a] of [[.014 * H, .02 * H, .13], [.034 * H, .05 * H, .08]]) {
+        const sd = layer('jt-fshadow'); layer('jt-in', `clip-path:inset(0 50% 0 0);background:rgba(36,20,6,${a});`, sd);
+        mk(sd, { transform: (f) => flapT(f, dx, dy), clip: flapClip });
+      }
+      const flap = layer('jt-flap'), fin = layer('jt-in', 'clip-path:inset(-6% 50% -6% -6%);', flap);
+      page(fin, target);
+      mk(band(fin, 0.62 * W, curlBg), { transform: (f) => bandT(xs(f)) });
+      main = mk(flap, { transform: (f) => flapT(f), clip: flapClip });
+    } else {
+      const sh = layer('jt-shade', 'clip-path:inset(0);'); mk(band(sh, 0.5 * H, shadeBg), { transform: bandT });
+      const right = layer('jt-right'); page(right, oldScroll);
+      mk(right, { clip: (f) => poly(f.mx, f.my, f.nx, f.ny, -1) });
+      for (const [dx, dy, a] of [[.02 * H, .03 * H, .16], [.05 * H, .08 * H, .09]]) {
+        const sd = layer('jt-fshadow', 'background:rgba(60,36,6,' + a + ');');
+        mk(sd, { transform: (f) => `translate(${px(dx)}, ${px(dy)}) ${mirror(f)}`, clip: (f) => poly(f.mx, f.my, f.nx, f.ny, 1) });
+      }
+      const flap = layer('jt-flap', 'background:linear-gradient(175deg, var(--note-b, #fbe47a), var(--note-under, #f2d865));');
+      mk(band(layer('jt-in', 'clip-path:inset(0);', flap), 0.7 * W, curlBg), { transform: bandT });
+      main = mk(flap, { transform: (f) => mirror(f), clip: (f) => poly(f.mx, f.my, f.nx, f.ny, 1) });
+      // then the note comes away: up and off, a little turned, fading (the fold takes the first 62% of the time)
+      extra = ghost.animate([{ transform: 'translate(0, 0) rotate(0deg) scale(1)', opacity: 1, offset: 0 }, { transform: 'translate(0, 0) rotate(0deg) scale(1)', opacity: 1, offset: .62 },
+        { transform: `translate(${px(.1 * W)}, ${px(-.55 * H)}) rotate(9deg) scale(1.06)`, opacity: 0, offset: 1 }], opts);
+    }
+    j.after(ghost);
+    for (const p of pending) { const gl = p.c.querySelector('.j-lines'); if (gl) gl.scrollLeft = p.scroll; }
+    // the pen waits until the leaf has landed
+    const land = performance.now() + ms; s.landAt = land;
+    for (const w of s.writes || []) w.born = Math.max(w.born, land);
+    const done = () => ghost.remove(); main.onfinish = done; main.oncancel = done; const guard = () => { if (main.playState === 'finished' || main.playState === 'idle') done(); else setTimeout(guard, 400); }; setTimeout(guard, ms + 700);
+    void extra;
   }
 
   // the pen: the line is revealed left to right, a row at a time (a wrapped line's second row only once the first is written), at one speed throughout.
@@ -298,13 +369,13 @@ window.desk = (() => {
     };
     const total = rows.reduce((n, row) => n + Math.max(1, row.r), 0);
     s.writes = (s.writes || []).filter((w) => w.l !== l);
-    s.writes.push({ l, rows, total, over, poly, born: performance.now(), ms });
+    s.writes.push({ l, rows, total, over, poly, born: Math.max(performance.now(), s.landAt || 0), ms });
     l.style.clipPath = poly(0, 0);
   }
   function writing(now) {
     if (!s.writes || !s.writes.length) return;
     s.writes = s.writes.filter((w) => {
-      const p = s.hold != null ? s.hold : (now - w.born) / w.ms;
+      const p = s.hold != null ? s.hold : Math.max(0, (now - w.born) / w.ms);
       if (p >= 1 || !w.l.isConnected) { w.l.style.clipPath = ''; return false; }
       let d = p * w.total, j = 0;
       while (j < w.rows.length - 1 && d > Math.max(1, w.rows[j].r)) { d -= Math.max(1, w.rows[j].r); j++; }

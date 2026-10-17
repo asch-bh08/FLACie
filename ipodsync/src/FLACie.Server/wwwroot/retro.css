@@ -244,14 +244,26 @@
 .hf-flip.prev { left: -2%; } .hf-flip.next { right: -2%; }
 .hf-flip:disabled { opacity: .3; }
 /* the receiver: brushed silver, two green meters, the long tuning dial, the weighted knob, the switches */
-.hf-receiver { position: relative; width: min(64cqw, 92cqh); height: 74%; border-radius: .6cqh; display: grid; grid-template-columns: 28% 1fr 16%; grid-template-rows: 1fr auto; gap: 3% 2.4%; padding: 2.4% 2.6% 2%; box-sizing: border-box;
+.hf-receiver { position: relative; width: min(64cqw, 92cqh); height: 74%; border-radius: .6cqh; display: grid; grid-template-columns: 28% 1fr 16%; grid-template-rows: 1fr auto auto; gap: 3% 2.4%; padding: 2.4% 2.6% 2%; box-sizing: border-box;
   background: linear-gradient(105deg, rgba(255,255,255,0) 20%, rgba(255,255,255,.45) 32%, rgba(255,255,255,0) 44%, rgba(255,255,255,0) 70%, rgba(255,255,255,.2) 78%, rgba(255,255,255,0) 86%), repeating-linear-gradient(90deg, rgba(255,255,255,.08) 0 .12cqh, rgba(0,0,0,.04) .12cqh .3cqh), linear-gradient(#ecedef, #bfc2c7 55%, #d8dadd); box-shadow: inset 0 0 0 .3cqh #8d9096, inset 0 .35cqh 0 rgba(255,255,255,.8), inset 0 -.4cqh .6cqh rgba(0,0,0,.18), 0 1.2cqh 2cqh rgba(0,0,0,.6); container: rcv / inline-size; }
 .hf-meters { display: flex; gap: 6%; }
 .hf-meter { position: relative; flex: 1; border-radius: .4cqh; overflow: hidden; background: radial-gradient(120% 100% at 50% 100%, #9cf5a8, #3fbf6a 55%, #187a3a); box-shadow: inset 0 0 0 .25cqh #1a1b1e, inset 0 .4cqh 1.2cqh rgba(0,0,0,.5), 0 0 2cqh rgba(80,255,140,.35); }
 .hf-meter::before { content: ""; position: absolute; left: 12%; right: 12%; top: 22%; height: 60%; border-radius: 50% 50% 0 0 / 100% 100% 0 0; border-top: .3cqh solid rgba(10,40,20,.6); }
 .hf-meter .needle { position: absolute; left: 50%; bottom: -14%; width: .3cqh; height: 82%; margin-left: -.15cqh; background: #111; transform-origin: 50% 100%; rotate: calc(var(--a, -42) * 1deg); }
 .hf-meter span { position: absolute; left: 0; right: 0; bottom: 6%; text-align: center; font-size: 1.4cqw; letter-spacing: .2em; color: rgba(5,40,15,.75); font-weight: 700; }
-.hf-dial { position: relative; border-radius: .4cqh; background: linear-gradient(#0f1a14, #050806); box-shadow: inset 0 0 0 .25cqh #1a1b1e; overflow: hidden; display: grid; grid-template-rows: 1fr 1fr; padding: 1% 3%; }
+.hf-dial { position: relative; border-radius: .4cqh; background: linear-gradient(#0f1a14, #050806); box-shadow: inset 0 0 0 .25cqh #1a1b1e; overflow: hidden; display: grid; grid-template-rows: 1fr 1.7fr 1fr; padding: 1% 3%; }
+/* the dial's middle: what the file is, and the line being sung, in the same green light */
+.hf-read { display: grid; grid-template-rows: auto 1fr; align-content: center; min-width: 0; text-align: center; color: #8affb0; text-shadow: 0 0 .8cqh rgba(80,255,140,.8); }
+.hf-fmt { font-size: 1.5cqw; letter-spacing: .14em; opacity: .75; white-space: nowrap; overflow: hidden; }
+.hf-lyric { font-size: 2.4cqw; align-self: center; letter-spacing: .03em; }
+.hf-lyric > div { text-align: center; }
+.hf-knobs { grid-column: 1 / -1; display: flex; justify-content: center; gap: 9%; }
+.hf-kn { display: grid; justify-items: center; gap: .3cqh; }
+.hf-kn small { font-size: 1.2cqw; letter-spacing: .2em; color: #3a3d42; font-weight: 700; }
+.hf-knob { width: 6cqw; aspect-ratio: 1; border-radius: 50%; border: 0; padding: 0; position: relative; cursor: ns-resize; rotate: var(--r, 0deg); touch-action: none;
+  background: repeating-conic-gradient(#9da1a8 0 4deg, #e3e5e8 4deg 8deg); box-shadow: 0 .6cqh 1cqh rgba(0,0,0,.45), inset 0 0 0 .5cqh #c9ccd1; }
+.hf-knob i { position: absolute; left: 50%; top: 10%; width: 9%; height: 22%; margin-left: -4.5%; border-radius: 1cqh; background: #33363c; }
+.hf-knob:focus-visible { outline: .3cqh solid #ff7a3d; outline-offset: .3cqh; }
 .hf-scale { display: flex; justify-content: space-between; align-items: center; font-size: 1.9cqw; color: #8affb0; text-shadow: 0 0 .8cqh rgba(80,255,140,.8); letter-spacing: .05em; }
 .hf-scale b { font-size: 1.4cqw; opacity: .7; }
 .hf-scale.am { color: #ffcf7a; text-shadow: 0 0 .8cqh rgba(255,190,80,.7); }
@@ -276,7 +288,9 @@
   .hf-front { top: 48%; }
   .hf-receiver { width: 94cqw; height: 80%; grid-template-columns: 1fr 22%; grid-template-rows: 30% 1fr auto; }
   .hf-meters { grid-column: 1 / -1; }
+  .hf-receiver { grid-template-rows: 26% 1fr auto auto; }
   .hf-meter span { font-size: 2.4cqw; } .hf-scale { font-size: 3.2cqw; } .hf-switches button { font-size: 2.8cqw; }
+  .hf-fmt { font-size: 2.6cqw; } .hf-lyric { font-size: 4cqw; } .hf-knob { width: 11cqw; } .hf-kn small { font-size: 2.2cqw; } .hf-knobs { gap: 12%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .hf-record { animation: none !important; }

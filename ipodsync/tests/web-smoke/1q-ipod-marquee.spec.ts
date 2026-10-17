@@ -86,10 +86,13 @@ test.describe.serial('long text on the iPod screens scrolls', () => {
     await signIn(page); await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/songs');
     await page.locator('.track').first().locator('button.track-main').click();
-    await page.evaluate(() => localStorage.setItem('flacie.ipod', JSON.stringify({ model: 'touch5', look: 1 })));
+    await page.evaluate(() => localStorage.setItem('flacie.ipod', JSON.stringify({ model: 'touch7', look: 1 })));
     await page.evaluate(() => (window as any).Blazor.navigateTo('/ipod'));
     await expect(page.getByTestId('ios')).toHaveAttribute('data-app', 'now', { timeout: 20_000 });
     expect(await longText(page, '[data-testid=ios-np-title]', '[data-testid=ipod-touch-screen]')).toEqual({ moving: true, inside: true, clip: true });
+    // and it keeps going: the screen is drawn again every second, which once wiped the scroll's class and started it over (a shake, then half a second of movement)
+    await page.waitForTimeout(2500);
+    expect(await page.getByTestId('ios-np-title').evaluate((e) => Number(e.getAnimations().find((a) => /ipod-mq/.test((a as CSSAnimation).animationName))?.currentTime ?? 0))).toBeGreaterThan(3000);
   });
 
   test('reduced motion: long text holds still, cut with an ellipsis', async ({ page }) => {

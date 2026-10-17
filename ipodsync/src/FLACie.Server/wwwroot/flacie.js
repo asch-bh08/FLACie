@@ -342,14 +342,19 @@ window.flacie = (() => {
   // moves, or the screen's size changes, so the clock and the progress bar ticking never restart it
   const MQ = ".lcd-hdr b, .lcd-pane b, .lcd-pane span, .lcd-pane small, .ios-nav b, .lcd-list li.sel .lcd-label, .lnp-meta b, .lnp-meta span, .cf-cap b, .cf-cap span, .ios-np-meta b, .ios-np-meta span, .ios-np-meta small, .ios-mini-t b";
   const marquee = (root, sel = MQ) => {
+    // (a line that scrolls is marked data-mq, an attribute the page never writes: a class would be wiped whenever the screen is drawn again, every second on
+    // the touch iPods, and the scroll started over each time, a shake and half a second of movement. A line whose text and width are as they were keeps scrolling)
     const measure = e => {
-      if (e.classList.contains("mq")) e.classList.remove("mq");
-      const over = e.matches(sel) ? e.scrollWidth - e.clientWidth : 0;
-      if (over > 2) { e.style.setProperty("--mq", -(over + 6) + "px"); e.style.setProperty("--mqt", (4 + over / 30).toFixed(1) + "s"); void e.offsetWidth; e.classList.add("mq"); }
+      const key = e.matches(sel) ? e.textContent + "|" + e.clientWidth : "";
+      if (key && key === e._mqKey && e.hasAttribute("data-mq")) return;
+      e._mqKey = key;
+      if (e.hasAttribute("data-mq")) e.removeAttribute("data-mq");
+      const over = key ? e.scrollWidth - e.clientWidth : 0;
+      if (over > 2) { e.style.setProperty("--mq", -(over + 6) + "px"); e.style.setProperty("--mqt", (4 + over / 30).toFixed(1) + "s"); void e.offsetWidth; e.setAttribute("data-mq", ""); }
     };
     // (measuring changes a line's class, which the observer below sees: those changes are taken off its list, or every line measured itself again on every
     // frame for as long as the screen was open, and a long one started its scroll over each time)
-    const all = () => { root.querySelectorAll(".mq").forEach(measure); root.querySelectorAll(sel).forEach(measure); mo.takeRecords(); };
+    const all = () => { root.querySelectorAll("[data-mq]").forEach((e) => { e._mqKey = null; measure(e); }); root.querySelectorAll(sel).forEach((e) => { e._mqKey = null; measure(e); }); mo.takeRecords(); };
     let queued = new Set(), frame = 0;
     const seen = rs => { for (const r of rs) { touched(r.target); r.addedNodes.forEach(touched); } };
     const flush = () => { frame = 0; seen(mo.takeRecords()); const q = queued; queued = new Set(); q.forEach(measure); mo.takeRecords(); };

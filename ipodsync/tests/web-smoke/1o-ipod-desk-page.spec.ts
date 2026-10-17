@@ -545,10 +545,10 @@ test.describe.serial('desk look on /ipod', () => {
     let t = await tone();
     expect(t.stops).toBeGreaterThan(2);
     expect(t.b, 'a blue mini\'s edge is blue').toBeGreaterThan(t.r + 40);
-    // another colour from the panel: the edge follows at once
+    // another colour from the panel: the edge follows at once (the 1st generation mini's pink is a muted one, a pale rose: red clearly above green, a little above blue)
     await page.locator('.ipod-panel .swatch[data-color="Pink"]').click();
     await expect(page.getByTestId('ipod')).toHaveAttribute('data-color', 'Pink');
-    await expect.poll(async () => { const p = await tone(); return p.r > p.b + 25 && p.r > p.g + 40; }, { message: 'a pink mini\'s edge is pink' }).toBe(true);
+    await expect.poll(async () => { const p = await tone(); return p.r > p.b + 10 && p.r > p.g + 30; }, { message: 'a pink mini\'s edge is pink' }).toBe(true);
     // a black classic: its front is black aluminium, its back polished steel, mirroring the warm room (not a cold silver)
     await openDesk(page, { model: 'classic6', look: 2, color: 1 });
     await expect(page.getByTestId('ipod')).toHaveAttribute('data-color', 'Black');

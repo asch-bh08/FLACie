@@ -28,11 +28,33 @@ async function recordLoad(page: Page, prefs: Record<string, unknown>) {
 }
 
 test.describe.serial('Retro', () => {
+  for (const [name, prefs, want] of [
+    ['a nano on the device look', { model: 'nano3', color: 1, look: 1, scene: 0 }, 'nano3|device|ipod'],
+    ['the desk with a classic', { model: 'classic6', look: 2, scene: 0 }, 'classic6|desk|ipod'],
+    ['the car scene', { model: 'ipod4', look: 1, scene: 1 }, 'ipod4|device|car'],
+  ] as const) {
+    test(`opening shows ${name} first, never the default iPod or another scene before it`, async ({ page }) => {
+      await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
+      await recordLoad(page, prefs);
+      await page.goto('/ipod');
+      await expect(page.getByTestId('ipod')).toHaveAttribute('data-model', prefs.model as string, { timeout: 20_000 });
+      await expect(page.locator('[data-testid=ipod-device],[data-testid=retro]').first()).toBeVisible({ timeout: 20_000 });
+      await page.waitForTimeout(1500);
+      const seen: string[] = await page.evaluate(() => (window as any).__seen);
+      const drawn = seen.filter((s) => s.endsWith('|drawn'));
+      expect(drawn.length, `nothing was drawn: ${seen.join(' > ')}`).toBeGreaterThan(0);
+      // every state with a device or scene on screen is the saved one
+      expect(drawn.filter((s) => !s.startsWith(want + '|')), `seen: ${seen.join(' > ')}`).toEqual([]);
+      // and nothing of the stage (its device attributes) is shown before it is the saved one
+      expect(seen.filter((s) => s !== 'none' && !s.startsWith(want + '|') && !s.endsWith('|empty')), `seen: ${seen.join(' > ')}`).toEqual([]);
+    });
+  }
+
   test('it is named Retro, on /retro and still on /ipod', async ({ page }) => {
     await signIn(page); await page.setViewportSize({ width: 1600, height: 900 });
     for (const path of ['/retro', '/ipod']) {
       await page.goto(path);
-      await expect(page.getByTestId('ipod-device')).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator('[data-testid=ipod-device],[data-testid=retro]').first()).toBeVisible({ timeout: 20_000 });   // (a scene saved by an earlier test may show instead of the iPod)
       await expect(page).toHaveTitle('Retro · FLACie');
       await expect(page.getByTestId('ipod-panel').locator('h2')).toHaveText('Retro');
       await expect(page.getByTestId('ipod-panel')).toHaveAttribute('aria-label', 'Retro panel');
@@ -44,7 +66,7 @@ test.describe.serial('Retro', () => {
     await page.screenshot({ path: 'test-results/retro-account-1600.png' });
     await item.click();
     await expect(page).toHaveURL(/\/retro$/);
-    await expect(page.getByTestId('ipod-device')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('ipod')).toBeVisible({ timeout: 20_000 });
   });
 
   async function play(page: Page, w: number, h: number) {

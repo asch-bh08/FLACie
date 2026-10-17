@@ -8,6 +8,13 @@
 <PageTitle>Retro · FLACie</PageTitle>
 @* Retro (once called iPod mode; /ipod still opens it): every iPod of the Android emulator (23 models, their colours, the mono / colour / nano screens, Cover Flow, the settings), on the page and in the Windows app.
    Wheel by drag, tap, hold and flick; mouse wheel; keys: arrows, Enter, Esc, Space. Touch models show the FLACie player in their screen. *@
+@* Until the saved choice (model, look, scene) is read from this browser and the account, only an empty stage the size of the page is drawn: no other device or scene shows first. *@
+@if (!loaded)
+{
+    <div class="ipod-stage ipod-booting" data-testid="ipod-booting" aria-busy="true"></div>
+}
+else
+{
 <div class="ipod-stage @(flat ? "flat" : "") @(color.Dark ? "dark" : "") @(panel ? "dock-open" : "")" data-testid="ipod" data-model="@model.Id" data-color="@color.Name" data-look="@(desk ? "desk" : flat ? "wheel" : "device")" data-scene="@IpodPrefs.SceneKeys[prefs.Scene]" style="@StageStyle">
     @if (retro) { <RetroScene Kind="@prefs.Scene" Song="@RetroSongNow" /> }
     else if (desk)
@@ -127,6 +134,7 @@
         }
     </aside>
 </div>
+}
 
 @code {
     // the help for each retro scene (index = IpodPrefs.Scene; the iPod's own help is the list above)
@@ -532,7 +540,9 @@
         var fitKey = model.Id + flat + desk;
         if (loaded && fitKey != lastFitKey) { lastFitKey = fitKey; _ = Js.InvokeVoidAsync("flacie.ipodFit").AsTask(); }
         var wantTouch = model.Touch;
-        if (loaded && (!inited || initTouch != wantTouch || initDesk != desk))
+        // (the device is only on the page once the saved choice has loaded and drawn it: wait for its elements before wiring them up)
+        var drawn = !string.IsNullOrEmpty(device.Id) && !string.IsNullOrEmpty(stage.Id) && !string.IsNullOrEmpty(fitEl.Id) && (wantTouch || !string.IsNullOrEmpty(wheel.Id));
+        if (loaded && drawn && (!inited || initTouch != wantTouch || initDesk != desk))
         {
             inited = true; initTouch = wantTouch; initDesk = desk;
             try { object? w = wantTouch ? null : wheel; var wide = await Js.InvokeAsync<bool>("flacie.ipodInit", stage, device, w, self, new { deg = prefs.DegreesPerDetent }, fitEl); if (first2) { first2 = false; panel = wide; StateHasChanged(); } } catch (Exception) { }

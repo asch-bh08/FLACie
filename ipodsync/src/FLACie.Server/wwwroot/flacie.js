@@ -747,6 +747,8 @@ window.flacie = (() => {
       if (on && !toneGraph()) return false;
       mega = on; toneApply(); return mega;
     },
+    /** Whether Mega Bass is on (as asked: the gain follows a moment later). */
+    megaOn() { return !!mega; },
     /** The bass band's gain now, in dB (0 while the music has never gone through the EQ). */
     bassLevel() { return eqF ? eqF[0].gain.value : 0; },
     /** The EQ (the iPod desk's preamp): five bands, -12..+12 dB each, kept for next time. The music goes through Web Audio only once a band is moved off

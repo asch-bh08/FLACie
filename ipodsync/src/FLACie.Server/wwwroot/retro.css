@@ -537,6 +537,36 @@
 .dm-cd .glare { position: absolute; inset: 0; z-index: 1; background: linear-gradient(118deg, rgba(255,255,255,.35), rgba(255,255,255,0) 32%, rgba(255,255,255,0) 70%, rgba(255,255,255,.18)); pointer-events: none; }
 .dm-cd:hover, .dm-cd:focus-visible { translate: -1cqh -.6cqh; }
 
+/* the wired remote: its cable runs up under the player; the LCD (the same green as the player's) shows the file, the line sung and the volume */
+.dm-remote { position: absolute; left: 72%; top: 76%; width: 30cqh; aspect-ratio: 1.7; rotate: 3deg; container: rm / inline-size; box-sizing: border-box; border-radius: 9% / 14%;
+  background: linear-gradient(150deg, #eceef1, #c3c7cd 55%, #dfe1e5); box-shadow: 0 1.2cqh 1.8cqh rgba(40,32,24,.35), inset 0 .2cqh .3cqh rgba(255,255,255,.8), inset 0 -.3cqh .5cqh rgba(0,0,0,.15); }
+.dm-player { z-index: 2; } .dm-remote { z-index: 1; }
+.rm-in { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto; gap: 5cqw; padding: 5cqw; box-sizing: border-box; }
+.dm-rcable { position: absolute; right: 78%; bottom: 84%; width: 70%; overflow: visible; z-index: -1; pointer-events: none; }
+.dm-rcable path { fill: none; stroke: #121214; stroke-width: 3.4; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.rm-lcd { min-width: 0; border-radius: 2.4cqw; padding: 3cqw 4cqw; display: grid; grid-template-rows: auto 1fr auto; gap: 1.5cqw; align-items: center; box-sizing: border-box; overflow: hidden;
+  background: linear-gradient(#b9e3c4, #96cfa6); box-shadow: inset 0 .3cqh .6cqh rgba(0,40,10,.35), inset 0 0 0 .2cqh rgba(0,0,0,.25), 0 0 1.4cqh rgba(150,230,170,.35); color: #142a18; font-family: "Dot Matrix", "Consolas", monospace; letter-spacing: .05em; text-transform: uppercase; }
+.rm-l0 { display: flex; justify-content: space-between; gap: 3cqw; font-size: 4.6cqw; line-height: 1.15; white-space: nowrap; min-width: 0; }
+.rm-l0 span { flex: 1 1 0; min-width: 0; overflow: hidden; }
+.rm-l0 small { flex: none; font: 700 3.4cqw/1.2 "Helvetica Neue", Arial, sans-serif; letter-spacing: .1em; opacity: .12; }
+.rm-l0 small.on { opacity: .9; }
+.rm-lyric { font-size: 5.6cqw; line-height: 1.2; font-weight: 700; }
+.rm-lyric > div { overflow: hidden; }
+.rm-l2 { display: flex; justify-content: space-between; font: 700 4.6cqw/1 "Segment LCD", "Consolas", monospace; }
+.rm-keys { display: flex; align-items: center; justify-content: center; gap: 8cqw; }
+.rm-keys small { font: 800 3.6cqw/1 "Helvetica Neue", Arial, sans-serif; letter-spacing: .16em; color: #5a5e66; }
+.rm-keys button { width: 13cqw; aspect-ratio: 1; border-radius: 50%; border: 0; padding: 0; font-size: 7cqw; line-height: 1; color: #3a3e45; cursor: pointer;
+  background: radial-gradient(circle at 40% 30%, #fdfdfe, #c4c8ce 70%, #a5aab2); box-shadow: 0 .35cqh .5cqh rgba(0,0,0,.3), inset 0 -.2cqh .3cqh rgba(0,0,0,.12); }
+.rm-keys button:active { translate: 0 .15cqh; }
+
+@container retro (aspect-ratio < 23 / 20) {
+  .dm-remote { left: 50%; top: 66%; translate: -50% 0; width: min(72cqw, 44cqh); aspect-ratio: 2.5; rotate: 2deg; }
+  .rm-in { grid-template-rows: none; grid-template-columns: 1fr auto; gap: 4cqw; align-items: center; }
+  .dm-rcable { right: auto; left: 18%; bottom: 96%; width: 40%; scale: -1 1; }
+  .rm-keys { flex-direction: column; gap: 3cqw; } .rm-keys small { order: 2; display: none; }
+  .rm-keys button { width: 15cqw; font-size: 8cqw; }
+  .rm-l0 { font-size: 5cqw; } .rm-lyric { font-size: 6cqw; } .rm-l2 { font-size: 5cqw; }
+}
 @container retro (aspect-ratio < 23 / 20) {
   .dm-player { left: 50%; top: 40%; width: min(80cqw, 50cqh); rotate: -3deg; }
   .dm-cds { left: 8%; top: auto; bottom: 4%; width: 84cqw; height: 22cqw; }

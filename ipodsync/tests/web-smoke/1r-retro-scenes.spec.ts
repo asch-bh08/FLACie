@@ -33,7 +33,7 @@ const turns = (l: Locator) => l.evaluate(async (d: HTMLElement) => { const a = d
 type Box = { x: number; y: number; width: number; height: number };
 const inside = (a: Box, b: Box, slack = 2) => a.x >= b.x - slack && a.y >= b.y - slack && a.x + a.width <= b.x + b.width + slack && a.y + a.height <= b.y + b.height + slack;
 /** The scenes that show the line being sung and what the file is (one by one, as each gets its display). */
-const SINGING = new Set<string>(['car', 'hifi', 'minidisc']);
+const SINGING = new Set<string>(['car', 'hifi', 'minidisc', 'discman']);
 
 test.describe.serial('listening scenes', () => {
   test('the panel switches scenes, keeps the choice, and the iPod comes back working', async ({ page }) => {
@@ -227,6 +227,37 @@ test.describe.serial('listening scenes', () => {
     await page.locator('[data-testid=retro] [data-ctl=bass]').click();
     await expect(page.locator('[data-testid=retro] [data-ctl=bass]')).not.toHaveClass(/\bon\b/);
     await expect.poll(() => page.evaluate(() => (window as any).flacie.bassLevel())).toBeLessThan(0.5);
+    expect(errors).toEqual([]);
+  });
+
+  test('discman: the remote shows MEGA BASS as the real state (it survives a change of scene) and its VOL keys are the real volume', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page);
+    await playInScene(page, 'discman');
+    const lit = page.getByTestId('dm-remote-bass');
+    const opacity = () => lit.evaluate((e) => parseFloat(getComputedStyle(e).opacity));
+    expect(await opacity()).toBeLessThan(0.3);
+    await page.locator('[data-testid=retro] [data-ctl=bass]').click();
+    await expect.poll(opacity).toBeGreaterThan(0.7);
+    // another scene and back: the bass shelf is still on in the player, and the scene knows it
+    await page.locator('[data-testid=scene-options] [data-scene=hifi]').click();
+    await expect(page.locator('[data-testid=retro][data-scene=hifi]')).toBeVisible();
+    await page.locator('[data-testid=scene-options] [data-scene=discman]').click();
+    await expect(page.locator('[data-testid=retro][data-scene=discman]')).toBeVisible();
+    await expect.poll(opacity).toBeGreaterThan(0.7);
+    await expect(page.locator('[data-testid=retro] [data-ctl=bass]')).toHaveClass(/\bon\b/);
+    expect(await page.evaluate(() => (window as any).flacie.bassLevel())).toBeGreaterThan(6);
+    // the volume keys
+    const real = () => page.evaluate(() => Math.round((window as any).flacie.volume() * 100));
+    const lcd = async () => Number(((await page.getByTestId('dm-vol').textContent()) ?? '').replace(/\D/g, ''));
+    const start = await real();
+    expect(await lcd()).toBe(Math.round(start / 5));
+    await page.locator('[data-testid=retro] [data-ctl=vol-down]').click();
+    await expect.poll(real).toBe(start - 5);
+    await expect.poll(lcd).toBe(Math.round((start - 5) / 5));
+    await page.locator('[data-testid=retro] [data-ctl=vol-up]').click();
+    await page.locator('[data-testid=retro] [data-ctl=vol-up]').click();
+    await expect.poll(real).toBe(Math.min(100, start + 5));
     expect(errors).toEqual([]);
   });
 

@@ -164,6 +164,7 @@ test.describe('touch iPod systems', () => {
   const OLD: Record<string, { tabs: string[]; status: 'black' | 'grey' | 'blue' }> = {
     touch1: { tabs: ['Playlists', 'Artists', 'Songs', 'Videos', 'More'], status: 'black' },
     touch2: { tabs: ['Playlists', 'Artists', 'Songs', 'Videos', 'More'], status: 'grey' },
+    touch3: { tabs: ['Playlists', 'Artists', 'Songs', 'Videos', 'More'], status: 'grey' },
   };
   const lum = (c: string) => { const m = c.match(/\d+/g)!.map(Number); return (m[0] + m[1] + m[2]) / 3; };
   const timeInk = (page: Page) => page.locator('[data-testid=ios-status] .ios-time').evaluate((e) => getComputedStyle(e).color);
@@ -260,7 +261,7 @@ test.describe('touch iPod systems', () => {
     });
     for (const [w, h] of [[1366, 768], [390, 844]] as Array<[number, number]>) {
       await page.setViewportSize({ width: w, height: h });
-      for (const model of ['touch1', 'touch2', 'touch6', 'touch7', 'nano7', 'nano6']) {
+      for (const model of ['touch1', 'touch2', 'touch3', 'touch6', 'touch7', 'nano7', 'nano6']) {
         await openIpod(page, model);
         expect(await problems(), model + ' home at ' + w).toEqual([]);
         await playFromSongs(page, model);

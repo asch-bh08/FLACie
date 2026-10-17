@@ -410,3 +410,13 @@
 .ios.m-touch2 .ios-dock { background: linear-gradient(rgba(224,227,233,.96) 0%, rgba(160,164,174,.96) 48%, rgba(124,128,139,.96) 50%, rgba(170,174,183,.96) 100%); box-shadow: inset 0 1px 0 #fff, 0 -1px 0 rgba(0,0,0,.45); }
 .ios.m-touch2 .ios-np { background: radial-gradient(ellipse 90% 55% at 50% 22%, #33363e, #0a0a0c 80%); }
 .ios.m-touch2 .ios-np-bar { background: linear-gradient(rgba(96,100,110,.7), rgba(8,8,10,.82) 52%); box-shadow: inset 0 1px 0 rgba(255,255,255,.3); }
+
+/* ---- touch 3 (iPhone OS 3): sharper: hairline edges, a brighter chrome dock, the panel behind the cover */
+.ios.m-touch3 .ios-nav { border-bottom: .5px solid #000; box-shadow: inset 0 .5px 0 rgba(255,255,255,.55); }
+.ios.m-touch3 .ios-row { border-bottom-width: .5px; }
+.ios.m-touch3 .ios-home { background: radial-gradient(ellipse 120% 55% at 50% 105%, #3f78c9 0%, transparent 75%), radial-gradient(ellipse 80% 40% at 20% 0%, #26406e, transparent 80%), #081226; }
+.ios.m-touch3 .ios-dock { background: linear-gradient(rgba(236,239,244,.97) 0%, rgba(170,175,186,.97) 48%, rgba(128,133,145,.97) 50%, rgba(182,186,196,.97) 100%); box-shadow: inset 0 .5px 0 #fff, 0 -.5px 0 rgba(0,0,0,.6); }
+.ios.m-touch3 .ios-icon { box-shadow: 0 1px 2px rgba(0,0,0,.7), inset 0 0 0 .5px rgba(255,255,255,.35); }
+.ios.m-touch3 .ios-np { background: radial-gradient(ellipse 90% 55% at 50% 22%, #373a43, #0a0a0c 80%); }
+.ios.m-touch3 .ios-np-bar { background: linear-gradient(rgba(110,114,124,.72), rgba(6,6,8,.86) 52%); box-shadow: inset 0 .5px 0 rgba(255,255,255,.45); }
+.ios.m-touch3 .ios-np-panel { background: linear-gradient(rgba(30,32,38,.86), rgba(0,0,0,.9)); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.2); }

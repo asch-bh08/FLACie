@@ -57,7 +57,7 @@
                     <Dropdown Label="Sample rate" Options="rateOptions" Value="@X.Rate" ValueChanged="v => Set(() => X.Rate = v)" />
                 </div>
             }
-            @if (SpecCount + (X.Format.Length > 0 ? 1 : 0) > 0 && Probe.Pending > 0) { <small class="x-note" role="status">Still reading the real format of @Probe.Pending.ToString("N0") songs, so some may not show yet.</small> }
+            @if (SpecCount + (X.Format.Length > 0 ? 1 : 0) > 0 && ProbePending > 0) { <small class="x-note" role="status">Still reading the real format of @ProbePending.ToString("N0") songs, so some may not show yet.</small> }
         </div>
     }
 </div>
@@ -77,7 +77,7 @@
     /// <summary>Search results use only the Filters button, the pills and the drawer (the text is the box at the top of the page; no sort, no A to Z).</summary>
     [Parameter] public bool Compact { get; set; }
     [Parameter] public EventCallback Changed { get; set; }
-    [Inject] FormatProbeService Probe { get; set; } = default!;
+    int ProbePending => AppHost.ProbePending();
     static readonly string[] letters = ["#", .. "ABCDEFGHIJKLMNOPQRSTUVWXYZ".Select(c => c.ToString())];
     (List<string> Genres, List<string> Decades) choices = ([], []);
     Library? built;

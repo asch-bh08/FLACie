@@ -77,11 +77,11 @@ else
         Session.MoveInPlaylist(p.Id, At(tracks[from]), At(tracks[to])); SaveProfile();
     }
     readonly HashSet<string> asked = [];
-    [Inject] DownloadManager Downloads { get; set; } = default!;
+    [Inject] IDownloads Downloads { get; set; } = default!;
     static string Key(PlaylistEntry e) => Matching.MatchKey(e.Title, e.Artist);
     void Get(IEnumerable<PlaylistEntry> entries)
     {
-        foreach (var e in entries) if (asked.Add(Key(e))) _ = Downloads.FetchAsync(Session, "Playlist", e.Artist, e.Title, "", null, 0);
+        foreach (var e in entries) if (asked.Add(Key(e))) _ = Downloads.FetchSongAsync(Session, "Playlist", e.Artist, e.Title, "", null, 0);
     }
     void Delete() { Session.DeletePlaylist(Id); SaveProfile(); Nav.NavigateTo("/playlists"); }
     void Remove(FLACie.Core.Playlist p, IReadOnlyList<Track> tracks, int i)

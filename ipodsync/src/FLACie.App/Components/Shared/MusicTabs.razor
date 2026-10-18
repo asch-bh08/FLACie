@@ -7,5 +7,7 @@
 </div>
 @code {
     [Parameter, EditorRequired] public string Active { get; set; } = "Songs";
-    static readonly (string, string)[] tabs = [("Overview", "/explore"), ("Songs", "/songs"), ("Albums", "/albums"), ("Artists", "/artists"), ("Genres", "/genres"), ("Charts", "/charts")];
+    static readonly (string, string)[] all = [("Overview", "/explore"), ("Songs", "/songs"), ("Albums", "/albums"), ("Artists", "/artists"), ("Genres", "/genres"), ("Charts", "/charts")];
+    // the charts download what the library lacks, which only the server does
+    static (string, string)[] tabs => AppHost.Server ? all : all[..^1];
 }

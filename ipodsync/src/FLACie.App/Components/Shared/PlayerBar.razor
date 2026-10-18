@@ -25,7 +25,7 @@
             </div>
             <div class="bar-right" @onclick:stopPropagation="true">
                 <button class="icon-btn fav @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" /></button>
-                <DevicePicker />
+                @if (AppHost.DevicePicker is { } picker) { <DynamicComponent Type="picker" /> }
                 <a class="icon-btn retro-link" href="/retro" aria-label="Retro" title="Retro: iPods, a car stereo, a hi-fi and more, playing this song" data-testid="bar-retro"><Icon Name="retro" /></a>
                 @if (pipOk) { <button class="icon-btn @(pipOn ? "on" : "")" @onclick="TogglePip" aria-label="Mini player (picture in picture)" title="Mini player: keeps the cover and controls on top when you switch tabs"><Icon Name="pip" /></button> }
                 <VolumeControl />
@@ -38,7 +38,7 @@
 @code {
     bool open, volumeLoaded, pipOk, pipOn;
     async Task TogglePip() { try { pipOn = await PageJs.InvokeAsync<bool>("flacie.pipToggle"); } catch (Exception) { pipOn = false; } }
-    [Inject] ClientRegistry Registry { get; set; } = default!;
+    [Inject] IPlayerClients Registry { get; set; } = default!;
     [Inject] IJSRuntime PageJs { get; set; } = default!;
     sealed record ClientInfo(string Ip, string Ua, string Browser, string Os, string Screen, string Language);
     string? clientId;
@@ -48,7 +48,7 @@
         {
             var ci = await PageJs.InvokeAsync<ClientInfo>("flacie.clientInfo");
             clientId = Guid.NewGuid().ToString("N");
-            Registry.Add(new WebClient(clientId, Session, Player) { Ip = ci.Ip, Ua = ci.Ua, Browser = ci.Browser, Os = ci.Os, Screen = ci.Screen, Language = ci.Language });
+            Registry.Add(clientId, Session, Player, ci.Ip, ci.Ua, ci.Browser, ci.Os, ci.Screen, ci.Language);
         }
         catch (Exception) { }
     }

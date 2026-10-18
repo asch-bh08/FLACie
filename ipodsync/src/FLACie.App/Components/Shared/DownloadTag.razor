@@ -1,5 +1,5 @@
 @implements IDisposable
-@inject DownloadManager Dls
+@inject IDownloads Dls
 @* The small line under a song's artist: "Downloading · Searching Soulseek...", "Recently downloaded · 1s ago" (for an hour after it finished), "Couldn't download".
    Every list that shows songs uses this one component; the lookup behind it is DownloadManager.StatusOf. It follows the downloads by itself, and the age ticks in the
    browser (flacie.js, once a second) so the page is not drawn again. *@

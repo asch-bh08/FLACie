@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!-- FLACie's pages (home, the library, search, playlists, favourites), its layout and menu, the player bar and the full-screen player,
+       shared by the web app (FLACie.Server) and the Android app (FLACie.Hybrid), as the Retro page is in FLACie.Retro. What only a
+       server has (downloads, Connect, the dashboard) comes in through the interfaces in Host.cs. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FLACie.Server</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="9.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="9.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FLACie.Server" />
+    <InternalsVisibleTo Include="FLACie.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FLACie.Core\FLACie.Core.csproj" />
+    <ProjectReference Include="..\FLACie.Retro\FLACie.Retro.csproj" />
+  </ItemGroup>
+
+</Project>

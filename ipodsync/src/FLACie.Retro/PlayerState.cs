@@ -5,8 +5,11 @@ namespace FLACie.Server;
 
 /// <summary>The player for one browser tab: the queue lives here, the audio element in flacie.js plays it. Audio comes
 /// from /stream on this server; covers from /art. It is also the <see cref="IPlayerHost"/> that Connect and Jams drive.</summary>
-public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
+public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : IPlayerHost, IAsyncDisposable
 {
+    /// <summary>What makes the sound: the page's audio element (flacie.js), or the host's own player (the Android app's media service).</summary>
+    readonly IPlayerOutput audio = output ?? new PageOutput(js);
+
     public List<Track> Queue { get; private set; } = [];
     public int Index { get; private set; } = -1;
     public bool Playing { get; private set; }
@@ -29,8 +32,8 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         return "/stream?p=" + Uri.EscapeDataString(n.Path);
     }
 
-    public async Task LoadVolumeAsync() { Volume = await js.InvokeAsync<double>("flacie.volume", null); if (Volume > 0) lastVolume = Volume; Changed?.Invoke(); }
-    public async Task SetVolumeAsync(double v) { Volume = await js.InvokeAsync<double>("flacie.volume", Math.Clamp(v, 0, 1)); if (Volume > 0) lastVolume = Volume; Changed?.Invoke(); }
+    public async Task LoadVolumeAsync() { Volume = await audio.VolumeAsync(null); if (Volume > 0) lastVolume = Volume; Changed?.Invoke(); }
+    public async Task SetVolumeAsync(double v) { Volume = await audio.VolumeAsync(Math.Clamp(v, 0, 1)); if (Volume > 0) lastVolume = Volume; Changed?.Invoke(); }
     public Task ToggleMuteAsync() => SetVolumeAsync(Volume > 0 ? 0 : lastVolume);
     /// <summary>Where the queue came from ("Pop", an album, "Favourites"), shown as "Playing from".</summary>
     public string? Context { get; private set; }
@@ -195,7 +198,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         if (connect is not null && !ReferenceEquals(connect.Host, this)) connect.Host = this; // this tab is the one playing now
         self ??= DotNetObjectReference.Create(this);
         if (startAt <= 0) startAt = ResumeFor(t);   // a long item (audiobook, podcast, long mix) starts where it was left
-        await js.InvokeVoidAsync("flacie.load", self, "/stream?p=" + Uri.EscapeDataString(t.Path), t.Title, t.Artist, t.Album,
+        await audio.LoadAsync(self, t, "/stream?p=" + Uri.EscapeDataString(t.Path), t.Title, t.Artist, t.Album,
             t.ArtKey is null ? null : "/art/" + Uri.EscapeDataString(CoverOverrides.Map(t.ArtKey)!) + "?v=3", autoplay, t.DurationMs / 1000.0, startAt, PrefetchUrl());
         Position = startAt; Duration = t.DurationMs / 1000.0;
         await ApplyItemSpeedAsync(t);
@@ -230,11 +233,11 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
     public async Task Toggle() { if (Interceptor?.Toggle() == true) return; await ToggleAsync(); }
     public async Task Seek(double seconds) { if (Interceptor?.Seek((long)(seconds * 1000)) == true) return; await SeekRawAsync((long)(seconds * 1000)); }
 
-    public async Task ToggleAsync() { if (Current is null) return; await js.InvokeVoidAsync("flacie.toggle"); }
-    public async Task PauseAsync() => await js.InvokeVoidAsync("flacie.pause");
-    public async Task ResumeAsync() { if (Current is not null) await js.InvokeVoidAsync("flacie.play"); }
-    public async Task SeekRawAsync(long ms) { await js.InvokeVoidAsync("flacie.seek", ms / 1000.0); Position = ms / 1000.0; Changed?.Invoke(); }
-    public async Task<bool> IsBufferedAsync() => await js.InvokeAsync<bool>("flacie.ready");
+    public async Task ToggleAsync() { if (Current is null) return; await audio.ToggleAsync(); }
+    public async Task PauseAsync() => await audio.PauseAsync();
+    public async Task ResumeAsync() { if (Current is not null) await audio.PlayAsync(); }
+    public async Task SeekRawAsync(long ms) { await audio.SeekAsync(ms / 1000.0); Position = ms / 1000.0; Changed?.Invoke(); }
+    public async Task<bool> IsBufferedAsync() => await audio.ReadyAsync();
 
     public async Task Next() { if (Interceptor?.Next() == true) return; await NextAsync(); }
     public async Task Prev() { if (Interceptor?.Prev() == true) return; await PrevAsync(); }
@@ -253,7 +256,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
             for (var i = start; i < Queue.Count; i++) order.Add(i);
             Index = start;
         }
-        else { await js.InvokeVoidAsync("flacie.pause"); return; }
+        else { await audio.PauseAsync(); return; }
         await Load(true);
     }
 
@@ -362,7 +365,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         if (SleepEndsHere()) { ClearPlace(); await SleepFireAsync(); return; }
         ClearPlace();
         if (OnAutoAdvance is { } hand) { hand(); return; }
-        if (Repeat == 2) { await SeekRawAsync(0); await js.InvokeVoidAsync("flacie.play"); } else await NextAsync();
+        if (Repeat == 2) { await SeekRawAsync(0); await audio.PlayAsync(); } else await NextAsync();
     }
     [JSInvokable] public Task OnNext() => Next();
     [JSInvokable] public Task OnPrev() => Prev();
@@ -397,7 +400,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
     async Task ApplySpeedAsync(double s)
     {
         Speed = SpeedPolicy.Clamp(s);
-        try { await js.InvokeVoidAsync("flacie.rate", Speed); } catch (Exception) { }
+        try { await audio.RateAsync(Speed); } catch (Exception) { }
     }
 
     /// <summary>Sets the speed (pitch kept) and remembers it for this item; on spoken word it is also the default for the next one.</summary>
@@ -452,7 +455,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
     async Task ApplyLevelAsync(Track t)
     {
         if (!levelLoaded) { levelLoaded = true; try { LevelVolume = await js.InvokeAsync<string?>("flacie.unstash", "flacie.level") == "1"; } catch (Exception) { } }
-        try { await js.InvokeVoidAsync("flacie.loud", Loudness.Factor(t.GainDb, LevelVolume)); } catch (Exception) { }
+        try { await audio.LoudAsync(Loudness.Factor(t.GainDb, LevelVolume)); } catch (Exception) { }
     }
 
     public async Task SetLevelVolumeAsync(bool on)
@@ -473,7 +476,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         var pos = order.IndexOf(Index);
         Track? prev = pos > 0 ? Queue[order[pos - 1]] : null, next = pos >= 0 && pos + 1 < order.Count ? Queue[order[pos + 1]] : null;
         var (fin, fout) = FadeBetween.Flags(prev, t, next);
-        try { await js.InvokeVoidAsync("flacie.xfade", FadeSecs, fin, fout); } catch (Exception) { }
+        try { await audio.CrossfadeAsync(FadeSecs, fin, fout); } catch (Exception) { }
     }
 
     public async Task SetFadeSecsAsync(int secs)
@@ -529,7 +532,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         Changed?.Invoke();
     }
 
-    async Task SetFadeAsync(double g) { fade = g; try { await js.InvokeVoidAsync("flacie.fade", g); } catch (Exception) { } }
+    async Task SetFadeAsync(double g) { fade = g; try { await audio.FadeAsync(g); } catch (Exception) { } }
 
     bool SleepEndsHere() => SleepMode switch
     {
@@ -542,7 +545,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
     {
         SleepMode = SleepMode.Off; sleepArmedPath = null;
         await SetFadeAsync(1);
-        try { await js.InvokeVoidAsync("flacie.pause"); } catch (Exception) { }
+        try { await audio.PauseAsync(); } catch (Exception) { }
         Changed?.Invoke();
     }
 
@@ -561,7 +564,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
     public async Task StopAsync()
     {
         planning?.Cancel();
-        try { await js.InvokeVoidAsync("flacie.stop"); } catch (Exception) { }
+        try { await audio.StopAsync(); } catch (Exception) { }
         Queue = []; order = []; Index = -1; Playing = false; Position = 0; Duration = 0; autoplayNext = []; suggested = []; AutoplayFrom = -1; Context = null;
         if (stashKey is not null) { try { await js.InvokeVoidAsync("flacie.stash", stashKey, ""); } catch (Exception) { } }
         Changed?.Invoke();

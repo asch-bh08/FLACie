@@ -87,7 +87,7 @@
         }
         else if (heroSong is not null)
         {
-            var hs = heroSong; var fmt = InfoService.QuickFormat(hs); var facts = FormatIndex.Current?.Get(hs);
+            var hs = heroSong; var fmt = QuickFormats.Of(hs); var facts = FormatIndex.Current?.Get(hs);
             <div class="sr-hero" @onclick="() => PlayFull([hs], context)">
                 <button class="sr-art sr-cover" aria-label="Play @hs.Title and open the player" @onclick='() => PlayFull([hs], context)' @onclick:stopPropagation><Cover ArtKey="@(Art.KeyFor(hs))" Size="188" Class="square" /></button>
                 <div class="sr-hero-text">

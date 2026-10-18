@@ -91,7 +91,7 @@ else
 @code {
     [Parameter, SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
     [Inject] WebCatalog Catalog { get; set; } = default!;
-    [Inject] DownloadManager Downloads { get; set; } = default!;
+    [Inject] IDownloads Downloads { get; set; } = default!;
     [Inject] IConfiguration Conf { get; set; } = default!;
     bool isAdmin => AdminAccess.Is(Session, Conf);
     string q = ""; string? hiAsk, dlMenu;

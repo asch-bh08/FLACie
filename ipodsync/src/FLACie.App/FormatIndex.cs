@@ -90,20 +90,10 @@ public sealed class FormatIndex
     }
 }
 
-/// <summary>Every 20 seconds, looks at each signed-in account's profile again and folds in what the phone (or another device) changed: see
-/// <see cref="UserSession.RefreshProfileAsync"/>.</summary>
-public sealed class ProfileSyncService(SessionStore sessions, JellyfinClient jf, ILogger<ProfileSyncService> log) : BackgroundService
+/// <summary>How long a song whose real format could not be read is left alone before it is tried again: 1 hour, 6 hours, 24 hours, then every 7 days.</summary>
+public static class ProbeBackoff
 {
-    protected override async Task ExecuteAsync(CancellationToken ct)
-    {
-        using var prio = JellyfinGate.Use(GatePriority.Background);
-        while (!ct.IsCancellationRequested)
-        {
-            try { await Task.Delay(TimeSpan.FromSeconds(20), ct); } catch (OperationCanceledException) { break; }
-            foreach (var s in sessions.Active.ToList())
-                try { if (await s.RefreshProfileAsync(jf, ct)) log.LogInformation("profile of {user} updated from another device", s.DisplayName); }
-                catch (OperationCanceledException) { throw; }
-                catch (Exception e) { log.LogDebug(e, "profile refresh failed"); }
-        }
-    }
+    static readonly TimeSpan[] Steps = [TimeSpan.FromHours(1), TimeSpan.FromHours(6), TimeSpan.FromHours(24), TimeSpan.FromDays(7)];
+    /// <summary>The wait after the <paramref name="failures"/>th failed read in a row (1 = the first).</summary>
+    public static TimeSpan Delay(int failures) => Steps[Math.Clamp(failures, 1, Steps.Length) - 1];
 }

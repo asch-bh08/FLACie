@@ -165,9 +165,8 @@
 @code {
     [Parameter] public EventCallback OnClose { get; set; }
     [Inject] LyricsService LyricsSvc { get; set; } = default!;
-    [Inject] InfoService Infos { get; set; } = default!;
+    [Inject] ITrackInfo Infos { get; set; } = default!;
     [Inject] IJSRuntime Js { get; set; } = default!;
-    [Inject] IHttpClientFactory Http { get; set; } = default!;
     string? realAlbum, realAlbumFor;
     string AlbumOf(Track t) => realAlbumFor == t.Path && realAlbum is { Length: > 0 } a ? a : t.Album;
     DotNetObjectReference<NowPlaying>? self;
@@ -215,7 +214,7 @@
     string TabTitle => tab switch { "lyrics" => "Lyrics", "info" => "Info", _ => "Up next" };
     // the "Downloading · ..." / "Recently downloaded · 1s ago" line under a song is the DownloadTag component: it follows the downloads by itself. What this player has to
     // watch is which Autoplay suggestions are being fetched (they get a row of their own until they land), so a download starting or ending redraws it only when that changes.
-    [Inject] DownloadManager Dls { get; set; } = default!;
+    [Inject] IDownloads Dls { get; set; } = default!;
     Action? onDls; string fetchSig = "";
     string FetchSig() => string.Join(";", Player.AutoplayFetching.Select(f => f.Title + "|" + f.Artist));
     protected override async Task OnInitializedAsync()
@@ -264,9 +263,10 @@
     {
         realAlbumFor = null; realAlbum = null;
         if (!Art.OnCompilation(t.Artist, t.AlbumArtist, t.Album)) return;
-        var hit = await MediaEndpoints.OnlineAlbum(Http.CreateClient("media"), t.Artist, "", t.Title, CancellationToken.None);
-        if (Player.Current?.Path != t.Path || hit is not { Album.Length: > 0 }) return;
-        realAlbum = hit.Value.Album; realAlbumFor = t.Path;
+        if (AppHost.OnlineAlbum is not { } online) return;
+        var album = await online(t.Artist, t.Title, CancellationToken.None);
+        if (Player.Current?.Path != t.Path || album is not { Length: > 0 }) return;
+        realAlbum = album; realAlbumFor = t.Path;
         await InvokeAsync(StateHasChanged);
     }
 

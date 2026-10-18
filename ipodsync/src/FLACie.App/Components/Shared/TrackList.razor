@@ -5,7 +5,7 @@
     {
         var idx = i; var t = Tracks[i];
         var now = Player.Current?.Path == t.Path;
-        var fmt = InfoService.QuickFormat(t);
+        var fmt = QuickFormats.Of(t);
         <li class="track @(now ? "now" : "")">
             <button class="track-main" @onclick="() => Go(idx)" aria-label="Play @t.Title by @t.Artist">
                 @if (Numbered) { <span class="track-no">@(t.TrackNo > 0 ? t.TrackNo : idx + 1)</span> }
@@ -64,7 +64,7 @@
     /// <summary>Set on a playlist page: move the song at the first index to the second.</summary>
     [Parameter] public Action<int, int>? OnMove { get; set; }
     int menu = -1, hiAsk = -1;
-    [Inject] DownloadManager Downloads { get; set; } = default!;
+    [Inject] IDownloads Downloads { get; set; } = default!;
     [Inject] Toasts Toast { get; set; } = default!;
     [Inject] IJSRuntime Js { get; set; } = default!;
     async Task AskHi(int idx) { hiAsk = idx; StateHasChanged(); await Task.Delay(30); try { await Js.InvokeVoidAsync("flacie.menuToEnd"); } catch (Exception) { } }

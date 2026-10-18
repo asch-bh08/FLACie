@@ -40,7 +40,7 @@ public sealed class ExploreState
         new("mp3", "MP3", "Lossy"), new("aac", "AAC / M4A", "Lossy"), new("ogg", "Ogg Vorbis", "Lossy"), new("opus", "Opus", "Lossy"), new("wma", "WMA", "Lossy"),
         new("hires-flac", "Hi-Res FLAC", "Hi-Res"), new("hires-alac", "Hi-Res ALAC", "Hi-Res"), new("hires-wav", "Hi-Res WAV / PCM", "Hi-Res"),
     ];
-    static bool CodecOk(Track t, string c) => c.StartsWith("hires-", StringComparison.Ordinal) ? CodecFamily(t) == c[6..] && InfoService.QuickFormat(t) == "HI-RES" : CodecFamily(t) == c;
+    static bool CodecOk(Track t, string c) => c.StartsWith("hires-", StringComparison.Ordinal) ? CodecFamily(t) == c[6..] && QuickFormats.Of(t) == "HI-RES" : CodecFamily(t) == c;
     public static readonly DropOption[] KbpsChoices =
     [
         new("128", "128 kbps or lower", "Lossy range"), new("192", "129 to 192 kbps", "Lossy range"), new("256", "193 to 256 kbps", "Lossy range"), new("320", "257 to 320 kbps", "Lossy range"),
@@ -57,7 +57,7 @@ public sealed class ExploreState
     /// <summary>The codec family of a song: "flac", "mp3", "aac" ... ("" when unknown).</summary>
     public static string CodecFamily(Track t)
     {
-        var raw = FormatIndex.Current?.Get(t) is { Codec.Length: > 0 } f ? f.Codec : InfoService.QuickFormat(t);
+        var raw = FormatIndex.Current?.Get(t) is { Codec.Length: > 0 } f ? f.Codec : QuickFormats.Of(t);
         if (raw.Equals("hi-res", StringComparison.OrdinalIgnoreCase)) raw = System.IO.Path.GetExtension(t.Path ?? "").TrimStart('.');
         var c = raw.ToLowerInvariant();
         if (c.Contains("alac")) return "alac";
@@ -84,7 +84,7 @@ public sealed class ExploreState
     }
 
     // the real codec when it has been read, else the file extension
-    static bool Lossless(Track t) => FormatIndex.Current?.Get(t) is { } f ? f.Lossless : MediaInfo.LosslessCodecs.Contains(InfoService.QuickFormat(t).ToLowerInvariant());
+    static bool Lossless(Track t) => FormatIndex.Current?.Get(t) is { } f ? f.Lossless : MediaInfo.LosslessCodecs.Contains(QuickFormats.Of(t).ToLowerInvariant());
     static bool DepthOk(Track t, string d) => FormatIndex.Current?.Get(t) is { Depth: > 0 } f && f.Depth.ToString() == d;
     static bool KbpsOk(Track t, string b) => FormatIndex.Current?.Get(t) is { Kbps: > 0 } f && KbpsBand(f.Kbps, b);
     static bool RateOk(Track t, string b) => FormatIndex.Current?.Get(t) is { Rate: > 0 } f && RateBand(f.Rate, b);
@@ -109,7 +109,7 @@ public sealed class ExploreState
     bool Match(Track t) =>
         (Genre.Length == 0 || t.Genre.Trim().Equals(Genre, StringComparison.OrdinalIgnoreCase))
         && (Decade.Length == 0 || DecadeOf(t.Year) == Decade)
-        && (Format.Length == 0 || (Format == "hires" ? InfoService.QuickFormat(t) == "HI-RES" : (Format == "lossless") == Lossless(t)))
+        && (Format.Length == 0 || (Format == "hires" ? QuickFormats.Of(t) == "HI-RES" : (Format == "lossless") == Lossless(t)))
         && (Depth.Length == 0 || DepthOk(t, Depth))
         && (Rate.Length == 0 || RateOk(t, Rate))
         && (Codec.Length == 0 || CodecOk(t, Codec))

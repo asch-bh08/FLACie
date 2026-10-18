@@ -50,14 +50,6 @@ public sealed class PlaybackActivity
     }
 }
 
-/// <summary>How long a song whose real format could not be read is left alone before it is tried again: 1 hour, 6 hours, 24 hours, then every 7 days.</summary>
-public static class ProbeBackoff
-{
-    static readonly TimeSpan[] Steps = [TimeSpan.FromHours(1), TimeSpan.FromHours(6), TimeSpan.FromHours(24), TimeSpan.FromDays(7)];
-    /// <summary>The wait after the <paramref name="failures"/>th failed read in a row (1 = the first).</summary>
-    public static TimeSpan Delay(int failures) => Steps[Math.Clamp(failures, 1, Steps.Length) - 1];
-}
-
 /// <summary>Remembers who a Jellyfin token belongs to for a short while, so a burst of API calls costs Jellyfin one /Users/Me, not one each.
 /// Only successes are kept. A token Jellyfin has revoked therefore keeps working here for at most <see cref="Window"/> unless it is dropped
 /// at once: sign-out and any 401 Jellyfin gives for it call <see cref="Invalidate"/>.</summary>

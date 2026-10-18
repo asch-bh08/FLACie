@@ -1,5 +1,11 @@
-/* the early iPods' screen font: Pixelify Sans (OFL 1.1, wwwroot/fonts/OFL-pixelify.txt), a bold pixel sans in the spirit of Chicago (which is Apple's and not redistributable) */
-@font-face { font-family: "iPod Pixel"; src: url(fonts/pixelify-sans.woff2) format("woff2"); font-weight: 400 700; font-display: block; }
+/* the black-and-white iPods' screens: Chicago Kare (MIT, wwwroot/fonts/LICENSE-chicago-kare.txt), a faithful pixel copy of Chicago, the face those iPods drew everything in; its pixel is 1/16 em, so it is only crisp at 16px (= Chicago 12) */
+@font-face { font-family: "iPod Chicago"; src: url(fonts/chicago-kare.woff2) format("woff2"); font-weight: 400; font-display: block; }
+/* the 5th generation and the first nanos: Source Sans 3 (OFL 1.1), Myriad's near cousin, as their Podium Sans was drawn from Myriad */
+@font-face { font-family: "iPod Myriad"; src: url(fonts/source-sans-3.woff2) format("woff2"); font-weight: 200 900; font-display: block; }
+/* the classic and the 3rd-5th nanos (Helvetica Bold) and the touch iPods and 6th nano (Helvetica): Arimo (OFL 1.1), Helvetica's metric twin */
+@font-face { font-family: "iPod Helvetica"; src: url(fonts/arimo.woff2) format("woff2"); font-weight: 400 700; font-display: block; }
+/* the flat iOS 7+ screens: Inter (OFL 1.1), where San Francisco is not the system font */
+@font-face { font-family: "iPod SF"; src: url(fonts/inter.woff2) format("woff2"); font-weight: 100 900; font-display: block; }
 /* iPod mode (/ipod): every iPod of the Android emulator on the page. The body is 300 px wide (everything else a fraction of it) and zoomed to fit the window; the screen is drawn at the
    logical size of the real device (160x128, 320x240, 240x320) and scaled into its bezel, so edges stay in proportion at any size. */
 .ipod-stage { position: fixed; inset: 0; display: flex; overflow: hidden; color: #eee; background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--backdrop, #0b0c0e) 70%, #3a3d45), var(--backdrop, #0b0c0e) 78%); }
@@ -82,34 +88,36 @@
 /* ---------------- mono (160x128): the 1st to 4th generations and the minis */
 .fam-mono { --ink: #15190f; --lcd: #cfd6be; }
 .ipod-lcd.fam-mono { background: var(--lcd); border-radius: 2px; }
-.fam-mono .lcd-in { background: var(--lcd); color: var(--ink); font: 700 11px/1 "iPod Pixel", "Lucida Console", Consolas, monospace; -webkit-font-smoothing: none; font-smooth: never; }   /* (the 1st-4th gen and mini screens: a bold bitmap sans, as Chicago was) */
-.fam-mono .lcd-hdr { height: 16px; border-bottom: 1px solid var(--ink); padding: 0 3px; }
-.fam-mono .lcd-hdr b { left: 22px; right: 28px; font-size: 11px; }
-.fam-mono .lcd-right { font-size: 9px; }
+.fam-mono .lcd-in { background: var(--lcd); color: var(--ink); font: 400 16px/1 "iPod Chicago", "Lucida Console", Consolas, monospace; -webkit-font-smoothing: none; font-smooth: never; }   /* (the 1st-4th gen and mini screens: a bold bitmap sans, as Chicago was) */
+.fam-mono .lcd-in b, .fam-mono .lcd-in em, .fam-mono .lcd-in strong { font-weight: 400; }   /* (Chicago has one weight: a faked bold would smear its pixels) */
+.fam-mono .lcd-hdr { height: 18px; border-bottom: 1px solid var(--ink); padding: 0 3px; }
+.fam-mono .lcd-hdr b { left: 22px; right: 28px; font-size: 16px; line-height: 16px; padding-top: 1px; }
+.fam-mono .lcd-right { font-size: 16px; }
 .fam-mono .lcd-batt { width: 14px; height: 7px; border-color: var(--ink); background: linear-gradient(90deg, var(--ink) var(--lvl, 100%), transparent var(--lvl, 100%)); }
-.fam-mono .lcd-list li { height: 14px; padding: 0 10px 0 3px; margin-right: 6px; font-size: 11px; }
+.fam-mono .lcd-list li { height: 16px; padding: 0 10px 0 3px; margin-right: 6px; font-size: 16px; line-height: 16px; }   /* (Chicago 12 is 16px tall: a row of its own height, so lines never overlap or scroll) */
 .fam-mono .lcd-list li.sel { background: var(--ink); color: var(--lcd); }
-.fam-mono .lcd-val { font-size: 10px; }
+.fam-mono .lcd-val { font-size: 16px; }
 .fam-mono .lcd-scroll { width: 4px; right: 1px; background: #9ea68f; top: 1px; bottom: 1px; }
 .fam-mono .lcd-scroll i { background: var(--ink); }
 .fam-mono .lnp-art { display: none; }
-.fam-mono .lnp-meta { left: 4px; right: 4px; top: 14px; text-align: center; align-items: center; font-size: 11px; line-height: 16px; }
-.fam-mono .lnp-meta small { order: -1; font-size: 11px; }
+.fam-mono .lnp-meta { left: 4px; right: 4px; top: 19px; text-align: center; align-items: center; font-size: 16px; line-height: 16px; }
+.fam-mono .lnp-meta small { order: -1; font-size: 16px; }
 .fam-mono .lnp-meta .lnp-album { display: block; }
 .fam-mono .lnp-meta b, .fam-mono .lnp-meta span { max-width: 100%; align-self: stretch; }   /* (centred lines grow to their text: held to the screen's width, a long one scrolls instead of running off it) */
-.fam-mono .lnp-hud { top: 78px; }
+.fam-mono .lnp-hud { top: 86px; }
 .fam-mono .lnp-bar { height: 5px; margin: 0 8px; border: 1px solid var(--ink); }
 .fam-mono .lnp-bar i { background: var(--ink); }
 .fam-mono .lnp-bar.blocks { display: flex; gap: 0; border: 0; height: 8px; margin: 0; align-items: flex-end; }
 .fam-mono .lnp-bar.blocks i { flex: 1; height: 2px; margin: 0 1px; background: var(--ink); }
 .fam-mono .lnp-bar.blocks i.on { height: 8px; }
 .fam-mono .lnp-hud.vol { padding: 0 8px; }
-.fam-mono .lnp-times { padding: 0 8px; font-size: 11px; margin-top: 4px; }
+.fam-mono .lnp-times { padding: 0 8px; font-size: 16px; margin-top: 4px; }
 .fam-mono .lnp-hud u.knob { box-shadow: none; background: var(--ink); width: 7px; height: 11px; border-radius: 0; margin: -5px 0 0 -3px; }
 .fam-mono .cf { background: var(--lcd); color: var(--ink); }
 
 /* ---------------- video (320x240): the colour iPod video and the first nanos */
-.fam-video .lcd-in { background: #fff; color: #000; font-family: "Lucida Grande", "Segoe UI", Verdana, sans-serif; }
+.fam-video .lcd-in { background: #fff; color: #000; font-family: "iPod Myriad", "Myriad Pro", "Segoe UI", sans-serif; font-weight: 600; }   /* (menus semibold, as on the real screen) */
+.fam-video .lcd-in b { font-weight: 700; } .fam-video .lcd-in small { font-weight: 400; }
 .fam-video .lcd-hdr { height: 22px; background: linear-gradient(#fff, #cfd2d8); border-bottom: 1px solid #8e9299; padding: 0 6px; }
 .fam-video .lcd-hdr b { font-size: 13px; }
 .fam-video .lcd-list li { height: 24px; padding: 0 10px 0 8px; font-size: 15px; }
@@ -137,9 +145,11 @@
 .pal-dark { --bg: #111215; --hdr1: #3c3f47; --hdr2: #1a1c21; --hdrline: #000; --hdrink: #f2f3f5; --ink: #f2f3f5; --sub: #8b909b; --line: #23252b; --sel1: #4a9bff; --sel2: #1f62d6; --selink: #fff; --selsub: #d7e6ff; --chev: #6c717c;
   --pane1: #22242c; --pane2: #040405; --paneink: #fff; --paneacc: #63a9ff; --panedim: #9ba1ae; --np1: #1c1e23; --np2: #0a0b0d; --nptitle: #fff; --npartist: #c7cad1; --npalbum: #8b909b; --npdim: #8b909b; --artframe: #3a3d45; --artbg: #2a2d34; --bar1: #2a2d34; --bar2: #3d4048; --baredge: #555a66; }
 .fam-nano .lcd-in, .fam-touch .lcd-in { background: var(--bg); color: var(--ink); }
+.fam-nano .lcd-in { font-family: "iPod Helvetica", "Helvetica Neue", Arial, sans-serif; font-weight: 700; }   /* (the classic and the 3rd-5th nanos set everything in Helvetica Bold) */
+.fam-nano .lcd-in small { font-weight: 400; }
 .fam-nano .lcd-hdr { height: 26px; background: linear-gradient(var(--hdr1), var(--hdr2)); border-bottom: 1px solid var(--hdrline); color: var(--hdrink); padding: 0 7px; }
 .fam-nano .lcd-hdr b { font-size: 14px; }
-.fam-nano .lcd-list li { height: 27px; padding: 0 10px; font-size: 15px; font-weight: 500; border-bottom: 1px solid var(--line); box-sizing: border-box; }
+.fam-nano .lcd-list li { height: 27px; padding: 0 10px; font-size: 15px; font-weight: 700; border-bottom: 1px solid var(--line); box-sizing: border-box; }
 .fam-nano.tall .lcd-list li { height: 38px; font-size: 21px; }
 .fam-nano .lcd-list li.sel { background: linear-gradient(var(--sel1), var(--sel2)); color: var(--selink); border-bottom-color: transparent; box-shadow: inset 0 1px 0 rgba(255,255,255,.35); }
 .fam-nano .lcd-list li em { color: var(--chev); } .fam-nano .lcd-list li.sel em { color: var(--selink); }
@@ -148,7 +158,7 @@
 .fam-nano .lcd-scroll { right: 2px; width: 3px; border-radius: 2px; background: transparent; }
 .fam-nano .lcd-scroll i { background: rgba(85,90,102,.55); border-radius: 2px; }
 .fam-nano .lcd-pane { background: linear-gradient(var(--pane1), var(--pane2)); border-left: 1px solid #000; color: var(--paneink); }
-.fam-nano .pane-acc { color: var(--paneacc); font-weight: 500; font-size: 11.5px; } .fam-nano .lcd-pane small { color: var(--panedim); font-size: 10.5px; }
+.fam-nano .pane-acc { color: var(--paneacc); font-weight: 700; font-size: 11.5px; } .fam-nano .lcd-pane small { color: var(--panedim); font-size: 10.5px; }
 .fam-nano .lcd-pane b { font-size: 13.5px; } .fam-nano .pane-art { box-shadow: 0 0 0 1px rgba(255,255,255,.27); background: #3a3e47; }
 .fam-nano .lnp-art { left: 16px; top: 38px; width: 126px; height: 126px; background: var(--artbg); box-shadow: 0 0 0 1px var(--artframe); -webkit-box-reflect: below 2px linear-gradient(transparent 82%, rgba(255,255,255,.2)); }
 .fam-nano .lnp-meta { left: 156px; right: 10px; top: 38px; }
@@ -258,7 +268,7 @@
 
 /* ---------------- the touch iPods: iPod touch 1-7 and nano 6-7 have a system of their own (home screen, Music with a tab bar, Now Playing, Settings, Clock, Stopwatch), drawn in points (320 wide, 240 for the nanos) and scaled into the glass */
 .ios-scale { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.ios { position: relative; display: flex; flex-direction: column; overflow: hidden; background: #fff; color: #000; font: 16px/1.25 "Helvetica Neue", Helvetica, Arial, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+.ios { position: relative; display: flex; flex-direction: column; overflow: hidden; background: #fff; color: #000; font: 16px/1.25 "iPod Helvetica", "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
 .ios * { box-sizing: border-box; letter-spacing: normal; text-transform: none; }
 :where(.ios) button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-align: inherit; }
 .ios b { font-weight: 600; } .ios small { font-size: 12px; }
@@ -353,11 +363,11 @@
 .tool { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
 .tool-time { font-size: 40px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
 .tool-sub { font-size: 12px; opacity: .75; }
-.fam-mono .tool-time { font-size: 28px; } .fam-mono .tool-sub { font-size: 10px; }
+.fam-mono .tool-time { font-size: 32px; } .fam-mono .tool-sub { font-size: 16px; }
 .fam-video .tool { background: #fff; } .fam-nano .tool { background: linear-gradient(var(--np1), var(--np2)); }
 .fam-nano .tool-time { color: var(--nptitle); } .fam-nano .tool-sub { color: var(--npdim); }
 .lnp-hud.rate { text-align: center; } .lnp-hud.rate .stars { font-size: 26px; letter-spacing: .12em; color: #f5a623; }
-.fam-mono .lnp-hud.rate .stars { color: var(--ink); font-size: 20px; } .fam-nano .lnp-hud.rate .stars { color: #f5a623; }
+.fam-mono .lnp-hud.rate .stars { color: var(--ink); font-size: 16px; } .fam-nano .lnp-hud.rate .stars { color: #f5a623; }
 /* the screen's own text never picks anything up from the site's styles */
 .ipod-lcd *, .ios * { text-shadow: none; }
 .ipod-lcd { line-height: normal; }

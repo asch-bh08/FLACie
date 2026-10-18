@@ -68,7 +68,7 @@ public static class IpodMenus
         new("Repeat", "cyc:repeat", false, RepeatNames[Math.Clamp(s.Repeat, 0, 2)]),
         new("Speed", "cyc:speed", false, s.Speed.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "x"),
         new("Even Out Volume", "cyc:level", false, s.EvenVolume ? "On" : "Off"),
-        new("Fade Between Songs", "cyc:fade", false, s.FadeSeconds <= 0 ? "Off" : s.FadeSeconds + " s"),
+        new("Crossfade", "cyc:fade", false, s.FadeSeconds <= 0 ? "Off" : s.FadeSeconds + " s"),
         new("Volume Limit", "cyc:volumeLimit", false, p.VolumeLimit == 100 ? "Off" : p.VolumeLimit + "%"),
         new("Sleep Timer", "cyc:sleep", false, s.SleepMinutes <= 0 ? "Off" : s.SleepMinutes + " min"),
     ];

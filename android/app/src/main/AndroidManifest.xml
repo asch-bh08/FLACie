@@ -49,6 +49,13 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+        <!-- Retro: the iPods, the desk and the listening scenes, from the app's own files (ui/RetroActivity.kt) -->
+        <activity
+            android:name=".ui.RetroActivity"
+            android:exported="false"
+            android:label="Retro"
+            android:configChanges="orientation|screenSize|keyboardHidden|keyboard|smallestScreenSize|screenLayout|density|uiMode"
+            android:screenOrientation="user" />
         <!-- Android Auto finds this app by this entry, and reads covers from the provider below -->
         <meta-data android:name="com.google.android.gms.car.application" android:resource="@xml/automotive_app_desc" />
         <provider android:name=".playback.ArtProvider" android:authorities="com.ipodemu.art" android:exported="true" />

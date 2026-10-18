@@ -29,6 +29,31 @@ android {
     buildFeatures { compose = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
 }
+// Retro (FLACie's iPods, the desk and the listening scenes: ui/RetroActivity.kt) is FLACie.Retro built for the browser: ipodsync/src/FLACie.RetroWasm,
+// published with the .NET SDK and packaged as assets/retro. Rebuilt only when its sources change. -PskipRetro leaves it out (the Retro screen then stays empty).
+val ipodsync = rootProject.projectDir.resolve("../ipodsync/src")
+val retroPublish = layout.buildDirectory.dir("retro-publish")
+val retroAssets = layout.buildDirectory.dir("retro-assets")
+val retroWasmPublish by tasks.registering(Exec::class) {
+    val sources = listOf("FLACie.RetroWasm", "FLACie.Retro", "FLACie.Core").map { fileTree(ipodsync.resolve(it)) { exclude("bin/**", "obj/**") } } +
+        fileTree(ipodsync.resolve("FLACie.Server/wwwroot"))
+    inputs.files(sources)
+    outputs.dir(retroPublish)
+    onlyIf { !project.hasProperty("skipRetro") }
+    doFirst { delete(retroPublish) }
+    commandLine("dotnet", "publish", ipodsync.resolve("FLACie.RetroWasm/FLACie.RetroWasm.csproj").path, "-c", "Release", "-o", retroPublish.get().asFile.path, "--nologo", "-v", "q")
+}
+val retroWasm by tasks.registering(Sync::class) {
+    dependsOn(retroWasmPublish)
+    from(retroPublish.map { it.dir("wwwroot") })
+    // the APK leaves out asset folders whose names start with "_": the runtime's goes in as "framework" (RetroFiles maps it back)
+    eachFile { path = path.replaceFirst(Regex("^_framework/"), "framework/") }
+    includeEmptyDirs = false
+    into(retroAssets.map { it.dir("retro") })
+}
+android.sourceSets.getByName("main").assets.srcDir(retroAssets)
+tasks.named("preBuild") { dependsOn(retroWasm) }
+
 dependencies {
     // WebSocket for Jellyfin remote control (Connect) and SyncPlay (Jams)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

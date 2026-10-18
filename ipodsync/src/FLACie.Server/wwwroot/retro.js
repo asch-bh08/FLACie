@@ -36,6 +36,23 @@ window.retro = (() => {
     if (d.moved) { const stop = (c) => { c.stopImmediatePropagation(); c.preventDefault(); }; document.addEventListener('click', stop, { capture: true, once: true }); setTimeout(() => document.removeEventListener('click', stop, true), 80); }
   };
   document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
+  // a fader under a finger: its cap (a fifth of the slider's height, riding four of its own heights) goes to where the finger is and follows it, wherever on
+  // the slider it first touched (the range input's own thumb is only a few pixels, too small to catch with a finger). The mouse keeps the input's own drag.
+  let fing = null;
+  const faderAt = (f, e) => {
+    const r = f.i.getBoundingClientRect(), lo = +f.i.min || 0, hi = +f.i.max || 100, st = +f.i.step || 1;
+    const v = Math.min(1, Math.max(0, 1 - (e.clientY - r.top - 0.1 * r.height) / (0.8 * r.height)));
+    const val = Math.min(hi, Math.max(lo, Math.round((lo + v * (hi - lo)) / st) * st));
+    if (String(val) !== f.i.value) { f.i.value = String(val); f.i.dispatchEvent(new Event('input', { bubbles: true })); }
+  };
+  document.addEventListener('touchstart', (e) => { if (e.target instanceof Element && e.target.closest('[data-fader]')) e.preventDefault(); }, { passive: false, capture: true });
+  document.addEventListener('pointerdown', (e) => {
+    const i = e.pointerType !== 'mouse' && e.target instanceof Element && e.target.closest('[data-fader]'); if (!i) return;
+    fing = { i, id: e.pointerId }; try { i.setPointerCapture(e.pointerId); } catch { } faderAt(fing, e);
+  });
+  document.addEventListener('pointermove', (e) => { if (fing && e.pointerId === fing.id) faderAt(fing, e); });
+  const lift = (e) => { if (fing && e.pointerId === fing.id) { fing.i.dispatchEvent(new Event('change', { bubbles: true })); fing = null; } };
+  document.addEventListener('pointerup', lift); document.addEventListener('pointercancel', lift);
   // a fader (a range input marked data-fader, see-through over the slider drawn under it): its cap (--v, 0 at the bottom to 1 at the top, on the input's
   // parent) follows the pointer at once; the server draws it again as the player took it a moment later
   document.addEventListener('input', (e) => {

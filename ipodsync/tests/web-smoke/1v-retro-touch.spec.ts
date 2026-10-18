@@ -30,13 +30,16 @@ async function open(page: Page, scene: string, size: [number, number]) {
   await page.waitForTimeout(600);
 }
 /** A finger: touchstart, touchmove steps and touchend on the page (CDP), the way a phone sends them. */
+// (one CDP session for the page, never detached: detaching one drops the page's touch emulation, and with it `pointer: coarse`)
+const sessions = new WeakMap<Page, any>();
+const cdpOf = async (page: Page) => { let c = sessions.get(page); if (!c) { c = await page.context().newCDPSession(page); sessions.set(page, c); } return c; };
 async function finger(page: Page, from: [number, number], to: [number, number], steps = 10) {
-  const c = await page.context().newCDPSession(page);
+  const c = await cdpOf(page);
   const pt = (x: number, y: number) => [{ x, y, id: 1 }];
   await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(...from) });
   for (let i = 1; i <= steps; i++) { await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt(from[0] + (to[0] - from[0]) * i / steps, from[1] + (to[1] - from[1]) * i / steps) }); await page.waitForTimeout(16); }
   await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  await c.detach(); await page.waitForTimeout(250);
+  await page.waitForTimeout(250);
 }
 const centre = async (page: Page, sel: string): Promise<[number, number]> => { const b = (await page.locator(sel).first().boundingBox())!; return [b.x + b.width / 2, b.y + b.height / 2]; };
 /** The controls of the scene as a finger meets them: what is shown, not hidden or disabled; the part of each that is on screen. */
@@ -59,11 +62,11 @@ const playing = (page: Page) => page.getByTestId('retro').getAttribute('data-pla
 const ctl = (page: Page, c: string) => page.locator(`[data-testid=retro] [data-ctl=${c}]`).first();
 /** A finger along a path of points (one touch, moved in steps). */
 async function path(page: Page, pts: [number, number][]) {
-  const c = await page.context().newCDPSession(page);
+  const c = await cdpOf(page);
   await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: pts[0][0], y: pts[0][1], id: 1 }] });
   for (const [x, y] of pts.slice(1)) { await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y, id: 1 }] }); await page.waitForTimeout(16); }
   await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  await c.detach(); await page.waitForTimeout(300);
+  await page.waitForTimeout(300);
 }
 /** A finger going round a point from one angle to another (degrees, clockwise from three o'clock). */
 const arc = (cx: number, cy: number, r: number, from: number, to: number): [number, number][] => Array.from({ length: 21 }, (_, i) => { const a = (from + (to - from) * i / 20) * Math.PI / 180; return [cx + r * Math.cos(a), cy + r * Math.sin(a)] as [number, number]; });

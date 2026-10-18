@@ -672,3 +672,18 @@
 @media (pointer: coarse) { @container retro (aspect-ratio < 23 / 20) { .hf-receiver { grid-template-rows: 20% 1fr auto auto; } } }
 @media (pointer: coarse) { .hf-start, .hf-pitch, .hf-arm, .hf-arm-base { transform: translateZ(8px); } }   /* (stands clear of the record's groove, which takes a tap on it, at the flatter tilt) */
 @media (pointer: coarse) { .hf-groove { clip-path: inset(0 0 38% 0); } }   /* (START is bigger for a finger: the groove stops short of it, as it already stops short of the bottom edge) */
+/* the boombox: the six sliders take a finger side by side (no gaps), the keys are 44 px high, and on a phone's side the unit grows to fill the screen */
+@media (pointer: coarse) {
+  .bb-eq { gap: 0; }
+  .bb-fader { min-width: 44px; }
+  .bb-fader input { touch-action: none; }
+  .bb-keys button { min-height: 44px; }
+  .bb-cass { min-height: 44px; }
+  @container retro (aspect-ratio >= 23 / 20) and (max-height: 520px) {
+    .bb-unit { width: min(98cqw, 215cqh); bottom: 2%; }
+    .bb-body { grid-template-columns: 22% 1fr 22%; }
+    .bb-mid { grid-template-rows: 8% 1fr 24% minmax(44px, 14%); }
+    .bb-handle, .bb-sticker { display: none; }
+  }
+}
+@media (pointer: coarse) { @container retro (aspect-ratio < 23 / 20) { .bb-row { grid-template-columns: 1fr; } .bb-counter { display: none; } } }   /* (six 44 px sliders need the counter's room on a phone) */

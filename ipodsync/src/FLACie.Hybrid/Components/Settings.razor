@@ -1,0 +1,28 @@
+@page "/settings"
+@attribute [Authorize]
+@inherits UserComponent
+@inject HybridAccount Account
+@* What can be set on the phone: who is signed in (and signing out), how the music plays, and what this build is. The server's settings (downloads, Alexa, the dashboard) are the web app's. *@
+<PageTitle>Settings</PageTitle>
+<h1 class="page-title">Settings</h1>
+<section class="panel" aria-label="Account">
+    <h2>Account</h2>
+    <dl class="kv">
+        <dt>Signed in as</dt><dd id="set-user">@Session.DisplayName</dd>
+        <dt>Jellyfin</dt><dd id="set-server">@(Session.Jellyfin?.Server ?? "")</dd>
+        <dt>Library</dt><dd>@Lib.Songs.Count.ToString("N0") songs · @Session.Playlists.Count playlists</dd>
+    </dl>
+    <div class="row-actions"><a class="btn" href="/signout" id="sign-out">Sign out</a></div>
+</section>
+<section class="panel" aria-label="Playback">
+    <h2>Playback</h2>
+    <dl class="kv">
+        <dt>Player</dt><dd>@(PlayerHost.Native ? "Android media player: plays on with the screen off, with controls on the lock screen and in the notification" : "In the page")</dd>
+        <dt>Autoplay</dt><dd><button class="btn" @onclick="() => Player.SetAutoplayAsync(!Player.Autoplay)">@(Player.Autoplay ? "On" : "Off")</button></dd>
+        <dt>Level volume</dt><dd><button class="btn" @onclick="() => Player.SetLevelVolumeAsync(!Player.LevelVolume)">@(Player.LevelVolume ? "On" : "Off")</button></dd>
+    </dl>
+</section>
+<section class="panel" aria-label="About">
+    <h2>About</h2>
+    <dl class="kv"><dt>Version</dt><dd>@RetroHost.Version</dd></dl>
+</section>

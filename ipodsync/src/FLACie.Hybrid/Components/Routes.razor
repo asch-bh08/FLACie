@@ -1,0 +1,16 @@
+@* The whole of FLACie, as on the web: its pages (FLACie.App: home, the library, search, playlists, the player), the Retro page
+   (FLACie.Retro: /retro, /ipod), and this app's own settings and sign-out. Until someone is signed in there is only the sign-in
+   (the layout's top bar and player need a session). *@
+<CascadingAuthenticationState>
+    <AuthorizeView>
+        <Authorized>
+            <Router AppAssembly="typeof(Routes).Assembly" AdditionalAssemblies="new[] { typeof(FLACie.Server.Components.Pages.Ipod).Assembly, typeof(FLACie.Server.Components.Pages.Home).Assembly }">
+                <Found Context="routeData">
+                    <RouteView RouteData="routeData" DefaultLayout="typeof(FLACie.Server.Components.Layout.MainLayout)" />
+                </Found>
+                <NotFound><LayoutView Layout="typeof(FLACie.Server.Components.Layout.MainLayout)"><NotFoundPanel /></LayoutView></NotFound>
+            </Router>
+        </Authorized>
+        <NotAuthorized><SignIn /></NotAuthorized>
+    </AuthorizeView>
+</CascadingAuthenticationState>

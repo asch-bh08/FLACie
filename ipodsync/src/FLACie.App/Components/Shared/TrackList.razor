@@ -1,0 +1,81 @@
+@inherits UserComponent
+@* A list of songs. Click plays from that song with the rest of the list queued; the menu adds to queue or a playlist. *@
+<ol class="tracks">
+    @for (var i = 0; i < Tracks.Count; i++)
+    {
+        var idx = i; var t = Tracks[i];
+        var now = Player.Current?.Path == t.Path;
+        var fmt = QuickFormats.Of(t);
+        <li class="track @(now ? "now" : "")">
+            <button class="track-main" @onclick="() => Go(idx)" aria-label="Play @t.Title by @t.Artist">
+                @if (Numbered) { <span class="track-no">@(t.TrackNo > 0 ? t.TrackNo : idx + 1)</span> }
+                else { <Cover ArtKey="@(Art.KeyFor(t))" Size="@ThumbSize" /> }
+                <span class="track-text">
+                    <span class="track-title">@t.Title</span>
+                    <span class="track-sub">@t.Artist@(ShowAlbum && t.Album.Length > 0 ? " · " + t.Album : "")@(t.Year > 0 ? " · " + t.Year : "")</span>
+                    <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" />
+                </span>
+            </button>
+            <span class="pills">
+                <span class="badge @t.Source.ToString().ToLowerInvariant()" title="@(t.Source == TrackSource.Cloud ? SourceLabel.StreamingHint : "Where this song is played from")">@SourceLabel.Short(t.Source)</span>
+                @if (fmt.Length > 0) { <span class="badge fmt @(fmt == "HI-RES" ? "hires" : MediaInfo.LosslessCodecs.Contains(fmt.ToLowerInvariant()) ? "lossless" : "")" title="@(fmt == "HI-RES" ? "Hi-Res: lossless at more than CD quality" : "File format")">@(fmt == "HI-RES" ? "✦ Hi-Res" : fmt)</span> }
+            </span>
+            <span class="track-time">@(t.DurationMs > 0 ? Time(t.DurationMs / 1000.0) : "")</span>
+            <button class="icon-btn @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" /></button>
+            <button class="icon-btn" @onclick="() => menu = menu == idx ? -1 : idx" aria-label="More for @t.Title" aria-expanded="@((menu == idx) ? "true" : "false")"><Icon Name="more" /></button>
+            @if (menu == idx)
+            {
+                <div class="menu" role="menu">
+                    <button role="menuitem" @onclick='() => { Player.PlayNext(t); Toast.Show($"“{t.Title}” plays next"); menu = -1; }'>Play next</button>
+                    <button role="menuitem" @onclick='() => { Player.AddToQueue(t); Toast.Show($"Added “{t.Title}” to the queue"); menu = -1; }'>Add to queue</button>
+                    @foreach (var p in Session.Playlists)
+                    {
+                        <button role="menuitem" @onclick="() => { Toast.Added(Session, p, t, SaveProfile); menu = -1; }">Add to @p.Name</button>
+                    }
+                    @if (OnMove is not null)
+                    {
+                        <button role="menuitem" disabled="@(idx == 0)" @onclick="() => { OnMove(idx, idx - 1); menu = -1; }">Move up</button>
+                        <button role="menuitem" disabled="@(idx == Tracks.Count - 1)" @onclick="() => { OnMove(idx, idx + 1); menu = -1; }">Move down</button>
+                    }
+                    @if (OnRemove is not null) { <button role="menuitem" class="danger" @onclick="() => { OnRemove(idx); menu = -1; }">Remove from playlist</button> }
+                    @if (admin && Session.Services.SoulseekReady && !t.Path.Contains("[Hi-Res]", StringComparison.OrdinalIgnoreCase))
+                    {
+                        @if (hiAsk == idx)
+                        {
+                            <div class="menu-ask" role="group" aria-label="Get a Hi-Res copy?"><b>Get a Hi-Res copy?</b><small>Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). It is saved next to this one. If no Hi-Res copy exists, nothing is changed.</small><span class="hires-actions"><button class="btn hires solid" @onclick="() => GetHiRes(t)">Download Hi-Res</button><button class="btn ghost" @onclick="() => hiAsk = -1">Cancel</button></span></div>
+                        }
+                        else { <button role="menuitem" class="menu-subtle" @onclick="() => AskHi(idx)"><span aria-hidden="true">✦</span> Hi-Res version…</button> }
+                    }
+                </div>
+            }
+        </li>
+    }
+</ol>
+@code {
+    [Parameter] public IReadOnlyList<Track> Tracks { get; set; } = [];
+    [Parameter] public bool Numbered { get; set; }
+    /// <summary>Side of the small cover in a row, in pixels.</summary>
+    [Parameter] public int ThumbSize { get; set; } = 44;
+    /// <summary>Play only the clicked song and let Autoplay carry on (search results hold several releases of one song, which must not queue up behind it).</summary>
+    [Parameter] public bool Single { get; set; }
+    [Parameter] public string? PlayContext { get; set; }
+    [Parameter] public bool ShowAlbum { get; set; } = true;
+    [Parameter] public Action<int>? OnRemove { get; set; }
+    /// <summary>Set on a playlist page: move the song at the first index to the second.</summary>
+    [Parameter] public Action<int, int>? OnMove { get; set; }
+    int menu = -1, hiAsk = -1;
+    [Inject] IDownloads Downloads { get; set; } = default!;
+    [Inject] Toasts Toast { get; set; } = default!;
+    [Inject] IJSRuntime Js { get; set; } = default!;
+    async Task AskHi(int idx) { hiAsk = idx; StateHasChanged(); await Task.Delay(30); try { await Js.InvokeVoidAsync("flacie.menuToEnd"); } catch (Exception) { } }
+    [Inject] IConfiguration Conf { get; set; } = default!;
+    bool admin => AdminAccess.Is(Session, Conf);
+    // administrators only: a Hi-Res copy of a song already in the library (saved beside it; the normal download runs instead only when asked for from Search)
+    void GetHiRes(Track t) { menu = -1; hiAsk = -1; Downloads.Song(Session, new CatalogSong(t.Artist, t.Title, t.Album, null, t.DurationMs, t.TrackNo, t.DiscNo), true, false); }
+    // the song that is already playing is not started over: a click resumes it if paused, or opens the full-screen player
+    Task Go(int i)
+    {
+        if (Player.Current?.Path == Tracks[i].Path) { if (!Player.Playing) return Player.Toggle(); Player.RequestFullScreen(); return Task.CompletedTask; }
+        return Single ? Player.Play([Tracks[i]], 0, PlayContext) : Player.Play(Tracks, i, PlayContext);
+    }
+}

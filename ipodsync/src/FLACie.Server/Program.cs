@@ -105,6 +105,17 @@ builder.Services.AddSingleton(sp =>
     return client;
 });
 builder.Services.AddSingleton<SessionStore>();
+builder.Services.AddSingleton<ISessionStore>(sp => sp.GetRequiredService<SessionStore>());
+builder.Services.AddSingleton<IAutoplayPlanner>(sp => sp.GetRequiredService<AutoplayPlanner>());
+builder.Services.AddSingleton<ITrackInfo>(sp => sp.GetRequiredService<InfoService>());
+// the Retro page (FLACie.Retro) reaches these without injection
+RetroHost.Version = AppInfo.Version;
+RetroHost.Heartbeat = () => PlaybackActivity.Current?.Heartbeat();
+RetroHost.KnownCodec = t => FormatIndex.Current?.Get(t)?.Codec;
+builder.Services.AddSingleton<IDownloads>(sp => sp.GetRequiredService<DownloadManager>());
+builder.Services.AddSingleton<IPlayerClients>(sp => sp.GetRequiredService<ClientRegistry>());
+AppHost.Server = true;
+AppHost.DevicePicker = typeof(FLACie.Server.Components.Shared.DevicePicker);
 builder.Services.AddScoped<PlayerState>();
 builder.Services.AddScoped<Toasts>();
 builder.Services.AddScoped<ExploreState>();
@@ -123,6 +134,12 @@ builder.Services.AddSingleton<HitsService>();
 builder.Services.AddAlexa(dataDir);
 
 var app = builder.Build();
+{
+    var probe = app.Services.GetRequiredService<FormatProbeService>();
+    var media = app.Services.GetRequiredService<IHttpClientFactory>();
+    AppHost.ProbePending = () => probe.Pending;
+    AppHost.OnlineAlbum = async (artist, title, ct) => (await MediaEndpoints.OnlineAlbum(media.CreateClient("media"), artist, "", title, ct))?.Album;
+}
 // hosted by the Windows app: stop when that app does, so closing it never leaves a server running
 if (int.TryParse(builder.Configuration["FLACIE_PARENT_PID"], out var parentPid))
 {
@@ -215,5 +232,5 @@ app.MapGet("/api/admin/load", (HttpContext ctx, SessionStore store, JellyfinClie
 app.MapGet("/healthz", () => Results.Ok("ok"));
 app.MapGet("/licenses", () => Results.Text(AppInfo.Licenses(), "text/plain; charset=utf-8"));
 app.Lifetime.ApplicationStarted.Register(() => { var a = app.Services.GetRequiredService<ActivityLog>(); a.Add("server", "", "FLACie started"); _ = app.Services.GetRequiredService<Notifier>().NotifyAsync("started", "Server started", "FLACie is up again.", 2, "rocket"); });
-app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode().AddAdditionalAssemblies(typeof(FLACie.Server.Components.Pages.Ipod).Assembly, typeof(FLACie.Server.Components.Pages.Home).Assembly);   // the Retro page lives in FLACie.Retro, the library pages in FLACie.App
 app.Run();

@@ -1,0 +1,315 @@
+@inherits UserComponent
+@implements IDisposable
+@* Full-screen player: the cover, the controls, and beside it the queue, the synced lyrics or the file's real format. *@
+@{ var t = Player.Current; }
+<div @ref="npEl" class="np @(panelOpen ? "sheet" : "") @(closing ? "closing" : "")" role="dialog" aria-modal="true" aria-label="Now Playing">
+    @if (t is not null && Art.KeyFor(t) is { } art) { <img class="np-backdrop" src="/art/@Uri.EscapeDataString(CoverOverrides.Map(art)!)?v=3" alt="" /> }
+    <div class="np-shade"></div>
+    <header class="np-top">
+        <button class="icon-btn" @onclick="Back" aria-label="Close Now Playing"><Icon Name="chevron-down" Size="24" /></button>
+        <span class="np-where">@(t is null ? "" : SourceLabel.PlayingFromLine(t.Source))</span>
+        <a class="icon-btn np-retro" href="/retro" aria-label="Retro" title="Retro" data-testid="np-retro"><Icon Name="retro" Size="22" /></a><a class="icon-btn np-set" href="/settings" aria-label="Settings"><Icon Name="settings" Size="22" /></a><span class="np-spacer"></span>
+    </header>
+    @if (t is not null)
+    {
+        <div class="np-body">
+            <section class="np-main">
+                <button class="np-cover-btn" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")">
+                    <Cover ArtKey="@(Art.KeyFor(t))" Class="np-cover" Full="true" />
+                    <span class="np-cover-state" aria-hidden="true"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="56" /></span>
+                </button>
+                <div class="np-meta">
+                    <div class="np-titles">
+                        <h2>@t.Title</h2>
+                        <p class="np-artist"><a href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="() => GoArtist(t)" @onclick:preventDefault="true">@t.Artist</a>@(AlbumOf(t).Length > 0 ? " · " + AlbumOf(t) : "")</p>
+                        <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" Class="np-dl" />
+                        <div class="pills">
+                            <span class="badge @t.Source.ToString().ToLowerInvariant()">@SourceName(t)</span>
+                            @* the file's facts belong to the song they were read for: a new song shows none until its own are in (never the last song's Hi-Res badge for a moment) *@
+                            @if (shownInfo is { Format.Length: > 0 } fi) { <span class="badge fmt @(fi.HiRes ? "hires" : fi.Lossless ? "lossless" : "")">@(fi.HiRes ? "✦ Hi-Res" : fi.Format)</span> }
+                            @if (shownInfo is { Sampling.Length: > 0 } si) { <span class="badge plain">@si.Sampling</span> }
+                            @if (shownInfo is { BitrateKbps: > 0 } bi) { <span class="badge plain">@bi.BitrateKbps kbps</span> }
+                        </div>
+                    </div>
+                    <button class="icon-btn lg @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="24" /></button>
+                    <RatingMenu />
+                    <SpeedSleep />
+                    <div class="np-more">
+                        <button class="icon-btn lg" @onclick="ToggleMore" aria-label="More options" aria-haspopup="menu" aria-expanded="@(more ? "true" : "false")"><Icon Name="more" Size="24" /></button>
+                        @if (more)
+                        {
+                            <div class="menu np-menu" role="menu">
+                                <button role="menuitem" @onclick='() => Plain(() => Player.PlayNext(t), $"“{t.Title}” plays next")'>Play next</button>
+                                <button role="menuitem" @onclick='() => Plain(() => Player.AddToQueue(t), $"Added “{t.Title}” to the queue")'>Add to queue</button>
+                                <button role="menuitem" aria-expanded="@(plOpen ? "true" : "false")" @onclick="() => plOpen = !plOpen">Add to playlist <span aria-hidden="true">@(plOpen ? "▾" : "▸")</span></button>
+                                @if (plOpen)
+                                {
+                                    @if (!Session.Playlists.Any()) { <small class="menu-note">No playlists yet. Make one on the Playlists page.</small> }
+                                    @foreach (var p in Session.Playlists)
+                                    {
+                                        <button role="menuitem" class="sub" @onclick="() => { Toast.Added(Session, p, t, SaveProfile); CloseMore(); }">@p.Name</button>
+                                    }
+                                }
+                                <a role="menuitem" href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="() => GoArtist(t)" @onclick:preventDefault="true">Go to artist</a>
+                                @if (t.Album.Length > 0) { <a role="menuitem" href="/album/@Uri.EscapeDataString(t.AlbumKey)" @onclick="() => GoAlbum(t)" @onclick:preventDefault="true">Go to album</a> }
+                                <a role="menuitem" href="/stream?p=@Uri.EscapeDataString(t.Path)" download="@FileName(t)" @onclick="CloseMore">Download</a>
+                                <button role="menuitem" @onclick='() => { Open("info"); CloseMore(); }'>Song info</button>
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="seek big">
+                    <span>@Time(Player.Position)</span>
+                    <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" aria-valuetext="@Spoken(Player.Position, Player.Duration)" style="--fill:@(Player.Duration > 0 ? Math.Clamp(hold.Value(Player.Position) / Player.Duration * 100, 0, 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "0")%" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
+                    <span>@Time(Player.Duration)</span>
+                </div>
+                <div class="np-controls">
+                    <button class="icon-btn lg @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")"><Icon Name="shuffle" Size="22" /></button>
+                    <button class="icon-btn lg" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="28" /></button>
+                    <button class="play big" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="30" /></button>
+                    <button class="icon-btn lg" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="28" /></button>
+                    <button class="icon-btn lg @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="22" /></button>
+                </div>
+                <div class="np-volume"><VolumeControl /></div>
+            </section>
+            <section class="np-side">
+                <div class="np-tabs" role="tablist">
+                    <button role="tab" aria-selected="@(tab == "queue")" class="@(tab == "queue" ? "on" : "")" @onclick='() => Open("queue")'><Icon Name="queue" Size="18" />Up next</button>
+                    <button role="tab" aria-selected="@(tab == "lyrics")" class="@(tab == "lyrics" ? "on" : "")" @onclick='() => Open("lyrics")'><Icon Name="lyrics" Size="18" />Lyrics</button>
+                    <button role="tab" aria-selected="@(tab == "info")" class="@(tab == "info" ? "on" : "")" @onclick='() => Open("info")'><Icon Name="info" Size="18" />Info</button>
+                </div>
+                <div class="np-panel" role="tabpanel">
+                    <div class="sheet-head"><button class="sheet-song" @onclick="() => panelOpen = false" aria-label="Back to the cover"><Cover ArtKey="@(Art.KeyFor(t))" Size="44" /><span><b>@t.Title</b><small>@t.Artist · @TabTitle</small></span></button><button class="icon-btn" @onclick="() => panelOpen = false" aria-label="Back to the cover"><Icon Name="chevron-down" Size="24" /></button></div>
+                    @if (tab == "queue")
+                    {
+                        <div class="q-head">
+                            <div><small>Playing from</small><b>@(Player.Context ?? "Your queue")</b></div>
+                        </div>
+                        <label class="switch-row">
+                            <span><b>Autoplay</b><small>Add similar songs to the end of the queue</small></span>
+                            <input type="checkbox" role="switch" checked="@Player.Autoplay" @onchange="e => Player.SetAutoplayAsync((bool)(e.Value ?? false))" />
+                            <i class="switch" aria-hidden="true"></i>
+                        </label>
+                        <ol class="upnext">
+                            <li class="now"><div class="q-row"><Cover ArtKey="@(Art.KeyFor(t))" Size="44" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span><em class="eq @(Player.Playing ? "on" : "")" aria-label="Now playing"><i></i><i></i><i></i></em></div></li>
+                            @{ var shownAuto = false; var fetching = Player.AutoplayFetching; var upNext = Player.UpNext(30).ToList(); var upTotal = Player.UpNextCount; var canEdit = Player.CanEdit; }
+                            @for (var k = 0; k < upNext.Count; k++)
+                            {
+                                var (i, u) = upNext[k]; var first = k == 0; var last = k == upTotal - 1;
+                                @if (!shownAuto && Player.AutoplayFrom >= 0 && i >= Player.AutoplayFrom)
+                                {
+                                    shownAuto = true;
+                                    <li class="q-divider">Autoplay · similar to what you were playing</li>
+                                }
+                                <li class="q-item">
+                                    <button class="q-row" @onclick="() => Player.SkipTo(i)"><Cover ArtKey="@(Art.KeyFor(u))" Size="44" /><span><b>@u.Title</b><small>@u.Artist@(u.Album.Length > 0 ? " · " + u.Album : "")</small><DownloadTag Session="Session" Artist="@u.Artist" Title="@u.Title" Track="u" /></span><span class="q-time">@Time(u.DurationMs / 1000.0)</span></button>
+                                    @if (canEdit)
+                                    {
+                                        <div class="q-edit">
+                                            <button class="q-up" aria-label="@("Move " + u.Title + " up")" title="Move up" disabled="@first" @onclick="() => Player.MoveUpNext(i, QueueEdit.Step.Up)"><Icon Name="chevron-up" Size="18" /></button>
+                                            <button class="q-down" aria-label="@("Move " + u.Title + " down")" title="Move down" disabled="@last" @onclick="() => Player.MoveUpNext(i, QueueEdit.Step.Down)"><Icon Name="chevron-down" Size="18" /></button>
+                                            <button class="q-top" aria-label="@("Move " + u.Title + " to the top of the queue")" title="Play next" disabled="@first" @onclick="() => Player.MoveUpNext(i, QueueEdit.Step.Top)"><Icon Name="next" Size="18" /></button>
+                                            <button class="q-remove" aria-label="@("Remove " + u.Title + " from the queue")" title="Remove from the queue" @onclick="() => Player.RemoveFromQueue(i)"><Icon Name="x" Size="18" /></button>
+                                        </div>
+                                    }
+                                </li>
+                            }
+                            @if (shownAuto)
+                            {
+                                @* the autoplay part of the queue: songs being fetched for it are listed under the ones already there *@
+                                @foreach (var f in fetching) { @Pending(f) }
+                            }
+                            @if (!Player.UpNext(1).Any() && Player.Autoplay && (Player.AutoplayNext.Count > 0 || fetching.Count > 0))
+                            {
+                                <li class="q-divider">Autoplay · up next after this</li>
+                                @foreach (var u in Player.AutoplayNext)
+                                {
+                                    <li class="q-item">
+                                        <button class="q-row" @onclick="() => Player.Play([u], 0, Player.Context)"><Cover ArtKey="@(Art.KeyFor(u))" Size="44" /><span><b>@u.Title</b><small>@u.Artist@(u.Album.Length > 0 ? " · " + u.Album : "")</small><DownloadTag Session="Session" Artist="@u.Artist" Title="@u.Title" Track="u" /></span><span class="q-time">@Time(u.DurationMs / 1000.0)</span></button>
+                                        @if (canEdit) { <div class="q-edit"><button class="q-top" aria-label="@("Put " + u.Title + " at the top of the queue")" title="Play next" @onclick="() => Player.PlayNext(u)"><Icon Name="next" Size="18" /></button></div> }
+                                    </li>
+                                }
+                                @foreach (var f in fetching) { @Pending(f) }
+                            }
+                        </ol>
+                        @if (!Player.UpNext(1).Any() && (!Player.Autoplay || (Player.AutoplayNext.Count == 0 && fetching.Count == 0))) { <p class="hint">Nothing after this song. Turn Autoplay on to keep the music going.</p> }
+                    }
+                    else if (tab == "lyrics")
+                    {
+                        @if (lyricsLoading) { <p class="hint">Looking for lyrics…</p> }
+                        else if (lyrics is null) { <p class="hint">No lyrics found for this song.</p> }
+                        else
+                        {
+                            <ol class="lyrics @(lyrics.Synced ? "synced" : "")" id="lyrics">
+                                @for (var i = 0; i < lyrics.Lines.Count; i++)
+                                {
+                                    var line = lyrics.Lines[i];
+                                    <li>
+                                        @if (lyrics.Synced) { <button @onclick="() => Player.Seek(line.TimeMs / 1000.0)">@(line.Text.Length == 0 ? " " : line.Text)</button> }
+                                        else { <span>@(line.Text.Length == 0 ? " " : line.Text)</span> }
+                                    </li>
+                                }
+                            </ol>
+                            <p class="hint src">Lyrics from @lyrics.Source</p>
+                        }
+                    }
+                    else
+                    {
+                        <TrackInfoPanel Track="t" Info="shownInfo" Loading="@(infoLoading || infoFor != t.Path)" Album="@(realAlbumFor == t.Path ? realAlbum : null)" />
+                    }
+                </div>
+            </section>
+        </div>
+    }
+</div>
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Inject] LyricsService LyricsSvc { get; set; } = default!;
+    [Inject] ITrackInfo Infos { get; set; } = default!;
+    [Inject] IJSRuntime Js { get; set; } = default!;
+    string? realAlbum, realAlbumFor;
+    string AlbumOf(Track t) => realAlbumFor == t.Path && realAlbum is { Length: > 0 } a ? a : t.Album;
+    DotNetObjectReference<NowPlaying>? self;
+    string tab = "queue"; string? shownTab = "queue";
+    // closing plays the slide-down (the cover pops down) before the player is taken out of the page
+    bool closing;
+    /// <summary>A sideways swipe on the phone player moves between its panes, left to right: Lyrics, the cover, Info, Up next (a swipe no longer skips the song).</summary>
+    [JSInvokable] public void PaneSwipe(int dir) => InvokeAsync(() =>
+    {
+        string[] order = ["lyrics", "cover", "info", "queue"];
+        var i = Array.IndexOf(order, panelOpen ? tab : "cover") + dir;
+        if (i < 0 || i >= order.Length) return;
+        if (order[i] == "cover") panelOpen = false; else { tab = order[i]; panelOpen = true; if (tab == "lyrics") _ = LoadLyrics(); }
+        StateHasChanged();
+    });
+    [JSInvokable] public async Task Closed()
+    {
+        await InvokeAsync(async () => { closing = true; StateHasChanged(); await Task.Delay(260); });
+        await OnClose.InvokeAsync();
+    }
+    [Inject] Toasts Toast { get; set; } = default!;
+
+    // the "..." menu: closes on a click anywhere outside it or Escape (flacie.watchOutside calls Dismiss)
+    bool more, plOpen;
+    [JSInvokable] public void Dismiss() => InvokeAsync(() => { CloseMore(); StateHasChanged(); });
+    async Task ToggleMore()
+    {
+        more = !more; plOpen = false;
+        if (more && self is not null) { try { await Js.InvokeVoidAsync("flacie.watchOutside", ".np-more", self); } catch (Exception) { } }
+        else { try { await Js.InvokeVoidAsync("flacie.unwatchOutside"); } catch (Exception) { } }
+    }
+    // a link out of the player keeps its #now-playing history entry, so Back returns to the full-screen player you came from
+    Task GoArtist(Track t) => Go("/artist/" + Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist));
+    Task GoAlbum(Track t) => Go("/album/" + Uri.EscapeDataString(t.AlbumKey));
+    Task Go(string url) { CloseMore(); Nav.NavigateTo(url); return Task.CompletedTask; }
+    void CloseMore() { more = false; plOpen = false; _ = Js.InvokeVoidAsync("flacie.unwatchOutside").AsTask().ContinueWith(_ => { }); }
+    void Plain(Action act, string message) { act(); Toast.Show(message); CloseMore(); }
+    static string FileName(Track t) => string.Concat($"{t.Artist} - {t.Title}".Split(Path.GetInvalidFileNameChars())) + (MediaInfo.FromExtension(t.FilePath ?? "") is { Length: > 0 } e ? "." + e : "");
+    // on a phone the first Back closes an open sheet (back to the cover), the next one closes the player
+    async Task Back()
+    {
+        try { if (panelOpen && await Js.InvokeAsync<bool>("flacie.sheetMode")) { panelOpen = false; return; } } catch (Exception) { }
+        try { await Js.InvokeVoidAsync("flacie.npBack"); } catch (Exception) { await OnClose.InvokeAsync(); }
+    }
+    string TabTitle => tab switch { "lyrics" => "Lyrics", "info" => "Info", _ => "Up next" };
+    // the "Downloading · ..." / "Recently downloaded · 1s ago" line under a song is the DownloadTag component: it follows the downloads by itself. What this player has to
+    // watch is which Autoplay suggestions are being fetched (they get a row of their own until they land), so a download starting or ending redraws it only when that changes.
+    [Inject] IDownloads Dls { get; set; } = default!;
+    Action? onDls; string fetchSig = "";
+    string FetchSig() => string.Join(";", Player.AutoplayFetching.Select(f => f.Title + "|" + f.Artist));
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        fetchSig = FetchSig();
+        onDls = () => { var sig = FetchSig(); if (sig == fetchSig) return; fetchSig = sig; _ = InvokeAsync(StateHasChanged); };
+        Dls.Subscribe(Session, onDls);
+    }
+    /// <summary>A suggestion that is being downloaded and is not in the library yet: a row that says so, then the song itself takes its place.</summary>
+    RenderFragment Pending(CatalogSong f) => @<li class="q-item q-pending">
+        <div class="q-row"><Cover ArtKey="@(f.ArtUrl is null ? null : Art.ExternalKey(f.ArtUrl))" Size="44" /><span><b>@f.Title</b><small>@f.Artist@(f.Album.Length > 0 ? " · " + f.Album : "")</small><DownloadTag Session="Session" Artist="@f.Artist" Title="@f.Title" /></span><span class="q-time">@Time(f.DurationMs / 1000.0)</span></div>
+    </li>;
+    public override void Dispose() { infoCts?.Cancel(); if (onDls is not null) Dls.Unsubscribe(Session, onDls); self?.Dispose(); _ = Js.InvokeVoidAsync("flacie.npReset").AsTask().ContinueWith(_ => { }); base.Dispose(); }
+    Lyrics? lyrics; bool lyricsLoading; string? lyricsFor;
+    MediaInfo? info; bool infoLoading; string? infoFor;
+    MediaInfo? shownInfo => Player.Current is { } cur && infoFor == cur.Path ? info : null;
+    string? lyricsPushed;
+
+    // on a phone the panel is a sheet over the cover: a tab opens it, the same tab again closes it (on a wide screen it is always there)
+    ElementReference npEl;
+    void OpenQueue() { tab = "queue"; panelOpen = true; }
+    void PeekKey(KeyboardEventArgs e) { if (e.Key is "Enter" or " ") OpenQueue(); }
+    bool panelOpen;
+    void Open(string t) { if (tab == t && panelOpen) { panelOpen = false; return; } tab = t; panelOpen = true; if (t == "lyrics") _ = LoadLyrics(); }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) { self = DotNetObjectReference.Create(this); try { await Js.InvokeVoidAsync("flacie.npOpen", self); await Js.InvokeVoidAsync("flacie.paneSwipe", npEl, self); } catch (Exception) { } }
+        if (shownTab != tab) { shownTab = tab; try { await Js.InvokeVoidAsync("flacie.panelTop"); } catch (Exception) { } }
+        if (Player.Current is not { } t) return;
+        // a new song: refresh whatever is showing
+        if (infoFor != t.Path) { await LoadInfo(); _ = LoadRealAlbum(t); }
+        if (tab == "lyrics" && lyricsFor != t.Path) await LoadLyrics();
+        // the highlight runs in the browser (flacie.js) off the audio clock itself, so it never trails the singer by a round trip
+        var wantLyrics = tab == "lyrics" && lyrics is { Synced: true } ? t.Path : null;
+        if (wantLyrics != lyricsPushed)
+        {
+            lyricsPushed = wantLyrics;
+            try { if (wantLyrics is null) await Js.InvokeVoidAsync("flacie.clearLyrics"); else await Js.InvokeVoidAsync("flacie.setLyrics", lyrics!.Lines.Select(l => l.TimeMs).ToArray()); } catch (Exception) { }
+        }
+    }
+
+    // a song filed on a compilation shows the album it really belongs to
+    async Task LoadRealAlbum(Track t)
+    {
+        realAlbumFor = null; realAlbum = null;
+        if (!Art.OnCompilation(t.Artist, t.AlbumArtist, t.Album)) return;
+        if (AppHost.OnlineAlbum is not { } online) return;
+        var album = await online(t.Artist, t.Title, CancellationToken.None);
+        if (Player.Current?.Path != t.Path || album is not { Length: > 0 }) return;
+        realAlbum = album; realAlbumFor = t.Path;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    CancellationTokenSource? infoCts;
+
+    async Task LoadInfo()
+    {
+        if (Player.Current is not { } t) return;
+        // the song before this one is no longer wanted: its read is cancelled (a request still queued at the gate never reaches Jellyfin)
+        infoCts?.Cancel();
+        var cts = infoCts = new CancellationTokenSource(); var ct = cts.Token;
+        infoFor = t.Path; infoLoading = true; info = null;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            // a burst of skips must not ask Jellyfin about every song it passes: a song whose facts are not known yet waits a moment, and is dropped if the queue moved on
+            if (!Infos.IsCached(t)) { await Task.Delay(300, ct); if (infoFor != t.Path) return; }
+            var got = await Infos.GetAsync(Session, t, ct: ct);
+            if (infoFor == t.Path) { info = got; infoLoading = false; }
+            await InvokeAsync(StateHasChanged);
+            // the source could not tell yet (nothing was cached): ask again a few times, for this song only, so a hiccup never leaves a guess on screen
+            for (var retry = 0; retry < 4 && infoFor == t.Path && !got.Known; retry++)
+            {
+                await Task.Delay(2000, ct);
+                if (infoFor != t.Path) return;
+                got = await Infos.GetAsync(Session, t, ct: ct);
+                if (infoFor == t.Path && got.Known) { info = got; await InvokeAsync(StateHasChanged); }
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    async Task LoadLyrics()
+    {
+        if (Player.Current is not { } t) return;
+        lyricsFor = t.Path; lyricsLoading = true; lyrics = null; lyricsPushed = null;
+        await InvokeAsync(StateHasChanged);
+        var got = await LyricsSvc.GetAsync(t, Session.Jellyfin);
+        if (lyricsFor == t.Path) { lyrics = got; lyricsLoading = false; }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    static string SourceName(Track t) => SourceLabel.PlayingFrom(t.Source);
+    readonly SeekHold hold = new();
+    Task OnSeek(ChangeEventArgs e) { if (!SeekHold.Parse(e.Value, out var s)) return Task.CompletedTask; hold.Changed(s); return Player.Seek(s); }
+}

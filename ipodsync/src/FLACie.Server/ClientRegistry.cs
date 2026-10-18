@@ -43,8 +43,10 @@ public static class ClientLabel
     public static string Device(string device, bool isSelf, bool desktopShell) => desktopShell && isSelf && device == "FLACie Web" ? DesktopApp : device;
 }
 
-public sealed class ClientRegistry
+public sealed class ClientRegistry : IPlayerClients
 {
+    void IPlayerClients.Add(string id, UserSession s, PlayerState player, string ip, string ua, string browser, string os, string screen, string language) =>
+        Add(new WebClient(id, s, player) { Ip = ip, Ua = ua, Browser = browser, Os = os, Screen = screen, Language = language });
     readonly ConcurrentDictionary<string, WebClient> clients = new();
     public IReadOnlyCollection<WebClient> All => clients.Values.OrderBy(c => c.Since).ToList();
     public void Add(WebClient c) { clients[c.Id] = c; _ = Task.Run(() => Resolve(c)); }

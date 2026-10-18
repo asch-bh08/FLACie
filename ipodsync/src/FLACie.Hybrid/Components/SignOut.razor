@@ -1,0 +1,14 @@
+@page "/signout"
+@inject HybridAccount Account
+@inject NavigationManager Nav
+@inject PlayerState Player
+@* The account menu's Sign out: the music stops, the saved account is forgotten, and the sign-in comes back. *@
+<p class="hy-note">Signing out…</p>
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        try { await Player.PauseAsync(); } catch (Exception) { }
+        Account.SignOut();
+        Nav.NavigateTo("/signin", replace: true);
+    }
+}

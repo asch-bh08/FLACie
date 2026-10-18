@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+    <!-- Prototype: FLACie's Retro page (iPods, the desk, the listening scenes) as an Android app, with no server. The page's
+         components come from FLACie.Retro, the same ones FLACie.Server shows; its styles and scripts are FLACie.Server's own
+         wwwroot files, linked in below (not copied). Jellyfin is reached straight from the phone. -->
+    <PropertyGroup>
+        <TargetFrameworks>net9.0-android</TargetFrameworks>
+        <OutputType>Exe</OutputType>
+        <RootNamespace>FLACie.Hybrid</RootNamespace>
+        <UseMaui>true</UseMaui>
+        <SingleProject>true</SingleProject>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <EnableDefaultCssItems>false</EnableDefaultCssItems>
+
+        <ApplicationTitle>FLACie</ApplicationTitle>
+        <ApplicationId>dev.ashley.flacie.retro</ApplicationId>
+        <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+        <ApplicationVersion>1</ApplicationVersion>
+        <SupportedOSPlatformVersion>30.0</SupportedOSPlatformVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <MauiIcon Include="..\IpodSync.Maui\Resources\AppIcon\appicon.svg" ForegroundFile="..\IpodSync.Maui\Resources\AppIcon\appiconfg.svg" Color="#B03CB6" />
+        <MauiSplashScreen Include="..\IpodSync.Maui\Resources\Splash\splash.svg" Color="#15151c" BaseSize="128,128" />
+    </ItemGroup>
+
+    <!-- the web app's styles, scripts, fonts and pictures, served to the page from the app's own origin -->
+    <ItemGroup>
+        <Content Include="..\FLACie.Server\wwwroot\**\*" Exclude="..\FLACie.Server\wwwroot\manifest.webmanifest" Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="9.0.9" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\FLACie.Core\FLACie.Core.csproj" />
+        <ProjectReference Include="..\FLACie.Retro\FLACie.Retro.csproj" />
+        <ProjectReference Include="..\FLACie.App\FLACie.App.csproj" />
+    </ItemGroup>
+
+    <!-- Native playback: Media3 (ExoPlayer in a MediaSessionService) and the small Java player that drives it (Platforms/Android/Java, compiled
+         into the app). The Media3 AARs come from the local Gradle cache, where the Kotlin app's build left them; nothing is downloaded. -->
+    <PropertyGroup>
+        <GradleFiles Condition="'$(GradleFiles)' == ''">$(USERPROFILE)\.gradle\caches\modules-2\files-2.1</GradleFiles>
+        <StrippedGuava>$(MSBuildProjectDirectory)/obj/native/guava-stripped\guava-33.0.0-android.jar</StrippedGuava>
+    </PropertyGroup>
+    <ItemGroup Condition="$(TargetFramework.Contains('android'))">
+        <AndroidLibrary Include="$(GradleFiles)\androidx.media3\media3-common\1.4.1\*\media3-common-1.4.1.aar" Bind="false" />
+        <AndroidLibrary Include="$(GradleFiles)\androidx.media3\media3-container\1.4.1\*\media3-container-1.4.1.aar" Bind="false" />
+        <AndroidLibrary Include="$(GradleFiles)\androidx.media3\media3-database\1.4.1\*\media3-database-1.4.1.aar" Bind="false" />
+        <AndroidLibrary Include="$(GradleFiles)\androidx.media3\media3-datasource\1.4.1\*\media3-datasource-1.4.1.aar" Bind="false" />
+        <AndroidLibrary Include="$(GradleFiles)\androidx.media3\media3-decoder\1.4.1\*\media3-decoder-1.4.1.aar" Bind="false" />
+        <AndroidLibrary Include="$(GradleFiles)\androidx.media3\media3-exoplayer\1.4.1\*\media3-exoplayer-1.4.1.aar" Bind="false" />
+        <AndroidLibrary Include="$(GradleFiles)\androidx.media3\media3-extractor\1.4.1\*\media3-extractor-1.4.1.aar" Bind="false" />
+        <AndroidLibrary Include="$(GradleFiles)\androidx.media3\media3-session\1.4.1\*\media3-session-1.4.1.aar" Bind="false" />
+        <AndroidLibrary Include="$(GradleFiles)\androidx.media\media\1.7.0\*\media-1.7.0.aar" Bind="false" />
+        <AndroidLibrary Include="$(GradleFiles)\com.google.guava\failureaccess\1.0.2\*\failureaccess-1.0.2.jar" Bind="false" />
+        <AndroidLibrary Include="$(StrippedGuava)" Bind="false" />
+        <AndroidJavaSource Include="Platforms\Android\Java\*.java" Bind="false" />
+    </ItemGroup>
+    <!-- Guava without ListenableFuture, which the app already has (Xamarin.Google.Guava.ListenableFuture): one class may only be packaged once -->
+    <Target Name="StripGuava" BeforeTargets="PrepareForBuild" Condition="$(TargetFramework.Contains('android')) And !Exists('$(StrippedGuava)')">
+        <ItemGroup><_Guava Include="$(GradleFiles)\com.google.guava\guava\33.0.0-android\*\guava-33.0.0-android.jar" /></ItemGroup>
+        <Unzip SourceFiles="@(_Guava)" DestinationFolder="$(MSBuildProjectDirectory)/obj/native/guava-x" />
+        <Delete Files="$(MSBuildProjectDirectory)/obj/native/guava-x\com\google\common\util\concurrent\ListenableFuture.class" />
+        <MakeDir Directories="$(MSBuildProjectDirectory)/obj/native/guava-stripped" />
+        <ZipDirectory SourceDirectory="$(MSBuildProjectDirectory)/obj/native/guava-x" DestinationFile="$(StrippedGuava)" Overwrite="true" />
+    </Target>
+
+</Project>

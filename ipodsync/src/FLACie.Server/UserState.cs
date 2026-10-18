@@ -6,7 +6,6 @@ using FLACie.Core;
 namespace FLACie.Server;
 
 /// <summary>Where this server keeps its files (the folder mounted as the Docker volume).</summary>
-public sealed record DataPaths(string Root);
 
 public sealed class ImportItem
 {

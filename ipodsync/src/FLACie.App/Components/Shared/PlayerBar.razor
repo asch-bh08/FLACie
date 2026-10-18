@@ -1,0 +1,96 @@
+@inherits UserComponent
+@if (Player.Current is { } t)
+{
+    @if (open) { <NowPlaying OnClose="() => open = false" /> }
+    <section class="player" aria-label="Player">
+        <input class="bar-progress" type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" aria-valuetext="@Spoken(Player.Position, Player.Duration)" style="@Fill(hold.Value(Player.Position), Player.Duration)" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
+        <div class="bar" @onclick="() => open = true">
+            <button class="bar-song" @key="t.Path" @onclick="() => open = true" aria-label="Open Now Playing">
+                <Cover ArtKey="@(Art.KeyFor(t))" Size="52" />
+                <span class="bar-text"><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span>
+            </button>
+            <div class="bar-controls">
+                <div class="buttons" @onclick:stopPropagation="true">
+                    <button class="icon-btn @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")"><Icon Name="shuffle" /></button>
+                    <button class="icon-btn" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="22" /></button>
+                    <button class="play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="22" /></button>
+                    <button class="icon-btn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="22" /></button>
+                    <button class="icon-btn @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" /></button>
+                </div>
+                <div class="seek" @onclick:stopPropagation="true">
+                    <span>@Time(Player.Position)</span>
+                    <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" aria-valuetext="@Spoken(Player.Position, Player.Duration)" style="@Fill(hold.Value(Player.Position), Player.Duration)" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
+                    <span>@Time(Player.Duration)</span>
+                </div>
+            </div>
+            <div class="bar-right" @onclick:stopPropagation="true">
+                <button class="icon-btn fav @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" /></button>
+                @if (AppHost.DevicePicker is { } picker) { <DynamicComponent Type="picker" /> }
+                <a class="icon-btn retro-link" href="/retro" aria-label="Retro" title="Retro: iPods, a car stereo, a hi-fi and more, playing this song" data-testid="bar-retro"><Icon Name="retro" /></a>
+                @if (pipOk) { <button class="icon-btn @(pipOn ? "on" : "")" @onclick="TogglePip" aria-label="Mini player (picture in picture)" title="Mini player: keeps the cover and controls on top when you switch tabs"><Icon Name="pip" /></button> }
+                <VolumeControl />
+                <button class="icon-btn" @onclick="() => open = true" aria-label="Full screen player"><Icon Name="expand" /></button>
+                <button class="icon-btn" @onclick="Player.StopAsync" aria-label="Stop playing and close the player" title="Stop playing"><Icon Name="x" /></button>
+            </div>
+        </div>
+    </section>
+}
+@code {
+    bool open, volumeLoaded, pipOk, pipOn;
+    async Task TogglePip() { try { pipOn = await PageJs.InvokeAsync<bool>("flacie.pipToggle"); } catch (Exception) { pipOn = false; } }
+    [Inject] IPlayerClients Registry { get; set; } = default!;
+    [Inject] IJSRuntime PageJs { get; set; } = default!;
+    sealed record ClientInfo(string Ip, string Ua, string Browser, string Os, string Screen, string Language);
+    string? clientId;
+    async Task RegisterClient()
+    {
+        try
+        {
+            var ci = await PageJs.InvokeAsync<ClientInfo>("flacie.clientInfo");
+            clientId = Guid.NewGuid().ToString("N");
+            Registry.Add(clientId, Session, Player, ci.Ip, ci.Ua, ci.Browser, ci.Os, ci.Screen, ci.Language);
+        }
+        catch (Exception) { }
+    }
+    // the full-screen player sits over the page, so any navigation (the account menu, a link in the player, Back) has to close it first
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        var here = new Uri(Nav.Uri); lastPath = here.AbsolutePath + here.Query;
+        Nav.LocationChanged += OnNavigated;
+        Player.Started += OnStarted;
+        Player.FullScreenRequested += OnFullScreen;
+    }
+    void OnFullScreen() => InvokeAsync(() => { open = true; StateHasChanged(); });
+    string? lastPath;
+    DotNetObjectReference<PlayerBar>? barRef;
+    /// <summary>Back onto the "#now-playing" history entry (from a page the player linked to) brings the full-screen player back.</summary>
+    [JSInvokable] public void ReopenFull() => InvokeAsync(() => { open = true; StateHasChanged(); });
+    void OnNavigated(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        // only a real page change closes it at once; the #now-playing in the address coming and going is the player's own open/close (which animates)
+        var path = new Uri(e.Location).AbsolutePath + new Uri(e.Location).Query;
+        var moved = lastPath is not null && path != lastPath; lastPath = path;
+        if (new Uri(e.Location).Fragment == "#now-playing") { if (moved) InvokeAsync(() => { open = true; StateHasChanged(); }); return; }   // arrived Back onto the player's own history entry: it stays (or comes back)
+        if (open && moved) InvokeAsync(() => { open = false; StateHasChanged(); });
+    }
+    [Inject] ActivityLog Activity { get; set; } = default!;
+    void OnStarted(Track t) { Activity.Add("play", Session.DisplayName, $"Started {t.Title} by {t.Artist} in the web player"); if (Session.RecordPlay(t)) SaveProfile(); }
+    public override void Dispose() { barRef?.Dispose(); if (clientId is not null) Registry.Remove(clientId); Nav.LocationChanged -= OnNavigated; Player.Started -= OnStarted; Player.FullScreenRequested -= OnFullScreen; base.Dispose(); }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!volumeLoaded)
+        {
+            volumeLoaded = true;
+            try { await Player.LoadVolumeAsync(); await Player.LoadAutoplayAsync(); } catch (InvalidOperationException) { }
+            Player.SetStashKey(Session.Jellyfin?.UserId ?? Session.Nas?.User ?? "guest");
+            _ = Player.RestoreAsync(Session);
+            _ = RegisterClient();
+            try { pipOk = await PageJs.InvokeAsync<bool>("flacie.pipSupported"); StateHasChanged(); } catch (Exception) { }
+            barRef = DotNetObjectReference.Create(this); try { await PageJs.InvokeVoidAsync("flacie.setBarRef", barRef); } catch (Exception) { }
+        }
+    }
+    readonly SeekHold hold = new();
+    Task OnSeek(ChangeEventArgs e) { if (!SeekHold.Parse(e.Value, out var s)) return Task.CompletedTask; hold.Changed(s); return Player.Seek(s); }
+    static string Fill(double v, double max) => $"--fill:{(max > 0 ? Math.Clamp(v / max * 100, 0, 100) : 0).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}%";
+}

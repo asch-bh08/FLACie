@@ -1,0 +1,11 @@
+/* the app's sign-in page (the Retro page brings its own styles) */
+.hy-signin { min-height: 100dvh; display: grid; align-content: center; justify-items: center; gap: 18px; padding: 24px 16px; background: #0b0b0e; color: #eceaf2; font-family: system-ui, sans-serif; }
+.hy-signin h1 { font-size: 30px; margin: 0; letter-spacing: -.02em; }
+.hy-signin h1 span { color: #c46ad0; }
+.hy-signin form { display: grid; gap: 12px; width: min(360px, 100%); }
+.hy-signin label { display: grid; gap: 4px; font-size: 13px; color: #a9a6b3; }
+.hy-signin input { font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 10px; border: 1px solid #2c2b35; background: #15151c; color: #fff; }
+.hy-signin button { font: inherit; font-weight: 600; padding: 12px; border-radius: 22px; border: 0; background: #b03cb6; color: #fff; margin-top: 6px; }
+.hy-signin button:disabled { opacity: .6; }
+.hy-problem { color: #ff8a8a; margin: 0; font-size: 14px; }
+.hy-note { color: #a9a6b3; }

@@ -8,7 +8,7 @@ namespace FLACie.Server;
 /// <summary>What a song's file really is, asked of whoever holds it: Jellyfin knows its streams, a NAS file is read with TagLib, a fresh
 /// download is read by ffprobe through the file mover. Also where the file came from (the download log, or "it was in the library already").
 /// Cached, because the Info panel is opened often and a NAS read costs a round trip.</summary>
-public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, DownloadLog log)
+public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, DownloadLog log) : ITrackInfo
 {
     /// <summary>The running instance, so the library listing can hand over the facts it carries.</summary>
     public static InfoService? Current { get; set; }
@@ -85,13 +85,5 @@ public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, Downlo
     }
 
     /// <summary>The short format name from what is already known (the file extension), so a list can badge songs without asking anyone.</summary>
-    public static string QuickFormat(Track t)
-    {
-        var src = t.FilePath ?? (t.Source == TrackSource.Jellyfin ? "" : t.Path);
-        if (t.Source == TrackSource.Cloud && src.IndexOf("path=", StringComparison.Ordinal) is var at and >= 0) src = Uri.UnescapeDataString(src[(at + 5)..]);
-        // only the real facts (ffprobe / Jellyfin / TagLib) say Hi-Res: never the file name, bit rate or extension. Until they are known the plain extension shows.
-        if (FormatIndex.Current?.Get(t) is { HiRes: true }) return "HI-RES";
-        var e = MediaInfo.FromExtension(src).ToUpperInvariant();
-        return e switch { "" => "", "MPEG" => "MP3", "M4A" => "M4A", _ => e };
-    }
+    public static string QuickFormat(Track t) => QuickFormats.Of(t);
 }

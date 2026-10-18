@@ -46,7 +46,7 @@
 .lcd-label { flex: 1; overflow: hidden; text-overflow: ellipsis; min-width: 0; white-space: nowrap; }
 /* a line too long for the screen scrolls inside itself, as on a real iPod (flacie.js marks it and says how far and how long): a pause, along, a pause */
 [data-mq] { overflow: hidden; white-space: nowrap; text-overflow: clip !important; text-align: left !important; }
-[data-mq] > .mq-in { display: inline-block; will-change: transform; animation: ipod-mq var(--mqt, 6s) steps(var(--mqn, 60)) infinite; }   /* (slid by the GPU, a whole pixel at a time) */   /* (a centred title that scrolls starts from its left end) */
+[data-mq] > .mq-in { display: inline-block; overflow: visible !important; text-overflow: clip !important; max-width: none !important; width: auto !important; margin: 0 !important; will-change: transform; animation: ipod-mq var(--mqt, 6s) steps(var(--mqn, 60)) infinite; }   /* (slid by the GPU, a whole pixel at a time) */   /* (a centred title that scrolls starts from its left end) */
 @keyframes ipod-mq { 0%, 18% { transform: translateX(0); } 82%, 100% { transform: translateX(var(--mq, 0)); } }
 @media (prefers-reduced-motion: reduce) { [data-mq] > .mq-in { animation: none; } [data-mq] { text-overflow: ellipsis !important; } }
 .lcd-val { opacity: .8; font-size: .8em; max-width: 45%; overflow: hidden; text-overflow: ellipsis; }

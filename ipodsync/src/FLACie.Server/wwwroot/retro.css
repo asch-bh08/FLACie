@@ -705,3 +705,24 @@
     .md-stack { left: 2%; }
   }
 }
+/* the Discman: the LCD sits over the keys (a row of five 44 px keys does not fit beside it), the player and the remote are larger, OPEN is a real button, the CDs show strips a finger can hit */
+@media (pointer: coarse) {
+  .dm-player { width: min(92cqw, 46cqh); }
+  .dm-front { height: 27%; flex-direction: column; align-items: stretch; gap: 3%; }
+  .dm-lcd { flex: 1 1 auto; height: auto; min-height: 0; }
+  .dm-keys { flex: 0 0 auto; justify-content: space-around; }
+  .dm-keys button, .dm-keys button.big, .dm-keys button.bass { min-width: 44px; min-height: 44px; width: auto; height: auto; aspect-ratio: 1; }
+  .dm-keys button.bass { aspect-ratio: auto; min-width: 56px; padding: 0 6px; }
+  .dm-keys button.big { min-width: 52px; min-height: 52px; }
+  .dm-open { width: 44px; height: 76px; right: -14px; top: 26%; }
+  .rm-keys button { min-width: 44px; min-height: 44px; }
+  .dm-remote { aspect-ratio: 2.1; }
+  .dm-cd { min-height: 44px; }
+  @container retro (aspect-ratio < 23 / 20) { .dm-player { top: 36%; } .dm-remote { width: min(80cqw, 38cqh); top: 62%; } }
+  @container retro (aspect-ratio >= 23 / 20) and (max-height: 520px) {
+    .dm-player { width: min(84cqh, 40cqw); left: 30%; }
+    .dm-remote { width: 54cqh; aspect-ratio: 1.55; left: 66%; top: 56%; }
+    .dm-cds { left: 58%; top: 6%; height: 52cqh; }
+    .dm-cd { top: calc(var(--i) * 14cqh); }
+  }
+}

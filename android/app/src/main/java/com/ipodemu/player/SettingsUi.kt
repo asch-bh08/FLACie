@@ -89,8 +89,10 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             SheetItem("Modern", if (!ui.ipodTheme) Glyph.CHECK else Glyph.NOTE) { ui.changeTheme(0) },
                             SheetItem("iPod (classic skins and click wheel)", if (ui.ipodTheme) Glyph.CHECK else Glyph.IPOD) { ui.changeTheme(1) },
                             SheetItem("Sync mode (edit a connected iPod)", Glyph.LIST) { ui.changeTheme(2) },
+                            SheetItem("Retro (iPods, the desk and listening scenes)", Glyph.CASSETTE) { openRetro(ctx) },
                         ))
                     }
+                    SettingRow("Retro", "iPods, desk, scenes", chevron = true) { openRetro(ctx) }
                     if (ui.ipodTheme) SettingRow("iPod appearance", modeName, chevron = true) { ui.pickerOpen = true }
                     SettingRow("Colour from album art", if (ui.dynamicColor) "On" else "Off", toggle = true) { ui.changeDynamic(!ui.dynamicColor) }
                     if (ui.ipodTheme) SettingRow("Light or dark", listOf("Dark", "Light", "System")[prefs.appearance.coerceIn(0, 2)]) { prefs.appearance = (prefs.appearance + 1) % 3; ui.refreshFromPrefs() }

@@ -315,6 +315,7 @@ private fun formatTags(app: com.ipodemu.App, t: Track, snap: PlayerSnap): List<S
 @Composable
 private fun ActionRow(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boolean, () -> Unit>?, spread: Boolean, info: Pair<Boolean, () -> Unit>? = null, compact: Boolean = false) {
     val app = LocalApp.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val t = snap.track ?: return
     if (compact) {
         // a narrow column (the 360 dp square RG Rotate): four round buttons that all fit, nothing scrolled off the edge; the rest is in More
@@ -329,6 +330,7 @@ private fun ActionRow(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boole
                     SheetItem("Equalizer" + if (app.prefs.eq != "Off") "  (${app.prefs.eq})" else "", Glyph.LIST) { nav.sheet = eqSheet(app) },
                     SheetItem("Speed" + if (app.player.speed != 1f) "  (${com.ipodemu.playback.SpeedPolicy.label(app.player.speed)})" else "", Glyph.CLOCK) { nav.sheet = speedSheet(app) },
                     SheetItem("Sleep timer", Glyph.CLOCK) { nav.sheet = sleepSheet(app) },
+                    SheetItem("Retro", Glyph.CASSETTE) { openRetro(ctx) },
                 ))
             }
         }
@@ -340,6 +342,7 @@ private fun ActionRow(snap: PlayerSnap, nav: PlayerNav, lyricsToggle: Pair<Boole
         if (info != null) Pill(Glyph.INFO, "Info", info.first, info.second)
         val pn = LocalPane.current
         Pill(Glyph.QUEUE, "Up next", pn?.pane == "queue") { if (pn != null) pn.toggle("queue") else nav.openQueueFromPlayer() }
+        Pill(Glyph.CASSETTE, "Retro", false) { openRetro(ctx) }
         Pill(Glyph.CLOCK, if (app.player.speed != 1f) com.ipodemu.playback.SpeedPolicy.label(app.player.speed) else "Speed", app.player.speed != 1f) { nav.sheet = speedSheet(app) }
         Pill(Glyph.CLOCK, if (app.player.sleepMode != com.ipodemu.playback.SleepMode.OFF) sleepStatus(app) else "Sleep", app.player.sleepMode != com.ipodemu.playback.SleepMode.OFF) { nav.sheet = sleepSheet(app) }
         Pill(Glyph.LIST, "Equalizer", app.prefs.eq != "Off") { nav.sheet = eqSheet(app) }

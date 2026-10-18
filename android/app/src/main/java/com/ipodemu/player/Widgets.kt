@@ -98,7 +98,7 @@ val LocalApp = staticCompositionLocalOf<App> { error("App not provided") }
 
 enum class Glyph {
     PLAY, PAUSE, NEXT, PREV, SHUFFLE, REPEAT, REPEAT_ONE, HEART, HEART_FILLED, SEARCH, QUEUE, CHEVRON, BACK, MORE, CLOSE,
-    NOTE, GEAR, VOLUME, CHECK, PLUS, ALBUM, ARTIST, MIC, CLOCK, IPOD, LIST, STAR, DOWN, JELLYFIN, PLEX, NAS, LYRICS, DEVICES, JAM, INFO,
+    NOTE, GEAR, VOLUME, CHECK, PLUS, ALBUM, ARTIST, MIC, CLOCK, IPOD, LIST, STAR, DOWN, JELLYFIN, PLEX, NAS, LYRICS, DEVICES, JAM, INFO, CASSETTE,
 }
 
 @Composable
@@ -210,6 +210,13 @@ fun DrawScope.drawGlyph(g: Glyph, c: Color) {
             drawCircle(c, s * .38f, Offset(x(.5f), y(.5f)), style = line)
             drawLine(c, Offset(x(.5f), y(.5f)), Offset(x(.5f), y(.28f)), w, StrokeCap.Round)
             drawLine(c, Offset(x(.5f), y(.5f)), Offset(x(.66f), y(.6f)), w, StrokeCap.Round)
+        }
+        Glyph.CASSETTE -> {
+            // Retro's mark, as on the web: a cassette, its two reels and the window between them
+            drawRoundRect(c, Offset(x(.1f), y(.24f)), Size(s * .8f, s * .54f), androidx.compose.ui.geometry.CornerRadius(s * .07f), style = line)
+            drawCircle(c, s * .075f, Offset(x(.34f), y(.46f)), style = line)
+            drawCircle(c, s * .075f, Offset(x(.66f), y(.46f)), style = line)
+            drawPath(path { moveTo(x(.3f), y(.78f)); lineTo(x(.36f), y(.66f)); lineTo(x(.64f), y(.66f)); lineTo(x(.7f), y(.78f)) }, c, style = line)
         }
         Glyph.IPOD -> {
             drawRoundRect(c, Offset(x(.26f), y(.1f)), Size(s * .48f, s * .8f), androidx.compose.ui.geometry.CornerRadius(s * .08f), style = line)
@@ -709,4 +716,10 @@ fun HiResBadge(compact: Boolean = false) {
     Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0xFFFFC857)).padding(horizontal = if (compact) 6.dp else 8.dp, vertical = if (compact) 1.dp else 3.dp)) {
         Txt("✦ Hi-Res", size = if (compact) 10f else 11f, weight = FontWeight.ExtraBold, color = Color(0xFF2A1D00))
     }
+}
+
+
+/** Opens Retro (the iPods, the desk and the listening scenes, as on the web): ui/RetroActivity.kt. Back comes back here. */
+fun openRetro(ctx: android.content.Context) {
+    ctx.startActivity(android.content.Intent(ctx, com.ipodemu.ui.RetroActivity::class.java))
 }

@@ -2,9 +2,13 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 COPY FLACie.Core/FLACie.Core.csproj FLACie.Core/
+COPY FLACie.Retro/FLACie.Retro.csproj FLACie.Retro/
+COPY FLACie.App/FLACie.App.csproj FLACie.App/
 COPY FLACie.Server/FLACie.Server.csproj FLACie.Server/
 RUN dotnet restore FLACie.Server/FLACie.Server.csproj
 COPY FLACie.Core/ FLACie.Core/
+COPY FLACie.Retro/ FLACie.Retro/
+COPY FLACie.App/ FLACie.App/
 COPY FLACie.Server/ FLACie.Server/
 RUN dotnet publish FLACie.Server/FLACie.Server.csproj -c Release -o /app --no-restore
 

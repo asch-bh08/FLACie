@@ -86,21 +86,21 @@
 .ipod-lcd.fam-mono { background: var(--lcd); border-radius: 2px; }
 .fam-mono .lcd-in { background: var(--lcd); color: var(--ink); font: 400 16px/1 "iPod Chicago", "Lucida Console", Consolas, monospace; -webkit-font-smoothing: none; font-smooth: never; }   /* (the 1st-4th gen and mini screens: a bold bitmap sans, as Chicago was) */
 .fam-mono .lcd-in b, .fam-mono .lcd-in em, .fam-mono .lcd-in strong { font-weight: 400; }   /* (Chicago has one weight: a faked bold would smear its pixels) */
-.fam-mono .lcd-hdr { height: 16px; border-bottom: 1px solid var(--ink); padding: 0 3px; }
-.fam-mono .lcd-hdr b { left: 22px; right: 28px; font-size: 16px; line-height: 13px; }
+.fam-mono .lcd-hdr { height: 18px; border-bottom: 1px solid var(--ink); padding: 0 3px; }
+.fam-mono .lcd-hdr b { left: 22px; right: 28px; font-size: 16px; line-height: 16px; padding-top: 1px; }
 .fam-mono .lcd-right { font-size: 16px; }
 .fam-mono .lcd-batt { width: 14px; height: 7px; border-color: var(--ink); background: linear-gradient(90deg, var(--ink) var(--lvl, 100%), transparent var(--lvl, 100%)); }
-.fam-mono .lcd-list li { height: 14px; padding: 0 10px 0 3px; margin-right: 6px; font-size: 16px; line-height: 14px; }   /* (a line taller than its row would make the row scrollable, and so a layer) */
+.fam-mono .lcd-list li { height: 16px; padding: 0 10px 0 3px; margin-right: 6px; font-size: 16px; line-height: 16px; }   /* (Chicago 12 is 16px tall: a row of its own height, so lines never overlap or scroll) */
 .fam-mono .lcd-list li.sel { background: var(--ink); color: var(--lcd); }
 .fam-mono .lcd-val { font-size: 16px; }
 .fam-mono .lcd-scroll { width: 4px; right: 1px; background: #9ea68f; top: 1px; bottom: 1px; }
 .fam-mono .lcd-scroll i { background: var(--ink); }
 .fam-mono .lnp-art { display: none; }
-.fam-mono .lnp-meta { left: 4px; right: 4px; top: 17px; text-align: center; align-items: center; font-size: 16px; line-height: 16px; }
+.fam-mono .lnp-meta { left: 4px; right: 4px; top: 19px; text-align: center; align-items: center; font-size: 16px; line-height: 16px; }
 .fam-mono .lnp-meta small { order: -1; font-size: 16px; }
 .fam-mono .lnp-meta .lnp-album { display: block; }
 .fam-mono .lnp-meta b, .fam-mono .lnp-meta span { max-width: 100%; }   /* (centred lines grow to their text: held to the screen's width, a long one scrolls instead of running off it) */
-.fam-mono .lnp-hud { top: 78px; }
+.fam-mono .lnp-hud { top: 86px; }
 .fam-mono .lnp-bar { height: 5px; margin: 0 8px; border: 1px solid var(--ink); }
 .fam-mono .lnp-bar i { background: var(--ink); }
 .fam-mono .lnp-bar.blocks { display: flex; gap: 0; border: 0; height: 8px; margin: 0; align-items: flex-end; }

@@ -443,8 +443,8 @@
     bool IsArtKind => nav.Kind is IpodKind.Songs or IpodKind.Albums or IpodKind.Artists;
     bool split => Fam != IpodFamily.Mono && !narrow && (IsArtKind || (Fam != IpodFamily.Video && nav.Kind == IpodKind.Menu));
     bool hudOn => DateTime.UtcNow < hudUntil;
-    int HeaderH => Fam switch { IpodFamily.Mono => 16, IpodFamily.Video => 22, _ => 26 };
-    int RowH => Fam switch { IpodFamily.Mono => 14, IpodFamily.Video => 24, _ => tall ? 38 : 27 };
+    int HeaderH => Fam switch { IpodFamily.Mono => 18, IpodFamily.Video => 22, _ => 26 };
+    int RowH => Fam switch { IpodFamily.Mono => 16, IpodFamily.Video => 24, _ => tall ? 38 : 27 };
     int RowsFit => Math.Max(2, (Lcd.H - HeaderH) / RowH);
 
     // device geometry: the body is 300 px wide; everything else is a fraction of it

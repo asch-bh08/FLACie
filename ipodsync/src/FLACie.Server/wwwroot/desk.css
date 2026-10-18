@@ -130,7 +130,8 @@
 @keyframes desk-spin { to { rotate: 360deg; } }
 /* the album playing: its case lying open, the booklet in the lid, the disc spinning in the tray */
 .desk-open { left: 66.5%; top: 5cqh; width: 46cqh; height: 20.2cqh; rotate: 3deg; display: flex; cursor: pointer; transition: translate .25s ease; }
-.desk-open:hover { translate: 0 -1cqh; }
+@media (hover: hover) { .desk-open:hover { translate: 0 -1cqh; } }
+.desk-open:active { translate: 0 -.6cqh; }
 .desk-open .lid, .desk-open .tray { position: relative; width: 50%; height: 100%; border-radius: .45cqh; }
 .desk-open .lid { background: rgba(230,236,242,.4); box-shadow: inset 0 0 0 .18cqh rgba(255,255,255,.6); }
 .desk-open .lid .desk-art { inset: 3%; width: 94%; height: 94%; }
@@ -175,7 +176,8 @@
 .desk-pop li::before { content: counter(s); color: #8a8f9c; }
 .desk-pop li span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .desk-pop li em { font-style: normal; color: #8a8f9c; }
 .desk-pop .pop-more { color: #8a8f9c !important; letter-spacing: .06em !important; font-weight: 600 !important; }
-.desk-pop:hover .pop-case, .desk-pop:focus-visible .pop-case { translate: 0 -.6cqh; box-shadow: inset 0 0 0 .16cqh rgba(255,255,255,.75), 0 0 1.4cqh var(--cd-glow, rgba(255,214,150,.5)); }
+.desk-pop:active .pop-case, .desk-pop:focus-visible .pop-case { translate: 0 -.6cqh; box-shadow: inset 0 0 0 .16cqh rgba(255,255,255,.75), 0 0 1.4cqh var(--cd-glow, rgba(255,214,150,.5)); }
+@media (hover: hover) { .desk-pop:hover .pop-case { translate: 0 -.6cqh; box-shadow: inset 0 0 0 .16cqh rgba(255,255,255,.75), 0 0 1.4cqh var(--cd-glow, rgba(255,214,150,.5)); } }
 /* the keepsakes: a concert ticket stub (the artist playing) with its torn-off end, a USB stick and a paperclip */
 .desk-ticket { left: 3.5%; top: 72cqh; width: 26cqh; height: 10cqh; rotate: -4deg; display: flex; color: #2b2320; border-radius: .3cqh;
   background: linear-gradient(90deg, #f3e7cc 0 69%, #efe1c2 69%); box-shadow: 0 .35cqh .6cqh rgba(50,28,10,.3); font-family: "Helvetica Neue", Arial, sans-serif; overflow: hidden; }
@@ -369,3 +371,13 @@
 .desk-preamp .fader .cap { position: absolute; left: 50%; bottom: calc(var(--v, .5) * (100% - 1cqh)); width: 1.9cqh; height: 1cqh; translate: -50% 0; border-radius: .2cqh;
   background: linear-gradient(#f4f5f7, #a9adb4); box-shadow: 0 .15cqh .2cqh rgba(0,0,0,.45), inset 0 -.12cqh 0 var(--desk-accent, #c0392b); transition: bottom .1s ease; }
 .desk-preamp .fader:focus-visible { outline: .2cqh solid rgba(122,36,24,.8); outline-offset: .1cqh; border-radius: .3cqh; }
+/* touch: on a big touchscreen the desk's few controls are made for a finger. The preamp is larger (its knobs, mode buttons and faders at 44 px), a finger swipes along the CD rack to look through the CDs and
+   taps one to pick it (a second tap plays it), and the picked CD's case is a full-size button. The iPod's wheel and screen are the iPod's own (they take touch already) */
+@media (pointer: coarse) {
+  .desk-preamp { scale: 1.5; transform-origin: 0 0; }
+  .desk-preamp .pre-modes button { padding: 1.5cqh 0; }
+  .desk-preamp .fader { min-width: 30px; }
+  .desk-rack { touch-action: none; }
+  .desk-rack .spine { flex-basis: max(5.05cqh, 44px); }
+  .desk-pop { min-height: 44px; }
+}

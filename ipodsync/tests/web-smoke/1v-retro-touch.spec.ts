@@ -209,12 +209,66 @@ test.describe('touch: the scenes answer a finger', () => {
   });
 });
 
+
+test.describe('touch: the desk', () => {
+  for (const [label, w, h] of SIZES) {
+    test(`${label}: a finger going round the iPod's click wheel moves the menu`, async ({ page }) => {
+      const errors = consoleErrors(page);
+      await signIn(page);
+      await page.setViewportSize({ width: w, height: h });
+      await page.addInitScript(() => { try { localStorage.setItem('flacie.ipod', JSON.stringify({ model: 'classic6', look: 2, panel: false })); } catch { } });
+      await page.goto('/ipod');
+      await expect(page.getByTestId('ipod')).toHaveAttribute('data-model', 'classic6', { timeout: 20_000 });
+      await page.waitForTimeout(700);
+      const sel = () => page.locator('[data-testid=ipod-row]').evaluateAll((rs) => rs.findIndex((r) => r.classList.contains('sel')));
+      const wb = (await page.getByTestId('ipod-wheel').boundingBox())!;
+      expect(Math.min(wb.width, wb.height)).toBeGreaterThan(90);
+      const before = await sel(); const cx = wb.x + wb.width / 2, cy = wb.y + wb.height / 2;
+      await path(page, arc(cx, cy, wb.width * 0.42, -30, 90));
+      await expect.poll(sel).toBeGreaterThan(before);
+      expect(errors).toEqual([]);
+    });
+  }
+
+  test('wide touchscreen: taps and swipes work the open CD, the rack, the picked CD and the preamp', async ({ page }) => {
+    const errors = consoleErrors(page);
+    await signIn(page); await open(page, 'ipod', [1600, 900]);
+    await expect(page.getByTestId('desk-rack')).toBeVisible(); await expect(page.getByTestId('desk-preamp')).toBeVisible();
+    // the open CD: a tap pauses and plays
+    const disc = page.getByTestId('desk-disc'); await expect(disc).not.toHaveClass(/paused/);
+    await page.getByTestId('desk-open-cd').tap(); await expect(disc).toHaveClass(/paused/);
+    await page.getByTestId('desk-open-cd').tap(); await expect(disc).not.toHaveClass(/paused/);
+    await page.getByTestId('desk-open-cd').tap(); await expect(disc).toHaveClass(/paused/);   // (held still: the mock's songs are 3 s and the rack moves on with them)
+    // the rack: a finger swiping along it looks through the CDs (the picked one is data-sel)
+    const rack = page.getByTestId('desk-rack'); const rb = (await rack.boundingBox())!;
+    const sel0 = Number(await rack.getAttribute('data-sel'));
+    await finger(page, [rb.x + rb.width * 0.2, rb.y + rb.height * 0.5], [rb.x + rb.width * 0.2 + 130, rb.y + rb.height * 0.5]);
+    await expect.poll(async () => Number(await rack.getAttribute('data-sel'))).toBeGreaterThan(sel0);
+    // a first tap on another spine picks it (no hover on a finger): its case shows; a second tap plays it
+    const picked = Number(await rack.getAttribute('data-sel')); const spine = page.getByTestId('desk-spine').nth(picked >= 3 ? picked - 2 : picked + 2); const album = (await spine.getAttribute('data-album'))!;
+    const sb = (await spine.boundingBox())!; expect(sb.width).toBeGreaterThanOrEqual(43);
+    await spine.tap(); await expect(page.getByTestId('desk-pop')).toHaveAttribute('data-album', album);
+    await expect(page.getByTestId('desk-open-cd')).not.toHaveAttribute('aria-label', new RegExp(album));
+    await spine.tap(); await expect(page.getByTestId('desk-open-cd')).toHaveAttribute('aria-label', new RegExp(album));
+    // the preamp: a finger drags the volume knob; the EQ mode shows five faders a finger drags too
+    const vol = page.locator('[data-knob=vol]'); const v0 = Number(await vol.getAttribute('aria-valuenow'));
+    await drag(page, '[data-knob=vol]', 0, 48);
+    await expect.poll(async () => Number(await vol.getAttribute('aria-valuenow'))).toBeLessThan(v0);
+    await page.locator('[data-meter=eq]').tap();
+    const f = page.locator('.desk-preamp .fader').nth(2); await expect(f).toBeVisible(); const f0 = Number(await f.getAttribute('aria-valuenow'));
+    await drag(page, '.desk-preamp .fader >> nth=2', 0, -40);
+    await expect.poll(async () => Number(await f.getAttribute('aria-valuenow'))).toBeGreaterThan(f0);
+    const fb = (await page.locator('[data-meter]').first().boundingBox())!; expect(fb.height).toBeGreaterThanOrEqual(40);
+    expect(errors).toEqual([]);
+  });
+});
+
 test.describe('touch: sizes and no selecting', () => {
   for (const scene of SCENES) for (const [label, w, h] of SIZES) {
     test(`${scene} ${label}: every control is at least 44 px and nothing selects or zooms`, async ({ page }) => {
       const errors = consoleErrors(page);
       await signIn(page); await open(page, scene, [w, h]);
-      const all = await targets(page); expect(all.length).toBeGreaterThan(3);
+      const all = await targets(page); if (scene !== 'ipod') expect(all.length).toBeGreaterThan(3);   // (the small desk keeps only the iPod, which has its own tests)
       if (process.env.TOUCH_DUMP) fs.writeFileSync(`${process.env.TOUCH_DUMP}/${scene}-${label.replace(' ', '-')}.json`, JSON.stringify(all.filter((t) => Math.min(t.w, t.h) < 44)));
       const small = all.filter((t) => Math.min(t.w, t.h) < 44);
       expect(small, JSON.stringify(small)).toEqual([]);

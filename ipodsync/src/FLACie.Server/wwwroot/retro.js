@@ -12,7 +12,9 @@ window.retro = (() => {
   let drag = null;
   const STEP = { knob: 12, dial: 30, swipe: 40 };
   const angle = (d, e) => Math.atan2(e.clientY - d.cy, e.clientX - d.cx) * 180 / Math.PI;
-  const press = (k, key) => k.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+  // (the key is sent cancelable and already cancelled, which the page's own shortcuts (flacie.js: the arrows seek 5 s) take as "someone else has it")
+  const press = (k, key) => { const e = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }); e.retro = true; k.dispatchEvent(e); };
+  document.addEventListener('keydown', (e) => { if (e.retro) e.preventDefault(); }, true);
   document.addEventListener('pointerdown', (e) => {
     const k = e.target instanceof Element && e.target.closest('[data-knob], [data-dial], [data-swipe]'); if (!k || (e.pointerType === 'mouse' && e.button !== 0)) return;
     const kind = k.hasAttribute('data-dial') ? 'dial' : k.hasAttribute('data-swipe') ? 'swipe' : 'knob', r = k.getBoundingClientRect();

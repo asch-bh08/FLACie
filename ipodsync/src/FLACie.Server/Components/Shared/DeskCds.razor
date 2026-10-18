@@ -3,8 +3,8 @@
 @* The iPod desk's CDs, and what comes next. The album playing now lies open (its booklet, and its disc spinning in the tray: the release's own disc picture
    when FLACie has one, otherwise a print made from the cover); a click on it pauses and plays. The albums coming up stand in a wooden rack in play order,
    their spines up. One is picked (at rest the next one): it lifts in the rack, and its case pops out and lies flat beside it, bigger, saying when it comes
-   (UP NEXT, 2nd, 3rd...) with its album, artist, year and the songs from it in the queue. Hovering a spine, the wheel over the rack or the arrow keys pick
-   another; a click (or Enter) plays it. Styles: desk.css. *@
+   (UP NEXT, 2nd, 3rd...) with its album, artist, year and the songs from it in the queue. Hovering a spine, a finger swiping along the rack (or tapping a spine once), the wheel over the rack or the arrow keys pick
+   another; a click (or a second tap, or Enter) plays it. Styles: desk.css. *@
 @if (Now is { } now)
 {
 <div class="desk-open lift" data-testid="desk-open-cd" role="button" tabindex="0" aria-label="@($"Now playing: {now.Album} by {now.Artist}")" title="@(Playing ? "Pause" : "Play")" @onclick="Toggle" @onkeydown="ToggleKey">
@@ -13,7 +13,7 @@
     <div class="hinge"></div>
 </div>
 }
-<div class="desk-rack lift" data-testid="desk-rack" data-sel="@Sel" data-wheel role="listbox" tabindex="0" aria-label="Up next: hover, scroll or use the arrow keys to look through the CDs; Enter plays one"
+<div class="desk-rack lift" data-testid="desk-rack" data-sel="@Sel" data-wheel data-swipe data-step="30" @onpointerdown="Down" role="listbox" tabindex="0" aria-label="Up next: hover, swipe along the rack, scroll or use the arrow keys to look through the CDs; Enter plays one"
      aria-activedescendant="@(Next.Count > 0 ? $"desk-cd-{Sel}" : null)" @onwheel="Wheel" @onkeydown="Key">
     <i class="rack-wood" aria-hidden="true"></i>
     <div class="rack-row">
@@ -21,7 +21,7 @@
         {
             var k = i; var a = Next[k];
             <div class="spine @(k == Sel ? "sel" : "")" id="desk-cd-@k" data-testid="desk-spine" data-album="@a.Album" style="--i:@k" role="option" aria-selected="@(k == Sel ? "true" : "false")"
-                 aria-label="@($"{Ord(k)}: {a.Album} by {a.Artist}")" @onmouseenter="() => Select(k)" @onclick="() => Pick(k)">
+                 aria-label="@($"{Ord(k)}: {a.Album} by {a.Artist}")" @onmouseenter="() => Select(k)" @onclick="() => Tap(k)">
                 <Cover ArtKey="@a.ArtKey" Class="spine-art" /><span class="spine-label">@a.Album</span><b class="spine-no">@(k + 1)</b>
             </div>
         }
@@ -71,6 +71,11 @@
         sel = at >= 0 ? at : 0; selKey = Next.Count > 0 ? Next[sel].Key : null;
     }
 
+    // a finger has no hover: the first tap on a spine picks it (its case pops out, with what is on it), a tap on it again, or on the case, plays it
+    // (a finger's tap is followed by mouse events, so the pick that was there when the finger went down is what counts)
+    bool finger; int downSel;
+    void Down(PointerEventArgs e) { finger = e.PointerType != "mouse"; downSel = Sel; }
+    Task Tap(int k) { if (finger && k != downSel) { Select(k); return Task.CompletedTask; } return Pick(k); }
     void Select(int k) { if (k < 0 || k >= Next.Count) return; sel = k; selKey = Next[k].Key; }
     Task Pick(int i) => i >= 0 && i < Next.Count ? OnPlay.InvokeAsync(Next[i]) : Task.CompletedTask;
     void Wheel(WheelEventArgs e) => Select(Sel + ((e.DeltaY != 0 ? e.DeltaY : e.DeltaX) > 0 ? 1 : -1));

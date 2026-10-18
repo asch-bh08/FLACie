@@ -32,8 +32,8 @@ const longText = (page: Page, sel: string, screenSel: string) => page.evaluate(a
   const e = document.querySelector(s) as HTMLElement; e.textContent = text;
   await new Promise((r) => setTimeout(r, 900));
   const cs = getComputedStyle(e), b = e.getBoundingClientRect(), sb = document.querySelector(scr)!.getBoundingClientRect();
-  const run = e.getAnimations().find((a) => (a as CSSAnimation).animationName?.includes('ipod-mq'));
-  return { moving: cs.animationName.includes('ipod-mq') && cs.animationPlayState === 'running' && Number(run?.currentTime ?? 0) > 400, inside: b.left >= sb.left - 1.5 && b.right <= sb.right + 1.5, clip: cs.overflow === 'hidden' };
+  const run = e.getAnimations({ subtree: true }).find((a) => (a as CSSAnimation).animationName?.includes('ipod-mq'));
+  return { moving: run?.playState === 'running' && Number(run?.currentTime ?? 0) > 400, inside: b.left >= sb.left - 1.5 && b.right <= sb.right + 1.5, clip: cs.overflow === 'hidden' };
 }, [sel, screenSel, LONG] as const);
 
 test.describe.serial('long text on the iPod screens scrolls', () => {
@@ -63,7 +63,7 @@ test.describe.serial('long text on the iPod screens scrolls', () => {
       await page.goto('about:blank');
       await openIpod(page, { model, look: 1 });
       await shuffle(page);
-      for (const sel of ['[data-testid=ipod-np-title]', '.lnp-meta span:not(.lnp-album)', '.lnp-album'])
+      for (const sel of ['[data-testid=ipod-np-title]', '.lnp-meta > span:not(.lnp-album):not(.mq-in)', '.lnp-album'])
         expect(await longText(page, sel, '[data-testid=ipod-lcd]'), `${model} ${sel}`).toEqual({ moving: true, inside: true, clip: true });
     }
   });
@@ -92,7 +92,7 @@ test.describe.serial('long text on the iPod screens scrolls', () => {
     expect(await longText(page, '[data-testid=ios-np-title]', '[data-testid=ipod-touch-screen]')).toEqual({ moving: true, inside: true, clip: true });
     // and it keeps going: the screen is drawn again every second, which once wiped the scroll's class and started it over (a shake, then half a second of movement)
     await page.waitForTimeout(2500);
-    expect(await page.getByTestId('ios-np-title').evaluate((e) => Number(e.getAnimations().find((a) => /ipod-mq/.test((a as CSSAnimation).animationName))?.currentTime ?? 0))).toBeGreaterThan(3000);
+    expect(await page.getByTestId('ios-np-title').evaluate((e) => Number(e.getAnimations({ subtree: true }).find((a) => /ipod-mq/.test((a as CSSAnimation).animationName))?.currentTime ?? 0))).toBeGreaterThan(3000);
   });
 
   test('reduced motion: long text holds still, cut with an ellipsis', async ({ page }) => {

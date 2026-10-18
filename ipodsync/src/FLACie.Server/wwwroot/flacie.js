@@ -350,7 +350,13 @@ window.flacie = (() => {
       e._mqKey = key;
       if (e.hasAttribute("data-mq")) e.removeAttribute("data-mq");
       const over = key ? e.scrollWidth - e.clientWidth : 0;
-      if (over > 2) { e.style.setProperty("--mq", -(over + 6) + "px"); e.style.setProperty("--mqt", (4 + over / 30).toFixed(1) + "s"); void e.offsetWidth; e.setAttribute("data-mq", ""); }
+      // (the text slides inside a wrapper of its own, moved by the GPU: an indent changed on every frame waits for the page's main thread, which on a busy
+      // desk drew no steps in between, so the text sat still and then jumped to its end. The page's own text node is moved in, not copied, so it keeps updating)
+      let w = e.firstElementChild && e.firstElementChild.classList.contains("mq-in") ? e.firstElementChild : null;
+      if (over > 2) {
+        if (!w) { w = document.createElement("span"); w.className = "mq-in"; while (e.firstChild) w.appendChild(e.firstChild); e.appendChild(w); }
+        e.style.setProperty("--mq", -(over + 6) + "px"); e.style.setProperty("--mqt", (4 + over / 30).toFixed(1) + "s"); e.style.setProperty("--mqn", String(Math.round(over + 6))); void e.offsetWidth; e.setAttribute("data-mq", "");
+      } else if (w) { while (w.firstChild) e.insertBefore(w.firstChild, w); w.remove(); }
     };
     // (measuring changes a line's class, which the observer below sees: those changes are taken off its list, or every line measured itself again on every
     // frame for as long as the screen was open, and a long one started its scroll over each time)

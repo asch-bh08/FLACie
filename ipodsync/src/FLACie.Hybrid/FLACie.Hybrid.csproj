@@ -15,8 +15,8 @@
 
         <ApplicationTitle>FLACie</ApplicationTitle>
         <ApplicationId>dev.ashley.flacie.retro</ApplicationId>
-        <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
-        <ApplicationVersion>1</ApplicationVersion>
+        <ApplicationDisplayVersion>1.0-beta70</ApplicationDisplayVersion>
+        <ApplicationVersion>70</ApplicationVersion>
         <SupportedOSPlatformVersion>30.0</SupportedOSPlatformVersion>
     </PropertyGroup>
 

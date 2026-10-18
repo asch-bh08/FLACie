@@ -190,7 +190,8 @@ test.describe.serial('ipod mode', () => {
     for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowDown');
     await expect(sel(page)).toContainText('Settings'); await page.keyboard.press('Enter');
     await expect(title(page)).toHaveText('Settings');
-    expect(await labels(page)).toEqual(['Appearance', 'Playback', 'Controls', 'Main Menu', 'About', 'Account', 'FLACie Settings', 'Reset Settings']);
+    // a Chicago screen shows six rows, as on a real 4th gen iPod; the last two are further down the list
+    expect(await labels(page)).toEqual(['Appearance', 'Playback', 'Controls', 'Main Menu', 'About', 'Account']);
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
     await expect(title(page)).toHaveText('Controls');
     await expect(sel(page)).toContainText('Wheel Speed'); await expect(sel(page).locator('.lcd-val')).toHaveText('Medium');
@@ -211,7 +212,7 @@ test.describe.serial('ipod mode', () => {
     expect(await labels(page)).toEqual(['iPod / classic', 'iPod mini', 'iPod nano', 'iPod touch']);
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
     await expect(title(page)).toHaveText('iPod nano');
-    expect(await labels(page)).toHaveLength(7);
+    expect(await labels(page)).toHaveLength(6);   // six of the seven nanos fit on the screen
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');   // nano 3rd gen
     await expect(stage(page)).toHaveAttribute('data-model', 'nano3');
     await expect(page.locator('.ipod.fam-nano')).toBeVisible();

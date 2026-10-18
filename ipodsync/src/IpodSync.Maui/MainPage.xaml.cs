@@ -42,6 +42,16 @@ public partial class MainPage : ContentPage
 #endif
 
 	void OnFlacieClicked(object? sender, EventArgs e) => _ = ShowAsync(true);
+	/// <summary>A shortcut to the player's Retro page (iPods, a desk, listening scenes): the FLACie view, opened on /retro.</summary>
+	void OnRetroClicked(object? sender, EventArgs e) => _ = ShowRetroAsync();
+	async Task ShowRetroAsync()
+	{
+		await ShowAsync(true);
+#if WINDOWS
+		if (Platforms.Windows.FlacieHost.BaseUrl is { } baseUrl) flacieView.Source = new Uri(baseUrl, "retro");
+#endif
+	}
+
 	void OnIpodClicked(object? sender, EventArgs e) => _ = ShowAsync(false);
 
 	void Paint(bool flacie)

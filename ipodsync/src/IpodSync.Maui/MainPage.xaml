@@ -10,6 +10,7 @@
         <!-- the mode switch: the music player (FLACie) or the iPod manager; Windows only, and only when the player is packaged -->
         <HorizontalStackLayout x:Name="modeBar" Grid.Row="0" IsVisible="False" Spacing="6" Padding="12,8" BackgroundColor="#0b0b0e">
             <Button x:Name="flacieButton" Text="FLACie" Clicked="OnFlacieClicked" CornerRadius="18" HeightRequest="36" Padding="18,0" FontAttributes="Bold" />
+            <Button x:Name="retroButton" Text="Retro" Clicked="OnRetroClicked" CornerRadius="18" HeightRequest="36" Padding="18,0" FontAttributes="Bold" BackgroundColor="#1e1e25" TextColor="White" />
             <Button x:Name="ipodButton" Text="iPod manager" Clicked="OnIpodClicked" CornerRadius="18" HeightRequest="36" Padding="18,0" FontAttributes="Bold" />
             <Label x:Name="modeStatus" VerticalOptions="Center" TextColor="#a9a6b3" Margin="10,0,0,0" />
         </HorizontalStackLayout>

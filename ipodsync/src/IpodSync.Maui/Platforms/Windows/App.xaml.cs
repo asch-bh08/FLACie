@@ -50,6 +50,7 @@ public partial class App : MauiWinUIApplication
 	/// </summary>
 	static void SetWebViewProfileFolder()
 	{
+		if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBVIEW2_USER_DATA_FOLDER"))) return; // set by hand (testing)
 		try
 		{
 			var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FLACie", "webview2");

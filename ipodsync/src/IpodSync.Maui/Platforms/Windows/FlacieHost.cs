@@ -21,20 +21,23 @@ public static class FlacieHost
 	/// <summary>False in a build that wasn't packaged with the player (then the app is just the iPod manager).</summary>
 	public static bool Available => File.Exists(ExePath);
 
+	/// <summary>The player's address once it has started.</summary>
+	public static Uri? BaseUrl => process is { HasExited: false } ? url : null;
+
 	public static async Task<Uri> StartAsync(CancellationToken ct = default)
 	{
 		await gate.WaitAsync(ct);
 		try
 		{
 			if (url is not null && process is { HasExited: false }) return url;
-			var port = FreePort(5287);
+			var port = FreePort(int.TryParse(Environment.GetEnvironmentVariable("FLACIE_APP_PORT"), out var preferred) ? preferred : 5287); // FLACIE_APP_PORT / FLACIE_DATA: for testing a build beside a real install
 			var psi = new ProcessStartInfo(ExePath)
 			{
 				UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Path.GetDirectoryName(ExePath)!,
 			};
 			psi.Environment["ASPNETCORE_URLS"] = $"http://127.0.0.1:{port}";
 			psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
-			psi.Environment["FLACIE_DATA"] = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FLACie", "web");
+			psi.Environment["FLACIE_DATA"] = Environment.GetEnvironmentVariable("FLACIE_DATA") is { Length: > 0 } own ? own : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FLACie", "web");
 			psi.Environment["FLACIE_PARENT_PID"] = Environment.ProcessId.ToString();
 			psi.Environment["FLACIE_ALLOW_NAS_LOGIN"] = "true"; // one person on their own PC, listening on loopback only
 			process = Process.Start(psi) ?? throw new InvalidOperationException("Couldn't start the FLACie player.");

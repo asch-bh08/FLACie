@@ -2,7 +2,7 @@ namespace FLACie.Hybrid;
 
 public sealed class App : Application
 {
-    protected override Window CreateWindow(IActivationState? activationState) => new(new MainPage()) { Title = "FLACie Retro" };
+    protected override Window CreateWindow(IActivationState? activationState) => new(new MainPage()) { Title = "FLACie" };
 }
 
 /// <summary>The whole app: one BlazorWebView showing the sign-in, then the Retro page.</summary>

@@ -105,3 +105,31 @@ public sealed class HybridTrackInfo(JellyfinClient jf) : ITrackInfo
         return info with { Origin = "library" };
     }
 }
+
+/// <summary>The phone fetches nothing the library lacks (downloads are the server's): every song is simply not being downloaded.</summary>
+public sealed class NoDownloads : IDownloads
+{
+    public IReadOnlyList<DownloadJob> JobsOf(UserSession s) => [];
+    public void Subscribe(UserSession s, Action a) { }
+    public void Unsubscribe(UserSession s, Action a) { }
+    public void DismissFinished(UserSession s) { }
+    public DownloadJob? JobFor(UserSession s, string artist, string title) => null;
+    public DownloadTagStatus StatusOfKey(UserSession s, string key, long cloudAddedMs = 0, long? nowMs = null) => DownloadTagStatus.None;
+    public void Song(UserSession s, CatalogSong song, bool hiRes = false, bool fallbackToNormal = true) { }
+    public void Album(UserSession s, CatalogAlbum album) { }
+    public Task FetchSongAsync(UserSession s, string kind, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct = default) => Task.CompletedTask;
+}
+
+/// <summary>There is one player on the phone and no dashboard to list it on.</summary>
+public sealed class NoClients : IPlayerClients
+{
+    public void Add(string id, UserSession s, PlayerState player, string ip, string ua, string browser, string os, string screen, string language) { }
+    public void Remove(string id) { }
+}
+
+/// <summary>How this build plays music.</summary>
+public static class PlayerHost
+{
+    /// <summary>True when songs play in the app's media service (Android) rather than in the page.</summary>
+    public static bool Native { get; set; }
+}

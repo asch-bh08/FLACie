@@ -1,9 +1,9 @@
-@page "/"
+@page "/signin"
 @inject HybridAccount Account
 @inject NavigationManager Nav
-@* Sign in to Jellyfin (server, user, password), then the Retro page. Signed in already: straight there. *@
+@* Sign in to Jellyfin (server, user, password), then FLACie. Signed in already: straight on. *@
 <div class="hy-signin" data-testid="hy-signin">
-    <h1>FLACie <span>Retro</span></h1>
+    <h1>FLACie</h1>
     @if (restoring)
     {
         <p class="hy-note">Starting…</p>
@@ -26,7 +26,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (Account.Session is not null || await Account.RestoreAsync()) { Nav.NavigateTo("/retro"); return; }
+        if (Account.Session is not null || await Account.RestoreAsync()) { if (new Uri(Nav.Uri).AbsolutePath == "/signin") Nav.NavigateTo("/"); return; }
         server = Preferences.Default.Get("flacie.server", "");
         user = Preferences.Default.Get("flacie.user", "");
         restoring = false;
@@ -39,7 +39,7 @@
         {
             await Account.SignInAsync(server, user, password);
             Preferences.Default.Set("flacie.server", server); Preferences.Default.Set("flacie.user", user);
-            Nav.NavigateTo("/retro");
+            if (new Uri(Nav.Uri).AbsolutePath == "/signin") Nav.NavigateTo("/");
         }
         catch (Exception e) { problem = e is UnauthorizedAccessException ? "Wrong user name or password." : "Can't sign in: " + e.Message; }
         finally { busy = false; }

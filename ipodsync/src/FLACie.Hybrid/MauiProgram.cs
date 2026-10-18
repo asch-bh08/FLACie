@@ -32,8 +32,30 @@ public static class MauiProgram
         builder.Services.AddSingleton<HybridAuth>();
         builder.Services.AddSingleton<AuthenticationStateProvider>(sp => sp.GetRequiredService<HybridAuth>());
         builder.Services.AddScoped<PlayerState>();
+#if ANDROID
+        // songs play in the app's media service (Media3), not in the page: background play, the notification, lock-screen and headset controls
+        builder.Services.AddScoped<IPlayerOutput, Platforms.Android.NativeOutput>();
+        PlayerHost.Native = true;
+#endif
 
-        RetroHost.Version = "Retro prototype " + AppInfo.Current.VersionString;
+        // the rest of FLACie (FLACie.App): the library, search, playlists, the player bar and the full-screen player
+        AppHost.Server = false;
+        var mbAgent = MusicBrainzClient.UserAgentFor(AppInfo.Current.VersionString, null);
+        var mbHttp = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+        builder.Services.AddSingleton(new DataPaths(data));
+        builder.Services.AddSingleton<FormatIndex>();
+        builder.Services.AddSingleton<MusicBrainzGate>();
+        builder.Services.AddSingleton(sp => new MusicBrainzClient(mbHttp, mbAgent, Path.Combine(data, "mb-cache"), sp.GetRequiredService<MusicBrainzGate>()));
+        builder.Services.AddSingleton(sp => new CoverArtArchiveClient(mbHttp, mbAgent, sp.GetRequiredService<MusicBrainzGate>()));
+        builder.Services.AddSingleton(_ => CoverOverrides.Current = new CoverOverrides(Path.Combine(data, "art-override")));
+        builder.Services.AddSingleton<HitsService>();
+        builder.Services.AddSingleton<ActivityLog>();
+        builder.Services.AddSingleton<IDownloads, NoDownloads>();
+        builder.Services.AddSingleton<IPlayerClients, NoClients>();
+        builder.Services.AddScoped<Toasts>();
+        builder.Services.AddScoped<ExploreState>();
+
+        RetroHost.Version = "FLACie for Android " + AppInfo.Current.VersionString;
         return builder.Build();
     }
 

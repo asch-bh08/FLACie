@@ -1,0 +1,13 @@
+@page "/"
+@page "/settings"
+@page "/account"
+@inject IJSRuntime Js
+@inject NavigationManager Nav
+@* Leaving Retro: back to the app's own screens. *@
+@code {
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        if (!first) return;
+        await Js.InvokeVoidAsync("flacieAndroid.close", new Uri(Nav.Uri).AbsolutePath);
+    }
+}

@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <!-- FLACie's Retro page (iPods, the desk, the listening scenes: FLACie.Retro) as static files that run in a browser on their own, with no server.
+       The Android app (android/, Kotlin) shows them in its Retro screen, from its own assets, and plays the music itself: the page's player calls go to
+       the app through window.FLACieAndroid (wwwroot/bridge.js), and its library and covers come from the app's library.
+       Published by ipodsync/tools/retro-wasm.sh, which copies the result into android/app/src/main/assets/retro. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FLACie.RetroWasm</RootNamespace>
+    <!-- the WebView reads plain files from the APK: no pre-compressed copies, no service worker -->
+    <CompressionEnabled>false</CompressionEnabled>
+    <BlazorEnableTimeZoneSupport>false</BlazorEnableTimeZoneSupport>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <WasmFingerprintAssets>false</WasmFingerprintAssets>
+  </PropertyGroup>
+
+  <!-- the web app's styles, scripts, fonts and pictures, linked (not copied) -->
+  <ItemGroup>
+    <Content Include="..\FLACie.Server\wwwroot\**\*" Exclude="..\FLACie.Server\wwwroot\manifest.webmanifest;..\FLACie.Server\wwwroot\app.css" Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="9.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="9.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FLACie.Core\FLACie.Core.csproj" />
+    <ProjectReference Include="..\FLACie.Retro\FLACie.Retro.csproj" />
+  </ItemGroup>
+
+</Project>

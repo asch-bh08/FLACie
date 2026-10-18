@@ -1,0 +1,9 @@
+@* Only the Retro page (/retro, /ipod). Its links back to FLACie (/, /settings, /account) close the Retro screen: the app is FLACie. *@
+<CascadingAuthenticationState>
+    <Router AppAssembly="typeof(App).Assembly" AdditionalAssemblies="new[] { typeof(FLACie.Server.Components.Pages.Ipod).Assembly }">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="routeData" />
+        </Found>
+        <NotFound><BackToApp /></NotFound>
+    </Router>
+</CascadingAuthenticationState>

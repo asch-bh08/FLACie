@@ -653,12 +653,27 @@ window.flacie = (() => {
       stage.addEventListener("keydown", keys);
       if (!wheel) { ipod = { fit, wheel: null, stage, keys, ...cleanup }; return innerWidth >= 860; }   // touch models: no wheel, the screen is the FLACie player
       const st = ipod = { ...cleanup, fit, wheel, stage, keys, cfg: cfg || { deg: 34 }, last: null, acc: 0, moved: 0, rotating: false, zone: null, held: false, timer: null, hold: null, samples: [], coast: 0, ctx: null };
+      // the wheel's box on screen. The device is scaled with CSS zoom; browsers before Chromium 128 (older Android WebViews among them) report boxes inside a
+      // zoomed element unzoomed while touches come in screen pixels, so taps missed the ring there. A plain 100px probe in the zoomed wrapper tells which it is.
+      const box = () => {
+        const r = wheel.getBoundingClientRect(), z = parseFloat(fitEl && fitEl.style.zoom) || 1;
+        if (Math.abs(z - 1) < 0.01) return r;
+        // added and taken away again at once (the wrapper's children are the page's), and read once per zoom
+        if (st.zoomK === undefined || st.zoomAt !== z) {
+          const p = document.createElement("div");
+          p.style.cssText = "position:absolute;left:0;top:0;width:100px;height:0;visibility:hidden;pointer-events:none";
+          fitEl.appendChild(p); const w = p.getBoundingClientRect().width; p.remove();
+          st.zoomAt = z; st.zoomK = Math.abs(w - 100) < 1 ? z : 1;
+        }
+        const k = st.zoomK;
+        return k === 1 ? r : { left: r.left * k, top: r.top * k, width: r.width * k, height: r.height * k };
+      };
       // a device lying turned (the Desk look tilts it a few degrees): its own angle, from the CSS rotate of the wheel and what holds it. The box on screen is then
       // bigger than the wheel (by |cos| + |sin|), and the zones turn with the device; read at each press (the look can change between presses)
-      const ang = e => { const r = wheel.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI - (st.tilt || 0); };
+      const ang = e => { const r = box(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI - (st.tilt || 0); };
       const zoneOf = e => {
         const tilt = st.tilt = tiltOf(wheel), t = tilt * Math.PI / 180;
-        const r = wheel.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy), R = r.width / 2 / (Math.abs(Math.cos(t)) + Math.abs(Math.sin(t)));
+        const r = box(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy), R = r.width / 2 / (Math.abs(Math.cos(t)) + Math.abs(Math.sin(t)));
         if (d > R) return null;
         if (d < R * 0.36) return "center";
         let a = Math.atan2(dy, dx) * 180 / Math.PI - tilt; if (a < -180) a += 360; if (a >= 180) a -= 360;

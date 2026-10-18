@@ -350,7 +350,7 @@ window.flacie = (() => {
       e._mqKey = key;
       if (e.hasAttribute("data-mq")) e.removeAttribute("data-mq");
       const over = key ? e.scrollWidth - e.clientWidth : 0;
-      if (over > 2) { e.style.setProperty("--mq", -(over + 6) + "px"); e.style.setProperty("--mqt", (4 + over / 30).toFixed(1) + "s"); void e.offsetWidth; e.setAttribute("data-mq", ""); }
+      if (over > 2) { e.style.setProperty("--mq", -(over + 6) + "px"); e.style.setProperty("--mqt", (4 + over / 30).toFixed(1) + "s"); e.style.setProperty("--mqn", String(Math.round(over + 6))); void e.offsetWidth; e.setAttribute("data-mq", ""); }
     };
     // (measuring changes a line's class, which the observer below sees: those changes are taken off its list, or every line measured itself again on every
     // frame for as long as the screen was open, and a long one started its scroll over each time)

@@ -306,25 +306,55 @@
 @container desk (aspect-ratio < 23 / 20) {
   .desk-scene { width: min(100cqw, 47.37cqh); height: min(211.11cqw, 100cqh); aspect-ratio: 9 / 19; --gap: 0px; }   /* (a phone has its own layout: nothing spreads) */
   /* a band across the top for the sticky note and the queue card (they never reach the iPod or its cable), the iPod under it, the earbuds under that */
-  .desk-ipod { left: 50%; top: 48.5cqh; height: 47cqh; }
+  .desk-ipod { left: 50%; top: 50cqh; height: 47cqh; }
+  .desk-journal { left: 3%; top: max(3.4cqh, 52px); width: 19cqh; height: 14cqh; rotate: -2.5deg; }   /* (below the page's back button) */
+  /* the Now Playing card opposite the note, clear of the gear: small and on its side, the cover beside the song */
+  .desk-np { left: auto; right: 50px; top: 3cqh; width: 19cqh; display: flex; gap: .9cqh; align-items: center; padding: .8cqh; rotate: 2deg; box-sizing: border-box; }
+  .desk-np .np-art { flex: 0 0 6.4cqh; width: 6.4cqh; }
+  .desk-np .np-text { flex: 1; margin-top: 0; }
+  .desk-np small { font-size: max(8px, .9cqh); } .desk-np b { font-size: max(13px, 1.75cqh); } .desk-np span { font-size: max(9.5px, 1.15cqh); }
+  .desk-np .np-format, .desk-np .np-format b { font-size: max(9px, 1.05cqh); }
+  .desk-coffee { display: none; }   /* (the earbuds have the bottom to themselves) */
+}
+
+
+/* ---------------- the compact desk: a small desk (shorter than 600px, narrower than 1067px: a laptop with the panel open, a 4:3 screen, a short or wide
+   window, a phone on its side) or a portrait one keeps only what matters: the iPod, as big as it can be, the Now Playing card, the lyrics on a sticky note,
+   and the coffee where there is room. The open CD, the rack, the next CD, the preamp and the keepsakes are put away rather than everything shrunk (the
+   iPod's own screen shows the album and what is next). Decided by the desk's own size, not the window's */
+@container desk (aspect-ratio < 23 / 20) or (max-height: 599.9px) or (max-width: 1066.6px) {
+  .desk-open, .desk-rack, .desk-pop, .desk-ticket, .desk-usb, .desk-clip, .desk-vu, .desk-pencil, .desk-steam, .desk-tracklist { display: none; }
+  .desk-scene { --gap: 0px; }
+  .desk-journal, .desk-np, .desk-coffee { margin-top: 0; }
+  /* the journal is a pad of sticky notes: one note at a time, three rules of lyrics on it; the note under it shows at its edge (desk.js peels the full one off) */
   /* the journal is a pad of sticky notes: one note at a time, three rules of lyrics on it; the note under it shows at its edge */
-  .desk-journal { left: 3%; top: 3.4cqh; width: 20cqh; height: 15cqh; rotate: -2.5deg; }   /* (below the page's back button) */
   .desk-journal.lift { filter: var(--desk-shadow); } .desk-journal .page { box-shadow: none; }   /* (the note under the top one has the shadow too) */
   .desk-journal::before, .desk-journal .sheet.right, .desk-journal .page::after, .desk-journal .j-date, .desk-journal .sheet::before { display: none; }
   .desk-journal .sheet.left { width: 100%; border-radius: .25cqh; background: linear-gradient(170deg, var(--note-a, #fff4ad), var(--note-b, #fbe47a)); box-shadow: inset 0 1.4cqh 1.2cqh -1cqh rgba(255,255,255,.55); }
   .desk-journal::after { content: ""; position: absolute; inset: 0; z-index: -1; translate: .45cqh .6cqh; rotate: 2.5deg; border-radius: .25cqh; background: var(--note-under, #f2d865); }
-  .desk-journal .j-title { left: 1.5cqh; top: 1cqh; width: auto; right: 1.4cqh; font-size: 1.9cqh; line-height: 2.4cqh; }
-  .desk-journal .j-lines { left: 1.5cqh; top: 5.6cqh; width: calc(100% - 3cqh); height: calc(2.9cqh * 3); column-count: 1; column-gap: 3cqh; font-size: 1.75cqh; line-height: 2.9cqh; }
-  /* the next CD in the top right corner, opposite the lyrics (the open CD and the rack step aside here: the iPod's screen shows the album playing); small,
-     its case and a note of what it is; the wheel over it goes through the ones after */
-  .desk-pop { left: 46%; top: 2.6cqh; width: 18cqh; height: 9.6cqh; gap: .7cqh; rotate: 2deg; }
-  .desk-pop .pop-case { flex-basis: 9.6cqh; }
-  .desk-pop .pop-notes { padding: .8cqh .9cqh; rotate: 1.5deg; }
-  .desk-pop .pop-notes small { font-size: .85cqh; } .desk-pop .pop-notes b { font-size: 1.7cqh; } .desk-pop .pop-notes > span { font-size: 1cqh; }
-  .desk-pop ol, .desk-pop .pop-more { display: none; }
-  .desk-open, .desk-rack, .desk-ticket, .desk-usb, .desk-clip, .desk-np { display: none; }   /* (the CDs and keepsakes: the iPod shows the album, the card says what is next; the earbuds have the bottom to themselves) */
-  .desk-coffee { left: 112%; top: 99cqh; }   /* (in the corner, clear of the earbuds) */
-  .desk-steam, .desk-tracklist, .desk-vu, .desk-pencil { display: none; }
+  .desk-journal .j-title { left: 1.5cqh; top: 1cqh; width: auto; right: 1.4cqh; font-size: max(12.5px, 1.9cqh); line-height: max(15px, 2.4cqh); }
+  .desk-journal .j-lines { left: 1.5cqh; top: 5.2cqh; width: calc(100% - 3cqh); height: calc(2.8cqh * 3); column-count: 1; column-gap: 3cqh; font-size: max(12px, 1.75cqh); line-height: 2.8cqh; }
+}
+/* the compact desk on its side: the whole desk is the frame (no 16:9 scene inside it). The note and the card in a column on the left, below the back button;
+   the iPod beside them, as tall as it can be while the earbuds still fit to its right; the coffee in the bottom right corner only on a wide desk */
+@container desk (aspect-ratio >= 23 / 20) and ((max-height: 599.9px) or (max-width: 1066.6px)) {
+  .desk-scene { width: 100cqw; height: 100cqh; aspect-ratio: auto; }
+  /* the iPod's height: what the desk's height leaves once the earbuds fit under it (and, with the jack on top, the cable's loop over it), and no wider than
+     the room right of the column leaves for it and the earbuds beside it */
+  .desk-scene { --ih: min(73cqh, (100cqw - 40cqh) / 1.3); --lh: max(19px, 4.6cqh); --pad: max(8px, 1.6cqh); }
+  .desk-ipod { height: var(--ih); top: calc((100cqh - var(--ih) * 1.27) / 2 + var(--ih) * .5); translate: 0 -50%; left: calc(36cqh + max(0px, (100cqw - 36cqh - var(--ih) * 1.3) / 2)); }
+  .desk-ipod[data-jack="top"] { --ih: min(63cqh, (100cqw - 40cqh) / 1.3); top: calc((100cqh - var(--ih) * 1.48) / 2 + var(--ih) * .71); }
+  .desk-journal { left: max(16px, 2.5cqh); top: max(58px, 4cqh); width: min(31cqh, 28cqw); height: calc(var(--pad) * 2 + var(--lh) * 4.6); rotate: -2deg; }
+  .desk-journal .j-title { left: var(--pad); right: var(--pad); top: var(--pad); font-size: max(13px, 3.1cqh); line-height: calc(var(--lh) * .8); }
+  .desk-journal .j-title small { margin-top: 0; }
+  .desk-journal .j-lines { left: var(--pad); top: calc(var(--pad) + var(--lh) * 1.6); width: calc(100% - var(--pad) * 2); column-gap: calc(var(--pad) * 2); height: calc(var(--lh) * 3); font-size: max(12.5px, 2.9cqh); line-height: var(--lh); }
+  .desk-np { left: max(20px, 3cqh); top: auto; bottom: max(14px, 4cqh); width: min(24cqh, 26cqw); padding: max(6px, 1.2cqh); rotate: 2deg; }
+  .desk-np small { font-size: max(8px, 1.5cqh); } .desk-np b { font-size: max(13px, 3cqh); } .desk-np span { font-size: max(9.5px, 1.9cqh); }
+  .desk-np .np-format, .desk-np .np-format b { font-size: max(9px, 1.7cqh); }
+  .desk-coffee { display: none; }
+}
+@container desk (aspect-ratio >= 2) and ((max-height: 599.9px) or (max-width: 1066.6px)) {
+  .desk-coffee { display: block; left: calc(100cqw - 16cqh); top: calc(100cqh - 17cqh); width: 28cqh; height: 28cqh; margin-top: 0; }
 }
 
 /* ---------------- less motion: the desk holds still (lyrics appear whole) */

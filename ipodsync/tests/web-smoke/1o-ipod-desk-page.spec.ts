@@ -351,8 +351,12 @@ test.describe.serial('desk look on /ipod', () => {
     await page.getByTestId('desk-open-cd').click();
     const rack = page.getByTestId('desk-rack');
     await expect(rack).toHaveAttribute('tabindex', '0'); await expect(rack).toHaveAttribute('role', 'listbox');
-    await rack.focus(); await page.keyboard.press('ArrowRight');
-    await expect(rack).toHaveAttribute('data-sel', '1');
+    // (back to the first and one on, again if the page put the rack back meanwhile: the mock's songs are 3 s long, and a new song resets the pick)
+    await expect(async () => {
+      await rack.focus(); for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowLeft');
+      await page.keyboard.press('ArrowRight');
+      await expect(rack).toHaveAttribute('data-sel', '1', { timeout: 1500 });
+    }).toPass({ timeout: 20_000 });
     const album = (await page.getByTestId('desk-pop').getAttribute('data-album'))!;
     await page.keyboard.press('Enter');
     await expect(page.locator('.lnp-album')).toHaveText(album, { timeout: 10_000 });
@@ -602,24 +606,16 @@ test.describe.serial('desk look on /ipod', () => {
     for (const [w, h] of [[1280, 720], [1920, 1080], [2560, 1080], [390, 844]]) {
       await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(900);
       const deskBox = (await page.getByTestId('desk').boundingBox())!;
-      // a phone frames a closer look at the same desk: the journal and the coffee may run off its edges (their size stays the desk's), but the journal's
-      // title, the queue card and the iPod are in view, and the coffee is at least partly in the frame
-      const whole = w < h ? ['desk-pop', 'ipod-device'] : ['desk-journal', 'desk-pop', 'desk-rack', 'ipod-device'];
+      // a phone is the compact desk: the sticky note, the Now Playing card and the iPod, all in view (the CDs and the coffee put away; the size matrix in
+      // 1o-ipod-desk-sizes.spec.ts checks every size)
+      const whole = w < h ? ['desk-np', 'ipod-device'] : ['desk-journal', 'desk-pop', 'desk-rack', 'ipod-device'];
       for (const id of whole) {
         const b = await page.getByTestId(id).boundingBox(); if (!b) continue;
         expect(inside(b, deskBox, 30), `${id} at ${w}x${h}`).toBe(true);
       }
       if (w < h) {
         expect(inside((await page.getByTestId('desk-journal').locator('.j-title').boundingBox())!, deskBox, 30), `journal title at ${w}x${h}`).toBe(true);
-        // (on a phone the next CD takes the open CD's corner)
-        expect(inside((await page.getByTestId('desk-pop').boundingBox())!, deskBox, 30), `next CD at ${w}x${h}`).toBe(true);
-        for (const sel of ['.desk-coffee .saucer']) {
-          const b = (await page.locator(sel).boundingBox())!;
-          expect(b.x < deskBox.x + deskBox.width && b.y < deskBox.y + deskBox.height && b.x + b.width > deskBox.x, `${sel} in the frame at ${w}x${h}`).toBe(true);
-        }
-        // the coffee keeps its size beside the iPod (about half the iPod's height, as on the desk)
-        const cup = (await page.locator('.desk-coffee .saucer').boundingBox())!, dev = (await page.getByTestId('ipod-device').boundingBox())!;
-        expect(cup.height / dev.height, `coffee to iPod at ${w}x${h}`).toBeGreaterThan(0.45);
+        for (const id of ['desk-pop', 'desk-rack', 'desk-open-cd', 'desk-coffee']) await expect(page.getByTestId(id), `${id} put away at ${w}x${h}`).toBeHidden();
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${w}x${h} scrolls sideways`).toBe(true);
       if (w < h) expect(((await page.getByTestId('ipod-device').boundingBox())!.height) / h, 'portrait iPod size').toBeGreaterThan(0.45);
@@ -634,6 +630,9 @@ test.describe.serial('desk look on /ipod', () => {
       await page.evaluate(() => localStorage.setItem('flacie.ipod', JSON.stringify({ model: 'classic6', look: 2, panel: false })));
       await page.evaluate(() => (window as any).Blazor.navigateTo('/ipod'));
       await expect(page.locator('[data-testid=desk-journal] .j-lines div.on').first()).toBeVisible({ timeout: 15_000 });
+      // the panel closed (the page opens it on a wide window): with it open a 1280 wide window is the compact desk, where the lyrics are on a sticky note
+      if ((await page.getByTestId('ipod-panel').getAttribute('class'))!.includes('open')) await page.getByTestId('ipod-gear').click();
+      await expect(page.getByTestId('desk-pencil')).toBeVisible(); await page.waitForTimeout(600);
       const r = await page.getByTestId('desk-journal').evaluate((j) => {
         const sheet = j.querySelector('.sheet.left') as HTMLElement, lines = [...j.querySelectorAll('.j-lines div.on')] as HTMLElement[];
         // the rule spacing in px: the line height (they are the same by design); the rules are the bottom 0.12/3.32 of each band
@@ -652,7 +651,7 @@ test.describe.serial('desk look on /ipod', () => {
     }
   });
 
-  test('on a narrow screen the sticky note and the next CD sit above the iPod, clear of it and of the earbud cable', async ({ page }) => {
+  test('on a narrow screen the sticky note and the Now Playing card sit above the iPod, clear of it and of the earbud cable', async ({ page }) => {
     await signIn(page);
     for (const model of ['classic6', 'nano3', 'mini2']) {
       for (const [w, h] of [[390, 844], [360, 640], [768, 1024]]) {
@@ -661,13 +660,13 @@ test.describe.serial('desk look on /ipod', () => {
         await page.goto('/songs'); await page.locator('.track').first().locator('button.track-main').click();
         await page.evaluate((m) => localStorage.setItem('flacie.ipod', JSON.stringify({ model: m, look: 2, panel: false })), model);
         await page.evaluate(() => (window as any).Blazor.navigateTo('/ipod'));
-        await expect(page.getByTestId('desk-pop')).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByTestId('desk-np')).toBeVisible({ timeout: 20_000 });
         await page.waitForTimeout(900);
         const r = await page.evaluate(() => {
           const box = (s: string) => { const e = document.querySelector(s); if (!e) return null; const q = e.getBoundingClientRect(); return q.width ? q : null; };
           const over = (a: DOMRect | null, c: DOMRect | null) => a && c ? Math.max(0, Math.min(a.right, c.right) - Math.max(a.left, c.left)) * Math.max(0, Math.min(a.bottom, c.bottom) - Math.max(a.top, c.top)) : 0;
           const inside = (x: number, y: number, q: DOMRect | null) => !!q && x > q.left + 2 && x < q.right - 2 && y > q.top + 2 && y < q.bottom - 2;
-          const note = box('[data-testid=desk-journal]'), card = box('[data-testid=desk-pop]'), ipod = box('[data-testid=ipod-device]');
+          const note = box('[data-testid=desk-journal]'), card = box('[data-testid=desk-np]'), ipod = box('[data-testid=ipod-device]');
           const path = document.getElementById('desk-cable') as unknown as SVGPathElement; const m = path.getScreenCTM()!; const L = path.getTotalLength();
           let onNote = 0, onCard = 0;
           for (let i = 0; i <= 200; i++) { const q = path.getPointAtLength(L * i / 200); const s = new DOMPoint(q.x, q.y).matrixTransform(m); if (inside(s.x, s.y, note)) onNote++; if (inside(s.x, s.y, card)) onCard++; }

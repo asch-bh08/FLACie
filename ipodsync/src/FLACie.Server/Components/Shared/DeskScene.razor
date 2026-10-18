@@ -17,7 +17,7 @@
     <div class="desk-coffee lift" data-testid="desk-coffee" aria-hidden="true"><div class="saucer"></div><div class="cup"><div class="handle"></div><div class="liquid" data-coffee data-viz></div></div></div>
     <div class="desk-steam" aria-hidden="true"><i></i><i></i><i></i></div>
 
-    <div class="desk-ipod" style="@SlotStyle">
+    <div class="desk-ipod" style="@SlotStyle" data-jack="@(Jack.Edge == JackEdge.Top ? "top" : "bottom")">
       <svg class="desk-earbuds @(Studio ? "studio" : "")" data-testid="desk-earbuds" viewBox="0 0 @F(Wd) 400" aria-hidden="true">
         <defs>
           <path id="desk-cable" d="@CablePath"/>

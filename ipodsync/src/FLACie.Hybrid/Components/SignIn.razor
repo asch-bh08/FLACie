@@ -1,0 +1,47 @@
+@page "/"
+@inject HybridAccount Account
+@inject NavigationManager Nav
+@* Sign in to Jellyfin (server, user, password), then the Retro page. Signed in already: straight there. *@
+<div class="hy-signin" data-testid="hy-signin">
+    <h1>FLACie <span>Retro</span></h1>
+    @if (restoring)
+    {
+        <p class="hy-note">Starting…</p>
+    }
+    else
+    {
+        <form @onsubmit="Go" @onsubmit:preventDefault>
+            <label>Jellyfin server<input @bind="server" inputmode="url" autocapitalize="off" autocomplete="url" placeholder="http://192.168.1.10:8096" data-testid="hy-server" /></label>
+            <label>User<input @bind="user" autocapitalize="off" autocomplete="username" data-testid="hy-user" /></label>
+            <label>Password<input @bind="password" type="password" autocomplete="current-password" data-testid="hy-pass" /></label>
+            <button type="submit" disabled="@busy" data-testid="hy-go">@(busy ? "Signing in…" : "Sign in")</button>
+            @if (problem is not null) { <p class="hy-problem" role="alert">@problem</p> }
+        </form>
+    }
+</div>
+
+@code {
+    string server = "", user = "", password = "";
+    string? problem; bool busy, restoring = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Account.Session is not null || await Account.RestoreAsync()) { Nav.NavigateTo("/retro"); return; }
+        server = Preferences.Default.Get("flacie.server", "");
+        user = Preferences.Default.Get("flacie.user", "");
+        restoring = false;
+    }
+
+    async Task Go()
+    {
+        busy = true; problem = null;
+        try
+        {
+            await Account.SignInAsync(server, user, password);
+            Preferences.Default.Set("flacie.server", server); Preferences.Default.Set("flacie.user", user);
+            Nav.NavigateTo("/retro");
+        }
+        catch (Exception e) { problem = e is UnauthorizedAccessException ? "Wrong user name or password." : "Can't sign in: " + e.Message; }
+        finally { busy = false; }
+    }
+}

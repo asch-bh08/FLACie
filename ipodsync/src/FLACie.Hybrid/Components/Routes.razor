@@ -1,0 +1,11 @@
+@* The Retro page (FLACie.Retro: /retro, /ipod) and this app's sign-in (/). *@
+<CascadingAuthenticationState>
+    <Router AppAssembly="typeof(Routes).Assembly" AdditionalAssemblies="new[] { typeof(FLACie.Server.Components.Pages.Ipod).Assembly }">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(FLACie.Server.Components.Layout.EmptyLayout)">
+                <NotAuthorized><SignIn /></NotAuthorized>
+            </AuthorizeRouteView>
+        </Found>
+        <NotFound><SignIn /></NotFound>
+    </Router>
+</CascadingAuthenticationState>

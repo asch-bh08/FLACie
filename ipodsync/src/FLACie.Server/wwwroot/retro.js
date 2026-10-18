@@ -4,21 +4,37 @@ window.retro = (() => {
   // a knob or dial turned by the wheel (data-wheel) keeps the page from scrolling under it: Blazor's own wheel listener is passive, so it can't
   document.addEventListener('wheel', (e) => { if (e.target instanceof Element && e.target.closest('[data-wheel]')) e.preventDefault(); }, { passive: false, capture: true });
   let mq = null;
-  // a knob (data-knob) turned by dragging up or down: every 12 px is one step, sent to the knob as an arrow key, so the knob's own key handler does the rest
+  // a control turned by a finger or the mouse, its drag sent to it as arrow keys so its own key handler does the rest (nothing is captured until the pointer has
+  // really moved, so a tap still clicks what is under it): a knob (data-knob) by dragging up or down, every 12 px a step (ArrowUp / ArrowDown); a dial (data-dial)
+  // by going round it, every 30 degrees a step (ArrowRight clockwise, ArrowLeft back); a swipe (data-swipe) by dragging sideways, every 40 px a step (ArrowRight
+  // / ArrowLeft). data-step sets the step (px, or degrees for a dial). After a drag the click that would follow is dropped (a knob that mutes when pressed
+  // must not mute when it was turned).
   let drag = null;
+  const STEP = { knob: 12, dial: 30, swipe: 40 };
+  const angle = (d, e) => Math.atan2(e.clientY - d.cy, e.clientX - d.cx) * 180 / Math.PI;
+  const press = (k, key) => k.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
   document.addEventListener('pointerdown', (e) => {
-    const k = e.target instanceof Element && e.target.closest('[data-knob]'); if (!k || e.button !== 0) return;
-    drag = { k, y: e.clientY }; k.focus(); try { k.setPointerCapture(e.pointerId); } catch { } e.preventDefault();
+    const k = e.target instanceof Element && e.target.closest('[data-knob], [data-dial], [data-swipe]'); if (!k || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const kind = k.hasAttribute('data-dial') ? 'dial' : k.hasAttribute('data-swipe') ? 'swipe' : 'knob', r = k.getBoundingClientRect();
+    drag = { k, kind, step: +k.dataset.step || STEP[kind], id: e.pointerId, x: e.clientX, y: e.clientY, cx: r.left + r.width / 2, cy: r.top + r.height / 2, acc: 0, moved: false };
+    drag.a = angle(drag, e);
+    k.focus({ preventScroll: true }); if (e.pointerType === 'mouse') e.preventDefault();
   });
   document.addEventListener('pointermove', (e) => {
-    if (!drag) return;
-    let d = drag.y - e.clientY;
-    while (Math.abs(d) >= 12) {
-      const up = d > 0; drag.k.dispatchEvent(new KeyboardEvent('keydown', { key: up ? 'ArrowUp' : 'ArrowDown', bubbles: true }));
-      drag.y -= up ? 12 : -12; d = drag.y - e.clientY;
+    if (!drag || e.pointerId !== drag.id) return;
+    const d = drag;
+    if (!d.moved) { if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 5) return; d.moved = true; try { d.k.setPointerCapture(e.pointerId); } catch { } }
+    if (d.kind === 'dial') { let da = angle(d, e) - d.a; d.a = angle(d, e); if (da > 180) da -= 360; if (da < -180) da += 360; d.acc += da; }
+    else { const v = d.kind === 'knob' ? d.y - e.clientY : e.clientX - d.x; d.acc += v; d.x = e.clientX; d.y = e.clientY; }
+    while (Math.abs(d.acc) >= d.step) {
+      const fwd = d.acc > 0; d.acc -= fwd ? d.step : -d.step;
+      press(d.k, d.kind === 'knob' ? (fwd ? 'ArrowUp' : 'ArrowDown') : (fwd ? 'ArrowRight' : 'ArrowLeft'));
     }
   });
-  const end = () => { drag = null; };
+  const end = (e) => {
+    const d = drag; if (!d || e.pointerId !== d.id) return; drag = null;
+    if (d.moved) { const stop = (c) => { c.stopImmediatePropagation(); c.preventDefault(); }; document.addEventListener('click', stop, { capture: true, once: true }); setTimeout(() => document.removeEventListener('click', stop, true), 80); }
+  };
   document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
   // a fader (a range input marked data-fader, see-through over the slider drawn under it): its cap (--v, 0 at the bottom to 1 at the top, on the input's
   // parent) follows the pointer at once; the server draws it again as the player took it a moment later

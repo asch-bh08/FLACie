@@ -4,6 +4,8 @@
 @font-face { font-family: "iPod Myriad"; src: url(fonts/source-sans-3.woff2) format("woff2"); font-weight: 200 900; font-display: block; }
 /* the classic and the 3rd-5th nanos (Helvetica Bold) and the touch iPods and 6th nano (Helvetica): Arimo (OFL 1.1), Helvetica's metric twin */
 @font-face { font-family: "iPod Helvetica"; src: url(fonts/arimo.woff2) format("woff2"); font-weight: 400 700; font-display: block; }
+/* the flat iOS 7+ screens: Inter (OFL 1.1), where San Francisco is not the system font */
+@font-face { font-family: "iPod SF"; src: url(fonts/inter.woff2) format("woff2"); font-weight: 100 900; font-display: block; }
 /* iPod mode (/ipod): every iPod of the Android emulator on the page. The body is 300 px wide (everything else a fraction of it) and zoomed to fit the window; the screen is drawn at the
    logical size of the real device (160x128, 320x240, 240x320) and scaled into its bezel, so edges stay in proportion at any size. */
 .ipod-stage { position: fixed; inset: 0; display: flex; overflow: hidden; color: #eee; background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--backdrop, #0b0c0e) 70%, #3a3d45), var(--backdrop, #0b0c0e) 78%); }
@@ -264,7 +266,7 @@
 
 /* ---------------- the touch iPods: iPod touch 1-7 and nano 6-7 have a system of their own (home screen, Music with a tab bar, Now Playing, Settings, Clock, Stopwatch), drawn in points (320 wide, 240 for the nanos) and scaled into the glass */
 .ios-scale { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.ios { position: relative; display: flex; flex-direction: column; overflow: hidden; background: #fff; color: #000; font: 16px/1.25 "Helvetica Neue", Helvetica, Arial, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+.ios { position: relative; display: flex; flex-direction: column; overflow: hidden; background: #fff; color: #000; font: 16px/1.25 "iPod Helvetica", "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
 .ios * { box-sizing: border-box; letter-spacing: normal; text-transform: none; }
 :where(.ios) button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-align: inherit; }
 .ios b { font-weight: 600; } .ios small { font-size: 12px; }

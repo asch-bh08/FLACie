@@ -30,7 +30,7 @@
 .ios:not(.os-classic) .ios-np-meta b, .ios:not(.os-classic) .ios-np-meta span { line-height: 1.35; }   /* (room for the letters' whole height: a title never touches the line under it) */
 
 /* ---------------------------------------------------------------- iPod touch 6 and 7: iOS 8 to 12 */
-.ios.os-flat { --tint: #fa2d48; --hair: rgba(60,60,67,.29); font-family: -apple-system, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif; background: #fff; }
+.ios.os-flat { --tint: #fa2d48; --hair: rgba(60,60,67,.29); font-family: -apple-system, BlinkMacSystemFont, "iPod SF", Arial, sans-serif; background: #fff; }
 .os-flat .ios-status { height: 20px; padding: 0 6px; background: transparent; color: #000; font-size: 12px; font-weight: 600; }
 .os-flat .ios-batt { border-color: currentColor; background: linear-gradient(90deg, currentColor var(--lvl, 100%), transparent var(--lvl, 100%)); }
 .os-flat .ios-batt::after { background: currentColor; }
@@ -141,7 +141,7 @@
 .os-flat .ios-stub .ios-icon { width: 76px; height: 76px; border-radius: 17px; }
 
 /* ---------------------------------------------------------------- iPod nano 7 (2012): round icons, six to a page; white lists; a black Now Playing */
-.ios.os-nano7 { --tint: #0a7aff; font-family: "Helvetica Neue", -apple-system, "Segoe UI", Arial, sans-serif; background: #000; color: #fff; }
+.ios.os-nano7 { --tint: #0a7aff; font-family: "iPod Helvetica", "Helvetica Neue", Arial, sans-serif; background: #000; color: #fff; }
 .os-nano7 .ios-status { height: 20px; padding: 0 6px; background: #000; color: #fff; font-size: 12px; font-weight: 600; }
 .os-nano7 .ios-pct { display: none; }
 .os-nano7 .ios-home { background: radial-gradient(ellipse 120% 70% at 50% 0%, #2b3a55 0%, transparent 70%), radial-gradient(ellipse 120% 60% at 50% 110%, #3a2440 0%, transparent 70%), #07080b; }
@@ -222,7 +222,7 @@
 
 /* ---------------------------------------------------------------- iPod nano 6 (2010): four icons to a page on a wallpaper the colour of the iPod; black lists;
    the cover filling the square screen */
-.ios.os-nano6 { --tint: #8a8d93; font-family: "Helvetica Neue", -apple-system, "Segoe UI", Arial, sans-serif; background: #000; color: #fff; }
+.ios.os-nano6 { --tint: #8a8d93; font-family: "iPod Helvetica", "Helvetica Neue", Arial, sans-serif; background: #000; color: #fff; }
 .os-nano6 .ios-status { height: 16px; padding: 0 5px; background: #000; color: #fff; font-size: 10px; }
 .os-nano6 .ios-batt { width: 18px; height: 8px; border-radius: 2px; }
 .os-nano6 .ios-batt::after { top: 1.5px; height: 3px; }
@@ -316,7 +316,7 @@
 
 /* ---------------------------------------------------------------- iPod touch 1 to 5: the glossy iPhone OS. What they share is first (home, bars, rows, Now Playing's parts),
    then each generation in its own colours: touch 1 (iPhone OS 1, 2007), touch 2 (OS 2, 2008), touch 3 (OS 3, 2009), touch 4 (iOS 4-5, 2010) and touch 5 (iOS 6, 2012). */
-.ios.os-classic { font-family: "Helvetica Neue", Helvetica, Arial, "Segoe UI", sans-serif; --art: 204px; --below: 30px; --btn: linear-gradient(#8ea5c6, #5873a0 50%, #4a6694 51%, #5876a3); }
+.ios.os-classic { font-family: "iPod Helvetica", "Helvetica Neue", Arial, sans-serif; --art: 204px; --below: 30px; --btn: linear-gradient(#8ea5c6, #5873a0 50%, #4a6694 51%, #5876a3); }
 .os-classic .ios-home { background: #000; }
 .os-classic .ios-grid { gap: 18px 0; padding: 22px 8px 0; }
 .os-classic .ios-app { font-size: 11px; font-weight: 500; }

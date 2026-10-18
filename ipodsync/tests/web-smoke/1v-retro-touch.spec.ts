@@ -42,12 +42,12 @@ const centre = async (page: Page, sel: string): Promise<[number, number]> => { c
 /** The controls of the scene as a finger meets them: what is shown, not hidden or disabled; the part of each that is on screen. */
 const targets = (page: Page) => page.evaluate(() => {
   const root = document.querySelector('[data-testid=retro], [data-testid=desk]')!;
-  const out: { name: string; w: number; h: number }[] = [];
+  const out: { name: string; w: number; h: number; covered?: boolean }[] = [];
   root.querySelectorAll<HTMLElement>('button, input[type=range], [role=button], [role=slider], [data-ctl], [data-media]').forEach((e) => {
     if (e.closest('[aria-hidden=true], [data-testid=ipod-device], [data-testid=ios]') || (e as HTMLButtonElement).disabled || e.tabIndex < -1) return;
     const cs = getComputedStyle(e); if (cs.visibility === 'hidden' || cs.display === 'none' || cs.pointerEvents === 'none') return;
     const r = e.getBoundingClientRect(); if (r.width < 1 || r.height < 1 || r.right < 0 || r.bottom < 0 || r.left > innerWidth || r.top > innerHeight) return;
-    out.push({ name: (e.getAttribute('data-testid') || e.getAttribute('data-ctl') || e.getAttribute('data-preset') || e.getAttribute('data-band') || e.className || e.tagName).toString().slice(0, 30) + ':' + (e.getAttribute('aria-label') || e.textContent || '').trim().slice(0, 20), w: Math.round(r.width), h: Math.round(r.height) });
+    out.push({ name: (e.getAttribute('data-testid') || e.getAttribute('data-ctl') || e.getAttribute('data-preset') || e.getAttribute('data-band') || e.className || e.tagName).toString().slice(0, 30) + ':' + (e.getAttribute('aria-label') || e.textContent || '').trim().slice(0, 20), w: Math.round(r.width), h: Math.round(r.height), covered: ((): boolean => { if (e.matches('.sleeve:not(.front)')) return false; const fan = e.matches('.md-d, .dm-cd, .sleeve'); const hit = document.elementFromPoint(r.left + r.width * (fan ? 0.25 : 0.5), r.top + r.height / 2); return !(hit && (hit === e || e.contains(hit))); })() });
   });
   return out;
 });
@@ -215,6 +215,8 @@ test.describe('touch: sizes and no selecting', () => {
       if (process.env.TOUCH_DUMP) fs.writeFileSync(`${process.env.TOUCH_DUMP}/${scene}-${label.replace(' ', '-')}.json`, JSON.stringify(all.filter((t) => Math.min(t.w, t.h) < 44)));
       const small = all.filter((t) => Math.min(t.w, t.h) < 44);
       expect(small, JSON.stringify(small)).toEqual([]);
+      // and nothing lies over a control: a tap in its middle lands on it
+      expect(all.filter((t) => t.covered).map((t) => t.name)).toEqual([]);
       // controls do not select text or wait for a double tap
       const bad = await page.evaluate(() => {
         // (touch-action is not inherited, but a parent's value limits its children: the first one set on the way up is the one that counts)

@@ -71,7 +71,7 @@
                     <div class="hf-scale am"><span>53</span><span>70</span><span>90</span><span>110</span><span>130</span><span>160</span><b>AM</b></div>
                     <i class="hf-pointer" style="--p:@Inv(Progress)"></i>
                 </div>
-                <button type="button" class="hf-tune" data-testid="hifi-tune" aria-label="Tuning: turn to seek" title="Turn (scroll) to seek" style="--r:@Inv(-150 + 300 * Progress)deg" @onwheel="TuneWheel" data-wheel><i></i></button>
+                <button type="button" class="hf-tune" data-testid="hifi-tune" aria-label="Tuning: turn to seek" title="Turn (drag round it, scroll or arrow keys) to seek" style="--r:@Inv(-150 + 300 * Progress)deg" @onwheel="TuneWheel" data-wheel data-dial data-step="9" @onkeydown="TuneKey"><i></i></button>
                 <div class="hf-knobs">
                     @Knob("BASS", "hifi-bass", Eq[0], -12, 12, Db(Eq[0]), e => BandWheel(e, 0), e => BandKey(e, 0))
                     @Knob("TREBLE", "hifi-treble", Eq[4], -12, 12, Db(Eq[4]), e => BandWheel(e, 4), e => BandKey(e, 4))
@@ -115,6 +115,8 @@
     }
     int groovePx = 300;
     async Task TuneWheel(WheelEventArgs e) => await Seek(Progress + (e.DeltaY < 0 ? 0.03 : -0.03));
+    // (a finger going round the knob: retro.js sends a key for every nine degrees)
+    Task TuneKey(KeyboardEventArgs e) => e.Key switch { "ArrowRight" or "ArrowUp" => Seek(Progress + 0.03), "ArrowLeft" or "ArrowDown" => Seek(Progress - 0.03), _ => Task.CompletedTask };
     async Task PitchChange(ChangeEventArgs e)
     {
         if (double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v)) await Player.SetSpeedAsync(Math.Clamp(v, 0.92, 1.08));

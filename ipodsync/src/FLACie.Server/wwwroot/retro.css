@@ -638,3 +638,37 @@
     .car-city, .car-rain { height: 34%; }
   }
 }
+/* the hi-fi: the turntable lies a little flatter (a tilted control is smaller to a finger), START, PITCH and the knobs are 44 px, and the receiver's switches too */
+@media (pointer: coarse) {
+  .hf-plinth { transform: rotateX(34deg); }
+  .hf-start { min-height: 56px; min-width: 128px; }
+  .hf-pitch { width: 36%; }
+  .hf-pitch input { height: 56px; touch-action: none; }
+  .hf-pitch input::-webkit-slider-thumb { width: 28px; height: 40px; }
+  .hf-flip { width: 44px; height: 44px; }
+  .hf-knob { min-width: 44px; }
+  .hf-tune { min-width: 44px; min-height: 44px; }
+  .hf-switches button { min-height: 44px; min-width: 56px; }
+}
+@media (pointer: coarse) { @container retro (aspect-ratio < 23 / 20) { .hf-receiver { height: 94%; } .hf-front { top: 42%; } .hf-top { height: 42%; } .hf-console { height: 77%; } .hf-card { top: -19cqh; } } }
+/* the hi-fi on a phone's side: the console is taller, the speakers give way, and the receiver is two rows (meters, dial and tuning knob; knobs and switches) */
+@media (pointer: coarse) { @container retro (aspect-ratio >= 23 / 20) and (max-height: 520px) {
+  .hf-console { height: 72%; }
+  .hf-deck { top: -31cqh; width: 54cqh; height: 38cqh; }
+  .hf-speaker, .hf-brand { display: none; }
+  .hf-card { top: -17cqh; }
+  .hf-receiver { width: 92cqw; height: 86%; grid-template-columns: repeat(6, 1fr); grid-template-rows: 1fr auto; padding: 2% 2.4%; gap: 6px 2%; }
+  .hf-meters { grid-column: 1 / 3; grid-row: 1; } .hf-dial { grid-column: 3 / 6; grid-row: 1; } .hf-tune { grid-column: 6; grid-row: 1; width: 100%; max-width: 70px; }
+  .hf-knobs { grid-column: 1 / 4; grid-row: 2; gap: 6%; } .hf-switches { grid-column: 4 / 7; grid-row: 2; align-items: center; }
+  .hf-scale { font-size: 1.6cqh; } .hf-fmt { font-size: 1.5cqh; } .hf-lyric { font-size: 2.2cqh; } .hf-meter span { font-size: 1.4cqh; } .hf-kn small { font-size: 1.3cqh; }
+} }
+@media (pointer: coarse) { @container retro (aspect-ratio >= 23 / 20) and (max-height: 520px) {
+  .hf-deck { top: -33cqh; width: 66cqh; height: 41cqh; translate: -50% 0; }
+  .hf-plinth { transform: rotateX(28deg); }
+  .hf-start { min-width: 0; min-height: 48px; padding: 0 3%; font-size: 1.3cqh; left: 3%; bottom: 3%; }
+  .hf-pitch { width: 30%; right: 4%; bottom: 3%; } .hf-pitch input { height: 48px; }
+  .hf-card { top: -9cqh; left: 3%; } .hf-crate { top: -13cqh; }
+} }
+@media (pointer: coarse) { @container retro (aspect-ratio < 23 / 20) { .hf-receiver { grid-template-rows: 20% 1fr auto auto; } } }
+@media (pointer: coarse) { .hf-start, .hf-pitch, .hf-arm, .hf-arm-base { transform: translateZ(8px); } }   /* (stands clear of the record's groove, which takes a tap on it, at the flatter tilt) */
+@media (pointer: coarse) { .hf-groove { clip-path: inset(0 0 38% 0); } }   /* (START is bigger for a finger: the groove stops short of it, as it already stops short of the bottom edge) */

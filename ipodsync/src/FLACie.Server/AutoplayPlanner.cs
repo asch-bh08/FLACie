@@ -8,7 +8,7 @@ namespace FLACie.Server;
 /// artists their listeners also play), never another release of a song already played or queued, and, when a song isn't in the library
 /// yet, fetches it in the background a few songs ahead so it is there by the time it is needed.
 /// </summary>
-public sealed class AutoplayPlanner(WebCatalog catalog, DownloadManager downloads, UserStateStore states, StorageGuard guard)
+public sealed class AutoplayPlanner(WebCatalog catalog, DownloadManager downloads, UserStateStore states, StorageGuard guard) : IAutoplayPlanner
 {
     readonly ConcurrentDictionary<string, (DateTime At, List<CatalogSong> Songs)> cache = new();
 

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!-- The Retro page (iPods, the desk, the listening scenes) and the player it drives, shared by the web app (FLACie.Server)
+       and the Android app that runs it in-process (FLACie.Hybrid). What differs between the two (who is signed in, autoplay's
+       lookups, where streams come from) comes in through the interfaces in Hosting.cs. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- the namespaces the files had in FLACie.Server, so nothing that uses them changes -->
+    <RootNamespace>FLACie.Server</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="9.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="9.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FLACie.Core\FLACie.Core.csproj" />
+  </ItemGroup>
+
+</Project>

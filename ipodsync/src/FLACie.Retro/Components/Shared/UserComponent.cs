@@ -7,11 +7,11 @@ namespace FLACie.Server.Components.Shared;
 /// <summary>Base for signed-in views: the user's session, the tab's player, and a redraw whenever either changes.</summary>
 public abstract class UserComponent : ComponentBase, IDisposable
 {
-    [Inject] SessionStore Store { get; set; } = default!;
+    [Inject] ISessionStore Store { get; set; } = default!;
     [Inject] protected PlayerState Player { get; set; } = default!;
     [Inject] protected NavigationManager Nav { get; set; } = default!;
     [Inject] protected JellyfinClient Jellyfin { get; set; } = default!;
-    [Inject] AutoplayPlanner Planner { get; set; } = default!;
+    [Inject] IAutoplayPlanner Planner { get; set; } = default!;
     [Inject] PlayTracker Plays { get; set; } = default!;
     [CascadingParameter] Task<AuthenticationState> Auth { get; set; } = default!;
     protected UserSession Session { get; private set; } = default!;

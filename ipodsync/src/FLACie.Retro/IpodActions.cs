@@ -31,5 +31,5 @@ public static class IpodActions
     /// <summary>The Playback / About figures the settings rows show.</summary>
     public static IpodPlayback Info(PlayerState player, IpodPrefs prefs, Library lib, int playlists) =>
         new(player.Shuffle, player.Repeat, player.Speed, player.SleepMode == SleepMode.Off ? 0 : IpodPrefs.SleepMinutes[Math.Clamp(prefs.SleepChoice, 1, IpodPrefs.SleepMinutes.Length - 1)],
-            player.FadeSecs, player.LevelVolume, lib.Songs.Count, playlists, AppInfo.Version);
+            player.FadeSecs, player.LevelVolume, lib.Songs.Count, playlists, RetroHost.Version);
 }

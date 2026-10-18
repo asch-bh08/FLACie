@@ -349,7 +349,7 @@ else
     // ---------------------------------------------------------------- the desk: the journal (lyrics), the Now Playing card, the CDs and what comes next
     [Inject] LyricsService LyricsSvc { get; set; } = default!;
     [Inject] MbOverlay MbChoices { get; set; } = default!;
-    [Inject] InfoService Infos { get; set; } = default!;
+    [Inject] ITrackInfo Infos { get; set; } = default!;
     Lyrics? deskLyrics; string? deskLyricsFor;
     // the viewer's own day (their clock, not the server's): "15 oct" for the journal; empty until the browser answers
     string deskDate = "", deskWeekday = ""; bool deskDayAsked;

@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FLACie.Core\FLACie.Core.csproj" />
+    <ProjectReference Include="..\FLACie.Retro\FLACie.Retro.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

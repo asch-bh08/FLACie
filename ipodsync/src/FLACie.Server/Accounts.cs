@@ -13,9 +13,9 @@ namespace FLACie.Server;
 /// server's data-protection keys, so nothing usable reaches the browser and a restart doesn't sign anyone out.
 /// One <see cref="UserSession"/> per account is kept in memory and shared by that user's tabs.
 /// </summary>
-public sealed record Live(Connect Connect, Jam Jam);
 
-public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log, ImportManager imports, UserStateStore states, DataPaths paths, TokenCache tokens)
+
+public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log, ImportManager imports, UserStateStore states, DataPaths paths, TokenCache tokens) : ISessionStore
 {
     readonly ConcurrentDictionary<string, UserSession> sessions = new();
     /// <summary>Sign-in cookies whose Jellyfin token Jellyfin has refused (a hash of the token, when): such a browser is signed out instead of being left half signed in (no playlists, no admin).</summary>

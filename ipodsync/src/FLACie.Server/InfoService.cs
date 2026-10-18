@@ -8,7 +8,7 @@ namespace FLACie.Server;
 /// <summary>What a song's file really is, asked of whoever holds it: Jellyfin knows its streams, a NAS file is read with TagLib, a fresh
 /// download is read by ffprobe through the file mover. Also where the file came from (the download log, or "it was in the library already").
 /// Cached, because the Info panel is opened often and a NAS read costs a round trip.</summary>
-public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, DownloadLog log)
+public sealed class InfoService(JellyfinClient jf, IHttpClientFactory hf, DownloadLog log) : ITrackInfo
 {
     /// <summary>The running instance, so the library listing can hand over the facts it carries.</summary>
     public static InfoService? Current { get; set; }

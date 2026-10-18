@@ -25,7 +25,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
         if (pos < 0 || pos + 1 >= order.Count) return null;
         var n = Queue[order[pos + 1]];
         var ext = MediaInfo.FromExtension(n.FilePath ?? "");
-        if (ext is "m4a" or "alac" or "mp4" || MediaInfo.NotPlayableInBrowsers.Contains(ext) || FormatIndex.Current?.Get(n)?.Codec == "alac") return null;
+        if (ext is "m4a" or "alac" or "mp4" || MediaInfo.NotPlayableInBrowsers.Contains(ext) || RetroHost.KnownCodec?.Invoke(n) == "alac") return null;
         return "/stream?p=" + Uri.EscapeDataString(n.Path);
     }
 
@@ -99,9 +99,9 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
 
     List<CatalogSong> suggested = [];
     UserSession? session;
-    AutoplayPlanner? planner;
+    IAutoplayPlanner? planner;
     CancellationTokenSource? planning;
-    public void SetPlanner(UserSession s, AutoplayPlanner p) { session = s; planner = p; }
+    public void SetPlanner(UserSession s, IAutoplayPlanner p) { session = s; planner = p; }
     PlayTracker? plays;
     /// <summary>Reports listening to the "music played" tracker (which only ever speaks for plays outside Jellyfin).</summary>
     public void SetPlays(PlayTracker p) => plays = p;
@@ -355,7 +355,7 @@ public sealed class PlayerState(IJSRuntime js) : IPlayerHost, IAsyncDisposable
 
     // ---- from flacie.js ----
 
-    [JSInvokable] public void OnTime(double pos, double dur) { PlaybackActivity.Current?.Heartbeat(); Position = pos; if (dur > 0 && !double.IsInfinity(dur)) Duration = dur; Stash(false); RememberPlace(); SleepTick(); PlayTick(); Changed?.Invoke(); }
+    [JSInvokable] public void OnTime(double pos, double dur) { RetroHost.Heartbeat?.Invoke(); Position = pos; if (dur > 0 && !double.IsInfinity(dur)) Duration = dur; Stash(false); RememberPlace(); SleepTick(); PlayTick(); Changed?.Invoke(); }
     [JSInvokable] public void OnState(bool playing) { Playing = playing; PlayTick(); Changed?.Invoke(); }
     [JSInvokable] public async Task OnEnded()
     {

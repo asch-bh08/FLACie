@@ -1,7 +1,6 @@
 using FLACie.Core;
 using FLACie.Server;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.Extensions.Logging;
 
 namespace FLACie.Hybrid;
 
@@ -14,7 +13,6 @@ public static class MauiProgram
         builder.Services.AddMauiBlazorWebView();
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
-        builder.Logging.AddDebug();
 #endif
         var data = FileSystem.AppDataDirectory;
         // one client for everything Jellyfin (no timeout: it carries audio); the device id is this install's

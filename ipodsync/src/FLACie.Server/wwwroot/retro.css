@@ -687,3 +687,21 @@
   }
 }
 @media (pointer: coarse) { @container retro (aspect-ratio < 23 / 20) { .bb-row { grid-template-columns: 1fr; } .bb-counter { display: none; } } }   /* (six 44 px sliders need the counter's room on a phone) */
+/* the MiniDisc system: the buttons and the jog's centre are 44 px, the dial takes a finger going round it, and on a phone's side the unit is larger (the speakers give way) */
+@media (pointer: coarse) {
+  .md-btns button { min-width: 44px; min-height: 44px; }
+  .md-jog-center { inset: 24%; min-width: 44px; min-height: 44px; }
+  .md-jog { touch-action: none; }
+  .md-d { min-height: 44px; translate: calc(var(--i) * max(6.6cqh, 44px)) 0; }   /* (each disc shows a strip a finger can hit) */
+  .md-d:active { translate: calc(var(--i) * max(6.6cqh, 44px)) -1cqh; }
+  @container retro (aspect-ratio < 23 / 20) { .md-btns { gap: 2.4%; } .md-btns button { width: 14%; } }
+  @container retro (aspect-ratio >= 23 / 20) and (max-height: 520px) {
+    .md-spk { display: none; }
+    .md-system { bottom: 4%; }
+    .md-system { left: 63%; }
+    .md-main { width: min(66cqw, 140cqh); }
+    .md-face { gap: 3% 4%; padding: 4% 4% 5%; }
+    .md-btns { gap: 2%; } .md-btns button { width: 13%; }
+    .md-stack { left: 2%; }
+  }
+}

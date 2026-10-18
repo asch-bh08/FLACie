@@ -20,7 +20,7 @@
                     <div class="l3"><span>@(Now is null ? "NO DISC" : ejected ? "OPEN" : $"TR {TrackNo:00}")</span><span>@(Now is null ? "--:--" : Clock(Position))</span><span data-testid="md-vol">VOL @(VolPct / 5)</span><span class="@(Playing && !ejected ? "on" : "")">▶</span></div>
                 </div>
                 <div class="md-jog" data-testid="md-jog" role="slider" tabindex="0" aria-label="Jog dial: turn to skip" aria-valuetext="@(Now?.Title ?? "")" style="--r:@(jog)deg"
-                     @onwheel="JogWheel" data-wheel @onkeydown="JogKey">
+                     @onwheel="JogWheel" data-wheel data-dial @onkeydown="JogKey">
                     <i class="ring"></i>
                     <button type="button" class="md-jog-center" data-testid="md-jog-center" data-ctl="play" aria-label="@(Playing ? "Pause" : "Play")" @onclick="PlayKey">▶❚❚</button>
                 </div>

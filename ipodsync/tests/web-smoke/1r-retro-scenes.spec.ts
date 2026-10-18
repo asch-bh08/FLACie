@@ -174,12 +174,12 @@ test.describe.serial('listening scenes', () => {
       await signIn(page);
       await playInScene(page, scene);
       const probe = (text: string) => page.getByTestId('retro-title').evaluate(async (e, t) => {
-        const host = (e.querySelector('span') ?? e) as HTMLElement; host.textContent = t;
+        const host = (e.querySelector('span:not(.mq-in)') ?? e) as HTMLElement; host.textContent = t;
         await new Promise((r) => setTimeout(r, 400));
-        const node = host.firstChild!; const r = document.createRange(); r.setStart(node, 0); r.setEnd(node, 1);
+        const tw = document.createTreeWalker(host, NodeFilter.SHOW_TEXT); const node = tw.nextNode()!; const r = document.createRange(); r.setStart(node, 0); r.setEnd(node, 1);
         const first = r.getBoundingClientRect(), box = e.getBoundingClientRect();
         const anim = (el: Element) => getComputedStyle(el).animationName;
-        return { firstShown: first.left >= box.left - 1 && first.right <= box.right + 1, moving: [e, host].some((x) => anim(x) !== 'none'), clip: getComputedStyle(e).overflow === 'hidden' };
+        return { firstShown: first.left >= box.left - 1 && first.right <= box.right + 1, moving: [e, host].some((x) => anim(x) !== 'none') || e.getAnimations({ subtree: true }).length > 0, clip: getComputedStyle(e).overflow === 'hidden' };
       }, text);
       expect(await probe('TEENAGE DREAM (THE COMPLETE CONFECTION, DELUXE EDITION)')).toEqual({ firstShown: true, moving: true, clip: true });
       expect(await probe('TEENAGE')).toEqual({ firstShown: true, moving: false, clip: true });

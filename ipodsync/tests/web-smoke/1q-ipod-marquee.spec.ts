@@ -63,7 +63,7 @@ test.describe.serial('long text on the iPod screens scrolls', () => {
       await page.goto('about:blank');
       await openIpod(page, { model, look: 1 });
       await shuffle(page);
-      for (const sel of ['[data-testid=ipod-np-title]', '.lnp-meta span:not(.lnp-album)', '.lnp-album'])
+      for (const sel of ['[data-testid=ipod-np-title]', '.lnp-meta > span:not(.lnp-album):not(.mq-in)', '.lnp-album'])
         expect(await longText(page, sel, '[data-testid=ipod-lcd]'), `${model} ${sel}`).toEqual({ moving: true, inside: true, clip: true });
     }
   });

@@ -18,7 +18,11 @@ import kotlin.math.sqrt
  * button, the played part of the seek bar, the glow) and [second] (the next most common hue at about 32%, the darker field in the corner).
  * Both are opaque ARGB ints. [fromCover] is false for the warm default shown when a cover has nothing usable in it.
  */
-data class SleeveColours(val main: Int, val second: Int, val fromCover: Boolean) {
+data class SleeveColours(
+    val main: Int, val second: Int, val fromCover: Boolean,
+    // design I: the ground (the dark colour the cover fades into), the tone (tinted buttons and chips) and the text on the tone, all from the second colour
+    val ground: Int = argb(22, 58, 63), val tone: Int = argb(36, 82, 90), val toneFg: Int = argb(231, 243, 240),
+) {
     companion object {
         val DEFAULT = SleeveColours(argb(232, 119, 79), argb(47, 93, 98), false)
 
@@ -45,16 +49,62 @@ data class SleeveColours(val main: Int, val second: Int, val fromCover: Boolean)
             }
             val top = (0 until 12).filter { n[it] > 0 }.sortedByDescending { w[it] }   // a stable sort: equal bins keep hue order
             if (top.isEmpty()) return DEFAULT
-            fun col(k: Int, l: Double): Int {
+            fun col(k: Int, l: Double, smax: Double = .85): Int {
                 val h = ((k * 30.0 + hue[k] / n[k]) % 360 + 360) % 360
-                val s = min(.85, max(.35, sat[k] / n[k]))
+                val s = min(smax, max(.35, sat[k] / n[k]))
                 val a = s * min(l, 1 - l)
                 fun f(m: Int): Int { val kk = (m + h / 30) % 12; return (255 * (l - a * max(-1.0, min(min(kk - 3, 9 - kk), 1.0)))).roundToInt() }
                 return argb(f(0), f(8), f(4))
             }
-            return SleeveColours(col(top[0], .66), col(top.getOrElse(1) { top[0] }, .32), true)
+            val two = top.getOrElse(1) { top[0] }
+            return SleeveColours(col(top[0], .66), col(two, .32), true, col(two, .16, .5), col(two, .26, .45), col(two, .92, .4))
         }
     }
+}
+
+/** The words around the title, the same rules as the web player's (NowPlaying.razor Lead, Last and WhereLine). */
+object SleeveText {
+    /** The title split for the serif heading: everything up to and including the last space, and the last word, which is set in italics. */
+    fun split(title: String): Pair<String, String> {
+        val s = title.trimEnd()
+        val i = s.lastIndexOf(' ')
+        return if (i < 0) "" to s else s.substring(0, i + 1) to s.substring(i + 1)
+    }
+
+    /** The pill at the top: "ALBUM · TRACK n", or [fallback] (where it plays from) when the song has no album or no number. */
+    fun where(album: String, trackNo: Int, fallback: String): String =
+        if (album.isNotBlank() && trackNo > 0) "${album.uppercase()} · TRACK $trackNo" else fallback.uppercase()
+
+    /** A title longer than this gets the smaller heading (40 sp instead of 52), as on the web. */
+    const val LONG_TITLE = 26
+}
+
+/**
+ * The ring seek bar: the song's loudness as [BARS] bars round the play button, starting at 12 o'clock and going clockwise.
+ * The same geometry as the web's (flacie.js drawRing and ringFrac).
+ */
+object RingSeek {
+    const val BARS = 80
+
+    /**
+     * Where a touch at ([x], [y]) inside a [w] by [h] box falls on the ring, as a fraction of the song (0 at 12 o'clock, 0.25 at 3 o'clock),
+     * or null when it is on the play button in the middle (inside 55% of the radius) or outside the ring, so a tap on play never seeks.
+     */
+    fun fraction(x: Float, y: Float, w: Float, h: Float): Float? {
+        val dx = x - w / 2f; val dy = y - h / 2f
+        val d = sqrt(dx * dx + dy * dy) / (min(w, h) / 2f)
+        if (d < .55f || d > 1.05f) return null
+        return angleFraction(dx, dy)
+    }
+
+    /** The fraction for a point relative to the centre, whatever its distance: used while a drag that started on the ring goes on. */
+    fun angleFraction(dx: Float, dy: Float): Float {
+        val a = (Math.atan2(dx.toDouble(), (-dy).toDouble()) / (2 * Math.PI)).toFloat()
+        return ((a + 1f) % 1f).coerceIn(0f, 1f)
+    }
+
+    /** Whether bar [i] of [n] is in the played part (its middle is at or before [played]). */
+    fun isPlayed(i: Int, n: Int, played: Float): Boolean = (i + .5f) / n <= played
 }
 
 /**

@@ -136,4 +136,52 @@ class LivingSleeveTest {
         assertFalse(SleeveMotion.drifts(true, false, 1f))
         assertFalse("system animations off", SleeveMotion.drifts(true, true, 0f))
     }
+
+    // ---- design I: ground and tone, the title, the pill, the ring ------------------------------------------------
+
+    @Test fun theGroundIsDarkAndTheToneSitsBetweenItAndTheText() {
+        val c = SleeveColours.extract(IntArray(24 * 24) { if (it % 2 == 0) argb(200, 20, 20) else argb(20, 40, 200) })
+        assertEquals(0.16, light(c.ground), 0.03)
+        assertEquals(0.26, light(c.tone), 0.03)
+        assertTrue("text on the tone is light", light(c.toneFg) > .85)
+    }
+
+    @Test fun theDefaultGroundMatchesTheWeb() {
+        assertEquals(argb(22, 58, 63), SleeveColours.DEFAULT.ground)
+        assertEquals(argb(36, 82, 90), SleeveColours.DEFAULT.tone)
+    }
+
+    @Test fun theLastWordOfTheTitleIsSplitOffForTheItalics() {
+        assertEquals("Hey " to "Jude", SleeveText.split("Hey Jude"))
+        assertEquals("Here Comes the " to "Sun", SleeveText.split("Here Comes the Sun  "))
+        assertEquals("" to "Yesterday", SleeveText.split("Yesterday"))
+        assertEquals("" to "", SleeveText.split(""))
+    }
+
+    @Test fun thePillNamesTheAlbumAndTrackElseWhereItPlaysFrom() {
+        assertEquals("ABBEY ROAD · TRACK 7", SleeveText.where("Abbey Road", 7, "Jellyfin"))
+        assertEquals("JELLYFIN", SleeveText.where("Abbey Road", 0, "Jellyfin"))
+        assertEquals("JELLYFIN", SleeveText.where(" ", 3, "Jellyfin"))
+    }
+
+    @Test fun theRingStartsAtTwelveAndGoesClockwise() {
+        val w = 200f
+        assertEquals(0f, RingSeek.fraction(100f, 5f, w, w)!!, 0.001f)        // 12 o'clock
+        assertEquals(.25f, RingSeek.fraction(195f, 100f, w, w)!!, 0.001f)    // 3 o'clock
+        assertEquals(.5f, RingSeek.fraction(100f, 195f, w, w)!!, 0.001f)     // 6 o'clock
+        assertEquals(.75f, RingSeek.fraction(5f, 100f, w, w)!!, 0.001f)      // 9 o'clock
+    }
+
+    @Test fun aTouchOnThePlayButtonOrOutsideTheRingIsNoSeek() {
+        assertNull(RingSeek.fraction(100f, 100f, 200f, 200f))
+        assertNull(RingSeek.fraction(100f, 60f, 200f, 200f))   // 40% of the radius: the play button
+        assertNull(RingSeek.fraction(100f, -20f, 200f, 200f))  // well outside
+    }
+
+    @Test fun barsArePlayedUpToTheirMiddle() {
+        assertTrue(RingSeek.isPlayed(0, 80, .5f / 80))
+        assertFalse(RingSeek.isPlayed(1, 80, .5f / 80))
+        assertFalse(RingSeek.isPlayed(0, 80, 0f))
+        assertTrue(RingSeek.isPlayed(79, 80, 1f))
+    }
 }

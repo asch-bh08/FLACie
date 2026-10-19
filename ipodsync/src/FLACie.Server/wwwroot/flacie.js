@@ -604,6 +604,45 @@ window.flacie = (() => {
       });
       el.addEventListener("pointercancel", () => { x0 = null; });
     },
+    // Living Sleeve: the full-screen player's two colours, read from the cover once per cover (a 24 px copy, so it costs nothing). The main colour is the
+    // most vivid one in the picture, lifted until dark text on it is easy to read (the play button); the second is the next most common hue, for the other field.
+    npAccent(el, url) {
+        const set = (a, b, from) => { if (!el) return; if (flacie.metered()) el.dataset.calm = ''; el.style.setProperty('--np-accent', a); el.style.setProperty('--np-accent-2', b); el.dataset.accent = from; };
+        const fallback = () => set('rgb(232, 119, 79)', 'rgb(47, 93, 98)', 'default');
+        if (!url) { fallback(); return; }
+        const img = new Image();
+        img.onerror = fallback;
+        img.onload = () => {
+            try {
+                const c = document.createElement('canvas'); c.width = c.height = 24;
+                const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0, 24, 24);
+                const d = g.getImageData(0, 0, 24, 24).data, bins = new Map();
+                for (let i = 0; i < d.length; i += 4) {
+                    const [h, s, l] = flacie.hsl(d[i], d[i + 1], d[i + 2]);
+                    if (l < .12 || l > .92) continue;
+                    const k = Math.round(h / 30) % 12, w = .2 + s * s * 2, b = bins.get(k) ?? { w: 0, h: 0, s: 0, n: 0 };
+                    b.w += w; b.h += h; b.s += s; b.n++; bins.set(k, b);
+                }
+                const top = [...bins.values()].sort((x, y) => y.w - x.w);
+                if (!top.length) { fallback(); return; }
+                const col = (b, l) => { const [r, gg, bb] = flacie.rgbOf(b.h / b.n / 360, Math.min(.85, Math.max(.35, b.s / b.n)), l); return `rgb(${r}, ${gg}, ${bb})`; };
+                set(col(top[0], .66), col(top[1] ?? top[0], .32), 'cover');
+            } catch { fallback(); }
+        };
+        img.src = url;
+    },
+    hsl(r, g, b) {
+        r /= 255; g /= 255; b /= 255;
+        const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, dd = mx - mn;
+        if (!dd) return [0, 0, l];
+        const s = dd / (1 - Math.abs(2 * l - 1));
+        const h = mx === r ? ((g - b) / dd + 6) % 6 : mx === g ? (b - r) / dd + 2 : (r - g) / dd + 4;
+        return [h * 60, s, l];
+    },
+    rgbOf(h, s, l) {
+        const f = (n) => { const k = (n + h * 12) % 12, a = s * Math.min(l, 1 - l); return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)))); };
+        return [f(0), f(8), f(4)];
+    },
     npOpen(ref) {
       npRef = ref; document.body.classList.add("np-open");
       if (!npPushed) { history.pushState({ np: 1 }, "", location.pathname + location.search + "#now-playing"); npPushed = true; }

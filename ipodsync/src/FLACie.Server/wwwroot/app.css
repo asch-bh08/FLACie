@@ -181,8 +181,24 @@ input[type=range]:hover::-webkit-slider-runnable-track { background: linear-grad
 
 /* ---- full-screen player ---- */
 .np { position: fixed; inset: var(--top) 0 calc(var(--bar) + var(--tabs)) 0; z-index: 35; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; overflow: clip; }
-.np-backdrop { position: absolute; inset: -10%; width: 120%; height: 120%; object-fit: cover; filter: blur(70px) saturate(1.4); opacity: .5; }
-.np-shade { position: absolute; inset: 0; background: linear-gradient(to bottom, #0b0b0e66, #0b0b0ecc 70%, #0b0b0e); }
+/* Living Sleeve: the background is two big soft fields in the cover's colours (--np-accent, --np-accent-2, set by flacie.npAccent). They are plain radial
+   gradients (no blur filter) and only move by transform, so the GPU just slides them; they stop when the song is paused, with reduced motion and on data saver. */
+.np { --np-accent: rgb(232, 119, 79); --np-accent-2: rgb(47, 93, 98); }
+.np-fields { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.np-field { position: absolute; width: 90vmax; height: 90vmax; border-radius: 50%; will-change: transform; transition: background 1.2s; }
+.np-field.a { left: -30vmax; top: -35vmax; background: radial-gradient(circle, var(--np-accent) 0%, transparent 62%); opacity: .5; animation: np-drift-a 20s ease-in-out infinite; }
+.np-field.b { right: -30vmax; bottom: -40vmax; background: radial-gradient(circle, var(--np-accent-2) 0%, transparent 62%); opacity: .7; animation: np-drift-b 26s ease-in-out infinite; }
+@keyframes np-drift-a { 50% { transform: translate(6vmax, 4vmax) scale(1.12); } }
+@keyframes np-drift-b { 50% { transform: translate(-7vmax, -3vmax) scale(.94); } }
+.np.still .np-field, .np.still .np-glow { animation-play-state: paused; }
+.np-cover-btn { isolation: isolate; }
+.np-glow { position: absolute; left: 50%; top: 50%; width: 100%; height: 100%; translate: -50% -50%; z-index: -1; border-radius: 50%; background: radial-gradient(closest-side, var(--np-accent) 0%, transparent 100%); opacity: .45; pointer-events: none; animation: np-breathe 4s ease-in-out infinite; }
+@keyframes np-breathe { 0%, 100% { transform: scale(1.3); } 50% { opacity: .65; transform: scale(1.4); } }
+.np-controls .play.big { background: var(--np-accent); color: #140d10; width: 76px; height: 76px; transition: background 1.2s; }
+.np-titles .pills .badge.plain, .np-titles .pills .badge.fmt { font-family: ui-monospace, "Cascadia Mono", "SF Mono", monospace; letter-spacing: 0; }
+.np[data-calm] .np-field, .np[data-calm] .np-glow { animation: none; }
+@media (prefers-reduced-motion: reduce) { .np-field, .np-glow { animation: none !important; } }
+.np-shade { position: absolute; inset: 0; background: linear-gradient(to bottom, #0b0b0e33, #0b0b0e99 70%, #0b0b0ee6); }
 .np-top { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; }
 .np-where { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--dim); font-weight: 700; }
 .np-spacer { width: 38px; }
@@ -283,8 +299,9 @@ img { -webkit-user-drag: none; user-select: none; }
 .np-cover-btn { position: relative; align-self: center; background: none; border: 0; padding: 0; width: min(100%, 56dvh); aspect-ratio: 1; border-radius: 18px; cursor: pointer; }
 .np-cover-btn .np-cover { width: 100%; height: 100%; max-width: none; }
 .np-cover-state { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; color: #fff; background: #0006; border-radius: 18px; opacity: 0; transition: opacity .15s; pointer-events: none; }
+/* Living Sleeve: on a wide screen the full-screen player covers the player bar and carries its own big controls (the bar's are the same buttons) */
 @media (min-width: 761px) {
-  .np-controls, .np-volume, .seek.big { display: none; }
+  .np { bottom: 0; z-index: 45; }
   .np-main { justify-content: center; }
 }
 
@@ -836,7 +853,7 @@ body.np-open .np { top: 0; padding-top: var(--top); }
 .pref-compact .track .cover, .pref-compact .track-main .cover { transform: scale(.82); transform-origin: left center; }
 .pref-nobadges .track .badge, .pref-nobadges .track .fmt { display: none; }
 .pref-calm *, .pref-calm *::before, .pref-calm *::after { animation: none !important; transition: none !important; }
-.pref-noartbg .np-backdrop { display: none; }
+.pref-noartbg .np-backdrop, .pref-noartbg .np-fields, .pref-noartbg .np-glow { display: none; }
 
 /* a song's actions in the search results, and the Hi-Res confirmation under its title */
 .track-actions { display: inline-flex; align-items: center; gap: 8px; flex: none; }
@@ -1426,3 +1443,8 @@ html.buffering .play .ic { opacity: .55; }
 .chip-pop .stars button.star { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; border-radius: 10px; color: var(--dim); }
 .chip-pop .stars button.star:hover { background: var(--surface-3); color: var(--ink); }
 .chip-pop .stars button.star.on { color: #ffc94d; }
+
+/* Living Sleeve, last so it wins: on a wide screen the glow is the cover's size (the cover there is a size container); on a phone the title gets the
+   whole width and the buttons sit on the row under it */
+@media (min-width: 1025px), (orientation: landscape) { .np-cover-btn .np-glow { width: min(100cqw, 100cqh, 560px); height: min(100cqw, 100cqh, 560px); } }
+@media (max-width: 760px) { .np .np-meta { flex-wrap: wrap; row-gap: 4px; } .np .np-titles { flex: 1 1 100%; } }

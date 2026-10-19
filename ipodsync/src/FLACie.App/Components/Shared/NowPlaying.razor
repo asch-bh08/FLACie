@@ -2,8 +2,9 @@
 @implements IDisposable
 @* Full-screen player: the cover, the controls, and beside it the queue, the synced lyrics or the file's real format. *@
 @{ var t = Player.Current; }
-<div @ref="npEl" class="np @(panelOpen ? "sheet" : "") @(closing ? "closing" : "")" role="dialog" aria-modal="true" aria-label="Now Playing">
-    @if (t is not null && Art.KeyFor(t) is { } art) { <img class="np-backdrop" src="/art/@Uri.EscapeDataString(CoverOverrides.Map(art)!)?v=3" alt="" /> }
+<div @ref="npEl" class="np @(panelOpen ? "sheet" : "") @(closing ? "closing" : "") @(Player.Playing ? "" : "still")" role="dialog" aria-modal="true" aria-label="Now Playing">
+    @* Living Sleeve: two soft fields in the cover's own colours drift behind everything while a song plays (still when paused or with reduced motion) *@
+    <div class="np-fields" aria-hidden="true"><i class="np-field a"></i><i class="np-field b"></i></div>
     <div class="np-shade"></div>
     <header class="np-top">
         <button class="icon-btn" @onclick="Back" aria-label="Close Now Playing"><Icon Name="chevron-down" Size="24" /></button>
@@ -15,6 +16,7 @@
         <div class="np-body">
             <section class="np-main">
                 <button class="np-cover-btn" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")">
+                    <span class="np-glow" aria-hidden="true"></span>
                     <Cover ArtKey="@(Art.KeyFor(t))" Class="np-cover" Full="true" />
                     <span class="np-cover-state" aria-hidden="true"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="56" /></span>
                 </button>
@@ -236,6 +238,7 @@
 
     // on a phone the panel is a sheet over the cover: a tab opens it, the same tab again closes it (on a wide screen it is always there)
     ElementReference npEl;
+    string? accentFor = "";
     void OpenQueue() { tab = "queue"; panelOpen = true; }
     void PeekKey(KeyboardEventArgs e) { if (e.Key is "Enter" or " ") OpenQueue(); }
     bool panelOpen;
@@ -246,6 +249,9 @@
         if (firstRender) { self = DotNetObjectReference.Create(this); try { await Js.InvokeVoidAsync("flacie.npOpen", self); await Js.InvokeVoidAsync("flacie.paneSwipe", npEl, self); } catch (Exception) { } }
         if (shownTab != tab) { shownTab = tab; try { await Js.InvokeVoidAsync("flacie.panelTop"); } catch (Exception) { } }
         if (Player.Current is not { } t) return;
+        // the player's colour comes from the cover: read once per cover in the browser (flacie.js npAccent)
+        var coverUrl = Art.KeyFor(t) is { } art ? "/art/" + Uri.EscapeDataString(CoverOverrides.Map(art)!) : null;
+        if (coverUrl != accentFor) { accentFor = coverUrl; try { await Js.InvokeVoidAsync("flacie.npAccent", npEl, coverUrl); } catch (Exception) { } }
         // a new song: refresh whatever is showing
         if (infoFor != t.Path) { await LoadInfo(); _ = LoadRealAlbum(t); }
         if (tab == "lyrics" && lyricsFor != t.Path) await LoadLyrics();

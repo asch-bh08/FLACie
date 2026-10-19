@@ -1,1 +1,28 @@
-/* design I: detail (see docs/waves/plan.md). Filled in by its phase. */
+/* design I: album, artist and genre pages (see docs/waves/plan.md).
+   A hero with a big rounded cover, a serif title with its last word in italics, a mono facts line, a big Play in the album's own colour.
+   flacie.npAccent sets --np-accent on the hero from the cover, so the glow and the Play button follow it. */
+
+.detail-head { --np-accent: var(--accent); position: relative; isolation: isolate; align-items: flex-end; gap: 22px 32px; margin: -28px calc(-1 * clamp(16px, 4vw, 44px)) 20px; padding: 36px clamp(16px, 4vw, 44px) 24px; overflow: hidden;
+  background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--np-accent) 34%, transparent), transparent 62%); }
+.detail-head .cover.detail-cover { width: clamp(180px, 22vw, 280px); height: clamp(180px, 22vw, 280px); flex: none; border-radius: 24px; box-shadow: 0 24px 60px #000b, 0 2px 0 #fff1 inset; }
+.detail-head .cover.detail-cover img { border-radius: 24px; }
+.detail-head .cover.detail-cover.round, .detail-head .cover.detail-cover.round img { border-radius: 50%; }
+.detail-text { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.detail-head .eyebrow { font-family: var(--mono); font-weight: 500; font-size: 11px; letter-spacing: .14em; color: color-mix(in srgb, var(--ink) 70%, transparent); margin: 0; }
+.detail-head h1 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: clamp(38px, 5.2vw, 68px); line-height: .96; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.detail-head h1 i { font-style: italic; }
+.detail-artist { margin: 0; font-family: var(--sans); font-weight: 700; font-size: 18px; }
+.detail-artist a { color: var(--ink); text-decoration: none; }
+.detail-artist a:hover { color: var(--np-accent); }
+.detail-facts { margin: 0; font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: color-mix(in srgb, var(--ink) 70%, transparent); }
+.detail-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
+.detail-play, .detail-shuffle { display: inline-flex; align-items: center; justify-content: center; gap: 10px; border: 0; cursor: pointer; font-family: var(--sans); font-weight: 700; font-size: 16px; line-height: 1; }
+.detail-play { height: 56px; padding: 0 30px; border-radius: 20px; background: var(--np-accent); color: #1a120c; transition: transform .12s; }
+.detail-play:hover { transform: scale(1.03); }
+.detail-shuffle { height: 56px; padding: 0 22px; border-radius: 999px; background: color-mix(in srgb, var(--np-accent) 22%, transparent); color: var(--ink); transition: background .3s; }
+.detail-shuffle:hover { background: color-mix(in srgb, var(--np-accent) 36%, transparent); }
+
+@media (max-width: 760px) {
+  .detail-head { flex-direction: column; align-items: flex-start; padding-top: 28px; }
+  .detail-head .cover.detail-cover { width: min(64vw, 260px); height: min(64vw, 260px); }
+}

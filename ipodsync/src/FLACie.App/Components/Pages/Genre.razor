@@ -8,19 +8,53 @@
 }
 else
 {
+    var art = songs.Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
     <PageTitle>@name · FLACie</PageTitle>
-    <header class="detail-head">
-        <Cover ArtKey="@(songs.Select(t => t.ArtKey).FirstOrDefault(k => k is not null))" Class="detail-cover" />
-        <div>
+<header class="detail-head" @ref="headEl">
+        <Cover ArtKey="@art" Class="detail-cover" />
+        <div class="detail-text">
             <p class="eyebrow">Genre</p>
-            <h1>@name</h1>
-            <p class="sub">@songs.Count @(songs.Count == 1 ? "song" : "songs")</p>
-            <div class="chips">
-                <button class="btn primary" @onclick="() => Player.Play(songs, 0, name)"><Icon Name="play" Size="18" />Play</button>
-                <button class="btn" @onclick="() => Player.ShuffleAll(songs, name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+            <h1>@Title(name)</h1>
+            <p class="detail-facts">@Facts(songs)</p>
+            <div class="detail-actions">
+                <button class="detail-play" @onclick="() => Player.Play(songs, 0, name)"><Icon Name="play" Size="22" />Play</button>
+                <button class="detail-shuffle" @onclick="() => Player.ShuffleAll(songs, name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
             </div>
         </div>
     </header>
     <TrackList Tracks="songs" PlayContext="@name" />
 }
-@code { [Parameter] public string Name { get; set; } = ""; }
+@code {
+    [Parameter] public string Name { get; set; } = "";
+
+    [Inject] IJSRuntime Js { get; set; } = default!;
+    ElementReference headEl; string? headFor = "";
+    // the hero takes the colours of the cover, once per cover, the way Home and the player do
+    async Task Tint(string? artKey)
+    {
+        var art = artKey is not null ? "/art/" + Uri.EscapeDataString(CoverOverrides.Map(artKey) ?? artKey) : null;
+        if (art == headFor) return;
+        headFor = art;
+        try { await Js.InvokeVoidAsync("flacie.npAccent", headEl, art); } catch (Exception) { }
+    }
+    // the last word of a title goes in italics, as on the player and Home
+    static MarkupString Title(string s)
+    {
+        var e = System.Net.WebUtility.HtmlEncode(s.Trim()); var i = e.LastIndexOf(' ');
+        return new MarkupString(i < 0 ? $"<i>{e}</i>" : $"{e[..(i + 1)]}<i>{e[(i + 1)..]}</i>");
+    }
+    static string Length(IEnumerable<Track> ts)
+    {
+        var min = (int)Math.Round(ts.Sum(t => t.DurationMs) / 60000.0);
+        return min <= 0 ? "" : min >= 60 ? $"{min / 60} h {min % 60:00} min" : $"{min} min";
+    }
+    static string Formats(IEnumerable<Track> ts) => string.Join(" / ", ts.Select(QuickFormats.Of).Where(f => f.Length > 0).Distinct().Take(3).Select(f => f == "HI-RES" ? "Hi-Res" : f));
+
+    static string Facts(IReadOnlyList<Track> ts) => string.Join(" · ", new[] { $"{ts.Count} {(ts.Count == 1 ? "song" : "songs")}", Length(ts) }.Where(x => x.Length > 0));
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var n = Uri.UnescapeDataString(Name);
+        var k = Lib.Songs.Where(t => t.Genre.Trim().Equals(n, StringComparison.OrdinalIgnoreCase)).Select(t => t.ArtKey).FirstOrDefault(x => x is not null);
+        await Tint(k);
+    }
+}

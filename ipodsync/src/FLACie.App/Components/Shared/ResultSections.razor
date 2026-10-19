@@ -59,7 +59,7 @@
 @if (heroArtist || heroAlbum || heroSong is not null)
 {
     <section aria-label="Top result" class="sr-section">
-        <h2 class="section">Top result</h2>
+        <h2 class="section">Top <i>result</i></h2>
         @if (heroArtist && topArtist is not null)
         {
             <div class="sr-hero artist" @onclick="() => PlayFull(topArtist.Tracks.Where(X.Allows).ToList(), topArtist.Name)">
@@ -108,7 +108,7 @@
 @if (songs.Count > 0)
 {
     <section aria-label="Songs" class="sr-section">
-        <h2 class="section">@(ranked ? "Songs" : "Recently added songs")</h2>
+        <h2 class="section">@((MarkupString)(ranked ? "<i>Songs</i>" : "Recently added <i>songs</i>"))</h2>
         <TrackList Tracks="songs.Take(shown).ToList()" PlayContext="@context" Single="true" ThumbSize="48" />
         @if (songs.Count > shown)
         {
@@ -121,7 +121,7 @@
 @if (albums.Count > 0)
 {
     <section aria-label="Albums" class="sr-section">
-        <h2 class="section">@(ranked ? "Albums" : "Recently added albums")</h2>
+        <h2 class="section">@((MarkupString)(ranked ? "<i>Albums</i>" : "Recently added <i>albums</i>"))</h2>
         <div class="row-scroll sr-albums">
             @foreach (var g in albums)
             {
@@ -134,7 +134,7 @@
 @if (artists.Count > 0)
 {
     <section aria-label="Artists" class="sr-section">
-        <h2 class="section">Artists</h2>
+        <h2 class="section"><i>Artists</i></h2>
         <div class="row-scroll">
             @foreach (var a in artists)
             {
@@ -146,7 +146,7 @@
 @if (plays.Count > 0)
 {
     <section aria-label="Playlists" class="sr-section">
-        <h2 class="section">Playlists</h2>
+        <h2 class="section"><i>Playlists</i></h2>
         <div class="row-scroll">
             @foreach (var p in plays)
             {
@@ -159,7 +159,7 @@
 @if (genres.Count > 0)
 {
     <section aria-label="Genres" class="sr-section">
-        <h2 class="section">Genres</h2>
+        <h2 class="section"><i>Genres</i></h2>
         <div class="sr-genres">
             @foreach (var gn in genres) { <a class="chip" href="/genre/@Uri.EscapeDataString(gn)">@gn</a> }
         </div>

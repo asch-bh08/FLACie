@@ -5,7 +5,7 @@
 @inject Toasts Toast
 <PageTitle>Explore · FLACie</PageTitle>
 <header class="page-head">
-    <h1>Explore</h1>
+    <h1><i>Explore</i></h1>
     <p class="sub">@(X.Filtering ? list.Count + " of " + Lib.Songs.Count : Lib.Songs.Count.ToString()) songs</p>
     <div class="chips"><button class="btn primary" @onclick="() => Player.ShuffleAll(list)" disabled="@(list.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle @(X.Filtering ? "these" : "all")</button></div>
 </header>

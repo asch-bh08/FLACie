@@ -34,7 +34,6 @@ test('the player takes its colour from the cover and the play button wears it', 
   expect(accent).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
   // the button fades to the new colour (1.2 s), so it is read once the fade is over
   await expect.poll(() => page.locator('.ls-play').evaluate((el) => getComputedStyle(el).backgroundColor), { timeout: 5_000 }).toBe(accent);
-  await expect(page.locator('.np-glow')).toHaveCount(1);
   await expect(page.locator('.np-field')).toHaveCount(2);
 });
 
@@ -58,17 +57,17 @@ test('reduced motion keeps the background still', async ({ page }) => {
   expect(anim).toBe('none');
 });
 
-test('the seek bar is a row of bars drawn across the song, and dragging or the keyboard still seeks', async ({ page }) => {
+test('the seek bar is a ring of bars round the play button, and dragging or the keyboard still seeks', async ({ page }) => {
   test.setTimeout(120_000);
   await signIn(page);
   await openPlayer(page);
   const wave = page.locator('.ls .np-wave');
   await expect(wave).toHaveCount(1);
-  await expect.poll(() => wave.evaluate((c: HTMLCanvasElement) => c.width), { timeout: 5_000 }).toBeGreaterThan(100);
+  await expect.poll(() => wave.evaluate((c: HTMLCanvasElement) => c.width), { timeout: 5_000 }).toBeGreaterThan(80);
   // something is drawn: some pixels are not empty
   const drawn = await wave.evaluate((c: HTMLCanvasElement) => { const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
   expect(drawn).toBeGreaterThan(100);
-  const seek = page.locator('.ls-wave-box input[type=range]');
+  const seek = page.locator('.ls-ring input[type=range]');
   await expect(seek).toHaveAttribute('aria-label', 'Seek');
   // one chip for the file (the codec or Hi-Res with its sampling), no source or bitrate badge
   await expect(page.locator('.ls-chip:visible')).toHaveCount(1);
@@ -79,13 +78,13 @@ test('on a phone the player covers the whole screen and its controls stay clear 
   await page.setViewportSize({ width: 390, height: 844 });
   await signIn(page);
   await openPlayer(page);
-  const dock = await page.locator('.ls-dock').boundingBox();
+  const dock = await page.locator('.ls-actions').boundingBox();
   expect(dock!.y + dock!.height).toBeLessThanOrEqual(844 - 20);
   // nothing of the page under it shows at the bottom: the app's own tabs and player bar are covered
   const inside = await page.evaluate(() => !!document.elementFromPoint(195, 838)?.closest('.ls'));
   expect(inside).toBe(true);
   // the lyrics and the queue open as a sheet over the cover, and close again
-  await page.locator('.ls-dock .ls-pill', { hasText: 'Up next' }).click();
+  await page.locator('.ls-actions .ls-outline', { hasText: 'Up next' }).click();
   await expect(page.locator('.ls')).toHaveClass(/panel-open/);
   await page.getByRole('button', { name: 'Back to the cover' }).click();
   await expect(page.locator('.ls')).not.toHaveClass(/panel-open/);

@@ -607,35 +607,49 @@ window.flacie = (() => {
     },
     // Living Sleeve: the full-screen player's two colours, read from the cover once per cover (a 24 px copy, so it costs nothing). The main colour is the
     // most vivid one in the picture, lifted until dark text on it is easy to read (the play button); the second is the next most common hue, for the other field.
-    // Living Sleeve's seek bar: the song's own loudness as a row of rounded bars (from /api/wave, worked out once by the server), the part already played
-    // in the cover's colour. The shape stays still; only the played part moves. Where the server has no shape (a NAS song), the bars are level.
-    // Redrawn four times a second while the player is open and the tab is shown, and at once when the size changes.
-    npWave(cv, url) {
+    // Design I's seek bar: the song's own loudness as bars standing round the play button (from /api/wave, worked out once), hanging in from the ring's
+    // outer edge, the played part in the cover's colour, starting at 12 o'clock and going clockwise. The shape stays still; only the played part moves.
+    // A press or drag on the ring (not on the play button) seeks: the range input inside gets the value (input while dragging, change on release).
+    // Redrawn four times a second while the player is open and the tab is shown, and at once when the size changes or while dragging.
+    npWave(cv, url, box) {
         flacie.npWaveStop();
         if (!cv) return;
-        const g = cv.getContext('2d'), np = cv.closest('.ls, .np');
-        let shape = null, last = 0, lastPlayed = -1, lastW = 0;
+        const g = cv.getContext('2d'), np = cv.closest('.ls, .np'), input = box?.querySelector('input[type=range]');
+        let shape = null, last = 0, lastPlayed = -1, lastW = 0, drag = null;
         const got = (a) => { if (cv.isConnected && Array.isArray(a) && a.length) { shape = a; lastPlayed = -1; } };
         if (url) fetch(url, { credentials: 'same-origin' }).then(r => r.ok ? r.json() : r.status === 404 ? flacie.npWaveMake(url) : null).then(got).catch(() => { });
+        if (box && input && !box.dataset.ring) {
+            box.dataset.ring = '1';
+            const at = (e) => { const r = box.getBoundingClientRect(), x = e.clientX - r.left - r.width / 2, y = e.clientY - r.top - r.height / 2; return { d: Math.hypot(x, y) / (r.width / 2), f: ((Math.atan2(x, -y) / (2 * Math.PI)) + 1) % 1 }; };
+            const put = (f, type) => { drag = f; input.value = String(Math.round(f * Number(input.max || 1))); input.dispatchEvent(new Event(type, { bubbles: true })); lastPlayed = -1; };
+            box.addEventListener('pointerdown', e => { if (e.target.closest('button') || e.button > 0) return; const p = at(e); if (p.d < .55 || p.d > 1.05) return; box.setPointerCapture(e.pointerId); put(p.f, 'input'); e.preventDefault(); });
+            box.addEventListener('pointermove', e => { if (drag !== null && box.hasPointerCapture(e.pointerId)) put(at(e).f, 'input'); });
+            const end = (e) => { if (drag === null) return; put(at(e).f, 'change'); drag = null; };
+            box.addEventListener('pointerup', end);
+            box.addEventListener('pointercancel', () => { drag = null; });
+        }
         const draw = (now) => {
             npWaveRaf = requestAnimationFrame(draw);
-            if (document.hidden || now - last < 250 && cv.clientWidth === lastW) return; last = now;
+            if (document.hidden || drag === null && now - last < 250 && cv.clientWidth === lastW) return; last = now;
             const dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
             if (!w || !h) return;
-            const c = flacie.clock(), played = c[1] > 0 ? c[0] / c[1] : 0;
+            const c = flacie.clock(), played = drag ?? (c[1] > 0 ? c[0] / c[1] : 0);
             if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; lastPlayed = -1; }
             lastW = cv.clientWidth;
             if (Math.abs(played - lastPlayed) < .0005 && lastPlayed >= 0) return; lastPlayed = played;
-            const bw = 3 * dpr, gap = 2 * dpr, n = Math.max(8, Math.floor((w + gap) / (bw + gap)));
+            const R = Math.min(w, h) / 2, n = 80, bw = Math.max(2 * dpr, R * .048), maxL = R * .27, minL = R * .05;
             const on = getComputedStyle(np).getPropertyValue('--np-accent').trim() || '#e8774f';
             g.clearRect(0, 0, w, h);
+            g.save(); g.translate(w / 2, h / 2);
             for (let i = 0; i < n; i++) {
                 let v = .4;
-                if (shape) { const a = Math.floor(i / n * shape.length), b = Math.max(a + 1, Math.floor((i + 1) / n * shape.length)); let m = 0; for (let k = a; k < b; k++) m = Math.max(m, shape[k]); v = .1 + .9 * m / 255; }
-                const bh = Math.max(3 * dpr, v * h), x = i * (bw + gap);
-                g.fillStyle = (i + .5) / n <= played ? on : 'rgba(251,238,228,.28)';
-                g.beginPath(); g.roundRect(x, (h - bh) / 2, bw, bh, bw / 2); g.fill();
+                if (shape) { const a = Math.floor(i / n * shape.length), b = Math.max(a + 1, Math.floor((i + 1) / n * shape.length)); let m = 0; for (let k = a; k < b; k++) m = Math.max(m, shape[k]); v = .15 + .85 * m / 255; }
+                const L = Math.max(minL, v * maxL);
+                g.fillStyle = (i + .5) / n <= played ? on : 'rgba(244,239,230,.25)';
+                g.beginPath(); g.roundRect(-bw / 2, -R, bw, L, bw / 2); g.fill();
+                g.rotate(2 * Math.PI / n);
             }
+            g.restore();
         };
         npWaveRaf = requestAnimationFrame(draw);
     },
@@ -665,8 +679,9 @@ window.flacie = (() => {
     },
     npWaveStop() { if (npWaveRaf) cancelAnimationFrame(npWaveRaf); npWaveRaf = 0; },
     npAccent(el, url) {
-        const set = (a, b, from) => { if (!el) return; if (flacie.metered()) el.dataset.calm = ''; el.style.setProperty('--np-accent', a); el.style.setProperty('--np-accent-2', b); el.dataset.accent = from; };
-        const fallback = () => set('rgb(232, 119, 79)', 'rgb(47, 93, 98)', 'default');
+        // design I adds the ground (the dark colour the cover fades into), the tone (tinted buttons and chips) and the text on the tone, all from the second colour
+        const set = (a, b, from, ground, tone, tonefg) => { if (!el) return; if (flacie.metered()) el.dataset.calm = ''; const st = el.style; st.setProperty('--np-accent', a); st.setProperty('--np-accent-2', b); st.setProperty('--ground', ground); st.setProperty('--tone', tone); st.setProperty('--tonefg', tonefg); el.dataset.accent = from; };
+        const fallback = () => set('rgb(232, 119, 79)', 'rgb(47, 93, 98)', 'default', 'rgb(22, 58, 63)', 'rgb(36, 82, 90)', 'rgb(231, 243, 240)');
         if (!url) { fallback(); return; }
         const img = new Image();
         img.onerror = fallback;
@@ -683,8 +698,9 @@ window.flacie = (() => {
                 }
                 const top = [...bins.values()].sort((x, y) => y.w - x.w);
                 if (!top.length) { fallback(); return; }
-                const col = (b, l) => { const [r, gg, bb] = flacie.rgbOf(b.h / b.n / 360, Math.min(.85, Math.max(.35, b.s / b.n)), l); return `rgb(${r}, ${gg}, ${bb})`; };
-                set(col(top[0], .66), col(top[1] ?? top[0], .32), 'cover');
+                const col = (b, l, smax = .85) => { const [r, gg, bb] = flacie.rgbOf(b.h / b.n / 360, Math.min(smax, Math.max(.35, b.s / b.n)), l); return `rgb(${r}, ${gg}, ${bb})`; };
+                const two = top[1] ?? top[0];
+                set(col(top[0], .66), col(two, .32), 'cover', col(two, .16, .5), col(two, .26, .45), col(two, .92, .4));
             } catch { fallback(); }
         };
         img.src = url;

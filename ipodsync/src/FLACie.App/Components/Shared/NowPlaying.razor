@@ -8,19 +8,30 @@
     clear of the system's home gesture at the bottom.
 *@
 @{ var t = Player.Current; }
-<div @ref="npEl" class="np ls @(panelOpen ? "panel-open" : "") @(closing ? "closing" : "") @(Player.Playing ? "" : "still")" role="dialog" aria-modal="true" aria-label="Now Playing">
+<div @ref="npEl" class="np ls @(panelOpen ? "panel-open" : "") @(opts ? "opts-open" : "") @(closing ? "closing" : "") @(Player.Playing ? "" : "still")" role="dialog" aria-modal="true" aria-label="Now Playing">
     <div class="ls-fields" aria-hidden="true"><i class="np-field a"></i><i class="np-field b"></i></div>
+    @if (t is not null)
+    {
+        @* phone: the cover full-bleed across the top, fading into the ground colour (on a PC the same picture is a card, .ls-cover) *@
+        <div class="ls-hero" aria-hidden="true"><Cover @key="@(Art.KeyFor(t) is { } hk ? CoverOverrides.Map(hk) : null)" ArtKey="@(Art.KeyFor(t))" Class="ls-hero-img" Full="true" /><i class="ls-fade"></i><i class="ls-scrim"></i></div>
+    }
     <header class="ls-top">
-        <button class="ls-icon" @onclick="Back" aria-label="Close Now Playing"><Icon Name="chevron-down" Size="26" /></button>
-        <span class="ls-where">@(t is null ? "" : SourceLabel.PlayingFromLine(t.Source))</span>
-        <div class="ls-tools">@if (t is not null) { <RatingMenu /><SpeedSleep /> }<a class="ls-icon np-retro" href="/retro" aria-label="Retro" title="Retro" data-testid="np-retro"><Icon Name="retro" Size="22" /></a></div>
+        <button class="ls-icon ls-glass" @onclick="Back" aria-label="Close Now Playing"><Icon Name="chevron-down" Size="24" /></button>
+        <span class="ls-where">@(t is null ? "" : WhereLine(t))</span>
+        <div class="ls-tools">
+            @if (t is not null)
+            {
+                <button class="ls-icon ls-glass ls-opt" @onclick="() => opts = !opts" aria-label="Options" aria-expanded="@(opts ? "true" : "false")"><Icon Name="sliders" Size="22" /></button>
+                <div class="ls-toolset"><RatingMenu /><SpeedSleep /></div>
+            }
+            <a class="ls-icon ls-tint np-retro" href="/retro" aria-label="Retro" title="Retro" data-testid="np-retro"><Icon Name="retro" Size="22" /></a>
+        </div>
     </header>
     @if (t is not null)
     {
         <div class="ls-body">
             <section class="ls-stage">
                 <div class="ls-art">
-                    <span class="np-glow" aria-hidden="true"></span>
                     <button class="ls-cover" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")">
                         @* keyed on the picture really shown, so a cover chosen on MusicBrainz replaces this one at once *@
                         <Cover @key="@(Art.KeyFor(t) is { } ck ? CoverOverrides.Map(ck) : null)" ArtKey="@(Art.KeyFor(t))" Class="np-cover" Full="true" />
@@ -28,67 +39,52 @@
                 </div>
                 <div class="ls-title">
                     <div class="ls-names">
-                        <h2 class="@(t.Title.Length > 26 ? "long" : "")">@t.Title</h2>
-                        <p class="ls-artist"><a href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="() => GoArtist(t)" @onclick:preventDefault="true">@t.Artist</a>@if (AlbumOf(t).Length > 0) { <span> · </span><a href="/album/@Uri.EscapeDataString(t.AlbumKey)" @onclick="() => GoAlbum(t)" @onclick:preventDefault="true">@AlbumOf(t)</a> }</p>
+                        <h2 class="@(t.Title.Length > 26 ? "long" : "")">@Lead(t.Title)<i>@Last(t.Title)</i></h2>
+                        <div class="ls-byline">
+                            <p class="ls-artist"><a href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="() => GoArtist(t)" @onclick:preventDefault="true">@t.Artist</a>@if (AlbumOf(t).Length > 0) { <span class="ls-album"> · <a href="/album/@Uri.EscapeDataString(t.AlbumKey)" @onclick="() => GoAlbum(t)" @onclick:preventDefault="true">@AlbumOf(t)</a></span> }</p>
+                            @* one chip for the file: what it is (or Hi-Res) and its sampling; nothing until this song's own facts are in *@
+                            <span class="ls-chips">
+                                @if (t.Source == TrackSource.Cloud) { <span class="badge cloud ls-chip">Streaming</span> }
+                                @if (shownInfo is { Format.Length: > 0 } fi)
+                                {
+                                    <span class="badge fmt ls-chip @(fi.HiRes ? "hires" : "")"><span class="ls-chip-main">@(fi.HiRes ? "Hi-Res" : fi.Format)</span>@if (shownInfo is { Sampling.Length: > 0 } si) { <span class="ls-chip-dim">@si.Sampling</span> }</span>
+                                }
+                            </span>
+                        </div>
                         <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" Class="np-dl" />
                     </div>
-                    <button class="ls-icon ls-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="24" /></button>
+                    @MoreMenu("w", t)
+                    <button class="ls-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="24" /></button>
                 </div>
-                @* one chip for the file: what it is (or Hi-Res) and its sampling; nothing until this song's own facts are in *@
-                <div class="ls-chips">
-                    @if (t.Source == TrackSource.Cloud) { <span class="badge cloud ls-chip">Streaming</span> }
-                    @if (shownInfo is { Format.Length: > 0 } fi)
-                    {
-                        <span class="badge fmt ls-chip @(fi.HiRes ? "hires" : "")"><span class="ls-chip-main">@(fi.HiRes ? "Hi-Res" : fi.Format)</span>@if (shownInfo is { Sampling.Length: > 0 } si) { <span class="ls-chip-dim">@si.Sampling</span> }</span>
-                    }
-                </div>
-                <div class="ls-seek">
-                    <div class="ls-wave-box"><canvas class="np-wave" @ref="waveEl" aria-hidden="true"></canvas>
-                    <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" aria-valuetext="@Spoken(Player.Position, Player.Duration)" style="--fill:@(Player.Duration > 0 ? Math.Clamp(hold.Value(Player.Position) / Player.Duration * 100, 0, 100).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "0")%" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" /></div>
-                    <div class="ls-times"><span>@Time(Player.Position)</span><span>@Time(Player.Duration)</span></div>
-                </div>
-                <div class="ls-transport">
-                    <button class="ls-icon lg" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="30" /></button>
-                    <button class="ls-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="34" /></button>
-                    <button class="ls-icon lg" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="30" /></button>
-                </div>
-                <div class="ls-dock">
-                    <button class="ls-icon @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")"><Icon Name="shuffle" Size="22" /></button>
-                    <button class="ls-pill ls-phone @(panelOpen && tab == "lyrics" ? "on" : "")" @onclick='() => Open("lyrics")'><Icon Name="lyrics" Size="18" />Lyrics</button>
-                    <button class="ls-pill ls-phone @(panelOpen && tab == "queue" ? "on" : "")" @onclick='() => Open("queue")'><Icon Name="queue" Size="18" />Up next</button>
-                    <div class="np-more">
-                        <button class="icon-btn lg" @onclick="ToggleMore" aria-label="More options" aria-haspopup="menu" aria-expanded="@(more ? "true" : "false")"><Icon Name="more" Size="24" /></button>
-                        @if (more)
-                        {
-                            <div class="menu np-menu" role="menu">
-                                <button role="menuitem" @onclick='() => Plain(() => Player.PlayNext(t), $"“{t.Title}” plays next")'>Play next</button>
-                                <button role="menuitem" @onclick='() => Plain(() => Player.AddToQueue(t), $"Added “{t.Title}” to the queue")'>Add to queue</button>
-                                <button role="menuitem" aria-expanded="@(plOpen ? "true" : "false")" @onclick="() => plOpen = !plOpen">Add to playlist <span aria-hidden="true">@(plOpen ? "▾" : "▸")</span></button>
-                                @if (plOpen)
-                                {
-                                    @if (!Session.Playlists.Any()) { <small class="menu-note">No playlists yet. Make one on the Playlists page.</small> }
-                                    @foreach (var p in Session.Playlists)
-                                    {
-                                        <button role="menuitem" class="sub" @onclick="() => { Toast.Added(Session, p, t, SaveProfile); CloseMore(); }">@p.Name</button>
-                                    }
-                                }
-                                <a role="menuitem" href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="() => GoArtist(t)" @onclick:preventDefault="true">Go to artist</a>
-                                @if (t.Album.Length > 0) { <a role="menuitem" href="/album/@Uri.EscapeDataString(t.AlbumKey)" @onclick="() => GoAlbum(t)" @onclick:preventDefault="true">Go to album</a> }
-                                <a role="menuitem" href="/stream?p=@Uri.EscapeDataString(t.Path)" download="@FileName(t)" @onclick="CloseMore">Download</a>
-                                <button role="menuitem" @onclick='() => { Open("info"); CloseMore(); }'>Song info</button>
-                            </div>
-                        }
+                <div class="ls-bar">
+                    <div class="ls-times"><span>@Time(Player.Position)</span> <span class="ls-dur">/ @Time(Player.Duration)</span></div>
+                    <div class="ls-transport">
+                        <button class="ls-plain @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")"><Icon Name="shuffle" Size="22" /></button>
+                        <button class="ls-pillbtn" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="24" /></button>
+                        @* the seek bar is a ring: the song's own loudness as bars round the play button (flacie.npWave draws it and turns a press or drag on it into a
+                           seek); the range input inside is for the keyboard and screen readers *@
+                        <div class="ls-ring" @ref="ringEl" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release">
+                            <canvas class="np-wave" @ref="waveEl" aria-hidden="true"></canvas>
+                            <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" aria-valuetext="@Spoken(Player.Position, Player.Duration)" @oninput="hold.Input" @onchange="OnSeek" />
+                            <button class="ls-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="34" /></button>
+                        </div>
+                        <button class="ls-pillbtn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="24" /></button>
+                        <button class="ls-plain @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="22" /></button>
                     </div>
-                    <button class="ls-icon @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="22" /></button>
+                    <div class="ls-volume"><VolumeControl /></div>
                 </div>
-                <div class="ls-volume"><VolumeControl /></div>
+                <div class="ls-actions ls-phone">
+                    <button class="ls-outline @(panelOpen && tab == "lyrics" ? "on" : "")" @onclick='() => Open("lyrics")'>Lyrics</button>
+                    <button class="ls-outline @(panelOpen && tab == "queue" ? "on" : "")" @onclick='() => Open("queue")'>Up next</button>
+                    @MoreMenu("p", t)
+                </div>
             </section>
             <section class="ls-side" aria-label="@TabTitle">
                 <div class="ls-side-head">
                     <div class="ls-seg" role="tablist">
-                        <button role="tab" aria-selected="@(tab == "lyrics")" class="@(tab == "lyrics" ? "on" : "")" @onclick='() => Show("lyrics")'>Lyrics</button>
-                        <button role="tab" aria-selected="@(tab == "queue")" class="@(tab == "queue" ? "on" : "")" @onclick='() => Show("queue")'>Up next</button>
-                        <button role="tab" aria-selected="@(tab == "info")" class="@(tab == "info" ? "on" : "")" @onclick='() => Show("info")'>Info</button>
+                        <button role="tab" aria-selected="@(tab == "queue" ? "true" : "false")" class="@(tab == "queue" ? "on" : "")" @onclick='() => Show("queue")'>Up next</button>
+                        <button role="tab" aria-selected="@(tab == "lyrics" ? "true" : "false")" class="@(tab == "lyrics" ? "on" : "")" @onclick='() => Show("lyrics")'>Lyrics</button>
+                        <button role="tab" aria-selected="@(tab == "info" ? "true" : "false")" class="@(tab == "info" ? "on" : "")" @onclick='() => Show("info")'>Info</button>
                     </div>
                     <button class="ls-icon ls-phone" @onclick="() => panelOpen = false" aria-label="Back to the cover"><Icon Name="chevron-down" Size="24" /></button>
                 </div>
@@ -183,7 +179,7 @@
     string? realAlbum, realAlbumFor;
     string AlbumOf(Track t) => realAlbumFor == t.Path && realAlbum is { Length: > 0 } a ? a : t.Album;
     DotNetObjectReference<NowPlaying>? self;
-    string tab = "lyrics"; string? shownTab = "lyrics";
+    string tab = "queue"; string? shownTab = "queue";
     // closing plays the slide-down (the cover pops down) before the player is taken out of the page
     bool closing;
     /// <summary>A sideways swipe on the phone player moves between its panes, left to right: Lyrics, the cover, Info, Up next (a swipe no longer skips the song).</summary>
@@ -203,12 +199,12 @@
     [Inject] Toasts Toast { get; set; } = default!;
 
     // the "..." menu: closes on a click anywhere outside it or Escape (flacie.watchOutside calls Dismiss)
-    bool more, plOpen;
+    bool more, plOpen, opts; string moreAt = "w";
     [JSInvokable] public void Dismiss() => InvokeAsync(() => { CloseMore(); StateHasChanged(); });
-    async Task ToggleMore()
+    async Task ToggleMore(string at)
     {
-        more = !more; plOpen = false;
-        if (more && self is not null) { try { await Js.InvokeVoidAsync("flacie.watchOutside", ".np-more", self); } catch (Exception) { } }
+        more = !(more && moreAt == at); moreAt = at; plOpen = false;
+        if (more && self is not null) { try { await Js.InvokeVoidAsync("flacie.watchOutside", ".np-more." + at, self); } catch (Exception) { } }
         else { try { await Js.InvokeVoidAsync("flacie.unwatchOutside"); } catch (Exception) { } }
     }
     // a link out of the player keeps its #now-playing history entry, so Back returns to the full-screen player you came from
@@ -242,13 +238,42 @@
         <div class="q-row"><Cover ArtKey="@(f.ArtUrl is null ? null : Art.ExternalKey(f.ArtUrl))" Size="44" /><span><b>@f.Title</b><small>@f.Artist@(f.Album.Length > 0 ? " · " + f.Album : "")</small><DownloadTag Session="Session" Artist="@f.Artist" Title="@f.Title" /></span><span class="q-time">@Time(f.DurationMs / 1000.0)</span></div>
     </li>;
     public override void Dispose() { infoCts?.Cancel(); if (onDls is not null) Dls.Unsubscribe(Session, onDls); self?.Dispose(); _ = Js.InvokeVoidAsync("flacie.npWaveStop").AsTask().ContinueWith(_ => { }); _ = Js.InvokeVoidAsync("flacie.npReset").AsTask().ContinueWith(_ => { }); base.Dispose(); }
+    /// <summary>The "..." menu: drawn beside the heart (PC) and in the phone's lower row; only one of the two is shown, and it opens where it was pressed.</summary>
+    RenderFragment MoreMenu(string at, Track t) => @<div class="np-more @at">
+        <button class="ls-icon ls-more-btn" @onclick="() => ToggleMore(at)" aria-label="More options" aria-haspopup="menu" aria-expanded="@(more && moreAt == at ? "true" : "false")"><Icon Name="more" Size="22" /></button>
+        @if (more && moreAt == at)
+        {
+            <div class="menu np-menu" role="menu">
+                <button role="menuitem" @onclick='() => Plain(() => Player.PlayNext(t), $"“{t.Title}” plays next")'>Play next</button>
+                <button role="menuitem" @onclick='() => Plain(() => Player.AddToQueue(t), $"Added “{t.Title}” to the queue")'>Add to queue</button>
+                <button role="menuitem" aria-expanded="@(plOpen ? "true" : "false")" @onclick="() => plOpen = !plOpen">Add to playlist <span aria-hidden="true">@(plOpen ? "▾" : "▸")</span></button>
+                @if (plOpen)
+                {
+                    @if (!Session.Playlists.Any()) { <small class="menu-note">No playlists yet. Make one on the Playlists page.</small> }
+                    @foreach (var p in Session.Playlists)
+                    {
+                        <button role="menuitem" class="sub" @onclick="() => { Toast.Added(Session, p, t, SaveProfile); CloseMore(); }">@p.Name</button>
+                    }
+                }
+                <a role="menuitem" href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="() => GoArtist(t)" @onclick:preventDefault="true">Go to artist</a>
+                @if (t.Album.Length > 0) { <a role="menuitem" href="/album/@Uri.EscapeDataString(t.AlbumKey)" @onclick="() => GoAlbum(t)" @onclick:preventDefault="true">Go to album</a> }
+                <a role="menuitem" href="/stream?p=@Uri.EscapeDataString(t.Path)" download="@FileName(t)" @onclick="CloseMore">Download</a>
+                <button role="menuitem" @onclick='() => { Open("info"); CloseMore(); }'>Song info</button>
+            </div>
+        }
+    </div>;
+    // the title's last word is set in italics (design I)
+    static string Lead(string title) { var s = title.TrimEnd(); var i = s.LastIndexOf(' '); return i < 0 ? "" : s[..(i + 1)]; }
+    static string Last(string title) { var s = title.TrimEnd(); var i = s.LastIndexOf(' '); return i < 0 ? s : s[(i + 1)..]; }
+    // the top pill: "ALBUM · TRACK n", or where it plays from when the song has no album or number
+    string WhereLine(Track t) => AlbumOf(t) is { Length: > 0 } a && t.TrackNo > 0 ? $"{a.ToUpperInvariant()} · TRACK {t.TrackNo}" : SourceLabel.PlayingFromLine(t.Source);
     Lyrics? lyrics; bool lyricsLoading; string? lyricsFor;
     MediaInfo? info; bool infoLoading; string? infoFor;
     MediaInfo? shownInfo => Player.Current is { } cur && infoFor == cur.Path ? info : null;
     string? lyricsPushed;
 
     // on a phone the panel is a sheet over the cover: a tab opens it, the same tab again closes it (on a wide screen it is always there)
-    ElementReference npEl, waveEl;
+    ElementReference npEl, waveEl, ringEl;
     string? accentFor = "", waveFor;
     void OpenQueue() { tab = "queue"; panelOpen = true; }
     void PeekKey(KeyboardEventArgs e) { if (e.Key is "Enter" or " ") OpenQueue(); }
@@ -265,7 +290,7 @@
         var coverUrl = Art.KeyFor(t) is { } art ? "/art/" + Uri.EscapeDataString(CoverOverrides.Map(art)!) : null;
         if (coverUrl != accentFor) { accentFor = coverUrl; try { await Js.InvokeVoidAsync("flacie.npAccent", npEl, coverUrl); } catch (Exception) { } }
         // the seek bar's shape: this song's own loudness (the server works it out once)
-        if (t.Path != waveFor) { waveFor = t.Path; try { await Js.InvokeVoidAsync("flacie.npWave", waveEl, "/api/wave?p=" + Uri.EscapeDataString(t.Path)); } catch (Exception) { } }
+        if (t.Path != waveFor) { waveFor = t.Path; try { await Js.InvokeVoidAsync("flacie.npWave", waveEl, "/api/wave?p=" + Uri.EscapeDataString(t.Path), ringEl); } catch (Exception) { } }
         // a new song: refresh whatever is showing
         if (infoFor != t.Path) { await LoadInfo(); _ = LoadRealAlbum(t); }
         if (tab == "lyrics" && lyricsFor != t.Path) await LoadLyrics();

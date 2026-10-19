@@ -987,9 +987,12 @@ window.flacie = (() => {
     // a text box the server never rewrites while it is being typed in (see TextBox.razor): the browser debounces and tells the server once
     textBox(el, ref, value, ms) {
       if (!el) return;
-      el.value = value;
       let t = null; const send = () => { clearTimeout(t); t = null; ref.invokeMethodAsync("OnText", el.value).catch(() => { }); };
       const input = () => { clearTimeout(t); t = setTimeout(send, ms); };
+      // letters typed before the page went live (carried over from the server-drawn box, see textBoxCarry) or while this call was on its way are the person's: kept and told to the server
+      const typed = (el._tbCarried || document.activeElement === el) && el.value !== value;
+      el._tbCarried = false;
+      if (typed) setTimeout(input, 0); else el.value = value;
       const key = e => { if (e.key === "Enter" && t !== null) send(); };
       const search = () => send();   // the x of a search box
       el.addEventListener("input", input); el.addEventListener("keydown", key); el.addEventListener("search", search);
@@ -1179,4 +1182,23 @@ window.flacieUi = (() => {
     get: () => JSON.stringify(read()),
     set(json) { try { localStorage.setItem(KEY, json); } catch { } apply(read()); },
   };
+})();
+
+// textBoxCarry: the page is first drawn by the server and goes live a moment later, when Blazor draws it again with new elements. A person can already be typing in the first
+// search box; its letters, the focus and the caret move to the new box with the same label as soon as it is put in (before the next key), so nothing typed is lost.
+(() => {
+  const key = el => el instanceof HTMLInputElement && !el._tb ? el.getAttribute("aria-label") : null;
+  const typed = new Set(); let focused = null;
+  document.addEventListener("input", e => { if (key(e.target)) typed.add(e.target); }, true);
+  document.addEventListener("focusin", e => { focused = e.target; }, true);
+  new MutationObserver(() => {
+    for (const old of typed) {
+      if (old.isConnected) continue;
+      typed.delete(old);
+      const label = key(old), now = label && [...document.querySelectorAll("input[aria-label]")].find(n => n !== old && n.getAttribute("aria-label") === label);
+      if (!now || now._tb || now.value === old.value) continue;
+      now.value = old.value; now._tbCarried = true;
+      if (focused === old && (document.activeElement === document.body || !document.activeElement)) { now.focus(); try { now.setSelectionRange(old.selectionStart, old.selectionEnd); } catch { } }
+    }
+  }).observe(document.documentElement, { childList: true, subtree: true });
 })();

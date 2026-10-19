@@ -54,6 +54,27 @@ test.describe.serial('typing in search boxes', () => {
     await expect(box).toHaveValue('lab 2', { timeout: 20_000 });
   });
 
+  test('letters typed before the page goes live are kept, and the box keeps the focus', async ({ page }) => {
+    test.setTimeout(120_000);
+    await signIn(page);
+    // the page arrives drawn by the server and goes live a moment later; hold the live part back so typing surely lands in that gap
+    await page.route('**/_framework/blazor.web.js', async (r) => { await new Promise((ok) => setTimeout(ok, 2500)); await r.continue(); });
+    await page.goto('/', { waitUntil: 'commit' });
+    const box = page.locator('input[aria-label="Search"]');
+    await expect(box).toBeVisible({ timeout: 20_000 });
+    const live = () => page.evaluate(() => !!(window as any).Blazor && !!(document.querySelector('input[aria-label="Search"]') as any)?._tb);
+    expect(await live(), 'typing starts before the page is live').toBe(false);
+    await box.click();
+    await page.keyboard.type('harbour', { delay: 40 });
+    // the page goes live while the person is still typing
+    await expect.poll(live, { timeout: 20_000 }).toBe(true);
+    await page.keyboard.type(' 11', { delay: 40 });
+    await expect(box).toHaveValue('harbour 11');
+    await expect(page).toHaveURL(/\/search\?q=harbour%2011/);
+    await expect(box).toBeFocused();
+    await expect(box).toHaveValue('harbour 11');
+  });
+
   test('the Explore and Downloads filters keep every letter too', async ({ page }) => {
     test.setTimeout(120_000);
     await signIn(page);

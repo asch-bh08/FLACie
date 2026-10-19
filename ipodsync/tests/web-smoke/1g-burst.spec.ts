@@ -41,7 +41,7 @@ test.describe.serial('beta 52 load', () => {
     await playLab(page);
     await request.get(`${MOCK}/__reset`);
     await page.getByRole('button', { name: 'Open Now Playing' }).click();
-    await expect(page.locator('.np-titles h2')).toBeVisible();
+    await expect(page.locator('.ls-names h2')).toBeVisible();
     const wrong: string[] = [];
     // the 40 presses are made inside the page, 30 ms apart: the spacing must not depend on how long the test runner takes per click
     const seen = await page.evaluate(async () => {
@@ -50,7 +50,7 @@ test.describe.serial('beta 52 load', () => {
         const label = i % 8 < 4 ? 'Next' : 'Previous';
         (document.querySelector(`.player button[aria-label="${label}"]`) as HTMLElement | null)?.click();
         await new Promise((r) => setTimeout(r, 30));
-        out.push({ title: document.querySelector('.np-titles h2')?.textContent?.trim() ?? '', badge: document.querySelector('.np-main .badge.fmt')?.textContent?.trim() ?? '' });
+        out.push({ title: document.querySelector('.ls-names h2')?.textContent?.trim() ?? '', badge: document.querySelector('.ls-chip-main')?.textContent?.trim() ?? '' });
       }
       return out;
     });
@@ -61,10 +61,10 @@ test.describe.serial('beta 52 load', () => {
     expect(wrong, 'a non-Hi-Res song claimed Hi-Res while skipping').toEqual([]);
     // settle: the song that is left plays and its badge is the right one, and stays
     await expect.poll(() => page.evaluate(() => (window as any).flacie.ready()), { timeout: 15_000 }).toBe(true);
-    const title = (await page.locator('.np-titles h2').textContent())!.trim();
+    const title = (await page.locator('.ls-names h2').textContent())!.trim();
     const want = Object.entries(LAB).find(([p]) => title.startsWith(p))![1];
-    await expect.poll(async () => norm((await page.locator('.np-main .badge.fmt').first().textContent()) ?? ''), { timeout: 20_000 }).toBe(want);
-    for (let i = 0; i < 4; i++) { await page.waitForTimeout(300); expect(norm((await page.locator('.np-main .badge.fmt').first().textContent()) ?? ''), `${title} badge is stable`).toBe(want); }
+    await expect.poll(async () => norm((await page.locator('.ls-chip-main').first().textContent()) ?? ''), { timeout: 20_000 }).toBe(want);
+    for (let i = 0; i < 4; i++) { await page.waitForTimeout(300); expect(norm((await page.locator('.ls-chip-main').first().textContent()) ?? ''), `${title} badge is stable`).toBe(want); }
     const c = await counts(request);
     // 40 skips: the songs passed over never open a stream (the page drops them before they start), the last one and one early read do
     expect(c.stream, 'Jellyfin streams opened by 40 quick skips').toBeLessThanOrEqual(12);

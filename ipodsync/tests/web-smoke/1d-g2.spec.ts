@@ -75,13 +75,13 @@ test.describe('signed in', () => {
       await page.waitForTimeout(1200);
       const r = await page.evaluate(() => {
         const q = (s: string) => document.querySelector(s)?.getBoundingClientRect();
-        const cover = q('.np-cover'), top = q('.np-top'), h2 = q('.np-titles h2'), bar = q('.player'), np = q('.np');
+        const cover = q('.np-cover'), top = q('.ls-top'), h2 = q('.ls-names h2'), bar = q('.player'), np = q('.np');
         return { cover: cover && { t: cover.top, b: cover.bottom, w: cover.width }, top: top && { b: top.bottom }, h2: h2 && { t: h2.top, b: h2.bottom }, bar: bar && { t: bar.top }, np: np && { b: np.bottom } };
       });
       expect(r.cover!.t).toBeGreaterThanOrEqual(r.top!.b - 1);
       expect(r.h2!.t).toBeGreaterThanOrEqual(r.cover!.b - 1);
       expect(r.h2!.b).toBeLessThanOrEqual(h);
-      await expect(page.locator('.np-titles h2')).toBeInViewport();
+      await expect(page.locator('.ls-names h2')).toBeInViewport();
       const portrait = w <= 1024 && h >= w;
       if (!portrait) expect(r.h2!.b).toBeLessThanOrEqual(r.bar!.t + 1);
     });

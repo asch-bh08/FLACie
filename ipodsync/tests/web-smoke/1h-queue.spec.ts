@@ -24,14 +24,14 @@ async function playLab(page: Page) {
 
 async function openQueue(page: Page) {
   await page.getByRole('button', { name: 'Open Now Playing' }).click();
-  await expect(page.locator('.np-titles h2')).toBeVisible();
+  await expect(page.locator('.ls-names h2')).toBeVisible();
   const tab = page.getByRole('tab', { name: 'Up next' });
   if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
   await expect(page.locator('.upnext li.q-item').first()).toBeVisible({ timeout: 15_000 });
 }
 
 const upNext = (page: Page) => page.locator('.upnext li.q-item .q-row b').allInnerTexts().then((a) => a.map((s) => s.trim()).filter((s) => /^Lab \d/.test(s)));
-const nowTitle = async (page: Page) => ((await page.locator('.np-titles h2').innerText()) || '').trim();
+const nowTitle = async (page: Page) => ((await page.locator('.ls-names h2').innerText()) || '').trim();
 
 test.describe.serial('Up next editing', () => {
   test('move, play next and remove: Up next changes, the playing song does not, and it survives a reload', async ({ page }) => {

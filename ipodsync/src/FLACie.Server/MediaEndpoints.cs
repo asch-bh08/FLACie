@@ -26,17 +26,18 @@ public static class MediaEndpoints
 
         // pre=1 marks the page's early read of the NEXT song (a second audio element, so a skip starts at once): background work that does not count as a play, is
         // never ahead of a song someone waits for, waits out a slow Jellyfin, and asks only for the start of the file (a small Range), never the whole song.
-        app.MapGet("/stream", async (HttpContext ctx, string p, string? pre, SessionStore store, JellyfinClient jf, IHttpClientFactory hf, AlacCache alac, PlayTracker plays, Notifier notify, PlaybackActivity activity) =>
+        app.MapGet("/stream", async (HttpContext ctx, string p, string? pre, string? wave, SessionStore store, JellyfinClient jf, IHttpClientFactory hf, AlacCache alac, PlayTracker plays, Notifier notify, PlaybackActivity activity) =>
         {
             var s = store.For(ctx.User);
             var t = s.FindByPath(p);
             if (t is null) return Results.NotFound();
             var early = pre is "1" or "true";
-            using var busy = early ? null : activity.BeginStream();   // background jobs wait while a song is being served
-            using var prio = JellyfinGate.Use(early ? GatePriority.Prefetch : GatePriority.Playing);   // and the song being played goes to the front of every queue
+            var quiet = wave is "1";   // the seek bar's shape being worked out: the whole file, but not a play and behind any song someone is listening to
+            using var busy = early || quiet ? null : activity.BeginStream();   // background jobs wait while a song is being served
+            using var prio = JellyfinGate.Use(early || quiet ? GatePriority.Prefetch : GatePriority.Playing);   // and the song being played goes to the front of every queue
             // where this play really comes from, decided here where the stream is resolved: Jellyfin plays are announced by Jellyfin's own watcher, so only
             // NAS files and the file mover's direct fallback (a song Jellyfin has not scanned yet) are ever reported as "music played"
-            if (!early) plays.Served(s.Id, t.Path, t.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "direct", TrackSource.Jellyfin when notify.Current.JellyfinPlays => "Jellyfin", _ => null });
+            if (!early && !quiet) plays.Served(s.Id, t.Path, t.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "direct", TrackSource.Jellyfin when notify.Current.JellyfinPlays => "Jellyfin", _ => null });
             async Task<IResult> Proxy(HttpRequestMessage req, bool ranges = true)
             {
                 if (ranges && ctx.Request.Headers.Range.Count > 0) req.Headers.TryAddWithoutValidation("Range", early ? PrefetchRange(ctx.Request.Headers.Range.ToString()) : ctx.Request.Headers.Range.ToString());
@@ -97,6 +98,28 @@ public static class MediaEndpoints
             }
             return Results.NotFound();
         }).RequireAuthorization();
+
+        // the Living Sleeve seek bar's shape: how loud each part of a song is (200 bars, 0-255). Jellyfin servers can't always convert a song (transcoding off,
+        // or no ffmpeg), so the first browser to play a song works the shape out from the audio it already decodes and sends it here; it is kept on disk
+        // for everyone, keyed by the Jellyfin item (or a hash of the file's address for other sources). GET: the shape, or 404 when nobody has sent it yet.
+        var waveDir = Directory.CreateDirectory(Path.Combine(app.Configuration["FLACIE_DATA"] ?? Path.Combine(AppContext.BaseDirectory, "data"), "waves")).FullName;
+        string? WaveFile(UserSession s, string p) => s.FindByPath(p) is not { } t ? null
+            : Path.Combine(waveDir, (t.JellyfinId is { Length: 32 } id && id.All(Uri.IsHexDigit) ? id : Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(t.Path)))) + ".bin");
+        app.MapGet("/api/wave", async (HttpContext ctx, string p, SessionStore store) =>
+        {
+            if (WaveFile(store.For(ctx.User), p) is not { } file || !File.Exists(file)) return Results.NotFound();
+            ctx.Response.Headers.CacheControl = "private, max-age=86400";
+            return Results.Json((await File.ReadAllBytesAsync(file)).Select(b => (int)b));
+        }).RequireAuthorization();
+        app.MapPost("/api/wave", async (HttpContext ctx, string p, SessionStore store) =>
+        {
+            if (WaveFile(store.For(ctx.User), p) is not { } file) return Results.NotFound();
+            int[]? bars;
+            try { bars = await System.Text.Json.JsonSerializer.DeserializeAsync<int[]>(ctx.Request.Body); } catch (System.Text.Json.JsonException) { bars = null; }
+            if (bars is not { Length: 200 } || bars.Any(b => b is < 0 or > 255)) return Results.BadRequest();
+            if (!File.Exists(file)) await File.WriteAllBytesAsync(file, bars.Select(b => (byte)b).ToArray());   // the first shape sent is kept
+            return Results.NoContent();
+        }).RequireAuthorization().DisableAntiforgery();
 
         // the iPod desk's disc pictures: a release's own "Medium" picture from the Cover Art Archive, fetched here (the browser only ever asks FLACie) and kept for
         // everyone; only for a release someone matched on MusicBrainz. No picture: 404, and the desk prints a disc from the cover.

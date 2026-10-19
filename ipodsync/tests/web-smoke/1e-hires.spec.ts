@@ -55,15 +55,15 @@ test('the Hi-Res badge is the same everywhere and never wrong, however fast you 
   await page.locator('.tracks .track-main').first().click();
   await expect(page.getByRole('button', { name: 'Open Now Playing' })).toBeVisible({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Open Now Playing' }).click();
-  await expect(page.locator('.np-titles h2')).toBeVisible();
+  await expect(page.locator('.ls-names h2')).toBeVisible();
   await page.getByRole('tab', { name: 'Info' }).click();
 
   const seen = new Map<string, Set<string>>();   // title prefix -> every distinct badge text seen once the facts were on screen
   const everSeen = new Map<string, string[]>();
   const sample = async () => {
     const s = await page.evaluate(() => ({
-      title: document.querySelector('.np-titles h2')?.textContent?.trim() ?? '',
-      badge: document.querySelector('.np-main .badge.fmt')?.textContent?.trim() ?? '',
+      title: document.querySelector('.ls-names h2')?.textContent?.trim() ?? '',
+      badge: document.querySelector('.ls-chip-main')?.textContent?.trim() ?? '',
       big: document.querySelector('.info .fmt-big')?.textContent?.trim() ?? '',
       sampling: document.querySelector('.info .info-head small')?.textContent?.trim() ?? '',
     }));
@@ -92,7 +92,7 @@ test('the Hi-Res badge is the same everywhere and never wrong, however fast you 
   const settle = async () => {
     for (let w = 0; w < 16; w++) {   // up to ~16 s per song: the first read of Lab 6 fails and is retried
       await page.waitForTimeout(1000);
-      const t = (await page.locator('.np-titles h2').textContent())?.trim() ?? '';
+      const t = (await page.locator('.ls-names h2').textContent())?.trim() ?? '';
       const e = expectedOf(t);
       if (e && (await page.locator('.info .info-head small').textContent())?.includes(e[2])) break;
     }

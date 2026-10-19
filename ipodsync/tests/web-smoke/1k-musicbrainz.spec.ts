@@ -89,7 +89,7 @@ test.describe.serial('musicbrainz match', () => {
     const before = seen.length;
     await expect(page.getByRole('button', { name: 'Open Now Playing' })).toBeVisible({ timeout: 30_000 });   // the player is restored from this browser after a reload
     await page.getByRole('button', { name: 'Open Now Playing' }).click();
-    await expect(page.locator('.np-titles h2')).toHaveText('Lab 1', { timeout: 20_000 });
+    await expect(page.locator('.ls-names h2')).toHaveText('Lab 1', { timeout: 20_000 });
     await page.getByRole('tab', { name: 'Info' }).click();
     await expect(page.locator('#mb-match')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('#mb-match')).toContainText('Your match: Lab 1', { timeout: 20_000 });

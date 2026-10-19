@@ -19,9 +19,9 @@ async function playLab(page: Page) {
   await page.locator('.tracks .track-main').first().click();
   await expect(page.getByRole('button', { name: 'Open Now Playing' })).toBeVisible({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Open Now Playing' }).click();
-  await expect(page.locator('.np-meta')).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('.ls-title')).toBeVisible({ timeout: 20_000 });
 }
-const btn = (page: Page) => page.locator('.np-meta button[aria-label^="Rating:"]');
+const btn = (page: Page) => page.locator('.ls-tools button[aria-label^="Rating:"]');
 
 test.describe.serial('ratings', () => {
   test('stars are set, shown, written to Jellyfin and cleared', async ({ page, request }) => {

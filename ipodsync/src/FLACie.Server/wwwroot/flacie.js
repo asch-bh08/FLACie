@@ -99,7 +99,7 @@ window.flacie = (() => {
         if (items.length === lyr.times.length) {
           items.forEach((li, i) => { li.classList.toggle("cur", i === c); li.classList.toggle("past", i < c); });
           lyr.cur = c;
-          const el = items[c], panel = document.querySelector(".np-panel");
+          const el = items[c], panel = document.querySelector(".ls-panel, .np-panel");
           if (el && panel) panel.scrollTo({ top: el.offsetTop - panel.clientHeight / 2 + el.clientHeight / 2, behavior: "smooth" });
         }
       }
@@ -112,7 +112,7 @@ window.flacie = (() => {
   // output (no Web Audio in its path, so the browser never resamples it to a fixed rate). The graphs read a silent twin of the same stream
   // through an AudioContext opened at the file's own sample rate, so the spectrum reaches the file's real Nyquist. Not done on iOS.
   // Once the music itself goes through Web Audio (the EQ or Mega Bass is on), the graphs read that instead, and the twin (a second download) is let go.
-  let npWaveRaf = 0;
+  let npWaveRaf = 0, npWaveBusy = false;
   let actx = null, an = null, anL = null, anR = null, twin = null, vizOn = false, vizStyle = "curve", vs = {}, vh = null, vp = null, cp = null, ctxKey = "", vizCut = 0, vizCutLabel = "";
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -578,16 +578,16 @@ window.flacie = (() => {
       return { ip: who.ip || "", ua, browser, os, screen: `${screen.width}×${screen.height}`, language: navigator.language || "" };
     },
     // a tab in the full-screen player starts at its top, not wherever the last tab was scrolled to
-    panelTop() { const p = document.querySelector(".np-panel"); if (p) p.scrollTop = 0; },
+    panelTop() { const p = document.querySelector(".ls-panel, .np-panel"); if (p) p.scrollTop = 0; },
     // is the player laid out as a phone (tabs open a sheet over the cover)?
-    sheetMode() { return window.matchMedia("(max-width: 1024px) and (orientation: portrait)").matches; },
+    sheetMode() { return window.matchMedia("(max-width: 760px)").matches; },
     toggle() { audio.paused ? audio.play().catch(() => {}) : audio.pause(); },
     play() { audio.play().catch(() => send("OnState", false)); },
     setLyrics(times) { lyr = { times, cur: -2 }; },
     clearLyrics() { lyr = null; },
     // keeps the line being sung in the middle of the lyrics panel, scrolling only that panel (never the page behind it)
     scrollLyric() {
-      const el = document.querySelector("#lyrics .cur"), panel = document.querySelector(".np-panel");
+      const el = document.querySelector("#lyrics .cur"), panel = document.querySelector(".ls-panel, .np-panel");
       if (el && panel) panel.scrollTo({ top: el.offsetTop - panel.clientHeight / 2 + el.clientHeight / 2, behavior: "smooth" });
     },
     // the full-screen player is a history entry, so the browser's Back button closes it
@@ -607,41 +607,63 @@ window.flacie = (() => {
     },
     // Living Sleeve: the full-screen player's two colours, read from the cover once per cover (a 24 px copy, so it costs nothing). The main colour is the
     // most vivid one in the picture, lifted until dark text on it is easy to read (the play button); the second is the next most common hue, for the other field.
-    // Living Sleeve's seek bar: a row of rounded bars across the song, the part already played in the cover's colour. While the song plays the bars
-    // move with the music (the same analyser the desk's meters read, low notes on the left); paused, on mobile data or where the analyser can't run,
-    // they rest in a still shape. Drawn at 30 fps while the player is open and the tab is shown; the range input on top does the seeking.
-    npWave(cv) {
+    // Living Sleeve's seek bar: the song's own loudness as a row of rounded bars (from /api/wave, worked out once by the server), the part already played
+    // in the cover's colour. The shape stays still; only the played part moves. Where the server has no shape (a NAS song), the bars are level.
+    // Redrawn four times a second while the player is open and the tab is shown, and at once when the size changes.
+    npWave(cv, url) {
         flacie.npWaveStop();
         if (!cv) return;
-        const g = cv.getContext('2d'), np = cv.closest('.np'), calm = flacie.metered() || matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const lv = [], rest = (i, n) => .22 + .5 * Math.abs(Math.sin(i * .37) * Math.cos(i * .11 + 1) + .3 * Math.sin(i * 1.3));
-        let last = 0;
+        const g = cv.getContext('2d'), np = cv.closest('.ls, .np');
+        let shape = null, last = 0, lastPlayed = -1, lastW = 0;
+        const got = (a) => { if (cv.isConnected && Array.isArray(a) && a.length) { shape = a; lastPlayed = -1; } };
+        if (url) fetch(url, { credentials: 'same-origin' }).then(r => r.ok ? r.json() : r.status === 404 ? flacie.npWaveMake(url) : null).then(got).catch(() => { });
         const draw = (now) => {
             npWaveRaf = requestAnimationFrame(draw);
-            if (document.hidden || now - last < 33) return; last = now;
+            if (document.hidden || now - last < 250 && cv.clientWidth === lastW) return; last = now;
             const dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
             if (!w || !h) return;
-            if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-            const bw = 3 * dpr, gap = 2 * dpr, n = Math.max(8, Math.floor((w + gap) / (bw + gap))), c = flacie.clock(), played = c[1] > 0 ? c[0] / c[1] : 0;
-            const f = !calm && !c[2] ? flacie.vizFrame() : null;
-            const cs = getComputedStyle(np), on = cs.getPropertyValue('--np-accent').trim() || '#e8774f';
+            const c = flacie.clock(), played = c[1] > 0 ? c[0] / c[1] : 0;
+            if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; lastPlayed = -1; }
+            lastW = cv.clientWidth;
+            if (Math.abs(played - lastPlayed) < .0005 && lastPlayed >= 0) return; lastPlayed = played;
+            const bw = 3 * dpr, gap = 2 * dpr, n = Math.max(8, Math.floor((w + gap) / (bw + gap)));
+            const on = getComputedStyle(np).getPropertyValue('--np-accent').trim() || '#e8774f';
             g.clearRect(0, 0, w, h);
             for (let i = 0; i < n; i++) {
-                let v = rest(i, n);
-                if (f) { // bar i reads a band of pitches, spaced like hearing is (more bars for the low end)
-                    const bins = f.freq.length, a = Math.floor(Math.pow(i / n, 2) * bins * .7), b = Math.max(a + 1, Math.floor(Math.pow((i + 1) / n, 2) * bins * .7));
-                    let m = 0; for (let k = a; k < b; k++) m = Math.max(m, f.freq[k]);
-                    v = .12 + .88 * Math.pow(m / 255, 1.4) * (.7 + .3 * rest(i, n));
-                }
-                lv[i] = lv[i] == null ? v : lv[i] + (v - lv[i]) * (v > lv[i] ? .6 : .18);
-                const bh = Math.max(3 * dpr, lv[i] * h), x = i * (bw + gap);
-                g.globalAlpha = 1; g.fillStyle = (i + .5) / n <= played ? on : 'rgba(251,238,228,.26)';
+                let v = .4;
+                if (shape) { const a = Math.floor(i / n * shape.length), b = Math.max(a + 1, Math.floor((i + 1) / n * shape.length)); let m = 0; for (let k = a; k < b; k++) m = Math.max(m, shape[k]); v = .1 + .9 * m / 255; }
+                const bh = Math.max(3 * dpr, v * h), x = i * (bw + gap);
+                g.fillStyle = (i + .5) / n <= played ? on : 'rgba(251,238,228,.28)';
                 g.beginPath(); g.roundRect(x, (h - bh) / 2, bw, bh, bw / 2); g.fill();
             }
         };
         npWaveRaf = requestAnimationFrame(draw);
     },
-    npWaveStop() { if (npWaveRaf) cancelAnimationFrame(npWaveRaf); npWaveRaf = 0; if (!document.querySelector('.np')) flacie.vizRelease(); },
+    // nobody has sent this song's shape yet: this browser reads the whole file once (quietly: not a play, behind the song being listened to), decodes it,
+    // measures how loud each of 200 slices is (RMS, which follows the ear better than peaks) and sends the bars to the server, which keeps them for
+    // everyone. Skipped on mobile data and for files over 200 MB; one at a time.
+    async npWaveMake(url) {
+        if (flacie.metered() || npWaveBusy) return null;
+        npWaveBusy = true;
+        try {
+            const p = new URL(url, location.href).searchParams.get('p');
+            const r = await fetch('/stream?wave=1&p=' + encodeURIComponent(p), { credentials: 'same-origin' });
+            if (!r.ok || Number(r.headers.get('Content-Length') || 0) > 200e6) return null;
+            const buf = await r.arrayBuffer();
+            const ctx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 1, 22050);
+            const audioBuf = await ctx.decodeAudioData(buf);
+            const d = audioBuf.getChannelData(0), n = 200, rms = new Array(n).fill(0), step = Math.max(1, Math.floor(d.length / n / 2000));
+            for (let b = 0; b < n; b++) {
+                const from = Math.floor(d.length * b / n), to = Math.max(from + 1, Math.floor(d.length * (b + 1) / n));
+                let sum = 0, cnt = 0; for (let i = from; i < to; i += step) { sum += d[i] * d[i]; cnt++; }
+                rms[b] = Math.sqrt(sum / Math.max(1, cnt));
+            }
+            const max = Math.max(...rms) || 1, bars = rms.map(v => Math.round(255 * v / max));
+            fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bars) }).catch(() => { });
+            return bars;
+        } catch { return null; } finally { npWaveBusy = false; }
+    },
+    npWaveStop() { if (npWaveRaf) cancelAnimationFrame(npWaveRaf); npWaveRaf = 0; },
     npAccent(el, url) {
         const set = (a, b, from) => { if (!el) return; if (flacie.metered()) el.dataset.calm = ''; el.style.setProperty('--np-accent', a); el.style.setProperty('--np-accent-2', b); el.dataset.accent = from; };
         const fallback = () => set('rgb(232, 119, 79)', 'rgb(47, 93, 98)', 'default');
@@ -656,7 +678,7 @@ window.flacie = (() => {
                 for (let i = 0; i < d.length; i += 4) {
                     const [h, s, l] = flacie.hsl(d[i], d[i + 1], d[i + 2]);
                     if (l < .12 || l > .92) continue;
-                    const k = Math.round(h / 30) % 12, w = .2 + s * s * 2, b = bins.get(k) ?? { w: 0, h: 0, s: 0, n: 0 };
+                    const k = Math.round(h / 30) % 12, w = .04 + s * s * s * 4, b = bins.get(k) ?? { w: 0, h: 0, s: 0, n: 0 };
                     b.w += w; b.h += h; b.s += s; b.n++; bins.set(k, b);
                 }
                 const top = [...bins.values()].sort((x, y) => y.w - x.w);

@@ -181,23 +181,6 @@ input[type=range]:hover::-webkit-slider-runnable-track { background: linear-grad
 
 /* ---- full-screen player ---- */
 .np { position: fixed; inset: var(--top) 0 calc(var(--bar) + var(--tabs)) 0; z-index: 35; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; overflow: clip; }
-/* Living Sleeve: the background is two big soft fields in the cover's colours (--np-accent, --np-accent-2, set by flacie.npAccent). They are plain radial
-   gradients (no blur filter) and only move by transform, so the GPU just slides them; they stop when the song is paused, with reduced motion and on data saver. */
-.np { --np-accent: rgb(232, 119, 79); --np-accent-2: rgb(47, 93, 98); }
-.np-fields { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
-.np-field { position: absolute; width: 90vmax; height: 90vmax; border-radius: 50%; will-change: transform; transition: background 1.2s; }
-.np-field.a { left: -30vmax; top: -35vmax; background: radial-gradient(circle, var(--np-accent) 0%, transparent 62%); opacity: .5; animation: np-drift-a 20s ease-in-out infinite; }
-.np-field.b { right: -30vmax; bottom: -40vmax; background: radial-gradient(circle, var(--np-accent-2) 0%, transparent 62%); opacity: .7; animation: np-drift-b 26s ease-in-out infinite; }
-@keyframes np-drift-a { 50% { transform: translate(6vmax, 4vmax) scale(1.12); } }
-@keyframes np-drift-b { 50% { transform: translate(-7vmax, -3vmax) scale(.94); } }
-.np.still .np-field, .np.still .np-glow { animation-play-state: paused; }
-.np-cover-btn { isolation: isolate; }
-.np-glow { position: absolute; left: 50%; top: 50%; width: 100%; height: 100%; translate: -50% -50%; z-index: -1; border-radius: 50%; background: radial-gradient(closest-side, var(--np-accent) 0%, transparent 100%); opacity: .45; pointer-events: none; animation: np-breathe 4s ease-in-out infinite; }
-@keyframes np-breathe { 0%, 100% { transform: scale(1.3); } 50% { opacity: .65; transform: scale(1.4); } }
-.np-controls .play.big { background: var(--np-accent); color: #140d10; width: 76px; height: 76px; transition: background 1.2s; }
-.np-titles .pills .badge.plain, .np-titles .pills .badge.fmt { font-family: ui-monospace, "Cascadia Mono", "SF Mono", monospace; letter-spacing: 0; }
-.np[data-calm] .np-field, .np[data-calm] .np-glow { animation: none; }
-@media (prefers-reduced-motion: reduce) { .np-field, .np-glow { animation: none !important; } }
 .np-shade { position: absolute; inset: 0; background: linear-gradient(to bottom, #0b0b0e33, #0b0b0e99 70%, #0b0b0ee6); }
 .np-top { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; }
 .np-where { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--dim); font-weight: 700; }
@@ -299,9 +282,8 @@ img { -webkit-user-drag: none; user-select: none; }
 .np-cover-btn { position: relative; align-self: center; background: none; border: 0; padding: 0; width: min(100%, 56dvh); aspect-ratio: 1; border-radius: 18px; cursor: pointer; }
 .np-cover-btn .np-cover { width: 100%; height: 100%; max-width: none; }
 .np-cover-state { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; color: #fff; background: #0006; border-radius: 18px; opacity: 0; transition: opacity .15s; pointer-events: none; }
-/* Living Sleeve: on a wide screen the full-screen player covers the player bar and carries its own big controls (the bar's are the same buttons) */
 @media (min-width: 761px) {
-  .np { bottom: 0; z-index: 45; }
+  .np-controls, .np-volume, .seek.big { display: none; }
   .np-main { justify-content: center; }
 }
 
@@ -1443,72 +1425,3 @@ html.buffering .play .ic { opacity: .55; }
 .chip-pop .stars button.star { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; border-radius: 10px; color: var(--dim); }
 .chip-pop .stars button.star:hover { background: var(--surface-3); color: var(--ink); }
 .chip-pop .stars button.star.on { color: #ffc94d; }
-
-/* Living Sleeve, last so it wins: on a wide screen the glow is the cover's size (the cover there is a size container); on a phone the title gets the
-   whole width and the buttons sit on the row under it */
-@media (min-width: 1025px), (orientation: landscape) { .np-cover-btn .np-glow { width: min(100cqw, 100cqh, 560px); height: min(100cqw, 100cqh, 560px); } }
-@media (max-width: 760px) { .np .np-meta { flex-wrap: wrap; row-gap: 4px; } .np .np-titles { flex: 1 1 100%; } }
-
-/* ---- Living Sleeve: the full-screen player's layout (the "FLACie Living Sleeve" design). Last in the file so it wins over the older player rules.
-   Cover with its glow, the title and the heart on one row, the file's facts as small mono badges, the seek bar in the cover's colour, prev / a big
-   play in the cover's colour / next, then a quiet row (shuffle, rating, speed and sleep, Lyrics, more, repeat). Wide screens: lyrics or the queue on
-   the right; phones: one column, the lyrics pull up over the cover. ---- */
-.np { --np-ink: #fbeee4; --np-dim: #d9c4b6; color: var(--np-ink); }
-.np-top .np-where { color: var(--np-dim); letter-spacing: .08em; font-weight: 600; }
-.np .np-cover, .np .np-cover-btn, .np-cover-state { border-radius: 28px; }
-.np .np-cover { box-shadow: 0 30px 60px #00000073; }
-.np .np-main { gap: 14px; }
-.np .np-meta { align-items: flex-end; gap: 12px; flex-wrap: nowrap; }
-.np .np-titles { flex: 1 1 auto; gap: 4px; }
-.np .np-titles h2 { font-size: clamp(26px, 3vw, 40px); font-weight: 800; line-height: 1.08; letter-spacing: -.02em; }
-.np .np-artist { color: var(--np-dim); font-size: clamp(15px, 1.4vw, 18px); }
-.np .np-artist a { color: var(--np-dim); font-weight: 500; }
-.np .np-meta > .icon-btn.lg { flex: none; width: 48px; height: 48px; color: var(--np-dim); }
-.np .np-meta > .icon-btn.lg.on { color: var(--np-accent); }
-.np-main > .pills { display: flex; flex-wrap: wrap; gap: 8px; }
-.np-main > .pills .badge { font-family: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, monospace; font-size: 11px; font-weight: 500; letter-spacing: 0; padding: 4px 8px; border-radius: 6px; background: #ffffff1a; color: var(--np-ink); }
-.np-main > .pills .badge.hires { background: var(--np-accent); color: #140d10; }
-.np .seek.big { display: grid; grid-template-columns: 1fr 1fr; grid-template-areas: "bar bar" "a b"; row-gap: 6px; }
-.np .seek.big input { grid-area: bar; width: 100%; }
-.np .seek.big span { font-family: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, monospace; font-size: 12px; color: var(--np-dim); }
-.np .seek.big span:first-child { grid-area: a; } .np .seek.big span:last-child { grid-area: b; justify-self: end; }
-.np .seek.big input[type=range]::-webkit-slider-runnable-track { background: linear-gradient(to right, var(--np-accent) var(--fill, 0%), #fbeee447 var(--fill, 0%)); }
-.np .seek.big input[type=range]::-moz-range-progress { background: var(--np-accent); }
-.np .seek.big input[type=range]::-webkit-slider-thumb { background: var(--np-ink); }
-.np .np-controls { gap: 28px; }
-.np .np-controls .icon-btn.lg { width: 56px; height: 56px; color: var(--np-ink); }
-.np .np-controls .play.big { width: 84px; height: 84px; border-radius: 50%; box-shadow: 0 10px 30px #0006; }
-.np-quiet { display: flex; align-items: center; justify-content: space-between; gap: 4px; color: var(--np-dim); }
-.np-quiet .icon-btn { color: var(--np-dim); } .np-quiet .icon-btn.on { color: var(--np-accent); }
-.np-lyrics-pill { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 16px; border: 0; border-radius: 22px; background: #ffffff14; color: var(--np-ink); font: inherit; font-size: 13px; font-weight: 600; letter-spacing: .04em; cursor: pointer; }
-.np-lyrics-pill.on { background: var(--np-ink); color: #140d10; }
-.np .np-tabs { background: none; padding: 0; gap: 8px; }
-.np .np-tabs button { min-height: 44px; padding: 0 18px; border-radius: 22px; background: #ffffff14; color: var(--np-ink); font-weight: 600; }
-.np .np-tabs button.on { background: var(--np-ink); color: #140d10; }
-.np .np-tabs button svg { display: none; }
-.np .lyrics { font-size: clamp(22px, 2.2vw, 30px); font-weight: 800; letter-spacing: -.015em; padding-top: 18vh; }
-.np .lyrics li { color: #fbeee49e; transition: color .25s, font-size .25s; }
-.np .lyrics li.past { color: #fbeee480; }
-.np .lyrics li.cur { color: var(--np-ink); font-size: 1.35em; }
-.np .q-row, .np .upnext li.now .q-row { border-radius: 14px; }
-@media (min-width: 761px) {
-  .np .np-body { gap: clamp(32px, 5vw, 72px); }
-  .np .np-quiet .np-lyrics-pill { display: none; }
-  .np .np-volume { justify-content: flex-start; }
-}
-@media (max-width: 760px) {
-  .np .np-meta { flex-wrap: nowrap; } .np .np-titles { flex: 1 1 auto; }
-  .np .np-volume { display: none; }
-}
-/* Living Sleeve, second pass: less on screen. One format badge (the codec, or Hi-Res, and the sampling); no source or bitrate badge. The seek bar is the
-   moving bars (canvas) with the range input over it, invisible but still there for dragging, the keyboard and screen readers. */
-.np-main > .pills .badge:not(.fmt):not(.plain), .np-main > .pills .badge.plain ~ .badge.plain { display: none; }
-.np-tools { display: flex; align-items: center; gap: 2px; }
-.np-tools .icon-btn { color: var(--np-dim); }
-.np .np-top .np-retro { display: grid; }
-.np .seek.big.wave { position: relative; grid-template-rows: 44px auto; }
-.np-wave { grid-area: bar; width: 100%; height: 44px; pointer-events: none; }
-.np .seek.big.wave input[type=range] { grid-area: bar; position: relative; z-index: 1; height: 44px; margin: 0; opacity: 0; cursor: pointer; }
-.np .seek.big.wave input[type=range]:focus-visible { opacity: 1; background: none; }
-.np .np-quiet { justify-content: space-between; padding: 0 4px; }
-@media (max-width: 760px) { .np .np-where { display: none; } .np .np-top { justify-content: space-between; } }

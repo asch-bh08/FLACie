@@ -36,7 +36,7 @@ async function pick(page: Page, label: string, option: string) {
 }
 
 test.describe.serial('speed and sleep', () => {
-  test('the controls are icon buttons beside the heart and More, in the same style, not a row of their own', async ({ page }) => {
+  test('the controls are icon buttons in the player top bar, beside Retro, in the same style, not a row of their own', async ({ page }) => {
     test.setTimeout(120_000);
     await signIn(page);
     await playLab(page);
@@ -46,13 +46,13 @@ test.describe.serial('speed and sleep', () => {
     // all four rectangles read in one go (the row can still move between separate reads)
     const r = await page.evaluate(() => {
       const rect = (e: Element | null) => { const b = e!.getBoundingClientRect(); return { y: b.y, h: b.height }; };
-      const meta = document.querySelector('.np-meta')!;
-      const heart = [...meta.querySelectorAll('button')].find((b) => /favourites/i.test(b.getAttribute('aria-label') || ''));
+      // (the Living Sleeve player keeps them in its top bar, out of the way of the cover and the controls; measured against the Retro button there)
+      const heart = document.querySelector('.ls-tools .np-retro');
       return { heart: rect(heart!), others: ['Speed', 'Sleep timer', 'Sound'].map((n) => rect(document.querySelector('#speed-sleep button.chip-ico[aria-label^="' + n + ':"]'))) };
     });
     for (const o of r.others) {
-      expect(o.h, 'as big as the heart').toBeLessThanOrEqual(r.heart.h + 4);
-      expect(Math.abs(o.y - r.heart.y), 'on the heart row').toBeLessThanOrEqual(6);
+      expect(o.h, 'as big as the Retro button').toBeLessThanOrEqual(r.heart.h + 4);
+      expect(Math.abs(o.y - r.heart.y), 'on the top bar').toBeLessThanOrEqual(6);
     }
     await says(page, 'Speed', '1x'); await says(page, 'Sleep timer', 'off'); await says(page, 'Sound', 'default');
     // pictures for a person to look at (test-results is not kept)
@@ -74,10 +74,10 @@ test.describe.serial('speed and sleep', () => {
     await expect(page.getByRole('button', { name: 'Back 10 seconds' })).toBeVisible();      // a changed speed shows them
     await expect(page.getByRole('button', { name: 'Forward 30 seconds' })).toBeVisible();
     // next song: back to 1x; back to the first song: its 1.5x is remembered
-    await page.getByRole('button', { name: 'Next' }).last().click();
+    await page.getByRole('button', { name: 'Next' }).first().click();
     await expect.poll(() => rate(page), { timeout: 15_000 }).toBe(1);
     // (Previous within the first 3 s goes to the previous song)
-    await page.getByRole('button', { name: 'Previous' }).last().click();
+    await page.getByRole('button', { name: 'Previous' }).first().click();
     await expect.poll(() => rate(page), { timeout: 15_000 }).toBe(1.5);
     await pick(page, 'Speed', '1x');
     await expect.poll(() => rate(page)).toBe(1);
@@ -104,12 +104,12 @@ test.describe.serial('speed and sleep', () => {
     await playLab(page);
     await expect(page.getByRole('button', { name: 'Pause' }).first()).toBeVisible({ timeout: 15_000 });
     await pick(page, 'Sleep timer', 'End of this song');
-    const title = await page.locator('.np-titles h2').innerText();
+    const title = await page.locator('.ls-names h2').innerText();
     // run the song to its end
     await page.evaluate(() => (window as any).flacie.seek(1e6));
     await expect(page.getByRole('button', { name: 'Play' }).first()).toBeVisible({ timeout: 20_000 });
     await says(page, 'Sleep timer', 'off');
-    expect(await page.locator('.np-titles h2').innerText()).toBe(title);   // the next song did not start
+    expect(await page.locator('.ls-names h2').innerText()).toBe(title);   // the next song did not start
   });
 
   test('even out volume turns a loud song down by the gain Jellyfin measured', async ({ page }) => {
@@ -152,7 +152,7 @@ test.describe.serial('speed and sleep', () => {
     await signIn(page);
     await playLab(page);
     await open(page, 'Speed');
-    await page.locator('.np-top').click({ position: { x: 5, y: 5 } });
+    await page.locator('.ls-top').click({ position: { x: 5, y: 5 } });
     await expect(page.locator('#speed-sleep .chip-pop')).toHaveCount(0);
   });
 });

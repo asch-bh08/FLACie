@@ -124,11 +124,11 @@ const qrow = (title: string) => page.locator('.upnext li.q-item', { has: page.lo
 
 async function openNowPlaying() {
   await page.getByRole('button', { name: 'Open Now Playing' }).click();
-  await expect(page.locator('.np-titles h2')).toBeVisible();
+  await expect(page.locator('.ls-names h2')).toBeVisible();
   const tab = page.getByRole('tab', { name: 'Up next' });
   if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
 }
-async function closeNowPlaying() { await page.getByRole('button', { name: 'Close Now Playing' }).click(); await expect(page.locator('.np-titles h2')).toHaveCount(0); }
+async function closeNowPlaying() { await page.getByRole('button', { name: 'Close Now Playing' }).click(); await expect(page.locator('.ls-names h2')).toHaveCount(0); }
 async function pause() {
   await page.getByRole('button', { name: 'Pause', exact: true }).first().click();
   await expect(page.getByRole('button', { name: 'Play', exact: true }).first()).toBeVisible();
@@ -254,10 +254,10 @@ test.describe.serial('download tags', () => {
     await expect(page.locator('.bar-text .dl-tag')).toHaveText(RECENT);
     expect(await page.locator('.bar-text small').first().innerText()).toBe('JME');
     await openNowPlaying();
-    await expect(page.locator('.np-where')).toHaveText('Streaming');
-    await expect(page.locator('.np-titles .pills .badge.cloud')).toHaveText('Streaming');
-    await expect(page.locator('.np-titles .pills .badge.cloud')).toHaveCSS('color', 'rgb(109, 179, 255)');
-    await expect(page.locator('.np-titles .dl-tag')).toHaveText(RECENT);
+    await expect(page.locator('.ls-where')).toHaveText('Streaming');
+    await expect(page.locator('.ls-chips .badge.cloud')).toHaveText('Streaming');
+    await expect(page.locator('.ls-chips .badge.cloud')).toHaveCSS('color', 'rgb(109, 179, 255)');
+    await expect(page.locator('.ls-names .dl-tag')).toHaveText(RECENT);
     await expect(page.locator('.upnext li.now .dl-tag')).toHaveText(RECENT);
     // one quiet line (a dot beside the words), not stacked: the queue lays its spans out in columns
     expect((await page.locator('.upnext li.now .dl-tag').boundingBox())!.height).toBeLessThan(22);
@@ -267,16 +267,16 @@ test.describe.serial('download tags', () => {
     await page.getByRole('tab', { name: 'Up next' }).click();
 
     // the age ticks in the browser: paused, so nothing on the server changes, yet the words move on and the element is the same one
-    const age = page.locator('.np-titles .dl-tag .dl-age');
+    const age = page.locator('.ls-names .dl-tag .dl-age');
     await age.evaluate((el) => { (el as any).__same = 1; });
     const t1 = await age.innerText();
     await expect.poll(async () => age.innerText(), { timeout: 15_000 }).not.toBe(t1);
     expect(await age.evaluate((el) => (el as any).__same)).toBe(1);
     expect(await age.innerText()).toMatch(/^(just now|\d+s ago)$/);
     // it does not move the line: the tag keeps its place while it ticks
-    const box1 = await page.locator('.np-titles .dl-tag').boundingBox();
+    const box1 = await page.locator('.ls-names .dl-tag').boundingBox();
     await page.waitForTimeout(2200);
-    const box2 = await page.locator('.np-titles .dl-tag').boundingBox();
+    const box2 = await page.locator('.ls-names .dl-tag').boundingBox();
     expect(Math.abs(box1!.y - box2!.y)).toBeLessThan(0.5);
     expect(Math.abs(box1!.height - box2!.height)).toBeLessThan(0.5);
     await closeNowPlaying();
@@ -365,8 +365,8 @@ test.describe.serial('download tags', () => {
     await expect(qrow('Lantern 12').locator('.dl-tag')).toHaveText('Downloading · Waiting for a peer...');
     await qrow('Lantern 12').locator('.q-row').click();
     await pause();                                                       // the mock's songs are 3 seconds long
-    await expect(page.locator('.np-titles h2')).toHaveText('Lantern 12', { timeout: 20_000 });
-    await expect(page.locator('.np-titles .dl-tag')).toHaveText('Downloading · Waiting for a peer...');
+    await expect(page.locator('.ls-names h2')).toHaveText('Lantern 12', { timeout: 20_000 });
+    await expect(page.locator('.ls-names .dl-tag')).toHaveText('Downloading · Waiting for a peer...');
     await closeNowPlaying();
     await expect(page.locator('.bar-text b')).toHaveText('Lantern 12');
     await expect(page.locator('.bar-text .dl-tag')).toHaveText('Downloading · Waiting for a peer...');

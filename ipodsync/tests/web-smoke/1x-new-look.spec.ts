@@ -127,7 +127,7 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
       expect(await page.locator('.info-stats .stat').count()).toBeGreaterThanOrEqual(2);
       // where it plays from is a small chip beside the format, not a card in Info; the graph comes first
       await expect(page.locator('.info-from')).toHaveCount(0);
-      await expect(page.locator('.ls-chips .ls-src')).not.toBeEmpty();
+      await expect(page.locator('.ls-chips .ls-from')).not.toBeEmpty();
       expect(await page.locator('.info > *').first().getAttribute('class')).toContain('graph-box');
       await expect(page.locator('.info-stats .stat', { hasText: 'kHz rate' })).toBeVisible();
       const tabs = (await page.locator('.graph-tabs [role=tab]').allInnerTexts()).map((t) => t.trim());

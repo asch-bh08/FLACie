@@ -52,7 +52,7 @@
                                 {
                                     <span class="badge fmt ls-chip @(fi.HiRes ? "hires" : "")"><span class="ls-chip-main">@(fi.HiRes ? "Hi-Res" : fi.Format)</span>@if (shownInfo is { Sampling.Length: > 0 } si) { <span class="ls-chip-dim">@si.Sampling</span> }</span>
                                 }
-                                @if (t.Source != TrackSource.Cloud) { <span class="ls-chip ls-src" title="Where this song plays from">@SourceLabel.PlayingFrom(t.Source)</span> }
+                                @if (t.Source != TrackSource.Cloud) { <span class="ls-chip ls-from" title="Where this song plays from">@SourceLabel.PlayingFrom(t.Source)</span> }
                             </span>
                         </div>
                         <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" Class="np-dl" />

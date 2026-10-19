@@ -291,4 +291,4 @@
 .ls-info .info > .kv-sec { padding: 14px 16px; }
 @supports (selector(:has(*))) { .ls-info .info:has(> .kv-sec + .kv-sec) { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); } .ls-info .info > :not(.kv-sec) { grid-column: 1 / -1; } }
 /* where the song plays from, as a small chip beside the format */
-.ls-chip.ls-src { background: #0000003d; color: var(--ink); }
+.ls-chip.ls-from { background: #0000003d; color: var(--ink); }

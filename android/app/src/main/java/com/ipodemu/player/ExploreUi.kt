@@ -134,7 +134,9 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
         if (!shortScreen) ModernTopBar("Explore", null) { IconAction(Glyph.HEART, "Favorites and sources", { nav.push(Screen.Sources) }) }
         // the five views, as one quiet row
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            for (t in listOf("Songs", "Albums", "Artists", "Genres", "Charts")) GlossPill(t, { tab = t }, primary = tab == t, height = 38.dp)
+            // design I: the tabs are outlined chips, the open one filled (as on the web's Explore)
+            val modern = LocalStyle.current.modern
+            for (t in listOf("Songs", "Albums", "Artists", "Genres", "Charts")) if (modern) DesignChip(t, tab == t, { tab = t }) else GlossPill(t, { tab = t }, primary = tab == t, height = 38.dp)
             if (shortScreen) IconAction(Glyph.HEART, "Favorites and sources", { nav.push(Screen.Sources) })
         }
         if (tab == "Charts") { ChartsPanel(nav, snap); return@Column }

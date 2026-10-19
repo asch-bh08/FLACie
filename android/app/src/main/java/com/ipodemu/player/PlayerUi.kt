@@ -386,7 +386,7 @@ fun TrackRow(
     ) { hi ->
         Column {
             Txt(t.title, size = 16f, weight = if (isCurrent) FontWeight.Bold else FontWeight.Medium, color = if (hi) Color.White else if (isCurrent) sc.accent else sc.onBg)
-            val sub = remember(t.artist, t.album) { if (t.artist.isEmpty()) t.album else if (t.album.isEmpty()) t.artist else t.artist + " - " + t.album }
+            val sub = remember(t.artist, t.album) { if (t.artist.isEmpty()) t.album else if (t.album.isEmpty()) t.artist else t.artist + " · " + t.album }
             if (narrow && hiRes) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 HiResBadge(compact = true)
                 if (sub.isNotEmpty()) Txt(sub, Modifier.weight(1f), size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)

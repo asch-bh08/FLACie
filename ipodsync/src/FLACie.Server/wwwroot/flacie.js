@@ -112,7 +112,8 @@ window.flacie = (() => {
   // output (no Web Audio in its path, so the browser never resamples it to a fixed rate). The graphs read a silent twin of the same stream
   // through an AudioContext opened at the file's own sample rate, so the spectrum reaches the file's real Nyquist. Not done on iOS.
   // Once the music itself goes through Web Audio (the EQ or Mega Bass is on), the graphs read that instead, and the twin (a second download) is let go.
-  let npWaveRaf = 0, npWaveBusy = false;
+  let npWaveRaf = 0, npWaveBusy = false, waveChain = Promise.resolve(), waveNow = '';
+  const waveCache = new Map(), waveAsking = new Map();   // shapes kept for the songs about to play, and the ones being asked for
   let actx = null, an = null, anL = null, anR = null, twin = null, vizOn = false, vizStyle = "curve", vs = {}, vh = null, vp = null, cp = null, ctxKey = "", vizCut = 0, vizCutLabel = "";
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -627,7 +628,7 @@ window.flacie = (() => {
         const np = cv.closest('.ls, .np'), input = box?.querySelector('input[type=range]');
         let shape = null, last = 0, lastPlayed = -1, lastKey = '', drag = null;
         const got = (a) => { if (cv.isConnected && Array.isArray(a) && a.length) { shape = a; lastPlayed = -1; } };
-        if (url) fetch(url, { credentials: 'same-origin' }).then(r => r.ok ? r.json() : r.status === 404 ? flacie.npWaveMake(url) : null).then(got).catch(() => { });
+        if (url) { waveNow = url; const known = waveCache.get(url); if (known) got(known); else flacie.npWaveGet(url).then(got); }
         const level = (i, n) => { if (!shape) return .4; const a = Math.floor(i / n * shape.length), b = Math.max(a + 1, Math.floor((i + 1) / n * shape.length)); let m = 0; for (let k = a; k < b; k++) m = Math.max(m, shape[k]); return .15 + .85 * m / 255; };
         // the frame's geometry, in CSS pixels: the cover's square (side S, corner r) grown by a gap; walk(t) gives the point and outward normal at a fraction t of the way round
         const frameGeo = () => {
@@ -703,7 +704,31 @@ window.flacie = (() => {
     // nobody has sent this song's shape yet: this browser reads the whole file once (quietly: not a play, behind the song being listened to), decodes it,
     // measures how loud each of 200 slices is (RMS, which follows the ear better than peaks) and sends the bars to the server, which keeps them for
     // everyone. Skipped on mobile data and for files over 200 MB; one at a time.
-    async npWaveMake(url) {
+    npWaveMake(url) {
+        // one at a time: the next one waits for the one being worked out (each reads a whole file)
+        const run = waveChain.then(() => flacie.npWaveMakeNow(url));
+        waveChain = run.catch(() => null);
+        return run;
+    },
+    // a song's shape, from this page's memory, else the server, else worked out here; kept for the songs about to play
+    npWaveGet(url) {
+        if (waveCache.has(url)) return Promise.resolve(waveCache.get(url));
+        let p = waveAsking.get(url);
+        if (!p) {
+            p = fetch(url, { credentials: 'same-origin' }).then(r => r.ok ? r.json() : r.status === 404 ? flacie.npWaveMake(url) : null).catch(() => null)
+                .then(a => { waveAsking.delete(url); if (Array.isArray(a) && a.length) { waveCache.set(url, a); while (waveCache.size > 12) waveCache.delete(waveCache.keys().next().value); } return a; });
+            waveAsking.set(url, p);
+        }
+        return p;
+    },
+    // while a song plays: the next songs' shapes are fetched (or worked out) in the background, one after the other, so each is drawn the moment it starts. Not on mobile data.
+    npWavePrefetch(paths) {
+        if (flacie.metered() || !Array.isArray(paths)) return;
+        paths.reduce((chain, p) => chain.then(() => flacie.npWaveGet('/api/wave?p=' + encodeURIComponent(p))), Promise.resolve());
+    },
+    /** The path of the song whose shape the player is drawing (for the tests). */
+    npWaveFor() { try { return new URL(waveNow, location.href).searchParams.get('p') ?? ''; } catch { return ''; } },
+    async npWaveMakeNow(url) {
         if (flacie.metered() || npWaveBusy) return null;
         npWaveBusy = true;
         try {

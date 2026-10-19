@@ -61,7 +61,7 @@ test('the seek bar is a ring of bars round the play button, and dragging or the 
   test.setTimeout(120_000);
   await signIn(page);
   await openPlayer(page);
-  const wave = page.locator('.ls .np-wave');
+  const wave = page.locator('.ls .np-frame');   // on a PC the shape is a frame round the cover (the ring is the phone's)
   await expect(wave).toHaveCount(1);
   await expect.poll(() => wave.evaluate((c: HTMLCanvasElement) => c.width), { timeout: 5_000 }).toBeGreaterThan(80);
   // something is drawn: some pixels are not empty

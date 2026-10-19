@@ -156,3 +156,45 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
     });
   });
 }
+
+// Task 2: the seek bar's shape is there the moment a song starts. While one song plays (player open or not), the next two songs' shapes are fetched (or
+// worked out) in the background and kept, so the next song draws at once without asking again. Not on mobile data.
+test.describe('the shape is ready instantly', () => {
+  const waveP = (u: string) => new URL(u).searchParams.get('p') ?? '';
+  async function playAlbum(page: Page) {
+    await page.goto('/artist/Hires%20Lab');
+    await page.getByRole('link', { name: /Lab Album/ }).first().click();
+    await page.locator('.tracks .track-main').first().click();
+    await expect(page.locator('.bar-text b')).toBeVisible({ timeout: 20_000 });
+  }
+
+  test('the next two songs get their shapes while one plays, and the next one is drawn without asking again', async ({ page }) => {
+    test.setTimeout(120_000);
+    const asked: string[] = [];
+    page.on('request', (r) => { if (r.url().includes('/api/wave') && r.method() === 'GET') asked.push(waveP(r.url())); });
+    await signIn(page);
+    await playAlbum(page);
+    // the player is not even open: two upcoming songs are asked about
+    await expect.poll(() => new Set(asked).size, { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
+    const early = [...new Set(asked)];
+    // the next song: its shape is already here, so opening the player on it asks nothing new for it
+    await page.getByRole('button', { name: 'Next' }).first().click();
+    await page.getByRole('button', { name: 'Open Now Playing' }).click();
+    await expect(page.locator('.ls-names h2')).toBeVisible();
+    await page.waitForTimeout(1500);
+    const now = await page.evaluate(() => (window as any).flacie.npWaveFor?.() ?? '');
+    expect(early).toContain(now);
+    expect(asked.filter((p) => p === now)).toHaveLength(1);
+  });
+
+  test('on mobile data nothing is fetched ahead', async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.addInitScript(() => Object.defineProperty(navigator, 'connection', { value: { type: 'cellular', saveData: false, addEventListener() { }, removeEventListener() { } }, configurable: true }));
+    const asked: string[] = [];
+    page.on('request', (r) => { if (r.url().includes('/api/wave')) asked.push(r.url()); });
+    await signIn(page);
+    await playAlbum(page);
+    await page.waitForTimeout(6000);
+    expect(asked).toHaveLength(0);
+  });
+});

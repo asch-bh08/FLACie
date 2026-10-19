@@ -50,7 +50,7 @@ test.describe.serial('beta 52 load', () => {
         const label = i % 8 < 4 ? 'Next' : 'Previous';
         (document.querySelector(`.player button[aria-label="${label}"]`) as HTMLElement | null)?.click();
         await new Promise((r) => setTimeout(r, 30));
-        out.push({ title: document.querySelector('.np-titles h2')?.textContent?.trim() ?? '', badge: document.querySelector('.np-meta .badge.fmt')?.textContent?.trim() ?? '' });
+        out.push({ title: document.querySelector('.np-titles h2')?.textContent?.trim() ?? '', badge: document.querySelector('.np-main .badge.fmt')?.textContent?.trim() ?? '' });
       }
       return out;
     });
@@ -63,8 +63,8 @@ test.describe.serial('beta 52 load', () => {
     await expect.poll(() => page.evaluate(() => (window as any).flacie.ready()), { timeout: 15_000 }).toBe(true);
     const title = (await page.locator('.np-titles h2').textContent())!.trim();
     const want = Object.entries(LAB).find(([p]) => title.startsWith(p))![1];
-    await expect.poll(async () => norm((await page.locator('.np-meta .badge.fmt').first().textContent()) ?? ''), { timeout: 20_000 }).toBe(want);
-    for (let i = 0; i < 4; i++) { await page.waitForTimeout(300); expect(norm((await page.locator('.np-meta .badge.fmt').first().textContent()) ?? ''), `${title} badge is stable`).toBe(want); }
+    await expect.poll(async () => norm((await page.locator('.np-main .badge.fmt').first().textContent()) ?? ''), { timeout: 20_000 }).toBe(want);
+    for (let i = 0; i < 4; i++) { await page.waitForTimeout(300); expect(norm((await page.locator('.np-main .badge.fmt').first().textContent()) ?? ''), `${title} badge is stable`).toBe(want); }
     const c = await counts(request);
     // 40 skips: the songs passed over never open a stream (the page drops them before they start), the last one and one early read do
     expect(c.stream, 'Jellyfin streams opened by 40 quick skips').toBeLessThanOrEqual(12);

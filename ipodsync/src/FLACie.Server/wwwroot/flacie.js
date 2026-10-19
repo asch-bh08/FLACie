@@ -112,6 +112,7 @@ window.flacie = (() => {
   // output (no Web Audio in its path, so the browser never resamples it to a fixed rate). The graphs read a silent twin of the same stream
   // through an AudioContext opened at the file's own sample rate, so the spectrum reaches the file's real Nyquist. Not done on iOS.
   // Once the music itself goes through Web Audio (the EQ or Mega Bass is on), the graphs read that instead, and the twin (a second download) is let go.
+  let npWaveRaf = 0;
   let actx = null, an = null, anL = null, anR = null, twin = null, vizOn = false, vizStyle = "curve", vs = {}, vh = null, vp = null, cp = null, ctxKey = "", vizCut = 0, vizCutLabel = "";
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -606,6 +607,41 @@ window.flacie = (() => {
     },
     // Living Sleeve: the full-screen player's two colours, read from the cover once per cover (a 24 px copy, so it costs nothing). The main colour is the
     // most vivid one in the picture, lifted until dark text on it is easy to read (the play button); the second is the next most common hue, for the other field.
+    // Living Sleeve's seek bar: a row of rounded bars across the song, the part already played in the cover's colour. While the song plays the bars
+    // move with the music (the same analyser the desk's meters read, low notes on the left); paused, on mobile data or where the analyser can't run,
+    // they rest in a still shape. Drawn at 30 fps while the player is open and the tab is shown; the range input on top does the seeking.
+    npWave(cv) {
+        flacie.npWaveStop();
+        if (!cv) return;
+        const g = cv.getContext('2d'), np = cv.closest('.np'), calm = flacie.metered() || matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const lv = [], rest = (i, n) => .22 + .5 * Math.abs(Math.sin(i * .37) * Math.cos(i * .11 + 1) + .3 * Math.sin(i * 1.3));
+        let last = 0;
+        const draw = (now) => {
+            npWaveRaf = requestAnimationFrame(draw);
+            if (document.hidden || now - last < 33) return; last = now;
+            const dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
+            if (!w || !h) return;
+            if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+            const bw = 3 * dpr, gap = 2 * dpr, n = Math.max(8, Math.floor((w + gap) / (bw + gap))), c = flacie.clock(), played = c[1] > 0 ? c[0] / c[1] : 0;
+            const f = !calm && !c[2] ? flacie.vizFrame() : null;
+            const cs = getComputedStyle(np), on = cs.getPropertyValue('--np-accent').trim() || '#e8774f';
+            g.clearRect(0, 0, w, h);
+            for (let i = 0; i < n; i++) {
+                let v = rest(i, n);
+                if (f) { // bar i reads a band of pitches, spaced like hearing is (more bars for the low end)
+                    const bins = f.freq.length, a = Math.floor(Math.pow(i / n, 2) * bins * .7), b = Math.max(a + 1, Math.floor(Math.pow((i + 1) / n, 2) * bins * .7));
+                    let m = 0; for (let k = a; k < b; k++) m = Math.max(m, f.freq[k]);
+                    v = .12 + .88 * Math.pow(m / 255, 1.4) * (.7 + .3 * rest(i, n));
+                }
+                lv[i] = lv[i] == null ? v : lv[i] + (v - lv[i]) * (v > lv[i] ? .6 : .18);
+                const bh = Math.max(3 * dpr, lv[i] * h), x = i * (bw + gap);
+                g.globalAlpha = 1; g.fillStyle = (i + .5) / n <= played ? on : 'rgba(251,238,228,.26)';
+                g.beginPath(); g.roundRect(x, (h - bh) / 2, bw, bh, bw / 2); g.fill();
+            }
+        };
+        npWaveRaf = requestAnimationFrame(draw);
+    },
+    npWaveStop() { if (npWaveRaf) cancelAnimationFrame(npWaveRaf); npWaveRaf = 0; if (!document.querySelector('.np')) flacie.vizRelease(); },
     npAccent(el, url) {
         const set = (a, b, from) => { if (!el) return; if (flacie.metered()) el.dataset.calm = ''; el.style.setProperty('--np-accent', a); el.style.setProperty('--np-accent-2', b); el.dataset.accent = from; };
         const fallback = () => set('rgb(232, 119, 79)', 'rgb(47, 93, 98)', 'default');

@@ -56,3 +56,19 @@ test('reduced motion keeps the background still', async ({ page }) => {
   const anim = await page.locator('.np-field').first().evaluate((el) => getComputedStyle(el).animationName);
   expect(anim).toBe('none');
 });
+
+test('the seek bar is a row of bars drawn across the song, and dragging or the keyboard still seeks', async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page);
+  await openPlayer(page);
+  const wave = page.locator('.np .seek.big .np-wave');
+  await expect(wave).toHaveCount(1);
+  await expect.poll(() => wave.evaluate((c: HTMLCanvasElement) => c.width), { timeout: 5_000 }).toBeGreaterThan(100);
+  // something is drawn: some pixels are not empty
+  const drawn = await wave.evaluate((c: HTMLCanvasElement) => { const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
+  expect(drawn).toBeGreaterThan(100);
+  const seek = page.locator('.np .seek.big input[type=range]');
+  await expect(seek).toHaveAttribute('aria-label', 'Seek');
+  // only one format badge row entry for the codec and one for the sampling, no source or bitrate badge
+  await expect(page.locator('.np-main > .pills .badge:visible')).toHaveCount(2);
+});

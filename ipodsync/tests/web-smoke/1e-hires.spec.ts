@@ -63,7 +63,7 @@ test('the Hi-Res badge is the same everywhere and never wrong, however fast you 
   const sample = async () => {
     const s = await page.evaluate(() => ({
       title: document.querySelector('.np-titles h2')?.textContent?.trim() ?? '',
-      badge: document.querySelector('.np-meta .badge.fmt')?.textContent?.trim() ?? '',
+      badge: document.querySelector('.np-main .badge.fmt')?.textContent?.trim() ?? '',
       big: document.querySelector('.info .fmt-big')?.textContent?.trim() ?? '',
       sampling: document.querySelector('.info .info-head small')?.textContent?.trim() ?? '',
     }));

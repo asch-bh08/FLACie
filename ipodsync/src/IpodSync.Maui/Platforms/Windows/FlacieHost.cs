@@ -38,6 +38,7 @@ public static class FlacieHost
 			psi.Environment["ASPNETCORE_URLS"] = $"http://127.0.0.1:{port}";
 			psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
 			psi.Environment["FLACIE_DATA"] = Environment.GetEnvironmentVariable("FLACIE_DATA") is { Length: > 0 } own ? own : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FLACie", "web");
+			psi.Environment.Remove("FLACIE_DEBUG"); // the /debug endpoints never come on in the app, whatever this PC has set
 			psi.Environment["FLACIE_PARENT_PID"] = Environment.ProcessId.ToString();
 			psi.Environment["FLACIE_ALLOW_NAS_LOGIN"] = "true"; // one person on their own PC, listening on loopback only
 			process = Process.Start(psi) ?? throw new InvalidOperationException("Couldn't start the FLACie player.");

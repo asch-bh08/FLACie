@@ -212,10 +212,11 @@ if (builder.Configuration["FLACIE_DEBUG"] == "1")
     app.MapGet("/debug/token", (HttpContext ctx, SessionStore store) =>
         !System.Net.IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress!) || store.For(ctx.User).Jellyfin is not { } a ? Results.NotFound() : Results.Text(a.Token)).RequireAuthorization();
     // the signed-in user's library as JSON (title, artist, album), to compare another folder against it
-    app.MapGet("/debug/library", (HttpContext ctx, SessionStore store) =>
+    app.MapGet("/debug/library", (HttpContext ctx, SessionStore store) => !System.Net.IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress!) ? Results.NotFound() :
         Results.Json(store.For(ctx.User).Library.Songs.Select(t => new { t = t.Title, a = t.Artist, al = t.Album, p = t.Path }))).RequireAuthorization();
     app.MapMethods("/debug/jf", ["GET", "POST", "DELETE"], async (HttpContext ctx, string path, SessionStore store, JellyfinClient jf) =>
     {
+        if (!System.Net.IPAddress.IsLoopback(ctx.Connection.RemoteIpAddress!)) return Results.NotFound();
         var a = store.For(ctx.User).Jellyfin; if (a is null) return Results.NotFound();
         System.Text.Json.Nodes.JsonNode? body = null;
         if (ctx.Request.Method == "POST" && ctx.Request.ContentLength > 0) body = System.Text.Json.Nodes.JsonNode.Parse(await new StreamReader(ctx.Request.Body).ReadToEndAsync());

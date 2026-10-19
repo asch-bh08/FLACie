@@ -53,7 +53,8 @@ class IpodStyle(val model: Model, val colorway: Colorway, val modern: Boolean = 
     val touch: Boolean get() = model.touch
     /** Glossy Aqua-era widgets (everything except the mono LCD models and flat iOS 7+ touches). */
     val glossy: Boolean get() = !modern && !mono && !(model.touch && model.year >= 2012)
-    val font: FontFamily get() = if (mono) FontFamily.Monospace else FontFamily.SansSerif
+    // the modern look is design I: all its text is Archivo, like the web's new look (the iPod skins keep the system faces)
+    val font: FontFamily get() = if (modern) DesignFonts.sans else if (mono) FontFamily.Monospace else FontFamily.SansSerif
     /** Corner radius scale: square LCD, softer colour screens, round modern touches. */
     val corner: Float get() = when { modern -> 12f; mono -> 2f; model.touch && model.year >= 2012 -> 20f; touch -> 14f; else -> 10f }
 

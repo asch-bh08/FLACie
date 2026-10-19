@@ -366,7 +366,7 @@ fun TrackRow(
                 }
             } else if (index != null) {
                 Box(Modifier.width(30.dp), contentAlignment = Alignment.Center) {
-                    if (isCurrent) EqualizerBars(Modifier.size(18.dp), snap.playing, sc.accent) else Txt("$index", size = 14f, color = sc.onBgDim)
+                    if (isCurrent) EqualizerBars(Modifier.size(18.dp), snap.playing, sc.accent) else if (LocalStyle.current.modern) MonoLabel("$index", size = 13f, upper = false) else Txt("$index", size = 14f, color = sc.onBgDim)
                 }
             }
         },
@@ -375,7 +375,8 @@ fun TrackRow(
                 if (fav) GlyphIcon(Glyph.HEART_FILLED, Modifier.size(18.dp), sc.accent)
                 if (hiRes && !narrow) HiResBadge()
                 if (!narrow) SourceBadge(t.source)
-                if (t.durationMs > 0) Txt(remember(t.durationMs) { fmtTime(t.durationMs) }, size = 13f, color = rowDim())
+                // times are DM Mono in design I, so the columns of digits line up
+                if (t.durationMs > 0) { val d = remember(t.durationMs) { fmtTime(t.durationMs) }; if (LocalStyle.current.modern) MonoLabel(d, size = 12.5f, color = rowDim(), upper = false) else Txt(d, size = 13f, color = rowDim()) }
                 val moreLabel = remember(t.title) { "More options for ${t.title}" }
                 Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = moreLabel }.clickable { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, contentAlignment = Alignment.Center) {
                     GlyphIcon(Glyph.MORE, Modifier.size(22.dp), rowDim())
@@ -554,16 +555,27 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     val online = rememberOnline()
     Column(Modifier.fillMaxSize()) {
         val modern = LocalStyle.current.modern
-        if (modern) ModernTopBar(greeting(), null) { IconAction(Glyph.SEARCH, "Search", { nav.push(Screen.Search) }); AccountAction() }
-        else TopBar(if (app.prefs.timeInTitle) clock else "iPod", nav, showBack = false) {
+        if (!modern) TopBar(if (app.prefs.timeInTitle) clock else "iPod", nav, showBack = false) {
             TopAction(Glyph.SEARCH, "Search") { nav.push(Screen.Search) }
             TopAction(Glyph.GEAR, "Settings") { nav.push(Screen.Settings) }
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            if (modern) item(key = "hero") {
+                val last = snap.track ?: recentsKey?.let { lib.byPath()[it] ?: lib.resolve(it, app.userData.meta[it]) }
+                HomeHero(last, nav, onShuffleAll = { val s = lib.songs(); if (s.isNotEmpty()) app.player.shuffleAll(s) }) { AccountAction() }
+            }
             if (!online) item { OfflineChip(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) }
             if (!modern) item { NowPlayingCard(snap, nav) { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } } }
             if (com.ipodemu.PermissionPlan.showMediaNotice(app.ui.loginMode, app.ui.mediaAccess)) item { MediaAccessNotice(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
-            item {
+            // design I: Favourites, Recent, Downloads and the moods as outlined chips (the chosen mood filled); Shuffle all is in the hero
+            if (modern) item {
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DesignChip("Favorites", false, { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART)
+                    DesignChip("Recent", false, { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK)
+                    DesignChip("Downloads", false, { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.DOWN)
+                    moodList.forEach { m -> DesignChip(m, mood == m, { mood = if (mood == m) null else m }) }
+                }
+            } else item {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlossPill("Shuffle All", { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } }, icon = Glyph.SHUFFLE, height = 32.dp)
                     GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 32.dp)
@@ -630,9 +642,47 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     }
 }
 
+/**
+ * Home's top in design I (J-Home-phone): the last-played cover full width, fading into the ground; over it Search and the account;
+ * then a DM Mono greeting, the serif headline with its last words in italics, and Shuffle all in the cover's colour, with
+ * Resume (tinted) beside it when there is a song to go back to. It is at the top of the screen, well clear of the bottom 100 dp.
+ */
+@Composable
+private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, account: @Composable () -> Unit) {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    val cols = rememberCoverColours(last?.artKey)
+    val hour = remember { java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
+    Column {
+        Box(Modifier.fillMaxWidth().height(300.dp)) {
+            if (last?.artKey != null) {
+                ArtImage(last.artKey, Modifier.fillMaxSize(), corner = 0.dp)
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x55000000), .3f to Color.Transparent, .55f to Color.Transparent, 1f to Palette.bg)))
+            } else Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(cols.tone), Palette.bg))))
+            Row(Modifier.align(Alignment.TopEnd).padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconAction(Glyph.SEARCH, "Search", { nav.push(Screen.Search) }, tint = Color.White)
+                account()
+            }
+            Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 20.dp)) {
+                MonoLabel(HomeWords.greeting(hour), color = sc.onBg.copy(alpha = .75f))
+                SerifTitle(HomeWords.headline(last != null), Modifier.padding(top = 6.dp), size = 40f, maxLines = 2, italicWords = 2)
+            }
+        }
+        Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AccentPill("Shuffle all", Glyph.SHUFFLE, cols, onShuffleAll)
+            if (last != null) TonePill("Resume", Glyph.PLAY, cols, {
+                // the song still loaded opens the player (resuming it); one from history starts again
+                if (app.player.current?.path == last.path) { if (!app.player.isPlaying) app.player.toggle(); nav.nowPlaying = true }
+                else app.player.play(listOf(last), 0, null, "Recently Played")
+            })
+        }
+    }
+}
+
 @Composable
 fun SectionHeader(text: String) {
-    val sc = LocalScheme.current
+    // design I: shelf and section titles are serif headings (last word italic); the iPod skins keep their small caps
+    if (LocalStyle.current.modern) { SerifTitle(text, Modifier.padding(start = 20.dp, end = 16.dp, top = 24.dp, bottom = 10.dp), size = 26f); return }
     Txt(text.uppercase(), Modifier.padding(start = 20.dp, top = 22.dp, bottom = 8.dp), size = 12f, weight = FontWeight.Bold, color = Palette.faint)
 }
 
@@ -651,7 +701,8 @@ fun AlbumCard(g: Group, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
     Column(modifier.clip(RoundedCornerShape(14.dp)).clickable(src, null, onClick = onClick).padding(4.dp)) {
-        ArtImage(g.artKey, Modifier.fillMaxWidth().aspectRatio(1f).border(if (focused) 3.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(12.dp)), corner = 12.dp)
+        // rounded covers with a soft shadow, as on the web's new look
+        ArtImage(g.artKey, Modifier.fillMaxWidth().aspectRatio(1f).coverShadow(12.dp, 8.dp).border(if (focused) 3.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(12.dp)), corner = 12.dp)
         Txt(g.name, Modifier.padding(top = 8.dp), size = 14f, weight = FontWeight.SemiBold)
         Txt(g.tracks.firstOrNull()?.artist ?: "", size = 12f, color = sc.onBgDim)
         g.tracks.firstOrNull()?.let { Box(Modifier.padding(top = 4.dp)) { SourceBadge(it.source) } }
@@ -664,7 +715,7 @@ private fun TrackCard(t: Track, modifier: Modifier = Modifier, onClick: () -> Un
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
     Column(modifier.clip(RoundedCornerShape(14.dp)).clickable(src, null, onClick = onClick).padding(4.dp)) {
-        ArtImage(t.artKey, Modifier.fillMaxWidth().aspectRatio(1f).border(if (focused) 3.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(12.dp)), thumb = true, corner = 12.dp)
+        ArtImage(t.artKey, Modifier.fillMaxWidth().aspectRatio(1f).coverShadow(12.dp, 8.dp).border(if (focused) 3.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(12.dp)), thumb = true, corner = 12.dp)
         Txt(t.title, Modifier.padding(top = 8.dp), size = 13f, weight = FontWeight.SemiBold)
         Txt(t.artist, size = 12f, color = sc.onBgDim)
         DownloadTagLine(t, size = 11f, compact = true, showNew = !(Tweaks.badges && LocalApp.current.library.mixedSources))
@@ -731,7 +782,9 @@ private fun SourceFilterChips(all: List<Track>, current: com.ipodemu.library.Tra
     ) {
         @Composable
         fun chip(label: String, value: com.ipodemu.library.TrackSource?, count: Int) {
-            GlossPill("$label ($count)", { onChange(value) }, height = 30.dp, primary = current == value)
+            // design I filters: outlined chips, the chosen one filled
+            if (LocalStyle.current.modern) DesignChip("$label  $count", current == value, { onChange(value) })
+            else GlossPill("$label ($count)", { onChange(value) }, height = 30.dp, primary = current == value)
         }
         chip("All", null, all.size)
         for (s in com.ipodemu.library.TrackSource.entries) {
@@ -904,8 +957,13 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
         DetailKind.MIX -> mix?.let { title = it.title; subtitle = it.subtitle; tracks = it.tracks; art = it.artKey }
     }
     BackdropArt(nav, art)
+    // the small mono label over the serif title (design I), saying what kind of page this is
+    val kindLabel = when (d.kind) {
+        DetailKind.ALBUM -> "Album"; DetailKind.ARTIST -> "Artist"; DetailKind.GENRE -> "Genre"; DetailKind.FOLDER, DetailKind.USER -> "Playlist"
+        DetailKind.FAVORITES -> "Your favourites"; DetailKind.RECENT -> "History"; DetailKind.DOWNLOADS -> "Downloads"; DetailKind.MIX -> "Mix"
+    }
     val total = tracks.sumOf { it.durationMs }
-    val info = songCount(tracks.size) + if (total > 0) "  -  " + (total / 60000).toString() + " min" else ""
+    val info = songCount(tracks.size) + if (total > 0) " · " + (total / 60000).toString() + " min" else ""
     androidx.compose.runtime.DisposableEffect(title) { nav.playContext = title.ifEmpty { null }; onDispose { if (nav.playContext == title) nav.playContext = null } }
     val extra = if (userId != null) listOf(SheetItem("Remove from playlist", Glyph.CLOSE) { }) else emptyList()
     val missing = if (userId != null && app.library.loaded) ud.playlists.firstOrNull { it.id == userId }?.paths.orEmpty().filter { lib.resolve(it, ud.meta[it]) == null }.mapNotNull { ud.meta[it] }.filter { it.first.isNotBlank() } else emptyList()
@@ -913,7 +971,7 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
         TopBar(title.ifEmpty { "Playlist" }, nav, showBack = true)
         if (tracks.isEmpty() && missing.isEmpty()) {
             // an emptied playlist keeps its Play / Rename / Delete buttons (the only way to rename or delete it from its own page)
-            if (userId != null) Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) { DetailHeader(art, title, subtitle.ifEmpty { info }, if (subtitle.isEmpty()) "" else info, tracks, nav, userId) }
+            if (userId != null) Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) { DetailHeader(art, title, subtitle.ifEmpty { info }, if (subtitle.isEmpty()) "" else info, tracks, nav, userId, kindLabel) }
             Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState(if (d.kind == DetailKind.FAVORITES) "Tap the heart on a song to add it here" else "Nothing here yet") }
             return@Column
         }
@@ -922,14 +980,14 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
             if (wide) {
                 Row(Modifier.fillMaxSize()) {
                     Column(Modifier.width(300.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        DetailHeader(art, title, subtitle.ifEmpty { info }, if (subtitle.isEmpty()) "" else info, tracks, nav, userId)
+                        DetailHeader(art, title, subtitle.ifEmpty { info }, if (subtitle.isEmpty()) "" else info, tracks, nav, userId, kindLabel)
                     }
                     SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing)
                 }
             } else {
                 SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, header = {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        DetailHeader(art, title, subtitle.ifEmpty { info }, if (subtitle.isEmpty()) "" else info, tracks, nav, userId)
+                        DetailHeader(art, title, subtitle.ifEmpty { info }, if (subtitle.isEmpty()) "" else info, tracks, nav, userId, kindLabel)
                     }
                 })
             }
@@ -939,9 +997,25 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
 
 
 @Composable
-private fun DetailHeader(art: String?, title: String, line1: String, line2: String, tracks: List<Track>, nav: PlayerNav, playlistId: String? = null) {
+private fun DetailHeader(art: String?, title: String, line1: String, line2: String, tracks: List<Track>, nav: PlayerNav, playlistId: String? = null, kind: String = "") {
     val app = LocalApp.current
     val sc = LocalScheme.current
+    if (LocalStyle.current.modern) {
+        // design I (the web's detail-album): the cover large with a soft shadow, a DM Mono kind label, the serif title with its last word in
+        // italics, the artist, a mono facts line, then Play in the cover's colour and Shuffle tinted with its tone
+        val cols = rememberCoverColours(art)
+        ArtImage(art, Modifier.fillMaxWidth(.78f).widthIn(max = 300.dp).aspectRatio(1f).coverShadow(16.dp, 18.dp), corner = 16.dp)
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (kind.isNotEmpty()) MonoLabel(kind)
+            SerifTitle(title, size = if (title.length > SleeveText.LONG_TITLE) 34f else 42f, maxLines = 3)
+            if (line1.isNotEmpty()) Txt(line1, size = 16f, weight = FontWeight.Bold, maxLines = 2)
+            if (line2.isNotEmpty()) MonoLabel(line2, Modifier.padding(top = 2.dp))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (tracks.isNotEmpty()) AccentPill("Play", Glyph.PLAY, cols, { app.player.play(tracks, 0, null, title) })
+            if (tracks.isNotEmpty()) TonePill("Shuffle", Glyph.SHUFFLE, cols, { app.player.play(tracks, tracks.indices.random(), true, title) })
+        }
+    } else {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
         ArtImage(art, Modifier.size(104.dp), corner = 12.dp)
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -954,6 +1028,7 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         GlossPill("Play", { app.player.play(tracks, 0, null, title) }, icon = Glyph.PLAY, primary = true, height = 40.dp)
         GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true, title) }, icon = Glyph.SHUFFLE, height = 40.dp)
+    }
     }
     if (playlistId != null) {
         // editing: the playlist's own actions (songs have Move and Remove in their menu)

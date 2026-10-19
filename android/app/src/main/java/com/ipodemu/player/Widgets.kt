@@ -349,7 +349,8 @@ fun GlossPill(
     val focused by src.collectIsFocusedAsState()
     val shape = RoundedCornerShape(50)
     val modern = style.modern
-    val brush = if (modern) androidx.compose.ui.graphics.SolidColor(if (primary) sc.accent else Palette.surface2)
+    // design I: a plain pill is outlined on the ground (no grey fill), the chosen or main one is filled
+    val brush = if (modern) androidx.compose.ui.graphics.SolidColor(if (primary) sc.accent else Color.Transparent)
     else if (primary) Brush.verticalGradient(listOf(sc.accentLight, sc.accent, sc.accentDark))
     else Brush.verticalGradient(listOf(Color(0x52FFFFFF), Color(0x1AFFFFFF)))
     Row(
@@ -357,7 +358,7 @@ fun GlossPill(
             .height(maxOf(height, 44.dp))   // a touch target of at least 44 dp
             .pressSpring(pressed, 0.92f)
             .clip(shape).background(brush)
-            .then(if (modern && !focused) (if (primary) Modifier else Modifier.border(1.dp, Palette.line, shape)) else Modifier.border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else Color(0x40FFFFFF), shape))
+            .then(if (modern && !focused) (if (primary) Modifier else Modifier.border(1.dp, sc.onBg.copy(alpha = .28f), shape)) else Modifier.border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else Color(0x40FFFFFF), shape))
             .drawBehind {
                 if (style.glossy) drawRoundRect(
                     Brush.verticalGradient(listOf(Color(0x55FFFFFF), Color.Transparent)),

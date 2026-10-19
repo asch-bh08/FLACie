@@ -329,27 +329,40 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
     val frac = if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
     // on a short screen the bar is slimmer and sits closer to the bottom: it took a fifth of the 360 dp RG Rotate
     val short = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500
+    // design I (the web's bar-phone): the bar is tinted with the cover's tone, the title is serif with its last word in italics, a mono
+    // format chip under the artist, play in the cover's colour; it stays where the mini player always was, just above the navigation
+    val cols = rememberCoverColours(t.artKey)
+    val tone = Color(cols.tone); val main = Color(cols.main)
+    val shape = RoundedCornerShape(18.dp)
     Box(
-        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = if (short) 4.dp else 6.dp, bottom = if (short) 4.dp else 10.dp).height(if (short) 56.dp else 62.dp).clip(RoundedCornerShape(14.dp))
-            .background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(14.dp))
-            .focusRing(RoundedCornerShape(14.dp))
+        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = if (short) 4.dp else 6.dp, bottom = if (short) 4.dp else 10.dp).height(if (short) 58.dp else 66.dp)
+            .coverShadow(18.dp, 8.dp).clip(shape)
+            .background(Brush.horizontalGradient(listOf(tone, Palette.surface))).border(1.dp, Color(cols.toneFg).copy(alpha = .14f), shape)
+            .focusRing(shape)
             .clickable { nav.nowPlaying = true }
     ) {
-        Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            ArtImage(t.artKey, Modifier.size(48.dp).sharedCover().popIn(t.path, 0.7f), thumb = true, corner = 6.dp)
+        Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            ArtImage(t.artKey, Modifier.size(if (short) 44.dp else 50.dp).sharedCover().popIn(t.path, 0.7f), thumb = true, corner = 10.dp)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Txt(t.title, size = 15f, weight = FontWeight.SemiBold)
-                Txt(t.artist.ifEmpty { t.album }, size = 13f, color = sc.onBgDim)
+                SerifTitle(t.title, size = 20f)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+                    Txt(t.artist.ifEmpty { t.album }, Modifier.weight(1f, fill = false), size = 12.5f, weight = FontWeight.SemiBold, color = sc.onBgDim)
+                    if (!short) FormatChip(remember(t.path) { trackExt(t) })
+                }
                 DownloadTagLine(t, size = 11f)
             }
             // instant way to the Devices screen (hand this song to another device, or take over theirs) while other devices are signed in
             val hasOthers by remember { androidx.compose.runtime.derivedStateOf { app.connect.sessions.any { !it.isSelf } } }
             if (!app.ui.guest && hasOthers) IconAction(Glyph.DEVICES, "Devices", { app.ui.devicesOpen = true }, tint = sc.accent)
-            IconAction(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, if (snap.playing) "Pause" else "Play", { app.player.toggle() })
+            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(42.dp).clip(CircleShape).background(main)) {
+                    IconAction(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, if (snap.playing) "Pause" else "Play", { app.player.toggle() }, tint = Color(0xFF1A120C), size = 42.dp, iconScale = .46f)
+                }
+            }
             IconAction(Glyph.NEXT, "Next", { app.player.next() })
         }
-        Box(Modifier.align(Alignment.BottomStart).padding(horizontal = 8.dp).fillMaxWidth().height(2.dp).background(sc.onBg.copy(alpha = .18f))) {
-            Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(sc.onBg))
+        Box(Modifier.align(Alignment.BottomStart).padding(horizontal = 14.dp).fillMaxWidth().height(2.dp).background(sc.onBg.copy(alpha = .14f))) {
+            Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(main))
         }
     }
 }

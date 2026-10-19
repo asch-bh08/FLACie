@@ -85,7 +85,8 @@ fun buildModernScheme(art: ArtColors?): Scheme {
 fun ModernTopBar(title: String, onBack: (() -> Unit)?, actions: @Composable () -> Unit = {}) {
     Row(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         if (onBack != null) IconAction(Glyph.BACK, "Back", onBack) else Box(Modifier.width(12.dp))
-        Txt(title, Modifier.weight(1f).padding(start = 4.dp), size = 22f, weight = FontWeight.Bold)
+        // design I: the screen's name in the serif, last word in italics
+        SerifTitle(title, Modifier.weight(1f).padding(start = 4.dp), size = 30f)
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) { actions() }
     }
 }

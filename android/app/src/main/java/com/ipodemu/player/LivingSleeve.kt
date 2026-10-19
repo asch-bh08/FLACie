@@ -145,21 +145,8 @@ private val Line = Color(0x40F4EFE6)
 /** The cover's colours, as States: read inside draw blocks they repaint without recomposing anything. */
 private class SleevePalette(val main: State<Color>, val second: State<Color>, val ground: State<Color>, val tone: State<Color>, val toneFg: State<Color>)
 
-/** The three faces of design I (SIL OFL fonts in res/font; their licences are in src/main/fonts-licence). */
-@OptIn(ExperimentalTextApi::class)
-private object SleeveFonts {
-    val serif = FontFamily(
-        Font(R.font.instrument_serif_regular, FontWeight.Normal, FontStyle.Normal),
-        Font(R.font.instrument_serif_italic, FontWeight.Normal, FontStyle.Italic),
-    )
-    // Archivo is one variable file: each weight asks it for that weight explicitly, or every weight would draw as the file's default
-    val sans = FontFamily(
-        Font(R.font.archivo_variable, FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
-        Font(R.font.archivo_variable, FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
-        Font(R.font.archivo_variable, FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
-    )
-    val mono = FontFamily(Font(R.font.dm_mono_regular, FontWeight.Normal), Font(R.font.dm_mono_medium, FontWeight.Medium))
-}
+/** The three faces of design I, now shared with the rest of the app (DesignI.kt). */
+private val SleeveFonts = DesignFonts
 
 /** Text in one of the design's faces (the app's own Txt always uses the app font). */
 @Composable

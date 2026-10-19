@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Now Playing on PC, your mix</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Archivo:wght@500;700&amp;family=DM+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#fff}a:hover{color:#ddd}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: #163a3f; color: #f4efe6; font-family: 'Archivo', sans-serif">
+  <div aria-hidden="true" style="position: absolute; inset: 0; overflow: hidden">
+    <div style="position: absolute; width: 1200px; height: 1200px; border-radius: 50%; left: -420px; top: -520px; background: radial-gradient(closest-side, rgba(255,155,110,.55), rgba(255,155,110,0))"></div>
+    <div style="position: absolute; width: 1000px; height: 1000px; border-radius: 50%; left: -200px; top: 380px; background: radial-gradient(closest-side, rgba(242,198,160,.25), rgba(242,198,160,0))"></div>
+  </div>
+  <div role="img" aria-label="[ALBUM COVER]" style="position: absolute; left: 140px; top: 84px; width: 440px; height: 440px; border-radius: 26px; overflow: hidden; background: #2f5d62; box-shadow: 0 40px 90px rgba(0,0,0,.45)">
+    <div style="position: absolute; width: 560px; height: 560px; border-radius: 50%; left: 170px; top: -220px; background: #ff9b6e"></div>
+    <div style="position: absolute; width: 330px; height: 330px; border-radius: 50%; left: -110px; top: 250px; background: #f2c6a0"></div>
+  </div>
+  <div style="position: absolute; left: 28px; right: 28px; top: 22px; display: flex; justify-content: space-between; align-items: center">
+    <button aria-label="Close" style="width: 44px; height: 44px; border: 0; border-radius: 22px; background: rgba(0,0,0,.28); color: #fff; display: grid; place-items: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+    <button aria-label="Retro" style="width: 44px; height: 44px; border: 0; border-radius: 22px; background: #24525a; color: #e7f3f0; display: grid; place-items: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"></rect><circle cx="8.5" cy="12" r="2"></circle><circle cx="15.5" cy="12" r="2"></circle></svg></button>
+  </div>
+
+  <div style="position: absolute; left: 60px; width: 600px; top: 548px">
+        <div style="font-family: 'Instrument Serif', serif; font-size: 54px; line-height: .95; text-align: center">Slow <i>Satellite</i></div>
+    <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 8px">
+      <span style="font-size: 20px; font-weight: 700">Marlow Fen</span>
+      <span style="font-family: 'DM Mono', monospace; font-size: 12px; padding: 4px 9px; border-radius: 8px; background: #24525a; color: #e7f3f0">FLAC 24/96</span>
+      <button aria-label="Favourite" style="width: 48px; height: 48px; border: 0; border-radius: 24px; background: #24525a; color: #e7f3f0; display: grid; place-items: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"></path></svg></button>
+    </div>
+
+    <div style="display: flex; align-items: center; justify-content: center; gap: 22px; margin-top: 4px">
+      <button aria-label="Shuffle" style="width: 44px; height: 44px; border: 0; background: none; color: rgba(244,239,230,.8)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M3 7h3c4 0 6 10 10 10h5M3 17h3c1.5 0 2.7-1.4 3.7-3M14.3 10C15.3 8.4 16.5 7 18 7h3M18 4l3 3-3 3M18 14l3 3-3 3"></path></svg></button>
+      <button aria-label="Previous" style="width: 62px; height: 54px; border: 0; border-radius: 27px; background: #24525a; color: #e7f3f0; display: grid; place-items: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 6h2v12H6zM19 6v12l-10-6z"></path></svg></button>
+      <div style="position: relative; width: 170px; height: 170px; flex: none">
+        <div aria-hidden="true" style="position: absolute; inset: 0">
+          <sc-for list="{{ring}}" as="r" hint-placeholder-count="96"><div style="position: absolute; left: 83px; top: 0; width: 4px; height: 85px; transform-origin: 2px 85px; transform: rotate({{r.a}}deg)"><div style="width: 4px; height: {{r.h}}; border-radius: 2px; background: {{r.c}}"></div></div></sc-for>
+        </div>
+        <button aria-label="Pause" style="position: absolute; left: 40px; top: 50px; width: 90px; height: 70px; border: 0; border-radius: 28px; background: #ff9b6e; color: #1a120c; display: grid; place-items: center"><svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5.5" y="4" width="4.2" height="16" rx="1.4"></rect><rect x="14.3" y="4" width="4.2" height="16" rx="1.4"></rect></svg></button>
+      </div>
+      <button aria-label="Next" style="width: 62px; height: 54px; border: 0; border-radius: 27px; background: #24525a; color: #e7f3f0; display: grid; place-items: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 6h2v12h-2zM5 6v12l10-6z"></path></svg></button>
+      <button aria-label="Repeat" style="width: 44px; height: 44px; border: 0; background: none; color: rgba(244,239,230,.8)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M17 3l3 3-3 3M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 0 1-3 3H4"></path></svg></button>
+    </div>
+    <div style="font-family: 'DM Mono', monospace; font-size: 13px; color: rgba(244,239,230,.75); margin: 6px 0 0 0; text-align: center">1:36 / 4:12</div>
+  </div>
+
+  <div style="position: absolute; left: 820px; right: 44px; top: 96px; bottom: 36px; display: flex; flex-direction: column">
+    <div role="tablist" style="display: flex; gap: 8px">
+      <button role="tab" aria-selected="false" style="height: 40px; padding: 0 16px; border: 1px solid rgba(244,239,230,.4); border-radius: 12px; background: none; color: #f4efe6; font: inherit; font-size: 14px">Lyrics</button>
+      <button role="tab" aria-selected="true" style="height: 40px; padding: 0 16px; border: 0; border-radius: 12px; background: #f4efe6; color: #163a3f; font: inherit; font-size: 14px; font-weight: 700">Up next</button>
+      <button role="tab" aria-selected="false" style="height: 40px; padding: 0 16px; border: 1px solid rgba(244,239,230,.4); border-radius: 12px; background: none; color: #f4efe6; font: inherit; font-size: 14px">Info</button>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 18px">
+      <sc-for list="{{queue}}" as="q" hint-placeholder-count="6">
+        <div style="display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 14px">
+          <div aria-hidden="true" style="flex: none; width: 46px; height: 46px; border-radius: 10px; background: {{q.c}}"></div>
+          <div style="flex: 1; min-width: 0"><div style="font-size: 15px; font-weight: 700">{{q.t}}</div><div style="font-size: 13px; color: rgba(244,239,230,.7)">{{q.a}}</div></div>
+          <span style="font-family: 'DM Mono', monospace; font-size: 12px; color: rgba(244,239,230,.7)">{{q.d}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const ring = [];
+    for (let i = 0; i < 96; i++) { const v = .2 + .8 * Math.abs(Math.sin(i * .37) * Math.cos(i * .11 + 1) + .3 * Math.sin(i * 1.4)); ring.push({ a: i * 3.75, h: Math.max(4, Math.round(v * 22)) + 'px', c: i < 36 ? '#ff9b6e' : 'rgba(244,239,230,.25)' }); }
+    const queue = [
+      { t: 'Harbour Lights', a: 'Marlow Fen', d: '3:48', c: '#7fd6c8' },
+      { t: 'Paper Moons', a: 'Ilse Varga', d: '5:02', c: '#c9a2ff' },
+      { t: 'Low Tide Radio', a: 'Marlow Fen', d: '4:21', c: '#f5e15a' },
+      { t: 'Glasshouse', a: 'The Quiet Hours', d: '3:15', c: '#2f5d62' },
+      { t: 'Undertow', a: 'Ilse Varga', d: '4:40', c: '#ff9b6e' }
+    ];
+    return { ring, queue };
+  }
+}
+</script>
+</body>
+</html>

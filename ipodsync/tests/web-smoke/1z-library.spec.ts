@@ -14,6 +14,13 @@ async function signIn(page: Page) {
   await page.waitForTimeout(1500);
 }
 
+// a page is read once it is live: the copy drawn first by the server is replaced when the live connection starts, and a style read in between finds a detached element
+async function live(page: Page, url: string) {
+  const ws = page.waitForEvent('websocket', { predicate: (w) => w.url().includes('_blazor'), timeout: 20_000 });
+  await page.goto(url);
+  await ws; await page.waitForTimeout(800);
+}
+
 const font = (l: ReturnType<Page['locator']>) => l.evaluate((e) => getComputedStyle(e).fontFamily);
 const radius = (l: ReturnType<Page['locator']>) => l.evaluate((e) => parseFloat(getComputedStyle(e).borderRadius));
 const noSideScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
@@ -23,7 +30,7 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
     test.beforeEach(async ({ page }) => { await page.setViewportSize(size); await signIn(page); });
 
     test('search results: serif section titles with the last word in italics, mono times, rounded covers', async ({ page }) => {
-      await page.goto('/search?q=aurora');
+      await live(page, '/search?q=aurora');
       const songs = page.locator('section[aria-label="Songs"] h2.section');
       await expect(songs).toBeVisible();
       expect(await font(songs)).toContain('Instrument Serif');
@@ -35,7 +42,7 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
     });
 
     test('search results: the top result is a rounded card with a serif title', async ({ page }) => {
-      await page.goto('/search?q=aurora');
+      await live(page, '/search?q=aurora');
       const hero = page.locator('.sr-hero').first();
       await expect(hero).toBeVisible();
       await expect(hero.locator('.sr-hero-title')).toBeVisible(); expect(await font(hero.locator('.sr-hero-title'))).toContain('Instrument Serif');
@@ -43,7 +50,7 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
     });
 
     test('albums: serif Explore title in italics, outlined tabs with the chosen one filled, rounded covers', async ({ page }) => {
-      await page.goto('/albums');
+      await live(page, '/albums');
       const h1 = page.locator('.page-head h1');
       await expect(h1.locator('i')).toHaveText('Explore');
       expect(await font(h1)).toContain('Instrument Serif');
@@ -60,7 +67,7 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
     });
 
     test('songs, artists and genres keep their tabs, filters and rows in the same look', async ({ page }) => {
-      await page.goto('/songs');
+      await live(page, '/songs');
       await expect(page.locator('.page-head h1 i')).toHaveText('Explore');
       await expect(page.getByRole('button', { name: /Shuffle/ })).toBeVisible();
       await expect(page.locator('.tracks .track').first()).toBeVisible();

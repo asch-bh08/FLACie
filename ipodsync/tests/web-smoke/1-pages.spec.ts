@@ -167,7 +167,10 @@ test('an unknown address shows a page, not a crash', async ({ page }) => {
 for (const width of [375, 320]) {
   test(`at ${width}px wide the bottom bar is one scrollable row: no page overflow, every link reachable, no overlap, each >= 44px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 700 });
+    // measured once the page is live: the menu drawn first by the server is replaced when the live connection starts, and a detached link measures 0
+    const ws = page.waitForEvent('websocket', { predicate: (w) => w.url().includes('_blazor'), timeout: 20_000 });
     await page.goto('/');
+    await ws; await page.waitForTimeout(800);
     const rail = page.locator('#main-rail');
     await expect(rail).toBeVisible();
     const boxes = await rail.locator('a').evaluateAll((as) => as.map((a) => { const r = a.getBoundingClientRect(); return { href: a.getAttribute('href'), x: r.x, w: r.width, h: r.height, shown: getComputedStyle(a).display !== 'none' }; }));

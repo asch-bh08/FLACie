@@ -8,3 +8,5 @@
 - 23:15 P5 settings/server pages started (sonnet, 8450/5450/8451).
 - 23:35 P2 browse merged (8469bc6): serif section titles, mono times and chips, rounded covers, top-result card. Its spec read styles before the page went live; fixed (747d873), 16/16 twice. Known: the /charts page (FLACie.Server) only has the shared styles; on a phone the source badge squeezes song titles.
 - 23:50 P1 bar merged (a3b74e4): serif title, format chip, cover-coloured play, tinted pills; a floating card on a phone. It had hidden the "Downloaded · 4m ago" tag on phones (1i caught it): put back. 1i + 1z-bar 25/25. Known: the phone card hides Retro, the device picker and the mini player (all still in the full-screen player except device picker / PiP) to fit.
+- 23:55 P3 detail pages and P4 playlists started (sonnet; 8460/5460/8461 and 8470/5470/8471). Running: P3, P4, P5. Check: usage 72%, resets 00:10.
+- 00:00 P5 settings merged locally (e42a35e), its check run going; 1-pages 320px menu test fixed (same live-page race). P7 Android started (opus, emulator only). Running: P3, P4, P7. Check 00:33: usage 80%, resets 00:10 local... (shown as 36 min).

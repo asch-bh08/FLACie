@@ -73,7 +73,7 @@
   .sp .panel { padding: 18px; border-radius: 20px; }
   .sp .admin-block { padding: 18px; }
   /* sub-nav chips scroll sideways in one row rather than stacking in many lines */
-  .sp .subnav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-left: calc(-1 * clamp(16px, 4vw, 44px)); margin-right: calc(-1 * clamp(16px, 4vw, 44px)); padding: 0 clamp(16px, 4vw, 44px); }
+  .sp .subnav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
   .sp .subnav::-webkit-scrollbar { display: none; }
   .sp .subnav a { flex: none; white-space: nowrap; }
   .login-card { padding: 24px 20px; }

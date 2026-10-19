@@ -1,1 +1,61 @@
-/* design I: bar (see docs/waves/plan.md). Filled in by its phase. */
+/* design I: the now-playing bar (docs/superpowers/specs/design-2026-10-19/I-Bar.dc.html on a PC, the mini player in J-Home-phone.html on a phone).
+   Loads after app.css, so these rules win. The colours are the cover's: flacie.npAccent sets --np-accent, --tone, --tonefg and --ground on .player. */
+.player {
+  --a: var(--np-accent, #ff9b6e); --t: var(--tone, #24525a); --tf: var(--tonefg, #e7f3f0); --g: var(--ground, #163a3f);
+  font-family: 'Archivo', system-ui, sans-serif; color: #f4efe6; border-top: 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--a) 22%, transparent), color-mix(in srgb, var(--g) 60%, transparent) 40%, transparent 75%), #101416;
+  transition: background .4s;
+}
+.player .bar { padding: 3px 24px 0 16px; gap: 24px; }
+
+/* the song: a rounded cover, a serif title with its last word in italics, the artist and the format chip underneath */
+.player .bar-song { color: inherit; gap: 14px; }
+.player .bar-song .cover { border-radius: 14px; overflow: hidden; width: 62px; height: 62px; }
+.player .bar-text { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 3px; }
+.player .bar-text b { flex: 0 0 100%; font: 400 24px/1.05 'Instrument Serif', serif; letter-spacing: 0; }
+.player .bar-text b i { font-style: italic; }
+.player .bar-text small { font-size: 13px; color: rgba(244, 239, 230, .75); min-width: 0; max-width: 100%; }
+.player .bar-chip { font: 500 11px/1 'DM Mono', ui-monospace, monospace; color: rgba(244, 239, 230, .8); border: 1px solid rgba(244, 239, 230, .3); border-radius: 999px; padding: 3px 8px; white-space: nowrap; }
+
+/* the controls: bare shuffle and repeat, tinted pill previous / next, a rounded-square play button in the cover colour */
+.player .bar-controls .buttons { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.player .icon-btn { color: rgba(244, 239, 230, .75); border-radius: 20px; }
+.player .icon-btn.on, .player .icon-btn.fav.on { color: var(--a); }
+.player .icon-btn:hover { background: rgba(244, 239, 230, .1); color: #f4efe6; }
+.player .bar-controls .buttons .icon-btn:nth-child(2), .player .bar-controls .buttons .icon-btn:nth-child(4) { width: 50px; height: 44px; border-radius: 22px; background: var(--t); color: var(--tf); }
+.player .bar-controls .buttons .icon-btn:nth-child(2):hover, .player .bar-controls .buttons .icon-btn:nth-child(4):hover { background: color-mix(in srgb, var(--t) 80%, #fff); }
+.player .play { width: 66px; height: 52px; border-radius: 20px; background: var(--a); color: #1a120c; }
+.player .play:hover { transform: none; filter: brightness(1.08); }
+
+/* the times beside the controls in DM Mono; the seek track under them is the same seek as the top line */
+.player .seek { max-width: 420px; font: 500 12px 'DM Mono', ui-monospace, monospace; color: rgba(244, 239, 230, .75); }
+.player .seek span { width: 40px; }
+
+/* the thin progress line along the top: still a range input, so the mouse, the keyboard and a screen reader keep working */
+.player .bar-progress { top: -8px; height: 19px; accent-color: var(--a); }
+.player .bar-progress::-webkit-slider-runnable-track { height: 3px; background: linear-gradient(to right, var(--a) var(--fill, 0%), rgba(244, 239, 230, .14) var(--fill, 0%)); }
+.player .bar-progress::-moz-range-track { height: 3px; background: linear-gradient(to right, var(--a) var(--fill, 0%), rgba(244, 239, 230, .14) var(--fill, 0%)); }
+.player .bar-progress::-moz-range-progress { background: transparent; }
+.player .bar-progress::-webkit-slider-thumb { background: var(--a); }
+.player .seek input, .player .vol input { accent-color: var(--a); }
+.player .vol input::-webkit-slider-runnable-track { background: linear-gradient(to right, #f4efe6 var(--fill, 0%), rgba(244, 239, 230, .25) var(--fill, 0%)); }
+
+.player .bar-right { gap: 6px; }
+
+/* a phone: a floating rounded card above the tab bar, the progress line along its foot */
+@media (max-width: 760px) {
+  .player { left: 10px; right: 10px; bottom: calc(var(--tabs) + 10px + env(safe-area-inset-bottom, 0px)); border-radius: 20px; box-shadow: 0 10px 30px rgba(0, 0, 0, .4);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--a) 30%, transparent), transparent 80%), var(--g); padding: 0; }
+  .player .bar { height: 64px; padding: 8px; gap: 10px; grid-template-columns: minmax(0, 1fr) auto auto; }
+  .player .bar-song { gap: 12px; }
+  .player .bar-song .cover { width: 48px; height: 48px; border-radius: 12px; }
+  .player .bar-text b { font-size: 20px; }
+  .player .bar-text small { font-size: 12px; }
+  .player .bar-text .dl-tag { display: none; }
+  .player .bar-chip { font-size: 10px; padding: 2px 6px; }
+  .player .bar-controls .buttons { gap: 6px; }
+  .player .play { width: 54px; height: 44px; border-radius: 16px; }
+  .player .bar-controls .buttons .icon-btn:nth-child(2), .player .bar-controls .buttons .icon-btn:nth-child(4) { width: 42px; height: 40px; }
+  .player .bar-right > :not([aria-label^="Stop"]) { display: none; }
+  .player .bar-progress { top: auto; bottom: -8px; left: 16px; right: 16px; width: calc(100% - 32px); }
+}

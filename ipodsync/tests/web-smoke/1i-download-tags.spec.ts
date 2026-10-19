@@ -125,8 +125,9 @@ const qrow = (title: string) => page.locator('.upnext li.q-item', { has: page.lo
 async function openNowPlaying() {
   await page.getByRole('button', { name: 'Open Now Playing' }).click();
   await expect(page.locator('.ls-names h2')).toBeVisible();
-  const tab = page.getByRole('tab', { name: 'Up next' });
-  if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
+  // design I: the player opens on Up next (the panel beside the cover on a PC)
+  await expect(page.getByRole('tab', { name: 'Up next' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('.ls-side .upnext')).toBeVisible();
 }
 async function closeNowPlaying() { await page.getByRole('button', { name: 'Close Now Playing' }).click(); await expect(page.locator('.ls-names h2')).toHaveCount(0); }
 async function pause() {
@@ -451,6 +452,7 @@ test.describe.serial('download tags', () => {
     // they land: no placeholder is left, each is an ordinary row of the list with "Recently downloaded"
     state.release = true; state.bytes = 0;
     await expect(pending).toHaveCount(0, { timeout: 90_000 });
+    // (two landing at the same moment both stay: the library is rebuilt one arrival at a time, see DownloadedLibraryTests)
     for (const t of FETCH_ALL.slice(0, 3)) await expect(qrow(t).locator('.dl-tag'), t).toHaveText(RECENT, { timeout: 20_000 });
 
     // the autoplay part of the queue: the queue ran out, Autoplay's songs follow; the new song's suggestions are being fetched and are listed at the end of that part

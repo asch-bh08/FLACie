@@ -56,7 +56,7 @@ public sealed class UserSession
         try
         {
             var list = System.Text.Json.JsonSerializer.Deserialize<List<Track>>(File.ReadAllText(CachePath));
-            if (list is { Count: > 0 }) { Library = WithDownloads(new Library(list)); Changed?.Invoke(); }
+            if (list is { Count: > 0 }) { Rebuild(_ => new Library(list)); Changed?.Invoke(); }
         }
         catch (Exception) { }
     }
@@ -130,7 +130,7 @@ public sealed class UserSession
                         var listing = await jf.ListAudioAsync(ja, null, ct, firstSync ? partial =>
                         {
                             if (partial.Count <= published) return;
-                            published = partial.Count; Library = WithDownloads(Library.Merge(partial, [])); Changed?.Invoke();
+                            published = partial.Count; Rebuild(_ => Library.Merge(partial, [])); Changed?.Invoke();
                         } : null, FactsSink);
                         jfTracks = listing.Tracks; SyncCursor = listing.MaxSaved;
                         knownIds = listing.Tracks.Select(t => Norm(t.JellyfinId)).Where(s => s.Length > 0).ToHashSet();
@@ -142,7 +142,7 @@ public sealed class UserSession
                 try { nasTracks = await Task.Run(() => NasClient.Scan(na), ct); }
                 catch (Exception e) { Problem = (Problem is null ? "" : Problem + " · ") + $"NAS: {e.Message}"; }
             // a failed fetch must not replace the library kept from last time with nothing
-            if (!(jfTracks.Count == 0 && nasTracks.Count == 0 && Problem is not null && Library.Songs.Count > 0)) Library = WithDownloads(Library.Merge(jfTracks, nasTracks));
+            if (!(jfTracks.Count == 0 && nasTracks.Count == 0 && Problem is not null && Library.Songs.Count > 0)) Rebuild(_ => Library.Merge(jfTracks, nasTracks));
             LoadedAt = DateTime.UtcNow; SaveCache();
             // (the play counts for the Quick picks are read by the Home page when it is opened, not here: two big requests nobody may ever need)
             if (StripQualityTags()) try { await SaveAsync(jf, ct); } catch (Exception) { }
@@ -198,9 +198,12 @@ public sealed class UserSession
     {
         var gone = removedIds.Select(Norm).ToHashSet();
         var drop = new HashSet<string>(gone.Concat(changed.Select(t => Norm(t.JellyfinId))));
-        var jfNow = Library.Songs.Where(t => t.Source == TrackSource.Jellyfin && !drop.Contains(Norm(t.JellyfinId))).Concat(changed).ToList();
-        var nas = Library.Songs.Where(t => t.Source == TrackSource.Nas).ToList();
-        Library = WithDownloads(Library.Merge(jfNow, nas));
+        Rebuild(l =>
+        {
+            var jfNow = l.Songs.Where(t => t.Source == TrackSource.Jellyfin && !drop.Contains(Norm(t.JellyfinId))).Concat(changed).ToList();
+            var nas = l.Songs.Where(t => t.Source == TrackSource.Nas).ToList();
+            return Library.Merge(jfNow, nas);
+        });
         if (knownIds is { } ids) { ids.ExceptWith(gone); foreach (var t in changed) { var n = Norm(t.JellyfinId); if (n.Length > 0) ids.Add(n); } }
         Changed?.Invoke();
     }
@@ -272,9 +275,14 @@ public sealed class UserSession
     public void AddDownloaded(IEnumerable<Track> tracks)
     {
         lock (downloaded) downloaded.AddRange(tracks);
-        Library = WithDownloads(Library);
+        Rebuild(l => l);
         Changed?.Invoke();
     }
+
+    // every change to the library starts from the library as it is and ends with the downloads added, one at a time: two downloads landing together (Autoplay
+    // fetches several) each rebuild it, and a rebuild that began before the other's finished would otherwise throw that other song away
+    readonly object rebuilding = new();
+    void Rebuild(Func<Library, Library> change) { lock (rebuilding) Library = WithDownloads(change(Library)); }
 
     Library WithDownloads(Library l)
     {

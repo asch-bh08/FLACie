@@ -16,7 +16,10 @@ async function signIn(page: Page) {
 }
 
 async function openPlayer(page: Page) {
+  // clicks only once the page is live: a click on the copy the server drew first goes nowhere when it is replaced
+  const ws = page.waitForEvent('websocket', { predicate: (w) => w.url().includes('_blazor'), timeout: 20_000 });
   await page.goto('/artist/Hires%20Lab');
+  await ws; await page.waitForTimeout(600);
   await page.getByRole('link', { name: /Lab Album/ }).first().click();
   await page.locator('.tracks .track-main').first().click();
   await page.getByRole('button', { name: 'Open Now Playing' }).click();
@@ -162,7 +165,10 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
 test.describe('the shape is ready instantly', () => {
   const waveP = (u: string) => new URL(u).searchParams.get('p') ?? '';
   async function playAlbum(page: Page) {
-    await page.goto('/artist/Hires%20Lab');
+    // clicks only once the page is live: a click on the copy the server drew first goes nowhere when it is replaced
+  const ws = page.waitForEvent('websocket', { predicate: (w) => w.url().includes('_blazor'), timeout: 20_000 });
+  await page.goto('/artist/Hires%20Lab');
+  await ws; await page.waitForTimeout(600);
     await page.getByRole('link', { name: /Lab Album/ }).first().click();
     await page.locator('.tracks .track-main').first().click();
     await expect(page.locator('.bar-text b')).toBeVisible({ timeout: 20_000 });

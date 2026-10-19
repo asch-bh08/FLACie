@@ -55,7 +55,7 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
       await expect(card).toBeVisible();
       expect(await radius(card.locator('.cover').first())).toBeGreaterThanOrEqual(14);
       expect(await noSideScroll(page)).toBe(true);
-      await page.screenshot({ path: `../../../docs/screens-new-look/playlists-list-${name}.png` });
+      await page.screenshot({ path: `test-results/shots/playlists-list-${name}.png` });
 
       await live(page, url);
       const hero = page.locator('.pl-hero');
@@ -75,7 +75,7 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
       await expect(page.getByRole('button', { name: 'Rename' })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible();
       expect(await noSideScroll(page)).toBe(true);
-      await page.screenshot({ path: `../../../docs/screens-new-look/playlists-one-${name}.png` });
+      await page.screenshot({ path: `test-results/shots/playlists-one-${name}.png` });
 
       // clean up so a rerun starts clean
       await page.getByRole('button', { name: 'Delete' }).click();

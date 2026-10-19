@@ -69,10 +69,10 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
 
     test('screenshots', async ({ page }) => {
       await live(page, '/artist/Hires%20Lab');
-      await page.screenshot({ path: `../../../docs/screens-new-look/detail-artist-${size.width}.png` });
+      await page.screenshot({ path: `test-results/shots/detail-artist-${size.width}.png` });
       await page.getByRole('link', { name: /Lab Album/ }).first().click();
       await page.waitForURL(/\/album\//); await page.waitForTimeout(1500);
-      await page.screenshot({ path: `../../../docs/screens-new-look/detail-album-${size.width}.png` });
+      await page.screenshot({ path: `test-results/shots/detail-album-${size.width}.png` });
     });
 
     test('genre: the same hero, no sideways scroll', async ({ page }) => {

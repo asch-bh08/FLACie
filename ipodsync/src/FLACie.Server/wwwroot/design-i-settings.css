@@ -78,3 +78,7 @@
   .sp .subnav a { flex: none; white-space: nowrap; }
   .login-card { padding: 24px 20px; }
 }
+
+/* a row of buttons with a hint beside them wraps on a narrow phone instead of pushing the card past the screen */
+.sp .row-actions { flex-wrap: wrap; min-width: 0; }
+.sp .row-actions .hint { min-width: 0; overflow-wrap: anywhere; }

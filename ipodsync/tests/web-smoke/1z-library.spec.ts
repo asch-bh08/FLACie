@@ -83,7 +83,7 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
     test('screenshots', async ({ page }) => {
       for (const [file, url] of [['browse-search', '/search?q=aurora'], ['browse-albums', '/albums'], ['browse-songs', '/songs']]) {
         await page.goto(url); await page.waitForTimeout(900);
-        await page.screenshot({ path: `../../../docs/screens-new-look/${file}-${size.width}.png` });
+        await page.screenshot({ path: `test-results/shots/${file}-${size.width}.png` });
       }
     });
   });

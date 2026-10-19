@@ -1,1 +1,41 @@
-/* design I: library (see docs/waves/plan.md). Filled in by its phase. */
+/* ==== Design I: the browse screens (Search results, Explore tabs and filters, song rows, album grids, Songs / Albums / Artists / Genres).
+   Serif section titles with the last word in italics, DM Mono for counts, times and format chips, outlined chips, rounder covers.
+   Loaded after design-i.css, so these win. ==== */
+
+/* ---- titles: the page title and each section in the serif, italics on the last word ---- */
+.page-head h1 { font-size: clamp(32px, 3.6vw, 46px); line-height: 1; margin: 0; }
+.page-head h1 i, .section i { font-style: italic; }
+h2.section { font-family: var(--serif); font-weight: 400; font-size: clamp(26px, 2.6vw, 34px); line-height: 1; letter-spacing: 0; margin: 30px 0 14px; }
+.page-head .sub { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+
+/* ---- song rows: rounded thumbnails, mono times, mono format chips ---- */
+.track { border-radius: 14px; }
+.track .cover, .track .cover img { border-radius: 10px; }
+.track-title { font-weight: 600; }
+.track-time { font-family: var(--mono); font-size: 12px; }
+.track .badge, .sr-hero .badge { font-family: var(--mono); font-weight: 500; font-size: 10px; letter-spacing: .06em; border-radius: 6px; padding: 3px 7px; }
+.track .badge.fmt, .sr-hero .badge.fmt { background: var(--tone, var(--surface-3)); color: var(--tonefg, var(--dim)); }
+.track .badge.fmt.hires, .sr-hero .badge.fmt.hires { background: linear-gradient(135deg, #ffd57d, #ffb12e); color: #2a1d00; }
+.track .badge.fmt.lossless, .sr-hero .badge.fmt.lossless { background: #1d2a1c; color: #b8f0a8; }
+
+/* ---- the top result: a rounded card, serif title ---- */
+.sr-hero { border-radius: 22px; }
+.sr-hero-title { font-family: var(--serif); font-weight: 400; line-height: 1; letter-spacing: 0; }
+.sr-hero-sub { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.sr-hero .cover, .sr-hero .cover-img { border-radius: 16px; }
+.sr-hero.artist .cover, .sr-hero.artist .cover-img { border-radius: 50%; }
+.sr-play { border-radius: 20px; background: var(--accent); color: #1a120c; }
+.sr-more { border-radius: 12px; }
+
+/* ---- album and artist grids: rounded covers, the artist avatars stay round ---- */
+.grid .card .cover.square, .row-scroll .card .cover.square, .grid .card .cover.square img, .row-scroll .card .cover.square img { border-radius: 16px; }
+.card.artist .cover.square, .card.artist .cover.square img { border-radius: 50%; }
+.card-sub { font-size: 12.5px; }
+.sr-genres .chip { border-radius: 12px; background: none; border: 1px solid var(--i-line); font-family: var(--sans); font-weight: 500; }
+
+/* ---- the filter bar: Archivo, 12px corners, the open Filters button in the accent ---- */
+.x-bar { border-radius: 18px; }
+.x-ftoggle, .x-specs-toggle { font-family: var(--sans); font-weight: 600; border-radius: 12px; }
+.x-ftoggle.on, .x-specs-toggle.on { color: var(--accent); }
+.x-chip { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; border-radius: 10px; }
+.x-count { font-family: var(--mono); }

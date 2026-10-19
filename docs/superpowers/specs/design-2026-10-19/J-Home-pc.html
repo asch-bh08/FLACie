@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home (PC), design I, all of today's Home kept</title>
+<link rel="stylesheet" href="/fonts/ls/fonts.css">
+<style>
+  :root { --ground: #101416; --tone: #24525a; --tonefg: #e7f3f0; --accent: #ff9b6e; --ink: #f4efe6; --ink2: rgba(244,239,230,.72); --line: rgba(244,239,230,.35); }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--ground); color: var(--ink); font-family: 'Archivo', sans-serif; overflow: hidden; }
+  .app { position: fixed; inset: 0; display: grid; grid-template-columns: 232px 1fr; grid-template-rows: 1fr 96px; }
+  .serif { font-family: 'Instrument Serif', serif; font-weight: 400; }
+  .mono { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: .12em; color: var(--ink2); }
+  /* the menu */
+  .rail { grid-row: 1; padding: 20px 14px; border-right: 1px solid rgba(244,239,230,.07); display: flex; flex-direction: column; gap: 18px; overflow-y: auto; }
+  .brand { display: flex; align-items: baseline; padding: 4px 12px 10px; font-family: 'Instrument Serif', serif; font-size: 30px; letter-spacing: -.01em; }
+  .brand i { color: var(--accent); margin-left: -.02em; }
+  .group small { display: block; padding: 0 12px 6px; }
+  .rail a { display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 12px; border-radius: 12px; color: var(--ink2); text-decoration: none; font-size: 14px; font-weight: 500; }
+  .rail a:hover { background: rgba(255,255,255,.05); color: var(--ink); }
+  .rail a.on { background: #3a2a22; color: var(--accent); font-weight: 700; }
+  .rail a span { width: 20px; text-align: center; }
+  /* the page */
+  main { grid-row: 1; overflow-y: auto; position: relative; scrollbar-width: thin; }
+  .hero { position: relative; height: 340px; overflow: hidden; }
+  .hero .art { position: absolute; inset: 0; background: #2f5d62; }
+  .hero .art i { position: absolute; border-radius: 50%; }
+  .hero .fade { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(16,20,22,.15), var(--ground) 96%), linear-gradient(to right, rgba(16,20,22,.75), transparent 70%); }
+  .hero .top { position: absolute; left: 40px; right: 32px; top: 20px; display: flex; gap: 12px; align-items: center; }
+  .search { flex: 0 1 460px; display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 16px; border-radius: 23px; background: rgba(16,20,22,.6); backdrop-filter: blur(8px); color: var(--ink2); font-size: 15px; }
+  .acct { margin-left: auto; width: 44px; height: 44px; border: 0; border-radius: 22px; background: var(--tone); color: var(--tonefg); font: inherit; font-weight: 700; }
+  .hero .greet { position: absolute; left: 40px; right: 40px; bottom: 34px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+  .hero h1 { font-size: 64px; line-height: .95; margin: 8px 0 0; }
+  .shuffle { flex: none; height: 52px; padding: 0 22px; border: 0; border-radius: 18px; background: var(--accent); color: #1a120c; font: inherit; font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 10px; }
+  .body { padding: 0 40px 40px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { height: 38px; padding: 0 16px; border: 1px solid var(--line); border-radius: 12px; background: none; color: var(--ink); font: inherit; font-size: 14px; font-weight: 500; }
+  .chip.on { background: var(--ink); color: var(--ground); border-color: var(--ink); font-weight: 700; }
+  .shelf { margin-top: 34px; }
+  .shelf-head { display: flex; justify-content: space-between; align-items: flex-end; }
+  .shelf-head h2 { margin: 0; font-size: 34px; line-height: 1; }
+  .shelf-head small { display: block; margin-top: 4px; }
+  .shelf-head .acts { display: flex; gap: 8px; align-items: center; }
+  .btn { height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; background: none; color: var(--ink); font: inherit; font-size: 13px; font-weight: 600; }
+  .btn.fill { background: var(--accent); color: #1a120c; border-color: var(--accent); }
+  .arrow { width: 36px; height: 36px; border: 0; border-radius: 18px; background: var(--tone); color: var(--tonefg); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 20px; margin-top: 14px; }
+  .cards .card:nth-child(n+7) { display: none; }
+  .cv { aspect-ratio: 1; border-radius: 16px; position: relative; overflow: hidden; box-shadow: 0 14px 30px rgba(0,0,0,.35); }
+  .cv i { position: absolute; width: 70%; height: 70%; border-radius: 50%; right: -18%; top: -18%; }
+  .card b { display: block; font-size: 14px; margin-top: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card small { display: block; font-size: 12.5px; color: var(--ink2); margin-top: 2px; }
+  .tag { display: inline-block; margin-top: 5px; font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .06em; padding: 2px 6px; border-radius: 6px; background: var(--tone); color: var(--tonefg); }
+  .picks { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 20px; }
+  .picks li { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 14px; }
+  .picks li:hover { background: rgba(255,255,255,.05); }
+  .picks .cv { width: 52px; flex: none; border-radius: 10px; box-shadow: none; }
+  .picks span { flex: 1; min-width: 0; }
+  .picks b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .picks small { color: var(--ink2); font-size: 12.5px; }
+  .picks time { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--ink2); }
+  /* the bar (I-Bar) */
+  .bar { grid-column: 1 / -1; grid-row: 2; position: relative; overflow: hidden; background: #101416; border-top: 1px solid rgba(244,239,230,.06); }
+  .bar .wash { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(255,155,110,.22), rgba(22,58,63,.6) 40%, #101416 75%); }
+  .bar .prog { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: rgba(244,239,230,.12); }
+  .bar .prog b { display: block; width: 41%; height: 3px; background: var(--accent); }
+  .bar .in { position: absolute; inset: 3px 24px 0 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 24px; }
+  .song { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .song .cv { width: 62px; border-radius: 14px; box-shadow: none; flex: none; }
+  .song .serif { font-size: 24px; line-height: 1; }
+  .song small { display: block; font-size: 13px; color: var(--ink2); margin-top: 4px; }
+  .ctl { display: flex; align-items: center; gap: 12px; }
+  .ctl .plain { width: 40px; height: 40px; border: 0; background: none; color: var(--ink2); }
+  .ctl .pill { width: 50px; height: 44px; border: 0; border-radius: 22px; background: var(--tone); color: var(--tonefg); }
+  .ctl .play { width: 66px; height: 52px; border: 0; border-radius: 20px; background: var(--accent); color: #1a120c; font-size: 18px; }
+  .ctl time { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--ink2); margin-left: 6px; }
+  .right { display: flex; align-items: center; justify-content: flex-end; gap: 6px; color: var(--ink2); }
+  .right button { width: 40px; height: 40px; border: 0; border-radius: 20px; background: none; color: inherit; }
+  .vol { display: block; width: 110px; height: 4px; border-radius: 2px; background: rgba(244,239,230,.25); margin: 0 8px; }
+  .vol b { display: block; width: 70%; height: 4px; border-radius: 2px; background: var(--ink); }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="rail" aria-label="Main">
+    <div class="brand"><span>FLAC</span><i>ie</i></div>
+    <div class="group"><a class="on" href="#"><span>⌂</span>Home</a><a href="#"><span>⌕</span>Search</a><a href="#"><span>♡</span>Favourites</a><a href="#"><span>≡</span>Playlists</a></div>
+    <div class="group"><small class="mono">TOGETHER</small><a href="#"><span>▯</span>Devices</a><a href="#"><span>♫</span>Jam</a></div>
+    <div class="group"><small class="mono">MORE</small><a href="#"><span>◠</span>Headphone test</a><a href="#"><span>▤</span>Dashboard</a></div>
+  </nav>
+
+  <main>
+    <div class="hero">
+      <div class="art" role="img" aria-label="[cover of what played last]"><i style="width:900px;height:900px;left:560px;top:-460px;background:#ff9b6e"></i><i style="width:520px;height:520px;left:180px;top:200px;background:#f2c6a0"></i></div>
+      <div class="fade"></div>
+      <div class="top">
+        <div class="search"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>Search songs, albums, artists, or music to download</div>
+        <button class="acct" aria-label="Account">A</button>
+      </div>
+      <div class="greet">
+        <div><div class="mono">GOOD EVENING, ASHLEY</div><h1 class="serif">Pick up <i>where you left off</i></h1></div>
+        <button class="shuffle"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7h3c4 0 6 10 10 10h5M3 17h3c1.5 0 2.7-1.4 3.7-3M14.3 10C15.3 8.4 16.5 7 18 7h3M18 4l3 3-3 3M18 14l3 3-3 3"/></svg>Shuffle all</button>
+      </div>
+    </div>
+    <div class="body">
+      <div class="chips" role="group" aria-label="Moods"><button class="chip on">All</button><button class="chip">Relax</button><button class="chip">Workout</button><button class="chip">Party</button><button class="chip">Feel good</button><button class="chip">Late night</button><button class="chip">Focus</button></div>
+
+      <section class="shelf">
+        <div class="shelf-head"><h2 class="serif">Your <i>playlists</i></h2><div class="acts"><button class="btn">All</button><button class="arrow">‹</button><button class="arrow">›</button></div></div>
+        <div class="cards">
+          <div class="card"><div class="cv" style="background:#3b2a5c"><i style="background:#c9a2ff"></i></div><b>pop</b><small>55 songs</small></div>
+          <div class="card"><div class="cv" style="background:#5c2a3a"><i style="background:#ff8fa3"></i></div><b>Golden Era Mix</b><small>128 songs</small></div>
+          <div class="card"><div class="cv" style="background:#1e3a5c"><i style="background:#7cc4ff"></i></div><b>TEST-G-win renamed</b><small>2 songs</small></div>
+          <div class="card"><div class="cv" style="background:#5c4a1e"><i style="background:#f5e15a"></i></div><b>TEST-A-import</b><small>3 songs</small></div>
+          <div class="card"><div class="cv" style="background:#2a4a2a"><i style="background:#a9e3a0"></i></div><b>2020</b><small>31 songs</small></div>
+          <div class="card"><div class="cv" style="background:#3a3a40"><i style="background:#ddd"></i></div><b>Road trip</b><small>40 songs</small></div>
+        </div>
+      </section>
+
+      <section class="shelf">
+        <div class="shelf-head"><div><h2 class="serif">Listen <i>again</i></h2><small class="mono">YOUR RECENT PLAYS</small></div><div class="acts"><button class="btn fill">▶ Play all</button><button class="arrow">‹</button><button class="arrow">›</button></div></div>
+        <div class="cards">
+          <div class="card"><div class="cv" style="background:#2f5d62"><i style="background:#ff9b6e"></i></div><b>Meet Me Halfway</b><small>Black Eyed Peas</small></div>
+          <div class="card"><div class="cv" style="background:#2a2a2a"><i style="background:#e05252"></i></div><b>Plonked Spectral</b><small>Richard Devine</small></div>
+          <div class="card"><div class="cv" style="background:#5c4a1e"><i style="background:#f5e15a"></i></div><b>Chandelier</b><small>Sia</small></div>
+          <div class="card"><div class="cv" style="background:#3a3a40"><i style="background:#9aa"></i></div><b>Free Nelson Mandela</b><small>Soweto Singer</small><span class="tag">RECENTLY DOWNLOADED · 4M AGO</span></div>
+          <div class="card"><div class="cv" style="background:#24525a"><i style="background:#a9e3d0"></i></div><b>Goin' In</b><small>Boy Better Know</small></div>
+          <div class="card"><div class="cv" style="background:#5c2a2a"><i style="background:#f2c6a0"></i></div><b>Karmacoma</b><small>Massive Attack</small></div>
+        </div>
+      </section>
+
+      <section class="shelf">
+        <div class="shelf-head"><div><h2 class="serif">Quick <i>picks</i></h2><small class="mono">NEW EACH DAY</small></div><div class="acts"><button class="btn fill">▶ Play all</button></div></div>
+        <ul class="picks">
+          <li><div class="cv" style="background:#3a3a40"><i style="background:#9aa"></i></div><span><b>I Love It (feat. Charli XCX)</b><small>Icona Pop</small></span><time>2:37</time></li>
+          <li><div class="cv" style="background:#5c2a2a"><i style="background:#f2c6a0"></i></div><span><b>Break The Rules</b><small>Charli XCX</small></span><time>3:24</time></li>
+          <li><div class="cv" style="background:#24525a"><i style="background:#a9e3d0"></i></div><span><b>Father Figure</b><small>George Michael</small></span><time>5:43</time></li>
+          <li><div class="cv" style="background:#1e3a5c"><i style="background:#7cc4ff"></i></div><span><b>Starships</b><small>Nicki Minaj</small></span><time>3:30</time></li>
+          <li><div class="cv" style="background:#3b2a5c"><i style="background:#c9a2ff"></i></div><span><b>On Call</b><small>Kings of Leon</small></span><time>3:21</time></li>
+          <li><div class="cv" style="background:#5c4a1e"><i style="background:#f5e15a"></i></div><span><b>Hurts</b><small>Emeli Sandé</small></span><time>3:31</time></li>
+        </ul>
+      </section>
+    </div>
+  </main>
+
+  <div class="bar">
+    <div class="wash"></div><div class="prog"><b></b></div>
+    <div class="in">
+      <div class="song"><div class="cv" style="background:#2f5d62"><i style="background:#ff9b6e"></i></div><div><div class="serif">Orange <i>Crush</i></div><small>R.E.M. · <span style="font-family:'DM Mono',monospace;font-size:11px">FLAC 16/44.1</span></small></div></div>
+      <div class="ctl"><button class="plain">⤨</button><button class="pill">❙◀</button><button class="play">❚❚</button><button class="pill">▶❙</button><button class="plain">↻</button><time>1:36 / 3:52</time></div>
+      <div class="right"><button style="color:#ff9b6e">♥</button><button>▭</button><button>▯</button><span class="vol"><b></b></span><button>⧉</button><button>✕</button></div>
+    </div>
+  </div>
+</div>
+<div style="position:fixed;right:16px;top:76px;width:280px;font:13px/1.45 'Archivo',sans-serif;color:#ddd;background:#1b1d20ee;padding:12px 14px;border-radius:12px">
+<b>Menu, shorter.</b> Search now holds Explore (browse by songs, albums, artists, genres, charts under the search box). Import moves into Playlists ("Import a playlist"). Downloads moves into the Dashboard, which only admins see. Logo: "FLAC" and the italic "ie" sit tight together.</div>
+</body>
+</html>

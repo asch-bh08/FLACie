@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home (phone), design I, all of today's Home kept</title>
+<link rel="stylesheet" href="/fonts/ls/fonts.css">
+<style>
+  :root { --ground: #101416; --tone: #24525a; --tonefg: #e7f3f0; --accent: #ff9b6e; --ink: #f4efe6; --ink2: rgba(244,239,230,.72); --line: rgba(244,239,230,.35); }
+  body { margin: 0; background: #050607; display: grid; place-items: start center; font-family: 'Archivo', sans-serif; color: var(--ink); }
+  .phone { width: 390px; height: 844px; position: relative; overflow: hidden; background: var(--ground); }
+  .scroll { position: absolute; inset: 0 0 84px; overflow-y: auto; scrollbar-width: none; }
+  .hero { position: relative; height: 300px; }
+  .hero .art { position: absolute; inset: 0; background: #2f5d62; overflow: hidden; }
+  .hero .art i { position: absolute; border-radius: 50%; }
+  .hero .fade { position: absolute; left: 0; right: 0; top: 80px; bottom: -2px; background: linear-gradient(to bottom, transparent, var(--ground) 92%); }
+  .top { position: absolute; left: 20px; right: 20px; top: 16px; display: flex; justify-content: space-between; align-items: center; }
+  .pill { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: .14em; padding: 7px 12px; border-radius: 14px; background: rgba(0,0,0,.3); }
+  .acct { width: 44px; height: 44px; border: 0; border-radius: 22px; background: var(--tone); color: var(--tonefg); font: inherit; font-weight: 700; }
+  .greet { position: absolute; left: 20px; right: 20px; bottom: 6px; }
+  .mono { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: .12em; color: var(--ink2); }
+  .serif { font-family: 'Instrument Serif', serif; font-weight: 400; }
+  h1.serif { font-size: 44px; line-height: .95; margin: 6px 0 0; }
+  .pad { padding: 0 20px; }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .search { flex: 1; display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 16px; border-radius: 24px; background: #1d2a2c; color: var(--ink2); font-size: 15px; }
+  .shuffle { flex: none; height: 48px; padding: 0 16px; border: 0; border-radius: 16px; background: var(--accent); color: #1a120c; font: inherit; font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .chips { display: flex; gap: 8px; margin: 12px -20px 0; padding: 0 20px; overflow-x: auto; scrollbar-width: none; }
+  .chip { flex: none; height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; background: none; color: var(--ink); font: inherit; font-size: 13px; font-weight: 500; }
+  .chip.on { background: var(--ink); color: var(--ground); border-color: var(--ink); font-weight: 700; }
+  .shelf { margin-top: 24px; }
+  .shelf-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 20px; }
+  .shelf-head h2 { margin: 0; font-size: 26px; }
+  .shelf-head small { display: block; margin-top: 2px; }
+  .shelf-head a, .shelf-head button { font-size: 13px; font-weight: 700; color: var(--ink2); text-decoration: none; background: none; border: 0; font-family: inherit; }
+  .shelf-head .play { color: #1a120c; background: var(--accent); border-radius: 10px; padding: 6px 10px; }
+  .cards { display: flex; gap: 12px; margin-top: 10px; padding: 0 20px; overflow-x: auto; scrollbar-width: none; }
+  .card { flex: none; width: 128px; }
+  .cv { width: 128px; height: 128px; border-radius: 14px; position: relative; overflow: hidden; }
+  .cv i { position: absolute; width: 100px; height: 100px; border-radius: 50%; right: -24px; top: -24px; }
+  .card b { display: block; font-size: 14px; margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card small { display: block; font-size: 12px; color: var(--ink2); }
+  .picks { list-style: none; margin: 8px 0 0; padding: 0 12px; }
+  .picks li { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 14px; }
+  .picks li:hover { background: rgba(255,255,255,.05); }
+  .picks .cv { width: 48px; height: 48px; border-radius: 10px; flex: none; }
+  .picks .cv i { width: 40px; height: 40px; right: -10px; top: -10px; }
+  .picks span { flex: 1; min-width: 0; }
+  .picks b { display: block; font-size: 15px; }
+  .picks small { color: var(--ink2); font-size: 12.5px; }
+  .picks time { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--ink2); }
+  .tag { display: inline-block; margin-top: 3px; font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .06em; padding: 2px 6px; border-radius: 6px; background: var(--tone); color: var(--tonefg); }
+  .mini { position: absolute; left: 12px; right: 12px; bottom: 96px; display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 20px; background: #1d3a3e; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+  .mini .cv { width: 48px; height: 48px; border-radius: 12px; flex: none; }
+  .mini .cv i { width: 52px; height: 52px; left: 18px; top: -18px; }
+  .mini .t { flex: 1; min-width: 0; }
+  .mini .t .serif { font-size: 20px; line-height: 1; }
+  .mini .t small { display: block; font-size: 12px; color: var(--ink2); margin-top: 3px; }
+  .mini .p { width: 54px; height: 44px; border: 0; border-radius: 16px; background: var(--accent); color: #1a120c; }
+  .mini .n { width: 48px; height: 44px; border: 0; border-radius: 22px; background: var(--tone); color: var(--tonefg); }
+  .mini .bar { position: absolute; left: 16px; right: 16px; bottom: 0; height: 3px; border-radius: 2px; background: rgba(244,239,230,.15); }
+  .mini .bar b { display: block; width: 38%; height: 3px; border-radius: 2px; background: var(--accent); }
+  nav { position: absolute; left: 0; right: 0; bottom: 0; height: 84px; display: flex; justify-content: space-around; align-items: flex-start; padding-top: 12px; box-sizing: border-box; background: var(--ground); border-top: 1px solid rgba(244,239,230,.08); }
+  nav a { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: var(--ink2); text-decoration: none; }
+  nav a span { display: grid; place-items: center; width: 56px; height: 30px; border-radius: 15px; }
+  nav a.on { color: var(--accent); font-weight: 700; } nav a.on span { background: #3a2a22; }
+  .note { position: fixed; right: 12px; top: 12px; width: 260px; font: 13px/1.45 'Archivo', sans-serif; color: #ddd; background: #1b1d20; padding: 12px 14px; border-radius: 12px; }
+  @media (max-width: 700px) { .note { display: none; } }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="scroll">
+    <div class="hero">
+      <div class="art" role="img" aria-label="[cover of what played last]"><i style="width:420px;height:420px;left:120px;top:-180px;background:#ff9b6e"></i><i style="width:240px;height:240px;left:-90px;top:150px;background:#f2c6a0"></i></div>
+      <div class="fade"></div>
+      <div class="top"><span class="pill">FLACIE</span><button class="acct" aria-label="Account">A</button></div>
+      <div class="greet"><div class="mono">GOOD EVENING</div><h1 class="serif">Pick up <i>where you left off</i></h1></div>
+    </div>
+    <div class="pad">
+      <div class="row" style="margin-top:14px">
+        <div class="search"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>Songs, albums, artists</div>
+        <button class="shuffle"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7h3c4 0 6 10 10 10h5M3 17h3c1.5 0 2.7-1.4 3.7-3M14.3 10C15.3 8.4 16.5 7 18 7h3M18 4l3 3-3 3M18 14l3 3-3 3"/></svg>Shuffle</button>
+      </div>
+      <div class="chips" role="group" aria-label="Moods"><button class="chip on">All</button><button class="chip">Relax</button><button class="chip">Workout</button><button class="chip">Party</button><button class="chip">Feel good</button><button class="chip">Late night</button><button class="chip">Focus</button></div>
+    </div>
+
+    <section class="shelf">
+      <div class="shelf-head"><h2 class="serif">Your <i>playlists</i></h2><a href="#">All</a></div>
+      <div class="cards">
+        <div class="card"><div class="cv" style="background:#3b2a5c"><i style="background:#c9a2ff"></i></div><b>pop</b><small>55 songs</small></div>
+        <div class="card"><div class="cv" style="background:#5c2a3a"><i style="background:#ff8fa3"></i></div><b>Golden Era Mix</b><small>128 songs</small></div>
+        <div class="card"><div class="cv" style="background:#1e3a5c"><i style="background:#7cc4ff"></i></div><b>Road trip</b><small>40 songs</small></div>
+      </div>
+    </section>
+
+    <section class="shelf">
+      <div class="shelf-head"><div><h2 class="serif">Listen <i>again</i></h2><small class="mono">YOUR RECENT PLAYS</small></div><button class="play">▶ Play all</button></div>
+      <div class="cards">
+        <div class="card"><div class="cv" style="background:#2f5d62"><i style="background:#ff9b6e"></i></div><b>Meet Me Halfway</b><small>Black Eyed Peas</small></div>
+        <div class="card"><div class="cv" style="background:#2a2a2a"><i style="background:#e05252"></i></div><b>Plonked Spectral</b><small>Richard Devine</small></div>
+        <div class="card"><div class="cv" style="background:#5c4a1e"><i style="background:#f5e15a"></i></div><b>Chandelier</b><small>Sia</small></div>
+      </div>
+    </section>
+
+    <section class="shelf">
+      <div class="shelf-head"><div><h2 class="serif">Quick <i>picks</i></h2><small class="mono">NEW EACH DAY</small></div><button class="play">▶ Play all</button></div>
+      <ul class="picks">
+        <li><div class="cv" style="background:#3a3a40"><i style="background:#9aa"></i></div><span><b>Free Nelson Mandela</b><small>Soweto Singer</small></span><time>4:34</time></li>
+        <li><div class="cv" style="background:#5c2a2a"><i style="background:#f2c6a0"></i></div><span><b>Karmacoma</b><small>Massive Attack</small><br><span class="tag">RECENTLY DOWNLOADED · 4M AGO</span></span><time>5:16</time></li>
+        <li><div class="cv" style="background:#24525a"><i style="background:#a9e3d0"></i></div><span><b>Goin' In</b><small>Boy Better Know</small></span><time>2:41</time></li>
+      </ul>
+    </section>
+    <div style="height:110px"></div>
+  </div>
+
+  <div class="mini"><div class="cv" style="background:#2f5d62;position:relative;overflow:hidden"><i style="position:absolute;border-radius:50%;background:#ff9b6e"></i></div><div class="t"><div class="serif">Slow <i>Satellite</i></div><small>Marlow Fen</small></div><button class="p" aria-label="Pause">❚❚</button><button class="n" aria-label="Next">▶❙</button><span class="bar"><b></b></span></div>
+  <nav aria-label="Main">
+    <a class="on" href="#"><span>⌂</span>Home</a><a href="#"><span>⌕</span>Search</a><a href="#"><span>♡</span>Favourites</a><a href="#"><span>≡</span>Playlists</a><a href="#"><span>▭</span>Retro</a>
+  </nav>
+</div>
+<div class="note"><b>Home, phone.</b> I-Home's look with everything today's Home has: Shuffle all next to the search, the mood chips (picking one shows its picks, as now), Your playlists, Listen again and Quick picks (plus the other shelves you have, in the same style), "Recently downloaded" tags, and the mini player with a thin progress line. The colours come from the cover of what played last.</div>
+</body>
+</html>

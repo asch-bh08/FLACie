@@ -22,7 +22,8 @@
                 <div class="ls-art">
                     <span class="np-glow" aria-hidden="true"></span>
                     <button class="ls-cover" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")">
-                        <Cover ArtKey="@(Art.KeyFor(t))" Class="np-cover" Full="true" />
+                        @* keyed on the picture really shown, so a cover chosen on MusicBrainz replaces this one at once *@
+                        <Cover @key="@(Art.KeyFor(t) is { } ck ? CoverOverrides.Map(ck) : null)" ArtKey="@(Art.KeyFor(t))" Class="np-cover" Full="true" />
                     </button>
                 </div>
                 <div class="ls-title">

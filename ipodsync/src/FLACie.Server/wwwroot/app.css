@@ -1425,3 +1425,6 @@ html.buffering .play .ic { opacity: .55; }
 .chip-pop .stars button.star { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; border-radius: 10px; color: var(--dim); }
 .chip-pop .stars button.star:hover { background: var(--surface-3); color: var(--ink); }
 .chip-pop .stars button.star.on { color: #ffc94d; }
+/* narrow phones: the player bar keeps room for the song's own line (title, artist, "Downloaded · 2m ago"): the mini player (picture in picture) is a
+   desktop thing, and the buttons sit a little closer */
+@media (max-width: 480px) { .bar-right .icon-btn[aria-label^="Mini player"] { display: none; } .player .bar-controls .buttons { gap: 0; } }

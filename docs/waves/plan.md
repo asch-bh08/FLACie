@@ -5,7 +5,7 @@ Done before this plan: the full-screen player (web), the shape prefetch, Home an
 
 ## Rules every phase follows
 - Its own git worktree and branch; commits there; never pushes. The orchestrator merges, runs the suite and pushes.
-- Mockup first: `docs/superpowers/specs/design-2026-10-19/J-<screen>.html` (static, the look of J-Home-pc.html / J-Home-phone.html), then build to it. The owner reviews in the morning.
+- No mockups (the owner, 23:00): build straight to the design I look of Home (J-Home-pc.html / J-Home-phone.html) and the player. The owner reviews only the full build in the morning.
 - Design I: Instrument Serif titles (last word in italics), Archivo text, DM Mono small labels, outlined chips with the chosen one filled, tinted pill buttons, rounded covers with soft shadows. Nothing dropped: features may be reorganised, never removed.
 - CSS only in the phase's own stylesheet (already linked in App.razor). TDD with Playwright specs on the phase's own ports. Never Haiku.
 

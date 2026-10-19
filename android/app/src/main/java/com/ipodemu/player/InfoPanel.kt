@@ -166,7 +166,7 @@ private fun hint(mode: String, sampleRate: Int = 0) = when (mode) {
 /** The Info view of Now Playing: format at a glance, a graph for whatever you pick (all but the bit rate move with the song), then the file's details. */
 @OptIn(ExperimentalLayoutApi::class, UnstableApi::class)
 @Composable
-fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
+fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier, tint: Color? = null) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     var mode by rememberSaveable { mutableStateOf("curve") }
@@ -183,7 +183,7 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
     // a short panel (the 360 dp square screen, with the controls in one strip under it): chips in one scrolling row and the explanation only on tap, so the graph itself is on screen
     val tight = maxHeight < 340.dp
     val graphH = if (tight) (maxHeight - 205.dp).coerceIn(96.dp, 160.dp) else (maxHeight - 380.dp).coerceIn(120.dp, if (info.hiRes) 300.dp else 220.dp)
-    Column(Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color(0x1AFFFFFF)).verticalScroll(rememberScrollState()).padding(if (tight) 12.dp else 16.dp), verticalArrangement = Arrangement.spacedBy(if (tight) 10.dp else 14.dp)) {
+    Column(Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(if (tint != null) Brush.linearGradient(listOf(tint.copy(alpha = .32f), Color(0x14FFFFFF))) else Brush.linearGradient(listOf(Color(0x1AFFFFFF), Color(0x1AFFFFFF)))).verticalScroll(rememberScrollState()).padding(if (tight) 12.dp else 16.dp), verticalArrangement = Arrangement.spacedBy(if (tight) 10.dp else 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(Modifier.clip(RoundedCornerShape(10.dp)).background(if (info.hiRes) Brush.linearGradient(listOf(Color(0xFFFFD36E), Color(0xFFF59E0B))) else Brush.linearGradient(listOf(if (info.lossless) Color(0xFF1D2A1C) else Color(0x33FFFFFF), if (info.lossless) Color(0xFF1D2A1C) else Color(0x33FFFFFF)))).padding(horizontal = 12.dp, vertical = 8.dp)) {
                 Txt(if (info.hiRes) "HI-RES" else info.codec.ifEmpty { "AUDIO" }, size = 16f, weight = FontWeight.ExtraBold, color = if (info.hiRes) Color(0xFF2A1A00) else if (info.lossless) Color(0xFFB8F0A8) else sc.onBg)
@@ -196,8 +196,8 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier) {
         // the graphs as a tidy 3-by-2 grid of equal pills (nothing cut off), each with a proper name; the file's own figure is in the card below
         val modePills: @Composable (Boolean) -> Unit = { scroll ->
             for ((id, label) in listOf("rate" to "Bit rate", "curve" to "Spectrum", "loud" to "Level", "stereo" to "Stereo", "leds" to "Visualizer", "wall" to "Spectrogram"))
-                Box((if (scroll) Modifier.width(104.dp) else Modifier.weight(1f)).height(if (scroll) 40.dp else 36.dp).clip(RoundedCornerShape(50)).background(if (mode == id) sc.accent else Palette.surface2).clickable { mode = id }, contentAlignment = Alignment.Center) {
-                    Txt(label, size = 12f, weight = FontWeight.SemiBold, color = if (mode == id) sc.accent.readableInk() else Color.White, maxLines = 1)
+                Box((if (scroll) Modifier.width(104.dp) else Modifier.weight(1f)).height(if (scroll) 40.dp else 36.dp).clip(RoundedCornerShape(50)).background(if (mode == id) (tint ?: sc.accent) else Palette.surface2).clickable { mode = id }, contentAlignment = Alignment.Center) {
+                    Txt(label, size = 12f, weight = FontWeight.SemiBold, color = if (mode == id) (tint ?: sc.accent).readableInk() else Color.White, maxLines = 1)
                 }
         }
         if (tight) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { modePills(true) }

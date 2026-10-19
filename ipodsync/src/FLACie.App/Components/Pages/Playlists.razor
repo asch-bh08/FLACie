@@ -8,6 +8,8 @@
         <input @bind="name" @bind:event="oninput" placeholder="New playlist name" aria-label="New playlist name" />
         <button class="btn primary" type="submit" disabled="@string.IsNullOrWhiteSpace(name)">Create</button>
     </form>
+    @* importing a playlist (iTunes, M3U, a text list) lives here now, not in the menu *@
+    @if (AppHost.Server) { <a class="btn" href="/import"><Icon Name="download" Size="16" />Import a playlist</a> }
 </header>
 <div class="grid pl-grid">
     @foreach (var p in Session.Playlists)

@@ -9,6 +9,13 @@
 <PageTitle>Downloads · FLACie</PageTitle>
 @{ Rebuild(); }
 <header class="page-head"><h1>Downloads</h1></header>
+@* design I: Downloads belongs to the Dashboard, for the server's administrators *@
+@if (!admin)
+{
+    <section class="panel"><p>Downloads are for the server's administrators, in the <a href="/dashboard">Dashboard</a>. Songs you download from Search show their progress there and in Search.</p></section>
+}
+else
+{
 <p class="hint dl-intro">Everything the server fetched for @(everyone ? "everyone" : "you"), newest first, kept across restarts. Each download tries Soulseek first, then the free sources and YouTube (if switched on in Settings), then Lidarr; open one to see what each source said.</p>
 <nav class="subnav" aria-label="Download sections">
     <a href="/downloads#running">Running <b>@running.Count</b></a><a href="/downloads#failed">Failed <b>@failed.Count</b></a><a href="/downloads#soulseek">Soulseek <b>@soulseek.Count</b></a><a href="/downloads#lidarr">Lidarr <b>@lidarr.Count</b></a><a href="/downloads#open">YouTube and open sources <b>@open.Count</b></a>
@@ -39,10 +46,11 @@
 @Section("soulseek", "Soulseek", soulseek, "Nothing came from Soulseek yet.", false)
 @Section("lidarr", "Lidarr", lidarr, "Nothing came from Lidarr yet.", false)
 @Section("open", "YouTube and open sources", open, "Nothing came from YouTube, the Internet Archive, Audius or Jamendo yet.", false)
-
+}
 @code {
     string filter = "";
-    bool everyone, admin;
+    bool everyone;
+    bool admin => AdminAccess.Is(Session, Conf);
     Action? onJobs; Timer? tick;
     readonly Dictionary<string, int> shown = [];
     const int Page = 15;
@@ -53,7 +61,6 @@
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
-        admin = AdminAccess.Is(Session, Conf);
         onJobs = () => InvokeAsync(StateHasChanged);
         Manager.Subscribe(Session, onJobs);
         // running jobs show how long they have been going: redraw every few seconds while any is

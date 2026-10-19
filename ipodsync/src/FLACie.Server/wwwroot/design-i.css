@@ -1,0 +1,57 @@
+/* ==== Design I outside the player (docs/superpowers/specs/design-2026-10-19, J-Home-*.html): Home, the menu, shelves, chips and cards.
+   Instrument Serif for titles (the last word in italics), Archivo for text, DM Mono for small labels. Loaded after app.css, so these win. ==== */
+
+:root {
+  --serif: 'Instrument Serif', Georgia, serif; --sans: 'Archivo', system-ui, sans-serif; --mono: 'DM Mono', ui-monospace, monospace;
+  --i-line: #f4efe659;
+}
+
+/* ---- the menu: quiet rows, the page you are on as a soft pill in the accent ---- */
+.rail a { border-radius: 12px; font-family: var(--sans); font-weight: 500; }
+.rail a.active { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); font-weight: 700; }
+.rail a.active .ic { color: currentColor; }
+.rail-group + .rail-group { border-top: 0; }
+.rail-label { font-family: var(--mono); font-weight: 500; font-size: 10.5px; letter-spacing: .14em; }
+
+/* ---- Home's hero: the last cover, full width, fading into the page; a mono greeting over a serif headline, Shuffle all beside it ---- */
+.home-hero { --np-accent: var(--accent); position: relative; isolation: isolate; display: flex; align-items: flex-end; min-height: clamp(220px, 34vh, 340px);
+  margin: -28px calc(-1 * clamp(16px, 4vw, 44px)) 18px; padding: 0 clamp(16px, 4vw, 44px) 26px; overflow: hidden; }
+.home-hero-art { position: absolute; inset: 0; z-index: -2; }
+.home-hero-art .cover { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; border-radius: 0; }
+.home-hero-art .cover img { object-fit: cover; border-radius: 0; filter: saturate(1.1); }
+.home-fade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 20%, transparent), var(--bg) 96%), linear-gradient(to right, color-mix(in srgb, var(--bg) 75%, transparent), transparent 70%); }
+.home-hero-row { width: 100%; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; }
+.home-greet { margin: 0; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; color: color-mix(in srgb, var(--ink) 75%, transparent); }
+.home-hero h1 { margin: 8px 0 0; font-family: var(--serif); font-weight: 400; font-size: clamp(40px, 5.2vw, 64px); line-height: .95; letter-spacing: -.01em; }
+.home-hero .shuffle-all { height: 52px; padding: 0 22px; border-radius: 18px; background: var(--np-accent); color: #1a120c; font-family: var(--sans); font-weight: 700; transition: background 1.2s; }
+
+/* ---- shelves: serif titles with the last word in italics, mono subtitles ---- */
+.shelf-head h2 { font-family: var(--serif); font-weight: 400; font-size: clamp(26px, 2.6vw, 34px); line-height: 1; letter-spacing: 0; }
+.shelf-head small { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+.shelf-head .chip.small { border-radius: 12px; }
+.shelf { margin-top: 30px; }
+
+/* ---- chips (moods, the Explore tabs): outlined, the chosen one filled ---- */
+.mood { border-radius: 12px; border-color: var(--i-line); background: none; color: var(--ink); font-family: var(--sans); font-weight: 500; }
+.mood:hover { background: #ffffff0d; }
+.mood.on { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 700; }
+
+/* ---- cards and picks: rounder covers with a soft shadow ---- */
+.card .cover.square, .card .cover.square img { border-radius: 16px; }
+.card .cover.square { box-shadow: 0 14px 30px #00000059; }
+.card-title { font-family: var(--sans); font-weight: 700; }
+.pick .cover, .pick .cover img { border-radius: 10px; }
+
+/* ---- page titles in the serif ---- */
+.page-head h1, .page-title { font-family: var(--serif); font-weight: 400; letter-spacing: 0; }
+.page-title { margin: 0; font-size: clamp(30px, 3.4vw, 44px); line-height: 1; }
+
+@media (max-width: 760px) {
+  .home-hero { min-height: 300px; margin-top: calc(-1 * var(--content-top, 28px)); }
+  .home-hero-row { flex-direction: column; align-items: stretch; }
+  .home-hero .shuffle-all { align-self: flex-start; }
+  /* the chips are one row that scrolls sideways, never two lines */
+  .mood-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-left: calc(-1 * clamp(16px, 4vw, 44px)); margin-right: calc(-1 * clamp(16px, 4vw, 44px)); padding: 0 clamp(16px, 4vw, 44px); }
+  .mood-chips::-webkit-scrollbar { display: none; }
+  .mood { flex: none; white-space: nowrap; }
+}

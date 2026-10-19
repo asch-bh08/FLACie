@@ -5,34 +5,26 @@
     <TopBar Full="InMusic" MenuOpen="menu" OnMenu="() => menu = !menu" />
     <button class="menu-scrim" tabindex="-1" aria-hidden="true" @onclick="() => menu = false"></button>
     <nav class="rail" aria-label="Main" id="main-rail">
+        @* design I: a short menu. Search holds what Explore was (browse when nothing is typed), Import is on Playlists, Downloads is in the Dashboard (administrators) *@
         <div class="rail-group">
             <NavLink href="/" Match="NavLinkMatch.All"><Icon Name="home" />Home</NavLink>
-            @* Explore has its own search box, so its menu leaves this one out *@
-            @if (!InMusic) { <NavLink href="/search"><Icon Name="search" />Search</NavLink> }
-        </div>
-        <div class="rail-group">
-            <a href="/explore" class="@(InMusic ? "active" : "")"><Icon Name="albums" />Explore</a>
+            <a href="/search" class="@(InSearch ? "active" : "")"><Icon Name="search" />Search</a>
             <NavLink href="/favorites"><Icon Name="heart" />Favourites</NavLink>
             <NavLink href="/playlists" Match="NavLinkMatch.All"><Icon Name="playlists" />Playlists</NavLink>
         </div>
-        @* downloads, import, Connect and Jams need the server; the phone app leaves them out *@
+        @* Connect and Jams need the server; the phone app leaves them out *@
         @if (AppHost.Server)
         {
-        <div class="rail-group">
-            <p class="rail-label">Find more</p>
-            <NavLink href="/downloads"><Icon Name="download" />Downloads</NavLink>
-            <NavLink href="/import"><Icon Name="playlists" />Import</NavLink>
-        </div>
         <div class="rail-group">
             <p class="rail-label">Together</p>
             <NavLink href="/devices"><Icon Name="devices" />Devices</NavLink>
             <NavLink href="/jam"><Icon Name="jam" />Jam</NavLink>
-            <AdminLink />
         </div>
         }
         <div class="rail-group">
-            <p class="rail-label">Tools</p>
+            <p class="rail-label">More</p>
             <NavLink href="/headphones"><Icon Name="headphones" />Headphone test</NavLink>
+            @if (AppHost.Server) { <AdminLink /> }
         </div>
     </nav>
     <main class="content">@Body</main>
@@ -43,6 +35,8 @@
 @code {
     // "All music" is lit for its four filters and their detail pages
     bool InMusic { get { var p = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0]; return new[] { "/explore", "/songs", "/albums", "/artists", "/genres", "/charts", "/album/", "/artist/", "/genre/" }.Any(x => p.StartsWith(x, StringComparison.OrdinalIgnoreCase)); } }
+    // Search is lit on the search page and everywhere you browse the music from it
+    bool InSearch => InMusic || ("/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0]).StartsWith("/search", StringComparison.OrdinalIgnoreCase);
     // Explore uses the whole window: the side menu slides in from a hamburger and goes away again after a choice
     bool menu;
     protected override void OnInitialized() => Nav.LocationChanged += Moved;

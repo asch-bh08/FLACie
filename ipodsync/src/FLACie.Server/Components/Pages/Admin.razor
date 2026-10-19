@@ -14,7 +14,7 @@
 @inject PlaybackActivity Activity
 <PageTitle>Dashboard · FLACie</PageTitle>
 <header class="page-head"><h1>Dashboard</h1><p class="sub">What is playing, who is on, what the server is doing, and the server's settings</p></header>
-@if (allowed) { <nav class="subnav" aria-label="Dashboard sections"><a href="/dashboard#downloads">Download services</a><a href="/dashboard#opensources">Open sources</a><a href="/dashboard#background">Background downloads</a><a href="/dashboard#storage">Storage</a><a href="/dashboard#notify">Notifications</a><a href="/downloads">Download log</a></nav> }
+@if (allowed) { <nav class="subnav" aria-label="Dashboard sections"><a href="/downloads">Downloads</a><a href="/dashboard#downloads">Download services</a><a href="/dashboard#opensources">Open sources</a><a href="/dashboard#background">Background downloads</a><a href="/dashboard#storage">Storage</a><a href="/dashboard#notify">Notifications</a><a href="/downloads">Download log</a></nav> }
 @if (!allowed)
 {
     <section class="panel"><p>This page is for the server's administrators. Ask the person who runs FLACie to make your account an administrator of the Jellyfin server, or to add you to <code>FLACIE_ADMINS</code>.</p></section>

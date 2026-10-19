@@ -35,9 +35,9 @@ test.describe.serial('ratings', () => {
     await expect(btn(page)).toHaveAttribute('aria-label', 'Rating: 4 stars');
     await expect.poll(async () => (await (await request.get(`${MOCK}/__userdata`)).json())['h1'], { timeout: 10_000 }).toBe(8);   // 4 stars = rating 8 of 10
     // another song starts unrated; coming back, the rating is still there
-    await page.getByRole('button', { name: 'Next' }).last().click();
+    await page.locator('.ls-transport').getByRole('button', { name: 'Next' }).click();
     await expect(btn(page)).toHaveAttribute('aria-label', 'Rating: not rated', { timeout: 15_000 });
-    await page.getByRole('button', { name: 'Previous' }).last().click();
+    await page.locator('.ls-transport').getByRole('button', { name: 'Previous' }).click();
     await expect(btn(page)).toHaveAttribute('aria-label', 'Rating: 4 stars', { timeout: 15_000 });
     // tapping the same star again clears it
     await btn(page).click();

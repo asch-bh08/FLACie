@@ -74,10 +74,10 @@ test.describe.serial('speed and sleep', () => {
     await expect(page.getByRole('button', { name: 'Back 10 seconds' })).toBeVisible();      // a changed speed shows them
     await expect(page.getByRole('button', { name: 'Forward 30 seconds' })).toBeVisible();
     // next song: back to 1x; back to the first song: its 1.5x is remembered
-    await page.getByRole('button', { name: 'Next' }).first().click();
+    await page.locator('.ls-transport').getByRole('button', { name: 'Next' }).click();
     await expect.poll(() => rate(page), { timeout: 15_000 }).toBe(1);
     // (Previous within the first 3 s goes to the previous song)
-    await page.getByRole('button', { name: 'Previous' }).first().click();
+    await page.locator('.ls-transport').getByRole('button', { name: 'Previous' }).click();
     await expect.poll(() => rate(page), { timeout: 15_000 }).toBe(1.5);
     await pick(page, 'Speed', '1x');
     await expect.poll(() => rate(page)).toBe(1);

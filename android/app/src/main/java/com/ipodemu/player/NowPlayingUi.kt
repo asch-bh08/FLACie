@@ -154,7 +154,8 @@ fun NowPlayingScreen(snap: PlayerSnap, nav: PlayerNav) {
             .pointerInput(Unit) { detectTapGestures { } },
     ) {
         if (t == null) { EmptyState("Nothing playing"); return@Box }
-        if (LocalStyle.current.modern) { Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) { ModernNowPlayingBody(snap, nav) }; return@Box }
+        // the Modern theme's player is the Living Sleeve; it keeps clear of the system bars itself, so its colours can reach the screen's edges
+        if (LocalStyle.current.modern) { LivingSleeveBody(snap, nav); return@Box }
         Box(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 6.dp).size(width = 38.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(sc.onBg.copy(alpha = .3f)))
         BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             val boxH = maxHeight

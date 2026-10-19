@@ -38,7 +38,8 @@
 /* the cover: as big as the space allows, rounded, lifted, with a soft glow in its own colour */
 .ls-art { flex: 1 1 0; min-height: 0; position: relative; display: grid; place-items: center; container-type: size; isolation: isolate; }
 .ls-cover { width: min(100cqw, 100cqh, 520px); aspect-ratio: 1; padding: 0; border: 0; border-radius: 28px; background: none; cursor: pointer; overflow: hidden; box-shadow: 0 24px 60px #0000008c; }
-.ls-cover .cover, .ls-cover .np-cover, .ls-cover img { width: 100%; height: 100%; max-width: none; border-radius: 28px; display: block; object-fit: cover; }
+.ls-cover .cover, .ls-cover .np-cover { width: 100%; height: 100%; max-width: none; border-radius: 28px; display: grid; place-items: center; position: relative; }
+.ls-cover .cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 28px; }
 .ls .np-glow { position: absolute; z-index: -1; width: min(100cqw, 100cqh, 520px); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(closest-side, var(--np-accent), transparent); opacity: .5; transform: scale(1.35); animation: np-breathe 5s ease-in-out infinite; pointer-events: none; }
 @keyframes np-breathe { 50% { opacity: .7; transform: scale(1.45); } }
 
@@ -113,9 +114,29 @@
 .ls .upnext li.now .q-row { background: color-mix(in srgb, var(--np-accent) 22%, transparent); border: 0; box-shadow: none; }
 .ls .q-divider { color: var(--ink-3); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 14px 8px 4px; }
 
-/* the song's facts, as soft cards */
-.ls-info .info, .ls-info .facts, .ls-info .graph-box { background: var(--glass); border: 0; border-radius: 18px; }
-.ls-info .kv-sec { color: var(--ink-3); letter-spacing: .08em; }
+/* the song's facts: a header card for the file (what it is, in the cover's colour), the graph in its own card, then the song and the file as quiet
+   lists on soft cards. No lines between rows: spacing and two tones of text do the work. */
+.ls-info .info { gap: 14px; padding-bottom: 24px; }
+.ls-info .info-head { padding: 18px; border-radius: 22px; background: linear-gradient(135deg, color-mix(in srgb, var(--np-accent) 30%, transparent), var(--glass)); }
+.ls-info .fmt-big { min-width: 0; height: auto; padding: 10px 16px; border-radius: 16px; background: var(--ink); color: #140d10; font-size: 18px; letter-spacing: .02em; }
+.ls-info .fmt-big.hires { background: var(--np-accent); color: #140d10; }
+.ls-info .info-head b { font-size: 18px; }
+.ls-info .info-head small { color: var(--ink-2); font-size: 14px; }
+.ls-info .graph-box { padding: 16px; border-radius: 22px; background: var(--glass); display: flex; flex-direction: column; gap: 10px; }
+.ls-info .facts { gap: 6px; }
+.ls-info .fact.choose { padding: 7px 12px; border: 0; background: var(--glass); }
+.ls-info .fact.choose.on { background: var(--ink); color: #140d10; } .ls-info .fact.choose.on small { color: #140d10b3; }
+.ls-info .fact b { font-size: 15px; }
+.ls-info .graph-head h4 { margin: 0; font-size: 15px; }
+.ls-info .graph-hint { margin: 0; color: var(--ink-2); font-size: 13px; }
+.ls-info .tag.live { background: color-mix(in srgb, var(--np-accent) 25%, transparent); color: var(--ink); }
+.ls-info .bar-track i { background: var(--np-accent); }
+.ls-info .kv-sec { border: 0; padding: 16px 18px; border-radius: 22px; background: var(--glass); }
+.ls-info .kv-sec h4 { color: var(--ink-3); margin-bottom: 12px; }
+.ls-info .kv { gap: 10px 20px; font-size: 14px; }
+.ls-info .kv dt { color: var(--ink-3); }
+.ls-info .kv dd { color: var(--ink); }
+.ls-info .hint { color: var(--ink-2); }
 
 /* ---- wide screens: the stage on the left, the panel always on the right ---- */
 @media (min-width: 761px) {

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Floating glass player</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#fff}a:hover{color:#ddd}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0d1a1c; color: #fff; font-family: 'Space Grotesk', sans-serif">
+  <div aria-hidden="true" style="position: absolute; inset: -60px; overflow: hidden">
+    <div style="position: absolute; width: 700px; height: 700px; border-radius: 50%; left: -200px; top: -260px; background: radial-gradient(closest-side, #e8774f, rgba(232,119,79,0))"></div>
+    <div style="position: absolute; width: 600px; height: 600px; border-radius: 50%; left: 40px; top: 360px; background: radial-gradient(closest-side, #2f8f86, rgba(47,143,134,0))"></div>
+  </div>
+  <div role="img" aria-label="[ALBUM COVER]" style="position: absolute; left: 55px; top: 92px; width: 280px; height: 280px; border-radius: 22px; overflow: hidden; background: #2f5d62; transform: rotate(-4deg); box-shadow: 0 40px 80px rgba(0,0,0,.45)">
+    <div style="position: absolute; width: 300px; height: 300px; border-radius: 50%; left: 100px; top: -100px; background: #e8774f"></div>
+    <div style="position: absolute; width: 180px; height: 180px; border-radius: 50%; left: -50px; top: 160px; background: #f2c6a0"></div>
+  </div>
+  <div style="position: absolute; left: 16px; right: 16px; top: 16px; display: flex; justify-content: space-between">
+    <button aria-label="Close" style="width: 44px; height: 44px; border: 0; border-radius: 22px; background: rgba(255,255,255,.14); color: #fff; display: grid; place-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+    <button aria-label="Retro" style="width: 44px; height: 44px; border: 0; border-radius: 22px; background: rgba(255,255,255,.14); color: #fff; display: grid; place-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="8.5" cy="12" r="2"/><circle cx="15.5" cy="12" r="2"/></svg></button>
+  </div>
+  <div style="position: absolute; left: 14px; right: 14px; bottom: 30px; padding: 22px 20px 18px; border-radius: 30px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); box-shadow: inset 0 1px 0 rgba(255,255,255,.25)">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px">
+      <div>
+        <div style="font-size: 26px; font-weight: 700; line-height: 1.1">Slow Satellite</div>
+        <div style="font-size: 15px; color: rgba(255,255,255,.75); margin-top: 4px">Marlow Fen</div>
+      </div>
+      <span style="font-size: 11px; font-weight: 700; padding: 6px 10px; border-radius: 12px; background: #fff; color: #0d1a1c; white-space: nowrap">FLAC 24/96</span>
+    </div>
+    <div aria-hidden="true" style="display: flex; align-items: center; gap: 2px; height: 44px; margin-top: 18px">
+      <sc-for list="{{bars}}" as="b" hint-placeholder-count="56"><div style="flex: 1 1 0; height: {{b.h}}; border-radius: 2px; background: {{b.c}}"></div></sc-for>
+    </div>
+    <div style="display: flex; justify-content: space-between; font-size: 12px; color: rgba(255,255,255,.7); margin-top: 6px"><span>1:36</span><span>-2:36</span></div>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px">
+      <button aria-label="Shuffle" style="width: 44px; height: 44px; border: 0; background: none; color: rgba(255,255,255,.75)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 7h3c4 0 6 10 10 10h5M3 17h3c1.5 0 2.7-1.4 3.7-3M14.3 10C15.3 8.4 16.5 7 18 7h3M18 4l3 3-3 3M18 14l3 3-3 3"/></svg></button>
+      <button aria-label="Previous" style="width: 48px; height: 48px; border: 0; background: none; color: #fff"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 6h2v12H7zM19 6v12l-9-6z"/></svg></button>
+      <button aria-label="Pause" style="width: 72px; height: 72px; border: 0; border-radius: 36px; background: #fff; color: #0d1a1c; display: grid; place-items: center"><svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
+      <button aria-label="Next" style="width: 48px; height: 48px; border: 0; background: none; color: #fff"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15 6h2v12h-2zM5 6v12l9-6z"/></svg></button>
+      <button aria-label="Repeat" style="width: 44px; height: 44px; border: 0; background: none; color: rgba(255,255,255,.75)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M17 3l3 3-3 3M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 0 1-3 3H4"/></svg></button>
+    </div>
+    <div style="display: flex; gap: 8px; margin-top: 10px">
+      <button style="flex: 1; height: 44px; border: 0; border-radius: 22px; background: rgba(255,255,255,.14); color: #fff; font: inherit; font-size: 14px; font-weight: 700">Lyrics</button>
+      <button style="flex: 1; height: 44px; border: 0; border-radius: 22px; background: rgba(255,255,255,.14); color: #fff; font: inherit; font-size: 14px; font-weight: 700">Up next</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const bars = [];
+    for (let i = 0; i < 56; i++) { const v = .25 + .75 * Math.abs(Math.sin(i * .41) * Math.cos(i * .12 + 1) + .3 * Math.sin(i * 1.6)); bars.push({ h: Math.max(4, Math.round(v * 40)) + 'px', c: i < 21 ? '#fff' : 'rgba(255,255,255,.3)' }); }
+    return { bars };
+  }
+}
+</script>
+</body>
+</html>

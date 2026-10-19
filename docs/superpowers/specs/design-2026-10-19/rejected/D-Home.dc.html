@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home, B+C</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&amp;family=Manrope:wght@500;600;700;800&amp;family=DM+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#f6f3ee;text-decoration:none}a:hover{color:#fff}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0b0f12; color: #f6f3ee; font-family: 'Manrope', sans-serif">
+  <div aria-hidden="true" style="position: absolute; width: 600px; height: 600px; border-radius: 50%; left: -220px; top: -320px; background: radial-gradient(closest-side, #ff8a5c, rgba(0,0,0,0)); opacity: .35"></div>
+
+  <div style="position: relative; padding: 18px 18px 0">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <div>
+        <div style="font-size: 13px; color: rgba(246,243,238,.6)">Good evening</div>
+        <div style="font-family: 'Unbounded', sans-serif; font-weight: 700; font-size: 26px; margin-top: 2px">Your music</div>
+      </div>
+      <button aria-label="Account" style="width: 44px; height: 44px; border: 0; border-radius: 14px; background: #ff8a5c; color: #0b0f12; font: inherit; font-weight: 800">A</button>
+    </div>
+
+    <label style="display: flex; align-items: center; gap: 10px; height: 48px; margin-top: 16px; padding: 0 14px; border-radius: 16px; background: rgba(255,255,255,.08); color: rgba(246,243,238,.6)">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
+      <input aria-label="Search" placeholder="Songs, albums, artists" style="flex: 1; border: 0; background: none; color: #f6f3ee; font: inherit; font-size: 15px; outline: none">
+    </label>
+
+    <div style="display: flex; gap: 8px; margin-top: 14px">
+      <button style="height: 38px; padding: 0 16px; border: 0; border-radius: 12px; background: #f6f3ee; color: #0b0f12; font: inherit; font-size: 14px; font-weight: 800">For you</button>
+      <button style="height: 38px; padding: 0 16px; border: 0; border-radius: 12px; background: rgba(255,255,255,.08); color: #f6f3ee; font: inherit; font-size: 14px; font-weight: 700">Albums</button>
+      <button style="height: 38px; padding: 0 16px; border: 0; border-radius: 12px; background: rgba(255,255,255,.08); color: #f6f3ee; font: inherit; font-size: 14px; font-weight: 700">Artists</button>
+      <button style="height: 38px; padding: 0 16px; border: 0; border-radius: 12px; background: rgba(255,255,255,.08); color: #f6f3ee; font: inherit; font-size: 14px; font-weight: 700">Hi-Res</button>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 22px">
+      <div style="font-family: 'Unbounded', sans-serif; font-weight: 500; font-size: 17px">Jump back in</div>
+      <a href="#" style="font-size: 13px; font-weight: 700; color: rgba(246,243,238,.6)">See all</a>
+    </div>
+    <div style="display: flex; gap: 12px; margin-top: 12px">
+      <sc-for list="{{albums}}" as="a" hint-placeholder-count="3">
+        <div style="flex: none; width: 112px">
+          <div role="img" aria-label="[ALBUM COVER]" style="width: 112px; height: 112px; border-radius: 20px; background: {{a.c}}; position: relative; overflow: hidden"><div style="position: absolute; width: 90px; height: 90px; border-radius: 50%; right: -20px; top: -20px; background: {{a.d}}"></div></div>
+          <div style="font-size: 14px; font-weight: 700; margin-top: 8px">{{a.t}}</div>
+          <div style="font-size: 12px; color: rgba(246,243,238,.6)">{{a.a}}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="font-family: 'Unbounded', sans-serif; font-weight: 500; font-size: 17px; margin-top: 22px">Quick picks</div>
+    <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 10px">
+      <sc-for list="{{songs}}" as="s" hint-placeholder-count="3">
+        <div style="display: flex; align-items: center; gap: 12px; padding: 6px; border-radius: 16px">
+          <div aria-hidden="true" style="flex: none; width: 48px; height: 48px; border-radius: 50%; background: {{s.c}}"></div>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-size: 15px; font-weight: 700">{{s.t}}</div>
+            <div style="font-size: 13px; color: rgba(246,243,238,.6)">{{s.a}}</div>
+          </div>
+          <span style="font-family: 'DM Mono', monospace; font-size: 11px; padding: 3px 7px; border-radius: 7px; background: rgba(255,255,255,.08); color: rgba(246,243,238,.75)">{{s.f}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 10px; right: 10px; bottom: 92px; display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 8px; border-radius: 22px; background: rgba(20,24,28,.72); border: 1px solid rgba(255,255,255,.14)">
+    <div aria-hidden="true" style="flex: none; width: 46px; height: 46px; border-radius: 50%; background: #2f5d62; position: relative; overflow: hidden"><div style="position: absolute; width: 50px; height: 50px; border-radius: 50%; left: 18px; top: -18px; background: #ff8a5c"></div></div>
+    <div style="flex: 1; min-width: 0">
+      <div style="font-size: 14px; font-weight: 800">Slow Satellite</div>
+      <div style="font-size: 12px; color: rgba(246,243,238,.6)">Marlow Fen</div>
+    </div>
+    <button aria-label="Pause" style="width: 46px; height: 46px; border: 0; border-radius: 16px; background: #ff8a5c; color: #0b0f12; display: grid; place-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4.2" height="14" rx="1.6"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.6"/></svg></button>
+    <button aria-label="Next" style="width: 46px; height: 46px; border: 0; border-radius: 16px; background: rgba(255,255,255,.1); color: #f6f3ee; display: grid; place-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="16.4" y="5.5" width="2.6" height="13" rx="1.3"/><path d="M5 6.6v10.8a1 1 0 0 0 1.5.9l8.1-5.3a1.2 1.2 0 0 0 0-2L6.5 5.7A1 1 0 0 0 5 6.6z"/></svg></button>
+  </div>
+
+  <nav aria-label="Main" style="position: absolute; left: 0; right: 0; bottom: 0; height: 80px; display: flex; justify-content: space-around; align-items: flex-start; padding-top: 10px; background: linear-gradient(180deg, rgba(11,15,18,0), #0b0f12 40%)">
+    <a href="#" aria-current="page" style="display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 800; color: #ff8a5c"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/></svg>Home</a>
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: rgba(246,243,238,.6)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/></svg>Library</a>
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: rgba(246,243,238,.6)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h9"/></svg>Playlists</a>
+    <a href="#" style="display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: rgba(246,243,238,.6)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="3"/><circle cx="8.5" cy="12" r="2"/><circle cx="15.5" cy="12" r="2"/></svg>Retro</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      albums: [
+        { t: 'Night Lines', a: 'Marlow Fen', c: '#2f5d62', d: '#ff8a5c' },
+        { t: 'Paper Moons', a: 'Ilse Varga', c: '#3b2a5c', d: '#c9a2ff' },
+        { t: 'Low Tide', a: 'The Quiet Hours', c: '#5c4a1e', d: '#f5e15a' }
+      ],
+      songs: [
+        { t: 'Harbour Lights', a: 'Marlow Fen', f: 'FLAC', c: '#7fd6c8' },
+        { t: 'Glasshouse', a: 'The Quiet Hours', f: 'HI-RES', c: '#c9a2ff' },
+        { t: 'Low Tide Radio', a: 'Marlow Fen', f: 'FLAC', c: '#f5e15a' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

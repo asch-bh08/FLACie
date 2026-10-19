@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Stage player with glass card</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&amp;family=DM+Mono:wght@500&amp;family=Manrope:wght@500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#f5ff7a}a:hover{color:#fff}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0a0a0c; color: #f4f1ea; font-family: 'Manrope', sans-serif">
+  <div aria-hidden="true" style="position: absolute; left: 50%; top: 228px; width: 520px; height: 520px; margin-left: -260px; margin-top: -260px; border-radius: 50%; background: radial-gradient(closest-side, rgba(232,119,79,.45), rgba(232,119,79,0))"></div>
+  <div style="position: absolute; left: 18px; right: 18px; top: 18px; display: flex; justify-content: space-between; align-items: center">
+    <button aria-label="Close" style="width: 44px; height: 44px; border: 0; background: none; color: #f4f1ea"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+    <span style="font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: .1em; color: #9a958c">FLAC · 24 BIT · 96 KHZ</span>
+    <button aria-label="Retro" style="width: 44px; height: 44px; border: 0; background: none; color: #f4f1ea"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="8.5" cy="12" r="2"/><circle cx="15.5" cy="12" r="2"/></svg></button>
+  </div>
+  <div aria-hidden="true" style="position: absolute; left: 50%; top: 228px; width: 300px; height: 300px; margin-left: -150px; margin-top: -150px">
+    <sc-for list="{{ring}}" as="r" hint-placeholder-count="90"><div style="position: absolute; left: 148px; top: 0; width: 4px; height: 150px; transform-origin: 2px 150px; transform: rotate({{r.a}}deg)"><div style="width: 4px; height: {{r.h}}; border-radius: 2px; background: {{r.c}}"></div></div></sc-for>
+  </div>
+  <div role="img" aria-label="[ALBUM COVER]" style="position: absolute; left: 50%; top: 228px; width: 210px; height: 210px; margin-left: -105px; margin-top: -105px; border-radius: 50%; overflow: hidden; background: #2f5d62; box-shadow: 0 20px 60px rgba(0,0,0,.6)">
+    <div style="position: absolute; width: 240px; height: 240px; border-radius: 50%; left: 80px; top: -80px; background: #e8774f"></div>
+    <div style="position: absolute; width: 150px; height: 150px; border-radius: 50%; left: -40px; top: 120px; background: #f2c6a0"></div>
+  </div>
+  <div style="position: absolute; left: 14px; right: 14px; top: 420px; padding: 22px 20px 18px; border-radius: 30px; background: rgba(255,255,255,.09); border: 1px solid rgba(255,255,255,.18); box-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 24px 60px rgba(0,0,0,.35)">
+    <div style="text-align: center">
+      <div style="font-family: 'Unbounded', sans-serif; font-weight: 700; font-size: 25px; line-height: 1.12; letter-spacing: -.01em">Slow Satellite</div>
+      <div style="font-size: 15px; color: #9a958c; margin-top: 8px">Marlow Fen · Night Lines</div>
+      <div style="font-family: 'DM Mono', monospace; font-size: 12px; color: #9a958c; margin-top: 10px">1:36 / 4:12</div>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 18px">
+      <button aria-label="Shuffle" style="width: 44px; height: 44px; border: 0; background: none; color: #9a958c"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 7h3c4 0 6 10 10 10h5M3 17h3c1.5 0 2.7-1.4 3.7-3M14.3 10C15.3 8.4 16.5 7 18 7h3M18 4l3 3-3 3M18 14l3 3-3 3"/></svg></button>
+      <button aria-label="Previous" style="width: 52px; height: 52px; border: 0; border-radius: 26px; background: rgba(255,255,255,.1); color: #f4f1ea"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 6h2v12H7zM19 6v12l-9-6z"/></svg></button>
+      <button aria-label="Pause" style="width: 76px; height: 76px; border: 0; border-radius: 38px; background: #f5ff7a; color: #0a0a0c; display: grid; place-items: center"><svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></button>
+      <button aria-label="Next" style="width: 52px; height: 52px; border: 0; border-radius: 26px; background: rgba(255,255,255,.1); color: #f4f1ea"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15 6h2v12h-2zM5 6v12l9-6z"/></svg></button>
+      <button aria-label="Repeat" style="width: 44px; height: 44px; border: 0; background: none; color: #9a958c"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M17 3l3 3-3 3M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3M20 13v2a3 3 0 0 1-3 3H4"/></svg></button>
+    </div>
+    <div style="display: flex; gap: 8px; margin-top: 14px">
+      <button style="flex: 1; height: 44px; border: 0; border-radius: 22px; background: rgba(255,255,255,.1); color: #f4f1ea; font: inherit; font-size: 14px; font-weight: 700">Lyrics</button>
+      <button style="flex: 1; height: 44px; border: 0; border-radius: 22px; background: rgba(255,255,255,.1); color: #f4f1ea; font: inherit; font-size: 14px; font-weight: 700">Up next</button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const ring = [];
+    for (let i = 0; i < 90; i++) { const v = .2 + .8 * Math.abs(Math.sin(i * .37) * Math.cos(i * .11 + 1) + .3 * Math.sin(i * 1.4)); ring.push({ a: i * 4, h: Math.max(4, Math.round(v * 34)) + 'px', c: i < 34 ? '#f5ff7a' : 'rgba(244,241,234,.22)' }); }
+    return { ring };
+  }
+}
+</script>
+</body>
+</html>

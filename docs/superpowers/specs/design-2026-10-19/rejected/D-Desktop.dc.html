@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Now Playing on PC, B+C</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&amp;family=Manrope:wght@500;600;700;800&amp;family=DM+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#f6f3ee}a:hover{color:#fff}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: #0b0f12; color: #f6f3ee; font-family: 'Manrope', sans-serif">
+  <div aria-hidden="true" style="position: absolute; inset: 0; overflow: hidden">
+    <div style="position: absolute; width: 1100px; height: 1100px; border-radius: 50%; left: -300px; top: -420px; background: radial-gradient(closest-side, #ff8a5c, rgba(0,0,0,0)); opacity: .6"></div>
+    <div style="position: absolute; width: 1000px; height: 1000px; border-radius: 50%; left: 700px; top: 300px; background: radial-gradient(closest-side, #2f8f86, rgba(0,0,0,0)); opacity: .55"></div>
+  </div>
+
+  <div style="position: absolute; left: 28px; right: 28px; top: 22px; display: flex; justify-content: space-between; align-items: center">
+    <button aria-label="Close" style="width: 44px; height: 44px; border: 0; border-radius: 14px; background: rgba(255,255,255,.12); color: #f6f3ee; display: grid; place-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9.5l7 6 7-6"/></svg></button>
+    <span style="font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: .08em; color: rgba(246,243,238,.65)">PLAYING FROM NIGHT LINES</span>
+    <div style="display: flex; gap: 6px">
+      <button aria-label="Sleep timer" style="width: 44px; height: 44px; border: 0; border-radius: 14px; background: rgba(255,255,255,.12); color: #f6f3ee; display: grid; place-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z"/></svg></button>
+      <button aria-label="Retro" style="width: 44px; height: 44px; border: 0; border-radius: 14px; background: rgba(255,255,255,.12); color: #f6f3ee; display: grid; place-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="3"/><circle cx="8.5" cy="12" r="2"/><circle cx="15.5" cy="12" r="2"/></svg></button>
+    </div>
+  </div>
+
+  <div aria-hidden="true" style="position: absolute; left: 380px; top: 400px; width: 500px; height: 500px; margin-left: -250px; margin-top: -250px">
+    <sc-for list="{{ring}}" as="r" hint-placeholder-count="128"><div style="position: absolute; left: 248px; top: 0; width: 4px; height: 250px; transform-origin: 2px 250px; transform: rotate({{r.a}}deg)"><div style="width: 4px; height: {{r.h}}; border-radius: 2px; background: {{r.c}}"></div></div></sc-for>
+  </div>
+  <div role="img" aria-label="[ALBUM COVER]" style="position: absolute; left: 380px; top: 400px; width: 360px; height: 360px; margin-left: -180px; margin-top: -180px; border-radius: 50%; overflow: hidden; background: #2f5d62; box-shadow: 0 30px 80px rgba(0,0,0,.55)">
+    <div style="position: absolute; width: 420px; height: 420px; border-radius: 50%; left: 140px; top: -140px; background: #ff8a5c"></div>
+    <div style="position: absolute; width: 260px; height: 260px; border-radius: 50%; left: -60px; top: 210px; background: #f2c6a0"></div>
+  </div>
+
+  <div style="position: absolute; left: 60px; width: 640px; bottom: 36px; padding: 20px 22px 16px; border-radius: 30px; background: rgba(20,24,28,.55); border: 1px solid rgba(255,255,255,.14); box-shadow: inset 0 1px 0 rgba(255,255,255,.18)">
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px">
+      <div>
+        <div style="font-family: 'Unbounded', sans-serif; font-weight: 700; font-size: 26px">Slow Satellite</div>
+        <div style="font-size: 16px; color: rgba(246,243,238,.7); margin-top: 6px">Marlow Fen · Night Lines · 2024</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; font-family: 'DM Mono', monospace; font-size: 12px; color: rgba(246,243,238,.65)">
+        <span>1:36 / 4:12</span>
+        <span style="padding: 4px 9px; border-radius: 8px; background: rgba(255,255,255,.12); color: #f6f3ee">FLAC 24/96</span>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 16px">
+      <button aria-label="Shuffle" style="width: 44px; height: 44px; border: 0; background: none; color: rgba(246,243,238,.7)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h2.5c4.5 0 5.5 10 10 10H20M4 17h2.5c1.6 0 2.8-1.3 3.8-3M14 10c1-1.7 2.2-3 3.8-3H20M17.5 4.5L20 7l-2.5 2.5M17.5 14.5L20 17l-2.5 2.5"/></svg></button>
+      <button aria-label="Previous" style="width: 54px; height: 54px; border: 0; border-radius: 18px; background: rgba(255,255,255,.1); color: #f6f3ee; display: grid; place-items: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5.5" width="2.6" height="13" rx="1.3"/><path d="M19 6.6v10.8a1 1 0 0 1-1.5.9L9.4 13a1.2 1.2 0 0 1 0-2l8.1-5.3a1 1 0 0 1 1.5.9z"/></svg></button>
+      <button aria-label="Pause" style="width: 76px; height: 76px; border: 0; border-radius: 26px; background: #ff8a5c; color: #0b0f12; display: grid; place-items: center"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4.2" height="14" rx="1.6"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.6"/></svg></button>
+      <button aria-label="Next" style="width: 54px; height: 54px; border: 0; border-radius: 18px; background: rgba(255,255,255,.1); color: #f6f3ee; display: grid; place-items: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="16.4" y="5.5" width="2.6" height="13" rx="1.3"/><path d="M5 6.6v10.8a1 1 0 0 0 1.5.9l8.1-5.3a1.2 1.2 0 0 0 0-2L6.5 5.7A1 1 0 0 0 5 6.6z"/></svg></button>
+      <button aria-label="Repeat" style="width: 44px; height: 44px; border: 0; background: none; color: rgba(246,243,238,.7)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 4l3 3-3 3M4 12v-1.5A3.5 3.5 0 0 1 7.5 7H20M7 20l-3-3 3-3M20 12v1.5a3.5 3.5 0 0 1-3.5 3.5H4"/></svg></button>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 780px; right: 40px; top: 96px; bottom: 36px; padding: 18px; border-radius: 30px; background: rgba(20,24,28,.4); border: 1px solid rgba(255,255,255,.1); display: flex; flex-direction: column">
+    <div role="tablist" style="display: flex; gap: 6px">
+      <button role="tab" aria-selected="true" style="height: 40px; padding: 0 18px; border: 0; border-radius: 12px; background: #f6f3ee; color: #0b0f12; font: inherit; font-size: 14px; font-weight: 800">Lyrics</button>
+      <button role="tab" aria-selected="false" style="height: 40px; padding: 0 18px; border: 0; border-radius: 12px; background: rgba(255,255,255,.08); color: #f6f3ee; font: inherit; font-size: 14px; font-weight: 700">Up next</button>
+      <button role="tab" aria-selected="false" style="height: 40px; padding: 0 18px; border: 0; border-radius: 12px; background: rgba(255,255,255,.08); color: #f6f3ee; font: inherit; font-size: 14px; font-weight: 700">Info</button>
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 14px; padding: 0 10px">
+      <sc-for list="{{lines}}" as="l" hint-placeholder-count="7"><div style="font-family: 'Unbounded', sans-serif; font-weight: {{l.w}}; font-size: {{l.s}}; color: {{l.c}}">{{l.t}}</div></sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const ring = [];
+    for (let i = 0; i < 128; i++) { const v = .2 + .8 * Math.abs(Math.sin(i * .3) * Math.cos(i * .09 + 1) + .3 * Math.sin(i * 1.3)); ring.push({ a: i * 2.8125, h: Math.max(5, Math.round(v * 60)) + 'px', c: i < 49 ? '#ff8a5c' : 'rgba(246,243,238,.22)' }); }
+    const lines = ['[LYRIC LINE 1]', '[LYRIC LINE 2]', '[CURRENT LYRIC LINE]', '[LYRIC LINE 4]', '[LYRIC LINE 5]', '[LYRIC LINE 6]', '[LYRIC LINE 7]'].map((t, i) => ({ t, s: i === 2 ? '32px' : '22px', w: i === 2 ? 700 : 500, c: i === 2 ? '#fff' : i < 2 ? 'rgba(246,243,238,.35)' : 'rgba(246,243,238,.55)' }));
+    return { ring, lines };
+  }
+}
+</script>
+</body>
+</html>

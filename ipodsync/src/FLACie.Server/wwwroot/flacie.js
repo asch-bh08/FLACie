@@ -164,73 +164,78 @@ window.flacie = (() => {
   const clockOut = [0, 0, true];
   const freqData = () => { const d = new Uint8Array(an.frequencyBinCount); an.getByteFrequencyData(d); return d; };
   const fill = (g, x, y, w, h, r, color, alpha) => { g.globalAlpha = alpha; g.fillStyle = color; g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); g.globalAlpha = 1; };
-  // black, deep purple, magenta, orange, pale yellow: easy to read on a dark page
-  const lut = (() => {
-    const stops = [[0, 0, 0, 4], [.18, 38, 12, 84], [.4, 104, 22, 112], [.62, 190, 52, 82], [.82, 250, 140, 10], [1, 252, 255, 170]], out = new Uint8ClampedArray(256 * 3);
+  // Design I's graphs: drawn in the cover's colours (accent, tone, ground from the player, flacie.npAccent), labels in DM Mono, soft rounded shapes, no hard boxes
+  const rgbArr = (s) => { s = (s || "").trim(); if (s[0] === "#") { const n = parseInt(s.length === 4 ? s.slice(1).replace(/./g, "$&$&") : s.slice(1, 7), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; } const m = s.match(/[\d.]+/g); return m ? m.slice(0, 3).map(Number) : [255, 255, 255]; };
+  const rgba = (s, a) => { const [r, g, b] = rgbArr(s); return `rgba(${r},${g},${b},${a})`; };
+  // the spectrogram's colours: the ground, through the tone and the cover's colour, to near white; built again only when the cover changes
+  let lutKey = "", lut = null;
+  const lutFor = (c) => {
+    const key = c.ground + c.tone + c.accent; if (key === lutKey) return lut;
+    const gr = rgbArr(c.ground), tn = rgbArr(c.tone), ac = rgbArr(c.accent);
+    const stops = [[0, ...gr.map(v => v * .5)], [.3, ...tn], [.65, ...ac], [1, ...ac.map(v => v + (255 - v) * .8)]], out = new Uint8ClampedArray(256 * 3);
     for (let i = 0; i < 256; i++) {
       const t = i / 255; let k = 1; while (k < stops.length - 1 && stops[k][0] < t) k++;
       const a = stops[k - 1], b = stops[k], u = (t - a[0]) / (b[0] - a[0]);
-      for (let c = 0; c < 3; c++) out[i * 3 + c] = a[c + 1] + (b[c + 1] - a[c + 1]) * u;
+      for (let q = 0; q < 3; q++) out[i * 3 + q] = a[q + 1] + (b[q + 1] - a[q + 1]) * u;
     }
-    return out;
-  })();
-  const labelFont = (f) => { f.g.font = `${11 * f.dpr}px system-ui, sans-serif`; f.g.textBaseline = "alphabetic"; f.g.fillStyle = f.c.dim; };
+    lutKey = key; lut = out; return out;
+  };
+  const labelFont = (f, size = 10.5) => { f.g.font = `500 ${size * f.dpr}px 'DM Mono', ui-monospace, monospace`; f.g.textBaseline = "alphabetic"; f.g.fillStyle = f.c.dim; };
+  const hzLabel = (k) => k === 0 ? "0" : (k / 1000) + "K";
 
-  // ---- spectrum: how loud each pitch is, 0 Hz on the left to 22 kHz on the right, with a slowly falling peak line ----
+  // ---- spectrum: how loud each pitch is, 0 Hz on the left to the file's top on the right: a glowing line over a soft fill, the slowly falling peaks as dots ----
   const drawCurve = (f) => {
     const { g, w, h, dpr, c } = f, data = freqData(), nyq = actx.sampleRate / 2, bins = data.length;
-    const maxHz = nyq, stepHz = maxHz > 48000 ? 20000 : maxHz > 26000 ? 10000 : 5000, use = Math.floor(bins * maxHz / nyq), bottom = h - 18 * dpr, top = 6 * dpr, span = bottom - top;
+    const maxHz = nyq, stepHz = maxHz > 48000 ? 20000 : maxHz > 26000 ? 10000 : 5000, use = Math.floor(bins * maxHz / nyq), bottom = h - 20 * dpr, top = 10 * dpr, span = bottom - top;
     if (!cp || cp.length !== use) cp = new Float32Array(use);
     g.clearRect(0, 0, w, h); labelFont(f); g.lineWidth = dpr;
     for (let k = 0; k <= maxHz; k += stepHz) {
       const x = Math.min(w - 1, k / maxHz * w);
-      g.strokeStyle = "rgba(255,255,255,.08)"; g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke();
-      g.textAlign = k === 0 ? "left" : "center"; g.fillText(k === 0 ? "0" : (k / 1000) + " kHz", k === 0 ? 2 : Math.min(x, w - 22 * dpr), h - 3 * dpr);
+      g.fillStyle = rgba(c.ink, .14); for (let y = top; y < bottom; y += 6 * dpr) g.fillRect(x, y, dpr, 2 * dpr);   // dotted guides
+      g.fillStyle = c.dim; g.textAlign = k === 0 ? "left" : "center"; g.fillText(hzLabel(k), k === 0 ? 2 : Math.min(x, w - 14 * dpr), h - 4 * dpr);
     }
     if (vizCut > 0 && maxHz > vizCut) { // where an encoder at this file's bitrate usually cuts the sound off
-      const x = vizCut / maxHz * w; g.setLineDash([4 * dpr, 4 * dpr]); g.strokeStyle = "rgba(255,255,255,.3)"; g.beginPath(); g.moveTo(x, top); g.lineTo(x, bottom); g.stroke(); g.setLineDash([]);
-      g.textAlign = "right"; g.fillText(vizCutLabel || "usually ends here", x - 5 * dpr, top + 10 * dpr);
+      const x = vizCut / maxHz * w; g.fillStyle = rgba(c.ink, .45); for (let y = top; y < bottom; y += 6 * dpr) g.fillRect(x, y, dpr, 3 * dpr);
+      g.textAlign = "right"; g.fillStyle = c.ink; g.fillText((vizCutLabel || "usually ends here").toUpperCase(), x - 6 * dpr, top + 8 * dpr);
     }
-    const pts = [], pk = [];
-    for (let i = 0; i < use; i++) {
-      const v = data[i] / 255; cp[i] = Math.max(v, cp[i] - 0.004);
-      pts.push([i / (use - 1) * w, bottom - Math.pow(v, 1.15) * span]); pk.push([i / (use - 1) * w, bottom - Math.pow(cp[i], 1.15) * span]);
-    }
+    const pts = [];
+    for (let i = 0; i < use; i++) { const v = data[i] / 255; cp[i] = Math.max(v, cp[i] - 0.004); pts.push([i / (use - 1) * w, bottom - Math.pow(v, 1.15) * span]); }
     const path = (p) => { g.moveTo(p[0][0], p[0][1]); for (let i = 1; i < p.length - 1; i++) { const mx = (p[i][0] + p[i + 1][0]) / 2, my = (p[i][1] + p[i + 1][1]) / 2; g.quadraticCurveTo(p[i][0], p[i][1], mx, my); } };
-    const grad = g.createLinearGradient(0, top, 0, bottom); grad.addColorStop(0, c.accent); grad.addColorStop(1, "rgba(255,255,255,.02)");
-    g.beginPath(); path(pk); g.strokeStyle = "rgba(255,255,255,.28)"; g.lineWidth = 1.2 * dpr; g.stroke();
-    g.beginPath(); path(pts); g.lineTo(w, bottom); g.lineTo(0, bottom); g.closePath(); g.fillStyle = grad; g.globalAlpha = .85; g.fill(); g.globalAlpha = 1;
-    g.beginPath(); path(pts); g.strokeStyle = c.accent; g.lineWidth = 2 * dpr; g.stroke();
+    const grad = g.createLinearGradient(0, top, 0, bottom); grad.addColorStop(0, rgba(c.accent, .55)); grad.addColorStop(1, rgba(c.accent, 0));
+    g.beginPath(); path(pts); g.lineTo(w, bottom); g.lineTo(0, bottom); g.closePath(); g.fillStyle = grad; g.fill();
+    g.save(); g.shadowColor = c.accent; g.shadowBlur = 12 * dpr; g.beginPath(); path(pts); g.strokeStyle = c.accent; g.lineWidth = 2.5 * dpr; g.lineJoin = "round"; g.stroke(); g.restore();
+    // peaks: a dot every few pixels
+    const every = Math.max(1, Math.round(use / (w / (5 * dpr)))); g.fillStyle = rgba(c.ink, .75);
+    for (let i = 0; i < use; i += every) { const y = bottom - Math.pow(cp[i], 1.15) * span; if (y < bottom - 2 * dpr) { g.beginPath(); g.arc(i / (use - 1) * w, y, 1.3 * dpr, 0, 7); g.fill(); } }
+    g.fillStyle = rgba(c.ink, .18); g.fillRect(0, bottom, w, dpr);
   };
 
-  // ---- bars: classic LED columns, deep sounds left, high right ----
+  // ---- visualizer: rounded bars mirrored about a centre line, deep sounds left, high right, each with a floating peak dot ----
   const drawLeds = (f) => {
     const { g, w, h, dpr, c } = f, data = freqData(), nyq = actx.sampleRate / 2, bins = data.length;
-    const N = Math.max(18, Math.min(48, Math.floor(w / (13 * dpr)))), lo = 35, hi = Math.min(nyq, 18000);
+    const N = Math.max(20, Math.min(64, Math.floor(w / (10 * dpr)))), lo = 35, hi = Math.min(nyq, 18000);
     if (!vh || vh.length !== N) { vh = new Float32Array(N); vp = new Float32Array(N); }
     g.clearRect(0, 0, w, h);
-    const seg = 7 * dpr, gap = 2.5 * dpr, rows = Math.max(6, Math.floor((h - 16 * dpr) / (seg + gap))), slot = w / N, bw = Math.max(3 * dpr, slot * 0.7), base = h - 16 * dpr;
+    const slot = w / N, bw = Math.max(3 * dpr, slot * 0.62), mid = (h - 16 * dpr) / 2, half = mid - 6 * dpr;
+    const grad = g.createLinearGradient(0, mid - half, 0, mid + half); grad.addColorStop(0, rgba(c.ink, .95)); grad.addColorStop(.35, c.accent); grad.addColorStop(.5, c.accent); grad.addColorStop(.65, c.accent); grad.addColorStop(1, rgba(c.ink, .95));
     for (let i = 0; i < N; i++) {
       const f0 = lo * Math.pow(hi / lo, i / N), f1 = lo * Math.pow(hi / lo, (i + 1) / N);
       const b0 = Math.floor(f0 / nyq * bins), b1 = Math.max(b0 + 1, Math.ceil(f1 / nyq * bins));
       let m = 0; for (let k = b0; k < b1 && k < bins; k++) m = Math.max(m, data[k]);
       const v = Math.min(1, Math.pow(m / 255, 1.5) * (1 + 0.7 * i / N)); // the highs carry less energy in real music, so they are lifted a little
       vh[i] = Math.max(v, vh[i] - 0.035); vp[i] = Math.max(vh[i], vp[i] - 0.008);
-      const lit = Math.round(vh[i] * rows), peak = Math.min(rows - 1, Math.round(vp[i] * rows)), x = i * slot + (slot - bw) / 2;
-      for (let r = 0; r < rows; r++) {
-        const y = base - (r + 1) * (seg + gap) + gap;
-        if (r < lit) fill(g, x, y, bw, seg, 2 * dpr, c.accent, 0.45 + 0.55 * (r / rows));
-        else if (r === peak && peak > 0) fill(g, x, y, bw, seg, 2 * dpr, "#fff", 0.9);
-        else fill(g, x, y, bw, seg, 2 * dpr, "#fff", 0.06);
-      }
+      const x = i * slot + (slot - bw) / 2, bh = Math.max(bw, vh[i] * half);
+      g.fillStyle = rgba(c.ink, .06); g.beginPath(); g.roundRect(x, mid - half, bw, half * 2, bw / 2); g.fill();
+      g.fillStyle = grad; g.beginPath(); g.roundRect(x, mid - bh, bw, bh * 2, bw / 2); g.fill();
+      if (vp[i] > .03) { g.fillStyle = c.ink; const py = vp[i] * half + 4 * dpr; g.beginPath(); g.arc(x + bw / 2, mid - py, bw / 2.4, 0, 7); g.arc(x + bw / 2, mid + py, bw / 2.4, 0, 7); g.fill(); }
     }
     labelFont(f); g.textAlign = "left"; g.fillText("BASS", 0, h - 3 * dpr); g.textAlign = "center"; g.fillText("MID", w / 2, h - 3 * dpr); g.textAlign = "right"; g.fillText("TREBLE", w, h - 3 * dpr);
   };
 
-  // ---- spectrogram: a waterfall. Pitch up the side, newest sound at the right edge, scrolling left as the song plays ----
+  // ---- spectrogram: a waterfall in the cover's colours. Pitch up the side, newest sound at the right edge, scrolling left as the song plays ----
   const drawWall = (f) => {
-    const { g, w, h, dpr, c } = f, x0 = 44 * dpr, x1 = w - 2 * dpr, y0 = 4 * dpr, y1 = h - 18 * dpr, pw = Math.round(x1 - x0), ph = Math.round(y1 - y0), speed = 60 * dpr;
-    if (!vs.buf || vs.buf.width !== pw || vs.buf.height !== ph) { vs.buf = document.createElement("canvas"); vs.buf.width = pw; vs.buf.height = ph; vs.last = f.ts; vs.acc = 0; }
+    const { g, w, h, dpr, c } = f, x0 = 40 * dpr, x1 = w, y0 = 2 * dpr, y1 = h - 20 * dpr, pw = Math.round(x1 - x0), ph = Math.round(y1 - y0), speed = 60 * dpr, L = lutFor(c);
+    if (!vs.buf || vs.buf.width !== pw || vs.buf.height !== ph) { vs.buf = document.createElement("canvas"); vs.buf.width = pw; vs.buf.height = ph; vs.last = f.ts; vs.acc = 0; const b = vs.buf.getContext("2d"); b.fillStyle = `rgb(${L[0]},${L[1]},${L[2]})`; b.fillRect(0, 0, pw, ph); }
     const bg = vs.buf.getContext("2d"), nyq = actx.sampleRate / 2, maxHz = nyq, stepHz = maxHz > 48000 ? 16000 : maxHz > 26000 ? 8000 : 4000;
     const dt = Math.min(100, f.ts - (vs.last || f.ts)); vs.last = f.ts;
     if (f.playing) vs.acc += dt / 1000 * speed;
@@ -243,20 +248,19 @@ window.flacie = (() => {
         const k0 = Math.floor((ph - 1 - y) * use / ph), k1 = Math.max(k0 + 1, Math.floor((ph - y) * use / ph)); let m = 0;
         for (let k = k0; k < k1; k++) if (data[k] > m) m = data[k];
         const i = Math.round(Math.pow(m / 255, 1.25) * 255);
-        bg.fillStyle = `rgb(${lut[i * 3]},${lut[i * 3 + 1]},${lut[i * 3 + 2]})`; bg.fillRect(pw - step, y, step, 1);
+        bg.fillStyle = `rgb(${L[i * 3]},${L[i * 3 + 1]},${L[i * 3 + 2]})`; bg.fillRect(pw - step, y, step, 1);
       }
     }
-    g.clearRect(0, 0, w, h); g.fillStyle = "#04000a"; g.fillRect(x0, y0, pw, ph); g.drawImage(vs.buf, x0, y0);
-    labelFont(f); g.lineWidth = dpr; g.textAlign = "right"; g.textBaseline = "middle";
-    for (let k = 0; k <= maxHz; k += stepHz) {
-      const y = y1 - k / maxHz * ph, key = k === 16000 || k === 20000;
-      g.fillStyle = key ? c.ink : c.dim; g.fillText(k === 0 ? "0" : (k / 1000) + " kHz", x0 - 6 * dpr, Math.min(y1 - 5 * dpr, Math.max(y0 + 6 * dpr, y)));
-      if (k > 0) { g.strokeStyle = key ? "rgba(255,255,255,.5)" : "rgba(255,255,255,.12)"; g.setLineDash(key ? [5 * dpr, 4 * dpr] : []); g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); }
-    }
-    g.setLineDash([]); g.textBaseline = "alphabetic"; g.fillStyle = c.dim; g.textAlign = "left"; g.fillText(`${Math.round(pw / speed)} s ago`, x0, h - 3 * dpr); g.textAlign = "right"; g.fillText("now", x1, h - 3 * dpr);
+    g.clearRect(0, 0, w, h);
+    g.save(); g.beginPath(); g.roundRect(x0, y0, pw, ph, 12 * dpr); g.clip(); g.drawImage(vs.buf, x0, y0);
+    for (let k = stepHz; k <= maxHz; k += stepHz) { const y = y1 - k / maxHz * ph; g.fillStyle = rgba(c.ink, k === 16000 || k === 20000 ? .4 : .14); for (let x = x0; x < x1; x += 6 * dpr) g.fillRect(x, y, 2 * dpr, dpr); }
+    g.restore();
+    labelFont(f); g.textAlign = "right"; g.textBaseline = "middle";
+    for (let k = 0; k <= maxHz; k += stepHz) { const y = y1 - k / maxHz * ph; g.fillStyle = k === 16000 || k === 20000 ? c.ink : c.dim; g.fillText(hzLabel(k), x0 - 8 * dpr, Math.min(y1 - 5 * dpr, Math.max(y0 + 6 * dpr, y))); }
+    g.textBaseline = "alphabetic"; g.fillStyle = c.dim; g.textAlign = "left"; g.fillText(`${Math.round(pw / speed)} S AGO`, x0, h - 4 * dpr); g.textAlign = "right"; g.fillText("NOW", x1, h - 4 * dpr);
   };
 
-  // ---- loudness: the level right now, a peak marker, and the last ten seconds ----
+  // ---- loudness: the level right now as a big number and a row of lit capsules with a peak tick, then the last ten seconds as a soft hill ----
   const drawLoud = (f) => {
     const { g, w, h, dpr, c } = f, buf = vs.t || (vs.t = new Float32Array(2048));
     an.getFloatTimeDomainData(buf);
@@ -268,27 +272,30 @@ window.flacie = (() => {
     const lo = -60, X = (d) => Math.max(0, Math.min(1, (d - lo) / -lo));
     g.clearRect(0, 0, w, h);
     // readout
-    g.textBaseline = "alphabetic"; g.textAlign = "left"; g.fillStyle = c.ink; g.font = `800 ${30 * dpr}px system-ui, sans-serif`;
-    g.fillText(vs.r <= -59 ? "−∞" : vs.r.toFixed(1), 0, 30 * dpr); const tw = g.measureText(vs.r <= -59 ? "−∞" : vs.r.toFixed(1)).width;
-    g.font = `600 ${13 * dpr}px system-ui, sans-serif`; g.fillStyle = c.dim; g.fillText("dB average now", tw + 8 * dpr, 30 * dpr);
-    g.textAlign = "right"; g.fillText(`peak ${vs.ph <= -89 ? "−∞" : vs.ph.toFixed(1)} dB`, w, 30 * dpr);
-    // meter
-    const my = 44 * dpr, mh = 12 * dpr, grad = g.createLinearGradient(0, 0, w, 0); grad.addColorStop(0, c.accent); grad.addColorStop(.75, "#ffb35c"); grad.addColorStop(1, "#ff5c5c");
-    fill(g, 0, my, w, mh, mh / 2, "#fff", 0.08); g.save(); g.beginPath(); g.roundRect(0, my, w * X(vs.r), mh, mh / 2); g.clip(); g.fillStyle = grad; g.fillRect(0, my, w, mh); g.restore();
-    g.fillStyle = "#fff"; g.fillRect(Math.min(w - 2 * dpr, w * X(vs.ph)), my - 2 * dpr, 2 * dpr, mh + 4 * dpr);
-    // history
-    const hy0 = my + mh + 16 * dpr, hy1 = h - 18 * dpr, hh = hy1 - hy0; labelFont(f);
-    g.lineWidth = dpr; g.textAlign = "left";
-    for (const d of [-12, -24, -36, -48]) { const y = hy1 - X(d) * hh; g.strokeStyle = "rgba(255,255,255,.09)"; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); g.fillText(d + "", 2, y - 3 * dpr); }
-    if (hist.length > 1) {
-      const px = (i) => w - (hist.length - 1 - i) / 299 * w, py = (i) => hy1 - X(hist[i]) * hh, gr = g.createLinearGradient(0, hy0, 0, hy1); gr.addColorStop(0, c.accent); gr.addColorStop(1, "rgba(255,255,255,.02)");
-      g.beginPath(); g.moveTo(px(0), hy1); for (let i = 0; i < hist.length; i++) g.lineTo(px(i), py(i)); g.lineTo(px(hist.length - 1), hy1); g.closePath(); g.fillStyle = gr; g.globalAlpha = .8; g.fill(); g.globalAlpha = 1;
-      g.beginPath(); for (let i = 0; i < hist.length; i++) i ? g.lineTo(px(i), py(i)) : g.moveTo(px(i), py(i)); g.strokeStyle = c.accent; g.lineWidth = 2 * dpr; g.stroke();
+    const num = vs.r <= -59 ? "−∞" : vs.r.toFixed(1);
+    g.textBaseline = "alphabetic"; g.textAlign = "left"; g.fillStyle = c.ink; g.font = `500 ${34 * dpr}px 'DM Mono', ui-monospace, monospace`;
+    g.fillText(num, 0, 34 * dpr); const tw = g.measureText(num).width;
+    labelFont(f, 11); g.fillText("DB AVERAGE NOW", tw + 10 * dpr, 32 * dpr);
+    g.textAlign = "right"; g.fillStyle = c.ink; g.fillText(`PEAK ${vs.ph <= -89 ? "−∞" : vs.ph.toFixed(1)} DB`, w, 32 * dpr);
+    // meter: capsules that light up to the level; the last few turn warm near 0 dB
+    const my = 48 * dpr, mh = 14 * dpr, n = Math.max(20, Math.floor(w / (9 * dpr))), cw = w / n, lit = X(vs.r) * n, pki = Math.min(n - 1, Math.floor(X(vs.ph) * n));
+    for (let i = 0; i < n; i++) {
+      const hot = i >= n * .88, col = i < lit ? (hot ? "#ff7a5c" : c.accent) : rgba(c.ink, .08);
+      g.fillStyle = i === pki ? c.ink : col; g.beginPath(); g.roundRect(i * cw + dpr, my, cw - 2.5 * dpr, mh, 3 * dpr); g.fill();
     }
-    g.fillStyle = c.dim; g.lineWidth = dpr; g.textAlign = "left"; g.fillText("10 s ago", 0, h - 3 * dpr); g.textAlign = "right"; g.fillText("now", w, h - 3 * dpr);
+    // history
+    const hy0 = my + mh + 18 * dpr, hy1 = h - 20 * dpr, hh = hy1 - hy0; labelFont(f);
+    g.textAlign = "left";
+    for (const d of [-12, -24, -36, -48]) { const y = hy1 - X(d) * hh; g.fillStyle = rgba(c.ink, .12); for (let x = 0; x < w; x += 6 * dpr) g.fillRect(x, y, 2 * dpr, dpr); g.fillStyle = c.dim; g.fillText(d + "", 2, y - 4 * dpr); }
+    if (hist.length > 1) {
+      const px = (i) => w - (hist.length - 1 - i) / 299 * w, py = (i) => hy1 - X(hist[i]) * hh, gr = g.createLinearGradient(0, hy0, 0, hy1); gr.addColorStop(0, rgba(c.accent, .6)); gr.addColorStop(1, rgba(c.accent, 0));
+      g.beginPath(); g.moveTo(px(0), hy1); for (let i = 0; i < hist.length; i++) g.lineTo(px(i), py(i)); g.lineTo(px(hist.length - 1), hy1); g.closePath(); g.fillStyle = gr; g.fill();
+      g.save(); g.shadowColor = c.accent; g.shadowBlur = 10 * dpr; g.beginPath(); for (let i = 0; i < hist.length; i++) i ? g.lineTo(px(i), py(i)) : g.moveTo(px(i), py(i)); g.strokeStyle = c.accent; g.lineWidth = 2.5 * dpr; g.lineJoin = "round"; g.stroke(); g.restore();
+    }
+    labelFont(f); g.textAlign = "left"; g.fillText("10 S AGO", 0, h - 4 * dpr); g.textAlign = "right"; g.fillText("NOW", w, h - 4 * dpr);
   };
 
-  // ---- stereo: a phase scope (what left and right do together) beside a level meter for each side ----
+  // ---- stereo: a phase scope (what left and right do together) in a soft disc, beside a capsule meter for each side ----
   const drawStereo = (f) => {
     const { g, w, h, dpr, c } = f, bl = vs.l || (vs.l = new Float32Array(2048)), br = vs.rr || (vs.rr = new Float32Array(2048));
     anL.getFloatTimeDomainData(bl); anR.getFloatTimeDomainData(br);
@@ -301,24 +308,25 @@ window.flacie = (() => {
     const s = Math.min(h - 6 * dpr, Math.floor(w * 0.52)), cx = s / 2, cy = h / 2, R = s / 2 - 6 * dpr;
     if (!vs.sc || vs.sc.width !== s || vs.sc.height !== s) { vs.sc = document.createElement("canvas"); vs.sc.width = s; vs.sc.height = s; }
     const sg = vs.sc.getContext("2d"), gx = s / 2;
-    sg.globalCompositeOperation = "destination-out"; sg.fillStyle = "rgba(0,0,0,.22)"; sg.fillRect(0, 0, s, s); sg.globalCompositeOperation = "source-over";
-    if (f.playing) { sg.fillStyle = c.accent; for (let i = 0; i < bl.length; i += 2) { const l = bl[i], r = br[i], x = gx + (r - l) * 0.7071 * (R * 1.2), y = gx - (l + r) * 0.7071 * (R * 1.2); sg.globalAlpha = .7; sg.fillRect(x - dpr * .75, y - dpr * .75, dpr * 1.5, dpr * 1.5); } sg.globalAlpha = 1; }
-    g.clearRect(0, 0, w, h); labelFont(f); g.lineWidth = dpr; g.strokeStyle = "rgba(255,255,255,.12)";
-    g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.stroke();
-    g.beginPath(); g.moveTo(cx, cy - R); g.lineTo(cx, cy + R); g.moveTo(cx - R, cy); g.lineTo(cx + R, cy); g.moveTo(cx - R * .7071, cy - R * .7071); g.lineTo(cx + R * .7071, cy + R * .7071); g.moveTo(cx + R * .7071, cy - R * .7071); g.lineTo(cx - R * .7071, cy + R * .7071); g.stroke();
+    sg.globalCompositeOperation = "destination-out"; sg.fillStyle = "rgba(0,0,0,.2)"; sg.fillRect(0, 0, s, s); sg.globalCompositeOperation = "source-over";
+    if (f.playing) { sg.fillStyle = c.accent; for (let i = 0; i < bl.length; i += 2) { const l = bl[i], r = br[i], x = gx + (r - l) * 0.7071 * (R * 1.2), y = gx - (l + r) * 0.7071 * (R * 1.2); sg.globalAlpha = .75; sg.beginPath(); sg.arc(x, y, dpr, 0, 7); sg.fill(); } sg.globalAlpha = 1; }
+    g.clearRect(0, 0, w, h);
+    const disc = g.createRadialGradient(cx, cy, 0, cx, cy, R); disc.addColorStop(0, rgba(c.tone, .9)); disc.addColorStop(1, rgba(c.tone, .25));
+    g.fillStyle = disc; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+    g.lineWidth = dpr; g.strokeStyle = rgba(c.ink, .14); g.setLineDash([3 * dpr, 4 * dpr]);
+    g.beginPath(); g.moveTo(cx, cy - R); g.lineTo(cx, cy + R); g.moveTo(cx - R, cy); g.lineTo(cx + R, cy); g.moveTo(cx - R * .7071, cy - R * .7071); g.lineTo(cx + R * .7071, cy + R * .7071); g.moveTo(cx + R * .7071, cy - R * .7071); g.lineTo(cx - R * .7071, cy + R * .7071); g.stroke(); g.setLineDash([]);
     g.drawImage(vs.sc, 0, (h - s) / 2);
-    g.textAlign = "center"; g.fillText("L", cx - R * .7071 - 8 * dpr, cy - R * .7071 - 2 * dpr); g.fillText("R", cx + R * .7071 + 8 * dpr, cy - R * .7071 - 2 * dpr);
-    // the two level meters
-    const mx = s + 18 * dpr, mw = Math.max(14 * dpr, Math.min(34 * dpr, (w - mx - 90 * dpr) / 2)), mt = 6 * dpr, mb = h - 22 * dpr, mhh = mb - mt, X = (d) => Math.max(0, Math.min(1, (d + 60) / 60));
-    [[vs.sm[0], vs.pk[0], "L", c.accent], [vs.sm[1], vs.pk[1], "R", "#7cc4ff"]].forEach(([v, p, name, col], i) => {
-      const x = mx + i * (mw + 12 * dpr);
-      fill(g, x, mt, mw, mhh, 5 * dpr, "#fff", 0.08);
-      g.save(); g.beginPath(); g.roundRect(x, mb - X(v) * mhh, mw, X(v) * mhh, 5 * dpr); g.clip(); g.fillStyle = col; g.globalAlpha = .9; g.fillRect(x, mt, mw, mhh); g.restore(); g.globalAlpha = 1;
-      g.fillStyle = "#fff"; g.fillRect(x, mb - X(p) * mhh - 1.5 * dpr, mw, 2 * dpr);
-      g.fillStyle = c.ink; g.textAlign = "center"; g.fillText(name, x + mw / 2, h - 6 * dpr);
+    labelFont(f); g.fillStyle = c.ink; g.textAlign = "center"; g.fillText("L", cx - R * .7071 - 8 * dpr, cy - R * .7071 - 2 * dpr); g.fillText("R", cx + R * .7071 + 8 * dpr, cy - R * .7071 - 2 * dpr);
+    // the two level meters: stacks of capsules
+    const mx = s + 20 * dpr, mw = Math.max(14 * dpr, Math.min(30 * dpr, (w - mx - 70 * dpr) / 2)), mt = 6 * dpr, mb = h - 22 * dpr, mhh = mb - mt, X = (d) => Math.max(0, Math.min(1, (d + 60) / 60));
+    const rows = Math.max(10, Math.floor(mhh / (7 * dpr))), rh = mhh / rows;
+    [[vs.sm[0], vs.pk[0], "L", c.accent], [vs.sm[1], vs.pk[1], "R", c.ink]].forEach(([v, p, name, col], i) => {
+      const x = mx + i * (mw + 12 * dpr), lit = X(v) * rows, pr = Math.min(rows - 1, Math.floor(X(p) * rows));
+      for (let r = 0; r < rows; r++) { const y = mb - (r + 1) * rh; g.fillStyle = r === pr ? c.ink : r < lit ? col : rgba(c.ink, .07); g.beginPath(); g.roundRect(x, y + dpr, mw, rh - 2.5 * dpr, 3 * dpr); g.fill(); }
+      labelFont(f); g.fillStyle = c.ink; g.textAlign = "center"; g.fillText(name, x + mw / 2, h - 6 * dpr);
     });
-    const tx = mx + 2 * (mw + 12 * dpr) + 4 * dpr; g.textAlign = "left"; g.fillStyle = c.dim;
-    for (const d of [0, -12, -24, -36, -48]) { const y = mb - X(d) * mhh; g.fillText(d + " dB", tx, y + 4 * dpr); }
+    const tx = mx + 2 * (mw + 12 * dpr) + 2 * dpr; labelFont(f); g.textAlign = "left";
+    for (const d of [0, -12, -24, -36, -48]) { const y = mb - X(d) * mhh; g.fillText(d + "", tx, y + 4 * dpr); }
   };
 
   const views = { curve: drawCurve, leds: drawLeds, wall: drawWall, loud: drawLoud, stereo: drawStereo };
@@ -332,8 +340,9 @@ window.flacie = (() => {
     const dpr = window.devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
     if (!w || !h) return;
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; vs = {}; }
-    const css = getComputedStyle(document.documentElement);
-    views[vizStyle](Object.assign({ g: cv.getContext("2d"), w, h, dpr, ts, playing: !audio.paused, c: { accent: css.getPropertyValue("--accent").trim() || "#ff4d8d", dim: css.getPropertyValue("--faint").trim() || "#8a8a94", ink: css.getPropertyValue("--ink").trim() || "#f4f3f7" } }));
+    // the colours are read off the graph itself, so inside the player they are the cover's (accent, tone, ground)
+    const css = getComputedStyle(cv), v = (n, d) => css.getPropertyValue(n).trim() || d;
+    views[vizStyle](Object.assign({ g: cv.getContext("2d"), w, h, dpr, ts, playing: !audio.paused, c: { accent: v("--accent", "#ff4d8d"), dim: v("--ink-2", "") || v("--faint", "#8a8a94"), ink: v("--ink", "#f4f3f7"), tone: v("--tone", "#2a2a33"), ground: v("--ground", "#0b0b0e") } }));
   };
   // a device lying turned (the Desk look tilts it a few degrees): its angle, from the CSS rotate of it and what holds it; and the zoom it is drawn at (the page's fit)
   const tiltOf = el => { let a = 0; for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const m = /^(-?[\d.]+)deg$/.exec(getComputedStyle(n).rotate || ""); if (m) a += +m[1]; } return a; };
@@ -607,49 +616,87 @@ window.flacie = (() => {
     },
     // Living Sleeve: the full-screen player's two colours, read from the cover once per cover (a 24 px copy, so it costs nothing). The main colour is the
     // most vivid one in the picture, lifted until dark text on it is easy to read (the play button); the second is the next most common hue, for the other field.
-    // Design I's seek bar: the song's own loudness as bars standing round the play button (from /api/wave, worked out once), hanging in from the ring's
-    // outer edge, the played part in the cover's colour, starting at 12 o'clock and going clockwise. The shape stays still; only the played part moves.
-    // A press or drag on the ring (not on the play button) seeks: the range input inside gets the value (input while dragging, change on release).
+    // Design I's seek bar: the song's own loudness as bars (from /api/wave, worked out once), the played part in the cover's colour, starting at 12 o'clock
+    // and going clockwise. Two shapes, whichever is on screen: on a phone a RING round the play button (bars hanging in from its outer edge); on a PC a FRAME
+    // round the cover (bars standing out from a rounded square just outside the picture). The shape stays still; only the played part moves.
+    // A press or drag on the bars seeks: the range input in the ring gets the value (input while dragging, change on release).
     // Redrawn four times a second while the player is open and the tab is shown, and at once when the size changes or while dragging.
-    npWave(cv, url, box) {
+    npWave(cv, url, box, fcv, fbox) {
         flacie.npWaveStop();
         if (!cv) return;
-        const g = cv.getContext('2d'), np = cv.closest('.ls, .np'), input = box?.querySelector('input[type=range]');
-        let shape = null, last = 0, lastPlayed = -1, lastW = 0, drag = null;
+        const np = cv.closest('.ls, .np'), input = box?.querySelector('input[type=range]');
+        let shape = null, last = 0, lastPlayed = -1, lastKey = '', drag = null;
         const got = (a) => { if (cv.isConnected && Array.isArray(a) && a.length) { shape = a; lastPlayed = -1; } };
         if (url) fetch(url, { credentials: 'same-origin' }).then(r => r.ok ? r.json() : r.status === 404 ? flacie.npWaveMake(url) : null).then(got).catch(() => { });
-        if (box && input && !box.dataset.ring) {
-            box.dataset.ring = '1';
-            const at = (e) => { const r = box.getBoundingClientRect(), x = e.clientX - r.left - r.width / 2, y = e.clientY - r.top - r.height / 2; return { d: Math.hypot(x, y) / (r.width / 2), f: ((Math.atan2(x, -y) / (2 * Math.PI)) + 1) % 1 }; };
-            const put = (f, type) => { drag = f; input.value = String(Math.round(f * Number(input.max || 1))); input.dispatchEvent(new Event(type, { bubbles: true })); lastPlayed = -1; };
-            box.addEventListener('pointerdown', e => { if (e.target.closest('button') || e.button > 0) return; const p = at(e); if (p.d < .55 || p.d > 1.05) return; box.setPointerCapture(e.pointerId); put(p.f, 'input'); e.preventDefault(); });
-            box.addEventListener('pointermove', e => { if (drag !== null && box.hasPointerCapture(e.pointerId)) put(at(e).f, 'input'); });
-            const end = (e) => { if (drag === null) return; put(at(e).f, 'change'); drag = null; };
-            box.addEventListener('pointerup', end);
-            box.addEventListener('pointercancel', () => { drag = null; });
-        }
-        const draw = (now) => {
-            npWaveRaf = requestAnimationFrame(draw);
-            if (document.hidden || drag === null && now - last < 250 && cv.clientWidth === lastW) return; last = now;
-            const dpr = devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
-            if (!w || !h) return;
-            const c = flacie.clock(), played = drag ?? (c[1] > 0 ? c[0] / c[1] : 0);
-            if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; lastPlayed = -1; }
-            lastW = cv.clientWidth;
-            if (Math.abs(played - lastPlayed) < .0005 && lastPlayed >= 0) return; lastPlayed = played;
+        const level = (i, n) => { if (!shape) return .4; const a = Math.floor(i / n * shape.length), b = Math.max(a + 1, Math.floor((i + 1) / n * shape.length)); let m = 0; for (let k = a; k < b; k++) m = Math.max(m, shape[k]); return .15 + .85 * m / 255; };
+        // the frame's geometry, in CSS pixels: the cover's square (side S, corner r) grown by a gap; walk(t) gives the point and outward normal at a fraction t of the way round
+        const frameGeo = () => {
+            const W = fcv.clientWidth, F = parseFloat(getComputedStyle(fbox).getPropertyValue('--frame')) || 40, S = W - 2 * F, gap = 8, a = S / 2 + gap, rr = 26 + gap, side = 2 * a - 2 * rr, arc = Math.PI / 2 * rr;
+            const P = 4 * side + 4 * arc;
+            const walk = (t) => {
+                let d = ((t % 1) + 1) % 1 * P;
+                const segs = [[side / 2, (u) => [u, -a, 0, -1]],
+                    [arc, (u) => { const q = -Math.PI / 2 + u / rr; return [a - rr + rr * Math.cos(q), -a + rr + rr * Math.sin(q), Math.cos(q), Math.sin(q)]; }],
+                    [side, (u) => [a, -a + rr + u, 1, 0]],
+                    [arc, (u) => { const q = u / rr; return [a - rr + rr * Math.cos(q), a - rr + rr * Math.sin(q), Math.cos(q), Math.sin(q)]; }],
+                    [side, (u) => [a - rr - u, a, 0, 1]],
+                    [arc, (u) => { const q = Math.PI / 2 + u / rr; return [-a + rr + rr * Math.cos(q), a - rr + rr * Math.sin(q), Math.cos(q), Math.sin(q)]; }],
+                    [side, (u) => [-a, a - rr - u, -1, 0]],
+                    [arc, (u) => { const q = Math.PI + u / rr; return [-a + rr + rr * Math.cos(q), -a + rr + rr * Math.sin(q), Math.cos(q), Math.sin(q)]; }],
+                    [side / 2, (u) => [-a + rr + u, -a, 0, -1]]];
+                for (const [len, f] of segs) { if (d <= len) return f(d); d -= len; }
+                return [0, -a, 0, -1];
+            };
+            return { W, F, S, a, P, walk, L: F - gap - 4 };
+        };
+        const ringFrac = (e) => { const r = box.getBoundingClientRect(), x = e.clientX - r.left - r.width / 2, y = e.clientY - r.top - r.height / 2; const d = Math.hypot(x, y) / (r.width / 2); return d < .55 || d > 1.05 ? null : ((Math.atan2(x, -y) / (2 * Math.PI)) + 1) % 1; };
+        const frameFrac = (e) => {
+            const r = fcv.getBoundingClientRect(), x = e.clientX - r.left - r.width / 2, y = e.clientY - r.top - r.height / 2, G = frameGeo();
+            if (Math.max(Math.abs(x), Math.abs(y)) < G.S / 2) return null;   // on the picture itself: that is play / pause
+            let best = 0, bd = 1e9; for (let i = 0; i < 400; i++) { const [px, py] = G.walk(i / 400), dd = (px - x) ** 2 + (py - y) ** 2; if (dd < bd) { bd = dd; best = i / 400; } }
+            return best;
+        };
+        const put = (f, type) => { if (!input) return; drag = f; input.value = String(Math.round(f * Number(input.max || 1))); input.dispatchEvent(new Event(type, { bubbles: true })); lastPlayed = -1; };
+        const hook = (el, frac) => {
+            if (!el || el.dataset.ring) return; el.dataset.ring = '1';
+            el.addEventListener('pointerdown', e => { if (e.target.closest('button') || e.button > 0) return; const f = frac(e); if (f === null) return; el.setPointerCapture(e.pointerId); put(f, 'input'); e.preventDefault(); });
+            el.addEventListener('pointermove', e => { if (drag !== null && el.hasPointerCapture(e.pointerId)) { const f = frac(e); if (f !== null) put(f, 'input'); } });
+            el.addEventListener('pointerup', e => { if (drag === null) return; put(frac(e) ?? drag, 'change'); drag = null; });
+            el.addEventListener('pointercancel', () => { drag = null; });
+        };
+        hook(box, ringFrac); if (fcv && fbox) hook(fbox, frameFrac);
+        const size = (c, dpr) => { const w = Math.round(c.clientWidth * dpr), h = Math.round(c.clientHeight * dpr); if (c.width !== w || c.height !== h) { c.width = w; c.height = h; } return [w, h]; };
+        const drawRing = (played, on, dpr) => {
+            const [w, h] = size(cv, dpr), g = cv.getContext('2d'); if (!w || !h) return;
             const R = Math.min(w, h) / 2, n = 80, bw = Math.max(2 * dpr, R * .048), maxL = R * .27, minL = R * .05;
-            const on = getComputedStyle(np).getPropertyValue('--np-accent').trim() || '#e8774f';
-            g.clearRect(0, 0, w, h);
-            g.save(); g.translate(w / 2, h / 2);
+            g.clearRect(0, 0, w, h); g.save(); g.translate(w / 2, h / 2);
             for (let i = 0; i < n; i++) {
-                let v = .4;
-                if (shape) { const a = Math.floor(i / n * shape.length), b = Math.max(a + 1, Math.floor((i + 1) / n * shape.length)); let m = 0; for (let k = a; k < b; k++) m = Math.max(m, shape[k]); v = .15 + .85 * m / 255; }
-                const L = Math.max(minL, v * maxL);
                 g.fillStyle = (i + .5) / n <= played ? on : 'rgba(244,239,230,.25)';
-                g.beginPath(); g.roundRect(-bw / 2, -R, bw, L, bw / 2); g.fill();
+                g.beginPath(); g.roundRect(-bw / 2, -R, bw, Math.max(minL, level(i, n) * maxL), bw / 2); g.fill();
                 g.rotate(2 * Math.PI / n);
             }
             g.restore();
+        };
+        const drawFrame = (played, on, dpr) => {
+            const [w, h] = size(fcv, dpr), g = fcv.getContext('2d'); if (!w || !h) return;
+            const G = frameGeo(), bw = 3, n = Math.max(60, Math.round(G.P / (bw * 2.3)));
+            g.clearRect(0, 0, w, h); g.save(); g.scale(dpr, dpr); g.translate(G.W / 2, G.W / 2); g.lineCap = 'round'; g.lineWidth = bw;
+            for (let i = 0; i < n; i++) {
+                const [x, y, nx, ny] = G.walk((i + .5) / n), L = Math.max(3, level(i, n) * G.L);
+                g.strokeStyle = (i + .5) / n <= played ? on : 'rgba(244,239,230,.22)';
+                g.beginPath(); g.moveTo(x + nx * 1.5, y + ny * 1.5); g.lineTo(x + nx * (L - 1.5), y + ny * (L - 1.5)); g.stroke();
+            }
+            g.restore();
+        };
+        const draw = (now) => {
+            npWaveRaf = requestAnimationFrame(draw);
+            const frame = !!(fcv && fcv.offsetParent), key = (frame ? 'f' : 'r') + (frame ? fcv.clientWidth : cv.clientWidth);
+            if (document.hidden || drag === null && now - last < 250 && key === lastKey) return; last = now;
+            const c = flacie.clock(), played = drag ?? (c[1] > 0 ? c[0] / c[1] : 0), dpr = devicePixelRatio || 1;
+            if (key !== lastKey) { lastKey = key; lastPlayed = -1; }
+            if (Math.abs(played - lastPlayed) < .0005 && lastPlayed >= 0) return; lastPlayed = played;
+            const on = getComputedStyle(np).getPropertyValue('--np-accent').trim() || '#e8774f';
+            if (frame) drawFrame(played, on, dpr); else if (cv.offsetParent) drawRing(played, on, dpr);
         };
         npWaveRaf = requestAnimationFrame(draw);
     },

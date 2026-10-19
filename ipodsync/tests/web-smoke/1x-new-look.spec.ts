@@ -106,13 +106,17 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
 
     test('two halves: the cover, title and controls on the left, the panel on the right, the time right under the ring', async ({ page }) => {
       const box = async (s: string) => (await page.locator(s).first().boundingBox())!;
-      const cover = await box('.ls-cover'), panel = await box('.ls-side'), title = await box('.ls-title'), tr = await box('.ls-transport'), ring = await box('.ls-ring'), time = await box('.ls-times');
+      const cover = await box('.ls-cover'), panel = await box('.ls-side'), title = await box('.ls-title'), tr = await box('.ls-transport'), frame = await box('.ls-frame'), time = await box('.ls-times');
       expect(panel.width / w).toBeGreaterThan(0.4); expect(panel.width / w).toBeLessThan(0.55);
       expect(panel.x).toBeGreaterThanOrEqual(cover.x + cover.width + 20);
       expect(tr.x + tr.width).toBeLessThanOrEqual(panel.x);
       expect(cover.y + cover.height).toBeLessThanOrEqual(title.y + 1);
       expect(title.y + title.height).toBeLessThanOrEqual(tr.y + 1);
-      expect(time.y - (ring.y + ring.height)).toBeLessThan(8);
+      // the seek bar is a frame round the cover, and the time sits right under it
+      expect(frame.x).toBeLessThan(cover.x); expect(frame.x + frame.width).toBeGreaterThan(cover.x + cover.width);
+      expect(time.y).toBeGreaterThanOrEqual(cover.y + cover.height); expect(time.y - (frame.y + frame.height)).toBeLessThan(8);
+      // no empty band above the player
+      expect((await box('.ls-top')).y).toBeLessThan(30);
       expect(time.y + time.height).toBeLessThanOrEqual(h);
       expect(panel.y + panel.height).toBeLessThanOrEqual(h);
     });
@@ -128,6 +132,14 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
       await page.locator('.graph-tabs [role=tab]', { hasText: 'Spectrogram' }).click();
       await expect(page.locator('.graph-tabs [role=tab]', { hasText: 'Spectrogram' })).toHaveAttribute('aria-selected', 'true');
       await expect(page.locator('#viz.wall')).toBeVisible();
+    });
+
+    test('a press on the frame seeks: the middle of its right side is a quarter of the song', async ({ page }) => {
+      const fr = (await page.locator('.ls-frame').boundingBox())!, input = page.locator('.ls-ring input[type=range]'), max = Number(await input.getAttribute('max'));
+      const drawn = await page.locator('.ls-frame canvas').evaluate((c: HTMLCanvasElement) => { const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
+      expect(drawn).toBeGreaterThan(200);
+      await page.mouse.click(fr.x + fr.width - 14, fr.y + fr.height / 2);
+      await expect.poll(async () => Math.abs(Number(await input.inputValue()) - max / 4), { timeout: 5_000 }).toBeLessThanOrEqual(1);
     });
 
     test('Up next is the first tab; Lyrics and Info are there too; the options show inline', async ({ page }) => {

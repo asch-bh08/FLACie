@@ -49,6 +49,7 @@
 .ls-body { position: relative; z-index: 1; flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
 .ls-stage { min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 24px calc(env(safe-area-inset-bottom, 0px) + 94px); }
 .ls-art { display: none; }
+.ls-frame { display: none; }
 
 /* title: serif with the last word in italics; the artist in bold; the file in a mono chip; a tinted round heart */
 .ls-title { display: flex; align-items: flex-end; gap: 12px; }
@@ -189,13 +190,19 @@
   .ls-tint { background: var(--tone); color: var(--tonefg); }
   .ls-volume { display: flex; align-items: center; margin-right: 4px; }
   .ls-volume .vol input { width: 120px; }
-  .ls-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; padding: 8px 40px 28px; }
+  /* the player covers the whole window (the app's own top bar and its padding included), so no band is left empty above it */
+  .ls, body.np-open .ls { inset: 0; z-index: 60; padding-top: 0; }
+  .ls-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; padding: 4px 32px 24px; }
   .ls-stage { justify-content: center; align-items: center; gap: 18px; padding: 0; }
-  .ls-art { display: grid; place-items: center; flex: 1 1 auto; min-height: 0; width: 100%; container-type: size; }
-  .ls-cover { width: min(100cqw, 100cqh, 520px); aspect-ratio: 1; padding: 0; border: 0; border-radius: 26px; background: none; cursor: pointer; overflow: hidden; box-shadow: 0 34px 80px #00000073; }
+  /* the cover with the seek bar as a frame of bars round it (--frame: the room the bars take on each side) */
+  .ls-art { --frame: 40px; display: grid; place-items: center; flex: 1 1 auto; min-height: 0; width: 100%; container-type: size; }
+  .ls-art > * { grid-area: 1 / 1; }
+  .ls-frame { display: block; position: relative; width: calc(min(100cqw, 100cqh, 640px)); aspect-ratio: 1; touch-action: none; cursor: pointer; }
+  .ls-frame canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .ls-cover { position: relative; z-index: 1; width: calc(min(100cqw, 100cqh, 640px) - 2 * var(--frame)); aspect-ratio: 1; padding: 0; border: 0; border-radius: 26px; background: none; cursor: pointer; overflow: hidden; box-shadow: 0 34px 80px #00000073; }
   .ls-cover .cover, .ls-cover .np-cover { width: 100%; height: 100%; max-width: none; border-radius: 26px; display: grid; place-items: center; position: relative; }
   .ls-cover .cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 26px; }
-  .ls-title { flex: none; width: min(520px, 100%); gap: 10px; }
+  .ls-title { flex: none; width: min(560px, 100%); gap: 10px; }
   .ls-title .np-more { display: block; }
   .ls-title .ls-more-btn { width: 50px; height: 50px; border-radius: 25px; }
   .ls-names h2 { font-size: clamp(34px, 5vh, 52px); line-height: 1; }
@@ -206,20 +213,26 @@
   .ls-heart { width: 50px; height: 50px; border-radius: 25px; }
   .ls .np-more .menu { bottom: auto; top: calc(100% + 8px); }
   /* the controls, under the title: the ring in the middle, the time right under it */
-  .ls-bar { flex: none; width: min(520px, 100%); margin: 0; align-items: center; }
-  .ls-transport { width: 100%; margin: 0; justify-content: center; gap: 22px; }
+  /* the controls under the title; the time sits right under the frame (the seek bar), the ring round play is not needed here */
+  .ls-bar { display: contents; }
+  .ls-art { order: 1; } .ls-times { order: 2; margin: -14px 0 0; } .ls-title { order: 3; } .ls-transport { order: 4; }
+  .ls-transport { flex: none; width: min(520px, 100%); margin: 0; justify-content: center; gap: 22px; }
   .ls-pillbtn { width: 60px; }
-  .ls-ring { --ring: 140px; }
+  .ls-ring { width: 78px; height: 60px; border-radius: 22px; cursor: default; }
+  .ls-ring canvas { display: none; }
   .ls-play { width: 78px; height: 60px; margin: -30px 0 0 -39px; border-radius: 22px; }
   .ls-play svg { width: 30px; height: 30px; }
   /* the panel */
   .ls-side { margin-top: 8px; padding: 22px 24px 0; border-radius: 26px; background: #00000033; overflow: hidden; }
   .ls-panel { padding-top: 18px; }
+  /* the lyrics start near the top of the panel instead of a third of the way down */
+  .ls .ls-lyrics { padding-top: 4vh; }
 }
 @media (min-width: 761px) and (max-width: 1100px) { .ls-body { gap: 28px; padding-left: 28px; padding-right: 28px; } .ls-volume { display: none; } }
 @media (min-width: 761px) and (max-height: 760px) {
   .ls-stage { gap: 12px; }
-  .ls-ring { --ring: 112px; } .ls-play { width: 62px; height: 48px; margin: -24px 0 0 -31px; border-radius: 18px; }
+  .ls-art { --frame: 30px; }
+  .ls-ring { width: 62px; height: 48px; } .ls-play { width: 62px; height: 48px; margin: -24px 0 0 -31px; border-radius: 18px; }
   .ls-play svg { width: 24px; height: 24px; }
   .ls-times { font-size: 14px; }
 }

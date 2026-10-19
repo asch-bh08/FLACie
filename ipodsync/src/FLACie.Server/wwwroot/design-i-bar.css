@@ -46,12 +46,13 @@
 @media (max-width: 760px) {
   .player { left: 10px; right: 10px; bottom: calc(var(--tabs) + 10px + env(safe-area-inset-bottom, 0px)); border-radius: 20px; box-shadow: 0 10px 30px rgba(0, 0, 0, .4);
     background: linear-gradient(90deg, color-mix(in srgb, var(--a) 30%, transparent), transparent 80%), var(--g); padding: 0; }
-  .player .bar { height: 64px; padding: 8px; gap: 10px; grid-template-columns: minmax(0, 1fr) auto auto; }
+  .player .bar { height: auto; min-height: 64px; padding: 8px; gap: 10px; grid-template-columns: minmax(0, 1fr) auto auto; }
   .player .bar-song { gap: 12px; }
   .player .bar-song .cover { width: 48px; height: 48px; border-radius: 12px; }
   .player .bar-text b { font-size: 20px; }
   .player .bar-text small { font-size: 12px; }
-  .player .bar-text .dl-tag { display: none; }
+  /* the download tag stays ("Downloaded · 4m ago"), small, under the artist */
+  .player .bar-text .dl-tag { margin: 1px 0 0; font-size: 11px; }
   .player .bar-chip { font-size: 10px; padding: 2px 6px; }
   .player .bar-controls .buttons { gap: 6px; }
   .player .play { width: 54px; height: 44px; border-radius: 16px; }

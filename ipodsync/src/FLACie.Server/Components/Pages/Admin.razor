@@ -13,7 +13,8 @@
 @inject JellyfinClient JfStats
 @inject PlaybackActivity Activity
 <PageTitle>Dashboard · FLACie</PageTitle>
-<header class="page-head"><h1>Dashboard</h1><p class="sub">What is playing, who is on, what the server is doing, and the server's settings</p></header>
+<div class="sp">
+<header class="page-head"><h1><i>Dashboard</i></h1><p class="sub">What is playing, who is on, what the server is doing, and the server's settings</p></header>
 @if (allowed) { <nav class="subnav" aria-label="Dashboard sections"><a href="/downloads">Downloads</a><a href="/dashboard#downloads">Download services</a><a href="/dashboard#opensources">Open sources</a><a href="/dashboard#background">Background downloads</a><a href="/dashboard#storage">Storage</a><a href="/dashboard#notify">Notifications</a><a href="/downloads">Download log</a></nav> }
 @if (!allowed)
 {
@@ -194,6 +195,8 @@ else
     </section>
 <ServerSettings />
 }
+</div>
+
 @code {
     record Dev(string Id, string User, string Device, string Client, string Version, DateTime LastActivity, string? ItemId, string? Title, string? Artist, long PositionMs, long DurationMs, bool Paused, bool Controllable, System.Text.Json.Nodes.JsonObject? Raw = null)
     {

@@ -3,7 +3,8 @@
 @implements IDisposable
 @inherits UserComponent
 <PageTitle>Import playlists · FLACie</PageTitle>
-<header class="page-head"><h1>Import playlists</h1></header>
+<div class="sp">
+<header class="page-head"><h1>Import <i>playlists</i></h1></header>
 
 <section class="panel wide">
     <h2>Drop in a playlist or library file</h2>
@@ -44,6 +45,8 @@
     </section>
 }
 @if (Jobs.Count == 0) { <p class="hint">Nothing imported yet.</p> }
+
+</div>
 
 @code {
     [Inject] ImportManager Imports { get; set; } = default!;

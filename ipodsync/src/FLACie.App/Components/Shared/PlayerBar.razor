@@ -2,12 +2,12 @@
 @if (Player.Current is { } t)
 {
     @if (open) { <NowPlaying OnClose="() => open = false" /> }
-    <section class="player" aria-label="Player">
+    <section class="player" aria-label="Player" @ref="barEl">
         <input class="bar-progress" type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" aria-valuetext="@Spoken(Player.Position, Player.Duration)" style="@Fill(hold.Value(Player.Position), Player.Duration)" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
         <div class="bar" @onclick="() => open = true">
             <button class="bar-song" @key="t.Path" @onclick="() => open = true" aria-label="Open Now Playing">
                 <Cover ArtKey="@(Art.KeyFor(t))" Size="52" />
-                <span class="bar-text"><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span>
+                <span class="bar-text"><b>@Title(t.Title)</b><small>@t.Artist</small>@if (chip is { Length: > 0 }) { <span class="bar-chip">@chip</span> }<DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span>
             </button>
             <div class="bar-controls">
                 <div class="buttons" @onclick:stopPropagation="true">
@@ -37,6 +37,32 @@
 }
 @code {
     bool open, volumeLoaded, pipOk, pipOn;
+    ElementReference barEl;
+    [Inject] ITrackInfo Infos { get; set; } = default!;
+    string? accentFor = "", chipFor, chip;
+    CancellationTokenSource? chipCts;
+    // the serif title with its last word in italics, like the full-screen player
+    static RenderFragment Title(string title) => b =>
+    {
+        var s = title.TrimEnd(); var i = s.LastIndexOf(' ');
+        if (i < 0) { b.OpenElement(0, "i"); b.AddContent(1, s); b.CloseElement(); return; }
+        b.AddContent(0, s[..(i + 1)]); b.OpenElement(1, "i"); b.AddContent(2, s[(i + 1)..]); b.CloseElement();
+    };
+    // the format chip ("FLAC 24/96") comes from the file's facts; a song nobody has asked about yet is read after a pause, so skipping through songs asks Jellyfin about none of them
+    async Task LoadChip(Track t)
+    {
+        chipCts?.Cancel(); var cts = chipCts = new CancellationTokenSource(); chip = null; chipFor = t.Path;
+        try
+        {
+            if (!Infos.IsCached(t)) await Task.Delay(1200, cts.Token);
+            var m = await Infos.GetAsync(Session, t, retry: false, ct: cts.Token);
+            if (cts.IsCancellationRequested || !m.Known) return;
+            chip = m.HiRes ? "Hi-Res " + m.Format : m.Format;
+            if (m.SampleRateHz > 0) chip += " " + (m.BitDepth > 0 ? m.BitDepth + "/" : "") + (m.SampleRateHz % 1000 == 0 ? (m.SampleRateHz / 1000).ToString() : Math.Round(m.SampleRateHz / 1000.0, 1).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception) { }
+    }
     async Task TogglePip() { try { pipOn = await PageJs.InvokeAsync<bool>("flacie.pipToggle"); } catch (Exception) { pipOn = false; } }
     [Inject] IPlayerClients Registry { get; set; } = default!;
     [Inject] IJSRuntime PageJs { get; set; } = default!;
@@ -85,6 +111,13 @@
     public override void Dispose() { barRef?.Dispose(); if (clientId is not null) Registry.Remove(clientId); Nav.LocationChanged -= OnNavigated; Player.Started -= OnStarted; Player.FullScreenRequested -= OnFullScreen; base.Dispose(); }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (Player.Current is { } cur)
+        {
+            // the bar's colours come from the cover, read once per cover in the browser (flacie.js npAccent)
+            var coverUrl = Art.KeyFor(cur) is { } art ? "/art/" + Uri.EscapeDataString(CoverOverrides.Map(art)!) : null;
+            if (coverUrl != accentFor) { accentFor = coverUrl; try { await PageJs.InvokeVoidAsync("flacie.npAccent", barEl, coverUrl); } catch (Exception) { } }
+            if (chipFor != cur.Path) _ = LoadChip(cur);
+        }
         if (!volumeLoaded)
         {
             volumeLoaded = true;

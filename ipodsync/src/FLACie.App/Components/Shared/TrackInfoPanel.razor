@@ -6,20 +6,6 @@ else if (Info is null) { <p class="hint">No details available for this song.</p>
 else
 {
     <div class="info">
-        @* the file at a glance: what it is and how good, then its numbers as tiles *@
-        <div class="info-head">
-            <span class="fmt-big @(Info.HiRes ? "hires" : Info.Lossless ? "lossless" : "")">@(Info.HiRes ? "HI-RES" : Info.Format.Length > 0 ? Info.Format : "AUDIO")</span>
-            <div><b>@(Info.Tier.Length > 0 ? Info.Tier : "Quality unknown")</b><small>@Info.Sampling@(Info.Sampling.Length > 0 && Info.ChannelsName.Length > 0 ? " · " : "")@Info.ChannelsName</small></div>
-        </div>
-        @* where the song plays from (Jellyfin, the NAS, a download, streaming) *@
-        <div class="info-from"><small>Playing from</small><b>@SourceLabel.PlayingFrom(Track.Source)</b></div>
-        <div class="info-stats">
-            @if (Info.BitrateKbps > 0) { <div class="stat"><b>@Info.BitrateKbps</b><small>kbps</small></div> }
-            <div class="stat"><b>@(Info.SampleRateHz > 0 ? (Info.SampleRateHz / 1000.0).ToString("0.#") : "?")</b><small>kHz sample rate</small></div>
-            @if (Info.BitDepth > 0) { <div class="stat"><b>@Info.BitDepth</b><small>bit</small></div> }
-            <div class="stat"><b>@(Info.Channels == 1 ? "1" : Info.Channels > 0 ? Info.Channels.ToString() : "2")</b><small>@(Info.Channels == 1 ? "mono" : "channels")</small></div>
-        </div>
-
         @* one graph at a time, picked from tabs; every one but the bit rate moves with the song *@
         <div class="graph-box">
             <div class="graph-tabs" role="tablist" aria-label="Graph to show">
@@ -47,6 +33,20 @@ else
             else if (onData && !allowData) { <p class="viz-off">The live graphs are paused on mobile data: they stream a second copy of the song, about as much data again. <button type="button" class="btn ghost" @onclick="ShowAnyway">Show anyway</button></p> }
             else { <canvas id="viz" class="viz @mode @(Info.HiRes ? "tall" : "")" role="img" aria-label="@Title"></canvas> }
             <p class="graph-hint">@Hint</p>
+        </div>
+
+        @* the file at a glance, in one card: what it is and how good, then its numbers *@
+        <div class="info-file">
+        <div class="info-head">
+            <span class="fmt-big @(Info.HiRes ? "hires" : Info.Lossless ? "lossless" : "")">@(Info.HiRes ? "HI-RES" : Info.Format.Length > 0 ? Info.Format : "AUDIO")</span>
+            <div><b>@(Info.Tier.Length > 0 ? Info.Tier : "Quality unknown")</b><small>@Info.Sampling@(Info.Sampling.Length > 0 && Info.ChannelsName.Length > 0 ? " · " : "")@Info.ChannelsName</small></div>
+        </div>
+        <div class="info-stats">
+            @if (Info.BitrateKbps > 0) { <div class="stat"><b>@Info.BitrateKbps</b><small>kbps</small></div> }
+            <div class="stat"><b>@(Info.SampleRateHz > 0 ? (Info.SampleRateHz / 1000.0).ToString("0.#") : "?")</b><small>kHz rate</small></div>
+            @if (Info.BitDepth > 0) { <div class="stat"><b>@Info.BitDepth</b><small>bit</small></div> }
+            <div class="stat"><b>@(Info.Channels == 1 ? "1" : Info.Channels > 0 ? Info.Channels.ToString() : "2")</b><small>@(Info.Channels == 1 ? "mono" : "channels")</small></div>
+        </div>
         </div>
 
         <section class="kv-sec">

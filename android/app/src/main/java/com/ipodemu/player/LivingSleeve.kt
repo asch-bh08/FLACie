@@ -446,6 +446,7 @@ private fun SleeveTransport(snap: PlayerSnap, p: SleevePalette, short: Boolean) 
     LaunchedEffect(Unit) { try { playFocus.requestFocus() } catch (_: Exception) {} }
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
+    val keys = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode == androidx.compose.ui.input.InputMode.Keyboard
     val pressed by src.collectIsPressedAsState()
     val size = if (short) 66.dp else 84.dp
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
@@ -454,7 +455,8 @@ private fun SleeveTransport(snap: PlayerSnap, p: SleevePalette, short: Boolean) 
             Modifier.size(size).graphicsLayer { val s = if (pressed) .95f else 1f; scaleX = s; scaleY = s }
                 .shadow(12.dp, CircleShape, ambientColor = p.main.value, spotColor = p.main.value)
                 .clip(CircleShape).drawBehind { drawRect(p.main.value) }
-                .then(if (focused) Modifier.border(3.dp, Ink, CircleShape) else Modifier)
+                // the ring only for a keyboard or remote: the player hands focus to play when it opens, and a finger should not see that
+                .then(if (focused && keys) Modifier.border(3.dp, Ink, CircleShape) else Modifier)
                 .focusRequester(playFocus)
                 .semantics { contentDescription = if (snap.playing) "Pause" else "Play"; role = Role.Button }
                 .clickable(src, null) { app.player.toggle() },
@@ -501,10 +503,11 @@ private fun SleeveDock(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePale
 private fun SleevePill(g: Glyph, label: String, on: Boolean, onClick: () -> Unit) {
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
+    val keys = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode == androidx.compose.ui.input.InputMode.Keyboard
     val ink = if (on) OnMain else Ink
     Row(
         Modifier.height(40.dp).clip(RoundedCornerShape(20.dp)).background(if (on) Ink else Color(0x12FFFFFF))
-            .then(if (focused) Modifier.border(2.dp, Ink, RoundedCornerShape(20.dp)) else Modifier)
+            .then(if (focused && keys) Modifier.border(2.dp, Ink, RoundedCornerShape(20.dp)) else Modifier)
             .semantics { contentDescription = label; role = Role.Button }.clickable(src, null, onClick = onClick).padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {

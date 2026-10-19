@@ -23,6 +23,7 @@
             {
                 <button class="ls-icon ls-glass ls-opt" @onclick="() => opts = !opts" aria-label="Options" aria-expanded="@(opts ? "true" : "false")"><Icon Name="sliders" Size="22" /></button>
                 <div class="ls-toolset"><RatingMenu /><SpeedSleep /></div>
+                <div class="ls-volume"><VolumeControl /></div>
             }
             <a class="ls-icon ls-tint np-retro" href="/retro" aria-label="Retro" title="Retro" data-testid="np-retro"><Icon Name="retro" Size="22" /></a>
         </div>
@@ -71,7 +72,6 @@
                         <button class="ls-pillbtn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="24" /></button>
                         <button class="ls-plain @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="22" /></button>
                     </div>
-                    <div class="ls-volume"><VolumeControl /></div>
                 </div>
                 <div class="ls-actions ls-phone">
                     <button class="ls-outline @(panelOpen && tab == "lyrics" ? "on" : "")" @onclick='() => Open("lyrics")'>Lyrics</button>

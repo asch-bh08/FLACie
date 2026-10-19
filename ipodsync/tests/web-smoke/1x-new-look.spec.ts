@@ -82,6 +82,10 @@ test.describe('phone (390 x 844)', () => {
       expect(b.y + b.height, sel).toBeLessThanOrEqual(844 - 90);
     }
     await expect(page.locator('.ls-lyrics')).toHaveCount(0);
+    // the time is easy to read and sits right under the ring
+    const ring = (await page.locator('.ls-ring').boundingBox())!, time = (await page.locator('.ls-times').boundingBox())!;
+    expect(time.y - (ring.y + ring.height)).toBeLessThan(8);
+    expect(parseFloat(await page.locator('.ls-times').evaluate((e) => getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(14);
     await page.locator('.ls-actions').getByRole('button', { name: 'Lyrics' }).click();
     await expect(page.locator('.ls')).toHaveClass(/panel-open/);
   });
@@ -100,18 +104,30 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
   test.describe(`PC (${w} x ${h})`, () => {
     test.beforeEach(async ({ page }) => { await page.setViewportSize({ width: w, height: h }); await signIn(page); await openPlayer(page); });
 
-    test('a cover card and title on the left, a wide panel on the right, the controls in a bar along the bottom, nothing overlapping', async ({ page }) => {
+    test('two halves: the cover, title and controls on the left, the panel on the right, the time right under the ring', async ({ page }) => {
       const box = async (s: string) => (await page.locator(s).first().boundingBox())!;
-      const cover = await box('.ls-cover'), panel = await box('.ls-side'), bar = await box('.ls-bar'), title = await box('.ls-title');
+      const cover = await box('.ls-cover'), panel = await box('.ls-side'), title = await box('.ls-title'), tr = await box('.ls-transport'), ring = await box('.ls-ring'), time = await box('.ls-times');
+      expect(panel.width / w).toBeGreaterThan(0.4); expect(panel.width / w).toBeLessThan(0.55);
       expect(panel.x).toBeGreaterThanOrEqual(cover.x + cover.width + 20);
-      expect(panel.y + panel.height).toBeLessThanOrEqual(bar.y + 1);
+      expect(tr.x + tr.width).toBeLessThanOrEqual(panel.x);
       expect(cover.y + cover.height).toBeLessThanOrEqual(title.y + 1);
-      expect(title.y + title.height).toBeLessThanOrEqual(bar.y + 1);
-      expect(bar.y + bar.height).toBeGreaterThanOrEqual(h - 2);
-      const tr = await box('.ls-transport');
-      expect(tr.y).toBeGreaterThanOrEqual(bar.y);
-      expect(tr.y + tr.height).toBeLessThanOrEqual(h);
-      await expect(page.locator('.ls-bar .vol')).toBeVisible();
+      expect(title.y + title.height).toBeLessThanOrEqual(tr.y + 1);
+      expect(time.y - (ring.y + ring.height)).toBeLessThan(8);
+      expect(time.y + time.height).toBeLessThanOrEqual(h);
+      expect(panel.y + panel.height).toBeLessThanOrEqual(h);
+    });
+
+    test('the Info tab: the file at a glance, its numbers as tiles, graph tabs and a live graph', async ({ page }) => {
+      await page.locator('.ls-seg [role=tab]', { hasText: 'Info' }).click();
+      await expect(page.locator('.info .fmt-big')).toBeVisible({ timeout: 20_000 });
+      expect(await page.locator('.info-stats .stat').count()).toBeGreaterThanOrEqual(2);
+      await expect(page.locator('.info-from')).toContainText('Playing from');
+      await expect(page.locator('.info-stats .stat', { hasText: 'sample rate' })).toBeVisible();
+      const tabs = (await page.locator('.graph-tabs [role=tab]').allInnerTexts()).map((t) => t.trim());
+      expect(tabs.slice(0, 3)).toEqual(['Spectrum', 'Visualizer', 'Spectrogram']);
+      await page.locator('.graph-tabs [role=tab]', { hasText: 'Spectrogram' }).click();
+      await expect(page.locator('.graph-tabs [role=tab]', { hasText: 'Spectrogram' })).toHaveAttribute('aria-selected', 'true');
+      await expect(page.locator('#viz.wall')).toBeVisible();
     });
 
     test('Up next is the first tab; Lyrics and Info are there too; the options show inline', async ({ page }) => {
@@ -120,6 +136,8 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
       await expect(page.locator('.ls-seg [role=tab]').first()).toHaveAttribute('aria-selected', 'true');
       await expect(page.locator('.ls-toolset button[aria-label^="Rating:"]')).toBeVisible();
       await expect(page.getByRole('button', { name: 'Options', exact: true })).toBeHidden();
+      // the lyrics are in the app's own bold sans, not the title serif
+      expect(await page.locator('.ls').evaluate((el) => { const o = document.createElement('ol'); o.className = 'ls-lyrics'; el.appendChild(o); const f = getComputedStyle(o).fontFamily; o.remove(); return f; })).not.toContain('Instrument Serif');
     });
   });
 }

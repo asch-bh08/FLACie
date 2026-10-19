@@ -1,1 +1,34 @@
-/* design I: playlists (see docs/waves/plan.md). Filled in by its phase. */
+/* ==== Design I: Playlists, a playlist and Favourites (docs/waves/plan.md, phase P4). Loaded after design-i.css and design-i-library.css.
+   Serif titles with the last word in italics, DM Mono facts, rounded covers with soft shadows, a big accent Play and a tinted Shuffle. ==== */
+
+/* ---- the list: rounded controls, mono counts under the cards ---- */
+.page-head .inline-form input { border-radius: 14px; background: var(--surface-2); border: 1px solid var(--i-line); padding: 12px 16px; min-height: 44px; }
+.page-head .inline-form .btn, .page-head > .btn { border-radius: 14px; min-height: 44px; font-family: var(--sans); font-weight: 700; }
+.page-head > .btn:not(.primary) { background: none; border: 1px solid var(--i-line); }
+.pl-grid .card-sub { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.pl-grid .card .cover.square { box-shadow: 0 14px 30px #00000059; }
+
+/* ---- a playlist or Favourites: cover left, text right, tinted by the cover's colours (set from flacie.npAccent) ---- */
+.pl-hero { --np-accent: var(--accent); position: relative; display: flex; align-items: flex-end; gap: 28px; flex-wrap: wrap; margin: 0 0 26px; padding: 24px; border-radius: 26px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--np-accent) 26%, var(--bg)), var(--bg) 78%); transition: background 1.2s; }
+.pl-hero .pl-cover, .pl-hero .pl-cover img { border-radius: 20px; }
+.pl-hero .pl-cover { flex: none; width: clamp(150px, 20vw, 240px); height: auto; aspect-ratio: 1; box-shadow: 0 22px 50px #00000080; }
+.pl-hero-text { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.pl-hero .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; font-weight: 500; margin: 0; }
+.pl-hero h1 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: clamp(40px, 5.2vw, 64px); line-height: .95; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.pl-hero h1 i { font-style: italic; }
+.pl-hero .pl-facts { margin: 4px 0 6px; font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: color-mix(in srgb, var(--ink) 75%, transparent); }
+.pl-hero .chips { gap: 10px; align-items: center; }
+.pl-hero .pl-play { height: 56px; padding: 0 28px; border-radius: 18px; background: var(--np-accent); color: #1a120c; font-family: var(--sans); font-weight: 700; font-size: 16px; transition: background 1.2s, transform .12s; }
+.pl-hero .pl-play:hover:not(:disabled) { background: var(--np-accent); filter: brightness(1.08); }
+.pl-hero .pl-shuffle { height: 56px; padding: 0 22px; border-radius: 999px; background: var(--tone, var(--surface-3)); color: var(--tonefg, var(--ink)); font-family: var(--sans); font-weight: 600; transition: background 1.2s, color 1.2s; }
+.pl-hero .chips .btn.ghost, .pl-hero .chips .btn.danger, .pl-hero .chips .btn:not(.pl-play):not(.pl-shuffle) { border-radius: 14px; font-family: var(--sans); }
+.pl-rename { display: flex; flex-wrap: wrap; gap: 8px; }
+.pl-rename input { flex: 1 1 200px; min-width: 0; border-radius: 14px; border: 1px solid var(--i-line); background: var(--surface-2); padding: 12px 16px; font-family: var(--serif); font-size: 28px; }
+
+@media (max-width: 760px) {
+  .pl-hero { flex-direction: column; align-items: stretch; gap: 18px; padding: 18px; border-radius: 22px; }
+  .pl-hero-text { flex: none; }
+  .pl-hero .pl-cover { width: min(70%, 240px); align-self: center; }
+  .pl-hero .pl-play, .pl-hero .pl-shuffle { flex: 1 1 auto; }
+}

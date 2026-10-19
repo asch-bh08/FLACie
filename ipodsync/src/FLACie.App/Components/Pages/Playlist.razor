@@ -10,10 +10,10 @@ else
 {
     var tracks = Session.Resolve(p.Entries);
     <PageTitle>@p.Name · FLACie</PageTitle>
-    <div class="pl-layout">
-    <header class="detail-head pl-side">
-        <Cover ArtKey="@(tracks.Select(t => t.ArtKey).FirstOrDefault(k => k is not null))" Class="detail-cover" />
-        <div>
+    @* design I: the first song's cover in its own colours (flacie.npAccent), a serif title with the last word in italics, mono facts, a big Play in the accent and a tinted Shuffle *@
+    <header class="pl-hero" @ref="heroEl">
+        <Cover ArtKey="@(tracks.Select(t => t.ArtKey).FirstOrDefault(k => k is not null))" Class="pl-cover" />
+        <div class="pl-hero-text">
             <p class="eyebrow">Playlist</p>
             @if (renaming)
             {
@@ -23,11 +23,11 @@ else
                     <button class="btn" type="button" @onclick="() => renaming = false">Cancel</button>
                 </form>
             }
-            else { <h1>@p.Name</h1> }
-            <p class="sub">@tracks.Count @(tracks.Count == 1 ? "song" : "songs")@(tracks.Count < p.Entries.Count ? $" ({p.Entries.Count - tracks.Count} not in this library)" : "")</p>
+            else { var (head, last) = SplitTitle(p.Name); <h1>@head<i>@last</i></h1> }
+            <p class="sub pl-facts">@tracks.Count @(tracks.Count == 1 ? "song" : "songs")@(Length(tracks) is { Length: > 0 } len ? " · " + len : "")@(tracks.Count < p.Entries.Count ? $" ({p.Entries.Count - tracks.Count} not in this library)" : "")</p>
             <div class="chips">
-                <button class="btn primary" @onclick="() => Player.Play(tracks, 0, p.Name)" disabled="@(tracks.Count == 0)"><Icon Name="play" Size="18" />Play</button>
-                <button class="btn" @onclick="() => Player.ShuffleAll(tracks, p.Name)" disabled="@(tracks.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+                <button class="btn primary pl-play" @onclick="() => Player.Play(tracks, 0, p.Name)" disabled="@(tracks.Count == 0)"><Icon Name="play" Size="18" />Play</button>
+                <button class="btn pl-shuffle" @onclick="() => Player.ShuffleAll(tracks, p.Name)" disabled="@(tracks.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle</button>
                 @if (confirm)
                 {
                     <button class="btn danger" @onclick="Delete">Delete "@p.Name"</button>
@@ -62,11 +62,24 @@ else
         </section>
     }
     </div>
-    </div>
 }
 @code {
     [Parameter] public string Id { get; set; } = "";
     bool confirm;
+    ElementReference heroEl; string? heroFor = "";
+    [Inject] IJSRuntime Js { get; set; } = default!;
+    // the last word goes in italics, whatever the name is
+    static (string, string) SplitTitle(string n) { n = n.Trim(); var i = n.LastIndexOf(' '); return i < 0 ? ("", n) : (n[..(i + 1)], n[(i + 1)..]); }
+    static string Length(IReadOnlyList<Track> ts) { var m = (int)(ts.Sum(t => t.DurationMs) / 60000); return m <= 0 ? "" : m >= 60 ? $"{m / 60} h {m % 60} min" : $"{m} min"; }
+    // the hero takes its colours from the first song's cover, once per cover
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var p = Session?.Playlists.FirstOrDefault(x => x.Id == Id);
+        if (p is null) return;
+        var k = Session!.Resolve(p.Entries).Select(t => t.ArtKey).FirstOrDefault(x => x is not null);
+        var art = k is not null ? "/art/" + Uri.EscapeDataString(CoverOverrides.Map(k)!) : null;
+        if (art != heroFor) { heroFor = art; try { await Js.InvokeVoidAsync("flacie.npAccent", heroEl, art); } catch (Exception) { } }
+    }
     bool renaming; string newName = "";
     void Rename(FLACie.Core.Playlist p) { var n = newName.Trim(); if (n.Length > 0) { Session.RenamePlaylist(p.Id, n); SaveProfile(); } renaming = false; }
     // the list shows only songs this library has; the playlist's own order also holds the ones it doesn't, so the move is made on the real entries

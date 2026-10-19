@@ -3,7 +3,7 @@
 @inherits UserComponent
 <PageTitle>Playlists · FLACie</PageTitle>
 <header class="page-head">
-    <h1>Playlists</h1>
+    <h1><i>Playlists</i></h1>
     <form class="inline-form" @onsubmit="Create">
         <input @bind="name" @bind:event="oninput" placeholder="New playlist name" aria-label="New playlist name" />
         <button class="btn primary" type="submit" disabled="@string.IsNullOrWhiteSpace(name)">Create</button>

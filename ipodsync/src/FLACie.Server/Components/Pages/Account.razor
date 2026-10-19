@@ -3,11 +3,12 @@
 @inherits UserComponent
 @inject IConfiguration Conf
 <PageTitle>Account · FLACie</PageTitle>
+<div class="sp">
 
 <section class="acct-hero">
     <span class="avatar huge" aria-hidden="true">@(Session.DisplayName.Length > 0 ? Session.DisplayName[..1].ToUpperInvariant() : "?")</span>
     <div>
-        <h1>@Session.DisplayName</h1>
+        <h1>@NameLead<i>@NameLast</i></h1>
         <p class="hint">Signed in with @(Session.Kind == "nas" ? "a NAS" : "Jellyfin")@(Session.Loading ? " · loading your library…" : "")</p>
     </div>
     <div class="row-actions acct-actions">
@@ -43,6 +44,11 @@
     </ul>
 </section>
 
+</div>
+
 @code {
+    // The name is the title, so its last word is the italic one like every other page title.
+    string NameLast => Session.DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? "";
+    string NameLead => Session.DisplayName.Length > NameLast.Length ? Session.DisplayName[..^NameLast.Length] : "";
     string Where => string.Join(" and ", new[] { Session.Jellyfin is not null ? "your Jellyfin account" : null, Session.Nas is not null ? "the NAS" : null }.OfType<string>());
 }

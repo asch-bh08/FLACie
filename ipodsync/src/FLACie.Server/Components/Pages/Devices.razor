@@ -3,7 +3,8 @@
 @implements IDisposable
 @inherits UserComponent
 <PageTitle>Devices · FLACie</PageTitle>
-<header class="page-head"><h1>Devices</h1></header>
+<div class="sp">
+<header class="page-head"><h1><i>Devices</i></h1></header>
 
 @if (Live is not { } live)
 {
@@ -61,6 +62,8 @@ else
     }
     <p><a class="btn" href="/jam">Jam together</a></p>
 }
+</div>
+
 @code {
     // what kind of device a session is, from its name (Jellyfin only tells us a device name and the app, which is the same for every FLACie player)
     static (string Label, string Icon) Kind(FLACie.Core.ConnectSession s)

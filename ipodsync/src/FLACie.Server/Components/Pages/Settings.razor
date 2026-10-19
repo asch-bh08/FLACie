@@ -4,7 +4,8 @@
 @inherits UserComponent
 @inject IConfiguration Conf
 <PageTitle>Settings · FLACie</PageTitle>
-<header class="page-head"><h1>Settings</h1></header>
+<div class="sp">
+<header class="page-head"><h1><i>Settings</i></h1></header>
 <nav class="subnav" aria-label="Settings sections">
     <a href="/settings#playback">Playback</a><a href="/settings#look">Look and feel</a><a href="/settings#sources">Music sources</a><a href="/settings#alexa">Alexa</a><a href="/settings#account">Account</a><a href="/settings#about">About</a><a href="/downloads">Download log</a>@if (admin) { <a href="/dashboard">Dashboard</a> }
 </nav>
@@ -118,6 +119,8 @@
         <dt>Licences</dt><dd><a href="/licenses" target="_blank" rel="noopener">Third-party licences</a></dd>
     </dl>
 </section>
+
+</div>
 
 @code {
     [Inject] NavigationManager NavM { get; set; } = default!;

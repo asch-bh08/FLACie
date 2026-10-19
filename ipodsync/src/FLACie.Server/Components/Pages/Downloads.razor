@@ -7,8 +7,9 @@
 @inject IConfiguration Conf
 @inject IJSRuntime Js
 <PageTitle>Downloads · FLACie</PageTitle>
+<div class="sp">
 @{ Rebuild(); }
-<header class="page-head"><h1>Downloads</h1></header>
+<header class="page-head"><h1><i>Downloads</i></h1></header>
 @* design I: Downloads belongs to the Dashboard, for the server's administrators *@
 @if (!admin)
 {
@@ -47,6 +48,8 @@ else
 @Section("lidarr", "Lidarr", lidarr, "Nothing came from Lidarr yet.", false)
 @Section("open", "YouTube and open sources", open, "Nothing came from YouTube, the Internet Archive, Audius or Jamendo yet.", false)
 }
+</div>
+
 @code {
     string filter = "";
     bool everyone;

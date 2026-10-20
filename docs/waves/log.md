@@ -1,5 +1,25 @@
 # Overnight log (newest last)
 
+## Morning summary (03:00, 2026-10-20)
+
+**The whole app is in design I, web and Android, on `ui/living-sleeve` (pushed). Not deployed, not merged to main.** The build is running in the browser pane on your real Jellyfin (http://127.0.0.1:5396).
+
+- **Web:** the full-screen player; Home; a shorter menu (Explore is part of Search, Import is on Playlists, Downloads is in the Dashboard for admins); the now-playing bar (a floating mini player on a phone); search and browse; album, artist and genre pages; playlists and favourites; settings, account, dashboard, downloads, import, devices, jam, login; charts.
+- **Android** (emulator only, never your phone): Now Playing rebuilt to design I, plus Home, the mini player, library, detail pages, playlists, search and settings.
+- **Bugs fixed along the way:**
+  - Songs that finished downloading at the same moment could drop out of the library.
+  - The search box lost letters typed just after a page loaded.
+- **Tests:** full web suite 449 passed and 5 failed, then fixed; those 5 now pass on rerun (2 are timing-sensitive and on the known-flaky list). .NET unit tests 712/712. Android unit tests 443, 0 failures.
+- **Screenshots:** `docs/screens-new-look/final-*` (web, 390/1280/1440) and `android-*`.
+
+Things to know:
+- Home's top picture is now a soft blur of the last cover rather than a sharp picture: a sharp one needs the full-size cover from Jellyfin, which the app saves for the full-screen player only.
+- On a phone, the bar is play and next only (previous, Retro and the mini-player button are in the full-screen player); Retro is still in the account menu.
+- The /charts rows and the Android "search" screenshot weren't seen on real data.
+- The Android mini player's white ring in two screenshots is the D-pad focus ring (the screenshot script presses keys); worth a look by touch.
+
+Next steps need your go-ahead: deploy (restarts the server) and a release.
+
 - 22:45 Home + shorter menu committed and pushed (bafaab0). Usage: 5-hour window 49% (resets 00:10 local), weekly 7%.
 - 22:50 Plan written (docs/waves/plan.md). Wave 1 starting: P1 bar (sonnet), P2 browse (sonnet), P6 search-box bug (opus).
 - 22:55 Wave 1 agents started in their own worktrees: P1 bar (sonnet, ports 8410/5410/8411), P2 browse (sonnet, 8420/5420/8421), P6 search-box bug (opus, 8430/5430/8431). Watchdog check every 20 min (:07, :27, :47): usage, resume agents stopped by the limit, merge, next wave, log, push.
@@ -16,3 +36,5 @@
 - 01:20 Gate for P3+P4+P5: 105 passed, 2 failed. Dashboard still 6px wide at 320px: a button row with a hint that would not wrap (fixed, passes). 1x frame-seek setup timed out 1 run in 3: the song was clicked before the page went live; 1x now waits for the live page (17/17 three times).
 - 01:25 Pushed 9ee8f56. Usage reset: 0% (next reset 05:10). Started P8 polish (sonnet, 8480/5480/8481): /charts, artist page gap and round picture on a phone, source badge squeezing titles on a phone, device picker on the phone bar. Started P9 Android rest of the app (opus, emulator only): Home, mini player, library, detail, playlists, settings.
 - 01:45 Check: usage 0% after reset. 02:00 P9 merged (a46c2ac): Android Home hero, serif titles, mono labels, outlined chips, detail headers, cover-tinted mini player; shared DesignI.kt; 443 unit tests, 0 failures. Its "search" screenshot actually shows Home (the script missed the screen). The mini player shows a white focus ring in two shots: the ring is D-pad/keyboard focus, and the script uses key presses, so likely correct; worth checking by touch.
+- 02:10 Check: usage 20%, resets 05:10. P8 polish still running. dotnet test on the merged branch: 712 passed, 0 failed.
+- 02:40 P8 polish merged (9f61748): /charts styled, artist/album gap on a phone fixed, round artist picture, the source badge under the title on a phone, the device picker back on the phone bar. It had shrunk the phone bar's buttons to 36px; changed to the design's mini player (play and next, previous in the full-screen player) with every button at 44px (b5ffe23). 1z-bar + 1z-polish + 1i: 31/31. All phases merged. Final gate: full web-smoke suite running.

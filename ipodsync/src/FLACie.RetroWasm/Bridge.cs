@@ -174,7 +174,27 @@ public sealed class AppOutput(IJSRuntime js) : IPlayerOutput
         }
     }
 
-    sealed record AppState(string? p, bool pl, long pos, long dur, string[]? q, int i);
+    sealed record AppState(string? p, bool pl, long pos, long dur, string[]? q, int i, bool? sh = null, int? rp = null);
+
+    // shuffle and repeat as they were last agreed with the app: a change on one side is sent to (or taken from) the other
+    bool? agreedShuffle; int? agreedRepeat;
+
+    void SyncModes(AppState s)
+    {
+        if (player is null || s.sh is not { } appSh || s.rp is not { } appRp) return;
+        if (agreedShuffle is null) { agreedShuffle = appSh; agreedRepeat = appRp; }
+        if (player.Shuffle != agreedShuffle || player.Repeat != agreedRepeat)
+        {
+            // changed here (an iPod's Shuffle or Repeat): the app takes it
+            agreedShuffle = player.Shuffle; agreedRepeat = player.Repeat;
+            Call("modes", (player.Shuffle ? "1" : "0") + "," + player.Repeat.ToString(CultureInfo.InvariantCulture));
+            return;
+        }
+        // changed in the app (its player, the notification): Retro follows
+        if (appSh != player.Shuffle) player.ToggleShuffle();
+        for (var n = 0; n < 3 && player.Repeat != appRp; n++) player.CycleRepeat();
+        agreedShuffle = player.Shuffle; agreedRepeat = player.Repeat;
+    }
 
     async Task Sync()
     {
@@ -203,6 +223,7 @@ public sealed class AppOutput(IJSRuntime js) : IPlayerOutput
             if (idx >= 0) await player.SkipTo(idx);
             else { adopted = false; return; }
         }
+        SyncModes(s);
         if (player.Current is null) return;
         player.OnTime(s.pos / 1000.0, s.dur / 1000.0);
         if (player.Playing != s.pl) player.OnState(s.pl);

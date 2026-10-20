@@ -161,6 +161,8 @@ class RetroBridge(private val app: App, private val activity: ComponentActivity)
             "seek" -> { arg.toLongOrNull()?.let { ms -> post { player.seekTo(ms) } }; "" }
             "ready" -> if (snap.ready) "1" else "0"
             "volume" -> { val v = arg.toFloatOrNull(); if (v != null) post { player.volume = v }; (v ?: snap.volume).toString() }
+            // Retro's Shuffle or Repeat changed: "<0|1>,<0|1|2>"
+            "modes" -> { val m = arg.split(','); if (m.size == 2) post { app.prefs.shuffle = m[0] == "1"; app.prefs.repeat = m[1].toIntOrNull()?.coerceIn(0, 2) ?: 0; player.applyModes() }; "" }
             "speed" -> { arg.toFloatOrNull()?.let { s -> post { player.setSpeed(s) } }; "" }
             "facts" -> facts(arg)
             "frame" -> frame()
@@ -216,6 +218,7 @@ class RetroBridge(private val app: App, private val activity: ComponentActivity)
         val n = snap
         return JSONObject().apply {
             put("p", n.path ?: JSONObject.NULL); put("pl", n.playing); put("pos", n.pos); put("dur", n.dur); put("i", n.index)
+            put("sh", app.prefs.shuffle); put("rp", app.prefs.repeat)
             if (withQueue) put("q", JSONArray(n.queue))
         }.toString()
     }

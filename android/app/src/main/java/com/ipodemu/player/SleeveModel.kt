@@ -206,12 +206,20 @@ object WaveCache {
     /** The file name for a song: the SHA-1 of its path in hex (a path can hold characters a file name cannot, and can be very long). */
     fun key(path: String): String = MessageDigest.getInstance("SHA-1").digest(path.toByteArray()).joinToString("") { "%02x".format(it) }
 
-    private fun file(dir: File, path: String) = File(dir, key(path) + ".wave")
+    private val jellyfinId = Regex("/Audio/([0-9a-fA-F]{32})/")
 
-    /** The saved shape, or null when there is none or the file is not exactly one shape long (a half-written file is never trusted). */
-    fun read(dir: File, path: String): IntArray? = try {
-        val f = file(dir, path)
-        if (!f.isFile || f.length() != WaveSlicer.SLICES.toLong()) null else f.readBytes().let { b -> IntArray(b.size) { b[it].toInt() and 255 } }
+    /** A Jellyfin song is kept by its item id, so the same song reached through another address (the server directly, or the FLACie account) shares one shape. */
+    fun idKey(path: String): String = jellyfinId.find(path)?.groupValues?.get(1)?.lowercase()?.let { "jf$it" } ?: key(path)
+
+    private fun file(dir: File, path: String, rough: Boolean = false) = File(dir, idKey(path) + if (rough) ".rough" else ".wave")
+
+    /**
+     * The saved shape, or null when there is none or the file is not exactly one shape long (a half-written file is never trusted). [rough] reads the
+     * frame-size shape (FlacWave) instead of the decoded one; a shape saved by an older version under the path's hash is still found.
+     */
+    fun read(dir: File, path: String, rough: Boolean = false): IntArray? = try {
+        val f = file(dir, path, rough).takeIf { it.isFile } ?: if (rough) null else File(dir, key(path) + ".wave")
+        if (f == null || !f.isFile || f.length() != WaveSlicer.SLICES.toLong()) null else f.readBytes().let { b -> IntArray(b.size) { b[it].toInt() and 255 } }
     } catch (_: Exception) { null }
 
     /** The server's answer to GET /api/wave (a JSON array of 200 numbers from 0 to 255), or null when it is anything else. */
@@ -225,12 +233,13 @@ object WaveCache {
         return out
     }
 
-    fun write(dir: File, path: String, shape: IntArray) {
+    fun write(dir: File, path: String, shape: IntArray, rough: Boolean = false) {
         try {
             dir.mkdirs()
-            val tmp = File(dir, key(path) + ".tmp")
+            val tmp = File(dir, idKey(path) + ".tmp")
             tmp.writeBytes(ByteArray(shape.size) { shape[it].coerceIn(0, 255).toByte() })
-            if (!tmp.renameTo(file(dir, path))) tmp.delete()
+            val dest = file(dir, path, rough)
+            if (!tmp.renameTo(dest)) { dest.delete(); if (!tmp.renameTo(dest)) tmp.delete() }
         } catch (_: Exception) { }
     }
 }
@@ -248,15 +257,17 @@ object WaveBars {
         if (shape == null || shape.isEmpty()) return FloatArray(n) { 0.4f }
         // a loudly mastered song lives between about 130 and 180 out of 255, so drawn as it is every bar looks the same: each song is stretched between
         // its own 3rd and 97th percentiles instead, as the web does (flacie.js npWave span / level)
-        val sorted = shape.sorted()
+        // a shape still being worked out from the download has bars it does not reach yet (FlacWave.UNKNOWN): those rest at the level height
+        val sorted = shape.filter { it >= 0 }.sorted()
+        if (sorted.isEmpty()) return FloatArray(n) { 0.4f }
         val p3 = sorted[(sorted.size * 3 / 100).coerceIn(0, sorted.size - 1)].toFloat()
         val p97 = sorted[(sorted.size * 97 / 100).coerceIn(0, sorted.size - 1)].toFloat()
         val span = p97 - p3
         return FloatArray(n) { i ->
             val a = (i.toLong() * shape.size / n).toInt().coerceAtMost(shape.size - 1)
             val b = max(a + 1, ((i + 1).toLong() * shape.size / n).toInt()).coerceAtMost(shape.size)
-            var m = 0; for (k in a until b) m = max(m, shape[k])
-            if (span <= 0f) 0.4f else 0.12f + 0.88f * ((m - p3) / span).coerceIn(0f, 1f)
+            var m = -1; for (k in a until b) m = max(m, shape[k])
+            if (m < 0 || span <= 0f) 0.4f else 0.12f + 0.88f * ((m - p3) / span).coerceIn(0f, 1f)
         }
     }
 }

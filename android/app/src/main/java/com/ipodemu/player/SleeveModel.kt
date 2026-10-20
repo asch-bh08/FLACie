@@ -108,6 +108,67 @@ object RingSeek {
 }
 
 /**
+ * The frame seek bar round the cover (the web's PC player, flacie.js frameGeo): the cover is a square of side [side] with corners of radius [corner];
+ * the frame is that square grown by [gap] on every side, and the bars stand out from it. Positions are relative to the cover's centre, y down.
+ * The walk starts at 12 o'clock and goes clockwise, so a fraction of the song is a fraction of the way round.
+ */
+class FrameSeek(val side: Float, corner: Float, val gap: Float) {
+    /** Half the frame's side (from the centre to the middle of an edge). */
+    val half = side / 2f + gap
+    private val rr = min(corner + gap, half)
+    private val straight = 2f * half - 2f * rr
+    private val arc = (Math.PI / 2 * rr).toFloat()
+    /** The length of the whole way round. */
+    val perimeter = 4f * straight + 4f * arc
+
+    /** The point at fraction [t] of the way round and the outward normal there: x, y, nx, ny. */
+    fun walk(t: Float): FloatArray {
+        var d = (((t % 1f) + 1f) % 1f) * perimeter
+        val a = half
+        fun corner(cx: Float, cy: Float, q0: Double, u: Float): FloatArray {
+            val q = q0 + u / rr
+            val c = Math.cos(q).toFloat(); val s = Math.sin(q).toFloat()
+            return floatArrayOf(cx + rr * c, cy + rr * s, c, s)
+        }
+        val segs: List<Pair<Float, (Float) -> FloatArray>> = listOf(
+            straight / 2f to { u -> floatArrayOf(u, -a, 0f, -1f) },
+            arc to { u -> corner(a - rr, -a + rr, -Math.PI / 2, u) },
+            straight to { u -> floatArrayOf(a, -a + rr + u, 1f, 0f) },
+            arc to { u -> corner(a - rr, a - rr, 0.0, u) },
+            straight to { u -> floatArrayOf(a - rr - u, a, 0f, 1f) },
+            arc to { u -> corner(-a + rr, a - rr, Math.PI / 2, u) },
+            straight to { u -> floatArrayOf(-a, a - rr - u, -1f, 0f) },
+            arc to { u -> corner(-a + rr, -a + rr, Math.PI, u) },
+            straight / 2f to { u -> floatArrayOf(-a + rr + u, -a, 0f, -1f) },
+        )
+        for ((len, f) in segs) { if (d <= len) return f(d); d -= len }
+        return floatArrayOf(0f, -a, 0f, -1f)
+    }
+
+    /**
+     * Where a touch at ([x], [y]) (relative to the cover's centre) falls on the frame, as a fraction of the song, or null when it is on the picture
+     * itself, which is play / pause and never a seek. The nearest of 400 points round the frame wins, as on the web.
+     */
+    fun fraction(x: Float, y: Float): Float? {
+        if (max(abs(x), abs(y)) < side / 2f) return null
+        return nearest(x, y)
+    }
+
+    /** The nearest fraction round the frame to ([x], [y]), wherever it is: used while a drag that started on the frame goes on. */
+    fun nearest(x: Float, y: Float): Float {
+        var best = 0f; var bd = Float.MAX_VALUE
+        for (i in 0 until 400) {
+            val p = walk(i / 400f); val dx = p[0] - x; val dy = p[1] - y; val dd = dx * dx + dy * dy
+            if (dd < bd) { bd = dd; best = i / 400f }
+        }
+        return best
+    }
+
+    /** How many 3-unit bars fit round the frame, never fewer than 60 (the web's rule: one bar every 2.3 bar widths). */
+    fun bars(barWidth: Float): Int = max(60, (perimeter / (barWidth * 2.3f)).roundToInt())
+}
+
+/**
  * Turns decoded audio into the song's loudness shape: [slices] numbers from 0 to 255 along its length (the RMS of each slice, which follows the ear
  * better than peaks, scaled so the loudest slice is 255). Feed it the decoder's blocks in any order with their start times; only the first channel counts.
  */
@@ -153,6 +214,17 @@ object WaveCache {
         if (!f.isFile || f.length() != WaveSlicer.SLICES.toLong()) null else f.readBytes().let { b -> IntArray(b.size) { b[it].toInt() and 255 } }
     } catch (_: Exception) { null }
 
+    /** The server's answer to GET /api/wave (a JSON array of 200 numbers from 0 to 255), or null when it is anything else. */
+    fun parseJson(text: String): IntArray? {
+        val s = text.trim()
+        if (!s.startsWith("[") || !s.endsWith("]")) return null
+        val parts = s.substring(1, s.length - 1).split(',').map { it.trim() }.filter { it.isNotEmpty() }
+        if (parts.size != WaveSlicer.SLICES) return null
+        val out = IntArray(parts.size)
+        for (i in parts.indices) out[i] = parts[i].toIntOrNull()?.takeIf { it in 0..255 } ?: return null
+        return out
+    }
+
     fun write(dir: File, path: String, shape: IntArray) {
         try {
             dir.mkdirs()
@@ -174,11 +246,17 @@ object WaveBars {
      */
     fun heights(shape: IntArray?, n: Int): FloatArray {
         if (shape == null || shape.isEmpty()) return FloatArray(n) { 0.4f }
+        // a loudly mastered song lives between about 130 and 180 out of 255, so drawn as it is every bar looks the same: each song is stretched between
+        // its own 3rd and 97th percentiles instead, as the web does (flacie.js npWave span / level)
+        val sorted = shape.sorted()
+        val p3 = sorted[(sorted.size * 3 / 100).coerceIn(0, sorted.size - 1)].toFloat()
+        val p97 = sorted[(sorted.size * 97 / 100).coerceIn(0, sorted.size - 1)].toFloat()
+        val span = p97 - p3
         return FloatArray(n) { i ->
             val a = (i.toLong() * shape.size / n).toInt().coerceAtMost(shape.size - 1)
             val b = max(a + 1, ((i + 1).toLong() * shape.size / n).toInt()).coerceAtMost(shape.size)
             var m = 0; for (k in a until b) m = max(m, shape[k])
-            0.1f + 0.9f * m / 255f
+            if (span <= 0f) 0.4f else 0.12f + 0.88f * ((m - p3) / span).coerceIn(0f, 1f)
         }
     }
 }

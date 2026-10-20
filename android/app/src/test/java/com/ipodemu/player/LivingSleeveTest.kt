@@ -116,12 +116,23 @@ class LivingSleeveTest {
     }
 
     @Test fun eachBarTakesTheLoudestSliceUnderIt() {
-        val shape = IntArray(200).also { it[0] = 255; it[199] = 51 }
+        // a ramp from 0 to 199: the 3rd percentile is 6 and the 97th is 194
+        val shape = IntArray(200) { it }
         val h = WaveBars.heights(shape, 2)
-        assertEquals(1.0f, h[0], 0.001f)                  // .1 + .9 * 255 / 255
-        assertEquals(0.1f + 0.9f * 51 / 255, h[1], 0.001f)
+        assertEquals(0.12f + 0.88f * (99 - 6) / 188f, h[0], 0.001f)
+        assertEquals(1.0f, h[1], 0.001f)
         assertEquals("more bars than slices still gives every bar a height", 400, WaveBars.heights(shape, 400).size)
     }
+
+    @Test fun aLoudlyMasteredSongIsStretchedSoItsShapeShows() {
+        // everything between 130 and 180, as a brick-walled master: the quiet part reads low and the loud part high
+        val shape = IntArray(200) { if (it < 100) 130 + it % 3 else 178 + it % 3 }
+        val h = WaveBars.heights(shape, 2)
+        assertTrue("quiet half low: ${h[0]}", h[0] < .2f)
+        assertTrue("loud half high: ${h[1]}", h[1] > .95f)
+    }
+
+    @Test fun aFlatShapeDrawsLevelBars() = assertTrue(WaveBars.heights(IntArray(200) { 150 }, 8).all { it == 0.4f })
 
     @Test fun barCountFollowsTheWidthInThreeAndTwo() {
         assertEquals(8, WaveBars.count(10f, 3f, 2f))      // never fewer than 8

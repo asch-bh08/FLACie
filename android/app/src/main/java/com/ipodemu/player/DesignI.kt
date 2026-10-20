@@ -116,9 +116,9 @@ fun DesignChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: M
     val shape = RoundedCornerShape(50)
     val fg = if (selected) Palette.bg else sc.onBg
     Row(
-        modifier.heightIn(min = 44.dp).clip(shape)   // the visible chip is 36 dp; the touch target stays 44 dp
+        modifier.heightIn(min = 48.dp).clip(shape)   // the visible chip is 36 dp; the touch target is 48 dp
             .semantics { role = Role.Button; this.selected = selected }
-            .clickable(onClick = onClick).padding(vertical = 4.dp)
+            .clickable(onClick = onClick).padding(vertical = 6.dp)
             .height(36.dp).clip(shape)
             .then(if (selected) Modifier.background(sc.onBg) else Modifier.border(1.dp, sc.onBg.copy(alpha = .28f), shape))
             .padding(horizontal = 16.dp),

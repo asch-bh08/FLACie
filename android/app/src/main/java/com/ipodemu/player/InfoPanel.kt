@@ -24,6 +24,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -152,23 +158,44 @@ internal fun rememberAudioInfo(app: com.ipodemu.App, t: Track): AudioInfo {
 private var cutHz = 0
 private var cutLabel = ""
 
-private val MODES = listOf("rate" to "Bit rate", "curve" to "Spectrum", "leds" to "Visualizer", "wall" to "Spectrogram", "loud" to "Loudness", "stereo" to "Stereo")
+/** The graphs in the web's order (TrackInfoPanel.razor Picks); the bit rate only when the file says it. */
+internal fun infoGraphs(kbps: Int, channels: Int): List<Pair<String, String>> = buildList {
+    add("curve" to "Spectrum"); add("leds" to "Visualizer"); add("wall" to "Spectrogram"); add("loud" to "Loudness")
+    add("stereo" to if (channels == 1) "Mono" else "Stereo")
+    if (kbps > 0) add("rate" to "Bit rate")
+}
+
+private fun graphTitle(mode: String) = when (mode) { "rate" -> "Bit rate"; "curve" -> "Spectrum"; "leds" -> "Visualizer"; "wall" -> "Spectrogram"; "loud" -> "Loudness"; else -> "Stereo" }
 
 private fun hint(mode: String, sampleRate: Int = 0) = when (mode) {
     "rate" -> "How much data each second of the song uses, next to common formats."
-    "curve" -> "How loud each pitch is right now: deep sounds on the left, high on the right, up to ${if (sampleRate > 0) "%.1f".format(sampleRate / 2000.0) else "22"} kHz (half this file's sample rate). An MP3 is cut off by its encoder (about 16 kHz at 128 kbps, about 20 kHz at 320 kbps: the dashed line marks it)."
+    "curve" -> "How loud each pitch is right now: deep sounds on the left, high sounds on the right, up to ${if (sampleRate > 0) "%.1f".format(sampleRate / 2000.0) else "22"} kHz (half this file's sample rate). A lossless file usually has sound out to the right edge; an MP3 is cut off by its encoder (about 16 kHz at 128 kbps, about 20 kHz at 320 kbps: the dashed line marks it)."
     "leds" -> "The song as it plays, deep sounds on the left and high ones on the right."
     "wall" -> "Pitch runs up the side (deep at the bottom, high at the top) and brighter means louder. The newest sound is on the right and scrolls left."
-    "loud" -> "How loud the song is right now, in dB (0 is the loudest a file can go), and the last ten seconds."
+    "loud" -> "How loud the song is right now, in dB (0 is the loudest a file can go), and the last ten seconds of it."
     else -> "The dots show what left and right do together: a thin vertical line is the same sound in both, a wide cloud is a wide stereo picture. The bars are the level of each side."
 }
 
-/** The Info view of Now Playing: format at a glance, a graph for whatever you pick (all but the bit rate move with the song), then the file's details. */
+private val InfoInk = Color(0xFFF4EFE6)
+private val InfoDim = Color(0xA6F4EFE6)
+private val InfoOnMain = Color(0xFF1A120C)
+
+/** A soft card: a little of the cover's tone over the ground, rounded, no hard border (design I's .kv-sec and .graph-box). */
+private fun Modifier.softCard(tone: Color): Modifier = this.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(tone.copy(alpha = .45f))
+
+/**
+ * The Info view of Now Playing, the same as the web's (TrackInfoPanel.razor): the GRAPH first (Spectrum, Visualizer, Spectrogram, Loudness, Stereo,
+ * Bit rate, drawn in the cover's colours with DM Mono labels), then one card with the format badge, the quality tier and the sampling over number tiles
+ * (kbps, kHz rate, bit, channels), then the song's and the file's details on soft cards.
+ */
 @OptIn(ExperimentalLayoutApi::class, UnstableApi::class)
 @Composable
-fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier, tint: Color? = null) {
+fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier, tint: Color? = null, tone: Color? = null, ground: Color? = null) {
     val app = LocalApp.current
     val sc = LocalScheme.current
+    val accent = tint ?: sc.accent
+    val toneC = tone ?: Color(0xFF24525A)
+    val groundC = ground ?: Color(0xFF101416)
     var mode by rememberSaveable { mutableStateOf("curve") }
     val info = rememberAudioInfo(app, t)
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -178,60 +205,84 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier, tint: Color? 
     }
     cutHz = if (info.codec.equals("MP3", true) && info.kbps > 0) (if (info.kbps <= 96) 15000 else if (info.kbps <= 128) 16000 else if (info.kbps <= 160) 17500 else if (info.kbps <= 192) 19000 else if (info.kbps <= 256) 20000 else 20500) else 16000
     cutLabel = if (info.codec.equals("MP3", true) && info.kbps > 0) "${info.kbps} kbps MP3 usually ends here" else "MP3 usually ends here"
+    val graphs = infoGraphs(info.kbps, info.channels)
+    if (graphs.none { it.first == mode }) mode = "curve"
     androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
-    // the graph takes what room the panel has (header, chips and text above it need about 320dp), so its axis is never cut off at the bottom; Hi-Res files get more when there is more
-    // a short panel (the 360 dp square screen, with the controls in one strip under it): chips in one scrolling row and the explanation only on tap, so the graph itself is on screen
-    val tight = maxHeight < 340.dp
-    val graphH = if (tight) (maxHeight - 205.dp).coerceIn(96.dp, 160.dp) else (maxHeight - 380.dp).coerceIn(120.dp, if (info.hiRes) 300.dp else 220.dp)
-    Column(Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(if (tint != null) Brush.linearGradient(listOf(tint.copy(alpha = .32f), Color(0x14FFFFFF))) else Brush.linearGradient(listOf(Color(0x1AFFFFFF), Color(0x1AFFFFFF)))).verticalScroll(rememberScrollState()).padding(if (tight) 12.dp else 16.dp), verticalArrangement = Arrangement.spacedBy(if (tight) 10.dp else 14.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.clip(RoundedCornerShape(10.dp)).background(if (info.hiRes) Brush.linearGradient(listOf(Color(0xFFFFD36E), Color(0xFFF59E0B))) else Brush.linearGradient(listOf(if (info.lossless) Color(0xFF1D2A1C) else Color(0x33FFFFFF), if (info.lossless) Color(0xFF1D2A1C) else Color(0x33FFFFFF)))).padding(horizontal = 12.dp, vertical = 8.dp)) {
-                Txt(if (info.hiRes) "HI-RES" else info.codec.ifEmpty { "AUDIO" }, size = 16f, weight = FontWeight.ExtraBold, color = if (info.hiRes) Color(0xFF2A1A00) else if (info.lossless) Color(0xFFB8F0A8) else sc.onBg)
-            }
-            Column {
-                Txt(info.tier.ifEmpty { "Quality unknown" }, size = 15f, weight = FontWeight.SemiBold)
-                Txt(listOf(info.sampling, if (info.channels == 1) "Mono" else if (info.channels == 2) "Stereo" else "${info.channels} channels").filter { it.isNotEmpty() }.joinToString(" · "), size = 12f, color = sc.onBgDim)
-            }
-        }
-        // the graphs as a tidy 3-by-2 grid of equal pills (nothing cut off), each with a proper name; the file's own figure is in the card below
-        val modePills: @Composable (Boolean) -> Unit = { scroll ->
-            for ((id, label) in listOf("rate" to "Bit rate", "curve" to "Spectrum", "loud" to "Level", "stereo" to "Stereo", "leds" to "Visualizer", "wall" to "Spectrogram"))
-                Box((if (scroll) Modifier.width(104.dp) else Modifier.weight(1f)).height(if (scroll) 40.dp else 36.dp).clip(RoundedCornerShape(50)).background(if (mode == id) (tint ?: sc.accent) else Palette.surface2).clickable { mode = id }, contentAlignment = Alignment.Center) {
-                    Txt(label, size = 12f, weight = FontWeight.SemiBold, color = if (mode == id) (tint ?: sc.accent).readableInk() else Color.White, maxLines = 1)
+        val graphH = (maxHeight * .34f).coerceIn(150.dp, if (info.hiRes) 280.dp else 230.dp)
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // 1. the graph, picked from outlined tabs (the chosen one filled)
+            Column(Modifier.softCard(toneC).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for ((id, label) in graphs) {
+                        val on = mode == id
+                        val shape = RoundedCornerShape(12.dp)
+                        Box(
+                            Modifier.height(48.dp).padding(vertical = 4.dp).clip(shape).background(if (on) InfoInk else Color.Transparent)
+                                .border(1.dp, if (on) InfoInk else InfoInk.copy(alpha = .28f), shape)
+                                .semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Tab; selected = on }
+                                .clickable { mode = id }.padding(horizontal = 14.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { Txt(label, size = 14f, weight = FontWeight.SemiBold, color = if (on) InfoOnMain else InfoInk) }
+                    }
                 }
-        }
-        if (tight) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { modePills(true) }
-        else androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), maxItemsInEachRow = 3) { modePills(false) }
-        var hintOpen by remember(mode) { mutableStateOf(false) }
-        val order = listOf("rate", "curve", "loud", "stereo", "leds", "wall")
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0x14FFFFFF)).padding(14.dp).pointerInput(mode) {
-            // a sideways swipe on the graph moves to the next or previous graph (and keeps the player's own pages from moving)
-            var dx = 0f
-            detectHorizontalDragGestures(onDragStart = { dx = 0f }, onDragEnd = {
-                val i = order.indexOf(mode)
-                if (dx < -60f && i < order.lastIndex) mode = order[i + 1] else if (dx > 60f && i > 0) mode = order[i - 1]
-            }) { c, d -> c.consume(); dx += d }
-        }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.clickable { hintOpen = !hintOpen }, verticalAlignment = Alignment.CenterVertically) {
-                Txt(MODES.first { it.first == mode }.second + (when (mode) { "rate" -> if (info.kbps > 0) " · ${info.kbps} kbps" else ""; "curve" -> if (info.sampleRate > 0) " · %.1f kHz".format(info.sampleRate / 1000.0) else ""; "loud" -> if (info.bits > 0) " · ${info.bits} bit" else ""; else -> "" }), Modifier.weight(1f), size = 17f, weight = FontWeight.ExtraBold)
-                Box(Modifier.clip(RoundedCornerShape(50)).background(if (mode == "rate") Color(0x1FFFFFFF) else sc.accent.copy(alpha = .18f)).padding(horizontal = 9.dp, vertical = 3.dp)) {
-                    Txt(if (mode == "rate") "FROM THE FILE" else "● LIVE", size = 10f, weight = FontWeight.ExtraBold, color = if (mode == "rate") sc.onBgDim else sc.accent)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    SerifTitle(graphTitle(mode), Modifier.weight(1f), size = 28f, color = InfoInk)
+                    Box(Modifier.clip(RoundedCornerShape(50)).background(if (mode == "rate") Color(0x1FFFFFFF) else accent.copy(alpha = .2f)).padding(horizontal = 10.dp, vertical = 4.dp)) {
+                        MonoLabel(if (mode == "rate") "From the file" else "● Live", size = 10.5f, color = if (mode == "rate") InfoDim else accent)
+                    }
+                }
+                Box(Modifier.pointerInput(mode) {
+                    // a sideways swipe on the graph moves to the next or previous graph (and keeps the player's own pages from moving)
+                    var dx = 0f
+                    detectHorizontalDragGestures(onDragStart = { dx = 0f }, onDragEnd = {
+                        val i = graphs.indexOfFirst { it.first == mode }
+                        if (dx < -60f && i < graphs.lastIndex) mode = graphs[i + 1].first else if (dx > 60f && i > 0) mode = graphs[i - 1].first
+                    }) { c, d -> c.consume(); dx += d }
+                }) {
+                    if (mode == "rate") RateBars(info.kbps, accent) else LiveGraph(mode, analysis, snap.playing, graphH, accent, toneC, groundC)
+                }
+                Txt(hint(mode, info.sampleRate), size = 12.5f, color = InfoDim, maxLines = 8)
+            }
+            // 2. the file at a glance, in one card: what it is and how good, then its numbers
+            Column(Modifier.softCard(toneC).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    val badgeBg = if (info.hiRes) Brush.linearGradient(listOf(Color(0xFFFFD36E), Color(0xFFF59E0B))) else Brush.linearGradient(listOf(InfoInk, InfoInk))
+                    Box(Modifier.clip(RoundedCornerShape(12.dp)).background(badgeBg).padding(horizontal = 16.dp, vertical = 10.dp)) {
+                        MonoLabel(if (info.hiRes) "Hi-Res" else info.codec.ifEmpty { "Audio" }, size = 15f, color = if (info.hiRes) Color(0xFF2A1A00) else InfoOnMain)
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        SerifTitle(info.tier.ifEmpty { "Quality unknown" }, size = 28f, color = InfoInk)
+                        MonoLabel(listOf(info.sampling, if (info.channels == 1) "Mono" else if (info.channels == 2) "Stereo" else if (info.channels > 2) "${info.channels} channels" else "").filter { it.isNotEmpty() }.joinToString(" · "), size = 11f, color = InfoDim, maxLines = 2)
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val tiles = buildList {
+                        if (info.kbps > 0) add(info.kbps.toString() to "kbps")
+                        add((if (info.sampleRate > 0) "%.1f".format(info.sampleRate / 1000.0).removeSuffix(".0") else "?") to "kHz rate")
+                        if (info.bits > 0) add(info.bits.toString() to "bit")
+                        add((if (info.channels > 0) info.channels.toString() else "2") to if (info.channels == 1) "mono" else "channels")
+                    }
+                    for ((v, k) in tiles) Column(
+                        Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).border(1.dp, InfoInk.copy(alpha = .22f), RoundedCornerShape(14.dp)).padding(horizontal = 10.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        MonoLabel(v, size = 20f, color = InfoInk, upper = false)
+                        MonoLabel(k, size = 9.5f, color = InfoDim)
+                    }
                 }
             }
-            if (!tight || hintOpen) Txt(hint(mode, info.sampleRate), Modifier.clickable { hintOpen = !hintOpen }, size = 12.5f, color = sc.onBgDim, maxLines = if (hintOpen) 8 else 2)
-            if (mode == "rate") RateBars(info.kbps) else LiveGraph(mode, analysis, snap.playing, graphH)
+            // 3. the details
+            Detail(listOf(
+                "Title" to t.title, "Artist" to t.artist, "Album" to t.album, "Year" to t.year.takeIf { it > 0 }?.toString(), "Genre" to t.genre,
+                "Track" to t.trackNo.takeIf { it > 0 }?.let { (if (t.discNo > 1) "${t.discNo}-" else "") + it }, "Length" to t.durationMs.takeIf { it > 0 }?.let { fmtTime(it) },
+            ), "Song", toneC)
+            Detail(listOf(
+                "Source" to com.ipodemu.library.SourceLabel.line(t.source), "Codec" to info.codec.takeIf { it.isNotEmpty() },
+                "Size" to t.size.takeIf { it > 0 }?.let { if (it >= 1L shl 30) "%.2f GB".format(it / 1073741824.0) else "%.1f MB".format(it / 1048576.0) },
+                "Location" to t.filePath.takeIf { it.isNotEmpty() },
+                "Playback" to playbackLine(ctx, info),
+            ), "File", toneC)
         }
-        Detail(listOf(
-            "Title" to t.title, "Artist" to t.artist, "Album" to t.album, "Year" to t.year.takeIf { it > 0 }?.toString(), "Genre" to t.genre,
-            "Track" to t.trackNo.takeIf { it > 0 }?.let { (if (t.discNo > 1) "${t.discNo}-" else "") + it }, "Length" to t.durationMs.takeIf { it > 0 }?.let { fmtTime(it) },
-        ), "SONG")
-        Detail(listOf(
-            "Source" to com.ipodemu.library.SourceLabel.line(t.source), "Codec" to info.codec.takeIf { it.isNotEmpty() },
-            "Size" to t.size.takeIf { it > 0 }?.let { if (it >= 1L shl 30) "%.2f GB".format(it / 1073741824.0) else "%.1f MB".format(it / 1048576.0) },
-            "Location" to t.filePath.takeIf { it.isNotEmpty() },
-            "Playback" to playbackLine(ctx, info),
-        ), "FILE")
-    }
     }
 }
 
@@ -253,73 +304,80 @@ private fun playbackLine(ctx: android.content.Context, info: AudioInfo): String 
     }
 }
 
+/** A soft card of facts: a DM Mono heading, then each label in DM Mono over its value (two to a line when short, the whole width when long). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Detail(rows: List<Pair<String, String?>>, title: String) {
-    val sc = LocalScheme.current
+private fun Detail(rows: List<Pair<String, String?>>, title: String, tone: Color) {
     val shown = rows.filter { !it.second.isNullOrBlank() }
     if (shown.isEmpty()) return
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x1AFFFFFF)))
-        Txt(title, Modifier.padding(top = 6.dp), size = 11f, weight = FontWeight.ExtraBold, color = sc.onBgDim)
-        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            // short facts sit two to a line, long ones (location, playback path) take the whole width
-            for ((k, v) in shown) Column(if (v!!.length > 22) Modifier.fillMaxWidth() else Modifier.fillMaxWidth(0.47f)) {
-                Txt(k, size = 11f, color = sc.onBgDim)
-                Txt(v, size = 14f, maxLines = 3)
+    Column(Modifier.softCard(tone).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        MonoLabel(title, size = 11f, color = InfoDim)
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            for ((k, v) in shown) Column(if (v!!.length > 22) Modifier.fillMaxWidth() else Modifier.fillMaxWidth(0.47f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                MonoLabel(k, size = 10f, color = InfoDim)
+                Txt(v, size = 14.5f, color = InfoInk, maxLines = 4)
             }
         }
     }
 }
 
 @Composable
-private fun RateBars(kbps: Int) {
-    val sc = LocalScheme.current
-    if (kbps <= 0) { Txt("This file doesn't say its bit rate.", size = 14f, color = sc.onBgDim); return }
+private fun RateBars(kbps: Int, accent: Color) {
+    if (kbps <= 0) { Txt("This file doesn't say its bit rate.", size = 14f, color = InfoDim); return }
     val max = max(1411, kbps).toFloat()
     val rows = listOf("MP3, low" to 128, "MP3, high" to 320, "CD, uncompressed" to 1411, "This file" to kbps).sortedBy { it.second }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         for ((name, v) in rows) {
             val me = name == "This file"
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Txt(name, Modifier.width(112.dp), size = 13f, weight = if (me) FontWeight.Bold else FontWeight.Normal, color = if (me) sc.onBg else sc.onBgDim)
-                Box(Modifier.weight(1f).height(10.dp).clip(RoundedCornerShape(5.dp)).background(Color(0x1FFFFFFF))) {
-                    Box(Modifier.fillMaxWidth(v / max).height(10.dp).background(if (me) Brush.horizontalGradient(listOf(Color(0xFFFFB35C), sc.accent)) else Brush.horizontalGradient(listOf(Color(0x55FFFFFF), Color(0x55FFFFFF)))))
+                Txt(name, Modifier.width(112.dp), size = 13f, weight = if (me) FontWeight.Bold else FontWeight.Normal, color = if (me) InfoInk else InfoDim)
+                Box(Modifier.weight(1f).height(10.dp).clip(RoundedCornerShape(5.dp)).background(Color(0x14FFFFFF))) {
+                    Box(Modifier.fillMaxWidth(v / max).height(10.dp).clip(RoundedCornerShape(5.dp)).background(if (me) accent else Color(0x55FFFFFF)))
                 }
-                Txt("$v kbps", Modifier.width(74.dp).padding(start = 8.dp), size = 12.5f, weight = if (me) FontWeight.Bold else FontWeight.Normal, align = androidx.compose.ui.text.style.TextAlign.End)
+                MonoLabel("$v kbps", Modifier.width(80.dp).padding(start = 8.dp), size = 11f, color = if (me) InfoInk else InfoDim, upper = false)
             }
         }
     }
 }
 
 
-// ---- live graphs -------------------------------------------------------------------------------------------------------
+// ---- live graphs: the web's design I views (flacie.js drawCurve, drawLeds, drawWall, drawLoud, drawStereo) -----------------------------------------
 
 private class GraphState {
-    // spectrum / bars
+    // spectrum / visualizer
     var peaks = FloatArray(0); var holds = FloatArray(0); var heights = FloatArray(0)
     // spectrogram
     var pix = IntArray(0); var pw = 0; var ph = 0; var bmp: Bitmap? = null; var acc = 0f; var lastNs = 0L
+    var lut = IntArray(0); var lutKey = 0L
     // loudness
     var avg = Float.NaN; var peakHold = -90f; val hist = FloatArray(300); var histN = 0; var lastHist = 0L
     // stereo
     val trail = ArrayList<FloatArray>(); val smoothLR = floatArrayOf(Float.NaN, Float.NaN); val holdLR = floatArrayOf(-90f, -90f)
 }
 
-private val LUT = IntArray(256).also { lut ->
-    val stops = arrayOf(floatArrayOf(0f, 0f, 0f, 4f), floatArrayOf(.18f, 38f, 12f, 84f), floatArrayOf(.4f, 104f, 22f, 112f), floatArrayOf(.62f, 190f, 52f, 82f), floatArrayOf(.82f, 250f, 140f, 10f), floatArrayOf(1f, 252f, 255f, 170f))
-    for (i in 0 until 256) {
+/** The spectrogram's colours: the ground (darkened), through the tone and the cover's colour, to near white, as the web's lutFor. */
+internal fun spectrogramLut(ground: Int, tone: Int, accent: Int): IntArray {
+    fun ch(c: Int, s: Int) = ((c shr s) and 255).toFloat()
+    val stops = arrayOf(
+        floatArrayOf(0f, ch(ground, 16) * .5f, ch(ground, 8) * .5f, ch(ground, 0) * .5f),
+        floatArrayOf(.3f, ch(tone, 16), ch(tone, 8), ch(tone, 0)),
+        floatArrayOf(.65f, ch(accent, 16), ch(accent, 8), ch(accent, 0)),
+        floatArrayOf(1f, ch(accent, 16) + (255 - ch(accent, 16)) * .8f, ch(accent, 8) + (255 - ch(accent, 8)) * .8f, ch(accent, 0) + (255 - ch(accent, 0)) * .8f),
+    )
+    return IntArray(256) { i ->
         val t = i / 255f; var k = 1; while (k < stops.size - 1 && stops[k][0] < t) k++
         val a = stops[k - 1]; val b = stops[k]; val u = (t - a[0]) / (b[0] - a[0])
-        fun ch(c: Int) = (a[c] + (b[c] - a[c]) * u).toInt().coerceIn(0, 255)
-        lut[i] = (0xFF shl 24) or (ch(1) shl 16) or (ch(2) shl 8) or ch(3)
+        fun c(q: Int) = (a[q] + (b[q] - a[q]) * u).toInt().coerceIn(0, 255)
+        (0xFF shl 24) or (c(1) shl 16) or (c(2) shl 8) or c(3)
     }
 }
 
+/** A frequency label as the web writes it: "0", "5K", "20K". */
+internal fun hzLabel(hz: Float): String = if (hz == 0f) "0" else "${(hz / 1000).toInt()}K"
+
 @OptIn(UnstableApi::class)
 @Composable
-private fun LiveGraph(mode: String, analysis: LiveAnalysis, playing: Boolean, height: androidx.compose.ui.unit.Dp) {
-    val sc = LocalScheme.current
+private fun LiveGraph(mode: String, analysis: LiveAnalysis, playing: Boolean, height: androidx.compose.ui.unit.Dp, accent: Color, tone: Color, ground: Color) {
     val state = remember(mode) { GraphState() }
     var frameNs by remember { mutableLongStateOf(0L) }
     // the tap on the sound is only on while a graph is shown
@@ -334,12 +392,13 @@ private fun LiveGraph(mode: String, analysis: LiveAnalysis, playing: Boolean, he
     LaunchedEffect(mode) {
         while (true) androidx.compose.runtime.withFrameNanos { ns -> frameNs = ns }
     }
-    val paint = remember { Paint(Paint.ANTI_ALIAS_FLAG) }
-
-    val h = height
-    Canvas(Modifier.fillMaxWidth().height(h)) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val paint = remember {
+        Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = try { androidx.core.content.res.ResourcesCompat.getFont(ctx, com.ipodemu.R.font.dm_mono_medium) } catch (_: Exception) { android.graphics.Typeface.MONOSPACE } }
+    }
+    Canvas(Modifier.fillMaxWidth().height(height)) {
         @Suppress("UNUSED_EXPRESSION") frameNs
-        val g = Gfx(this, paint, sc.accent, sc.onBgDim, sc.onBg, analysis, state, frameNs, playing && analysis.active)
+        val g = Gfx(this, paint, accent, tone, ground, analysis, state, frameNs, playing && analysis.active)
         when (mode) {
             "curve" -> g.curve(); "leds" -> g.leds(); "wall" -> g.wall(); "loud" -> g.loud(); else -> g.stereo()
         }
@@ -348,14 +407,15 @@ private fun LiveGraph(mode: String, analysis: LiveAnalysis, playing: Boolean, he
 
 @OptIn(UnstableApi::class)
 private class Gfx(
-    val d: DrawScope, val paint: Paint, val accent: Color, val dim: Color, val ink: Color, val a: LiveAnalysis, val st: GraphState, val ns: Long, val playing: Boolean,
+    val d: DrawScope, val paint: Paint, val accent: Color, val tone: Color, val ground: Color, val a: LiveAnalysis, val st: GraphState, val ns: Long, val playing: Boolean,
 ) {
+    val ink = InfoInk; val dim = InfoDim
     val w = d.size.width; val h = d.size.height
     val dp = d.density
     val nyq get() = a.sampleRate / 2f
 
-    fun text(s: String, x: Float, y: Float, color: Color = dim, size: Float = 11f, align: Paint.Align = Paint.Align.LEFT, bold: Boolean = false) {
-        paint.color = color.toArgb(); paint.textSize = size * dp; paint.textAlign = align; paint.isFakeBoldText = bold
+    fun text(s: String, x: Float, y: Float, color: Color = dim, size: Float = 10.5f, align: Paint.Align = Paint.Align.LEFT) {
+        paint.color = color.toArgb(); paint.textSize = size * dp; paint.textAlign = align; paint.isFakeBoldText = false; paint.letterSpacing = .04f
         d.drawContext.canvas.nativeCanvas.drawText(s, x, y, paint)
     }
 
@@ -364,65 +424,94 @@ private class Gfx(
         for (i in 1 until n - 1) quadraticBezierTo(xs[i], ys[i], (xs[i] + xs[i + 1]) / 2, (ys[i] + ys[i + 1]) / 2)
     }
 
-    // spectrum: 0 Hz up to the file's own Nyquist (half its sample rate), a filled curve and a slowly falling peak line
+    /** A dotted line, the web's guides (2 px dots every 6 px). */
+    private fun dottedV(x: Float, top: Float, bottom: Float, color: Color, dash: Float = 2f) {
+        var y = top; while (y < bottom) { d.drawRect(color, Offset(x, y), Size(1f * dp, dash * dp)); y += 6 * dp }
+    }
+    private fun dottedH(y: Float, x0: Float, x1: Float, color: Color) {
+        var x = x0; while (x < x1) { d.drawRect(color, Offset(x, y), Size(2 * dp, 1f * dp)); x += 6 * dp }
+    }
+
+    /** A line with a soft glow under it (the web's shadowBlur), drawn as wider faint strokes beneath the line itself. */
+    private fun glow(path: Path, width: Float) {
+        d.drawPath(path, accent.copy(alpha = .12f), style = Stroke(width * 4f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        d.drawPath(path, accent.copy(alpha = .25f), style = Stroke(width * 2.2f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        d.drawPath(path, accent, style = Stroke(width, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+    }
+
+    // spectrum: how loud each pitch is, 0 Hz on the left to the file's top on the right: a glowing line over a soft fill, the slowly falling peaks as dots
     fun curve() {
         val maxHz = nyq; val use = (a.bins * maxHz / nyq).toInt().coerceAtLeast(2)
         val stepHz = if (maxHz > 48000f) 20000f else if (maxHz > 26000f) 10000f else 5000f
-        val bottom = h - 18 * dp; val top = 6 * dp; val span = bottom - top
+        val bottom = h - 20 * dp; val top = 10 * dp; val span = bottom - top
         if (st.peaks.size != use) st.peaks = FloatArray(use)
         var k = 0f
         while (k <= maxHz) {
             val x = min(w - 1, k / maxHz * w)
-            d.drawLine(Color(0x14FFFFFF), Offset(x, top), Offset(x, bottom), 1f)
-            text(if (k == 0f) "0" else "${(k / 1000).toInt()} kHz", if (k == 0f) 2f else min(x, w - 22 * dp), h - 3 * dp, align = if (k == 0f) Paint.Align.LEFT else Paint.Align.CENTER)
+            dottedV(x, top, bottom, ink.copy(alpha = .14f))
+            text(hzLabel(k), if (k == 0f) 2f else min(x, w - 14 * dp), h - 4 * dp, align = if (k == 0f) Paint.Align.LEFT else Paint.Align.CENTER)
             k += stepHz
         }
         if (cutHz > 0 && maxHz > cutHz) {
             val x = cutHz.toFloat() / maxHz * w
-            d.drawLine(Color(0x4DFFFFFF), Offset(x, top), Offset(x, bottom), 1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4 * dp, 4 * dp)))
-            // the label sits left of the line; when the line is near the left edge (a Hi-Res file's wide axis) it would run off the panel: put it right of the line
-            paint.textSize = 11f * dp
-            if (x - 5 * dp - paint.measureText(cutLabel) < 0f) text(cutLabel, x + 5 * dp, top + 10 * dp, align = Paint.Align.LEFT)
-            else text(cutLabel, x - 5 * dp, top + 10 * dp, align = Paint.Align.RIGHT)
+            dottedV(x, top, bottom, ink.copy(alpha = .45f), 3f)
+            val label = cutLabel.uppercase()
+            paint.textSize = 10.5f * dp
+            // the label sits left of the line; near the left edge (a Hi-Res file's wide axis) it would run off: then it goes right of the line
+            if (x - 6 * dp - paint.measureText(label) < 0f) text(label, x + 6 * dp, top + 8 * dp, ink, align = Paint.Align.LEFT)
+            else text(label, x - 6 * dp, top + 8 * dp, ink, align = Paint.Align.RIGHT)
         }
-        val xs = FloatArray(use); val ys = FloatArray(use); val pxs = FloatArray(use); val pys = FloatArray(use)
+        val xs = FloatArray(use); val ys = FloatArray(use)
         for (i in 0 until use) {
             val v = a.freq[i] / 255f; st.peaks[i] = max(v, st.peaks[i] - 0.004f)
-            xs[i] = i / (use - 1f) * w; ys[i] = bottom - v.pow(1.15f) * span; pxs[i] = xs[i]; pys[i] = bottom - st.peaks[i].pow(1.15f) * span
+            xs[i] = i / (use - 1f) * w; ys[i] = bottom - v.pow(1.15f) * span
         }
-        d.drawPath(smoothPath(pxs, pys, use), Color(0x47FFFFFF), style = Stroke(1.2f * dp))
         val fill = smoothPath(xs, ys, use).apply { lineTo(w, bottom); lineTo(0f, bottom); close() }
-        d.drawPath(fill, Brush.verticalGradient(listOf(accent.copy(alpha = .85f), Color(0x05FFFFFF)), startY = top, endY = bottom))
-        d.drawPath(smoothPath(xs, ys, use), accent, style = Stroke(2f * dp))
+        d.drawPath(fill, Brush.verticalGradient(listOf(accent.copy(alpha = .55f), accent.copy(alpha = 0f)), startY = top, endY = bottom))
+        glow(smoothPath(xs, ys, use), 2.5f * dp)
+        // peaks: a dot every few pixels
+        val every = max(1, (use / (w / (5 * dp))).toInt())
+        var i = 0
+        while (i < use) {
+            val y = bottom - st.peaks[i].pow(1.15f) * span
+            if (y < bottom - 2 * dp) d.drawCircle(ink.copy(alpha = .75f), 1.3f * dp, Offset(i / (use - 1f) * w, y))
+            i += every
+        }
+        d.drawRect(ink.copy(alpha = .18f), Offset(0f, bottom), Size(w, 1f * dp))
     }
 
-    // bars: LED columns
+    // visualizer: rounded bars mirrored about a centre line, deep sounds left, high right, each with a floating peak dot
     fun leds() {
-        val n = max(18, min(48, (w / (13 * dp)).toInt())); val lo = 35f; val hi = min(nyq, 18000f)
+        val n = max(20, min(64, (w / (10 * dp)).toInt())); val lo = 35f; val hi = min(nyq, 18000f)
         if (st.heights.size != n) { st.heights = FloatArray(n); st.holds = FloatArray(n) }
-        val seg = 7 * dp; val gap = 2.5f * dp; val base = h - 16 * dp
-        val rows = max(6, ((h - 16 * dp) / (seg + gap)).toInt()); val slot = w / n; val bw = max(3 * dp, slot * 0.7f)
+        val slot = w / n; val bw = max(3 * dp, slot * 0.62f); val mid = (h - 16 * dp) / 2; val half = mid - 6 * dp
+        val grad = Brush.verticalGradient(0f to ink.copy(alpha = .95f), .35f to accent, .65f to accent, 1f to ink.copy(alpha = .95f), startY = mid - half, endY = mid + half)
         for (i in 0 until n) {
             val f0 = lo * (hi / lo).pow(i / n.toFloat()); val f1 = lo * (hi / lo).pow((i + 1) / n.toFloat())
             val b0 = (f0 / nyq * a.bins).toInt(); val b1 = max(b0 + 1, kotlin.math.ceil(f1 / nyq * a.bins).toInt())
             var m = 0; for (k in b0 until min(b1, a.bins)) m = max(m, a.freq[k])
+            // the highs carry less energy in real music, so they are lifted a little
             val v = min(1f, (m / 255f).pow(1.5f) * (1 + 0.7f * i / n))
             st.heights[i] = max(v, st.heights[i] - 0.035f); st.holds[i] = max(st.heights[i], st.holds[i] - 0.008f)
-            val lit = (st.heights[i] * rows).toInt(); val peak = min(rows - 1, (st.holds[i] * rows).toInt()); val x = i * slot + (slot - bw) / 2
-            for (r in 0 until rows) {
-                val y = base - (r + 1) * (seg + gap) + gap
-                val c = when { r < lit -> accent.copy(alpha = 0.45f + 0.55f * r / rows); r == peak && peak > 0 -> Color.White.copy(alpha = .9f); else -> Color.White.copy(alpha = .06f) }
-                d.drawRoundRect(c, Offset(x, y), Size(bw, seg), CornerRadius(2 * dp))
+            val x = i * slot + (slot - bw) / 2; val bh = max(bw, st.heights[i] * half)
+            d.drawRoundRect(ink.copy(alpha = .06f), Offset(x, mid - half), Size(bw, half * 2), CornerRadius(bw / 2))
+            d.drawRoundRect(grad, Offset(x, mid - bh), Size(bw, bh * 2), CornerRadius(bw / 2))
+            if (st.holds[i] > .03f) {
+                val py = st.holds[i] * half + 4 * dp
+                d.drawCircle(ink, bw / 2.4f, Offset(x + bw / 2, mid - py)); d.drawCircle(ink, bw / 2.4f, Offset(x + bw / 2, mid + py))
             }
         }
         text("BASS", 0f, h - 3 * dp); text("MID", w / 2, h - 3 * dp, align = Paint.Align.CENTER); text("TREBLE", w, h - 3 * dp, align = Paint.Align.RIGHT)
     }
 
-    // spectrogram waterfall: newest sound at the right edge, scrolling left
+    // spectrogram: a waterfall in the cover's colours. Pitch up the side, newest sound at the right edge, scrolling left as the song plays
     fun wall() {
-        val x0 = 44 * dp; val x1 = w - 2 * dp; val y0 = 4 * dp; val y1 = h - 18 * dp
+        val key = (accent.toArgb().toLong() shl 32) xor (tone.toArgb().toLong() * 31) xor ground.toArgb().toLong()
+        if (st.lutKey != key || st.lut.isEmpty()) { st.lut = spectrogramLut(ground.toArgb(), tone.toArgb(), accent.toArgb()); st.lutKey = key }
+        val lut = st.lut
+        val x0 = 40 * dp; val x1 = w; val y0 = 2 * dp; val y1 = h - 20 * dp
         val pw = (x1 - x0).toInt().coerceAtLeast(2); val ph = (y1 - y0).toInt().coerceAtLeast(2); val speed = 60 * dp
-        if (st.pw != pw || st.ph != ph) { st.pw = pw; st.ph = ph; st.pix = IntArray(pw * ph) { 0xFF04000A.toInt() }; st.bmp = Bitmap.createBitmap(pw, ph, Bitmap.Config.ARGB_8888); st.lastNs = ns; st.acc = 0f }
+        if (st.pw != pw || st.ph != ph) { st.pw = pw; st.ph = ph; st.pix = IntArray(pw * ph) { lut[0] }; st.bmp = Bitmap.createBitmap(pw, ph, Bitmap.Config.ARGB_8888); st.lastNs = ns; st.acc = 0f }
         val maxHz = nyq; val use = (a.bins * maxHz / nyq).toInt().coerceAtLeast(2)
         val stepHz = if (maxHz > 48000f) 16000f else if (maxHz > 26000f) 8000f else 4000f
         val dt = min(100f, (ns - st.lastNs) / 1_000_000f); st.lastNs = ns
@@ -436,26 +525,30 @@ private class Gfx(
                 System.arraycopy(st.pix, row + s, st.pix, row, pw - s)
                 val k0 = ((ph - 1 - y) * use / ph); val k1 = max(k0 + 1, (ph - y) * use / ph)
                 var m = 0; for (k in k0 until min(k1, use)) m = max(m, a.freq[k])
-                val c = LUT[((m / 255f).pow(1.25f) * 255).toInt().coerceIn(0, 255)]
+                val c = lut[((m / 255f).pow(1.25f) * 255).toInt().coerceIn(0, 255)]
                 for (x in pw - s until pw) st.pix[row + x] = c
             }
         }
         val bmp = st.bmp ?: return
         bmp.setPixels(st.pix, 0, pw, 0, 0, pw, ph)
-        d.drawImage(bmp.asImageBitmap(), Offset(x0, y0))
+        val clip = Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(x0, y0, x0 + pw, y0 + ph, CornerRadius(12 * dp))) }
+        d.clipPath(clip) {
+            drawImage(bmp.asImageBitmap(), Offset(x0, y0))
+            var k = stepHz
+            while (k <= maxHz) { val y = y1 - k / maxHz * ph; dottedH(y, x0, x1, ink.copy(alpha = if (k == 16000f || k == 20000f) .4f else .14f)); k += stepHz }
+        }
         var k = 0f
         while (k <= maxHz) {
-            val y = y1 - k / maxHz * ph; val key = k == 16000f || k == 20000f
-            text(if (k == 0f) "0" else "${(k / 1000).toInt()} kHz", x0 - 6 * dp, min(y1 - 1 * dp, max(y0 + 10 * dp, y + 4 * dp)), color = if (key) ink else dim, align = Paint.Align.RIGHT)
-            if (k > 0) d.drawLine(Color.White.copy(alpha = if (key) .5f else .12f), Offset(x0, y), Offset(x1, y), 1f, pathEffect = if (key) PathEffect.dashPathEffect(floatArrayOf(5 * dp, 4 * dp)) else null)
+            val y = y1 - k / maxHz * ph; val key2 = k == 16000f || k == 20000f
+            text(hzLabel(k), x0 - 8 * dp, min(y1 - 1 * dp, max(y0 + 10 * dp, y + 4 * dp)), color = if (key2) ink else dim, align = Paint.Align.RIGHT)
             k += stepHz
         }
-        text("${(pw / speed).toInt()} s ago", x0, h - 3 * dp); text("now", x1, h - 3 * dp, align = Paint.Align.RIGHT)
+        text("${(pw / speed).toInt()} S AGO", x0, h - 4 * dp); text("NOW", x1, h - 4 * dp, align = Paint.Align.RIGHT)
     }
 
     private fun X(db: Float) = ((db + 60f) / 60f).coerceIn(0f, 1f)
 
-    // loudness: the level now, a peak marker, and the last ten seconds
+    // loudness: the level right now as a big number and a row of lit capsules with a peak tick, then the last ten seconds as a soft hill
     fun loud() {
         val (rdb, pdb) = a.levels()
         st.avg = if (st.avg.isNaN()) rdb else st.avg + (rdb - st.avg) * 0.25f
@@ -464,61 +557,66 @@ private class Gfx(
             st.lastHist = ns / 1_000_000
             if (st.histN < st.hist.size) st.hist[st.histN++] = rdb else { System.arraycopy(st.hist, 1, st.hist, 0, st.hist.size - 1); st.hist[st.hist.size - 1] = rdb }
         }
-        val avgTxt = if (st.avg <= -59) "−∞" else "%.1f".format(st.avg)
-        text(avgTxt, 0f, 30 * dp, ink, 30f, bold = true)
-        paint.textSize = 30 * dp; val tw = paint.measureText(avgTxt)
-        text("dB average now", tw + 8 * dp, 30 * dp, dim, 13f)
-        text("peak ${if (st.peakHold <= -89) "−∞" else "%.1f".format(st.peakHold)} dB", w, 30 * dp, dim, 13f, Paint.Align.RIGHT)
-        val my = 44 * dp; val mh = 12 * dp
-        d.drawRoundRect(Color(0x14FFFFFF), Offset(0f, my), Size(w, mh), CornerRadius(mh / 2))
-        d.drawRoundRect(Brush.horizontalGradient(listOf(accent, Color(0xFFFFB35C), Color(0xFFFF5C5C)), startX = 0f, endX = w), Offset(0f, my), Size(w * X(st.avg), mh), CornerRadius(mh / 2))
-        d.drawRect(Color.White, Offset(min(w - 2 * dp, w * X(st.peakHold)), my - 2 * dp), Size(2 * dp, mh + 4 * dp))
-        val hy0 = my + mh + 16 * dp; val hy1 = h - 18 * dp; val hh = hy1 - hy0
+        val num = if (st.avg <= -59) "−∞" else "%.1f".format(st.avg)
+        text(num, 0f, 34 * dp, ink, 34f)
+        paint.textSize = 34 * dp; val tw = paint.measureText(num)
+        text("DB AVERAGE NOW", tw + 10 * dp, 32 * dp, dim, 11f)
+        text("PEAK ${if (st.peakHold <= -89) "−∞" else "%.1f".format(st.peakHold)} DB", w, 32 * dp, ink, 11f, Paint.Align.RIGHT)
+        // the meter: capsules that light up to the level; the last few turn warm near 0 dB
+        val my = 48 * dp; val mh = 14 * dp; val n = max(20, (w / (9 * dp)).toInt()); val cw = w / n
+        val lit = X(st.avg) * n; val pki = min(n - 1, (X(st.peakHold) * n).toInt())
+        for (i in 0 until n) {
+            val hot = i >= n * .88f
+            val col = if (i == pki) ink else if (i < lit) (if (hot) Color(0xFFFF7A5C) else accent) else ink.copy(alpha = .08f)
+            d.drawRoundRect(col, Offset(i * cw + dp, my), Size(cw - 2.5f * dp, mh), CornerRadius(3 * dp))
+        }
+        val hy0 = my + mh + 18 * dp; val hy1 = h - 20 * dp; val hh = hy1 - hy0
         for (db in intArrayOf(-12, -24, -36, -48)) {
             val y = hy1 - X(db.toFloat()) * hh
-            d.drawLine(Color(0x17FFFFFF), Offset(0f, y), Offset(w, y), 1f); text("$db", 2f, y - 3 * dp)
+            dottedH(y, 0f, w, ink.copy(alpha = .12f)); text("$db", 2f, y - 4 * dp)
         }
         if (st.histN > 1) {
-            val n = st.histN; val xs = FloatArray(n) { w - (n - 1 - it) / 299f * w }; val ys = FloatArray(n) { hy1 - X(st.hist[it]) * hh }
-            val fill = Path().apply { moveTo(xs[0], hy1); for (i in 0 until n) lineTo(xs[i], ys[i]); lineTo(xs[n - 1], hy1); close() }
-            d.drawPath(fill, Brush.verticalGradient(listOf(accent.copy(alpha = .8f), Color(0x05FFFFFF)), startY = hy0, endY = hy1))
-            val line = Path().apply { moveTo(xs[0], ys[0]); for (i in 1 until n) lineTo(xs[i], ys[i]) }
-            d.drawPath(line, accent, style = Stroke(2 * dp))
+            val n2 = st.histN; val xs = FloatArray(n2) { w - (n2 - 1 - it) / 299f * w }; val ys = FloatArray(n2) { hy1 - X(st.hist[it]) * hh }
+            val fill = Path().apply { moveTo(xs[0], hy1); for (i in 0 until n2) lineTo(xs[i], ys[i]); lineTo(xs[n2 - 1], hy1); close() }
+            d.drawPath(fill, Brush.verticalGradient(listOf(accent.copy(alpha = .6f), accent.copy(alpha = 0f)), startY = hy0, endY = hy1))
+            glow(Path().apply { moveTo(xs[0], ys[0]); for (i in 1 until n2) lineTo(xs[i], ys[i]) }, 2.5f * dp)
         }
-        text("10 s ago", 0f, h - 3 * dp); text("now", w, h - 3 * dp, align = Paint.Align.RIGHT)
+        text("10 S AGO", 0f, h - 4 * dp); text("NOW", w, h - 4 * dp, align = Paint.Align.RIGHT)
     }
 
-    // stereo: a phase scope beside a level meter for each side
+    // stereo: a phase scope (what left and right do together) in a soft disc, beside a capsule meter for each side
     fun stereo() {
-        val n = a.fftSize; var sl = 0f; var sr = 0f; var slr = 0f; var pl = 0f; var pr = 0f
-        for (i in 0 until n) { val l = a.left[i]; val r = a.right[i]; sl += l * l; sr += r * r; slr += l * r; pl = max(pl, kotlin.math.abs(l)); pr = max(pr, kotlin.math.abs(r)) }
+        val n = a.fftSize; var sl = 0f; var sr = 0f; var pl = 0f; var pr = 0f
+        for (i in 0 until n) { val l = a.left[i]; val r = a.right[i]; sl += l * l; sr += r * r; pl = max(pl, kotlin.math.abs(l)); pr = max(pr, kotlin.math.abs(r)) }
         val rl = a.db(sqrt(sl / n)); val rr = a.db(sqrt(sr / n))
         for (i in 0..1) { val v = if (i == 0) rl else rr; st.smoothLR[i] = if (st.smoothLR[i].isNaN()) v else st.smoothLR[i] + (v - st.smoothLR[i]) * 0.25f; st.holdLR[i] = max(a.db(if (i == 0) pl else pr), st.holdLR[i] - 0.4f) }
         val s = min(h - 6 * dp, w * 0.52f); val cx = s / 2; val cy = h / 2; val rad = s / 2 - 6 * dp
-        // scope dots, the last few frames fading out
         if (playing) {
-            val pts = FloatArray((n / 4) * 2); var k = 0
-            for (i in 0 until n step 4) { val l = a.left[i]; val r = a.right[i]; pts[k++] = cx + (r - l) * 0.7071f * rad * 1.2f; pts[k++] = cy - (l + r) * 0.7071f * rad * 1.2f }
-            st.trail.add(0, pts); while (st.trail.size > 4) st.trail.removeAt(st.trail.size - 1)
+            val pts = FloatArray((n / 2) * 2); var k = 0
+            for (i in 0 until n step 2) { val l = a.left[i]; val r = a.right[i]; pts[k++] = cx + (r - l) * 0.7071f * rad * 1.2f; pts[k++] = cy - (l + r) * 0.7071f * rad * 1.2f }
+            st.trail.add(0, pts); while (st.trail.size > 5) st.trail.removeAt(st.trail.size - 1)
         } else if (st.trail.isNotEmpty()) st.trail.removeAt(st.trail.size - 1)
-        val grid = Color(0x1FFFFFFF)
-        d.drawCircle(grid, rad, Offset(cx, cy), style = Stroke(1f))
-        d.drawLine(grid, Offset(cx, cy - rad), Offset(cx, cy + rad), 1f); d.drawLine(grid, Offset(cx - rad, cy), Offset(cx + rad, cy), 1f)
-        d.drawLine(grid, Offset(cx - rad * .7071f, cy - rad * .7071f), Offset(cx + rad * .7071f, cy + rad * .7071f), 1f); d.drawLine(grid, Offset(cx + rad * .7071f, cy - rad * .7071f), Offset(cx - rad * .7071f, cy + rad * .7071f), 1f)
-        val alphas = floatArrayOf(.75f, .4f, .22f, .1f)
-        st.trail.forEachIndexed { ti, pts -> var i = 0; while (i < pts.size) { d.drawRect(accent.copy(alpha = alphas[ti]), Offset(pts[i] - .75f * dp, pts[i + 1] - .75f * dp), Size(1.5f * dp, 1.5f * dp)); i += 2 } }
-        text("L", cx - rad * .7071f - 8 * dp, cy - rad * .7071f - 2 * dp, align = Paint.Align.CENTER); text("R", cx + rad * .7071f + 8 * dp, cy - rad * .7071f - 2 * dp, align = Paint.Align.CENTER)
-        // the two meters
-        val mx = s + 18 * dp; val mw = max(14 * dp, min(34 * dp, (w - mx - 70 * dp) / 2)); val mt = 6 * dp; val mb = h - 22 * dp; val mhh = mb - mt
+        d.drawCircle(Brush.radialGradient(listOf(tone.copy(alpha = .9f), tone.copy(alpha = .25f)), Offset(cx, cy), rad), rad, Offset(cx, cy))
+        val grid = ink.copy(alpha = .14f); val dash = PathEffect.dashPathEffect(floatArrayOf(3 * dp, 4 * dp))
+        d.drawLine(grid, Offset(cx, cy - rad), Offset(cx, cy + rad), dp, pathEffect = dash); d.drawLine(grid, Offset(cx - rad, cy), Offset(cx + rad, cy), dp, pathEffect = dash)
+        d.drawLine(grid, Offset(cx - rad * .7071f, cy - rad * .7071f), Offset(cx + rad * .7071f, cy + rad * .7071f), dp, pathEffect = dash)
+        d.drawLine(grid, Offset(cx + rad * .7071f, cy - rad * .7071f), Offset(cx - rad * .7071f, cy + rad * .7071f), dp, pathEffect = dash)
+        val alphas = floatArrayOf(.75f, .45f, .28f, .16f, .08f)
+        st.trail.forEachIndexed { ti, pts -> var i = 0; while (i < pts.size) { d.drawCircle(accent.copy(alpha = alphas[ti]), dp, Offset(pts[i], pts[i + 1])); i += 2 } }
+        text("L", cx - rad * .7071f - 8 * dp, cy - rad * .7071f - 2 * dp, ink, align = Paint.Align.CENTER); text("R", cx + rad * .7071f + 8 * dp, cy - rad * .7071f - 2 * dp, ink, align = Paint.Align.CENTER)
+        // the two level meters: stacks of capsules
+        val mx = s + 20 * dp; val mw = max(14 * dp, min(30 * dp, (w - mx - 70 * dp) / 2)); val mt = 6 * dp; val mb = h - 22 * dp; val mhh = mb - mt
+        val rows = max(10, (mhh / (7 * dp)).toInt()); val rh = mhh / rows
         for (i in 0..1) {
-            val x = mx + i * (mw + 12 * dp); val col = if (i == 0) accent else Color(0xFF7CC4FF)
-            d.drawRoundRect(Color(0x14FFFFFF), Offset(x, mt), Size(mw, mhh), CornerRadius(5 * dp))
-            val fh = X(st.smoothLR[i]) * mhh
-            d.drawRoundRect(col.copy(alpha = .9f), Offset(x, mb - fh), Size(mw, fh), CornerRadius(5 * dp))
-            d.drawRect(Color.White, Offset(x, mb - X(st.holdLR[i]) * mhh - 1.5f * dp), Size(mw, 2 * dp))
+            val x = mx + i * (mw + 12 * dp); val col = if (i == 0) accent else ink
+            val lit = X(st.smoothLR[i]) * rows; val pk = min(rows - 1, (X(st.holdLR[i]) * rows).toInt())
+            for (r in 0 until rows) {
+                val y = mb - (r + 1) * rh
+                d.drawRoundRect(if (r == pk) ink else if (r < lit) col else ink.copy(alpha = .07f), Offset(x, y + dp), Size(mw, rh - 2.5f * dp), CornerRadius(3 * dp))
+            }
             text(if (i == 0) "L" else "R", x + mw / 2, h - 6 * dp, ink, align = Paint.Align.CENTER)
         }
-        val tx = mx + 2 * (mw + 12 * dp) + 4 * dp
-        for (db in intArrayOf(0, -12, -24, -36, -48)) text("$db dB", tx, mb - X(db.toFloat()) * mhh + 4 * dp)
+        val tx = mx + 2 * (mw + 12 * dp) + 2 * dp
+        for (db in intArrayOf(0, -12, -24, -36, -48)) text("$db", tx, mb - X(db.toFloat()) * mhh + 4 * dp)
     }
 }

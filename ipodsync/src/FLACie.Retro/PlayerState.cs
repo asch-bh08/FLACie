@@ -173,6 +173,9 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         string? json;
         try { json = await js.InvokeAsync<string?>("flacie.unstash", stashKey); } catch (Exception) { return; }
         if (string.IsNullOrEmpty(json)) return;
+        // the page reloaded itself after a server restart (flacie.recoverReload): what was playing plays on, from where the browser had got to
+        string? recover = null;
+        try { recover = await js.InvokeAsync<string?>("flacie.takeRecover"); } catch (Exception) { }
         for (var i = 0; i < 180 && s.Library.Songs.Count == 0; i++) await Task.Delay(500);
         if (Current is not null) return; // the user already picked something
         try
@@ -183,7 +186,14 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
             if (tracks.Count == 0) return;
             Shuffle = r.TryGetProperty("s", out var sh) && sh.GetBoolean(); Repeat = r.TryGetProperty("r", out var rp) ? rp.GetInt32() : 0;
             // the list was saved in play order: it is played as it stands, not shuffled again
-            await StartAsync(tracks, Math.Clamp(r.GetProperty("i").GetInt32(), 0, tracks.Count - 1), (long)(r.GetProperty("p").GetDouble() * 1000), true, Context, keepOrder: true);
+            var at = r.GetProperty("p").GetDouble(); var paused = true;
+            if (!string.IsNullOrEmpty(recover))
+            {
+                using var rd = System.Text.Json.JsonDocument.Parse(recover);
+                paused = !rd.RootElement.GetProperty("playing").GetBoolean();
+                if (rd.RootElement.GetProperty("t").GetDouble() is var t0 && t0 > 0) at = t0;
+            }
+            await StartAsync(tracks, Math.Clamp(r.GetProperty("i").GetInt32(), 0, tracks.Count - 1), (long)(at * 1000), paused, Context, keepOrder: true);
         }
         catch (Exception) { }
     }

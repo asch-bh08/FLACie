@@ -827,12 +827,21 @@ window.flacie = (() => {
       history.back();
     },
     npBack() { if (npPushed) history.back(); else npClosed(); },
+    // the reload after the server comes back: a song that was playing (on what the browser had buffered) plays on from the second it reached
+    recoverReload(playing, at) {
+      try { sessionStorage.setItem("flacie.recover", JSON.stringify({ playing: !!playing, t: +at || 0 })); } catch { }
+      location.reload();
+    },
+    // read once, after that reload (PlayerState.RestoreAsync)
+    takeRecover() {
+      try { const v = sessionStorage.getItem("flacie.recover"); sessionStorage.removeItem("flacie.recover"); return v; } catch { return null; }
+    },
     // when Blazor gives up on the live connection ("rejected": the server was restarted and has forgotten this page; "failed": it could not be reached in time),
     // wait for the server to answer again and reload, instead of leaving a stuck "Can't reach FLACie" toast
     autoRecover() {
       let polling = false;
       const poll = async () => {
-        try { const r = await fetch("/healthz", { cache: "no-store" }); if (r.ok) { location.reload(); return; } } catch { }
+        try { const r = await fetch("/healthz", { cache: "no-store" }); if (r.ok) { window.flacie.recoverReload(!audio.paused, audio.currentTime); return; } } catch { }
         setTimeout(poll, 2500);
       };
       const check = () => {

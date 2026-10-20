@@ -48,7 +48,7 @@ fun DevicesScreen() {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconAction(Glyph.BACK, "Back", { ui.devicesOpen = false }, tint = Color.White)
-                Txt("Devices", Modifier.padding(start = 4.dp), size = 22f, weight = FontWeight.Bold, color = Color.White)
+                SerifTitle("Devices", Modifier.padding(start = 4.dp), size = 30f, color = Color.White)   // design I: the serif heading, as on the web
             }
             if (!c.available) {
                 Txt("Sign in with Jellyfin to see and control your other devices.", size = 15f, color = Color(0xCCFFFFFF), maxLines = 3)

@@ -592,8 +592,11 @@ private class Gfx(
         for (i in 0..1) { val v = if (i == 0) rl else rr; st.smoothLR[i] = if (st.smoothLR[i].isNaN()) v else st.smoothLR[i] + (v - st.smoothLR[i]) * 0.25f; st.holdLR[i] = max(a.db(if (i == 0) pl else pr), st.holdLR[i] - 0.4f) }
         val s = min(h - 6 * dp, w * 0.52f); val cx = s / 2; val cy = h / 2; val rad = s / 2 - 6 * dp
         if (playing) {
+            // the tapped sound is after the player's and the phone's volume (so the meters read what the speaker plays); at a low volume the dots all
+            // sat in one pixel at the centre and the scope looked empty. The scope shows the stereo SHAPE, so it is scaled to its own peak (up to 40x)
+            val zoom = (0.85f / max(pl, pr).coerceAtLeast(1e-4f)).coerceIn(1f, 40f)
             val pts = FloatArray((n / 2) * 2); var k = 0
-            for (i in 0 until n step 2) { val l = a.left[i]; val r = a.right[i]; pts[k++] = cx + (r - l) * 0.7071f * rad * 1.2f; pts[k++] = cy - (l + r) * 0.7071f * rad * 1.2f }
+            for (i in 0 until n step 2) { val l = a.left[i] * zoom; val r = a.right[i] * zoom; pts[k++] = cx + (r - l) * 0.7071f * rad; pts[k++] = cy - (l + r) * 0.7071f * rad }
             st.trail.add(0, pts); while (st.trail.size > 5) st.trail.removeAt(st.trail.size - 1)
         } else if (st.trail.isNotEmpty()) st.trail.removeAt(st.trail.size - 1)
         d.drawCircle(Brush.radialGradient(listOf(tone.copy(alpha = .9f), tone.copy(alpha = .25f)), Offset(cx, cy), rad), rad, Offset(cx, cy))

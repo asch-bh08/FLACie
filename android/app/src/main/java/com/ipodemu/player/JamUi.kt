@@ -42,7 +42,7 @@ fun JamScreen() {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconAction(Glyph.BACK, "Back", { ui.jamOpen = false }, tint = Color.White)
-                Txt("Jam", Modifier.padding(start = 4.dp), size = 22f, weight = FontWeight.Bold, color = Color.White)
+                SerifTitle("Jam", Modifier.padding(start = 4.dp), size = 30f, color = Color.White)   // design I: the serif heading, as on the web
             }
             if (!app.connect.available) {
                 Txt("Sign in with Jellyfin to listen together with other people on your server.", size = 15f, color = Color(0xCCFFFFFF), maxLines = 3)

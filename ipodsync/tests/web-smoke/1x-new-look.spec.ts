@@ -89,6 +89,11 @@ test.describe('phone (390 x 844)', () => {
     const ring = (await page.locator('.ls-ring').boundingBox())!, time = (await page.locator('.ls-times').boundingBox())!;
     expect(time.y - (ring.y + ring.height)).toBeLessThan(8);
     expect(parseFloat(await page.locator('.ls-times').evaluate((e) => getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(14);
+    // Info is one tap away on a phone too
+    await page.locator('.ls-actions').getByRole('button', { name: 'Info', exact: true }).click();
+    await expect(page.locator('.ls')).toHaveClass(/panel-open/);
+    await expect(page.locator('.ls-seg [role=tab]', { hasText: 'Info' })).toHaveAttribute('aria-selected', 'true');
+    await page.getByRole('button', { name: 'Back to the cover' }).click();
     await page.locator('.ls-actions').getByRole('button', { name: 'Lyrics' }).click();
     await expect(page.locator('.ls')).toHaveClass(/panel-open/);
   });

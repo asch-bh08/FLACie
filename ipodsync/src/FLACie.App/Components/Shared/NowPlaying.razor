@@ -79,6 +79,8 @@
                 <div class="ls-actions ls-phone">
                     <button class="ls-outline @(panelOpen && tab == "lyrics" ? "on" : "")" @onclick='() => Open("lyrics")'>Lyrics</button>
                     <button class="ls-outline @(panelOpen && tab == "queue" ? "on" : "")" @onclick='() => Open("queue")'>Up next</button>
+                    @* the song's facts and live graphs, one tap away (as in the Android app) *@
+                    <button class="ls-outline @(panelOpen && tab == "info" ? "on" : "")" @onclick='() => Open("info")'>Info</button>
                     @MoreMenu("p", t)
                 </div>
             </section>

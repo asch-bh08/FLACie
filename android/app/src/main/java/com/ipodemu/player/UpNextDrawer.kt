@@ -45,6 +45,24 @@ val LocalPane = androidx.compose.runtime.staticCompositionLocalOf<PaneNav?> { nu
 val LocalPlayerNav = androidx.compose.runtime.staticCompositionLocalOf<PlayerNav?> { null }
 
 /** Takes the song at queue [index] out of the queue, with an Undo message (the same pattern as removing a song from a playlist). */
+/** The name a saved queue gets: where it plays from, "(queue)", and a number when that name is taken (any case), as on the web. */
+fun queuePlaylistName(context: String?, taken: List<String>): String {
+    val base = (context ?: "My queue") + " (queue)"
+    var name = base; var n = 2
+    while (taken.any { it.equals(name, ignoreCase = true) }) name = "$base ${n++}"
+    return name
+}
+
+/** The queue as it will play (the current song first) becomes a new playlist. */
+fun saveQueueAsPlaylist(app: App) {
+    val cur = app.player.current ?: return
+    val songs = listOf(cur) + app.player.upNext(10_000).map { it.second }
+    val name = queuePlaylistName(app.player.contextName, app.userData.playlists.toList().map { it.name })
+    val pl = app.userData.createPlaylist(name)
+    for (t in songs) app.userData.addToPlaylist(pl.id, t.path)
+    app.ui.say("Saved the queue as \"$name\"")
+}
+
 fun removeFromQueueWithUndo(app: App, index: Int) {
     val r = app.player.removeAt(index)
     if (r == null) { if (app.player.hasQueue && !app.player.canEditQueue) app.ui.say("A Jam's queue is shared; it cannot be changed from here", warn = true); return }
@@ -104,9 +122,13 @@ fun QueuePanel(snap: PlayerSnap, modifier: Modifier = Modifier) {
     // the queue sits on a slightly raised card, so the player beside it stands out
     LazyColumn(modifier.clip(RoundedCornerShape(18.dp)).background(Color(0x14FFFFFF)), contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)) {
         item {
-            Column(Modifier.padding(start = 8.dp, top = 2.dp, bottom = 8.dp)) {
-                Txt("Playing from", size = 12f, color = sc.onBgDim)
-                Txt(from, size = 18f, weight = FontWeight.Bold, maxLines = 1)
+            Row(Modifier.padding(start = 8.dp, top = 2.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Txt("Playing from", size = 12f, color = sc.onBgDim)
+                    Txt(from, size = 18f, weight = FontWeight.Bold, maxLines = 1)
+                }
+                // Save: the queue, in play order, as a new playlist
+                if (cur != null && next.isNotEmpty()) IconAction(Glyph.PLUS, "Save the queue as a playlist", { saveQueueAsPlaylist(app) }, tint = sc.onBg)
             }
         }
         item {

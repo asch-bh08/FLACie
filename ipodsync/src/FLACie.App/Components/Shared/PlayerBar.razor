@@ -115,7 +115,7 @@
         {
             // the bar's colours come from the cover, read once per cover in the browser (flacie.js npAccent)
             var coverUrl = Art.KeyFor(cur) is { } art ? "/art/" + Uri.EscapeDataString(CoverOverrides.Map(art)!) : null;
-            if (coverUrl != accentFor) { accentFor = coverUrl; try { await PageJs.InvokeVoidAsync("flacie.npAccent", barEl, coverUrl); } catch (Exception) { } }
+            if (coverUrl != accentFor) { accentFor = coverUrl; try { await PageJs.InvokeVoidAsync("flacie.npAccent", barEl, coverUrl); await PageJs.InvokeVoidAsync("flacie.appAccent", coverUrl); } catch (Exception) { } }
             if (chipFor != cur.Path) _ = LoadChip(cur);
         }
         if (!volumeLoaded)

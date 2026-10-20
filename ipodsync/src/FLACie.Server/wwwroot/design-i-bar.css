@@ -27,9 +27,16 @@
 .player .play { width: 66px; height: 52px; border-radius: 20px; background: var(--a); color: #1a120c; }
 .player .play:hover { transform: none; filter: brightness(1.08); }
 
-/* the times beside the controls in DM Mono; the seek track under them is the same seek as the top line */
-.player .seek { max-width: 420px; font: 500 12px 'DM Mono', ui-monospace, monospace; color: rgba(244, 239, 230, .75); }
-.player .seek span { width: 40px; }
+/* I-Bar: one row, the controls then "1:36 / 3:52" in DM Mono; the thin line along the top is the seek you see. The second seek input stays for the
+   keyboard and screen readers, out of sight */
+.player .bar-controls { flex-direction: row; align-items: center; gap: 14px; }
+.player .seek { flex: none; width: auto; min-width: 0; max-width: none; gap: 0; font: 500 12px 'DM Mono', ui-monospace, monospace; color: rgba(244, 239, 230, .75); position: relative; }
+.player .seek span { width: auto; min-width: 5ch; font-variant-numeric: tabular-nums; }   /* fixed width: a ticking time never nudges the buttons beside it */
+.player .seek span:first-of-type { text-align: right; }
+.player .seek span:last-of-type::before { content: " / "; white-space: pre; color: rgba(244, 239, 230, .45); }
+.player .seek span:last-of-type { color: rgba(244, 239, 230, .45); }
+.player .seek input { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; margin: 0; }
+.player .seek input:focus-visible { opacity: 1; width: 100%; height: 4px; }
 
 /* the thin progress line along the top: still a range input, so the mouse, the keyboard and a screen reader keep working */
 .player .bar-progress { top: -8px; height: 19px; accent-color: var(--a); }

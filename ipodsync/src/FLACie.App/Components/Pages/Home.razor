@@ -7,7 +7,7 @@
 @* design I: the cover of what played last runs across the top and fades into the page, in its own colours (flacie.npAccent); a mono greeting over a serif headline *@
 @{ var lastTrack = LastPlayed; }
 <header class="home-hero" @ref="heroEl">
-    @if (lastTrack is not null) { <div class="home-hero-art" aria-hidden="true"><Cover ArtKey="@(lastTrack.ArtKey)" /></div> }
+    @if (lastTrack is not null) { <div class="home-hero-art" aria-hidden="true"><Cover ArtKey="@(lastTrack.ArtKey)" Full="true" /></div> }
     <i class="home-fade" aria-hidden="true"></i>
     <div class="home-hero-row">
         <div class="home-hero-text">

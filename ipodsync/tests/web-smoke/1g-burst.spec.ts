@@ -141,8 +141,10 @@ test.describe.serial('beta 52 load', () => {
     expect(first.repeats, 'a cover asked for twice').toBe(0);
     // every picture once: each song's own picture is its cover (AlbumId is not trusted to stand for an album), so the count follows the pictures shown
     expect(first.distinct).toBe(first.total);
-    // one fixed size for rows and tiles: 240 px WebP at quality 80, nothing else
-    for (const v of first.variants) expect(v, 'cover variant').toBe('w=240 q=80 Webp');
+    // one fixed size for rows and tiles: 240 px WebP at quality 80; besides it only Home's hero (design I) asks for one full picture, the last song's
+    const full = first.variants.filter((v: string) => v !== 'w=240 q=80 Webp');
+    expect(full.length, 'full pictures asked for').toBeLessThanOrEqual(1);
+    for (const v of full) expect(v, 'cover variant').toBe('w=full q=100 ');
     // another browser (nothing cached in it) looks at the same page: the server answers from its own disk
     const second = await viewAlbums(browser, request);
     expect(second).toBeGreaterThan(0);

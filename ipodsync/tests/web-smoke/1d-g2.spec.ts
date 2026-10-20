@@ -90,11 +90,13 @@ test.describe('signed in', () => {
     });
   }
 
-  test('at 900x600 the wordmark is hidden (the mark stays) and the search box is not overlapped; the A-Z rail ends above the player bar', async ({ page }) => {
+  test('at 900x600 the serif name shows (design I has no tile) and the search box is not overlapped; the A-Z rail ends above the player bar', async ({ page }) => {
     await page.setViewportSize({ width: 900, height: 600 });
     await playFirst(page);
-    await expect(page.locator('.wordmark').first()).toBeHidden();
-    await expect(page.locator('.logo-mark').first()).toBeVisible();
+    const name = page.locator('.top-brand .wordmark').first();
+    await expect(name).toBeVisible();
+    const nb = (await name.boundingBox())!, sb = (await page.locator('.topbar > :nth-child(2)').boundingBox())!;   // the search box, or the page title on the music pages
+    expect(nb.x + nb.width).toBeLessThanOrEqual(sb.x);
     const rail = page.locator('.az-rail');
     await expect(rail).toBeVisible();
     const rb = await rail.boundingBox(); const pb = await page.locator('.player').boundingBox();

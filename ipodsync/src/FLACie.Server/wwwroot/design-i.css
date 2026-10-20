@@ -2,6 +2,8 @@
    Instrument Serif for titles (the last word in italics), Archivo for text, DM Mono for small labels. Loaded after app.css, so these win. ==== */
 
 :root {
+  /* the page itself: a slate ground, and until a song has played a warm accent; once one plays, the accent is its cover's (flacie.appAccent) */
+  --bg: #101416; --accent: rgb(232, 119, 79); --accent-2: rgb(240, 150, 115);
   --serif: 'Instrument Serif', Georgia, serif; --sans: 'Archivo', system-ui, sans-serif; --mono: 'DM Mono', ui-monospace, monospace;
   --i-line: #f4efe659;
 }
@@ -18,8 +20,8 @@
   margin: -28px calc(-1 * clamp(16px, 4vw, 44px)) 18px; padding: 0 clamp(16px, 4vw, 44px) 26px; overflow: hidden; }
 .home-hero-art { position: absolute; inset: 0; z-index: -2; }
 .home-hero-art .cover { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; border-radius: 0; }
-/* the small cover (the one size every page asks Jellyfin for; only the full-screen player fetches the full picture), softened so its size never shows */
-.home-hero-art .cover img { object-fit: cover; border-radius: 0; filter: blur(14px) saturate(1.2); transform: scale(1.12); }
+/* the hero is the one picture besides the full-screen player that asks for the full-size cover (once per visit; the server keeps it): sharp, as drawn */
+.home-hero-art .cover img { object-fit: cover; border-radius: 0; filter: saturate(1.08); }
 .home-fade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 20%, transparent), var(--bg) 96%), linear-gradient(to right, color-mix(in srgb, var(--bg) 75%, transparent), transparent 70%); }
 .home-hero-row { width: 100%; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; }
 .home-greet { margin: 0; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; color: color-mix(in srgb, var(--ink) 75%, transparent); }
@@ -55,4 +57,32 @@
   .mood-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-left: calc(-1 * clamp(16px, 4vw, 44px)); margin-right: calc(-1 * clamp(16px, 4vw, 44px)); padding: 0 clamp(16px, 4vw, 44px); }
   .mood-chips::-webkit-scrollbar { display: none; }
   .mood { flex: none; white-space: nowrap; }
+}
+
+/* ---- the frame (J-Home-pc.html): no top band at all. The search box and the account float on their own over the page; the hero runs up under them; the name is set in the serif ---- */
+.topbar, body.np-open .topbar { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom: 0; }
+.top-brand .logo-mark { display: none; }
+.wordmark { font-family: var(--serif); font-weight: 400; font-size: 30px; letter-spacing: -.01em; }
+.wordmark i { font-style: italic; background: none; -webkit-text-fill-color: currentColor; color: var(--accent); transition: color 1.2s; }
+.top-search { border-radius: 23px; background: color-mix(in srgb, var(--bg) 94%, transparent); box-shadow: 0 6px 20px #00000059; }
+.avatar { background: var(--tone, #24525a); color: var(--tonefg, #e7f3f0); }
+.rail { border-right: 1px solid #f4efe60f; }
+.home-hero { margin-top: calc(-28px - var(--top)); padding-top: calc(var(--top) + 24px); min-height: calc(clamp(220px, 34vh, 340px) + var(--top)); }
+/* buttons in the accent carry dark text, as drawn */
+.btn.primary, .home-hero .shuffle-all, .shelf-head .chip.small { color: #1a120c; }
+.btn.primary { background: var(--accent); }
+.shelf-head .chip.small { background: var(--accent); border-color: var(--accent); }
+@media (max-width: 760px) {
+  /* on a phone the name is a small mono pill, as drawn (J-Home-phone.html), in place of the old gradient tile */
+  .top-brand .wordmark { display: inline-block; font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; padding: 7px 12px; border-radius: 14px; background: #0000004d; color: var(--ink); }
+  .top-brand .wordmark i { font-style: normal; color: inherit; }
+}
+/* a narrow PC window: the old look hid the name and kept the tile; design I has no tile, so the (narrow) serif name stays */
+@media (min-width: 761px) and (max-width: 1000px) { .top-brand .wordmark { display: inline; font-size: 26px; } }
+
+/* the search box sits at the left of the page, where the page's text starts, about 460px wide, as drawn; the account at the far right */
+@media (min-width: 761px) {
+  .app:not(.full) .topbar { grid-template-columns: var(--rail) minmax(0, 520px) 1fr; }
+  .app:not(.full) .top-search { margin-left: clamp(16px, 4vw, 44px); max-width: 460px; }
+  .top-account { justify-self: end; }
 }

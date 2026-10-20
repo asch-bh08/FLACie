@@ -750,9 +750,14 @@ window.flacie = (() => {
         } catch { return null; } finally { npWaveBusy = false; }
     },
     npWaveStop() { if (npWaveRaf) cancelAnimationFrame(npWaveRaf); npWaveRaf = 0; },
+    // design I: the whole app wears the colours of the song playing (the menu's highlight, buttons, chips): the cover's colours on the page itself
+    appAccent(url) {
+        flacie.npAccent(document.documentElement, url);
+    },
     npAccent(el, url) {
         // design I adds the ground (the dark colour the cover fades into), the tone (tinted buttons and chips) and the text on the tone, all from the second colour
-        const set = (a, b, from, ground, tone, tonefg) => { if (!el) return; if (flacie.metered()) el.dataset.calm = ''; const st = el.style; st.setProperty('--np-accent', a); st.setProperty('--np-accent-2', b); st.setProperty('--ground', ground); st.setProperty('--tone', tone); st.setProperty('--tonefg', tonefg); el.dataset.accent = from; };
+        const set = (a, b, from, ground, tone, tonefg) => { if (!el) return; if (flacie.metered()) el.dataset.calm = ''; const st = el.style; st.setProperty('--np-accent', a); st.setProperty('--np-accent-2', b); st.setProperty('--ground', ground); st.setProperty('--tone', tone); st.setProperty('--tonefg', tonefg); el.dataset.accent = from;
+            if (el === document.documentElement && from === 'cover') { st.setProperty('--accent', a); st.setProperty('--accent-2', a); } };
         const fallback = () => set('rgb(232, 119, 79)', 'rgb(47, 93, 98)', 'default', 'rgb(22, 58, 63)', 'rgb(36, 82, 90)', 'rgb(231, 243, 240)');
         if (!url) { fallback(); return; }
         const img = new Image();

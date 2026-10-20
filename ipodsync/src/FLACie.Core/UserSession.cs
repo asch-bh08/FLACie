@@ -405,6 +405,22 @@ public sealed class UserSession
         }
     }
 
+    // ---- recent searches (in the profile, so every device sees them) ----
+
+    public IReadOnlyList<string> RecentSearches => (Profile["searches"] as JsonArray ?? []).Select(x => x?.GetValue<string>() ?? "").Where(x => x.Length > 0).ToList();
+
+    /// <summary>Remembers a search: newest first, each once (any case), the half-typed steps to it ("beat" before "beatles") dropped, the last ten kept.</summary>
+    public void AddRecentSearch(string q)
+    {
+        q = q.Trim();
+        if (q.Length < 2) return;
+        var keep = RecentSearches.Where(x => !x.Equals(q, StringComparison.OrdinalIgnoreCase) && !q.StartsWith(x, StringComparison.OrdinalIgnoreCase)).Take(9);
+        Profile["searches"] = new JsonArray(new[] { q }.Concat(keep).Select(x => (JsonNode)JsonValue.Create(x)!).ToArray());
+        Changed?.Invoke();
+    }
+
+    public void ClearRecentSearches() { Profile["searches"] = new JsonArray(); Changed?.Invoke(); }
+
     // ---- favourites and playlists (in the profile) ----
 
     public IReadOnlyList<PlaylistEntry> Favorites => (Profile["favorites"] as JsonArray ?? []).OfType<JsonObject>().Select(Entry).ToList();

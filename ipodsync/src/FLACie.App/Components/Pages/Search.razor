@@ -27,6 +27,13 @@
         <h2 class="page-title">Search <i>your music</i></h2>
         <p class="sub">@Lib.Songs.Count.ToString("N0") songs · @Lib.Albums.Count.ToString("N0") albums · @Lib.Artists.Count.ToString("N0") artists. Type above to search; anything you don't have shows up under More music, ready to download.</p>
     </header>
+    @if (Session.RecentSearches is { Count: > 0 } recent)
+    {
+        <section class="recent-searches" aria-label="Recent searches">
+            <div class="rs-head"><h2 class="section">Recent searches</h2><button class="btn ghost" @onclick="() => { Session.ClearRecentSearches(); SaveProfile(); }">Clear</button></div>
+            <div class="chips">@foreach (var r in recent) { <a class="chip" href="@("/search?q=" + Uri.EscapeDataString(r))">@r</a> }</div>
+        </section>
+    }
     <MusicTabs Active="Overview" />
     <ExploreBar Tab="Overview" Changed="StateHasChanged" />
     <LibraryStatus />
@@ -124,6 +131,9 @@ else
         webSongs = []; webAlbums = [];
         if (q.Length < 2) { webBusy = false; return; }
         var cts = pending = new CancellationTokenSource();
+        // remembered once the person stops typing (the top box writes every keystroke into the address)
+        var asked = q;
+        _ = Task.Delay(2500, cts.Token).ContinueWith(t => { if (!t.IsCanceled && q == asked) { Session.AddRecentSearch(asked); SaveProfile(); } }, TaskScheduler.Default);
         webBusy = true;
         _ = SearchWeb(q, cts.Token);
     }

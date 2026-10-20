@@ -62,7 +62,8 @@ object WaveAnalyzer {
 
     /**
      * The song's shape: a saved one at once; else the frame-size shape (FlacWave) as soon as the player's cache holds the whole file (no download of its
-     * own); and the exact one (server or decode) replaces it when it comes. Never a half-known shape: the frame is a still picture of the song.
+     * own), drawn round the frame as it arrives (the part downloaded so far, the rest resting level); and the exact one (server or decode) replaces it
+     * when it comes. It never moves with the sound: it only fills in.
      * A phone streams straight from Jellyfin, so the server's /api/wave is only an upgrade, never something to wait for.
      */
     fun shapes(app: App, t: Track): Flow<IntArray> = channelFlow {
@@ -70,15 +71,15 @@ object WaveAnalyzer {
         val exact = withContext(Dispatchers.IO) { WaveCache.read(dir, t.path) }
         if (exact != null) { send(exact); return@channelFlow }
         val rough = withContext(Dispatchers.IO) { WaveCache.read(dir, t.path, rough = true) }
-        // the frame is a still picture of the song (the owner does not want it to move like a VU meter): a shape is only shown once it is complete for
-        // the whole song, and at most replaced once by the exact one. Until then the frame rests level.
+        // the frame is a picture of the song, not a VU meter: it fills in round the frame as the download arrives, then stays still
         val lock = Mutex()
         var exactDone = false
         if (rough != null) send(rough)
         val bytes = if (rough != null) null else launch(Dispatchers.IO) {
             try {
                 fromBytes(app, t) { s, whole ->
-                    if (whole) { WaveCache.write(dir, t.path, s, rough = true); lock.withLock { if (!exactDone) send(s) } }
+                    if (whole) WaveCache.write(dir, t.path, s, rough = true)
+                    lock.withLock { if (!exactDone) send(s) }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Throwable) { }
         }
@@ -155,6 +156,7 @@ object WaveAnalyzer {
             if (length > 0 && fed >= length) { b.finish(length)?.let { emit(it, true) }; return }
             if (got > 0) {
                 lastGrowth = System.currentTimeMillis()
+                b.partial()?.let { emit(it, false) }
             } else if (System.currentTimeMillis() - lastGrowth > IDLE_GIVE_UP_MS) return
             kotlinx.coroutines.delay(POLL_MS)
         }

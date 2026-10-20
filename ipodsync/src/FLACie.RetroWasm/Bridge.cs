@@ -18,6 +18,30 @@ public static class AppBridge
     public static string Version(IServiceProvider sp) => Call(sp.GetRequiredService<IJSRuntime>(), "version");
 }
 
+/// <summary>
+/// Web requests the page makes (the lyrics from lrclib.net, the catalog) go through the app: a WebView's own fetch to another site gets no answer there.
+/// The app starts the request and is asked every 100 ms whether it is done, so the page never stops while it waits.
+/// </summary>
+public sealed class AppHttp(IJSRuntime js) : HttpMessageHandler
+{
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+    {
+        var id = AppBridge.Call(js, "fetch", request.RequestUri?.ToString() ?? "");
+        if (id.Length == 0) return new HttpResponseMessage(System.Net.HttpStatusCode.BadGateway);
+        for (var i = 0; i < 200; i++)
+        {
+            await Task.Delay(100, ct);
+            var r = AppBridge.Call(js, "fetched", id);
+            if (r.Length == 0) continue;
+            // "<status>\n<body>"
+            var nl = r.IndexOf('\n');
+            var code = int.TryParse(nl < 0 ? r : r[..nl], out var c) ? c : 502;
+            return new HttpResponseMessage((System.Net.HttpStatusCode)code) { Content = new StringContent(nl < 0 ? "" : r[(nl + 1)..]) };
+        }
+        return new HttpResponseMessage(System.Net.HttpStatusCode.GatewayTimeout);
+    }
+}
+
 /// <summary>A song of the app's library, as the app sends it (short names: the whole library comes in one go).</summary>
 public sealed record AppTrack(string p, string t, string a, string al, string aa, string g, int n, int d, long ms, int y, string? art, long add, long sz, string f);
 

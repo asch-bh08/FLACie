@@ -151,6 +151,8 @@ class RetroBridge(private val app: App, private val activity: ComponentActivity)
             "version" -> try { activity.packageManager.getPackageInfo(activity.packageName, 0).versionName ?: "" } catch (_: Exception) { "" }
             "library" -> library()
             "lists" -> lists()
+            "fetch" -> fetch(arg)
+            "fetched" -> fetches.remove(arg) ?: ""
             "state" -> state(arg == "queue")
             "load" -> { load(JSONObject(arg)); "" }
             "toggle" -> { post { player.toggle() }; "" }
@@ -191,6 +193,24 @@ class RetroBridge(private val app: App, private val activity: ComponentActivity)
         put("pl", JSONArray().apply { for (pl in com.ipodemu.player.shownPlaylists(app)) put(JSONObject().put("n", pl.name).put("p", JSONArray(pl.paths.toList()))) })
         put("fav", JSONArray(app.userData.favorites.toList().asReversed()))
     }.toString()
+
+    private val fetches = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val fetchId = java.util.concurrent.atomic.AtomicInteger()
+
+    /** Starts a GET for the page (lyrics, the catalog: https only) on a background thread; the page asks "fetched" for "<status>\n<body>" until it is in. */
+    private fun fetch(url: String): String {
+        if (!url.startsWith("https://")) return ""
+        val id = fetchId.incrementAndGet().toString()
+        Thread {
+            fetches[id] = try {
+                val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                c.connectTimeout = 8_000; c.readTimeout = 10_000
+                c.setRequestProperty("User-Agent", "FLACie/1.0 (Android music player)")
+                try { val code = c.responseCode; "$code\n" + (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty() } finally { c.disconnect() }
+            } catch (_: Exception) { "502\n" }
+        }.start()
+        return id
+    }
 
     private fun state(withQueue: Boolean): String {
         val n = snap

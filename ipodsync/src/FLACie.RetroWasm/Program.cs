@@ -12,7 +12,9 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 // the page's own files (in memory): caches that last while the Retro screen is open
 const string data = "/flacie";
 Directory.CreateDirectory(data);
-var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+// the page's web requests go through the app (AppHttp): a WebView's own request to another site gets no answer
+var js = (Microsoft.JSInterop.IJSRuntime)builder.Services.First(d => d.ServiceType == typeof(Microsoft.JSInterop.IJSRuntime)).ImplementationInstance!;
+var http = new HttpClient(new AppHttp(js)) { Timeout = TimeSpan.FromSeconds(20) };
 var jf = new JellyfinClient(http, "flacie-android-retro", "FLACie Android");
 builder.Services.AddSingleton(jf);
 builder.Services.AddSingleton(new WebCatalog(http));

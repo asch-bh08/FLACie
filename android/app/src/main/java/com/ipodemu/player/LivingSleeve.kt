@@ -377,12 +377,14 @@ private fun SleeveTopBar(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePa
         GlassButton("Close Now Playing", { nav.nowPlaying = false }) { GlyphIcon(Glyph.DOWN, Modifier.size(24.dp), Color.White) }
         Spacer(Modifier.width(10.dp))
         val fallback = app.player.contextName ?: com.ipodemu.library.SourceLabel.line(t.source)
-        SText(
-            SleeveText.where(t.album, t.trackNo, fallback),
-            Modifier.weight(1f, fill = false).clip(RoundedCornerShape(14.dp)).background(Glass).padding(horizontal = 12.dp, vertical = 7.dp),
-            family = SleeveFonts.mono, size = 11f, color = Color.White, spacing = .14f,
-        )
-        Spacer(Modifier.weight(1f).widthIn(min = 8.dp))
+        // the pill takes what it needs from the space left (up to all of it), and the buttons stay against the right edge
+        Box(Modifier.weight(1f).padding(end = 8.dp)) {
+            SText(
+                SleeveText.where(t.album, t.trackNo, fallback),
+                Modifier.clip(RoundedCornerShape(14.dp)).background(Glass).padding(horizontal = 12.dp, vertical = 7.dp),
+                family = SleeveFonts.mono, size = 11f, color = Color.White, spacing = .14f,
+            )
+        }
         // a running sleep timer stays in sight: Options alone would hide it
         if (sleepLeft != null) SleepChip(sleepLeft) { nav.sheet = sleepSheet(app) }
         // the speed is shown when it is not normal, for the same reason

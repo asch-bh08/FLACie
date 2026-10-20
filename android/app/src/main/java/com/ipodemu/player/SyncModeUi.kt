@@ -275,7 +275,7 @@ private fun BackupsTab(link: com.ipodemu.library.IpodLink) {
         if (list != null && list.isEmpty()) Txt("No backups yet. The first write makes one.", size = 14f, color = sc.onBgDim)
         list?.forEach { b ->
             val date = java.text.SimpleDateFormat("d MMM yyyy, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(b.createdMs))
-            HealthRow(b.kind + " Â· " + date, (b.outcome ?: "No write log") + if (b.hasArtwork) " Â· with artwork" else "", b.outcome?.startsWith("Write verified"))
+            HealthRow(b.kind + " · " + date, (b.outcome ?: "No write log") + if (b.hasArtwork) " · with artwork" else "", b.outcome?.startsWith("Write verified"))
         }
     }
 }

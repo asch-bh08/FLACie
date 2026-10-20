@@ -638,7 +638,8 @@ fun SeekBar(fraction: Float, onSeek: (Float) -> Unit, onNudge: (Float) -> Unit, 
 }
 
 /** Dark scrim + bottom sheet of actions. The first row takes focus so gamepads work. */
-class SheetItem(val label: String, val glyph: Glyph, val onClick: () -> Unit)
+/** [selected] marks the chosen value (the design I sheet draws it in the accent with a check); [group] puts the row under a DM Mono label there. */
+class SheetItem(val label: String, val glyph: Glyph, val selected: Boolean = false, val group: String? = null, val onClick: () -> Unit)
 
 @Composable
 fun ActionSheet(title: String, subtitle: String?, items: List<SheetItem>, onDismiss: () -> Unit) {
@@ -673,7 +674,7 @@ fun ActionSheet(title: String, subtitle: String?, items: List<SheetItem>, onDism
             Column(Modifier.weight(1f, fill = false).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
                 items.forEachIndexed { i, item ->
                     IpodRow(onClick = { onDismiss(); item.onClick() }, height = 54.dp, focusRequester = if (i == 0) first else null,
-                        leading = { GlyphIcon(item.glyph, Modifier.size(24.dp), if (LocalRowHi.current) Color.White else sc.onBg) }) { hi -> Txt(item.label, size = 16f, color = if (hi) Color.White else sc.onBg) }
+                        leading = { GlyphIcon(if (item.selected) Glyph.CHECK else item.glyph, Modifier.size(24.dp), if (LocalRowHi.current) Color.White else sc.onBg) }) { hi -> Txt(item.label, size = 16f, color = if (hi) Color.White else sc.onBg) }
                 }
             }
         }

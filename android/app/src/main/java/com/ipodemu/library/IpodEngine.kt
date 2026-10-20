@@ -64,7 +64,7 @@ class HealthInfo(
         private fun flag(o: JSONObject, k: String): Boolean? = if (o.isNull(k) || !o.has(k)) null else o.optBoolean(k)
         private fun text(o: JSONObject, k: String): String? = o.optString(k).takeIf { it.isNotBlank() && it != "null" }
         fun parse(o: JSONObject) = HealthInfo(
-            listOfNotNull(text(o, "modelName"), text(o, "modelNumber")).joinToString(" Â· ").ifBlank { null },
+            listOfNotNull(text(o, "modelName"), text(o, "modelNumber")).joinToString(" · ").ifBlank { null },
             o.optString("profileSummary"), o.optBoolean("canWrite"), o.optInt("tracks"), o.optInt("playlists"), o.optLong("freeBytes"), o.optLong("totalBytes"),
             flag(o, "signaturesValid") to o.optString("signatureDetail"), flag(o, "databasesInSync") to o.optString("syncDetail"), flag(o, "artworkOk") to o.optString("artworkDetail"),
             o.optJSONArray("notes")?.let { a -> List(a.length()) { a.getString(it) } } ?: emptyList(),

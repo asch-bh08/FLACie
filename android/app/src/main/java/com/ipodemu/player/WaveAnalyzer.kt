@@ -61,8 +61,8 @@ object WaveAnalyzer {
     }
 
     /**
-     * The song's shape as it becomes known: a saved one at once; else the frame-size shape (FlacWave) from the bytes the player has downloaded to play
-     * the song, growing as they arrive (bars not reached yet are FlacWave.UNKNOWN); and the exact one (server or decode) replaces it when it comes.
+     * The song's shape: a saved one at once; else the frame-size shape (FlacWave) as soon as the player's cache holds the whole file (no download of its
+     * own); and the exact one (server or decode) replaces it when it comes. Never a half-known shape: the frame is a still picture of the song.
      * A phone streams straight from Jellyfin, so the server's /api/wave is only an upgrade, never something to wait for.
      */
     fun shapes(app: App, t: Track): Flow<IntArray> = channelFlow {
@@ -70,23 +70,21 @@ object WaveAnalyzer {
         val exact = withContext(Dispatchers.IO) { WaveCache.read(dir, t.path) }
         if (exact != null) { send(exact); return@channelFlow }
         val rough = withContext(Dispatchers.IO) { WaveCache.read(dir, t.path, rough = true) }
+        // the frame is a still picture of the song (the owner does not want it to move like a VU meter): a shape is only shown once it is complete for
+        // the whole song, and at most replaced once by the exact one. Until then the frame rests level.
         val lock = Mutex()
-        // what is shown: the slices measured as heard over the frame-size estimate, until an exact shape for the whole song arrives
-        var estimate: IntArray? = rough
-        var heardNow: IntArray? = null
         var exactDone = false
-        suspend fun publish() = lock.withLock { if (!exactDone) HeardShape.merge(heardNow, estimate)?.let { send(it) } }
-        publish()
+        if (rough != null) send(rough)
         val bytes = if (rough != null) null else launch(Dispatchers.IO) {
-            try { fromBytes(app, t) { s, whole -> lock.withLock { estimate = s }; publish(); if (whole) WaveCache.write(dir, t.path, s, rough = true) } }
-            catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Throwable) { }
+            try {
+                fromBytes(app, t) { s, whole ->
+                    if (whole) { WaveCache.write(dir, t.path, s, rough = true); lock.withLock { if (!exactDone) send(s) } }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Throwable) { }
         }
-        launch { heard.collect { h -> if (h != null && h.first == t.path) { lock.withLock { heardNow = h.second }; publish() } } }
         launch { shapeFor(app, t)?.let { s -> bytes?.cancel(); lock.withLock { exactDone = true; send(s) } } }
     }
 
-    /** The playing song's shape as measured from what has been heard so far (path, shape with UNKNOWN slices). */
-    private val heard = kotlinx.coroutines.flow.MutableStateFlow<Pair<String, IntArray>?>(null)
 
     /**
      * Measures the playing song's shape from the sound as it is heard (the player's LiveAudio tap, which only reads), four times a second on the main
@@ -116,10 +114,8 @@ object WaveAnalyzer {
                 if (saved || !app.player.isPlaying) { lastAt = now; continue }
                 s.add(app.player.positionMs, sq, n, now - lastAt)
                 lastAt = now
-                s.shape()?.let { shape ->
-                    heard.value = t.path to shape
-                    if (s.complete) { saved = true; withContext(Dispatchers.IO) { WaveCache.write(dir(app), t.path, shape) } }
-                }
+                // measured quietly and kept for the next play only: the frame on screen never changes while the song plays
+                if (s.complete) s.shape()?.let { shape -> saved = true; withContext(Dispatchers.IO) { WaveCache.write(dir(app), t.path, shape) } }
             }
         } finally { live.metering = false }
     }
@@ -150,7 +146,6 @@ object WaveAnalyzer {
         val key = uri.toString()
         var fed = 0L
         var lastGrowth = System.currentTimeMillis()
-        var shown: IntArray? = null
         while (true) {
             coroutineContext.ensureActive()
             val got = readCached(cache, key, fed) { buf, n -> b.feed(buf, 0, n) }
@@ -160,7 +155,6 @@ object WaveAnalyzer {
             if (length > 0 && fed >= length) { b.finish(length)?.let { emit(it, true) }; return }
             if (got > 0) {
                 lastGrowth = System.currentTimeMillis()
-                b.partial()?.let { p -> if (!p.contentEquals(shown)) { shown = p; emit(p, false) } }
             } else if (System.currentTimeMillis() - lastGrowth > IDLE_GIVE_UP_MS) return
             kotlinx.coroutines.delay(POLL_MS)
         }

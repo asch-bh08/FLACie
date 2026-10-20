@@ -1,4 +1,4 @@
-﻿package com.ipodemu.player
+package com.ipodemu.player
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -145,7 +145,7 @@ fun rememberUpNextPlan(next: List<Pair<Int, Track>>, queueCount: Int, queueRev: 
     return UpNextMerge.plan(next, queueKeys, { ap.isAutoplay(it) }, ap.pending()) { k -> app.library.tags.statusOf(k, now) }
 }
 
-/** "Autoplay Â· up next after this": the divider above the songs Autoplay added (and above the ones it is still fetching). */
+/** "Autoplay · up next after this": the divider above the songs Autoplay added (and above the ones it is still fetching). */
 @Composable
 fun AutoplayDivider() {
     val sc = LocalScheme.current
@@ -162,7 +162,7 @@ fun PendingDrawerRow(r: UpNextMerge.PendingRow) {
         RemoteArtImage(p.artUrl, Modifier.size(46.dp), corner = 7.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Txt(p.title, size = 15f, weight = FontWeight.SemiBold, color = sc.onBg, maxLines = 2)
-            Txt(listOf(p.artist, p.album).filter { it.isNotEmpty() }.joinToString(" Â· "), size = 12.5f, color = sc.onBgDim, maxLines = 2)
+            Txt(listOf(p.artist, p.album).filter { it.isNotEmpty() }.joinToString(" · "), size = 12.5f, color = sc.onBgDim, maxLines = 2)
             DownloadTagLine(p.key, null, compact = narrow)
         }
         if (p.durationMs > 0) Txt(fmtTime(p.durationMs), size = 12.5f, color = sc.onBgDim)
@@ -180,7 +180,7 @@ private fun DrawerRow(t: Track, current: Boolean, onMore: (() -> Unit)? = null, 
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Txt(t.title, size = 15f, weight = FontWeight.SemiBold, color = if (current) sc.accent else sc.onBg, maxLines = 2)
-            Txt(listOf(t.artist, t.album).filter { it.isNotEmpty() }.joinToString(" Â· "), size = 12.5f, color = sc.onBgDim, maxLines = 2)
+            Txt(queueRowSubtitle(t.artist, t.album), size = 12.5f, color = sc.onBgDim, maxLines = 2)
             DownloadTagLine(t, compact = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 520)
         }
         if (t.durationMs > 0) Txt(fmtTime(t.durationMs), size = 12.5f, color = sc.onBgDim)
@@ -190,3 +190,6 @@ private fun DrawerRow(t: Track, current: Boolean, onMore: (() -> Unit)? = null, 
         ) { GlyphIcon(Glyph.MORE, Modifier.size(20.dp), sc.onBgDim) }
     }
 }
+
+/** The line under a queue row's title: artist and album joined by a middle dot (written as · so a file saved in the wrong encoding can never garble it). */
+fun queueRowSubtitle(artist: String, album: String): String = listOf(artist, album).filter { it.isNotEmpty() }.joinToString(" · ")

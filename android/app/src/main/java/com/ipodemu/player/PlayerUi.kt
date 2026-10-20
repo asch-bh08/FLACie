@@ -138,6 +138,8 @@ class PlayerNav {
     /** The list the screen on top is showing (a playlist, an album...): what a play from it reports as "Playing from". */
     var playContext: String? = null
     var sheet by mutableStateOf<SheetSpec?>(null)
+    /** True while the design I player is on screen: it shows [sheet] in its own style. */
+    var designSheets by mutableStateOf(false)
     var nameDialog by mutableStateOf<((String) -> Unit)?>(null)
     /** Set (to the current name) when the name dialog is renaming something, so it says "Rename playlist" / "Save" with the name filled in. */
     var nameDialogRename by mutableStateOf<String?>(null)
@@ -289,7 +291,8 @@ fun PlayerHost(nav: PlayerNav) {
         ) { Box(Modifier.graphicsLayer { translationX = backDrag }.focusProperties { canFocus = nav.sheet == null && nav.nameDialog == null }) {
             androidx.compose.runtime.CompositionLocalProvider(LocalPlayerNav provides nav, LocalSharedCover provides SharedCoverScope(sharedLayout, this@AnimatedVisibility)) { NowPlayingScreen(snap, nav) }
         } }
-        nav.sheet?.let { s -> ActionSheet(s.title, s.subtitle, s.items) { nav.sheet = null } }
+        // the full-screen player draws its menus in design I itself (LivingSleeve.DesignSheet)
+        if (!(nav.nowPlaying && nav.designSheets)) nav.sheet?.let { s -> ActionSheet(s.title, s.subtitle, s.items) { nav.sheet = null } }
         nav.nameDialog?.let { done -> NameDialog(done, nav.nameDialogRename) { nav.nameDialog = null; nav.nameDialogRename = null } }
         }
     }
@@ -1667,7 +1670,7 @@ private fun mbSearch(app: App, nav: PlayerNav, t: Track) {
 fun ratingSheet(app: App, t: Track): SheetSpec {
     val cur = app.userData.rating(t)
     val items = ArrayList<SheetItem>()
-    for (n in 5 downTo 1) items += SheetItem(RatingStore.label(n) + (if (n == cur) "  (on)" else ""), if (n == cur) Glyph.CHECK else Glyph.STAR) { app.userData.setRating(t, n); app.ui.say("Rated \"${t.title}\": " + RatingStore.label(n)) }
+    for (n in 5 downTo 1) items += SheetItem(RatingStore.label(n), Glyph.STAR, selected = n == cur) { app.userData.setRating(t, n); app.ui.say("Rated \"${t.title}\": " + RatingStore.label(n)) }
     if (cur > 0) items += SheetItem("Clear the rating", Glyph.CLOSE) { app.userData.setRating(t, 0) }
     return SheetSpec("Rate", t.title, items)
 }

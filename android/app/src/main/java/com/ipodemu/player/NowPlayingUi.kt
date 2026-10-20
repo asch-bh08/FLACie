@@ -285,7 +285,7 @@ private fun NpExtras(snap: PlayerSnap, nav: PlayerNav) {
 }
 
 fun eqSheet(app: com.ipodemu.App) = SheetSpec("Equalizer", app.prefs.eq, PlayerController.EQ_NAMES.map { n ->
-    SheetItem(if (app.prefs.eq == n) "$n  (on)" else n, if (app.prefs.eq == n) Glyph.CHECK else Glyph.LIST) { app.prefs.eq = n; app.player.applyEq() }
+    SheetItem(n, Glyph.VOLUME, selected = app.prefs.eq == n) { app.prefs.eq = n; app.player.applyEq() }
 })
 
 fun sleepSheet(app: com.ipodemu.App): SheetSpec {
@@ -293,8 +293,8 @@ fun sleepSheet(app: com.ipodemu.App): SheetSpec {
     val armed = p.sleepMode != com.ipodemu.playback.SleepMode.OFF
     val items = ArrayList<SheetItem>()
     if (armed) items += SheetItem("Add ${com.ipodemu.playback.SleepPlan.EXTEND_MIN} minutes", Glyph.PLUS) { p.extendSleep() }
-    items += SheetItem("End of this song", Glyph.CLOCK) { p.setSleepEndOfTrack() }
-    items += SheetItem("End of this album", Glyph.CLOCK) { p.setSleepEndOfAlbum() }
+    items += SheetItem("End of this song", Glyph.CLOCK, selected = p.sleepMode == com.ipodemu.playback.SleepMode.END_OF_TRACK) { p.setSleepEndOfTrack() }
+    items += SheetItem("End of this album", Glyph.CLOCK, selected = p.sleepMode == com.ipodemu.playback.SleepMode.END_OF_ALBUM) { p.setSleepEndOfAlbum() }
     for (m in listOf(15, 30, 60, 90, 120)) items += SheetItem("$m minutes", Glyph.CLOCK) { p.setSleepTimer(m) }
     if (armed) items += SheetItem("Off", Glyph.CLOSE) { p.setSleepTimer(0) }
     return SheetSpec("Sleep Timer", if (armed) sleepStatus(app) else "Off", items)
@@ -315,7 +315,7 @@ fun speedSheet(app: com.ipodemu.App): SheetSpec {
     val cur = app.player.speed
     return SheetSpec("Playback speed", com.ipodemu.playback.SpeedPolicy.label(cur) + (if (cur != 1f) " (kept for this item)" else ""), com.ipodemu.playback.SpeedPolicy.STEPS.map { s ->
         val on = Math.abs(s - cur) < 0.001f
-        SheetItem(com.ipodemu.playback.SpeedPolicy.label(s) + (if (on) "  (on)" else if (s == 1f) "  (normal)" else ""), if (on) Glyph.CHECK else Glyph.CLOCK) { app.player.setSpeed(s) }
+        SheetItem(com.ipodemu.playback.SpeedPolicy.label(s) + (if (s == 1f) "  (normal)" else ""), Glyph.CLOCK, selected = on) { app.player.setSpeed(s) }
     })
 }
 

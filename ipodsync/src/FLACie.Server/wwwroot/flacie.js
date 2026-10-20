@@ -420,6 +420,29 @@ window.flacie = (() => {
     else if (k === "n" || k === "N") send("OnNext");
     else if (k === "p" || k === "P") send("OnPrev");
   });
+  // / jumps to the search box; ? lists the shortcuts (a small dialog, Escape or a click outside closes it). Not while typing.
+  const shortcutList = [["Space", "Play or pause"], ["← / →", "Back or forward 5 seconds"], ["N", "Next song"], ["P", "Previous song"], ["/", "Search"], ["?", "This list"], ["Esc", "Close the player or a menu"]];
+  const showShortcuts = () => {
+    let d = document.getElementById("kb-help");
+    if (d) { d.remove(); return; }
+    d = document.createElement("div");
+    d.id = "kb-help"; d.className = "kb-help"; d.setAttribute("role", "dialog"); d.setAttribute("aria-modal", "true"); d.setAttribute("aria-label", "Keyboard shortcuts"); d.tabIndex = -1;
+    const box = document.createElement("div"); box.className = "kb-box";
+    const h = document.createElement("h2"); h.textContent = "Keyboard shortcuts"; box.appendChild(h);
+    const dl = document.createElement("dl");
+    for (const [k, v] of shortcutList) { const dt = document.createElement("dt"); const kb = document.createElement("kbd"); kb.textContent = k; dt.appendChild(kb); const dd = document.createElement("dd"); dd.textContent = v; dl.append(dt, dd); }
+    box.appendChild(dl); d.appendChild(box);
+    d.addEventListener("pointerdown", e => { if (e.target === d) d.remove(); });
+    document.body.appendChild(d); d.focus();
+  };
+  document.addEventListener("keydown", e => {
+    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target, tag = t && t.tagName ? t.tagName.toLowerCase() : "";
+    if (e.key === "Escape") { document.getElementById("kb-help")?.remove(); return; }
+    if (tag === "input" || tag === "textarea" || tag === "select" || (t && t.isContentEditable)) return;
+    if (e.key === "/") { const i = document.querySelector(".top-search input"); if (i) { e.preventDefault(); i.focus(); i.select(); } }
+    else if (e.key === "?") { e.preventDefault(); showShortcuts(); }
+  });
   // a song row's "..." menu closes on a click outside it or Escape: press its own toggle, which Blazor already handles
   const closeRowMenu = () => document.querySelector(".track button[aria-expanded=true]")?.click();
   document.addEventListener("pointerdown", e => { if (!e.target.closest(".track .menu, .track button[aria-expanded]")) closeRowMenu(); }, true);

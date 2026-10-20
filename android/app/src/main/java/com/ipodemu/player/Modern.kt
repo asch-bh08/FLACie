@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -113,14 +114,13 @@ private fun Modifier.semanticsLabel(label: String) = this.semantics { contentDes
 // ---- navigation ----------------------------------------------------------------------------------------------------
 
 /**
- * The bottom navigation, the same six places as the web's phone bar: Home, Search, Favourites, Playlists, Devices and Jam. Devices and Jam open their
- * panels over whatever is on screen (they have no page of their own). Explore and Settings, which used to be tabs, are on Search (its chips) and on
- * Home's top bar, so nothing went away.
+ * The bottom navigation: four roomy places, Home, Search, Library and Devices. Library holds Favourites, Playlists, Jam and the rest of the
+ * collection (six tabs were too cramped to hit); Devices opens its panel over whatever is on screen. Explore and Settings are on Search (its chips)
+ * and on Home's top bar, so nothing went away.
  */
 enum class Tab(val label: String, val glyph: Glyph, val root: Screen?) {
     HOME("Home", Glyph.NOTE, Screen.Home), SEARCH("Search", Glyph.SEARCH, Screen.Search),
-    FAVOURITES("Favourites", Glyph.HEART, Screen.Detail(DetailKind.FAVORITES)), PLAYLISTS("Playlists", Glyph.LIST, Screen.Lib(LibKind.PLAYLISTS)),
-    DEVICES("Devices", Glyph.DEVICES, null), JAM("Jam", Glyph.JAM, null),
+    LIBRARY("Library", Glyph.LIST, Screen.Sources), DEVICES("Devices", Glyph.DEVICES, null),
 }
 
 fun PlayerNav.currentTab(): Tab = Tab.entries.firstOrNull { it.root != null && it.root == stack.first() } ?: Tab.HOME
@@ -131,15 +131,15 @@ fun PlayerNav.selectTab(t: Tab) {
     stack.clear(); stack.add(root)
 }
 
-/** The tabs this person sees: a guest has no Devices or Jam (as in the player's More menu). */
+/** The tabs this person sees: a guest has no Devices (as in the player's More menu). */
 @Composable
 private fun shownTabs(): List<Tab> { val guest = LocalApp.current.ui.guest; return Tab.entries.filter { !guest || it.root != null } }
 
-/** A tab's press: a page tab switches page; Devices and Jam open their panels. */
+/** A tab's press: a page tab switches page; Devices opens its panel. */
 @Composable
 private fun tabPress(nav: PlayerNav): (Tab) -> Unit {
     val app = LocalApp.current
-    return { t -> when (t) { Tab.DEVICES -> app.ui.devicesOpen = true; Tab.JAM -> app.ui.jamOpen = true; else -> nav.selectTab(t) } }
+    return { t -> when (t) { Tab.DEVICES -> app.ui.devicesOpen = true; else -> nav.selectTab(t) } }
 }
 
 /** Bottom navigation bar for phones and the Fold's cover screen. */
@@ -147,7 +147,7 @@ private fun tabPress(nav: PlayerNav): (Tab) -> Unit {
 fun BottomNav(nav: PlayerNav) {
     val sc = LocalScheme.current
     val cur = nav.currentTab()
-    Row(Modifier.fillMaxWidth().height(72.dp).background(Palette.bg).drawBehind { drawLine(Palette.line, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1f) }.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().height(76.dp).background(Palette.bg).drawBehind { drawLine(Palette.line, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1f) }.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         val press = tabPress(nav)
         shownTabs().forEach { t -> NavItem(t, t == cur && t.root != null, Modifier.weight(1f).fillMaxHeight()) { press(t) } }
     }
@@ -179,11 +179,11 @@ private fun NavItem(t: Tab, selected: Boolean, modifier: Modifier, onClick: () -
     val col = if (selected) sc.accent else Palette.dim
     Column(modifier.wheelTracked().clickable(src, null, onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Box(
-            Modifier.size(width = 56.dp, height = 28.dp).clip(RoundedCornerShape(14.dp))
-                .background(if (selected) sc.accent.copy(alpha = .16f) else if (focused) Color(0x22FFFFFF) else Color.Transparent).ringWhen(focused, RoundedCornerShape(14.dp)),
+            Modifier.size(width = 64.dp, height = 32.dp).clip(RoundedCornerShape(16.dp))
+                .background(if (selected) sc.accent.copy(alpha = .16f) else if (focused) Color(0x22FFFFFF) else Color.Transparent).ringWhen(focused, RoundedCornerShape(16.dp)),
             contentAlignment = Alignment.Center,
-        ) { GlyphIcon(t.glyph, Modifier.size(22.dp), col) }
-        Txt(t.label, Modifier.padding(top = 3.dp), size = 11f, maxLines = 1, weight = if (selected) FontWeight.SemiBold else FontWeight.Normal, color = col, align = TextAlign.Center)
+        ) { GlyphIcon(t.glyph, Modifier.size(24.dp), col) }
+        Txt(t.label, Modifier.padding(top = 4.dp), size = 12f, maxLines = 1, weight = if (selected) FontWeight.SemiBold else FontWeight.Normal, color = col, align = TextAlign.Center)
     }
 }
 
@@ -197,12 +197,14 @@ fun LibraryHome(nav: PlayerNav) {
     val ud = app.userData
     ud.rev
     Column(Modifier.fillMaxSize()) {
-        ModernTopBar("Library", null)
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
-            item { LibRow("Favorites", Glyph.HEART_FILLED, "${ud.favorites.size}", Color(0xFFE5486B)) { nav.push(Screen.Detail(DetailKind.FAVORITES)) } }
+        LazyColumn(Modifier.fillMaxSize().statusBarsPadding(), contentPadding = PaddingValues(bottom = 16.dp)) {
+            // design I: the serif heading, as on the web; a tab's root has no back button
+            item { SerifTitle("Your library", Modifier.padding(start = 20.dp, top = 20.dp, bottom = 12.dp), size = 34f) }
+            item { LibRow("Favourites", Glyph.HEART_FILLED, "${ud.favorites.size}", Color(0xFFE5486B)) { nav.push(Screen.Detail(DetailKind.FAVORITES)) } }
             item { LibRow("Recently Played", Glyph.CLOCK, "${ud.recents.size}") { nav.push(Screen.Detail(DetailKind.RECENT)) } }
             item { LibRow("Recently Downloaded", Glyph.DOWN, "${ud.downloads.size}") { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) } }
             item { LibRow("Playlists", Glyph.LIST, "${shownPlaylists(app).size + shownFolderPlaylists(app).size}") { nav.push(Screen.Lib(LibKind.PLAYLISTS)) } }
+            if (!app.ui.guest) item { LibRow(if (app.jam.inJam) "In a Jam" else "Jam", Glyph.JAM, "") { app.ui.jamOpen = true } }
             item { LibRow("Artists", Glyph.ARTIST, "${lib.artists().size}") { nav.push(Screen.Lib(LibKind.ARTISTS)) } }
             item { LibRow("Albums", Glyph.ALBUM, "${lib.albums().size}") { nav.push(Screen.Lib(LibKind.ALBUMS)) } }
             item { LibRow("Songs", Glyph.NOTE, "${lib.songs().size}") { nav.push(Screen.Lib(LibKind.SONGS)) } }

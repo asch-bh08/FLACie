@@ -127,11 +127,12 @@ class RetroBridge(private val app: App, private val activity: ComponentActivity)
     @Volatile private var snap = Snap(null, false, 0, 0, -1, emptyList(), false, 1f)
     private var queueRev = -1
     private var queueNow: List<String> = emptyList()
+    @Volatile private var queueSongs: List<Track> = emptyList()
     private val tick = object : Runnable { override fun run() { capture(); main.postDelayed(this, 100) } }
 
     private fun capture() {
         val p = player
-        if (p.queueRev != queueRev || queueNow.isEmpty()) { queueRev = p.queueRev; queueNow = p.queueTracks().map { it.path } }
+        if (p.queueRev != queueRev || queueNow.isEmpty()) { queueRev = p.queueRev; queueSongs = p.queueTracks(); queueNow = queueSongs.map { it.path } }
         snap = Snap(p.current?.path, p.wantsToPlay, p.positionMs, p.durationMs, p.exo.currentMediaItemIndex, queueNow, p.buffered, p.volume)
     }
 
@@ -149,6 +150,7 @@ class RetroBridge(private val app: App, private val activity: ComponentActivity)
         when (name) {
             "version" -> try { activity.packageManager.getPackageInfo(activity.packageName, 0).versionName ?: "" } catch (_: Exception) { "" }
             "library" -> library()
+            "lists" -> lists()
             "state" -> state(arg == "queue")
             "load" -> { load(JSONObject(arg)); "" }
             "toggle" -> { post { player.toggle() }; "" }
@@ -165,18 +167,30 @@ class RetroBridge(private val app: App, private val activity: ComponentActivity)
         }
     } catch (e: Exception) { android.util.Log.w("FLACie", "retro $name: ${e.message}"); "" }
 
-    /** Every song of the app's library (all its sources), in the short form Bridge.cs reads. */
+    /** Every song of the app's library (all its sources), in the short form Bridge.cs reads, with the songs of the queue and of the playlists
+     * that the library list lacks (a mix from Home, a song on another server): Retro then knows the song playing and every playlist's songs. */
     private fun library(): String {
         val songs = app.library.songs()
-        byPath = songs.associateBy { it.path }
+        val all = LinkedHashMap<String, Track>(songs.size + 64)
+        for (t in songs) all[t.path] = t
+        for (t in queueSongs) all.putIfAbsent(t.path, t)
+        for (pl in com.ipodemu.player.shownPlaylists(app)) for (p in pl.paths.toList()) if (p !in all) app.library.resolve(p, app.userData.meta[p])?.let { all[p] = it }
+        for (p in app.userData.favorites.toList()) if (p !in all) app.library.resolve(p, app.userData.meta[p])?.let { all[p] = it }
+        byPath = all
         val a = JSONArray()
-        for (t in songs) a.put(JSONObject().apply {
+        for (t in all.values) a.put(JSONObject().apply {
             put("p", t.path); put("t", t.title); put("a", t.artist); put("al", t.album); put("aa", t.albumArtist); put("g", t.genre)
             put("n", t.trackNo); put("d", t.discNo); put("ms", t.durationMs); put("y", t.year); put("art", t.artKey ?: JSONObject.NULL)
             put("add", t.mtime); put("sz", t.size); put("f", t.filePath)
         })
         return a.toString()
     }
+
+    /** The playlists the Playlists screen shows and the favourites (newest first), as the songs' paths: {"pl":[{"n":name,"p":[paths]}],"fav":[paths]}. */
+    private fun lists(): String = JSONObject().apply {
+        put("pl", JSONArray().apply { for (pl in com.ipodemu.player.shownPlaylists(app)) put(JSONObject().put("n", pl.name).put("p", JSONArray(pl.paths.toList()))) })
+        put("fav", JSONArray(app.userData.favorites.toList().asReversed()))
+    }.toString()
 
     private fun state(withQueue: Boolean): String {
         val n = snap

@@ -526,6 +526,8 @@ else
             loaded = true; Fit(); Root(); RefreshClock(); await RefreshBattery();
             // opened while a song plays: start on Now Playing (MENU goes to the menu, as on an iPod picked up mid-song)
             if (Player.Current is not null) { showNow = true; npMode = 0; }
+            hadSong = Player.Current is not null; touched = false;
+            Player.Changed += SongArrived;
             ticker = new System.Threading.Timer(_ => { RefreshClock(); InvokeAsync(StateHasChanged); }, null, 20_000, 20_000);
             StateHasChanged(); return;
         }
@@ -628,12 +630,14 @@ else
     [JSInvokable]
     public async Task Turned(double degrees, double dps)
     {
+        touched = true;
         var n = detents.Feed(degrees, WheelFeel.Gain(dps, showNow ? 0 : nav.Rows.Count, prefs.WheelAccel));
         if (n != 0) await Turn(n);
     }
     [JSInvokable] public void Released() => detents.Release();
     [JSInvokable] public async Task Zone(string zone)
     {
+        touched = true;
         Feedback("press");
         switch (zone)
         {
@@ -835,8 +839,25 @@ else
     string Pct() => Player.Duration > 0 ? Pc(Math.Clamp(Player.Position / Player.Duration, 0, 1)) : "0";
     static string Fmt(double s) => IpodContent.Time(s);
 
+    // in the Android app the song already playing arrives a moment after the page opens: the main menu gains "Now Playing" then, and an iPod
+    // nobody has touched yet opens on it, as one picked up mid-song
+    bool hadSong, touched;
+    void SongArrived()
+    {
+        var has = Player.Current is not null;
+        if (has == hadSong) return;
+        hadSong = has;
+        _ = InvokeAsync(() =>
+        {
+            if (nav.Depth == 1) RefreshRoot();
+            if (has && !touched && nav.Depth == 1) { showNow = true; npMode = 0; }
+            StateHasChanged();
+        });
+    }
+
     public async ValueTask DisposeAsync()
     {
+        Player.Changed -= SongArrived;
         hudCts?.Cancel(); ticker?.Dispose(); watchTimer?.Dispose();
         try { await Js.InvokeVoidAsync("flacie.ipodDispose"); } catch (Exception) { }
         self?.Dispose();

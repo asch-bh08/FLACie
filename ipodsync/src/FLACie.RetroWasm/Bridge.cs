@@ -26,12 +26,39 @@ public sealed class AppSession(IJSRuntime js)
 {
     public UserSession Session { get; } = new("local", null, null) { Id = "android" };
 
+    /// <summary>Whether the app had any songs to give: one still loading its library is asked again (<see cref="AppOutput"/>).</summary>
+    public bool Loaded { get; private set; }
+
     public void Load()
     {
         var json = AppBridge.Call(js, "library");
         if (json.Length == 0) return;
         var list = JsonSerializer.Deserialize<List<AppTrack>>(json) ?? [];
+        if (list.Count == 0) return;
+        Loaded = true;
         Session.AddDownloaded(list.Select(ToTrack));
+        LoadLists();
+    }
+
+    sealed record AppList(string n, string[] p);
+    sealed record AppLists(AppList[]? pl, string[]? fav);
+
+    /// <summary>The app's playlists and favourites, so the iPods' Playlists menu lists them.</summary>
+    void LoadLists()
+    {
+        var json = AppBridge.Call(js, "lists");
+        if (json.Length == 0) return;
+        var l = JsonSerializer.Deserialize<AppLists>(json);
+        if (l is null) return;
+        foreach (var pl in l.pl ?? [])
+        {
+            var tracks = pl.p.Select(Session.FindByPath).OfType<Track>().ToList();
+            if (tracks.Count == 0) continue;
+            Session.ReplacePlaylistTracks(Session.PlaylistNamed(pl.n).Id, tracks);
+        }
+        var fav = new System.Text.Json.Nodes.JsonArray();
+        foreach (var t in (l.fav ?? []).Select(Session.FindByPath).OfType<Track>()) fav.Add(new System.Text.Json.Nodes.JsonObject { ["p"] = t.Path, ["t"] = t.Title, ["a"] = t.Artist });
+        Session.Profile["favorites"] = fav;
     }
 
     public static Track ToTrack(AppTrack x) =>
@@ -100,20 +127,24 @@ public sealed class AppOutput(IJSRuntime js) : IPlayerOutput
 
     PlayerState? player;
     UserSession? session;
+    AppSession? app;
     bool adopted;
 
     public void Start(IServiceProvider sp)
     {
         player = sp.GetRequiredService<PlayerState>();
-        session = sp.GetRequiredService<AppSession>().Session;
+        app = sp.GetRequiredService<AppSession>();
+        session = app.Session;
         _ = Loop();
     }
 
     async Task Loop()
     {
         await Task.Delay(200);
-        while (true)
+        for (var n = 0; ; n++)
         {
+            // the app was still loading its library when Retro opened: ask again every two seconds until it has songs
+            if (app is { Loaded: false } && n % 8 == 0) { try { app.Load(); } catch (Exception) { } }
             try { await Sync(); } catch (Exception e) { Console.WriteLine("FLACie retro sync: " + e.Message); }
             await Task.Delay(250);
         }

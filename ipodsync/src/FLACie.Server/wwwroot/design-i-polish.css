@@ -21,18 +21,20 @@
 
   /* the bar: the device picker comes back beside Stop */
   .player .bar-right > .devpick { display: block; }
-  .player .bar-right .devpick .icon-btn { width: 36px; height: 40px; }
+  .player .bar-right .devpick .icon-btn { width: 44px; height: 44px; }
 }
 
-/* a phone: everything on the bar shrinks a little (36px buttons, a 40px cover, the format chip left to the full-screen player) so the title keeps some room beside the device picker and Stop */
+/* a phone: the mini player of design I (J-Home-phone.html) has play and next only; previous is in the full-screen player. That keeps every button at the
+   44px touch size and leaves the title room beside the device picker and Stop; the cover is a little smaller */
 @media (max-width: 760px) {
   .player .bar { gap: 6px; padding: 6px; }
   .player .bar-song { gap: 8px; }
   .player .bar-song .cover { width: 40px !important; height: 40px !important; border-radius: 10px; }
   .player .bar-text b { font-size: 18px; }
   .player .bar-controls .buttons { gap: 2px; }
-  .player .bar-controls .buttons .icon-btn:nth-child(2), .player .bar-controls .buttons .icon-btn:nth-child(4) { width: 36px; min-width: 36px; height: 38px; min-height: 38px; }
-  .player .play { width: 44px; min-width: 44px; height: 40px; min-height: 40px; border-radius: 14px; }
-  .player .bar-right .icon-btn { width: 36px; min-width: 36px; }
+  .player .bar-controls .buttons .icon-btn:nth-child(2) { display: none; }
+  .player .bar-controls .buttons .icon-btn:nth-child(4) { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+  .player .play { width: 48px; min-width: 48px; height: 44px; min-height: 44px; border-radius: 14px; }
+  .player .bar-right .icon-btn { width: 44px; min-width: 44px; height: 44px; }
 }
 @media (max-width: 380px) { .player .bar-chip { display: none; } }

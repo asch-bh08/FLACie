@@ -633,7 +633,18 @@ window.flacie = (() => {
         // the shape always shows where it builds and drops, instead of a ring of equal bars
         let lo = 0, hi = 255, spanFor = null;
         const span = () => { if (spanFor === shape) return; spanFor = shape; const v = [...shape].sort((x, y) => x - y); lo = v[Math.floor(v.length * .03)]; hi = Math.max(lo + 1, v[Math.floor(v.length * .97)]); };
-        const level = (i, n) => { if (!shape) return .4; span(); const a = Math.floor(i / n * shape.length), b = Math.max(a + 1, Math.floor((i + 1) / n * shape.length)); let m = 0; for (let k = a; k < b; k++) m = Math.max(m, shape[k]); return .12 + .88 * Math.min(1, Math.max(0, (m - lo) / (hi - lo))); };
+        // the frame is a loop: the last bar stands beside the first at 12 o'clock, so the bars either side of that seam (about 6% each) ease towards the height
+        // where the two ends meet, and a loud ending never jumps to a quiet start (the Android app does the same, WaveBars.blendSeam)
+        let seamFor = null, seamN = 0, seamH = null;
+        const levelAt = (i, n) => {
+            if (seamFor !== shape || seamN !== n) {
+                seamFor = shape; seamN = n; const h = Array.from({ length: n }, (_, k) => rawLevel(k, n));
+                const k = Math.max(3, Math.floor(n * .06)), meet = (h[0] + h[n - 1]) / 2; seamH = h.slice();
+                for (let j = 0; j < k && n >= 8; j++) { const w = .5 * (1 + Math.cos(Math.PI * j / k)); seamH[j] = h[j] + (meet - h[j]) * w; seamH[n - 1 - j] = h[n - 1 - j] + (meet - h[n - 1 - j]) * w; }
+            }
+            return seamH[i];
+        };
+        const rawLevel = (i, n) => { if (!shape) return .4; span(); const a = Math.floor(i / n * shape.length), b = Math.max(a + 1, Math.floor((i + 1) / n * shape.length)); let m = 0; for (let k = a; k < b; k++) m = Math.max(m, shape[k]); return .12 + .88 * Math.min(1, Math.max(0, (m - lo) / (hi - lo))); };
         // the frame's geometry, in CSS pixels: the cover's square (side S, corner r) grown by a gap; walk(t) gives the point and outward normal at a fraction t of the way round
         const frameGeo = () => {
             const W = fcv.clientWidth, F = parseFloat(getComputedStyle(fbox).getPropertyValue('--frame')) || 40, S = W - 2 * F, gap = 8, a = S / 2 + gap, rr = 26 + gap, side = 2 * a - 2 * rr, arc = Math.PI / 2 * rr;
@@ -677,7 +688,7 @@ window.flacie = (() => {
             g.clearRect(0, 0, w, h); g.save(); g.translate(w / 2, h / 2);
             for (let i = 0; i < n; i++) {
                 g.fillStyle = (i + .5) / n <= played ? on : 'rgba(244,239,230,.25)';
-                g.beginPath(); g.roundRect(-bw / 2, -R, bw, Math.max(minL, level(i, n) * maxL), bw / 2); g.fill();
+                g.beginPath(); g.roundRect(-bw / 2, -R, bw, Math.max(minL, levelAt(i, n) * maxL), bw / 2); g.fill();
                 g.rotate(2 * Math.PI / n);
             }
             g.restore();
@@ -687,7 +698,7 @@ window.flacie = (() => {
             const G = frameGeo(), bw = 3, n = Math.max(60, Math.round(G.P / (bw * 2.3)));
             g.clearRect(0, 0, w, h); g.save(); g.scale(dpr, dpr); g.translate(G.W / 2, G.W / 2); g.lineCap = 'round'; g.lineWidth = bw;
             for (let i = 0; i < n; i++) {
-                const [x, y, nx, ny] = G.walk((i + .5) / n), L = Math.max(3, level(i, n) * G.L);
+                const [x, y, nx, ny] = G.walk((i + .5) / n), L = Math.max(3, levelAt(i, n) * G.L);
                 g.strokeStyle = (i + .5) / n <= played ? on : 'rgba(244,239,230,.22)';
                 g.beginPath(); g.moveTo(x + nx * 1.5, y + ny * 1.5); g.lineTo(x + nx * (L - 1.5), y + ny * (L - 1.5)); g.stroke();
             }

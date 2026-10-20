@@ -12,7 +12,7 @@ setAdb(arg('adb', ''));
 const PKG = 'com.ipodemu', MOCK = `http://127.0.0.1:${PORT}`, DEVICE_MOCK = `http://10.0.2.2:${PORT}`;
 const S = (n) => path.join(SHOTS, n + '.png');
 
-const mock = spawn('node', [path.join(here, 'mock.mjs'), '--port', String(PORT), '--host', '127.0.0.1', '--items', '200', '--streamms', '300'], { stdio: 'ignore', windowsHide: true });
+const mock = spawn('node', [path.join(here, 'mock.mjs'), '--port', String(PORT), '--host', '127.0.0.1', '--items', '200', '--streamms', '300', ...(arg('audio') ? ['--audio', arg('audio')] : []), ...(arg('cover') ? ['--cover', arg('cover')] : [])], { stdio: 'ignore', windowsHide: true });
 process.on('exit', () => { try { mock.kill('SIGKILL'); } catch { } });
 for (let i = 0; i < 100; i++) { try { if ((await fetch(`${MOCK}/System/Info/Public`)).ok) break; } catch { } await sleep(200); }
 await fetch(`${MOCK}/__profile?name=fast`);

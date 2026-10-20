@@ -177,6 +177,9 @@ private fun SText(text: String, modifier: Modifier = Modifier, family: FontFamil
 fun LivingSleeveBody(snap: PlayerSnap, nav: PlayerNav) {
     val t = snap.track ?: return
     val palette = rememberSleevePalette(t)
+    val app = LocalApp.current
+    // the + in the bottom row: the same playlist picker as the More sheet's "Add to playlist"
+    val addToPlaylist: () -> Unit = { nav.sheet = playlistPicker(app, nav, t) }
     var tab by rememberSaveable { mutableStateOf("queue") }
     // which More sheet is up: "all" (the ⋯ button) or "playback" (the top bar's Options: rating, speed, sleep timer, sound); null when none
     var moreMode by remember { mutableStateOf<String?>(null) }
@@ -204,7 +207,7 @@ fun LivingSleeveBody(snap: PlayerSnap, nav: PlayerNav) {
                     }
                 }
                 // Lyrics, Up next, Info and More: secondary actions, so they take the bottom strip (above the gesture bar) instead of leaving it empty
-                Box(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = maxDp(nav0 + 10.dp, 18.dp))) { SleeveActions(false, pane, toggle) { moreMode = "all" } }
+                Box(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = maxDp(nav0 + 10.dp, 18.dp))) { SleeveActions(false, pane, toggle, addToPlaylist) { moreMode = "all" } }
             }
         }
         PlayerMoreSheet(moreMode != null, moreMode == "playback", t, nav, palette, onDismiss = { moreMode = null }, onOpen = { id -> if (wide) tab = id else pane = id })
@@ -321,7 +324,7 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
             SleeveControls(snap, p, Modifier.padding(horizontal = 14.dp))
             Spacer(Modifier.height(12.dp))
             // on a phone the Lyrics / Up next / Info / More row sits at the foot of the screen, under every pane
-            if (wide) { Spacer(Modifier.height(if (h < 700.dp) 8.dp else 14.dp)); SleeveActions(wide, tab, onOpen, onMore) }
+            if (wide) { Spacer(Modifier.height(if (h < 700.dp) 8.dp else 14.dp)); SleeveActions(wide, tab, onOpen, onMore = onMore) }
         }
     }
 }
@@ -601,25 +604,27 @@ private fun SleeveTime(pos: State<Long>, dur: State<Long>, scrub: State<Float>) 
 // ---- Lyrics, Up next, More --------------------------------------------------------------------------------------------------
 
 @Composable
-private fun SleeveActions(wide: Boolean, tab: String?, onOpen: (String) -> Unit, onMore: () -> Unit) {
-    val onTab: (String) -> Boolean = { id -> tab == id }
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
-        // a segmented row that scrolls the page to that card (on a wide screen the panel is always beside the stage, so the tabs switch it)
-        Row(Modifier.weight(1f).height(48.dp).clip(RoundedCornerShape(24.dp)).background(Glass).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            for ((id, label) in listOf("lyrics" to "Lyrics", "queue" to "Up next", "info" to "Info")) {
-                val on = onTab(id)
-                Box(
-                    Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(20.dp)).background(if (on) Ink else Color.Transparent)
-                        .semantics { role = Role.Tab; if (on) stateDescription = "Selected" }.clickable { onOpen(id) },
-                    contentAlignment = Alignment.Center,
-                ) { SText(label, size = 14f, weight = FontWeight.SemiBold, color = if (on) OnMain else Ink) }
+private fun SleeveActions(wide: Boolean, tab: String?, onOpen: (String) -> Unit, onAdd: (() -> Unit)? = null, onMore: () -> Unit) {
+    // five equal slots, More in the middle: Lyrics, Up next | More | Info, Add to playlist. Each is 48 dp; the open pane's tab is solid cream
+    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        @Composable
+        fun Slot(label: String, on: Boolean, glyph: Glyph?, onClick: () -> Unit, round: Boolean = false) {
+            val shape = if (round) CircleShape else RoundedCornerShape(24.dp)
+            Box(
+                Modifier.weight(1f).height(48.dp).clip(shape).background(if (on) Ink else Glass).focusRing(shape)
+                    .semantics { contentDescription = label; role = if (glyph == null) Role.Tab else Role.Button; if (on) stateDescription = "Selected" }
+                    .clickable(onClick = onClick),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (glyph != null) GlyphIcon(glyph, Modifier.size(22.dp), if (on) OnMain else Ink)
+                else SText(label, size = 14f, weight = FontWeight.SemiBold, color = if (on) OnMain else Ink)
             }
         }
-        Box(
-            Modifier.size(48.dp).clip(CircleShape).background(Glass).focusRing(CircleShape)
-                .semantics { contentDescription = "More options"; role = Role.Button }.clickable(onClick = onMore),
-            contentAlignment = Alignment.Center,
-        ) { GlyphIcon(Glyph.MORE, Modifier.size(22.dp), Ink) }
+        Slot("Lyrics", tab == "lyrics", null, { onOpen("lyrics") })
+        Slot("Up next", tab == "queue", null, { onOpen("queue") })
+        Slot("More options", false, Glyph.MORE, onMore, round = false)
+        Slot("Info", tab == "info", null, { onOpen("info") })
+        Slot("Add to playlist", false, Glyph.PLUS, { onAdd?.invoke() })
     }
 }
 

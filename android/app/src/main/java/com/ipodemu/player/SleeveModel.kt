@@ -308,12 +308,32 @@ object WaveBars {
         val p3 = sorted[(sorted.size * 3 / 100).coerceIn(0, sorted.size - 1)].toFloat()
         val p97 = sorted[(sorted.size * 97 / 100).coerceIn(0, sorted.size - 1)].toFloat()
         val span = p97 - p3
-        return FloatArray(n) { i ->
+        val h = FloatArray(n) { i ->
             val a = (i.toLong() * shape.size / n).toInt().coerceAtMost(shape.size - 1)
             val b = max(a + 1, ((i + 1).toLong() * shape.size / n).toInt()).coerceAtMost(shape.size)
             var m = -1; for (k in a until b) m = max(m, shape[k])
             if (m < 0 || span <= 0f) 0.4f else 0.12f + 0.88f * ((m - p3) / span).coerceIn(0f, 1f)
         }
+        // only a complete shape is drawn as a loop (a part-known one keeps its resting bars as they are)
+        return if (shape.all { it >= 0 }) blendSeam(h) else h
+    }
+
+    /**
+     * The frame is a loop: the song's last bar stands right beside its first at 12 o'clock, so a loud ending would jump to a quiet start. The bars on both
+     * sides of that seam (about 6% of the frame each) ease towards the height where the two ends meet, along a smooth curve, so the loop closes cleanly.
+     */
+    fun blendSeam(h: FloatArray): FloatArray {
+        val n = h.size
+        if (n < 8) return h
+        val k = max(3, n * 6 / 100)
+        val meet = (h[0] + h[n - 1]) / 2f
+        val out = h.copyOf()
+        for (j in 0 until k) {
+            val w = 0.5f * (1f + kotlin.math.cos(Math.PI.toFloat() * j / k))   // 1 at the seam, easing to 0
+            out[j] = h[j] + (meet - h[j]) * w
+            out[n - 1 - j] = h[n - 1 - j] + (meet - h[n - 1 - j]) * w
+        }
+        return out
     }
 }
 

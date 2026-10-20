@@ -570,10 +570,12 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             // design I: Favourites, Recent, Downloads and the moods as outlined chips (the chosen mood filled); Shuffle all is in the hero
             if (modern) item {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // the moods first, as on the web ("All" filled while no mood is picked), then the shortcuts the old Home had
+                    DesignChip("All", mood == null, { mood = null })
+                    moodList.forEach { m -> DesignChip(m, mood == m, { mood = if (mood == m) null else m }) }
                     DesignChip("Favorites", false, { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART)
                     DesignChip("Recent", false, { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK)
                     DesignChip("Downloads", false, { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.DOWN)
-                    moodList.forEach { m -> DesignChip(m, mood == m, { mood = if (mood == m) null else m }) }
                 }
             } else item {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -659,13 +661,23 @@ private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, acc
                 ArtImage(last.artKey, Modifier.fillMaxSize(), corner = 0.dp)
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x55000000), .3f to Color.Transparent, .55f to Color.Transparent, 1f to Palette.bg)))
             } else Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(cols.tone), Palette.bg))))
-            Row(Modifier.align(Alignment.TopEnd).padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconAction(Glyph.SEARCH, "Search", { nav.push(Screen.Search) }, tint = Color.White)
+            // the web's top bar: the search box at the left (a tap opens Search), then Settings and the account
+            Row(Modifier.align(Alignment.TopStart).fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.weight(1f).height(48.dp).clip(RoundedCornerShape(50)).background(Color(0x59000000)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(50))
+                        .semantics { contentDescription = "Search" }.clickable { nav.push(Screen.Search) }.padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    GlyphIcon(Glyph.SEARCH, Modifier.size(18.dp), Color.White.copy(alpha = .8f))
+                    Txt("Search songs, albums, artists", Modifier.padding(start = 10.dp), size = 14f, color = Color.White.copy(alpha = .7f), maxLines = 1)
+                }
+                IconAction(Glyph.GEAR, "Settings", { nav.push(Screen.Settings) }, tint = Color.White)
                 account()
             }
             Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 20.dp)) {
-                MonoLabel(HomeWords.greeting(hour), color = sc.onBg.copy(alpha = .75f))
-                SerifTitle(HomeWords.headline(last != null), Modifier.padding(top = 6.dp), size = 40f, maxLines = 2, italicWords = 2)
+                val who = remember { app.prefs.accountUserName.ifBlank { if (app.prefs.accountKind == "nas") app.prefs.nasUsername else "" } }
+                MonoLabel(HomeWords.greeting(hour) + if (who.isNotBlank()) ", $who" else "", color = sc.onBg.copy(alpha = .75f))
+                SerifTitle(HomeWords.headline(last != null), Modifier.padding(top = 6.dp), size = 40f, maxLines = 2, italicWords = if (last != null) 4 else 1)
             }
         }
         Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1108,7 +1120,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         // a short screen (the 360 dp RG Rotate) drops the big title when Search is a tab of its own, so the field and the results get the room
         val shortNoTitle = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500 && nav.stack.size <= 1
         if (shortNoTitle) Spacer(Modifier.height(4.dp))
-        else if (!imeUp) TopBar("Search", nav, showBack = true)
+        else if (!imeUp) TopBar("Search your music", nav, showBack = true)
         else Spacer(Modifier.windowInsetsTopHeight(androidx.compose.foundation.layout.WindowInsets.statusBars))
         SearchPill(query, { query = it }, "Songs, albums, artists", Modifier.padding(16.dp), shape = RoundedCornerShape(50), background = Color(0x26FFFFFF), borderColor = sc.cardBorder,
             height = 46.dp, textSize = 16f, onSubmit = { searchFocus.clearFocus() }, trailing = {
@@ -1536,6 +1548,17 @@ private fun SearchIdle(nav: PlayerNav) {
     val app = LocalApp.current
     val genres = remember(LocalLibRev.current) { app.library.genres().filter { it.name.lowercase() !in setOf("genre", "other", "unknown", "") }.sortedByDescending { it.tracks.size }.take(16) }
     Column(Modifier.fillMaxSize().then(Modifier.verticalScroll(rememberScrollState())).padding(bottom = 24.dp)) {
+        val lib = app.library
+        MonoLabel("${lib.songs().size} songs · ${lib.albums().size} albums · ${lib.artists().size} artists. Type above to search; anything you don't have shows up under more music, ready to download.",
+            Modifier.padding(horizontal = 20.dp, vertical = 4.dp), size = 11f, maxLines = 4)
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DesignChip("Overview", true, { })
+            DesignChip("Songs", false, { nav.push(Screen.Lib(LibKind.SONGS)) })
+            DesignChip("Albums", false, { nav.push(Screen.Lib(LibKind.ALBUMS)) })
+            DesignChip("Artists", false, { nav.push(Screen.Lib(LibKind.ARTISTS)) })
+            DesignChip("Genres", false, { nav.push(Screen.Lib(LibKind.GENRES)) })
+            DesignChip("Explore", false, { nav.push(Screen.Library) })
+        }
         SectionHeader("Jump to")
         androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 36.dp)

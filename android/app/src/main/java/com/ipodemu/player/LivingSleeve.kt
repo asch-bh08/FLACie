@@ -615,15 +615,9 @@ private fun SleeveOutline(label: String, on: Boolean, glyph: Glyph? = null, onCl
 private fun SleevePanel(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePalette, tab: String, onTab: (String) -> Unit, onClose: (() -> Unit)?, modifier: Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Row(Modifier.clip(RoundedCornerShape(24.dp)).background(Color(0x12FFFFFF)).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                for ((id, label) in listOf("lyrics" to "Lyrics", "queue" to "Up next", "info" to "Info")) {
-                    val on = tab == id
-                    Box(
-                        Modifier.heightIn(min = 38.dp).clip(RoundedCornerShape(20.dp)).background(if (on) Ink else Color.Transparent)
-                            .semantics { contentDescription = label; role = Role.Tab }.clickable { onTab(id) }.padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.Center,
-                    ) { Txt(label, size = 14f, weight = FontWeight.SemiBold, color = if (on) OnMain else InkDim) }
-                }
+            // the web's three outlined tabs, in its order, the open one filled
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for ((id, label) in listOf("queue" to "Up next", "lyrics" to "Lyrics", "info" to "Info")) SleeveOutline(label, tab == id) { onTab(id) }
             }
             if (onClose != null) IconAction(Glyph.DOWN, "Back to the cover", onClose, tint = Ink, size = 48.dp, iconScale = .55f)
         }

@@ -92,6 +92,30 @@ class FlacWaveTest {
         } finally { dir.deleteRecursively() }
     }
 
+    @Test fun theHeardShapePutsEachLooksEnergyInThePlayheadsSlice() {
+        // a 200 s song: one slice a second; the first half quiet (0.01), the second loud (0.5), heard four times a second
+        val h = HeardShape(200_000)
+        var pos = 0L
+        while (pos < 200_000) { val a = if (pos < 100_000) .01 else .5; h.add(pos, a * a * 1000, 1000, 250); pos += 250 }
+        assertTrue(h.complete)
+        val s = h.shape()!!
+        assertTrue(s.take(95).all { it < 20 })
+        assertTrue(s.drop(105).all { it > 235 })
+    }
+
+    @Test fun aSeekDropsThatLooksEnergyAndUnheardSlicesStayUnknown() {
+        val h = HeardShape(200_000)
+        for (i in 0 until 40) h.add(i * 250L, 1.0, 100, 250)       // 10 s heard
+        h.add(150_000, 1e6, 100, 250)                               // a seek: this energy belongs to the old place
+        val s = h.shape()!!
+        assertEquals(10, h.heard)
+        assertEquals(FlacWave.UNKNOWN, s[150])
+        assertTrue(!h.complete)
+        // the heard slices go over the frame-size estimate; the rest keeps it
+        val merged = HeardShape.merge(s, IntArray(200) { 77 })!!
+        assertEquals(77, merged[150]); assertEquals(s[3], merged[3])
+    }
+
     @Test fun unknownBarsRestAtTheLevelHeight() {
         val shape = IntArray(200) { if (it < 100) it else FlacWave.UNKNOWN }
         val h = WaveBars.heights(shape, 100)

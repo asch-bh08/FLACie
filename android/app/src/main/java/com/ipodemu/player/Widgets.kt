@@ -469,12 +469,24 @@ fun rememberArt(key: String?, thumb: Boolean, full: Boolean = false): Bitmap? {
     val art = LocalApp.current.art
     // keyed state: produceState kept the previous song's cover on screen while the next one loaded (or for good when it had none)
     val exact = remember(key, thumb, full) { art.peek(key, thumb, full) }
-    val state = remember(key, thumb, full) { mutableStateOf(exact ?: if (full) art.peek(key, thumb = false) else null) }
+    // the big cover starts from any smaller copy already in memory (the list's or the mini player's), so it never shows the placeholder while one exists
+    val state = remember(key, thumb, full) { mutableStateOf(exact ?: if (full) art.peek(key, thumb = false) ?: art.peek(key, thumb = true) else null) }
+    if (full && exact == null && key != null && state.value == null) LaunchedEffect(key) {
+        // nothing in memory: the row-size copy usually sits on disk and decodes in a few milliseconds, long before the big one arrives
+        val small = art.load(key, thumb = true, full = false, priority = com.ipodemu.library.Priority.PLAYING)
+        if (small != null && state.value == null) state.value = small
+    }
     val token = remember { Any() }
     if (key != null && !full) {
         androidx.compose.runtime.DisposableEffect(token, key, thumb) { com.ipodemu.CoverProbe.enter(token, key, state.value != null); onDispose { com.ipodemu.CoverProbe.exit(token) } }
     }
     // no coroutine at all for a cover that is already in memory (most rows of a list you scroll back through)
+    if (full && key != null) {
+        // how long the big cover takes to show anything, in the log (FLACieCover), so the time to the first cover pixel can be measured on a device
+        val t0 = remember(key) { android.os.SystemClock.elapsedRealtime() }
+        val logged = remember(key) { booleanArrayOf(false) }
+        if (state.value != null && !logged[0]) { logged[0] = true; android.util.Log.i("FLACieCover", "first pixel ${key.take(12)} after ${android.os.SystemClock.elapsedRealtime() - t0} ms") }
+    }
     if (exact == null && key != null) LaunchedEffect(key, thumb, full) {
         val b = art.load(key, thumb, full, if (full) com.ipodemu.library.Priority.PLAYING else com.ipodemu.library.Priority.VISIBLE)
         if (b == null) android.util.Log.i("FLACieCover", "no bitmap for ${key.take(10)} (thumb=$thumb)")
@@ -491,7 +503,11 @@ fun ArtImage(key: String?, modifier: Modifier = Modifier, thumb: Boolean = false
     val img = remember(bmp) { bmp?.asImageBitmap() }
     // the placeholder gradient is only drawn while there is no cover: a gradient shader behind every loaded cover was wasted work per row per frame
     Box(modifier.clip(shape), contentAlignment = Alignment.Center) {
-        if (img != null) Image(img, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        // the big cover crossfades from the small copy to the sharp one, and from one song to the next, instead of jumping
+        if (img != null && full) androidx.compose.animation.Crossfade(img, label = "cover", animationSpec = androidx.compose.animation.core.tween(if (Tweaks.motion) 260 else 0)) {
+            Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        }
+        else if (img != null) Image(img, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         else {
             Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(sc.onBg.copy(alpha = .16f), sc.onBg.copy(alpha = .05f)))))
             GlyphIcon(Glyph.NOTE, Modifier.fillMaxSize(0.42f), sc.onBg.copy(alpha = .35f))

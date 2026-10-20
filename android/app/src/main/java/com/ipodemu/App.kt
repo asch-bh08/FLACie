@@ -67,6 +67,8 @@ class App : Application() {
         lyrics = com.ipodemu.library.LyricsProvider(this)
         // fetch lyrics as each song starts, so they are ready (and cached) before Now Playing asks
         player.onTrackStarted = { t -> userData.recordPlay(t.path); warmAroundCurrent(); bg.launch { lyrics.get(t) }; plays.started(t, bg); ui.permissions?.playbackStarted() }
+        // the seek bar's exact shape, measured from the sound as each song is heard (screen on or off)
+        bg.launch { try { com.ipodemu.player.WaveAnalyzer.hear(this@App) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { } }
         account = com.ipodemu.library.AccountSync(this)
         connect = com.ipodemu.library.JellyfinConnect(this)
         connect.attach(); connect.refresh()

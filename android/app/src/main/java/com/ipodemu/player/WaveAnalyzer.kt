@@ -11,6 +11,9 @@ import com.ipodemu.Prefs
 import com.ipodemu.library.Track
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -57,10 +60,161 @@ object WaveAnalyzer {
         }
     }
 
-    /** While a song plays the next ones' shapes are made in the background, one after the other, so each is drawn the moment it starts (the web does the same). */
+    /**
+     * The song's shape as it becomes known: a saved one at once; else the frame-size shape (FlacWave) from the bytes the player has downloaded to play
+     * the song, growing as they arrive (bars not reached yet are FlacWave.UNKNOWN); and the exact one (server or decode) replaces it when it comes.
+     * A phone streams straight from Jellyfin, so the server's /api/wave is only an upgrade, never something to wait for.
+     */
+    fun shapes(app: App, t: Track): Flow<IntArray> = channelFlow {
+        val dir = dir(app)
+        val exact = withContext(Dispatchers.IO) { WaveCache.read(dir, t.path) }
+        if (exact != null) { send(exact); return@channelFlow }
+        val rough = withContext(Dispatchers.IO) { WaveCache.read(dir, t.path, rough = true) }
+        val lock = Mutex()
+        // what is shown: the slices measured as heard over the frame-size estimate, until an exact shape for the whole song arrives
+        var estimate: IntArray? = rough
+        var heardNow: IntArray? = null
+        var exactDone = false
+        suspend fun publish() = lock.withLock { if (!exactDone) HeardShape.merge(heardNow, estimate)?.let { send(it) } }
+        publish()
+        val bytes = if (rough != null) null else launch(Dispatchers.IO) {
+            try { fromBytes(app, t) { s, whole -> lock.withLock { estimate = s }; publish(); if (whole) WaveCache.write(dir, t.path, s, rough = true) } }
+            catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Throwable) { }
+        }
+        launch { heard.collect { h -> if (h != null && h.first == t.path) { lock.withLock { heardNow = h.second }; publish() } } }
+        launch { shapeFor(app, t)?.let { s -> bytes?.cancel(); lock.withLock { exactDone = true; send(s) } } }
+    }
+
+    /** The playing song's shape as measured from what has been heard so far (path, shape with UNKNOWN slices). */
+    private val heard = kotlinx.coroutines.flow.MutableStateFlow<Pair<String, IntArray>?>(null)
+
+    /**
+     * Measures the playing song's shape from the sound as it is heard (the player's LiveAudio tap, which only reads), four times a second on the main
+     * thread (the player lives there). A song heard from start to end has its exact shape kept by item id, so its next play shows it at once.
+     */
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    suspend fun hear(app: App) = withContext(Dispatchers.Main) {
+        val live = app.player.live
+        live.metering = true
+        var path: String? = null
+        var slicer: HeardShape? = null
+        var saved = false
+        var lastAt = android.os.SystemClock.elapsedRealtime()
+        try {
+            while (true) {
+                kotlinx.coroutines.delay(250)
+                val now = android.os.SystemClock.elapsedRealtime()
+                val (sq, n) = live.drainMeter()
+                val t = app.player.current
+                val dur = app.player.durationMs
+                if (t == null || dur <= 0) { lastAt = now; continue }
+                if (t.path != path) {
+                    // a new song: its energy until now belonged to the last one's end, so this look only starts the new count
+                    path = t.path; slicer = HeardShape(dur); saved = withContext(Dispatchers.IO) { WaveCache.read(dir(app), t.path) } != null; lastAt = now; continue
+                }
+                val s = slicer ?: continue
+                if (saved || !app.player.isPlaying) { lastAt = now; continue }
+                s.add(app.player.positionMs, sq, n, now - lastAt)
+                lastAt = now
+                s.shape()?.let { shape ->
+                    heard.value = t.path to shape
+                    if (s.complete) { saved = true; withContext(Dispatchers.IO) { WaveCache.write(dir(app), t.path, shape) } }
+                }
+            }
+        } finally { live.metering = false }
+    }
+
+    /** How often the player's cache is looked at again while the song downloads. */
+    private const val POLL_MS = 400L
+    /** A download that has not grown for this long has stopped (the song was skipped, or the connection went): the shape stays as it is. */
+    private const val IDLE_GIVE_UP_MS = 120_000L
+
+    /**
+     * The frame-size shape from bytes already on the phone: a song kept offline or a local file is read straight away; a streamed one is read from the
+     * player's own cache (StreamSupport.cache, filled by the player and the prefetcher) as it fills, never downloaded again for this.
+     */
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private suspend fun fromBytes(app: App, t: Track, emit: suspend (IntArray, Boolean) -> Unit) {
+        val b = FlacWave.Builder()
+        val chunk = ByteArray(256 * 1024)
+        val local = app.offline.localFile(t) ?: t.path.takeIf { !it.contains("://") }?.let { File(it) }?.takeIf { it.isFile }
+        if (local != null || t.path.startsWith("content:") || t.path.startsWith("file:")) {
+            val input = if (local != null) local.inputStream() else app.contentResolver.openInputStream(Uri.parse(t.path)) ?: return
+            input.use { s -> while (true) { coroutineContext.ensureActive(); val n = s.read(chunk); if (n < 0) break; b.feed(chunk, 0, n); if (b.notFlac) return } }
+            b.finish()?.let { emit(it, true) }
+            return
+        }
+        val uri = Uri.parse(t.path)
+        if (!com.ipodemu.playback.StreamSupport.cacheable(uri)) return
+        val cache = com.ipodemu.playback.StreamSupport.cache(app)
+        val key = uri.toString()
+        var fed = 0L
+        var lastGrowth = System.currentTimeMillis()
+        var shown: IntArray? = null
+        while (true) {
+            coroutineContext.ensureActive()
+            val got = readCached(cache, key, fed) { buf, n -> b.feed(buf, 0, n) }
+            if (b.notFlac) return
+            fed += got
+            val length = androidx.media3.datasource.cache.ContentMetadata.getContentLength(cache.getContentMetadata(key))
+            if (length > 0 && fed >= length) { b.finish(length)?.let { emit(it, true) }; return }
+            if (got > 0) {
+                lastGrowth = System.currentTimeMillis()
+                b.partial()?.let { p -> if (!p.contentEquals(shown)) { shown = p; emit(p, false) } }
+            } else if (System.currentTimeMillis() - lastGrowth > IDLE_GIVE_UP_MS) return
+            kotlinx.coroutines.delay(POLL_MS)
+        }
+    }
+
+    /**
+     * Hands [sink] the cached bytes of [key] that follow on from [from] without a gap, straight from the cache's own files (a committed piece is
+     * complete; the piece being written is not visible until it is), and returns how many there were.
+     */
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private fun readCached(cache: androidx.media3.datasource.cache.Cache, key: String, from: Long, sink: (ByteArray, Int) -> Unit): Long {
+        var at = from
+        val buf = ByteArray(256 * 1024)
+        for (span in cache.getCachedSpans(key)) {
+            if (span.position + span.length <= at) continue
+            if (span.position > at || !span.isCached) break
+            val f = span.file ?: break
+            try {
+                java.io.RandomAccessFile(f, "r").use { r ->
+                    r.seek(at - span.position)
+                    while (true) { val n = r.read(buf); if (n <= 0) break; sink(buf, n); at += n }
+                }
+            } catch (_: Exception) { break }   // the piece was evicted or replaced meanwhile: the next look starts here
+        }
+        return at - from
+    }
+
+    /**
+     * While a song plays the next ones' shapes are made in the background, so each is drawn the moment it starts (the web does the same): from the bytes
+     * the prefetcher or the player has already cached (nothing is downloaded for this on mobile data), and, on Wi-Fi only, the exact decode as before.
+     */
     suspend fun prefetch(app: App, tracks: List<Track>) {
+        val dir = dir(app)
+        for (t in tracks) {
+            coroutineContext.ensureActive()
+            if (withContext(Dispatchers.IO) { WaveCache.read(dir, t.path) ?: WaveCache.read(dir, t.path, rough = true) } != null) continue
+            withContext(Dispatchers.IO) { cachedWhole(app, t)?.let { WaveCache.write(dir, t.path, it, rough = true) } }
+        }
         if (metered(app)) return
         for (t in tracks) { coroutineContext.ensureActive(); shapeFor(app, t) }
+    }
+
+    /** The frame-size shape of a song whose bytes are all in the player's cache already, else null (without waiting for them). */
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private fun cachedWhole(app: App, t: Track): IntArray? {
+        val uri = Uri.parse(t.path)
+        if (!com.ipodemu.playback.StreamSupport.cacheable(uri)) return null
+        val cache = com.ipodemu.playback.StreamSupport.cache(app)
+        val key = uri.toString()
+        val length = androidx.media3.datasource.cache.ContentMetadata.getContentLength(cache.getContentMetadata(key))
+        if (length <= 0 || cache.getCachedLength(key, 0, length) < length) return null
+        val b = FlacWave.Builder()
+        readCached(cache, key, 0) { buf, n -> b.feed(buf, 0, n) }
+        return b.finish(length)
     }
 
     private fun isLocal(app: App, t: Track) = app.offline.localFile(t) != null || !(t.path.startsWith("http:") || t.path.startsWith("https:"))

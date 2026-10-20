@@ -120,6 +120,10 @@ import com.ipodemu.library.RatingStore
 import com.ipodemu.library.Track
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.ui.semantics.heading
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 
@@ -174,34 +178,71 @@ fun LivingSleeveBody(snap: PlayerSnap, nav: PlayerNav) {
     val t = snap.track ?: return
     val palette = rememberSleevePalette(t)
     var tab by rememberSaveable { mutableStateOf("queue") }
-    var sheetOpen by rememberSaveable { mutableStateOf(false) }
+    var moreOpen by remember { mutableStateOf(false) }
+    var lyricsFull by remember { mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val pager = androidx.compose.foundation.pager.rememberPagerState { 4 }
+    val pageOf = mapOf("lyrics" to 1, "queue" to 2, "info" to 3)
+    fun go(page: Int) { scope.launch { if (Tweaks.motion) pager.animateScrollToPage(page, animationSpec = androidx.compose.animation.core.spring(.86f, 320f)) else pager.scrollToPage(page) } }
     BoxWithConstraints(Modifier.fillMaxSize().drawBehind { drawRect(palette.ground.value) }) {
         val wide = maxWidth >= 600.dp
-        val open: (String) -> Unit = { id -> if (!wide && sheetOpen && tab == id) sheetOpen = false else { tab = id; sheetOpen = true } }
         if (wide) {
             Row(Modifier.fillMaxSize()) {
-                SleeveStage(snap, nav, t, palette, wide = true, tab = tab, onOpen = open, modifier = Modifier.weight(1f).widthIn(max = 520.dp).fillMaxHeight())
+                SleeveStage(snap, nav, t, palette, wide = true, tab = tab, onOpen = { tab = it }, onMore = { moreOpen = true }, modifier = Modifier.weight(1f).widthIn(max = 520.dp).fillMaxHeight())
                 SleevePanel(snap, nav, t, palette, tab, { tab = it }, onClose = null,
                     Modifier.weight(1f).fillMaxHeight().windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 24.dp, end = 32.dp, top = 64.dp, bottom = 12.dp))
             }
         } else {
-            SleeveStage(snap, nav, t, palette, wide = false, tab = if (sheetOpen) tab else null, onOpen = open, modifier = Modifier.fillMaxSize())
-            BackHandler(enabled = sheetOpen) { sheetOpen = false }
-            val motion = Tweaks.motion
-            AnimatedVisibility(
-                sheetOpen, Modifier.fillMaxSize(),
-                enter = if (motion) slideInVertically(tween(380)) { it } else EnterTransition.None,
-                exit = if (motion) slideOutVertically(tween(300)) { it } else ExitTransition.None,
-            ) {
-                // the sheet sits over the stage: the cover's tone at the top, sinking into the ground, and it takes every touch so nothing behind it moves
-                Box(
-                    Modifier.fillMaxSize().drawBehind { drawRect(Brush.verticalGradient(listOf(palette.tone.value, palette.ground.value), endY = size.height * .6f)) }
-                        .pointerInput(Unit) { detectTapGestures { } }
-                        .windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 18.dp, vertical = 10.dp),
-                ) { SleevePanel(snap, nav, t, palette, tab, { tab = it }, onClose = { sheetOpen = false }, Modifier.fillMaxSize()) }
+            // one vertical page, like a music app: the player fills the first screen, and Lyrics, Up next and Info follow as cards that snap into place
+            // with a spring. The top of the next card peeks out at the bottom of each screen (the home-gesture strip, where no control belongs)
+            val nav0 = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+            val peek = maxDp(96.dp, nav0 + 72.dp)
+            BackHandler(enabled = pager.currentPage > 0 && !moreOpen && !lyricsFull) { go(0) }
+            androidx.compose.foundation.pager.VerticalPager(
+                pager, Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = peek), beyondViewportPageCount = 1,
+                flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(pager, snapAnimationSpec = androidx.compose.animation.core.spring(.86f, 320f)),
+                key = { it },
+            ) { page ->
+                when (page) {
+                    0 -> SleeveStage(snap, nav, t, palette, wide = false, tab = null, onOpen = { go(pageOf[it] ?: 2) }, onMore = { moreOpen = true }, modifier = Modifier.fillMaxSize())
+                    else -> {
+                        val here = pager.currentPage == page
+                        val toPage: () -> Unit = { if (here) go(0) else go(page) }
+                        // the last card also covers the strip below it, so the page never ends in empty space
+                        val extra = if (page == 3) peek else 0.dp
+                        Box(Modifier.fillMaxSize().wrapContentHeight(Alignment.Top, unbounded = true).height(this@BoxWithConstraints.maxHeight - peek + extra)) {
+                            when (page) {
+                                1 -> LyricsCard(t, snap.playing, palette, here, toPage, onExpand = { lyricsFull = true }, bottomPad = extra)
+                                2 -> SleeveCard(app0QueueCount(snap), "Up next", app0UpNextLine(snap), palette, here, toPage, bottomPad = extra) {
+                                    androidx.compose.runtime.CompositionLocalProvider(LocalPlayerNav provides nav) { QueuePanel(snap, Modifier.fillMaxSize()) }
+                                }
+                                else -> SleeveCard("", "Song info", listOf(t.album, t.year.takeIf { it > 0 }?.toString()).filter { !it.isNullOrBlank() }.joinToString(" · "), palette, here, toPage, bottomPad = extra) {
+                                    TrackInfoPanel(t, snap, Modifier.fillMaxSize(), tint = palette.main.value, tone = palette.tone.value, ground = palette.ground.value)
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
+        AnimatedVisibility(
+            lyricsFull, Modifier.fillMaxSize(),
+            enter = if (Tweaks.motion) androidx.compose.animation.fadeIn(tween(220)) + androidx.compose.animation.scaleIn(androidx.compose.animation.core.spring(.85f, 380f), initialScale = .94f) else EnterTransition.None,
+            exit = if (Tweaks.motion) androidx.compose.animation.fadeOut(tween(180)) + androidx.compose.animation.scaleOut(tween(180), targetScale = .96f) else ExitTransition.None,
+        ) { LyricsFullScreen(t, snap.playing, palette) { lyricsFull = false } }
+        BackHandler(enabled = lyricsFull) { lyricsFull = false }
+        PlayerMoreSheet(moreOpen, t, nav, palette, onDismiss = { moreOpen = false }, onOpen = { id ->
+            if (wide) tab = id else if (id == "lyrics") lyricsFull = true else go(pageOf[id] ?: 3)
+        })
     }
+}
+
+/** "Next: <song>" for the peek of the Up next card, or nothing queued. */
+@Composable
+private fun app0UpNextLine(snap: PlayerSnap): String {
+    val app = LocalApp.current
+    val next = remember(snap.track?.path, snap.index, snap.rev, snap.shuffle) { app.player.upNext(1).firstOrNull()?.second }
+    return next?.let { "Next: " + it.title + if (it.artist.isNotEmpty()) " · " + it.artist else "" } ?: "Nothing queued after this song"
 }
 
 // ---- colours --------------------------------------------------------------------------------------------------------------
@@ -248,10 +289,11 @@ private fun Modifier.fadeEdges(top: Dp = 40.dp, bottom: Dp = 64.dp): Modifier = 
 // ---- the stage: hero cover, top bar, title, controls, actions ------------------------------------------------------------
 
 @Composable
-private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePalette, wide: Boolean, tab: String?, onOpen: (String) -> Unit, modifier: Modifier) {
+private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePalette, wide: Boolean, tab: String?, onOpen: (String) -> Unit, onMore: () -> Unit, modifier: Modifier) {
     val app = LocalApp.current
-    // the next two songs' shapes are made while this one plays, so the frame is drawn the moment each starts (as the web does)
-    LaunchedEffect(t.path) { delay(4000); try { WaveAnalyzer.prefetch(app, app.player.upNext(2).map { it.second }) } catch (_: Exception) { } }
+    // the next two songs' shapes are made while this one plays, so the frame is drawn the moment each starts (as the web does); looked at again now and
+    // then, because the prefetcher fills the cache with them as the song goes on
+    LaunchedEffect(t.path) { delay(4000); while (true) { try { WaveAnalyzer.prefetch(app, app.player.upNext(2).map { it.second }) } catch (_: Exception) { }; delay(20_000) } }
     BoxWithConstraints(modifier.drawBehind {
         // the cover's tone at the top sinking into the ground, as on the web player
         drawRect(Brush.verticalGradient(listOf(p.tone.value, p.ground.value), endY = size.height * .7f))
@@ -262,7 +304,8 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
         val scroll = rememberScrollState()
         // the bottom ~100 dp is the home gesture's: nothing that matters goes there (the navigation bar is inside this, not added to it)
         val nav0 = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        val bottomClear = if (cramped) nav0 + 16.dp else maxDp(92.dp, nav0 + 24.dp)
+        // on a phone the next card's peek already keeps the home-gesture strip clear; a wide screen keeps its own margin
+        val bottomClear = if (!wide) 8.dp else if (cramped) nav0 + 16.dp else maxDp(92.dp, nav0 + 24.dp)
         val pos = rememberPosition(app.player, snap.playing)
         val dur = remember { mutableLongStateOf(app.player.durationMs) }
         LaunchedEffect(t.path) { while (true) { dur.longValue = app.player.durationMs; delay(500) } }
@@ -284,7 +327,8 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
             Spacer(Modifier.height(if (h < 700.dp) 10.dp else 16.dp))
             SleeveControls(snap, p, Modifier.padding(horizontal = 14.dp))
             Spacer(Modifier.height(12.dp))
-            SleeveActions(snap, nav, t, wide, tab, onOpen)
+            Spacer(Modifier.height(if (h < 700.dp) 8.dp else 14.dp))
+            SleeveActions(wide, tab, onOpen, onMore)
         }
     }
 }
@@ -344,6 +388,7 @@ private fun SleeveTopBar(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePa
         // the speed is shown when it is not normal, for the same reason
         if (snap.speed != 1f) SText(com.ipodemu.playback.SpeedPolicy.label(snap.speed), Modifier.padding(end = 6.dp).clickable { nav.sheet = speedSheet(app) }, size = 13f, weight = FontWeight.Bold, color = p.main.value)
         GlassButton("Options", { nav.sheet = optionsSheet(app, nav, t) }) { SlidersIcon(Color.White) }
+        // (Options keeps the quick rating / speed / sleep / sound list; everything else is in More, beside the Lyrics / Up next / Info chips)
         Spacer(Modifier.width(10.dp))
         GlassButton("Retro", { openRetro(ctx) }) { GlyphIcon(Glyph.CASSETTE, Modifier.size(22.dp), Color.White) }
     }
@@ -393,7 +438,13 @@ private fun rememberWaveShape(t: Track): State<IntArray?> {
     val app = LocalApp.current
     return produceState<IntArray?>(null, t.path) {
         value = null
-        value = WaveAnalyzer.shapeFor(app, t)
+        val t0 = android.os.SystemClock.elapsedRealtime()
+        var first = true
+        // the shape grows as the song downloads (FlacWave from the player's own cache), and the exact one replaces it when it is known
+        WaveAnalyzer.shapes(app, t).collect { s ->
+            if (first) { first = false; android.util.Log.i("FLACieWave", "first shape for ${t.title} after ${android.os.SystemClock.elapsedRealtime() - t0} ms (${s.count { it >= 0 }} of ${s.size} bars known)") }
+            value = s
+        }
     }
 }
 
@@ -557,32 +608,24 @@ private fun SleeveTime(pos: State<Long>, dur: State<Long>, scrub: State<Float>) 
 // ---- Lyrics, Up next, More --------------------------------------------------------------------------------------------------
 
 @Composable
-private fun SleeveActions(snap: PlayerSnap, nav: PlayerNav, t: Track, wide: Boolean, tab: String?, onOpen: (String) -> Unit) {
-    val app = LocalApp.current
-    val ctx = LocalContext.current
-    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
-        // on a wide screen the panel is always beside the stage, so only More is needed here; on a phone each tab is one tap away
-        if (!wide) {
-            SleeveOutline("Lyrics", tab == "lyrics") { onOpen("lyrics") }
-            SleeveOutline("Up next", tab == "queue") { onOpen("queue") }
-            SleeveOutline("Info", tab == "info") { onOpen("info") }
+private fun SleeveActions(wide: Boolean, tab: String?, onOpen: (String) -> Unit, onMore: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+        // a segmented row that scrolls the page to that card (on a wide screen the panel is always beside the stage, so the tabs switch it)
+        Row(Modifier.weight(1f).height(48.dp).clip(RoundedCornerShape(24.dp)).background(Glass).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            for ((id, label) in listOf("lyrics" to "Lyrics", "queue" to "Up next", "info" to "Info")) {
+                val on = wide && tab == id
+                Box(
+                    Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(20.dp)).background(if (on) Ink else Color.Transparent)
+                        .semantics { role = Role.Tab; if (on) stateDescription = "Selected" }.clickable { onOpen(id) },
+                    contentAlignment = Alignment.Center,
+                ) { SText(label, size = 14f, weight = FontWeight.SemiBold, color = if (on) OnMain else Ink) }
+            }
         }
-        SleeveOutline("More", false, glyph = Glyph.MORE) {
-            // every action the old player had, in one menu, after the song's own (play next, queue, favourite, playlist, download, rate, go to album / artist)
-            openTrackSheet(app, nav, t, buildList {
-                add(SheetItem("Song info", Glyph.INFO) { onOpen("info") })
-                add(SheetItem("Lyrics", Glyph.LIST) { onOpen("lyrics") })
-                add(SheetItem("Speed: " + com.ipodemu.playback.SpeedPolicy.label(app.player.speed), Glyph.CLOCK) { nav.sheet = speedSheet(app) })
-                add(SheetItem("Sleep timer: " + sleepStatus(app), Glyph.CLOCK) { nav.sheet = sleepSheet(app) })
-                add(SheetItem("Sound: " + app.prefs.eq, Glyph.LIST) { nav.sheet = eqSheet(app) })
-                add(SheetItem("Share", Glyph.PLUS) { shareTrack(ctx, t) })
-                if (!app.ui.guest) {
-                    add(SheetItem(if (app.jam.inJam) "In a Jam" else "Jam", Glyph.JAM) { app.ui.jamOpen = true })
-                    add(SheetItem("Devices", Glyph.DEVICES) { app.ui.devicesOpen = true })
-                }
-                add(SheetItem("Retro", Glyph.CASSETTE) { openRetro(ctx) })
-            })
-        }
+        Box(
+            Modifier.size(48.dp).clip(CircleShape).background(Glass).focusRing(CircleShape)
+                .semantics { contentDescription = "More options"; role = Role.Button }.clickable(onClick = onMore),
+            contentAlignment = Alignment.Center,
+        ) { GlyphIcon(Glyph.MORE, Modifier.size(22.dp), Ink) }
     }
 }
 
@@ -644,13 +687,11 @@ private sealed interface LyricsState {
  * the others dim, and the list keeps that line in the middle; tapping a line jumps the song there. Plain lyrics just scroll.
  */
 @Composable
-private fun SleeveLyrics(t: Track, playing: Boolean) {
+private fun SleeveLyrics(t: Track, playing: Boolean, big: Boolean = false) {
     val app = LocalApp.current
-    var state by remember(t.path) { mutableStateOf<LyricsState>(LyricsState.Loading) }
-    LaunchedEffect(t.path) { state = app.lyrics.get(t)?.let { LyricsState.Ready(it) } ?: LyricsState.None }
-    when (val s = state) {
-        LyricsState.Loading -> Txt("Looking for lyrics…", Modifier.padding(4.dp), size = 15f, color = InkDim)
-        LyricsState.None -> Txt("No lyrics for this song.", Modifier.padding(4.dp), size = 15f, color = InkDim)
+    when (val s = rememberLyrics(t)) {
+        LyricsState.Loading -> Txt("Looking for lyrics…", Modifier.padding(4.dp), size = 16f, color = InkDim)
+        LyricsState.None -> Txt("No lyrics for this song.", Modifier.padding(4.dp), size = 16f, color = InkDim)
         is LyricsState.Ready -> {
             val l = s.lyrics
             val pos = rememberPosition(app.player, playing && l.synced)
@@ -666,26 +707,318 @@ private fun SleeveLyrics(t: Track, playing: Boolean) {
                     if (Tweaks.motion) list.animateScrollToItem(current + 1, offset) else list.scrollToItem(current + 1, offset)
                 }
             }
-            LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = 0.dp, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                item { Spacer(Modifier.height(80.dp)) }
+            LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = 0.dp, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(if (big) 14.dp else 8.dp)) {
+                item { Spacer(Modifier.height(if (big) 80.dp else 24.dp)) }
                 itemsIndexed(l.lines) { i, line ->
                     val cur = l.synced && i == current
-                    val scale by animateFloatAsState(if (cur) 1.06f else 1f, tween(if (Tweaks.motion) 350 else 0), label = "lyricScale")
-                    val color = when {
-                        !l.synced -> InkDim
+                    val scale by animateFloatAsState(if (cur) 1.05f else 1f, androidx.compose.animation.core.spring(.8f, 260f), label = "lyricScale")
+                    // the sung line in full cream, the rest dimmed but still well readable on the dark ground (no line drops below ~4.5:1)
+                    val color by androidx.compose.animation.animateColorAsState(when {
+                        !l.synced -> Ink
                         cur -> Ink
-                        i < current -> Color(0x57FBEEE4)
-                        else -> InkFaint
-                    }
-                    Txt(
-                        line.text.ifEmpty { "♪" },
-                        Modifier.fillMaxWidth().graphicsLayer { scaleX = scale; scaleY = scale; transformOrigin = TransformOrigin(0f, .5f) }
-                            .then(if (l.synced) Modifier.clickable { app.player.seekTo(line.timeMs) } else Modifier),
-                        size = if (l.synced) 26f else 20f, weight = if (l.synced) FontWeight.ExtraBold else FontWeight.SemiBold, color = color, maxLines = 6,
+                        else -> InkDim
+                    }, tween(if (Tweaks.motion) 300 else 0), label = "lyricColour")
+                    val text = line.text.ifEmpty { "♪" }
+                    SText(
+                        AnnotatedString(text),
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp).graphicsLayer { scaleX = scale; scaleY = scale; transformOrigin = TransformOrigin(0f, .5f) }
+                            .then(if (l.synced) Modifier.clickable(onClickLabel = "Play from this line") { app.player.seekTo(line.timeMs) } else Modifier)
+                            .semantics { if (cur) stateDescription = "Now singing" }
+                            .padding(vertical = 6.dp),
+                        size = if (big) 30f else if (l.synced) 24f else 20f, weight = if (l.synced) FontWeight.Bold else FontWeight.SemiBold, color = color, maxLines = 6, lineHeight = 1.2f,
                     )
                 }
                 item { Txt("Lyrics via ${l.source}", Modifier.padding(top = 12.dp), size = 12f, color = InkFaint) }
             }
         }
     }
+}
+
+// ---- the cards under the player (phone): Lyrics, Up next, Info --------------------------------------------------------------
+
+/**
+ * A rounded card with a drag handle and a header (DM Mono kicker, serif title, one line of what is in it). Its top is what peeks out under the player:
+ * a tap on the header brings the card up (or, when it is up, goes back to the player); the content is the card's own scrolling list.
+ */
+@Composable
+private fun SleeveCard(
+    kicker: String, title: String, line: String, p: SleevePalette, here: Boolean, onHeader: () -> Unit, bottomPad: Dp = 0.dp,
+    action: (@Composable () -> Unit)? = null, content: @Composable () -> Unit,
+) {
+    val shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 8.dp).clip(shape)
+            .drawBehind { drawRect(Brush.verticalGradient(listOf(p.tone.value.copy(alpha = .92f), p.ground.value), endY = size.height * .5f)) }
+            .border(1.dp, Line, shape)
+            .then(if (here) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)) else Modifier)
+            .padding(bottom = bottomPad),
+    ) {
+        Column(
+            Modifier.fillMaxWidth().heightIn(min = 72.dp)
+                .semantics(mergeDescendants = true) { role = Role.Button; contentDescription = if (here) "$title. Back to the player" else "$title. $line. Open" }
+                .clickable(onClick = onHeader).padding(start = 22.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+        ) {
+            Box(Modifier.align(Alignment.CenterHorizontally).size(40.dp, 4.dp).clip(CircleShape).background(InkFaint))
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SText(remember(title) { serifTitle(title) }, family = SleeveFonts.serif, size = 26f, weight = FontWeight.Normal)
+                        if (kicker.isNotEmpty()) SText(kicker, Modifier.padding(bottom = 5.dp), family = SleeveFonts.mono, size = 11f, color = InkDim, spacing = .14f)
+                    }
+                    if (line.isNotEmpty()) SText(line, size = 14f, color = InkDim)
+                }
+                action?.invoke()
+                // which way the header goes: up into the card, or down back to the player
+                val turn by animateFloatAsState(if (here) 0f else 180f, androidx.compose.animation.core.spring(.8f, 300f), label = "cardChevron")
+                GlyphIcon(Glyph.DOWN, Modifier.size(48.dp).padding(12.dp).graphicsLayer { rotationZ = turn }, Ink)
+            }
+        }
+        Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp).fadeEdges(top = 16.dp, bottom = 40.dp)) { content() }
+    }
+}
+
+@Composable
+private fun rememberLyrics(t: Track): LyricsState {
+    val app = LocalApp.current
+    var state by remember(t.path) { mutableStateOf<LyricsState>(LyricsState.Loading) }
+    LaunchedEffect(t.path) { state = app.lyrics.get(t)?.let { LyricsState.Ready(it) } ?: LyricsState.None }
+    return state
+}
+
+/** The Lyrics card: its header shows the line being sung, so the peek under the player already reads as lyrics. */
+@Composable
+private fun LyricsCard(t: Track, playing: Boolean, p: SleevePalette, here: Boolean, onHeader: () -> Unit, onExpand: () -> Unit, bottomPad: Dp) {
+    val app = LocalApp.current
+    val st = rememberLyrics(t)
+    val l = (st as? LyricsState.Ready)?.lyrics
+    val pos = rememberPosition(app.player, playing && l?.synced == true)
+    val current by remember(l) { derivedStateOf { if (l == null || !l.synced) -1 else l.lines.indexOfLast { it.timeMs <= pos.value + 250 } } }
+    val line = when {
+        st is LyricsState.Loading -> "Looking for lyrics…"
+        l == null -> "No lyrics for this song"
+        current >= 0 -> l.lines[current].text.ifEmpty { "♪" }
+        else -> l.lines.firstOrNull { it.text.isNotBlank() }?.text ?: ""
+    }
+    SleeveCard("", "Lyrics", line, p, here, onHeader, bottomPad, action = if (l != null) ({
+        Box(
+            Modifier.size(48.dp).clip(CircleShape).semantics { contentDescription = "Lyrics full screen"; role = Role.Button }.clickable(onClick = onExpand),
+            contentAlignment = Alignment.Center,
+        ) { ExpandIcon(Ink) }
+    }) else null) { SleeveLyrics(t, playing, big = false) }
+}
+
+/** The lyrics on their own over the whole screen: bigger lines, the cover's colours, a close button within thumb reach at the top. */
+@Composable
+private fun LyricsFullScreen(t: Track, playing: Boolean, p: SleevePalette, onClose: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().drawBehind { drawRect(Brush.verticalGradient(listOf(p.tone.value, p.ground.value), endY = size.height * .7f)) }
+            .pointerInput(Unit) { detectTapGestures { } }
+            .windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 20.dp),
+    ) {
+        Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                SText(remember(t.title) { serifTitle(t.title) }, family = SleeveFonts.serif, size = 24f, weight = FontWeight.Normal)
+                SText(t.artist, size = 13f, color = InkDim)
+            }
+            IconAction(Glyph.CLOSE, "Close lyrics", onClose, tint = Ink, size = 48.dp, iconScale = .5f)
+        }
+        Box(Modifier.weight(1f).fillMaxWidth().fadeEdges()) { SleeveLyrics(t, playing, big = true) }
+    }
+}
+
+/** Two arrows apart: open full screen. */
+@Composable
+private fun ExpandIcon(tint: Color) {
+    Canvas(Modifier.size(20.dp)) {
+        val w = 1.8.dp.toPx(); val s = size.width; val a = s * .32f
+        drawLine(tint, Offset(s * .58f, s * .42f), Offset(s * .92f, s * .08f), w, StrokeCap.Round)
+        drawLine(tint, Offset(s * .92f - a, s * .08f), Offset(s * .92f, s * .08f), w, StrokeCap.Round)
+        drawLine(tint, Offset(s * .92f, s * .08f), Offset(s * .92f, s * .08f + a), w, StrokeCap.Round)
+        drawLine(tint, Offset(s * .42f, s * .58f), Offset(s * .08f, s * .92f), w, StrokeCap.Round)
+        drawLine(tint, Offset(s * .08f, s * .92f - a), Offset(s * .08f, s * .92f), w, StrokeCap.Round)
+        drawLine(tint, Offset(s * .08f, s * .92f), Offset(s * .08f + a, s * .92f), w, StrokeCap.Round)
+    }
+}
+
+// ---- the More sheet ----------------------------------------------------------------------------------------------------------
+
+/** A row of the More sheet: its own icon, the label, the current value in DM Mono, a chevron when it opens something further. */
+private class MoreRow(val label: String, val icon: @Composable (Color) -> Unit, val value: String? = null, val opens: Boolean = false, val onClick: () -> Unit)
+
+/**
+ * Everything the player can do with the song, in design I: a rounded sheet with a handle (drag it down, tap outside or Back to close), the song's cover,
+ * title and artist, four big tiles for the things done most, then the rest in groups (SONG, PLAYBACK, MORE) of 56 dp rows, each with its own icon.
+ */
+@Composable
+private fun PlayerMoreSheet(open: Boolean, t: Track, nav: PlayerNav, p: SleevePalette, onDismiss: () -> Unit, onOpen: (String) -> Unit) {
+    val app = LocalApp.current
+    val ctx = LocalContext.current
+    val scrim by animateFloatAsState(if (open) 1f else 0f, tween(if (Tweaks.motion) 220 else 0), label = "moreScrim")
+    if (open) BackHandler { onDismiss() }
+    if (scrim > 0f) Box(Modifier.fillMaxSize().drawBehind { drawRect(Color.Black.copy(alpha = .55f * scrim)) }.then(if (open) Modifier.pointerInput(Unit) { detectTapGestures { onDismiss() } } else Modifier))
+    val drag = remember { androidx.compose.animation.core.Animatable(0f) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    LaunchedEffect(open) { if (open) drag.snapTo(0f) }
+    AnimatedVisibility(
+        open, Modifier.fillMaxSize(),
+        enter = if (Tweaks.motion) slideInVertically(androidx.compose.animation.core.spring(.86f, 420f)) { it } else EnterTransition.None,
+        exit = if (Tweaks.motion) slideOutVertically(tween(220)) { it } else ExitTransition.None,
+    ) {
+        BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)), contentAlignment = Alignment.BottomCenter) {
+            val fav by app.userData.favState(t.path)
+            app.userData.rev
+            val close: (() -> Unit) -> () -> Unit = { action -> { onDismiss(); action() } }
+            val off = app.offline.entry(t.path)
+            val song = buildList {
+                if (t.isMusic && t.album.isNotEmpty()) add(MoreRow("Go to album", { GlyphIcon(Glyph.ALBUM, Modifier.size(24.dp), it) }, t.album, true, close { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ALBUM, t.albumKey)) }))
+                if (t.isMusic && t.artist.isNotEmpty()) add(MoreRow("Go to artist", { GlyphIcon(Glyph.ARTIST, Modifier.size(24.dp), it) }, t.artist, true, close { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist })) }))
+                add(MoreRow("Song info", { GlyphIcon(Glyph.INFO, Modifier.size(24.dp), it) }, null, true, close { onOpen("info") }))
+                add(MoreRow("Lyrics", { GlyphIcon(Glyph.LYRICS, Modifier.size(24.dp), it) }, null, true, close { onOpen("lyrics") }))
+                add(MoreRow("Rate", { GlyphIcon(Glyph.STAR, Modifier.size(24.dp), it) }, app.userData.rating(t).takeIf { it > 0 }?.let { RatingStore.label(it) } ?: "None", true, close { nav.sheet = ratingSheet(app, t) }))
+                if (t.isMusic) add(MoreRow("MusicBrainz match", { GlyphIcon(Glyph.SEARCH, Modifier.size(24.dp), it) }, null, true, close { musicBrainzSheet(app, nav, t) }))
+                if (t.source == com.ipodemu.library.TrackSource.JELLYFIN) {
+                    if (off == null) add(MoreRow("Download for offline", { GlyphIcon(Glyph.DOWN, Modifier.size(24.dp), it) }, null, false, close {
+                        val n = app.offline.enqueue(listOf(t), com.ipodemu.library.offline.OfflineReason.MANUAL); app.ui.say(if (n > 0) "Downloading \"${t.title}\"" else "Already offline")
+                    }))
+                    else {
+                        val failed = off.state == com.ipodemu.library.offline.OfflineState.FAILED
+                        add(MoreRow(when (off.state) { com.ipodemu.library.offline.OfflineState.DONE -> "Remove download"; com.ipodemu.library.offline.OfflineState.FAILED -> "Download again"; else -> "Cancel download" },
+                            { GlyphIcon(if (failed) Glyph.DOWN else Glyph.CLOSE, Modifier.size(24.dp), it) }, if (failed) "Failed" else null, false,
+                            close { if (failed) app.offline.enqueue(listOf(t), com.ipodemu.library.offline.OfflineReason.MANUAL) else app.offline.remove(t.path) }))
+                    }
+                }
+                add(MoreRow("Share", { ShareIcon(it) }, null, false, close { shareTrack(ctx, t) }))
+                if (app.ui.isAdmin && t.isMusic && app.prefs.slskdUrl.isNotBlank() && app.prefs.slskdApiKey.isNotBlank() && app.prefs.fileMoverUrl.isNotBlank() && !t.path.contains("[Hi-Res]", ignoreCase = true))
+                    add(MoreRow("Hi-Res version", { GlyphIcon(Glyph.IPOD, Modifier.size(24.dp), it) }, null, true, close {
+                        nav.sheet = SheetSpec("Get a Hi-Res copy?", "Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). It is saved next to this one. If no Hi-Res copy exists, nothing is changed.", listOf(
+                            SheetItem("Yes, download Hi-Res", Glyph.DOWN) { app.library.requestDownload(t.artist, t.title, t.album, t.durationMs, hiRes = true, fallbackToNormal = false) },
+                            SheetItem("Cancel", Glyph.CLOSE) { },
+                        ))
+                    }))
+            }
+            val playback = listOf(
+                MoreRow("Speed", { GaugeIcon(it) }, com.ipodemu.playback.SpeedPolicy.label(app.player.speed), true, close { nav.sheet = speedSheet(app) }),
+                MoreRow("Sleep timer", { MoonIcon(it) }, sleepStatus(app), true, close { nav.sheet = sleepSheet(app) }),
+                MoreRow("Sound", { GlyphIcon(Glyph.VOLUME, Modifier.size(24.dp), it) }, app.prefs.eq, true, close { nav.sheet = eqSheet(app) }),
+            )
+            val more = buildList {
+                if (!app.ui.guest) {
+                    add(MoreRow(if (app.jam.inJam) "In a Jam" else "Jam", { GlyphIcon(Glyph.JAM, Modifier.size(24.dp), it) }, null, true, close { app.ui.jamOpen = true }))
+                    add(MoreRow("Devices", { GlyphIcon(Glyph.DEVICES, Modifier.size(24.dp), it) }, null, true, close { app.ui.devicesOpen = true }))
+                }
+                add(MoreRow("Retro", { GlyphIcon(Glyph.CASSETTE, Modifier.size(24.dp), it) }, null, true, close { openRetro(ctx) }))
+            }
+            val shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            Column(
+                Modifier.fillMaxWidth().widthIn(max = 640.dp).heightIn(max = maxHeight * .92f)
+                    .graphicsLayer { translationY = drag.value }
+                    .clip(shape).drawBehind { drawRect(Brush.verticalGradient(listOf(p.tone.value, p.ground.value), endY = 420.dp.toPx())) }
+                    .border(1.dp, Line, shape)
+                    .pointerInput(Unit) { detectTapGestures { } },
+            ) {
+                // the handle: drag the sheet down to close it
+                Box(
+                    Modifier.fillMaxWidth().height(28.dp)
+                        .semantics { contentDescription = "Close"; role = Role.Button }
+                        .clickable(onClick = onDismiss)
+                        .pointerInput(Unit) {
+                            detectVerticalDragGestures(
+                                onDragEnd = { scope.launch { if (drag.value > 120.dp.toPx()) onDismiss() else drag.animateTo(0f, androidx.compose.animation.core.spring(.8f, 500f)) } },
+                            ) { c, dy -> c.consume(); scope.launch { drag.snapTo((drag.value + dy).coerceAtLeast(0f)) } }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) { Box(Modifier.size(40.dp, 4.dp).clip(CircleShape).background(InkFaint)) }
+                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 12.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        ArtImage(t.artKey, Modifier.size(56.dp), thumb = true, corner = 10.dp)
+                        Column(Modifier.weight(1f)) {
+                            SText(remember(t.title) { serifTitle(t.title) }, family = SleeveFonts.serif, size = 24f, weight = FontWeight.Normal)
+                            SText(listOf(t.artist, t.album).filter { it.isNotEmpty() }.joinToString(" · "), size = 14f, color = InkDim)
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MoreTile("Play next", Glyph.NEXT, p, false, Modifier.weight(1f), close { app.player.addNext(t); app.ui.say("Playing next") })
+                        MoreTile("Add to queue", Glyph.QUEUE, p, false, Modifier.weight(1f), close { app.player.addToQueue(t); app.ui.say("Added to queue") })
+                        MoreTile(if (fav) "Favourite" else "Favourite", if (fav) Glyph.HEART_FILLED else Glyph.HEART, p, fav, Modifier.weight(1f)) { app.userData.toggleFavorite(t.path) }
+                        MoreTile("Add to playlist", Glyph.PLUS, p, false, Modifier.weight(1f), close { nav.sheet = playlistPicker(app, nav, t) })
+                    }
+                    MoreGroup("Song", song)
+                    MoreGroup("Playback", playback)
+                    MoreGroup("More", more)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoreTile(label: String, g: Glyph, p: SleevePalette, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val s by animateFloatAsState(if (pressed) .94f else 1f, androidx.compose.animation.core.spring(.6f, 600f), label = "tile")
+    Column(
+        modifier.height(84.dp).graphicsLayer { scaleX = s; scaleY = s }.clip(RoundedCornerShape(18.dp))
+            .drawBehind { drawRect(if (on) p.main.value else p.tone.value) }
+            .semantics(mergeDescendants = true) { role = Role.Button; contentDescription = label; if (g == Glyph.HEART || g == Glyph.HEART_FILLED) stateDescription = if (on) "On" else "Off" }
+            .clickable(src, null, onClick = onClick).padding(6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+    ) {
+        GlyphIcon(g, Modifier.size(24.dp), if (on) OnMain else p.toneFg.value)
+        Spacer(Modifier.height(6.dp))
+        SText(AnnotatedString(label), size = 12f, weight = FontWeight.SemiBold, color = if (on) OnMain else p.toneFg.value, maxLines = 2, align = TextAlign.Center)
+    }
+}
+
+@Composable
+private fun MoreGroup(name: String, rows: List<MoreRow>) {
+    if (rows.isEmpty()) return
+    SText(name.uppercase(), Modifier.padding(start = 24.dp, top = 18.dp, bottom = 4.dp).semantics { heading() }, family = SleeveFonts.mono, size = 11f, color = InkDim, spacing = .14f)
+    for (r in rows) {
+        Row(
+            Modifier.fillMaxWidth().height(56.dp).semantics(mergeDescendants = true) { role = Role.Button }.clickable(onClick = r.onClick).padding(horizontal = 24.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) { r.icon(Ink) }
+            SText(r.label, Modifier.weight(1f), size = 16f, weight = FontWeight.Medium)
+            if (r.value != null) SText(r.value, Modifier.widthIn(max = 160.dp), family = SleeveFonts.mono, size = 13f, color = InkDim)
+            if (r.opens) GlyphIcon(Glyph.CHEVRON, Modifier.size(16.dp), InkFaint)
+        }
+    }
+}
+
+/** Outlined icons the app's glyph set lacks, drawn in the same 1.8 dp line: share, a speed gauge, a moon for the sleep timer. */
+@Composable
+private fun ShareIcon(tint: Color) = Canvas(Modifier.size(22.dp)) {
+    val w = 1.8.dp.toPx(); val r = size.width * .13f
+    val a = Offset(size.width * .78f, size.height * .2f); val b = Offset(size.width * .22f, size.height * .5f); val c = Offset(size.width * .78f, size.height * .8f)
+    drawLine(tint, a, b, w); drawLine(tint, b, c, w)
+    for (o in listOf(a, b, c)) drawCircle(tint, r, o, style = androidx.compose.ui.graphics.drawscope.Stroke(w))
+}
+
+@Composable
+private fun GaugeIcon(tint: Color) = Canvas(Modifier.size(22.dp)) {
+    val w = 1.8.dp.toPx()
+    drawArc(tint, 150f, 240f, false, topLeft = Offset(w, w + size.height * .08f), size = Size(size.width - 2 * w, size.height - 2 * w), style = androidx.compose.ui.graphics.drawscope.Stroke(w, cap = StrokeCap.Round))
+    drawLine(tint, Offset(size.width / 2, size.height * .58f), Offset(size.width * .74f, size.height * .32f), w, StrokeCap.Round)
+}
+
+@Composable
+private fun MoonIcon(tint: Color) = Canvas(Modifier.size(22.dp)) {
+    val w = 1.8.dp.toPx()
+    val path = androidx.compose.ui.graphics.Path().apply {
+        val r = size.width * .4f; val cx = size.width / 2; val cy = size.height / 2
+        addOval(androidx.compose.ui.geometry.Rect(Offset(cx, cy), r))
+        val cut = androidx.compose.ui.graphics.Path().apply { addOval(androidx.compose.ui.geometry.Rect(Offset(cx + r * .55f, cy - r * .45f), r * .85f)) }
+        op(this, cut, androidx.compose.ui.graphics.PathOperation.Difference)
+    }
+    drawPath(path, tint, style = androidx.compose.ui.graphics.drawscope.Stroke(w))
+}
+
+/** "12 SONGS" beside the Up next card's title. */
+@Composable
+private fun app0QueueCount(snap: PlayerSnap): String {
+    val left = (snap.count - snap.index - 1).coerceAtLeast(0)
+    return if (left == 1) "1 SONG" else "$left SONGS"
 }

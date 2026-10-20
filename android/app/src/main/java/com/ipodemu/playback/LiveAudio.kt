@@ -36,14 +36,28 @@ class LiveAudio : TeeAudioProcessor.AudioBufferSink {
         synchronized(lock) { head = 0; filled = 0 }
     }
 
+    /** While true, the energy of every decoded buffer is added up for the seek bar's exact shape (WaveAnalyzer.hear): one pass over the first channel, read only. */
+    @Volatile var metering = false
+    private var meterSq = 0.0
+    private var meterN = 0L
+
+    /** The sum of squares and the number of frames decoded since the last call, then starts again. */
+    fun drainMeter(): Pair<Double, Long> = synchronized(lock) { val r = meterSq to meterN; meterSq = 0.0; meterN = 0; r }
+
     override fun handleBuffer(buffer: ByteBuffer) {
-        if (!watching) return
+        if (!watching && !metering) return
         val b = buffer.asReadOnlyBuffer().order(ByteOrder.LITTLE_ENDIAN)
         val ch = max(1, channels)
         val bytes = when (encoding) { C.ENCODING_PCM_16BIT -> 2; C.ENCODING_PCM_24BIT -> 3; C.ENCODING_PCM_32BIT, C.ENCODING_PCM_FLOAT -> 4; C.ENCODING_PCM_8BIT -> 1; else -> return }
         val frames = b.remaining() / (bytes * ch)
         if (frames <= 0) return
         val start = b.position()
+        if (metering) {
+            var sq = 0.0
+            for (f in 0 until frames) { val v = sample(b, start + f * bytes * ch, bytes); sq += v * v }
+            synchronized(lock) { meterSq += sq; meterN += frames }
+        }
+        if (!watching) return
         synchronized(lock) {
             // only the newest frames can matter
             val skip = max(0, frames - size)

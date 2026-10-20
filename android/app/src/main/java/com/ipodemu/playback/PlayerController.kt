@@ -107,12 +107,15 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     @OptIn(UnstableApi::class)
     private val upstream = DefaultDataSource.Factory(ctx, MultiServerDataSourceFactory(prefs))
     @OptIn(UnstableApi::class)
+    // the cache is written in 512 KB pieces (not the default 5 MB), so the seek bar's frame-size shape (WaveAnalyzer) can follow the download closely
     private val cacheSource = CacheDataSource.Factory().setCache(StreamSupport.cache(ctx)).setUpstreamDataSourceFactory(upstream)
+        .setCacheWriteDataSinkFactory(androidx.media3.datasource.cache.CacheDataSink.Factory().setCache(StreamSupport.cache(ctx)).setFragmentSize(512L * 1024))
         .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
     /** The prefetcher's own source: the same cache, but its Jellyfin opens wait at Background priority (behind the playing song and the visible rows). */
     @OptIn(UnstableApi::class)
     private val prefetchSource = CacheDataSource.Factory().setCache(StreamSupport.cache(ctx))
+        .setCacheWriteDataSinkFactory(androidx.media3.datasource.cache.CacheDataSink.Factory().setCache(StreamSupport.cache(ctx)).setFragmentSize(512L * 1024))
         .setUpstreamDataSourceFactory(DefaultDataSource.Factory(ctx, MultiServerDataSourceFactory(prefs, com.ipodemu.library.Priority.BACKGROUND)))
         .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 

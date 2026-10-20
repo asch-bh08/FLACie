@@ -201,6 +201,51 @@ class WaveSlicer(private val slices: Int, private val durationUs: Long) {
     }
 }
 
+/**
+ * The exact shape measured from the sound as it is heard (the player's LiveAudio tap, before the volume): the energy of what was decoded since the last
+ * look is put in the slice of the song the playhead is in. Slices not heard yet are FlacWave.UNKNOWN, so the frame-size estimate shows there; once every
+ * slice has been heard the shape is complete and is kept. A jump of the playhead (a seek) drops that look's energy, which belonged to the old place.
+ */
+class HeardShape(private val durationMs: Long, private val slices: Int = WaveSlicer.SLICES) {
+    private val sum = DoubleArray(slices)
+    private val count = LongArray(slices)
+    private var lastPos = -1L
+
+    /** [sumSq] is the sum of squared samples (first channel, -1..1) of [n] frames decoded since the last call; [posMs] is where the playhead is now. */
+    fun add(posMs: Long, sumSq: Double, n: Long, elapsedMs: Long) {
+        if (durationMs <= 0 || n <= 0) { lastPos = posMs; return }
+        val expected = if (lastPos < 0) posMs else lastPos + elapsedMs
+        val jumped = lastPos >= 0 && kotlin.math.abs(posMs - expected) > 1500
+        lastPos = posMs
+        if (jumped) return
+        val s = (posMs.coerceIn(0, durationMs - 1) * slices / durationMs).toInt()
+        sum[s] += sumSq; count[s] += n
+    }
+
+    val complete: Boolean get() = count.all { it > 0 }
+    val heard: Int get() = count.count { it > 0 }
+
+    /** 0-255 between the 2nd and 98th percentiles of the heard slices' RMS (as FlacWave scales its estimate, so the two sit together), else UNKNOWN. */
+    fun shape(): IntArray? {
+        val rms = DoubleArray(slices) { if (count[it] > 0) sqrt(sum[it] / count[it]) else -1.0 }
+        val known = rms.filter { it >= 0 }.sorted()
+        if (known.size < 4) return null
+        val lo = known[(known.size * .02).toInt()]; val hi = known[(known.size * .98).toInt().coerceAtMost(known.size - 1)]
+        return IntArray(slices) { i ->
+            if (rms[i] < 0) FlacWave.UNKNOWN else if (hi - lo < 1e-12) 128 else (255 * ((rms[i] - lo) / (hi - lo)).coerceIn(0.0, 1.0)).roundToInt()
+        }
+    }
+
+    companion object {
+        /** The heard slices over the estimate: what was measured wins, the rest keeps the estimate (or UNKNOWN). */
+        fun merge(heard: IntArray?, estimate: IntArray?): IntArray? = when {
+            heard == null -> estimate
+            estimate == null -> heard
+            else -> IntArray(heard.size) { if (heard[it] >= 0) heard[it] else estimate.getOrElse(it) { FlacWave.UNKNOWN } }
+        }
+    }
+}
+
 /** Shapes kept on disk, one small file per song (200 bytes), so a song is only ever decoded once. */
 object WaveCache {
     /** The file name for a song: the SHA-1 of its path in hex (a path can hold characters a file name cannot, and can be very long). */

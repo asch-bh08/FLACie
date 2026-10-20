@@ -36,7 +36,7 @@ async function pick(page: Page, label: string, option: string) {
 }
 
 test.describe.serial('speed and sleep', () => {
-  test('the controls are icon buttons in the player top bar, beside Retro, in the same style, not a row of their own', async ({ page }) => {
+  test('the controls are icon buttons in the bottom bar of the full-screen player, beside the heart and the transport, in the same style', async ({ page }) => {
     test.setTimeout(120_000);
     await signIn(page);
     await playLab(page);
@@ -46,13 +46,13 @@ test.describe.serial('speed and sleep', () => {
     // all four rectangles read in one go (the row can still move between separate reads)
     const r = await page.evaluate(() => {
       const rect = (e: Element | null) => { const b = e!.getBoundingClientRect(); return { y: b.y, h: b.height }; };
-      // (the Living Sleeve player keeps them in its top bar, out of the way of the cover and the controls; measured against the Retro button there)
-      const heart = document.querySelector('.ls-tools .np-retro');
+      // (on a PC the full-screen player keeps them in its now-playing bar along the bottom; measured against the bar's heart)
+      const heart = document.querySelector('.ls-dock .ls-heart');
       return { heart: rect(heart!), others: ['Speed', 'Sleep timer', 'Sound'].map((n) => rect(document.querySelector('#speed-sleep button.chip-ico[aria-label^="' + n + ':"]'))) };
     });
     for (const o of r.others) {
-      expect(o.h, 'as big as the Retro button').toBeLessThanOrEqual(r.heart.h + 4);
-      expect(Math.abs(o.y - r.heart.y), 'on the top bar').toBeLessThanOrEqual(6);
+      expect(o.h, 'no bigger than the heart').toBeLessThanOrEqual(r.heart.h + 4);
+      expect(Math.abs((o.y + o.h / 2) - (r.heart.y + r.heart.h / 2)), 'on the bottom bar').toBeLessThanOrEqual(6);
     }
     await says(page, 'Speed', '1x'); await says(page, 'Sleep timer', 'off'); await says(page, 'Sound', 'default');
     // pictures for a person to look at (test-results is not kept)

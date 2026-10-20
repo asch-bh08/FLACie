@@ -73,3 +73,35 @@ for (const [w, h] of [[390, 844], [1440, 900]]) {
     });
   });
 }
+
+test.describe('the frame on a PC', () => {
+  test.beforeEach(async ({ page }) => { await page.setViewportSize({ width: 1440, height: 900 }); await signIn(page); });
+
+  test('the ☰ folds the side menu to its icons and back, and the choice is kept', async ({ page }) => {
+    const ws = page.waitForEvent('websocket', { predicate: (w) => w.url().includes('_blazor'), timeout: 20_000 });
+    await page.goto('/'); await ws; await page.waitForTimeout(800);
+    const rail = page.locator('#main-rail');
+    const wide = (await rail.boundingBox())!.width;
+    await page.locator('.top-burger').click();
+    await expect.poll(async () => (await rail.boundingBox())!.width).toBeLessThan(100);
+    await expect(rail.getByRole('link', { name: 'Playlists' })).toBeVisible();   // still there, as an icon with its name for screen readers
+    await page.reload(); await page.waitForTimeout(2000);
+    await expect.poll(async () => (await rail.boundingBox())!.width).toBeLessThan(100);
+    await page.locator('.top-burger').click();
+    await expect.poll(async () => (await rail.boundingBox())!.width).toBeGreaterThan(wide - 2);
+  });
+
+  test('the player bar: the controls in the middle, the seek bar under them with the time at either end', async ({ page }) => {
+    await page.goto('/artist/Hires%20Lab');
+    await page.getByRole('link', { name: /Lab Album/ }).first().click();
+    await page.locator('.tracks .track-main').first().click();
+    await expect(page.locator('.bar-text b')).toBeVisible({ timeout: 20_000 });
+    const bar = (await page.locator('.player .bar').boundingBox())!, play = (await page.locator('.player .play').boundingBox())!;
+    expect(Math.abs((play.x + play.width / 2) - (bar.x + bar.width / 2))).toBeLessThan(40);
+    const seek = page.locator('.player .seek');
+    const [t0, input, t1] = [(await seek.locator('span').first().boundingBox())!, (await seek.locator('input').boundingBox())!, (await seek.locator('span').last().boundingBox())!];
+    expect(t0.x + t0.width).toBeLessThanOrEqual(input.x + 2); expect(t1.x).toBeGreaterThanOrEqual(input.x + input.width - 2);
+    expect(input.width).toBeGreaterThan(200);
+    expect(input.y).toBeGreaterThan(play.y);
+  });
+});

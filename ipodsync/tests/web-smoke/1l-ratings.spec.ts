@@ -21,7 +21,7 @@ async function playLab(page: Page) {
   await page.getByRole('button', { name: 'Open Now Playing' }).click();
   await expect(page.locator('.ls-title')).toBeVisible({ timeout: 20_000 });
 }
-const btn = (page: Page) => page.locator('.ls-tools button[aria-label^="Rating:"]');
+const btn = (page: Page) => page.locator('.ls-toolset button[aria-label^="Rating:"]');
 
 test.describe.serial('ratings', () => {
   test('stars are set, shown, written to Jellyfin and cleared', async ({ page, request }) => {

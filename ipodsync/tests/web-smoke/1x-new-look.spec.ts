@@ -117,7 +117,8 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
       const cover = await box('.ls-cover'), panel = await box('.ls-side'), title = await box('.ls-title'), tr = await box('.ls-transport'), frame = await box('.ls-frame'), time = await box('.ls-times');
       expect(panel.width / w).toBeGreaterThan(0.4); expect(panel.width / w).toBeLessThan(0.55);
       expect(panel.x).toBeGreaterThanOrEqual(cover.x + cover.width + 20);
-      expect(tr.x + tr.width).toBeLessThanOrEqual(panel.x);
+      // the transport is in the now-playing bar along the bottom, below both halves
+      expect(tr.y).toBeGreaterThanOrEqual(panel.y + panel.height - 1);
       expect(cover.y + cover.height).toBeLessThanOrEqual(title.y + 1);
       expect(title.y + title.height).toBeLessThanOrEqual(tr.y + 1);
       // the seek bar is a frame round the cover, and the time sits right under it
@@ -207,5 +208,30 @@ test.describe('the shape is ready instantly', () => {
     await playAlbum(page);
     await page.waitForTimeout(6000);
     expect(asked).toHaveLength(0);
+  });
+});
+
+test.describe('the full-screen player bar on a PC', () => {
+  test('every button sits in one bar along the bottom, with no seek bar or time in it, and its menus open upwards on screen', async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page); await openPlayer(page);
+    const bar = (await page.locator('.ls-dock').boundingBox())!;
+    expect(bar.y + bar.height).toBeGreaterThanOrEqual(898);
+    for (const sel of ['.ls-transport', '.ls-dock .ls-heart', '.ls-dock .np-more', '.ls-toolset button[aria-label^="Rating:"]', '.ls-toolset button[aria-label^="Speed:"]', '.ls-dock .vol']) {
+      const b = (await page.locator(sel).first().boundingBox())!;
+      expect(b.y, sel).toBeGreaterThanOrEqual(bar.y - 1); expect(b.y + b.height, sel).toBeLessThanOrEqual(bar.y + bar.height + 1);
+    }
+    await expect(page.locator('.ls-dock input[type=range][aria-label="Seek"]')).toHaveCount(0);
+    await expect(page.locator('.ls-dock .ls-times')).toHaveCount(0);
+    // the top bar holds only close, where it plays from and Retro
+    await expect(page.locator('.ls-top .ls-toolset')).toHaveCount(0);
+    // More opens upwards, fully on screen
+    const more = page.locator('.ls-dock .np-more button').first();
+    const mb = (await more.boundingBox())!;
+    await more.click();
+    const menu = (await page.locator('.ls-dock .np-menu').boundingBox())!;
+    // above its button, fully on screen
+    expect(menu.y).toBeGreaterThanOrEqual(0); expect(menu.y + menu.height).toBeLessThanOrEqual(mb.y + 1);
   });
 });

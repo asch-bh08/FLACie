@@ -1,8 +1,9 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject NavigationManager Nav
-<div class="app @(InMusic ? "full" : "") @(InMusic && menu ? "menu-open" : "")">
-    <TopBar Full="InMusic" MenuOpen="menu" OnMenu="() => menu = !menu" />
+@inject IJSRuntime Js
+<div class="app @(InMusic ? "full" : "") @(InMusic && menu ? "menu-open" : "") @(!InMusic && collapsed ? "collapsed" : "")">
+    <TopBar Full="InMusic" MenuOpen="@(InMusic && menu)" OnMenu="Burger" />
     <button class="menu-scrim" tabindex="-1" aria-hidden="true" @onclick="() => menu = false"></button>
     <nav class="rail" aria-label="Main" id="main-rail">
         @* design I: a short menu. Search holds what Explore was (browse when nothing is typed), Import is on Playlists, Downloads is in the Dashboard (administrators) *@
@@ -39,6 +40,19 @@
     bool InSearch => InMusic || ("/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0]).StartsWith("/search", StringComparison.OrdinalIgnoreCase);
     // Explore uses the whole window: the side menu slides in from a hamburger and goes away again after a choice
     bool menu;
+    // on a PC the ☰ folds the side menu down to its icons (and back); the choice is kept in this browser. On the Explore pages it slides the menu in, as before
+    bool collapsed;
+    async Task Burger()
+    {
+        if (InMusic) { menu = !menu; return; }
+        collapsed = !collapsed;
+        try { await Js.InvokeVoidAsync("flacie.stash", "flacie.rail", collapsed ? "1" : "0"); } catch (Exception) { }
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try { if (await Js.InvokeAsync<string?>("flacie.unstash", "flacie.rail") == "1") { collapsed = true; StateHasChanged(); } } catch (Exception) { }
+    }
     protected override void OnInitialized() => Nav.LocationChanged += Moved;
     void Moved(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => InvokeAsync(() => { menu = false; StateHasChanged(); });
     public void Dispose() => Nav.LocationChanged -= Moved;

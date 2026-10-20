@@ -22,8 +22,6 @@
             @if (t is not null)
             {
                 <button class="ls-icon ls-glass ls-opt" @onclick="() => opts = !opts" aria-label="Options" aria-expanded="@(opts ? "true" : "false")"><Icon Name="sliders" Size="22" /></button>
-                <div class="ls-toolset"><RatingMenu /><SpeedSleep /></div>
-                <div class="ls-volume"><VolumeControl /></div>
             }
             <a class="ls-icon ls-tint np-retro" href="/retro" aria-label="Retro" title="Retro" data-testid="np-retro"><Icon Name="retro" Size="22" /></a>
         </div>
@@ -174,6 +172,20 @@
                 </div>
             </section>
         </div>
+        @* PC: one now-playing bar along the bottom holding every button (no seek bar or time: the frame round the cover is the seek bar); the transport sits in
+           its middle. Phone: the bar is not drawn; its rating, speed, sleep and sound buttons open from the top bar's Options as before *@
+        <footer class="ls-dock">
+            <div class="ls-dock-l">
+                <button class="ls-heart ls-dock-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="22" /></button>
+                @MoreMenu("d", t)
+            </div>
+            @* the room the transport takes in the middle of the bar (it is placed over this from the page), so the two sides never reach under it *@
+            <div class="ls-dock-c" aria-hidden="true"></div>
+            <div class="ls-dock-r">
+                <div class="ls-toolset"><RatingMenu /><SpeedSleep /></div>
+                <div class="ls-volume"><VolumeControl /></div>
+            </div>
+        </footer>
     }
 </div>
 @code {

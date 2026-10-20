@@ -89,3 +89,15 @@
 
 /* a song row's menu (and its Hi-Res question) opens above the player bar, never behind it, when the row is near the bottom of the window */
 .tracks .menu, .tracks .menu-ask { z-index: 40; }
+
+/* ---- the ☰ on a PC: folds the side menu down to its icons (.app.collapsed) and back ---- */
+@media (min-width: 761px) {
+  .app:not(.full) .top-burger { display: block; }
+  .top-left { display: flex; align-items: center; gap: 8px; }
+  .app.collapsed { --rail: 76px; }
+  .app.collapsed .rail { padding-left: 10px; padding-right: 10px; }
+  .app.collapsed .rail a { justify-content: center; gap: 0; padding: 12px 0; font-size: 0; }
+  .app.collapsed .rail a .icon { width: 22px; height: 22px; }
+  .app.collapsed .rail-label { display: none; }
+  .app.collapsed .top-brand { display: none; }
+}

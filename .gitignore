@@ -29,3 +29,8 @@ Thumbs.db
 .data-smoke/
 .pub-smoke/
 docs/private/
+
+# local real-library previews: data folders hold sign-in tokens and keys, never commit
+ipodsync/tests/web-smoke/.data-real*/
+ipodsync/tests/web-smoke/.pub-real*/
+ipodsync/tests/web-smoke/run-real*.cmd

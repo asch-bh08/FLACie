@@ -4,7 +4,8 @@
 @* Along the top, like YT Music: the logo, one search box that works from every page, and the account at the right. *@
 <header class="topbar">
     <span class="top-left">
-        @if (Full) { <button class="top-burger @(MenuOpen ? "open" : "")" @onclick="OnMenu" aria-label="Menu" aria-expanded="@(MenuOpen ? "true" : "false")" aria-controls="main-rail"><i></i><i></i><i></i></button> }
+        @* the ☰: on the Explore pages it slides the menu in; elsewhere on a PC it folds the menu to its icons *@
+        <button class="top-burger @(MenuOpen ? "open" : "")" @onclick="OnMenu" aria-label="Menu" aria-expanded="@(MenuOpen ? "true" : "false")" aria-controls="main-rail"><i></i><i></i><i></i></button>
         <a class="top-brand" href="/" aria-label="FLACie home"><Logo Size="32" Class="top-name-wrap" /></a>
     </span>
     @if (Full) { <h2 class="top-title">Explore</h2> }

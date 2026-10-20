@@ -11,6 +11,9 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="TestAudio\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\FLACie.Core\FLACie.Core.csproj" />
     <ProjectReference Include="..\..\src\FLACie.Server\FLACie.Server.csproj" />
   </ItemGroup>

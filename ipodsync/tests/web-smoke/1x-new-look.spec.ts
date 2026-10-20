@@ -50,23 +50,23 @@ test.describe('phone (390 x 844)', () => {
     await expect(page.locator('.ls-where')).toHaveText(/·\s*TRACK \d+$/);
   });
 
-  test('the play button is a rounded square in the cover colour inside a ring that is the seek bar', async ({ page }) => {
-    const ring = (await page.locator('.ls-ring').boundingBox())!;
-    expect(ring.width).toBeGreaterThan(150); expect(Math.abs(ring.width - ring.height)).toBeLessThan(1);
-    const play = (await page.locator('.ls-play').boundingBox())!;
-    expect(play.x).toBeGreaterThan(ring.x + 20); expect(play.x + play.width).toBeLessThan(ring.x + ring.width - 20);
+  test('the seek bar is a frame of the song shape round the cover card (as on a PC), with the time right under it; play is a rounded square', async ({ page }) => {
+    const frame = (await page.locator('.ls-frame').boundingBox())!, cover = (await page.locator('.ls-cover').boundingBox())!, time = (await page.locator('.ls-times').boundingBox())!;
+    expect(frame.width).toBeGreaterThan(250); expect(Math.abs(frame.width - frame.height)).toBeLessThan(1);
+    expect(frame.x).toBeLessThan(cover.x); expect(frame.x + frame.width).toBeGreaterThan(cover.x + cover.width);
+    expect(time.y - (frame.y + frame.height)).toBeLessThan(10);
     expect(await page.locator('.ls-play').evaluate((e) => getComputedStyle(e).borderRadius)).not.toBe('50%');
-    const wave = page.locator('.ls-ring canvas.np-wave');
+    const wave = page.locator('.ls-frame canvas');
     await expect.poll(() => wave.evaluate((c: HTMLCanvasElement) => c.width), { timeout: 5_000 }).toBeGreaterThan(100);
     const drawn = await wave.evaluate((c: HTMLCanvasElement) => { const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
-    expect(drawn).toBeGreaterThan(100);
+    expect(drawn).toBeGreaterThan(200);
   });
 
-  test('a tap on the ring seeks to that point of the circle (3 o\'clock is a quarter of the song)', async ({ page }) => {
-    const ring = (await page.locator('.ls-ring').boundingBox())!;
+  test('a tap on the frame seeks (the middle of its right side is a quarter of the song)', async ({ page }) => {
+    const fr = (await page.locator('.ls-frame').boundingBox())!;
     const input = page.locator('.ls-ring input[type=range]');
     const max = Number(await input.getAttribute('max'));
-    await page.mouse.click(ring.x + ring.width - 8, ring.y + ring.height / 2);
+    await page.mouse.click(fr.x + fr.width - 10, fr.y + fr.height / 2);
     // (the stand-in's songs are a few seconds long, so the value is whole seconds: allow one second either way)
     await expect.poll(async () => Math.abs(Number(await input.inputValue()) - max / 4), { timeout: 5_000 }).toBeLessThanOrEqual(1);
   });

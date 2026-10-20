@@ -105,11 +105,24 @@ public static class MediaEndpoints
         var waveDir = Directory.CreateDirectory(Path.Combine(app.Configuration["FLACIE_DATA"] ?? Path.Combine(AppContext.BaseDirectory, "data"), "waves")).FullName;
         string? WaveFile(UserSession s, string p) => s.FindByPath(p) is not { } t ? null
             : Path.Combine(waveDir, (t.JellyfinId is { Length: 32 } id && id.All(Uri.IsHexDigit) ? id : Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(t.Path)))) + ".bin");
-        app.MapGet("/api/wave", async (HttpContext ctx, string p, SessionStore store) =>
+        app.MapGet("/api/wave", async (HttpContext ctx, string p, SessionStore store, JellyfinClient jf, IHttpClientFactory hf) =>
         {
-            if (WaveFile(store.For(ctx.User), p) is not { } file || !File.Exists(file)) return Results.NotFound();
-            ctx.Response.Headers.CacheControl = "private, max-age=86400";
-            return Results.Json((await File.ReadAllBytesAsync(file)).Select(b => (int)b));
+            var s = store.For(ctx.User);
+            if (WaveFile(s, p) is not { } file) return Results.NotFound();
+            if (File.Exists(file))
+            {
+                ctx.Response.Headers.CacheControl = "private, max-age=86400";
+                return Results.Json((await File.ReadAllBytesAsync(file)).Select(b => (int)b));
+            }
+            // nobody has sent the exact shape yet: for a FLAC file the server works out a rough one from the file's frames (WaveShape) and keeps it, so a phone,
+            // which cannot decode a whole Hi-Res file, still shows the song's shape. It is marked rough; a browser that can decode the song sends the exact one.
+            var rough = file + ".rough";
+            if (!File.Exists(rough) && s.FindByPath(p) is { } t && MediaInfo.FromExtension(t.FilePath ?? t.Path) == "flac"
+                && await ReadWhole(s, t, jf, hf, ctx.RequestAborted) is { } bytes && WaveShape.FromFlac(bytes) is { } bars)
+                await File.WriteAllBytesAsync(rough, bars.Select(b => (byte)b).ToArray());
+            if (!File.Exists(rough)) return Results.NotFound();
+            ctx.Response.Headers["X-Wave"] = "rough";
+            return Results.Json((await File.ReadAllBytesAsync(rough)).Select(b => (int)b));
         }).RequireAuthorization();
         app.MapPost("/api/wave", async (HttpContext ctx, string p, SessionStore store) =>
         {
@@ -265,6 +278,34 @@ public static class MediaEndpoints
 
     /// <summary>An album (or the song's album) cover from Deezer's public catalog, matched by artist. A song search returns the song on every release
     /// that carries it, "Now That's What I Call Music 96" included, so the song's own album wins, and compilations only when nothing else exists.</summary>
+    /// <summary>A whole song file read on the server (for its seek-bar shape): from Jellyfin (behind any song being played) or the NAS; null over 300 MB or on any failure.</summary>
+    static async Task<byte[]?> ReadWhole(UserSession s, Track t, JellyfinClient jf, IHttpClientFactory hf, CancellationToken ct)
+    {
+        const long Max = 300L << 20;
+        try
+        {
+            if (t.Source == TrackSource.Jellyfin && s.Jellyfin is { } a && t.JellyfinId is { Length: > 0 })
+            {
+                using var prio = JellyfinGate.Use(GatePriority.Prefetch);
+                using var req = jf.Authorized(a, jf.StreamUrl(a, t.JellyfinId));
+                using var res = await hf.CreateClient("media").SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+                if (!res.IsSuccessStatusCode || res.Content.Headers.ContentLength > Max) return null;
+                return await res.Content.ReadAsByteArrayAsync(ct);
+            }
+            if (t.Source == TrackSource.Nas && s.Nas is { } n)
+            {
+                var rel = NasClient.RelPath(n, t.Path);
+                var size = await Task.Run(() => NasClient.Size(n, rel), ct);
+                if (size > Max) return null;
+                using var ms = new MemoryStream((int)size);
+                await NasClient.CopyRangeAsync(n, rel, 0, size, ms, ct);
+                return ms.ToArray();
+            }
+        }
+        catch (Exception e) when (e is not OperationCanceledException) { }
+        return null;
+    }
+
     static async Task<byte[]?> OnlineCover(HttpClient http, string artist, string album, string title, CancellationToken ct)
     {
         var hit = await OnlineAlbum(http, artist, album, title, ct);

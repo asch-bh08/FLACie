@@ -629,7 +629,11 @@ window.flacie = (() => {
         let shape = null, last = 0, lastPlayed = -1, lastKey = '', drag = null;
         const got = (a) => { if (cv.isConnected && Array.isArray(a) && a.length) { shape = a; lastPlayed = -1; } };
         if (url) { waveNow = url; const known = waveCache.get(url); if (known) got(known); else flacie.npWaveGet(url).then(got); }
-        const level = (i, n) => { if (!shape) return .4; const a = Math.floor(i / n * shape.length), b = Math.max(a + 1, Math.floor((i + 1) / n * shape.length)); let m = 0; for (let k = a; k < b; k++) m = Math.max(m, shape[k]); return .15 + .85 * m / 255; };
+        // a loudly mastered song barely changes level, so its bars are stretched between its own quiet and loud parts (the 3rd and 97th percentiles):
+        // the shape always shows where it builds and drops, instead of a ring of equal bars
+        let lo = 0, hi = 255, spanFor = null;
+        const span = () => { if (spanFor === shape) return; spanFor = shape; const v = [...shape].sort((x, y) => x - y); lo = v[Math.floor(v.length * .03)]; hi = Math.max(lo + 1, v[Math.floor(v.length * .97)]); };
+        const level = (i, n) => { if (!shape) return .4; span(); const a = Math.floor(i / n * shape.length), b = Math.max(a + 1, Math.floor((i + 1) / n * shape.length)); let m = 0; for (let k = a; k < b; k++) m = Math.max(m, shape[k]); return .12 + .88 * Math.min(1, Math.max(0, (m - lo) / (hi - lo))); };
         // the frame's geometry, in CSS pixels: the cover's square (side S, corner r) grown by a gap; walk(t) gives the point and outward normal at a fraction t of the way round
         const frameGeo = () => {
             const W = fcv.clientWidth, F = parseFloat(getComputedStyle(fbox).getPropertyValue('--frame')) || 40, S = W - 2 * F, gap = 8, a = S / 2 + gap, rr = 26 + gap, side = 2 * a - 2 * rr, arc = Math.PI / 2 * rr;
@@ -715,7 +719,12 @@ window.flacie = (() => {
         if (waveCache.has(url)) return Promise.resolve(waveCache.get(url));
         let p = waveAsking.get(url);
         if (!p) {
-            p = fetch(url, { credentials: 'same-origin' }).then(r => r.ok ? r.json() : r.status === 404 ? flacie.npWaveMake(url) : null).catch(() => null)
+            // a shape the server only estimated (X-Wave: rough, from the FLAC frames) is shown at once; a browser that can decode the song works out the exact one
+            // in the background and sends it, so the next person gets that
+            p = fetch(url, { credentials: 'same-origin' }).then(r => {
+                if (r.ok && r.headers.get('X-Wave') === 'rough' && !flacie.metered()) flacie.npWaveMake(url).then(a => { if (Array.isArray(a) && a.length) waveCache.set(url, a); });
+                return r.ok ? r.json() : r.status === 404 ? flacie.npWaveMake(url) : null;
+            }).catch(() => null)
                 .then(a => { waveAsking.delete(url); if (Array.isArray(a) && a.length) { waveCache.set(url, a); while (waveCache.size > 12) waveCache.delete(waveCache.keys().next().value); } return a; });
             waveAsking.set(url, p);
         }

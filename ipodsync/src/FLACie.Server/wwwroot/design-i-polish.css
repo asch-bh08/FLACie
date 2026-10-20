@@ -1,0 +1,38 @@
+/* design I: loose ends. /charts like the browse pages, the artist page and song rows on a phone, the device picker on the phone bar. Loaded last. */
+
+/* ---- /charts: rows like the song rows ---- */
+.chart-row { border-radius: 14px; }
+.chart-row .cover, .chart-row .cover img { border-radius: 10px; }
+.chart-row .rank { font-family: var(--mono); font-size: 12px; font-weight: 500; }
+.chart-text b { font-family: var(--sans); font-weight: 600; }
+.chart-text small { font-size: 13px; }
+.chart-row .btn { border-radius: 12px; }
+.chart-list + .hint, .hint { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; }
+
+/* ---- the source badge is repeated beside the artist on a phone, so it can leave the pills ---- */
+.track-src { display: none; }
+
+@media (max-width: 760px) {
+  /* artist page: the text block was given a 280px basis that became a height in the column layout */
+  .detail-head > div.detail-text { flex: 0 0 auto; }
+
+  .track .pills .badge:not(.fmt) { display: none; }
+  .track-src { display: inline-block; margin-left: 8px; vertical-align: 1px; font-family: var(--mono); font-weight: 500; font-size: 10px; letter-spacing: .06em; border-radius: 6px; padding: 2px 6px; background: var(--surface-3); color: var(--dim); }
+
+  /* the bar: the device picker comes back beside Stop */
+  .player .bar-right > .devpick { display: block; }
+  .player .bar-right .devpick .icon-btn { width: 36px; height: 40px; }
+}
+
+/* a phone: everything on the bar shrinks a little (36px buttons, a 40px cover, the format chip left to the full-screen player) so the title keeps some room beside the device picker and Stop */
+@media (max-width: 760px) {
+  .player .bar { gap: 6px; padding: 6px; }
+  .player .bar-song { gap: 8px; }
+  .player .bar-song .cover { width: 40px !important; height: 40px !important; border-radius: 10px; }
+  .player .bar-text b { font-size: 18px; }
+  .player .bar-controls .buttons { gap: 2px; }
+  .player .bar-controls .buttons .icon-btn:nth-child(2), .player .bar-controls .buttons .icon-btn:nth-child(4) { width: 36px; min-width: 36px; height: 38px; min-height: 38px; }
+  .player .play { width: 44px; min-width: 44px; height: 40px; min-height: 40px; border-radius: 14px; }
+  .player .bar-right .icon-btn { width: 36px; min-width: 36px; }
+}
+@media (max-width: 380px) { .player .bar-chip { display: none; } }

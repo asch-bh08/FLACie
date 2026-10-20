@@ -18,7 +18,7 @@
         <div class="track @(Player.Current?.Path == row.T.Path ? "now" : "")">
             <button class="track-main" @onclick='() => Player.Play(list, row.I, "Songs")' aria-label="Play @row.T.Title by @row.T.Artist">
                 <Cover ArtKey="@(row.T.ArtKey)" Size="44" />
-                <span class="track-text"><span class="track-title">@row.T.Title</span><span class="track-sub">@row.T.Artist@(row.T.Album.Length > 0 ? " · " + row.T.Album : "")@(row.T.Year > 0 ? " · " + row.T.Year : "")</span><DownloadTag Session="Session" Artist="@row.T.Artist" Title="@row.T.Title" Track="row.T" /></span>
+                <span class="track-text"><span class="track-title">@row.T.Title</span><span class="track-sub">@row.T.Artist@(row.T.Album.Length > 0 ? " · " + row.T.Album : "")@(row.T.Year > 0 ? " · " + row.T.Year : "")<span class="track-src" aria-hidden="true">@SourceLabel.Short(row.T.Source)</span></span><DownloadTag Session="Session" Artist="@row.T.Artist" Title="@row.T.Title" Track="row.T" /></span>
             </button>
             <span class="pills">
                 <span class="badge @row.T.Source.ToString().ToLowerInvariant()" title="@(row.T.Source == TrackSource.Cloud ? SourceLabel.StreamingHint : "Where this song is played from")">@SourceLabel.Short(row.T.Source)</span>

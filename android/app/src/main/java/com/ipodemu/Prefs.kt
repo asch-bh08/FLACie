@@ -285,6 +285,10 @@ class Prefs(ctx: Context) {
     var accountSyncedAt: Long
         get() = sp.getLong("acctsynced", 0L)
         set(v) = sp.edit().putLong("acctsynced", v).apply()
+    /** Search's recent searches, newest first (see player/RecentSearches). */
+    var recentSearches: List<String>
+        get() = (sp.getString("recentsearches", "") ?: "").split('\n').filter { it.isNotEmpty() }
+        set(v) = sp.edit().putString("recentsearches", v.joinToString("\n")).apply()
     /** Playlists that existed only on this device before Playlists started listing the account's own (hidden from it). */
     var hiddenPlaylists: Set<String>
         get() = sp.getStringSet("hiddenlists", null) ?: emptySet()

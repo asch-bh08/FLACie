@@ -1133,6 +1133,9 @@ private fun OwnedTag() {
 
 @Composable
 private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
+    val appR = LocalApp.current
+    // remembered once the person stops typing for a moment
+    LaunchedEffect(appR.ui.searchQuery) { val q = appR.ui.searchQuery.trim(); if (q.length >= 2) { delay(2500); appR.prefs.recentSearches = RecentSearches.add(appR.prefs.recentSearches, q) } }
     val app = LocalApp.current
     val libRev = rememberLibRev(app.library)
     // the focused text field used to swallow the first Back press; leave the screen straight away
@@ -1612,6 +1615,16 @@ private fun SearchIdle(nav: PlayerNav) {
         val lib = app.library
         MonoLabel("${lib.songs().size} songs · ${lib.albums().size} albums · ${lib.artists().size} artists. Type above to search; anything you don't have shows up under more music, ready to download.",
             Modifier.padding(horizontal = 20.dp, vertical = 4.dp), size = 11f, maxLines = 4)
+        var recent by remember { mutableStateOf(app.prefs.recentSearches) }
+        if (recent.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Txt("Recent searches", Modifier.weight(1f), size = 17f, weight = FontWeight.SemiBold)
+                DesignChip("Clear", false, { app.prefs.recentSearches = emptyList(); recent = emptyList() })
+            }
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                recent.forEach { r -> DesignChip(r, false, { app.ui.searchQuery = r }) }
+            }
+        }
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DesignChip("Overview", true, { })
             DesignChip("Songs", false, { nav.push(Screen.Lib(LibKind.SONGS)) })
@@ -1673,4 +1686,13 @@ fun ratingSheet(app: App, t: Track): SheetSpec {
     for (n in 5 downTo 1) items += SheetItem(RatingStore.label(n), Glyph.STAR, selected = n == cur) { app.userData.setRating(t, n); app.ui.say("Rated \"${t.title}\": " + RatingStore.label(n)) }
     if (cur > 0) items += SheetItem("Clear the rating", Glyph.CLOSE) { app.userData.setRating(t, 0) }
     return SheetSpec("Rate", t.title, items)
+}
+
+/** Search's recent searches, by the web's rules (UserSession.AddRecentSearch). */
+object RecentSearches {
+    fun add(list: List<String>, query: String): List<String> {
+        val q = query.trim()
+        if (q.length < 2) return list
+        return listOf(q) + list.filter { !it.equals(q, ignoreCase = true) && !q.startsWith(it, ignoreCase = true) }.take(9)
+    }
 }

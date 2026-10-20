@@ -258,7 +258,7 @@ else
             sessions = list.Where(d => d.User.Length > 0).GroupBy(d => (d.User, d.Device, d.Client)).Select(g => g.OrderByDescending(d => d.Playing).ThenByDescending(d => d.LastActivity).First()).OrderByDescending(d => d.Playing && !d.Paused).ThenByDescending(d => d.Playing).ThenByDescending(d => d.LastActivity).ToList();
             error = null; await BuildCards();
         }
-        catch (Exception e) { error = "Couldn't read the device list from Jellyfin: " + e.Message; await BuildCards(); }
+        catch (Exception e) { error = FriendlyError.Of(e, "Couldn't read the device list from Jellyfin"); await BuildCards(); }
     }
 
     sealed class Card

@@ -178,7 +178,7 @@
             await Session.LoadAsync(Jellyfin);
             npass = "";
         }
-        catch (Exception e) { error = e.Message; }
+        catch (Exception e) { error = FriendlyError.Of(e); }
         finally { busy = false; }
     }
 
@@ -192,7 +192,7 @@
             await Session.LoadAsync(Jellyfin);
             jpass = "";
         }
-        catch (Exception e) { error = e.Message; }
+        catch (Exception e) { error = FriendlyError.Of(e); }
         finally { busy = false; }
     }
 }

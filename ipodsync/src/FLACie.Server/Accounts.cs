@@ -130,7 +130,7 @@ public static class AuthEndpoints
             if (throttle.Delay(user) is { Ticks: > 0 } wait) await Task.Delay(wait, ctx.RequestAborted);
             try { await SignIn(ctx, await jf.SignInAsync(server, user, f["password"].ToString()), null); throttle.Succeed(user); return Results.Redirect("/"); }
             catch (UnauthorizedAccessException) { throttle.Fail(ctx, user); return Back("Wrong username or password."); }
-            catch (Exception e) { throttle.Fail(ctx); return Back($"Couldn't reach {server}: {e.Message}"); }
+            catch (Exception e) { throttle.Fail(ctx); return Back(FriendlyError.Of(e, $"Couldn't sign in to {server}")); }
         }).DisableAntiforgery();
 
         app.MapPost("/auth/nas", async (HttpContext ctx, LoginThrottle throttle) =>
@@ -141,7 +141,7 @@ public static class AuthEndpoints
             var n = new NasAccount(f["host"].ToString().Trim(), f["share"].ToString().Trim(), f["folder"].ToString().Trim('/', ' '), f["user"].ToString().Trim(), f["password"].ToString());
             if (n.Host.Length == 0 || n.Share.Length == 0) return Back("Enter the NAS address and share.", "nas");
             try { await Task.Run(() => NasClient.Test(n)); await SignIn(ctx, null, n); return Results.Redirect("/"); }
-            catch (Exception e) { throttle.Fail(ctx, n.User); return Back(e.Message, "nas"); }
+            catch (Exception e) { throttle.Fail(ctx, n.User); return Back(FriendlyError.Of(e, "Couldn't sign in to the NAS"), "nas"); }
         }).DisableAntiforgery();
 
         // Quick Connect: the page polls until the code is approved in another Jellyfin app, then this signs in
@@ -150,7 +150,7 @@ public static class AuthEndpoints
             if (throttle.Blocked(ctx)) return Results.BadRequest(new { error = TooMany });
             var server = fixedServer ?? body.Server;
             try { var (code, secret) = await jf.QuickConnectStartAsync(server); return Results.Ok(new { code, secret, server = JellyfinClient.Normalise(server) }); }
-            catch (Exception e) { throttle.Fail(ctx); return Results.BadRequest(new { error = $"Quick Connect isn't available on {server}: {e.Message}" }); }
+            catch (Exception e) { throttle.Fail(ctx); return Results.BadRequest(new { error = FriendlyError.Of(e, $"Quick Connect isn't available on {server}") }); }
         }).DisableAntiforgery();
 
         app.MapPost("/auth/qc/poll", async (HttpContext ctx, QcPoll body, JellyfinClient jf) =>
@@ -162,7 +162,7 @@ public static class AuthEndpoints
                 await SignIn(ctx, a, null);
                 return Results.Ok(new { done = true });
             }
-            catch (Exception e) { return Results.BadRequest(new { error = e.Message }); }
+            catch (Exception e) { return Results.BadRequest(new { error = FriendlyError.Of(e) }); }
         }).DisableAntiforgery();
 
         app.MapPost("/auth/logout", async (HttpContext ctx, SessionStore store, JellyfinClient jf) =>

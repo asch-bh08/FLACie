@@ -75,7 +75,7 @@
         }
         catch (InvalidDataException ex) { error = ex.Message; }
         catch (IOException) { error = "That file is too big (limit 20 MB)."; }
-        catch (Exception ex) { error = ex.Message; }
+        catch (Exception ex) { error = FriendlyError.Of(ex); }
         finally { busy = false; }
     }
 

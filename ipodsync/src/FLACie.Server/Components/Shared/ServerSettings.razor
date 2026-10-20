@@ -161,7 +161,7 @@
             var j = System.Text.Json.Nodes.JsonNode.Parse(await http.GetStringAsync($"https://api.jamendo.com/v3.0/tracks/?client_id={Uri.EscapeDataString(jmId.Trim())}&format=json&limit=1"));
             osNote = j?["headers"]?["status"]?.GetValue<string>() == "success" ? "Jamendo accepted that client ID." : "Jamendo said: " + (j?["headers"]?["error_message"]?.GetValue<string>() ?? "not accepted");
         }
-        catch (Exception e) { osNote = "Could not reach Jamendo: " + e.Message; }
+        catch (Exception e) { osNote = FriendlyError.Of(e, "Couldn't reach Jamendo"); }
         jmChecking = false;
     }
     void Persist() => States.Save(Session);
@@ -176,7 +176,7 @@
     async Task RunCharts()
     {
         chartsBusy = true;
-        try { await Charts.RunAsync(Session, true, CancellationToken.None); } catch (Exception e) { State.Charts.LastNote = e.Message; }
+        try { await Charts.RunAsync(Session, true, CancellationToken.None); } catch (Exception e) { State.Charts.LastNote = FriendlyError.Of(e, "The charts couldn't be made"); }
         chartsBusy = false;
     }
 

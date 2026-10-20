@@ -344,3 +344,9 @@
   .ls-title .np-more, .ls-title .ls-heart { display: none; }
 }
 @media (min-width: 761px) and (max-width: 1100px) { .ls-dock .ls-volume { display: none; } }
+
+/* Up next's head: where it plays from, and Save (the queue as a playlist) at the right */
+.np.ls .q-head { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+.np.ls .q-save { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid rgba(244,239,230,.25); background: transparent; color: inherit; font: inherit; font-size: 14px; cursor: pointer; }
+.np.ls .q-save:hover { background: rgba(244,239,230,.08); }
+.np.ls .q-save:focus-visible { outline: 2px solid var(--np-accent, #fff); outline-offset: 2px; }

@@ -66,6 +66,12 @@ test.describe.serial('Up next editing', () => {
     await rm.focus();
     await page.keyboard.press('Enter');
     await expect.poll(() => upNext(page)).toEqual(['Lab 7', 'Lab 4', 'Lab 2', 'Lab 5', 'Lab 6', 'Lab 8']);
+    // the removal says so, with Undo: the song goes back where it was
+    await expect(page.locator('.toast')).toContainText('Removed “Lab 3”');
+    await page.locator('.toast').getByRole('button', { name: 'Undo' }).click();
+    await expect.poll(() => upNext(page)).toEqual(['Lab 7', 'Lab 4', 'Lab 2', 'Lab 3', 'Lab 5', 'Lab 6', 'Lab 8']);
+    await page.getByRole('button', { name: 'Remove Lab 3 from the queue' }).click();
+    await expect.poll(() => upNext(page)).toEqual(['Lab 7', 'Lab 4', 'Lab 2', 'Lab 5', 'Lab 6', 'Lab 8']);
 
     // what plays was never touched: same song, at the same second (nothing was loaded again), still paused where it was
     expect(await nowTitle(page)).toBe('Lab 1');
@@ -91,5 +97,21 @@ test.describe.serial('Up next editing', () => {
     await expect(page.getByRole('button', { name: 'Open Now Playing' })).toBeVisible({ timeout: 40_000 });
     await openQueue(page);
     expect(await upNext(page)).toEqual(['Lab 8', 'Lab 4', 'Lab 2', 'Lab 5', 'Lab 6']);
+  });
+
+  test('the queue saves as a playlist, in the order it will play', async ({ page }) => {
+    test.setTimeout(120_000);
+    await signIn(page);
+    await playLab(page);
+    await openQueue(page);
+    await page.getByRole('button', { name: 'Pause', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Move Lab 5 to the top of the queue' }).click();
+    await expect.poll(() => upNext(page)).toEqual(['Lab 5', 'Lab 2', 'Lab 3', 'Lab 4', 'Lab 6', 'Lab 7', 'Lab 8']);
+    await page.getByRole('button', { name: 'Save the queue as a playlist' }).click();
+    await expect(page.locator('.toast')).toContainText('Saved the queue as');
+    await page.goto('/playlists');
+    await page.getByRole('link', { name: /Lab Album/ }).first().click();
+    await expect.poll(() => page.locator('.tracks .track-title').allInnerTexts().then((a) => a.map((x) => x.trim())), { timeout: 20_000 })
+      .toEqual(['Lab 1', 'Lab 5', 'Lab 2', 'Lab 3', 'Lab 4', 'Lab 6', 'Lab 7', 'Lab 8']);
   });
 });

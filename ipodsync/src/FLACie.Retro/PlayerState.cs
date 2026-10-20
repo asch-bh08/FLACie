@@ -328,6 +328,16 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         RefreshSuggestions(); Stash(true); Changed?.Invoke();
     }
 
+    /// <summary>Puts a song back into Up next as its <paramref name="place"/>-th song (1 = straight after the current one): Undo after a removal.</summary>
+    public void InsertUpNext(Track t, int place)
+    {
+        if (!CanEdit) { AddLast(t); return; }
+        Queue.Add(t);
+        var cur = order.IndexOf(Index);
+        order.Insert(Math.Clamp(cur + place, cur + 1, order.Count), Queue.Count - 1);
+        RefreshSuggestions(); Stash(true); Changed?.Invoke();
+    }
+
     public void PlayNext(Track t) { if (Interceptor?.Enqueue(t, true) == true) return; AddNext(t); }
     public void AddToQueue(Track t) { if (Interceptor?.Enqueue(t, false) == true) return; AddLast(t); }
 

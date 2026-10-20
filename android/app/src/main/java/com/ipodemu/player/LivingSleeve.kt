@@ -17,6 +17,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -203,6 +204,8 @@ fun LivingSleeveBody(snap: PlayerSnap, nav: PlayerNav) {
                 PanePager(PaneNav(pane, toggle, { pane = it }), Modifier.weight(1f).fillMaxWidth()) { id ->
                     when (id) {
                         "art" -> SleeveStage(snap, nav, t, palette, wide = false, tab = null, onOpen = toggle, onMore = { moreMode = "all" }, onOptions = { moreMode = "playback" }, modifier = Modifier.fillMaxSize())
+                        // Lyrics and Info take the cover's place as a card of its size: the title, the seek line and the controls stay where they are
+                        "lyrics", "info" -> SleeveStage(snap, nav, t, palette, wide = false, tab = null, onOpen = toggle, onMore = { moreMode = "all" }, onOptions = { moreMode = "playback" }, modifier = Modifier.fillMaxSize(), card = id)
                         else -> SleevePane(id, snap, nav, t, palette) { pane = "art" }
                     }
                 }
@@ -285,7 +288,7 @@ private fun Modifier.fadeEdges(top: Dp = 40.dp, bottom: Dp = 64.dp): Modifier = 
 // ---- the stage: hero cover, top bar, title, controls, actions ------------------------------------------------------------
 
 @Composable
-private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePalette, wide: Boolean, tab: String?, onOpen: (String) -> Unit, onMore: () -> Unit, onOptions: () -> Unit, modifier: Modifier) {
+private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePalette, wide: Boolean, tab: String?, onOpen: (String) -> Unit, onMore: () -> Unit, onOptions: () -> Unit, modifier: Modifier, card: String? = null) {
     val app = LocalApp.current
     // the next two songs' shapes are made while this one plays, so the frame is drawn the moment each starts (as the web does); looked at again now and
     // then, because the prefetcher fills the cache with them as the song goes on
@@ -315,9 +318,10 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
             // the cover in its frame of bars takes whatever height is left, as a square
             BoxWithConstraints(if (cramped) Modifier.fillMaxWidth().height(280.dp) else Modifier.fillMaxWidth().weight(1f).padding(top = 4.dp), contentAlignment = Alignment.Center) {
                 val side = minOf(maxWidth - 16.dp, maxHeight, 560.dp)
-                SleeveFrame(snap, t, p, side, pos, dur, scrub)
+                if (card == null) SleeveFrame(snap, t, p, side, pos, dur, scrub)
+                else SleeveCard(card, snap, t, p, side) { onOpen(card) }
             }
-            SleeveTime(pos, dur, scrub)
+            if (card == null) SleeveTime(pos, dur, scrub) else SleeveSeekLine(pos, dur, p, Modifier.padding(horizontal = 22.dp))
             Spacer(Modifier.height(if (h < 700.dp) 8.dp else 14.dp))
             SleeveTitle(nav, t, p, Modifier.padding(horizontal = 22.dp))
             Spacer(Modifier.height(if (h < 700.dp) 10.dp else 16.dp))
@@ -599,6 +603,59 @@ private fun SleeveTime(pos: State<Long>, dur: State<Long>, scrub: State<Float>) 
         withStyle(SpanStyle(color = InkDim)) { append(" / " + fmtTime(d.coerceAtLeast(0))) }
     }
     SText(text, Modifier.padding(top = 2.dp), family = SleeveFonts.mono, size = 15f, weight = FontWeight.Medium, align = TextAlign.Center)
+}
+
+/** Lyrics or Info in a card the size of the cover, with its name and a way back to the cover at the top; the content scrolls inside it. */
+@Composable
+private fun SleeveCard(id: String, snap: PlayerSnap, t: Track, p: SleevePalette, side: Dp, onClose: () -> Unit) {
+    val shape = RoundedCornerShape(28.dp)
+    Column(Modifier.size(side).clip(shape).background(Color(0x38000000)).border(1.dp, Color(0x1FF4EFE6), shape).padding(start = 18.dp, end = 8.dp, top = 6.dp)) {
+        Row(Modifier.fillMaxWidth().height(52.dp).semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically) {
+            val title = if (id == "lyrics") "Lyrics" else "Song info"
+            SText(remember(title) { serifTitle(title) }, Modifier.weight(1f), family = SleeveFonts.serif, size = 24f, weight = FontWeight.Normal)
+            IconAction(Glyph.CLOSE, "Back to the cover", onClose, tint = Ink, size = 48.dp, iconScale = .45f)
+        }
+        Box(Modifier.weight(1f).fillMaxWidth().padding(end = 10.dp).fadeEdges(top = 12.dp, bottom = 28.dp)) {
+            if (id == "lyrics") SleeveLyrics(t, snap.playing)
+            else TrackInfoPanel(t, snap, Modifier.fillMaxSize(), tint = p.main.value, tone = p.tone.value, ground = p.ground.value)
+        }
+    }
+}
+
+/** While a card covers the frame, the seek is a plain line: the time at each end, the played part in the cover's colour; tap or drag to seek. */
+@Composable
+private fun SleeveSeekLine(pos: State<Long>, dur: State<Long>, p: SleevePalette, modifier: Modifier) {
+    val app = LocalApp.current
+    var drag by remember { mutableFloatStateOf(-1f) }
+    val d = dur.value.coerceAtLeast(1)
+    val frac = if (drag >= 0f) drag else (pos.value.toFloat() / d).coerceIn(0f, 1f)
+    Column(modifier.fillMaxWidth().padding(top = 10.dp)) {
+        Box(
+            Modifier.fillMaxWidth().height(28.dp)
+                .semantics { contentDescription = "Seek"; stateDescription = fmtTime((frac * d).toLong()) + " of " + fmtTime(d) }
+                .pointerInput(Unit) {
+                    detectTapGestures { o -> app.player.seekTo(((o.x / size.width).coerceIn(0f, 1f) * app.player.durationMs).toLong()) }
+                }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { o -> drag = (o.x / size.width).coerceIn(0f, 1f) },
+                        onDragEnd = { app.player.seekTo((drag * app.player.durationMs).toLong()); drag = -1f },
+                        onDragCancel = { drag = -1f },
+                    ) { ch, _ -> drag = (ch.position.x / size.width).coerceIn(0f, 1f) }
+                }
+                .drawBehind {
+                    val y = size.height / 2; val h = 4.dp.toPx()
+                    drawRoundRect(Line, Offset(0f, y - h / 2), androidx.compose.ui.geometry.Size(size.width, h), androidx.compose.ui.geometry.CornerRadius(h))
+                    drawRoundRect(p.main.value, Offset(0f, y - h / 2), androidx.compose.ui.geometry.Size(size.width * frac, h), androidx.compose.ui.geometry.CornerRadius(h))
+                    drawCircle(Ink, 7.dp.toPx(), Offset(size.width * frac, y))
+                },
+        )
+        Row(Modifier.fillMaxWidth()) {
+            SText(fmtTime((frac * d).toLong()), family = SleeveFonts.mono, size = 13f, color = InkDim)
+            Spacer(Modifier.weight(1f))
+            SText(fmtTime(dur.value.coerceAtLeast(0)), family = SleeveFonts.mono, size = 13f, color = InkDim)
+        }
+    }
 }
 
 // ---- Lyrics, Up next, More --------------------------------------------------------------------------------------------------

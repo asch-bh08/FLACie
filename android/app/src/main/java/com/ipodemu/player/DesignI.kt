@@ -79,6 +79,8 @@ fun serifTitle(text: String, italicWords: Int = 1): AnnotatedString {
 
 /** Like SleeveText.split, but the last [n] words go in italics (Home's "Pick up where you *left off*"). Never fewer than one word. */
 fun splitLastWords(text: String, n: Int): Pair<String, String> {
+    // a negative count asks for no italics at all (a number on the Dashboard)
+    if (n < 0) return text to ""
     var lead = text.trimEnd(); var last = ""
     repeat(n.coerceAtLeast(1)) {
         if (lead.isEmpty()) return@repeat
@@ -116,9 +118,9 @@ fun DesignChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: M
     val shape = RoundedCornerShape(50)
     val fg = if (selected) Palette.bg else sc.onBg
     Row(
-        modifier.heightIn(min = 44.dp).clip(shape)   // the visible chip is 36 dp; the touch target stays 44 dp
+        modifier.heightIn(min = 48.dp).clip(shape)   // the visible chip is 36 dp; the touch target is 48 dp
             .semantics { role = Role.Button; this.selected = selected }
-            .clickable(onClick = onClick).padding(vertical = 4.dp)
+            .clickable(onClick = onClick).padding(vertical = 6.dp)
             .height(36.dp).clip(shape)
             .then(if (selected) Modifier.background(sc.onBg) else Modifier.border(1.dp, sc.onBg.copy(alpha = .28f), shape))
             .padding(horizontal = 16.dp),
@@ -178,6 +180,22 @@ private fun DesignPill(text: String, icon: Glyph?, bg: Color, fg: Color, onClick
     ) {
         if (icon != null) { GlyphIcon(icon, Modifier.size(18.dp), fg); if (text.isNotEmpty()) Box(Modifier.width(9.dp)) }
         if (text.isNotEmpty()) Txt(text, size = 15f, weight = FontWeight.SemiBold, color = fg)
+    }
+}
+
+/** The DM Mono facts line under an album's or an artist's title, as the web writes it (Album.razor): "2020 · 8 songs · 16 min · FLAC / MP3". */
+object DetailFacts {
+    private val FORMATS = mapOf("flac" to "FLAC", "mp3" to "MP3", "m4a" to "AAC", "aac" to "AAC", "alac" to "ALAC", "ogg" to "Vorbis", "opus" to "Opus", "wav" to "WAV", "aiff" to "AIFF", "aif" to "AIFF")
+
+    /** [year] 0 leaves the year out; [files] gives the formats (by extension, each named once in order of first use; unknown ones are left out). */
+    fun line(year: Int, songs: Int, totalMs: Long, files: List<String>): String {
+        val formats = files.mapNotNull { f -> FORMATS[f.substringBefore('?').substringAfterLast('.', "").lowercase()] }.distinct()
+        return listOfNotNull(
+            year.takeIf { it > 0 }?.toString(),
+            if (songs == 1) "1 song" else "$songs songs",
+            (totalMs / 60000).takeIf { totalMs > 0 }?.let { "$it min" },
+            formats.takeIf { it.isNotEmpty() }?.joinToString(" / "),
+        ).joinToString(" · ")
     }
 }
 

@@ -69,6 +69,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.CornerRadius
@@ -248,44 +249,43 @@ private fun Modifier.fadeEdges(top: Dp = 40.dp, bottom: Dp = 64.dp): Modifier = 
 
 @Composable
 private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePalette, wide: Boolean, tab: String?, onOpen: (String) -> Unit, modifier: Modifier) {
-    BoxWithConstraints(modifier) {
+    val app = LocalApp.current
+    // the next two songs' shapes are made while this one plays, so the frame is drawn the moment each starts (as the web does)
+    LaunchedEffect(t.path) { delay(4000); try { WaveAnalyzer.prefetch(app, app.player.upNext(2).map { it.second }) } catch (_: Exception) { } }
+    BoxWithConstraints(modifier.drawBehind {
+        // the cover's tone at the top sinking into the ground, as on the web player
+        drawRect(Brush.verticalGradient(listOf(p.tone.value, p.ground.value), endY = size.height * .7f))
+    }) {
         val h = maxHeight
-        // a phone on its side (or a very short window) scrolls as a last resort, with a shorter cover
+        // a phone on its side (or a very short window) scrolls as a last resort, with a smaller cover
         val cramped = h < 560.dp
-        val heroH = if (cramped) 220.dp else (h * .616f).coerceIn(340.dp, 560.dp)
         val scroll = rememberScrollState()
-        SleeveHero(t, p, heroH, Modifier.graphicsLayer { translationY = -scroll.value.toFloat() })
         // the bottom ~100 dp is the home gesture's: nothing that matters goes there (the navigation bar is inside this, not added to it)
         val nav0 = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         val bottomClear = if (cramped) nav0 + 16.dp else maxDp(92.dp, nav0 + 24.dp)
+        val pos = rememberPosition(app.player, snap.playing)
+        val dur = remember { mutableLongStateOf(app.player.durationMs) }
+        LaunchedEffect(t.path) { while (true) { dur.longValue = app.player.durationMs; delay(500) } }
+        val scrub = remember { mutableFloatStateOf(-1f) }   // where the finger is on the frame while it is down (0..1), else -1
         Column(
             Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                 .then(if (cramped) Modifier.verticalScroll(scroll) else Modifier).padding(bottom = bottomClear),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             SleeveTopBar(snap, nav, t, p)
-            if (cramped) Spacer(Modifier.height(heroH - 96.dp)) else Spacer(Modifier.weight(1f))
+            // the cover in its frame of bars takes whatever height is left, as a square
+            BoxWithConstraints(if (cramped) Modifier.fillMaxWidth().height(280.dp) else Modifier.fillMaxWidth().weight(1f).padding(top = 4.dp), contentAlignment = Alignment.Center) {
+                val side = minOf(maxWidth - 16.dp, maxHeight, 560.dp)
+                SleeveFrame(snap, t, p, side, pos, dur, scrub)
+            }
+            SleeveTime(pos, dur, scrub)
+            Spacer(Modifier.height(if (h < 700.dp) 8.dp else 14.dp))
             SleeveTitle(nav, t, p, Modifier.padding(horizontal = 22.dp))
-            Spacer(Modifier.height(if (h < 700.dp) 10.dp else 18.dp))
-            SleeveControls(snap, t, p, Modifier.padding(horizontal = 10.dp))
+            Spacer(Modifier.height(if (h < 700.dp) 10.dp else 16.dp))
+            SleeveControls(snap, p, Modifier.padding(horizontal = 14.dp))
             Spacer(Modifier.height(12.dp))
             SleeveActions(snap, nav, t, wide, tab, onOpen)
         }
-    }
-}
-
-/** The cover full-bleed across the top, fading into the ground, with a little shade at the top so the buttons read on a light cover. */
-@Composable
-private fun SleeveHero(t: Track, p: SleevePalette, height: Dp, modifier: Modifier) {
-    // the fade is drawn over the hero's own content, so it always lies on top of the picture; the last few pixels are solid ground so no edge shows
-    Box(modifier.fillMaxWidth().height(height).clipToBounds().drawWithContent {
-        drawContent()
-        val g = p.ground.value
-        drawRect(Brush.verticalGradient(0f to Color.Transparent, .42f to Color.Transparent, .92f to g, 1f to g))
-        drawRect(g, Offset(0f, size.height - 4f), Size(size.width, 4f))
-        drawRect(Brush.verticalGradient(listOf(Color(0x66000000), Color.Transparent), endY = 110.dp.toPx()), size = Size(size.width, 110.dp.toPx()))
-    }) {
-        // no shared-element hand-off here: a shared cover is drawn in an overlay above everything, fade included
-        ArtImage(t.artKey, Modifier.fillMaxSize(), corner = 0.dp, full = true)
     }
 }
 
@@ -398,27 +398,17 @@ private fun rememberWaveShape(t: Track): State<IntArray?> {
 }
 
 @Composable
-private fun SleeveControls(snap: PlayerSnap, t: Track, p: SleevePalette, modifier: Modifier) {
+private fun SleeveControls(snap: PlayerSnap, p: SleevePalette, modifier: Modifier) {
     val app = LocalApp.current
-    val pos = rememberPosition(app.player, snap.playing)
-    val dur = remember { mutableLongStateOf(app.player.durationMs) }
-    LaunchedEffect(t.path) { while (true) { dur.longValue = app.player.durationMs; delay(500) } }
-    val scrub = remember { mutableFloatStateOf(-1f) }   // where the finger is on the ring while it is down (0..1), else -1
-    BoxWithConstraints(modifier.fillMaxWidth()) {
-        // the ring takes what the four side buttons leave, as on the web (168 px at 390 wide)
-        val ring = (maxWidth - (44.dp + 58.dp) * 2 - 12.dp).coerceIn(120.dp, 190.dp)
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                IconAction(Glyph.SHUFFLE, if (snap.shuffle) "Shuffle on" else "Shuffle off", { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() },
-                    tint = if (snap.shuffle) p.main.value else InkDim, size = 44.dp, iconScale = .5f, dot = snap.shuffle)
-                SleevePillButton(Glyph.PREV, "Previous", p) { app.player.prev() }
-                SleeveRing(snap, t, p, ring, pos, dur, scrub)
-                SleevePillButton(Glyph.NEXT, "Next", p) { app.player.next() }
-                IconAction(if (snap.repeat == 2) Glyph.REPEAT_ONE else Glyph.REPEAT, when (snap.repeat) { 1 -> "Repeat all"; 2 -> "Repeat one"; else -> "Repeat off" },
-                    { app.prefs.repeat = (app.prefs.repeat + 1) % 3; app.player.applyModes() }, tint = if (snap.repeat != 0) p.main.value else InkDim, size = 44.dp, iconScale = .5f, dot = snap.repeat != 0)
-            }
-            SleeveTime(pos, dur, scrub)
-        }
+    // shuffle, previous, play, next, repeat in one row, as the web's PC player: play is a plain rounded square in the cover's colour
+    Row(modifier.fillMaxWidth().widthIn(max = 460.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        IconAction(Glyph.SHUFFLE, if (snap.shuffle) "Shuffle on" else "Shuffle off", { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() },
+            tint = if (snap.shuffle) p.main.value else InkDim, size = 48.dp, iconScale = .48f, dot = snap.shuffle)
+        SleevePillButton(Glyph.PREV, "Previous", p) { app.player.prev() }
+        SleevePlay(snap, p)
+        SleevePillButton(Glyph.NEXT, "Next", p) { app.player.next() }
+        IconAction(if (snap.repeat == 2) Glyph.REPEAT_ONE else Glyph.REPEAT, when (snap.repeat) { 1 -> "Repeat all"; 2 -> "Repeat one"; else -> "Repeat off" },
+            { app.prefs.repeat = (app.prefs.repeat + 1) % 3; app.player.applyModes() }, tint = if (snap.repeat != 0) p.main.value else InkDim, size = 48.dp, iconScale = .48f, dot = snap.repeat != 0)
     }
 }
 
@@ -428,7 +418,7 @@ private fun SleevePillButton(g: Glyph, label: String, p: SleevePalette, onClick:
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     Box(
-        Modifier.size(58.dp, 52.dp).graphicsLayer { val s = if (pressed) .95f else 1f; scaleX = s; scaleY = s }
+        Modifier.size(62.dp, 52.dp).graphicsLayer { val s = if (pressed) .95f else 1f; scaleX = s; scaleY = s }
             .clip(RoundedCornerShape(26.dp)).drawBehind { drawRect(p.tone.value) }.focusRing(RoundedCornerShape(26.dp))
             .semantics { contentDescription = label; role = Role.Button }.clickable(src, null, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -436,20 +426,28 @@ private fun SleevePillButton(g: Glyph, label: String, p: SleevePalette, onClick:
 }
 
 /**
- * The seek bar as a ring: [RingSeek.BARS] bars hanging in from the outer edge, as long as the song is loud there, starting at 12 o'clock and going
- * clockwise, the played part in the cover's colour. A press on the ring seeks there; dragging round it scrubs and seeks on release. The play button sits
- * inside, and a press on it is never a seek.
+ * The seek bar as a FRAME round the cover (the web's PC player, flacie.js npWave drawFrame): bars standing out from a rounded square just outside the
+ * picture, as long as the song is loud there, starting at 12 o'clock and going clockwise, the played part in the cover's colour. A press on the frame
+ * seeks there and dragging scrubs (the seek happens on release); a tap on the picture itself plays or pauses.
  */
 @Composable
-private fun SleeveRing(snap: PlayerSnap, t: Track, p: SleevePalette, side: Dp, pos: State<Long>, dur: State<Long>, scrub: androidx.compose.runtime.MutableFloatState) {
+private fun SleeveFrame(snap: PlayerSnap, t: Track, p: SleevePalette, side: Dp, pos: State<Long>, dur: State<Long>, scrub: androidx.compose.runtime.MutableFloatState) {
     val app = LocalApp.current
     val shape by rememberWaveShape(t)
-    val n = RingSeek.BARS
-    val heights = remember(shape) { WaveBars.heights(shape, n) }
+    val density = LocalDensity.current
+    // the frame's width: room for the gap and the bars on each side of the cover (the web uses 40 px on a PC; a phone gets a little less)
+    val frameW = if (side < 300.dp) 22.dp else if (side < 420.dp) 28.dp else 36.dp
+    val gap = 7.dp
+    val cover = side - frameW * 2
+    val corner = cover * .06f
+    val geo = remember(side, density) { with(density) { FrameSeek(cover.toPx(), corner.toPx(), gap.toPx()) } }
+    val bw = with(density) { 3.dp.toPx() }
+    val n = remember(geo, bw) { geo.bars(bw) }
+    val heights = remember(shape, n) { WaveBars.heights(shape, n) }
     fun fraction() = if (scrub.floatValue >= 0f) scrub.floatValue else if (dur.value > 0) (pos.value.toFloat() / dur.value).coerceIn(0f, 1f) else 0f
     fun seek(f: Float) { val d = dur.value; if (d > 0) app.player.seekTo((f.coerceIn(0f, 1f) * d).toLong()) }
-    // how many bars are played: only a change in this whole number repaints the ring (not every 250 ms tick)
-    val played by remember { derivedStateOf { (0 until n).count { RingSeek.isPlayed(it, n, fraction()) } } }
+    // how many bars are played: only a change in this whole number repaints the frame (not every 250 ms tick)
+    val played by remember(n) { derivedStateOf { (0 until n).count { RingSeek.isPlayed(it, n, fraction()) } } }
     Box(
         Modifier.size(side)
             .semantics {
@@ -462,19 +460,30 @@ private fun SleeveRing(snap: PlayerSnap, t: Track, p: SleevePalette, side: Dp, p
                     CustomAccessibilityAction("Forward 30 seconds") { app.player.skipBy(30_000L); true },
                 )
             }
-            .pointerInput(Unit) {
+            .pointerInput(geo) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = true)
-                    val w = size.width.toFloat(); val h = size.height.toFloat()
-                    val f0 = RingSeek.fraction(down.position.x, down.position.y, w, h) ?: return@awaitEachGesture
+                    val cx = size.width / 2f; val cy = size.height / 2f
+                    val f0 = geo.fraction(down.position.x - cx, down.position.y - cy)
                     down.consume()
+                    if (f0 == null) {
+                        // on the picture: a tap plays or pauses (a finger that slides far away is not a tap)
+                        var moved = false
+                        while (true) {
+                            val ev = awaitPointerEvent()
+                            val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                            if ((c.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
+                            if (!c.pressed) { c.consume(); if (!moved) app.player.toggle(); break }
+                        }
+                        return@awaitEachGesture
+                    }
                     scrub.floatValue = f0
                     while (true) {
                         val ev = awaitPointerEvent()
                         val c = ev.changes.firstOrNull { it.id == down.id } ?: break
                         if (!c.pressed) { c.consume(); break }
                         c.consume()
-                        scrub.floatValue = RingSeek.angleFraction(c.position.x - w / 2f, c.position.y - h / 2f)
+                        scrub.floatValue = geo.nearest(c.position.x - cx, c.position.y - cy)
                     }
                     if (scrub.floatValue >= 0f) seek(scrub.floatValue)
                     scrub.floatValue = -1f
@@ -482,26 +491,32 @@ private fun SleeveRing(snap: PlayerSnap, t: Track, p: SleevePalette, side: Dp, p
             },
         contentAlignment = Alignment.Center,
     ) {
-        val rest = Color(0x40F4EFE6)
+        val rest = Color(0x38F4EFE6)
         Canvas(Modifier.fillMaxSize()) {
-            val r = size.minDimension / 2f
-            val bw = max(2.dp.toPx(), r * .048f); val maxL = r * .27f; val minL = r * .05f
+            val maxL = (frameW - gap - 4.dp).toPx()
+            val inset = 1.5.dp.toPx(); val minL = 3.dp.toPx()
             val on = p.main.value
             val upTo = played
             for (i in 0 until n) {
-                rotate(360f * i / n) {
-                    val len = max(minL, heights[i] * maxL)
-                    drawRoundRect(if (i < upTo) on else rest, Offset(center.x - bw / 2f, center.y - r), Size(bw, len), CornerRadius(bw / 2f))
-                }
+                val w = geo.walk((i + .5f) / n)
+                val len = max(minL, heights[i] * maxL)
+                val x = center.x + w[0]; val y = center.y + w[1]
+                drawLine(if (i < upTo) on else rest, Offset(x + w[2] * inset, y + w[3] * inset), Offset(x + w[2] * (len - inset), y + w[3] * (len - inset)), bw, StrokeCap.Round)
             }
         }
-        SleevePlay(snap, p, side)
+        // the cover, rounded, with a soft shadow; a tap on it is play / pause (handled above, so a press on the frame never reaches it)
+        ArtImage(
+            t.artKey,
+            Modifier.size(cover).shadow(24.dp, RoundedCornerShape(corner), clip = false, ambientColor = Color.Black, spotColor = Color.Black)
+                .semantics { contentDescription = if (snap.playing) "Pause" else "Play"; role = Role.Button },
+            corner = corner, full = true,
+        )
     }
 }
 
-/** The play button inside the ring: a rounded square in the cover's colour. */
+/** The play button: a rounded square in the cover's colour with dark text, between the previous and next pills. */
 @Composable
-private fun SleevePlay(snap: PlayerSnap, p: SleevePalette, ring: Dp) {
+private fun SleevePlay(snap: PlayerSnap, p: SleevePalette) {
     val app = LocalApp.current
     val playFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { try { playFocus.requestFocus() } catch (_: Exception) {} }
@@ -509,9 +524,9 @@ private fun SleevePlay(snap: PlayerSnap, p: SleevePalette, ring: Dp) {
     val focused by src.collectIsFocusedAsState()
     val keys = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode == androidx.compose.ui.input.InputMode.Keyboard
     val pressed by src.collectIsPressedAsState()
-    val shape = RoundedCornerShape(ring * .155f)
+    val shape = RoundedCornerShape(22.dp)
     Box(
-        Modifier.size(ring * .535f, ring * .417f).graphicsLayer { val s = if (pressed) .95f else 1f; scaleX = s; scaleY = s }
+        Modifier.size(84.dp, 64.dp).graphicsLayer { val s = if (pressed) .95f else 1f; scaleX = s; scaleY = s }
             .clip(shape).drawBehind { drawRect(p.main.value) }
             // the ring only for a keyboard or remote: the player hands focus to play when it opens, and a finger should not see that
             .then(if (focused && keys) Modifier.border(3.dp, Ink, shape) else Modifier)
@@ -524,10 +539,9 @@ private fun SleevePlay(snap: PlayerSnap, p: SleevePalette, ring: Dp) {
             if (Tweaks.motion) (androidx.compose.animation.fadeIn(tween(140)) + androidx.compose.animation.scaleIn(tween(160), initialScale = .6f)) togetherWith
                 (androidx.compose.animation.fadeOut(tween(90)) + androidx.compose.animation.scaleOut(tween(120), targetScale = .6f))
             else EnterTransition.None togetherWith ExitTransition.None
-        }) { playing -> GlyphIcon(if (playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(ring * .2f), OnMain) }
+        }) { playing -> GlyphIcon(if (playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(30.dp), OnMain) }
     }
 }
-
 /** "1:36 / 4:12" under the ring; while the ring is being dragged the first time is where the finger is. */
 @Composable
 private fun SleeveTime(pos: State<Long>, dur: State<Long>, scrub: State<Float>) {
@@ -545,24 +559,38 @@ private fun SleeveTime(pos: State<Long>, dur: State<Long>, scrub: State<Float>) 
 @Composable
 private fun SleeveActions(snap: PlayerSnap, nav: PlayerNav, t: Track, wide: Boolean, tab: String?, onOpen: (String) -> Unit) {
     val app = LocalApp.current
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
-        // on a wide screen the panel is always beside the stage, so only More is needed here
+    val ctx = LocalContext.current
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+        // on a wide screen the panel is always beside the stage, so only More is needed here; on a phone each tab is one tap away
         if (!wide) {
             SleeveOutline("Lyrics", tab == "lyrics") { onOpen("lyrics") }
             SleeveOutline("Up next", tab == "queue") { onOpen("queue") }
+            SleeveOutline("Info", tab == "info") { onOpen("info") }
         }
         SleeveOutline("More", false, glyph = Glyph.MORE) {
+            // every action the old player had, in one menu, after the song's own (play next, queue, favourite, playlist, download, rate, go to album / artist)
             openTrackSheet(app, nav, t, buildList {
-                add(SheetItem("Add to playlist", Glyph.PLUS) { nav.sheet = playlistPicker(app, nav, t) })
-                add(SheetItem("Equalizer" + if (app.prefs.eq != "Off") "  (${app.prefs.eq})" else "", Glyph.LIST) { nav.sheet = eqSheet(app) })
                 add(SheetItem("Song info", Glyph.INFO) { onOpen("info") })
+                add(SheetItem("Lyrics", Glyph.LIST) { onOpen("lyrics") })
+                add(SheetItem("Speed: " + com.ipodemu.playback.SpeedPolicy.label(app.player.speed), Glyph.CLOCK) { nav.sheet = speedSheet(app) })
+                add(SheetItem("Sleep timer: " + sleepStatus(app), Glyph.CLOCK) { nav.sheet = sleepSheet(app) })
+                add(SheetItem("Sound: " + app.prefs.eq, Glyph.LIST) { nav.sheet = eqSheet(app) })
+                add(SheetItem("Share", Glyph.PLUS) { shareTrack(ctx, t) })
                 if (!app.ui.guest) {
                     add(SheetItem(if (app.jam.inJam) "In a Jam" else "Jam", Glyph.JAM) { app.ui.jamOpen = true })
                     add(SheetItem("Devices", Glyph.DEVICES) { app.ui.devicesOpen = true })
                 }
+                add(SheetItem("Retro", Glyph.CASSETTE) { openRetro(ctx) })
             })
         }
     }
+}
+
+/** Shares the song as words (title, artist, album) through Android's share sheet: the file itself stays where it is. */
+internal fun shareTrack(ctx: android.content.Context, t: Track) {
+    val text = listOf(t.title, t.artist, t.album).filter { it.isNotBlank() }.joinToString(" · ")
+    val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, text)
+    try { ctx.startActivity(android.content.Intent.createChooser(send, "Share").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) { }
 }
 
 /** An outlined button (Lyrics, Up next, More): solid cream with dark text while its panel is open. */
@@ -570,10 +598,10 @@ private fun SleeveActions(snap: PlayerSnap, nav: PlayerNav, t: Track, wide: Bool
 private fun SleeveOutline(label: String, on: Boolean, glyph: Glyph? = null, onClick: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
     Box(
-        Modifier.height(40.dp).then(if (glyph != null) Modifier.width(40.dp) else Modifier).clip(shape)
+        Modifier.height(48.dp).then(if (glyph != null) Modifier.width(48.dp) else Modifier).clip(shape)
             .background(if (on) Ink else Color.Transparent).border(1.dp, if (on) Ink else Line, shape).focusRing(shape)
             .semantics { contentDescription = label; role = Role.Button }.clickable(onClick = onClick)
-            .padding(horizontal = if (glyph != null) 0.dp else 18.dp),
+            .padding(horizontal = if (glyph != null) 0.dp else 16.dp),
         contentAlignment = Alignment.Center,
     ) {
         if (glyph != null) GlyphIcon(glyph, Modifier.size(20.dp), Ink)
@@ -587,22 +615,16 @@ private fun SleeveOutline(label: String, on: Boolean, glyph: Glyph? = null, onCl
 private fun SleevePanel(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePalette, tab: String, onTab: (String) -> Unit, onClose: (() -> Unit)?, modifier: Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Row(Modifier.clip(RoundedCornerShape(24.dp)).background(Color(0x12FFFFFF)).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                for ((id, label) in listOf("lyrics" to "Lyrics", "queue" to "Up next", "info" to "Info")) {
-                    val on = tab == id
-                    Box(
-                        Modifier.heightIn(min = 38.dp).clip(RoundedCornerShape(20.dp)).background(if (on) Ink else Color.Transparent)
-                            .semantics { contentDescription = label; role = Role.Tab }.clickable { onTab(id) }.padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.Center,
-                    ) { Txt(label, size = 14f, weight = FontWeight.SemiBold, color = if (on) OnMain else InkDim) }
-                }
+            // the web's three outlined tabs, in its order, the open one filled
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for ((id, label) in listOf("queue" to "Up next", "lyrics" to "Lyrics", "info" to "Info")) SleeveOutline(label, tab == id) { onTab(id) }
             }
             if (onClose != null) IconAction(Glyph.DOWN, "Back to the cover", onClose, tint = Ink, size = 48.dp, iconScale = .55f)
         }
         Box(Modifier.weight(1f).fillMaxWidth().fadeEdges()) {
             when (tab) {
                 "lyrics" -> SleeveLyrics(t, snap.playing)
-                "info" -> TrackInfoPanel(t, snap, Modifier.fillMaxSize(), tint = p.main.value)
+                "info" -> TrackInfoPanel(t, snap, Modifier.fillMaxSize(), tint = p.main.value, tone = p.tone.value, ground = p.ground.value)
                 else -> {
                     androidx.compose.runtime.CompositionLocalProvider(LocalPlayerNav provides nav) { QueuePanel(snap, Modifier.fillMaxSize()) }
                 }
@@ -627,7 +649,7 @@ private fun SleeveLyrics(t: Track, playing: Boolean) {
     var state by remember(t.path) { mutableStateOf<LyricsState>(LyricsState.Loading) }
     LaunchedEffect(t.path) { state = app.lyrics.get(t)?.let { LyricsState.Ready(it) } ?: LyricsState.None }
     when (val s = state) {
-        LyricsState.Loading -> Txt("Looking for lyricsâ€¦", Modifier.padding(4.dp), size = 15f, color = InkDim)
+        LyricsState.Loading -> Txt("Looking for lyrics…", Modifier.padding(4.dp), size = 15f, color = InkDim)
         LyricsState.None -> Txt("No lyrics for this song.", Modifier.padding(4.dp), size = 15f, color = InkDim)
         is LyricsState.Ready -> {
             val l = s.lyrics
@@ -656,7 +678,7 @@ private fun SleeveLyrics(t: Track, playing: Boolean) {
                         else -> InkFaint
                     }
                     Txt(
-                        line.text.ifEmpty { "â™ª" },
+                        line.text.ifEmpty { "♪" },
                         Modifier.fillMaxWidth().graphicsLayer { scaleX = scale; scaleY = scale; transformOrigin = TransformOrigin(0f, .5f) }
                             .then(if (l.synced) Modifier.clickable { app.player.seekTo(line.timeMs) } else Modifier),
                         size = if (l.synced) 26f else 20f, weight = if (l.synced) FontWeight.ExtraBold else FontWeight.SemiBold, color = color, maxLines = 6,

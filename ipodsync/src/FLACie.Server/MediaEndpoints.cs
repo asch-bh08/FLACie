@@ -103,8 +103,14 @@ public static class MediaEndpoints
         // or no ffmpeg), so the first browser to play a song works the shape out from the audio it already decodes and sends it here; it is kept on disk
         // for everyone, keyed by the Jellyfin item (or a hash of the file's address for other sources). GET: the shape, or 404 when nobody has sent it yet.
         var waveDir = Directory.CreateDirectory(Path.Combine(app.Configuration["FLACIE_DATA"] ?? Path.Combine(AppContext.BaseDirectory, "data"), "waves")).FullName;
-        string? WaveFile(UserSession s, string p) => s.FindByPath(p) is not { } t ? null
-            : Path.Combine(waveDir, (t.JellyfinId is { Length: 32 } id && id.All(Uri.IsHexDigit) ? id : Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(t.Path)))) + ".bin");
+        // the Android app sends its own address for a Jellyfin song, which can name the server differently (a LAN address, a public one) or carry other
+        // query parts, so FindByPath misses it: a ".../Audio/{32 hex}/stream" path is keyed by its Jellyfin item all the same
+        static string? JellyfinItem(string p) => System.Text.RegularExpressions.Regex.Match(p, "/Audio/([0-9a-fA-F]{32})/stream") is { Success: true } m ? m.Groups[1].Value.ToLowerInvariant() : null;
+        string? WaveFile(UserSession s, string p) => s.FindByPath(p) is { } t
+            ? Path.Combine(waveDir, (t.JellyfinId is { Length: 32 } id && id.All(Uri.IsHexDigit) ? id : Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(t.Path)))) + ".bin")
+            : JellyfinItem(p) is { } item ? Path.Combine(waveDir, item + ".bin") : null;
+        // the song a shape is asked for, from the web's path or the app's Jellyfin address
+        Track? WaveTrack(UserSession s, string p) => s.FindByPath(p) ?? (JellyfinItem(p) is { } item ? s.Library.Songs.FirstOrDefault(x => string.Equals(x.JellyfinId, item, StringComparison.OrdinalIgnoreCase)) : null);
         app.MapGet("/api/wave", async (HttpContext ctx, string p, SessionStore store, JellyfinClient jf, IHttpClientFactory hf) =>
         {
             var s = store.For(ctx.User);
@@ -117,7 +123,7 @@ public static class MediaEndpoints
             // nobody has sent the exact shape yet: for a FLAC file the server works out a rough one from the file's frames (WaveShape) and keeps it, so a phone,
             // which cannot decode a whole Hi-Res file, still shows the song's shape. It is marked rough; a browser that can decode the song sends the exact one.
             var rough = file + ".rough";
-            if (!File.Exists(rough) && s.FindByPath(p) is { } t && MediaInfo.FromExtension(t.FilePath ?? t.Path) == "flac"
+            if (!File.Exists(rough) && WaveTrack(s, p) is { } t && MediaInfo.FromExtension(t.FilePath ?? t.Path) == "flac"
                 && await ReadWhole(s, t, jf, hf, ctx.RequestAborted) is { } bytes && WaveShape.FromFlac(bytes) is { } bars)
                 await File.WriteAllBytesAsync(rough, bars.Select(b => (byte)b).ToArray());
             if (!File.Exists(rough)) return Results.NotFound();

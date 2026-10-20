@@ -2,6 +2,11 @@ package com.ipodemu.player
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -51,7 +56,18 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
     val sleeps = listOf(0, 15, 30, 60, 90, 120)
 
     @Composable
-    fun SettingRow(title: String, value: String? = null, chevron: Boolean = false, toggle: Boolean = false, onClick: () -> Unit) {
+    fun SettingRow(title: String, value: String? = null, chevron: Boolean = false, toggle: Boolean = false, desc: String? = null, onClick: () -> Unit) {
+        if (desc != null) {
+            // the web's switch row: the name in bold and what it does under it, the switch on the right
+            Row(Modifier.fillMaxWidth().clickable { onClick(); rev++ }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                    Txt(title, size = 16f, weight = androidx.compose.ui.text.font.FontWeight.Bold, color = sc.onBg)
+                    Txt(desc, Modifier.padding(top = 2.dp), size = 13f, color = sc.onBgDim, maxLines = 4)
+                }
+                if (toggle) SwitchPill(value == "On") else if (value != null) Txt(value, size = 15f, color = sc.onBgDim)
+            }
+            return
+        }
         IpodRow({ onClick(); rev++ }, height = 58.dp, trailing = {
             Row(Modifier.widthIn(max = 150.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (toggle) SwitchPill(value == "On")
@@ -73,89 +89,98 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
     Column(Modifier.fillMaxSize().background(Palette.bg)) {
         TopBar(if (dashboard) "Dashboard" else "Settings", nav, showBack = true)
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        LazyColumn(Modifier.widthIn(max = 620.dp).fillMaxSize(), contentPadding = PaddingValues(bottom = 30.dp)) {
-            if (!dashboard && canAdmin) {
-                item { SectionHeader("Server") }
-                item { Card { SettingRow("Dashboard", "Library, downloads, server", chevron = true) { nav.push(Screen.Dashboard) } } }
-            }
+        val list = androidx.compose.foundation.lazy.rememberLazyListState()
+        val scope = androidx.compose.runtime.rememberCoroutineScope()
+        val at = remember { HashMap<String, Int>() }
+        LazyColumn(Modifier.widthIn(max = 620.dp).fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 30.dp)) {
+            // design I, the web's Settings page (Settings.razor): a row of section chips, then each section as one panel with a serif heading and a
+            // DM Mono hint, in the web's order: Playback, Music sources, Look and feel, then what only the phone has, Account and About
             if (!dashboard) {
-            item { SectionHeader("Appearance") }
-            item {
-                Card {
-                    // an explicit chooser, not a one-tap toggle: the Account rows above change count on sign-in/out, and a tap meant
-                    // for them used to land here and silently flip the whole app into the iPod theme
-                    SettingRow("Mode", if (ui.ipodTheme) "iPod" else "Modern", chevron = true) {
-                        nav.sheet = SheetSpec("Mode", null, listOf(
-                            SheetItem("Modern", if (!ui.ipodTheme) Glyph.CHECK else Glyph.NOTE) { ui.changeTheme(0) },
-                            SheetItem("iPod (classic skins and click wheel)", if (ui.ipodTheme) Glyph.CHECK else Glyph.IPOD) { ui.changeTheme(1) },
-                            SheetItem("Sync mode (edit a connected iPod)", Glyph.LIST) { ui.changeTheme(2) },
-                            SheetItem("Retro (iPods, the desk and listening scenes)", Glyph.CASSETTE) { openRetro(ctx) },
+                item(key = "subnav") {
+                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for ((id, label) in listOf("playback" to "Playback", "look" to "Look and feel", "sources" to "Music sources", "account" to "Account", "about" to "About"))
+                            DesignChip(label, false, { val n = list.layoutInfo.totalItemsCount; val i = when (id) { "account" -> n - 2; "about" -> n - 1; else -> at[id] ?: 0 }; scope.launch { list.animateScrollToItem(i.coerceAtLeast(0)) } })
+                        if (!ui.guest) DesignChip("Download log", false, { ui.downloadsOpen = true })
+                        if (canAdmin) DesignChip("Dashboard", false, { nav.push(Screen.Dashboard) })
+                    }
+                }
+                at["playback"] = 1
+                item(key = "playback") {
+                    SetPanel("Playback", "How this phone plays and what comes after the last song.") {
+                        SettingRow("Autoplay", if (prefs.autoplay) "On" else "Off", toggle = true, desc = "When the queue ends, carry on with different songs that go with what was playing") { prefs.autoplay = !prefs.autoplay }
+                        SettingRow("Fetch ahead", if (prefs.autoplayFetch) "On" else "Off", toggle = true, desc = "Download the next few Autoplay songs you don't have yet, so they are ready when needed") { prefs.autoplayFetch = !prefs.autoplayFetch }
+                        SettingRow("Offline and storage", if (app.offline.doneCount > 0) "${com.ipodemu.library.offline.OfflineMath.songs(app.offline.doneCount)}, ${com.ipodemu.library.offline.OfflineMath.formatBytes(app.offline.usedBytes)}" else "None", chevron = true) { nav.push(Screen.Offline) }
+                        SettingRow("Streaming quality", listOf("Automatic", "Always full", "Data saver")[prefs.streamQuality.coerceIn(0, 2)]) { prefs.streamQuality = (prefs.streamQuality + 1) % 3 }
+                        SettingRow("Equalizer", prefs.eq, chevron = true) {
+                            nav.sheet = SheetSpec("Equalizer", prefs.eq, com.ipodemu.playback.PlayerController.EQ_NAMES.map { n ->
+                                SheetItem(if (prefs.eq == n) "$n  (on)" else n, if (prefs.eq == n) Glyph.CHECK else Glyph.LIST) { prefs.eq = n; app.player.applyEq() }
+                            })
+                        }
+                        SettingRow("Fade between songs", if (prefs.fadeSecs == 0) "Off" else "${prefs.fadeSecs} s") {
+                            prefs.fadeSecs = com.ipodemu.playback.FadeBetween.CHOICES[(com.ipodemu.playback.FadeBetween.CHOICES.indexOf(prefs.fadeSecs).coerceAtLeast(0) + 1) % com.ipodemu.playback.FadeBetween.CHOICES.size]; app.player.applyFade()
+                        }
+                        SettingRow("Even out volume", if (prefs.levelVolume) "On" else "Off", toggle = true) { prefs.levelVolume = !prefs.levelVolume; app.player.applyLeveling() }
+                        SettingRow("Volume limit", if (prefs.volumeLimit == 100) "Off" else "${prefs.volumeLimit}%") {
+                            prefs.volumeLimit = limits[(limits.indexOf(prefs.volumeLimit).coerceAtLeast(0) + 1) % limits.size]; app.player.applyVolumeLimit()
+                        }
+                        val sleepLeft = rememberSleepLeft(app)
+                        SettingRow("Sleep timer", sleepLeft ?: "Off", chevron = true) { nav.sheet = sleepSheet(app) }
+                    }
+                }
+                at["sources"] = 2
+                item(key = "sources") {
+                    SetPanel("Music sources", "Where the songs come from. Your profile is kept in your ${if (prefs.accountKind == "nas") "NAS" else "Jellyfin account"}, so signing in on another device brings everything back.") {
+                        // the web's facts first: who is signed in where, and how big the library is
+                        val lib = app.library
+                        SetFacts(listOf(
+                            "Jellyfin" to (if (lib.jellyfinConnected || prefs.accountKind == "jellyfin") "${prefs.accountUserName.ifBlank { "Signed in" }} on ${prefs.accountServer.ifBlank { prefs.jellyfinUrl }}" else "Not connected"),
+                            "NAS" to (if (lib.nasConnected) "${prefs.nasHost}/${prefs.nasShare}" else "Not connected"),
+                            "Library" to "${lib.songs().size} songs · ${lib.albums().size} albums",
                         ))
+                        // guests use this device's files only
+                        if (!ui.guest) SettingRow("Jellyfin", if (lib.jellyfinConnected) "Connected" else "Not connected", chevron = true) { ui.jellyfinSetupOpen = true }
+                        if (!ui.guest) SettingRow("Plex", if (lib.plexConnected) "Connected" else "Not connected", chevron = true) { ui.plexSetupOpen = true }
+                        if (!ui.guest) SettingRow("NAS", if (lib.nasConnected) "Connected" else "Not connected", chevron = true) { ui.nasSetupOpen = true }
+                        SettingRow("Reload library", if (lib.scanning) "Scanning ${lib.scanCount}..." else null, desc = "Reads this phone's music and the servers' song lists again") { lib.rescan() }
+                        if (!ui.guest) SettingRow("Download log", "Open", chevron = true) { ui.downloadsOpen = true }
+                        SettingRow("Headphone test", "Tones, bass, 3D", chevron = true) { ui.headphonesOpen = true }
+                        SettingRow("iPod sync", lib.syncDeviceLabel ?: "Off", chevron = true) { ui.syncSetupOpen = true }
                     }
-                    SettingRow("Retro", "iPods, desk, scenes", chevron = true) { openRetro(ctx) }
-                    if (ui.ipodTheme) SettingRow("iPod appearance", modeName, chevron = true) { ui.pickerOpen = true }
-                    SettingRow("Colour from album art", if (ui.dynamicColor) "On" else "Off", toggle = true) { ui.changeDynamic(!ui.dynamicColor) }
-                    if (ui.ipodTheme) SettingRow("Light or dark", listOf("Dark", "Light", "System")[prefs.appearance.coerceIn(0, 2)]) { prefs.appearance = (prefs.appearance + 1) % 3; ui.refreshFromPrefs() }
+                }
+                at["look"] = 3
+                item(key = "look") {
+                    SetPanel("Look and feel", "Personal tweaks, saved on this phone only (the web has its own in its Settings).") {
+                        val accName = Tweaks.ACCENTS.firstOrNull { it.second == prefs.accentColor }?.first ?: "Custom"
+                        SettingRow("Accent colour", accName, chevron = true) {
+                            nav.sheet = SheetSpec("Accent colour", "Over the theme's own colour", Tweaks.ACCENTS.map { (n, c) ->
+                                SheetItem(if (c == prefs.accentColor) "$n  (on)" else n, if (c == prefs.accentColor) Glyph.CHECK else Glyph.NOTE) { prefs.accentColor = c; ui.refreshFromPrefs() }
+                            })
+                        }
+                        SettingRow("Cover colours in the player", if (ui.dynamicColor) "On" else "Off", toggle = true, desc = "The full-screen player takes its background from the song's cover. Off gives a plain dark background.") { ui.changeDynamic(!ui.dynamicColor) }
+                        SettingRow("Compact lists", if (prefs.compactLists) "On" else "Off", toggle = true, desc = "Tighter rows in song lists, so more fit on the screen.") { prefs.compactLists = !prefs.compactLists; ui.refreshFromPrefs() }
+                        SettingRow("Format and source badges", if (prefs.showBadges) "On" else "Off", toggle = true, desc = "The small FLAC / MP3 and NAS / Streaming labels next to songs.") { prefs.showBadges = !prefs.showBadges; ui.refreshFromPrefs() }
+                        SettingRow("Animations", if (prefs.motion) "On" else "Off", toggle = true, desc = "Fades, the pulsing download dot and moving highlights. Turn off for a calmer, lighter app.") { prefs.motion = !prefs.motion; ui.refreshFromPrefs() }
+                        // the phone's own looks: the mode (an explicit chooser, never a one-tap toggle: a stray tap used to flip the whole app into the iPod theme) and Retro
+                        SettingRow("Mode", if (ui.ipodTheme) "iPod" else "Modern", chevron = true) {
+                            nav.sheet = SheetSpec("Mode", null, listOf(
+                                SheetItem("Modern", if (!ui.ipodTheme) Glyph.CHECK else Glyph.NOTE) { ui.changeTheme(0) },
+                                SheetItem("iPod (classic skins and click wheel)", if (ui.ipodTheme) Glyph.CHECK else Glyph.IPOD) { ui.changeTheme(1) },
+                                SheetItem("Sync mode (edit a connected iPod)", Glyph.LIST) { ui.changeTheme(2) },
+                                SheetItem("Retro (iPods, the desk and listening scenes)", Glyph.CASSETTE) { openRetro(ctx) },
+                            ))
+                        }
+                        SettingRow("Retro", "iPods, desk, scenes", chevron = true) { openRetro(ctx) }
+                        if (ui.ipodTheme) SettingRow("iPod appearance", modeName, chevron = true) { ui.pickerOpen = true }
+                        if (ui.ipodTheme) SettingRow("Light or dark", listOf("Dark", "Light", "System")[prefs.appearance.coerceIn(0, 2)]) { prefs.appearance = (prefs.appearance + 1) % 3; ui.refreshFromPrefs() }
+                    }
                 }
             }
-            item { SectionHeader("Look and feel") }
-            item {
-                Card {
-                    val accName = Tweaks.ACCENTS.firstOrNull { it.second == prefs.accentColor }?.first ?: "Custom"
-                    SettingRow("Accent colour", accName, chevron = true) {
-                        nav.sheet = SheetSpec("Accent colour", "Over the theme's own colour", Tweaks.ACCENTS.map { (n, c) ->
-                            SheetItem(if (c == prefs.accentColor) "$n  (on)" else n, if (c == prefs.accentColor) Glyph.CHECK else Glyph.NOTE) { prefs.accentColor = c; ui.refreshFromPrefs() }
-                        })
-                    }
-                    SettingRow("Compact lists", if (prefs.compactLists) "On" else "Off", toggle = true) { prefs.compactLists = !prefs.compactLists; ui.refreshFromPrefs() }
-                    SettingRow("Format and source badges", if (prefs.showBadges) "On" else "Off", toggle = true) { prefs.showBadges = !prefs.showBadges; ui.refreshFromPrefs() }
-                    SettingRow("Animations", if (prefs.motion) "On" else "Off", toggle = true) { prefs.motion = !prefs.motion; ui.refreshFromPrefs() }
-                }
-            }
-            // shuffle and repeat live on Now Playing, where they're used; settings holds what's set once
-            item { SectionHeader("Playback") }
-            item {
-                Card {
-                    SettingRow("Offline and storage", if (app.offline.doneCount > 0) "${com.ipodemu.library.offline.OfflineMath.songs(app.offline.doneCount)}, ${com.ipodemu.library.offline.OfflineMath.formatBytes(app.offline.usedBytes)}" else "None", chevron = true) { nav.push(Screen.Offline) }
-                    SettingRow("Autoplay", if (prefs.autoplay) "On" else "Off", toggle = true) { prefs.autoplay = !prefs.autoplay }
-                    SettingRow("Fetch ahead", if (prefs.autoplayFetch) "On" else "Off", toggle = true) { prefs.autoplayFetch = !prefs.autoplayFetch }
-                    SettingRow("Streaming quality", listOf("Automatic", "Always full", "Data saver")[prefs.streamQuality.coerceIn(0, 2)]) { prefs.streamQuality = (prefs.streamQuality + 1) % 3 }
-                    SettingRow("Equalizer", prefs.eq, chevron = true) {
-                        nav.sheet = SheetSpec("Equalizer", prefs.eq, com.ipodemu.playback.PlayerController.EQ_NAMES.map { n ->
-                            SheetItem(if (prefs.eq == n) "$n  (on)" else n, if (prefs.eq == n) Glyph.CHECK else Glyph.LIST) { prefs.eq = n; app.player.applyEq() }
-                        })
-                    }
-                    SettingRow("Fade between songs", if (prefs.fadeSecs == 0) "Off" else "${prefs.fadeSecs} s") {
-                        prefs.fadeSecs = com.ipodemu.playback.FadeBetween.CHOICES[(com.ipodemu.playback.FadeBetween.CHOICES.indexOf(prefs.fadeSecs).coerceAtLeast(0) + 1) % com.ipodemu.playback.FadeBetween.CHOICES.size]; app.player.applyFade()
-                    }
-                    SettingRow("Even out volume", if (prefs.levelVolume) "On" else "Off", toggle = true) { prefs.levelVolume = !prefs.levelVolume; app.player.applyLeveling() }
-                    SettingRow("Volume limit", if (prefs.volumeLimit == 100) "Off" else "${prefs.volumeLimit}%") {
-                        prefs.volumeLimit = limits[(limits.indexOf(prefs.volumeLimit).coerceAtLeast(0) + 1) % limits.size]; app.player.applyVolumeLimit()
-                    }
-                    val sleepLeft = rememberSleepLeft(app)
-                    SettingRow("Sleep timer", sleepLeft ?: "Off", chevron = true) { nav.sheet = sleepSheet(app) }
-                }
-            }
-            }
-            if (!dashboard) {
-            item { SectionHeader("Music sources") }
-            item {
-                Card {
-                    // guests use this device's files only
-                    if (!ui.guest) SettingRow("Jellyfin", if (app.library.jellyfinConnected) "Connected" else "Not connected", chevron = true) { ui.jellyfinSetupOpen = true }
-                    if (!ui.guest) SettingRow("Plex", if (app.library.plexConnected) "Connected" else "Not connected", chevron = true) { ui.plexSetupOpen = true }
-                    if (!ui.guest) SettingRow("NAS", if (app.library.nasConnected) "Connected" else "Not connected", chevron = true) { ui.nasSetupOpen = true }
-                    if (!ui.guest) SettingRow("Download log", "Open", chevron = true) { ui.downloadsOpen = true }
-                    SettingRow("Headphone test", "Tones, bass, 3D", chevron = true) { ui.headphonesOpen = true }
-                    SettingRow("iPod sync", app.library.syncDeviceLabel ?: "Off", chevron = true) { ui.syncSetupOpen = true }
-                    SettingRow("Rescan this device", if (app.library.scanning) "Scanning ${app.library.scanCount}..." else null) { app.library.rescan() }
-                }
-            }
+            if (dashboard) item(key = "dash-intro") {
+                MonoLabel("What is in the library, how the downloads went, and the server's settings", Modifier.padding(horizontal = 20.dp, vertical = 4.dp), size = 11f, maxLines = 3)
             }
             if (dashboard && canAdmin) {
-                item { SectionHeader("Overview") }
                 item {
-                    Card {
+                    SetPanel("Library", "Every song by the real format of its file") {
                         // what is in the library, by the real format of each file (AudioFacts, read by the server), and how the last downloads went
                         AudioFacts.version
                         val counts = remember(AudioFacts.version, app.library.songs().size) {
@@ -163,11 +188,17 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             for (t in all) { val f = AudioFacts.of(t); if (f == null) unknown++ else if (f.hiRes) hi++ else if (f.lossless) lossless++ else lossy++ }
                             listOf(all.size, hi, lossless, lossy, unknown)
                         }
-                        SettingRow("Songs", "%,d".format(counts[0])) { }
-                        SettingRow("Hi-Res", "%,d".format(counts[1])) { }
-                        SettingRow("Lossless (CD quality)", "%,d".format(counts[2])) { }
-                        SettingRow("Lossy (MP3, AAC...)", "%,d".format(counts[3])) { }
-                        if (counts[4] > 0) SettingRow("Format not read yet", "%,d".format(counts[4])) { }
+                        val tiles = listOf("%,d".format(counts[0]) to "Songs in your library", "%,d".format(counts[1]) to "Hi-Res", "%,d".format(counts[2]) to "Lossless (CD quality)", "%,d".format(counts[3]) to "Lossy (MP3, AAC...)") +
+                            (if (counts[4] > 0) listOf("%,d".format(counts[4]) to "Format not read yet") else emptyList())
+                        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            for (pair in tiles.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                for ((v, k) in pair) Column(Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).border(1.dp, Palette.line, RoundedCornerShape(18.dp)).background(Palette.surface2).padding(16.dp)) {
+                                    SerifTitle(v, size = 34f, italicWords = -1)
+                                    MonoLabel(k, Modifier.padding(top = 6.dp), size = 10.5f, maxLines = 2)
+                                }
+                                if (pair.size == 1) Box(Modifier.weight(1f))
+                            }
+                        }
                         val dl = remember { com.ipodemu.library.FlacieWebClient(prefs) }
                         var recent by remember { mutableStateOf<List<com.ipodemu.library.DownloadRecord>?>(null) }
                         androidx.compose.runtime.LaunchedEffect(dl.available) {
@@ -182,9 +213,8 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                 }
             }
             if (dashboard) {
-                item { SectionHeader("Download services") }
                 item {
-                    Card {
+                    SetPanel("Download services", "Where missing songs are fetched from") {
                         if (canAdmin) SettingRow("Download services", if (app.library.lidarrConnected) "Set up" else "Not set up", chevron = true) { ui.lidarrSetupOpen = true }
                         SettingRow("Download log", "Open", chevron = true) { ui.downloadsOpen = true }
                         if (adminWeb.available) SettingRow("Web dashboard", "Open", chevron = true) {
@@ -195,9 +225,8 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                 if (!canAdmin) item { Txt("The Dashboard is for the server's administrators.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), size = 13f, color = sc.onBgDim, maxLines = 3) }
             }
             if (dashboard && canAdmin) {
-                item { SectionHeader("Background downloads") }
                 item {
-                    Card {
+                    SetPanel("Background downloads", "Playlists sent to the server and its daily charts") {
                         val web = remember { com.ipodemu.library.FlacieWebClient(prefs) }
                         val scope = androidx.compose.runtime.rememberCoroutineScope()
                         var msg by remember { mutableStateOf<String?>(null) }
@@ -266,11 +295,10 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                 }
             }
             if (!dashboard) {
-            item { SectionHeader("Storage") }
-            item {
-                Card {
+            item(key = "storage") {
+                SetPanel("Storage", "Covers and audio kept on this phone so they show and play at once.") {
                     // covers (one 240 px picture per album, kept until the phone runs low on space), the saved song list, and audio kept for replay
-                    val scope = androidx.compose.runtime.rememberCoroutineScope()
+                    val scope2 = androidx.compose.runtime.rememberCoroutineScope()
                     var bytes by remember { mutableStateOf(-1L) }
                     var clearing by remember { mutableStateOf(false) }
                     var cleared by remember { mutableIntStateOf(0) }
@@ -281,18 +309,15 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                     SettingRow("Clear cache", if (clearing) "Clearing..." else "Covers and saved audio") {
                         if (!clearing) {
                             clearing = true
-                            scope.launch {
+                            scope2.launch {
                                 try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { app.clearCaches() } } finally { clearing = false; cleared++ }
                             }
                         }
                     }
                 }
             }
-            }
-            if (!dashboard) {
-            item { SectionHeader("Controls") }
-            item {
-                Card {
+            item(key = "controls") {
+                SetPanel("Controls", "Swipes and game controllers.") {
                     SettingRow("Swipe to go back", listOf("Anywhere", "Left edge", "Off")[prefs.swipeBack.coerceIn(0, 2)]) { prefs.swipeBack = (prefs.swipeBack + 1) % 3; ui.refreshFromPrefs() }
                     SettingRow("Swipe track right", SWIPE_ACTIONS[prefs.swipeRowRight.coerceIn(0, 3)]) { prefs.swipeRowRight = (prefs.swipeRowRight + 1) % 4; ui.refreshFromPrefs() }
                     SettingRow("Swipe track left", SWIPE_ACTIONS[prefs.swipeRowLeft.coerceIn(0, 3)]) { prefs.swipeRowLeft = (prefs.swipeRowLeft + 1) % 4; ui.refreshFromPrefs() }
@@ -301,9 +326,8 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
             }
             // what FLACie may ask the Android system for: music on this phone, notifications (Android 13+). Only shown while something is off.
             if (ui.mediaAccess != com.ipodemu.Access.GRANTED || ui.notifAccess == com.ipodemu.Access.DENIED || ui.notifAccess == com.ipodemu.Access.ASK) {
-                item { SectionHeader("Permissions") }
-                item {
-                    Card {
+                item(key = "permissions") {
+                    SetPanel("Permissions", "What FLACie may ask the phone for.") {
                         if (ui.mediaAccess != com.ipodemu.Access.GRANTED) SettingRow("Music on this phone", if (ui.mediaAccess == com.ipodemu.Access.DENIED) "Open settings" else "Allow", chevron = true) {
                             if (ui.mediaAccess == com.ipodemu.Access.DENIED) ui.permissions?.openAppSettings() else ui.permissions?.request(com.ipodemu.Need.MEDIA)
                         }
@@ -313,21 +337,50 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                     }
                 }
             }
-            item { SectionHeader("Account") }
-            item {
-                Card {
+            item(key = "account") {
+                SetPanel("Account", null) {
                     val acct = app.account
                     if (acct.signedIn) {
-                        if (prefs.accountKind == "nas") SettingRow("NAS: ${prefs.nasUsername.ifBlank { "guest" }}", "${prefs.nasHost}/${prefs.nasShare}", chevron = true) { ui.accountOpen = true }
-                        else SettingRow(prefs.accountUserName.ifEmpty { "Signed in" }, prefs.accountServer.removePrefix("https://").removePrefix("http://"), chevron = true) { ui.accountOpen = true }
+                        Txt("Signed in with ${if (prefs.accountKind == "nas") "a NAS" else "Jellyfin"} as ${if (prefs.accountKind == "nas") prefs.nasUsername.ifBlank { "guest" } else prefs.accountUserName.ifEmpty { "you" }}.",
+                            Modifier.padding(horizontal = 16.dp, vertical = 6.dp), size = 15f, maxLines = 3)
+                        if (prefs.accountKind == "nas") SettingRow("Account details", "${prefs.nasHost}/${prefs.nasShare}", chevron = true) { ui.accountOpen = true }
+                        else SettingRow("Account details", prefs.accountServer.removePrefix("https://").removePrefix("http://"), chevron = true) { ui.accountOpen = true }
                         SettingRow("Sync now", acct.status ?: syncedLabel(prefs.accountSyncedAt)) { acct.sync() }
                     } else SettingRow("Sign in", if (ui.guest) "Guest" else "Not signed in", chevron = true) { ui.accountOpen = true }
                 }
             }
-            item { SectionHeader("About") }
-            item { Card { SettingRow("Version", remember { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "" }) { } } }
+            item(key = "about") {
+                SetPanel("About", "What is running here.") {
+                    SetFacts(listOf(
+                        "Version" to remember { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "" },
+                        "Server" to prefs.flacieWebUrl.ifBlank { "Not linked to FLACie Web" },
+                    ))
+                    if (canAdmin) SettingRow("Dashboard", "Library, downloads, server", chevron = true) { nav.push(Screen.Dashboard) }
+                }
+            }
             }
         }
+        }
+    }
+}
+
+/** A Settings section as the web draws it: one rounded panel with a serif heading and a DM Mono hint, the rows inside. */
+@Composable
+internal fun SetPanel(title: String, hint: String?, content: @Composable () -> Unit) {
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(20.dp)).padding(vertical = 14.dp)) {
+        SerifTitle(title, Modifier.padding(horizontal = 16.dp), size = 26f)
+        if (hint != null) MonoLabel(hint, Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 6.dp), size = 10.5f, upper = false, maxLines = 4)
+        content()
+    }
+}
+
+/** Label and value pairs (the web's dl.kv): the label in DM Mono capitals, the value beside it. */
+@Composable
+internal fun SetFacts(rows: List<Pair<String, String>>) {
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        for ((k, v) in rows) Row(verticalAlignment = Alignment.Top) {
+            MonoLabel(k, Modifier.width(84.dp).padding(top = 3.dp), size = 10.5f)
+            Txt(v, Modifier.weight(1f), size = 15f, maxLines = 3)
         }
     }
 }

@@ -112,16 +112,34 @@ private fun Modifier.semanticsLabel(label: String) = this.semantics { contentDes
 
 // ---- navigation ----------------------------------------------------------------------------------------------------
 
-enum class Tab(val label: String, val glyph: Glyph, val root: Screen) {
+/**
+ * The bottom navigation, the same six places as the web's phone bar: Home, Search, Favourites, Playlists, Devices and Jam. Devices and Jam open their
+ * panels over whatever is on screen (they have no page of their own). Explore and Settings, which used to be tabs, are on Search (its chips) and on
+ * Home's top bar, so nothing went away.
+ */
+enum class Tab(val label: String, val glyph: Glyph, val root: Screen?) {
     HOME("Home", Glyph.NOTE, Screen.Home), SEARCH("Search", Glyph.SEARCH, Screen.Search),
-    PLAYLISTS("Playlists", Glyph.LIST, Screen.Lib(LibKind.PLAYLISTS)), LIBRARY("Explore", Glyph.ALBUM, Screen.Library), SETTINGS("Settings", Glyph.GEAR, Screen.Settings),
+    FAVOURITES("Favourites", Glyph.HEART, Screen.Detail(DetailKind.FAVORITES)), PLAYLISTS("Playlists", Glyph.LIST, Screen.Lib(LibKind.PLAYLISTS)),
+    DEVICES("Devices", Glyph.DEVICES, null), JAM("Jam", Glyph.JAM, null),
 }
 
-fun PlayerNav.currentTab(): Tab = Tab.entries.firstOrNull { it.root == stack.first() } ?: Tab.HOME
+fun PlayerNav.currentTab(): Tab = Tab.entries.firstOrNull { it.root != null && it.root == stack.first() } ?: Tab.HOME
 fun PlayerNav.selectTab(t: Tab) {
+    val root = t.root ?: return
     nowPlaying = false; queueFromPlayer = false
-    if (stack.size == 1 && stack.first() == t.root) return
-    stack.clear(); stack.add(t.root)
+    if (stack.size == 1 && stack.first() == root) return
+    stack.clear(); stack.add(root)
+}
+
+/** The tabs this person sees: a guest has no Devices or Jam (as in the player's More menu). */
+@Composable
+private fun shownTabs(): List<Tab> { val guest = LocalApp.current.ui.guest; return Tab.entries.filter { !guest || it.root != null } }
+
+/** A tab's press: a page tab switches page; Devices and Jam open their panels. */
+@Composable
+private fun tabPress(nav: PlayerNav): (Tab) -> Unit {
+    val app = LocalApp.current
+    return { t -> when (t) { Tab.DEVICES -> app.ui.devicesOpen = true; Tab.JAM -> app.ui.jamOpen = true; else -> nav.selectTab(t) } }
 }
 
 /** Bottom navigation bar for phones and the Fold's cover screen. */
@@ -130,7 +148,8 @@ fun BottomNav(nav: PlayerNav) {
     val sc = LocalScheme.current
     val cur = nav.currentTab()
     Row(Modifier.fillMaxWidth().height(72.dp).background(Palette.bg).drawBehind { drawLine(Palette.line, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1f) }.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Tab.entries.forEach { t -> NavItem(t, t == cur, Modifier.weight(1f).fillMaxHeight()) { nav.selectTab(t) } }
+        val press = tabPress(nav)
+        shownTabs().forEach { t -> NavItem(t, t == cur && t.root != null, Modifier.weight(1f).fillMaxHeight()) { press(t) } }
     }
 }
 
@@ -146,7 +165,8 @@ fun NavRail(nav: PlayerNav) {
             Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Tab.entries.forEach { t -> NavItem(t, t == cur, Modifier.width(80.dp).height(itemH)) { nav.selectTab(t) } }
+            val press = tabPress(nav)
+            shownTabs().forEach { t -> NavItem(t, t == cur && t.root != null, Modifier.width(80.dp).height(itemH)) { press(t) } }
         }
     }
 }
@@ -163,7 +183,7 @@ private fun NavItem(t: Tab, selected: Boolean, modifier: Modifier, onClick: () -
                 .background(if (selected) sc.accent.copy(alpha = .16f) else if (focused) Color(0x22FFFFFF) else Color.Transparent).ringWhen(focused, RoundedCornerShape(14.dp)),
             contentAlignment = Alignment.Center,
         ) { GlyphIcon(t.glyph, Modifier.size(22.dp), col) }
-        Txt(t.label, Modifier.padding(top = 3.dp), size = 11.5f, weight = if (selected) FontWeight.SemiBold else FontWeight.Normal, color = col, align = TextAlign.Center)
+        Txt(t.label, Modifier.padding(top = 3.dp), size = 11f, maxLines = 1, weight = if (selected) FontWeight.SemiBold else FontWeight.Normal, color = col, align = TextAlign.Center)
     }
 }
 

@@ -18,6 +18,7 @@
 // Listens on 0.0.0.0 by default so phones on the LAN can use it: point them at http://<this-pc-ip>:8196
 import http from 'node:http';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 
 const arg = (name, def) => { const i = process.argv.indexOf('--' + name); return i > 0 ? process.argv[i + 1] : (process.env[name.toUpperCase()] ?? def); };
 const PORT = Number(arg('port', 8196)), HOST = arg('host', '0.0.0.0'), N = Number(arg('items', 10000));
@@ -58,14 +59,16 @@ const sources = (x) => ({ ...strip(x), MediaSources: [{ Container: x._kind[1], P
   MediaStreams: [{ Type: 'Audio', Codec: x._kind[0], Channels: 2, BitRate: x._kind[4], SampleRate: x._kind[3], ...(x._kind[2] ? { BitDepth: x._kind[2] } : {}) }] }] });
 const strip = (x) => { const { _kind, _nopic, ...r } = x; return r; };
 
-const wav = (() => {
+// --audio FILE streams a real song for every item (so the player's loudness frame and live graphs have music to show); without it, a short silent WAV
+const wav = arg('audio', '') ? fs.readFileSync(arg('audio', '')) : (() => {
   const rate = 8000, n = rate * Number(arg('wavsec', 3)), b = Buffer.alloc(44 + n * 2);
   b.write('RIFF', 0); b.writeUInt32LE(36 + n * 2, 4); b.write('WAVEfmt ', 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22);
   b.writeUInt32LE(rate, 24); b.writeUInt32LE(rate * 2, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(n * 2, 40);
   return b;
 })();
 // a picture Android's decoder accepts (a 1x1 PNG, sent for every size and format: clients only sniff it); the earlier hand-made 1x1 JPEG did not decode, which a cover test would show as "no cover"
-const jpeg = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+// --cover FILE sends that picture instead, for screenshots that need a real cover
+const jpeg = arg('cover', '') ? fs.readFileSync(arg('cover', '')) : Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 const me = { Id: 'u1', Name: 'tester', Policy: { IsAdministrator: true } };
 let prefs = { Id: 'ipodplayer', Client: 'ipodplayer', CustomPrefs: {} };
 
@@ -154,7 +157,7 @@ http.createServer(async (req, res) => {
     const r = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
     const from = r && r[1] !== '' ? +r[1] : 0, to = r && r[2] !== '' ? Math.min(+r[2], wav.length - 1) : wav.length - 1;
     stats.streamsOpened++;
-    res.writeHead(r ? 206 : 200, { 'content-type': 'audio/wav', 'accept-ranges': 'bytes', 'content-length': to - from + 1, ...(r ? { 'content-range': `bytes ${from}-${to}/${wav.length}` } : {}) });
+    res.writeHead(r ? 206 : 200, { 'content-type': arg('audio', '') ? 'audio/flac' : 'audio/wav', 'accept-ranges': 'bytes', 'content-length': to - from + 1, ...(r ? { 'content-range': `bytes ${from}-${to}/${wav.length}` } : {}) });
     const body = wav.subarray(from, to + 1);
     if (!cfg.streamms || body.length < 8) return res.end(body);
     // sent over streamms in 8 pieces: a client that gives up before the end shows as an aborted stream

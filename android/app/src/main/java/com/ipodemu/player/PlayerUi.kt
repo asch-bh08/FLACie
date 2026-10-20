@@ -101,6 +101,7 @@ import com.ipodemu.library.DownloadStatus
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 
 // ---- navigation state ---------------------------------------------------------------------------------------------
 
@@ -570,10 +571,12 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             // design I: Favourites, Recent, Downloads and the moods as outlined chips (the chosen mood filled); Shuffle all is in the hero
             if (modern) item {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // the moods first, as on the web ("All" filled while no mood is picked), then the shortcuts the old Home had
+                    DesignChip("All", mood == null, { mood = null })
+                    moodList.forEach { m -> DesignChip(m, mood == m, { mood = if (mood == m) null else m }) }
                     DesignChip("Favorites", false, { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART)
                     DesignChip("Recent", false, { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK)
                     DesignChip("Downloads", false, { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.DOWN)
-                    moodList.forEach { m -> DesignChip(m, mood == m, { mood = if (mood == m) null else m }) }
                 }
             } else item {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -659,13 +662,23 @@ private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, acc
                 ArtImage(last.artKey, Modifier.fillMaxSize(), corner = 0.dp)
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x55000000), .3f to Color.Transparent, .55f to Color.Transparent, 1f to Palette.bg)))
             } else Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(cols.tone), Palette.bg))))
-            Row(Modifier.align(Alignment.TopEnd).padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconAction(Glyph.SEARCH, "Search", { nav.push(Screen.Search) }, tint = Color.White)
+            // the web's top bar: the search box at the left (a tap opens Search), then Settings and the account
+            Row(Modifier.align(Alignment.TopStart).fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.weight(1f).height(48.dp).clip(RoundedCornerShape(50)).background(Color(0x59000000)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(50))
+                        .semantics { contentDescription = "Search" }.clickable { nav.push(Screen.Search) }.padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    GlyphIcon(Glyph.SEARCH, Modifier.size(18.dp), Color.White.copy(alpha = .8f))
+                    Txt("Search songs, albums, artists", Modifier.padding(start = 10.dp), size = 14f, color = Color.White.copy(alpha = .7f), maxLines = 1)
+                }
+                IconAction(Glyph.GEAR, "Settings", { nav.push(Screen.Settings) }, tint = Color.White)
                 account()
             }
             Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 20.dp)) {
-                MonoLabel(HomeWords.greeting(hour), color = sc.onBg.copy(alpha = .75f))
-                SerifTitle(HomeWords.headline(last != null), Modifier.padding(top = 6.dp), size = 40f, maxLines = 2, italicWords = 2)
+                val who = remember { app.prefs.accountUserName.ifBlank { if (app.prefs.accountKind == "nas") app.prefs.nasUsername else "" } }
+                MonoLabel(HomeWords.greeting(hour) + if (who.isNotBlank()) ", $who" else "", color = sc.onBg.copy(alpha = .75f))
+                SerifTitle(HomeWords.headline(last != null), Modifier.padding(top = 6.dp), size = 40f, maxLines = 2, italicWords = if (last != null) 4 else 1)
             }
         }
         Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -863,6 +876,57 @@ internal fun GroupList(groups: List<Group>, nav: PlayerNav, circle: Boolean, tar
     }
 }
 
+/**
+ * The top of Playlists as on the web (Playlists.razor): a "New playlist name" field with Create beside it, then "Import a playlist", which sends a
+ * playlist file to FLACie Web to find and fetch its songs (the Dashboard's import, one tap from here).
+ */
+@Composable
+private fun NewPlaylistRow(nav: PlayerNav) {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var name by remember { mutableStateOf("") }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val web = remember { com.ipodemu.library.FlacieWebClient(app.prefs) }
+    val pick = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch(Dispatchers.IO) {
+            val m = try {
+                val file = ctx.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { if (it.moveToFirst()) it.getString(0) else null } ?: "playlist.txt"
+                val j = web.submit(file, ctx.contentResolver.openInputStream(uri)!!.use { it.readBytes() })
+                "Sent ${j.file}: ${j.total} songs. The server is fetching them."
+            } catch (e: Exception) { e.message ?: "Couldn't send the file" }
+            withContext(Dispatchers.Main) { app.ui.say(m) }
+        }
+    }
+    fun create() { val n = name.trim(); if (n.isNotEmpty()) { app.userData.createPlaylist(n); app.ui.say("Made \"$n\""); name = "" } }
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            androidx.compose.foundation.text.BasicTextField(
+                name, { name = it }, singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(color = sc.onBg, fontSize = 16.sp, fontFamily = DesignFonts.sans),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(sc.accent),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { create() }),
+                modifier = Modifier.weight(1f).height(52.dp).semantics { contentDescription = "New playlist name" },
+                decorationBox = { inner ->
+                    Box(Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp)).background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(14.dp)).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+                        if (name.isEmpty()) Txt("New playlist name", size = 16f, color = sc.onBgDim)
+                        inner()
+                    }
+                },
+            )
+            Box(
+                Modifier.height(52.dp).clip(RoundedCornerShape(14.dp)).background(if (name.isBlank()) sc.accent.copy(alpha = .35f) else sc.accent)
+                    .semantics { contentDescription = "Create" }.clickable(enabled = name.isNotBlank()) { create() }.padding(horizontal = 18.dp),
+                contentAlignment = Alignment.Center,
+            ) { Txt("Create", size = 15f, weight = FontWeight.Bold, color = if (name.isBlank()) sc.onBg.copy(alpha = .5f) else sc.accent.readableInk()) }
+        }
+        DesignChip("Import a playlist", false, {
+            if (web.available) pick.launch(arrayOf("*/*")) else app.ui.say("Importing needs FLACie Web: open it in a browser once, signed in to the same Jellyfin account.", warn = true)
+        }, icon = Glyph.DOWN)
+    }
+}
+
 @Composable
 private fun PlaylistsList(nav: PlayerNav) {
     val app = LocalApp.current
@@ -872,7 +936,8 @@ private fun PlaylistsList(nav: PlayerNav) {
     val lib = app.library
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
-            IpodRow({ nav.nameDialog = { ud.createPlaylist(it) } }, height = 52.dp, leading = { IconTile(Glyph.PLUS, size = 44.dp) }) { hi ->
+            if (LocalStyle.current.modern) NewPlaylistRow(nav)
+            else IpodRow({ nav.nameDialog = { ud.createPlaylist(it) } }, height = 52.dp, leading = { IconTile(Glyph.PLUS, size = 44.dp) }) { hi ->
                 Txt("New Playlist...", size = 16f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.accent)
             }
         }
@@ -963,15 +1028,18 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
         DetailKind.FAVORITES -> "Your favourites"; DetailKind.RECENT -> "History"; DetailKind.DOWNLOADS -> "Downloads"; DetailKind.MIX -> "Mix"
     }
     val total = tracks.sumOf { it.durationMs }
-    val info = songCount(tracks.size) + if (total > 0) " · " + (total / 60000).toString() + " min" else ""
+    // the web's facts line: the year (an album's), how many songs, how long, and the file formats in it ("2020 · 8 songs · 16 min · FLAC / MP3")
+    val info = DetailFacts.line(if (d.kind == DetailKind.ALBUM) tracks.firstOrNull()?.year ?: 0 else 0, tracks.size, total,
+        if (d.kind == DetailKind.ALBUM || d.kind == DetailKind.ARTIST) tracks.map { it.filePath.ifEmpty { it.path } } else emptyList())
     androidx.compose.runtime.DisposableEffect(title) { nav.playContext = title.ifEmpty { null }; onDispose { if (nav.playContext == title) nav.playContext = null } }
     val extra = if (userId != null) listOf(SheetItem("Remove from playlist", Glyph.CLOSE) { }) else emptyList()
     val missing = if (userId != null && app.library.loaded) ud.playlists.firstOrNull { it.id == userId }?.paths.orEmpty().filter { lib.resolve(it, ud.meta[it]) == null }.mapNotNull { ud.meta[it] }.filter { it.first.isNotBlank() } else emptyList()
     Column(Modifier.fillMaxSize()) {
-        TopBar(title.ifEmpty { "Playlist" }, nav, showBack = true)
+        val heroPage = LocalStyle.current.modern && (d.kind == DetailKind.ALBUM || d.kind == DetailKind.ARTIST || d.kind == DetailKind.USER || d.kind == DetailKind.FOLDER)
+        TopBar(if (heroPage) "" else title.ifEmpty { "Playlist" }, nav, showBack = true)
         if (tracks.isEmpty() && missing.isEmpty()) {
             // an emptied playlist keeps its Play / Rename / Delete buttons (the only way to rename or delete it from its own page)
-            if (userId != null) Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) { DetailHeader(art, title, subtitle.ifEmpty { info }, if (subtitle.isEmpty()) "" else info, tracks, nav, userId, kindLabel) }
+            if (userId != null) Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) { DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel) }
             Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState(if (d.kind == DetailKind.FAVORITES) "Tap the heart on a song to add it here" else "Nothing here yet") }
             return@Column
         }
@@ -980,14 +1048,14 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
             if (wide) {
                 Row(Modifier.fillMaxSize()) {
                     Column(Modifier.width(300.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        DetailHeader(art, title, subtitle.ifEmpty { info }, if (subtitle.isEmpty()) "" else info, tracks, nav, userId, kindLabel)
+                        DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel)
                     }
                     SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing)
                 }
             } else {
                 SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, header = {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        DetailHeader(art, title, subtitle.ifEmpty { info }, if (subtitle.isEmpty()) "" else info, tracks, nav, userId, kindLabel)
+                        DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel)
                     }
                 })
             }
@@ -1004,7 +1072,9 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
         // design I (the web's detail-album): the cover large with a soft shadow, a DM Mono kind label, the serif title with its last word in
         // italics, the artist, a mono facts line, then Play in the cover's colour and Shuffle tinted with its tone
         val cols = rememberCoverColours(art)
-        ArtImage(art, Modifier.fillMaxWidth(.78f).widthIn(max = 300.dp).aspectRatio(1f).coverShadow(16.dp, 18.dp), corner = 16.dp)
+        // an artist gets a round picture, as on the web; everything else the rounded cover
+        if (kind == "Artist") ArtImage(art, Modifier.fillMaxWidth(.62f).widthIn(max = 260.dp).aspectRatio(1f).coverShadow(200.dp, 18.dp), corner = 200.dp)
+        else ArtImage(art, Modifier.fillMaxWidth(.7f).widthIn(max = 300.dp).aspectRatio(1f).coverShadow(22.dp, 18.dp), corner = 22.dp)
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (kind.isNotEmpty()) MonoLabel(kind)
             SerifTitle(title, size = if (title.length > SleeveText.LONG_TITLE) 34f else 42f, maxLines = 3)
@@ -1033,13 +1103,13 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
     if (playlistId != null) {
         // editing: the playlist's own actions (songs have Move and Remove in their menu)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            GlossPill("Rename", { nav.nameDialogRename = title; nav.nameDialog = { n -> app.userData.rename(playlistId, n); app.ui.say("Renamed to \"$n\"") } }, height = 36.dp)
-            GlossPill("Remove dupes", {
+            DesignChip("Rename", false, { nav.nameDialogRename = title; nav.nameDialog = { n -> app.userData.rename(playlistId, n); app.ui.say("Renamed to \"$n\"") } })
+            DesignChip("Remove dupes", false, {
                 val ud = app.userData
                 val n = ud.removeDuplicates(playlistId) { p -> app.library.resolve(p, ud.meta[p])?.matchKey ?: p }
                 app.ui.say(if (n == 0) "No duplicates in this playlist" else "Removed $n duplicate${if (n == 1) "" else "s"}", warn = n == 0)
-            }, height = 36.dp)
-            GlossPill("Delete", { nav.sheet = SheetSpec("Delete this playlist?", null, listOf(SheetItem("Delete", Glyph.CLOSE) { app.userData.deletePlaylist(playlistId); nav.pop() }, SheetItem("Cancel", Glyph.BACK) {})) }, height = 36.dp)
+            })
+            DesignChip("Delete", false, { nav.sheet = SheetSpec("Delete this playlist?", null, listOf(SheetItem("Delete", Glyph.CLOSE) { app.userData.deletePlaylist(playlistId); nav.pop() }, SheetItem("Cancel", Glyph.BACK) {})) })
         }
     }
 }
@@ -1108,7 +1178,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         // a short screen (the 360 dp RG Rotate) drops the big title when Search is a tab of its own, so the field and the results get the room
         val shortNoTitle = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 500 && nav.stack.size <= 1
         if (shortNoTitle) Spacer(Modifier.height(4.dp))
-        else if (!imeUp) TopBar("Search", nav, showBack = true)
+        else if (!imeUp) TopBar("Search your music", nav, showBack = true)
         else Spacer(Modifier.windowInsetsTopHeight(androidx.compose.foundation.layout.WindowInsets.statusBars))
         SearchPill(query, { query = it }, "Songs, albums, artists", Modifier.padding(16.dp), shape = RoundedCornerShape(50), background = Color(0x26FFFFFF), borderColor = sc.cardBorder,
             height = 46.dp, textSize = 16f, onSubmit = { searchFocus.clearFocus() }, trailing = {
@@ -1536,6 +1606,17 @@ private fun SearchIdle(nav: PlayerNav) {
     val app = LocalApp.current
     val genres = remember(LocalLibRev.current) { app.library.genres().filter { it.name.lowercase() !in setOf("genre", "other", "unknown", "") }.sortedByDescending { it.tracks.size }.take(16) }
     Column(Modifier.fillMaxSize().then(Modifier.verticalScroll(rememberScrollState())).padding(bottom = 24.dp)) {
+        val lib = app.library
+        MonoLabel("${lib.songs().size} songs · ${lib.albums().size} albums · ${lib.artists().size} artists. Type above to search; anything you don't have shows up under more music, ready to download.",
+            Modifier.padding(horizontal = 20.dp, vertical = 4.dp), size = 11f, maxLines = 4)
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DesignChip("Overview", true, { })
+            DesignChip("Songs", false, { nav.push(Screen.Lib(LibKind.SONGS)) })
+            DesignChip("Albums", false, { nav.push(Screen.Lib(LibKind.ALBUMS)) })
+            DesignChip("Artists", false, { nav.push(Screen.Lib(LibKind.ARTISTS)) })
+            DesignChip("Genres", false, { nav.push(Screen.Lib(LibKind.GENRES)) })
+            DesignChip("Explore", false, { nav.push(Screen.Library) })
+        }
         SectionHeader("Jump to")
         androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 36.dp)

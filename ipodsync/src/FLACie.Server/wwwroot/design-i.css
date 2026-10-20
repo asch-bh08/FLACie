@@ -18,7 +18,8 @@
   margin: -28px calc(-1 * clamp(16px, 4vw, 44px)) 18px; padding: 0 clamp(16px, 4vw, 44px) 26px; overflow: hidden; }
 .home-hero-art { position: absolute; inset: 0; z-index: -2; }
 .home-hero-art .cover { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; border-radius: 0; }
-.home-hero-art .cover img { object-fit: cover; border-radius: 0; filter: saturate(1.1); }
+/* the small cover (the one size every page asks Jellyfin for; only the full-screen player fetches the full picture), softened so its size never shows */
+.home-hero-art .cover img { object-fit: cover; border-radius: 0; filter: blur(14px) saturate(1.2); transform: scale(1.12); }
 .home-fade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 20%, transparent), var(--bg) 96%), linear-gradient(to right, color-mix(in srgb, var(--bg) 75%, transparent), transparent 70%); }
 .home-hero-row { width: 100%; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; }
 .home-greet { margin: 0; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; color: color-mix(in srgb, var(--ink) 75%, transparent); }

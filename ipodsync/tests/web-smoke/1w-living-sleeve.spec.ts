@@ -70,7 +70,9 @@ test('the seek bar is a ring of bars round the play button, and dragging or the 
   const seek = page.locator('.ls-ring input[type=range]');
   await expect(seek).toHaveAttribute('aria-label', 'Seek');
   // one chip for the file (the codec or Hi-Res with its sampling), no source or bitrate badge
-  await expect(page.locator('.ls-chip:visible')).toHaveCount(1);
+  // design I: the format chip and, beside it, where the song plays from
+  await expect(page.locator('.ls-chip:visible')).toHaveCount(2);
+  await expect(page.locator('.ls-chip.ls-from')).toBeVisible();
 });
 
 test('on a phone the player covers the whole screen and its controls stay clear of the home gesture at the bottom', async ({ page }) => {

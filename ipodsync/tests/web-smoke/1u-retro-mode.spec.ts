@@ -78,14 +78,16 @@ test.describe.serial('Retro', () => {
   for (const [w, h] of [[1600, 900], [390, 844]]) {
     test(`Retro is reachable from the player bar, the full-screen player and the account menu at ${w}x${h}`, async ({ page }) => {
       await signIn(page);
-      // the player bar
+      // the player bar (on a PC: design I's phone bar is the mini player, play and next, so a phone reaches Retro from the full-screen player and the menu)
       await play(page, w, h);
-      await expect(page.getByTestId('bar-retro')).toBeVisible();
-      await expect(page.getByTestId('bar-retro')).toHaveAttribute('aria-label', 'Retro');
-      await page.screenshot({ path: `test-results/retro-bar-${w}.png` });
-      await page.getByTestId('bar-retro').click();
-      await expect(page).toHaveURL(/\/retro$/);
-      await expect(page.getByTestId('ipod')).toBeVisible({ timeout: 20_000 });
+      if (w > 760) {
+        await expect(page.getByTestId('bar-retro')).toBeVisible();
+        await expect(page.getByTestId('bar-retro')).toHaveAttribute('aria-label', 'Retro');
+        await page.screenshot({ path: `test-results/retro-bar-${w}.png` });
+        await page.getByTestId('bar-retro').click();
+        await expect(page).toHaveURL(/\/retro$/);
+        await expect(page.getByTestId('ipod')).toBeVisible({ timeout: 20_000 });
+      }
       // the full-screen player
       await play(page, w, h);
       await page.getByRole('button', { name: 'Open Now Playing' }).click();

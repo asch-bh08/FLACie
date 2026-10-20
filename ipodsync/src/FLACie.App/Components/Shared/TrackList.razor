@@ -12,7 +12,7 @@
                 else { <Cover ArtKey="@(Art.KeyFor(t))" Size="@ThumbSize" /> }
                 <span class="track-text">
                     <span class="track-title">@t.Title</span>
-                    <span class="track-sub">@t.Artist@(ShowAlbum && t.Album.Length > 0 ? " · " + t.Album : "")@(t.Year > 0 ? " · " + t.Year : "")</span>
+                    <span class="track-sub">@t.Artist@(ShowAlbum && t.Album.Length > 0 ? " · " + t.Album : "")@(t.Year > 0 ? " · " + t.Year : "")<span class="track-src" aria-hidden="true">@SourceLabel.Short(t.Source)</span></span>
                     <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" />
                 </span>
             </button>

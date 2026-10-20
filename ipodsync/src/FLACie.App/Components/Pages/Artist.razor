@@ -11,7 +11,7 @@ else
     var albums = Lib.Albums.Where(g => g.Tracks.Any(t => a.Tracks.Contains(t))).ToList();
     <PageTitle>@a.Name · FLACie</PageTitle>
 <header class="detail-head" @ref="headEl">
-        <Cover ArtKey="@(a.ArtKey)" Class="detail-cover" />
+        <Cover ArtKey="@(a.ArtKey)" Class="detail-cover round" />
         <div class="detail-text">
             <p class="eyebrow">Artist</p>
             <h1>@Title(a.Name)</h1>

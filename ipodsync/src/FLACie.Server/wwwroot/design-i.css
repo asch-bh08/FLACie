@@ -86,3 +86,6 @@
   .app:not(.full) .top-search { margin-left: clamp(16px, 4vw, 44px); max-width: 460px; }
   .top-account { justify-self: end; }
 }
+
+/* a song row's menu (and its Hi-Res question) opens above the player bar, never behind it, when the row is near the bottom of the window */
+.tracks .menu, .tracks .menu-ask { z-index: 40; }

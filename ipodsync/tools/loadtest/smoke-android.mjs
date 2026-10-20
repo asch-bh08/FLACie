@@ -33,8 +33,11 @@ const stopMock = () => { if (mock) { try { mock.kill('SIGKILL'); } catch { } moc
 process.on('exit', stopMock);
 
 const launch = () => sh(`am start -n ${PKG}/.ui.MainActivity`, { quiet: true });
-const songsCount = (nodes) => { if (!nodes) return -1; for (const n of nodes) { const m = /^([\d,]+) songs?$/.exec(label(n).trim()); if (m) return Number(m[1].replace(/,/g, '')); } return -1; };
+const songsCount = (nodes) => { if (!nodes) return -1; for (const n of nodes) { const m = /^([\d,]+) songs?\b/i.exec(label(n).trim()); if (m) return Number(m[1].replace(/,/g, '')); } return -1; };
 const titleOf = (d) => (d ?? '').split(',')[0].trim();
+// design I: the song list is Search's Songs chip (there is no Explore tab), and Settings is the gear at the top of Home
+const openSongs = async () => { if (!tapNav('Search')) return false; await sleep(1500); const ui = dump(); const chip = ui && find(ui, /^Songs$/); if (chip) { tapNode(chip); await sleep(1500); } return true; };
+const openSettings = async () => { tapNav('Home'); await sleep(1500); const ui = dump(); const g = ui && (ui.find((q) => q.desc === 'Settings') ?? find(ui, 'Settings')); if (g) tapNode(g); };
 const tapNav = (name) => { const ui = dump(); const n = ui && find(ui, name, { minY: 2000 }); if (n) { tapNode(n); return true; } return false; };
 const azIndex = new Map(Array.from({ length: ITEMS }, (_, i) => 'Song ' + (i + 1)).sort().map((t, i) => [t, i]));
 const pos = (d) => azIndex.get(titleOf(d)) ?? null;
@@ -78,7 +81,7 @@ async function main() {
   let n = -1; const t0 = Date.now();
   for (let i = 0; i < 80 && n < ITEMS; i++) {
     ui = dump();
-    if (songsCount(ui) < 0 && ui) tapNav('Explore');
+    if (songsCount(ui) < 0 && ui) await openSongs();
     n = Math.max(n, songsCount(ui));
     if (n >= ITEMS) break;
     await sleep(2000);
@@ -127,7 +130,7 @@ async function main() {
   check('relaunch is not auto-playing', mediaSession().state !== 3, `state ${mediaSession().state}`);
 
   // 7. Settings > Storage
-  tapNav('Settings'); await sleep(2000);
+  await openSettings(); await sleep(2000);
   let cacheLine = null;
   for (let i = 0; i < 25 && !cacheLine; i++) {
     ui = dump();
@@ -146,7 +149,7 @@ async function main() {
     const after = dump();
     shot(S('08-cache-cleared'));
     check('Clear cache runs', !!after && !has(after, 'Clearing'), rowText(after ?? [], 'Cache') ?? '');
-    tapNav('Explore'); await sleep(2500);
+    await openSongs(); await sleep(2500);
     const u2 = await waitUi((x) => songsCount(x) > 0, 30000, 1500);
     check('library stays after Clear cache', songsCount(u2) >= ITEMS, `${songsCount(u2)} songs`);
     shot(S('09-library-after-clear'));

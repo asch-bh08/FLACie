@@ -1442,7 +1442,7 @@ private fun QueueScreen(nav: PlayerNav, snap: PlayerSnap) {
     val sc = LocalScheme.current
     val q = app.player.queueTracks()
     Column(Modifier.fillMaxSize()) {
-        TopBar("Up Next", nav, showBack = true) { if (q.isNotEmpty()) GlossPill("Clear", { app.player.clearQueue(); nav.pop() }, height = 30.dp) }
+        TopBar("Up Next", nav, showBack = true) { if (q.isNotEmpty()) GlossPill("Clear", { clearQueueWithUndo(app); nav.pop() }, height = 30.dp) }
         if (q.isEmpty()) { EmptyState("The queue is empty"); return@Column }
         // opens on the song playing now (what already played stays above it)
         val list = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = snap.index.coerceIn(0, q.size - 1))
@@ -1695,4 +1695,13 @@ object RecentSearches {
         if (q.length < 2) return list
         return listOf(q) + list.filter { !it.equals(q, ignoreCase = true) && !q.startsWith(it, ignoreCase = true) }.take(9)
     }
+}
+
+/** Clears the queue and offers it back: Undo puts the same songs back, on the same song at the same second, paused. */
+fun clearQueueWithUndo(app: com.ipodemu.App) {
+    val p = app.player
+    val list = p.queueTracks(); val at = p.exo.currentMediaItemIndex; val ms = p.positionMs
+    p.clearQueue()
+    if (list.isEmpty()) return
+    app.ui.say("Cleared Up next", "Undo") { p.playFrom(list, at.coerceIn(0, list.size - 1), ms, paused = true) }
 }

@@ -768,11 +768,18 @@ private fun LibraryScreen(kind: LibKind, nav: PlayerNav, snap: PlayerSnap) {
                 var sourceFilter by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf<com.ipodemu.library.TrackSource?>(null) }
                 val libRev = LocalLibRev.current
                 val allSongs = remember(sort, libRev) { sortedSongs(lib, app.userData, sort) }
-                val songs = remember(allSongs, sourceFilter) { sourceFilter?.let { f -> allSongs.filter { it.source == f } } ?: allSongs }
+                // Offline only: just the songs kept on this phone (they play without a connection)
+                var offlineOnly by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+                val offlineRev = app.offline.rev
+                val songs = remember(allSongs, sourceFilter, offlineOnly, offlineRev) {
+                    val bySource = sourceFilter?.let { f -> allSongs.filter { it.source == f } } ?: allSongs
+                    if (offlineOnly) bySource.filter { app.offline.isDownloaded(it.path) } else bySource
+                }
                 SongList(songs, nav, snap, showArt = true, sections = if (sort == 0) 1 else if (sort == 1) 2 else 0,
                     header = {
                         ShuffleHeader(songs, nav, SORTS[sort]) { sort = (sort + 1) % SORTS.size }
                         SourceFilterChips(allSongs, sourceFilter) { sourceFilter = it }
+                        if (app.offline.doneCount > 0) Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { DesignChip("Offline only", offlineOnly, { offlineOnly = !offlineOnly }, icon = Glyph.DOWN) }
                     })
             }
             LibKind.MEMOS -> { val memos = lib.memos; SongList(memos, nav, snap, showArt = false) }

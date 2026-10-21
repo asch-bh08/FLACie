@@ -164,7 +164,7 @@ fun rememberCoverColours(artKey: String?): SleeveColours {
 /** The main button: filled with the cover's colour, dark text on it (the colour is lifted to ~66% lightness for that). */
 @Composable
 fun AccentPill(text: String, icon: Glyph?, colours: SleeveColours, onClick: () -> Unit, modifier: Modifier = Modifier, height: Dp = 48.dp) =
-    DesignPill(text, icon, Color(colours.main), Color(0xFF1A120C), onClick, modifier, height)
+    DesignPill(text, icon, Color(colours.main), Color(DesignColour.readableOn(colours.main)), onClick, modifier, height)
 
 /** A pill tinted with the cover's darker tone, light text on it. */
 @Composable
@@ -204,4 +204,14 @@ object HomeWords {
     fun greeting(hour: Int): String = when (hour) { in 5..11 -> "Good morning"; in 12..17 -> "Good afternoon"; else -> "Good evening" }
     /** The headline: "Pick up where you left off" with something to pick up, else an invitation to start. */
     fun headline(hasRecent: Boolean): String = if (hasRecent) "Pick up where you left off" else "Put something on"
+}
+
+/** Colour sums shared by the design's pieces (plain ARGB ints, so they can be unit-tested). */
+object DesignColour {
+    /** The text colour that reads on [argb]: near-black when it is light, white when it is dark (the colour where both contrast alike is luminance 0.18). */
+    fun readableOn(argb: Int): Int {
+        fun lin(c: Int): Double { val x = c / 255.0; return if (x <= 0.03928) x / 12.92 else Math.pow((x + 0.055) / 1.055, 2.4) }
+        val l = 0.2126 * lin(argb shr 16 and 0xFF) + 0.7152 * lin(argb shr 8 and 0xFF) + 0.0722 * lin(argb and 0xFF)
+        return if (l > 0.18) 0xFF1A120C.toInt() else 0xFFFFFFFF.toInt()
+    }
 }

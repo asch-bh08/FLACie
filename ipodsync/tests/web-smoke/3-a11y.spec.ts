@@ -72,3 +72,24 @@ test('with reduced motion on, nothing on the page animates or eases', async ({ p
   });
   expect(slow).toBe(0);
 });
+
+test('every Tab stop on Home shows where the focus is', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page);
+  await live(page, '/');
+  const hidden: string[] = [];
+  for (let i = 0; i < 40; i++) {
+    await page.keyboard.press('Tab');
+    await page.waitForTimeout(60);
+    const r = await page.evaluate(() => {
+      const e = document.activeElement as HTMLElement | null;
+      if (!e || e === document.body) return null;
+      const shows = (el: Element) => { const s = getComputedStyle(el); return (s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0) || (s.boxShadow !== 'none' && s.boxShadow !== ''); };
+      // a field may show it on its frame instead (:focus-within)
+      return shows(e) || (e.parentElement && shows(e.parentElement)) ? null : `${e.tagName}.${e.className} ${(e.getAttribute('aria-label') || e.textContent || '').trim().slice(0, 30)}`;
+    });
+    if (r) hidden.push(r);
+  }
+  expect(hidden).toEqual([]);
+});

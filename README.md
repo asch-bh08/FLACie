@@ -1,4 +1,4 @@
-<p align="center"><img src="logo/flacie.svg" width="128" alt="FLACie logo"></p>
+<p align="center"><img src="logo/flacie.png" width="160" alt="FLACie logo"></p>
 
 # FLACie
 

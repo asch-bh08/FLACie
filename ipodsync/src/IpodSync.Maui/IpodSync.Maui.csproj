@@ -28,9 +28,9 @@
         <ApplicationId>dev.ashley.ipodsync</ApplicationId>
 
         <!-- Versions -->
-        <ApplicationDisplayVersion>0.84.0</ApplicationDisplayVersion>
+        <ApplicationDisplayVersion>0.85.0</ApplicationDisplayVersion>
         <!-- Android versionCode: must go up with every APK released, or phones refuse the update. -->
-        <ApplicationVersion>69</ApplicationVersion>
+        <ApplicationVersion>70</ApplicationVersion>
 
         <!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
         <WindowsPackageType>None</WindowsPackageType>
@@ -46,7 +46,7 @@
 
     <ItemGroup>
         <!-- App Icon -->
-        <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#B03CB6" />
+        <MauiIcon Include="Resources\AppIcon\appicon.png" Color="#01020E" />
 
         <!-- Splash Screen -->
         <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#15151c" BaseSize="128,128" />

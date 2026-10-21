@@ -1,1 +1,1 @@
-{"name":"FLACie","short_name":"FLACie","start_url":"/","display":"standalone","background_color":"#0b0b0e","theme_color":"#0b0b0e","icons":[{"src":"/favicon.svg","sizes":"any","type":"image/svg+xml"}]}
+{"name":"FLACie","short_name":"FLACie","start_url":"/","display":"standalone","background_color":"#01020e","theme_color":"#01020e","icons":[{"src":"/icon-192.png","sizes":"192x192","type":"image/png"},{"src":"/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"}]}

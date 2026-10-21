@@ -726,7 +726,8 @@ fun AlbumCard(g: Group, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val sc = LocalScheme.current
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
-    Column(modifier.clip(RoundedCornerShape(14.dp)).clickable(src, null, onClick = onClick).padding(4.dp)) {
+    val spoken = remember(g.name) { g.name + (g.tracks.firstOrNull()?.let { t -> t.albumArtist.ifEmpty { t.artist } }?.takeIf { it.isNotEmpty() }?.let { ", $it" } ?: "") }
+    Column(modifier.clip(RoundedCornerShape(14.dp)).semantics(mergeDescendants = true) { contentDescription = spoken }.clickable(src, null, onClick = onClick).padding(4.dp)) {
         // rounded covers with a soft shadow, as on the web's new look
         ArtImage(g.artKey, Modifier.fillMaxWidth().aspectRatio(1f).coverShadow(12.dp, 8.dp).border(if (focused) 3.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(12.dp)), corner = 12.dp)
         Txt(g.name, Modifier.padding(top = 8.dp), size = 14f, weight = FontWeight.SemiBold)
@@ -1601,7 +1602,7 @@ private fun AccountAction() {
     val app = LocalApp.current
     val sc = LocalScheme.current
     val name = if (app.prefs.accountKind == "nas") app.prefs.nasUsername.ifBlank { "guest" } else app.prefs.accountUserName   // the same name the Account screen shows
-    Box(Modifier.size(48.dp).clip(CircleShape).clickable { app.ui.accountOpen = true }, contentAlignment = Alignment.Center) {
+    Box(Modifier.size(48.dp).clip(CircleShape).semantics { contentDescription = if (name.isNotEmpty()) "Account: $name" else "Account" }.clickable { app.ui.accountOpen = true }, contentAlignment = Alignment.Center) {
         Box(Modifier.size(34.dp).clip(CircleShape).background(if (name.isNotEmpty()) sc.accent else Color(0x22FFFFFF)), contentAlignment = Alignment.Center) {
             if (name.isNotEmpty()) Txt(name.take(1).uppercase(), size = 16f, weight = FontWeight.Bold, color = Color.White)
             else GlyphIcon(Glyph.ARTIST, Modifier.size(20.dp), sc.onBg)

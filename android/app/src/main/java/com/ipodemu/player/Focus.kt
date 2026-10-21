@@ -1,5 +1,7 @@
 package com.ipodemu.player
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -112,6 +114,7 @@ fun SearchPill(
                 keyboardOptions = KeyboardOptions(autoCorrect = false, imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { keyboard?.hide(); refocusTarget = true; editing = false; onSubmit() }),
                 modifier = Modifier.fillMaxWidth()
+                    .semantics { contentDescription = placeholder }   // the placeholder is drawn beside the field, so a screen reader would find it unnamed
                     .focusProperties { canFocus = editing }
                     .focusRequester(fieldFr)
                     .onFocusChanged { if (!it.isFocused && editing) { editing = false; keyboard?.hide() } }
@@ -124,6 +127,7 @@ fun SearchPill(
             )
             if (!editing) Box(
                 Modifier.matchParentSize().focusRequester(targetFr)
+                    .semantics { contentDescription = placeholder }   // the tap that starts typing, named as the field it opens
                     .clickable(remember { MutableInteractionSource() }, null) { editing = true },
             )
         }

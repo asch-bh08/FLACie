@@ -51,6 +51,7 @@ builder.Services.AddSingleton(sp => new MusicBrainzClient(sp.GetRequiredService<
 builder.Services.AddSingleton(sp => new CoverArtArchiveClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient("musicbrainz"), MusicBrainzClient.UserAgentFor(AppInfo.Version, builder.Configuration["FLACIE_MB_CONTACT"]), sp.GetRequiredService<MusicBrainzGate>()));
 builder.Services.AddSingleton(_ => CoverOverrides.Current = new CoverOverrides(Path.Combine(dataDir, "art-override")));   // covers a person chose (the original cover and the files are never touched)
 builder.Services.AddSingleton(new MbOverlay(Path.Combine(dataDir, "mb-overlay.json")));
+builder.Services.AddSingleton(new ShareStore(Path.Combine(dataDir, "shares")));   // shared songs and playlists (/s/{id})
 builder.Services.AddSingleton(sp => new DeskDiscPictures(sp.GetRequiredService<CoverArtArchiveClient>()));
 builder.Services.AddSingleton(sp => new WebCatalog(sp.GetRequiredService<IHttpClientFactory>().CreateClient("catalog")));
 builder.Services.AddSingleton(new DataPaths(dataDir));
@@ -118,6 +119,7 @@ AppHost.Server = true;
 AppHost.DevicePicker = typeof(FLACie.Server.Components.Shared.DevicePicker);
 builder.Services.AddScoped<PlayerState>();
 builder.Services.AddScoped<Toasts>();
+builder.Services.AddScoped<Sharing>();
 builder.Services.AddScoped<ExploreState>();
 // the live page connection: a phone that slept or lost signal for a while picks its page up again (30 minutes) instead of getting "connection was reset"
 builder.Services.AddRazorComponents()

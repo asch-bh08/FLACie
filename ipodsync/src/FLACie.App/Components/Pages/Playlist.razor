@@ -35,6 +35,7 @@ else
                 }
                 else
                 {
+                    <button class="btn ghost" disabled="@(tracks.Count == 0)" @onclick='() => Sharing.ShareAsync(Session, "playlist", p.Name, tracks)'><Icon Name="share" Size="16" />Share</button>
                     <button class="btn ghost" @onclick="() => { renaming = true; newName = p.Name; }">Rename</button>
                     <button class="btn ghost" @onclick="() => confirm = true">Delete</button>
                 }
@@ -68,6 +69,7 @@ else
     bool confirm;
     ElementReference heroEl; string? heroFor = "";
     [Inject] IJSRuntime Js { get; set; } = default!;
+    [Inject] Sharing Sharing { get; set; } = default!;
     // the last word goes in italics, whatever the name is
     static (string, string) SplitTitle(string n) { n = n.Trim(); var i = n.LastIndexOf(' '); return i < 0 ? ("", n) : (n[..(i + 1)], n[(i + 1)..]); }
     static string Length(IReadOnlyList<Track> ts) { var m = (int)(ts.Sum(t => t.DurationMs) / 60000); return m <= 0 ? "" : m >= 60 ? $"{m / 60} h {m % 60} min" : $"{m} min"; }

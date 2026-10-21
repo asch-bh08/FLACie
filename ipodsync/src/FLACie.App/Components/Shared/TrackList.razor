@@ -34,6 +34,7 @@
                     <button role="menuitem" @onclick='() => { Player.PlayNext(t); Toast.Show($"“{t.Title}” plays next"); menu = -1; }'>Play next</button>
                     <button role="menuitem" @onclick='() => { Player.AddToQueue(t); Toast.Show($"Added “{t.Title}” to the queue"); menu = -1; }'>Add to queue</button>
                     <button role="menuitem" @onclick="() => { menu = -1; StartSelecting(idx); }">Select</button>
+                    <button role="menuitem" @onclick='async () => { menu = -1; await Sharing.ShareAsync(Session, "song", t.Title, [t]); }'>Share</button>
                     @foreach (var p in Session.Playlists)
                     {
                         <button role="menuitem" @onclick="() => { Toast.Added(Session, p, t, SaveProfile); menu = -1; }">Add to @p.Name</button>
@@ -114,6 +115,7 @@
     }
     [Inject] IDownloads Downloads { get; set; } = default!;
     [Inject] Toasts Toast { get; set; } = default!;
+    [Inject] Sharing Sharing { get; set; } = default!;
     [Inject] IJSRuntime Js { get; set; } = default!;
     async Task AskHi(int idx) { hiAsk = idx; StateHasChanged(); await Task.Delay(30); try { await Js.InvokeVoidAsync("flacie.menuToEnd"); } catch (Exception) { } }
     [Inject] IConfiguration Conf { get; set; } = default!;

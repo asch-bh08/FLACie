@@ -1,0 +1,80 @@
+@page "/s/{Id}"
+@attribute [Authorize]
+@inherits UserComponent
+@* A song or playlist someone shared with a link: the songs are found in the library of whoever opened it (by title and artist), so it plays from
+   their own server; Save keeps it as one of their playlists, and the songs they don't have are listed, ready to download. *@
+@{ var sh = Shares.Get(Id); }
+@if (sh is null)
+{
+    <PageTitle>Shared · FLACie</PageTitle>
+    <p class="status">This link doesn't lead to anything. It may have been typed wrong, or made on another FLACie server.</p>
+}
+else
+{
+    var found = sh.Entries.Select(Session.ResolveEntry).OfType<Track>().DistinctBy(t => t.Path).ToList();
+    var missing = Session.Loading || Lib.Songs.Count == 0 ? [] : sh.Entries.Where(e => Session.ResolveEntry(e) is null && e.Title.Length > 0).ToList();
+    <PageTitle>@sh.Name · FLACie</PageTitle>
+    <header class="pl-hero">
+        <Cover ArtKey="@(found.Select(t => t.ArtKey).FirstOrDefault(k => k is not null))" Class="pl-cover" />
+        <div class="pl-hero-text">
+            <p class="eyebrow">@(sh.Kind == "song" ? "A song" : "A playlist") shared by @sh.By</p>
+            @{ var (head, last) = SplitTitle(sh.Name); }
+            <h1>@head<i>@last</i></h1>
+            <p class="sub pl-facts">@(sh.Entries.Count == 1 ? "1 song" : sh.Entries.Count + " songs")@(Session.Loading ? " · finding them in your library…" : missing.Count > 0 ? $" · {found.Count} in your library" : "")</p>
+            <div class="chips">
+                <button class="btn primary pl-play" @onclick="() => Player.Play(found, 0, sh.Name)" disabled="@(found.Count == 0)"><Icon Name="play" Size="18" />Play</button>
+                @if (found.Count > 1) { <button class="btn pl-shuffle" @onclick="() => Player.ShuffleAll(found, sh.Name)"><Icon Name="shuffle" Size="18" />Shuffle</button> }
+                @if (sh.Kind != "song" || found.Count > 0)
+                {
+                    <button class="btn ghost" disabled="@(saved is not null || found.Count == 0)" @onclick="() => Save(sh, found)"><Icon Name="plus" Size="16" />@(saved is null ? "Save to my playlists" : "Saved")</button>
+                }
+            </div>
+            @if (saved is not null) { <p class="hint">Saved as <a href="/playlist/@saved.Id">@saved.Name</a>.</p> }
+        </div>
+    </header>
+    <div class="pl-main">
+        @if (!Session.Loading && found.Count == 0 && missing.Count == 0) { <p class="status">None of these songs are in your library yet.</p> }
+        <TrackList Tracks="found" PlayContext="@sh.Name" />
+        @if (missing.Count > 0)
+        {
+            <section class="shelf missing-list" aria-label="Not in your library">
+                <div class="shelf-head"><div><h2>Not in your library</h2><small>@(missing.Count == 1 ? "1 song" : missing.Count + " songs") you don't have yet</small></div>
+                    <button class="btn" disabled="@(!Session.Services.Any)" @onclick="() => Get(missing)"><Icon Name="download" Size="16" />Download all</button></div>
+                @if (!Session.Services.Any) { <p class="hint">Downloads aren't set up on this server, so these can't be fetched from here.</p> }
+                <ul class="tracks">
+                    @foreach (var m in missing)
+                    {
+                        var e = m;
+                        <li class="track gone"><span class="track-main"><Cover Size="44" /><span class="track-text"><span class="track-title">@e.Title</span><span class="track-sub">@e.Artist</span><DownloadTag Session="Session" Artist="@e.Artist" Title="@e.Title" /></span></span>
+                            <button class="btn" disabled="@(!Session.Services.Any || asked.Contains(Key(e)))" @onclick="() => Get([e])">@(asked.Contains(Key(e)) ? "Requested" : "Download")</button></li>
+                    }
+                </ul>
+            </section>
+        }
+    </div>
+}
+@code {
+    [Parameter] public string Id { get; set; } = "";
+    [Inject] ShareStore Shares { get; set; } = default!;
+    [Inject] IDownloads Downloads { get; set; } = default!;
+    FLACie.Core.Playlist? saved;
+    readonly HashSet<string> asked = [];
+    static (string, string) SplitTitle(string n) { n = n.Trim(); var i = n.LastIndexOf(' '); return i < 0 ? ("", n) : (n[..(i + 1)], n[(i + 1)..]); }
+    static string Key(PlaylistEntry e) => Matching.MatchKey(e.Title, e.Artist);
+
+    // kept as the person's own playlist (named as shared, numbered when that name is taken), with the songs their library has
+    void Save(Share sh, List<Track> found)
+    {
+        var name = sh.Name; var n = 2;
+        while (Session.Playlists.Any(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase))) name = $"{sh.Name} {n++}";
+        var pl = Session.CreatePlaylist(name);
+        Session.ReplacePlaylistTracks(pl.Id, found);
+        SaveProfile();
+        saved = Session.Playlists.FirstOrDefault(p => p.Id == pl.Id);
+    }
+
+    void Get(IEnumerable<PlaylistEntry> entries)
+    {
+        foreach (var e in entries) if (asked.Add(Key(e))) _ = Downloads.FetchSongAsync(Session, "Shared", e.Artist, e.Title, "", null, 0);
+    }
+}

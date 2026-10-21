@@ -215,6 +215,7 @@
         await OnClose.InvokeAsync();
     }
     [Inject] Toasts Toast { get; set; } = default!;
+    [Inject] Sharing Sharing { get; set; } = default!;
 
     /// <summary>Takes a song out of Up next and offers it back (Undo puts it in the same place).</summary>
     async Task RemoveUpNext(int queueIndex, Track u, int place)
@@ -298,6 +299,7 @@
                 <a role="menuitem" href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="() => GoArtist(t)" @onclick:preventDefault="true">Go to artist</a>
                 @if (t.Album.Length > 0) { <a role="menuitem" href="/album/@Uri.EscapeDataString(t.AlbumKey)" @onclick="() => GoAlbum(t)" @onclick:preventDefault="true">Go to album</a> }
                 <a role="menuitem" href="/stream?p=@Uri.EscapeDataString(t.Path)" download="@FileName(t)" @onclick="CloseMore">Download</a>
+                <button role="menuitem" @onclick='async () => { CloseMore(); await Sharing.ShareAsync(Session, "song", t.Title, [t]); }'>Share</button>
                 <button role="menuitem" @onclick='() => { Open("info"); CloseMore(); }'>Song info</button>
             </div>
         }

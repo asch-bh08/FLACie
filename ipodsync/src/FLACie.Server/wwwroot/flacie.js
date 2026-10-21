@@ -895,8 +895,8 @@ window.flacie = (() => {
       const none = document.querySelector(".set-none"); if (none) none.hidden = shown > 0;
     },
     // Share on a detail page: the device's share sheet ("shared"), else the link copied ("copied"); "" when neither worked, "cancelled" when the person closed the sheet
-    async shareLink(title) {
-      const url = location.href;
+    async shareLink(title, link) {
+      const url = link || location.href;
       if (navigator.share) { try { await navigator.share({ title, url }); return "shared"; } catch (e) { if (e && e.name === "AbortError") return "cancelled"; } }
       try { await navigator.clipboard.writeText(url); return "copied"; } catch { return ""; }
     },

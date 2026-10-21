@@ -31,6 +31,7 @@
                 <button type="button" class="btn ghost" id="qc-cancel">Cancel</button>
             </section>
             <form method="post" action="/auth/jellyfin" class="form" id="jf-form">
+                <input type="hidden" name="return" value="@Back" />
                 @if (FixedServer is null)
                 {
                     <label for="server">Jellyfin server</label>
@@ -65,7 +66,7 @@
                             const p = await fetch("/auth/qc/poll", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ server: j.server, secret: j.secret }) });
                             const q = await p.json();
                             if (!p.ok) { clearInterval(timer); return fail(q.error); }
-                            if (q.done) { clearInterval(timer); location.href = "/"; }
+                            if (q.done) { clearInterval(timer); location.href = @((MarkupString)System.Text.Json.JsonSerializer.Serialize(Back)); }
                         }, 2500);
                     });
                     $("qc-cancel").addEventListener("click", () => { clearInterval(timer); $("qc").hidden = true; $("jf-form").hidden = false; });
@@ -75,6 +76,7 @@
         else
         {
             <form method="post" action="/auth/nas" class="form">
+                <input type="hidden" name="return" value="@Back" />
                 <label for="host">NAS address</label>
                 <input id="host" name="host" placeholder="nas.local or the NAS address" required autocapitalize="off" />
                 <label for="share">Share</label>
@@ -95,6 +97,9 @@
 @code {
     [SupplyParameterFromQuery] string? Error { get; set; }
     [SupplyParameterFromQuery] string? Tab { get; set; }
+    // where to go after signing in: the page that asked for it (a shared link, /s/...), only ever a page on this site
+    [SupplyParameterFromQuery] string? ReturnUrl { get; set; }
+    string Back => AuthEndpoints.LocalReturn(ReturnUrl);
     string? FixedServer => Config["FLACIE_JELLYFIN_URL"] is { Length: > 0 } s ? s : null;
     bool AllowNas => Config.GetValue("FLACIE_ALLOW_NAS_LOGIN", false);
 }

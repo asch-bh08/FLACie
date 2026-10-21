@@ -140,6 +140,20 @@ public static class MediaEndpoints
             return Results.NoContent();
         }).RequireAuthorization().DisableAntiforgery();
 
+        // sharing a song or a playlist (the phone app asks here; the web makes shares itself): its songs by title and artist, kept under a random id, and
+        // the link to send (/s/{id}); whoever opens it signs in as themselves and plays the songs from their own library
+        app.MapPost("/api/share", async (HttpContext ctx, ShareStore shares, SessionStore store) =>
+        {
+            ShareRequest? r;
+            try { r = await System.Text.Json.JsonSerializer.DeserializeAsync<ShareRequest>(ctx.Request.Body, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }); }
+            catch (System.Text.Json.JsonException) { r = null; }
+            var entries = (r?.Entries ?? []).Where(e => !string.IsNullOrWhiteSpace(e.T)).Select(e => new PlaylistEntry(e.P ?? "", e.T!.Trim(), (e.A ?? "").Trim())).ToList();
+            if (r is null || entries.Count == 0) return Results.BadRequest(new { error = "Nothing to share." });
+            var s = store.For(ctx.User);
+            var id = shares.Create(r.Kind ?? "playlist", string.IsNullOrWhiteSpace(r.Name) ? entries[0].Title : r.Name, s.Jellyfin?.UserName ?? ctx.User.Identity?.Name ?? "Someone", entries);
+            return Results.Json(new { id, url = $"{ctx.Request.Scheme}://{ctx.Request.Host}/s/{id}" });
+        }).RequireAuthorization().DisableAntiforgery();
+
         // the iPod desk's disc pictures: a release's own "Medium" picture from the Cover Art Archive, fetched here (the browser only ever asks FLACie) and kept for
         // everyone; only for a release someone matched on MusicBrainz. No picture: 404, and the desk prints a disc from the cover.
         app.MapGet("/desk/disc/{release}", async (HttpContext ctx, string release, MbOverlay choices, DeskDiscPictures discs) =>
@@ -366,3 +380,7 @@ public static class MediaEndpoints
         return null;
     }
 }
+
+/// <summary>What the phone app sends to share: song or playlist, its name, and the songs (path, title, artist).</summary>
+public sealed record ShareRequest(string? Kind, string? Name, List<ShareSong>? Entries);
+public sealed record ShareSong(string? P, string? T, string? A);

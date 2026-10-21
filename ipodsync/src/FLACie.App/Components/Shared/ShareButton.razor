@@ -1,15 +1,8 @@
-@* Share on a detail page (album, artist, genre): the device's share sheet where there is one (a phone), else the page's link is copied. *@
-@inject IJSRuntime Js
-@inject Toasts Toast
-<button class="detail-shuffle detail-share" aria-label="Share" @onclick="Share"><Icon Name="share" Size="18" />Share</button>
+@* Share on a detail page (album, artist, genre): a link to these songs that opens in the FLACie of whoever gets it (their own library). *@
+@inherits UserComponent
+@inject Sharing Sharing
+<button class="detail-shuffle detail-share" aria-label="Share" @onclick='() => Sharing.ShareAsync(Session, "playlist", Title, Songs)'><Icon Name="share" Size="18" />Share</button>
 @code {
     [Parameter] public string Title { get; set; } = "";
-
-    async Task Share()
-    {
-        string how;
-        try { how = await Js.InvokeAsync<string>("flacie.shareLink", Title); } catch (Exception) { how = ""; }
-        if (how == "copied") Toast.Show("Link copied");
-        else if (how == "") Toast.Show("Couldn't share this page", warn: true);
-    }
+    [Parameter] public IReadOnlyList<Track> Songs { get; set; } = [];
 }

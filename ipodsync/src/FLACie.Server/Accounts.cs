@@ -98,6 +98,11 @@ public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log, I
 
 public static class AuthEndpoints
 {
+    /// <summary>Where to go after signing in: the page that asked (a shared link) when it is a page on this site, else Home. Never another site
+    /// ("//evil.example", "https://..."), never the login page itself.</summary>
+    public static string LocalReturn(string? r) =>
+        r is { Length: > 1 } && r[0] == '/' && r[1] != '/' && r[1] != '\\' &&!r.StartsWith("/login", StringComparison.OrdinalIgnoreCase) && !r.Contains("://") ? r : "/";
+
     public static void MapAuth(this WebApplication app)
     {
         var allowNas = app.Configuration.GetValue("FLACIE_ALLOW_NAS_LOGIN", false);
@@ -128,7 +133,7 @@ public static class AuthEndpoints
             if (string.IsNullOrWhiteSpace(server) || user.Length == 0) return Back("Enter the server and your username.");
             if (throttle.Blocked(ctx)) return Back(TooMany);
             if (throttle.Delay(user) is { Ticks: > 0 } wait) await Task.Delay(wait, ctx.RequestAborted);
-            try { await SignIn(ctx, await jf.SignInAsync(server, user, f["password"].ToString()), null); throttle.Succeed(user); return Results.Redirect("/"); }
+            try { await SignIn(ctx, await jf.SignInAsync(server, user, f["password"].ToString()), null); throttle.Succeed(user); return Results.Redirect(LocalReturn(f["return"])); }
             catch (UnauthorizedAccessException) { throttle.Fail(ctx, user); return Back("Wrong username or password."); }
             catch (Exception e) { throttle.Fail(ctx); return Back(FriendlyError.Of(e, $"Couldn't sign in to {server}")); }
         }).DisableAntiforgery();
@@ -140,7 +145,7 @@ public static class AuthEndpoints
             var f = ctx.Request.Form;
             var n = new NasAccount(f["host"].ToString().Trim(), f["share"].ToString().Trim(), f["folder"].ToString().Trim('/', ' '), f["user"].ToString().Trim(), f["password"].ToString());
             if (n.Host.Length == 0 || n.Share.Length == 0) return Back("Enter the NAS address and share.", "nas");
-            try { await Task.Run(() => NasClient.Test(n)); await SignIn(ctx, null, n); return Results.Redirect("/"); }
+            try { await Task.Run(() => NasClient.Test(n)); await SignIn(ctx, null, n); return Results.Redirect(LocalReturn(f["return"])); }
             catch (Exception e) { throttle.Fail(ctx, n.User); return Back(FriendlyError.Of(e, "Couldn't sign in to the NAS"), "nas"); }
         }).DisableAntiforgery();
 

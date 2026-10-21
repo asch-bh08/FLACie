@@ -1159,6 +1159,21 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
         GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true, title) }, icon = Glyph.SHUFFLE, height = 40.dp)
     }
     }
+    // Favourites: Clear all, asked first, with Undo (other devices follow: each removal is recorded)
+    if (kind == "Your favourites" && tracks.isNotEmpty()) {
+        val app = LocalApp.current
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DesignChip("Clear all", false, {
+                nav.sheet = SheetSpec("Clear all favourites?", "${tracks.size} songs. Every device you're signed in on follows.", listOf(
+                    SheetItem("Yes, clear them", Glyph.CLOSE) {
+                        val was = app.userData.clearFavorites()
+                        app.ui.say("Cleared ${was.size} favourites", "Undo") { app.userData.restoreFavorites(was) }
+                    },
+                    SheetItem("Keep them", Glyph.CHECK) { },
+                ))
+            })
+        }
+    }
     if (playlistId != null) {
         // editing: the playlist's own actions (songs have Move and Remove in their menu)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

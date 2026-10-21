@@ -21,6 +21,9 @@ class UserPlaylist(val id: String, var name: String, val paths: MutableList<Stri
 class UserData(ctx: Context) {
     private val file = File(ctx.filesDir, "userdata.json")
     val favorites = LinkedHashSet<String>()
+    /** When each favourite was made (ms), and the favourites taken away with when: other devices follow by the latest change (FavoriteSync). */
+    val favAt = HashMap<String, Long>()
+    val favGone = ArrayList<FavoriteSync.Fav>()
     val playlists = ArrayList<UserPlaylist>()
     val recents = ArrayList<String>() // newest first
     /** Finished downloads, newest first: what was asked for and, for a Soulseek file, the path it plays from. */
@@ -58,7 +61,13 @@ class UserData(ctx: Context) {
     var onFavoritesChanged: (() -> Unit)? = null
 
     fun toggleFavorite(path: String) {
-        if (!favorites.remove(path)) favorites.add(path)
+        val now = System.currentTimeMillis()
+        if (favorites.remove(path)) {
+            favAt.remove(path)
+            val m = meta[path]
+            favGone.add(0, FavoriteSync.Fav(path, m?.first ?: "", m?.second ?: "", now))
+            while (favGone.size > FavoriteSync.KEEP_REMOVALS) favGone.removeAt(favGone.size - 1)
+        } else { favorites.add(path); favAt[path] = now }
         favStates[path]?.value = path in favorites
         changed()
         onFavoritesChanged?.invoke()
@@ -172,9 +181,36 @@ class UserData(ctx: Context) {
 
     /** Folds in the account's copy (see AccountSync): favourites union, playlists by id with the newest edit winning,
      * playlists deleted on another device removed here. Entries carry title + artist for cross-device matching. */
-    fun mergeRemote(favs: List<Triple<String, String, String>>, lists: List<AccountSync.RemotePlaylist>, deleted: List<String>) {
+    /** Takes away every favourite (each recorded as removed, so other devices follow); the paths come back for Undo. */
+    fun clearFavorites(): List<String> {
+        val was = favorites.toList(); val now = System.currentTimeMillis()
+        for (p in was) { val m = meta[p]; favGone.add(0, FavoriteSync.Fav(p, m?.first ?: "", m?.second ?: "", now)); favStates[p]?.value = false }
+        while (favGone.size > FavoriteSync.KEEP_REMOVALS) favGone.removeAt(favGone.size - 1)
+        favorites.clear(); favAt.clear()
+        changed(); onFavoritesChanged?.invoke()
+        return was
+    }
+
+    /** Undo for [clearFavorites]: the same songs favourited again, in the same order. */
+    fun restoreFavorites(paths: List<String>) {
+        val now = System.currentTimeMillis()
+        for (p in paths) { favorites.add(p); favAt[p] = now; favStates[p]?.value = true }
+        changed(); onFavoritesChanged?.invoke()
+    }
+
+    /** [favs] and [gone]: the account's favourites and removals; [info] gives a local favourite's title and artist (from the library). */
+    fun mergeRemote(favs: List<FavoriteSync.Fav>, gone: List<FavoriteSync.Fav>, lists: List<AccountSync.RemotePlaylist>, deleted: List<String>, info: (String) -> Pair<String, String> = { meta[it] ?: ("" to "") }) {
         fun note(p: String, t: String, a: String) { if (t.isNotEmpty() && p !in meta) meta[p] = t to a }
-        favs.forEach { (p, t, a) -> note(p, t, a); if (favorites.add(p)) favStates[p]?.value = true }
+        favs.forEach { note(it.p, it.t, it.a) }
+        // favourites: per song the latest of favouriting and removing wins, here and on the account (FavoriteSync)
+        val local = favorites.map { p -> val (t, a) = info(p); FavoriteSync.Fav(p, t, a, favAt[p] ?: 0L) }
+        val (keep, removed) = FavoriteSync.merge(local, favGone.toList(), favs, gone)
+        val now = keep.mapTo(LinkedHashSet()) { it.p }
+        for (p in favorites) if (p !in now) favStates[p]?.value = false
+        for (p in now) if (p !in favorites) favStates[p]?.value = true
+        favorites.clear(); favorites.addAll(now)
+        favAt.clear(); keep.forEach { if (it.w > 0) favAt[it.p] = it.w }
+        favGone.clear(); favGone.addAll(removed)
         for (id in deleted) if (id !in deletedPlaylists) { deletedPlaylists.add(id); playlists.removeAll { it.id == id } }
         for (r in lists) {
             if (r.id in deletedPlaylists) continue
@@ -209,7 +245,7 @@ class UserData(ctx: Context) {
      * next person's sign-in merged it into their own account.
      */
     fun clearPersonal() {
-        favorites.clear(); playlists.clear(); recents.clear(); downloads.clear(); plays.clear(); meta.clear()
+        favorites.clear(); favAt.clear(); favGone.clear(); playlists.clear(); recents.clear(); downloads.clear(); plays.clear(); meta.clear()
         deletedPlaylists.clear(); deletedPlaylistJf.clear(); ratings.load(null)
         favStates.values.forEach { it.value = false }
         changed(sync = false)
@@ -223,6 +259,8 @@ class UserData(ctx: Context) {
             val o = JSONObject(file.readText())
             ratings.load(o.optJSONArray("ratings"))
             o.optJSONArray("fav")?.let { a -> for (i in 0 until a.length()) favorites.add(a.getString(i)) }
+            o.optJSONObject("favat")?.let { m -> m.keys().forEach { k -> favAt[k] = m.optLong(k) } }
+            o.optJSONArray("favgone")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { g -> favGone.add(FavoriteSync.Fav(g.optString("p"), g.optString("t"), g.optString("a"), g.optLong("w"))) } }
             o.optJSONObject("plays")?.let { p -> p.keys().forEach { k -> plays[k] = p.optInt(k) } }
             o.optJSONArray("recent")?.let { a -> for (i in 0 until a.length()) recents.add(a.getString(i)) }
             o.optJSONArray("dl")?.let { a -> for (i in 0 until a.length()) a.getJSONObject(i).let { d -> downloads.add(DownloadEntry(d.optString("a"), d.optString("t"), d.optString("al"), d.optString("p"), d.optLong("w"), d.optString("s"))) } }
@@ -253,6 +291,8 @@ class UserData(ctx: Context) {
             val o = try {
                 JSONObject().also { o ->
                     o.put("fav", JSONArray(favorites.toList()))
+                    o.put("favat", JSONObject().also { m -> favAt.toMap().forEach { (k, v) -> m.put(k, v) } })
+                    o.put("favgone", JSONArray().also { a -> favGone.toList().forEach { g -> a.put(JSONObject().put("p", g.p).put("t", g.t).put("a", g.a).put("w", g.w)) } })
                     o.put("ratings", ratings.toJson())
                     o.put("recent", JSONArray(recents.toList()))
                     o.put("dl", JSONArray().also { a -> downloads.toList().forEach { d -> a.put(JSONObject().put("a", d.artist).put("t", d.title).put("al", d.album).put("p", d.path).put("w", d.time).put("s", d.source)) } })

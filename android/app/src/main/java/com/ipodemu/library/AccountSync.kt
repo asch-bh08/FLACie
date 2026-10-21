@@ -258,7 +258,9 @@ class AccountSync(private val app: App) {
         val account = if (p.hasJellyfinAccount) JSONObject().put("server", p.accountServer).put("userId", p.accountUserId)
             .put("user", p.accountUserName).put("token", p.accountToken) else JSONObject.NULL
         val built = JSONObject().put("v", 2).put("updated", System.currentTimeMillis()).put("services", services).put("account", account)
-            .put("favorites", JSONArray().also { a -> ud.favorites.toList().forEach { a.put(meta(it)) } })
+            .put("favorites", JSONArray().also { a -> ud.favorites.toList().forEach { a.put(meta(it).put("w", ud.favAt[it] ?: 0L)) } })
+            // removals too, with their time, so other devices take them away instead of bringing them back (FavoriteSync)
+            .put("favgone", JSONArray().also { a -> ud.favGone.toList().forEach { g -> val m = if (g.t.isBlank()) meta(g.p) else null; a.put(JSONObject().put("p", g.p).put("t", m?.optString("t") ?: g.t).put("a", m?.optString("a") ?: g.a).put("w", g.w)) } })
             .put("ratings", ud.ratings.toJson())
             .put("playlists", lists)
             .put("deleted", JSONArray(ud.deletedPlaylists.toList()))
@@ -301,7 +303,9 @@ class AccountSync(private val app: App) {
         if (p.jellyfinUrl.isBlank() && p.hasJellyfinAccount) { p.jellyfinUrl = p.accountServer; p.jellyfinApiKey = p.accountToken; restored++ }
 
         val favs = r.optJSONArray("favorites") ?: JSONArray()
-        val incomingFavs = List(favs.length()) { favs.getJSONObject(it) }.map { Triple(it.optString("p"), it.optString("t"), it.optString("a")) }
+        val incomingFavs = List(favs.length()) { favs.getJSONObject(it) }.map { FavoriteSync.Fav(it.optString("p"), it.optString("t"), it.optString("a"), it.optLong("w")) }
+        val goneArr = r.optJSONArray("favgone") ?: JSONArray()
+        val incomingGone = List(goneArr.length()) { goneArr.getJSONObject(it) }.map { FavoriteSync.Fav(it.optString("p"), it.optString("t"), it.optString("a"), it.optLong("w")) }
         val pls = r.optJSONArray("playlists") ?: JSONArray()
         val incoming = List(pls.length()) { i ->
             val o = pls.getJSONObject(i)
@@ -313,7 +317,7 @@ class AccountSync(private val app: App) {
         // old on-device playlists hidden on another install stay hidden here
         r.optJSONArray("hidden")?.let { a -> p.hiddenPlaylists = p.hiddenPlaylists + List(a.length()) { a.getString(it) } }
         val incomingRatings = app.userData.ratings.parse(r.optJSONArray("ratings"))
-        kotlinx.coroutines.withContext(Dispatchers.Main) { app.userData.mergeRemote(incomingFavs, incoming, deleted); app.userData.mergeRatings(incomingRatings) }
+        kotlinx.coroutines.withContext(Dispatchers.Main) { app.userData.mergeRemote(incomingFavs, incomingGone, incoming, deleted); app.userData.mergeRatings(incomingRatings) }
         if (restored > 0) app.library.reconnectAll()
         return restored
     }

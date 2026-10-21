@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+// (named 1w- so it runs before 2-login, whose wrong-password tests lock this address out of signing in for 15 minutes)
 import AxeBuilder from '@axe-core/playwright';
 
 // Accessibility (the 1.0 bar): every main page passes axe's WCAG 2 A and AA checks, on a phone and on a PC.

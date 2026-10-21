@@ -289,6 +289,10 @@ class Prefs(ctx: Context) {
     var accountSyncedAt: Long
         get() = sp.getLong("acctsynced", 0L)
         set(v) = sp.edit().putLong("acctsynced", v).apply()
+    /** The account (Jellyfin user id, or "nas:<user>") the favourites, playlists and history on this device belong to; "" when nobody's. */
+    var dataOwner: String
+        get() = sp.getString("dataowner", "") ?: ""
+        set(v) = sp.edit().putString("dataowner", v).apply()
     /** Home's first-run welcome has been put away (Got it). */
     var welcomed: Boolean
         get() = sp.getBoolean("welcomed", false)

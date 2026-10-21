@@ -234,7 +234,9 @@ public sealed class Connect : IDisposable
         var list = new List<ConnectSession>();
         foreach (var o in arr.OfType<JsonObject>())
         {
-            if (!(string.Equals(o["UserId"]?.GetValue<string>(), Account.UserId, StringComparison.OrdinalIgnoreCase) || o["SupportsRemoteControl"]?.GetValue<bool>() == true)) continue;
+            // only this account's own devices: an administrator's token is shown everyone's sessions, and other people's playing must not look like
+            // this account's (who is playing what, for everyone, is on the dashboard)
+            if (!string.Equals(o["UserId"]?.GetValue<string>(), Account.UserId, StringComparison.OrdinalIgnoreCase)) continue;
             var np = o["NowPlayingItem"]; var ps = o["PlayState"];
             var q = (o["NowPlayingQueue"] as JsonArray)?.Select(x => x?["Id"]?.GetValue<string>() ?? "").ToList() ?? [];
             list.Add(new ConnectSession(

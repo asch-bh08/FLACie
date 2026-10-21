@@ -105,6 +105,8 @@ class AccountSync(private val app: App) {
         prefs.accountKind = "jellyfin"
         // the services came with the account; the next person on this device starts clean
         app.library.forgetAllServices()
+        // and so do the favourites, playlists and history: they are in the account, and must not be merged into the next person's
+        app.userData.clearPersonal(); prefs.dataOwner = ""
         signedIn = false; status = "Signed out"
         app.connect.refresh()
     }
@@ -115,6 +117,9 @@ class AccountSync(private val app: App) {
         prefs.accountToken = auth.getString("AccessToken")
         prefs.accountUserId = user.getString("Id")
         prefs.accountUserName = user.optString("Name")
+        // another account's favourites and playlists still on this device (signed in before the sign-out cleared them): never merged into this one
+        if (prefs.dataOwner.isNotBlank() && prefs.dataOwner != prefs.accountUserId) app.userData.clearPersonal()
+        prefs.dataOwner = prefs.accountUserId
         if (!prefs.hasNasAccount || prefs.accountKind != "nas") prefs.accountKind = "jellyfin"
         signedIn = true
         syncNow()
@@ -171,6 +176,9 @@ class AccountSync(private val app: App) {
         prefs.nasHost = host.trim(); prefs.nasShare = share.trim(); prefs.nasFolder = folder.trim()
         prefs.nasUsername = user.trim(); prefs.nasPassword = password; prefs.nasDomain = domain.trim()
         prefs.accountKind = "nas"
+        val who = "nas:" + host.trim().lowercase() + "/" + user.trim().lowercase()
+        if (prefs.dataOwner.isNotBlank() && prefs.dataOwner != who) app.userData.clearPersonal()
+        prefs.dataOwner = who
         signedIn = prefs.signedIn
         syncNow()
         app.library.reconnectAll()

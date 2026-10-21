@@ -115,7 +115,7 @@ class JellyfinConnect(private val app: App) {
     /** Lists this user's other active sessions (last 10 minutes) and what each plays. */
     fun loadSessions() = scope.launch {
         val arr = try { JSONArray(get("/Sessions?ControllableByUserId=${prefs.accountUserId}&ActiveWithinSeconds=600")) } catch (e: Exception) { android.util.Log.d("FLACieConnect", "sessions failed: ${e.message}"); return@launch }
-        val out = (0 until arr.length()).map { arr.getJSONObject(it) }.filter { it.optString("UserId").equals(prefs.accountUserId, true) || it.optBoolean("SupportsRemoteControl") }
+        val out = (0 until arr.length()).map { arr.getJSONObject(it) }.filter { it.optString("UserId").equals(prefs.accountUserId, true) }   // only this account's devices (an admin is shown everyone's)
             .map { o ->
                 val np = o.optJSONObject("NowPlayingItem"); val ps = o.optJSONObject("PlayState")
                 val q = o.optJSONArray("NowPlayingQueue")?.let { a -> (0 until a.length()).map { a.getJSONObject(it).optString("Id") } } ?: emptyList()

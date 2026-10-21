@@ -203,6 +203,18 @@ class UserData(ctx: Context) {
         }
         changed(sync = false)
     }
+    /**
+     * Forgets everything that belongs to the person signed in (favourites, playlists, history, play counts, ratings, the download log): at sign-out, and
+     * when a different account signs in on this device. It is all kept in that person's account and comes back when they sign in again; without this the
+     * next person's sign-in merged it into their own account.
+     */
+    fun clearPersonal() {
+        favorites.clear(); playlists.clear(); recents.clear(); downloads.clear(); plays.clear(); meta.clear()
+        deletedPlaylists.clear(); deletedPlaylistJf.clear(); ratings.load(null)
+        favStates.values.forEach { it.value = false }
+        changed(sync = false)
+    }
+
     private fun changed(sync: Boolean = true) { rev++; save(); if (sync) onChanged?.invoke() }
 
     private fun load() {

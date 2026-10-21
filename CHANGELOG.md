@@ -2,6 +2,85 @@
 
 Every release, newest first (generated from the GitHub release notes; the downloads stay on each release page). The newest build is marked Latest. Versions up to 0.9.x were called ipodplayer.
 
+## v1.0.0-beta88
+
+**Accessibility in Retro**
+- Retro now meets the same accessibility standard (WCAG 2.1 AA) as the rest of FLACie, checked automatically on a phone and a PC.
+- A screen reader announces the click wheel's MENU, next, previous and play buttons by name.
+- The MiniDisc's jog dial and its play button are announced separately.
+- The iPod's side panel can be reached and scrolled with the keyboard.
+
+**Under the hood**
+- A test that failed only late in long test runs is fixed. It was checking the age of a pretend download against a fixed limit, so it went out of date as the run went on.
+
+## v1.0.0-beta87
+
+**Favourites stay removed**
+- Removing a favourite now sticks on all your devices. Before, a song you unfavourited came back from any other device that still had it, because devices just added each other's favourites together. Now whichever happened last, adding or removing, wins, on the web and Android.
+- Favourites has **Clear all** (it asks first, then offers Undo). Use it to tidy an account that picked up someone else's favourites; every device follows.
+
+**Android**
+- Sign-in and sync errors are in plain words, saying what went wrong and what to try. You'll no longer see "HTTP 404" or "Unable to resolve host".
+
+## v1.0.0-beta86
+
+**Privacy fixes**
+- Favourites, playlists, history and ratings no longer pass from one account to another on the same Android phone. Signing out now clears them from the phone; they're still in your account and come back when you sign in. Signing in as a different person starts clean.
+  - Before, the phone merged them into whoever signed in next, which is how another account ended up with your favourites. Anything already merged that way is still in that account: remove it there, or ask and I'll help clear it.
+- Devices now shows only your own account's devices, on the web and Android. As a Jellyfin admin you used to see everyone's playback there as if it were yours. Everyone's playback, with the account name, is on the Dashboard (admins only).
+
+**Also**
+
+- Web: removing a song from a playlist offers Undo, which puts it back in the same place. Android already had this.
+- The README describes FLACie as it is for 1.0.
+- The self-hosting guide covers the shared-links folder in backups, the renamed Library settings, and how the phone learns your web server's address.
+
+## v1.0.0-beta85
+
+**The 1.0 logo**
+- A neon ribbon play triangle with an F inside it, glowing cyan to violet, with a calm sound wave behind it.
+- It replaces the old pink F everywhere: the Android launcher icon, the web's tab and install icons, the web's top bar, the Windows app icon and the README.
+
+Nothing else changed since beta 84.
+
+## v1.0.0-beta84
+
+**Fixed**
+- Share on Android sent only the song's name. The server was turning away the phone's request for a link; it now accepts it, so Share sends a link that opens in FLACie.
+- The phone now always learns your FLACie Web address (it's passed through your profile), even on an account that never had it set. If the phone still can't make a link, it says why.
+- The phone can also fetch seek-bar shapes from the server again. The same sign-in problem had been blocking those.
+- Android Home: after Got it, the welcome card stays gone. It came back when you scrolled or switched tabs.
+
+- Info on a wide screen: the long File card spans two columns and cards are only as tall as their content, so there is less to scroll.
+
+**For sharing to work from your phone:** open FLACie on the web once after updating, so the phone learns the address.
+
+## v1.0.0-beta83
+
+**Share songs and playlists by link**
+- **Where:** Share is in a song's menu, the player's More menu, playlists, and album, artist and genre pages, on the web and on Android. It makes a short link on your FLACie server (`/s/...`) and opens your share sheet, or copies the link on a PC.
+- **For the person who gets it:**
+  - They open it and sign in to FLACie as themselves, and come straight back to the link.
+  - They see who shared it and play the songs from their own library.
+  - They can save it as one of their playlists, or download the songs they don't have.
+- **What goes with the link:** only the songs' names and artists, nothing from your account.
+- **Without a FLACie server:** Android shares the song's name as text instead.
+
+## v1.0.0-beta82
+
+- Fixed: turning shuffle on mid-song could leave only a few songs to come, so playback stopped early. The song playing now goes first in a fresh shuffle, with every other song after it.
+- Retro shows the queue in the order it will actually play, so its "x of y" and Up next match the app.
+
+## v1.0.0-beta81
+
+**Android**
+- Retro follows the app's queue whenever it changes (Play next from the notification, Autoplay, an edit in Up next). It takes the queue in the app's order and doesn't shuffle it again. Known: the iPod's "x of y" then counts in the app's queue order.
+- Offline: By album shows the space each downloaded album takes, biggest first, with a tap to remove one.
+- Songs: Offline only shows just the songs kept on the phone.
+
+**Docs**
+- The changelog covers betas 79 and 80.
+
 ## v1.0.0-beta80
 
 **Android**

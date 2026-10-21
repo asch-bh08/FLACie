@@ -258,13 +258,18 @@ fun PlayerHost(nav: PlayerNav) {
                 // one cheap slide for the incoming screen only (no cross-fade, old screen is not kept composed);
                 // going back needs no animation because the swipe-back drag already moved the page
                 val depth = nav.stack.size
+                val stateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
                 val lastDepth = remember { androidx.compose.runtime.mutableIntStateOf(depth) }
                 val forward = depth > lastDepth.intValue
                 androidx.compose.runtime.SideEffect { lastDepth.intValue = depth }
                 androidx.compose.runtime.key(nav.top) {
                     val slide = remember { androidx.compose.animation.core.Animatable(if (forward) 1f else 0f) }
                     LaunchedEffect(Unit) { if (slide.value > 0f) slide.animateTo(0f, tween(200)) }
-                    Box(Modifier.fillMaxSize().graphicsLayer { translationX = slide.value * size.width * 0.28f }) { ScreenContent(nav.top, nav, snap) }
+                    Box(Modifier.fillMaxSize().graphicsLayer { translationX = slide.value * size.width * 0.28f }) {
+                        // each screen on the back stack keeps its saved state (a list's scroll position), so Back returns to the same place in it
+                        val key = "${nav.stack.size}:${nav.top}"
+                        stateHolder.SaveableStateProvider(key) { ScreenContent(nav.top, nav, snap) }
+                    }
                 }
             }
             // music playing on another of this user's devices while this phone is quiet: a remote bar instead (Spotify Connect style)

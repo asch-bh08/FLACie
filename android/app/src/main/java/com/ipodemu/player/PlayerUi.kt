@@ -447,6 +447,7 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
     items += SheetItem("Add to queue", Glyph.QUEUE) { app.player.addToQueue(t) }
     items += SheetItem(if (ud.isFavorite(t.path)) "Remove from favorites" else "Add to favorites", if (ud.isFavorite(t.path)) Glyph.HEART_FILLED else Glyph.HEART) { ud.toggleFavorite(t.path) }
     items += SheetItem("Add to playlist...", Glyph.PLUS) { nav.sheet = playlistPicker(app, nav, t) }
+    if (t.isMusic) items += SheetItem("Share", Glyph.JAM) { shareTrack(app, t) }
     if (t.source == com.ipodemu.library.TrackSource.JELLYFIN) {
         val off = app.offline.entry(t.path)
         if (off == null) items += SheetItem("Download for offline", Glyph.DOWN) { val n = app.offline.enqueue(listOf(t), com.ipodemu.library.offline.OfflineReason.MANUAL); app.ui.say(if (n > 0) "Downloading \"${t.title}\"" else "Already offline") }
@@ -1161,6 +1162,7 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
     if (playlistId != null) {
         // editing: the playlist's own actions (songs have Move and Remove in their menu)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DesignChip("Share", false, { shareSongs(app, "playlist", title, tracks) })
             DesignChip("Rename", false, { nav.nameDialogRename = title; nav.nameDialog = { n -> app.userData.rename(playlistId, n); app.ui.say("Renamed to \"$n\"") } })
             DesignChip("Remove dupes", false, {
                 val ud = app.userData

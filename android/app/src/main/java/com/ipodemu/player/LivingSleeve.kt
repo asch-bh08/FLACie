@@ -689,10 +689,28 @@ private fun SleeveActions(wide: Boolean, tab: String?, onOpen: (String) -> Unit,
 }
 
 /** Shares the song as words (title, artist, album) through Android's share sheet: the file itself stays where it is. */
-internal fun shareTrack(ctx: android.content.Context, t: Track) {
-    val text = listOf(t.title, t.artist, t.album).filter { it.isNotBlank() }.joinToString(" · ")
-    val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, text)
-    try { ctx.startActivity(android.content.Intent.createChooser(send, "Share").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) { }
+internal fun shareTrack(ctx: android.content.Context, t: Track) = shareSongs(ctx, "song", t.title, listOf(t))
+
+/**
+ * Shares songs as a link to them on the FLACie server (ShareLinks), which opens in the FLACie of whoever gets it; with no server to ask, the song's
+ * name goes as words instead. Android's share sheet sends it (Messages, WhatsApp, email...).
+ */
+internal fun shareSongs(ctx: android.content.Context, kind: String, name: String, songs: List<Track>) {
+    val app = com.ipodemu.App.of(ctx)
+    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        val link = com.ipodemu.library.ShareLinks.create(app.prefs, kind, name, songs)
+        val one = songs.firstOrNull()
+        val text = when {
+            link != null && kind == "song" && one != null -> "${one.title} by ${one.artist}: $link"
+            link != null -> "$name: $link"
+            one != null && songs.size == 1 -> listOf(one.title, one.artist, one.album).filter { it.isNotBlank() }.joinToString(" · ")
+            else -> name + "\n" + songs.take(50).joinToString("\n") { "${it.title} · ${it.artist}" }
+        }
+        val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, text)
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+            try { ctx.startActivity(android.content.Intent.createChooser(send, "Share").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) { }
+        }
+    }
 }
 
 /** An outlined button (Lyrics, Up next, More): solid cream with dark text while its panel is open. */

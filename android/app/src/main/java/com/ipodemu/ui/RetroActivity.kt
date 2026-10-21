@@ -219,6 +219,7 @@ class RetroBridge(private val app: App, private val activity: ComponentActivity)
         return JSONObject().apply {
             put("p", n.path ?: JSONObject.NULL); put("pl", n.playing); put("pos", n.pos); put("dur", n.dur); put("i", n.index)
             put("sh", app.prefs.shuffle); put("rp", app.prefs.repeat)
+            put("qr", queueRev)
             if (withQueue) put("q", JSONArray(n.queue))
         }.toString()
     }

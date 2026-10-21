@@ -174,7 +174,12 @@ public sealed class AppOutput(IJSRuntime js) : IPlayerOutput
         }
     }
 
-    sealed record AppState(string? p, bool pl, long pos, long dur, string[]? q, int i, bool? sh = null, int? rp = null);
+    sealed record AppState(string? p, bool pl, long pos, long dur, string[]? q, int i, bool? sh = null, int? rp = null, int? qr = null);
+
+    // the app's queue as Retro last took it (its revision): when the app's changes (Play next from a notification, Autoplay adding songs, an edit in
+    // the app's Up next), Retro takes it again, in the app's order. Taking it never sends a different queue back (the app keeps its own when the song
+    // playing is the same), so the two cannot chase each other.
+    int? queueRev;
 
     // shuffle and repeat as they were last agreed with the app: a change on one side is sent to (or taken from) the other
     bool? agreedShuffle; int? agreedRepeat;
@@ -203,9 +208,10 @@ public sealed class AppOutput(IJSRuntime js) : IPlayerOutput
         if (json.Length == 0) return;
         var s = JsonSerializer.Deserialize<AppState>(json);
         if (s is null) return;
+        if (adopted && s.qr is { } qr && queueRev is { } had && qr != had && player.Current?.Path == s.p) { adopted = false; queueRev = qr; return; }
         if (!adopted)
         {
-            adopted = true;
+            adopted = true; queueRev = s.qr;
             // the song the app plays (or left paused) and its queue: Retro carries on from there
             if (s.q is { Length: > 0 } q)
             {
@@ -213,7 +219,7 @@ public sealed class AppOutput(IJSRuntime js) : IPlayerOutput
                 var idx = Math.Clamp(s.i, 0, q.Length - 1);
                 var list = tracks.OfType<Track>().ToList();
                 var at = tracks.Take(idx).Count(t => t is not null);
-                if (list.Count > 0) await player.PlayFromAsync(list, Math.Clamp(at, 0, list.Count - 1), s.pos, !s.pl);
+                if (list.Count > 0) await player.AdoptAsync(list, Math.Clamp(at, 0, list.Count - 1), s.pos, !s.pl);
             }
         }
         else if (s.p is { } path && player.Current?.Path != path)

@@ -46,7 +46,7 @@ const scan = async (page: Page) => {
   return r.violations.map((v) => `${v.id} (${v.impact}): ${v.nodes.length}× e.g. ${v.nodes[0]?.target.join(' ')}`);
 };
 
-const pages = ['/', '/search', '/search?q=Lab', '/songs', '/albums', '/artists', '/playlists', '/favorites', '/settings', '/artist/Hires%20Lab'];
+const pages = ['/', '/search', '/search?q=Lab', '/songs', '/albums', '/artists', '/playlists', '/favorites', '/settings', '/artist/Hires%20Lab', '/retro', '/ipod'];
 
 for (const size of [{ name: 'phone', width: 390, height: 844 }, { name: 'PC', width: 1440, height: 900 }]) {
   test.describe(`accessibility on a ${size.name}`, () => {

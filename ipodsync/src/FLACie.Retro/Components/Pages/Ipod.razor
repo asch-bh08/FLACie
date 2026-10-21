@@ -25,7 +25,7 @@ else
     else { @Area() }
     <a class="ipod-exit" href="/" aria-label="Back to FLACie" title="Back to FLACie" data-testid="ipod-exit"><Icon Name="chevron-left" Size="18" /></a>
     <button class="ipod-gear" type="button" tabindex="-1" aria-label="@(panel ? "Hide the panel" : "Show the panel")" title="Panel: pick an iPod, a scene, colour and look" data-testid="ipod-gear" @onclick="TogglePanel"><Icon Name="settings" Size="18" /></button>
-    <aside class="ipod-dock ipod-panel @(panel ? "open" : "")" data-testid="ipod-panel" aria-label="Retro panel">
+    <aside class="ipod-dock ipod-panel @(panel ? "open" : "")" data-testid="ipod-panel" aria-label="Retro panel" tabindex="0">
         <h2>Retro</h2>
         <section class="dock-np" data-testid="ipod-dock-np">
             @if (Player.Current is { } cur)
@@ -187,17 +187,17 @@ else
                 {
                     @* the 1st and 2nd generations: four buttons on a ring (MENU top, previous left, next right, play/pause bottom) round the scroll wheel *@
                     <div class="wscroll"></div>
-                    <span class="wl wl-menu" data-testid="ipod-menu" aria-label="Menu" title="Menu (Esc)">MENU</span>
-                    <span class="wl wl-next" data-testid="ipod-next" aria-label="Next song" title="Next (right arrow)"><Icon Name="next" Size="11" /></span>
-                    <span class="wl wl-prev" data-testid="ipod-prev" aria-label="Previous song" title="Previous (left arrow)"><Icon Name="prev" Size="11" /></span>
-                    <span class="wl wl-play" data-testid="ipod-play" aria-label="Play or pause" title="Play / pause (Space)"><Icon Name="play" Size="9" /><Icon Name="pause" Size="9" /></span>
+                    <span class="wl wl-menu" data-testid="ipod-menu" role="img" aria-label="Menu" title="Menu (Esc)">MENU</span>
+                    <span class="wl wl-next" data-testid="ipod-next" role="img" aria-label="Next song" title="Next (right arrow)"><Icon Name="next" Size="11" /></span>
+                    <span class="wl wl-prev" data-testid="ipod-prev" role="img" aria-label="Previous song" title="Previous (left arrow)"><Icon Name="prev" Size="11" /></span>
+                    <span class="wl wl-play" data-testid="ipod-play" role="img" aria-label="Play or pause" title="Play / pause (Space)"><Icon Name="play" Size="9" /><Icon Name="pause" Size="9" /></span>
                 }
                 else if (!model.KeyRow)
                 {
-                    <span class="wl wl-menu" data-testid="ipod-menu" aria-label="Menu" title="Menu (Esc)">MENU</span>
-                    <span class="wl wl-next" data-testid="ipod-next" aria-label="Next song" title="Next (right arrow)"><Icon Name="next" Size="16" /></span>
-                    <span class="wl wl-prev" data-testid="ipod-prev" aria-label="Previous song" title="Previous (left arrow)"><Icon Name="prev" Size="16" /></span>
-                    <span class="wl wl-play" data-testid="ipod-play" aria-label="Play or pause" title="Play / pause (Space)"><Icon Name="play" Size="12" /><Icon Name="pause" Size="12" /></span>
+                    <span class="wl wl-menu" data-testid="ipod-menu" role="img" aria-label="Menu" title="Menu (Esc)">MENU</span>
+                    <span class="wl wl-next" data-testid="ipod-next" role="img" aria-label="Next song" title="Next (right arrow)"><Icon Name="next" Size="16" /></span>
+                    <span class="wl wl-prev" data-testid="ipod-prev" role="img" aria-label="Previous song" title="Previous (left arrow)"><Icon Name="prev" Size="16" /></span>
+                    <span class="wl wl-play" data-testid="ipod-play" role="img" aria-label="Play or pause" title="Play / pause (Space)"><Icon Name="play" Size="12" /><Icon Name="pause" Size="12" /></span>
                 }
                 <div class="ipod-center" data-testid="ipod-center" aria-label="Select" title="Select (Enter)"></div>
             </div>

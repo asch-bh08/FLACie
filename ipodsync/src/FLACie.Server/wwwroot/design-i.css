@@ -130,3 +130,8 @@
 .rail-label, .rail-group > p { color: var(--dim); }
 .detail-head { --np-accent-fg: var(--accent-fg, #1a120c); }
 .track.now .track-title { color: color-mix(in srgb, var(--accent) 65%, #fff); }   /* the accent as text, lifted so it reads on the dark ground (WCAG AA) */
+
+/* reduced motion (a system setting): nothing slides, pulses or spins anywhere; the end state is shown at once (end events still fire) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
+}

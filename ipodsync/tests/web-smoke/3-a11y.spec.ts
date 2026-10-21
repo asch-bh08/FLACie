@@ -60,3 +60,15 @@ for (const size of [{ name: 'phone', width: 390, height: 844 }, { name: 'PC', wi
     expect(await scan(page)).toEqual([]);
   });
 }
+
+test('with reduced motion on, nothing on the page animates or eases', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await signIn(page);
+  await live(page, '/');
+  const slow = await page.evaluate(() => {
+    const ms = (v: string) => Math.max(...v.split(',').map((x) => (x.trim().endsWith('ms') ? parseFloat(x) : parseFloat(x) * 1000)));
+    return [...document.querySelectorAll('*')].filter((e) => { const s = getComputedStyle(e); return ms(s.animationDuration) > 1 || ms(s.transitionDuration) > 1; }).length;
+  });
+  expect(slow).toBe(0);
+});

@@ -153,6 +153,16 @@ object OfflineMath {
     /** Whether downloading may go on now: never with no network, and not on mobile data when the person asked for Wi-Fi only. */
     fun networkAllowed(wifiOnly: Boolean, connected: Boolean, metered: Boolean): Boolean = connected && !(wifiOnly && metered)
 
+    /** One downloaded album's share of the space: its name, artist, how many songs and bytes (finished downloads only). */
+    data class AlbumUse(val album: String, val artist: String, val songs: Int, val bytes: Long, val paths: List<String>)
+
+    /** The downloaded albums by the space they take, biggest first (the Offline screen's "By album"). */
+    fun byAlbum(entries: List<OfflineEntry>): List<AlbumUse> =
+        entries.filter { it.state == OfflineState.DONE }
+            .groupBy { it.albumArtist.ifEmpty { it.artist }.lowercase() + "|" + it.album.lowercase() }
+            .map { (_, l) -> AlbumUse(l[0].album.ifEmpty { "Unknown album" }, l[0].albumArtist.ifEmpty { l[0].artist }, l.size, l.sumOf { it.bytes }, l.map { it.path }) }
+            .sortedByDescending { it.bytes }
+
     /** Why downloading waits right now, in the words the Offline screen and the notification show; null when it may go on. */
     fun waitReason(paused: Boolean, wifiOnly: Boolean, connected: Boolean, metered: Boolean): String? = when {
         paused -> "Paused"

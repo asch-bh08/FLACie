@@ -68,6 +68,21 @@ fun OfflineScreen(nav: PlayerNav) {
                     }
                 }
                 if (m.failedCount > 0) item { Card { OfflineRow("Try the failed ones again") { m.retryFailed() } } }
+                // what each album takes, biggest first: a tap offers to remove that album's downloads
+                val albums = OfflineMath.byAlbum(entries)
+                if (albums.size > 1) {
+                    item { SectionHeader("By album") }
+                    item {
+                        Card {
+                            albums.take(12).forEach { a ->
+                                OfflineRow("${a.album} · ${a.artist}", value = "${OfflineMath.songs(a.songs)}, ${OfflineMath.formatBytes(a.bytes)}") {
+                                    nav.sheet = SheetSpec("Remove ${a.album}?", "${OfflineMath.songs(a.songs)}, ${OfflineMath.formatBytes(a.bytes)}", listOf(
+                                        SheetItem("Yes, remove its downloads", Glyph.CLOSE) { a.paths.forEach { m.remove(it) } }, SheetItem("Keep it", Glyph.CHECK) { }))
+                                }
+                            }
+                        }
+                    }
+                }
                 item { SectionHeader("Downloads") }
                 if (entries.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(24.dp)) { Txt("Nothing yet. Open a song's menu and choose Download for offline, or switch on Keep favourites offline.", size = 14f, color = sc.onBgDim) } }
                 items(entries.sortedWith(compareBy({ it.state != OfflineState.DONE }, { -it.addedMs })), key = { it.key }) { e ->

@@ -59,6 +59,7 @@ fun OfflineScreen(nav: PlayerNav) {
                 item { SectionHeader("Settings") }
                 item {
                     Card {
+                        OfflineRow("Pause downloads", toggle = prefs.offlinePaused) { prefs.offlinePaused = !prefs.offlinePaused; tick++; if (!prefs.offlinePaused) m.kick() }
                         OfflineRow("Wi-Fi only", toggle = prefs.offlineWifiOnly) { prefs.offlineWifiOnly = !prefs.offlineWifiOnly; tick++; m.kick() }
                         OfflineRow("Keep favourites offline", toggle = prefs.offlineAutoFavorites) { prefs.offlineAutoFavorites = !prefs.offlineAutoFavorites; tick++; app.offlineSyncSoon() }
                         OfflineRow("Favourites limit", value = if (prefs.offlineLimitGb == 0) "No limit" else "${prefs.offlineLimitGb} GB") {

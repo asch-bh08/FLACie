@@ -161,4 +161,11 @@ class OfflineModelTest {
         assertEquals(listOf("Song 2"), p.add.map { it.title })
         assertNotNull(p)
     }
+
+    @Test fun downloads_say_why_they_wait() {
+        assertEquals(null, OfflineMath.waitReason(paused = false, wifiOnly = true, connected = true, metered = false))
+        assertEquals("Paused", OfflineMath.waitReason(paused = true, wifiOnly = false, connected = true, metered = false))
+        assertEquals("Waiting for Wi-Fi", OfflineMath.waitReason(paused = false, wifiOnly = true, connected = true, metered = true))
+        assertEquals("Waiting for a connection", OfflineMath.waitReason(paused = false, wifiOnly = false, connected = false, metered = false))
+    }
 }

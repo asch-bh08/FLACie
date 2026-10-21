@@ -153,6 +153,14 @@ object OfflineMath {
     /** Whether downloading may go on now: never with no network, and not on mobile data when the person asked for Wi-Fi only. */
     fun networkAllowed(wifiOnly: Boolean, connected: Boolean, metered: Boolean): Boolean = connected && !(wifiOnly && metered)
 
+    /** Why downloading waits right now, in the words the Offline screen and the notification show; null when it may go on. */
+    fun waitReason(paused: Boolean, wifiOnly: Boolean, connected: Boolean, metered: Boolean): String? = when {
+        paused -> "Paused"
+        networkAllowed(wifiOnly, connected, metered) -> null
+        wifiOnly && connected -> "Waiting for Wi-Fi"
+        else -> "Waiting for a connection"
+    }
+
     /** Files in the offline folder that no entry owns (left by a crash or an older list): safe to delete. Part files of queued entries are kept. */
     fun orphans(files: List<String>, index: OfflineIndex): List<String> {
         val owned = HashSet<String>()

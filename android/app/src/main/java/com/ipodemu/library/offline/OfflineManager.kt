@@ -155,6 +155,13 @@ class OfflineManager(private val ctx: Context, private val prefs: Prefs) {
         return OfflineMath.networkAllowed(prefs.offlineWifiOnly, connected, cm.isActiveNetworkMetered)
     }
 
+    /** Why downloading waits now ("Paused", "Waiting for Wi-Fi", ...), or null when it may go on. */
+    fun waitReason(): String? {
+        val caps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
+        val connected = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        return OfflineMath.waitReason(prefs.offlinePaused, prefs.offlineWifiOnly, connected, cm.isActiveNetworkMetered)
+    }
+
     /** Starts the worker if there is something to do and it is not already running. */
     fun kick() {
         synchronized(lock) { if (worker?.isActive == true || index.pendingCount == 0) return; worker = scope.launch { runWorker() } }
@@ -166,8 +173,11 @@ class OfflineManager(private val ctx: Context, private val prefs: Prefs) {
             var idleChecks = 0
             while (scope.isActive) {
                 val e = synchronized(lock) { index.next() } ?: break
-                if (!networkOk()) {
-                    statusLine = if (prefs.offlineWifiOnly) "Waiting for Wi-Fi" else "Waiting for a connection"
+                val why = waitReason()
+                if (why != null) {
+                    statusLine = why
+                    // paused: stop now (Resume kicks it again); waiting for a network: look again every 5 s for up to an hour
+                    if (prefs.offlinePaused) break
                     notify(statusLine); delay(5_000); if (++idleChecks > 720) break   // an hour of waiting: the next network change or app start kicks it again
                     continue
                 }

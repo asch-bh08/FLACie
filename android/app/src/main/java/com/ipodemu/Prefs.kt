@@ -115,6 +115,10 @@ class Prefs(ctx: Context) {
         get() = sp.getString("placeMem", "") ?: ""
         set(v) = sp.edit().putString("placeMem", v).apply()
     /** Offline downloads: only on Wi-Fi (or any unmetered network) unless this is switched off. */
+    /** Offline downloads held until Resume (Settings > Offline and storage). */
+    var offlinePaused: Boolean
+        get() = sp.getBoolean("offlinepaused", false)
+        set(v) = sp.edit().putBoolean("offlinepaused", v).apply()
     var offlineWifiOnly: Boolean
         get() = sp.getBoolean("offWifi", true)
         set(v) = sp.edit().putBoolean("offWifi", v).apply()

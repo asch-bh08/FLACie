@@ -59,3 +59,4 @@ Each beta adds its items; tick them off on the Fold. Nothing here was verified o
 - [ ] Windows app: the keyboard's play/pause, next and previous keys work, and Windows' media panel (volume flyout) shows the song with working buttons.
 - [ ] TalkBack on Android: every button on Home, Search, Library, Devices, a song list and the player reads a name (the a11y-android.mjs check finds none unnamed on the emulator).
 - [ ] Choosing several songs: on the phone (Select in a song's menu) and on a PC (Shift-click), add them to a playlist; check the playlist on the other device.
+- [ ] Sharing: share a song and a playlist from the phone and the web to your dad; he opens the link, signs in as himself, it comes back to the link, plays from his library, Save to my playlists works.

@@ -405,6 +405,11 @@ public sealed class UserSession
         }
     }
 
+    // ---- the first-run welcome (once per account, on any device) ----
+
+    public bool Welcomed => Profile["welcomed"] is JsonValue v && v.TryGetValue<bool>(out var b) && b;
+    public void MarkWelcomed() { Profile["welcomed"] = true; Changed?.Invoke(); }
+
     // ---- recent searches (in the profile, so every device sees them) ----
 
     public IReadOnlyList<string> RecentSearches => (Profile["searches"] as JsonArray ?? []).Select(x => x?.GetValue<string>() ?? "").Where(x => x.Length > 0).ToList();

@@ -117,3 +117,9 @@
 .kb-help dd { margin: 0; }
 .kb-help kbd { display: inline-block; min-width: 28px; padding: 3px 8px; border-radius: 8px; border: 1px solid var(--line, rgba(255,255,255,.25)); font: 13px/1.4 ui-monospace, "DM Mono", monospace; text-align: center; }
 .kb-help:focus { outline: none; }
+
+/* Home's one-time welcome */
+.welcome { margin: 0 0 22px; padding: 20px 22px; border-radius: 20px; background: rgba(255,255,255,.05); border: 1px solid var(--line, rgba(255,255,255,.12)); max-width: 720px; }
+.welcome h2 { margin: 0 0 10px; font-family: var(--serif, "Instrument Serif", serif); font-weight: 400; font-size: 30px; }
+.welcome ul { margin: 0 0 10px; padding-left: 18px; display: grid; gap: 6px; }
+.welcome kbd { padding: 1px 7px; border-radius: 6px; border: 1px solid var(--line, rgba(255,255,255,.25)); font: 13px ui-monospace, monospace; }

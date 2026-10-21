@@ -526,7 +526,7 @@ else
             loaded = true; Fit(); Root(); RefreshClock(); await RefreshBattery();
             // opened while a song plays: start on Now Playing (MENU goes to the menu, as on an iPod picked up mid-song)
             if (Player.Current is not null) { showNow = true; npMode = 0; }
-            hadSong = Player.Current is not null; touched = false;
+            hadSong = Player.Current is not null; touched = false; autoOpened = hadSong;
             Player.Changed += SongArrived;
             ticker = new System.Threading.Timer(_ => { RefreshClock(); InvokeAsync(StateHasChanged); }, null, 20_000, 20_000);
             StateHasChanged(); return;
@@ -689,6 +689,7 @@ else
 
     async Task Key(KeyboardEventArgs e)
     {
+        touched = true;
         if (model.Touch)
         {
             if (e.Key is "Escape" or "Backspace") { touchOs?.Back(); }
@@ -709,7 +710,7 @@ else
         }
     }
 
-    async Task RowClick(int i) { nav.Select(i); Feedback("press"); await Press(); }
+    async Task RowClick(int i) { touched = true; nav.Select(i); Feedback("press"); await Press(); }
 
     void Menu()
     {
@@ -840,8 +841,8 @@ else
     static string Fmt(double s) => IpodContent.Time(s);
 
     // in the Android app the song already playing arrives a moment after the page opens: the main menu gains "Now Playing" then, and an iPod
-    // nobody has touched yet opens on it, as one picked up mid-song
-    bool hadSong, touched;
+    // nobody has touched yet opens on it, once, as one picked up mid-song
+    bool hadSong, touched, autoOpened;
     void SongArrived()
     {
         var has = Player.Current is not null;
@@ -850,7 +851,7 @@ else
         _ = InvokeAsync(() =>
         {
             if (nav.Depth == 1) RefreshRoot();
-            if (has && !touched && nav.Depth == 1) { showNow = true; npMode = 0; }
+            if (has && !touched && !autoOpened && nav.Depth == 1) { autoOpened = true; showNow = true; npMode = 0; }
             StateHasChanged();
         });
     }

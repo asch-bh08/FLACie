@@ -19,6 +19,20 @@
     </div>
 </header>
 <LibraryStatus />
+@if (Session.ProfileLoaded && !Session.Welcomed)
+{
+    @* the first visit: where things are, in three lines; it goes for good with Got it (kept in the profile, so every device knows) *@
+    <section class="welcome" aria-label="Welcome to FLACie">
+        <h2>Welcome to <i>FLACie</i></h2>
+        <ul>
+            <li><b>Home</b> has what you played last and new picks every day.</li>
+            <li><b>Search</b> finds anything in your library, and anything you don't have yet, ready to download.</li>
+            <li><b>Retro</b> (the cassette button in the player) plays your music on a classic iPod.</li>
+        </ul>
+        <p class="sub">Press <kbd>?</kbd> any time for the keyboard shortcuts.</p>
+        <button class="btn primary" @onclick="() => { Session.MarkWelcomed(); SaveProfile(); }">Got it</button>
+    </section>
+}
 @if (Waiting) { <p class="status">Loading your music…</p> }
 else
 {

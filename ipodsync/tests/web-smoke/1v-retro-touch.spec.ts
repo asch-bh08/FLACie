@@ -1,6 +1,10 @@
 import { test, expect, Page } from '@playwright/test';
 import * as fs from 'fs';
 
+// Finger drags are timing-sensitive: late in a 45-minute run the hi-fi pitch drag once missed (it passes alone and with every Retro spec together).
+// One retry; a real failure fails twice.
+test.describe.configure({ retries: 1 });
+
 // Touch: the listening scenes (/ipod › Scene) and the desk look work with fingers on a phone (portrait and landscape) and a tablet: tap targets of 44 px,
 // knobs turned and sliders moved by dragging with real touch events, no double-tap zoom or text selection on the controls, nothing that needs a hover.
 const SIZES: [string, number, number][] = [['phone portrait', 390, 844], ['phone landscape', 844, 390], ['tablet', 768, 1024]];

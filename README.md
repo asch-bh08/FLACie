@@ -2,15 +2,24 @@
 
 # FLACie
 
-A music player for Android phones, foldables and handhelds (built on an Anbernic RG Rotate) that streams from
-Jellyfin, Plex and a NAS, downloads through Lidarr and Soulseek — and syncs and edits a classic iPod, either plugged
-straight into the phone over USB or into a PC.
+A music player for your own lossless library, on the web, Android and Windows. It plays from Jellyfin (or a NAS, or Plex), finds and
+downloads what you don't have yet, and looks the same everywhere. Retro mode plays it all on a classic iPod, a hi-fi or a Discman.
+
+**What it does**
+- One look on all three: a full-screen player that takes its colours from the cover, with the song's own waveform round the cover as the seek bar, lyrics, Up next and a file-info tab (format, bit depth, sample rate, live graphs).
+- Search across your library and the music you don't have yet, ready to download (Soulseek, Lidarr), with recent searches and Show only.
+- Playlists and favourites that follow you between devices; choose several songs at once; save the queue as a playlist; Undo for removals.
+- Share a song or playlist as a link: whoever opens it signs in to FLACie and plays it from their own library.
+- Android: offline downloads (pause, Wi-Fi only, space per album), Android Auto, the lock screen, a Jam with friends, and syncing a real iPod over USB.
+- Accessible: checked against WCAG 2.1 AA on the web, screen-reader names on Android, reduced motion respected, keyboard shortcuts (press ? on the web).
+
+Releases (APK for Android, the web image, the Windows app) are on the [releases page](https://github.com/asch-bh08/FLACie/releases); what changed in each is in [CHANGELOG.md](CHANGELOG.md).
 
 | Folder | What | Built with |
 |---|---|---|
 | [`android/`](android/) | **FLACie for Android**: Modern (default) and iPod-style themes, lyrics, account sync, Sync mode for editing an iPod. The iPod engine is built in (`app/src/main/jniLibs`). | Kotlin, Jetpack Compose, Gradle |
 | [`ipodsync/`](ipodsync/) | **The iPod engine** (reading, the verified writer, database signatures), the **FLACie desktop app** (Windows) with its installer, a web host, a CLI, and `IpodSync.Engine` — the engine as a native library for the Android app. | C#/.NET 9, MAUI, NativeAOT |
-| [`logo/`](logo/) | The FLACie logo (SVG master). | |
+| [`logo/`](logo/) | The FLACie logo (`flacie.png`; `flacie-master.png` is the full-size original). | |
 
 ## FLACie Web (self-hosted)
 

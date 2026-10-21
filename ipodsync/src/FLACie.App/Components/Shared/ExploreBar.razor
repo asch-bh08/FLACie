@@ -1,5 +1,6 @@
 @inherits UserComponent
 @inject ExploreState X
+@inject IJSRuntime Js
 @* The filters over Explore's lists, kept to one quiet row: the search box, Sort, and a Filters button with how many are on. What is on shows as removable
    pills under the row. Genre, decade and quality are the main filters; bit rate, bit depth, sample rate and codec live in an "Audio specs" drawer. *@
 <div class="x-bar @(Compact ? "compact" : "")">
@@ -111,7 +112,27 @@
         }
     }
 
-    string SortValue { get => Tab == "Overview" ? X.OverviewSort : X.Sort; set { if (Tab == "Overview") X.OverviewSort = value; else X.Sort = value; } }
+    string SortValue
+    {
+        get => Tab == "Overview" ? X.OverviewSort : X.Sort;
+        set
+        {
+            if (Tab == "Overview") X.OverviewSort = value; else X.Sort = value;
+            // remembered per list in this browser, so a reload or the next visit keeps it
+            _ = Js.InvokeVoidAsync("flacie.stash", "flacie.sort." + Tab, value).AsTask().ContinueWith(_ => { });
+        }
+    }
+
+    // the sort last chosen for this list (in this browser), put back once the page is live
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        if (!first) return;
+        string? kept = null;
+        try { kept = await Js.InvokeAsync<string?>("flacie.unstash", "flacie.sort." + Tab); } catch (Exception) { }
+        if (string.IsNullOrEmpty(kept) || kept == SortValue || !SortList.Any(o => o.Item1 == kept)) return;
+        if (Tab == "Overview") X.OverviewSort = kept; else X.Sort = kept;
+        X.Touch(); await Changed.InvokeAsync(); StateHasChanged();
+    }
 
     string Placeholder => Tab switch { "Overview" => "Search songs, albums, artists and genres", "Songs" => "Search songs by title, artist or album", "Albums" => "Search albums by name or artist", "Artists" => "Search artists", _ => "Search genres" };
 

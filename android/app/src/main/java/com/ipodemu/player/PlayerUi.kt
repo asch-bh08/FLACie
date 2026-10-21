@@ -2,6 +2,7 @@ package com.ipodemu.player
 
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -338,6 +339,7 @@ fun TopBar(title: String, nav: PlayerNav?, showBack: Boolean, actions: @Composab
 fun TrackRow(
     t: Track, nav: PlayerNav, snap: PlayerSnap, onPlay: () -> Unit, modifier: Modifier = Modifier,
     showArt: Boolean = true, index: Int? = null, sheetExtra: List<SheetItem> = emptyList(), sheetExtraFor: ((Track) -> List<SheetItem>)? = null,
+    picked: Boolean? = null, onPick: (() -> Unit)? = null,
 ) {
     val app = LocalApp.current
     val sc = LocalScheme.current
@@ -360,10 +362,13 @@ fun TrackRow(
     val focus = androidx.compose.ui.platform.LocalFocusManager.current
     // tapping the song that is already playing opens the player (or resumes it) instead of starting it over; any tap puts the keyboard away
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-    val tap = { focus.clearFocus(); keyboard?.hide(); if (isCurrent) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else onPlay() }
+    val tap = { focus.clearFocus(); keyboard?.hide(); if (picked != null && onPick != null) onPick() else if (isCurrent) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else onPlay() }
     IpodRow(onClick = tap, onLong = { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, height = if (tagged) 74.dp else 56.dp,
         leading = {
-            if (showArt) Box(Modifier.size(42.dp)) {
+            // choosing several songs: a tick in place of the cover or number
+            if (picked != null) Box(Modifier.size(42.dp).clip(CircleShape).background(if (picked) sc.accent else Color(0x22FFFFFF)).semantics { stateDescription = if (picked) "Selected" else "Not selected" }, contentAlignment = Alignment.Center) {
+                GlyphIcon(if (picked) Glyph.CHECK else Glyph.PLUS, Modifier.size(20.dp), if (picked) Color.Black else sc.onBg)
+            } else if (showArt) Box(Modifier.size(42.dp)) {
                 ArtImage(t.artKey, Modifier.fillMaxSize(), thumb = true, corner = 8.dp)
                 if (isCurrent) Box(Modifier.fillMaxSize().background(Color(0x66000000)), contentAlignment = Alignment.Center) {
                     EqualizerBars(Modifier.size(22.dp), snap.playing, Color.White)
@@ -819,11 +824,16 @@ fun SongList(
     val app = LocalApp.current
     if (tracks.isEmpty() && missing.isEmpty()) { EmptyState("Nothing here yet"); return }
     val sc = LocalScheme.current
+    // choosing several songs: Select in a song's sheet starts it; a tap then ticks a row; the bar at the bottom acts on them all (as on the web)
+    var chosen by remember(tracks) { mutableStateOf<Set<Int>?>(null) }
+    androidx.activity.compose.BackHandler(enabled = chosen != null) { chosen = null }
     val row: @Composable (Int, Track) -> Unit = { i, t ->
-        TrackRow(t, nav, snap, showArt = showArt, index = if (numbered) i + 1 else null, sheetExtra = sheetExtra, sheetExtraFor = sheetExtraFor, onPlay = {
+        val c = chosen
+        TrackRow(t, nav, snap, showArt = showArt, index = if (numbered) i + 1 else null, sheetExtra = sheetExtra + SheetItem("Select", Glyph.CHECK) { chosen = setOf(i) }, sheetExtraFor = sheetExtraFor, onPlay = {
             app.player.play(tracks, i, null, nav.playContext)
-        })
+        }, picked = c?.contains(i), onPick = c?.let { cur -> { chosen = if (i in cur) cur - i else cur + i } })
     }
+    Box(Modifier.fillMaxSize()) {
     val groups = remember(tracks, sections) { if (sections > 0) tracks.withIndex().groupBy { letterOf(sortKey(if (sections == 2) it.value.artist.ifEmpty { "#" } else it.value.title)) } else emptyMap() }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         if (header != null) item(contentType = "header") { header() }
@@ -845,6 +855,31 @@ fun SongList(
                     Column { Txt(t, size = 16f, color = sc.onBgDim, maxLines = 1); Txt(a, size = 13f, color = sc.onBgDim, maxLines = 1) }
                 }
             }
+        }
+        if (chosen != null) item { Spacer(Modifier.height(140.dp)) }
+    }
+    chosen?.let { cur -> SelectBar(cur.sorted().map { tracks[it] }, nav, Modifier.align(Alignment.BottomCenter)) { chosen = null } }
+    }
+}
+
+/** The bar for the songs chosen in a list: Play next, Add to queue, Add to a playlist, Cancel. */
+@Composable
+private fun SelectBar(songs: List<Track>, nav: PlayerNav, modifier: Modifier, done: () -> Unit) {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    fun n(k: Int) = if (k == 1) "1 song" else "$k songs"
+    Column(modifier.fillMaxWidth().padding(12.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xF0221D19)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Txt("${songs.size} selected", size = 15f, weight = FontWeight.SemiBold, color = sc.onBg)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DesignChip("Play next", false, { if (songs.isNotEmpty()) { songs.asReversed().forEach { app.player.addNext(it) }; app.ui.say("${n(songs.size)} play next"); done() } })
+            DesignChip("Add to queue", false, { if (songs.isNotEmpty()) { songs.forEach { app.player.addToQueue(it) }; app.ui.say("Added ${n(songs.size)} to the queue"); done() } })
+            DesignChip("Add to playlist", false, {
+                if (songs.isEmpty()) return@DesignChip
+                nav.sheet = SheetSpec("Add ${n(songs.size)} to", null, shownPlaylists(app).map { pl ->
+                    SheetItem(pl.name, Glyph.LIST) { songs.forEach { app.userData.addToPlaylist(pl.id, it.path) }; app.ui.say("Added ${n(songs.size)} to ${pl.name}"); done() }
+                })
+            })
+            DesignChip("Cancel", false, done)
         }
     }
 }

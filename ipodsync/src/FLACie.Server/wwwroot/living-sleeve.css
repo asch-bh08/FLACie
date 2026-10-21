@@ -350,3 +350,13 @@
 .np.ls .q-save { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid rgba(244,239,230,.25); background: transparent; color: inherit; font: inherit; font-size: 14px; cursor: pointer; }
 .np.ls .q-save:hover { background: rgba(244,239,230,.08); }
 .np.ls .q-save:focus-visible { outline: 2px solid var(--np-accent, #fff); outline-offset: 2px; }
+
+/* Info's cards on a wide panel: three columns, the long File card across two of them (its lines wrap far less, so less scrolling), Song beside it */
+.ls-info .info { container-type: inline-size; }
+@container (min-width: 900px) {
+  @supports (selector(:has(*))) {
+    .ls-info .info:has(> .kv-sec + .kv-sec) { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+    .ls-info .info > .kv-sec + .kv-sec { grid-column: span 2; }
+    .ls-info .info > .kv-sec + .kv-sec .kv { grid-template-columns: max-content minmax(0, 1fr); }
+  }
+}

@@ -113,7 +113,8 @@ public static class MediaEndpoints
         Track? WaveTrack(UserSession s, string p) => s.FindByPath(p) ?? (JellyfinItem(p) is { } item ? s.Library.Songs.FirstOrDefault(x => string.Equals(x.JellyfinId, item, StringComparison.OrdinalIgnoreCase)) : null);
         app.MapGet("/api/wave", async (HttpContext ctx, string p, SessionStore store, JellyfinClient jf, IHttpClientFactory hf) =>
         {
-            var s = store.For(ctx.User);
+            // a signed-in browser, or the phone app by its token (it asks for the shape of every song it plays)
+            if (await ApiEndpoints.CallerAsync(ctx, store, jf) is not { } s) return Results.Unauthorized();
             if (WaveFile(s, p) is not { } file) return Results.NotFound();
             if (File.Exists(file))
             {
@@ -129,30 +130,31 @@ public static class MediaEndpoints
             if (!File.Exists(rough)) return Results.NotFound();
             ctx.Response.Headers["X-Wave"] = "rough";
             return Results.Json((await File.ReadAllBytesAsync(rough)).Select(b => (int)b));
-        }).RequireAuthorization();
-        app.MapPost("/api/wave", async (HttpContext ctx, string p, SessionStore store) =>
+        });
+        app.MapPost("/api/wave", async (HttpContext ctx, string p, SessionStore store, JellyfinClient jf) =>
         {
-            if (WaveFile(store.For(ctx.User), p) is not { } file) return Results.NotFound();
+            if (await ApiEndpoints.CallerAsync(ctx, store, jf) is not { } caller) return Results.Unauthorized();
+            if (WaveFile(caller, p) is not { } file) return Results.NotFound();
             int[]? bars;
             try { bars = await System.Text.Json.JsonSerializer.DeserializeAsync<int[]>(ctx.Request.Body); } catch (System.Text.Json.JsonException) { bars = null; }
             if (bars is not { Length: 200 } || bars.Any(b => b is < 0 or > 255)) return Results.BadRequest();
             if (!File.Exists(file)) await File.WriteAllBytesAsync(file, bars.Select(b => (byte)b).ToArray());   // the first shape sent is kept
             return Results.NoContent();
-        }).RequireAuthorization().DisableAntiforgery();
+        }).DisableAntiforgery();
 
         // sharing a song or a playlist (the phone app asks here; the web makes shares itself): its songs by title and artist, kept under a random id, and
         // the link to send (/s/{id}); whoever opens it signs in as themselves and plays the songs from their own library
-        app.MapPost("/api/share", async (HttpContext ctx, ShareStore shares, SessionStore store) =>
+        app.MapPost("/api/share", async (HttpContext ctx, ShareStore shares, SessionStore store, JellyfinClient jf) =>
         {
+            if (await ApiEndpoints.CallerAsync(ctx, store, jf) is not { } s) return Results.Unauthorized();
             ShareRequest? r;
             try { r = await System.Text.Json.JsonSerializer.DeserializeAsync<ShareRequest>(ctx.Request.Body, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }); }
             catch (System.Text.Json.JsonException) { r = null; }
             var entries = (r?.Entries ?? []).Where(e => !string.IsNullOrWhiteSpace(e.T)).Select(e => new PlaylistEntry(e.P ?? "", e.T!.Trim(), (e.A ?? "").Trim())).ToList();
             if (r is null || entries.Count == 0) return Results.BadRequest(new { error = "Nothing to share." });
-            var s = store.For(ctx.User);
             var id = shares.Create(r.Kind ?? "playlist", string.IsNullOrWhiteSpace(r.Name) ? entries[0].Title : r.Name, s.Jellyfin?.UserName ?? ctx.User.Identity?.Name ?? "Someone", entries);
             return Results.Json(new { id, url = $"{ctx.Request.Scheme}://{ctx.Request.Host}/s/{id}" });
-        }).RequireAuthorization().DisableAntiforgery();
+        }).DisableAntiforgery();
 
         // the iPod desk's disc pictures: a release's own "Medium" picture from the Cover Art Archive, fetched here (the browser only ever asks FLACie) and kept for
         // everyone; only for a release someone matched on MusicBrainz. No picture: 404, and the desk prints a disc from the cover.

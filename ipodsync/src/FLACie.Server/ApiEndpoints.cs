@@ -9,6 +9,14 @@ namespace FLACie.Server;
 /// </summary>
 public static class ApiEndpoints
 {
+    /// <summary>The phone app's caller, from its Jellyfin token (as every /api call checks it); set when the API is mapped. Other endpoints that a
+    /// browser and the phone both call (the seek bar's shape, sharing) use it when there is no signed-in browser.</summary>
+    public static Func<HttpContext, SessionStore, JellyfinClient, Task<UserSession?>>? PhoneSession { get; private set; }
+
+    /// <summary>Whoever is calling: the signed-in browser, else the phone by its token; null for neither.</summary>
+    public static async Task<UserSession?> CallerAsync(HttpContext ctx, SessionStore store, JellyfinClient jf) =>
+        ctx.User.Identity?.IsAuthenticated == true ? store.For(ctx.User) : PhoneSession is { } who ? await who(ctx, store, jf) : null;
+
     public static void MapApi(this WebApplication app)
     {
         var fixedServer = app.Configuration["FLACIE_JELLYFIN_URL"];
@@ -46,6 +54,8 @@ public static class ApiEndpoints
             catch (UnauthorizedAccessException) { tokens.Invalidate(token); return null; }
             catch (Exception) { return null; }
         }
+
+        PhoneSession = Who;
 
         object Summary(ImportJob j) => new
         {

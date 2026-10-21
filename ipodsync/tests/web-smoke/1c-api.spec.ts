@@ -283,3 +283,21 @@ test.describe('sign-in form edge cases', () => {
     expect(t).not.toMatch(/Exception|StackTrace|at FLACie|\.cs:line|Microsoft\./);
   });
 });
+
+test.describe('sharing from the phone', () => {
+  test('the phone makes a share with its token and gets the link', async ({ playwright, baseURL }) => {
+    const phone = await playwright.request.newContext({ baseURL });
+    const r = await phone.post('/api/share', { headers: TOKEN, data: { kind: 'song', name: 'One', entries: [{ p: 'x', t: 'One', a: 'Someone' }] } });
+    expect(r.status()).toBe(200);
+    expect((await r.json()).url).toMatch(/\/s\/[A-Za-z0-9]{10}$/);
+    expect((await phone.post('/api/share', { data: { kind: 'song', entries: [{ t: 'One' }] }, maxRedirects: 0 })).status()).toBe(401);
+    await phone.dispose();
+  });
+
+  test('the phone can ask for a seek-bar shape with its token', async ({ playwright, baseURL }) => {
+    const phone = await playwright.request.newContext({ baseURL });
+    const r = await phone.get('/api/wave?p=' + encodeURIComponent(S1), { headers: TOKEN, maxRedirects: 0 });
+    expect([200, 404]).toContain(r.status());
+    await phone.dispose();
+  });
+});

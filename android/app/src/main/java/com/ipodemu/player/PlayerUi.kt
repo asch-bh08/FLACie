@@ -581,7 +581,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             }
             if (!online) item { OfflineChip(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) }
             // the first visit: where things are, once (as on the web); Got it puts it away for good
-            if (modern && !app.prefs.welcomed) item(key = "welcome") { WelcomeCard { app.prefs.welcomed = true } }
+            if (modern && !welcomed(app).value) item(key = "welcome") { WelcomeCard { welcomed(app).value = true; app.prefs.welcomed = true } }
             if (!modern) item { NowPlayingCard(snap, nav) { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } } }
             if (com.ipodemu.PermissionPlan.showMediaNotice(app.ui.loginMode, app.ui.mediaAccess)) item { MediaAccessNotice(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             // design I: Favourites, Recent, Downloads and the moods as outlined chips (the chosen mood filled); Shuffle all is in the hero
@@ -1778,13 +1778,17 @@ fun clearQueueWithUndo(app: com.ipodemu.App) {
 @Composable
 private fun WelcomeCard(onDone: () -> Unit) {
     val sc = LocalScheme.current
-    var shown by remember { mutableStateOf(true) }
-    if (!shown) return
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0x14FFFFFF)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SerifTitle("Welcome to FLACie", size = 28f, italicWords = 1)
         Txt("Home has what you played last and new picks every day.", size = 14.5f, color = sc.onBg, maxLines = 3)
         Txt("Search finds anything in your library, and anything you don't have yet, ready to download.", size = 14.5f, color = sc.onBg, maxLines = 3)
         Txt("Library holds your favourites, playlists and Jam. Retro (the cassette in the player) plays your music on a classic iPod.", size = 14.5f, color = sc.onBg, maxLines = 4)
-        DesignChip("Got it", true, { shown = false; onDone() })
+        DesignChip("Got it", true, onDone)
     }
 }
+
+/** Whether Home's welcome has been put away: one observed value for the whole app (read from the settings once), so Got it hides it everywhere at
+ * once and it never comes back when the list is scrolled or the tab changed. */
+private var welcomedState: androidx.compose.runtime.MutableState<Boolean>? = null
+private fun welcomed(app: com.ipodemu.App): androidx.compose.runtime.MutableState<Boolean> =
+    welcomedState ?: androidx.compose.runtime.mutableStateOf(app.prefs.welcomed).also { welcomedState = it }

@@ -60,13 +60,16 @@
         var origin = new Uri(Nav.BaseUri).GetLeftPart(UriPartial.Authority);
         var host = new Uri(origin).Host;
         if (host is "localhost" or "127.0.0.1" or "::1" or "[::1]" || host.EndsWith(".localhost")) return;
-        var services = Session.Profile["services"] as System.Text.Json.Nodes.JsonObject;
-        if (services is null || services["flacieweb"]?["url"]?.GetValue<string>() == origin) return;
+        // never before the profile has been read: saving then would replace it with an empty one (tried again on every page change)
+        if (!Session.ProfileLoaded) return;
+        // (a profile with no services yet gets them here: the phone needs this address to share links and fetch seek-bar shapes)
+        var services = Session.Profile["services"] as System.Text.Json.Nodes.JsonObject ?? (System.Text.Json.Nodes.JsonObject)(Session.Profile["services"] = new System.Text.Json.Nodes.JsonObject());
+        if (services["flacieweb"]?["url"]?.GetValue<string>() == origin) return;
         services["flacieweb"] = new System.Text.Json.Nodes.JsonObject { ["url"] = origin };
         SaveProfile();
     }
 
-    void OnLocation(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) { SyncFromUrl(); InvokeAsync(StateHasChanged); }
+    void OnLocation(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) { SyncFromUrl(); ShareAddress(); InvokeAsync(StateHasChanged); }
 
     // the box mirrors the Search page's address, so Back and a shared link show what was searched
     void SyncFromUrl()

@@ -706,8 +706,12 @@ internal fun shareSongs(ctx: android.content.Context, kind: String, name: String
             one != null && songs.size == 1 -> listOf(one.title, one.artist, one.album).filter { it.isNotBlank() }.joinToString(" · ")
             else -> name + "\n" + songs.take(50).joinToString("\n") { "${it.title} · ${it.artist}" }
         }
+        // a subject too, so apps that file shared text (email, notes) name it after the song rather than "text"
         val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, text)
+            .putExtra(android.content.Intent.EXTRA_SUBJECT, name).putExtra(android.content.Intent.EXTRA_TITLE, name)
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+            // no link: say why, rather than quietly sending only the name
+            if (link == null) app.ui.say(if (app.prefs.flacieWebUrl.isBlank()) "No link: open FLACie on the web once so this phone learns its address" else "Couldn't reach FLACie Web for a link: sharing the name", warn = true)
             try { ctx.startActivity(android.content.Intent.createChooser(send, "Share").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) { }
         }
     }

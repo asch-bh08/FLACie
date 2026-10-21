@@ -123,3 +123,10 @@
 .welcome h2 { margin: 0 0 10px; font-family: var(--serif, "Instrument Serif", serif); font-weight: 400; font-size: 30px; }
 .welcome ul { margin: 0 0 10px; padding-left: 18px; display: grid; gap: 6px; }
 .welcome kbd { padding: 1px 7px; border-radius: 6px; border: 1px solid var(--line, rgba(255,255,255,.25)); font: 13px ui-monospace, monospace; }
+
+/* contrast (WCAG AA): the text on the accent follows it (flacie.js accentFg); the sidebar's group names in the readable grey */
+.az-rail button.on { color: var(--accent-fg, #1a120c); }
+.detail-play { color: var(--np-accent-fg, #1a120c); }
+.rail-label, .rail-group > p { color: var(--dim); }
+.detail-head { --np-accent-fg: var(--accent-fg, #1a120c); }
+.track.now .track-title { color: color-mix(in srgb, var(--accent) 65%, #fff); }   /* the accent as text, lifted so it reads on the dark ground (WCAG AA) */

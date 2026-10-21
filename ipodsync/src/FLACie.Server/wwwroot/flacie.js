@@ -2,6 +2,16 @@
 // reports time, state and the end of each song back. Media Session gives lock-screen and headphone controls.
 window.flacie = (() => {
   const audio = new Audio();
+  // the text colour that reads on a colour ("rgb(r, g, b)" or "#rrggbb"): near-black when the colour is light, white when it is dark
+  const accentFg = (c) => {
+    const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c) || /#(..)(..)(..)/.exec(c);
+    if (!m) return "#1a120c";
+    const v = m.slice(1, 4).map((x) => (c.startsWith("#") ? parseInt(x, 16) : +x) / 255).map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4));
+    const L = 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+    // the colour on which near-black (L 0.008) and white give the same contrast is about L 0.18
+    return L > 0.18 ? "#1a120c" : "#ffffff";
+  };
+  window.flacieAccentFg = accentFg;
   let baseVolume = 1, fadeGain = 1, loudGain = 1, xfadeGain = 1, xfadeSecs = 0, xfadeIn = false, xfadeOut = false, xfadeRaf = 0;
   const applyVol = () => { audio.volume = Math.min(1, Math.max(0, baseVolume * fadeGain * loudGain * xfadeGain)); };
   // fade between songs: the end fades out and the start fades in (not across the tracks of one album); the same arithmetic as the app: cosine, over at most a third of the song
@@ -800,7 +810,9 @@ window.flacie = (() => {
     npAccent(el, url) {
         // design I adds the ground (the dark colour the cover fades into), the tone (tinted buttons and chips) and the text on the tone, all from the second colour
         const set = (a, b, from, ground, tone, tonefg) => { if (!el) return; if (flacie.metered()) el.dataset.calm = ''; const st = el.style; st.setProperty('--np-accent', a); st.setProperty('--np-accent-2', b); st.setProperty('--ground', ground); st.setProperty('--tone', tone); st.setProperty('--tonefg', tonefg); el.dataset.accent = from;
-            if (el === document.documentElement && from === 'cover') { st.setProperty('--accent', a); st.setProperty('--accent-2', a); } };
+            // text on the accent: dark on a light accent, white on a dark one, so it always reads (WCAG AA)
+            const fg = accentFg(a); st.setProperty('--np-accent-fg', fg);
+            if (el === document.documentElement && from === 'cover') { st.setProperty('--accent', a); st.setProperty('--accent-2', a); st.setProperty('--accent-fg', fg); } };
         const fallback = () => set('rgb(232, 119, 79)', 'rgb(47, 93, 98)', 'default', 'rgb(22, 58, 63)', 'rgb(36, 82, 90)', 'rgb(231, 243, 240)');
         if (!url) { fallback(); return; }
         const img = new Image();
@@ -1227,8 +1239,8 @@ window.flacieUi = (() => {
   const lighter = hex => { const n = parseInt(hex.slice(1), 16); const m = c => Math.round(c + (255 - c) * 0.28); return "#" + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(m).map(v => v.toString(16).padStart(2, "0")).join(""); };
   const apply = p => {
     const r = document.documentElement;
-    if (/^#[0-9a-f]{6}$/i.test(p.accent)) { r.style.setProperty("--accent", p.accent); r.style.setProperty("--accent-2", lighter(p.accent)); }
-    else { r.style.removeProperty("--accent"); r.style.removeProperty("--accent-2"); }
+    if (/^#[0-9a-f]{6}$/i.test(p.accent)) { r.style.setProperty("--accent", p.accent); r.style.setProperty("--accent-2", lighter(p.accent)); r.style.setProperty("--accent-fg", window.flacieAccentFg(p.accent)); }
+    else { r.style.removeProperty("--accent"); r.style.removeProperty("--accent-2"); r.style.removeProperty("--accent-fg"); }
     r.classList.toggle("pref-compact", !!p.compact);
     r.classList.toggle("pref-nobadges", p.badges === false);
     r.classList.toggle("pref-calm", p.motion === false);

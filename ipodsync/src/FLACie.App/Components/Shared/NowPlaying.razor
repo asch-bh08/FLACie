@@ -123,7 +123,7 @@
                             <i class="switch" aria-hidden="true"></i>
                         </label>
                         <ol class="upnext">
-                            <li class="now"><div class="q-row"><Cover ArtKey="@(Art.KeyFor(t))" Size="44" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span><em class="eq @(Player.Playing ? "on" : "")" aria-label="Now playing"><i></i><i></i><i></i></em></div></li>
+                            <li class="now"><div class="q-row"><Cover ArtKey="@(Art.KeyFor(t))" Size="44" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span><em class="eq @(Player.Playing ? "on" : "")" role="img" aria-label="Now playing"><i></i><i></i><i></i></em></div></li>
                             @{ var shownAuto = false; var fetching = Player.AutoplayFetching; var upNext = Player.UpNext(30).ToList(); var upTotal = Player.UpNextCount; var canEdit = Player.CanEdit; }
                             @for (var k = 0; k < upNext.Count; k++)
                             {

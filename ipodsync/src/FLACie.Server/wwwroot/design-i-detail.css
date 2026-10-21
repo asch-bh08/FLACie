@@ -17,7 +17,7 @@
 .detail-facts { margin: 0; font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: color-mix(in srgb, var(--ink) 70%, transparent); }
 .detail-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
 .detail-play, .detail-shuffle { display: inline-flex; align-items: center; justify-content: center; gap: 10px; border: 0; cursor: pointer; font-family: var(--sans); font-weight: 700; font-size: 16px; line-height: 1; }
-.detail-play { height: 56px; padding: 0 30px; border-radius: 20px; background: var(--np-accent); color: #1a120c; transition: transform .12s; }
+.detail-play { height: 56px; padding: 0 30px; border-radius: 20px; background: var(--np-accent); color: var(--np-accent-fg, #1a120c); transition: transform .12s; }
 .detail-play:hover { transform: scale(1.03); }
 .detail-shuffle { height: 56px; padding: 0 22px; border-radius: 999px; background: color-mix(in srgb, var(--np-accent) 22%, transparent); color: var(--ink); transition: background .3s; }
 .detail-shuffle:hover { background: color-mix(in srgb, var(--np-accent) 36%, transparent); }

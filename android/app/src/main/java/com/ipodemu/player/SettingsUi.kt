@@ -98,7 +98,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
             if (!dashboard) {
                 item(key = "subnav") {
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        for ((id, label) in listOf("playback" to "Playback", "look" to "Look and feel", "sources" to "Music sources", "account" to "Account", "about" to "About"))
+                        for ((id, label) in listOf("playback" to "Playback", "look" to "Appearance", "sources" to "Library", "account" to "Account", "about" to "About"))
                             DesignChip(label, false, { val n = list.layoutInfo.totalItemsCount; val i = when (id) { "account" -> n - 2; "about" -> n - 1; else -> at[id] ?: 0 }; scope.launch { list.animateScrollToItem(i.coerceAtLeast(0)) } })
                         if (!ui.guest) DesignChip("Download log", false, { ui.downloadsOpen = true })
                         if (canAdmin) DesignChip("Dashboard", false, { nav.push(Screen.Dashboard) })
@@ -129,7 +129,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                 }
                 at["sources"] = 2
                 item(key = "sources") {
-                    SetPanel("Music sources", "Where the songs come from. Your profile is kept in your ${if (prefs.accountKind == "nas") "NAS" else "Jellyfin account"}, so signing in on another device brings everything back.") {
+                    SetPanel("Library", "Where the songs come from. Your profile is kept in your ${if (prefs.accountKind == "nas") "NAS" else "Jellyfin account"}, so signing in on another device brings everything back.") {
                         // the web's facts first: who is signed in where, and how big the library is
                         val lib = app.library
                         SetFacts(listOf(
@@ -149,7 +149,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                 }
                 at["look"] = 3
                 item(key = "look") {
-                    SetPanel("Look and feel", "Personal tweaks, saved on this phone only (the web has its own in its Settings).") {
+                    SetPanel("Appearance", "Personal tweaks, saved on this phone only (the web has its own in its Settings).") {
                         val accName = Tweaks.ACCENTS.firstOrNull { it.second == prefs.accentColor }?.first ?: "Custom"
                         SettingRow("Accent colour", accName, chevron = true) {
                             nav.sheet = SheetSpec("Accent colour", "Over the theme's own colour", Tweaks.ACCENTS.map { (n, c) ->

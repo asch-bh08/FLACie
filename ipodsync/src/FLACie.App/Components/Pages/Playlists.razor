@@ -11,6 +11,10 @@
     @* importing a playlist (iTunes, M3U, a text list) lives here now, not in the menu *@
     @if (AppHost.Server) { <a class="btn" href="/import"><Icon Name="download" Size="16" />Import a playlist</a> }
 </header>
+@if (Session.Playlists.Count == 0)
+{
+    <p class="status">No playlists yet. Name one above, choose several songs and add them to a new one, or save what is playing from Up next.</p>
+}
 <div class="grid pl-grid">
     @foreach (var p in Session.Playlists)
     {

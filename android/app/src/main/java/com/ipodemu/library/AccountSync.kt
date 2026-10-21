@@ -89,7 +89,7 @@ class AccountSync(private val app: App) {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                status = e.message ?: "Sign-in failed"; quickCode = null
+                status = FriendlyError.of(e); quickCode = null
             } finally { busy = false }
         }
     }
@@ -138,7 +138,7 @@ class AccountSync(private val app: App) {
     fun schedulePush() {
         if (!prefs.signedIn) return
         pushJob?.cancel()
-        pushJob = scope.launch { delay(4000); try { lock.withLock { push() } } catch (e: Exception) { status = "Sync failed: ${e.message}" } }
+        pushJob = scope.launch { delay(4000); try { lock.withLock { push() } } catch (e: Exception) { status = FriendlyError.of(e, "Sync failed") } }
     }
 
     /** The profile lives in every account this install has: the Jellyfin user's settings and a file on the NAS share.
@@ -447,7 +447,7 @@ class AccountSync(private val app: App) {
                 val a = JSONArray(t)
                 List(a.length()) { a.getJSONObject(it) }.map { it.optString("Id") to it.optString("Name") }
                     .filter { it.first.isNotBlank() && it.first != prefs.accountUserId } to null
-            } catch (e: Exception) { emptyList<Pair<String, String>>() to (e.message ?: "Couldn't list users") }
+            } catch (e: Exception) { emptyList<Pair<String, String>>() to FriendlyError.of(e, "Couldn't list users") }
             kotlinx.coroutines.withContext(Dispatchers.Main) { done(r.first, r.second) }
         }
     }
@@ -458,7 +458,7 @@ class AccountSync(private val app: App) {
             val msg = try {
                 val (c, _) = http("POST", "${prefs.accountServer}/Playlists/$jfId/Users/$userId", prefs.accountToken, JSONObject().put("CanEdit", canEdit).toString())
                 if (c in 200..299) "Shared" else if (c == 404) "This server is too old to share playlists (needs Jellyfin 10.9)" else "Couldn't share (HTTP $c)"
-            } catch (e: Exception) { "Couldn't share: ${e.message}" }
+            } catch (e: Exception) { FriendlyError.of(e, "Couldn't share") }
             kotlinx.coroutines.withContext(Dispatchers.Main) { done(msg) }
         }
     }
@@ -467,7 +467,7 @@ class AccountSync(private val app: App) {
     private fun run(msg: String, block: suspend () -> Unit) {
         scope.launch {
             busy = true; status = msg
-            try { lock.withLock { block() } } catch (e: Exception) { status = e.message ?: "Failed" } finally { busy = false }
+            try { lock.withLock { block() } } catch (e: Exception) { status = FriendlyError.of(e) } finally { busy = false }
         }
     }
 

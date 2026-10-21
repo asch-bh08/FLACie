@@ -42,7 +42,7 @@
     var topAlbum = ranked && !fuzzy ? albums.FirstOrDefault(g => Same(g.Name, q)) : null;
     var heroAlbum = !heroArtist && topAlbum is not null && !songIsExact;
     var heroSong = ranked && !heroArtist && !heroAlbum ? best : null;
-    var shown = showAll ? songs.Count : Math.Min(songs.Count, SongRows);
+    var shown = showAll || only == "songs" ? songs.Count : Math.Min(songs.Count, SongRows);
     var context = Context + (ranked ? ": " + q : "");
 }
 @if (ranked && fuzzy)
@@ -56,7 +56,19 @@
         }
     </p>
 }
-@if (heroArtist || heroAlbum || heroSong is not null)
+@if (ranked && (songs.Count > 0 ? 1 : 0) + (albums.Count > 0 ? 1 : 0) + (artists.Count > 0 ? 1 : 0) + (plays.Count > 0 ? 1 : 0) > 1)
+{
+    @* narrow the results to one kind *@
+    <div class="sr-kinds" role="group" aria-label="Show only">
+        @foreach (var (k, label, n) in new[] { ("", "All", 1), ("songs", "Songs", songs.Count), ("albums", "Albums", albums.Count), ("artists", "Artists", artists.Count), ("playlists", "Playlists", plays.Count) })
+        {
+            if (n == 0) continue;
+            var kind = k;
+            <button class="chip @(only == kind ? "on" : "")" aria-pressed="@(only == kind ? "true" : "false")" @onclick="() => only = kind">@label</button>
+        }
+    </div>
+}
+@if (only == "" && (heroArtist || heroAlbum || heroSong is not null))
 {
     <section aria-label="Top result" class="sr-section">
         <h2 class="section">Top <i>result</i></h2>
@@ -105,7 +117,7 @@
         }
     </section>
 }
-@if (songs.Count > 0)
+@if (songs.Count > 0 && Shows("songs"))
 {
     <section aria-label="Songs" class="sr-section">
         <h2 class="section">@((MarkupString)(ranked ? "<i>Songs</i>" : "Recently added <i>songs</i>"))</h2>
@@ -118,7 +130,7 @@
         else if (showAll && songs.Count > SongRows) { <button class="btn ghost sr-more" @onclick="() => showAll = false">Show fewer songs</button> }
     </section>
 }
-@if (albums.Count > 0)
+@if (albums.Count > 0 && Shows("albums"))
 {
     <section aria-label="Albums" class="sr-section">
         <h2 class="section">@((MarkupString)(ranked ? "<i>Albums</i>" : "Recently added <i>albums</i>"))</h2>
@@ -131,7 +143,7 @@
         </div>
     </section>
 }
-@if (artists.Count > 0)
+@if (artists.Count > 0 && Shows("artists"))
 {
     <section aria-label="Artists" class="sr-section">
         <h2 class="section"><i>Artists</i></h2>
@@ -143,7 +155,7 @@
         </div>
     </section>
 }
-@if (plays.Count > 0)
+@if (plays.Count > 0 && Shows("playlists"))
 {
     <section aria-label="Playlists" class="sr-section">
         <h2 class="section"><i>Playlists</i></h2>
@@ -156,7 +168,7 @@
         </div>
     </section>
 }
-@if (genres.Count > 0)
+@if (genres.Count > 0 && only == "")
 {
     <section aria-label="Genres" class="sr-section">
         <h2 class="section"><i>Genres</i></h2>
@@ -170,6 +182,13 @@
     <p class="status">@(!ranked ? "Nothing in your library yet." : X.AnyFilter ? "Nothing in your library matches “" + q + "” with these filters." : "Nothing in your library matches “" + q + "”.")</p>
 }
 @code {
+    /// <summary>The one kind of result shown (the "Show only" chips): "" for all of them.</summary>
+    string only = "";
+    bool Shows(string kind) => only == "" || only == kind;
+    string? onlyFor;
+    // a new search starts with every kind shown again
+    protected override void OnParametersSet() { if (Query != onlyFor) { onlyFor = Query; only = ""; } base.OnParametersSet(); }
+
     /// <summary>The text to search for ("" for the browse view).</summary>
     [Parameter] public string Query { get; set; } = "";
     /// <summary>Bumped whenever the filters change, so this redraws (strings and numbers alone would not tell it).</summary>

@@ -156,3 +156,8 @@ section.set[hidden] { display: none !important; }
 .home-hero-actions .carry-on { max-width: min(420px, 100%); }
 .home-hero-actions .carry-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .home-hero-actions .shuffle-all:not(.primary) { background: rgba(16,12,10,.78); color: #fff; border: 1px solid rgba(255,255,255,.3); }
+
+/* search results: Show only (All, Songs, Albums, Artists, Playlists) */
+.sr-kinds { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+.sr-kinds .chip { min-height: 40px; padding: 0 16px; }
+.sr-kinds .chip.on { background: var(--ink, #f4efe6); color: #1a120c; border-color: transparent; }

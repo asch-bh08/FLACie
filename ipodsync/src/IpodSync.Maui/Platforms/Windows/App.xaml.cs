@@ -29,7 +29,20 @@ public partial class App : MauiWinUIApplication
 			return;
 		}
 		SetWebViewProfileFolder();
+		EnableMediaKeys();
 		this.InitializeComponent();
+	}
+
+	/// <summary>
+	/// The keyboard's media keys and Windows' media panel for the player: WebView2 leaves them off by default, so the page's Media Session (what is
+	/// playing, play/pause, next, previous; flacie.js sets it) is not passed to Windows. These browser switches turn it on (before any WebView starts).
+	/// </summary>
+	static void EnableMediaKeys()
+	{
+		const string name = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", flag = "--enable-features=HardwareMediaKeyHandling,MediaSessionService";
+		var had = Environment.GetEnvironmentVariable(name);
+		if (had?.Contains("HardwareMediaKeyHandling") == true) return;
+		Environment.SetEnvironmentVariable(name, string.IsNullOrWhiteSpace(had) ? flag : had + " " + flag);
 	}
 
 	static bool ClaimSingleInstance()

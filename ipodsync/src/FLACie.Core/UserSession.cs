@@ -560,6 +560,19 @@ public sealed class UserSession
         tr.RemoveAt(index); o["m"] = Now(); Changed?.Invoke();
     }
 
+    /// <summary>Puts an entry back at [index] (Undo after a removal); past the end, it goes last.</summary>
+    public void InsertIntoPlaylist(string id, int index, PlaylistEntry e)
+    {
+        lock (listLock)
+        {
+            if (FindPlaylist(id) is not { } o) return;
+            var tr = o["tracks"] as JsonArray ?? (JsonArray)(o["tracks"] = new JsonArray());
+            tr.Insert(Math.Clamp(index, 0, tr.Count), new JsonObject { ["p"] = e.Path, ["t"] = e.Title, ["a"] = e.Artist });
+            o["m"] = Now();
+        }
+        Changed?.Invoke();
+    }
+
     /// <summary>Moves the entry at [from] to [to] (the playlist's own order, so songs missing from this library keep their place).</summary>
     public void MoveInPlaylist(string id, int from, int to)
     {

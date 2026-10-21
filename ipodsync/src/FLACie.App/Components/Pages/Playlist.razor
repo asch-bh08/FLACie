@@ -70,6 +70,7 @@ else
     ElementReference heroEl; string? heroFor = "";
     [Inject] IJSRuntime Js { get; set; } = default!;
     [Inject] Sharing Sharing { get; set; } = default!;
+    [Inject] Toasts Toast { get; set; } = default!;
     // the last word goes in italics, whatever the name is
     static (string, string) SplitTitle(string n) { n = n.Trim(); var i = n.LastIndexOf(' '); return i < 0 ? ("", n) : (n[..(i + 1)], n[(i + 1)..]); }
     static string Length(IReadOnlyList<Track> ts) { var m = (int)(ts.Sum(t => t.DurationMs) / 60000); return m <= 0 ? "" : m >= 60 ? $"{m / 60} h {m % 60} min" : $"{m} min"; }
@@ -102,7 +103,12 @@ else
     void Remove(FLACie.Core.Playlist p, IReadOnlyList<Track> tracks, int i)
     {
         var t = tracks[i];
-        Session.RemoveFromPlaylist(p.Id, p.Entries.FindIndex(e => e.Path == t.Path || (e.Title == t.Title && e.Artist == t.Artist)));
+        var at = p.Entries.FindIndex(e => e.Path == t.Path || (e.Title == t.Title && e.Artist == t.Artist));
+        if (at < 0) return;
+        var entry = p.Entries[at];
+        Session.RemoveFromPlaylist(p.Id, at);
         SaveProfile();
+        // offered back: Undo puts it in the same place
+        Toast.Show($"Removed “{t.Title}” from {p.Name}", "Undo", () => { Session.InsertIntoPlaylist(p.Id, at, entry); SaveProfile(); InvokeAsync(StateHasChanged); Toast.Dismiss(); });
     }
 }

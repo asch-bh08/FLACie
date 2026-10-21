@@ -5,9 +5,19 @@
 }
 else if (Session.Problem is { } p)
 {
-    <p class="status warn">@p</p>
+    <p class="status warn">@p <button class="btn small" disabled="@retrying" @onclick="Retry">@(retrying ? "Trying…" : "Try again")</button></p>
 }
 else if (!Session.Loading && Lib.Songs.Count == 0)
 {
     <p class="status">No music found yet. Add a Jellyfin server or a NAS in <a href="/settings">Settings</a>.</p>
+}
+@code {
+    bool retrying;
+    // the library could not be read (a server down, a network gone): ask again without a reload
+    async Task Retry()
+    {
+        retrying = true;
+        try { await Session.LoadAsync(Jellyfin); } catch (Exception) { }
+        retrying = false;
+    }
 }

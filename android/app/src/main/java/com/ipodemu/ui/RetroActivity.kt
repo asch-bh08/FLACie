@@ -127,13 +127,30 @@ class RetroBridge(private val app: App, private val activity: ComponentActivity)
     @Volatile private var snap = Snap(null, false, 0, 0, -1, emptyList(), false, 1f)
     private var queueRev = -1
     private var queueNow: List<String> = emptyList()
+    private var playOrder: List<Int> = emptyList()
+    private var shuffled = false
+
+    /** The player's items in the order they will play: its shuffle order when shuffle is on, else the list's. */
+    private fun playOrder(exo: androidx.media3.common.Player, count: Int): List<Int> {
+        val tl = exo.currentTimeline
+        if (tl.isEmpty || tl.windowCount != count) return List(count) { it }
+        val out = ArrayList<Int>(count)
+        var i = tl.getFirstWindowIndex(exo.shuffleModeEnabled)
+        while (i != androidx.media3.common.C.INDEX_UNSET && out.size < count) { out.add(i); i = tl.getNextWindowIndex(i, androidx.media3.common.Player.REPEAT_MODE_OFF, exo.shuffleModeEnabled) }
+        return if (out.size == count) out else List(count) { it }
+    }
     @Volatile private var queueSongs: List<Track> = emptyList()
     private val tick = object : Runnable { override fun run() { capture(); main.postDelayed(this, 100) } }
 
     private fun capture() {
         val p = player
-        if (p.queueRev != queueRev || queueNow.isEmpty()) { queueRev = p.queueRev; queueSongs = p.queueTracks(); queueNow = queueSongs.map { it.path } }
-        snap = Snap(p.current?.path, p.wantsToPlay, p.positionMs, p.durationMs, p.exo.currentMediaItemIndex, queueNow, p.buffered, p.volume)
+        if (p.queueRev != queueRev || queueNow.isEmpty() || shuffled != p.exo.shuffleModeEnabled) {
+            queueRev = p.queueRev; shuffled = p.exo.shuffleModeEnabled
+            // the queue in the order it will play (the app's shuffle is the player's own order, not the list's), so Retro's "x of y" and Up next match
+            val list = p.queueTracks(); playOrder = playOrder(p.exo, list.size)
+            queueSongs = playOrder.mapNotNull { list.getOrNull(it) }; queueNow = queueSongs.map { it.path }
+        }
+        snap = Snap(p.current?.path, p.wantsToPlay, p.positionMs, p.durationMs, playOrder.indexOf(p.exo.currentMediaItemIndex), queueNow, p.buffered, p.volume)
     }
 
     fun watch(on: Boolean) {

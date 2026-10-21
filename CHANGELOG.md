@@ -2,6 +2,39 @@
 
 Every release, newest first (generated from the GitHub release notes; the downloads stay on each release page). The newest build is marked Latest. Versions up to 0.9.x were called ipodplayer.
 
+## v1.0.0-beta80
+
+**Android**
+- A screen reader names every button on Home, Search, Library, Devices, song lists and the player (the account button, the search box and album cards were unnamed).
+- Home: a short one-time welcome showing where Home, Search, Library and Retro are.
+- Search: Show only All, Songs or Albums.
+
+**Web**
+- Search results: Show only All, Songs, Albums, Artists or Playlists.
+- When the library can't be read, the message has a Try again button.
+
+**Windows app**
+- The keyboard's media keys and Windows' media panel are turned on for the player. Not yet checked on a Windows PC.
+
+**Docs**
+- New by-hand checks for betas 74 to 79: what needs a real phone, your home network or Windows.
+
+## v1.0.0-beta79
+
+**Web**
+- Home: a Carry on button with the song's name. It resumes the paused song, or plays the last one again.
+- Lists remember their sort, and Back returns to where you were in a list.
+- Playlists with none yet explains how to make one.
+
+**Android**
+- Back returns to the same place in a list.
+- Text and icons on the cover's colour (Shuffle all, the play button, the Hi-Res chip) turn dark or white so they always read.
+- The bar for choosing several songs is solid. Empty Favourites, Recently played, Downloads and playlists say what to do.
+- "Favourites" is spelled the same everywhere.
+
+**Docs**
+- The changelog covers betas 72 to 78.
+
 ## v1.0.0-beta78
 
 **Accessibility (the 1.0 bar)**

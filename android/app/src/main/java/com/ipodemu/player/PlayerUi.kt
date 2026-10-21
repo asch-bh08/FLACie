@@ -868,7 +868,7 @@ private fun SelectBar(songs: List<Track>, nav: PlayerNav, modifier: Modifier, do
     val app = LocalApp.current
     val sc = LocalScheme.current
     fun n(k: Int) = if (k == 1) "1 song" else "$k songs"
-    Column(modifier.fillMaxWidth().padding(12.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xF0221D19)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier.fillMaxWidth().padding(12.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xFF221D19)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Txt("${songs.size} selected", size = 15f, weight = FontWeight.SemiBold, color = sc.onBg)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DesignChip("Play next", false, { if (songs.isNotEmpty()) { songs.asReversed().forEach { app.player.addNext(it) }; app.ui.say("${n(songs.size)} play next"); done() } })
@@ -1054,7 +1054,7 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
         DetailKind.GENRE -> lib.genres().firstOrNull { it.name == d.id }?.let { title = it.name; tracks = it.tracks; art = it.artKey }
         DetailKind.FOLDER -> lib.playlists().firstOrNull { it.name == d.id }?.let { title = it.name; tracks = it.tracks; art = it.artKey }
         DetailKind.USER -> ud.playlists.firstOrNull { it.id == d.id }?.let { title = it.name; tracks = ud.visiblePaths(it.id).mapNotNull { p -> lib.resolve(p, ud.meta[p]) }; art = tracks.firstNotNullOfOrNull { t -> t.artKey }; userId = it.id }
-        DetailKind.FAVORITES -> { title = "Favorites"; tracks = ud.favorites.mapNotNull { lib.resolve(it, ud.meta[it]) }.distinctBy { it.path }; art = tracks.firstNotNullOfOrNull { it.artKey } }
+        DetailKind.FAVORITES -> { title = "Favourites"; tracks = ud.favorites.mapNotNull { lib.resolve(it, ud.meta[it]) }.distinctBy { it.path }; art = tracks.firstNotNullOfOrNull { it.artKey } }
         DetailKind.RECENT -> { title = "Recently Played"; tracks = ud.recents.mapNotNull { by[it] ?: lib.resolve(it, ud.meta[it]) }; art = tracks.firstNotNullOfOrNull { it.artKey } }
         DetailKind.DOWNLOADS -> { title = "Recently Downloaded"; tracks = recentDownloads(app); art = tracks.firstNotNullOfOrNull { it.artKey } }
         DetailKind.MIX -> mix?.let { title = it.title; subtitle = it.subtitle; tracks = it.tracks; art = it.artKey }

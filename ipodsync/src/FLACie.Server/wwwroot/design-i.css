@@ -150,3 +150,9 @@ section.set[hidden] { display: none !important; }
 .select-bar b { margin-right: auto; }
 .select-pl { position: relative; }
 .select-pl .menu { position: absolute; bottom: calc(100% + 6px); right: 0; top: auto; }
+
+/* Home: Carry on (the song paused or played last) beside Shuffle all */
+.home-hero-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.home-hero-actions .carry-on { max-width: min(420px, 100%); }
+.home-hero-actions .carry-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.home-hero-actions .shuffle-all:not(.primary) { background: rgba(16,12,10,.78); color: #fff; border: 1px solid rgba(255,255,255,.3); }

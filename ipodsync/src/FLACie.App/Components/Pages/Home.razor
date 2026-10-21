@@ -15,7 +15,15 @@
             @* one heading whose words change (when the play history arrives), so it is never swapped for another element *@
             <h1>@(lastTrack is not null ? "Pick up " : "Your ")<i>@(lastTrack is not null ? "where you left off" : "music")</i></h1>
         </div>
-        <button class="btn primary shuffle-all" @onclick='() => ShuffleFull(Lib.Songs, "Your library")' disabled="@(Lib.Songs.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle all</button>
+        <div class="home-hero-actions">
+            @* what "pick up where you left off" means: the song paused in the player, else the one played last *@
+            @if (lastTrack is not null && !Player.Playing)
+            {
+                var resume = Player.Current ?? lastTrack;
+                <button class="btn primary carry-on" @onclick="() => CarryOn(resume)"><Icon Name="play" Size="18" />Carry on: <span class="carry-title">@resume.Title</span></button>
+            }
+            <button class="btn @(lastTrack is not null && !Player.Playing ? "" : "primary") shuffle-all" @onclick='() => ShuffleFull(Lib.Songs, "Your library")' disabled="@(Lib.Songs.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle all</button>
+        </div>
     </div>
 </header>
 <LibraryStatus />
@@ -142,7 +150,9 @@ else
         b.OpenElement(1, "i"); b.AddContent(2, i > 0 ? s[(i + 1)..] : s); b.CloseElement();
     };
     // the song played last (the hero's picture and colours)
-    Track? LastPlayed => Session.History.Select(h => Lib.Find(h.Title, h.Artist)).FirstOrDefault(t => t is not null);
+    // the paused song plays on from where it stopped; with nothing in the player, the song played last starts again (Autoplay carries on after it)
+    Task CarryOn(Track t) => Player.Current?.Path == t.Path ? Player.Toggle() : Player.Play([t], 0, "Carry on");
+        Track? LastPlayed => Session.History.Select(h => Lib.Find(h.Title, h.Artist)).FirstOrDefault(t => t is not null);
     string Name => Session.Jellyfin?.UserName is { Length: > 0 } u ? u : "";
     [Inject] IJSRuntime Js { get; set; } = default!;
     ElementReference heroEl; string? heroFor = "";

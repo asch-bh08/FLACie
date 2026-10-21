@@ -50,3 +50,12 @@ Each beta adds its items; tick them off on the Fold. Nothing here was verified o
 - [ ] Android Auto / car: in the car (or the Desktop Head Unit) open FLACie: the six folders, a page of songs with covers, play from Favourites (the list queues), search by voice ("play ..."), the favourite and speed buttons. Check covers load (they come from the app's content provider).
 - [ ] Fade between songs (Android Settings / web Fade): set 4 s; skip between two albums: the end fades and the next starts soft; play an album straight through: no fade at the joins.
 - [ ] MusicBrainz match + cover (Android song menu, web Info tab): pick a match, use the Cover Art Archive cover, check it shows (Android: after leaving the screen), then use the original again.
+
+## Betas 74 to 79 (things the emulator and the browser tests can't show)
+- [ ] Retro on your phone: it opens on the song playing (Now Playing), your playlists are under Playlists, lyrics show for a well-known song, Shuffle/Repeat set on the iPod change the app's (and the other way round).
+- [ ] Seek frame on your phone with a song not played before: the bars fill in round the cover as the song downloads (not all at once at the end).
+- [ ] Sign-in on a fresh install at home: your Jellyfin server is offered under "Found on this network"; tapping it fills the address.
+- [ ] Web after a server update while a song plays: the page shows Reconnecting, reloads by itself, and the song carries on (a browser that blocks autoplay may leave it paused: say if so).
+- [ ] Windows app: the keyboard's play/pause, next and previous keys work, and Windows' media panel (volume flyout) shows the song with working buttons.
+- [ ] TalkBack on Android: every button on Home, Search, Library, Devices, a song list and the player reads a name (the a11y-android.mjs check finds none unnamed on the emulator).
+- [ ] Choosing several songs: on the phone (Select in a song's menu) and on a PC (Shift-click), add them to a playlist; check the playlist on the other device.

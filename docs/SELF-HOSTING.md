@@ -135,6 +135,7 @@ the sign-in keys.
 | `users/` | Remembered accounts (encrypted with the keys) | Signed in again; nothing else |
 | `device-id` | One id so Jellyfin lists FLACie Web as one device | A new device appears in Jellyfin |
 | `notify.json` | The notification (ntfy) settings | Set them again in the dashboard |
+| `shares/` | Songs and playlists shared as links (`/s/...`): their names and artists only | Those links stop working |
 | `library/`, `art/`, `lyrics/`, `audiofacts.json`, `downloads/` | Caches and the download log | Rebuilt automatically |
 
 Playlists, favourites and per-user settings are **not** in `/data`: they live in each person's Jellyfin user settings (back up Jellyfin) or on their NAS share.
@@ -147,7 +148,7 @@ Keep backups private: `keys/` is what protects the saved sign-ins.
 
 ## The phone app
 
-The Android app is a separate download (APK on the GitHub release page; enable installing from unknown sources). On first start choose **Sign in with Jellyfin**, enter your Jellyfin address (from the phone, so a name or address the phone can reach; in the Android emulator your PC is `10.0.2.2`) and use Quick Connect or a password. Then open **Settings > Music sources > Jellyfin > Use my account** once: signing in syncs your profile, but the music source is switched on separately. Your Jellyfin must be 10.10.x for now (see above). The web server is only needed for extras such as the audio-format filters; the app plays straight from Jellyfin.
+The Android app is a separate download (APK on the GitHub release page; enable installing from unknown sources). On first start choose **Sign in with Jellyfin**, enter your Jellyfin address (from the phone, so a name or address the phone can reach; in the Android emulator your PC is `10.0.2.2`) and use Quick Connect or a password. Then open **Settings > Library > Jellyfin > Use my account** once: signing in syncs your profile, but the music source is switched on separately. Your Jellyfin must be 10.10.x for now (see above). The web server is only needed for extras such as the audio-format filters, sharing songs as links and the seek bar's shapes; the app plays straight from Jellyfin. The phone learns the web server's address from your profile: open FLACie on the web once (at the address people use, not `localhost`) and the phone picks it up.
 
 ## Environment variables
 

@@ -12,6 +12,15 @@
         <div class="chips">
             <button class="btn primary pl-play" @onclick='() => Player.Play(tracks, 0, "Favourites")' disabled="@(tracks.Count == 0)"><Icon Name="play" Size="18" />Play</button>
             <button class="btn pl-shuffle" @onclick='() => Player.ShuffleAll(tracks, "Favourites")' disabled="@(tracks.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+            @if (Session.Favorites.Count > 0)
+            {
+                @if (confirmClear)
+                {
+                    <button class="btn danger" @onclick="Clear">Clear all @Session.Favorites.Count</button>
+                    <button class="btn" @onclick="() => confirmClear = false">Keep them</button>
+                }
+                else { <button class="btn ghost" @onclick="() => confirmClear = true">Clear all</button> }
+            }
         </div>
     </div>
 </header>
@@ -22,6 +31,16 @@
 <TrackList Tracks="tracks" PlayContext="Favourites" />
 @code {
     ElementReference heroEl; string? heroFor = "";
+    [Inject] Toasts Toast { get; set; } = default!;
+    bool confirmClear;
+    // every favourite taken away (on every device, as each removal is recorded), with Undo
+    void Clear()
+    {
+        confirmClear = false;
+        var was = Session.ClearFavorites();
+        SaveProfile();
+        Toast.Show($"Cleared {was.Count} favourites", "Undo", () => { Session.RestoreFavorites(was); SaveProfile(); InvokeAsync(StateHasChanged); Toast.Dismiss(); }, seconds: 10);
+    }
     [Inject] IJSRuntime Js { get; set; } = default!;
     static string Length(IReadOnlyList<Track> ts) { var m = (int)(ts.Sum(t => t.DurationMs) / 60000); return m <= 0 ? "" : m >= 60 ? $"{m / 60} h {m % 60} min" : $"{m} min"; }
     // the hero takes its colours from the first favourite's cover, once per cover

@@ -360,10 +360,11 @@ public sealed class UserSession
                     lp["n"] = rp["n"]?.DeepClone(); lp["m"] = rp["m"]?.DeepClone(); lp["tracks"] = rp["tracks"]?.DeepClone(); changed = true;
                 }
             }
-            var favs = Profile["favorites"] as JsonArray ?? new JsonArray();
-            foreach (var rf in (remote["favorites"] as JsonArray ?? []).OfType<JsonObject>())
-                if (!favs.OfType<JsonObject>().Any(f => S(f, "p") == S(rf, "p") || Matching.MatchKey(S(f, "t"), S(f, "a")) == Matching.MatchKey(S(rf, "t"), S(rf, "a")))) { favs.Add(JsonNode.Parse(rf.ToJsonString())); changed = true; }
-            Profile["playlists"] = mine; Profile["deleted"] = deleted; Profile["favorites"] = favs;
+            // favourites: per song the latest of favouriting and removing wins, on every device (FavoriteSync)
+            var before = (Profile["favorites"] as JsonArray ?? []).ToJsonString();
+            var (favs, favGone) = FavoriteSync.Merge(Profile["favorites"] as JsonArray ?? [], Profile["favgone"] as JsonArray ?? [], remote["favorites"] as JsonArray ?? [], remote["favgone"] as JsonArray ?? []);
+            if (favs.ToJsonString() != before) changed = true;
+            Profile["playlists"] = mine; Profile["deleted"] = deleted; Profile["favorites"] = favs; Profile["favgone"] = favGone;
             // ratings: per song the newest choice wins
             var ratings = Profile["ratings"] as JsonArray ?? new JsonArray();
             foreach (var rr in (remote["ratings"] as JsonArray ?? []).OfType<JsonObject>())
@@ -434,10 +435,50 @@ public sealed class UserSession
 
     public void ToggleFavorite(Track t)
     {
-        var arr = Profile["favorites"] as JsonArray ?? new JsonArray();
-        var hit = arr.OfType<JsonObject>().FirstOrDefault(f => S(f, "p") == t.Path || Matching.MatchKey(S(f, "t"), S(f, "a")) == Matching.MatchKey(t));
-        if (hit is not null) arr.Remove(hit); else arr.Insert(0, EntryJson(t));
-        Profile["favorites"] = arr; Changed?.Invoke();
+        lock (listLock)
+        {
+            var arr = Profile["favorites"] as JsonArray ?? new JsonArray();
+            var hit = arr.OfType<JsonObject>().FirstOrDefault(f => S(f, "p") == t.Path || Matching.MatchKey(S(f, "t"), S(f, "a")) == Matching.MatchKey(t));
+            if (hit is not null) { arr.Remove(hit); Removed(hit); }
+            else { var e = EntryJson(t); e["w"] = Now(); arr.Insert(0, e); }
+            Profile["favorites"] = arr;
+        }
+        Changed?.Invoke();
+    }
+
+    /// <summary>A favourite taken away, kept with its time so other devices take it away too (FavoriteSync) instead of bringing it back.</summary>
+    void Removed(JsonObject fav)
+    {
+        var gone = Profile["favgone"] as JsonArray ?? new JsonArray();
+        gone.Insert(0, new JsonObject { ["p"] = S(fav, "p"), ["t"] = S(fav, "t"), ["a"] = S(fav, "a"), ["w"] = Now() });
+        while (gone.Count > FavoriteSync.KeepRemovals) gone.RemoveAt(gone.Count - 1);
+        Profile["favgone"] = gone;
+    }
+
+    /// <summary>Takes away every favourite (each recorded as removed, so other devices follow); the list comes back for Undo.</summary>
+    public IReadOnlyList<PlaylistEntry> ClearFavorites()
+    {
+        List<PlaylistEntry> was;
+        lock (listLock)
+        {
+            var arr = Profile["favorites"] as JsonArray ?? new JsonArray();
+            was = arr.OfType<JsonObject>().Select(Entry).ToList();
+            foreach (var f in arr.OfType<JsonObject>().ToList()) Removed(f);
+            Profile["favorites"] = new JsonArray();
+        }
+        Changed?.Invoke();
+        return was;
+    }
+
+    /// <summary>Undo for <see cref="ClearFavorites"/>: the same songs favourited again, in the same order.</summary>
+    public void RestoreFavorites(IEnumerable<PlaylistEntry> entries)
+    {
+        lock (listLock)
+        {
+            var now = Now();
+            Profile["favorites"] = new JsonArray(entries.Select(e => (JsonNode)new JsonObject { ["p"] = e.Path, ["t"] = e.Title, ["a"] = e.Artist, ["w"] = now }).ToArray());
+        }
+        Changed?.Invoke();
     }
 
     // ---- star ratings (in the profile: 1 to 5, kept with the song's path and title so they follow it across sources) ----

@@ -134,6 +134,13 @@ fun JellyfinSignInForm() {
     var usePassword by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Field("Jellyfin server", server, { server = it }, "https://jellyfin.example.ts.net", KeyboardType.Uri)
+            // servers on this network (Jellyfin's own discovery): one tap fills the address
+            var found by remember { mutableStateOf(emptyList<com.ipodemu.library.JellyfinDiscovery.Found>()) }
+            androidx.compose.runtime.LaunchedEffect(Unit) { found = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.ipodemu.library.JellyfinDiscovery.find() } }
+            if (found.isNotEmpty() && found.none { it.address == server.trimEnd('/') }) {
+                Txt("Found on this network", size = 13f, color = Color(0x99FFFFFF))
+                found.forEach { f -> GlossPill("${f.name}  ·  ${f.address}", { server = f.address }) }
+            }
             if (!usePassword) {
                 val code = acct.quickCode
                 if (code != null) {

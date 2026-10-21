@@ -9,8 +9,10 @@ Updated after every step, so another session can take over at any point. Newest 
   `ui/living-sleeve`, fast-forwarded to `main` at every release.
 - **The owner said:** carry on towards beta 100 on your own; release betas as you go; skip the visual redesign (design I is done). Weekly usage limit is
   close, hence this file. Play Store is NOT part of 1.0 (GitHub only).
-- **In progress:** checking that the Windows installer (MSI) still builds (none has been built since beta 71).
-- **Next candidates** (in order): MSI build check → release-candidate prep (CHANGELOG 81-88, version 1.0 wording) → anything the owner reports.
+- **Done since:** the Windows installer builds again (`ipodsync/tools/build-installer.ps1 -Out <folder>`, ~4 min, needs the maui-windows workload);
+  `FLACie-0.88.0-windows-x64.msi` (111 MB) is attached to the beta 88 release. It was built, not installed: a clean install on Windows is still
+  the owner's check. Add the MSI to every release from now on (step 5b of the recipe).
+- **Next candidates:** release-candidate prep (CHANGELOG 81-88 from docs/private/release-bodies, version wording for 1.0) → anything the owner reports.
 
 ## Waiting on the owner (do not do without them)
 
@@ -31,6 +33,8 @@ Updated after every step, so another session can take over at any point. Newest 
 3. `cd ipodsync && dotnet test tests/FLACie.Tests` (749; the Alexa 10k-song build test is timing-sensitive: run it on a quiet machine).
 4. Android: `cd android && JAVA_HOME="/c/Program Files/Eclipse Adoptium/jdk-17.0.20.101-hotspot" ./gradlew :app:testDebugUnitTest :app:assembleRelease`
 5. Emulator smoke (23/23): `powershell -NoProfile -File C:\FLACie-handoff\heavy.ps1 -Dir C:\FLACie\ipodsync\tools\loadtest -Cmd "powershell -NoProfile -File run-android.ps1 -Apk C:\FLACie\android\app\build\outputs\apk\release\app-release.apk -Label betaN -Driver smoke-android.mjs -Port 8297"`
+5b. Windows installer: `cd ipodsync && powershell -NoProfile -File tools/build-installer.ps1 -Out <scratch folder>` → attach
+   `FLACie-0.N.0-windows-x64.msi` to the release with the APK.
 6. Commit named files only (NEVER `git add` a directory: test data folders hold tokens and keys), check `git show --stat HEAD`, push the branch,
    `git push origin HEAD:main`.
 7. Web: `ssh root@frank 'docker tag flacie-web:local flacie-web:rollback-<date>-preN'`, then from `ipodsync/src`:

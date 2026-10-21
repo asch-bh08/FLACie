@@ -453,6 +453,28 @@ window.flacie = (() => {
     if (e.key === "/") { const i = document.querySelector(".top-search input"); if (i) { e.preventDefault(); i.focus(); i.select(); } }
     else if (e.key === "?") { e.preventDefault(); showShortcuts(); }
   });
+  // Back (or Forward) to a page returns to the place in it: each page's scroll is kept (this tab only) and put back once the page is tall enough again
+  (() => {
+    const KEY = "flacie.scroll";
+    const read = () => { try { return JSON.parse(sessionStorage.getItem(KEY) || "{}"); } catch { return {}; } };
+    const here = () => location.pathname + location.search;
+    let restoring = 0, saveTimer = 0;
+    addEventListener("scroll", () => {
+      if (restoring || saveTimer) return;
+      saveTimer = setTimeout(() => { saveTimer = 0; if (restoring) return; const m = read(); m[here()] = scrollY; try { sessionStorage.setItem(KEY, JSON.stringify(m)); } catch { } }, 200);
+    }, { passive: true });
+    addEventListener("popstate", () => {
+      const y = read()[here()];
+      if (!(y > 0)) return;
+      const until = Date.now() + 3000, id = ++restoring;
+      const go = () => {
+        if (id !== restoring) return;
+        if (document.documentElement.scrollHeight >= y + innerHeight * 0.5) { scrollTo(0, y); setTimeout(() => { if (id === restoring) { scrollTo(0, y); restoring = 0; } }, 250); return; }
+        if (Date.now() < until) setTimeout(go, 100); else restoring = 0;
+      };
+      setTimeout(go, 60);
+    });
+  })();
   // a song row's "..." menu closes on a click outside it or Escape: press its own toggle, which Blazor already handles
   const closeRowMenu = () => document.querySelector(".track button[aria-expanded=true]")?.click();
   document.addEventListener("pointerdown", e => { if (!e.target.closest(".track .menu, .track button[aria-expanded]")) closeRowMenu(); }, true);

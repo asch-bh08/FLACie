@@ -7,8 +7,13 @@
 <div class="sp">
 <header class="page-head"><h1><i>Settings</i></h1></header>
 <nav class="subnav" aria-label="Settings sections">
-    <a href="/settings#playback">Playback</a><a href="/settings#look">Look and feel</a><a href="/settings#sources">Music sources</a><a href="/settings#alexa">Alexa</a><a href="/settings#account">Account</a><a href="/settings#about">About</a><a href="/downloads">Download log</a>@if (admin) { <a href="/dashboard">Dashboard</a> }
+    <a href="/settings#playback">Playback</a><a href="/settings#look">Appearance</a><a href="/settings#sources">Library</a><a href="/settings#alexa">Alexa</a><a href="/settings#account">Account</a><a href="/settings#about">About</a><a href="/downloads">Download log</a>@if (admin) { <a href="/dashboard">Dashboard</a> }
 </nav>
+@* finds a setting: only the groups whose words match stay (flacie.settingsFind, in the browser, as it is typed) *@
+<div class="set-find">
+    <input type="search" id="set-find" aria-label="Find a setting" placeholder="Find a setting" autocomplete="off" oninput="flacie.settingsFind(this.value)" />
+    <p class="hint set-none" hidden>No setting matches. Try another word.</p>
+</div>
 
 <section class="panel set" id="playback">
     <div class="set-head"><h2>Playback</h2><p class="hint">How this browser plays and what comes after the last song.</p></div>
@@ -25,7 +30,7 @@
 </section>
 
 <section class="panel set" id="sources">
-    <div class="set-head"><h2>Music sources</h2><p class="hint">Where the songs come from. Your profile is kept in @Where, so signing in on another device brings everything back.</p></div>
+    <div class="set-head"><h2>Library</h2><p class="hint">Where the songs come from. Your profile is kept in @Where, so signing in on another device brings everything back.</p></div>
     <dl class="kv">
         <dt>Jellyfin</dt><dd>@(Session.Jellyfin is { } j ? $"{j.UserName} on {j.Server}" : "Not connected")</dd>
         <dt>NAS</dt><dd>@(Session.Nas is { } n ? $"{n.Host}/{n.Share}{(n.Folder.Length > 0 ? "/" + n.Folder : "")}" : "Not connected")</dd>
@@ -64,7 +69,7 @@
 </section>
 
 <section class="panel set" id="look">
-    <div class="set-head"><h2>Look and feel</h2><p class="hint">Personal tweaks, saved in this browser only (your phone has its own in its Settings).</p></div>
+    <div class="set-head"><h2>Appearance</h2><p class="hint">Personal tweaks, saved in this browser only (your phone has its own in its Settings).</p></div>
     <div class="form">
         <label>Accent colour</label>
         <div class="swatches" role="radiogroup" aria-label="Accent colour">

@@ -862,6 +862,16 @@ window.flacie = (() => {
       history.back();
     },
     npBack() { if (npPushed) history.back(); else npClosed(); },
+    // Settings' search box: keeps the groups (.set) whose text has every typed word, hides the rest, and says so when none does
+    settingsFind(q) {
+      const words = (q || "").toLowerCase().split(/\s+/).filter(Boolean);
+      let shown = 0;
+      for (const sec of document.querySelectorAll("section.set")) {
+        const hit = words.every((w) => sec.textContent.toLowerCase().includes(w));
+        sec.hidden = !hit; if (hit) shown++;
+      }
+      const none = document.querySelector(".set-none"); if (none) none.hidden = shown > 0;
+    },
     // Share on a detail page: the device's share sheet ("shared"), else the link copied ("copied"); "" when neither worked, "cancelled" when the person closed the sheet
     async shareLink(title) {
       const url = location.href;

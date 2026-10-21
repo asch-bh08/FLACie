@@ -19,6 +19,7 @@ else
             <div class="detail-actions">
                 <button class="detail-play" @onclick="() => Player.Play(a.Tracks, 0, a.Name)"><Icon Name="play" Size="22" />Play</button>
                 <button class="detail-shuffle" @onclick="() => Player.ShuffleAll(a.Tracks, a.Name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+                <ShareButton Title="@a.Name" />
             </div>
         </div>
     </header>

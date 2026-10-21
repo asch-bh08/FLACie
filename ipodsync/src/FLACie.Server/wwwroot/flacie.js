@@ -862,6 +862,12 @@ window.flacie = (() => {
       history.back();
     },
     npBack() { if (npPushed) history.back(); else npClosed(); },
+    // Share on a detail page: the device's share sheet ("shared"), else the link copied ("copied"); "" when neither worked, "cancelled" when the person closed the sheet
+    async shareLink(title) {
+      const url = location.href;
+      if (navigator.share) { try { await navigator.share({ title, url }); return "shared"; } catch (e) { if (e && e.name === "AbortError") return "cancelled"; } }
+      try { await navigator.clipboard.writeText(url); return "copied"; } catch { return ""; }
+    },
     // the reload after the server comes back: a song that was playing (on what the browser had buffered) plays on from the second it reached
     recoverReload(playing, at) {
       try { sessionStorage.setItem("flacie.recover", JSON.stringify({ playing: !!playing, t: +at || 0 })); } catch { }

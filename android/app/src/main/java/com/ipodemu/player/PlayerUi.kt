@@ -1263,6 +1263,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         var songsExpanded by remember(q) { mutableStateOf(false) }
         var albumsExpanded by remember(q) { mutableStateOf(false) }
         var webSongsExpanded by remember(q) { mutableStateOf(false) }
+        var only by remember(q) { mutableStateOf("") }
         // the row keeps its scroll offset by item key; when a new result list arrives (or a download reshuffles it) it could stay scrolled
         // a few pixels, clipping the first card, so it snaps back to the start whenever the first album changes
         val albumRowState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -1275,11 +1276,19 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             }
         }
         else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            // Show only: All, Songs or Albums (as on the web), when there are both
+            val hasSongs = w.songs.isNotEmpty() || rankedSongs.isNotEmpty(); val hasAlbums = w.albums.isNotEmpty() || r.albums.isNotEmpty()
+            if (hasSongs && hasAlbums) item(key = "kinds") {
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for ((k, label) in listOf("" to "All", "songs" to "Songs", "albums" to "Albums")) DesignChip(label, only == k, { only = k })
+                }
+            }
+            fun shows(kind: String) = only == "" || only == kind
             // albums as one swipeable row of covers near the top, so they're visible with the keyboard up; a query naming an
             // album ("short n sweet") puts that row first, like YT Music
             val albumNamed = w.albums.firstOrNull()?.takeIf { it.kind != "Single" }?.let { a -> a.cleanTitle.lowercase().filter { it.isLetterOrDigit() } == q.lowercase().filter { it.isLetterOrDigit() } } == true
             val webAlbums: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
-                if (w.albums.isNotEmpty()) {
+                if (w.albums.isNotEmpty() && shows("albums")) {
                     item { SectionHeader("Albums and EPs") }
                     item(key = "walbums") {
                         androidx.compose.foundation.lazy.LazyRow(state = albumRowState, contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1294,16 +1303,16 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 }
             }
             if (albumNamed) webAlbums()
-            if (topSong != null) {
+            if (topSong != null && only == "") {
                 item { SectionHeader("Top result") }
                 item(key = "top${topSong.path}") {
                     TopResultCard(topSong) { searchFocus.clearFocus(); if (snap.track?.path == topSong.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(topSong), 0, null) } }
                 }
             }
             if (!albumNamed) webAlbums()
-            if (w.songs.isNotEmpty()) {
+            if (w.songs.isNotEmpty() && shows("songs")) {
                 item { SectionHeader("Songs") }
-                val shown = if (webSongsExpanded) w.songs else w.songs.take(8)
+                val shown = if (webSongsExpanded || only == "songs") w.songs else w.songs.take(8)
                 itemsIndexed(shown, key = { i, s -> "ws$i${s.artist}${s.title}" }) { _, s ->
                     val owned = ownedSongs[com.ipodemu.library.matchKey(s.title, s.artist)]
                     val status = dl[app.library.songKey(s.artist, s.title)]
@@ -1326,24 +1335,26 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                             nav.sheet = SheetSpec(s.title, s.artist.ifEmpty { null }, items)
                         })
                 }
-                if (!webSongsExpanded && w.songs.size > 8) item { ShowMoreRow(w.songs.size - 8) { webSongsExpanded = true } }
+                if (!webSongsExpanded && only != "songs" && w.songs.size > 8) item { ShowMoreRow(w.songs.size - 8) { webSongsExpanded = true } }
             }
-            if (restSongs.isNotEmpty()) {
+            // with only songs shown, the top song joins the library list (the Top result card is for All)
+            val libSongs = if (only == "songs" && topSong != null) listOf(topSong) + restSongs else restSongs
+            if (libSongs.isNotEmpty() && shows("songs")) {
                 item { SectionHeader("In your library") }
-                val shown = if (songsExpanded) restSongs else restSongs.take(4)
+                val shown = if (songsExpanded || only == "songs") libSongs else libSongs.take(4)
                 itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(listOf(t), 0, null) }) }
-                if (!songsExpanded && restSongs.size > 4) item { ShowMoreRow(restSongs.size - 4) { songsExpanded = true } }
+                if (!songsExpanded && only != "songs" && libSongs.size > 4) item { ShowMoreRow(libSongs.size - 4) { songsExpanded = true } }
             }
-            if (r.albums.isNotEmpty()) {
+            if (r.albums.isNotEmpty() && shows("albums")) {
                 item { SectionHeader("Your albums") }
-                val shownAlbums = if (albumsExpanded) r.albums else r.albums.take(3)
+                val shownAlbums = if (albumsExpanded || only == "albums") r.albums else r.albums.take(3)
                 items(shownAlbums, key = { "b" + it.tracks.first().albumKey }) { g ->
                     IpodRow({ nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) }, height = 56.dp, leading = { ArtImage(g.artKey, Modifier.size(48.dp), thumb = true, corner = 8.dp) },
                         trailing = { OwnedTag() }) { hi ->
                         Column { Txt(g.name, size = 16f, color = if (hi) Color.White else sc.onBg); Txt(g.tracks.firstOrNull()?.artist ?: "", size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim) }
                     }
                 }
-                if (!albumsExpanded && r.albums.size > 3) item { ShowMoreRow(r.albums.size - 3) { albumsExpanded = true } }
+                if (!albumsExpanded && only != "albums" && r.albums.size > 3) item { ShowMoreRow(r.albums.size - 3) { albumsExpanded = true } }
             }
             if (webLoading) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Searching for more...", size = 13f, color = sc.onBgDim) } }
             if (!webLoading && w.songs.isEmpty() && !app.ui.guest) item { DownloadRequestBar(app, q) }

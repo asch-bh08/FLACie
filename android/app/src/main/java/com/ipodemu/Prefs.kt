@@ -289,6 +289,10 @@ class Prefs(ctx: Context) {
     var accountSyncedAt: Long
         get() = sp.getLong("acctsynced", 0L)
         set(v) = sp.edit().putLong("acctsynced", v).apply()
+    /** Home's first-run welcome has been put away (Got it). */
+    var welcomed: Boolean
+        get() = sp.getBoolean("welcomed", false)
+        set(v) = sp.edit().putBoolean("welcomed", v).apply()
     /** Search's recent searches, newest first (see player/RecentSearches). */
     var recentSearches: List<String>
         get() = (sp.getString("recentsearches", "") ?: "").split('\n').filter { it.isNotEmpty() }

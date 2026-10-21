@@ -579,6 +579,8 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                 HomeHero(last, nav, onShuffleAll = { val s = lib.songs(); if (s.isNotEmpty()) app.player.shuffleAll(s) }) { AccountAction() }
             }
             if (!online) item { OfflineChip(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) }
+            // the first visit: where things are, once (as on the web); Got it puts it away for good
+            if (modern && !app.prefs.welcomed) item(key = "welcome") { WelcomeCard { app.prefs.welcomed = true } }
             if (!modern) item { NowPlayingCard(snap, nav) { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } } }
             if (com.ipodemu.PermissionPlan.showMediaNotice(app.ui.loginMode, app.ui.mediaAccess)) item { MediaAccessNotice(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             // design I: Favourites, Recent, Downloads and the moods as outlined chips (the chosen mood filled); Shuffle all is in the hero
@@ -587,7 +589,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     // the moods first, as on the web ("All" filled while no mood is picked), then the shortcuts the old Home had
                     DesignChip("All", mood == null, { mood = null })
                     moodList.forEach { m -> DesignChip(m, mood == m, { mood = if (mood == m) null else m }) }
-                    DesignChip("Favorites", false, { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART)
+                    DesignChip("Favourites", false, { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART)
                     DesignChip("Recent", false, { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK)
                     DesignChip("Downloads", false, { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.DOWN)
                 }
@@ -1750,4 +1752,19 @@ fun clearQueueWithUndo(app: com.ipodemu.App) {
     p.clearQueue()
     if (list.isEmpty()) return
     app.ui.say("Cleared Up next", "Undo") { p.playFrom(list, at.coerceIn(0, list.size - 1), ms, paused = true) }
+}
+
+/** Home's one-time welcome: where Home, Search, Library and Retro are, in a few lines. */
+@Composable
+private fun WelcomeCard(onDone: () -> Unit) {
+    val sc = LocalScheme.current
+    var shown by remember { mutableStateOf(true) }
+    if (!shown) return
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color(0x14FFFFFF)).padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SerifTitle("Welcome to FLACie", size = 28f, italicWords = 1)
+        Txt("Home has what you played last and new picks every day.", size = 14.5f, color = sc.onBg, maxLines = 3)
+        Txt("Search finds anything in your library, and anything you don't have yet, ready to download.", size = 14.5f, color = sc.onBg, maxLines = 3)
+        Txt("Library holds your favourites, playlists and Jam. Retro (the cassette in the player) plays your music on a classic iPod.", size = 14.5f, color = sc.onBg, maxLines = 4)
+        DesignChip("Got it", true, { shown = false; onDone() })
+    }
 }

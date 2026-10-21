@@ -27,8 +27,10 @@ export default async function globalSetup() {
   const lines = [
     rec('Velvet 9', 'done', 7 * 24 * 60),    // a week ago: a normal library song
     rec('Orbit 10', 'done', 120),            // two hours ago: no tag
-    rec('Harbour 11', 'done', 20),           // twenty minutes ago: "Recently downloaded · N min ago"
+    rec('Harbour 11', 'done', 5),            // five minutes before the run: "Recently downloaded · N min ago" for the whole of a long run (the window is an hour)
     rec('Lantern 12', 'failed', 150),        // failed two hours ago: no "Couldn't download"
   ];
   fs.writeFileSync(path.join(dir, `${id}.jsonl`), lines.join('\n') + '\n');
+  // when these were written, so a spec can work out how old they are by the time it runs (late in a 45-minute run, not just at the start)
+  fs.writeFileSync(path.join(data, 'setup-at.txt'), String(now));
 }

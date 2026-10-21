@@ -10,7 +10,7 @@ test.describe.configure({ retries: 1 });
 //
 // A stand-in for the user's download stack runs inside this spec (port 8197): slskd (/slskd/api/v0/...) and the file mover (/fm/move, /fm/file). It has one song
 // ("Lantern 12" by Brass Monkeys, a Hi-Res file) whose transfer stays "in progress" until the test releases it, so the running stage can be looked at.
-// Finished downloads of known ages (20 minutes, 2 hours, a week) are written into the account's log by global-setup.ts before the server is asked anything.
+// Finished downloads of known ages (5 minutes before the run, 2 hours, a week) are written into the account's log by global-setup.ts before the server is asked anything.
 // The mock Jellyfin's songs: Brass Monkeys "Brass Album 1" = Velvet 9, Orbit 10, Harbour 11, Lantern 12.
 
 const FM = Number(process.env.FM_PORT || 8197);
@@ -304,15 +304,17 @@ test.describe.serial('download tags', () => {
     await page.evaluate(() => document.getElementById('age-probe')?.remove());
   });
 
-  // ---- lists: a song downloaded 20 minutes ago is tagged, one from 2 hours or a week ago and a plain library song are not ----
+  // ---- lists: a song downloaded minutes ago is tagged, one from 2 hours or a week ago and a plain library song are not ----
 
   test('lists: only the recent download is tagged; a download from two hours or a week ago is a normal library song', async () => {
     await openAlbum();
     await expect(row('Harbour 11').locator('.dl-tag')).toHaveText(/^Recently downloaded · \d+ min ago$/);
-    // written 20 minutes before this run started, so it is 20 + the minutes the run has taken
+    // written 5 minutes before the run started (global-setup.ts), so it is 5 + the minutes the run has taken by now
     const mins = Number(/(\d+) min ago/.exec(await tagText(row('Harbour 11').locator('.dl-tag')))![1]);
-    expect(mins).toBeGreaterThanOrEqual(19);
-    expect(mins).toBeLessThan(55);
+    const setupAt = Number(require('fs').readFileSync(require('path').join(__dirname, '.pub-smoke', '.data-smoke', 'setup-at.txt'), 'utf8'));
+    const expected = 5 + (Date.now() - setupAt) / 60_000;
+    expect(mins).toBeGreaterThanOrEqual(Math.floor(expected) - 1);
+    expect(mins).toBeLessThanOrEqual(Math.ceil(expected) + 1);
     for (const t of ['Velvet 9', 'Orbit 10', 'Lantern 12']) await expect(row(t).locator('.dl-tag'), t).toHaveCount(0);
     await expect(page.locator('.tracks .track .track-dl')).toHaveCount(1);
     // the same song in the Explore list, found by name

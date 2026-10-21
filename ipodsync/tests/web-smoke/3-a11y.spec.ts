@@ -3,7 +3,28 @@ import AxeBuilder from '@axe-core/playwright';
 
 // Accessibility (the 1.0 bar): every main page passes axe's WCAG 2 A and AA checks, on a phone and on a PC.
 
+// one sign-in for the whole file (signing in twenty times in a row is slowed down on purpose by the login throttle), kept as the browser's state
+const STATE = 'test-results/a11y-state.json';
+let signedIn = false;
+test.beforeAll(async ({ browser }) => {
+  const page = await browser.newPage();
+  await page.goto('/login');
+  await page.locator('#jf-form summary').click();
+  await page.locator('#user').fill('tester');
+  await page.locator('#password').fill('pw');
+  await page.locator('#jf-form button[type="submit"]').click();
+  await page.waitForURL((u) => !u.pathname.startsWith('/login'));
+  await page.context().storageState({ path: STATE });
+  await page.close();
+  signedIn = true;
+});
+
 async function signIn(page: Page) {
+  if (signedIn) {
+    const state = JSON.parse(require('fs').readFileSync(STATE, 'utf8'));
+    await page.context().addCookies(state.cookies);
+    return;
+  }
   await page.goto('/login');
   await page.locator('#jf-form summary').click();
   await page.locator('#user').fill('tester');

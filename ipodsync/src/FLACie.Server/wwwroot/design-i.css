@@ -141,3 +141,12 @@
 .set-find input { width: 100%; min-height: 44px; padding: 0 16px; border-radius: 22px; border: 1px solid var(--line, rgba(255,255,255,.18)); background: rgba(255,255,255,.06); color: inherit; font: inherit; }
 .set-find input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 section.set[hidden] { display: none !important; }
+
+/* choosing several songs: a tick button on each row, and the bar that acts on them along the bottom */
+.track-pick { flex: none; width: 36px; height: 36px; align-self: center; margin-right: 6px; border-radius: 50%; border: 1px solid var(--line, rgba(255,255,255,.25)); background: transparent; color: inherit; display: grid; place-items: center; cursor: pointer; }
+.track.picked .track-pick { background: var(--accent); color: var(--accent-fg, #1a120c); border-color: transparent; }
+.track.picked { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.select-bar { position: sticky; bottom: 104px; z-index: 30; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 12px 0; padding: 10px 14px; border-radius: 18px; background: var(--surface-2, #221d19); border: 1px solid var(--line, rgba(255,255,255,.14)); box-shadow: 0 12px 40px rgba(0,0,0,.4); }
+.select-bar b { margin-right: auto; }
+.select-pl { position: relative; }
+.select-pl .menu { position: absolute; bottom: calc(100% + 6px); right: 0; top: auto; }

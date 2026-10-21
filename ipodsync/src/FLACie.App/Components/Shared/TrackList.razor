@@ -1,13 +1,18 @@
 @inherits UserComponent
 @* A list of songs. Click plays from that song with the rest of the list queued; the menu adds to queue or a playlist. *@
-<ol class="tracks">
+<ol class="tracks @(selecting ? "selecting" : "")">
     @for (var i = 0; i < Tracks.Count; i++)
     {
         var idx = i; var t = Tracks[i];
         var now = Player.Current?.Path == t.Path;
         var fmt = QuickFormats.Of(t);
-        <li class="track @(now ? "now" : "")">
-            <button class="track-main" @onclick="() => Go(idx)" aria-label="Play @t.Title by @t.Artist">
+        var picked = selected.Contains(idx);
+        <li class="track @(now ? "now" : "") @(picked ? "picked" : "")">
+            @if (selecting)
+            {
+                <button class="track-pick" aria-pressed="@(picked ? "true" : "false")" aria-label="Select @t.Title" @onclick="() => Pick(idx)"><Icon Name="@(picked ? "check" : "plus")" Size="18" /></button>
+            }
+            <button class="track-main" @onclick="e => Main(e, idx)" aria-label="@(selecting ? "Tick " + t.Title : "Play " + t.Title + " by " + t.Artist)">
                 @if (Numbered) { <span class="track-no">@(t.TrackNo > 0 ? t.TrackNo : idx + 1)</span> }
                 else { <Cover ArtKey="@(Art.KeyFor(t))" Size="@ThumbSize" /> }
                 <span class="track-text">
@@ -28,6 +33,7 @@
                 <div class="menu" role="menu">
                     <button role="menuitem" @onclick='() => { Player.PlayNext(t); Toast.Show($"“{t.Title}” plays next"); menu = -1; }'>Play next</button>
                     <button role="menuitem" @onclick='() => { Player.AddToQueue(t); Toast.Show($"Added “{t.Title}” to the queue"); menu = -1; }'>Add to queue</button>
+                    <button role="menuitem" @onclick="() => { menu = -1; StartSelecting(idx); }">Select</button>
                     @foreach (var p in Session.Playlists)
                     {
                         <button role="menuitem" @onclick="() => { Toast.Added(Session, p, t, SaveProfile); menu = -1; }">Add to @p.Name</button>
@@ -51,6 +57,23 @@
         </li>
     }
 </ol>
+@if (selecting)
+{
+    @* what to do with the chosen songs, in the order they are in this list *@
+    <section class="select-bar" aria-label="Selected songs">
+        <b>@selected.Count selected</b>
+        <button class="btn" disabled="@(selected.Count == 0)" @onclick="PlayNextAll">Play next</button>
+        <button class="btn" disabled="@(selected.Count == 0)" @onclick="QueueAll">Add to queue</button>
+        @if (Session.Playlists.Count > 0)
+        {
+            <span class="select-pl">
+                <button class="btn" disabled="@(selected.Count == 0)" aria-haspopup="menu" aria-expanded="@(plMenu ? "true" : "false")" @onclick="() => plMenu = !plMenu">Add to playlist</button>
+                @if (plMenu) { <span class="menu" role="menu">@foreach (var p in Session.Playlists) { <button role="menuitem" @onclick="() => ToPlaylist(p)">@p.Name</button> }</span> }
+            </span>
+        }
+        <button class="btn ghost" @onclick="StopSelecting">Cancel</button>
+    </section>
+}
 @code {
     [Parameter] public IReadOnlyList<Track> Tracks { get; set; } = [];
     [Parameter] public bool Numbered { get; set; }
@@ -64,6 +87,31 @@
     /// <summary>Set on a playlist page: move the song at the first index to the second.</summary>
     [Parameter] public Action<int, int>? OnMove { get; set; }
     int menu = -1, hiAsk = -1;
+
+    // ---- choosing several songs: Select in a menu (or a Shift-click) starts it; a tap then ticks or unticks a row ----
+    bool selecting, plMenu;
+    readonly SortedSet<int> selected = [];
+    List<Track> Chosen() => selected.Where(i => i < Tracks.Count).Select(i => Tracks[i]).ToList();
+    static string Songs(int n) => n == 1 ? "1 song" : n + " songs";
+    void StartSelecting(int idx) { selecting = true; selected.Clear(); selected.Add(idx); }
+    void StopSelecting() { selecting = false; plMenu = false; selected.Clear(); }
+    void Pick(int idx) { if (!selected.Remove(idx)) selected.Add(idx); }
+    Task Main(MouseEventArgs e, int idx)
+    {
+        if (selecting) { Pick(idx); return Task.CompletedTask; }
+        if (e.ShiftKey) { StartSelecting(idx); return Task.CompletedTask; }
+        return Go(idx);
+    }
+    void PlayNextAll() { var l = Chosen(); for (var k = l.Count - 1; k >= 0; k--) Player.PlayNext(l[k]); Toast.Show(Songs(l.Count) + " play next"); StopSelecting(); }
+    void QueueAll() { var l = Chosen(); foreach (var t in l) Player.AddToQueue(t); Toast.Show("Added " + Songs(l.Count) + " to the queue"); StopSelecting(); }
+    void ToPlaylist(Playlist p)
+    {
+        var l = Chosen(); var added = 0;
+        foreach (var t in l) if (Session.AddToPlaylist(p.Id, t) == UserSession.PlaylistAdd.Added) added++;
+        SaveProfile();
+        Toast.Show(added == l.Count ? $"Added {Songs(added)} to {p.Name}" : $"Added {Songs(added)} to {p.Name} ({l.Count - added} already there)");
+        StopSelecting();
+    }
     [Inject] IDownloads Downloads { get; set; } = default!;
     [Inject] Toasts Toast { get; set; } = default!;
     [Inject] IJSRuntime Js { get; set; } = default!;

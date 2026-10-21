@@ -406,6 +406,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     }
 
     fun applyModes() {
+        // turning shuffle on mid-song: a fresh order with the song playing first, so every other song is still to come
+        // (the player's old shuffle order could have put it near the end, leaving only a few songs before playback stopped)
+        if (prefs.shuffle && !exo.shuffleModeEnabled && exo.mediaItemCount > 1) setShuffleOrderQuiet(ShuffleStart.order(exo.currentMediaItemIndex, exo.mediaItemCount))
         exo.shuffleModeEnabled = prefs.shuffle
         exo.repeatMode = when (prefs.repeat) {
             1 -> Player.REPEAT_MODE_ALL
@@ -939,4 +942,10 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         ).filterValues { it != null }.mapValues { it.value!! }
         val EQ_NAMES: List<String> = listOf("Off") + EQ_PRESETS.keys.sorted()
     }
+}
+
+/** The shuffle order used when shuffle is turned on mid-song: the song playing first, the rest in a random order. */
+object ShuffleStart {
+    fun order(current: Int, count: Int, random: kotlin.random.Random = kotlin.random.Random.Default): IntArray =
+        intArrayOf(current.coerceIn(0, count - 1)) + (0 until count).filter { it != current.coerceIn(0, count - 1) }.shuffled(random).toIntArray()
 }

@@ -12,7 +12,16 @@ Updated after every step, so another session can take over at any point. Newest 
 - **Done since:** the Windows installer builds again (`ipodsync/tools/build-installer.ps1 -Out <folder>`, ~4 min, needs the maui-windows workload);
   `FLACie-0.88.0-windows-x64.msi` (111 MB) is attached to the beta 88 release. It was built, not installed: a clean install on Windows is still
   the owner's check. Add the MSI to every release from now on (step 5b of the recipe).
-- **Next candidates:** release-candidate prep (CHANGELOG 81-88 from docs/private/release-bodies, version wording for 1.0) → anything the owner reports.
+- **Changelog** is up to date through beta 88 (generated from docs/private/release-bodies; keep adding each release).
+- **What is left for 1.0 is mostly the owner's** (below). Everything on the plan's Foundations / Flows / Parity / accessibility / budget lists that can be
+  built and tested here is done and released. Next session: ask the owner for the by-hand results, fix what they find, and release betas until they
+  are happy; then 1.0 itself.
+
+## The 1.0 release itself (when the owner says go)
+
+- Versions: Android versionName "1.0" (versionCode +1), Windows ApplicationDisplayVersion 1.0.0; the GitHub release `v1.0.0` is NOT a pre-release
+  (`gh release create v1.0.0 --latest ...`), with the APK and the MSI; web deployed as usual with a rollback tag.
+- Release notes: a short "what FLACie is" for new people plus the changes since the last beta.
 
 ## Waiting on the owner (do not do without them)
 

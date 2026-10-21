@@ -1078,7 +1078,12 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
         if (tracks.isEmpty() && missing.isEmpty()) {
             // an emptied playlist keeps its Play / Rename / Delete buttons (the only way to rename or delete it from its own page)
             if (userId != null) Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) { DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel) }
-            Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState(if (d.kind == DetailKind.FAVORITES) "Tap the heart on a song to add it here" else "Nothing here yet") }
+            Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState(when (d.kind) {
+                DetailKind.FAVORITES -> "Tap the heart on a song to add it here"
+                DetailKind.RECENT -> "Songs you play show up here"
+                DetailKind.DOWNLOADS -> "Songs you download show up here. Search for something you don't have yet to get it"
+                else -> "Nothing in this playlist yet. Use a song's menu and pick Add to playlist"
+            }) }
             return@Column
         }
         BoxWithConstraints(Modifier.fillMaxSize()) {

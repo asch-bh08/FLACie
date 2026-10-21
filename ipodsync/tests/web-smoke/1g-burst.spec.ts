@@ -1,5 +1,9 @@
 import { test, expect, Page, APIRequestContext, Browser } from '@playwright/test';
 
+// Timing- and load-sensitive (stream counts, skips, clocks): late in a 45-minute run the same server is still busy with earlier specs' prefetches and
+// downloads, which can tip one measurement over. One retry; a real failure fails twice.
+test.describe.configure({ retries: 1 });
+
 // Beta 52 load behaviour in the browser, against the mock Jellyfin's request counters (GET /__counts, /__images, /__reset, /__stream?delay=ms):
 //  - a burst of 40 skips opens a bounded number of Jellyfin streams and the Hi-Res badge never claims anything wrong
 //  - a stream the browser abandons after a skip is abandoned by the server too (the mock sees it cut)

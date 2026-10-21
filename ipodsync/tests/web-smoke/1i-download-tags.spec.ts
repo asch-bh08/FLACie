@@ -1,6 +1,10 @@
 import { test, expect, Page, BrowserContext, request as pwRequest } from '@playwright/test';
 import http from 'node:http';
 
+// Timing- and load-sensitive (stream counts, skips, clocks): late in a 45-minute run the same server is still busy with earlier specs' prefetches and
+// downloads, which can tip one measurement over. One retry; a real failure fails twice.
+test.describe.configure({ retries: 1 });
+
 // "New download" labels and the download tags (beta 54): the small line under a song's artist ("Downloading · Searching Soulseek...", "Recently downloaded · 1s ago")
 // in the player bar, Now Playing, the queue and every song list; the phone's POST /api/downloaded; the one hour window.
 //

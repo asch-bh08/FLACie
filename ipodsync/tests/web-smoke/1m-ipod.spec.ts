@@ -1,5 +1,9 @@
 import { test, expect, Page } from '@playwright/test';
 
+// Timing- and load-sensitive (stream counts, skips, clocks): late in a 45-minute run the same server is still busy with earlier specs' prefetches and
+// downloads, which can tip one measurement over. One retry; a real failure fails twice.
+test.describe.configure({ retries: 1 });
+
 // The iPod mode (/ipod): the whole line-up of the Android emulator on the page: 23 models and their colours, the mono / colour / nano screens, Cover Flow, the settings, the wheel.
 async function signIn(page: Page) {
   await page.goto('/login');

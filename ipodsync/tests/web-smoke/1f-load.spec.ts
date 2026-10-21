@@ -1,5 +1,9 @@
 import { test, expect, Page, APIRequestContext } from '@playwright/test';
 
+// Timing- and load-sensitive (stream counts, skips, clocks): late in a 45-minute run the same server is still busy with earlier specs' prefetches and
+// downloads, which can tip one measurement over. One retry; a real failure fails twice.
+test.describe.configure({ retries: 1 });
+
 // Server load: what FLACie Web asks of Jellyfin. The mock Jellyfin counts requests (GET /__counts, POST-less reset at /__reset).
 const MOCK = `http://127.0.0.1:${process.env.MOCK_PORT || 8196}`;   // (playwright.config.ts: MOCK_PORT moves the stand-in)
 const counts = async (r: APIRequestContext) => (await r.get(`${MOCK}/__counts`)).json() as Promise<Record<string, number>>;

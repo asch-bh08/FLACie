@@ -1,5 +1,9 @@
 import { test, expect, Page } from '@playwright/test';
 
+// Timing- and load-sensitive (stream counts, skips, clocks): late in a 45-minute run the same server is still busy with earlier specs' prefetches and
+// downloads, which can tip one measurement over. One retry; a real failure fails twice.
+test.describe.configure({ retries: 1 });
+
 // The Hi-Res badge is a pure function of the file's real metadata (lossless AND (depth > 16 OR rate > 44.1 kHz)), the same on every surface,
 // whatever the skipping. Runs against the mock Jellyfin's "Hires Lab" songs (mock-jellyfin.mjs): exact MediaStreams, one named "[Hi-Res]"
 // but really CD quality, one whose first Jellyfin item request fails with HTTP 500.

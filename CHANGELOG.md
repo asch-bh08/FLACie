@@ -2,6 +2,128 @@
 
 Every release, newest first (generated from the GitHub release notes; the downloads stay on each release page). The newest build is marked Latest. Versions up to 0.9.x were called ipodplayer.
 
+## v1.0.0-beta78
+
+**Accessibility (the 1.0 bar)**
+- Every main page and the full-screen player pass automated WCAG 2.1 AA checks on a phone and a PC.
+- Text on cover colours turns dark or white so it can always be read.
+- With the system's "reduce motion" setting on, nothing animates.
+- Every keyboard stop shows where the focus is.
+
+**Web**
+- Choose several songs at once: Select in a song's menu, or Shift-click a row. Then Play next, Add to queue or Add to a playlist.
+- Share on album, artist and genre pages: your phone's share sheet, or the link is copied on a PC.
+- Settings: the 1.0 group names, and a Find a setting box.
+- A test now checks the page's memory stays under the 1.0 limit of 300 MB. It uses about 10 MB.
+
+**Android**
+- Choose several songs at once: Select in a song's menu, then tap to tick more.
+- Sign-in finds Jellyfin servers on your home network; tap one to fill in the address.
+- Offline downloads: Pause downloads.
+- Settings: the same group names as the web.
+
+## v1.0.0-beta77
+
+**Web**
+- After a server update the page reloads by itself, and a song that was playing carries on from where it was.
+- Errors are in plain words: sign-in, settings, import and the admin pages say what went wrong and what to try.
+- Up next: removing a song offers Undo, and Save turns the queue into a new playlist.
+- Search: your recent searches show as chips when nothing is typed. They're kept with your account.
+- Keyboard: / jumps to search, and ? lists the shortcuts.
+- Home: a short one-time welcome.
+
+**Android**
+- Up next: Save turns the queue into a playlist, and clearing Up next offers Undo.
+- Search: recent searches.
+- Retro: shuffle and repeat stay in step with the app both ways. Now Playing opens by itself only once, when Retro starts.
+
+## v1.0.0-beta76
+
+- Player: the Options and Retro buttons sit at the right edge of the top bar again.
+- Seek frame: the bars fill in round the cover as the song downloads, instead of appearing all at once at the end.
+- Retro: lyrics work. The Retro screen's web requests now go through the app.
+
+## v1.0.0-beta75
+
+**Android**
+- Retro: "Now Playing" now appears for the song already playing, and your playlists and favourites are in the iPods' menus. If the library is still loading when Retro opens, it fills in once it's ready.
+- Bottom bar: four roomy tabs (Home, Search, Library, Devices). Library holds Favourites, Playlists, Jam and the rest of your collection.
+- Player: Lyrics and Info open as a card the size of the album art. The title, the controls and a seek line with the time at each end stay on screen.
+
+**Web**
+- Retro: "Now Playing" appears as soon as a song starts.
+
+## v1.0.0-beta74
+
+**Android**
+- Player: the old sideways panes are back (Lyrics, cover, Info, Up next), restyled in the new look.
+- Bottom row: five equal buttons with More in the middle (Lyrics, Up next, More, Info, Add to playlist).
+- More and Options menus are clean sheets.
+- Covers show instantly from any smaller copy.
+- The seek frame shows straight away and stays still, with no live VU. Its start and end blend at 12 o'clock.
+- Fixed a garbled dot in Up next rows.
+
+**Web**
+- Full-screen player: one now-playing bar along the bottom (heart, More, rating, speed and sleep, volume). The controls sit centred above it.
+- Player bar: the controls are centred over the seek bar, with the time at each end.
+- The ☰ button folds the side menu to icons and remembers it.
+- Seek frame: rough shapes come from the server straight away, and the ends blend.
+
+## v1.0.0-beta73
+
+**Android, redone to match the web**
+- Every screen follows its web counterpart: Home (cover across the top, greeting, Shuffle all, moods), Search (with Explore and Songs/Albums/Artists/Genres chips), the bottom bar (Home, Search, Favourites, Playlists, Devices, Jam), album and artist pages (big cover in its own colours, serif title, facts line, Play and Shuffle), Playlists (New playlist / Create / Import), Settings (the web's sections, with chips to jump to each), the Dashboard's number tiles.
+- Now Playing: the seek bar is a frame of the song's loudness round the cover; press or drag on it to seek, tap the cover to play or pause. Play is a rounded square between the previous and next pills, the time under the frame.
+- Info is one tap away (Lyrics, Up next, Info, More), rebuilt like the web's: the live graph first (spectrum, visualizer, spectrogram, loudness, stereo, bit rate), then the file's facts.
+- Every feature of the old screens has a button or menu entry: rating, speed, sleep timer, sound/EQ, heart, add to playlist, play next, add to queue, download, go to album or artist, share, song info, lyrics, Jam, Devices, Retro, queue editing, Autoplay, shuffle and repeat. Explore is a chip on Search and Settings a gear on Home.
+
+**Web**
+- On a phone, the seek bar is now the same frame round the cover as on a PC, with the time under it, and an Info button beside Lyrics and Up next.
+- A song row's menu opens above the player bar near the bottom of the window (it used to open behind it).
+
+**The seek bar's shape, fixed**
+- Shapes now show the song's rises and falls even on loudly mastered songs (each song's shape is stretched between its own quiet and loud parts).
+- The server works out a rough shape for any FLAC song nobody has measured yet, so phones get one at once; a computer that plays the song replaces it with the exact one.
+- Android: the app read the decoded sound in the wrong byte order (every song looked like noise, so the bars were flat) and asked the server for shapes without signing in. Both fixed; the app also uses the server's shapes and sends back the ones it works out.
+- The stereo graph no longer collapses to a dot at a low volume.
+
+**Tested**
+- Web: the full browser test suite, 445 passed; the 2 that failed (and the 12 after them in their groups) were made reliable and pass. .NET unit tests 714/714. Rough shapes checked against the real library (0.5 to 2.4 s the first time, then kept).
+- Android: all unit tests pass; the release APK on the emulator: 23/23 smoke checks (sign-in, 10,000-song library, scrolling, playing, a 40-skip burst, pause, the queue after a relaunch, Settings > Storage, Up next editing, no crash or ANR).
+
+**Not tested**
+- The Android app on a real phone, and on a tablet-sized screen.
+- The Windows app (no new MSI; version bumped to 0.73.0 for the next one).
+
+## v1.0.0-beta72
+
+The whole app has a new look ("design I"), on the web and in the Android app. Nothing was removed; some things moved.
+
+**New look**
+- The full-screen player: on a phone the cover runs across the top and fades into its own colours, with a serif title (last word in italics), a ring seek bar (the song's own loudness round the play button) and outlined Lyrics / Up next buttons. On a PC: two halves, the cover framed by the seek bar on the left, Up next / Lyrics / Info on the right.
+- The Info tab: the graph first (spectrum, visualizer, spectrogram, loudness, stereo, bit rate, all redrawn in the cover's colours), then the file's facts in one card.
+- Home: the last song's cover across the top, a greeting, Shuffle all, mood chips and serif shelves.
+- Search, browsing, album, artist and genre pages, playlists, favourites, settings, account, dashboard and login all match.
+- The player bar takes the playing cover's colours; on a phone it is a floating mini player (play and next; the rest is in the full-screen player).
+- The seek bar's shape for the next two songs is prepared while one plays (not on mobile data), so it appears at once.
+
+**Moved**
+- Explore is now part of Search (an empty Search shows what Explore did; /explore still works).
+- Import is a button on the Playlists page.
+- Downloads is in the Dashboard, for administrators.
+
+**Fixed**
+- Songs that finished downloading at the same moment could drop out of the library (seen as an Autoplay suggestion vanishing from Up next).
+- Letters typed into the search box just after a page loaded were lost.
+
+**Tested**
+- Web: the full browser test suite: 444 passed, 3 failed, 12 did not run (they come after a failure in the same group). The 3 that failed and the 12 passed when rerun on their own (load-sensitive tests; the Android build was running at the same time). .NET unit tests 712/712.
+- Android: 443 unit tests; one load-sensitive cover-file test failed while the web tests ran and passed 3/3 on its own. The new screens were checked on an emulator.
+
+**Not tested**
+- The Android app on a real phone.
+- The Windows app (no new MSI in this release; it uses the same web code, so the next Windows build gets the new look).
+
 ## v1.0.0-beta71
 
 Beta 71 (Android 86, MSI 0.71.0, FLACie Web 1.0-beta71). Still a beta, not a 1.0 final.

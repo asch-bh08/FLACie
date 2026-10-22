@@ -129,7 +129,8 @@ class AccountSync(private val app: App) {
 
     /** Pull + merge + push. Run at sign-in, at app start, and from Settings > Account > Sync now. */
     /** [background]: the sync at launch is nobody's wait, so its requests queue behind everything the screen is asking for (the covers). */
-    fun sync(background: Boolean = false) { if (prefs.signedIn) run("Syncing...") { if (background) kotlinx.coroutines.withContext(BackgroundWork) { syncNow() } else syncNow() } }
+    /** The one at launch tries again after 20 s, 1 min and 3 min: the covers can crowd it out at first (SyncRetry). */
+    fun sync(background: Boolean = false) { if (prefs.signedIn) run("Syncing...") { if (background) kotlinx.coroutines.withContext(BackgroundWork) { SyncRetry.attempt(listOf(20_000L, 60_000L, 180_000L)) { syncNow() } } else syncNow() } }
 
     private object BackgroundWork : kotlin.coroutines.AbstractCoroutineContextElement(Key) { object Key : kotlin.coroutines.CoroutineContext.Key<BackgroundWork> }
 

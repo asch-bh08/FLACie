@@ -12,6 +12,11 @@ Updated after every step, so another session can take over at any point. Newest 
 - **Done since:** the Windows installer builds again (`ipodsync/tools/build-installer.ps1 -Out <folder>`, ~4 min, needs the maui-windows workload);
   `FLACie-0.88.0-windows-x64.msi` (111 MB) is attached to the beta 88 release. It was built, not installed: a clean install on Windows is still
   the owner's check. Add the MSI to every release from now on (step 5b of the recipe).
+- **2026-10-22 phone checks (owner's Fold7 over wireless adb, beta 88):** Retro Now Playing and menus fine; screen-reader labels fine.
+  Bug found and fixed (committed, not released yet): the launch sync failed once and never retried, so Playlists/Favourites showed 0 and Retro
+  said None. `SyncRetry` now retries it; verified on the phone (10 playlists). Also checked on the phone, all fine: seek frame filling in,
+  sharing (link /s/…), multi-select. Beta 89 (versionCode 104, Windows 0.89.0/74) being released with this fix; web unchanged, not redeployed.
+  Small gaps for a later beta: the phone's select bar has no Share (the web's does), and its Cancel chip is off-screen until the bar is scrolled.
 - **Changelog** is up to date through beta 88 (generated from docs/private/release-bodies; keep adding each release).
 - **What is left for 1.0 is mostly the owner's** (below). Everything on the plan's Foundations / Flows / Parity / accessibility / budget lists that can be
   built and tested here is done and released. Next session: ask the owner for the by-hand results, fix what they find, and release betas until they

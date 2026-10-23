@@ -41,16 +41,8 @@ public partial class MainPage : ContentPage
 	}
 #endif
 
+	// Retro is not a tab up here any more: the player has it in its own bar and menu, and this tab sent the view to Retro with no way back (FLACie stayed on it)
 	void OnFlacieClicked(object? sender, EventArgs e) => _ = ShowAsync(true);
-	/// <summary>A shortcut to the player's Retro page (iPods, a desk, listening scenes): the FLACie view, opened on /retro.</summary>
-	void OnRetroClicked(object? sender, EventArgs e) => _ = ShowRetroAsync();
-	async Task ShowRetroAsync()
-	{
-		await ShowAsync(true);
-#if WINDOWS
-		if (Platforms.Windows.FlacieHost.BaseUrl is { } baseUrl) flacieView.Source = new Uri(baseUrl, "retro");
-#endif
-	}
 
 	void OnIpodClicked(object? sender, EventArgs e) => _ = ShowAsync(false);
 

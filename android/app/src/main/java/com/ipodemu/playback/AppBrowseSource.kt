@@ -14,6 +14,10 @@ class AppBrowseSource(private val app: App) : BrowseSource {
     override fun downloaded(): List<Track> = app.offline.entries.filter { it.state == OfflineState.DONE }.map { it.toTrack() }
     override fun playlists(): List<Pair<String, String>> { val hidden = app.prefs.hiddenPlaylists; return app.userData.playlists.toList().filter { it.id !in hidden }.map { it.id to it.name } }
     override fun playlistTracks(id: String): List<Track> = app.userData.playlists.toList().firstOrNull { it.id == id }?.let { resolve(it.paths.toList()) } ?: emptyList()
+    override fun playlistSummary(id: String): Pair<Int, String?> = app.userData.playlists.toList().firstOrNull { it.id == id }?.let { pl ->
+        val paths = pl.paths.toList(); paths.size to paths.asSequence().take(5).firstNotNullOfOrNull { app.library.resolve(it, app.userData.meta[it])?.artKey }
+    } ?: (0 to null)
+    override fun allSongs(): List<Track> = app.library.songs()
     override fun albums(): List<Group> = app.library.albums()
     override fun artists(): List<Group> = app.library.artists()
     override fun search(query: String): List<Track> {

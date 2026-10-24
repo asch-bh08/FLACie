@@ -21,6 +21,8 @@ import com.ipodemu.App
 import com.ipodemu.R
 import com.ipodemu.ui.MainActivity
 import java.util.concurrent.Executors
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Makes the app a proper Android media player: a MediaSession (lock screen, quick-settings media card, Bluetooth and
@@ -50,9 +52,22 @@ class PlaybackService : MediaLibraryService() {
         val md = MediaMetadata.Builder().setTitle(n.title).setIsBrowsable(n.browsable).setIsPlayable(n.playable)
             .setMediaType(if (n.browsable) MediaMetadata.MEDIA_TYPE_FOLDER_MIXED else MediaMetadata.MEDIA_TYPE_MUSIC)
         n.subtitle?.let { md.setSubtitle(it); if (!n.browsable) md.setArtist(it) }
-        ArtProvider.uri(n.artKey)?.let { md.setArtworkUri(it) }
+        (ArtProvider.uri(n.artKey) ?: n.icon?.let { android.net.Uri.parse("android.resource://$packageName/drawable/$it") })?.let { md.setArtworkUri(it) }
+        // what the car draws: this folder's contents as big covers or a list, the heading a row sits under, and a tick on a song kept on the phone
+        val extras = Bundle()
+        if (n.browsable) { extras.putInt(STYLE_BROWSABLE, if (n.grid) STYLE_GRID else STYLE_LIST); extras.putInt(STYLE_PLAYABLE, STYLE_LIST) }
+        n.group?.let { extras.putString(STYLE_GROUP, it) }
+        if (n.offline) extras.putLong(DOWNLOAD_STATUS, 2L)
+        md.setExtras(extras)
         return MediaItem.Builder().setMediaId(n.id).setMediaMetadata(md.build()).build()
     }
+
+    /** For the whole tree: songs as a list with covers, folders as a list unless they say otherwise, and search on. */
+    private fun rootParams(): LibraryParams = LibraryParams.Builder().setExtras(Bundle().apply {
+        // without CONTENT_STYLE_SUPPORTED the car ignores every hint (albums and playlists came out as plain lists)
+        // folders as covers by default (the car took no notice of the hint on the Albums and Playlists tabs themselves); Home asks for a list on its own item
+        putBoolean(STYLE_SUPPORTED, true); putInt(STYLE_BROWSABLE, STYLE_GRID); putInt(STYLE_PLAYABLE, STYLE_LIST); putBoolean(SEARCH_SUPPORTED, true)
+    }).build()
 
     private val library = object : MediaLibrarySession.Callback {
         override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
@@ -72,7 +87,7 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun onGetLibraryRoot(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, params: LibraryParams?): ListenableFuture<LibraryResult<MediaItem>> =
-            Futures.immediateFuture(LibraryResult.ofItem(nodeItem(BrowseNode(BrowseTree.ROOT, "FLACie", null, browsable = true, playable = false, artKey = null)), params))
+            Futures.immediateFuture(LibraryResult.ofItem(nodeItem(BrowseNode(BrowseTree.ROOT, "FLACie", null, browsable = true, playable = false, artKey = null)), rootParams()))
 
         override fun onGetChildren(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, parentId: String, page: Int, pageSize: Int, params: LibraryParams?): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> =
             async {
@@ -126,7 +141,25 @@ class PlaybackService : MediaLibraryService() {
         // the heart and the speed label follow the song and the speed
         unobserve = app.player.observe { refreshLayout(force = false) }
         refreshLayout(force = true)
+        // the car keeps the lists it was first given: when the library or the account's lists change (loaded after the car connected, a sync, a new favourite) it is
+        // told to look again, at most once a second (a library load changes it many times)
+        val unLib = app.library.observe { listsChanged() }
+        // only the phone's screens used to load the library: a car that woke FLACie on its own had nothing to show. It loads here too (a second start while
+        // it is loading does nothing)
+        app.library.start()
+        val revs = scope.launch { androidx.compose.runtime.snapshotFlow { app.userData.rev }.collect { listsChanged() } }
+        val unPlayer = unobserve
+        unobserve = { unPlayer?.invoke(); unLib(); revs.cancel() }
     }
+
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private val tellCar = Runnable {
+        val s = session ?: return@Runnable
+        val src = AppBrowseSource(App.of(this))
+        io.execute { for (id in BrowseTree.LIVE) { val n = try { BrowseTree.children(id, 0, BrowseTree.MAX_PAGE, src).size } catch (_: Exception) { 0 }; s.notifyChildrenChanged(id, n, null) } }
+    }
+    private fun listsChanged() { main.removeCallbacks(tellCar); main.postDelayed(tellCar, 1000) }
 
     private fun layout(): ImmutableList<CommandButton> {
         val app = App.of(this)
@@ -166,6 +199,7 @@ class PlaybackService : MediaLibraryService() {
 
     override fun onDestroy() {
         unobserve?.invoke(); unobserve = null
+        main.removeCallbacks(tellCar); scope.cancel()
         session?.release()
         session = null
         io.shutdown()
@@ -175,5 +209,13 @@ class PlaybackService : MediaLibraryService() {
     companion object {
         const val CMD_FAVORITE = "com.ipodemu.FAVORITE"
         const val CMD_SPEED = "com.ipodemu.SPEED"
+        // Android Auto's content-style hints (the keys of androidx.media.utils.MediaConstants)
+        private const val STYLE_BROWSABLE = "android.media.browse.CONTENT_STYLE_BROWSABLE_HINT"
+        private const val STYLE_PLAYABLE = "android.media.browse.CONTENT_STYLE_PLAYABLE_HINT"
+        private const val STYLE_GROUP = "android.media.browse.CONTENT_STYLE_GROUP_TITLE_HINT"
+        private const val STYLE_SUPPORTED = "android.media.browse.CONTENT_STYLE_SUPPORTED"
+        private const val STYLE_LIST = 1; private const val STYLE_GRID = 2
+        private const val SEARCH_SUPPORTED = "android.media.browse.SEARCH_SUPPORTED"
+        private const val DOWNLOAD_STATUS = "android.media.extra.DOWNLOAD_STATUS"
     }
 }

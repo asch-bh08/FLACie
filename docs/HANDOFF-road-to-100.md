@@ -17,6 +17,16 @@ Updated after every step, so another session can take over at any point. Newest 
   said None. `SyncRetry` now retries it; verified on the phone (10 playlists). Also checked on the phone, all fine: seek frame filling in,
   sharing (link /s/…), multi-select. Beta 89 (versionCode 104, Windows 0.89.0/74) being released with this fix; web unchanged, not redeployed.
   Small gaps for a later beta: the phone's select bar has no Share (the web's does), and its Cancel chip is off-screen until the bar is scrolled.
+- **2026-10-24, beta 90 in progress:** committed: bar buttons no longer overlap (1z-bar-fit), Windows app's extra Retro tab removed. Fresh Windows app
+  tested with the owner's real library (Quick Connect, FLACIE_DATA in scratch): lyrics, VU ring, no freezing all fine. Android Auto tested on the
+  Desktop Head Unit (`%LOCALAPPDATA%\Android\Sdk\extras\google\auto\desktop-head-unit.exe`, `adb forward tcp:5277 tcp:5277`, owner starts the head
+  unit server; start the DHU with Start-Process, not from bash). Bug: the car kept "No items" when it connected before FLACie had loaded; fix written
+  (PlaybackService tells the car to reload BrowseTree.LIVE on library/userData change), not yet built/tested: run after the web suite.
+  Root cause found: `library.start()` was only called by MainActivity/IpodView, so a car-only start never loaded the library; PlaybackService now
+  calls it. Owner asked for a much better Android Auto look: BrowseTree reshaped (tabs Home/Playlists/Albums/Artists with icons `drawable/ic_car_*`,
+  Home = Shuffle all + Favourites/Downloaded + 12 recent songs under headings, grids of covers, playlist covers + "N songs", "artist · album",
+  downloaded tick) with tests in BrowseTreeTest (written first, not yet run). Check on the DHU with FLACie force-stopped.
+  Open: pressing Play on a Home "Listen again" card started a different song (Price Tag -> I Gotta Feeling), not investigated.
 - **Changelog** is up to date through beta 88 (generated from docs/private/release-bodies; keep adding each release).
 - **What is left for 1.0 is mostly the owner's** (below). Everything on the plan's Foundations / Flows / Parity / accessibility / budget lists that can be
   built and tested here is done and released. Next session: ask the owner for the by-hand results, fix what they find, and release betas until they

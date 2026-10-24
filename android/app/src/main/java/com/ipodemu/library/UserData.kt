@@ -26,6 +26,8 @@ class UserData(ctx: Context) {
     val favGone = ArrayList<FavoriteSync.Fav>()
     val playlists = ArrayList<UserPlaylist>()
     val recents = ArrayList<String>() // newest first
+    /** When each recent song was last started (ms): the history shared with FLACie Web merges by it (HistorySync). */
+    val recentAt = HashMap<String, Long>()
     /** Finished downloads, newest first: what was asked for and, for a Soulseek file, the path it plays from. */
     val downloads = ArrayList<DownloadEntry>()
     /** How many times each track has been started; feeds the recommendations. */
@@ -83,7 +85,7 @@ class UserData(ctx: Context) {
 
     fun recordPlay(path: String) {
         plays[path] = (plays[path] ?: 0) + 1
-        recents.remove(path); recents.add(0, path)
+        recents.remove(path); recents.add(0, path); recentAt[path] = System.currentTimeMillis()
         while (recents.size > 120) recents.removeAt(recents.lastIndex)
         changed(sync = false)
     }
@@ -245,9 +247,22 @@ class UserData(ctx: Context) {
      * next person's sign-in merged it into their own account.
      */
     fun clearPersonal() {
-        favorites.clear(); favAt.clear(); favGone.clear(); playlists.clear(); recents.clear(); downloads.clear(); plays.clear(); meta.clear()
+        favorites.clear(); favAt.clear(); favGone.clear(); playlists.clear(); recents.clear(); recentAt.clear(); downloads.clear(); plays.clear(); meta.clear()
         deletedPlaylists.clear(); deletedPlaylistJf.clear(); ratings.load(null)
         favStates.values.forEach { it.value = false }
+        changed(sync = false)
+    }
+
+    /** The phone's plays, with titles and when, for merging with the account's history. A play from before times were kept counts as just older than the oldest timed one. */
+    fun history(): List<HistorySync.Entry> {
+        val oldest = recentAt.values.minOrNull() ?: 0L
+        return recents.toList().mapIndexed { i, p -> val m = meta[p]; HistorySync.Entry(p, m?.first.orEmpty(), m?.second.orEmpty(), recentAt[p] ?: (oldest - 1 - i)) }
+    }
+
+    /** Recently Played becomes the merged history (newest first); the titles are kept so a song from the web resolves here. */
+    fun setHistory(merged: List<HistorySync.Entry>) {
+        recents.clear(); recentAt.clear()
+        for (e in merged.take(120)) { recents.add(e.p); recentAt[e.p] = e.w; if (e.t.isNotEmpty() && e.p !in meta) meta[e.p] = e.t to e.a }
         changed(sync = false)
     }
 
@@ -263,6 +278,7 @@ class UserData(ctx: Context) {
             o.optJSONArray("favgone")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { g -> favGone.add(FavoriteSync.Fav(g.optString("p"), g.optString("t"), g.optString("a"), g.optLong("w"))) } }
             o.optJSONObject("plays")?.let { p -> p.keys().forEach { k -> plays[k] = p.optInt(k) } }
             o.optJSONArray("recent")?.let { a -> for (i in 0 until a.length()) recents.add(a.getString(i)) }
+            o.optJSONObject("recentat")?.let { m -> m.keys().forEach { k -> recentAt[k] = m.optLong(k) } }
             o.optJSONArray("dl")?.let { a -> for (i in 0 until a.length()) a.getJSONObject(i).let { d -> downloads.add(DownloadEntry(d.optString("a"), d.optString("t"), d.optString("al"), d.optString("p"), d.optLong("w"), d.optString("s"))) } }
             o.optJSONObject("meta")?.let { m -> m.keys().forEach { k -> m.optJSONArray(k)?.let { v -> meta[k] = v.optString(0) to v.optString(1) } } }
             o.optJSONArray("deleted")?.let { a -> for (i in 0 until a.length()) deletedPlaylists.add(a.getString(i)) }
@@ -295,6 +311,7 @@ class UserData(ctx: Context) {
                     o.put("favgone", JSONArray().also { a -> favGone.toList().forEach { g -> a.put(JSONObject().put("p", g.p).put("t", g.t).put("a", g.a).put("w", g.w)) } })
                     o.put("ratings", ratings.toJson())
                     o.put("recent", JSONArray(recents.toList()))
+                    o.put("recentat", JSONObject().also { m -> recentAt.toMap().forEach { (k, v) -> m.put(k, v) } })
                     o.put("dl", JSONArray().also { a -> downloads.toList().forEach { d -> a.put(JSONObject().put("a", d.artist).put("t", d.title).put("al", d.album).put("p", d.path).put("w", d.time).put("s", d.source)) } })
                     o.put("plays", JSONObject().also { p -> plays.toMap().forEach { (k, v) -> p.put(k, v) } })
                     o.put("lists", JSONArray().also { a -> playlists.forEach { a.put(JSONObject().put("id", it.id).put("n", it.name).put("p", JSONArray(it.paths.toList())).put("m", it.mtime).put("jf", it.jfId ?: "")) } })

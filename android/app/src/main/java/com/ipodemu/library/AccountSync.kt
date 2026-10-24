@@ -266,6 +266,11 @@ class AccountSync(private val app: App) {
             .put("playlists", lists)
             .put("deleted", JSONArray(ud.deletedPlaylists.toList()))
             .put("hidden", JSONArray(p.hiddenPlaylists.toList()))
+            // the phone's plays go up into the shared history too (merged with what the web last wrote, so neither side's plays are lost)
+            .put("history", JSONArray().also { a ->
+                val remote = lastRemote?.optJSONArray("history")?.let { h -> List(h.length()) { h.optJSONObject(it) }.filterNotNull().map { HistorySync.Entry(it.optString("p"), it.optString("t"), it.optString("a"), it.optLong("w")) } } ?: emptyList()
+                HistorySync.merge(ud.history(), remote).forEach { e -> a.put(JSONObject().put("p", e.p).put("t", e.t).put("a", e.a).put("w", e.w)) }
+            })
         // anything else in the shared profile (FLACie Web keeps the play history there) goes back as it was
         lastRemote?.let { r -> r.keys().forEach { k -> if (!built.has(k)) built.put(k, r.get(k)) } }
         return built
@@ -318,7 +323,13 @@ class AccountSync(private val app: App) {
         // old on-device playlists hidden on another install stay hidden here
         r.optJSONArray("hidden")?.let { a -> p.hiddenPlaylists = p.hiddenPlaylists + List(a.length()) { a.getString(it) } }
         val incomingRatings = app.userData.ratings.parse(r.optJSONArray("ratings"))
-        kotlinx.coroutines.withContext(Dispatchers.Main) { app.userData.mergeRemote(incomingFavs, incomingGone, incoming, deleted); app.userData.mergeRatings(incomingRatings) }
+        // the play history FLACie Web keeps: merged with this phone's plays, so Recently Played (and the car's) follows the account
+        val hist = r.optJSONArray("history") ?: JSONArray()
+        val incomingHistory = List(hist.length()) { hist.optJSONObject(it) }.filterNotNull().map { HistorySync.Entry(it.optString("p"), it.optString("t"), it.optString("a"), it.optLong("w")) }.filter { it.p.isNotEmpty() }
+        kotlinx.coroutines.withContext(Dispatchers.Main) {
+            app.userData.mergeRemote(incomingFavs, incomingGone, incoming, deleted); app.userData.mergeRatings(incomingRatings)
+            app.userData.setHistory(HistorySync.merge(app.userData.history(), incomingHistory))
+        }
         if (restored > 0) app.library.reconnectAll()
         return restored
     }

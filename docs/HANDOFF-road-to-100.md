@@ -3,7 +3,17 @@
 Updated after every step, so another session can take over at any point. Newest state first under "Now"; the night-by-night detail is in
 `docs/waves/log.md`, the plan in `docs/superpowers/specs/2026-10-19-road-to-1.0-ux-design.md`.
 
-## Now (2026-10-22)
+## Now (2026-10-25, night)
+
+- **Beta 90 released** (web on frank, rollback tag rollback-20261025-pre90; GitHub v1.0.0-beta90 with APK + MSI; Android versionCode 105).
+- **Working on beta 91: the owner's speed overhaul** (owner AFK overnight, release b91 if optimised): 3-4 s gap between songs, covers not
+  instant, Home 1-2 s, Listen again ~3 s with no VU, weak-signal / fast-skip / search smoothness, light on resources but never at
+  the cost of speed. Also: long lyric lines lose their last word. Measure first (loadtest tools), fix, measure again.
+- Android Automotive emulator `flacie_car` (Android 14 automotive x86_64) works for car testing: sign in to the mock at 10.0.2.2
+  (toggle Wi-Fi if no route), then `am start -a android.car.intent.action.MEDIA_TEMPLATE --es android.car.intent.extra.MEDIA_COMPONENT
+  com.ipodemu/com.ipodemu.playback.PlaybackService`. Screenshots need `-d <display id>` (dumpsys SurfaceFlinger --display-id).
+
+## Earlier (2026-10-22)
 
 - **Released:** beta 88 (web on frank, GitHub pre-release v1.0.0-beta88 with the APK, Android versionCode 103, Windows 0.88.0 / 73). Branch
   `ui/living-sleeve`, fast-forwarded to `main` at every release.

@@ -37,6 +37,8 @@ Updated after every step, so another session can take over at any point. Newest 
   Then: car search fixed (onSearch must notifySearchResultChanged; lists playlists/artists/albums first), voice plays a playlist/artist/
   album by exact name (BrowseTree.searchPlay, voiceId), and car list requests wait for library.loaded (notifyChildrenChanged did not
   refresh an open playlist). Voice not tried on the DHU (needs a microphone).
+  Then (owner: keep going with every feature; the phone will not be connected, use the emulator): CarBrowseTest added; car Shuffle/Repeat
+  buttons; Shuffle all / Play all / Shuffle rows now actually play (BrowseTree.isPlayId); Play on the car's card resumes last time's queue.
 - **Changelog** is up to date through beta 88 (generated from docs/private/release-bodies; keep adding each release).
 - **What is left for 1.0 is mostly the owner's** (below). Everything on the plan's Foundations / Flows / Parity / accessibility / budget lists that can be
   built and tested here is done and released. Next session: ask the owner for the by-hand results, fix what they find, and release betas until they
@@ -67,6 +69,9 @@ Updated after every step, so another session can take over at any point. Newest 
 3. `cd ipodsync && dotnet test tests/FLACie.Tests` (749; the Alexa 10k-song build test is timing-sensitive: run it on a quiet machine).
 4. Android: `cd android && JAVA_HOME="/c/Program Files/Eclipse Adoptium/jdk-17.0.20.101-hotspot" ./gradlew :app:testDebugUnitTest :app:assembleRelease`
 5. Emulator smoke (23/23): `powershell -NoProfile -File C:\FLACie-handoff\heavy.ps1 -Dir C:\FLACie\ipodsync\tools\loadtest -Cmd "powershell -NoProfile -File run-android.ps1 -Apk C:\FLACie\android\app\build\outputs\apk\release\app-release.apk -Label betaN -Driver smoke-android.mjs -Port 8297"`
+5a. Stand-in car (what Android Auto is given; emulator only, never the owner's phone): boot `flacie_phone`, then
+   `ANDROID_SERIAL=emulator-5554 ./gradlew :app:connectedDebugAndroidTest -PskipRetro` (CarBrowseTest, 8 checks). The emulator has no Android Auto
+   (no Play Store), so the Desktop Head Unit needs the owner's phone.
 5b. Windows installer: `cd ipodsync && powershell -NoProfile -File tools/build-installer.ps1 -Out <scratch folder>` → attach
    `FLACie-0.N.0-windows-x64.msi` to the release with the APK.
 6. Commit named files only (NEVER `git add` a directory: test data folders hold tokens and keys), check `git show --stat HEAD`, push the branch,

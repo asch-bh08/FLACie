@@ -49,7 +49,9 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun nodeItem(n: BrowseNode): MediaItem {
-        val md = MediaMetadata.Builder().setTitle(n.title).setIsBrowsable(n.browsable).setIsPlayable(n.playable)
+        // a folder with a cover (album, playlist, artist) is only opened, not played straight off: Android Auto draws a grid of covers only for folders that
+        // can't be played, and showed albums and playlists as plain lists before. Its songs still play (and queue the rest) from inside it; voice still plays it whole
+        val md = MediaMetadata.Builder().setTitle(n.title).setIsBrowsable(n.browsable).setIsPlayable(n.playable && !(n.browsable && n.artKey != null))
             .setMediaType(if (n.browsable) MediaMetadata.MEDIA_TYPE_FOLDER_MIXED else MediaMetadata.MEDIA_TYPE_MUSIC)
         n.subtitle?.let { md.setSubtitle(it); if (!n.browsable) md.setArtist(it) }
         (ArtProvider.uri(n.artKey) ?: n.icon?.let { android.net.Uri.parse("android.resource://$packageName/drawable/$it") })?.let { md.setArtworkUri(it) }

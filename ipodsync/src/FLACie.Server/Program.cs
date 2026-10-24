@@ -82,6 +82,8 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<ChartsService>());
 builder.Services.AddSingleton(sp => InfoService.Current = new InfoService(sp.GetRequiredService<JellyfinClient>(), sp.GetRequiredService<IHttpClientFactory>(), sp.GetRequiredService<DownloadLog>()));
 builder.Services.AddSingleton<FormatIndex>();
 builder.Services.AddSingleton<PlaybackActivity>();
+// the start of the next few songs, so Next starts at once (SongHeadCache)
+builder.Services.AddSingleton<SongHeadCache>();
 builder.Services.AddSingleton<TokenCache>();
 builder.Services.AddSingleton<FormatProbeService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FormatProbeService>());

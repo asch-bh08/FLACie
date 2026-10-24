@@ -26,7 +26,7 @@ public static class MediaEndpoints
 
         // pre=1 marks the page's early read of the NEXT song (a second audio element, so a skip starts at once): background work that does not count as a play, is
         // never ahead of a song someone waits for, waits out a slow Jellyfin, and asks only for the start of the file (a small Range), never the whole song.
-        app.MapGet("/stream", async (HttpContext ctx, string p, string? pre, string? wave, SessionStore store, JellyfinClient jf, IHttpClientFactory hf, AlacCache alac, PlayTracker plays, Notifier notify, PlaybackActivity activity) =>
+        app.MapGet("/stream", async (HttpContext ctx, string p, string? pre, string? wave, SessionStore store, JellyfinClient jf, IHttpClientFactory hf, AlacCache alac, PlayTracker plays, Notifier notify, PlaybackActivity activity, SongHeadCache heads) =>
         {
             var s = store.For(ctx.User);
             var t = s.FindByPath(p);
@@ -38,7 +38,7 @@ public static class MediaEndpoints
             // where this play really comes from, decided here where the stream is resolved: Jellyfin plays are announced by Jellyfin's own watcher, so only
             // NAS files and the file mover's direct fallback (a song Jellyfin has not scanned yet) are ever reported as "music played"
             if (!early && !quiet) plays.Served(s.Id, t.Path, t.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "direct", TrackSource.Jellyfin when notify.Current.JellyfinPlays => "Jellyfin", _ => null });
-            async Task<IResult> Proxy(HttpRequestMessage req, bool ranges = true)
+            async Task<IResult> Proxy(HttpRequestMessage req, bool ranges = true, bool keepHead = false)
             {
                 if (ranges && ctx.Request.Headers.Range.Count > 0) req.Headers.TryAddWithoutValidation("Range", early ? PrefetchRange(ctx.Request.Headers.Range.ToString()) : ctx.Request.Headers.Range.ToString());
                 else if (ranges && early) req.Headers.TryAddWithoutValidation("Range", PrefetchRange(""));
@@ -52,7 +52,15 @@ public static class MediaEndpoints
                         if (res.Content.Headers.TryGetValues(h, out var v) || res.Headers.TryGetValues(h, out v)) ctx.Response.Headers[h] = v.ToArray();
                     }
                     await using var body = await res.Content.ReadAsStreamAsync(ctx.RequestAborted);
-                    await body.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
+                    if (keepHead && TotalOf(res) is long total && res.Content.Headers.ContentRange?.From is null or 0)
+                    {
+                        // the early read of the next song: its start is kept, so the real request sends it at once (SongHeadCache)
+                        using var kept = new MemoryStream();
+                        var buf = new byte[81920]; int n;
+                        while ((n = await body.ReadAsync(buf, ctx.RequestAborted)) > 0) { kept.Write(buf, 0, n); await ctx.Response.Body.WriteAsync(buf.AsMemory(0, n), ctx.RequestAborted); }
+                        heads.Put(s.Id, t.Path, kept.ToArray(), total, res.Content.Headers.ContentType?.ToString() ?? "application/octet-stream");
+                    }
+                    else await body.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
                 }
                 catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested) { }
                 // Jellyfin is not answering (the gate's breaker is open): say so at once and when to try again, instead of an error page
@@ -64,14 +72,41 @@ public static class MediaEndpoints
                 catch (HttpRequestException) when (!ctx.Response.HasStarted) { ctx.Response.StatusCode = 502; }
                 return Results.Empty;
             }
+            async Task<IResult> FromHead(SongHeadCache.Head head, SongHeadCache.Served plan, Func<HttpRequestMessage> rest)
+            {
+                ctx.Response.StatusCode = plan.Partial ? 206 : 200;
+                ctx.Response.ContentType = head.ContentType;
+                ctx.Response.ContentLength = plan.To - plan.From + 1;
+                ctx.Response.Headers.AcceptRanges = "bytes";
+                if (plan.Partial) ctx.Response.Headers.ContentRange = $"bytes {plan.From}-{plan.To}/{head.Total}";
+                try
+                {
+                    await ctx.Response.Body.WriteAsync(head.Bytes.AsMemory((int)plan.HeadFrom, (int)(plan.HeadTo - plan.HeadFrom + 1)), ctx.RequestAborted);
+                    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+                    if (plan.UpFrom < 0) return Results.Empty;
+                    using var req = rest();
+                    req.Headers.TryAddWithoutValidation("Range", $"bytes={plan.UpFrom}-{plan.UpTo}");
+                    using var res = await hf.CreateClient("media").SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
+                    // Jellyfin must send exactly the rest; anything else (a whole file, an error) can't be joined on: the connection is dropped and the browser asks again
+                    if ((int)res.StatusCode != 206 || res.Content.Headers.ContentRange?.From != plan.UpFrom) { ctx.Abort(); return Results.Empty; }
+                    await using var body = await res.Content.ReadAsStreamAsync(ctx.RequestAborted);
+                    await body.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
+                }
+                catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested) { }
+                catch (Exception) { ctx.Abort(); }
+                return Results.Empty;
+            }
             // Apple Lossless: browsers cannot decode it, so the server decodes it itself and sends WAV (any other .m4a goes on as it is)
             if (await AlacServe.TryServeAsync(ctx, s, t, jf, hf, alac)) return Results.Empty;
             if (t.Source == TrackSource.Jellyfin && s.Jellyfin is { } a)
             {
                 // formats a browser cannot decode (WMA, APE ...) are converted to MP3 by Jellyfin on the way (no seeking inside them, but they play)
                 var transcode = MediaInfo.NotPlayableInBrowsers.Contains(MediaInfo.FromExtension(t.FilePath ?? ""));
+                // the start of this song was kept by the early read: sent at once, the rest asked of Jellyfin from where it ends
+                if (!transcode && !early && !quiet && heads.Get(s.Id, t.Path) is { } head && SongHeadCache.Plan(ctx.Request.Headers.Range.ToString(), head.Bytes.Length, head.Total) is { } plan)
+                    return await FromHead(head, plan, () => jf.Authorized(a, jf.StreamUrl(a, t.JellyfinId!)));
                 using var req = jf.Authorized(a, transcode ? $"{a.Server}/Audio/{t.JellyfinId}/stream.mp3?AudioCodec=mp3&AudioBitRate=256000&MaxAudioChannels=2" : jf.StreamUrl(a, t.JellyfinId!));
-                return await Proxy(req, !transcode);
+                return await Proxy(req, !transcode, keepHead: early && !transcode);
             }
             // a song just downloaded, playing from the file mover before Jellyfin has scanned it (only that service, with the key kept here)
             if (t.Source == TrackSource.Cloud && s.Services is { FileMoverUrl.Length: > 0 } svc && t.Path.StartsWith(svc.FileMoverUrl.TrimEnd('/') + "/file?", StringComparison.Ordinal))
@@ -267,6 +302,10 @@ public static class MediaEndpoints
 
     /// <summary>How much of the next song the early read asks for: enough for it to start at once, nowhere near the whole file.</summary>
     public const int PrefetchBytes = 1 << 20;
+
+    /// <summary>A song's full size from Jellyfin's answer: the total of a 206's Content-Range, or a 200's length.</summary>
+    static long? TotalOf(HttpResponseMessage res) =>
+        res.Content.Headers.ContentRange?.Length ?? ((int)res.StatusCode == 200 ? res.Content.Headers.ContentLength : null);
 
     /// <summary>The Range an early read of the next song is held to: the first <see cref="PrefetchBytes"/> (an open-ended or larger request from the start is cut to it).</summary>
     public static string PrefetchRange(string asked)

@@ -82,7 +82,8 @@ window.flacie = (() => {
   // a dropped connection mid-song: pick up again at the same second. A song the browser can't decode (e.g. WMA) fails
   // the same way every time, so after three tries it is skipped instead of retried forever.
   let failures = 0, failedSrc = "";
-  audio.addEventListener("playing", () => { failures = 0; });
+  // __flaciePlayingAt: when sound last started, for the song-start timing test (1z-song-start)
+  audio.addEventListener("playing", () => { failures = 0; window.__flaciePlayingAt = performance.now(); });
   audio.addEventListener("error", () => {
     if (!audio.src) return;
     const at = audio.currentTime, src = audio.src;

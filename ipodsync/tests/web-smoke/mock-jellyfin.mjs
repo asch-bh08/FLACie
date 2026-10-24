@@ -94,7 +94,7 @@ const counts = { usersMe: 0, items: 0, item: 0, stream: 0, image: 0, streamAbort
 // every picture asked for, by item + tag + size, so a test can see a cover fetched twice or at a size nobody should use
 const images = new Map();
 // GET /__stream?delay=ms makes the song streams slow (ms between chunks), so a stream the server drops half way is visible as streamAborted
-let streamDelay = 0;
+let streamDelay = 0, firstByte = 0;
 // the library listing carries MediaSources/MediaStreams when asked (Fields=MediaSources,MediaStreams), like Jellyfin: plain songs are CD-quality FLAC.
 // The Hi-Res lab songs are left out on purpose, so 1e-hires.spec.ts keeps exercising the per-song read (with its one HTTP 500).
 const withSources = (x) => (x.Id.startsWith('s') && x.Id !== 's1'
@@ -123,7 +123,8 @@ http
     if (p === '/__counts') return json(res, 200, counts);
     if (p === '/__reset') { for (const k of Object.keys(counts)) counts[k] = 0; images.clear(); return json(res, 200, counts); }
     if (p === '/__images') return json(res, 200, { total: counts.image, distinct: images.size, repeats: counts.imageRepeats, variants: [...new Set([...images.keys()].map((k) => k.split('|').slice(2).join('|')))], urls: Object.fromEntries(images) });
-    if (p === '/__stream') { streamDelay = Number(q.get('delay') || 0); return json(res, 200, { delay: streamDelay }); }
+    // first=ms: a wait before a song's first byte, like a real Jellyfin opening a big FLAC file from disk (1z-song-start)
+    if (p === '/__stream') { streamDelay = Number(q.get('delay') || 0); firstByte = Number(q.get('first') || 0); return json(res, 200, { delay: streamDelay, first: firstByte }); }
     // /__touch?id=s5&name=New title: the song was saved again (what a metadata edit does); the next MinDateLastSaved question returns it
     if (p === '/__touch') {
       const x = songs.find((s) => s.Id === q.get('id'));
@@ -176,6 +177,7 @@ http
     if (/^\/Audio\/(h[1-8]|s([2-9]|[1-9]\d))\/stream/.test(p)) {
       const mm = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
       const from = mm && mm[1] !== '' ? +mm[1] : 0, to = mm && mm[2] !== '' ? Math.min(+mm[2], wav.length - 1) : wav.length - 1;
+      if (firstByte > 0) await new Promise((r) => setTimeout(r, firstByte));
       res.writeHead(mm ? 206 : 200, { 'content-type': 'audio/wav', 'accept-ranges': 'bytes', 'content-length': to - from + 1, ...(mm ? { 'content-range': `bytes ${from}-${to}/${wav.length}` } : {}) });
       if (mm && mm[2] === '1048575') counts.streamCapped++;   // the server's early read of the next song asks for the first megabyte only
       res.on('close', () => { if (!res.writableFinished) counts.streamAborted++; });

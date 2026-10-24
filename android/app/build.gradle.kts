@@ -9,8 +9,10 @@ android {
         applicationId = "com.ipodemu"
         minSdk = 30
         targetSdk = 33
-        versionCode = 104
-        versionName = "1.0-beta89"
+        versionCode = 105
+        versionName = "1.0-beta90"
+        // on-device tests (src/androidTest): a stand-in car browses the playback service the way Android Auto does
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
         release {
@@ -77,4 +79,6 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20231013")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }

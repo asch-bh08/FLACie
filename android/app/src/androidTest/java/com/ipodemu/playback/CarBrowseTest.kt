@@ -1,0 +1,84 @@
+package com.ipodemu.playback
+
+import android.content.ComponentName
+import android.net.Uri
+import android.os.Bundle
+import androidx.media3.common.MediaItem
+import androidx.media3.session.LibraryResult
+import androidx.media3.session.MediaBrowser
+import androidx.media3.session.MediaLibraryService.LibraryParams
+import androidx.media3.session.SessionToken
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.google.common.collect.ImmutableList
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+
+/**
+ * A stand-in car: it connects to FLACie's playback service the way Android Auto does (a Media3 browser) and checks what a car is given. Run on the emulator
+ * (./gradlew :app:connectedDebugAndroidTest), no car or head unit needed. Each check here is something that went wrong in a real car screen:
+ * plain lists instead of covers, a search that spun for ever, empty squares for covers.
+ */
+@RunWith(AndroidJUnit4::class)
+class CarBrowseTest {
+    private val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+    private lateinit var browser: MediaBrowser
+    private val searched = CountDownLatch(1)
+
+    @Before fun connect() {
+        val token = SessionToken(ctx, ComponentName(ctx, PlaybackService::class.java))
+        val listener = object : MediaBrowser.Listener {
+            override fun onSearchResultChanged(browser: MediaBrowser, query: String, itemCount: Int, params: LibraryParams?) { searched.countDown() }
+        }
+        val f = MediaBrowser.Builder(ctx, token).setListener(listener).setApplicationLooper(android.os.Looper.getMainLooper()).buildAsync()
+        browser = f.get(20, TimeUnit.SECONDS)
+    }
+
+    @After fun release() { InstrumentationRegistry.getInstrumentation().runOnMainSync { browser.release() } }
+
+    private fun <T> main(block: () -> com.google.common.util.concurrent.ListenableFuture<T>): T {
+        var f: com.google.common.util.concurrent.ListenableFuture<T>? = null
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { f = block() }
+        return f!!.get(40, TimeUnit.SECONDS)
+    }
+    private fun children(id: String): ImmutableList<MediaItem> = main { browser.getChildren(id, 0, 100, null) }.value!!
+
+    @Test fun the_root_says_it_draws_covers_and_can_search() {
+        val root: LibraryResult<MediaItem> = main { browser.getLibraryRoot(null) }
+        val extras: Bundle = root.params!!.extras
+        assertTrue("content styles are switched on (without it the car ignores every hint)", extras.getBoolean("android.media.browse.CONTENT_STYLE_SUPPORTED"))
+        assertTrue(extras.getBoolean("android.media.browse.SEARCH_SUPPORTED"))
+    }
+
+    @Test fun four_tabs_with_icons_and_the_cover_tabs_are_grids() {
+        val tabs = children(BrowseTree.ROOT)
+        assertEquals(listOf("Home", "Playlists", "Albums", "Artists"), tabs.map { it.mediaMetadata.title.toString() })
+        assertTrue(tabs.all { it.mediaMetadata.artworkUri != null })
+        for (t in tabs.drop(1)) assertEquals("${t.mediaMetadata.title} as covers", 2, t.mediaMetadata.extras!!.getInt("android.media.browse.CONTENT_STYLE_BROWSABLE_HINT"))
+    }
+
+    @Test fun home_starts_with_shuffle_all_and_your_music() {
+        val home = children(BrowseTree.HOME)
+        assertEquals("Shuffle all", home[0].mediaMetadata.title.toString()); assertEquals(true, home[0].mediaMetadata.isPlayable)
+        assertTrue(home.any { it.mediaMetadata.title.toString() == "Favourites" && it.mediaMetadata.extras?.getString("android.media.browse.CONTENT_STYLE_GROUP_TITLE_HINT") == "Your music" })
+    }
+
+    @Test fun a_search_is_answered() {
+        main { browser.search("a", null) }
+        assertTrue("the car is told the results are ready (it spun for ever before)", searched.await(30, TimeUnit.SECONDS))
+        assertNotNull(main { browser.getSearchResult("a", 0, 50, null) }.value)
+    }
+
+    @Test fun a_cover_with_no_picture_is_the_logo_not_an_empty_square() {
+        val uri = Uri.parse("content://com.ipodemu.art/" + Uri.encode("no-such-cover-anywhere"))
+        val size = ctx.contentResolver.openFileDescriptor(uri, "r")!!.use { it.statSize }
+        assertTrue(size > 0)
+    }
+}

@@ -57,6 +57,8 @@ object BrowseTree {
     val LIVE = listOf(HOME, RECENT, FAVORITES, PLAYLISTS, ALBUMS, ARTISTS, DOWNLOADED)
 
     fun songId(parent: String, path: String) = "s:$parent$SEP$path"
+    /** The id a voice command plays: the first song of what [searchPlay] found, with the rest of it queued after. */
+    fun voiceId(query: String, path: String) = songId("voice:$query", path)
     fun playlistId(id: String) = "pl:$id"
     fun albumId(key: String) = "al:$key"
     fun artistId(name: String) = "ar:$name"
@@ -156,6 +158,8 @@ object BrowseTree {
         id == SHUFFLE -> src.allSongs().shuffled().take(MAX_QUEUE)
         id.startsWith("pl:") -> src.playlistTracks(id.removePrefix("pl:")); id.startsWith("al:") -> albumTracks(id, src); id.startsWith("ar:") -> artistTracks(id, src)
         id.startsWith("search:") -> src.search(id.removePrefix("search:"))
+        // a voice command's songs: the playlist, artist or album it named, or the songs it found (searchPlay)
+        id.startsWith("voice:") -> searchPlay(id.removePrefix("voice:"), src)?.tracks ?: emptyList()
         else -> emptyList()
     }
 
@@ -167,12 +171,32 @@ object BrowseTree {
     }
 
     /** A voice or text search: songs, capped; a play request for them queues the results. */
+    /** The car's search: the playlists, artists and albums whose names hold the words (as covers), then the songs. */
     fun searchNodes(query: String, page: Int, pageSize: Int, src: BrowseSource): List<BrowseNode> {
-        val all = src.search(query).map { songNode("search:" + query, it) }
+        val q = query.trim().lowercase()
+        val lists = if (q.isEmpty()) emptyList() else
+            playlistNodes(src).filter { it.title.lowercase().contains(q) } +
+            sorted(mergedArtists(src)).filter { it.name.lowercase().contains(q) }.take(12).map { g -> BrowseNode(artistId(g.name), g.name, songs(g.tracks.size), true, true, g.artKey, icon = "ic_car_artists", cover = true) } +
+            sorted(src.albums()).filter { it.name.lowercase().contains(q) }.take(12).map { g -> BrowseNode(albumId(g.tracks.firstOrNull()?.albumKey ?: g.name), g.name, g.tracks.firstOrNull()?.albumArtist?.ifEmpty { null }, true, true, g.artKey, icon = "ic_car_albums", cover = true) }
+        val all = lists.map { if (it.cover) it else BrowseNode(it.id, it.title, it.subtitle, true, true, it.artKey, icon = it.icon, cover = true) } +
+            src.search(query).map { songNode("search:" + query, it) }
         val size = pageSize.coerceIn(1, MAX_PAGE); val from = (page.coerceAtLeast(0).toLong() * size).coerceAtMost(all.size.toLong()).toInt()
         return all.subList(from, minOf(all.size, from + size))
     }
 
-    /** The songs of a search for playing (the first hit onwards), used when a voice command says "play X". */
-    fun searchPlay(query: String, src: BrowseSource): Resolved? = src.search(query).takeIf { it.isNotEmpty() }?.let { window(it, 0) }
+    /**
+     * What a voice command ("play pop on FLACie") plays: a playlist, artist or album with exactly that name (so "pop" is the playlist, not Icona Pop's
+     * songs), then the matching songs, then a playlist, artist or album whose name holds the words.
+     */
+    fun searchPlay(query: String, src: BrowseSource): Resolved? {
+        val q = query.trim().lowercase(); if (q.isEmpty()) return null
+        fun play(id: String) = songsOf(id, src).takeIf { it.isNotEmpty() }?.let { window(it, 0) }
+        src.playlists().firstOrNull { it.second.trim().lowercase() == q }?.let { play(playlistId(it.first))?.let { r -> return r } }
+        mergedArtists(src).firstOrNull { it.name.trim().lowercase() == q }?.let { play(artistId(it.name))?.let { r -> return r } }
+        src.albums().firstOrNull { it.name.trim().lowercase() == q }?.let { g -> play(albumId(g.tracks.firstOrNull()?.albumKey ?: g.name))?.let { r -> return r } }
+        src.search(query).takeIf { it.isNotEmpty() }?.let { return window(it, 0) }
+        src.playlists().firstOrNull { it.second.lowercase().contains(q) }?.let { play(playlistId(it.first))?.let { r -> return r } }
+        mergedArtists(src).firstOrNull { it.name.lowercase().contains(q) }?.let { play(artistId(it.name))?.let { r -> return r } }
+        return src.albums().firstOrNull { it.name.lowercase().contains(q) }?.let { g -> play(albumId(g.tracks.firstOrNull()?.albumKey ?: g.name)) }
+    }
 }

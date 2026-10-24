@@ -22,6 +22,15 @@ class CoverWaitTest {
         assertEquals(f, CoverWait.file({ have }, { have = f }, 1000))
     }
 
+    @Test fun waiting_for_the_library_stops_when_it_is_in() {
+        var n = 0
+        val t0 = System.currentTimeMillis()
+        assertEquals(true, CoverWait.until({ ++n >= 3 }, 2_000, 10))
+        assertEquals(true, System.currentTimeMillis() - t0 < 1_000)
+    }
+
+    @Test fun waiting_for_the_library_gives_up() = assertEquals(false, CoverWait.until({ false }, 100, 10))
+
     @Test fun a_slow_fetch_gives_up_after_the_wait() {
         assertNull(CoverWait.file({ null }, { delay(5_000) }, 100))
     }

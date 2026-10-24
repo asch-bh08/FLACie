@@ -95,6 +95,8 @@ class PlaybackService : MediaLibraryService() {
         override fun onGetChildren(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, parentId: String, page: Int, pageSize: Int, params: LibraryParams?): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> =
             async {
                 val app = App.of(this@PlaybackService)
+                // the car keeps its first answer (telling it to look again did not refresh an open playlist): wait for the library rather than answer "No items"
+                if (parentId != BrowseTree.ROOT) CoverWait.until({ app.library.loaded }, 20_000)
                 val nodes = BrowseTree.children(parentId, page, pageSize, AppBrowseSource(app))
                 opened.add(parentId)
                 // the covers of this page are fetched in the background, so the next look finds them
@@ -110,8 +112,15 @@ class PlaybackService : MediaLibraryService() {
                 if (node == null) LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE) else LibraryResult.ofItem(nodeItem(node), null)
             }
 
+        // the car waits for "results ready" before it asks for them: without it the search spun for ever
         override fun onSearch(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, query: String, params: LibraryParams?): ListenableFuture<LibraryResult<Void>> =
-            Futures.immediateFuture(LibraryResult.ofVoid())
+            async {
+                val app = App.of(this@PlaybackService)
+                CoverWait.until({ app.library.loaded }, 20_000)
+                val n = BrowseTree.searchNodes(query, 0, BrowseTree.MAX_PAGE, AppBrowseSource(app)).size
+                session.notifySearchResultChanged(browser, query, n, params)
+                LibraryResult.ofVoid()
+            }
 
         override fun onGetSearchResult(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, query: String, page: Int, pageSize: Int, params: LibraryParams?): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> =
             async { LibraryResult.ofItemList(ImmutableList.copyOf(BrowseTree.searchNodes(query, page, pageSize, AppBrowseSource(App.of(this@PlaybackService))).map(::nodeItem)), params) }
@@ -124,7 +133,7 @@ class PlaybackService : MediaLibraryService() {
                     val q = item.requestMetadata.searchQuery
                     if (item.mediaId.isEmpty() && !q.isNullOrBlank()) {
                         val first = BrowseTree.searchPlay(q, src)?.let { r -> r.tracks[r.index] }
-                        if (first != null) item.buildUpon().setMediaId(BrowseTree.songId("search:$q", first.path)).build() else item
+                        if (first != null) item.buildUpon().setMediaId(BrowseTree.voiceId(q, first.path)).build() else item
                     } else item
                 }
                 MediaSession.MediaItemsWithStartPosition(out, startIndex, startPositionMs)

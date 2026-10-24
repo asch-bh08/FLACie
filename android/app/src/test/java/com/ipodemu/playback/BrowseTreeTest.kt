@@ -24,7 +24,7 @@ class BrowseTreeTest {
         override fun playlistTracks(id: String) = pls[id] ?: emptyList()
         override fun albums() = songs.groupBy { it.albumKey }.map { (_, v) -> Group(v[0].album, v, v[0].artKey) }
         override fun artists() = songs.groupBy { it.artist }.map { (k, v) -> Group(k, v, v[0].artKey) }
-        override fun search(query: String) = songs.filter { it.title.contains(query, true) }
+        override fun search(query: String) = songs.filter { it.title.contains(query, true) || it.artist.contains(query, true) }
         override fun allSongs() = songs
     }
 
@@ -104,6 +104,32 @@ class BrowseTreeTest {
         val artists = BrowseTree.children(BrowseTree.ARTISTS, 0, 50, Src(songs = songs))
         assertEquals(listOf("2Pac", "Blur"), artists.map { it.title })
         assertEquals(4 + 2, BrowseTree.children(artists[0].id, 0, 50, Src(songs = songs)).size)   // Play all, Shuffle and the four songs
+    }
+
+    @Test fun voicePlaysAPlaylistArtistOrAlbumByItsNameBeforeSongs() {
+        val songs = listOf(t(1, "Pop Hits", "Icona Pop"), t(2, "Blue", "Blur"), t(3, "Parklife", "Blur"))
+        val src = Src(songs = songs, pls = mapOf("p1" to listOf(t(2), t(3))))
+        // "Playlist p1" is the playlist's name in the stand-in source
+        assertEquals(listOf("Song 2", "Song 3"), BrowseTree.searchPlay("playlist p1", src)!!.tracks.map { it.title })
+        assertEquals(setOf("Song 2", "Song 3"), BrowseTree.searchPlay("blur", src)!!.tracks.map { it.title }.toSet())        // the artist, not a song that mentions it
+        assertEquals(listOf("Song 3"), BrowseTree.searchPlay("Parklife", src)!!.tracks.map { it.title })                    // the album
+        assertEquals("Song 1", BrowseTree.searchPlay("song 1", src)!!.tracks[0].title)                                       // otherwise songs
+    }
+
+    @Test fun aVoiceResultQueuesTheWholePlaylist() {
+        val src = Src(pls = mapOf("p1" to listOf(t(2), t(3))))
+        val first = BrowseTree.searchPlay("playlist p1", src)!!.let { it.tracks[it.index] }
+        val r = BrowseTree.resolve(BrowseTree.voiceId("playlist p1", first.path), src)!!
+        assertEquals(listOf("Song 2", "Song 3"), r.tracks.map { it.title }); assertEquals(0, r.index)
+    }
+
+    @Test fun carSearchListsPlaylistsArtistsAndAlbumsBeforeSongs() {
+        val songs = listOf(t(1, "Blue Album", "Blur"), t(2, "Other", "Blue Man"))
+        val src = Src(songs = songs, pls = mapOf("blue" to listOf(t(1))))
+        val r = BrowseTree.searchNodes("blu", 0, 50, src)
+        val kinds = r.map { it.id.substringBefore(':') }
+        assertTrue(kinds.indexOf("pl") < kinds.indexOf("s") && kinds.indexOf("ar") < kinds.indexOf("s") && kinds.indexOf("al") < kinds.indexOf("s"))
+        assertTrue(r.filter { it.browsable }.all { it.cover })
     }
 
     @Test fun everyListTheCarShowsIsRefreshed() =

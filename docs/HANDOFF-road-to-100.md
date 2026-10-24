@@ -34,6 +34,9 @@ Updated after every step, so another session can take over at any point. Newest 
   (wrong-song race; 1z-home-pick). Phone select bar: Cancel first, Share added. Lyrics in Android Auto: not possible (Google's templates).
   The owner's car (2014 Clio) has no Android Auto; an aftermarket unit is coming. DHU at 1280x720 via ~/.android/headunit.ini.
   Beta 90 = all of this + bar-buttons + Windows Retro tab; full web suite not yet run on it.
+  Then: car search fixed (onSearch must notifySearchResultChanged; lists playlists/artists/albums first), voice plays a playlist/artist/
+  album by exact name (BrowseTree.searchPlay, voiceId), and car list requests wait for library.loaded (notifyChildrenChanged did not
+  refresh an open playlist). Voice not tried on the DHU (needs a microphone).
 - **Changelog** is up to date through beta 88 (generated from docs/private/release-bodies; keep adding each release).
 - **What is left for 1.0 is mostly the owner's** (below). Everything on the plan's Foundations / Flows / Parity / accessibility / budget lists that can be
   built and tested here is done and released. Next session: ask the owner for the by-hand results, fix what they find, and release betas until they

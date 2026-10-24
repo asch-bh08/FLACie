@@ -27,6 +27,13 @@ Updated after every step, so another session can take over at any point. Newest 
   Home = Shuffle all + Favourites/Downloaded + 12 recent songs under headings, grids of covers, playlist covers + "N songs", "artist · album",
   downloaded tick) with tests in BrowseTreeTest (written first, not yet run). Check on the DHU with FLACie force-stopped.
   Open: pressing Play on a Home "Listen again" card started a different song (Price Tag -> I Gotta Feeling), not investigated.
+- **2026-10-24 later (owner: don't release yet, keep improving; test builds go straight to the phone, no suite):** committed, unreleased:
+  Android Auto (cover grids work only when folders are not playable; Play all/Shuffle rows; Home = Shuffle all, all playlists as covers,
+  Your music, Recently played; artists merged by primaryArtist; covers fetched while the car waits + logo placeholder; every opened list
+  refreshed after load). Recently Played merges the web's profile "history" both ways (HistorySync). Web Home song buttons keyed by song
+  (wrong-song race; 1z-home-pick). Phone select bar: Cancel first, Share added. Lyrics in Android Auto: not possible (Google's templates).
+  The owner's car (2014 Clio) has no Android Auto; an aftermarket unit is coming. DHU at 1280x720 via ~/.android/headunit.ini.
+  Beta 90 = all of this + bar-buttons + Windows Retro tab; full web suite not yet run on it.
 - **Changelog** is up to date through beta 88 (generated from docs/private/release-bodies; keep adding each release).
 - **What is left for 1.0 is mostly the owner's** (below). Everything on the plan's Foundations / Flows / Parity / accessibility / budget lists that can be
   built and tested here is done and released. Next session: ask the owner for the by-hand results, fix what they find, and release betas until they

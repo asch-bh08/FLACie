@@ -63,7 +63,7 @@ else
             @for (var i = 0; i < moodTracks.Count; i++)
             {
                 var idx = i; var t = moodTracks[i];
-                <li><button class="pick" @onclick="() => PlayFull(moodTracks, idx, mood)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
+                <li @key="t.Path"><button class="pick" @onclick="() => PlayFull(moodTracks, idx, mood)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
             }
         </ul>
     </section>
@@ -99,7 +99,7 @@ else
                     @for (var i = 0; i < sh.Tracks.Count && i < 12; i++)
                     {
                         var idx = i; var t = sh.Tracks[i];
-                        <li><button class="pick" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
+                        <li @key="t.Path"><button class="pick" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
                     }
                 </ul>
             }
@@ -109,7 +109,7 @@ else
                     @for (var i = 0; i < sh.Tracks.Count; i++)
                     {
                         var idx = i; var t = sh.Tracks[i];
-                        <button class="card song-card" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)">
+                        <button class="card song-card" @key="t.Path" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)">
                             <Cover ArtKey="@(t.ArtKey)" Class="square" />
                             <span class="card-title">@t.Title</span>
                             <span class="card-sub">@t.Artist</span>
@@ -139,6 +139,8 @@ else
     // the shelves are built from the account's profile (plays, favourites, playlists), so they wait for it rather than show a version with none of it
     bool Waiting => !Session.ProfileLoaded && Session.Loading;
     // playing from Home opens the full-screen player
+    // each song's button is keyed by the song (@key above): when Home works its shelves out again just after it opens, a press that lands mid-update used to
+    // reach the button now in that place, and the owner's Price Tag (4th) started I Gotta Feeling (1st, after the shelf changed)
     async Task PlayFull(IReadOnlyList<Track> list, int index, string? context) { await Player.Play(list, index, context); Player.RequestFullScreen(); }
     async Task ShuffleFull(IReadOnlyList<Track> list, string? context) { await Player.ShuffleAll(list, context); Player.RequestFullScreen(); }
 

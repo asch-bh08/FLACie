@@ -307,8 +307,10 @@ class Library(ctx: Context, val art: ArtCache) {
     fun albumKey(a: WebCatalog.Album) = "a|${a.id}"
 
     /** Search's per-song Download. Several can run at once; each reports under its own key. */
-    fun requestDownload(artist: String, title: String, album: String, durationMs: Long = 0, hiRes: Boolean = false, fallbackToNormal: Boolean = true) {
+    fun requestDownload(artist: String, title: String, album: String, durationMs: Long = 0, hiRes: Boolean = false, fallbackToNormal: Boolean = true, then: ((Track) -> Unit)? = null) {
         val key = songKey(artist, title)
+        // what to do with the song once it is here (the car's "Download and play"), on the main thread
+        if (then != null) thenPlay[key] = then
         if (downloads[key]?.stage.let { it != null && it != DownloadStage.DONE && it != DownloadStage.FAILED }) return
         val label = "${title.ifBlank { album }} · $artist${if (hiRes) " (Hi-Res)" else ""}"
         runningDownloads[key] = RunningDownload(java.util.UUID.randomUUID().toString(), label, "Search", CoverLookup.key(artist, album, title))
@@ -356,8 +358,11 @@ class Library(ctx: Context, val art: ArtCache) {
             val e = if (t != null) DownloadEntry(t.artist, t.title, t.album, t.path, System.currentTimeMillis(), status.source.orEmpty())
                 else entry.copy(album = status.newTracks.firstOrNull()?.album ?: entry.album, time = System.currentTimeMillis(), source = status.source.orEmpty())
             main.post { onDownloaded?.invoke(e) }
+            status.newTracks.firstOrNull()?.let { t -> thenPlay.remove(key)?.let { cb -> main.post { cb(t) } } }
         }
+        if (status.stage == DownloadStage.FAILED) thenPlay.remove(key)
     }
+    private val thenPlay = java.util.concurrent.ConcurrentHashMap<String, (Track) -> Unit>()
 
     /**
      * Tells FLACie Web (when this account has one configured) that these songs were downloaded, so it can show them as recently downloaded,

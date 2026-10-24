@@ -48,9 +48,9 @@ fun PermissionReasonScreen(need: Need) {
             Modifier.widthIn(max = 520.dp).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(Modifier.size(64.dp).clip(RoundedCornerShape(16.dp)).background(LocalScheme.current.accent), contentAlignment = Alignment.Center) {
-                GlyphIcon(Glyph.NOTE, Modifier.size(34.dp), LocalScheme.current.accent.readableInk())
-            }
+            // the FLACie logo, as on the sign-in screen (it was a plain music note)
+            androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(com.ipodemu.R.mipmap.ic_launcher_art), contentDescription = null,
+                modifier = Modifier.size(72.dp).clip(RoundedCornerShape(18.dp)))
             Txt(title, size = 22f, weight = FontWeight.SemiBold, color = Color.White, maxLines = 6)
             Txt(detail, size = 16f, color = Color(0xCCFFFFFF), maxLines = 12)
             GlossPill("Continue", { ui.permissions?.request(need) }, Modifier.fillMaxWidth().focusRequester(focus), primary = true, height = 48.dp)

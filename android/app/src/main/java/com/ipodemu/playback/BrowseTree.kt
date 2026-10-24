@@ -18,6 +18,10 @@ interface BrowseSource {
     fun search(query: String): List<Track>
     /** Every song, for Shuffle all. */
     fun allSongs(): List<Track>
+    /** Songs the online catalog has for a search (as the phone's Search shows under More music); none when offline or without downloads. */
+    fun catalog(query: String): List<BrowseTree.CatalogSong> = emptyList()
+    /** The library has this song already (so the catalog's copy is not offered). */
+    fun owns(title: String, artist: String): Boolean = false
 }
 
 /**
@@ -61,7 +65,18 @@ object BrowseTree {
     fun songId(parent: String, path: String) = "s:$parent$SEP$path"
     /** An id the car or a voice command asks to play, which the player resolves through [resolve]. Shuffle all, Play all and Shuffle were missing here
      * and did nothing when pressed in the car. */
-    fun isPlayId(id: String) = id == SHUFFLE || listOf("s:", "pl:", "al:", "ar:", "all:", "shuf:").any { id.startsWith(it) }
+    fun isPlayId(id: String) = id == SHUFFLE || listOf("s:", "pl:", "al:", "ar:", "all:", "shuf:", "dl:").any { id.startsWith(it) }
+
+    /** A song from the online catalog that a car's search offers: picking it downloads it, and it plays when it lands (the player does that, see playBrowse). */
+    data class CatalogSong(val artist: String, val title: String, val album: String, val durationMs: Long)
+    /** How many catalog songs a car search offers after the library's own. */
+    const val CATALOG_IN_SEARCH = 5
+    fun downloadId(c: CatalogSong) = "dl:" + listOf(c.artist, c.title, c.album, c.durationMs.toString()).joinToString(SEP.toString())
+    fun parseDownload(id: String): CatalogSong? {
+        if (!id.startsWith("dl:")) return null
+        val p = id.removePrefix("dl:").split(SEP); if (p.size != 4) return null
+        return CatalogSong(p[0], p[1], p[2], p[3].toLongOrNull() ?: 0)
+    }
 
     /** The id a voice command plays: the first song of what [searchPlay] found, with the rest of it queued after. */
     fun voiceId(query: String, path: String) = songId("voice:$query", path)
@@ -185,7 +200,11 @@ object BrowseTree {
             sorted(mergedArtists(src)).filter { it.name.lowercase().contains(q) }.take(12).map { g -> BrowseNode(artistId(g.name), g.name, songs(g.tracks.size), true, true, g.artKey, icon = "ic_car_artists", cover = true) } +
             sorted(src.albums()).filter { it.name.lowercase().contains(q) }.take(12).map { g -> BrowseNode(albumId(g.tracks.firstOrNull()?.albumKey ?: g.name), g.name, g.tracks.firstOrNull()?.albumArtist?.ifEmpty { null }, true, true, g.artKey, icon = "ic_car_albums", cover = true) }
         val all = lists.map { if (it.cover) it else BrowseNode(it.id, it.title, it.subtitle, true, true, it.artKey, icon = it.icon, cover = true) } +
-            src.search(query).map { songNode("search:" + query, it) }
+            src.search(query).map { songNode("search:" + query, it) } +
+            // songs the library lacks, from the online catalog: picked, they download and then play (as the phone's More music)
+            (if (q.isEmpty()) emptyList() else src.catalog(query).filter { !src.owns(it.title, it.artist) }.take(CATALOG_IN_SEARCH).map { c ->
+                BrowseNode(downloadId(c), c.title, "${c.artist} · Download and play", browsable = false, playable = true, artKey = null, icon = "ic_car_download")
+            })
         val size = pageSize.coerceIn(1, MAX_PAGE); val from = (page.coerceAtLeast(0).toLong() * size).coerceAtMost(all.size.toLong()).toInt()
         return all.subList(from, minOf(all.size, from + size))
     }

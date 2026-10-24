@@ -152,6 +152,11 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         val id = items.firstOrNull()?.mediaId ?: return false
         // the queue of last time, put back paused; the play that follows carries on with it
         if (id == BrowseTree.RESUME) { restoreQueue(); return true }
+        // a song the car's search found in the online catalog: downloaded the normal way, and played the moment it lands
+        BrowseTree.parseDownload(id)?.let { c ->
+            App.of(ctx).library.requestDownload(c.artist, c.title, c.album, c.durationMs) { t -> play(listOf(t), 0) }
+            return true
+        }
         if (!isBrowseId(id)) return false
         browseExec.execute {
             val r = try { BrowseTree.resolve(id, AppBrowseSource(App.of(ctx))) } catch (_: Exception) { null }

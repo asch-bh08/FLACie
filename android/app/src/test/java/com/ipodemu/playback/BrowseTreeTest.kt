@@ -143,6 +143,24 @@ class BrowseTreeTest {
         assertFalse(BrowseTree.isPlayId("http://jf/Audio/1/stream"))
     }
 
+    @Test fun carSearchOffersSongsYouDontHaveToDownloadAndPlay() {
+        val owned = t(1)
+        val src = object : BrowseSource by Src(songs = listOf(owned)) {
+            override fun catalog(query: String) = listOf(
+                BrowseTree.CatalogSong("Artist", owned.title, "Al", 1000),          // already in the library: not offered
+                BrowseTree.CatalogSong("Robyn", "Dancing On My Own", "Body Talk", 280_000),
+            )
+            override fun owns(title: String, artist: String) = title == owned.title
+        }
+        val r = BrowseTree.searchNodes("dancing", 0, 50, src)
+        val dl = r.filter { it.id.startsWith("dl:") }
+        assertEquals(listOf("Dancing On My Own"), dl.map { it.title })
+        assertTrue(dl[0].playable && !dl[0].browsable && dl[0].subtitle!!.contains("Download"))
+        assertTrue(BrowseTree.isPlayId(dl[0].id))
+        val back = BrowseTree.parseDownload(dl[0].id)!!
+        assertEquals(BrowseTree.CatalogSong("Robyn", "Dancing On My Own", "Body Talk", 280_000), back)
+    }
+
     @Test fun everyListTheCarShowsIsRefreshed() =
         assertTrue(BrowseTree.LIVE.containsAll(BrowseTree.root().map { it.id } + listOf(BrowseTree.RECENT, BrowseTree.FAVORITES, BrowseTree.DOWNLOADED)))
 

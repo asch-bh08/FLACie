@@ -107,6 +107,15 @@ class CarBrowseTest {
         assertEquals("Saved Song", title)
     }
 
+    @Test fun download_and_play_from_the_car_starts_the_download() {
+        val app = com.ipodemu.App.of(ctx)
+        val c = BrowseTree.CatalogSong("Robyn", "Dancing On My Own", "Body Talk", 280_000)
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { browser.setMediaItem(MediaItem.Builder().setMediaId(BrowseTree.downloadId(c)).build()) }
+        Thread.sleep(1000)
+        val key = app.library.songKey(c.artist, c.title)
+        assertTrue("the car's pick reached the downloader", app.library.runningDownloads.containsKey(key) || app.library.downloads.containsKey(key))
+    }
+
     @Test fun a_cover_with_no_picture_is_the_logo_not_an_empty_square() {
         val uri = Uri.parse("content://com.ipodemu.art/" + Uri.encode("no-such-cover-anywhere"))
         val size = ctx.contentResolver.openFileDescriptor(uri, "r")!!.use { it.statSize }

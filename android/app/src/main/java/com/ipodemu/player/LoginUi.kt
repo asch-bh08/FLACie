@@ -63,9 +63,9 @@ fun LoginScreen() {
             Modifier.widthIn(max = 520.dp).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 28.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Box(Modifier.size(64.dp).clip(RoundedCornerShape(16.dp)).background(LocalScheme.current.accent), contentAlignment = Alignment.Center) {
-                GlyphIcon(Glyph.NOTE, Modifier.size(34.dp), LocalScheme.current.accent.readableInk())
-            }
+            // the FLACie logo (the first thing a new person sees; it was still a plain music note in the accent colour)
+            androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(com.ipodemu.R.mipmap.ic_launcher_art), contentDescription = "FLACie",
+                modifier = Modifier.size(72.dp).clip(RoundedCornerShape(18.dp)))
             Txt("FLACie", size = 32f, weight = FontWeight.Bold, color = Color.White)
             when (page) {
                 0 -> {

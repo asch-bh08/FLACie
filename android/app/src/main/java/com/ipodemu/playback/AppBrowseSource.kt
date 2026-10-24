@@ -18,6 +18,11 @@ class AppBrowseSource(private val app: App) : BrowseSource {
         val paths = pl.paths.toList(); paths.size to paths.asSequence().take(5).firstNotNullOfOrNull { app.library.resolve(it, app.userData.meta[it])?.artKey }
     } ?: (0 to null)
     override fun allSongs(): List<Track> = app.library.songs()
+    // the phone's More music, for the car's search (a guest has no downloads, and offline the catalog can't be asked)
+    override fun catalog(query: String): List<BrowseTree.CatalogSong> =
+        if (app.ui.guest) emptyList() else try { com.ipodemu.library.WebCatalog.songs(query, 10).map { BrowseTree.CatalogSong(it.artist, it.title, it.album, it.durationMs) } } catch (_: Exception) { emptyList() }
+    private val owned by lazy { app.library.songs().mapTo(HashSet()) { com.ipodemu.library.matchKey(it.title, it.artist) } }
+    override fun owns(title: String, artist: String): Boolean = com.ipodemu.library.matchKey(title, artist) in owned
     override fun albums(): List<Group> = app.library.albums()
     override fun artists(): List<Group> = app.library.artists()
     override fun search(query: String): List<Track> {

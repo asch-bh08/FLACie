@@ -96,6 +96,7 @@ class PlaybackService : MediaLibraryService() {
             async {
                 val app = App.of(this@PlaybackService)
                 val nodes = BrowseTree.children(parentId, page, pageSize, AppBrowseSource(app))
+                opened.add(parentId)
                 // the covers of this page are fetched in the background, so the next look finds them
                 app.art.warmAround(nodes.mapNotNull { it.artKey }, emptyList())
                 LibraryResult.ofItemList(ImmutableList.copyOf(nodes.map(::nodeItem)), params)
@@ -157,10 +158,14 @@ class PlaybackService : MediaLibraryService() {
 
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    /** The lists the car has asked for, in order, so they can be refreshed too. */
+    private val opened = java.util.Collections.synchronizedSet(LinkedHashSet<String>())
     private val tellCar = Runnable {
         val s = session ?: return@Runnable
         val src = AppBrowseSource(App.of(this))
-        io.execute { for (id in BrowseTree.LIVE) { val n = try { BrowseTree.children(id, 0, BrowseTree.MAX_PAGE, src).size } catch (_: Exception) { 0 }; s.notifyChildrenChanged(id, n, null) } }
+        // the tabs, and every list the car has opened: a playlist opened while the library was still loading showed "No items" and kept it
+        val ids = (BrowseTree.LIVE + opened.toList().takeLast(60)).distinct()
+        io.execute { for (id in ids) { val n = try { BrowseTree.children(id, 0, BrowseTree.MAX_PAGE, src).size } catch (_: Exception) { 0 }; s.notifyChildrenChanged(id, n, null) } }
     }
     private fun listsChanged() { main.removeCallbacks(tellCar); main.postDelayed(tellCar, 1000) }
 

@@ -132,6 +132,17 @@ class BrowseTreeTest {
         assertTrue(r.filter { it.browsable }.all { it.cover })
     }
 
+    @Test fun everyPlayableRowIsAPlayRequestThePlayerTakes() {
+        val src = Src(recents = (1..3).map { t(it) }, favs = listOf(t(1)), pls = mapOf("p1" to listOf(t(2))))
+        val rows = ArrayList<BrowseNode>()
+        fun walk(id: String, depth: Int) { for (n in BrowseTree.children(id, 0, 100, src)) { if (n.playable) rows += n; if (n.browsable && depth < 2) walk(n.id, depth + 1) } }
+        walk(BrowseTree.ROOT, 0)
+        assertTrue(rows.any { it.id == BrowseTree.SHUFFLE } && rows.any { it.id.startsWith("all:") } && rows.any { it.id.startsWith("shuf:") })
+        for (n in rows) assertTrue("${n.title} (${n.id})", BrowseTree.isPlayId(n.id))
+        for (n in rows) assertNotNull("${n.title} (${n.id})", BrowseTree.resolve(n.id, src))
+        assertFalse(BrowseTree.isPlayId("http://jf/Audio/1/stream"))
+    }
+
     @Test fun everyListTheCarShowsIsRefreshed() =
         assertTrue(BrowseTree.LIVE.containsAll(BrowseTree.root().map { it.id } + listOf(BrowseTree.RECENT, BrowseTree.FAVORITES, BrowseTree.DOWNLOADED)))
 

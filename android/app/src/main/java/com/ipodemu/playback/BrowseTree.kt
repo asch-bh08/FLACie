@@ -57,6 +57,10 @@ object BrowseTree {
     val LIVE = listOf(HOME, RECENT, FAVORITES, PLAYLISTS, ALBUMS, ARTISTS, DOWNLOADED)
 
     fun songId(parent: String, path: String) = "s:$parent$SEP$path"
+    /** An id the car or a voice command asks to play, which the player resolves through [resolve]. Shuffle all, Play all and Shuffle were missing here
+     * and did nothing when pressed in the car. */
+    fun isPlayId(id: String) = id == SHUFFLE || listOf("s:", "pl:", "al:", "ar:", "all:", "shuf:").any { id.startsWith(it) }
+
     /** The id a voice command plays: the first song of what [searchPlay] found, with the rest of it queued after. */
     fun voiceId(query: String, path: String) = songId("voice:$query", path)
     fun playlistId(id: String) = "pl:$id"

@@ -146,7 +146,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** What the media session (media buttons, notification, Bluetooth) controls: Next and Previous go through the skip-burst handling too. */
     /** Resolving a browse id (a car or a voice request asks to play an album, a playlist, a song of a list) reads the library: off the main thread. */
     private val browseExec = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "browse-play").also { it.isDaemon = true } }
-    private fun isBrowseId(id: String) = id.startsWith("s:") || id.startsWith("pl:") || id.startsWith("al:") || id.startsWith("ar:")
+    private fun isBrowseId(id: String) = BrowseTree.isPlayId(id)
     /** A controller (Android Auto, a head unit, a voice command) asked to play browse items: the songs of the list they come from are queued here with the normal player, so the queue, history and everything else behave as if it was played in the app. */
     internal fun playBrowse(items: List<MediaItem>): Boolean {
         val id = items.firstOrNull()?.mediaId ?: return false

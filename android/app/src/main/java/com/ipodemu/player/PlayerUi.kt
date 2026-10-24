@@ -886,7 +886,9 @@ private fun SelectBar(songs: List<Track>, nav: PlayerNav, modifier: Modifier, do
     fun n(k: Int) = if (k == 1) "1 song" else "$k songs"
     Column(modifier.fillMaxWidth().padding(12.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xFF221D19)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Txt("${songs.size} selected", size = 15f, weight = FontWeight.SemiBold, color = sc.onBg)
+        // Cancel first, so it is never off the edge of a narrow screen (it was the last chip, out of sight until the row was scrolled); Share as on the web
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DesignChip("Cancel", false, done)
             DesignChip("Play next", false, { if (songs.isNotEmpty()) { songs.asReversed().forEach { app.player.addNext(it) }; app.ui.say("${n(songs.size)} play next"); done() } })
             DesignChip("Add to queue", false, { if (songs.isNotEmpty()) { songs.forEach { app.player.addToQueue(it) }; app.ui.say("Added ${n(songs.size)} to the queue"); done() } })
             DesignChip("Add to playlist", false, {
@@ -895,7 +897,7 @@ private fun SelectBar(songs: List<Track>, nav: PlayerNav, modifier: Modifier, do
                     SheetItem(pl.name, Glyph.LIST) { songs.forEach { app.userData.addToPlaylist(pl.id, it.path) }; app.ui.say("Added ${n(songs.size)} to ${pl.name}"); done() }
                 })
             })
-            DesignChip("Cancel", false, done)
+            DesignChip("Share", false, { if (songs.isNotEmpty()) { shareSongs(app, if (songs.size == 1) "song" else "songs", if (songs.size == 1) songs[0].title else n(songs.size), songs); done() } })
         }
     }
 }

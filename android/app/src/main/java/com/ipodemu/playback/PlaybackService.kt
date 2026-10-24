@@ -41,6 +41,8 @@ class PlaybackService : MediaLibraryService() {
 
     private val favCommand = SessionCommand(CMD_FAVORITE, Bundle.EMPTY)
     private val speedCommand = SessionCommand(CMD_SPEED, Bundle.EMPTY)
+    private val shuffleCommand = SessionCommand(CMD_SHUFFLE, Bundle.EMPTY)
+    private val repeatCommand = SessionCommand(CMD_REPEAT, Bundle.EMPTY)
 
     private fun <T> async(block: () -> T): ListenableFuture<T> {
         val f = SettableFuture.create<T>()
@@ -74,7 +76,7 @@ class PlaybackService : MediaLibraryService() {
 
     private val library = object : MediaLibrarySession.Callback {
         override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
-            val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon().add(favCommand).add(speedCommand).build()
+            val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon().add(favCommand).add(speedCommand).add(shuffleCommand).add(repeatCommand).build()
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session).setAvailableSessionCommands(commands).setCustomLayout(layout()).build()
         }
 
@@ -84,6 +86,8 @@ class PlaybackService : MediaLibraryService() {
             when (customCommand.customAction) {
                 CMD_FAVORITE -> app.player.current?.let { app.userData.toggleFavorite(it.path) }
                 CMD_SPEED -> app.player.setSpeed(SpeedPolicy.cycle(app.player.speed))
+                CMD_SHUFFLE -> { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() }
+                CMD_REPEAT -> { app.prefs.repeat = (app.prefs.repeat + 1) % 3; app.player.applyModes() }
             }
             refreshLayout(force = true)
             return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
@@ -185,6 +189,11 @@ class PlaybackService : MediaLibraryService() {
         return ImmutableList.of(
             CommandButton.Builder().setDisplayName(if (fav) "Remove from favourites" else "Favourite").setIconResId(if (fav) R.drawable.ic_fav_on else R.drawable.ic_fav)
                 .setSessionCommand(favCommand).build(),
+            // shuffle and repeat in the car (it shows only these buttons, not the phone's): dimmed when off, a 1 for repeat one
+            CommandButton.Builder().setDisplayName(if (app.prefs.shuffle) "Shuffle on" else "Shuffle off").setIconResId(if (app.prefs.shuffle) R.drawable.ic_car_shuffle else R.drawable.ic_shuffle_off)
+                .setSessionCommand(shuffleCommand).build(),
+            CommandButton.Builder().setDisplayName(when (app.prefs.repeat) { 1 -> "Repeat all"; 2 -> "Repeat one"; else -> "Repeat off" })
+                .setIconResId(when (app.prefs.repeat) { 1 -> R.drawable.ic_repeat; 2 -> R.drawable.ic_repeat_one; else -> R.drawable.ic_repeat_off }).setSessionCommand(repeatCommand).build(),
             CommandButton.Builder().setDisplayName("Speed " + SpeedPolicy.label(speed)).setIconResId(R.drawable.ic_speed).setSessionCommand(speedCommand).build(),
         )
     }
@@ -196,7 +205,7 @@ class PlaybackService : MediaLibraryService() {
     private fun refreshLayout(force: Boolean) {
         val s = session ?: return
         val app = App.of(this)
-        val key = (app.player.current?.path ?: "") + "|" + isFavorite(app) + "|" + app.player.speed
+        val key = (app.player.current?.path ?: "") + "|" + isFavorite(app) + "|" + app.player.speed + "|" + app.prefs.shuffle + "|" + app.prefs.repeat
         if (!force && key == lastLayoutKey) return
         lastLayoutKey = key
         s.setCustomLayout(layout())
@@ -226,6 +235,8 @@ class PlaybackService : MediaLibraryService() {
     companion object {
         const val CMD_FAVORITE = "com.ipodemu.FAVORITE"
         const val CMD_SPEED = "com.ipodemu.SPEED"
+        const val CMD_SHUFFLE = "com.ipodemu.SHUFFLE"
+        const val CMD_REPEAT = "com.ipodemu.REPEAT"
         // Android Auto's content-style hints (the keys of androidx.media.utils.MediaConstants)
         private const val STYLE_BROWSABLE = "android.media.browse.CONTENT_STYLE_BROWSABLE_HINT"
         private const val STYLE_PLAYABLE = "android.media.browse.CONTENT_STYLE_PLAYABLE_HINT"

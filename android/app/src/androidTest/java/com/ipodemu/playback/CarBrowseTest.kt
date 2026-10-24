@@ -76,6 +76,23 @@ class CarBrowseTest {
         assertNotNull(main { browser.getSearchResult("a", 0, 50, null) }.value)
     }
 
+    @Test fun now_playing_has_shuffle_and_repeat_buttons() {
+        var names = emptyList<String>()
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { names = browser.customLayout.map { it.displayName.toString() } }
+        assertTrue(names.toString(), names.any { it.startsWith("Shuffle") })
+        assertTrue(names.toString(), names.any { it.startsWith("Repeat") })
+    }
+
+    @Test fun the_shuffle_button_switches_shuffle() {
+        val app = com.ipodemu.App.of(ctx)
+        val before = app.prefs.shuffle
+        val cmd = androidx.media3.session.SessionCommand(PlaybackService.CMD_SHUFFLE, Bundle.EMPTY)
+        main { browser.sendCustomCommand(cmd, Bundle.EMPTY) }
+        assertEquals(!before, app.prefs.shuffle)
+        main { browser.sendCustomCommand(cmd, Bundle.EMPTY) }
+        assertEquals(before, app.prefs.shuffle)
+    }
+
     @Test fun a_cover_with_no_picture_is_the_logo_not_an_empty_square() {
         val uri = Uri.parse("content://com.ipodemu.art/" + Uri.encode("no-such-cover-anywhere"))
         val size = ctx.contentResolver.openFileDescriptor(uri, "r")!!.use { it.statSize }

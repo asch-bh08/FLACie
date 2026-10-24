@@ -49,9 +49,9 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun nodeItem(n: BrowseNode): MediaItem {
-        // a folder with a cover (album, playlist, artist) is only opened, not played straight off: Android Auto draws a grid of covers only for folders that
+        // a folder drawn as a cover (album, playlist, artist, even one with no picture yet) is only opened, not played straight off: Android Auto draws a grid of covers only for folders that
         // can't be played, and showed albums and playlists as plain lists before. Its songs still play (and queue the rest) from inside it; voice still plays it whole
-        val md = MediaMetadata.Builder().setTitle(n.title).setIsBrowsable(n.browsable).setIsPlayable(n.playable && !(n.browsable && n.artKey != null))
+        val md = MediaMetadata.Builder().setTitle(n.title).setIsBrowsable(n.browsable).setIsPlayable(n.playable && !(n.browsable && (n.grid || n.cover)))
             .setMediaType(if (n.browsable) MediaMetadata.MEDIA_TYPE_FOLDER_MIXED else MediaMetadata.MEDIA_TYPE_MUSIC)
         n.subtitle?.let { md.setSubtitle(it); if (!n.browsable) md.setArtist(it) }
         (ArtProvider.uri(n.artKey) ?: n.icon?.let { android.net.Uri.parse("android.resource://$packageName/drawable/$it") })?.let { md.setArtworkUri(it) }
@@ -59,6 +59,7 @@ class PlaybackService : MediaLibraryService() {
         val extras = Bundle()
         if (n.browsable) { extras.putInt(STYLE_BROWSABLE, if (n.grid) STYLE_GRID else STYLE_LIST); extras.putInt(STYLE_PLAYABLE, STYLE_LIST) }
         n.group?.let { extras.putString(STYLE_GROUP, it) }
+        if (n.cover) extras.putInt(STYLE_SINGLE, STYLE_GRID)
         if (n.offline) extras.putLong(DOWNLOAD_STATUS, 2L)
         md.setExtras(extras)
         return MediaItem.Builder().setMediaId(n.id).setMediaMetadata(md.build()).build()
@@ -216,6 +217,7 @@ class PlaybackService : MediaLibraryService() {
         private const val STYLE_PLAYABLE = "android.media.browse.CONTENT_STYLE_PLAYABLE_HINT"
         private const val STYLE_GROUP = "android.media.browse.CONTENT_STYLE_GROUP_TITLE_HINT"
         private const val STYLE_SUPPORTED = "android.media.browse.CONTENT_STYLE_SUPPORTED"
+        private const val STYLE_SINGLE = "android.media.browse.CONTENT_STYLE_SINGLE_ITEM_HINT"
         private const val STYLE_LIST = 1; private const val STYLE_GRID = 2
         private const val SEARCH_SUPPORTED = "android.media.browse.SEARCH_SUPPORTED"
         private const val DOWNLOAD_STATUS = "android.media.extra.DOWNLOAD_STATUS"

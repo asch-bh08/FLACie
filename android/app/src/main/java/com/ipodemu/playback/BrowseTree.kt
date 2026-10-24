@@ -23,11 +23,12 @@ interface BrowseSource {
 /**
  * One row of the browse tree: a folder you can open and/or a song or set of songs you can play. [grid]: the car shows its children as big covers (albums,
  * playlists, artists) instead of a list. [group]: the heading it sits under in a list (Home's sections). [icon]: a drawable's name for a row with no cover (the tabs,
- * Favourites, Shuffle all). [offline]: the song is on the phone, so the car marks it as downloaded.
+ * Favourites, Shuffle all). [offline]: the song is on the phone, so the car marks it as downloaded. [cover]: this one row is drawn as a big cover in
+ * a list (Home's recent songs and playlists).
  */
 class BrowseNode(
     val id: String, val title: String, val subtitle: String?, val browsable: Boolean, val playable: Boolean, val artKey: String?, val path: String? = null,
-    val grid: Boolean = false, val group: String? = null, val icon: String? = null, val offline: Boolean = false,
+    val grid: Boolean = false, val group: String? = null, val icon: String? = null, val offline: Boolean = false, val cover: Boolean = false,
 )
 
 /** A play request: the songs of the list the person picked from, and where to start. */
@@ -48,6 +49,8 @@ object BrowseTree {
     const val MAX_QUEUE = 300
     /** How many recent songs Home shows under its heading (all of them are in Recently played's own list). */
     const val HOME_RECENT = 12
+    /** How many playlists Home shows as covers (all of them are in the Playlists tab). */
+    const val HOME_PLAYLISTS = 6
 
     /** The lists the car is told to reload when the library or the account's lists change (PlaybackService): it keeps what it was first told, and
      * a car that connected before FLACie had loaded anything showed "No items" in every tab until it was restarted. */
@@ -67,11 +70,31 @@ object BrowseTree {
     )
 
     private fun home(src: BrowseSource): List<BrowseNode> {
-        val mine = "Your music"; val lately = "Recently played"
+        val mine = "Your music"; val lately = "Recently played"; val lists = "Your playlists"
         return listOf(BrowseNode(SHUFFLE, "Shuffle all", "Your whole library", browsable = false, playable = true, artKey = null, icon = "ic_car_shuffle")) +
             folder(FAVORITES, "Favourites", "ic_car_favourites", group = mine) + folder(DOWNLOADED, "Downloaded", "ic_car_downloaded", group = mine) +
-            src.recent().take(HOME_RECENT).map { songNode(RECENT, it, lately) }
+            src.recent().take(HOME_RECENT).map { songNode(RECENT, it, lately).let { n -> BrowseNode(n.id, n.title, n.subtitle, false, true, n.artKey, n.path, group = lately, cover = true) } } +
+            playlistNodes(src).take(HOME_PLAYLISTS).map { BrowseNode(it.id, it.title, it.subtitle, true, true, it.artKey, group = lists, icon = "ic_car_playlists", cover = true) }
     }
+
+    private fun playlistNodes(src: BrowseSource) =
+        src.playlists().map { (id, name) -> val (n, art) = src.playlistSummary(id); BrowseNode(playlistId(id), name, songs(n), browsable = true, playable = true, artKey = art, grid = true, icon = "ic_car_playlists") }
+
+    /** The two buttons at the top of an album, playlist or artist: its songs in order, or shuffled. */
+    private fun buttons(parent: String) = listOf(
+        BrowseNode("all:$parent", "Play all", null, browsable = false, playable = true, artKey = null, icon = "ic_car_play"),
+        BrowseNode("shuf:$parent", "Shuffle", null, browsable = false, playable = true, artKey = null, icon = "ic_car_shuffle"),
+    )
+
+    private val credits = Regex("\\s*(;|,|&|/|\\s+(feat\\.?|ft\\.?|featuring)\\s+)\\s*", RegexOption.IGNORE_CASE)
+
+    /** Artists merged by their main credit however it is spelt ("2Pac", "2PAC", "2Pac; Dr. Dre"), named as their biggest spelling's main credit. */
+    private fun mergedArtists(src: BrowseSource): List<Group> = src.artists().filter { it.name.isNotBlank() }
+        .groupBy { com.ipodemu.library.primaryArtist(it.name).ifEmpty { it.name.lowercase() } }.values.map { gs ->
+            val big = gs.maxBy { it.tracks.size }
+            val name = big.name.split(credits).firstOrNull { it.isNotBlank() }?.trim() ?: big.name
+            Group(name, gs.flatMap { it.tracks }.distinctBy { it.path }, big.artKey)
+        }
 
     private fun songNode(parent: String, t: Track, group: String? = null) = BrowseNode(
         songId(parent, t.path), t.title, listOf(t.artist, t.album).filter { it.isNotBlank() }.joinToString(" · ").ifEmpty { null },
@@ -90,12 +113,11 @@ object BrowseTree {
             parent == RECENT -> src.recent().map { songNode(parent, it) }
             parent == FAVORITES -> src.favorites().map { songNode(parent, it) }
             parent == DOWNLOADED -> src.downloaded().map { songNode(parent, it) }
-            parent == PLAYLISTS -> src.playlists().map { (id, name) -> val (n, art) = src.playlistSummary(id); BrowseNode(playlistId(id), name, songs(n), browsable = true, playable = true, artKey = art, grid = true) }
-            parent == ALBUMS -> sorted(src.albums()).map { g -> BrowseNode(albumId(g.tracks.firstOrNull()?.albumKey ?: g.name), g.name, g.tracks.firstOrNull()?.albumArtist?.ifEmpty { null }, browsable = true, playable = true, artKey = g.artKey, grid = true) }
-            parent == ARTISTS -> sorted(src.artists()).map { g -> BrowseNode(artistId(g.name), g.name, songs(g.tracks.size), browsable = true, playable = true, artKey = g.artKey, grid = true) }
-            parent.startsWith("pl:") -> src.playlistTracks(parent.removePrefix("pl:")).map { songNode(parent, it) }
-            parent.startsWith("al:") -> albumTracks(parent, src).map { songNode(parent, it) }
-            parent.startsWith("ar:") -> artistTracks(parent, src).map { songNode(parent, it) }
+            parent == PLAYLISTS -> playlistNodes(src)
+            parent == ALBUMS -> sorted(src.albums()).map { g -> BrowseNode(albumId(g.tracks.firstOrNull()?.albumKey ?: g.name), g.name, g.tracks.firstOrNull()?.albumArtist?.ifEmpty { null }, browsable = true, playable = true, artKey = g.artKey, grid = true, icon = "ic_car_albums") }
+            parent == ARTISTS -> sorted(mergedArtists(src)).map { g -> BrowseNode(artistId(g.name), g.name, songs(g.tracks.size), browsable = true, playable = true, artKey = g.artKey, grid = true, icon = "ic_car_artists") }
+            parent.startsWith("pl:") || parent.startsWith("al:") || parent.startsWith("ar:") ->
+                songsOf(parent, src).let { t -> if (t.isEmpty()) emptyList() else buttons(parent) + t.map { songNode(parent, it) } }
             else -> emptyList()
         }
         val size = pageSize.coerceIn(1, MAX_PAGE)
@@ -109,7 +131,7 @@ object BrowseTree {
     }
 
     private fun artistTracks(id: String, src: BrowseSource): List<Track> =
-        src.artists().firstOrNull { it.name == id.removePrefix("ar:") }?.tracks?.sortedWith(compareBy({ it.album.lowercase() }, { it.discNo }, { it.trackNo })) ?: emptyList()
+        mergedArtists(src).firstOrNull { it.name == id.removePrefix("ar:") }?.tracks?.sortedWith(compareBy({ it.album.lowercase() }, { it.discNo }, { it.trackNo })) ?: emptyList()
 
     /** The songs behind any id: a song (with its list around it), or a whole playlist, album or artist from its first song. Null for an id that is not playable. */
     fun resolve(mediaId: String, src: BrowseSource): Resolved? {
@@ -122,6 +144,8 @@ object BrowseTree {
             if (i < 0) return null
             return window(list, i)
         }
+        if (mediaId.startsWith("all:")) return songsOf(mediaId.removePrefix("all:"), src).takeIf { it.isNotEmpty() }?.let { window(it, 0) }
+        if (mediaId.startsWith("shuf:")) return songsOf(mediaId.removePrefix("shuf:"), src).takeIf { it.isNotEmpty() }?.let { window(it.shuffled(), 0) }
         val list = songsOf(mediaId, src)
         return if (list.isEmpty()) null else window(list, 0)
     }

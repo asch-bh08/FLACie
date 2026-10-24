@@ -60,13 +60,42 @@ class BrowseTreeTest {
         assertTrue(pl[0].grid); assertEquals(t(3).artKey, pl[0].artKey); assertEquals("2 songs", pl[0].subtitle)
         assertTrue(BrowseTree.children(BrowseTree.ALBUMS, 0, 50, src).all { it.grid && it.artKey != null })
         assertTrue(BrowseTree.children(BrowseTree.ARTISTS, 0, 50, src).all { it.grid })
-        val song = BrowseTree.children(pl[0].id, 0, 50, src)[0]
+        val song = BrowseTree.children(pl[0].id, 0, 50, src)[2]
         assertFalse(song.grid); assertEquals("Ar · Al", song.subtitle)
     }
 
     @Test fun albumsSortByTheirWordsNotLeadingQuotesOrDots() {
         val src = Src(songs = listOf(t(1, "\"...And Crazy\""), t(2, "Bravo"), t(3, "\"Sugar Hill\"")))
         assertEquals(listOf("\"...And Crazy\"", "Bravo", "\"Sugar Hill\""), BrowseTree.children(BrowseTree.ALBUMS, 0, 50, src).map { it.title })
+    }
+
+    @Test fun insideAnAlbumPlayAllAndShuffleComeFirst() {
+        val src = Src(songs = (1..4).map { t(it) })
+        val album = BrowseTree.children(BrowseTree.ALBUMS, 0, 50, src)[0]
+        val inside = BrowseTree.children(album.id, 0, 50, src)
+        assertEquals(listOf("Play all", "Shuffle"), inside.take(2).map { it.title })
+        assertTrue(inside.take(2).all { it.playable && !it.browsable && it.icon != null })
+        assertEquals(4, inside.drop(2).size)
+        val all = BrowseTree.resolve(inside[0].id, src)!!; assertEquals(0, all.index); assertEquals("Song 1", all.tracks[0].title); assertEquals(4, all.tracks.size)
+        val shuf = BrowseTree.resolve(inside[1].id, src)!!; assertEquals(4, shuf.tracks.size); assertEquals(4, shuf.tracks.map { it.path }.toSet().size)
+        // the second page of songs has no buttons in it
+        assertTrue(BrowseTree.children(album.id, 1, 3, src).none { it.title == "Play all" })
+    }
+
+    @Test fun homeShowsRecentSongsAndPlaylistsAsCovers() {
+        val src = Src(recents = (1..3).map { t(it) }, pls = mapOf("p1" to listOf(t(5)), "p2" to listOf(t(6))))
+        val home = BrowseTree.children(BrowseTree.HOME, 0, 100, src)
+        assertTrue(home.filter { it.group == "Recently played" }.all { it.cover })
+        val pls = home.filter { it.group == "Your playlists" }
+        assertEquals(listOf("Playlist p1", "Playlist p2"), pls.map { it.title }); assertTrue(pls.all { it.cover && it.browsable })
+        assertFalse(home.first { it.title == "Favourites" }.cover)
+    }
+
+    @Test fun oneArtistHowEverTheyAreSpelt() {
+        val songs = listOf(t(1, artist = "2Pac"), t(2, artist = "2PAC"), t(3, artist = "2Pac; Dr. Dre"), t(4, artist = "2pac"), t(5, artist = "Blur"))
+        val artists = BrowseTree.children(BrowseTree.ARTISTS, 0, 50, Src(songs = songs))
+        assertEquals(listOf("2Pac", "Blur"), artists.map { it.title })
+        assertEquals(4 + 2, BrowseTree.children(artists[0].id, 0, 50, Src(songs = songs)).size)   // Play all, Shuffle and the four songs
     }
 
     @Test fun everyListTheCarShowsIsRefreshed() =
@@ -96,10 +125,10 @@ class BrowseTreeTest {
         val albums = BrowseTree.children(BrowseTree.ALBUMS, 0, 50, src)
         assertEquals(listOf("alpha", "Zed"), albums.map { it.title }); assertTrue(albums.all { it.browsable && it.playable })
         val inside = BrowseTree.children(albums[0].id, 0, 50, src)
-        assertEquals(listOf("Song 3", "Song 2"), inside.map { it.title })   // in track order
+        assertEquals(listOf("Song 3", "Song 2"), inside.drop(2).map { it.title })   // in track order
         val artists = BrowseTree.children(BrowseTree.ARTISTS, 0, 50, src)
         assertEquals(listOf("A", "B"), artists.map { it.title })
-        assertEquals(2, BrowseTree.children(artists[0].id, 0, 50, src).size)
+        assertEquals(2 + 2, BrowseTree.children(artists[0].id, 0, 50, src).size)
     }
 
     @Test fun playingAFolderQueuesItsSongsFromTheStart() {

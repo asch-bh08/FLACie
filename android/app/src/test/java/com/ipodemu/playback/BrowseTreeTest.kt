@@ -91,6 +91,14 @@ class BrowseTreeTest {
         assertFalse(home.first { it.title == "Favourites" }.cover)
     }
 
+    @Test fun homeShowsEveryPlaylistBeforeYourMusic() {
+        val src = Src(pls = (1..10).associate { "p$it" to listOf(t(it)) })
+        val home = BrowseTree.children(BrowseTree.HOME, 0, 100, src)
+        val pls = home.filter { it.group == "Your playlists" }
+        assertEquals(10, pls.size)   // "pop" was the 7th and Home stopped at 6
+        assertTrue(home.indexOf(pls.last()) < home.indexOfFirst { it.title == "Favourites" })
+    }
+
     @Test fun oneArtistHowEverTheyAreSpelt() {
         val songs = listOf(t(1, artist = "2Pac"), t(2, artist = "2PAC"), t(3, artist = "2Pac; Dr. Dre"), t(4, artist = "2pac"), t(5, artist = "Blur"))
         val artists = BrowseTree.children(BrowseTree.ARTISTS, 0, 50, Src(songs = songs))

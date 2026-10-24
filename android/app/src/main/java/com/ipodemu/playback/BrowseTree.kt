@@ -49,8 +49,8 @@ object BrowseTree {
     const val MAX_QUEUE = 300
     /** How many recent songs Home shows under its heading (all of them are in Recently played's own list). */
     const val HOME_RECENT = 12
-    /** How many playlists Home shows as covers (all of them are in the Playlists tab). */
-    const val HOME_PLAYLISTS = 6
+    /** How many playlists Home shows as covers: all of a usual collection (it stopped at 6 and "pop", the 7th, was missing); the Playlists tab has every one. */
+    const val HOME_PLAYLISTS = 30
 
     /** The lists the car is told to reload when the library or the account's lists change (PlaybackService): it keeps what it was first told, and
      * a car that connected before FLACie had loaded anything showed "No items" in every tab until it was restarted. */
@@ -72,9 +72,10 @@ object BrowseTree {
     private fun home(src: BrowseSource): List<BrowseNode> {
         val mine = "Your music"; val lately = "Recently played"; val lists = "Your playlists"
         return listOf(BrowseNode(SHUFFLE, "Shuffle all", "Your whole library", browsable = false, playable = true, artKey = null, icon = "ic_car_shuffle")) +
+            // the playlists first: they are what a person reaches for in the car
+            playlistNodes(src).take(HOME_PLAYLISTS).map { BrowseNode(it.id, it.title, it.subtitle, true, true, it.artKey, group = lists, icon = "ic_car_playlists", cover = true) } +
             folder(FAVORITES, "Favourites", "ic_car_favourites", group = mine) + folder(DOWNLOADED, "Downloaded", "ic_car_downloaded", group = mine) +
-            src.recent().take(HOME_RECENT).map { songNode(RECENT, it, lately).let { n -> BrowseNode(n.id, n.title, n.subtitle, false, true, n.artKey, n.path, group = lately, cover = true) } } +
-            playlistNodes(src).take(HOME_PLAYLISTS).map { BrowseNode(it.id, it.title, it.subtitle, true, true, it.artKey, group = lists, icon = "ic_car_playlists", cover = true) }
+            src.recent().take(HOME_RECENT).map { songNode(RECENT, it, lately).let { n -> BrowseNode(n.id, n.title, n.subtitle, false, true, n.artKey, n.path, group = lately, cover = true) } }
     }
 
     private fun playlistNodes(src: BrowseSource) =

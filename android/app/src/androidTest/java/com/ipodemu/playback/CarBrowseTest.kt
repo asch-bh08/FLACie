@@ -93,6 +93,20 @@ class CarBrowseTest {
         assertEquals(before, app.prefs.shuffle)
     }
 
+    @Test fun play_on_the_card_carries_on_with_the_queue_of_last_time() {
+        val app = com.ipodemu.App.of(ctx)
+        val t = com.ipodemu.library.Track(path = "http://127.0.0.1:9/Audio/0123456789abcdef0123456789abcdef/stream?static=true", title = "Saved Song", artist = "Saved Artist",
+            album = "A", albumArtist = "Saved Artist", genre = "", trackNo = 1, discNo = 1, durationMs = 60_000, year = 0, isMusic = true, artKey = null, mtime = 0, size = 0,
+            source = com.ipodemu.library.TrackSource.JELLYFIN)
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { app.player.exo.stop(); app.player.exo.clearMediaItems() }
+        java.io.File(ctx.filesDir, "queue.json").writeText(QueueStore.encode(listOf(t), 0, 5_000, null))
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { browser.setMediaItem(MediaItem.Builder().setMediaId(BrowseTree.RESUME).build()) }
+        Thread.sleep(1500)
+        var title: String? = null
+        InstrumentationRegistry.getInstrumentation().runOnMainSync { title = app.player.current?.title; app.player.exo.pause() }
+        assertEquals("Saved Song", title)
+    }
+
     @Test fun a_cover_with_no_picture_is_the_logo_not_an_empty_square() {
         val uri = Uri.parse("content://com.ipodemu.art/" + Uri.encode("no-such-cover-anywhere"))
         val size = ctx.contentResolver.openFileDescriptor(uri, "r")!!.use { it.statSize }

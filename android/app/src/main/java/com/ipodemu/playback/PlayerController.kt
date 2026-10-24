@@ -150,6 +150,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** A controller (Android Auto, a head unit, a voice command) asked to play browse items: the songs of the list they come from are queued here with the normal player, so the queue, history and everything else behave as if it was played in the app. */
     internal fun playBrowse(items: List<MediaItem>): Boolean {
         val id = items.firstOrNull()?.mediaId ?: return false
+        // the queue of last time, put back paused; the play that follows carries on with it
+        if (id == BrowseTree.RESUME) { restoreQueue(); return true }
         if (!isBrowseId(id)) return false
         browseExec.execute {
             val r = try { BrowseTree.resolve(id, AppBrowseSource(App.of(ctx))) } catch (_: Exception) { null }
@@ -390,6 +392,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             } catch (_: Exception) {}
         }
     }
+    /** There is something to carry on with: a queue in the player or one saved last time. */
+    fun hasSavedQueue(): Boolean = hasQueue || queueFile.exists()
     /** At start-up: the queue, song and position of last time, paused (nothing plays by itself). Songs whose file is gone are dropped. */
     fun restoreQueue() {
         if (hasQueue) return

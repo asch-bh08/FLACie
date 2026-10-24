@@ -42,6 +42,8 @@ class Resolved(val tracks: List<Track>, val index: Int)
 object BrowseTree {
     const val ROOT = "root"
     const val HOME = "home"; const val SHUFFLE = "shuffle"
+    /** Carry on with the queue of last time (play pressed on the car's card before anything was picked). */
+    const val RESUME = "resume"
     const val RECENT = "recent"; const val FAVORITES = "favorites"; const val PLAYLISTS = "playlists"; const val ALBUMS = "albums"; const val ARTISTS = "artists"; const val DOWNLOADED = "downloaded"
     private const val SEP = '\u001F'
     const val MAX_PAGE = 100

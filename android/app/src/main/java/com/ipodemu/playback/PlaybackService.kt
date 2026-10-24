@@ -130,6 +130,13 @@ class PlaybackService : MediaLibraryService() {
             async { LibraryResult.ofItemList(ImmutableList.copyOf(BrowseTree.searchNodes(query, page, pageSize, AppBrowseSource(App.of(this@PlaybackService))).map(::nodeItem)), params) }
 
         /** A request to play something: a browse id (handled by the player, see PlayerController.sessionPlayer) or a voice request ("play X"), which becomes the first matching song. */
+        /** Play pressed on the car's (or a Bluetooth stereo's) FLACie card before anything was picked: the queue of last time carries on. The card's
+         * play button was greyed out ("Tap to open") without this. */
+        override fun onPlaybackResumption(mediaSession: MediaSession, controller: MediaSession.ControllerInfo): ListenableFuture<MediaSession.MediaItemsWithStartPosition> =
+            if (App.of(this@PlaybackService).player.hasSavedQueue())
+                Futures.immediateFuture(MediaSession.MediaItemsWithStartPosition(listOf(MediaItem.Builder().setMediaId(BrowseTree.RESUME).build()), 0, androidx.media3.common.C.TIME_UNSET))
+            else Futures.immediateFailedFuture(UnsupportedOperationException("nothing to carry on with"))
+
         override fun onSetMediaItems(mediaSession: MediaSession, controller: MediaSession.ControllerInfo, mediaItems: MutableList<MediaItem>, startIndex: Int, startPositionMs: Long): ListenableFuture<MediaSession.MediaItemsWithStartPosition> =
             async {
                 val src = AppBrowseSource(App.of(this@PlaybackService))

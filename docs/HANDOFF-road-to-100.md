@@ -5,6 +5,8 @@ Updated after every step, so another session can take over at any point. Newest 
 
 ## Now (2026-10-25, night)
 
+- **Beta 91 released** (speed): web on frank (rollback tag rollback-20261025-pre91), GitHub v1.0.0-beta91 with APK + MSI, Android code 106.
+
 - **Beta 90 released** (web on frank, rollback tag rollback-20261025-pre90; GitHub v1.0.0-beta90 with APK + MSI; Android versionCode 105).
 - **Working on beta 91: the owner's speed overhaul** (owner AFK overnight, release b91 if optimised): 3-4 s gap between songs, covers not
   instant, Home 1-2 s, Listen again ~3 s with no VU, weak-signal / fast-skip / search smoothness, light on resources but never at

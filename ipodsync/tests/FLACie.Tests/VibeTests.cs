@@ -8,12 +8,32 @@ public class VibeTests
     const double Step = 0.01;   // seconds per level
 
     /// <summary>[seconds] of levels at [floor], with a hit of [hit] every [beat] seconds.</summary>
-    static float[] Clicks(double seconds, double beat, float floor, float hit)
+    static float[] Clicks(double seconds, double beat, float floor, float hit, double step = Step)
     {
-        var l = new float[(int)(seconds / Step)];
+        var l = new float[(int)(seconds / step)];
         for (var i = 0; i < l.Length; i++) l[i] = floor;
-        for (var t = 0.0; t < seconds; t += beat) { var i = (int)Math.Round(t / Step); if (i < l.Length) l[i] = hit; }
+        for (var t = 0.0; t < seconds; t += beat) { var i = (int)Math.Round(t / step); if (i < l.Length) l[i] = hit; }
         return l;
+    }
+
+    /// <summary>A real CD-quality FLAC file gives a level per 4096-sample frame: about 0.093 s, so a beat is only 3 to 11 levels long.</summary>
+    const double FrameStep = 4096.0 / 44100;
+
+    // each hit lands on the nearest frame, up to half a frame (46 ms) early or late, as a real one does: 3 BPM either way is what the ear would call the same tempo
+    [Theory]
+    [InlineData(120)]
+    [InlineData(90)]
+    [InlineData(150)]
+    public void The_tempo_is_heard_at_real_frame_resolution(double bpm) =>
+        Assert.InRange(VibeMath.FromLevels(Clicks(60, 60 / bpm, 0.2f, 1f, FrameStep), FrameStep).Bpm, bpm - 3, bpm + 3);
+
+    [Fact]
+    public void Eighth_notes_between_stronger_beats_do_not_double_the_tempo()
+    {
+        // an 80 BPM beat with a slightly softer hit halfway between each pair (eighth notes): the beat is 80, not 160
+        var l = Clicks(30, 60 / 80.0, 0.2f, 1f);
+        for (var t = 60 / 160.0; t < 30; t += 60 / 80.0) { var i = (int)Math.Round(t / Step); if (i < l.Length) l[i] = 0.85f; }
+        Assert.InRange(VibeMath.FromLevels(l, Step).Bpm, 78, 82);
     }
 
     [Fact]

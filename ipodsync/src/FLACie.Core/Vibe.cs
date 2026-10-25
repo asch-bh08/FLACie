@@ -28,23 +28,56 @@ public static class VibeMath
         var r0 = Ac(onset, 0);
         if (r0 < 1e-9) return new Vibe(energy, loudness, 0, 0);
 
-        // the beat: the gap (between 60 and 180 BPM) at which the onsets line up with themselves best. The plain sum has fewer terms at longer
-        // gaps, so of two equally good gaps (a beat and every other beat) the quicker one wins.
-        var minLag = Math.Max(1, (int)Math.Floor(60 / MaxBpm / secondsPerLevel));
-        var maxLag = Math.Min(onset.Length - 2, (int)Math.Ceiling(60 / MinBpm / secondsPerLevel));
-        if (maxLag <= minLag) return new Vibe(energy, loudness, 0, 0);
-        int best = -1; var bestR = 0.0;
-        for (var lag = minLag; lag <= maxLag; lag++) { var r = Ac(onset, lag); if (r > bestR) { bestR = r; best = lag; } }
-        if (best < 0) return new Vibe(energy, loudness, 0, 0);
-        // the true gap sits between whole levels: a parabola through the peak and its neighbours finds it
-        double y0 = Ac(onset, best - 1), y2 = Ac(onset, best + 1), den = y0 - 2 * bestR + y2;
-        var exact = best + (Math.Abs(den) > 1e-12 ? Math.Clamp(0.5 * (y0 - y2) / den, -0.5, 0.5) : 0);
-        var bpm = Math.Clamp(60 / (exact * secondsPerLevel), MinBpm, MaxBpm);
+        // how well the onsets line up with themselves at each gap, up to 8 seconds. A real file has a level only every tenth of a second, so each hit
+        // lands up to half a level early or late: the curve is smoothed over neighbouring gaps so a beat that falls 5, 5, 6, 5, 6 levels apart still adds up.
+        var span = Math.Min(onset.Length - 2, (int)(8 / secondsPerLevel));
+        if (span < 60 / MinBpm / secondsPerLevel) return new Vibe(energy, loudness, 0, 0);
+        var raw = new double[span + 2];
+        for (var lag = 0; lag < raw.Length; lag++) raw[lag] = Ac(onset, lag) / r0;
+        var ac = new double[raw.Length];
+        for (var lag = 1; lag < raw.Length - 1; lag++) ac[lag] = 0.25 * raw[lag - 1] + 0.5 * raw[lag] + 0.25 * raw[lag + 1];
+        double At(double lag) { var i = (int)lag; var f = lag - i; return i + 1 >= ac.Length ? 0 : ac[i] * (1 - f) + ac[i + 1] * f; }
+
+        // the beat: the tempo (60 to 180 BPM, in quarter steps) whose every multiple, out to 8 seconds, lines up best. Summing the multiples pins the
+        // tempo far finer than one level, and a quicker tempo has more multiples, so of a beat and every other beat the beat wins.
+        double bestBpm = 0, bestScore = 0;
+        for (var b = MinBpm; b <= MaxBpm; b += 0.25)
+        {
+            var period = 60 / b / secondsPerLevel; var score = 0.0;
+            for (var m = 1; m * period <= span; m++) score += At(m * period);
+            if (score > bestScore) { bestScore = score; bestBpm = b; }
+        }
+        if (bestBpm == 0) return new Vibe(energy, loudness, 0, 0);
+        var p = 60 / bestBpm / secondsPerLevel;
+
+        // eighth notes between the beats look like a beat twice as fast: when every other hit is clearly stronger, those are the beat
+        if (bestBpm / 2 >= MinBpm && Alternation(onset, p) < 0.9) { bestBpm /= 2; p *= 2; }
 
         // a beat you can dance to is strong (the onsets line up well) and steady (they still line up two beats on)
-        var strength = Math.Clamp(bestR / r0, 0, 1);
-        var steady = 2 * best < onset.Length ? Math.Clamp(Ac(onset, 2 * best) / bestR, 0, 1) : 0;
-        return new Vibe(energy, loudness, bpm, strength * steady);
+        double Peak(double lag) { var i = (int)Math.Round(lag); return i + 1 >= raw.Length ? 0 : Math.Max(raw[i - 1], Math.Max(raw[i], raw[i + 1])); }
+        var strength = Math.Clamp(Peak(p), 0, 1);
+        var steady = strength > 1e-9 ? Math.Clamp(Peak(2 * p) / strength, 0, 1) : 0;
+        return new Vibe(energy, loudness, bestBpm, strength * steady);
+    }
+
+    /// <summary>The weaker of the two halves of the hits [period] apart (every other hit against the rest) over the stronger: 1 when they are even.</summary>
+    static double Alternation(double[] onset, double period)
+    {
+        // the phase the hits fall on: the offset whose hits add up the most
+        double Hits(double phase, int parity)
+        {
+            var s = 0.0;
+            for (var k = parity; phase + k * period < onset.Length - 1; k += 2)
+            {
+                var i = (int)Math.Round(phase + k * period);
+                s += Math.Max(0, Math.Max(onset[Math.Max(0, i - 1)], Math.Max(onset[i], onset[Math.Min(onset.Length - 1, i + 1)])));
+            }
+            return s;
+        }
+        double bestPhase = 0, best = -1;
+        for (var ph = 0; ph < period; ph++) { var s = Hits(ph, 0) + Hits(ph, 1); if (s > best) { best = s; bestPhase = ph; } }
+        double even = Hits(bestPhase, 0), odd = Hits(bestPhase, 1);
+        return Math.Max(even, odd) < 1e-9 ? 1 : Math.Min(even, odd) / Math.Max(even, odd);
     }
 
     static double Ac(double[] x, int lag)

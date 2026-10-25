@@ -49,10 +49,11 @@ public sealed class VibeFillService(SessionStore sessions, VibeIndex index, List
         try { await Task.Delay(TimeSpan.FromMinutes(2), ct); } catch (OperationCanceledException) { return; }
         while (!ct.IsCancellationRequested)
         {
+            // saved however the pass ends, shutdown included, so the songs worked out since the last save are kept
             try { foreach (var s in sessions.Active.ToList()) if (!s.Loading) await PassAsync(s, ct); }
             catch (OperationCanceledException) { break; }
             catch (Exception e) { log.LogWarning(e, "vibe pass failed"); }
-            index.Save();
+            finally { index.Save(); }
             try { await Task.Delay(Interval, ct); } catch (OperationCanceledException) { break; }
         }
     }
@@ -79,6 +80,7 @@ public sealed class VibeFillService(SessionStore sessions, VibeIndex index, List
             await activity.WaitIdleAsync(TimeSpan.FromSeconds(3), ct);
             if (await MediaEndpoints.ReadWhole(s, t, jf, hf, ct) is { } bytes && WaveShape.FrameLevels(bytes) is ({ } levels, var step))
                 index.Set(t, VibeMath.FromLevels(levels, step));
+            else if (ct.IsCancellationRequested) break;   // the server is stopping: the song is not broken, only unread
             else failed.Add(t.Path);
             if (++done % SaveEvery == 0) index.Save();
         }

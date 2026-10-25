@@ -23,6 +23,14 @@ public sealed class DjSettings
     public bool On(DjSurface s) => s switch { DjSurface.Phone => Phone, DjSurface.Auto => Auto, DjSurface.Web => Web, _ => Windows };
 }
 
+/// <summary>Which switch wins, top to bottom: the Now Playing "this queue" switch, then the playlist's switch, then On/Off with this device's "Where" tick.
+/// The Android app mirrors this in Kotlin (playback/DjRules.kt); keep the two the same.</summary>
+public static class DjRules
+{
+    public static bool EffectiveOn(DjSettings s, DjSurface surface, string? playlistId, bool? queueDj) =>
+        queueDj ?? (playlistId is { Length: > 0 } && s.Playlists.TryGetValue(playlistId, out var p) ? p : s.Enabled && s.On(surface));
+}
+
 /// <summary>A song as the DJ needs it. Clients send what they have; blank fields are never spoken.</summary>
 public sealed record DjSong(string Title, string Artist, string Album = "", string AlbumArtist = "", int Year = 0, string Genre = "",
     long DurationMs = 0, string Path = "", string? JellyfinId = null, int TrackNo = 0, int DiscNo = 0);

@@ -1,54 +1,78 @@
 # A free AI DJ for FLACie: research
 
-Written 2026-10-25 on branch `research/ai-dj` (cut from `origin/ui/living-sleeve`, tip `2f2241c`). Research only: no app code touched, nothing deployed, nothing pushed.
+Written 2026-10-25 on branch `research/ai-dj` (cut from `origin/ui/living-sleeve` at `2f2241c`). Research only: no app code was changed, nothing was deployed, and frank was not touched.
 
-Heads-up on sources: the web searches returned few hard numbers. Where a speed or quality figure is my estimate rather than something I read, it says **(estimate)**. Section 7 has a 10-minute benchmark for you to run on frank so we're not guessing.
+How sure each number is: nobody has published Piper or Kokoro timings on an Intel N100 or NUC, so speed figures for frank are **(estimate)**, scaled from the nearest measured hardware. The free-tier allowance numbers come straight from the providers' pricing pages. The code references were checked against this branch.
 
 ---
 
 ## 1. Summary for the owner
 
-**It's doable for £0.** The cheapest, most reliable way:
+**Yes, a free AI DJ is doable, and it needs nothing new on frank except one small library.**
 
-1. **Write the line with templates**, not an AI. FLACie already knows title, artist, album, year, genre, and (on your other PC) the engine's "why". A few hundred hand-written line patterns plus those facts sounds like a DJ and costs nothing. A small local LLM can come later as an optional polish, but I wouldn't start there: on a NUC-class CPU it's slow-ish, sometimes weird, and the templates are 90% as good.
-2. **Say it with Piper or Kokoro on frank** (free, offline, runs on CPU). Frank turns the line into a short MP3 *clip* (3 to 6 seconds).
-3. **Treat the clip as just another item in the queue**, sitting between two songs. That one trick works on every platform:
-   - Android phone/car: play it with Media3 like any song (flag it as an "advertisement" so Android Auto doesn't flash a notification).
-   - Web/Windows: same, the player plays it, with a short volume dip.
-   - Alexa: queue it as its own AudioPlayer stream. (Alexa won't let you *speak* in the gap between queued songs, but it will happily play an MP3 stream there.)
-4. Fallback with zero server work: the phone's/browser's built-in text-to-speech. Free, instant, sounds more robotic.
+- **The lines:** written from templates filled with facts FLACie already has: title, artist, album, year, genre, and the new engine's "why". Appendix A has 60 ready-made templates. An AI rewording step is optional, for later.
+- **The voice:** made on frank inside the existing `flacie-web` container, with no second container. It uses **Piper** voices through a free .NET package (sherpa-onnx), at roughly **1 second per line** on a NUC-class CPU (estimate).
+- **Free hosted option:** your Cloudflare account's free Workers AI allowance would cover about **6,400 lines a day** with its MeloTTS voice. A busy family day is about 150. Cloudflare can also write the lines with a decent 8B model, for about 2% more of the allowance. This is optional, and you'd need to create the key yourself.
+- **Playback on phone, car, web and Windows:** a small second player says the line over the start of the next song while the music dips. Nothing is added to the queue, so the queue, Android Auto and play counts stay exactly as they are.
+- **Playback on Alexa:** the server glues the spoken clip onto the front of the next song's audio. Alexa can't speak between queued songs, and a separate short clip risks the music stopping.
+- **Fallback:** the phone's or browser's own voice, if frank can't make a clip.
 
-**Costs:** nothing, assuming frank has a few spare GB of RAM and an ordinary CPU. **Biggest risks:** frank's actual CPU (I couldn't check, see 7), Piper being GPL (fine for a private family server, but matters if FLACie is ever shipped as a product), and Alexa needing the clip to be a public HTTPS MP3.
+**Cost:** £0. **Effort:** about 8 to 9 days for everything in version 1. **Biggest risks:** the lines being cringe (kept rare and calm), Alexa's handling of glued-on clips (needs testing on a real Echo), and licences, which only matter if FLACie builds are ever distributed.
 
-**What I need from you:** pick a voice (3 samples to listen to, see 8), say how chatty the DJ should be, and whether it's OK to add a second Docker container on frank for the voice (I didn't touch frank).
-
----
-
-## 2. What FLACie already has (relevant bits)
-
-- `Track` has Title, Artist, Album, AlbumArtist, Year, Genre, Duration (`ipodsync/src/FLACie.Core/Track.cs`). Lyrics exist on Android (`Lyrics.kt`). Good enough for most lines.
-- `Recommender.cs` / `TasteProfile`: builds taste from plays, favourites, playlists, Jellyfin history. The `/api/recommend/next` with a "why" string is **not on this branch**, it's on the other PC's work; the spec file `2026-10-25-recommendation-engine-design.md` is not here either. I designed around "each pick has a short why text".
-- Server (`flacie-web` container) is .NET 9 on `mcr.microsoft.com/dotnet/aspnet:9.0`. **No ffmpeg in the image.** So WAV to MP3 conversion needs a managed encoder (e.g. a .NET LAME wrapper) or a sidecar that outputs MP3/Opus.
-- Android player: Media3 `AudioAttributes(USAGE_MEDIA, CONTENT_TYPE_MUSIC)` with audio focus handled by ExoPlayer (`PlayerController.kt:138`).
-- Alexa: the skill lives at `ipodsync/src/FLACie.Server/Alexa/AlexaEngine.cs`, uses AudioPlayer, and is reached through Tailscale Funnel `/alexa`.
-- Server already keeps "the start of upcoming songs", so prefetching a DJ clip alongside the next song is in the spirit of the existing design.
+**You decide:** the voice (listen to samples), local or Cloudflare, how chatty, and whether Alexa is in v1. The full list is in section 9.
 
 ---
 
-## 3. Text-to-speech options
+## 2. What FLACie already has
 
-| Option | Where | Licence | Sound | Speed for one sentence | Size | Notes |
+- **Song facts:** `Track` has Title, Artist, Album, AlbumArtist, Year, Genre and DurationMs (`ipodsync/src/FLACie.Core/Track.cs:11`). Title clean-up already exists: `Catalog.BaseTitle`, `Phonetic.StripTags` / `SpeechSafe` (Alexa's spoken titles), `TrackTitles.CleanAll` / `IsFileName`, and `Matching.FeatParen` / `FeatTail`.
+- **Taste:** `Recommender.cs` / `TasteProfile` builds a taste profile. `/api/recommend/next` and its "why" text, and the spec `2026-10-25-recommendation-engine-design.md`, are **not on any pushed branch**. They're still on the other PC. This doc assumes each pick comes with a short "why" text.
+- **Server image:** .NET 9 on `aspnet:9.0` (Debian 12 "bookworm-slim"), with **no ffmpeg**.
+- **Android:**
+  - Media3 with ExoPlayer audio focus (`PlayerController.kt:138`).
+  - Output volume is already one place: `applyOutputVolume()` = volume × fade × crossfade × loudness (`PlayerController.kt:280`), which is the natural hook for ducking.
+- **Alexa:**
+  - Songs are served as 256 kbps MP3 through signed URLs (`AlexaEndpoints.cs:136-138`, `SignedUrls.cs`).
+  - Queue tokens are `serial:index:pass` (`AlexaEngine.cs:77`).
+  - The next song is queued with ENQUEUE on `PlaybackNearlyFinished` (`AlexaEngine.cs:385-400`, `AlexaSkill.cs:163-164`).
+
+---
+
+## 3. Voices (text-to-speech)
+
+### 3a. Free, no account
+
+| Option | Runs on | Licence | Sound (my judgement, I can't hear) | Speed per line | Size | Notes |
 |---|---|---|---|---|---|---|
-| **Android `TextToSpeech`** (system engine, e.g. Google TTS) | Phone, on-device | Free, part of Android | OK to good. Google's neural voices are decent; offline voices are a download | Near-instant start | Offline voice packs tens of MB, user-installed | Only as good as the engine installed. **Handhelds like the RG Rotate may have no Google TTS at all**, so check. Can speak out loud, or `synthesizeToFile` to a file ([docs](https://developer.android.com/reference/android/speech/tts/TextToSpeech)) |
-| **Web Speech API** (`speechSynthesis`) | Browser, Windows | Free, built in | Varies hugely: Windows "Natural" voices in Edge are good, Chrome's are mixed | Instant | None | Can't capture the audio or mix it through Web Audio; it goes straight to the speakers. Must start from a user click first (autoplay). Voice list loads late (`voiceschanged`). Remote voices need internet and may be missing events. [MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API/Using_the_Web_Speech_API) |
-| **Piper** | Server (or on-device via sherpa-onnx) | **GPL-3.0** engine (`OHF-Voice/piper1-gpl`), embeds espeak-ng; each voice has its own licence in its MODEL_CARD, project says "personal use and research" ([repo](https://github.com/OHF-Voice/piper1-gpl), [voices doc](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/VOICES.md)) | Clearly natural, a bit flat; best "medium/high" voices are good for a one-liner | Fast on CPU, designed for Raspberry Pi: a short sentence should take well under a second **(estimate; I found no measured numbers)** | Voice ~15 to 100 MB | Repo says it is "looking for maintainers" (not archived). Very easy to run as a small HTTP service. Voices download from Hugging Face `rhasspy/piper-voices` |
-| **Kokoro-82M** | Server (or on-device) | **Apache-2.0** weights ([repo](https://github.com/hexgrad/kokoro)); espeak-ng (GPL) used for fallback phonemising | Best of the free bunch for "natural" English (US and UK voices) | Faster than real-time on a laptop CPU is commonly claimed, no hard CPU numbers found; a sentence is probably 1 to 3 s on a NUC **(estimate)** | 82M params; ONNX file ~80 to 330 MB depending on quantisation | ONNX wrapper `kokoro-onnx` (MIT) avoids PyTorch. More RAM than Piper |
-| **sherpa-onnx** | Android/Win/Linux, on-device or server | Apache-2.0 ([repo](https://github.com/k2-fsa/sherpa-onnx)) | Runs Piper/VITS (and Kokoro in some builds) models | Same as the model | Runtime ~ tens of MB + voice | Lets the *phone* make Piper-quality speech with no server and no Google TTS. Extra APK size and native-library work, so a later step |
-| Hosted free tiers (Google/Azure/ElevenLabs/Edge "read aloud" web endpoint) | Cloud | Need accounts/cards or are unofficial | Excellent | Network round trip | n/a | **Rejected**: need keys/cards, or (Edge endpoint) are unofficial and can break/violate terms. Not "zero cost, zero accounts" |
+| **Piper** (medium voices) | frank, inside flacie-web via [sherpa-onnx NuGet](https://www.nuget.org/packages/org.k2fsa.sherpa.onnx) | Piper GPL-3.0; voices "personal use and research", check each MODEL_CARD ([voices](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/VOICES.md)) | Natural, a little flat | RTF ~0.06 on "an Intel Core i5" ([HA blog](https://www.home-assistant.io/blog/2023/04/27/year-of-the-voice-chapter-2/)); 0.36 on a Pi 4 ([sherpa RTF](https://k2-fsa.github.io/sherpa/onnx/tts/pretrained_models/rtf.html)). **~1 s per 5 s line on an N100 (estimate)** | 63 MB medium, 114 MB high; container ~200-300 MB RAM ([review](https://mustafa.net/2026/08/31/piper-review-after-6-months-running-local-tts-in-production/)) | **Recommended first voice** |
+| **Kokoro-82M** | frank, same NuGet | Apache-2.0 weights ([repo](https://github.com/hexgrad/kokoro)) | The most natural of the free local voices | RTF 3.2 on a Pi 4; ~0.5 on 4 EPYC cores ([sherpa RTF](https://k2-fsa.github.io/sherpa/onnx/tts/pretrained_models/rtf.html), [benchmark](https://reddit.sentinel-team.org/posts/1tgo96d/snapshots/2026-05-22T21%3A16%3A06.79106Z)). **~5-8 s per line on an N100 (estimate)** | fp32 326 MB, int8 114 MB (int8 was slower and noisier on ARM, [sherpa #3754](https://github.com/k2-fsa/sherpa-onnx/issues/3754)); ~1 GB RAM (estimate) | Works because clips are made minutes ahead, but heavy on a small CPU. Upgrade option |
+| **Android `TextToSpeech`** | the phone | Free, built in | Good with Google TTS | Instant | Voice packs are user downloads | Retro handhelds may have **no engine at all**: Pico was disabled in AOSP in 2018 ([log](https://android.googlesource.com/platform/external/svox/+log/refs/heads/main)). The app needs a `<queries>` entry for `TTS_SERVICE` (Android 11+, targetSdk 33) ([package visibility](https://developer.android.com/training/package-visibility/use-cases)) |
+| **sherpa-onnx TTS engine APK** | the phone | Apache-2.0 code, licence varies per voice | Piper/Kokoro quality on-device | Depends on device | 44-178 MB ([APK list](https://k2-fsa.github.io/sherpa/onnx/tts/apk-engine.html)) | Installs as a system TTS engine on phones with none |
+| **Web Speech API** | browser and Windows | Free, built in | Edge "Natural" voices are good; Chrome's are mixed | Instant | none | Can't be captured or mixed; needs a user click first ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API/Using_the_Web_Speech_API)). Fallback only |
 
-**Takeaway:** use **Kokoro or Piper on frank** as the main voice (same voice on every device, which is what makes it feel like *a DJ*), and the **device's own TTS as an offline fallback**.
+Ready-made TTS servers exist, but each needs a **second container** on frank:
+- [Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI): Apache-2.0, CPU image 1.56 GB, returns MP3.
+- [wyoming-piper](https://github.com/rhasspy/wyoming-piper): no HTTP, no MP3.
+- [Speaches](https://speaches.ai/installation/): MIT, Kokoro, MP3.
+- [openedai-speech](https://github.com/matatonic/openedai-speech): archived.
 
-Which one: Piper is lighter and simpler (good if frank is a small box); Kokoro sounds better and has a permissive weights licence. Run both on frank and compare (section 7). Voice quality is subjective, and I can't hear audio, so this is your call.
+Running the voice **inside flacie-web through sherpa-onnx** avoids a second container. The NuGet package (Apache-2.0) includes linux-x64 native libraries (10 MB) and has C# examples for [Kokoro](https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/master/dotnet-examples/kokoro-tts-lexicon/Program.cs) and [Piper](https://github.com/k2-fsa/sherpa-onnx/tree/master/dotnet-examples/offline-tts-phonemize). The voice files would be downloaded into `/data` on first use, not built into the image.
+
+### 3b. Free hosted (needs an account and a key the owner creates)
+
+How much DJ each one gives, assuming an 80-character, 5-second line and about 150 lines on a busy family day:
+
+| Service | Free amount | Lines per day | Catch |
+|---|---|---|---|
+| **Cloudflare Workers AI, MeloTTS** | 10,000 neurons a day (Free and Paid plans, resets 00:00 UTC). MeloTTS = 18.63 neurons per audio minute ([pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/)) | **~6,400** (a busy day uses ~2%) | Voice quality unknown to me. Titles and artists go to Cloudflare. Allowance shared with any other Workers AI use. Believed to fail rather than bill on the Free plan (not confirmed) |
+| Cloudflare, Deepgram Aura-1 / Aura-2 | 1,364 / 2,727 neurons per 1k characters (same page) | ~90 / ~45 | Runs out by mid-afternoon |
+| Azure Speech free tier (F0) | 500k neural characters a month, 1 request at a time ([pricing](https://azure.microsoft.com/pricing/details/cognitive-services/speech-services)) | ~200 | Excellent UK voices; Azure sign-up usually asks for a card |
+| Google Cloud TTS | ~1-4 M characters a month by voice type ([pricing](https://cloud.google.com/text-to-speech/pricing)) | plenty | Billing must be on (card); charges past the free amount |
+| Gemini TTS free tier | ~10-15 requests a day ([pricing](https://ai.google.dev/gemini-api/docs/pricing)) | ~10 | Far too few; free-tier data is used by Google |
+| ElevenLabs Free | 10k credits a month ([pricing](https://elevenlabs.io/pricing)) | ~4 | Non-commercial, must credit them |
+| Edge "Read aloud" (edge-tts) | unlimited, no account | plenty | Unofficial; could be blocked any day. Not recommended |
+
+**Cloudflare MeloTTS is the only hosted option that is truly free, with room to spare.** Keep Piper as the fallback for when it's down or the allowance runs out.
 
 ---
 
@@ -56,135 +80,293 @@ Which one: Piper is lighter and simpler (good if frank is a small box); Kokoro s
 
 | Approach | Cost | Speed | Quality | Risk |
 |---|---|---|---|---|
-| **Templates + song facts + the engine's "why"** | Free | Instant | Predictable, can be warm and varied if we write enough variants | Gets samey; needs care |
-| **Local LLM on frank via Ollama** | Free, RAM+CPU | See below | Can sound more natural, but small models ramble, invent facts ("released in 1994" when it wasn't), and need a strict prompt | Hallucination; cringe; frank load while also serving the family |
-| Hosted free LLM tiers | Need account/API key; limits change | Fast | Good | **Rejected**: keys and sign-ups (not allowed for me to enter), free tiers shift or disappear |
+| **Templates + facts + "why"** (Appendix A) | free | instant | Calm and predictable; varied with 60 templates and rotation rules | Can feel samey after weeks |
+| Local LLM on frank (Ollama) | free | Llama 3.2 1B ~18 tok/s and 3B ~11 tok/s on an N100 ([DigiKey](https://www.digikey.com/en/maker/projects/review-of-llama3.2-vs-llama3.1-performance-on-lattepanda-mu/fe2224b0153e4bd98c03ae5ebae698e4)); Qwen2.5 1.5B ~1-5 tok/s on an N100 in another test ([post](https://blog.patshead.com/2024/12/should-you-run-a-large-language-model-on-an-intel-n100-mini-pc.html)). **~2-5 s per line (estimate)** | Small models drift and invent facts | 1-2 GB RAM, CPU spikes while the family streams |
+| **Cloudflare Llama 3.1 8B** (`llama-3.1-8b-instruct-fp8-fast`) | ~2 neurons per line (4,119 in / 34,868 out per M tokens, [pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/)) | fast | Much better writer than anything that fits frank | Needs a token; facts go to Cloudflare |
+| OpenRouter / Groq free tiers | free | fast | good | 50-100 requests a day, accounts ([OpenRouter](https://openrouter.ai/docs/api-reference/limits), [Groq](https://console.groq.com/docs/rate-limits)). Not worth it |
 
-**Local models that fit a NUC-class box with, say, 8 GB RAM free:** (Ollama library sizes; [qwen2.5](https://ollama.com/library/qwen2.5))
+Local model licences:
+- Qwen2.5 0.5B and 1.5B, and Qwen3 1.7B: Apache-2.0.
+- Qwen2.5 3B: non-Apache research licence.
+- Llama 3.2: community licence.
+- Gemma 3: Gemma terms.
+- Phi-4-mini: MIT.
 
-| Model | Download / RAM | Licence | Rough CPU speed |
-|---|---|---|---|
-| Qwen2.5 0.5B | 398 MB | Apache-2.0 | very fast, weak writing |
-| Qwen2.5 1.5B | 986 MB | Apache-2.0 | roughly 8 to 25 tok/s |
-| Llama 3.2 1B | ~1.3 GB | Llama community licence | ~10 to 60+ tok/s (sources disagree) |
-| Gemma 2/3 1B to 2B | ~1 to 1.7 GB | Gemma terms | ~8 to 19 tok/s |
-| Qwen2.5 3B | 1.9 GB | Qwen licence (not Apache) | ~5 to 9 tok/s |
+**Decision: templates first.** An LLM is only ever allowed to *reword* a template line, never add facts, and a strict validator falls back to the template (Appendix A.7). If you want rewording, Cloudflare 8B is the better choice than a model on frank.
 
-Benchmarks I found disagree wildly and none were on a NUC with Ollama; one CPU-only Linux test measured ~18 tok/s for Gemma 3 1B and ~9 tok/s for a 3B ([itsFOSS](https://itsfoss.com/testing-local-llms-without-gpu)). A DJ line is about 30 tokens, so **expect 2 to 6 seconds per line plus a cold-start load of several seconds**. Fine if generated ahead of time (the next song is known 3+ minutes early). Not fine on demand.
-
-**Recommendation for lines:** templates first. The LLM is an optional "variety" layer later, with the song facts fed in and the facts never allowed to change (only the phrasing). If LLM output fails a check (too long, mentions an unknown name), fall back to a template.
-
-**Keeping it short, varied, not cringe** (concrete rules):
-- Max about 18 words. One idea per line. The *why* is the hook: "Same energy as Out of Space, and you play The Prodigy a lot."
-- Talk only about things we know are true: title, artist, album, year, and the why. Never invent trivia.
-- Don't speak every song: about 1 in 3 to 1 in 4 transitions, never twice in a row, never over a song's quiet intro. A setting: Off / Rare / Often.
-- 15+ variants per slot (open, bridge, close), no repeat within the last ~10 lines. Rotate structure ("Up next: ...", "That was ..., now ...", just the why).
-- No hype words, no "vibe", no exclamation marks, no jokes. Say names how people say them (e.g. strip "(Remastered 2011)", "feat."; keep a pronunciation override list for odd names).
-- Skip the intro for songs under ~60 s and when the previous one was skipped within 10 s (the user is flicking).
+Rules against cringe:
+- At most 18 words.
+- Only true facts; never trivia.
+- Speak about 1 song in 3 ("Often") or 1 in 7 ("Rare").
+- Never twice in a row.
+- No "!", no "vibe", no hype, no jokes, no "I" or "we".
+- Stay quiet when the user is skipping, on songs under 60 s, and inside albums that play straight through.
 
 ---
 
-## 5. Where it runs and how the audio is mixed
+## 5. Making and sending the clip
 
-### Generate on the server, play as a clip (recommended)
+- **When:** when the engine picks the next song (minutes ahead). The server writes the line, makes the WAV, encodes it and caches it as `dj/{hash}.mp3`. If it isn't ready in time, the DJ just stays quiet.
+- **Encoding without ffmpeg:**
+  - Add Debian's `libmp3lame0` (356 kB, [package](https://packages.debian.org/bookworm/libmp3lame0)) to the image and call it from .NET (P/Invoke, unverified).
+  - `NAudio.Lame` is Windows-only. Managed options are unvetted ([EggEncoder](https://www.nuget.org/packages/EggEncoder/4.40.0)).
+  - Mono 48 kbps CBR MP3 plays on Alexa, Chrome/Edge and ExoPlayer ([Alexa](https://developer.amazon.com/en-US/docs/alexa/custom-skills/use-long-form-audio.html), [ExoPlayer](https://developer.android.com/media/media3/exoplayer/supported-formats)).
+  - The Alexa copy is encoded to match the song stream (256 kbps) so the two can be joined.
+- **Size:** a 4 s clip is about 25 KB, so cache cost is nothing.
+- **Privacy:** clips contain only song facts and the "why". Alexa URLs are signed like the songs' are. For Alexa, drop "you play X a lot" parts.
 
-Server makes `dj/{id}.mp3` (mono, 24 kHz, ~48 to 64 kbps) when it picks the next song, caches it, and puts it in the queue as a normal item with a tiny duration. The same file works everywhere, which is the big win: one voice, one place to tune, **only one implementation of "speak"**, and the apps just play files (they already do).
+---
 
-Needs: a TTS service next to `flacie-web` and an MP3 encoder (the image has no ffmpeg). A ~4 s clip at 48 kbps is ~25 KB, so cache cost is nothing.
+## 6. Playing it on each platform
 
-Alternative, device-side TTS only: no server load and works with no connection, but the voice differs per device, can't work on Alexa, and web TTS can't be mixed.
-
-### Platform details
-
-| Platform | How the voice goes between tracks | Ducking? |
+| Platform | How | Why this way |
 |---|---|---|
-| **Android (phone)** | Insert the clip as a `MediaItem` between songs (Media3 playlist). Lowest risk, and works with gapless/crossfade queues already there. For "talk over the end of the song", fade the player volume to ~35% via `player.volume` for the clip's duration, which is simple with a second small `ExoPlayer`/`MediaPlayer` playing the clip | Own the ducking: set volume ourselves. Don't use `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK` for the DJ clip, since our own player ducks itself; the framework uses it for other apps' short sounds ([docs](https://developer.android.com/reference/android/media/AudioFocusRequest)) |
-| **Android Auto / car** | Same clip-as-queue-item. Android Auto's rules for media apps (only two mentioned: nothing playing without a user action; nothing alarming) don't mention TTS. Set `METADATA_KEY_IS_ADVERTISEMENT` on the clip item so Android Auto doesn't pop a "now playing changed" notification ([distraction safeguards](https://developer.android.com/training/cars/media/distraction-safeguards)). Don't use `TextToSpeech` directly inside the car session: another app's audio focus + hardware button quirks are the likely failures. | Not needed if the clip sits *between* songs |
-| **Web / Windows** | `<audio>` element or Web Audio gain node: fade song down, play clip, fade back up. Because it's a file, Web Audio can mix it (unlike `speechSynthesis`, which can't be captured or mixed). Needs the first user click (already the case since you press Play) | Easy with a gain node |
-| **Alexa** | Speech can't be inserted between queued songs: responses to `PlaybackNearlyFinished` may not contain `outputSpeech` ([AudioPlayer reference](https://developer.amazon.com/docs/alexa/custom-skills/audioplayer-interface-reference.html)). Instead, `ENQUEUE` the DJ clip as its own stream: `[song A][DJ clip][song B]`, each with a token. The clip must be public HTTPS on 443, and it's unauthenticated, so it must contain nothing private (no names beyond song/artist). Speech via SSML `<audio>` only works in a launch/intent reply and needs MPEG-2 MP3, 48 kbps, 16/22.05/24 kHz, max 240 s ([SSML reference](https://developer.amazon.com/en-US/docs/alexa/custom-skills/speech-synthesis-markup-language-ssml-reference.html)). Funnel already exposes `/alexa`, so a `/alexa/dj/{id}.mp3` route fits | None, it's sequential. Alexa's built-in TTS voice could say "playing X" on direct requests ("ask flaky for something chill") |
+| **Android phone** | A **second small player** with `handleAudioFocus=false` plays the clip over the start of the next song. A new duck factor in `applyOutputVolume()` (`PlayerController.kt:280`) ramps the music to about 25% and back, modelled on the 150 ms crossfade ticker (`:283-294`). Stop the clip on pause, skip, seek, `clearQueue` (`:606`) and `onTaskRemoved` (`PlaybackService.kt:224`) | Putting the clip **in the queue** would break about 10 places that assume one queue item per song: `queue`/`queueIndex`, `persistNow`, `onAutoAdvance` firing twice (the Jam would advance twice), the end-of-track sleep timer, `checkQueueLow` and the shuffle order. A second player that took focus would make ExoPlayer **pause the music** (focus loss), so focus must stay off ([AudioFocusManager](https://github.com/androidx/media/blob/release/libraries/common/src/main/java/androidx/media3/common/audio/AudioFocusManager.java)) |
+| **Android Auto** | Same overlay. The car screen keeps showing the real song, so there's no metadata change and no notification | Car quality rules don't mention speech. MA-1 says no audio without a user action, which is met because the DJ only speaks inside playback the user started ([quality](https://developer.android.com/docs/quality-guidelines/car-app-quality)). If clips ever become queue items, Media3's `MediaConstants.EXTRAS_KEY_IS_ADVERTISEMENT` hides the change notification ([safeguards](https://developer.android.com/training/cars/media/distraction-safeguards)) |
+| **Web / Windows** | A second `<audio>` element plus a Web Audio gain ramp on the music | The same model as Android; `speechSynthesis` can't be mixed |
+| **Alexa** | **Glue the clip onto the front of the next song** in the stream route (`AlexaEndpoints.cs:132-139`): voice then song in one stream. Fix Content-Length and Range (`:104,113`); skip the clip when the offset is over 0 (resume) and on Repeat One | Speech isn't allowed in replies to `PlaybackNearlyFinished` ([AudioPlayer](https://developer.amazon.com/en-US/docs/alexa/custom-skills/audioplayer-interface-reference.html)). A separate 3-6 s clip stream is risky: NearlyFinished can arrive 0.1-0.5 s after a short stream starts, and events come out of order ([sample #37](https://github.com/alexa/skill-sample-nodejs-audio-player/issues/37), [MA #93](https://github.com/alams154/music-assistant-alexa-skill-prototype/issues/93)). Over Funnel, the ENQUEUE for the song may miss and the music stops. Plan B, if glueing causes MP3 glitches: a separate clip stream with token `{serial}:{ni}:{np}:dj:{guid}`. `TryToken` already ignores 5-part tokens (`AlexaEngine.cs:78-83`); song B is enqueued from the clip's own NearlyFinished. Policy: don't use Alexa's or Polly's voice for clips, and keep the word "Alexa" out of them, since it would wake the device ([policy](https://developer.amazon.com/en-US/docs/alexa/custom-skills/policy-requirements-for-an-alexa-skill.html), [tests](https://developer.amazon.com/en-US/docs/alexa/custom-skills/functional-testing-for-a-custom-skill.html)) |
 
-### Edge cases to handle
-- Skip pressed during the clip: the clip is a queue item, so "next" naturally skips it (and shouldn't count as a song skip in the taste engine; mark it so the engine ignores it).
-- Shuffle, repeat-one, seeking back: clips should be re-attached only on forward auto-advance.
-- Cover art/title while the clip plays: show "FLACie DJ" and keep the next song's cover, so lock-screen/car screens don't flicker.
-- Offline: if no clip is cached, silently skip it.
-- Spoken lines contain only library data, which already lives on the server. No data leaves for third parties.
+Note: Alexa hears voice *then* song, while the other platforms hear voice *over* the song's start. An "in the gap" mode for phone and web (hold the next song until the clip ends) would match Alexa exactly, and could be a setting.
 
 ---
 
-## 6. Later: requests ("play something chill", "more like this")
+## 7. Later: requests ("play something chill", "more like this")
 
-- **Alexa** already does the hard part (speech to text); extend the skill's intents, and the engine handles the "chill" as an energy/tempo target.
-- **Phone/car:** Android Auto/Google Assistant voice actions arrive as `onPlayFromSearch`; map "chill/energetic/more like this" onto the recommender. No speech recognition to build.
-- **Web/Windows:** a text box or a few buttons ("Chiller", "Livelier", "More like this") beats speech recognition, which in browsers means Google's cloud service (not private, not free-guaranteed).
-- Free-form language understanding with a small local LLM is possible later, but a fixed handful of phrases ("chill", "party", "focus", "something new") covers 95%.
+- **Alexa:** add intents. "Chill", "party", "focus", "new" map to energy and tempo targets in the engine.
+- **Android and Auto:** Media3 turns `playFromSearch` into `onSetMediaItems` with `searchQuery`. Only genre, artist, album, playlist and title extras are documented; mood isn't ([voice actions](https://developer.android.com/training/cars/media/voice-actions)), so match mood words in the query text.
+  - **Existing gap:** `PlaybackService.kt:145` ignores blank queries, so "play some music" plays nothing. An empty query should mean "start something sensible".
+- **Web / Windows:** "Chiller", "Livelier" and "More like this" buttons, not speech recognition (in browsers that's Google's cloud).
 
 ---
 
-## 7. Open facts to check (I could not verify)
+## 8. Open checks (things I couldn't do)
 
-1. **Frank's CPU/RAM.** I was told not to touch frank, so I haven't looked. Please run on it and paste back:
+1. **Frank's CPU and RAM.** I wasn't allowed on frank, so please run this there and send me the output:
    ```bash
-   lscpu | grep -E "Model name|^CPU\(s\)"; free -h; docker ps --format '{{.Names}}' | head -30
+   lscpu | grep -E "Model name|^CPU\(s\)"; free -h
    ```
-   Rule of thumb: 4+ cores and 4 GB free RAM is plenty for Piper or Kokoro; add 2 GB more if you want a small LLM too. Avoid doing both TTS and LLM at once when a family member is streaming.
-2. **Real speed numbers.** Quick benchmark once a TTS container is up (in a scratch folder, not in flacie-web), time a single call such as `time curl -s -o /tmp/t.wav -d 'That was Chandelier by Sia. Staying with big vocals, here is Titanium.' http://localhost:5000/api/tts`. Anything under about 2 s per line is fine because clips are made ahead of time.
-3. **Does your RG Rotate have a system TTS engine?** Settings > Accessibility > Text-to-speech. If there's no engine, the on-device fallback does nothing there (server clips still work).
-4. **Whether Alexa plays a queued clip with no gap-issues.** I believe enqueuing short streams works, but I haven't tested it; a 1-day spike with your skill would answer it.
-5. **Piper/Kokoro on frank without ffmpeg:** need an MP3 encoder in the .NET image (or the TTS sidecar returning MP3).
+   N100-class: use Piper. A recent i5 or better: Kokoro is fine too.
+2. **Real timings and samples.** A local benchmark on this PC was stopped on request. The first implementation step should log ms per line on frank.
+3. **RG Rotate TTS engine:** run `adb shell cmd package query-services -a android.intent.action.TTS_SERVICE` (untested). No engine means no device fallback there; server clips still work.
+4. **Alexa on a real Echo:** whether the glued clip plays cleanly, and resume behaviour. A one-day spike.
+5. **Cloudflare free plan when the allowance runs out:** confirm requests fail rather than bill.
+6. **Side finding:** `AlexaSkill.cs:194-195` sends `shouldEndSession` in replies to AudioPlayer events, which the docs say may not contain standard properties. It works today; worth checking.
 
 ---
 
-## 8. Recommendation
+## 9. Recommendation
 
 **Stack**
-- **Lines:** templates (+ the engine's "why"), with an optional local-LLM variety layer later.
-- **Voice:** one server voice, **Kokoro** (best sound) or **Piper** (lightest). Pick after listening; both run in one small container, so the choice isn't locked in.
-- **Delivery:** server-generated 24 kHz mono MP3 clip, prefetched and cached next to the next song.
-- **Playback:** the clip is a queue item on all platforms; fade/duck in our own players on web and phone.
-- **Fallback:** device `TextToSpeech` / `speechSynthesis` when the clip isn't there.
+- **Lines:** templates (Appendix A), with optional rewording by Cloudflare Llama 3.1 8B later.
+- **Voice:** Piper (UK medium voice) inside flacie-web via sherpa-onnx. Optional Cloudflare MeloTTS if you prefer its sound; Kokoro later if frank's CPU can take it. All of them sit behind one `IDjVoice` interface, so swapping is a setting.
+- **Clip:** mono 48 kbps MP3 via libmp3lame, made when the next song is picked and cached in `/data`.
+- **Playback:** overlay plus duck on Android, Auto, web and Windows; glued onto the next song's stream on Alexa.
+- **Fallback:** Android `TextToSpeech` (to a file, played by the overlay) and the web's `speechSynthesis`.
 
-**Effort (rough, one dev; "day" means a focused day)**
+**Effort (one dev, focused days)**
 
-| Piece | Effort |
+| Piece | Days |
 |---|---|
-| 1. DJ script engine (template bank of ~150 lines in 6 slots, rotation, rate limiter, name clean-up) + tests | 1.5 days |
-| 2. TTS sidecar container on frank + `/api/dj/clip` endpoint, MP3 encode, cache, prefetch | 2 days |
-| 3. Android: insert clip item, ad flag for Auto, settings (Off/Rare/Often), engine ignores clips | 1.5 days |
-| 4. Web/Windows: same with gain-node ducking, setting | 1 day |
-| 5. Alexa: serve the public clip route, enqueue between songs, test on a device | 1 day (+ spike risk) |
-| 6. Device-TTS fallback on Android + web | 0.5 day |
-| 7. (Later) request intents and buttons | 1 to 2 days |
-| 8. (Later) local LLM variety layer | 1 day |
-| **Total for v1 (1 to 6)** | **about 7 to 8 days** |
+| 1. Line engine in Core: slots, templates, clean-up (reusing existing helpers), variety, pronunciation file, tests | 2 |
+| 2. Server voice: sherpa-onnx + Piper, voice download to `/data`, libmp3lame, cache, prefetch, `/api/dj/clip` with signed URLs | 2 |
+| 3. Android: overlay player, duck factor, cancel on skip/pause/seek, setting, `<queries>` | 1.5 |
+| 4. Web and Windows: overlay audio, gain ramp, setting | 1 |
+| 5. Alexa: glue clip onto the next song (Content-Length/Range), test on a real Echo | 1.5 |
+| 6. Device TTS fallback (Android and web) | 0.5 |
+| **Version 1 total** | **about 8.5** |
+| 7. (Optional) Cloudflare provider: MeloTTS + 8B rewording, neuron budget, fallback | 1 |
+| 8. (Later) requests: intents, mood words, buttons, plus the blank-query fix | 1.5 |
 
-Per the repo rule, it ships on Android + web + Windows together; Alexa is the one most likely to slip because it can't be tested without a real device.
+Per the repo rule, it ships on Android + web + Windows together. Alexa is the piece most likely to slip, since it needs a real device.
 
 **Risks**
-- **Cringe.** Biggest real risk. Mitigation: low frequency, short lines, user setting, a "less DJ" thumb-down that backs the frequency off.
-- **Licences.** Piper is GPL-3.0: fine running privately on frank, but FLACie's Docker image is labelled MIT and publicly sourced; keep Piper in a *separate* container rather than bundling it, and check each voice's MODEL_CARD. Kokoro weights (Apache-2.0) avoid this, though its fallback phonemiser (espeak-ng) is GPL.
-- **Frank load** while playing for the family; clips are tiny and made ahead, so it should be a brief spike.
-- **Pronunciation of names** ("Beyoncé", "Sigur Rós"); needs a small override list.
-- **Alexa quirks:** clips are public/unauthenticated; the queue behaviour needs a real test.
-- **Maintenance:** Piper is looking for maintainers; Kokoro is active. Hence preferring a swappable TTS service behind one endpoint.
+- **Cringe.** Mitigated by low frequency, calm templates, a setting per person, and staying quiet while skipping.
+- **Licences.**
+  - sherpa-onnx includes espeak-ng (GPL-3.0); Piper voices are "personal use and research".
+  - Fine on a private family server.
+  - If FLACie Docker images or installers are ever *published*, that is distributing GPL code. Kokoro with a lexicon avoids espeak-ng, but unknown words are dropped ([#3931](https://github.com/k2-fsa/sherpa-onnx/issues/3931)).
+- **CPU on frank.** Piper is light; Kokoro and a local LLM are not. Clips are made ahead, so there's no live load.
+- **Alexa glueing** may click at the join or upset seeking. Plan B is a separate clip stream (racy).
+- **Pronunciation of odd names:** an override file (Appendix A.5).
+- **Piper's project is looking for maintainers**, which is a reason to keep the voice swappable.
 
 **Decisions for you**
-1. Voice: I'll prepare 3 sample sentences per voice (Kokoro UK female/male, Piper UK medium) for you to listen to, as you ask. I can't judge the sound myself.
-2. Default chattiness (Off / Rare / Often) and whether each family member can change it.
-3. OK to add a TTS container on frank (separate from `flacie-web`), and whether to add an MP3 encoder library to the web image.
-4. Should the DJ also say things on Alexa (extra risk) or stay phone/web/Windows-only in v1?
-5. Do you want lyrics-based or fun-fact lines? I'd say no: facts we don't own are how you get wrong or cringey lines.
+1. **Voice:** listen to a few. The Piper UK candidates are `en_GB-alba-medium`, `en_GB-cori-high`, `en_GB-northern_english_male-medium` and `en_GB-alan-medium` (samples on the [Piper voices page](https://rhasspy.github.io/piper-samples/)). MeloTTS (British accent) on Cloudflare and Kokoro `bf_emma` / `bm_george` are the alternatives.
+2. **Local (Piper) or Cloudflare as the main voice.** If Cloudflare, you create a Workers AI token in your dashboard and add it to frank's settings yourself.
+3. **Chattiness default:** Often (about 1 in 3) or Rare (about 1 in 7), and whether each person can change it.
+4. **Over the song's start, or in the gap?**
+5. **OK to add `libmp3lame0` to the flacie-web image?**
+6. **Alexa in v1, or v1.1?**
+7. **Will FLACie builds ever be published?** That decides how much the GPL parts matter.
+
+---
+
+## Appendix A: line writing (draft)
+
+One server-side implementation for every platform. Placeholders, in spoken form:
+- `{T}`/`{A}`: next song's title and artist.
+- `{pT}`/`{pA}`: previous song's title and artist.
+- `{eT}`: a song heard earlier.
+- `{Al}`: album. `{Y}`: year. `{D}`: decade. `{G}`: genre.
+- `{M}`: minutes. `{W}`: the engine's "why".
+
+### A.1 Slots (used only when their facts are known; a missing fact is never spoken)
+
+- **OPEN:** first song of a session (30 minutes idle ends a session). **GREET** goes in front when the device time is known: 06-11 morning, 12-17 afternoon, 18-02 evening.
+- **BRIDGE:** previous song played to the end and `{pA}` is known; otherwise **INTRO**.
+- **WHY:** the engine gave a "why".
+- **YEAR:** 1900 to now; not on compilations or remasters.
+- **ALBUM:** not blank, "Unknown Album", the title itself, or Various Artists.
+- **GENRE:** on a speakable list (rock, pop, jazz, soul, disco...). Not for "Other", "Unknown" or blank. "Pop;Rock" uses the first.
+- **SAME ARTIST:** the next artist is the same as the previous one.
+- **RETURN:** the artist was heard 5+ songs and 15+ minutes earlier.
+- **RESET:** first full play after 3+ skips in the last 5.
+- **LONG:** 7+ minutes.
+- **ARTIST-ONLY:** the title is over 8 words or 50 characters.
+- **TITLE-ONLY:** the artist is blank, "Unknown Artist" or "Various" (`TrackTitles.cs`). Unknown artist and a file-name title: stay silent.
+
+### A.2 Templates (60)
+
+- **OPEN:** "Starting with {T} by {A}." "First up, {T} by {A}." "Here's {A} to start, with {T}." "Let's begin with {T}, by {A}." "Opening with {A}: {T}."
+- **GREET:** "Good morning." "Good afternoon." "Good evening." "{Saturday|Sunday} morning."
+- **BRIDGE:** "That was {pT} by {pA}. Here's {T} by {A}." "{pT}, from {pA}. Now it's {A}, with {T}." "After {pA}, here's {A} with {T}." "That was {pT}. Next up, {T} by {A}." "You heard {pA} there. This is {T} by {A}." "From {pA} to {A}: this is {T}." "That was {pT}. Here's {A} next, with {T}."
+- **INTRO:** "Here's {T} by {A}." "Next, {T} by {A}." "This is {A}, with {T}." "Up next, {T} from {A}." "Now, {A}: {T}."
+- **WHY:** "{W}. Here's {T} by {A}." "{W}, so here's {T} by {A}." "Next, {T} by {A}. {W}." "This is {T} by {A}: {W1}." "Picked because {w}: {T} by {A}." "That was {pT}. {W}, here's {T}." "Chosen for you: {W1}. This is {A} with {T}."
+- **YEAR:** "From {Y}, this is {T} by {A}." "Back to {Y} now: {T} by {A}." (10+ years old) "{T} by {A}, from {Y}." "Here's {A} in {Y}, with {T}." "A {D} one now: {T} by {A}." "Something from the {D}: {A}, {T}." ({D} only for 1950-1999)
+- **ALBUM:** "From the album {Al}, here's {T} by {A}." "{T}, by {A}, from {Al}." "Here's {A} with {T}, from {Al}." "Another from {Al}: {T}." (same album) "From the {Al} soundtrack, this is {T} by {A}." (soundtrack)
+- **GENRE:** "Some {G} now: {T} by {A}." "Staying with {G}, here's {T} by {A}." (same genre) "A bit of {G} next: {A}, with {T}."
+- **SAME ARTIST:** "More from {A}: this is {T}." "Staying with {A}, here's {T}." "{A} again, with {T}." "Another from {A} now: {T}."
+- **RETURN:** "Back to {A} now, with {T}." "Returning to {A}: {T}." "We heard {A} earlier with {eT}. Now it's {T}."
+- **RESET:** "Let's try something different: {T} by {A}." "A change of direction now. Here's {T} by {A}." "Something else, then. This is {A}, with {T}."
+- **LONG:** "A long one now, about {M} minutes: {T} by {A}." "Settle in, this one's about {M} minutes: {T} by {A}."
+- **ARTIST-ONLY:** "Here's {A}." "Next, something from {A}." "This one's from {A}."
+- **TITLE-ONLY:** "Here's {T}." "Next, {T}." "This one's called {T}."
+
+**The "why", spoken:**
+- Split on "·" and keep at most 2 parts. Drop a part with digits, a banned word, or 9+ words.
+- `{W}` joins the parts with "and": "Same energy as Out of Space, and you play The Prodigy a lot".
+- `{w}` is the same in lower case. `{W1}` is part one only.
+- Keep the engine's "you". The DJ never says "I" or "we". "New to you" becomes "Something new for you".
+- Better still: the engine sends each part as `{kind, text, refTrackId}`.
+- On Alexa, drop the listening-habit parts.
+- Over 18 words: drop part two, then the "That was" half, else stay silent.
+
+### A.3 Clean-up before speaking (overrides from A.5 are matched first)
+
+1. `Catalog.BaseTitle` (`FLACie.Core/Catalog.cs`) drops "(feat. X)", "(Remastered 2011)", "[Deluxe]" and "- 2009 Remaster", and keeps "(Live)". `Phonetic.StripTags` (`FLACie.Server/Alexa/Phonetic.cs:26`, already used for Alexa's spoken titles) also drops "[Live]" and "(Radio Edit)". Move it to Core and share it.
+2. **feat.:** titles via `FeatParen`/`FeatTail` (`Track.cs:25-26`). Artists become "{lead} with {guest}" if it fits. Don't use `ArtistSplit` (`Track.cs:28`): it splits on "&", which breaks Simon & Garfunkel.
+3. **"&" and "+" become "and".** `Phonetic.SpeechSafe` already does "&" and strips SSML characters.
+4. **Keep "The" as tagged.** `PrimaryArtist` / `AlbumNorm` drop it, so they're lookup keys only, never spoken. `Edition` (`Track.cs:29`) drops "(Deluxe Edition)". A soundtrack suffix sets the soundtrack flag.
+5. **File-name titles:** `TrackTitles.CleanAll` strips "06 - " on load. If `IsFileName` is still true, don't speak the title. Keep digits in real titles ("1979").
+6. **Capitals and symbols:** words of 4+ capitals become Title Case (ABBA becomes Abba); shorter ones are spelt out. Drop "!", "?", quotes and emoji.
+7. **Long artist names:** over 6 words, say the lead artist only.
+8. **Years written out:** "nineteen ninety-seven", "nineteen oh five", "two thousand and five", "twenty twelve".
+
+### A.4 Variety and frequency
+
+- **Repeats:**
+  - Never two lines in a row.
+  - No template again within the last 12 lines.
+  - No slot twice running.
+  - Opening words unlike the last 3.
+  - WHY at most 3 of every 6 lines.
+- **Slot weights:** SAME ARTIST, RETURN and RESET 4; WHY 3; BRIDGE and INTRO 2; others 1.
+- **Memory and randomness:** per-account memory of the last 20 lines on the server, shared by phone, web and Alexa. Seeded randomness keeps prefetch and tests repeatable.
+- **Off:** never speaks.
+- **Often** (default, about 1 in 3.2): one forced silent transition, then p = 0.45 each; OPEN always.
+- **Rare** (about 1 in 7.3): four forced silent transitions, then p = 0.30; OPEN p = 0.5.
+- **Silent without a draw** when:
+  - the next song is under 60 s;
+  - a song was skipped within 10 s in the last 2 transitions;
+  - the change is not an auto-advance;
+  - it's within 2 transitions of a voice request;
+  - the next song is the next album track in order (gapless);
+  - it's spoken word;
+  - the clip isn't ready.
+
+### A.5 Pronunciation overrides
+
+`dj-pronounce.tsv` on the server has these columns: written, kind (artist/title/word), say (respelling), and an optional ipa. Screens keep the real spellings.
+
+```
+Sigur Rós    artist  Siggur Rose
+Beyoncé      artist  Bee-yon-say  biˈjɒnseɪ
+Mötley Crüe  artist  Motley Crew
+CHVRCHES     artist  Churches
+MØ           artist  Mur
+deadmau5     artist  dead mouse
+Sia          artist  See-a        ˈsiːə
+Dvořák       word    Dvor-zhak
+SOS          title   S O S
+```
+
+- **Tune by ear:** these respellings are starting points.
+- **Piper and device TTS:** get the respelling.
+- **Kokoro:** takes `[Beyoncé](/biˈjɒnseɪ/)` when ipa is set (verify).
+- **Alexa:** clips are our MP3. Its own SSML replies use `<sub alias="…">` or `<phoneme alphabet="ipa">`, as `AlexaSkill.cs` already does for "flacky".
+
+### A.6 Example lines
+
+1. Saturday morning. Starting with Mr. Blue Sky by Electric Light Orchestra.
+2. Staying with disco, here's Le Freak by Chic.
+3. This is Breathe by The Prodigy: same energy as Out of Space.
+4. Something new for you, and close to Florence and the Machine. Here's Bloom by The Paper Kites.
+5. From nineteen ninety-seven, this is Bitter Sweet Symphony by The Verve.
+6. A seventies one now: SOS by Abba.
+7. From the album Parachutes, here's Yellow by Coldplay.
+8. From the Frozen soundtrack, this is Let It Go by Idina Menzel.
+9. More from Taylor Swift: this is Shake It Off.
+10. Back to Arctic Monkeys now, with Do I Wanna Know.
+11. Let's try something different: Valerie by Mark Ronson with Amy Winehouse.
+12. A long one now, about twelve minutes: I'd Do Anything for Love by Meat Loaf.
+13. Next, something from Antonín Dvořák.
+14. Next, The Wheels on the Bus.
+15. Halo, from Beyoncé. Now it's CHVRCHES, with The Mother We Share.
+
+### A.7 Optional LLM rewording
+
+Run it with Cloudflare `llama-3.1-8b-instruct-fp8-fast`, or locally with `qwen2.5:1.5b` / `llama3.2:1b`. Settings: temperature 0.6, made ahead, 8 s timeout.
+
+```
+SYSTEM: Reword one line said by a calm British radio presenter on a family music app.
+Same facts, nothing added. Keep TITLE and ARTIST exactly. No other names or numbers.
+At most 18 words. No exclamation marks, questions, jokes, slang or hype words.
+Reply with the line only.
+USER: TITLE: Bitter Sweet Symphony | ARTIST: The Verve
+LINE: From nineteen ninety-seven, this is Bitter Sweet Symphony by The Verve.
+```
+
+**Validator.** On any failure, use the template line; after 3 failures in a row, turn rewording off for an hour.
+1. One line, 4-18 words, ending in ".".
+2. Contains the exact `{T}` and `{A}` (case-sensitive) when the template has them.
+3. Every capitalised word mid-sentence appears in the template line.
+4. No digits except inside `{T}`/`{A}` or the year.
+5. No "!" or "?". Outside the names, none of: vibe, banger, tune, epic, amazing, awesome, iconic, love, favourite, I, we, my.
+6. Not one of the last 12 lines.
 
 ---
 
 ## Sources
-- [Piper (OHF-Voice/piper1-gpl)](https://github.com/OHF-Voice/piper1-gpl) and [VOICES.md](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/VOICES.md)
-- [Kokoro](https://github.com/hexgrad/kokoro)
-- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)
-- [MDN Web Speech API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API/Using_the_Web_Speech_API)
-- [Alexa AudioPlayer reference](https://developer.amazon.com/docs/alexa/custom-skills/audioplayer-interface-reference.html)
-- [Alexa SSML reference](https://developer.amazon.com/en-US/docs/alexa/custom-skills/speech-synthesis-markup-language-ssml-reference.html)
-- [Android for Cars: media apps](https://developer.android.com/training/cars/media) and [distraction safeguards](https://developer.android.com/training/cars/media/distraction-safeguards)
-- [Android AudioFocusRequest](https://developer.android.com/reference/android/media/AudioFocusRequest)
-- [Ollama qwen2.5](https://ollama.com/library/qwen2.5)
-- [CPU-only local LLM test (itsFOSS)](https://itsfoss.com/testing-local-llms-without-gpu)
+
+**Voices**
+- Piper: [piper1-gpl](https://github.com/OHF-Voice/piper1-gpl), [voices](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/VOICES.md), [samples](https://rhasspy.github.io/piper-samples/).
+- Kokoro: [kokoro](https://github.com/hexgrad/kokoro), [kokoro-onnx PR #198](https://github.com/thewh1teagle/kokoro-onnx/pull/198).
+- sherpa-onnx: [repo](https://github.com/k2-fsa/sherpa-onnx), [NuGet](https://www.nuget.org/packages/org.k2fsa.sherpa.onnx), [RTF table](https://k2-fsa.github.io/sherpa/onnx/tts/pretrained_models/rtf.html), [engine APKs](https://k2-fsa.github.io/sherpa/onnx/tts/apk-engine.html), [#3754](https://github.com/k2-fsa/sherpa-onnx/issues/3754), [#3931](https://github.com/k2-fsa/sherpa-onnx/issues/3931).
+- Benchmarks: [Home Assistant on Piper](https://www.home-assistant.io/blog/2023/04/27/year-of-the-voice-chapter-2/), [Piper review](https://mustafa.net/2026/08/31/piper-review-after-6-months-running-local-tts-in-production/).
+- TTS servers: [Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI), [wyoming-piper](https://github.com/rhasspy/wyoming-piper), [Speaches](https://speaches.ai/installation/).
+- Browser: [MDN Web Speech](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API/Using_the_Web_Speech_API).
+
+**Free tiers:** [Cloudflare Workers AI pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/), [Azure Speech](https://azure.microsoft.com/pricing/details/cognitive-services/speech-services), [Google TTS](https://cloud.google.com/text-to-speech/pricing), [Gemini](https://ai.google.dev/gemini-api/docs/pricing), [ElevenLabs](https://elevenlabs.io/pricing), [OpenRouter](https://openrouter.ai/docs/api-reference/limits), [Groq](https://console.groq.com/docs/rate-limits).
+
+**Local LLMs:** [DigiKey N100](https://www.digikey.com/en/maker/projects/review-of-llama3.2-vs-llama3.1-performance-on-lattepanda-mu/fe2224b0153e4bd98c03ae5ebae698e4), [N100 post](https://blog.patshead.com/2024/12/should-you-run-a-large-language-model-on-an-intel-n100-mini-pc.html), [It's FOSS](https://itsfoss.com/testing-local-llms-without-gpu), [Ollama qwen2.5](https://ollama.com/library/qwen2.5).
+
+**Encoding:** [libmp3lame0](https://packages.debian.org/bookworm/libmp3lame0), [NAudio.Lame](https://github.com/Corey-M/NAudio.Lame), [EggEncoder](https://www.nuget.org/packages/EggEncoder/4.40.0).
+
+**Android:**
+- Media3: [playlists](https://developer.android.com/media/media3/exoplayer/playlists), [supported formats](https://developer.android.com/media/media3/exoplayer/supported-formats), [AudioFocusManager](https://github.com/androidx/media/blob/release/libraries/common/src/main/java/androidx/media3/common/audio/AudioFocusManager.java), [MediaConstants](https://github.com/androidx/media/blob/release/libraries/session/src/main/java/androidx/media3/session/MediaConstants.java).
+- Android Auto: [media apps](https://developer.android.com/training/cars/media), [distraction safeguards](https://developer.android.com/training/cars/media/distraction-safeguards), [car quality](https://developer.android.com/docs/quality-guidelines/car-app-quality), [voice actions](https://developer.android.com/training/cars/media/voice-actions).
+- Platform: [AudioFocusRequest](https://developer.android.com/reference/android/media/AudioFocusRequest), [package visibility](https://developer.android.com/training/package-visibility/use-cases), [svox log](https://android.googlesource.com/platform/external/svox/+log/refs/heads/main).
+
+**Alexa:**
+- Amazon docs: [AudioPlayer](https://developer.amazon.com/en-US/docs/alexa/custom-skills/audioplayer-interface-reference.html), [long-form audio](https://developer.amazon.com/en-US/docs/alexa/custom-skills/use-long-form-audio.html), [SSML](https://developer.amazon.com/en-US/docs/alexa/custom-skills/speech-synthesis-markup-language-ssml-reference.html), [policy](https://developer.amazon.com/en-US/docs/alexa/custom-skills/policy-requirements-for-an-alexa-skill.html), [functional tests](https://developer.amazon.com/en-US/docs/alexa/custom-skills/functional-testing-for-a-custom-skill.html).
+- Field reports: [sample-skill #37](https://github.com/alexa/skill-sample-nodejs-audio-player/issues/37), [Music Assistant #79](https://github.com/alams154/music-assistant-alexa-skill-prototype/issues/79), [#93](https://github.com/alams154/music-assistant-alexa-skill-prototype/issues/93).

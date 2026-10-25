@@ -18,10 +18,10 @@ public class EngineTests
     static ListenEvent Did(ListenKind k, Track t) => new(Guid.NewGuid().ToString(), k, Ago(1), t.Path, t.Title, t.Artist);
 
     static List<Pick> Next(IReadOnlyList<Track> songs, IReadOnlyList<ListenEvent> events, Dictionary<Track, Vibe> vibes, IReadOnlyList<Track> session,
-        EngineOptions? o = null, IReadOnlyList<CatalogSong>? related = null)
+        EngineOptions? o = null, IReadOnlyList<CatalogSong>? related = null, IReadOnlyList<Playlist>? playlists = null)
     {
         var lib = new Library(songs);
-        var taste = new TasteProfile(lib, [], [], [], Now, events: events);
+        var taste = new TasteProfile(lib, [], [], playlists ?? [], Now, events: events);
         return Engine.Next(lib, taste, t => vibes.GetValueOrDefault(t), session, related ?? [], Now, o ?? new EngineOptions());
     }
 
@@ -166,5 +166,49 @@ public class EngineTests
         var guetta = Song("Sexy Bitch", "David Guetta", "Club");
         var picks = Next([space, guetta], [Heard(guetta)], new() { [space] = Banger, [guetta] = Club }, [space]);
         Assert.StartsWith("Same energy as Out of Space", picks.Single().Why);
+    }
+
+    [Fact]
+    public void Songs_from_a_playlist_the_person_plays_from_go_together()
+    {
+        var space = Song("Out of Space", "The Prodigy", "Rave");
+        var mate = Song("Mate", "Someone", "Rave");
+        var list = new Playlist("pl1", "Rave", 0, null, [new(space.Path, space.Title, space.Artist), new(mate.Path, mate.Title, mate.Artist)]);
+        var vibes = new Dictionary<Track, Vibe> { [space] = Banger, [mate] = Banger };
+        ListenEvent From(string ctx) => new(Guid.NewGuid().ToString(), ListenKind.Play, Ago(1), space.Path, space.Title, space.Artist, 200, 200, ctx);
+        var plays = Next([space, mate], [Did(ListenKind.Heart, mate), From("pl1")], vibes, [space], playlists: [list]).Single();
+        var never = Next([space, mate], [Did(ListenKind.Heart, mate), From("autoplay")], vibes, [space], playlists: [list]).Single();
+        Assert.True(plays.Score - never.Score > 0.2, $"{plays.Score} vs {never.Score}");
+    }
+
+    [Fact]
+    public void A_thumbed_down_related_song_never_appears()
+    {
+        var space = Song("Out of Space", "The Prodigy", "Rave");
+        var bad = new CatalogSong("Faithless", "Insomnia", "Reverence", null, 300_000, 1, 1);
+        var down = new ListenEvent("x", ListenKind.ThumbDown, Ago(1), "cloud:insomnia", "Insomnia", "Faithless");
+        var picks = Next([space], [down], new() { [space] = Banger }, [space], related: [bad]);
+        Assert.DoesNotContain(picks, p => p.New == bad);
+    }
+
+    [Fact]
+    public void Why_only_credits_the_artist_when_the_artist_is_what_scored()
+    {
+        var space = Song("Out of Space", "The Prodigy", "Rave");
+        var known = Song("Known", "Known Raver", "Rave");
+        var charly = Song("Charly", "Other Raver", "Rave");
+        var picks = Next([space, known, charly], [Heard(known), Heard(known, 2)], new() { [space] = Banger, [known] = Banger, [charly] = Banger }, [space]);
+        Assert.DoesNotContain("you play Other Raver", picks.Single(p => p.Track == charly).Why);
+    }
+
+    [Fact]
+    public void The_same_inputs_and_seed_give_the_same_list()
+    {
+        var space = Song("Out of Space", "The Prodigy", "Rave");
+        var songs = Enumerable.Range(0, 20).Select(i => Song($"S{i}", $"Artist {i}", "Rave")).ToList();
+        var vibes = new Dictionary<Track, Vibe> { [space] = Banger };
+        foreach (var t in songs) vibes[t] = Banger;
+        string Run() => string.Join(",", Next([space, .. songs], [], vibes, [space], new EngineOptions(Seed: 7)).Select(p => p.Track!.Title));
+        Assert.Equal(Run(), Run());
     }
 }

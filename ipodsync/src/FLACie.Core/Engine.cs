@@ -54,9 +54,10 @@ public static class Engine
             var liked = taste.Likes(t); var heard = taste.Known(t) > 0;
             if (seed is not null && (fit < Gate || (!heard && !liked && !link))) continue;
             var love = liked ? 1 : Math.Max(taste.Love(t), taste.Fit(t));
-            var together = relatedSongs.Contains(Matching.MatchKey(t)) ? 1 : relatedArtists.Contains(artist) ? 0.5 : 0;
+            // fans of what is playing play it, or it sits on a playlist this person plays from with one of the last three songs
+            var together = relatedSongs.Contains(Matching.MatchKey(t)) || last.Any(s => taste.SharesPlayedPlaylist(s, t)) ? 1 : relatedArtists.Contains(artist) ? 0.5 : 0;
             var score = 0.35 * fit + 0.3 * love + 0.25 * together - 0.6 * taste.Penalty(t) + rnd.NextDouble() * 0.01;
-            cands.Add(new(t, null, artist, score, Why(seed, t.Artist, fit, love, liked, together), !heard && !liked,
+            cands.Add(new(t, null, artist, score, Why(seed, t.Artist, fit, love, liked, taste.ArtistFit(t) >= 0.5, together), !heard && !liked,
                 taste.PlayedWithin(t, utcNow, 4), artist == prevArtist && artist.Length > 0));
         }
         // songs fans of this one play that are not in the library yet: tied to it by being on its list, so no vibe is needed to let them in
@@ -64,9 +65,11 @@ public static class Engine
         {
             if (lib.Find(s.Title, s.Artist) is not null || (!o.Explicit && IsExplicit(s.Title, s.Album))) continue;
             var artist = Matching.PrimaryArtist(s.Artist);
-            var love = taste.ArtistFit(new Track("", s.Title, s.Artist, s.Album, s.Artist, 0, 0, 0, 0, null, 0, TrackSource.Cloud));
-            var score = 0.35 * 0.7 + 0.3 * love + 0.25 + rnd.NextDouble() * 0.01;
-            cands.Add(new(null, s, artist, score, Why(seed, s.Artist, 0.7, love, false, 1), true, false, artist == prevArtist && artist.Length > 0));
+            var stand = new Track("", s.Title, s.Artist, s.Album, s.Artist, 0, 0, 0, 0, null, 0, TrackSource.Cloud);
+            if (taste.Disliked(stand)) continue;
+            var love = taste.ArtistFit(stand);
+            var score = 0.35 * 0.7 + 0.3 * love + 0.25 - 0.6 * taste.Penalty(stand) + rnd.NextDouble() * 0.01;
+            cands.Add(new(null, s, artist, score, Why(seed, s.Artist, 0.7, love, false, love >= 0.5, 1), true, false, artist == prevArtist && artist.Length > 0));
         }
 
         // the rails, given way one at a time only when they would leave nothing
@@ -112,12 +115,12 @@ public static class Engine
         vs.Any(v => v.Bpm > 0) ? vs.Where(v => v.Bpm > 0).Average(v => v.Bpm) : 0, vs.Average(v => v.Dance));
 
     /// <summary>The strongest part of the score first, then the next one if it counts: "Same energy as Out of Space · you play The Prodigy a lot".</summary>
-    static string Why(Track? seed, string artist, double fit, double love, bool liked, double together)
+    static string Why(Track? seed, string artist, double fit, double love, bool liked, bool artistPlayed, double together)
     {
         var parts = new List<(double W, string Text)>
         {
             (0.35 * fit, seed is null ? "Fits what you play" : $"Same energy as {seed.Title}"),
-            (0.3 * love, liked ? "you love this one" : $"you play {artist} a lot"),
+            (0.3 * love, liked ? "you love this one" : artistPlayed ? $"you play {artist} a lot" : "like what you play"),
             (0.25 * together, seed is null ? "goes with what you play" : $"fans of {seed.Artist} play this"),
         };
         var top = parts.Where(p => p.W >= 0.1).OrderByDescending(p => p.W).Take(2).Select(p => p.Text).ToList();

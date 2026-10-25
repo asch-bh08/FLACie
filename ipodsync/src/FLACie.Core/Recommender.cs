@@ -20,6 +20,7 @@ public sealed class TasteProfile
     readonly Dictionary<string, double> skips = new(), lessArtist = new();
     readonly Dictionary<string, int> finishes = new();
     readonly HashSet<string> hearted = new(), thumbedDown = new();
+    readonly Dictionary<string, List<string>> playedLists = new();
     double artistMax = 1, genreMax = 1, decadeMax = 1, albumMax = 1, songMax = 1;
 
     public bool Empty => songs.Count == 0;
@@ -44,7 +45,12 @@ public sealed class TasteProfile
             var fade = Math.Pow(0.5, Math.Max(0, (now - e.At) / 86_400_000.0) / 30);
             if (e.Kind == ListenKind.Play && e.Context is { Length: > 0 } c) fromList[c] = fromList.GetValueOrDefault(c) + fade;
             if (e.Kind == ListenKind.LessLikeThis) { Bump(lessArtist, Matching.PrimaryArtist(e.Artist), 0.5 * fade); continue; }
-            if (lib.Resolve(e.Path, e.Title, e.Artist) is not { } t) continue;
+            if (lib.Resolve(e.Path, e.Title, e.Artist) is not { } t)
+            {
+                // a song only online (from a related list) can be thumbed down too, and must stay gone
+                if (e.Kind == ListenKind.ThumbDown) thumbedDown.Add(Matching.MatchKey(e.Title, e.Artist));
+                continue;
+            }
             var k = Matching.MatchKey(t);
             switch (e.Kind)
             {
@@ -66,7 +72,15 @@ public sealed class TasteProfile
         foreach (var p in playlists)
         {
             var w = 0.7 * Math.Min(2, fromList.GetValueOrDefault(p.Id));
-            if (w > 0) foreach (var e in p.Entries) if (lib.Resolve(e.Path, e.Title, e.Artist) is { } t) Add(t, w);
+            if (w <= 0) continue;
+            foreach (var e in p.Entries)
+            {
+                if (lib.Resolve(e.Path, e.Title, e.Artist) is not { } t) continue;
+                Add(t, w);
+                var k = Matching.MatchKey(t);
+                if (!playedLists.TryGetValue(k, out var ids)) playedLists[k] = ids = [];
+                if (!ids.Contains(p.Id)) ids.Add(p.Id);
+            }
         }
         // Jellyfin's own count for this user: the whole listening history, from every app
         foreach (var p in jellyfin ?? [])
@@ -116,6 +130,10 @@ public sealed class TasteProfile
     public bool Disliked(Track t) => thumbedDown.Contains(Matching.MatchKey(t));
     /// <summary>Hearted, or heard to the end three times or more in the last 90 days.</summary>
     public bool Likes(Track t) { var k = Matching.MatchKey(t); return hearted.Contains(k) || finishes.GetValueOrDefault(k) >= 3; }
+
+    /// <summary>Both songs are on a playlist this person plays from (a playlist on the account they never play from does not count).</summary>
+    public bool SharesPlayedPlaylist(Track a, Track b) =>
+        playedLists.TryGetValue(Matching.MatchKey(a), out var x) && playedLists.TryGetValue(Matching.MatchKey(b), out var y) && x.Any(y.Contains);
 
     /// <summary>The song is one of the best known of an artist this account plays a lot.</summary>
     public bool IsHit(Track t) => hits.Contains(Matching.MatchKey(t));

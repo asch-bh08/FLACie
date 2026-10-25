@@ -22,6 +22,18 @@ $build = Join-Path $here ".build"
 New-Item -ItemType Directory -Force $build | Out-Null
 if (Test-Path (Join-Path $build "skill-package")) { Remove-Item -Recurse -Force (Join-Path $build "skill-package") }
 Copy-Item -Recurse (Join-Path $here "skill-package") (Join-Path $build "skill-package")
+# the library's names (names.txt, made by library-names.py, never committed) go into the LIBRARY_NAME slot, so a bare name is recognised
+$names = Join-Path $here "names.txt"
+if (Test-Path $names) {
+  $list = @(Get-Content $names -Encoding utf8 | Where-Object { $_.Trim().Length -gt 0 })
+  foreach ($f in Get-ChildItem (Join-Path $build "skill-package\interactionModels\custom") -Filter *.json) {
+    $j = Get-Content $f.FullName -Raw -Encoding utf8 | ConvertFrom-Json
+    $t = $j.interactionModel.languageModel.types | Where-Object { $_.name -eq "LIBRARY_NAME" }
+    if ($t) { $t.values = @($list | ForEach-Object { @{ name = @{ value = $_ } } }) }
+    Write-Plain $f.FullName ($j | ConvertTo-Json -Depth 40)
+  }
+  Write-Host "Library names in the skill: $($list.Count)"
+}
 $endpoint = $PublicUrl.TrimEnd('/') + "/alexa/skill"
 $host_ = ([uri]$PublicUrl).Host
 $manifestPath = Join-Path $build "skill-package\skill.json"

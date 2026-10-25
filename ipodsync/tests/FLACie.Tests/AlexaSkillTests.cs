@@ -126,7 +126,18 @@ public class AlexaSkillTests
         using var r = new Rig();
         var res = await r.Send(Launch());
         Assert.Equal("<speak>FLACie. What would you like to hear? Say play, then a song, artist, album or playlist.</speak>", Speech(res)); Assert.False(Ends(res));
+        Assert.Contains("<sub alias=\"flacky\">FLACie</sub>", (string)res["response"]!["outputSpeech"]!["ssml"]!);   // said the way its people say it, not "flacy"
         Assert.NotNull(res["response"]!["reprompt"]);
+    }
+
+    // "Alexa, ask flaky to play Smack My Bitch Up": Amazon takes "ask flaky to play" as the launch phrase and passes only the name, which matched nothing,
+    // and the owner's Echo played it from Amazon Music instead. A bare name from the library is its own intent and plays as "play ..." does.
+    [Fact] public async Task ABareNamePlaysLikePlay()
+    {
+        using var r = new Rig();
+        var res = await r.Send(Intent("NameIntent", ("name", "blinding lights")));
+        Assert.Equal("<speak>Playing Blinding Lights by The Weeknd.</speak>", Speech(res));
+        Assert.NotNull(Play(res));
     }
 
     [Fact] public async Task PlayGivesAPlayDirectiveWithASignedHttpsUrlAndEndsTheSession()

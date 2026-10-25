@@ -19,7 +19,15 @@
             "play me {query}",
             "play some {query}",
             "play {query} please",
-            "shuffle {query}"
+            "shuffle {query}",
+            "to play {query}",
+            "to put on {query}",
+            "to start {query}",
+            "to i want to hear {query}",
+            "to play me {query}",
+            "to play some {query}",
+            "to play {query} please",
+            "to shuffle {query}"
           ]
         },
         {
@@ -32,7 +40,11 @@
           ],
           "samples": [
             "play the song {query}",
-            "play the track {query}"
+            "play the track {query}",
+            "to play the song {query}",
+            "to play the track {query}",
+            "the song {query}",
+            "the track {query}"
           ]
         },
         {
@@ -45,7 +57,11 @@
           ],
           "samples": [
             "play the album {query}",
-            "play album {query}"
+            "play album {query}",
+            "to play the album {query}",
+            "to play album {query}",
+            "the album {query}",
+            "album {query}"
           ]
         },
         {
@@ -59,7 +75,13 @@
           "samples": [
             "play my {query} playlist",
             "play the {query} playlist",
-            "play playlist {query}"
+            "play playlist {query}",
+            "to play my {query} playlist",
+            "to play the {query} playlist",
+            "to play playlist {query}",
+            "my {query} playlist",
+            "the {query} playlist",
+            "playlist {query}"
           ]
         },
         {
@@ -74,7 +96,15 @@
             "play songs by {query}",
             "play music by {query}",
             "play something by {query}",
-            "play the artist {query}"
+            "play the artist {query}",
+            "to play songs by {query}",
+            "to play music by {query}",
+            "to play something by {query}",
+            "to play the artist {query}",
+            "songs by {query}",
+            "music by {query}",
+            "something by {query}",
+            "the artist {query}"
           ]
         },
         {
@@ -89,7 +119,15 @@
             "play something like {query}",
             "play music like {query}",
             "play artists like {query}",
-            "play similar to {query}"
+            "play similar to {query}",
+            "to play something like {query}",
+            "to play music like {query}",
+            "to play artists like {query}",
+            "to play similar to {query}",
+            "something like {query}",
+            "music like {query}",
+            "artists like {query}",
+            "similar to {query}"
           ]
         },
         {
@@ -99,7 +137,12 @@
             "play my recently added music",
             "play new music",
             "play what's new",
-            "play the newest songs"
+            "play the newest songs",
+            "to play recently added",
+            "to play my recently added music",
+            "to play new music",
+            "to play what's new",
+            "to play the newest songs"
           ]
         },
         {
@@ -109,7 +152,12 @@
             "shuffle my library",
             "play my music",
             "play everything",
-            "shuffle all my music"
+            "shuffle all my music",
+            "to play my library",
+            "to shuffle my library",
+            "to play my music",
+            "to play everything",
+            "to shuffle all my music"
           ]
         },
         {
@@ -119,7 +167,12 @@
             "play it",
             "play what you just downloaded",
             "play the song you downloaded",
-            "play the last song you downloaded"
+            "play the last song you downloaded",
+            "to play the last download",
+            "to play it",
+            "to play what you just downloaded",
+            "to play the song you downloaded",
+            "to play the last song you downloaded"
           ]
         },
         {
@@ -129,7 +182,12 @@
             "is it done",
             "has it finished downloading",
             "is the download ready",
-            "is the song ready"
+            "is the song ready",
+            "to is it ready",
+            "to is it done",
+            "to has it finished downloading",
+            "to is the download ready",
+            "to is the song ready"
           ]
         },
         {
@@ -139,7 +197,12 @@
             "what are you downloading",
             "download status",
             "what's being downloaded",
-            "are you downloading anything"
+            "are you downloading anything",
+            "to what's downloading",
+            "to what are you downloading",
+            "to download status",
+            "to what's being downloaded",
+            "to are you downloading anything"
           ]
         },
         {
@@ -150,7 +213,13 @@
             "who sings this",
             "what song is this",
             "what is playing",
-            "what's this song"
+            "what's this song",
+            "to what's playing",
+            "to what is this song",
+            "to who sings this",
+            "to what song is this",
+            "to what is playing",
+            "to what's this song"
           ]
         },
         {
@@ -160,7 +229,12 @@
             "i like this song",
             "thumbs up",
             "i love this song",
-            "this is great"
+            "this is great",
+            "to i like this",
+            "to i like this song",
+            "to thumbs up",
+            "to i love this song",
+            "to this is great"
           ]
         },
         {
@@ -170,7 +244,12 @@
             "thumbs down",
             "i don't like this song",
             "i hate this song",
-            "never play this again"
+            "never play this again",
+            "to i don't like this",
+            "to thumbs down",
+            "to i don't like this song",
+            "to i hate this song",
+            "to never play this again"
           ]
         },
         {
@@ -186,7 +265,12 @@
             "add this song to {playlist}",
             "add this to my {playlist} playlist",
             "put this on {playlist}",
-            "add this to the {playlist} playlist"
+            "add this to the {playlist} playlist",
+            "to add this to {playlist}",
+            "to add this song to {playlist}",
+            "to add this to my {playlist} playlist",
+            "to put this on {playlist}",
+            "to add this to the {playlist} playlist"
           ]
         },
         {
@@ -202,7 +286,12 @@
             "{choice} one",
             "{choice}",
             "number {choice}",
-            "i meant the {choice} one"
+            "i meant the {choice} one",
+            "to the {choice} one",
+            "to {choice} one",
+            "to {choice}",
+            "to number {choice}",
+            "to i meant the {choice} one"
           ]
         },
         {
@@ -220,7 +309,14 @@
             "link my account with {code}",
             "link",
             "link my account",
-            "pair"
+            "pair",
+            "to my code is {code}",
+            "to the code is {code}",
+            "to link with code {code}",
+            "to link my account with {code}",
+            "to link",
+            "to link my account",
+            "to pair"
           ]
         },
         {
@@ -290,6 +386,18 @@
         {
           "name": "AMAZON.FallbackIntent",
           "samples": []
+        },
+        {
+          "name": "NameIntent",
+          "slots": [
+            {
+              "name": "name",
+              "type": "LIBRARY_NAME"
+            }
+          ],
+          "samples": [
+            "{name}"
+          ]
         }
       ],
       "types": [
@@ -320,6 +428,41 @@
                   "number two",
                   "the second"
                 ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "LIBRARY_NAME",
+          "values": [
+            {
+              "name": {
+                "value": "out of space"
+              }
+            },
+            {
+              "name": {
+                "value": "blinding lights"
+              }
+            },
+            {
+              "name": {
+                "value": "karma police"
+              }
+            },
+            {
+              "name": {
+                "value": "heroes"
+              }
+            },
+            {
+              "name": {
+                "value": "radiohead"
+              }
+            },
+            {
+              "name": {
+                "value": "the prodigy"
               }
             }
           ]

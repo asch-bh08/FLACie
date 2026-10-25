@@ -25,7 +25,7 @@ public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirec
     readonly Func<DateTime> now = clock ?? (() => DateTime.UtcNow);
 
     /// <summary>Every custom intent this class answers; the interaction model must list exactly these (plus the built-ins), checked by a test.</summary>
-    public static readonly string[] CustomIntents = ["PlayIntent", "PlaySongIntent", "PlayAlbumIntent", "PlayPlaylistIntent", "PlayArtistIntent", "PlaySimilarIntent", "PlayRecentIntent", "PlayLibraryIntent", "PlayLastDownloadIntent", "IsItReadyIntent", "WhatsDownloadingIntent", "WhatsPlayingIntent", "LikeIntent", "DislikeIntent", "AddToPlaylistIntent", "ChooseIntent", "LinkIntent"];
+    public static readonly string[] CustomIntents = ["PlayIntent", "PlaySongIntent", "PlayAlbumIntent", "PlayPlaylistIntent", "PlayArtistIntent", "PlaySimilarIntent", "PlayRecentIntent", "PlayLibraryIntent", "PlayLastDownloadIntent", "IsItReadyIntent", "WhatsDownloadingIntent", "WhatsPlayingIntent", "LikeIntent", "DislikeIntent", "AddToPlaylistIntent", "ChooseIntent", "LinkIntent", "NameIntent"];
 
     public const string HelpText = "You can say: play Blinding Lights, play Radiohead, play my Road Trip playlist, play something like Radiohead, or what's playing. If I don't have a song, I can download it.";
     const string LinkText = "To use FLACie, open Settings in FLACie, choose Alexa, and create a code. Then say: my code is, followed by the six digits.";
@@ -107,6 +107,11 @@ public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirec
         }
         switch (name)
         {
+            // a bare name from the library ("ask flaky to play X" reaches the skill as just "X": Amazon takes "ask flaky to play" as the launch phrase)
+            case "NameIntent":
+                var bare = (Slot(request, "name") ?? "").Trim();
+                if (bare.Length == 0) return Reply.Say("What would you like to hear? Start with play, like: play Out of Space.", end: false);
+                return await engine.PlayAsync(user, link, VoiceParser.FromRaw("play " + bare), Progress, ct);
             case "PlayIntent":
                 var words = Slot(request, "query") ?? "";
                 if (words.Trim().Length == 0) return Reply.Say("What would you like to hear? Start with play, like: play Out of Space.", end: false);
@@ -188,7 +193,8 @@ public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirec
     static JsonObject Envelope(JsonObject response) => new() { ["version"] = "1.0", ["sessionAttributes"] = new JsonObject(), ["response"] = response };
     static JsonObject Empty() => Envelope(new() { ["shouldEndSession"] = true });
     static JsonObject Directives(JsonObject d) => Envelope(new() { ["directives"] = new JsonArray(d), ["shouldEndSession"] = true });
-    static JsonObject Ssml(string text) => new() { ["type"] = "SSML", ["ssml"] = "<speak>" + SecurityElement.Escape(text) + "</speak>" };
+    // FLACie is said the way its people say it ("flacky"); Alexa read the written name as "flacy"
+    static JsonObject Ssml(string text) => new() { ["type"] = "SSML", ["ssml"] = "<speak>" + SecurityElement.Escape(text).Replace("FLACie", "<sub alias=\"flacky\">FLACie</sub>") + "</speak>" };
 
     static JsonObject Speak(string text, bool end)
     {

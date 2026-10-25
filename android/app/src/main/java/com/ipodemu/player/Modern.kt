@@ -90,7 +90,8 @@ fun ModernTopBar(title: String, onBack: (() -> Unit)?, actions: @Composable () -
         if (onBack != null) IconAction(Glyph.BACK, "Back", onBack) else Box(Modifier.width(12.dp))
         // design I: the screen's name in the serif, last word in italics
         SerifTitle(title, Modifier.weight(1f).padding(start = 4.dp), size = 30f)
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) { actions() }
+        // the account button on every page, as on Home (it was Home only): the account, sign-in and sync are one tap from anywhere
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) { actions(); if (title != "Settings") AccountAction() }
     }
 }
 
@@ -122,7 +123,7 @@ private fun Modifier.semanticsLabel(label: String) = this.semantics { contentDes
  */
 enum class Tab(val label: String, val glyph: Glyph, val root: Screen?) {
     HOME("Home", Glyph.NOTE, Screen.Home), SEARCH("Search", Glyph.SEARCH, Screen.Search),
-    LIBRARY("Library", Glyph.LIST, Screen.Sources), DEVICES("Devices", Glyph.DEVICES, null),
+    LIBRARY("Library", Glyph.LIST, Screen.Sources), SETTINGS("Settings", Glyph.GEAR, Screen.Settings), DEVICES("Devices", Glyph.DEVICES, null),
 }
 
 fun PlayerNav.currentTab(): Tab = Tab.entries.firstOrNull { it.root != null && it.root == stack.first() } ?: Tab.HOME
@@ -133,9 +134,14 @@ fun PlayerNav.selectTab(t: Tab) {
     stack.clear(); stack.add(root)
 }
 
-/** The tabs this person sees: a guest has no Devices (as in the player's More menu). */
+/** The tabs this person sees: Settings always; Devices only while another of the account's devices is playing (it is in the player's More menu
+ * the rest of the time), and never for a guest. */
 @Composable
-private fun shownTabs(): List<Tab> { val guest = LocalApp.current.ui.guest; return Tab.entries.filter { !guest || it.root != null } }
+private fun shownTabs(): List<Tab> {
+    val app = LocalApp.current
+    val elsewhere by remember { androidx.compose.runtime.derivedStateOf { app.connect.remoteNow() != null } }
+    return Tab.entries.filter { it != Tab.DEVICES || (!app.ui.guest && elsewhere) }
+}
 
 /** A tab's press: a page tab switches page; Devices opens its panel. */
 @Composable
@@ -204,7 +210,12 @@ fun LibraryHome(nav: PlayerNav) {
     Column(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize().statusBarsPadding(), contentPadding = PaddingValues(bottom = 16.dp)) {
             // design I: the serif heading, as on the web; a tab's root has no back button
-            item { SerifTitle("Your library", Modifier.padding(start = 20.dp, top = 20.dp, bottom = 12.dp), size = 34f) }
+            item {
+                Row(Modifier.fillMaxWidth().padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SerifTitle("Your library", Modifier.weight(1f).padding(start = 20.dp, top = 20.dp, bottom = 12.dp), size = 34f)
+                    AccountAction()
+                }
+            }
             item { LibRow("Favourites", Glyph.HEART_FILLED, "${ud.favorites.size}", Color(0xFFE5486B)) { nav.push(Screen.Detail(DetailKind.FAVORITES)) } }
             item { LibRow("Recently Played", Glyph.CLOCK, "${ud.recents.size}") { nav.push(Screen.Detail(DetailKind.RECENT)) } }
             item { LibRow("Recently Downloaded", Glyph.DOWN, "${ud.downloads.size}") { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) } }

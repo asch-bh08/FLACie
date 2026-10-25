@@ -1641,7 +1641,7 @@ private fun greeting(): String = when (java.util.Calendar.getInstance().get(java
 
 /** Top-right of Home: the signed-in account's initial (or a person glyph), opening the Account screen. */
 @Composable
-private fun AccountAction() {
+internal fun AccountAction() {
     val app = LocalApp.current
     val sc = LocalScheme.current
     val name = if (app.prefs.accountKind == "nas") app.prefs.nasUsername.ifBlank { "guest" } else app.prefs.accountUserName   // the same name the Account screen shows

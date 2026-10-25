@@ -107,7 +107,17 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
         var q = queues.For(linkId);
         if (!u.Ready) return Reply.Say(u.Problem is { Length: > 0 } ? "I can't reach your music library right now." : "I'm still loading your library. Try again in a moment.");
         var m = MatcherFor(u).Match(query);
-        lock (q) q.Pending = null;
+        Pending? asked; lock (q) { asked = q.Pending; q.Pending = null; }
+        if (m.Decision == Decision.Ambiguous)
+        {
+            // the song asked for by its exact title, beside versions of it ("Out of Space" and "Out of Space (Techno Underworld Remix)"): that one, no question
+            static string? TitleOf(VoiceMatch v) => v.Item is Track t ? t.Title.Trim() : null;
+            var exact = query.Title is { Length: > 0 } want ? m.Ranked.Take(2).FirstOrDefault(v => string.Equals(TitleOf(v), want.Trim(), StringComparison.OrdinalIgnoreCase)) : null;
+            if (exact is not null && m.Ranked.Take(2).Count(v => string.Equals(TitleOf(v), TitleOf(exact), StringComparison.OrdinalIgnoreCase)) == 1) return Start(u, linkId, q, exact, query);
+            // the question was just asked about this and the answer came back as another play request (people answer with the song's name): never ask it twice,
+            // play the best match (the owner was asked the same question over and over)
+            if (asked is not null && now() - asked.At <= ChoiceLife) return Start(u, linkId, q, m.Ranked[0], query);
+        }
         switch (m.Decision)
         {
             case Decision.Confident: return Start(u, linkId, q, m.Ranked[0], query);

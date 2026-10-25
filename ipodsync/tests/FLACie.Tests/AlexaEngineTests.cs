@@ -92,6 +92,35 @@ public class AlexaEngineTests
         Assert.Equal(play.Play.Track.Path, r.Q.Current);
     }
 
+    // The owner's first real try: "play out of space the prodigy" asked "Out of Space or Out of Space (Techno Remix)?", and answering with the song's name came
+    // back as a new play request, which asked the same question again and again.
+    static Rig Prodigy() => new(FakeUser.T("Out of Space", "The Prodigy", "Experience", 1), FakeUser.T("Out of Space (Techno Underworld Remix)", "The Prodigy", "Experience Expanded", 2),
+        FakeUser.T("Charly", "The Prodigy", "Experience", 3), FakeUser.T("Creep", "Radiohead", "Pablo Honey", 1));
+
+    [Fact] public async Task TheExactTitlePlaysRatherThanAskingAboutItsRemix()
+    {
+        using var r = Prodigy();
+        var reply = await r.Engine.PlayAsync(r.U, "L", VoiceParser.FromRaw("play out of space by the prodigy"));
+        Assert.Equal("Out of Space", reply.Play?.Track.Title);
+    }
+
+    [Fact] public async Task NamingAChoiceAnswersTheQuestionInsteadOfAskingAgain()
+    {
+        using var r = Standard();
+        var ask = await r.Engine.PlayAsync(r.U, "L", VoiceParser.FromRaw("play heroes"));
+        Assert.StartsWith("Did you mean", ask.Speech);
+        var answer = await r.Engine.PlayAsync(r.U, "L", VoiceParser.FromRaw("play heroes by peter gabriel"));
+        Assert.Equal("Peter Gabriel", answer.Play?.Track.Artist);
+    }
+
+    [Fact] public async Task TheSameQuestionIsNeverAskedTwice()
+    {
+        using var r = Standard();
+        await r.Engine.PlayAsync(r.U, "L", VoiceParser.FromRaw("play heroes"));
+        var again = await r.Engine.PlayAsync(r.U, "L", VoiceParser.FromRaw("play heroes"));
+        Assert.NotNull(again.Play);   // the best of the two, not "Did you mean" again
+    }
+
     [Fact] public async Task ANoToTheQuestionAsksWhatToHear()
     {
         using var r = Standard();

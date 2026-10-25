@@ -125,7 +125,7 @@ public class AlexaSkillTests
     {
         using var r = new Rig();
         var res = await r.Send(Launch());
-        Assert.Equal("<speak>FLACie. What would you like to hear?</speak>", Speech(res)); Assert.False(Ends(res));
+        Assert.Equal("<speak>FLACie. What would you like to hear? Say play, then a song, artist, album or playlist.</speak>", Speech(res)); Assert.False(Ends(res));
         Assert.NotNull(res["response"]!["reprompt"]);
     }
 

@@ -84,7 +84,8 @@ public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirec
         if (type == "LaunchRequest")
         {
             var notice = engine.TakeNotice(link);
-            reply = Reply.Say((notice is null ? "FLACie. " : notice + " ") + "What would you like to hear?", end: false);
+            // "play" first: a bare song name after this question is not understood (Alexa needs the word to know it is a request), and the owner's first try was lost to it
+            reply = Reply.Say((notice is null ? "FLACie. " : notice + " ") + "What would you like to hear? Say play, then a song, artist, album or playlist.", end: false);
         }
         else reply = await Intent(request, link, user, ct);
 
@@ -108,12 +109,12 @@ public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirec
         {
             case "PlayIntent":
                 var words = Slot(request, "query") ?? "";
-                if (words.Trim().Length == 0) return Reply.Say("What would you like to hear?", end: false);
+                if (words.Trim().Length == 0) return Reply.Say("What would you like to hear? Start with play, like: play Out of Space.", end: false);
                 return await engine.PlayAsync(user, link, VoiceParser.FromRaw("play " + words), Progress, ct);
             // the words that named the kind ("the album ...") are not in the slot, so each kind is its own intent and puts them back for the parser
             case "PlaySongIntent" or "PlayAlbumIntent" or "PlayPlaylistIntent" or "PlayArtistIntent" or "PlaySimilarIntent":
                 var what = (Slot(request, "query") ?? "").Trim();
-                if (what.Length == 0) return Reply.Say("What would you like to hear?", end: false);
+                if (what.Length == 0) return Reply.Say("What would you like to hear? Start with play, like: play Out of Space.", end: false);
                 var phrase = name switch { "PlaySongIntent" => "play the song ", "PlayAlbumIntent" => "play the album ", "PlayArtistIntent" => "play songs by ", "PlaySimilarIntent" => "play something like ", _ => "play my " } + what + (name == "PlayPlaylistIntent" ? " playlist" : "");
                 return await engine.PlayAsync(user, link, VoiceParser.FromRaw(phrase), Progress, ct);
             case "PlayRecentIntent": return engine.PlayRecent(user, link);
@@ -141,7 +142,7 @@ public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirec
             case "AMAZON.LoopOffIntent": return engine.SetRepeat(link, AlexaRepeat.Off);
             case "AMAZON.HelpIntent": return Reply.Say(HelpText, end: false);
             case "AMAZON.NavigateHomeIntent": return new("", EndSession: true);
-            default: return Reply.Say("Sorry, I didn't get that. Say help for examples.", end: false);
+            default: return Reply.Say("Sorry, I didn't get that. Start with play, like: play Out of Space. Or say help.", end: false);
         }
     }
 

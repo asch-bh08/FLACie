@@ -15,11 +15,11 @@ public class AlexaModelTests
     }
 
     [Theory]
-    [InlineData("en-GB")] [InlineData("en-US")]
+    [InlineData("en-GB")] [InlineData("en-US")] [InlineData("en-AU")] [InlineData("en-CA")] [InlineData("en-IN")]
     public void ModelHasEveryIntentTheSkillAnswersAndNoSampleUsesAnUnknownSlot(string locale)
     {
         var m = JsonNode.Parse(File.ReadAllText(Path.Combine(PackageDir(), "interactionModels", "custom", locale + ".json")))!["interactionModel"]!["languageModel"]!;
-        Assert.Equal("flacie", (string?)m["invocationName"]);
+        Assert.Equal("flaky", (string?)m["invocationName"]);   // how Alexa hears the family's "flacky"
         var intents = m["intents"]!.AsArray();
         var names = intents.Select(i => (string)i!["name"]!).ToList();
         foreach (var n in AlexaSkill.CustomIntents) Assert.Contains(n, names);

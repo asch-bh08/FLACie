@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.add
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -147,7 +149,10 @@ private fun tabPress(nav: PlayerNav): (Tab) -> Unit {
 fun BottomNav(nav: PlayerNav) {
     val sc = LocalScheme.current
     val cur = nav.currentTab()
-    Row(Modifier.fillMaxWidth().height(76.dp).background(Palette.bg).drawBehind { drawLine(Palette.line, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1f) }.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    // above Android's own navigation: the three buttons (Samsung's default) sat on top of the tabs; the gesture bar is short enough to keep the old look
+    val navBar = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val lift = if (navBar > 32.dp) navBar else 0.dp
+    Row(Modifier.fillMaxWidth().background(Palette.bg).drawBehind { drawLine(Palette.line, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1f) }.padding(bottom = lift).height(76.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         val press = tabPress(nav)
         shownTabs().forEach { t -> NavItem(t, t == cur && t.root != null, Modifier.weight(1f).fillMaxHeight()) { press(t) } }
     }

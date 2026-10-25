@@ -275,7 +275,11 @@ fun PlayerHost(nav: PlayerNav) {
             // music playing on another of this user's devices while this phone is quiet: a remote bar instead (Spotify Connect style)
             // only WHICH device (not its moving position) is read here, so the poll every few seconds does not recompose the whole screen
             val remoteId by remember { androidx.compose.runtime.derivedStateOf { app.connect.remoteNow()?.id } }
-            if (remoteId != null && !snap.playing && !nav.nowPlaying && modern && !LocalHardware.current) {
+            // while typing, the keyboard covers the bars below but their room was still kept: on a short phone (an S22 with display zoom up) the
+            // results were cut off half way down an empty band. They step aside until the keyboard goes.
+            val typing = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+            if (typing) Unit
+            else if (remoteId != null && !snap.playing && !nav.nowPlaying && modern && !LocalHardware.current) {
                 AnimatedVisibility(remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }, enter = slideInVertically(androidx.compose.animation.core.spring(0.8f, 380f)) { it } + androidx.compose.animation.fadeIn(tween(160))) { RemoteMiniPlayer(remoteId!!) }
             } else {
                 val showMini = snap.track != null && !nav.nowPlaying && (modern || nav.top != Screen.Home) && !LocalHardware.current
@@ -286,7 +290,7 @@ fun PlayerHost(nav: PlayerNav) {
                     androidx.compose.runtime.CompositionLocalProvider(LocalSharedCover provides SharedCoverScope(sharedLayout, this)) { snap.track?.let { MiniPlayer(snap, nav) } }
                 }
             }
-            if (modern && !rail) BottomNav(nav)
+            if (modern && !rail && !typing) BottomNav(nav)
         }
         }
         }

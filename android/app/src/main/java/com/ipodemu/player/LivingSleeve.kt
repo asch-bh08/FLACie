@@ -299,8 +299,9 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
         drawRect(Brush.verticalGradient(listOf(p.tone.value, p.ground.value), endY = size.height * .7f))
     }) {
         val h = maxHeight
-        // a phone on its side (or a very short window) scrolls as a last resort, with a smaller cover
-        val cramped = h < 560.dp
+        // only a phone on its side (or a split-screen sliver) scrolls, as a last resort, with a smaller cover; a short phone (an S22 with display zoom up is
+        // ~530 dp here) shrinks the cover instead, so the controls are always on screen (a fixed 280 dp cover pushed them below the fold)
+        val cramped = h < 400.dp
         val scroll = rememberScrollState()
         // the bottom ~100 dp is the home gesture's: nothing that matters goes there (the navigation bar is inside this, not added to it)
         val nav0 = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()

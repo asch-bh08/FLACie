@@ -1,0 +1,330 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "flacky",
+      "intents": [
+        {
+          "name": "PlayIntent",
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "play {query}",
+            "put on {query}",
+            "start {query}",
+            "i want to hear {query}",
+            "play me {query}",
+            "play some {query}",
+            "play {query} please",
+            "shuffle {query}"
+          ]
+        },
+        {
+          "name": "PlaySongIntent",
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "play the song {query}",
+            "play the track {query}"
+          ]
+        },
+        {
+          "name": "PlayAlbumIntent",
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "play the album {query}",
+            "play album {query}"
+          ]
+        },
+        {
+          "name": "PlayPlaylistIntent",
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "play my {query} playlist",
+            "play the {query} playlist",
+            "play playlist {query}"
+          ]
+        },
+        {
+          "name": "PlayArtistIntent",
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "play songs by {query}",
+            "play music by {query}",
+            "play something by {query}",
+            "play the artist {query}"
+          ]
+        },
+        {
+          "name": "PlaySimilarIntent",
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "play something like {query}",
+            "play music like {query}",
+            "play artists like {query}",
+            "play similar to {query}"
+          ]
+        },
+        {
+          "name": "PlayRecentIntent",
+          "samples": [
+            "play recently added",
+            "play my recently added music",
+            "play new music",
+            "play what's new",
+            "play the newest songs"
+          ]
+        },
+        {
+          "name": "PlayLibraryIntent",
+          "samples": [
+            "play my library",
+            "shuffle my library",
+            "play my music",
+            "play everything",
+            "shuffle all my music"
+          ]
+        },
+        {
+          "name": "PlayLastDownloadIntent",
+          "samples": [
+            "play the last download",
+            "play it",
+            "play what you just downloaded",
+            "play the song you downloaded",
+            "play the last song you downloaded"
+          ]
+        },
+        {
+          "name": "IsItReadyIntent",
+          "samples": [
+            "is it ready",
+            "is it done",
+            "has it finished downloading",
+            "is the download ready",
+            "is the song ready"
+          ]
+        },
+        {
+          "name": "WhatsDownloadingIntent",
+          "samples": [
+            "what's downloading",
+            "what are you downloading",
+            "download status",
+            "what's being downloaded",
+            "are you downloading anything"
+          ]
+        },
+        {
+          "name": "WhatsPlayingIntent",
+          "samples": [
+            "what's playing",
+            "what is this song",
+            "who sings this",
+            "what song is this",
+            "what is playing",
+            "what's this song"
+          ]
+        },
+        {
+          "name": "LikeIntent",
+          "samples": [
+            "i like this",
+            "i like this song",
+            "thumbs up",
+            "i love this song",
+            "this is great"
+          ]
+        },
+        {
+          "name": "DislikeIntent",
+          "samples": [
+            "i don't like this",
+            "thumbs down",
+            "i don't like this song",
+            "i hate this song",
+            "never play this again"
+          ]
+        },
+        {
+          "name": "AddToPlaylistIntent",
+          "slots": [
+            {
+              "name": "playlist",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "add this to {playlist}",
+            "add this song to {playlist}",
+            "add this to my {playlist} playlist",
+            "put this on {playlist}",
+            "add this to the {playlist} playlist"
+          ]
+        },
+        {
+          "name": "ChooseIntent",
+          "slots": [
+            {
+              "name": "choice",
+              "type": "CHOICE"
+            }
+          ],
+          "samples": [
+            "the {choice} one",
+            "{choice} one",
+            "{choice}",
+            "number {choice}",
+            "i meant the {choice} one"
+          ]
+        },
+        {
+          "name": "LinkIntent",
+          "slots": [
+            {
+              "name": "code",
+              "type": "AMAZON.NUMBER"
+            }
+          ],
+          "samples": [
+            "my code is {code}",
+            "the code is {code}",
+            "link with code {code}",
+            "link my account with {code}",
+            "link",
+            "link my account",
+            "pair"
+          ]
+        },
+        {
+          "name": "AMAZON.PauseIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.ResumeIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NextIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.PreviousIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.ShuffleOnIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.ShuffleOffIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.LoopOnIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.LoopOffIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.RepeatIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StartOverIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.YesIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NoIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        }
+      ],
+      "types": [
+        {
+          "name": "CHOICE",
+          "values": [
+            {
+              "id": "first",
+              "name": {
+                "value": "first",
+                "synonyms": [
+                  "1st",
+                  "one",
+                  "1",
+                  "number one",
+                  "the first"
+                ]
+              }
+            },
+            {
+              "id": "second",
+              "name": {
+                "value": "second",
+                "synonyms": [
+                  "2nd",
+                  "two",
+                  "2",
+                  "number two",
+                  "the second"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

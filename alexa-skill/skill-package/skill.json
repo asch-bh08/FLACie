@@ -8,14 +8,13 @@
           "summary": "Play your own music library with FLACie.",
           "description": "Plays the music in your own Jellyfin library through your FLACie server. Ask for a song, an artist, an album or a playlist. If a song is not in your library, FLACie can search for it and download it. For personal use on your own account.",
           "examplePhrases": [
-            "Alexa, open flacie",
-            "Alexa, ask flacie to play Blinding Lights",
-            "Alexa, ask flacie to play my road trip playlist"
+            "Alexa, open flacky",
+            "Alexa, ask flacky to play Blinding Lights",
+            "Alexa, ask flacky to play my road trip playlist"
           ],
           "keywords": [
             "music",
-            "flacie"
-          ],
+            "flacie", "flacky" ],
           "smallIconUri": "https://YOUR-FLACIE-HOST/alexa/icon-108.png",
           "largeIconUri": "https://YOUR-FLACIE-HOST/alexa/icon-512.png"
         },
@@ -24,14 +23,13 @@
           "summary": "Play your own music library with FLACie.",
           "description": "Plays the music in your own Jellyfin library through your FLACie server. Ask for a song, an artist, an album or a playlist. If a song is not in your library, FLACie can search for it and download it. For personal use on your own account.",
           "examplePhrases": [
-            "Alexa, open flacie",
-            "Alexa, ask flacie to play Blinding Lights",
-            "Alexa, ask flacie to play my road trip playlist"
+            "Alexa, open flacky",
+            "Alexa, ask flacky to play Blinding Lights",
+            "Alexa, ask flacky to play my road trip playlist"
           ],
           "keywords": [
             "music",
-            "flacie"
-          ],
+            "flacie", "flacky" ],
           "smallIconUri": "https://YOUR-FLACIE-HOST/alexa/icon-108.png",
           "largeIconUri": "https://YOUR-FLACIE-HOST/alexa/icon-512.png"
         }

@@ -1,7 +1,7 @@
 {
   "interactionModel": {
     "languageModel": {
-      "invocationName": "flacie",
+      "invocationName": "flacky",
       "intents": [
         {
           "name": "PlayIntent",

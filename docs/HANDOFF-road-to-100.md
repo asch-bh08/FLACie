@@ -12,7 +12,11 @@ Updated after every step, so another session can take over at any point. Newest 
   Done (committed, not released): SongHeadCache (server keeps the start of upcoming songs; Next 1526 -> ~50 ms with a 1.5 s first byte);
   pointer-rest warming of Home songs (data-warm); covers on screen load eagerly, big cover over the small one; Home shelves 530 -> ~120 ms
   (Track keys remembered) and reused per account; VU shape of the song picked first (look-ahead fetches known shapes only, known=1).
-  Mock has /__stream?first=ms (first-byte delay). Still to do: lyrics cut-off, weak signal/search, phone (Android) side, then release b91.
+  Mock has /__stream?first=ms (first-byte delay). Lyrics cut-off fixed (web + Android). Beta 91 versions bumped (code 106, Windows 0.91.0/76),
+  notes in docs/private/release-bodies/v1.0.0-beta91.md; releasing after the full suite.
+  Android measuring: run-android.mjs (first-sync, skip-burst) can no longer find the Songs list on the current screens ("songs 0", "playback never
+  started"): its navigation needs updating before phone speed can be measured. Covers part works: slow profile (300 ms) 0% at 1 s, 100% at 3 s.
+  Next speed ideas for the phone: covers on a cold cache, search typing on a slow link.
 - Android Automotive emulator `flacie_car` (Android 14 automotive x86_64) works for car testing: sign in to the mock at 10.0.2.2
   (toggle Wi-Fi if no route), then `am start -a android.car.intent.action.MEDIA_TEMPLATE --es android.car.intent.extra.MEDIA_COMPONENT
   com.ipodemu/com.ipodemu.playback.PlaybackService`. Screenshots need `-d <display id>` (dumpsys SurfaceFlinger --display-id).

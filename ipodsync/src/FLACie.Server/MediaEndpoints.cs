@@ -164,7 +164,7 @@ public static class MediaEndpoints
         {
             // a signed-in browser, or the phone app by its token (it asks for the shape of every song it plays)
             if (await ApiEndpoints.CallerAsync(ctx, store, jf) is not { } s) return Results.Unauthorized();
-            if (WaveFile(s, p) is not { } file) return Results.NotFound();
+            if (WaveFile(s, p) is not { } file) return known is "1" ? Results.NoContent() : Results.NotFound();
             if (File.Exists(file))
             {
                 ctx.Response.Headers.CacheControl = "private, max-age=86400";
@@ -173,7 +173,7 @@ public static class MediaEndpoints
             // nobody has sent the exact shape yet: for a FLAC file the server works out a rough one from the file's frames (WaveShape) and keeps it, so a phone,
             // which cannot decode a whole Hi-Res file, still shows the song's shape. It is marked rough; a browser that can decode the song sends the exact one.
             var rough = file + ".rough";
-            if (known is "1" && !File.Exists(rough)) return Results.NotFound();
+            if (known is "1" && !File.Exists(rough)) return Results.NoContent();   // "not yet": no 404, which a browser logs as an error
             if (!File.Exists(rough) && WaveTrack(s, p) is { } t && MediaInfo.FromExtension(t.FilePath ?? t.Path) == "flac"
                 && await ReadWhole(s, t, jf, hf, ctx.RequestAborted) is { } bytes && WaveShape.FromFlac(bytes) is { } bars)
                 await File.WriteAllBytesAsync(rough, bars.Select(b => (byte)b).ToArray());

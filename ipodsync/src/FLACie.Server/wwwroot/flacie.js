@@ -817,7 +817,7 @@ window.flacie = (() => {
         paths.reduce((chain, p) => chain.then(() => {
             const url = '/api/wave?p=' + encodeURIComponent(p);
             if (waveCache.has(url)) return null;
-            return fetch(url + '&known=1', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(a => { if (Array.isArray(a) && a.length) waveCache.set(url, a); }).catch(() => null);
+            return fetch(url + '&known=1', { credentials: 'same-origin' }).then(r => r.status === 200 ? r.json() : null).then(a => { if (Array.isArray(a) && a.length) waveCache.set(url, a); }).catch(() => null);
         }), Promise.resolve());
     },
     /** The path of the song whose shape the player is drawing (for the tests). */

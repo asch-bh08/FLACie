@@ -6,7 +6,8 @@ public sealed record JfPlay(string Id, int Plays, long LastMs, bool Favourite);
 /// <summary>
 /// What this account likes, learned from what it does: every play in FLACie (newer plays count more: the weight halves every 30 days), every play
 /// Jellyfin has counted for this user in any app (so years of listening count from the first day, halving every 120 days but never below a quarter),
-/// every favourite and every playlist a song is in. The signals are spread over the song's artist, genre, decade and album, so a song never
+/// every favourite, every heart, skip, finish and thumbs-down, and the playlists this person plays from (a playlist on the account that they never
+/// play from does not count for them). The signals are spread over the song's artist, genre, decade and album, so a song never
 /// played can still score well because it sounds like what is played. [hits] are the best-known songs of the artists played most (from a public
 /// catalog); a library song that is one of them scores for it. Nothing leaves the server except the artist names looked up in that catalog.
 /// </summary>
@@ -16,12 +17,15 @@ public sealed class TasteProfile
     readonly Dictionary<string, double> songs = new();
     readonly Dictionary<string, long> lastPlayed = new();
     readonly IReadOnlySet<string> hits;
+    readonly Dictionary<string, double> skips = new(), lessArtist = new();
+    readonly Dictionary<string, int> finishes = new();
+    readonly HashSet<string> hearted = new(), thumbedDown = new();
     double artistMax = 1, genreMax = 1, decadeMax = 1, albumMax = 1, songMax = 1;
 
     public bool Empty => songs.Count == 0;
 
     public TasteProfile(Library lib, IReadOnlyList<PlayedEntry> history, IReadOnlyList<PlaylistEntry> favourites, IReadOnlyList<Playlist> playlists, DateTime utcNow,
-        IReadOnlyList<JfPlay>? jellyfin = null, IReadOnlySet<string>? hits = null)
+        IReadOnlyList<JfPlay>? jellyfin = null, IReadOnlySet<string>? hits = null, IReadOnlyList<ListenEvent>? events = null)
     {
         this.hits = hits ?? new HashSet<string>();
         var now = new DateTimeOffset(utcNow).ToUnixTimeMilliseconds();
@@ -33,7 +37,37 @@ public sealed class TasteProfile
             var k = Matching.MatchKey(t); lastPlayed[k] = Math.Max(lastPlayed.GetValueOrDefault(k), h.At);
         }
         foreach (var f in favourites) if (lib.Resolve(f.Path, f.Title, f.Artist) is { } t) Add(t, 3);
-        foreach (var e in playlists.SelectMany(p => p.Entries)) if (lib.Resolve(e.Path, e.Title, e.Artist) is { } t) Add(t, 0.7);
+        // what the person did in FLACie, oldest first so a heart taken back is taken back
+        var fromList = new Dictionary<string, double>();
+        foreach (var e in (events ?? []).OrderBy(e => e.At))
+        {
+            var fade = Math.Pow(0.5, Math.Max(0, (now - e.At) / 86_400_000.0) / 30);
+            if (e.Kind == ListenKind.Play && e.Context is { Length: > 0 } c) fromList[c] = fromList.GetValueOrDefault(c) + fade;
+            if (e.Kind == ListenKind.LessLikeThis) { Bump(lessArtist, Matching.PrimaryArtist(e.Artist), 0.5 * fade); continue; }
+            if (lib.Resolve(e.Path, e.Title, e.Artist) is not { } t) continue;
+            var k = Matching.MatchKey(t);
+            switch (e.Kind)
+            {
+                case ListenKind.Play:
+                    // a folded day is a total of old plays, not one play, so it is never a skip or a finish
+                    var day = e.Id.StartsWith("day:");
+                    var skip = !day && ListenClass.IsSkip(e); var finish = !day && ListenClass.IsFinish(e);
+                    Add(t, (finish ? 3.0 : skip ? 0.3 : 2.0) * fade);
+                    if (skip) Bump(skips, k, 0.25 * fade);
+                    if (finish && now - e.At < 90L * 86_400_000) finishes[k] = finishes.GetValueOrDefault(k) + 1;
+                    lastPlayed[k] = Math.Max(lastPlayed.GetValueOrDefault(k), e.At);
+                    break;
+                case ListenKind.Heart: hearted.Add(k); Add(t, 3); break;
+                case ListenKind.Unheart: hearted.Remove(k); break;
+                case ListenKind.ThumbDown: thumbedDown.Add(k); break;
+            }
+        }
+        // a playlist counts for this person by how much they play from it (the family's playlists sit on one account, each counts for whoever plays it)
+        foreach (var p in playlists)
+        {
+            var w = 0.7 * Math.Min(2, fromList.GetValueOrDefault(p.Id));
+            if (w > 0) foreach (var e in p.Entries) if (lib.Resolve(e.Path, e.Title, e.Artist) is { } t) Add(t, w);
+        }
         // Jellyfin's own count for this user: the whole listening history, from every app
         foreach (var p in jellyfin ?? [])
         {
@@ -71,6 +105,18 @@ public sealed class TasteProfile
     /// <summary>0..1, how much songs of this song's album are played (the other songs of an album you play).</summary>
     public double AlbumFit(Track t) => Matching.AlbumNorm(t.Album).Length > 0 ? album.GetValueOrDefault(t.AlbumKey) / albumMax : 0;
     public double GenreFit(Track t) => Gen(t).Length > 0 ? genre.GetValueOrDefault(Gen(t)) / genreMax : 0;
+    /// <summary>0..1, how much the person has said no to this song: thumbs-down is 1; each recent skip adds a quarter (fading over 30 days); "less like this" marks the lead artist.</summary>
+    public double Penalty(Track t)
+    {
+        var k = Matching.MatchKey(t);
+        if (thumbedDown.Contains(k)) return 1;
+        return Math.Min(1, skips.GetValueOrDefault(k) + lessArtist.GetValueOrDefault(Matching.PrimaryArtist(t.Artist)));
+    }
+    /// <summary>The person gave this song a thumbs-down.</summary>
+    public bool Disliked(Track t) => thumbedDown.Contains(Matching.MatchKey(t));
+    /// <summary>Hearted, or heard to the end three times or more in the last 90 days.</summary>
+    public bool Likes(Track t) { var k = Matching.MatchKey(t); return hearted.Contains(k) || finishes.GetValueOrDefault(k) >= 3; }
+
     /// <summary>The song is one of the best known of an artist this account plays a lot.</summary>
     public bool IsHit(Track t) => hits.Contains(Matching.MatchKey(t));
 

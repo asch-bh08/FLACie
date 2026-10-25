@@ -207,7 +207,7 @@ else
         // the shelves of the last visit, while nothing they come from has changed: opening Home again shows them at once instead of working them out again
         var key = (slot, Lib.Songs.Count, last, Session.ProfileRev, hits?.Count ?? -1, Session.PlayStatsAt.Ticks);
         if (built.TryGetValue(Session, out var b) && b.Key.Equals(key)) { shelves = b.Shelves; moods = b.Moods; return; }
-        shelves = HomeBuilder.Build(Lib, history, Session.Favorites, Session.Playlists, DateTime.UtcNow, Session.PlayStats, hits);
+        shelves = HomeBuilder.Build(Lib, history, Session.Favorites, Session.Playlists, DateTime.UtcNow, Session.PlayStats, hits, AppHost.ListenLog(Session), AppHost.Vibe);
         moods = HomeBuilder.MoodsAvailable(Lib);
         built.AddOrUpdate(Session, new Built(key, shelves, moods));
     }

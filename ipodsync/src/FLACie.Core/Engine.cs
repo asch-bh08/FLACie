@@ -25,7 +25,8 @@ public static class Engine
     const double Gate = 0.6;
     static readonly Regex ExplicitTag = new(@"[(\[]\s*explicit\s*[)\]]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    sealed record Cand(Track? Track, CatalogSong? New, string Artist, double Score, string Why, bool Fresh, bool Recent, bool SameArtist);
+    // Why is worked out only for the songs picked: building it for every song in a big library took most of the time
+    sealed record Cand(Track? Track, CatalogSong? New, string Artist, double Score, Func<string> Why, bool Fresh, bool Recent, bool SameArtist);
 
     public static List<Pick> Next(Library lib, TasteProfile taste, Func<Track, Vibe?> vibe, IReadOnlyList<Track> session, IReadOnlyList<CatalogSong> related,
         DateTime utcNow, EngineOptions o)
@@ -40,25 +41,29 @@ public static class Engine
         var relatedSongs = related.Select(s => Matching.MatchKey(s.Title, s.Artist)).ToHashSet();
         var relatedArtists = related.Select(s => Matching.PrimaryArtist(s.Artist)).ToHashSet();
         var rnd = new Random((int)(o.Seed % int.MaxValue));
+        var nowMs = new DateTimeOffset(utcNow).ToUnixTimeMilliseconds();
 
         var cands = new List<Cand>();
         foreach (var t in lib.Songs)
         {
-            if (inSession.Contains(Matching.MatchKey(t)) || taste.Disliked(t)) continue;
+            // the song's key and lead artist once each: everything below is asked of every song in the library
+            var key = Matching.MatchKey(t);
+            if (inSession.Contains(key) || taste.Disliked(key)) continue;
             if (!o.Explicit && IsExplicit(t.Title, t.Album)) continue;
             var artist = Matching.PrimaryArtist(t.Artist);
-            var link = artists.Contains(artist) || relatedArtists.Contains(artist) || genres.Contains(t.Genre.Trim().ToLowerInvariant());
+            var link = artists.Contains(artist) || relatedArtists.Contains(artist) || (genres.Count > 0 && genres.Contains(t.Genre.Trim().ToLowerInvariant()));
             // with a vibe on both sides it decides; without one, a song tied to what is playing passes and anything else does not
             var v = vibe(t);
-            var fit = seed is null ? taste.Fit(t) : mood is not null && v is not null ? 1 - VibeMath.Distance(mood, v) : link ? 0.7 : 0.3;
-            var liked = taste.Likes(t); var heard = taste.Known(t) > 0;
+            var tasteFit = taste.Fit(t, artist);
+            var fit = seed is null ? tasteFit : mood is not null && v is not null ? 1 - VibeMath.Distance(mood, v) : link ? 0.7 : 0.3;
+            var liked = taste.Likes(key); var heard = taste.Known(key) > 0;
             if (seed is not null && (fit < Gate || (!heard && !liked && !link))) continue;
-            var love = liked ? 1 : Math.Max(taste.Love(t), taste.Fit(t));
+            var love = liked ? 1 : Math.Max(taste.Love(key), tasteFit);
             // fans of what is playing play it, or it sits on a playlist this person plays from with one of the last three songs
-            var together = relatedSongs.Contains(Matching.MatchKey(t)) || last.Any(s => taste.SharesPlayedPlaylist(s, t)) ? 1 : relatedArtists.Contains(artist) ? 0.5 : 0;
-            var score = 0.35 * fit + 0.3 * love + 0.25 * together - 0.6 * taste.Penalty(t) + rnd.NextDouble() * 0.01;
-            cands.Add(new(t, null, artist, score, Why(seed, t.Artist, fit, love, liked, taste.ArtistFit(t) >= 0.5, together), !heard && !liked,
-                taste.PlayedWithin(t, utcNow, 4), artist == prevArtist && artist.Length > 0));
+            var together = relatedSongs.Contains(key) || last.Any(s => taste.SharesPlayedPlaylist(s, t)) ? 1 : relatedArtists.Contains(artist) ? 0.5 : 0;
+            var score = 0.35 * fit + 0.3 * love + 0.25 * together - 0.6 * taste.Penalty(key, artist) + rnd.NextDouble() * 0.01;
+            cands.Add(new(t, null, artist, score, () => Why(seed, t.Artist, fit, love, liked, taste.ArtistFit(t) >= 0.5, together), !heard && !liked,
+                taste.PlayedWithin(key, nowMs, 4), artist == prevArtist && artist.Length > 0));
         }
         // songs fans of this one play that are not in the library yet: tied to it by being on its list, so no vibe is needed to let them in
         foreach (var s in related)
@@ -69,7 +74,7 @@ public static class Engine
             if (taste.Disliked(stand)) continue;
             var love = taste.ArtistFit(stand);
             var score = 0.35 * 0.7 + 0.3 * love + 0.25 - 0.6 * taste.Penalty(stand) + rnd.NextDouble() * 0.01;
-            cands.Add(new(null, s, artist, score, Why(seed, s.Artist, 0.7, love, false, love >= 0.5, 1), true, false, artist == prevArtist && artist.Length > 0));
+            cands.Add(new(null, s, artist, score, () => Why(seed, s.Artist, 0.7, love, false, love >= 0.5, 1), true, false, artist == prevArtist && artist.Length > 0));
         }
 
         // the rails, given way one at a time only when they would leave nothing
@@ -105,7 +110,7 @@ public static class Engine
         var res = new List<Pick>();
         for (var i = 0; i < Math.Max(known.Count, fresh.Count); i++)
             foreach (var list in new[] { known, fresh })
-                if (i < list.Count) res.Add(new(list[i].Track, list[i].New, list[i].Score, list[i].Why));
+                if (i < list.Count) res.Add(new(list[i].Track, list[i].New, list[i].Score, list[i].Why()));
         return res;
     }
 

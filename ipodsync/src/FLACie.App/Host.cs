@@ -40,6 +40,10 @@ public static class AppHost
     public static Func<string, string, CancellationToken, Task<string?>>? OnlineAlbum { get; set; }
     /// <summary>How many songs are still waiting to have their real format read.</summary>
     public static Func<int> ProbePending { get; set; } = () => 0;
+    /// <summary>The account's listening log, or null while it has none (Home's picks then learn from the history and favourites).</summary>
+    public static Func<UserSession, IReadOnlyList<ListenEvent>?> ListenLog { get; set; } = _ => null;
+    /// <summary>How a song feels, where it has been analysed.</summary>
+    public static Func<Track, Vibe?> Vibe { get; set; } = _ => null;
 }
 
 /// <summary>The short format badge on a song row ("FLAC", "MP3", "HI-RES").</summary>

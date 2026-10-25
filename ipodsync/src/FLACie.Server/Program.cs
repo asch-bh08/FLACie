@@ -90,6 +90,7 @@ builder.Services.AddSingleton<FormatProbeService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FormatProbeService>());
 builder.Services.AddSingleton<VibeIndex>();   // how each song feels (recommendations), filled in the background
 builder.Services.AddHostedService<VibeFillService>();
+builder.Services.AddSingleton(sp => new RelatedCache(sp.GetRequiredService<DataPaths>(), sp.GetRequiredService<WebCatalog>()));   // songs that go with a song, kept a week
 builder.Services.AddHostedService<ProfileSyncService>();
 builder.Services.AddHostedService<LibrarySyncService>();
 builder.Services.AddSingleton(sp => new LyricsService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("catalog"), sp.GetRequiredService<JellyfinClient>(), Path.Combine(dataDir, "lyrics")));
@@ -141,6 +142,13 @@ builder.Services.AddSingleton<HitsService>();
 builder.Services.AddAlexa(dataDir);
 
 var app = builder.Build();
+// the web Home's picks learn from each account's listening log and the songs' vibes
+{
+    var listens = app.Services.GetRequiredService<ListenLogStore>();
+    var vibes = app.Services.GetRequiredService<VibeIndex>();
+    AppHost.ListenLog = s => listens.Exists(s) ? listens.Read(s) : null;
+    AppHost.Vibe = vibes.Of;
+}
 {
     var probe = app.Services.GetRequiredService<FormatProbeService>();
     var media = app.Services.GetRequiredService<IHttpClientFactory>();
@@ -200,6 +208,7 @@ app.MapStaticAssets();
 app.MapAuth();
 app.MapMedia(dataDir);
 app.MapApi();
+app.MapRecommend();
 app.MapAlexa();
 // local diagnostics only (FLACIE_DEBUG=1): the signed-in user's own Jellyfin, GET or POST, so a session problem can be looked at directly
 if (builder.Configuration["FLACIE_DEBUG"] == "1")

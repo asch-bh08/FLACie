@@ -60,8 +60,18 @@ public static class HomeBuilder
     public static List<string> TopArtists(Library lib, IReadOnlyList<PlayedEntry> history, IReadOnlyList<PlaylistEntry> favourites, IReadOnlyList<Playlist> playlists, DateTime utcNow, IReadOnlyList<JfPlay>? jellyfin, int n = 24) =>
         new TasteProfile(lib, history, favourites, playlists, utcNow, jellyfin).TopArtists(lib, n);
 
+    /// <summary>
+    /// What this account likes. Once it has a listening log ([events] not null) the log alone says what was played and loved: the log was started
+    /// from the history and favourites, so counting those lists as well would count every old play twice. Jellyfin's counts and the playlists count as before.
+    /// </summary>
+    public static TasteProfile Taste(Library lib, IReadOnlyList<PlayedEntry> history, IReadOnlyList<PlaylistEntry> favourites, IReadOnlyList<Playlist> playlists, DateTime utcNow,
+        IReadOnlyList<JfPlay>? jellyfin, IReadOnlySet<string>? hits, IReadOnlyList<ListenEvent>? events) =>
+        events is null ? new TasteProfile(lib, history, favourites, playlists, utcNow, jellyfin, hits)
+            : new TasteProfile(lib, [], [], playlists, utcNow, jellyfin, hits, events);
+
+    /// <summary>[events] is the account's listening log (null before it has one); [vibe] how each song feels, where known.</summary>
     public static List<Shelf> Build(Library lib, IReadOnlyList<PlayedEntry> history, IReadOnlyList<PlaylistEntry> favourites, IReadOnlyList<Playlist> playlists, DateTime utcNow,
-        IReadOnlyList<JfPlay>? jellyfin = null, IReadOnlySet<string>? hits = null)
+        IReadOnlyList<JfPlay>? jellyfin = null, IReadOnlySet<string>? hits = null, IReadOnlyList<ListenEvent>? events = null, Func<Track, Vibe?>? vibe = null)
     {
         var shelves = new List<Shelf>();
         if (lib.Songs.Count == 0) return shelves;
@@ -94,9 +104,20 @@ public static class HomeBuilder
             if (lastPlayed.Count > 0) shelves.Add(new("listen-again", "Listen again", "Recently played in Jellyfin", lastPlayed, []));
         }
 
+        // Quick picks and Discover come from the engine, worked out as at the start of the hour so they hold still while Home is shown
+        var hour = DateTime.UnixEpoch.AddHours(slot);
+        var taste = HomeBuilder.Taste(lib, history, favourites, playlists, hour, jellyfin, hits, events);
         var again = listen.Take(8).Select(Matching.MatchKey).ToHashSet();
-        var picks = Recommender.Recommend(lib, new TasteProfile(lib, history, favourites, playlists, utcNow, jellyfin, hits), utcNow, 20, 31, 2, again);
+        // one pass of the engine: the songs this person knows make Quick picks, the ones never played make Discover
+        var all = Engine.Next(lib, taste, vibe ?? (_ => null), [], [], hour, new EngineOptions(Take: 60, NewShare: 0.5, Seed: slot))
+            .Select(p => p.Track).OfType<Track>().Where(t => !again.Contains(Matching.MatchKey(t))).ToList();
+        bool Fresh(Track t) => taste.Known(t) == 0 && !taste.Likes(t);
+        var picks = all.Where(t => !Fresh(t)).Take(20).ToList();
+        // an account with little to go on yet still gets a full row
+        if (picks.Count < 10) picks = all.Take(20).ToList();
         if (picks.Count > 0) shelves.Add(new("quick-picks", "Quick picks", "Chosen for you from what you play, save and list", picks, [], "Refreshes every hour"));
+        var discover = all.Where(t => Fresh(t) && !picks.Contains(t)).Take(16).ToList();
+        if (discover.Count >= 6) shelves.Add(new("discover", "Discover", "In your library, not played yet", discover, [], "Refreshes every hour"));
 
         // the Daily Mix of the hour cycles through the moods, then the genres you own most of
         var genres = lib.Songs.Where(t => t.Genre.Length > 0).GroupBy(t => t.Genre, StringComparer.OrdinalIgnoreCase).OrderByDescending(g => g.Count()).Take(8).ToList();

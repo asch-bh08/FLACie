@@ -95,8 +95,13 @@ public sealed class TasteProfile
     }
 
     static double Max(Dictionary<string, double> d) => d.Count == 0 ? 1 : Math.Max(1, d.Values.Max());
-    static string Dec(Track t) => t.Year >= 1900 ? (t.Year / 10 * 10).ToString() : "";
-    static string Gen(Track t) => t.Genre.Trim().ToLowerInvariant();
+    // a library has few decades and genres, so their names are made once rather than for every song each time
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<int, string> decNames = new();
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> genNames = new();
+    static string Dec(Track t) => t.Year >= 1900 ? decNames.GetOrAdd(t.Year / 10 * 10, d => d.ToString()) : "";
+    // the album key is remembered per song, and ends in "|" when the album name has nothing left once cleaned (working that out each time was slow)
+    static bool HasAlbum(Track t) => !t.AlbumKey.EndsWith('|');
+    static string Gen(Track t) => t.Genre.Length == 0 ? "" : genNames.Count < 10_000 ? genNames.GetOrAdd(t.Genre, g => g.Trim().ToLowerInvariant()) : t.Genre.Trim().ToLowerInvariant();
 
     void Add(Track t, double w)
     {
@@ -104,32 +109,33 @@ public sealed class TasteProfile
         Bump(artist, Matching.PrimaryArtist(t.Artist), w);
         if (Gen(t).Length > 0) Bump(genre, Gen(t), w);
         if (Dec(t).Length > 0) Bump(decade, Dec(t), w);
-        if (Matching.AlbumNorm(t.Album).Length > 0) Bump(album, t.AlbumKey, w);
+        if (HasAlbum(t)) Bump(album, t.AlbumKey, w);
     }
     static void Bump(Dictionary<string, double> d, string k, double w) { if (k.Length > 0) d[k] = d.GetValueOrDefault(k) + w; }
 
     /// <summary>How much this account has played, saved or listed this exact song (0 = never).</summary>
-    public double Known(Track t) => songs.GetValueOrDefault(Matching.MatchKey(t));
+    public double Known(Track t) => Known(Matching.MatchKey(t));
+    // the overloads taking a song's match key (and lead artist) are for the engine, which asks all of them of every song in the library
+    internal double Known(string key) => songs.GetValueOrDefault(key);
     public double Artist(Track t) => artist.GetValueOrDefault(Matching.PrimaryArtist(t.Artist));
 
     /// <summary>0..1, how much this song is loved: its own plays, on a curve (the tenth play counts less than the second).</summary>
-    public double Love(Track t) => Math.Log(1 + Known(t)) / Math.Log(1 + songMax);
+    public double Love(Track t) => Love(Matching.MatchKey(t));
+    internal double Love(string key) => Math.Log(1 + Known(key)) / Math.Log(1 + songMax);
     /// <summary>0..1, how much this artist is played compared with the most played.</summary>
     public double ArtistFit(Track t) => artist.GetValueOrDefault(Matching.PrimaryArtist(t.Artist)) / artistMax;
     /// <summary>0..1, how much songs of this song's album are played (the other songs of an album you play).</summary>
-    public double AlbumFit(Track t) => Matching.AlbumNorm(t.Album).Length > 0 ? album.GetValueOrDefault(t.AlbumKey) / albumMax : 0;
+    public double AlbumFit(Track t) => HasAlbum(t) ? album.GetValueOrDefault(t.AlbumKey) / albumMax : 0;
     public double GenreFit(Track t) => Gen(t).Length > 0 ? genre.GetValueOrDefault(Gen(t)) / genreMax : 0;
     /// <summary>0..1, how much the person has said no to this song: thumbs-down is 1; each recent skip adds a quarter (fading over 30 days); "less like this" marks the lead artist.</summary>
-    public double Penalty(Track t)
-    {
-        var k = Matching.MatchKey(t);
-        if (thumbedDown.Contains(k)) return 1;
-        return Math.Min(1, skips.GetValueOrDefault(k) + lessArtist.GetValueOrDefault(Matching.PrimaryArtist(t.Artist)));
-    }
+    public double Penalty(Track t) => Penalty(Matching.MatchKey(t), Matching.PrimaryArtist(t.Artist));
+    internal double Penalty(string key, string lead) => thumbedDown.Contains(key) ? 1 : Math.Min(1, skips.GetValueOrDefault(key) + lessArtist.GetValueOrDefault(lead));
     /// <summary>The person gave this song a thumbs-down.</summary>
-    public bool Disliked(Track t) => thumbedDown.Contains(Matching.MatchKey(t));
+    public bool Disliked(Track t) => Disliked(Matching.MatchKey(t));
+    internal bool Disliked(string key) => thumbedDown.Contains(key);
     /// <summary>Hearted, or heard to the end three times or more in the last 90 days.</summary>
-    public bool Likes(Track t) { var k = Matching.MatchKey(t); return hearted.Contains(k) || finishes.GetValueOrDefault(k) >= 3; }
+    public bool Likes(Track t) => Likes(Matching.MatchKey(t));
+    internal bool Likes(string key) => hearted.Contains(key) || finishes.GetValueOrDefault(key) >= 3;
 
     /// <summary>Both songs are on a playlist this person plays from (a playlist on the account they never play from does not count).</summary>
     public bool SharesPlayedPlaylist(Track a, Track b) =>
@@ -139,10 +145,14 @@ public sealed class TasteProfile
     public bool IsHit(Track t) => hits.Contains(Matching.MatchKey(t));
 
     /// <summary>0..1: how well the song fits the taste, from its artist, genre, decade and album (unplayed songs can score too).</summary>
-    public double Fit(Track t)
+    public double Fit(Track t) => Fit(t, Matching.PrimaryArtist(t.Artist));
+    internal double Fit(Track t, string lead)
     {
-        var d = Dec(t).Length > 0 ? decade.GetValueOrDefault(Dec(t)) / decadeMax : 0;
-        return ArtistFit(t) * 0.45 + GenreFit(t) * 0.30 + d * 0.10 + AlbumFit(t) * 0.15;
+        // each worked out once: this runs for every song in the library
+        var dec = Dec(t); var gen = Gen(t);
+        var d = dec.Length > 0 ? decade.GetValueOrDefault(dec) / decadeMax : 0;
+        var g = gen.Length > 0 ? genre.GetValueOrDefault(gen) / genreMax : 0;
+        return artist.GetValueOrDefault(lead) / artistMax * 0.45 + g * 0.30 + d * 0.10 + AlbumFit(t) * 0.15;
     }
 
     /// <summary>The lead artists played most, with their names as they appear in the library (to look their best-known songs up).</summary>
@@ -154,8 +164,8 @@ public sealed class TasteProfile
     }
 
     /// <summary>True when the song was played in the last [hours] hours (so it is not suggested again straight away).</summary>
-    public bool PlayedWithin(Track t, DateTime utcNow, double hours) =>
-        lastPlayed.TryGetValue(Matching.MatchKey(t), out var at) && new DateTimeOffset(utcNow).ToUnixTimeMilliseconds() - at < hours * 3_600_000;
+    public bool PlayedWithin(Track t, DateTime utcNow, double hours) => PlayedWithin(Matching.MatchKey(t), new DateTimeOffset(utcNow).ToUnixTimeMilliseconds(), hours);
+    internal bool PlayedWithin(string key, long nowMs, double hours) => lastPlayed.TryGetValue(key, out var at) && nowMs - at < hours * 3_600_000;
 }
 
 /// <summary>

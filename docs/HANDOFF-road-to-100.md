@@ -9,6 +9,10 @@ Updated after every step, so another session can take over at any point. Newest 
 - **Working on beta 91: the owner's speed overhaul** (owner AFK overnight, release b91 if optimised): 3-4 s gap between songs, covers not
   instant, Home 1-2 s, Listen again ~3 s with no VU, weak-signal / fast-skip / search smoothness, light on resources but never at
   the cost of speed. Also: long lyric lines lose their last word. Measure first (loadtest tools), fix, measure again.
+  Done (committed, not released): SongHeadCache (server keeps the start of upcoming songs; Next 1526 -> ~50 ms with a 1.5 s first byte);
+  pointer-rest warming of Home songs (data-warm); covers on screen load eagerly, big cover over the small one; Home shelves 530 -> ~120 ms
+  (Track keys remembered) and reused per account; VU shape of the song picked first (look-ahead fetches known shapes only, known=1).
+  Mock has /__stream?first=ms (first-byte delay). Still to do: lyrics cut-off, weak signal/search, phone (Android) side, then release b91.
 - Android Automotive emulator `flacie_car` (Android 14 automotive x86_64) works for car testing: sign in to the mock at 10.0.2.2
   (toggle Wi-Fi if no route), then `am start -a android.car.intent.action.MEDIA_TEMPLATE --es android.car.intent.extra.MEDIA_COMPONENT
   com.ipodemu/com.ipodemu.playback.PlaybackService`. Screenshots need `-d <display id>` (dumpsys SurfaceFlinger --display-id).

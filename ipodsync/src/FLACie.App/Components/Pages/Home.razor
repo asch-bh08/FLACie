@@ -202,7 +202,13 @@ else
         var last = history.FirstOrDefault()?.At ?? 0;
         if (slot == builtSlot && builtSongs == Lib.Songs.Count && builtLast == last && builtRev == Session.ProfileRev) return;
         builtSlot = slot; builtSongs = Lib.Songs.Count; builtLast = last; builtRev = Session.ProfileRev;
+        // the shelves of the last visit, while nothing they come from has changed: opening Home again shows them at once instead of working them out again
+        var key = (slot, Lib.Songs.Count, last, Session.ProfileRev, hits?.Count ?? -1, Session.PlayStatsAt.Ticks);
+        if (built.TryGetValue(Session, out var b) && b.Key.Equals(key)) { shelves = b.Shelves; moods = b.Moods; return; }
         shelves = HomeBuilder.Build(Lib, history, Session.Favorites, Session.Playlists, DateTime.UtcNow, Session.PlayStats, hits);
         moods = HomeBuilder.MoodsAvailable(Lib);
+        built.AddOrUpdate(Session, new Built(key, shelves, moods));
     }
+    sealed record Built((long, int, long, int, int, long) Key, List<Shelf> Shelves, List<string> Moods);
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<UserSession, Built> built = new();
 }

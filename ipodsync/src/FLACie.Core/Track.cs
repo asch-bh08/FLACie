@@ -12,7 +12,9 @@ public sealed record Track(
     string Path, string Title, string Artist, string Album, string AlbumArtist, int TrackNo, int DiscNo,
     long DurationMs, int Year, string? ArtKey, long AddedMs, TrackSource Source, string? FilePath = null, string? JellyfinId = null, string Genre = "", long Size = 0, string OrigTitle = "", double? GainDb = null)
 {
-    public string AlbumKey => Matching.PrimaryArtist(AlbumArtist.Length > 0 ? AlbumArtist : Artist) + "|" + Matching.AlbumNorm(Album);
+    /// <summary>Worked out once per song (Quick picks asks for it of every song in the library, several times).</summary>
+    public string AlbumKey => albumKeys.GetValue(this, t => Matching.PrimaryArtist(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist) + "|" + Matching.AlbumNorm(t.Album));
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Track, string> albumKeys = new();
 }
 
 public sealed record Group(string Name, IReadOnlyList<Track> Tracks, string? ArtKey);
@@ -30,7 +32,10 @@ public static partial class Matching
     public static string NormTitle(string s) => NonAlnum().Replace(FeatTail().Replace(FeatParen().Replace(s, ""), "").ToLowerInvariant(), " ").Trim();
 
     /// <summary>Just the lead artist, lower-case, with a leading "The" dropped ("The Black Eyed Peas" = "Black Eyed Peas").</summary>
-    public static string PrimaryArtist(string s)
+    /// <summary>The main credit, lower case, no punctuation. Remembered per spelling (a library has a few thousand), as Home asks for it for every song.</summary>
+    public static string PrimaryArtist(string s) => s.Length == 0 ? "" : primaryArtists.Count < 50_000 ? primaryArtists.GetOrAdd(s, PrimaryArtistOf) : PrimaryArtistOf(s);
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> primaryArtists = new();
+    static string PrimaryArtistOf(string s)
     {
         var first = ArtistSplit().Split(s).FirstOrDefault(p => !string.IsNullOrWhiteSpace(p)) ?? "";
         var a = string.Join(' ', NonAlnum().Replace(first.ToLowerInvariant(), " ").Split(' ', StringSplitOptions.RemoveEmptyEntries));
@@ -38,7 +43,10 @@ public static partial class Matching
     }
 
     public static string MatchKey(string title, string artist) => NormTitle(title) + "|" + PrimaryArtist(artist);
-    public static string MatchKey(Track t) => MatchKey(t.Title, t.Artist);
+    /// <summary>Worked out once per song and remembered (a song never changes; `with` makes a new one): Home asked for it tens of thousands of times each
+    /// time it opened, and with the owner's 11,000 songs that alone was most of the 1-2 s Home took.</summary>
+    public static string MatchKey(Track t) => matchKeys.GetValue(t, x => MatchKey(x.Title, x.Artist));
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Track, string> matchKeys = new();
     public static string AlbumNorm(string album) => new(Edition().Replace(album.ToLowerInvariant(), "").Where(char.IsLetterOrDigit).ToArray());
     public static string MergeKey(Track t) => MatchKey(t) + "|" + AlbumNorm(t.Album);
 

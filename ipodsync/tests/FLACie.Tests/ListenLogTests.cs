@@ -56,4 +56,26 @@ public class ListenLogTests : IDisposable
         Assert.Equal("new", got[1].Id);
         Assert.Equal(70, got[1].Heard);
     }
+
+    string LogFile() => Path.Combine(dir, "listen", "ann.jsonl");
+
+    [Fact] public void Thin_keeps_a_damaged_line_as_it_was()
+    {
+        var now = new DateTime(2026, 10, 25, 12, 0, 0, DateTimeKind.Utc);
+        var store = new ListenLogStore(new DataPaths(dir));
+        store.Append(me, [Play("o1", Ms(now.AddDays(-400)), 100), Play("new", Ms(now.AddDays(-2)), 70)]);
+        File.AppendAllText(LogFile(), "{not json\n");
+        store.Thin(me, now);
+        Assert.Contains("{not json", File.ReadAllLines(LogFile()));
+        Assert.Equal(2, store.Read(me).Count);
+    }
+
+    [Fact] public void Append_after_a_torn_last_line_starts_on_a_new_line()
+    {
+        var store = new ListenLogStore(new DataPaths(dir));
+        store.Append(me, [Play("1", 10)]);
+        File.AppendAllText(LogFile(), "{\"id\":\"tor");
+        store.Append(me, [Play("2", 20)]);
+        Assert.Contains("2", store.Read(me).Select(e => e.Id));
+    }
 }

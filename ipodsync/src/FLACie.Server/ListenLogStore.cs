@@ -17,14 +17,19 @@ public sealed class ListenLogStore(DataPaths paths)
     Log Of(UserSession s) => logs.GetOrAdd(s.Id, _ => new Log());
     string FileOf(UserSession s) => Path.Combine(Directory.CreateDirectory(Path.Combine(paths.Root, "listen")).FullName, s.Id + ".jsonl");
 
-    static List<ListenEvent> ReadFile(string file)
+    static List<ListenEvent> ReadFile(string file) => ReadFile(file, out _);
+
+    /// <summary>The good events; lines that can't be read (a half-written one) are skipped here and handed back in [damaged] so they are never lost.</summary>
+    static List<ListenEvent> ReadFile(string file, out List<string> damaged)
     {
         var res = new List<ListenEvent>();
+        damaged = [];
         if (!File.Exists(file)) return res;
         foreach (var line in File.ReadAllLines(file))
         {
             if (string.IsNullOrWhiteSpace(line)) continue;
-            try { if (JsonSerializer.Deserialize<ListenEvent>(line, Json) is { } e) res.Add(e); } catch (Exception) { }   // one damaged line must not lose the rest
+            try { if (JsonSerializer.Deserialize<ListenEvent>(line, Json) is { } e) res.Add(e); else damaged.Add(line); }
+            catch (JsonException) { damaged.Add(line); }   // one damaged line must not lose the rest
         }
         return res;
     }
@@ -39,8 +44,19 @@ public sealed class ListenLogStore(DataPaths paths)
             var ids = IdsOf(log, s);
             var fresh = events.Where(e => !string.IsNullOrEmpty(e.Id) && ids.Add(e.Id)).ToList();
             if (fresh.Count == 0) return;
-            File.AppendAllLines(FileOf(s), fresh.Select(e => JsonSerializer.Serialize(e, Json)));
+            var file = FileOf(s);
+            if (EndsMidLine(file)) File.AppendAllText(file, "\n");   // a torn last line must not swallow the next event
+            File.AppendAllLines(file, fresh.Select(e => JsonSerializer.Serialize(e, Json)));
         }
+    }
+
+    static bool EndsMidLine(string file)
+    {
+        if (!File.Exists(file)) return false;
+        using var f = File.OpenRead(file);
+        if (f.Length == 0) return false;
+        f.Seek(-1, SeekOrigin.End);
+        return f.ReadByte() != '\n';
     }
 
     public IReadOnlyList<ListenEvent> Read(UserSession s)
@@ -56,7 +72,7 @@ public sealed class ListenLogStore(DataPaths paths)
         lock (log.Gate)
         {
             var cutoff = new DateTimeOffset(utcNow.AddDays(-365), TimeSpan.Zero).ToUnixTimeMilliseconds();
-            var all = ReadFile(FileOf(s));
+            var all = ReadFile(FileOf(s), out var damaged);
             var old = all.Where(e => e.Kind == ListenKind.Play && e.At < cutoff).ToList();
             if (old.Count == 0) return;
             var folded = old.GroupBy(e => (Day: DateTimeOffset.FromUnixTimeMilliseconds(e.At).UtcDateTime.Date, e.Path)).Select(g =>
@@ -66,7 +82,7 @@ public sealed class ListenLogStore(DataPaths paths)
             });
             var kept = all.Except(old).Concat(folded).OrderBy(e => e.At).ToList();
             var file = FileOf(s);
-            File.WriteAllLines(file + ".tmp", kept.Select(e => JsonSerializer.Serialize(e, Json)));
+            File.WriteAllLines(file + ".tmp", damaged.Concat(kept.Select(e => JsonSerializer.Serialize(e, Json))));
             File.Move(file + ".tmp", file, true);
             log.Ids = kept.Select(e => e.Id).ToHashSet();
         }

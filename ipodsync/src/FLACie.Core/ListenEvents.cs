@@ -12,6 +12,7 @@ public sealed record ListenEvent(string Id, ListenKind Kind, long At, string Pat
 /// <summary>Was a play a skip, or did the person listen to the end?</summary>
 public static class ListenClass
 {
+    // Old plays folded into a "day:" event are daily totals, not single plays, so skip/finish do not mean much for them.
     /// <summary>Under 30 seconds heard: they moved on.</summary>
     public static bool IsSkip(ListenEvent e) => e.Kind == ListenKind.Play && e.Heard < 30;
 

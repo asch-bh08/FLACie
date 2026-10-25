@@ -11,6 +11,8 @@ param(
   [string]$SkillId = ""
 )
 $ErrorActionPreference = "Stop"
+# plain UTF-8: Windows PowerShell 5.1 writes a byte-order mark with -Encoding utf8, and ask-cli cannot read JSON that starts with one
+function Write-Plain($path, $text) { [IO.File]::WriteAllText($path, $text, (New-Object Text.UTF8Encoding($false))) }
 if ($PublicUrl -notmatch '^https://[^/:]+(/.*)?$') { throw "PublicUrl must be an https address on port 443, for example https://flacie.example.com" }
 if (-not (Get-Command ask -ErrorAction SilentlyContinue)) { throw "ask-cli is not installed. Run: npm install -g ask-cli   then: ask configure" }
 
@@ -25,15 +27,15 @@ $host_ = ([uri]$PublicUrl).Host
 $manifestPath = Join-Path $build "skill-package\skill.json"
 $text = Get-Content $manifestPath -Raw
 $text = $text.Replace("https://YOUR-FLACIE-HOST/alexa/skill", $endpoint).Replace("https://YOUR-FLACIE-HOST", $PublicUrl.TrimEnd('/'))
-Set-Content -Path $manifestPath -Value $text -Encoding utf8
+Write-Plain $manifestPath $text
 
 $res = @{ askcliResourcesVersion = "2020-03-31"; profiles = @{ default = @{ skillMetadata = @{ src = "./skill-package" } } } }
 if ($SkillId -ne "") {
   # tell ask-cli which existing skill this is (its own state file)
   New-Item -ItemType Directory -Force (Join-Path $build ".ask") | Out-Null
-  @{ askcliStatesVersion = "2020-03-31"; profiles = @{ default = @{ skillId = $SkillId } } } | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $build ".asksk-states.json") -Encoding utf8
+  Write-Plain (Join-Path $build ".ask/ask-states.json") (@{ askcliStatesVersion = "2020-03-31"; profiles = @{ default = @{ skillId = $SkillId } } } | ConvertTo-Json -Depth 6)
 }
-$res | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $build "ask-resources.json") -Encoding utf8
+Write-Plain (Join-Path $build "ask-resources.json") ($res | ConvertTo-Json -Depth 6)
 
 Push-Location $build
 try {

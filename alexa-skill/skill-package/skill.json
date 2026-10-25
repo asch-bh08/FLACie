@@ -42,7 +42,7 @@
         "US"
       ],
       "testingInstructions": "Personal development-stage skill for the owner's own account. Not for store submission.",
-      "category": "MUSIC_AND_AUDIO"
+      "category": "STREAMING_SERVICE"
     },
     "apis": {
       "custom": {
@@ -75,7 +75,7 @@
           "eventName": "SKILL_PERMISSION_CHANGED"
         },
         {
-          "eventName": "PROACTIVE_SUBSCRIPTION_CHANGED"
+          "eventName": "SKILL_PROACTIVE_SUBSCRIPTION_CHANGED"
         }
       ],
       "publications": [

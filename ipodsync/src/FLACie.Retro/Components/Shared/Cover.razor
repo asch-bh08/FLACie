@@ -3,7 +3,12 @@
     <span class="cover-ph" aria-hidden="true"><Icon Name="note" Size="@(Size > 0 ? Math.Max(14, Size / 3) : 40)" /></span>
     @if (ArtKey is not null)
     {
-        <img src="/art/@Uri.EscapeDataString(CoverOverrides.Map(ArtKey)!)?v=3@(Full ? "&s=full" : "")" alt="" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'" />
+        var src = $"/art/{Uri.EscapeDataString(CoverOverrides.Map(ArtKey)!)}?v=3";
+        @* a cover always on screen (the player, Now Playing) is asked for at once, not when lazy loading gets round to it; the big one shows the small cover
+           (usually in the cache already) underneath straight away, and the sharp one covers it when it lands. Rows in long lists stay lazy. *@
+        var now = Eager || Full;
+        @if (Full) { <img class="cover-under" src="@src" alt="" decoding="async" fetchpriority="high" onerror="this.style.visibility='hidden'" /> }
+        <img src="@(src + (Full ? "&s=full" : ""))" alt="" loading="@(now ? "eager" : "lazy")" decoding="async" fetchpriority="@(now ? "high" : "auto")" onerror="this.style.visibility='hidden'" />
     }
 </div>
 @code {
@@ -11,5 +16,7 @@
     [Parameter] public int Size { get; set; }
     /// <summary>The original picture instead of the small row size (only the big Now Playing cover).</summary>
     [Parameter] public bool Full { get; set; }
+    /// <summary>Always on screen (the player bar): loaded at once.</summary>
+    [Parameter] public bool Eager { get; set; }
     [Parameter] public string Class { get; set; } = "";
 }

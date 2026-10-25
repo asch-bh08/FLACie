@@ -13,7 +13,7 @@
     <div class="hinge"></div>
 </div>
 }
-<div class="desk-rack lift" data-testid="desk-rack" data-sel="@Sel" data-wheel data-swipe data-step="30" @onpointerdown="Down" role="listbox" tabindex="0" aria-label="Up next: hover, swipe along the rack, scroll or use the arrow keys to look through the CDs; Enter plays one"
+<div class="desk-rack lift" data-testid="desk-rack" data-sel="@Sel" data-wheel data-swipe data-step="30" @onpointerdown="Down" role="@(Next.Count > 0 ? "listbox" : null)" tabindex="0" aria-label="Up next: hover, swipe along the rack, scroll or use the arrow keys to look through the CDs; Enter plays one"
      aria-activedescendant="@(Next.Count > 0 ? $"desk-cd-{Sel}" : null)" @onwheel="Wheel" @onkeydown="Key">
     <i class="rack-wood" aria-hidden="true"></i>
     <div class="rack-row">

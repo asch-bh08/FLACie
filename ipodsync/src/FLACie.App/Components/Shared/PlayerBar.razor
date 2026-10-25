@@ -6,7 +6,7 @@
         <input class="bar-progress" type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" aria-valuetext="@Spoken(Player.Position, Player.Duration)" style="@Fill(hold.Value(Player.Position), Player.Duration)" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
         <div class="bar" @onclick="() => open = true">
             <button class="bar-song" @key="t.Path" @onclick="() => open = true" aria-label="Open Now Playing">
-                <Cover ArtKey="@(Art.KeyFor(t))" Size="52" />
+                <Cover ArtKey="@(Art.KeyFor(t))" Size="52" Eager="true" />
                 <span class="bar-text"><b>@Title(t.Title)</b><small>@t.Artist</small>@if (chip is { Length: > 0 }) { <span class="bar-chip">@chip</span> }<DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span>
             </button>
             <div class="bar-controls">

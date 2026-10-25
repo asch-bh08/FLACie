@@ -60,10 +60,10 @@ else
                 @foreach (var g in IpodModels.Groups)
                 {
                     var gg = g;
-                    <button type="button" class="@(gg == pickGroup ? "on" : "")" data-group="@gg" tabindex="-1" @onclick="() => pickGroup = gg">@GroupShort(gg)</button>
+                    <button type="button" role="tab" aria-selected="@(gg == pickGroup ? "true" : "false")" class="@(gg == pickGroup ? "on" : "")" data-group="@gg" tabindex="-1" @onclick="() => pickGroup = gg">@GroupShort(gg)</button>
                 }
             </div>
-            <div class="dock-models">
+            <div class="dock-models" role="group" aria-label="Models" tabindex="0">
                 @foreach (var m in IpodModels.InGroup(pickGroup))
                 {
                     <button type="button" class="ipod-chip @(m.Id == model.Id ? "on" : "")" data-model="@m.Id" tabindex="-1" @onclick="() => PickModel(m.Id)" title="@m.Blurb"><span>@m.Name</span><small>@m.Year</small></button>
@@ -199,7 +199,7 @@ else
                     <span class="wl wl-prev" data-testid="ipod-prev" role="img" aria-label="Previous song" title="Previous (left arrow)"><Icon Name="prev" Size="16" /></span>
                     <span class="wl wl-play" data-testid="ipod-play" role="img" aria-label="Play or pause" title="Play / pause (Space)"><Icon Name="play" Size="12" /><Icon Name="pause" Size="12" /></span>
                 }
-                <div class="ipod-center" data-testid="ipod-center" aria-label="Select" title="Select (Enter)"></div>
+                <div class="ipod-center" data-testid="ipod-center" role="img" aria-label="Select" title="Select (Enter)"></div>
             </div>
         }
         </div>

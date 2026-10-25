@@ -5,6 +5,8 @@ Updated after every step, so another session can take over at any point. Newest 
 
 ## Now (2026-10-25, night)
 
+- **Alexa (2026-10-25 day):** skill FLACie, id amzn1.ask.skill.73ca72da-fd63-4f28-adba-da59842366a0, on the OWNER's developer account (vendor M1G9ATO29FYKFM), spoken name "flacky", models en-GB/US/AU/CA/IN; update with `alexa-skill\deploy.ps1 -PublicUrl https://frank.tailb05910.ts.net -SkillId <id>`. Public: Tailscale Funnel on frank 443 (root = ntfy, /slskd /lidarr /filemove, /alexa -> FLACie 5255). Simulator (`ask smapi simulate-skill`) answers in every locale; the owner's phone Alexa app did not reach it ("not sure how to help"; typing: "trouble connecting") -- likely the phone's Alexa language. Family: beta-test invites from the developer console (Distribution > Availability). Admin check now retries (was lost after restarts).
+
 - **Beta 91 released** (speed): web on frank (rollback tag rollback-20261025-pre91), GitHub v1.0.0-beta91 with APK + MSI, Android code 106.
 
 - **Beta 90 released** (web on frank, rollback tag rollback-20261025-pre90; GitHub v1.0.0-beta90 with APK + MSI; Android versionCode 105).

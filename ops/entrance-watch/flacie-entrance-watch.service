@@ -1,0 +1,7 @@
+[Unit]
+Description=Keep FLACie's public entrances open (hms-jellyfin Funnel, FLACie Web, Alexa)
+After=network-online.target tailscaled.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/flacie-entrance-watch.sh

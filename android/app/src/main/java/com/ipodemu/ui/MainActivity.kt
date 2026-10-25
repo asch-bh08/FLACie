@@ -128,6 +128,8 @@ class MainActivity : ComponentActivity() {
         applyBrightness()
         super.onResume()
         refreshPermissions()
+        // the app can sit in the background for days: back on screen, a sync over 10 minutes old (or one that failed) is done again
+        (application as? com.ipodemu.App)?.let { if (System.currentTimeMillis() - it.prefs.accountSyncedAt > 600_000L) it.account.sync(background = true) }
         ipodView?.updateHinge()
         hideSystemBars()
     }

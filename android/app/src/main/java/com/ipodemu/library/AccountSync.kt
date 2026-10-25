@@ -130,7 +130,25 @@ class AccountSync(private val app: App) {
     /** Pull + merge + push. Run at sign-in, at app start, and from Settings > Account > Sync now. */
     /** [background]: the sync at launch is nobody's wait, so its requests queue behind everything the screen is asking for (the covers). */
     /** The one at launch tries again after 20 s, 1 min and 3 min: the covers can crowd it out at first (SyncRetry). */
-    fun sync(background: Boolean = false) { if (prefs.signedIn) run("Syncing...") { if (background) kotlinx.coroutines.withContext(BackgroundWork) { SyncRetry.attempt(listOf(20_000L, 60_000L, 180_000L)) { syncNow() } } else syncNow() } }
+    /** After those it goes on every 5 minutes until one works (a server down for an hour used to leave Playlists empty until Sync now);
+     * each try takes the lock on its own, so Sync now is never stuck behind the waiting. */
+    fun sync(background: Boolean = false) {
+        if (!prefs.signedIn) return
+        if (!background) { run("Syncing...") { syncNow() }; return }
+        if (retryJob?.isActive == true) return
+        retryJob = scope.launch {
+            try {
+                kotlinx.coroutines.withContext(BackgroundWork) {
+                    SyncRetry.attempt(listOf(20_000L, 60_000L, 180_000L), thenEvery = 300_000L) {
+                        if (!prefs.signedIn) return@attempt
+                        busy = true; status = "Syncing..."
+                        try { lock.withLock { syncNow() } } catch (e: Exception) { status = FriendlyError.of(e); throw e } finally { busy = false }
+                    }
+                }
+            } catch (_: Exception) { }
+        }
+    }
+    private var retryJob: Job? = null
 
     private object BackgroundWork : kotlin.coroutines.AbstractCoroutineContextElement(Key) { object Key : kotlin.coroutines.CoroutineContext.Key<BackgroundWork> }
 
@@ -153,7 +171,8 @@ class AccountSync(private val app: App) {
         val remote = copies.maxByOrNull { it.optLong("updated") }
         if (remote != null) lastRemote = remote
         val restored = if (remote != null) apply(remote) else 0
-        if (prefs.hasJellyfinAccount) try { pullJellyfinPlaylists() } catch (_: Exception) {}
+        // the server unreachable is a failed sync (tried again); anything else about its playlists is not worth failing the sync for
+        if (prefs.hasJellyfinAccount) try { pullJellyfinPlaylists() } catch (e: IOException) { throw e } catch (_: Exception) {}
         push()
         status = "Synced" + if (restored > 0) ", restored $restored service connection${if (restored == 1) "" else "s"}" else ""
         // a sign-in (or a Jellyfin account restored from the NAS copy) brings Connect up

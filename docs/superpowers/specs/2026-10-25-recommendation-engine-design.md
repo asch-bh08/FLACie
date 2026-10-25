@@ -16,7 +16,7 @@ measures what flows into what, and each app decides on its own.
 - One engine on the FLACie server (frank), used by every app: Android, web, Windows, car, Alexa, and later the AI DJ (approach 1), built so
   a trained model can be added later (approach 3).
 - Everything belongs to the **account**, not the device: a person's taste follows them everywhere; family members never mix.
-- It learns from: skips and finishes, hearts, a thumbs-down, "less like this", and what is in the person's playlists.
+- It learns from: skips and finishes, hearts, a thumbs-down, "less like this", and the playlists the person plays from (see Shared playlists).
 - About half familiar, half new ("new" = not in the library or never played; fetched ahead as Autoplay does today).
 - What fits next is decided by **vibe** (energy, tempo, danceability, mood), not genre: two songs the person likes may sit side by side across
   genres when the vibe matches (the owner's example: The Prodigy "Out of Space" then David Guetta "Sexy Bitch"). Songs the person has never
@@ -66,11 +66,12 @@ well as the vibe. The top of the list is then blended half familiar, half new.
   local version.
 - **"Why this song?"** in a song's Info ("Same energy as Out of Space · you play The Prodigy a lot").
 
-## Open item for the owner
+## Shared playlists
 
-On Jellyfin all seven audio playlists (2026, AA, aura, Golden Era Mix, HoodTrap, House Music, pop) are owned by the **Dad** account; the owner
-says only AA is Dad's and the rest are theirs. Before the engine reads playlists as taste, either move those six to the owner's account or tell
-the engine which playlists belong to whom. Moving changes Jellyfin data, so it needs the owner's go-ahead.
+The family's playlists are shared ("public"): on Jellyfin all seven audio playlists (2026, AA, aura, Golden Era Mix, HoodTrap, House Music, pop)
+sit on the Dad account, but Dad listens to AA only and the owner to all of them. Who owns or can see a playlist is **not changed**. A playlist
+counts towards a person's taste by what that person plays from it (plays, finishes, skips), not by who owns it: AA for Dad, all seven for the
+owner.
 
 ## Not in this project
 

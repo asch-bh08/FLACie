@@ -28,6 +28,13 @@ public static class AlexaEndpoints
     {
         var log = app.Logger;
 
+        // The skill's store page (to invite testers, or publish) links a privacy policy and two icons. Only /alexa is public on a server set up as docs/ALEXA.md
+        // says, so they are here, and answer whether or not Alexa is switched on (Amazon reads them when the skill is set up).
+        var web = app.Environment.WebRootPath;
+        app.MapGet("/alexa/icon-108.png", () => Results.File(Path.Combine(web, "icon-108.png"), "image/png"));
+        app.MapGet("/alexa/icon-512.png", () => Results.File(Path.Combine(web, "icon-512.png"), "image/png"));
+        app.MapGet("/alexa/privacy", () => Results.Content(PrivacyPage, "text/html; charset=utf-8"));
+
         app.MapPost("/alexa/skill", async (HttpContext ctx, AlexaStore store, AlexaGuards guards, AlexaPublic pub, AlexaSkill skill) =>
         {
             if (!store.Config.Enabled) return Results.NotFound();
@@ -132,6 +139,27 @@ public static class AlexaEndpoints
             return await Proxy(sreq, "audio/mpeg");
         });
     }
+
+    /// <summary>The privacy policy the skill's store page links to: what the skill keeps, where, and how to remove it (docs/ALEXA.md, Security).</summary>
+    const string PrivacyPage = """
+        <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FLACie for Alexa: privacy</title>
+        <body style="font:16px/1.55 system-ui,sans-serif;max-width:680px;margin:40px auto;padding:0 16px;color:#222">
+        <h1>FLACie for Alexa: privacy</h1>
+        <p>FLACie is a self-hosted music player. This Alexa skill plays the music library of the FLACie server it is connected to. It is run by that server's owner for themselves and the people they invite; nobody else operates it.</p>
+        <h2>What is kept</h2>
+        <ul>
+        <li>A link between your Alexa account and a FLACie account, made only when you say a one-time pairing code created by a signed-in FLACie user. It is stored on the FLACie server, encrypted.</li>
+        <li>What you ask to play and the queue, so Alexa can carry on, skip and resume. Requests for songs not in the library can start a download, logged on the server as "Requested from Alexa".</li>
+        </ul>
+        <h2>What is not</h2>
+        <ul>
+        <li>Your Amazon password, recordings of your voice, or anything from other skills. Amazon turns speech into text; FLACie only receives the request.</li>
+        <li>Nothing is sold or shared with anyone. Songs reach your Echo through short-lived links from the server itself.</li>
+        </ul>
+        <h2>Removing it</h2>
+        <p>Disable the skill in the Alexa app, or use <em>Revoke access</em> in FLACie's Settings &gt; Alexa: the link is deleted at once. Questions go to the person who runs your FLACie server.</p>
+        </body></html>
+        """;
 }
 
 /// <summary>The rate limiters and the verifier (rebuilt when the skill ids change in Settings).</summary>

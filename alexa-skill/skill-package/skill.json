@@ -15,7 +15,9 @@
           "keywords": [
             "music",
             "flacie"
-          ]
+          ],
+          "smallIconUri": "https://YOUR-FLACIE-HOST/alexa/icon-108.png",
+          "largeIconUri": "https://YOUR-FLACIE-HOST/alexa/icon-512.png"
         },
         "en-US": {
           "name": "FLACie",
@@ -29,7 +31,9 @@
           "keywords": [
             "music",
             "flacie"
-          ]
+          ],
+          "smallIconUri": "https://YOUR-FLACIE-HOST/alexa/icon-108.png",
+          "largeIconUri": "https://YOUR-FLACIE-HOST/alexa/icon-512.png"
         }
       },
       "isAvailableWorldwide": false,
@@ -91,10 +95,10 @@
       "containsAds": false,
       "locales": {
         "en-GB": {
-          "privacyPolicyUrl": "https://YOUR-FLACIE-HOST/licenses"
+          "privacyPolicyUrl": "https://YOUR-FLACIE-HOST/alexa/privacy"
         },
         "en-US": {
-          "privacyPolicyUrl": "https://YOUR-FLACIE-HOST/licenses"
+          "privacyPolicyUrl": "https://YOUR-FLACIE-HOST/alexa/privacy"
         }
       }
     }

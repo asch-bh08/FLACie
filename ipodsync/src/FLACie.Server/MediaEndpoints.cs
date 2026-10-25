@@ -355,7 +355,7 @@ public static class MediaEndpoints
     /// <summary>An album (or the song's album) cover from Deezer's public catalog, matched by artist. A song search returns the song on every release
     /// that carries it, "Now That's What I Call Music 96" included, so the song's own album wins, and compilations only when nothing else exists.</summary>
     /// <summary>A whole song file read on the server (for its seek-bar shape): from Jellyfin (behind any song being played) or the NAS; null over 300 MB or on any failure.</summary>
-    static async Task<byte[]?> ReadWhole(UserSession s, Track t, JellyfinClient jf, IHttpClientFactory hf, CancellationToken ct)
+    internal static async Task<byte[]?> ReadWhole(UserSession s, Track t, JellyfinClient jf, IHttpClientFactory hf, CancellationToken ct)
     {
         const long Max = 300L << 20;
         try

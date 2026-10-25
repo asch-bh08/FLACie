@@ -88,6 +88,8 @@ builder.Services.AddSingleton<TokenCache>();
 builder.Services.AddSingleton<ListenLogStore>();   // each account's listening log (recommendations)
 builder.Services.AddSingleton<FormatProbeService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FormatProbeService>());
+builder.Services.AddSingleton<VibeIndex>();   // how each song feels (recommendations), filled in the background
+builder.Services.AddHostedService<VibeFillService>();
 builder.Services.AddHostedService<ProfileSyncService>();
 builder.Services.AddHostedService<LibrarySyncService>();
 builder.Services.AddSingleton(sp => new LyricsService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("catalog"), sp.GetRequiredService<JellyfinClient>(), Path.Combine(dataDir, "lyrics")));

@@ -802,7 +802,8 @@ private fun SleeveLyrics(t: Track, playing: Boolean, big: Boolean = false) {
                     val text = line.text.ifEmpty { "♪" }
                     SText(
                         AnnotatedString(text),
-                        Modifier.fillMaxWidth().heightIn(min = 48.dp).graphicsLayer { scaleX = scale; scaleY = scale; transformOrigin = TransformOrigin(0f, .5f) }
+                        // 5% short of the edge: the sung line grows 5% from its left side, and a full-width line lost its last word past the edge
+                        Modifier.fillMaxWidth(1f / 1.05f).heightIn(min = 48.dp).graphicsLayer { scaleX = scale; scaleY = scale; transformOrigin = TransformOrigin(0f, .5f) }
                             .then(if (l.synced) Modifier.clickable(onClickLabel = "Play from this line") { app.player.seekTo(line.timeMs) } else Modifier)
                             .semantics { if (cur) stateDescription = "Now singing" }
                             .padding(vertical = 6.dp),

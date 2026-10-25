@@ -111,7 +111,8 @@
 
 /* lyrics: big, left aligned, no box; the line being sung is bright and a little larger, the rest stay quiet */
 .ls-lyrics { list-style: none; margin: 0; padding: 18vh 0 30vh; display: flex; flex-direction: column; gap: 18px; font-size: clamp(22px, 2.3vw, 32px); font-weight: 800; line-height: 1.22; letter-spacing: -.015em; }
-.ls-lyrics li { color: var(--ink-3); transform-origin: left center; transition: color .35s, transform .35s, opacity .35s; }
+/* lines wrap 6% short of the edge: the line being sung is drawn 6% bigger from its left side, and a full-width line then lost its last word past the edge */
+.ls-lyrics li { color: var(--ink-3); transform-origin: left center; transition: color .35s, transform .35s, opacity .35s; max-width: calc(100% / 1.06); }
 .ls-lyrics li.past { color: #fbeee457; }
 .ls-lyrics li.cur { color: var(--ink); transform: scale(1.06); }
 .ls-lyrics:not(.synced) li { color: var(--ink-2); font-weight: 650; font-size: .8em; }

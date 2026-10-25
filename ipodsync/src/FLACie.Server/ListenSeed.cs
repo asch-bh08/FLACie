@@ -40,10 +40,9 @@ public static class ListenApi
     public static IResult Accept(ListenLogStore store, UserSession? s, IReadOnlyList<ListenEvent> events, Func<IReadOnlyList<ListenEvent>>? seed = null)
     {
         if (s is null) return Results.Unauthorized();
+        // seed ids are the same every time, so two first requests arriving together cannot seed twice
         if (!store.Exists(s)) store.Append(s, seed?.Invoke() ?? []);
         store.Touch(s);   // an account with nothing to start from still has a log from now on, so it is not seeded again
-        var before = store.Read(s).Count;
-        store.Append(s, events);
-        return Results.Ok(new { kept = store.Read(s).Count - before });
+        return Results.Ok(new { kept = store.Append(s, events) });
     }
 }

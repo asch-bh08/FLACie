@@ -42,17 +42,19 @@ public sealed class ListenLogStore(DataPaths paths)
     /// <summary>Makes sure the account has a (possibly empty) log file.</summary>
     public void Touch(UserSession s) { lock (Of(s).Gate) { var f = FileOf(s); if (!File.Exists(f)) File.WriteAllText(f, ""); } }
 
-    public void Append(UserSession s, IEnumerable<ListenEvent> events)
+    /// <summary>Adds the events not already kept and says how many that was.</summary>
+    public int Append(UserSession s, IEnumerable<ListenEvent> events)
     {
         var log = Of(s);
         lock (log.Gate)
         {
             var ids = IdsOf(log, s);
             var fresh = events.Where(e => !string.IsNullOrEmpty(e.Id) && ids.Add(e.Id)).ToList();
-            if (fresh.Count == 0) return;
+            if (fresh.Count == 0) return 0;
             var file = FileOf(s);
             if (EndsMidLine(file)) File.AppendAllText(file, "\n");   // a torn last line must not swallow the next event
             File.AppendAllLines(file, fresh.Select(e => JsonSerializer.Serialize(e, Json)));
+            return fresh.Count;
         }
     }
 

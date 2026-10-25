@@ -69,5 +69,13 @@ public class ListenApiTests : IDisposable
         var r = ListenApi.Accept(store, ann, [], () => ListenSeed.From([], [], [], Library.Empty));
         Assert.Equal(200, ((IStatusCodeHttpResult)r).StatusCode);
         Assert.Empty(store.Read(ann));
+        Assert.True(store.Exists(ann));
+    }
+
+    [Fact] public void Append_says_how_many_it_kept()
+    {
+        var store = Store(); var ann = Person("ann");
+        store.Append(ann, [Play("1")]);
+        Assert.Equal(2, store.Append(ann, [Play("1"), Play("2"), Play("3")]));
     }
 }

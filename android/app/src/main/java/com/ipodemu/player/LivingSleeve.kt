@@ -401,7 +401,7 @@ private fun SleeveTopBar(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePa
 @Composable
 private fun SleeveTitle(nav: PlayerNav, t: Track, p: SleevePalette, modifier: Modifier) {
     val app = LocalApp.current
-    val fav by app.userData.favState(t.path)
+    val fav by app.userData.favState(t)
     val ai = rememberAudioInfo(app, t)
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -422,7 +422,7 @@ private fun SleeveTitle(nav: PlayerNav, t: Track, p: SleevePalette, modifier: Mo
         }
         Box(
             Modifier.size(52.dp).clip(CircleShape).drawBehind { drawRect(p.tone.value) }.focusRing(CircleShape)
-                .semantics { contentDescription = if (fav) "Unfavorite" else "Favorite"; role = Role.Button }.clickable { app.userData.toggleFavorite(t.path) },
+                .semantics { contentDescription = if (fav) "Unfavorite" else "Favorite"; role = Role.Button }.clickable { app.userData.toggleFavorite(t) },
             contentAlignment = Alignment.Center,
         ) { GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(24.dp), if (fav) p.main.value else p.toneFg.value) }
     }
@@ -842,7 +842,7 @@ private fun PlayerMoreSheet(open: Boolean, playbackOnly: Boolean, t: Track, nav:
         exit = if (Tweaks.motion) slideOutVertically(tween(220)) { it } else ExitTransition.None,
     ) {
         BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)), contentAlignment = Alignment.BottomCenter) {
-            val fav by app.userData.favState(t.path)
+            val fav by app.userData.favState(t)
             app.userData.rev
             val close: (() -> Unit) -> () -> Unit = { action -> { onDismiss(); action() } }
             val off = app.offline.entry(t.path)
@@ -917,7 +917,7 @@ private fun PlayerMoreSheet(open: Boolean, playbackOnly: Boolean, t: Track, nav:
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         MoreTile("Play next", Glyph.NEXT, p, false, Modifier.weight(1f), close { app.player.addNext(t); app.ui.say("Playing next") })
                         MoreTile("Add to queue", Glyph.QUEUE, p, false, Modifier.weight(1f), close { app.player.addToQueue(t); app.ui.say("Added to queue") })
-                        MoreTile(if (fav) "Favourite" else "Favourite", if (fav) Glyph.HEART_FILLED else Glyph.HEART, p, fav, Modifier.weight(1f)) { app.userData.toggleFavorite(t.path) }
+                        MoreTile(if (fav) "Favourite" else "Favourite", if (fav) Glyph.HEART_FILLED else Glyph.HEART, p, fav, Modifier.weight(1f)) { app.userData.toggleFavorite(t) }
                         MoreTile("Add to playlist", Glyph.PLUS, p, false, Modifier.weight(1f), close { nav.sheet = playlistPicker(app, nav, t) })
                     }
                     MoreGroup("Song", song)

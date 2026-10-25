@@ -273,10 +273,10 @@ private fun NpExtras(snap: PlayerSnap, nav: PlayerNav) {
     val sc = LocalScheme.current
     val t = snap.track ?: return
     app.userData.rev
-    val fav = app.userData.isFavorite(t.path)
+    val fav = app.userData.isFavorite(t)
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            GlossButton({ app.userData.toggleFavorite(t.path) }, label = if (fav) "Unfavorite" else "Favorite", size = 40.dp, primary = fav) { GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(22.dp), Color.White) }
+            GlossButton({ app.userData.toggleFavorite(t) }, label = if (fav) "Unfavorite" else "Favorite", size = 40.dp, primary = fav) { GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(22.dp), Color.White) }
             GlossButton({ nav.sheet = eqSheet(app) }, label = "Equalizer", size = 44.dp) { GlyphIcon(Glyph.LIST, Modifier.size(22.dp), Color.White) }
             GlossButton({ nav.sheet = sleepSheet(app) }, label = "Sleep timer", size = 44.dp, primary = app.player.sleepMode != com.ipodemu.playback.SleepMode.OFF) { GlyphIcon(Glyph.CLOCK, Modifier.size(22.dp), Color.White) }
             GlossButton({ openTrackSheet(app, nav, t) }, label = "More", size = 44.dp) { GlyphIcon(Glyph.MORE, Modifier.size(22.dp), Color.White) }

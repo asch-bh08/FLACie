@@ -352,7 +352,7 @@ fun TrackRow(
 ) {
     val app = LocalApp.current
     val sc = LocalScheme.current
-    val fav by app.userData.favState(t.path)   // per-track state: a favourite toggle recomposes only this row
+    val fav by app.userData.favState(t)   // per-track state: a favourite toggle recomposes only this row
     val hiRes = remember(t, AudioFacts.version) { t.hiRes }   // not worked out again on every recomposition while scrolling
     val isCurrent = snap.track?.path == t.path
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -439,7 +439,7 @@ private fun SourceBadge(source: com.ipodemu.library.TrackSource) {
 
 private fun swipeAction(code: Int, app: App, t: Track, fav: Boolean, ctx: android.content.Context): SwipeAction? = when (code) {
     1 -> SwipeAction("Play next", Glyph.QUEUE, { Color(0xFF2A5FB0) }) { app.player.addNext(t); android.widget.Toast.makeText(ctx, "Playing next", android.widget.Toast.LENGTH_SHORT).show() }
-    2 -> SwipeAction(if (fav) "Unfavorite" else "Favorite", if (fav) Glyph.CLOSE else Glyph.HEART_FILLED, { Color(0xFFD9427A) }) { app.userData.toggleFavorite(t.path) }
+    2 -> SwipeAction(if (fav) "Unfavorite" else "Favorite", if (fav) Glyph.CLOSE else Glyph.HEART_FILLED, { Color(0xFFD9427A) }) { app.userData.toggleFavorite(t) }
     3 -> SwipeAction("Add to queue", Glyph.PLUS, { Color(0xFF2A5FB0) }) { app.player.addToQueue(t); android.widget.Toast.makeText(ctx, "Added to queue", android.widget.Toast.LENGTH_SHORT).show() }
     else -> null
 }
@@ -449,7 +449,7 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
     val items = ArrayList<SheetItem>()
     items += SheetItem("Play next", Glyph.PLAY) { app.player.addNext(t) }
     items += SheetItem("Add to queue", Glyph.QUEUE) { app.player.addToQueue(t) }
-    items += SheetItem(if (ud.isFavorite(t.path)) "Remove from favorites" else "Add to favorites", if (ud.isFavorite(t.path)) Glyph.HEART_FILLED else Glyph.HEART) { ud.toggleFavorite(t.path) }
+    items += SheetItem(if (ud.isFavorite(t)) "Remove from favorites" else "Add to favorites", if (ud.isFavorite(t)) Glyph.HEART_FILLED else Glyph.HEART) { ud.toggleFavorite(t) }
     items += SheetItem("Add to playlist...", Glyph.PLUS) { nav.sheet = playlistPicker(app, nav, t) }
     if (t.isMusic) items += SheetItem("Share", Glyph.JAM) { shareTrack(app, t) }
     if (t.source == com.ipodemu.library.TrackSource.JELLYFIN) {

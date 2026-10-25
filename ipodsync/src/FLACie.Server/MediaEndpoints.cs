@@ -33,6 +33,9 @@ public static class MediaEndpoints
             if (t is null) return Results.NotFound();
             var early = pre is "1" or "true";
             var quiet = wave is "1";   // the seek bar's shape being worked out: the whole file, but not a play and behind any song someone is listening to
+            // the start of this song kept by an early read, waiting (up to 4 s) for one still on its way: before this request counts as a song being served,
+            // which would hold that early read back
+            var kept = early || quiet ? null : await heads.GetAsync(s.Id, t.Path, TimeSpan.FromSeconds(4));
             using var busy = early || quiet ? null : activity.BeginStream();   // background jobs wait while a song is being served
             using var prio = JellyfinGate.Use(early || quiet ? GatePriority.Prefetch : GatePriority.Playing);   // and the song being played goes to the front of every queue
             // where this play really comes from, decided here where the stream is resolved: Jellyfin plays are announced by Jellyfin's own watcher, so only
@@ -42,27 +45,35 @@ public static class MediaEndpoints
             {
                 if (ranges && ctx.Request.Headers.Range.Count > 0) req.Headers.TryAddWithoutValidation("Range", early ? PrefetchRange(ctx.Request.Headers.Range.ToString()) : ctx.Request.Headers.Range.ToString());
                 else if (ranges && early) req.Headers.TryAddWithoutValidation("Range", PrefetchRange(""));
-                // the browser gave up (a skip, a closed tab): RequestAborted cancels the call to Jellyfin too, so it stops reading the file at once
+                // the browser gave up (a skip, a closed tab): RequestAborted cancels the call to Jellyfin too, so it stops reading the file at once. Not for the early
+                // read of the next song: the browser's hidden player often stops reading once it has enough, and the start must still be kept (its own 30 s limit)
+                using var own = keepHead ? new CancellationTokenSource(TimeSpan.FromSeconds(30)) : null;
+                var upstream = own?.Token ?? ctx.RequestAborted;
                 try
                 {
-                    using var res = await hf.CreateClient("media").SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
+                    using var res = await hf.CreateClient("media").SendAsync(req, HttpCompletionOption.ResponseHeadersRead, upstream);
                     ctx.Response.StatusCode = (int)res.StatusCode;
                     foreach (var h in new[] { "Content-Type", "Content-Length", "Content-Range", "Accept-Ranges" })
                     {
                         if (res.Content.Headers.TryGetValues(h, out var v) || res.Headers.TryGetValues(h, out v)) ctx.Response.Headers[h] = v.ToArray();
                     }
-                    await using var body = await res.Content.ReadAsStreamAsync(ctx.RequestAborted);
+                    await using var body = await res.Content.ReadAsStreamAsync(upstream);
                     if (keepHead && TotalOf(res) is long total && res.Content.Headers.ContentRange?.From is null or 0)
                     {
-                        // the early read of the next song: its start is kept, so the real request sends it at once (SongHeadCache)
+                        // the early read of the next song: its start is kept, so the real request sends it at once (SongHeadCache); read to the end whether or
+                        // not the browser is still taking it
                         using var kept = new MemoryStream();
-                        var buf = new byte[81920]; int n;
-                        while ((n = await body.ReadAsync(buf, ctx.RequestAborted)) > 0) { kept.Write(buf, 0, n); await ctx.Response.Body.WriteAsync(buf.AsMemory(0, n), ctx.RequestAborted); }
+                        var buf = new byte[81920]; int n; var browser = true;
+                        while ((n = await body.ReadAsync(buf, upstream)) > 0)
+                        {
+                            kept.Write(buf, 0, n);
+                            if (browser) try { await ctx.Response.Body.WriteAsync(buf.AsMemory(0, n), ctx.RequestAborted); } catch (Exception) { browser = false; }
+                        }
                         heads.Put(s.Id, t.Path, kept.ToArray(), total, res.Content.Headers.ContentType?.ToString() ?? "application/octet-stream");
                     }
                     else await body.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
                 }
-                catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested) { }
+                catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested || own?.IsCancellationRequested == true) { }
                 // Jellyfin is not answering (the gate's breaker is open): say so at once and when to try again, instead of an error page
                 catch (JellyfinUnavailableException e) when (!ctx.Response.HasStarted)
                 {
@@ -103,10 +114,12 @@ public static class MediaEndpoints
                 // formats a browser cannot decode (WMA, APE ...) are converted to MP3 by Jellyfin on the way (no seeking inside them, but they play)
                 var transcode = MediaInfo.NotPlayableInBrowsers.Contains(MediaInfo.FromExtension(t.FilePath ?? ""));
                 // the start of this song was kept by the early read: sent at once, the rest asked of Jellyfin from where it ends
-                if (!transcode && !early && !quiet && heads.Get(s.Id, t.Path) is { } head && SongHeadCache.Plan(ctx.Request.Headers.Range.ToString(), head.Bytes.Length, head.Total) is { } plan)
+                if (!transcode && kept is { } head && SongHeadCache.Plan(ctx.Request.Headers.Range.ToString(), head.Bytes.Length, head.Total) is { } plan)
                     return await FromHead(head, plan, () => jf.Authorized(a, jf.StreamUrl(a, t.JellyfinId!)));
                 using var req = jf.Authorized(a, transcode ? $"{a.Server}/Audio/{t.JellyfinId}/stream.mp3?AudioCodec=mp3&AudioBitRate=256000&MaxAudioChannels=2" : jf.StreamUrl(a, t.JellyfinId!));
-                return await Proxy(req, !transcode, keepHead: early && !transcode);
+                var keep = early && !transcode;
+                var ended = keep ? heads.Begin(s.Id, t.Path) : null;
+                try { return await Proxy(req, !transcode, keepHead: keep); } finally { ended?.Invoke(); }
             }
             // a song just downloaded, playing from the file mover before Jellyfin has scanned it (only that service, with the key kept here)
             if (t.Source == TrackSource.Cloud && s.Services is { FileMoverUrl.Length: > 0 } svc && t.Path.StartsWith(svc.FileMoverUrl.TrimEnd('/') + "/file?", StringComparison.Ordinal))
@@ -146,7 +159,8 @@ public static class MediaEndpoints
             : JellyfinItem(p) is { } item ? Path.Combine(waveDir, item + ".bin") : null;
         // the song a shape is asked for, from the web's path or the app's Jellyfin address
         Track? WaveTrack(UserSession s, string p) => s.FindByPath(p) ?? (JellyfinItem(p) is { } item ? s.Library.Songs.FirstOrDefault(x => string.Equals(x.JellyfinId, item, StringComparison.OrdinalIgnoreCase)) : null);
-        app.MapGet("/api/wave", async (HttpContext ctx, string p, SessionStore store, JellyfinClient jf, IHttpClientFactory hf) =>
+        // known=1: only a shape already worked out (the page looking ahead to the next songs): never read a whole file for it, or a burst of skips read dozens
+        app.MapGet("/api/wave", async (HttpContext ctx, string p, string? known, SessionStore store, JellyfinClient jf, IHttpClientFactory hf) =>
         {
             // a signed-in browser, or the phone app by its token (it asks for the shape of every song it plays)
             if (await ApiEndpoints.CallerAsync(ctx, store, jf) is not { } s) return Results.Unauthorized();
@@ -159,6 +173,7 @@ public static class MediaEndpoints
             // nobody has sent the exact shape yet: for a FLAC file the server works out a rough one from the file's frames (WaveShape) and keeps it, so a phone,
             // which cannot decode a whole Hi-Res file, still shows the song's shape. It is marked rough; a browser that can decode the song sends the exact one.
             var rough = file + ".rough";
+            if (known is "1" && !File.Exists(rough)) return Results.NotFound();
             if (!File.Exists(rough) && WaveTrack(s, p) is { } t && MediaInfo.FromExtension(t.FilePath ?? t.Path) == "flac"
                 && await ReadWhole(s, t, jf, hf, ctx.RequestAborted) is { } bytes && WaveShape.FromFlac(bytes) is { } bars)
                 await File.WriteAllBytesAsync(rough, bars.Select(b => (byte)b).ToArray());

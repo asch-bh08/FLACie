@@ -42,6 +42,30 @@ public class SongHeadCacheTests
         Assert.Null(c.Get("me", "a"));
     }
 
+    [Fact]
+    public async Task A_song_asked_for_while_its_early_read_is_still_going_waits_for_it()
+    {
+        // Next pressed soon after a song started: the early read of the next song was still on its way, and the real request started again from scratch
+        var c = Cache();
+        var done = c.Begin("me", "a");
+        var asked = c.GetAsync("me", "a", TimeSpan.FromSeconds(3));
+        await Task.Delay(50);
+        Assert.False(asked.IsCompleted);
+        c.Put("me", "a", Bytes(10), 100, "x"); done();
+        Assert.NotNull(await asked);
+    }
+
+    [Fact]
+    public async Task An_early_read_that_fails_does_not_hold_the_song_up()
+    {
+        var c = Cache();
+        var done = c.Begin("me", "a");
+        var asked = c.GetAsync("me", "a", TimeSpan.FromSeconds(3));
+        done();   // ended without keeping anything
+        Assert.Null(await asked);
+        Assert.Null(await c.GetAsync("me", "b", TimeSpan.FromSeconds(3)));   // nothing on its way: no wait at all
+    }
+
     [Theory]
     [InlineData("", 100, 1000, true, false, 0, 99, 100, 999)]            // the whole song: the kept start, then the rest from Jellyfin
     [InlineData("bytes=0-", 100, 1000, true, true, 0, 99, 100, 999)]

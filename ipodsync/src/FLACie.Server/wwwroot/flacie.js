@@ -560,6 +560,19 @@ window.flacie = (() => {
   let ipod = null, touchOs = null;
   // The next song's first bytes are fetched early (a second audio element, preload=auto), so a skip starts at once. One prefetch at a time, started only
   // once the current song can play (the song asked for gets the connection and the server first), and replaced, never added to, when the queue moves on.
+  // A song the pointer rests on (150 ms, so a sweep across a shelf fetches nothing) or the keyboard reaches: its start is fetched as an early read, which the
+  // server keeps, so pressing it starts at once instead of after the server's first byte (3 s from Listen again on the owner's server). Once per song, not on
+  // mobile data: one megabyte for a song someone is about to press.
+  const warmed = new Set(); let warmTimer = 0;
+  const warm = (u) => {
+    if (!u || warmed.has(u) || window.flacie?.metered?.()) return;
+    if (warmed.size > 40) warmed.clear();
+    warmed.add(u);
+    fetch(u + (u.includes("?") ? "&" : "?") + "pre=1", { credentials: "same-origin", headers: { Range: "bytes=0-1048575" } }).then(r => r.arrayBuffer()).catch(() => { });
+  };
+  const warmFrom = (e) => { const el = e.target?.closest?.("[data-warm]"); clearTimeout(warmTimer); if (el) warmTimer = setTimeout(() => warm(el.dataset.warm), e.type === "focusin" ? 0 : 150); };
+  document.addEventListener("pointerover", warmFrom, { passive: true });
+  document.addEventListener("focusin", warmFrom);
   let pre = null, preTok = 0, preTimer = 0;
   const dropPre = () => { if (pre) { try { pre.removeAttribute("src"); pre.load(); } catch { } pre = null; } };
   const prefetch = (u) => {
@@ -797,10 +810,15 @@ window.flacie = (() => {
         }
         return p;
     },
-    // while a song plays: the next songs' shapes are fetched (or worked out) in the background, one after the other, so each is drawn the moment it starts. Not on mobile data.
+    // while a song plays: the next songs' shapes the server already has are fetched, so each is drawn the moment it starts. Not on mobile data. They are never
+    // worked out here in advance (that reads a whole file each): the song someone picks would wait behind them, and a song from Listen again showed no ring.
     npWavePrefetch(paths) {
         if (flacie.metered() || !Array.isArray(paths)) return;
-        paths.reduce((chain, p) => chain.then(() => flacie.npWaveGet('/api/wave?p=' + encodeURIComponent(p))), Promise.resolve());
+        paths.reduce((chain, p) => chain.then(() => {
+            const url = '/api/wave?p=' + encodeURIComponent(p);
+            if (waveCache.has(url)) return null;
+            return fetch(url + '&known=1', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(a => { if (Array.isArray(a) && a.length) waveCache.set(url, a); }).catch(() => null);
+        }), Promise.resolve());
     },
     /** The path of the song whose shape the player is drawing (for the tests). */
     npWaveFor() { try { return new URL(waveNow, location.href).searchParams.get('p') ?? ''; } catch { return ''; } },

@@ -40,6 +40,26 @@ public sealed class SongHeadCache(int maxEntries, long maxBytes, TimeSpan keep, 
         }
     }
 
+    readonly Dictionary<(string, string), TaskCompletionSource> reading = [];
+
+    /// <summary>An early read of a song's start has begun; call what is returned when it ends (kept or not).</summary>
+    public Action Begin(string owner, string path)
+    {
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (gate) reading[(owner, path)] = done;
+        return () => { lock (gate) { if (reading.TryGetValue((owner, path), out var d) && d == done) reading.Remove((owner, path)); } done.TrySetResult(); };
+    }
+
+    /// <summary>The kept start, waiting (up to <paramref name="wait"/>) for an early read of it that is still on its way: Next pressed soon after a song started
+    /// used to start the next one from scratch while its early read was moments from done.</summary>
+    public async Task<Head?> GetAsync(string owner, string path, TimeSpan wait)
+    {
+        Task? onItsWay;
+        lock (gate) onItsWay = reading.TryGetValue((owner, path), out var d) ? d.Task : null;
+        if (onItsWay is not null) await Task.WhenAny(onItsWay, Task.Delay(wait));
+        return Get(owner, path);
+    }
+
     /// <summary>What a request is sent from: the kept start ([HeadFrom..HeadTo]) and then Jellyfin ([UpFrom..UpTo], none when -1). Null when the request
     /// does not begin inside the kept start (a seek further on): Jellyfin as usual.</summary>
     public readonly record struct Served(bool Partial, long From, long To, long HeadFrom, long HeadTo, long UpFrom, long UpTo);

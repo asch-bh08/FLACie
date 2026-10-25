@@ -70,3 +70,9 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 - 2026-10-22 beta 89: phone launch sync retries (playlists/favourites showed 0 on the owner's phone); by-hand checks on the real phone all fine (Retro, seek frame, share, multi-select, labels). Smoke 23/23 on rerun (first run: slow emulator).
 - 2026-10-25 beta 90: Android Auto rebuilt (tabs, grids, Home, search + Download and play, voice, shuffle/repeat, resume, works without the phone UI), history sync, select bar, bar fixes, Windows Retro tab gone. Full suite 516+2 fixed, 749 .NET, smoke 23/23, CarBrowseTest 9/9, checked on the Android Automotive emulator.
 - 2026-10-25 beta 91 (speed): server keeps the start of upcoming songs (Next ~1.5 s -> ~0.05 s in tests), Home songs warmed on pointer rest, Home shelves 530 -> 120 ms and reused, covers on screen eager, VU of the picked song first, lyrics last word. Full suite 466+17 fixed (204 for unknown shapes), 761 .NET, smoke 23/23, car 9/9.
+
+## 2026-10-25 Jellyfin outage made unrepeatable (70c697d)
+- Cause: hms-jellyfin lost its 443 Funnel; the app gave up syncing after ~4 min, so playlists stayed empty until Sync now.
+- App: sync retries every 5 min until it works, and syncs again on return to screen when over 10 min old (not released yet).
+- frank: ops/entrance-watch installed (script + systemd units) but the timer is NOT enabled yet: owner runs `systemctl enable --now flacie-entrance-watch.timer` on frank.
+- The 443 Funnel must point to http://192.168.1.183:8096 (the Tailscale address hangs).

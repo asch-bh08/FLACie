@@ -8,6 +8,8 @@ How sure each number is: nobody has published Piper or Kokoro timings on an Inte
 
 ## 1. Summary for the owner
 
+> **Update, same day: you picked Cloudflare** for the voice, with an easy on/off setting, and the option to turn the DJ on only for Android Auto, only for web, or only for this playlist or queue. Section 10 has the design. The rest of this doc is the original comparison.
+
 **Yes, a free AI DJ is doable, and it needs nothing new on frank except one small library.**
 
 - **The lines:** written from templates filled with facts FLACie already has: title, artist, album, year, genre, and the new engine's "why". Appendix A has 60 ready-made templates. An AI rewording step is optional, for later.
@@ -198,6 +200,83 @@ Per the repo rule, it ships on Android + web + Windows together. Alexa is the pi
 5. **OK to add `libmp3lame0` to the flacie-web image?**
 6. **Alexa in v1, or v1.1?**
 7. **Will FLACie builds ever be published?** That decides how much the GPL parts matter.
+
+---
+
+## 10. Owner's choices (2026-10-25): Cloudflare, with easy switches
+
+### 10a. Voice: Cloudflare Workers AI
+
+- **Call:** `POST https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/@cf/myshell-ai/melotts` with `{ "prompt": "...", "lang": "en" }`. It returns **MP3** ([model page](https://developers.cloudflare.com/workers-ai/models/melotts/)), so phone and web need no encoder on frank.
+- **Free allowance:** 10,000 neurons a day, which is about 6,400 MeloTTS lines. A busy day uses about 2%.
+- **Accent:** Cloudflare's MeloTTS only takes `lang`, not an accent, so it will probably sound American (inference; listen first).
+- **UK-sounding option: Aura-1.** It has 12 speakers (angus, asteria, arcas, orion, orpheus, athena, luna, zeus, perseus, helios, hera, stella) and outputs mp3 or opus ([model page](https://developers.cloudflare.com/workers-ai/models/aura-1/)).
+  - Cloudflare doesn't list accents. From Deepgram's own list, helios and athena are British and angus is Irish (verify by ear).
+  - Aura-1 allows only **about 90 lines a day** free, so it suits "Rare" or one or two people.
+  - Make the voice a setting. When Aura's daily share is used up, switch to MeloTTS for the rest of the day.
+- **Rewording (optional, later):** `@cf/meta/llama-3.1-8b-instruct-fp8-fast`, about 2 neurons a line, with the validator from Appendix A.7.
+- **When Cloudflare can't speak** (allowance gone, internet down, no key yet):
+  - Phone and web use the device's own voice, if "Use this device's voice as backup" is on (default on).
+  - Alexa just stays quiet.
+  - Piper on frank is no longer needed for v1, but stays possible behind the same `IDjVoice` interface.
+- **The key:**
+  - **You** create a token in the Cloudflare dashboard (Workers AI template) and paste it, with your account ID, into FLACie Web's admin settings.
+  - It's stored in `/data` on frank and never sent to the apps.
+  - I never see or type it.
+- **What goes to Cloudflare:** only the line text (song facts and the "why"). On Alexa, the "you play X a lot" parts are dropped anyway.
+
+### 10b. Settings
+
+**Admin, set once (FLACie Web > Settings > DJ):**
+- Cloudflare account ID and token: paste, then **Test** plays a sample line.
+- Voice: MeloTTS (default) or Aura plus a speaker. Optional "Aura first, MeloTTS when it runs out".
+- Today's use: "DJ used 3% of today's free Cloudflare allowance (≈190 lines)", with a daily cap so the DJ never uses more than, say, 50% (leaves room for anything else on the account).
+
+**Per person (saved on frank in `UserState`, so the same on every device):**
+
+| Setting | Choices | Default |
+|---|---|---|
+| DJ | On / Off | Off until you try it, then on |
+| How chatty | Rare (about 1 in 7) / Often (about 1 in 3) | Often |
+| Where | ☐ Phone ☐ Android Auto ☐ Web ☐ Windows ☐ Alexa, with quick presets **Everywhere**, **Only in the car**, **Only on web** | Everywhere |
+| Backup voice | Use this device's voice when Cloudflare can't | On |
+
+**Quick switches (no trip to Settings):**
+- **Now Playing, every app:** a small **DJ** button. Tap: DJ on or off **for this queue only**, until you start something else. Long-press: opens the DJ settings.
+- **Playlist page:** "DJ on this playlist" switch, remembered per playlist, so a bedtime playlist can stay quiet forever.
+- **Android Auto:** a **DJ** button on the car's player screen (a Media3 custom command button; Android Auto shows custom actions next to play/skip). It flips "this queue".
+- **Alexa:** "Alexa, ask flacky to turn the DJ off" (or on), which flips "this queue" on Alexa.
+
+**Which switch wins (simple, top to bottom):**
+1. **This queue** switch, if you touched it.
+2. **This playlist** switch, if the queue came from a playlist that has one.
+3. **Where** ticks for this device (Android Auto counts as "Android Auto", not "Phone", whenever the phone is connected to the car).
+4. **DJ On/Off.**
+
+So "only in the car" is DJ On with only Android Auto ticked. "Just this playlist" is DJ Off with that playlist's switch on. "Not right now" is the Now Playing button.
+
+How each app knows where it is:
+- **Android:** knows it's in the car from the controller (Android Auto's package) or `CarConnection` (`CONNECTION_TYPE_PROJECTION`).
+- **Web and Windows:** already say which app they are to the server (`ClientRegistry`).
+- **Alexa:** is its own path.
+
+### 10c. Effort with Cloudflare
+
+| Piece | Days |
+|---|---|
+| 1. Line engine in Core (Appendix A) and tests | 2 |
+| 2. Cloudflare voice: client, admin key settings, Test button, cache, prefetch, daily budget and meter, Aura to MeloTTS switch | 1.5 |
+| 3. DJ settings per person (`UserState`, API) and the "which switch wins" rule, with tests | 1 |
+| 4. Android: overlay player and duck, Now Playing button, Android Auto custom button, playlist switch, settings screen | 2 |
+| 5. Web and Windows: overlay and gain ramp, Now Playing button, playlist switch, settings | 1.5 |
+| 6. Alexa: glue the clip to the next song, "turn the DJ off/on" intent, test on a real Echo | 1.5 |
+| 7. Device-voice backup (Android and web) | 0.5 |
+| **Total** | **about 10** |
+
+Notes:
+- **No Piper or MP3 library on frank:** that drops the old server-voice piece. Settings and quick switches add a bit back.
+- **Alexa join risk:** the glued clip's MP3 settings (MeloTTS) won't match the 256 kbps songs, which may click at the join. If it does, either add `libmp3lame0` to re-encode just the Alexa copy, or use the separate-stream Plan B from section 6.
+- **Dependency:** the "why" lines need the recommendation engine from `ui/living-sleeve`. Everything else can be built without it, and the WHY slot switches on once `/api/recommend/next` lands.
 
 ---
 

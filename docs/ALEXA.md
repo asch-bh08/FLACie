@@ -46,6 +46,21 @@ With Tailscale Funnel, mount only the path if your version supports it (`tailsca
 6. **Link your Alexa to your FLACie.** In Settings > Alexa press *Create a code*. Within ten minutes say: "Alexa, open FLACie" and then "my code is 4 8 2 9 1 7". The code works once.
 7. **Notifications (optional).** In the developer console open the skill's *Permissions* and *Login with Amazon* security profile, put its client id and secret in the server's environment as `FLACIE_ALEXA_CLIENT_ID` and `FLACIE_ALEXA_CLIENT_SECRET`, and restart. The first time Alexa starts a download it shows a permission card in the Alexa app; allow notifications there. Without this, the same message is simply spoken the next time you talk to FLACie.
 
+## Keeping the names up to date
+
+"Alexa, ask flaky for <song>" reaches the skill as just the song's name, and Alexa recognises a bare name best when the skill knows it. The skill carries a
+list of every title, artist and album in the library (`alexa-skill/library-names.py` makes it from the server's library files). After adding music, update it:
+
+```
+alexa-skillefresh-names.ps1 -SkillId amzn1.ask.skill....
+```
+
+It reads every account's library from the server over ssh and redeploys the skill (about three minutes, most of it Amazon building the model). The list
+(`alexa-skill/names.txt`) stays on your computer and is never committed. A song missing from the list is still heard in "play <song>" and, in Amazon's own
+test, as a bare name too; the list makes it reliable.
+
+Phrases that work: "ask flaky to play X", "ask flaky for X", "open flaky" then "play X". "play X on flaky" does not: Alexa keeps that form for its own music services.
+
 ## Security
 
 - Every request must carry Amazon's signature. FLACie checks the certificate address (`https://s3.amazonaws.com/echo.api/...`, port 443), downloads the certificate, checks it is in date, names `echo-api.amazon.com` and chains to a trusted authority, checks the signature of the exact bytes received, requires a timestamp within 150 seconds and your skill id. Anything else gets HTTP 400 and a one-line log entry (a reason, never the request).

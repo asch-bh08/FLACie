@@ -25,14 +25,9 @@ Copy-Item -Recurse (Join-Path $here "skill-package") (Join-Path $build "skill-pa
 # the library's names (names.txt, made by library-names.py, never committed) go into the LIBRARY_NAME slot, so a bare name is recognised
 $names = Join-Path $here "names.txt"
 if (Test-Path $names) {
-  $list = @(Get-Content $names -Encoding utf8 | Where-Object { $_.Trim().Length -gt 0 })
-  foreach ($f in Get-ChildItem (Join-Path $build "skill-package\interactionModels\custom") -Filter *.json) {
-    $j = Get-Content $f.FullName -Raw -Encoding utf8 | ConvertFrom-Json
-    $t = $j.interactionModel.languageModel.types | Where-Object { $_.name -eq "LIBRARY_NAME" }
-    if ($t) { $t.values = @($list | ForEach-Object { @{ name = @{ value = $_ } } }) }
-    Write-Plain $f.FullName ($j | ConvertTo-Json -Depth 40)
-  }
-  Write-Host "Library names in the skill: $($list.Count)"
+  # in Python: PowerShell 5.1's ConvertTo-Json takes over half an hour on a library's worth of names
+  python (Join-Path $here "library-names.py") --inject (Join-Path $build "skill-package\interactionModels\custom") $names
+  if ($LASTEXITCODE -ne 0) { throw "could not put the library names into the skill" }
 }
 $endpoint = $PublicUrl.TrimEnd('/') + "/alexa/skill"
 $host_ = ([uri]$PublicUrl).Host

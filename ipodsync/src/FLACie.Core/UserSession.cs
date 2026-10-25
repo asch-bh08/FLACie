@@ -105,7 +105,10 @@ public sealed class UserSession
             if (copies.Count > 0) Profile = copies.MaxBy(p => p["updated"]?.GetValue<long>() ?? 0)!;
             // until the profile has really been read, nothing is saved back (an empty one would wipe the real one)
             if (profileOk) { ProfileLoaded = true; profileSeen = Profile["updated"]?.GetValue<long>() ?? 0; ProfileRev++; Changed?.Invoke(); }
-            if (Jellyfin is { } adm) try { IsAdmin = (await jf.GetAsync(adm, "/Users/Me", ct))?["Policy"]?["IsAdministrator"]?.GetValue<bool>() == true; } catch (Exception) { }
+            if (Jellyfin is { } adm && !await CheckAdminAsync(jf, adm, ct))
+                // Jellyfin did not answer (just after a restart it often can't): asked again a few times, instead of counting an administrator as not one for
+                // the whole session (the owner lost the Alexa settings that way after a deploy)
+                _ = Task.Run(async () => { foreach (var wait in new[] { 5, 20, 60 }) { await Task.Delay(TimeSpan.FromSeconds(wait)); if (await CheckAdminAsync(jf, adm, CancellationToken.None)) { Changed?.Invoke(); return; } } });
 
             // the other account comes back from the profile: a NAS sign-in gets the Jellyfin account and vice versa
             if (Jellyfin is null && Profile["account"] is JsonObject acc && acc["token"]?.GetValue<string>() is { Length: > 0 } tok)
@@ -298,6 +301,12 @@ public sealed class UserSession
     public bool ProfileLoaded { get; private set; }
     /// <summary>The account is an administrator of its Jellyfin server.</summary>
     public bool IsAdmin { get; private set; }
+    /// <summary>Asks Jellyfin whether this account administers it; false when Jellyfin did not answer (then <see cref="IsAdmin"/> is left as it was).</summary>
+    async Task<bool> CheckAdminAsync(JellyfinClient jf, JellyfinAccount a, CancellationToken ct)
+    {
+        try { IsAdmin = (await jf.GetAsync(a, "/Users/Me", ct))?["Policy"]?["IsAdministrator"]?.GetValue<bool>() == true; return true; }
+        catch (Exception) { return false; }
+    }
     /// <summary>Goes up each time the profile is read from the account (pages that show it start again).</summary>
     public int ProfileRev { get; private set; }
 

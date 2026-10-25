@@ -36,6 +36,12 @@ public sealed class ListenLogStore(DataPaths paths)
 
     HashSet<string> IdsOf(Log log, UserSession s) => log.Ids ??= ReadFile(FileOf(s)).Select(e => e.Id).ToHashSet();
 
+    /// <summary>Has this account's log been started yet?</summary>
+    public bool Exists(UserSession s) { lock (Of(s).Gate) return File.Exists(FileOf(s)); }
+
+    /// <summary>Makes sure the account has a (possibly empty) log file.</summary>
+    public void Touch(UserSession s) { lock (Of(s).Gate) { var f = FileOf(s); if (!File.Exists(f)) File.WriteAllText(f, ""); } }
+
     public void Append(UserSession s, IEnumerable<ListenEvent> events)
     {
         var log = Of(s);

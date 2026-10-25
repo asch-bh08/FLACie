@@ -78,6 +78,14 @@ public static class ApiEndpoints
             catch (InvalidDataException e) { return Results.BadRequest(new { error = e.Message }); }
         }).DisableAntiforgery();
 
+        // what the person listened to and liked on a device, for their recommendations; the first call also starts the log from what the server already knows
+        app.MapPost("/api/listen", async (HttpContext ctx, ListenBody body, SessionStore store, JellyfinClient jf, ListenLogStore log) =>
+        {
+            var s = await Who(ctx, store, jf);
+            if (s is not null && !log.Exists(s)) await s.RefreshPlayStatsAsync(jf, TimeSpan.FromHours(1));   // Jellyfin's play counts may not have been read yet
+            return ListenApi.Accept(log, s, (body.Events ?? []).Take(2000).ToList(), () => ListenSeed.From(s!.History, s.Favorites, s.PlayStats, s.Library));
+        }).DisableAntiforgery();
+
         app.MapGet("/api/import", async (HttpContext ctx, SessionStore store, JellyfinClient jf, UserStateStore states) =>
         {
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
@@ -282,3 +290,6 @@ public static class DownloadReports
 
 /// <summary>What the phone says about a song that does not go through Jellyfin (see /api/played).</summary>
 public sealed record PlayedReport(string Event, string Key, string? Title, string? Artist, string Via, string? Device);
+
+/// <summary>The body of POST /api/listen.</summary>
+public sealed record ListenBody(List<ListenEvent>? Events);

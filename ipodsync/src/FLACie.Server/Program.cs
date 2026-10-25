@@ -85,6 +85,7 @@ builder.Services.AddSingleton<PlaybackActivity>();
 // the start of the next few songs, so Next starts at once (SongHeadCache)
 builder.Services.AddSingleton<SongHeadCache>();
 builder.Services.AddSingleton<TokenCache>();
+builder.Services.AddSingleton<ListenLogStore>();   // each account's listening log (recommendations)
 builder.Services.AddSingleton<FormatProbeService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FormatProbeService>());
 builder.Services.AddHostedService<ProfileSyncService>();

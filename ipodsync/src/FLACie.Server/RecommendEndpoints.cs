@@ -42,18 +42,18 @@ public static class RecommendApi
     public static IResult Home(Inputs? i, DateTime utcNow)
     {
         if (i is null) return Results.Unauthorized();
-        var shelves = HomeBuilder.Build(i.Lib, i.History, i.Favourites, i.Playlists, utcNow, i.Jellyfin, null, i.Events, i.Vibe);
+        var shelves = HomeBuilder.Build(i.Lib, i.History, i.Favourites, i.Playlists, utcNow, i.Jellyfin, null, i.Events, i.Vibe, t => i.Related.Peek(t.Artist, t.Title));
         return Results.Ok(new
         {
             shelves = shelves.Select(s => new
             {
                 id = s.Id, title = s.Title, subtitle = s.Subtitle, rotates = s.Rotates,
-                tracks = s.Tracks.Select(t => Song(t, false, null)),
+                tracks = s.Tracks.Select(t => Song(t, false, null)).Concat(s.New.Select(n => Song(n, null))),
                 albums = s.Albums.Select(a => new { name = a.Name, artist = a.Tracks.Count > 0 ? a.Tracks[0].AlbumArtist : "", songs = a.Tracks.Select(t => t.Path) }),
             }),
         });
     }
 
     static object Song(Track t, bool isNew, string? why) => new { path = (string?)t.Path, title = t.Title, artist = t.Artist, album = t.Album, durationMs = t.DurationMs, isNew, why };
-    static object Song(CatalogSong s, string why) => new { path = (string?)null, title = s.Title, artist = s.Artist, album = s.Album, durationMs = s.DurationMs, isNew = true, why };
+    static object Song(CatalogSong s, string? why) => new { path = (string?)null, title = s.Title, artist = s.Artist, album = s.Album, durationMs = s.DurationMs, isNew = true, why };
 }

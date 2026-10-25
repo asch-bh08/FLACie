@@ -142,7 +142,8 @@ public sealed class TasteProfile
         playedLists.TryGetValue(Matching.MatchKey(a), out var x) && playedLists.TryGetValue(Matching.MatchKey(b), out var y) && x.Any(y.Contains);
 
     /// <summary>The song is one of the best known of an artist this account plays a lot.</summary>
-    public bool IsHit(Track t) => hits.Contains(Matching.MatchKey(t));
+    public bool IsHit(Track t) => IsHit(Matching.MatchKey(t));
+    internal bool IsHit(string key) => hits.Contains(key);
 
     /// <summary>0..1: how well the song fits the taste, from its artist, genre, decade and album (unplayed songs can score too).</summary>
     public double Fit(Track t) => Fit(t, Matching.PrimaryArtist(t.Artist));

@@ -13,10 +13,14 @@ namespace FLACie.Server;
 /// </summary>
 public sealed class RelatedCache(DataPaths paths, Func<string, string, CancellationToken, Task<List<CatalogSong>>> fetch)
 {
-    static readonly TimeSpan Keep = TimeSpan.FromDays(7);
+    static readonly TimeSpan Keep = TimeSpan.FromDays(7), FailedWait = TimeSpan.FromMinutes(10);
+    const int AtOnce = 4;
     sealed record Entry(DateTime At, List<CatalogSong> Songs);
     readonly ConcurrentDictionary<string, Entry> kept = new();
     readonly ConcurrentDictionary<string, Task> fetching = new();
+    // a lookup that failed is not tried again for ten minutes, and at most four run at once (a song asked for while all four are busy is looked up at a later Peek)
+    readonly ConcurrentDictionary<string, DateTime> failed = new();
+    readonly SemaphoreSlim slots = new(AtOnce, AtOnce);
 
     public RelatedCache(DataPaths paths, WebCatalog catalog) : this(paths, (a, t, ct) => catalog.RelatedAsync(a, t, 24, ct)) { }
 
@@ -30,7 +34,7 @@ public sealed class RelatedCache(DataPaths paths, Func<string, string, Cancellat
     {
         var key = Matching.MatchKey(title, artist);
         var e = kept.TryGetValue(key, out var m) ? m : Load(key);
-        if (e is null || DateTime.UtcNow - e.At > Keep) Refresh(key, artist, title);
+        if ((e is null || DateTime.UtcNow - e.At > Keep) && !(failed.TryGetValue(key, out var until) && DateTime.UtcNow < until)) Refresh(key, artist, title);
         return e?.Songs ?? [];
     }
 
@@ -49,6 +53,7 @@ public sealed class RelatedCache(DataPaths paths, Func<string, string, Cancellat
     {
         var done = new TaskCompletionSource();
         if (!fetching.TryAdd(key, done.Task)) return;   // already on its way
+        if (!slots.Wait(0)) { fetching.TryRemove(key, out _); done.SetResult(); return; }
         _ = Task.Run(async () =>
         {
             try
@@ -56,12 +61,13 @@ public sealed class RelatedCache(DataPaths paths, Func<string, string, Cancellat
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
                 var songs = await fetch(artist, title, cts.Token);
                 kept[key] = new Entry(DateTime.UtcNow, songs);
+                failed.TryRemove(key, out _);
                 var f = FileOf(key);
                 File.WriteAllText(f + ".tmp", JsonSerializer.Serialize(songs));
                 File.Move(f + ".tmp", f, true);
             }
-            catch (Exception) { /* offline or refused: tried again at the next Peek */ }
-            finally { fetching.TryRemove(key, out _); done.SetResult(); }
+            catch (Exception) { failed[key] = DateTime.UtcNow + FailedWait; }   // offline or refused: tried again after a while
+            finally { slots.Release(); fetching.TryRemove(key, out _); done.SetResult(); }
         });
     }
 }

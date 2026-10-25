@@ -99,4 +99,51 @@ public class RecommendApiTests : IDisposable
         // with no log yet the old lists still count
         Assert.True(HomeBuilder.Taste(lib, history, [], [], Now, null, null, null).Known(t) > 0);
     }
+    [Fact] public async Task Discover_is_about_half_songs_the_library_lacks_when_related_songs_are_cached()
+    {
+        var lib = Big(3_000); var events = Plays(lib, 100);
+        var related = Enumerable.Range(0, 30).Select(i => new CatalogSong($"Stranger {i}", $"Not owned {i}", "Elsewhere", null, 180_000, 1, 1)).ToList();
+        var d = Assert.Single(HomeBuilder.Build(lib, [], [], [], Now, events: events, related: _ => related), s => s.Id == "discover");
+        var all = d.Tracks.Count + d.New.Count;
+        Assert.InRange(d.New.Count, all * 0.4, all * 0.6);
+        Assert.All(d.New, s => Assert.Null(lib.Find(s.Title, s.Artist)));
+        // shown in /api/recommend/home as songs with no path
+        var cache = Related((_, _, _) => Task.FromResult(related));
+        var inputs = new RecommendApi.Inputs(lib, [], [], [], [], events, _ => null, cache);
+        RecommendApi.Home(inputs, Now); await cache.Pending;   // the first look starts the lookups; the next one has them
+        var json = JsonSerializer.SerializeToElement(((IValueHttpResult)RecommendApi.Home(inputs, Now)).Value, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var row = json.GetProperty("shelves").EnumerateArray().First(s => s.GetProperty("id").GetString() == "discover");
+        Assert.Contains(row.GetProperty("tracks").EnumerateArray(), t => t.GetProperty("isNew").GetBoolean() && t.GetProperty("path").ValueKind == JsonValueKind.Null);
+    }
+
+    [Fact] public void Discover_fills_from_the_library_while_nothing_is_cached()
+    {
+        var lib = Big(3_000); var events = Plays(lib, 100);
+        var d = Assert.Single(HomeBuilder.Build(lib, [], [], [], Now, events: events, related: _ => []), s => s.Id == "discover");
+        Assert.Empty(d.New);
+        Assert.True(d.Tracks.Count >= 12);
+    }
+
+    [Fact] public async Task A_failing_lookup_is_not_tried_again_for_a_while()
+    {
+        var calls = 0;
+        var cache = Related((_, _, _) => { Interlocked.Increment(ref calls); return Task.FromException<List<CatalogSong>>(new HttpRequestException("down")); });
+        for (var i = 0; i < 5; i++) { cache.Peek("Ann", "One"); await cache.Pending; }
+        Assert.Equal(1, calls);
+    }
+
+    [Fact] public async Task No_more_than_four_lookups_run_at_once()
+    {
+        int now = 0, most = 0;
+        var cache = Related(async (_, _, _) =>
+        {
+            var n = Interlocked.Increment(ref now); lock (this) most = Math.Max(most, n);
+            await Task.Delay(100); Interlocked.Decrement(ref now); return [];
+        });
+        var sw = Stopwatch.StartNew();
+        for (var i = 0; i < 40; i++) cache.Peek("Artist " + i, "Song " + i);
+        Assert.True(sw.ElapsedMilliseconds < 100, "Peek must not wait for a free slot");
+        await cache.Pending;
+        Assert.InRange(most, 1, 4);
+    }
 }

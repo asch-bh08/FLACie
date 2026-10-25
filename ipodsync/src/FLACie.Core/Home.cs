@@ -1,7 +1,12 @@
 namespace FLACie.Core;
 
 /// <summary>One row on the home screen: songs (a "Play" row) or albums. [Rotates] says it changes on a schedule.</summary>
-public sealed record Shelf(string Id, string Title, string Subtitle, IReadOnlyList<Track> Tracks, IReadOnlyList<Group> Albums, string? Rotates = null);
+public sealed record Shelf(string Id, string Title, string Subtitle, IReadOnlyList<Track> Tracks, IReadOnlyList<Group> Albums, string? Rotates = null,
+    IReadOnlyList<CatalogSong>? NewSongs = null)
+{
+    /// <summary>Songs on the row that are not in the library (Discover), shown after its library songs.</summary>
+    public IReadOnlyList<CatalogSong> New => NewSongs ?? [];
+}
 
 /// <summary>A song the user played, newest first in the history.</summary>
 public sealed record PlayedEntry(string Path, string Title, string Artist, long At);
@@ -69,9 +74,11 @@ public static class HomeBuilder
         events is null ? new TasteProfile(lib, history, favourites, playlists, utcNow, jellyfin, hits)
             : new TasteProfile(lib, [], [], playlists, utcNow, jellyfin, hits, events);
 
-    /// <summary>[events] is the account's listening log (null before it has one); [vibe] how each song feels, where known.</summary>
+    /// <summary>[events] is the account's listening log (null before it has one); [vibe] how each song feels, where known; [related] the songs that go
+    /// with a song as far as they are already known (it must answer at once: Home never waits for a lookup).</summary>
     public static List<Shelf> Build(Library lib, IReadOnlyList<PlayedEntry> history, IReadOnlyList<PlaylistEntry> favourites, IReadOnlyList<Playlist> playlists, DateTime utcNow,
-        IReadOnlyList<JfPlay>? jellyfin = null, IReadOnlySet<string>? hits = null, IReadOnlyList<ListenEvent>? events = null, Func<Track, Vibe?>? vibe = null)
+        IReadOnlyList<JfPlay>? jellyfin = null, IReadOnlySet<string>? hits = null, IReadOnlyList<ListenEvent>? events = null, Func<Track, Vibe?>? vibe = null,
+        Func<Track, IReadOnlyList<CatalogSong>>? related = null)
     {
         var shelves = new List<Shelf>();
         if (lib.Songs.Count == 0) return shelves;
@@ -116,8 +123,20 @@ public static class HomeBuilder
         // an account with little to go on yet still gets a full row
         if (picks.Count < 10) picks = all.Take(20).ToList();
         if (picks.Count > 0) shelves.Add(new("quick-picks", "Quick picks", "Chosen for you from what you play, save and list", picks, [], "Refreshes every hour"));
-        var discover = all.Where(t => Fresh(t) && !picks.Contains(t)).Take(16).ToList();
-        if (discover.Count >= 6) shelves.Add(new("discover", "Discover", "In your library, not played yet", discover, [], "Refreshes every hour"));
+        // Discover: about half songs the library lacks, that go with what was played lately, and the rest library songs never played
+        var newSongs = new List<CatalogSong>();
+        if (related is not null)
+        {
+            var seen = new HashSet<string>();
+            foreach (var from in listen.Concat(picks).Take(3))
+                foreach (var s in related(from))
+                    if (lib.Find(s.Title, s.Artist) is null && !taste.Disliked(new Track("", s.Title, s.Artist, s.Album, s.Artist, 0, 0, 0, 0, null, 0, TrackSource.Cloud))
+                        && seen.Add(Matching.MatchKey(s.Title, s.Artist))) newSongs.Add(s);
+            newSongs = Shuffled(newSongs, slot).Take(8).ToList();
+        }
+        var discover = all.Where(t => Fresh(t) && !picks.Contains(t)).Take(16 - newSongs.Count).ToList();
+        if (discover.Count + newSongs.Count >= 6)
+            shelves.Add(new("discover", "Discover", newSongs.Count > 0 ? "New to you" : "In your library, not played yet", discover, [], "Refreshes every hour", newSongs));
 
         // the Daily Mix of the hour cycles through the moods, then the genres you own most of
         var genres = lib.Songs.Where(t => t.Genre.Length > 0).GroupBy(t => t.Genre, StringComparer.OrdinalIgnoreCase).OrderByDescending(g => g.Count()).Take(8).ToList();

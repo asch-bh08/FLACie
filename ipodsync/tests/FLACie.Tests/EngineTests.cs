@@ -211,4 +211,17 @@ public class EngineTests
         string Run() => string.Join(",", Next([space, .. songs], [], vibes, [space], new EngineOptions(Seed: 7)).Select(p => p.Track!.Title));
         Assert.Equal(Run(), Run());
     }
+
+    [Fact]
+    public void A_best_known_song_of_an_artist_you_play_comes_before_a_lesser_one()
+    {
+        var played = Song("Big One", "Ann", "Pop"); var hit = Song("Hit", "Ann", "Pop"); var other = Song("B-side", "Ann", "Pop");
+        var lib = new Library([played, hit, other]);
+        var taste = new TasteProfile(lib, [], [], [], Now, hits: new HashSet<string> { Matching.MatchKey(hit) }, events: [Heard(played, 2)]);
+        for (var seed = 1; seed < 6; seed++)
+        {
+            var picks = Engine.Next(lib, taste, _ => null, [], [], Now, new EngineOptions(Take: 3, NewShare: 1, Seed: seed));
+            Assert.True(picks.FindIndex(p => p.Track == hit) < picks.FindIndex(p => p.Track == other));
+        }
+    }
 }

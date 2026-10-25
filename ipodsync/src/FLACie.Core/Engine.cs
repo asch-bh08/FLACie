@@ -11,7 +11,7 @@ public sealed record EngineOptions(int Take = 10, bool Explicit = true, double N
 /// <summary>
 /// What plays next, and what fills Home. Each candidate gets
 ///   0.35 x fit (how close it feels to the last three songs, by vibe; genre and artist only stand in when there is no vibe to go on)
-/// + 0.30 x taste (how much this person loves the song or plays its artist)
+/// + 0.30 x taste (how much this person loves the song or plays its artist; a best-known song of a played artist a little more)
 /// + 0.25 x together (fans of the song playing also play it)
 /// - 0.60 x penalty (skips, "less like this").
 /// A song must feel close enough (fit 0.6 or more): a liked song may then cross genres (The Prodigy into David Guetta), but a song never heard also
@@ -58,7 +58,8 @@ public static class Engine
             var fit = seed is null ? tasteFit : mood is not null && v is not null ? 1 - VibeMath.Distance(mood, v) : link ? 0.7 : 0.3;
             var liked = taste.Likes(key); var heard = taste.Known(key) > 0;
             if (seed is not null && (fit < Gate || (!heard && !liked && !link))) continue;
-            var love = liked ? 1 : Math.Max(taste.Love(key), tasteFit);
+            // one of the best-known songs of an artist this person plays gets a little more
+            var love = (liked ? 1 : Math.Max(taste.Love(key), tasteFit)) + (taste.IsHit(key) ? 0.2 : 0);
             // fans of what is playing play it, or it sits on a playlist this person plays from with one of the last three songs
             var together = relatedSongs.Contains(key) || last.Any(s => taste.SharesPlayedPlaylist(s, t)) ? 1 : relatedArtists.Contains(artist) ? 0.5 : 0;
             var score = 0.35 * fit + 0.3 * love + 0.25 * together - 0.6 * taste.Penalty(key, artist) + rnd.NextDouble() * 0.01;

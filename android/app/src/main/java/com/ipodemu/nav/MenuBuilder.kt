@@ -68,17 +68,18 @@ class MenuBuilder(private val app: App, private val onThemeChosen: (String) -> U
     fun songsItem() = Item("Songs", icon = Icon.SONGS) { it.push(songsPage("Songs", lib.songs())) }
     fun genresItem() = Item("Genres", icon = Icon.GENRES) { it.push(genresPage()) }
 
-    fun songsPage(title: String, tracks: List<Track>) = ListPage(title, Kind.SONGS) {
+    /** [contextId]: the playlist the songs are, as the DJ's playlist switch knows it (see [playlistsPage]); null for anything else. */
+    fun songsPage(title: String, tracks: List<Track>, contextId: String? = null) = ListPage(title, Kind.SONGS) {
         // Every list gets a Shuffle row on top, whichever iPod is selected.
         val off = if (tracks.size > 1) 1 else 0
         LazySource(tracks.size + off) { i ->
             if (off == 1 && i == 0) {
                 Item("Shuffle", artKey = tracks.firstNotNullOfOrNull { it.artKey }, icon = Icon.SHUFFLE, detail = songCount(tracks.size), chevron = false) { nav ->
-                    player.play(tracks, tracks.indices.random(), shuffle = true); nav.showNowPlaying()
+                    player.play(tracks, tracks.indices.random(), shuffle = true, contextId = contextId); nav.showNowPlaying()
                 }
             } else {
                 val t = tracks[i - off]
-            Item(t.title, subtitle = t.artist, artKey = t.artKey, detail = listOf(t.album, fmtTime(t.durationMs)).filter { it.isNotEmpty() }.joinToString("  ·  "), chevron = false) { nav -> playFrom(nav, tracks, i - off) }
+            Item(t.title, subtitle = t.artist, artKey = t.artKey, detail = listOf(t.album, fmtTime(t.durationMs)).filter { it.isNotEmpty() }.joinToString("  ·  "), chevron = false) { nav -> playFrom(nav, tracks, i - off, contextId) }
             }
         }
     }
@@ -94,13 +95,18 @@ class MenuBuilder(private val app: App, private val onThemeChosen: (String) -> U
     }
 
     /** The account's playlists and ones made here (same list as the Modern theme); an iPod's own in Sync mode. */
-    fun playlistsPage() = groupPage("Playlists", Kind.ALBUMS, {
-        val ud = app.userData
-        com.ipodemu.player.shownPlaylists(app).map { p ->
-            val ts = p.paths.mapNotNull { lib.resolve(it, ud.meta[it]) }
-            Group(p.name, ts, ts.firstNotNullOfOrNull { it.artKey })
-        } + com.ipodemu.player.shownFolderPlaylists(app)
-    }) { g -> songsPage(g.name, g.tracks) }
+    fun playlistsPage(): ListPage {
+        // each list's key for the DJ's playlist switch: the Jellyfin playlist id when it has one, else the app's own (as on the phone's own screens);
+        // an iPod's own playlists have none
+        val djKeys = HashMap<Group, String>()
+        return groupPage("Playlists", Kind.ALBUMS, {
+            val ud = app.userData
+            com.ipodemu.player.shownPlaylists(app).map { p ->
+                val ts = p.paths.mapNotNull { lib.resolve(it, ud.meta[it]) }
+                Group(p.name, ts, ts.firstNotNullOfOrNull { it.artKey }).also { djKeys[it] = p.jfId ?: p.id }
+            } + com.ipodemu.player.shownFolderPlaylists(app)
+        }) { g -> songsPage(g.name, g.tracks, djKeys[g]) }
+    }
 
     fun artistsPage() = groupPage("Artists", Kind.ARTISTS, { lib.artists() }) { g ->
         val albums = g.tracks.groupBy { it.albumKey }.values.map { Group(it[0].album, it, it.firstNotNullOfOrNull { t -> t.artKey }) }
@@ -128,8 +134,8 @@ class MenuBuilder(private val app: App, private val onThemeChosen: (String) -> U
         }
     }
 
-    private fun playFrom(nav: Nav, tracks: List<Track>, i: Int) {
-        player.play(tracks, i, shuffle = false)
+    private fun playFrom(nav: Nav, tracks: List<Track>, i: Int, contextId: String? = null) {
+        player.play(tracks, i, shuffle = false, contextId = contextId)
         nav.showNowPlaying()
     }
 
@@ -164,9 +170,11 @@ class MenuBuilder(private val app: App, private val onThemeChosen: (String) -> U
     private fun playbackPage(): ListPage = ListPage("Playback", Kind.SETTINGS) {
         val limits = listOf(100, 85, 70, 50)
         val sleeps = listOf(0, 15, 30, 60, 90, 120)
-        ListSourceOf(listOf(
+        ListSourceOf(listOfNotNull(
             choice("Shuffle", listOf("Off", "Songs"), { if (prefs.shuffle) 1 else 0 }) { prefs.shuffle = it == 1; player.applyModes() },
             choice("Repeat", listOf("Off", "All", "One"), { prefs.repeat }) { prefs.repeat = it; player.applyModes() },
+            // the AI DJ for this queue (the Now Playing DJ button's switch), as on the web's iPod; not there without FLACie Web and a Jellyfin sign-in
+            if (player.djAvailable) Item("DJ", value = { if (player.djOn) "On" else "Off" }, chevron = false) { player.flipDj(); it.redraw() } else null,
             Item("Equalizer", value = { prefs.eq }) { it.push(eqPage()) },
             choice("Volume Limit", limits.map { if (it == 100) "Off" else "$it%" },
                 { limits.indexOf(prefs.volumeLimit).coerceAtLeast(0) }) { prefs.volumeLimit = limits[it]; player.applyVolumeLimit() },

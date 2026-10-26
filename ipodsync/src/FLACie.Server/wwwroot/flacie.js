@@ -13,7 +13,9 @@ window.flacie = (() => {
   };
   window.flacieAccentFg = accentFg;
   let baseVolume = 1, fadeGain = 1, loudGain = 1, xfadeGain = 1, xfadeSecs = 0, xfadeIn = false, xfadeOut = false, xfadeRaf = 0;
-  const applyVol = () => { audio.volume = Math.min(1, Math.max(0, baseVolume * fadeGain * loudGain * xfadeGain)); };
+  // duckGain: the music under the DJ's clip (djPlay, djSay), applied after the rest is capped so the music always goes down by the same share
+  let duckGain = 1;
+  const applyVol = () => { audio.volume = Math.min(1, Math.max(0, baseVolume * fadeGain * loudGain * xfadeGain)) * duckGain; };
   // fade between songs: the end fades out and the start fades in (not across the tracks of one album); the same arithmetic as the app: cosine, over at most a third of the song
   const cosFade = (rem, f) => rem >= f ? 1 : rem <= 0 ? 0 : 0.5 - 0.5 * Math.cos(Math.PI * rem / f);
   const xfadeStep = () => {
@@ -89,15 +91,52 @@ window.flacie = (() => {
     const at = audio.currentTime, src = audio.src;
     failures = src === failedSrc ? failures + 1 : 1; failedSrc = src;
     if (failures > 3) { failures = 0; send("OnEnded"); return; }
-    setTimeout(() => { if (audio.src !== src) return; audio.src = src; audio.currentTime = at; audio.play().catch(() => {}); }, 1500);
+    setTimeout(() => { if (audio.src !== src) return; audio.src = src; selfSeek = true; audio.currentTime = at; audio.play().catch(() => {}); }, 1500);
   });
   if ("mediaSession" in navigator) {
     navigator.mediaSession.setActionHandler("play", () => audio.play());
     navigator.mediaSession.setActionHandler("pause", () => audio.pause());
     navigator.mediaSession.setActionHandler("nexttrack", () => send("OnNext"));
     navigator.mediaSession.setActionHandler("previoustrack", () => send("OnPrev"));
-    navigator.mediaSession.setActionHandler("seekto", e => { audio.currentTime = e.seekTime; });
+    navigator.mediaSession.setActionHandler("seekto", e => { selfSeek = false; audio.currentTime = e.seekTime; });
   }
+  // The AI DJ (docs/spec/ai-dj.md): a short clip on a second small player over the start of a song, or the device's own voice when no clip could be
+  // made. The music ducks to 30% under it (400 ms down, 600 ms back up) through duckGain alone, so the volume, the sleep fade, levelling, the fade
+  // between songs, the EQ graph and the prefetch are untouched (the clip plays straight to the speakers, beside the graph). A pause or a seek of the
+  // music stops it at once; so does djStop (a skip, a new queue). The clip's volume follows the volume set (and the sleep fade).
+  let djAudio = null, djPre = null, djSpeaking = false, djTok = 0, duckTimer = 0, djVoices = null;
+  // a seek the player makes itself (a long item resuming, a reconnect) is not a person seeking: it doesn't stop the DJ
+  let selfSeek = false;
+  const clipVol = () => Math.min(1, Math.max(0, baseVolume * fadeGain));
+  // a timer, not animation frames, so it also runs in a tab in the background (where it goes straight to the end: timers there are slowed to once a second or less)
+  const duckTo = (target, ms) => {
+    clearInterval(duckTimer); duckTimer = 0;
+    const from = duckGain, t0 = performance.now();
+    if (ms <= 0 || document.hidden || Math.abs(from - target) < 0.001) { duckGain = target; applyVol(); return; }
+    duckTimer = setInterval(() => {
+      const k = Math.min(1, (performance.now() - t0) / ms);
+      duckGain = from + (target - from) * k; applyVol();
+      if (k >= 1) { clearInterval(duckTimer); duckTimer = 0; }
+    }, 20);
+  };
+  // stops whatever the DJ is saying; unduck: bring the music back up (not when another clip follows at once)
+  const djHalt = (unduck) => {
+    djTok++;
+    if (djAudio) { const a = djAudio; djAudio = null; try { a.pause(); a.removeAttribute("src"); a.load(); } catch { } }
+    if (djSpeaking) { djSpeaking = false; try { speechSynthesis.cancel(); } catch { } }
+    if (unduck) duckTo(1, audio.paused ? 0 : 600);   // (always: it also cancels a duck that has only just begun)
+  };
+  const djBusy = () => !!djAudio || djSpeaking;
+  audio.addEventListener("pause", () => { if (djBusy()) djHalt(true); });
+  audio.addEventListener("seeking", () => { if (selfSeek) { selfSeek = false; return; } if (djBusy()) djHalt(true); });
+  // the device's voices: a British English one first, then any English one; until the list has loaded the browser picks from the language alone
+  const djVoice = () => {
+    try {
+      if (!djVoices || !djVoices.length) { djVoices = speechSynthesis.getVoices() || []; speechSynthesis.onvoiceschanged = () => { try { djVoices = speechSynthesis.getVoices() || []; } catch { } }; }
+      const lang = (v) => (v.lang || "").replace("_", "-").toLowerCase();
+      return djVoices.find((v) => lang(v) === "en-gb") || djVoices.find((v) => lang(v).startsWith("en")) || null;
+    } catch { return null; }
+  };
   // synced lyrics: the line being sung is found from the audio clock every frame, so the highlight lands with the voice
   let lyr = null;
   const lyricTick = () => {
@@ -605,7 +644,7 @@ window.flacie = (() => {
         pendingLoad = 0;
         audio.src = url;
         if (autoplay) buffering(true);
-        if (startAt > 0) audio.addEventListener("loadedmetadata", () => { audio.currentTime = startAt; }, { once: true });
+        if (startAt > 0) audio.addEventListener("loadedmetadata", () => { selfSeek = true; audio.currentTime = startAt; }, { once: true });
         if (autoplay) audio.play().catch(() => send("OnState", false)); else { audio.pause(); send("OnState", false); }
       };
       // A burst of skips: songs the user passes over never open a stream. The first load of a burst starts at once (a single play is not
@@ -1215,7 +1254,7 @@ window.flacie = (() => {
     pause() { audio.pause(); },
     // the X on the bar: stop and let go of the file
     stop() { if (pendingLoad) { clearTimeout(pendingLoad); pendingLoad = 0; } audio.pause(); audio.removeAttribute("src"); audio.load(); document.title = "FLACie"; if ("mediaSession" in navigator) navigator.mediaSession.metadata = null; },
-    seek(s) { if (isFinite(s)) audio.currentTime = s; },
+    seek(s) { if (isFinite(s)) { selfSeek = false; audio.currentTime = s; } },
     // playback speed with the pitch kept (setting src reloads the element, which would reset playbackRate: the default is set too)
     rate(r) {
       if (r === undefined || r === null) return audio.playbackRate;
@@ -1225,7 +1264,7 @@ window.flacie = (() => {
       return audio.playbackRate;
     },
     // the sleep timer's fade-out scales the volume the person set
-    fade(g) { fadeGain = Math.min(1, Math.max(0, Number(g))); applyVol(); return audio.volume; },
+    fade(g) { fadeGain = Math.min(1, Math.max(0, Number(g))); applyVol(); if (djAudio) djAudio.volume = clipVol(); return audio.volume; },
     xfade(secs, fin, fout) {
       if (secs === undefined || secs === null) return xfadeGain;
       xfadeSecs = Math.max(0, Number(secs) || 0); xfadeIn = !!fin; xfadeOut = !!fout;
@@ -1239,9 +1278,54 @@ window.flacie = (() => {
       if (v === undefined || v === null) return baseVolume;
       const x = Math.min(1, Math.max(0, v));
       baseVolume = x; applyVol();
+      if (djAudio) djAudio.volume = clipVol();
       try { localStorage.setItem("flacie.volume", String(x)); } catch { }
       return x;
     },
+    // ---- the AI DJ (see duckTo / djHalt above) ----
+    // the next song's clip, fetched ahead (one at a time, replaced when the next song changes)
+    djPreload(url) {
+      if (!url || (djPre && djPre.dataset.u === url)) return;
+      if (djPre) { try { djPre.removeAttribute("src"); djPre.load(); } catch { } }
+      djPre = new Audio(); djPre.preload = "auto"; djPre.dataset.u = url; djPre.src = url;
+    },
+    // plays the clip now, over the song that has just started: the music ducks, and comes back up when the clip ends or fails
+    djPlay(url) {
+      if (!url) return;
+      djHalt(false);
+      const tok = ++djTok;
+      const a = djPre && djPre.dataset.u === url ? djPre : new Audio(url);
+      if (a === djPre) djPre = null;
+      djAudio = a; a.volume = clipVol();
+      const done = () => { if (tok !== djTok) return; djAudio = null; duckTo(1, 600); };
+      a.addEventListener("ended", done, { once: true });
+      a.addEventListener("error", done, { once: true });
+      duckTo(0.3, 400);
+      a.play().catch(done);
+    },
+    // says the line with the device's own voice (no clip could be made): the music ducks while it speaks
+    djSay(text) {
+      if (!text || !("speechSynthesis" in window)) return;
+      djHalt(false);
+      const tok = ++djTok;
+      const done = () => { if (tok !== djTok || !djSpeaking) return; djSpeaking = false; duckTo(1, 600); };
+      try {
+        const u = new SpeechSynthesisUtterance(text);
+        const v = djVoice(); if (v) { u.voice = v; u.lang = v.lang; } else u.lang = "en-GB";
+        u.volume = clipVol();
+        u.onstart = () => { if (tok === djTok && djSpeaking) duckTo(0.3, 400); };
+        u.onend = done; u.onerror = done;
+        djSpeaking = true;
+        speechSynthesis.speak(u);
+        // (some browsers never say a line ended: the music comes back up after the time the line could take at most)
+        setTimeout(done, Math.max(4000, text.length * 90));
+      } catch { djSpeaking = false; duckTo(1, 0); }
+    },
+    // a skip, a new queue, the DJ turned off: stop at once and bring the music back up
+    // (a clip fetched ahead for the next song is kept: the DJ may still speak there)
+    djStop() { djHalt(true); },
+    // for the tests: how far the music is ducked, and whether the DJ is talking
+    djState() { return { duck: duckGain, clip: !!djAudio, speaking: djSpeaking }; },
   };
 })();
 

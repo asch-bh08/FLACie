@@ -79,6 +79,7 @@ public class PlayerDjTests
     public async Task The_clip_plays_only_when_the_player_moves_on_by_itself()
     {
         var (p, js, dj) = Player();
+        dj.S.TalkAfterSkips = false;                         // (with it on, a skip may bring a line too: PlayerDjLiveTests)
         await p.Play(Songs(4), 0);
         await p.OnEnded();                                   // Song 0 ended: Song 1 starts by itself
         Assert.Equal("Song 1", p.Current?.Title);

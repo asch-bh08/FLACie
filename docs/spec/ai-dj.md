@@ -15,7 +15,7 @@ Background and research: `docs/research/ai-dj-free.md` on branch `research/ai-dj
 3. `Enabled && Settings.On(Surface)`.
 Then the frequency/variety rules (Appendix A.4) and the silent conditions decide this transition. Often speaks with a chance of 0.5 once the one forced silent song after a line has passed (about one song in 3); Rare 0.30 after four (about one in 7).
 
-`TalkAfterSkips` (per person, default on): a skip no longer silences the next two songs; the listener hears the DJ on the songs they let play, and "Let's try something different" can still come after several skips. Off: skipping going on (`skippedRecently`) keeps the DJ quiet, as before. The clip itself still only plays when the player moves on by itself.
+`TalkAfterSkips` (per person, default on): a skip no longer silences the next two songs; the listener hears the DJ on the songs they let play, and "Let's try something different" can still come after several skips. Off: skipping going on (`skippedRecently`) keeps the DJ quiet, as before. With it on, the web player also says a line over a song reached by Next or a tap in Up next: the answer kept for that song if there is one, otherwise it asks at once and says the line only if it arrives within 3 s and that song is still the one playing (a quicker skip, a pause or a seek drops it, so lines never stack). Off: only a song reached by itself brings a line.
 
 The web player takes the answer about a song the moment that song starts loading, before anything else (the Autoplay lookup answering from its cache) can ask about the song after it.
 

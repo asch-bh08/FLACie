@@ -281,10 +281,12 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     {
         var t = Current;
         if (t is null) return;
+        var djBefore = heardTrack;   // the song being left, for the DJ's line over a song reached by a skip
         FlushPlay();
         if (connect is not null && !ReferenceEquals(connect.Host, this)) connect.Host = this; // this tab is the one playing now
         // for the DJ: whether the player got here by itself (the last song ended), and whether the song before was skipped in its first 10 s
         var auto = djAuto; djAuto = false;
+        var skipped = djSkip; djSkip = false;
         if (djFresh) djFresh = false; else { djSkips[1] = djSkips[0]; djSkips[0] = !auto && Position < 10; }
         // the DJ's answer about this song is taken now, before anything below can ask about the song after it (the Autoplay lookup answers at once
         // from its cache, and its DjAhead used to throw this answer away, so the listener never heard the DJ when a song ended by itself)
@@ -302,7 +304,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         if (plays is not null && session is not null) plays.Begin(session.Id, session.DisplayName, t.Path, t.Title, t.Artist, "FLACie Web", Context);
         Stash(true);
         RefreshSuggestions(); _ = PlanAsync(t); Started?.Invoke(t);
-        await DjStartedAsync(auto, djCueNow);
+        await DjStartedAsync(t, auto, skipped, djBefore, djCueNow);
         Changed?.Invoke();
     }
 
@@ -343,7 +345,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     public async Task SeekRawAsync(long ms) { await DjStopAsync(); await audio.SeekAsync(ms / 1000.0); Position = ms / 1000.0; Changed?.Invoke(); }
     public async Task<bool> IsBufferedAsync() => await audio.ReadyAsync();
 
-    public async Task Next() { if (Interceptor?.Next() == true) return; await NextAsync(); }
+    public async Task Next() { if (Interceptor?.Next() == true) return; djSkip = true; try { await NextAsync(); } finally { djSkip = false; } }
     public async Task Prev() { if (Interceptor?.Prev() == true) return; await PrevAsync(); }
 
     public async Task NextAsync()
@@ -377,7 +379,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     public async Task SkipTo(int index)
     {
         if (Interceptor?.SkipTo(index) == true) return;
-        if (index >= 0 && index < Queue.Count) { Index = index; await Load(true); }
+        if (index >= 0 && index < Queue.Count) { Index = index; djSkip = true; try { await Load(true); } finally { djSkip = false; } }
     }
 
     /// <summary>Plays these songs of the queue (queue indices, e.g. one album in album order) one after another from here; then the play order carries on
@@ -744,6 +746,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     string? djFor;              // the song (path) the DJ was last asked about
     DjCue? djCue;               // and what it answered (null: stays quiet, or no answer yet)
     bool djAuto, djFresh;       // the song being loaded was reached by itself; the queue is new (no song before it in this queue)
+    bool djSkip;                // the song being loaded was reached by Next or a tap in Up next (it may bring a line when "Talk after skips" is on)
     bool djActive;              // a clip or a line may still be playing
     readonly bool[] djSkips = [false, false];   // the last two song changes: was the song before skipped in its first 10 s
 
@@ -811,25 +814,56 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         return cue;
     }
 
-    /// <summary>A song started: the DJ speaks before it if the player got here by itself and [cue] (taken by <see cref="DjTake"/>) is about this very song; anything else stops the DJ. Then the next song is asked about.</summary>
-    async Task DjStartedAsync(bool auto, DjCue? cue)
+    /// <summary>How long a song reached by a skip waits for a line asked for only then: later than this, the listener is into the song and the DJ keeps quiet.</summary>
+    public static readonly TimeSpan DjSkipWait = TimeSpan.FromSeconds(3);
+    int djGen;                  // goes up with every song start, pause and seek: a line asked for before it is never said after it
+
+    /// <summary>A song started: the DJ speaks before it if [cue] (taken by <see cref="DjTake"/>) is about this very song and the player got here by itself, or by
+    /// Next or a tap in Up next while "Talk after skips" is on. A skip with no answer kept asks now, and the line is said if it comes within <see cref="DjSkipWait"/>.
+    /// Anything else stops the DJ. Then the next song is asked about.</summary>
+    async Task DjStartedAsync(Track t, bool auto, bool skipped, Track? before, DjCue? cue)
     {
-        if (dj is null) return;
-        if (auto && cue is not null && DjOn)
-        {
-            try
-            {
-                if (cue.ClipUrl is { Length: > 0 } url) { await audio.DjPlayAsync(url, cue.Text, cue.Backup); djActive = true; }
-                else if (cue.Backup && cue.Text.Length > 0) { await audio.DjSayAsync(cue.Text); djActive = true; }
-            }
-            catch (Exception) { }
-        }
-        else await DjStopAsync();
+        if (dj is not { } d) return;
+        await DjStopAsync();
+        var gen = djGen;
+        var talk = DjOn && (auto || (skipped && session is { } s0 && d.Settings(s0).TalkAfterSkips));
+        if (talk && cue is not null) await DjSayCueAsync(cue);
+        else if (talk && skipped && session is { } s) _ = DjAskNowAsync(d, s, t, before, gen);
         DjAhead();
+    }
+
+    async Task DjSayCueAsync(DjCue cue)
+    {
+        try
+        {
+            if (cue.ClipUrl is { Length: > 0 } url) { await audio.DjPlayAsync(url, cue.Text, cue.Backup); djActive = true; }
+            else if (cue.Backup && cue.Text.Length > 0) { await audio.DjSayAsync(cue.Text); djActive = true; }
+        }
+        catch (Exception) { }
+    }
+
+    /// <summary>A song reached by a skip that nobody asked about: the DJ is asked now, and its line is said only while this is still the song that started
+    /// (a quicker skip, a pause or a seek since then drops it, so lines never pile up) and only within <see cref="DjSkipWait"/>.</summary>
+    async Task DjAskNowAsync(IDjService d, UserSession s, Track t, Track? before, int gen)
+    {
+        try
+        {
+            var (hour, weekday) = DjSwitches.LocalTime(DateTime.UtcNow, await BrowserOffsetAsync());
+            var req = new DjRequest(DjSurface, SongOf(t), before is null ? null : SongOf(before), PrevPlayedOut: false, SkippedRecently: true,
+                PlaylistId: ContextId, QueueDj: QueueDj, LocalHour: hour, Weekday: weekday);
+            using var cts = new CancellationTokenSource(DjSkipWait);
+            var cue = await d.PrepareAsync(s, req, cts.Token).WaitAsync(cts.Token);
+            if (cue is null || gen != djGen || Current?.Path != t.Path || !DjOn) return;
+            await DjSayCueAsync(cue);
+        }
+        catch (OperationCanceledException) { }
+        catch (TimeoutException) { }
+        catch (Exception e) { try { RetroHost.DjFailed?.Invoke(e); } catch (Exception) { } }
     }
 
     async Task DjStopAsync()
     {
+        djGen++;
         if (!djActive) return;
         djActive = false;
         try { await audio.DjStopAsync(); } catch (Exception) { }

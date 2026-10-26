@@ -18,9 +18,21 @@ public class PlayerDjLiveTests : IDisposable
     sealed class Js : IJSRuntime
     {
         public readonly List<(string Id, object?[] Args)> Calls = [];
-        public ValueTask<T> InvokeAsync<T>(string identifier, object?[]? args) { lock (Calls) Calls.Add((identifier, args ?? [])); return ValueTask.FromResult(default(T)!); }
+        /// <summary>The song playing, so each line is noted with the song it was said over.</summary>
+        public Func<string?> Playing = () => null;
+        public ValueTask<T> InvokeAsync<T>(string identifier, object?[]? args)
+        {
+            lock (Calls) Calls.Add((identifier, identifier is "flacie.djPlay" or "flacie.djSay" ? [.. args ?? [], Playing()] : args ?? []));
+            return ValueTask.FromResult(default(T)!);
+        }
         public ValueTask<T> InvokeAsync<T>(string identifier, CancellationToken cancellationToken, object?[]? args) => InvokeAsync<T>(identifier, args);
         public int Spoken { get { lock (Calls) return Calls.Count(c => c.Id is "flacie.djPlay" or "flacie.djSay"); } }
+        public int LastIndexOf(string id) { lock (Calls) return Calls.FindLastIndex(c => c.Id == id); }
+        /// <summary>The songs that lines were said over, after call [i].</summary>
+        public List<string> SpokenAfter(int i)
+        {
+            lock (Calls) return Calls.Skip(i + 1).Where(c => c.Id is "flacie.djPlay" or "flacie.djSay").Select(c => c.Args[^1] as string ?? "").ToList();
+        }
     }
 
     sealed class NoPlanner : IAutoplayPlanner
@@ -47,6 +59,7 @@ public class PlayerDjLiveTests : IDisposable
         if (talkAfterSkips is { } t) st.TalkAfterSkips = t;
         dj.Save(me, st);
         var js = new Js(); var p = new PlayerState(js);
+        js.Playing = () => p.Current?.Title;
         // as on the web: a library, and the Autoplay lookup answering at once (the server keeps its answers for 30 minutes)
         p.SetLibrary(() => new Library(Enumerable.Range(0, 40).Select(T).ToList()));
         p.SetPlanner(me, new NoPlanner());
@@ -102,6 +115,43 @@ public class PlayerDjLiveTests : IDisposable
         var (p, js, _, _, _) = Rig(enabled: true);
         await p.Play(Enumerable.Range(0, 30).Select(T).ToList(), 0);
         Assert.True(await SkipAndPlay(p, js, 12) >= 2);
+    }
+
+    [Fact]
+    public async Task With_talk_after_skips_on_a_line_plays_over_a_song_reached_with_Next()
+    {
+        var (p, js, _, _, _) = Rig(enabled: true);
+        await p.Play(Enumerable.Range(0, 20).Select(T).ToList(), 0);
+        await Settle();
+        await p.Next();
+        await Settle(); await Task.Delay(200);
+        Assert.Equal(1, js.Spoken);
+    }
+
+    [Fact]
+    public async Task Three_quick_Nexts_never_stack_lines_only_the_last_songs_line_may_play()
+    {
+        var (p, js, _, _, _) = Rig(enabled: true);
+        await p.Play(Enumerable.Range(0, 20).Select(T).ToList(), 0);
+        await Settle();
+        await p.Next(); await p.Next(); await p.Next();
+        var stoppedAt = js.LastIndexOf("flacie.djStop");
+        await Task.Delay(3500);
+        // whatever still talks after the last skip was asked for the last song (Song 3), and at most one line
+        var after = js.SpokenAfter(stoppedAt);
+        Assert.True(after.Count <= 1, string.Join(" | ", after));
+        Assert.All(after, t => Assert.Equal(Titles[3], t));
+    }
+
+    [Fact]
+    public async Task With_talk_after_skips_off_Next_never_brings_a_line()
+    {
+        var (p, js, _, _, _) = Rig(enabled: true, talkAfterSkips: false);
+        await p.Play(Enumerable.Range(0, 20).Select(T).ToList(), 0);
+        await Settle();
+        await p.Next();
+        await Settle(); await Task.Delay(200);
+        Assert.Equal(0, js.Spoken);
     }
 
     [Fact]

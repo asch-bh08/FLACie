@@ -95,3 +95,7 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 - feature/ai-dj 5bcc851 (contains ui/living-sleeve 84d5044) deployed; rollback tag flacie-web:rollback-2026-10-26-pre-dj. healthz ok; /api/dj/settings and /api/recommend/next 401 without a token; no errors in the log.
 - hms history cleaned (200 -> 56; Dad untouched; backup /root/hms-profile-backup-*.json on frank).
 - Not checked (needs a signed-in browser): Dashboard AI DJ panel, thumbs-down and engine Autoplay in use. Owner adds Cloudflare account ID + Workers AI token in Dashboard > AI DJ.
+
+## 2026-10-26 AI DJ fixes deployed (043c44e)
+- DJ never spoke on web: the line prepared for a song was cleared as it started (PlayerState Load order); fixed. New per-person setting "Talk after skips" (default on): skips no longer mute the DJ and a line can play over a song reached by Next. Chance(Often) 0.45 -> 0.5.
+- Rollback tag flacie-web:rollback-2026-10-26-pre-djfix. healthz ok.

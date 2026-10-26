@@ -77,6 +77,10 @@ class UserData(dir: File) {
         for ((p, s) in favStates) s.value = FavoriteMatch.storedFor(p, trackKeys[p] ?: "", favorites, meta) != null
     }
 
+    /** A heart or a playlist change, for the listening log: the kind, the song's path and the playlist's id. */
+    var onListen: ((Int, String, String?) -> Unit)? = null
+    private fun listened(kind: Int, path: String, playlist: String?) { try { onListen?.invoke(kind, path, playlist) } catch (_: Exception) { } }
+
     /** Called after a favourite is added or removed (the offline library follows it). */
     var onFavoritesChanged: (() -> Unit)? = null
 
@@ -88,6 +92,7 @@ class UserData(dir: File) {
             favGone.add(0, FavoriteSync.Fav(path, m?.first ?: "", m?.second ?: "", now))
             while (favGone.size > FavoriteSync.KEEP_REMOVALS) favGone.removeAt(favGone.size - 1)
         } else { favorites.add(path); favAt[path] = now }
+        listened(if (path in favorites) ListenKind.HEART else ListenKind.UNHEART, path, null)
         refreshFavStates()
         changed()
         onFavoritesChanged?.invoke()
@@ -115,7 +120,7 @@ class UserData(dir: File) {
     }
 
     fun addToPlaylist(id: String, path: String) {
-        playlists.firstOrNull { it.id == id }?.let { if (path !in it.paths) it.paths.add(path); it.mtime = System.currentTimeMillis(); changed() }
+        playlists.firstOrNull { it.id == id }?.let { if (path !in it.paths) { it.paths.add(path); listened(ListenKind.PLAYLIST_ADD, path, it.jfId ?: it.id) }; it.mtime = System.currentTimeMillis(); changed() }
     }
 
     /** A song taken out of a playlist page that is not gone yet: it stays pending for [UNDO_MS] so Undo brings it back untouched, then the removal is applied. */
@@ -185,7 +190,7 @@ class UserData(dir: File) {
 
     fun removeFromPlaylist(id: String, path: String) {
         commitPending()
-        playlists.firstOrNull { it.id == id }?.let { it.paths.remove(path); it.mtime = System.currentTimeMillis(); changed() }
+        playlists.firstOrNull { it.id == id }?.let { if (it.paths.remove(path)) listened(ListenKind.PLAYLIST_REMOVE, path, it.jfId ?: it.id); it.mtime = System.currentTimeMillis(); changed() }
     }
 
     fun deletePlaylist(id: String) {

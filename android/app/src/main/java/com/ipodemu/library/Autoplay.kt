@@ -54,6 +54,21 @@ class Autoplay(private val app: App) {
         seen.add(seed.matchKey)
         val by = lib.byPath()
         app.userData.recents.take(40).forEach { p -> by[p]?.let { seen.add(it.matchKey) } }
+        synchronized(disliked) { seen.addAll(disliked) }
+
+        // the server's engine first (it knows this account's whole listening log); no signal or an error and the picks below are used, as before
+        val web = FlacieWebClient(app.prefs)
+        if (web.available) {
+            val session = (app.userData.recents.take(9).reversed().filter { it != seed.path } + seed.path)
+            val plan = AutoplaySource.choose({ web.recommendNext(session, 10) }, { p -> lib.resolve(p.path ?: "", p.title to p.artist) }, seen)
+            if (plan != null) {
+                val tracks = plan.tracks.filter { it.isMusic }.take(6)
+                synchronized(reasons) { tracks.forEach { t -> plan.why[t.path]?.let { reasons[t.path] = it } } }
+                if (tracks.isNotEmpty()) withContext(Dispatchers.Main) { mark(tracks); app.player.appendAutoplay(tracks) }
+                if (app.prefs.autoplayFetch && lib.downloadsConfigured()) request(plan.fresh.take(5).map { it.song() })
+                return
+            }
+        }
 
         val key = seed.matchKey
         val suggestions = synchronized(related) { related[key]?.takeIf { System.currentTimeMillis() - it.first < 30 * 60_000L }?.second }
@@ -81,16 +96,31 @@ class Autoplay(private val app: App) {
         if (pick.isNotEmpty()) withContext(Dispatchers.Main) { mark(pick); app.player.appendAutoplay(pick) }
 
         // songs the library lacks: ask for the next few now so they are there in time
-        if (app.prefs.autoplayFetch && lib.downloadsConfigured()) {
-            suggestions.asSequence().filter { lib.findSong(it.title, it.artist) == null && it.matchKey !in seen }.take(5).forEach { s ->
-                val k = matchKey(s.title, s.artist)
-                synchronized(waiting) { if (waiting.containsKey(k)) return@forEach; waiting[k] = s }
-                // the tag (and the Up next row) is there at once, before the job's first status arrives
-                lib.requestDownload(s.artist, s.title, s.album, s.durationMs)
-                main.post { rev++ }
-            }
+        if (app.prefs.autoplayFetch && lib.downloadsConfigured())
+            request(suggestions.asSequence().filter { lib.findSong(it.title, it.artist) == null && it.matchKey !in seen }.take(5).toList())
+    }
+
+    private fun request(songs: List<WebCatalog.Song>) {
+        for (s in songs) {
+            val k = matchKey(s.title, s.artist)
+            val fresh = synchronized(waiting) { if (waiting.containsKey(k)) false else { waiting[k] = s; true } }
+            if (!fresh) continue
+            // the tag (and the Up next row) is there at once, before the job's first status arrives
+            app.library.requestDownload(s.artist, s.title, s.album, s.durationMs)
+            main.post { rev++ }
         }
     }
+
+    /** Why the engine chose a song Autoplay added (the Info panel shows it), or null. */
+    fun why(t: Track): String? = synchronized(reasons) { reasons[t.path] }
+    private val reasons = HashMap<String, String>()
+
+    /** Thumbs down: the song leaves Autoplay's list of songs being fetched, and Autoplay does not pick it again this run. */
+    fun dislike(t: Track) {
+        synchronized(disliked) { disliked.add(t.matchKey) }
+        if (synchronized(waiting) { waiting.remove(t.matchKey) } != null) rev++
+    }
+    private val disliked = HashSet<String>()
 
     /**
      * A download finished: if Autoplay asked for it, it joins the end of the queue. Its suggestion row stays in Up next until the song is really in
@@ -112,4 +142,43 @@ class Autoplay(private val app: App) {
     }
 
     private val WebCatalog.Song.matchKey get() = matchKey(title, artist)
+}
+
+/** A song the server's engine suggests: [path] is the server's own (null for a song the library does not have yet, [isNew]); [why] is the reason shown in the Info panel. */
+class RecPick(val path: String?, val title: String, val artist: String, val album: String, val durationMs: Long, val isNew: Boolean, val why: String?) {
+    val matchKey: String get() = matchKey(title, artist)
+    fun song() = WebCatalog.Song(artist, title, album, null, durationMs, 0, 0)
+
+    /** A Home shelf as the server builds it (`/api/recommend/home`). */
+    class Shelf(val id: String, val title: String, val subtitle: String, val tracks: List<RecPick>)
+
+    companion object {
+        private fun str(o: org.json.JSONObject, k: String) = if (o.isNull(k)) null else o.optString(k).takeIf { it.isNotEmpty() }
+        private fun pick(o: org.json.JSONObject) = RecPick(str(o, "path"), o.optString("title"), o.optString("artist"), o.optString("album"), o.optLong("durationMs"), o.optBoolean("isNew"), str(o, "why"))
+        private fun picks(a: org.json.JSONArray?) = if (a == null) emptyList() else List(a.length()) { pick(a.getJSONObject(it)) }
+        fun parseNext(json: String): List<RecPick> = picks(org.json.JSONObject(json).optJSONArray("picks"))
+        fun parseHome(json: String): List<Shelf> = org.json.JSONObject(json).optJSONArray("shelves")?.let { a ->
+            List(a.length()) { a.getJSONObject(it).let { o -> Shelf(o.optString("id"), o.optString("title"), o.optString("subtitle"), picks(o.optJSONArray("tracks"))) } }
+        } ?: emptyList()
+    }
+}
+
+/**
+ * Autoplay's first choice: the server's engine. [choose] returns null (and Autoplay picks the way it always has) when the server cannot be
+ * reached or has nothing this phone can play or fetch. Picks are found on the phone by their server path when it is the same, else by title and artist.
+ */
+object AutoplaySource {
+    class Plan(val tracks: List<Track>, val fresh: List<RecPick>, val why: Map<String, String>)
+
+    fun choose(fetch: () -> List<RecPick>, resolve: (RecPick) -> Track?, seen: Set<String>): Plan? {
+        val picks = try { fetch() } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e; return null }
+        val tracks = ArrayList<Track>(); val fresh = ArrayList<RecPick>(); val why = HashMap<String, String>(); val taken = HashSet<String>(seen)
+        for (p in picks) {
+            if (p.isNew) { if (taken.add(p.matchKey)) fresh.add(p); continue }
+            val t = resolve(p) ?: continue
+            if (!taken.add(t.matchKey)) continue
+            tracks.add(t); p.why?.let { why[t.path] = it }
+        }
+        return if (tracks.isEmpty() && fresh.isEmpty()) null else Plan(tracks, fresh, why)
+    }
 }

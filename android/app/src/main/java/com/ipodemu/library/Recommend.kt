@@ -105,6 +105,19 @@ object HomeShelves {
         return spread(lib.songs().filter { it.isMusic && inMood(it, m) }.seeded(slot(nowMs, 24) * 17 + name.length), 2, 40)
     }
 
+    /**
+     * Home from the server's engine: its song shelves, with each song found on this phone (songs the library does not have yet are left out,
+     * there is nothing to play), then this phone's own album shelves. Null when the server gave nothing usable, so the phone's own shelves stay.
+     */
+    fun fromServer(server: List<RecPick.Shelf>, resolve: (RecPick) -> Track?, local: List<HomeShelf>): List<HomeShelf>? {
+        val songs = server.mapNotNull { s ->
+            val tracks = s.tracks.filter { !it.isNew }.mapNotNull(resolve).distinctBy { it.matchKey }
+            if (tracks.isEmpty()) null else HomeShelf(s.id, s.title, s.subtitle, tracks)
+        }
+        if (songs.isEmpty()) return null
+        return songs + local.filter { it.albums.isNotEmpty() && songs.none { s -> s.id == it.id } }
+    }
+
     fun build(lib: Library, ud: UserData, nowMs: Long = System.currentTimeMillis(), jf: List<JfPlay> = emptyList(), hits: Set<String> = emptySet()): List<HomeShelf> {
         val songs = lib.songs().filter { it.isMusic }
         if (songs.isEmpty()) return emptyList()

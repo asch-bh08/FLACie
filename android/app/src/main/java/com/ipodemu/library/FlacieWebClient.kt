@@ -80,6 +80,14 @@ class FlacieWebClient(private val prefs: Prefs) {
     fun audioFactsRaw(): String = send("/api/audiofacts", "GET")
     fun runCharts() { send("/api/charts/run", "POST", "{}") }
 
+    /** Hands a batch of listening events to the account's log (see [ListenQueue]); throws when they were not taken. */
+    fun listen(body: String) { send("/api/listen", "POST", body) }
+    /** What the engine would play after these songs (the last is playing now). */
+    fun recommendNext(session: List<String>, n: Int = 10): List<RecPick> =
+        RecPick.parseNext(send("/api/recommend/next?n=$n&session=" + java.net.URLEncoder.encode(session.joinToString(","), "UTF-8"), "GET"))
+    /** Home's shelves as the engine builds them. */
+    fun recommendHome(): List<RecPick.Shelf> = RecPick.parseHome(send("/api/recommend/home", "GET"))
+
     /** What the server is downloading right now and the log of what it fetched for this account (searches on the web, Autoplay, charts, imports). */
     class ServerDownloads(val running: List<RunningRow>, val log: List<DownloadRecord>)
     class RunningRow(val id: String, val label: String, val kind: String, val startedAt: Long, val message: String, val current: String?, val artKey: String?)

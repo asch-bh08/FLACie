@@ -451,6 +451,10 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
     items += SheetItem("Add to queue", Glyph.QUEUE) { app.player.addToQueue(t) }
     items += SheetItem(if (ud.isFavorite(t)) "Remove from favorites" else "Add to favorites", if (ud.isFavorite(t)) Glyph.HEART_FILLED else Glyph.HEART) { ud.toggleFavorite(t) }
     items += SheetItem("Add to playlist...", Glyph.PLUS) { nav.sheet = playlistPicker(app, nav, t) }
+    if (t.isMusic) {
+        items += SheetItem("Thumbs down", Glyph.CLOSE) { thumbsDown(app, t) }
+        items += SheetItem("Less like this", Glyph.MORE) { app.listened(com.ipodemu.library.ListenKind.LESS_LIKE_THIS, t); app.ui.say("You'll hear less like \"${t.title}\"") }
+    }
     if (t.isMusic) items += SheetItem("Share", Glyph.JAM) { shareTrack(app, t) }
     if (t.source == com.ipodemu.library.TrackSource.JELLYFIN) {
         val off = app.offline.entry(t.path)
@@ -474,6 +478,17 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
         }
     }
     nav.sheet = SheetSpec(t.title, t.artist.ifEmpty { null }, items)
+}
+
+/**
+ * The person does not want this song: the server is told (Autoplay and Home stop suggesting it), it leaves Up next and Autoplay's list, and if
+ * it is playing the next song starts (with nothing after it, the player stops).
+ */
+internal fun thumbsDown(app: App, t: Track) {
+    app.listened(com.ipodemu.library.ListenKind.THUMB_DOWN, t)
+    app.autoplay.dislike(t)
+    app.player.thumbsDown(t)
+    app.ui.say("Thumbs down: \"${t.title}\" won't be suggested again")
 }
 
 internal fun playlistPicker(app: App, nav: PlayerNav, t: Track): SheetSpec {
@@ -554,6 +569,15 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                 try { com.ipodemu.library.HomeSnapshot.write(java.io.File(app.filesDir, "home.json"), com.ipodemu.library.HomeSnapshot.Data(d.shelves, d.moods)) } catch (_: Exception) {}
             }
         }
+        // the server's engine knows the whole listening log: its song shelves replace the phone's own when it answers (no signal or an error: the phone's stay)
+        val web = com.ipodemu.library.FlacieWebClient(app.prefs)
+        val served = web.available && d != null && run {
+            val server = kotlinx.coroutines.withContext(Dispatchers.IO) { try { web.recommendHome() } catch (e: Exception) { android.util.Log.w("FLACie", "server Home failed: ${e.message}"); null } }
+            val mixed = server?.let { sv -> kotlinx.coroutines.withContext(Dispatchers.Default) { try { com.ipodemu.library.HomeShelves.fromServer(sv, { p -> lib.resolve(p.path ?: "", p.title to p.artist) }, d!!.shelves) } catch (_: Exception) { null } } }
+            if (mixed != null) { val d3 = HomeData(mixed, d!!.moods); HomeCache.last = d3; home = d3 }
+            mixed != null
+        }
+        if (served) return@LaunchedEffect
         // then, once an hour, learn from Jellyfin's play counts and the artists' best-known songs, and build the shelves again with them
         val before = com.ipodemu.library.TasteData.hits.size + com.ipodemu.library.TasteData.jf.size
         kotlinx.coroutines.withContext(Dispatchers.IO) { com.ipodemu.library.TasteData.refresh(app, lib) }
@@ -613,7 +637,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                 item { SectionHeader(mname) }
                 item {
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        itemsIndexed(ts) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(ts, i, null, mname) } }
+                        itemsIndexed(ts) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(ts, i, null, mname, from = "home") } }
                     }
                 }
             }
@@ -622,13 +646,13 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     if (sh.id == "quick-picks") {
                         Row(Modifier.fillMaxWidth().padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.weight(1f)) { SectionHeader(sh.title) }
-                            GlossPill("Play all", { app.player.play(sh.tracks, 0, null, sh.title) }, icon = Glyph.PLAY, height = 28.dp)
+                            GlossPill("Play all", { app.player.play(sh.tracks, 0, null, sh.title, from = "home") }, icon = Glyph.PLAY, height = 28.dp)
                         }
-                        QuickPicks(sh.tracks, nav) { i -> app.player.play(sh.tracks, i, null, sh.title) }
+                        QuickPicks(sh.tracks, nav) { i -> app.player.play(sh.tracks, i, null, sh.title, from = "home") }
                     } else {
                     SectionHeader(sh.title)
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        if (sh.tracks.isNotEmpty()) itemsIndexed(sh.tracks) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(sh.tracks, i, null, sh.title) } }
+                        if (sh.tracks.isNotEmpty()) itemsIndexed(sh.tracks) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(sh.tracks, i, null, sh.title, from = "home") } }
                         else items(sh.albums, key = { it.tracks.first().albumKey }) { g -> AlbumCard(g, Modifier.width(150.dp)) { nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) } }
                     }
                 }
@@ -1336,7 +1360,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (topSong != null && only == "") {
                 item { SectionHeader("Top result") }
                 item(key = "top${topSong.path}") {
-                    TopResultCard(topSong) { searchFocus.clearFocus(); if (snap.track?.path == topSong.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(topSong), 0, null) } }
+                    TopResultCard(topSong) { searchFocus.clearFocus(); if (snap.track?.path == topSong.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(topSong), 0, null, from = "search") } }
                 }
             }
             if (!albumNamed) webAlbums()
@@ -1347,7 +1371,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                     val owned = ownedSongs[com.ipodemu.library.matchKey(s.title, s.artist)]
                     val status = dl[app.library.songKey(s.artist, s.title)]
                     WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.let { st -> if (st.stage == DownloadStage.FAILED) st.message else com.ipodemu.library.DownloadTags.runningText(com.ipodemu.library.DownloadTags.stageText(st.stage, st.message)) } ?: "${s.artist} · ${s.album}", s.artUrl, owned, status,
-                        onPlay = { searchFocus.clearFocus(); owned?.let { if (snap.track?.path == it.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(it), 0, null) } } },
+                        onPlay = { searchFocus.clearFocus(); owned?.let { if (snap.track?.path == it.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(it), 0, null, from = "search") } } },
                         onDownload = { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs) },
                         // the three-line menu: Download, Hi-Res (administrators, per song, after a confirmation: the files are several times the size), Find on YouTube
                         onHiRes = {
@@ -1372,7 +1396,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (libSongs.isNotEmpty() && shows("songs")) {
                 item { SectionHeader("In your library") }
                 val shown = if (songsExpanded || only == "songs") libSongs else libSongs.take(4)
-                itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(listOf(t), 0, null) }) }
+                itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(listOf(t), 0, null, from = "search") }) }
                 if (!songsExpanded && only != "songs" && libSongs.size > 4) item { ShowMoreRow(libSongs.size - 4) { songsExpanded = true } }
             }
             if (r.albums.isNotEmpty() && shows("albums")) {

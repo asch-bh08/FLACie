@@ -99,3 +99,6 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 ## 2026-10-26 AI DJ fixes deployed (043c44e)
 - DJ never spoke on web: the line prepared for a song was cleared as it started (PlayerState Load order); fixed. New per-person setting "Talk after skips" (default on): skips no longer mute the DJ and a line can play over a song reached by Next. Chance(Often) 0.45 -> 0.5.
 - Rollback tag flacie-web:rollback-2026-10-26-pre-djfix. healthz ok.
+
+## 2026-10-26 AI DJ sound deployed (6c51ca7)
+- Lines written by Workers AI llama-3.1-8b (template fallback), voice Aura-1 Helios (MeloTTS near the cap), Eminem + 18 pronunciations. Rollback tag flacie-web:rollback-2026-10-26-pre-djsound. Cap fits ~30-38 Aura lines/day at 50%.

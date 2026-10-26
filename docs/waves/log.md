@@ -102,3 +102,6 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 
 ## 2026-10-26 AI DJ sound deployed (6c51ca7)
 - Lines written by Workers AI llama-3.1-8b (template fallback), voice Aura-1 Helios (MeloTTS near the cap), Eminem + 18 pronunciations. Rollback tag flacie-web:rollback-2026-10-26-pre-djsound. Cap fits ~30-38 Aura lines/day at 50%.
+
+## 2026-10-26 AI DJ round two deployed (97003fe)
+- llama-3.3-70b writes lines (8b then templates as fallback), hello by name, segues, Style (Classic/Chill/Hype), clip cache + phrase pool: ~34 -> ~115 Aura lines/day at 50% cap. Rollback tag flacie-web:rollback-2026-10-26-pre-dj2.

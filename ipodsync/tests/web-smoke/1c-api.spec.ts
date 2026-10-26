@@ -27,6 +27,8 @@ test.describe('anonymous callers', () => {
     ['GET', '/api/account'], ['GET', '/api/import'], ['POST', '/api/import'], ['GET', '/api/settings'], ['POST', '/api/settings'], ['POST', '/api/charts/run'],
     ['GET', '/api/charts/0'], ['POST', '/api/played'], ['GET', '/api/alac?id=00000000000000000000000000000000'], ['GET', '/api/audiofacts'], ['GET', '/api/downloads'], ['POST', '/api/downloaded'],
     ['POST', '/api/import/abc/cancel'],
+    // the AI DJ (docs/spec/ai-dj.md): settings are per person, and asking about the next song needs a caller too
+    ['GET', '/api/dj/settings'], ['POST', '/api/dj/settings'], ['POST', '/api/dj/next'],
   ];
   for (const [m, p] of calls) {
     test(`${m} ${p} is 401 without a token`, async ({ playwright, baseURL }) => {

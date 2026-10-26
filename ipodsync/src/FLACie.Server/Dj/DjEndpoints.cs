@@ -16,7 +16,10 @@ public static class DjEndpoints
         services.AddSingleton<CloudflareVoice>();
         services.AddSingleton<DjClips>();
         services.AddSingleton<DjService>();
-        services.AddSingleton<IDjService>(sp => sp.GetRequiredService<DjService>());
+        // the Windows app's copy of this server goes through the family's FLACie Web when the profile names one (HomeDj); FLACie Web itself is the DJ
+        services.AddHttpClient("dj-home", c => { c.Timeout = TimeSpan.FromSeconds(20); c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); });
+        services.AddSingleton(sp => new HomeDj(sp.GetRequiredService<DjService>(), sp.GetRequiredService<IHttpClientFactory>(), sp.GetRequiredService<ILogger<HomeDj>>(), ChartsService.InDesktopShell));
+        services.AddSingleton<IDjService>(sp => ChartsService.InDesktopShell ? sp.GetRequiredService<HomeDj>() : sp.GetRequiredService<DjService>());
     }
 
     /// <summary>The body as a JSON object; null with a 400 or 413 answer when it is not one.</summary>
@@ -65,6 +68,15 @@ public static class DjEndpoints
             if (await clips.WaitAsync(id, TimeSpan.FromSeconds(10), ctx.RequestAborted) is not { } path) return Results.NotFound();
             ctx.Response.Headers.CacheControl = "private, max-age=86400";   // an id is a hash of the voice and the words: the clip never changes
             return Results.File(path, "audio/mpeg", enableRangeProcessing: true);
+        });
+
+        // the Windows app: a clip of the family's FLACie Web (HomeDj), fetched there with the person's own sign-in so the page needs none; 404 when there is none
+        app.MapGet("/api/dj/clip/r/{id}.mp3", async (HttpContext ctx, string id, SessionStore store, JellyfinClient jf, HomeDj home) =>
+        {
+            if (await ApiEndpoints.CallerAsync(ctx, store, jf) is not { } s) return Results.Unauthorized();
+            if (await home.ClipAsync(s, id, ctx.RequestAborted) is not { } mp3) return Results.NotFound();
+            ctx.Response.Headers.CacheControl = "private, max-age=86400";
+            return Results.File(mp3, "audio/mpeg", enableRangeProcessing: true);
         });
 
         // admin only: says the test line with the saved Cloudflare settings

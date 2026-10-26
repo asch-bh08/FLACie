@@ -1061,6 +1061,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     companion object {
         const val BURST_MS = 400L
         const val SETTLE_MS = 250L
+        /** The DJ settings cached on the phone are fetched again when a queue starts after this long (they may have been changed on the web). */
+        const val DJ_SETTINGS_FRESH_MS = 5 * 60_000L
         private val REF_HZ = floatArrayOf(60f, 230f, 910f, 3600f, 14000f)
         /** dB gains at 60 / 230 / 910 / 3.6k / 14k Hz. "Off" is absent (no effect attached). */
         val EQ_PRESETS: Map<String, FloatArray> = linkedMapOf(

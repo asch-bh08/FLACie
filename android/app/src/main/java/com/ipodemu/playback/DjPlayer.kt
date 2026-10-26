@@ -143,7 +143,7 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
         if (status != TextToSpeech.SUCCESS) { ttsReady = false; return }
         try {
             // a British voice when the phone has one (the DJ is meant to sound like UK radio), else the phone's own language
-            if (t.isLanguageAvailable(Locale.UK) >= TextToSpeech.LANG_AVAILABLE) t.language = Locale.UK
+            if (t.isLanguageAvailable(Locale.UK) >= TextToSpeech.LANG_AVAILABLE) t.setLanguage(Locale.UK)
             t.setAudioAttributes(android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_MEDIA)
                 .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH).build())
             t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {

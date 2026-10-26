@@ -107,6 +107,8 @@ class AccountSync(private val app: App) {
         app.library.forgetAllServices()
         // and so do the favourites, playlists and history: they are in the account, and must not be merged into the next person's
         app.userData.clearPersonal(); app.forgetListens(); prefs.dataOwner = ""
+        // the last profile pulled was this person's: its history must not go up with the next person's first push
+        lastRemote = null
         signedIn = false; status = "Signed out"
         app.connect.refresh()
     }
@@ -118,7 +120,7 @@ class AccountSync(private val app: App) {
         prefs.accountUserId = user.getString("Id")
         prefs.accountUserName = user.optString("Name")
         // another account's favourites and playlists still on this device (signed in before the sign-out cleared them): never merged into this one
-        if (prefs.dataOwner.isNotBlank() && prefs.dataOwner != prefs.accountUserId) { app.userData.clearPersonal(); app.forgetListens() }
+        if (prefs.dataOwner.isNotBlank() && prefs.dataOwner != prefs.accountUserId) { app.userData.clearPersonal(); app.forgetListens(); lastRemote = null }
         prefs.dataOwner = prefs.accountUserId
         if (!prefs.hasNasAccount || prefs.accountKind != "nas") prefs.accountKind = "jellyfin"
         signedIn = true
@@ -164,11 +166,10 @@ class AccountSync(private val app: App) {
      * The newest copy is merged in, then both are rewritten, so signing in with either later brings everything back
      * (a NAS sign-in restores the Jellyfin account and vice versa). */
     private suspend fun syncNow() {
-        val copies = listOfNotNull(
-            if (prefs.hasJellyfinAccount) pull() else null,
-            if (prefs.hasNasAccount) try { pullNas() } catch (_: Exception) { null } else null,
-        )
-        val remote = copies.maxByOrNull { it.optLong("updated") }
+        val own = if (prefs.hasJellyfinAccount) pull() else null
+        val nas = if (prefs.hasNasAccount) try { pullNas() } catch (_: Exception) { null } else null
+        // the NAS copy is shared by everyone with the same NAS login: another account's copy is never merged in (ProfileOwner)
+        val remote = ProfileOwner.choose(own, nas, if (prefs.hasJellyfinAccount) prefs.accountUserId else null)
         if (remote != null) lastRemote = remote
         val restored = if (remote != null) apply(remote) else 0
         // the server unreachable is a failed sync (tried again); anything else about its playlists is not worth failing the sync for
@@ -197,7 +198,7 @@ class AccountSync(private val app: App) {
         prefs.nasUsername = user.trim(); prefs.nasPassword = password; prefs.nasDomain = domain.trim()
         prefs.accountKind = "nas"
         val who = "nas:" + host.trim().lowercase() + "/" + user.trim().lowercase()
-        if (prefs.dataOwner.isNotBlank() && prefs.dataOwner != who) { app.userData.clearPersonal(); app.forgetListens() }
+        if (prefs.dataOwner.isNotBlank() && prefs.dataOwner != who) { app.userData.clearPersonal(); app.forgetListens(); lastRemote = null }
         prefs.dataOwner = who
         signedIn = prefs.signedIn
         syncNow()

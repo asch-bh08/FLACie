@@ -99,10 +99,10 @@ public sealed class UserSession
         try
         {
             // newest profile copy from every account this user has
-            var copies = new List<JsonObject>(); var profileOk = true; string? profileProblem = null;
-            if (Jellyfin is { } a) try { if (await jf.PullProfileAsync(a, ct) is { } p) copies.Add(p); } catch (UnauthorizedAccessException) when (Kind == "nas") { Jellyfin = null; } catch (Exception e) when (e is not UnauthorizedAccessException) { profileOk = false; profileProblem = "Couldn't load your profile: " + e.Message; }
-            if (Nas is { } n) try { if (NasClient.ReadText(n, n.ProfilePath) is { } s && JsonNode.Parse(s) is JsonObject p) copies.Add(p); } catch (Exception) when (Kind == "jellyfin") { }
-            if (copies.Count > 0) Profile = copies.MaxBy(p => p["updated"]?.GetValue<long>() ?? 0)!;
+            JsonObject? own = null, nasCopy = null; var profileOk = true; string? profileProblem = null;
+            if (Jellyfin is { } a) try { own = await jf.PullProfileAsync(a, ct); } catch (UnauthorizedAccessException) when (Kind == "nas") { Jellyfin = null; } catch (Exception e) when (e is not UnauthorizedAccessException) { profileOk = false; profileProblem = "Couldn't load your profile: " + e.Message; }
+            if (Nas is { } n) try { if (NasClient.ReadText(n, n.ProfilePath) is { } s && JsonNode.Parse(s) is JsonObject p) nasCopy = p; } catch (Exception) when (Kind == "jellyfin") { }
+            if (ChooseProfile(own, nasCopy, Jellyfin?.UserId) is { } chosen) Profile = chosen;
             // until the profile has really been read, nothing is saved back (an empty one would wipe the real one)
             if (profileOk) { ProfileLoaded = true; profileSeen = Profile["updated"]?.GetValue<long>() ?? 0; ProfileRev++; Changed?.Invoke(); }
             if (Jellyfin is { } adm && !await CheckAdminAsync(jf, adm, ct))
@@ -334,6 +334,19 @@ public sealed class UserSession
     }
 
     long profileSeen;
+
+    /// <summary>
+    /// The profile to use: the newer of the account's own copy and the NAS copy. The NAS copy is a file named after the NAS login, which the family
+    /// share (everyone had the same NAS connection with no username, so all wrote profile-guest.json), so with a Jellyfin account it is only taken
+    /// when it says it belongs to that account. Taking the newest regardless gave hms Dad's whole profile, play history and all.
+    /// </summary>
+    public static JsonObject? ChooseProfile(JsonObject? own, JsonObject? nas, string? jellyfinUserId)
+    {
+        static string Id(string? s) => (s ?? "").Replace("-", "").ToLowerInvariant();
+        if (nas is not null && jellyfinUserId is { Length: > 0 } && Id(nas["account"]?["userId"]?.GetValue<string>()) != Id(jellyfinUserId)) nas = null;
+        if (own is null || nas is null) return own ?? nas;
+        return (nas["updated"]?.GetValue<long>() ?? 0) > (own["updated"]?.GetValue<long>() ?? 0) ? nas : own;
+    }
 
     /// <summary>
     /// Looks at the account's copy of the profile again and folds in what other devices changed since (a song added to a playlist on the phone, a favourite,

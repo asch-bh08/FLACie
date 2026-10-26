@@ -28,6 +28,8 @@ public interface IAlexaUser
     /// <summary>Looks the words up in the public catalog and starts downloading the best match; null when nothing matches.</summary>
     Task<AlexaRequested?> RequestDownloadAsync(string words, CancellationToken ct);
     IReadOnlyList<AlexaDownload> Downloads();
+    /// <summary>What the engine would play after these songs (library paths, the last playing now), best first; never waits on online lookups. Empty when there is nothing to offer.</summary>
+    IReadOnlyList<Track> RecommendNext(IReadOnlyList<string> session, int n) => [];
 }
 
 /// <summary>An AudioPlayer.Play: which song, from where, and the token that says which place in which queue it is.</summary>
@@ -96,6 +98,21 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
             offset = 0;
         }
         return null;
+    }
+
+    /// <summary>
+    /// A queue that was started from the songs the person asked for (not an album, playlist or shelf) carries on with the account's engine picks once its own
+    /// songs are used up. The picks are library songs with a Jellyfin id, not already in the queue. Call with the queue locked; true when songs were added.
+    /// </summary>
+    static bool FillLocked(IAlexaUser u, AlexaQueue q)
+    {
+        if (!q.Fill || q.Repeat != AlexaRepeat.Off || q.Empty) return false;
+        IReadOnlyList<Track> picks;
+        try { picks = u.RecommendNext(q.Order.Take(q.Index + 1).TakeLast(20).ToList(), 10); } catch (Exception) { return false; }
+        var add = picks.Where(t => t.JellyfinId is { Length: > 0 } && !q.Order.Contains(t.Path)).Select(t => t.Path).Distinct().ToList();
+        if (add.Count == 0) return false;
+        q.Order.AddRange(add); q.Original.AddRange(add);
+        return true;
     }
 
     // ---- playing something ----
@@ -173,7 +190,7 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
             default: return Reply.Say("Sorry, I couldn't play that.");
         }
         if (paths.Count == 0) return Reply.Say($"I found {Phonetic.SpeechSafe(title)}, but none of it can be played yet.");
-        lock (q) { q.Set(paths, start, shuffle, title); q.Pending = null; }
+        lock (q) { q.Set(paths, start, shuffle, title); q.Pending = null; q.Fill = match.Item is Track || (match.Item is FLACie.Core.Group && match.Kind == MatchKind.Artist); }
         var play = PlayCurrent(u, q, 0);
         queues.Save(linkId);
         return play is null ? Reply.Say("Sorry, I couldn't play that.") : new(say, play);
@@ -210,7 +227,7 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
                 "done" => Reply.Say("It's downloaded. Jellyfin is still adding it to the library. Ask me again in a minute."),
                 _ => Reply.Say("It's not ready yet. I'm still downloading it."),
             };
-        lock (q) { q.Set([song.Path], 0, false, song.Title); }
+        lock (q) { q.Set([song.Path], 0, false, song.Title); q.Fill = true; }
         queues.Save(linkId);
         return PlayCurrent(u, q, 0) is { } play ? new($"Playing {Phonetic.SpeechSafe(song.Title)} by {Phonetic.SpeechSafe(song.Artist)}.", play) : Reply.Say("Sorry, I couldn't play that.");
     }
@@ -270,7 +287,7 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
     {
         var q = queues.For(linkId);
         if (q.Empty) return Reply.Say("Nothing is playing. What would you like to hear?", end: false);
-        bool moved; lock (q) moved = q.Next(true);
+        bool moved; lock (q) moved = q.Next(true) || (FillLocked(u, q) && q.Next(true));
         if (!moved) { lock (q) { q.Playing = false; q.OffsetMs = 0; } queues.Save(linkId); return new("That was the last song.", Stop: true); }
         queues.Save(linkId);
         return PlayCurrent(u, q, 0) is { } p ? new("", p) : new("That was the last song.", Stop: true);
@@ -390,6 +407,7 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
         {
             for (var tries = 0; tries < 5; tries++)
             {
+                if (q.NextIndex(false) is null) FillLocked(u, q);
                 if (q.NextIndex(false) is not { } ni) return null;
                 var np = ni <= idx ? pass + 1 : pass;
                 if (u.Find(q.Order[ni]) is { JellyfinId.Length: > 0 } t) return new(t, 0, Token(q, ni, np), token);

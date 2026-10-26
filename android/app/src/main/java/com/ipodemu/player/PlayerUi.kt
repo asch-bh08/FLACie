@@ -1747,6 +1747,10 @@ private object HomeCache {
     /** Songs thumbed down while Home is up: they leave the shelves at once (the next build leaves them out on its own). */
     val gone = androidx.compose.runtime.mutableStateListOf<String>()
 }
+/** The phone Home's Quick picks (the server's when it answered, else its own), for the car: the songs on this phone, minus ones thumbed down. */
+internal fun quickPicksForCar(app: com.ipodemu.App): List<Track> =
+    (HomeCache.last?.shelves ?: app.homeSnapshot?.shelves)?.firstOrNull { it.id == "quick-picks" }?.tracks.orEmpty()
+        .filter { !com.ipodemu.library.HomeShelves.isNew(it) && it.matchKey !in HomeCache.gone }
 internal fun hideOnHome(t: Track) { if (t.matchKey !in HomeCache.gone) HomeCache.gone.add(t.matchKey) }
 
 /** What the Search tab shows before anything is typed: shortcuts and genres to tap, instead of an empty page. */

@@ -31,6 +31,8 @@ sealed class FakeUser : IAlexaUser
     public IReadOnlyList<Track> SimilarTo(FLACie.Core.Group artist, int take) => Songs.Where(s => s.Artist != artist.Name).Take(take).ToList();
     public Task<AlexaRequested?> RequestDownloadAsync(string words, CancellationToken ct) { Requests.Add(words); return Task.FromResult(NextRequest); }
     public IReadOnlyList<AlexaDownload> Downloads() => DownloadList;
+    public List<Track> Picks = []; public List<IReadOnlyList<string>> Asked = [];
+    public IReadOnlyList<Track> RecommendNext(IReadOnlyList<string> session, int n) { Asked.Add(session); return Picks; }
 
     public static Track T(string title, string artist, string album = "A", int no = 1, string? jf = "auto") =>
         new($"/p/{artist}/{title}", title, artist, album, artist, no, 1, 200000, 2000, null, no, TrackSource.Jellyfin, JellyfinId: jf == "auto" ? Guid.NewGuid().ToString("N") : jf);

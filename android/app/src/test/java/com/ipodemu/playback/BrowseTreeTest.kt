@@ -17,8 +17,9 @@ class BrowseTreeTest {
 
     private inner class Src(
         val songs: List<Track> = (1..5).map { n -> t(n) }, val favs: List<Track> = emptyList(), val recents: List<Track> = emptyList(),
-        val pls: Map<String, List<Track>> = emptyMap(),
+        val pls: Map<String, List<Track>> = emptyMap(), val picks: List<Track> = emptyList(),
     ) : BrowseSource {
+        override fun quickPicks() = picks
         override fun recent() = recents; override fun favorites() = favs; override fun downloaded() = songs.take(2)
         override fun playlists() = pls.keys.map { it to "Playlist $it" }
         override fun playlistTracks(id: String) = pls[id] ?: emptyList()
@@ -89,6 +90,19 @@ class BrowseTreeTest {
         val pls = home.filter { it.group == "Your playlists" }
         assertEquals(listOf("Playlist p1", "Playlist p2"), pls.map { it.title }); assertTrue(pls.all { it.cover && it.browsable })
         assertFalse(home.first { it.title == "Favourites" }.cover)
+    }
+
+    @Test fun Car_home_shows_the_engines_quick_picks() {
+        val picks = listOf(t(3), t(1), t(4))
+        val src = Src(recents = (1..3).map { t(it) }, picks = picks)
+        val home = BrowseTree.children(BrowseTree.HOME, 0, 100, src)
+        val shown = home.filter { it.group == "Quick picks" }
+        assertEquals(listOf("Song 3", "Song 1", "Song 4"), shown.map { it.title }); assertTrue(shown.all { it.playable && it.cover })
+        assertTrue(home.indexOf(shown.first()) < home.indexOfFirst { it.group == "Recently played" })
+        // playing one queues the picks in the engine's order, starting at the chosen song
+        val r = BrowseTree.resolve(shown[1].id, src)!!
+        assertEquals(picks.map { it.path }, r.tracks.map { it.path }); assertEquals(1, r.index)
+        assertTrue(BrowseTree.children(BrowseTree.HOME, 0, 100, Src()).none { it.group == "Quick picks" })
     }
 
     @Test fun homeShowsEveryPlaylistBeforeYourMusic() {

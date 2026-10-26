@@ -25,7 +25,7 @@ public static class DjSwitches
 
     public static string Label(bool? on) => on switch { true => "On", false => "Off", null => "Auto" };
 
-    /// <summary>The "Where" quick presets.</summary>
+    /// <summary>The "Where" quick presets; choosing one also turns the DJ on.</summary>
     public enum Preset { None, Everywhere, OnlyInTheCar, OnlyOnWeb }
 
     public static void Apply(DjSettings s, Preset p)
@@ -36,6 +36,8 @@ public static class DjSwitches
             case Preset.OnlyInTheCar: s.Phone = s.Web = s.Windows = false; s.Auto = true; break;
             case Preset.OnlyOnWeb: s.Phone = s.Auto = s.Windows = false; s.Web = true; break;
         }
+        // choosing where is choosing to have it, as on the phone
+        if (p != Preset.None) s.Enabled = true;
     }
 
     /// <summary>The preset the ticks match, if any (shown as chosen).</summary>

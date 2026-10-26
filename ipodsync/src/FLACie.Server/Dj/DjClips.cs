@@ -46,6 +46,11 @@ public sealed class DjClips
     {
         var v = voice.Current.Voice;
         var id = IdOf(v, text);
+        // Aura costs about 70 times MeloTTS: near the cap, a line not made yet is said by MeloTTS rather than not at all
+        if (v != CloudflareVoice.MeloTts && !File.Exists(FileOf(id)) && !voice.CanAfford(v, text) && voice.CanAfford(CloudflareVoice.MeloTts, text))
+        {
+            v = CloudflareVoice.MeloTts; id = IdOf(v, text);
+        }
         if (Failed(id)) return null;
         var path = FileOf(id);
         if (File.Exists(path)) { try { File.SetLastWriteTimeUtc(path, DateTime.UtcNow); } catch (Exception) { } return id; }
@@ -107,10 +112,10 @@ public sealed class DjClips
     }
 
     /// <summary>Makes [text] now, whether or not it was made before (the admin's Test button): the clip's id, or null and why not.</summary>
-    public async Task<(string? Id, string Message)> MakeNowAsync(string text, CancellationToken ct = default)
+    public async Task<(string? Id, string Message)> MakeNowAsync(string text, CancellationToken ct = default, string? voiceName = null)
     {
         if (!voice.Ready) return (null, "Add the Cloudflare account id and API token first.");
-        var v = voice.Current.Voice;
+        var v = CloudflareVoice.NormVoice(voiceName ?? voice.Current.Voice);
         if (!voice.CanAfford(v, text)) return (null, "Today's DJ share of the free Cloudflare allowance is used up (the daily cap).");
         var mp3 = await voice.SynthesizeAsync(text, v, ct);
         if (mp3 is null) return (null, voice.LastResult);

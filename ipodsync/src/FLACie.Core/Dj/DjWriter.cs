@@ -1,0 +1,194 @@
+using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
+
+namespace FLACie.Core;
+
+/// <summary>The facts a model-written line may use: what the planner knows about this song change, already tidied. Blank fields are unknown and never mentioned.</summary>
+public sealed record DjFacts(string Title, string Artist, string ArtistLead, string? Guest, string Album, int Year, string PrevTitle, string PrevArtist,
+    bool Open, string TimeOfDay, string Day, string Mood, string Why, string Find, string TemplateLine);
+
+/// <summary>
+/// Writes the DJ's line with a small text model (Workers AI) instead of a template: the prompt (a DJ character plus the facts), and the checks on what comes back.
+/// The planner still decides when to speak; this only changes how the line is worded. Anything doubtful is refused, and the caller says the template line instead.
+/// Pure: the model call itself is the server's (<c>CloudflareVoice.WriteAsync</c>).
+/// </summary>
+public static partial class DjWriter
+{
+    /// <summary>A model line is at most this many words (the template limit is 18).</summary>
+    public const int MaxWords = 25;
+    /// <summary>How long the model may take before the template line is used.</summary>
+    public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(2.5);
+    /// <summary>How many recent lines go into the prompt (to be avoided).</summary>
+    public const int Recent = 6;
+
+    public const string Character =
+        "You are the presenter on a personal music station: warm, witty and knowledgeable, like a good late-night BBC radio DJ. "
+        + "Write in British English. Never cringe, never over the top, never salesy. No emojis, no hashtags, no exclamation marks in a row, no quotation marks, no stage directions.\n"
+        + "Write ONE line to say just before the next song: one or two short sentences, at most 25 words in all. "
+        + "Name the song and the artist naturally, the way a presenter says them (for example: Smack That, Akon with Eminem). "
+        + "Use only the facts given. Never invent anything: no chart positions, awards, samples, stories or other songs. Mention the year or the album only if given. "
+        + "Do not start the way any of the recent lines start, and do not repeat their wording. Reply with the line only.";
+
+    static string Clean(string? s) => DjText.Tidy(s);
+
+    /// <summary>The facts of this song change, in their written forms. [line] is the planner's own (template) line, given as a fallback idea for the model.</summary>
+    public static DjFacts FactsOf(DjRequest req, DjLine line, DateTime nowUtc)
+    {
+        var n = req.Next; var p = req.Prev;
+        string TitleOf(DjSong? s) => s is null || Clean(s.Title) is not { Length: > 0 } t || DjText.IsFileName(t, s.Path) ? "" : DjText.Title(t);
+        (string Written, string Lead, string? Guest) ArtistOf(DjSong? s)
+        {
+            if (s is null) return ("", "", null);
+            var a = !DjText.NoName(s.Artist) ? s.Artist : !DjText.NoName(s.AlbumArtist) ? s.AlbumArtist : "";
+            if (a.Length == 0) return ("", "", null);
+            var c = DjText.CreditOf(a, s.Title);
+            string lead = c.Lead; var guest = c.Guest;
+            // "Akon, Eminem": two acts in one tag are said "Akon with Eminem"
+            if (guest is null && lead.Split(", ") is { Length: 2 } two && two.All(x => x.Trim().Length > 0)) { lead = two[0].Trim(); guest = two[1].Trim(); }
+            return (guest is null ? lead : lead + " with " + guest, lead, guest);
+        }
+        var (artist, lead, g) = ArtistOf(n);
+        var album = DjText.Album(n.Album, out _);
+        if (album.Equals(TitleOf(n), StringComparison.OrdinalIgnoreCase)) album = "";
+        var remaster = n.Title.Contains("remaster", StringComparison.OrdinalIgnoreCase) || n.Album.Contains("remaster", StringComparison.OrdinalIgnoreCase);
+        var year = n.Year >= 1900 && n.Year <= nowUtc.Year && !remaster && !DjText.IsCompilation(n.Album, n.AlbumArtist) ? n.Year : 0;
+        var tod = req.LocalHour switch { >= 5 and <= 11 => "morning", >= 12 and <= 17 => "afternoon", >= 18 and <= 22 => "evening", null => "", _ => "late at night" };
+        var day = req.Weekday is { } wd and >= 0 and <= 7 ? ((DayOfWeek)(wd % 7)).ToString() : "";
+        var mood = line.Slot == DjSlot.Reset ? "they skipped several songs in a row and have now let one play: a change of direction"
+            : req.SkippedRecently || !req.PrevPlayedOut ? "they have just skipped a song" : "settled in, letting songs play";
+        var why = string.Join("; ", DjWhy.Parts(req.Why));
+        var w = (req.Why ?? "").ToLowerInvariant();
+        var find = w.Contains("new to you") || w.Contains("new for you") || w.Contains("never played") || w.Contains("discover") ? "a new find for them, not heard before"
+            : w.Contains("you play") || w.Contains("loved") || w.Contains("favourite") || w.Contains("favorite") || w.Contains("most played") || w.Contains("on repeat") ? "a song they love and play a lot" : "";
+        return new(TitleOf(n), artist, lead, g, album, year, TitleOf(p), ArtistOf(p).Written, line.Slot == DjSlot.Open || req.Prev is null,
+            tod, day, mood, why, find, line.Caption);
+    }
+
+    /// <summary>The system and user messages: the DJ's character, then the facts and the recent lines to avoid.</summary>
+    public static (string System, string User) Prompt(DjFacts f, IReadOnlyList<string> recent)
+    {
+        var sb = new StringBuilder();
+        void Put(string k, string v) { if (v.Length > 0) sb.Append("- ").Append(k).Append(": ").Append(v).Append('\n'); }
+        sb.Append("Facts:\n");
+        Put("Next song", f.Title);
+        Put("Artist", f.Artist);
+        Put("Album", f.Album);
+        if (f.Year > 0) Put("Year", f.Year.ToString(CultureInfo.InvariantCulture));
+        Put("Previous song", f.PrevTitle.Length > 0 && f.PrevArtist.Length > 0 ? f.PrevTitle + " by " + f.PrevArtist : f.PrevTitle);
+        Put("Moment", f.Open ? "the start of a listening session: a short welcome first" : "between songs, mid-session");
+        Put("Time of day", f.TimeOfDay);
+        Put("Day", f.Day);
+        Put("Listener", f.Mood);
+        Put("Why this song was picked", f.Why);
+        Put("This song is", f.Find);
+        Put("A plain version of the line (do better than this)", f.TemplateLine);
+        var rs = recent.Where(r => r.Length > 0).TakeLast(Recent).ToList();
+        if (rs.Count > 0)
+        {
+            sb.Append("Recent lines (do not repeat them or start the same way):\n");
+            foreach (var r in rs) sb.Append("- ").Append(r).Append('\n');
+        }
+        sb.Append("Write the line now.");
+        return (Character, sb.ToString());
+    }
+
+    [GeneratedRegex(@"[*_`#~]|\[|\]")] private static partial Regex Markdown();
+    [GeneratedRegex(@"^\s*(dj|presenter|line|host|you)\s*:\s*", RegexOptions.IgnoreCase)] private static partial Regex Speaker();
+    [GeneratedRegex(@"https?:|www\.|@\w", RegexOptions.IgnoreCase)] private static partial Regex Link();
+    [GeneratedRegex(@"[.!?]+(\s|$)")] private static partial Regex SentenceEnd();
+    [GeneratedRegex(@"\p{N}+")] private static partial Regex Number();
+
+    /// <summary>Words a line may start with a capital mid-sentence without being a fact (days, greetings, "I").</summary>
+    static readonly HashSet<string> Allowed = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "I", "I'm", "I've", "I'd", "I'll", "FLACie", "DJ", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+        "Good", "Morning", "Afternoon", "Evening", "OK",
+    };
+
+    static readonly string[] Cheesy = ["vibe", "vibes", "banger", "bangers", "epic", "lit", "fire", "slaps", "certified", "legendary", "iconic", "buckle up", "get ready"];
+
+    static string Bare(string w) => new string(w.Trim().Where(c => char.IsLetterOrDigit(c) || c is '\'' or '’' or '-' or '$' or '.').ToArray()).Trim('.', '\'', '’', '-');
+
+    /// <summary>
+    /// The model's answer made safe, or null to use the template line: first line only, quotes, markdown and "DJ:" stripped; refused when empty, over
+    /// <see cref="MaxWords"/> words or two sentences, with links, emoji or hashtags, without the song or the artist, with a name or number that is not in the facts,
+    /// with cheesy words, or starting like (or repeating) a recent line.
+    /// </summary>
+    public static string? Check(string? raw, DjFacts f, IReadOnlyList<string> recent)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var s = raw.Replace("\r", "").Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()).FirstOrDefault(x => x.Length > 0) ?? "";
+        if (Link().IsMatch(s) || s.Contains('#')) return null;
+        s = Markdown().Replace(s, "");
+        s = Speaker().Replace(s, "");
+        s = DjText.Tidy(s.Replace('\u201C', '"').Replace('\u201D', '"').Replace('\u2018', '\'').Replace('\u2019', '\''));
+        // quotes round the whole line, or round a title, go
+        s = DjText.Tidy(s.Replace("\"", ""));
+        if (s.StartsWith('\'') && s.EndsWith('\'')) s = s[1..^1].Trim();
+        if (s.Length < 4) return null;
+        foreach (var r in s.EnumerateRunes())
+            if (Rune.GetUnicodeCategory(r) is UnicodeCategory.OtherSymbol or UnicodeCategory.Surrogate or UnicodeCategory.PrivateUse) return null;
+        if (DjText.WordCount(s) > MaxWords || SentenceEnd().Matches(s).Count > 2) return null;
+        var low = s.ToLowerInvariant();
+        // it names the song or the artist
+        bool Has(string x) => x.Length > 0 && low.Contains(x.ToLowerInvariant());
+        if (!Has(f.Title) && !Has(f.ArtistLead)) return null;
+        // every capitalised word mid-sentence and every number comes from the facts
+        var known = string.Join(" \n ", new[] { f.Title, f.Artist, f.Album, f.PrevTitle, f.PrevArtist, f.Why, f.Day, f.TimeOfDay, f.TemplateLine,
+            f.Year > 0 ? f.Year.ToString(CultureInfo.InvariantCulture) : "" }).ToLowerInvariant();
+        static bool Word(string text, string w) => Regex.IsMatch(text, @"(?<![\p{L}])" + Regex.Escape(w) + @"(?![\p{L}])");
+        if (Cheesy.Any(c => Word(low, c) && !Word(known, c))) return null;
+        foreach (Match m in Number().Matches(s))
+        {
+            var d = m.Value;
+            var yearPart = f.Year > 0 && f.Year.ToString(CultureInfo.InvariantCulture).EndsWith(d, StringComparison.Ordinal) && d.Length >= 2;
+            if (!yearPart && !known.Contains(d)) return null;
+        }
+        var words = s.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var start = true;
+        foreach (var raw2 in words)
+        {
+            var w = Bare(raw2);
+            var possessive = w.EndsWith("'s", StringComparison.OrdinalIgnoreCase) ? w[..^2] : w;
+            if (!start && w.Length > 0 && char.IsUpper(w[0]) && !Allowed.Contains(w) && !Allowed.Contains(possessive)
+                && !Regex.IsMatch(known, @"(?<![\p{L}\p{N}])" + Regex.Escape(possessive.ToLowerInvariant()) + @"(?![\p{L}\p{N}])"))
+                return null;
+            start = raw2.EndsWith('.') || raw2.EndsWith('!') || raw2.EndsWith('?') || raw2.EndsWith(':');
+        }
+        // not a recent line again, and not the same opening as the last one
+        static string Opening(string x) => string.Join(' ', x.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(Bare));
+        foreach (var r in recent)
+            if (r.Equals(s, StringComparison.OrdinalIgnoreCase)) return null;
+        if (recent.Count > 0 && recent[^1].Length > 0 && Opening(recent[^1]) == Opening(s)) return null;
+        return s;
+    }
+
+    /// <summary>
+    /// The spoken form of a checked line: the artist and the title respelt the way the planner says them (exact entries first), every other pronunciation entry
+    /// wherever it appears, years in words, and the clean-up of <see cref="DjText.Speak"/> on the names.
+    /// </summary>
+    public static string Speak(string caption, DjFacts f, DjPronounce say)
+    {
+        var slots = new List<string>();
+        var s = caption;
+        string Hold(string spoken) { slots.Add(spoken); return "\u0001" + (slots.Count - 1).ToString(CultureInfo.InvariantCulture) + "\u0002"; }
+        void Swap(string written, string spoken)
+        {
+            if (written.Length == 0 || spoken.Length == 0) return;
+            s = Regex.Replace(s, @"(?<![\p{L}\p{N}])" + Regex.Escape(written) + @"(?![\p{L}\p{N}])", _ => Hold(spoken), RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        }
+        string Name(string n, Func<string, string?> exact) => exact(n) is { } r ? DjText.Speak(r) : DjText.Speak(say.Phrases(n));
+        // longest first, so a title that contains the artist's name is taken whole
+        var names = new List<(string W, string S)>();
+        if (f.Title.Length > 0) names.Add((f.Title, Name(f.Title, say.Title)));
+        if (f.ArtistLead.Length > 0) names.Add((f.ArtistLead, Name(f.ArtistLead, say.Artist)));
+        if (f.Guest is { Length: > 0 } g) names.Add((g, Name(g, say.Artist)));
+        if (f.PrevArtist.Length > 0) names.Add((f.PrevArtist, Name(f.PrevArtist, say.Artist)));
+        foreach (var (w, sp) in names.OrderByDescending(x => x.W.Length)) Swap(w, sp);
+        s = say.Phrases(s);
+        if (f.Year > 0) s = Regex.Replace(s, @"(?<!\p{N})" + f.Year.ToString(CultureInfo.InvariantCulture) + @"(?!\p{N})", DjNumbers.Year(f.Year));
+        s = Regex.Replace(s, "\u0001(\\d+)\u0002", m => slots[int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)]);
+        return DjText.Tidy(s);
+    }
+}

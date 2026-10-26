@@ -197,25 +197,36 @@ else
     </section>
 
     <section class="admin-block panel set" id="dj" aria-label="AI DJ voice">
-        <div class="set-head"><h2>AI DJ voice</h2><p class="hint">The DJ's lines are spoken by Cloudflare Workers AI, on your own Cloudflare account (its free daily allowance). Only the line's words are sent: song titles, artists and why a song was picked. Each person turns the DJ on in their own Settings.</p></div>
-        <p class="hint">@DjUsageLine() · @(string.IsNullOrEmpty(DjVoice.LastResult) ? "Not asked for a clip yet" : "Last: " + DjVoice.LastResult + (DjVoice.LastAt is { } dla ? " · " + Ago(dla) : ""))</p>
+        <div class="set-head"><h2>AI DJ voice</h2><p class="hint">The DJ's lines are spoken by Cloudflare Workers AI, on your own Cloudflare account (its free daily allowance). Only song facts are sent: titles, artists, albums, years, the time of day and why a song was picked (to write the line), then the line's words (to say it). Each person turns the DJ on in their own Settings.</p></div>
+        <p class="hint">@DjUsageLine() · @(string.IsNullOrEmpty(DjVoice.LastResult) ? "Not asked for a clip yet" : "Last: " + DjVoice.LastResult + (DjVoice.LastAt is { } dla ? " · " + Ago(dla) : ""))@(DjVoice.LastWrite.Length > 0 ? " · Writing: " + DjVoice.LastWrite : "")</p>
         <div class="form">
             <label for="dja">Cloudflare account id</label><input id="dja" @bind="djCfg.AccountId" placeholder="32 letters and numbers" autocomplete="off" />
             <label for="djk">API token <span class="opt">(@(DjVoice.HasToken ? "saved, leave empty to keep" : "needed"))</span></label><input id="djk" type="password" @bind="djToken" autocomplete="new-password" />
             <label for="djv">Voice</label>
             <select id="djv" @bind="djCfg.Voice">
-                <option value="@FLACie.Server.Dj.CloudflareVoice.MeloTts">MeloTTS (default, thousands of lines a day free)</option>
                 @foreach (var spk in FLACie.Server.Dj.CloudflareVoice.Speakers)
                 {
-                    <option value="@("aura-1:" + spk)">Aura-1 · @(char.ToUpperInvariant(spk[0]) + spk[1..])@(spk is "helios" or "athena" ? " (British)" : spk == "angus" ? " (Irish)" : "") (about 90 lines a day free)</option>
+                    <option value="@("aura-1:" + spk)">Aura-1 · @SpeakerName(spk)@(("aura-1:" + spk) == FLACie.Server.Dj.CloudflareVoice.DefaultVoice ? " (default)" : "") (about 30 lines a day at a 50% cap)</option>
                 }
+                <option value="@FLACie.Server.Dj.CloudflareVoice.MeloTts">MeloTTS (plainer, thousands of lines a day free)</option>
             </select>
-            <label for="djc">Daily cap <span class="opt">(% of the 10,000 free neurons a day the DJ may use)</span></label><input id="djc" type="number" min="0" max="100" @bind="djCfg.CapPercent" />
+            <label for="djc">Daily cap <span class="opt">(% of the 10,000 free neurons a day the DJ may use; near it, Aura lines are said by MeloTTS)</span></label><input id="djc" type="number" min="0" max="100" @bind="djCfg.CapPercent" />
+            <label class="check"><input type="checkbox" @bind="djCfg.AiLines" /> Write the lines with Workers AI (Llama 3.1 8B, about 15 neurons a line); off, or when it fails: the built-in lines</label>
         </div>
+        <details class="hint">
+            <summary>Hear each voice</summary>
+            <div class="row-actions">
+                @foreach (var v in new[] { FLACie.Server.Dj.CloudflareVoice.MeloTts }.Concat(FLACie.Server.Dj.CloudflareVoice.Speakers.Select(x => "aura-1:" + x)))
+                {
+                    var voiceId = v;
+                    <button class="btn" @onclick="() => TestDj(voiceId)" disabled="@djTesting">@(voiceId == FLACie.Server.Dj.CloudflareVoice.MeloTts ? "MeloTTS" : SpeakerName(voiceId[7..]))</button>
+                }
+            </div>
+        </details>
         <p class="hint">Getting a token: Cloudflare dashboard → My Profile → API Tokens → Create Token → Workers AI template. The account id is on the dashboard's Overview page.</p>
         <div class="row-actions">
             <button class="btn primary" @onclick="SaveDj">Save</button>
-            <button class="btn" @onclick="TestDj" disabled="@djTesting">@(djTesting ? "Making a clip…" : "Test")</button>
+            <button class="btn" @onclick="() => TestDj(null)" disabled="@djTesting">@(djTesting ? "Making a clip…" : "Test")</button>
             @if (DjVoice.HasToken) { <button class="btn" @onclick="ForgetDjToken">Remove the token</button> }
             @if (djMsg is not null) { <span class="hint">@djMsg</span> }
         </div>
@@ -412,13 +423,16 @@ else
     }
     void SaveDj() { DjVoice.Save(djCfg, djToken.Length > 0 ? djToken : null); djToken = ""; djCfg = DjVoice.Current; djMsg = "Saved."; }
     void ForgetDjToken() { DjVoice.Save(djCfg, ""); djCfg = DjVoice.Current; djMsg = "Token removed."; }
-    async Task TestDj()
+    static string SpeakerName(string spk) => char.ToUpperInvariant(spk[0]) + spk[1..] + (spk is "helios" or "athena" ? " (British)" : spk == "angus" ? " (Irish)" : "");
+    // Test: saves, then says a sample line in the saved voice; a voice's own button tries that voice without saving it
+    async Task TestDj(string? voiceName)
     {
-        SaveDj(); djTesting = true; djClip = null; StateHasChanged();
-        var (clip, msg) = await Dj.TestAsync();
+        if (voiceName is null) SaveDj();
+        djTesting = true; djClip = null; StateHasChanged();
+        var (clip, msg) = await Dj.TestAsync(default, voiceName);
         // a fresh address each time, so the player loads the new clip rather than one it kept
         djClip = clip is null ? null : clip + "?t=" + DateTime.UtcNow.Ticks;
-        djMsg = clip is null ? "No clip: " + msg : "Made a clip: it plays below."; djTesting = false;
+        djMsg = clip is null ? "No clip: " + msg : msg + " (it plays below)"; djTesting = false;
     }
 
     static string Ago(DateTime utc)

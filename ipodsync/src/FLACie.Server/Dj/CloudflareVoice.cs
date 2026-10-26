@@ -14,8 +14,12 @@ public sealed class DjVoiceConfig
 {
     public string AccountId { get; set; } = "";
     public string Token { get; set; } = "";       // protected; empty when none
-    /// <summary>"melotts", or "aura-1:&lt;speaker&gt;".</summary>
-    public string Voice { get; set; } = CloudflareVoice.MeloTts;
+    /// <summary>"melotts", or "aura-1:&lt;speaker&gt;". Aura-1 Helios (British, warm) by default: MeloTTS sounded cheap.</summary>
+    public string Voice { get; set; } = CloudflareVoice.DefaultVoice;
+    /// <summary>The lines are written by a Workers AI text model (the templates when it fails); off: the templates only.</summary>
+    public bool AiLines { get; set; } = true;
+    /// <summary>2 since the default voice became Aura-1 Helios. An older file still saying "melotts" kept the old default, so it moves to the new one once.</summary>
+    public int Version { get; set; }
     /// <summary>The most of the free 10,000 neurons a day the DJ may use, in percent.</summary>
     public int CapPercent { get; set; } = 50;
 }
@@ -29,12 +33,20 @@ public sealed class DjUsage
 }
 
 /// <summary>
-/// Makes the DJ's clips with Cloudflare Workers AI: MeloTTS (default) or Deepgram Aura-1 with one of its speakers. Nothing is sent until an admin has added the account
+/// Makes the DJ's clips with Cloudflare Workers AI: Deepgram Aura-1 with one of its speakers (Helios by default) or MeloTTS, and writes the lines with a small text model (<see cref="WriteAsync"/>). Nothing is sent until an admin has added the account
 /// id and token. Each line's cost is estimated beforehand and a line that would go over the daily cap is refused without a call. The token is never logged or returned.
 /// </summary>
 public sealed partial class CloudflareVoice
 {
     public const string MeloTts = "melotts";
+    public const string DefaultVoice = "aura-1:helios";
+    public const int ConfigVersion = 2;
+    /// <summary>The text model that writes the lines: small, fast and cheap (about 15 neurons a line).</summary>
+    public const string TextModel = "@cf/meta/llama-3.1-8b-instruct";
+    /// <summary>Cloudflare's price of <see cref="TextModel"/>, neurons per million tokens.</summary>
+    public const double TextInNeurons = 25_608, TextOutNeurons = 75_147;
+    /// <summary>The most tokens the model may answer with (a line is about 35).</summary>
+    public const int TextMaxTokens = 70;
     public const double FreeNeurons = 10_000;
     /// <summary>Aura-1's speakers (Deepgram says helios and athena are British, angus Irish).</summary>
     public static readonly string[] Speakers = ["angus", "asteria", "arcas", "orion", "orpheus", "athena", "luna", "zeus", "perseus", "helios", "hera", "stella"];
@@ -65,6 +77,8 @@ public sealed partial class CloudflareVoice
         // first start: take the account from the environment, so a Docker setup can hand it over
         if (cfg.AccountId.Length == 0 && conf["FLACIE_CLOUDFLARE_ACCOUNT"] is { Length: > 0 } a) cfg.AccountId = a.Trim();
         if (cfg.Token.Length == 0 && conf["FLACIE_CLOUDFLARE_TOKEN"] is { Length: > 0 } t) cfg.Token = Protect(t);
+        if (cfg.Version < ConfigVersion && NormVoice(cfg.Voice) == MeloTts) cfg.Voice = DefaultVoice;
+        cfg.Version = ConfigVersion;
         cfg.Voice = NormVoice(cfg.Voice); cfg.CapPercent = Math.Clamp(cfg.CapPercent, 0, 100);
     }
 
@@ -92,7 +106,7 @@ public sealed partial class CloudflareVoice
             var token = newToken is null ? cfg.Token : newToken.Trim().Length == 0 ? "" : Protect(newToken.Trim());
             cfg = JsonSerializer.Deserialize<DjVoiceConfig>(JsonSerializer.Serialize(c))!;
             cfg.AccountId = new string(cfg.AccountId.Where(char.IsAsciiLetterOrDigit).ToArray());
-            cfg.Voice = NormVoice(cfg.Voice); cfg.CapPercent = Math.Clamp(cfg.CapPercent, 0, 100); cfg.Token = token;
+            cfg.Voice = NormVoice(cfg.Voice); cfg.CapPercent = Math.Clamp(cfg.CapPercent, 0, 100); cfg.Token = token; cfg.Version = ConfigVersion;
             Interlocked.Exchange(ref failedTicks, 0);   // a new token or account is worth trying at once
             try { Directory.CreateDirectory(Path.GetDirectoryName(file)!); File.WriteAllText(file, JsonSerializer.Serialize(cfg)); } catch (Exception e) { log.LogWarning("Saving the DJ voice settings failed: {Kind}", e.GetType().Name); }
         }
@@ -164,6 +178,68 @@ public sealed partial class CloudflareVoice
             return ct.IsCancellationRequested ? Fail(msg) : Down(msg);   // (the caller giving up is not Cloudflare failing)
         }
         finally { Settle(cost, made); }
+    }
+
+    /// <summary>The text model's price of one line: the prompt at about 4 characters a token, and the answer at its most.</summary>
+    public static double EstimateTextNeurons(string system, string user, int maxTokens = TextMaxTokens) =>
+        (system.Length + user.Length) / 4.0 * TextInNeurons / 1e6 + maxTokens * TextOutNeurons / 1e6;
+
+    /// <summary>What happened to the last line asked of the text model (for the dashboard).</summary>
+    public string LastWrite { get; private set; } = "";
+
+    /// <summary>
+    /// The text model's answer to [system] + [user], or null: not set up, the lines would leave no room under today's cap for [keepFor] more (the clip that says it),
+    /// Cloudflare said no or did not answer before [ct] gave up. Its neurons count into today's use (Cloudflare's own token count when it gives one). Never throws,
+    /// and a failure here never stops the clips (it is not <see cref="Failing"/>).
+    /// </summary>
+    public async Task<string?> WriteAsync(string system, string user, double keepFor, CancellationToken ct = default)
+    {
+        var c = Current;
+        var token = Unprotect(c.Token);
+        if (!AccountShape().IsMatch(c.AccountId) || token.Length == 0) { LastWrite = "Not set up"; return null; }
+        var cost = EstimateTextNeurons(system, user);
+        lock (gate) { Roll(); if (usage.Neurons + cost + keepFor > Cap) { LastWrite = "Near today's cap: a template line instead"; return null; } usage.Neurons += cost; }
+        var spent = 0.0;
+        try
+        {
+            var body = new JsonObject
+            {
+                ["messages"] = new JsonArray(new JsonObject { ["role"] = "system", ["content"] = system }, new JsonObject { ["role"] = "user", ["content"] = user }),
+                ["max_tokens"] = TextMaxTokens, ["temperature"] = 0.8,
+            };
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"https://api.cloudflare.com/client/v4/accounts/{c.AccountId}/ai/run/{TextModel}");
+            req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
+            req.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
+            using var http = hf.CreateClient("cloudflare");
+            using var res = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+            var bytes = await ReadAtMost(res.Content, ct);
+            if (bytes is null || !res.IsSuccessStatusCode) { spent = 0; LastWrite = $"The text model answered {(int)res.StatusCode}" + (bytes is null ? "" : ErrorOf(bytes)); log.LogWarning("DJ text: {Message}", LastWrite); return null; }
+            var j = JsonNode.Parse(bytes);
+            var r = j?["result"];
+            spent = cost;
+            if (r?["usage"] is JsonObject u && u["prompt_tokens"] is JsonValue pi && pi.TryGetValue<int>(out var pin) && u["completion_tokens"] is JsonValue po && po.TryGetValue<int>(out var pout))
+                spent = pin * TextInNeurons / 1e6 + pout * TextOutNeurons / 1e6;
+            var text = r?["response"] is JsonValue rv && rv.TryGetValue<string>(out var s) ? s : null;
+            LastWrite = text is null ? "The text model sent no line" : "Wrote a line";
+            return text;
+        }
+        catch (Exception e)
+        {
+            // a timeout may still be charged: count the estimate
+            spent = cost;
+            LastWrite = e is TaskCanceledException or OperationCanceledException ? "The text model didn't answer in time" : "Couldn't reach the text model (" + e.GetType().Name + ")";
+            log.LogWarning("DJ text: {Message}", LastWrite);
+            return null;
+        }
+        finally
+        {
+            lock (gate)
+            {
+                Roll();
+                usage.Neurons = Math.Max(0, usage.Neurons - cost + spent);
+                try { File.WriteAllText(usageFile, JsonSerializer.Serialize(usage)); } catch (Exception) { }
+            }
+        }
     }
 
     byte[]? Fail(string msg)

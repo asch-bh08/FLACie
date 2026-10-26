@@ -84,42 +84,113 @@ public sealed class DjService : IDjService
     }
 
     /// <summary>Decides once per (account, previous song, next song) within <see cref="DecisionLife"/>; the same line (or the same silence) after that.</summary>
-    DjLine? Decide(UserSession s, DjSettings st, DjRequest req)
+    DjLine? Decide(UserSession s, DjSettings st, DjRequest req, out string key, out DjMemory mem)
     {
-        var key = s.Id + "\n" + SongKey(req.Prev) + "\n" + SongKey(req.Next);
+        key = s.Id + "\n" + SongKey(req.Prev) + "\n" + SongKey(req.Next);
         var now = clock();
+        mem = memories.GetOrAdd(s.Id, _ => new DjMemory());
         if (decisions.TryGetValue(key, out var d) && now - d.At < DecisionLife) return d.Line;
-        var mem = memories.GetOrAdd(s.Id, _ => new DjMemory());
         lock (mem)
         {
             if (decisions.TryGetValue(key, out d) && now - d.At < DecisionLife) return d.Line;
             var line = DjPlanner.Plan(st, req, mem, now, new Random(Seed(key, mem.Songs)), Pronounce());
             decisions[key] = (now, line);
+            written.TryRemove(key, out _);
             if (Interlocked.Increment(ref asks) % 200 == 0)
+            {
                 foreach (var old in decisions.Where(x => now - x.Value.At >= DecisionLife).Select(x => x.Key).ToList()) decisions.TryRemove(old, out _);
+                foreach (var old in written.Where(x => now - x.Value.At >= DecisionLife).Select(x => x.Key).ToList()) written.TryRemove(old, out _);
+            }
             return line;
         }
     }
 
-    public Task<DjCue?> PrepareAsync(UserSession s, DjRequest req, CancellationToken ct = default)
+    /// <summary>Lines are written by the text model when the dashboard allows it (turned on where the server registers the DJ; off in tests that do not ask for it).</summary>
+    public bool AiLines { get; set; }
+    /// <summary>How long the text model may take (<see cref="DjWriter.Timeout"/>; shorter in tests).</summary>
+    public TimeSpan WriteTimeout { get; set; } = DjWriter.Timeout;
+    readonly ConcurrentDictionary<string, (DateTime At, Lazy<Task<DjLine>> Job)> written = new();
+
+    public async Task<DjCue?> PrepareAsync(UserSession s, DjRequest req, CancellationToken ct = default)
     {
         var st = Settings(s);
         // the switches are read fresh every time: turning the DJ off silences an answer given before
-        if (!DjRules.EffectiveOn(st, req.Surface, req.PlaylistId, req.QueueDj)) return Task.FromResult<DjCue?>(null);
-        DjLine? line;
-        try { line = Decide(s, st, req); }
-        catch (Exception e) { log.LogWarning("DJ line not written: {Kind}", e.GetType().Name); return Task.FromResult<DjCue?>(null); }
-        if (line is null) return Task.FromResult<DjCue?>(null);
+        if (!DjRules.EffectiveOn(st, req.Surface, req.PlaylistId, req.QueueDj)) return null;
+        DjLine? line; string key; DjMemory mem;
+        try { line = Decide(s, st, req, out key, out mem); }
+        catch (Exception e) { log.LogWarning("DJ line not written: {Kind}", e.GetType().Name); return null; }
+        if (line is null) return null;
+        // the planner said when; the text model says how (once per decision; the template line on any failure)
+        if (AiLines && voice.Current.AiLines && voice.Ready)
+        {
+            var planned = line;
+            line = await written.GetOrAdd(key, _ => (clock(), new Lazy<Task<DjLine>>(() => RewriteAsync(req, planned, mem)))).Job.Value;
+        }
         // no voice, over today's cap or a failed clip: the device's own voice says it, if the person allows that; else the DJ stays quiet
         var id = clips.Request(line.Text);
-        if (id is null && !st.Backup) return Task.FromResult<DjCue?>(null);
-        return Task.FromResult<DjCue?>(new DjCue(line.Text, line.Caption, id is null ? null : DjClips.UrlOf(id), st.Backup));
+        if (id is null && !st.Backup) return null;
+        return new DjCue(line.Text, line.Caption, id is null ? null : DjClips.UrlOf(id), st.Backup);
     }
 
-    /// <summary>The admin's Test button: makes <see cref="TestLine"/> now (said as the DJ says it) and gives its address, or why it could not.</summary>
-    public async Task<(string? Clip, string Message)> TestAsync(CancellationToken ct = default)
+    /// <summary>A 25-word line in the saved voice: what the text model must leave room for under the cap.</summary>
+    double ClipRoom() => CloudflareVoice.EstimateNeurons(voice.Current.Voice, string.Join(' ', Enumerable.Repeat("word", DjWriter.MaxWords)) + " and some.");
+
+    /// <summary>The planner's line reworded by the text model, or [line] itself when the model fails, is too slow, is near the cap or writes something doubtful.
+    /// A line it wrote replaces the template line in the memory, so the next prompts avoid it.</summary>
+    async Task<DjLine> RewriteAsync(DjRequest req, DjLine line, DjMemory mem)
     {
-        var (id, msg) = await clips.MakeNowAsync(Pronounce().Phrases(TestLine), ct);
-        return (id is null ? null : DjClips.UrlOf(id), msg);
+        try
+        {
+            List<string> recent;
+            DjMemory.Line? mine;
+            lock (mem)
+            {
+                mine = mem.Lines.LastOrDefault(l => l.Text == line.Text && l.TemplateId == line.TemplateId);
+                recent = mem.Lines.Where(l => !ReferenceEquals(l, mine)).TakeLast(DjWriter.Recent).Select(l => l.Written ?? l.Text).ToList();
+            }
+            var f = DjWriter.FactsOf(req, line, clock());
+            var (sys, user) = DjWriter.Prompt(f, recent);
+            using var cts = new CancellationTokenSource(WriteTimeout);
+            string? raw;
+            try { raw = await voice.WriteAsync(sys, user, ClipRoom(), cts.Token).WaitAsync(WriteTimeout); }
+            catch (TimeoutException) { cts.Cancel(); return line; }
+            var caption = DjWriter.Check(raw, f, recent);
+            if (caption is null)
+            {
+                if (raw is not null) log.LogInformation("DJ: the model's line was not used, a template line instead");
+                return line;
+            }
+            var text = DjWriter.Speak(caption, f, Pronounce());
+            if (text.Length == 0) return line;
+            lock (mem)
+            {
+                var i = mine is null ? -1 : mem.Lines.IndexOf(mine);
+                if (i >= 0) mem.Lines[i] = mine! with { Text = text, Written = caption };
+            }
+            return line with { Text = text, Caption = caption };
+        }
+        catch (Exception e) { log.LogWarning("DJ line not reworded: {Kind}", e.GetType().Name); return line; }
     }
+
+    /// <summary>A song for the Test button's sample line.</summary>
+    public static readonly DjRequest TestSong = new(DjSurface.Web, new DjSong("Smack That", "Akon, Eminem", "Konvicted", "Akon", 2006, "Hip-Hop", 212_000, "/test/smack-that.flac"),
+        new DjSong("Hey Ya!", "Outkast", "Speakerboxxx/The Love Below", "Outkast", 2003, "Hip-Hop", 235_000, "/test/hey-ya.flac"), LocalHour: 20, Weekday: 5);
+
+    /// <summary>
+    /// The admin's Test button: in [voiceName] (null: the saved voice), a sample line written as the DJ writes them (the model when it is on, else a template)
+    /// before <see cref="TestSong"/>, or <see cref="TestLine"/> when none can be written; made now, said as the DJ says it. Its address, or why it could not.
+    /// </summary>
+    public async Task<(string? Clip, string Message)> TestAsync(CancellationToken ct = default, string? voiceName = null)
+    {
+        var say = TestLineSaid(TestLine);
+        if (AiLines && voice.Current.AiLines && voice.Ready)
+        {
+            var planned = DjPlanner.Plan(new DjSettings { Enabled = true }, TestSong with { Prev = TestSong.Prev }, new DjMemory(), clock(), new Random(7), Pronounce());
+            if (planned is not null) say = (await RewriteAsync(TestSong, planned, new DjMemory())).Text;
+        }
+        var (id, msg) = await clips.MakeNowAsync(say, ct, voiceName);
+        return (id is null ? null : DjClips.UrlOf(id), id is null ? msg : msg + ": \"" + say + "\"");
+    }
+
+    string TestLineSaid(string s) => Pronounce().Phrases(s);
 }

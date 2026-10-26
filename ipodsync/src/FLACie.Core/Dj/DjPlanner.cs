@@ -47,7 +47,7 @@ public static class DjPlanner
                 ? Write(req, mem, f, open, reset, heard, song, nowUtc, rng, say) : null;
         if (line is null) { mem.SilentRun = Math.Min(mem.SilentRun, DjMemory.Long) + 1; return null; }
         mem.SilentRun = 0;
-        mem.Add(new(line.TemplateId, line.Slot, DjTemplates.All.First(t => t.Id == line.TemplateId).Opener, line.Text, nowUtc));
+        mem.Add(new(line.TemplateId, line.Slot, DjTemplates.All.First(t => t.Id == line.TemplateId).Opener, line.Text, nowUtc, line.Caption));
         return line;
     }
 

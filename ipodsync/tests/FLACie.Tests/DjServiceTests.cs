@@ -26,7 +26,7 @@ public class DjServiceTests : IDisposable
         var paths = new DataPaths(dir); var dp = DataProtectionProvider.Create(new DirectoryInfo(Path.Combine(dir, "keys")));
         var h = new DjVoiceTests.Handler(f ?? (_ => Task.FromResult(DjVoiceTests.Audio())));
         var v = new CloudflareVoice(paths, new DjVoiceTests.Factory(h), dp, new ConfigurationBuilder().Build(), new DjVoiceTests.Lines<CloudflareVoice>(), () => now);
-        if (voice) v.Save(new DjVoiceConfig { AccountId = Account, CapPercent = cap }, "cf_fake_token");
+        if (voice) v.Save(new DjVoiceConfig { AccountId = Account, CapPercent = cap, Voice = CloudflareVoice.MeloTts }, "cf_fake_token");
         var clips = new DjClips(paths, v, new DjVoiceTests.Lines<DjClips>(), () => now);
         var states = new UserStateStore(paths, dp);
         return new(new DjService(states, v, clips, paths, new DjVoiceTests.Lines<DjService>(), () => now), v, clips, h, states);

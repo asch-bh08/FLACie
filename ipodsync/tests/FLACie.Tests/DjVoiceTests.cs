@@ -55,7 +55,7 @@ public class DjVoiceTests : IDisposable
     public async Task MeloTts_answers_as_json_with_base64_audio()
     {
         var (v, h, log) = Make(_ => Task.FromResult(Json(JsonSerializer.Serialize(new { result = new { audio = Convert.ToBase64String(Mp3) }, success = true, errors = Array.Empty<object>() }))));
-        v.Save(new DjVoiceConfig { AccountId = Account }, Token);
+        v.Save(new DjVoiceConfig { AccountId = Account, Voice = CloudflareVoice.MeloTts }, Token);
         var mp3 = await v.SynthesizeAsync("Here's Yellow by Coldplay.");
         Assert.Equal(Mp3, mp3);
         var (url, auth, body) = Assert.Single(h.Seen);

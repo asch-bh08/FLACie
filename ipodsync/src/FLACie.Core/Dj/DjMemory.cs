@@ -7,7 +7,8 @@ namespace FLACie.Core;
 /// </summary>
 public sealed class DjMemory
 {
-    public sealed record Line(string TemplateId, DjSlot Slot, string Opener, string Text, DateTime At);
+    /// <summary>[Written]: the line as shown (the caption); the model is told to avoid these.</summary>
+    public sealed record Line(string TemplateId, DjSlot Slot, string Opener, string Text, DateTime At, string? Written = null);
     public sealed record Heard(DateTime At, int Song, string Title);
 
     public const int Keep = 20;

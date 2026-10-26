@@ -148,6 +148,14 @@ var app = builder.Build();
     var vibes = app.Services.GetRequiredService<VibeIndex>();
     AppHost.ListenLog = s => listens.Exists(s) ? listens.Read(s) : null;
     AppHost.Vibe = vibes.Of;
+    var related = app.Services.GetRequiredService<RelatedCache>();
+    // what the person does in the web player goes into their listening log, started from what they have played and liked so far (as /api/listen does)
+    RetroHost.Listen = (s, e) => ListenApi.Accept(listens, s, [e], () => ListenSeed.From(s.History, s.Favorites, s.PlayStats, s.Library));
+    // web Autoplay asks the engine first (songs in the library only; the player keeps its own list when this fails or is empty)
+    RetroHost.RecommendNext = (s, played, n) =>
+        RecommendApi.InputsOf(s, listens, vibes, related) is { } inputs
+            ? RecommendApi.Picks(inputs, played, n, DateTime.UtcNow, Environment.TickCount64).Where(p => p.Track is not null).Select(p => (p.Track!, p.Why)).ToList()
+            : null;
 }
 {
     var probe = app.Services.GetRequiredService<FormatProbeService>();

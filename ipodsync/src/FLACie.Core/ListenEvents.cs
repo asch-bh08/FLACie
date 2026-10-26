@@ -7,7 +7,12 @@ public enum ListenKind { Play, Heart, Unheart, ThumbDown, LessLikeThis, Playlist
 /// One thing a person did, as the device saw it. Id is made by the device so a resend is not counted twice.
 /// Heard and Length are seconds and only mean something for a Play. Context is the playlist id, or "autoplay", "search" or "home".
 /// </summary>
-public sealed record ListenEvent(string Id, ListenKind Kind, long At, string Path, string Title, string Artist, double Heard = 0, double Length = 0, string? Context = null);
+public sealed record ListenEvent(string Id, ListenKind Kind, long At, string Path, string Title, string Artist, double Heard = 0, double Length = 0, string? Context = null)
+{
+    /// <summary>An event for this song happening now, with a fresh id.</summary>
+    public static ListenEvent Of(ListenKind kind, Track t, double heard = 0, double length = 0, string? context = null) =>
+        new(Guid.NewGuid().ToString("N"), kind, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), t.Path, t.Title, t.Artist, heard, length, context);
+}
 
 /// <summary>Was a play a skip, or did the person listen to the end?</summary>
 public static class ListenClass

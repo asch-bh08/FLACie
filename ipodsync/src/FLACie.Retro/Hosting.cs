@@ -40,4 +40,8 @@ public static class RetroHost
     public static string Version { get; set; } = "";
     /// <summary>Called on every tick of the song playing (the server holds back background work while music plays).</summary>
     public static Action? Heartbeat { get; set; }
+    /// <summary>Tells the account's listening log what the person did (played a song, hearted it, thumbed it down); where there is no log this does nothing.</summary>
+    public static Action<UserSession, ListenEvent>? Listen { get; set; }
+    /// <summary>What the recommendation engine would play next for this person, given the paths played lately (the last is playing now); null when the host has no engine or it failed.</summary>
+    public static Func<UserSession, IReadOnlyList<string>, int, IReadOnlyList<(Track Track, string Why)>?>? RecommendNext { get; set; }
 }

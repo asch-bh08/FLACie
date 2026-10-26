@@ -16,6 +16,17 @@ public class ListenApiTests : IDisposable
     static ListenEvent Play(string id) => new(id, ListenKind.Play, 1000, "/m/a.flac", "A", "X", 100, 200);
     ListenLogStore Store() => new(new DataPaths(dir));
 
+    [Fact] public void A_menu_event_carries_the_song_and_a_fresh_id()
+    {
+        var t = Song("One", "Ann", "a".PadRight(32, 'a'));
+        var a = ListenEvent.Of(ListenKind.ThumbDown, t); var b = ListenEvent.Of(ListenKind.ThumbDown, t);
+        Assert.Equal((ListenKind.ThumbDown, t.Path, "One", "Ann"), (a.Kind, a.Path, a.Title, a.Artist));
+        Assert.NotEqual(a.Id, b.Id);   // two thumbs-down in a row are two events, not a resend
+        var store = Store(); var ann = Person("ann");
+        ListenApi.Accept(store, ann, [a, b]);
+        Assert.Equal(2, store.Read(ann).Count(e => e.Kind == ListenKind.ThumbDown));
+    }
+
     [Fact] public void Listen_without_a_session_is_401()
     {
         var r = ListenApi.Accept(Store(), null, [Play("1")]);

@@ -32,11 +32,17 @@ public static class RecommendApi
     public static IResult Next(Inputs? i, string session, int n, DateTime utcNow, long seed)
     {
         if (i is null) return Results.Unauthorized();
-        var played = session.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(i.Lib.ByPath).OfType<Track>().ToList();
+        var picks = Picks(i, session.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), n, utcNow, seed);
+        return Results.Ok(new { picks = picks.Select(p => p.Track is { } t ? Song(t, false, p.Why) : Song(p.New!, p.Why)) });
+    }
+
+    /// <summary>What to play after the songs at these paths (the last is playing now). The web player asks this directly, with no HTTP in between.</summary>
+    public static List<Pick> Picks(Inputs i, IReadOnlyList<string> session, int n, DateTime utcNow, long seed)
+    {
+        var played = session.Select(i.Lib.ByPath).OfType<Track>().ToList();
         var related = played.Count > 0 ? i.Related.Peek(played[^1].Artist, played[^1].Title) : [];
         var taste = HomeBuilder.Taste(i.Lib, i.History, i.Favourites, i.Playlists, utcNow, i.Jellyfin, null, i.Events);
-        var picks = Engine.Next(i.Lib, taste, i.Vibe, played, related.ToList(), utcNow, new EngineOptions(Take: Math.Clamp(n, 1, 50), Seed: seed));
-        return Results.Ok(new { picks = picks.Select(p => p.Track is { } t ? Song(t, false, p.Why) : Song(p.New!, p.Why)) });
+        return Engine.Next(i.Lib, taste, i.Vibe, played, related.ToList(), utcNow, new EngineOptions(Take: Math.Clamp(n, 1, 50), Seed: seed));
     }
 
     public static IResult Home(Inputs? i, DateTime utcNow)

@@ -408,6 +408,8 @@ body.np-open .remote-now { display: none; }
 .chip.small { padding: 8px 14px; font-size: 13px; }
 button.song-card { background: none; border: 0; text-align: left; font: inherit; color: inherit; }
 button.song-card .cover { width: 100%; }
+button.song-card .new-tag { align-self: flex-start; margin-top: 4px; }
+button.song-card.new-song:disabled { opacity: .7; cursor: default; }
 
 /* ---- import, storage, charts ---- */
 .drop { display: flex; align-items: center; gap: 14px; padding: 18px; border: 1px dashed var(--line); border-radius: var(--radius); background: var(--surface-2); }

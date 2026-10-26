@@ -131,6 +131,9 @@
 
 /* the song's facts: a header card for the file (what it is, in the cover's colour), the graph in its own card, then the song and the file as quiet
    lists on soft cards. No lines between rows: spacing and two tones of text do the work. */
+.ls-info .ls-why { padding: 16px; margin-bottom: 14px; border-radius: 22px; background: var(--glass); }
+.ls-info .ls-why h4 { margin: 0 0 6px; font-size: 14px; color: var(--ink-2); }
+.ls-info .ls-why p { margin: 0; font-size: 16px; }
 .ls-info .info { gap: 14px; padding-bottom: 24px; }
 .ls-info .info-head { padding: 18px; border-radius: 22px; background: linear-gradient(135deg, color-mix(in srgb, var(--np-accent) 30%, transparent), var(--glass)); }
 .ls-info .fmt-big { min-width: 0; height: auto; padding: 10px 16px; border-radius: 16px; background: var(--ink); color: #140d10; font-size: 18px; letter-spacing: .02em; }

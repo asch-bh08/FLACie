@@ -350,6 +350,13 @@ class Prefs(ctx: Context) {
         get() = sp.getString("flacieWeb", "") ?: ""
         set(v) = sp.edit().putString("flacieWeb", v).apply()
 
+    /** The AI DJ's settings as the server last sent them (the GET shape of /api/dj/settings), for the Now Playing and car buttons; "" = never loaded. */
+    var djSettings: String
+        get() = sp.getString("djSettings", "") ?: ""
+        set(v) = sp.edit().putString("djSettings", v).putLong("djSettingsAt", System.currentTimeMillis()).apply()
+    /** When [djSettings] was last stored (epoch ms). */
+    val djSettingsAt: Long get() = sp.getLong("djSettingsAt", 0L)
+
     /** Reset Settings: everything except the chosen iPod, colour and look. */
     fun reset() {
         val keep = listOf("acctserver", "acctuid", "acctname", "accttoken", "deviceid", "uitheme").associateWith { sp.all[it] }

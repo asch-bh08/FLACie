@@ -98,7 +98,7 @@ val LocalApp = staticCompositionLocalOf<App> { error("App not provided") }
 
 enum class Glyph {
     PLAY, PAUSE, NEXT, PREV, SHUFFLE, REPEAT, REPEAT_ONE, HEART, HEART_FILLED, SEARCH, QUEUE, CHEVRON, BACK, MORE, CLOSE,
-    NOTE, GEAR, VOLUME, CHECK, PLUS, ALBUM, ARTIST, MIC, CLOCK, IPOD, LIST, STAR, DOWN, JELLYFIN, PLEX, NAS, LYRICS, DEVICES, JAM, INFO, CASSETTE,
+    NOTE, GEAR, VOLUME, CHECK, PLUS, ALBUM, ARTIST, MIC, CLOCK, IPOD, LIST, STAR, DOWN, JELLYFIN, PLEX, NAS, LYRICS, DEVICES, JAM, INFO, CASSETTE, DJ,
 }
 
 @Composable
@@ -272,6 +272,14 @@ fun DrawScope.drawGlyph(g: Glyph, c: Color) {
             drawCircle(c, s * .04f, Offset(x(.32f), y(.3f)))
             drawRoundRect(c, Offset(x(.62f), y(.3f)), Size(s * .26f, s * .48f), androidx.compose.ui.geometry.CornerRadius(s * .05f), style = line)
         }
+        Glyph.DJ -> {
+            // headphones with a microphone: the DJ who talks between songs
+            drawArc(c, 180f, 180f, false, Offset(x(.16f), y(.14f)), Size(s * .68f, s * .68f), style = line)
+            drawRoundRect(c, Offset(x(.12f), y(.46f)), Size(s * .18f, s * .28f), androidx.compose.ui.geometry.CornerRadius(s * .06f))
+            drawRoundRect(c, Offset(x(.7f), y(.46f)), Size(s * .18f, s * .28f), androidx.compose.ui.geometry.CornerRadius(s * .06f))
+            drawPath(path { moveTo(x(.79f), y(.74f)); quadraticBezierTo(x(.79f), y(.88f), x(.6f), y(.88f)) }, c, style = line)
+            drawCircle(c, s * .06f, Offset(x(.55f), y(.88f)))
+        }
         Glyph.JAM -> {
             // two people side by side: listening together
             drawCircle(c, s * .12f, Offset(x(.36f), y(.32f)), style = line)
@@ -302,7 +310,7 @@ fun Txt(
 @Composable
 fun GlossButton(
     onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 56.dp, primary: Boolean = false, enabled: Boolean = true, label: String? = null,
-    content: @Composable BoxScope.() -> Unit,
+    onLongClick: (() -> Unit)? = null, content: @Composable BoxScope.() -> Unit,
 ) {
     val sc = LocalScheme.current
     val style = LocalStyle.current
@@ -327,7 +335,7 @@ fun GlossButton(
                 )
             }
             .then(if (label != null) Modifier.semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button } else Modifier)
-            .combinedClickableNoRipple(src, enabled, onClick),
+            .combinedClickableNoRipple(src, enabled, onClick, onLongClick),
         contentAlignment = Alignment.Center, content = content,
     )
 }

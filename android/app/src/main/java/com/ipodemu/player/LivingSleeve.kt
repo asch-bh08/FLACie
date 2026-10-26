@@ -14,6 +14,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -344,6 +345,18 @@ private fun GlassButton(label: String, onClick: () -> Unit, content: @Composable
     ) { content() }
 }
 
+/** The DJ button over the cover: solid cream (like the open pane's tab) while the DJ is on for this queue; a long press opens the DJ settings. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun DjGlassButton(on: Boolean, onClick: () -> Unit, onLong: () -> Unit) {
+    Box(
+        Modifier.size(44.dp).clip(CircleShape).background(if (on) Ink else Glass).focusRing(CircleShape)
+            .semantics { contentDescription = djLabel(on); role = Role.Button; stateDescription = if (on) "On" else "Off" }
+            .combinedClickable(onClick = onClick, onLongClick = onLong),
+        contentAlignment = Alignment.Center,
+    ) { GlyphIcon(Glyph.DJ, Modifier.size(22.dp), if (on) OnMain else Color.White) }
+}
+
 /** Three sliders, the Options icon (the app's glyph set has none). */
 @Composable
 private fun SlidersIcon(tint: Color) {
@@ -390,6 +403,8 @@ private fun SleeveTopBar(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePa
         if (sleepLeft != null) SleepChip(sleepLeft) { nav.sheet = sleepSheet(app) }
         // the speed is shown when it is not normal, for the same reason
         if (snap.speed != 1f) SText(com.ipodemu.playback.SpeedPolicy.label(snap.speed), Modifier.padding(end = 6.dp).clickable { nav.sheet = speedSheet(app) }, size = 13f, weight = FontWeight.Bold, color = p.main.value)
+        // the AI DJ for this queue (not there without FLACie Web)
+        snap.dj?.let { on -> DjGlassButton(on, { djTap(app) }, { openDjSettings(nav) }); Spacer(Modifier.width(10.dp)) }
         GlassButton("Options", onOptions) { SlidersIcon(Color.White) }
         // Options opens the design I sheet with just its playback group (rating, speed, sleep timer, sound)
         Spacer(Modifier.width(10.dp))

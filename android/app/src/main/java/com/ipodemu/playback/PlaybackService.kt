@@ -28,8 +28,8 @@ import kotlinx.coroutines.launch
  * Makes the app a proper Android media player: a MediaSession (lock screen, quick-settings media card, Bluetooth and
  * headset buttons) plus a playback notification, kept alive as a foreground service while music plays. Tapping the notification reopens the iPod UI.
  * It is also a media LIBRARY: Android Auto, a head unit or a voice command can browse Recently played, Favourites, Playlists, Albums, Artists and Downloaded
- * ([BrowseTree], a few songs at a time) and play from there; covers reach them through [ArtProvider]. Two custom buttons ride along: favourite (the heart follows the
- * song) and speed (taps cycle 1x, 1.25x ... 3x, 1x).
+ * ([BrowseTree], a few songs at a time) and play from there; covers reach them through [ArtProvider]. Custom buttons ride along: favourite (the heart follows the
+ * song), shuffle, repeat and speed (taps cycle 1x, 1.25x ... 3x, 1x); while a car is connected the AI DJ's button takes Speed's place (on or off for this queue).
  */
 @UnstableApi
 class PlaybackService : MediaLibraryService() {
@@ -43,6 +43,7 @@ class PlaybackService : MediaLibraryService() {
     private val speedCommand = SessionCommand(CMD_SPEED, Bundle.EMPTY)
     private val shuffleCommand = SessionCommand(CMD_SHUFFLE, Bundle.EMPTY)
     private val repeatCommand = SessionCommand(CMD_REPEAT, Bundle.EMPTY)
+    private val djCommand = SessionCommand(CMD_DJ, Bundle.EMPTY)
 
     private fun <T> async(block: () -> T): ListenableFuture<T> {
         val f = SettableFuture.create<T>()
@@ -76,8 +77,14 @@ class PlaybackService : MediaLibraryService() {
 
     private val library = object : MediaLibrarySession.Callback {
         override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
-            val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon().add(favCommand).add(speedCommand).add(shuffleCommand).add(repeatCommand).build()
+            val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon().add(favCommand).add(speedCommand).add(shuffleCommand).add(repeatCommand).add(djCommand).build()
+            // Android Auto connected: the DJ's "Where" is now the car, and its button goes on the car's screen (see layout)
+            if (isCar(session, controller)) main.post { countCars(); refreshLayout(force = true) }
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session).setAvailableSessionCommands(commands).setCustomLayout(layout()).build()
+        }
+
+        override fun onDisconnected(session: MediaSession, controller: MediaSession.ControllerInfo) {
+            if (isCar(session, controller)) main.post { countCars(); refreshLayout(force = true) }
         }
 
         override fun onCustomCommand(session: MediaSession, controller: MediaSession.ControllerInfo, customCommand: SessionCommand, args: Bundle): ListenableFuture<SessionResult> {
@@ -88,6 +95,7 @@ class PlaybackService : MediaLibraryService() {
                 CMD_SPEED -> app.player.setSpeed(SpeedPolicy.cycle(app.player.speed))
                 CMD_SHUFFLE -> { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() }
                 CMD_REPEAT -> { app.prefs.repeat = (app.prefs.repeat + 1) % 3; app.player.applyModes() }
+                CMD_DJ -> app.player.flipDj()
             }
             refreshLayout(force = true)
             return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
@@ -189,10 +197,29 @@ class PlaybackService : MediaLibraryService() {
     }
     private fun listsChanged() { main.removeCallbacks(tellCar); main.postDelayed(tellCar, 1000) }
 
+    /**
+     * Android Auto on the phone (or a car's own Android), by Media3's checks and by its package (the car connects through the older browser API).
+     * Media3 1.4 sends a layout set for one controller only to Media3 controllers, never to that older API (it shares one set of buttons with the
+     * notification), so the car's DJ button is in the one layout while a car is connected; the phone shows it too then, being in the car.
+     */
+    private fun isCar(s: MediaSession, c: MediaSession.ControllerInfo) =
+        c.packageName == GEARHEAD || try { s.isAutoCompanionController(c) || s.isAutomotiveController(c) } catch (_: Exception) { false }
+
+    /** How many car controllers are connected now (asked of the session, so a missed goodbye can't leave the phone thinking it is in the car). */
+    private fun countCars() {
+        val s = session ?: return
+        App.of(this).player.carControllers = s.connectedControllers.count { isCar(s, it) }
+    }
+
     private fun layout(): ImmutableList<CommandButton> {
         val app = App.of(this)
         val fav = isFavorite(app)
         val speed = app.player.speed
+        // in the car: the DJ in Speed's place (dimmed when off), when the DJ can work at all (FLACie Web and a Jellyfin sign-in)
+        val last = if (app.player.carControllers > 0 && app.player.djAvailable) {
+            val on = app.player.djOn
+            CommandButton.Builder().setDisplayName(if (on) "DJ on" else "DJ off").setIconResId(if (on) R.drawable.ic_dj else R.drawable.ic_dj_off).setSessionCommand(djCommand).build()
+        } else CommandButton.Builder().setDisplayName("Speed " + SpeedPolicy.label(speed)).setIconResId(R.drawable.ic_speed).setSessionCommand(speedCommand).build()
         return ImmutableList.of(
             CommandButton.Builder().setDisplayName(if (fav) "Remove from favourites" else "Favourite").setIconResId(if (fav) R.drawable.ic_fav_on else R.drawable.ic_fav)
                 .setSessionCommand(favCommand).build(),
@@ -201,7 +228,7 @@ class PlaybackService : MediaLibraryService() {
                 .setSessionCommand(shuffleCommand).build(),
             CommandButton.Builder().setDisplayName(when (app.prefs.repeat) { 1 -> "Repeat all"; 2 -> "Repeat one"; else -> "Repeat off" })
                 .setIconResId(when (app.prefs.repeat) { 1 -> R.drawable.ic_repeat; 2 -> R.drawable.ic_repeat_one; else -> R.drawable.ic_repeat_off }).setSessionCommand(repeatCommand).build(),
-            CommandButton.Builder().setDisplayName("Speed " + SpeedPolicy.label(speed)).setIconResId(R.drawable.ic_speed).setSessionCommand(speedCommand).build(),
+            last,
         )
     }
 
@@ -212,7 +239,8 @@ class PlaybackService : MediaLibraryService() {
     private fun refreshLayout(force: Boolean) {
         val s = session ?: return
         val app = App.of(this)
-        val key = (app.player.current?.path ?: "") + "|" + isFavorite(app) + "|" + app.player.speed + "|" + app.prefs.shuffle + "|" + app.prefs.repeat
+        val key = (app.player.current?.path ?: "") + "|" + isFavorite(app) + "|" + app.player.speed + "|" + app.prefs.shuffle + "|" + app.prefs.repeat +
+            "|" + app.player.carControllers + "|" + app.player.djAvailable + "|" + app.player.djOn
         if (!force && key == lastLayoutKey) return
         lastLayoutKey = key
         s.setCustomLayout(layout())
@@ -223,6 +251,7 @@ class PlaybackService : MediaLibraryService() {
     /** Swiping the app away from recents stops the music, clears the notification and ends the service. */
     override fun onTaskRemoved(rootIntent: Intent?) {
         App.of(this).player.persistNow()   // the swipe-away stops the music, but the queue comes back (paused) next time
+        App.of(this).player.djStop()
         val p = App.of(this).player.exo
         p.pause()
         p.stop()
@@ -233,6 +262,7 @@ class PlaybackService : MediaLibraryService() {
     override fun onDestroy() {
         unobserve?.invoke(); unobserve = null
         main.removeCallbacks(tellCar); scope.cancel()
+        App.of(this).player.let { it.carControllers = 0; it.djRelease() }
         session?.release()
         session = null
         io.shutdown()
@@ -244,6 +274,9 @@ class PlaybackService : MediaLibraryService() {
         const val CMD_SPEED = "com.ipodemu.SPEED"
         const val CMD_SHUFFLE = "com.ipodemu.SHUFFLE"
         const val CMD_REPEAT = "com.ipodemu.REPEAT"
+        const val CMD_DJ = "com.ipodemu.DJ"
+        /** Android Auto's package: its media browser is the car. */
+        private const val GEARHEAD = "com.google.android.projection.gearhead"
         // Android Auto's content-style hints (the keys of androidx.media.utils.MediaConstants)
         private const val STYLE_BROWSABLE = "android.media.browse.CONTENT_STYLE_BROWSABLE_HINT"
         private const val STYLE_PLAYABLE = "android.media.browse.CONTENT_STYLE_PLAYABLE_HINT"

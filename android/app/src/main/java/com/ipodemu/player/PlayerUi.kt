@@ -138,6 +138,10 @@ class PlayerNav {
     var nowPlaying by mutableStateOf(false)
     /** The list the screen on top is showing (a playlist, an album...): what a play from it reports as "Playing from". */
     var playContext: String? = null
+    /** For a playlist page: (its [playContext], the playlist's DJ key), so a play from its songs carries the playlist's DJ switch. Only used while the name still matches. */
+    var playContextId: Pair<String, String>? = null
+    /** Settings opens at this section once (the Now Playing DJ button's long press opens "dj"). */
+    var settingsSection: String? = null
     var sheet by mutableStateOf<SheetSpec?>(null)
     /** True while the design I player is on screen: it shows [sheet] in its own style. */
     var designSheets by mutableStateOf(false)
@@ -160,16 +164,17 @@ class PlayerNav {
     fun home() { queueFromPlayer = false; while (stack.size > 1) stack.removeAt(stack.lastIndex) }
 }
 
-/** What the player is doing, as one immutable snapshot for composition. */
+/** What the player is doing, as one immutable snapshot for composition. [dj]: the AI DJ for this queue, on or off; null when it can't work here (no FLACie Web or no Jellyfin sign-in). */
 @androidx.compose.runtime.Immutable
-data class PlayerSnap(val track: Track?, val playing: Boolean, val shuffle: Boolean, val repeat: Int, val index: Int, val count: Int, val rev: Int = 0, val speed: Float = 1f, val sleep: com.ipodemu.playback.SleepMode = com.ipodemu.playback.SleepMode.OFF)
+data class PlayerSnap(val track: Track?, val playing: Boolean, val shuffle: Boolean, val repeat: Int, val index: Int, val count: Int, val rev: Int = 0, val speed: Float = 1f, val sleep: com.ipodemu.playback.SleepMode = com.ipodemu.playback.SleepMode.OFF, val dj: Boolean? = null)
 
 @Composable
 fun rememberSnap(player: PlayerController, prefs: Prefs): PlayerSnap {
     var tick by remember { mutableIntStateOf(0) }
     DisposableEffect(player) { val d = player.observe { tick++ }; onDispose { d() } }
     @Suppress("UNUSED_EXPRESSION") tick
-    return PlayerSnap(player.current, player.wantsToPlay, prefs.shuffle, prefs.repeat, player.queueIndex, player.queue.size, player.queueRev, player.speed, player.sleepMode)
+    return PlayerSnap(player.current, player.wantsToPlay, prefs.shuffle, prefs.repeat, player.queueIndex, player.queue.size, player.queueRev, player.speed, player.sleepMode,
+        if (player.djAvailable) player.djOn else null)
 }
 
 @Composable
@@ -846,7 +851,7 @@ fun SongList(
     val row: @Composable (Int, Track) -> Unit = { i, t ->
         val c = chosen
         TrackRow(t, nav, snap, showArt = showArt, index = if (numbered) i + 1 else null, sheetExtra = sheetExtra + SheetItem("Select", Glyph.CHECK) { chosen = setOf(i) }, sheetExtraFor = sheetExtraFor, onPlay = {
-            app.player.play(tracks, i, null, nav.playContext)
+            app.player.play(tracks, i, null, nav.playContext, nav.playContextId?.takeIf { it.first == nav.playContext }?.second)
         }, picked = c?.contains(i), onPick = c?.let { cur -> { chosen = if (i in cur) cur - i else cur + i } })
     }
     Box(Modifier.fillMaxSize()) {
@@ -1087,7 +1092,12 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
     // the web's facts line: the year (an album's), how many songs, how long, and the file formats in it ("2020 · 8 songs · 16 min · FLAC / MP3")
     val info = DetailFacts.line(if (d.kind == DetailKind.ALBUM) tracks.firstOrNull()?.year ?: 0 else 0, tracks.size, total,
         if (d.kind == DetailKind.ALBUM || d.kind == DetailKind.ARTIST) tracks.map { it.filePath.ifEmpty { it.path } } else emptyList())
-    androidx.compose.runtime.DisposableEffect(title) { nav.playContext = title.ifEmpty { null }; onDispose { if (nav.playContext == title) nav.playContext = null } }
+    // a hand-made playlist's key for the DJ's per-playlist switch: its Jellyfin id when it is mirrored there (the web and Windows know it by that), else the app's own
+    val djKey = userId?.let { id -> ud.playlists.firstOrNull { it.id == id }?.let { it.jfId ?: it.id } }
+    androidx.compose.runtime.DisposableEffect(title, djKey) {
+        nav.playContext = title.ifEmpty { null }; nav.playContextId = djKey?.let { title to it }
+        onDispose { if (nav.playContext == title) nav.playContext = null; if (nav.playContextId?.first == title) nav.playContextId = null }
+    }
     val extra = if (userId != null) listOf(SheetItem("Remove from playlist", Glyph.CLOSE) { }) else emptyList()
     val missing = if (userId != null && app.library.loaded) ud.playlists.firstOrNull { it.id == userId }?.paths.orEmpty().filter { lib.resolve(it, ud.meta[it]) == null }.mapNotNull { ud.meta[it] }.filter { it.first.isNotBlank() } else emptyList()
     Column(Modifier.fillMaxSize()) {
@@ -1095,7 +1105,7 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
         TopBar(if (heroPage) "" else title.ifEmpty { "Playlist" }, nav, showBack = true)
         if (tracks.isEmpty() && missing.isEmpty()) {
             // an emptied playlist keeps its Play / Rename / Delete buttons (the only way to rename or delete it from its own page)
-            if (userId != null) Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) { DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel) }
+            if (userId != null) Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) { DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey) }
             Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState(when (d.kind) {
                 DetailKind.FAVORITES -> "Tap the heart on a song to add it here"
                 DetailKind.RECENT -> "Songs you play show up here"
@@ -1109,14 +1119,14 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
             if (wide) {
                 Row(Modifier.fillMaxSize()) {
                     Column(Modifier.width(300.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel)
+                        DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey)
                     }
                     SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing)
                 }
             } else {
                 SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, header = {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel)
+                        DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey)
                     }
                 })
             }
@@ -1126,7 +1136,7 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
 
 
 @Composable
-private fun DetailHeader(art: String?, title: String, line1: String, line2: String, tracks: List<Track>, nav: PlayerNav, playlistId: String? = null, kind: String = "") {
+private fun DetailHeader(art: String?, title: String, line1: String, line2: String, tracks: List<Track>, nav: PlayerNav, playlistId: String? = null, kind: String = "", djKey: String? = null) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     if (LocalStyle.current.modern) {
@@ -1143,8 +1153,8 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
             if (line2.isNotEmpty()) MonoLabel(line2, Modifier.padding(top = 2.dp))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (tracks.isNotEmpty()) AccentPill("Play", Glyph.PLAY, cols, { app.player.play(tracks, 0, null, title) })
-            if (tracks.isNotEmpty()) TonePill("Shuffle", Glyph.SHUFFLE, cols, { app.player.play(tracks, tracks.indices.random(), true, title) })
+            if (tracks.isNotEmpty()) AccentPill("Play", Glyph.PLAY, cols, { app.player.play(tracks, 0, null, title, djKey) })
+            if (tracks.isNotEmpty()) TonePill("Shuffle", Glyph.SHUFFLE, cols, { app.player.play(tracks, tracks.indices.random(), true, title, djKey) })
         }
     } else {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1157,8 +1167,8 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
     }
     // below the art row rather than beside the title, so both buttons fit in the narrow side column of wide layouts
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        GlossPill("Play", { app.player.play(tracks, 0, null, title) }, icon = Glyph.PLAY, primary = true, height = 40.dp)
-        GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true, title) }, icon = Glyph.SHUFFLE, height = 40.dp)
+        GlossPill("Play", { app.player.play(tracks, 0, null, title, djKey) }, icon = Glyph.PLAY, primary = true, height = 40.dp)
+        GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true, title, djKey) }, icon = Glyph.SHUFFLE, height = 40.dp)
     }
     }
     // Favourites: Clear all, asked first, with Undo (other devices follow: each removal is recorded)
@@ -1188,6 +1198,40 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
             })
             DesignChip("Delete", false, { nav.sheet = SheetSpec("Delete this playlist?", null, listOf(SheetItem("Delete", Glyph.CLOSE) { app.userData.deletePlaylist(playlistId); nav.pop() }, SheetItem("Cancel", Glyph.BACK) {})) })
         }
+        if (djKey != null && app.player.djAvailable) PlaylistDjChip(djKey)
+    }
+}
+
+/**
+ * The AI DJ on this playlist, kept on the server for the account (the web and Windows follow): On (even with the DJ off), Off (quiet here for good,
+ * a bedtime list), or Auto (no entry: the DJ's own settings decide). Taps go round Auto, On, Off. [key]: the Jellyfin playlist id, else the app's own.
+ */
+@Composable
+private fun PlaylistDjChip(key: String) {
+    val app = LocalApp.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val web = remember { com.ipodemu.library.FlacieWebClient(app.prefs) }
+    var on by remember(key) { mutableStateOf(app.player.djSettings.playlists[key]) }
+    var busy by remember { mutableStateOf(false) }
+    // what the server has now (changed on the web, say), not only what this phone saw last
+    LaunchedEffect(key) {
+        val s = try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { web.djSettings() } } catch (_: Exception) { null } ?: return@LaunchedEffect
+        app.player.djSettingsFetched(s); if (!busy) on = s.playlists[key]
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        DesignChip("DJ: " + when (on) { true -> "On"; false -> "Off"; null -> "Auto" }, on != null, {
+            if (!busy) {
+                val was = on; val next = when (was) { null -> true; true -> false; false -> null }
+                on = next; busy = true
+                scope.launch {
+                    try {
+                        val s = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { web.setDjPlaylist(key, next) }
+                        app.player.djSettingsChanged(s); on = s.playlists[key]
+                        app.ui.say(when (on) { true -> "The DJ talks on this playlist"; false -> "The DJ stays quiet on this playlist"; null -> "This playlist follows your DJ settings" })
+                    } catch (_: Exception) { on = was; app.ui.say("Couldn't reach FLACie Web", warn = true) } finally { busy = false }
+                }
+            }
+        }, icon = Glyph.DJ)
     }
 }
 

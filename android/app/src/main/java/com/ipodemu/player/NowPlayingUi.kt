@@ -279,10 +279,20 @@ private fun NpExtras(snap: PlayerSnap, nav: PlayerNav) {
             GlossButton({ app.userData.toggleFavorite(t.path) }, label = if (fav) "Unfavorite" else "Favorite", size = 40.dp, primary = fav) { GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(22.dp), Color.White) }
             GlossButton({ nav.sheet = eqSheet(app) }, label = "Equalizer", size = 44.dp) { GlyphIcon(Glyph.LIST, Modifier.size(22.dp), Color.White) }
             GlossButton({ nav.sheet = sleepSheet(app) }, label = "Sleep timer", size = 44.dp, primary = app.player.sleepMode != com.ipodemu.playback.SleepMode.OFF) { GlyphIcon(Glyph.CLOCK, Modifier.size(22.dp), Color.White) }
+            // the AI DJ for this queue (lit when on); a long press opens its settings. Not there without FLACie Web
+            snap.dj?.let { on ->
+                GlossButton({ djTap(app) }, label = djLabel(on), size = 44.dp, primary = on, onLongClick = { openDjSettings(nav) }) { GlyphIcon(Glyph.DJ, Modifier.size(22.dp), Color.White) }
+            }
             GlossButton({ openTrackSheet(app, nav, t) }, label = "More", size = 44.dp) { GlyphIcon(Glyph.MORE, Modifier.size(22.dp), Color.White) }
         }
     }
 }
+
+/** Now Playing's DJ button: the AI DJ on or off for this queue only (until something else is started), confirmed in a snack. */
+fun djTap(app: com.ipodemu.App) { val on = app.player.flipDj(); app.ui.say(if (on) "DJ on for this queue" else "DJ off for this queue") }
+fun djLabel(on: Boolean) = if (on) "DJ on for this queue" else "DJ off for this queue"
+/** The DJ button's long press: its settings (Settings opens at the DJ section). */
+fun openDjSettings(nav: PlayerNav) { nav.nowPlaying = false; nav.settingsSection = "dj"; nav.push(Screen.Settings) }
 
 fun eqSheet(app: com.ipodemu.App) = SheetSpec("Equalizer", app.prefs.eq, PlayerController.EQ_NAMES.map { n ->
     SheetItem(n, Glyph.VOLUME, selected = app.prefs.eq == n) { app.prefs.eq = n; app.player.applyEq() }

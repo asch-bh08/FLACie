@@ -160,7 +160,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (!isBrowseId(id)) return false
         browseExec.execute {
             val r = try { BrowseTree.resolve(id, AppBrowseSource(App.of(ctx))) } catch (_: Exception) { null }
-            if (r != null) handler.post { play(r.tracks, r.index) }
+            // a playlist picked in the car keeps its DJ switch (the key is the Jellyfin playlist id when it has one, as on the phone's own screens)
+            val key = BrowseTree.playlistOf(id)?.let { pl -> try { App.of(ctx).userData.playlists.toList().firstOrNull { it.id == pl }?.let { it.jfId ?: it.id } } catch (_: Exception) { null } }
+            if (r != null) handler.post { play(r.tracks, r.index, contextId = key) }
         }
         return true
     }
@@ -202,7 +204,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     }
     val sleepRemainingMs: Long get() = sleepRemainingOrNull ?: 0L
     private fun sleepFired() {
-        exo.pause(); sleepMode = SleepMode.OFF; sleepMinutes = 0; sleepEndsAt = 0L; sleepArmedPath = null; prefs.sleepEndsAtWall = 0L
+        exo.pause(); djVoice?.stop(); sleepMode = SleepMode.OFF; sleepMinutes = 0; sleepEndsAt = 0L; sleepArmedPath = null; prefs.sleepEndsAtWall = 0L
         fade = 1f; applyOutputVolume(); stopShake(); handler.removeCallbacks(sleepRunnable); fire()
     }
     private fun sleepTick() {
@@ -277,9 +279,11 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private var fade = 1f
     /** The levelling factor of the song that plays (see [Loudness]); 1 when the setting is off or the server gave no gain. */
     private var loud = 1f
-    private fun applyOutputVolume() { exo.volume = Loudness.output(volume, fade * xfade, loud) }
+    private fun applyOutputVolume() { exo.volume = Loudness.output(volume, fade * xfade * duck, loud) }
     /** The fade between songs (see [FadeBetween]): 1 in the middle of a song. */
     private var xfade = 1f
+    /** The music's level while the DJ speaks over it (see [DuckRamp], ticked by [DjPlayer]): 1 = untouched. */
+    private var duck = 1f
     private val xfadeTick = object : Runnable {
         override fun run() {
             val secs = prefs.fadeSecs
@@ -297,6 +301,106 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private fun levelFor(t: Track?): Float = Loudness.factor(t?.let { com.ipodemu.library.AudioFacts.of(it)?.gainDb } ?: Float.NaN, prefs.levelVolume)
     /** The setting was switched: the song that plays follows at once. */
     fun applyLeveling() { loud = levelFor(current); applyOutputVolume() }
+
+    // ---- the AI DJ (docs/spec/ai-dj.md) -------------------------------------------------------------------------------------------
+    // As a song starts, FLACie Web is asked about the song after it (POST /api/dj/next); a cue it sends is held for that song and said over its start
+    // when the player gets there by itself (not a skip). The decisions are [DjCoordinator] (unit-tested), the voice is [DjPlayer]: a second player that is
+    // never in the queue and never takes audio focus, ducking the music while it speaks. Needs FLACie Web and a Jellyfin sign-in; otherwise it is off.
+
+    val dj = DjCoordinator()
+    private var djVoice: DjPlayer? = null
+    @OptIn(UnstableApi::class)
+    private fun voice(): DjPlayer = djVoice ?: DjPlayer(ctx, upstream, prefs) { level -> duck = level; applyOutputVolume() }.also { djVoice = it }
+    private val djExec = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "dj").also { it.isDaemon = true } }
+    private val djWeb by lazy { com.ipodemu.library.FlacieWebClient(prefs) }
+    /** The playlist the queue came from, as the DJ's playlist switch knows it (the Jellyfin playlist id, else the app's own); null when not a playlist. */
+    var contextId: String? = null; private set
+    /** Android Auto (or a car's own system) connected to the media session, counted by PlaybackService: the DJ's "Where" is then Android Auto. */
+    var carControllers = 0
+        set(v) { if (field != v) { field = v; if (v > 0) refreshDjSettingsSoon(); djAsk(); fire() } }
+    val djSurface: DjSurface get() = if (carControllers > 0) DjSurface.AUTO else DjSurface.PHONE
+    /** The server knows the account by its Jellyfin token: without FLACie Web and a Jellyfin sign-in the DJ is simply off. */
+    val djAvailable: Boolean get() = prefs.flacieWebUrl.isNotBlank() && prefs.hasJellyfinAccount
+    private var djCacheText: String? = null
+    private var djCache = DjSettings()
+    /** The DJ settings as the server last sent them (kept in Prefs); the defaults (off) before they were ever loaded. */
+    val djSettings: DjSettings get() { val t = prefs.djSettings; if (t != djCacheText) { djCacheText = t; djCache = DjSettings.parseOrDefault(t) }; return djCache }
+    /** Whether the DJ is on for this queue, here (car or phone): the state of the Now Playing and car buttons. */
+    val djOn: Boolean get() = djAvailable && DjRules.effectiveOn(djSettings, djSurface, contextId, dj.queueDj)
+    /** The DJ button (Now Playing, the car): on or off for this queue only, until something else is started. Returns the new state. */
+    fun flipDj(): Boolean {
+        val on = dj.flip(djOn)
+        if (!on) djVoice?.clear()
+        djAsk(); fire()
+        return on
+    }
+    /** New settings from the server (this phone's Settings screen, or a fetch): the buttons follow and the next song is asked about again. */
+    fun djSettingsChanged(s: DjSettings) {
+        prefs.djSettings = s.toJson().toString()
+        dj.forget(); djVoice?.ready(null, false)
+        if (!djOn) djVoice?.clear()
+        djAsk(); fire()
+    }
+    @Volatile private var djFetchedAt = 0L
+    /** The cached settings are fetched again (in the background) when a queue starts and they are a few minutes old: they may have been changed on the web. */
+    private fun refreshDjSettingsSoon() {
+        val now = System.currentTimeMillis()
+        if (!djAvailable || now - prefs.djSettingsAt < DJ_SETTINGS_FRESH_MS || now - djFetchedAt < DJ_SETTINGS_FRESH_MS) return
+        djFetchedAt = now
+        djExec.execute {
+            val s = try { djWeb.djSettings() } catch (_: Exception) { null } ?: return@execute
+            handler.post { djSettingsFetched(s) }
+        }
+    }
+    /** Settings read from the server (a screen opened): kept, and acted on only when they differ from the cached ones. */
+    fun djSettingsFetched(s: DjSettings) { if (s != djSettings) djSettingsChanged(s) else prefs.djSettings = s.toJson().toString() }
+    /** How far into the song the last change of song left it (from the position discontinuity that comes just before the transition). */
+    private var djLeftAt = -1L
+    private var djLastPath: String? = null
+
+    /** Asks the server about the song after the current one, unless it was asked already or the DJ is off here. Never blocks: the answer comes later. */
+    private fun djAsk() {
+        if (!hasQueue || !exo.playWhenReady) return
+        // a skip burst: asked once it settles (commitBurst)
+        if (burstTarget >= 0) return
+        val cur = current
+        // in a Jam the group drives playback; with Repeat one the song after this one is this one again
+        val next = if (djOn && interceptor == null && exo.repeatMode != Player.REPEAT_MODE_ONE) upNext(1).firstOrNull()?.second else null
+        if (cur == null || next == null) { if (dj.pendingPath != null) dj.forget(); djVoice?.ready(null, false); return }
+        val ticket = dj.ask(listOf(cur.path, next.path, djSurface.wire, contextId ?: "").joinToString("\n"))
+        if (ticket < 0) return
+        djVoice?.ready(null, false)
+        val now = java.time.LocalDateTime.now()
+        val body = dj.request(djSurface, DjSong.of(next), DjSong.of(cur), contextId, now.hour, DjCoordinator.weekday(now.dayOfWeek)).toString()
+        val nextPath = next.path
+        djExec.execute {
+            val cue = try { djWeb.djNext(body) } catch (_: Exception) { null }
+            handler.post { if (dj.accept(ticket, nextPath, cue) && cue != null) voice().ready(cue.clip, cue.backup) }
+        }
+    }
+
+    /** A new song: the cue held for it is said if the player got there by itself; anything still being said stops. Then the next song is asked about. */
+    private fun djChanged(t: Track?, reason: Int) {
+        val path = t?.path
+        // a metadata-only swap of the same song (a cover arrived, the data saver) is no change: a line being said carries on
+        if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED && path != null && path == djLastPath) return
+        djLastPath = path
+        val change = when (reason) {
+            Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> DjCoordinator.Change.AUTO
+            Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> DjCoordinator.Change.SKIP
+            Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT -> DjCoordinator.Change.REPEAT
+            else -> DjCoordinator.Change.NEW_QUEUE
+        }
+        val left = djLeftAt; djLeftAt = -1L
+        val cue = dj.changed(change, path, left)
+        if (cue != null && djOn && exo.playWhenReady) voice().say(cue) else djVoice?.stop()
+        djAsk()
+    }
+
+    /** The app was swiped away (PlaybackService): a line being said stops with the music. */
+    fun djStop() { djVoice?.stop() }
+    /** The playback service ends: the DJ's player and the phone's voice are let go (made again when next needed). */
+    fun djRelease() { djVoice?.release(); djVoice = null; duck = 1f; applyOutputVolume() }
 
     init {
         applyOutputVolume()
@@ -317,6 +421,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                 (mediaItem?.localConfiguration?.tag as? Track)?.let { startedItem(it) }
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && (sleepMode == SleepMode.END_OF_TRACK || sleepMode == SleepMode.END_OF_ALBUM)) sleepFired()
                 adaptUpcoming(); schedulePrefetch()
+                djChanged(mediaItem?.localConfiguration?.tag as? Track, reason)
                 // a song ending on its own: a Jam moves the whole group on instead (see Jam)
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) onAutoAdvance?.invoke()
             }
@@ -329,7 +434,14 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
                 if (reason == Player.DISCONTINUITY_REASON_SEEK || reason == Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT) seeking = true
                 if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION || reason == Player.DISCONTINUITY_REASON_SKIP) rememberPlace(oldPosition.mediaItem?.localConfiguration?.tag as? Track, oldPosition.positionMs, finished = reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION)
+                // the DJ: how far into the song a skip left it (a quick skip keeps the DJ quiet for a while), and a seek inside the song stops a line
+                if (oldPosition.mediaItemIndex != newPosition.mediaItemIndex) djLeftAt = oldPosition.positionMs
+                else if (reason == Player.DISCONTINUITY_REASON_SEEK) djVoice?.stop()
             }
+            // a pause from anywhere (the app, the car, a headset, the sleep timer, losing audio focus for good) stops a line; playing again asks ahead
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) { if (playWhenReady) djAsk() else djVoice?.stop() }
+            // a call or another app's sound holds the music back (focus lost for a while): the DJ, which has no focus of its own, stops too
+            override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) { if (playbackSuppressionReason != Player.PLAYBACK_SUPPRESSION_REASON_NONE) djVoice?.stop() }
             override fun onAudioSessionIdChanged(audioSessionId: Int) { applyEq() }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 android.util.Log.w("FLACie", "playback error at ${exo.currentPosition}ms: ${error.errorCodeName}", error)
@@ -406,6 +518,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             if (!queueFile.exists()) return
             val s = QueueStore.decode(queueFile.readText(Charsets.UTF_8)) { QueueStore.stillThere(it) { p -> File(p).exists() } } ?: return
             queue = s.tracks
+            contextId = null; dj.newQueue()
             lastStarted = s.tracks[s.index]   // a restore is not a new play (no history entry, no plays report)
             exo.setMediaItems(s.tracks.map(::item), s.index, s.positionMs)
             s.shuffleOrder?.let { setShuffleOrderQuiet(it) }
@@ -424,6 +537,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             2 -> Player.REPEAT_MODE_ONE
             else -> Player.REPEAT_MODE_OFF
         }
+        // shuffle or repeat may have changed which song comes next
+        djAsk()
     }
 
     /** Decoded audio format of the current track (null until playback starts). */
@@ -481,7 +596,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         exo.addMediaItem(item(t)); queueChanged()
     }
 
-    private fun queueChanged() { queue = queueTracks(); queueRev++; fire() }
+    // the song that comes next may be another one now: the DJ asks about that one instead
+    private fun queueChanged() { queue = queueTracks(); queueRev++; djAsk(); fire() }
     /** After a user edit of the queue: refresh the UI, the preloaded songs (the next ones may be different now) and the file on disk. */
     private fun edited() { queueChanged(); adaptUpcoming(); schedulePrefetch(); persistNow() }
 
@@ -603,7 +719,10 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** Kept for callers that remove without Undo. */
     fun removeFromQueue(index: Int) { removeAt(index) }
 
-    fun clearQueue() { handler.removeCallbacks(commitBurst); burst.reset(); exo.stop(); exo.clearMediaItems(); queue = emptyList(); try { queueFile.delete() } catch (_: Exception) {}; fire() }
+    fun clearQueue() {
+        handler.removeCallbacks(commitBurst); burst.reset(); dj.reset(); djVoice?.clear(); contextId = null
+        exo.stop(); exo.clearMediaItems(); queue = emptyList(); try { queueFile.delete() } catch (_: Exception) {}; fire()
+    }
 
     fun skipTo(index: Int) { if (interceptor?.skipTo(index) == true) return; exo.seekTo(index, 0L); exo.play() }
 
@@ -710,15 +829,19 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** What the queue came from ("Bad Romance mix", a playlist name...), shown as "Playing from" in the Up next sheet. */
     var contextName: String? = null
 
-    fun play(list: List<Track>, index: Int, shuffle: Boolean? = null, context: String? = null) {
+    /** [contextId]: the playlist it came from, for the DJ's per-playlist switch (the Jellyfin playlist id when it has one, else the app's own id). */
+    fun play(list: List<Track>, index: Int, shuffle: Boolean? = null, context: String? = null, contextId: String? = null) {
         contextName = context
         if (interceptor?.play(list, index) == true) return
         if (list.isEmpty()) return
         queue = list
+        // a new queue: the DJ's "this queue" switch goes back to untouched, and nothing from the old queue is said
+        this.contextId = contextId; dj.newQueue(); djVoice?.clear(); refreshDjSettingsSoon()
         if (shuffle != null) { prefs.shuffle = shuffle; applyModes() }
         exo.setMediaItems(list.map(::item), index.coerceIn(0, list.lastIndex), 0L)
         exo.prepare()
         exo.play()
+        djAsk()
         ctx.startService(Intent(ctx, PlaybackService::class.java))
         handler.postDelayed({ checkQueueLow() }, 1500)
     }
@@ -735,8 +858,10 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     fun playFrom(list: List<Track>, index: Int, positionMs: Long, paused: Boolean = false) {
         if (list.isEmpty()) return
         queue = list
+        contextId = null; dj.newQueue(); djVoice?.clear(); refreshDjSettingsSoon()
         exo.setMediaItems(list.map(::item), index.coerceIn(0, list.lastIndex), positionMs.coerceAtLeast(0))
         exo.prepare(); if (paused) exo.pause() else exo.play()
+        djAsk()
         ctx.startService(Intent(ctx, PlaybackService::class.java))
     }
     /** After an error the player sits idle and play() alone does nothing; this was why Play stopped working after a bad seek. */
@@ -753,6 +878,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private val commitBurst = Runnable {
         val t = burst.settle()
         if (t in 0 until exo.mediaItemCount) exo.seekTo(t, 0L)
+        // the DJ waited for the burst to settle (a jump to the song that was already playing makes no transition to ask from)
+        djAsk()
         fire()
     }
     private fun stepIndex(from: Int, forward: Boolean): Int {
@@ -934,6 +1061,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     companion object {
         const val BURST_MS = 400L
         const val SETTLE_MS = 250L
+        /** The DJ settings cached on the phone are fetched again when a queue starts after this long (they may have been changed on the web). */
+        const val DJ_SETTINGS_FRESH_MS = 5 * 60_000L
         private val REF_HZ = floatArrayOf(60f, 230f, 910f, 3600f, 14000f)
         /** dB gains at 60 / 230 / 910 / 3.6k / 14k Hz. "Off" is absent (no effect attached). */
         val EQ_PRESETS: Map<String, FloatArray> = linkedMapOf(

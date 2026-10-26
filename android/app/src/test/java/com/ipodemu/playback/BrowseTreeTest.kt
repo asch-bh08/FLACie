@@ -234,4 +234,16 @@ class BrowseTreeTest {
     @Test fun songIdsDoNotCollideAcrossLists() {
         assertTrue(BrowseTree.songId("favorites", "p") != BrowseTree.songId("recent", "p"))
     }
+
+    @Test fun aPlayFromAPlaylistNamesThePlaylistForTheDj() {
+        val pl = BrowseTree.playlistId("abc")
+        assertEquals("abc", BrowseTree.playlistOf(pl))
+        assertEquals("Play all", "abc", BrowseTree.playlistOf("all:$pl"))
+        assertEquals("Shuffle", "abc", BrowseTree.playlistOf("shuf:$pl"))
+        assertEquals("one of its songs", "abc", BrowseTree.playlistOf(BrowseTree.songId(pl, "http://jf/Audio/x/stream")))
+        assertNull("an album", BrowseTree.playlistOf(BrowseTree.albumId("A|B")))
+        assertNull("a song from Recently played", BrowseTree.playlistOf(BrowseTree.songId(BrowseTree.RECENT, "/m/a.flac")))
+        assertNull("Shuffle all", BrowseTree.playlistOf(BrowseTree.SHUFFLE))
+        assertNull("no id", BrowseTree.playlistOf("pl:"))
+    }
 }

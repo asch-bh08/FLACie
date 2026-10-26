@@ -92,13 +92,20 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
         val list = androidx.compose.foundation.lazy.rememberLazyListState()
         val scope = androidx.compose.runtime.rememberCoroutineScope()
         val at = remember { HashMap<String, Int>() }
+        // opened for one section (the DJ button's long press): there once the list has been laid out
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            val s = nav.settingsSection ?: return@LaunchedEffect
+            nav.settingsSection = null
+            androidx.compose.runtime.withFrameNanos { }
+            at[s]?.let { list.scrollToItem(it) }
+        }
         LazyColumn(Modifier.widthIn(max = 620.dp).fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 30.dp)) {
             // design I, the web's Settings page (Settings.razor): a row of section chips, then each section as one panel with a serif heading and a
             // DM Mono hint, in the web's order: Playback, Music sources, Look and feel, then what only the phone has, Account and About
             if (!dashboard) {
                 item(key = "subnav") {
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        for ((id, label) in listOf("playback" to "Playback", "look" to "Appearance", "sources" to "Library", "account" to "Account", "about" to "About"))
+                        for ((id, label) in listOf("playback" to "Playback", "dj" to "DJ", "look" to "Appearance", "sources" to "Library", "account" to "Account", "about" to "About"))
                             DesignChip(label, false, { val n = list.layoutInfo.totalItemsCount; val i = when (id) { "account" -> n - 2; "about" -> n - 1; else -> at[id] ?: 0 }; scope.launch { list.animateScrollToItem(i.coerceAtLeast(0)) } })
                         if (!ui.guest) DesignChip("Download log", false, { ui.downloadsOpen = true })
                         if (canAdmin) DesignChip("Dashboard", false, { nav.push(Screen.Dashboard) })
@@ -127,7 +134,68 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                         SettingRow("Sleep timer", sleepLeft ?: "Off", chevron = true) { nav.sheet = sleepSheet(app) }
                     }
                 }
-                at["sources"] = 2
+                at["dj"] = 2
+                item(key = "dj") {
+                    // the AI DJ (docs/spec/ai-dj.md): the settings are the account's, kept on FLACie Web, so the web and Windows follow them. Loaded when
+                    // this opens, saved on every change; the phone keeps the last copy for the Now Playing and car buttons
+                    SetPanel("DJ", "Short spoken intros between songs, like a radio DJ. Saved on your account, so FLACie Web and Windows follow.") {
+                        val web = remember { com.ipodemu.library.FlacieWebClient(prefs) }
+                        val djScope = androidx.compose.runtime.rememberCoroutineScope()
+                        val available = app.player.djAvailable
+                        var dj by remember { mutableStateOf(app.player.djSettings) }
+                        var loaded by remember { mutableStateOf(false) }
+                        var djMsg by remember { mutableStateOf<String?>(null) }
+                        androidx.compose.runtime.LaunchedEffect(available) {
+                            if (available) try {
+                                val s = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { web.djSettings() }
+                                dj = s; loaded = true; djMsg = null; app.player.djSettingsFetched(s)
+                            } catch (_: Exception) { djMsg = "Couldn't reach FLACie Web: these are the settings this phone saw last." }
+                        }
+                        // shown at once, then as the server has it (or put back, with the reason, when it can't be saved)
+                        fun save(patch: org.json.JSONObject, shown: com.ipodemu.playback.DjSettings) {
+                            val was = dj; dj = shown
+                            djScope.launch {
+                                try {
+                                    val s = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { web.saveDjSettings(patch) }
+                                    dj = s; djMsg = null; app.player.djSettingsChanged(s)
+                                } catch (e: Exception) { dj = was; djMsg = e.message ?: "Couldn't reach FLACie Web" }
+                            }
+                        }
+                        fun where(phone: Boolean, auto: Boolean, webOn: Boolean, windows: Boolean) =
+                            save(org.json.JSONObject().put("enabled", true).put("phone", phone).put("auto", auto).put("web", webOn).put("windows", windows),
+                                dj.copy(enabled = true, phone = phone, auto = auto, web = webOn, windows = windows))
+                        if (!available) {
+                            Txt(if (prefs.flacieWebUrl.isBlank()) "The DJ needs FLACie Web. Open FLACie Web in a browser once, signed in to the same Jellyfin account, and this phone finds it by itself."
+                                else "The DJ needs a Jellyfin sign-in: FLACie Web knows you by it.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), size = 13f, color = sc.onBgDim, maxLines = 5)
+                        } else {
+                            SettingRow("DJ", if (dj.enabled) "On" else "Off", toggle = true, desc = "Now and then, a few words about the next song before it starts. The DJ button on Now Playing turns it on or off for one queue.") {
+                                save(org.json.JSONObject().put("enabled", !dj.enabled), dj.copy(enabled = !dj.enabled))
+                            }
+                            val rare = dj.chatty == com.ipodemu.playback.DjChatty.RARE
+                            SettingRow("How chatty", if (rare) "Rare" else "Often", desc = "Rare: about 1 song in 7. Often: about 1 in 3.") {
+                                val n = if (rare) com.ipodemu.playback.DjChatty.OFTEN else com.ipodemu.playback.DjChatty.RARE
+                                save(org.json.JSONObject().put("chatty", n.wire), dj.copy(chatty = n))
+                            }
+                            MonoLabel("Where", Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp))
+                            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                val all = dj.phone && dj.auto && dj.web && dj.windows
+                                DesignChip("Everywhere", dj.enabled && all, { where(true, true, true, true) })
+                                DesignChip("Only in the car", dj.enabled && dj.auto && !dj.phone && !dj.web && !dj.windows, { where(false, true, false, false) })
+                                DesignChip("Only on web", dj.enabled && dj.web && !dj.phone && !dj.auto && !dj.windows, { where(false, false, true, false) })
+                            }
+                            SettingRow("Phone", if (dj.phone) "On" else "Off", toggle = true) { save(org.json.JSONObject().put("phone", !dj.phone), dj.copy(phone = !dj.phone)) }
+                            SettingRow("Android Auto", if (dj.auto) "On" else "Off", toggle = true) { save(org.json.JSONObject().put("auto", !dj.auto), dj.copy(auto = !dj.auto)) }
+                            SettingRow("Web", if (dj.web) "On" else "Off", toggle = true) { save(org.json.JSONObject().put("web", !dj.web), dj.copy(web = !dj.web)) }
+                            SettingRow("Windows", if (dj.windows) "On" else "Off", toggle = true) { save(org.json.JSONObject().put("windows", !dj.windows), dj.copy(windows = !dj.windows)) }
+                            SettingRow("Backup voice", if (dj.backup) "On" else "Off", toggle = true, desc = "Use this phone's own voice when the server can't make the DJ's clip.") {
+                                save(org.json.JSONObject().put("backup", !dj.backup), dj.copy(backup = !dj.backup))
+                            }
+                            if (loaded && !dj.voiceReady) Txt("Cloudflare isn't set up yet; the phone's own voice is used if Backup voice is on.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), size = 13f, color = sc.onBgDim, maxLines = 4)
+                        }
+                        djMsg?.let { Txt(it, Modifier.padding(horizontal = 16.dp, vertical = 8.dp), size = 13f, color = sc.onBgDim, maxLines = 4) }
+                    }
+                }
+                at["sources"] = 3
                 item(key = "sources") {
                     SetPanel("Library", "Where the songs come from. Your profile is kept in your ${if (prefs.accountKind == "nas") "NAS" else "Jellyfin account"}, so signing in on another device brings everything back.") {
                         // the web's facts first: who is signed in where, and how big the library is
@@ -147,7 +215,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                         SettingRow("iPod sync", lib.syncDeviceLabel ?: "Off", chevron = true) { ui.syncSetupOpen = true }
                     }
                 }
-                at["look"] = 3
+                at["look"] = 4
                 item(key = "look") {
                     SetPanel("Appearance", "Personal tweaks, saved on this phone only (the web has its own in its Settings).") {
                         val accName = Tweaks.ACCENTS.firstOrNull { it.second == prefs.accentColor }?.first ?: "Custom"

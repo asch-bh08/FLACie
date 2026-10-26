@@ -118,7 +118,12 @@ test.describe.serial('the DJ', () => {
     await expect(btn).not.toHaveClass(/\bon\b/); await pressed(btn, false);
     await expect(btn).toHaveAttribute('title', /Settings → DJ/);
     // right beside Shuffle, on the same line, in the same plain style
-    const sh = (await tr.getByRole('button', { name: /^Shuffle/ }).boundingBox())!, b = (await btn.boundingBox())!;
+    // (both measured in one frame once Now Playing has finished sliding up: two separate reads can land on different frames of the slide)
+    const rects = () => tr.evaluate((t) => [t.querySelector('button[aria-label^="Shuffle"]')!, t.querySelector('button[aria-label="DJ"]')!]
+      .map((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }));
+    let last = -1;
+    await expect.poll(async () => { const y = (await rects())[0].y, still = Math.abs(y - last) < 0.5; last = y; return still; }, { intervals: [150] }).toBe(true);
+    const [sh, b] = await rects();
     expect(Math.abs((sh.y + sh.height / 2) - (b.y + b.height / 2))).toBeLessThanOrEqual(2);
     expect(b.x).toBeGreaterThan(sh.x); expect(b.x - (sh.x + sh.width)).toBeLessThan(30);
     expect(await btn.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)');

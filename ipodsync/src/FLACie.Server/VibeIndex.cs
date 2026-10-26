@@ -22,6 +22,8 @@ public sealed class VibeIndex
     static string Key(Track t) => t.Path;
     public Vibe? Of(Track t) => vibes.TryGetValue(Key(t), out var v) ? v : null;
     public bool Has(Track t) => vibes.ContainsKey(Key(t));
+    /// <summary>Analysed, intro included (a song analysed before intros were worked out is analysed again, once).</summary>
+    public bool Done(Track t) => vibes.TryGetValue(Key(t), out var v) && v.Intro is not null;
     public void Set(Track t, Vibe v) => vibes[Key(t)] = v;
 
     public void Save()
@@ -35,8 +37,10 @@ public sealed class VibeIndex
 /// Works out songs' vibes in the background, one at a time, while nothing is playing: the songs people played most recently first, so what they
 /// actually listen to gets recommendations that fit soonest. Only FLAC files (their frame sizes give the level envelope without decoding). Saved every
 /// 200 songs and at the end of a pass; a pass every hour. Never part of a request, and not run inside the Windows app (it shares the owner's Jellyfin).
+/// The same pass works out each song's intro for the DJ (<see cref="DjIntro"/>): from its synced lyrics when there are some (Jellyfin's, else LRCLIB's, kept in
+/// data/lyrics like the lyrics screen's), else from the same level envelope.
 /// </summary>
-public sealed class VibeFillService(SessionStore sessions, VibeIndex index, ListenLogStore listens, JellyfinClient jf, IHttpClientFactory hf, PlaybackActivity activity, ILogger<VibeFillService> log) : BackgroundService
+public sealed class VibeFillService(SessionStore sessions, VibeIndex index, ListenLogStore listens, JellyfinClient jf, IHttpClientFactory hf, PlaybackActivity activity, ILogger<VibeFillService> log, LyricsService? lyrics = null) : BackgroundService
 {
     public const int SaveEvery = 200;
     public static readonly TimeSpan Interval = TimeSpan.FromHours(1);
@@ -64,10 +68,14 @@ public sealed class VibeFillService(SessionStore sessions, VibeIndex index, List
         var lastPlayed = new Dictionary<string, long>();
         foreach (var e in listens.Read(s)) lastPlayed[e.Path] = Math.Max(lastPlayed.GetValueOrDefault(e.Path), e.At);
         return s.Library.Songs
-            .Where(t => !index.Has(t) && !failed.Contains(t.Path) && MediaInfo.FromExtension(t.FilePath ?? t.Path) == "flac")
+            .Where(t => !index.Done(t) && !failed.Contains(t.Path) && MediaInfo.FromExtension(t.FilePath ?? t.Path) == "flac")
             .OrderByDescending(t => lastPlayed.GetValueOrDefault(t.Path, long.MinValue))
             .ToList();
     }
+
+    /// <summary>A song's vibe and intro, from its level envelope and its lyrics (null when it has none).</summary>
+    public static Vibe Analyse(float[] levels, double secondsPerLevel, Lyrics? words) =>
+        VibeMath.FromLevels(levels, secondsPerLevel) with { Intro = DjIntro.Best(words, levels, secondsPerLevel) };
 
     async Task PassAsync(UserSession s, CancellationToken ct)
     {
@@ -79,7 +87,13 @@ public sealed class VibeFillService(SessionStore sessions, VibeIndex index, List
         {
             await activity.WaitIdleAsync(TimeSpan.FromSeconds(3), ct);
             if (await MediaEndpoints.ReadWhole(s, t, jf, hf, ct) is { } bytes && WaveShape.FrameLevels(bytes) is ({ } levels, var step))
-                index.Set(t, VibeMath.FromLevels(levels, step));
+            {
+                Lyrics? words = null;
+                try { if (lyrics is not null) words = await lyrics.GetAsync(t, s.Jellyfin, ct); }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception) { /* no lyrics: the levels alone */ }
+                index.Set(t, Analyse(levels, step, words));
+            }
             else if (ct.IsCancellationRequested) break;   // the server is stopping: the song is not broken, only unread
             else failed.Add(t.Path);
             if (++done % SaveEvery == 0) index.Save();

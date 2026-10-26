@@ -368,8 +368,8 @@ public class PlayerDjTests
         await p.OnEnded(); await p.OnEnded();
         var plays = js.Calls.Where(c => c.Id == "flacie.djPlay").Select(c => c.Args).ToList();
         Assert.Equal(2, plays.Count);
-        Assert.Equal(new object?[] { "/api/dj/clip/x.mp3", "Here's Song 1", true }, plays[0]);
-        Assert.Equal(new object?[] { "/api/dj/clip/x.mp3", "Here's Song 2", false }, plays[1]);
+        Assert.Equal(new object?[] { "/api/dj/clip/x.mp3", "Here's Song 1", true, 0, 0 }, plays[0]);   // (no intro known: at once, as before)
+        Assert.Equal(new object?[] { "/api/dj/clip/x.mp3", "Here's Song 2", false, 0, 0 }, plays[1]);
     }
 
     [Fact]
@@ -407,5 +407,68 @@ public class PlayerDjTests
         await p2.RestoreAsync(s);
         Assert.Equal("Song 0", p2.Current?.Title);
         Assert.Equal("quiet", p2.ContextId); Assert.False(p2.DjOn);
+    }
+
+    // ---- timed to the intro (DjTiming): the clip ends before the singing, or leads the song in ----
+
+    /// <summary>The djPlay calls: (clip, place in the song where it starts, how long the song is held back).</summary>
+    static List<(string Url, int ClipAt, int SongDelay)> Timed(Js js) =>
+        js.Calls.Where(c => c.Id == "flacie.djPlay").Select(c => ((string)c.Args[0]!, (int)c.Args[3]!, (int)c.Args[4]!)).ToList();
+
+    [Fact]
+    public async Task A_clip_that_fits_the_intro_is_started_so_it_ends_before_the_vocals()
+    {
+        var (p, js, dj) = Player();
+        dj.Answer = r => new("Here's " + r.Next.Title, "", "/api/dj/clip/a.mp3", true, IntroMs: 12_000);
+        js.Answers["flacie.djClipMs"] = (int?)4_000;
+        await p.Play(Songs(3), 0);
+        await p.OnEnded();
+        var (url, at, delay) = Assert.Single(Timed(js));
+        Assert.Equal(7_500, at); Assert.Equal(0, delay);
+        Assert.Equal(12_000 - DjTiming.MarginMs, at + 4_000);
+        Assert.Equal(["/api/dj/clip/a.mp3"], js.Of("flacie.djClipMs"));
+    }
+
+    [Fact]
+    public async Task A_clip_longer_than_the_intro_leads_the_song_in_and_never_holds_it_more_than_one_and_a_half_seconds()
+    {
+        var (p, js, dj) = Player();
+        dj.Answer = r => new("Here's " + r.Next.Title, "", "/api/dj/clip/a.mp3", true, IntroMs: r.Next.Title == "Song 1" ? 4_000 : 0);
+        js.Answers["flacie.djClipMs"] = (int?)4_500;
+        await p.Play(Songs(4), 0);
+        await p.OnEnded(); await p.OnEnded();
+        var plays = Timed(js);
+        Assert.Equal(2, plays.Count);
+        Assert.Equal((0, 1_000), (plays[0].ClipAt, plays[0].SongDelay));      // starts at once; the song comes in under the end of the line
+        Assert.Equal((0, DjTiming.MaxSongDelayMs), (plays[1].ClipAt, plays[1].SongDelay));   // vocals from the first second: held 1.5 s, no more
+    }
+
+    [Fact]
+    public async Task With_the_clips_length_not_known_yet_it_is_guessed_from_its_words()
+    {
+        var (p, js, dj) = Player();
+        dj.Answer = r => new("One two three four five six seven eight nine ten eleven twelve thirteen", "", "/api/dj/clip/a.mp3", true, IntroMs: 20_000);
+        await p.Play(Songs(3), 0);
+        await p.OnEnded();
+        Assert.Equal(20_000 - DjTiming.MarginMs - 5_300, Assert.Single(Timed(js)).ClipAt);
+    }
+
+    [Fact]
+    public async Task Quick_skips_with_Talk_after_skips_say_only_the_last_songs_line_and_timed_to_it()
+    {
+        var (p, js, dj) = Player();
+        dj.S.TalkAfterSkips = true;
+        dj.Answer = r => new("Here's " + r.Next.Title, "", "/api/dj/clip/" + r.Next.Title.Replace(' ', '-') + ".mp3", true, IntroMs: 12_000);
+        js.Answers["flacie.djClipMs"] = (int?)4_000;
+        dj.Hold = true;                                      // every answer comes late, the ones asked ahead too
+        await p.Play(Songs(6), 0);
+        await p.Next(); await p.Next(); await p.Next();      // three quick skips, each asking now
+        Assert.Equal("Song 3", p.Current?.Title);
+        foreach (var (req, tcs) in dj.Held.ToList()) tcs.SetResult(dj.Answer(req));
+        await Task.Delay(50);
+        var plays = Timed(js);
+        Assert.All(plays, x => Assert.Equal("/api/dj/clip/Song-3.mp3", x.Url));
+        Assert.Single(plays);
+        Assert.Equal(7_500, plays[0].ClipAt);
     }
 }

@@ -839,7 +839,18 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     {
         try
         {
-            if (cue.ClipUrl is { Length: > 0 } url) { await audio.DjPlayAsync(url, cue.Text, cue.Backup); djActive = true; }
+            if (cue.ClipUrl is { Length: > 0 } url)
+            {
+                // timed to the song's intro when the server knows it: the clip's own length when the page has it, else a guess from its words
+                var plan = DjTimingPlan.Now;
+                if (cue.IntroMs is { } intro)
+                {
+                    int? clipMs = null;
+                    try { clipMs = await audio.DjClipMsAsync(url); } catch (Exception) { }
+                    plan = DjTiming.Plan(intro, clipMs is > 0 ? clipMs : DjTiming.EstimateMs(cue.Text));
+                }
+                await audio.DjPlayAsync(url, cue.Text, cue.Backup, plan.ClipAtMs, plan.SongDelayMs); djActive = true;
+            }
             else if (cue.Backup && cue.Text.Length > 0) { await audio.DjSayAsync(cue.Text); djActive = true; }
         }
         catch (Exception) { }

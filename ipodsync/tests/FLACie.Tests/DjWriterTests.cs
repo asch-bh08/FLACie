@@ -138,6 +138,20 @@ public class DjWriterTests : IDisposable
     }
 
     [Fact]
+    public async Task A_known_intro_goes_to_the_writer_as_a_word_target_and_to_the_player_in_the_cue()
+    {
+        var r = Make(_ => Task.FromResult(Model("Friday evening, here's Smack That, Akon with Eminem.")));
+        r.Dj.Facts = (_, _) => (new DjExtra(Vibe: new Vibe(0.5, 0.5, 100, 0.5) { Intro = new SongIntro(6_000, 0.9, "lyrics") }), DjBond.Unknown);
+        var cue = await r.Dj.PrepareAsync(me, Req());
+        Assert.Equal(6_000, cue?.IntroMs);
+        Assert.Contains("keep the line to about 13 words", UserPrompt(Assert.Single(ModelCalls(r)).Body));
+        // not sure enough: neither
+        var low = Make(_ => Task.FromResult(Model("Friday evening, here's Smack That, Akon with Eminem.")));
+        low.Dj.Facts = (_, _) => (new DjExtra(Vibe: new Vibe(0.5, 0.5, 100, 0.5) { Intro = new SongIntro(6_000, 0.3, "levels") }), DjBond.Unknown);
+        Assert.Null((await low.Dj.PrepareAsync(me, Req() with { Next = Smack with { Path = "/m/smack2.flac" } }))?.IntroMs);
+    }
+
+    [Fact]
     public async Task Invalid_or_long_model_output_falls_back_to_the_template()
     {
         var r = Make(_ => Task.FromResult(Model("Smack That by Akon with Eminem went to number one in nine countries, won a Grammy and sold millions, which honestly is quite something for a song.")));

@@ -105,6 +105,8 @@ window.flacie = (() => {
   // between songs, the EQ graph and the prefetch are untouched (the clip plays straight to the speakers, beside the graph). A pause or a seek of the
   // music stops it at once; so does djStop (a skip, a new queue). The clip's volume follows the volume set (and the sleep fade).
   let djAudio = null, djPre = null, djSpeaking = false, djTok = 0, duckTimer = 0, djVoices = null;
+  // djLetGo: lets a song held back under a long line (djPlay's lead-in) go on now; null when none is held
+  let djLetGo = null;
   // a seek the player makes itself (a long item resuming, a reconnect) is not a person seeking: it doesn't stop the DJ
   let selfSeek = false;
   const clipVol = () => Math.min(1, Math.max(0, baseVolume * fadeGain));
@@ -122,6 +124,7 @@ window.flacie = (() => {
   // stops whatever the DJ is saying; unduck: bring the music back up (not when another clip follows at once)
   const djHalt = (unduck) => {
     djTok++;
+    if (djLetGo) { const go = djLetGo; djLetGo = null; go(); }
     if (djAudio) { const a = djAudio; djAudio = null; try { a.pause(); a.removeAttribute("src"); a.load(); } catch { } }
     if (djSpeaking) { djSpeaking = false; try { speechSynthesis.cancel(); } catch { } }
     if (unduck) duckTo(1, audio.paused ? 0 : 600);   // (always: it also cancels a duck that has only just begun)
@@ -1291,40 +1294,69 @@ window.flacie = (() => {
       if (djPre) { try { djPre.removeAttribute("src"); djPre.load(); } catch { } }
       djPre = new Audio(); djPre.preload = "auto"; djPre.dataset.u = url; djPre.src = url;
     },
+    // how long the clip fetched ahead lasts (ms), so PlayerState can time it (DjTiming); null until the browser knows
+    djClipMs(url) {
+      const d = djPre && djPre.dataset.u === url ? djPre.duration : NaN;
+      return isFinite(d) && d > 0 ? Math.round(d * 1000) : null;
+    },
     // plays the clip over the song that has just started. The music ducks only once the clip is really playing (its address can take a few seconds while
-    // the server is still making it), and if it hasn't started 1.5 s after the song did the moment has passed: no duck and no line. A clip that fails
+    // the server is still making it), and if it hasn't started 1.5 s after it was due the moment has passed: no duck and no line. A clip that fails
     // before it starts (Cloudflare failed after the line was planned, so the server answers 404) is said by the device's own voice instead when [backup]
-    // is on, as long as the song is still in its first 6 s. Whatever happens, the music is back up 20 s later at the latest.
-    djPlay(url, text, backup) {
+    // is on, as long as it is within 6 s of when it was due. Whatever happens, the music is back up 20 s after the clip was due at the latest.
+    // Timing (DjTiming in FLACie.Core, worked out by PlayerState): [clipAt] is the place in the song where the clip starts (0 = at once, as before), so
+    // that it ends just before the singing; [songDelay] (at most 1.5 s) holds the song back under a line longer than the intro: it plays silently, then
+    // goes back to its start and comes in quietly under the end of the line. The clip is never cut short by either.
+    djPlay(url, text, backup, clipAt, songDelay) {
       if (!url) return;
       djHalt(false);
       const tok = ++djTok;
+      clipAt = Math.max(0, Number(clipAt) || 0);
+      songDelay = Math.min(1500, Math.max(0, Number(songDelay) || 0));
+      const upMs = clipAt > 0 || songDelay > 0 ? 500 : 600;   // timed: back up in the half second before the singing
       const a = djPre && djPre.dataset.u === url ? djPre : new Audio(url);
       if (a === djPre) djPre = null;
       djAudio = a; a.volume = clipVol();
       const mine = () => tok === djTok;
-      let started = false, over = false, songAt = 0;   // songAt: when the song began to play (performance.now()), 0 until it has
-      const done = () => { if (!mine() || over) return; over = true; djAudio = null; duckTo(1, 600); };
+      let started = false, over = false, songAt = 0, dueAt = 0, holding = false;   // songAt / dueAt: when the song began to play / the clip was due (performance.now())
+      const letGo = () => {
+        if (!holding) return;
+        holding = false; if (djLetGo === letGo) djLetGo = null;
+        if (!audio.paused && audio.currentTime < 3) { selfSeek = true; audio.currentTime = 0; }
+        duckTo(started && !over ? 0.3 : 1, 300);
+      };
+      const done = () => { if (!mine() || over) return; over = true; djAudio = null; letGo(); duckTo(1, upMs); };
       const failed = () => {
         if (!mine() || over) return;
         if (started) { done(); return; }
-        over = true; djAudio = null;
-        if (backup && text && (!songAt || performance.now() - songAt < 6000)) window.flacie.djSay(text);
+        over = true; djAudio = null; letGo();
+        if (backup && text && (!dueAt || performance.now() - dueAt < 6000)) window.flacie.djSay(text);
         else duckTo(1, 600);   // (nothing was ducked by this clip; this undoes one left over from a line it replaced)
       };
-      a.addEventListener("playing", () => { if (!mine() || over || started) return; started = true; duckTo(0.3, 400); });
+      a.addEventListener("playing", () => { if (!mine() || over || started) return; started = true; if (!holding) duckTo(0.3, 400); });
       a.addEventListener("ended", done, { once: true });
       a.addEventListener("error", failed, { once: true });
-      // the 1.5 s count starts when the song is really playing (it may still be loading when this is called)
+      const startClip = () => {
+        if (!mine() || over) return;
+        dueAt = performance.now();
+        setTimeout(() => { if (mine() && djAudio === a) djHalt(true); }, 20000);   // safety: a clip that never says it ended
+        if (a.error) { failed(); return; }   // the clip fetched ahead has already failed
+        a.play().catch((e) => { if (e && e.name === "AbortError") return; failed(); });
+      };
+      // counted from when the song is really playing (it may still be loading when this is called)
       const songStarted = () => {
         if (!mine() || songAt) return;
         songAt = performance.now();
-        setTimeout(() => { if (mine() && !over && !started) djHalt(true); }, 1500);
+        if (songDelay > 0) {
+          holding = true; djLetGo = letGo; duckTo(0, 0);
+          setTimeout(() => { if (mine()) letGo(); }, songDelay);
+        }
+        const watch = () => setTimeout(() => { if (mine() && !over && !started) djHalt(true); }, 1500);
+        if (clipAt > 0) setTimeout(() => { startClip(); watch(); }, Math.max(0, (clipAt - audio.currentTime * 1000) / (audio.playbackRate || 1)));
+        else { dueAt = songAt; watch(); }
       };
       if (!audio.paused && audio.readyState >= 3) songStarted(); else audio.addEventListener("playing", songStarted, { once: true });
-      setTimeout(() => { if (mine() && djAudio === a) djHalt(true); }, 20000);   // safety: a clip that never says it ended
-      if (a.error) { failed(); return; }   // the clip fetched ahead has already failed
-      a.play().catch((e) => { if (e && e.name === "AbortError") return; failed(); });
+      // at once, as before: the clip starts with the song (it may still be loading)
+      if (clipAt === 0) startClip();
     },
     // says the line with the device's own voice (no clip could be made): the music ducks once it really speaks, and is back up 20 s later at the latest
     djSay(text) {

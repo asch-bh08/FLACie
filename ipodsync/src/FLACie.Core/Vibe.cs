@@ -5,7 +5,11 @@ namespace FLACie.Core;
 /// parts are, 0-1), Bpm (its beat, 0 when it has no steady one) and Dance (how strong and steady that beat is, 0-1). Recommendations use it to pick
 /// a next song that fits the one playing by feel, not by genre.
 /// </summary>
-public sealed record Vibe(double Energy, double Loudness, double Bpm, double Dance);
+public sealed record Vibe(double Energy, double Loudness, double Bpm, double Dance)
+{
+    /// <summary>How long the song plays before the singing (<see cref="DjIntro"/>), worked out in the same pass; null for a song analysed before it was.</summary>
+    public SongIntro? Intro { get; init; }
+}
 
 public static class VibeMath
 {

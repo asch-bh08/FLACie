@@ -153,7 +153,8 @@ public sealed class DjService : IDjService
         var id = pooled ? clips.RequestPooled(said.Parts!, s.Id) ?? clips.Request(said.Text) : clips.Request(said.Text);
         if (id is null && !st.Backup) return null;
         if (id is not null && counted.TryAdd(key, true)) voice.CountSaid();
-        return new DjCue(said.Text, said.Caption, id is null ? null : DjClips.UrlOf(id), st.Backup);
+        // the song's intro, when known for sure, so the player can time the line to end before the singing
+        return new DjCue(said.Text, said.Caption, id is null ? null : DjClips.UrlOf(id), st.Backup, DjIntro.Usable(extra?.Vibe?.Intro));
     }
 
     /// <summary>A 25-word line in the saved voice: what the text model must leave room for under the cap.</summary>

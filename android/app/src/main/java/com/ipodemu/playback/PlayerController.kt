@@ -311,7 +311,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     val dj = DjCoordinator()
     private var djVoice: DjPlayer? = null
     @OptIn(UnstableApi::class)
-    private fun voice(): DjPlayer = djVoice ?: DjPlayer(ctx, upstream, prefs) { level -> duck = level; applyOutputVolume() }.also { djVoice = it }
+    private fun voice(): DjPlayer = djVoice ?: DjPlayer(ctx, upstream, prefs, onLevel = { level -> duck = level; applyOutputVolume() },
+        // a song held back under a long line (DjTiming) starts again from its beginning; one the listener has moved on in is left alone
+        onRestart = { if (exo.currentPosition < 3_000L) selfSeekTo(exo.currentMediaItemIndex, 0L) }).also { djVoice = it }
     private val djExec = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "dj").also { it.isDaemon = true } }
     private val djWeb by lazy { com.ipodemu.library.FlacieWebClient(prefs) }
     /** The playlist the queue came from, as the DJ's playlist switch knows it (the Jellyfin playlist id, else the app's own); null when not a playlist. */
@@ -399,7 +401,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         }
         val left = djLeftAt; djLeftAt = -1L
         val cue = dj.changed(change, path, left)
-        if (cue != null && djOn && exo.playWhenReady) voice().say(cue) else djVoice?.stop()
+        if (cue != null && djOn && exo.playWhenReady) voice().say(cue, exo.currentPosition) else djVoice?.stop()
         djAsk()
     }
 

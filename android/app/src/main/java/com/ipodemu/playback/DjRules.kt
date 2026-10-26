@@ -71,16 +71,19 @@ object DjRules {
 
 /**
  * What the DJ says before a song (`POST /api/dj/next` with speak = true). [text] is spoken, [caption] is the written form. [clip] is the server-relative
- * MP3 ("/api/dj/clip/<id>.mp3"), null when no clip could be made; [backup] = say [text] with the phone's own voice instead.
+ * MP3 ("/api/dj/clip/<id>.mp3"), null when no clip could be made; [backup] = say [text] with the phone's own voice instead. [introMs]: how long the
+ * song plays before the singing, when the server is sure of it, for [DjTiming]; null = not known (the clip starts with the song, as before).
  */
-data class DjCue(val text: String, val caption: String, val clip: String?, val backup: Boolean) {
+data class DjCue(val text: String, val caption: String, val clip: String?, val backup: Boolean, val introMs: Int? = null) {
     companion object {
         /** The server's answer: null for `{"speak":false}`, for a cue with nothing to say, or for text that is not JSON. */
         fun parse(text: String): DjCue? = try {
             val o = JSONObject(text)
             if (!o.optBoolean("speak")) null else {
                 fun str(k: String) = if (o.isNull(k)) "" else o.optString(k)
-                val cue = DjCue(str("text"), str("caption"), str("clip").takeIf { it.isNotBlank() }, o.optBoolean("backup"))
+                // introMs: how long the song plays before the singing, when the server is sure (DjTiming); null = not known
+                val intro = if (o.isNull("introMs")) null else o.optInt("introMs", -1).takeIf { it >= 0 }
+                val cue = DjCue(str("text"), str("caption"), str("clip").takeIf { it.isNotBlank() }, o.optBoolean("backup"), intro)
                 cue.takeIf { it.clip != null || (it.backup && it.text.isNotBlank()) }
             }
         } catch (_: Exception) { null }

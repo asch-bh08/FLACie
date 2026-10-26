@@ -121,10 +121,10 @@ public static class DjJson
         return null;
     }
 
-    /// <summary>POST /api/dj/next's answer: <c>{ "speak": false }</c> or <c>{ "speak": true, text, caption, clip, backup }</c>.</summary>
+    /// <summary>POST /api/dj/next's answer: <c>{ "speak": false }</c> or <c>{ "speak": true, text, caption, clip, backup, introMs }</c> (introMs: null when not known).</summary>
     public static JsonObject Cue(DjCue? c) => c is null
         ? new JsonObject { ["speak"] = false }
-        : new JsonObject { ["speak"] = true, ["text"] = c.Text, ["caption"] = c.Caption, ["clip"] = c.ClipUrl, ["backup"] = c.Backup };
+        : new JsonObject { ["speak"] = true, ["text"] = c.Text, ["caption"] = c.Caption, ["clip"] = c.ClipUrl, ["backup"] = c.Backup, ["introMs"] = c.IntroMs };
 
     // ---- the other way round: the Windows app asking the family's FLACie Web (HomeDj) ----
 
@@ -149,7 +149,8 @@ public static class DjJson
         string S(string k) => o[k] is JsonValue v && v.TryGetValue<string>(out var x) ? x : "";
         var text = S("text");
         if (text.Trim().Length == 0) return null;
-        return new DjCue(text, S("caption"), S("clip") is { Length: > 0 } clip ? clip : null, o["backup"] is JsonValue b && b.TryGetValue<bool>(out var backup) && backup);
+        return new DjCue(text, S("caption"), S("clip") is { Length: > 0 } clip ? clip : null, o["backup"] is JsonValue b && b.TryGetValue<bool>(out var backup) && backup,
+            o["introMs"] is JsonValue iv && iv.TryGetValue<int>(out var intro) && intro >= 0 ? intro : null);
     }
 
     /// <summary>Reads GET /api/dj/settings' answer (what <see cref="Settings"/> writes): null when it isn't one.</summary>

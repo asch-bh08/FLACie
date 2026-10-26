@@ -113,7 +113,7 @@ public class DjJsonTests
     {
         Assert.Equal("""{"speak":false}""", DjJson.Cue(null).ToJsonString());
         var j = DjJson.Cue(new DjCue("From nineteen ninety-seven, this is it.", "From 1997, this is it.", null, true));
-        Assert.Equal("""{"speak":true,"text":"From nineteen ninety-seven, this is it.","caption":"From 1997, this is it.","clip":null,"backup":true}""", j.ToJsonString());
+        Assert.Equal("""{"speak":true,"text":"From nineteen ninety-seven, this is it.","caption":"From 1997, this is it.","clip":null,"backup":true,"introMs":null}""", j.ToJsonString());
         Assert.Equal("/api/dj/clip/x.mp3", DjJson.Cue(new DjCue("t", "c", "/api/dj/clip/x.mp3", false))["clip"]!.GetValue<string>());
     }
 }

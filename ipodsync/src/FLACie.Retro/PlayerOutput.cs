@@ -29,9 +29,13 @@ public interface IPlayerOutput
     // the AI DJ (docs/spec/ai-dj.md): a short clip on a second small player over the start of a song, the music ducked under it. Never a queue item or a play.
     /// <summary>Fetches the DJ's clip for the next song ahead of time (a server-relative MP3).</summary>
     Task DjPreloadAsync(string url);
-    /// <summary>Plays the DJ's clip now, over the song that has just started, with the music ducked while it plays. When the clip fails before it starts and
-    /// <paramref name="backup"/> is on, the device's own voice says <paramref name="text"/> instead.</summary>
-    Task DjPlayAsync(string url, string text, bool backup);
+    /// <summary>Plays the DJ's clip over the song that has just started, with the music ducked while it plays. When the clip fails before it starts and
+    /// <paramref name="backup"/> is on, the device's own voice says <paramref name="text"/> instead. <paramref name="clipAtMs"/>: the place in the song where the
+    /// clip starts (0 = now); <paramref name="songDelayMs"/>: how long the song is held back under the clip, at most <see cref="DjTiming.MaxSongDelayMs"/>
+    /// (it plays silently, then from its start). See <see cref="DjTiming"/>.</summary>
+    Task DjPlayAsync(string url, string text, bool backup, int clipAtMs, int songDelayMs);
+    /// <summary>How long the clip fetched ahead lasts, in ms; null when it is not known yet (still loading, or not the clip fetched ahead).</summary>
+    Task<int?> DjClipMsAsync(string url);
     /// <summary>Says the DJ's line with the device's own voice (when no clip could be made), ducking the music the same way.</summary>
     Task DjSayAsync(string text);
     /// <summary>Stops a clip or a line at once and brings the music back up.</summary>
@@ -55,7 +59,8 @@ public sealed class PageOutput(IJSRuntime js) : IPlayerOutput
     public async Task FadeAsync(double gain) => await js.InvokeVoidAsync("flacie.fade", gain);
     public async Task StopAsync() => await js.InvokeVoidAsync("flacie.stop");
     public async Task DjPreloadAsync(string url) => await js.InvokeVoidAsync("flacie.djPreload", url);
-    public async Task DjPlayAsync(string url, string text, bool backup) => await js.InvokeVoidAsync("flacie.djPlay", url, text, backup);
+    public async Task DjPlayAsync(string url, string text, bool backup, int clipAtMs, int songDelayMs) => await js.InvokeVoidAsync("flacie.djPlay", url, text, backup, clipAtMs, songDelayMs);
+    public async Task<int?> DjClipMsAsync(string url) => await js.InvokeAsync<int?>("flacie.djClipMs", url);
     public async Task DjSayAsync(string text) => await js.InvokeVoidAsync("flacie.djSay", text);
     public async Task DjStopAsync() => await js.InvokeVoidAsync("flacie.djStop");
 }

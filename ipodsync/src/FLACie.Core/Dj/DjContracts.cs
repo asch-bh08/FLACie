@@ -60,8 +60,9 @@ public sealed record DjRequest(DjSurface Surface, DjSong Next, DjSong? Prev = nu
     string? PlaylistId = null, bool? QueueDj = null, int? LocalHour = null, int? Weekday = null, string? Why = null, DjBond Bond = DjBond.Unknown);
 
 /// <summary>What the DJ says before a song. [Text] is spoken (years in words), [Caption] is the written form for screens.
-/// [ClipUrl] is a server-relative MP3 (null when no clip can be made); [Backup] = say [Text] with the device's own voice instead.</summary>
-public sealed record DjCue(string Text, string Caption, string? ClipUrl, bool Backup);
+/// [ClipUrl] is a server-relative MP3 (null when no clip can be made); [Backup] = say [Text] with the device's own voice instead.
+/// [IntroMs]: how long the song plays before the singing, when the server is sure enough (<see cref="DjIntro.Usable"/>), for <see cref="DjTiming"/>; null = not known.</summary>
+public sealed record DjCue(string Text, string Caption, string? ClipUrl, bool Backup, int? IntroMs = null);
 
 /// <summary>The DJ, as the players see it. Implemented by the server (FLACie.Server/Dj); absent in apps with no server.</summary>
 public interface IDjService

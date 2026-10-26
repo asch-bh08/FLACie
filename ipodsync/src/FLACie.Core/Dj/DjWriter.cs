@@ -6,10 +6,11 @@ namespace FLACie.Core;
 
 /// <summary>The facts a model-written line may use: what the planner knows about this song change, already tidied. Blank fields are unknown and never mentioned.</summary>
 /// <remarks>[Genre], [ReleaseType] ("single", "live album"), [FirstYear] (when it first came out, only if before [Year]), [Label], [Feel] ("a big one"),
-/// [Colour] ("Monday morning"), [FirstName] (only at the start of a session) and [Style]: from MusicBrainz, the vibe index and the account.</remarks>
+/// [Colour] ("Monday morning"), [FirstName] (only at the start of a session) and [Style]: from MusicBrainz, the vibe index and the account.
+/// [IntroMs] (0 = not known) and [TargetWords] (0 = no target): the song's intro before the singing, and how many words fit it (<see cref="DjTiming.TargetWords"/>).</remarks>
 public sealed record DjFacts(string Title, string Artist, string ArtistLead, string? Guest, string Album, int Year, string PrevTitle, string PrevArtist,
     bool Open, string TimeOfDay, string Day, string Mood, string Why, string Find, string TemplateLine,
-    string Genre = "", string ReleaseType = "", int FirstYear = 0, string Label = "", string Feel = "", string Colour = "", string FirstName = "", DjStyle Style = DjStyle.Classic);
+    string Genre = "", string ReleaseType = "", int FirstYear = 0, string Label = "", string Feel = "", string Colour = "", string FirstName = "", DjStyle Style = DjStyle.Classic, int IntroMs = 0, int TargetWords = 0);
 
 /// <summary>
 /// Writes the DJ's line with a small text model (Workers AI) instead of a template: the prompt (a DJ character plus the facts), and the checks on what comes back.
@@ -75,11 +76,16 @@ public static partial class DjWriter
         var open = line.Slot == DjSlot.Open || req.Prev is null;
         var fy = extra?.OriginalYear ?? 0;
         var first = fy >= 1900 && fy <= nowUtc.Year && (year == 0 || fy < year) && !remaster ? fy : 0;
+        var intro = DjIntro.Usable(extra?.Vibe?.Intro);
         return new(TitleOf(n), artist, lead, g, album, year, TitleOf(p), ArtistOf(p).Written, open,
             tod, day, mood, why, find, line.Caption,
             DjText.Genre(n.Genre)?.Write ?? "", Clean(extra?.ReleaseType), first, Clean(extra?.Label), DjFeel.Of(extra?.Vibe, extra?.PrevVibe),
-            DjPlanner.Colour(req.LocalHour, req.Weekday) ?? "", open && firstName is { Length: > 0 } fn ? fn : "", style);
+            DjPlanner.Colour(req.LocalHour, req.Weekday) ?? "", open && firstName is { Length: > 0 } fn ? fn : "", style,
+            intro ?? 0, DjTiming.TargetWords(intro));
     }
+
+    /// <summary>The most words a model line may have: <see cref="MaxWords"/>, or a few over the intro's target when there is one (a little over only leads the song in).</summary>
+    public static int WordLimit(DjFacts f) => f.TargetWords > 0 ? Math.Min(MaxWords, f.TargetWords + 3) : MaxWords;
 
     /// <summary>The system and user messages: the DJ's character, then the facts and the recent lines to avoid.</summary>
     public static (string System, string User) Prompt(DjFacts f, IReadOnlyList<string> recent)
@@ -106,6 +112,8 @@ public static partial class DjWriter
         Put("Why this song was picked", f.Why);
         Put("This song is", f.Find);
         Put("A plain version of the line (do better than this)", f.TemplateLine);
+        if (f.TargetWords > 0)
+            Put("Length", $"the song's intro before the singing is about {Math.Round(f.IntroMs / 1000.0).ToString(CultureInfo.InvariantCulture)} seconds, so keep the line to about {f.TargetWords} words");
         var rs = recent.Where(r => r.Length > 0).TakeLast(Recent).ToList();
         if (rs.Count > 0)
         {
@@ -152,7 +160,7 @@ public static partial class DjWriter
         if (s.Length < 4) return null;
         foreach (var r in s.EnumerateRunes())
             if (Rune.GetUnicodeCategory(r) is UnicodeCategory.OtherSymbol or UnicodeCategory.Surrogate or UnicodeCategory.PrivateUse) return null;
-        if (DjText.WordCount(s) > MaxWords || SentenceEnd().Matches(s).Count > 2) return null;
+        if (DjText.WordCount(s) > WordLimit(f) || SentenceEnd().Matches(s).Count > 2) return null;
         var low = s.ToLowerInvariant();
         // it names the song or the artist
         bool Has(string x) => x.Length > 0 && low.Contains(x.ToLowerInvariant());

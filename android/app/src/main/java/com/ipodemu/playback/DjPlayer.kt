@@ -25,9 +25,12 @@ import java.util.Locale
  * player pause), it is never in the queue (so play counting, history, the media session and the car's screen never see it), and the music is ducked
  * through [onLevel] while it is heard. The clip of the next song's cue is loaded as soon as the cue arrives ([ready]), so it starts the moment the song
  * does ([say]). The times a line may take are [DjLine]'s; a watchdog holds it to them, so the music is never left ducked. Main thread only.
+ * A clip is timed to the song's intro when the server knows it ([DjTiming]): started later so it ends just before the singing, or, when it is longer than
+ * the intro, the song is held back under it (silent through [onLevel], then from its start through [onRestart]) for at most 1.5 s.
  */
 @OptIn(UnstableApi::class)
-class DjPlayer(private val ctx: Context, private val source: DataSource.Factory, private val prefs: Prefs, private val onLevel: (Float) -> Unit) {
+class DjPlayer(private val ctx: Context, private val source: DataSource.Factory, private val prefs: Prefs, private val onLevel: (Float) -> Unit,
+               private val onRestart: () -> Unit = {}) {
     private val handler = Handler(Looper.getMainLooper())
     private var exo: ExoPlayer? = null
     /** The clip loaded in [exo], ready to play; [wanted] = the clip of the cue for the next song (loaded once nothing is being said). */
@@ -41,13 +44,19 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
     private var line: DjLine? = null
     val speaking: Boolean get() = line != null
     private val ramp = DuckRamp()
+    /** The song is held back under a line longer than its intro: silent until [letGo]. */
+    private var holding = false
     private val tick = object : Runnable {
         override fun run() {
             val now = SystemClock.uptimeMillis()
-            onLevel(ramp.level(now))
-            if (!ramp.settled(now)) handler.postDelayed(this, TICK_MS)
+            onLevel(if (holding) 0f else ramp.level(now))
+            if (!holding && !ramp.settled(now)) handler.postDelayed(this, TICK_MS)
         }
     }
+    /** The hold is over: the song starts again from its beginning, quietly under the end of the line. */
+    private val letGo = Runnable { if (holding) { holding = false; onRestart(); kick() } }
+    /** A clip timed to start later in the song. */
+    private val startClip = Runnable { if (line != null) player().playWhenReady = true }
     /** A line not sounding in time (a slow clip, a voice that never starts) or never ending (a clip that stalls, a voice that never says it is done). */
     private val watchdog = Runnable { val l = line; if (l != null) { if (SystemClock.uptimeMillis() >= l.stopAt) stop() else watch() } }
     private fun watch() { handler.removeCallbacks(watchdog); line?.let { handler.postAtTime(watchdog, it.stopAt) } }
@@ -100,20 +109,35 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
     /** The clip player goes quiet and lets its clip go. */
     private fun quietClip() { exo?.let { it.playWhenReady = false; it.stop(); it.clearMediaItems() }; loaded = null }
 
-    /** The song the cue was for just started by itself: says the line over its start. Quiet when the clip is not there in time or no voice is ready. */
-    fun say(cue: DjCue) {
+    /** The song the cue was for just started by itself ([songAtMs] into it): says the line over its start, timed to its intro ([DjTiming]) when the cue
+     *  knows it. Quiet when the clip is not there in time or no voice is ready. The phone's own voice is never timed (how long it takes is not known). */
+    fun say(cue: DjCue, songAtMs: Long = 0L) {
         if (speaking) stop()
         val clip = cue.clip?.let(::url)
         wanted = null; wantedBackup = false
-        val l = DjLine.start(cue, SystemClock.uptimeMillis(), clip != null && clip == failed) ?: return
+        val now = SystemClock.uptimeMillis()
+        val failedAhead = clip != null && clip == failed
+        // the clip's own length once loaded ahead, else a guess from its words
+        val known = exo?.duration?.takeIf { clip != null && clip == loaded && it != C.TIME_UNSET && it > 0 }?.toInt()
+        val plan = if (clip == null || failedAhead || cue.introMs == null) DjTimingPlan.NOW else DjTiming.plan(cue.introMs, known ?: DjTiming.estimateMs(cue.text))
+        val wait = (plan.clipAtMs - songAtMs).coerceAtLeast(0L)
+        // a clip due later counts its times from when it is due
+        val l = DjLine.start(cue, if (plan.clipAtMs > 0) now + wait else now, failedAhead) ?: return
         line = l
-        if (l.phoneVoice) speak(l) else { load(clip); player().playWhenReady = true }
+        if (l.phoneVoice) speak(l)
+        else {
+            load(clip)
+            if (plan.clipAtMs > 0) handler.postDelayed(startClip, wait) else player().playWhenReady = true
+            if (plan.songDelayMs > 0) { holding = true; kick(); handler.postDelayed(letGo, plan.songDelayMs.toLong()) }
+        }
         watch()
     }
 
     /** Pause, a seek, a skip, the sleep timer, the app swiped away: the line stops at once and the music comes back up. The next song's cue is kept. */
     fun stop() {
-        handler.removeCallbacks(watchdog)
+        handler.removeCallbacks(watchdog); handler.removeCallbacks(startClip); handler.removeCallbacks(letGo)
+        // a song held back goes on from where it is (a skip, a pause or a seek: it is not started again)
+        if (holding) { holding = false; kick() }
         val was = line
         if (was != null) {
             line = null; waitingForVoice = false

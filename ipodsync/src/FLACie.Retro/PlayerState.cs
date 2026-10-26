@@ -401,14 +401,27 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         enginePicks = enginePicks?.Where(p => p.Track.Path != path).ToList();
         autoplayWhy.Remove(path);
         if (Queue.FirstOrDefault(t => t.Path == path) is { } gone) fetchedKeys.Remove(Matching.MatchKey(gone));
-        if (Current?.Path == path) await NextAsync();
-        // copies still to come (the played ones stay in the queue's past)
-        while (CanEdit)
+        if (!CanEdit) { if (Current?.Path == path) await NextAsync(); return; }
+        var playing = Current?.Path == path;
+        // every other copy goes first (a guard keeps a surprise from looping for ever)
+        for (var guard = Queue.Count + 1; guard > 0 && CanEdit; guard--)
         {
-            var ahead = order.Skip(order.IndexOf(Index) + 1).Where(i => Queue[i].Path == path).Select(i => (int?)i).FirstOrDefault();
-            if (ahead is not { } at) break;
-            await RemoveFromQueue(at);
+            var other = Enumerable.Range(0, Queue.Count).FirstOrDefault(i => i != Index && Queue[i].Path == path, -1);
+            if (other < 0) break;
+            await RemoveFromQueue(other);
         }
+        if (!playing || Current?.Path != path) return;
+        // the playing copy: what follows starts; with nothing to follow the player stops rather than pauses on it
+        var follows = order.IndexOf(Index) + 1 < order.Count || (Repeat == 1 && Queue.Count > 1);
+        if (follows) { await RemoveFromQueue(Index); return; }
+        if (Autoplay && autoplayNext.Count > 0 && Repeat != 1)
+        {
+            await NextAsync();   // Autoplay carries on, then the disliked copy is taken out behind it
+            var old = Queue.FindIndex(t => t.Path == path);
+            if (old >= 0 && old != Index) await RemoveFromQueue(old);
+            return;
+        }
+        await StopAsync();
     }
 
     /// <summary>Takes a song out of the queue. Another song than the playing one: nothing else changes. The playing one: the song that follows starts (it stays paused if

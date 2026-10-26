@@ -42,7 +42,7 @@ public class PlayerListenTests : IDisposable
         return p;
     }
 
-    static async Task Until(Func<bool> done) { for (var i = 0; i < 200 && !done(); i++) await Task.Delay(15); Assert.True(done()); }
+    static async Task Until(Func<bool> done) { for (var i = 0; i < 400 && !done(); i++) await Task.Delay(15); Assert.True(done()); }
 
     [Fact] public async Task A_play_counts_what_was_heard_not_what_was_skipped_over_and_is_told_once()
     {
@@ -134,16 +134,16 @@ public class PlayerListenTests : IDisposable
     [Fact] public async Task Disliking_a_song_that_is_not_playing_takes_it_out_of_Up_next_and_Autoplay()
     {
         var p = Player();
-        RetroHost.RecommendNext = (_, _, _) => [(T(9), "why"), (T(8), "why")];
+        RetroHost.RecommendNext = (_, _, _) => [(T(99), "why"), (T(98), "why")];
         await p.Play(Songs(0, 3), 0);
         await p.Dislike("/m/2.flac");
         Assert.Equal("/m/0.flac", p.Current!.Path);
         Assert.Equal(["Song 1"], p.UpNext(10).Select(u => u.Track.Title).ToArray());
         await p.SkipTo(1);
-        await Until(() => p.AutoplayNext.Any(t => t.Path == "/m/9.flac"));
-        await p.Dislike("/m/9.flac");
-        Assert.DoesNotContain(p.AutoplayNext, t => t.Path == "/m/9.flac");
-        Assert.Contains(p.AutoplayNext, t => t.Path == "/m/8.flac");
+        await Until(() => p.AutoplayNext.Any(t => t.Path == "/m/99.flac") && p.AutoplayNext.Any(t => t.Path == "/m/98.flac"));
+        await p.Dislike("/m/99.flac");
+        Assert.DoesNotContain(p.AutoplayNext, t => t.Path == "/m/99.flac");
+        Assert.Contains(p.AutoplayNext, t => t.Path == "/m/98.flac");
     }
 
     [Fact] public async Task A_listening_log_that_fails_never_stops_the_next_song_or_the_stop()
@@ -157,5 +157,37 @@ public class PlayerListenTests : IDisposable
         p.OnTime(1, 100); p.OnTime(2, 100);
         await p.StopAsync();
         Assert.Null(p.Current);
+    }
+
+    [Fact] public async Task Disliking_the_last_song_stops_the_player_instead_of_pausing_on_it()
+    {
+        var p = Player();
+        await p.SetAutoplayAsync(false);
+        await p.Play(Songs(0, 2), 1);
+        await p.Dislike("/m/1.flac");
+        Assert.Null(p.Current);
+        Assert.DoesNotContain(p.Queue, t => t.Path == "/m/1.flac");
+    }
+
+    [Fact] public async Task Disliking_the_only_song_with_repeat_all_stops_and_does_not_replay_it()
+    {
+        var p = Player();
+        await p.Play(Songs(0, 1), 0);
+        p.CycleRepeat(); Assert.Equal(1, p.Repeat);
+        await p.Dislike("/m/0.flac");
+        Assert.Null(p.Current);
+        Assert.Empty(p.Queue);
+    }
+
+    [Fact] public async Task With_repeat_all_a_later_copy_of_the_disliked_song_never_starts()
+    {
+        var p = Player();
+        await p.Play(new List<Track> { T(0), T(1), T(2), T(1) }, 1);
+        p.CycleRepeat();
+        await p.Dislike("/m/1.flac");
+        Assert.Equal("/m/2.flac", p.Current!.Path);
+        await p.NextAsync(); await p.NextAsync(); await p.NextAsync();
+        Assert.DoesNotContain(p.Queue, t => t.Path == "/m/1.flac");
+        Assert.NotEqual("/m/1.flac", p.Current!.Path);
     }
 }

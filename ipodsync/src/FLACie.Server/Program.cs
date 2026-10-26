@@ -2,6 +2,7 @@ using FLACie.Core;
 using FLACie.Server;
 using FLACie.Server.Components;
 using FLACie.Server.Alexa;
+using FLACie.Server.Dj;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
@@ -136,6 +137,10 @@ builder.Services.AddSingleton<AlacCache>();
 builder.Services.AddSingleton<HitsService>();
 // Alexa (off until switched on in Settings): the skill endpoint, signed stream links, pairing
 builder.Services.AddAlexa(dataDir);
+// the AI DJ (off for each person until they turn it on): the lines, the Cloudflare voice set up on the dashboard, the clips
+var cloudflareClient = builder.Services.AddHttpClient("cloudflare", c => { c.Timeout = TimeSpan.FromSeconds(30); c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); });
+if (CatalogRedirectHandler.Parse(builder.Configuration["FLACIE_CATALOG_REDIRECT"]) is { } cfRedirect) cloudflareClient.AddHttpMessageHandler(() => new CatalogRedirectHandler(cfRedirect));
+builder.Services.AddDj();
 
 var app = builder.Build();
 {
@@ -198,6 +203,7 @@ app.MapAuth();
 app.MapMedia(dataDir);
 app.MapApi();
 app.MapAlexa();
+app.MapDj();
 // local diagnostics only (FLACIE_DEBUG=1): the signed-in user's own Jellyfin, GET or POST, so a session problem can be looked at directly
 if (builder.Configuration["FLACIE_DEBUG"] == "1")
 {

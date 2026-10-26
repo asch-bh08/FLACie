@@ -12,7 +12,13 @@ public class PlayerDjTests
     sealed class Js : IJSRuntime
     {
         public readonly List<(string Id, object?[] Args)> Calls = [];
-        public ValueTask<T> InvokeAsync<T>(string identifier, object?[]? args) { Calls.Add((identifier, args ?? [])); return ValueTask.FromResult(default(T)!); }
+        /// <summary>What the page answers, by function (anything else answers the default).</summary>
+        public readonly Dictionary<string, object?> Answers = new();
+        public ValueTask<T> InvokeAsync<T>(string identifier, object?[]? args)
+        {
+            Calls.Add((identifier, args ?? []));
+            return ValueTask.FromResult(Answers.TryGetValue(identifier, out var a) ? (T)a! : default(T)!);
+        }
         public ValueTask<T> InvokeAsync<T>(string identifier, CancellationToken cancellationToken, object?[]? args) => InvokeAsync<T>(identifier, args);
         public string[] Of(string id) => Calls.Where(c => c.Id == id).Select(c => c.Args.ElementAtOrDefault(0) as string ?? "").ToArray();
         public void Clear() => Calls.Clear();
@@ -320,5 +326,85 @@ public class PlayerDjTests
         Assert.Equal((false, false, true, false), (c.Phone, c.Auto, c.Web, c.Windows));
         c.Phone = true;
         Assert.Equal(DjSwitches.Preset.None, DjSwitches.PresetOf(c));
+    }
+
+    [Fact]
+    public void The_listeners_time_is_UTC_less_the_browsers_offset_and_the_servers_clock_without_one()
+    {
+        var utc = new DateTime(2026, 10, 25, 23, 30, 0, DateTimeKind.Utc);   // a Sunday
+        Assert.Equal((0, 1), DjSwitches.LocalTime(utc, -60));                  // UTC+1: already Monday, half past midnight
+        Assert.Equal((19, 0), DjSwitches.LocalTime(utc, 240));                 // New York in summer time: Sunday evening
+        Assert.Equal((5, 1), DjSwitches.LocalTime(utc, -330));                 // India: Monday, 5 am
+        var server = utc.ToLocalTime();
+        Assert.Equal((server.Hour, (int)server.DayOfWeek), DjSwitches.LocalTime(utc, null));
+        Assert.Equal((server.Hour, (int)server.DayOfWeek), DjSwitches.LocalTime(utc, 5000));   // nonsense: the server's clock
+    }
+
+    [Fact]
+    public async Task The_DJ_is_told_the_hour_where_the_browser_is_asked_once_per_tab()
+    {
+        var (p, js, dj) = Player();
+        js.Answers["flacie.utcOffset"] = (int?)-330;                           // the browser is in India; the server's clock says UTC
+        var before = DateTime.UtcNow.AddMinutes(330);
+        await p.Play(Songs(5), 0);
+        await p.OnEnded(); await p.OnEnded();
+        var after = DateTime.UtcNow.AddMinutes(330);
+        Assert.Equal(3, dj.Asked.Count);
+        foreach (var r in dj.Asked)
+        {
+            Assert.Contains(r.LocalHour, new int?[] { before.Hour, after.Hour });
+            Assert.Contains(r.Weekday, new int?[] { (int)before.DayOfWeek, (int)after.DayOfWeek });
+        }
+        Assert.Single(js.Calls, c => c.Id == "flacie.utcOffset");
+    }
+
+    [Fact]
+    public async Task The_clip_is_handed_its_line_and_the_backup_switch_so_the_page_can_say_it_if_the_clip_fails()
+    {
+        var (p, js, dj) = Player();
+        dj.Answer = r => new("Here's " + r.Next.Title, "", "/api/dj/clip/x.mp3", r.Next.Title == "Song 1");
+        await p.Play(Songs(4), 0);
+        await p.OnEnded(); await p.OnEnded();
+        var plays = js.Calls.Where(c => c.Id == "flacie.djPlay").Select(c => c.Args).ToList();
+        Assert.Equal(2, plays.Count);
+        Assert.Equal(new object?[] { "/api/dj/clip/x.mp3", "Here's Song 1", true }, plays[0]);
+        Assert.Equal(new object?[] { "/api/dj/clip/x.mp3", "Here's Song 2", false }, plays[1]);
+    }
+
+    [Fact]
+    public async Task A_queue_handed_over_or_adopted_never_keeps_the_last_playlists_switch_or_this_queue_switch()
+    {
+        var (p, _, dj) = Player();
+        dj.S.Enabled = true; dj.S.Playlists["quiet"] = false;
+        await p.Play(Songs(3), 0, "Quiet one", "quiet");
+        Assert.False(p.DjOn);
+        await p.ToggleDjAsync();
+        Assert.True(p.QueueDj);
+        await p.PlayFromAsync(Songs(3), 1, 0, false);                          // Connect, a Jam or Alexa hands this tab a queue
+        Assert.Null(p.ContextId); Assert.Null(p.QueueDj); Assert.True(p.DjOn);
+        Assert.Null(dj.Asked[^1].PlaylistId);
+        await p.Play(Songs(3), 0, "Quiet one", "quiet");
+        await p.AdoptAsync(Songs(3), 0, 0, true);                             // the phone app's queue, taken as it stands
+        Assert.Null(p.ContextId); Assert.True(p.DjOn);
+    }
+
+    [Fact]
+    public async Task After_a_reload_the_queue_still_counts_as_from_its_playlist()
+    {
+        var (p, js, dj) = Player();
+        dj.S.Enabled = true; dj.S.Playlists["quiet"] = false;
+        p.SetStashKey("u");
+        await p.Play(Songs(3), 0, "Quiet one", "quiet");
+        var json = js.Calls.Last(c => c.Id == "flacie.stash" && c.Args[0] is string k && k.StartsWith("flacie.queue.")).Args[1] as string;
+        var (p2, js2, dj2) = Player();
+        dj2.S = dj.S;
+        js2.Answers["flacie.unstash"] = json;
+        p2.SetStashKey("u");
+        var s = new UserSession("jellyfin", null, null);
+        s.AddDownloaded(Songs(3));
+        p2.SetPlanner(s, new NoPlanner());
+        await p2.RestoreAsync(s);
+        Assert.Equal("Song 0", p2.Current?.Title);
+        Assert.Equal("quiet", p2.ContextId); Assert.False(p2.DjOn);
     }
 }

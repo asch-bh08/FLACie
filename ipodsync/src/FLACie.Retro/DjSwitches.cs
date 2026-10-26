@@ -25,6 +25,16 @@ public static class DjSwitches
 
     public static string Label(bool? on) => on switch { true => "On", false => "Off", null => "Auto" };
 
+    /// <summary>
+    /// The hour (0-23) and weekday (0 = Sunday) where the listener is, for the DJ's time-of-day lines: UTC less the browser's offset ([browserOffsetMinutes] as
+    /// Date.getTimezoneOffset gives it: minutes, positive west of Greenwich, so UTC+1 is -60). Without one (not read yet, or nonsense), this server's own clock.
+    /// </summary>
+    public static (int Hour, int Weekday) LocalTime(DateTime utcNow, int? browserOffsetMinutes)
+    {
+        var t = browserOffsetMinutes is int m and >= -18 * 60 and <= 18 * 60 ? utcNow.AddMinutes(-m) : utcNow.ToLocalTime();
+        return (t.Hour, (int)t.DayOfWeek);
+    }
+
     /// <summary>The "Where" quick presets; choosing one also turns the DJ on.</summary>
     public enum Preset { None, Everywhere, OnlyInTheCar, OnlyOnWeb }
 

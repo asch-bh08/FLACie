@@ -1,18 +1,28 @@
 @inherits UserComponent
 @*
-    The DJ's settings for this person (docs/spec/ai-dj.md). They are kept on the server, so the phone, the car, the web and the Windows app all follow
-    them. Hidden where there is no DJ. The quick switches live elsewhere: the DJ button in the full-screen player (this queue only) and each playlist's
-    DJ chip; which one wins is DjRules in FLACie.Core.
+    The DJ's settings for this person (docs/spec/ai-dj.md). On FLACie Web they are kept on the server, so the phone, the car, the web and the Windows app all
+    follow them. The Windows app's own copy of the server goes through the family's FLACie Web when the profile names it (HomeDj), and says when it can't, or
+    when there is none and its settings stay on this PC. Hidden where there is no DJ. The quick switches live elsewhere: the DJ button in the full-screen
+    player (this queue only) and each playlist's DJ chip; which one wins is DjRules in FLACie.Core.
 *@
 @if (Player.Dj is { } dj)
 {
     var s = dj.Settings(Session);
     var preset = DjSwitches.PresetOf(s);
+    var where = home?.Where(Session);
     <section class="panel set dj-set" id="dj">
-        <div class="set-head"><h2>DJ</h2><p class="hint">Now and then, between songs, a friendly voice tells you what you just heard and what's coming up, over the start of the next song. Your choices here follow you to your phone, the car, the web and the Windows app.</p></div>
-        @if (!dj.VoiceReady)
+        <div class="set-head"><h2>DJ</h2><p class="hint">Now and then, between songs, a friendly voice tells you what you just heard and what's coming up, over the start of the next song. @KeptWhere(where)</p></div>
+        @if (where is { Reachable: false })
         {
-            <p class="dj-note" role="note">Cloudflare isn't set up yet. Ask the admin (Dashboard → DJ). Until then the device's own voice is used if Backup voice is on.</p>
+            <p class="dj-note" role="note">Using this PC's own DJ settings because FLACie Web at @where.Url @where.Problem. Changes made here stay on this PC.</p>
+        }
+        else if (where is { Reachable: null })
+        {
+            <p class="dj-note" role="status">Looking for FLACie Web at @where.Url…</p>
+        }
+        @if (VoiceNote(dj, where) is { } voiceNote)
+        {
+            <p class="dj-note" role="note">@voiceNote</p>
         }
         <label class="switch-row">
             <span><b>DJ</b><small>Talk between songs</small></span>
@@ -48,6 +58,42 @@
 }
 @code {
     static string Pressed(bool on) => on ? "true" : "false";
+
+    /// <summary>The Windows app's DJ (its own copy of the server); null on FLACie Web itself.</summary>
+    FLACie.Server.Dj.HomeDj? home;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        if (Player.Dj is FLACie.Server.Dj.HomeDj { Desktop: true } h) { home = h; h.Changed += OnHome; }
+    }
+
+    // the family's FLACie Web answered, stopped answering, or sent settings changed elsewhere: draw again, and ask about the next song again (the DJ may now be on or off)
+    void OnHome(string id)
+    {
+        if (id != Session.Id) return;
+        _ = InvokeAsync(async () => { try { await Player.DjRefreshAsync(); StateHasChanged(); } catch (Exception) { } });
+    }
+
+    public override void Dispose() { if (home is not null) home.Changed -= OnHome; base.Dispose(); }
+
+    /// <summary>Where these choices are kept, so who follows them (true in each case: FLACie Web, the Windows app through it, or the Windows app on its own).</summary>
+    string KeptWhere(FLACie.Server.Dj.DjHome? where) =>
+        home is null ? "Your choices here follow you to your phone, the car, the web and the Windows app."
+        : where is null ? "Your choices here are kept on this PC only, so your phone and FLACie Web don't follow them. Once you have opened FLACie Web in a browser with this account, this app uses the same DJ settings as your phone."
+        : where.Reachable == false ? $"Your choices are normally kept on FLACie Web at {where.Url}, so your phone, the car, the web and this app all follow them."
+        : $"Your choices are kept on FLACie Web at {where.Url}, so your phone, the car, the web and this app all follow them.";
+
+    /// <summary>What to say when the DJ's own voice can't be made where it is made (Cloudflare not set up there); null when it can, or while it isn't known yet.</summary>
+    string? VoiceNote(FLACie.Core.IDjService dj, FLACie.Server.Dj.DjHome? where)
+    {
+        if (home is null) return dj.VoiceReady ? null : "Cloudflare isn't set up yet. Ask the admin (Dashboard → DJ). Until then the device's own voice is used if Backup voice is on.";
+        if (where is { Reachable: null }) return null;
+        if (where is { Reachable: true }) return where.VoiceReady ? null : "Cloudflare isn't set up on FLACie Web yet. Ask its admin (Dashboard → DJ there). Until then this PC's own voice is used if Backup voice is on.";
+        if (home.VoiceReadyFor(Session)) return null;
+        return where is null ? "Cloudflare isn't set up in this app (Dashboard → DJ). Until then this PC's own voice is used if Backup voice is on."
+            : "Without FLACie Web there is no DJ voice here, so this PC's own voice is used if Backup voice is on.";
+    }
 
     RenderFragment Tick(string label, bool on, Action<FLACie.Core.DjSettings> flip) =>
         @<button type="button" aria-pressed="@Pressed(on)" @onclick="() => Change(flip)">@if (on) { <Icon Name="check" Size="16" /> }@label</button>;

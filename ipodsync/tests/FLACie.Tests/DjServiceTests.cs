@@ -125,6 +125,54 @@ public class DjServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task After_Cloudflare_fails_new_lines_get_no_clip_for_ten_minutes_unless_a_clip_is_made_or_the_voice_is_saved()
+    {
+        var fail = true;
+        var r = Make(_ => Task.FromResult(fail ? new HttpResponseMessage(HttpStatusCode.Unauthorized) : DjVoiceTests.Audio())); TurnOn(r);
+        var cue = await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A));
+        Assert.NotNull(cue?.ClipUrl);                                    // handed out before anything failed
+        Assert.Null(await r.Clips.WaitAsync(IdOf(cue.ClipUrl), TimeSpan.FromSeconds(10)));   // the token is refused: the clip's address answers 404
+        Assert.True(r.Voice.Failing);
+        Assert.True(r.Dj.VoiceReady);                                    // still set up (the settings page says nothing new); only new lines go without
+        // a fresh line (another person's first song change): no clip at all, so the device says it, and Cloudflare is not asked again
+        var other = new UserSession("jellyfin", new JellyfinAccount("http://jf.test", "u2", "other", "tok2"), null) { Id = "u2" };
+        var st = r.Dj.Settings(other); st.Enabled = true; r.Dj.Save(other, st);
+        var line = await r.Dj.PrepareAsync(other, new DjRequest(DjSurface.Web, B, A));
+        Assert.NotNull(line); Assert.Null(line.ClipUrl); Assert.True(line.Backup);
+        Assert.Null(r.Clips.Request("A line never said before."));
+        Assert.Single(r.Http.Seen);
+        // ten minutes on it is worth trying again (and that fails again)
+        now = now.AddMinutes(10);
+        Assert.False(r.Voice.Failing);
+        var id = r.Clips.Request("A line never said before.");
+        Assert.NotNull(id);
+        Assert.Null(await r.Clips.WaitAsync(id, TimeSpan.FromSeconds(10)));
+        Assert.True(r.Voice.Failing);
+        // saving the voice (a new token) clears it at once
+        r.Voice.Save(r.Voice.Current, "cf_other_fake_token");
+        Assert.False(r.Voice.Failing);
+        Assert.Null(await r.Clips.WaitAsync(r.Clips.Request("A third line.")!, TimeSpan.FromSeconds(10)));
+        Assert.True(r.Voice.Failing);
+        // and so does a clip made (the admin's Test button once Cloudflare works again)
+        fail = false;
+        var (made, _) = await r.Clips.MakeNowAsync("A test line.");
+        Assert.NotNull(made); Assert.False(r.Voice.Failing);
+        Assert.NotNull(r.Clips.Request("A fourth line."));
+    }
+
+    [Fact]
+    public void Playlist_ids_that_are_the_same_once_trimmed_are_saved_as_one_and_the_last_wins()
+    {
+        var r = Make(voice: false);
+        var st = r.Dj.Settings(me);
+        st.Playlists["bedtime"] = true; st.Playlists[" bedtime "] = false; st.Playlists["  "] = true;
+        r.Dj.Save(me, st);                                               // was a 500: ToDictionary threw on the second "bedtime"
+        var back = r.Dj.Settings(me).Playlists;
+        Assert.Equal(["bedtime"], back.Keys);
+        Assert.False(back["bedtime"]);
+    }
+
+    [Fact]
     public async Task Over_the_daily_cap_there_is_no_clip_and_no_call()
     {
         var r = Make(cap: 0); TurnOn(r);

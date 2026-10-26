@@ -40,7 +40,9 @@ public static class DjJson
         if (body.ContainsKey("playlists"))
         {
             if (body["playlists"] is not JsonObject po || po.Count > 1000 || po.Any(kv => kv.Key.Trim().Length is 0 or > 200 || !IsBool(kv.Value))) return "\"playlists\" must be an object of playlist id: true or false.";
-            all = po.ToDictionary(kv => kv.Key.Trim(), kv => kv.Value!.GetValue<bool>());
+            // ids that are the same once trimmed ("a" and " a ") are one playlist: the last one wins
+            all = new();
+            foreach (var (k, v) in po) all[k.Trim()] = v!.GetValue<bool>();
         }
         (string Id, bool? On)? one = null;
         if (body.ContainsKey("playlist"))
@@ -111,4 +113,59 @@ public static class DjJson
     public static JsonObject Cue(DjCue? c) => c is null
         ? new JsonObject { ["speak"] = false }
         : new JsonObject { ["speak"] = true, ["text"] = c.Text, ["caption"] = c.Caption, ["clip"] = c.ClipUrl, ["backup"] = c.Backup };
+
+    // ---- the other way round: the Windows app asking the family's FLACie Web (HomeDj) ----
+
+    static JsonObject SongBody(DjSong t) => new()
+    {
+        ["title"] = t.Title, ["artist"] = t.Artist, ["album"] = t.Album, ["albumArtist"] = t.AlbumArtist, ["year"] = t.Year, ["genre"] = t.Genre,
+        ["durationMs"] = t.DurationMs, ["path"] = t.Path, ["jellyfinId"] = t.JellyfinId, ["trackNo"] = t.TrackNo, ["discNo"] = t.DiscNo,
+    };
+
+    /// <summary>POST /api/dj/next's body for [r]: what <see cref="Request"/> reads back.</summary>
+    public static JsonObject RequestBody(DjRequest r) => new()
+    {
+        ["surface"] = r.Surface.ToString().ToLowerInvariant(), ["next"] = SongBody(r.Next), ["prev"] = r.Prev is null ? null : SongBody(r.Prev),
+        ["prevPlayedOut"] = r.PrevPlayedOut, ["skippedRecently"] = r.SkippedRecently, ["playlistId"] = r.PlaylistId, ["queueDj"] = r.QueueDj,
+        ["localHour"] = r.LocalHour, ["weekday"] = r.Weekday, ["why"] = r.Why,
+    };
+
+    /// <summary>Reads POST /api/dj/next's answer (what <see cref="Cue"/> writes): null for <c>"speak": false</c>, or for an answer that says nothing.</summary>
+    public static DjCue? ReadCue(JsonObject o)
+    {
+        if (o["speak"] is not JsonValue sv || !sv.TryGetValue<bool>(out var speak) || !speak) return null;
+        string S(string k) => o[k] is JsonValue v && v.TryGetValue<string>(out var x) ? x : "";
+        var text = S("text");
+        if (text.Trim().Length == 0) return null;
+        return new DjCue(text, S("caption"), S("clip") is { Length: > 0 } clip ? clip : null, o["backup"] is JsonValue b && b.TryGetValue<bool>(out var backup) && backup);
+    }
+
+    /// <summary>Reads GET /api/dj/settings' answer (what <see cref="Settings"/> writes): null when it isn't one.</summary>
+    public static DjSettings? ReadSettings(JsonObject o, out bool voiceReady)
+    {
+        voiceReady = o["voiceReady"] is JsonValue v && v.TryGetValue<bool>(out var ready) && ready;
+        var s = new DjSettings();
+        return Apply(o, s) is null ? s : null;
+    }
+
+    /// <summary>The partial update (POST /api/dj/settings) that turns [was] into [now]: only what differs, one playlist as <c>playlist</c> and more as
+    /// <c>playlists</c>. Empty when they are the same.</summary>
+    public static JsonObject Patch(DjSettings was, DjSettings now)
+    {
+        var p = new JsonObject();
+        void B(string k, bool a, bool b) { if (a != b) p[k] = b; }
+        B("enabled", was.Enabled, now.Enabled); B("phone", was.Phone, now.Phone); B("auto", was.Auto, now.Auto); B("web", was.Web, now.Web);
+        B("windows", was.Windows, now.Windows); B("backup", was.Backup, now.Backup);
+        if (was.Chatty != now.Chatty) p["chatty"] = now.Chatty == DjChatty.Rare ? "rare" : "often";
+        var changed = was.Playlists.Keys.Union(now.Playlists.Keys)
+            .Where(k => was.Playlists.TryGetValue(k, out var a) != now.Playlists.TryGetValue(k, out var b) || a != b).ToList();
+        if (changed.Count == 1) p["playlist"] = new JsonObject { ["id"] = changed[0], ["on"] = now.Playlists.TryGetValue(changed[0], out var on) ? on : null };
+        else if (changed.Count > 1)
+        {
+            var all = new JsonObject();
+            foreach (var (k, v) in now.Playlists) all[k] = v;
+            p["playlists"] = all;
+        }
+        return p;
+    }
 }

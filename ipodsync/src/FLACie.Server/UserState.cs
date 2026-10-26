@@ -66,6 +66,8 @@ public sealed class UserState
     public HashSet<string> ChartSeen { get; set; } = [];
     /// <summary>The Jellyfin sign-in, encrypted with the server's keys, so daily jobs can run after a restart before anyone opens the page.</summary>
     public string? Account { get; set; }
+    /// <summary>This person's AI DJ switches (see FLACie.Server/Dj/DjService), the same on every device.</summary>
+    public DjSettings Dj { get; set; } = new();
 }
 
 public sealed class UserStateStore(DataPaths paths, Microsoft.AspNetCore.DataProtection.IDataProtectionProvider dp)

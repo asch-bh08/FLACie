@@ -12,10 +12,12 @@
 @inject DataPaths Paths
 @inject JellyfinClient JfStats
 @inject PlaybackActivity Activity
+@inject FLACie.Server.Dj.CloudflareVoice DjVoice
+@inject FLACie.Server.Dj.DjService Dj
 <PageTitle>Dashboard · FLACie</PageTitle>
 <div class="sp">
 <header class="page-head"><h1><i>Dashboard</i></h1><p class="sub">What is playing, who is on, what the server is doing, and the server's settings</p></header>
-@if (allowed) { <nav class="subnav" aria-label="Dashboard sections"><a href="/downloads">Downloads</a><a href="/dashboard#downloads">Download services</a><a href="/dashboard#opensources">Open sources</a><a href="/dashboard#background">Background downloads</a><a href="/dashboard#storage">Storage</a><a href="/dashboard#notify">Notifications</a><a href="/downloads">Download log</a></nav> }
+@if (allowed) { <nav class="subnav" aria-label="Dashboard sections"><a href="/downloads">Downloads</a><a href="/dashboard#downloads">Download services</a><a href="/dashboard#opensources">Open sources</a><a href="/dashboard#background">Background downloads</a><a href="/dashboard#storage">Storage</a><a href="/dashboard#notify">Notifications</a><a href="/dashboard#dj">AI DJ</a><a href="/downloads">Download log</a></nav> }
 @if (!allowed)
 {
     <section class="panel"><p>This page is for the server's administrators. Ask the person who runs FLACie to make your account an administrator of the Jellyfin server, or to add you to <code>FLACIE_ADMINS</code>.</p></section>
@@ -193,6 +195,32 @@ else
             @if (notifyMsg is not null) { <span class="hint">@notifyMsg</span> }
         </div>
     </section>
+
+    <section class="admin-block panel set" id="dj" aria-label="AI DJ voice">
+        <div class="set-head"><h2>AI DJ voice</h2><p class="hint">The DJ's lines are spoken by Cloudflare Workers AI, on your own Cloudflare account (its free daily allowance). Only the line's words are sent: song titles, artists and why a song was picked. Each person turns the DJ on in their own Settings.</p></div>
+        <p class="hint">@DjUsageLine() · @(string.IsNullOrEmpty(DjVoice.LastResult) ? "Not asked for a clip yet" : "Last: " + DjVoice.LastResult + (DjVoice.LastAt is { } dla ? " · " + Ago(dla) : ""))</p>
+        <div class="form">
+            <label for="dja">Cloudflare account id</label><input id="dja" @bind="djCfg.AccountId" placeholder="32 letters and numbers" autocomplete="off" />
+            <label for="djk">API token <span class="opt">(@(DjVoice.HasToken ? "saved, leave empty to keep" : "needed"))</span></label><input id="djk" type="password" @bind="djToken" autocomplete="new-password" />
+            <label for="djv">Voice</label>
+            <select id="djv" @bind="djCfg.Voice">
+                <option value="@FLACie.Server.Dj.CloudflareVoice.MeloTts">MeloTTS (default, thousands of lines a day free)</option>
+                @foreach (var spk in FLACie.Server.Dj.CloudflareVoice.Speakers)
+                {
+                    <option value="@("aura-1:" + spk)">Aura-1 · @(char.ToUpperInvariant(spk[0]) + spk[1..])@(spk is "helios" or "athena" ? " (British)" : spk == "angus" ? " (Irish)" : "") (about 90 lines a day free)</option>
+                }
+            </select>
+            <label for="djc">Daily cap <span class="opt">(% of the 10,000 free neurons a day the DJ may use)</span></label><input id="djc" type="number" min="0" max="100" @bind="djCfg.CapPercent" />
+        </div>
+        <p class="hint">Getting a token: Cloudflare dashboard → My Profile → API Tokens → Create Token → Workers AI template. The account id is on the dashboard's Overview page.</p>
+        <div class="row-actions">
+            <button class="btn primary" @onclick="SaveDj">Save</button>
+            <button class="btn" @onclick="TestDj" disabled="@djTesting">@(djTesting ? "Making a clip…" : "Test")</button>
+            @if (DjVoice.HasToken) { <button class="btn" @onclick="ForgetDjToken">Remove the token</button> }
+            @if (djMsg is not null) { <span class="hint">@djMsg</span> }
+        </div>
+        @if (djClip is not null) { <audio controls autoplay src="@djClip" aria-label="Test clip"></audio> }
+    </section>
 <ServerSettings />
 }
 </div>
@@ -219,6 +247,7 @@ else
         allowed = AdminAccess.Is(Session, Conf);
         if (!allowed) return;
         cfg = Notify.Current;
+        djCfg = DjVoice.Current;
         Log.Added += OnLog;
         await Refresh2();
         timer = new Timer(_ => InvokeAsync(async () => { await Refresh2(); StateHasChanged(); }), null, 3000, 3000);
@@ -372,6 +401,24 @@ else
         SaveNotify(); testing = true; StateHasChanged();
         var (ok, msg) = await Notify.SendAsync("Test", "If you can read this, notifications from FLACie work.", 3, "tada");
         notifyMsg = ok ? "Test sent. Check your phone." : "Not sent: " + msg; testing = false;
+    }
+
+    // the AI DJ's voice (server-wide)
+    FLACie.Server.Dj.DjVoiceConfig djCfg = new(); string djToken = ""; string? djMsg, djClip; bool djTesting;
+    string DjUsageLine()
+    {
+        var (lines, _, pct) = DjVoice.Usage;
+        return $"Today: about {lines} line{(lines == 1 ? "" : "s")}, {pct.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}% of the free allowance (cap {DjVoice.Current.CapPercent}%)";
+    }
+    void SaveDj() { DjVoice.Save(djCfg, djToken.Length > 0 ? djToken : null); djToken = ""; djCfg = DjVoice.Current; djMsg = "Saved."; }
+    void ForgetDjToken() { DjVoice.Save(djCfg, ""); djCfg = DjVoice.Current; djMsg = "Token removed."; }
+    async Task TestDj()
+    {
+        SaveDj(); djTesting = true; djClip = null; StateHasChanged();
+        var (clip, msg) = await Dj.TestAsync();
+        // a fresh address each time, so the player loads the new clip rather than one it kept
+        djClip = clip is null ? null : clip + "?t=" + DateTime.UtcNow.Ticks;
+        djMsg = clip is null ? "No clip: " + msg : "Made a clip: it plays below."; djTesting = false;
     }
 
     static string Ago(DateTime utc)

@@ -53,6 +53,10 @@ class DjRulesTest {
         assertEquals("nothing cached: the defaults", DjSettings(), DjSettings.parseOrDefault(""))
         assertEquals("a broken cache: the defaults", DjSettings(), DjSettings.parseOrDefault("{not json"))
         assertEquals("often", DjSettings().toJson().getString("chatty"))
+        assertTrue("Talk after skips is on unless the server says off", DjSettings().talkAfterSkips)
+        val quiet = DjSettings.parse("""{"enabled":true,"talkAfterSkips":false}""")
+        assertFalse(quiet.talkAfterSkips)
+        assertEquals("written and read back the same", quiet, DjSettings.parse(quiet.toJson().toString()))
     }
 
     @Test fun aCueIsReadOnlyWhenThereIsSomethingToSay() {

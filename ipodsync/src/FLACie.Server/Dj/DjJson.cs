@@ -6,9 +6,9 @@ namespace FLACie.Server.Dj;
 /// <summary>The DJ's JSON (docs/spec/ai-dj.md, HTTP): camelCase names, enums as lower-case strings, every field type-checked (a wrong type is the caller's mistake, 400).</summary>
 public static class DjJson
 {
-    static readonly string[] Switches = ["enabled", "phone", "auto", "web", "windows", "backup"];
+    static readonly string[] Switches = ["enabled", "phone", "auto", "web", "windows", "backup", "talkAfterSkips"];
 
-    /// <summary>GET /api/dj/settings: <c>{ enabled, chatty: "rare"|"often", phone, auto, web, windows, backup, playlists: { id: bool }, voiceReady }</c>.</summary>
+    /// <summary>GET /api/dj/settings: <c>{ enabled, chatty: "rare"|"often", phone, auto, web, windows, backup, talkAfterSkips, playlists: { id: bool }, voiceReady }</c>.</summary>
     public static JsonObject Settings(DjSettings s, bool voiceReady)
     {
         var lists = new JsonObject();
@@ -16,7 +16,7 @@ public static class DjJson
         return new JsonObject
         {
             ["enabled"] = s.Enabled, ["chatty"] = s.Chatty == DjChatty.Rare ? "rare" : "often", ["phone"] = s.Phone, ["auto"] = s.Auto, ["web"] = s.Web, ["windows"] = s.Windows,
-            ["backup"] = s.Backup, ["playlists"] = lists, ["voiceReady"] = voiceReady,
+            ["backup"] = s.Backup, ["talkAfterSkips"] = s.TalkAfterSkips, ["playlists"] = lists, ["voiceReady"] = voiceReady,
         };
     }
 
@@ -53,7 +53,7 @@ public static class DjJson
             one = (id.Trim(), p["on"] is JsonValue ov ? ov.GetValue<bool>() : null);
         }
         bool B(string k, bool was) => body.ContainsKey(k) ? body[k]!.GetValue<bool>() : was;
-        s.Enabled = B("enabled", s.Enabled); s.Phone = B("phone", s.Phone); s.Auto = B("auto", s.Auto); s.Web = B("web", s.Web); s.Windows = B("windows", s.Windows); s.Backup = B("backup", s.Backup);
+        s.Enabled = B("enabled", s.Enabled); s.Phone = B("phone", s.Phone); s.Auto = B("auto", s.Auto); s.Web = B("web", s.Web); s.Windows = B("windows", s.Windows); s.Backup = B("backup", s.Backup); s.TalkAfterSkips = B("talkAfterSkips", s.TalkAfterSkips);
         if (chatty is { } ch) s.Chatty = ch;
         if (all is not null) s.Playlists = all;
         if (one is { } o) { if (o.On is { } on) s.Playlists[o.Id] = on; else s.Playlists.Remove(o.Id); }
@@ -155,7 +155,7 @@ public static class DjJson
         var p = new JsonObject();
         void B(string k, bool a, bool b) { if (a != b) p[k] = b; }
         B("enabled", was.Enabled, now.Enabled); B("phone", was.Phone, now.Phone); B("auto", was.Auto, now.Auto); B("web", was.Web, now.Web);
-        B("windows", was.Windows, now.Windows); B("backup", was.Backup, now.Backup);
+        B("windows", was.Windows, now.Windows); B("backup", was.Backup, now.Backup); B("talkAfterSkips", was.TalkAfterSkips, now.TalkAfterSkips);
         if (was.Chatty != now.Chatty) p["chatty"] = now.Chatty == DjChatty.Rare ? "rare" : "often";
         var changed = was.Playlists.Keys.Union(now.Playlists.Keys)
             .Where(k => was.Playlists.TryGetValue(k, out var a) != now.Playlists.TryGetValue(k, out var b) || a != b).ToList();

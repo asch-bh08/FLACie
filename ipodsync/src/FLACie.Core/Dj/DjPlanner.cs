@@ -17,8 +17,8 @@ public static class DjPlanner
 
     /// <summary>Song changes that pass in silence after a line: 1 when Often, 4 when Rare.</summary>
     public static int ForcedSilence(DjChatty c) => c == DjChatty.Rare ? 4 : 1;
-    /// <summary>The chance of speaking once the forced silence is over: 0.45 Often (about 1 song in 3.2), 0.30 Rare (about 1 in 7.3).</summary>
-    public static double Chance(DjChatty c) => c == DjChatty.Rare ? 0.30 : 0.45;
+    /// <summary>The chance of speaking once the forced silence is over: 0.5 Often (about 1 song in 3), 0.30 Rare (about 1 in 7.3).</summary>
+    public static double Chance(DjChatty c) => c == DjChatty.Rare ? 0.30 : 0.5;
     /// <summary>The chance of the opening line of a session: always when Often, half the time when Rare.</summary>
     public static double OpenChance(DjChatty c) => c == DjChatty.Rare ? 0.5 : 1.0;
 
@@ -42,7 +42,7 @@ public static class DjPlanner
         if (f.PrevArtistKey.Length > 0 && !mem.Artists.ContainsKey(f.PrevArtistKey)) mem.Artists[f.PrevArtistKey] = new(nowUtc, song - 1, f.PrevTitleWritten);
         if (f.ArtistKey.Length > 0) mem.Artists[f.ArtistKey] = new(nowUtc, song, f.HasTitle ? f.TitleWritten : "");
 
-        var line = Quiet(req, f) ? null
+        var line = Quiet(settings, req, f) ? null
             : (open ? rng.NextDouble() < OpenChance(settings.Chatty) : mem.SilentRun >= ForcedSilence(settings.Chatty) && rng.NextDouble() < Chance(settings.Chatty))
                 ? Write(req, mem, f, open, reset, heard, song, nowUtc, rng, say) : null;
         if (line is null) { mem.SilentRun = Math.Min(mem.SilentRun, DjMemory.Long) + 1; return null; }
@@ -51,9 +51,10 @@ public static class DjPlanner
         return line;
     }
 
-    /// <summary>Silent without a draw: a song under a minute, skipping going on, the next track of an album playing straight through, spoken word, or nothing to name.</summary>
-    static bool Quiet(DjRequest req, Facts f) =>
-        req.Next.DurationMs is > 0 and < 60_000 || req.SkippedRecently || NextInAlbum(req.Prev, req.Next) || DjText.IsSpokenWord(req.Next.Genre) || (!f.HasTitle && !f.HasArtist);
+    /// <summary>Silent without a draw: a song under a minute, skipping going on (only with "Talk after skips" off: with it on, the listener still hears the DJ
+    /// on the songs they let play), the next track of an album playing straight through, spoken word, or nothing to name.</summary>
+    static bool Quiet(DjSettings settings, DjRequest req, Facts f) =>
+        req.Next.DurationMs is > 0 and < 60_000 || (req.SkippedRecently && !settings.TalkAfterSkips) || NextInAlbum(req.Prev, req.Next) || DjText.IsSpokenWord(req.Next.Genre) || (!f.HasTitle && !f.HasArtist);
 
     /// <summary>The next song is the next track of the same album (same album and album artist, the following track on the same disc, or track 1 of the next disc).</summary>
     public static bool NextInAlbum(DjSong? prev, DjSong next)

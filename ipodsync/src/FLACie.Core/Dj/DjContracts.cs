@@ -17,6 +17,8 @@ public sealed class DjSettings
     public bool Windows { get; set; } = true;
     /// <summary>Say the line with the device's own voice when Cloudflare can't make a clip.</summary>
     public bool Backup { get; set; } = true;
+    /// <summary>Keep talking when the listener skips: a skip no longer silences the next two songs (off: the DJ keeps quiet while skipping goes on).</summary>
+    public bool TalkAfterSkips { get; set; } = true;
     /// <summary>Per-playlist switch: true = DJ on for that playlist, false = off; no entry = follow the rest. Key: the Jellyfin playlist id when it has one, else the app's own id.</summary>
     public Dictionary<string, bool> Playlists { get; set; } = new();
 

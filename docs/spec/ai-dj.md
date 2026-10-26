@@ -13,13 +13,17 @@ Background and research: `docs/research/ai-dj-free.md` on branch `research/ai-dj
 1. `QueueDj` (Now Playing button, this queue only) if not null.
 2. `Playlists[PlaylistId]` if the queue came from a playlist with an entry.
 3. `Enabled && Settings.On(Surface)`.
-Then the frequency/variety rules (Appendix A.4) and the silent conditions decide this transition.
+Then the frequency/variety rules (Appendix A.4) and the silent conditions decide this transition. Often speaks with a chance of 0.5 once the one forced silent song after a line has passed (about one song in 3); Rare 0.30 after four (about one in 7).
+
+`TalkAfterSkips` (per person, default on): a skip no longer silences the next two songs; the listener hears the DJ on the songs they let play, and "Let's try something different" can still come after several skips. Off: skipping going on (`skippedRecently`) keeps the DJ quiet, as before. The clip itself still only plays when the player moves on by itself.
+
+The web player takes the answer about a song the moment that song starts loading, before anything else (the Autoplay lookup answering from its cache) can ask about the song after it.
 
 ## Shared types
 `ipodsync/src/FLACie.Core/Dj/DjContracts.cs`: `DjSurface`, `DjChatty`, `DjSettings`, `DjSong`, `DjRequest`, `DjCue`, `IDjService`. Change them only by agreement (they are the contract between the three parts).
 
 ## HTTP (all under `/api/dj`, caller = cookie or `X-Emby-Token` + `X-Jellyfin-Server`, via `ApiEndpoints.CallerAsync`)
-- `GET /api/dj/settings` → `{ enabled, chatty: "rare"|"often", phone, auto, web, windows, backup, playlists: { id: bool }, voiceReady }`
+- `GET /api/dj/settings` → `{ enabled, chatty: "rare"|"often", phone, auto, web, windows, backup, talkAfterSkips, playlists: { id: bool }, voiceReady }`
 - `POST /api/dj/settings` → partial update with the same field names (type-checked, 400 on wrong types); `{ "playlist": { "id": "...", "on": true|false|null } }` sets or clears one playlist. Returns the GET shape. Any signed-in user, for their own settings only.
 - `POST /api/dj/next` body (camelCase of `DjRequest`; `surface` "phone"|"auto"|"web"|"windows"):
   `{ surface, next: { title, artist, album, albumArtist, year, genre, durationMs, path, jellyfinId, trackNo, discNo }, prev: {...}|null, prevPlayedOut, skippedRecently, playlistId, queueDj, localHour, weekday, why }`

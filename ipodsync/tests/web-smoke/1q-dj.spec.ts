@@ -42,7 +42,7 @@ async function newQueue(page: Page, row = 0) {
 const settings = async (page: Page) => (await page.request.get('/api/dj/settings')).json();
 /** Back to the defaults the other specs expect: DJ off, Often, everywhere, backup voice on, no playlist switches. */
 async function reset(page: Page) {
-  const r = await page.request.post('/api/dj/settings', { data: { enabled: false, chatty: 'often', phone: true, auto: true, web: true, windows: true, backup: true } });
+  const r = await page.request.post('/api/dj/settings', { data: { enabled: false, chatty: 'often', phone: true, auto: true, web: true, windows: true, backup: true, talkAfterSkips: true } });
   expect(r.ok()).toBe(true);
 }
 
@@ -66,6 +66,8 @@ test.describe.serial('the DJ', () => {
     await expect(dj(page).getByRole('note')).toContainText("Cloudflare isn't set up yet. Ask the admin (Dashboard → DJ).");
     const onSwitch = row(page, 'Talk between songs').locator('input[role=switch]');
     const backup = row(page, 'Backup voice').locator('input[role=switch]');
+    const afterSkips = row(page, 'Talk after skips').locator('input[role=switch]');
+    await expect(afterSkips).toBeChecked();   // on unless the person turns it off
     await expect(onSwitch).not.toBeChecked();
     await expect(backup).toBeChecked();
     await pressed(seg(page, 'Often'), true);
@@ -86,6 +88,8 @@ test.describe.serial('the DJ', () => {
     await pressed(preset(page, 'Only in the car'), true);
     await row(page, 'Backup voice').click();
     await expect(backup).not.toBeChecked();
+    await row(page, 'Talk after skips').click();
+    await expect(afterSkips).not.toBeChecked();
     await page.screenshot({ path: 'test-results/shots/dj-settings.png', fullPage: true });
 
     // kept on the server: the same after a reload, and the API says the same
@@ -95,8 +99,9 @@ test.describe.serial('the DJ', () => {
     await pressed(seg(page, 'Android Auto'), true);
     for (const w of ['Phone', 'Web', 'Windows']) await pressed(seg(page, w), false);
     await expect(row(page, 'Backup voice').locator('input[role=switch]')).not.toBeChecked();
+    await expect(row(page, 'Talk after skips').locator('input[role=switch]')).not.toBeChecked();
     const j = await settings(page);
-    expect(j).toMatchObject({ enabled: true, chatty: 'rare', phone: false, auto: true, web: false, windows: false, backup: false, voiceReady: false });
+    expect(j).toMatchObject({ enabled: true, chatty: 'rare', phone: false, auto: true, web: false, windows: false, backup: false, talkAfterSkips: false, voiceReady: false });
 
     // the presets: only on web, then everywhere
     await preset(page, 'Only on web').click();

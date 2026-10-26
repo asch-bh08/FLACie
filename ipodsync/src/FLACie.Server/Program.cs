@@ -155,7 +155,10 @@ var app = builder.Build();
     AppHost.Vibe = vibes.Of;
     var related = app.Services.GetRequiredService<RelatedCache>();
     // what the person does in the web player goes into their listening log, started from what they have played and liked so far (as /api/listen does)
-    RetroHost.Listen = (s, e) => ListenApi.Accept(listens, s, [e], () => ListenSeed.From(s.History, s.Favorites, s.PlayStats, s.Library));
+    // the web player's DJ asks that fail go into the server log (the listener only hears no line)
+    var djLog = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("FLACie.Dj");
+    RetroHost.DjFailed = e => djLog.LogWarning("DJ ask failed: {Kind} {Message}", e.GetType().Name, e.Message);
+    RetroHost.Listen = (s, e) =>ListenApi.Accept(listens, s, [e], () => ListenSeed.From(s.History, s.Favorites, s.PlayStats, s.Library));
     // web Autoplay asks the engine first (songs in the library only; the player keeps its own list when this fails or is empty)
     RetroHost.RecommendNext = (s, played, n) =>
         RecommendApi.InputsOf(s, listens, vibes, related) is { } inputs

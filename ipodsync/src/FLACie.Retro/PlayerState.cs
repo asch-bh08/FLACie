@@ -286,6 +286,9 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         // for the DJ: whether the player got here by itself (the last song ended), and whether the song before was skipped in its first 10 s
         var auto = djAuto; djAuto = false;
         if (djFresh) djFresh = false; else { djSkips[1] = djSkips[0]; djSkips[0] = !auto && Position < 10; }
+        // the DJ's answer about this song is taken now, before anything below can ask about the song after it (the Autoplay lookup answers at once
+        // from its cache, and its DjAhead used to throw this answer away, so the listener never heard the DJ when a song ended by itself)
+        var djCueNow = DjTake(t);
         self ??= DotNetObjectReference.Create(this);
         if (startAt <= 0) startAt = ResumeFor(t);   // a long item (audiobook, podcast, long mix) starts where it was left
         await audio.LoadAsync(self, t, "/stream?p=" + Uri.EscapeDataString(t.Path), t.Title, t.Artist, t.Album,
@@ -299,7 +302,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         if (plays is not null && session is not null) plays.Begin(session.Id, session.DisplayName, t.Path, t.Title, t.Artist, "FLACie Web", Context);
         Stash(true);
         RefreshSuggestions(); _ = PlanAsync(t); Started?.Invoke(t);
-        await DjStartedAsync(t, auto);
+        await DjStartedAsync(auto, djCueNow);
         Changed?.Invoke();
     }
 
@@ -796,15 +799,22 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
             if (cue?.ClipUrl is { Length: > 0 } url) await audio.DjPreloadAsync(url);
         }
         catch (OperationCanceledException) { }
-        catch (Exception) { }
+        catch (Exception e) { try { RetroHost.DjFailed?.Invoke(e); } catch (Exception) { } }
     }
 
-    /// <summary>A song started: the DJ speaks before it if the player got here by itself and the answer kept is about this very song; anything else stops the DJ. Then the next song is asked about.</summary>
-    async Task DjStartedAsync(Track t, bool auto)
+    /// <summary>The answer kept about [t], the song now starting (null: none, or still on its way, which is then dropped so it is never played late).</summary>
+    DjCue? DjTake(Track t)
+    {
+        if (djFor != t.Path) return null;
+        var cue = djCue;
+        djAsking?.Cancel(); djFor = null; djCue = null;
+        return cue;
+    }
+
+    /// <summary>A song started: the DJ speaks before it if the player got here by itself and [cue] (taken by <see cref="DjTake"/>) is about this very song; anything else stops the DJ. Then the next song is asked about.</summary>
+    async Task DjStartedAsync(bool auto, DjCue? cue)
     {
         if (dj is null) return;
-        var cue = djFor == t.Path ? djCue : null;
-        djAsking?.Cancel(); djFor = null; djCue = null;
         if (auto && cue is not null && DjOn)
         {
             try

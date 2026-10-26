@@ -11,7 +11,7 @@ public static class DjSwitches
     /// <summary>A copy to change and then save (the service's own object is never changed in place).</summary>
     public static DjSettings Copy(DjSettings s) => new()
     {
-        Enabled = s.Enabled, Chatty = s.Chatty, Phone = s.Phone, Auto = s.Auto, Web = s.Web, Windows = s.Windows, Backup = s.Backup, Playlists = new(s.Playlists),
+        Enabled = s.Enabled, Chatty = s.Chatty, Phone = s.Phone, Auto = s.Auto, Web = s.Web, Windows = s.Windows, Backup = s.Backup, TalkAfterSkips = s.TalkAfterSkips, Playlists = new(s.Playlists),
     };
 
     /// <summary>A playlist's own switch: true (On), false (Off) or null (no entry: it follows the rest, "Auto").</summary>

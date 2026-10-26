@@ -22,12 +22,14 @@ data class DjSettings(
     val enabled: Boolean = false, val chatty: DjChatty = DjChatty.OFTEN,
     val phone: Boolean = true, val auto: Boolean = true, val web: Boolean = true, val windows: Boolean = true,
     val backup: Boolean = true, val playlists: Map<String, Boolean> = emptyMap(), val voiceReady: Boolean = false,
+    /** Keep talking when the listener skips (off: the DJ stays quiet for a couple of songs after a skip). The server decides with it; the phone shows and sets it. */
+    val talkAfterSkips: Boolean = true,
 ) {
     fun on(s: DjSurface): Boolean = when (s) { DjSurface.PHONE -> phone; DjSurface.AUTO -> auto; DjSurface.WEB -> web; DjSurface.WINDOWS -> windows }
 
     /** The GET shape, as the server sends it (also what the phone caches). */
     fun toJson(): JSONObject = JSONObject().put("enabled", enabled).put("chatty", chatty.wire).put("phone", phone).put("auto", auto).put("web", web)
-        .put("windows", windows).put("backup", backup).put("playlists", JSONObject().also { o -> playlists.forEach { (k, v) -> o.put(k, v) } }).put("voiceReady", voiceReady)
+        .put("windows", windows).put("backup", backup).put("talkAfterSkips", talkAfterSkips).put("playlists", JSONObject().also { o -> playlists.forEach { (k, v) -> o.put(k, v) } }).put("voiceReady", voiceReady)
 
     companion object {
         /** The server's `/api/dj/settings` answer; a field it leaves out keeps its default. Throws on text that is not JSON. */
@@ -40,6 +42,7 @@ data class DjSettings(
                 o.optBoolean("backup", d.backup),
                 pl?.keys()?.asSequence()?.filter { pl.opt(it) is Boolean }?.associateWith { pl.getBoolean(it) } ?: emptyMap(),
                 o.optBoolean("voiceReady", d.voiceReady),
+                o.optBoolean("talkAfterSkips", d.talkAfterSkips),
             )
         }
         /** The cached copy, or the defaults (DJ off) when there is none or it can't be read. */

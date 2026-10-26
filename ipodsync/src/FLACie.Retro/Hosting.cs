@@ -44,6 +44,8 @@ public static class RetroHost
     public static DjSurface DjSurface { get; set; } = Environment.GetEnvironmentVariable("FLACIE_PARENT_PID") is { Length: > 0 } ? DjSurface.Windows : DjSurface.Web;
     /// <summary>Tells the account's listening log what the person did (played a song, hearted it, thumbed it down); where there is no log this does nothing.</summary>
     public static Action<UserSession, ListenEvent>? Listen { get; set; }
+    /// <summary>The player's ask to the DJ failed (the server logs it; the listener just hears no line).</summary>
+    public static Action<Exception>? DjFailed { get; set; }
     /// <summary>What the recommendation engine would play next for this person, given the paths played lately (the last is playing now); null when the host has no engine or it failed.</summary>
     public static Func<UserSession, IReadOnlyList<string>, int, IReadOnlyList<(Track Track, string Why)>?>? RecommendNext { get; set; }
 }

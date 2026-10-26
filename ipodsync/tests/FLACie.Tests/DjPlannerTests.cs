@@ -76,7 +76,7 @@ public class DjPlannerTests
     // ---- how often ----
 
     [Theory]
-    [InlineData(DjChatty.Often, 0.26, 0.37)]   // about 1 in 3.2
+    [InlineData(DjChatty.Often, 0.29, 0.38)]   // about 1 in 3
     [InlineData(DjChatty.Rare, 0.10, 0.17)]    // about 1 in 7.3
     public void It_speaks_about_as_often_as_the_setting_says(DjChatty c, double min, double max)
     {
@@ -147,13 +147,43 @@ public class DjPlannerTests
         Assert.NotNull(Open(song));   // the same song speaks when nothing says otherwise
         DjLine? Ask(DjRequest r) => DjPlanner.Plan(On(), r, new DjMemory(), T0, new Random(1));
         Assert.Null(Ask(new DjRequest(DjSurface.Web, song with { DurationMs = 45_000 })));
-        Assert.Null(Ask(new DjRequest(DjSurface.Web, song, SkippedRecently: true)));
+        Assert.Null(DjPlanner.Plan(new DjSettings { Enabled = true, TalkAfterSkips = false }, new DjRequest(DjSurface.Web, song, SkippedRecently: true), new DjMemory(), T0, new Random(1)));
         Assert.Null(Ask(new DjRequest(DjSurface.Web, song, song with { Title = "Shiver", TrackNo = 4 })));                 // the next track, in order
         Assert.Null(Ask(new DjRequest(DjSurface.Web, song with { TrackNo = 1, DiscNo = 2 }, song with { Title = "End", TrackNo = 10 })));   // on to disc 2
         Assert.NotNull(Ask(new DjRequest(DjSurface.Web, song, song with { Title = "Shiver", TrackNo = 2 })));             // the same album, shuffled
         Assert.NotNull(Ask(new DjRequest(DjSurface.Web, song, song with { Title = "Shiver", TrackNo = 4, Album = "A Rush of Blood" })));
         Assert.Null(Ask(new DjRequest(DjSurface.Web, song with { Genre = "Spoken Word" })));
         Assert.Null(Ask(new DjRequest(DjSurface.Web, song with { Genre = "Audiobook" })));
+    }
+
+    [Fact]
+    public void Talk_after_skips_on_by_default_keeps_the_DJ_talking_while_the_listener_skips_and_off_keeps_it_quiet()
+    {
+        Assert.True(new DjSettings().TalkAfterSkips);
+        List<DjLine?> Skipping(bool talk)
+        {
+            var st = new DjSettings { Enabled = true, TalkAfterSkips = talk };
+            var mem = new DjMemory(); var rng = new Random(5); var t = T0; var res = new List<DjLine?>();
+            for (var i = 1; i <= 400; i++) { res.Add(DjPlanner.Plan(st, new DjRequest(DjSurface.Web, S(i), S(i - 1), SkippedRecently: true), mem, t, rng)); t += TimeSpan.FromMinutes(1); }
+            return res;
+        }
+        var on = Skipping(true);
+        Assert.InRange(on.Count(l => l is not null) / 400.0, 0.25, 0.40);   // about as often as without skips
+        Assert.All(Skipping(false), l => Assert.Null(l));                    // today's behaviour: skipping going on silences it
+    }
+
+    [Fact]
+    public void With_talk_after_skips_on_it_can_still_say_lets_try_something_different_after_several_skips()
+    {
+        var st = new DjSettings { Enabled = true };
+        var seen = false;
+        for (var seed = 0; seed < 300 && !seen; seed++)
+        {
+            var mem = new DjMemory(); var rng = new Random(seed); var t = T0;
+            for (var i = 1; i <= 4; i++) { DjPlanner.Plan(st, new DjRequest(DjSurface.Web, S(i), S(i - 1), SkippedRecently: true), mem, t, rng); t += TimeSpan.FromMinutes(1); }
+            seen = DjPlanner.Plan(st, new DjRequest(DjSurface.Web, S(9), S(8)), mem, t, rng) is { Slot: DjSlot.Reset };
+        }
+        Assert.True(seen);
     }
 
     [Fact]

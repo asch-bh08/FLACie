@@ -176,6 +176,9 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                                 val n = if (rare) com.ipodemu.playback.DjChatty.OFTEN else com.ipodemu.playback.DjChatty.RARE
                                 save(org.json.JSONObject().put("chatty", n.wire), dj.copy(chatty = n))
                             }
+                            SettingRow("Talk after skips", if (dj.talkAfterSkips) "On" else "Off", toggle = true, desc = "Keep talking when you skip songs. Off: the DJ stays quiet for a couple of songs after a skip.") {
+                                save(org.json.JSONObject().put("talkAfterSkips", !dj.talkAfterSkips), dj.copy(talkAfterSkips = !dj.talkAfterSkips))
+                            }
                             MonoLabel("Where", Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp))
                             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 val all = dj.phone && dj.auto && dj.web && dj.windows

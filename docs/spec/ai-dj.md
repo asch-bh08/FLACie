@@ -26,6 +26,12 @@ Then the frequency/variety rules (Appendix A.4) and the silent conditions decide
   → `{ "speak": false }` or `{ "speak": true, "text": "...", "caption": "...", "clip": "/api/dj/clip/<id>.mp3"|null, "backup": bool }`
 - `GET /api/dj/clip/{id}.mp3` → `audio/mpeg`. Waits up to 10 s if the clip is still being made; 404 if it failed or expired. Never counted as a play; not under `/stream`.
 
+## The Windows app
+The Windows app runs its own copy of the server (its own data folder), so on its own it would have its own DJ settings and no Cloudflare key. When the signed-in person's profile names the family's FLACie Web (`services.flacieweb.url`, set by the phone), the Windows app's DJ goes through that server instead (`FLACie.Server/Dj/HomeDj.cs`): settings and next-song answers come from its `/api/dj/settings` and `/api/dj/next` with the person's own Jellyfin token headers, and clips come through the local route `GET /api/dj/clip/r/{id}.mp3`, which fetches them from there. If that server can't be reached, the Windows app's own DJ takes over and the settings section says why.
+
+## When Cloudflare fails
+After a failed clip, new lines get no clip for 10 minutes (so the device's own voice says them if Backup voice is on); a clip made or a change to the voice settings ends the rest early. A clip that fails after its line was sent is said by the device's voice too, if it is still within the first 6 s of the song.
+
 ## Admin (server-wide, FLACie Web dashboard, admin only)
 `{data}/dj.json` like `Notifier`: Cloudflare account id, API token (encrypted with IDataProtector, never returned; "leave empty to keep"), voice `melotts` or `aura-1:<speaker>`, daily cap (% of the 10,000 free neurons, default 50), plus a Test button and today's use. Optional `FLACIE_CLOUDFLARE_ACCOUNT` / `FLACIE_CLOUDFLARE_TOKEN` env bootstrap.
 Cloudflare: `POST https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/@cf/myshell-ai/melotts` `{ "prompt": text, "lang": "en" }`, or `.../@cf/deepgram/aura-1` `{ "text": text, "speaker": s, "encoding": "mp3" }`. Accept either a binary `audio/mpeg` body or JSON `{ result: { audio: <base64> } }`. Cost estimate per line: MeloTTS 18.63 neurons per audio minute (estimate audio length from words at 2.6 words/s); Aura-1 1,363.64 per 1,000 characters. Over the cap or failing → no clip (Backup path). Clips cached in `{data}/dj-clips/` by hash of voice+text, oldest pruned past 3,000 files. `api.cloudflare.com` joins the `FLACIE_CATALOG_REDIRECT` test seam.

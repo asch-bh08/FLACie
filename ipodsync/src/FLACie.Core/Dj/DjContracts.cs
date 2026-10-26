@@ -28,8 +28,20 @@ public sealed class DjSettings
     public bool Auto { get; set; } = true;
     public bool Web { get; set; } = true;
     public bool Windows { get; set; } = true;
-    /// <summary>Say the line with the device's own voice when Cloudflare can't make a clip.</summary>
+    /// <summary>The old "backup voice" switch, kept so older apps can still send it. It no longer does anything: the DJ keeps to one voice, and when that voice
+    /// can't make a clip it stays quiet rather than switch to the device's own (see <see cref="DeviceVoice"/>).</summary>
     public bool Backup { get; set; } = true;
+    /// <summary>The person chose the device's own voice (Android TextToSpeech, the browser's speech) as the DJ's voice: every line is said by it and no clip
+    /// is made. Off (the default): only the server's voice, never the device's.</summary>
+    public bool DeviceVoice { get; set; }
+    /// <summary>How loud the DJ's voice is, 0-100 % of the music's volume.</summary>
+    public int Volume { get; set; } = DefaultVolume;
+    /// <summary>How loud the music stays under the DJ, 0-100 % (30 % as it always was).</summary>
+    public int Duck { get; set; } = DefaultDuck;
+    public const int DefaultVolume = 90, DefaultDuck = 30;
+    /// <summary>Per song, by <see cref="Matching.MatchKey(string, string)"/> (title and artist, so it holds on every device and path): true = always introduce it,
+    /// false = never talk over it; no entry = the usual rules.</summary>
+    public Dictionary<string, bool> Songs { get; set; } = new();
     /// <summary>Keep talking when the listener skips: a skip no longer silences the next two songs (off: the DJ keeps quiet while skipping goes on).</summary>
     public bool TalkAfterSkips { get; set; } = true;
     /// <summary>Per-playlist switch: true = DJ on for that playlist, false = off; no entry = follow the rest. Key: the Jellyfin playlist id when it has one, else the app's own id.</summary>
@@ -44,6 +56,24 @@ public static class DjRules
 {
     public static bool EffectiveOn(DjSettings s, DjSurface surface, string? playlistId, bool? queueDj) =>
         queueDj ?? (playlistId is { Length: > 0 } && s.Playlists.TryGetValue(playlistId, out var p) ? p : s.Enabled && s.On(surface));
+
+    /// <summary>A song's key in <see cref="DjSettings.Songs"/>: its match key (title and artist); "" when it has no title.</summary>
+    public static string SongKey(string title, string artist) => title.Trim().Length == 0 ? "" : Matching.MatchKey(title, artist);
+
+    /// <summary>The person's choice for this song: true = always introduce it, false = never talk over it, null = the usual rules.</summary>
+    public static bool? SongChoice(DjSettings s, string title, string artist) =>
+        SongKey(title, artist) is { Length: > 0 } k && s.Songs is { } songs && songs.TryGetValue(k, out var v) ? v : null;
+
+    /// <summary>Sets or (null) clears the choice for a song.</summary>
+    public static void SetSong(DjSettings s, string title, string artist, bool? choice)
+    {
+        var k = SongKey(title, artist);
+        if (k.Length == 0) return;
+        s.Songs ??= new();
+        if (choice is { } c) s.Songs[k] = c; else s.Songs.Remove(k);
+    }
+
+    public static int Clamp(int pc) => Math.Clamp(pc, 0, 100);
 }
 
 /// <summary>A song as the DJ needs it. Clients send what they have; blank fields are never spoken.</summary>

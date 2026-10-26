@@ -54,7 +54,11 @@ public static class DjPlanner
 
         f.Feel = DjFeel.Of(extra?.Vibe, extra?.PrevVibe);
         f.Colour = Colour(req.LocalHour, req.Weekday);
-        var line = Quiet(settings, req, f) ? null
+        // the person's own choice for this song beats the chance, the forced silence and the quiet rules (but not the switches above)
+        var choice = DjRules.SongChoice(settings, req.Next.Title, req.Next.Artist);
+        var line = choice == false ? null
+            : choice == true ? (f.HasTitle || f.HasArtist ? Write(req, mem, f, open, reset, heard, song, nowUtc, rng, say, settings.Style, firstName) : null)
+            : Quiet(settings, req, f) ? null
             : (open ? rng.NextDouble() < OpenChance(settings.Chatty) : mem.SilentRun >= ForcedSilence(settings.Chatty) && rng.NextDouble() < Chance(settings.Chatty, settings.Style))
                 ? Write(req, mem, f, open, reset, heard, song, nowUtc, rng, say, settings.Style, firstName) : null;
         if (line is null) { mem.SilentRun = Math.Min(mem.SilentRun, DjMemory.Long) + 1; return null; }

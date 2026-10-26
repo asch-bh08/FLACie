@@ -38,6 +38,7 @@
                     }
                     <button role="menuitem" @onclick='() => { menu = -1; Feedback.LessLikeThis(Session, row.T); Toast.Show($"Fewer songs like “{row.T.Title}”"); }'>Less like this</button>
                     <button role="menuitem" @onclick='() => { menu = -1; ThumbDown(row.T); }'>Thumbs down</button>
+                    <DjSongMenu Player="Player" Session="Session" Song="row.T" OnDone="() => menu = -1" />
                 </div>
             }
         </div>

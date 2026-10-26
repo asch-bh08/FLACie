@@ -111,7 +111,10 @@ class DjCoordinator {
  * The music's volume while the DJ speaks: down to [low] over [downMs], back to full over [upMs], straight lines. A change of direction halfway starts
  * from where the level is (no jump), and takes the share of the time that the distance left needs. Pure, unit-tested; the player ticks it.
  */
-class DuckRamp(val low: Float = LOW, private val downMs: Long = DOWN_MS, private val upMs: Long = UP_MS) {
+class DuckRamp(low: Float = LOW, private val downMs: Long = DOWN_MS, private val upMs: Long = UP_MS) {
+    /** How loud the music stays under the DJ (the person's "Music under the DJ"); a change takes effect from the next duck. */
+    var low: Float = low.coerceIn(0f, 1f)
+        set(v) { field = v.coerceIn(0f, 1f) }
     private var from = 1f
     private var to = 1f
     private var startedAt = 0L
@@ -125,7 +128,8 @@ class DuckRamp(val low: Float = LOW, private val downMs: Long = DOWN_MS, private
     private fun go(target: Float, now: Long) {
         val cur = level(now)
         from = cur; to = target; startedAt = now
-        span = ((abs(target - cur) / (1f - low)) * (if (target < cur) downMs else upMs)).roundToLong()
+        // (the full ramp is from 1 down to [low]; with nothing to duck through, a step takes the full time)
+        span = ((abs(target - cur) / (1f - low).coerceAtLeast(0.05f)).coerceAtMost(1f) * (if (target < cur) downMs else upMs)).roundToLong()
     }
 
     /** The multiplier for the music at time [now]: 1 = untouched. */

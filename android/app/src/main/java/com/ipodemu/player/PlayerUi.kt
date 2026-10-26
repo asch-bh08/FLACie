@@ -460,6 +460,13 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
         items += SheetItem("Thumbs down", Glyph.CLOSE) { thumbsDown(app, t) }
         items += SheetItem("Less like this", Glyph.MORE) { app.listened(com.ipodemu.library.ListenKind.LESS_LIKE_THIS, t); app.ui.say("You'll hear less like \"${t.title}\"") }
     }
+    // the DJ's choice for this song (kept on the account by title and artist): the one in force is ticked
+    if (t.isMusic && app.player.djAvailable && com.ipodemu.playback.DjRules.songKey(t.title, t.artist).isNotEmpty())
+        for ((label, choice, on) in com.ipodemu.playback.DjRules.songMenu(app.player.djSettings, t.title, t.artist))
+            items += SheetItem(label, Glyph.MORE, selected = on, group = "DJ") {
+                app.player.setDjSong(t.title, t.artist, choice) { app.ui.say("Couldn't save the DJ choice: $it") }
+                app.ui.say(when (choice) { true -> "The DJ will always introduce \"${t.title}\""; false -> "The DJ won't talk over \"${t.title}\""; null -> "The DJ treats \"${t.title}\" as usual" })
+            }
     if (t.isMusic) items += SheetItem("Share", Glyph.JAM) { shareTrack(app, t) }
     if (t.source == com.ipodemu.library.TrackSource.JELLYFIN) {
         val off = app.offline.entry(t.path)

@@ -112,6 +112,9 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 5px; font-
 .menu { position: absolute; right: 8px; top: 54px; z-index: 20; min-width: 220px; max-height: 320px; overflow-y: auto; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 6px; box-shadow: 0 16px 40px #000a; display: flex; flex-direction: column; }
 .menu button { text-align: left; background: none; border: 0; padding: 9px 12px; border-radius: 8px; }
 .menu button:hover { background: var(--surface-3); }
+.menu button.dj-song { display: flex; align-items: center; gap: 6px; }
+.menu button.dj-song .dj-tick { display: inline-block; width: 1em; color: var(--accent); }
+.menu button.dj-song:first-of-type { border-top: 1px solid var(--line); border-radius: 0 0 8px 8px; }
 .menu .danger { color: var(--danger); }
 
 /* ---- forms and panels ---- */
@@ -316,6 +319,12 @@ img { -webkit-user-drag: none; user-select: none; }
 .switch-row { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0 10px; cursor: pointer; }
 .switch-row span { display: flex; flex-direction: column; }
 .switch-row small { color: var(--dim); }
+.dj-level { display: grid; grid-template-columns: 1fr minmax(120px, 220px) 3.5em; align-items: center; gap: 12px; padding: 10px 0; }
+.dj-level span { display: flex; flex-direction: column; }
+.dj-level small { color: var(--dim); }
+.dj-level input[type=range] { width: 100%; accent-color: var(--accent); }
+.dj-level output { text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) { .dj-level { grid-template-columns: 1fr 3.5em; } .dj-level input[type=range] { grid-column: 1 / -1; grid-row: 2; } }
 .switch-row input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .switch { flex: none; width: 44px; height: 26px; border-radius: 999px; background: var(--surface-3); position: relative; transition: background .15s; }
 .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .15s; }

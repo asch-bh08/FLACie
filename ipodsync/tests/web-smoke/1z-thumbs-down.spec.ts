@@ -63,3 +63,28 @@ test('The heart and a song that was played are logged', async ({ page }) => {
   await rows.nth(2).locator('.track-main').click();
   await expect.poll(() => logged('Play', 'Lab 2'), { timeout: 20_000 }).toBe(true);
 });
+
+// the DJ's choice per song, in the song's menu: always introduce it, never talk over it, or the usual rules; kept on the server by title and artist
+test('A song menu offers the DJ choices, ticks the current one and keeps it', async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page);
+  const djSongs = async () => ((await (await page.request.get('/api/dj/settings')).json()).songs ?? {}) as Record<string, string>;
+  await page.goto('/artist/Hires%20Lab');
+  await page.getByRole('link', { name: /Lab Album/ }).first().click();
+  const rows = page.locator('.tracks .track');
+  await expect(rows).toHaveCount(8, { timeout: 20_000 });
+  const open = async () => { await rows.nth(1).getByRole('button', { name: /^More for/ }).click(); return rows.nth(1).locator('.menu'); };
+  let menu = await open();
+  await expect(menu.getByRole('menuitemradio', { name: 'DJ: always introduce this song' })).toHaveAttribute('aria-checked', 'false');
+  await expect(menu.getByRole('menuitemradio', { name: 'DJ: never talk over this song' })).toHaveAttribute('aria-checked', 'false');
+  await expect(menu.getByRole('menuitemradio', { name: 'DJ: default' })).toHaveAttribute('aria-checked', 'true');
+  await menu.getByRole('menuitemradio', { name: 'DJ: never talk over this song' }).click();
+  await expect.poll(async () => Object.values(await djSongs())).toEqual(['never']);
+  menu = await open();
+  await expect(menu.getByRole('menuitemradio', { name: 'DJ: never talk over this song' })).toHaveAttribute('aria-checked', 'true');
+  await menu.getByRole('menuitemradio', { name: 'DJ: always introduce this song' }).click();
+  await expect.poll(async () => Object.values(await djSongs())).toEqual(['always']);
+  menu = await open();
+  await menu.getByRole('menuitemradio', { name: 'DJ: default' }).click();
+  await expect.poll(async () => Object.keys(await djSongs()).length).toBe(0);
+});

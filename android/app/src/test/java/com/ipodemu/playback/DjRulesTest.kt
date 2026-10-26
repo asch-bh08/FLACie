@@ -80,4 +80,55 @@ class DjRulesTest {
         assertNull("not JSON", DjCue.parse("<html>502</html>"))
         assertNull(DjCue.parse(""))
     }
+
+    // ---- one voice, the DJ's volume and the music under it, the choice per song (docs/dj-voice-volume-report.md) ----
+
+    @Test fun deviceVoiceVolumeDuckAndSongsAreReadWrittenAndClamped() {
+        val d = DjSettings()
+        assertFalse("only the server's voice unless the person picks the phone's", d.deviceVoice)
+        assertEquals(90, d.volume); assertEquals(30, d.duck); assertTrue(d.songs.isEmpty())
+        val s = DjSettings(deviceVoice = true, volume = 60, duck = 15, songs = mapOf("yellow|coldplay" to true, "intro|xx" to false))
+        assertEquals(s, DjSettings.parse(s.toJson().toString()))
+        assertEquals("always", s.toJson().getJSONObject("songs").getString("yellow|coldplay"))
+        val odd = DjSettings.parse("""{ "volume": 400, "duck": -3, "songs": { "a|b": "never", "c|d": "maybe", "e|f": true } }""")
+        assertEquals(100, odd.volume); assertEquals(0, odd.duck); assertEquals(mapOf("a|b" to false), odd.songs)
+        assertEquals(0.6f, s.voiceLevel, 0.0001f); assertEquals(0.15f, s.duckLevel, 0.0001f)
+    }
+
+    @Test fun theSongChoiceIsKeyedByTitleAndArtistAndOffersThreeChoicesWithTheCurrentOneMarked() {
+        val key = DjRules.songKey("Yellow", "Coldplay")
+        assertEquals(com.ipodemu.library.matchKey("Yellow", "Coldplay"), key)
+        assertEquals("", DjRules.songKey(" ", "Coldplay"))
+        var s = DjRules.withSong(DjSettings(), "Yellow", "Coldplay", true)
+        assertEquals(true, DjRules.songChoice(s, "yellow", "COLDPLAY"))
+        assertEquals(listOf("DJ: always introduce this song", "DJ: never talk over this song", "DJ: default"), DjRules.songMenu(s, "Yellow", "Coldplay").map { it.first })
+        assertEquals(listOf(true, false, false), DjRules.songMenu(s, "Yellow", "Coldplay").map { it.third })
+        s = DjRules.withSong(s, "Yellow", "Coldplay", false)
+        assertEquals(listOf(false, true, false), DjRules.songMenu(s, "Yellow", "Coldplay").map { it.third })
+        s = DjRules.withSong(s, "Yellow", "Coldplay", null)
+        assertNull(DjRules.songChoice(s, "Yellow", "Coldplay"))
+        assertEquals(listOf(false, false, true), DjRules.songMenu(s, "Yellow", "Coldplay").map { it.third })
+        val p = DjRules.songPatch("Yellow", "Coldplay", false).getJSONObject("song")
+        assertEquals("Yellow", p.getString("title")); assertEquals("Coldplay", p.getString("artist")); assertEquals("never", p.getString("choice"))
+        assertTrue(DjRules.songPatch("Yellow", "Coldplay", null).getJSONObject("song").isNull("choice"))
+    }
+
+    @Test fun theMusicDucksToThePersonsLevel() {
+        val r = DuckRamp()
+        r.low = 0.15f
+        r.duck(0L)
+        assertEquals(0.15f, r.level(10_000L), 0.0001f)
+        r.release(10_000L)
+        assertEquals(1f, r.level(20_000L), 0.0001f)
+        r.low = 1f   // "Music under the DJ" at 100 %: nothing ducks, and the ramp still ends
+        r.duck(30_000L)
+        assertEquals(1f, r.level(40_000L), 0.0001f)
+    }
+
+    @Test fun aCueWithAClipIsNeverMarkedForThePhonesVoiceUnlessItHasNoClip() {
+        // the server sends backup = true only when the person chose the device voice, and then with no clip
+        val device = DjCue.parse("""{ "speak": true, "text": "Here's Yellow.", "caption": "Here's Yellow.", "clip": null, "backup": true }""")
+        assertNotNull(device); assertNull(device!!.clip); assertTrue(device.backup)
+        assertNull("no clip and not the device voice: nothing to say", DjCue.parse("""{ "speak": true, "text": "Here's Yellow.", "caption": "", "clip": null, "backup": false }"""))
+    }
 }

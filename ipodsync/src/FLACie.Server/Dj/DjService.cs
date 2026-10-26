@@ -32,7 +32,7 @@ public sealed class DjService : IDjService
     static DjSettings Copy(DjSettings s)
     {
         var c = JsonSerializer.Deserialize<DjSettings>(JsonSerializer.Serialize(s)) ?? new();
-        c.Playlists ??= new();
+        c.Playlists ??= new(); c.Songs ??= new();
         return c;
     }
 
@@ -50,8 +50,14 @@ public sealed class DjService : IDjService
             if (key.Length is > 0 and <= 200 && (lists.Count < 1000 || lists.ContainsKey(key))) lists[key] = v;
         }
         c.Playlists = lists;
+        c.Songs = c.Songs.Where(x => x.Key.Trim().Length is > 0 and <= 700).Take(5000).ToDictionary(x => x.Key.Trim(), x => x.Value);
+        c.Volume = DjRules.Clamp(c.Volume); c.Duck = DjRules.Clamp(c.Duck);
+        var songsBefore = states.For(s).Dj?.Songs ?? new();
         states.For(s).Dj = c;
         states.Save(s);
+        // a song's choice changed: decisions already made for this person are made again, so the next song follows it at once
+        if (songsBefore.Count != c.Songs.Count || songsBefore.Any(x => !c.Songs.TryGetValue(x.Key, out var v) || v != x.Value))
+            foreach (var k in decisions.Keys.Where(k => k.StartsWith(s.Id + "\n", StringComparison.Ordinal)).ToList()) { decisions.TryRemove(k, out _); written.TryRemove(k, out _); counted.TryRemove(k, out _); }
     }
 
     /// <summary>The pronunciation list, read again when <c>dj-pronounce.tsv</c> changes (looked at no more than once a minute).</summary>
@@ -149,12 +155,18 @@ public sealed class DjService : IDjService
         // the planner said when; the budget says whole or pooled; the text model says how (once per decision; the template line on any failure)
         var planned = line; var name = FirstNameOf(s);
         var (said, pooled) = await written.GetOrAdd(key, _ => (clock(), new Lazy<Task<(DjLine, bool)>>(() => VoiceAsync(req, planned, mem, st.Style, extra, name)))).Job.Value;
-        // no voice, over today's cap or a failed clip: the device's own voice says it, if the person allows that; else the DJ stays quiet
+        // the person chose the device's own voice: every line is said by it, and no clip is made
+        if (st.DeviceVoice) return new DjCue(said.Text, said.Caption, null, true, DjIntro.Usable(extra?.Vibe?.Intro));
+        // one voice only: the line in the saved voice; when that can't be had (over today's cap, Cloudflare failing) the planned line, or its pooled form, from
+        // clips already made in that same voice; otherwise the DJ stays quiet. Never another voice, never the device's.
         var id = pooled ? clips.RequestPooled(said.Parts!, s.Id) ?? clips.Request(said.Text) : clips.Request(said.Text);
-        if (id is null && !st.Backup) return null;
-        if (id is not null && counted.TryAdd(key, true)) voice.CountSaid();
+        if (id is null && !ReferenceEquals(said, planned) && clips.Cached(planned.Text) is { } whole) { id = whole; said = planned; }
+        if (id is null && planned.Parts is { Count: > 0 } parts && planned.PooledCaption is { } pc && clips.CachedPooled(parts, s.Id) is { } kept)
+        { id = kept; said = planned with { Text = DjPool.Join(parts), Caption = pc }; }
+        if (id is null) return null;
+        if (counted.TryAdd(key, true)) voice.CountSaid();
         // the song's intro, when known for sure, so the player can time the line to end before the singing
-        return new DjCue(said.Text, said.Caption, id is null ? null : DjClips.UrlOf(id), st.Backup, DjIntro.Usable(extra?.Vibe?.Intro));
+        return new DjCue(said.Text, said.Caption, DjClips.UrlOf(id), false, DjIntro.Usable(extra?.Vibe?.Intro));
     }
 
     /// <summary>A 25-word line in the saved voice: what the text model must leave room for under the cap.</summary>

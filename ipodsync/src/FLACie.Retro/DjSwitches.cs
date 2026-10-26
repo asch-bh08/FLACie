@@ -12,6 +12,7 @@ public static class DjSwitches
     public static DjSettings Copy(DjSettings s) => new()
     {
         Enabled = s.Enabled, Chatty = s.Chatty, Phone = s.Phone, Auto = s.Auto, Web = s.Web, Windows = s.Windows, Backup = s.Backup, TalkAfterSkips = s.TalkAfterSkips, Style = s.Style, Playlists = new(s.Playlists),
+        DeviceVoice = s.DeviceVoice, Volume = s.Volume, Duck = s.Duck, Songs = new(s.Songs ?? new()),
     };
 
     /// <summary>A playlist's own switch: true (On), false (Off) or null (no entry: it follows the rest, "Auto").</summary>

@@ -21,7 +21,7 @@ import java.util.Locale
 
 /**
  * The DJ's voice: a second small ExoPlayer that plays the server's clip over the start of a song, or the phone's own voice ([TextToSpeech]) when the
- * server could not make one (or the clip failed before it was heard) and Backup voice is on. It never takes audio focus (taking it would make the music
+ * person chose "Device voice" (the server then sends no clip; it never mixes the two). It never takes audio focus (taking it would make the music
  * player pause), it is never in the queue (so play counting, history, the media session and the car's screen never see it), and the music is ducked
  * through [onLevel] while it is heard. The clip of the next song's cue is loaded as soon as the cue arrives ([ready]), so it starts the moment the song
  * does ([say]). The times a line may take are [DjLine]'s; a watchdog holds it to them, so the music is never left ducked. Main thread only.
@@ -30,7 +30,7 @@ import java.util.Locale
  */
 @OptIn(UnstableApi::class)
 class DjPlayer(private val ctx: Context, private val source: DataSource.Factory, private val prefs: Prefs, private val onLevel: (Float) -> Unit,
-               private val onRestart: () -> Unit = {}) {
+               private val onRestart: () -> Unit = {}, private val settings: () -> DjSettings = { DjSettings() }) {
     private val handler = Handler(Looper.getMainLooper())
     private var exo: ExoPlayer? = null
     /** The clip loaded in [exo], ready to play; [wanted] = the clip of the cue for the next song (loaded once nothing is being said). */
@@ -84,7 +84,7 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
         .setMediaSourceFactory(DefaultMediaSourceFactory(source))
         // false = no audio focus at all: requesting it would make the music player, which holds it, pause
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), false)
-        .build().also { it.addListener(listener); exo = it }
+        .build().also { it.addListener(listener); it.volume = voiceLevel; exo = it }
 
     /** The server gives clips as "/api/dj/clip/<id>.mp3", relative to FLACie Web. */
     private fun url(clip: String): String = if (clip.startsWith("http://") || clip.startsWith("https://")) clip else prefs.flacieWebUrl.trimEnd('/') + "/" + clip.trimStart('/')
@@ -113,6 +113,10 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
      *  knows it. Quiet when the clip is not there in time or no voice is ready. The phone's own voice is never timed (how long it takes is not known). */
     fun say(cue: DjCue, songAtMs: Long = 0L) {
         if (speaking) stop()
+        // the person's "DJ volume" and "Music under the DJ", read for every line
+        val st = settings()
+        voiceLevel = st.voiceLevel; ramp.low = st.duckLevel
+        exo?.volume = voiceLevel
         val clip = cue.clip?.let(::url)
         wanted = null; wantedBackup = false
         val now = SystemClock.uptimeMillis()
@@ -168,8 +172,10 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
     private fun unduck() { ramp.release(SystemClock.uptimeMillis()); kick() }
     private fun kick() { handler.removeCallbacks(tick); handler.post(tick) }
 
-    // ---- the phone's own voice (Backup voice) ---------------------------------------------------------------------------------------
+    // ---- the phone's own voice (Device voice, when the person chose it) ---------------------------------------------------------------------------------------
     private var tts: TextToSpeech? = null
+    /** The clip's and the phone voice's volume (0..1): the person's "DJ volume". */
+    private var voiceLevel = DjSettings.DEFAULT_VOLUME / 100f
     private var ttsReady = false
     private var utter = 0
     /** A line waits for the engine to start (it was not woken up in time): said as soon as it is ready, if still in time. */
@@ -190,7 +196,8 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
 
     private fun speakNow(l: DjLine) {
         val t = tts ?: return
-        if (t.speak(l.cue.text, TextToSpeech.QUEUE_FLUSH, null, "dj$utter") != TextToSpeech.SUCCESS) stop()
+        val params = android.os.Bundle().apply { putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, voiceLevel) }
+        if (t.speak(l.cue.text, TextToSpeech.QUEUE_FLUSH, params, "dj$utter") != TextToSpeech.SUCCESS) stop()
     }
 
     private fun setUp(status: Int) {

@@ -40,9 +40,9 @@ async function newQueue(page: Page, row = 0) {
 }
 
 const settings = async (page: Page) => (await page.request.get('/api/dj/settings')).json();
-/** Back to the defaults the other specs expect: DJ off, Often, everywhere, backup voice on, no playlist switches. */
+/** Back to the defaults the other specs expect: DJ off, Often, everywhere, the DJ's own voice (not the device's), 90 % voice, 30 % music under it, no song choices. */
 async function reset(page: Page) {
-  const r = await page.request.post('/api/dj/settings', { data: { enabled: false, chatty: 'often', phone: true, auto: true, web: true, windows: true, backup: true, talkAfterSkips: true, style: 'classic' } });
+  const r = await page.request.post('/api/dj/settings', { data: { enabled: false, chatty: 'often', phone: true, auto: true, web: true, windows: true, backup: true, talkAfterSkips: true, style: 'classic', deviceVoice: false, volume: 90, duck: 30, songs: {} } });
   expect(r.ok()).toBe(true);
 }
 
@@ -55,21 +55,23 @@ const row = (page: Page, text: string) => dj(page).locator('label.switch-row', {
 test.describe.serial('the DJ', () => {
   test.afterEach(async ({ page }) => { await reset(page).catch(() => { }); });
 
-  test('Settings has a DJ section: on or off, how chatty, where, backup voice; a reload keeps every choice', async ({ page }) => {
+  test('Settings has a DJ section: on or off, how chatty, where, sound, device voice; a reload keeps every choice', async ({ page }) => {
     test.setTimeout(120_000);
     await signIn(page);
     await reset(page);
     await live(page, '/settings');
     await expect(page.locator('.subnav a[href="/settings#dj"]')).toHaveText('DJ');
     await expect(dj(page).getByRole('heading', { name: 'DJ', exact: true })).toBeVisible();
-    // no Cloudflare on the test server: the note says who to ask, and that the device's own voice stands in
+    // no Cloudflare on the test server: the note says who to ask, and that the DJ stays quiet unless the device voice is chosen
     await expect(dj(page).getByRole('note')).toContainText("Cloudflare isn't set up yet. Ask the admin (Dashboard → DJ).");
     const onSwitch = row(page, 'Talk between songs').locator('input[role=switch]');
-    const backup = row(page, 'Backup voice').locator('input[role=switch]');
+    const device = row(page, 'Device voice').locator('input[role=switch]');
+    const volume = dj(page).locator('input.dj-volume'), duck = dj(page).locator('input.dj-duck');
     const afterSkips = row(page, 'Talk after skips').locator('input[role=switch]');
     await expect(afterSkips).toBeChecked();   // on unless the person turns it off
     await expect(onSwitch).not.toBeChecked();
-    await expect(backup).toBeChecked();
+    await expect(device).not.toBeChecked();   // only ever the DJ's own voice unless the person picks the device's
+    await expect(volume).toHaveValue('90'); await expect(duck).toHaveValue('30');
     await pressed(seg(page, 'Often'), true);
     await pressed(seg(page, 'Classic radio'), true);   // the style everyone starts with
     for (const w of ['Phone', 'Android Auto', 'Web', 'Windows']) await pressed(seg(page, w), true);
@@ -89,8 +91,11 @@ test.describe.serial('the DJ', () => {
     await pressed(seg(page, 'Android Auto'), true);
     for (const w of ['Phone', 'Web', 'Windows']) await pressed(seg(page, w), false);
     await pressed(preset(page, 'Only in the car'), true);
-    await row(page, 'Backup voice').click();
-    await expect(backup).not.toBeChecked();
+    await row(page, 'Device voice').click();
+    await expect(device).toBeChecked();
+    await volume.fill('60'); await volume.dispatchEvent('change');
+    await duck.fill('15'); await duck.dispatchEvent('change');
+    await expect(dj(page).locator('label.dj-level', { hasText: 'DJ volume' }).locator('output')).toHaveText('60%');
     await row(page, 'Talk after skips').click();
     await expect(afterSkips).not.toBeChecked();
     await page.screenshot({ path: 'test-results/shots/dj-settings.png', fullPage: true });
@@ -102,10 +107,11 @@ test.describe.serial('the DJ', () => {
     await pressed(seg(page, 'Chill'), true);
     await pressed(seg(page, 'Android Auto'), true);
     for (const w of ['Phone', 'Web', 'Windows']) await pressed(seg(page, w), false);
-    await expect(row(page, 'Backup voice').locator('input[role=switch]')).not.toBeChecked();
+    await expect(row(page, 'Device voice').locator('input[role=switch]')).toBeChecked();
+    await expect(dj(page).locator('input.dj-volume')).toHaveValue('60'); await expect(dj(page).locator('input.dj-duck')).toHaveValue('15');
     await expect(row(page, 'Talk after skips').locator('input[role=switch]')).not.toBeChecked();
     const j = await settings(page);
-    expect(j).toMatchObject({ enabled: true, chatty: 'rare', phone: false, auto: true, web: false, windows: false, backup: false, talkAfterSkips: false, style: 'chill', voiceReady: false });
+    expect(j).toMatchObject({ enabled: true, chatty: 'rare', phone: false, auto: true, web: false, windows: false, deviceVoice: true, volume: 60, duck: 15, talkAfterSkips: false, style: 'chill', voiceReady: false });
 
     // the presets: only on web, then everywhere
     await preset(page, 'Only on web').click();

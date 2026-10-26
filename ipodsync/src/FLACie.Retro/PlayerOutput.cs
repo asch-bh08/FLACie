@@ -40,6 +40,8 @@ public interface IPlayerOutput
     Task DjSayAsync(string text);
     /// <summary>Stops a clip or a line at once and brings the music back up.</summary>
     Task DjStopAsync();
+    /// <summary>The person's "DJ volume" (the voice, % of the music's volume) and "Music under the DJ" (%), set before each line.</summary>
+    Task DjLevelsAsync(int volume, int duck) => Task.CompletedTask;
 }
 
 /// <summary>The page's own audio element, through flacie.js.</summary>
@@ -63,4 +65,5 @@ public sealed class PageOutput(IJSRuntime js) : IPlayerOutput
     public async Task<int?> DjClipMsAsync(string url) => await js.InvokeAsync<int?>("flacie.djClipMs", url);
     public async Task DjSayAsync(string text) => await js.InvokeVoidAsync("flacie.djSay", text);
     public async Task DjStopAsync() => await js.InvokeVoidAsync("flacie.djStop");
+    public async Task DjLevelsAsync(int volume, int duck) => await js.InvokeVoidAsync("flacie.djLevels", volume, duck);
 }

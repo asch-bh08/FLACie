@@ -30,6 +30,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
+import kotlin.math.roundToInt
 import com.ipodemu.library.AudioFacts
 import com.ipodemu.theme.Themes
 
@@ -195,10 +205,13 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             SettingRow("Android Auto", if (dj.auto) "On" else "Off", toggle = true) { save(org.json.JSONObject().put("auto", !dj.auto), dj.copy(auto = !dj.auto)) }
                             SettingRow("Web", if (dj.web) "On" else "Off", toggle = true) { save(org.json.JSONObject().put("web", !dj.web), dj.copy(web = !dj.web)) }
                             SettingRow("Windows", if (dj.windows) "On" else "Off", toggle = true) { save(org.json.JSONObject().put("windows", !dj.windows), dj.copy(windows = !dj.windows)) }
-                            SettingRow("Backup voice", if (dj.backup) "On" else "Off", toggle = true, desc = "Use this phone's own voice when the server can't make the DJ's clip.") {
-                                save(org.json.JSONObject().put("backup", !dj.backup), dj.copy(backup = !dj.backup))
+                            MonoLabel("Sound", Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp))
+                            DjLevelRow("DJ volume", "How loud the DJ's voice is", dj.volume) { v -> save(org.json.JSONObject().put("volume", v), dj.copy(volume = v)) }
+                            DjLevelRow("Music under the DJ", "How loud the song stays while the DJ talks", dj.duck) { v -> save(org.json.JSONObject().put("duck", v), dj.copy(duck = v)) }
+                            SettingRow("Device voice", if (dj.deviceVoice) "On" else "Off", toggle = true, desc = "Use this phone's own voice for the DJ instead of the DJ's voice. Off: if the DJ's voice can't be made, the DJ stays quiet.") {
+                                save(org.json.JSONObject().put("deviceVoice", !dj.deviceVoice), dj.copy(deviceVoice = !dj.deviceVoice))
                             }
-                            if (loaded && !dj.voiceReady) Txt("Cloudflare isn't set up yet; the phone's own voice is used if Backup voice is on.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), size = 13f, color = sc.onBgDim, maxLines = 4)
+                            if (loaded && !dj.voiceReady) Txt("Cloudflare isn't set up yet; until it is, the DJ stays quiet unless Device voice is on.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), size = 13f, color = sc.onBgDim, maxLines = 4)
                         }
                         djMsg?.let { Txt(it, Modifier.padding(horizontal = 16.dp, vertical = 8.dp), size = 13f, color = sc.onBgDim, maxLines = 4) }
                     }
@@ -489,5 +502,42 @@ fun SwitchPill(on: Boolean) {
     val x by androidx.compose.animation.core.animateDpAsState(if (on) 20.dp else 2.dp, androidx.compose.animation.core.tween(160), label = "knob")
     Box(Modifier.size(width = 44.dp, height = 26.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(13.dp)).background(if (on) sc.accent else Palette.surface3)) {
         Box(Modifier.padding(start = x, top = 2.dp).size(22.dp).clip(androidx.compose.foundation.shape.CircleShape).background(if (on) sc.accent.readableInk() else Palette.dim))
+    }
+}
+
+/** A DJ level (0-100 %) as a plain drag slider: shown as it moves, saved once when the finger lifts (or on a tap). */
+@Composable
+private fun DjLevelRow(title: String, desc: String, value: Int, onSet: (Int) -> Unit) {
+    val sc = LocalScheme.current
+    var shown by remember(value) { mutableStateOf(value) }
+    var width by remember { mutableStateOf(1f) }
+    fun at(x: Float) = ((x / width).coerceIn(0f, 1f) * 20).roundToInt() * 5   // steps of 5 %
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Txt(title, size = 15f)
+                Txt(desc, size = 13f, color = sc.onBgDim, maxLines = 2)
+            }
+            Txt("$shown%", size = 14f, color = sc.onBgDim)
+        }
+        androidx.compose.foundation.layout.Box(
+            Modifier.fillMaxWidth().height(40.dp)
+                .semantics {
+                    contentDescription = title
+                    progressBarRangeInfo = ProgressBarRangeInfo(shown.toFloat(), 0f..100f, 19)
+                    setProgress { v -> onSet((v / 5f).roundToInt().coerceIn(0, 20) * 5); true }
+                }
+                .pointerInput(Unit) { detectTapGestures { o -> shown = at(o.x); onSet(shown) } }
+                .pointerInput(Unit) { detectDragGestures(onDragEnd = { onSet(shown) }) { change, _ -> change.consume(); shown = at(change.position.x) } },
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(40.dp)) {
+                width = size.width
+                val y = size.height / 2; val f = shown / 100f
+                drawLine(sc.onBgDim.copy(alpha = 0.3f), androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Offset(size.width, y), strokeWidth = 5.dp.toPx())
+                drawLine(sc.accent, androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Offset(size.width * f, y), strokeWidth = 5.dp.toPx())
+                drawCircle(sc.accent, 10.dp.toPx(), androidx.compose.ui.geometry.Offset((size.width * f).coerceIn(10.dp.toPx(), size.width - 10.dp.toPx()), y))
+            }
+        }
     }
 }

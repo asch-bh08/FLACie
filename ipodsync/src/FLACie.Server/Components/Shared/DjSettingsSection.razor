@@ -60,9 +60,20 @@
             @Preset("Only in the car", DjSwitches.Preset.OnlyInTheCar, preset)
             @Preset("Only on web", DjSwitches.Preset.OnlyOnWeb, preset)
         </div>
+        <h3>Sound</h3>
+        <label class="dj-level">
+            <span><b>DJ volume</b><small>How loud the DJ's voice is</small></span>
+            <input type="range" class="dj-volume" min="0" max="100" step="5" value="@s.Volume" aria-label="DJ volume" @onchange="e => Change(x => x.Volume = Pc(e.Value, x.Volume))" />
+            <output>@(s.Volume)%</output>
+        </label>
+        <label class="dj-level">
+            <span><b>Music under the DJ</b><small>How loud the song stays while the DJ talks</small></span>
+            <input type="range" class="dj-duck" min="0" max="100" step="5" value="@s.Duck" aria-label="Music under the DJ" @onchange="e => Change(x => x.Duck = Pc(e.Value, x.Duck))" />
+            <output>@(s.Duck)%</output>
+        </label>
         <label class="switch-row">
-            <span><b>Backup voice</b><small>When the DJ's own voice can't be made, use this device's voice instead</small></span>
-            <input type="checkbox" role="switch" checked="@s.Backup" @onchange="e => Change(x => x.Backup = (bool)(e.Value ?? false))" />
+            <span><b>Device voice</b><small>Use this device's own voice for the DJ instead of the DJ's voice. Off: if the DJ's voice can't be made, the DJ stays quiet</small></span>
+            <input type="checkbox" role="switch" checked="@s.DeviceVoice" @onchange="e => Change(x => x.DeviceVoice = (bool)(e.Value ?? false))" />
             <i class="switch" aria-hidden="true"></i>
         </label>
         <p class="hint">Quick switches: the DJ button in the full-screen player turns the DJ on or off for what's playing now, and every playlist has its own DJ switch at the top of its page.</p>
@@ -70,6 +81,7 @@
 }
 @code {
     static string Pressed(bool on) => on ? "true" : "false";
+    static int Pc(object? v, int was) => int.TryParse(v?.ToString(), out var n) ? Math.Clamp(n, 0, 100) : was;
 
     /// <summary>The Windows app's DJ (its own copy of the server); null on FLACie Web itself.</summary>
     FLACie.Server.Dj.HomeDj? home;
@@ -99,12 +111,12 @@
     /// <summary>What to say when the DJ's own voice can't be made where it is made (Cloudflare not set up there); null when it can, or while it isn't known yet.</summary>
     string? VoiceNote(FLACie.Core.IDjService dj, FLACie.Server.Dj.DjHome? where)
     {
-        if (home is null) return dj.VoiceReady ? null : "Cloudflare isn't set up yet. Ask the admin (Dashboard → DJ). Until then the device's own voice is used if Backup voice is on.";
+        if (home is null) return dj.VoiceReady ? null : "Cloudflare isn't set up yet. Ask the admin (Dashboard → DJ). Until then the DJ stays quiet, unless Device voice is on.";
         if (where is { Reachable: null }) return null;
-        if (where is { Reachable: true }) return where.VoiceReady ? null : "Cloudflare isn't set up on FLACie Web yet. Ask its admin (Dashboard → DJ there). Until then this PC's own voice is used if Backup voice is on.";
+        if (where is { Reachable: true }) return where.VoiceReady ? null : "Cloudflare isn't set up on FLACie Web yet. Ask its admin (Dashboard → DJ there). Until then the DJ stays quiet, unless Device voice is on.";
         if (home.VoiceReadyFor(Session)) return null;
-        return where is null ? "Cloudflare isn't set up in this app (Dashboard → DJ). Until then this PC's own voice is used if Backup voice is on."
-            : "Without FLACie Web there is no DJ voice here, so this PC's own voice is used if Backup voice is on.";
+        return where is null ? "Cloudflare isn't set up in this app (Dashboard → DJ). Until then the DJ stays quiet, unless Device voice is on."
+            : "Without FLACie Web there is no DJ voice here, so the DJ stays quiet unless Device voice is on.";
     }
 
     RenderFragment Tick(string label, bool on, Action<FLACie.Core.DjSettings> flip) =>

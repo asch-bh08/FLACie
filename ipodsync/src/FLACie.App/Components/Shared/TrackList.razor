@@ -47,6 +47,7 @@
                     }
                     <button role="menuitem" @onclick='() => { menu = -1; Feedback.LessLikeThis(Session, t); Toast.Show($"Fewer songs like “{t.Title}”"); }'>Less like this</button>
                     <button role="menuitem" @onclick='() => { menu = -1; gone.Add(t.Path); _ = Feedback.ThumbDown(Session, t, Player); Toast.Show($"“{t.Title}” will not be picked for you again"); }'>Thumbs down</button>
+                    <DjSongMenu Player="Player" Session="Session" Song="t" OnDone="() => menu = -1" />
                     @if (OnRemove is not null) { <button role="menuitem" class="danger" @onclick="() => { OnRemove(idx); menu = -1; }">Remove from playlist</button> }
                     @if (admin && Session.Services.SoulseekReady && !t.Path.Contains("[Hi-Res]", StringComparison.OrdinalIgnoreCase))
                     {

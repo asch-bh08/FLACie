@@ -32,7 +32,7 @@ public class DjServiceTests : IDisposable
         return new(new DjService(states, v, clips, paths, new DjVoiceTests.Lines<DjService>(), () => now), v, clips, h, states);
     }
 
-    void TurnOn(Rig r, bool backup = true) { var st = r.Dj.Settings(me); st.Enabled = true; st.Backup = backup; r.Dj.Save(me, st); }
+    void TurnOn(Rig r, bool device = false) { var st = r.Dj.Settings(me); st.Enabled = true; st.DeviceVoice = device; r.Dj.Save(me, st); }
 
     static DjSong Song(string title, string artist, string path) => new(title, artist, "", "", 0, "", 200_000, path);
     static readonly DjSong A = Song("Wonderwall", "Oasis", "/m/a.flac"), B = Song("Yellow", "Coldplay", "/m/b.flac"), C = Song("Breathe", "The Prodigy", "/m/c.flac");
@@ -44,7 +44,7 @@ public class DjServiceTests : IDisposable
     {
         var r = Make();
         var st = r.Dj.Settings(me);
-        Assert.False(st.Enabled); Assert.Equal(DjChatty.Often, st.Chatty); Assert.True(st.Backup);
+        Assert.False(st.Enabled); Assert.Equal(DjChatty.Often, st.Chatty); Assert.False(st.DeviceVoice); Assert.Equal(90, st.Volume); Assert.Equal(30, st.Duck); Assert.Empty(st.Songs);
         st.Enabled = true; st.Chatty = DjChatty.Rare; st.Web = false; st.Playlists["bedtime"] = false;
         Assert.False(r.Dj.Settings(me).Enabled);   // a copy: nothing changes until it is saved
         r.Dj.Save(me, st);
@@ -56,7 +56,7 @@ public class DjServiceTests : IDisposable
     [Fact]
     public async Task Asking_again_about_the_same_songs_gives_the_same_answer_and_moves_the_memory_once()
     {
-        var r = Make(voice: false); TurnOn(r);
+        var r = Make(voice: false); TurnOn(r, device: true);
         var first = await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A));   // the session's first song change: Often opens
         Assert.NotNull(first);
         // planning again would be the second change straight after a line, which is always silent; the kept decision says the same line
@@ -69,7 +69,7 @@ public class DjServiceTests : IDisposable
     {
         var r = Make(voice: false);
         Assert.Null(await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A)));
-        TurnOn(r);
+        TurnOn(r, device: true);
         Assert.NotNull(await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A)));
         Assert.Null(await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A, QueueDj: false)));
         var st = r.Dj.Settings(me); st.Web = false; r.Dj.Save(me, st);
@@ -77,13 +77,13 @@ public class DjServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Without_a_voice_the_device_says_it_if_backup_is_on_and_otherwise_nothing_is_said()
+    public async Task Without_a_voice_the_device_says_it_only_when_the_device_voice_is_chosen_and_otherwise_nothing_is_said()
     {
-        var r = Make(voice: false); TurnOn(r);
+        var r = Make(voice: false); TurnOn(r, device: true);
         var cue = await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A));
         Assert.NotNull(cue); Assert.Null(cue.ClipUrl); Assert.True(cue.Backup);
         Assert.False(r.Dj.VoiceReady);
-        var quiet = Make(voice: false); TurnOn(quiet, backup: false);
+        var quiet = Make(voice: false); TurnOn(quiet);
         Assert.Null(await quiet.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, C, B)));
         Assert.Empty(r.Http.Seen);
     }
@@ -110,17 +110,14 @@ public class DjServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task A_clip_that_failed_falls_back_to_the_backup_voice_or_silence()
+    public async Task A_clip_that_failed_is_never_said_by_the_device_voice_the_dj_stays_quiet()
     {
         var r = Make(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError))); TurnOn(r);
         var cue = await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A));
         Assert.NotNull(cue?.ClipUrl);   // asked for: nobody knows yet that it will fail
         Assert.Null(await r.Clips.WaitAsync(IdOf(cue.ClipUrl), TimeSpan.FromSeconds(10)));
         var again = await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A));
-        Assert.Equal(cue.Text, again!.Text);
-        Assert.Null(again.ClipUrl); Assert.True(again.Backup);
-        var st = r.Dj.Settings(me); st.Backup = false; r.Dj.Save(me, st);
-        Assert.Null(await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A)));
+        Assert.Null(again);   // was: no clip and Backup, so the device's own voice said it (a second voice)
         Assert.Single(r.Http.Seen);   // the failure is remembered: no second call
     }
 
@@ -138,7 +135,7 @@ public class DjServiceTests : IDisposable
         var other = new UserSession("jellyfin", new JellyfinAccount("http://jf.test", "u2", "other", "tok2"), null) { Id = "u2" };
         var st = r.Dj.Settings(other); st.Enabled = true; r.Dj.Save(other, st);
         var line = await r.Dj.PrepareAsync(other, new DjRequest(DjSurface.Web, B, A));
-        Assert.NotNull(line); Assert.Null(line.ClipUrl); Assert.True(line.Backup);
+        Assert.Null(line);   // nothing in this voice is made yet: quiet, never the device's voice
         Assert.Null(r.Clips.Request("A line never said before."));
         Assert.Single(r.Http.Seen);
         // ten minutes on it is worth trying again (and that fails again)
@@ -176,8 +173,7 @@ public class DjServiceTests : IDisposable
     public async Task Over_the_daily_cap_there_is_no_clip_and_no_call()
     {
         var r = Make(cap: 0); TurnOn(r);
-        var cue = await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A));
-        Assert.NotNull(cue); Assert.Null(cue.ClipUrl); Assert.True(cue.Backup);
+        Assert.Null(await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A)));
         Assert.Empty(r.Http.Seen);
     }
 
@@ -201,7 +197,7 @@ public class DjServiceTests : IDisposable
     public async Task The_servers_pronounce_file_is_used_for_the_spoken_line()
     {
         File.WriteAllText(Path.Combine(dir, "dj-pronounce.tsv"), "Coldplay\tartist\tCold Play\n");
-        var r = Make(voice: false); TurnOn(r);
+        var r = Make(voice: false); TurnOn(r, device: true);
         var cue = await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A));
         Assert.Contains("Cold Play", cue!.Text);
         Assert.Contains("Coldplay", cue.Caption);

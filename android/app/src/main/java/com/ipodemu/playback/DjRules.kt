@@ -33,18 +33,35 @@ data class DjSettings(
     val talkAfterSkips: Boolean = true,
     /** The DJ's tone, kept on the server like the rest. */
     val style: DjStyle = DjStyle.CLASSIC,
+    /** The person chose the phone's own voice as the DJ's voice (every line, no clip). Off: only the server's voice, never the phone's. */
+    val deviceVoice: Boolean = false,
+    /** How loud the DJ's voice is, 0-100 % of the music's volume. */
+    val volume: Int = DEFAULT_VOLUME,
+    /** How loud the music stays under the DJ, 0-100 %. */
+    val duck: Int = DEFAULT_DUCK,
+    /** Per song, by [com.ipodemu.library.matchKey] (title and artist): true = always introduce it, false = never talk over it; no entry = the usual rules. */
+    val songs: Map<String, Boolean> = emptyMap(),
 ) {
+    /** The clip player's volume (0..1). */
+    val voiceLevel: Float get() = volume.coerceIn(0, 100) / 100f
+    /** The music's level under the DJ (0..1). */
+    val duckLevel: Float get() = duck.coerceIn(0, 100) / 100f
     fun on(s: DjSurface): Boolean = when (s) { DjSurface.PHONE -> phone; DjSurface.AUTO -> auto; DjSurface.WEB -> web; DjSurface.WINDOWS -> windows }
 
     /** The GET shape, as the server sends it (also what the phone caches). */
     fun toJson(): JSONObject = JSONObject().put("enabled", enabled).put("chatty", chatty.wire).put("phone", phone).put("auto", auto).put("web", web)
-        .put("windows", windows).put("backup", backup).put("talkAfterSkips", talkAfterSkips).put("style", style.wire).put("playlists", JSONObject().also { o -> playlists.forEach { (k, v) -> o.put(k, v) } }).put("voiceReady", voiceReady)
+        .put("windows", windows).put("backup", backup).put("talkAfterSkips", talkAfterSkips).put("style", style.wire).put("playlists", JSONObject().also { o -> playlists.forEach { (k, v) -> o.put(k, v) } })
+        .put("deviceVoice", deviceVoice).put("volume", volume).put("duck", duck).put("songs", JSONObject().also { o -> songs.forEach { (k, v) -> o.put(k, if (v) "always" else "never") } })
+        .put("voiceReady", voiceReady)
 
     companion object {
+        const val DEFAULT_VOLUME = 90
+        const val DEFAULT_DUCK = 30
         /** The server's `/api/dj/settings` answer; a field it leaves out keeps its default. Throws on text that is not JSON. */
         fun parse(text: String): DjSettings {
             val o = JSONObject(text); val d = DjSettings()
             val pl = o.optJSONObject("playlists")
+            val so = o.optJSONObject("songs")
             return DjSettings(
                 o.optBoolean("enabled", d.enabled), if (o.optString("chatty").equals("rare", true)) DjChatty.RARE else DjChatty.OFTEN,
                 o.optBoolean("phone", d.phone), o.optBoolean("auto", d.auto), o.optBoolean("web", d.web), o.optBoolean("windows", d.windows),
@@ -53,6 +70,10 @@ data class DjSettings(
                 o.optBoolean("voiceReady", d.voiceReady),
                 o.optBoolean("talkAfterSkips", d.talkAfterSkips),
                 DjStyle.of(o.optString("style")),
+                o.optBoolean("deviceVoice", d.deviceVoice),
+                o.optInt("volume", d.volume).coerceIn(0, 100),
+                o.optInt("duck", d.duck).coerceIn(0, 100),
+                so?.keys()?.asSequence()?.mapNotNull { k -> when (so.optString(k)) { "always" -> k to true; "never" -> k to false; else -> null } }?.toMap() ?: emptyMap(),
             )
         }
         /** The cached copy, or the defaults (DJ off) when there is none or it can't be read. */
@@ -67,6 +88,29 @@ data class DjSettings(
 object DjRules {
     fun effectiveOn(s: DjSettings, surface: DjSurface, playlistId: String?, queueDj: Boolean?): Boolean =
         queueDj ?: (if (!playlistId.isNullOrEmpty()) s.playlists[playlistId] else null) ?: (s.enabled && s.on(surface))
+
+    /** A song's key in [DjSettings.songs]: its match key (title and artist), "" without a title. The same as `DjRules.SongKey` in DjContracts.cs. */
+    fun songKey(title: String, artist: String): String = if (title.isBlank()) "" else com.ipodemu.library.matchKey(title, artist)
+
+    /** The person's choice for this song: true = always introduce it, false = never talk over it, null = the usual rules. */
+    fun songChoice(s: DjSettings, title: String, artist: String): Boolean? = songKey(title, artist).takeIf { it.isNotEmpty() }?.let { s.songs[it] }
+
+    /** POST /api/dj/settings' body that sets ([choice]) or clears (null) the choice for a song; the server works out the key the same way. */
+    fun songPatch(title: String, artist: String, choice: Boolean?): JSONObject =
+        JSONObject().put("song", JSONObject().put("title", title).put("artist", artist).put("choice", when (choice) { true -> "always"; false -> "never"; null -> JSONObject.NULL }))
+
+    /** A song's menu: the three DJ choices with the one in force marked, as (label, choice, selected). */
+    fun songMenu(s: DjSettings, title: String, artist: String): List<Triple<String, Boolean?, Boolean>> {
+        val now = songChoice(s, title, artist)
+        return listOf(Triple("DJ: always introduce this song", true, now == true), Triple("DJ: never talk over this song", false, now == false), Triple("DJ: default", null, now == null))
+    }
+
+    /** The settings as they will be once [songPatch] is saved (shown at once, before the server answers). */
+    fun withSong(s: DjSettings, title: String, artist: String, choice: Boolean?): DjSettings {
+        val k = songKey(title, artist)
+        if (k.isEmpty()) return s
+        return s.copy(songs = if (choice == null) s.songs - k else s.songs + (k to choice))
+    }
 }
 
 /**

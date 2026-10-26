@@ -313,7 +313,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     @OptIn(UnstableApi::class)
     private fun voice(): DjPlayer = djVoice ?: DjPlayer(ctx, upstream, prefs, onLevel = { level -> duck = level; applyOutputVolume() },
         // a song held back under a long line (DjTiming) starts again from its beginning; one the listener has moved on in is left alone
-        onRestart = { if (exo.currentPosition < 3_000L) selfSeekTo(exo.currentMediaItemIndex, 0L) }).also { djVoice = it }
+        onRestart = { if (exo.currentPosition < 3_000L) selfSeekTo(exo.currentMediaItemIndex, 0L) }, settings = { djSettings }).also { djVoice = it }
     private val djExec = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "dj").also { it.isDaemon = true } }
     private val djWeb by lazy { com.ipodemu.library.FlacieWebClient(prefs) }
     /** The playlist the queue came from, as the DJ's playlist switch knows it (the Jellyfin playlist id, else the app's own); null when not a playlist. */
@@ -343,6 +343,16 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         dj.forget(); djVoice?.ready(null, false)
         if (!djOn) djVoice?.clear()
         djAsk(); fire()
+    }
+    /** The person's DJ choice for a song (always introduce it, never talk over it, null: the usual rules): shown at once, saved on the server, and put
+     *  back with [onFail]'s message when it can't be saved. */
+    fun setDjSong(title: String, artist: String, choice: Boolean?, onFail: (String) -> Unit = {}) {
+        val was = djSettings
+        djSettingsChanged(DjRules.withSong(was, title, artist, choice))
+        djExec.execute {
+            val s = try { djWeb.saveDjSettings(DjRules.songPatch(title, artist, choice)) } catch (e: Exception) { handler.post { djSettingsChanged(was); onFail(e.message ?: "Couldn't reach FLACie Web") }; null } ?: return@execute
+            handler.post { djSettingsFetched(s) }
+        }
     }
     @Volatile private var djFetchedAt = 0L
     /** The cached settings are fetched again (in the background) when a queue starts and they are a few minutes old: they may have been changed on the web. */

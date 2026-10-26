@@ -187,7 +187,10 @@ public class DjWriterTests : IDisposable
         Assert.Empty(ModelCalls(r));
         Assert.Contains("Smack That", cue.Caption);
         Assert.Contains("cap", r.Voice.LastWrite);
-        // a cap of 0: nothing is asked of Cloudflare at all
+        // a cap of 0: nothing is asked of Cloudflare at all (and the line is said only because its clip, in the same voice, is already made)
+        Assert.NotNull(cue.ClipUrl);
+        var made = Path.Combine(dir, "dj-clips", cue.ClipUrl["/api/dj/clip/".Length..]);
+        for (var i = 0; i < 200 && !File.Exists(made); i++) await Task.Delay(25);
         var none = Make(_ => Task.FromResult(Model("Smack That, Akon with Eminem.")), cap: 0);
         var c0 = await none.Dj.PrepareAsync(me, Req());
         Assert.NotNull(c0); Assert.Empty(none.Http.Seen);   // (the clip from above is already on disk)

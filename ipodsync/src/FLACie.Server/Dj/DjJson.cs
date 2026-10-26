@@ -6,21 +6,29 @@ namespace FLACie.Server.Dj;
 /// <summary>The DJ's JSON (docs/spec/ai-dj.md, HTTP): camelCase names, enums as lower-case strings, every field type-checked (a wrong type is the caller's mistake, 400).</summary>
 public static class DjJson
 {
-    static readonly string[] Switches = ["enabled", "phone", "auto", "web", "windows", "backup", "talkAfterSkips"];
+    static readonly string[] Switches = ["enabled", "phone", "auto", "web", "windows", "backup", "talkAfterSkips", "deviceVoice"];
+    static readonly string[] Levels = ["volume", "duck"];
+
+    public static string ChoiceName(bool c) => c ? "always" : "never";
+    static bool? ChoiceOf(string s) => s.Trim().ToLowerInvariant() switch { "always" => true, "never" => false, _ => null };
 
     public static string StyleName(DjStyle s) => s switch { DjStyle.Chill => "chill", DjStyle.Hype => "hype", _ => "classic" };
     public static DjStyle? StyleOf(string? s) => (s ?? "").Trim().ToLowerInvariant() switch { "classic" => DjStyle.Classic, "chill" => DjStyle.Chill, "hype" => DjStyle.Hype, _ => null };
     public static string BondName(DjBond b) => b switch { DjBond.Loved => "loved", DjBond.NewFind => "new", _ => "unknown" };
 
-    /// <summary>GET /api/dj/settings: <c>{ enabled, chatty: "rare"|"often", phone, auto, web, windows, backup, talkAfterSkips, style: "classic"|"chill"|"hype", playlists: { id: bool }, voiceReady }</c>.</summary>
+    /// <summary>GET /api/dj/settings: <c>{ enabled, chatty: "rare"|"often", phone, auto, web, windows, backup, talkAfterSkips, style: "classic"|"chill"|"hype", playlists: { id: bool }, deviceVoice, volume, duck,
+    /// songs: { matchKey: "always"|"never" }, voiceReady }</c>.</summary>
     public static JsonObject Settings(DjSettings s, bool voiceReady)
     {
         var lists = new JsonObject();
         foreach (var (k, v) in s.Playlists) lists[k] = v;
+        var songs = new JsonObject();
+        foreach (var (k, v) in s.Songs ?? new()) songs[k] = ChoiceName(v);
         return new JsonObject
         {
             ["enabled"] = s.Enabled, ["chatty"] = s.Chatty == DjChatty.Rare ? "rare" : "often", ["phone"] = s.Phone, ["auto"] = s.Auto, ["web"] = s.Web, ["windows"] = s.Windows,
-            ["backup"] = s.Backup, ["talkAfterSkips"] = s.TalkAfterSkips, ["style"] = StyleName(s.Style), ["playlists"] = lists, ["voiceReady"] = voiceReady,
+            ["backup"] = s.Backup, ["talkAfterSkips"] = s.TalkAfterSkips, ["style"] = StyleName(s.Style), ["playlists"] = lists,
+            ["deviceVoice"] = s.DeviceVoice, ["volume"] = DjRules.Clamp(s.Volume), ["duck"] = DjRules.Clamp(s.Duck), ["songs"] = songs, ["voiceReady"] = voiceReady,
         };
     }
 
@@ -62,7 +70,33 @@ public static class DjJson
                 return "\"playlist\" must be { \"id\": \"...\", \"on\": true, false or null }.";
             one = (id.Trim(), p["on"] is JsonValue ov ? ov.GetValue<bool>() : null);
         }
+        foreach (var k in Levels)
+            if (body.ContainsKey(k) && !(body[k] is JsonValue lv && lv.TryGetValue<int>(out var l) && l is >= 0 and <= 100)) return $"\"{k}\" must be a whole number from 0 to 100.";
+        Dictionary<string, bool>? songs = null;
+        if (body.ContainsKey("songs"))
+        {
+            if (body["songs"] is not JsonObject so || so.Count > 5000 || so.Any(kv => kv.Key.Trim().Length is 0 or > 700 || kv.Value is not JsonValue sv || !sv.TryGetValue<string>(out var c) || ChoiceOf(c) is null))
+                return "\"songs\" must be an object of song key: \"always\" or \"never\".";
+            songs = new();
+            foreach (var (k, v) in so) songs[k.Trim()] = ChoiceOf(v!.GetValue<string>())!.Value;
+        }
+        (string Title, string Artist, bool? Choice)? song = null;
+        if (body.ContainsKey("song"))
+        {
+            const string bad = "\"song\" must be { \"title\": \"...\", \"artist\": \"...\", \"choice\": \"always\", \"never\" or null }.";
+            if (body["song"] is not JsonObject so || so["title"] is not JsonValue tv || !tv.TryGetValue<string>(out var title) || title.Trim().Length is 0 or > 300
+                || (so["artist"] is not null && !IsString(so["artist"]))) return bad;
+            bool? choice = null;
+            if (so["choice"] is not null) { if (so["choice"] is not JsonValue cv || !cv.TryGetValue<string>(out var cs) || ChoiceOf(cs) is not { } pick) return bad; choice = pick; }
+            var artist = so["artist"]?.GetValue<string>() ?? "";
+            if (artist.Length > 300) return bad;
+            song = (title, artist, choice);
+        }
         bool B(string k, bool was) => body.ContainsKey(k) ? body[k]!.GetValue<bool>() : was;
+        int L(string k, int was) => body.ContainsKey(k) ? body[k]!.GetValue<int>() : was;
+        s.DeviceVoice = B("deviceVoice", s.DeviceVoice); s.Volume = L("volume", s.Volume); s.Duck = L("duck", s.Duck);
+        if (songs is not null) s.Songs = songs;
+        if (song is { } sg) DjRules.SetSong(s, sg.Title, sg.Artist, sg.Choice);
         s.Enabled = B("enabled", s.Enabled); s.Phone = B("phone", s.Phone); s.Auto = B("auto", s.Auto); s.Web = B("web", s.Web); s.Windows = B("windows", s.Windows); s.Backup = B("backup", s.Backup); s.TalkAfterSkips = B("talkAfterSkips", s.TalkAfterSkips);
         if (chatty is { } ch) s.Chatty = ch;
         if (style is { } sy) s.Style = sy;
@@ -171,6 +205,16 @@ public static class DjJson
         B("windows", was.Windows, now.Windows); B("backup", was.Backup, now.Backup); B("talkAfterSkips", was.TalkAfterSkips, now.TalkAfterSkips);
         if (was.Chatty != now.Chatty) p["chatty"] = now.Chatty == DjChatty.Rare ? "rare" : "often";
         if (was.Style != now.Style) p["style"] = StyleName(now.Style);
+        B("deviceVoice", was.DeviceVoice, now.DeviceVoice);
+        if (was.Volume != now.Volume) p["volume"] = DjRules.Clamp(now.Volume);
+        if (was.Duck != now.Duck) p["duck"] = DjRules.Clamp(now.Duck);
+        var wasSongs = was.Songs ?? new(); var nowSongs = now.Songs ?? new();
+        if (wasSongs.Count != nowSongs.Count || wasSongs.Any(kv => !nowSongs.TryGetValue(kv.Key, out var v) || v != kv.Value))
+        {
+            var all = new JsonObject();
+            foreach (var (k, v) in nowSongs) all[k] = ChoiceName(v);
+            p["songs"] = all;
+        }
         var changed = was.Playlists.Keys.Union(now.Playlists.Keys)
             .Where(k => was.Playlists.TryGetValue(k, out var a) != now.Playlists.TryGetValue(k, out var b) || a != b).ToList();
         if (changed.Count == 1) p["playlist"] = new JsonObject { ["id"] = changed[0], ["on"] = now.Playlists.TryGetValue(changed[0], out var on) ? on : null };

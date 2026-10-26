@@ -107,7 +107,7 @@ public class DjHomeTests : IDisposable
         foreach (var (url, desktop) in new[] { ("http://home.test:8080", false), (null, true), ("http://127.0.0.1:5287", true) })
         {
             var r = Make(url, desktop);
-            var st = r.Local.Settings(r.Me); st.Enabled = true; r.Local.Save(r.Me, st);
+            var st = r.Local.Settings(r.Me); st.Enabled = true; st.DeviceVoice = true; r.Local.Save(r.Me, st);
             Assert.True(r.Dj.Settings(r.Me).Enabled);
             Assert.Null(r.Dj.Where(r.Me));
             Assert.NotNull(await r.Dj.PrepareAsync(r.Me, new DjRequest(DjSurface.Windows, B, A)));
@@ -223,7 +223,7 @@ public class DjHomeTests : IDisposable
     public async Task When_the_home_server_cant_be_reached_this_PCs_own_DJ_stands_in_and_says_so()
     {
         var r = Make();
-        var mine = r.Local.Settings(r.Me); mine.Enabled = true; mine.Backup = true; r.Local.Save(r.Me, mine);   // this PC's own settings
+        var mine = r.Local.Settings(r.Me); mine.Enabled = true; mine.DeviceVoice = true; r.Local.Save(r.Me, mine);   // this PC's own settings (its device voice chosen)
         r.Home.Answer = (_, _) => throw new HttpRequestException("No route to host");
         Assert.False(await r.Dj.ReadNowAsync(r.Me));
         Assert.Equal(new DjHome("http://home.test:8080", false, "couldn't be reached", false), r.Dj.Where(r.Me));

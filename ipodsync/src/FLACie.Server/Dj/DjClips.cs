@@ -77,12 +77,8 @@ public sealed class DjClips
     public string? Request(string text)
     {
         var v = voice.Current.Voice;
+        // always the saved voice: near the cap a line is not made in a cheaper one (two voices in one session sounded like two DJs)
         var id = IdOf(v, text);
-        // Aura costs about 70 times MeloTTS: near the cap, a line not made yet is said by MeloTTS rather than not at all
-        if (v != CloudflareVoice.MeloTts && !File.Exists(FileOf(id)) && !voice.CanAfford(v, text) && voice.CanAfford(CloudflareVoice.MeloTts, text))
-        {
-            v = CloudflareVoice.MeloTts; id = IdOf(v, text);
-        }
         if (Failed(id)) return null;
         if (Have(id)) return id;
         lock (gate)
@@ -113,6 +109,30 @@ public sealed class DjClips
             var missing = parts.Where((p, i) => !File.Exists(FileOf(ids[i])) && !jobs.ContainsKey(ids[i])).Sum(p => CloudflareVoice.EstimateNeurons(v, p.Text));
             if (!voice.CanSpend(missing)) return null;
             jobs[id] = Task.Run(() => MakePooledAsync(id, v, parts, ids));
+            return id;
+        }
+    }
+
+    /// <summary>The clip of [text] in the saved voice if it is already made (no call, whatever the cap or Cloudflare), else null.</summary>
+    public string? Cached(string text)
+    {
+        var id = IdOf(voice.Current.Voice, text);
+        return Have(id) ? id : null;
+    }
+
+    /// <summary>The pooled line of [parts] in the saved voice if every part is already made in that voice (joined here, with no call), else null.
+    /// Parts made in another voice have other ids, so they are never joined in.</summary>
+    public string? CachedPooled(IReadOnlyList<DjPart> parts, string owner)
+    {
+        var v = voice.Current.Voice;
+        if (v == CloudflareVoice.MeloTts || parts.Count == 0) return null;
+        var ids = parts.Select(p => PartId(v, p, owner)).ToList();
+        var id = PooledId(v, ids);
+        if (Have(id)) return id;
+        if (Failed(id) || ids.Any(i => !File.Exists(FileOf(i)))) return null;
+        lock (gate)
+        {
+            if (!jobs.ContainsKey(id)) jobs[id] = Task.Run(() => MakePooledAsync(id, v, parts, ids));
             return id;
         }
     }

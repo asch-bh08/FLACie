@@ -1,0 +1,36 @@
+@* The DJ's choice for one song, in a song's menu: always introduce it, never talk over it, or the usual rules. Kept per person by the song's title and
+   artist (DjRules.SongKey), so it holds on every device. The current choice is ticked. Hidden where there is no DJ. *@
+@if (Player.Dj is { } dj && DjRules.SongKey(Song.Title, Song.Artist).Length > 0)
+{
+    var now = DjRules.SongChoice(dj.Settings(Session), Song.Title, Song.Artist);
+    @Item("DJ: always introduce this song", true, now)
+    @Item("DJ: never talk over this song", false, now)
+    @Item("DJ: default", null, now)
+}
+@code {
+    [Parameter, EditorRequired] public PlayerState Player { get; set; } = default!;
+    [Parameter, EditorRequired] public UserSession Session { get; set; } = default!;
+    [Parameter, EditorRequired] public Track Song { get; set; } = default!;
+    /// <summary>After a choice: the menu closes.</summary>
+    [Parameter] public EventCallback OnDone { get; set; }
+    [Inject] Toasts Toast { get; set; } = default!;
+
+    RenderFragment Item(string label, bool? choice, bool? now) =>
+        @<button role="menuitemradio" class="dj-song" aria-checked="@(choice == now ? "true" : "false")" @onclick="() => Set(choice)"><span class="dj-tick" aria-hidden="true">@(choice == now ? "✓" : "")</span>@label</button>;
+
+    async Task Set(bool? choice)
+    {
+        if (Player.Dj is not { } dj) return;
+        var c = DjSwitches.Copy(dj.Settings(Session));
+        DjRules.SetSong(c, Song.Title, Song.Artist, choice);
+        dj.Save(Session, c);
+        Toast.Show(choice switch
+        {
+            true => $"The DJ will always introduce “{Song.Title}”",
+            false => $"The DJ won't talk over “{Song.Title}”",
+            null => $"The DJ treats “{Song.Title}” as usual",
+        });
+        await OnDone.InvokeAsync();
+        await Player.DjRefreshAsync();
+    }
+}

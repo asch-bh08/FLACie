@@ -30,7 +30,7 @@
 .sp .shelf-head small, .sp .panel h2 small { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
 
 /* ---- form labels, fields and buttons ---- */
-.sp label:not(.switch-row):not(.dl-every), .login .form label { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.sp label:not(.switch-row):not(.dl-every):not(.dj-level), .login .form label { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
 .sp input:not([type=checkbox]):not([type=radio]):not([type=range]), .sp select, .sp textarea,
 .login input:not([type=checkbox]) {
   background: var(--surface-2); border: 1px solid #f4efe622; border-radius: 12px; color: var(--ink); font-family: var(--sans);
@@ -46,6 +46,8 @@
 /* ---- switches: the same pill as the full-screen player's, in a soft row ---- */
 .sp .switch-row, .sp .panel.set .switch-row { background: #ffffff0a; border-radius: 16px; padding: 12px 14px; }
 .sp .switch-row b { font-family: var(--sans); font-weight: 700; }
+.sp .dj-level { background: #ffffff0a; border-radius: 16px; padding: 12px 14px; margin-bottom: 8px; }
+.sp .dj-level b { font-family: var(--sans); font-weight: 700; }
 .sp .switch { width: 46px; height: 28px; background: #ffffff26; }
 .sp .switch::after { top: 4px; left: 4px; }
 .sp .switch-row input:checked ~ .switch { background: var(--accent); }

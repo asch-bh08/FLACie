@@ -839,6 +839,11 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     {
         try
         {
+            if (dj is { } d && session is { } s && (cue.ClipUrl is { Length: > 0 } || cue.Backup))
+            {
+                var st = d.Settings(s);
+                await audio.DjLevelsAsync(DjRules.Clamp(st.Volume), DjRules.Clamp(st.Duck));
+            }
             if (cue.ClipUrl is { Length: > 0 } url)
             {
                 // timed to the song's intro when the server knows it: the clip's own length when the page has it, else a guess from its words

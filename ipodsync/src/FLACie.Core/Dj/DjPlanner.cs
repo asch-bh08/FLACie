@@ -2,8 +2,15 @@ using System.Text.RegularExpressions;
 
 namespace FLACie.Core;
 
-/// <summary>A line the DJ will say: [Text] for the voice (years and minutes in words, names respelt), [Caption] for screens (the real spellings).</summary>
-public sealed record DjLine(DjSlot Slot, string TemplateId, string Text, string Caption);
+/// <summary>A line the DJ will say: [Text] for the voice (years and minutes in words, names respelt), [Caption] for screens (the real spellings).
+/// [Parts]/[PooledCaption]: the same moment as a pooled line (kept phrases and a name clip, see <see cref="DjPool"/>), said instead when the day's allowance
+/// needs it; null when the song has no title and artist to name.</summary>
+public sealed record DjLine(DjSlot Slot, string TemplateId, string Text, string Caption, IReadOnlyList<DjPart>? Parts = null, string? PooledCaption = null)
+{
+    public bool Equals(DjLine? o) => o is not null && Slot == o.Slot && TemplateId == o.TemplateId && Text == o.Text && Caption == o.Caption
+        && PooledCaption == o.PooledCaption && (Parts is null ? o.Parts is null : o.Parts is not null && Parts.SequenceEqual(o.Parts));
+    public override int GetHashCode() => HashCode.Combine(Slot, TemplateId, Text, Caption);
+}
 
 /// <summary>
 /// Decides whether the DJ speaks before a song and writes the line (Appendix A.4 of docs/research/ai-dj-free.md). Pure: the clock, the randomness and the memory are
@@ -19,11 +26,14 @@ public static class DjPlanner
     public static int ForcedSilence(DjChatty c) => c == DjChatty.Rare ? 4 : 1;
     /// <summary>The chance of speaking once the forced silence is over: 0.5 Often (about 1 song in 3), 0.30 Rare (about 1 in 7.3).</summary>
     public static double Chance(DjChatty c) => c == DjChatty.Rare ? 0.30 : 0.5;
+    /// <summary>The same, by style: Chill a fifth less often, Hype a fifth more.</summary>
+    public static double Chance(DjChatty c, DjStyle s) => Chance(c) * (s switch { DjStyle.Chill => 0.8, DjStyle.Hype => 1.2, _ => 1.0 });
     /// <summary>The chance of the opening line of a session: always when Often, half the time when Rare.</summary>
     public static double OpenChance(DjChatty c) => c == DjChatty.Rare ? 0.5 : 1.0;
 
-    /// <summary>The line before [req.Next], or null to stay quiet. The switches (<see cref="DjRules.EffectiveOn"/>) come first; when they say off, the memory is not touched.</summary>
-    public static DjLine? Plan(DjSettings settings, DjRequest req, DjMemory mem, DateTime nowUtc, Random rng, DjPronounce? say = null)
+    /// <summary>The line before [req.Next], or null to stay quiet. The switches (<see cref="DjRules.EffectiveOn"/>) come first; when they say off, the memory is not touched.
+    /// [firstName]: for the hello at the start of a session; [extra]: what the server knows about the song (its feel).</summary>
+    public static DjLine? Plan(DjSettings settings, DjRequest req, DjMemory mem, DateTime nowUtc, Random rng, DjPronounce? say = null, string? firstName = null, DjExtra? extra = null)
     {
         if (!DjRules.EffectiveOn(settings, req.Surface, req.PlaylistId, req.QueueDj)) return null;
         say ??= DjPronounce.Default;
@@ -42,9 +52,11 @@ public static class DjPlanner
         if (f.PrevArtistKey.Length > 0 && !mem.Artists.ContainsKey(f.PrevArtistKey)) mem.Artists[f.PrevArtistKey] = new(nowUtc, song - 1, f.PrevTitleWritten);
         if (f.ArtistKey.Length > 0) mem.Artists[f.ArtistKey] = new(nowUtc, song, f.HasTitle ? f.TitleWritten : "");
 
+        f.Feel = DjFeel.Of(extra?.Vibe, extra?.PrevVibe);
+        f.Colour = Colour(req.LocalHour, req.Weekday);
         var line = Quiet(settings, req, f) ? null
-            : (open ? rng.NextDouble() < OpenChance(settings.Chatty) : mem.SilentRun >= ForcedSilence(settings.Chatty) && rng.NextDouble() < Chance(settings.Chatty))
-                ? Write(req, mem, f, open, reset, heard, song, nowUtc, rng, say) : null;
+            : (open ? rng.NextDouble() < OpenChance(settings.Chatty) : mem.SilentRun >= ForcedSilence(settings.Chatty) && rng.NextDouble() < Chance(settings.Chatty, settings.Style))
+                ? Write(req, mem, f, open, reset, heard, song, nowUtc, rng, say, settings.Style, firstName) : null;
         if (line is null) { mem.SilentRun = Math.Min(mem.SilentRun, DjMemory.Long) + 1; return null; }
         mem.SilentRun = 0;
         mem.Add(new(line.TemplateId, line.Slot, DjTemplates.All.First(t => t.Id == line.TemplateId).Opener, line.Text, nowUtc, line.Caption));
@@ -67,11 +79,13 @@ public static class DjPlanner
         return (nd == pd && next.TrackNo == prev.TrackNo + 1) || (nd == pd + 1 && next.TrackNo == 1);
     }
 
-    static DjLine? Write(DjRequest req, DjMemory mem, Facts f, bool open, bool reset, DjMemory.Heard? heard, int song, DateTime now, Random rng, DjPronounce say)
+    static DjLine? Write(DjRequest req, DjMemory mem, Facts f, bool open, bool reset, DjMemory.Heard? heard, int song, DateTime now, Random rng, DjPronounce say,
+        DjStyle style, string? firstName)
     {
         var recentIds = mem.Lines.TakeLast(12).Select(l => l.TemplateId).ToHashSet();
         var recentOpeners = mem.Lines.TakeLast(3).Select(l => l.Opener).Where(o => o.Length > 0).ToHashSet();
         DjSlot? lastSlot = mem.Lines.Count > 0 ? mem.Lines[^1].Slot : null;
+        bool Lately(DjSlot s, int n) => mem.Lines.TakeLast(n).Any(l => l.Slot == s);
 
         List<DjSlot> order;
         if (!f.HasArtist) order = [DjSlot.TitleOnly];
@@ -81,6 +95,10 @@ public static class DjPlanner
         {
             var c = new List<DjSlot> { DjSlot.Intro };
             if (req.PrevPlayedOut && f.PA is not null && !f.SameArtist) c.Add(DjSlot.Bridge);
+            // "That was X... and this is Y": now and then, never two in three lines
+            if (req.PrevPlayedOut && f.PA is not null && !f.SameArtist && !Lately(DjSlot.Segue, 3)) c.Add(DjSlot.Segue);
+            if (f.Colour is not null && !Lately(DjSlot.Time, 8)) c.Add(DjSlot.Time);
+            if (f.Feel.Length > 0 && !Lately(DjSlot.Feel, 3)) c.Add(DjSlot.Feel);
             if (f.Why.Count > 0 && mem.Lines.TakeLast(5).Count(l => l.Slot == DjSlot.Why) < 3) c.Add(DjSlot.Why);   // WHY at most 3 of every 6 lines
             if (f.Year > 0) c.Add(DjSlot.Year);
             if (f.Album is not null) c.Add(DjSlot.Album);
@@ -99,11 +117,13 @@ public static class DjPlanner
             }
         }
 
-        var greet = open ? Greeting(req.LocalHour, req.Weekday) : null;
+        var greet = open ? Greeting(req.LocalHour, req.Weekday, style, firstName) : null;
         var (sp, wr) = Values(f, heard, say);
         foreach (var slot in order)
         {
-            var ts = DjTemplates.All.Where(t => t.Slot == slot && !recentIds.Contains(t.Id) && Met(t.Need, f)).ToList();
+            // the style's own wording first; once those were all said lately, the Classic ones of the slot
+            var ts = DjTemplates.Of(slot, style).Where(t => !recentIds.Contains(t.Id) && Met(t.Need, f)).ToList();
+            if (ts.Count == 0 && style != DjStyle.Classic) ts = DjTemplates.Of(slot, DjStyle.Classic).Where(t => !recentIds.Contains(t.Id) && Met(t.Need, f)).ToList();
             for (var i = ts.Count - 1; i > 0; i--) { var j = rng.Next(i + 1); (ts[i], ts[j]) = (ts[j], ts[i]); }
             // openings unlike the last 3 lines first
             var tries = ts.Where(t => !recentOpeners.Contains(t.Opener)).Concat(ts.Where(t => recentOpeners.Contains(t.Opener))).ToList();
@@ -118,10 +138,47 @@ public static class DjPlanner
                     if (text is null || caption is null) continue;
                     if (greet is { } g) { text = g.Say + " " + text; caption = g.Write + " " + caption; }
                     if (DjText.WordCount(text) > MaxWords) continue;
-                    return new DjLine(slot, t.Id, text, caption);
+                    var (parts, pooled) = Pooled(slot, f, greet, firstName is not null, style, song);
+                    return new DjLine(slot, t.Id, text, caption, parts, pooled);
                 }
             }
         }
+        return null;
+    }
+
+    /// <summary>The same moment as a pooled line: the hello (kept for this person when it has their name) and an opener at the start of a session, "That was..."
+    /// with the previous song's name for a segue or a bridge, else an intro phrase; then the song's name. [n] varies the phrase from line to line without
+    /// drawing on the planner's randomness. Null when the song has no title and artist.</summary>
+    static (IReadOnlyList<DjPart>? Parts, string? Caption) Pooled(DjSlot slot, Facts f, (string Say, string Write)? greet, bool named, DjStyle style, int n)
+    {
+        if (!f.HasTitle || !f.HasArtist) return (null, null);
+        var name = DjPool.Name(f.TitleSay, f.TitleWritten, f.ArtistSay, f.ArtistWritten);
+        var parts = new List<DjPart>();
+        var caption = "";
+        if (greet is { } g) { parts.Add(new DjPart(g.Say, g.Write, named)); caption = g.Write + " "; }
+        if (slot is DjSlot.Segue or DjSlot.Bridge && f.PT is not null && f.PA is not null)
+        {
+            var prev = DjPool.Name(f.PTSay!, f.PT, f.PASay!, f.PA);
+            parts.AddRange([new DjPart(DjPool.ThatWas, DjPool.ThatWas), prev, new DjPart(DjPool.AndThisIs, DjPool.AndThisIs), name]);
+            return (parts, DjTemplates.Finish(caption + "That was " + prev.Caption.TrimEnd('.') + "... and this is " + name.Caption));
+        }
+        var pool = slot == DjSlot.Open ? DjPool.Openers(style) : DjPool.Intros(style);
+        var phrase = pool[n % pool.Count];
+        parts.Add(new DjPart(phrase, phrase)); parts.Add(name);
+        return (parts, DjTemplates.Finish(caption + phrase + " " + name.Caption));
+    }
+
+    /// <summary>A time of day worth a word, where the listener is: "Late night" (23:00 to 02:59), "Monday morning", "Friday night", "Saturday night",
+    /// "Sunday morning"; null at any other time or when it is not known.</summary>
+    public static string? Colour(int? hour, int? weekday)
+    {
+        if (hour is not { } h) return null;
+        var d = weekday is { } w and >= 0 and <= 7 ? w % 7 : -1;
+        if (h is >= 23 or <= 2) return "Late night";
+        if (d == 1 && h is >= 6 and <= 11) return "Monday morning";
+        if (d == 0 && h is >= 6 and <= 11) return "Sunday morning";
+        if (d == 5 && h is >= 18 and <= 22) return "Friday night";
+        if (d == 6 && h is >= 18 and <= 22) return "Saturday night";
         return null;
     }
 
@@ -131,13 +188,35 @@ public static class DjPlanner
 
     /// <summary>"Good morning." (06-11), "Good afternoon." (12-17), "Good evening." (18-02), "Saturday morning." at the weekend; null at night or when the device's time is unknown.
     /// [weekday]: .NET DayOfWeek numbering, 0 = Sunday .. 6 = Saturday, from every client (an ISO 7 for Sunday is also taken).</summary>
-    public static (string Say, string Write)? Greeting(int? hour, int? weekday)
+    public static (string Say, string Write)? Greeting(int? hour, int? weekday) => Greeting(hour, weekday, DjStyle.Classic, null);
+
+    /// <summary>
+    /// The hello at the start of a session, with the listener's first name when it is known: Classic "Good evening, Ashley." ("Monday morning, Ashley." on a
+    /// Monday, Saturday or Sunday morning), Chill "Evening, Ashley.", Hype "Hey Ashley, good evening." Null at night (03:00 to 05:59) or when the time is unknown.
+    /// </summary>
+    public static (string Say, string Write)? Greeting(int? hour, int? weekday, DjStyle style, string? firstName)
     {
         if (hour is not { } hr) return null;
         var t = hr switch { >= 6 and <= 11 => "greet1", >= 12 and <= 17 => "greet2", >= 18 and <= 23 or >= 0 and <= 2 => "greet3", _ => null };
         if (t is null) return null;
-        var day = weekday switch { 6 => "Saturday", 0 or 7 => "Sunday", _ => null };
-        var text = t == "greet1" && day is not null ? DjTemplates.All.First(x => x.Id == "greet4").Text.Replace("{Day}", day) : DjTemplates.All.First(x => x.Id == t).Text;
+        var day = weekday switch { 6 => "Saturday", 0 or 7 => "Sunday", 1 => "Monday", _ => null };
+        var dayMorning = t == "greet1" && day is not null;
+        var classic = dayMorning ? DjTemplates.All.First(x => x.Id == "greet4").Text.Replace("{Day}", day) : DjTemplates.All.First(x => x.Id == t).Text;
+        var name = firstName is { Length: > 0 } n ? n : null;
+        string text;
+        switch (style)
+        {
+            case DjStyle.Chill:
+                var part = dayMorning ? day + " morning" : t switch { "greet1" => "Morning", "greet2" => "Afternoon", _ => "Evening" };
+                text = part + (name is null ? "." : ", " + name + ".");
+                break;
+            case DjStyle.Hype:
+                text = (name is null ? "Hey, " : "Hey " + name + ", ") + (dayMorning ? "happy " + day : DjWhy.LowerFirst(classic.TrimEnd('.'))) + ".";
+                break;
+            default:
+                text = name is null ? classic : classic.TrimEnd('.') + ", " + name + ".";
+                break;
+        }
         return (text, text);
     }
 
@@ -158,6 +237,8 @@ public static class DjPlanner
         }
         if (f.Genre is { } g) Put("G", g.Say, g.Write);
         if (f.Minutes > 0) Put("M", DjNumbers.Words(f.Minutes), f.Minutes.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        if (f.Colour is { } c) { Put("ToD", c, c); var lc = c.StartsWith("Late") ? c.ToLowerInvariant() : c; Put("tod", lc, lc); }
+        if (f.Feel.Length > 0) { var up = char.ToUpperInvariant(f.Feel[0]) + f.Feel[1..]; Put("F", up, up); Put("f", f.Feel, f.Feel); }
         SetWhy(sp, wr, f, f.Why.Count);
         return (sp, wr);
     }
@@ -182,6 +263,8 @@ public static class DjPlanner
         public int Year, YearAge, Minutes;
         public (string Say, string Write)? Genre;
         public List<string> Why = [], WhySay = [];
+        public string Feel = "";
+        public string? Colour;
 
         public static string SayTitle(string written, DjPronounce say) => say.Title(written) is { } r ? DjText.Speak(r) : DjText.Speak(say.Phrases(written));
 
@@ -206,6 +289,8 @@ public static class DjPlanner
             if (artist.Length == 0) return null;
             var c = DjText.CreditOf(artist, s.Title);
             if (c.Lead.Length == 0 || DjText.NoName(c.Lead)) return null;
+            // "Akon, Eminem": two acts in one tag are said "Akon with Eminem" (as the model's facts have them)
+            if (c.Guest is null && c.Lead.Split(", ") is { Length: 2 } two && two.All(x => x.Trim().Length > 0)) c = c with { Lead = two[0].Trim(), Guest = two[1].Trim() };
             string Say(string n) => say.Artist(n) is { } r ? DjText.Speak(r) : DjText.Speak(say.Phrases(n));
             var lead = Say(c.Lead);
             if (lead.Length == 0) return null;

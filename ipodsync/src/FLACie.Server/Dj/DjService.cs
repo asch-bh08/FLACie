@@ -83,8 +83,18 @@ public sealed class DjService : IDjService
         }
     }
 
+    /// <summary>What the server knows for certain about the next song, and the listener's bond with it (loved, new). Set where the DJ is registered (the vibe index,
+    /// the MusicBrainz cache and the account's taste); null in tests that do not ask for it.</summary>
+    public Func<UserSession, DjRequest, (DjExtra? Extra, DjBond Bond)>? Facts { get; set; }
+    /// <summary>Make the pooled phrases of a voice and style ahead of time (on where the server registers the DJ; off in tests that count calls).</summary>
+    public bool WarmPool { get; set; }
+    readonly ConcurrentDictionary<string, bool> warmed = new();
+
+    /// <summary>The first name for the hello, from the account's name when it looks like one.</summary>
+    public static string? FirstNameOf(UserSession s) => DjNames.FirstName(s.Kind == "nas" ? s.Nas?.User : s.Jellyfin?.UserName);
+
     /// <summary>Decides once per (account, previous song, next song) within <see cref="DecisionLife"/>; the same line (or the same silence) after that.</summary>
-    DjLine? Decide(UserSession s, DjSettings st, DjRequest req, out string key, out DjMemory mem)
+    DjLine? Decide(UserSession s, DjSettings st, DjRequest req, DjExtra? extra, out string key, out DjMemory mem)
     {
         key = s.Id + "\n" + SongKey(req.Prev) + "\n" + SongKey(req.Next);
         var now = clock();
@@ -93,13 +103,13 @@ public sealed class DjService : IDjService
         lock (mem)
         {
             if (decisions.TryGetValue(key, out d) && now - d.At < DecisionLife) return d.Line;
-            var line = DjPlanner.Plan(st, req, mem, now, new Random(Seed(key, mem.Songs)), Pronounce());
+            var line = DjPlanner.Plan(st, req, mem, now, new Random(Seed(key, mem.Songs)), Pronounce(), FirstNameOf(s), extra);
             decisions[key] = (now, line);
-            written.TryRemove(key, out _);
+            written.TryRemove(key, out _); counted.TryRemove(key, out _);
             if (Interlocked.Increment(ref asks) % 200 == 0)
             {
                 foreach (var old in decisions.Where(x => now - x.Value.At >= DecisionLife).Select(x => x.Key).ToList()) decisions.TryRemove(old, out _);
-                foreach (var old in written.Where(x => now - x.Value.At >= DecisionLife).Select(x => x.Key).ToList()) written.TryRemove(old, out _);
+                foreach (var old in written.Where(x => now - x.Value.At >= DecisionLife).Select(x => x.Key).ToList()) { written.TryRemove(old, out _); counted.TryRemove(old, out _); }
             }
             return line;
         }
@@ -109,35 +119,83 @@ public sealed class DjService : IDjService
     public bool AiLines { get; set; }
     /// <summary>How long the text model may take (<see cref="DjWriter.Timeout"/>; shorter in tests).</summary>
     public TimeSpan WriteTimeout { get; set; } = DjWriter.Timeout;
-    readonly ConcurrentDictionary<string, (DateTime At, Lazy<Task<DjLine>> Job)> written = new();
+    /// <summary>Per decision: the line as it will be said, and whether it is pooled (kept phrases and a name clip) rather than one whole clip.</summary>
+    readonly ConcurrentDictionary<string, (DateTime At, Lazy<Task<(DjLine Line, bool Pooled)>> Job)> written = new();
+    /// <summary>Decisions already counted as a line said today.</summary>
+    readonly ConcurrentDictionary<string, bool> counted = new();
 
     public async Task<DjCue?> PrepareAsync(UserSession s, DjRequest req, CancellationToken ct = default)
     {
         var st = Settings(s);
         // the switches are read fresh every time: turning the DJ off silences an answer given before
         if (!DjRules.EffectiveOn(st, req.Surface, req.PlaylistId, req.QueueDj)) return null;
+        DjExtra? extra = null;
+        try
+        {
+            if (Facts is { } facts)
+            {
+                var (x, bond) = facts(s, req);
+                extra = x;
+                if (req.Bond == DjBond.Unknown && bond != DjBond.Unknown) req = req with { Bond = bond };
+            }
+        }
+        catch (Exception e) { log.LogDebug("DJ facts not read: {Kind}", e.GetType().Name); }
         DjLine? line; string key; DjMemory mem;
-        try { line = Decide(s, st, req, out key, out mem); }
+        try { line = Decide(s, st, req, extra, out key, out mem); }
         catch (Exception e) { log.LogWarning("DJ line not written: {Kind}", e.GetType().Name); return null; }
         if (line is null) return null;
-        // the planner said when; the text model says how (once per decision; the template line on any failure)
-        if (AiLines && voice.Current.AiLines && voice.Ready)
-        {
-            var planned = line;
-            line = await written.GetOrAdd(key, _ => (clock(), new Lazy<Task<DjLine>>(() => RewriteAsync(req, planned, mem)))).Job.Value;
-        }
+        if (WarmPool && voice.Ready && voice.Current.Voice is var v && v != CloudflareVoice.MeloTts && warmed.TryAdd(v + "\n" + st.Style, true))
+            _ = Task.Run(() => clips.WarmAsync(DjPool.All(st.Style)));
+        // the planner said when; the budget says whole or pooled; the text model says how (once per decision; the template line on any failure)
+        var planned = line; var name = FirstNameOf(s);
+        var (said, pooled) = await written.GetOrAdd(key, _ => (clock(), new Lazy<Task<(DjLine, bool)>>(() => VoiceAsync(req, planned, mem, st.Style, extra, name)))).Job.Value;
         // no voice, over today's cap or a failed clip: the device's own voice says it, if the person allows that; else the DJ stays quiet
-        var id = clips.Request(line.Text);
+        var id = pooled ? clips.RequestPooled(said.Parts!, s.Id) ?? clips.Request(said.Text) : clips.Request(said.Text);
         if (id is null && !st.Backup) return null;
-        return new DjCue(line.Text, line.Caption, id is null ? null : DjClips.UrlOf(id), st.Backup);
+        if (id is not null && counted.TryAdd(key, true)) voice.CountSaid();
+        return new DjCue(said.Text, said.Caption, id is null ? null : DjClips.UrlOf(id), st.Backup);
     }
 
     /// <summary>A 25-word line in the saved voice: what the text model must leave room for under the cap.</summary>
     double ClipRoom() => CloudflareVoice.EstimateNeurons(voice.Current.Voice, string.Join(' ', Enumerable.Repeat("word", DjWriter.MaxWords)) + " and some.");
 
+    /// <summary>
+    /// How the planned line is said. With an Aura voice, a whole line (the model's, or the template) only while it leaves room for the pooled lines still to come
+    /// today (<see cref="DjBudget"/>); otherwise the pooled form, whose phrases and name clip are kept and shared. A line whose clip is already made is whole for free.
+    /// </summary>
+    async Task<(DjLine Line, bool Pooled)> VoiceAsync(DjRequest req, DjLine line, DjMemory mem, DjStyle style, DjExtra? extra, string? firstName)
+    {
+        var c = voice.Current;
+        var ai = AiLines && c.AiLines && voice.Ready;
+        if (c.Voice != CloudflareVoice.MeloTts && voice.Ready && line.Parts is { Count: > 0 } parts && line.PooledCaption is { } pc)
+        {
+            var whole = CloudflareVoice.EstimateNeurons(c.Voice, ai ? new string('x', DjBudget.WholeChars) : line.Text)
+                + (ai ? DjModels.Primary.Cost(DjBudget.PromptTokens, DjBudget.MaxTokens) : 0);
+            if (!voice.WholeAllowed(whole, req.LocalHour) && !(!ai && File.Exists(clips.PathOf(line.Text))))
+            {
+                voice.NoteWrite("Keeping today's cap for more lines: a pooled line instead");
+                var pooled = line with { Text = DjPool.Join(parts), Caption = pc };
+                Remember(mem, line, pooled.Text, pc);
+                return (pooled, true);
+            }
+        }
+        return (ai ? await RewriteAsync(req, line, mem, extra, style, firstName) : line, false);
+    }
+
+    /// <summary>The line said replaces the planned one in the memory, so the next prompts avoid it.</summary>
+    static void Remember(DjMemory mem, DjLine planned, string text, string caption)
+    {
+        lock (mem)
+        {
+            var mine = mem.Lines.LastOrDefault(l => l.Text == planned.Text && l.TemplateId == planned.TemplateId);
+            var i = mine is null ? -1 : mem.Lines.IndexOf(mine);
+            if (i >= 0) mem.Lines[i] = mine! with { Text = text, Written = caption };
+        }
+    }
+
     /// <summary>The planner's line reworded by the text model, or [line] itself when the model fails, is too slow, is near the cap or writes something doubtful.
     /// A line it wrote replaces the template line in the memory, so the next prompts avoid it.</summary>
-    async Task<DjLine> RewriteAsync(DjRequest req, DjLine line, DjMemory mem)
+    async Task<DjLine> RewriteAsync(DjRequest req, DjLine line, DjMemory mem, DjExtra? extra = null, DjStyle style = DjStyle.Classic, string? firstName = null)
     {
         try
         {
@@ -148,7 +206,7 @@ public sealed class DjService : IDjService
                 mine = mem.Lines.LastOrDefault(l => l.Text == line.Text && l.TemplateId == line.TemplateId);
                 recent = mem.Lines.Where(l => !ReferenceEquals(l, mine)).TakeLast(DjWriter.Recent).Select(l => l.Written ?? l.Text).ToList();
             }
-            var f = DjWriter.FactsOf(req, line, clock());
+            var f = DjWriter.FactsOf(req, line, clock(), extra, style, firstName);
             var (sys, user) = DjWriter.Prompt(f, recent);
             using var cts = new CancellationTokenSource(WriteTimeout);
             string? raw;

@@ -6,11 +6,24 @@ public enum DjSurface { Phone, Auto, Web, Windows }
 /// <summary>How often the DJ speaks: Rare is about 1 song in 7, Often about 1 in 3.</summary>
 public enum DjChatty { Rare, Often }
 
+/// <summary>How the DJ sounds: Classic radio (the default), Chill (softer, a little less often) or Hype (livelier, a little more often).</summary>
+public enum DjStyle { Classic, Chill, Hype }
+
+/// <summary>What the next song is to this listener, from their own listening (TasteProfile): one they love (hearted, or finished three times lately), one they
+/// have never played, or not known. Only ever a fact: never guessed from the recommender's words.</summary>
+public enum DjBond { Unknown, Loved, NewFind }
+
+/// <summary>More that the server knows for certain about the next song: MusicBrainz (what kind of release, the year it first came out, the label; blank when
+/// not known) and how it feels (<see cref="Vibe"/>, with the previous song's for "slowing it down"). Never spoken when missing.</summary>
+public sealed record DjExtra(string ReleaseType = "", int OriginalYear = 0, string Label = "", Vibe? Vibe = null, Vibe? PrevVibe = null);
+
 /// <summary>One person's DJ settings. Kept on the server (per account), so the phone, the car, the web and the Windows app all follow them.</summary>
 public sealed class DjSettings
 {
     public bool Enabled { get; set; }
     public DjChatty Chatty { get; set; } = DjChatty.Often;
+    /// <summary>The tone of the lines and, a little, how often it talks. Classic for everyone who had the DJ before this setting.</summary>
+    public DjStyle Style { get; set; } = DjStyle.Classic;
     public bool Phone { get; set; } = true;
     public bool Auto { get; set; } = true;
     public bool Web { get; set; } = true;
@@ -41,9 +54,10 @@ public sealed record DjSong(string Title, string Artist, string Album = "", stri
 /// Asked when a song starts, about the song after it. [QueueDj] is the Now Playing "DJ for this queue" switch (null = untouched);
 /// [PlaylistId] is the playlist the queue came from (same key as <see cref="DjSettings.Playlists"/>). [PrevPlayedOut]: the previous song is expected to
 /// play to its end (false after a skip). [SkippedRecently]: a song was skipped within 10 s in the last two changes. [Why]: the recommender's reason, if any.
+/// [Bond]: loved or a new find, when the client knows it for certain (the server fills it from the account's listening when it is Unknown).
 /// </summary>
 public sealed record DjRequest(DjSurface Surface, DjSong Next, DjSong? Prev = null, bool PrevPlayedOut = true, bool SkippedRecently = false,
-    string? PlaylistId = null, bool? QueueDj = null, int? LocalHour = null, int? Weekday = null, string? Why = null);
+    string? PlaylistId = null, bool? QueueDj = null, int? LocalHour = null, int? Weekday = null, string? Why = null, DjBond Bond = DjBond.Unknown);
 
 /// <summary>What the DJ says before a song. [Text] is spoken (years in words), [Caption] is the written form for screens.
 /// [ClipUrl] is a server-relative MP3 (null when no clip can be made); [Backup] = say [Text] with the device's own voice instead.</summary>

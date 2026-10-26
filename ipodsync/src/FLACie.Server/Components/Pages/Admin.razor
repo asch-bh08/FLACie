@@ -418,8 +418,11 @@ else
     FLACie.Server.Dj.DjVoiceConfig djCfg = new(); string djToken = ""; string? djMsg, djClip; bool djTesting;
     string DjUsageLine()
     {
-        var (lines, _, pct) = DjVoice.Usage;
-        return $"Today: about {lines} line{(lines == 1 ? "" : "s")}, {pct.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}% of the free allowance (cap {DjVoice.Current.CapPercent}%)";
+        var (_, _, pct) = DjVoice.Usage;
+        var (said, used) = DjVoice.SoFar;
+        var left = FLACie.Core.DjBudget.LinesLeft(DjVoice.Cap, used);
+        return $"Today: {said} line{(said == 1 ? "" : "s")} said, {pct.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}% of the free allowance (cap {DjVoice.Current.CapPercent}%), roughly {left} more line{(left == 1 ? "" : "s")} left today"
+            + (DjVoice.LastModel.Length > 0 ? " · Model: " + DjVoice.LastModel.Split('/')[^1] : "");
     }
     void SaveDj() { DjVoice.Save(djCfg, djToken.Length > 0 ? djToken : null); djToken = ""; djCfg = DjVoice.Current; djMsg = "Saved."; }
     void ForgetDjToken() { DjVoice.Save(djCfg, ""); djCfg = DjVoice.Current; djMsg = "Token removed."; }

@@ -5,8 +5,11 @@ using System.Text.RegularExpressions;
 namespace FLACie.Core;
 
 /// <summary>The facts a model-written line may use: what the planner knows about this song change, already tidied. Blank fields are unknown and never mentioned.</summary>
+/// <remarks>[Genre], [ReleaseType] ("single", "live album"), [FirstYear] (when it first came out, only if before [Year]), [Label], [Feel] ("a big one"),
+/// [Colour] ("Monday morning"), [FirstName] (only at the start of a session) and [Style]: from MusicBrainz, the vibe index and the account.</remarks>
 public sealed record DjFacts(string Title, string Artist, string ArtistLead, string? Guest, string Album, int Year, string PrevTitle, string PrevArtist,
-    bool Open, string TimeOfDay, string Day, string Mood, string Why, string Find, string TemplateLine);
+    bool Open, string TimeOfDay, string Day, string Mood, string Why, string Find, string TemplateLine,
+    string Genre = "", string ReleaseType = "", int FirstYear = 0, string Label = "", string Feel = "", string Colour = "", string FirstName = "", DjStyle Style = DjStyle.Classic);
 
 /// <summary>
 /// Writes the DJ's line with a small text model (Workers AI) instead of a template: the prompt (a DJ character plus the facts), and the checks on what comes back.
@@ -30,10 +33,19 @@ public static partial class DjWriter
         + "Use only the facts given. Never invent anything: no chart positions, awards, samples, stories or other songs. Mention the year or the album only if given. "
         + "Do not start the way any of the recent lines start, and do not repeat their wording. Reply with the line only.";
 
+    /// <summary>What each style adds to the character: the tone, and for Chill a shorter line.</summary>
+    public static string Tone(DjStyle s) => s switch
+    {
+        DjStyle.Chill => "Style: chill. Soft, unhurried and warm, like a late-night show; fewer words (about 15), nothing loud.",
+        DjStyle.Hype => "Style: hype. Upbeat and full of energy, like a lively breakfast show; keep it punchy, but never shouting, cheesy or over the top.",
+        _ => "Style: classic radio. Friendly, assured and easy, like a good presenter on national radio.",
+    };
+
     static string Clean(string? s) => DjText.Tidy(s);
 
-    /// <summary>The facts of this song change, in their written forms. [line] is the planner's own (template) line, given as a fallback idea for the model.</summary>
-    public static DjFacts FactsOf(DjRequest req, DjLine line, DateTime nowUtc)
+    /// <summary>The facts of this song change, in their written forms. [line] is the planner's own (template) line, given as a fallback idea for the model.
+    /// [extra]: what the server knows for certain about the song (MusicBrainz, its feel); [firstName]: said only in a hello.</summary>
+    public static DjFacts FactsOf(DjRequest req, DjLine line, DateTime nowUtc, DjExtra? extra = null, DjStyle style = DjStyle.Classic, string? firstName = null)
     {
         var n = req.Next; var p = req.Prev;
         string TitleOf(DjSong? s) => s is null || Clean(s.Title) is not { Length: > 0 } t || DjText.IsFileName(t, s.Path) ? "" : DjText.Title(t);
@@ -58,11 +70,15 @@ public static partial class DjWriter
         var mood = line.Slot == DjSlot.Reset ? "they skipped several songs in a row and have now let one play: a change of direction"
             : req.SkippedRecently || !req.PrevPlayedOut ? "they have just skipped a song" : "settled in, letting songs play";
         var why = string.Join("; ", DjWhy.Parts(req.Why));
-        var w = (req.Why ?? "").ToLowerInvariant();
-        var find = w.Contains("new to you") || w.Contains("new for you") || w.Contains("never played") || w.Contains("discover") ? "a new find for them, not heard before"
-            : w.Contains("you play") || w.Contains("loved") || w.Contains("favourite") || w.Contains("favorite") || w.Contains("most played") || w.Contains("on repeat") ? "a song they love and play a lot" : "";
-        return new(TitleOf(n), artist, lead, g, album, year, TitleOf(p), ArtistOf(p).Written, line.Slot == DjSlot.Open || req.Prev is null,
-            tod, day, mood, why, find, line.Caption);
+        // loved or new: only what the account's listening says (DjRequest.Bond), never guessed from the recommender's words
+        var find = req.Bond switch { DjBond.NewFind => "a new find for them, never played before", DjBond.Loved => "a song they love and play a lot", _ => "" };
+        var open = line.Slot == DjSlot.Open || req.Prev is null;
+        var fy = extra?.OriginalYear ?? 0;
+        var first = fy >= 1900 && fy <= nowUtc.Year && (year == 0 || fy < year) && !remaster ? fy : 0;
+        return new(TitleOf(n), artist, lead, g, album, year, TitleOf(p), ArtistOf(p).Written, open,
+            tod, day, mood, why, find, line.Caption,
+            DjText.Genre(n.Genre)?.Write ?? "", Clean(extra?.ReleaseType), first, Clean(extra?.Label), DjFeel.Of(extra?.Vibe, extra?.PrevVibe),
+            DjPlanner.Colour(req.LocalHour, req.Weekday) ?? "", open && firstName is { Length: > 0 } fn ? fn : "", style);
     }
 
     /// <summary>The system and user messages: the DJ's character, then the facts and the recent lines to avoid.</summary>
@@ -75,10 +91,17 @@ public static partial class DjWriter
         Put("Artist", f.Artist);
         Put("Album", f.Album);
         if (f.Year > 0) Put("Year", f.Year.ToString(CultureInfo.InvariantCulture));
+        if (f.FirstYear > 0) Put("First released", f.FirstYear.ToString(CultureInfo.InvariantCulture));
+        Put("Released as", f.ReleaseType.Length > 0 ? ("aeiou".Contains(char.ToLowerInvariant(f.ReleaseType[0])) && !f.ReleaseType.StartsWith("EP") ? "an " : "a ") + f.ReleaseType : "");
+        Put("Label", f.Label);
+        Put("Genre", f.Genre);
+        Put("How it sounds", f.Feel);
         Put("Previous song", f.PrevTitle.Length > 0 && f.PrevArtist.Length > 0 ? f.PrevTitle + " by " + f.PrevArtist : f.PrevTitle);
-        Put("Moment", f.Open ? "the start of a listening session: a short welcome first" : "between songs, mid-session");
+        Put("Moment", f.Open ? "the start of a listening session: a short hello first" + (f.FirstName.Length > 0 ? ", by first name" : "") : "between songs, mid-session");
+        Put("Listener's first name", f.FirstName);
         Put("Time of day", f.TimeOfDay);
         Put("Day", f.Day);
+        Put("Worth a word about the time", f.Colour);
         Put("Listener", f.Mood);
         Put("Why this song was picked", f.Why);
         Put("This song is", f.Find);
@@ -90,7 +113,7 @@ public static partial class DjWriter
             foreach (var r in rs) sb.Append("- ").Append(r).Append('\n');
         }
         sb.Append("Write the line now.");
-        return (Character, sb.ToString());
+        return (Character + "\n" + Tone(f.Style), sb.ToString());
     }
 
     [GeneratedRegex(@"[*_`#~]|\[|\]")] private static partial Regex Markdown();
@@ -103,7 +126,7 @@ public static partial class DjWriter
     static readonly HashSet<string> Allowed = new(StringComparer.OrdinalIgnoreCase)
     {
         "I", "I'm", "I've", "I'd", "I'll", "FLACie", "DJ", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
-        "Good", "Morning", "Afternoon", "Evening", "OK",
+        "Good", "Morning", "Afternoon", "Evening", "OK", "Hello", "Hey",
     };
 
     static readonly string[] Cheesy = ["vibe", "vibes", "banger", "bangers", "epic", "lit", "fire", "slaps", "certified", "legendary", "iconic", "buckle up", "get ready"];
@@ -136,13 +159,15 @@ public static partial class DjWriter
         if (!Has(f.Title) && !Has(f.ArtistLead)) return null;
         // every capitalised word mid-sentence and every number comes from the facts
         var known = string.Join(" \n ", new[] { f.Title, f.Artist, f.Album, f.PrevTitle, f.PrevArtist, f.Why, f.Day, f.TimeOfDay, f.TemplateLine,
-            f.Year > 0 ? f.Year.ToString(CultureInfo.InvariantCulture) : "" }).ToLowerInvariant();
+            f.Year > 0 ? f.Year.ToString(CultureInfo.InvariantCulture) : "", f.FirstYear > 0 ? f.FirstYear.ToString(CultureInfo.InvariantCulture) : "",
+            f.Genre, f.ReleaseType, f.Label, f.Feel, f.Colour, f.FirstName }).ToLowerInvariant();
         static bool Word(string text, string w) => Regex.IsMatch(text, @"(?<![\p{L}])" + Regex.Escape(w) + @"(?![\p{L}])");
         if (Cheesy.Any(c => Word(low, c) && !Word(known, c))) return null;
         foreach (Match m in Number().Matches(s))
         {
             var d = m.Value;
-            var yearPart = f.Year > 0 && f.Year.ToString(CultureInfo.InvariantCulture).EndsWith(d, StringComparison.Ordinal) && d.Length >= 2;
+            bool Part(int y) => y > 0 && y.ToString(CultureInfo.InvariantCulture).EndsWith(d, StringComparison.Ordinal) && d.Length >= 2;
+            var yearPart = Part(f.Year) || Part(f.FirstYear);
             if (!yearPart && !known.Contains(d)) return null;
         }
         var words = s.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -187,7 +212,8 @@ public static partial class DjWriter
         if (f.PrevArtist.Length > 0) names.Add((f.PrevArtist, Name(f.PrevArtist, say.Artist)));
         foreach (var (w, sp) in names.OrderByDescending(x => x.W.Length)) Swap(w, sp);
         s = say.Phrases(s);
-        if (f.Year > 0) s = Regex.Replace(s, @"(?<!\p{N})" + f.Year.ToString(CultureInfo.InvariantCulture) + @"(?!\p{N})", DjNumbers.Year(f.Year));
+        foreach (var y in new[] { f.Year, f.FirstYear }.Where(y => y > 0))
+            s = Regex.Replace(s, @"(?<!\p{N})" + y.ToString(CultureInfo.InvariantCulture) + @"(?!\p{N})", DjNumbers.Year(y));
         s = Regex.Replace(s, "\u0001(\\d+)\u0002", m => slots[int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)]);
         return DjText.Tidy(s);
     }

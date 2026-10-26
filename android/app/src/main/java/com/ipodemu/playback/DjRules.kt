@@ -13,6 +13,13 @@ enum class DjSurface(val wire: String) { PHONE("phone"), AUTO("auto"), WEB("web"
 /** How often the DJ speaks: Rare is about 1 song in 7, Often about 1 in 3. */
 enum class DjChatty(val wire: String) { RARE("rare"), OFTEN("often") }
 
+/** How the DJ sounds: Classic radio (the default), Chill (softer, a little less often) or Hype (livelier, a little more often). */
+enum class DjStyle(val wire: String, val label: String) {
+    CLASSIC("classic", "Classic radio"), CHILL("chill", "Chill"), HYPE("hype", "Hype");
+    fun next(): DjStyle = entries[(ordinal + 1) % entries.size]
+    companion object { fun of(wire: String?): DjStyle = entries.firstOrNull { it.wire.equals(wire, true) } ?: CLASSIC }
+}
+
 /**
  * One person's DJ settings, kept on the server (per account) so the phone, the car, the web and the Windows app all follow them. The phone keeps the
  * last copy it was sent (Prefs) for the Now Playing button. [playlists]: true = DJ on for that playlist, false = off, no entry = follow the rest; the key
@@ -24,12 +31,14 @@ data class DjSettings(
     val backup: Boolean = true, val playlists: Map<String, Boolean> = emptyMap(), val voiceReady: Boolean = false,
     /** Keep talking when the listener skips (off: the DJ stays quiet for a couple of songs after a skip). The server decides with it; the phone shows and sets it. */
     val talkAfterSkips: Boolean = true,
+    /** The DJ's tone, kept on the server like the rest. */
+    val style: DjStyle = DjStyle.CLASSIC,
 ) {
     fun on(s: DjSurface): Boolean = when (s) { DjSurface.PHONE -> phone; DjSurface.AUTO -> auto; DjSurface.WEB -> web; DjSurface.WINDOWS -> windows }
 
     /** The GET shape, as the server sends it (also what the phone caches). */
     fun toJson(): JSONObject = JSONObject().put("enabled", enabled).put("chatty", chatty.wire).put("phone", phone).put("auto", auto).put("web", web)
-        .put("windows", windows).put("backup", backup).put("talkAfterSkips", talkAfterSkips).put("playlists", JSONObject().also { o -> playlists.forEach { (k, v) -> o.put(k, v) } }).put("voiceReady", voiceReady)
+        .put("windows", windows).put("backup", backup).put("talkAfterSkips", talkAfterSkips).put("style", style.wire).put("playlists", JSONObject().also { o -> playlists.forEach { (k, v) -> o.put(k, v) } }).put("voiceReady", voiceReady)
 
     companion object {
         /** The server's `/api/dj/settings` answer; a field it leaves out keeps its default. Throws on text that is not JSON. */
@@ -43,6 +52,7 @@ data class DjSettings(
                 pl?.keys()?.asSequence()?.filter { pl.opt(it) is Boolean }?.associateWith { pl.getBoolean(it) } ?: emptyMap(),
                 o.optBoolean("voiceReady", d.voiceReady),
                 o.optBoolean("talkAfterSkips", d.talkAfterSkips),
+                DjStyle.of(o.optString("style")),
             )
         }
         /** The cached copy, or the defaults (DJ off) when there is none or it can't be read. */

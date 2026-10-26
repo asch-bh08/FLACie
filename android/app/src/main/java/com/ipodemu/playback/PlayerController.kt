@@ -376,7 +376,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (ticket < 0) return
         djVoice?.ready(null, false)
         val now = java.time.LocalDateTime.now()
-        val body = dj.request(djSurface, DjSong.of(next), DjSong.of(cur), contextId, now.hour, DjCoordinator.weekday(now.dayOfWeek)).toString()
+        val loved = try { App.of(ctx).userData.isFavorite(next) } catch (_: Exception) { false }
+        val body = dj.request(djSurface, DjSong.of(next), DjSong.of(cur), contextId, now.hour, DjCoordinator.weekday(now.dayOfWeek), loved).toString()
         val nextPath = next.path
         djExec.execute {
             val cue = try { djWeb.djNext(body) } catch (_: Exception) { null }

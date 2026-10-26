@@ -91,11 +91,13 @@ class DjCoordinator {
         return true
     }
 
-    /** The body of `POST /api/dj/next` (camelCase of `DjRequest`): asked as [prev] starts, about [next]; so [prev] is expected to play out. */
-    fun request(surface: DjSurface, next: DjSong, prev: DjSong?, playlistId: String?, localHour: Int, weekday: Int): JSONObject =
+    /** The body of `POST /api/dj/next` (camelCase of `DjRequest`): asked as [prev] starts, about [next]; so [prev] is expected to play out.
+     *  [loved]: [next] is a favourite on this phone, sent as `"bond": "loved"` (a song never played is the server's to say, from the whole account). */
+    fun request(surface: DjSurface, next: DjSong, prev: DjSong?, playlistId: String?, localHour: Int, weekday: Int, loved: Boolean = false): JSONObject =
         JSONObject().put("surface", surface.wire).put("next", next.toJson()).put("prev", prev?.toJson() ?: JSONObject.NULL)
             .put("prevPlayedOut", true).put("skippedRecently", skippedRecently).put("playlistId", playlistId?.takeIf { it.isNotEmpty() } ?: JSONObject.NULL)
             .put("queueDj", queueDj ?: JSONObject.NULL).put("localHour", localHour).put("weekday", weekday).put("why", JSONObject.NULL)
+            .put("bond", if (loved) "loved" else "unknown")
 
     companion object {
         /** A song left within this long of starting counts as skipped. */

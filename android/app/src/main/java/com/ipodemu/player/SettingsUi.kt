@@ -176,6 +176,11 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                                 val n = if (rare) com.ipodemu.playback.DjChatty.OFTEN else com.ipodemu.playback.DjChatty.RARE
                                 save(org.json.JSONObject().put("chatty", n.wire), dj.copy(chatty = n))
                             }
+                            // Classic radio, Chill, Hype: a tap moves to the next
+                            SettingRow("Style", dj.style.label, desc = "Classic radio is a friendly presenter. Chill is softer and talks a little less; Hype is livelier and talks a little more.") {
+                                val n = dj.style.next()
+                                save(org.json.JSONObject().put("style", n.wire), dj.copy(style = n))
+                            }
                             SettingRow("Talk after skips", if (dj.talkAfterSkips) "On" else "Off", toggle = true, desc = "Keep talking when you skip songs. Off: the DJ stays quiet for a couple of songs after a skip.") {
                                 save(org.json.JSONObject().put("talkAfterSkips", !dj.talkAfterSkips), dj.copy(talkAfterSkips = !dj.talkAfterSkips))
                             }

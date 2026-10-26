@@ -8,7 +8,11 @@ public static class DjJson
 {
     static readonly string[] Switches = ["enabled", "phone", "auto", "web", "windows", "backup", "talkAfterSkips"];
 
-    /// <summary>GET /api/dj/settings: <c>{ enabled, chatty: "rare"|"often", phone, auto, web, windows, backup, talkAfterSkips, playlists: { id: bool }, voiceReady }</c>.</summary>
+    public static string StyleName(DjStyle s) => s switch { DjStyle.Chill => "chill", DjStyle.Hype => "hype", _ => "classic" };
+    public static DjStyle? StyleOf(string? s) => (s ?? "").Trim().ToLowerInvariant() switch { "classic" => DjStyle.Classic, "chill" => DjStyle.Chill, "hype" => DjStyle.Hype, _ => null };
+    public static string BondName(DjBond b) => b switch { DjBond.Loved => "loved", DjBond.NewFind => "new", _ => "unknown" };
+
+    /// <summary>GET /api/dj/settings: <c>{ enabled, chatty: "rare"|"often", phone, auto, web, windows, backup, talkAfterSkips, style: "classic"|"chill"|"hype", playlists: { id: bool }, voiceReady }</c>.</summary>
     public static JsonObject Settings(DjSettings s, bool voiceReady)
     {
         var lists = new JsonObject();
@@ -16,7 +20,7 @@ public static class DjJson
         return new JsonObject
         {
             ["enabled"] = s.Enabled, ["chatty"] = s.Chatty == DjChatty.Rare ? "rare" : "often", ["phone"] = s.Phone, ["auto"] = s.Auto, ["web"] = s.Web, ["windows"] = s.Windows,
-            ["backup"] = s.Backup, ["talkAfterSkips"] = s.TalkAfterSkips, ["playlists"] = lists, ["voiceReady"] = voiceReady,
+            ["backup"] = s.Backup, ["talkAfterSkips"] = s.TalkAfterSkips, ["style"] = StyleName(s.Style), ["playlists"] = lists, ["voiceReady"] = voiceReady,
         };
     }
 
@@ -35,6 +39,12 @@ public static class DjJson
         {
             chatty = body["chatty"] is JsonValue cv && cv.TryGetValue<string>(out var c) ? c.Trim().ToLowerInvariant() switch { "rare" => DjChatty.Rare, "often" => DjChatty.Often, _ => null } : null;
             if (chatty is null) return "\"chatty\" must be \"rare\" or \"often\".";
+        }
+        DjStyle? style = null;
+        if (body.ContainsKey("style"))
+        {
+            style = body["style"] is JsonValue stv && stv.TryGetValue<string>(out var sn) ? StyleOf(sn) : null;
+            if (style is null) return "\"style\" must be \"classic\", \"chill\" or \"hype\".";
         }
         Dictionary<string, bool>? all = null;
         if (body.ContainsKey("playlists"))
@@ -55,6 +65,7 @@ public static class DjJson
         bool B(string k, bool was) => body.ContainsKey(k) ? body[k]!.GetValue<bool>() : was;
         s.Enabled = B("enabled", s.Enabled); s.Phone = B("phone", s.Phone); s.Auto = B("auto", s.Auto); s.Web = B("web", s.Web); s.Windows = B("windows", s.Windows); s.Backup = B("backup", s.Backup); s.TalkAfterSkips = B("talkAfterSkips", s.TalkAfterSkips);
         if (chatty is { } ch) s.Chatty = ch;
+        if (style is { } sy) s.Style = sy;
         if (all is not null) s.Playlists = all;
         if (one is { } o) { if (o.On is { } on) s.Playlists[o.Id] = on; else s.Playlists.Remove(o.Id); }
         return null;
@@ -102,7 +113,8 @@ public static class DjJson
         var prev = body["prev"] is null ? null : Song(body["prev"], "prev", ref error);
         var r = new Reader(body, "");
         var built = new DjRequest(surface.Value, next ?? new DjSong("", ""), prev, r.Bool("prevPlayedOut", true), r.Bool("skippedRecently", false),
-            r.StrOrNull("playlistId", 200), r.BoolOrNull("queueDj"), r.IntOrNull("localHour"), r.IntOrNull("weekday"), r.StrOrNull("why", 500));
+            r.StrOrNull("playlistId", 200), r.BoolOrNull("queueDj"), r.IntOrNull("localHour"), r.IntOrNull("weekday"), r.StrOrNull("why", 500),
+            r.Str("bond", 20).ToLowerInvariant() switch { "loved" => DjBond.Loved, "new" => DjBond.NewFind, _ => DjBond.Unknown });
         error ??= r.Error;
         if (error is not null) return error;
         req = built;
@@ -127,7 +139,7 @@ public static class DjJson
     {
         ["surface"] = r.Surface.ToString().ToLowerInvariant(), ["next"] = SongBody(r.Next), ["prev"] = r.Prev is null ? null : SongBody(r.Prev),
         ["prevPlayedOut"] = r.PrevPlayedOut, ["skippedRecently"] = r.SkippedRecently, ["playlistId"] = r.PlaylistId, ["queueDj"] = r.QueueDj,
-        ["localHour"] = r.LocalHour, ["weekday"] = r.Weekday, ["why"] = r.Why,
+        ["localHour"] = r.LocalHour, ["weekday"] = r.Weekday, ["why"] = r.Why, ["bond"] = BondName(r.Bond),
     };
 
     /// <summary>Reads POST /api/dj/next's answer (what <see cref="Cue"/> writes): null for <c>"speak": false</c>, or for an answer that says nothing.</summary>
@@ -157,6 +169,7 @@ public static class DjJson
         B("enabled", was.Enabled, now.Enabled); B("phone", was.Phone, now.Phone); B("auto", was.Auto, now.Auto); B("web", was.Web, now.Web);
         B("windows", was.Windows, now.Windows); B("backup", was.Backup, now.Backup); B("talkAfterSkips", was.TalkAfterSkips, now.TalkAfterSkips);
         if (was.Chatty != now.Chatty) p["chatty"] = now.Chatty == DjChatty.Rare ? "rare" : "often";
+        if (was.Style != now.Style) p["style"] = StyleName(now.Style);
         var changed = was.Playlists.Keys.Union(now.Playlists.Keys)
             .Where(k => was.Playlists.TryGetValue(k, out var a) != now.Playlists.TryGetValue(k, out var b) || a != b).ToList();
         if (changed.Count == 1) p["playlist"] = new JsonObject { ["id"] = changed[0], ["on"] = now.Playlists.TryGetValue(changed[0], out var on) ? on : null };

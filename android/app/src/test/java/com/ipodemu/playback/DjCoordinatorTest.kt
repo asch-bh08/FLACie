@@ -22,7 +22,7 @@ class DjCoordinatorTest {
     @Test fun theRequestCarriesEveryFieldOfTheContract() {
         val c = DjCoordinator()
         val o = c.request(DjSurface.AUTO, song(2), song(1), "jfPlaylist", 21, 5)
-        assertEquals(setOf("surface", "next", "prev", "prevPlayedOut", "skippedRecently", "playlistId", "queueDj", "localHour", "weekday", "why"), o.keys().asSequence().toSet())
+        assertEquals(setOf("surface", "next", "prev", "prevPlayedOut", "skippedRecently", "playlistId", "queueDj", "localHour", "weekday", "why", "bond"), o.keys().asSequence().toSet())
         assertEquals("auto", o.getString("surface")); assertEquals("jfPlaylist", o.getString("playlistId"))
         assertEquals(21, o.getInt("localHour")); assertEquals(5, o.getInt("weekday"))
         assertTrue("asked as the previous song starts: it is expected to play out", o.getBoolean("prevPlayedOut"))

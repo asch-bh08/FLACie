@@ -29,7 +29,10 @@ public sealed class DjUsage
 {
     public string Day { get; set; } = "";
     public double Neurons { get; set; }
+    /// <summary>Clips made (a pooled line's phrase and name clip count one each).</summary>
     public int Lines { get; set; }
+    /// <summary>Lines handed out with a DJ clip, for the whole family.</summary>
+    public int Said { get; set; }
 }
 
 /// <summary>
@@ -41,12 +44,14 @@ public sealed partial class CloudflareVoice
     public const string MeloTts = "melotts";
     public const string DefaultVoice = "aura-1:helios";
     public const int ConfigVersion = 2;
-    /// <summary>The text model that writes the lines: small, fast and cheap (about 15 neurons a line).</summary>
-    public const string TextModel = "@cf/meta/llama-3.1-8b-instruct";
+    /// <summary>The text model that writes the lines: Llama 3.3 70B (about 22 neurons a line, see <see cref="DjModels"/>); <see cref="FallbackModel"/> when it can't answer.</summary>
+    public static string TextModel => DjModels.Primary.Id;
+    public static string FallbackModel => DjModels.Fallback.Id;
     /// <summary>Cloudflare's price of <see cref="TextModel"/>, neurons per million tokens.</summary>
-    public const double TextInNeurons = 25_608, TextOutNeurons = 75_147;
+    public static double TextInNeurons => DjModels.Primary.InNeurons;
+    public static double TextOutNeurons => DjModels.Primary.OutNeurons;
     /// <summary>The most tokens the model may answer with (a line is about 35).</summary>
-    public const int TextMaxTokens = 70;
+    public const int TextMaxTokens = DjBudget.MaxTokens;
     public const double FreeNeurons = 10_000;
     /// <summary>Aura-1's speakers (Deepgram says helios and athena are British, angus Irish).</summary>
     public static readonly string[] Speakers = ["angus", "asteria", "arcas", "orion", "orpheus", "athena", "luna", "zeus", "perseus", "helios", "hera", "stella"];
@@ -123,7 +128,23 @@ public sealed partial class CloudflareVoice
     /// <summary>Today's use (UTC day): lines made, neurons spent, and that as a percentage of the free allowance.</summary>
     public (int Lines, double Neurons, double Percent) Usage { get { lock (gate) { Roll(); return (usage.Lines, usage.Neurons, usage.Neurons / FreeNeurons * 100); } } }
 
-    double Cap => FreeNeurons * Current.CapPercent / 100.0;
+    /// <summary>The most neurons the DJ may use today.</summary>
+    public double Cap => FreeNeurons * Current.CapPercent / 100.0;
+
+    /// <summary>Lines said today with a clip (the family together), and neurons used so far: what the reserve of pooled lines is worked out from.</summary>
+    public (int Said, double Used) SoFar { get { lock (gate) { Roll(); return (usage.Said, usage.Neurons); } } }
+
+    /// <summary>A line was handed out with a clip.</summary>
+    public void CountSaid() { lock (gate) { Roll(); usage.Said++; try { File.WriteAllText(usageFile, JsonSerializer.Serialize(usage)); } catch (Exception) { } } }
+
+    /// <summary>A whole line costing [cost] leaves room for the pooled lines still to come today (<see cref="DjBudget.WholeAllowed"/>).</summary>
+    public bool WholeAllowed(double cost, int? localHour) { lock (gate) { Roll(); return DjBudget.WholeAllowed(Cap, usage.Neurons, usage.Said, localHour, cost); } }
+
+    /// <summary>For the dashboard when a line was pooled to save the allowance.</summary>
+    public void NoteWrite(string msg) => LastWrite = msg;
+
+    /// <summary>[neurons] more fit under today's cap.</summary>
+    public bool CanSpend(double neurons) { lock (gate) { Roll(); return usage.Neurons + neurons <= Cap; } }
 
     /// <summary>This line fits under today's cap.</summary>
     public bool CanAfford(string voice, string text) { lock (gate) { Roll(); return usage.Neurons + EstimateNeurons(voice, text) <= Cap; } }
@@ -181,24 +202,39 @@ public sealed partial class CloudflareVoice
     }
 
     /// <summary>The text model's price of one line: the prompt at about 4 characters a token, and the answer at its most.</summary>
-    public static double EstimateTextNeurons(string system, string user, int maxTokens = TextMaxTokens) =>
-        (system.Length + user.Length) / 4.0 * TextInNeurons / 1e6 + maxTokens * TextOutNeurons / 1e6;
+    public static double EstimateTextNeurons(string system, string user, int maxTokens = TextMaxTokens, DjTextModel? model = null) =>
+        (model ?? DjModels.Primary).Cost((system.Length + user.Length) / 4.0, maxTokens);
 
     /// <summary>What happened to the last line asked of the text model (for the dashboard).</summary>
     public string LastWrite { get; private set; } = "";
+    /// <summary>The model that wrote the last line ("" before any).</summary>
+    public string LastModel { get; private set; } = "";
 
     /// <summary>
     /// The text model's answer to [system] + [user], or null: not set up, the lines would leave no room under today's cap for [keepFor] more (the clip that says it),
-    /// Cloudflare said no or did not answer before [ct] gave up. Its neurons count into today's use (Cloudflare's own token count when it gives one). Never throws,
-    /// and a failure here never stops the clips (it is not <see cref="Failing"/>).
+    /// Cloudflare said no or did not answer before [ct] gave up. <see cref="TextModel"/> first; <see cref="FallbackModel"/> only when the first could not
+    /// answer at all (an error or an unreadable answer: nothing was charged) or does not fit under the cap, never after a line that came back (one paid call a line).
+    /// Its neurons count into today's use (Cloudflare's own token count when it gives one). Never throws, and a failure here never stops the clips.
     /// </summary>
     public async Task<string?> WriteAsync(string system, string user, double keepFor, CancellationToken ct = default)
     {
         var c = Current;
         var token = Unprotect(c.Token);
         if (!AccountShape().IsMatch(c.AccountId) || token.Length == 0) { LastWrite = "Not set up"; return null; }
-        var cost = EstimateTextNeurons(system, user);
-        lock (gate) { Roll(); if (usage.Neurons + cost + keepFor > Cap) { LastWrite = "Near today's cap: a template line instead"; return null; } usage.Neurons += cost; }
+        foreach (var model in new[] { DjModels.Primary, DjModels.Fallback })
+        {
+            if (ct.IsCancellationRequested) return null;
+            var (text, again) = await WriteWithAsync(model, c, token, system, user, keepFor, ct);
+            if (text is not null || !again) return text;
+        }
+        return null;
+    }
+
+    /// <summary>One call to [model]. [Again]: it could not answer and nothing was charged, so the next model may be asked.</summary>
+    async Task<(string? Text, bool Again)> WriteWithAsync(DjTextModel model, DjVoiceConfig c, string token, string system, string user, double keepFor, CancellationToken ct)
+    {
+        var cost = EstimateTextNeurons(system, user, TextMaxTokens, model);
+        lock (gate) { Roll(); if (usage.Neurons + cost + keepFor > Cap) { LastWrite = "Near today's cap: a template line instead"; return (null, true); } usage.Neurons += cost; }
         var spent = 0.0;
         try
         {
@@ -207,29 +243,35 @@ public sealed partial class CloudflareVoice
                 ["messages"] = new JsonArray(new JsonObject { ["role"] = "system", ["content"] = system }, new JsonObject { ["role"] = "user", ["content"] = user }),
                 ["max_tokens"] = TextMaxTokens, ["temperature"] = 0.8,
             };
-            using var req = new HttpRequestMessage(HttpMethod.Post, $"https://api.cloudflare.com/client/v4/accounts/{c.AccountId}/ai/run/{TextModel}");
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"https://api.cloudflare.com/client/v4/accounts/{c.AccountId}/ai/run/{model.Id}");
             req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
             req.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
             using var http = hf.CreateClient("cloudflare");
             using var res = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
             var bytes = await ReadAtMost(res.Content, ct);
-            if (bytes is null || !res.IsSuccessStatusCode) { spent = 0; LastWrite = $"The text model answered {(int)res.StatusCode}" + (bytes is null ? "" : ErrorOf(bytes)); log.LogWarning("DJ text: {Message}", LastWrite); return null; }
-            var j = JsonNode.Parse(bytes);
-            var r = j?["result"];
+            if (bytes is null || !res.IsSuccessStatusCode)
+            {
+                LastWrite = $"The text model answered {(int)res.StatusCode}" + (bytes is null ? "" : ErrorOf(bytes)); log.LogWarning("DJ text: {Message}", LastWrite);
+                // a refused token fails every model the same way
+                return (null, res.StatusCode is not (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden));
+            }
+            JsonNode? r;
+            try { r = JsonNode.Parse(bytes)?["result"]; } catch (System.Text.Json.JsonException) { LastWrite = "The text model's answer could not be read"; return (null, true); }
             spent = cost;
             if (r?["usage"] is JsonObject u && u["prompt_tokens"] is JsonValue pi && pi.TryGetValue<int>(out var pin) && u["completion_tokens"] is JsonValue po && po.TryGetValue<int>(out var pout))
-                spent = pin * TextInNeurons / 1e6 + pout * TextOutNeurons / 1e6;
+                spent = model.Cost(pin, pout);
             var text = r?["response"] is JsonValue rv && rv.TryGetValue<string>(out var s) ? s : null;
             LastWrite = text is null ? "The text model sent no line" : "Wrote a line";
-            return text;
+            if (text is not null) LastModel = model.Id;
+            return (text, false);
         }
         catch (Exception e)
         {
-            // a timeout may still be charged: count the estimate
+            // a timeout may still be charged: count the estimate, and there is no time left for another model
             spent = cost;
             LastWrite = e is TaskCanceledException or OperationCanceledException ? "The text model didn't answer in time" : "Couldn't reach the text model (" + e.GetType().Name + ")";
             log.LogWarning("DJ text: {Message}", LastWrite);
-            return null;
+            return (null, false);
         }
         finally
         {

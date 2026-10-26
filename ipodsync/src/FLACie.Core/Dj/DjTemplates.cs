@@ -1,7 +1,7 @@
 namespace FLACie.Core;
 
 /// <summary>The kinds of line the DJ says (Appendix A.1). Each is used only when its facts are known.</summary>
-public enum DjSlot { Open, Greet, Bridge, Intro, Why, Year, Album, Genre, SameArtist, Return, Reset, Long, ArtistOnly, TitleOnly }
+public enum DjSlot { Open, Greet, Bridge, Intro, Why, Year, Album, Genre, SameArtist, Return, Reset, Long, ArtistOnly, TitleOnly, Segue, Time, Feel }
 
 /// <summary>Extra conditions a template has beyond its placeholders (a placeholder with no value already rules a template out).</summary>
 [Flags]
@@ -10,9 +10,10 @@ public enum DjNeed { None = 0, TenYearsOld = 1, SameAlbum = 2, Soundtrack = 4, S
 /// <summary>
 /// One line pattern. Placeholders, filled with the spoken or the written form: {T}/{A} the next song's title and artist, {pT}/{pA} the previous song's, {eT} a song by the
 /// same artist heard earlier, {Al} album, {Y} year, {D} decade, {AD} "A seventies" / "An eighties", {G} genre, {M} minutes, {W} the "why", {w} the same starting in lower case,
-/// {W1}/{w1} its first part only, {Day} Saturday or Sunday.
+/// {W1}/{w1} its first part only, {Day} Saturday or Sunday, {ToD}/{tod} a notable time ("Monday morning", "late night"), {F}/{f} the song's feel ("a big one").
+/// [Style]: null for Classic (and for every style when that style has no template of the slot); Chill or Hype for their own wording.
 /// </summary>
-public sealed record DjTemplate(string Id, DjSlot Slot, string Text, DjNeed Need = DjNeed.None)
+public sealed record DjTemplate(string Id, DjSlot Slot, string Text, DjNeed Need = DjNeed.None, DjStyle? Style = null)
 {
     /// <summary>The first word before any placeholder, lower case ("here's", "from"); "" when the line opens with a placeholder. Used to vary how lines start.</summary>
     public string Opener { get; } = Text.IndexOf('{') is var i && i == 0 ? "" : (i < 0 ? Text : Text[..i]).Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim(',', '.', ':').ToLowerInvariant() ?? "";
@@ -96,10 +97,55 @@ public static class DjTemplates
         new("title1", DjSlot.TitleOnly, "Here's {T}."),
         new("title2", DjSlot.TitleOnly, "Next, {T}."),
         new("title3", DjSlot.TitleOnly, "This one's called {T}."),
+
+        // ---- segues, time of day, the song's feel (every style) ----
+        new("seg1", DjSlot.Segue, "That was {pT}... and this is {T}, by {A}."),
+        new("seg2", DjSlot.Segue, "{pT}, from {pA}... and now, {T}."),
+        new("seg3", DjSlot.Segue, "That was {pA}... and here's {A}, with {T}."),
+        new("time1", DjSlot.Time, "{ToD}, and here's {T} by {A}."),
+        new("time2", DjSlot.Time, "For a {tod}, {T} by {A}."),
+        new("feel1", DjSlot.Feel, "{F} now: {T} by {A}."),
+        new("feel2", DjSlot.Feel, "Here's {T} by {A}, {f}."),
+
+        // ---- Chill: softer, fewer words ----
+        new("open-c1", DjSlot.Open, "Easing in with {T} by {A}.", Style: DjStyle.Chill),
+        new("open-c2", DjSlot.Open, "Let's start slowly: {A}, {T}.", Style: DjStyle.Chill),
+        new("intro-c1", DjSlot.Intro, "Now then, {T} by {A}.", Style: DjStyle.Chill),
+        new("intro-c2", DjSlot.Intro, "This is {A}. {T}.", Style: DjStyle.Chill),
+        new("intro-c3", DjSlot.Intro, "Next, nice and easy, {T} by {A}.", Style: DjStyle.Chill),
+        new("bridge-c1", DjSlot.Bridge, "That was {pA}. Here's {A} now, with {T}.", Style: DjStyle.Chill),
+        new("seg-c1", DjSlot.Segue, "That was {pT}... and drifting on, {T} by {A}.", Style: DjStyle.Chill),
+        new("seg-c2", DjSlot.Segue, "{pT} there... and now, gently, {T}.", Style: DjStyle.Chill),
+        new("time-c1", DjSlot.Time, "{ToD}, so let's keep it easy: {T} by {A}.", Style: DjStyle.Chill),
+        new("reset-c1", DjSlot.Reset, "Let's change the mood: {T} by {A}.", Style: DjStyle.Chill),
+        new("same-c1", DjSlot.SameArtist, "Staying a while with {A}: {T}.", Style: DjStyle.Chill),
+
+        // ---- Hype: livelier, still never "!" ----
+        new("open-h1", DjSlot.Open, "Let's get going with {T} by {A}.", Style: DjStyle.Hype),
+        new("open-h2", DjSlot.Open, "Kicking off with {A}: {T}.", Style: DjStyle.Hype),
+        new("intro-h1", DjSlot.Intro, "Turn it up for {T} by {A}.", Style: DjStyle.Hype),
+        new("intro-h2", DjSlot.Intro, "Right, here we go: {T} by {A}.", Style: DjStyle.Hype),
+        new("intro-h3", DjSlot.Intro, "No messing about, it's {A} with {T}.", Style: DjStyle.Hype),
+        new("bridge-h1", DjSlot.Bridge, "That was {pA}, and we keep it rolling with {A}: {T}.", Style: DjStyle.Hype),
+        new("seg-h1", DjSlot.Segue, "That was {pT}... and straight into {T}, by {A}.", Style: DjStyle.Hype),
+        new("seg-h2", DjSlot.Segue, "{pA} there... and no let-up: {A}, with {T}.", Style: DjStyle.Hype),
+        new("time-h1", DjSlot.Time, "{ToD}, so let's lift it: {T} by {A}.", Style: DjStyle.Hype),
+        new("reset-h1", DjSlot.Reset, "New direction, full speed: {T} by {A}.", Style: DjStyle.Hype),
+        new("same-h1", DjSlot.SameArtist, "More {A}, and why not: {T}.", Style: DjStyle.Hype),
     ];
 
+    /// <summary>The templates of [slot] for [style]: the style's own when it has some for that slot, else the Classic ones.</summary>
+    public static IEnumerable<DjTemplate> Of(DjSlot slot, DjStyle style)
+    {
+        List<DjTemplate> own = style == DjStyle.Classic ? [] : All.Where(t => t.Slot == slot && t.Style == style).ToList();
+        return own.Count > 0 ? own : All.Where(t => t.Slot == slot && t.Style is null);
+    }
+
     /// <summary>How likely each slot is to be picked when several fit (Appendix A.4).</summary>
-    public static int Weight(DjSlot s) => s switch { DjSlot.SameArtist or DjSlot.Return or DjSlot.Reset => 4, DjSlot.Why => 3, DjSlot.Bridge or DjSlot.Intro => 2, _ => 1 };
+    public static int Weight(DjSlot s) => s switch
+    {
+        DjSlot.SameArtist or DjSlot.Return or DjSlot.Reset => 4, DjSlot.Why => 3, DjSlot.Bridge or DjSlot.Intro or DjSlot.Segue or DjSlot.Feel => 2, _ => 1,
+    };
 
     /// <summary>The template with its placeholders filled; null when one of them has no value.</summary>
     public static string? Render(string text, IReadOnlyDictionary<string, string> values)

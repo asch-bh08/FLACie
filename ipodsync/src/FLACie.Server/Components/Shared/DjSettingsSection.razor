@@ -35,6 +35,13 @@
             <button type="button" aria-pressed="@Pressed(s.Chatty == DjChatty.Often)" @onclick="() => Change(x => x.Chatty = DjChatty.Often)">Often</button>
         </div>
         <p class="hint">Rare is about one song in seven, Often about one in three.</p>
+        <h3>Style</h3>
+        <div class="seg dj-style" role="group" aria-label="DJ style">
+            <button type="button" aria-pressed="@Pressed(s.Style == DjStyle.Classic)" @onclick="() => Change(x => x.Style = DjStyle.Classic)">Classic radio</button>
+            <button type="button" aria-pressed="@Pressed(s.Style == DjStyle.Chill)" @onclick="() => Change(x => x.Style = DjStyle.Chill)">Chill</button>
+            <button type="button" aria-pressed="@Pressed(s.Style == DjStyle.Hype)" @onclick="() => Change(x => x.Style = DjStyle.Hype)">Hype</button>
+        </div>
+        <p class="hint">Classic radio is a friendly presenter. Chill is softer and talks a little less; Hype is livelier and talks a little more.</p>
         <label class="switch-row">
             <span><b>Talk after skips</b><small>Keep talking when you skip songs. Off: the DJ stays quiet for a couple of songs after a skip</small></span>
             <input type="checkbox" role="switch" checked="@s.TalkAfterSkips" @onchange="e => Change(x => x.TalkAfterSkips = (bool)(e.Value ?? false))" />

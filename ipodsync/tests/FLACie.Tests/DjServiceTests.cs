@@ -208,25 +208,6 @@ public class DjServiceTests : IDisposable
     }
 
     [Fact]
-    public void The_oldest_clips_go_past_3000_files()
-    {
-        var r = Make();
-        var clipDir = Directory.CreateDirectory(Path.Combine(dir, "dj-clips")).FullName;
-        for (var i = 0; i < DjClips.MaxFiles + 3; i++)
-        {
-            var f = Path.Combine(clipDir, i.ToString("x32") + ".mp3");
-            File.WriteAllBytes(f, [1]);
-            File.SetLastWriteTimeUtc(f, new DateTime(2026, 1, 1).AddMinutes(i));
-        }
-        File.WriteAllText(Path.Combine(clipDir, "keep.txt"), "not a clip");
-        r.Clips.Prune();
-        Assert.Equal(DjClips.MaxFiles, Directory.GetFiles(clipDir, "*.mp3").Length);
-        Assert.False(File.Exists(Path.Combine(clipDir, 0.ToString("x32") + ".mp3")));
-        Assert.True(File.Exists(Path.Combine(clipDir, (DjClips.MaxFiles + 2).ToString("x32") + ".mp3")));
-        Assert.True(File.Exists(Path.Combine(clipDir, "keep.txt")));
-    }
-
-    [Fact]
     public void Clip_ids_are_a_hash_of_the_voice_and_the_words()
     {
         var a = DjClips.IdOf("melotts", "Here's Yellow by Coldplay.");

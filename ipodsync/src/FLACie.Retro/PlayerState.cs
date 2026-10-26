@@ -761,6 +761,9 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         return Autoplay && autoplayNext.Count > 0 ? autoplayNext[0] : null;
     }
 
+    /// <summary>What the player knows for certain: a favourite is loved. (Whether a song was never played is the server's to say, from the whole account's listening.)</summary>
+    static DjBond BondOf(UserSession s, Track t) => s.Favorites.Any(f => f.Path == t.Path) ? DjBond.Loved : DjBond.Unknown;
+
     static DjSong SongOf(Track t) => new(t.Title, t.Artist, t.Album, t.AlbumArtist, t.Year, t.Genre, t.DurationMs, t.Path, t.JellyfinId, t.TrackNo, t.DiscNo);
 
     /// <summary>Asks the DJ about the song that comes next, once per song (the next song changing, after an edit of Up next, cancels the ask before it).
@@ -774,7 +777,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         djAsking?.Cancel(); var cts = djAsking = new CancellationTokenSource();
         djFor = next.Path; djCue = null;
         var req = new DjRequest(DjSurface, SongOf(next), SongOf(cur), PrevPlayedOut: true, SkippedRecently: djSkips[0] || djSkips[1],
-            PlaylistId: ContextId, QueueDj: QueueDj);
+            PlaylistId: ContextId, QueueDj: QueueDj, Bond: BondOf(s, next));
         _ = DjAskAsync(d, s, req, next.Path, cts);
     }
 
@@ -850,7 +853,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         {
             var (hour, weekday) = DjSwitches.LocalTime(DateTime.UtcNow, await BrowserOffsetAsync());
             var req = new DjRequest(DjSurface, SongOf(t), before is null ? null : SongOf(before), PrevPlayedOut: false, SkippedRecently: true,
-                PlaylistId: ContextId, QueueDj: QueueDj, LocalHour: hour, Weekday: weekday);
+                PlaylistId: ContextId, QueueDj: QueueDj, LocalHour: hour, Weekday: weekday, Bond: BondOf(s, t));
             using var cts = new CancellationTokenSource(DjSkipWait);
             var cue = await d.PrepareAsync(s, req, cts.Token).WaitAsync(cts.Token);
             if (cue is null || gen != djGen || Current?.Path != t.Path || !DjOn) return;

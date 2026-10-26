@@ -59,6 +59,17 @@ class DjRulesTest {
         assertEquals("written and read back the same", quiet, DjSettings.parse(quiet.toJson().toString()))
     }
 
+    @Test fun theStyleIsClassicUnlessTheServerSaysOtherwise() {
+        assertEquals(DjStyle.CLASSIC, DjSettings().style)
+        assertEquals(DjStyle.CLASSIC, DjSettings.parse("""{"enabled":true}""").style)
+        assertEquals(DjStyle.CHILL, DjSettings.parse("""{"style":"chill"}""").style)
+        val hype = DjSettings.parse("""{"style":"HYPE"}""")
+        assertEquals(DjStyle.HYPE, hype.style)
+        assertEquals("hype", hype.toJson().getString("style"))
+        assertEquals(DjStyle.CLASSIC, DjSettings.parse("""{"style":"loud"}""").style)
+        assertEquals("a tap moves on, round to the start", listOf(DjStyle.CHILL, DjStyle.HYPE, DjStyle.CLASSIC), DjStyle.entries.map { it.next() })
+    }
+
     @Test fun aCueIsReadOnlyWhenThereIsSomethingToSay() {
         assertNull(DjCue.parse("""{"speak":false}"""))
         val clip = DjCue.parse("""{"speak":true,"text":"Next, nineteen eighty-four","caption":"Next, 1984","clip":"/api/dj/clip/ab12.mp3","backup":false}""")

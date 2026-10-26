@@ -48,7 +48,7 @@ public class DjWriterTests : IDisposable
     [Fact]
     public void The_prompt_carries_the_facts_and_the_character()
     {
-        var f = DjWriter.FactsOf(Req("New to you · Because you play Outkast"), Template, now);
+        var f = DjWriter.FactsOf(Req("New to you · Because you play Outkast") with { Bond = DjBond.NewFind }, Template, now);
         var (sys, user) = DjWriter.Prompt(f, ["Good evening. Here's Yellow, Coldplay."]);
         Assert.Contains("British English", sys); Assert.Contains("No emojis", sys); Assert.Contains("Never invent", sys);
         foreach (var fact in new[] { "Next song: Smack That", "Artist: Akon with Eminem", "Album: Konvicted", "Year: 2006", "Previous song: Hey Ya! by Outkast",

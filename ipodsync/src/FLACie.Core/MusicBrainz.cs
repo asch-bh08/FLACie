@@ -8,7 +8,9 @@ using System.Text.Json.Nodes;
 namespace FLACie.Core;
 
 /// <summary>One recording MusicBrainz offers for a song, with where it appears.</summary>
-public sealed record MbCandidate(string Mbid, string Title, string Artist, string Album, string? ReleaseMbid, string? ReleaseGroupMbid, int? Year, int? LengthMs, string? Country, int ApiScore)
+/// <remarks>[ReleaseType]: the release group's kind ("Album", "Single", "EP", with "Live" or "Compilation" first when MusicBrainz says so); null in answers cached before it was kept.</remarks>
+public sealed record MbCandidate(string Mbid, string Title, string Artist, string Album, string? ReleaseMbid, string? ReleaseGroupMbid, int? Year, int? LengthMs, string? Country, int ApiScore,
+    string? ReleaseType = null)
 {
     public string Url => "https://musicbrainz.org/recording/" + Mbid;
 }
@@ -120,6 +122,9 @@ public sealed class MusicBrainzClient(HttpClient http, string userAgent, string?
         return string.Join(" AND ", parts);
     }
 
+    /// <summary>What the disk cache already holds for this song, or null: never asks MusicBrainz (the DJ uses it and must not wait).</summary>
+    public IReadOnlyList<MbCandidate>? Peek(Track t) => t.Title.Trim().Length == 0 ? null : Cached(QueryFor(t));
+
     public async Task<IReadOnlyList<MbCandidate>> SearchRecordingAsync(Track t, bool interactive = true, CancellationToken ct = default)
     {
         if (t.Title.Trim().Length == 0) return [];
@@ -164,8 +169,15 @@ public sealed class MusicBrainzClient(HttpClient http, string userAgent, string?
             var rel = (r["releases"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault();
             int? year = null;
             if (rel?["date"]?.GetValue<string>() is { Length: >= 4 } d && int.TryParse(d[..4], NumberStyles.None, CultureInfo.InvariantCulture, out var y)) year = y;
+            var rg = rel?["release-group"];
+            var kind = rg?["primary-type"] is JsonValue pt && pt.TryGetValue<string>(out var p) ? p : null;
+            if (kind is not null && rg?["secondary-types"] is JsonArray st)
+            {
+                var extra = st.OfType<JsonValue>().Select(x => x.TryGetValue<string>(out var y) ? y : "").FirstOrDefault(y => y is "Live" or "Compilation" or "Soundtrack");
+                if (extra is { Length: > 0 }) kind = extra + " " + kind;
+            }
             list.Add(new MbCandidate(id, r["title"]?.GetValue<string>() ?? "", artist, rel?["title"]?.GetValue<string>() ?? "", rel?["id"]?.GetValue<string>(),
-                rel?["release-group"]?["id"]?.GetValue<string>(), year, r["length"]?.GetValue<int>(), rel?["country"]?.GetValue<string>(), r["score"]?.GetValue<int>() ?? 0));
+                rg?["id"]?.GetValue<string>(), year, r["length"]?.GetValue<int>(), rel?["country"]?.GetValue<string>(), r["score"]?.GetValue<int>() ?? 0, kind));
         }
         return list;
     }

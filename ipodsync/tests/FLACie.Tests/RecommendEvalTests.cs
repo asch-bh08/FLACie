@@ -57,6 +57,7 @@ public class RecommendEvalTests
 
         var old = RecEval.HitRateAt10(s => Recommender.Recommend(lib, taste, Now, 10, 0, 2, s.Select(Matching.MatchKey)), cases);
         var neu = RecEval.HitRateAt10(s => Engine.Next(lib, taste, t => vibes.GetValueOrDefault(t), s, [], Now, new EngineOptions()).Select(p => p.Track).OfType<Track>().ToList(), cases);
+        Assert.True(old > 0, "the old ranker must hit sometimes, or the comparison proves nothing");
         Assert.True(neu >= 1.5 * old, $"new {neu:0.00} vs old {old:0.00}");
     }
 }

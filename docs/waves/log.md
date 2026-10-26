@@ -80,7 +80,7 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 ## 2026-10-25 Recommend: offline evaluation gate (task 7)
 - RecEval (hit rate at 10) + tools/receval: replays listening on a read-only copy of frank's data; taste only from plays before each case.
 - Data: no listen logs and no vibe.json on frank yet, so history = Jellyfin activity-log playbacks (exported read-only); engine ran vibe-less.
-- Last 400 cases per account: hms old 0.008 vs new 0.005 (0.67x); Dad old 0.025 vs new 0.005 (0.20x). GATE MISSED (needs 1.5x).
+- Last 400 cases per account: hms old 0.008 (3/400) vs new 0.005 (2/400) (0.67x); Dad old 0.025 (10/400) vs new 0.005 (2/400) (0.20x). GATE MISSED (needs 1.5x).
 - Synthetic history with vibe clusters passes (new >= 1.5x old). Tried love weight 0.3 -> 0.6: no change (reverted).
 - Why: hits are 2-10 per 400 (noise level in an 11k-song library); 25% of hms's next songs are the same artist, which the engine's rail forbids;
   half the picks are never-heard songs; without vibes, fit only passes songs sharing artist or genre (most songs have no genre).

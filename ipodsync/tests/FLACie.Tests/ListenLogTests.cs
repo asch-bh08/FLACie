@@ -78,4 +78,38 @@ public class ListenLogTests : IDisposable
         store.Append(me, [Play("2", 20)]);
         Assert.Contains("2", store.Read(me).Select(e => e.Id));
     }
+
+    [Fact] public void Read_is_kept_in_memory_after_the_first_load()
+    {
+        var store = new ListenLogStore(new DataPaths(dir));
+        store.Append(me, [Play("1", 10), Play("2", 5)]);
+        Assert.Equal(["2", "1"], store.Read(me).Select(e => e.Id));
+        File.WriteAllText(LogFile(), "");   // the file is not read again: what Read hands back is the copy in memory
+        Assert.Equal(["2", "1"], store.Read(me).Select(e => e.Id));
+        store.Append(me, [Play("3", 7)]);
+        Assert.Equal(["2", "3", "1"], store.Read(me).Select(e => e.Id));
+    }
+
+    [Fact] public void Read_hands_back_a_snapshot_that_later_appends_do_not_change()
+    {
+        var store = new ListenLogStore(new DataPaths(dir));
+        store.Append(me, [Play("1", 10)]);
+        var before = store.Read(me);
+        store.Append(me, [Play("2", 20)]);
+        Assert.Single(before);
+        Assert.Equal(2, store.Read(me).Count);
+    }
+
+    [Fact] public void Read_after_Thin_shows_the_folded_log_without_reading_the_file()
+    {
+        var now = new DateTime(2026, 10, 25, 0, 0, 0, DateTimeKind.Utc);
+        var store = new ListenLogStore(new DataPaths(dir));
+        store.Append(me, [Play("a", Ms(now.AddDays(-400))), Play("b", Ms(now.AddDays(-400).AddHours(1))), Play("c", Ms(now.AddDays(-1)))]);
+        store.Read(me);
+        store.Thin(me, now);
+        File.Delete(LogFile());
+        var ids = store.Read(me).Select(e => e.Id).ToList();
+        Assert.Equal(2, ids.Count);
+        Assert.StartsWith("day:", ids[0]); Assert.Equal("c", ids[1]);
+    }
 }

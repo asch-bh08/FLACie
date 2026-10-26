@@ -33,8 +33,17 @@ public static partial class Matching
 
     /// <summary>Just the lead artist, lower-case, with a leading "The" dropped ("The Black Eyed Peas" = "Black Eyed Peas").</summary>
     /// <summary>The main credit, lower case, no punctuation. Remembered per spelling (a library has a few thousand), as Home asks for it for every song.</summary>
-    public static string PrimaryArtist(string s) => s.Length == 0 ? "" : primaryArtists.Count < 50_000 ? primaryArtists.GetOrAdd(s, PrimaryArtistOf) : PrimaryArtistOf(s);
+    public static string PrimaryArtist(string s)
+    {
+        if (s.Length == 0) return "";
+        if (primaryArtists.TryGetValue(s, out var known)) return known;
+        var p = PrimaryArtistOf(s);
+        // ConcurrentDictionary.Count takes every lock, which made this hot call slow (a 20,000 play log spent most of its scoring time here); a plain counter is enough for the cap
+        if (Volatile.Read(ref primaryCount) < 50_000 && primaryArtists.TryAdd(s, p)) Interlocked.Increment(ref primaryCount);
+        return p;
+    }
     static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> primaryArtists = new();
+    static int primaryCount;
     static string PrimaryArtistOf(string s)
     {
         var first = ArtistSplit().Split(s).FirstOrDefault(p => !string.IsNullOrWhiteSpace(p)) ?? "";

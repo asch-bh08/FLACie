@@ -10,7 +10,8 @@ namespace FLACie.Server;
 /// </summary>
 public sealed class ListenLogStore(DataPaths paths)
 {
-    sealed class Log { public readonly object Gate = new(); public HashSet<string>? Ids; }
+    /// <summary>One account's log as last read or written: its ids, and its events in time order (handed out as is, never changed in place).</summary>
+    sealed class Log { public readonly object Gate = new(); public HashSet<string>? Ids; public IReadOnlyList<ListenEvent>? Events; }
     readonly ConcurrentDictionary<string, Log> logs = new();
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -34,7 +35,10 @@ public sealed class ListenLogStore(DataPaths paths)
         return res;
     }
 
-    HashSet<string> IdsOf(Log log, UserSession s) => log.Ids ??= ReadFile(FileOf(s)).Select(e => e.Id).ToHashSet();
+    /// <summary>The file is read once; after that the copy in memory is kept up to date by Append and Thin, so a pick never waits on the disk.</summary>
+    IReadOnlyList<ListenEvent> EventsOf(Log log, UserSession s) => log.Events ??= ReadFile(FileOf(s)).OrderBy(e => e.At).ToArray();
+
+    HashSet<string> IdsOf(Log log, UserSession s) => log.Ids ??= EventsOf(log, s).Select(e => e.Id).ToHashSet();
 
     /// <summary>Has this account's log been started yet?</summary>
     public bool Exists(UserSession s) { lock (Of(s).Gate) return File.Exists(FileOf(s)); }
@@ -54,6 +58,8 @@ public sealed class ListenLogStore(DataPaths paths)
             var file = FileOf(s);
             if (EndsMidLine(file)) File.AppendAllText(file, "\n");   // a torn last line must not swallow the next event
             File.AppendAllLines(file, fresh.Select(e => JsonSerializer.Serialize(e, Json)));
+            // a new array, so a list already handed out stays as it was
+            log.Events = EventsOf(log, s).Concat(fresh).OrderBy(e => e.At).ToArray();
             return fresh.Count;
         }
     }
@@ -67,10 +73,11 @@ public sealed class ListenLogStore(DataPaths paths)
         return f.ReadByte() != '\n';
     }
 
+    /// <summary>The account's events in time order. The list is shared and never changes: later events go into a new one.</summary>
     public IReadOnlyList<ListenEvent> Read(UserSession s)
     {
         var log = Of(s);
-        lock (log.Gate) return ReadFile(FileOf(s)).OrderBy(e => e.At).ToList();
+        lock (log.Gate) return EventsOf(log, s);
     }
 
     /// <summary>Plays older than a year are folded into one play per song per day (time heard added up); hearts and the like stay as they are.</summary>
@@ -93,6 +100,7 @@ public sealed class ListenLogStore(DataPaths paths)
             File.WriteAllLines(file + ".tmp", damaged.Concat(kept.Select(e => JsonSerializer.Serialize(e, Json))));
             File.Move(file + ".tmp", file, true);
             log.Ids = kept.Select(e => e.Id).ToHashSet();
+            log.Events = kept.ToArray();
         }
     }
 }

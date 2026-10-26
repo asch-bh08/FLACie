@@ -41,6 +41,8 @@ public sealed class AlexaQueue
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     [System.Text.Json.Serialization.JsonIgnore] public Random Rng { get; set; } = Random.Shared;
+    /// <summary>The list (and its length) the engine last had nothing new for; while the queue is that same list it is not asked again. Any change to the list starts over.</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public (List<string>? Order, int Count) FillSpent { get; set; }
 
     public bool Empty => Order.Count == 0;
     public string? Current => Index >= 0 && Index < Order.Count ? Order[Index] : null;

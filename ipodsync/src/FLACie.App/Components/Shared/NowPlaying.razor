@@ -305,7 +305,7 @@
                 <button role="menuitem" @onclick='async () => { CloseMore(); await Sharing.ShareAsync(Session, "song", t.Title, [t]); }'>Share</button>
                 <button role="menuitem" @onclick='() => { Open("info"); CloseMore(); }'>Song info</button>
                 <button role="menuitem" @onclick='() => Plain(() => Feedback.LessLikeThis(Session, t), $"Fewer songs like “{t.Title}”")'>Less like this</button>
-                <button role="menuitem" @onclick='() => Plain(() => Feedback.ThumbDown(Session, t), $"“{t.Title}” will not be picked for you again")'>Thumbs down</button>
+                <button role="menuitem" @onclick='() => Plain(() => _ = Feedback.ThumbDown(Session, t, Player), $"“{t.Title}” will not be picked for you again")'>Thumbs down</button>
             </div>
         }
     </div>;

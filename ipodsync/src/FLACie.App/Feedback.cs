@@ -14,7 +14,11 @@ public static class Feedback
     }
 
     /// <summary>"Thumbs down": not this song, ever again in picks.</summary>
-    public static void ThumbDown(UserSession s, Track t) => RetroHost.Listen?.Invoke(s, ListenEvent.Of(ListenKind.ThumbDown, t));
+    public static async Task ThumbDown(UserSession s, Track t, PlayerState? player = null)
+    {
+        RetroHost.Listen?.Invoke(s, ListenEvent.Of(ListenKind.ThumbDown, t));
+        if (player is not null) await player.Dislike(t.Path);
+    }
 
     /// <summary>"Less like this": the song is fine, but fewer like it.</summary>
     public static void LessLikeThis(UserSession s, Track t) => RetroHost.Listen?.Invoke(s, ListenEvent.Of(ListenKind.LessLikeThis, t));

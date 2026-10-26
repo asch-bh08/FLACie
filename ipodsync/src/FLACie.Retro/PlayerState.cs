@@ -123,8 +123,12 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     /// <summary>The song that was playing is over (or left): tells the log how long it was heard.</summary>
     void FlushPlay()
     {
-        if (heardTrack is { } t && session is { } s && heard >= 1)
-            RetroHost.Listen?.Invoke(s, ListenEvent.Of(ListenKind.Play, t, Math.Round(heard, 1), t.DurationMs > 0 ? t.DurationMs / 1000.0 : Duration, heardContext));
+        try
+        {
+            if (heardTrack is { } t && session is { } s && heard >= 1)
+                RetroHost.Listen?.Invoke(s, ListenEvent.Of(ListenKind.Play, t, Math.Round(heard, 1), t.DurationMs > 0 ? t.DurationMs / 1000.0 : Duration, heardContext));
+        }
+        catch (Exception) { }   // a log that fails must never stop the next song or the stop
         heardTrack = null; heard = 0;
     }
 
@@ -308,7 +312,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     async Task StartAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused, string? context, bool keepOrder = false, string? listenContext = null)
     {
         if (list.Count == 0) return;
-        Context = context; AutoplayFrom = -1; autoplayNext = []; addedWhy = []; enginePath = null; this.listenContext = listenContext;
+        Context = context; AutoplayFrom = -1; autoplayNext = []; addedWhy = []; enginePath = null; fetchedKeys.Clear(); this.listenContext = listenContext;
         Queue = list.ToList(); Index = Math.Clamp(index, 0, Queue.Count - 1);
         if (keepOrder) order = Enumerable.Range(0, Queue.Count).ToList(); else Reorder();
         await Load(!paused, positionMs / 1000.0);
@@ -388,6 +392,23 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         if (QueueEdit.Reorder(order, Index, false, queueIndex, step) is not { } moved) return;
         order = moved;
         Stash(true); Changed?.Invoke();
+    }
+
+    /// <summary>The person does not want this song: it leaves Up next and the Autoplay list, and if it is playing now the next song starts.</summary>
+    public async Task Dislike(string path)
+    {
+        autoplayNext = autoplayNext.Where(t => t.Path != path).ToList();
+        enginePicks = enginePicks?.Where(p => p.Track.Path != path).ToList();
+        autoplayWhy.Remove(path);
+        if (Queue.FirstOrDefault(t => t.Path == path) is { } gone) fetchedKeys.Remove(Matching.MatchKey(gone));
+        if (Current?.Path == path) await NextAsync();
+        // copies still to come (the played ones stay in the queue's past)
+        while (CanEdit)
+        {
+            var ahead = order.Skip(order.IndexOf(Index) + 1).Where(i => Queue[i].Path == path).Select(i => (int?)i).FirstOrDefault();
+            if (ahead is not { } at) break;
+            await RemoveFromQueue(at);
+        }
     }
 
     /// <summary>Takes a song out of the queue. Another song than the playing one: nothing else changes. The playing one: the song that follows starts (it stays paused if

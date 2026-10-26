@@ -49,10 +49,10 @@
     List<Track> list = [];
     List<Row> rows = [];
     Library? built; int builtVersion = -1;
-    void Build() { if (ReferenceEquals(built, Lib) && builtVersion == X.Version) return; built = Lib; builtVersion = X.Version; list = X.Songs(Lib); rows = list.Select((t, i) => new Row(t, i)).Where(r => !gone.Contains(r.T.Path)).ToList(); }
+    void Build() { if (ReferenceEquals(built, Lib) && builtVersion == X.Version) return; built = Lib; builtVersion = X.Version; list = X.Songs(Lib); if (gone.Count > 0) list = list.Where(t => !gone.Contains(t.Path)).ToList(); rows = list.Select((t, i) => new Row(t, i)).ToList(); }
     // a song thumbed down leaves the list at once
     readonly HashSet<string> gone = [];
-    void ThumbDown(Track t) { gone.Add(t.Path); rows = rows.Where(r => r.T.Path != t.Path).ToList(); Feedback.ThumbDown(Session, t); Toast.Show($"“{t.Title}” will not be picked for you again"); }
+    void ThumbDown(Track t) { gone.Add(t.Path); list = list.Where(x => x.Path != t.Path).ToList(); rows = list.Select((x, i) => new Row(x, i)).ToList(); _ = Feedback.ThumbDown(Session, t, Player); Toast.Show($"“{t.Title}” will not be picked for you again"); }
     void Refresh() { Build(); StateHasChanged(); }
     protected override void OnParametersSet() => Build();
     protected override bool ShouldRender() { Build(); return true; }

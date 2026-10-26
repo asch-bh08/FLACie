@@ -46,7 +46,7 @@
                         <button role="menuitem" disabled="@(idx == Tracks.Count - 1)" @onclick="() => { OnMove(idx, idx + 1); menu = -1; }">Move down</button>
                     }
                     <button role="menuitem" @onclick='() => { menu = -1; Feedback.LessLikeThis(Session, t); Toast.Show($"Fewer songs like “{t.Title}”"); }'>Less like this</button>
-                    <button role="menuitem" @onclick='() => { menu = -1; gone.Add(t.Path); Feedback.ThumbDown(Session, t); Toast.Show($"“{t.Title}” will not be picked for you again"); }'>Thumbs down</button>
+                    <button role="menuitem" @onclick='() => { menu = -1; gone.Add(t.Path); _ = Feedback.ThumbDown(Session, t, Player); Toast.Show($"“{t.Title}” will not be picked for you again"); }'>Thumbs down</button>
                     @if (OnRemove is not null) { <button role="menuitem" class="danger" @onclick="() => { OnRemove(idx); menu = -1; }">Remove from playlist</button> }
                     @if (admin && Session.Services.SoulseekReady && !t.Path.Contains("[Hi-Res]", StringComparison.OrdinalIgnoreCase))
                     {
@@ -131,6 +131,9 @@
     Task Go(int i)
     {
         if (Player.Current?.Path == Tracks[i].Path) { if (!Player.Playing) return Player.Toggle(); Player.RequestFullScreen(); return Task.CompletedTask; }
-        return Single ? Player.Play([Tracks[i]], 0, PlayContext) : Player.Play(Tracks, i, PlayContext);
+        if (Single) return Player.Play([Tracks[i]], 0, PlayContext);
+        // songs thumbed down here are not queued behind the one pressed
+        var list = gone.Count == 0 ? Tracks : Tracks.Where(x => !gone.Contains(x.Path)).ToList();
+        return Player.Play(list, gone.Count == 0 ? i : list.ToList().IndexOf(Tracks[i]), PlayContext);
     }
 }

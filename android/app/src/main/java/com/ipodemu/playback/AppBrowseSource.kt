@@ -18,6 +18,7 @@ class AppBrowseSource(private val app: App) : BrowseSource {
         val paths = pl.paths.toList(); paths.size to paths.asSequence().take(5).firstNotNullOfOrNull { app.library.resolve(it, app.userData.meta[it])?.artKey }
     } ?: (0 to null)
     override fun allSongs(): List<Track> = app.library.songs()
+    override fun quickPicks(): List<Track> = com.ipodemu.player.quickPicksForCar(app)
     // the phone's More music, for the car's search (a guest has no downloads, and offline the catalog can't be asked)
     override fun catalog(query: String): List<BrowseTree.CatalogSong> =
         if (app.ui.guest) emptyList() else try { com.ipodemu.library.WebCatalog.songs(query, 10).map { BrowseTree.CatalogSong(it.artist, it.title, it.album, it.durationMs) } } catch (_: Exception) { emptyList() }

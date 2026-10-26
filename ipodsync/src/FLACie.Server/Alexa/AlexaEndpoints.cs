@@ -17,7 +17,8 @@ public static class AlexaEndpoints
         services.AddSingleton<AlexaProactive>();
         services.AddSingleton<IProgressive, HttpProgressive>();
         services.AddSingleton(sp => new SessionAlexaDirectory(sp.GetRequiredService<AlexaStore>(), sp.GetRequiredService<SessionStore>(), sp.GetRequiredService<JellyfinClient>(), sp.GetRequiredService<DownloadManager>(),
-            sp.GetRequiredService<WebCatalog>(), new Lazy<AlexaEngine>(() => sp.GetRequiredService<AlexaEngine>()), sp.GetRequiredService<AlexaProactive>()));
+            sp.GetRequiredService<WebCatalog>(), new Lazy<AlexaEngine>(() => sp.GetRequiredService<AlexaEngine>()), sp.GetRequiredService<AlexaProactive>(),
+            sp.GetRequiredService<ListenLogStore>(), sp.GetRequiredService<VibeIndex>(), sp.GetRequiredService<RelatedCache>()));
         services.AddSingleton<IAlexaDirectory>(sp => sp.GetRequiredService<SessionAlexaDirectory>());
         services.AddSingleton(sp => new AlexaSkill(sp.GetRequiredService<AlexaEngine>(), sp.GetRequiredService<AlexaStore>(), sp.GetRequiredService<IAlexaDirectory>(), sp.GetRequiredService<AlexaUrlSigner>(),
             () => sp.GetRequiredService<AlexaPublic>().Base, sp.GetRequiredService<IProgressive>(), sp.GetRequiredService<ILoggerFactory>().CreateLogger("Alexa")));

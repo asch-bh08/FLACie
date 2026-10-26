@@ -91,7 +91,7 @@ class PlaybackService : MediaLibraryService() {
             val app = App.of(this@PlaybackService)
             // the player's own thread is the main thread, where this runs
             when (customCommand.customAction) {
-                CMD_FAVORITE -> app.player.current?.let { app.userData.toggleFavorite(it.path) }
+                CMD_FAVORITE -> app.player.current?.let { app.userData.toggleFavorite(it) }
                 CMD_SPEED -> app.player.setSpeed(SpeedPolicy.cycle(app.player.speed))
                 CMD_SHUFFLE -> { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() }
                 CMD_REPEAT -> { app.prefs.repeat = (app.prefs.repeat + 1) % 3; app.player.applyModes() }
@@ -233,7 +233,7 @@ class PlaybackService : MediaLibraryService() {
     }
 
     /** The service can start (to hold the restored queue) before the favourites are loaded: until then, not a favourite. */
-    private fun isFavorite(app: App): Boolean = try { app.player.current?.let { app.userData.isFavorite(it.path) } == true } catch (_: UninitializedPropertyAccessException) { false }
+    private fun isFavorite(app: App): Boolean = try { app.player.current?.let { app.userData.isFavorite(it) } == true } catch (_: UninitializedPropertyAccessException) { false }
 
     /** Sets the custom buttons again when what they show (the heart, the speed) has changed. */
     private fun refreshLayout(force: Boolean) {

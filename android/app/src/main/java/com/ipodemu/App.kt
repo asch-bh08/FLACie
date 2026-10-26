@@ -25,6 +25,19 @@ class App : Application() {
     lateinit var lyrics: com.ipodemu.library.LyricsProvider; private set
     lateinit var autoplay: com.ipodemu.library.Autoplay; private set
     lateinit var plays: com.ipodemu.library.PlaysReporter; private set
+    /** What was heard, liked and thumbed down, waiting to reach the account's listening log (the server's recommendations learn from it). */
+    // one per account, read on first use off the main thread (a phone offline for weeks has a big file)
+    @Volatile private var listenQ: com.ipodemu.library.ListenQueue? = null
+    private fun listens(owner: String): com.ipodemu.library.ListenQueue = synchronized(this) {
+        listenQ?.takeIf { listenOwner == owner } ?: com.ipodemu.library.ListenQueue(filesDir, owner).also { listenQ = it; listenOwner = owner }
+    }
+    private var listenOwner = ""
+
+    /** Sign-out or a different account: the waiting events are dropped and any send in progress stops, so none go out under the new sign-in. */
+    fun forgetListens() {
+        listenJob?.cancel()
+        listenWriter.launch { synchronized(this@App) { listenQ = null; listenOwner = "" }; com.ipodemu.library.ListenQueue.clearAll(filesDir) }
+    }
     private val bg = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
     override fun onCreate() {
@@ -81,6 +94,9 @@ class App : Application() {
         autoplay = com.ipodemu.library.Autoplay(this)
         plays = com.ipodemu.library.PlaysReporter(prefs, player, bg)
         player.onQueueLow = { autoplay.queueLow() }
+        player.onPlayEnded = { t, heard -> listened(com.ipodemu.library.ListenKind.PLAY, t, heard) }
+        userData.onListen = { kind, path, playlist -> library.resolve(path, userData.meta[path])?.let { listened(kind, it, context = playlist) } }
+        listenWriter.launch { sendListensSoon() }
         library.onDownloaded = { userData.recordDownload(it); autoplay.downloaded(it) }
         // downloads finished within the last hour (before a restart) keep their "Recently downloaded" tag
         library.tags.seed(userData.downloads.map { Triple(it.title, it.artist, it.time) }, System.currentTimeMillis())
@@ -103,6 +119,41 @@ class App : Application() {
                     if (r.ok) return@launch
                 } catch (_: Exception) { }
             }
+        }
+    }
+
+    /**
+     * Keeps one listening event and sends what is waiting. A Play's context is the playlist it came from, "autoplay" for Autoplay's songs, else
+     * where the queue was started ("search", "home"). Nothing here can stop or slow playback: a failure only leaves the event in the file for later.
+     */
+    fun listened(kind: Int, t: com.ipodemu.library.Track, heard: Double = 0.0, context: String? = null) {
+        if (!t.isMusic) return
+        try {
+            val ctx = context ?: if (kind != com.ipodemu.library.ListenKind.PLAY) null else if (autoplay.isAutoplay(t)) "autoplay"
+                else player.contextName?.let { n -> userData.playlists.firstOrNull { it.name == n }?.let { it.jfId ?: it.id } } ?: player.listenFrom
+            val e = com.ipodemu.library.ListenEventJson.of(kind, t, heard, ctx)
+            val owner = prefs.accountUserId
+            if (owner.isBlank()) return
+            // the file is written off the main thread, one event at a time so they stay in order
+            listenWriter.launch { try { listens(owner).add(e) } catch (x: Exception) { android.util.Log.w("FLACie", "listen event not kept: ${x.message}") }; sendListensSoon() }
+        } catch (e: Exception) { android.util.Log.w("FLACie", "listen event not kept: ${e.message}") }
+    }
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val listenWriter = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO.limitedParallelism(1))
+
+    @Volatile private var listenJob: kotlinx.coroutines.Job? = null
+    /** Sends the waiting events, trying again until the server takes them (a phone offline for days sends them all once it is back). */
+    fun sendListensSoon() {
+        if (listenJob?.isActive == true) return
+        val web = com.ipodemu.library.FlacieWebClient(prefs)
+        val owner = prefs.accountUserId
+        if (!web.available || owner.isBlank()) return
+        val q = listens(owner)
+        if (q.pending().isEmpty()) return
+        listenJob = bg.launch {
+            // the client reads the sign-in as it sends: if the account changed meanwhile, this account's events wait for its next sign-in
+            try { com.ipodemu.library.SyncRetry.attempt(listOf(10_000L, 60_000L, 300_000L), thenEvery = 900_000L) { q.flush { if (prefs.accountUserId != owner) throw kotlinx.coroutines.CancellationException("account changed"); web.listen(com.ipodemu.library.ListenQueue.body(it)) } } }
+            catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { }
         }
     }
 

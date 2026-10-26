@@ -18,8 +18,9 @@ fun removalIndex(paths: List<String>, index: Int, path: String): Int = if (paths
 class UserPlaylist(val id: String, var name: String, val paths: MutableList<String>, var mtime: Long = System.currentTimeMillis(), var jfId: String? = null)
 
 /** Favourites, hand-made playlists and play history. Persisted as JSON; [rev] lets Compose observe changes. */
-class UserData(ctx: Context) {
-    private val file = File(ctx.filesDir, "userdata.json")
+class UserData(dir: File) {
+    constructor(ctx: Context) : this(ctx.filesDir)
+    private val file = File(dir, "userdata.json")
     val favorites = LinkedHashSet<String>()
     /** When each favourite was made (ms), and the favourites taken away with when: other devices follow by the latest change (FavoriteSync). */
     val favAt = HashMap<String, Long>()
@@ -44,12 +45,14 @@ class UserData(ctx: Context) {
     var rev by mutableIntStateOf(0)
         private set
 
+    /** Star ratings (see [RatingStore]); [onRated] lets the app write a rating to Jellyfin. Made before load() runs: declared below it, it was
+     * still null there, load() gave up at its first line, and nothing saved came back at a restart (13 to 25 Oct). */
+    val ratings = RatingStore()
+
     init { load() }
 
     fun isFavorite(path: String) = path in favorites
 
-    /** Star ratings (see [RatingStore]); [onRated] lets the app write a rating to Jellyfin. */
-    val ratings = RatingStore()
     var onRated: ((Track, Int) -> Unit)? = null
     fun rating(t: Track): Int { @Suppress("UNUSED_EXPRESSION") rev; return ratings.get(t) }
     fun setRating(t: Track, stars: Int) { ratings.set(t, stars); changed(); onRated?.invoke(t, RatingStore.clamp(stars)) }
@@ -58,6 +61,25 @@ class UserData(ctx: Context) {
     private val favStates = HashMap<String, androidx.compose.runtime.MutableState<Boolean>>()
     /** Per-track observable flag: toggling one favourite recomposes only that row, not every row. */
     fun favState(path: String): androidx.compose.runtime.State<Boolean> = favStates.getOrPut(path) { androidx.compose.runtime.mutableStateOf(path in favorites) }
+
+    /** The same for a song: also on when it was made a favourite on another device (kept under that device's path, see [FavoriteMatch]). */
+    fun favState(t: Track): androidx.compose.runtime.State<Boolean> {
+        trackKeys[t.path] = t.matchKey
+        return favStates.getOrPut(t.path) { androidx.compose.runtime.mutableStateOf(storedFavorite(t) != null) }
+    }
+    private val trackKeys = HashMap<String, String>()
+    fun isFavorite(t: Track) = storedFavorite(t) != null
+    private fun storedFavorite(t: Track) = FavoriteMatch.storedFor(t.path, t.matchKey, favorites, meta)
+    /** A song's heart: takes away the favourite it stands for (whichever device's path it is kept under), else adds this one. */
+    fun toggleFavorite(t: Track) { toggleFavorite(storedFavorite(t) ?: t.path) }
+    /** Every heart on screen follows a change, including songs matched to another device's favourite by title and artist. */
+    private fun refreshFavStates() {
+        for ((p, s) in favStates) s.value = FavoriteMatch.storedFor(p, trackKeys[p] ?: "", favorites, meta) != null
+    }
+
+    /** A heart or a playlist change, for the listening log: the kind, the song's path and the playlist's id. */
+    var onListen: ((Int, String, String?) -> Unit)? = null
+    private fun listened(kind: Int, path: String, playlist: String?) { try { onListen?.invoke(kind, path, playlist) } catch (_: Exception) { } }
 
     /** Called after a favourite is added or removed (the offline library follows it). */
     var onFavoritesChanged: (() -> Unit)? = null
@@ -70,7 +92,8 @@ class UserData(ctx: Context) {
             favGone.add(0, FavoriteSync.Fav(path, m?.first ?: "", m?.second ?: "", now))
             while (favGone.size > FavoriteSync.KEEP_REMOVALS) favGone.removeAt(favGone.size - 1)
         } else { favorites.add(path); favAt[path] = now }
-        favStates[path]?.value = path in favorites
+        listened(if (path in favorites) ListenKind.HEART else ListenKind.UNHEART, path, null)
+        refreshFavStates()
         changed()
         onFavoritesChanged?.invoke()
     }
@@ -97,14 +120,14 @@ class UserData(ctx: Context) {
     }
 
     fun addToPlaylist(id: String, path: String) {
-        playlists.firstOrNull { it.id == id }?.let { if (path !in it.paths) it.paths.add(path); it.mtime = System.currentTimeMillis(); changed() }
+        playlists.firstOrNull { it.id == id }?.let { if (path !in it.paths) { it.paths.add(path); listened(ListenKind.PLAYLIST_ADD, path, it.jfId ?: it.id) }; it.mtime = System.currentTimeMillis(); changed() }
     }
 
     /** A song taken out of a playlist page that is not gone yet: it stays pending for [UNDO_MS] so Undo brings it back untouched, then the removal is applied. */
     class PendingRemoval(val playlistId: String, val path: String, val index: Int)
     var pending by androidx.compose.runtime.mutableStateOf<PendingRemoval?>(null)
         private set
-    private val pendingHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val pendingHandler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
 
     /** Starts a removal that Undo can cancel (see [PendingRemoval]); a removal already pending is applied first. Returns the song, or null. */
     fun removeLater(id: String, index: Int): String? {
@@ -167,7 +190,7 @@ class UserData(ctx: Context) {
 
     fun removeFromPlaylist(id: String, path: String) {
         commitPending()
-        playlists.firstOrNull { it.id == id }?.let { it.paths.remove(path); it.mtime = System.currentTimeMillis(); changed() }
+        playlists.firstOrNull { it.id == id }?.let { if (it.paths.remove(path)) listened(ListenKind.PLAYLIST_REMOVE, path, it.jfId ?: it.id); it.mtime = System.currentTimeMillis(); changed() }
     }
 
     fun deletePlaylist(id: String) {
@@ -210,7 +233,7 @@ class UserData(ctx: Context) {
         val now = keep.mapTo(LinkedHashSet()) { it.p }
         for (p in favorites) if (p !in now) favStates[p]?.value = false
         for (p in now) if (p !in favorites) favStates[p]?.value = true
-        favorites.clear(); favorites.addAll(now)
+        favorites.clear(); favorites.addAll(now); refreshFavStates()
         favAt.clear(); keep.forEach { if (it.w > 0) favAt[it.p] = it.w }
         favGone.clear(); favGone.addAll(removed)
         for (id in deleted) if (id !in deletedPlaylists) { deletedPlaylists.add(id); playlists.removeAll { it.id == id } }
@@ -297,7 +320,7 @@ class UserData(ctx: Context) {
     // Saving used to serialise and write the whole file on the main thread at every track start (a visible hitch).
     // Now: snapshot the data here (cheap), write it on a background thread, and coalesce bursts of changes.
     private val ioThread = java.util.concurrent.Executors.newSingleThreadExecutor()
-    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private val main by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
     private var savePending = false
     private fun save() {
         if (savePending) return

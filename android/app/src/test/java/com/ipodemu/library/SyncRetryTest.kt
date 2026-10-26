@@ -26,4 +26,11 @@ class SyncRetryTest {
         assertThrows(IOException::class.java) { runBlocking { SyncRetry.attempt(listOf(0L, 0L)) { tries++; throw IOException("down") } } }
         assertEquals(3, tries)
     }
+
+    /** An outage longer than the pauses (Jellyfin's address gone for an hour) left Playlists empty until Sync now: with [thenEvery] it keeps going. */
+    @Test fun keeps_trying_after_the_pauses_until_it_works() = runBlocking {
+        var tries = 0
+        SyncRetry.attempt(listOf(0L, 0L), thenEvery = 0L) { tries++; if (tries < 6) throw IOException("down") }
+        assertEquals(6, tries)
+    }
 }

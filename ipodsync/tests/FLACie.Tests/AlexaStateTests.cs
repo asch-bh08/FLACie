@@ -284,4 +284,25 @@ public class AlexaReviewFixTests
         var u = new SessionAlexaUser(s, null!, null!, null!, (_, _, _, _) => { });
         Assert.False(u.Ready);   // nothing has been loaded yet: "not found" would mean nothing
     }
+
+    [Fact] public void RecommendNextAsksTheEngineForThisAccountsOwnInputs()
+    {
+        var dir = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            static Track Song(string title, string artist) => new($"/p/{artist}/{title}", title, artist, "Album", artist, 1, 1, 200_000, 2001, null, 0, TrackSource.Jellyfin, Genre: "Rave", JellyfinId: Guid.NewGuid().ToString("N"));
+            var vibe = new Vibe(0.9, 0.9, 128, 0.8);
+            var related = new RelatedCache(new DataPaths(dir), (_, _, _) => Task.FromResult(new List<CatalogSong>()));
+            RecommendApi.Inputs Mine(params Track[] songs) => new(new Library(songs), [], [], [], [], null, _ => vibe, related);
+            var a1 = Song("A one", "Prodigy"); var a2 = Song("A two", "Prodigy"); var b1 = Song("B one", "Chems"); var b2 = Song("B two", "Chems");
+            var s = new UserSession("jellyfin", new JellyfinAccount("http://jf", "u1", "ash", "T"), null);
+            var alexaUser = new SessionAlexaUser(s, null!, null!, null!, (_, _, _, _) => { }, () => Mine(a1, a2));
+            var otherUser = new SessionAlexaUser(s, null!, null!, null!, (_, _, _, _) => { }, () => Mine(b1, b2));
+            Assert.Equal(["A two"], alexaUser.RecommendNext([a1.Path], 5).Select(t => t.Title));
+            Assert.Equal(["B two"], otherUser.RecommendNext([b1.Path], 5).Select(t => t.Title));
+            Assert.DoesNotContain(alexaUser.RecommendNext([b1.Path], 5), t => t.Artist == "Chems");   // never another account's songs
+            Assert.Empty(new SessionAlexaUser(s, null!, null!, null!, (_, _, _, _) => { }).RecommendNext([a1.Path], 5));   // no engine wired: nothing offered
+        }
+        finally { Directory.Delete(dir, true); }
+    }
 }

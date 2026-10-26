@@ -3,6 +3,7 @@
 @inherits UserComponent
 @inject JellyfinClient Jf
 @inject HitsService Hits
+@inject IDownloads Downloads
 <PageTitle>FLACie</PageTitle>
 @* design I: the cover of what played last runs across the top and fades into the page, in its own colours (flacie.npAccent); a mono greeting over a serif headline *@
 @{ var lastTrack = LastPlayed; }
@@ -103,7 +104,7 @@ else
                     }
                 </ul>
             }
-            else if (sh.Tracks.Count > 0)
+            else if (sh.Tracks.Count > 0 || sh.New.Count > 0)
             {
                 <div class="row-scroll">
                     @for (var i = 0; i < sh.Tracks.Count; i++)
@@ -114,6 +115,18 @@ else
                             <span class="card-title">@t.Title</span>
                             <span class="card-sub">@t.Artist</span>
                             <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" />
+                        </button>
+                    }
+                    @* songs the person does not have yet: tagged New, and a press fetches one the way Search's Download does *@
+                    @foreach (var n in sh.New)
+                    {
+                        var job = Downloads.JobFor(Session, n.Artist, n.Title);
+                        <button class="card song-card new-song" @key="@("new:" + n.Artist + "|" + n.Title)" disabled="@(!Session.Services.Any || job is { Finished: false })" @onclick="() => Downloads.Song(Session, n)" aria-label="@("Get " + n.Title + " by " + n.Artist)">
+                            <Cover ArtKey="@(n.ArtUrl is null ? null : Art.ExternalKey(n.ArtUrl))" Class="square" />
+                            <span class="card-title">@n.Title</span>
+                            <span class="card-sub">@n.Artist</span>
+                            <span class="badge new-tag">@(job is { Finished: false } ? "Downloading…" : "New")</span>
+                            <DownloadTag Session="Session" Artist="@n.Artist" Title="@n.Title" />
                         </button>
                     }
                 </div>
@@ -143,8 +156,8 @@ else
     // reach the button now in that place, and the owner's Price Tag (4th) started I Gotta Feeling (1st, after the shelf changed)
     // the song's address, for flacie.js to fetch its start when the pointer rests on it (so it starts at once when pressed, not after the server's first byte)
     static string Warm(Track t) => "/stream?p=" + Uri.EscapeDataString(t.Path);
-    async Task PlayFull(IReadOnlyList<Track> list, int index, string? context) { await Player.Play(list, index, context); Player.RequestFullScreen(); }
-    async Task ShuffleFull(IReadOnlyList<Track> list, string? context) { await Player.ShuffleAll(list, context); Player.RequestFullScreen(); }
+    async Task PlayFull(IReadOnlyList<Track> list, int index, string? context) { await Player.Play(list, index, context, listenContext: "home"); Player.RequestFullScreen(); }
+    async Task ShuffleFull(IReadOnlyList<Track> list, string? context) { await Player.ShuffleAll(list, context, listenContext: "home"); Player.RequestFullScreen(); }
 
     // a title in the serif with its last word in italics ("Listen <i>again</i>")
     static RenderFragment Serif(string title) => b =>
@@ -155,7 +168,7 @@ else
     };
     // the song played last (the hero's picture and colours)
     // the paused song plays on from where it stopped; with nothing in the player, the song played last starts again (Autoplay carries on after it)
-    Task CarryOn(Track t) => Player.Current?.Path == t.Path ? Player.Toggle() : Player.Play([t], 0, "Carry on");
+    Task CarryOn(Track t) => Player.Current?.Path == t.Path ? Player.Toggle() : Player.Play([t], 0, "Carry on", listenContext: "home");
         Track? LastPlayed => Session.History.Select(h => Lib.Find(h.Title, h.Artist)).FirstOrDefault(t => t is not null);
     string Name => Session.Jellyfin?.UserName is { Length: > 0 } u ? u : "";
     [Inject] IJSRuntime Js { get; set; } = default!;
@@ -207,7 +220,7 @@ else
         // the shelves of the last visit, while nothing they come from has changed: opening Home again shows them at once instead of working them out again
         var key = (slot, Lib.Songs.Count, last, Session.ProfileRev, hits?.Count ?? -1, Session.PlayStatsAt.Ticks);
         if (built.TryGetValue(Session, out var b) && b.Key.Equals(key)) { shelves = b.Shelves; moods = b.Moods; return; }
-        shelves = HomeBuilder.Build(Lib, history, Session.Favorites, Session.Playlists, DateTime.UtcNow, Session.PlayStats, hits);
+        shelves = HomeBuilder.Build(Lib, history, Session.Favorites, Session.Playlists, DateTime.UtcNow, Session.PlayStats, hits, AppHost.ListenLog(Session), AppHost.Vibe);
         moods = HomeBuilder.MoodsAvailable(Lib);
         built.AddOrUpdate(Session, new Built(key, shelves, moods));
     }

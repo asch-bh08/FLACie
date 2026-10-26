@@ -24,6 +24,16 @@ public class WaveShapeTests
     }
 
     [Fact]
+    public void Frame_levels_are_fine_enough_to_hear_a_beat_and_follow_the_loudness()
+    {
+        var (levels, step) = WaveShape.FrameLevels(Fixture("quiet-then-loud.flac"))!.Value;
+        Assert.InRange(step, 0.001, 0.2);   // a beat at 180 BPM is a third of a second
+        var half = levels.Length / 2;
+        Assert.True(levels.Skip(half + half / 5).Average() > levels.Take(half - half / 5).Average() + 0.4);
+        Assert.Null(WaveShape.FrameLevels([]));
+    }
+
+    [Fact]
     public void Anything_that_is_not_flac_has_no_shape_here()
     {
         Assert.Null(WaveShape.FromFlac(new byte[] { (byte)'I', (byte)'D', (byte)'3', 3, 0, 0, 0, 0, 0, 0 }));

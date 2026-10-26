@@ -27,6 +27,7 @@ import com.ipodemu.Prefs
 import com.ipodemu.library.AudioFacts
 import com.ipodemu.library.NasSmb
 import com.ipodemu.library.Track
+import com.ipodemu.library.matchKey
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.ln
@@ -418,6 +419,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         exo.addListener(object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) { fire() }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                meter.playing(isPlaying, android.os.SystemClock.elapsedRealtime())
                 handler.removeCallbacks(persistTick)
                 if (isPlaying) handler.postDelayed(persistTick, 5_000L) else persistNow()
                 applyFade()
@@ -425,7 +427,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) { handler.removeCallbacks(persistSoon); handler.postDelayed(persistSoon, 1_500L) }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 // a metadata-only swap (refreshArtwork) also reports a transition; that's not a new play
-                (mediaItem?.localConfiguration?.tag as? Track)?.let { if (!quietTransition && (it !== lastStarted || reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)) onTrackStarted?.invoke(it); lastStarted = it }
+                (mediaItem?.localConfiguration?.tag as? Track)?.let { if (!quietTransition && (it !== lastStarted || reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)) { beginPlay(it); onTrackStarted?.invoke(it) }; lastStarted = it }
                 refreshArtwork()
                 checkQueueLow()
                 (mediaItem?.localConfiguration?.tag as? Track)?.let { startedItem(it) }
@@ -727,11 +729,49 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         edited()
     }
 
+    // ---- listening -------------------------------------------------------------------------------------------------------------------
+    // Each play is measured by the time it was really heard (seeks and pauses add nothing) and reported once, when the next song starts, the
+    // queue is cleared or the song is thumbed down; a repeat is a new play. What is done with it (the listening log) never touches playback.
+    private val meter = com.ipodemu.library.PlayMeter()
+    private var metered: Track? = null
+    /** A play is over: the song and the seconds heard. */
+    var onPlayEnded: ((Track, Double) -> Unit)? = null
+    private fun endPlay() {
+        val t = metered ?: return
+        metered = null
+        val heard = meter.end(android.os.SystemClock.elapsedRealtime())
+        try { onPlayEnded?.invoke(t, heard) } catch (e: Exception) { android.util.Log.w("FLACie", "play log failed: ${e.message}") }
+    }
+    private fun beginPlay(t: Track) { endPlay(); metered = t; meter.start(android.os.SystemClock.elapsedRealtime(), exo.isPlaying, speed) }
+
+    /**
+     * Thumbs down: the song leaves the queue wherever it is. If it is the one playing, the next song starts; with nothing after it the
+     * player stops instead of sitting paused on a song the person just said they do not want.
+     */
+    fun thumbsDown(t: Track) {
+        if (!canEditQueue) return
+        settleBurst()
+        val k = t.matchKey
+        for (i in exo.mediaItemCount - 1 downTo 0) if (i != exo.currentMediaItemIndex && trackAt(i)?.matchKey == k) exo.removeMediaItem(i)
+        val cur = exo.currentMediaItemIndex
+        if (trackAt(cur)?.matchKey == k) {
+            if (exo.hasNextMediaItem()) { exo.seekToNextMediaItem(); exo.removeMediaItem(cur) }
+            else if (exo.mediaItemCount == 1) { clearQueue(); return }
+            else {
+                endPlay(); exo.pause()
+                quietTransition = true
+                try { exo.removeMediaItem(cur) } finally { quietTransition = false }
+                exo.stop()
+            }
+        }
+        edited()
+    }
+
     /** Kept for callers that remove without Undo. */
     fun removeFromQueue(index: Int) { removeAt(index) }
 
     fun clearQueue() {
-        handler.removeCallbacks(commitBurst); burst.reset(); dj.reset(); djVoice?.clear(); contextId = null
+        endPlay(); handler.removeCallbacks(commitBurst); burst.reset(); dj.reset(); djVoice?.clear(); contextId = null
         exo.stop(); exo.clearMediaItems(); queue = emptyList(); try { queueFile.delete() } catch (_: Exception) {}; fire()
     }
 
@@ -748,6 +788,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
 
     private fun applySpeed(s: Float) {
         speed = SpeedPolicy.clamp(s)
+        meter.rate(speed, android.os.SystemClock.elapsedRealtime())
         exo.playbackParameters = androidx.media3.common.PlaybackParameters(speed, 1f)
     }
 
@@ -840,9 +881,12 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** What the queue came from ("Bad Romance mix", a playlist name...), shown as "Playing from" in the Up next sheet. */
     var contextName: String? = null
 
+    /** Where the queue was started for the listening log: "search" or "home" (a playlist is found by [contextName]; Autoplay's songs are known to Autoplay). */
+    var listenFrom: String? = null; private set
+
     /** [contextId]: the playlist it came from, for the DJ's per-playlist switch (the Jellyfin playlist id when it has one, else the app's own id). */
-    fun play(list: List<Track>, index: Int, shuffle: Boolean? = null, context: String? = null, contextId: String? = null) {
-        contextName = context
+    fun play(list: List<Track>, index: Int, shuffle: Boolean? = null, context: String? = null, contextId: String? = null, from: String? = null) {
+        contextName = context; listenFrom = from
         if (interceptor?.play(list, index) == true) return
         if (list.isEmpty()) return
         queue = list

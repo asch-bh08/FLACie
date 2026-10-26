@@ -23,6 +23,8 @@ public sealed class AlexaQueue
     /// <summary>Changes with every track change; the AudioPlayer token. A late event for an older token is ignored.</summary>
     public long Serial { get; set; }
     public string Title { get; set; } = "";
+    /// <summary>The list is the song(s) the person asked for, so the engine's picks may follow it; false for an album, a playlist or a shelf.</summary>
+    public bool Fill { get; set; }
     /// <summary>How many times the list (or the song, with repeat one) has come round; part of the AudioPlayer token so a repeat is a new stream.</summary>
     public int Pass { get; set; }
     public int FailStreak { get; set; }
@@ -39,6 +41,8 @@ public sealed class AlexaQueue
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     [System.Text.Json.Serialization.JsonIgnore] public Random Rng { get; set; } = Random.Shared;
+    /// <summary>The list (and its length) the engine last had nothing new for; while the queue is that same list it is not asked again. Any change to the list starts over.</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public (List<string>? Order, int Count) FillSpent { get; set; }
 
     public bool Empty => Order.Count == 0;
     public string? Current => Index >= 0 && Index < Order.Count ? Order[Index] : null;
@@ -47,7 +51,7 @@ public sealed class AlexaQueue
     /// <summary>Starts a new list at [start] (an index into [paths]). With shuffle the chosen song still plays first.</summary>
     public void Set(IReadOnlyList<string> paths, int start = 0, bool? shuffle = null, string title = "")
     {
-        Original = [.. paths]; Title = title; OffsetMs = 0; Playing = true;
+        Original = [.. paths]; Title = title; OffsetMs = 0; Playing = true; Fill = false;
         if (shuffle is { } sh) Shuffle = sh;
         start = Math.Clamp(start, 0, Math.Max(0, paths.Count - 1));
         if (Shuffle && paths.Count > 0)

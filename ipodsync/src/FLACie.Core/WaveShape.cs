@@ -13,25 +13,7 @@ public static class WaveShape
     /// <summary>The shape of a FLAC file, or null when it is not one (or holds no frames).</summary>
     public static int[]? FromFlac(ReadOnlySpan<byte> f)
     {
-        if (f.Length < 42 || f[0] != 'f' || f[1] != 'L' || f[2] != 'a' || f[3] != 'C') return null;
-        // the metadata blocks: each has a 4-byte header (last-block flag, type, 24-bit length); STREAMINFO gives the block size when it is fixed
-        var at = 4; var fixedBlock = 0;
-        while (at + 4 <= f.Length)
-        {
-            var last = (f[at] & 0x80) != 0; var type = f[at] & 0x7f; var len = (f[at + 1] << 16) | (f[at + 2] << 8) | f[at + 3];
-            if (type == 0 && at + 4 + 4 <= f.Length) { var min = (f[at + 4] << 8) | f[at + 5]; var max = (f[at + 6] << 8) | f[at + 7]; if (min == max) fixedBlock = min; }
-            at += 4 + len;
-            if (last) break;
-        }
-        // the frames: a sync code and a header whose CRC-8 checks out (so a sync pattern inside the audio is not taken for a frame)
-        var starts = new List<int>(); var samples = new List<int>();
-        for (var i = at; i + 6 < f.Length; i++)
-        {
-            if (f[i] != 0xFF || (f[i + 1] & 0xFE) != 0xF8) continue;
-            if (Header(f, i, fixedBlock) is not { } n) continue;
-            starts.Add(i); samples.Add(n);
-        }
-        if (starts.Count < 2) return null;
+        if (Frames(f, out _) is not ({ } starts, { } samples)) return null;
         // each frame's bits per sample, laid out over time
         var total = 0L; foreach (var n in samples) total += n;
         if (total <= 0) return null;
@@ -51,6 +33,52 @@ public static class WaveShape
         double lo = sorted[(int)(Bars * .02)], hi = sorted[(int)(Bars * .98)];
         if (hi - lo < 1e-9) return Enumerable.Repeat(128, Bars).ToArray();
         return rate.Select(v => (int)Math.Round(255 * Math.Clamp((v - lo) / (hi - lo), 0, 1))).ToArray();
+    }
+
+    /// <summary>
+    /// How loud a FLAC file is frame by frame (0-1 each, a frame every <c>SecondsPerLevel</c>, about a tenth of a second for a CD-quality file), for
+    /// hearing its beat: the 200 seek-bar bars are seconds apart, far too coarse for that. Null when it is not a FLAC file.
+    /// </summary>
+    public static (float[] Levels, double SecondsPerLevel)? FrameLevels(ReadOnlySpan<byte> f)
+    {
+        if (Frames(f, out var rate) is not ({ } starts, { } samples) || rate <= 0) return null;
+        var bits = new double[starts.Count]; var total = 0L;
+        for (var k = 0; k < starts.Count; k++)
+        {
+            var size = (k + 1 < starts.Count ? starts[k + 1] : f.Length) - starts[k];
+            bits[k] = size * 8.0 / samples[k]; total += samples[k];
+        }
+        // the same floor and top as the seek bar's shape: the 2nd and 98th percentiles of the song itself
+        var sorted = bits.OrderBy(v => v).ToArray();
+        double lo = sorted[(int)(sorted.Length * .02)], hi = sorted[Math.Min(sorted.Length - 1, (int)(sorted.Length * .98))];
+        var levels = bits.Select(v => hi - lo < 1e-9 ? 0.5f : (float)Math.Clamp((v - lo) / (hi - lo), 0, 1)).ToArray();
+        return (levels, (double)total / starts.Count / rate);
+    }
+
+    /// <summary>Where each frame of a FLAC file starts and how many samples it holds, and the file's sample rate; null when it is not a FLAC file or holds fewer than two frames.</summary>
+    static (List<int> Starts, List<int> Samples)? Frames(ReadOnlySpan<byte> f, out int rate)
+    {
+        rate = 0;
+        if (f.Length < 42 || f[0] != 'f' || f[1] != 'L' || f[2] != 'a' || f[3] != 'C') return null;
+        // the metadata blocks: each has a 4-byte header (last-block flag, type, 24-bit length); STREAMINFO gives the block size when it is fixed, and the sample rate
+        var at = 4; var fixedBlock = 0;
+        while (at + 4 <= f.Length)
+        {
+            var last = (f[at] & 0x80) != 0; var type = f[at] & 0x7f; var len = (f[at + 1] << 16) | (f[at + 2] << 8) | f[at + 3];
+            if (type == 0 && at + 4 + 4 <= f.Length) { var min = (f[at + 4] << 8) | f[at + 5]; var max = (f[at + 6] << 8) | f[at + 7]; if (min == max) fixedBlock = min; }
+            if (type == 0 && at + 4 + 13 <= f.Length) rate = (f[at + 14] << 12) | (f[at + 15] << 4) | (f[at + 16] >> 4);
+            at += 4 + len;
+            if (last) break;
+        }
+        // the frames: a sync code and a header whose CRC-8 checks out (so a sync pattern inside the audio is not taken for a frame)
+        var starts = new List<int>(); var samples = new List<int>();
+        for (var i = at; i + 6 < f.Length; i++)
+        {
+            if (f[i] != 0xFF || (f[i + 1] & 0xFE) != 0xF8) continue;
+            if (Header(f, i, fixedBlock) is not { } n) continue;
+            starts.Add(i); samples.Add(n);
+        }
+        return starts.Count < 2 ? null : (starts, samples);
     }
 
     /// <summary>The number of samples in the frame whose header starts at [i], or null when the header is not a valid one.</summary>

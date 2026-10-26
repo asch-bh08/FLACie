@@ -280,7 +280,11 @@ fun PlayerHost(nav: PlayerNav) {
             // music playing on another of this user's devices while this phone is quiet: a remote bar instead (Spotify Connect style)
             // only WHICH device (not its moving position) is read here, so the poll every few seconds does not recompose the whole screen
             val remoteId by remember { androidx.compose.runtime.derivedStateOf { app.connect.remoteNow()?.id } }
-            if (remoteId != null && !snap.playing && !nav.nowPlaying && modern && !LocalHardware.current) {
+            // while typing, the keyboard covers the bars below but their room was still kept: on a short phone (an S22 with display zoom up) the
+            // results were cut off half way down an empty band. They step aside until the keyboard goes.
+            val typing = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+            if (typing) Unit
+            else if (remoteId != null && !snap.playing && !nav.nowPlaying && modern && !LocalHardware.current) {
                 AnimatedVisibility(remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }, enter = slideInVertically(androidx.compose.animation.core.spring(0.8f, 380f)) { it } + androidx.compose.animation.fadeIn(tween(160))) { RemoteMiniPlayer(remoteId!!) }
             } else {
                 val showMini = snap.track != null && !nav.nowPlaying && (modern || nav.top != Screen.Home) && !LocalHardware.current
@@ -291,7 +295,7 @@ fun PlayerHost(nav: PlayerNav) {
                     androidx.compose.runtime.CompositionLocalProvider(LocalSharedCover provides SharedCoverScope(sharedLayout, this)) { snap.track?.let { MiniPlayer(snap, nav) } }
                 }
             }
-            if (modern && !rail) BottomNav(nav)
+            if (modern && !rail && !typing) BottomNav(nav)
         }
         }
         }
@@ -353,7 +357,7 @@ fun TrackRow(
 ) {
     val app = LocalApp.current
     val sc = LocalScheme.current
-    val fav by app.userData.favState(t.path)   // per-track state: a favourite toggle recomposes only this row
+    val fav by app.userData.favState(t)   // per-track state: a favourite toggle recomposes only this row
     val hiRes = remember(t, AudioFacts.version) { t.hiRes }   // not worked out again on every recomposition while scrolling
     val isCurrent = snap.track?.path == t.path
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -440,7 +444,7 @@ private fun SourceBadge(source: com.ipodemu.library.TrackSource) {
 
 private fun swipeAction(code: Int, app: App, t: Track, fav: Boolean, ctx: android.content.Context): SwipeAction? = when (code) {
     1 -> SwipeAction("Play next", Glyph.QUEUE, { Color(0xFF2A5FB0) }) { app.player.addNext(t); android.widget.Toast.makeText(ctx, "Playing next", android.widget.Toast.LENGTH_SHORT).show() }
-    2 -> SwipeAction(if (fav) "Unfavorite" else "Favorite", if (fav) Glyph.CLOSE else Glyph.HEART_FILLED, { Color(0xFFD9427A) }) { app.userData.toggleFavorite(t.path) }
+    2 -> SwipeAction(if (fav) "Unfavorite" else "Favorite", if (fav) Glyph.CLOSE else Glyph.HEART_FILLED, { Color(0xFFD9427A) }) { app.userData.toggleFavorite(t) }
     3 -> SwipeAction("Add to queue", Glyph.PLUS, { Color(0xFF2A5FB0) }) { app.player.addToQueue(t); android.widget.Toast.makeText(ctx, "Added to queue", android.widget.Toast.LENGTH_SHORT).show() }
     else -> null
 }
@@ -450,8 +454,12 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
     val items = ArrayList<SheetItem>()
     items += SheetItem("Play next", Glyph.PLAY) { app.player.addNext(t) }
     items += SheetItem("Add to queue", Glyph.QUEUE) { app.player.addToQueue(t) }
-    items += SheetItem(if (ud.isFavorite(t.path)) "Remove from favorites" else "Add to favorites", if (ud.isFavorite(t.path)) Glyph.HEART_FILLED else Glyph.HEART) { ud.toggleFavorite(t.path) }
+    items += SheetItem(if (ud.isFavorite(t)) "Remove from favorites" else "Add to favorites", if (ud.isFavorite(t)) Glyph.HEART_FILLED else Glyph.HEART) { ud.toggleFavorite(t) }
     items += SheetItem("Add to playlist...", Glyph.PLUS) { nav.sheet = playlistPicker(app, nav, t) }
+    if (t.isMusic) {
+        items += SheetItem("Thumbs down", Glyph.CLOSE) { thumbsDown(app, t) }
+        items += SheetItem("Less like this", Glyph.MORE) { app.listened(com.ipodemu.library.ListenKind.LESS_LIKE_THIS, t); app.ui.say("You'll hear less like \"${t.title}\"") }
+    }
     if (t.isMusic) items += SheetItem("Share", Glyph.JAM) { shareTrack(app, t) }
     if (t.source == com.ipodemu.library.TrackSource.JELLYFIN) {
         val off = app.offline.entry(t.path)
@@ -475,6 +483,18 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
         }
     }
     nav.sheet = SheetSpec(t.title, t.artist.ifEmpty { null }, items)
+}
+
+/**
+ * The person does not want this song: the server is told (Autoplay and Home stop suggesting it), it leaves Up next and Autoplay's list, and if
+ * it is playing the next song starts (with nothing after it, the player stops).
+ */
+internal fun thumbsDown(app: App, t: Track) {
+    app.listened(com.ipodemu.library.ListenKind.THUMB_DOWN, t)
+    app.autoplay.dislike(t)
+    hideOnHome(t)
+    app.player.thumbsDown(t)
+    app.ui.say("Thumbs down: \"${t.title}\" won't be suggested again")
 }
 
 internal fun playlistPicker(app: App, nav: PlayerNav, t: Track): SheetSpec {
@@ -555,6 +575,15 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                 try { com.ipodemu.library.HomeSnapshot.write(java.io.File(app.filesDir, "home.json"), com.ipodemu.library.HomeSnapshot.Data(d.shelves, d.moods)) } catch (_: Exception) {}
             }
         }
+        // the server's engine knows the whole listening log: its song shelves replace the phone's own when it answers (no signal or an error: the phone's stay)
+        val web = com.ipodemu.library.FlacieWebClient(app.prefs)
+        val served = web.available && d != null && run {
+            val server = kotlinx.coroutines.withContext(Dispatchers.IO) { try { web.recommendHome() } catch (e: Exception) { android.util.Log.w("FLACie", "server Home failed: ${e.message}"); null } }
+            val mixed = server?.let { sv -> kotlinx.coroutines.withContext(Dispatchers.Default) { try { com.ipodemu.library.HomeShelves.fromServer(sv, { p -> lib.resolve(p.path ?: "", p.title to p.artist) }, d!!.shelves) { a -> serverAlbum(lib, a) } } catch (_: Exception) { null } } }
+            if (mixed != null) { val d3 = HomeData(mixed, d!!.moods); HomeCache.last = d3; home = d3 }
+            mixed != null
+        }
+        if (served) return@LaunchedEffect
         // then, once an hour, learn from Jellyfin's play counts and the artists' best-known songs, and build the shelves again with them
         val before = com.ipodemu.library.TasteData.hits.size + com.ipodemu.library.TasteData.jf.size
         kotlinx.coroutines.withContext(Dispatchers.IO) { com.ipodemu.library.TasteData.refresh(app, lib) }
@@ -565,7 +594,8 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (d2 != null) { HomeCache.last = d2; home = d2 }
         }
     }
-    val shelves = home?.shelves ?: emptyList()
+    val gone = HomeCache.gone.toSet()
+    val shelves = (home?.shelves ?: emptyList()).let { l -> if (gone.isEmpty()) l else l.map { sh -> if (sh.tracks.none { it.matchKey in gone }) sh else com.ipodemu.library.HomeShelf(sh.id, sh.title, sh.subtitle, sh.tracks.filter { it.matchKey !in gone }, sh.albums) } }
     androidx.compose.runtime.SideEffect { com.ipodemu.Boot.once(if (shelves.isNotEmpty()) "home: shelves drawn" else "home: first composition (no shelves yet)") }
     val moodList = home?.moods ?: emptyList()
     var mood by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
@@ -614,7 +644,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                 item { SectionHeader(mname) }
                 item {
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        itemsIndexed(ts) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(ts, i, null, mname) } }
+                        itemsIndexed(ts) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(ts, i, null, mname, from = "home") } }
                     }
                 }
             }
@@ -623,13 +653,13 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     if (sh.id == "quick-picks") {
                         Row(Modifier.fillMaxWidth().padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.weight(1f)) { SectionHeader(sh.title) }
-                            GlossPill("Play all", { app.player.play(sh.tracks, 0, null, sh.title) }, icon = Glyph.PLAY, height = 28.dp)
+                            GlossPill("Play all", { app.player.play(sh.tracks.filterNot { com.ipodemu.library.HomeShelves.isNew(it) }, 0, null, sh.title, from = "home") }, icon = Glyph.PLAY, height = 28.dp)
                         }
-                        QuickPicks(sh.tracks, nav) { i -> app.player.play(sh.tracks, i, null, sh.title) }
+                        QuickPicks(sh.tracks, nav) { i -> playShelf(app, sh.tracks, i, sh.title) }
                     } else {
                     SectionHeader(sh.title)
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        if (sh.tracks.isNotEmpty()) itemsIndexed(sh.tracks) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(sh.tracks, i, null, sh.title) } }
+                        if (sh.tracks.isNotEmpty()) itemsIndexed(sh.tracks) { i, t -> TrackCard(t, Modifier.width(130.dp)) { playShelf(app, sh.tracks, i, sh.title) } }
                         else items(sh.albums, key = { it.tracks.first().albumKey }) { g -> AlbumCard(g, Modifier.width(150.dp)) { nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) } }
                     }
                 }
@@ -753,6 +783,7 @@ private fun TrackCard(t: Track, modifier: Modifier = Modifier, onClick: () -> Un
         ArtImage(t.artKey, Modifier.fillMaxWidth().aspectRatio(1f).coverShadow(12.dp, 8.dp).border(if (focused) 3.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(12.dp)), thumb = true, corner = 12.dp)
         Txt(t.title, Modifier.padding(top = 8.dp), size = 13f, weight = FontWeight.SemiBold)
         Txt(t.artist, size = 12f, color = sc.onBgDim)
+        if (com.ipodemu.library.HomeShelves.isNew(t)) Txt("New · tap to get it", size = 11f, color = sc.accent)
         DownloadTagLine(t, size = 11f, compact = true, showNew = !(Tweaks.badges && LocalApp.current.library.mixedSources))
         Box(Modifier.padding(top = 4.dp)) { SourceBadge(t.source) }
     }
@@ -1376,7 +1407,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (topSong != null && only == "") {
                 item { SectionHeader("Top result") }
                 item(key = "top${topSong.path}") {
-                    TopResultCard(topSong) { searchFocus.clearFocus(); if (snap.track?.path == topSong.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(topSong), 0, null) } }
+                    TopResultCard(topSong) { searchFocus.clearFocus(); if (snap.track?.path == topSong.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(topSong), 0, null, from = "search") } }
                 }
             }
             if (!albumNamed) webAlbums()
@@ -1387,7 +1418,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                     val owned = ownedSongs[com.ipodemu.library.matchKey(s.title, s.artist)]
                     val status = dl[app.library.songKey(s.artist, s.title)]
                     WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.let { st -> if (st.stage == DownloadStage.FAILED) st.message else com.ipodemu.library.DownloadTags.runningText(com.ipodemu.library.DownloadTags.stageText(st.stage, st.message)) } ?: "${s.artist} · ${s.album}", s.artUrl, owned, status,
-                        onPlay = { searchFocus.clearFocus(); owned?.let { if (snap.track?.path == it.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(it), 0, null) } } },
+                        onPlay = { searchFocus.clearFocus(); owned?.let { if (snap.track?.path == it.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(it), 0, null, from = "search") } } },
                         onDownload = { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs) },
                         // the three-line menu: Download, Hi-Res (administrators, per song, after a confirmation: the files are several times the size), Find on YouTube
                         onHiRes = {
@@ -1412,7 +1443,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (libSongs.isNotEmpty() && shows("songs")) {
                 item { SectionHeader("In your library") }
                 val shown = if (songsExpanded || only == "songs") libSongs else libSongs.take(4)
-                itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(listOf(t), 0, null) }) }
+                itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(listOf(t), 0, null, from = "search") }) }
                 if (!songsExpanded && only != "songs" && libSongs.size > 4) item { ShowMoreRow(libSongs.size - 4) { songsExpanded = true } }
             }
             if (r.albums.isNotEmpty() && shows("albums")) {
@@ -1681,7 +1712,7 @@ private fun greeting(): String = when (java.util.Calendar.getInstance().get(java
 
 /** Top-right of Home: the signed-in account's initial (or a person glyph), opening the Account screen. */
 @Composable
-private fun AccountAction() {
+internal fun AccountAction() {
     val app = LocalApp.current
     val sc = LocalScheme.current
     val name = if (app.prefs.accountKind == "nas") app.prefs.nasUsername.ifBlank { "guest" } else app.prefs.accountUserName   // the same name the Account screen shows
@@ -1731,8 +1762,40 @@ private fun playlistSongItems(app: App, id: String, t: Track): List<SheetItem> {
     return items
 }
 
+/** An album on a server shelf, found in this library: by one of its songs, else by name and artist. */
+private fun serverAlbum(lib: com.ipodemu.library.Library, a: com.ipodemu.library.RecPick.Album): com.ipodemu.library.Group? {
+    val albums = lib.albums()
+    a.songs.firstNotNullOfOrNull { lib.resolve(it, null) }?.let { t -> albums.firstOrNull { g -> g.tracks.firstOrNull()?.albumKey == t.albumKey }?.let { return it } }
+    val name = a.name.lowercase().replace(com.ipodemu.library.editionRe, "").filter { it.isLetterOrDigit() }
+    return albums.firstOrNull { g -> val t = g.tracks.firstOrNull() ?: return@firstOrNull false
+        t.albumNormC == name && com.ipodemu.library.primaryArtist(t.albumArtist.ifEmpty { t.artist }) == com.ipodemu.library.primaryArtist(a.artist) }
+}
+
+/**
+ * Plays song [i] of a Home shelf. A "New" song is not in the library yet: the tap asks for it instead (Autoplay's request path; it joins the
+ * queue when it lands), and the shelf's other new songs are left out of what plays.
+ */
+private fun playShelf(app: App, tracks: List<Track>, i: Int, title: String) {
+    val t = tracks[i]
+    if (com.ipodemu.library.HomeShelves.isNew(t)) {
+        app.ui.say(if (app.autoplay.fetch(t)) "Getting \"${t.title}\": it plays when it arrives" else "Downloads aren't set up on this phone", warn = !app.library.downloadsConfigured())
+        return
+    }
+    val playable = tracks.filterNot { com.ipodemu.library.HomeShelves.isNew(it) }
+    app.player.play(playable, playable.indexOf(t).coerceAtLeast(0), null, title, from = "home")
+}
+
 private class HomeData(val shelves: List<com.ipodemu.library.HomeShelf>, val moods: List<String>)
-private object HomeCache { @Volatile var last: HomeData? = null }
+private object HomeCache {
+    @Volatile var last: HomeData? = null
+    /** Songs thumbed down while Home is up: they leave the shelves at once (the next build leaves them out on its own). */
+    val gone = androidx.compose.runtime.mutableStateListOf<String>()
+}
+/** The phone Home's Quick picks (the server's when it answered, else its own), for the car: the songs on this phone, minus ones thumbed down. */
+internal fun quickPicksForCar(app: com.ipodemu.App): List<Track> = carQuickPicks(HomeCache.last?.shelves ?: app.homeSnapshot?.shelves, HomeCache.gone)
+internal fun carQuickPicks(shelves: List<com.ipodemu.library.HomeShelf>?, gone: Collection<String>): List<Track> =
+    shelves?.firstOrNull { it.id == "quick-picks" }?.tracks.orEmpty().filter { !com.ipodemu.library.HomeShelves.isNew(it) && it.matchKey !in gone }
+internal fun hideOnHome(t: Track) { if (t.matchKey !in HomeCache.gone) HomeCache.gone.add(t.matchKey) }
 
 /** What the Search tab shows before anything is typed: shortcuts and genres to tap, instead of an empty page. */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)

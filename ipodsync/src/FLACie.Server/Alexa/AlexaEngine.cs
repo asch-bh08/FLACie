@@ -28,6 +28,8 @@ public interface IAlexaUser
     /// <summary>Looks the words up in the public catalog and starts downloading the best match; null when nothing matches.</summary>
     Task<AlexaRequested?> RequestDownloadAsync(string words, CancellationToken ct);
     IReadOnlyList<AlexaDownload> Downloads();
+    /// <summary>What the engine would play after these songs (library paths, the last playing now), best first; never waits on online lookups. Empty when there is nothing to offer.</summary>
+    IReadOnlyList<Track> RecommendNext(IReadOnlyList<string> session, int n) => [];
 }
 
 /// <summary>An AudioPlayer.Play: which song, from where, and the token that says which place in which queue it is.</summary>
@@ -96,6 +98,37 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
             offset = 0;
         }
         return null;
+    }
+
+    /// <summary>What asking the engine needs, taken with the queue locked: the songs played so far and which list they came from.</summary>
+    sealed record FillAsk(List<string> Order, int Count, List<string> Session);
+
+    /// <summary>Whether this queue may carry on with engine picks now (call with the queue locked): a list started from the songs the person asked for
+    /// (not an album, playlist or shelf), not repeating, and not a list the engine already had nothing new for.</summary>
+    static FillAsk? FillAskLocked(AlexaQueue q)
+    {
+        if (!q.Fill || q.Repeat != AlexaRepeat.Off || q.Empty) return null;
+        if (ReferenceEquals(q.FillSpent.Order, q.Order) && q.FillSpent.Count == q.Order.Count) return null;
+        return new(q.Order, q.Order.Count, q.Order.Take(q.Index + 1).TakeLast(20).ToList());
+    }
+
+    /// <summary>
+    /// Asks the engine for picks with the queue NOT locked (working them out reads the account's log and scores the library, and Alexa's callbacks for
+    /// this queue must not wait on that), then adds the library songs with a Jellyfin id not already queued. Nothing is added if the queue changed
+    /// meanwhile. True when songs were added.
+    /// </summary>
+    static bool Fill(IAlexaUser u, AlexaQueue q, FillAsk ask)
+    {
+        IReadOnlyList<Track> picks;
+        try { picks = u.RecommendNext(ask.Session, 10); } catch (Exception) { return false; }
+        lock (q)
+        {
+            if (!ReferenceEquals(q.Order, ask.Order) || q.Order.Count != ask.Count) return false;
+            var add = picks.Where(t => t.JellyfinId is { Length: > 0 } && !q.Order.Contains(t.Path)).Select(t => t.Path).Distinct().ToList();
+            if (add.Count == 0) { q.FillSpent = (q.Order, q.Order.Count); return false; }
+            q.Order.AddRange(add); q.Original.AddRange(add);
+            return true;
+        }
     }
 
     // ---- playing something ----
@@ -173,7 +206,7 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
             default: return Reply.Say("Sorry, I couldn't play that.");
         }
         if (paths.Count == 0) return Reply.Say($"I found {Phonetic.SpeechSafe(title)}, but none of it can be played yet.");
-        lock (q) { q.Set(paths, start, shuffle, title); q.Pending = null; }
+        lock (q) { q.Set(paths, start, shuffle, title); q.Pending = null; q.Fill = match.Item is Track || (match.Item is FLACie.Core.Group && match.Kind == MatchKind.Artist); }
         var play = PlayCurrent(u, q, 0);
         queues.Save(linkId);
         return play is null ? Reply.Say("Sorry, I couldn't play that.") : new(say, play);
@@ -210,7 +243,7 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
                 "done" => Reply.Say("It's downloaded. Jellyfin is still adding it to the library. Ask me again in a minute."),
                 _ => Reply.Say("It's not ready yet. I'm still downloading it."),
             };
-        lock (q) { q.Set([song.Path], 0, false, song.Title); }
+        lock (q) { q.Set([song.Path], 0, false, song.Title); q.Fill = true; }
         queues.Save(linkId);
         return PlayCurrent(u, q, 0) is { } play ? new($"Playing {Phonetic.SpeechSafe(song.Title)} by {Phonetic.SpeechSafe(song.Artist)}.", play) : Reply.Say("Sorry, I couldn't play that.");
     }
@@ -270,7 +303,9 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
     {
         var q = queues.For(linkId);
         if (q.Empty) return Reply.Say("Nothing is playing. What would you like to hear?", end: false);
-        bool moved; lock (q) moved = q.Next(true);
+        bool moved; FillAsk? ask = null;
+        lock (q) { moved = q.Next(true); if (!moved) ask = FillAskLocked(q); }
+        if (!moved && ask is not null && Fill(u, q, ask)) lock (q) moved = q.Next(true);
         if (!moved) { lock (q) { q.Playing = false; q.OffsetMs = 0; } queues.Save(linkId); return new("That was the last song.", Stop: true); }
         queues.Save(linkId);
         return PlayCurrent(u, q, 0) is { } p ? new("", p) : new("That was the last song.", Stop: true);
@@ -386,17 +421,25 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
     {
         var q = queues.For(linkId);
         if (!TryToken(token, out var serial, out var idx, out var pass) || serial != q.Serial) return null;
-        lock (q)
+        for (var round = 0; round < 2; round++)
         {
-            for (var tries = 0; tries < 5; tries++)
+            FillAsk? ask;
+            lock (q)
             {
-                if (q.NextIndex(false) is not { } ni) return null;
-                var np = ni <= idx ? pass + 1 : pass;
-                if (u.Find(q.Order[ni]) is { JellyfinId.Length: > 0 } t) return new(t, 0, Token(q, ni, np), token);
-                q.Remove(q.Order[ni]);   // gone: look at the next one
+                if (serial != q.Serial) return null;
+                for (var tries = 0; tries < 5; tries++)
+                {
+                    if (q.NextIndex(false) is not { } ni) break;
+                    var np = ni <= idx ? pass + 1 : pass;
+                    if (u.Find(q.Order[ni]) is { JellyfinId.Length: > 0 } t) return new(t, 0, Token(q, ni, np), token);
+                    q.Remove(q.Order[ni]);   // gone: look at the next one
+                }
+                if (q.NextIndex(false) is not null) return null;   // five gone songs in a row: give up for now, as before
+                if (round > 0 || (ask = FillAskLocked(q)) is null) return null;
             }
-            return null;
+            if (!Fill(u, q, ask)) return null;   // the engine is asked with the queue free
         }
+        return null;
     }
 
     /// <summary>PlaybackFailed: move to the next song, but give up after 3 failures in a row.</summary>

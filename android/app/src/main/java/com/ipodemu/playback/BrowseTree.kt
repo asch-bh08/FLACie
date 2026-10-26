@@ -18,6 +18,8 @@ interface BrowseSource {
     fun search(query: String): List<Track>
     /** Every song, for Shuffle all. */
     fun allSongs(): List<Track>
+    /** The engine's Quick picks, the same songs the phone's Home shows (only ones this phone has: a song still to be fetched can't be started from the car). */
+    fun quickPicks(): List<Track> = emptyList()
     /** Songs the online catalog has for a search (as the phone's Search shows under More music); none when offline or without downloads. */
     fun catalog(query: String): List<BrowseTree.CatalogSong> = emptyList()
     /** The library has this song already (so the catalog's copy is not offered). */
@@ -48,7 +50,7 @@ object BrowseTree {
     const val HOME = "home"; const val SHUFFLE = "shuffle"
     /** Carry on with the queue of last time (play pressed on the car's card before anything was picked). */
     const val RESUME = "resume"
-    const val RECENT = "recent"; const val FAVORITES = "favorites"; const val PLAYLISTS = "playlists"; const val ALBUMS = "albums"; const val ARTISTS = "artists"; const val DOWNLOADED = "downloaded"
+    const val QUICK = "quick"; const val RECENT = "recent"; const val FAVORITES = "favorites"; const val PLAYLISTS = "playlists"; const val ALBUMS = "albums"; const val ARTISTS = "artists"; const val DOWNLOADED = "downloaded"
     private const val SEP = '\u001F'
     const val MAX_PAGE = 100
     /** A play request never queues more than this many songs (a 10,000-song list would be a bad thing to hand to anything). */
@@ -57,6 +59,8 @@ object BrowseTree {
     const val HOME_RECENT = 12
     /** How many playlists Home shows as covers: all of a usual collection (it stopped at 6 and "pop", the 7th, was missing); the Playlists tab has every one. */
     const val HOME_PLAYLISTS = 30
+    /** How many of the engine's Quick picks Home shows. */
+    const val HOME_QUICK = 12
 
     /** The lists the car is told to reload when the library or the account's lists change (PlaybackService): it keeps what it was first told, and
      * a car that connected before FLACie had loaded anything showed "No items" in every tab until it was restarted. */
@@ -103,11 +107,12 @@ object BrowseTree {
     )
 
     private fun home(src: BrowseSource): List<BrowseNode> {
-        val mine = "Your music"; val lately = "Recently played"; val lists = "Your playlists"
+        val mine = "Your music"; val lately = "Recently played"; val lists = "Your playlists"; val picks = "Quick picks"
         return listOf(BrowseNode(SHUFFLE, "Shuffle all", "Your whole library", browsable = false, playable = true, artKey = null, icon = "ic_car_shuffle")) +
             // the playlists first: they are what a person reaches for in the car
             playlistNodes(src).take(HOME_PLAYLISTS).map { BrowseNode(it.id, it.title, it.subtitle, true, true, it.artKey, group = lists, icon = "ic_car_playlists", cover = true) } +
             folder(FAVORITES, "Favourites", "ic_car_favourites", group = mine) + folder(DOWNLOADED, "Downloaded", "ic_car_downloaded", group = mine) +
+            src.quickPicks().take(HOME_QUICK).map { songNode(QUICK, it, picks).let { n -> BrowseNode(n.id, n.title, n.subtitle, false, true, n.artKey, n.path, group = picks, cover = true) } } +
             src.recent().take(HOME_RECENT).map { songNode(RECENT, it, lately).let { n -> BrowseNode(n.id, n.title, n.subtitle, false, true, n.artKey, n.path, group = lately, cover = true) } }
     }
 
@@ -144,6 +149,7 @@ object BrowseTree {
         val all: List<BrowseNode> = when {
             parent == ROOT -> root()
             parent == HOME -> home(src)
+            parent == QUICK -> src.quickPicks().map { songNode(parent, it) }
             parent == RECENT -> src.recent().map { songNode(parent, it) }
             parent == FAVORITES -> src.favorites().map { songNode(parent, it) }
             parent == DOWNLOADED -> src.downloaded().map { songNode(parent, it) }
@@ -185,7 +191,7 @@ object BrowseTree {
     }
 
     private fun songsOf(id: String, src: BrowseSource): List<Track> = when {
-        id == RECENT -> src.recent(); id == FAVORITES -> src.favorites(); id == DOWNLOADED -> src.downloaded()
+        id == QUICK -> src.quickPicks(); id == RECENT -> src.recent(); id == FAVORITES -> src.favorites(); id == DOWNLOADED -> src.downloaded()
         id == SHUFFLE -> src.allSongs().shuffled().take(MAX_QUEUE)
         id.startsWith("pl:") -> src.playlistTracks(id.removePrefix("pl:")); id.startsWith("al:") -> albumTracks(id, src); id.startsWith("ar:") -> artistTracks(id, src)
         id.startsWith("search:") -> src.search(id.removePrefix("search:"))

@@ -41,6 +41,67 @@ public class AlexaSkillTests
         public Task<JsonObject> Send(JsonObject req) => Skill.HandleAsync(req);
     }
 
+    [Fact] public async Task Alexa_continues_with_engine_picks_after_the_asked_song()
+    {
+        using var r = new Rig();
+        var lights = r.U.Songs[0]; var tears = r.U.Songs[1]; var creep = r.U.Songs[2];
+        r.U.Picks = [tears, creep, FakeUser.T("No Id Yet", "Radiohead", "New", 1, jf: null)];   // the song already queued, one not playable and one to come
+        var first = await r.Engine.PlayAsync(r.U, "LINK1", VoiceParser.FromRaw("play blinding lights"));
+        Assert.Equal("Blinding Lights", first.Play!.Track.Title);
+        // the song asked for, then its artist's other song, then (the queue used up) the engine's pick for this account, with the songs played so far as context
+        var second = r.Engine.NearlyFinished(r.U, "LINK1", first.Play.Token)!; r.Engine.Started("LINK1", second.Token);
+        Assert.Equal("Save Your Tears", second.Track.Title); Assert.Empty(r.U.Asked);
+        var third = r.Engine.NearlyFinished(r.U, "LINK1", second.Token)!;
+        Assert.Equal("Creep", third.Track.Title); Assert.Equal([lights.Path, tears.Path], r.U.Asked.Single());
+        r.Engine.Started("LINK1", third.Token);
+        Assert.Null(r.Engine.NearlyFinished(r.U, "LINK1", third.Token));   // the picks are used up and offer nothing new
+        Assert.DoesNotContain(r.Q.Order, p => p.Contains("No Id Yet"));
+    }
+
+    [Fact] public async Task Alexa_asks_the_engine_without_holding_the_queue_and_not_again_once_it_has_nothing_new()
+    {
+        using var r = new Rig();
+        var creep = r.U.Songs[2];
+        var locked = new List<bool>();
+        r.U.OnRecommend = () => locked.Add(Monitor.IsEntered(r.Q));
+        r.U.Picks = [creep];
+        var first = await r.Engine.PlayAsync(r.U, "LINK1", VoiceParser.FromRaw("play blinding lights"));
+        var second = r.Engine.NearlyFinished(r.U, "LINK1", first.Play!.Token)!; r.Engine.Started("LINK1", second.Token);
+        var third = r.Engine.NearlyFinished(r.U, "LINK1", second.Token)!; r.Engine.Started("LINK1", third.Token);
+        Assert.Equal("Creep", third.Track.Title);
+        Assert.Null(r.Engine.NearlyFinished(r.U, "LINK1", third.Token));
+        var asked = r.U.Asked.Count;
+        // Alexa sends NearlyFinished again and again; the engine offered nothing new for this queue, so it is not asked again
+        Assert.Null(r.Engine.NearlyFinished(r.U, "LINK1", third.Token));
+        Assert.Null(r.Engine.NearlyFinished(r.U, "LINK1", third.Token));
+        Assert.Equal(asked, r.U.Asked.Count);
+        Assert.Contains("last song", r.Engine.Next(r.U, "LINK1").Speech);
+        Assert.Equal(asked, r.U.Asked.Count);
+        Assert.NotEmpty(locked); Assert.DoesNotContain(true, locked);
+        // a new queue asks again
+        await r.Engine.PlayAsync(r.U, "LINK1", VoiceParser.FromRaw("play creep"));
+        r.U.Picks = [r.U.Songs[0]];
+        Assert.Equal("Blinding Lights", r.Engine.Next(r.U, "LINK1").Play?.Track.Title);
+        Assert.True(r.U.Asked.Count > asked);
+        Assert.DoesNotContain(true, locked);
+    }
+
+    [Fact] public async Task Alexa_never_adds_engine_picks_inside_a_playlist_or_an_album()
+    {
+        using var r = new Rig(); r.U.Picks = [r.U.Songs[2]];
+        var album = await r.Engine.PlayAsync(r.U, "LINK1", VoiceParser.FromRaw("play the album after hours"));
+        var next = r.Engine.NearlyFinished(r.U, "LINK1", album.Play!.Token)!; r.Engine.Started("LINK1", next.Token);
+        Assert.Null(r.Engine.NearlyFinished(r.U, "LINK1", next.Token)); Assert.Empty(r.U.Asked);
+    }
+
+    [Fact] public async Task Alexa_keeps_its_old_ending_when_the_engine_has_nothing()
+    {
+        using var r = new Rig();
+        var first = await r.Engine.PlayAsync(r.U, "LINK1", VoiceParser.FromRaw("play creep"));
+        Assert.Null(r.Engine.NearlyFinished(r.U, "LINK1", first.Play!.Token));
+        Assert.Contains("last song", r.Engine.Next(r.U, "LINK1").Speech);
+    }
+
     static JsonObject Req(JsonObject request, string? userId = Alexa, bool withAp = false, string? apToken = null, long apOffset = 0, bool consent = false)
     {
         var user = new JsonObject { ["userId"] = userId };

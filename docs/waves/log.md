@@ -70,3 +70,23 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 - 2026-10-22 beta 89: phone launch sync retries (playlists/favourites showed 0 on the owner's phone); by-hand checks on the real phone all fine (Retro, seek frame, share, multi-select, labels). Smoke 23/23 on rerun (first run: slow emulator).
 - 2026-10-25 beta 90: Android Auto rebuilt (tabs, grids, Home, search + Download and play, voice, shuffle/repeat, resume, works without the phone UI), history sync, select bar, bar fixes, Windows Retro tab gone. Full suite 516+2 fixed, 749 .NET, smoke 23/23, CarBrowseTest 9/9, checked on the Android Automotive emulator.
 - 2026-10-25 beta 91 (speed): server keeps the start of upcoming songs (Next ~1.5 s -> ~0.05 s in tests), Home songs warmed on pointer rest, Home shelves 530 -> 120 ms and reused, covers on screen eager, VU of the picked song first, lyrics last word. Full suite 466+17 fixed (204 for unknown shapes), 761 .NET, smoke 23/23, car 9/9.
+
+## 2026-10-25 Jellyfin outage made unrepeatable (70c697d)
+- Cause: hms-jellyfin lost its 443 Funnel; the app gave up syncing after ~4 min, so playlists stayed empty until Sync now.
+- App: sync retries every 5 min until it works, and syncs again on return to screen when over 10 min old (not released yet).
+- frank: ops/entrance-watch installed (script + systemd units) but the timer is NOT enabled yet: owner runs `systemctl enable --now flacie-entrance-watch.timer` on frank.
+- The 443 Funnel must point to http://192.168.1.183:8096 (the Tailscale address hangs).
+
+## 2026-10-25 Recommend: offline evaluation gate (task 7)
+- RecEval (hit rate at 10) + tools/receval: replays listening on a read-only copy of frank's data; taste only from plays before each case.
+- Data: no listen logs and no vibe.json on frank yet, so history = Jellyfin activity-log playbacks (exported read-only); engine ran vibe-less.
+- Last 400 cases per account: hms old 0.008 (3/400) vs new 0.005 (2/400) (0.67x); Dad old 0.025 (10/400) vs new 0.005 (2/400) (0.20x). GATE MISSED (needs 1.5x).
+- Synthetic history with vibe clusters passes (new >= 1.5x old). Tried love weight 0.3 -> 0.6: no change (reverted).
+- Why: hits are 2-10 per 400 (noise level in an 11k-song library); 25% of hms's next songs are the same artist, which the engine's rail forbids;
+  half the picks are never-heard songs; without vibes, fit only passes songs sharing artist or genre (most songs have no genre).
+- Re-run once vibe.json and listen logs exist on frank before switching clients.
+
+## 2026-10-26 Recommendation engine + history fix deployed to frank (web only)
+- ui/living-sleeve 95e9e74 deployed; rollback tag flacie-web:rollback-2026-10-26-pre-engine. No app beta.
+- Engine starts collecting vibes and listening now; release blocked until the real-data gate (new >= 1.5x old hit rate) passes on frank data.
+- History mix-up cause: shared NAS profile copy (profile-guest.json) taken without an owner check; fixed in 95e9e74. Cleanup of hms history (145 of 200 entries) awaiting the owner.

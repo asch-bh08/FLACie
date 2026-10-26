@@ -106,7 +106,9 @@ class AccountSync(private val app: App) {
         // the services came with the account; the next person on this device starts clean
         app.library.forgetAllServices()
         // and so do the favourites, playlists and history: they are in the account, and must not be merged into the next person's
-        app.userData.clearPersonal(); prefs.dataOwner = ""
+        app.userData.clearPersonal(); app.forgetListens(); prefs.dataOwner = ""
+        // the last profile pulled was this person's: its history must not go up with the next person's first push
+        lastRemote = null
         signedIn = false; status = "Signed out"
         app.connect.refresh()
     }
@@ -118,7 +120,7 @@ class AccountSync(private val app: App) {
         prefs.accountUserId = user.getString("Id")
         prefs.accountUserName = user.optString("Name")
         // another account's favourites and playlists still on this device (signed in before the sign-out cleared them): never merged into this one
-        if (prefs.dataOwner.isNotBlank() && prefs.dataOwner != prefs.accountUserId) app.userData.clearPersonal()
+        if (prefs.dataOwner.isNotBlank() && prefs.dataOwner != prefs.accountUserId) { app.userData.clearPersonal(); app.forgetListens(); lastRemote = null }
         prefs.dataOwner = prefs.accountUserId
         if (!prefs.hasNasAccount || prefs.accountKind != "nas") prefs.accountKind = "jellyfin"
         signedIn = true
@@ -130,7 +132,25 @@ class AccountSync(private val app: App) {
     /** Pull + merge + push. Run at sign-in, at app start, and from Settings > Account > Sync now. */
     /** [background]: the sync at launch is nobody's wait, so its requests queue behind everything the screen is asking for (the covers). */
     /** The one at launch tries again after 20 s, 1 min and 3 min: the covers can crowd it out at first (SyncRetry). */
-    fun sync(background: Boolean = false) { if (prefs.signedIn) run("Syncing...") { if (background) kotlinx.coroutines.withContext(BackgroundWork) { SyncRetry.attempt(listOf(20_000L, 60_000L, 180_000L)) { syncNow() } } else syncNow() } }
+    /** After those it goes on every 5 minutes until one works (a server down for an hour used to leave Playlists empty until Sync now);
+     * each try takes the lock on its own, so Sync now is never stuck behind the waiting. */
+    fun sync(background: Boolean = false) {
+        if (!prefs.signedIn) return
+        if (!background) { run("Syncing...") { syncNow() }; return }
+        if (retryJob?.isActive == true) return
+        retryJob = scope.launch {
+            try {
+                kotlinx.coroutines.withContext(BackgroundWork) {
+                    SyncRetry.attempt(listOf(20_000L, 60_000L, 180_000L), thenEvery = 300_000L) {
+                        if (!prefs.signedIn) return@attempt
+                        busy = true; status = "Syncing..."
+                        try { lock.withLock { syncNow() } } catch (e: Exception) { status = FriendlyError.of(e); throw e } finally { busy = false }
+                    }
+                }
+            } catch (_: Exception) { }
+        }
+    }
+    private var retryJob: Job? = null
 
     private object BackgroundWork : kotlin.coroutines.AbstractCoroutineContextElement(Key) { object Key : kotlin.coroutines.CoroutineContext.Key<BackgroundWork> }
 
@@ -146,14 +166,14 @@ class AccountSync(private val app: App) {
      * The newest copy is merged in, then both are rewritten, so signing in with either later brings everything back
      * (a NAS sign-in restores the Jellyfin account and vice versa). */
     private suspend fun syncNow() {
-        val copies = listOfNotNull(
-            if (prefs.hasJellyfinAccount) pull() else null,
-            if (prefs.hasNasAccount) try { pullNas() } catch (_: Exception) { null } else null,
-        )
-        val remote = copies.maxByOrNull { it.optLong("updated") }
+        val own = if (prefs.hasJellyfinAccount) pull() else null
+        val nas = if (prefs.hasNasAccount) try { pullNas() } catch (_: Exception) { null } else null
+        // the NAS copy is shared by everyone with the same NAS login: another account's copy is never merged in (ProfileOwner)
+        val remote = ProfileOwner.choose(own, nas, if (prefs.hasJellyfinAccount) prefs.accountUserId else null)
         if (remote != null) lastRemote = remote
         val restored = if (remote != null) apply(remote) else 0
-        if (prefs.hasJellyfinAccount) try { pullJellyfinPlaylists() } catch (_: Exception) {}
+        // the server unreachable is a failed sync (tried again); anything else about its playlists is not worth failing the sync for
+        if (prefs.hasJellyfinAccount) try { pullJellyfinPlaylists() } catch (e: IOException) { throw e } catch (_: Exception) {}
         push()
         status = "Synced" + if (restored > 0) ", restored $restored service connection${if (restored == 1) "" else "s"}" else ""
         // a sign-in (or a Jellyfin account restored from the NAS copy) brings Connect up
@@ -178,7 +198,7 @@ class AccountSync(private val app: App) {
         prefs.nasUsername = user.trim(); prefs.nasPassword = password; prefs.nasDomain = domain.trim()
         prefs.accountKind = "nas"
         val who = "nas:" + host.trim().lowercase() + "/" + user.trim().lowercase()
-        if (prefs.dataOwner.isNotBlank() && prefs.dataOwner != who) app.userData.clearPersonal()
+        if (prefs.dataOwner.isNotBlank() && prefs.dataOwner != who) { app.userData.clearPersonal(); app.forgetListens(); lastRemote = null }
         prefs.dataOwner = who
         signedIn = prefs.signedIn
         syncNow()

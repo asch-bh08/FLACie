@@ -56,7 +56,7 @@
                         <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" Class="np-dl" />
                     </div>
                     @MoreMenu("w", t)
-                    <button class="ls-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="24" /></button>
+                    <button class="ls-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="24" /></button>
                 </div>
                 <div class="ls-bar">
                     <div class="ls-times"><span>@Time(Player.Position)</span> <span class="ls-dur">/ @Time(Player.Duration)</span></div>
@@ -174,7 +174,10 @@
                     }
                     else
                     {
-                        <div class="ls-info"><TrackInfoPanel Track="t" Info="shownInfo" Loading="@(infoLoading || infoFor != t.Path)" Album="@(realAlbumFor == t.Path ? realAlbum : null)" /></div>
+                        <div class="ls-info">
+                            @if (Player.WhyCurrent is { Length: > 0 } why) { <section class="ls-why" aria-label="Why this song?"><h4>Why this song?</h4><p>@why</p></section> }
+                            <TrackInfoPanel Track="t" Info="shownInfo" Loading="@(infoLoading || infoFor != t.Path)" Album="@(realAlbumFor == t.Path ? realAlbum : null)" />
+                        </div>
                     }
                 </div>
             </section>
@@ -183,7 +186,7 @@
            its middle. Phone: the bar is not drawn; its rating, speed, sleep and sound buttons open from the top bar's Options as before *@
         <footer class="ls-dock">
             <div class="ls-dock-l">
-                <button class="ls-heart ls-dock-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Session.ToggleFavorite(t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="22" /></button>
+                <button class="ls-heart ls-dock-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="22" /></button>
                 @MoreMenu("d", t)
             </div>
             @* the room the transport takes in the middle of the bar (it is placed over this from the page), so the two sides never reach under it *@
@@ -308,6 +311,8 @@
                 <a role="menuitem" href="/stream?p=@Uri.EscapeDataString(t.Path)" download="@FileName(t)" @onclick="CloseMore">Download</a>
                 <button role="menuitem" @onclick='async () => { CloseMore(); await Sharing.ShareAsync(Session, "song", t.Title, [t]); }'>Share</button>
                 <button role="menuitem" @onclick='() => { Open("info"); CloseMore(); }'>Song info</button>
+                <button role="menuitem" @onclick='() => Plain(() => Feedback.LessLikeThis(Session, t), $"Fewer songs like “{t.Title}”")'>Less like this</button>
+                <button role="menuitem" @onclick='() => Plain(() => _ = Feedback.ThumbDown(Session, t, Player), $"“{t.Title}” will not be picked for you again")'>Thumbs down</button>
             </div>
         }
     </div>;

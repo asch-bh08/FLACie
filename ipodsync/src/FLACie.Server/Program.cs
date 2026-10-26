@@ -86,8 +86,12 @@ builder.Services.AddSingleton<PlaybackActivity>();
 // the start of the next few songs, so Next starts at once (SongHeadCache)
 builder.Services.AddSingleton<SongHeadCache>();
 builder.Services.AddSingleton<TokenCache>();
+builder.Services.AddSingleton<ListenLogStore>();   // each account's listening log (recommendations)
 builder.Services.AddSingleton<FormatProbeService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FormatProbeService>());
+builder.Services.AddSingleton<VibeIndex>();   // how each song feels (recommendations), filled in the background
+builder.Services.AddHostedService<VibeFillService>();
+builder.Services.AddSingleton(sp => new RelatedCache(sp.GetRequiredService<DataPaths>(), sp.GetRequiredService<WebCatalog>()));   // songs that go with a song, kept a week
 builder.Services.AddHostedService<ProfileSyncService>();
 builder.Services.AddHostedService<LibrarySyncService>();
 builder.Services.AddSingleton(sp => new LyricsService(sp.GetRequiredService<IHttpClientFactory>().CreateClient("catalog"), sp.GetRequiredService<JellyfinClient>(), Path.Combine(dataDir, "lyrics")));
@@ -143,6 +147,21 @@ if (CatalogRedirectHandler.Parse(builder.Configuration["FLACIE_CATALOG_REDIRECT"
 builder.Services.AddDj();
 
 var app = builder.Build();
+// the web Home's picks learn from each account's listening log and the songs' vibes
+{
+    var listens = app.Services.GetRequiredService<ListenLogStore>();
+    var vibes = app.Services.GetRequiredService<VibeIndex>();
+    AppHost.ListenLog = s => listens.Exists(s) ? listens.Read(s) : null;
+    AppHost.Vibe = vibes.Of;
+    var related = app.Services.GetRequiredService<RelatedCache>();
+    // what the person does in the web player goes into their listening log, started from what they have played and liked so far (as /api/listen does)
+    RetroHost.Listen = (s, e) => ListenApi.Accept(listens, s, [e], () => ListenSeed.From(s.History, s.Favorites, s.PlayStats, s.Library));
+    // web Autoplay asks the engine first (songs in the library only; the player keeps its own list when this fails or is empty)
+    RetroHost.RecommendNext = (s, played, n) =>
+        RecommendApi.InputsOf(s, listens, vibes, related) is { } inputs
+            ? RecommendApi.Picks(inputs, played, n, DateTime.UtcNow, Environment.TickCount64).Where(p => p.Track is not null).Select(p => (p.Track!, p.Why)).ToList()
+            : null;
+}
 {
     var probe = app.Services.GetRequiredService<FormatProbeService>();
     var media = app.Services.GetRequiredService<IHttpClientFactory>();
@@ -202,6 +221,7 @@ app.MapStaticAssets();
 app.MapAuth();
 app.MapMedia(dataDir);
 app.MapApi();
+app.MapRecommend();
 app.MapAlexa();
 app.MapDj();
 // local diagnostics only (FLACIE_DEBUG=1): the signed-in user's own Jellyfin, GET or POST, so a session problem can be looked at directly

@@ -275,6 +275,8 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier, tint: Color? 
             Detail(listOf(
                 "Title" to t.title, "Artist" to t.artist, "Album" to t.album, "Year" to t.year.takeIf { it > 0 }?.toString(), "Genre" to t.genre,
                 "Track" to t.trackNo.takeIf { it > 0 }?.let { (if (t.discNo > 1) "${t.discNo}-" else "") + it }, "Length" to t.durationMs.takeIf { it > 0 }?.let { fmtTime(it) },
+                // why Autoplay chose it, in the engine's words ("Because you played ..."); only for songs the engine picked
+                "Why" to app.autoplay.why(t),
             ), "Song", toneC)
             Detail(listOf(
                 "Source" to com.ipodemu.library.SourceLabel.line(t.source), "Codec" to info.codec.takeIf { it.isNotEmpty() },

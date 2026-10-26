@@ -95,7 +95,80 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         Take((related?.Invoke(cur) ?? []).OrderBy(_ => rnd.Next()), 4);
         if (cur.Genre.Length > 0) Take(lib.Songs.Where(t => t.Genre.Equals(cur.Genre, StringComparison.OrdinalIgnoreCase)).OrderBy(_ => rnd.Next()), 4);
         Take(lib.Songs.OrderBy(_ => rnd.Next()), 10);
-        autoplayNext = res;
+        autoplayNext = res; autoplayWhy = [];
+        UseEngine(cur, seen);
+    }
+
+    // ---- the listening log: how much of each song was really heard (a seek does not count as listening) ----
+
+    Track? heardTrack; double heard, heardFrom; string? heardContext, listenContext;
+
+    void CountHeard(double pos)
+    {
+        // a tick moves on by about a second while a song plays; a bigger jump is a seek, a backwards one a replay
+        if (heardTrack is not null && pos > heardFrom && pos - heardFrom <= 3) heard += pos - heardFrom;
+        heardFrom = pos;
+    }
+
+    /// <summary>Where a song at this queue place came from, for the log: Autoplay, the playlist (its id), the Home page or a search.</summary>
+    string? ListenContextOf(int queueIndex)
+    {
+        if (AutoplayFrom >= 0 && queueIndex >= AutoplayFrom) return "autoplay";
+        if (listenContext is { Length: > 0 }) return listenContext;
+        if (Context is not { Length: > 0 } name) return null;
+        if (session?.Playlists.FirstOrDefault(p => p.Name == name) is { } pl) return pl.Id;
+        return name.StartsWith("Search", StringComparison.Ordinal) || name.StartsWith("Explore", StringComparison.Ordinal) ? "search" : null;
+    }
+
+    /// <summary>The song that was playing is over (or left): tells the log how long it was heard.</summary>
+    void FlushPlay()
+    {
+        try
+        {
+            if (heardTrack is { } t && session is { } s && heard >= 1)
+                RetroHost.Listen?.Invoke(s, ListenEvent.Of(ListenKind.Play, t, Math.Round(heard, 1), t.DurationMs > 0 ? t.DurationMs / 1000.0 : Duration, heardContext));
+        }
+        catch (Exception) { }   // a log that fails must never stop the next song or the stop
+        heardTrack = null; heard = 0;
+    }
+
+    // ---- Autoplay from the recommendation engine, where the host has one: it picks from what the person has played, hearted and skipped ----
+
+    string? enginePath; List<(Track Track, string Why)>? enginePicks;
+    Dictionary<string, string> autoplayWhy = [], addedWhy = [];
+    readonly List<string> recent = [];
+    readonly HashSet<string> fetchedKeys = [];
+
+    /// <summary>Why the song playing was picked, when Autoplay added it from the engine's picks; null otherwise.</summary>
+    public string? WhyCurrent => Current is { } c && AutoplayFrom >= 0 && Index >= AutoplayFrom && addedWhy.TryGetValue(c.Path, out var w) ? w : null;
+
+    /// <summary>Swaps the engine's picks in for the list above, but only when nothing the person chose is left to play (at most one song follows the current one).
+    /// They are asked for once per song; until they arrive, or if the host has no engine or it fails, the list above stands.</summary>
+    void UseEngine(Track cur, HashSet<string> seen)
+    {
+        if (RetroHost.RecommendNext is not { } ask || session is not { } s || UpNext(2).Count() > 1) return;
+        if (enginePath != cur.Path) { enginePath = cur.Path; enginePicks = null; _ = AskEngineAsync(ask, s, cur.Path); return; }
+        if (enginePicks is null) return;
+        var fresh = enginePicks.Where(p => !seen.Contains(Matching.MatchKey(p.Track))).Take(10).ToList();
+        if (fresh.Count == 0) return;
+        // songs fetched just now for this Autoplay stay at the front (they carry their "Recently downloaded" tag), the engine's picks follow
+        var fetched = autoplayNext.Where(t => fetchedKeys.Contains(Matching.MatchKey(t))).ToList();
+        fresh = fresh.Where(p => !fetched.Any(f => f.Path == p.Track.Path)).ToList();
+        autoplayNext = fetched.Concat(fresh.Select(p => p.Track)).Take(10).ToList();
+        autoplayWhy = fresh.ToDictionary(p => p.Track.Path, p => p.Why, StringComparer.Ordinal);
+    }
+
+    async Task AskEngineAsync(Func<UserSession, IReadOnlyList<string>, int, IReadOnlyList<(Track Track, string Why)>?> ask, UserSession s, string path)
+    {
+        try
+        {
+            var played = recent.ToList();
+            var picks = await Task.Run(() => ask(s, played, 10));
+            if (picks is null || enginePath != path) return;
+            enginePicks = picks.ToList();
+            RefreshSuggestions(); Changed?.Invoke();
+        }
+        catch (Exception) { }   // the library's own suggestions stay
     }
 
     // ---- looking ahead: what the lookup suggests, and fetching what the library lacks ----
@@ -121,6 +194,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
             RefreshSuggestions(); DjAhead(); Changed?.Invoke();
             var s = session;
             var missing = suggested.Where(x => lib.Find(x.Title, x.Artist) is null && Matching.MatchKey(x.Title, x.Artist) != Matching.MatchKey(seed)).Take(8);
+            foreach (var m in missing) fetchedKeys.Add(Matching.MatchKey(m.Title, m.Artist));
             planner.Prefetch(s, missing, 5, () => { RefreshSuggestions(); Changed?.Invoke(); });
         }
         catch (OperationCanceledException) { }
@@ -207,6 +281,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     {
         var t = Current;
         if (t is null) return;
+        FlushPlay();
         if (connect is not null && !ReferenceEquals(connect.Host, this)) connect.Host = this; // this tab is the one playing now
         // for the DJ: whether the player got here by itself (the last song ended), and whether the song before was skipped in its first 10 s
         var auto = djAuto; djAuto = false;
@@ -216,6 +291,8 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         await audio.LoadAsync(self, t, "/stream?p=" + Uri.EscapeDataString(t.Path), t.Title, t.Artist, t.Album,
             t.ArtKey is null ? null : "/art/" + Uri.EscapeDataString(CoverOverrides.Map(t.ArtKey)!) + "?v=3", autoplay, t.DurationMs / 1000.0, startAt, PrefetchUrl());
         Position = startAt; Duration = t.DurationMs / 1000.0;
+        heardTrack = t; heard = 0; heardFrom = startAt; heardContext = ListenContextOf(Index);
+        recent.Add(t.Path); if (recent.Count > 5) recent.RemoveAt(0);
         await ApplyItemSpeedAsync(t);
         await ApplyLevelAsync(t);
         await ApplyFadeAsync(t);
@@ -227,11 +304,12 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     }
 
     /// <summary>Plays a list from a song. <paramref name="contextId"/>: the playlist it came from (its DJ key, <see cref="DjSwitches.KeyOf"/>), so its DJ switch counts.</summary>
-    public async Task Play(IReadOnlyList<Track> list, int index, string? context = null, string? contextId = null)
+    /// <param name="listenContext">Where the play came from for the listening log ("home"); otherwise it follows from the context (a playlist, a search).</param>
+    public async Task Play(IReadOnlyList<Track> list, int index, string? context = null, string? contextId = null, string? listenContext = null)
     {
         if (list.Count == 0) return;
         if (Interceptor?.Play(list, index) == true) return;
-        await StartAsync(list, index, 0, false, context, contextId);
+        await StartAsync(list, index, 0, false, context, contextId, listenContext: listenContext);
     }
 
     // a queue handed over (Connect, a Jam, Alexa, the phone app) or a lone song added to an empty player is a new queue that came from no playlist here: the
@@ -240,10 +318,10 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     /// <summary>Takes a queue exactly as it will play (another player's, already shuffled or arranged): it is not shuffled again.</summary>
     public Task AdoptAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused) => StartAsync(list, index, positionMs, paused, Context, contextId: null, keepOrder: true);
 
-    async Task StartAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused, string? context, string? contextId = null, bool keepOrder = false)
+    async Task StartAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused, string? context, string? contextId = null, bool keepOrder = false, string? listenContext = null)
     {
         if (list.Count == 0) return;
-        Context = context; AutoplayFrom = -1; autoplayNext = [];
+        Context = context; AutoplayFrom = -1; autoplayNext = []; addedWhy = []; enginePath = null; fetchedKeys.Clear(); this.listenContext = listenContext;
         // a new queue: the DJ's "this queue" switch starts untouched, and no skips are remembered
         ContextId = contextId; QueueDj = null; djFresh = true; djSkips[0] = djSkips[1] = false;
         Queue = list.ToList(); Index = Math.Clamp(index, 0, Queue.Count - 1);
@@ -251,7 +329,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         await Load(!paused, positionMs / 1000.0);
     }
 
-    public async Task ShuffleAll(IReadOnlyList<Track> list, string? context = null, string? contextId = null) { Shuffle = true; if (list.Count > 0) await Play(list, Random.Shared.Next(list.Count), context, contextId); }
+    public async Task ShuffleAll(IReadOnlyList<Track> list, string? context = null, string? contextId = null, string? listenContext = null) { Shuffle = true; if (list.Count > 0) await Play(list, Random.Shared.Next(list.Count), context, contextId, listenContext); }
 
     public async Task Toggle() { if (Interceptor?.Toggle() == true) return; await ToggleAsync(); }
     public async Task Seek(double seconds) { if (Interceptor?.Seek((long)(seconds * 1000)) == true) return; await SeekRawAsync((long)(seconds * 1000)); }
@@ -276,6 +354,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
             // the queue ran out: carry on with songs like the last one, so the music never just stops
             AutoplayFrom = Queue.Count; var start = Queue.Count;
             Queue.AddRange(autoplayNext); autoplayNext = [];
+            foreach (var w in autoplayWhy) addedWhy[w.Key] = w.Value;
             for (var i = start; i < Queue.Count; i++) order.Add(i);
             Index = start;
         }
@@ -324,6 +403,36 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         if (QueueEdit.Reorder(order, Index, false, queueIndex, step) is not { } moved) return;
         order = moved;
         Stash(true); DjAhead(); Changed?.Invoke();
+    }
+
+    /// <summary>The person does not want this song: it leaves Up next and the Autoplay list, and if it is playing now the next song starts.</summary>
+    public async Task Dislike(string path)
+    {
+        autoplayNext = autoplayNext.Where(t => t.Path != path).ToList();
+        enginePicks = enginePicks?.Where(p => p.Track.Path != path).ToList();
+        autoplayWhy.Remove(path);
+        if (Queue.FirstOrDefault(t => t.Path == path) is { } gone) fetchedKeys.Remove(Matching.MatchKey(gone));
+        if (!CanEdit) { if (Current?.Path == path) await NextAsync(); return; }
+        var playing = Current?.Path == path;
+        // every other copy goes first (a guard keeps a surprise from looping for ever)
+        for (var guard = Queue.Count + 1; guard > 0 && CanEdit; guard--)
+        {
+            var other = Enumerable.Range(0, Queue.Count).FirstOrDefault(i => i != Index && Queue[i].Path == path, -1);
+            if (other < 0) break;
+            await RemoveFromQueue(other);
+        }
+        if (!playing || Current?.Path != path) return;
+        // the playing copy: what follows starts; with nothing to follow the player stops rather than pauses on it
+        var follows = order.IndexOf(Index) + 1 < order.Count || (Repeat == 1 && Queue.Count > 1);
+        if (follows) { await RemoveFromQueue(Index); return; }
+        if (Autoplay && autoplayNext.Count > 0 && Repeat != 1)
+        {
+            await NextAsync();   // Autoplay carries on, then the disliked copy is taken out behind it
+            var old = Queue.FindIndex(t => t.Path == path);
+            if (old >= 0 && old != Index) await RemoveFromQueue(old);
+            return;
+        }
+        await StopAsync();
     }
 
     /// <summary>Takes a song out of the queue. Another song than the playing one: nothing else changes. The playing one: the song that follows starts (it stays paused if
@@ -391,7 +500,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
 
     // ---- from flacie.js ----
 
-    [JSInvokable] public void OnTime(double pos, double dur) { RetroHost.Heartbeat?.Invoke(); Position = pos; if (dur > 0 && !double.IsInfinity(dur)) Duration = dur; Stash(false); RememberPlace(); SleepTick(); PlayTick(); Changed?.Invoke(); }
+    [JSInvokable] public void OnTime(double pos, double dur) { RetroHost.Heartbeat?.Invoke(); CountHeard(pos); Position = pos; if (dur > 0 && !double.IsInfinity(dur)) Duration = dur; Stash(false); RememberPlace(); SleepTick(); PlayTick(); Changed?.Invoke(); }
     [JSInvokable] public void OnState(bool playing) { Playing = playing; PlayTick(); Changed?.Invoke(); }
     [JSInvokable] public async Task OnEnded()
     {
@@ -720,6 +829,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     public async Task StopAsync()
     {
         planning?.Cancel();
+        FlushPlay();
         await DjStopAsync(); djAsking?.Cancel(); djFor = null; djCue = null; QueueDj = null; ContextId = null;
         try { await audio.StopAsync(); } catch (Exception) { }
         Queue = []; order = []; Index = -1; Playing = false; Position = 0; Duration = 0; autoplayNext = []; suggested = []; AutoplayFrom = -1; Context = null;

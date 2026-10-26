@@ -105,6 +105,27 @@ object HomeShelves {
         return spread(lib.songs().filter { it.isMusic && inMood(it, m) }.seeded(slot(nowMs, 24) * 17 + name.length), 2, 40)
     }
 
+    /**
+     * Home from the server's engine. Song shelves: each song found on this phone; a song the library does not have yet stays as a "New" row
+     * ([isNew]) that asks for it when tapped. Album shelves: the server's albums found in this phone's library; the phone's own album shelves
+     * are used only when the server sent none. Null when the server gave nothing usable, so the phone's own shelves stay.
+     */
+    fun fromServer(server: List<RecPick.Shelf>, resolve: (RecPick) -> Track?, local: List<HomeShelf>, resolveAlbum: (RecPick.Album) -> Group? = { null }): List<HomeShelf>? {
+        val out = server.mapNotNull { s ->
+            val tracks = s.tracks.mapNotNull { p -> if (p.isNew) placeholder(p) else resolve(p) }.distinctBy { it.matchKey }
+            val albums = s.albums.mapNotNull(resolveAlbum).distinctBy { it.tracks.first().albumKey }
+            if (tracks.isEmpty() && albums.isEmpty()) null else HomeShelf(s.id, s.title, s.subtitle, tracks, albums)
+        }
+        if (out.isEmpty()) return null
+        val serverAlbums = out.any { it.albums.isNotEmpty() }
+        return out + if (serverAlbums) emptyList() else local.filter { it.albums.isNotEmpty() && out.none { s -> s.id == it.id } }
+    }
+
+    private const val NEW = "rec-new:"
+    /** A song the engine suggests that this library does not have yet: shown on Home, not playable until it is fetched. */
+    fun isNew(t: Track) = t.path.startsWith(NEW)
+    private fun placeholder(p: RecPick) = Track(NEW + p.matchKey, p.title, p.artist, p.album, p.artist, "", 0, 0, p.durationMs, 0, true, null, 0, 0, TrackSource.CLOUD)
+
     fun build(lib: Library, ud: UserData, nowMs: Long = System.currentTimeMillis(), jf: List<JfPlay> = emptyList(), hits: Set<String> = emptySet()): List<HomeShelf> {
         val songs = lib.songs().filter { it.isMusic }
         if (songs.isEmpty()) return emptyList()

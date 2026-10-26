@@ -175,13 +175,20 @@ fun DrawScope.drawGlyph(g: Glyph, c: Color) {
             drawPath(path { moveTo(x(.4f), y(.22f)); lineTo(x(.84f), y(.12f)); lineTo(x(.84f), y(.26f)); lineTo(x(.4f), y(.36f)); close() }, c)
         }
         Glyph.GEAR -> {
-            for (i in 0 until 8) {
-                val a = Math.toRadians(i * 45.0)
-                drawLine(c, Offset(x(.5f) + Math.cos(a).toFloat() * s * .3f, y(.5f) + Math.sin(a).toFloat() * s * .3f),
-                    Offset(x(.5f) + Math.cos(a).toFloat() * s * .44f, y(.5f) + Math.sin(a).toFloat() * s * .44f), s * .13f, StrokeCap.Round)
-            }
-            drawCircle(c, s * .3f, Offset(x(.5f), y(.5f)))
-            drawCircle(Color(0x66000000), s * .12f, Offset(x(.5f), y(.5f)))
+            // an outlined gear in the same line weight as the other icons (the filled sunburst read as a sun): eight flat-topped teeth round a hole
+            val teeth = 8; val outer = s * .43f; val inner = s * .32f; val cx = x(.5f); val cy = y(.5f)
+            fun pt(r: Float, deg: Double) = Offset(cx + Math.cos(Math.toRadians(deg)).toFloat() * r, cy + Math.sin(Math.toRadians(deg)).toFloat() * r)
+            val step = 360.0 / teeth
+            drawPath(path {
+                for (i in 0 until teeth) {
+                    val a = i * step - 90
+                    val p0 = pt(inner, a - step * .5); val p1 = pt(inner, a - step * .25); val p2 = pt(outer, a - step * .16); val p3 = pt(outer, a + step * .16); val p4 = pt(inner, a + step * .25)
+                    if (i == 0) moveTo(p0.x, p0.y) else lineTo(p0.x, p0.y)
+                    lineTo(p1.x, p1.y); lineTo(p2.x, p2.y); lineTo(p3.x, p3.y); lineTo(p4.x, p4.y)
+                }
+                close()
+            }, c, style = Stroke(w, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawCircle(c, s * .13f, Offset(cx, cy), style = Stroke(w))
         }
         Glyph.VOLUME -> {
             drawPath(path { moveTo(x(.14f), y(.4f)); lineTo(x(.3f), y(.4f)); lineTo(x(.5f), y(.22f)); lineTo(x(.5f), y(.78f)); lineTo(x(.3f), y(.6f)); lineTo(x(.14f), y(.6f)); close() }, c)

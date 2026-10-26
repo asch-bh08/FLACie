@@ -42,4 +42,8 @@ public static class RetroHost
     public static Action? Heartbeat { get; set; }
     /// <summary>Where the players are for the DJ's "Where" ticks: the Windows app runs its server with FLACIE_PARENT_PID set (as ChartsService.InDesktopShell reads it), anything else is the web.</summary>
     public static DjSurface DjSurface { get; set; } = Environment.GetEnvironmentVariable("FLACIE_PARENT_PID") is { Length: > 0 } ? DjSurface.Windows : DjSurface.Web;
+    /// <summary>Tells the account's listening log what the person did (played a song, hearted it, thumbed it down); where there is no log this does nothing.</summary>
+    public static Action<UserSession, ListenEvent>? Listen { get; set; }
+    /// <summary>What the recommendation engine would play next for this person, given the paths played lately (the last is playing now); null when the host has no engine or it failed.</summary>
+    public static Func<UserSession, IReadOnlyList<string>, int, IReadOnlyList<(Track Track, string Why)>?>? RecommendNext { get; set; }
 }

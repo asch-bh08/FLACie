@@ -22,7 +22,7 @@ public sealed class AlexaPublic(IConfiguration conf)
 }
 
 /// <summary>One linked person's FLACie, for the voice side.</summary>
-public sealed class SessionAlexaUser(UserSession s, JellyfinClient jf, DownloadManager downloads, WebCatalog catalog, Action<string, string, bool, string> ended) : IAlexaUser
+public sealed class SessionAlexaUser(UserSession s, JellyfinClient jf, DownloadManager downloads, WebCatalog catalog, Action<string, string, bool, string> ended, Func<RecommendApi.Inputs?>? recommend = null) : IAlexaUser
 {
     public UserSession Session { get; } = s;
     public string Name => s.DisplayName;
@@ -90,12 +90,15 @@ public sealed class SessionAlexaUser(UserSession s, JellyfinClient jf, DownloadM
         return new(song.Artist, song.Title);
     }
 
+    public IReadOnlyList<Track> RecommendNext(IReadOnlyList<string> session, int n) =>
+        recommend?.Invoke() is { } i ? RecommendApi.Picks(i, session, n, DateTime.UtcNow, Environment.TickCount64).Select(p => p.Track).OfType<Track>().ToList() : [];
+
     public IReadOnlyList<AlexaDownload> Downloads() => downloads.JobsOf(s).Where(j => j.Kind == "Alexa")
         .Select(j => new AlexaDownload(j.Artist, j.Title, j.Stage == DownloadStage.Done ? "done" : j.Stage == DownloadStage.Failed ? "failed" : "running", j.Message, j.At)).ToList();
 }
 
 /// <summary>Turns a link into the person's session. One <see cref="SessionAlexaUser"/> per link, so the voice index lives as long as the library does.</summary>
-public sealed class SessionAlexaDirectory(AlexaStore store, SessionStore sessions, JellyfinClient jf, DownloadManager downloads, WebCatalog catalog, Lazy<AlexaEngine> engine, AlexaProactive proactive) : IAlexaDirectory
+public sealed class SessionAlexaDirectory(AlexaStore store, SessionStore sessions, JellyfinClient jf, DownloadManager downloads, WebCatalog catalog, Lazy<AlexaEngine> engine, AlexaProactive proactive, ListenLogStore log, VibeIndex vibes, RelatedCache related) : IAlexaDirectory
 {
     readonly ConcurrentDictionary<string, SessionAlexaUser> users = new();
 
@@ -109,7 +112,7 @@ public sealed class SessionAlexaDirectory(AlexaStore store, SessionStore session
         {
             engine.Value.DownloadEnded(linkId, artist, title, ok, msg);
             _ = proactive.NotifyAsync(alexaUserId, title, artist, ok, store.IsNotifiable(alexaUserId));
-        });
+        }, () => RecommendApi.InputsOf(session, log, vibes, related));
         if (users.TryGetValue(linkId, out var old)) engine.Value.Forget(old);
         users[linkId] = user;
         return (linkId, user);

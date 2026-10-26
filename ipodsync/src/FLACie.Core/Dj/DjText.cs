@@ -144,6 +144,8 @@ public static partial class DjText
     {
         if (s.Length == 0) return "";
         s = BangInWord().Replace(s, "i");
+        // capitals first, while "AC/DC" is still one word (spelt out, not "Ac Dc")
+        s = Caps(Spaces().Replace(s, " ").Trim());
         s = s.Replace("&", " and ");
         s = Plus().Replace(s, " and ");
         s = s.Replace("@", " at ").Replace("%", " percent");
@@ -158,9 +160,13 @@ public static partial class DjText
             if (c is '/' or '_') { sb.Append(' '); continue; }
             sb.Append(r.ToString());
         }
-        var t = Caps(Spaces().Replace(sb.ToString(), " ").Trim());
-        return Spaces().Replace(t, " ").Trim().Trim(',', ';', ':', '-', '–', '—').Trim();
+        var t = Spaces().Replace(sb.ToString(), " ").Trim().Trim(',', ';', ':', '-', '–', '—').Trim();
+        // a name ending in a full stop ("HUMBLE.", "DAMN.") would make the voice stop mid-line; an abbreviation ("Mr.") or "..." keeps it
+        if (t.EndsWith('.') && !t.EndsWith("..", StringComparison.Ordinal) && !Abbreviations.Contains(t[..^1].Split(' ')[^1])) t = t[..^1].TrimEnd();
+        return t;
     }
+
+    static readonly HashSet<string> Abbreviations = new(StringComparer.OrdinalIgnoreCase) { "Mr", "Mrs", "Ms", "Dr", "St", "Jr", "Sr", "Vol", "No", "vs", "Pt" };
 
     /// <summary>The capitals rule of <see cref="Speak"/> on its own.</summary>
     public static string Caps(string s)

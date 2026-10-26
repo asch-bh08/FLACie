@@ -129,7 +129,7 @@ public static class DjPlanner
         && (!n.HasFlag(DjNeed.Soundtrack) || f.Soundtrack) && (!n.HasFlag(DjNeed.SameGenre) || f.SameGenre);
 
     /// <summary>"Good morning." (06-11), "Good afternoon." (12-17), "Good evening." (18-02), "Saturday morning." at the weekend; null at night or when the device's time is unknown.
-    /// [weekday]: 0 or 7 = Sunday, 6 = Saturday (JavaScript's getDay, .NET's DayOfWeek and ISO all agree on these).</summary>
+    /// [weekday]: .NET DayOfWeek numbering, 0 = Sunday .. 6 = Saturday, from every client (an ISO 7 for Sunday is also taken).</summary>
     public static (string Say, string Write)? Greeting(int? hour, int? weekday)
     {
         if (hour is not { } hr) return null;

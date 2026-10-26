@@ -85,3 +85,8 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 - Why: hits are 2-10 per 400 (noise level in an 11k-song library); 25% of hms's next songs are the same artist, which the engine's rail forbids;
   half the picks are never-heard songs; without vibes, fit only passes songs sharing artist or genre (most songs have no genre).
 - Re-run once vibe.json and listen logs exist on frank before switching clients.
+
+## 2026-10-26 Recommendation engine + history fix deployed to frank (web only)
+- ui/living-sleeve 95e9e74 deployed; rollback tag flacie-web:rollback-2026-10-26-pre-engine. No app beta.
+- Engine starts collecting vibes and listening now; release blocked until the real-data gate (new >= 1.5x old hit rate) passes on frank data.
+- History mix-up cause: shared NAS profile copy (profile-guest.json) taken without an owner check; fixed in 95e9e74. Cleanup of hms history (145 of 200 entries) awaiting the owner.

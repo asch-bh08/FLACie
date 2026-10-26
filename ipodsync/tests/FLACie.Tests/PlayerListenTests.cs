@@ -66,7 +66,7 @@ public class PlayerListenTests : IDisposable
         async Task<string?> Heard(Func<Task> start) { events.Clear(); await start(); p.OnTime(1, 100); p.OnTime(2, 100); await p.StopAsync(); return events.Single().Context; }
         Assert.Equal(pl.Id, await Heard(() => p.Play(Songs(0, 1), 0, "Gym")));
         Assert.Equal("search", await Heard(() => p.Play(Songs(0, 1), 0, "Search: abba")));
-        Assert.Equal("home", await Heard(() => p.Play(Songs(0, 1), 0, "Quick picks", "home")));
+        Assert.Equal("home", await Heard(() => p.Play(Songs(0, 1), 0, "Quick picks", listenContext: "home")));
         // the queue ran out and Autoplay carried on
         events.Clear();
         await p.Play(Songs(0, 1), 0, "Gym");

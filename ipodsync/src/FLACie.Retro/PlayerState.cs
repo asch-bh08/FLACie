@@ -133,6 +133,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     string? enginePath; List<(Track Track, string Why)>? enginePicks;
     Dictionary<string, string> autoplayWhy = [], addedWhy = [];
     readonly List<string> recent = [];
+    readonly HashSet<string> fetchedKeys = [];
 
     /// <summary>Why the song playing was picked, when Autoplay added it from the engine's picks; null otherwise.</summary>
     public string? WhyCurrent => Current is { } c && AutoplayFrom >= 0 && Index >= AutoplayFrom && addedWhy.TryGetValue(c.Path, out var w) ? w : null;
@@ -146,7 +147,10 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         if (enginePicks is null) return;
         var fresh = enginePicks.Where(p => !seen.Contains(Matching.MatchKey(p.Track))).Take(10).ToList();
         if (fresh.Count == 0) return;
-        autoplayNext = fresh.Select(p => p.Track).ToList();
+        // songs fetched just now for this Autoplay stay at the front (they carry their "Recently downloaded" tag), the engine's picks follow
+        var fetched = autoplayNext.Where(t => fetchedKeys.Contains(Matching.MatchKey(t))).ToList();
+        fresh = fresh.Where(p => !fetched.Any(f => f.Path == p.Track.Path)).ToList();
+        autoplayNext = fetched.Concat(fresh.Select(p => p.Track)).Take(10).ToList();
         autoplayWhy = fresh.ToDictionary(p => p.Track.Path, p => p.Why, StringComparer.Ordinal);
     }
 
@@ -186,6 +190,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
             RefreshSuggestions(); Changed?.Invoke();
             var s = session;
             var missing = suggested.Where(x => lib.Find(x.Title, x.Artist) is null && Matching.MatchKey(x.Title, x.Artist) != Matching.MatchKey(seed)).Take(8);
+            foreach (var m in missing) fetchedKeys.Add(Matching.MatchKey(m.Title, m.Artist));
             planner.Prefetch(s, missing, 5, () => { RefreshSuggestions(); Changed?.Invoke(); });
         }
         catch (OperationCanceledException) { }

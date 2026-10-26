@@ -90,3 +90,8 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 - ui/living-sleeve 95e9e74 deployed; rollback tag flacie-web:rollback-2026-10-26-pre-engine. No app beta.
 - Engine starts collecting vibes and listening now; release blocked until the real-data gate (new >= 1.5x old hit rate) passes on frank data.
 - History mix-up cause: shared NAS profile copy (profile-guest.json) taken without an owner check; fixed in 95e9e74. Cleanup of hms history (145 of 200 entries) awaiting the owner.
+
+## 2026-10-26 Engine + AI DJ deployed to frank (web only)
+- feature/ai-dj 5bcc851 (contains ui/living-sleeve 84d5044) deployed; rollback tag flacie-web:rollback-2026-10-26-pre-dj. healthz ok; /api/dj/settings and /api/recommend/next 401 without a token; no errors in the log.
+- hms history cleaned (200 -> 56; Dad untouched; backup /root/hms-profile-backup-*.json on frank).
+- Not checked (needs a signed-in browser): Dashboard AI DJ panel, thumbs-down and engine Autoplay in use. Owner adds Cloudflare account ID + Workers AI token in Dashboard > AI DJ.

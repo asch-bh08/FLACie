@@ -162,8 +162,10 @@ fun QuickPicks(tracks: List<com.ipodemu.library.Track>, nav: PlayerNav, onPlay: 
                                 Txt(t.title, size = 15f, weight = FontWeight.SemiBold, maxLines = 1)
                                 Txt(t.artist, size = 12.5f, color = sc.onBgDim, maxLines = 1)
                                 if (tagged) DownloadTagLine(t, size = 11f)
+                                else if (com.ipodemu.library.HomeShelves.isNew(t)) Txt("New · tap to get it", size = 11f, color = sc.accent, maxLines = 1)
                             }
-                            Box(Modifier.size(44.dp).clip(CircleShape).clickable { openTrackSheet(app, nav, t) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.MORE, Modifier.size(20.dp), sc.onBgDim) }
+                            // a song not in the library yet has no menu (nothing to queue, rate or share until it arrives)
+                            if (!com.ipodemu.library.HomeShelves.isNew(t)) Box(Modifier.size(44.dp).clip(CircleShape).clickable { openTrackSheet(app, nav, t) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.MORE, Modifier.size(20.dp), sc.onBgDim) }
                         }
                     }
                 }

@@ -111,6 +111,13 @@ class Autoplay(private val app: App) {
         }
     }
 
+    /** A "New" song tapped on Home: asked for the same way as Autoplay's own new picks (it joins the queue when it lands). False when downloads are not set up. */
+    fun fetch(t: Track): Boolean {
+        if (!app.library.downloadsConfigured()) return false
+        request(listOf(WebCatalog.Song(t.artist, t.title, t.album, null, t.durationMs, 0, 0)))
+        return true
+    }
+
     /** Why the engine chose a song Autoplay added (the Info panel shows it), or null. */
     fun why(t: Track): String? = synchronized(reasons) { reasons[t.path] }
     private val reasons = HashMap<String, String>()
@@ -150,7 +157,9 @@ class RecPick(val path: String?, val title: String, val artist: String, val albu
     fun song() = WebCatalog.Song(artist, title, album, null, durationMs, 0, 0)
 
     /** A Home shelf as the server builds it (`/api/recommend/home`). */
-    class Shelf(val id: String, val title: String, val subtitle: String, val tracks: List<RecPick>)
+    class Shelf(val id: String, val title: String, val subtitle: String, val tracks: List<RecPick>, val albums: List<Album> = emptyList())
+    /** An album on a server shelf: its name, artist and the server's paths of its songs. */
+    class Album(val name: String, val artist: String, val songs: List<String>)
 
     companion object {
         private fun str(o: org.json.JSONObject, k: String) = if (o.isNull(k)) null else o.optString(k).takeIf { it.isNotEmpty() }
@@ -158,7 +167,9 @@ class RecPick(val path: String?, val title: String, val artist: String, val albu
         private fun picks(a: org.json.JSONArray?) = if (a == null) emptyList() else List(a.length()) { pick(a.getJSONObject(it)) }
         fun parseNext(json: String): List<RecPick> = picks(org.json.JSONObject(json).optJSONArray("picks"))
         fun parseHome(json: String): List<Shelf> = org.json.JSONObject(json).optJSONArray("shelves")?.let { a ->
-            List(a.length()) { a.getJSONObject(it).let { o -> Shelf(o.optString("id"), o.optString("title"), o.optString("subtitle"), picks(o.optJSONArray("tracks"))) } }
+            List(a.length()) { a.getJSONObject(it).let { o -> Shelf(o.optString("id"), o.optString("title"), o.optString("subtitle"), picks(o.optJSONArray("tracks")),
+                o.optJSONArray("albums")?.let { al -> List(al.length()) { j -> al.getJSONObject(j).let { x -> Album(x.optString("name"), x.optString("artist"),
+                    x.optJSONArray("songs")?.let { sa -> List(sa.length()) { k -> sa.getString(k) } } ?: emptyList()) } } } ?: emptyList()) } }
         } ?: emptyList()
     }
 }

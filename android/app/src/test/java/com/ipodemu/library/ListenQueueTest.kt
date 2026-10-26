@@ -16,10 +16,10 @@ class ListenQueueTest {
 
     @Test fun Days_offline_send_every_event_once_in_order() = runBlocking {
         val d = dir()
-        val q = ListenQueue(d)
+        val q = ListenQueue(d, "u")
         repeat(500) { q.add(ev(it)) }
         // the app restarts while still offline: the events are still there
-        val again = ListenQueue(d)
+        val again = ListenQueue(d, "u")
         assertEquals(500, again.pending().size)
         val received = ArrayList<ListenEventJson>(); var calls = 0
         SyncRetry.attempt(listOf(0L)) {
@@ -28,11 +28,11 @@ class ListenQueueTest {
         assertEquals((0 until 500).map { "id$it" }, received.map { it.id })
         assertEquals(500, received.map { it.id }.toSet().size)
         assertTrue(again.pending().isEmpty())
-        assertTrue(ListenQueue(d).pending().isEmpty())
+        assertTrue(ListenQueue(d, "u").pending().isEmpty())
     }
 
     @Test fun A_failed_send_keeps_the_events() {
-        val q = ListenQueue(dir())
+        val q = ListenQueue(dir(), "u")
         q.add(ev(1)); q.add(ev(2))
         try { q.flush { throw IOException("down") } } catch (_: IOException) { }
         assertEquals(listOf("id1", "id2"), q.pending().map { it.id })
@@ -66,5 +66,36 @@ class ListenQueueTest {
         // at double speed, 100 s of listening is 200 s of song
         m.start(0L, playing = true, rate = 2f)
         assertTrue(ListenRules.isFinish(m.end(100_000L), 200.0))
+    }
+
+    @Test fun Events_queued_as_one_account_are_never_sent_as_another() {
+        val d = dir()
+        val a = ListenQueue(d, "userA")
+        a.add(ev(1)); a.add(ev(2))
+        // B signs in on this phone: B's queue has nothing of A's
+        val b = ListenQueue(d, "userB")
+        val sent = ArrayList<ListenEventJson>()
+        b.flush { sent.addAll(it) }
+        assertTrue(sent.isEmpty())
+        // and signing out / switching clears every queue on the phone
+        ListenQueue.clearAll(d)
+        assertTrue(ListenQueue(d, "userA").pending().isEmpty())
+    }
+
+    @Test fun A_corrupt_file_is_kept_aside_not_overwritten() {
+        val d = dir()
+        File(d, "listen-queue-u.json").writeText("{not json")
+        val q = ListenQueue(d, "u")
+        assertTrue(q.pending().isEmpty())
+        q.add(ev(1))
+        assertEquals("{not json", File(d, "listen-queue-u.json.bad").readText())
+    }
+
+    @Test fun A_save_cut_short_by_a_crash_is_picked_up_from_the_temp_file() {
+        val d = dir()
+        val q = ListenQueue(d, "u"); q.add(ev(1)); q.add(ev(2))
+        // the crash came after the main file was gone and before the new one took its place
+        val main = File(d, "listen-queue-u.json"); main.renameTo(File(d, "listen-queue-u.json.tmp"))
+        assertEquals(listOf("id1", "id2"), ListenQueue(d, "u").pending().map { it.id })
     }
 }

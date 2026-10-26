@@ -50,16 +50,25 @@ class PlayMeter {
 }
 
 /**
- * Events waiting to reach the server, kept in `listen-queue.json` so a phone offline for days loses none. They leave the file only once the
- * server has taken them; the server ignores an id it already has, so sending a batch twice after a lost reply does no harm.
+ * Events waiting to reach the server, kept in `listen-queue-<account>.json` so a phone offline for days loses none. Each account has its own file,
+ * so what one person did is never sent under another's sign-in. They leave the file only once the server has taken them; the server ignores an
+ * id it already has, so sending a batch twice after a lost reply does no harm.
  */
-class ListenQueue(dir: File) {
-    private val file = File(dir, "listen-queue.json")
+class ListenQueue(dir: File, owner: String) {
+    private val file = File(dir, "listen-queue-" + owner.filter { it.isLetterOrDigit() || it == '-' } + ".json")
+    private val tmp = File(file.path + ".tmp")
     private val events = ArrayList<ListenEventJson>()
 
     init {
+        // a crash between taking the old file away and putting the new one in place leaves only the temp file: it is the newest copy
+        if (!file.exists() && tmp.exists()) tmp.renameTo(file)
         try { if (file.exists()) JSONArray(file.readText()).let { a -> for (i in 0 until a.length()) events.add(ListenEventJson.from(a.getJSONObject(i))) } }
-        catch (e: Exception) { System.err.println("listen queue unreadable: ${e.message}") }
+        catch (e: Exception) {
+            // kept aside (not overwritten by the next save), so the events can still be recovered by hand
+            events.clear()
+            System.err.println("listen queue unreadable, kept as .bad: ${e.message}")
+            try { File(file.path + ".bad").delete(); file.renameTo(File(file.path + ".bad")) } catch (_: Exception) { }
+        }
     }
 
     fun add(e: ListenEventJson) = synchronized(events) { events.add(e); if (events.size > MAX) events.subList(0, events.size - MAX).clear(); save() }
@@ -78,14 +87,19 @@ class ListenQueue(dir: File) {
 
     private fun save() {
         val a = JSONArray(); events.forEach { a.put(it.json()) }
-        val tmp = File(file.path + ".tmp")
-        try { tmp.writeText(a.toString()); if (!tmp.renameTo(file)) { file.delete(); tmp.renameTo(file) } } catch (_: Exception) { }
+        try {
+            tmp.writeText(a.toString())
+            try { java.nio.file.Files.move(tmp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING) }
+            catch (_: Exception) { java.nio.file.Files.move(tmp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING) }
+        } catch (_: Exception) { }
     }
 
     companion object {
         const val BATCH = 500
         // a phone offline for months keeps the newest this many; the server takes 2000 per request
         const val MAX = 20_000
+        /** Sign-out or another account signing in: every account's waiting events go (the person's own log keeps what already reached it). */
+        fun clearAll(dir: File) { dir.listFiles { f -> f.name.startsWith("listen-queue") }?.forEach { it.delete() } }
         fun body(batch: List<ListenEventJson>): String = JSONObject().put("events", JSONArray().also { a -> batch.forEach { a.put(it.json()) } }).toString()
     }
 }

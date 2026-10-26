@@ -49,8 +49,28 @@ class AutoplaySourceTest {
         val albums = HomeShelf("recently-added", "Recently added", "", albums = listOf(Group("LP", listOf(one), null)))
         val home = HomeShelves.fromServer(s, { p -> if (p.title == "One") one else null }, listOf(HomeShelf("quick-picks", "Old", "", listOf(one)), albums))!!
         assertEquals(listOf("quick-picks", "recently-added"), home.map { it.id })
-        assertEquals(listOf(one), home[0].tracks)
-        // nothing on the phone matches: the phone's own shelves stay
-        assertNull(HomeShelves.fromServer(s, { null }, listOf(albums)))
+        assertEquals(one, home[0].tracks[0]); assertEquals(2, home[0].tracks.size)
+        // nothing on the phone matches and nothing new: the phone's own shelves stay
+        assertNull(HomeShelves.fromServer(RecPick.parseHome(json.replace("\"isNew\":true", "\"isNew\":false")), { null }, listOf(albums)))
+    }
+
+    @Test fun New_songs_on_a_server_shelf_are_kept_as_not_yet_downloaded_rows() {
+        val json = """{"shelves":[{"id":"discover","title":"Discover","subtitle":"","rotates":false,
+            "tracks":[{"path":null,"title":"Fresh","artist":"Other","album":"New LP","durationMs":180000,"isNew":true,"why":null}],"albums":[]}]}"""
+        val home = HomeShelves.fromServer(RecPick.parseHome(json), { null }, emptyList())!!
+        val t = home.single().tracks.single()
+        assertEquals("Fresh", t.title)
+        assertEquals(true, HomeShelves.isNew(t))
+    }
+
+    @Test fun The_servers_album_shelves_are_used_when_it_answers() {
+        val one = song("One")
+        val lp = Group("LP", listOf(one), null)
+        val json = """{"shelves":[{"id":"albums-for-you","title":"Albums for you","subtitle":"","rotates":false,"tracks":[],
+            "albums":[{"name":"LP","artist":"Artist","songs":["x"]},{"name":"Unknown","artist":"Nobody","songs":[]}]}]}"""
+        val phoneAlbums = HomeShelf("albums-for-you", "Phone's", "", albums = listOf(Group("Other", listOf(song("Two")), null)))
+        val home = HomeShelves.fromServer(RecPick.parseHome(json), { null }, listOf(phoneAlbums)) { a -> if (a.name == "LP") lp else null }!!
+        assertEquals(listOf("Albums for you"), home.map { it.title })
+        assertEquals(listOf(lp), home[0].albums)
     }
 }

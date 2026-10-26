@@ -26,8 +26,18 @@ class App : Application() {
     lateinit var autoplay: com.ipodemu.library.Autoplay; private set
     lateinit var plays: com.ipodemu.library.PlaysReporter; private set
     /** What was heard, liked and thumbed down, waiting to reach the account's listening log (the server's recommendations learn from it). */
-    // read on first use, off the main thread (a phone offline for weeks has a big file)
-    val listens by lazy { com.ipodemu.library.ListenQueue(filesDir) }
+    // one per account, read on first use off the main thread (a phone offline for weeks has a big file)
+    @Volatile private var listenQ: com.ipodemu.library.ListenQueue? = null
+    private fun listens(owner: String): com.ipodemu.library.ListenQueue = synchronized(this) {
+        listenQ?.takeIf { listenOwner == owner } ?: com.ipodemu.library.ListenQueue(filesDir, owner).also { listenQ = it; listenOwner = owner }
+    }
+    private var listenOwner = ""
+
+    /** Sign-out or a different account: the waiting events are dropped and any send in progress stops, so none go out under the new sign-in. */
+    fun forgetListens() {
+        listenJob?.cancel()
+        listenWriter.launch { synchronized(this@App) { listenQ = null; listenOwner = "" }; com.ipodemu.library.ListenQueue.clearAll(filesDir) }
+    }
     private val bg = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
     override fun onCreate() {
@@ -122,8 +132,10 @@ class App : Application() {
             val ctx = context ?: if (kind != com.ipodemu.library.ListenKind.PLAY) null else if (autoplay.isAutoplay(t)) "autoplay"
                 else player.contextName?.let { n -> userData.playlists.firstOrNull { it.name == n }?.let { it.jfId ?: it.id } } ?: player.listenFrom
             val e = com.ipodemu.library.ListenEventJson.of(kind, t, heard, ctx)
+            val owner = prefs.accountUserId
+            if (owner.isBlank()) return
             // the file is written off the main thread, one event at a time so they stay in order
-            listenWriter.launch { try { listens.add(e) } catch (x: Exception) { android.util.Log.w("FLACie", "listen event not kept: ${x.message}") }; sendListensSoon() }
+            listenWriter.launch { try { listens(owner).add(e) } catch (x: Exception) { android.util.Log.w("FLACie", "listen event not kept: ${x.message}") }; sendListensSoon() }
         } catch (e: Exception) { android.util.Log.w("FLACie", "listen event not kept: ${e.message}") }
     }
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -134,9 +146,13 @@ class App : Application() {
     fun sendListensSoon() {
         if (listenJob?.isActive == true) return
         val web = com.ipodemu.library.FlacieWebClient(prefs)
-        if (!web.available || listens.pending().isEmpty()) return
+        val owner = prefs.accountUserId
+        if (!web.available || owner.isBlank()) return
+        val q = listens(owner)
+        if (q.pending().isEmpty()) return
         listenJob = bg.launch {
-            try { com.ipodemu.library.SyncRetry.attempt(listOf(10_000L, 60_000L, 300_000L), thenEvery = 900_000L) { listens.flush { web.listen(com.ipodemu.library.ListenQueue.body(it)) } } }
+            // the client reads the sign-in as it sends: if the account changed meanwhile, this account's events wait for its next sign-in
+            try { com.ipodemu.library.SyncRetry.attempt(listOf(10_000L, 60_000L, 300_000L), thenEvery = 900_000L) { q.flush { if (prefs.accountUserId != owner) throw kotlinx.coroutines.CancellationException("account changed"); web.listen(com.ipodemu.library.ListenQueue.body(it)) } } }
             catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { }
         }
     }

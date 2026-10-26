@@ -64,12 +64,17 @@ public sealed partial class CloudflareVoice
     public string LastResult { get; private set; } = "";
     public DateTime? LastAt { get; private set; }
 
-    /// <summary>How long new lines go without a clip after Cloudflare failed to make one (a refused token, an outage); the device's own voice says them meanwhile.</summary>
-    public static readonly TimeSpan FailureRest = TimeSpan.FromMinutes(10);
+    /// <summary>How long new lines go without a clip after <see cref="FailuresInARow"/> lines in a row could not be made (a refused token, an outage). One failure
+    /// only costs that line: the next line is tried as usual (on 2026-10-26 a single 500 used to silence the DJ for ten minutes).</summary>
+    public static readonly TimeSpan FailureRest = TimeSpan.FromSeconds(30);
+    public const int FailuresInARow = 3;
+    /// <summary>How long to wait before asking Cloudflare once more for the same line after a 5xx, a timeout or a dropped connection (shorter in tests).</summary>
+    public TimeSpan RetryPause { get; set; } = TimeSpan.FromSeconds(1);
     long failedTicks;   // when Cloudflare last failed (DateTime ticks, 0: not since the last success or save); read and written from several threads
-    /// <summary>Cloudflare failed to make a clip less than <see cref="FailureRest"/> ago, and nothing has been made or saved since: new lines get no clip.
-    /// (Clips already made are still served.)</summary>
-    public bool Failing => Interlocked.Read(ref failedTicks) is var t && t > 0 && clock() - new DateTime(t, DateTimeKind.Utc) < FailureRest;
+    int failedRun;      // lines in a row that could not be made
+    /// <summary><see cref="FailuresInARow"/> lines in a row failed, the last less than <see cref="FailureRest"/> ago, and nothing has been made or saved since:
+    /// new lines get no clip for that short while. (Clips already made are still served.)</summary>
+    public bool Failing => Volatile.Read(ref failedRun) >= FailuresInARow && Interlocked.Read(ref failedTicks) is var t && t > 0 && clock() - new DateTime(t, DateTimeKind.Utc) < FailureRest;
 
     [GeneratedRegex(@"^[A-Za-z0-9]{1,64}$")] private static partial Regex AccountShape();
 
@@ -82,9 +87,15 @@ public sealed partial class CloudflareVoice
         // first start: take the account from the environment, so a Docker setup can hand it over
         if (cfg.AccountId.Length == 0 && conf["FLACIE_CLOUDFLARE_ACCOUNT"] is { Length: > 0 } a) cfg.AccountId = a.Trim();
         if (cfg.Token.Length == 0 && conf["FLACIE_CLOUDFLARE_TOKEN"] is { Length: > 0 } t) cfg.Token = Protect(t);
+        // a file from before the Aura default (no Version) that still says "melotts" kept the old default: it moves to Aura once, and the file is written so the
+        // disk, the memory and the clip ids all name the same voice. (Such a file can't say whether MeloTTS was picked on purpose; it is moved all the same.)
+        var migrate = File.Exists(file) && cfg.Version < ConfigVersion;
         if (cfg.Version < ConfigVersion && NormVoice(cfg.Voice) == MeloTts) cfg.Voice = DefaultVoice;
         cfg.Version = ConfigVersion;
         cfg.Voice = NormVoice(cfg.Voice); cfg.CapPercent = Math.Clamp(cfg.CapPercent, 0, 100);
+        if (migrate)
+            try { File.WriteAllText(file, JsonSerializer.Serialize(cfg)); log.LogInformation("DJ voice settings moved to version {Version}: voice {Voice}", ConfigVersion, cfg.Voice); }
+            catch (Exception e) { log.LogWarning("Saving the DJ voice settings failed: {Kind}", e.GetType().Name); }
     }
 
     // the token goes into an Authorization header: a line break in a pasted token would start another header line, so control characters are dropped
@@ -112,7 +123,7 @@ public sealed partial class CloudflareVoice
             cfg = JsonSerializer.Deserialize<DjVoiceConfig>(JsonSerializer.Serialize(c))!;
             cfg.AccountId = new string(cfg.AccountId.Where(char.IsAsciiLetterOrDigit).ToArray());
             cfg.Voice = NormVoice(cfg.Voice); cfg.CapPercent = Math.Clamp(cfg.CapPercent, 0, 100); cfg.Token = token; cfg.Version = ConfigVersion;
-            Interlocked.Exchange(ref failedTicks, 0);   // a new token or account is worth trying at once
+            Interlocked.Exchange(ref failedTicks, 0); Volatile.Write(ref failedRun, 0);   // a new token or account is worth trying at once
             try { Directory.CreateDirectory(Path.GetDirectoryName(file)!); File.WriteAllText(file, JsonSerializer.Serialize(cfg)); } catch (Exception e) { log.LogWarning("Saving the DJ voice settings failed: {Kind}", e.GetType().Name); }
         }
     }
@@ -172,6 +183,30 @@ public sealed partial class CloudflareVoice
         var made = false;
         try
         {
+            // a 5xx, a timeout or a dropped connection is often Cloudflare's own hiccup: the same line is asked for once more after a short pause
+            for (var attempt = 1; ; attempt++)
+            {
+                var (audio, msg, again) = await CallAsync(c, token, v, text, ct);
+                if (audio is not null)
+                {
+                    made = true;
+                    LastResult = "Made a clip"; LastAt = clock(); Interlocked.Exchange(ref failedTicks, 0); Volatile.Write(ref failedRun, 0);
+                    return audio;
+                }
+                if (ct.IsCancellationRequested) return Fail(msg);   // (the caller giving up is not Cloudflare failing)
+                if (!again || attempt == 2) return Down(msg);
+                log.LogInformation("DJ voice: {Message}; asking once more", msg);
+                try { await Task.Delay(RetryPause, ct); } catch (OperationCanceledException) { return Fail(msg); }
+            }
+        }
+        finally { Settle(cost, made); }
+    }
+
+    /// <summary>One call for a clip: the audio, or why not and whether asking again could help (a 5xx, a timeout, a dropped connection).</summary>
+    async Task<(byte[]? Audio, string Why, bool Again)> CallAsync(DjVoiceConfig c, string token, string v, string text, CancellationToken ct)
+    {
+        try
+        {
             var (model, body) = v == MeloTts
                 ? ("@cf/myshell-ai/melotts", new JsonObject { ["prompt"] = text, ["lang"] = "en" })
                 : ("@cf/deepgram/aura-1", new JsonObject { ["text"] = text, ["speaker"] = v[7..], ["encoding"] = "mp3" });
@@ -180,25 +215,21 @@ public sealed partial class CloudflareVoice
             req.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
             using var http = hf.CreateClient("cloudflare");
             using var res = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
-            if (res.Content.Headers.ContentLength is > MaxAudioBytes) return Down("Cloudflare sent more than a clip");
+            if (res.Content.Headers.ContentLength is > MaxAudioBytes) return (null, "Cloudflare sent more than a clip", false);
             var bytes = await ReadAtMost(res.Content, ct);
-            if (bytes is null) return Down("Cloudflare sent more than a clip");
+            if (bytes is null) return (null, "Cloudflare sent more than a clip", false);
             if (!res.IsSuccessStatusCode)
-                return Down(res.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden ? "Cloudflare refused the token (it needs Workers AI access)"
+                return (null, res.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden ? "Cloudflare refused the token (it needs Workers AI access)"
                     : (int)res.StatusCode == 429 ? "Cloudflare says the allowance is used up or too many requests (429)"
-                    : $"Cloudflare answered {(int)res.StatusCode} {res.ReasonPhrase}" + ErrorOf(bytes));
+                    : $"Cloudflare answered {(int)res.StatusCode} {res.ReasonPhrase}" + ErrorOf(bytes), (int)res.StatusCode >= 500);
             var audio = AudioOf(res.Content.Headers.ContentType?.MediaType ?? "", bytes, out var why);
-            if (audio is null) return Down(why);
-            made = true;
-            LastResult = "Made a clip"; LastAt = clock(); Interlocked.Exchange(ref failedTicks, 0);
-            return audio;
+            return (audio, why, false);
         }
         catch (Exception e)
         {
             var msg = e is TaskCanceledException or OperationCanceledException ? "Cloudflare didn't answer in time" : "Couldn't reach Cloudflare (" + e.GetType().Name + ")";
-            return ct.IsCancellationRequested ? Fail(msg) : Down(msg);   // (the caller giving up is not Cloudflare failing)
+            return (null, msg, true);
         }
-        finally { Settle(cost, made); }
     }
 
     /// <summary>The text model's price of one line: the prompt at about 4 characters a token, and the answer at its most.</summary>
@@ -291,8 +322,15 @@ public sealed partial class CloudflareVoice
         return null;
     }
 
-    /// <summary>Cloudflare was asked and no clip came back: new lines go without a clip for <see cref="FailureRest"/> (see <see cref="Failing"/>).</summary>
-    byte[]? Down(string msg) { Interlocked.Exchange(ref failedTicks, clock().Ticks); return Fail(msg); }
+    /// <summary>Cloudflare was asked (and asked again where that could help) and no clip came back: only this line goes without, unless it is the
+    /// <see cref="FailuresInARow"/>th in a row (see <see cref="Failing"/>).</summary>
+    byte[]? Down(string msg) { Interlocked.Exchange(ref failedTicks, clock().Ticks); Interlocked.Increment(ref failedRun); return Fail(msg); }
+
+    /// <summary>Why a new clip of [text] in [voiceName] can't be asked for right now, or null when it can: for the "line not said" log.</summary>
+    public string? WhyNot(string voiceName, string text) =>
+        !Ready ? "the voice is not set up"
+        : Failing ? $"the voice failed {FailuresInARow} lines in a row (resting {FailureRest.TotalSeconds:0} s)"
+        : !CanAfford(voiceName, text) ? "today's cap" : null;
 
     static async Task<byte[]?> ReadAtMost(HttpContent content, CancellationToken ct)
     {

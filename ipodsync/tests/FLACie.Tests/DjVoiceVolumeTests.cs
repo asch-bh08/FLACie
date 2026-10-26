@@ -54,12 +54,15 @@ public class DjVoiceVolumeTests : IDisposable
         var fail = true;
         var r = Make(q => fail ? Fails(q) : Ok(q)); TurnOn(r);
         Assert.True(r.Dj.Settings(me).Backup);                                 // everyone had the old backup switch on
-        Assert.Null(await r.Clips.WaitAsync(r.Clips.Request("Coming up,")!, TimeSpan.FromSeconds(10)));
+        // (since 2026-10-26 one failure costs only its line: the voice rests only after three in a row)
+        foreach (var p in new[] { "Coming up,", "Next,", "Here's" }) Assert.Null(await r.Clips.WaitAsync(r.Clips.Request(p)!, TimeSpan.FromSeconds(10)));
         Assert.True(r.Voice.Failing);
+        var calls = r.Http.Seen.Count;
         var cue = await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A));
         Assert.Null(cue);                                                       // was: { ClipUrl = null, Backup = true }: the second voice
         fail = false;
-        Assert.Single(r.Http.Seen);                                             // and no call in another voice either
+        Assert.Equal(calls, r.Http.Seen.Count);                                 // and no call in another voice either
+        Assert.DoesNotContain(r.Http.Seen, x => x.Url.Contains("melotts"));
     }
 
     [Fact]
@@ -82,7 +85,7 @@ public class DjVoiceVolumeTests : IDisposable
         foreach (var p in parts) Assert.NotNull((await r.Clips.MakeNowAsync(p.Text)).Id);   // both parts kept in Aura Helios
         Assert.NotNull((await r.Clips.MakeNowAsync("Here's Yellow.")).Id);
         fail = true;
-        Assert.Null(await r.Clips.WaitAsync(r.Clips.Request("Something new.")!, TimeSpan.FromSeconds(10)));
+        foreach (var p in new[] { "Something new.", "Something else.", "A third thing." }) Assert.Null(await r.Clips.WaitAsync(r.Clips.Request(p)!, TimeSpan.FromSeconds(10)));
         Assert.True(r.Voice.Failing);
         var calls = r.Http.Seen.Count;
         // Cloudflare is failing: nothing new is made, but what is already kept in this voice is said

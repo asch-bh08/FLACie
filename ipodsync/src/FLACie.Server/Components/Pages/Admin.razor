@@ -422,6 +422,7 @@ else
         var (said, used) = DjVoice.SoFar;
         var left = FLACie.Core.DjBudget.LinesLeft(DjVoice.Cap, used);
         return $"Today: {said} line{(said == 1 ? "" : "s")} said, {pct.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}% of the free allowance (cap {DjVoice.Current.CapPercent}%), roughly {left} more line{(left == 1 ? "" : "s")} left today"
+            + $" (about {FLACie.Core.DjBudget.HoursOfEverySong(left).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)} h for a listener on \"Every song\", which uses about three times the lines of \"Often\")"
             + (DjVoice.LastModel.Length > 0 ? " · Model: " + DjVoice.LastModel.Split('/')[^1] : "");
     }
     void SaveDj() { DjVoice.Save(djCfg, djToken.Length > 0 ? djToken : null); djToken = ""; djCfg = DjVoice.Current; djMsg = "Saved."; }

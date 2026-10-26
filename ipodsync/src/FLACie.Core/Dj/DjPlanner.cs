@@ -22,10 +22,10 @@ public static class DjPlanner
     public static readonly TimeSpan SessionGap = TimeSpan.FromMinutes(30);
     public static readonly TimeSpan ReturnAfter = TimeSpan.FromMinutes(15);
 
-    /// <summary>Song changes that pass in silence after a line: 1 when Often, 4 when Rare.</summary>
-    public static int ForcedSilence(DjChatty c) => c == DjChatty.Rare ? 4 : 1;
-    /// <summary>The chance of speaking once the forced silence is over: 0.5 Often (about 1 song in 3), 0.30 Rare (about 1 in 7.3).</summary>
-    public static double Chance(DjChatty c) => c == DjChatty.Rare ? 0.30 : 0.5;
+    /// <summary>Song changes that pass in silence after a line: 1 when Often, 4 when Rare, none on every song.</summary>
+    public static int ForcedSilence(DjChatty c) => c switch { DjChatty.Rare => 4, DjChatty.Every => 0, _ => 1 };
+    /// <summary>The chance of speaking once the forced silence is over: 0.5 Often (about 1 song in 3), 0.30 Rare (about 1 in 7.3), always on every song.</summary>
+    public static double Chance(DjChatty c) => c switch { DjChatty.Rare => 0.30, DjChatty.Every => 1.0, _ => 0.5 };
     /// <summary>The same, by style: Chill a fifth less often, Hype a fifth more.</summary>
     public static double Chance(DjChatty c, DjStyle s) => Chance(c) * (s switch { DjStyle.Chill => 0.8, DjStyle.Hype => 1.2, _ => 1.0 });
     /// <summary>The chance of the opening line of a session: always when Often, half the time when Rare.</summary>
@@ -56,8 +56,10 @@ public static class DjPlanner
         f.Colour = Colour(req.LocalHour, req.Weekday);
         // the person's own choice for this song beats the chance, the forced silence and the quiet rules (but not the switches above)
         var choice = DjRules.SongChoice(settings, req.Next.Title, req.Next.Artist);
+        // "Every song": a line before each song, without the draw or the forced silence; only the songs it must never talk over stay quiet
         var line = choice == false ? null
             : choice == true ? (f.HasTitle || f.HasArtist ? Write(req, mem, f, open, reset, heard, song, nowUtc, rng, say, settings.Style, firstName) : null)
+            : settings.Chatty == DjChatty.Every ? (QuietEvery(settings, req, f) ? null : Write(req, mem, f, open, reset, heard, song, nowUtc, rng, say, settings.Style, firstName))
             : Quiet(settings, req, f) ? null
             : (open ? rng.NextDouble() < OpenChance(settings.Chatty) : mem.SilentRun >= ForcedSilence(settings.Chatty) && rng.NextDouble() < Chance(settings.Chatty, settings.Style))
                 ? Write(req, mem, f, open, reset, heard, song, nowUtc, rng, say, settings.Style, firstName) : null;
@@ -71,6 +73,11 @@ public static class DjPlanner
     /// on the songs they let play), the next track of an album playing straight through, spoken word, or nothing to name.</summary>
     static bool Quiet(DjSettings settings, DjRequest req, Facts f) =>
         req.Next.DurationMs is > 0 and < 60_000 || (req.SkippedRecently && !settings.TalkAfterSkips) || NextInAlbum(req.Prev, req.Next) || DjText.IsSpokenWord(req.Next.Genre) || (!f.HasTitle && !f.HasArtist);
+
+    /// <summary>Silent on "Every song": a song under a minute, skipping going on with "Talk after skips" off, spoken word, or nothing to name. (The next track
+    /// of an album gets its line too.)</summary>
+    static bool QuietEvery(DjSettings settings, DjRequest req, Facts f) =>
+        req.Next.DurationMs is > 0 and < 60_000 || (req.SkippedRecently && !settings.TalkAfterSkips) || DjText.IsSpokenWord(req.Next.Genre) || (!f.HasTitle && !f.HasArtist);
 
     /// <summary>The next song is the next track of the same album (same album and album artist, the following track on the same disc, or track 1 of the next disc).</summary>
     public static bool NextInAlbum(DjSong? prev, DjSong next)

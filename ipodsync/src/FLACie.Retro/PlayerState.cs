@@ -745,6 +745,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     CancellationTokenSource? djAsking;
     string? djFor;              // the song (path) the DJ was last asked about
     DjCue? djCue;               // and what it answered (null: stays quiet, or no answer yet)
+    bool djAnswered;            // the answer about djFor has come (djCue null then means the DJ chose to stay quiet)
     bool djAuto, djFresh;       // the song being loaded was reached by itself; the queue is new (no song before it in this queue)
     bool djSkip;                // the song being loaded was reached by Next or a tap in Up next (it may bring a line when "Talk after skips" is on)
     bool djActive;              // a clip or a line may still be playing
@@ -775,7 +776,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         if (cur is null || next is null || !DjOn) { djAsking?.Cancel(); djFor = null; djCue = null; return; }
         if (djFor == next.Path) return;
         djAsking?.Cancel(); var cts = djAsking = new CancellationTokenSource();
-        djFor = next.Path; djCue = null;
+        djFor = next.Path; djCue = null; djAnswered = false;
         var req = new DjRequest(DjSurface, SongOf(next), SongOf(cur), PrevPlayedOut: true, SkippedRecently: djSkips[0] || djSkips[1],
             PlaylistId: ContextId, QueueDj: QueueDj, Bond: BondOf(s, next));
         _ = DjAskAsync(d, s, req, next.Path, cts);
@@ -801,7 +802,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
             req = req with { LocalHour = hour, Weekday = weekday };
             var cue = await d.PrepareAsync(s, req, cts.Token);
             if (cts.IsCancellationRequested || djFor != path) return;
-            djCue = cue;
+            djCue = cue; djAnswered = true;
             if (cue?.ClipUrl is { Length: > 0 } url) await audio.DjPreloadAsync(url);
         }
         catch (OperationCanceledException) { }
@@ -813,7 +814,8 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     {
         if (djFor != t.Path) return null;
         var cue = djCue;
-        djAsking?.Cancel(); djFor = null; djCue = null;
+        if (!djAnswered && dj is { } d && session is { } s) Note(d, s, t, "timing: the DJ's answer had not come when the song started");
+        djAsking?.Cancel(); djFor = null; djCue = null; djAnswered = false;
         return cue;
     }
 
@@ -831,6 +833,8 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         var gen = djGen;
         var talk = DjOn && (auto || (skipped && session is { } s0 && d.Settings(s0).TalkAfterSkips));
         if (talk && cue is not null) await DjSayCueAsync(cue);
+        else if (cue is not null && session is { } sq)
+            Note(d, sq, t, !DjOn ? "the DJ was turned off here" : skipped ? "the song was reached by a skip (Talk after skips is off)" : "the song was not reached by itself");
         else if (talk && skipped && session is { } s) _ = DjAskNowAsync(d, s, t, before, gen);
         DjAhead();
     }
@@ -872,13 +876,16 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
                 PlaylistId: ContextId, QueueDj: QueueDj, LocalHour: hour, Weekday: weekday, Bond: BondOf(s, t));
             using var cts = new CancellationTokenSource(DjSkipWait);
             var cue = await d.PrepareAsync(s, req, cts.Token).WaitAsync(cts.Token);
-            if (cue is null || gen != djGen || Current?.Path != t.Path || !DjOn) return;
+            if (cue is null) return;
+            if (gen != djGen || Current?.Path != t.Path || !DjOn) { Note(d, s, t, "timing: the song moved on before the line came"); return; }
             await DjSayCueAsync(cue);
         }
-        catch (OperationCanceledException) { }
-        catch (TimeoutException) { }
+        catch (OperationCanceledException) { Note(d, s, t, $"timing: no line within {DjSkipWait.TotalSeconds:0} s of the skip"); }
+        catch (TimeoutException) { Note(d, s, t, $"timing: no line within {DjSkipWait.TotalSeconds:0} s of the skip"); }
         catch (Exception e) { try { RetroHost.DjFailed?.Invoke(e); } catch (Exception) { } }
     }
+
+    static void Note(IDjService d, UserSession s, Track t, string why) { try { d.NotSaid(s, t.Title, why); } catch (Exception) { } }
 
     async Task DjStopAsync()
     {

@@ -80,8 +80,11 @@ test.describe.serial('the DJ', () => {
     // change everything
     await row(page, 'Talk between songs').click();
     await expect(onSwitch).toBeChecked();
+    await seg(page, 'Every song').click();   // a line before every song
+    await pressed(seg(page, 'Every song'), true); await pressed(seg(page, 'Often'), false);
+    expect((await (await page.request.get('/api/dj/settings')).json()).chatty).toBe('every');
     await seg(page, 'Rare').click();
-    await pressed(seg(page, 'Rare'), true); await pressed(seg(page, 'Often'), false);
+    await pressed(seg(page, 'Rare'), true); await pressed(seg(page, 'Often'), false); await pressed(seg(page, 'Every song'), false);
     await seg(page, 'Chill').click();
     await pressed(seg(page, 'Chill'), true); await pressed(seg(page, 'Classic radio'), false);
     await seg(page, 'Phone').click();

@@ -45,6 +45,15 @@ class DjRulesTest {
         assertFalse("the DJ is off until it is switched on", on(d))
     }
 
+    @Test fun everySongIsAChattyLevelAndTheRowCyclesThroughAllThree() {
+        val e = DjSettings.parse("""{"enabled":true,"chatty":"every"}""")
+        assertEquals(DjChatty.EVERY, e.chatty)
+        assertEquals("every", e.toJson().getString("chatty"))
+        assertEquals("Every song", DjChatty.EVERY.label)
+        assertEquals(listOf(DjChatty.OFTEN, DjChatty.EVERY, DjChatty.RARE), listOf(DjChatty.RARE.next(), DjChatty.OFTEN.next(), DjChatty.EVERY.next()))
+        assertEquals("an unknown level is Often", DjChatty.OFTEN, DjSettings.parse("""{"chatty":"loud"}""").chatty)
+    }
+
     @Test fun settingsReadTheServersShape() {
         val s = DjSettings.parse("""{"enabled":true,"chatty":"rare","phone":false,"auto":true,"web":false,"windows":true,"backup":false,"playlists":{"jf1":true,"local2":false,"bad":null},"voiceReady":true}""")
         assertEquals(DjSettings(true, DjChatty.RARE, false, true, false, true, false, mapOf("jf1" to true, "local2" to false), true), s)

@@ -10,8 +10,13 @@ import org.json.JSONObject
 /** Where a song is playing, for the DJ's "Where" ticks. The phone counts as [AUTO], not [PHONE], while Android Auto is connected. */
 enum class DjSurface(val wire: String) { PHONE("phone"), AUTO("auto"), WEB("web"), WINDOWS("windows") }
 
-/** How often the DJ speaks: Rare is about 1 song in 7, Often about 1 in 3. */
-enum class DjChatty(val wire: String) { RARE("rare"), OFTEN("often") }
+/** How often the DJ speaks: Rare is about 1 song in 7, Often about 1 in 3, Every song before each song (the most of the daily allowance). */
+enum class DjChatty(val wire: String, val label: String) {
+    RARE("rare", "Rare"), OFTEN("often", "Often"), EVERY("every", "Every song");
+    fun next(): DjChatty = entries[(ordinal + 1) % entries.size]
+    /** An unknown word (a newer server) is Often. */
+    companion object { fun of(wire: String?): DjChatty = entries.firstOrNull { it.wire.equals(wire, true) } ?: OFTEN }
+}
 
 /** How the DJ sounds: Classic radio (the default), Chill (softer, a little less often) or Hype (livelier, a little more often). */
 enum class DjStyle(val wire: String, val label: String) {
@@ -63,7 +68,7 @@ data class DjSettings(
             val pl = o.optJSONObject("playlists")
             val so = o.optJSONObject("songs")
             return DjSettings(
-                o.optBoolean("enabled", d.enabled), if (o.optString("chatty").equals("rare", true)) DjChatty.RARE else DjChatty.OFTEN,
+                o.optBoolean("enabled", d.enabled), DjChatty.of(o.optString("chatty")),
                 o.optBoolean("phone", d.phone), o.optBoolean("auto", d.auto), o.optBoolean("web", d.web), o.optBoolean("windows", d.windows),
                 o.optBoolean("backup", d.backup),
                 pl?.keys()?.asSequence()?.filter { pl.opt(it) is Boolean }?.associateWith { pl.getBoolean(it) } ?: emptyMap(),

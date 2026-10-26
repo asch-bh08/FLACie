@@ -12,11 +12,12 @@ public static class DjJson
     public static string ChoiceName(bool c) => c ? "always" : "never";
     static bool? ChoiceOf(string s) => s.Trim().ToLowerInvariant() switch { "always" => true, "never" => false, _ => null };
 
+    public static string ChattyName(DjChatty c) => c switch { DjChatty.Rare => "rare", DjChatty.Every => "every", _ => "often" };
     public static string StyleName(DjStyle s) => s switch { DjStyle.Chill => "chill", DjStyle.Hype => "hype", _ => "classic" };
     public static DjStyle? StyleOf(string? s) => (s ?? "").Trim().ToLowerInvariant() switch { "classic" => DjStyle.Classic, "chill" => DjStyle.Chill, "hype" => DjStyle.Hype, _ => null };
     public static string BondName(DjBond b) => b switch { DjBond.Loved => "loved", DjBond.NewFind => "new", _ => "unknown" };
 
-    /// <summary>GET /api/dj/settings: <c>{ enabled, chatty: "rare"|"often", phone, auto, web, windows, backup, talkAfterSkips, style: "classic"|"chill"|"hype", playlists: { id: bool }, deviceVoice, volume, duck,
+    /// <summary>GET /api/dj/settings: <c>{ enabled, chatty: "rare"|"often"|"every", phone, auto, web, windows, backup, talkAfterSkips, style: "classic"|"chill"|"hype", playlists: { id: bool }, deviceVoice, volume, duck,
     /// songs: { matchKey: "always"|"never" }, voiceReady }</c>.</summary>
     public static JsonObject Settings(DjSettings s, bool voiceReady)
     {
@@ -26,7 +27,7 @@ public static class DjJson
         foreach (var (k, v) in s.Songs ?? new()) songs[k] = ChoiceName(v);
         return new JsonObject
         {
-            ["enabled"] = s.Enabled, ["chatty"] = s.Chatty == DjChatty.Rare ? "rare" : "often", ["phone"] = s.Phone, ["auto"] = s.Auto, ["web"] = s.Web, ["windows"] = s.Windows,
+            ["enabled"] = s.Enabled, ["chatty"] = ChattyName(s.Chatty), ["phone"] = s.Phone, ["auto"] = s.Auto, ["web"] = s.Web, ["windows"] = s.Windows,
             ["backup"] = s.Backup, ["talkAfterSkips"] = s.TalkAfterSkips, ["style"] = StyleName(s.Style), ["playlists"] = lists,
             ["deviceVoice"] = s.DeviceVoice, ["volume"] = DjRules.Clamp(s.Volume), ["duck"] = DjRules.Clamp(s.Duck), ["songs"] = songs, ["voiceReady"] = voiceReady,
         };
@@ -45,8 +46,8 @@ public static class DjJson
         DjChatty? chatty = null;
         if (body.ContainsKey("chatty"))
         {
-            chatty = body["chatty"] is JsonValue cv && cv.TryGetValue<string>(out var c) ? c.Trim().ToLowerInvariant() switch { "rare" => DjChatty.Rare, "often" => DjChatty.Often, _ => null } : null;
-            if (chatty is null) return "\"chatty\" must be \"rare\" or \"often\".";
+            chatty = body["chatty"] is JsonValue cv && cv.TryGetValue<string>(out var c) ? c.Trim().ToLowerInvariant() switch { "rare" => DjChatty.Rare, "often" => DjChatty.Often, "every" => DjChatty.Every, _ => null } : null;
+            if (chatty is null) return "\"chatty\" must be \"rare\", \"often\" or \"every\".";
         }
         DjStyle? style = null;
         if (body.ContainsKey("style"))
@@ -203,7 +204,7 @@ public static class DjJson
         void B(string k, bool a, bool b) { if (a != b) p[k] = b; }
         B("enabled", was.Enabled, now.Enabled); B("phone", was.Phone, now.Phone); B("auto", was.Auto, now.Auto); B("web", was.Web, now.Web);
         B("windows", was.Windows, now.Windows); B("backup", was.Backup, now.Backup); B("talkAfterSkips", was.TalkAfterSkips, now.TalkAfterSkips);
-        if (was.Chatty != now.Chatty) p["chatty"] = now.Chatty == DjChatty.Rare ? "rare" : "often";
+        if (was.Chatty != now.Chatty) p["chatty"] = ChattyName(now.Chatty);
         if (was.Style != now.Style) p["style"] = StyleName(now.Style);
         B("deviceVoice", was.DeviceVoice, now.DeviceVoice);
         if (was.Volume != now.Volume) p["volume"] = DjRules.Clamp(now.Volume);

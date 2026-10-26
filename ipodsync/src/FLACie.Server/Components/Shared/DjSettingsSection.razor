@@ -33,8 +33,9 @@
         <div class="seg dj-chatty" role="group" aria-label="How chatty">
             <button type="button" aria-pressed="@Pressed(s.Chatty == DjChatty.Rare)" @onclick="() => Change(x => x.Chatty = DjChatty.Rare)">Rare</button>
             <button type="button" aria-pressed="@Pressed(s.Chatty == DjChatty.Often)" @onclick="() => Change(x => x.Chatty = DjChatty.Often)">Often</button>
+            <button type="button" aria-pressed="@Pressed(s.Chatty == DjChatty.Every)" @onclick="() => Change(x => x.Chatty = DjChatty.Every)">Every song</button>
         </div>
-        <p class="hint">Rare is about one song in seven, Often about one in three.</p>
+        <p class="hint">Rare is about one song in seven, Often about one in three. Every song talks before each song (not songs under a minute, spoken word or ones marked "never"), and uses the most of the day's DJ allowance.</p>
         <h3>Style</h3>
         <div class="seg dj-style" role="group" aria-label="DJ style">
             <button type="button" aria-pressed="@Pressed(s.Style == DjStyle.Classic)" @onclick="() => Change(x => x.Style = DjStyle.Classic)">Classic radio</button>

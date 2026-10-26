@@ -17,7 +17,8 @@ public sealed class DjClips
 {
     /// <summary>The most the clips may take on disk (about 11,000 Aura lines).</summary>
     public const long MaxBytes = 200L * 1024 * 1024;
-    static readonly TimeSpan RememberFailure = TimeSpan.FromMinutes(10);
+    /// <summary>How long a line whose clip failed (after the voice's own retry) is not asked for again: only that line, and not for long.</summary>
+    static readonly TimeSpan RememberFailure = TimeSpan.FromSeconds(30);
 
     readonly string dir, indexFile; readonly CloudflareVoice voice; readonly ILogger<DjClips> log; readonly Func<DateTime> clock;
     readonly object gate = new();
@@ -71,8 +72,8 @@ public sealed class DjClips
 
     /// <summary>
     /// The id of the clip for [text] in the saved voice, starting it in the background if it is not made yet; null when no clip can be had: the voice is not set up,
-    /// the line would go over today's cap, it failed a moment ago, or Cloudflare failed on any line lately (<see cref="CloudflareVoice.Failing"/>: a refused token
-    /// or an outage fails the next lines too, so they go to the backup voice at once instead of handing out a clip that will never come).
+    /// the line would go over today's cap, it failed a moment ago, or Cloudflare failed on several lines in a row just now (<see cref="CloudflareVoice.Failing"/>: a refused
+    /// token or an outage, for a short rest, instead of handing out clips that will never come). One failure only costs that line.
     /// </summary>
     public string? Request(string text)
     {
@@ -111,6 +112,13 @@ public sealed class DjClips
             jobs[id] = Task.Run(() => MakePooledAsync(id, v, parts, ids));
             return id;
         }
+    }
+
+    /// <summary>Why <see cref="Request"/> gave no clip for [text], for the "line not said" log.</summary>
+    public string WhyNot(string text)
+    {
+        var v = voice.Current.Voice;
+        return Failed(IdOf(v, text)) ? "the voice failed on this line a moment ago" : voice.WhyNot(v, text) ?? "no clip";
     }
 
     /// <summary>The clip of [text] in the saved voice if it is already made (no call, whatever the cap or Cloudflare), else null.</summary>
@@ -178,7 +186,7 @@ public sealed class DjClips
         try
         {
             var mp3 = await voice.SynthesizeAsync(text, v);
-            if (mp3 is null) { failed[id] = clock(); return false; }
+            if (mp3 is null) { failed[id] = clock(); log.LogWarning("DJ line not said: no clip, the voice failed ({Why})", voice.LastResult); return false; }
             Write(id, mp3);
             return true;
         }

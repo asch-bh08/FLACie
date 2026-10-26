@@ -181,9 +181,9 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             SettingRow("DJ", if (dj.enabled) "On" else "Off", toggle = true, desc = "Now and then, a few words about the next song before it starts. The DJ button on Now Playing turns it on or off for one queue.") {
                                 save(org.json.JSONObject().put("enabled", !dj.enabled), dj.copy(enabled = !dj.enabled))
                             }
-                            val rare = dj.chatty == com.ipodemu.playback.DjChatty.RARE
-                            SettingRow("How chatty", if (rare) "Rare" else "Often", desc = "Rare: about 1 song in 7. Often: about 1 in 3.") {
-                                val n = if (rare) com.ipodemu.playback.DjChatty.OFTEN else com.ipodemu.playback.DjChatty.RARE
+                            // Rare, Often, Every song: a tap moves to the next
+                            SettingRow("How chatty", dj.chatty.label, desc = "Rare: about 1 song in 7. Often: about 1 in 3. Every song: before each song (not songs under a minute, spoken word or ones marked never); it uses the most of the day's DJ allowance.") {
+                                val n = dj.chatty.next()
                                 save(org.json.JSONObject().put("chatty", n.wire), dj.copy(chatty = n))
                             }
                             // Classic radio, Chill, Hype: a tap moves to the next

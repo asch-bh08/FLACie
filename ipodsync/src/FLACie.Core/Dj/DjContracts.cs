@@ -3,8 +3,8 @@ namespace FLACie.Core;
 /// <summary>Where a song is playing, for the DJ's "Where" ticks. Android Auto counts as <see cref="Auto"/>, not <see cref="Phone"/>, while the phone is in the car.</summary>
 public enum DjSurface { Phone, Auto, Web, Windows }
 
-/// <summary>How often the DJ speaks: Rare is about 1 song in 7, Often about 1 in 3.</summary>
-public enum DjChatty { Rare, Often }
+/// <summary>How often the DJ speaks: Rare is about 1 song in 7, Often about 1 in 3, Every before every song it may talk over (it uses the most of the daily cap).</summary>
+public enum DjChatty { Rare, Often, Every }
 
 /// <summary>How the DJ sounds: Classic radio (the default), Chill (softer, a little less often) or Hype (livelier, a little more often).</summary>
 public enum DjStyle { Classic, Chill, Hype }
@@ -103,4 +103,6 @@ public interface IDjService
     Task<DjCue?> PrepareAsync(UserSession s, DjRequest req, CancellationToken ct = default);
     /// <summary>Cloudflare is set up, so clips can be made.</summary>
     bool VoiceReady { get; }
+    /// <summary>The player had (or was waiting for) a line before [song] and did not say it, and [why] (timing, a skip): written to the log, so a quiet DJ can be read there.</summary>
+    void NotSaid(UserSession s, string song, string why) { }
 }

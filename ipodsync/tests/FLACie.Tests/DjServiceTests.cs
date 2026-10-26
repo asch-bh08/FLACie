@@ -118,28 +118,29 @@ public class DjServiceTests : IDisposable
         Assert.Null(await r.Clips.WaitAsync(IdOf(cue.ClipUrl), TimeSpan.FromSeconds(10)));
         var again = await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A));
         Assert.Null(again);   // was: no clip and Backup, so the device's own voice said it (a second voice)
-        Assert.Single(r.Http.Seen);   // the failure is remembered: no second call
+        Assert.Equal(2, r.Http.Seen.Count);   // the call and its one retry; then the failure is remembered: no third call
     }
 
     [Fact]
-    public async Task After_Cloudflare_fails_new_lines_get_no_clip_for_ten_minutes_unless_a_clip_is_made_or_the_voice_is_saved()
+    public async Task After_three_lines_in_a_row_fail_new_lines_get_no_clip_for_thirty_seconds_unless_a_clip_is_made_or_the_voice_is_saved()
     {
         var fail = true;
         var r = Make(_ => Task.FromResult(fail ? new HttpResponseMessage(HttpStatusCode.Unauthorized) : DjVoiceTests.Audio())); TurnOn(r);
         var cue = await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A));
         Assert.NotNull(cue?.ClipUrl);                                    // handed out before anything failed
         Assert.Null(await r.Clips.WaitAsync(IdOf(cue.ClipUrl), TimeSpan.FromSeconds(10)));   // the token is refused: the clip's address answers 404
-        Assert.True(r.Voice.Failing);
-        Assert.True(r.Dj.VoiceReady);                                    // still set up (the settings page says nothing new); only new lines go without
-        // a fresh line (another person's first song change): no clip at all, so the device says it, and Cloudflare is not asked again
+        Assert.False(r.Voice.Failing);                                   // one line failed: only that line goes without
+        Assert.True(r.Dj.VoiceReady);
+        foreach (var t in new[] { "Second line.", "Third line." }) Assert.Null(await r.Clips.WaitAsync(r.Clips.Request(t)!, TimeSpan.FromSeconds(10)));
+        Assert.True(r.Voice.Failing);                                    // three in a row: a short rest
+        // a fresh line (another person's first song change): no clip at all, quiet (never the device's voice), and Cloudflare is not asked again
         var other = new UserSession("jellyfin", new JellyfinAccount("http://jf.test", "u2", "other", "tok2"), null) { Id = "u2" };
         var st = r.Dj.Settings(other); st.Enabled = true; r.Dj.Save(other, st);
-        var line = await r.Dj.PrepareAsync(other, new DjRequest(DjSurface.Web, B, A));
-        Assert.Null(line);   // nothing in this voice is made yet: quiet, never the device's voice
+        Assert.Null(await r.Dj.PrepareAsync(other, new DjRequest(DjSurface.Web, B, A)));
         Assert.Null(r.Clips.Request("A line never said before."));
-        Assert.Single(r.Http.Seen);
-        // ten minutes on it is worth trying again (and that fails again)
-        now = now.AddMinutes(10);
+        Assert.Equal(3, r.Http.Seen.Count);                              // a refused token is not asked twice for one line
+        // thirty seconds on it is worth trying again (and that fails again)
+        now = now.AddSeconds(30);
         Assert.False(r.Voice.Failing);
         var id = r.Clips.Request("A line never said before.");
         Assert.NotNull(id);
@@ -148,9 +149,9 @@ public class DjServiceTests : IDisposable
         // saving the voice (a new token) clears it at once
         r.Voice.Save(r.Voice.Current, "cf_other_fake_token");
         Assert.False(r.Voice.Failing);
-        Assert.Null(await r.Clips.WaitAsync(r.Clips.Request("A third line.")!, TimeSpan.FromSeconds(10)));
-        Assert.True(r.Voice.Failing);
         // and so does a clip made (the admin's Test button once Cloudflare works again)
+        foreach (var t in new[] { "A third line.", "A fifth line.", "A sixth line." }) Assert.Null(await r.Clips.WaitAsync(r.Clips.Request(t)!, TimeSpan.FromSeconds(10)));
+        Assert.True(r.Voice.Failing);
         fail = false;
         var (made, _) = await r.Clips.MakeNowAsync("A test line.");
         Assert.NotNull(made); Assert.False(r.Voice.Failing);

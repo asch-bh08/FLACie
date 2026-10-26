@@ -29,6 +29,8 @@ public sealed class DjService : IDjService
 
     public bool VoiceReady => voice.Ready;
 
+    public void NotSaid(UserSession s, string song, string why) => log.LogInformation("DJ line not said before {Song}: {Why}", song, why);
+
     static DjSettings Copy(DjSettings s)
     {
         var c = JsonSerializer.Deserialize<DjSettings>(JsonSerializer.Serialize(s)) ?? new();
@@ -111,9 +113,10 @@ public sealed class DjService : IDjService
             if (decisions.TryGetValue(key, out d) && now - d.At < DecisionLife) return d.Line;
             var line = DjPlanner.Plan(st, req, mem, now, new Random(Seed(key, mem.Songs)), Pronounce(), FirstNameOf(s), extra);
             decisions[key] = (now, line);
-            written.TryRemove(key, out _); counted.TryRemove(key, out _);
+            written.TryRemove(key, out _); counted.TryRemove(key, out _); quietLogged.TryRemove(key, out _);
             if (Interlocked.Increment(ref asks) % 200 == 0)
             {
+                quietLogged.Clear();
                 foreach (var old in decisions.Where(x => now - x.Value.At >= DecisionLife).Select(x => x.Key).ToList()) decisions.TryRemove(old, out _);
                 foreach (var old in written.Where(x => now - x.Value.At >= DecisionLife).Select(x => x.Key).ToList()) { written.TryRemove(old, out _); counted.TryRemove(old, out _); }
             }
@@ -129,6 +132,8 @@ public sealed class DjService : IDjService
     readonly ConcurrentDictionary<string, (DateTime At, Lazy<Task<(DjLine Line, bool Pooled)>> Job)> written = new();
     /// <summary>Decisions already counted as a line said today.</summary>
     readonly ConcurrentDictionary<string, bool> counted = new();
+    /// <summary>Decisions whose "line not said" was logged already (asking again does not log it twice).</summary>
+    readonly ConcurrentDictionary<string, bool> quietLogged = new();
 
     public async Task<DjCue?> PrepareAsync(UserSession s, DjRequest req, CancellationToken ct = default)
     {
@@ -163,7 +168,12 @@ public sealed class DjService : IDjService
         if (id is null && !ReferenceEquals(said, planned) && clips.Cached(planned.Text) is { } whole) { id = whole; said = planned; }
         if (id is null && planned.Parts is { Count: > 0 } parts && planned.PooledCaption is { } pc && clips.CachedPooled(parts, s.Id) is { } kept)
         { id = kept; said = planned with { Text = DjPool.Join(parts), Caption = pc }; }
-        if (id is null) return null;
+        if (id is null)
+        {
+            // planned (and written) but not said: say why, so a quiet DJ can be read from the logs
+            if (quietLogged.TryAdd(key, true)) log.LogInformation("DJ line not said before {Song}: {Why}", req.Next.Title, clips.WhyNot(said.Text));
+            return null;
+        }
         if (counted.TryAdd(key, true)) voice.CountSaid();
         // the song's intro, when known for sure, so the player can time the line to end before the singing
         return new DjCue(said.Text, said.Caption, DjClips.UrlOf(id), false, DjIntro.Usable(extra?.Vibe?.Intro));

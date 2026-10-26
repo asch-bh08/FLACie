@@ -71,6 +71,12 @@ public static class DjBudget
     /// <summary>A rough "lines left today" for the dashboard: what is left under the cap, in pooled lines.</summary>
     public static int LinesLeft(double cap, double used) => Math.Max(0, (int)Math.Floor((cap - used) / PooledCost));
 
+    /// <summary>Songs an hour, as an average (about 3.5 minutes a song): what one listener on "Every song" needs in lines an hour. "Often" is about a third of it.</summary>
+    public const int SongsPerHour = 17;
+
+    /// <summary>How long [linesLeft] last one listener on "Every song", in hours.</summary>
+    public static double HoursOfEverySong(int linesLeft) => Math.Max(0, linesLeft) / (double)SongsPerHour;
+
     /// <summary>Lines a day at [cap] when every line is whole (the last round: an 8B line said whole by Aura, every time).</summary>
     public static double LinesPerDayWhole(double cap) => cap / (Aura(WholeChars) + DjModels.Fallback.Cost(375, AnswerTokens));
 

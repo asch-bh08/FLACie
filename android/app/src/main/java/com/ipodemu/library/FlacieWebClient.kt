@@ -113,6 +113,29 @@ class FlacieWebClient(private val prefs: Prefs) {
         } finally { c.disconnect() }
     }
 
+    // ---- the AI DJ (docs/spec/ai-dj.md): settings are the account's own, kept on the server, so the web and Windows follow them ------------------------
+    fun djSettings(): com.ipodemu.playback.DjSettings = com.ipodemu.playback.DjSettings.parse(send("/api/dj/settings", "GET"))
+    /** Sends only the fields in [patch] (the GET shape's names); returns the settings as the server now has them. */
+    fun saveDjSettings(patch: JSONObject): com.ipodemu.playback.DjSettings = com.ipodemu.playback.DjSettings.parse(send("/api/dj/settings", "POST", patch.toString()))
+    /** A playlist's own switch: on, off, or null = no entry (it follows the rest). [id] is the Jellyfin playlist id when it has one, else the app's own. */
+    fun setDjPlaylist(id: String, on: Boolean?): com.ipodemu.playback.DjSettings =
+        saveDjSettings(JSONObject().put("playlist", JSONObject().put("id", id).put("on", on ?: JSONObject.NULL)))
+    /**
+     * Asks whether the DJ speaks before the next song ([body] from DjCoordinator.request). Null = say nothing; also when the server is slow or
+     * unreachable (the DJ stays quiet, playback never waits for it).
+     */
+    fun djNext(body: String): com.ipodemu.playback.DjCue? {
+        val c = open("/api/dj/next", "POST")
+        c.connectTimeout = 5_000; c.readTimeout = 10_000
+        try {
+            val b = body.toByteArray()
+            c.doOutput = true; c.setRequestProperty("Content-Type", "application/json"); c.setFixedLengthStreamingMode(b.size)
+            c.outputStream.use { it.write(b) }
+            if (c.responseCode !in 200..299) return null
+            return com.ipodemu.playback.DjCue.parse(c.inputStream.bufferedReader().use { it.readText() })
+        } finally { c.disconnect() }
+    }
+
     fun account(): AccountStats =JSONObject(send("/api/account", "GET")).let { AccountStats(it.optInt("songs"), it.optInt("albums"), it.optInt("artists"), it.optInt("playlists"), it.optInt("favourites"), it.optBoolean("admin")) }
 
     /** A chart (0 = Top Songs; the ids come from [settings]), as the server read it from the public charts. */

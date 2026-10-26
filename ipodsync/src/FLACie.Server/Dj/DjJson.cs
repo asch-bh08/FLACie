@@ -40,7 +40,9 @@ public static class DjJson
         if (body.ContainsKey("playlists"))
         {
             if (body["playlists"] is not JsonObject po || po.Count > 1000 || po.Any(kv => kv.Key.Trim().Length is 0 or > 200 || !IsBool(kv.Value))) return "\"playlists\" must be an object of playlist id: true or false.";
-            all = po.ToDictionary(kv => kv.Key.Trim(), kv => kv.Value!.GetValue<bool>());
+            // ids that are the same once trimmed ("a" and " a ") are one playlist: the last one wins
+            all = new();
+            foreach (var (k, v) in po) all[k.Trim()] = v!.GetValue<bool>();
         }
         (string Id, bool? On)? one = null;
         if (body.ContainsKey("playlist"))

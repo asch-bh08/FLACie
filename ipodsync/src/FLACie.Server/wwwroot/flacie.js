@@ -684,6 +684,8 @@ window.flacie = (() => {
     metered() { const c = navigator.connection; return !!c && (c.saveData === true || c.type === "cellular"); },
     // the output device's own rate: a context made with no rate takes it
     outputRate() { try { if (!AC) return 0; const c = new AC(); const r = c.sampleRate; c.close(); return r; } catch { return 0; } },
+    // this browser's distance from UTC in minutes, positive west of Greenwich (so UTC+1 is -60): the DJ's "good morning" follows the listener's clock, not the server's
+    utcOffset() { return new Date().getTimezoneOffset(); },
     // what this browser is, for the admin dashboard
     async clientInfo() {
       let who = {};
@@ -1289,21 +1291,42 @@ window.flacie = (() => {
       if (djPre) { try { djPre.removeAttribute("src"); djPre.load(); } catch { } }
       djPre = new Audio(); djPre.preload = "auto"; djPre.dataset.u = url; djPre.src = url;
     },
-    // plays the clip now, over the song that has just started: the music ducks, and comes back up when the clip ends or fails
-    djPlay(url) {
+    // plays the clip over the song that has just started. The music ducks only once the clip is really playing (its address can take a few seconds while
+    // the server is still making it), and if it hasn't started 1.5 s after the song did the moment has passed: no duck and no line. A clip that fails
+    // before it starts (Cloudflare failed after the line was planned, so the server answers 404) is said by the device's own voice instead when [backup]
+    // is on, as long as the song is still in its first 6 s. Whatever happens, the music is back up 20 s later at the latest.
+    djPlay(url, text, backup) {
       if (!url) return;
       djHalt(false);
       const tok = ++djTok;
       const a = djPre && djPre.dataset.u === url ? djPre : new Audio(url);
       if (a === djPre) djPre = null;
       djAudio = a; a.volume = clipVol();
-      const done = () => { if (tok !== djTok) return; djAudio = null; duckTo(1, 600); };
+      const mine = () => tok === djTok;
+      let started = false, over = false, songAt = 0;   // songAt: when the song began to play (performance.now()), 0 until it has
+      const done = () => { if (!mine() || over) return; over = true; djAudio = null; duckTo(1, 600); };
+      const failed = () => {
+        if (!mine() || over) return;
+        if (started) { done(); return; }
+        over = true; djAudio = null;
+        if (backup && text && (!songAt || performance.now() - songAt < 6000)) window.flacie.djSay(text);
+        else duckTo(1, 600);   // (nothing was ducked by this clip; this undoes one left over from a line it replaced)
+      };
+      a.addEventListener("playing", () => { if (!mine() || over || started) return; started = true; duckTo(0.3, 400); });
       a.addEventListener("ended", done, { once: true });
-      a.addEventListener("error", done, { once: true });
-      duckTo(0.3, 400);
-      a.play().catch(done);
+      a.addEventListener("error", failed, { once: true });
+      // the 1.5 s count starts when the song is really playing (it may still be loading when this is called)
+      const songStarted = () => {
+        if (!mine() || songAt) return;
+        songAt = performance.now();
+        setTimeout(() => { if (mine() && !over && !started) djHalt(true); }, 1500);
+      };
+      if (!audio.paused && audio.readyState >= 3) songStarted(); else audio.addEventListener("playing", songStarted, { once: true });
+      setTimeout(() => { if (mine() && djAudio === a) djHalt(true); }, 20000);   // safety: a clip that never says it ended
+      if (a.error) { failed(); return; }   // the clip fetched ahead has already failed
+      a.play().catch((e) => { if (e && e.name === "AbortError") return; failed(); });
     },
-    // says the line with the device's own voice (no clip could be made): the music ducks while it speaks
+    // says the line with the device's own voice (no clip could be made): the music ducks once it really speaks, and is back up 20 s later at the latest
     djSay(text) {
       if (!text || !("speechSynthesis" in window)) return;
       djHalt(false);
@@ -1317,8 +1340,9 @@ window.flacie = (() => {
         u.onend = done; u.onerror = done;
         djSpeaking = true;
         speechSynthesis.speak(u);
-        // (some browsers never say a line ended: the music comes back up after the time the line could take at most)
-        setTimeout(done, Math.max(4000, text.length * 90));
+        // (some browsers never say a line ended: the music comes back up after the time the line could take at most, and never more than 20 s on)
+        setTimeout(done, Math.min(20000, Math.max(4000, text.length * 90)));
+        setTimeout(() => { if (tok === djTok && djSpeaking) djHalt(true); }, 20000);
       } catch { djSpeaking = false; duckTo(1, 0); }
     },
     // a skip, a new queue, the DJ turned off: stop at once and bring the music back up

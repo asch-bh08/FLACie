@@ -263,7 +263,7 @@ public sealed class AppOutput(IJSRuntime js) : IPlayerOutput
     public Task StopAsync() { Call("pause"); return Task.CompletedTask; }
     // no DJ in Retro inside the app: the app's own player has its own DJ
     public Task DjPreloadAsync(string url) => Task.CompletedTask;
-    public Task DjPlayAsync(string url) => Task.CompletedTask;
+    public Task DjPlayAsync(string url, string text, bool backup) => Task.CompletedTask;
     public Task DjSayAsync(string text) => Task.CompletedTask;
     public Task DjStopAsync() => Task.CompletedTask;
 }

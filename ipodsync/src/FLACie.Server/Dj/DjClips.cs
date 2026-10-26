@@ -39,7 +39,8 @@ public sealed class DjClips
 
     /// <summary>
     /// The id of the clip for [text] in the saved voice, starting it in the background if it is not made yet; null when no clip can be had: the voice is not set up,
-    /// the line would go over today's cap, or it failed a moment ago.
+    /// the line would go over today's cap, it failed a moment ago, or Cloudflare failed on any line lately (<see cref="CloudflareVoice.Failing"/>: a refused token
+    /// or an outage fails the next lines too, so they go to the backup voice at once instead of handing out a clip that will never come).
     /// </summary>
     public string? Request(string text)
     {
@@ -51,7 +52,7 @@ public sealed class DjClips
         lock (gate)
         {
             if (jobs.ContainsKey(id)) return id;
-            if (!voice.Ready || !voice.CanAfford(v, text)) return null;
+            if (!voice.Ready || voice.Failing || !voice.CanAfford(v, text)) return null;
             jobs[id] = Task.Run(() => MakeAsync(id, v, text));
             return id;
         }

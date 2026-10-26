@@ -47,6 +47,13 @@ public sealed partial class CloudflareVoice
     public string LastResult { get; private set; } = "";
     public DateTime? LastAt { get; private set; }
 
+    /// <summary>How long new lines go without a clip after Cloudflare failed to make one (a refused token, an outage); the device's own voice says them meanwhile.</summary>
+    public static readonly TimeSpan FailureRest = TimeSpan.FromMinutes(10);
+    long failedTicks;   // when Cloudflare last failed (DateTime ticks, 0: not since the last success or save); read and written from several threads
+    /// <summary>Cloudflare failed to make a clip less than <see cref="FailureRest"/> ago, and nothing has been made or saved since: new lines get no clip.
+    /// (Clips already made are still served.)</summary>
+    public bool Failing => Interlocked.Read(ref failedTicks) is var t && t > 0 && clock() - new DateTime(t, DateTimeKind.Utc) < FailureRest;
+
     [GeneratedRegex(@"^[A-Za-z0-9]{1,64}$")] private static partial Regex AccountShape();
 
     public CloudflareVoice(DataPaths paths, IHttpClientFactory hf, IDataProtectionProvider dp, IConfiguration conf, ILogger<CloudflareVoice> log, Func<DateTime>? clock = null)
@@ -86,6 +93,7 @@ public sealed partial class CloudflareVoice
             cfg = JsonSerializer.Deserialize<DjVoiceConfig>(JsonSerializer.Serialize(c))!;
             cfg.AccountId = new string(cfg.AccountId.Where(char.IsAsciiLetterOrDigit).ToArray());
             cfg.Voice = NormVoice(cfg.Voice); cfg.CapPercent = Math.Clamp(cfg.CapPercent, 0, 100); cfg.Token = token;
+            Interlocked.Exchange(ref failedTicks, 0);   // a new token or account is worth trying at once
             try { Directory.CreateDirectory(Path.GetDirectoryName(file)!); File.WriteAllText(file, JsonSerializer.Serialize(cfg)); } catch (Exception e) { log.LogWarning("Saving the DJ voice settings failed: {Kind}", e.GetType().Name); }
         }
     }
@@ -137,23 +145,23 @@ public sealed partial class CloudflareVoice
             req.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
             using var http = hf.CreateClient("cloudflare");
             using var res = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
-            if (res.Content.Headers.ContentLength is > MaxAudioBytes) return Fail("Cloudflare sent more than a clip");
+            if (res.Content.Headers.ContentLength is > MaxAudioBytes) return Down("Cloudflare sent more than a clip");
             var bytes = await ReadAtMost(res.Content, ct);
-            if (bytes is null) return Fail("Cloudflare sent more than a clip");
+            if (bytes is null) return Down("Cloudflare sent more than a clip");
             if (!res.IsSuccessStatusCode)
-                return Fail(res.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden ? "Cloudflare refused the token (it needs Workers AI access)"
+                return Down(res.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden ? "Cloudflare refused the token (it needs Workers AI access)"
                     : (int)res.StatusCode == 429 ? "Cloudflare says the allowance is used up or too many requests (429)"
                     : $"Cloudflare answered {(int)res.StatusCode} {res.ReasonPhrase}" + ErrorOf(bytes));
             var audio = AudioOf(res.Content.Headers.ContentType?.MediaType ?? "", bytes, out var why);
-            if (audio is null) return Fail(why);
+            if (audio is null) return Down(why);
             made = true;
-            LastResult = "Made a clip"; LastAt = clock();
+            LastResult = "Made a clip"; LastAt = clock(); Interlocked.Exchange(ref failedTicks, 0);
             return audio;
         }
         catch (Exception e)
         {
             var msg = e is TaskCanceledException or OperationCanceledException ? "Cloudflare didn't answer in time" : "Couldn't reach Cloudflare (" + e.GetType().Name + ")";
-            return Fail(msg);
+            return ct.IsCancellationRequested ? Fail(msg) : Down(msg);   // (the caller giving up is not Cloudflare failing)
         }
         finally { Settle(cost, made); }
     }
@@ -164,6 +172,9 @@ public sealed partial class CloudflareVoice
         log.LogWarning("DJ voice: {Message}", msg);
         return null;
     }
+
+    /// <summary>Cloudflare was asked and no clip came back: new lines go without a clip for <see cref="FailureRest"/> (see <see cref="Failing"/>).</summary>
+    byte[]? Down(string msg) { Interlocked.Exchange(ref failedTicks, clock().Ticks); return Fail(msg); }
 
     static async Task<byte[]?> ReadAtMost(HttpContent content, CancellationToken ct)
     {

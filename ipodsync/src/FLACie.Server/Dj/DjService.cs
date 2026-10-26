@@ -42,8 +42,14 @@ public sealed class DjService : IDjService
     public void Save(UserSession s, DjSettings settings)
     {
         var c = Copy(settings);
-        // playlist keys are ids: no blanks, nothing huge, a sane number of them
-        c.Playlists = c.Playlists.Where(kv => kv.Key.Trim().Length is > 0 and <= 200).Take(1000).ToDictionary(kv => kv.Key.Trim(), kv => kv.Value);
+        // playlist keys are ids: no blanks, nothing huge, a sane number of them; two that are the same once trimmed are one playlist (the last one wins)
+        var lists = new Dictionary<string, bool>();
+        foreach (var (k, v) in c.Playlists)
+        {
+            var key = k.Trim();
+            if (key.Length is > 0 and <= 200 && (lists.Count < 1000 || lists.ContainsKey(key))) lists[key] = v;
+        }
+        c.Playlists = lists;
         states.For(s).Dj = c;
         states.Save(s);
     }

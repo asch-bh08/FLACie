@@ -162,7 +162,8 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         var seq = order.Count == Queue.Count ? order.Select(i => Queue[i]).ToList() : Queue;
         var at = Math.Max(0, order.Count == Queue.Count ? order.IndexOf(Index) : Index);
         var from = Math.Max(0, at - 50);
-        var json = System.Text.Json.JsonSerializer.Serialize(new { q = seq.Skip(from).Take(300).Select(t => t.Path), i = at - from, p = Position, s = Shuffle, r = Repeat });
+        // x: the playlist the queue came from, so its DJ switch still counts after the reload
+        var json = System.Text.Json.JsonSerializer.Serialize(new { q = seq.Skip(from).Take(300).Select(t => t.Path), i = at - from, p = Position, s = Shuffle, r = Repeat, x = ContextId });
         _ = js.InvokeVoidAsync("flacie.stash", stashKey, json).AsTask().ContinueWith(_ => { });
     }
 
@@ -193,7 +194,8 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
                 paused = !rd.RootElement.GetProperty("playing").GetBoolean();
                 if (rd.RootElement.GetProperty("t").GetDouble() is var t0 && t0 > 0) at = t0;
             }
-            await StartAsync(tracks, Math.Clamp(r.GetProperty("i").GetInt32(), 0, tracks.Count - 1), (long)(at * 1000), paused, Context, keepOrder: true);
+            var contextId = r.TryGetProperty("x", out var x) && x.ValueKind == System.Text.Json.JsonValueKind.String ? x.GetString() : null;
+            await StartAsync(tracks, Math.Clamp(r.GetProperty("i").GetInt32(), 0, tracks.Count - 1), (long)(at * 1000), paused, Context, contextId, keepOrder: true);
         }
         catch (Exception) { }
     }
@@ -232,9 +234,11 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         await StartAsync(list, index, 0, false, context, contextId);
     }
 
-    public Task PlayFromAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused) => StartAsync(list, index, positionMs, paused, Context, ContextId);
+    // a queue handed over (Connect, a Jam, Alexa, the phone app) or a lone song added to an empty player is a new queue that came from no playlist here: the
+    // playlist's DJ switch of whatever played before must not follow it (StartAsync also puts "this queue" back to untouched, as for every new queue)
+    public Task PlayFromAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused) => StartAsync(list, index, positionMs, paused, Context, contextId: null);
     /// <summary>Takes a queue exactly as it will play (another player's, already shuffled or arranged): it is not shuffled again.</summary>
-    public Task AdoptAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused) => StartAsync(list, index, positionMs, paused, Context, ContextId, keepOrder: true);
+    public Task AdoptAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused) => StartAsync(list, index, positionMs, paused, Context, contextId: null, keepOrder: true);
 
     async Task StartAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused, string? context, string? contextId = null, bool keepOrder = false)
     {
@@ -654,16 +658,29 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         if (djFor == next.Path) return;
         djAsking?.Cancel(); var cts = djAsking = new CancellationTokenSource();
         djFor = next.Path; djCue = null;
-        var now = DateTime.Now;
         var req = new DjRequest(DjSurface, SongOf(next), SongOf(cur), PrevPlayedOut: true, SkippedRecently: djSkips[0] || djSkips[1],
-            PlaylistId: ContextId, QueueDj: QueueDj, LocalHour: now.Hour, Weekday: (int)now.DayOfWeek);
+            PlaylistId: ContextId, QueueDj: QueueDj);
         _ = DjAskAsync(d, s, req, next.Path, cts);
+    }
+
+    // the browser's distance from UTC in minutes (Date.getTimezoneOffset), read once per tab: this server's own clock is the container's (usually UTC), not the listener's
+    int? tzOffset; bool tzKnown;
+    async Task<int?> BrowserOffsetAsync()
+    {
+        if (tzKnown) return tzOffset;
+        try { tzOffset = await js.InvokeAsync<int?>("flacie.utcOffset"); tzKnown = true; }
+        catch (Exception) { }   // (not read: asked again next time, and this server's clock meanwhile)
+        return tzOffset;
     }
 
     async Task DjAskAsync(IDjService d, UserSession s, DjRequest req, string path, CancellationTokenSource cts)
     {
         try
         {
+            // the time where the listener is, for "good morning" and "happy Friday"
+            var (hour, weekday) = DjSwitches.LocalTime(DateTime.UtcNow, await BrowserOffsetAsync());
+            if (cts.IsCancellationRequested || djFor != path) return;
+            req = req with { LocalHour = hour, Weekday = weekday };
             var cue = await d.PrepareAsync(s, req, cts.Token);
             if (cts.IsCancellationRequested || djFor != path) return;
             djCue = cue;
@@ -683,7 +700,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         {
             try
             {
-                if (cue.ClipUrl is { Length: > 0 } url) { await audio.DjPlayAsync(url); djActive = true; }
+                if (cue.ClipUrl is { Length: > 0 } url) { await audio.DjPlayAsync(url, cue.Text, cue.Backup); djActive = true; }
                 else if (cue.Backup && cue.Text.Length > 0) { await audio.DjSayAsync(cue.Text); djActive = true; }
             }
             catch (Exception) { }

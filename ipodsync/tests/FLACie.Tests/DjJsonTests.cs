@@ -100,6 +100,15 @@ public class DjJsonTests
     }
 
     [Fact]
+    public void Playlist_ids_that_are_the_same_once_trimmed_are_one_playlist_and_the_last_wins()
+    {
+        var s = new DjSettings();
+        Assert.Null(DjJson.Apply(J("""{ "playlists": { "bedtime": true, " bedtime ": false, "gym": true } }"""), s));   // was a 500 (ToDictionary threw)
+        Assert.Equal(2, s.Playlists.Count);
+        Assert.False(s.Playlists["bedtime"]); Assert.True(s.Playlists["gym"]);
+    }
+
+    [Fact]
     public void The_answer_is_speak_false_or_the_full_cue()
     {
         Assert.Equal("""{"speak":false}""", DjJson.Cue(null).ToJsonString());

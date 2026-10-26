@@ -13,6 +13,7 @@ public abstract class UserComponent : ComponentBase, IDisposable
     [Inject] protected JellyfinClient Jellyfin { get; set; } = default!;
     [Inject] IAutoplayPlanner Planner { get; set; } = default!;
     [Inject] PlayTracker Plays { get; set; } = default!;
+    [Inject] IServiceProvider Services { get; set; } = default!;
     [CascadingParameter] Task<AuthenticationState> Auth { get; set; } = default!;
     protected UserSession Session { get; private set; } = default!;
     protected Library Lib => Session.Library;
@@ -27,6 +28,8 @@ public abstract class UserComponent : ComponentBase, IDisposable
         Player.SetLibrary(() => Session.Library);
         Player.SetPlanner(Session, Planner);
         Player.SetPlays(Plays);
+        // the AI DJ, when the host has one (the server does; the phone app has none, so every DJ control stays hidden there)
+        if (Services.GetService(typeof(IDjService)) is IDjService dj) Player.SetDj(dj, RetroHost.DjSurface);
         Player.SetRelated(cur => Session.Playlists.Where(p => p.Entries.Any(e => e.Path == cur.Path || (e.Title == cur.Title && e.Artist == cur.Artist))).SelectMany(p => Session.Resolve(p.Entries)).DistinctBy(t => t.Path).ToList());
         if (Store.LiveFor(Session) is { } l)
         {

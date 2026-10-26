@@ -26,8 +26,8 @@ else
             else { var (head, last) = SplitTitle(p.Name); <h1>@head<i>@last</i></h1> }
             <p class="sub pl-facts">@tracks.Count @(tracks.Count == 1 ? "song" : "songs")@(Length(tracks) is { Length: > 0 } len ? " · " + len : "")@(tracks.Count < p.Entries.Count ? $" ({p.Entries.Count - tracks.Count} not in this library)" : "")</p>
             <div class="chips">
-                <button class="btn primary pl-play" @onclick="() => Player.Play(tracks, 0, p.Name)" disabled="@(tracks.Count == 0)"><Icon Name="play" Size="18" />Play</button>
-                <button class="btn pl-shuffle" @onclick="() => Player.ShuffleAll(tracks, p.Name)" disabled="@(tracks.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+                <button class="btn primary pl-play" @onclick="() => Player.Play(tracks, 0, p.Name, DjSwitches.KeyOf(p))" disabled="@(tracks.Count == 0)"><Icon Name="play" Size="18" />Play</button>
+                <button class="btn pl-shuffle" @onclick="() => Player.ShuffleAll(tracks, p.Name, DjSwitches.KeyOf(p))" disabled="@(tracks.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle</button>
                 @if (confirm)
                 {
                     <button class="btn danger" @onclick="Delete">Delete "@p.Name"</button>
@@ -35,6 +35,14 @@ else
                 }
                 else
                 {
+                    @* the DJ on this playlist, remembered for it (and on the phone): Auto follows Settings → DJ; On or Off wins over that whenever this playlist plays *@
+                    @if (Player.Dj is { } dj)
+                    {
+                        var djChoice = DjSwitches.OfPlaylist(dj.Settings(Session), DjSwitches.KeyOf(p));
+                        <button class="btn ghost pl-dj @(djChoice is null ? "" : "set")" @onclick="() => CycleDj(p)" title="DJ on this playlist. Auto follows your DJ settings; On or Off is kept for this playlist. Tap to change.">
+                            <Icon Name="dj" Size="16" />DJ: @DjSwitches.Label(djChoice)
+                        </button>
+                    }
                     <button class="btn ghost" disabled="@(tracks.Count == 0)" @onclick='() => Sharing.ShareAsync(Session, "playlist", p.Name, tracks)'><Icon Name="share" Size="16" />Share</button>
                     <button class="btn ghost" @onclick="() => { renaming = true; newName = p.Name; }">Rename</button>
                     <button class="btn ghost" @onclick="() => confirm = true">Delete</button>
@@ -44,7 +52,7 @@ else
     </header>
     <div class="pl-main">
     @if (tracks.Count == 0) { <p class="status">Nothing in this playlist yet. Use the ⋯ menu on any song and pick “Add to playlist”.</p> }
-    <TrackList Tracks="tracks" PlayContext="@p.Name" OnRemove="i => Remove(p, tracks, i)" OnMove="(a, b) => Move(p, tracks, a, b)" />
+    <TrackList Tracks="tracks" PlayContext="@p.Name" PlayContextId="@DjSwitches.KeyOf(p)" OnRemove="i => Remove(p, tracks, i)" OnMove="(a, b) => Move(p, tracks, a, b)" />
     @{ var missing = Session.Loading || Lib.Songs.Count == 0 ? [] : p.Entries.Where(e => Session.ResolveEntry(e) is null && e.Title.Length > 0).ToList(); }
     @if (missing.Count > 0)
     {
@@ -100,6 +108,15 @@ else
         foreach (var e in entries) if (asked.Add(Key(e))) _ = Downloads.FetchSongAsync(Session, "Playlist", e.Artist, e.Title, "", null, 0);
     }
     void Delete() { Session.DeletePlaylist(Id); SaveProfile(); Nav.NavigateTo("/playlists"); }
+    // the playlist's DJ chip: Auto, On, Off, Auto again; saved with the DJ settings on the server, so the phone shows the same
+    async Task CycleDj(FLACie.Core.Playlist p)
+    {
+        if (Player.Dj is not { } dj) return;
+        var s = DjSwitches.Copy(dj.Settings(Session)); var key = DjSwitches.KeyOf(p);
+        DjSwitches.SetPlaylist(s, key, DjSwitches.NextChoice(DjSwitches.OfPlaylist(s, key)));
+        dj.Save(Session, s);
+        await Player.DjRefreshAsync();
+    }
     void Remove(FLACie.Core.Playlist p, IReadOnlyList<Track> tracks, int i)
     {
         var t = tracks[i];

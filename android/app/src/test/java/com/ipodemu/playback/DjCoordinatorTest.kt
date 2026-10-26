@@ -168,3 +168,69 @@ class DuckRampTest {
         for (t in -100L..2_000L step 13L) { val g = r.level(t); assertTrue("$t -> $g", g in DuckRamp.LOW..1f) }
     }
 }
+
+class DjLineTest {
+    // 13 words: 5 s at 2.6 words a second
+    private val text = "Up next it's Adele with Hello, from the album 25, out in 2015"
+    private val clip = DjCue(text, text, "/api/dj/clip/a.mp3", backup = true)
+
+    @Test fun aClipMustStartWithinOneAndAHalfSeconds() {
+        val l = DjLine.start(clip, 10_000, clipFailed = false)!!
+        assertFalse(l.phoneVoice); assertFalse(l.heard); assertEquals(11_500L, l.stopAt)
+    }
+
+    @Test fun aClipThatFailsBeforeItIsHeardIsSaidByThePhoneWhileTheSongIsYoung() {
+        val l = DjLine.start(clip, 10_000, clipFailed = false)!!
+        assertTrue("a 404 half a second in", l.clipFailed(10_500))
+        assertTrue(l.phoneVoice); assertEquals("the phone's voice must be sounding 6 s into the song", 16_000L, l.stopAt)
+        assertFalse("only once", l.clipFailed(10_600))
+    }
+
+    @Test fun noBackupLineAfterSixSecondsOrWithoutBackupVoice() {
+        assertFalse(DjLine.start(clip, 0, false)!!.clipFailed(DjLine.BACKUP_WITHIN_MS))
+        assertTrue(DjLine.start(clip, 0, false)!!.clipFailed(DjLine.BACKUP_WITHIN_MS - 1))
+        assertFalse("Backup voice off", DjLine.start(clip.copy(backup = false), 0, false)!!.clipFailed(100))
+        assertFalse("nothing to say", DjLine.start(clip.copy(text = " "), 0, false)!!.clipFailed(100))
+        val heard = DjLine.start(clip, 0, false)!!.also { it.heard(800) }
+        assertFalse("it had started: a clip failing halfway just stops", heard.clipFailed(1_000))
+    }
+
+    @Test fun aClipThatFailedWhileLoadingAheadGoesStraightToThePhonesVoice() {
+        val l = DjLine.start(clip, 0, clipFailed = true)!!
+        assertTrue(l.phoneVoice); assertEquals(DjLine.BACKUP_WITHIN_MS, l.stopAt)
+        val retry = DjLine.start(clip.copy(backup = false), 0, clipFailed = true)!!
+        assertFalse("no Backup voice: the clip is tried once more", retry.phoneVoice); assertEquals(DjLine.START_WITHIN_MS, retry.stopAt)
+    }
+
+    @Test fun aCueWithoutAClipIsThePhonesVoiceOrNothing() {
+        val l = DjLine.start(clip.copy(clip = null), 0, false)!!
+        assertTrue(l.phoneVoice); assertEquals(DjLine.START_WITHIN_MS, l.stopAt)
+        assertNull(DjLine.start(clip.copy(clip = null, backup = false), 0, false))
+        assertNull(DjLine.start(clip.copy(clip = null, text = ""), 0, false))
+    }
+
+    @Test fun onceHeardALineThatNeverEndsIsStoppedAnyway() {
+        val c = DjLine.start(clip, 0, false)!!
+        c.heard(700); assertTrue(c.heard); assertEquals("a clip that stalls: 20 s", 20_700L, c.stopAt)
+        val v = DjLine.start(clip.copy(clip = null), 0, false)!!
+        v.heard(300); assertEquals("13 words at 2.6 a second, plus 3 s", 300L + 5_000L + 3_000L, v.stopAt)
+        assertEquals(DjLine.SPEECH_SLACK_MS, DjLine.speechMs(""))
+        assertEquals("3 words", 1_154L + 3_000L, DjLine.speechMs("Next up, Adele"))
+        assertEquals("words, not spaces", DjLine.speechMs("Next up, Adele"), DjLine.speechMs("  Next\nup,\t Adele  "))
+    }
+}
+
+class SeekOriginTest {
+    @Test fun theListenersSeekStopsTheLine() { assertTrue(SeekOrigin().seeked()) }
+
+    @Test fun thePlayersOwnSeekDoesNotAndUsesItsMarkUp() {
+        val s = SeekOrigin()
+        s.self(); assertFalse("a long item's place put back", s.seeked())
+        assertTrue("the next one is the listener's again", s.seeked())
+    }
+
+    @Test fun aMarkLeftOverNeverSwallowsTheListenersSeek() {
+        val s = SeekOrigin()
+        s.self(); s.clear(); assertTrue("cleared by the listener's seek, or at the end of the loop turn", s.seeked())
+    }
+}

@@ -441,6 +441,28 @@ class AccountSync(private val app: App) {
             } catch (_: Exception) { /* offline: the profile copy still carries it; retried on the next sync */ }
         }
         lastMirrored = mirrored
+        try { moveDjSwitches() } catch (_: Exception) { /* FLACie Web unreachable: tried again on the next sync */ }
+    }
+
+    /**
+     * The DJ's playlist switch knows a playlist by its Jellyfin id once it has one, else by the app's own id: a playlist made here that has just been
+     * given its Jellyfin id takes its switch along (or the switch would be lost). Checked on every sync, so a move that failed is tried again.
+     */
+    private suspend fun moveDjSwitches() {
+        if (prefs.flacieWebUrl.isBlank()) return
+        val ud = app.userData
+        fun moves(s: com.ipodemu.playback.DjSettings) = synchronized(ud) { ud.playlists.mapNotNull { p -> p.jfId?.takeIf { it != p.id && p.id in s.playlists }?.let { p.id to it } } }
+        // the copy on the phone says whether there is anything to move; the server's own copy says what
+        if (moves(com.ipodemu.playback.DjSettings.parseOrDefault(prefs.djSettings)).isEmpty()) return
+        val web = FlacieWebClient(prefs)
+        var s = web.djSettings()
+        for ((local, jf) in moves(s)) {
+            // the Jellyfin id's own entry (set on the web, say) wins over the old one
+            if (jf !in s.playlists) web.setDjPlaylist(jf, s.playlists[local])
+            s = web.setDjPlaylist(local, null)
+            val now = s
+            kotlinx.coroutines.withContext(Dispatchers.Main) { app.player.djPlaylistMoved(local, jf, now) }
+        }
     }
     @Volatile var lastMirrored = 0; private set
 

@@ -160,7 +160,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (!isBrowseId(id)) return false
         browseExec.execute {
             val r = try { BrowseTree.resolve(id, AppBrowseSource(App.of(ctx))) } catch (_: Exception) { null }
-            if (r != null) handler.post { play(r.tracks, r.index) }
+            // a playlist picked in the car keeps its DJ switch (the key is the Jellyfin playlist id when it has one, as on the phone's own screens)
+            val key = BrowseTree.playlistOf(id)?.let { pl -> try { App.of(ctx).userData.playlists.toList().firstOrNull { it.id == pl }?.let { it.jfId ?: it.id } } catch (_: Exception) { null } }
+            if (r != null) handler.post { play(r.tracks, r.index, contextId = key) }
         }
         return true
     }
@@ -347,9 +349,11 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         djFetchedAt = now
         djExec.execute {
             val s = try { djWeb.djSettings() } catch (_: Exception) { null } ?: return@execute
-            handler.post { if (s != djSettings) djSettingsChanged(s) else prefs.djSettings = s.toJson().toString() }
+            handler.post { djSettingsFetched(s) }
         }
     }
+    /** Settings read from the server (a screen opened): kept, and acted on only when they differ from the cached ones. */
+    fun djSettingsFetched(s: DjSettings) { if (s != djSettings) djSettingsChanged(s) else prefs.djSettings = s.toJson().toString() }
     /** How far into the song the last change of song left it (from the position discontinuity that comes just before the transition). */
     private var djLeftAt = -1L
     private var djLastPath: String? = null

@@ -81,6 +81,16 @@ object BrowseTree {
     /** The id a voice command plays: the first song of what [searchPlay] found, with the rest of it queued after. */
     fun voiceId(query: String, path: String) = songId("voice:$query", path)
     fun playlistId(id: String) = "pl:$id"
+    /** The app's playlist id behind a play request from a playlist (the playlist itself, Play all, Shuffle, or one of its songs); null for anything else. The DJ's per-playlist switch reads it. */
+    fun playlistOf(mediaId: String): String? {
+        val list = when {
+            mediaId.startsWith("s:") -> mediaId.removePrefix("s:").substringBefore(SEP, "")
+            mediaId.startsWith("all:") -> mediaId.removePrefix("all:")
+            mediaId.startsWith("shuf:") -> mediaId.removePrefix("shuf:")
+            else -> mediaId
+        }
+        return list.takeIf { it.startsWith("pl:") }?.removePrefix("pl:")?.takeIf { it.isNotEmpty() }
+    }
     fun albumId(key: String) = "al:$key"
     fun artistId(name: String) = "ar:$name"
 

@@ -108,3 +108,6 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 
 ## 2026-10-26 AI DJ timing deployed (519f706)
 - DJ talks over the intro and ends ~0.5 s before vocals (intro from synced lyrics, else level envelope; unknown -> old timing); long lines lead in, song held back <= 1.5 s. Rollback tag flacie-web:rollback-2026-10-26-pre-djtiming. Background pass re-analyses songs once (fetches LRCLIB lyrics, paced by idle waits).
+
+## 2026-10-26 AI DJ one voice + volume + per-song deployed (3a57431)
+- Two voices = device voice standing in after one Cloudflare 500 at 21:33; now one voice only (device voice only by explicit switch). DJ volume + music-under-DJ sliders; per-song always/never/default. Rollback tag flacie-web:rollback-2026-10-26-pre-djvoice. Owner should save Dashboard > AI DJ once (dj.json still says melotts on disk).

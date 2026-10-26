@@ -5,7 +5,8 @@ namespace FLACie.Server;
 
 /// <summary>
 /// What a new account's listening log starts from, so recommendations are not empty on the first day: the plays it already has
-/// on record, the songs it has hearted, and the plays Jellyfin counted (each count becomes a finished play).
+/// on record and the songs it has hearted. Jellyfin's play counts are not written here: they reach the engine as their own input, and
+/// written as plays too they would count twice. ([jellyfin] is kept in the signature so callers need not change.)
 /// </summary>
 public static class ListenSeed
 {
@@ -21,14 +22,6 @@ public static class ListenSeed
         }
         foreach (var f in favourites)
             res.Add(new ListenEvent("seed:f:" + f.Path, ListenKind.Heart, now, f.Path, f.Title, f.Artist));
-        foreach (var p in jellyfin)
-        {
-            if (lib.ByJellyfinId(p.Id) is not { } t) continue;
-            var len = t.DurationMs / 1000.0;
-            var at = p.LastMs > 0 ? p.LastMs : now;
-            for (var i = 0; i < Math.Min(p.Plays, 50); i++)   // a few dozen plays say as much as a few hundred, and keep the first-day log small
-                res.Add(new ListenEvent($"seed:j:{p.Id}:{i}", ListenKind.Play, at, t.Path, t.Title, t.Artist, len, len, "jellyfin"));
-        }
         return res;
     }
 }
@@ -40,6 +33,8 @@ public static class ListenApi
     public static IResult Accept(ListenLogStore store, UserSession? s, IReadOnlyList<ListenEvent> events, Func<IReadOnlyList<ListenEvent>>? seed = null)
     {
         if (s is null) return Results.Unauthorized();
+        // "seed:" and "day:" ids are the server's own (the first-day seed and folded old plays); a client cannot send them
+        events = events.Where(e => e.Id is not null && !e.Id.StartsWith("seed:") && !e.Id.StartsWith("day:")).ToList();
         // seed ids are the same every time, so two first requests arriving together cannot seed twice
         if (!store.Exists(s)) store.Append(s, seed?.Invoke() ?? []);
         store.Touch(s);   // an account with nothing to start from still has a log from now on, so it is not seeded again

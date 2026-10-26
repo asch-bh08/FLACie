@@ -54,6 +54,25 @@ public class RecommendApiTests : IDisposable
         Assert.Equal(10, picks.Count);
     }
 
+    [Fact] public void Next_with_an_owner_sized_log_on_disk_answers_within_200_ms()
+    {
+        var lib = Big(10_000);
+        var ann = Person("ann");
+        var log = new ListenLogStore(new DataPaths(dir));
+        log.Append(ann, Enumerable.Range(0, 20_000).Select(i => lib.Songs[i * 7 % lib.Songs.Count]).Select((t, i) =>
+            new ListenEvent($"e{i}", ListenKind.Play, new DateTimeOffset(Now.AddMinutes(-i * 20)).ToUnixTimeMilliseconds(), t.Path, t.Title, t.Artist, i % 5 == 0 ? 10 : 200, 200)));
+        var related = Related((_, _, _) => Task.FromResult(new List<CatalogSong>()));
+        var vibes = new VibeIndex(new DataPaths(dir));
+        var session = string.Join(",", lib.Songs.Take(3).Select(t => t.Path));
+        Next(RecommendApi.InputsOf(ann, log, vibes, related)! with { Lib = lib }, session);   // warm up the JIT (and load the log once)
+        var sw = Stopwatch.StartNew();
+        var inputs = RecommendApi.InputsOf(ann, log, vibes, related)! with { Lib = lib };
+        var read = sw.ElapsedMilliseconds;
+        var picks = PicksOf(Next(inputs, session));
+        Assert.True(sw.ElapsedMilliseconds < 200, $"{sw.ElapsedMilliseconds} ms ({read} ms reading the log)");
+        Assert.Equal(10, picks.Count);
+    }
+
     [Fact] public void Next_does_not_wait_for_a_slow_related_lookup()
     {
         var lib = Big(2_000);
@@ -99,6 +118,33 @@ public class RecommendApiTests : IDisposable
         // with no log yet the old lists still count
         Assert.True(HomeBuilder.Taste(lib, history, [], [], Now, null, null, null).Known(t) > 0);
     }
+    [Fact] public void A_seeded_log_picks_the_same_songs_as_no_log()
+    {
+        var lib = Big(400);
+        var history = Enumerable.Range(0, 60).Select(i => lib.Songs[i * 3]).Select((t, i) => new PlayedEntry(t.Path, t.Title, t.Artist, new DateTimeOffset(Now.AddDays(-i % 40)).ToUnixTimeMilliseconds())).ToList();
+        var favs = Enumerable.Range(0, 5).Select(i => lib.Songs[i * 7 + 1]).Select(t => new PlaylistEntry(t.Path, t.Title, t.Artist)).ToList();
+        var jellyfin = Enumerable.Range(0, 40).Select(i => new JfPlay(lib.Songs[i * 5 + 2].JellyfinId!, 1 + i * 3, new DateTimeOffset(Now.AddDays(-i)).ToUnixTimeMilliseconds(), false)).ToList();
+        var seeded = ListenSeed.From(history, favs, jellyfin, lib);
+        var without = HomeBuilder.Taste(lib, history, favs, [], Now, jellyfin, null, null);
+        var with = HomeBuilder.Taste(lib, history, favs, [], Now, jellyfin, null, seeded);
+        List<string> Top(TasteProfile p) => lib.Songs.OrderByDescending(p.Known).ThenBy(t => t.Path).Take(20).Select(t => t.Path).ToList();
+        Assert.Equal(Top(without), Top(with));
+    }
+
+    [Fact] public void Plays_counted_by_jellyfin_or_seeded_from_the_history_are_not_a_like()
+    {
+        var lib = Big(50); var t = lib.Songs[3]; var u = lib.Songs[4];
+        var at = new DateTimeOffset(Now.AddDays(-2)).ToUnixTimeMilliseconds();
+        var history = Enumerable.Range(0, 4).Select(i => new PlayedEntry(u.Path, u.Title, u.Artist, at + i)).ToList();
+        var jellyfin = new List<JfPlay> { new(t.JellyfinId!, 12, at, false) };
+        var taste = HomeBuilder.Taste(lib, [], [], [], Now, jellyfin, null, ListenSeed.From(history, [], jellyfin, lib));
+        Assert.False(taste.Likes(t));
+        Assert.False(taste.Likes(u));
+        // finished for real three times, it is
+        var real = Enumerable.Range(0, 3).Select(i => new ListenEvent($"r{i}", ListenKind.Play, at + i, t.Path, t.Title, t.Artist, 200, 200)).ToList();
+        Assert.True(HomeBuilder.Taste(lib, [], [], [], Now, jellyfin, null, real).Likes(t));
+    }
+
     [Fact] public async Task Discover_is_about_half_songs_the_library_lacks_when_related_songs_are_cached()
     {
         var lib = Big(3_000); var events = Plays(lib, 100);

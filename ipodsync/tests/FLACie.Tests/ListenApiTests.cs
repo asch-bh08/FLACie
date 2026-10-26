@@ -42,16 +42,22 @@ public class ListenApiTests : IDisposable
         Assert.Equal(["b1", "b2"], store.Read(bob).Select(e => e.Id).Order());
     }
 
-    [Fact] public void Seed_turns_favourites_into_hearts_and_jellyfin_counts_into_finished_plays()
+    [Fact] public void Seed_turns_favourites_into_hearts_and_leaves_jellyfin_counts_to_the_engine()
     {
         var a = Song("One", "Ann", "a".PadRight(32, 'a')); var b = Song("Two", "Bea", "b".PadRight(32, 'b'));
         var lib = new Library([a, b]);
         var seed = ListenSeed.From([], [new PlaylistEntry(a.Path, a.Title, a.Artist)], [new JfPlay(b.JellyfinId!, 3, 5000, false), new JfPlay("missing", 2, 0, false)], lib);
         Assert.Single(seed, e => e.Kind == ListenKind.Heart && e.Path == a.Path);
-        var plays = seed.Where(e => e.Kind == ListenKind.Play).ToList();
-        Assert.Equal(3, plays.Count);
-        Assert.All(plays, e => { Assert.Equal(b.Path, e.Path); Assert.True(ListenClass.IsFinish(e)); });
-        Assert.Equal(seed.Count, seed.Select(e => e.Id).Distinct().Count());
+        // Jellyfin's counts already reach the engine as its own input; written as plays too they would count twice
+        Assert.DoesNotContain(seed, e => e.Kind == ListenKind.Play);
+        Assert.DoesNotContain(seed, e => e.Id.StartsWith("seed:j"));
+    }
+
+    [Fact] public void Listen_drops_client_events_with_ids_kept_for_the_server()
+    {
+        var store = Store(); var ann = Person("ann");
+        ListenApi.Accept(store, ann, [Play("seed:h:1:/m/a.flac"), Play("day:2025-01-01:/m/a.flac"), Play("ok")]);
+        Assert.Equal(["ok"], store.Read(ann).Select(e => e.Id));
     }
 
     [Fact] public void Seed_includes_the_play_history()

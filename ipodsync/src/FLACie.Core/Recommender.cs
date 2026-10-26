@@ -55,8 +55,9 @@ public sealed class TasteProfile
             switch (e.Kind)
             {
                 case ListenKind.Play:
-                    // a folded day is a total of old plays, not one play, so it is never a skip or a finish
-                    var day = e.Id.StartsWith("day:");
+                    // a folded day is a total of old plays, not one play, and a seeded play only says the song was started (its length is a guess):
+                    // neither is ever a skip or a finish, so each weighs what an old history play did
+                    var day = e.Id.StartsWith("day:") || e.Id.StartsWith("seed:");
                     var skip = !day && ListenClass.IsSkip(e); var finish = !day && ListenClass.IsFinish(e);
                     Add(t, (finish ? 3.0 : skip ? 0.3 : 2.0) * fade);
                     if (skip) Bump(skips, k, 0.25 * fade);

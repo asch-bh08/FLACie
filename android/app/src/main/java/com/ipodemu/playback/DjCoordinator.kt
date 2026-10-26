@@ -144,3 +144,67 @@ class DuckRamp(val low: Float = LOW, private val downMs: Long = DOWN_MS, private
         const val UP_MS = 600L
     }
 }
+
+/**
+ * One line of the DJ's, from the song starting to the line ending, with the times that keep it from talking over the middle of a song or leaving the
+ * music ducked (pure, unit-tested; [DjPlayer] has the players and the clock). A line must be sounding within [START_WITHIN_MS] of the song starting, or
+ * it is dropped. A clip that fails before it is heard (the server could not make it after all: a 404) is said with the phone's own voice instead, when
+ * the cue allows it ([DjCue.backup]) and the song is still in its first [BACKUP_WITHIN_MS]; the phone's voice must be sounding by then. Once heard, a
+ * line that never reports its end is stopped anyway: a clip that stalls after [CLIP_MAX_MS], the phone's voice after its words take plus [SPEECH_SLACK_MS].
+ */
+class DjLine private constructor(val cue: DjCue, private val songAt: Long, phone: Boolean, stopAt: Long) {
+    /** Said with the phone's voice (TextToSpeech), not the server's clip. */
+    var phoneVoice = phone; private set
+    /** It is sounding (the music is ducked from then). */
+    var heard = false; private set
+    /** When it is stopped if it has not started by then, or once heard, not ended (uptime ms). */
+    var stopAt = stopAt; private set
+
+    /** The clip failed at [now] before it was heard: true = the phone's voice says the line instead; false = the DJ stays quiet. */
+    fun clipFailed(now: Long): Boolean {
+        if (heard || phoneVoice || !canFallBack(cue, now - songAt)) return false
+        phoneVoice = true; stopAt = songAt + BACKUP_WITHIN_MS
+        return true
+    }
+
+    /** It is sounding from [now]. */
+    fun heard(now: Long) { heard = true; stopAt = now + if (phoneVoice) speechMs(cue.text) else CLIP_MAX_MS }
+
+    companion object {
+        const val START_WITHIN_MS = 1_500L
+        const val BACKUP_WITHIN_MS = 6_000L
+        const val CLIP_MAX_MS = 20_000L
+        const val SPEECH_SLACK_MS = 3_000L
+        /** How fast a line is read out, for its time limit (the server's estimate for the voice's cost too). */
+        const val WORDS_PER_S = 2.6
+
+        /**
+         * The song [cue] was for started at [now]; [clipFailed] = its clip already failed while it was loaded ahead. Null = nothing to say (no clip and no
+         * backup line). A failed clip is tried once more when the phone's voice may not say the line.
+         */
+        fun start(cue: DjCue, now: Long, clipFailed: Boolean): DjLine? = when {
+            cue.clip != null && !(clipFailed && canFallBack(cue, 0L)) -> DjLine(cue, now, false, now + START_WITHIN_MS)
+            cue.clip != null -> DjLine(cue, now, true, now + BACKUP_WITHIN_MS)
+            cue.backup && cue.text.isNotBlank() -> DjLine(cue, now, true, now + START_WITHIN_MS)
+            else -> null
+        }
+
+        private fun canFallBack(cue: DjCue, intoSongMs: Long) = cue.backup && cue.text.isNotBlank() && intoSongMs in 0 until BACKUP_WITHIN_MS
+
+        /** The longest the phone's voice may take over [text]. */
+        fun speechMs(text: String): Long = (text.split(' ', '\n', '\t').count { it.isNotEmpty() } / WORDS_PER_S * 1000).roundToLong() + SPEECH_SLACK_MS
+    }
+}
+
+/**
+ * Tells the listener's seeks from the player's own (the web's `selfSeek`). The player seeks by itself to put back a long item's place, to swap in the
+ * data saver's stream and to retry after an error; those must not stop a line the DJ is saying. A seek of its own is marked ([self]) just before it is
+ * made, and the report of it uses the mark up; a seek the listener makes clears a mark left over ([clear]), so it always counts. Pure, unit-tested.
+ */
+class SeekOrigin {
+    private var mark = false
+    fun self() { mark = true }
+    fun clear() { mark = false }
+    /** The player reports a seek inside the song: true when it was the listener's (a line being said stops). */
+    fun seeked(): Boolean { val mine = mark; mark = false; return !mine }
+}

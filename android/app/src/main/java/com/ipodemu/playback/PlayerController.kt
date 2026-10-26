@@ -354,6 +354,10 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     }
     /** Settings read from the server (a screen opened): kept, and acted on only when they differ from the cached ones. */
     fun djSettingsFetched(s: DjSettings) { if (s != djSettings) djSettingsChanged(s) else prefs.djSettings = s.toJson().toString() }
+    /** A playlist made here got its Jellyfin id and its DJ switch moved to it ([s], AccountSync): a queue playing from it follows. */
+    fun djPlaylistMoved(from: String, to: String, s: DjSettings) {
+        if (contextId == from) { contextId = to; djSettingsChanged(s) } else djSettingsFetched(s)
+    }
     /** How far into the song the last change of song left it (from the position discontinuity that comes just before the transition). */
     private var djLeftAt = -1L
     private var djLastPath: String? = null
@@ -397,6 +401,12 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         djAsk()
     }
 
+    /** Which seeks inside a song are the listener's (they stop a line being said) and which the player's own (see [SeekOrigin]). */
+    private val seekOrigin = SeekOrigin()
+    /** A seek the player makes by itself (a long item's place, the data saver, a retry): a line being said carries on. The mark goes when this turn of
+     * the main loop ends, so one the player never reported cannot swallow a later seek of the listener's. */
+    private fun selfSeekTo(index: Int, ms: Long) { seekOrigin.self(); exo.seekTo(index, ms); handler.post { seekOrigin.clear() } }
+
     /** The app was swiped away (PlaybackService): a line being said stops with the music. */
     fun djStop() { djVoice?.stop() }
     /** The playback service ends: the DJ's player and the phone's voice are let go (made again when next needed). */
@@ -434,9 +444,10 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
                 if (reason == Player.DISCONTINUITY_REASON_SEEK || reason == Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT) seeking = true
                 if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION || reason == Player.DISCONTINUITY_REASON_SKIP) rememberPlace(oldPosition.mediaItem?.localConfiguration?.tag as? Track, oldPosition.positionMs, finished = reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION)
-                // the DJ: how far into the song a skip left it (a quick skip keeps the DJ quiet for a while), and a seek inside the song stops a line
+                // the DJ: how far into the song a skip left it (a quick skip keeps the DJ quiet for a while), and the listener's seek inside the song
+                // stops a line (the player's own seeks do not: see selfSeekTo)
                 if (oldPosition.mediaItemIndex != newPosition.mediaItemIndex) djLeftAt = oldPosition.positionMs
-                else if (reason == Player.DISCONTINUITY_REASON_SEEK) djVoice?.stop()
+                else if (reason == Player.DISCONTINUITY_REASON_SEEK && seekOrigin.seeked()) djVoice?.stop()
             }
             // a pause from anywhere (the app, the car, a headset, the sleep timer, losing audio focus for good) stops a line; playing again asks ahead
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) { if (playWhenReady) djAsk() else djVoice?.stop() }
@@ -453,7 +464,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                         androidx.media3.common.PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED)) {
                     forceHls.add(cur0.path)
                     val idx = exo.currentMediaItemIndex; val at = exo.currentPosition
-                    exo.replaceMediaItem(idx, item(cur0)); exo.seekTo(idx, at); exo.prepare(); exo.play()
+                    exo.replaceMediaItem(idx, item(cur0)); selfSeekTo(idx, at); exo.prepare(); exo.play()
                     fire(); return
                 }
                 val key = exo.currentMediaItemIndex to (current?.path ?: "")
@@ -461,7 +472,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                 retryKey = key
                 // a dropped connection (screen lock, a tunnel, a dead spot) is retried after a short, growing wait, from where it stopped
                 if (retries == 6) android.widget.Toast.makeText(ctx, "Couldn't play \"${current?.title ?: "this song"}\" (${error.errorCodeName})", android.widget.Toast.LENGTH_LONG).show()
-                if (retries <= 5) { val at = exo.currentPosition; val idx = exo.currentMediaItemIndex; handler.postDelayed({ if (exo.currentMediaItemIndex == idx) { exo.seekTo(idx, at); exo.prepare(); exo.play() } }, 600L * retries * retries) }
+                if (retries <= 5) { val at = exo.currentPosition; val idx = exo.currentMediaItemIndex; handler.postDelayed({ if (exo.currentMediaItemIndex == idx) { selfSeekTo(idx, at); exo.prepare(); exo.play() } }, 600L * retries * retries) }
                 fire()
             }
         })
@@ -763,7 +774,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         applySpeed(saved ?: if (SpeedPolicy.isSpoken(t.genre)) prefs.spokenSpeed else 1f)
         if (!quietTransition && exo.currentPosition < 2_000L) {
             val at = SpeedPolicy.resumeAt(placeMem.get(SpeedPolicy.keyOf(t.path))?.toLong(), t.durationMs.takeIf { it > 0 } ?: exo.duration.coerceAtLeast(0L))
-            if (at > 0L) exo.seekTo(exo.currentMediaItemIndex, at)
+            if (at > 0L) selfSeekTo(exo.currentMediaItemIndex, at)
         }
     }
 
@@ -905,10 +916,11 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (skip(false)) return
         if (exo.currentPosition > 3000 || !exo.hasPreviousMediaItem()) exo.seekTo(0) else exo.seekToPreviousMediaItem()
     }
-    fun seekBy(ms: Long) { if (interceptor?.seek((exo.currentPosition + ms).coerceAtLeast(0)) == true) return; ensurePrepared(); exo.seekTo((exo.currentPosition + ms).coerceIn(0, (durationMs - 500).coerceAtLeast(0))) }
+    // the listener's seeks (the seek bar, the wheel, the car, a headset, a remote): never taken for the player's own, so they stop a line the DJ is saying
+    fun seekBy(ms: Long) { if (interceptor?.seek((exo.currentPosition + ms).coerceAtLeast(0)) == true) return; ensurePrepared(); seekOrigin.clear(); exo.seekTo((exo.currentPosition + ms).coerceIn(0, (durationMs - 500).coerceAtLeast(0))) }
     fun seekTo(ms: Long) { if (interceptor?.seek(ms) == true) return; rawSeek(ms) }
     /** Seeks without going through a Jam (the Jam itself uses this). */
-    fun rawSeek(ms: Long) { ensurePrepared(); exo.seekTo(ms.coerceIn(0, (durationMs - 250).coerceAtLeast(0))) }
+    fun rawSeek(ms: Long) { ensurePrepared(); seekOrigin.clear(); exo.seekTo(ms.coerceIn(0, (durationMs - 250).coerceAtLeast(0))) }
 
     /** Plays a single audio file opened from another app (file manager, browser, chat...). */
     fun playUri(uri: Uri) {
@@ -1006,7 +1018,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         val t = current ?: return
         if (hlsUri(t) == null || isHls(exo.currentMediaItem ?: return)) return
         val at = exo.currentPosition
-        exo.replaceMediaItem(idx, item(t)); exo.seekTo(idx, at)
+        exo.replaceMediaItem(idx, item(t)); selfSeekTo(idx, at)
         adaptUpcoming()
     }
 

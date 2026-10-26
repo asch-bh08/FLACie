@@ -111,3 +111,6 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 
 ## 2026-10-26 AI DJ one voice + volume + per-song deployed (3a57431)
 - Two voices = device voice standing in after one Cloudflare 500 at 21:33; now one voice only (device voice only by explicit switch). DJ volume + music-under-DJ sliders; per-song always/never/default. Rollback tag flacie-web:rollback-2026-10-26-pre-djvoice. Owner should save Dashboard > AI DJ once (dj.json still says melotts on disk).
+
+## 2026-10-26 AI DJ retry fix deployed (1fd5001)
+- One Cloudflare 500 had paused the voice 10 min (with one-voice rule = silent). Now retry once after 1 s; only 3 failures in a row pause 30 s; not-said lines logged with reason; "Every song" option; dj.json migrated to Aura. Rollback tag flacie-web:rollback-2026-10-26-pre-djretry.

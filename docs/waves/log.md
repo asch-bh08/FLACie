@@ -105,3 +105,6 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 
 ## 2026-10-26 AI DJ round two deployed (97003fe)
 - llama-3.3-70b writes lines (8b then templates as fallback), hello by name, segues, Style (Classic/Chill/Hype), clip cache + phrase pool: ~34 -> ~115 Aura lines/day at 50% cap. Rollback tag flacie-web:rollback-2026-10-26-pre-dj2.
+
+## 2026-10-26 AI DJ timing deployed (519f706)
+- DJ talks over the intro and ends ~0.5 s before vocals (intro from synced lyrics, else level envelope; unknown -> old timing); long lines lead in, song held back <= 1.5 s. Rollback tag flacie-web:rollback-2026-10-26-pre-djtiming. Background pass re-analyses songs once (fetches LRCLIB lyrics, paced by idle waits).

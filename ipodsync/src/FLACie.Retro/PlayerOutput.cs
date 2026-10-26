@@ -26,6 +26,15 @@ public interface IPlayerOutput
     /// <summary>The sleep timer's fade (1 = full).</summary>
     Task FadeAsync(double gain);
     Task StopAsync();
+    // the AI DJ (docs/spec/ai-dj.md): a short clip on a second small player over the start of a song, the music ducked under it. Never a queue item or a play.
+    /// <summary>Fetches the DJ's clip for the next song ahead of time (a server-relative MP3).</summary>
+    Task DjPreloadAsync(string url);
+    /// <summary>Plays the DJ's clip now, over the song that has just started, with the music ducked until it ends.</summary>
+    Task DjPlayAsync(string url);
+    /// <summary>Says the DJ's line with the device's own voice (when no clip could be made), ducking the music the same way.</summary>
+    Task DjSayAsync(string text);
+    /// <summary>Stops a clip or a line at once and brings the music back up.</summary>
+    Task DjStopAsync();
 }
 
 /// <summary>The page's own audio element, through flacie.js.</summary>
@@ -44,4 +53,8 @@ public sealed class PageOutput(IJSRuntime js) : IPlayerOutput
     public async Task CrossfadeAsync(int seconds, bool fadeIn, bool fadeOut) => await js.InvokeVoidAsync("flacie.xfade", seconds, fadeIn, fadeOut);
     public async Task FadeAsync(double gain) => await js.InvokeVoidAsync("flacie.fade", gain);
     public async Task StopAsync() => await js.InvokeVoidAsync("flacie.stop");
+    public async Task DjPreloadAsync(string url) => await js.InvokeVoidAsync("flacie.djPreload", url);
+    public async Task DjPlayAsync(string url) => await js.InvokeVoidAsync("flacie.djPlay", url);
+    public async Task DjSayAsync(string text) => await js.InvokeVoidAsync("flacie.djSay", text);
+    public async Task DjStopAsync() => await js.InvokeVoidAsync("flacie.djStop");
 }

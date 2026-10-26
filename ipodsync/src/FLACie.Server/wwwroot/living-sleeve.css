@@ -361,3 +361,12 @@
     .ls-info .info > .kv-sec + .kv-sec .kv { grid-template-columns: max-content minmax(0, 1fr); }
   }
 }
+
+/* the DJ button beside shuffle (docs/spec/ai-dj.md): a sixth control in the row, so the row draws a little closer and keeps its width
+   (phone: 330px from 360px wide up; PC: 410px, inside the 420px kept for it in the middle of the bar) */
+@media (max-width: 760px) {
+  .ls-transport.has-dj { gap: 6px; margin: 0 -12px; }
+  .ls-transport.has-dj .ls-plain { width: 40px; }
+  .ls-transport.has-dj .ls-pillbtn { width: 52px; }
+}
+@media (min-width: 761px) { .ls-transport.has-dj { gap: 16px; } }

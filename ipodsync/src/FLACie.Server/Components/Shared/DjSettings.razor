@@ -1,0 +1,67 @@
+@inherits UserComponent
+@*
+    The DJ's settings for this person (docs/spec/ai-dj.md). They are kept on the server, so the phone, the car, the web and the Windows app all follow
+    them. Hidden where there is no DJ. The quick switches live elsewhere: the DJ button in the full-screen player (this queue only) and each playlist's
+    DJ chip; which one wins is DjRules in FLACie.Core.
+*@
+@if (Player.Dj is { } dj)
+{
+    var s = dj.Settings(Session);
+    var preset = DjSwitches.PresetOf(s);
+    <section class="panel set dj-set" id="dj">
+        <div class="set-head"><h2>DJ</h2><p class="hint">Now and then, between songs, a friendly voice tells you what you just heard and what's coming up, over the start of the next song. Your choices here follow you to your phone, the car, the web and the Windows app.</p></div>
+        @if (!dj.VoiceReady)
+        {
+            <p class="dj-note" role="note">Cloudflare isn't set up yet. Ask the admin (Dashboard → DJ). Until then the device's own voice is used if Backup voice is on.</p>
+        }
+        <label class="switch-row">
+            <span><b>DJ</b><small>Talk between songs</small></span>
+            <input type="checkbox" role="switch" checked="@s.Enabled" @onchange="e => Change(x => x.Enabled = (bool)(e.Value ?? false))" />
+            <i class="switch" aria-hidden="true"></i>
+        </label>
+        <h3>How chatty</h3>
+        <div class="seg dj-chatty" role="group" aria-label="How chatty">
+            <button type="button" aria-pressed="@Pressed(s.Chatty == DjChatty.Rare)" @onclick="() => Change(x => x.Chatty = DjChatty.Rare)">Rare</button>
+            <button type="button" aria-pressed="@Pressed(s.Chatty == DjChatty.Often)" @onclick="() => Change(x => x.Chatty = DjChatty.Often)">Often</button>
+        </div>
+        <p class="hint">Rare is about one song in seven, Often about one in three. The DJ stays quiet after you skip a few songs.</p>
+        <h3>Where</h3>
+        <div class="seg dj-where" role="group" aria-label="Where the DJ talks">
+            @Tick("Phone", s.Phone, x => x.Phone = !x.Phone)
+            @Tick("Android Auto", s.Auto, x => x.Auto = !x.Auto)
+            @Tick("Web", s.Web, x => x.Web = !x.Web)
+            @Tick("Windows", s.Windows, x => x.Windows = !x.Windows)
+        </div>
+        <div class="row-actions dj-presets" role="group" aria-label="Quick choices for where">
+            <span class="hint">Quick:</span>
+            @Preset("Everywhere", DjSwitches.Preset.Everywhere, preset)
+            @Preset("Only in the car", DjSwitches.Preset.OnlyInTheCar, preset)
+            @Preset("Only on web", DjSwitches.Preset.OnlyOnWeb, preset)
+        </div>
+        <label class="switch-row">
+            <span><b>Backup voice</b><small>When the DJ's own voice can't be made, use this device's voice instead</small></span>
+            <input type="checkbox" role="switch" checked="@s.Backup" @onchange="e => Change(x => x.Backup = (bool)(e.Value ?? false))" />
+            <i class="switch" aria-hidden="true"></i>
+        </label>
+        <p class="hint">Quick switches: the DJ button in the full-screen player turns the DJ on or off for what's playing now, and every playlist has its own DJ switch at the top of its page.</p>
+    </section>
+}
+@code {
+    static string Pressed(bool on) => on ? "true" : "false";
+
+    RenderFragment Tick(string label, bool on, Action<FLACie.Core.DjSettings> flip) =>
+        @<button type="button" aria-pressed="@Pressed(on)" @onclick="() => Change(flip)">@if (on) { <Icon Name="check" Size="16" /> }@label</button>;
+
+    RenderFragment Preset(string label, DjSwitches.Preset p, DjSwitches.Preset now) =>
+        @<button type="button" class="btn ghost" aria-pressed="@Pressed(p == now)" @onclick="() => Change(x => DjSwitches.Apply(x, p))">@label</button>;
+
+    /// <summary>Changes a copy of the settings and saves it; what is playing asks the DJ again (it may now be on or off for this queue).</summary>
+    async Task Change(Action<FLACie.Core.DjSettings> change)
+    {
+        if (Player.Dj is not { } dj) return;
+        var c = DjSwitches.Copy(dj.Settings(Session));
+        change(c);
+        dj.Save(Session, c);
+        await Player.DjRefreshAsync();
+    }
+}

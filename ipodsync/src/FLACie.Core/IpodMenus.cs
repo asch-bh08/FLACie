@@ -1,7 +1,7 @@
 namespace FLACie.Core;
 
-/// <summary>What the Playback and About pages show (the page reads these from the player and the library).</summary>
-public sealed record IpodPlayback(bool Shuffle, int Repeat, double Speed, int SleepMinutes, int FadeSeconds, bool EvenVolume, int Songs, int Playlists, string Version);
+/// <summary>What the Playback and About pages show (the page reads these from the player and the library). [Dj]: the DJ for this queue, on or off; null where there is no DJ (no row).</summary>
+public sealed record IpodPlayback(bool Shuffle, int Repeat, double Speed, int SleepMinutes, int FadeSeconds, bool EvenVolume, int Songs, int Playlists, string Version, bool? Dj = null);
 
 /// <summary>
 /// The menu trees of the iPod mode, as the Android emulator builds them per model family, as plain rows (see <see cref="IpodRow"/>): ids starting with "m:" open a menu or act,
@@ -62,16 +62,25 @@ public static class IpodMenus
     public static IReadOnlyList<IpodRow> Colors(IpodModel m, int current) =>
         m.Colors.Select((c, i) => new IpodRow(c.Name, "set:color:" + i, false, null, i == current)).ToList();
 
-    public static IReadOnlyList<IpodRow> PlaybackPage(IpodPlayback s, IpodPrefs p) =>
-    [
-        new("Shuffle", "cyc:shuffle", false, s.Shuffle ? "Songs" : "Off"),
-        new("Repeat", "cyc:repeat", false, RepeatNames[Math.Clamp(s.Repeat, 0, 2)]),
-        new("Speed", "cyc:speed", false, s.Speed.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "x"),
-        new("Even Out Volume", "cyc:level", false, s.EvenVolume ? "On" : "Off"),
-        new("Crossfade", "cyc:fade", false, s.FadeSeconds <= 0 ? "Off" : s.FadeSeconds + " s"),
-        new("Volume Limit", "cyc:volumeLimit", false, p.VolumeLimit == 100 ? "Off" : p.VolumeLimit + "%"),
-        new("Sleep Timer", "cyc:sleep", false, s.SleepMinutes <= 0 ? "Off" : s.SleepMinutes + " min"),
-    ];
+    public static IReadOnlyList<IpodRow> PlaybackPage(IpodPlayback s, IpodPrefs p)
+    {
+        var rows = new List<IpodRow>
+        {
+            new("Shuffle", "cyc:shuffle", false, s.Shuffle ? "Songs" : "Off"),
+            new("Repeat", "cyc:repeat", false, RepeatNames[Math.Clamp(s.Repeat, 0, 2)]),
+        };
+        // the DJ for this queue (the Now Playing DJ button's switch), where there is a DJ
+        if (s.Dj is { } dj) rows.Add(new("DJ", "cyc:dj", false, dj ? "On" : "Off"));
+        rows.AddRange(
+        [
+            new("Speed", "cyc:speed", false, s.Speed.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "x"),
+            new("Even Out Volume", "cyc:level", false, s.EvenVolume ? "On" : "Off"),
+            new("Crossfade", "cyc:fade", false, s.FadeSeconds <= 0 ? "Off" : s.FadeSeconds + " s"),
+            new("Volume Limit", "cyc:volumeLimit", false, p.VolumeLimit == 100 ? "Off" : p.VolumeLimit + "%"),
+            new("Sleep Timer", "cyc:sleep", false, s.SleepMinutes <= 0 ? "Off" : s.SleepMinutes + " min"),
+        ]);
+        return rows;
+    }
 
     public static IReadOnlyList<IpodRow> Controls(IpodPrefs p) =>
     [

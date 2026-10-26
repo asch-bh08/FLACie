@@ -82,3 +82,9 @@
 /* a row of buttons with a hint beside them wraps on a narrow phone instead of pushing the card past the screen */
 .sp .row-actions { flex-wrap: wrap; min-width: 0; }
 .sp .row-actions .hint { min-width: 0; overflow-wrap: anywhere; }
+
+/* the DJ section: its choices are the outlined segments (the chosen ones filled), each a comfortable size to press; the note about the voice in a soft accent card */
+.sp .dj-set .seg button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px; cursor: pointer; }
+.sp .dj-presets .btn { padding: 8px 14px; font-size: 13px; }
+.sp .dj-presets .btn[aria-pressed=true] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.sp .dj-note { margin: 0; padding: 12px 14px; border-radius: 16px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--ink); }

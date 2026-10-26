@@ -60,8 +60,14 @@
                 </div>
                 <div class="ls-bar">
                     <div class="ls-times"><span>@Time(Player.Position)</span> <span class="ls-dur">/ @Time(Player.Duration)</span></div>
-                    <div class="ls-transport">
+                    <div class="ls-transport @(Player.Dj is null ? "" : "has-dj")">
                         <button class="ls-plain @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")"><Icon Name="shuffle" Size="22" /></button>
+                        @* the DJ for this queue only (a new queue starts on what Settings and the playlist say); press and hold, or right-click, opens the DJ settings *@
+                        @if (Player.Dj is not null)
+                        {
+                            var djOn = Player.DjOn;
+                            <button class="ls-plain ls-dj @(djOn ? "on" : "")" @onclick="Player.ToggleDjAsync" @oncontextmenu="() => Go(DjSettingsUrl)" @oncontextmenu:preventDefault="true" aria-label="DJ" aria-pressed="@(djOn ? "true" : "false")" title="@(djOn ? "DJ on for this queue" : "DJ off for this queue"). Hold, or right-click, for Settings → DJ."><Icon Name="dj" Size="22" /></button>
+                        }
                         <button class="ls-pillbtn" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="24" /></button>
                         @* the seek bar is a ring: the song's own loudness as bars round the play button (flacie.npWave draws it and turns a press or drag on it into a
                            seek); the range input inside is for the keyboard and screen readers *@
@@ -252,6 +258,7 @@
     Task GoArtist(Track t) => Go("/artist/" + Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist));
     Task GoAlbum(Track t) => Go("/album/" + Uri.EscapeDataString(t.AlbumKey));
     Task Go(string url) { CloseMore(); Nav.NavigateTo(url); return Task.CompletedTask; }
+    const string DjSettingsUrl = "/settings#dj";
     void CloseMore() { more = false; plOpen = false; _ = Js.InvokeVoidAsync("flacie.unwatchOutside").AsTask().ContinueWith(_ => { }); }
     void Plain(Action act, string message) { act(); Toast.Show(message); CloseMore(); }
     static string FileName(Track t) => string.Concat($"{t.Artist} - {t.Title}".Split(Path.GetInvalidFileNameChars())) + (MediaInfo.FromExtension(t.FilePath ?? "") is { Length: > 0 } e ? "." + e : "");

@@ -82,6 +82,11 @@ public sealed class NativeOutput : IPlayerOutput, IDisposable
     public Task CrossfadeAsync(int seconds, bool fadeIn, bool fadeOut) => Task.CompletedTask;   // songs follow each other straight on here
     public Task FadeAsync(double gain) { fade = gain; SendVolume(); return Task.CompletedTask; }
     public Task StopAsync() { Jni.Call("stop"); return Task.CompletedTask; }
+    // no DJ here: the phone app has no server to ask (the Android app has its own DJ)
+    public Task DjPreloadAsync(string url) => Task.CompletedTask;
+    public Task DjPlayAsync(string url) => Task.CompletedTask;
+    public Task DjSayAsync(string text) => Task.CompletedTask;
+    public Task DjStopAsync() => Task.CompletedTask;
     void SendVolume() => Jni.Volume((float)volume, (float)level, (float)fade);
 
     void Tick()

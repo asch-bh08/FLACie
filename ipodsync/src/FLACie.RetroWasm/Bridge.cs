@@ -261,4 +261,9 @@ public sealed class AppOutput(IJSRuntime js) : IPlayerOutput
     public Task CrossfadeAsync(int seconds, bool fadeIn, bool fadeOut) => Task.CompletedTask;
     public Task FadeAsync(double gain) => Task.CompletedTask;
     public Task StopAsync() { Call("pause"); return Task.CompletedTask; }
+    // no DJ in Retro inside the app: the app's own player has its own DJ
+    public Task DjPreloadAsync(string url) => Task.CompletedTask;
+    public Task DjPlayAsync(string url) => Task.CompletedTask;
+    public Task DjSayAsync(string text) => Task.CompletedTask;
+    public Task DjStopAsync() => Task.CompletedTask;
 }

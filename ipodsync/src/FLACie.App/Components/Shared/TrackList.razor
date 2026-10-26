@@ -83,6 +83,8 @@
     /// <summary>Play only the clicked song and let Autoplay carry on (search results hold several releases of one song, which must not queue up behind it).</summary>
     [Parameter] public bool Single { get; set; }
     [Parameter] public string? PlayContext { get; set; }
+    /// <summary>The playlist the list is (its DJ key), so the playlist's DJ switch counts for what plays from it.</summary>
+    [Parameter] public string? PlayContextId { get; set; }
     [Parameter] public bool ShowAlbum { get; set; } = true;
     [Parameter] public Action<int>? OnRemove { get; set; }
     /// <summary>Set on a playlist page: move the song at the first index to the second.</summary>
@@ -126,6 +128,6 @@
     Task Go(int i)
     {
         if (Player.Current?.Path == Tracks[i].Path) { if (!Player.Playing) return Player.Toggle(); Player.RequestFullScreen(); return Task.CompletedTask; }
-        return Single ? Player.Play([Tracks[i]], 0, PlayContext) : Player.Play(Tracks, i, PlayContext);
+        return Single ? Player.Play([Tracks[i]], 0, PlayContext, PlayContextId) : Player.Play(Tracks, i, PlayContext, PlayContextId);
     }
 }

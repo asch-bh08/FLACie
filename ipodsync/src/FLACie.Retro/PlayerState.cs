@@ -60,7 +60,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     public async Task LoadAutoplayAsync() { try { Autoplay = await js.InvokeAsync<string?>("flacie.unstash", "flacie.autoplay") != "0"; } catch (Exception) { } RefreshSuggestions(); Changed?.Invoke(); }
     public async Task SetAutoplayAsync(bool on)
     {
-        Autoplay = on; RefreshSuggestions();
+        Autoplay = on; RefreshSuggestions(); DjAhead();
         try { await js.InvokeVoidAsync("flacie.stash", "flacie.autoplay", on ? "1" : "0"); } catch (Exception) { }
         Changed?.Invoke();
     }
@@ -118,7 +118,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         {
             suggested = await planner.RelatedAsync(seed, cts.Token);
             if (cts.IsCancellationRequested) return;
-            RefreshSuggestions(); Changed?.Invoke();
+            RefreshSuggestions(); DjAhead(); Changed?.Invoke();
             var s = session;
             var missing = suggested.Where(x => lib.Find(x.Title, x.Artist) is null && Matching.MatchKey(x.Title, x.Artist) != Matching.MatchKey(seed)).Take(8);
             planner.Prefetch(s, missing, 5, () => { RefreshSuggestions(); Changed?.Invoke(); });
@@ -206,6 +206,9 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         var t = Current;
         if (t is null) return;
         if (connect is not null && !ReferenceEquals(connect.Host, this)) connect.Host = this; // this tab is the one playing now
+        // for the DJ: whether the player got here by itself (the last song ended), and whether the song before was skipped in its first 10 s
+        var auto = djAuto; djAuto = false;
+        if (djFresh) djFresh = false; else { djSkips[1] = djSkips[0]; djSkips[0] = !auto && Position < 10; }
         self ??= DotNetObjectReference.Create(this);
         if (startAt <= 0) startAt = ResumeFor(t);   // a long item (audiobook, podcast, long mix) starts where it was left
         await audio.LoadAsync(self, t, "/stream?p=" + Uri.EscapeDataString(t.Path), t.Title, t.Artist, t.Album,
@@ -217,38 +220,42 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         if (plays is not null && session is not null) plays.Begin(session.Id, session.DisplayName, t.Path, t.Title, t.Artist, "FLACie Web", Context);
         Stash(true);
         RefreshSuggestions(); _ = PlanAsync(t); Started?.Invoke(t);
+        await DjStartedAsync(t, auto);
         Changed?.Invoke();
     }
 
-    public async Task Play(IReadOnlyList<Track> list, int index, string? context = null)
+    /// <summary>Plays a list from a song. <paramref name="contextId"/>: the playlist it came from (its DJ key, <see cref="DjSwitches.KeyOf"/>), so its DJ switch counts.</summary>
+    public async Task Play(IReadOnlyList<Track> list, int index, string? context = null, string? contextId = null)
     {
         if (list.Count == 0) return;
         if (Interceptor?.Play(list, index) == true) return;
-        await StartAsync(list, index, 0, false, context);
+        await StartAsync(list, index, 0, false, context, contextId);
     }
 
-    public Task PlayFromAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused) => StartAsync(list, index, positionMs, paused, Context);
+    public Task PlayFromAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused) => StartAsync(list, index, positionMs, paused, Context, ContextId);
     /// <summary>Takes a queue exactly as it will play (another player's, already shuffled or arranged): it is not shuffled again.</summary>
-    public Task AdoptAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused) => StartAsync(list, index, positionMs, paused, Context, keepOrder: true);
+    public Task AdoptAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused) => StartAsync(list, index, positionMs, paused, Context, ContextId, keepOrder: true);
 
-    async Task StartAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused, string? context, bool keepOrder = false)
+    async Task StartAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused, string? context, string? contextId = null, bool keepOrder = false)
     {
         if (list.Count == 0) return;
         Context = context; AutoplayFrom = -1; autoplayNext = [];
+        // a new queue: the DJ's "this queue" switch starts untouched, and no skips are remembered
+        ContextId = contextId; QueueDj = null; djFresh = true; djSkips[0] = djSkips[1] = false;
         Queue = list.ToList(); Index = Math.Clamp(index, 0, Queue.Count - 1);
         if (keepOrder) order = Enumerable.Range(0, Queue.Count).ToList(); else Reorder();
         await Load(!paused, positionMs / 1000.0);
     }
 
-    public async Task ShuffleAll(IReadOnlyList<Track> list, string? context = null) { Shuffle = true; if (list.Count > 0) await Play(list, Random.Shared.Next(list.Count), context); }
+    public async Task ShuffleAll(IReadOnlyList<Track> list, string? context = null, string? contextId = null) { Shuffle = true; if (list.Count > 0) await Play(list, Random.Shared.Next(list.Count), context, contextId); }
 
     public async Task Toggle() { if (Interceptor?.Toggle() == true) return; await ToggleAsync(); }
     public async Task Seek(double seconds) { if (Interceptor?.Seek((long)(seconds * 1000)) == true) return; await SeekRawAsync((long)(seconds * 1000)); }
 
-    public async Task ToggleAsync() { if (Current is null) return; await audio.ToggleAsync(); }
-    public async Task PauseAsync() => await audio.PauseAsync();
+    public async Task ToggleAsync() { if (Current is null) return; if (Playing) await DjStopAsync(); await audio.ToggleAsync(); }
+    public async Task PauseAsync() { await DjStopAsync(); await audio.PauseAsync(); }
     public async Task ResumeAsync() { if (Current is not null) await audio.PlayAsync(); }
-    public async Task SeekRawAsync(long ms) { await audio.SeekAsync(ms / 1000.0); Position = ms / 1000.0; Changed?.Invoke(); }
+    public async Task SeekRawAsync(long ms) { await DjStopAsync(); await audio.SeekAsync(ms / 1000.0); Position = ms / 1000.0; Changed?.Invoke(); }
     public async Task<bool> IsBufferedAsync() => await audio.ReadyAsync();
 
     public async Task Next() { if (Interceptor?.Next() == true) return; await NextAsync(); }
@@ -312,7 +319,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         if (!CanEdit) return;
         if (QueueEdit.Reorder(order, Index, false, queueIndex, step) is not { } moved) return;
         order = moved;
-        Stash(true); Changed?.Invoke();
+        Stash(true); DjAhead(); Changed?.Invoke();
     }
 
     /// <summary>Takes a song out of the queue. Another song than the playing one: nothing else changes. The playing one: the song that follows starts (it stays paused if
@@ -327,7 +334,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         if (Queue.Count == 0 || r.Current < 0) { order = []; Index = -1; await StopAsync(); return; }
         order = r.Order; Index = r.Current;
         if (r.CurrentRemoved) { await Load(autoplay: !r.Stopped && wasPlaying); return; }
-        RefreshSuggestions(); Stash(true); Changed?.Invoke();
+        RefreshSuggestions(); Stash(true); DjAhead(); Changed?.Invoke();
     }
 
     /// <summary>Puts a song back into Up next as its <paramref name="place"/>-th song (1 = straight after the current one): Undo after a removal.</summary>
@@ -337,7 +344,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         Queue.Add(t);
         var cur = order.IndexOf(Index);
         order.Insert(Math.Clamp(cur + place, cur + 1, order.Count), Queue.Count - 1);
-        RefreshSuggestions(); Stash(true); Changed?.Invoke();
+        RefreshSuggestions(); Stash(true); DjAhead(); Changed?.Invoke();
     }
 
     public void PlayNext(Track t) { if (Interceptor?.Enqueue(t, true) == true) return; AddNext(t); }
@@ -353,12 +360,12 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         var (o, cur) = QueueEdit.InsertNext(order, Index, at);
         order = o; Index = cur;
         if (AutoplayFrom >= at) AutoplayFrom++;
-        RefreshSuggestions(); Stash(true); Changed?.Invoke();
+        RefreshSuggestions(); Stash(true); DjAhead(); Changed?.Invoke();
     }
-    public void AddLast(Track t) { if (Current is null) { _ = PlayFromAsync([t], 0, 0, false); return; } Queue.Add(t); order.Add(Queue.Count - 1); Changed?.Invoke(); }
+    public void AddLast(Track t) { if (Current is null) { _ = PlayFromAsync([t], 0, 0, false); return; } Queue.Add(t); order.Add(Queue.Count - 1); DjAhead(); Changed?.Invoke(); }
 
-    public void ToggleShuffle() { Shuffle = !Shuffle; Reorder(keepCurrentFirst: true); Changed?.Invoke(); }
-    public void CycleRepeat() { Repeat = (Repeat + 1) % 3; Changed?.Invoke(); }
+    public void ToggleShuffle() { Shuffle = !Shuffle; Reorder(keepCurrentFirst: true); DjAhead(); Changed?.Invoke(); }
+    public void CycleRepeat() { Repeat = (Repeat + 1) % 3; DjAhead(); Changed?.Invoke(); }
 
     /// <summary>Play order: the queue as is, or shuffled with the current song first.</summary>
     void Reorder(bool keepCurrentFirst = true)
@@ -387,7 +394,8 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         if (SleepEndsHere()) { ClearPlace(); await SleepFireAsync(); return; }
         ClearPlace();
         if (OnAutoAdvance is { } hand) { hand(); return; }
-        if (Repeat == 2) { await SeekRawAsync(0); await audio.PlayAsync(); } else await NextAsync();
+        if (Repeat == 2) { await SeekRawAsync(0); await audio.PlayAsync(); }
+        else { djAuto = true; try { await NextAsync(); } finally { djAuto = false; } }   // (the DJ speaks only on a move the player made by itself)
     }
     [JSInvokable] public Task OnNext() => Next();
     [JSInvokable] public Task OnPrev() => Prev();
@@ -582,10 +590,120 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         if (Math.Abs(g - fade) > 0.01) _ = SetFadeAsync(g);
     }
 
+    // ---- the AI DJ (docs/spec/ai-dj.md): when a song starts, the DJ is asked about the next one in play order; when the player reaches that song by
+    // itself (the last one ended: never a skip, Previous or a new queue), the DJ's clip plays over its start, or the device says the line when no clip
+    // could be made. A skip, a seek, a pause or a new queue stops it at once. The clip is never a queue item and never counted as a play. ----
+
+    IDjService? dj;
+    /// <summary>The DJ, when the host has one (the server); null in the phone app, where every DJ control stays hidden.</summary>
+    public IDjService? Dj => dj;
+    /// <summary>Where this player is, for the DJ's "Where" ticks: the web or the Windows app.</summary>
+    public DjSurface DjSurface { get; private set; } = DjSurface.Web;
+    public void SetDj(IDjService d, DjSurface surface) { dj = d; DjSurface = surface; }
+    /// <summary>The Now Playing "DJ for this queue" switch: null until it is touched. Every new queue starts untouched.</summary>
+    public bool? QueueDj { get; private set; }
+    /// <summary>The playlist the queue came from (its DJ key), when it came from one.</summary>
+    public string? ContextId { get; private set; }
+    /// <summary>The DJ speaks on this queue, by the switches in their order (this queue, the playlist, On/Off with this device's tick).</summary>
+    public bool DjOn => dj is not null && session is not null && DjRules.EffectiveOn(dj.Settings(session), DjSurface, ContextId, QueueDj);
+
+    /// <summary>The Now Playing DJ button (and the iPods' Playback row): turns the DJ the other way for this queue only.</summary>
+    public async Task ToggleDjAsync()
+    {
+        if (dj is null) return;
+        QueueDj = !DjOn;
+        await DjRefreshAsync();
+        Changed?.Invoke();
+    }
+
+    /// <summary>The DJ's settings changed (Settings, a playlist's switch, this queue's): the next song is asked about again, and a clip stops if the DJ is now off.</summary>
+    public async Task DjRefreshAsync()
+    {
+        djAsking?.Cancel(); djFor = null; djCue = null;
+        if (!DjOn) await DjStopAsync();
+        DjAhead();
+    }
+
+    CancellationTokenSource? djAsking;
+    string? djFor;              // the song (path) the DJ was last asked about
+    DjCue? djCue;               // and what it answered (null: stays quiet, or no answer yet)
+    bool djAuto, djFresh;       // the song being loaded was reached by itself; the queue is new (no song before it in this queue)
+    bool djActive;              // a clip or a line may still be playing
+    readonly bool[] djSkips = [false, false];   // the last two song changes: was the song before skipped in its first 10 s
+
+    /// <summary>The song the player moves to by itself when this one ends (what NextAsync would pick); null on repeat-one, at the very end, or when it isn't known yet (a shuffle about to be shuffled again).</summary>
+    Track? DjNext()
+    {
+        if (Repeat == 2 || Index < 0) return null;
+        var pos = order.IndexOf(Index);
+        if (pos < 0) return null;
+        if (pos + 1 < order.Count) return Queue[order[pos + 1]];
+        if (Repeat == 1) return Shuffle || order[0] == Index ? null : Queue[order[0]];
+        return Autoplay && autoplayNext.Count > 0 ? autoplayNext[0] : null;
+    }
+
+    static DjSong SongOf(Track t) => new(t.Title, t.Artist, t.Album, t.AlbumArtist, t.Year, t.Genre, t.DurationMs, t.Path, t.JellyfinId, t.TrackNo, t.DiscNo);
+
+    /// <summary>Asks the DJ about the song that comes next, once per song (the next song changing, after an edit of Up next, cancels the ask before it).
+    /// Nothing is asked while the DJ is off for this queue. A clip in the answer is fetched ahead.</summary>
+    void DjAhead()
+    {
+        if (dj is not { } d || session is not { } s) return;
+        var cur = Current; var next = cur is null ? null : DjNext();
+        if (cur is null || next is null || !DjOn) { djAsking?.Cancel(); djFor = null; djCue = null; return; }
+        if (djFor == next.Path) return;
+        djAsking?.Cancel(); var cts = djAsking = new CancellationTokenSource();
+        djFor = next.Path; djCue = null;
+        var now = DateTime.Now;
+        var req = new DjRequest(DjSurface, SongOf(next), SongOf(cur), PrevPlayedOut: true, SkippedRecently: djSkips[0] || djSkips[1],
+            PlaylistId: ContextId, QueueDj: QueueDj, LocalHour: now.Hour, Weekday: (int)now.DayOfWeek);
+        _ = DjAskAsync(d, s, req, next.Path, cts);
+    }
+
+    async Task DjAskAsync(IDjService d, UserSession s, DjRequest req, string path, CancellationTokenSource cts)
+    {
+        try
+        {
+            var cue = await d.PrepareAsync(s, req, cts.Token);
+            if (cts.IsCancellationRequested || djFor != path) return;
+            djCue = cue;
+            if (cue?.ClipUrl is { Length: > 0 } url) await audio.DjPreloadAsync(url);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception) { }
+    }
+
+    /// <summary>A song started: the DJ speaks before it if the player got here by itself and the answer kept is about this very song; anything else stops the DJ. Then the next song is asked about.</summary>
+    async Task DjStartedAsync(Track t, bool auto)
+    {
+        if (dj is null) return;
+        var cue = djFor == t.Path ? djCue : null;
+        djAsking?.Cancel(); djFor = null; djCue = null;
+        if (auto && cue is not null && DjOn)
+        {
+            try
+            {
+                if (cue.ClipUrl is { Length: > 0 } url) { await audio.DjPlayAsync(url); djActive = true; }
+                else if (cue.Backup && cue.Text.Length > 0) { await audio.DjSayAsync(cue.Text); djActive = true; }
+            }
+            catch (Exception) { }
+        }
+        else await DjStopAsync();
+        DjAhead();
+    }
+
+    async Task DjStopAsync()
+    {
+        if (!djActive) return;
+        djActive = false;
+        try { await audio.DjStopAsync(); } catch (Exception) { }
+    }
+
     /// <summary>Stops the music and closes the player: the queue is emptied and the bar goes away. It is what the X on the bar does.</summary>
     public async Task StopAsync()
     {
         planning?.Cancel();
+        await DjStopAsync(); djAsking?.Cancel(); djFor = null; djCue = null; QueueDj = null; ContextId = null;
         try { await audio.StopAsync(); } catch (Exception) { }
         Queue = []; order = []; Index = -1; Playing = false; Position = 0; Duration = 0; autoplayNext = []; suggested = []; AutoplayFrom = -1; Context = null;
         if (stashKey is not null) { try { await js.InvokeVoidAsync("flacie.stash", stashKey, ""); } catch (Exception) { } }

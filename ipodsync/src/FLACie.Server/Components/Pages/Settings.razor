@@ -7,7 +7,7 @@
 <div class="sp">
 <header class="page-head"><h1><i>Settings</i></h1></header>
 <nav class="subnav" aria-label="Settings sections">
-    <a href="/settings#playback">Playback</a><a href="/settings#look">Appearance</a><a href="/settings#sources">Library</a><a href="/settings#alexa">Alexa</a><a href="/settings#account">Account</a><a href="/settings#about">About</a><a href="/downloads">Download log</a>@if (admin) { <a href="/dashboard">Dashboard</a> }
+    <a href="/settings#playback">Playback</a>@if (Player.Dj is not null) { <a href="/settings#dj">DJ</a> }<a href="/settings#look">Appearance</a><a href="/settings#sources">Library</a><a href="/settings#alexa">Alexa</a><a href="/settings#account">Account</a><a href="/settings#about">About</a><a href="/downloads">Download log</a>@if (admin) { <a href="/dashboard">Dashboard</a> }
 </nav>
 @* finds a setting: only the groups whose words match stay (flacie.settingsFind, in the browser, as it is typed) *@
 <div class="set-find">
@@ -28,6 +28,9 @@
         <i class="switch" aria-hidden="true"></i>
     </label>
 </section>
+
+@* the AI DJ: on or off, how chatty, where, the backup voice (hidden where there is no DJ) *@
+<DjSettings />
 
 <section class="panel set" id="sources">
     <div class="set-head"><h2>Library</h2><p class="hint">Where the songs come from. Your profile is kept in @Where, so signing in on another device brings everything back.</p></div>

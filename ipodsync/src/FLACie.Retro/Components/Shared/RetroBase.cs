@@ -136,7 +136,7 @@ public abstract class RetroBase : UserComponent
     /// <summary>Plays one of your playlists from its first song.</summary>
     protected async Task PlayPlaylist(PlaylistTape tape)
     {
-        if (Session.Playlists.FirstOrDefault(p => p.Id == tape.Id) is { } p && Session.Resolve(p.Entries) is { Count: > 0 } tracks) await Player.Play(tracks, 0, p.Name);
+        if (Session.Playlists.FirstOrDefault(p => p.Id == tape.Id) is { } p && Session.Resolve(p.Entries) is { Count: > 0 } tracks) await Player.Play(tracks, 0, p.Name, DjSwitches.KeyOf(p));
     }
     /// <summary>Plays an album coming up: the whole album when shuffling, otherwise the queue goes on from it.</summary>
     protected async Task PlayAlbum(DeskAlbum a) { if (Player.Shuffle) await Player.PlayRun(a.Tracks); else await Player.SkipTo(a.QueueIndex); }

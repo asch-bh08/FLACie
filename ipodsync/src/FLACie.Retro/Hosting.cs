@@ -40,4 +40,6 @@ public static class RetroHost
     public static string Version { get; set; } = "";
     /// <summary>Called on every tick of the song playing (the server holds back background work while music plays).</summary>
     public static Action? Heartbeat { get; set; }
+    /// <summary>Where the players are for the DJ's "Where" ticks: the Windows app runs its server with FLACIE_PARENT_PID set (as ChartsService.InDesktopShell reads it), anything else is the web.</summary>
+    public static DjSurface DjSurface { get; set; } = Environment.GetEnvironmentVariable("FLACIE_PARENT_PID") is { Length: > 0 } ? DjSurface.Windows : DjSurface.Web;
 }

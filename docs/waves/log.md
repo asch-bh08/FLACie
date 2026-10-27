@@ -134,3 +134,9 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 - Stopped here: weekly usage ~95-96%.
 
 ## 2026-10-27 Stopped at weekly limit; see docs/WHERE-WE-AT-2026-10-27.md
+
+## 2026-10-27 Engine real-data gate re-run (read-only copy of frank's data)
+- frank now has vibe.json (7552 songs) and one listen log (E3816B1F, 156 events over ~2 days). Jellyfin playback history is the 25 Oct export.
+- Jellyfin history + vibes: hms old 3/400 vs new 2/400 (0.67x, unchanged); Dad old 10/400 vs new 9/400 (0.90x, was 0.20x vibe-less). Vibes close most of Dad's gap.
+- FLACie listen log: old 14/84 vs new 21/84 = 1.50x, exactly the gate, but only 84 cases, and many of those plays were chosen by the new engine's own Autoplay, which flatters it.
+- Verdict: not a clean pass yet. Re-run once listen logs hold a few weeks (and a second account). Owner questions still open: the same-artist-twice rail and NewShare 0.5.

@@ -140,3 +140,13 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 - Jellyfin history + vibes: hms old 3/400 vs new 2/400 (0.67x, unchanged); Dad old 10/400 vs new 9/400 (0.90x, was 0.20x vibe-less). Vibes close most of Dad's gap.
 - FLACie listen log: old 14/84 vs new 21/84 = 1.50x, exactly the gate, but only 84 cases, and many of those plays were chosen by the new engine's own Autoplay, which flatters it.
 - Verdict: not a clean pass yet. Re-run once listen logs hold a few weeks (and a second account). Owner questions still open: the same-artist-twice rail and NewShare 0.5.
+
+## 2026-10-27 evening: owner's DJ feedback (web deployed 1e88dfa, rollback tag flacie-web:rollback-2026-10-27-pre-convo)
+- "Every song" spoke only ~1 in 5 on the phone: the listen log showed 35 of 36 changes were Next presses, and the phone only spoke when a song ended by itself. Fixed (fa0765a): with Talk after skips, a skip gets its line, or asks now and says it within 3 s (as the web).
+- Mic permission on the unfolded Fold showed only Continue and needed two presses: the reason now opens as a dialog (b411d99). Not seen on a device.
+- DJ hard to hear: Aura clips measure -25..-29 LUFS vs ~-8 for pop, so even at 15 % music the voice was lost. Voice +12 dB with a limiter on web and phone (6258da8).
+- New setting "Talk before the song": the song waits silently for the whole line, then starts (225daee).
+- Conversation mode (77636ec web, c759b79 phone): the mic pauses the music, listens again after each answer, ends on "that's all"/silence/press/8 turns, then the song carries on; choosing music ends it.
+- Phone mic stays in the top bar beside the DJ button (owner's choice); mic added to the mini bar (1e88dfa).
+- Voice research (docs/dj-voice-report.md): aura-2 voices (aries, phoebe, aurora) sound warmer but cost twice aura-1; no speed or emotion control; samples not made yet (the agent could not read the token).
+- Engine gate re-run logged above. Phone changes need a beta (owner to say).

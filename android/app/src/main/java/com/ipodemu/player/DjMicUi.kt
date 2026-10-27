@@ -21,6 +21,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -58,6 +60,7 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
     val ctx = LocalContext.current
     if (!app.player.djAvailable || !SpeechRecognizer.isRecognitionAvailable(ctx)) return
     var state by remember { mutableStateOf(MicState.IDLE) }
+    var explaining by remember { mutableStateOf(false) }
     val rec = remember { mutableStateOf<SpeechRecognizer?>(null) }
     fun stop() { rec.value?.let { try { it.stopListening(); it.destroy() } catch (_: Exception) { } }; rec.value = null }
     DisposableEffect(Unit) { onDispose { stop() } }
@@ -102,14 +105,18 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
             MicState.THINKING -> {}
             MicState.IDLE -> when {
                 ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> listen()
-                // the first time, why it wants the microphone, before Android asks
-                !app.prefs.micAsked -> app.ui.say("FLACie listens only while the mic is lit, to hear requests. Only the words go to FLACie.", "Continue") {
-                    app.prefs.micAsked = true; ask.launch(Manifest.permission.RECORD_AUDIO)
-                }
+                // the first time, why it wants the microphone, before Android asks. A dialog in the middle of the screen, not the message bar: on the
+                // unfolded Fold the bar's words and its Continue were not seen together (the owner saw only Continue and had to press twice)
+                !app.prefs.micAsked -> explaining = true
                 else -> ask.launch(Manifest.permission.RECORD_AUDIO)
             }
         }
     }
+
+    if (explaining) MicWhyDialog(
+        onContinue = { explaining = false; app.prefs.micAsked = true; ask.launch(Manifest.permission.RECORD_AUDIO) },
+        onDismiss = { explaining = false },
+    )
 
     val pulse = rememberInfiniteTransition(label = "mic").animateFloat(1f, 1.12f, infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "mic-pulse")
     val on = state == MicState.LISTENING
@@ -123,6 +130,25 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
             .clickable(onClick = ::press),
         contentAlignment = Alignment.Center,
     ) { GlyphIcon(Glyph.MIC, Modifier.size(size * .5f), if (state == MicState.THINKING) tint.copy(alpha = .5f) else tint) }
+}
+
+/** Why FLACie wants the microphone, asked once before Android's own question: stays until Continue or Not now. */
+@Composable
+private fun MicWhyDialog(onContinue: () -> Unit, onDismiss: () -> Unit) {
+    val sc = LocalScheme.current
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        androidx.compose.foundation.layout.Column(
+            Modifier.widthIn(max = 420.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)).background(sc.top.mix(Color.Black, .4f)).padding(20.dp),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp),
+        ) {
+            Txt("Talk to the DJ", size = 20f, weight = androidx.compose.ui.text.font.FontWeight.Bold)
+            Txt("FLACie listens only while the mic is lit, to hear what you ask. Only the words go to FLACie, never the sound.", size = 15f)
+            androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp), modifier = Modifier.align(Alignment.End)) {
+                GlossPill("Not now", onDismiss)
+                GlossPill("Continue", onContinue, primary = true)
+            }
+        }
+    }
 }
 
 /** The platform's recogniser, on the device when it has one (Android 12 and later), so the sound need not leave the phone. */

@@ -119,3 +119,6 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 - Talk to the DJ (61ef5f3) deployed to frank (rollback tag flacie-web:rollback-2026-10-27-pre-djask), then main fast-forwarded to 3dc64f4 and v1.0.0-beta92 published (APK versionCode 107, MSI 0.92.0). Windows app smoke OK. Not on a real device yet.
 - Overnight: the talk agent hit the 5-hour limit before 1am and was not resumed until 08:01 (no wake-up timer).
 - Left for later: pronunciation verified by Whisper, DJ captions and clearer voice, learned requests ("car songs"), Alexa on the same brain, conversation mode.
+
+## 2026-10-27 DJ pronunciation check, captions, clearer voice deployed (6eedee0)
+- Pronunciations verified on frank by voice+Whisper (data/dj-pronounce.json, Dashboard button), captions on Now Playing/bar, duck default 20%, voice chain (HPF/presence/compressor), optional cue sound. Rollback tag flacie-web:rollback-2026-10-27-pre-djclear. Web only; not in beta 92 APK/MSI.

@@ -210,6 +210,18 @@ public class DjServiceTests : IDisposable
         Assert.Contains("kept", msg);
     }
 
+    // the owner could not hear any voice once the DJ's 50 % share was used: samples may use the rest of the free allowance (up to 95 %), the DJ may not
+    [Fact]
+    public async Task Voice_samples_still_work_when_the_djs_share_is_used_up()
+    {
+        var r = Make(cap: 0);
+        var (clip, why) = await r.Dj.TestAsync(default, "melotts");
+        Assert.NotNull(clip);
+        var (none, _) = await r.Dj.TestAsync();
+        Assert.Null(none);   // the DJ's own Test stays within the DJ's share
+        Assert.True(r.Voice.Usage.Neurons <= CloudflareVoice.FreeNeurons * CloudflareVoice.PreviewShare);
+    }
+
     [Fact]
     public async Task The_servers_pronounce_file_is_used_for_the_spoken_line()
     {

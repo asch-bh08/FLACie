@@ -55,6 +55,9 @@ public sealed partial class CloudflareVoice
     /// <summary>The most tokens the model may answer with (a line is about 35).</summary>
     public const int TextMaxTokens = DjBudget.MaxTokens;
     public const double FreeNeurons = 10_000;
+    /// <summary>How much of the free allowance the Dashboard's voice samples may reach: past the DJ's own cap, so voices can still be heard once the DJ
+    /// has used its share for the day (the owner could not hear any at 50 %), but never past the free allowance.</summary>
+    public const double PreviewShare = 0.95;
     /// <summary>Aura-1's speakers (Deepgram says helios and athena are British, angus Irish).</summary>
     public static readonly string[] Speakers = ["angus", "asteria", "arcas", "orion", "orpheus", "athena", "luna", "zeus", "perseus", "helios", "hera", "stella"];
     /// <summary>Aura-2's English speakers (Cloudflare's @cf/deepgram/aura-2-en, docs/dj-voice-report.md): warmer and more natural than Aura-1, at twice the price.</summary>
@@ -167,10 +170,11 @@ public sealed partial class CloudflareVoice
     public bool CanSpend(double neurons) { lock (gate) { Roll(); return usage.Neurons + neurons <= Cap; } }
 
     /// <summary>This line fits under today's cap.</summary>
-    public bool CanAfford(string voice, string text) { lock (gate) { Roll(); return usage.Neurons + EstimateNeurons(voice, text) <= Cap; } }
+    public bool CanAfford(string voice, string text, bool preview = false) { lock (gate) { Roll(); return usage.Neurons + EstimateNeurons(voice, text) <= Limit(preview); } }
+    double Limit(bool preview) => preview ? Math.Max(Cap, FreeNeurons * PreviewShare) : Cap;
 
     /// <summary>Takes the line's estimate out of today's allowance up front (so lines made at the same time cannot go over the cap together); false when it does not fit.</summary>
-    bool Reserve(double n) { lock (gate) { Roll(); if (usage.Neurons + n > Cap) return false; usage.Neurons += n; return true; } }
+    bool Reserve(double n, bool preview = false) { lock (gate) { Roll(); if (usage.Neurons + n > Limit(preview)) return false; usage.Neurons += n; return true; } }
     void Settle(double n, bool made)
     {
         lock (gate)
@@ -236,13 +240,13 @@ public sealed partial class CloudflareVoice
     }
 
     /// <summary>The MP3 for [text] in [voice] (null: the saved voice), or null when it could not be made: not set up, over today's cap, or Cloudflare said no. Never throws.</summary>
-    public async Task<byte[]?> SynthesizeAsync(string text, string? voice = null, CancellationToken ct = default)
+    public async Task<byte[]?> SynthesizeAsync(string text, string? voice = null, CancellationToken ct = default, bool preview = false)
     {
         var c = Current; var v = NormVoice(voice ?? c.Voice);
         var token = Unprotect(c.Token);
         if (!AccountShape().IsMatch(c.AccountId) || token.Length == 0) return Fail("Add the Cloudflare account id and API token first.");
         var cost = EstimateNeurons(v, text);
-        if (!Reserve(cost)) return Fail("Today's DJ share of the free Cloudflare allowance is used up (the daily cap).");
+        if (!Reserve(cost, preview)) return Fail("Today's DJ share of the free Cloudflare allowance is used up (the daily cap).");
         var made = false;
         try
         {

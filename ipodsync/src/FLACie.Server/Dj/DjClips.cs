@@ -292,15 +292,16 @@ public sealed class DjClips
     public Task<(string? Id, string Message)> KeptOrMakeAsync(string text, string voiceName, CancellationToken ct = default)
     {
         var id = IdOf(CloudflareVoice.NormVoice(voiceName), text);
-        return File.Exists(FileOf(id)) ? Task.FromResult<(string?, string)>((id, "A sample kept from before")) : MakeNowAsync(text, ct, voiceName);
+        return File.Exists(FileOf(id)) ? Task.FromResult<(string?, string)>((id, "A sample kept from before")) : MakeNowAsync(text, ct, voiceName, preview: true);
     }
 
-    public async Task<(string? Id, string Message)> MakeNowAsync(string text, CancellationToken ct = default, string? voiceName = null)
+    /// <summary>[preview]: a voice sample, which may go past the DJ's cap (see <see cref="CloudflareVoice.PreviewShare"/>).</summary>
+    public async Task<(string? Id, string Message)> MakeNowAsync(string text, CancellationToken ct = default, string? voiceName = null, bool preview = false)
     {
         if (!voice.Ready) return (null, "Add the Cloudflare account id and API token first.");
         var v = CloudflareVoice.NormVoice(voiceName ?? voice.Current.Voice);
-        if (!voice.CanAfford(v, text)) return (null, "Today's DJ share of the free Cloudflare allowance is used up (the daily cap).");
-        var mp3 = await voice.SynthesizeAsync(text, v, ct);
+        if (!voice.CanAfford(v, text, preview)) return (null, preview ? "Today's free Cloudflare allowance is nearly used up" : "Today's DJ share of the free Cloudflare allowance is used up (the daily cap).");
+        var mp3 = await voice.SynthesizeAsync(text, v, ct, preview);
         if (mp3 is null) return (null, voice.LastResult);
         var id = IdOf(v, text);
         try { Write(id, mp3); } catch (Exception e) { return (null, "The clip could not be saved (" + e.GetType().Name + ")"); }

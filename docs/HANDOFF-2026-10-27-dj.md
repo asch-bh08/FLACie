@@ -16,7 +16,7 @@ Branch `ui/living-sleeve`, pushed; `main` was fast-forwarded to it for beta 92. 
 - **Deploying frank:** allowed by rules in `.claude/settings.local.json` (rollback tag first, then `git archive HEAD:ipodsync/src ... | ssh ... docker compose up -d --force-recreate`, then `/healthz`).
 
 ## Open, in the owner's order
-1. **Learned requests.** "Play car songs" / "B-road" / "back roads" should play what the person actually plays in that situation (e.g. Cappella "U Got 2 Know" in the car).
+1. **(DONE f3f6edc, web) Learned requests.** "Play car songs" / "B-road" / "back roads" should play what the person actually plays in that situation (e.g. Cappella "U Got 2 Know" in the car).
    - Tag listen events with the surface (car = Android Auto, phone, web) and the time of day.
    - Let the ask AI map a phrase to a vibe and context.
    - Learn per person from plays and skips after a request: phrase → songs.

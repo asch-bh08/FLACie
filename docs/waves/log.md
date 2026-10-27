@@ -122,3 +122,6 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 
 ## 2026-10-27 DJ pronunciation check, captions, clearer voice deployed (6eedee0)
 - Pronunciations verified on frank by voice+Whisper (data/dj-pronounce.json, Dashboard button), captions on Now Playing/bar, duck default 20%, voice chain (HPF/presence/compressor), optional cue sound. Rollback tag flacie-web:rollback-2026-10-27-pre-djclear. Web only; not in beta 92 APK/MSI.
+
+## 2026-10-27 Learned requests deployed (f3f6edc)
+- "Play car songs"/B-road etc. play what the person plays in the car; listen events carry Surface+Hour; phrase learning per person (data/listen/<id>.phrases.json). Rollback tag flacie-web:rollback-2026-10-27-pre-learned. Gaps: Alexa makes no listen events; Windows stamped web; web hour is the server hour; AlexaReviewFixTests flaked once.

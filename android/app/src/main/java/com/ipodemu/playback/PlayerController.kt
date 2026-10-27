@@ -325,6 +325,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         // a song held back under a long line (DjTiming) starts again from its beginning; one the listener has moved on in is left alone
         onRestart = { held -> if (exo.currentPosition < held + 3_000L) selfSeekTo(exo.currentMediaItemIndex, 0L) }, settings = { djSettings },
         onCaption = { c -> if (c != djCaption) { djCaption = c; fire() } }).also { djVoice = it }
+    /** The DJ is saying something now (a line or an answer): a conversation waits for it before listening again. */
+    val djTalking: Boolean get() = djVoice?.speaking == true
     /** The DJ's words showing now (Settings → DJ → Captions), or null. */
     var djCaption: String? = null; private set
     private val djExec = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "dj").also { it.isDaemon = true } }

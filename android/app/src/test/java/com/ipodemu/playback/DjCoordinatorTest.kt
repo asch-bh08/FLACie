@@ -76,6 +76,15 @@ class DjCoordinatorTest {
         assertEquals("Song 5", o.getJSONObject("next").getString("title"))
     }
 
+    // lines for songs that get skipped used the DJ's daily share (115 made, 40 said): the next song is asked about only in the last 30 s
+    @Test fun theNextSongIsAskedAboutOnlyNearTheEnd() {
+        assertEquals(170_000L, DjCoordinator.askInMs(200_000, 0))
+        assertEquals(0L, DjCoordinator.askInMs(200_000, 175_000))
+        assertEquals("a short song: at once", 0L, DjCoordinator.askInMs(25_000, 0))
+        assertEquals("not known: at once", 0L, DjCoordinator.askInMs(0, 0))
+        assertEquals("at double speed the end comes in half the time", 85_000L, DjCoordinator.askInMs(200_000, 0, speed = 2f))
+    }
+
     @Test fun theCueIsSaidOnlyForTheSongItWasFetchedFor() {
         assertNull("another song came next (the queue was changed)", holding("/b").changed(DjCoordinator.Change.AUTO, "/c"))
         assertNull(holding("/b").changed(DjCoordinator.Change.AUTO, null))

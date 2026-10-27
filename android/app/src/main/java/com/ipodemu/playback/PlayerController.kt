@@ -444,6 +444,14 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         // in a Jam the group drives playback; with Repeat one the song after this one is this one again
         val next = if (djOn && interceptor == null && exo.repeatMode != Player.REPEAT_MODE_ONE) upNext(1).firstOrNull()?.second else null
         if (cur == null || next == null) { if (dj.pendingPath != null) dj.forget(); djVoice?.ready(null, false); return }
+        // asked only in the song's last 30 s (DjCoordinator.askInMs), so a song skipped before then costs nothing; looked at again when the time comes
+        handler.removeCallbacks(djAskLater)
+        val wait = DjCoordinator.askInMs(durationMs, exo.currentPosition, speed)
+        if (wait > 0L) {
+            if (dj.pendingPath != null && dj.pendingPath != next.path) dj.forget()
+            handler.postDelayed(djAskLater, wait)
+            return
+        }
         val ticket = dj.ask(listOf(cur.path, next.path, djSurface.wire, contextId ?: "").joinToString("\n"))
         if (ticket < 0) return
         djVoice?.ready(null, false)
@@ -456,6 +464,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             handler.post { if (dj.accept(ticket, nextPath, cue) && cue != null) voice().ready(cue.clip, cue.backup) }
         }
     }
+
+    private val djAskLater = Runnable { djAsk() }
 
     /** A new song: the cue held for it is said if the player got there by itself; anything still being said stops. Then the next song is asked about. */
     private fun djChanged(t: Track?, reason: Int) {

@@ -58,7 +58,7 @@ public class PlayerDjLiveTests : IDisposable
         var st = dj.Settings(me); st.Enabled = enabled;
         if (talkAfterSkips is { } t) st.TalkAfterSkips = t;
         dj.Save(me, st);
-        var js = new Js(); var p = new PlayerState(js);
+        var js = new Js(); var p = new PlayerState(js); p.DjAskLead = null;   // (asked as a song starts, as before the 30 s lead)
         js.Playing = () => p.Current?.Title;
         // as on the web: a library, and the Autoplay lookup answering at once (the server keeps its answers for 30 minutes)
         p.SetLibrary(() => new Library(Enumerable.Range(0, 40).Select(T).ToList()));

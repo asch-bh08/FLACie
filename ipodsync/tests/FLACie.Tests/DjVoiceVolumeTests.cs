@@ -185,7 +185,7 @@ public class DjVoiceVolumeTests : IDisposable
     [InlineData(true, "flacie.djSay")]
     public async Task The_web_player_sets_the_DJ_volume_and_the_music_under_it_before_each_line(bool device, string speaks)
     {
-        var js = new Js(); var p = new PlayerState(js); var dj = new FakeDj { Device = device };
+        var js = new Js(); var p = new PlayerState(js); var dj = new FakeDj { Device = device }; p.DjAskLead = null;   // (asked as a song starts, as before the 30 s lead)
         p.SetPlanner(new UserSession("jellyfin", null, null), new NoPlanner());
         p.SetDj(dj, DjSurface.Web);
         await p.Play(Enumerable.Range(0, 3).Select(T).ToList(), 0);

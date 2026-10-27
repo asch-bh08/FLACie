@@ -105,6 +105,15 @@ class DjCoordinator {
         request(surface, next, prev, playlistId, localHour, weekday, loved).put("prevPlayedOut", false).put("skippedRecently", true)
 
     companion object {
+        /** How long before a song's end the server is asked about the next one (writing the line and making its clip take a few seconds). */
+        const val ASK_LEAD_MS = 30_000L
+        /** How long from now to ask about the next song: in the playing song's last [ASK_LEAD_MS], so a song skipped before then costs nothing
+         *  (the owner's DJ used its daily share on lines for songs that were skipped). 0 = now (near the end, a short song, or the length not known). */
+        fun askInMs(durationMs: Long, positionMs: Long, speed: Float = 1f): Long {
+            if (durationMs <= 0L) return 0L
+            val left = durationMs - positionMs - ASK_LEAD_MS
+            return if (left <= 0L) 0L else (left / speed.coerceAtLeast(0.25f)).toLong()
+        }
         /** How long a line asked for after a skip may take to come; later, the song has gone on too far and the DJ stays quiet (the web's DjSkipWait). */
         const val SKIP_WAIT_MS = 3_000L
         /** A song left within this long of starting counts as skipped. */

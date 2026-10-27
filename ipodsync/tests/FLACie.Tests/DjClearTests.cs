@@ -179,7 +179,7 @@ public class DjClearTests : IDisposable
     /// <summary>A player whose caption waits are stepped by hand: each wait is kept with its length until the test lets it go.</summary>
     static (PlayerState P, Js Js, FakeDj Dj, List<(int Ms, TaskCompletionSource Go)> Waits) Player()
     {
-        var js = new Js(); var p = new PlayerState(js); var dj = new FakeDj();
+        var js = new Js(); var p = new PlayerState(js); var dj = new FakeDj(); p.DjAskLead = null;   // (asked as a song starts, as before the 30 s lead)
         p.SetPlanner(new UserSession("jellyfin", null, null), new NoPlanner());
         p.SetDj(dj, DjSurface.Web);
         var waits = new List<(int, TaskCompletionSource)>();

@@ -55,7 +55,7 @@ public class PlayerDjTests
 
     static (PlayerState P, Js Js, FakeDj Dj) Player(DjSurface surface = DjSurface.Web)
     {
-        var js = new Js(); var p = new PlayerState(js); var dj = new FakeDj();
+        var js = new Js(); var p = new PlayerState(js); var dj = new FakeDj(); p.DjAskLead = null;   // (asked as a song starts, as before the 30 s lead)
         p.SetPlanner(new UserSession("jellyfin", null, null), new NoPlanner());
         p.SetDj(dj, surface);
         return (p, js, dj);
@@ -73,6 +73,29 @@ public class PlayerDjTests
         Assert.Equal("/m/1.flac", r.Next.Path); Assert.Equal(1.ToString("x32"), r.Next.JellyfinId);
         Assert.Equal(["/api/dj/clip/Song-1.mp3"], js.Of("flacie.djPreload"));
         Assert.Empty(js.Of("flacie.djPlay"));
+    }
+
+    // the owner's DJ used its daily share on lines for songs that were skipped (115 clips made, 40 said): the next song's line is now asked for only
+    // in the last 30 s of the song playing, so a song skipped before then costs nothing
+    [Fact]
+    public async Task The_next_line_is_asked_for_only_near_the_end_of_the_song()
+    {
+        var (p, js, dj) = Player();
+        p.DjAskLead = PlayerState.DefaultDjAskLead;
+        await p.Play(Songs(4), 0);
+        Assert.Empty(dj.Asked);                       // a 100 s song, just started
+        p.OnTime(50, 100);
+        Assert.Empty(dj.Asked);
+        await p.Next();                               // skipped before its end: nothing was made ahead for Song 1
+        // (only "Talk after skips" asks about Song 1 now, to say over it: the song before did not play out)
+        Assert.False(Assert.Single(dj.Asked).PrevPlayedOut);
+        p.OnTime(75, 100);                            // Song 1's last 25 s
+        await Task.Yield();
+        Assert.Equal(2, dj.Asked.Count);
+        Assert.Equal("Song 2", dj.Asked[^1].Next.Title); Assert.True(dj.Asked[^1].PrevPlayedOut);
+        p.OnTime(80, 100);
+        Assert.Equal(2, dj.Asked.Count);              // once
+        Assert.Equal(TimeSpan.FromSeconds(30), PlayerState.DefaultDjAskLead);
     }
 
     [Fact]

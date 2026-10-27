@@ -505,7 +505,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
 
     // ---- from flacie.js ----
 
-    [JSInvokable] public void OnTime(double pos, double dur) { RetroHost.Heartbeat?.Invoke(); CountHeard(pos); Position = pos; if (dur > 0 && !double.IsInfinity(dur)) Duration = dur; Stash(false); RememberPlace(); SleepTick(); PlayTick(); Changed?.Invoke(); }
+    [JSInvokable] public void OnTime(double pos, double dur) { RetroHost.Heartbeat?.Invoke(); CountHeard(pos); Position = pos; if (dur > 0 && !double.IsInfinity(dur)) Duration = dur; Stash(false); RememberPlace(); SleepTick(); PlayTick(); if (djFor is null && DjOn && DjNearEnd()) DjAhead(); Changed?.Invoke(); }
     [JSInvokable] public void OnState(bool playing) { Playing = playing; PlayTick(); Changed?.Invoke(); }
     [JSInvokable] public async Task OnEnded()
     {
@@ -775,6 +775,9 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         var cur = Current; var next = cur is null ? null : DjNext();
         if (cur is null || next is null || !DjOn) { djAsking?.Cancel(); djFor = null; djCue = null; return; }
         if (djFor == next.Path) return;
+        // not yet: asked in the song's last [DjAskLead] (OnTime), so a song skipped before then costs nothing (the owner's DJ used its daily share on
+        // lines for songs that were skipped: 115 clips made, 40 said). An answer kept about a song no longer next goes.
+        if (!DjNearEnd()) { if (djFor is not null) { djAsking?.Cancel(); djFor = null; djCue = null; } return; }
         djAsking?.Cancel(); var cts = djAsking = new CancellationTokenSource();
         djFor = next.Path; djCue = null; djAnswered = false;
         var req = new DjRequest(DjSurface, SongOf(next), SongOf(cur), PrevPlayedOut: true, SkippedRecently: djSkips[0] || djSkips[1],
@@ -808,6 +811,12 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         catch (OperationCanceledException) { }
         catch (Exception e) { try { RetroHost.DjFailed?.Invoke(e); } catch (Exception) { } }
     }
+
+    /// <summary>How long before the end of a song the DJ is asked about the next one (writing the line and making its clip take a few seconds);
+    /// null: as the song starts, as it was before.</summary>
+    public TimeSpan? DjAskLead { get; set; } = DefaultDjAskLead;
+    public static readonly TimeSpan DefaultDjAskLead = TimeSpan.FromSeconds(30);
+    bool DjNearEnd() => DjAskLead is not { } lead || Duration <= 0 || Duration - Position <= lead.TotalSeconds;
 
     /// <summary>The answer kept about [t], the song now starting (null: none, or still on its way, which is then dropped so it is never played late).</summary>
     DjCue? DjTake(Track t)

@@ -25,6 +25,9 @@ public static class DjEndpoints
             return c;
         });
         services.AddHostedService<DjPronounceJob>();
+        // FLACie's own voice (Kokoro on frank, ipodsync/tools/kokoro): a long line takes a few seconds on a busy CPU; its fixed replies are made ahead
+        services.AddHttpClient("kokoro", c => c.Timeout = TimeSpan.FromSeconds(30));
+        services.AddHostedService<DjWarmService>();
         services.AddSingleton(sp =>
         {
             var d = ActivatorUtilities.CreateInstance<DjService>(sp);

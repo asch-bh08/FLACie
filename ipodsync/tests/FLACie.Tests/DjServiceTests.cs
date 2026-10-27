@@ -222,6 +222,23 @@ public class DjServiceTests : IDisposable
         Assert.True(r.Voice.Usage.Neurons <= CloudflareVoice.FreeNeurons * CloudflareVoice.PreviewShare);
     }
 
+    // the owner asked for common talk-to-the-DJ replies to be ready in the voice: with FLACie's own voice (free) they are made ahead; with a
+    // Cloudflare voice (the daily cap) they are not
+    [Fact]
+    public async Task The_fixed_replies_are_made_ahead_with_the_free_voice_only()
+    {
+        var cf = Make();
+        Assert.Equal(0, await cf.Dj.WarmRepliesAsync());
+        Assert.Empty(cf.Http.Seen);
+        var r = Make();
+        r.Voice.Save(new DjVoiceConfig { Voice = "kokoro:am_liam" }, null);
+        var made = await r.Dj.WarmRepliesAsync();
+        Assert.Equal(DjAskEngine.FixedReplies.Distinct().Count(), made);
+        Assert.Contains(r.Http.Seen, x => x.Body.Contains("Shuffling your library."));
+        Assert.NotNull(r.Clips.Cached("Okay, moving on."));
+        Assert.Equal(0, await r.Dj.WarmRepliesAsync());   // kept: nothing made twice
+    }
+
     [Fact]
     public async Task The_servers_pronounce_file_is_used_for_the_spoken_line()
     {

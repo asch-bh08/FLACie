@@ -60,6 +60,15 @@ public sealed partial class CloudflareVoice
     public const double PreviewShare = 0.95;
     /// <summary>Aura-1's speakers (Deepgram says helios and athena are British, angus Irish).</summary>
     public static readonly string[] Speakers = ["angus", "asteria", "arcas", "orion", "orpheus", "athena", "luna", "zeus", "perseus", "helios", "hera", "stella"];
+    /// <summary>Kokoro's English voices (FLACie's own voice on frank, ipodsync/tools/kokoro): no daily limit and no Cloudflare account. am_ / af_ American men /
+    /// women, bm_ / bf_ British. The owner chose Liam (27 Oct).</summary>
+    public static readonly string[] KokoroVoices = ["am_liam", "am_michael", "am_puck", "am_fenrir", "am_echo", "am_eric", "am_adam", "am_onyx", "bm_george", "bm_fable",
+        "bm_lewis", "bm_daniel", "af_heart", "af_bella", "af_nicole", "af_sarah", "bf_emma", "bf_isabella"];
+    public const string DefaultKokoroUrl = "http://127.0.0.1:8092";
+    readonly string kokoroUrl;
+    /// <summary>A Kokoro voice: made on frank, free.</summary>
+    public static bool IsKokoro(string voice) => voice.StartsWith("kokoro:", StringComparison.Ordinal);
+
     /// <summary>Aura-2's English speakers (Cloudflare's @cf/deepgram/aura-2-en, docs/dj-voice-report.md): warmer and more natural than Aura-1, at twice the price.</summary>
     public static readonly string[] Speakers2 = ["amalthea", "andromeda", "apollo", "arcas", "aries", "asteria", "athena", "atlas", "aurora", "callista", "cora", "cordelia",
         "delia", "draco", "electra", "harmonia", "helena", "hera", "hermes", "hyperion", "iris", "janus", "juno", "jupiter", "luna", "mars", "minerva", "neptune", "odysseus",
@@ -91,6 +100,7 @@ public sealed partial class CloudflareVoice
     {
         file = Path.Combine(paths.Root, "dj.json"); usageFile = Path.Combine(paths.Root, "dj-usage.json");
         this.hf = hf; protector = dp.CreateProtector("FLACie.Dj"); this.log = log; this.clock = clock ?? (() => DateTime.UtcNow);
+        kokoroUrl = (conf["FLACIE_KOKORO_URL"] is { Length: > 0 } ku ? ku : DefaultKokoroUrl).TrimEnd('/');
         try { if (File.Exists(file)) cfg = JsonSerializer.Deserialize<DjVoiceConfig>(File.ReadAllText(file)) ?? new(); } catch (Exception) { }
         try { if (File.Exists(usageFile)) usage = JsonSerializer.Deserialize<DjUsage>(File.ReadAllText(usageFile)) ?? new(); } catch (Exception) { }
         // first start: take the account from the environment, so a Docker setup can hand it over
@@ -116,7 +126,8 @@ public sealed partial class CloudflareVoice
     {
         var s = (v ?? "").Trim().ToLowerInvariant();
         return s.StartsWith("aura-1:", StringComparison.Ordinal) && Speakers.Contains(s[7..]) ? s
-            : s.StartsWith("aura-2:", StringComparison.Ordinal) && Speakers2.Contains(s[7..]) ? s : MeloTts;
+            : s.StartsWith("aura-2:", StringComparison.Ordinal) && Speakers2.Contains(s[7..]) ? s
+            : s.StartsWith("kokoro:", StringComparison.Ordinal) && KokoroVoices.Contains(s[7..]) ? s : MeloTts;
     }
     /// <summary>An Aura-2 voice (twice Aura-1's price, its own model).</summary>
     public static bool IsAura2(string voice) => voice.StartsWith("aura-2:", StringComparison.Ordinal);
@@ -124,7 +135,8 @@ public sealed partial class CloudflareVoice
     public DjVoiceConfig Current { get { lock (gate) return JsonSerializer.Deserialize<DjVoiceConfig>(JsonSerializer.Serialize(cfg))!; } }
     public bool HasToken => Current.Token.Length > 0;
     /// <summary>An account id and a token are set, so clips can be asked for.</summary>
-    public bool Ready { get { var c = Current; return AccountShape().IsMatch(c.AccountId) && Unprotect(c.Token).Length > 0; } }
+    public bool Ready { get { var c = Current; return IsKokoro(NormVoice(c.Voice)) || CloudflareReady(c); } }
+    bool CloudflareReady(DjVoiceConfig c) => AccountShape().IsMatch(c.AccountId) && Unprotect(c.Token).Length > 0;
 
     /// <summary>Saves the settings. A null [newToken] keeps the saved one; an empty one removes it.</summary>
     public void Save(DjVoiceConfig c, string? newToken)
@@ -142,7 +154,7 @@ public sealed partial class CloudflareVoice
 
     /// <summary>Cloudflare's price of one line, in neurons: MeloTTS 18.63 per audio minute (the length guessed at 2.6 words a second), Aura-1 1,363.64 per 1,000 characters.</summary>
     public static double EstimateNeurons(string voice, string text) =>
-        NormVoice(voice) is var n && n == MeloTts ? DjText.WordCount(text) / 2.6 / 60.0 * 18.63 : text.Length / 1000.0 * (IsAura2(n) ? 2727.27 : 1363.64);
+        NormVoice(voice) is var n && IsKokoro(n) ? 0 : n == MeloTts ? DjText.WordCount(text) / 2.6 / 60.0 * 18.63 : text.Length / 1000.0 * (IsAura2(n) ? 2727.27 : 1363.64);
 
     string Today => clock().ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
@@ -244,7 +256,7 @@ public sealed partial class CloudflareVoice
     {
         var c = Current; var v = NormVoice(voice ?? c.Voice);
         var token = Unprotect(c.Token);
-        if (!AccountShape().IsMatch(c.AccountId) || token.Length == 0) return Fail("Add the Cloudflare account id and API token first.");
+        if (!IsKokoro(v) && (!AccountShape().IsMatch(c.AccountId) || token.Length == 0)) return Fail("Add the Cloudflare account id and API token first.");
         var cost = EstimateNeurons(v, text);
         if (!Reserve(cost, preview)) return Fail("Today's DJ share of the free Cloudflare allowance is used up (the daily cap).");
         var made = false;
@@ -272,6 +284,7 @@ public sealed partial class CloudflareVoice
     /// <summary>One call for a clip: the audio, or why not and whether asking again could help (a 5xx, a timeout, a dropped connection).</summary>
     async Task<(byte[]? Audio, string Why, bool Again)> CallAsync(DjVoiceConfig c, string token, string v, string text, CancellationToken ct)
     {
+        if (IsKokoro(v)) return await KokoroAsync(v[7..], text, ct);
         try
         {
             var (model, body) = v == MeloTts
@@ -296,6 +309,26 @@ public sealed partial class CloudflareVoice
         {
             var msg = e is TaskCanceledException or OperationCanceledException ? "Cloudflare didn't answer in time" : "Couldn't reach Cloudflare (" + e.GetType().Name + ")";
             return (null, msg, true);
+        }
+    }
+
+    /// <summary>One clip from Kokoro on frank (ipodsync/tools/kokoro): it answers with the MP3 itself.</summary>
+    async Task<(byte[]? Audio, string Why, bool Again)> KokoroAsync(string name, string text, CancellationToken ct)
+    {
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, kokoroUrl + "/tts");
+            req.Content = new StringContent(new JsonObject { ["text"] = text, ["voice"] = name }.ToJsonString(), Encoding.UTF8, "application/json");
+            using var http = hf.CreateClient("kokoro");
+            using var res = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+            var bytes = await ReadAtMost(res.Content, ct);
+            if (bytes is null) return (null, "The voice sent more than a clip", false);
+            if (!res.IsSuccessStatusCode) return (null, $"FLACie's voice (Kokoro) answered {(int)res.StatusCode}", (int)res.StatusCode >= 500);
+            return bytes.Length > 0 ? (bytes, "", false) : (null, "FLACie's voice (Kokoro) sent no sound", true);
+        }
+        catch (Exception e)
+        {
+            return (null, e is TaskCanceledException or OperationCanceledException ? "FLACie's voice (Kokoro) didn't answer in time" : "Couldn't reach FLACie's voice (Kokoro, " + e.GetType().Name + ")", true);
         }
     }
 

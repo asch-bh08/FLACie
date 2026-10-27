@@ -205,6 +205,12 @@ else
             <label for="djk">API token <span class="opt">(@(DjVoice.HasToken ? "saved, leave empty to keep" : "needed"))</span></label><input id="djk" type="password" @bind="djToken" autocomplete="new-password" />
             <label for="djv">Voice</label>
             <select id="djv" @bind="djCfg.Voice">
+                <optgroup label="FLACie's own voice (Kokoro on this server): no daily limit">
+                    @foreach (var kv in FLACie.Server.Dj.CloudflareVoice.KokoroVoices)
+                    {
+                        <option value="@("kokoro:" + kv)">Kokoro · @KokoroName(kv)</option>
+                    }
+                </optgroup>
                 <optgroup label="Aura-2: warmer and more natural (about 15 lines a day at a 50% cap)">
                     @foreach (var spk in Aura2Order)
                     {
@@ -225,6 +231,14 @@ else
         <details class="hint">
             <summary>Hear each voice</summary>
             <p>Each voice says the same line: “@FLACie.Server.Dj.DjService.SampleLine” A sample is made once and kept, so playing it again is free. A new Aura-2 sample uses about 2% of today's free allowance, an Aura-1 one about 1%.</p>
+            <h3>FLACie's own voice (Kokoro): free, no daily limit</h3>
+            <div class="row-actions dj-voices-kokoro">
+                @foreach (var kv in FLACie.Server.Dj.CloudflareVoice.KokoroVoices)
+                {
+                    var voiceId = "kokoro:" + kv;
+                    <button class="btn" @onclick="() => TestDj(voiceId)" disabled="@djTesting" aria-pressed="@(djCfg.Voice == voiceId ? "true" : "false")">@KokoroName(kv)</button>
+                }
+            </div>
             <h3>Aura-2: picked for a relaxed, friendly DJ</h3>
             <div class="row-actions dj-voices-best">
                 @foreach (var spk in Aura2Best)
@@ -478,6 +492,9 @@ else
         ["draco"] = "British, warm, deep", ["hermes"] = "expressive, engaging", ["phoebe"] = "energetic, warm, casual", ["aurora"] = "cheerful, expressive",
         ["thalia"] = "clear, energetic", ["ophelia"] = "expressive, enthusiastic", ["pandora"] = "British, smooth, calm",
     };
+    // "am_liam" -> "Liam (American man)"
+    static string KokoroName(string v) => char.ToUpperInvariant(v[3]) + v[4..] + " (" + (v[0] == 'b' ? "British " : "American ") + (v[1] == 'm' ? "man" : "woman") + ")"
+        + (v == "am_liam" ? ", your pick" : "");
     static string Voice2Name(string spk) => char.ToUpperInvariant(spk[0]) + spk[1..] + (Aura2About.TryGetValue(spk, out var about) ? " (" + about + ")" : "");
     static string SpeakerName(string spk) => char.ToUpperInvariant(spk[0]) + spk[1..] + (spk is "helios" or "athena" ? " (British)" : spk == "angus" ? " (Irish)" : "");
     // Test: saves, then says a sample line in the saved voice; a voice's own button tries that voice without saving it

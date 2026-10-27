@@ -278,6 +278,19 @@ public interface IDjAskUser
 /// </summary>
 public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? contexts = null, Func<DateTime>? clock = null)
 {
+    /// <summary>The replies that are always the same words: made ahead in FLACie's own voice (free), so these answers start at once (DjService.WarmRepliesAsync).
+    /// Keep in step with the replies below.</summary>
+    public static readonly string[] FixedReplies =
+    [
+        "Sorry, I didn't catch that.", "I'm here. I'll say a word between songs.", "Okay, I'll keep quiet.", "Nothing's playing right now.",
+        "Sorry, I couldn't save that.", "Fair enough. I won't play that as much.", "Play something first, and I'll find more like it.",
+        "Something like this, a bit slower.", "Something like this, with more pace.", "More like this, coming up.", "I couldn't find anything like this yet.",
+        "Okay, moving on.", "Got it. Something different.", "You haven't got any favourites yet. Tap the heart on a song you love.", "Here are your favourites.",
+        "I don't know what you play most yet.", "Your most played, coming up.", "You've heard everything in your library. Impressive.",
+        "Here's something you haven't heard yet.", "There's nothing in your library yet.", "Shuffling your library.",
+        "I'm still loading your library. Try again in a moment.", "Can't find that one anywhere, sorry.", "Can't find that one, getting it now.",
+    ];
+
     public const string DidntCatch = "Sorry, I didn't catch that.";
     public TimeSpan AiTimeout { get; set; } = DjAskAi.Timeout;
     public TimeSpan QuestionTimeout { get; set; } = DjAskAi.QuestionTimeout;

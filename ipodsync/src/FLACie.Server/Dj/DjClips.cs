@@ -298,8 +298,9 @@ public sealed class DjClips
     /// <summary>[preview]: a voice sample, which may go past the DJ's cap (see <see cref="CloudflareVoice.PreviewShare"/>).</summary>
     public async Task<(string? Id, string Message)> MakeNowAsync(string text, CancellationToken ct = default, string? voiceName = null, bool preview = false)
     {
-        if (!voice.Ready) return (null, "Add the Cloudflare account id and API token first.");
         var v = CloudflareVoice.NormVoice(voiceName ?? voice.Current.Voice);
+        // (FLACie's own voice needs no Cloudflare account)
+        if (!CloudflareVoice.IsKokoro(v) && !voice.Ready) return (null, "Add the Cloudflare account id and API token first.");
         if (!voice.CanAfford(v, text, preview)) return (null, preview ? "Today's free Cloudflare allowance is nearly used up" : "Today's DJ share of the free Cloudflare allowance is used up (the daily cap).");
         var mp3 = await voice.SynthesizeAsync(text, v, ct, preview);
         if (mp3 is null) return (null, voice.LastResult);

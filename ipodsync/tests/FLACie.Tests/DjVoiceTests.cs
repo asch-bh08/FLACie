@@ -157,6 +157,26 @@ public class DjVoiceTests : IDisposable
         Assert.Equal("mp3", j.GetProperty("encoding").GetString());
     }
 
+    // Kokoro on frank (ipodsync/tools/kokoro): the owner's chosen voice (Liam), no daily limit, no Cloudflare account needed
+    [Fact]
+    public async Task Kokoro_voices_go_to_the_local_voice_with_no_token_and_no_cost()
+    {
+        var (v, h, _) = Make(_ => Task.FromResult(Audio()), new() { ["FLACIE_KOKORO_URL"] = "http://127.0.0.1:9999" });
+        v.Save(new DjVoiceConfig { Voice = "kokoro:am_liam" }, null);   // no Cloudflare account at all
+        Assert.True(v.Ready);
+        Assert.Equal(Mp3, await v.SynthesizeAsync("Okay, turning it up."));
+        var (url, auth, body) = Assert.Single(h.Seen);
+        Assert.Equal("http://127.0.0.1:9999/tts", url);
+        Assert.Equal("", auth);
+        var j = JsonDocument.Parse(body).RootElement;
+        Assert.Equal("Okay, turning it up.", j.GetProperty("text").GetString());
+        Assert.Equal("am_liam", j.GetProperty("voice").GetString());
+        Assert.Equal(0, v.Usage.Neurons);
+        Assert.Equal(0, CloudflareVoice.EstimateNeurons("kokoro:am_liam", new string('x', 1000)));
+        Assert.Equal("kokoro:am_liam", CloudflareVoice.NormVoice("Kokoro:AM_Liam"));
+        Assert.Equal(CloudflareVoice.MeloTts, CloudflareVoice.NormVoice("kokoro:nobody"));
+    }
+
     [Fact]
     public void Voice_names_are_checked_per_family()
     {

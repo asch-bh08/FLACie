@@ -276,7 +276,11 @@ test.describe.serial('the DJ', () => {
     await expect(block).toBeVisible({ timeout: 20_000 });
     expect(await page.locator('#djv option[value^="aura-2:"]').count()).toBe(40);
     expect(await page.locator('#djv option[value^="aura-1:"]').count()).toBe(12);
+    // FLACie's own voice (Kokoro on the server, no daily limit) first, the owner's pick marked
+    expect(await page.locator('#djv option[value^="kokoro:"]').count()).toBe(18);
+    expect(await page.locator('#djv option').first().getAttribute('value')).toBe('kokoro:am_liam');
     await block.locator('summary', { hasText: 'Hear each voice' }).click();
+    await expect(block.locator('.dj-voices-kokoro button').first()).toHaveText('Liam (American man), your pick');
     await expect(block.locator('.dj-voices-best button')).toHaveCount(11);
     await expect(block.locator('.dj-voices-best button').first()).toHaveText(/^Aries \(warm/);
     await expect(block.getByText('A sample is made once and kept')).toBeVisible();

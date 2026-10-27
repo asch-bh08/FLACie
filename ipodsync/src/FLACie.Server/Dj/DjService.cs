@@ -316,5 +316,10 @@ public sealed class DjService : IDjService
         return (id is null ? null : DjClips.UrlOf(id), id is null ? msg : msg + ": \"" + say + "\"");
     }
 
+    /// <summary>The always-the-same replies of "talk to the DJ" made ahead and kept, so they start at once; only with FLACie's own voice (free), never
+    /// against Cloudflare's daily cap. Returns how many were made (0 when all were kept already).</summary>
+    public Task<int> WarmRepliesAsync() =>
+        CloudflareVoice.IsKokoro(CloudflareVoice.NormVoice(voice.Current.Voice)) ? clips.WarmAsync(DjAskEngine.FixedReplies) : Task.FromResult(0);
+
     string TestLineSaid(string s) => Pronounce().Phrases(s);
 }

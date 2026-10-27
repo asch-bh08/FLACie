@@ -125,3 +125,6 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 
 ## 2026-10-27 Learned requests deployed (f3f6edc)
 - "Play car songs"/B-road etc. play what the person plays in the car; listen events carry Surface+Hour; phrase learning per person (data/listen/<id>.phrases.json). Rollback tag flacie-web:rollback-2026-10-27-pre-learned. Gaps: Alexa makes no listen events; Windows stamped web; web hour is the server hour; AlexaReviewFixTests flaked once.
+
+## 2026-10-27 Beta 93 released
+- v1.0.0-beta93 (APK versionCode 108, MSI 0.93.0) from main = ui/living-sleeve: captions, clearer voice, Whisper-checked pronunciation, learned requests now in the apps. Windows smoke OK; Android unit tests pass.

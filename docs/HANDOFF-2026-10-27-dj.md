@@ -3,7 +3,7 @@
 Branch `ui/living-sleeve`, pushed; `main` was fast-forwarded to it for beta 92. Read `docs/waves/log.md` (the end has everything since 25 Oct) and `docs/spec/ai-dj.md`.
 
 ## State
-- **Released:** beta 92 (v1.0.0-beta92, APK versionCode 107, MSI 0.92.0). It contains:
+- **Released:** beta 93 (also has captions, clearer voice, pronunciation check, learned requests); before that beta 92 (v1.0.0-beta92, APK versionCode 107, MSI 0.92.0). It contains:
   - the per-account recommendation engine;
   - the AI DJ (Workers AI llama-3.3-70b lines, Aura Helios voice, intro timing, Style, Every song, Talk after skips, volume and duck, always/never per song, one-voice rule);
   - Talk to the DJ (mic, smart assistant, shared context, auto-download);

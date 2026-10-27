@@ -142,6 +142,32 @@ public class DjVoiceTests : IDisposable
         Assert.NotNull(await v.SynthesizeAsync(line));
     }
 
+    // Aura-2 (owner, 27 Oct: a warmer, more casual voice, "like Spotify's DJ"): the newer Deepgram voices, at twice Aura-1's price
+    [Fact]
+    public async Task Aura2_voices_go_to_the_aura2_model_with_the_bare_speaker()
+    {
+        var (v, h, _) = Make(_ => Task.FromResult(Audio()));
+        v.Save(new DjVoiceConfig { AccountId = Account, Voice = "aura-2:aries" }, Token);
+        Assert.Equal("aura-2:aries", v.Current.Voice);
+        Assert.Equal(Mp3, await v.SynthesizeAsync("Alright, here's Yellow."));
+        var (url, _, body) = Assert.Single(h.Seen);
+        Assert.EndsWith("/ai/run/@cf/deepgram/aura-2-en", url);
+        var j = JsonDocument.Parse(body).RootElement;
+        Assert.Equal("aries", j.GetProperty("speaker").GetString());
+        Assert.Equal("mp3", j.GetProperty("encoding").GetString());
+    }
+
+    [Fact]
+    public void Voice_names_are_checked_per_family()
+    {
+        Assert.Equal("aura-2:phoebe", CloudflareVoice.NormVoice(" Aura-2:Phoebe "));
+        Assert.Equal("aura-1:helios", CloudflareVoice.NormVoice("aura-1:helios"));
+        Assert.Equal(CloudflareVoice.MeloTts, CloudflareVoice.NormVoice("aura-2:nobody"));
+        Assert.Equal(CloudflareVoice.MeloTts, CloudflareVoice.NormVoice("aura-1:aries"));   // an Aura-2 voice is not an Aura-1 one
+        Assert.Contains("aries", CloudflareVoice.Speakers2);
+        Assert.Equal(1363.64 * 2, CloudflareVoice.EstimateNeurons("aura-2:aries", new string('x', 1000)), 1);
+    }
+
     [Fact]
     public void Neurons_are_estimated_from_words_for_MeloTts_and_characters_for_Aura()
     {

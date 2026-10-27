@@ -266,4 +266,21 @@ test.describe.serial('the DJ', () => {
     await page.getByRole('button', { name: /^Delete "/ }).click();
     await page.waitForURL(/\/playlists$/);
   });
+
+  // the owner asked for a warmer voice "like Spotify's DJ" and to hear every voice: Aura-2 voices in the picker, a sample button each, best ones first
+  test('the Dashboard offers the Aura-2 voices, with a sample button for every voice', async ({ page }) => {
+    test.setTimeout(120_000);
+    await signIn(page);
+    await live(page, '/dashboard');
+    const block = page.locator('#dj');
+    await expect(block).toBeVisible({ timeout: 20_000 });
+    expect(await page.locator('#djv option[value^="aura-2:"]').count()).toBe(40);
+    expect(await page.locator('#djv option[value^="aura-1:"]').count()).toBe(12);
+    await block.locator('summary', { hasText: 'Hear each voice' }).click();
+    await expect(block.locator('.dj-voices-best button')).toHaveCount(11);
+    await expect(block.locator('.dj-voices-best button').first()).toHaveText(/^Aries \(warm/);
+    await expect(block.getByText('A sample is made once and kept')).toBeVisible();
+    await block.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: 'test-results/shots/dj-voices.png', fullPage: false, clip: (await block.boundingBox())! });
+  });
 });

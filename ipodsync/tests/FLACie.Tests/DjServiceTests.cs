@@ -194,6 +194,22 @@ public class DjServiceTests : IDisposable
         Assert.Equal(2, r.Http.Seen.Count);   // a test always asks Cloudflare, even for a clip already made
     }
 
+    // the Dashboard's "Hear each voice" (owner, 27 Oct: samples for all the voices): one fixed casual line, made once per voice and kept, since 40
+    // Aura-2 samples would otherwise use most of a day's free allowance
+    [Fact]
+    public async Task A_voice_sample_is_the_sample_line_and_is_made_only_once_per_voice()
+    {
+        var r = Make();
+        var (clip, _) = await r.Dj.TestAsync(default, "melotts");
+        Assert.NotNull(clip);
+        var prompt = JsonDocument.Parse(Assert.Single(r.Http.Seen).Body).RootElement.GetProperty("prompt").GetString();
+        Assert.Equal(DjService.SampleLine, prompt);
+        var (again, msg) = await r.Dj.TestAsync(default, "melotts");
+        Assert.Equal(clip, again);
+        Assert.Single(r.Http.Seen);   // kept: no second call
+        Assert.Contains("kept", msg);
+    }
+
     [Fact]
     public async Task The_servers_pronounce_file_is_used_for_the_spoken_line()
     {

@@ -288,6 +288,13 @@ public sealed class DjClips
     }
 
     /// <summary>Makes [text] now, whether or not it was made before (the admin's Test button): the clip's id, or null and why not.</summary>
+    /// <summary>A voice's sample of [text]: the one made before when there is one (no cost), else made now.</summary>
+    public Task<(string? Id, string Message)> KeptOrMakeAsync(string text, string voiceName, CancellationToken ct = default)
+    {
+        var id = IdOf(CloudflareVoice.NormVoice(voiceName), text);
+        return File.Exists(FileOf(id)) ? Task.FromResult<(string?, string)>((id, "A sample kept from before")) : MakeNowAsync(text, ct, voiceName);
+    }
+
     public async Task<(string? Id, string Message)> MakeNowAsync(string text, CancellationToken ct = default, string? voiceName = null)
     {
         if (!voice.Ready) return (null, "Add the Cloudflare account id and API token first.");

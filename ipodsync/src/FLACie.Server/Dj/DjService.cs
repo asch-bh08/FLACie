@@ -13,6 +13,8 @@ public sealed class DjService : IDjService
 {
     public static readonly TimeSpan DecisionLife = TimeSpan.FromMinutes(30);
     public const string TestLine = "This is the FLACie DJ. Here's a test line.";
+    /// <summary>What each voice says in the Dashboard's "Hear each voice": the same casual line for all, so they can be compared, and each made only once.</summary>
+    public const string SampleLine = "Alright... you've had this one on repeat lately. So here it is, Bad Romance, by Lady Gaga.";
 
     readonly UserStateStore states; readonly CloudflareVoice voice; readonly DjClips clips; readonly ILogger<DjService> log; readonly Func<DateTime> clock;
     readonly string pronounceFile, heardFile;
@@ -298,6 +300,12 @@ public sealed class DjService : IDjService
     /// </summary>
     public async Task<(string? Clip, string Message)> TestAsync(CancellationToken ct = default, string? voiceName = null)
     {
+        // a voice's own button: the sample line, kept once made
+        if (voiceName is not null)
+        {
+            var (kid, kmsg) = await clips.KeptOrMakeAsync(SampleLine, voiceName, ct);
+            return (kid is null ? null : DjClips.UrlOf(kid), kmsg);
+        }
         var say = TestLineSaid(TestLine);
         if (AiLines && voice.Current.AiLines && voice.Ready)
         {

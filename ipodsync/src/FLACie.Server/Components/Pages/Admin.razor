@@ -205,10 +205,18 @@ else
             <label for="djk">API token <span class="opt">(@(DjVoice.HasToken ? "saved, leave empty to keep" : "needed"))</span></label><input id="djk" type="password" @bind="djToken" autocomplete="new-password" />
             <label for="djv">Voice</label>
             <select id="djv" @bind="djCfg.Voice">
-                @foreach (var spk in FLACie.Server.Dj.CloudflareVoice.Speakers)
-                {
-                    <option value="@("aura-1:" + spk)">Aura-1 · @SpeakerName(spk)@(("aura-1:" + spk) == FLACie.Server.Dj.CloudflareVoice.DefaultVoice ? " (default)" : "") (about 30 lines a day at a 50% cap)</option>
-                }
+                <optgroup label="Aura-2: warmer and more natural (about 15 lines a day at a 50% cap)">
+                    @foreach (var spk in Aura2Order)
+                    {
+                        <option value="@("aura-2:" + spk)">Aura-2 · @Voice2Name(spk)</option>
+                    }
+                </optgroup>
+                <optgroup label="Aura-1 (about 30 lines a day at a 50% cap)">
+                    @foreach (var spk in FLACie.Server.Dj.CloudflareVoice.Speakers)
+                    {
+                        <option value="@("aura-1:" + spk)">Aura-1 · @SpeakerName(spk)@(("aura-1:" + spk) == FLACie.Server.Dj.CloudflareVoice.DefaultVoice ? " (default)" : "")</option>
+                    }
+                </optgroup>
                 <option value="@FLACie.Server.Dj.CloudflareVoice.MeloTts">MeloTTS (plainer, thousands of lines a day free)</option>
             </select>
             <label for="djc">Daily cap <span class="opt">(% of the 10,000 free neurons a day the DJ may use; near it the DJ keeps to the chosen voice: lines already made are said again, and new ones wait for tomorrow)</span></label><input id="djc" type="number" min="0" max="100" @bind="djCfg.CapPercent" />
@@ -216,6 +224,24 @@ else
         </div>
         <details class="hint">
             <summary>Hear each voice</summary>
+            <p>Each voice says the same line: “@FLACie.Server.Dj.DjService.SampleLine” A sample is made once and kept, so playing it again is free. A new Aura-2 sample uses about 2% of today's free allowance, an Aura-1 one about 1%.</p>
+            <h3>Aura-2: picked for a relaxed, friendly DJ</h3>
+            <div class="row-actions dj-voices-best">
+                @foreach (var spk in Aura2Best)
+                {
+                    var voiceId = "aura-2:" + spk;
+                    <button class="btn" @onclick="() => TestDj(voiceId)" disabled="@djTesting" aria-pressed="@(djCfg.Voice == voiceId ? "true" : "false")">@Voice2Name(spk)</button>
+                }
+            </div>
+            <h3>More Aura-2 voices</h3>
+            <div class="row-actions">
+                @foreach (var spk in FLACie.Server.Dj.CloudflareVoice.Speakers2.Except(Aura2Best))
+                {
+                    var voiceId = "aura-2:" + spk;
+                    <button class="btn" @onclick="() => TestDj(voiceId)" disabled="@djTesting">@Voice2Name(spk)</button>
+                }
+            </div>
+            <h3>Aura-1 and MeloTTS</h3>
             <div class="row-actions">
                 @foreach (var v in new[] { FLACie.Server.Dj.CloudflareVoice.MeloTts }.Concat(FLACie.Server.Dj.CloudflareVoice.Speakers.Select(x => "aura-1:" + x)))
                 {
@@ -223,6 +249,7 @@ else
                     <button class="btn" @onclick="() => TestDj(voiceId)" disabled="@djTesting">@(voiceId == FLACie.Server.Dj.CloudflareVoice.MeloTts ? "MeloTTS" : SpeakerName(voiceId[7..]))</button>
                 }
             </div>
+            <p>To use one: pick it under Voice above and press Save.</p>
         </details>
         <p class="hint">Getting a token: Cloudflare dashboard → My Profile → API Tokens → Create Token → Workers AI template. The account id is on the dashboard's Overview page.</p>
         <div class="row-actions">
@@ -442,6 +469,16 @@ else
     }
     void SaveDj() { DjVoice.Save(djCfg, djToken.Length > 0 ? djToken : null); djToken = ""; djCfg = DjVoice.Current; djMsg = "Saved."; }
     void ForgetDjToken() { DjVoice.Save(djCfg, ""); djCfg = DjVoice.Current; djMsg = "Token removed."; }
+    // Aura-2 voices Deepgram describes as warm, relaxed or casual first (docs/dj-voice-report.md): men, then women
+    static readonly string[] Aura2Best = ["aries", "apollo", "atlas", "orion", "draco", "hermes", "phoebe", "aurora", "thalia", "ophelia", "pandora"];
+    static readonly string[] Aura2Order = [.. Aura2Best, .. FLACie.Server.Dj.CloudflareVoice.Speakers2.Except(Aura2Best)];
+    static readonly Dictionary<string, string> Aura2About = new()
+    {
+        ["aries"] = "warm, energetic, caring", ["apollo"] = "relaxed, casual", ["atlas"] = "enthusiastic, friendly", ["orion"] = "calm, approachable",
+        ["draco"] = "British, warm, deep", ["hermes"] = "expressive, engaging", ["phoebe"] = "energetic, warm, casual", ["aurora"] = "cheerful, expressive",
+        ["thalia"] = "clear, energetic", ["ophelia"] = "expressive, enthusiastic", ["pandora"] = "British, smooth, calm",
+    };
+    static string Voice2Name(string spk) => char.ToUpperInvariant(spk[0]) + spk[1..] + (Aura2About.TryGetValue(spk, out var about) ? " (" + about + ")" : "");
     static string SpeakerName(string spk) => char.ToUpperInvariant(spk[0]) + spk[1..] + (spk is "helios" or "athena" ? " (British)" : spk == "angus" ? " (Irish)" : "");
     // Test: saves, then says a sample line in the saved voice; a voice's own button tries that voice without saving it
     async Task TestDj(string? voiceName)

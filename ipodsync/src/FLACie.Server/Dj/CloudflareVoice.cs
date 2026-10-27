@@ -14,7 +14,7 @@ public sealed class DjVoiceConfig
 {
     public string AccountId { get; set; } = "";
     public string Token { get; set; } = "";       // protected; empty when none
-    /// <summary>"melotts", or "aura-1:&lt;speaker&gt;". Aura-1 Helios (British, warm) by default: MeloTTS sounded cheap.</summary>
+    /// <summary>"melotts", "aura-1:&lt;speaker&gt;" or "aura-2:&lt;speaker&gt;". Aura-1 Helios (British, warm) by default: MeloTTS sounded cheap.</summary>
     public string Voice { get; set; } = CloudflareVoice.DefaultVoice;
     /// <summary>The lines are written by a Workers AI text model (the templates when it fails); off: the templates only.</summary>
     public bool AiLines { get; set; } = true;
@@ -57,6 +57,10 @@ public sealed partial class CloudflareVoice
     public const double FreeNeurons = 10_000;
     /// <summary>Aura-1's speakers (Deepgram says helios and athena are British, angus Irish).</summary>
     public static readonly string[] Speakers = ["angus", "asteria", "arcas", "orion", "orpheus", "athena", "luna", "zeus", "perseus", "helios", "hera", "stella"];
+    /// <summary>Aura-2's English speakers (Cloudflare's @cf/deepgram/aura-2-en, docs/dj-voice-report.md): warmer and more natural than Aura-1, at twice the price.</summary>
+    public static readonly string[] Speakers2 = ["amalthea", "andromeda", "apollo", "arcas", "aries", "asteria", "athena", "atlas", "aurora", "callista", "cora", "cordelia",
+        "delia", "draco", "electra", "harmonia", "helena", "hera", "hermes", "hyperion", "iris", "janus", "juno", "jupiter", "luna", "mars", "minerva", "neptune", "odysseus",
+        "ophelia", "orion", "orpheus", "pandora", "phoebe", "pluto", "saturn", "thalia", "theia", "vesta", "zeus"];
     const int MaxAudioBytes = 8 * 1024 * 1024;
 
     readonly string file, usageFile; readonly IHttpClientFactory hf; readonly IDataProtector protector; readonly ILogger<CloudflareVoice> log; readonly Func<DateTime> clock;
@@ -104,12 +108,15 @@ public sealed partial class CloudflareVoice
     string Protect(string s) { try { return protector.Protect(new string(s.Where(c => !char.IsControl(c)).ToArray()).Trim()); } catch (Exception) { return ""; } }
     string Unprotect(string s) { try { return s.Length == 0 ? "" : protector.Unprotect(s); } catch (Exception) { return ""; } }
 
-    /// <summary>"melotts", or "aura-1:&lt;speaker&gt;" with a known speaker; anything else is MeloTTS.</summary>
+    /// <summary>"melotts", or "aura-1:&lt;speaker&gt;" / "aura-2:&lt;speaker&gt;" with a speaker of that family; anything else is MeloTTS.</summary>
     public static string NormVoice(string? v)
     {
         var s = (v ?? "").Trim().ToLowerInvariant();
-        return s.StartsWith("aura-1:", StringComparison.Ordinal) && Speakers.Contains(s[7..]) ? s : MeloTts;
+        return s.StartsWith("aura-1:", StringComparison.Ordinal) && Speakers.Contains(s[7..]) ? s
+            : s.StartsWith("aura-2:", StringComparison.Ordinal) && Speakers2.Contains(s[7..]) ? s : MeloTts;
     }
+    /// <summary>An Aura-2 voice (twice Aura-1's price, its own model).</summary>
+    public static bool IsAura2(string voice) => voice.StartsWith("aura-2:", StringComparison.Ordinal);
 
     public DjVoiceConfig Current { get { lock (gate) return JsonSerializer.Deserialize<DjVoiceConfig>(JsonSerializer.Serialize(cfg))!; } }
     public bool HasToken => Current.Token.Length > 0;
@@ -132,7 +139,7 @@ public sealed partial class CloudflareVoice
 
     /// <summary>Cloudflare's price of one line, in neurons: MeloTTS 18.63 per audio minute (the length guessed at 2.6 words a second), Aura-1 1,363.64 per 1,000 characters.</summary>
     public static double EstimateNeurons(string voice, string text) =>
-        NormVoice(voice) == MeloTts ? DjText.WordCount(text) / 2.6 / 60.0 * 18.63 : text.Length / 1000.0 * 1363.64;
+        NormVoice(voice) is var n && n == MeloTts ? DjText.WordCount(text) / 2.6 / 60.0 * 18.63 : text.Length / 1000.0 * (IsAura2(n) ? 2727.27 : 1363.64);
 
     string Today => clock().ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
@@ -265,7 +272,7 @@ public sealed partial class CloudflareVoice
         {
             var (model, body) = v == MeloTts
                 ? ("@cf/myshell-ai/melotts", new JsonObject { ["prompt"] = text, ["lang"] = "en" })
-                : ("@cf/deepgram/aura-1", new JsonObject { ["text"] = text, ["speaker"] = v[7..], ["encoding"] = "mp3" });
+                : (IsAura2(v) ? "@cf/deepgram/aura-2-en" : "@cf/deepgram/aura-1", new JsonObject { ["text"] = text, ["speaker"] = v[7..], ["encoding"] = "mp3" });
             using var req = new HttpRequestMessage(HttpMethod.Post, $"https://api.cloudflare.com/client/v4/accounts/{c.AccountId}/ai/run/{model}");
             req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
             req.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");

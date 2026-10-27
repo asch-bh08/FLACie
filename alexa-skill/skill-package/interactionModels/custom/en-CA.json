@@ -398,6 +398,82 @@
           "samples": [
             "{name}"
           ]
+        },
+        {
+          "name": "AskWhoIntent",
+          "slots": [
+            {
+              "name": "text",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "who {text}",
+            "to tell me who {text}",
+            "tell me who {text}"
+          ]
+        },
+        {
+          "name": "AskWhyIntent",
+          "slots": [
+            {
+              "name": "text",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "why {text}",
+            "tell me why {text}",
+            "to tell me why {text}"
+          ]
+        },
+        {
+          "name": "AskWhatIntent",
+          "slots": [
+            {
+              "name": "text",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "what {text}",
+            "tell me what {text}",
+            "to tell me what {text}"
+          ]
+        },
+        {
+          "name": "AskHowIntent",
+          "slots": [
+            {
+              "name": "text",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "how {text}",
+            "tell me how {text}",
+            "to tell me how {text}"
+          ]
+        },
+        {
+          "name": "AskDjIntent",
+          "slots": [
+            {
+              "name": "text",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "tell me {text}",
+            "can you {text}",
+            "could you {text}",
+            "please {text}",
+            "give me {text}",
+            "find me {text}",
+            "i'd like {text}",
+            "to find me {text}",
+            "to give me {text}"
+          ]
         }
       ],
       "types": [

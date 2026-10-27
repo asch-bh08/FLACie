@@ -290,6 +290,45 @@ public sealed class AlexaEngine(AlexaQueues queues, Func<AlexaConfig> config, Fu
         return PlayCurrent(u, q, 0) is { } play ? new($"Playing {what}.", play) : Reply.Say("Sorry, I couldn't play that.");
     }
 
+    /// <summary>A list the DJ picked (library paths, best first): played now, as the list's own order unless [shuffle].</summary>
+    public Reply PlayPaths(IAlexaUser u, string linkId, IReadOnlyList<string> paths, string what, bool shuffle, string speech)
+    {
+        var tracks = paths.Select(u.Find).OfType<Track>().Where(t => t.JellyfinId is { Length: > 0 }).ToList();
+        if (shuffle) tracks = tracks.OrderBy(_ => Random.Shared.Next()).ToList();
+        var r = PlayList(u, linkId, tracks, what, false);
+        return r.Play is null ? r : r with { Speech = speech.Length > 0 ? speech : r.Speech };
+    }
+
+    /// <summary>Songs the DJ picked to come after the current one; with nothing playing they play now.</summary>
+    public Reply QueueNext(IAlexaUser u, string linkId, IReadOnlyList<string> paths, string speech)
+    {
+        var q = queues.For(linkId);
+        if (q.Empty) return PlayPaths(u, linkId, paths, "", false, speech);
+        lock (q) q.InsertNext(paths.Where(p => u.Find(p) is { JellyfinId.Length: > 0 } && !q.Order.Contains(p)));
+        queues.Save(linkId);
+        return Reply.Say(speech.Length > 0 ? speech : "Okay, those are up next.");
+    }
+
+    /// <summary>The song playing now (its path) and the ones played before it in this list, for the DJ.</summary>
+    public (string? Current, IReadOnlyList<string> Recent) Context(string linkId)
+    {
+        var q = queues.For(linkId);
+        lock (q) return (q.Current, q.Order.Take(Math.Max(0, q.Index)).TakeLast(20).ToList());
+    }
+
+    /// <summary>The song a token names (null when the token is from an older list), and the current one's token and place, for the listening log.</summary>
+    public Track? TrackOf(IAlexaUser u, string linkId, string? token)
+    {
+        var q = queues.For(linkId);
+        if (!TryToken(token, out var serial, out var idx, out _)) return null;
+        lock (q) return serial == q.Serial && idx >= 0 && idx < q.Order.Count ? u.Find(q.Order[idx]) : null;
+    }
+    public (string Token, long OffsetMs)? Now(string linkId)
+    {
+        var q = queues.For(linkId);
+        lock (q) return q.Current is null || !q.Playing ? null : (Token(q, q.Index, q.Pass), q.OffsetMs);
+    }
+
     // ---- controls ----
 
     /// <summary>Remembers where the player is, from the AudioPlayer part of any request.</summary>

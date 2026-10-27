@@ -1,6 +1,7 @@
 using System.Security;
 using System.Text.Json.Nodes;
 using FLACie.Core;
+using FLACie.Server.Dj;
 
 namespace FLACie.Server.Alexa;
 
@@ -18,14 +19,21 @@ public interface IProgressive { Task SendAsync(string apiEndpoint, string access
 /// The custom skill: Alexa's JSON in, Alexa's JSON out. Everything that decides what to say is in <see cref="AlexaEngine"/>; this class only reads the request (intent, slots, the
 /// AudioPlayer state), links an Alexa account to a person with the pairing code, and writes the answer (speech, AudioPlayer.Play with a signed stream URL, cards).
 /// </summary>
-public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirectory directory, AlexaUrlSigner signer, Func<string> baseUrl, IProgressive? progressive = null, ILogger? log = null, Func<DateTime>? clock = null)
+public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirectory directory, AlexaUrlSigner signer, Func<string> baseUrl, IProgressive? progressive = null, ILogger? log = null, Func<DateTime>? clock = null, IAlexaBrain? brain = null)
 {
+    /// <summary>The question intents: the word their samples start with is not in the slot, so it is put back.</summary>
+    static readonly Dictionary<string, string> AskIntents = new() { ["AskWhoIntent"] = "who ", ["AskWhyIntent"] = "why ", ["AskWhatIntent"] = "what ", ["AskHowIntent"] = "how ", ["AskDjIntent"] = "" };
+    /// <summary>What the DJ's reader answers better than the name matcher: "play car songs", "my favourites", "something I haven't heard", "more like this".</summary>
+    static readonly HashSet<AskIntent> DjKinds = [AskIntent.Situation, AskIntent.Favourites, AskIntent.MostPlayed, AskIntent.Unheard, AskIntent.MoreLike, AskIntent.LessLike];
+    /// <summary>Per link, the last song token put in the listening log (one event per play).</summary>
+    readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> logged = new();
+
     public static readonly TimeSpan StreamLife = TimeSpan.FromHours(6);
     public const string NotifyPermission = "alexa::devices:all:notifications:write";
     readonly Func<DateTime> now = clock ?? (() => DateTime.UtcNow);
 
     /// <summary>Every custom intent this class answers; the interaction model must list exactly these (plus the built-ins), checked by a test.</summary>
-    public static readonly string[] CustomIntents = ["PlayIntent", "PlaySongIntent", "PlayAlbumIntent", "PlayPlaylistIntent", "PlayArtistIntent", "PlaySimilarIntent", "PlayRecentIntent", "PlayLibraryIntent", "PlayLastDownloadIntent", "IsItReadyIntent", "WhatsDownloadingIntent", "WhatsPlayingIntent", "LikeIntent", "DislikeIntent", "AddToPlaylistIntent", "ChooseIntent", "LinkIntent", "NameIntent"];
+    public static readonly string[] CustomIntents = ["PlayIntent", "PlaySongIntent", "PlayAlbumIntent", "PlayPlaylistIntent", "PlayArtistIntent", "PlaySimilarIntent", "PlayRecentIntent", "PlayLibraryIntent", "PlayLastDownloadIntent", "IsItReadyIntent", "WhatsDownloadingIntent", "WhatsPlayingIntent", "LikeIntent", "DislikeIntent", "AddToPlaylistIntent", "ChooseIntent", "LinkIntent", "NameIntent", "AskWhoIntent", "AskWhyIntent", "AskWhatIntent", "AskHowIntent", "AskDjIntent"];
 
     public const string HelpText = "You can say: play Blinding Lights, play Radiohead, play my Road Trip playlist, play something like Radiohead, or what's playing. If I don't have a song, I can download it.";
     const string LinkText = "To use FLACie, open Settings in FLACie, choose Alexa, and create a code. Then say: my code is, followed by the six digits.";
@@ -70,6 +78,7 @@ public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirec
             engine.Position(link, curToken, (long?)off ?? 0);
 
         if (type.StartsWith("AudioPlayer.", StringComparison.Ordinal)) return AudioEvent(request, type, link, user);
+        if (type is "PlaybackController.NextCommandIssued" or "PlaybackController.PreviousCommandIssued") LogNow(link, user);
         if (type.StartsWith("PlaybackController.", StringComparison.Ordinal)) return Build(type switch
         {
             "PlaybackController.NextCommandIssued" => engine.Next(user, link),
@@ -111,10 +120,12 @@ public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirec
             case "NameIntent":
                 var bare = (Slot(request, "name") ?? "").Trim();
                 if (bare.Length == 0) return Reply.Say("What would you like to hear? Start with play, like: play Out of Space.", end: false);
+                if (ForDj(bare) is { } dj) return await AskDj(dj, link, user, ct);
                 return await engine.PlayAsync(user, link, VoiceParser.FromRaw("play " + bare), Progress, ct);
             case "PlayIntent":
                 var words = Slot(request, "query") ?? "";
                 if (words.Trim().Length == 0) return Reply.Say("What would you like to hear? Start with play, like: play Out of Space.", end: false);
+                if (ForDj(words.Trim()) is { } dj2) return await AskDj(dj2, link, user, ct);
                 return await engine.PlayAsync(user, link, VoiceParser.FromRaw("play " + words), Progress, ct);
             // the words that named the kind ("the album ...") are not in the slot, so each kind is its own intent and puts them back for the parser
             case "PlaySongIntent" or "PlayAlbumIntent" or "PlayPlaylistIntent" or "PlayArtistIntent" or "PlaySimilarIntent":
@@ -138,8 +149,12 @@ public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirec
             case "AMAZON.NoIntent": return await engine.ChooseAsync(user, link, -1, Progress, ct);
             case "AMAZON.PauseIntent" or "AMAZON.StopIntent" or "AMAZON.CancelIntent": return engine.Pause(link);
             case "AMAZON.ResumeIntent": return engine.Resume(user, link);
-            case "AMAZON.NextIntent": return engine.Next(user, link);
-            case "AMAZON.PreviousIntent": return engine.Previous(user, link);
+            case "AMAZON.NextIntent": LogNow(link, user); return engine.Next(user, link);
+            case "AMAZON.PreviousIntent": LogNow(link, user); return engine.Previous(user, link);
+            case var ask when AskIntents.TryGetValue(ask, out var word):
+                var said = (Slot(request, "text") ?? "").Trim();
+                if (said.Length == 0) return Reply.Say("Sorry, I didn't get that. Start with play, like: play Out of Space. Or say help.", end: false);
+                return await AskDj(word + said, link, user, ct);
             case "AMAZON.StartOverIntent" or "AMAZON.RepeatIntent": return engine.StartOver(user, link);
             case "AMAZON.ShuffleOnIntent": return engine.SetShuffle(user, link, true);
             case "AMAZON.ShuffleOffIntent": return engine.SetShuffle(user, link, false);
@@ -151,6 +166,50 @@ public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirec
         }
     }
 
+    /// <summary>Words the DJ's reader should have rather than the name matcher (null for a song, artist, album or playlist name).</summary>
+    string? ForDj(string words)
+    {
+        if (brain is null) return null;
+        var text = words.StartsWith("play ", StringComparison.OrdinalIgnoreCase) ? words : "play " + words;
+        return DjAskRules.Parse(text) is { } p && DjKinds.Contains(p.Intent) ? text : null;
+    }
+
+    /// <summary>The words through the DJ's request reader for this account; its answer carried out on Alexa's player and said in Alexa's own voice.</summary>
+    async Task<Reply> AskDj(string text, string link, IAlexaUser user, CancellationToken ct)
+    {
+        if (brain is null) return Reply.Say("Sorry, I didn't get that. Start with play, like: play Out of Space. Or say help.", end: false);
+        var (current, recent) = engine.Context(link);
+        DjAskAnswer? a;
+        try { a = await brain.AskAsync(user, text, current, recent, ct); }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception e) { log?.LogWarning(e, "Alexa DJ ask failed"); a = null; }
+        if (a is null) return Reply.Say("Sorry, I couldn't work that out.");
+        var say = a.Say;
+        switch (a.Do)
+        {
+            case DjAskDo.Play when a.Paths is { Count: > 0 } ps: return engine.PlayPaths(user, link, ps, a.Title ?? "", a.Shuffle, say);
+            case DjAskDo.UpNext when a.Paths is { Count: > 0 } ps: return engine.QueueNext(user, link, ps, say);
+            case DjAskDo.Next: LogNow(link, user); var n = engine.Next(user, link); return say.Length > 0 && n.Play is not null ? n with { Speech = say } : n;
+            case DjAskDo.Pause: return engine.Pause(link);
+            case DjAskDo.Resume: return engine.Resume(user, link);
+            case DjAskDo.VolumeUp or DjAskDo.VolumeDown: return Reply.Say(say.Length > 0 ? say : "Say: Alexa, volume " + (a.Do == DjAskDo.VolumeUp ? "up." : "down."));
+            default: return say.Length > 0 ? Reply.Say(say) : Reply.Say("Sorry, I didn't get that. Start with play, like: play Out of Space. Or say help.", end: false);
+        }
+    }
+
+    /// <summary>A play into the account's listening log, once per token: a finish is the whole song, a stop is what was heard.</summary>
+    void Log(string link, IAlexaUser user, string? token, long offsetMs, bool finished)
+    {
+        if (brain is null || token is null || engine.TrackOf(user, link, token) is not { } t) return;
+        if (logged.TryGetValue(link, out var last) && last == token) return;
+        logged[link] = token;
+        var length = t.DurationMs / 1000.0;
+        brain.Listened(user, t, finished ? length : Math.Min(length > 0 ? length : double.MaxValue, offsetMs / 1000.0), length);
+    }
+
+    /// <summary>The song playing now, as it is left for another ("next"): Alexa's last reported place in it.</summary>
+    void LogNow(string link, IAlexaUser user) { if (engine.Now(link) is { } n) Log(link, user, n.Token, n.OffsetMs, finished: false); }
+
     JsonObject AudioEvent(JsonNode request, string type, string link, IAlexaUser user)
     {
         var token = (string?)request["request"]?["token"];
@@ -158,8 +217,8 @@ public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirec
         switch (type)
         {
             case "AudioPlayer.PlaybackStarted": engine.Started(link, token); return Empty();
-            case "AudioPlayer.PlaybackStopped": engine.Stopped(link, token, offset); return Empty();
-            case "AudioPlayer.PlaybackFinished": engine.Finished(link, token); return Empty();
+            case "AudioPlayer.PlaybackStopped": Log(link, user, token, offset, finished: false); engine.Stopped(link, token, offset); return Empty();
+            case "AudioPlayer.PlaybackFinished": Log(link, user, token, 0, finished: true); engine.Finished(link, token); return Empty();
             case "AudioPlayer.PlaybackNearlyFinished":
                 return engine.NearlyFinished(user, link, token) is { } next ? Directives(PlayDirective(next, "ENQUEUE", link)) : Empty();
             case "AudioPlayer.PlaybackFailed":

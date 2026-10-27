@@ -21,7 +21,8 @@ public static class AlexaEndpoints
             sp.GetRequiredService<ListenLogStore>(), sp.GetRequiredService<VibeIndex>(), sp.GetRequiredService<RelatedCache>()));
         services.AddSingleton<IAlexaDirectory>(sp => sp.GetRequiredService<SessionAlexaDirectory>());
         services.AddSingleton(sp => new AlexaSkill(sp.GetRequiredService<AlexaEngine>(), sp.GetRequiredService<AlexaStore>(), sp.GetRequiredService<IAlexaDirectory>(), sp.GetRequiredService<AlexaUrlSigner>(),
-            () => sp.GetRequiredService<AlexaPublic>().Base, sp.GetRequiredService<IProgressive>(), sp.GetRequiredService<ILoggerFactory>().CreateLogger("Alexa")));
+            () => sp.GetRequiredService<AlexaPublic>().Base, sp.GetRequiredService<IProgressive>(), sp.GetRequiredService<ILoggerFactory>().CreateLogger("Alexa"),
+            brain: AlexaAskBrain.For(sp.GetRequiredService<FLACie.Server.Dj.DjAskEngine>(), sp.GetRequiredService<FLACie.Server.Dj.DjAskService>(), sp.GetRequiredService<ListenLogStore>())));
         services.AddSingleton<AlexaGuards>();
     }
 

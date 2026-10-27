@@ -159,7 +159,7 @@ var app = builder.Build();
     // the web player's DJ asks that fail go into the server log (the listener only hears no line)
     var djLog = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("FLACie.Dj");
     RetroHost.DjFailed = e => djLog.LogWarning("DJ ask failed: {Kind} {Message}", e.GetType().Name, e.Message);
-    RetroHost.Listen = (s, e) =>ListenApi.Accept(listens, s, [e], () => ListenSeed.From(s.History, s.Favorites, s.PlayStats, s.Library));
+    RetroHost.Listen = (s, e) =>ListenApi.Accept(listens, s, [e with { Surface = e.Surface ?? "web" }], () => ListenSeed.From(s.History, s.Favorites, s.PlayStats, s.Library));
     // web Autoplay asks the engine first (songs in the library only; the player keeps its own list when this fails or is empty)
     // "talk to the DJ" from the web player's mic button, in process
     var djAsk = app.Services.GetRequiredService<FLACie.Server.Dj.DjAskService>();

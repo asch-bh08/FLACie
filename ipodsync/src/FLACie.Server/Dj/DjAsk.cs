@@ -9,10 +9,11 @@ using FLACie.Server.Alexa;
 namespace FLACie.Server.Dj;
 
 /// <summary>What a request to the DJ is about. The names (snake case) are also what the text model may answer with.</summary>
-public enum AskIntent { Play, Playlist, Favourites, MostPlayed, Unheard, ShuffleLibrary, Mood, Next, Pause, Resume, VolumeUp, VolumeDown, WhatsThis, WhoSings, MoreLike, LessLike, ThumbsDown, DjOn, DjOff }
+public enum AskIntent { Play, Playlist, Favourites, MostPlayed, Unheard, ShuffleLibrary, Mood, Next, Pause, Resume, VolumeUp, VolumeDown, WhatsThis, WhoSings, MoreLike, LessLike, ThumbsDown, DjOn, DjOff, Situation }
 
-/// <summary>A request understood: the intent, and what it is about (the song, artist or album for Play, the playlist's name, the mood's words).</summary>
-public sealed record AskParse(AskIntent Intent, string? What = null);
+/// <summary>A request understood: the intent, and what it is about (the song, artist or album for Play, the playlist's name, the mood's words, the
+/// situation: car, night, morning, workout, chill or none). [Key]: a learned request's phrase; [Vibe]: "high" or "low" when the words say.</summary>
+public sealed record AskParse(AskIntent Intent, string? What = null, string? Key = null, string? Vibe = null);
 
 /// <summary>
 /// The quick rules for "talk to the DJ": the phrases people say most, matched without any model. Null when none fits (then the text model is asked).
@@ -76,6 +77,9 @@ public static partial class DjAskRules
     [GeneratedRegex(@"^(?:play|put on|listen to|i want to hear|start playing)\s+(.+)$")] private static partial Regex PlayRx();
     [GeneratedRegex(@"^(?:play |put on |shuffle )?(?:my |the )?(.+?)\s+playlist$|^(?:play |put on )?(?:my |the )?playlist (?:called |named )?(.+)$")] private static partial Regex PlaylistRx();
 
+    [GeneratedRegex(@"(?:^|\s)(?:car|cars|drive|drives|driving|road|roads|b-road|b-roads|back-road|back-roads|backroad|backroads|motorway|motorways|commute|commuting|road trip)(?:\s|$)")] private static partial Regex CarWords();
+    [GeneratedRegex(@"(?:^|\s)(?:music|songs|tunes|stuff|mix)$|^(?:play |put on |give me )?(?:me )?(?:something|some|anything)\b")] private static partial Regex Asking();
+
     public static AskParse? Parse(string text)
     {
         var s = Normalise(text);
@@ -86,6 +90,8 @@ public static partial class DjAskRules
             var name = (pm.Groups[1].Success ? pm.Groups[1].Value : pm.Groups[2].Value).Trim();
             if (name.Length > 0 && name is not ("a" or "new" or "some" or "any")) return new(AskIntent.Playlist, name);
         }
+        // "play car songs", "something for the B-roads", "driving tunes": what this person plays in the car (never a song called "Road", nor a playlist named so)
+        if (CarWords().IsMatch(s) && Asking().IsMatch(s)) return new(AskIntent.Situation, "car", PhraseKeys.Of(s));
         // "something chill", "some jazz", "music for the gym": a mood or a genre. Something vague without one is the model's to work out (never a song to download)
         if (Vague().Match(s) is { Success: true } vm)
         {
@@ -139,7 +145,9 @@ public static partial class DjAskAi
         "Reply with JSON only, no other words, in one of two forms. " +
         "1) To do something: {\"action\": \"...\", \"query\": \"...\"}. Actions: play (query: the song, artist or album named), playlist (query: the playlist's name), " +
         "favourites, most_played, unheard, shuffle_library, mood (query: the mood or genre in a few words, like \"chill\" or \"upbeat gym\" or \"jazz\"), " +
-        "next, pause, resume, volume_up, volume_down, whats_this, who_sings, more_like (query, optional: \"slower\" or \"faster\"), less_like, thumbs_down, dj_on, dj_off. " +
+        "next, pause, resume, volume_up, volume_down, whats_this, who_sings, more_like (query, optional: \"slower\" or \"faster\"), less_like, thumbs_down, dj_on, dj_off, " +
+        "situation (music for a place, time or activity of their own, like driving, the school run or sunday cleaning: query is car, night, morning, workout, chill or none; " +
+        "add \"key\": the request in one to three words, reusing a phrase they have used before when it means the same; add \"vibe\": \"high\" or \"low\" when the words suggest an energy). " +
         "Use mood for any feeling, activity or genre. When they say them, him, her or this artist, use the artist the conversation is about. " +
         "2) To answer a question: {\"answer\": \"...\"}: one or two short spoken sentences, at most 35 words, no lists, no markdown. " +
         "Use ONLY the facts given. If the facts do not say, answer that you're not sure; never invent years, albums, chart positions or stories. " +
@@ -174,6 +182,13 @@ public static partial class DjAskAi
         if (!Names.TryGetValue(action.Trim().ToLowerInvariant(), out var intent)) return none;
         var query = o["query"] is JsonValue qv && qv.TryGetValue<string>(out var q) ? q.Trim() : null;
         if (query is { Length: > 120 } || query?.Any(char.IsControl) == true) query = null;
+        if (intent == AskIntent.Situation)
+        {
+            var sit = query?.ToLowerInvariant() is { } q2 && SituationTaste.Known.Contains(q2) ? q2 : "none";
+            var key = o["key"] is JsonValue kv && kv.TryGetValue<string>(out var k) && k.Length <= 60 ? PhraseKeys.Of(k) : "";
+            var vibe = o["vibe"] is JsonValue vv && vv.TryGetValue<string>(out var vb) && vb.ToLowerInvariant() is "high" or "low" ? vb.ToLowerInvariant() : null;
+            return new(new(intent, sit, key.Length > 0 ? key : null, vibe), null);
+        }
         if (NeedsQuery.Contains(intent)) return query is { Length: > 0 } ? new(new(intent, query), null) : none;
         return new(new(intent, query is { Length: > 0 } ? query : null), null);
     }
@@ -246,6 +261,11 @@ public interface IDjAskUser
     Task RateAsync(Track t, int stars);
     /// <summary>Looks the words up in the public catalog and starts downloading the best match (as Alexa does); null when nothing matches.</summary>
     Task<AlexaRequested?> RequestDownloadAsync(string words, CancellationToken ct);
+    /// <summary>The account's listening log (for what they play in the car, at night, after a phrase of their own).</summary>
+    IReadOnlyList<ListenEvent> Listens => [];
+    /// <summary>The account's learned requests, oldest first.</summary>
+    IReadOnlyList<PhraseAsk> Phrases => [];
+    void NotePhrase(PhraseAsk p) { }
     /// <summary>More that FLACie holds for certain about a song (how often it was played, what the MusicBrainz cache says), as "key: value" lines; "" when nothing.</summary>
     string About(Track t) => "";
 }
@@ -302,7 +322,7 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
             parse = ai.Parse; answered = ai.Answer;
         }
         DjAskAnswer answer;
-        if (parse is not null) answer = (await RunAsync(u, parse, cur, recent, ct)) with { Intent = parse.Intent.ToString() };
+        if (parse is not null) answer = (await RunAsync(u, parse, cur, recent, ct, text)) with { Intent = parse.Intent.ToString() };
         else if (answered is not null) answer = DjAskAnswer.Said(answered, "Answer");
         else answer = DjAskAnswer.Said(DidntCatch);
         Remember(u, ctx, text, parse, answer, cur, at);
@@ -326,7 +346,7 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
                 ctx.Requested(p.What ?? "", at);
                 break;
             case AskIntent.Play when a.Wait is { } w: ctx.About(w.Artist, at); ctx.Requested(p.What ?? "", at); break;
-            case AskIntent.Playlist or AskIntent.Mood when a.Do == DjAskDo.Play: ctx.Requested(a.Title ?? p.What ?? "", at); break;
+            case AskIntent.Playlist or AskIntent.Mood or AskIntent.Situation when a.Do == DjAskDo.Play: ctx.Requested(a.Title ?? p.What ?? "", at); break;
             case AskIntent.Favourites or AskIntent.MostPlayed or AskIntent.Unheard or AskIntent.ShuffleLibrary when a.Do == DjAskDo.Play: ctx.Requested(a.Title ?? "", at); break;
             case AskIntent.MoreLike or AskIntent.LessLike when a.Do is DjAskDo.UpNext or DjAskDo.Play: ctx.Requested(p.Intent == AskIntent.MoreLike ? "more like " + (cur is null ? "this" : T(cur.Title)) : "something different", at); break;
             case AskIntent.WhatsThis or AskIntent.WhoSings when cur is not null: ctx.About(cur.Artist, at); break;
@@ -380,11 +400,12 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
             if (genres.Count > 0) sb.Append(", genre ").Append(string.Join(", ", genres));
             sb.Append('\n');
         }
+        try { if (u.Phrases.Select(x => x.Key).Distinct().TakeLast(12).ToList() is { Count: > 0 } ks) sb.Append("Phrases they have used before: ").Append(string.Join(", ", ks)).Append('\n'); } catch (Exception) { }
         sb.Append(ctx.Summary(at, localHour));
         return sb.ToString();
     }
 
-    async Task<DjAskAnswer> RunAsync(IDjAskUser u, AskParse p, Track? cur, IReadOnlyList<string> recent, CancellationToken ct)
+    async Task<DjAskAnswer> RunAsync(IDjAskUser u, AskParse p, Track? cur, IReadOnlyList<string> recent, CancellationToken ct, string text = "")
     {
         switch (p.Intent)
         {
@@ -447,6 +468,7 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
                 return all.Count == 0 ? DjAskAnswer.Said("There's nothing in your library yet.") : new(DjAskDo.Play, "Shuffling your library.", all, "Your library");
             }
             case AskIntent.Mood: return Mood(u, p.What ?? "", cur, recent);
+            case AskIntent.Situation: return Situation(u, p, text, cur, recent);
             case AskIntent.Playlist: return Playlist(u, p.What ?? "");
             default: return await PlayAsync(u, p.What ?? "", cur, recent, ct);
         }
@@ -479,6 +501,51 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
         if (paths.Count == 0) return DjAskAnswer.Said($"I couldn't find anything {name} in your library.");
         var say = genres.Count > 0 ? $"Here's some {name}." : $"Something {name}, coming up.";
         return new(DjAskDo.Play, say, paths, Capital(name));
+    }
+
+    /// <summary>
+    /// A learned request: the songs this person plays in that situation (the car, night, morning) and after the same phrase before, best first, kept to the
+    /// vibe; then the engine's picks, the artists they favour there first. With nothing learned yet, the vibe alone (and the DJ says so lightly). The phrase
+    /// is noted, so the plays after it teach it.
+    /// </summary>
+    DjAskAnswer Situation(IDjAskUser u, AskParse p, string text, Track? cur, IReadOnlyList<string> recent)
+    {
+        var sit = p.What is { } w && SituationTaste.Known.Contains(w) ? w : "none";
+        var nowMs = new DateTimeOffset(DateTime.SpecifyKind(now(), DateTimeKind.Utc)).ToUnixTimeMilliseconds();
+        IReadOnlyList<ListenEvent> events; IReadOnlyList<PhraseAsk> asks;
+        try { events = u.Listens; asks = u.Phrases; } catch (Exception) { events = []; asks = []; }
+        var key = PhraseKeys.Closest(p.Key ?? PhraseKeys.Of(text), asks.Select(a => a.Key));
+        if (key.Length == 0) key = sit;
+        var score = SituationTaste.Score(events, e => SituationTaste.In(e, sit), nowMs);
+        foreach (var (path, v) in SituationTaste.Phrase(events, asks, key, nowMs)) score[path] = score.GetValueOrDefault(path) + 2 * v;
+        try { u.NotePhrase(new(key, nowMs)); } catch (Exception) { }
+
+        var energy = p.Vibe switch { "high" => MoodEnergy.High, "low" => MoodEnergy.Low, _ => sit switch { "car" or "workout" => MoodEnergy.High, "night" or "chill" => MoodEnergy.Low, _ => MoodEnergy.Any } };
+        bool Fits(Track t) => energy == MoodEnergy.Any || u.VibeOf(t) is not { } v || (energy == MoodEnergy.Low ? v.Energy < 0.45 : v.Energy > 0.55);
+        var byPath = new Dictionary<string, ListenEvent>(StringComparer.Ordinal);
+        foreach (var e in events) if (e.Kind == ListenKind.Play) byPath[e.Path] = e;
+        Track? Of(string path) => u.Find(path) ?? (byPath.TryGetValue(path, out var e) ? u.FindSong(e.Artist, e.Title) : null);
+        var learned = score.Where(x => x.Value > 0).OrderByDescending(x => x.Value).Select(x => Of(x.Key)).OfType<Track>().Where(Playable).DistinctBy(t => t.Path).ToList();
+        var against = score.Where(x => x.Value < 0).Select(x => Of(x.Key)?.Path).OfType<string>().ToHashSet();
+        var label = sit is "none" ? key : sit;
+        if (learned.Count == 0)
+        {
+            if (sit is "workout" or "chill") return Mood(u, sit, cur, recent);
+            var fresh = Picks(u, cur, recent, 60).Where(t => Fits(t) && !against.Contains(t.Path)).ToList();
+            var taken = fresh.Select(t => t.Path).ToHashSet();
+            fresh.AddRange(u.Songs.Where(t => Playable(t) && !taken.Contains(t.Path) && !against.Contains(t.Path) && Fits(t) && u.VibeOf(t) is not null).OrderBy(_ => Random.Shared.Next()).Take(40));
+            var paths = fresh.Select(t => t.Path).Distinct().Take(40).ToList();
+            if (paths.Count == 0) return DjAskAnswer.Said($"I haven't got any {label} songs from you yet. Play a few and I'll learn them.");
+            var feel = sit switch { "car" => "with a bit of drive", "night" => "a bit mellower", "morning" => "to ease you in", _ => energy == MoodEnergy.High ? "with some energy" : energy == MoodEnergy.Low ? "a bit calmer" : "I think you'll like" };
+            return new(DjAskDo.Play, $"Haven't got many {label} songs from you yet, so here's something {feel}.", paths, Capital(label) + " songs");
+        }
+        var artists = learned.Select(t => Matching.PrimaryArtist(t.Artist)).ToHashSet();
+        var list = learned.Where(Fits).Concat(learned.Where(t => !Fits(t))).ToList();
+        var have = list.Select(t => t.Path).ToHashSet();
+        var more = Picks(u, cur, recent, 80).Where(t => !have.Contains(t.Path) && !against.Contains(t.Path) && Fits(t))
+            .OrderByDescending(t => artists.Contains(Matching.PrimaryArtist(t.Artist))).ToList();
+        var all = list.Concat(more).Select(t => t.Path).Distinct().Take(40).ToList();
+        return new(DjAskDo.Play, $"Your {label} songs, coming up.", all, Capital(label) + " songs");
     }
 
     static string Capital(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];

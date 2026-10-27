@@ -6,7 +6,7 @@ using FLACie.Server.Alexa;
 namespace FLACie.Server.Dj;
 
 /// <summary>One signed-in person's FLACie for the DJ's request reader: their library, playlists, favourites, plays and downloads (the same download path as Alexa's).</summary>
-public sealed class SessionAskUser(UserSession s, SessionAlexaUser alexa, Func<RecommendApi.Inputs?> inputs, Func<Track, Vibe?> vibe, MusicBrainzClient? mb = null) : IDjAskUser
+public sealed class SessionAskUser(UserSession s, SessionAlexaUser alexa, Func<RecommendApi.Inputs?> inputs, Func<Track, Vibe?> vibe, MusicBrainzClient? mb = null, ListenLogStore? listens = null) : IDjAskUser
 {
     public UserSession Session => s;
     public string Account => s.Id;
@@ -64,6 +64,9 @@ public sealed class SessionAskUser(UserSession s, SessionAlexaUser alexa, Func<R
         return string.Join("\n", lines);
     }
     public Task<AlexaRequested?> RequestDownloadAsync(string words, CancellationToken ct) => alexa.RequestDownloadAsync(words, ct);
+    public IReadOnlyList<ListenEvent> Listens => listens?.Read(s) ?? [];
+    public IReadOnlyList<PhraseAsk> Phrases => listens?.Phrases(s) ?? [];
+    public void NotePhrase(PhraseAsk p) => listens?.AddPhrase(s, p);
 }
 
 /// <summary>
@@ -82,7 +85,7 @@ public sealed class DjAskService(DjAskEngine engine, DjService dj, DjClips clips
         {
             if (users.TryGetValue(s, out var have)) return have;
             var alexa = new SessionAlexaUser(s, jf, downloads, catalog, (_, _, _, _) => { });
-            var u = new SessionAskUser(s, alexa, () => RecommendApi.InputsOf(s, log, vibes, related), vibes.Of, mb);
+            var u = new SessionAskUser(s, alexa, () => RecommendApi.InputsOf(s, log, vibes, related), vibes.Of, mb, log);
             users.Add(s, u);
             return u;
         }

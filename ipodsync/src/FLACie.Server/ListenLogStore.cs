@@ -80,6 +80,30 @@ public sealed class ListenLogStore(DataPaths paths)
         lock (log.Gate) return EventsOf(log, s);
     }
 
+    /// <summary>The account's learned requests (data/listen/[account].phrases.json), oldest first; the newest <see cref="MaxPhrases"/> are kept.</summary>
+    public IReadOnlyList<PhraseAsk> Phrases(UserSession s)
+    {
+        lock (Of(s).Gate)
+        {
+            var f = Path.ChangeExtension(FileOf(s), ".phrases.json");
+            try { return File.Exists(f) ? JsonSerializer.Deserialize<List<PhraseAsk>>(File.ReadAllText(f), Json) ?? [] : []; }
+            catch (JsonException) { return []; }
+        }
+    }
+
+    public const int MaxPhrases = 300;
+
+    public void AddPhrase(UserSession s, PhraseAsk p)
+    {
+        var kept = Phrases(s).Append(p).TakeLast(MaxPhrases).ToList();
+        lock (Of(s).Gate)
+        {
+            var f = Path.ChangeExtension(FileOf(s), ".phrases.json");
+            File.WriteAllText(f + ".tmp", JsonSerializer.Serialize(kept, Json));
+            File.Move(f + ".tmp", f, true);
+        }
+    }
+
     /// <summary>Plays older than a year are folded into one play per song per day (time heard added up); hearts and the like stay as they are.</summary>
     public void Thin(UserSession s, DateTime utcNow)
     {

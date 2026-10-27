@@ -131,7 +131,7 @@ class App : Application() {
         try {
             val ctx = context ?: if (kind != com.ipodemu.library.ListenKind.PLAY) null else if (autoplay.isAutoplay(t)) "autoplay"
                 else player.contextName?.let { n -> userData.playlists.firstOrNull { it.name == n }?.let { it.jfId ?: it.id } } ?: player.listenFrom
-            val e = com.ipodemu.library.ListenEventJson.of(kind, t, heard, ctx)
+            val e = com.ipodemu.library.ListenEventJson.of(kind, t, heard, ctx, surface = if (player.carControllers > 0) "car" else "phone")
             val owner = prefs.accountUserId
             if (owner.isBlank()) return
             // the file is written off the main thread, one event at a time so they stay in order

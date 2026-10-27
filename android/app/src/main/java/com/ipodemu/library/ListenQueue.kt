@@ -10,17 +10,21 @@ object ListenKind {
     const val PLAYLIST_ADD = 5; const val PLAYLIST_REMOVE = 6
 }
 
-/** One thing the person did, as POST /api/listen takes it. [id] is made here so a resend is not counted twice; [at] in ms; [heard] and [length] in seconds. */
+/** One thing the person did, as POST /api/listen takes it. [id] is made here so a resend is not counted twice; [at] in ms; [heard] and [length] in seconds;
+ *  [surface] where it was played ("car" in Android Auto, else "phone") and [hour] the local hour, so the DJ learns what they play in the car or at night. */
 data class ListenEventJson(val id: String, val kind: Int, val at: Long, val path: String, val title: String, val artist: String,
-                           val heard: Double = 0.0, val length: Double = 0.0, val context: String? = null) {
+                           val heard: Double = 0.0, val length: Double = 0.0, val context: String? = null, val surface: String? = null, val hour: Int? = null) {
     fun json(): JSONObject = JSONObject().put("id", id).put("kind", kind).put("at", at).put("path", path).put("title", title).put("artist", artist)
         .put("heard", heard).put("length", length).put("context", context ?: JSONObject.NULL)
+        .also { o -> surface?.let { o.put("surface", it) }; hour?.let { o.put("hour", it) } }
 
     companion object {
-        fun of(kind: Int, t: Track, heard: Double = 0.0, context: String? = null, now: Long = System.currentTimeMillis()) =
-            ListenEventJson(java.util.UUID.randomUUID().toString().replace("-", ""), kind, now, t.path, t.title, t.artist, heard, t.durationMs / 1000.0, context)
+        fun of(kind: Int, t: Track, heard: Double = 0.0, context: String? = null, now: Long = System.currentTimeMillis(), surface: String? = null) =
+            ListenEventJson(java.util.UUID.randomUUID().toString().replace("-", ""), kind, now, t.path, t.title, t.artist, heard, t.durationMs / 1000.0, context,
+                surface, java.util.Calendar.getInstance().apply { timeInMillis = now }.get(java.util.Calendar.HOUR_OF_DAY))
         fun from(o: JSONObject) = ListenEventJson(o.getString("id"), o.getInt("kind"), o.getLong("at"), o.optString("path"), o.optString("title"), o.optString("artist"),
-            o.optDouble("heard", 0.0), o.optDouble("length", 0.0), if (o.isNull("context")) null else o.optString("context"))
+            o.optDouble("heard", 0.0), o.optDouble("length", 0.0), if (o.isNull("context")) null else o.optString("context"),
+            if (o.has("surface") && !o.isNull("surface")) o.optString("surface") else null, if (o.has("hour") && !o.isNull("hour")) o.optInt("hour") else null)
     }
 }
 

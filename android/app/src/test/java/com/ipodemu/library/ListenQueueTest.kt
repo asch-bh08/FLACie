@@ -98,4 +98,15 @@ class ListenQueueTest {
         val main = File(d, "listen-queue-u.json"); main.renameTo(File(d, "listen-queue-u.json.tmp"))
         assertEquals(listOf("id1", "id2"), ListenQueue(d, "u").pending().map { it.id })
     }
+
+    @Test fun The_car_surface_and_hour_are_kept_and_old_events_still_load() {
+        val d = dir()
+        val q = ListenQueue(d, "u")
+        q.add(ListenEventJson("car1", ListenKind.PLAY, 1_000L, "p", "U Got 2 Know", "Cappella", 200.0, 200.0, null, "car", 8))
+        val back = ListenQueue(d, "u").pending().single()
+        assertEquals("car", back.surface); assertEquals(8, back.hour)
+        assertTrue(ListenQueue.body(listOf(back)).contains("\"surface\":\"car\""))
+        val old = ListenEventJson.from(org.json.JSONObject("{\"id\":\"o\",\"kind\":0,\"at\":1,\"path\":\"p\",\"title\":\"t\",\"artist\":\"a\",\"context\":null}"))
+        assertEquals(null, old.surface); assertEquals(null, old.hour)
+    }
 }

@@ -1,12 +1,13 @@
 @inherits UserComponent
 @implements IAsyncDisposable
 @* "Talk to the DJ": press to listen (the browser's own speech recogniser), press again or stay quiet to stop. Nothing listens until it is pressed, and only the
-   words it recognised go to FLACie. Hidden where the browser has no recogniser (Firefox) or the host reads no requests. With OnHeard (the search box) the words
+   words it recognised go to FLACie. A press starts a conversation (DjConversation): the music pauses so the mic doesn't hear the song, and after each answer
+   the mic listens again once the DJ has finished, until "that's all", silence or a press; then the paused song carries on. Hidden where the browser has no recogniser (Firefox) or the host reads no requests. With OnHeard (the search box) the words
    go there instead, unless they are a request to the DJ ("play my pop playlist"). *@
 @if (supported && Player.CanAskDj)
 {
-    <button type="button" class="@Class dj-mic @(listening ? "on listening" : "") @(busy ? "busy" : "")" @onclick="Press" @onclick:stopPropagation="true"
-            aria-label="@(listening ? "Listening. Press to stop" : busy ? "Thinking…" : "Talk to the DJ")" aria-pressed="@(listening ? "true" : "false")"
+    <button type="button" class="@Class dj-mic @(listening ? "on listening" : conversing ? "on" : "") @(busy ? "busy" : "")" @onclick="Press" @onclick:stopPropagation="true"
+            aria-label="@(listening ? "Listening. Press to stop" : busy ? "Thinking…" : conversing ? "Talking with the DJ. Press to stop" : "Talk to the DJ")" aria-pressed="@(listening ? "true" : "false")"
             title="@(listening ? "Listening… press again to stop" : "Talk to the DJ: “play my pop playlist”, “something chill”, “what's this song?”")" data-testid="dj-mic">
         <Icon Name="mic" Size="@Size" />
     </button>
@@ -19,6 +20,9 @@
     [Inject] Toasts Toast { get; set; } = default!;
     [Inject] IJSRuntime MicJs { get; set; } = default!;
     bool supported, listening, busy;
+    // the conversation: on from a press until it ends; whether the mic paused the song (it carries on at the end); turns heard so far
+    bool conversing, pausedByMic;
+    int turn;
     DotNetObjectReference<DjMic>? me;
 
     protected override async Task OnAfterRenderAsync(bool first)
@@ -32,31 +36,67 @@
     {
         if (busy) return;
         me ??= DotNetObjectReference.Create(this);
-        try
+        // a press while it listens, or while the DJ answers between turns, ends the conversation
+        if (listening || conversing)
         {
-            if (listening) { await MicJs.InvokeVoidAsync("flacie.micStop"); listening = false; }
-            else listening = await MicJs.InvokeAsync<bool>("flacie.micStart", me);
+            if (listening) { try { await MicJs.InvokeVoidAsync("flacie.micStop"); } catch (Exception) { } listening = false; }
+            await EndAsync(DjTurn.End);
+            return;
         }
-        catch (Exception) { listening = false; }
+        conversing = true; turn = 0; pausedByMic = false;
+        if (Player.Playing) { await Player.PauseAsync(); pausedByMic = true; }
+        await ListenAsync();
     }
 
-    [JSInvokable] public Task Ended() => InvokeAsync(() => { listening = false; StateHasChanged(); });
+    async Task ListenAsync()
+    {
+        try { listening = await MicJs.InvokeAsync<bool>("flacie.micStart", me); }
+        catch (Exception) { listening = false; }
+        if (!listening) await EndAsync(DjTurn.End);
+        StateHasChanged();
+    }
+
+    /// <summary>The conversation is over: the song the mic paused carries on, unless the conversation chose what the music does.</summary>
+    async Task EndAsync(DjTurn how)
+    {
+        if (!conversing) return;
+        conversing = false;
+        var resume = DjConversation.ResumeAtEnd(pausedByMic, how);
+        pausedByMic = false;
+        if (resume && !Player.Playing) { try { await Player.ResumeAsync(); } catch (Exception) { } }
+        StateHasChanged();
+    }
+
+    // the recogniser stopped with nothing heard: silence ends the conversation
+    [JSInvokable] public Task Ended() => InvokeAsync(async () => { listening = false; if (!busy) await EndAsync(DjTurn.End); StateHasChanged(); });
 
     [JSInvokable] public Task Heard(string text) => InvokeAsync(async () =>
     {
         listening = false;
         text = (text ?? "").Trim();
-        if (text.Length == 0) { StateHasChanged(); return; }
-        if (OnHeard.HasDelegate && RetroHost.DjIsRequest?.Invoke(text) != true) { await OnHeard.InvokeAsync(text); return; }
+        if (text.Length == 0 || DjConversation.IsGoodbye(text)) { await EndAsync(DjTurn.End); return; }
+        if (OnHeard.HasDelegate && RetroHost.DjIsRequest?.Invoke(text) != true) { await EndAsync(DjTurn.End); await OnHeard.InvokeAsync(text); return; }
         busy = true; StateHasChanged();
+        var how = DjTurn.End;
         try
         {
             var a = await Player.AskDjAsync(text);
             // said in the DJ's voice when it could be; otherwise the answer is shown
             if (a is { Say.Length: > 0, Clip: null, DeviceVoice: false }) Toast.Show(a.Say);
+            if (a is not null) how = DjConversation.After(a.Do, ++turn);
         }
         catch (Exception) { Toast.Show("Sorry, I couldn't reach the DJ."); }
         finally { busy = false; StateHasChanged(); }
+        if (how != DjTurn.ListenAgain || !conversing) { await EndAsync(how); return; }
+        // the next turn once the DJ has finished saying the answer (the mic would hear it otherwise); a press meanwhile ends it
+        for (var i = 0; i < 100 && conversing; i++)
+        {
+            var talking = false;
+            try { talking = await MicJs.InvokeAsync<bool>("flacie.djTalking"); } catch (Exception) { }
+            if (!talking) break;
+            await Task.Delay(250);
+        }
+        if (conversing) await ListenAsync();
     });
 
     public async ValueTask DisposeAsync()

@@ -33,9 +33,12 @@ const fakeRecogniser = () => {
     lang = ''; continuous = false; interimResults = false; maxAlternatives = 1;
     onresult: any = null; onend: any = null; onerror: any = null; running = false;
     start() {
-      this.running = true; (window as any).__listening = true;
-      const said = (window as any).__said;
+      const w = window as any;
+      this.running = true; w.__listening = true; w.__starts = (w.__starts || 0) + 1;
+      // a conversation: each start hears the next of __turns ('' = silence: the recogniser gives up, as a real one does when nobody speaks)
+      const said = Array.isArray(w.__turns) && w.__turns.length ? w.__turns.shift() : w.__said;
       if (said) setTimeout(() => { if (!this.running) return; this.onresult?.({ results: [[{ transcript: said }]] }); this.stop(); }, 150);
+      else if (said === '') setTimeout(() => this.stop(), 150);
     }
     stop() { if (!this.running) return; this.running = false; (window as any).__listening = false; setTimeout(() => this.onend?.(), 10); }
     abort() { this.stop(); }
@@ -105,6 +108,41 @@ test.describe.serial('talk to the DJ', () => {
     await page.evaluate(() => { (window as any).__said = 'pause'; });
     await mic.click();
     await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Play', { timeout: 10_000 });
+  });
+
+  // conversation mode (owner, 27 Oct): the mic pauses the music (it heard the song otherwise), listens again after each answer, and ends on
+  // "that's all" or silence, when the song it paused carries on; an answer that chooses the music ends it without touching that
+  test('a conversation: the music pauses, the mic listens again after each answer, and "that is all" ends it and the song carries on', async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.addInitScript(fakeRecogniser);
+    await signIn(page);
+    await newQueue(page);
+    await page.getByRole('button', { name: 'Open Now Playing' }).click();
+    await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 20_000 });
+    const mic = page.locator('.ls-transport [data-testid="dj-mic"]');
+    await page.evaluate(() => { (window as any).__turns = ["what's this song", 'turn it up', "that's all"]; (window as any).__starts = 0; });
+    await mic.click();
+    await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Play', { timeout: 5_000 });   // paused while it listens
+    // the three turns were heard one after another, without pressing again
+    await expect.poll(() => page.evaluate(() => (window as any).__starts), { timeout: 20_000 }).toBe(3);
+    await expect(mic).toHaveAttribute('aria-pressed', 'false', { timeout: 10_000 });
+    await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 10_000 });   // the song carries on
+    expect(await page.evaluate(() => (window as any).__listening)).toBe(false);
+
+    // silence after an answer ends it too, and the song carries on
+    await page.evaluate(() => { (window as any).__turns = ['turn it down', '']; (window as any).__starts = 0; });
+    await mic.click();
+    await expect.poll(() => page.evaluate(() => (window as any).__starts), { timeout: 20_000 }).toBe(2);
+    await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 10_000 });
+    await expect(mic).toHaveAttribute('aria-pressed', 'false');
+
+    // asking for music ends it at once: what was asked for plays, and nothing more is listened for
+    await page.evaluate(() => { (window as any).__turns = ['play Echo Harbour', 'should not be heard']; (window as any).__starts = 0; });
+    await mic.click();
+    await expect(page.locator('.ls-side, .ls-main').getByText('Echo Harbour').first()).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(1500);
+    expect(await page.evaluate(() => (window as any).__starts)).toBe(1);
+    await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 10_000 });
   });
 
   test('the search box mic fills the search, or runs a request', async ({ page }) => {

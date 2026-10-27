@@ -1468,6 +1468,8 @@ window.flacie = (() => {
       return true;
     },
     micStop() { if (micRec) { try { micRec.stop(); } catch { } } },
+    // the DJ is saying something (a clip or the device's voice): the conversation waits for it before listening again
+    djTalking() { return !!djAudio || djSpeaking; },
   };
 })();
 

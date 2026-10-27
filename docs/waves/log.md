@@ -114,3 +114,8 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 
 ## 2026-10-26 AI DJ retry fix deployed (1fd5001)
 - One Cloudflare 500 had paused the voice 10 min (with one-voice rule = silent). Now retry once after 1 s; only 3 failures in a row pause 30 s; not-said lines logged with reason; "Every song" option; dj.json migrated to Aura. Rollback tag flacie-web:rollback-2026-10-26-pre-djretry.
+
+## 2026-10-27 Beta 92 released
+- Talk to the DJ (61ef5f3) deployed to frank (rollback tag flacie-web:rollback-2026-10-27-pre-djask), then main fast-forwarded to 3dc64f4 and v1.0.0-beta92 published (APK versionCode 107, MSI 0.92.0). Windows app smoke OK. Not on a real device yet.
+- Overnight: the talk agent hit the 5-hour limit before 1am and was not resumed until 08:01 (no wake-up timer).
+- Left for later: pronunciation verified by Whisper, DJ captions and clearer voice, learned requests ("car songs"), Alexa on the same brain, conversation mode.

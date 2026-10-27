@@ -30,6 +30,10 @@ object DjTiming {
         return DjTimingPlan(0, min(MAX_SONG_DELAY_MS, clipMs + MARGIN_MS - introMs))
     }
 
+    /** "Talk before the song": the clip at once, and the song held back (silently, then from its start) until [clipMs] and the margin have passed. No cap,
+     *  unlike [plan]: the person chose to wait. The server's DjTiming.Before. */
+    fun before(clipMs: Int): DjTimingPlan = DjTimingPlan(0, clipMs.coerceAtLeast(0) + MARGIN_MS)
+
     /** How long [text] takes to say, roughly (words split on spaces, as the server counts them). */
     fun estimateMs(text: String): Int = (text.split(' ').count { it.isNotEmpty() } / WORDS_PER_S * 1000).roundToInt() + CLIP_PAD_MS
 }

@@ -46,6 +46,8 @@ public sealed class DjSettings
     public bool Captions { get; set; } = true;
     /// <summary>A short soft swoosh just before the DJ speaks.</summary>
     public bool Cue { get; set; } = true;
+    /// <summary>Talk before the song: the song waits (silently) until the line has been said, then starts from the top, instead of the line going over its intro.</summary>
+    public bool Before { get; set; }
 
     /// <summary>Someone still on the old "Music under the DJ" default moves to the new one, once. True when it changed anything.</summary>
     public static bool MoveOldDuck(DjSettings s)

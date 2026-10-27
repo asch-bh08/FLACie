@@ -859,7 +859,8 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
                 int? clipMs = null;
                 try { clipMs = await audio.DjClipMsAsync(url); } catch (Exception) { }
                 var length = clipMs is > 0 ? clipMs.Value : DjTiming.EstimateMs(cue.Text);
-                if (cue.IntroMs is { } intro) plan = DjTiming.Plan(intro, length);
+                if (dj is { } d2 && session is { } s2 && d2.Settings(s2).Before) plan = DjTiming.Before(length);
+                else if (cue.IntroMs is { } intro) plan = DjTiming.Plan(intro, length);
                 await audio.DjPlayAsync(url, cue.Text, cue.Backup, plan.ClipAtMs, plan.SongDelayMs); djActive = true;
                 if (captions) _ = DjCaptionsAsync(words, plan.ClipAtMs + (cueSound ? DjCaptions.CueLeadMs : 0), length);
             }

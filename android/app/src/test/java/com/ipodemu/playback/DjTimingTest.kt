@@ -39,4 +39,16 @@ class DjTimingTest {
         assertNull(DjCue.parse("""{"speak":true,"text":"Hi","caption":"Hi","clip":"/api/dj/clip/x.mp3","backup":true,"introMs":null}""")?.introMs)
         assertNull(DjCue.parse("""{"speak":true,"text":"Hi","caption":"Hi","clip":"/api/dj/clip/x.mp3","backup":true}""")?.introMs)
     }
+
+    // "Talk before the song" (owner, 27 Oct): the song waits for the whole line, however long; the same as DjTiming.Before on the server
+    @Test fun beforeTheSongHoldsItBackForTheWholeClip() {
+        assertEquals(DjTimingPlan(0, 4_000 + DjTiming.MARGIN_MS), DjTiming.before(4_000))
+        assertEquals(DjTimingPlan(0, 9_000 + DjTiming.MARGIN_MS), DjTiming.before(9_000))
+    }
+
+    @Test fun beforeComesInTheSettingsAndIsOffUnlessChosen() {
+        assertEquals(false, DjSettings().before)
+        assertEquals(true, DjSettings.parse("""{"before":true}""").before)
+        assertEquals(true, DjSettings.parse(DjSettings(before = true).toJson().toString()).before)
+    }
 }

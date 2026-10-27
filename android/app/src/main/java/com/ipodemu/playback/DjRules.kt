@@ -50,6 +50,8 @@ data class DjSettings(
     val captions: Boolean = true,
     /** A short soft swoosh just before the DJ speaks. */
     val cue: Boolean = true,
+    /** Talk before the song: the song waits (silently) until the line has been said, then starts from the top, instead of the line going over its intro. */
+    val before: Boolean = false,
 ) {
     /** The clip player's volume (0..1). */
     val voiceLevel: Float get() = volume.coerceIn(0, 100) / 100f
@@ -61,7 +63,7 @@ data class DjSettings(
     fun toJson(): JSONObject = JSONObject().put("enabled", enabled).put("chatty", chatty.wire).put("phone", phone).put("auto", auto).put("web", web)
         .put("windows", windows).put("backup", backup).put("talkAfterSkips", talkAfterSkips).put("style", style.wire).put("playlists", JSONObject().also { o -> playlists.forEach { (k, v) -> o.put(k, v) } })
         .put("deviceVoice", deviceVoice).put("volume", volume).put("duck", duck).put("songs", JSONObject().also { o -> songs.forEach { (k, v) -> o.put(k, if (v) "always" else "never") } })
-        .put("voiceReady", voiceReady).put("captions", captions).put("cue", cue)
+        .put("voiceReady", voiceReady).put("captions", captions).put("cue", cue).put("before", before)
 
     companion object {
         const val DEFAULT_VOLUME = 90
@@ -86,6 +88,7 @@ data class DjSettings(
                 so?.keys()?.asSequence()?.mapNotNull { k -> when (so.optString(k)) { "always" -> k to true; "never" -> k to false; else -> null } }?.toMap() ?: emptyMap(),
                 o.optBoolean("captions", d.captions),
                 o.optBoolean("cue", d.cue),
+                o.optBoolean("before", d.before),
             )
         }
         /** The cached copy, or the defaults (DJ off) when there is none or it can't be read. */

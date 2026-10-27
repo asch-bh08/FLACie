@@ -35,6 +35,10 @@ public static class DjTiming
         return new(0, Math.Min(MaxSongDelayMs, clip + MarginMs - intro));
     }
 
+    /// <summary>"Talk before the song": the clip at once, and the song held back (silently, then from its start) until [clipMs] and the margin have passed.
+    /// No cap here, unlike <see cref="Plan"/>: the person chose to wait.</summary>
+    public static DjTimingPlan Before(int clipMs) => new(0, Math.Max(0, clipMs) + MarginMs);
+
     /// <summary>How long [text] takes to say, roughly.</summary>
     public static int EstimateMs(string text) => (int)Math.Round(DjText.WordCount(text) / WordsPerSecond * 1000) + ClipPadMs;
 

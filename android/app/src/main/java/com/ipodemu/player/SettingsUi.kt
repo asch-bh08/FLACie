@@ -211,6 +211,9 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             SettingRow("Cue sound", if (dj.cue) "On" else "Off", toggle = true, desc = "A short soft swoosh just before the DJ speaks.") {
                                 save(org.json.JSONObject().put("cue", !dj.cue), dj.copy(cue = !dj.cue))
                             }
+                            SettingRow("Talk before the song", if (dj.before) "On" else "Off", toggle = true, desc = "The song waits until the DJ has finished, then starts. Off: the DJ talks over the song's intro.") {
+                                save(org.json.JSONObject().put("before", !dj.before), dj.copy(before = !dj.before))
+                            }
                             SettingRow("Captions", if (dj.captions) "On" else "Off", toggle = true, desc = "Show the DJ's words on screen while it talks.") {
                                 save(org.json.JSONObject().put("captions", !dj.captions), dj.copy(captions = !dj.captions))
                             }

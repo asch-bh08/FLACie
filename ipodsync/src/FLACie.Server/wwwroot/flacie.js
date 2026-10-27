@@ -1358,14 +1358,15 @@ window.flacie = (() => {
     // before it starts (Cloudflare failed after the line was planned, so the server answers 404) is said by the device's own voice instead when [backup]
     // is on, as long as it is within 6 s of when it was due. Whatever happens, the music is back up 20 s after the clip was due at the latest.
     // Timing (DjTiming in FLACie.Core, worked out by PlayerState): [clipAt] is the place in the song where the clip starts (0 = at once, as before), so
-    // that it ends just before the singing; [songDelay] (at most 1.5 s) holds the song back under a line longer than the intro: it plays silently, then
+    // that it ends just before the singing; [songDelay] holds the song back under a line longer than the intro (at most 1.5 s), or under the whole line
+    // with "Talk before the song" (at most 20 s, the clip's own limit): it plays silently, then
     // goes back to its start and comes in quietly under the end of the line. The clip is never cut short by either.
     djPlay(url, text, backup, clipAt, songDelay) {
       if (!url) return;
       djHalt(false);
       const tok = ++djTok;
       clipAt = Math.max(0, Number(clipAt) || 0);
-      songDelay = Math.min(1500, Math.max(0, Number(songDelay) || 0));
+      songDelay = Math.min(20000, Math.max(0, Number(songDelay) || 0));
       const upMs = clipAt > 0 || songDelay > 0 ? 500 : 600;   // timed: back up in the half second before the singing
       const a = djPre && djPre.dataset.u === url ? djPre : new Audio(url);
       if (a === djPre) djPre = null;
@@ -1376,7 +1377,8 @@ window.flacie = (() => {
       const letGo = () => {
         if (!holding) return;
         holding = false; if (djLetGo === letGo) djLetGo = null;
-        if (!audio.paused && audio.currentTime < 3) { selfSeek = true; audio.currentTime = 0; }
+        // back to the start of a song that only played silently (a held back one has gone on for up to the whole line)
+        if (!audio.paused && audio.currentTime * 1000 < songDelay + 3000) { selfSeek = true; audio.currentTime = 0; }
         duckTo(started && !over ? djDuck : 1, 300);
       };
       const done = () => { if (!mine() || over) return; over = true; djAudio = null; letGo(); duckTo(1, upMs); };

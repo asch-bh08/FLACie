@@ -143,4 +143,11 @@ public class DjTimingTests
         Assert.Equal(7_200, back?.IntroMs);
         Assert.Null(DjJson.ReadCue(System.Text.Json.Nodes.JsonNode.Parse(DjJson.Cue(new DjCue("Hi", "Hi", null, true)).ToJsonString())!.AsObject())?.IntroMs);
     }
+
+    [Fact]
+    public void Before_the_song_holds_it_back_for_the_whole_clip_however_long()
+    {
+        Assert.Equal(new DjTimingPlan(0, 4_000 + DjTiming.MarginMs), DjTiming.Before(4_000));
+        Assert.Equal(new DjTimingPlan(0, 9_000 + DjTiming.MarginMs), DjTiming.Before(9_000));   // no 1.5 s cap: the person asked for it
+    }
 }

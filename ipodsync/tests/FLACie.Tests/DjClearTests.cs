@@ -283,4 +283,30 @@ public class DjClearTests : IDisposable
         Assert.False(back.Captions); Assert.True(back.Cue);
         Assert.Equal("{\"captions\":false}", DjJson.Patch(new DjSettings(), new DjSettings { Captions = false }).ToJsonString());
     }
+
+    // ---- talk before the song (owner, 27 Oct: "make it so he speaks before the song even plays") ----
+
+    [Fact]
+    public void Before_goes_through_the_settings_json_and_is_off_unless_chosen()
+    {
+        Assert.False(new DjSettings().Before);
+        Assert.True(DjJson.Settings(new DjSettings { Before = true }, true)["before"]!.GetValue<bool>());
+        var back = new DjSettings();
+        Assert.Null(DjJson.Apply(new System.Text.Json.Nodes.JsonObject { ["before"] = true }, back));
+        Assert.True(back.Before);
+        Assert.Equal("{\"before\":true}", DjJson.Patch(new DjSettings(), new DjSettings { Before = true }).ToJsonString());
+    }
+
+    [Fact]
+    public async Task With_before_on_the_song_waits_for_the_whole_line()
+    {
+        var (p, js, dj, _) = Player();
+        dj.S.Cue = false; dj.S.Before = true;
+        await p.Play(Songs(3), 0);
+        await p.OnEnded();
+        var play = Assert.Single(js.Calls, c => c.Id == "flacie.djPlay");
+        // the clip at once, and the song held back (silent) for the clip's 4 s and the margin, then from its start
+        Assert.Equal(0, (int)play.Args[3]!);
+        Assert.Equal(4000 + DjTiming.MarginMs, (int)play.Args[4]!);
+    }
 }

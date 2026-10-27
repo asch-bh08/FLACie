@@ -20,7 +20,7 @@ Branch `ui/living-sleeve`, pushed; `main` was fast-forwarded to it for beta 92. 
    - Tag listen events with the surface (car = Android Auto, phone, web) and the time of day.
    - Let the ask AI map a phrase to a vibe and context.
    - Learn per person from plays and skips after a request: phrase → songs.
-2. **Alexa** ("flaky" skill, `ipodsync/src/FLACie.Server/Alexa/`) should use the same assistant brain and context.
+2. **(DONE 582edf5, needs the owner to run alexa-skill\deploy.ps1) Alexa** ("flaky" skill, `ipodsync/src/FLACie.Server/Alexa/`) should use the same assistant brain and context.
 3. **Conversation mode** (Gemini-Live-like): keeps listening after each answer until "that's all"; free via device speech-to-text + Cloudflare; ~2-3 s replies.
 4. **Real-data gate for the engine.** Re-run `ipodsync/tools/receval` on a read-only copy of frank's data once vibe.json and listen logs have grown. Two product questions for the owner: the same-artist-twice rail (25 % of the owner's real next songs are the same artist) and NewShare 0.5.
 5. **Android:** the mic sits beside the DJ button on Now Playing (no room opposite at 360 dp); no mic in the mini bar; a song downloaded for a voice request plays only after the next library sync.

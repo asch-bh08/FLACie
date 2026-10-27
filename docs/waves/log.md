@@ -128,3 +128,7 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 
 ## 2026-10-27 Beta 93 released
 - v1.0.0-beta93 (APK versionCode 108, MSI 0.93.0) from main = ui/living-sleeve: captions, clearer voice, Whisper-checked pronunciation, learned requests now in the apps. Windows smoke OK; Android unit tests pass.
+
+## 2026-10-27 Alexa uses the DJ brain (582edf5) deployed
+- Free-form/question utterances via new Ask*Intent (AMAZON.SearchQuery) and situation words route to the ask service for the linked account; Alexa plays log listen events (Surface=alexa). Rollback tag flacie-web:rollback-2026-10-27-pre-alexabrain. OWNER must run alexa-skill\deploy.ps1 for the new intents. Watch: "what/how {text}" samples may steal WhatsPlaying/Play phrasings; pause+resume can log a song twice.
+- Stopped here: weekly usage ~95-96%.

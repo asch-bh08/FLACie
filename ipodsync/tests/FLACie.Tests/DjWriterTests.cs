@@ -61,6 +61,44 @@ public class DjWriterTests : IDisposable
         Assert.Contains("start of a listening session", u2); Assert.Contains("just skipped", u2); Assert.DoesNotContain("Previous song", u2);
     }
 
+    [Fact]
+    public void The_voice_is_a_relaxed_friend_not_an_announcer()
+    {
+        var f = DjWriter.FactsOf(Req(), Template, now);
+        foreach (var style in new[] { DjStyle.Classic, DjStyle.Chill, DjStyle.Hype })
+        {
+            var sys = DjWriter.Prompt(f with { Style = style }, []).System;
+            Assert.Contains("friend", sys); Assert.Contains("casual", sys); Assert.Contains("personal", sys);
+            Assert.Contains("...", sys); Assert.Contains("never like a radio announcer", sys);
+            Assert.Contains("Never invent", sys);
+        }
+        Assert.Contains("relaxed, warm friend", DjWriter.Prompt(f, []).System);
+        Assert.Contains("Softer and slower", DjWriter.Prompt(f with { Style = DjStyle.Chill }, []).System);
+        Assert.Contains("never a shouty radio voice", DjWriter.Prompt(f with { Style = DjStyle.Hype }, []).System);
+    }
+
+    [Fact]
+    public void Template_lines_have_no_announcer_phrasing_and_are_casual()
+    {
+        string[] announcer = ["up next we have", "next we have", "we have", "ladies and gentlemen", "coming up next", "now playing", "get ready", "give it up"];
+        foreach (var t in DjTemplates.All)
+            foreach (var a in announcer) Assert.DoesNotContain(a, t.Text, StringComparison.OrdinalIgnoreCase);
+        // the relaxed fillers and pauses are there, and the lines stay short
+        Assert.Contains(DjTemplates.All, t => t.Text.StartsWith("Alright,"));
+        Assert.Contains(DjTemplates.All, t => t.Text.StartsWith("Okay,"));
+        Assert.True(DjTemplates.All.Count(t => t.Text.Contains("...")) >= 30);
+        Assert.All(DjTemplates.All, t => Assert.True(DjText.WordCount(t.Text) <= 14, t.Text));
+    }
+
+    [Theory]
+    [InlineData("Alright, you've played this one a lot... here's Smack That, Akon with Eminem.")]
+    [InlineData("Okay, Smack That... Akon with Eminem.")]
+    public void A_relaxed_line_with_a_pause_is_accepted(string line)
+    {
+        var f = DjWriter.FactsOf(Req(), Template, now) with { Find = "a song they love and play a lot" };
+        Assert.NotNull(DjWriter.Check(line, f, []));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]

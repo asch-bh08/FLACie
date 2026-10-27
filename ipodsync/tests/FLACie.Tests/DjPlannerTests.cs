@@ -362,7 +362,7 @@ public class DjPlannerTests
         var h = Open(Song("HUMBLE.", "Kendrick Lamar"))!;
         Assert.Contains("Humble", h.Text);
         Assert.Contains("HUMBLE.", h.Caption);
-        Assert.DoesNotContain("..", h.Caption);
+        Assert.DoesNotContain("HUMBLE..", h.Caption);   // the title's own full stop is not doubled (a pause "..." elsewhere in a line is fine)
     }
 
     [Fact]

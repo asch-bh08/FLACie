@@ -13,15 +13,15 @@ public static class DjPool
     public static IReadOnlyList<string> Intros(DjStyle s) => s switch
     {
         DjStyle.Chill => ["Here's", "Now then,", "Next, nice and easy,", "This is"],
-        DjStyle.Hype => ["Coming up,", "Here we go,", "Right, it's", "Next up,"],
-        _ => ["Coming up,", "Here's", "Next up,", "This is", "Now,"],
+        DjStyle.Hype => ["Coming up,", "Here we go,", "Right, it's", "Okay,"],
+        _ => ["Coming up,", "Here's", "Alright,", "This is", "Okay,"],
     };
 
     public static IReadOnlyList<string> Openers(DjStyle s) => s switch
     {
         DjStyle.Chill => ["Easing in with", "First up,"],
         DjStyle.Hype => ["Let's get going with", "Kicking off with"],
-        _ => ["First up,", "Starting with", "To begin,"],
+        _ => ["First up,", "Starting with", "So, to start,"],
     };
 
     public const string ThatWas = "That was...", AndThisIs = "...and this is";

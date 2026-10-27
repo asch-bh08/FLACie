@@ -234,7 +234,7 @@ public class DjRoundTwoTests : IDisposable
     public void Style_changes_the_prompt_the_templates_and_a_little_how_often()
     {
         var f = DjWriter.FactsOf(Req(), Template, now);
-        Assert.Contains("Style: classic radio", DjWriter.Prompt(f, []).System);
+        Assert.Contains("Style: classic", DjWriter.Prompt(f, []).System);
         Assert.Contains("Style: chill", DjWriter.Prompt(f with { Style = DjStyle.Chill }, []).System);
         Assert.Contains("Style: hype", DjWriter.Prompt(DjWriter.FactsOf(Req(), Template, now, style: DjStyle.Hype), []).System);
 

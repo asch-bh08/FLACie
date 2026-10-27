@@ -58,15 +58,16 @@ class DjCoordinator {
 
     /**
      * The player moved to the song with path [newPath]; for a skip, [leftAtMs] is how far into the song it left the skip came (-1 when not known).
-     * Returns the cue to say now: only after a song ended by itself and only when the cue was fetched for this very song. The cue is used up either way.
+     * Returns the cue to say now: only when the cue was fetched for this very song, and the player got there by itself, or by Next or a tap in Up next
+     * while [talkAfterSkips] is on (as on the web). The cue is used up either way.
      */
-    fun changed(change: Change, newPath: String?, leftAtMs: Long = -1L): DjCue? {
+    fun changed(change: Change, newPath: String?, leftAtMs: Long = -1L, talkAfterSkips: Boolean = false): DjCue? {
         when (change) {
             Change.AUTO -> remember(false)
             Change.SKIP -> remember(leftAtMs in 0 until QUICK_SKIP_MS)
             Change.NEW_QUEUE, Change.REPEAT -> {}
         }
-        val cue = if (change == Change.AUTO && newPath != null && newPath == pendingPath) pending else null
+        val cue = if ((change == Change.AUTO || (change == Change.SKIP && talkAfterSkips)) && newPath != null && newPath == pendingPath) pending else null
         pending = null; pendingPath = null; askedKey = null
         return cue
     }
@@ -99,7 +100,13 @@ class DjCoordinator {
             .put("queueDj", queueDj ?: JSONObject.NULL).put("localHour", localHour).put("weekday", weekday).put("why", JSONObject.NULL)
             .put("bond", if (loved) "loved" else "unknown")
 
+    /** The body of `POST /api/dj/next` for a song reached by a skip that nobody asked about ([next] is playing now): the song before did not play out. */
+    fun skipRequest(surface: DjSurface, next: DjSong, prev: DjSong?, playlistId: String?, localHour: Int, weekday: Int, loved: Boolean = false): JSONObject =
+        request(surface, next, prev, playlistId, localHour, weekday, loved).put("prevPlayedOut", false).put("skippedRecently", true)
+
     companion object {
+        /** How long a line asked for after a skip may take to come; later, the song has gone on too far and the DJ stays quiet (the web's DjSkipWait). */
+        const val SKIP_WAIT_MS = 3_000L
         /** A song left within this long of starting counts as skipped. */
         const val QUICK_SKIP_MS = 10_000L
         /** .NET's DayOfWeek, which the server reads: 0 = Sunday ... 6 = Saturday. */

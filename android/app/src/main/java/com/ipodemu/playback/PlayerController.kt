@@ -468,9 +468,32 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             else -> DjCoordinator.Change.NEW_QUEUE
         }
         val left = djLeftAt; djLeftAt = -1L
-        val cue = dj.changed(change, path, left)
+        val before = djLastPlayed; djLastPlayed = t
+        val afterSkips = djSettings.talkAfterSkips
+        val cue = dj.changed(change, path, left, afterSkips)
         if (cue != null && djOn && exo.playWhenReady) voice().say(cue, exo.currentPosition) else djVoice?.stop()
+        // Next with "Talk after skips" on and no line ready for this song (it was not the one coming next): asked now, said if it comes in time
+        if (cue == null && change == DjCoordinator.Change.SKIP && afterSkips && t != null && djOn && exo.playWhenReady) djAskNow(t, before)
         djAsk()
+    }
+
+    /** The song played before the current one, for a line asked for after a skip. */
+    private var djLastPlayed: Track? = null
+
+    /** A song reached by a skip that nobody asked about: the DJ is asked now, and its line said only while this is still the song playing, it is
+     *  still early in it and no more than [DjCoordinator.SKIP_WAIT_MS] went by (a quicker skip drops it, so lines never pile up). As on the web. */
+    private fun djAskNow(t: Track, before: Track?) {
+        val now = java.time.LocalDateTime.now()
+        val loved = try { App.of(ctx).userData.isFavorite(t) } catch (_: Exception) { false }
+        val body = dj.skipRequest(djSurface, DjSong.of(t), before?.let(DjSong::of), contextId, now.hour, DjCoordinator.weekday(now.dayOfWeek), loved).toString()
+        val askedAt = android.os.SystemClock.uptimeMillis()
+        djExec.execute {
+            val cue = try { djWeb.djNext(body) } catch (_: Exception) { null } ?: return@execute
+            handler.post {
+                val late = android.os.SystemClock.uptimeMillis() - askedAt > DjCoordinator.SKIP_WAIT_MS
+                if (!late && current?.path == t.path && djOn && exo.playWhenReady && djVoice?.speaking != true) voice().say(cue, exo.currentPosition)
+            }
+        }
     }
 
     /** Which seeks inside a song are the listener's (they stop a line being said) and which the player's own (see [SeekOrigin]). */

@@ -60,6 +60,22 @@ class DjCoordinatorTest {
         assertNull("Repeat one", holding("/b").changed(DjCoordinator.Change.REPEAT, "/b"))
     }
 
+    // the owner's phone on 27 Oct: 36 songs, 35 reached by Next, and the DJ spoke about once in five songs (only after the songs that played out)
+    @Test fun withTalkAfterSkipsASongReachedByNextGetsItsCue() {
+        assertEquals(cue, holding("/b").changed(DjCoordinator.Change.SKIP, "/b", 30_000, talkAfterSkips = true))
+        assertEquals("a quick skip too", cue, holding("/b").changed(DjCoordinator.Change.SKIP, "/b", 2_000, talkAfterSkips = true))
+        assertNull("off: quiet after a skip, as before", holding("/b").changed(DjCoordinator.Change.SKIP, "/b", 30_000, talkAfterSkips = false))
+        assertNull("only for the song it was fetched for", holding("/b").changed(DjCoordinator.Change.SKIP, "/c", 30_000, talkAfterSkips = true))
+        assertNull("a new queue still says nothing", holding("/b").changed(DjCoordinator.Change.NEW_QUEUE, "/b", talkAfterSkips = true))
+    }
+
+    @Test fun aSkipWithNoCueAsksAboutTheSongNowAsReachedByASkip() {
+        val o = DjCoordinator().skipRequest(DjSurface.PHONE, song(5), song(4), null, 9, 2)
+        assertFalse("the song before did not play out", o.getBoolean("prevPlayedOut"))
+        assertTrue(o.getBoolean("skippedRecently"))
+        assertEquals("Song 5", o.getJSONObject("next").getString("title"))
+    }
+
     @Test fun theCueIsSaidOnlyForTheSongItWasFetchedFor() {
         assertNull("another song came next (the queue was changed)", holding("/b").changed(DjCoordinator.Change.AUTO, "/c"))
         assertNull(holding("/b").changed(DjCoordinator.Change.AUTO, null))

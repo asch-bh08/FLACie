@@ -114,6 +114,7 @@ window.flacie = (() => {
   // The clip's voice goes through a light chain so it sits on top of the mix: a high-pass at 100 Hz (no boom from the music bed), a gentle presence
   // lift at 3 kHz, and a soft compressor. Only when the DJ's own AudioContext is running (a suspended one would silence the clip): else straight out.
   let djCtx = null, djNodes = null;
+  const DJ_LIFT_DB = 12;
   const djContext = () => {
     try {
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
@@ -129,8 +130,12 @@ window.flacie = (() => {
       const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 100; hp.Q.value = 0.7;
       const pres = ctx.createBiquadFilter(); pres.type = "peaking"; pres.frequency.value = 3000; pres.Q.value = 0.9; pres.gain.value = 3;
       const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -20; comp.knee.value = 12; comp.ratio.value = 3; comp.attack.value = 0.005; comp.release.value = 0.2;
-      src.connect(hp); hp.connect(pres); pres.connect(comp); comp.connect(ctx.destination);
-      a.dataset.chain = "1"; djNodes = { highpass: hp, presence: pres, compressor: comp };
+      // Aura's clips come out near -27 LUFS, mastered pop near -8: even over music turned down to 15 % the voice was lost (owner, 27 Oct). So the voice
+      // is lifted 12 dB after the compressor, and a hard limiter just under full scale keeps the lifted peaks from clipping.
+      const lift = ctx.createGain(); lift.gain.value = Math.pow(10, DJ_LIFT_DB / 20);
+      const lim = ctx.createDynamicsCompressor(); lim.threshold.value = -1.5; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.001; lim.release.value = 0.1;
+      src.connect(hp); hp.connect(pres); pres.connect(comp); comp.connect(lift); lift.connect(lim); lim.connect(ctx.destination);
+      a.dataset.chain = "1"; djNodes = { highpass: hp, presence: pres, compressor: comp, lift, limiter: lim };
     } catch { }
   };
   // the cue before the voice: a quarter-second swoosh of soft filtered noise made here (no recording, nothing to license), well under the voice
@@ -1438,7 +1443,8 @@ window.flacie = (() => {
       const n = djNodes;
       return { duck: duckGain, clip: !!djAudio, speaking: djSpeaking, vol: djVol, under: djDuck, clipVolume: djAudio ? djAudio.volume : null, cue: djCueOn, swooshes: djSwooshes,
         chain: n ? { highpass: n.highpass instanceof BiquadFilterNode && n.highpass.type, hz: n.highpass.frequency.value, presence: n.presence instanceof BiquadFilterNode && n.presence.type,
-          presenceHz: n.presence.frequency.value, compressor: n.compressor instanceof DynamicsCompressorNode } : null };
+          presenceHz: n.presence.frequency.value, compressor: n.compressor instanceof DynamicsCompressorNode,
+          liftDb: Math.round(20 * Math.log10(n.lift.gain.value)), limiter: n.limiter instanceof DynamicsCompressorNode && n.limiter.ratio.value >= 20 } : null };
     },
     // ---- "talk to the DJ" (DjMic.razor): the browser's own speech recogniser, listening only from a press until the person stops talking (or presses again).
     // Only the words it recognised go back to the page; no sound is kept or sent to FLACie. ----

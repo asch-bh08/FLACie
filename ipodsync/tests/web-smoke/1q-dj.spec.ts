@@ -231,7 +231,8 @@ test.describe.serial('the DJ', () => {
     expect(st.under).toBeCloseTo(0.2);
     expect(st.cue).toBe(true);
     expect(st.swooshed).toBe(1);
-    expect(st.chain).toEqual({ highpass: 'highpass', hz: 100, presence: 'peaking', presenceHz: 3000, compressor: true });
+    // Aura clips are about -27 LUFS against -8 for mastered pop: the voice is lifted 12 dB, with a limiter so it never clips (owner, 27 Oct: "hard to hear")
+    expect(st.chain).toEqual({ highpass: 'highpass', hz: 100, presence: 'peaking', presenceHz: 3000, compressor: true, liftDb: 12, limiter: true });
     // the cue sound off: no swoosh before the next clip
     const off = await page.evaluate(() => { const f = (window as any).flacie; f.djCue(false); return f.djState().cue; });
     expect(off).toBe(false);

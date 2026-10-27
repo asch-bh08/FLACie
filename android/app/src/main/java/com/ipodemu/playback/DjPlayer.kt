@@ -94,7 +94,7 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), false)
         .build().also { it.addListener(listener); it.volume = voiceLevel; exo = it; voiceFx(it.audioSessionId) }
 
-    // ---- a light voice chain so the DJ sits on top of the mix: an equaliser (rumble cut, a little presence near 3 kHz) and a small loudness lift on the
+    // ---- a light voice chain so the DJ sits on top of the mix: an equaliser (rumble cut, a little presence near 3 kHz) and a 12 dB loudness lift on the
     // clip player's own audio session (the music is untouched). Phones without these effects just play the clip as it is. ----
     private var eq: android.media.audiofx.Equalizer? = null
     private var lift: android.media.audiofx.LoudnessEnhancer? = null
@@ -291,7 +291,8 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
     companion object {
         private const val TICK_MS = 30L
         private const val SWOOSH_RATE = 44_100
-        /** The clip's small loudness lift, millibels. */
-        private const val LIFT_MB = 300
+        /** The clip's loudness lift, millibels: 12 dB. Aura's clips come out near -27 LUFS and mastered pop near -8, so even over music turned down to
+         *  15 % the voice was lost (owner, 27 Oct); the enhancer limits the lifted peaks itself. The web lifts the same (flacie.js DJ_LIFT_DB). */
+        private const val LIFT_MB = 1200
     }
 }

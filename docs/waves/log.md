@@ -132,3 +132,5 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 ## 2026-10-27 Alexa uses the DJ brain (582edf5) deployed
 - Free-form/question utterances via new Ask*Intent (AMAZON.SearchQuery) and situation words route to the ask service for the linked account; Alexa plays log listen events (Surface=alexa). Rollback tag flacie-web:rollback-2026-10-27-pre-alexabrain. OWNER must run alexa-skill\deploy.ps1 for the new intents. Watch: "what/how {text}" samples may steal WhatsPlaying/Play phrasings; pause+resume can log a song twice.
 - Stopped here: weekly usage ~95-96%.
+
+## 2026-10-27 Stopped at weekly limit; see docs/WHERE-WE-AT-2026-10-27.md

@@ -37,6 +37,7 @@
                         @* keyed on the picture really shown, so a cover chosen on MusicBrainz replaces this one at once *@
                         <Cover @key="@(Art.KeyFor(t) is { } ck ? CoverOverrides.Map(ck) : null)" ArtKey="@(Art.KeyFor(t))" Class="np-cover" Full="true" />
                     </button>
+                    <DjCaption Text="@Player.DjCaption" Class="np-dj-caption" />
                 </div>
                 <div class="ls-title">
                     <div class="ls-names">

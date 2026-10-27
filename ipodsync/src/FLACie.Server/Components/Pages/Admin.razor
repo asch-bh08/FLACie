@@ -14,6 +14,7 @@
 @inject PlaybackActivity Activity
 @inject FLACie.Server.Dj.CloudflareVoice DjVoice
 @inject FLACie.Server.Dj.DjService Dj
+@inject FLACie.Server.Dj.DjPronounceCheck DjNames
 <PageTitle>Dashboard · FLACie</PageTitle>
 <div class="sp">
 <header class="page-head"><h1><i>Dashboard</i></h1><p class="sub">What is playing, who is on, what the server is doing, and the server's settings</p></header>
@@ -227,6 +228,7 @@ else
         <div class="row-actions">
             <button class="btn primary" @onclick="SaveDj">Save</button>
             <button class="btn" @onclick="() => TestDj(null)" disabled="@djTesting">@(djTesting ? "Making a clip…" : "Test")</button>
+            <button class="btn dj-check-names" @onclick="CheckNames" disabled="@djChecking" title="The voice says each odd name plainly and respelt, Whisper writes down what it heard, and the version heard right is kept (at most 10% of the daily cap a day)">@(djChecking ? "Checking names…" : "Check pronunciations")</button>
             @if (DjVoice.HasToken) { <button class="btn" @onclick="ForgetDjToken">Remove the token</button> }
             @if (djMsg is not null) { <span class="hint">@djMsg</span> }
         </div>
@@ -424,6 +426,19 @@ else
         return $"Today: {said} line{(said == 1 ? "" : "s")} said, {pct.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}% of the free allowance (cap {DjVoice.Current.CapPercent}%), roughly {left} more line{(left == 1 ? "" : "s")} left today"
             + $" (about {FLACie.Core.DjBudget.HoursOfEverySong(left).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)} h for a listener on \"Every song\", which uses about three times the lines of \"Often\")"
             + (DjVoice.LastModel.Length > 0 ? " · Model: " + DjVoice.LastModel.Split('/')[^1] : "");
+    }
+    bool djChecking;
+    // the names checked by ear (DjPronounceCheck): what isn't checked yet for the saved voice, now
+    async Task CheckNames()
+    {
+        djChecking = true; djMsg = null; StateHasChanged();
+        try
+        {
+            var sum = await DjNames.RunNowAsync();
+            djMsg = sum is null ? (DjVoice.Ready ? "A check is already running." : "Add the Cloudflare account id and API token first.") : "Pronunciations: " + sum;
+        }
+        catch (Exception e) { djMsg = "The check failed: " + e.GetType().Name; }
+        djChecking = false;
     }
     void SaveDj() { DjVoice.Save(djCfg, djToken.Length > 0 ? djToken : null); djToken = ""; djCfg = DjVoice.Current; djMsg = "Saved."; }
     void ForgetDjToken() { DjVoice.Save(djCfg, ""); djCfg = DjVoice.Current; djMsg = "Token removed."; }

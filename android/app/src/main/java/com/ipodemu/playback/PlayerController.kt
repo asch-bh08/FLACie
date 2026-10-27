@@ -323,7 +323,10 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     @OptIn(UnstableApi::class)
     private fun voice(): DjPlayer = djVoice ?: DjPlayer(ctx, upstream, prefs, onLevel = { level -> duck = level; applyOutputVolume() },
         // a song held back under a long line (DjTiming) starts again from its beginning; one the listener has moved on in is left alone
-        onRestart = { if (exo.currentPosition < 3_000L) selfSeekTo(exo.currentMediaItemIndex, 0L) }, settings = { djSettings }).also { djVoice = it }
+        onRestart = { if (exo.currentPosition < 3_000L) selfSeekTo(exo.currentMediaItemIndex, 0L) }, settings = { djSettings },
+        onCaption = { c -> if (c != djCaption) { djCaption = c; fire() } }).also { djVoice = it }
+    /** The DJ's words showing now (Settings → DJ → Captions), or null. */
+    var djCaption: String? = null; private set
     private val djExec = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "dj").also { it.isDaemon = true } }
     private val djWeb by lazy { com.ipodemu.library.FlacieWebClient(prefs) }
     /** The playlist the queue came from, as the DJ's playlist switch knows it (the Jellyfin playlist id, else the app's own); null when not a playlist. */
@@ -479,7 +482,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** The app was swiped away (PlaybackService): a line being said stops with the music. */
     fun djStop() { djVoice?.stop() }
     /** The playback service ends: the DJ's player and the phone's voice are let go (made again when next needed). */
-    fun djRelease() { djVoice?.release(); djVoice = null; duck = 1f; applyOutputVolume() }
+    fun djRelease() { djVoice?.release(); djVoice = null; duck = 1f; applyOutputVolume(); if (djCaption != null) { djCaption = null; fire() } }
 
     init {
         applyOutputVolume()

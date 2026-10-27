@@ -81,3 +81,10 @@
   .player .bar-right .vol input { width: 64px; }
   .player .bar-right .icon-btn[aria-label^="Mini player"] { display: none; }
 }
+
+/* the DJ's words in the player bar while it talks, in place of the artist (DjCaption.razor); faded in once, never animated after */
+.bar-dj-caption { display: none; }
+.bar-text .bar-dj-caption.on { display: block; margin: 0; font-size: 13px; color: var(--text, #f4efe6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 100%; animation: dj-caption-in .3s ease-out both; }
+.bar-text:has(.bar-dj-caption.on) > small { display: none; }
+@keyframes dj-caption-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .bar-text .bar-dj-caption.on { animation: none; } }

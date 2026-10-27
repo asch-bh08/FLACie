@@ -73,6 +73,16 @@
             <output>@(s.Duck)%</output>
         </label>
         <label class="switch-row">
+            <span><b>Cue sound</b><small>A short soft swoosh just before the DJ speaks</small></span>
+            <input type="checkbox" role="switch" class="dj-cue" checked="@s.Cue" @onchange="e => Change(x => x.Cue = (bool)(e.Value ?? false))" />
+            <i class="switch" aria-hidden="true"></i>
+        </label>
+        <label class="switch-row">
+            <span><b>Captions</b><small>Show the DJ's words on screen while it talks</small></span>
+            <input type="checkbox" role="switch" class="dj-captions" checked="@s.Captions" @onchange="e => Change(x => x.Captions = (bool)(e.Value ?? false))" />
+            <i class="switch" aria-hidden="true"></i>
+        </label>
+        <label class="switch-row">
             <span><b>Device voice</b><small>Use this device's own voice for the DJ instead of the DJ's voice. Off: if the DJ's voice can't be made, the DJ stays quiet</small></span>
             <input type="checkbox" role="switch" checked="@s.DeviceVoice" @onchange="e => Change(x => x.DeviceVoice = (bool)(e.Value ?? false))" />
             <i class="switch" aria-hidden="true"></i>

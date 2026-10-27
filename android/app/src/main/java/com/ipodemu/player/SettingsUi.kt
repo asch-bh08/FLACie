@@ -208,6 +208,12 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             MonoLabel("Sound", Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp))
                             DjLevelRow("DJ volume", "How loud the DJ's voice is", dj.volume) { v -> save(org.json.JSONObject().put("volume", v), dj.copy(volume = v)) }
                             DjLevelRow("Music under the DJ", "How loud the song stays while the DJ talks", dj.duck) { v -> save(org.json.JSONObject().put("duck", v), dj.copy(duck = v)) }
+                            SettingRow("Cue sound", if (dj.cue) "On" else "Off", toggle = true, desc = "A short soft swoosh just before the DJ speaks.") {
+                                save(org.json.JSONObject().put("cue", !dj.cue), dj.copy(cue = !dj.cue))
+                            }
+                            SettingRow("Captions", if (dj.captions) "On" else "Off", toggle = true, desc = "Show the DJ's words on screen while it talks.") {
+                                save(org.json.JSONObject().put("captions", !dj.captions), dj.copy(captions = !dj.captions))
+                            }
                             SettingRow("Device voice", if (dj.deviceVoice) "On" else "Off", toggle = true, desc = "Use this phone's own voice for the DJ instead of the DJ's voice. Off: if the DJ's voice can't be made, the DJ stays quiet.") {
                                 save(org.json.JSONObject().put("deviceVoice", !dj.deviceVoice), dj.copy(deviceVoice = !dj.deviceVoice))
                             }

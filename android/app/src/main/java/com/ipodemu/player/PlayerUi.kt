@@ -166,7 +166,9 @@ class PlayerNav {
 
 /** What the player is doing, as one immutable snapshot for composition. [dj]: the AI DJ for this queue, on or off; null when it can't work here (no FLACie Web or no Jellyfin sign-in). */
 @androidx.compose.runtime.Immutable
-data class PlayerSnap(val track: Track?, val playing: Boolean, val shuffle: Boolean, val repeat: Int, val index: Int, val count: Int, val rev: Int = 0, val speed: Float = 1f, val sleep: com.ipodemu.playback.SleepMode = com.ipodemu.playback.SleepMode.OFF, val dj: Boolean? = null)
+data class PlayerSnap(val track: Track?, val playing: Boolean, val shuffle: Boolean, val repeat: Int, val index: Int, val count: Int, val rev: Int = 0, val speed: Float = 1f, val sleep: com.ipodemu.playback.SleepMode = com.ipodemu.playback.SleepMode.OFF, val dj: Boolean? = null,
+                      /** The DJ's words while it talks (Captions), or null. */
+                      val djCaption: String? = null)
 
 @Composable
 fun rememberSnap(player: PlayerController, prefs: Prefs): PlayerSnap {
@@ -174,7 +176,7 @@ fun rememberSnap(player: PlayerController, prefs: Prefs): PlayerSnap {
     DisposableEffect(player) { val d = player.observe { tick++ }; onDispose { d() } }
     @Suppress("UNUSED_EXPRESSION") tick
     return PlayerSnap(player.current, player.wantsToPlay, prefs.shuffle, prefs.repeat, player.queueIndex, player.queue.size, player.queueRev, player.speed, player.sleepMode,
-        if (player.djAvailable) player.djOn else null)
+        if (player.djAvailable) player.djOn else null, player.djCaption)
 }
 
 @Composable

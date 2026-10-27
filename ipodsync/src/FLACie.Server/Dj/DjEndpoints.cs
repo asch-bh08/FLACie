@@ -16,6 +16,15 @@ public static class DjEndpoints
         services.AddSingleton<CloudflareVoice>();
         services.AddSingleton<DjContexts>();
         services.AddSingleton<DjClips>();
+        // the names checked by ear, per voice (data/dj-pronounce.json): when the voice or the list changes, and from the dashboard
+        services.AddSingleton<IDjEar>(sp => new CloudflareEar(sp.GetRequiredService<CloudflareVoice>()));
+        services.AddSingleton(sp =>
+        {
+            var c = ActivatorUtilities.CreateInstance<DjPronounceCheck>(sp);
+            if (sp.GetService<SessionStore>() is { } sessions) c.Artists = () => DjPronounceCheck.TopArtists(sessions.Active, DateTime.UtcNow);
+            return c;
+        });
+        services.AddHostedService<DjPronounceJob>();
         services.AddSingleton(sp =>
         {
             var d = ActivatorUtilities.CreateInstance<DjService>(sp);

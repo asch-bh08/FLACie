@@ -36,9 +36,25 @@ public sealed class DjSettings
     public bool DeviceVoice { get; set; }
     /// <summary>How loud the DJ's voice is, 0-100 % of the music's volume.</summary>
     public int Volume { get; set; } = DefaultVolume;
-    /// <summary>How loud the music stays under the DJ, 0-100 % (30 % as it always was).</summary>
+    /// <summary>How loud the music stays under the DJ, 0-100 %. 20 % since 2026-10-27 (it was 30 %, and the voice got lost in busy songs).</summary>
     public int Duck { get; set; } = DefaultDuck;
-    public const int DefaultVolume = 90, DefaultDuck = 30;
+    public const int DefaultVolume = 90, DefaultDuck = 20, OldDefaultDuck = 30;
+    /// <summary>1 once <see cref="Duck"/> has been looked at after the default changed: someone still on the old 30 % was moved to the new default then
+    /// (<see cref="MoveOldDuck"/>), and a 30 % chosen after that is kept.</summary>
+    public int LevelsVersion { get; set; }
+    /// <summary>Show the DJ's words on screen while it talks (Now Playing and the player bar).</summary>
+    public bool Captions { get; set; } = true;
+    /// <summary>A short soft swoosh just before the DJ speaks.</summary>
+    public bool Cue { get; set; } = true;
+
+    /// <summary>Someone still on the old "Music under the DJ" default moves to the new one, once. True when it changed anything.</summary>
+    public static bool MoveOldDuck(DjSettings s)
+    {
+        if (s.LevelsVersion >= 1) return false;
+        s.LevelsVersion = 1;
+        if (s.Duck == OldDefaultDuck) s.Duck = DefaultDuck;
+        return true;
+    }
     /// <summary>Per song, by <see cref="Matching.MatchKey(string, string)"/> (title and artist, so it holds on every device and path): true = always introduce it,
     /// false = never talk over it; no entry = the usual rules.</summary>
     public Dictionary<string, bool> Songs { get; set; } = new();

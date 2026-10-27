@@ -215,6 +215,8 @@ fun LivingSleeveBody(snap: PlayerSnap, nav: PlayerNav) {
                 Box(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = maxDp(nav0 + 10.dp, 18.dp))) { SleeveActions(false, pane, toggle, addToPlaylist) { moreMode = "all" } }
             }
         }
+        // the DJ's words while it talks, over the top of the cover (faded in and out)
+        DjCaptionCard(snap.djCaption, Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 72.dp, start = 24.dp, end = 24.dp))
         PlayerMoreSheet(moreMode != null, moreMode == "playback", t, nav, palette, onDismiss = { moreMode = null }, onOpen = { id -> if (wide) tab = id else pane = id })
         // every menu the player opens (rating, speed, sleep timer, sound, playlists, MusicBrainz, a queue row) in the same design I sheet
         DesignSheet(nav.sheet, palette) { nav.sheet = null }

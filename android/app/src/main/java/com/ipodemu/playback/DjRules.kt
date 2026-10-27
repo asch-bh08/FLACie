@@ -46,6 +46,10 @@ data class DjSettings(
     val duck: Int = DEFAULT_DUCK,
     /** Per song, by [com.ipodemu.library.matchKey] (title and artist): true = always introduce it, false = never talk over it; no entry = the usual rules. */
     val songs: Map<String, Boolean> = emptyMap(),
+    /** Show the DJ's words on screen while it talks (Now Playing and the mini bar). */
+    val captions: Boolean = true,
+    /** A short soft swoosh just before the DJ speaks. */
+    val cue: Boolean = true,
 ) {
     /** The clip player's volume (0..1). */
     val voiceLevel: Float get() = volume.coerceIn(0, 100) / 100f
@@ -57,11 +61,12 @@ data class DjSettings(
     fun toJson(): JSONObject = JSONObject().put("enabled", enabled).put("chatty", chatty.wire).put("phone", phone).put("auto", auto).put("web", web)
         .put("windows", windows).put("backup", backup).put("talkAfterSkips", talkAfterSkips).put("style", style.wire).put("playlists", JSONObject().also { o -> playlists.forEach { (k, v) -> o.put(k, v) } })
         .put("deviceVoice", deviceVoice).put("volume", volume).put("duck", duck).put("songs", JSONObject().also { o -> songs.forEach { (k, v) -> o.put(k, if (v) "always" else "never") } })
-        .put("voiceReady", voiceReady)
+        .put("voiceReady", voiceReady).put("captions", captions).put("cue", cue)
 
     companion object {
         const val DEFAULT_VOLUME = 90
-        const val DEFAULT_DUCK = 30
+        /** 20 % since 2026-10-27 (it was 30 %, and the voice got lost in busy songs); the server moves anyone still on 30 % across once. */
+        const val DEFAULT_DUCK = 20
         /** The server's `/api/dj/settings` answer; a field it leaves out keeps its default. Throws on text that is not JSON. */
         fun parse(text: String): DjSettings {
             val o = JSONObject(text); val d = DjSettings()
@@ -79,6 +84,8 @@ data class DjSettings(
                 o.optInt("volume", d.volume).coerceIn(0, 100),
                 o.optInt("duck", d.duck).coerceIn(0, 100),
                 so?.keys()?.asSequence()?.mapNotNull { k -> when (so.optString(k)) { "always" -> k to true; "never" -> k to false; else -> null } }?.toMap() ?: emptyMap(),
+                o.optBoolean("captions", d.captions),
+                o.optBoolean("cue", d.cue),
             )
         }
         /** The cached copy, or the defaults (DJ off) when there is none or it can't be read. */

@@ -15,7 +15,7 @@ public class DjJsonTests
     {
         var s = new DjSettings { Enabled = true, Chatty = DjChatty.Rare, Auto = false, Playlists = { ["pl1"] = false } };
         var j = DjJson.Settings(s, voiceReady: true);
-        Assert.Equal(new[] { "enabled", "chatty", "phone", "auto", "web", "windows", "backup", "talkAfterSkips", "style", "playlists", "deviceVoice", "volume", "duck", "songs", "voiceReady" }, j.Select(kv => kv.Key));
+        Assert.Equal(new[] { "enabled", "chatty", "phone", "auto", "web", "windows", "backup", "talkAfterSkips", "style", "playlists", "deviceVoice", "volume", "duck", "songs", "voiceReady", "captions", "cue" }, j.Select(kv => kv.Key));
         Assert.Equal("rare", j["chatty"]!.GetValue<string>());
         Assert.False(j["auto"]!.GetValue<bool>());
         Assert.False(j["playlists"]!["pl1"]!.GetValue<bool>());

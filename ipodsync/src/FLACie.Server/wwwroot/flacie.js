@@ -101,7 +101,7 @@ window.flacie = (() => {
     navigator.mediaSession.setActionHandler("seekto", e => { selfSeek = false; audio.currentTime = e.seekTime; });
   }
   // The AI DJ (docs/spec/ai-dj.md): a short clip on a second small player over the start of a song, or the device's own voice when no clip could be
-  // made. The music ducks to 30% under it (400 ms down, 600 ms back up) through duckGain alone, so the volume, the sleep fade, levelling, the fade
+  // made. The music ducks to 20% under it (400 ms down, 600 ms back up) through duckGain alone, so the volume, the sleep fade, levelling, the fade
   // between songs, the EQ graph and the prefetch are untouched (the clip plays straight to the speakers, beside the graph). A pause or a seek of the
   // music stops it at once; so does djStop (a skip, a new queue). The clip's volume follows the volume set (and the sleep fade).
   let djAudio = null, djPre = null, djSpeaking = false, djTok = 0, duckTimer = 0, djVoices = null;
@@ -110,7 +110,47 @@ window.flacie = (() => {
   // a seek the player makes itself (a long item resuming, a reconnect) is not a person seeking: it doesn't stop the DJ
   let selfSeek = false;
   // the person's DJ settings: how loud the DJ's voice is (of the music's volume) and how loud the music stays under it (djLevels)
-  let djVol = 0.9, djDuck = 0.3;
+  let djVol = 0.9, djDuck = 0.2, djCueOn = true;
+  // The clip's voice goes through a light chain so it sits on top of the mix: a high-pass at 100 Hz (no boom from the music bed), a gentle presence
+  // lift at 3 kHz, and a soft compressor. Only when the DJ's own AudioContext is running (a suspended one would silence the clip): else straight out.
+  let djCtx = null, djNodes = null;
+  const djContext = () => {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+      if (!djCtx) djCtx = new AC();
+      if (djCtx.state === "suspended") djCtx.resume().catch(() => { });
+      return djCtx.state === "running" ? djCtx : null;
+    } catch { return null; }
+  };
+  const djChain = (a) => {
+    const ctx = djContext(); if (!ctx || a.dataset.chain) return;
+    try {
+      const src = ctx.createMediaElementSource(a);
+      const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 100; hp.Q.value = 0.7;
+      const pres = ctx.createBiquadFilter(); pres.type = "peaking"; pres.frequency.value = 3000; pres.Q.value = 0.9; pres.gain.value = 3;
+      const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -20; comp.knee.value = 12; comp.ratio.value = 3; comp.attack.value = 0.005; comp.release.value = 0.2;
+      src.connect(hp); hp.connect(pres); pres.connect(comp); comp.connect(ctx.destination);
+      a.dataset.chain = "1"; djNodes = { highpass: hp, presence: pres, compressor: comp };
+    } catch { }
+  };
+  // the cue before the voice: a quarter-second swoosh of soft filtered noise made here (no recording, nothing to license), well under the voice
+  const djSwoosh = () => {
+    const ctx = djContext(); if (!ctx) return false;
+    try {
+      const len = Math.round(ctx.sampleRate * 0.24), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const n = ctx.createBufferSource(); n.buffer = buf;
+      const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 1.2;
+      const g = ctx.createGain(), t = ctx.currentTime, peak = Math.max(0.0001, 0.18 * clipVol());
+      bp.frequency.setValueAtTime(700, t); bp.frequency.exponentialRampToValueAtTime(3200, t + 0.22);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + 0.09); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
+      n.connect(bp); bp.connect(g); g.connect(ctx.destination); n.start(t); n.stop(t + 0.25);
+      djSwooshes++;
+      return true;
+    } catch { return false; }
+  };
+  let djSwooshes = 0;
+  const DJ_CUE_LEAD_MS = 250;   // DjCaptions.CueLeadMs: the voice starts this long after the cue
   const clipVol = () => Math.min(1, Math.max(0, baseVolume * fadeGain * djVol));
   // a timer, not animation frames, so it also runs in a tab in the background (where it goes straight to the end: timers there are slowed to once a second or less)
   const duckTo = (target, ms) => {
@@ -1294,7 +1334,7 @@ window.flacie = (() => {
     // the person's "DJ volume" and "Music under the DJ", 0-100 each
     djLevels(vol, duck) {
       const pc = (x, d) => { const n = Number(x); return isFinite(n) ? Math.min(1, Math.max(0, n / 100)) : d; };
-      djVol = pc(vol, 0.9); djDuck = pc(duck, 0.3);
+      djVol = pc(vol, 0.9); djDuck = pc(duck, 0.2);
       if (djAudio) djAudio.volume = clipVol();
     },
     // the next song's clip, fetched ahead (one at a time, replaced when the next song changes)
@@ -1325,6 +1365,7 @@ window.flacie = (() => {
       const a = djPre && djPre.dataset.u === url ? djPre : new Audio(url);
       if (a === djPre) djPre = null;
       djAudio = a; a.volume = clipVol();
+      djChain(a);
       const mine = () => tok === djTok;
       let started = false, over = false, songAt = 0, dueAt = 0, holding = false;   // songAt / dueAt: when the song began to play / the clip was due (performance.now())
       const letGo = () => {
@@ -1349,7 +1390,8 @@ window.flacie = (() => {
         dueAt = performance.now();
         setTimeout(() => { if (mine() && djAudio === a) djHalt(true); }, 20000);   // safety: a clip that never says it ended
         if (a.error) { failed(); return; }   // the clip fetched ahead has already failed
-        a.play().catch((e) => { if (e && e.name === "AbortError") return; failed(); });
+        const go = () => { if (mine() && !over) a.play().catch((e) => { if (e && e.name === "AbortError") return; failed(); }); };
+        if (djCueOn && djSwoosh()) setTimeout(go, DJ_CUE_LEAD_MS); else go();
       };
       // counted from when the song is really playing (it may still be loading when this is called)
       const songStarted = () => {
@@ -1389,8 +1431,15 @@ window.flacie = (() => {
     // a skip, a new queue, the DJ turned off: stop at once and bring the music back up
     // (a clip fetched ahead for the next song is kept: the DJ may still speak there)
     djStop() { djHalt(true); },
+    // the person's "Cue sound" switch
+    djCue(on) { djCueOn = on !== false; },
     // for the tests: how far the music is ducked, and whether the DJ is talking
-    djState() { return { duck: duckGain, clip: !!djAudio, speaking: djSpeaking, vol: djVol, under: djDuck, clipVolume: djAudio ? djAudio.volume : null }; },
+    djState() {
+      const n = djNodes;
+      return { duck: duckGain, clip: !!djAudio, speaking: djSpeaking, vol: djVol, under: djDuck, clipVolume: djAudio ? djAudio.volume : null, cue: djCueOn, swooshes: djSwooshes,
+        chain: n ? { highpass: n.highpass instanceof BiquadFilterNode && n.highpass.type, hz: n.highpass.frequency.value, presence: n.presence instanceof BiquadFilterNode && n.presence.type,
+          presenceHz: n.presence.frequency.value, compressor: n.compressor instanceof DynamicsCompressorNode } : null };
+    },
     // ---- "talk to the DJ" (DjMic.razor): the browser's own speech recogniser, listening only from a press until the person stops talking (or presses again).
     // Only the words it recognised go back to the page; no sound is kept or sent to FLACie. ----
     micAvailable() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); },

@@ -95,7 +95,7 @@ class DjRulesTest {
     @Test fun deviceVoiceVolumeDuckAndSongsAreReadWrittenAndClamped() {
         val d = DjSettings()
         assertFalse("only the server's voice unless the person picks the phone's", d.deviceVoice)
-        assertEquals(90, d.volume); assertEquals(30, d.duck); assertTrue(d.songs.isEmpty())
+        assertEquals(90, d.volume); assertEquals(20, d.duck); assertTrue(d.songs.isEmpty())
         val s = DjSettings(deviceVoice = true, volume = 60, duck = 15, songs = mapOf("yellow|coldplay" to true, "intro|xx" to false))
         assertEquals(s, DjSettings.parse(s.toJson().toString()))
         assertEquals("always", s.toJson().getJSONObject("songs").getString("yellow|coldplay"))

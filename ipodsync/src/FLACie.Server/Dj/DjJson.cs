@@ -6,7 +6,7 @@ namespace FLACie.Server.Dj;
 /// <summary>The DJ's JSON (docs/spec/ai-dj.md, HTTP): camelCase names, enums as lower-case strings, every field type-checked (a wrong type is the caller's mistake, 400).</summary>
 public static class DjJson
 {
-    static readonly string[] Switches = ["enabled", "phone", "auto", "web", "windows", "backup", "talkAfterSkips", "deviceVoice"];
+    static readonly string[] Switches = ["enabled", "phone", "auto", "web", "windows", "backup", "talkAfterSkips", "deviceVoice", "captions", "cue"];
     static readonly string[] Levels = ["volume", "duck"];
 
     public static string ChoiceName(bool c) => c ? "always" : "never";
@@ -30,6 +30,7 @@ public static class DjJson
             ["enabled"] = s.Enabled, ["chatty"] = ChattyName(s.Chatty), ["phone"] = s.Phone, ["auto"] = s.Auto, ["web"] = s.Web, ["windows"] = s.Windows,
             ["backup"] = s.Backup, ["talkAfterSkips"] = s.TalkAfterSkips, ["style"] = StyleName(s.Style), ["playlists"] = lists,
             ["deviceVoice"] = s.DeviceVoice, ["volume"] = DjRules.Clamp(s.Volume), ["duck"] = DjRules.Clamp(s.Duck), ["songs"] = songs, ["voiceReady"] = voiceReady,
+            ["captions"] = s.Captions, ["cue"] = s.Cue,
         };
     }
 
@@ -96,6 +97,7 @@ public static class DjJson
         bool B(string k, bool was) => body.ContainsKey(k) ? body[k]!.GetValue<bool>() : was;
         int L(string k, int was) => body.ContainsKey(k) ? body[k]!.GetValue<int>() : was;
         s.DeviceVoice = B("deviceVoice", s.DeviceVoice); s.Volume = L("volume", s.Volume); s.Duck = L("duck", s.Duck);
+        s.Captions = B("captions", s.Captions); s.Cue = B("cue", s.Cue);
         if (songs is not null) s.Songs = songs;
         if (song is { } sg) DjRules.SetSong(s, sg.Title, sg.Artist, sg.Choice);
         s.Enabled = B("enabled", s.Enabled); s.Phone = B("phone", s.Phone); s.Auto = B("auto", s.Auto); s.Web = B("web", s.Web); s.Windows = B("windows", s.Windows); s.Backup = B("backup", s.Backup); s.TalkAfterSkips = B("talkAfterSkips", s.TalkAfterSkips);
@@ -206,7 +208,7 @@ public static class DjJson
         B("windows", was.Windows, now.Windows); B("backup", was.Backup, now.Backup); B("talkAfterSkips", was.TalkAfterSkips, now.TalkAfterSkips);
         if (was.Chatty != now.Chatty) p["chatty"] = ChattyName(now.Chatty);
         if (was.Style != now.Style) p["style"] = StyleName(now.Style);
-        B("deviceVoice", was.DeviceVoice, now.DeviceVoice);
+        B("deviceVoice", was.DeviceVoice, now.DeviceVoice); B("captions", was.Captions, now.Captions); B("cue", was.Cue, now.Cue);
         if (was.Volume != now.Volume) p["volume"] = DjRules.Clamp(now.Volume);
         if (was.Duck != now.Duck) p["duck"] = DjRules.Clamp(now.Duck);
         var wasSongs = was.Songs ?? new(); var nowSongs = now.Songs ?? new();

@@ -52,10 +52,20 @@ public sealed class DjPronounce
     readonly List<(Regex Find, string Say)> phrases = [];
     public IReadOnlyList<Entry> Entries { get; }
 
-    public DjPronounce(IEnumerable<Entry> extra)
+    /// <summary>[heard]: the server's checked table for the voice in use (data/dj-pronounce.json, <see cref="DjHearing"/>), which goes first: a name with a
+    /// respelling there is said that way; a name with null is said as written (the respelling made it worse, or it was never needed).</summary>
+    public DjPronounce(IEnumerable<Entry> extra, IReadOnlyDictionary<string, string?>? heard = null)
     {
         var all = new Dictionary<(string, Kind), Entry>();
         foreach (var e in StarterList.Concat(extra)) all[(e.Written.ToLowerInvariant(), e.Kind)] = e;
+        foreach (var (written, say) in heard ?? new Dictionary<string, string?>())
+        {
+            var key = written.ToLowerInvariant();
+            var kinds = all.Keys.Where(k => k.Item1 == key).ToList();
+            var kind = kinds.Count > 0 ? kinds[0].Item2 : Kind.Artist;
+            foreach (var k in kinds) all.Remove(k);
+            if (say is { Length: > 0 } && !string.Equals(say, written, StringComparison.OrdinalIgnoreCase)) all[(key, kind)] = new(written, kind, say);
+        }
         Entries = all.Values.ToList();
         foreach (var e in Entries)
         {
@@ -100,9 +110,9 @@ public sealed class DjPronounce
     }
 
     /// <summary>The starter list plus the file at [path] when there is one.</summary>
-    public static DjPronounce Load(string? path)
+    public static DjPronounce Load(string? path, IReadOnlyDictionary<string, string?>? heard = null)
     {
-        try { if (path is not null && File.Exists(path)) return new DjPronounce(Parse(File.ReadAllText(path))); } catch (Exception) { }
-        return Default;
+        try { if (path is not null && File.Exists(path)) return new DjPronounce(Parse(File.ReadAllText(path)), heard); } catch (Exception) { }
+        return heard is { Count: > 0 } ? new DjPronounce([], heard) : Default;
     }
 }

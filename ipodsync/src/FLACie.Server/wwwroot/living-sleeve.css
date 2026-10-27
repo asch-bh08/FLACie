@@ -389,3 +389,11 @@
   .ls-transport.has-dj:has(.dj-mic) .ls-pillbtn { width: 46px; }
 }
 @media (min-width: 761px) { .ls-transport.has-dj:has(.dj-mic) { gap: 7px; } }
+
+/* the DJ's words while it talks (DjCaption.razor): over the foot of the cover, faded in and out by opacity only */
+.np-dj-caption { display: none; }
+.ls-art .np-dj-caption { display: block; align-self: end; z-index: 2; position: relative; box-sizing: border-box; max-width: calc(min(100cqw, 100cqh, 640px) - 2 * var(--frame, 30px) - 24px); margin: 0 0 calc(var(--frame, 30px) + 14px); padding: 10px 16px; border-radius: 14px;
+  background: #000000b8; color: #fff; font-size: 17px; line-height: 1.35; text-align: center; pointer-events: none; opacity: 0; transition: opacity .35s ease; }
+.ls-art .np-dj-caption.on { opacity: 1; }
+.ls-art .np-dj-caption:empty { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { .ls-art .np-dj-caption { transition: none; } }

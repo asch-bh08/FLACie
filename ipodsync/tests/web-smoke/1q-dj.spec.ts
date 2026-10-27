@@ -40,9 +40,9 @@ async function newQueue(page: Page, row = 0) {
 }
 
 const settings = async (page: Page) => (await page.request.get('/api/dj/settings')).json();
-/** Back to the defaults the other specs expect: DJ off, Often, everywhere, the DJ's own voice (not the device's), 90 % voice, 30 % music under it, no song choices. */
+/** Back to the defaults the other specs expect: DJ off, Often, everywhere, the DJ's own voice (not the device's), 90 % voice, 20 % music under it, captions and the cue sound on, no song choices. */
 async function reset(page: Page) {
-  const r = await page.request.post('/api/dj/settings', { data: { enabled: false, chatty: 'often', phone: true, auto: true, web: true, windows: true, backup: true, talkAfterSkips: true, style: 'classic', deviceVoice: false, volume: 90, duck: 30, songs: {} } });
+  const r = await page.request.post('/api/dj/settings', { data: { enabled: false, chatty: 'often', phone: true, auto: true, web: true, windows: true, backup: true, talkAfterSkips: true, style: 'classic', deviceVoice: false, volume: 90, duck: 20, captions: true, cue: true, songs: {} } });
   expect(r.ok()).toBe(true);
 }
 
@@ -71,7 +71,9 @@ test.describe.serial('the DJ', () => {
     await expect(afterSkips).toBeChecked();   // on unless the person turns it off
     await expect(onSwitch).not.toBeChecked();
     await expect(device).not.toBeChecked();   // only ever the DJ's own voice unless the person picks the device's
-    await expect(volume).toHaveValue('90'); await expect(duck).toHaveValue('30');
+    await expect(volume).toHaveValue('90'); await expect(duck).toHaveValue('20');   // the music sits lower under the voice since 2026-10-27
+    await expect(row(page, 'Captions').locator('input[role=switch]')).toBeChecked();
+    await expect(row(page, 'Cue sound').locator('input[role=switch]')).toBeChecked();
     await pressed(seg(page, 'Often'), true);
     await pressed(seg(page, 'Classic radio'), true);   // the style everyone starts with
     for (const w of ['Phone', 'Android Auto', 'Web', 'Windows']) await pressed(seg(page, w), true);
@@ -180,6 +182,60 @@ test.describe.serial('the DJ', () => {
       await page.screenshot({ path: `test-results/shots/dj-np-${w}.png` });
     });
   }
+
+  test('a DJ line shows its words over the cover and in the bar, timed to it, and Captions off hides them', async ({ page }) => {
+    test.setTimeout(120_000);
+    await signIn(page);
+    await reset(page);
+    // the device's voice says every line (the test server has no Cloudflare), so a line comes as soon as a 3 s song ends by itself
+    const on = { enabled: true, chatty: 'every', deviceVoice: true, captions: true, cue: true };
+    expect((await page.request.post('/api/dj/settings', { data: on })).ok()).toBe(true);
+    await newQueue(page);
+    const cap = page.locator('.ls-art .np-dj-caption.on');
+    await expect(cap).toBeVisible({ timeout: 30_000 });
+    await expect(cap).not.toHaveText('');
+    await expect(page.locator('.player .bar-dj-caption.on')).toHaveCount(1);
+    await page.waitForTimeout(400);   // (the fade in)
+    await page.screenshot({ path: '../../../docs/screens-new-look/dj-caption.png' });
+    // a pause (like a skip) takes the words away at once (the songs here are 3 s long, so with "Every song" one line follows another)
+    await page.locator('.ls-transport').getByRole('button', { name: 'Pause' }).click();
+    await expect(cap).toHaveCount(0, { timeout: 5_000 });
+    // Captions off: the next line says nothing on screen
+    expect((await page.request.post('/api/dj/settings', { data: { captions: false } })).ok()).toBe(true);
+    await newQueue(page);
+    await page.waitForTimeout(9000);
+    await expect(page.locator('.np-dj-caption.on')).toHaveCount(0);
+  });
+
+  test('the DJ clip goes through a voice chain (high-pass, presence, compressor) after a short cue sound', async ({ page }) => {
+    test.setTimeout(90_000);
+    await signIn(page);
+    await reset(page);
+    await newQueue(page);
+    const st = await page.evaluate(async () => {
+      // a one-second tone as the clip, made here
+      const rate = 8000, n = rate, b = new DataView(new ArrayBuffer(44 + n * 2));
+      const w = (o: number, t: string) => { for (let i = 0; i < t.length; i++) b.setUint8(o + i, t.charCodeAt(i)); };
+      w(0, 'RIFF'); b.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); b.setUint32(16, 16, true); b.setUint16(20, 1, true); b.setUint16(22, 1, true);
+      b.setUint32(24, rate, true); b.setUint32(28, rate * 2, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true); w(36, 'data'); b.setUint32(40, n * 2, true);
+      for (let i = 0; i < n; i++) b.setInt16(44 + i * 2, Math.round(Math.sin(i / rate * 2 * Math.PI * 440) * 8000), true);
+      const url = URL.createObjectURL(new Blob([b.buffer], { type: 'audio/wav' }));
+      const f = (window as any).flacie;
+      f.djLevels(90, 20); f.djCue(true);
+      const before = f.djState().swooshes;
+      f.djPlay(url, '', false, 0, 0);
+      await new Promise((r) => setTimeout(r, 700));
+      const s = f.djState(); f.djStop();
+      return { ...s, swooshed: s.swooshes - before };
+    });
+    expect(st.under).toBeCloseTo(0.2);
+    expect(st.cue).toBe(true);
+    expect(st.swooshed).toBe(1);
+    expect(st.chain).toEqual({ highpass: 'highpass', hz: 100, presence: 'peaking', presenceHz: 3000, compressor: true });
+    // the cue sound off: no swoosh before the next clip
+    const off = await page.evaluate(() => { const f = (window as any).flacie; f.djCue(false); return f.djState().cue; });
+    expect(off).toBe(false);
+  });
 
   test('a playlist has its own DJ chip: Auto, On, Off, and back to Auto, kept on the server', async ({ page }) => {
     test.setTimeout(120_000);

@@ -33,6 +33,8 @@ public sealed class DjUsage
     public int Lines { get; set; }
     /// <summary>Lines handed out with a DJ clip, for the whole family.</summary>
     public int Said { get; set; }
+    /// <summary>Neurons the pronunciation check (<see cref="DjPronounceCheck"/>) has used today; they are in <see cref="Neurons"/> too.</summary>
+    public double Checks { get; set; }
 }
 
 /// <summary>
@@ -169,6 +171,60 @@ public sealed partial class CloudflareVoice
             Roll();
             if (made) usage.Lines++; else usage.Neurons = Math.Max(0, usage.Neurons - n);
             try { File.WriteAllText(usageFile, JsonSerializer.Serialize(usage)); } catch (Exception) { }
+        }
+    }
+
+    /// <summary>The speech-to-text model the pronunciation check listens with, and its price (neurons per audio minute).</summary>
+    public const string HearModel = "@cf/openai/whisper-large-v3-turbo";
+    public const double HearNeuronsPerMinute = 46.63;
+    /// <summary>The share of the DJ's daily cap the pronunciation check may use; the rest waits for another day.</summary>
+    public const double CheckShare = 0.10;
+
+    /// <summary>Whisper's price for a clip, its length guessed from the MP3's size (Aura sends about 6 kB a second), a second at least.</summary>
+    public static double EstimateHearNeurons(int mp3Bytes) => Math.Max(1.0, mp3Bytes / 6000.0) / 60.0 * HearNeuronsPerMinute;
+
+    /// <summary>The most the pronunciation check may use today.</summary>
+    public double CheckCap => Cap * CheckShare;
+
+    /// <summary>Books [neurons] to today's pronunciation check, when they fit under its share and under the cap; false when they don't (the check stops for today).</summary>
+    public bool TakeForChecks(double neurons)
+    {
+        lock (gate)
+        {
+            Roll();
+            if (usage.Checks + neurons > CheckCap || usage.Neurons + neurons > Cap) return false;
+            usage.Checks += neurons;
+            try { File.WriteAllText(usageFile, JsonSerializer.Serialize(usage)); } catch (Exception) { }
+            return true;
+        }
+    }
+
+    /// <summary>What Whisper hears in [mp3], or null (not set up, over the cap, Cloudflare said no). Its neurons count into today's use. Never throws.</summary>
+    public async Task<string?> TranscribeAsync(byte[] mp3, CancellationToken ct = default)
+    {
+        var c = Current; var token = Unprotect(c.Token);
+        if (!AccountShape().IsMatch(c.AccountId) || token.Length == 0 || mp3.Length == 0) return null;
+        var cost = EstimateHearNeurons(mp3.Length);
+        if (!Reserve(cost)) return null;
+        var heard = false;
+        try
+        {
+            var body = new JsonObject { ["audio"] = Convert.ToBase64String(mp3), ["language"] = "en" };
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"https://api.cloudflare.com/client/v4/accounts/{c.AccountId}/ai/run/{HearModel}");
+            req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
+            req.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
+            using var http = hf.CreateClient("cloudflare");
+            using var res = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+            var bytes = await ReadAtMost(res.Content, ct);
+            if (bytes is null || !res.IsSuccessStatusCode) { log.LogInformation("DJ pronunciation check: Whisper answered {Status}{Error}", (int)res.StatusCode, bytes is null ? "" : ErrorOf(bytes)); return null; }
+            heard = true;
+            return JsonNode.Parse(bytes)?["result"]?["text"]?.GetValue<string>()?.Trim();
+        }
+        catch (Exception e) { log.LogInformation("DJ pronunciation check: Whisper failed ({Kind})", e.GetType().Name); return null; }
+        finally
+        {
+            // a call that never reached Cloudflare costs nothing
+            lock (gate) { Roll(); if (!heard) usage.Neurons = Math.Max(0, usage.Neurons - cost); try { File.WriteAllText(usageFile, JsonSerializer.Serialize(usage)); } catch (Exception) { } }
         }
     }
 

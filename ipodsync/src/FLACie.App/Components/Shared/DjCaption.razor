@@ -1,0 +1,9 @@
+@* The DJ's words while it talks (PlayerState.DjCaption, timed to the clip there). The line stays in the page after the DJ stops so it can fade out;
+   only opacity changes, so it costs the compositor alone. *@
+<p class="dj-caption @Class @(Text is null ? "" : "on")" aria-live="polite" aria-hidden="@(Text is null ? "true" : "false")">@shown</p>
+@code {
+    [Parameter] public string? Text { get; set; }
+    [Parameter] public string Class { get; set; } = "";
+    string? shown;
+    protected override void OnParametersSet() { if (Text is not null) shown = Text; }
+}

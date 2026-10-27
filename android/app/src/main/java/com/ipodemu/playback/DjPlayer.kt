@@ -30,7 +30,9 @@ import java.util.Locale
  */
 @OptIn(UnstableApi::class)
 class DjPlayer(private val ctx: Context, private val source: DataSource.Factory, private val prefs: Prefs, private val onLevel: (Float) -> Unit,
-               private val onRestart: () -> Unit = {}, private val settings: () -> DjSettings = { DjSettings() }) {
+               private val onRestart: () -> Unit = {}, private val settings: () -> DjSettings = { DjSettings() },
+               /** The DJ's words to show now (Captions), or null: Now Playing and the mini bar draw them. */
+               private val onCaption: (String?) -> Unit = {}) {
     private val handler = Handler(Looper.getMainLooper())
     private var exo: ExoPlayer? = null
     /** The clip loaded in [exo], ready to play; [wanted] = the clip of the cue for the next song (loaded once nothing is being said). */
@@ -55,8 +57,14 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
     }
     /** The hold is over: the song starts again from its beginning, quietly under the end of the line. */
     private val letGo = Runnable { if (holding) { holding = false; onRestart(); kick() } }
-    /** A clip timed to start later in the song. */
-    private val startClip = Runnable { if (line != null) player().playWhenReady = true }
+    /** The clip starts (at once, or later in the song): after the cue sound when that is on. */
+    private val startClip = Runnable { if (line != null) { if (cueOn && swoosh()) handler.postDelayed(playClip, DjCaptions.CUE_LEAD_MS.toLong()) else playClip.run() } }
+    private val playClip = Runnable { if (line != null) player().playWhenReady = true }
+    /** The person's "Cue sound" and "Captions", read for every line. */
+    private var cueOn = true
+    private var captionsOn = true
+    /** The phrases still to show for the line being said. */
+    private val captionSteps = ArrayList<Runnable>()
     /** A line not sounding in time (a slow clip, a voice that never starts) or never ending (a clip that stalls, a voice that never says it is done). */
     private val watchdog = Runnable { val l = line; if (l != null) { if (SystemClock.uptimeMillis() >= l.stopAt) stop() else watch() } }
     private fun watch() { handler.removeCallbacks(watchdog); line?.let { handler.postAtTime(watchdog, it.stopAt) } }
@@ -84,7 +92,59 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
         .setMediaSourceFactory(DefaultMediaSourceFactory(source))
         // false = no audio focus at all: requesting it would make the music player, which holds it, pause
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), false)
-        .build().also { it.addListener(listener); it.volume = voiceLevel; exo = it }
+        .build().also { it.addListener(listener); it.volume = voiceLevel; exo = it; voiceFx(it.audioSessionId) }
+
+    // ---- a light voice chain so the DJ sits on top of the mix: an equaliser (rumble cut, a little presence near 3 kHz) and a small loudness lift on the
+    // clip player's own audio session (the music is untouched). Phones without these effects just play the clip as it is. ----
+    private var eq: android.media.audiofx.Equalizer? = null
+    private var lift: android.media.audiofx.LoudnessEnhancer? = null
+    private fun voiceFx(session: Int) {
+        if (session == C.AUDIO_SESSION_ID_UNSET || session == 0) return
+        try {
+            eq = android.media.audiofx.Equalizer(0, session).also { e ->
+                val bands = e.numberOfBands.toInt()
+                val range = e.bandLevelRange
+                val levels = DjCaptions.voiceEq(IntArray(bands) { e.getCenterFreq(it.toShort()) }, range[0], range[1])
+                for (b in 0 until bands) e.setBandLevel(b.toShort(), levels[b])
+                e.enabled = true
+            }
+        } catch (_: Exception) { eq = null }
+        try { lift = android.media.audiofx.LoudnessEnhancer(session).also { it.setTargetGain(LIFT_MB); it.enabled = true } } catch (_: Exception) { lift = null }
+    }
+
+    /** The cue sound (made here, [DjCaptions.swoosh]) on a short static track; false when it can't play, so the voice goes at once. */
+    private fun swoosh(): Boolean = try {
+        val pcm = DjCaptions.swoosh(SWOOSH_RATE)
+        val track = android.media.AudioTrack.Builder()
+            .setAudioAttributes(android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_MEDIA).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+            .setAudioFormat(android.media.AudioFormat.Builder().setSampleRate(SWOOSH_RATE).setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT).setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO).build())
+            .setTransferMode(android.media.AudioTrack.MODE_STATIC).setBufferSizeInBytes(pcm.size * 2).build()
+        track.write(pcm, 0, pcm.size)
+        track.setVolume(voiceLevel)
+        track.play()
+        handler.postDelayed({ try { track.release() } catch (_: Exception) {} }, 800)
+        true
+    } catch (_: Exception) { false }
+
+    /** Shows the line's words in time with it (from when it is heard), phrase by phrase. */
+    private fun captions(l: DjLine) {
+        clearCaptions(false)
+        if (!captionsOn) return
+        val words = l.cue.caption.ifBlank { l.cue.text }
+        val len = exo?.duration?.takeIf { !l.phoneVoice && it != C.TIME_UNSET && it > 0 }?.toInt() ?: DjTiming.estimateMs(l.cue.text)
+        val plan = DjCaptions.plan(words, len)
+        for (p in plan) {
+            val show = Runnable { if (line === l) onCaption(p.text) }
+            captionSteps.add(show); handler.postDelayed(show, p.atMs.toLong())
+        }
+        plan.lastOrNull()?.let { last -> val hide = Runnable { onCaption(null) }; captionSteps.add(hide); handler.postDelayed(hide, last.untilMs.toLong()) }
+    }
+
+    private fun clearCaptions(hide: Boolean) {
+        for (r in captionSteps) handler.removeCallbacks(r)
+        captionSteps.clear()
+        if (hide) onCaption(null)
+    }
 
     /** The server gives clips as "/api/dj/clip/<id>.mp3", relative to FLACie Web. */
     private fun url(clip: String): String = if (clip.startsWith("http://") || clip.startsWith("https://")) clip else prefs.flacieWebUrl.trimEnd('/') + "/" + clip.trimStart('/')
@@ -115,7 +175,7 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
         if (speaking) stop()
         // the person's "DJ volume" and "Music under the DJ", read for every line
         val st = settings()
-        voiceLevel = st.voiceLevel; ramp.low = st.duckLevel
+        voiceLevel = st.voiceLevel; ramp.low = st.duckLevel; cueOn = st.cue; captionsOn = st.captions
         exo?.volume = voiceLevel
         val clip = cue.clip?.let(::url)
         wanted = null; wantedBackup = false
@@ -131,7 +191,7 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
         if (l.phoneVoice) speak(l)
         else {
             load(clip)
-            if (plan.clipAtMs > 0) handler.postDelayed(startClip, wait) else player().playWhenReady = true
+            if (plan.clipAtMs > 0) handler.postDelayed(startClip, wait) else startClip.run()
             if (plan.songDelayMs > 0) { holding = true; kick(); handler.postDelayed(letGo, plan.songDelayMs.toLong()) }
         }
         watch()
@@ -139,7 +199,8 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
 
     /** Pause, a seek, a skip, the sleep timer, the app swiped away: the line stops at once and the music comes back up. The next song's cue is kept. */
     fun stop() {
-        handler.removeCallbacks(watchdog); handler.removeCallbacks(startClip); handler.removeCallbacks(letGo)
+        handler.removeCallbacks(watchdog); handler.removeCallbacks(startClip); handler.removeCallbacks(playClip); handler.removeCallbacks(letGo)
+        clearCaptions(true)
         // a song held back goes on from where it is (a skip, a pause or a seek: it is not started again)
         if (holding) { holding = false; kick() }
         val was = line
@@ -159,6 +220,9 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
     /** The service ends: everything is let go (made again the next time the DJ has something to say). */
     fun release() {
         clear()
+        try { eq?.release() } catch (_: Exception) {}
+        try { lift?.release() } catch (_: Exception) {}
+        eq = null; lift = null
         exo?.release(); exo = null; loaded = null
         try { tts?.shutdown() } catch (_: Exception) {}
         tts = null; ttsReady = false
@@ -166,7 +230,7 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
     }
 
     /** The line is sounding: the music ducks, and the line now has until its end to finish. */
-    private fun heard(l: DjLine) { l.heard(SystemClock.uptimeMillis()); duck(); watch() }
+    private fun heard(l: DjLine) { l.heard(SystemClock.uptimeMillis()); duck(); watch(); captions(l) }
 
     private fun duck() { ramp.duck(SystemClock.uptimeMillis()); kick() }
     private fun unduck() { ramp.release(SystemClock.uptimeMillis()); kick() }
@@ -226,5 +290,8 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
 
     companion object {
         private const val TICK_MS = 30L
+        private const val SWOOSH_RATE = 44_100
+        /** The clip's small loudness lift, millibels. */
+        private const val LIFT_MB = 300
     }
 }

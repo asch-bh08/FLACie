@@ -135,7 +135,7 @@ public class DjVoiceVolumeTests : IDisposable
     {
         var r = Make(Ok);
         var st = r.Dj.Settings(me);
-        Assert.Equal((90, 30), (st.Volume, st.Duck));
+        Assert.Equal((90, 20), (st.Volume, st.Duck));
         st.Volume = 140; st.Duck = -5; r.Dj.Save(me, st);
         Assert.Equal((100, 0), (Make(Ok).Dj.Settings(me).Volume, Make(Ok).Dj.Settings(me).Duck));   // a new store reads the account's file
 

@@ -843,24 +843,31 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     {
         try
         {
+            bool captions = false, cueSound = false;
             if (dj is { } d && session is { } s && (cue.ClipUrl is { Length: > 0 } || cue.Backup))
             {
                 var st = d.Settings(s);
+                captions = st.Captions; cueSound = st.Cue;
                 await audio.DjLevelsAsync(DjRules.Clamp(st.Volume), DjRules.Clamp(st.Duck));
+                await audio.DjCueAsync(st.Cue);
             }
+            var words = cue.Caption.Length > 0 ? cue.Caption : cue.Text;
             if (cue.ClipUrl is { Length: > 0 } url)
             {
                 // timed to the song's intro when the server knows it: the clip's own length when the page has it, else a guess from its words
                 var plan = DjTimingPlan.Now;
-                if (cue.IntroMs is { } intro)
-                {
-                    int? clipMs = null;
-                    try { clipMs = await audio.DjClipMsAsync(url); } catch (Exception) { }
-                    plan = DjTiming.Plan(intro, clipMs is > 0 ? clipMs : DjTiming.EstimateMs(cue.Text));
-                }
+                int? clipMs = null;
+                try { clipMs = await audio.DjClipMsAsync(url); } catch (Exception) { }
+                var length = clipMs is > 0 ? clipMs.Value : DjTiming.EstimateMs(cue.Text);
+                if (cue.IntroMs is { } intro) plan = DjTiming.Plan(intro, length);
                 await audio.DjPlayAsync(url, cue.Text, cue.Backup, plan.ClipAtMs, plan.SongDelayMs); djActive = true;
+                if (captions) _ = DjCaptionsAsync(words, plan.ClipAtMs + (cueSound ? DjCaptions.CueLeadMs : 0), length);
             }
-            else if (cue.Backup && cue.Text.Length > 0) { await audio.DjSayAsync(cue.Text); djActive = true; }
+            else if (cue.Backup && cue.Text.Length > 0)
+            {
+                await audio.DjSayAsync(cue.Text); djActive = true;
+                if (captions) _ = DjCaptionsAsync(words, 0, DjTiming.EstimateMs(cue.Text));
+            }
         }
         catch (Exception) { }
     }
@@ -887,9 +894,48 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
 
     static void Note(IDjService d, UserSession s, Track t, string why) { try { d.NotSaid(s, t.Title, why); } catch (Exception) { } }
 
+    /// <summary>The DJ's words showing now (the "Captions" switch), or null: Now Playing shows them over the lyrics or cover, the player bar as a line.</summary>
+    public string? DjCaption { get; private set; }
+    /// <summary>How the captions wait for their next phrase (a test makes it step by hand).</summary>
+    public Func<int, CancellationToken, Task> DjWait { get; set; } = (ms, ct) => Task.Delay(ms, ct);
+    CancellationTokenSource? djCaptionCts;
+
+    /// <summary>Shows [text] in time with the clip: from [startInMs] (the clip's own start), phrase by phrase (<see cref="DjCaptions.Plan"/>), gone a moment
+    /// after the clip's [clipMs]. A skip, a pause or a seek (<see cref="DjStopAsync"/>) takes it away at once.</summary>
+    async Task DjCaptionsAsync(string text, int startInMs, int clipMs)
+    {
+        djCaptionCts?.Cancel();
+        var cts = djCaptionCts = new CancellationTokenSource();
+        var plan = DjCaptions.Plan(text, clipMs);
+        if (plan.Count == 0) return;
+        try
+        {
+            if (startInMs > 0) await DjWait(startInMs, cts.Token);
+            var at = 0;
+            foreach (var p in plan)
+            {
+                if (p.AtMs > at) await DjWait(p.AtMs - at, cts.Token);
+                if (cts.IsCancellationRequested) return;
+                at = p.AtMs; DjCaption = p.Text; Changed?.Invoke();
+            }
+            await DjWait(plan[^1].UntilMs - at, cts.Token);
+        }
+        catch (OperationCanceledException) { return; }
+        if (cts.IsCancellationRequested || djCaptionCts != cts) return;
+        DjCaption = null; Changed?.Invoke();
+    }
+
+    void DjCaptionOff()
+    {
+        djCaptionCts?.Cancel(); djCaptionCts = null;
+        if (DjCaption is null) return;
+        DjCaption = null; Changed?.Invoke();
+    }
+
     async Task DjStopAsync()
     {
         djGen++;
+        DjCaptionOff();
         if (!djActive) return;
         djActive = false;
         try { await audio.DjStopAsync(); } catch (Exception) { }

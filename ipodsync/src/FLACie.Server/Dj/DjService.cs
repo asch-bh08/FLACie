@@ -15,16 +15,17 @@ public sealed class DjService : IDjService
     public const string TestLine = "This is the FLACie DJ. Here's a test line.";
 
     readonly UserStateStore states; readonly CloudflareVoice voice; readonly DjClips clips; readonly ILogger<DjService> log; readonly Func<DateTime> clock;
-    readonly string pronounceFile;
+    readonly string pronounceFile, heardFile;
     readonly ConcurrentDictionary<string, DjMemory> memories = new();
     readonly ConcurrentDictionary<string, (DateTime At, DjLine? Line)> decisions = new();
-    DjPronounce pronounce = DjPronounce.Default; DateTime pronounceStamp = DateTime.MinValue, pronounceChecked = DateTime.MinValue;
+    DjPronounce pronounce = DjPronounce.Default; DateTime pronounceStamp = DateTime.MinValue, heardStamp = DateTime.MinValue, pronounceChecked = DateTime.MinValue;
+    string pronounceVoice = "";
     int asks;
 
     public DjService(UserStateStore states, CloudflareVoice voice, DjClips clips, DataPaths paths, ILogger<DjService> log, Func<DateTime>? clock = null)
     {
         this.states = states; this.voice = voice; this.clips = clips; this.log = log; this.clock = clock ?? (() => DateTime.UtcNow);
-        pronounceFile = Path.Combine(paths.Root, "dj-pronounce.tsv");
+        pronounceFile = Path.Combine(paths.Root, "dj-pronounce.tsv"); heardFile = DjPronounceCheck.FileIn(paths.Root);
     }
 
     public bool VoiceReady => voice.Ready;
@@ -39,7 +40,13 @@ public sealed class DjService : IDjService
     }
 
     /// <summary>A copy of this person's settings (change it and hand it to <see cref="Save"/>).</summary>
-    public DjSettings Settings(UserSession s) => Copy(states.For(s).Dj ?? new());
+    public DjSettings Settings(UserSession s)
+    {
+        var c = Copy(states.For(s).Dj ?? new());
+        // someone still on the old "Music under the DJ" default (30 %) moves to the new one (20 %) once, and that is saved
+        if (DjSettings.MoveOldDuck(c)) { states.For(s).Dj = Copy(c); states.Save(s); }
+        return c;
+    }
 
     public void Save(UserSession s, DjSettings settings)
     {
@@ -53,7 +60,7 @@ public sealed class DjService : IDjService
         }
         c.Playlists = lists;
         c.Songs = c.Songs.Where(x => x.Key.Trim().Length is > 0 and <= 700).Take(5000).ToDictionary(x => x.Key.Trim(), x => x.Value);
-        c.Volume = DjRules.Clamp(c.Volume); c.Duck = DjRules.Clamp(c.Duck);
+        c.Volume = DjRules.Clamp(c.Volume); c.Duck = DjRules.Clamp(c.Duck); c.LevelsVersion = Math.Max(1, c.LevelsVersion);
         var songsBefore = states.For(s).Dj?.Songs ?? new();
         states.For(s).Dj = c;
         states.Save(s);
@@ -62,7 +69,8 @@ public sealed class DjService : IDjService
             foreach (var k in decisions.Keys.Where(k => k.StartsWith(s.Id + "\n", StringComparison.Ordinal)).ToList()) { decisions.TryRemove(k, out _); written.TryRemove(k, out _); counted.TryRemove(k, out _); }
     }
 
-    /// <summary>The pronunciation list, read again when <c>dj-pronounce.tsv</c> changes (looked at no more than once a minute).</summary>
+    /// <summary>The pronunciation list: what was checked by ear for the voice in use first (dj-pronounce.json, <see cref="DjPronounceCheck"/>), then
+    /// <c>dj-pronounce.tsv</c> and the built-in list. Read again when either file or the voice changes (looked at no more than once a minute).</summary>
     DjPronounce Pronounce()
     {
         var now = clock();
@@ -71,7 +79,13 @@ public sealed class DjService : IDjService
         try
         {
             var stamp = File.Exists(pronounceFile) ? File.GetLastWriteTimeUtc(pronounceFile) : DateTime.MinValue;
-            if (stamp != pronounceStamp) { pronounce = DjPronounce.Load(pronounceFile); pronounceStamp = stamp; }
+            var heard = File.Exists(heardFile) ? File.GetLastWriteTimeUtc(heardFile) : DateTime.MinValue;
+            var v = voice.Current.Voice;
+            if (stamp != pronounceStamp || heard != heardStamp || v != pronounceVoice)
+            {
+                pronounce = DjPronounce.Load(pronounceFile, DjPronounceCheck.Heard(heardFile, v));
+                pronounceStamp = stamp; heardStamp = heard; pronounceVoice = v;
+            }
         }
         catch (Exception) { }
         return pronounce;

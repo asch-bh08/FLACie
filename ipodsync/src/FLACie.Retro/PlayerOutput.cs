@@ -42,6 +42,8 @@ public interface IPlayerOutput
     Task DjStopAsync();
     /// <summary>The person's "DJ volume" (the voice, % of the music's volume) and "Music under the DJ" (%), set before each line.</summary>
     Task DjLevelsAsync(int volume, int duck) => Task.CompletedTask;
+    /// <summary>The person's "Cue sound" switch: a short soft swoosh just before the voice.</summary>
+    Task DjCueAsync(bool on) => Task.CompletedTask;
 }
 
 /// <summary>The page's own audio element, through flacie.js.</summary>
@@ -66,4 +68,5 @@ public sealed class PageOutput(IJSRuntime js) : IPlayerOutput
     public async Task DjSayAsync(string text) => await js.InvokeVoidAsync("flacie.djSay", text);
     public async Task DjStopAsync() => await js.InvokeVoidAsync("flacie.djStop");
     public async Task DjLevelsAsync(int volume, int duck) => await js.InvokeVoidAsync("flacie.djLevels", volume, duck);
+    public async Task DjCueAsync(bool on) => await js.InvokeVoidAsync("flacie.djCue", on);
 }

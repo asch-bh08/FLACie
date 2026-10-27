@@ -74,7 +74,7 @@ fun MiniPlayer(snap: PlayerSnap, nav: PlayerNav) {
             ArtImage(t.artKey, Modifier.size(40.dp).popIn(t.path, 0.7f), thumb = true, corner = 7.dp)
             Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                 Txt(t.title, size = 14f, weight = FontWeight.SemiBold)
-                Txt(t.artist.ifEmpty { t.album }, size = 12f, color = sc.onBgDim)
+                DjCaptionOr(snap.djCaption) { Txt(t.artist.ifEmpty { t.album }, size = 12f, color = sc.onBgDim) }
                 DownloadTagLine(t, size = 10.5f)
             }
             GlossButton({ app.player.toggle() }, label = if (snap.playing) "Pause" else "Play", size = 38.dp, primary = true) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(20.dp), Color.White) }
@@ -357,7 +357,7 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 SerifTitle(t.title, size = 20f)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
-                    Txt(t.artist.ifEmpty { t.album }, Modifier.weight(1f, fill = false), size = 12.5f, weight = FontWeight.SemiBold, color = sc.onBgDim)
+                    DjCaptionOr(snap.djCaption, Modifier.weight(1f, fill = false)) { Txt(t.artist.ifEmpty { t.album }, size = 12.5f, weight = FontWeight.SemiBold, color = sc.onBgDim) }
                     if (!short) FormatChip(remember(t.path) { trackExt(t) })
                 }
                 DownloadTagLine(t, size = 11f)

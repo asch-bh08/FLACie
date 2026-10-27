@@ -44,7 +44,7 @@ public class DjServiceTests : IDisposable
     {
         var r = Make();
         var st = r.Dj.Settings(me);
-        Assert.False(st.Enabled); Assert.Equal(DjChatty.Often, st.Chatty); Assert.False(st.DeviceVoice); Assert.Equal(90, st.Volume); Assert.Equal(30, st.Duck); Assert.Empty(st.Songs);
+        Assert.False(st.Enabled); Assert.Equal(DjChatty.Often, st.Chatty); Assert.False(st.DeviceVoice); Assert.Equal(90, st.Volume); Assert.Equal(20, st.Duck); Assert.Empty(st.Songs);
         st.Enabled = true; st.Chatty = DjChatty.Rare; st.Web = false; st.Playlists["bedtime"] = false;
         Assert.False(r.Dj.Settings(me).Enabled);   // a copy: nothing changes until it is saved
         r.Dj.Save(me, st);

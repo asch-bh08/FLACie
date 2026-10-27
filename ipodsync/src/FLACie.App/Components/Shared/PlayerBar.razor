@@ -16,6 +16,7 @@
                     <button class="play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="22" /></button>
                     <button class="icon-btn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="22" /></button>
                     <button class="icon-btn @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" /></button>
+                    <DjMic Class="icon-btn" Size="20" />
                 </div>
                 <div class="seek" @onclick:stopPropagation="true">
                     <span>@Time(Player.Position)</span>
@@ -86,7 +87,11 @@
         Nav.LocationChanged += OnNavigated;
         Player.Started += OnStarted;
         Player.FullScreenRequested += OnFullScreen;
+        Player.DjAskSaid += OnDjSaid;
     }
+    [Inject] Toasts DjToast { get; set; } = default!;
+    // a song asked for through the mic has landed and is playing
+    void OnDjSaid(string line) => _ = InvokeAsync(() => DjToast.Show(line));
     void OnFullScreen() => InvokeAsync(() => { open = true; StateHasChanged(); });
     string? lastPath;
     DotNetObjectReference<PlayerBar>? barRef;
@@ -108,7 +113,7 @@
         var next = Player.UpNext(2).Select(u => u.Track).Concat(Player.AutoplayNext).Take(2).Select(u => u.Path).ToArray();
         if (next.Length > 0) _ = InvokeAsync(async () => { try { await PageJs.InvokeVoidAsync("flacie.npWavePrefetch", (object)next); } catch (Exception) { } });
     }
-    public override void Dispose() { barRef?.Dispose(); if (clientId is not null) Registry.Remove(clientId); Nav.LocationChanged -= OnNavigated; Player.Started -= OnStarted; Player.FullScreenRequested -= OnFullScreen; base.Dispose(); }
+    public override void Dispose() { barRef?.Dispose(); if (clientId is not null) Registry.Remove(clientId); Nav.LocationChanged -= OnNavigated; Player.Started -= OnStarted; Player.FullScreenRequested -= OnFullScreen; Player.DjAskSaid -= OnDjSaid; base.Dispose(); }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (Player.Current is { } cur)

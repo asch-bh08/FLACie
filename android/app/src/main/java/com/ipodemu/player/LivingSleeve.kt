@@ -406,6 +406,8 @@ private fun SleeveTopBar(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePa
         if (snap.speed != 1f) SText(com.ipodemu.playback.SpeedPolicy.label(snap.speed), Modifier.padding(end = 6.dp).clickable { nav.sheet = speedSheet(app) }, size = 13f, weight = FontWeight.Bold, color = p.main.value)
         // the AI DJ for this queue (not there without FLACie Web)
         snap.dj?.let { on -> DjGlassButton(on, { djTap(app) }, { openDjSettings(nav) }); Spacer(Modifier.width(10.dp)) }
+        // talk to the DJ, beside it (Design I glass)
+        if (snap.dj != null) { DjMicButton(44.dp, glass = Glass); Spacer(Modifier.width(10.dp)) }
         GlassButton("Options", onOptions) { SlidersIcon(Color.White) }
         // Options opens the design I sheet with just its playback group (rating, speed, sleep timer, sound)
         Spacer(Modifier.width(10.dp))

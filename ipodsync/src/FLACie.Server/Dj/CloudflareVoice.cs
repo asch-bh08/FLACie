@@ -247,7 +247,7 @@ public sealed partial class CloudflareVoice
     /// answer at all (an error or an unreadable answer: nothing was charged) or does not fit under the cap, never after a line that came back (one paid call a line).
     /// Its neurons count into today's use (Cloudflare's own token count when it gives one). Never throws, and a failure here never stops the clips.
     /// </summary>
-    public async Task<string?> WriteAsync(string system, string user, double keepFor, CancellationToken ct = default)
+    public async Task<string?> WriteAsync(string system, string user, double keepFor, CancellationToken ct = default, int maxTokens = TextMaxTokens)
     {
         var c = Current;
         var token = Unprotect(c.Token);
@@ -255,16 +255,16 @@ public sealed partial class CloudflareVoice
         foreach (var model in new[] { DjModels.Primary, DjModels.Fallback })
         {
             if (ct.IsCancellationRequested) return null;
-            var (text, again) = await WriteWithAsync(model, c, token, system, user, keepFor, ct);
+            var (text, again) = await WriteWithAsync(model, c, token, system, user, keepFor, ct, maxTokens);
             if (text is not null || !again) return text;
         }
         return null;
     }
 
     /// <summary>One call to [model]. [Again]: it could not answer and nothing was charged, so the next model may be asked.</summary>
-    async Task<(string? Text, bool Again)> WriteWithAsync(DjTextModel model, DjVoiceConfig c, string token, string system, string user, double keepFor, CancellationToken ct)
+    async Task<(string? Text, bool Again)> WriteWithAsync(DjTextModel model, DjVoiceConfig c, string token, string system, string user, double keepFor, CancellationToken ct, int maxTokens = TextMaxTokens)
     {
-        var cost = EstimateTextNeurons(system, user, TextMaxTokens, model);
+        var cost = EstimateTextNeurons(system, user, maxTokens, model);
         lock (gate) { Roll(); if (usage.Neurons + cost + keepFor > Cap) { LastWrite = "Near today's cap: a template line instead"; return (null, true); } usage.Neurons += cost; }
         var spent = 0.0;
         try
@@ -272,7 +272,7 @@ public sealed partial class CloudflareVoice
             var body = new JsonObject
             {
                 ["messages"] = new JsonArray(new JsonObject { ["role"] = "system", ["content"] = system }, new JsonObject { ["role"] = "user", ["content"] = user }),
-                ["max_tokens"] = TextMaxTokens, ["temperature"] = 0.8,
+                ["max_tokens"] = maxTokens, ["temperature"] = 0.8,
             };
             using var req = new HttpRequestMessage(HttpMethod.Post, $"https://api.cloudflare.com/client/v4/accounts/{c.AccountId}/ai/run/{model.Id}");
             req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);

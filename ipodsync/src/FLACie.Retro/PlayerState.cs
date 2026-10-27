@@ -895,6 +895,77 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         try { await audio.DjStopAsync(); } catch (Exception) { }
     }
 
+    // ---- "talk to the DJ" (the mic button): the recognised words go to the server's request reader (RetroHost.DjAsk), the answer is carried out here
+    // (DjAskRunner) and said in the DJ's voice at the DJ volume. Only words come here, never sound, and they are not kept. ----
+
+    /// <summary>The mic button can be offered: the host reads requests and someone is signed in.</summary>
+    public bool CanAskDj => RetroHost.DjAsk is not null && session is not null;
+    /// <summary>A line that comes later (a song asked for has landed and is playing): the page shows it as a toast.</summary>
+    public event Action<string>? DjAskSaid;
+
+    public async Task<DjAskAnswer?> AskDjAsync(string text, CancellationToken ct = default)
+    {
+        if (RetroHost.DjAsk is not { } ask || session is not { } s || string.IsNullOrWhiteSpace(text)) return null;
+        var a = await ask(s, text, Current?.Path, recent.ToList(), ct);
+        await DjAskRunner.RunAsync(new AskPlayer(this, s), a);
+        await DjAnswerAsync(s, a);
+        if (a.Wait is { } w) _ = WaitForDownloadAsync(s, w);
+        return a;
+    }
+
+    async Task DjAnswerAsync(UserSession s, DjAskAnswer a)
+    {
+        if (a.Say.Length == 0) return;
+        try
+        {
+            if (dj is { } d) { var st = d.Settings(s); await audio.DjLevelsAsync(DjRules.Clamp(st.Volume), DjRules.Clamp(st.Duck)); }
+            if (a.Clip is { Length: > 0 } url) { await audio.DjPlayAsync(url, a.Say, false, 0, 0); djActive = true; return; }
+            if (a.DeviceVoice) { await audio.DjSayAsync(a.Say); djActive = true; return; }
+        }
+        catch (Exception) { }
+    }
+
+    /// <summary>A song fetched for a request: played as soon as it lands (looked for every 5 s, for 10 minutes at most).</summary>
+    async Task WaitForDownloadAsync(UserSession s, DjAskWait w)
+    {
+        for (var i = 0; i < 120; i++)
+        {
+            await Task.Delay(5000);
+            if (RetroHost.DjLanded?.Invoke(s, w.Artist, w.Title) is { } path && s.FindByPath(path) is { } t)
+            {
+                await Play([t], 0, t.Title);
+                DjAskSaid?.Invoke($"Here it is: {t.Title}, by {t.Artist}.");
+                return;
+            }
+        }
+    }
+
+    /// <summary>Puts [tracks] after the song playing; with [replace], instead of what was coming up.</summary>
+    public void SetUpNext(IReadOnlyList<Track> tracks, bool replace)
+    {
+        if (tracks.Count == 0) return;
+        if (Current is null) { _ = Play(tracks, 0); return; }
+        if (!replace) { for (var i = tracks.Count - 1; i >= 0; i--) AddNext(tracks[i]); return; }
+        if (order.Count != Queue.Count) Reorder();
+        var pos = Math.Max(0, order.IndexOf(Index));
+        var kept = order.Take(pos + 1).Select(i => Queue[i]).ToList();
+        Queue = [.. kept, .. tracks]; order = Enumerable.Range(0, Queue.Count).ToList(); Index = kept.Count - 1; AutoplayFrom = -1;
+        RefreshSuggestions(); Stash(true); DjAhead(); Changed?.Invoke();
+    }
+
+    sealed class AskPlayer(PlayerState p, UserSession s) : IDjAskPlayer
+    {
+        List<Track> Tracks(IReadOnlyList<string> paths) => paths.Select(s.FindByPath).OfType<Track>().ToList();
+        public Task PlayAsync(IReadOnlyList<string> paths, string title, bool shuffle) =>
+            shuffle ? p.ShuffleAll(Tracks(paths), title) : p.Play(Tracks(paths), 0, title);
+        public Task UpNextAsync(IReadOnlyList<string> paths, bool replace) { p.SetUpNext(Tracks(paths), replace); return Task.CompletedTask; }
+        public Task NextAsync() => p.Next();
+        public Task PauseAsync() => p.PauseAsync();
+        public Task ResumeAsync() => p.ResumeAsync();
+        public Task NudgeVolumeAsync(double delta) => p.SetVolumeAsync(p.Volume + delta);
+        public async Task SetDjAsync(bool on) { if (p.dj is null) return; p.QueueDj = on; await p.DjRefreshAsync(); p.Changed?.Invoke(); }
+    }
+
     /// <summary>Stops the music and closes the player: the queue is emptied and the bar goes away. It is what the X on the bar does.</summary>
     public async Task StopAsync()
     {

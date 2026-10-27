@@ -147,12 +147,22 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** What the media session (media buttons, notification, Bluetooth) controls: Next and Previous go through the skip-burst handling too. */
     /** Resolving a browse id (a car or a voice request asks to play an album, a playlist, a song of a list) reads the library: off the main thread. */
     private val browseExec = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "browse-play").also { it.isDaemon = true } }
-    private fun isBrowseId(id: String) = BrowseTree.isPlayId(id)
+    private fun isBrowseId(id: String) = BrowseTree.isPlayId(id) || BrowseTree.parseAsk(id) != null
     /** A controller (Android Auto, a head unit, a voice command) asked to play browse items: the songs of the list they come from are queued here with the normal player, so the queue, history and everything else behave as if it was played in the app. */
     internal fun playBrowse(items: List<MediaItem>): Boolean {
         val id = items.firstOrNull()?.mediaId ?: return false
         // the queue of last time, put back paused; the play that follows carries on with it
         if (id == BrowseTree.RESUME) { restoreQueue(); return true }
+        // a car voice request: the DJ understands it; when FLACie Web can't be reached, the first song that matches, as before
+        BrowseTree.parseAsk(id)?.let { q ->
+            askDj(BrowseTree.askWords(q)) { a ->
+                if (a === DjAskAnswer.SORRY || a.say == "Sorry, I didn't catch that.") browseExec.execute {
+                    val r = try { BrowseTree.searchPlay(q, AppBrowseSource(App.of(ctx))) } catch (_: Exception) { null }
+                    if (r != null) handler.post { play(r.tracks, r.index) }
+                }
+            }
+            return true
+        }
         // a song the car's search found in the online catalog: downloaded the normal way, and played the moment it lands
         BrowseTree.parseDownload(id)?.let { c ->
             App.of(ctx).library.requestDownload(c.artist, c.title, c.album, c.durationMs) { t -> play(listOf(t), 0) }
@@ -376,6 +386,51 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private var djLastPath: String? = null
 
     /** Asks the server about the song after the current one, unless it was asked already or the DJ is off here. Never blocks: the answer comes later. */
+    /**
+     * "Talk to the DJ" (the mic button, the car's voice search): only the recognised words go to FLACie Web, which understands them for this account;
+     * the answer is carried out here and said in the DJ's one voice at the DJ volume ([DjPlayer.say]). [done] gets it on the main thread to show as a
+     * toast (always: the voice may fail). A song being downloaded for it is played once it lands (asked every 5 s for 10 minutes).
+     */
+    fun askDj(text: String, search: Boolean = false, done: (DjAskAnswer) -> Unit = {}) {
+        val cur = current
+        val body = DjAskAnswer.body(text, cur?.title, cur?.artist, djSurface, java.time.LocalDateTime.now().hour, search)
+        djExec.execute {
+            val a = try { djWeb.djAsk(body) } catch (_: Exception) { null } ?: DjAskAnswer.SORRY
+            handler.post {
+                DjAskRunner.run(askPlayer, a)
+                if (a.say.isNotBlank() && (a.clip != null || a.deviceVoice)) try { voice().say(DjCue(a.say, a.say, a.clip, a.deviceVoice)) } catch (_: Exception) { }
+                done(a)
+            }
+            val artist = a.waitArtist; val title = a.waitTitle
+            // waited for on its own thread, so the DJ's next lines are not held up
+            if (artist != null && title != null) Thread({
+                for (i in 0 until 120) {
+                    try { Thread.sleep(5_000) } catch (_: InterruptedException) { return@Thread }
+                    val landed = try { djWeb.djLanded(artist, title) } catch (_: Exception) { false }
+                    if (landed) {
+                        // the phone's library learns of the song at its next sync; by title until then nothing is played
+                        val t = App.of(ctx).library.let { it.findSong(title, artist) ?: it.findLoose(title, artist) }
+                        if (t != null) { handler.post { play(listOf(t), 0, shuffle = false); done(DjAskAnswer(DjAskDo.NONE, "Here it is: ${t.title}, by ${t.artist}.")) }; return@Thread }
+                    }
+                }
+            }, "dj-ask-wait").apply { isDaemon = true }.start()
+        }
+    }
+
+    private val askPlayer = object : DjAskPlayer<Track> {
+        override fun find(s: DjAskSong): Track? {
+            val lib = App.of(ctx).library
+            return DjAskRunner.resolve(s, { lib.byPath()[it] }, { f -> lib.songs().firstOrNull { it.filePath == f } }, { t, a -> lib.findSong(t, a) })
+        }
+        override fun play(list: List<Track>, title: String, shuffle: Boolean) = this@PlayerController.play(list, 0, shuffle = shuffle, context = title.ifBlank { null })
+        override fun upNext(list: List<Track>, replace: Boolean) { list.asReversed().forEach { addNext(it) } }
+        override fun next() = this@PlayerController.next()
+        override fun pause() = this@PlayerController.pause()
+        override fun resume() = this@PlayerController.resume()
+        override fun nudgeVolume(delta: Float) { volume = (volume + delta).coerceIn(0f, 1f) }
+        override fun setDj(on: Boolean) { if (djAvailable && djOn != on) flipDj() }
+    }
+
     private fun djAsk() {
         if (!hasQueue || !exo.playWhenReady) return
         // a skip burst: asked once it settles (commitBurst)

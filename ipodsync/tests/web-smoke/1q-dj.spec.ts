@@ -164,7 +164,7 @@ test.describe.serial('the DJ', () => {
   });
 
   for (const [w, h] of [[360, 780], [390, 844]]) {
-    test(`on a ${w}px phone the six controls fit across the screen`, async ({ page }) => {
+    test(`on a ${w}px phone the controls (six, or seven with the mic) fit across the screen`, async ({ page }) => {
       test.setTimeout(120_000);
       await page.setViewportSize({ width: w, height: h });
       await signIn(page);
@@ -173,7 +173,7 @@ test.describe.serial('the DJ', () => {
       const tr = page.locator('.ls-transport');
       await expect(tr.getByRole('button', { name: 'DJ', exact: true })).toBeVisible({ timeout: 20_000 });
       const boxes = await tr.evaluate((el) => [...el.children].map((c) => { const r = c.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width }; }));
-      expect(boxes).toHaveLength(6);
+      expect(boxes).toHaveLength(await tr.locator(".dj-mic").count() ? 7 : 6);
       for (const x of boxes) { expect(x.l).toBeGreaterThanOrEqual(0); expect(x.r).toBeLessThanOrEqual(w); expect(x.w).toBeGreaterThanOrEqual(38); }
       for (let i = 1; i < boxes.length; i++) expect(boxes[i].l).toBeGreaterThanOrEqual(boxes[i - 1].r - 0.5);   // none on top of another
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);

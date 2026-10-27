@@ -282,6 +282,7 @@ private fun NpExtras(snap: PlayerSnap, nav: PlayerNav) {
             // the AI DJ for this queue (lit when on); a long press opens its settings. Not there without FLACie Web
             snap.dj?.let { on ->
                 GlossButton({ djTap(app) }, label = djLabel(on), size = 44.dp, primary = on, onLongClick = { openDjSettings(nav) }) { GlyphIcon(Glyph.DJ, Modifier.size(22.dp), Color.White) }
+                DjMicButton(44.dp)
             }
             GlossButton({ openTrackSheet(app, nav, t) }, label = "More", size = 44.dp) { GlyphIcon(Glyph.MORE, Modifier.size(22.dp), Color.White) }
         }

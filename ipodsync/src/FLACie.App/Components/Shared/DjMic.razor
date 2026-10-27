@@ -1,0 +1,67 @@
+@inherits UserComponent
+@implements IAsyncDisposable
+@* "Talk to the DJ": press to listen (the browser's own speech recogniser), press again or stay quiet to stop. Nothing listens until it is pressed, and only the
+   words it recognised go to FLACie. Hidden where the browser has no recogniser (Firefox) or the host reads no requests. With OnHeard (the search box) the words
+   go there instead, unless they are a request to the DJ ("play my pop playlist"). *@
+@if (supported && Player.CanAskDj)
+{
+    <button type="button" class="@Class dj-mic @(listening ? "on listening" : "") @(busy ? "busy" : "")" @onclick="Press" @onclick:stopPropagation="true"
+            aria-label="@(listening ? "Listening. Press to stop" : busy ? "Thinking…" : "Talk to the DJ")" aria-pressed="@(listening ? "true" : "false")"
+            title="@(listening ? "Listening… press again to stop" : "Talk to the DJ: “play my pop playlist”, “something chill”, “what's this song?”")" data-testid="dj-mic">
+        <Icon Name="mic" Size="@Size" />
+    </button>
+}
+@code {
+    [Parameter] public string Class { get; set; } = "ls-plain";
+    [Parameter] public int Size { get; set; } = 22;
+    /// <summary>Words that are not a request to the DJ go here (the search box); without it, everything is a request.</summary>
+    [Parameter] public EventCallback<string> OnHeard { get; set; }
+    [Inject] Toasts Toast { get; set; } = default!;
+    [Inject] IJSRuntime MicJs { get; set; } = default!;
+    bool supported, listening, busy;
+    DotNetObjectReference<DjMic>? me;
+
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        if (!first) return;
+        try { supported = await MicJs.InvokeAsync<bool>("flacie.micAvailable"); } catch (Exception) { supported = false; }
+        if (supported) StateHasChanged();
+    }
+
+    async Task Press()
+    {
+        if (busy) return;
+        me ??= DotNetObjectReference.Create(this);
+        try
+        {
+            if (listening) { await MicJs.InvokeVoidAsync("flacie.micStop"); listening = false; }
+            else listening = await MicJs.InvokeAsync<bool>("flacie.micStart", me);
+        }
+        catch (Exception) { listening = false; }
+    }
+
+    [JSInvokable] public Task Ended() => InvokeAsync(() => { listening = false; StateHasChanged(); });
+
+    [JSInvokable] public Task Heard(string text) => InvokeAsync(async () =>
+    {
+        listening = false;
+        text = (text ?? "").Trim();
+        if (text.Length == 0) { StateHasChanged(); return; }
+        if (OnHeard.HasDelegate && RetroHost.DjIsRequest?.Invoke(text) != true) { await OnHeard.InvokeAsync(text); return; }
+        busy = true; StateHasChanged();
+        try
+        {
+            var a = await Player.AskDjAsync(text);
+            // said in the DJ's voice when it could be; otherwise the answer is shown
+            if (a is { Say.Length: > 0, Clip: null, DeviceVoice: false }) Toast.Show(a.Say);
+        }
+        catch (Exception) { Toast.Show("Sorry, I couldn't reach the DJ."); }
+        finally { busy = false; StateHasChanged(); }
+    });
+
+    public async ValueTask DisposeAsync()
+    {
+        if (listening) { try { await MicJs.InvokeVoidAsync("flacie.micStop"); } catch (Exception) { } }
+        me?.Dispose();
+    }
+}

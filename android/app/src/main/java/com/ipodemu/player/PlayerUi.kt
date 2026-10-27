@@ -1345,6 +1345,8 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         SearchPill(query, { query = it }, "Songs, albums, artists", Modifier.padding(16.dp), shape = RoundedCornerShape(50), background = Color(0x26FFFFFF), borderColor = sc.cardBorder,
             height = 46.dp, textSize = 16f, onSubmit = { searchFocus.clearFocus() }, trailing = {
                 if (query.isNotEmpty()) IconAction(Glyph.CLOSE, "Clear search", { query = "" }, tint = sc.onBgDim, size = 44.dp, iconScale = 0.45f)
+                // speak to search; a request to the DJ ("play my pop playlist") is carried out instead
+                else DjMicButton(size = 38.dp, tint = sc.onBg, glass = Color.Transparent, onSearch = { query = it })
             })
         val online = rememberOnline()
         if (!online) OfflineChip(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp), "Offline: searching only the music on this device")

@@ -145,6 +145,7 @@ builder.Services.AddAlexa(dataDir);
 var cloudflareClient = builder.Services.AddHttpClient("cloudflare", c => { c.Timeout = TimeSpan.FromSeconds(30); c.DefaultRequestHeaders.UserAgent.ParseAdd("FLACie/1.0"); });
 if (CatalogRedirectHandler.Parse(builder.Configuration["FLACIE_CATALOG_REDIRECT"]) is { } cfRedirect) cloudflareClient.AddHttpMessageHandler(() => new CatalogRedirectHandler(cfRedirect));
 builder.Services.AddDj();
+builder.Services.AddDjAsk();
 
 var app = builder.Build();
 // the web Home's picks learn from each account's listening log and the songs' vibes
@@ -160,6 +161,11 @@ var app = builder.Build();
     RetroHost.DjFailed = e => djLog.LogWarning("DJ ask failed: {Kind} {Message}", e.GetType().Name, e.Message);
     RetroHost.Listen = (s, e) =>ListenApi.Accept(listens, s, [e], () => ListenSeed.From(s.History, s.Favorites, s.PlayStats, s.Library));
     // web Autoplay asks the engine first (songs in the library only; the player keeps its own list when this fails or is empty)
+    // "talk to the DJ" from the web player's mic button, in process
+    var djAsk = app.Services.GetRequiredService<FLACie.Server.Dj.DjAskService>();
+    RetroHost.DjAsk = (s, text, current, recent, ct) => djAsk.AskAsync(s, text, current, recent, ct, null, DjSurface.Web);
+    RetroHost.DjLanded = (s, artist, title) => djAsk.Landed(s, artist, title);
+    RetroHost.DjIsRequest = text => FLACie.Server.Dj.DjAskRules.Parse(text) is not null;
     RetroHost.RecommendNext = (s, played, n) =>
         RecommendApi.InputsOf(s, listens, vibes, related) is { } inputs
             ? RecommendApi.Picks(inputs, played, n, DateTime.UtcNow, Environment.TickCount64).Where(p => p.Track is not null).Select(p => (p.Track!, p.Why)).ToList()
@@ -227,6 +233,7 @@ app.MapApi();
 app.MapRecommend();
 app.MapAlexa();
 app.MapDj();
+app.MapDjAsk();
 // local diagnostics only (FLACIE_DEBUG=1): the signed-in user's own Jellyfin, GET or POST, so a session problem can be looked at directly
 if (builder.Configuration["FLACIE_DEBUG"] == "1")
 {

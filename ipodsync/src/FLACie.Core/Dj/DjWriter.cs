@@ -7,10 +7,12 @@ namespace FLACie.Core;
 /// <summary>The facts a model-written line may use: what the planner knows about this song change, already tidied. Blank fields are unknown and never mentioned.</summary>
 /// <remarks>[Genre], [ReleaseType] ("single", "live album"), [FirstYear] (when it first came out, only if before [Year]), [Label], [Feel] ("a big one"),
 /// [Colour] ("Monday morning"), [FirstName] (only at the start of a session) and [Style]: from MusicBrainz, the vibe index and the account.
+/// [Request]: what the listener asked the DJ for lately ("car songs"), so a line can keep it going; [Context]: the shared <see cref="DjContext"/> summary.
 /// [IntroMs] (0 = not known) and [TargetWords] (0 = no target): the song's intro before the singing, and how many words fit it (<see cref="DjTiming.TargetWords"/>).</remarks>
 public sealed record DjFacts(string Title, string Artist, string ArtistLead, string? Guest, string Album, int Year, string PrevTitle, string PrevArtist,
     bool Open, string TimeOfDay, string Day, string Mood, string Why, string Find, string TemplateLine,
-    string Genre = "", string ReleaseType = "", int FirstYear = 0, string Label = "", string Feel = "", string Colour = "", string FirstName = "", DjStyle Style = DjStyle.Classic, int IntroMs = 0, int TargetWords = 0);
+    string Genre = "", string ReleaseType = "", int FirstYear = 0, string Label = "", string Feel = "", string Colour = "", string FirstName = "", DjStyle Style = DjStyle.Classic, int IntroMs = 0, int TargetWords = 0,
+    string Request = "", string Context = "");
 
 /// <summary>
 /// Writes the DJ's line with a small text model (Workers AI) instead of a template: the prompt (a DJ character plus the facts), and the checks on what comes back.
@@ -111,9 +113,11 @@ public static partial class DjWriter
         Put("Listener", f.Mood);
         Put("Why this song was picked", f.Why);
         Put("This song is", f.Find);
+        Put("They asked you for (you may keep it going, in your own words)", f.Request);
         Put("A plain version of the line (do better than this)", f.TemplateLine);
         if (f.TargetWords > 0)
             Put("Length", $"the song's intro before the singing is about {Math.Round(f.IntroMs / 1000.0).ToString(CultureInfo.InvariantCulture)} seconds, so keep the line to about {f.TargetWords} words");
+        if (f.Context.Length > 0) sb.Append("What you know about this listener right now (use only if it fits):\n").Append(f.Context);
         var rs = recent.Where(r => r.Length > 0).TakeLast(Recent).ToList();
         if (rs.Count > 0)
         {
@@ -168,7 +172,7 @@ public static partial class DjWriter
         // every capitalised word mid-sentence and every number comes from the facts
         var known = string.Join(" \n ", new[] { f.Title, f.Artist, f.Album, f.PrevTitle, f.PrevArtist, f.Why, f.Day, f.TimeOfDay, f.TemplateLine,
             f.Year > 0 ? f.Year.ToString(CultureInfo.InvariantCulture) : "", f.FirstYear > 0 ? f.FirstYear.ToString(CultureInfo.InvariantCulture) : "",
-            f.Genre, f.ReleaseType, f.Label, f.Feel, f.Colour, f.FirstName }).ToLowerInvariant();
+            f.Genre, f.ReleaseType, f.Label, f.Feel, f.Colour, f.FirstName, f.Request, f.Context }).ToLowerInvariant();
         static bool Word(string text, string w) => Regex.IsMatch(text, @"(?<![\p{L}])" + Regex.Escape(w) + @"(?![\p{L}])");
         if (Cheesy.Any(c => Word(low, c) && !Word(known, c))) return null;
         foreach (Match m in Number().Matches(s))

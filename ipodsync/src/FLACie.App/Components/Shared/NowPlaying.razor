@@ -66,7 +66,7 @@
                         @if (Player.Dj is not null)
                         {
                             var djOn = Player.DjOn;
-                            <button class="ls-plain ls-dj @(djOn ? "on" : "")" @onclick="Player.ToggleDjAsync" @oncontextmenu="() => Go(DjSettingsUrl)" @oncontextmenu:preventDefault="true" aria-label="DJ" aria-pressed="@(djOn ? "true" : "false")" title="@(djOn ? "DJ on for this queue" : "DJ off for this queue"). Hold, or right-click, for Settings → DJ."><Icon Name="dj" Size="22" /></button>
+                            <button class="ls-plain ls-dj @(djOn ? "on" : "")" @onclick="Player.ToggleDjAsync" @oncontextmenu="GoDjSettings" @oncontextmenu:preventDefault="true" aria-label="DJ" aria-pressed="@(djOn ? "true" : "false")" title="@(djOn ? "DJ on for this queue" : "DJ off for this queue"). Hold, or right-click, for Settings → DJ."><Icon Name="dj" Size="22" /></button>
                         }
                         <button class="ls-pillbtn" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="24" /></button>
                         @* the seek bar is a ring: the song's own loudness as bars round the play button (flacie.npWave draws it and turns a press or drag on it into a
@@ -77,6 +77,8 @@
                             <button class="ls-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="34" /></button>
                         </div>
                         <button class="ls-pillbtn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="24" /></button>
+                        @* talk to the DJ: on the other side of the controls from the DJ button *@
+                        <DjMic />
                         <button class="ls-plain @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="22" /></button>
                     </div>
                 </div>
@@ -262,6 +264,12 @@
     Task GoAlbum(Track t) => Go("/album/" + Uri.EscapeDataString(t.AlbumKey));
     Task Go(string url) { CloseMore(); Nav.NavigateTo(url); return Task.CompletedTask; }
     const string DjSettingsUrl = "/settings#dj";
+    // out of the full-screen player to Settings → DJ: the player closes first (flacie.npGo), so the settings are not left underneath it
+    async Task GoDjSettings()
+    {
+        CloseMore();
+        try { await Js.InvokeVoidAsync("flacie.npGo", DjSettingsUrl); } catch (Exception) { await OnClose.InvokeAsync(); Nav.NavigateTo(DjSettingsUrl); }
+    }
     void CloseMore() { more = false; plOpen = false; _ = Js.InvokeVoidAsync("flacie.unwatchOutside").AsTask().ContinueWith(_ => { }); }
     void Plain(Action act, string message) { act(); Toast.Show(message); CloseMore(); }
     static string FileName(Track t) => string.Concat($"{t.Artist} - {t.Title}".Split(Path.GetInvalidFileNameChars())) + (MediaInfo.FromExtension(t.FilePath ?? "") is { Length: > 0 } e ? "." + e : "");

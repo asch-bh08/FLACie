@@ -14,6 +14,8 @@
         <Icon Name="search" Size="18" />
         <TextBox Type="search" Placeholder="Search songs, albums, artists, or music to download" Label="Search" Value="@q" ValueChanged="OnText" DelayMs="300" />
         @if (q.Length > 0) { <button type="button" class="icon-btn" aria-label="Clear search" @onclick="Clear"><Icon Name="x" Size="16" /></button> }
+        @* speak to search; a request to the DJ ("play my pop playlist") is carried out instead *@
+        <DjMic Class="icon-btn" Size="18" OnHeard="Spoken" />
     </form>
     }
     <div class="top-account">
@@ -84,6 +86,7 @@
     void OnText(string text) { q = text; Navigate(); }
 
     void Go() { Navigate(); }
+    void Spoken(string text) { q = text; Navigate(); }
     void Clear() { q = ""; Navigate(); }
     void Navigate()
     {

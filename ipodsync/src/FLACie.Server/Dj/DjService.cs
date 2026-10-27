@@ -96,6 +96,8 @@ public sealed class DjService : IDjService
     public Func<UserSession, DjRequest, (DjExtra? Extra, DjBond Bond)>? Facts { get; set; }
     /// <summary>Make the pooled phrases of a voice and style ahead of time (on where the server registers the DJ; off in tests that count calls).</summary>
     public bool WarmPool { get; set; }
+    /// <summary>The shared per-person context (the same one "talk to the DJ" reads): the lines see what was asked lately and the session so far. Null in tests that leave it out.</summary>
+    public DjContexts? Contexts { get; set; }
     readonly ConcurrentDictionary<string, bool> warmed = new();
 
     /// <summary>The first name for the hello, from the account's name when it looks like one.</summary>
@@ -151,6 +153,14 @@ public sealed class DjService : IDjService
             }
         }
         catch (Exception e) { log.LogDebug("DJ facts not read: {Kind}", e.GetType().Name); }
+        var ctx = Contexts?.For(s.Id);
+        if (ctx is not null)
+        {
+            var now = clock();
+            ctx.Seen(req.Surface, now);
+            if (req.Prev is { } pv) ctx.Played(pv.Path, pv.Title, pv.Artist, !req.PrevPlayedOut, extra?.PrevVibe?.Energy, now);
+            if (req.Why is { Length: > 0 } why) ctx.Picked(req.Next.Path, why);
+        }
         DjLine? line; string key; DjMemory mem;
         try { line = Decide(s, st, req, extra, out key, out mem); }
         catch (Exception e) { log.LogWarning("DJ line not written: {Kind}", e.GetType().Name); return null; }
@@ -159,7 +169,12 @@ public sealed class DjService : IDjService
             _ = Task.Run(() => clips.WarmAsync(DjPool.All(st.Style)));
         // the planner said when; the budget says whole or pooled; the text model says how (once per decision; the template line on any failure)
         var planned = line; var name = FirstNameOf(s);
-        var (said, pooled) = await written.GetOrAdd(key, _ => (clock(), new Lazy<Task<(DjLine, bool)>>(() => VoiceAsync(req, planned, mem, st.Style, extra, name)))).Job.Value;
+        var (said, pooled) = await written.GetOrAdd(key, _ => (clock(), new Lazy<Task<(DjLine, bool)>>(async () =>
+        {
+            var r = await VoiceAsync(req, planned, mem, st.Style, extra, name, ctx);
+            ctx?.Said(r.Line.Caption);
+            return r;
+        }))).Job.Value;
         // the person chose the device's own voice: every line is said by it, and no clip is made
         if (st.DeviceVoice) return new DjCue(said.Text, said.Caption, null, true, DjIntro.Usable(extra?.Vibe?.Intro));
         // one voice only: the line in the saved voice; when that can't be had (over today's cap, Cloudflare failing) the planned line, or its pooled form, from
@@ -186,7 +201,7 @@ public sealed class DjService : IDjService
     /// How the planned line is said. With an Aura voice, a whole line (the model's, or the template) only while it leaves room for the pooled lines still to come
     /// today (<see cref="DjBudget"/>); otherwise the pooled form, whose phrases and name clip are kept and shared. A line whose clip is already made is whole for free.
     /// </summary>
-    async Task<(DjLine Line, bool Pooled)> VoiceAsync(DjRequest req, DjLine line, DjMemory mem, DjStyle style, DjExtra? extra, string? firstName)
+    async Task<(DjLine Line, bool Pooled)> VoiceAsync(DjRequest req, DjLine line, DjMemory mem, DjStyle style, DjExtra? extra, string? firstName, DjContext? ctx = null)
     {
         var c = voice.Current;
         var ai = AiLines && c.AiLines && voice.Ready;
@@ -202,7 +217,7 @@ public sealed class DjService : IDjService
                 return (pooled, true);
             }
         }
-        return (ai ? await RewriteAsync(req, line, mem, extra, style, firstName) : line, false);
+        return (ai ? await RewriteAsync(req, line, mem, extra, style, firstName, ctx) : line, false);
     }
 
     /// <summary>The line said replaces the planned one in the memory, so the next prompts avoid it.</summary>
@@ -218,7 +233,7 @@ public sealed class DjService : IDjService
 
     /// <summary>The planner's line reworded by the text model, or [line] itself when the model fails, is too slow, is near the cap or writes something doubtful.
     /// A line it wrote replaces the template line in the memory, so the next prompts avoid it.</summary>
-    async Task<DjLine> RewriteAsync(DjRequest req, DjLine line, DjMemory mem, DjExtra? extra = null, DjStyle style = DjStyle.Classic, string? firstName = null)
+    async Task<DjLine> RewriteAsync(DjRequest req, DjLine line, DjMemory mem, DjExtra? extra = null, DjStyle style = DjStyle.Classic, string? firstName = null, DjContext? ctx = null)
     {
         try
         {
@@ -230,6 +245,12 @@ public sealed class DjService : IDjService
                 recent = mem.Lines.Where(l => !ReferenceEquals(l, mine)).TakeLast(DjWriter.Recent).Select(l => l.Written ?? l.Text).ToList();
             }
             var f = DjWriter.FactsOf(req, line, clock(), extra, style, firstName);
+            // the shared context: what they asked for lately, the session, and the answers given (also the lines it said in reply to an ask, never repeated)
+            if (ctx is not null)
+            {
+                f = f with { Request = ctx.Request(clock()) ?? "", Context = ctx.Summary(clock(), req.LocalHour) };
+                recent = [.. recent, .. ctx.Lines.Where(l => !recent.Contains(l))];
+            }
             var (sys, user) = DjWriter.Prompt(f, recent);
             using var cts = new CancellationTokenSource(WriteTimeout);
             string? raw;

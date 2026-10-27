@@ -144,6 +144,25 @@ class FlacieWebClient(private val prefs: Prefs) {
         } finally { c.disconnect() }
     }
 
+    /** "Talk to the DJ": the recognised words ([body] from DjAskAnswer.body) to the server's one request reader. Null when it can't be reached in time. */
+    fun djAsk(body: String): com.ipodemu.playback.DjAskAnswer? {
+        val c = open("/api/dj/ask", "POST")
+        c.connectTimeout = 5_000; c.readTimeout = 10_000
+        try {
+            val b = body.toByteArray()
+            c.doOutput = true; c.setRequestProperty("Content-Type", "application/json"); c.setFixedLengthStreamingMode(b.size)
+            c.outputStream.use { it.write(b) }
+            if (c.responseCode !in 200..299) return null
+            return com.ipodemu.playback.DjAskAnswer.parse(c.inputStream.bufferedReader().use { it.readText() })
+        } finally { c.disconnect() }
+    }
+
+    /** Whether a song fetched for a request has landed on the server (its server path), else null. */
+    fun djLanded(artist: String, title: String): Boolean {
+        val q = "artist=" + java.net.URLEncoder.encode(artist, "UTF-8") + "&title=" + java.net.URLEncoder.encode(title, "UTF-8")
+        return JSONObject(send("/api/dj/ask/landed?$q", "GET")).optString("path").let { it.isNotBlank() && it != "null" }
+    }
+
     fun account(): AccountStats =JSONObject(send("/api/account", "GET")).let { AccountStats(it.optInt("songs"), it.optInt("albums"), it.optInt("artists"), it.optInt("playlists"), it.optInt("favourites"), it.optBoolean("admin")) }
 
     /** A chart (0 = Top Songs; the ids come from [settings]), as the server read it from the public charts. */

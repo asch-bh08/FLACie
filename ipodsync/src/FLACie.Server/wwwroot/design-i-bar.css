@@ -12,7 +12,8 @@
 .player .bar-song { color: inherit; gap: 14px; }
 .player .bar-song .cover { border-radius: 14px; overflow: hidden; width: 62px; height: 62px; }
 .player .bar-text { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 3px; }
-.player .bar-text b { flex: 0 0 100%; font: 400 24px/1.05 'Instrument Serif', serif; letter-spacing: 0; }
+/* room under the line for the italic's tails (the g of "Lovegame" was cut off by the clipped box); the negative margin keeps the layout where it was */
+.player .bar-text b { flex: 0 0 100%; font: 400 24px/1.05 'Instrument Serif', serif; letter-spacing: 0; padding-bottom: .14em; margin-bottom: -.14em; }
 .player .bar-text b i { font-style: italic; }
 .player .bar-text small { font-size: 13px; color: rgba(244, 239, 230, .75); min-width: 0; max-width: 100%; }
 .player .bar-chip { font: 500 11px/1 'DM Mono', ui-monospace, monospace; color: rgba(244, 239, 230, .8); border: 1px solid rgba(244, 239, 230, .3); border-radius: 999px; padding: 3px 8px; white-space: nowrap; }

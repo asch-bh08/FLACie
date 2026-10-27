@@ -446,6 +446,7 @@ window.flacie = (() => {
     return { stop() { mo.disconnect(); ro.disconnect(); if (frame) cancelAnimationFrame(frame); } };
   };
   let npRef = null, npPushed = false;
+  let micRec = null;   // the speech recogniser while the mic listens (micStart)
   const npClosed = () => { const r = npRef; npRef = null; npPushed = false; document.body.classList.remove("np-open"); if (r) r.invokeMethodAsync("Closed").catch(() => { }); };
   // Back onto a "#now-playing" entry (after following a link out of the full-screen player) brings the player back instead of landing on the bare page
   let barRef = null;
@@ -1390,6 +1391,26 @@ window.flacie = (() => {
     djStop() { djHalt(true); },
     // for the tests: how far the music is ducked, and whether the DJ is talking
     djState() { return { duck: duckGain, clip: !!djAudio, speaking: djSpeaking, vol: djVol, under: djDuck, clipVolume: djAudio ? djAudio.volume : null }; },
+    // ---- "talk to the DJ" (DjMic.razor): the browser's own speech recogniser, listening only from a press until the person stops talking (or presses again).
+    // Only the words it recognised go back to the page; no sound is kept or sent to FLACie. ----
+    micAvailable() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); },
+    micStart(ref) {
+      const R = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!R) return false;
+      if (micRec) { try { micRec.abort(); } catch { } }
+      const rec = new R(); micRec = rec;
+      rec.lang = navigator.language || "en-GB"; rec.continuous = false; rec.interimResults = false; rec.maxAlternatives = 1;
+      let said = false;
+      rec.onresult = (e) => {
+        const r = e.results && e.results[0] && e.results[0][0];
+        if (r && r.transcript && !said) { said = true; ref.invokeMethodAsync("Heard", r.transcript).catch(() => { }); }
+      };
+      const end = () => { if (micRec === rec) micRec = null; if (!said) ref.invokeMethodAsync("Ended").catch(() => { }); };
+      rec.onend = end; rec.onerror = end;
+      try { rec.start(); } catch { micRec = null; return false; }
+      return true;
+    },
+    micStop() { if (micRec) { try { micRec.stop(); } catch { } } },
   };
 })();
 

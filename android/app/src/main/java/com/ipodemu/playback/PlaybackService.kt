@@ -150,7 +150,8 @@ class PlaybackService : MediaLibraryService() {
                 val src = AppBrowseSource(App.of(this@PlaybackService))
                 val out = mediaItems.map { item ->
                     val q = item.requestMetadata.searchQuery
-                    if (item.mediaId.isEmpty() && !q.isNullOrBlank()) {
+                    if (item.mediaId.isEmpty() && !q.isNullOrBlank() && App.of(this@PlaybackService).player.djAvailable) item.buildUpon().setMediaId(BrowseTree.askId(q)).build()
+                    else if (item.mediaId.isEmpty() && !q.isNullOrBlank()) {
                         val first = BrowseTree.searchPlay(q, src)?.let { r -> r.tracks[r.index] }
                         if (first != null) item.buildUpon().setMediaId(BrowseTree.voiceId(q, first.path)).build() else item
                     } else item

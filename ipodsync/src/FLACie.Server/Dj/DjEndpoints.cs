@@ -14,6 +14,7 @@ public static class DjEndpoints
     public static void AddDj(this IServiceCollection services)
     {
         services.AddSingleton<CloudflareVoice>();
+        services.AddSingleton<DjContexts>();
         services.AddSingleton<DjClips>();
         services.AddSingleton(sp =>
         {
@@ -21,6 +22,7 @@ public static class DjEndpoints
             d.AiLines = true; d.WarmPool = true;
             var facts = new DjFactsSource(sp.GetService<VibeIndex>(), sp.GetService<MusicBrainzClient>(), sp.GetService<ListenLogStore>());
             d.Facts = facts.Of;
+            d.Contexts = sp.GetRequiredService<DjContexts>();
             return d;
         });
         // the Windows app's copy of this server goes through the family's FLACie Web when the profile names one (HomeDj); FLACie Web itself is the DJ

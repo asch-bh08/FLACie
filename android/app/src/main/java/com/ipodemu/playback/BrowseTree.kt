@@ -84,6 +84,13 @@ object BrowseTree {
 
     /** The id a voice command plays: the first song of what [searchPlay] found, with the rest of it queued after. */
     fun voiceId(query: String, path: String) = songId("voice:$query", path)
+
+    /** A car voice request ("play my pop playlist") handed to the DJ's request reader on FLACie Web (one parser for every player); see [askWords]. */
+    private const val ASK = "dj-ask:"
+    fun askId(query: String) = ASK + query.trim().take(300)
+    fun parseAsk(id: String): String? = if (id.startsWith(ASK)) id.substring(ASK.length).takeIf { it.isNotBlank() } else null
+    /** The car hands over what was said after "play" ("my pop playlist", "Smack That"): said back as a request. */
+    fun askWords(query: String): String { val q = query.trim(); return if (q.isEmpty() || Regex("^(play|put on|shuffle|skip|next|pause|resume)\\b",RegexOption.IGNORE_CASE).containsMatchIn(q)) q else "play $q" }
     fun playlistId(id: String) = "pl:$id"
     /** The app's playlist id behind a play request from a playlist (the playlist itself, Play all, Shuffle, or one of its songs); null for anything else. The DJ's per-playlist switch reads it. */
     fun playlistOf(mediaId: String): String? {

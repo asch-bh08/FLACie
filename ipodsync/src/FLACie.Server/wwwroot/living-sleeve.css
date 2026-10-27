@@ -54,7 +54,7 @@
 /* title: serif with the last word in italics; the artist in bold; the file in a mono chip; a tinted round heart */
 .ls-title { display: flex; align-items: flex-end; gap: 12px; }
 .ls-names { flex: 1; min-width: 0; }
-.ls-names h2 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 52px; line-height: .95; letter-spacing: -.01em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.ls-names h2 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 52px; line-height: .95; letter-spacing: -.01em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; padding-bottom: .14em; margin-bottom: -.14em; }
 .ls-names h2 i { font-style: italic; }
 .ls-names h2.long { font-size: 40px; }
 .ls-byline { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 10px; }
@@ -373,3 +373,19 @@
   .ls-transport.has-dj .ls-pillbtn { width: 52px; }
 }
 @media (min-width: 761px) { .ls-transport.has-dj { gap: 16px; } }
+
+/* "talk to the DJ" (DjMic.razor): a glass ring that breathes while the browser listens, dimmed while the DJ works out the answer */
+.dj-mic { position: relative; }
+.dj-mic.listening { color: var(--np-accent, var(--accent)); background: color-mix(in srgb, var(--np-accent, var(--accent)) 18%, transparent); backdrop-filter: blur(10px); }
+.dj-mic.listening::after { content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid var(--np-accent, var(--accent)); animation: dj-mic-breathe 1.2s ease-in-out infinite; pointer-events: none; }
+.dj-mic.busy { opacity: .55; }
+@keyframes dj-mic-breathe { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.15); opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .dj-mic.listening::after { animation: none; } }
+.top-search .dj-mic { flex: none; }
+/* the mic on the other side (a seventh control, only where the browser can listen): the row draws closer again to keep its width */
+@media (max-width: 760px) {
+  .ls-transport.has-dj:has(.dj-mic) { gap: 2px; }
+  .ls-transport.has-dj:has(.dj-mic) .ls-plain { width: 38px; }
+  .ls-transport.has-dj:has(.dj-mic) .ls-pillbtn { width: 46px; }
+}
+@media (min-width: 761px) { .ls-transport.has-dj:has(.dj-mic) { gap: 7px; } }

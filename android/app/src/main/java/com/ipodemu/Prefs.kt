@@ -354,6 +354,10 @@ class Prefs(ctx: Context) {
     var djSettings: String
         get() = sp.getString("djSettings", "") ?: ""
         set(v) = sp.edit().putString("djSettings", v).putLong("djSettingsAt", System.currentTimeMillis()).apply()
+    /** The DJ mic said why it wants the microphone once (before Android's own question). */
+    var micAsked: Boolean
+        get() = sp.getBoolean("micAsked", false)
+        set(v) = sp.edit().putBoolean("micAsked", v).apply()
     /** When [djSettings] was last stored (epoch ms). */
     val djSettingsAt: Long get() = sp.getLong("djSettingsAt", 0L)
 

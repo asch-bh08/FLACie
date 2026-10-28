@@ -174,13 +174,25 @@ private val variousRe = Regex("^(various( artists)?|v\\.?a\\.?|compilations?)$",
  * song that has none: on a real Jellyfin AlbumId is not reliable (songs of many different albums were seen sharing one AlbumId, so one wrong picture for
  * all of them), so it must never win over what the song itself carries. A compilation ("Various Artists") uses the song's own picture as well.
  */
+/** The web's Art.OnCompilation: "Various Artists", or a compilation-looking album name ("Now That's What I Call...", "...Hits", "Ministry of Sound")
+ *  credited to someone other than the song's artist. */
+private val compilationRe = Regex("""(now that'?s what i call|now \d+|various|ministry of sound|hits?|anthems?|summer|party|workout|karaoke|tribute|mix)""", RegexOption.IGNORE_CASE)
+internal fun onCompilation(artist: String, albumArtist: String, album: String): Boolean =
+    albumArtist.contains("various", ignoreCase = true) ||
+        (album.isNotEmpty() && compilationRe.containsMatchIn(album) && albumArtist.isNotEmpty() && primaryArtist(albumArtist).lowercase() != primaryArtist(artist).lowercase())
+
 internal fun coverOf(o: JSONObject): CoverRef? {
     val id = o.optString("Id")
+    val songArtist = o.optJSONArray("Artists")?.optString(0)?.takeIf { it.isNotBlank() } ?: o.optString("AlbumArtist")
     val albumId = o.optString("AlbumId")
     val own = o.optJSONObject("ImageTags")?.optString("Primary")?.takeIf { it.isNotEmpty() }
     val albumTag = if (o.isNull("AlbumPrimaryImageTag")) null else o.optString("AlbumPrimaryImageTag").takeIf { it.isNotEmpty() }
     return when {
         own != null && id.isNotEmpty() -> CoverRef("jf$id", own)
+        // a song on a compilation without its own picture: the catalog cover of the song itself, as the web does (the album's picture is the
+        // compilation's, and an album lookup of "Various Artists" finds nothing, so the phone showed no cover for these)
+        onCompilation(songArtist, o.optString("AlbumArtist"), o.optString("Album")) && CoverLookup.key(songArtist, "", o.optString("Name")) != null ->
+            CoverRef(CoverLookup.key(songArtist, "", o.optString("Name"))!!, null)
         albumId.isNotEmpty() && albumTag != null -> CoverRef("jf$albumId", albumTag)
         // the server says neither the song nor its album has a picture: the public catalog (as the web does), one lookup per album, instead of a placeholder
         else -> CoverLookup.key(o.optString("AlbumArtist").ifBlank { o.optJSONArray("Artists")?.optString(0).orEmpty() }, o.optString("Album"), if (o.optString("Album").isBlank()) o.optString("Name") else "")?.let { CoverRef(it, null) }

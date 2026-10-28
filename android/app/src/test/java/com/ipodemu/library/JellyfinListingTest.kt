@@ -137,7 +137,8 @@ class JellyfinListingTest {
 
     @Test fun aCompilationKeepsEachSongsOwnPicture() {
         for (name in listOf("Various Artists", "various", "VA", "V.A.", "Compilations")) {
-            val va = flac24.replace("\"AlbumArtist\":\"Artist\"", "\"AlbumArtist\":\"$name\"")
+            // (with no picture of its own and no album picture)
+        val va = flac24.replace("\"AlbumArtist\":\"Artist\"", "\"AlbumArtist\":\"$name\"")
             val it = JellyfinDirectClient.itemsOf(base, list(va)).single()
             assertEquals(name, "jfaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1", it.track.artKey)
             assertEquals("songtag1", it.coverTag)
@@ -158,6 +159,18 @@ class JellyfinListingTest {
         assertNull(it.coverTag)
         val bare = item("""{"Id":"cc","Name":"X"}""")
         assertNull(artKeyOf(bare)); assertNull(coverTagOf(bare))
+    }
+
+    // the web gives a song on a compilation ("Various Artists", "Now That's What I Call...") the catalog cover of the song itself (FLACie.Core
+    // JellyfinClient: Art.OnCompilation); the phone looked up "Various Artists" + the album, found nothing, and showed no cover
+    @Test fun aSongOnACompilationGetsItsOwnCatalogCoverAsOnTheWeb() {
+        // (with no picture of its own and no album picture)
+        val va = flac24.replace("\"AlbumArtist\":\"Artist\"", "\"AlbumArtist\":\"Various Artists\"").replace("\"Album\":\"Album\"", "\"Album\":\"Now 100\"")
+            .replace(",\"AlbumPrimaryImageTag\":\"albumtag1\"", "").replace("\"ImageTags\":{\"Primary\":\"songtag1\"},", "\"ImageTags\":{},")
+        assertEquals(CoverLookup.key("Artist", "", "Song One"), artKeyOf(item(va)))
+        val now = flac24.replace("\"AlbumArtist\":\"Artist\"", "\"AlbumArtist\":\"Ministry of Sound\"").replace("\"Album\":\"Album\"", "\"Album\":\"Now That's What I Call Music 50\"")
+        assertEquals("its own picture still comes first", "jf$SONG", artKeyOf(item(now)))
+        assertEquals("an artist's own album is not a compilation", "jf$SONG", artKeyOf(item(flac24)))
     }
 
     @Test fun aSessionsNowPlayingItemUsesTheSameRule() {

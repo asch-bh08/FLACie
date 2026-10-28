@@ -150,3 +150,10 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 - Phone mic stays in the top bar beside the DJ button (owner's choice); mic added to the mini bar (1e88dfa).
 - Voice research (docs/dj-voice-report.md): aura-2 voices (aries, phoebe, aurora) sound warmer but cost twice aura-1; no speed or emotion control; samples not made yet (the agent could not read the token).
 - Engine gate re-run logged above. Phone changes need a beta (owner to say).
+
+## 2026-10-27/28 night: voices, brain, bar (not deployed yet; deploy + beta after the agents' Android work)
+- Voices: Aura-2 (40) + FLACie's own voice Kokoro on frank (container flacie-kokoro, 127.0.0.1:8092, full model, cpu-shares 4096; a 5 s line in ~3.8 s, a short reply ~1.3 s under load). Owner picked Liam (kokoro:am_liam). Samples in docs/dj-voice-samples/. Dashboard: a sample button per voice, kept once made; samples may use up to 95 % of the allowance.
+- Lines written like a friend, not an announcer (DjWriter prompt + templates). The next line is asked for in the song's last 30 s (web + phone), not at its start (115 made / 40 said on 27 Oct).
+- Talk to the DJ: fixed replies made ahead in Kokoro (DjWarmService). Brain (ff5b15a): the model understands every request except plain controls, can ask a question back (conversation mode / Alexa keep listening), "my favs" = loved (plays through, skips, hearts, most played); lines leave 20 % of the allowance for requests.
+- Web bar (c541ac9): DJ button + mic beside the heart; fixed mic over the heart at 900px and Repeat showing on phones (found by the full web run: 523 passed, 3 failed, 1 flaky; the desk and Retro ones passed alone).
+- AlexaReviewFixTests.RecommendNextAsksTheEngineForThisAccountsOwnInputs flakes in full .NET runs (passes alone): load-sensitive, to look at.

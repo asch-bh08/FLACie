@@ -77,7 +77,10 @@ class Library(ctx: Context, val art: ArtCache) {
     fun observe(fn: () -> Unit): () -> Unit { observers.add(fn); return { observers.remove(fn) } }
 
     private val main = Handler(Looper.getMainLooper())
-    private val scope = CoroutineScope(Dispatchers.Default)
+    // a supervisor scope: one job's failure no longer cancels every other job here (a download died that way mid-search and stayed "Searching
+    // Soulseek..." for ever, and every later download and sync job here would have been cancelled at once too). Failures are logged instead.
+    private val scope = CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.Default +
+        kotlinx.coroutines.CoroutineExceptionHandler { _, e -> android.util.Log.w("FLACie", "Library job failed: ${e.javaClass.simpleName}: ${e.message}") })
     private val cacheFile = File(ctx.filesDir, "library.json")
     private var job: Job? = null
     private val scanner = Scanner(ctx, art)
@@ -318,7 +321,8 @@ class Library(ctx: Context, val art: ArtCache) {
         if (title.isNotBlank()) tags.onStatus(matchKey(title, artist), DownloadStatus(DownloadStage.REQUESTED, ""), System.currentTimeMillis())
         scope.launch {
             val report: (DownloadStatus) -> Unit = { status -> onStatus(key, status, DownloadEntry(artist, title.ifBlank { album }, album, "", 0, ""), tagKey = if (title.isBlank()) null else matchKey(title, artist), durationMs = durationMs) }
-            if (hiRes) downloader.downloadHiRes(artist, title, album, durationMs, fallbackToNormal, report) else downloader.download(artist, title, album, durationMs, report)
+            // always ends DONE or FAILED with a reason, and is stopped after 3 minutes without news (DownloadGuard)
+            DownloadGuard.run(report = report) { r -> if (hiRes) downloader.downloadHiRes(artist, title, album, durationMs, fallbackToNormal, r) else downloader.download(artist, title, album, durationMs, r) }
         }
     }
 
@@ -328,7 +332,7 @@ class Library(ctx: Context, val art: ArtCache) {
         if (downloads[key]?.stage.let { it != null && it != DownloadStage.DONE && it != DownloadStage.FAILED }) return
         runningDownloads[key] = RunningDownload(java.util.UUID.randomUUID().toString(), "${a.cleanTitle} · ${a.artist}", "Search", null)
         // the entry's empty path makes Recently Downloaded list the album's songs
-        scope.launch { downloader.downloadAlbum(a) { status -> onStatus(key, status, DownloadEntry(a.artist, a.cleanTitle, a.cleanTitle, "", 0, "")) } }
+        scope.launch { DownloadGuard.run(report = { status -> onStatus(key, status, DownloadEntry(a.artist, a.cleanTitle, a.cleanTitle, "", 0, "")) }) { r -> downloader.downloadAlbum(a, r) } }
     }
 
     /** Keeps the download's story (each status, and what each source said) and writes it to the log when it ends. */

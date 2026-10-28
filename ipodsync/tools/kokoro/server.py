@@ -69,4 +69,7 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     # one warm-up line, so the first real one is not slow
     with one_at_a_time: kokoro.create("Hello.", voice="am_liam", speed=1.0, lang="en-us")
+    # lines wait their turn on the lock; the listen queue must hold them all (the default 5 refused connections when FLACie made its stock
+    # phrases, replies and a line at once)
+    ThreadingHTTPServer.request_queue_size = 128
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

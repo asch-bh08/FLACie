@@ -35,6 +35,10 @@ for (const w of [900, 1024, 1180, 1257, 1366, 1440]) {
       return out;
     });
     expect(hits).toEqual([]);
+    // the DJ's switch and its mic sit together on the right, beside the heart (owner, 27 Oct: a DJ button on the bar, like the phone's)
+    await expect(page.locator('.player .bar-right .bar-dj')).toBeVisible();
+    await expect(page.locator('.player .bar-right [data-testid="dj-mic"]')).toBeVisible();
+    await expect(page.locator('.player .bar-controls [data-testid="dj-mic"]')).toHaveCount(0);
     // and the song itself keeps room (making room for the buttons once squeezed it to nothing at 900 wide)
     expect((await page.locator('.player .bar-song').boundingBox())!.width).toBeGreaterThan(120);
   });

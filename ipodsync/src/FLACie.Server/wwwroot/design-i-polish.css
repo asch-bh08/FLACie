@@ -38,3 +38,10 @@
   .player .bar-right .icon-btn { width: 44px; min-width: 44px; height: 44px; }
 }
 @media (max-width: 380px) { .player .bar-chip { display: none; } }
+/* the bar's DJ switch: lit in the accent when on, like Now Playing's. A phone's bar keeps the title's room: the DJ and its mic are on Now Playing
+   and beside the search box there */
+.player .bar-dj.on { color: var(--accent); }
+@media (max-width: 760px) { .player .bar-right .bar-dj, .player .bar-right .dj-mic { display: none; } }
+/* a narrow PC window: with the DJ and its mic the right-hand group no longer fits beside the play buttons, so the volume slider (its speaker stays)
+   and the Retro link (in the account menu and Now Playing too) give way */
+@media (min-width: 761px) and (max-width: 1000px) { .player .bar-right .vol input, .player .bar-right .retro-link { display: none; } }

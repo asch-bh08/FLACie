@@ -16,7 +16,6 @@
                     <button class="play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="22" /></button>
                     <button class="icon-btn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="22" /></button>
                     <button class="icon-btn @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" /></button>
-                    <DjMic Class="icon-btn" Size="20" />
                 </div>
                 <div class="seek" @onclick:stopPropagation="true">
                     <span>@Time(Player.Position)</span>
@@ -25,6 +24,14 @@
                 </div>
             </div>
             <div class="bar-right" @onclick:stopPropagation="true">
+                @* the DJ for this queue and the mic to talk to it, together beside the heart (in the play buttons' group the mic pushed onto the heart at 900px
+                   wide, and on a phone it took the place of the hidden Repeat) *@
+                @if (Player.Dj is not null)
+                {
+                    var djOn = Player.DjOn;
+                    <button class="icon-btn bar-dj @(djOn ? "on" : "")" @onclick="Player.ToggleDjAsync" aria-label="DJ" aria-pressed="@(djOn ? "true" : "false")" title="@(djOn ? "DJ on for this queue" : "DJ off for this queue")"><Icon Name="dj" Size="20" /></button>
+                }
+                <DjMic Class="icon-btn" Size="20" />
                 <button class="icon-btn fav @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" /></button>
                 @if (AppHost.DevicePicker is { } picker) { <DynamicComponent Type="picker" /> }
                 <a class="icon-btn retro-link" href="/retro" aria-label="Retro" title="Retro: iPods, a car stereo, a hi-fi and more, playing this song" data-testid="bar-retro"><Icon Name="retro" /></a>

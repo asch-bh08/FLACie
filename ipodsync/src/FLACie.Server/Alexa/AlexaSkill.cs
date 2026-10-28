@@ -193,6 +193,8 @@ public sealed class AlexaSkill(AlexaEngine engine, AlexaStore store, IAlexaDirec
             case DjAskDo.Pause: return engine.Pause(link);
             case DjAskDo.Resume: return engine.Resume(user, link);
             case DjAskDo.VolumeUp or DjAskDo.VolumeDown: return Reply.Say(say.Length > 0 ? say : "Say: Alexa, volume " + (a.Do == DjAskDo.VolumeUp ? "up." : "down."));
+            // the DJ wasn't sure what was meant and asked: the session stays open for the reply, and the question is the reprompt
+            case DjAskDo.None when a.Intent == "Clarify" && say.Length > 0: return Reply.Say(say, end: false);
             default: return say.Length > 0 ? Reply.Say(say) : Reply.Say("Sorry, I didn't get that. Start with play, like: play Out of Space. Or say help.", end: false);
         }
     }

@@ -210,6 +210,11 @@ public sealed class DjService : IDjService
         return new DjCue(said.Text, said.Caption, DjClips.UrlOf(id), false, DjIntro.Usable(extra?.Vibe?.Intro));
     }
 
+    /// <summary>The share of the DJ's daily allowance the lines between songs leave for talking to the DJ, so a day of "Every song" can't use up what
+    /// understanding requests needs (the owner: it should always know what they mean).</summary>
+    public const double AskShare = 0.2;
+    double AskReserve => voice.Cap * AskShare;
+
     /// <summary>A 25-word line in the saved voice: what the text model must leave room for under the cap.</summary>
     double ClipRoom() => CloudflareVoice.EstimateNeurons(voice.Current.Voice, string.Join(' ', Enumerable.Repeat("word", DjWriter.MaxWords)) + " and some.");
 
@@ -270,7 +275,7 @@ public sealed class DjService : IDjService
             var (sys, user) = DjWriter.Prompt(f, recent);
             using var cts = new CancellationTokenSource(WriteTimeout);
             string? raw;
-            try { raw = await voice.WriteAsync(sys, user, ClipRoom(), cts.Token).WaitAsync(WriteTimeout); }
+            try { raw = await voice.WriteAsync(sys, user, ClipRoom() + AskReserve, cts.Token).WaitAsync(WriteTimeout); }
             catch (TimeoutException) { cts.Cancel(); return line; }
             var caption = DjWriter.Check(raw, f, recent);
             if (caption is null)

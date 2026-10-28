@@ -90,6 +90,17 @@ public class AlexaDjTests
         Assert.Null(res["response"]?["directives"]);
     }
 
+    // the DJ asks when it isn't sure (owner, 27 Oct): Alexa keeps listening for the reply, and repeats the question if nothing is said
+    [Fact]
+    public async Task A_question_back_keeps_Alexa_listening()
+    {
+        using var r = new Rig("{\"ask\":\"Do you mean your hearted songs, or the ones you play most?\"}");
+        var res = await r.Send(Intent("AskWhatIntent", ("text", "play my stuff")));
+        Assert.Contains("hearted songs", Ssml(res));
+        Assert.False((bool?)res["response"]?["shouldEndSession"]);
+        Assert.Contains("hearted songs", (string?)res["response"]?["reprompt"]?["outputSpeech"]?["ssml"] ?? "");
+    }
+
     [Fact]
     public async Task Who_sings_this_is_answered_by_the_rules_from_the_song_playing()
     {

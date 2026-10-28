@@ -34,6 +34,8 @@ public class DjAskTests
         public Vibe? VibeOf(Track t) => Vibes.GetValueOrDefault(t.Path);
         public Task RateAsync(Track t, int stars) { Ratings.Add((t.Title, stars)); return Task.CompletedTask; }
         public Task<AlexaRequested?> RequestDownloadAsync(string words, CancellationToken ct) { Requests.Add(words); return Task.FromResult(NextRequest); }
+        public List<ListenEvent> Log = [];
+        public IReadOnlyList<ListenEvent> Listens => Log;
     }
 
     sealed class FakeModel(Func<string, CancellationToken, Task<string?>> answer) : IDjAskModel
@@ -80,8 +82,8 @@ public class DjAskTests
     [InlineData("play my pop playlist", AskIntent.Playlist, "pop")]
     [InlineData("play the running playlist", AskIntent.Playlist, "running")]
     [InlineData("play playlist called road trip", AskIntent.Playlist, "road trip")]
-    [InlineData("play my favourites", AskIntent.Favourites, null)]
-    [InlineData("Play my favorites", AskIntent.Favourites, null)]
+    [InlineData("play my favourites", AskIntent.Loved, null)]
+    [InlineData("Play my favorites", AskIntent.Loved, null)]
     [InlineData("play my liked songs", AskIntent.Favourites, null)]
     [InlineData("play my most played", AskIntent.MostPlayed, null)]
     [InlineData("play my frequently played songs", AskIntent.MostPlayed, null)]
@@ -370,7 +372,7 @@ public class DjAskTests
         var u = Standard(); u.Favs = [u.Library[0], u.Library[2]]; u.Top = [u.Library[5]];
         foreach (var t in u.Library.Skip(1)) u.HeardPaths.Add(t.Path);
         var e = new DjAskEngine();
-        var fav = await e.AnswerAsync(u, "play my favourites", null, []);
+        var fav = await e.AnswerAsync(u, "play my hearted songs", null, []);
         Assert.Equal(DjAskDo.Play, fav.Do); Assert.Equal(2, fav.Paths!.Count); Assert.True(fav.Shuffle);
         var top = await e.AnswerAsync(u, "play my most played", null, []);
         Assert.Equal([u.Library[5].Path], top.Paths);
@@ -409,7 +411,7 @@ public class DjAskTests
         var e = new DjAskEngine(); var p = new FakePlayer();
         async Task Say(string words) => await DjAskRunner.RunAsync(p, await e.AnswerAsync(u, words, u.Library[2].Path, []));
         await Say("play my pop playlist"); Assert.Equal("play Pop", p.Log[^1]); Assert.Equal(2, p.Queue.Count);
-        await Say("play my favourites"); Assert.Equal("play Favourites", p.Log[^1]);
+        await Say("play my favourites"); Assert.Equal("play Songs you love", p.Log[^1]);
         await Say("play my most played"); Assert.Equal("play Most played", p.Log[^1]); Assert.Equal([u.Library[1].Path], p.Queue);
         await Say("next"); Assert.Equal("next", p.Log[^1]);
         await Say("pause"); Assert.Equal("pause", p.Log[^1]);
@@ -431,5 +433,70 @@ public class DjAskTests
         Assert.True((bool?)j["shuffle"]);
         var w = DjAskService.Json(new DjAskAnswer(DjAskDo.None, "Can't find that one, getting it now.", Wait: new("Akon", "Smack That")));
         Assert.Equal("Akon", (string?)w["wait"]!["artist"]);
+    }
+
+    // ---- the brain (owner, 27 Oct): the model understands every request (only instant controls skip it), asks when it isn't sure, and
+    // "my favs" means the songs they love (played through, played again, not skipped, hearted), not only the hearted ones ----
+
+    static ListenEvent Heard(Track t, double heard, int n) => new($"e{n}{t.Path}", ListenKind.Play, 1_790_000_000_000L + n * 60_000L, t.Path, t.Title, t.Artist, heard, 200);
+
+    [Fact] public async Task MyFavsGoesToTheModelAndPlaysWhatTheyLove()
+    {
+        var u = Standard(); u.Favs = [u.Library[4]];
+        // Creep played through four times, never hearted; Levels skipped every time
+        for (var i = 0; i < 4; i++) u.Log.Add(Heard(u.Library[2], 195, i));
+        for (var i = 0; i < 4; i++) u.Log.Add(Heard(u.Library[7], 6, 10 + i));
+        var model = new FakeModel((_, _) => Task.FromResult<string?>("{\"action\": \"loved\"}"));
+        var a = await new DjAskEngine(model).AnswerAsync(u, "play my favs", null, []);
+        Assert.Equal(1, model.Calls);
+        Assert.Equal(DjAskDo.Play, a.Do);
+        Assert.Contains(u.Library[2].Path, a.Paths!);      // loved by listening
+        Assert.Contains(u.Library[4].Path, a.Paths!);      // hearted
+        Assert.DoesNotContain(u.Library[7].Path, a.Paths!); // always skipped
+        Assert.Equal(u.Library[2].Path, a.Paths![0]);       // the most loved first
+    }
+
+    [Fact] public async Task WhenUnsureTheModelAsksAQuestion()
+    {
+        var model = new FakeModel((_, _) => Task.FromResult<string?>("{\"ask\": \"Do you mean your hearted songs, or the ones you play most?\"}"));
+        var a = await new DjAskEngine(model).AnswerAsync(Standard(), "play my stuff", null, []);
+        Assert.Equal(DjAskDo.None, a.Do);
+        Assert.Equal("Do you mean your hearted songs, or the ones you play most?", a.Say);
+        Assert.Equal("Clarify", a.Intent);
+    }
+
+    [Fact] public async Task ARequestByNameGoesToTheModelToo()
+    {
+        var model = new FakeModel((_, _) => Task.FromResult<string?>("{\"action\": \"play\", \"query\": \"karma police\"}"));
+        var a = await new DjAskEngine(model).AnswerAsync(Standard(), "put on that radiohead one about the police", null, []);
+        Assert.Equal(1, model.Calls);
+        Assert.Equal(DjAskDo.Play, a.Do);
+        Assert.Equal("Karma Police", Standard().Find(a.Paths![0])?.Title);
+    }
+
+    [Fact] public async Task WithoutAnAnswerFromTheModelTheRulesStillWork()
+    {
+        var model = new FakeModel((_, _) => Task.FromResult<string?>(null));
+        var u = Standard(); u.Favs = [u.Library[0], u.Library[2]];
+        var a = await new DjAskEngine(model).AnswerAsync(u, "play my hearted songs", null, []);
+        Assert.Equal(DjAskDo.Play, a.Do); Assert.Equal(2, a.Paths!.Count);
+        var b = await new DjAskEngine(model).AnswerAsync(u, "play Smack That", null, []);
+        Assert.Equal(DjAskDo.Play, b.Do);
+    }
+
+    [Fact] public async Task TheModelSeesTheirPlaylistsAndTopArtists()
+    {
+        string? seen = null;
+        var model = new FakeModel((user, _) => { seen = user; return Task.FromResult<string?>("{\"action\": \"unknown\"}"); });
+        var u = Standard(); u.Top = [u.Library[2], u.Library[3], u.Library[0]];
+        await new DjAskEngine(model).AnswerAsync(u, "something for the drive home", null, []);
+        Assert.Contains("Their playlists: Pop, Running", seen);
+        Assert.Contains("Their top artists: Radiohead, Akon", seen);
+    }
+
+    [Fact] public void ThePromptOffersLovedAndAQuestion()
+    {
+        Assert.Contains("loved", DjAskAi.System);
+        Assert.Contains("\"ask\"", DjAskAi.System);
     }
 }

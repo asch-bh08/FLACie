@@ -9,7 +9,7 @@ using FLACie.Server.Alexa;
 namespace FLACie.Server.Dj;
 
 /// <summary>What a request to the DJ is about. The names (snake case) are also what the text model may answer with.</summary>
-public enum AskIntent { Play, Playlist, Favourites, MostPlayed, Unheard, ShuffleLibrary, Mood, Next, Pause, Resume, VolumeUp, VolumeDown, WhatsThis, WhoSings, MoreLike, LessLike, ThumbsDown, DjOn, DjOff, Situation }
+public enum AskIntent { Play, Playlist, Favourites, Loved, MostPlayed, Unheard, ShuffleLibrary, Mood, Next, Pause, Resume, VolumeUp, VolumeDown, WhatsThis, WhoSings, MoreLike, LessLike, ThumbsDown, DjOn, DjOff, Situation }
 
 /// <summary>A request understood: the intent, and what it is about (the song, artist or album for Play, the playlist's name, the mood's words, the
 /// situation: car, night, morning, workout, chill or none). [Key]: a learned request's phrase; [Vibe]: "high" or "low" when the words say.</summary>
@@ -48,7 +48,8 @@ public static partial class DjAskRules
         (new(@"^(?:play )?(?:more|more songs|more music|some more) like (?:this|that|this one|this song)$|^more of (?:this|that)$|^play (?:something|stuff|songs) like (?:this|that|this one|this song)$"), AskIntent.MoreLike),
         (new(@"^(?:play )?less like (?:this|that|this one|this song)$|^(?:play )?something (?:different|else)$|^not (?:really )?my (?:thing|vibe)$"), AskIntent.LessLike),
         (new(@"^(?:thumbs down|dislike(?: this| it| this song)?|i (?:dont|do not) like (?:this|it|this song)|i hate (?:this|it|this song))$"), AskIntent.ThumbsDown),
-        (new(@"^(?:play |shuffle )?(?:my |the )?(?:favourites|favorites|favourite songs|favorite songs|liked songs|loved songs|hearted songs|songs i (?:like|love))$"), AskIntent.Favourites),
+        (new(@"^(?:play |shuffle )?(?:my |the )?(?:liked songs|hearted songs|hearts|liked|hearted)$"), AskIntent.Favourites),
+        (new(@"^(?:play |shuffle )?(?:my |the )?(?:favourites|favorites|favs|faves|favourite songs|favorite songs|loved songs|songs i (?:like|love))$"), AskIntent.Loved),
         (new(@"^(?:play )?(?:my |the )?(?:most played|most listened(?: to)?|frequently played|top|most popular)(?: songs| tracks| music)?$|^play what i play (?:the )?most$|^play my top songs$"), AskIntent.MostPlayed),
         (new(@"^(?:play )?(?:me )?something (?:i (?:havent|have not|never) (?:heard|listened to|played)|ive never heard|new to me)(?: before| yet)?$|^(?:play )?(?:songs|music) i (?:havent|have not|never) heard(?: before| yet)?$"), AskIntent.Unheard),
         (new(@"^(?:shuffle|shuffle (?:my |the )?(?:library|music|songs|everything|all|all my (?:music|songs))|play (?:my |the )?(?:whole )?library|shuffle all|play everything|play all my (?:music|songs))$"), AskIntent.ShuffleLibrary),
@@ -79,6 +80,13 @@ public static partial class DjAskRules
 
     [GeneratedRegex(@"(?:^|\s)(?:car|cars|drive|drives|driving|road|roads|b-road|b-roads|back-road|back-roads|backroad|backroads|motorway|motorways|commute|commuting|road trip)(?:\s|$)")] private static partial Regex CarWords();
     [GeneratedRegex(@"(?:^|\s)(?:music|songs|tunes|stuff|mix)$|^(?:play |put on |give me )?(?:me )?(?:something|some|anything)\b")] private static partial Regex Asking();
+
+    /// <summary>The controls that are never worth a wait for the model: they mean one thing whoever says them.</summary>
+    static readonly HashSet<AskIntent> InstantIntents = [AskIntent.DjOn, AskIntent.DjOff, AskIntent.Next, AskIntent.Pause, AskIntent.Resume, AskIntent.VolumeUp,
+        AskIntent.VolumeDown, AskIntent.WhatsThis, AskIntent.WhoSings, AskIntent.MoreLike, AskIntent.LessLike, AskIntent.ThumbsDown, AskIntent.ShuffleLibrary];
+
+    /// <summary>A control said plainly ("next", "turn it up", "what's this?"), done at once; null for anything the model should understand first.</summary>
+    public static AskParse? Instant(string text) => Parse(text) is { } p && InstantIntents.Contains(p.Intent) ? p : null;
 
     public static AskParse? Parse(string text)
     {
@@ -126,7 +134,8 @@ public sealed class CloudflareAskModel(CloudflareVoice voice) : IDjAskModel
 }
 
 /// <summary>What the text model made of something said: an action (with what it is about), or a short answer in the DJ's voice. Both null: not understood.</summary>
-public sealed record AskAiResult(AskParse? Parse, string? Answer);
+/// <summary>[Question]: the model wasn't sure what was meant and asks (said in the DJ's voice; the mic listens for the reply).</summary>
+public sealed record AskAiResult(AskParse? Parse, string? Answer, string? Question = null);
 
 /// <summary>
 /// For what the rules don't know: the text model is asked either to map the words onto one of the same intents, or to answer a question briefly in the DJ's
@@ -142,16 +151,20 @@ public static partial class DjAskAi
 
     public const string System =
         "You are the DJ on a personal music station, warm and knowledgeable, in British English. A listener has just said something to you. " +
-        "Reply with JSON only, no other words, in one of two forms. " +
-        "1) To do something: {\"action\": \"...\", \"query\": \"...\"}. Actions: play (query: the song, artist or album named), playlist (query: the playlist's name), " +
-        "favourites, most_played, unheard, shuffle_library, mood (query: the mood or genre in a few words, like \"chill\" or \"upbeat gym\" or \"jazz\"), " +
+        "Work out what they mean, the way a friend who knows their music would, using the facts given (their playlists, top artists, phrases they have used, the time, the conversation so far). " +
+        "Reply with JSON only, no other words, in one of three forms. " +
+        "1) To do something: {\"action\": \"...\", \"query\": \"...\"}. Actions: play (query: the song, artist or album named, spelt properly even when they described it), playlist (query: the playlist's name), " +
+        "loved (the songs they love: what they play through and come back to, and their hearted songs; use it for \"my favourites\", \"my favs\", \"my faves\", \"songs I love\"), " +
+        "favourites (only the songs they hearted, when they say hearted or liked), most_played, unheard, shuffle_library, mood (query: the mood or genre in a few words, like \"chill\" or \"upbeat gym\" or \"jazz\"), " +
         "next, pause, resume, volume_up, volume_down, whats_this, who_sings, more_like (query, optional: \"slower\" or \"faster\"), less_like, thumbs_down, dj_on, dj_off, " +
         "situation (music for a place, time or activity of their own, like driving, the school run or sunday cleaning: query is car, night, morning, workout, chill or none; " +
         "add \"key\": the request in one to three words, reusing a phrase they have used before when it means the same; add \"vibe\": \"high\" or \"low\" when the words suggest an energy). " +
         "Use mood for any feeling, activity or genre. When they say them, him, her or this artist, use the artist the conversation is about. " +
         "2) To answer a question: {\"answer\": \"...\"}: one or two short spoken sentences, at most 35 words, no lists, no markdown. " +
         "Use ONLY the facts given. If the facts do not say, answer that you're not sure; never invent years, albums, chart positions or stories. " +
-        "If it is neither, reply {\"action\": \"unknown\"}.";
+        "3) When it could really mean two different things, ask one short question back: {\"ask\": \"...\"} (at most 20 words, offering the likely choices). " +
+        "Only ask when you truly can't tell; never ask about something clear, and never ask again if the conversation shows you just asked: then pick the likelier. " +
+        "If it is none of these, reply {\"action\": \"unknown\"}.";
 
     static string NameOf(AskIntent i) => Regex.Replace(i.ToString(), "(?<=[a-z])([A-Z])", "_$1").ToLowerInvariant();
     static readonly Dictionary<string, AskIntent> Names = Enum.GetValues<AskIntent>().ToDictionary(NameOf);
@@ -178,6 +191,7 @@ public static partial class DjAskAi
         try { o = JsonNode.Parse(answer[a..(b + 1)]) as JsonObject; } catch (System.Text.Json.JsonException) { return none; }
         if (o is null) return none;
         if (o["answer"] is JsonValue sv && sv.TryGetValue<string>(out var said)) return new(null, CleanAnswer(said));
+        if (o["ask"] is JsonValue qv0 && qv0.TryGetValue<string>(out var asked) && CleanAnswer(asked) is { } question) return new(null, null, question);
         if (o["action"] is not JsonValue av || !av.TryGetValue<string>(out var action)) return none;
         if (!Names.TryGetValue(action.Trim().ToLowerInvariant(), out var intent)) return none;
         var query = o["query"] is JsonValue qv && qv.TryGetValue<string>(out var q) ? q.Trim() : null;
@@ -282,7 +296,7 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
     /// Keep in step with the replies below.</summary>
     public static readonly string[] FixedReplies =
     [
-        "Sorry, I didn't catch that.", "I'm here. I'll say a word between songs.", "Okay, I'll keep quiet.", "Nothing's playing right now.",
+        "Sorry, I didn't catch that.", "Here's what you love.", "I don't know what you love yet. Play a few, or tap the heart on a song you love.", "I'm here. I'll say a word between songs.", "Okay, I'll keep quiet.", "Nothing's playing right now.",
         "Sorry, I couldn't save that.", "Fair enough. I won't play that as much.", "Play something first, and I'll find more like it.",
         "Something like this, a bit slower.", "Something like this, with more pace.", "More like this, coming up.", "I couldn't find anything like this yet.",
         "Okay, moving on.", "Got it. Something different.", "You haven't got any favourites yet. Tap the heart on a song you love.", "Here are your favourites.",
@@ -327,15 +341,22 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
         // "play more from them": the artist the conversation is about, else the one playing
         AskParse? parse = null; string? answered = null;
         if (MoreFromThem().IsMatch(DjAskRules.Normalise(text)) && (ctx.Subject(at) ?? cur?.Artist) is { Length: > 0 } them) parse = new(AskIntent.Play, them);
-        parse ??= DjAskRules.Parse(text);
-        if (parse is null)
+        // a plain control is done at once; anything else the model understands first (owner: "I want it to know what I mean all the time, and if it
+        // doesn't, ask me"), and the quick rules are what's left when the model has no answer (not set up, over the cap, too slow)
+        parse ??= DjAskRules.Instant(text);
+        string? clarify = null;
+        if (parse is null && model is not null)
         {
             var question = DjAskAi.LooksLikeQuestion(text);
             var ai = await DjAskAi.AskAsync(model, text, Facts(u, ctx, cur, text, localHour), ct, question ? QuestionTimeout : AiTimeout);
-            parse = ai.Parse; answered = ai.Answer;
+            parse = ai.Parse; answered = ai.Answer; clarify = ai.Question;
         }
+        if (parse is null && answered is null && clarify is null) parse = DjAskRules.Parse(text);
+        // a command answered with words ("play my car songs playlist" -> "not sure"): the rules' action, when they see one, beats a chatty answer
+        if (parse is null && answered is not null && !DjAskAi.LooksLikeQuestion(text) && DjAskRules.Parse(text) is { } plain) { parse = plain; answered = null; }
         DjAskAnswer answer;
         if (parse is not null) answer = (await RunAsync(u, parse, cur, recent, ct, text)) with { Intent = parse.Intent.ToString() };
+        else if (clarify is not null) answer = DjAskAnswer.Said(clarify, "Clarify");
         else if (answered is not null) answer = DjAskAnswer.Said(answered, "Answer");
         else answer = DjAskAnswer.Said(DidntCatch);
         Remember(u, ctx, text, parse, answer, cur, at);
@@ -360,10 +381,31 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
                 break;
             case AskIntent.Play when a.Wait is { } w: ctx.About(w.Artist, at); ctx.Requested(p.What ?? "", at); break;
             case AskIntent.Playlist or AskIntent.Mood or AskIntent.Situation when a.Do == DjAskDo.Play: ctx.Requested(a.Title ?? p.What ?? "", at); break;
-            case AskIntent.Favourites or AskIntent.MostPlayed or AskIntent.Unheard or AskIntent.ShuffleLibrary when a.Do == DjAskDo.Play: ctx.Requested(a.Title ?? "", at); break;
+            case AskIntent.Favourites or AskIntent.Loved or AskIntent.MostPlayed or AskIntent.Unheard or AskIntent.ShuffleLibrary when a.Do == DjAskDo.Play: ctx.Requested(a.Title ?? "", at); break;
             case AskIntent.MoreLike or AskIntent.LessLike when a.Do is DjAskDo.UpNext or DjAskDo.Play: ctx.Requested(p.Intent == AskIntent.MoreLike ? "more like " + (cur is null ? "this" : T(cur.Title)) : "something different", at); break;
             case AskIntent.WhatsThis or AskIntent.WhoSings when cur is not null: ctx.About(cur.Artist, at); break;
         }
+    }
+
+    /// <summary>
+    /// The songs this person loves, most loved first: in their listening, a play heard nearly to the end counts for a song and a skip in the first 30 seconds
+    /// (or under a fifth) against it; a heart counts for three plays, and their most played add on top. A song skipped more than it is played through is left
+    /// out. "My favourites" means this (the owner: not only the hearted ones).
+    /// </summary>
+    public static IReadOnlyList<Track> Loved(IDjAskUser u, int take = 200)
+    {
+        var score = new Dictionary<string, double>();
+        foreach (var e in u.Listens)
+        {
+            if (e.Kind != ListenKind.Play || e.Path.Length == 0) continue;
+            var through = e.Length > 0 ? e.Heard >= e.Length * 0.8 : e.Heard >= 120;
+            var skipped = e.Heard < 30 || e.Length > 0 && e.Heard < e.Length * 0.2;
+            score[e.Path] = score.GetValueOrDefault(e.Path) + (through ? 1 : skipped ? -1 : 0.3);
+        }
+        foreach (var t in u.Favourites) score[t.Path] = score.GetValueOrDefault(t.Path) + 3;
+        var most = u.MostPlayed(100);
+        for (var i = 0; i < most.Count; i++) score[most[i].Path] = score.GetValueOrDefault(most[i].Path) + 1 + (100 - i) / 100.0;
+        return score.Where(kv => kv.Value >= 1).OrderByDescending(kv => kv.Value).Select(kv => u.Find(kv.Key)).OfType<Track>().Take(take).ToList();
     }
 
     /// <summary>Library artists named in [text] (whole words, at least three letters), longest name first.</summary>
@@ -413,6 +455,13 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
             if (genres.Count > 0) sb.Append(", genre ").Append(string.Join(", ", genres));
             sb.Append('\n');
         }
+        if (u.Playlists.Select(p => p.Name).Where(n => n.Length > 0).Take(25).ToList() is { Count: > 0 } pls) sb.Append("Their playlists: ").Append(string.Join(", ", pls)).Append('\n');
+        try
+        {
+            var top = u.MostPlayed(60).Select(t => t.Artist).Where(a => a.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Take(8).ToList();
+            if (top.Count > 0) sb.Append("Their top artists: ").Append(string.Join(", ", top)).Append('\n');
+        }
+        catch (Exception) { }
         try { if (u.Phrases.Select(x => x.Key).Distinct().TakeLast(12).ToList() is { Count: > 0 } ks) sb.Append("Phrases they have used before: ").Append(string.Join(", ", ks)).Append('\n'); } catch (Exception) { }
         sb.Append(ctx.Summary(at, localHour));
         return sb.ToString();
@@ -459,6 +508,12 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
                     .Where(t => e is null || u.VibeOf(t)?.Energy is not { } te || Math.Abs(te - e.Value) > 0.15)
                     .OrderBy(_ => Random.Shared.Next()).Take(15).Select(t => t.Path).ToList();
                 return away.Count == 0 ? new(DjAskDo.Next, "Okay, moving on.") : new(DjAskDo.UpNext, "Got it. Something different.", away, Replace: true);
+            }
+            case AskIntent.Loved:
+            {
+                var loved = Loved(u).Where(Playable).Select(t => t.Path).Distinct().Take(200).ToList();
+                return loved.Count == 0 ? DjAskAnswer.Said("I don't know what you love yet. Play a few, or tap the heart on a song you love.")
+                    : new(DjAskDo.Play, "Here's what you love.", loved, "Songs you love", Shuffle: false);
             }
             case AskIntent.Favourites:
             {

@@ -18,22 +18,30 @@ class DjConversationTest {
             assertFalse(s.toString(), DjConversation.isGoodbye(s))
     }
 
-    @Test fun anAnswerOrASmallChangeKeepsListening() {
-        for (d in listOf(DjAskDo.NONE, DjAskDo.UPNEXT, DjAskDo.VOLUMEUP, DjAskDo.DJON)) assertEquals(DjTurn.LISTEN_AGAIN, DjConversation.after(d, 1))
+    // owner, 28 Oct: one request, one answer, then the mic stops; it listens again only when the DJ asked them something
+    @Test fun anAnswerEndsItAndOnlyAQuestionBackListensAgain() {
+        assertEquals(DjTurn.END, DjConversation.after(DjAskDo.NONE, asked = false, turn = 1))
+        assertEquals(DjTurn.END, DjConversation.after(DjAskDo.UPNEXT, asked = false, turn = 1))
+        assertEquals(DjTurn.LISTEN_AGAIN, DjConversation.after(DjAskDo.NONE, asked = true, turn = 1))
     }
 
     @Test fun choosingWhatTheMusicDoesEndsIt() {
-        for (d in listOf(DjAskDo.PLAY, DjAskDo.NEXT, DjAskDo.RESUME, DjAskDo.PAUSE)) assertEquals(DjTurn.END_MUSIC_CHOSEN, DjConversation.after(d, 1))
+        for (d in listOf(DjAskDo.PLAY, DjAskDo.NEXT, DjAskDo.RESUME, DjAskDo.PAUSE)) assertEquals(DjTurn.END_MUSIC_CHOSEN, DjConversation.after(d, asked = false, turn = 1))
         assertFalse(DjConversation.resumeAtEnd(true, DjTurn.END_MUSIC_CHOSEN))
     }
 
-    @Test fun itStopsByItselfAfterTheLastTurn() {
-        assertEquals(DjTurn.LISTEN_AGAIN, DjConversation.after(DjAskDo.NONE, DjConversation.MAX_TURNS - 1))
-        assertEquals(DjTurn.END, DjConversation.after(DjAskDo.NONE, DjConversation.MAX_TURNS))
+    @Test fun questionsBackStopAfterTheLastTurn() {
+        assertEquals(DjTurn.LISTEN_AGAIN, DjConversation.after(DjAskDo.NONE, asked = true, turn = DjConversation.MAX_TURNS - 1))
+        assertEquals(DjTurn.END, DjConversation.after(DjAskDo.NONE, asked = true, turn = DjConversation.MAX_TURNS))
     }
 
     @Test fun theSongTheMicPausedCarriesOn() {
         assertTrue(DjConversation.resumeAtEnd(true, DjTurn.END))
         assertFalse(DjConversation.resumeAtEnd(false, DjTurn.END))
+    }
+
+    @Test fun theServersQuestionIsReadFromTheAnswer() {
+        assertTrue(DjAskAnswer.parse("""{"do":"none","say":"Do you mean your hearted songs?","intent":"Clarify"}""").asked)
+        assertFalse(DjAskAnswer.parse("""{"do":"none","say":"This is Creep.","intent":"WhatsThis"}""").asked)
     }
 }

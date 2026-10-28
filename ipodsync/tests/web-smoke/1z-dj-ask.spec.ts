@@ -110,9 +110,9 @@ test.describe.serial('talk to the DJ', () => {
     await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Play', { timeout: 10_000 });
   });
 
-  // conversation mode (owner, 27 Oct): the mic pauses the music (it heard the song otherwise), listens again after each answer, and ends on
-  // "that's all" or silence, when the song it paused carries on; an answer that chooses the music ends it without touching that
-  test('a conversation: the music pauses, the mic listens again after each answer, and "that is all" ends it and the song carries on', async ({ page }) => {
+  // talk to the DJ (owner, 28 Oct): the mic pauses the music (it heard the song otherwise); one request, one answer as soon as they stop speaking,
+  // then the mic stops and the song carries on (no waiting for "thanks"); asking for music plays it and ends it
+  test('one request, one answer: the music pauses while it listens, then the mic stops and the song carries on', async ({ page }) => {
     test.setTimeout(120_000);
     await page.addInitScript(fakeRecogniser);
     await signIn(page);
@@ -120,23 +120,23 @@ test.describe.serial('talk to the DJ', () => {
     await page.getByRole('button', { name: 'Open Now Playing' }).click();
     await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 20_000 });
     const mic = page.locator('.ls-transport [data-testid="dj-mic"]');
-    await page.evaluate(() => { (window as any).__turns = ["what's this song", 'turn it up', "that's all"]; (window as any).__starts = 0; });
+    await page.evaluate(() => { (window as any).__turns = ["what's this song", 'should not be heard']; (window as any).__starts = 0; });
     await mic.click();
     await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Play', { timeout: 5_000 });   // paused while it listens
-    // the three turns were heard one after another, without pressing again
-    await expect.poll(() => page.evaluate(() => (window as any).__starts), { timeout: 20_000 }).toBe(3);
-    await expect(mic).toHaveAttribute('aria-pressed', 'false', { timeout: 10_000 });
-    await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 10_000 });   // the song carries on
+    await expect(page.locator('.toast').first()).toBeVisible({ timeout: 15_000 });                      // the answer
+    await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 10_000 });  // the song carries on
+    await expect(mic).toHaveAttribute('aria-pressed', 'false');
+    await page.waitForTimeout(1500);
+    expect(await page.evaluate(() => (window as any).__starts)).toBe(1);                                 // not listening again
     expect(await page.evaluate(() => (window as any).__listening)).toBe(false);
 
-    // silence after an answer ends it too, and the song carries on
-    await page.evaluate(() => { (window as any).__turns = ['turn it down', '']; (window as any).__starts = 0; });
+    // nothing said: it stops and the song carries on
+    await page.evaluate(() => { (window as any).__turns = ['']; (window as any).__starts = 0; });
     await mic.click();
-    await expect.poll(() => page.evaluate(() => (window as any).__starts), { timeout: 20_000 }).toBe(2);
     await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 10_000 });
     await expect(mic).toHaveAttribute('aria-pressed', 'false');
 
-    // asking for music ends it at once: what was asked for plays, and nothing more is listened for
+    // asking for music plays it at once, and nothing more is listened for
     await page.evaluate(() => { (window as any).__turns = ['play Echo Harbour', 'should not be heard']; (window as any).__starts = 0; });
     await mic.click();
     await expect(page.locator('.ls-side, .ls-main').getByText('Echo Harbour').first()).toBeVisible({ timeout: 15_000 });

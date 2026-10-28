@@ -1,8 +1,8 @@
 @inherits UserComponent
 @implements IAsyncDisposable
 @* "Talk to the DJ": press to listen (the browser's own speech recogniser), press again or stay quiet to stop. Nothing listens until it is pressed, and only the
-   words it recognised go to FLACie. A press starts a conversation (DjConversation): the music pauses so the mic doesn't hear the song, and after each answer
-   the mic listens again once the DJ has finished, until "that's all", silence or a press; then the paused song carries on. Hidden where the browser has no recogniser (Firefox) or the host reads no requests. With OnHeard (the search box) the words
+   words it recognised go to FLACie. A press pauses the music (so the mic doesn't hear the song), and one request gets one answer, then the mic stops and
+   the song carries on; it listens again only when the DJ asked something back (DjConversation). Hidden where the browser has no recogniser (Firefox) or the host reads no requests. With OnHeard (the search box) the words
    go there instead, unless they are a request to the DJ ("play my pop playlist"). *@
 @if (supported && Player.CanAskDj)
 {
@@ -83,7 +83,7 @@
             var a = await Player.AskDjAsync(text);
             // said in the DJ's voice when it could be; otherwise the answer is shown
             if (a is { Say.Length: > 0, Clip: null, DeviceVoice: false }) Toast.Show(a.Say);
-            if (a is not null) how = DjConversation.After(a.Do, ++turn);
+            if (a is not null) how = DjConversation.After(a.Do, a.Intent == "Clarify", ++turn);
         }
         catch (Exception) { Toast.Show("Sorry, I couldn't reach the DJ."); }
         finally { busy = false; StateHasChanged(); }

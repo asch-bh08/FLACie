@@ -91,7 +91,7 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
             if (a.doThis == DjAskDo.SEARCH) { end(DjTurn.END); onSearch?.invoke(text); return@askDj }
             // the answer is always shown; it is also said in the DJ's voice when it could be
             if (a.say.isNotBlank()) app.ui.say(a.say)
-            val how = DjConversation.after(a.doThis, ++turn)
+            val how = DjConversation.after(a.doThis, a.asked, ++turn)
             if (how != DjTurn.LISTEN_AGAIN || !conversing) { end(how); return@askDj }
             // the next turn once the DJ has finished saying the answer (the mic would hear it otherwise); a press meanwhile ends it
             scope.launch {

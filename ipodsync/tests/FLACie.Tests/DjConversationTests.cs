@@ -17,13 +17,13 @@ public class DjConversationTests
     [InlineData("something chill")] [InlineData("")] [InlineData(null)]
     public void Requests_that_merely_contain_the_words_do_not(string? said) => Assert.False(DjConversation.IsGoodbye(said));
 
+    // owner, 28 Oct: one request, one answer, then the mic stops (no waiting for "thanks"); it listens again only when the DJ asked them something
     [Fact]
-    public void An_answer_or_a_small_change_keeps_listening()
+    public void An_answer_ends_it_and_only_a_question_back_listens_again()
     {
-        Assert.Equal(DjTurn.ListenAgain, DjConversation.After(DjAskDo.None, 1));
-        Assert.Equal(DjTurn.ListenAgain, DjConversation.After(DjAskDo.UpNext, 2));
-        Assert.Equal(DjTurn.ListenAgain, DjConversation.After(DjAskDo.VolumeUp, 3));
-        Assert.Equal(DjTurn.ListenAgain, DjConversation.After(DjAskDo.DjOn, 3));
+        Assert.Equal(DjTurn.End, DjConversation.After(DjAskDo.None, asked: false, 1));
+        Assert.Equal(DjTurn.End, DjConversation.After(DjAskDo.UpNext, asked: false, 1));
+        Assert.Equal(DjTurn.ListenAgain, DjConversation.After(DjAskDo.None, asked: true, 1));
     }
 
     [Fact]
@@ -31,16 +31,16 @@ public class DjConversationTests
     {
         foreach (var d in new[] { DjAskDo.Play, DjAskDo.Next, DjAskDo.Resume, DjAskDo.Pause })
         {
-            Assert.Equal(DjTurn.EndMusicChosen, DjConversation.After(d, 1));
+            Assert.Equal(DjTurn.EndMusicChosen, DjConversation.After(d, asked: false, 1));
             Assert.False(DjConversation.ResumeAtEnd(true, DjTurn.EndMusicChosen));
         }
     }
 
     [Fact]
-    public void It_stops_by_itself_after_the_last_turn()
+    public void Questions_back_stop_after_the_last_turn()
     {
-        Assert.Equal(DjTurn.ListenAgain, DjConversation.After(DjAskDo.None, DjConversation.MaxTurns - 1));
-        Assert.Equal(DjTurn.End, DjConversation.After(DjAskDo.None, DjConversation.MaxTurns));
+        Assert.Equal(DjTurn.ListenAgain, DjConversation.After(DjAskDo.None, asked: true, DjConversation.MaxTurns - 1));
+        Assert.Equal(DjTurn.End, DjConversation.After(DjAskDo.None, asked: true, DjConversation.MaxTurns));
     }
 
     [Fact]

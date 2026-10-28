@@ -21,10 +21,11 @@ object DjConversation {
     /** The person ended the conversation ("that's all", "thanks", "bye", "never mind"...): nothing is asked of the DJ. */
     fun isGoodbye(text: String?): Boolean = text != null && goodbye.matches(text.trim().replace('’', '\''))
 
-    /** After the DJ answered [a] on turn [turn] (1 = the first): listen again, or end. */
-    fun after(a: DjAskDo, turn: Int): DjTurn = when (a) {
+    /** After the DJ answered [a] on turn [turn] (1 = the first): listen again only when it [asked] the person something back, else end
+     *  (owner, 28 Oct: one request, one answer, no waiting for "thanks"). */
+    fun after(a: DjAskDo, asked: Boolean, turn: Int): DjTurn = when (a) {
         DjAskDo.PLAY, DjAskDo.NEXT, DjAskDo.RESUME, DjAskDo.PAUSE -> DjTurn.END_MUSIC_CHOSEN
-        else -> if (turn >= MAX_TURNS) DjTurn.END else DjTurn.LISTEN_AGAIN
+        else -> if (asked && turn < MAX_TURNS) DjTurn.LISTEN_AGAIN else DjTurn.END
     }
 
     /** At the end: the song paused by the mic carries on, unless the conversation chose what the music does. */

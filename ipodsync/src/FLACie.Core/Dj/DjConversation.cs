@@ -6,10 +6,10 @@ namespace FLACie.Core;
 public enum DjTurn { ListenAgain, End, EndMusicChosen }
 
 /// <summary>
-/// Conversation mode for "talk to the DJ" (owner, 27 Oct): a press of the mic pauses the music (the mic heard the song otherwise) and starts a
-/// conversation; after each answer the mic listens again once the DJ has stopped talking, until "that's all" (or thanks, bye, never mind), a press,
-/// or nothing said. An answer that starts music (play, next, resume) or pauses it ends it too, so the music asked for is not paused again; otherwise
-/// the song paused at the start carries on at the end. Pure; the phone has the same rules in Kotlin (playback/DjConversation.kt), keep the two the same.
+/// "Talk to the DJ": a press of the mic pauses the music (the mic heard the song otherwise) and listens. One request, one answer, then it stops, as
+/// soon as the person has finished speaking (owner, 28 Oct: no waiting for "thanks"); it listens again only when the DJ asked them something back
+/// ("Do you mean your hearted songs, or the ones you play most?"), until it has its answer, a press, or nothing said. An answer that starts music
+/// (play, next, resume) or pauses it leaves the music as chosen; otherwise the song paused at the start carries on. Pure; the phone has the same rules in Kotlin (playback/DjConversation.kt), keep the two the same.
 /// </summary>
 public static partial class DjConversation
 {
@@ -23,11 +23,11 @@ public static partial class DjConversation
     /// <summary>The person ended the conversation ("that's all", "thanks", "bye", "never mind"...): nothing is asked of the DJ.</summary>
     public static bool IsGoodbye(string? text) => text is not null && GoodbyeRx().IsMatch(text.Trim().Replace('’', '\''));
 
-    /// <summary>After the DJ answered [a] on turn [turn] (1 = the first): listen again, or end.</summary>
-    public static DjTurn After(DjAskDo a, int turn) => a switch
+    /// <summary>After the DJ answered [a] on turn [turn] (1 = the first): listen again only when it [asked] the person something back, else end.</summary>
+    public static DjTurn After(DjAskDo a, bool asked, int turn) => a switch
     {
         DjAskDo.Play or DjAskDo.Next or DjAskDo.Resume or DjAskDo.Pause => DjTurn.EndMusicChosen,
-        _ => turn >= MaxTurns ? DjTurn.End : DjTurn.ListenAgain,
+        _ => asked && turn < MaxTurns ? DjTurn.ListenAgain : DjTurn.End,
     };
 
     /// <summary>At the end: the song paused by the mic carries on, unless the conversation chose what the music does.</summary>

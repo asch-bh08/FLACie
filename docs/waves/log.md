@@ -157,3 +157,8 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 - Talk to the DJ: fixed replies made ahead in Kokoro (DjWarmService). Brain (ff5b15a): the model understands every request except plain controls, can ask a question back (conversation mode / Alexa keep listening), "my favs" = loved (plays through, skips, hearts, most played); lines leave 20 % of the allowance for requests.
 - Web bar (c541ac9): DJ button + mic beside the heart; fixed mic over the heart at 900px and Repeat showing on phones (found by the full web run: 523 passed, 3 failed, 1 flaky; the desk and Retro ones passed alone).
 - AlexaReviewFixTests.RecommendNextAsksTheEngineForThisAccountsOwnInputs flakes in full .NET runs (passes alone): load-sensitive, to look at.
+
+## 2026-10-28 Beta 94 + frank deployed (217a9e4 / afccac8)
+- Android agents were stopped from the owner's side; their work was done here instead: phone downloads can't get stuck (supervisor scope + DownloadGuard, b0365f2), compilation covers (d1c48cc, 49a84ad), account menu like the web with Settings, DJ in the mini bar, playlists near the top of Home, DJ/mic colours (508df5b). Emulator (mock Jellyfin): account menu on Home and Library, Settings from it, Home + mini bar playing. Not seen: phone DJ/mic (no FLACie Web on the emulator), playlists shelf (mock has none).
+- frank: rollback tag flacie-web:rollback-2026-10-28-pre-beta94; dj.json backed up to /root/dj.json.bak-2026-10-28, Voice aura-1:hera -> kokoro:am_liam (owner's pick). Server made 26 replies ahead in Liam. flacie-kokoro rebuilt with a 128 listen queue (parallel lines were refused).
+- Beta 94: APK versionCode 109 signed with the owner key (6a4eb335...a106), MSI 0.94.0.

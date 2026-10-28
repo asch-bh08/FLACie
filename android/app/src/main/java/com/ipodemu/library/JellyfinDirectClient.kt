@@ -176,7 +176,7 @@ private val variousRe = Regex("^(various( artists)?|v\\.?a\\.?|compilations?)$",
  */
 /** The web's Art.OnCompilation: "Various Artists", or a compilation-looking album name ("Now That's What I Call...", "...Hits", "Ministry of Sound")
  *  credited to someone other than the song's artist. */
-private val compilationRe = Regex("""(now that'?s what i call|now \d+|various|ministry of sound|hits?|anthems?|summer|party|workout|karaoke|tribute|mix)""", RegexOption.IGNORE_CASE)
+private val compilationRe = Regex("""\b(now that'?s what i call|now \d+|various|ministry of sound|hits?|anthems?|summer|party|workout|karaoke|tribute|mix)\b""", RegexOption.IGNORE_CASE)
 internal fun onCompilation(artist: String, albumArtist: String, album: String): Boolean =
     albumArtist.contains("various", ignoreCase = true) ||
         (album.isNotEmpty() && compilationRe.containsMatchIn(album) && albumArtist.isNotEmpty() && primaryArtist(albumArtist).lowercase() != primaryArtist(artist).lowercase())

@@ -77,7 +77,11 @@ fun MiniPlayer(snap: PlayerSnap, nav: PlayerNav) {
                 DjCaptionOr(snap.djCaption) { Txt(t.artist.ifEmpty { t.album }, size = 12f, color = sc.onBgDim) }
                 DownloadTagLine(t, size = 10.5f)
             }
-            if (snap.dj != null) { DjMicButton(34.dp, glass = Color.Transparent); Box(Modifier.size(6.dp)) }
+            snap.dj?.let { on ->
+                GlossButton({ djTap(app) }, label = djLabel(on), size = 34.dp, primary = on) { GlyphIcon(Glyph.DJ, Modifier.size(17.dp), Color.White) }
+                Box(Modifier.size(6.dp))
+                if (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 380) { DjMicButton(34.dp, glass = Color.Transparent); Box(Modifier.size(6.dp)) }
+            }
             GlossButton({ app.player.toggle() }, label = if (snap.playing) "Pause" else "Play", size = 38.dp, primary = true) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(20.dp), Color.White) }
             Box(Modifier.size(6.dp))
             GlossButton({ app.player.next() }, label = "Next", size = 34.dp) { GlyphIcon(Glyph.NEXT, Modifier.size(17.dp), Color.White) }
@@ -367,7 +371,12 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
             val hasOthers by remember { androidx.compose.runtime.derivedStateOf { app.connect.sessions.any { !it.isSelf } } }
             if (!app.ui.guest && hasOthers) IconAction(Glyph.DEVICES, "Devices", { app.ui.devicesOpen = true }, tint = sc.accent)
             // talk to the DJ from anywhere, as the web's player bar (not there without FLACie Web)
-            if (snap.dj != null) DjMicButton(40.dp, tint = sc.onBg, glass = Color.Transparent)
+            // the DJ for this queue and the mic to talk to it, together before play (the web's bar has them together beside the heart). On a narrow
+            // phone (under 380 dp) only the DJ, so the title keeps its room: the mic is on Now Playing
+            snap.dj?.let { on ->
+                IconAction(Glyph.DJ, djLabel(on), { djTap(app) }, tint = if (on) main else sc.onBg, size = 40.dp, iconScale = .5f, dot = on)
+                if (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 380) DjMicButton(40.dp, tint = sc.onBg, glass = Color.Transparent)
+            }
             Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                 Box(Modifier.size(42.dp).clip(CircleShape).background(main)) {
                     IconAction(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, if (snap.playing) "Pause" else "Play", { app.player.toggle() }, tint = Color(0xFF1A120C), size = 42.dp, iconScale = .46f)

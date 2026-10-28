@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -657,6 +658,20 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     }
                 }
             }
+            // playlists are one tap away here as well as in the Playlists tab: near the top, before the other shelves, as on the web (at the foot of
+            // Home the owner never saw them)
+            val lists = shownPlaylists(app); val by0 = lib.byPath()
+            if (lists.isNotEmpty() && mood == null) {
+                item { SectionHeader("Your playlists") }
+                item {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        items(lists.take(14), key = { it.id }) { pl ->
+                            val ts = remember(pl.paths.size, libRev) { pl.paths.asSequence().take(8).mapNotNull { by0[it] ?: lib.resolve(it, app.userData.meta[it]) }.toList() }   // only the first few: the cover needs one, and a 350-song playlist resolved whole on every Home build was a stutter
+                            AlbumCard(com.ipodemu.library.Group("${pl.name} (${pl.paths.size})", ts, ts.firstNotNullOfOrNull { it.artKey }), Modifier.width(150.dp)) { nav.push(Screen.Detail(DetailKind.USER, pl.id)) }
+                        }
+                    }
+                }
+            }
             if (mood == null) items(shelves, key = { it.id }) { sh ->
                 Column {
                     if (sh.id == "quick-picks") {
@@ -673,19 +688,6 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     }
                 }
                     }
-            }
-            // playlists are one tap away here as well as in the Playlists tab
-            val lists = shownPlaylists(app); val by0 = lib.byPath()
-            if (lists.isNotEmpty() && mood == null) {
-                item { SectionHeader("Your playlists") }
-                item {
-                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        items(lists.take(14), key = { it.id }) { pl ->
-                            val ts = remember(pl.paths.size, libRev) { pl.paths.asSequence().take(8).mapNotNull { by0[it] ?: lib.resolve(it, app.userData.meta[it]) }.toList() }   // only the first few: the cover needs one, and a 350-song playlist resolved whole on every Home build was a stutter
-                            AlbumCard(com.ipodemu.library.Group("${pl.name} (${pl.paths.size})", ts, ts.firstNotNullOfOrNull { it.artKey }), Modifier.width(150.dp)) { nav.push(Screen.Detail(DetailKind.USER, pl.id)) }
-                        }
-                    }
-                }
             }
             if (!modern) item { SectionHeader("Library") }
             if (!modern) item {
@@ -1726,11 +1728,79 @@ private fun greeting(): String = when (java.util.Calendar.getInstance().get(java
 internal fun AccountAction() {
     val app = LocalApp.current
     val sc = LocalScheme.current
+    val nav = LocalPlayerNav.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val name = if (app.prefs.accountKind == "nas") app.prefs.nasUsername.ifBlank { "guest" } else app.prefs.accountUserName   // the same name the Account screen shows
-    Box(Modifier.size(48.dp).clip(CircleShape).semantics { contentDescription = if (name.isNotEmpty()) "Account: $name" else "Account" }.clickable { app.ui.accountOpen = true }, contentAlignment = Alignment.Center) {
-        Box(Modifier.size(34.dp).clip(CircleShape).background(if (name.isNotEmpty()) sc.accent else Color(0x22FFFFFF)), contentAlignment = Alignment.Center) {
-            if (name.isNotEmpty()) Txt(name.take(1).uppercase(), size = 16f, weight = FontWeight.Bold, color = Color.White)
-            else GlyphIcon(Glyph.ARTIST, Modifier.size(20.dp), sc.onBg)
+    var open by remember { mutableStateOf(false) }
+    Box {
+        // as on the web: the account button opens a small menu (it opened the Account page); Settings is in it, so it is a tap away on every screen
+        Box(Modifier.size(48.dp).clip(CircleShape).semantics { contentDescription = if (name.isNotEmpty()) "Account: $name" else "Account"; stateDescription = if (open) "Menu open" else "" }
+            .clickable { if (nav == null) app.ui.accountOpen = true else open = !open }, contentAlignment = Alignment.Center) {
+            Box(Modifier.size(34.dp).clip(CircleShape).background(if (name.isNotEmpty()) sc.accent else Color(0x22FFFFFF)), contentAlignment = Alignment.Center) {
+                if (name.isNotEmpty()) Txt(name.take(1).uppercase(), size = 16f, weight = FontWeight.Bold, color = Color.White)
+                else GlyphIcon(Glyph.ARTIST, Modifier.size(20.dp), sc.onBg)
+            }
+        }
+        if (open && nav != null) AccountMenu(name, onClose = { open = false }) { pick ->
+            open = false
+            when (pick) {
+                AccountPick.ACCOUNT -> app.ui.accountOpen = true
+                AccountPick.DASHBOARD -> { nav.nowPlaying = false; nav.push(Screen.Dashboard) }
+                AccountPick.DOWNLOADS -> app.ui.downloadsOpen = true
+                AccountPick.RETRO -> openRetro(ctx)
+                AccountPick.SETTINGS -> { nav.nowPlaying = false; nav.push(Screen.Settings) }
+                AccountPick.SIGN_OUT -> { app.account.signOut(); app.ui.setLogin("") }
+            }
+        }
+    }
+}
+
+/** What the account menu offers, in the web's order (TopBar.razor): Account, Dashboard and Downloads (administrators), Retro, Settings, Sign out. */
+enum class AccountPick { ACCOUNT, DASHBOARD, DOWNLOADS, RETRO, SETTINGS, SIGN_OUT }
+
+/** The menu's items for this person: the administrators' two only for administrators; Sign out only when signed in. Pure, unit-tested. */
+fun accountPicks(admin: Boolean, signedIn: Boolean): List<AccountPick> = buildList {
+    add(AccountPick.ACCOUNT)
+    if (admin) { add(AccountPick.DASHBOARD); add(AccountPick.DOWNLOADS) }
+    add(AccountPick.RETRO); add(AccountPick.SETTINGS)
+    if (signedIn) add(AccountPick.SIGN_OUT)
+}
+
+/** The account menu: a small card under the button, as on the web; a tap outside or Back closes it. */
+@Composable
+private fun AccountMenu(name: String, onClose: () -> Unit, onPick: (AccountPick) -> Unit) {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    val kind = when (app.prefs.accountKind) { "nas" -> "NAS"; "" -> "Not signed in"; else -> "Jellyfin" }
+    androidx.compose.ui.window.Popup(alignment = Alignment.TopEnd, offset = androidx.compose.ui.unit.IntOffset(0, 140), onDismissRequest = onClose,
+        properties = androidx.compose.ui.window.PopupProperties(focusable = true)) {
+        Column(Modifier.padding(end = 8.dp).widthIn(min = 220.dp, max = 280.dp).clip(RoundedCornerShape(16.dp)).background(sc.top.mix(Color.Black, .45f))
+            .border(1.dp, sc.cardBorder, RoundedCornerShape(16.dp)).padding(vertical = 6.dp)) {
+            Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(40.dp).clip(CircleShape).background(sc.accent), contentAlignment = Alignment.Center) {
+                    Txt(name.take(1).uppercase().ifEmpty { "?" }, size = 18f, weight = FontWeight.Bold, color = Color.White)
+                }
+                Column(Modifier.padding(start = 12.dp)) {
+                    Txt(name.ifEmpty { "Guest" }, size = 16f, weight = FontWeight.Bold)
+                    Txt(kind, size = 12.5f, color = sc.onBgDim)
+                }
+            }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(sc.onBg.copy(alpha = .1f)))
+            for (pick in accountPicks(app.ui.isAdmin && !app.ui.guest, app.prefs.accountKind.isNotEmpty())) {
+                val (label, glyph) = when (pick) {
+                    AccountPick.ACCOUNT -> "Account" to Glyph.ARTIST
+                    AccountPick.DASHBOARD -> "Dashboard" to Glyph.INFO
+                    AccountPick.DOWNLOADS -> "Downloads" to Glyph.DOWN
+                    AccountPick.RETRO -> "Retro" to Glyph.CASSETTE
+                    AccountPick.SETTINGS -> "Settings" to Glyph.GEAR
+                    AccountPick.SIGN_OUT -> "Sign out" to Glyph.CLOSE
+                }
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = androidx.compose.ui.semantics.Role.Button) { onPick(pick) }.padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    GlyphIcon(glyph, Modifier.size(20.dp), sc.onBg)
+                    Txt(label, Modifier.padding(start = 14.dp), size = 15f)
+                }
+            }
         }
     }
 }

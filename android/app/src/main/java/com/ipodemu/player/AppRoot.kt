@@ -150,7 +150,7 @@ private fun PlayerRoot(activity: MainActivity, nav: PlayerNav) {
         val content: @Composable (@Composable () -> Unit) -> Unit = { it() }
         val body: @Composable () -> Unit = {
             Box(Modifier.fillMaxSize().drawBehind { drawRect(Brush.verticalGradient(listOf(scheme.top, scheme.bottom), endY = if (modern) size.height * 0.55f else Float.POSITIVE_INFINITY)) }.let { if (mode == 1) it else it.safeArea() }) {
-                PlayerHost(nav)
+                CompositionLocalProvider(LocalPlayerNav provides nav) { PlayerHost(nav) }
                 SnackHost(ui, Modifier.align(androidx.compose.ui.Alignment.BottomCenter).padding(bottom = 96.dp))
                 BackHandler(enabled = !ui.pickerOpen && nav.stack.size == 1 && nav.top == Screen.Home && !nav.nowPlaying && nav.sheet == null && nav.nameDialog == null) { activity.moveTaskToBack(true) }
             }

@@ -60,7 +60,7 @@ enum class MicState { IDLE, LISTENING, THINKING }
  * words that are not a request fill the search instead. Not there without FLACie Web or a recogniser.
  */
 @Composable
-fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Color(0x47000000), lit: Color = Color(0xFFE8734A), onSearch: ((String) -> Unit)? = null) {
+fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Color(0x47000000), lit: Color = LocalScheme.current.accent, onSearch: ((String) -> Unit)? = null) {
     val app = LocalApp.current
     val ctx = LocalContext.current
     if (!app.player.djAvailable || !SpeechRecognizer.isRecognitionAvailable(ctx)) return

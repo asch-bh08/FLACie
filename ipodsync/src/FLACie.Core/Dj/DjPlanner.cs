@@ -116,7 +116,8 @@ public static class DjPlanner
             if (f.Genre is not null) c.Add(DjSlot.Genre);
             if (f.SameArtist) c.Add(DjSlot.SameArtist);
             if (heard is not null && !f.SameArtist && song - heard.Song >= 5 && now - heard.At >= ReturnAfter) c.Add(DjSlot.Return);
-            if (reset) c.Add(DjSlot.Reset);
+            // "let's try something different" only about a song the engine picked: in their own playlist or queue the next song is theirs
+            if (reset && req.Why is { Length: > 0 }) c.Add(DjSlot.Reset);
             if (f.Minutes > 0) c.Add(DjSlot.Long);
             if (c.Count > 1 && lastSlot is { } ls) c.Remove(ls);   // no slot twice running
             // weighted order, drawn without putting back

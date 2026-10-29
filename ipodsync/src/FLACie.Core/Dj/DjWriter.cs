@@ -12,7 +12,7 @@ namespace FLACie.Core;
 public sealed record DjFacts(string Title, string Artist, string ArtistLead, string? Guest, string Album, int Year, string PrevTitle, string PrevArtist,
     bool Open, string TimeOfDay, string Day, string Mood, string Why, string Find, string TemplateLine,
     string Genre = "", string ReleaseType = "", int FirstYear = 0, string Label = "", string Feel = "", string Colour = "", string FirstName = "", DjStyle Style = DjStyle.Classic, int IntroMs = 0, int TargetWords = 0,
-    string Request = "", string Context = "");
+    string Request = "", string Context = "", string Source = "");
 
 /// <summary>
 /// Writes the DJ's line with a small text model (Workers AI) instead of a template: the prompt (a DJ character plus the facts), and the checks on what comes back.
@@ -37,6 +37,7 @@ public static partial class DjWriter
         + "Make it personal only from the facts: why the song was picked, whether they love it or it is new, what they asked for, the time of day, the song before. "
         + "Name the song and the artist naturally, the way a friend says them (for example: Smack That, Akon with Eminem). "
         + "Use only the facts given. Never invent anything: no chart positions, awards, samples, stories or other songs, and never say they played something a certain number of times or lately unless the facts say so. Mention the year or the album only if given. "
+        + "Never say or suggest you chose, changed or swapped a song, or that you are reacting to a skip, unless the facts say you picked it. "
         + "Do not start the way any of the recent lines start, and do not repeat their wording. Reply with the line only.";
 
     /// <summary>What each style adds to the character: the tone, and for Chill a shorter line.</summary>
@@ -73,8 +74,13 @@ public static partial class DjWriter
         var year = n.Year >= 1900 && n.Year <= nowUtc.Year && !remaster && !DjText.IsCompilation(n.Album, n.AlbumArtist) ? n.Year : 0;
         var tod = req.LocalHour switch { >= 5 and <= 11 => "morning", >= 12 and <= 17 => "afternoon", >= 18 and <= 22 => "evening", null => "", _ => "late at night" };
         var day = req.Weekday is { } wd and >= 0 and <= 7 ? ((DayOfWeek)(wd % 7)).ToString() : "";
+        // where the song comes from: only a song the engine picked (it carries a reason) is the DJ's own choice. In their playlist or queue the next song
+        // is simply theirs, and a skip is not mentioned (owner, 28 Oct: "skipped that last one, playing this one" about the playlist's own next song)
+        var picked = req.Why is { Length: > 0 };
+        var source = picked ? "you picked it for them" : req.PlaylistId is { Length: > 0 } ? "their own playlist (they chose it and its order; you did not pick this song)"
+            : "their own queue (they chose it; you did not pick this song)";
         var mood = line.Slot == DjSlot.Reset ? "they skipped several songs in a row and have now let one play: a change of direction"
-            : req.SkippedRecently || !req.PrevPlayedOut ? "they have just skipped a song" : "settled in, letting songs play";
+            : picked && (req.SkippedRecently || !req.PrevPlayedOut) ? "they have just skipped a song" : "settled in, letting songs play";
         var why = string.Join("; ", DjWhy.Parts(req.Why));
         // loved or new: only what the account's listening says (DjRequest.Bond), never guessed from the recommender's words
         var find = req.Bond switch { DjBond.NewFind => "a new find for them, never played before", DjBond.Loved => "a song they love and play a lot", _ => "" };
@@ -86,7 +92,7 @@ public static partial class DjWriter
             tod, day, mood, why, find, line.Caption,
             DjText.Genre(n.Genre)?.Write ?? "", Clean(extra?.ReleaseType), first, Clean(extra?.Label), DjFeel.Of(extra?.Vibe, extra?.PrevVibe),
             DjPlanner.Colour(req.LocalHour, req.Weekday) ?? "", open && firstName is { Length: > 0 } fn ? fn : "", style,
-            intro ?? 0, DjTiming.TargetWords(intro));
+            intro ?? 0, DjTiming.TargetWords(intro), Source: source);
     }
 
     /// <summary>The most words a model line may have: <see cref="MaxWords"/>, or a few over the intro's target when there is one (a little over only leads the song in).</summary>
@@ -99,6 +105,7 @@ public static partial class DjWriter
         void Put(string k, string v) { if (v.Length > 0) sb.Append("- ").Append(k).Append(": ").Append(v).Append('\n'); }
         sb.Append("Facts:\n");
         Put("Next song", f.Title);
+        Put("Where it comes from", f.Source);
         Put("Artist", f.Artist);
         Put("Album", f.Album);
         if (f.Year > 0) Put("Year", f.Year.ToString(CultureInfo.InvariantCulture));

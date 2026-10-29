@@ -26,6 +26,20 @@ public class DjRoundTwoTests : IDisposable
     static readonly DjSong Smack = new("Smack That", "Akon, Eminem", "Konvicted", "Akon", 2006, "Hip-Hop", 212_000, "/m/smack.flac");
     static DjRequest Req(int hour = 20, DjBond bond = DjBond.Unknown, string? why = null) => new(DjSurface.Web, Smack, Prev, LocalHour: hour, Weekday: 5, Why: why, Bond: bond);
     static readonly DjLine Template = new(DjSlot.Intro, "intro1", "Next, Smack That by Akon with Em-in-em.", "Next, Smack That by Akon with Eminem.");
+
+    // owner, 28 Oct: after a skip in their playlist the DJ said "skipped that last one, playing this one" as if it had chosen the song; the writer is now
+    // told where the song comes from, and only an engine pick may be spoken of as the DJ's choice or a reaction to skips
+    [Fact]
+    public void A_song_from_their_playlist_is_theirs_and_the_skip_is_not_mentioned()
+    {
+        var pl = DjWriter.Prompt(DjWriter.FactsOf(Req() with { PlaylistId = "pl-1", PrevPlayedOut = false, SkippedRecently = true }, Template, now), []);
+        Assert.Contains("their own playlist", pl.User);
+        Assert.DoesNotContain("skipped", pl.User);
+        var picked = DjWriter.Prompt(DjWriter.FactsOf(Req(why: "because you play Akon") with { PrevPlayedOut = false, SkippedRecently = true }, Template, now), []);
+        Assert.Contains("you picked", picked.User);
+        Assert.Contains("skipped", picked.User);
+        Assert.Contains("Never say or suggest you chose", pl.System);
+    }
     static readonly Vibe Big = new(0.85, 0.9, 120, 0.8), Calm = new(0.3, 0.4, 80, 0.3);
 
     static HttpResponseMessage Model(string line, int pin = 500, int pout = 30) =>

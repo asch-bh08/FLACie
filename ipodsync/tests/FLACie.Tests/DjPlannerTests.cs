@@ -181,7 +181,8 @@ public class DjPlannerTests
         {
             var mem = new DjMemory(); var rng = new Random(seed); var t = T0;
             for (var i = 1; i <= 4; i++) { DjPlanner.Plan(st, new DjRequest(DjSurface.Web, S(i), S(i - 1), SkippedRecently: true), mem, t, rng); t += TimeSpan.FromMinutes(1); }
-            seen = DjPlanner.Plan(st, new DjRequest(DjSurface.Web, S(9), S(8)), mem, t, rng) is { Slot: DjSlot.Reset };
+            // (a song the engine picked: only then is a change of direction true)
+            seen = DjPlanner.Plan(st, new DjRequest(DjSurface.Web, S(9), S(8), Why: "because you play Artist"), mem, t, rng) is { Slot: DjSlot.Reset };
         }
         Assert.True(seen);
     }
@@ -455,10 +456,26 @@ public class DjPlannerTests
             Assert.NotEqual(DjSlot.Bridge, DjPlanner.Plan(On(), req, new DjMemory { LastRequest = T0 - TimeSpan.FromMinutes(3) }, T0, new Random(seed))?.Slot);
     }
 
+    // owner, 28 Oct: in their own playlist the DJ said it was trying something different after skips, though the song was simply the playlist's next.
+    // In a playlist or their own queue (nothing the engine picked) there is no "let's try something different"
+    [Fact]
+    public void In_their_own_playlist_or_queue_there_is_no_change_of_direction()
+    {
+        foreach (var req in new[] { new DjRequest(DjSurface.Web, Song("Valerie", "Amy Winehouse"), Song("Wonderwall", "Oasis"), PlaylistId: "pl-1"),
+                                    new DjRequest(DjSurface.Web, Song("Valerie", "Amy Winehouse"), Song("Wonderwall", "Oasis"), Why: null) })
+            for (var seed = 0; seed < 400; seed++)
+            {
+                var mem = new DjMemory { LastRequest = T0 - TimeSpan.FromMinutes(1) };
+                foreach (var x in new[] { true, true, true, false, true }) mem.Skipped(x);
+                Assert.NotEqual(DjSlot.Reset, DjPlanner.Plan(On(), req, mem, T0, new Random(seed))?.Slot);
+            }
+    }
+
     [Fact]
     public void After_a_run_of_skips_the_first_full_play_can_reset()
     {
-        var req = new DjRequest(DjSurface.Web, Song("Valerie", "Amy Winehouse"), Song("Wonderwall", "Oasis"));
+        // (a song the engine picked: a change of direction is true)
+        var req = new DjRequest(DjSurface.Web, Song("Valerie", "Amy Winehouse"), Song("Wonderwall", "Oasis"), Why: "because you play Oasis");
         var seen = false;
         for (var seed = 0; seed < 400 && !seen; seed++)
         {

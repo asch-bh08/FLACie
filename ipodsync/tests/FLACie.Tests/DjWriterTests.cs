@@ -58,7 +58,8 @@ public class DjWriterTests : IDisposable
         // a session's first song, after a skip
         var open = DjWriter.FactsOf(new DjRequest(DjSurface.Web, Smack, null, PrevPlayedOut: false), Template with { Slot = DjSlot.Open }, now);
         var (_, u2) = DjWriter.Prompt(open, []);
-        Assert.Contains("start of a listening session", u2); Assert.Contains("just skipped", u2); Assert.DoesNotContain("Previous song", u2);
+        // (a song they queued themselves: the skip is not the DJ's to remark on, see DjRoundTwoTests)
+        Assert.Contains("start of a listening session", u2); Assert.DoesNotContain("just skipped", u2); Assert.Contains("their own queue", u2); Assert.DoesNotContain("Previous song", u2);
     }
 
     [Fact]

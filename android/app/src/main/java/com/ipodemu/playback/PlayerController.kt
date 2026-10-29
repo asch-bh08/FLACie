@@ -145,6 +145,25 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         .setWakeMode(C.WAKE_MODE_NETWORK)
         .build()
     /** What the media session (media buttons, notification, Bluetooth) controls: Next and Previous go through the skip-burst handling too. */
+    /**
+     * "Hey Google, play ... on FLACie" (MainActivity, MEDIA_PLAY_FROM_SEARCH): [words] from [VoicePlay] go to the DJ as a play request, and when FLACie
+     * Web can't be reached the first song that matches plays, as with the car's voice search. Null ("play music on FLACie"): the queue of last time
+     * carries on, or the library is shuffled when there is none.
+     */
+    fun playFromVoice(words: String?) {
+        if (words == null) {
+            if (!hasQueue) restoreQueue()
+            if (hasQueue) resume() else App.of(ctx).library.songs().takeIf { it.isNotEmpty() }?.let { shuffleAll(it) }
+            return
+        }
+        askDj(words) { a ->
+            if (a === DjAskAnswer.SORRY || a.say == "Sorry, I didn't catch that.") browseExec.execute {
+                val r = try { BrowseTree.searchPlay(words.removePrefix("play ").trim(), AppBrowseSource(App.of(ctx))) } catch (_: Exception) { null }
+                if (r != null) handler.post { play(r.tracks, r.index) }
+            }
+        }
+    }
+
     /** Resolving a browse id (a car or a voice request asks to play an album, a playlist, a song of a list) reads the library: off the main thread. */
     private val browseExec = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "browse-play").also { it.isDaemon = true } }
     private fun isBrowseId(id: String) = BrowseTree.isPlayId(id) || BrowseTree.parseAsk(id) != null
@@ -335,7 +354,15 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     var contextId: String? = null; private set
     /** Android Auto (or a car's own system) connected to the media session, counted by PlaybackService: the DJ's "Where" is then Android Auto. */
     var carControllers = 0
-        set(v) { if (field != v) { field = v; if (v > 0) refreshDjSettingsSoon(); djAsk(); fire() } }
+        set(v) { if (field != v) { val first = field == 0 && v > 0; field = v; if (v > 0) refreshDjSettingsSoon(); if (first) warmCarCovers(); djAsk(); fire() } }
+    /** A car connected: the playlist tiles' covers are fetched now, so they are on the phone before the car asks (it waits 5 s for a picture, then keeps a
+     *  placeholder, and the owner's playlists showed as grey squares). */
+    private fun warmCarCovers() = browseExec.execute {
+        try {
+            val app = App.of(ctx); val src = AppBrowseSource(app)
+            for ((id, _) in src.playlists()) src.playlistSummary(id).second?.let { k -> kotlinx.coroutines.runBlocking { app.art.load(k, priority = com.ipodemu.library.Priority.BACKGROUND) } }
+        } catch (_: Exception) { }
+    }
     val djSurface: DjSurface get() = if (carControllers > 0) DjSurface.AUTO else DjSurface.PHONE
     /** The server knows the account by its Jellyfin token: without FLACie Web and a Jellyfin sign-in the DJ is simply off. */
     val djAvailable: Boolean get() = prefs.flacieWebUrl.isNotBlank() && prefs.hasJellyfinAccount

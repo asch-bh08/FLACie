@@ -57,6 +57,11 @@ object BrowseTree {
     const val MAX_QUEUE = 300
     /** How many recent songs Home shows under its heading (all of them are in Recently played's own list). */
     const val HOME_RECENT = 12
+    /** A playlist tile's cover: the first song (of the first 30) that has one, else the catalog cover of its first song; null for an empty playlist.
+     *  Only the first song once gave it, so playlists starting with songs without a picture were grey squares in the car. */
+    fun playlistCover(tracks: List<Track>): String? =
+        tracks.asSequence().take(30).firstNotNullOfOrNull { it.artKey } ?: tracks.firstOrNull()?.let { com.ipodemu.library.CoverLookup.key(it.artist, it.album, it.title) }
+
     /** How many playlists Home shows as covers: all of a usual collection (it stopped at 6 and "pop", the 7th, was missing); the Playlists tab has every one. */
     const val HOME_PLAYLISTS = 30
     /** How many of the engine's Quick picks Home shows. */

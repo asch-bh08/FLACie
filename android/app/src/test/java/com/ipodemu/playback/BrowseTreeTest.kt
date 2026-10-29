@@ -260,4 +260,13 @@ class BrowseTreeTest {
         assertNull("Shuffle all", BrowseTree.playlistOf(BrowseTree.SHUFFLE))
         assertNull("no id", BrowseTree.playlistOf("pl:"))
     }
+
+    // the owner's playlists showed as grey squares in the car: a cover is looked for past the first few songs, and a playlist of songs without one
+    // gets the catalog cover of its first song (as Home does with lookups), so a tile is never blank while a song can give it a picture
+    @Test fun aPlaylistTileFindsACoverPastTheFirstSongsOrLooksOneUp() {
+        val bare = (1..8).map { t(it).copy(artKey = null) }
+        assertEquals("jf%032x".format(9), BrowseTree.playlistCover(bare + t(9)))
+        assertEquals(com.ipodemu.library.CoverLookup.key("Ar", "Al", "Song 1"), BrowseTree.playlistCover(bare))
+        assertEquals(null, BrowseTree.playlistCover(emptyList()))
+    }
 }

@@ -88,8 +88,17 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
     }
 
-    /** Audio opened from another app plays immediately and shows Now Playing. */
+    /** Audio opened from another app plays immediately and shows Now Playing. "Hey Google, play ... on FLACie" plays what was asked (VoicePlay). */
     private fun handleIntent(intent: Intent?) {
+        if (intent?.action == android.provider.MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH) {
+            val words = com.ipodemu.playback.VoicePlay.words(intent.getStringExtra(android.app.SearchManager.QUERY), intent.getStringExtra(android.provider.MediaStore.EXTRA_MEDIA_FOCUS),
+                intent.getStringExtra(android.provider.MediaStore.EXTRA_MEDIA_ARTIST), intent.getStringExtra(android.provider.MediaStore.EXTRA_MEDIA_ALBUM),
+                intent.getStringExtra(android.provider.MediaStore.EXTRA_MEDIA_TITLE))
+            app.player.playFromVoice(words)
+            app.ui.requestNowPlaying()
+            intent.action = null
+            return
+        }
         val data = intent?.data ?: return
         if (intent.action != Intent.ACTION_VIEW) return
         app.player.playUri(data)

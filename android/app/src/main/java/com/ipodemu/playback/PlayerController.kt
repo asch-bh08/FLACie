@@ -113,12 +113,14 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         .setCacheWriteDataSinkFactory(androidx.media3.datasource.cache.CacheDataSink.Factory().setCache(StreamSupport.cache(ctx)).setFragmentSize(512L * 1024))
         .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
-    /** The prefetcher's own source: the same cache, but its Jellyfin opens wait at Background priority (behind the playing song and the visible rows). */
+    /** The prefetcher's own source: the same cache, but its Jellyfin opens wait at Background priority (behind the playing song and the visible rows).
+     *  It waits for a stretch of a song the player is already fetching (FLAG_BLOCK_ON_CACHE) instead of fetching the same bytes again beside it: without
+     *  that, the player's read-ahead of the next song and the prefetcher downloaded it twice at once, halving the line on a weak signal. */
     @OptIn(UnstableApi::class)
     private val prefetchSource = CacheDataSource.Factory().setCache(StreamSupport.cache(ctx))
         .setCacheWriteDataSinkFactory(androidx.media3.datasource.cache.CacheDataSink.Factory().setCache(StreamSupport.cache(ctx)).setFragmentSize(512L * 1024))
         .setUpstreamDataSourceFactory(DefaultDataSource.Factory(ctx, MultiServerDataSourceFactory(prefs, com.ipodemu.library.Priority.BACKGROUND)))
-        .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR or CacheDataSource.FLAG_BLOCK_ON_CACHE)
 
     @OptIn(UnstableApi::class)
     val live = LiveAudio()
@@ -132,8 +134,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         })
         .setMediaSourceFactory(
             DefaultMediaSourceFactory(DataSource.Factory { RoutingDataSource(cacheSource.createDataSource(), upstream.createDataSource()) })
-                // a failed piece is tried six times with growing waits before the player gives up, instead of twice
-                .setLoadErrorHandlingPolicy(androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy(6)),
+                // a failed read is tried again and again (every 1-5 s, for over two minutes: NetPatience) while what is buffered plays on, so a dead zone
+                // in the car is a pause at worst and the song carries on from the same place; six tries (about 15 s) gave up inside an ordinary dead zone
+                .setLoadErrorHandlingPolicy(PatientLoadErrorPolicy()),
         )
         .setLoadControl(StreamSupport.loadControl())
         .setAudioAttributes(
@@ -553,7 +556,10 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         applyOutputVolume()
         applyModes()
         exo.addListener(object : Player.Listener {
-            override fun onEvents(player: Player, events: Player.Events) { fire() }
+            override fun onEvents(player: Player, events: Player.Events) { noteLine(); fire() }
+            // the player has read as far ahead as it wants for now: the songs after are fetched into the cache while the line is free; once it reads
+            // again the fetcher stops, so the two never share the line (or fetch the same stretch twice)
+            override fun onIsLoadingChanged(isLoading: Boolean) { schedulePrefetch() }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 meter.playing(isPlaying, android.os.SystemClock.elapsedRealtime())
                 handler.removeCallbacks(persistTick)
@@ -576,7 +582,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             override fun onPlaybackStateChanged(state: Int) {
                 // READY -> BUFFERING while playing is a stall (the stream ran dry); a seek or a track change is not
                 if (state == Player.STATE_BUFFERING && lastState == Player.STATE_READY && exo.playWhenReady && !seeking && exo.currentPosition > 1000) registerStall()
-                if (state == Player.STATE_READY) seeking = false
+                // it got going again: the next dead zone gets the full patience (the count used to last the whole song, so a song with five dead zones in it
+                // gave up at the sixth)
+                if (state == Player.STATE_READY) { seeking = false; retries = 0 }
                 lastState = state
             }
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
@@ -608,9 +616,13 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                 val key = exo.currentMediaItemIndex to (current?.path ?: "")
                 retries = if (key == retryKey) retries + 1 else 1
                 retryKey = key
-                // a dropped connection (screen lock, a tunnel, a dead spot) is retried after a short, growing wait, from where it stopped
-                if (retries == 6) android.widget.Toast.makeText(ctx, "Couldn't play \"${current?.title ?: "this song"}\" (${error.errorCodeName})", android.widget.Toast.LENGTH_LONG).show()
-                if (retries <= 5) { val at = exo.currentPosition; val idx = exo.currentMediaItemIndex; handler.postDelayed({ if (exo.currentMediaItemIndex == idx) { selfSeekTo(idx, at); exo.prepare(); exo.play() } }, 600L * retries * retries) }
+                // a dropped connection (screen lock, a tunnel, a dead zone in the car) is retried after a growing wait (NetPatience), from exactly where it
+                // stopped: the song pauses and carries on, it never jumps ahead or moves to the next song. Only a server that says the song is not there
+                // (or many minutes of nothing) gives up, and says so. A pause pressed meanwhile is kept (prepare only; Play stays as the person left it).
+                val code = ((error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode) ?: 0
+                val wait = NetPatience.playerRetryDelayMs(retries, NetPatience.hopeless(code))
+                if (wait == null) android.widget.Toast.makeText(ctx, "Couldn't play \"${current?.title ?: "this song"}\" (${error.errorCodeName})", android.widget.Toast.LENGTH_LONG).show()
+                else { val at = exo.currentPosition; val idx = exo.currentMediaItemIndex; handler.postDelayed({ if (exo.currentMediaItemIndex == idx && exo.playerError != null) { selfSeekTo(idx, at); exo.prepare() } }, wait) }
                 fire()
             }
         })
@@ -630,7 +642,10 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             // the song that plays asks first; the next two are background work
             app.art.prefetch(t.artKey, {
                 val n = (0 until exo.mediaItemCount).firstOrNull { exo.getMediaItemAt(it).localConfiguration?.tag === t } ?: return@prefetch
-                if (exo.getMediaItemAt(n).mediaMetadata.artworkUri == null) exo.replaceMediaItem(n, item(t))
+                // only the picture changes: the item keeps the address it is playing from. Building it afresh could give it a different one (a download
+                // finished, the data saver), and the player can't swap that in place: it threw the playing song's buffer away and started it again
+                val old = exo.getMediaItemAt(n)
+                if (old.mediaMetadata.artworkUri == null) exo.replaceMediaItem(n, old.buildUpon().setMediaMetadata(metadataOf(t)).build())
             }, if (i == idx) com.ipodemu.library.Priority.PLAYING else com.ipodemu.library.Priority.BACKGROUND)
         }
     }
@@ -681,11 +696,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         // (the player's old shuffle order could have put it near the end, leaving only a few songs before playback stopped)
         if (prefs.shuffle && !exo.shuffleModeEnabled && exo.mediaItemCount > 1) setShuffleOrderQuiet(ShuffleStart.order(exo.currentMediaItemIndex, exo.mediaItemCount))
         exo.shuffleModeEnabled = prefs.shuffle
-        exo.repeatMode = when (prefs.repeat) {
-            1 -> Player.REPEAT_MODE_ALL
-            2 -> Player.REPEAT_MODE_ONE
-            else -> Player.REPEAT_MODE_OFF
-        }
+        exo.repeatMode = RepeatCycle.toPlayer(prefs.repeat)
+        // the song after the last may be the first one now (or Autoplay's again): what is fetched ahead follows
+        if (hasQueue) schedulePrefetch()
         // shuffle or repeat may have changed which song comes next
         djAsk()
     }
@@ -731,11 +744,12 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
 
     /** Autoplay's songs go on the end of the queue. */
     fun appendAutoplay(list: List<Track>) {
-        if (list.isEmpty() || !hasQueue) return
+        // Repeat switched on while Autoplay was choosing (or a song it asked for landed later): the playlist starts again instead, nothing is added
+        if (list.isEmpty() || !hasQueue || !RepeatCycle.autoplayMayAdd(prefs.repeat)) return
         exo.addMediaItems(list.map(::item)); queueChanged()
     }
-    /** Autoplay fills the queue when at most one more song follows the current one. */
-    fun checkQueueLow() { if (prefs.repeat == 0 && exo.mediaItemCount > 0 && exo.mediaItemCount - exo.currentMediaItemIndex <= 2) onQueueLow?.invoke() }
+    /** Autoplay fills the queue when at most one more song follows the current one (never with Repeat on: see [RepeatCycle]). */
+    fun checkQueueLow() { if (RepeatCycle.autoplayMayAdd(prefs.repeat) && exo.mediaItemCount > 0 && exo.mediaItemCount - exo.currentMediaItemIndex <= 2) onQueueLow?.invoke() }
     /** Called as a song starts when at most one more is queued after it (Autoplay fills the queue). */
     var onQueueLow: (() -> Unit)? = null
 
@@ -1133,31 +1147,39 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     }
 
     // ---- weak connections -------------------------------------------------------------------------------------------------------------
-    // Songs from Jellyfin normally stream as the original file. When the stream keeps running dry (two stalls within two minutes) the
-    // current song and the next two switch to a lower-bitrate transcode (HLS, so seeking still works) for ten minutes, then go back to the
-    // original. Settings > Streaming quality can pin it either way. Nothing is transcoded while the connection copes.
+    // Songs from Jellyfin stream as the original file, read straight through a big buffer (StreamSupport.loadControl: three to ten minutes ahead) and the
+    // disk cache, and the player reads on into the next songs as soon as the playing one is in, so a dead zone is usually covered by audio already on
+    // the phone. When the line does drop, the read is retried patiently (NetPatience) and the song carries on from exactly where it stopped.
+    // There used to be an automatic switch to Jellyfin's live conversion (HLS) after two stalls in two minutes, for ten minutes. It is gone (owner,
+    // 30 Oct, docs/playback-audit-2026-10-30.md): the conversion is made on the fly in short pieces, and on a weak signal pieces were lost or made again
+    // from a slightly different place, so songs jumped ahead ("real slim ... please stand up"); swapping the next songs over also threw away what the
+    // player had already read ahead of them, and the conversion is never cached, so every song started cold from the network. It stays only where it
+    // is needed: a format this phone can't decode, and "Data saver" pinned in Settings > Streaming quality ("Automatic" now means the original).
 
     private var lastState = Player.STATE_IDLE
     private var seeking = false
     private val stalls = ArrayDeque<Long>()
-    @Volatile private var poorUntil = 0L
-    private val dataSaver: Boolean get() = when (prefs.streamQuality) { 1 -> false; 2 -> true; else -> System.currentTimeMillis() < poorUntil }
+    private val dataSaver: Boolean get() = prefs.streamQuality == 2
     /** True while the lower-bitrate stream is the one in use (for the UI). */
-    val usingDataSaver: Boolean get() = dataSaver && current?.let { hlsUri(it) } != null
+    val usingDataSaver: Boolean get() = exo.currentMediaItem?.let { isHls(it) } == true
 
+    /** The stream ran dry while playing: only logged now (how often, where), for the next audit. */
     private fun registerStall() {
         val now = System.currentTimeMillis()
         stalls.addLast(now)
         while (stalls.isNotEmpty() && now - stalls.first() > 120_000) stalls.removeFirst()
-        android.util.Log.w("FLACie", "stream stall #${stalls.size} at ${exo.currentPosition}ms on ${current?.title}")
-        if (prefs.streamQuality == 0 && stalls.size >= 2 && poorUntil < now) {
-            poorUntil = now + 10 * 60_000
-            android.util.Log.w("FLACie", "weak connection: the next songs use the lower bitrate for 10 minutes")
-            // only the songs to come: swapping the playing one threw away all it had buffered and started it again from the same place, which in the car
-            // on a weak signal sounded like the song stopping and starting (owner, 30 Oct)
-            adaptUpcoming()
-        }
+        android.util.Log.w("FLACie", "stream stall #${stalls.size} in 2 min at ${exo.currentPosition}ms on ${current?.title}, ${exo.totalBufferedDuration}ms buffered")
     }
+
+    /** A streamed song (playing or next) is still coming in: the download queue (songs kept offline) holds back meanwhile, so the two don't share a
+     *  weak signal ([PrefetchPlan.streamNeedsLine]). Kept up to date on the main thread, read by the download worker's thread. */
+    @Volatile var streamNeedsLine = false; private set
+    private fun noteLine() {
+        val i = exo.currentMediaItemIndex
+        val near = (i until minOf(i + 2, exo.mediaItemCount)).any { k -> i >= 0 && isNetwork(exo.getMediaItemAt(k)) }
+        streamNeedsLine = PrefetchPlan.streamNeedsLine(exo.isLoading, exo.playWhenReady, near)
+    }
+    private fun isNetwork(mi: MediaItem): Boolean = mi.localConfiguration?.uri?.scheme.let { it == "http" || it == "https" || it == "smb" }
 
     private val jfStreamRe = Regex("^(https?://[^/]+(?:/[^?]*?)?)/Audio/([0-9a-fA-F]{32})/stream")
     /** The lower-bitrate version of a Jellyfin song, or null for anything else (local files, the NAS, downloads). */
@@ -1195,29 +1217,45 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
 
     private fun isHls(i: MediaItem) = i.localConfiguration?.mimeType == androidx.media3.common.MimeTypes.APPLICATION_M3U8
 
-    /** The next two songs follow whatever is in force now (lower bitrate while the connection is poor, the original again once it's fine). */
+    /** The next two songs follow what is in force now: their download finished, or "Data saver" was pinned or unpinned in Settings. The playing song is
+     *  left alone (swapping it threw away all it had buffered and started it again, which in the car sounded like the song stopping and starting). */
     private fun adaptUpcoming() {
         val idx = exo.currentMediaItemIndex
         for (i in idx + 1..minOf(idx + 2, exo.mediaItemCount - 1)) {
             val mi = exo.getMediaItemAt(i)
             val t = mi.localConfiguration?.tag as? Track ?: continue
-            val want = dataSaver && hlsUri(t) != null
-            if (want != isHls(mi)) exo.replaceMediaItem(i, item(t))
+            val fresh = item(t)
+            if (fresh.localConfiguration?.uri != mi.localConfiguration?.uri) exo.replaceMediaItem(i, fresh)
         }
     }
 
-    /** Fetches the next song (two on Wi-Fi with plenty of bandwidth) completely into the cache while the current one plays. */
-    private fun schedulePrefetch() {
-        val bw = androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.getSingletonInstance(ctx).bitrateEstimate
-        val ups = upNext(2).map { it.second }.filter { t -> val u = Uri.parse(t.path); StreamSupport.cacheable(u) }
-        fun need(t: Track) = if (t.size > 0 && t.durationMs > 0) t.size * 8000 / t.durationMs else 1_400_000L
-        val n = when {
-            dataSaver -> 0
-            ups.isNotEmpty() && !netWatch.metered && bw >= 3 * need(ups[0]) -> 2
-            ups.isNotEmpty() && bw >= 3 * need(ups[0]) / 2 -> 1
-            else -> 0
+    /**
+     * A song kept offline finished downloading (OfflineManager): wherever it waits in the queue it now plays from the phone, not the network. The
+     * playing song keeps its stream ([PlaySource.swapToLocal]); it is mostly buffered by then, and swapping it would start it again.
+     */
+    fun downloadLanded(path: String) {
+        val playing = exo.currentMediaItemIndex
+        var swapped = false
+        for (i in 0 until exo.mediaItemCount) {
+            val mi = exo.getMediaItemAt(i)
+            val t = mi.localConfiguration?.tag as? Track ?: continue
+            if (t.path != path) continue
+            if (PlaySource.swapToLocal(i == playing, mi.localConfiguration?.uri?.scheme == "file", sourceOf(t))) { exo.replaceMediaItem(i, item(t)); swapped = true }
         }
-        prefetcher.fetch(ups.take(n).map { Uri.parse(it.path) })
+        // what is fetched ahead no longer needs this song
+        if (swapped) schedulePrefetch()
+    }
+
+    /**
+     * Fetches the next songs completely into the disk cache (two ahead on mobile data, three on Wi-Fi), so a dead zone further on is covered by audio
+     * already on the phone. Only once the player has stopped reading ahead for now ([PrefetchPlan]): before, the fetcher started as each song did and
+     * took half the line from it on a weak signal. Songs on the phone are not fetched: the addresses are the queue's own, and a downloaded song's is
+     * its file (by the server address, songs already downloaded were fetched again over mobile data).
+     */
+    private fun schedulePrefetch() {
+        val n = PrefetchPlan.count(dataSaver, netWatch.metered, exo.isLoading)
+        val ups = upNext(4).mapNotNull { (i, _) -> exo.getMediaItemAt(i).localConfiguration?.uri?.toString() }
+        prefetcher.fetch(PrefetchPlan.targets(ups, n) { StreamSupport.cacheable(Uri.parse(it)) }.map(Uri::parse))
     }
 
     /** The connection came back: an interrupted stream is restarted at once instead of after its timeout. */
@@ -1225,22 +1263,39 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (exo.playbackState == Player.STATE_IDLE && exo.playerError != null && exo.playWhenReady) exo.prepare()
     }
 
-    private fun item(t: Track): MediaItem {
-        val app = App.of(ctx)
+    /** The title, artist, album and cover the lock screen, the car and the notification show for [t]. */
+    private fun metadataOf(t: Track): MediaMetadata {
         // artwork by file URI (decoded off the main thread by Media3), not embedded bytes: reading and attaching ~600 covers made
         // every Play tap slow and made each track change hitch on the main thread
-        val art = app.art.bestFile(t.artKey)
+        val art = App.of(ctx).art.bestFile(t.artKey)
         val md = MediaMetadata.Builder().setTitle(t.title).setArtist(t.artist.ifEmpty { null }).setAlbumTitle(t.album.ifEmpty { null })
         if (art != null) md.setArtworkUri(Uri.fromFile(art))
+        return md.build()
+    }
+
+    /** Where [t] plays from now ([PlaySource]: its file when downloaded, the original stream, the conversion only when it must). */
+    private fun sourceOf(t: Track): PlaySource.From {
+        val own = ownAlacUri(t) != null
+        val transcode = needsTranscode(t)
+        // a song kept offline plays from its file (unless this phone needs the server to convert it): no network, no data used, no waiting
+        val local = !own && !transcode && App.of(ctx).offline.localFile(t) != null
+        return PlaySource.choose(own, local, transcode, dataSaver, hlsUri(t) != null)
+    }
+
+    /** The queue item of [t]. Every queue is built through here (a list played on the phone, the car's lists and voice requests, Autoplay, a queue
+     *  restored at start-up), so a downloaded song always plays from the phone. */
+    private fun item(t: Track): MediaItem {
         val uri = if (t.path.startsWith("content:") || t.path.startsWith("file:") || t.path.startsWith("http:") ||
             t.path.startsWith("https:") || t.path.startsWith("smb:")) Uri.parse(t.path) else Uri.fromFile(File(t.path))
-        // formats the phone cannot decode (WMA, APE ...) are converted by Jellyfin on the way, like the data saver does
-        val own = ownAlacUri(t)
-        // a song kept offline plays from its file (unless this phone needs the server to convert it): no network, no data used, no waiting
-        val local = if (own == null && !needsTranscode(t)) app.offline.localFile(t) else null
-        val hls = if (own == null && local == null && (dataSaver || needsTranscode(t))) hlsUri(t) else null
-        return MediaItem.Builder().setMediaId(t.path).setUri(own ?: (local?.let { Uri.fromFile(it) }) ?: hls ?: uri).setTag(t).also { if (hls != null) it.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8) }
-            .setMediaMetadata(md.build()).build()
+        val b = MediaItem.Builder().setMediaId(t.path).setTag(t).setMediaMetadata(metadataOf(t))
+        when (sourceOf(t)) {
+            PlaySource.From.OWN_ALAC -> b.setUri(ownAlacUri(t))
+            PlaySource.From.LOCAL -> b.setUri(App.of(ctx).offline.localFile(t)?.let { Uri.fromFile(it) } ?: uri)
+            // formats the phone cannot decode (WMA, APE ...) are converted by Jellyfin on the way, as is everything with "Data saver" pinned
+            PlaySource.From.HLS -> b.setUri(hlsUri(t)).setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
+            PlaySource.From.STREAM -> b.setUri(uri)
+        }
+        return b.build()
     }
 
     companion object {

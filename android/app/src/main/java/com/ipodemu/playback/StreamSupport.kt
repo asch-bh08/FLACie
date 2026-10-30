@@ -25,7 +25,8 @@ import java.util.concurrent.Future
  *  - [loadControl] buffers far ahead (up to ten minutes, memory permitting), so a song is usually fully on the phone long before it ends and a
  *    pause, a screen lock or a dip in signal doesn't touch what is playing;
  *  - [cache] keeps what was downloaded, so going back, pausing and resuming or a retry never fetches the same bytes again;
- *  - [Prefetcher] fetches the next songs completely, when the connection can afford it.
+ *  - [Prefetcher] fetches the next songs completely once the player has read as far ahead as it wants ([PrefetchPlan]), on any connection;
+ *  - [PatientLoadErrorPolicy] waits out a dead zone instead of giving up on the song.
  */
 @UnstableApi
 object StreamSupport {
@@ -61,7 +62,8 @@ object StreamSupport {
         .setBackBuffer(30_000, true)
         .build()
 
-    /** A song that is cached when it is a streamed file (not a local file, and not a transcoded HLS stream, whose pieces are one-offs). */
+    /** A song that is cached when it is a streamed file (not a local file, and not a transcoded HLS stream, whose pieces are one-offs: a song played
+     *  through the conversion is fetched from the network again on every retry and every replay, one more reason it is no longer the weak-signal choice). */
     fun cacheable(uri: Uri): Boolean {
         val s = uri.scheme ?: return false
         if (s == "smb") return true
@@ -84,6 +86,22 @@ class RoutingDataSource(private val cached: DataSource, private val plain: DataS
     override fun getUri(): Uri? = active.uri
     override fun getResponseHeaders(): Map<String, List<String>> = active.responseHeaders
     override fun close() { active.close() }
+}
+
+/**
+ * How the player treats a failed read ([NetPatience]): a lost signal is tried again every 1-5 s, many times, while the audio already buffered plays on,
+ * so a dead zone in the car is at worst a pause and the song carries on from the same byte. An answer that waiting can't change (the song is gone, not
+ * allowed) and a broken file fail at once, as before.
+ */
+@UnstableApi
+class PatientLoadErrorPolicy : androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy(NetPatience.LOADER_RETRIES) {
+    override fun getRetryDelayMsFor(info: androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy.LoadErrorInfo): Long {
+        val code = (info.exception as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode ?: 0
+        if (NetPatience.hopeless(code)) return C.TIME_UNSET
+        // the default's own "never retry" cases: a file that can't be parsed, a file that is not there, plain http refused
+        if (super.getRetryDelayMsFor(info) == C.TIME_UNSET) return C.TIME_UNSET
+        return NetPatience.loaderDelayMs(info.errorCount)
+    }
 }
 
 /** Downloads upcoming songs into the cache in the background, one at a time, and stops when asked. */

@@ -219,7 +219,7 @@ fun LibraryHome(nav: PlayerNav) {
             item { LibRow("Favourites", Glyph.HEART_FILLED, "${ud.favorites.size}", Color(0xFFE5486B)) { nav.push(Screen.Detail(DetailKind.FAVORITES)) } }
             item { LibRow("Recently Played", Glyph.CLOCK, "${ud.recents.size}") { nav.push(Screen.Detail(DetailKind.RECENT)) } }
             // the songs kept for listening without signal, apart from the new music fetched into the library
-            item { LibRow("On this phone", Glyph.DOWN, "${app.offline.doneCount}") { nav.push(Screen.OnPhone) } }
+            item { LibRow("Downloads", Glyph.DOWNLOADED, "${app.offline.doneCount}") { nav.push(Screen.Downloads) } }
             item { LibRow("Recently Added", Glyph.PLUS, "${ud.downloads.size}") { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) } }
             item { LibRow("Playlists", Glyph.LIST, "${shownPlaylists(app).size + shownFolderPlaylists(app).size}") { nav.push(Screen.Lib(LibKind.PLAYLISTS)) } }
             if (!app.ui.guest) item { LibRow(if (app.jam.inJam) "In a Jam" else "Jam", Glyph.JAM, "") { app.ui.jamOpen = true } }

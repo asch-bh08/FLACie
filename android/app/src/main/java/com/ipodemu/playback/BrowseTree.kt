@@ -7,7 +7,14 @@ import com.ipodemu.library.Track
 interface BrowseSource {
     fun recent(): List<Track>
     fun favorites(): List<Track>
+    /** Every song on the phone for listening without signal, as the Downloads folder lists them. */
     fun downloaded(): List<Track>
+    /** The playlists (id to name, as [playlists] gives them) whose every song is downloaded. */
+    fun downloadedPlaylists(): List<Pair<String, String>> = emptyList()
+    /** The albums whose every song is downloaded. */
+    fun downloadedAlbums(): List<Group> = emptyList()
+    /** This song is on the phone (an in-memory look-up: it is asked of every row of a list). */
+    fun isDownloaded(path: String): Boolean = false
     /** id to name. */
     fun playlists(): List<Pair<String, String>>
     fun playlistTracks(id: String): List<Track>
@@ -41,7 +48,7 @@ class BrowseNode(
 class Resolved(val tracks: List<Track>, val index: Int)
 
 /**
- * The browse tree, pure and unit-tested. The car shows the root as four tabs: Home (Shuffle all, Favourites and On this phone, then the songs played lately),
+ * The browse tree, pure and unit-tested. The car shows the root as four tabs (Android Auto's most): Home (Shuffle all, Favourites and Downloads, then the songs played lately),
  * Playlists, Albums and Artists, the last three as grids of covers. A song's id carries the list it was picked from, so playing it queues that list (what a person
  * expects in a car), not the one song. Lists are paged and capped: a car screen shows a handful, and the answer to one call must stay small.
  */
@@ -50,6 +57,8 @@ object BrowseTree {
     const val HOME = "home"; const val SHUFFLE = "shuffle"
     /** Carry on with the queue of last time (play pressed on the car's card before anything was picked). */
     const val RESUME = "resume"
+    /** The folder of every downloaded song inside Downloads. */
+    const val DOWNLOADED_SONGS = "dlsongs"
     const val QUICK = "quick"; const val RECENT = "recent"; const val FAVORITES = "favorites"; const val PLAYLISTS = "playlists"; const val ALBUMS = "albums"; const val ARTISTS = "artists"; const val DOWNLOADED = "downloaded"
     private const val SEP = '\u001F'
     const val MAX_PAGE = 100
@@ -69,12 +78,12 @@ object BrowseTree {
 
     /** The lists the car is told to reload when the library or the account's lists change (PlaybackService): it keeps what it was first told, and
      * a car that connected before FLACie had loaded anything showed "No items" in every tab until it was restarted. */
-    val LIVE = listOf(HOME, RECENT, FAVORITES, PLAYLISTS, ALBUMS, ARTISTS, DOWNLOADED)
+    val LIVE = listOf(HOME, RECENT, FAVORITES, PLAYLISTS, ALBUMS, ARTISTS, DOWNLOADED, DOWNLOADED_SONGS)
 
     fun songId(parent: String, path: String) = "s:$parent$SEP$path"
     /** An id the car or a voice command asks to play, which the player resolves through [resolve]. Shuffle all, Play all and Shuffle were missing here
      * and did nothing when pressed in the car. */
-    fun isPlayId(id: String) = id == SHUFFLE || listOf("s:", "pl:", "al:", "ar:", "all:", "shuf:", "dl:").any { id.startsWith(it) }
+    fun isPlayId(id: String) = id == SHUFFLE || id == DOWNLOADED_SONGS || listOf("s:", "pl:", "al:", "ar:", "all:", "shuf:", "dl:").any { id.startsWith(it) }
 
     /** A song from the online catalog that a car's search offers: picking it downloads it, and it plays when it lands (the player does that, see playBrowse). */
     data class CatalogSong(val artist: String, val title: String, val album: String, val durationMs: Long)
@@ -122,14 +131,40 @@ object BrowseTree {
         val mine = "Your music"; val lately = "Recently played"; val lists = "Your playlists"; val picks = "Quick picks"
         return listOf(BrowseNode(SHUFFLE, "Shuffle all", "Your whole library", browsable = false, playable = true, artKey = null, icon = "ic_car_shuffle")) +
             // the playlists first: they are what a person reaches for in the car
-            playlistNodes(src).take(HOME_PLAYLISTS).map { BrowseNode(it.id, it.title, it.subtitle, true, true, it.artKey, group = lists, icon = "ic_car_playlists", cover = true) } +
-            folder(FAVORITES, "Favourites", "ic_car_favourites", group = mine) + folder(DOWNLOADED, "On this phone", "ic_car_downloaded", group = mine) +
-            src.quickPicks().take(HOME_QUICK).map { songNode(QUICK, it, picks).let { n -> BrowseNode(n.id, n.title, n.subtitle, false, true, n.artKey, n.path, group = picks, cover = true) } } +
-            src.recent().take(HOME_RECENT).map { songNode(RECENT, it, lately).let { n -> BrowseNode(n.id, n.title, n.subtitle, false, true, n.artKey, n.path, group = lately, cover = true) } }
+            playlistNodes(src).take(HOME_PLAYLISTS).map { BrowseNode(it.id, it.title, it.subtitle, true, true, it.artKey, group = lists, icon = "ic_car_playlists", cover = true, offline = it.offline) } +
+            folder(FAVORITES, "Favourites", "ic_car_favourites", group = mine) + downloadsFolder(src, mine) +
+            src.quickPicks().take(HOME_QUICK).map { songNode(src, QUICK, it, picks).let { n -> BrowseNode(n.id, n.title, n.subtitle, false, true, n.artKey, n.path, group = picks, cover = true, offline = n.offline) } } +
+            src.recent().take(HOME_RECENT).map { songNode(src, RECENT, it, lately).let { n -> BrowseNode(n.id, n.title, n.subtitle, false, true, n.artKey, n.path, group = lately, cover = true, offline = n.offline) } }
     }
 
-    private fun playlistNodes(src: BrowseSource) =
-        src.playlists().map { (id, name) -> val (n, art) = src.playlistSummary(id); BrowseNode(playlistId(id), name, songs(n), browsable = true, playable = true, artKey = art, grid = true, icon = "ic_car_playlists") }
+    /** The Downloads folder, saying how many songs are on the phone (nothing in the subtitle when none are). */
+    private fun downloadsFolder(src: BrowseSource, group: String?): BrowseNode {
+        val n = src.downloaded().size
+        return BrowseNode(DOWNLOADED, "Downloads", if (n > 0) songs(n) else null, browsable = true, playable = false, artKey = null, group = group, icon = "ic_car_downloaded")
+    }
+
+    /** A playlist tile; [offline] ticks it when every song of it is on the phone. */
+    private fun playlistNodes(src: BrowseSource): List<BrowseNode> {
+        val downloaded = src.downloadedPlaylists().mapTo(HashSet()) { it.first }
+        return src.playlists().map { (id, name) -> val (n, art) = src.playlistSummary(id); BrowseNode(playlistId(id), name, songs(n), browsable = true, playable = true, artKey = art, grid = true, icon = "ic_car_playlists", offline = id in downloaded) }
+    }
+
+    private fun albumNode(g: Group, offline: Boolean, grid: Boolean = true, cover: Boolean = false, group: String? = null) =
+        BrowseNode(albumId(g.tracks.firstOrNull()?.albumKey ?: g.name), g.name, g.tracks.firstOrNull()?.albumArtist?.ifEmpty { null }, browsable = true, playable = true, artKey = g.artKey, grid = grid, group = group, icon = "ic_car_albums", offline = offline, cover = cover)
+
+    /**
+     * What is inside Downloads: Play all and Shuffle for everything on the phone, then the downloaded playlists, the downloaded albums (each a cover that opens to its own Play all, Shuffle and songs),
+     * and "All downloaded songs", a folder of every song. Empty when nothing is downloaded, so the car says so instead of showing buttons that play nothing.
+     */
+    private fun downloads(src: BrowseSource): List<BrowseNode> {
+        val songsOnPhone = src.downloaded()
+        if (songsOnPhone.isEmpty()) return emptyList()
+        val playlists = src.downloadedPlaylists().map { (id, name) -> val (n, art) = src.playlistSummary(id)
+            BrowseNode(playlistId(id), name, songs(n), browsable = true, playable = true, artKey = art, group = "Playlists", icon = "ic_car_playlists", offline = true, cover = true) }
+        val albums = sorted(src.downloadedAlbums()).map { g -> albumNode(g, offline = true, grid = false, cover = true, group = "Albums") }
+        val all = BrowseNode(DOWNLOADED_SONGS, "All downloaded songs", songs(songsOnPhone.size), browsable = true, playable = true, artKey = null, group = "Songs", icon = "ic_car_downloaded", offline = true)
+        return buttons(DOWNLOADED) + playlists + albums + all
+    }
 
     /** The two buttons at the top of an album, playlist or artist: its songs in order, or shuffled. */
     private fun buttons(parent: String) = listOf(
@@ -147,9 +182,10 @@ object BrowseTree {
             Group(name, gs.flatMap { it.tracks }.distinctBy { it.path }, big.artKey)
         }
 
-    private fun songNode(parent: String, t: Track, group: String? = null) = BrowseNode(
+    /** A song row; [BrowseNode.offline] ticks it in every list when it is on the phone, not only in Downloads. */
+    private fun songNode(src: BrowseSource, parent: String, t: Track, group: String? = null) = BrowseNode(
         songId(parent, t.path), t.title, listOf(t.artist, t.album).filter { it.isNotBlank() }.joinToString(" · ").ifEmpty { null },
-        browsable = false, playable = true, artKey = t.artKey, path = t.path, group = group, offline = parent == DOWNLOADED,
+        browsable = false, playable = true, artKey = t.artKey, path = t.path, group = group, offline = src.isDownloaded(t.path),
     )
 
     // by the words: "\"...And Crazy\"" files under A, not before everything (the car has an A-Z jump that goes by this order)
@@ -161,15 +197,16 @@ object BrowseTree {
         val all: List<BrowseNode> = when {
             parent == ROOT -> root()
             parent == HOME -> home(src)
-            parent == QUICK -> src.quickPicks().map { songNode(parent, it) }
-            parent == RECENT -> src.recent().map { songNode(parent, it) }
-            parent == FAVORITES -> src.favorites().map { songNode(parent, it) }
-            parent == DOWNLOADED -> src.downloaded().map { songNode(parent, it) }
+            parent == QUICK -> src.quickPicks().map { songNode(src, parent, it) }
+            parent == RECENT -> src.recent().map { songNode(src, parent, it) }
+            parent == FAVORITES -> src.favorites().map { songNode(src, parent, it) }
+            parent == DOWNLOADED -> downloads(src)
+            parent == DOWNLOADED_SONGS -> src.downloaded().let { t -> if (t.isEmpty()) emptyList() else buttons(parent) + t.map { songNode(src, parent, it) } }
             parent == PLAYLISTS -> playlistNodes(src)
-            parent == ALBUMS -> sorted(src.albums()).map { g -> BrowseNode(albumId(g.tracks.firstOrNull()?.albumKey ?: g.name), g.name, g.tracks.firstOrNull()?.albumArtist?.ifEmpty { null }, browsable = true, playable = true, artKey = g.artKey, grid = true, icon = "ic_car_albums") }
+            parent == ALBUMS -> src.downloadedAlbums().mapTo(HashSet()) { it.tracks.firstOrNull()?.albumKey ?: it.name }.let { dl -> sorted(src.albums()).map { g -> albumNode(g, offline = (g.tracks.firstOrNull()?.albumKey ?: g.name) in dl) } }
             parent == ARTISTS -> sorted(mergedArtists(src)).map { g -> BrowseNode(artistId(g.name), g.name, songs(g.tracks.size), browsable = true, playable = true, artKey = g.artKey, grid = true, icon = "ic_car_artists") }
             parent.startsWith("pl:") || parent.startsWith("al:") || parent.startsWith("ar:") ->
-                songsOf(parent, src).let { t -> if (t.isEmpty()) emptyList() else buttons(parent) + t.map { songNode(parent, it) } }
+                songsOf(parent, src).let { t -> if (t.isEmpty()) emptyList() else buttons(parent) + t.map { songNode(src, parent, it) } }
             else -> emptyList()
         }
         val size = pageSize.coerceIn(1, MAX_PAGE)
@@ -203,7 +240,7 @@ object BrowseTree {
     }
 
     private fun songsOf(id: String, src: BrowseSource): List<Track> = when {
-        id == QUICK -> src.quickPicks(); id == RECENT -> src.recent(); id == FAVORITES -> src.favorites(); id == DOWNLOADED -> src.downloaded()
+        id == QUICK -> src.quickPicks(); id == RECENT -> src.recent(); id == FAVORITES -> src.favorites(); id == DOWNLOADED || id == DOWNLOADED_SONGS -> src.downloaded()
         id == SHUFFLE -> src.allSongs().shuffled().take(MAX_QUEUE)
         id.startsWith("pl:") -> src.playlistTracks(id.removePrefix("pl:")); id.startsWith("al:") -> albumTracks(id, src); id.startsWith("ar:") -> artistTracks(id, src)
         id.startsWith("search:") -> src.search(id.removePrefix("search:"))
@@ -228,7 +265,7 @@ object BrowseTree {
             sorted(mergedArtists(src)).filter { it.name.lowercase().contains(q) }.take(12).map { g -> BrowseNode(artistId(g.name), g.name, songs(g.tracks.size), true, true, g.artKey, icon = "ic_car_artists", cover = true) } +
             sorted(src.albums()).filter { it.name.lowercase().contains(q) }.take(12).map { g -> BrowseNode(albumId(g.tracks.firstOrNull()?.albumKey ?: g.name), g.name, g.tracks.firstOrNull()?.albumArtist?.ifEmpty { null }, true, true, g.artKey, icon = "ic_car_albums", cover = true) }
         val all = lists.map { if (it.cover) it else BrowseNode(it.id, it.title, it.subtitle, true, true, it.artKey, icon = it.icon, cover = true) } +
-            src.search(query).map { songNode("search:" + query, it) } +
+            src.search(query).map { songNode(src, "search:" + query, it) } +
             // songs the library lacks, from the online catalog: picked, they download and then play (as the phone's More music)
             (if (q.isEmpty()) emptyList() else src.catalog(query).filter { !src.owns(it.title, it.artist) }.take(CATALOG_IN_SEARCH).map { c ->
                 BrowseNode(downloadId(c), c.title, "${c.artist} · Download and play", browsable = false, playable = true, artKey = null, icon = "ic_car_download")

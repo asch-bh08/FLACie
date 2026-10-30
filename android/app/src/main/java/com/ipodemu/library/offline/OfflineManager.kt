@@ -56,6 +56,12 @@ class OfflineManager(private val ctx: Context, private val prefs: Prefs) {
     /** Changes on every state change; Compose reads it to redraw the lists. */
     var rev by mutableIntStateOf(0); private set
 
+    /**
+     * Changes when a song is added, finishes, fails or is removed, but NOT on every progress tick of the song being downloaded. The downloaded marks of rows read this one, so a
+     * long playlist's mark is not worked out again every second while a download runs.
+     */
+    var stateRev by mutableIntStateOf(0); private set
+
     /** A short line for the notification and the settings row. */
     @Volatile var statusLine: String = ""; private set
 
@@ -93,6 +99,18 @@ class OfflineManager(private val ctx: Context, private val prefs: Prefs) {
         if (e.state != OfflineState.DONE) return null
         return fileFor(e).takeIf { it.exists() && it.length() > 0 }
     }
+
+    /**
+     * The state of a song's download, or null when it is not in the list. Reads the list only (no disk, and it does not subscribe to [rev]): the downloaded mark of a row
+     * asks this inside a derived state that watches [rev] itself, so a row redraws only when its own mark changes, not on every progress tick.
+     */
+    fun stateOf(path: String): OfflineState? = synchronized(lock) { index[OfflineMath.keyOf(path)]?.state }
+
+    /** The song's entry without subscribing to [rev] (for work done once per change of the counts, not per progress tick). */
+    fun peek(path: String): OfflineEntry? = synchronized(lock) { index[OfflineMath.keyOf(path)] }
+
+    /** Whether anything at all is kept or on its way: a list of rows skips its marks at once when not. */
+    val hasAny: Boolean get() = synchronized(lock) { index.size > 0 }
 
     fun isDownloaded(path: String): Boolean = synchronized(lock) { index[OfflineMath.keyOf(path)]?.state == OfflineState.DONE }
 
@@ -178,7 +196,7 @@ class OfflineManager(private val ctx: Context, private val prefs: Prefs) {
         } catch (_: Exception) {}
     }
 
-    private fun changed() { rev++ }
+    private fun changed() { rev++; stateRev++ }
 
     fun networkOk(): Boolean {
         val n = cm.activeNetwork ?: return false
@@ -286,7 +304,7 @@ class OfflineManager(private val ctx: Context, private val prefs: Prefs) {
                     out.write(buf, 0, n); written += n
                     val now = System.currentTimeMillis()
                     if (now - lastTick > 400) {
-                        lastTick = now; e.bytes = written; changed(); progressNotification(e)
+                        lastTick = now; e.bytes = written; rev++; progressNotification(e)
                         if (!networkOk()) throw IOException("network changed")   // e.g. Wi-Fi lost while on Wi-Fi-only: the part stays for later
                     }
                 }

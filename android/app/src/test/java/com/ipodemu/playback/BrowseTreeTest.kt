@@ -18,7 +18,11 @@ class BrowseTreeTest {
     private inner class Src(
         val songs: List<Track> = (1..5).map { n -> t(n) }, val favs: List<Track> = emptyList(), val recents: List<Track> = emptyList(),
         val pls: Map<String, List<Track>> = emptyMap(), val picks: List<Track> = emptyList(),
+        val dlPlaylists: List<String> = emptyList(), val dlAlbums: Int = 0,
     ) : BrowseSource {
+        override fun downloadedPlaylists() = playlists().filter { it.first in dlPlaylists }
+        override fun downloadedAlbums() = albums().take(dlAlbums)
+        override fun isDownloaded(path: String) = downloaded().any { it.path == path }
         override fun quickPicks() = picks
         override fun recent() = recents; override fun favorites() = favs; override fun downloaded() = songs.take(2)
         override fun playlists() = pls.keys.map { it to "Playlist $it" }
@@ -40,7 +44,7 @@ class BrowseTreeTest {
         val src = Src(recents = (1..20).map { t(it) })
         val home = BrowseTree.children(BrowseTree.HOME, 0, 100, src)
         assertEquals("Shuffle all", home[0].title); assertTrue(home[0].playable && !home[0].browsable)
-        assertEquals(listOf("Favourites", "On this phone"), home.filter { it.group == "Your music" }.map { it.title })
+        assertEquals(listOf("Favourites", "Downloads"), home.filter { it.group == "Your music" }.map { it.title })
         assertTrue(home.filter { it.group == "Your music" }.all { it.browsable && it.icon != null })
         val recent = home.filter { it.group == "Recently played" }
         assertEquals(BrowseTree.HOME_RECENT, recent.size); assertEquals("Song 1", recent[0].title); assertTrue(recent.all { it.playable })
@@ -268,5 +272,71 @@ class BrowseTreeTest {
         assertEquals("jf%032x".format(9), BrowseTree.playlistCover(bare + t(9)))
         assertEquals(com.ipodemu.library.CoverLookup.key("Ar", "Al", "Song 1"), BrowseTree.playlistCover(bare))
         assertEquals(null, BrowseTree.playlistCover(emptyList()))
+    }
+
+    // ---- Downloads (the car's "On this phone", renamed) ----
+    private fun dl(vararg extra: Pair<String, List<Track>>, albums: Int = 0, dlp: List<String> = emptyList()) =
+        Src(songs = (1..6).map { t(it, album = "Al${it % 3}") }, pls = extra.toMap(), dlPlaylists = dlp, dlAlbums = albums)
+
+    @Test fun homeOffersDownloadsUnderYourMusicAndSaysHowMany() {
+        val home = BrowseTree.children(BrowseTree.HOME, 0, 100, dl("p1" to listOf(t(1)), dlp = listOf("p1")))
+        val d = home.first { it.id == BrowseTree.DOWNLOADED }
+        assertEquals("Downloads", d.title); assertEquals("2 songs", d.subtitle); assertTrue(d.browsable && d.icon != null)
+        assertEquals("Your music", d.group)
+    }
+
+    @Test fun downloadsHoldPlayAndShuffleThenPlaylistsAlbumsAndAllSongs() {
+        val src = dl("p1" to listOf(t(1), t(2)), "p2" to listOf(t(3)), albums = 2, dlp = listOf("p1"))
+        val kids = BrowseTree.children(BrowseTree.DOWNLOADED, 0, 100, src)
+        assertEquals(listOf("Play all", "Shuffle"), kids.take(2).map { it.title })
+        val pl = kids.filter { it.group == "Playlists" }; val al = kids.filter { it.group == "Albums" }; val songs = kids.filter { it.group == "Songs" }
+        assertEquals(listOf("Playlist p1"), pl.map { it.title })           // p2 is not downloaded, so it is not here
+        assertEquals(2, al.size)
+        assertEquals(listOf("All downloaded songs"), songs.map { it.title })
+        assertEquals(kids.map { it.id }, (kids.take(2) + pl + al + songs).map { it.id })
+        assertTrue((pl + al).all { it.browsable && it.playable && it.offline })
+        assertTrue(songs[0].browsable && songs[0].playable && songs[0].subtitle == "2 songs")
+    }
+
+    @Test fun downloadedPlaylistPlaysItsOwnSongsAndTheButtonsPlayEverythingDownloaded() {
+        val src = dl("p1" to listOf(t(1), t(2)), dlp = listOf("p1"))
+        val kids = BrowseTree.children(BrowseTree.DOWNLOADED, 0, 100, src)
+        val pl = kids.first { it.group == "Playlists" }
+        assertEquals(listOf(1, 2).map { t(it).path }, BrowseTree.resolve(pl.id, src)!!.tracks.map { it.path })
+        assertEquals(listOf(1, 2).map { t(it).path }, BrowseTree.children(pl.id, 0, 50, src).filter { it.id.startsWith("s:") }.map { it.path })
+        val shuffled = BrowseTree.resolve("shuf:" + BrowseTree.DOWNLOADED, src)!!
+        assertEquals(setOf(t(1).path, t(2).path), shuffled.tracks.map { it.path }.toSet())
+    }
+
+    @Test fun allDownloadedSongsAreOneFolderOfSongsThatQueueTheWholeList() {
+        val src = dl()
+        val songsFolder = BrowseTree.children(BrowseTree.DOWNLOADED, 0, 100, src).first { it.title == "All downloaded songs" }
+        assertTrue(BrowseTree.isPlayId(songsFolder.id))
+        val inside = BrowseTree.children(songsFolder.id, 0, 100, src)
+        assertEquals(listOf("Play all", "Shuffle"), inside.take(2).map { it.title })
+        val songs = inside.drop(2)
+        assertEquals(2, songs.size); assertTrue(songs.all { it.offline && it.playable && !it.browsable })
+        val r = BrowseTree.resolve(songs[1].id, src)!!
+        assertEquals(2, r.tracks.size); assertEquals(1, r.index)
+        assertEquals(2, BrowseTree.resolve(songsFolder.id, src)!!.tracks.size)
+    }
+
+    @Test fun nothingDownloadedMeansAnEmptyFolder() {
+        val src = object : BrowseSource by Src() { override fun downloaded() = emptyList<Track>() }
+        assertTrue(BrowseTree.children(BrowseTree.DOWNLOADED, 0, 100, src).isEmpty())
+        assertNull(BrowseTree.resolve(BrowseTree.DOWNLOADED_SONGS, src))
+    }
+
+    @Test fun everySongOnThePhoneIsTickedWhereverTheCarListsIt() {
+        val src = dl("p1" to (1..4).map { t(it) })      // songs 1 and 2 are downloaded
+        val kids = BrowseTree.children(BrowseTree.playlistId("p1"), 0, 100, src).filter { it.id.startsWith("s:") }
+        assertEquals(listOf(true, true, false, false), kids.map { it.offline })
+        assertEquals(listOf(true, false), BrowseTree.children(BrowseTree.FAVORITES, 0, 10, Src(favs = listOf(t(1), t(5)))).map { it.offline })
+    }
+
+    @Test fun downloadedPlaylistsAndAlbumsAreTickedInTheirTabs() {
+        val src = dl("p1" to listOf(t(1)), "p2" to listOf(t(5)), albums = 1, dlp = listOf("p1"))
+        assertEquals(listOf(true, false), BrowseTree.children(BrowseTree.PLAYLISTS, 0, 50, src).map { it.offline })
+        assertEquals(1, BrowseTree.children(BrowseTree.ALBUMS, 0, 50, src).count { it.offline })
     }
 }

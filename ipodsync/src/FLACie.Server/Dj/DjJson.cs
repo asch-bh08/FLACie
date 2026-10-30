@@ -151,7 +151,8 @@ public static class DjJson
         var r = new Reader(body, "");
         var built = new DjRequest(surface.Value, next ?? new DjSong("", ""), prev, r.Bool("prevPlayedOut", true), r.Bool("skippedRecently", false),
             r.StrOrNull("playlistId", 200), r.BoolOrNull("queueDj"), r.IntOrNull("localHour"), r.IntOrNull("weekday"), r.StrOrNull("why", 500),
-            r.Str("bond", 20).ToLowerInvariant() switch { "loved" => DjBond.Loved, "new" => DjBond.NewFind, _ => DjBond.Unknown });
+            r.Str("bond", 20).ToLowerInvariant() switch { "loved" => DjBond.Loved, "new" => DjBond.NewFind, _ => DjBond.Unknown },
+            r.Bool("queueStart", false), r.StrOrNull("queueName", 200), r.Bool("shuffled", false));
         error ??= r.Error;
         if (error is not null) return error;
         req = built;
@@ -177,6 +178,7 @@ public static class DjJson
         ["surface"] = r.Surface.ToString().ToLowerInvariant(), ["next"] = SongBody(r.Next), ["prev"] = r.Prev is null ? null : SongBody(r.Prev),
         ["prevPlayedOut"] = r.PrevPlayedOut, ["skippedRecently"] = r.SkippedRecently, ["playlistId"] = r.PlaylistId, ["queueDj"] = r.QueueDj,
         ["localHour"] = r.LocalHour, ["weekday"] = r.Weekday, ["why"] = r.Why, ["bond"] = BondName(r.Bond),
+        ["queueStart"] = r.QueueStart, ["queueName"] = r.QueueName, ["shuffled"] = r.Shuffled,
     };
 
     /// <summary>Reads POST /api/dj/next's answer (what <see cref="Cue"/> writes): null for <c>"speak": false</c>, or for an answer that says nothing.</summary>

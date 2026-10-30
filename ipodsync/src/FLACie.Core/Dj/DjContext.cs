@@ -100,9 +100,11 @@ public sealed class DjContext
 
     /// <summary>
     /// The compact, grounded summary that goes into both prompts. [localHour] is the listener's hour (null: not known). Only what is held here; nothing is
-    /// guessed, and empty parts are left out.
+    /// guessed, and empty parts are left out. [engineChose]: the engine picked the next song; when it is the listener's own (a playlist, an album, their queue) the
+    /// "(skipped)" tags and the energy trend are left out, so the writer cannot remark on skips or on a direction nobody chose (owner, 30 Oct: "because you skipped
+    /// this song, playing this" in a playlist).
     /// </summary>
-    public string Summary(DateTime now, int? localHour = null, bool withTalk = true)
+    public string Summary(DateTime now, int? localHour = null, bool withTalk = true, bool engineChose = true)
     {
         var sb = new StringBuilder();
         void Put(string k, string? v) { if (!string.IsNullOrWhiteSpace(v)) sb.Append("- ").Append(k).Append(": ").Append(v).Append('\n'); }
@@ -118,8 +120,8 @@ public sealed class DjContext
         Put("Time of day", localHour switch { >= 5 and <= 11 => "morning", >= 12 and <= 17 => "afternoon", >= 18 and <= 22 => "evening", null => null, _ => "late at night" });
         if (from is { } f && now - f >= TimeSpan.FromMinutes(5)) Put("Listening for", Math.Round((now - f).TotalMinutes).ToString(CultureInfo.InvariantCulture) + " minutes");
         if (ss.Count > 0)
-            Put("Last songs (oldest first)", string.Join("; ", ss.Select(x => (x.Title.Length > 0 ? x.Title : "?") + (x.Artist.Length > 0 ? " by " + x.Artist : "") + (x.Skipped ? " (skipped)" : ""))));
-        Put("Energy", Trend(ss));
+            Put("Last songs (oldest first)", string.Join("; ", ss.Select(x => (x.Title.Length > 0 ? x.Title : "?") + (x.Artist.Length > 0 ? " by " + x.Artist : "") + (x.Skipped && engineChose ? " (skipped)" : ""))));
+        if (engineChose) Put("Energy", Trend(ss));
         Put("They asked for", req);
         Put("Talking about", subj);
         if (Taste?.Invoke() is { } taste)

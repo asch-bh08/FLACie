@@ -24,7 +24,8 @@ data class DjSong(
 /**
  * The phone's side of the AI DJ, with no player in it (so it can be tested; PlayerController applies it). When a song starts, the player asks the server
  * about the song after it ([request], `POST /api/dj/next`); the answer is held as the cue for that song ([accept]), keyed by its path, and said only when
- * the player moves to that very song by itself ([changed] with [Change.AUTO]): a skip, a new queue or another song says nothing. It also keeps the Now
+ * the player moves to that very song by itself ([changed] with [Change.AUTO]): a skip, a new queue or another song says nothing. (A queue started on shuffle from a
+ * named playlist or album gets one line of its own for its first song: [queueStartRequest].) It also keeps the Now
  * Playing "DJ for this queue" switch ([queueDj], reset by every new queue) and remembers recent quick skips (the server stays quiet after one).
  */
 class DjCoordinator {
@@ -104,7 +105,22 @@ class DjCoordinator {
     fun skipRequest(surface: DjSurface, next: DjSong, prev: DjSong?, playlistId: String?, localHour: Int, weekday: Int, loved: Boolean = false): JSONObject =
         request(surface, next, prev, playlistId, localHour, weekday, loved).put("prevPlayedOut", false).put("skippedRecently", true)
 
+    /**
+     * The body of `POST /api/dj/next` for the first song of a queue that has just started from a playlist or album ([name]): "Shuffling Pop... starting with
+     * Firework, Katy Perry" (owner, 30 Oct: nothing was said when shuffle was first pressed). There is no song before it, and starting a queue is no skip.
+     * [shuffled]: it started on shuffle. The server follows the DJ switches, the playlist's switch ([playlistId]) and this queue's ([queueDj]) as for any line.
+     */
+    fun queueStartRequest(surface: DjSurface, first: DjSong, playlistId: String?, name: String, shuffled: Boolean, localHour: Int, weekday: Int, loved: Boolean = false): JSONObject =
+        request(surface, first, null, playlistId, localHour, weekday, loved).put("skippedRecently", false)
+            .put("queueStart", true).put("queueName", name.trim()).put("shuffled", shuffled)
+
     companion object {
+        /** A new queue is announced when the listener started it from a named playlist or album page ([name], [from] null: not a home shelf or a search) on
+         *  shuffle. Pressing shuffle later, in the middle of a queue, is not a new queue and says nothing. */
+        fun announcesQueue(name: String?, from: String?, shuffled: Boolean): Boolean = shuffled && from == null && !name.isNullOrBlank()
+        /** How long a queue start's line may take to come (the model, then the clip); later the song is too far on and the DJ stays quiet. Longer than after a
+         *  skip: the listener has just pressed play and is waiting for something. */
+        const val QUEUE_WAIT_MS = 6_000L
         /** How long before a song's end the server is asked about the next one (writing the line and making its clip take a few seconds). */
         const val ASK_LEAD_MS = 30_000L
         /** How long from now to ask about the next song: in the playing song's last [ASK_LEAD_MS], so a song skipped before then costs nothing

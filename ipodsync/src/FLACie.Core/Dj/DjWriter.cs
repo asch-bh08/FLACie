@@ -8,11 +8,13 @@ namespace FLACie.Core;
 /// <remarks>[Genre], [ReleaseType] ("single", "live album"), [FirstYear] (when it first came out, only if before [Year]), [Label], [Feel] ("a big one"),
 /// [Colour] ("Monday morning"), [FirstName] (only at the start of a session) and [Style]: from MusicBrainz, the vibe index and the account.
 /// [Request]: what the listener asked the DJ for lately ("car songs"), so a line can keep it going; [Context]: the shared <see cref="DjContext"/> summary.
-/// [IntroMs] (0 = not known) and [TargetWords] (0 = no target): the song's intro before the singing, and how many words fit it (<see cref="DjTiming.TargetWords"/>).</remarks>
+/// [IntroMs] (0 = not known) and [TargetWords] (0 = no target): the song's intro before the singing, and how many words fit it (<see cref="DjTiming.TargetWords"/>).
+/// [SameArtistRun]: the previous song was by the same lead artist (an artist's playlist, an album, a run), so the name need not be said again (owner, 30 Oct: "Now
+/// Eminem, Without Me by Eminem... like who else is it gonna be by").</remarks>
 public sealed record DjFacts(string Title, string Artist, string ArtistLead, string? Guest, string Album, int Year, string PrevTitle, string PrevArtist,
     bool Open, string TimeOfDay, string Day, string Mood, string Why, string Find, string TemplateLine,
     string Genre = "", string ReleaseType = "", int FirstYear = 0, string Label = "", string Feel = "", string Colour = "", string FirstName = "", DjStyle Style = DjStyle.Classic, int IntroMs = 0, int TargetWords = 0,
-    string Request = "", string Context = "", string Source = "");
+    string Request = "", string Context = "", string Source = "", bool SameArtistRun = false, string QueueName = "", bool QueueShuffled = false);
 
 /// <summary>
 /// Writes the DJ's line with a small text model (Workers AI) instead of a template: the prompt (a DJ character plus the facts), and the checks on what comes back.
@@ -38,6 +40,9 @@ public static partial class DjWriter
         + "Name the song and the artist naturally, the way a friend says them (for example: Smack That, Akon with Eminem). "
         + "Use only the facts given. Never invent anything: no chart positions, awards, samples, stories or other songs, and never say they played something a certain number of times or lately unless the facts say so. Mention the year or the album only if given. "
         + "Never say or suggest you chose, changed or swapped a song, or that you are reacting to a skip, unless the facts say you picked it. "
+        // owner, 30 Oct: "Now Eminem, Without Me by Eminem", "because you skipped this song" in a playlist, "slowing down" before a faster song
+        + "Never mention a skipped song or a change of direction, and no steering of the mood (slowing down, lifting it), unless the facts say you picked this song: in their own playlist they chose the order, and a feel only describes the song. "
+        + "Never say the artist's name twice in one line; after a song by the same artist, leave the name out or say it once. "
         // the voice ran song names into the words around them (owner, 30 Oct): commas give it a breath either side
         + "Set a song title off with commas when words follow it, so the voice pauses around it (\"Here's Chandelier, from Sia, to lift things\"). "
         + "Do not start the way any of the recent lines start, and do not repeat their wording. Reply with the line only.";
@@ -70,6 +75,7 @@ public static partial class DjWriter
             return (guest is null ? lead : lead + " with " + guest, lead, guest);
         }
         var (artist, lead, g) = ArtistOf(n);
+        var sameRun = lead.Length > 0 && ArtistOf(p).Lead is { Length: > 0 } pl && Matching.PrimaryArtist(lead).Equals(Matching.PrimaryArtist(pl), StringComparison.OrdinalIgnoreCase);
         var album = DjText.Album(n.Album, out _);
         if (album.Equals(TitleOf(n), StringComparison.OrdinalIgnoreCase)) album = "";
         var remaster = n.Title.Contains("remaster", StringComparison.OrdinalIgnoreCase) || n.Album.Contains("remaster", StringComparison.OrdinalIgnoreCase);
@@ -81,20 +87,23 @@ public static partial class DjWriter
         var picked = req.Why is { Length: > 0 };
         var source = picked ? "you picked it for them" : req.PlaylistId is { Length: > 0 } ? "their own playlist (they chose it and its order; you did not pick this song)"
             : "their own queue (they chose it; you did not pick this song)";
-        var mood = line.Slot == DjSlot.Reset ? "they skipped several songs in a row and have now let one play: a change of direction"
+        // (the reset is only ever planned for an engine pick; checked here too, so no other route can put skips into a playlist's prompt)
+        var mood = picked && line.Slot == DjSlot.Reset ? "they skipped several songs in a row and have now let one play: a change of direction"
             : picked && (req.SkippedRecently || !req.PrevPlayedOut) ? "they have just skipped a song" : "settled in, letting songs play";
         var why = string.Join("; ", DjWhy.Parts(req.Why));
         // loved or new: only what the account's listening says (DjRequest.Bond), never guessed from the recommender's words
         var find = req.Bond switch { DjBond.NewFind => "a new find for them, never played before", DjBond.Loved => "a song they love and play a lot", _ => "" };
-        var open = line.Slot == DjSlot.Open || req.Prev is null;
+        var open = line.Slot == DjSlot.Open || (req.Prev is null && !req.QueueStart);
+        // a queue that has just started from a playlist or album: the writer is told its name, and whether it is on shuffle
+        var queue = req.QueueStart && DjText.Tidy(req.QueueName) is { Length: > 0 } qn && DjText.WordCount(qn) <= 8 && qn.Length <= 50 ? qn : "";
         var fy = extra?.OriginalYear ?? 0;
         var first = fy >= 1900 && fy <= nowUtc.Year && (year == 0 || fy < year) && !remaster ? fy : 0;
         var intro = DjIntro.Usable(extra?.Vibe?.Intro);
         return new(TitleOf(n), artist, lead, g, album, year, TitleOf(p), ArtistOf(p).Written, open,
             tod, day, mood, why, find, line.Caption,
-            DjText.Genre(n.Genre)?.Write ?? "", Clean(extra?.ReleaseType), first, Clean(extra?.Label), DjFeel.Of(extra?.Vibe, extra?.PrevVibe),
+            DjText.Genre(n.Genre)?.Write ?? "", Clean(extra?.ReleaseType), first, Clean(extra?.Label), DjFeel.Of(extra?.Vibe, extra?.PrevVibe, picked),
             DjPlanner.Colour(req.LocalHour, req.Weekday) ?? "", open && firstName is { Length: > 0 } fn ? fn : "", style,
-            intro ?? 0, DjTiming.TargetWords(intro), Source: source);
+            intro ?? 0, DjTiming.TargetWords(intro), Source: source, SameArtistRun: sameRun, QueueName: queue, QueueShuffled: req.Shuffled);
     }
 
     /// <summary>The most words a model line may have: <see cref="MaxWords"/>, or a few over the intro's target when there is one (a little over only leads the song in).</summary>
@@ -116,8 +125,11 @@ public static partial class DjWriter
         Put("Label", f.Label);
         Put("Genre", f.Genre);
         Put("How it sounds", f.Feel);
-        Put("Previous song", f.PrevTitle.Length > 0 && f.PrevArtist.Length > 0 ? f.PrevTitle + " by " + f.PrevArtist : f.PrevTitle);
-        Put("Moment", f.Open ? "the start of a listening session: a short hello first" + (f.FirstName.Length > 0 ? ", by first name" : "") : "between songs, mid-session");
+        Put("Previous song", f.PrevTitle.Length > 0 && f.PrevArtist.Length > 0 && !f.SameArtistRun ? f.PrevTitle + " by " + f.PrevArtist : f.PrevTitle);
+        if (f.SameArtistRun) Put("Same artist", "the previous song was by the same artist, so do not say the artist's name again: the title alone is enough, or say the name just once");
+        Put("Moment", f.QueueName.Length > 0
+            ? $"they have just started playing {f.QueueName}{(f.QueueShuffled ? " on shuffle" : "")}, and this is its first song: say so in your own words, in the same breath as the song (for example \"{(f.QueueShuffled ? "Shuffling" : "Playing")} {f.QueueName}... starting with {f.Title}, {f.ArtistLead}\"), using only that name for the list"
+            : f.Open ?"the start of a listening session: a short hello first" + (f.FirstName.Length > 0 ? ", by first name" : "") : "between songs, mid-session");
         Put("Listener's first name", f.FirstName);
         Put("Time of day", f.TimeOfDay);
         Put("Day", f.Day);
@@ -155,6 +167,17 @@ public static partial class DjWriter
 
     static readonly string[] Cheesy = ["vibe", "vibes", "banger", "bangers", "epic", "lit", "fire", "slaps", "certified", "legendary", "iconic", "buckle up", "get ready"];
 
+    /// <summary>The engine picked this song (it has a reason): the only case where the DJ may speak of a skip, a change of direction or steering the mood.</summary>
+    static bool Picked(DjFacts f) => f.Why.Length > 0 || f.Source.StartsWith("you picked", StringComparison.Ordinal);
+
+    /// <summary>What the DJ never says about a song the listener chose themselves (owner, 30 Oct).</summary>
+    static readonly string[] OwnNever =
+    [
+        "skip", "skips", "skipped", "skipping", "direction", "something different", "something else", "changing it up", "changing things up", "switching it up",
+        "mixing it up", "slowing", "slowing it down", "slow it down", "slow things down", "picking up the pace", "pick it up", "pick up the pace", "lift it", "lifting it",
+        "i picked", "i've picked", "i chose", "i've chosen", "i swapped", "i've swapped", "i changed", "i've changed", "swapped", "swapping", "up next",
+    ];
+
     static string Bare(string w) => new string(w.Trim().Where(c => char.IsLetterOrDigit(c) || c is '\'' or '’' or '-' or '$' or '.').ToArray()).Trim('.', '\'', '’', '-');
 
     /// <summary>
@@ -181,10 +204,23 @@ public static partial class DjWriter
         // it names the song or the artist
         bool Has(string x) => x.Length > 0 && low.Contains(x.ToLowerInvariant());
         if (!Has(f.Title) && !Has(f.ArtistLead)) return null;
+        // the lead artist is said once at most (a title that holds their name is not a second time): "Now Eminem, Without Me by Eminem" is refused
+        if (f.ArtistLead.Length > 0)
+        {
+            var rest = f.Title.Length > 0 ? low.Replace(f.Title.ToLowerInvariant(), " ") : low;
+            if (Regex.Matches(rest, @"(?<![\p{L}\p{N}])" + Regex.Escape(f.ArtistLead.ToLowerInvariant()) + @"(?![\p{L}\p{N}])").Count > 1) return null;
+        }
+        // in the listener's own playlist, album or queue the DJ chose nothing: no skips, no change of direction, no steering, no "I picked" (checked against the
+        // song's own names, so a title such as "Skip to My Lou" is its own business)
+        if (!Picked(f))
+        {
+            var names = string.Join(" \n ", new[] { f.Title, f.Artist, f.Album, f.PrevTitle, f.PrevArtist }).ToLowerInvariant();
+            if (OwnNever.Any(c => Word(low, c) && !Word(names, c))) return null;
+        }
         // every capitalised word mid-sentence and every number comes from the facts
         var known = string.Join(" \n ", new[] { f.Title, f.Artist, f.Album, f.PrevTitle, f.PrevArtist, f.Why, f.Day, f.TimeOfDay, f.TemplateLine,
             f.Year > 0 ? f.Year.ToString(CultureInfo.InvariantCulture) : "", f.FirstYear > 0 ? f.FirstYear.ToString(CultureInfo.InvariantCulture) : "",
-            f.Genre, f.ReleaseType, f.Label, f.Feel, f.Colour, f.FirstName, f.Request, f.Context }).ToLowerInvariant();
+            f.Genre, f.ReleaseType, f.Label, f.Feel, f.Colour, f.FirstName, f.Request, f.Context, f.QueueName }).ToLowerInvariant();
         static bool Word(string text, string w) => Regex.IsMatch(text, @"(?<![\p{L}])" + Regex.Escape(w) + @"(?![\p{L}])");
         if (Cheesy.Any(c => Word(low, c) && !Word(known, c))) return null;
         foreach (Match m in Number().Matches(s))

@@ -240,7 +240,7 @@ public class DjWriterTests : IDisposable
     {
         var (sys, user) = DjWriter.Prompt(DjWriter.FactsOf(Req("Because you play Outkast"), Template, now), ["One.", "Two.", "Three.", "Four.", "Five.", "Six."]);
         var text = CloudflareVoice.EstimateTextNeurons(sys, user);
-        Assert.InRange(text, 5, 30);
+        Assert.InRange(text, 5, 35);   // (the character grew by two rules on 30 Oct: no skips or steering in a playlist, no artist twice)
         var aura = CloudflareVoice.EstimateNeurons(CloudflareVoice.DefaultVoice, "Friday evening, so here's Smack That, Akon with Em-in-em, from two thousand and six.");
         // at a 50% cap: about 30 lines a day, about 90 songs at one line in three
         Assert.InRange(5000 / (aura + text), 25, 60);

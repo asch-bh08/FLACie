@@ -123,8 +123,8 @@ sealed interface Screen {
     data object Settings : Screen
     data object Dashboard : Screen
     data object Offline : Screen
-    /** The songs kept on the phone for playing without signal ("On this phone"), as against Settings > Offline and storage. */
-    data object OnPhone : Screen
+    /** The songs kept on the phone for playing without signal ("Downloads"), as against Settings > Offline and storage. */
+    data object Downloads : Screen
     data object Music : Screen
     /** Modern theme's Library tab. */
     data object Library : Screen
@@ -330,7 +330,7 @@ private fun ScreenContent(screen: Screen, nav: PlayerNav, snap: PlayerSnap) {
         Screen.Settings -> SettingsScreen(nav)
         Screen.Dashboard -> SettingsScreen(nav, dashboard = true)
         Screen.Offline -> OfflineScreen(nav)
-        Screen.OnPhone -> OnPhoneScreen(nav)
+        Screen.Downloads -> DownloadsScreen(nav)
         Screen.Music -> MusicMenu(nav)
         Screen.Library -> ExploreScreen(nav, snap)
         Screen.Sources -> LibraryHome(nav)
@@ -401,6 +401,8 @@ fun TrackRow(
         },
         trailing = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                // on the phone for listening without signal (a dim mark while it is still on its way)
+                DownloadedMark(t.path, 15.dp)
                 if (fav) GlyphIcon(Glyph.HEART_FILLED, Modifier.size(18.dp), sc.accent)
                 if (hiRes && !narrow) HiResBadge()
                 if (!narrow) SourceBadge(t.source)
@@ -632,7 +634,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (modern && !welcomed(app).value) item(key = "welcome") { WelcomeCard { welcomed(app).value = true; app.prefs.welcomed = true } }
             if (!modern) item { NowPlayingCard(snap, nav) { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } } }
             if (com.ipodemu.PermissionPlan.showMediaNotice(app.ui.loginMode, app.ui.mediaAccess)) item { MediaAccessNotice(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
-            // design I: Favourites, Recent, On this phone, Recently added and the moods as outlined chips (the chosen mood filled); Shuffle all is in the hero
+            // design I: Favourites, Recent, Downloads, Recently added and the moods as outlined chips (the chosen mood filled); Shuffle all is in the hero
             if (modern) item {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     // the moods first, as on the web ("All" filled while no mood is picked), then the shortcuts the old Home had
@@ -640,8 +642,8 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     moodList.forEach { m -> DesignChip(m, mood == m, { mood = if (mood == m) null else m }) }
                     DesignChip("Favourites", false, { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART)
                     DesignChip("Recent", false, { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK)
-                    // "On this phone" is the songs kept for listening without signal; "Recently added" is new music fetched into the library
-                    DesignChip("On this phone", false, { nav.push(Screen.OnPhone) }, icon = Glyph.DOWN)
+                    // "Downloads" is the songs kept for listening without signal; "Recently added" is new music fetched into the library
+                    DesignChip("Downloads", false, { nav.push(Screen.Downloads) }, icon = Glyph.DOWNLOADED)
                     DesignChip("Recently added", false, { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.PLUS)
                 }
             } else item {
@@ -649,7 +651,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     GlossPill("Shuffle All", { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } }, icon = Glyph.SHUFFLE, height = 32.dp)
                     GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 32.dp)
                     GlossPill("Recent", { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK, height = 32.dp)
-                    GlossPill("On this phone", { nav.push(Screen.OnPhone) }, icon = Glyph.DOWN, height = 32.dp)
+                    GlossPill("Downloads", { nav.push(Screen.Downloads) }, icon = Glyph.DOWNLOADED, height = 32.dp)
                     GlossPill("Recently added", { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.PLUS, height = 32.dp)
                     moodList.forEach { m -> GlossPill(m, { mood = if (mood == m) null else m }, height = 32.dp, primary = mood == m) }
                 }
@@ -987,7 +989,8 @@ internal fun GroupList(groups: List<Group>, nav: PlayerNav, circle: Boolean, tar
             items(list, key = { it.name + "|" + (it.tracks.firstOrNull()?.path ?: "") }, contentType = { "group" }) { g ->
             IpodRow({ nav.push(target(g)) }, height = 56.dp,
                 leading = { ArtImage(g.artKey, Modifier.size(44.dp), thumb = true, corner = 10.dp, circle = circle) },
-                trailing = { CountChevron(g.tracks.size) }) { hi ->
+                // an album (or any group) with every song on the phone carries the downloaded mark
+                trailing = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { if (!circle) DownloadedListMark(remember(g) { g.tracks.map { it.path } }); CountChevron(g.tracks.size) } }) { hi ->
                 Txt(g.name, size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.onBg)
             }
             }
@@ -1090,14 +1093,14 @@ private fun PlaylistsList(nav: PlayerNav) {
                         SheetItem("Delete", Glyph.CLOSE) { ud.deletePlaylist(p.id) }, SheetItem("Cancel", Glyph.BACK) {}))
                 })) },
                 height = 56.dp, leading = { ArtImage(first, Modifier.size(44.dp), thumb = true, corner = 10.dp) },
-                trailing = { CountChevron(p.paths.size) }) { hi ->
+                trailing = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { DownloadedListMark(p.paths); CountChevron(p.paths.size) } }) { hi ->
                 Txt(p.name, size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.onBg)
             }
         }
         items(shownFolderPlaylists(app), key = { "f" + it.name + "|" + (it.tracks.firstOrNull()?.path ?: "") }) { g ->
             IpodRow({ nav.push(Screen.Detail(DetailKind.FOLDER, g.name)) }, height = 56.dp,
                 leading = { ArtImage(g.artKey, Modifier.size(44.dp), thumb = true, corner = 10.dp) },
-                trailing = { CountChevron(g.tracks.size) }) { hi ->
+                trailing = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { DownloadedListMark(remember(g) { g.tracks.map { it.path } }); CountChevron(g.tracks.size) } }) { hi ->
                 Txt(g.name, size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.onBg)
             }
         }
@@ -1701,6 +1704,7 @@ private fun QueueScreen(nav: PlayerNav, snap: PlayerSnap) {
                     leading = { Box(Modifier.width(30.dp), contentAlignment = Alignment.Center) { if (cur) EqualizerBars(Modifier.size(18.dp), snap.playing, sc.accent) else Txt("${i + 1}", size = 14f, color = sc.onBgDim) } },
                     trailing = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            DownloadedMark(t.path, 15.dp)
                             Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = "More for ${t.title}" }.clickable { nav.sheet = queueRowSheet(app, t, i, snap.index, q.size) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.MORE, Modifier.size(18.dp), sc.onBgDim) }
                             Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = "Remove ${t.title}" }.clickable { removeFromQueueWithUndo(app, i) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.CLOSE, Modifier.size(18.dp), sc.onBgDim) }
                         }
@@ -1977,7 +1981,7 @@ private fun SearchIdle(nav: PlayerNav) {
         androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 36.dp)
             GlossPill("Recent", { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK, height = 36.dp)
-            GlossPill("On this phone", { nav.push(Screen.OnPhone) }, icon = Glyph.DOWN, height = 36.dp)
+            GlossPill("Downloads", { nav.push(Screen.Downloads) }, icon = Glyph.DOWNLOADED, height = 36.dp)
             GlossPill("Recently added", { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.PLUS, height = 36.dp)
             GlossPill("Albums", { nav.push(Screen.Lib(LibKind.ALBUMS)) }, icon = Glyph.ALBUM, height = 36.dp)
             GlossPill("Artists", { nav.push(Screen.Lib(LibKind.ARTISTS)) }, icon = Glyph.ARTIST, height = 36.dp)

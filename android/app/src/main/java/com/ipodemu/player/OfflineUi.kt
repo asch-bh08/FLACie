@@ -24,7 +24,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.runtime.derivedStateOf
+import com.ipodemu.library.offline.DownloadMark
+import com.ipodemu.library.offline.DownloadMarks
+import com.ipodemu.library.offline.DownloadedList
+import com.ipodemu.library.offline.DownloadsOverview
+import com.ipodemu.library.offline.ListSpec
 import com.ipodemu.library.Track
 import com.ipodemu.library.offline.KeepStatus
 import com.ipodemu.library.offline.OfflineEntry
@@ -51,7 +62,7 @@ fun OfflineScreen(nav: PlayerNav) {
         TopBar("Offline and storage", nav, showBack = true)
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             LazyColumn(Modifier.widthIn(max = 620.dp).fillMaxSize(), contentPadding = PaddingValues(bottom = 30.dp)) {
-                item { SectionHeader("On this phone") }
+                item { SectionHeader("Downloaded") }
                 item {
                     Card {
                         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -102,76 +113,143 @@ fun OfflineScreen(nav: PlayerNav) {
     }
 }
 
+/** A downloaded playlist or album as a row of the Downloads section: where a tap goes, the songs it plays, and (for a playlist kept up to date) the id that is kept. */
+private class Shelf(val list: DownloadedList, val to: Screen, val paths: List<String>, val keptId: String?)
+
 /**
- * "On this phone": the songs kept for listening without signal, one tap from Home (Settings > Offline and storage is only the switches and the clean-up). Songs that
- * are still on their way show how far they are; Songs / Albums changes how they are listed; the playlists kept up to date are listed so it is clear what feeds this.
+ * The little mark on a song that is on the phone (Spotify's green arrow, in the app's accent), or a dim one while it is on its way. It asks the in-memory list only, through a
+ * derived state that follows the downloads' state revision (it ignores progress ticks): a row redraws when its own mark changes, not on every progress tick, and a list with no downloads at all skips it.
  */
 @Composable
-fun OnPhoneScreen(nav: PlayerNav) {
+fun DownloadedMark(path: String, size: Dp = 16.dp) {
+    val m = LocalApp.current.offline
+    val mark by remember(path, m) { derivedStateOf { m.stateRev; if (m.hasAny) DownloadMarks.ofSong(m.stateOf(path)) else DownloadMark.NONE } }
+    MarkIcon(mark, size)
+}
+
+/** The same mark for a playlist or an album, from its songs' paths: Downloaded only when every song is on the phone; partly done shows nothing (calm). */
+@Composable
+fun DownloadedListMark(paths: List<String>, size: Dp = 16.dp) {
+    val m = LocalApp.current.offline
+    val mark by remember(paths, m) { derivedStateOf { m.stateRev; if (m.hasAny) DownloadMarks.ofList(paths) { m.stateOf(it) } else DownloadMark.NONE } }
+    MarkIcon(mark, size)
+}
+
+@Composable
+private fun MarkIcon(mark: DownloadMark, size: Dp) {
+    if (mark == DownloadMark.NONE) return
+    val sc = LocalScheme.current
+    val done = mark == DownloadMark.DOWNLOADED
+    // a finished song is the full accent; one on its way is the same shape, quieter, so a list does not flicker
+    GlyphIcon(Glyph.DOWNLOADED, Modifier.size(size).semantics { contentDescription = if (done) "Downloaded" else "Downloading" }, if (done) sc.accent else sc.onBgDim.copy(alpha = .7f))
+}
+
+/**
+ * Downloads: everything kept on the phone for listening without signal, like Spotify's Downloaded view. At the top the total and, while songs are on their way, how far
+ * they are (with Try again for the ones that failed); then the downloaded playlists and albums (a tap opens them, a long press offers Play, Shuffle and Remove download), then
+ * every downloaded song. Settings > Offline and storage is only the switches and the clean-up.
+ */
+@Composable
+fun DownloadsScreen(nav: PlayerNav) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     val m = app.offline
+    val ud = app.userData
+    val libRev = LocalLibRev.current
+    ud.rev
     // read here so the screen follows every change of the downloads
     val entries = m.entries
-    val ud = app.userData
-    var byAlbum by remember { mutableStateOf(false) }
-    val done = entries.filter { it.state == OfflineState.DONE }
-    val ordered = entries.sortedWith(compareBy({ it.state != OfflineState.DONE }, { -it.addedMs }))
-    val kept = m.keptPlaylists.mapNotNull { id ->
-        if (id.startsWith("folder:")) id.removePrefix("folder:") to Screen.Detail(DetailKind.FOLDER, id.removePrefix("folder:"))
-        else ud.playlists.firstOrNull { it.id == id }?.let { it.name to Screen.Detail(DetailKind.USER, id) }
+    val doneCount = m.doneCount; val pending = m.pendingCount; val failed = m.failedCount
+    val songs = DownloadsOverview.songs(entries)
+    val trouble = entries.filter { it.state != OfflineState.DONE }.sortedBy { if (it.state == OfflineState.FAILED) 0 else 1 }
+    // worked out again only when songs finish or the lists change, not on every progress tick; only lists that hold a downloaded song are looked at
+    val shelves = remember(doneCount, ud.rev, libRev) {
+        fun hasDone(paths: Collection<String>) = paths.any { m.peek(it)?.state == OfflineState.DONE }
+        fun art(paths: Collection<String>) = paths.firstNotNullOfOrNull { m.peek(it)?.takeIf { e -> e.state == OfflineState.DONE }?.artKey }
+        val out = ArrayList<Shelf>()
+        for (p in ud.playlists.toList()) {
+            if (!hasDone(p.paths)) continue
+            DownloadsOverview.lists(listOf(ListSpec(p.id, p.name, "Playlist", art(p.paths), p.paths.toList()))) { m.peek(it) }
+                .forEach { out += Shelf(it, Screen.Detail(DetailKind.USER, p.id), p.paths.toList(), p.id) }
+        }
+        for (g in shownFolderPlaylists(app)) {
+            val paths = g.tracks.map { it.path }
+            if (!hasDone(paths)) continue
+            DownloadsOverview.lists(listOf(ListSpec("folder:" + g.name, g.name, "Playlist", art(paths) ?: g.artKey, paths))) { m.peek(it) }
+                .forEach { out += Shelf(it, Screen.Detail(DetailKind.FOLDER, g.name), paths, "folder:" + g.name) }
+        }
+        val playlists = out.sortedBy { it.list.name.lowercase() }
+        val albums = ArrayList<Shelf>()
+        for (g in app.library.albums()) {
+            val paths = g.tracks.map { it.path }
+            if (!hasDone(paths)) continue
+            val key = g.tracks.firstOrNull()?.albumKey ?: continue
+            DownloadsOverview.lists(listOf(ListSpec(key, g.name, g.tracks.firstOrNull()?.albumArtist ?: "", art(paths) ?: g.artKey, paths))) { m.peek(it) }
+                .forEach { albums += Shelf(it, Screen.Detail(DetailKind.ALBUM, key), paths, null) }
+        }
+        playlists to albums.sortedBy { it.list.name.lowercase() }
     }
+    fun tracksOf(s: Shelf) = s.paths.mapNotNull { m.peek(it) }.filter { it.state == OfflineState.DONE }.distinctBy { it.key }.map { it.toTrack() }
+    fun rowSheet(s: Shelf) {
+        nav.sheet = SheetSpec(s.list.name, s.list.detail, listOf(
+            SheetItem("Play", Glyph.PLAY) { val t = tracksOf(s); if (t.isNotEmpty()) app.player.play(t, 0, context = s.list.name) },
+            SheetItem("Shuffle", Glyph.SHUFFLE) { val t = tracksOf(s); if (t.isNotEmpty()) app.player.play(t, t.indices.random(), true, s.list.name) },
+            SheetItem("Remove download", Glyph.CLOSE) {
+                nav.sheet = SheetSpec("Remove the download of \"${s.list.name}\"?", s.list.detail, listOf(
+                    SheetItem("Yes, remove the downloads", Glyph.CLOSE) { s.keptId?.let { m.setKept(it, false) }; s.paths.forEach { m.remove(it) } }, SheetItem("Keep it", Glyph.CHECK) { }))
+            },
+        ))
+    }
+    @Composable fun shelfRow(s: Shelf) {
+        IpodRow({ nav.push(s.to) }, onLong = { rowSheet(s) }, height = 64.dp,
+            leading = { ArtImage(s.list.artKey, Modifier.size(48.dp), thumb = true, corner = 8.dp) },
+            trailing = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GlyphIcon(Glyph.DOWNLOADED, Modifier.size(16.dp), sc.accent)
+                Box(Modifier.size(44.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(50)).semantics { contentDescription = "More for ${s.list.name}" }.clickable { rowSheet(s) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.MORE, Modifier.size(20.dp), rowDim()) }
+            } }) { hi ->
+            Column {
+                Txt(s.list.name, size = 16f, weight = FontWeight.SemiBold, color = if (hi) androidx.compose.ui.graphics.Color.White else sc.onBg)
+                Txt(s.list.detail, size = 12.5f, color = rowDim())
+            }
+        }
+    }
+
     Column(Modifier.fillMaxSize().background(Palette.bg)) {
-        TopBar("On this phone", nav, showBack = true) { TopAction(Glyph.GEAR, "Offline settings") { nav.push(Screen.Offline) } }
+        TopBar("Downloads", nav, showBack = true) { TopAction(Glyph.GEAR, "Download settings") { nav.push(Screen.Offline) } }
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             LazyColumn(Modifier.widthIn(max = 620.dp).fillMaxSize(), contentPadding = PaddingValues(bottom = 30.dp)) {
                 item {
                     Card {
                         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Txt("${OfflineMath.songs(m.doneCount)}, ${OfflineMath.formatBytes(m.usedBytes)}", size = 17f, weight = FontWeight.SemiBold)
+                            Txt(DownloadsOverview.storageLine(doneCount, m.usedBytes), size = 17f, weight = FontWeight.SemiBold)
                             Txt("These play with no signal. ${OfflineMath.formatBytes(m.freeBytes)} free on the phone", size = 13f, color = sc.onBgDim)
-                            val pending = m.pendingCount; val failed = m.failedCount
-                            if (pending > 0) Txt(m.statusLine.ifEmpty { "$pending waiting to download" }, size = 13f, color = sc.accent)
-                            if (failed > 0) Txt("$failed failed", size = 13f, color = sc.onBgDim)
+                            DownloadsOverview.progressLine(doneCount, pending, m.waitReason())?.let { Txt(it, size = 13f, color = sc.accent) }
+                            DownloadsOverview.failedLine(failed)?.let { Txt(it, size = 13f, color = sc.onBgDim) }
                         }
                     }
                 }
-                if (entries.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(24.dp)) { Txt("Nothing on this phone yet. Open an album or a playlist and tap Download, or use a song's menu and choose Download for offline.", size = 14f, color = sc.onBgDim) } }
+                if (entries.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(24.dp)) { Txt("Nothing downloaded yet. Open an album or a playlist and tap Download, or use a song's menu and choose Download.", size = 14f, color = sc.onBgDim) } }
                 else item {
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (done.isNotEmpty()) {
-                            DesignChip("Play", false, { app.player.play(done.map { it.toTrack() }, 0, context = "On this phone") }, icon = Glyph.PLAY)
-                            DesignChip("Shuffle", false, { app.player.play(done.map { it.toTrack() }, done.indices.random(), true, "On this phone") }, icon = Glyph.SHUFFLE)
+                        if (songs.isNotEmpty()) {
+                            DesignChip("Play", false, { app.player.play(songs.map { it.toTrack() }, 0, context = "Downloads") }, icon = Glyph.PLAY)
+                            DesignChip("Shuffle", false, { app.player.play(songs.map { it.toTrack() }, songs.indices.random(), true, "Downloads") }, icon = Glyph.SHUFFLE)
                         }
-                        DesignChip("Songs", !byAlbum, { byAlbum = false })
-                        DesignChip("Albums", byAlbum, { byAlbum = true })
-                        if (m.failedCount > 0) DesignChip("Try the failed ones again", false, { m.retryFailed() })
+                        if (failed > 0) DesignChip("Try again", false, { m.retryFailed() })
                     }
                 }
-                if (kept.isNotEmpty()) {
-                    item { SectionHeader("Kept up to date") }
-                    item {
-                        Card {
-                            kept.forEach { (name, to) -> OfflineRow(name, value = "Playlist") { nav.push(to) } }
-                        }
-                    }
+                if (shelves.first.isNotEmpty()) { item { SectionHeader("Playlists") }; items(shelves.first, key = { "p" + it.list.id }) { shelfRow(it) } }
+                if (shelves.second.isNotEmpty()) { item { SectionHeader("Albums") }; items(shelves.second, key = { "a" + it.list.id }) { shelfRow(it) } }
+                // songs still to come or that failed, at most a screenful (the top card says how many there are in all)
+                if (trouble.isNotEmpty()) {
+                    item { SectionHeader(if (trouble.any { it.state == OfflineState.FAILED }) "Not finished" else "On their way") }
+                    items(trouble.take(20), key = { "t" + it.key }) { e -> OfflineEntryRow(e, onPlay = { }, onRemove = { m.remove(e.path) }) }
+                    if (trouble.size > 20) item { Box(Modifier.fillMaxWidth().padding(16.dp)) { Txt("and ${trouble.size - 20} more", size = 13f, color = sc.onBgDim) } }
                 }
-                if (entries.isNotEmpty()) item { SectionHeader(if (byAlbum) "Albums" else "Songs") }
-                if (!byAlbum) items(ordered, key = { it.key }) { e -> OfflineEntryRow(e, onPlay = { play(app, entries, e, "On this phone") }, onRemove = { m.remove(e.path) }) }
-                else {
-                    // each album with its songs under it (an album still downloading lists what has arrived and what is on the way)
-                    val groups = ordered.groupBy { it.albumArtist.ifEmpty { it.artist }.lowercase() + "|" + it.album.lowercase() }.values.sortedBy { it[0].album.lowercase() }
-                    groups.forEach { g ->
-                        val n = g.count { it.state == OfflineState.DONE }
-                        item(key = "g" + g[0].key) {
-                            OfflineRow("${g[0].album.ifEmpty { "Unknown album" }} · ${g[0].albumArtist.ifEmpty { g[0].artist }}", value = "$n of ${g.size}") {
-                                nav.sheet = SheetSpec("Remove ${g[0].album.ifEmpty { "these songs" }}?", OfflineMath.songs(g.size), listOf(
-                                    SheetItem("Yes, remove its downloads", Glyph.CLOSE) { g.forEach { m.remove(it.path) } }, SheetItem("Keep it", Glyph.CHECK) { }))
-                            }
-                        }
-                        items(g, key = { it.key }) { e -> OfflineEntryRow(e, onPlay = { play(app, entries, e, "On this phone") }, onRemove = { m.remove(e.path) }) }
-                    }
-                }
+                if (songs.isNotEmpty()) item { SectionHeader("Songs") }
+                items(songs, key = { "s" + it.key }) { e -> OfflineEntryRow(e, onPlay = { play(app, songs, e, "Downloads") }, onRemove = { m.remove(e.path) }) }
+                if (entries.isNotEmpty()) item { Card { OfflineRow("Remove all downloads") { nav.sheet = SheetSpec("Remove all downloads?", DownloadsOverview.storageLine(doneCount, m.usedBytes), listOf(
+                    SheetItem("Yes, remove them all", Glyph.CLOSE) { m.removeAll() }, SheetItem("Keep them", Glyph.CHECK) { })) } } }
             }
         }
     }
@@ -243,7 +321,7 @@ fun KeepOfflineChip(tracks: List<Track>, nav: PlayerNav, listId: String?, title:
                     SheetItem("Keep it", Glyph.CHECK) { },
                 ))
             }
-        }, icon = if (st.kind == KeepStatus.Kind.DONE) Glyph.CHECK else Glyph.DOWN)
+        }, icon = if (st.kind == KeepStatus.Kind.DONE) Glyph.DOWNLOADED else Glyph.DOWN)
         if (kept) Txt("Kept on this phone: new songs added to this playlist download too", size = 12f, color = sc.onBgDim)
     }
 }

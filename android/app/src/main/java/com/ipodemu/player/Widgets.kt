@@ -99,6 +99,8 @@ val LocalApp = staticCompositionLocalOf<App> { error("App not provided") }
 enum class Glyph {
     PLAY, PAUSE, NEXT, PREV, SHUFFLE, REPEAT, REPEAT_ONE, HEART, HEART_FILLED, SEARCH, QUEUE, CHEVRON, BACK, MORE, CLOSE,
     NOTE, GEAR, VOLUME, CHECK, PLUS, ALBUM, ARTIST, MIC, CLOCK, IPOD, LIST, STAR, DOWN, JELLYFIN, PLEX, NAS, LYRICS, DEVICES, JAM, INFO, CASSETTE, DJ,
+    /** The downloaded mark: a ring with an arrow down into it (Spotify's green arrow, drawn in the app's own line style). */
+    DOWNLOADED,
 }
 
 @Composable
@@ -162,6 +164,11 @@ fun DrawScope.drawGlyph(g: Glyph, c: Color) {
         Glyph.CHEVRON -> drawPath(path { moveTo(x(.36f), y(.2f)); lineTo(x(.66f), y(.5f)); lineTo(x(.36f), y(.8f)) }, c, style = line)
         Glyph.BACK -> drawPath(path { moveTo(x(.64f), y(.2f)); lineTo(x(.34f), y(.5f)); lineTo(x(.64f), y(.8f)) }, c, style = line)
         Glyph.DOWN -> drawPath(path { moveTo(x(.2f), y(.36f)); lineTo(x(.5f), y(.66f)); lineTo(x(.8f), y(.36f)) }, c, style = line)
+        Glyph.DOWNLOADED -> {
+            drawCircle(c, s * .4f, Offset(x(.5f), y(.5f)), style = line)
+            drawLine(c, Offset(x(.5f), y(.28f)), Offset(x(.5f), y(.62f)), w, StrokeCap.Round)
+            drawPath(path { moveTo(x(.35f), y(.5f)); lineTo(x(.5f), y(.65f)); lineTo(x(.65f), y(.5f)) }, c, style = line)
+        }
         Glyph.MORE -> for (i in 0..2) drawCircle(c, s * .08f, Offset(x(.24f + i * .26f), y(.5f)))
         Glyph.CLOSE -> {
             drawLine(c, Offset(x(.24f), y(.24f)), Offset(x(.76f), y(.76f)), w, StrokeCap.Round)

@@ -205,6 +205,7 @@ private fun DrawerRow(t: Track, current: Boolean, onMore: (() -> Unit)? = null, 
             Txt(queueRowSubtitle(t.artist, t.album), size = 12.5f, color = sc.onBgDim, maxLines = 2)
             DownloadTagLine(t, compact = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 520)
         }
+        DownloadedMark(t.path, 14.dp)
         if (t.durationMs > 0) Txt(fmtTime(t.durationMs), size = 12.5f, color = sc.onBgDim)
         if (onMore != null) Box(
             Modifier.size(48.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = "More for ${t.title}" }.clickable(onClick = onMore),

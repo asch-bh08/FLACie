@@ -3,6 +3,8 @@ package com.ipodemu.playback
 import com.ipodemu.App
 import com.ipodemu.library.Group
 import com.ipodemu.library.Track
+import com.ipodemu.library.offline.DownloadMark
+import com.ipodemu.library.offline.DownloadMarks
 import com.ipodemu.library.offline.OfflineState
 
 /** The app's own lists, as [BrowseSource]. Called on a background thread by the media library service. */
@@ -12,6 +14,17 @@ class AppBrowseSource(private val app: App) : BrowseSource {
     override fun recent(): List<Track> = resolve(app.userData.recents.toList().take(100))
     override fun favorites(): List<Track> = resolve(app.userData.favorites.toList().asReversed().take(BrowseTree.MAX_QUEUE))
     override fun downloaded(): List<Track> = app.offline.entries.filter { it.state == OfflineState.DONE }.map { it.toTrack() }
+    /** The playlists whose every downloadable song is on the phone (in-memory look-ups only: a car asks for all the playlists at once). */
+    override fun downloadedPlaylists(): List<Pair<String, String>> {
+        if (app.offline.doneCount == 0) return emptyList()
+        val hidden = app.prefs.hiddenPlaylists
+        return app.userData.playlists.toList().filter { it.id !in hidden && DownloadMarks.ofList(it.paths) { p -> app.offline.stateOf(p) } == DownloadMark.DOWNLOADED }.map { it.id to it.name }
+    }
+    override fun downloadedAlbums(): List<Group> {
+        if (app.offline.doneCount == 0) return emptyList()
+        return app.library.albums().filter { g -> DownloadMarks.ofList(g.tracks.map { it.path }) { p -> app.offline.stateOf(p) } == DownloadMark.DOWNLOADED }
+    }
+    override fun isDownloaded(path: String): Boolean = app.offline.isDownloaded(path)
     override fun playlists(): List<Pair<String, String>> { val hidden = app.prefs.hiddenPlaylists; return app.userData.playlists.toList().filter { it.id !in hidden }.map { it.id to it.name } }
     override fun playlistTracks(id: String): List<Track> = app.userData.playlists.toList().firstOrNull { it.id == id }?.let { resolve(it.paths.toList()) } ?: emptyList()
     override fun playlistSummary(id: String): Pair<Int, String?> = app.userData.playlists.toList().firstOrNull { it.id == id }?.let { pl ->

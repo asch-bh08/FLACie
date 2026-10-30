@@ -126,6 +126,10 @@ class Prefs(ctx: Context) {
     var offlineAutoFavorites: Boolean
         get() = sp.getBoolean("offAuto", false)
         set(v) = sp.edit().putBoolean("offAuto", v).apply()
+    /** The playlists kept offline (their ids as JSON): songs added to them later download too. */
+    var offlineKeptLists: String
+        get() = sp.getString("offKept", "") ?: ""
+        set(v) = sp.edit().putString("offKept", v).apply()
     /** The most automatic downloads may use, in GB (0 = no limit). */
     var offlineLimitGb: Int
         get() = sp.getInt("offLimitGb", 5)

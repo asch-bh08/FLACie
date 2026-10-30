@@ -41,7 +41,7 @@ class BrowseNode(
 class Resolved(val tracks: List<Track>, val index: Int)
 
 /**
- * The browse tree, pure and unit-tested. The car shows the root as four tabs: Home (Shuffle all, Favourites and Downloaded, then the songs played lately),
+ * The browse tree, pure and unit-tested. The car shows the root as four tabs: Home (Shuffle all, Favourites and On this phone, then the songs played lately),
  * Playlists, Albums and Artists, the last three as grids of covers. A song's id carries the list it was picked from, so playing it queues that list (what a person
  * expects in a car), not the one song. Lists are paged and capped: a car screen shows a handful, and the answer to one call must stay small.
  */
@@ -118,7 +118,7 @@ object BrowseTree {
         return listOf(BrowseNode(SHUFFLE, "Shuffle all", "Your whole library", browsable = false, playable = true, artKey = null, icon = "ic_car_shuffle")) +
             // the playlists first: they are what a person reaches for in the car
             playlistNodes(src).take(HOME_PLAYLISTS).map { BrowseNode(it.id, it.title, it.subtitle, true, true, it.artKey, group = lists, icon = "ic_car_playlists", cover = true) } +
-            folder(FAVORITES, "Favourites", "ic_car_favourites", group = mine) + folder(DOWNLOADED, "Downloaded", "ic_car_downloaded", group = mine) +
+            folder(FAVORITES, "Favourites", "ic_car_favourites", group = mine) + folder(DOWNLOADED, "On this phone", "ic_car_downloaded", group = mine) +
             src.quickPicks().take(HOME_QUICK).map { songNode(QUICK, it, picks).let { n -> BrowseNode(n.id, n.title, n.subtitle, false, true, n.artKey, n.path, group = picks, cover = true) } } +
             src.recent().take(HOME_RECENT).map { songNode(RECENT, it, lately).let { n -> BrowseNode(n.id, n.title, n.subtitle, false, true, n.artKey, n.path, group = lately, cover = true) } }
     }

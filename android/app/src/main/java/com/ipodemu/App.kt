@@ -89,7 +89,7 @@ class App : Application() {
         library.socketUp = { connect.connected }
         connect.listeners.add { type, data -> library.onServerMessage(type, data) }
         jam = com.ipodemu.library.Jam(this)
-        userData.onChanged = { account.schedulePush() }
+        userData.onChanged = { account.schedulePush(); offlineSyncSoon() }
         library.onServicesChanged = { account.schedulePush() }
         autoplay = com.ipodemu.library.Autoplay(this)
         plays = com.ipodemu.library.PlaysReporter(prefs, player, bg)
@@ -158,14 +158,22 @@ class App : Application() {
     }
 
     private var offlineSyncJob: kotlinx.coroutines.Job? = null
-    /** Brings the offline favourites in line with the favourites list (only when the setting is on). */
+    /** Brings the offline favourites and the playlists kept offline in line with the lists they follow (each only when it is switched on). */
     fun offlineSyncSoon() {
-        if (!prefs.offlineAutoFavorites) return
+        val kept = offline.keptPlaylists
+        if (!prefs.offlineAutoFavorites && kept.isEmpty()) return
         offlineSyncJob?.cancel()
         offlineSyncJob = bg.launch {
             kotlinx.coroutines.delay(2_000)
             val favs = userData.favorites.toList().mapNotNull { library.resolve(it, userData.meta[it]) }
             offline.syncFavorites(favs)
+            if (kept.isNotEmpty() && library.loaded) {   // before the library has loaded, no song resolves: that must not look like emptied playlists
+                val lists = kept.map { id ->
+                    if (id.startsWith("folder:")) library.playlists().firstOrNull { it.name == id.removePrefix("folder:") }?.tracks.orEmpty()
+                    else userData.visiblePaths(id).mapNotNull { library.resolve(it, userData.meta[it]) }
+                }
+                offline.syncPlaylists(lists, if (prefs.offlineAutoFavorites) favs.mapTo(HashSet()) { com.ipodemu.library.offline.OfflineMath.keyOf(it.path) } else emptySet())
+            }
         }
     }
 

@@ -137,6 +137,38 @@ class OfflineManager(private val ctx: Context, private val prefs: Prefs) {
         if (plan.add.isNotEmpty()) enqueue(plan.add, OfflineReason.FAVORITE)
     }
 
+    // ---- albums and playlists ---------------------------------------------------------------------------------------------------------
+
+    /** The playlists kept offline (the id of a hand-made one, or "folder:" and the name of a server one); follows every change. */
+    val keptPlaylists: Set<String> get() { rev; return KeptLists.decode(prefs.offlineKeptLists) }
+    fun isKept(listId: String): Boolean = listId in keptPlaylists
+
+    /** Marks a playlist as kept offline (or not). Switching it on queues its songs now; later additions follow through [syncPlaylists]. */
+    fun setKept(listId: String, on: Boolean) {
+        prefs.offlineKeptLists = KeptLists.encode(if (on) keptPlaylists + listId else keptPlaylists - listId)
+        changed()
+    }
+
+    /** How many of these songs are on the phone, for the Download button of an album or a playlist. */
+    fun keepStatus(tracks: List<Track>): KeepStatus { rev; return synchronized(lock) { KeepStatus.of(tracks) { index[OfflineMath.keyOf(it)] } } }
+
+    /** Queues the songs of an album, a playlist or a pick that are not offline yet. Returns how many were queued. */
+    fun keep(tracks: List<Track>, reason: OfflineReason): Int {
+        val add = synchronized(lock) { KeepPlan.toEnqueue(tracks) { index[OfflineMath.keyOf(it)] } }
+        return if (add.isEmpty()) 0 else enqueue(add, reason)
+    }
+
+    /** Lets go of the downloads of these songs (any reason: the person asked). */
+    fun forget(tracks: List<Track>) { for (t in tracks) if (isDownloaded(t.path) || entry(t.path) != null) remove(t.path) }
+
+    /** Brings the downloads in line with the kept playlists: new songs download, songs that left every kept playlist go (a favourite kept offline carries on as one). */
+    fun syncPlaylists(lists: List<List<Track>>, favoriteKeys: Set<String>) {
+        val plan = synchronized(lock) { PlaylistKeepPlan.plan(lists, favoriteKeys, index) }
+        for (k in plan.removeKeys) synchronized(lock) { index[k] }?.let { remove(it.path) }
+        if (plan.demoteKeys.isNotEmpty()) { synchronized(lock) { for (k in plan.demoteKeys) index[k]?.reason = OfflineReason.FAVORITE; save() }; changed() }
+        if (plan.add.isNotEmpty()) enqueue(plan.add, OfflineReason.PLAYLIST)
+    }
+
     // ---- the worker -------------------------------------------------------------------------------------------------------------------
 
     private fun save() {

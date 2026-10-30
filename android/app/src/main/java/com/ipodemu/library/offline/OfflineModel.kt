@@ -8,8 +8,11 @@ import org.json.JSONObject
 /** Where a downloaded song is in its life. */
 enum class OfflineState { QUEUED, DOWNLOADING, DONE, FAILED }
 
-/** Why a song is kept offline: the person asked (MANUAL, never removed by itself) or it is a favourite (FAVORITE, removed again when it stops being one). */
-enum class OfflineReason { MANUAL, FAVORITE }
+/**
+ * Why a song is kept offline: the person asked (MANUAL, never removed by itself), it is a favourite (FAVORITE, removed again when it stops being one) or it is in a
+ * playlist the person keeps offline (PLAYLIST, removed again when it leaves every such playlist). An older app reading a saved PLAYLIST takes it as MANUAL: nothing is lost.
+ */
+enum class OfflineReason { MANUAL, FAVORITE, PLAYLIST }
 
 /** One song of the offline library. [path] is the song's normal identity (its server address), so the queue, favourites and playlists keep working with it. */
 class OfflineEntry(
@@ -39,12 +42,13 @@ class OfflineIndex {
     operator fun get(key: String): OfflineEntry? = map[key]
     fun has(key: String): Boolean = key in map
 
-    /** Adds a song to download (or, when it is already there, upgrades FAVORITE to MANUAL and re-queues a failed one). Returns the entry. */
+    /** Adds a song to download (or, when it is already there, upgrades FAVORITE to MANUAL or PLAYLIST and re-queues a failed one). Returns the entry. */
     fun add(t: Track, reason: OfflineReason, nowMs: Long): OfflineEntry {
         val key = OfflineMath.keyOf(t.path)
         val have = map[key]
         if (have != null) {
             if (reason == OfflineReason.MANUAL) have.reason = OfflineReason.MANUAL
+            else if (reason == OfflineReason.PLAYLIST && have.reason == OfflineReason.FAVORITE) have.reason = OfflineReason.PLAYLIST
             if (have.state == OfflineState.FAILED) { have.state = OfflineState.QUEUED; have.error = null }
             return have
         }

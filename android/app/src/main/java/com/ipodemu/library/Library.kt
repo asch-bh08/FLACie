@@ -331,7 +331,7 @@ class Library(ctx: Context, val art: ArtCache) {
         val key = albumKey(a)
         if (downloads[key]?.stage.let { it != null && it != DownloadStage.DONE && it != DownloadStage.FAILED }) return
         runningDownloads[key] = RunningDownload(java.util.UUID.randomUUID().toString(), "${a.cleanTitle} · ${a.artist}", "Search", null)
-        // the entry's empty path makes Recently Downloaded list the album's songs
+        // the entry's empty path makes Recently Added list the album's songs
         scope.launch { DownloadGuard.run(report = { status -> onStatus(key, status, DownloadEntry(a.artist, a.cleanTitle, a.cleanTitle, "", 0, "")) }) { r -> downloader.downloadAlbum(a, r) } }
     }
 

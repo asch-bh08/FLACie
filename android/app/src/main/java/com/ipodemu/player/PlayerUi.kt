@@ -123,6 +123,8 @@ sealed interface Screen {
     data object Settings : Screen
     data object Dashboard : Screen
     data object Offline : Screen
+    /** The songs kept on the phone for playing without signal ("On this phone"), as against Settings > Offline and storage. */
+    data object OnPhone : Screen
     data object Music : Screen
     /** Modern theme's Library tab. */
     data object Library : Screen
@@ -328,6 +330,7 @@ private fun ScreenContent(screen: Screen, nav: PlayerNav, snap: PlayerSnap) {
         Screen.Settings -> SettingsScreen(nav)
         Screen.Dashboard -> SettingsScreen(nav, dashboard = true)
         Screen.Offline -> OfflineScreen(nav)
+        Screen.OnPhone -> OnPhoneScreen(nav)
         Screen.Music -> MusicMenu(nav)
         Screen.Library -> ExploreScreen(nav, snap)
         Screen.Sources -> LibraryHome(nav)
@@ -629,7 +632,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (modern && !welcomed(app).value) item(key = "welcome") { WelcomeCard { welcomed(app).value = true; app.prefs.welcomed = true } }
             if (!modern) item { NowPlayingCard(snap, nav) { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } } }
             if (com.ipodemu.PermissionPlan.showMediaNotice(app.ui.loginMode, app.ui.mediaAccess)) item { MediaAccessNotice(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
-            // design I: Favourites, Recent, Downloads and the moods as outlined chips (the chosen mood filled); Shuffle all is in the hero
+            // design I: Favourites, Recent, On this phone, Recently added and the moods as outlined chips (the chosen mood filled); Shuffle all is in the hero
             if (modern) item {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     // the moods first, as on the web ("All" filled while no mood is picked), then the shortcuts the old Home had
@@ -637,14 +640,17 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     moodList.forEach { m -> DesignChip(m, mood == m, { mood = if (mood == m) null else m }) }
                     DesignChip("Favourites", false, { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART)
                     DesignChip("Recent", false, { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK)
-                    DesignChip("Downloads", false, { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.DOWN)
+                    // "On this phone" is the songs kept for listening without signal; "Recently added" is new music fetched into the library
+                    DesignChip("On this phone", false, { nav.push(Screen.OnPhone) }, icon = Glyph.DOWN)
+                    DesignChip("Recently added", false, { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.PLUS)
                 }
             } else item {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlossPill("Shuffle All", { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } }, icon = Glyph.SHUFFLE, height = 32.dp)
                     GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 32.dp)
                     GlossPill("Recent", { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK, height = 32.dp)
-                    GlossPill("Downloads", { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.DOWN, height = 32.dp)
+                    GlossPill("On this phone", { nav.push(Screen.OnPhone) }, icon = Glyph.DOWN, height = 32.dp)
+                    GlossPill("Recently added", { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.PLUS, height = 32.dp)
                     moodList.forEach { m -> GlossPill(m, { mood = if (mood == m) null else m }, height = 32.dp, primary = mood == m) }
                 }
             }
@@ -900,6 +906,10 @@ fun SongList(
     val groups = remember(tracks, sections) { if (sections > 0) tracks.withIndex().groupBy { letterOf(sortKey(if (sections == 2) it.value.artist.ifEmpty { "#" } else it.value.title)) } else emptyMap() }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         if (header != null) item(contentType = "header") { header() }
+        // a plain button to start choosing (the song's menu has Select too), so ticking songs to download or queue is easy to find
+        if (chosen == null && tracks.size > 1) item(contentType = "select") {
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) { DesignChip("Select", false, { chosen = emptySet() }, icon = Glyph.CHECK) }
+        }
         if (sections > 0) {
             groups.forEach { (l, list) ->
                 stickyHeader(key = "h$l", contentType = "letter") { LetterHeader(l) }
@@ -921,13 +931,13 @@ fun SongList(
         }
         if (chosen != null) item { Spacer(Modifier.height(140.dp)) }
     }
-    chosen?.let { cur -> SelectBar(cur.sorted().map { tracks[it] }, nav, Modifier.align(Alignment.BottomCenter)) { chosen = null } }
+    chosen?.let { cur -> SelectBar(cur.sorted().map { tracks[it] }, nav, Modifier.align(Alignment.BottomCenter), allPicked = cur.size == tracks.size, onAll = { chosen = if (cur.size == tracks.size) emptySet() else tracks.indices.toSet() }) { chosen = null } }
     }
 }
 
-/** The bar for the songs chosen in a list: Play next, Add to queue, Add to a playlist, Cancel. */
+/** The bar for the songs chosen in a list: Select all, Download N (kept on the phone), Play next, Add to queue, Add to a playlist, Cancel. */
 @Composable
-private fun SelectBar(songs: List<Track>, nav: PlayerNav, modifier: Modifier, done: () -> Unit) {
+private fun SelectBar(songs: List<Track>, nav: PlayerNav, modifier: Modifier, allPicked: Boolean, onAll: () -> Unit, done: () -> Unit) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     fun n(k: Int) = if (k == 1) "1 song" else "$k songs"
@@ -936,6 +946,13 @@ private fun SelectBar(songs: List<Track>, nav: PlayerNav, modifier: Modifier, do
         // Cancel first, so it is never off the edge of a narrow screen (it was the last chip, out of sight until the row was scrolled); Share as on the web
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DesignChip("Cancel", false, done)
+            DesignChip(if (allPicked) "Select none" else "Select all", false, onAll)
+            // songs from the server are kept on the phone for listening without signal; the others are already on it
+            DesignChip(PickSet.downloadLabel(songs.size), false, {
+                if (songs.isEmpty()) return@DesignChip
+                val k = app.offline.keep(songs, com.ipodemu.library.offline.OfflineReason.MANUAL)
+                app.ui.say(if (k > 0) PickSet.summary(k, 0) else "Already on this phone, or not downloadable", warn = k == 0); done()
+            }, icon = Glyph.DOWN)
             DesignChip("Play next", false, { if (songs.isNotEmpty()) { songs.asReversed().forEach { app.player.addNext(it) }; app.ui.say("${n(songs.size)} play next"); done() } })
             DesignChip("Add to queue", false, { if (songs.isNotEmpty()) { songs.forEach { app.player.addToQueue(it) }; app.ui.say("Added ${n(songs.size)} to the queue"); done() } })
             DesignChip("Add to playlist", false, {
@@ -1121,14 +1138,14 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
         DetailKind.USER -> ud.playlists.firstOrNull { it.id == d.id }?.let { title = it.name; tracks = ud.visiblePaths(it.id).mapNotNull { p -> lib.resolve(p, ud.meta[p]) }; art = tracks.firstNotNullOfOrNull { t -> t.artKey }; userId = it.id }
         DetailKind.FAVORITES -> { title = "Favourites"; tracks = ud.favorites.mapNotNull { lib.resolve(it, ud.meta[it]) }.distinctBy { it.path }; art = tracks.firstNotNullOfOrNull { it.artKey } }
         DetailKind.RECENT -> { title = "Recently Played"; tracks = ud.recents.mapNotNull { by[it] ?: lib.resolve(it, ud.meta[it]) }; art = tracks.firstNotNullOfOrNull { it.artKey } }
-        DetailKind.DOWNLOADS -> { title = "Recently Downloaded"; tracks = recentDownloads(app); art = tracks.firstNotNullOfOrNull { it.artKey } }
+        DetailKind.DOWNLOADS -> { title = "Recently Added"; tracks = recentDownloads(app); art = tracks.firstNotNullOfOrNull { it.artKey } }
         DetailKind.MIX -> mix?.let { title = it.title; subtitle = it.subtitle; tracks = it.tracks; art = it.artKey }
     }
     BackdropArt(nav, art)
     // the small mono label over the serif title (design I), saying what kind of page this is
     val kindLabel = when (d.kind) {
         DetailKind.ALBUM -> "Album"; DetailKind.ARTIST -> "Artist"; DetailKind.GENRE -> "Genre"; DetailKind.FOLDER, DetailKind.USER -> "Playlist"
-        DetailKind.FAVORITES -> "Your favourites"; DetailKind.RECENT -> "History"; DetailKind.DOWNLOADS -> "Downloads"; DetailKind.MIX -> "Mix"
+        DetailKind.FAVORITES -> "Your favourites"; DetailKind.RECENT -> "History"; DetailKind.DOWNLOADS -> "New in your library"; DetailKind.MIX -> "Mix"
     }
     val total = tracks.sumOf { it.durationMs }
     // the web's facts line: the year (an album's), how many songs, how long, and the file formats in it ("2020 · 8 songs · 16 min · FLAC / MP3")
@@ -1151,7 +1168,7 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
             Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState(when (d.kind) {
                 DetailKind.FAVORITES -> "Tap the heart on a song to add it here"
                 DetailKind.RECENT -> "Songs you play show up here"
-                DetailKind.DOWNLOADS -> "Songs you download show up here. Search for something you don't have yet to get it"
+                DetailKind.DOWNLOADS -> "New music you get shows up here. Search for something you don't have yet to get it"
                 else -> "Nothing in this playlist yet. Use a song's menu and pick Add to playlist"
             }) }
             return@Column
@@ -1213,6 +1230,8 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
         GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true, title, djKey) }, icon = Glyph.SHUFFLE, height = 40.dp)
     }
     }
+    // an album or a playlist can be kept on the phone as a whole; a playlist then also keeps itself up to date
+    if ((kind == "Album" || kind == "Playlist") && tracks.isNotEmpty()) KeepOfflineChip(tracks, nav, if (kind == "Playlist") (playlistId ?: "folder:$title") else null, title)
     // Favourites: Clear all, asked first, with Undo (other devices follow: each removal is recorded)
     if (kind == "Your favourites" && tracks.isNotEmpty()) {
         val app = LocalApp.current
@@ -1382,6 +1401,15 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         // a few pixels, clipping the first card, so it snaps back to the start whenever the first album changes
         val albumRowState = androidx.compose.foundation.lazy.rememberLazyListState()
         androidx.compose.runtime.LaunchedEffect(q, w.albums.firstOrNull()?.id) { albumRowState.scrollToItem(0) }
+        // Select: tick songs (a long press on one starts it, or the Select button) and Download them all at once. A song in the library is kept on the phone;
+        // a catalogue result that is not in the library yet is asked for. Ids: "L" + path for a library song, "W" + artist and title for a catalogue one.
+        var picks by remember { mutableStateOf<PickSet?>(null) }
+        androidx.activity.compose.BackHandler(enabled = picks != null) { picks = null }
+        val libSongs = if ((only == "songs" || picks != null) && topSong != null) listOf(topSong) + restSongs else restSongs
+        fun webId(s: WebCatalog.Song) = ownedSongs[com.ipodemu.library.matchKey(s.title, s.artist)]?.let { "L" + it.path } ?: ("W" + s.artist + "|" + s.title)
+        val tracksById = remember(libSongs, w.songs, ownedSongs) { HashMap<String, Track>().also { m -> libSongs.forEach { m["L" + it.path] = it }; w.songs.forEach { s -> ownedSongs[com.ipodemu.library.matchKey(s.title, s.artist)]?.let { m["L" + it.path] = it } } } }
+        val webById = remember(w.songs) { w.songs.associateBy { "W" + it.artist + "|" + it.title } }
+        val allIds = remember(libSongs, w.songs, ownedSongs) { (w.songs.map { webId(it) } + libSongs.map { "L" + it.path }).distinct() }
         if (query.isBlank()) SearchIdle(nav)
         else if (nothingAtAll) {
             Column(Modifier.fillMaxSize()) {
@@ -1389,9 +1417,13 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 if (!app.ui.guest) DownloadRequestBar(app, q)
             }
         }
-        else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+        else Box(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = if (picks != null) 150.dp else 24.dp)) {
             // Show only: All, Songs or Albums (as on the web), when there are both
             val hasSongs = w.songs.isNotEmpty() || rankedSongs.isNotEmpty(); val hasAlbums = w.albums.isNotEmpty() || r.albums.isNotEmpty()
+            if (hasSongs && picks == null) item(key = "select") {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) { DesignChip("Select", false, { picks = PickSet() }, icon = Glyph.CHECK) }
+            }
             if (hasSongs && hasAlbums) item(key = "kinds") {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for ((k, label) in listOf("" to "All", "songs" to "Songs", "albums" to "Albums")) DesignChip(label, only == k, { only = k })
@@ -1417,7 +1449,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 }
             }
             if (albumNamed) webAlbums()
-            if (topSong != null && only == "") {
+            if (topSong != null && only == "" && picks == null) {
                 item { SectionHeader("Top result") }
                 item(key = "top${topSong.path}") {
                     TopResultCard(topSong) { searchFocus.clearFocus(); if (snap.track?.path == topSong.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(topSong), 0, null, from = "search") } }
@@ -1426,13 +1458,14 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (!albumNamed) webAlbums()
             if (w.songs.isNotEmpty() && shows("songs")) {
                 item { SectionHeader("Songs") }
-                val shown = if (webSongsExpanded || only == "songs") w.songs else w.songs.take(8)
+                val shown = if (webSongsExpanded || only == "songs" || picks != null) w.songs else w.songs.take(8)
                 itemsIndexed(shown, key = { i, s -> "ws$i${s.artist}${s.title}" }) { _, s ->
                     val owned = ownedSongs[com.ipodemu.library.matchKey(s.title, s.artist)]
                     val status = dl[app.library.songKey(s.artist, s.title)]
                     WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.let { st -> if (st.stage == DownloadStage.FAILED) st.message else com.ipodemu.library.DownloadTags.runningText(com.ipodemu.library.DownloadTags.stageText(st.stage, st.message)) } ?: "${s.artist} · ${s.album}", s.artUrl, owned, status,
                         onPlay = { searchFocus.clearFocus(); owned?.let { if (snap.track?.path == it.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(it), 0, null, from = "search") } } },
                         onDownload = { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs) },
+                        picked = picks?.contains(webId(s)), onPick = { picks = (picks ?: PickSet()).toggle(webId(s)) },
                         // the three-line menu: Download, Hi-Res (administrators, per song, after a confirmation: the files are several times the size), Find on YouTube
                         onHiRes = {
                             val items = ArrayList<SheetItem>()
@@ -1451,12 +1484,15 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 }
                 if (!webSongsExpanded && only != "songs" && w.songs.size > 8) item { ShowMoreRow(w.songs.size - 8) { webSongsExpanded = true } }
             }
-            // with only songs shown, the top song joins the library list (the Top result card is for All)
-            val libSongs = if (only == "songs" && topSong != null) listOf(topSong) + restSongs else restSongs
+            // with only songs shown (or while choosing), the top song joins the library list (the Top result card is for All)
             if (libSongs.isNotEmpty() && shows("songs")) {
                 item { SectionHeader("In your library") }
-                val shown = if (songsExpanded || only == "songs") libSongs else libSongs.take(4)
-                itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t -> TrackRow(t, nav, snap, onPlay = { app.player.play(listOf(t), 0, null, from = "search") }) }
+                val shown = if (songsExpanded || only == "songs" || picks != null) libSongs else libSongs.take(4)
+                itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t ->
+                    val id = "L" + t.path
+                    TrackRow(t, nav, snap, onPlay = { app.player.play(listOf(t), 0, null, from = "search") }, sheetExtra = listOf(SheetItem("Select", Glyph.CHECK) { picks = PickSet().toggle(id) }),
+                        picked = picks?.contains(id), onPick = { picks = (picks ?: PickSet()).toggle(id) })
+                }
                 if (!songsExpanded && only != "songs" && libSongs.size > 4) item { ShowMoreRow(libSongs.size - 4) { songsExpanded = true } }
             }
             if (r.albums.isNotEmpty() && shows("albums")) {
@@ -1472,6 +1508,31 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             }
             if (webLoading) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Searching for more...", size = 13f, color = sc.onBgDim) } }
             if (!webLoading && w.songs.isEmpty() && !app.ui.guest) item { DownloadRequestBar(app, q) }
+        }
+        picks?.let { p ->
+            SearchSelectBar(p.count, p.allOf(allIds), Modifier.align(Alignment.BottomCenter), onCancel = { picks = null }, onAll = { picks = p.selectAllOrNone(allIds) }) {
+                val split = PickSet.split(p.asList()) { tracksById[it] }
+                val kept = if (split.keep.isEmpty()) 0 else app.offline.keep(split.keep, com.ipodemu.library.offline.OfflineReason.MANUAL)
+                var asked = 0
+                for (id in split.fetch) webById[id]?.let { s -> app.library.requestDownload(s.artist, s.title, s.album, s.durationMs); asked++ }
+                app.ui.say(if (kept + asked > 0) PickSet.summary(kept, asked) else "Already on this phone", warn = kept + asked == 0)
+                picks = null
+            }
+        }
+        }
+    }
+}
+
+/** The bar for songs ticked in Search: how many, Select all, and Download N (library songs are kept on the phone, catalogue ones are asked for). */
+@Composable
+private fun SearchSelectBar(count: Int, allPicked: Boolean, modifier: Modifier, onCancel: () -> Unit, onAll: () -> Unit, onDownload: () -> Unit) {
+    val sc = LocalScheme.current
+    Column(modifier.fillMaxWidth().padding(12.dp).clip(RoundedCornerShape(20.dp)).background(Color(0xFF221D19)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Txt(if (count == 0) "Tap songs to tick them" else "$count selected", size = 15f, weight = FontWeight.SemiBold, color = sc.onBg)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DesignChip("Cancel", false, onCancel)
+            DesignChip(if (allPicked) "Select none" else "Select all", false, onAll)
+            if (count > 0) DesignChip(PickSet.downloadLabel(count), true, onDownload, icon = Glyph.DOWN)
         }
     }
 }
@@ -1512,15 +1573,21 @@ private fun ownedAlbumKey(artist: String, album: String) = com.ipodemu.library.p
  * one action: Play (or Open) when it's already in the library, otherwise Download, a percentage while it runs, then Play.
  */
 @Composable
-private fun WebRow(title: String, subtitle: String, imageUrl: String?, owned: Track?, status: DownloadStatus?, onPlay: () -> Unit, onDownload: () -> Unit, actionLabel: String = "Download $title", onHiRes: (() -> Unit)? = null) {
+private fun WebRow(title: String, subtitle: String, imageUrl: String?, owned: Track?, status: DownloadStatus?, onPlay: () -> Unit, onDownload: () -> Unit, actionLabel: String = "Download $title", onHiRes: (() -> Unit)? = null,
+                   picked: Boolean? = null, onPick: (() -> Unit)? = null) {
     val sc = LocalScheme.current
     val busy = status != null && status.stage != DownloadStage.DONE && status.stage != DownloadStage.FAILED
     val failed = status?.stage == DownloadStage.FAILED
     val tagged = owned != null && isTagged(owned)   // a song fetched just now: "Recently downloaded · 5s ago" under the line
-    IpodRow({ if (owned != null) onPlay() else if (!busy) onDownload() }, height = if (tagged) 76.dp else 60.dp,
-        leading = { RemoteArtImage(imageUrl, Modifier.size(48.dp), corner = 8.dp) },
+    // choosing several songs: a tick in place of the cover, and a tap ticks the row; a long press starts choosing
+    IpodRow({ if (picked != null && onPick != null) onPick() else if (owned != null) onPlay() else if (!busy) onDownload() }, onLong = if (picked == null) onPick else null, height = if (tagged) 76.dp else 60.dp,
+        leading = {
+            if (picked != null) Box(Modifier.size(42.dp).clip(CircleShape).background(if (picked) sc.accent else Color(0x22FFFFFF)).semantics { stateDescription = if (picked) "Selected" else "Not selected" }, contentAlignment = Alignment.Center) {
+                GlyphIcon(if (picked) Glyph.CHECK else Glyph.PLUS, Modifier.size(20.dp), if (picked) Color.Black else sc.onBg)
+            } else RemoteArtImage(imageUrl, Modifier.size(48.dp), corner = 8.dp)
+        },
         trailing = {
-            when {
+            if (picked == null) when {
                 owned != null -> GlossPill("Play", onPlay, height = 32.dp)
                 busy -> Txt(Regex("""\d+%""").find(status!!.message)?.value ?: "...", size = 13f, weight = FontWeight.Medium, color = sc.accent)
                 else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1910,7 +1977,8 @@ private fun SearchIdle(nav: PlayerNav) {
         androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 36.dp)
             GlossPill("Recent", { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK, height = 36.dp)
-            GlossPill("Downloads", { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.DOWN, height = 36.dp)
+            GlossPill("On this phone", { nav.push(Screen.OnPhone) }, icon = Glyph.DOWN, height = 36.dp)
+            GlossPill("Recently added", { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.PLUS, height = 36.dp)
             GlossPill("Albums", { nav.push(Screen.Lib(LibKind.ALBUMS)) }, icon = Glyph.ALBUM, height = 36.dp)
             GlossPill("Artists", { nav.push(Screen.Lib(LibKind.ARTISTS)) }, icon = Glyph.ARTIST, height = 36.dp)
         }

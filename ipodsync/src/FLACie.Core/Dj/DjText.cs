@@ -156,11 +156,13 @@ public static partial class DjText
             if (cat is UnicodeCategory.OtherSymbol or UnicodeCategory.ModifierSymbol or UnicodeCategory.Format or UnicodeCategory.Surrogate or UnicodeCategory.PrivateUse or UnicodeCategory.Control) continue;
             if (r.Value == 0xFE0F || r.Value == 0xFE0E) continue;   // emoji presentation selectors
             var c = r.IsBmp ? (char)r.Value : '\0';
-            if (c is '!' or '?' or '"' or '“' or '”' or '„' or '«' or '»' or '(' or ')' or '[' or ']' or '{' or '}' or '*' or '#' or '~' or '^' or '<' or '>' or '\\' or '|' or '=') { sb.Append(' '); continue; }
+            // brackets left in a name are a short pause, not words run together ("Tonight (Dyia)"; owner, 30 Oct)
+            if (c is '(' or ')' or '[' or ']' or '{' or '}') { sb.Append(", "); continue; }
+            if (c is '!' or '?' or '"' or '“' or '”' or '„' or '«' or '»' or '*' or '#' or '~' or '^' or '<' or '>' or '\\' or '|' or '=') { sb.Append(' '); continue; }
             if (c is '/' or '_') { sb.Append(' '); continue; }
             sb.Append(r.ToString());
         }
-        var t = Spaces().Replace(sb.ToString(), " ").Trim().Trim(',', ';', ':', '-', '–', '—').Trim();
+        var t = Regex.Replace(Spaces().Replace(sb.ToString(), " "), @"\s*,(\s*,)*\s*", ", ").Trim().Trim(',', ';', ':', '-', '–', '—').Trim();
         // a name ending in a full stop ("HUMBLE.", "DAMN.") would make the voice stop mid-line; an abbreviation ("Mr.") or "..." keeps it
         if (t.EndsWith('.') && !t.EndsWith("..", StringComparison.Ordinal) && !Abbreviations.Contains(t[..^1].Split(' ')[^1])) t = t[..^1].TrimEnd();
         return t;

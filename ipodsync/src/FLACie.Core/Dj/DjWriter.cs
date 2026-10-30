@@ -38,6 +38,8 @@ public static partial class DjWriter
         + "Name the song and the artist naturally, the way a friend says them (for example: Smack That, Akon with Eminem). "
         + "Use only the facts given. Never invent anything: no chart positions, awards, samples, stories or other songs, and never say they played something a certain number of times or lately unless the facts say so. Mention the year or the album only if given. "
         + "Never say or suggest you chose, changed or swapped a song, or that you are reacting to a skip, unless the facts say you picked it. "
+        // the voice ran song names into the words around them (owner, 30 Oct): commas give it a breath either side
+        + "Set a song title off with commas when words follow it, so the voice pauses around it (\"Here's Chandelier, from Sia, to lift things\"). "
         + "Do not start the way any of the recent lines start, and do not repeat their wording. Reply with the line only.";
 
     /// <summary>What each style adds to the character: the tone, and for Chill a shorter line.</summary>

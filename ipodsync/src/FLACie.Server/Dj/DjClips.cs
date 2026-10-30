@@ -40,9 +40,12 @@ public sealed class DjClips
         catch (Exception) { }
     }
 
-    /// <summary>The clip's id: 32 hex characters of SHA-256 over the voice and the text.</summary>
+    /// <summary>The clip's id: 32 hex characters of SHA-256 over the voice, its <see cref="Salt"/> and the text.</summary>
     public static string IdOf(string voiceName, string text) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(CloudflareVoice.NormVoice(voiceName) + "\n" + text)))[..32].ToLowerInvariant();
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(CloudflareVoice.NormVoice(voiceName) + Salt(voiceName) + "\n" + text)))[..32].ToLowerInvariant();
+
+    /// <summary>FLACie's own voice says names by their sounds (<see cref="DjPronounce.Sounds"/>): when those change, its kept clips are made again.</summary>
+    public static string Salt(string voiceName) => CloudflareVoice.IsKokoro(CloudflareVoice.NormVoice(voiceName)) ? "\u0001" + DjPronounce.SoundsVersion : "";
 
     /// <summary>A part's id: shared parts are plain clips (the same as a whole line of the same words); a personal part is kept apart for [owner].</summary>
     public static string PartId(string voiceName, DjPart p, string owner) => p.Personal ? IdOf(voiceName, "\u0001" + owner + "\n" + p.Text) : IdOf(voiceName, p.Text);

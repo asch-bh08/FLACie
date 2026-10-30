@@ -9,6 +9,8 @@ import numpy as np
 import onnxruntime as ort
 from kokoro_onnx import Kokoro
 
+from sounds import has_marks, phonemes
+
 MODEL = os.environ.get("KOKORO_MODEL", "/models/kokoro-v1.0.int8.onnx")
 VOICES = os.environ.get("KOKORO_VOICES", "/models/voices-v1.0.bin")
 THREADS = int(os.environ.get("KOKORO_THREADS", "0")) or os.cpu_count() or 4
@@ -57,7 +59,11 @@ class Handler(BaseHTTPRequestHandler):
             lang = "en-gb" if voice[:1] == "b" else "en-us"
             t = time.time()
             with one_at_a_time:
-                audio, rate = kokoro.create(text, voice=voice, speed=speed, lang=lang)
+                # a name marked with its sounds ("[Sia](/sˈiːə/)") is said exactly: the line goes in as sounds (sounds.py)
+                if has_marks(text):
+                    audio, rate = kokoro.create(phonemes(text, lambda t: kokoro.tokenizer.phonemize(t, lang)), voice=voice, speed=speed, lang=lang, is_phonemes=True)
+                else:
+                    audio, rate = kokoro.create(text, voice=voice, speed=speed, lang=lang)
             body = mp3(audio, rate)
             self.send_response(200); self.send_header("Content-Type", "audio/mpeg"); self.send_header("Content-Length", str(len(body)))
             self.send_header("X-Took-Ms", str(int((time.time() - t) * 1000))); self.send_header("X-Audio-Ms", str(int(len(audio) / rate * 1000))); self.end_headers()

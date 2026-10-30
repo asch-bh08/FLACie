@@ -318,7 +318,8 @@ public sealed partial class CloudflareVoice
         try
         {
             using var req = new HttpRequestMessage(HttpMethod.Post, kokoroUrl + "/tts");
-            req.Content = new StringContent(new JsonObject { ["text"] = text, ["voice"] = name }.ToJsonString(), Encoding.UTF8, "application/json");
+            // names it would misread go as their sounds ("Sia" was "zhuh")
+            req.Content = new StringContent(new JsonObject { ["text"] = DjPronounce.Default.Sounds(text), ["voice"] = name }.ToJsonString(), Encoding.UTF8, "application/json");
             using var http = hf.CreateClient("kokoro");
             using var res = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
             var bytes = await ReadAtMost(res.Content, ct);

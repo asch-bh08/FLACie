@@ -29,7 +29,8 @@ import kotlinx.coroutines.launch
  * headset buttons) plus a playback notification, kept alive as a foreground service while music plays. Tapping the notification reopens the iPod UI.
  * It is also a media LIBRARY: Android Auto, a head unit or a voice command can browse Recently played, Favourites, Playlists, Albums, Artists and Downloaded
  * ([BrowseTree], a few songs at a time) and play from there; covers reach them through [ArtProvider]. Custom buttons ride along: favourite (the heart follows the
- * song), shuffle, repeat and speed (taps cycle 1x, 1.25x ... 3x, 1x); while a car is connected the AI DJ's button takes Speed's place (on or off for this queue).
+ * song), shuffle, repeat and speed (taps cycle 1x, 1.25x ... 3x, 1x); while a car is connected the AI DJ's button takes Speed's place (on or off for this queue),
+ * and a mic comes first to talk to the DJ from the car ([CarDjMic]).
  */
 @UnstableApi
 class PlaybackService : MediaLibraryService() {
@@ -44,6 +45,47 @@ class PlaybackService : MediaLibraryService() {
     private val shuffleCommand = SessionCommand(CMD_SHUFFLE, Bundle.EMPTY)
     private val repeatCommand = SessionCommand(CMD_REPEAT, Bundle.EMPTY)
     private val djCommand = SessionCommand(CMD_DJ, Bundle.EMPTY)
+    private val talkCommand = SessionCommand(CMD_TALK, Bundle.EMPTY)
+
+    /** "Talk to the DJ" from the car: the phone's recogniser (made on the main thread, where this all runs), the player, and the DJ's voice. */
+    private val carMic: CarDjMic by lazy {
+        val app = App.of(this)
+        var rec: android.speech.SpeechRecognizer? = null
+        fun drop() { rec?.let { try { it.stopListening(); it.destroy() } catch (_: Exception) { } }; rec = null }
+        CarDjMic(
+            ears = object : CarDjMic.Ears {
+                override fun listen(onHeard: (String?) -> Unit): Boolean {
+                    drop()
+                    val r = com.ipodemu.player.MicSpeech.create(this@PlaybackService) ?: return false
+                    rec = r
+                    r.setRecognitionListener(object : android.speech.RecognitionListener {
+                        override fun onResults(results: Bundle?) { drop(); onHeard(results?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.trim()) }
+                        override fun onError(error: Int) { android.util.Log.w("FLACie", "car mic: recogniser error $error"); drop(); onHeard(null) }
+                        override fun onReadyForSpeech(params: Bundle?) {}
+                        override fun onBeginningOfSpeech() {}
+                        override fun onRmsChanged(rmsdB: Float) {}
+                        override fun onBufferReceived(buffer: ByteArray?) {}
+                        override fun onEndOfSpeech() {}
+                        override fun onPartialResults(partialResults: Bundle?) {}
+                        override fun onEvent(eventType: Int, params: Bundle?) {}
+                    })
+                    r.startListening(com.ipodemu.player.MicSpeech.intent(this@PlaybackService))
+                    return true
+                }
+                override fun stop() = drop()
+            },
+            music = object : CarDjMic.Music {
+                override val playing get() = app.player.isPlaying
+                override fun pause() = app.player.pause()
+                override fun resume() = app.player.resume()
+            },
+            ask = { text, done -> app.player.askDj(text) { done(it) } },
+            djTalking = { app.player.djTalking },
+            later = { ms, run -> main.postDelayed(run, ms) },
+            say = { app.player.djSay(it) },
+            micAllowed = { androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED },
+        ).also { it.onChange = { refreshLayout(force = true) } }
+    }
 
     private fun <T> async(block: () -> T): ListenableFuture<T> {
         val f = SettableFuture.create<T>()
@@ -77,7 +119,7 @@ class PlaybackService : MediaLibraryService() {
 
     private val library = object : MediaLibrarySession.Callback {
         override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
-            val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon().add(favCommand).add(speedCommand).add(shuffleCommand).add(repeatCommand).add(djCommand).build()
+            val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon().add(favCommand).add(speedCommand).add(shuffleCommand).add(repeatCommand).add(djCommand).add(talkCommand).build()
             // Android Auto connected: the DJ's "Where" is now the car, and its button goes on the car's screen (see layout)
             if (isCar(session, controller)) main.post { countCars(); refreshLayout(force = true) }
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session).setAvailableSessionCommands(commands).setCustomLayout(layout()).build()
@@ -96,6 +138,7 @@ class PlaybackService : MediaLibraryService() {
                 CMD_SHUFFLE -> { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() }
                 CMD_REPEAT -> { app.prefs.repeat = (app.prefs.repeat + 1) % 3; app.player.applyModes() }
                 CMD_DJ -> app.player.flipDj()
+                CMD_TALK -> carMic.press()
             }
             refreshLayout(force = true)
             return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
@@ -221,7 +264,13 @@ class PlaybackService : MediaLibraryService() {
             val on = app.player.djOn
             CommandButton.Builder().setDisplayName(if (on) "DJ on" else "DJ off").setIconResId(if (on) R.drawable.ic_dj else R.drawable.ic_dj_off).setSessionCommand(djCommand).build()
         } else CommandButton.Builder().setDisplayName("Speed " + SpeedPolicy.label(speed)).setIconResId(R.drawable.ic_speed).setSessionCommand(speedCommand).build()
-        return ImmutableList.of(
+        // the car's mic comes first, so it is one of the buttons the car shows beside play (the rest go under its "more" button)
+        val talk = if (app.player.carControllers > 0 && app.player.djAvailable) {
+            val m = carMic
+            CommandButton.Builder().setDisplayName(when { m.state == CarDjMic.State.LISTENING -> "Listening… tap to stop"; m.state == CarDjMic.State.THINKING -> "Thinking…"; m.conversing -> "Talking with the DJ"; else -> "Talk to the DJ" })
+                .setIconResId(if (m.conversing) R.drawable.ic_mic_listening else R.drawable.ic_mic).setSessionCommand(talkCommand).build()
+        } else null
+        return ImmutableList.copyOf(listOfNotNull(talk,
             CommandButton.Builder().setDisplayName(if (fav) "Remove from favourites" else "Favourite").setIconResId(if (fav) R.drawable.ic_fav_on else R.drawable.ic_fav)
                 .setSessionCommand(favCommand).build(),
             // shuffle and repeat in the car (it shows only these buttons, not the phone's): dimmed when off, a 1 for repeat one
@@ -230,7 +279,7 @@ class PlaybackService : MediaLibraryService() {
             CommandButton.Builder().setDisplayName(when (app.prefs.repeat) { 1 -> "Repeat all"; 2 -> "Repeat one"; else -> "Repeat off" })
                 .setIconResId(when (app.prefs.repeat) { 1 -> R.drawable.ic_repeat; 2 -> R.drawable.ic_repeat_one; else -> R.drawable.ic_repeat_off }).setSessionCommand(repeatCommand).build(),
             last,
-        )
+        ))
     }
 
     /** The service can start (to hold the restored queue) before the favourites are loaded: until then, not a favourite. */
@@ -241,7 +290,7 @@ class PlaybackService : MediaLibraryService() {
         val s = session ?: return
         val app = App.of(this)
         val key = (app.player.current?.path ?: "") + "|" + isFavorite(app) + "|" + app.player.speed + "|" + app.prefs.shuffle + "|" + app.prefs.repeat +
-            "|" + app.player.carControllers + "|" + app.player.djAvailable + "|" + app.player.djOn
+            "|" + app.player.carControllers + "|" + app.player.djAvailable + "|" + app.player.djOn + "|" + (if (app.player.carControllers > 0) carMic.state.name + carMic.conversing else "")
         if (!force && key == lastLayoutKey) return
         lastLayoutKey = key
         s.setCustomLayout(layout())
@@ -276,6 +325,7 @@ class PlaybackService : MediaLibraryService() {
         const val CMD_SHUFFLE = "com.ipodemu.SHUFFLE"
         const val CMD_REPEAT = "com.ipodemu.REPEAT"
         const val CMD_DJ = "com.ipodemu.DJ"
+        const val CMD_TALK = "com.ipodemu.TALK"
         /** Android Auto's package: its media browser is the car. */
         private const val GEARHEAD = "com.google.android.projection.gearhead"
         // Android Auto's content-style hints (the keys of androidx.media.utils.MediaConstants)

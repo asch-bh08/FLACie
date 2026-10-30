@@ -51,10 +51,11 @@ object StreamSupport {
         } catch (_: Exception) { }
     }
 
-    /** Buffers 3-10 minutes ahead (a FLAC is about 7 MB a minute), starts after 1.5 s of audio, and after running dry waits for 6 s so it doesn't stutter in and out. */
+    /** Buffers 3-10 minutes ahead (a FLAC is about 7 MB a minute), starts after 1.5 s of audio, and after running dry waits for 12 s so it doesn't stutter in
+     *  and out (6 s was not enough on a weak signal in the car: it played a moment, stopped, played a moment; owner, 30 Oct). */
     fun loadControl(): LoadControl = DefaultLoadControl.Builder()
         .setAllocator(androidx.media3.exoplayer.upstream.DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE))
-        .setBufferDurationsMs(180_000, 600_000, 1_500, 6_000)
+        .setBufferDurationsMs(180_000, 600_000, 1_500, 12_000)
         .setTargetBufferBytes(64 * 1024 * 1024)
         .setPrioritizeTimeOverSizeThresholds(false)
         .setBackBuffer(30_000, true)

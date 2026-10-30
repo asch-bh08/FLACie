@@ -439,7 +439,7 @@ public class PlayerDjTests
         js.Calls.Where(c => c.Id == "flacie.djPlay").Select(c => ((string)c.Args[0]!, (int)c.Args[3]!, (int)c.Args[4]!)).ToList();
 
     [Fact]
-    public async Task A_clip_that_fits_the_intro_is_started_so_it_ends_before_the_vocals()
+    public async Task A_clip_that_fits_the_intro_starts_with_the_song()
     {
         var (p, js, dj) = Player();
         dj.Answer = r => new("Here's " + r.Next.Title, "", "/api/dj/clip/a.mp3", true, IntroMs: 12_000);
@@ -447,8 +447,7 @@ public class PlayerDjTests
         await p.Play(Songs(3), 0);
         await p.OnEnded();
         var (url, at, delay) = Assert.Single(Timed(js));
-        Assert.Equal(7_500, at); Assert.Equal(0, delay);
-        Assert.Equal(12_000 - DjTiming.MarginMs, at + 4_000);
+        Assert.Equal(0, at); Assert.Equal(0, delay);       // owner, 30 Oct: not "randomly 10 seconds in"
         Assert.Equal(["/api/dj/clip/a.mp3"], js.Of("flacie.djClipMs"));
     }
 
@@ -470,10 +469,10 @@ public class PlayerDjTests
     public async Task With_the_clips_length_not_known_yet_it_is_guessed_from_its_words()
     {
         var (p, js, dj) = Player();
-        dj.Answer = r => new("One two three four five six seven eight nine ten eleven twelve thirteen", "", "/api/dj/clip/a.mp3", true, IntroMs: 20_000);
+        dj.Answer = r => new("One two three four five six seven eight nine ten eleven twelve thirteen", "", "/api/dj/clip/a.mp3", true, IntroMs: 5_000);
         await p.Play(Songs(3), 0);
         await p.OnEnded();
-        Assert.Equal(20_000 - DjTiming.MarginMs - 5_300, Assert.Single(Timed(js)).ClipAt);
+        Assert.Equal(5_300 + DjTiming.MarginMs - 5_000, Assert.Single(Timed(js)).SongDelay);   // 13 words: 5.3 s, a little longer than the intro
     }
 
     [Fact]
@@ -492,6 +491,6 @@ public class PlayerDjTests
         var plays = Timed(js);
         Assert.All(plays, x => Assert.Equal("/api/dj/clip/Song-3.mp3", x.Url));
         Assert.Single(plays);
-        Assert.Equal(7_500, plays[0].ClipAt);
+        Assert.Equal(0, plays[0].ClipAt);
     }
 }

@@ -12,11 +12,19 @@ class DjTimingTest {
         assertEquals(DjTimingPlan.NOW, DjTiming.plan(8_000, null))
     }
 
-    @Test fun aClipThatFitsTheIntroEndsHalfASecondBeforeTheSinging() {
-        val p = DjTiming.plan(12_000, 4_000)
-        assertEquals(DjTimingPlan(7_500, 0), p)
-        assertEquals(12_000 - DjTiming.MARGIN_MS, p.clipAtMs + 4_000)
+    // owner, 30 Oct: waiting for a long intro to run down sounded like the DJ "talks randomly 10 seconds in"; it talks as the song starts
+    @Test fun aClipThatFitsTheIntroStartsWithTheSong() {
+        assertEquals(DjTimingPlan(0, 0), DjTiming.plan(12_000, 4_000))
+        assertEquals(DjTimingPlan(0, 0), DjTiming.plan(30_000, 4_000))
         assertEquals(DjTimingPlan(0, 0), DjTiming.plan(4_500, 4_000))
+    }
+
+    // a line starting once the song is already heard (after a skip, a slow clip) never holds it back: that silenced it and started it again from the top
+    @Test fun aSongAlreadyUnderWayIsNeverHeldBack() {
+        assertEquals(DjTimingPlan(0, 1_500), DjTiming.started(DjTimingPlan(0, 1_500), 0))
+        assertEquals(DjTimingPlan(0, 1_500), DjTiming.started(DjTimingPlan(0, 1_500), DjTiming.HOLD_WITHIN_MS.toLong()))
+        assertEquals(DjTimingPlan(0, 0), DjTiming.started(DjTimingPlan(0, 1_500), DjTiming.HOLD_WITHIN_MS + 1L))
+        assertEquals(DjTimingPlan(0, 0), DjTiming.started(DjTiming.before(6_000), 2_000))
     }
 
     @Test fun aLongerClipLeadsTheSongInNeverMoreThanOneAndAHalfSeconds() {

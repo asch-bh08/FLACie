@@ -423,6 +423,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
      * the answer is carried out here and said in the DJ's one voice at the DJ volume ([DjPlayer.say]). [done] gets it on the main thread to show as a
      * toast (always: the voice may fail). A song being downloaded for it is played once it lands (asked every 5 s for 10 minutes).
      */
+    /** Says [text] in the phone's own voice over whatever plays (the car's mic button telling what it needs: the car has no screen of the app's for it). */
+    fun djSay(text: String) { try { voice().say(DjCue(text, text, null, true)) } catch (_: Exception) { } }
+
     fun askDj(text: String, search: Boolean = false, done: (DjAskAnswer) -> Unit = {}) {
         val cur = current
         val body = DjAskAnswer.body(text, cur?.title, cur?.artist, djSurface, java.time.LocalDateTime.now().hour, search)
@@ -1149,8 +1152,10 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         android.util.Log.w("FLACie", "stream stall #${stalls.size} at ${exo.currentPosition}ms on ${current?.title}")
         if (prefs.streamQuality == 0 && stalls.size >= 2 && poorUntil < now) {
             poorUntil = now + 10 * 60_000
-            android.util.Log.w("FLACie", "weak connection: switching to the lower bitrate for 10 minutes")
-            downgradeCurrent()
+            android.util.Log.w("FLACie", "weak connection: the next songs use the lower bitrate for 10 minutes")
+            // only the songs to come: swapping the playing one threw away all it had buffered and started it again from the same place, which in the car
+            // on a weak signal sounded like the song stopping and starting (owner, 30 Oct)
+            adaptUpcoming()
         }
     }
 
@@ -1189,15 +1194,6 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     }
 
     private fun isHls(i: MediaItem) = i.localConfiguration?.mimeType == androidx.media3.common.MimeTypes.APPLICATION_M3U8
-
-    private fun downgradeCurrent() {
-        val idx = exo.currentMediaItemIndex
-        val t = current ?: return
-        if (hlsUri(t) == null || isHls(exo.currentMediaItem ?: return)) return
-        val at = exo.currentPosition
-        exo.replaceMediaItem(idx, item(t)); selfSeekTo(idx, at)
-        adaptUpcoming()
-    }
 
     /** The next two songs follow whatever is in force now (lower bitrate while the connection is poor, the original again once it's fine). */
     private fun adaptUpcoming() {

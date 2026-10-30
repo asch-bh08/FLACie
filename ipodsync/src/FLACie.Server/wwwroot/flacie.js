@@ -1398,7 +1398,10 @@ window.flacie = (() => {
         setTimeout(() => { if (mine() && djAudio === a) djHalt(true); }, 20000);   // safety: a clip that never says it ended
         if (a.error) { failed(); return; }   // the clip fetched ahead has already failed
         const go = () => { if (mine() && !over) a.play().catch((e) => { if (e && e.name === "AbortError") return; failed(); }); };
-        if (djCueOn && djSwoosh()) setTimeout(go, DJ_CUE_LEAD_MS); else go();
+        // the swoosh only once the clip can really play: on a slow connection it sounded and then no voice came (owner, 30 Oct). Not loaded within the
+        // 1.5 s the line has, it is dropped with no swoosh at all (the watch below)
+        const cueThenGo = () => { if (!mine() || over) return; if (djCueOn && djSwoosh()) setTimeout(go, DJ_CUE_LEAD_MS); else go(); };
+        if (a.readyState >= 3) cueThenGo(); else a.addEventListener("canplay", cueThenGo, { once: true });
       };
       // counted from when the song is really playing (it may still be loading when this is called)
       const songStarted = () => {

@@ -78,13 +78,24 @@ public class DjTimingTests
         Assert.Same(DjIntro.None, w.Intro);                  // looked at: not looked at again
     }
 
+    // owner, 30 Oct: waiting for a long intro to run down sounded like the DJ "talks randomly 10 seconds in"; it talks as the song starts
     [Fact]
-    public void A_clip_that_fits_the_intro_ends_half_a_second_before_the_singing()
+    public void A_clip_that_fits_the_intro_starts_with_the_song()
     {
-        var p = DjTiming.Plan(introMs: 12_000, clipMs: 4_000);
-        Assert.Equal(new DjTimingPlan(7_500, 0), p);
-        Assert.Equal(12_000 - DjTiming.MarginMs, p.ClipAtMs + 4_000);
+        Assert.Equal(new DjTimingPlan(0, 0), DjTiming.Plan(introMs: 12_000, clipMs: 4_000));
+        Assert.Equal(new DjTimingPlan(0, 0), DjTiming.Plan(30_000, 4_000));
         Assert.Equal(new DjTimingPlan(0, 0), DjTiming.Plan(4_500, 4_000));     // just fits: at once, no hold
+    }
+
+    // a line that starts once the song is already heard (after a skip, or a clip slow to load) never holds it back: holding then means silencing it and
+    // starting it again from the top (owner, 30 Oct: "the song goes quiet and it just starts playing again")
+    [Fact]
+    public void A_song_already_under_way_is_never_held_back()
+    {
+        Assert.Equal(new DjTimingPlan(0, 1_500), DjTiming.Started(new DjTimingPlan(0, 1_500), intoSongMs: 0));
+        Assert.Equal(new DjTimingPlan(0, 1_500), DjTiming.Started(new DjTimingPlan(0, 1_500), DjTiming.HoldWithinMs));
+        Assert.Equal(new DjTimingPlan(0, 0), DjTiming.Started(new DjTimingPlan(0, 1_500), DjTiming.HoldWithinMs + 1));
+        Assert.Equal(new DjTimingPlan(0, 0), DjTiming.Started(DjTiming.Before(6_000), 2_000));
     }
 
     [Fact]

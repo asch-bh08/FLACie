@@ -334,7 +334,16 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         await Load(!paused, positionMs / 1000.0);
     }
 
-    public async Task ShuffleAll(IReadOnlyList<Track> list, string? context = null, string? contextId = null, string? listenContext = null) { Shuffle = true; if (list.Count > 0) await Play(list, Random.Shared.Next(list.Count), context, contextId, listenContext); }
+    public async Task ShuffleAll(IReadOnlyList<Track> list, string? context = null, string? contextId = null, string? listenContext = null)
+    {
+        Shuffle = true;
+        if (list.Count == 0) return;
+        await Play(list, Random.Shared.Next(list.Count), context, contextId, listenContext);
+        // shuffling a named playlist: the DJ says so over its first song (owner, 30 Oct: it never said anything). Only here, at the start of a queue: shuffle
+        // toggled later (ToggleShuffle) is not a new queue. "Shuffle Songs" (no list) and the Retro car's stations say nothing.
+        if (Interceptor is null && contextId is { Length: > 0 } && context is { Length: > 0 } && Current is { } first && dj is { } d && session is { } s && DjOn)
+            _ = DjQueueStartAsync(d, s, first, context, djGen);
+    }
 
     public async Task Toggle() { if (Interceptor?.Toggle() == true) return; await ToggleAsync(); }
     public async Task Seek(double seconds) { if (Interceptor?.Seek((long)(seconds * 1000)) == true) return; await SeekRawAsync((long)(seconds * 1000)); }
@@ -901,6 +910,30 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         }
         catch (OperationCanceledException) { Note(d, s, t, $"timing: no line within {DjSkipWait.TotalSeconds:0} s of the skip"); }
         catch (TimeoutException) { Note(d, s, t, $"timing: no line within {DjSkipWait.TotalSeconds:0} s of the skip"); }
+        catch (Exception e) { try { RetroHost.DjFailed?.Invoke(e); } catch (Exception) { } }
+    }
+
+    /// <summary>How long a queue start's line may take to come (the model, then the clip); later the song is too far on and the DJ stays quiet. Longer than
+    /// <see cref="DjSkipWait"/>: the listener has just pressed shuffle and is waiting for something.</summary>
+    public static readonly TimeSpan DjQueueWait = TimeSpan.FromSeconds(6);
+
+    /// <summary>A queue has just started on shuffle from the playlist [name] with [first] playing: the DJ is asked about it, "Shuffling Pop... starting with
+    /// Firework, Katy Perry", said only while this is still the song playing and the song has not been paused or sought since ([gen]).</summary>
+    async Task DjQueueStartAsync(IDjService d, UserSession s, Track first, string name, int gen)
+    {
+        try
+        {
+            var (hour, weekday) = DjSwitches.LocalTime(DateTime.UtcNow, await BrowserOffsetAsync());
+            var req = new DjRequest(DjSurface, SongOf(first), null, PlaylistId: ContextId, QueueDj: QueueDj, LocalHour: hour, Weekday: weekday, Bond: BondOf(s, first),
+                QueueStart: true, QueueName: name, Shuffled: true);
+            using var cts = new CancellationTokenSource(DjQueueWait);
+            var cue = await d.PrepareAsync(s, req, cts.Token).WaitAsync(cts.Token);
+            if (cue is null) return;
+            if (gen != djGen || Current?.Path != first.Path || !DjOn) { Note(d, s, first, "timing: the song moved on before the queue's line came"); return; }
+            await DjSayCueAsync(cue);
+        }
+        catch (OperationCanceledException) { Note(d, s, first, $"timing: no line within {DjQueueWait.TotalSeconds:0} s of the queue starting"); }
+        catch (TimeoutException) { Note(d, s, first, $"timing: no line within {DjQueueWait.TotalSeconds:0} s of the queue starting"); }
         catch (Exception e) { try { RetroHost.DjFailed?.Invoke(e); } catch (Exception) { } }
     }
 

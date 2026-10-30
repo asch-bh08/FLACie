@@ -527,12 +527,24 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private fun djAskNow(t: Track, before: Track?) {
         val now = java.time.LocalDateTime.now()
         val loved = try { App.of(ctx).userData.isFavorite(t) } catch (_: Exception) { false }
-        val body = dj.skipRequest(djSurface, DjSong.of(t), before?.let(DjSong::of), contextId, now.hour, DjCoordinator.weekday(now.dayOfWeek), loved).toString()
+        djSayWhenAnswered(t, dj.skipRequest(djSurface, DjSong.of(t), before?.let(DjSong::of), contextId, now.hour, DjCoordinator.weekday(now.dayOfWeek), loved).toString(), DjCoordinator.SKIP_WAIT_MS)
+    }
+
+    /** A new queue was started from the playlist or album [name] (on shuffle): the DJ is asked about its first song now, "Shuffling Pop... starting with
+     *  Firework, Katy Perry", said over the start of that song if it comes within [DjCoordinator.QUEUE_WAIT_MS]. Once per queue, from [play] only. */
+    private fun djQueueStart(first: Track, name: String) {
+        if (!djOn || interceptor != null) return
+        val now = java.time.LocalDateTime.now()
+        val loved = try { App.of(ctx).userData.isFavorite(first) } catch (_: Exception) { false }
+        djSayWhenAnswered(first, dj.queueStartRequest(djSurface, DjSong.of(first), contextId, name, true, now.hour, DjCoordinator.weekday(now.dayOfWeek), loved).toString(), DjCoordinator.QUEUE_WAIT_MS)
+    }
+
+    private fun djSayWhenAnswered(t: Track, body: String, waitMs: Long) {
         val askedAt = android.os.SystemClock.uptimeMillis()
         djExec.execute {
             val cue = try { djWeb.djNext(body) } catch (_: Exception) { null } ?: return@execute
             handler.post {
-                val late = android.os.SystemClock.uptimeMillis() - askedAt > DjCoordinator.SKIP_WAIT_MS
+                val late = android.os.SystemClock.uptimeMillis() - askedAt > waitMs
                 if (!late && current?.path == t.path && djOn && exo.playWhenReady && djVoice?.speaking != true) voice().say(cue, exo.currentPosition)
             }
         }
@@ -1033,6 +1045,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         exo.prepare()
         exo.play()
         djAsk()
+        // started from a playlist or album on shuffle: the DJ says so over the first song (once per queue start; a shuffle toggled later says nothing)
+        if (DjCoordinator.announcesQueue(context, from, prefs.shuffle)) djQueueStart(list[index.coerceIn(0, list.lastIndex)], context!!)
         ctx.startService(Intent(ctx, PlaybackService::class.java))
         handler.postDelayed({ checkQueueLow() }, 1500)
     }

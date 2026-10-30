@@ -76,6 +76,33 @@ class DjCoordinatorTest {
         assertEquals("Song 5", o.getJSONObject("next").getString("title"))
     }
 
+    // owner, 30 Oct: nothing was said when shuffle was first pressed on a playlist; the first song of a new queue is asked about once, as a queue start
+    @Test fun aNewQueueFromAPlaylistAsksForAQueueStartLine() {
+        val c = DjCoordinator()
+        c.flip(true)   // "DJ for this queue" switched off by hand ...
+        val o = c.queueStartRequest(DjSurface.PHONE, song(3), "jfPlaylist", "Pop", true, 20, 4)
+        assertEquals("... is carried to the server", false, o.getBoolean("queueDj"))
+        assertTrue(o.getBoolean("queueStart")); assertEquals("Pop", o.getString("queueName")); assertTrue(o.getBoolean("shuffled"))
+        assertEquals("Song 3", o.getJSONObject("next").getString("title"))
+        assertTrue("no song before the first", o.isNull("prev"))
+        assertEquals("jfPlaylist", o.getString("playlistId"))
+        assertFalse("a new queue is not a skip", o.getBoolean("skippedRecently")); assertTrue(o.getBoolean("prevPlayedOut"))
+        assertTrue(o.isNull("why"))
+        val q = DjCoordinator().queueStartRequest(DjSurface.AUTO, song(3), null, "Pop", false, 20, 4, loved = true)
+        assertTrue("a queue, not a playlist: no id", q.isNull("playlistId")); assertFalse(q.getBoolean("shuffled")); assertEquals("loved", q.getString("bond"))
+        assertEquals("auto", q.getString("surface"))
+    }
+
+    @Test fun onlyAShuffledStartFromANamedPlaylistOrAlbumPageIsAnnounced() {
+        assertTrue(DjCoordinator.announcesQueue("Pop", null, true))
+        assertFalse("not shuffled: nothing said", DjCoordinator.announcesQueue("Pop", null, false))
+        assertFalse("no name for the list", DjCoordinator.announcesQueue(null, null, true))
+        assertFalse(DjCoordinator.announcesQueue("  ", null, true))
+        assertFalse("a home shelf or a search is not a list the listener chose", DjCoordinator.announcesQueue("New Releases", "home", true))
+        assertFalse(DjCoordinator.announcesQueue("Pop", "search", true))
+        assertTrue("a queue line may take longer to come than a skip's", DjCoordinator.QUEUE_WAIT_MS > DjCoordinator.SKIP_WAIT_MS)
+    }
+
     // lines for songs that get skipped used the DJ's daily share (115 made, 40 said): the next song is asked about only in the last 30 s
     @Test fun theNextSongIsAskedAboutOnlyNearTheEnd() {
         assertEquals(170_000L, DjCoordinator.askInMs(200_000, 0))

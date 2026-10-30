@@ -493,4 +493,37 @@ public class PlayerDjTests
         Assert.Single(plays);
         Assert.Equal(0, plays[0].ClipAt);
     }
+
+    // owner, 30 Oct: it never says anything when shuffle is clicked for the first time on a playlist
+    [Fact]
+    public async Task Shuffling_a_playlist_asks_for_a_queue_start_line_once_and_says_it_over_the_first_song()
+    {
+        var (p, js, dj) = Player();
+        await p.ShuffleAll(Songs(4), "Pop", "pl-pop");
+        await Task.Delay(50);
+        var start = Assert.Single(dj.Asked, r => r.QueueStart);
+        Assert.Equal("Pop", start.QueueName); Assert.True(start.Shuffled); Assert.Null(start.Prev); Assert.Equal("pl-pop", start.PlaylistId); Assert.False(start.SkippedRecently);
+        Assert.Equal(p.Current!.Title, start.Next.Title);
+        Assert.Contains("/api/dj/clip/" + p.Current.Title.Replace(' ', '-') + ".mp3", js.Of("flacie.djPlay"));
+        // toggling shuffle mid-queue is not a new queue
+        dj.Asked.Clear();
+        p.ToggleShuffle(); p.ToggleShuffle();
+        await Task.Delay(30);
+        Assert.DoesNotContain(dj.Asked, r => r.QueueStart);
+    }
+
+    [Fact]
+    public async Task Only_a_shuffled_start_from_a_named_playlist_with_the_DJ_on_is_announced()
+    {
+        var (p, _, dj) = Player();
+        await p.Play(Songs(4), 0, "Pop", "pl-pop");                       // Play, not Shuffle
+        await p.ShuffleAll(Songs(4));                                     // Shuffle Songs: no list
+        await p.ShuffleAll(Songs(4), "Pop");                              // no playlist key
+        await Task.Delay(30);
+        Assert.DoesNotContain(dj.Asked, r => r.QueueStart);
+        dj.S.Playlists["pl-off"] = false;                                 // this playlist's switch is off
+        await p.ShuffleAll(Songs(4), "Quiet", "pl-off");
+        await Task.Delay(30);
+        Assert.DoesNotContain(dj.Asked, r => r.QueueStart);
+    }
 }

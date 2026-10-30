@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 using FLACie.Core;
+using FLACie.Server;
+using FLACie.Server.Dj;
 using Xunit;
 
 namespace FLACie.Tests;
@@ -211,5 +213,134 @@ public class DjCarDriveTests
         Assert.Contains("unless the facts say you picked it", DjWriter.Character);
         Assert.Contains("Never mention a skipped song", DjWriter.Character);
         Assert.Contains("steering", DjWriter.Character);
+    }
+
+    // ---- 4. a playlist started on shuffle ----
+
+    static readonly DjSong Firework = Song("Firework", "Katy Perry", "Teenage Dream", 2010, "Pop");
+    static DjRequest Start(string name = "Pop", bool shuffled = true, DjSong? first = null, string? playlist = "pl-pop") =>
+        new(DjSurface.Phone, first ?? Firework, null, PlaylistId: playlist, LocalHour: 14, Weekday: 3, QueueStart: true, QueueName: name, Shuffled: shuffled);
+
+    [Fact]
+    public void Shuffling_a_playlist_for_the_first_time_gets_a_line_that_says_so_and_names_the_first_song()
+    {
+        foreach (var style in new[] { DjStyle.Classic, DjStyle.Chill, DjStyle.Hype })
+            for (var seed = 0; seed < 100; seed++)
+            {
+                var line = DjPlanner.Plan(On(style, DjChatty.Often), Start(), new DjMemory(), T0, new Random(seed));
+                Assert.NotNull(line);
+                Assert.Equal(DjSlot.Queue, line!.Slot);
+                Assert.Contains("Pop", line.Caption); Assert.Contains("huffl", line.Caption);
+                Assert.Contains("Firework", line.Caption);
+                Assert.Contains("Katy Perry", line.Caption);
+            }
+        // not shuffled: said as playing it, never as shuffling
+        var plain = DjPlanner.Plan(On(), Start(shuffled: false), new DjMemory(), T0, new Random(1))!;
+        Assert.Equal(DjSlot.Queue, plain.Slot);
+        Assert.DoesNotContain("huffl", plain.Caption);
+        Assert.Contains("Pop", plain.Caption);
+        // the line is the speaker's: spoken form too
+        Assert.Contains("Pop", plain.Text);
+    }
+
+    [Fact]
+    public void A_queue_start_line_follows_the_switches_the_budget_and_the_song_choices()
+    {
+        Assert.Null(DjPlanner.Plan(new DjSettings { Enabled = false }, Start(), new DjMemory(), T0, new Random(1)));                     // DJ off
+        Assert.Null(DjPlanner.Plan(On(), Start() with { QueueDj = false }, new DjMemory(), T0, new Random(1)));                         // "DJ for this queue" off
+        Assert.Null(DjPlanner.Plan(new DjSettings { Enabled = true, Playlists = { ["pl-pop"] = false } }, Start(), new DjMemory(), T0, new Random(1)));   // this playlist off
+        Assert.NotNull(DjPlanner.Plan(new DjSettings { Enabled = false, Playlists = { ["pl-pop"] = true } }, Start(), new DjMemory(), T0, new Random(1)));
+        var never = On(); DjRules.SetSong(never, "Firework", "Katy Perry", false);
+        Assert.Null(DjPlanner.Plan(never, Start(), new DjMemory(), T0, new Random(1)));                                                  // "never talk over this song"
+        Assert.Null(DjPlanner.Plan(On(), Start(first: Song("Intro", "Katy Perry") with { DurationMs = 30_000 }), new DjMemory(), T0, new Random(1)));   // a clip of a song
+        Assert.Null(DjPlanner.Plan(On(), Start(first: Song("Chapter 1", "Reader", genre: "Audiobook")), new DjMemory(), T0, new Random(1)));          // spoken word
+        // no name for the list: a normal opening, not a "Shuffling ..."
+        Assert.NotEqual(DjSlot.Queue, DjPlanner.Plan(On(), Start(name: ""), new DjMemory(), T0, new Random(1))?.Slot);
+        // Rare keeps to its half chance, like the hello at the start of a session
+        var said = Enumerable.Range(0, 400).Count(seed => DjPlanner.Plan(On(DjStyle.Classic, DjChatty.Rare), Start(), new DjMemory(), T0, new Random(seed)) is not null);
+        Assert.InRange(said, 120, 280);
+        // Often and Every: always
+        Assert.All(Enumerable.Range(0, 50), seed => Assert.NotNull(DjPlanner.Plan(On(DjStyle.Classic, DjChatty.Often), Start(), new DjMemory(), T0, new Random(seed))));
+    }
+
+    [Fact]
+    public void The_line_for_a_new_queue_is_said_once_and_the_song_after_it_is_left_alone()
+    {
+        var mem = new DjMemory(); var st = On(DjStyle.Classic, DjChatty.Often);
+        Assert.NotNull(DjPlanner.Plan(st, Start(), mem, T0, new Random(3)));
+        // the next song change (asked as the first song plays) stays quiet: forced silence after a line
+        var next = new DjRequest(DjSurface.Phone, Song("Roar", "Katy Perry"), Firework, PlaylistId: "pl-pop", LocalHour: 14, Weekday: 3);
+        Assert.Null(DjPlanner.Plan(st, next, mem, T0.AddMinutes(4), new Random(3)));
+        // a second start of the same queue in a session has no hello, but still says the line
+        var again = DjPlanner.Plan(st, Start(), mem, T0.AddMinutes(6), new Random(4));
+        Assert.Equal(DjSlot.Queue, again?.Slot);
+        Assert.DoesNotContain("Good", again!.Caption);
+    }
+
+    [Fact]
+    public void A_playlist_named_after_the_artist_does_not_say_the_artist_twice()
+    {
+        var req = Start(name: "Eminem", first: Next);
+        for (var seed = 0; seed < 200; seed++)
+        {
+            var line = DjPlanner.Plan(On(), req, new DjMemory(), T0, new Random(seed))!;
+            Assert.Equal(DjSlot.Queue, line.Slot);
+            Assert.Equal(1, Count(line.Caption, "Eminem"));
+            Assert.Contains("Without Me", line.Caption);
+        }
+    }
+
+    [Fact]
+    public void The_model_is_told_a_queue_has_started_and_may_use_the_list_name()
+    {
+        var f = DjWriter.FactsOf(Start(), new DjLine(DjSlot.Queue, "queue1", "Shuffling Pop... starting with Firework, by Katy Perry.", "Shuffling Pop... starting with Firework, by Katy Perry."), T0);
+        Assert.Equal("Pop", f.QueueName);
+        var (_, user) = DjWriter.Prompt(f, []);
+        Assert.Contains("on shuffle", user);
+        Assert.Contains("Pop", user);
+        Assert.Contains("their own playlist", user);
+        Assert.Equal("Shuffling Pop Hits... starting with Firework, Katy Perry.",
+            DjWriter.Check("Shuffling Pop Hits... starting with Firework, Katy Perry.", f with { QueueName = "Pop Hits" }, []));
+        // a list name that is not given is not made up
+        Assert.Null(DjWriter.Check("Shuffling Road Trip... starting with Firework, Katy Perry.", f, []));
+        // and a mid-queue line says nothing of queues
+        var mid = DjWriter.Prompt(DjWriter.FactsOf(new DjRequest(DjSurface.Phone, Firework, Song("Roar", "Katy Perry")), Template, T0), []).User;
+        Assert.DoesNotContain("shuffle", mid);
+    }
+
+    [Fact]
+    public async Task The_server_answers_a_queue_start_with_the_line_for_the_phone_to_say()
+    {
+        var dir = Directory.CreateTempSubdirectory("flacie-dj-queue").FullName;
+        try
+        {
+            var paths = new DataPaths(dir); var dp = Microsoft.AspNetCore.DataProtection.DataProtectionProvider.Create(new DirectoryInfo(Path.Combine(dir, "keys")));
+            var h = new DjVoiceTests.Handler(_ => Task.FromResult(DjVoiceTests.Audio()));
+            var v = new CloudflareVoice(paths, new DjVoiceTests.Factory(h), dp, new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(), new DjVoiceTests.Lines<CloudflareVoice>(), () => T0);
+            var clips = new DjClips(paths, v, new DjVoiceTests.Lines<DjClips>(), () => T0);
+            var dj = new DjService(new UserStateStore(paths, dp), v, clips, paths, new DjVoiceTests.Lines<DjService>(), () => T0);
+            var me = new UserSession("jellyfin", new JellyfinAccount("http://jf.test", "u1", "tester", "tok"), null) { Id = "u1" };
+            var st = dj.Settings(me); st.Enabled = true; st.DeviceVoice = true; dj.Save(me, st);
+            var cue = await dj.PrepareAsync(me, Start());
+            Assert.NotNull(cue);
+            Assert.Contains("Pop", cue!.Caption); Assert.Contains("Firework", cue.Caption);
+            // asked again about the same start: the same line; the same song mid-queue is a different question
+            Assert.Equal(cue, await dj.PrepareAsync(me, Start()));
+            // the switch for this queue silences it
+            Assert.Null(await dj.PrepareAsync(me, Start() with { QueueDj = false }));
+        }
+        finally { try { Directory.Delete(dir, true); } catch (Exception) { } }
+    }
+
+    [Fact]
+    public void The_queue_start_fields_go_over_the_wire_and_default_to_off()
+    {
+        Assert.Null(DjJson.Request(DjJson.RequestBody(Start()), out var back));
+        Assert.True(back!.QueueStart); Assert.Equal("Pop", back.QueueName); Assert.True(back.Shuffled);
+        Assert.Null(DjJson.Request(DjJson.RequestBody(Start(shuffled: false)), out var plain));
+        Assert.False(plain!.Shuffled);
+        Assert.Null(DjJson.Request(System.Text.Json.Nodes.JsonNode.Parse("""{ "surface": "phone", "next": { "title": "Yellow" } }""")!.AsObject(), out var none));
+        Assert.False(none!.QueueStart); Assert.Null(none.QueueName); Assert.False(none.Shuffled);
+        Assert.NotNull(DjJson.Request(System.Text.Json.Nodes.JsonNode.Parse("""{ "surface": "phone", "next": { "title": "Yellow" }, "queueStart": "yes" }""")!.AsObject(), out _));
     }
 }

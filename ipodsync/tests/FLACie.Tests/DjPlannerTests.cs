@@ -494,11 +494,11 @@ public class DjPlannerTests
     }
 
     [Fact]
-    public void There_are_80_classic_templates_and_22_for_the_styles_with_unique_ids_and_no_exclamation_marks()
+    public void There_are_88_classic_templates_and_24_for_the_styles_with_unique_ids_and_no_exclamation_marks()
     {
-        Assert.Equal(80, DjTemplates.All.Count(t => t.Style is null));
-        Assert.Equal(11, DjTemplates.All.Count(t => t.Style == DjStyle.Chill));
-        Assert.Equal(11, DjTemplates.All.Count(t => t.Style == DjStyle.Hype));
+        Assert.Equal(88, DjTemplates.All.Count(t => t.Style is null));
+        Assert.Equal(12, DjTemplates.All.Count(t => t.Style == DjStyle.Chill));
+        Assert.Equal(12, DjTemplates.All.Count(t => t.Style == DjStyle.Hype));
         Assert.Equal(DjTemplates.All.Count, DjTemplates.All.Select(t => t.Id).Distinct().Count());
         Assert.DoesNotContain(DjTemplates.All, t => t.Text.Contains('!'));
     }

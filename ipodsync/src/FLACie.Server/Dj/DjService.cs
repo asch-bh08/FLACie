@@ -122,7 +122,8 @@ public sealed class DjService : IDjService
     /// <summary>Decides once per (account, previous song, next song) within <see cref="DecisionLife"/>; the same line (or the same silence) after that.</summary>
     DjLine? Decide(UserSession s, DjSettings st, DjRequest req, DjExtra? extra, out string key, out DjMemory mem)
     {
-        key = s.Id + "\n" + SongKey(req.Prev) + "\n" + SongKey(req.Next);
+        // (a queue just started from a playlist is a different question from the same song reached mid-queue, and from the same list started again on another shuffle setting)
+        key = s.Id + "\n" + SongKey(req.Prev) + "\n" + SongKey(req.Next) + (req.QueueStart ? "\nqueue:" + req.QueueName + (req.Shuffled ? ":shuffled" : "") : "");
         var now = clock();
         mem = memories.GetOrAdd(s.Id, _ => new DjMemory());
         if (decisions.TryGetValue(key, out var d) && now - d.At < DecisionLife) return d.Line;

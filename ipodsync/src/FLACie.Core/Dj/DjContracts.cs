@@ -103,9 +103,12 @@ public sealed record DjSong(string Title, string Artist, string Album = "", stri
 /// [PlaylistId] is the playlist the queue came from (same key as <see cref="DjSettings.Playlists"/>). [PrevPlayedOut]: the previous song is expected to
 /// play to its end (false after a skip). [SkippedRecently]: a song was skipped within 10 s in the last two changes. [Why]: the recommender's reason, if any.
 /// [Bond]: loved or a new find, when the client knows it for certain (the server fills it from the account's listening when it is Unknown).
+/// [QueueStart]: [Next] is the first song of a queue that has just started from a playlist or album ([QueueName]; [Shuffled] when it starts on shuffle) and there is no
+/// previous song: the DJ may open it with "Shuffling Pop... starting with Firework, Katy Perry" (owner, 30 Oct). Said once per queue start, never on a shuffle toggle.
 /// </summary>
 public sealed record DjRequest(DjSurface Surface, DjSong Next, DjSong? Prev = null, bool PrevPlayedOut = true, bool SkippedRecently = false,
-    string? PlaylistId = null, bool? QueueDj = null, int? LocalHour = null, int? Weekday = null, string? Why = null, DjBond Bond = DjBond.Unknown);
+    string? PlaylistId = null, bool? QueueDj = null, int? LocalHour = null, int? Weekday = null, string? Why = null, DjBond Bond = DjBond.Unknown,
+    bool QueueStart = false, string? QueueName = null, bool Shuffled = false);
 
 /// <summary>What the DJ says before a song. [Text] is spoken (years in words), [Caption] is the written form for screens.
 /// [ClipUrl] is a server-relative MP3 (null when no clip can be made); [Backup] = say [Text] with the device's own voice instead.

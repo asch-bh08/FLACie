@@ -14,7 +14,7 @@ namespace FLACie.Core;
 public sealed record DjFacts(string Title, string Artist, string ArtistLead, string? Guest, string Album, int Year, string PrevTitle, string PrevArtist,
     bool Open, string TimeOfDay, string Day, string Mood, string Why, string Find, string TemplateLine,
     string Genre = "", string ReleaseType = "", int FirstYear = 0, string Label = "", string Feel = "", string Colour = "", string FirstName = "", DjStyle Style = DjStyle.Classic, int IntroMs = 0, int TargetWords = 0,
-    string Request = "", string Context = "", string Source = "", bool SameArtistRun = false);
+    string Request = "", string Context = "", string Source = "", bool SameArtistRun = false, string QueueName = "", bool QueueShuffled = false);
 
 /// <summary>
 /// Writes the DJ's line with a small text model (Workers AI) instead of a template: the prompt (a DJ character plus the facts), and the checks on what comes back.
@@ -93,7 +93,9 @@ public static partial class DjWriter
         var why = string.Join("; ", DjWhy.Parts(req.Why));
         // loved or new: only what the account's listening says (DjRequest.Bond), never guessed from the recommender's words
         var find = req.Bond switch { DjBond.NewFind => "a new find for them, never played before", DjBond.Loved => "a song they love and play a lot", _ => "" };
-        var open = line.Slot == DjSlot.Open || req.Prev is null;
+        var open = line.Slot == DjSlot.Open || (req.Prev is null && !req.QueueStart);
+        // a queue that has just started from a playlist or album: the writer is told its name, and whether it is on shuffle
+        var queue = req.QueueStart && DjText.Tidy(req.QueueName) is { Length: > 0 } qn && DjText.WordCount(qn) <= 8 && qn.Length <= 50 ? qn : "";
         var fy = extra?.OriginalYear ?? 0;
         var first = fy >= 1900 && fy <= nowUtc.Year && (year == 0 || fy < year) && !remaster ? fy : 0;
         var intro = DjIntro.Usable(extra?.Vibe?.Intro);
@@ -101,7 +103,7 @@ public static partial class DjWriter
             tod, day, mood, why, find, line.Caption,
             DjText.Genre(n.Genre)?.Write ?? "", Clean(extra?.ReleaseType), first, Clean(extra?.Label), DjFeel.Of(extra?.Vibe, extra?.PrevVibe, picked),
             DjPlanner.Colour(req.LocalHour, req.Weekday) ?? "", open && firstName is { Length: > 0 } fn ? fn : "", style,
-            intro ?? 0, DjTiming.TargetWords(intro), Source: source, SameArtistRun: sameRun);
+            intro ?? 0, DjTiming.TargetWords(intro), Source: source, SameArtistRun: sameRun, QueueName: queue, QueueShuffled: req.Shuffled);
     }
 
     /// <summary>The most words a model line may have: <see cref="MaxWords"/>, or a few over the intro's target when there is one (a little over only leads the song in).</summary>
@@ -125,7 +127,9 @@ public static partial class DjWriter
         Put("How it sounds", f.Feel);
         Put("Previous song", f.PrevTitle.Length > 0 && f.PrevArtist.Length > 0 && !f.SameArtistRun ? f.PrevTitle + " by " + f.PrevArtist : f.PrevTitle);
         if (f.SameArtistRun) Put("Same artist", "the previous song was by the same artist, so do not say the artist's name again: the title alone is enough, or say the name just once");
-        Put("Moment", f.Open ? "the start of a listening session: a short hello first" + (f.FirstName.Length > 0 ? ", by first name" : "") : "between songs, mid-session");
+        Put("Moment", f.QueueName.Length > 0
+            ? $"they have just started playing {f.QueueName}{(f.QueueShuffled ? " on shuffle" : "")}, and this is its first song: say so in your own words, in the same breath as the song (for example \"{(f.QueueShuffled ? "Shuffling" : "Playing")} {f.QueueName}... starting with {f.Title}, {f.ArtistLead}\"), using only that name for the list"
+            : f.Open ?"the start of a listening session: a short hello first" + (f.FirstName.Length > 0 ? ", by first name" : "") : "between songs, mid-session");
         Put("Listener's first name", f.FirstName);
         Put("Time of day", f.TimeOfDay);
         Put("Day", f.Day);
@@ -216,7 +220,7 @@ public static partial class DjWriter
         // every capitalised word mid-sentence and every number comes from the facts
         var known = string.Join(" \n ", new[] { f.Title, f.Artist, f.Album, f.PrevTitle, f.PrevArtist, f.Why, f.Day, f.TimeOfDay, f.TemplateLine,
             f.Year > 0 ? f.Year.ToString(CultureInfo.InvariantCulture) : "", f.FirstYear > 0 ? f.FirstYear.ToString(CultureInfo.InvariantCulture) : "",
-            f.Genre, f.ReleaseType, f.Label, f.Feel, f.Colour, f.FirstName, f.Request, f.Context }).ToLowerInvariant();
+            f.Genre, f.ReleaseType, f.Label, f.Feel, f.Colour, f.FirstName, f.Request, f.Context, f.QueueName }).ToLowerInvariant();
         static bool Word(string text, string w) => Regex.IsMatch(text, @"(?<![\p{L}])" + Regex.Escape(w) + @"(?![\p{L}])");
         if (Cheesy.Any(c => Word(low, c) && !Word(known, c))) return null;
         foreach (Match m in Number().Matches(s))

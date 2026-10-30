@@ -1,17 +1,17 @@
 namespace FLACie.Core;
 
 /// <summary>The kinds of line the DJ says (Appendix A.1). Each is used only when its facts are known.</summary>
-public enum DjSlot { Open, Greet, Bridge, Intro, Why, Year, Album, Genre, SameArtist, Return, Reset, Long, ArtistOnly, TitleOnly, Segue, Time, Feel }
+public enum DjSlot { Open, Greet, Bridge, Intro, Why, Year, Album, Genre, SameArtist, Return, Reset, Long, ArtistOnly, TitleOnly, Segue, Time, Feel, Queue }
 
 /// <summary>Extra conditions a template has beyond its placeholders (a placeholder with no value already rules a template out). [Picked]: the engine picked the
 /// song, so the line may steer ("let's lift it", a change of direction); in the listener's own playlist or queue it may not. [NoArtist]: said only after a song
 /// by the same artist, and names no artist.</summary>
 [Flags]
-public enum DjNeed { None = 0, TenYearsOld = 1, SameAlbum = 2, Soundtrack = 4, SameGenre = 8, Picked = 16, NoArtist = 32 }
+public enum DjNeed { None = 0, TenYearsOld = 1, SameAlbum = 2, Soundtrack = 4, SameGenre = 8, Picked = 16, NoArtist = 32, Shuffled = 64, InOrder = 128 }
 
 /// <summary>
 /// One line pattern. Placeholders, filled with the spoken or the written form: {T}/{A} the next song's title and artist, {pT}/{pA} the previous song's, {eT} a song by the
-/// same artist heard earlier, {Al} album, {Y} year, {D} decade, {AD} "A seventies" / "An eighties", {G} genre, {M} minutes, {W} the "why", {w} the same starting in lower case,
+/// same artist heard earlier, {Al} album, {Q} the playlist or album a queue has just started from, {Y} year, {D} decade, {AD} "A seventies" / "An eighties", {G} genre, {M} minutes, {W} the "why", {w} the same starting in lower case,
 /// {W1}/{w1} its first part only, {Day} Saturday or Sunday, {ToD}/{tod} a notable time ("Monday morning", "late night"), {F}/{f} the song's feel ("a big one").
 /// [Style]: null for Classic (and for every style when that style has no template of the slot); Chill or Hype for their own wording.
 /// </summary>
@@ -124,8 +124,20 @@ public static class DjTemplates
         new("time-n1", DjSlot.Time, "{ToD}... so here's {T}.", DjNeed.NoArtist),
         new("long-n1", DjSlot.Long, "Settle in... this one's about {M} minutes. {T}.", DjNeed.NoArtist),
 
+        // ---- a queue that has just started from a playlist or album (owner, 30 Oct: nothing was said when shuffle was first pressed) ----
+        new("queue1", DjSlot.Queue, "Shuffling {Q}... starting with {T}, by {A}.", DjNeed.Shuffled),
+        new("queue2", DjSlot.Queue, "Alright, {Q} on shuffle. First up, {T} by {A}.", DjNeed.Shuffled),
+        new("queue3", DjSlot.Queue, "So, shuffling {Q}... and we're off with {A}, {T}.", DjNeed.Shuffled),
+        new("queue4", DjSlot.Queue, "Playing {Q}... starting with {T}, by {A}.", DjNeed.InOrder),
+        new("queue5", DjSlot.Queue, "Alright, {Q}. First up, {T} by {A}.", DjNeed.InOrder),
+        // (a list named after its artist, or a run of their songs: the artist is said once, in the name)
+        new("queue-n1", DjSlot.Queue, "Shuffling {Q}... starting with {T}.", DjNeed.Shuffled | DjNeed.NoArtist),
+        new("queue-n2", DjSlot.Queue, "Alright, {Q} on shuffle. First up, {T}.", DjNeed.Shuffled | DjNeed.NoArtist),
+        new("queue-n3", DjSlot.Queue, "Playing {Q}... starting with {T}.", DjNeed.InOrder | DjNeed.NoArtist),
+
         // ---- Chill: softer, slower, fewer words ----
         new("open-c1", DjSlot.Open, "So... easing in with {T} by {A}.", Style: DjStyle.Chill),
+        new("queue-c1", DjSlot.Queue, "Shuffling {Q}... easing in with {T} by {A}.", DjNeed.Shuffled, DjStyle.Chill),
         new("open-c2", DjSlot.Open, "Okay, nice and slow to start... {A}, {T}.", DjNeed.Picked, DjStyle.Chill),
         new("intro-c1", DjSlot.Intro, "Alright... here's {T} by {A}.", Style: DjStyle.Chill),
         new("intro-c2", DjSlot.Intro, "This is {A}... {T}.", Style: DjStyle.Chill),
@@ -139,6 +151,7 @@ public static class DjTemplates
 
         // ---- Hype: a bit more energy, still casual and never "!" ----
         new("open-h1", DjSlot.Open, "Let's get going with {T} by {A}.", Style: DjStyle.Hype),
+        new("queue-h1", DjSlot.Queue, "Shuffling {Q}... let's go with {T} by {A}.", DjNeed.Shuffled, DjStyle.Hype),
         new("open-h2", DjSlot.Open, "Kicking off with {A}... {T}.", Style: DjStyle.Hype),
         new("intro-h1", DjSlot.Intro, "Okay, let's pick it up a bit... {T} by {A}.", DjNeed.Picked, DjStyle.Hype),
         new("intro-h2", DjSlot.Intro, "Alright, here we go... {T} by {A}.", Style: DjStyle.Hype),

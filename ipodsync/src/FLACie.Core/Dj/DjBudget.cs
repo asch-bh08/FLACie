@@ -94,18 +94,37 @@ public static class DjBudget
     }
 }
 
-/// <summary>The song's feel in a few plain words, from its <see cref="Vibe"/> (and the previous song's): only clear cases, "" otherwise.</summary>
+/// <summary>
+/// The song's feel in a few plain words, from its <see cref="Vibe"/> (and the previous song's): only clear cases, "" otherwise. A direction ("a calmer one",
+/// "a livelier one") needs the energy to move clearly (a quarter of the scale) with a tempo that does not disagree; the tempo alone never decides. Stored tempos
+/// are often wrong by an octave or a fifth (owner, 30 Oct: "slowing down" after Poker Face, stored at 170 though it is about 119, before Where Them Girls At, at 129),
+/// so a ratio near 2, 1.5, 0.67 or 0.5 counts as unknown. [picked]: the engine chose this song, so the words may be steering ("slowing it down"); in the listener's
+/// own playlist or queue the order was theirs, so the words are about the song.
+/// </summary>
 public static class DjFeel
 {
-    public static string Of(Vibe? now, Vibe? prev)
+    /// <summary>How far the energy (0-1) must move before a direction is claimed.</summary>
+    public const double Clear = 0.25;
+
+    /// <summary>The tempo of [now] against [prev]: -1 clearly slower, 1 clearly faster, 0 about the same, null when it is not known or looks like an octave or fifth error.</summary>
+    static int? Tempo(Vibe now, Vibe prev)
+    {
+        if (now.Bpm <= 0 || prev.Bpm <= 0) return null;
+        var r = now.Bpm / prev.Bpm;
+        foreach (var fold in new[] { 2.0, 1.5, 2 / 3.0, 0.5 })
+            if (Math.Abs(Math.Log(r / fold)) <= 0.06) return null;
+        return r > 1.1 ? 1 : r < 0.9 ? -1 : 0;
+    }
+
+    public static string Of(Vibe? now, Vibe? prev, bool picked = false)
     {
         if (now is null) return "";
         if (prev is not null)
         {
-            var slower = prev.Bpm > 0 && now.Bpm > 0 && now.Bpm < prev.Bpm * 0.8;
-            var faster = prev.Bpm > 0 && now.Bpm > 0 && now.Bpm > prev.Bpm * 1.25;
-            if ((slower && now.Energy <= prev.Energy) || now.Energy < prev.Energy - 0.25) return "slowing it down";
-            if ((faster && now.Energy >= prev.Energy) || now.Energy > prev.Energy + 0.25) return "picking up the pace";
+            var move = now.Energy - prev.Energy;
+            var tempo = Tempo(now, prev);
+            if (move <= -Clear + 1e-9 && tempo != 1) return picked ? "slowing it down" : "a calmer one";
+            if (move >= Clear - 1e-9 && tempo != -1) return picked ? "picking up the pace" : "a livelier one";
         }
         if (now.Energy >= 0.7 && now.Loudness >= 0.75) return "a big one";
         if (now.Energy <= 0.25) return "a gentle one";

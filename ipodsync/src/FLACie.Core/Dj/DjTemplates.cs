@@ -3,9 +3,11 @@ namespace FLACie.Core;
 /// <summary>The kinds of line the DJ says (Appendix A.1). Each is used only when its facts are known.</summary>
 public enum DjSlot { Open, Greet, Bridge, Intro, Why, Year, Album, Genre, SameArtist, Return, Reset, Long, ArtistOnly, TitleOnly, Segue, Time, Feel }
 
-/// <summary>Extra conditions a template has beyond its placeholders (a placeholder with no value already rules a template out).</summary>
+/// <summary>Extra conditions a template has beyond its placeholders (a placeholder with no value already rules a template out). [Picked]: the engine picked the
+/// song, so the line may steer ("let's lift it", a change of direction); in the listener's own playlist or queue it may not. [NoArtist]: said only after a song
+/// by the same artist, and names no artist.</summary>
 [Flags]
-public enum DjNeed { None = 0, TenYearsOld = 1, SameAlbum = 2, Soundtrack = 4, SameGenre = 8 }
+public enum DjNeed { None = 0, TenYearsOld = 1, SameAlbum = 2, Soundtrack = 4, SameGenre = 8, Picked = 16, NoArtist = 32 }
 
 /// <summary>
 /// One line pattern. Placeholders, filled with the spoken or the written form: {T}/{A} the next song's title and artist, {pT}/{pA} the previous song's, {eT} a song by the
@@ -83,9 +85,9 @@ public static class DjTemplates
         new("return2", DjSlot.Return, "Okay, going back to {A}. {T}."),
         new("return3", DjSlot.Return, "We had {A} earlier, with {eT}... now it's {T}."),
 
-        new("reset1", DjSlot.Reset, "Okay, let's try something different... {T} by {A}."),
-        new("reset2", DjSlot.Reset, "Alright, changing it up. Here's {T} by {A}."),
-        new("reset3", DjSlot.Reset, "So, something else. This is {A}, with {T}."),
+        new("reset1", DjSlot.Reset, "Okay, let's try something different... {T} by {A}.", DjNeed.Picked),
+        new("reset2", DjSlot.Reset, "Alright, changing it up. Here's {T} by {A}.", DjNeed.Picked),
+        new("reset3", DjSlot.Reset, "So, something else. This is {A}, with {T}.", DjNeed.Picked),
 
         new("long1", DjSlot.Long, "Okay, this one's a long one, about {M} minutes... {T} by {A}."),
         new("long2", DjSlot.Long, "Settle in... this one's about {M} minutes. {T} by {A}."),
@@ -107,30 +109,45 @@ public static class DjTemplates
         new("feel1", DjSlot.Feel, "{F} now... {T} by {A}."),
         new("feel2", DjSlot.Feel, "Alright, here's {T} by {A}... {f}."),
 
+        // ---- after a song by the same artist (a run, an artist's playlist): the title alone, since "Now Eminem, Without Me by Eminem" says it twice (owner, 30 Oct) ----
+        new("intro-n1", DjSlot.Intro, "Alright... {T}.", DjNeed.NoArtist),
+        new("intro-n2", DjSlot.Intro, "Okay, now, {T}.", DjNeed.NoArtist),
+        new("intro-n3", DjSlot.Intro, "Here's {T}, next.", DjNeed.NoArtist),
+        new("why-n1", DjSlot.Why, "{W}. So, here's {T}.", DjNeed.NoArtist),
+        new("why-n2", DjSlot.Why, "{W}... so, {T}.", DjNeed.NoArtist),
+        new("year-n1", DjSlot.Year, "This one's from {Y}... {T}.", DjNeed.NoArtist),
+        new("year-n2", DjSlot.Year, "{T}... from {Y}.", DjNeed.NoArtist),
+        new("album-n1", DjSlot.Album, "From the album {Al}... here's {T}.", DjNeed.NoArtist),
+        new("album-n2", DjSlot.Album, "{T}. That's from {Al}.", DjNeed.NoArtist),
+        new("genre-n1", DjSlot.Genre, "Some {G} now... {T}.", DjNeed.NoArtist),
+        new("feel-n1", DjSlot.Feel, "{F} now... {T}.", DjNeed.NoArtist),
+        new("time-n1", DjSlot.Time, "{ToD}... so here's {T}.", DjNeed.NoArtist),
+        new("long-n1", DjSlot.Long, "Settle in... this one's about {M} minutes. {T}.", DjNeed.NoArtist),
+
         // ---- Chill: softer, slower, fewer words ----
         new("open-c1", DjSlot.Open, "So... easing in with {T} by {A}.", Style: DjStyle.Chill),
-        new("open-c2", DjSlot.Open, "Okay, nice and slow to start... {A}, {T}.", Style: DjStyle.Chill),
+        new("open-c2", DjSlot.Open, "Okay, nice and slow to start... {A}, {T}.", DjNeed.Picked, DjStyle.Chill),
         new("intro-c1", DjSlot.Intro, "Alright... here's {T} by {A}.", Style: DjStyle.Chill),
         new("intro-c2", DjSlot.Intro, "This is {A}... {T}.", Style: DjStyle.Chill),
-        new("intro-c3", DjSlot.Intro, "Okay, nice and easy now... {T} by {A}.", Style: DjStyle.Chill),
+        new("intro-c3", DjSlot.Intro, "Okay, nice and easy now... {T} by {A}.", DjNeed.Picked, DjStyle.Chill),
         new("bridge-c1", DjSlot.Bridge, "That was {pA}... and now, {A}, with {T}.", Style: DjStyle.Chill),
-        new("seg-c1", DjSlot.Segue, "That was {pT}... so, drifting on, {T} by {A}.", Style: DjStyle.Chill),
-        new("seg-c2", DjSlot.Segue, "{pT} there... okay, now, gently... {T}.", Style: DjStyle.Chill),
-        new("time-c1", DjSlot.Time, "{ToD}, so let's keep it easy... {T} by {A}.", Style: DjStyle.Chill),
-        new("reset-c1", DjSlot.Reset, "Okay, let's change the mood a little... {T} by {A}.", Style: DjStyle.Chill),
+        new("seg-c1", DjSlot.Segue, "That was {pT}... so, drifting on, {T} by {A}.", DjNeed.Picked, DjStyle.Chill),
+        new("seg-c2", DjSlot.Segue, "{pT} there... okay, now, gently... {T}.", DjNeed.Picked, DjStyle.Chill),
+        new("time-c1", DjSlot.Time, "{ToD}, so let's keep it easy... {T} by {A}.", DjNeed.Picked, DjStyle.Chill),
+        new("reset-c1", DjSlot.Reset, "Okay, let's change the mood a little... {T} by {A}.", DjNeed.Picked, DjStyle.Chill),
         new("same-c1", DjSlot.SameArtist, "Staying a while with {A}... {T}.", Style: DjStyle.Chill),
 
         // ---- Hype: a bit more energy, still casual and never "!" ----
         new("open-h1", DjSlot.Open, "Let's get going with {T} by {A}.", Style: DjStyle.Hype),
         new("open-h2", DjSlot.Open, "Kicking off with {A}... {T}.", Style: DjStyle.Hype),
-        new("intro-h1", DjSlot.Intro, "Okay, let's pick it up a bit... {T} by {A}.", Style: DjStyle.Hype),
+        new("intro-h1", DjSlot.Intro, "Okay, let's pick it up a bit... {T} by {A}.", DjNeed.Picked, DjStyle.Hype),
         new("intro-h2", DjSlot.Intro, "Alright, here we go... {T} by {A}.", Style: DjStyle.Hype),
         new("intro-h3", DjSlot.Intro, "Okay, no messing about... it's {A} with {T}.", Style: DjStyle.Hype),
         new("bridge-h1", DjSlot.Bridge, "That was {pA}... now let's keep it going with {A}, {T}.", Style: DjStyle.Hype),
         new("seg-h1", DjSlot.Segue, "Alright, that was {pT}... and straight into {T}, by {A}.", Style: DjStyle.Hype),
-        new("seg-h2", DjSlot.Segue, "{pA} there... and we're not slowing down. {A}, with {T}.", Style: DjStyle.Hype),
-        new("time-h1", DjSlot.Time, "{ToD}, so let's lift it... {T} by {A}.", Style: DjStyle.Hype),
-        new("reset-h1", DjSlot.Reset, "Okay, new direction... {T} by {A}.", Style: DjStyle.Hype),
+        new("seg-h2", DjSlot.Segue, "{pA} there... and we're not slowing down. {A}, with {T}.", DjNeed.Picked, DjStyle.Hype),
+        new("time-h1", DjSlot.Time, "{ToD}, so let's lift it... {T} by {A}.", DjNeed.Picked, DjStyle.Hype),
+        new("reset-h1", DjSlot.Reset, "Okay, new direction... {T} by {A}.", DjNeed.Picked, DjStyle.Hype),
         new("same-h1", DjSlot.SameArtist, "More {A}, and why not... {T}.", Style: DjStyle.Hype),
     ];
 

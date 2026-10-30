@@ -52,7 +52,7 @@ public static class DjPlanner
         if (f.PrevArtistKey.Length > 0 && !mem.Artists.ContainsKey(f.PrevArtistKey)) mem.Artists[f.PrevArtistKey] = new(nowUtc, song - 1, f.PrevTitleWritten);
         if (f.ArtistKey.Length > 0) mem.Artists[f.ArtistKey] = new(nowUtc, song, f.HasTitle ? f.TitleWritten : "");
 
-        f.Feel = DjFeel.Of(extra?.Vibe, extra?.PrevVibe);
+        f.Feel = DjFeel.Of(extra?.Vibe, extra?.PrevVibe, f.Picked);
         f.Colour = Colour(req.LocalHour, req.Weekday);
         // the person's own choice for this song beats the chance, the forced silence and the quiet rules (but not the switches above)
         var choice = DjRules.SongChoice(settings, req.Next.Title, req.Next.Artist);
@@ -136,6 +136,13 @@ public static class DjPlanner
             // the style's own wording first; once those were all said lately, the Classic ones of the slot
             var ts = DjTemplates.Of(slot, style).Where(t => !recentIds.Contains(t.Id) && Met(t.Need, f)).ToList();
             if (ts.Count == 0 && style != DjStyle.Classic) ts = DjTemplates.Of(slot, DjStyle.Classic).Where(t => !recentIds.Contains(t.Id) && Met(t.Need, f)).ToList();
+            // right after a song by the same artist the line leaves the name out ("Now Eminem, Without Me by Eminem" said it twice; owner, 30 Oct); only when every
+            // such wording was said lately does the artist get a mention again, once
+            if (f.SameArtist && slot != DjSlot.SameArtist)
+            {
+                var quiet = DjTemplates.All.Where(t => t.Slot == slot && t.Need.HasFlag(DjNeed.NoArtist) && !recentIds.Contains(t.Id) && Met(t.Need, f)).ToList();
+                if (quiet.Count > 0) ts = quiet;
+            }
             for (var i = ts.Count - 1; i > 0; i--) { var j = rng.Next(i + 1); (ts[i], ts[j]) = (ts[j], ts[i]); }
             // openings unlike the last 3 lines first
             var tries = ts.Where(t => !recentOpeners.Contains(t.Opener)).Concat(ts.Where(t => recentOpeners.Contains(t.Opener))).ToList();
@@ -196,7 +203,8 @@ public static class DjPlanner
 
     static bool Met(DjNeed n, Facts f) =>
         (!n.HasFlag(DjNeed.TenYearsOld) || f.YearAge >= 10) && (!n.HasFlag(DjNeed.SameAlbum) || f.SameAlbum)
-        && (!n.HasFlag(DjNeed.Soundtrack) || f.Soundtrack) && (!n.HasFlag(DjNeed.SameGenre) || f.SameGenre);
+        && (!n.HasFlag(DjNeed.Soundtrack) || f.Soundtrack) && (!n.HasFlag(DjNeed.SameGenre) || f.SameGenre)
+        && (!n.HasFlag(DjNeed.Picked) || f.Picked) && (!n.HasFlag(DjNeed.NoArtist) || f.SameArtist);
 
     /// <summary>"Good morning." (06-11), "Good afternoon." (12-17), "Good evening." (18-02), "Saturday morning." at the weekend; null at night or when the device's time is unknown.
     /// [weekday]: .NET DayOfWeek numbering, 0 = Sunday .. 6 = Saturday, from every client (an ISO 7 for Sunday is also taken).</summary>
@@ -276,6 +284,8 @@ public static class DjPlanner
         public (string Say, string Write)? Genre;
         public List<string> Why = [], WhySay = [];
         public string Feel = "";
+        /// <summary>The engine picked the next song (the request carries its reason); false for the listener's own playlist, album or queue.</summary>
+        public bool Picked;
         public string? Colour;
 
         public static string SayTitle(string written, DjPronounce say) => say.Title(written) is { } r ? DjText.Speak(r) : DjText.Speak(say.Phrases(written));
@@ -339,6 +349,7 @@ public static class DjPlanner
             f.Genre = DjText.Genre(n.Genre);
             f.SameGenre = f.Genre is { } g && p is not null && DjText.Genre(p.Genre) is { } pg && pg.Write == g.Write;
             if (n.DurationMs >= 7 * 60_000) f.Minutes = (int)Math.Round(n.DurationMs / 60_000.0, MidpointRounding.AwayFromZero);
+            f.Picked = req.Why is { Length: > 0 };
             f.Why = DjWhy.Parts(req.Why);
             f.WhySay = f.Why.Select(w => DjText.Speak(say.Phrases(w))).ToList();
             if (f.WhySay.Any(w => w.Length == 0)) { f.Why = []; f.WhySay = []; }

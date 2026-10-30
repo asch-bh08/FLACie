@@ -122,7 +122,7 @@ public class DjRoundTwoTests : IDisposable
         var extra = new DjExtra("single", 2005, "", Big, Calm);
         var f = DjWriter.FactsOf(Req(bond: DjBond.Loved) with { Next = Smack with { Genre = "Hip Hop" } }, Template, now, extra);
         var (_, user) = DjWriter.Prompt(f, []);
-        foreach (var fact in new[] { "Released as: a single", "First released: 2005", "Genre: hip hop", "How it sounds: picking up the pace", "This song is: a song they love",
+        foreach (var fact in new[] { "Released as: a single", "First released: 2005", "Genre: hip hop", "How it sounds: a livelier one", "This song is: a song they love",
                      "Worth a word about the time: Friday night" })
             Assert.True(user.Contains(fact, StringComparison.OrdinalIgnoreCase), fact + " in " + user);
         Assert.DoesNotContain("Label", user);   // not known: never mentioned
@@ -150,7 +150,8 @@ public class DjRoundTwoTests : IDisposable
         Assert.Null(DjFactsOf.Brainz(t, [far]));
         Assert.Null(DjFactsOf.Brainz(t, null));
         Assert.Equal("a big one", DjFeel.Of(Big, null));
-        Assert.Equal("slowing it down", DjFeel.Of(Calm, Big));
+        Assert.Equal("slowing it down", DjFeel.Of(Calm, Big, picked: true));
+        Assert.Equal("a calmer one", DjFeel.Of(Calm, Big));   // in their own playlist it describes the song (owner, 30 Oct)
         Assert.Equal("", DjFeel.Of(new Vibe(0.5, 0.5, 100, 0.5), new Vibe(0.55, 0.5, 104, 0.5)));
         Assert.Equal("", DjFeel.Of(null, Big));
     }

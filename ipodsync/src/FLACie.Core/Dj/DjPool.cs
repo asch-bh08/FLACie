@@ -12,7 +12,8 @@ public static class DjPool
 {
     public static IReadOnlyList<string> Intros(DjStyle s) => s switch
     {
-        DjStyle.Chill => ["Here's", "Now then,", "Next, nice and easy,", "This is"],
+        // (no "nice and easy" here: a pooled phrase is said before any song, and in their own playlist it claimed a mood nobody chose; owner, 30 Oct)
+        DjStyle.Chill => ["Here's", "Now then,", "Next,", "This is"],
         DjStyle.Hype => ["Coming up,", "Here we go,", "Right, it's", "Okay,"],
         _ => ["Coming up,", "Here's", "Alright,", "This is", "Okay,"],
     };

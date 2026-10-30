@@ -269,7 +269,7 @@ public sealed class DjService : IDjService
             // the shared context: what they asked for lately, the session, and the answers given (also the lines it said in reply to an ask, never repeated)
             if (ctx is not null)
             {
-                f = f with { Request = ctx.Request(clock()) ?? "", Context = ctx.Summary(clock(), req.LocalHour) };
+                f = f with { Request = ctx.Request(clock()) ?? "", Context = ctx.Summary(clock(), req.LocalHour, engineChose: req.Why is { Length: > 0 }) };
                 recent = [.. recent, .. ctx.Lines.Where(l => !recent.Contains(l))];
             }
             var (sys, user) = DjWriter.Prompt(f, recent);

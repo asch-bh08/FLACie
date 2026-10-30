@@ -121,6 +121,7 @@ import com.ipodemu.R
 import com.ipodemu.library.Lyrics
 import com.ipodemu.library.RatingStore
 import com.ipodemu.library.Track
+import com.ipodemu.playback.RepeatCycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -482,8 +483,9 @@ private fun SleeveControls(snap: PlayerSnap, p: SleevePalette, modifier: Modifie
         SleevePillButton(Glyph.PREV, "Previous", p) { app.player.prev() }
         SleevePlay(snap, p)
         SleevePillButton(Glyph.NEXT, "Next", p) { app.player.next() }
-        IconAction(if (snap.repeat == 2) Glyph.REPEAT_ONE else Glyph.REPEAT, when (snap.repeat) { 1 -> "Repeat all"; 2 -> "Repeat one"; else -> "Repeat off" },
-            { app.prefs.repeat = (app.prefs.repeat + 1) % 3; app.player.applyModes() }, tint = if (snap.repeat != 0) p.main.value else InkDim, size = 48.dp, iconScale = .48f, dot = snap.repeat != 0)
+        // off, all (the queue starts again at its end, Autoplay adds nothing), one; a short note says which, as the glyph alone did not
+        IconAction(if (snap.repeat == RepeatCycle.ONE) Glyph.REPEAT_ONE else Glyph.REPEAT, RepeatCycle.label(snap.repeat),
+            { repeatTap(app) }, tint = if (snap.repeat != RepeatCycle.OFF) p.main.value else InkDim, size = 48.dp, iconScale = .48f, dot = snap.repeat != RepeatCycle.OFF)
     }
 }
 

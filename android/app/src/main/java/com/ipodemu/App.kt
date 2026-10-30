@@ -61,6 +61,9 @@ class App : Application() {
         ui = UiState(prefs)
         // the player asks the offline library which songs are on the phone while it rebuilds the queue: it must exist first
         offline = com.ipodemu.library.offline.OfflineManager(this, prefs)
+        // downloads give way while a streamed song is coming in, and a finished one plays from the phone wherever it waits in the queue
+        offline.yieldTo = { player.streamNeedsLine }
+        offline.onDone = { path -> android.os.Handler(android.os.Looper.getMainLooper()).post { player.downloadLanded(path) } }
         mb = com.ipodemu.library.mb.MbService(this, prefs, art)
         Boot.span("restoreQueue") { player.restoreQueue(); player.restoreSleepTimer() }
         userData = com.ipodemu.library.UserData(this)

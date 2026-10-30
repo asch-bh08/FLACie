@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import com.ipodemu.playback.PlayerController
+import com.ipodemu.playback.RepeatCycle
 
 /** Slim full-width bar at the bottom of every screen except Home (which leads with the Now Playing card). */
 @Composable
@@ -265,8 +266,8 @@ private fun NpTransport(snap: PlayerSnap) {
                 GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(38.dp * k), Color.White)
             }
             GlossButton({ app.player.next() }, label = "Next", size = 56.dp * k) { GlyphIcon(Glyph.NEXT, Modifier.size(26.dp * k), Color.White) }
-            GlossButton({ app.prefs.repeat = (app.prefs.repeat + 1) % 3; app.player.applyModes(); bump += 1f }, label = "Repeat", size = 44.dp * k, primary = snap.repeat != 0) {
-                GlyphIcon(if (snap.repeat == 2) Glyph.REPEAT_ONE else Glyph.REPEAT, Modifier.size(22.dp * k), Color.White)
+            GlossButton({ repeatTap(app); bump += 1f }, label = RepeatCycle.label(snap.repeat), size = 44.dp * k, primary = snap.repeat != RepeatCycle.OFF) {
+                GlyphIcon(if (snap.repeat == RepeatCycle.ONE) Glyph.REPEAT_ONE else Glyph.REPEAT, Modifier.size(22.dp * k), Color.White)
             }
         }
     }
@@ -388,4 +389,12 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
             Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(main))
         }
     }
+}
+
+/** The Repeat button (Now Playing, the sleeve): the next of off, all, one, and a short note of what that means, as the glyph alone did not say it
+ *  (the owner heard Autoplay's picks after a playlist in the car and asked for a repeat all, 30 Oct). */
+internal fun repeatTap(app: com.ipodemu.App) {
+    val r = RepeatCycle.next(app.prefs.repeat)
+    app.prefs.repeat = r; app.player.applyModes()
+    android.widget.Toast.makeText(app, RepeatCycle.note(r, app.prefs.autoplay), android.widget.Toast.LENGTH_SHORT).show()
 }

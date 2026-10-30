@@ -65,6 +65,12 @@ class OfflineManager(private val ctx: Context, private val prefs: Prefs) {
     /** A short line for the notification and the settings row. */
     @Volatile var statusLine: String = ""; private set
 
+    /** True while a streamed song needs the line (the player's [com.ipodemu.playback.PlayerController.streamNeedsLine], set by App): downloading holds
+     *  back meanwhile. In the car on mobile data the download queue and the music shared a weak signal and the music stalled (owner, 30 Oct). */
+    @Volatile var yieldTo: () -> Boolean = { false }
+    /** A song finished downloading (called on the worker's thread with its path): the player swaps it into the queue as a file. */
+    @Volatile var onDone: ((String) -> Unit)? = null
+
     private val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
     init {
@@ -232,8 +238,12 @@ class OfflineManager(private val ctx: Context, private val prefs: Prefs) {
                     continue
                 }
                 idleChecks = 0
+                // music is streaming and still coming in: it goes first (looked at again every 2 s; the player stops reading once it is well ahead)
+                if (yieldTo()) { statusLine = "Waiting while music streams"; delay(2_000); continue }
                 try { downloadOne(e) }
                 catch (ex: CancellationException) { throw ex }
+                // it gave way to the music: back in line as it was, the bytes so far kept, and not counted as a failure
+                catch (ex: GaveWay) { synchronized(lock) { if (index[e.key] != null && e.state == OfflineState.DOWNLOADING) { e.state = OfflineState.QUEUED; save() } }; changed(); continue }
                 catch (ex: UserCancelled) { synchronized(lock) { if (index[e.key] != null && e.state == OfflineState.DOWNLOADING) { e.state = OfflineState.QUEUED; save() } }; changed(); continue }
                 catch (ex: Exception) {
                     // a dropped connection or a server hiccup: the .part file stays, the song goes to the back of the line after a pause; three misses in a row = failed
@@ -257,6 +267,9 @@ class OfflineManager(private val ctx: Context, private val prefs: Prefs) {
     private val failures = HashMap<String, Int>()
     /** The person removed the song that was downloading. */
     private class UserCancelled : Exception()
+    /** A streamed song needs the line ([yieldTo]): the download stops for now and resumes from its .part file later. Holding the connection open
+     *  without reading instead would let the server drop it as too slow, which counted as a failure. */
+    private class GaveWay : Exception()
 
     private fun authFor(url: String): Map<String, String> {
         val jf = prefs.jellyfinUrl.trimEnd('/'); val acct = prefs.accountServer.trimEnd('/')
@@ -306,6 +319,7 @@ class OfflineManager(private val ctx: Context, private val prefs: Prefs) {
                     if (now - lastTick > 400) {
                         lastTick = now; e.bytes = written; rev++; progressNotification(e)
                         if (!networkOk()) throw IOException("network changed")   // e.g. Wi-Fi lost while on Wi-Fi-only: the part stays for later
+                        if (yieldTo()) throw GaveWay()
                     }
                 }
             }
@@ -325,6 +339,7 @@ class OfflineManager(private val ctx: Context, private val prefs: Prefs) {
         }
         failures.remove(e.key)
         changed()
+        try { onDone?.invoke(e.path) } catch (_: Exception) { }
     }
 
     // ---- the notification (a foreground service keeps the process alive while the queue is being worked) ------------------------------

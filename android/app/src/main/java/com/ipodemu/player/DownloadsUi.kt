@@ -106,7 +106,7 @@ fun DownloadsScreen() {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconAction(Glyph.BACK, "Back", { ui.downloadsOpen = false }, tint = Color.White)
-                    Txt("Downloads", Modifier.padding(start = 4.dp), size = 22f, weight = FontWeight.Bold, color = Color.White)
+                    Txt("Download log", Modifier.padding(start = 4.dp), size = 22f, weight = FontWeight.Bold, color = Color.White)
                 }
             }
             item {

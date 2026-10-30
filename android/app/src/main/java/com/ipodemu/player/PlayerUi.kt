@@ -1861,7 +1861,7 @@ private fun AccountMenu(name: String, onClose: () -> Unit, onPick: (AccountPick)
                 val (label, glyph) = when (pick) {
                     AccountPick.ACCOUNT -> "Account" to Glyph.ARTIST
                     AccountPick.DASHBOARD -> "Dashboard" to Glyph.INFO
-                    AccountPick.DOWNLOADS -> "Downloads" to Glyph.DOWN
+                    AccountPick.DOWNLOADS -> "Download log" to Glyph.DOWN
                     AccountPick.RETRO -> "Retro" to Glyph.CASSETTE
                     AccountPick.SETTINGS -> "Settings" to Glyph.GEAR
                     AccountPick.SIGN_OUT -> "Sign out" to Glyph.CLOSE

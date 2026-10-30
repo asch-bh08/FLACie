@@ -89,7 +89,7 @@ fun AccountScreen() {
                 listOf(
                     Triple("Jellyfin", prefs.hasJellyfinAccount, if (prefs.hasJellyfinAccount) "${prefs.accountUserName} on ${prefs.accountServer.removePrefix("https://").removePrefix("http://")}" else "Not connected"),
                     Triple("NAS", prefs.hasNasAccount, if (prefs.hasNasAccount) "${prefs.nasHost}/${prefs.nasShare}" else "Not connected"),
-                    Triple("Downloads", app.library.lidarrConnected, if (app.library.lidarrConnected) "Set up" else "Not set up"),
+                    Triple("Download services", app.library.lidarrConnected, if (app.library.lidarrConnected) "Set up" else "Not set up"),
                     Triple("FLACie Web", web.available, if (web.available) prefs.flacieWebUrl.removePrefix("https://").removePrefix("http://") else "Not found yet"),
                 ).forEach { (name, on, detail) ->
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0x14FFFFFF)).padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -11,7 +11,7 @@
     var preset = DjSwitches.PresetOf(s);
     var where = home?.Where(Session);
     <section class="panel set dj-set" id="dj">
-        <div class="set-head"><h2>DJ</h2><p class="hint">Now and then, between songs, a friendly voice tells you what you just heard and what's coming up, over the start of the next song. @KeptWhere(where)</p></div>
+        <div class="set-head"><h2>DJ <span class="badge exp">Experimental</span></h2><p class="hint">Still being worked on: it may mispronounce a name or talk at an odd moment. Now and then, between songs, a friendly voice tells you what you just heard and what's coming up, over the start of the next song. @KeptWhere(where)</p></div>
         @if (where is { Reachable: false })
         {
             <p class="dj-note" role="note">Using this PC's own DJ settings because FLACie Web at @where.Url @where.Problem. Changes made here stay on this PC.</p>

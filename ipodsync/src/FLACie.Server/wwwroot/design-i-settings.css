@@ -90,3 +90,6 @@
 .sp .dj-presets .btn { padding: 8px 14px; font-size: 13px; }
 .sp .dj-presets .btn[aria-pressed=true] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .sp .dj-note { margin: 0; padding: 12px 14px; border-radius: 16px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--ink); }
+
+/* "Experimental" beside the DJ heading (owner, 30 Oct) */
+.set-head h2 .badge.exp { vertical-align: middle; margin-left: 8px; font-size: 11px; }

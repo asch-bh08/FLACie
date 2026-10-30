@@ -115,7 +115,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
             if (!dashboard) {
                 item(key = "subnav") {
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        for ((id, label) in listOf("playback" to "Playback", "dj" to "DJ", "look" to "Appearance", "sources" to "Library", "account" to "Account", "about" to "About"))
+                        for ((id, label) in listOf("playback" to "Playback", "dj" to "DJ (experimental)", "look" to "Appearance", "sources" to "Library", "account" to "Account", "about" to "About"))
                             DesignChip(label, false, { val n = list.layoutInfo.totalItemsCount; val i = when (id) { "account" -> n - 2; "about" -> n - 1; else -> at[id] ?: 0 }; scope.launch { list.animateScrollToItem(i.coerceAtLeast(0)) } })
                         if (!ui.guest) DesignChip("Download log", false, { ui.downloadsOpen = true })
                         if (canAdmin) DesignChip("Dashboard", false, { nav.push(Screen.Dashboard) })
@@ -148,7 +148,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                 item(key = "dj") {
                     // the AI DJ (docs/spec/ai-dj.md): the settings are the account's, kept on FLACie Web, so the web and Windows follow them. Loaded when
                     // this opens, saved on every change; the phone keeps the last copy for the Now Playing and car buttons
-                    SetPanel("DJ", "Short spoken intros between songs, like a radio DJ. Saved on your account, so FLACie Web and Windows follow.") {
+                    SetPanel("DJ (experimental)", "Short spoken intros between songs, like a radio DJ. Still being worked on: it may mispronounce a name or talk at an odd moment. Saved on your account, so FLACie Web and Windows follow.") {
                         val web = remember { com.ipodemu.library.FlacieWebClient(prefs) }
                         val djScope = androidx.compose.runtime.rememberCoroutineScope()
                         val available = app.player.djAvailable

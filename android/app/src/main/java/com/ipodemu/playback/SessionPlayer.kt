@@ -51,7 +51,7 @@ class SessionPlayer(private val c: PlayerController, private val prefs: Prefs) :
             .setPlayWhenReady(exo.playWhenReady, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
             .setPlaybackState(if (items.isEmpty()) Player.STATE_IDLE else exo.playbackState)
             .setPlayerError(exo.playerError)
-            .setRepeatMode(when (prefs.repeat) { 1 -> Player.REPEAT_MODE_ALL; 2 -> Player.REPEAT_MODE_ONE; else -> Player.REPEAT_MODE_OFF })
+            .setRepeatMode(RepeatCycle.toPlayer(prefs.repeat))
             .setShuffleModeEnabled(prefs.shuffle)
             .setPlaybackParameters(PlaybackParameters(c.speed, 1f))
             .setPlaylist(ImmutableList.copyOf(items))
@@ -88,7 +88,7 @@ class SessionPlayer(private val c: PlayerController, private val prefs: Prefs) :
     }
 
     override fun handleSetRepeatMode(repeatMode: Int): ListenableFuture<*> {
-        prefs.repeat = when (repeatMode) { Player.REPEAT_MODE_ALL -> 1; Player.REPEAT_MODE_ONE -> 2; else -> 0 }
+        prefs.repeat = RepeatCycle.fromPlayer(repeatMode)
         c.applyModes(); return done
     }
 

@@ -136,7 +136,7 @@ class PlaybackService : MediaLibraryService() {
                 CMD_FAVORITE -> app.player.current?.let { app.userData.toggleFavorite(it) }
                 CMD_SPEED -> app.player.setSpeed(SpeedPolicy.cycle(app.player.speed))
                 CMD_SHUFFLE -> { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() }
-                CMD_REPEAT -> { app.prefs.repeat = (app.prefs.repeat + 1) % 3; app.player.applyModes() }
+                CMD_REPEAT -> { app.prefs.repeat = RepeatCycle.next(app.prefs.repeat); app.player.applyModes() }
                 CMD_DJ -> app.player.flipDj()
                 CMD_TALK -> carMic.press()
             }
@@ -270,14 +270,16 @@ class PlaybackService : MediaLibraryService() {
             CommandButton.Builder().setDisplayName(when { m.state == CarDjMic.State.LISTENING -> "Listening… tap to stop"; m.state == CarDjMic.State.THINKING -> "Thinking…"; m.conversing -> "Talking with the DJ"; else -> "Talk to the DJ" })
                 .setIconResId(if (m.conversing) R.drawable.ic_mic_listening else R.drawable.ic_mic).setSessionCommand(talkCommand).build()
         } else null
-        return ImmutableList.copyOf(listOfNotNull(talk,
+        // repeat right after the mic, so it is among the buttons the car shows beside play rather than under "more": with it off a playlist ends in
+        // Autoplay's picks, and in the car the owner wanted the playlist to start again instead (30 Oct). Dimmed when off, a 1 for repeat one
+        val repeat = CommandButton.Builder().setDisplayName(RepeatCycle.label(app.prefs.repeat))
+            .setIconResId(when (app.prefs.repeat) { RepeatCycle.ALL -> R.drawable.ic_repeat; RepeatCycle.ONE -> R.drawable.ic_repeat_one; else -> R.drawable.ic_repeat_off }).setSessionCommand(repeatCommand).build()
+        return ImmutableList.copyOf(listOfNotNull(talk, repeat,
             CommandButton.Builder().setDisplayName(if (fav) "Remove from favourites" else "Favourite").setIconResId(if (fav) R.drawable.ic_fav_on else R.drawable.ic_fav)
                 .setSessionCommand(favCommand).build(),
-            // shuffle and repeat in the car (it shows only these buttons, not the phone's): dimmed when off, a 1 for repeat one
+            // shuffle in the car (it shows only these buttons, not the phone's): dimmed when off
             CommandButton.Builder().setDisplayName(if (app.prefs.shuffle) "Shuffle on" else "Shuffle off").setIconResId(if (app.prefs.shuffle) R.drawable.ic_car_shuffle else R.drawable.ic_shuffle_off)
                 .setSessionCommand(shuffleCommand).build(),
-            CommandButton.Builder().setDisplayName(when (app.prefs.repeat) { 1 -> "Repeat all"; 2 -> "Repeat one"; else -> "Repeat off" })
-                .setIconResId(when (app.prefs.repeat) { 1 -> R.drawable.ic_repeat; 2 -> R.drawable.ic_repeat_one; else -> R.drawable.ic_repeat_off }).setSessionCommand(repeatCommand).build(),
             last,
         ))
     }

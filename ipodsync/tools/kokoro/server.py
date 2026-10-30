@@ -9,12 +9,20 @@ import numpy as np
 import onnxruntime as ort
 from kokoro_onnx import Kokoro
 
-from sounds import has_marks, phonemes
+from sounds import has_marks, marks_for_misaki, phonemes
+
+try:
+    # misaki: Kokoro's own reader (its dictionary, and Kokoro's alphabet of sounds); espeak reads the words misaki does not know
+    from misaki import en, espeak
+except Exception:  # an image without misaki still talks, the old way
+    en = None
 
 MODEL = os.environ.get("KOKORO_MODEL", "/models/kokoro-v1.0.int8.onnx")
 VOICES = os.environ.get("KOKORO_VOICES", "/models/voices-v1.0.bin")
 THREADS = int(os.environ.get("KOKORO_THREADS", "0")) or os.cpu_count() or 4
 PORT = int(os.environ.get("KOKORO_PORT", "8092"))
+# a touch slower than Kokoro's own pace: at 1.0 the DJ rushed names and titles together (owner, 30 Oct: "too fast or the wrong pace")
+SPEED = float(os.environ.get("KOKORO_SPEED", "0.92"))
 MAX_CHARS = 600
 
 # all cores for one line at a time: one line finishes sooner than two lines sharing them
@@ -25,6 +33,21 @@ opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 kokoro = Kokoro.from_session(ort.InferenceSession(MODEL, sess_options=opts, providers=["CPUExecutionProvider"]), VOICES)
 names = set(kokoro.get_voices())
 one_at_a_time = threading.Lock()
+readers = {}
+
+
+def misaki(text, british):
+    """The line in Kokoro's alphabet, read by misaki (marked names as their sounds), or None when misaki is missing or fails."""
+    if en is None:
+        return None
+    try:
+        if british not in readers:
+            readers[british] = en.G2P(trf=False, british=british, fallback=espeak.EspeakFallback(british=british))
+        ps, _ = readers[british](marks_for_misaki(text, british))
+        ps = "".join(c for c in ps if c in kokoro.tokenizer.vocab).strip()
+        return ps or None
+    except Exception:
+        return None
 
 
 def mp3(audio, rate):
@@ -54,13 +77,16 @@ class Handler(BaseHTTPRequestHandler):
             req = json.loads(self.rfile.read(n))
             text = str(req.get("text", "")).strip()
             voice = str(req.get("voice", "am_liam"))
-            speed = min(1.5, max(0.6, float(req.get("speed", 1.0))))
+            speed = min(1.5, max(0.6, float(req.get("speed", SPEED))))
             if not text or len(text) > MAX_CHARS or voice not in names: return self.send(400, b"bad text or voice")
             lang = "en-gb" if voice[:1] == "b" else "en-us"
             t = time.time()
             with one_at_a_time:
                 # a name marked with its sounds ("[Sia](/sˈiːə/)") is said exactly: the line goes in as sounds (sounds.py)
-                if has_marks(text):
+                ps = misaki(text, lang == "en-gb")
+                if ps:
+                    audio, rate = kokoro.create(ps, voice=voice, speed=speed, lang=lang, is_phonemes=True)
+                elif has_marks(text):
                     audio, rate = kokoro.create(phonemes(text, lambda t: kokoro.tokenizer.phonemize(t, lang)), voice=voice, speed=speed, lang=lang, is_phonemes=True)
                 else:
                     audio, rate = kokoro.create(text, voice=voice, speed=speed, lang=lang)
@@ -74,7 +100,10 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     # one warm-up line, so the first real one is not slow
-    with one_at_a_time: kokoro.create("Hello.", voice="am_liam", speed=1.0, lang="en-us")
+    with one_at_a_time:
+        ps = misaki("Hello.", False)
+        kokoro.create(ps or "Hello.", voice="am_liam", speed=SPEED, lang="en-us", is_phonemes=ps is not None)
+        misaki("Hello.", True)
     # lines wait their turn on the lock; the listen queue must hold them all (the default 5 refused connections when FLACie made its stock
     # phrases, replies and a line at once)
     ThreadingHTTPServer.request_queue_size = 128

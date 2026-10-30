@@ -63,7 +63,8 @@ public sealed class DjPronounce
     ];
 
     /// <summary>Changes whenever the sounds above do, so FLACie's voice makes its kept clips again (DjClips.Salt).</summary>
-    public const string SoundsVersion = "sounds-1";
+    /// "sounds-2": the voice reads lines with misaki, Kokoro's own reader, so every clip made the espeak way is made again (owner, 30 Oct: "jyz").
+    public const string SoundsVersion = "sounds-2";
 
     public static DjPronounce Default { get; } = new([]);
 

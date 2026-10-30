@@ -23,8 +23,13 @@ class OfflineKeepTest {
         assertEquals("Download", s.label); assertEquals(KeepStatus.Kind.NONE, s.kind)
     }
     @Test fun somePendingShowsHowFarItIs() {
-        val s = KeepStatus.of((1..12).map { t(it) }, lookup(ix(1 to OfflineState.DONE, 2 to OfflineState.DONE, 3 to OfflineState.DONE, 4 to OfflineState.DOWNLOADING, 5 to OfflineState.QUEUED)))
+        val s = KeepStatus.of((1..12).map { t(it) }, lookup(ix(*((1..3).map { it to OfflineState.DONE } + (4 to OfflineState.DOWNLOADING) + (5..12).map { it to OfflineState.QUEUED }).toTypedArray())))
         assertEquals("Downloading 3 of 12", s.label); assertEquals(KeepStatus.Kind.BUSY, s.kind)
+    }
+    // on the owner's phone, Golden Era Mix said "Downloading 0 of 125" before it was ever tapped: 23 of its songs were on their way for Pop
+    @Test fun songsOnTheirWayForAnotherListStillOfferTheRest() {
+        val s = KeepStatus.of((1..10).map { t(it) }, lookup(ix(1 to OfflineState.QUEUED, 2 to OfflineState.DOWNLOADING, 3 to OfflineState.DONE)))
+        assertEquals("Download the other 7", s.label); assertEquals(KeepStatus.Kind.NONE, s.kind)
     }
     @Test fun allDoneSaysDownloadedAndOffersRemove() {
         val s = KeepStatus.of((1..2).map { t(it) }, lookup(ix(1 to OfflineState.DONE, 2 to OfflineState.DONE)))

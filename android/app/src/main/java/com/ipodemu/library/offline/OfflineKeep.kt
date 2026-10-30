@@ -18,7 +18,10 @@ class KeepStatus(val kind: Kind, val label: String, val done: Int, val total: In
             val es = songs.map { entry(it.path)?.state }
             val done = es.count { it == OfflineState.DONE }; val failed = es.count { it == OfflineState.FAILED }
             val pending = es.count { it == OfflineState.QUEUED || it == OfflineState.DOWNLOADING }
+            val missing = es.count { it == null }
             return when {
+                // some songs are on their way only because another list wanted them: the rest are still to be asked for
+                missing > 0 && done + pending + failed > 0 -> KeepStatus(Kind.NONE, "Download the other $missing", done, songs.size)
                 pending > 0 -> KeepStatus(Kind.BUSY, "Downloading $done of ${songs.size}", done, songs.size)
                 failed > 0 -> KeepStatus(Kind.FAILED, "$failed failed: try again", done, songs.size)
                 done == songs.size -> KeepStatus(Kind.DONE, "Downloaded", done, songs.size)

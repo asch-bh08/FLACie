@@ -67,7 +67,9 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
     var state by remember { mutableStateOf(MicState.IDLE) }
     var explaining by remember { mutableStateOf(false) }
     val rec = remember { mutableStateOf<SpeechRecognizer?>(null) }
-    fun stop() { rec.value?.let { try { it.stopListening(); it.destroy() } catch (_: Exception) { } }; rec.value = null }
+    val handler = remember { android.os.Handler(android.os.Looper.getMainLooper()) }
+    val giveUp = remember { mutableStateOf<Runnable?>(null) }
+    fun stop() { giveUp.value?.let { handler.removeCallbacks(it) }; giveUp.value = null; rec.value?.let { try { it.stopListening(); it.destroy() } catch (_: Exception) { } }; rec.value = null }
     DisposableEffect(Unit) { onDispose { stop() } }
 
     // the conversation (DjConversation): on from a press until it ends; whether the mic paused the song (it carries on at the end); turns so far
@@ -81,27 +83,32 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
         if (DjConversation.resumeAtEnd(pausedByMic, how) && !app.player.isPlaying) app.player.resume()
         pausedByMic = false
     }
-    lateinit var listenRef: () -> Unit
+    lateinit var listenRef: (Long) -> Unit
 
     fun heard(text: String) {
-        if (DjConversation.isGoodbye(text)) { state = MicState.IDLE; end(DjTurn.END); return }
+        // "thanks", "bye": in a conversation the DJ says "Anytime." (a fixed reply, made ahead in its voice) and the music comes back up. First thing in
+        // the search screen's mic it is nothing to answer, so it just ends
+        val goodbye = DjConversation.isGoodbye(text)
+        if (goodbye && turn == 0 && onSearch != null) { state = MicState.IDLE; end(DjTurn.END); return }
         state = MicState.THINKING
         app.player.askDj(text, search = onSearch != null) { a ->
             state = MicState.IDLE
             if (a.doThis == DjAskDo.SEARCH) { end(DjTurn.END); onSearch?.invoke(text); return@askDj }
             // the answer is always shown; it is also said in the DJ's voice when it could be
             if (a.say.isNotBlank()) app.ui.say(a.say)
-            val how = DjConversation.after(a.doThis, a.asked, ++turn)
+            val how = if (goodbye) DjTurn.END else DjConversation.after(a.doThis, a.asked, ++turn, a.intent)
             if (how != DjTurn.LISTEN_AGAIN || !conversing) { end(how); return@askDj }
-            // the next turn once the DJ has finished saying the answer (the mic would hear it otherwise); a press meanwhile ends it
+            // the next turn once the DJ has finished saying the answer (the mic would hear it otherwise); a press meanwhile ends it. It waits a short
+            // while for a follow-up (longer after a question back) and ends quietly if nobody speaks
             scope.launch {
                 for (i in 0 until 100) { if (!conversing || !app.player.djTalking) break; delay(250) }
-                if (conversing) { delay(300); if (conversing) listenRef() }
+                if (conversing) { delay(300); if (conversing) listenRef(DjConversation.listenWindowMs(a.asked)) }
             }
         }
     }
 
-    fun listen() {
+    /** One turn of listening. [waitMs]: how long to wait for the person to begin (0 on the first press, where the recogniser's own wait is used). */
+    fun listen(waitMs: Long) {
         stop()
         val r = MicSpeech.create(ctx) ?: run { app.ui.say("Speech recognition isn't available here"); return }
         rec.value = r
@@ -117,7 +124,7 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
                 if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) app.ui.say("Sorry, I didn't catch that.")
             }
             override fun onReadyForSpeech(params: Bundle?) {}
-            override fun onBeginningOfSpeech() {}
+            override fun onBeginningOfSpeech() { giveUp.value?.let { handler.removeCallbacks(it) }; giveUp.value = null }
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {}
@@ -126,6 +133,9 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
         })
         state = MicState.LISTENING
         r.startListening(MicSpeech.intent(ctx))
+        // nobody began speaking in the follow-up window: let go quietly
+        giveUp.value?.let { handler.removeCallbacks(it) }; giveUp.value = null
+        if (waitMs > 0) Runnable { if (rec.value === r) { stop(); state = MicState.IDLE; end(DjTurn.END) } }.also { giveUp.value = it; handler.postDelayed(it, waitMs) }
     }
     listenRef = ::listen
 
@@ -134,7 +144,7 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
         conversing = true; turn = 0
         pausedByMic = app.player.isPlaying
         if (pausedByMic) app.player.pause()
-        listen()
+        listen(0L)
     }
 
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) begin() else app.ui.say("FLACie needs the microphone to hear you") }
@@ -205,4 +215,7 @@ object MicSpeech {
         .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, ctx.packageName)
+        // about 1.2 s of quiet after the person stops talking is the end of their turn (the recogniser's own default is shorter and cuts people off mid-thought)
+        .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, DjConversation.END_OF_SPEECH_MS.toLong())
+        .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, DjConversation.END_OF_SPEECH_MS.toLong())
 }

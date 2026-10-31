@@ -17,13 +17,40 @@ public class DjConversationTests
     [InlineData("something chill")] [InlineData("")] [InlineData(null)]
     public void Requests_that_merely_contain_the_words_do_not(string? said) => Assert.False(DjConversation.IsGoodbye(said));
 
-    // owner, 28 Oct: one request, one answer, then the mic stops (no waiting for "thanks"); it listens again only when the DJ asked them something
+    // owner, 31 Oct: smart turn-taking. A plain control the DJ carried out ends it at once; a normal answer leaves a short window for a follow-up; a question back a longer one
     [Fact]
-    public void An_answer_ends_it_and_only_a_question_back_listens_again()
+    public void A_plain_control_ends_it_at_once_with_no_listening_again()
     {
-        Assert.Equal(DjTurn.End, DjConversation.After(DjAskDo.None, asked: false, 1));
-        Assert.Equal(DjTurn.End, DjConversation.After(DjAskDo.UpNext, asked: false, 1));
-        Assert.Equal(DjTurn.ListenAgain, DjConversation.After(DjAskDo.None, asked: true, 1));
+        foreach (var d in new[] { DjAskDo.UpNext, DjAskDo.VolumeUp, DjAskDo.VolumeDown, DjAskDo.DjOn, DjAskDo.DjOff })
+            Assert.Equal(DjTurn.End, DjConversation.After(d, asked: false, 1));
+        // a thumbs down is done too (the DJ only says "Fair enough"), though it moves nothing in the player
+        Assert.Equal(DjTurn.End, DjConversation.After(DjAskDo.None, asked: false, 1, "ThumbsDown"));
+    }
+
+    [Fact]
+    public void A_normal_answer_listens_again_for_a_short_while()
+    {
+        Assert.Equal(DjTurn.ListenAgain, DjConversation.After(DjAskDo.None, asked: false, 1));
+        Assert.Equal(DjTurn.ListenAgain, DjConversation.After(DjAskDo.None, asked: false, 1, "Answer"));
+        Assert.Equal(4000, DjConversation.FollowUpMs);
+        Assert.Equal(DjConversation.FollowUpMs, DjConversation.ListenWindowMs(asked: false));
+    }
+
+    [Fact]
+    public void A_question_back_listens_again_for_longer()
+    {
+        Assert.Equal(DjTurn.ListenAgain, DjConversation.After(DjAskDo.None, asked: true, 1, "Clarify"));
+        Assert.Equal(8000, DjConversation.AnswerWindowMs);
+        Assert.Equal(DjConversation.AnswerWindowMs, DjConversation.ListenWindowMs(asked: true));
+        Assert.True(DjConversation.AnswerWindowMs > DjConversation.FollowUpMs);
+    }
+
+    [Fact]
+    public void A_goodbye_ends_it_whatever_the_answer_and_over_a_second_of_quiet_ends_the_persons_turn()
+    {
+        Assert.Equal(DjTurn.End, DjConversation.After(DjAskDo.None, asked: false, 1, "Goodbye"));
+        Assert.Equal("Anytime.", DjConversation.Anytime);
+        Assert.Equal(1200, DjConversation.EndOfSpeechMs);
     }
 
     [Fact]
@@ -37,10 +64,12 @@ public class DjConversationTests
     }
 
     [Fact]
-    public void Questions_back_stop_after_the_last_turn()
+    public void Listening_again_stops_after_the_last_turn()
     {
         Assert.Equal(DjTurn.ListenAgain, DjConversation.After(DjAskDo.None, asked: true, DjConversation.MaxTurns - 1));
+        Assert.Equal(DjTurn.ListenAgain, DjConversation.After(DjAskDo.None, asked: false, DjConversation.MaxTurns - 1));
         Assert.Equal(DjTurn.End, DjConversation.After(DjAskDo.None, asked: true, DjConversation.MaxTurns));
+        Assert.Equal(DjTurn.End, DjConversation.After(DjAskDo.None, asked: false, DjConversation.MaxTurns));
     }
 
     [Fact]

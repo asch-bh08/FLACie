@@ -687,11 +687,12 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                             Box(Modifier.weight(1f)) { SectionHeader(sh.title) }
                             GlossPill("Play all", { app.player.play(sh.tracks.filterNot { com.ipodemu.library.HomeShelves.isNew(it) }, 0, null, sh.title, from = "home") }, icon = Glyph.PLAY, height = 28.dp)
                         }
-                        QuickPicks(sh.tracks, nav) { i -> playShelf(app, sh.tracks, i, sh.title) }
+                        QuickPicks(sh.tracks, nav) { i -> sh.tracks.getOrNull(i)?.let { playShelf(app, sh.tracks, it, sh.title) } }
                     } else {
                     SectionHeader(sh.title)
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        if (sh.tracks.isNotEmpty()) itemsIndexed(sh.tracks) { i, t -> TrackCard(t, Modifier.width(130.dp)) { playShelf(app, sh.tracks, i, sh.title) } }
+                        // keyed by the song, so when the shelf is rebuilt a card stays with its own song and a press lands on the one drawn under the finger
+                        if (sh.tracks.isNotEmpty()) items(sh.tracks.distinctBy { it.path }, key = { it.path }) { t -> TrackCard(t, Modifier.width(130.dp)) { playShelf(app, sh.tracks, t, sh.title) } }
                         else items(sh.albums, key = { it.tracks.first().albumKey }) { g -> AlbumCard(g, Modifier.width(150.dp)) { nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) } }
                     }
                 }
@@ -1927,14 +1928,14 @@ private fun serverAlbum(lib: com.ipodemu.library.Library, a: com.ipodemu.library
  * Plays song [i] of a Home shelf. A "New" song is not in the library yet: the tap asks for it instead (Autoplay's request path; it joins the
  * queue when it lands), and the shelf's other new songs are left out of what plays.
  */
-private fun playShelf(app: App, tracks: List<Track>, i: Int, title: String) {
-    val t = tracks[i]
-    if (com.ipodemu.library.HomeShelves.isNew(t)) {
+private fun playShelf(app: App, tracks: List<Track>, t: Track, title: String) {
+    // the card hands over its own song, which is found again by its path in the queue (HomeShelves.startOf), not by its place on the shelf
+    val start = com.ipodemu.library.HomeShelves.startOf(tracks, t)
+    if (start == null) {
         app.ui.say(if (app.autoplay.fetch(t)) "Getting \"${t.title}\": it plays when it arrives" else "Downloads aren't set up on this phone", warn = !app.library.downloadsConfigured())
         return
     }
-    val playable = tracks.filterNot { com.ipodemu.library.HomeShelves.isNew(it) }
-    app.player.play(playable, playable.indexOf(t).coerceAtLeast(0), null, title, from = "home")
+    app.player.play(start.queue, start.index, null, title, from = "home")
 }
 
 private class HomeData(val shelves: List<com.ipodemu.library.HomeShelf>, val moods: List<String>)

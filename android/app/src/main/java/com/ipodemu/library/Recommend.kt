@@ -121,6 +121,22 @@ object HomeShelves {
         return out + if (serverAlbums) emptyList() else local.filter { it.albums.isNotEmpty() && out.none { s -> s.id == it.id } }
     }
 
+    /** What a tap on a Home card plays: [queue] (the shelf's songs that can play now) and the place in it where playback starts. */
+    class Start(val queue: List<Track>, val index: Int)
+
+    /**
+     * The queue and start place for a tap on [tapped] in the shelf [shelf]. The song is found by what it IS (its path), never by the place the card had
+     * when it was drawn: Home rebuilds its shelves in the background (the library finishing loading, a song played, the server answering), and a card
+     * pressed just as that happens used to start whatever had moved into its place (Price Tag tapped, I Gotta Feeling played). A song no longer on the
+     * shelf still plays first, ahead of the shelf. Null for a "New" song, which is asked for instead of played.
+     */
+    fun startOf(shelf: List<Track>, tapped: Track): Start? {
+        if (isNew(tapped)) return null
+        val playable = shelf.filterNot { isNew(it) }
+        val at = playable.indexOfFirst { it.path == tapped.path }
+        return if (at >= 0) Start(playable, at) else Start(listOf(tapped) + playable, 0)
+    }
+
     private const val NEW = "rec-new:"
     /** A song the engine suggests that this library does not have yet: shown on Home, not playable until it is fetched. */
     fun isNew(t: Track) = t.path.startsWith(NEW)

@@ -26,7 +26,7 @@
 .home-hero-row { width: 100%; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; }
 .home-greet { margin: 0; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; color: color-mix(in srgb, var(--ink) 75%, transparent); }
 .home-hero h1 { margin: 8px 0 0; font-family: var(--serif); font-weight: 400; font-size: clamp(40px, 5.2vw, 64px); line-height: .95; letter-spacing: -.01em; }
-.home-hero .shuffle-all { height: 52px; padding: 0 22px; border-radius: 18px; background: var(--np-accent); color: #1a120c; font-family: var(--sans); font-weight: 700; transition: background 1.2s; }
+.home-hero .shuffle-all { height: 52px; padding: 0 22px; border-radius: 18px; background: var(--np-accent); color: var(--np-accent-fg, #1a120c); font-family: var(--sans); font-weight: 700; transition: background 1.2s; }
 
 /* ---- shelves: serif titles with the last word in italics, mono subtitles ---- */
 .shelf-head h2 { font-family: var(--serif); font-weight: 400; font-size: clamp(26px, 2.6vw, 34px); line-height: 1; letter-spacing: 0; }
@@ -69,7 +69,7 @@
 .rail { border-right: 1px solid #f4efe60f; }
 .home-hero { margin-top: calc(-28px - var(--top)); padding-top: calc(var(--top) + 24px); min-height: calc(clamp(220px, 34vh, 340px) + var(--top)); }
 /* buttons in the accent carry dark text, as drawn */
-.btn.primary, .home-hero .shuffle-all, .shelf-head .chip.small { color: #1a120c; }
+.btn.primary, .shelf-head .chip.small, .hp-tabs button[aria-selected="true"] { color: var(--accent-fg, #1a120c); }
 .btn.primary { background: var(--accent); }
 .shelf-head .chip.small { background: var(--accent); border-color: var(--accent); }
 @media (max-width: 760px) {

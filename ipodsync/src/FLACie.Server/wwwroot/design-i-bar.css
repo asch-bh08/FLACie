@@ -25,7 +25,7 @@
 .player .icon-btn:hover { background: rgba(244, 239, 230, .1); color: #f4efe6; }
 .player .bar-controls .buttons .icon-btn:nth-child(2), .player .bar-controls .buttons .icon-btn:nth-child(4) { width: 50px; height: 44px; border-radius: 22px; background: var(--t); color: var(--tf); }
 .player .bar-controls .buttons .icon-btn:nth-child(2):hover, .player .bar-controls .buttons .icon-btn:nth-child(4):hover { background: color-mix(in srgb, var(--t) 80%, #fff); }
-.player .play { width: 66px; height: 52px; border-radius: 20px; background: var(--a); color: #1a120c; }
+.player .play { width: 66px; height: 52px; border-radius: 20px; background: var(--a); color: var(--np-accent-fg, #1a120c); }
 .player .play:hover { transform: none; filter: brightness(1.08); }
 
 /* a PC: the controls in the middle of the bar, and under them the seek bar with the time at either end: where it is on the left, the song's length on the right */

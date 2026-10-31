@@ -809,10 +809,15 @@ body.np-open .np { top: 0; padding-top: var(--top); }
 .dl-every { display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: 14px; }
 .dl-sec { scroll-margin-top: calc(var(--top) + 12px); }
 .dl-sec h2 small { color: var(--dim); font-weight: 600; margin-left: 6px; font-size: 14px; }
-.dl-row { display: block; border-top: 1px solid var(--line); padding: 10px 0; }
-.dl-row:first-of-type { border-top: 0; }
+/* a row and, beside it when it failed, its Retry button */
+.dl-item { display: flex; align-items: flex-start; border-top: 1px solid var(--line); }
+.dl-item:first-of-type { border-top: 0; }
+.dl-item > .dl-row { flex: 1; min-width: 0; }
+.dl-item > .dl-retry { margin-top: 15px; }
+.dl-row { display: block; padding: 10px 0; }
 .dl-row > summary, .dl-row.running { display: flex; align-items: center; gap: 12px; cursor: pointer; list-style: none; }
-.dl-row.running { cursor: default; }
+.dl-row.running { cursor: default; border-top: 1px solid var(--line); }
+.dl-row.running:first-of-type { border-top: 0; }
 .dl-row > summary::-webkit-details-marker { display: none; }
 .dl-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .dl-main b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1235,7 +1240,6 @@ main.content:has(.az-rail) .tracks { padding-right: 16px; }
 .dl-retry, .dl-retry-all { font-size: 13px; padding: 6px 14px; min-height: 34px; margin-left: 10px; flex: none; }
 .dl-sec h2 { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .dl-sec h2 .dl-retry-all { margin-left: auto; }
-.dl-row summary .dl-retry { align-self: center; }
 
 
 /* headphone test */

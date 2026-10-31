@@ -19,7 +19,7 @@
 .pl-hero h1 i { font-style: italic; }
 .pl-hero .pl-facts { margin: 4px 0 6px; font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: color-mix(in srgb, var(--ink) 75%, transparent); }
 .pl-hero .chips { gap: 10px; align-items: center; }
-.pl-hero .pl-play { height: 56px; padding: 0 28px; border-radius: 18px; background: var(--np-accent); color: #1a120c; font-family: var(--sans); font-weight: 700; font-size: 16px; transition: background 1.2s, transform .12s; }
+.pl-hero .pl-play { height: 56px; padding: 0 28px; border-radius: 18px; background: var(--np-accent); color: var(--np-accent-fg, #1a120c); font-family: var(--sans); font-weight: 700; font-size: 16px; transition: background 1.2s, transform .12s; }
 .pl-hero .pl-play:hover:not(:disabled) { background: var(--np-accent); filter: brightness(1.08); }
 .pl-hero .pl-shuffle { height: 56px; padding: 0 22px; border-radius: 999px; background: var(--tone, var(--surface-3)); color: var(--tonefg, var(--ink)); font-family: var(--sans); font-weight: 600; transition: background 1.2s, color 1.2s; }
 .pl-hero .chips .btn.ghost, .pl-hero .chips .btn.danger, .pl-hero .chips .btn:not(.pl-play):not(.pl-shuffle) { border-radius: 14px; font-family: var(--sans); }

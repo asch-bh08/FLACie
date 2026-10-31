@@ -24,7 +24,7 @@ h2.section { font-family: var(--serif); font-weight: 400; font-size: clamp(26px,
 .sr-hero-sub { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 .sr-hero .cover, .sr-hero .cover-img { border-radius: 16px; }
 .sr-hero.artist .cover, .sr-hero.artist .cover-img { border-radius: 50%; }
-.sr-play { border-radius: 20px; background: var(--accent); color: #1a120c; }
+.sr-play { border-radius: 20px; background: var(--accent); color: var(--accent-fg, #1a120c); }
 .sr-more { border-radius: 12px; }
 
 /* ---- album and artist grids: rounded covers, the artist avatars stay round ---- */

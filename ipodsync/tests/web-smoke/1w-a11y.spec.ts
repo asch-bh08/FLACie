@@ -42,11 +42,15 @@ async function live(page: Page, url: string) {
 }
 
 const scan = async (page: Page) => {
+  // a line that appeared late is still fading in (page-in, a third of a second): its colours are only judged once it has landed
+  await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => null))));
   const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
-  return r.violations.map((v) => `${v.id} (${v.impact}): ${v.nodes.length}× e.g. ${v.nodes[0]?.target.join(' ')}`);
+  return r.violations.map((v) => `${v.id} (${v.impact}): ${v.nodes.length}× e.g. ${v.nodes[0]?.target.join(" ")}: ${v.nodes[0]?.any[0]?.message ?? ""}`);
 };
 
-const pages = ['/', '/search', '/search?q=Lab', '/songs', '/albums', '/artists', '/playlists', '/favorites', '/settings', '/artist/Hires%20Lab', '/retro', '/ipod'];
+const pages = ['/', '/search', '/search?q=Lab', '/songs', '/albums', '/artists', '/playlists', '/favorites', '/settings', '/artist/Hires%20Lab', '/retro', '/ipod',
+  // the pages added since (release candidate check, 31 Oct)
+  '/downloads', '/genres', '/genre/Rock', '/explore', '/headphones', '/account', '/devices', '/charts'];
 
 for (const size of [{ name: 'phone', width: 390, height: 844 }, { name: 'PC', width: 1440, height: 900 }]) {
   test.describe(`accessibility on a ${size.name}`, () => {
@@ -80,6 +84,42 @@ for (const size of [{ name: 'phone', width: 390, height: 844 }, { name: 'PC', wi
     await page.getByRole('button', { name: 'Open Now Playing' }).click();
     await page.waitForTimeout(2500);
     expect(await scan(page)).toEqual([]);
+  });
+}
+
+// an album and a playlist have no fixed address in the test library: open the first album from its list, and make a playlist of one song (deleted after)
+for (const size of [{ name: 'phone', width: 390, height: 844 }, { name: 'PC', width: 1440, height: 900 }]) {
+  test(`an album page passes axe on a ${size.name}`, async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await signIn(page);
+    await live(page, '/albums');
+    await page.locator('a[href^="/album/"]').first().click();
+    await page.waitForURL((u) => u.pathname.startsWith('/album/'));
+    await page.waitForTimeout(2500);
+    expect(await scan(page)).toEqual([]);
+  });
+
+  test(`a playlist page passes axe on a ${size.name}`, async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await signIn(page);
+    const name = `A11y ${size.name}`;
+    await live(page, '/playlists');
+    await page.getByLabel('New playlist name').fill(name);
+    await page.getByRole('button', { name: 'Create' }).click();
+    await page.waitForURL(/\/playlist\//);
+    const url = page.url();
+    await live(page, '/songs');
+    await page.getByRole('button', { name: /^More for / }).first().click();
+    await page.getByRole('menuitem', { name: 'Add to ' + name }).click();
+    await page.waitForTimeout(500);
+    await live(page, url);
+    const found = await scan(page);
+    await page.getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('button', { name: /^Delete "/ }).click();
+    await page.waitForURL(/\/playlists$/);
+    expect(found).toEqual([]);
   });
 }
 

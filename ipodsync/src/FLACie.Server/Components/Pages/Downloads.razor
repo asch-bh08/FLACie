@@ -98,6 +98,8 @@ else
         @if (rows.Count == 0) { <p class="hint">@empty</p> }
         @foreach (var r in rows.Take(shown.GetValueOrDefault(id, Page)))
         {
+            @* Retry sits beside the row, not inside its summary: a button inside the summary is a control inside a control (axe nested-interactive) *@
+            <div class="dl-item">
             <details class="dl-row @(bad ? "bad" : "")">
                 <summary>
                     <Cover ArtKey="@(r.ArtKey)" Size="44" />
@@ -107,15 +109,7 @@ else
                         <small class="dl-meta">@KindText(r.Kind) · <time data-utc="@Iso(r.FinishedAt)" data-abs="1" data-rel="@Ago(r.FinishedAt)">@Ago(r.FinishedAt)</time> · took @Took(r.Took)@(everyone ? " · " + r.UserName : "")</small>
                     </div>
                     @if (r.Source is { } s) { <span class="badge dl-src @s">@OpenSourceSettings.Name(s)</span> }
-                    else
-                    {
-                        <span class="badge dl-src failed">Failed</span>
-                        @if (DownloadManager.CanRetry(r) && !everyone)
-                        {
-                            var again = Manager.JobFor(Session, r.Artist, r.Title) is { Finished: false };
-                            <button class="btn ghost dl-retry" disabled="@again" @onclick="() => Retry(r)" @onclick:preventDefault @onclick:stopPropagation>@(again ? "Retrying…" : "Retry")</button>
-                        }
-                    }
+                    else { <span class="badge dl-src failed">Failed</span> }
                 </summary>
                 <ol class="dl-trail">
                     @foreach (var st in r.Trail)
@@ -126,6 +120,12 @@ else
                 @if (r.File is { Length: > 0 }) { <p class="dl-file">Saved as <code>@r.File</code></p> }
                 else if (r.Done) { <p class="dl-file">Filed by Lidarr into your library; it shows up after the next Jellyfin scan.</p> }
             </details>
+            @if (r.Source is null && DownloadManager.CanRetry(r) && !everyone)
+            {
+                var again = Manager.JobFor(Session, r.Artist, r.Title) is { Finished: false };
+                <button class="btn ghost dl-retry" disabled="@again" @onclick="() => Retry(r)">@(again ? "Retrying…" : "Retry")</button>
+            }
+            </div>
         }
         @if (rows.Count > shown.GetValueOrDefault(id, Page)) { <button class="btn ghost" @onclick="() => shown[id] = shown.GetValueOrDefault(id, Page) + 25">Show more (@(rows.Count - shown.GetValueOrDefault(id, Page)) older)</button> }
     </section>;

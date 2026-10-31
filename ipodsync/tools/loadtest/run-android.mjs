@@ -5,7 +5,7 @@
 //                        [--out result.json] [--scenarios first-sync,scrolling,skip-burst,warm-start,kill-restore] [--adb <adb.exe>] [--shots <dir>] [--apk <file>]
 //
 // One run = one fresh mock (own process) + `pm clear` + the scenarios in order:
-//   first-sync    cold start, first-launch screens, Jellyfin Quick Connect (the mock approves it: no password), Explore > Songs until all songs show; then idle until
+//   first-sync    cold start, first-launch screens, Jellyfin Quick Connect (the mock approves it: no password), Search > Songs until all songs show; then idle until
 //                 --window seconds after sign-in, counting what Jellyfin saw
 //   scrolling     fling through the Songs list for ~40 s with `input swipe` in one on-device loop (cover requests counted)
 //   skip-burst    play a song, 40 x KEYCODE_MEDIA_NEXT 60-100 ms apart in one on-device loop; streams opened / aborted
@@ -69,12 +69,15 @@ function freshApp() {
   sh(`pm revoke ${PKG} android.permission.READ_MEDIA_AUDIO`, { quiet: true });
   sh(`pm revoke ${PKG} android.permission.READ_EXTERNAL_STORAGE`, { quiet: true });
 }
-const songsCount = (nodes) => { if (!nodes) return -1; for (const n of nodes) { const m = /^([\d,]+) songs?$/.exec(label(n).trim()); if (m) return Number(m[1].replace(/,/g, '')); } return -1; };
+const songsCount = (nodes) => { if (!nodes) return -1; for (const n of nodes) { const m = /^([\d,]+) songs?\b/i.exec(label(n).trim()); if (m) return Number(m[1].replace(/,/g, '')); } return -1; };
 const navY = () => 2000;   // the bottom navigation of the phone layout lives below this line (screen is 2400 px tall)
 function gotoExploreSongs(nodes) {
-  // bottom bar "Explore" (the Home screen also has an Explore shelf title, higher up), then the Songs pill
-  const ex = find(nodes, 'Explore', { minY: navY() }) ?? find(nodes, 'Explore', { last: true });
-  if (ex) tapNode(ex);
+  // design I has no Explore tab: the song list is Search's Songs chip (as in smoke-android.mjs). Called again and again until songs show:
+  // on Search, tap the chip; anywhere else, the Search tab of the bottom bar
+  const chip = find(nodes, /^Songs$/);
+  if (chip && has(nodes, 'Search')) { tapNode(chip); return; }
+  const tab = find(nodes, 'Search', { minY: navY() }) ?? find(nodes, 'Search', { last: true });
+  if (tab) tapNode(tab);
 }
 const pss = () => { const m = /TOTAL PSS:\s+(\d+)|TOTAL\s+(\d+)/.exec(sh(`dumpsys meminfo ${PKG}`, { quiet: true })); return m ? Math.round(Number(m[1] ?? m[2]) / 1024) : null; };
 const gateLines = () => sh(`logcat -d -s FLACieGate`, { quiet: true }).split('\n').filter((l) => /FLACieGate/.test(l));
@@ -146,11 +149,16 @@ async function scenarioFirstSync() {
   log(`first-sync: songs ${fs1.songsShown}, first ${fs1.timeToFirstSongsMs} ms, all ${fs1.timeToAllSongsMs} ms, requests ${fs1.final.total} (${JSON.stringify(fs1.final.byKind)}), peak ${fs1.final.peakInFlight}`);
 }
 
+// the Songs list itself: its rows on screen (Search's overview also says "10003 songs", above the chips)
+const onSongsList = (nodes) => !!nodes && nodes.some((n) => /^Song \d+$/.test(label(n)));
 async function ensureSongsList() {
-  const ui = dump();
-  if (songsCount(ui) > 0) return ui;
-  if (ui) gotoExploreSongs(ui);
-  return waitUi((n) => songsCount(n) > 0, 60000, 2000);
+  for (let i = 0; i < 30; i++) {
+    const ui = dump();
+    if (onSongsList(ui)) return ui;
+    if (ui) gotoExploreSongs(ui);
+    await sleep(2000);
+  }
+  return null;
 }
 
 async function scenarioScrolling() {

@@ -110,9 +110,9 @@ test.describe.serial('talk to the DJ', () => {
     await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Play', { timeout: 10_000 });
   });
 
-  // talk to the DJ (owner, 28 Oct): the mic pauses the music (it heard the song otherwise); one request, one answer as soon as they stop speaking,
-  // then the mic stops and the song carries on (no waiting for "thanks"); asking for music plays it and ends it
-  test('one request, one answer: the music pauses while it listens, then the mic stops and the song carries on', async ({ page }) => {
+  // talk to the DJ (owner, 28 Oct): the mic pauses the music (it heard the song otherwise); an answer as soon as they stop speaking, then (turn-taking,
+  // 31 Oct) a short listen for a follow-up: nothing said, the mic stops and the song carries on (no waiting for "thanks"); asking for music plays it and ends it
+  test('a request, an answer, a short listen for a follow-up: the music pauses while it listens, then the mic stops and the song carries on', async ({ page }) => {
     test.setTimeout(120_000);
     await page.addInitScript(fakeRecogniser);
     await signIn(page);
@@ -120,14 +120,14 @@ test.describe.serial('talk to the DJ', () => {
     await page.getByRole('button', { name: 'Open Now Playing' }).click();
     await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 20_000 });
     const mic = page.locator('.ls-transport [data-testid="dj-mic"]');
-    await page.evaluate(() => { (window as any).__turns = ["what's this song", 'should not be heard']; (window as any).__starts = 0; });
+    await page.evaluate(() => { (window as any).__turns = ["what's this song", '']; (window as any).__starts = 0; });
     await mic.click();
     await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Play', { timeout: 5_000 });   // paused while it listens
     await expect(page.locator('.toast').first()).toBeVisible({ timeout: 15_000 });                      // the answer
     await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 10_000 });  // the song carries on
     await expect(mic).toHaveAttribute('aria-pressed', 'false');
     await page.waitForTimeout(1500);
-    expect(await page.evaluate(() => (window as any).__starts)).toBe(1);                                 // not listening again
+    expect(await page.evaluate(() => (window as any).__starts)).toBe(2);                                 // the answer, one listen for a follow-up, then no more
     expect(await page.evaluate(() => (window as any).__listening)).toBe(false);
 
     // nothing said: it stops and the song carries on

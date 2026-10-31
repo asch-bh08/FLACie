@@ -38,6 +38,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -380,7 +381,7 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
             }
             Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                 Box(Modifier.size(42.dp).clip(CircleShape).background(main)) {
-                    IconAction(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, if (snap.playing) "Pause" else "Play", { app.player.toggle() }, tint = Color(0xFF1A120C), size = 42.dp, iconScale = .46f)
+                    IconAction(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, if (snap.playing) "Pause" else "Play", { app.player.toggle() }, tint = Color(DesignColour.readableOn(main.toArgb())), size = 42.dp, iconScale = .46f)
                 }
             }
             IconAction(Glyph.NEXT, "Next", { app.player.next() })

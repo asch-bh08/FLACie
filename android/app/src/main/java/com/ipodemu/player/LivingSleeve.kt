@@ -963,9 +963,11 @@ private fun MoreTile(label: String, g: Glyph, p: SleevePalette, on: Boolean, mod
             .clickable(src, null, onClick = onClick).padding(6.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
-        GlyphIcon(g, Modifier.size(24.dp), if (on) OnMain else p.toneFg.value)
+        // on, the tile is the cover's colour: its ink is the one that reads on it (white on a dark cover), not a fixed dark
+        val onInk = Color(DesignColour.readableOn(p.main.value.toArgb()))
+        GlyphIcon(g, Modifier.size(24.dp), if (on) onInk else p.toneFg.value)
         Spacer(Modifier.height(6.dp))
-        SText(AnnotatedString(label), size = 12f, weight = FontWeight.SemiBold, color = if (on) OnMain else p.toneFg.value, maxLines = 2, align = TextAlign.Center)
+        SText(AnnotatedString(label), size = 12f, weight = FontWeight.SemiBold, color = if (on) onInk else p.toneFg.value, maxLines = 2, align = TextAlign.Center)
     }
 }
 

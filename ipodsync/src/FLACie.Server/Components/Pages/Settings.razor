@@ -27,6 +27,22 @@
         <input type="checkbox" role="switch" checked="@State.Prefetch" @onchange="e => { State.Prefetch = (bool)(e.Value ?? false); Persist(); }" />
         <i class="switch" aria-hidden="true"></i>
     </label>
+    @* the same two settings as Now Playing's Sound menu (and the phone's Settings): kept in this browser *@
+    <label class="switch-row">
+        <span><b>Even out volume</b><small>Loud songs down, quiet ones up, by the loudness Jellyfin measured</small></span>
+        <input type="checkbox" role="switch" checked="@Player.LevelVolume" @onchange="e => Player.SetLevelVolumeAsync((bool)(e.Value ?? false))" />
+        <i class="switch" aria-hidden="true"></i>
+    </label>
+    <div class="set-row sound-fade">
+        <span><b>Fade between songs</b><small>The end of a song fades out and the next fades in. Not between the tracks of one album, so albums stay gapless.</small></span>
+        <div class="seg" role="group" aria-label="Fade between songs">
+            @foreach (var secs in FadeBetween.Choices)
+            {
+                var fs = secs;
+                <button type="button" class="@(Player.FadeSecs == fs ? "sel" : "")" aria-pressed="@(Player.FadeSecs == fs ? "true" : "false")" @onclick="() => Player.SetFadeSecsAsync(fs)">@(fs == 0 ? "Off" : fs + " s")</button>
+            }
+        </div>
+    </div>
 </section>
 
 @* the AI DJ: on or off, how chatty, where, the sound and the device voice (hidden where there is no DJ) *@
@@ -149,6 +165,8 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
+        // Even out volume and the fade are read from this browser when a song starts: read them now so a fresh page shows what was chosen
+        await Player.LoadSoundAsync(); StateHasChanged();
         try
         {
             if (System.Text.Json.Nodes.JsonNode.Parse(await Js.InvokeAsync<string>("flacieUi.get")) is { } j)

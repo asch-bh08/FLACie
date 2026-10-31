@@ -1416,7 +1416,7 @@ html.buffering .play .ic { opacity: .55; }
 .sound-fade small { color: var(--dim); }
 .seg { display: flex; flex-wrap: wrap; gap: 4px; }
 .chip-pop .seg button { flex: 1; min-width: 40px; justify-content: center; padding: 7px 8px; border-radius: 8px; background: var(--surface-3); font-size: 12px; font-weight: 600; }
-.chip-pop .seg button.sel { background: var(--accent); color: #fff; }
+.chip-pop .seg button.sel { background: var(--accent); color: var(--accent-fg, #fff); }
 @media (prefers-reduced-motion: reduce) { .chipbtn { transition: none; } }
 .chip-pop.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; min-width: 232px; }
 .chip-pop.grid button { justify-content: center; padding: 10px 8px; font-variant-numeric: tabular-nums; }

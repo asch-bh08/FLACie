@@ -609,9 +609,11 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     public bool LevelVolume { get; private set; }
     bool levelLoaded;
 
+    async Task LoadLevelAsync() { if (!levelLoaded) { levelLoaded = true; try { LevelVolume = await js.InvokeAsync<string?>("flacie.unstash", "flacie.level") == "1"; } catch (Exception) { } } }
+
     async Task ApplyLevelAsync(Track t)
     {
-        if (!levelLoaded) { levelLoaded = true; try { LevelVolume = await js.InvokeAsync<string?>("flacie.unstash", "flacie.level") == "1"; } catch (Exception) { } }
+        await LoadLevelAsync();
         try { await audio.LoudAsync(Loudness.Factor(t.GainDb, LevelVolume)); } catch (Exception) { }
     }
 
@@ -627,9 +629,19 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     public int FadeSecs { get; private set; }
     bool fadeLoaded;
 
+    async Task LoadFadeAsync() { if (!fadeLoaded) { fadeLoaded = true; try { if (int.TryParse(await js.InvokeAsync<string?>("flacie.unstash", "flacie.fade"), out var n) && FadeBetween.Choices.Contains(n)) FadeSecs = n; } catch (Exception) { } } }
+
+    /// <summary>Reads Even out volume and Fade between songs from this browser before a song has played (Settings shows them; the player reads them as a song starts).</summary>
+    public async Task LoadSoundAsync()
+    {
+        bool was = levelLoaded && fadeLoaded;
+        await LoadLevelAsync(); await LoadFadeAsync();
+        if (!was) Changed?.Invoke();
+    }
+
     async Task ApplyFadeAsync(Track t)
     {
-        if (!fadeLoaded) { fadeLoaded = true; try { if (int.TryParse(await js.InvokeAsync<string?>("flacie.unstash", "flacie.fade"), out var n) && FadeBetween.Choices.Contains(n)) FadeSecs = n; } catch (Exception) { } }
+        await LoadFadeAsync();
         var pos = order.IndexOf(Index);
         Track? prev = pos > 0 ? Queue[order[pos - 1]] : null, next = pos >= 0 && pos + 1 < order.Count ? Queue[order[pos + 1]] : null;
         var (fin, fout) = FadeBetween.Flags(prev, t, next);

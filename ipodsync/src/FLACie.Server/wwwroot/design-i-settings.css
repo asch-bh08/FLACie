@@ -46,6 +46,11 @@
 /* ---- switches: the same pill as the full-screen player's, in a soft row ---- */
 .sp .switch-row, .sp .panel.set .switch-row { background: #ffffff0a; border-radius: 16px; padding: 12px 14px; }
 .sp .switch-row b { font-family: var(--sans); font-weight: 700; }
+/* Fade between songs in Settings → Playback: the Sound menu's choice, in the same soft row as a switch */
+.sp .set-row.sound-fade { display: grid; gap: 10px; width: 100%; box-sizing: border-box; background: #ffffff0a; border: 0; border-radius: 16px; padding: 12px 14px; margin-top: 6px; font-size: inherit; }
+.sp .set-row.sound-fade > span { display: grid; gap: 2px; }
+.sp .set-row.sound-fade b { font-family: var(--sans); font-weight: 700; }
+.sp .set-row.sound-fade .seg button { flex: 1; min-width: 52px; justify-content: center; padding: 8px 0; }
 .sp .dj-level { background: #ffffff0a; border-radius: 16px; padding: 12px 14px; margin-bottom: 8px; }
 .sp .dj-level b { font-family: var(--sans); font-weight: 700; }
 .sp .switch { width: 46px; height: 28px; background: #ffffff26; }

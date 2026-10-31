@@ -11,6 +11,7 @@ class CarDjMicTest {
         var playing = true
         var heard: ((String?) -> Unit)? = null
         var listens = 0
+        val waits = ArrayList<Long>()
         var stops = 0
         val asked = ArrayList<String>()
         var answer: ((DjAskAnswer) -> Unit)? = null
@@ -20,7 +21,7 @@ class CarDjMicTest {
         var micAllowed = true
         val mic = CarDjMic(
             ears = object : CarDjMic.Ears {
-                override fun listen(onHeard: (String?) -> Unit): Boolean { listens++; heard = onHeard; return true }
+                override fun listen(waitMs: Long, onHeard: (String?) -> Unit): Boolean { listens++; waits.add(waitMs); heard = onHeard; return true }
                 override fun stop() { stops++; heard = null }
             },
             music = object : CarDjMic.Music {
@@ -52,30 +53,68 @@ class CarDjMicTest {
         assertFalse(r.playing)   // (the play itself starts the new music; the paused song is not resumed over it)
     }
 
-    @Test fun aQuestionAnsweredEndsItAndThePausedSongCarriesOn() {
+    @Test fun aPlainControlEndsItAtOnceAndTheSongCarriesOn() {
+        val r = Rig()
+        r.mic.press(); r.heard!!("turn it up")
+        r.answer!!(DjAskAnswer(DjAskDo.VOLUMEUP, ""))
+        assertFalse(r.mic.conversing); assertTrue(r.playing); assertEquals(1, r.listens)
+    }
+
+    @Test fun aNormalAnswerListensAgainForAShortWhileThenEndsQuietlyIfNobodySpeaks() {
         val r = Rig()
         r.mic.press(); r.heard!!("what's this song")
         r.answer!!(DjAskAnswer(DjAskDo.NONE, "It's Firestarter."))
-        assertFalse(r.mic.conversing); assertTrue(r.playing); assertEquals(1, r.listens)
+        assertTrue(r.mic.conversing); assertFalse(r.playing)       // the music stays paused while it waits for a follow-up
+        r.runLater(); r.runLater()
+        assertEquals(2, r.listens); assertEquals(listOf(0L, DjConversation.FOLLOW_UP_MS), r.waits)
+        r.heard!!(null)                                             // nobody spoke: it ends quietly and the song carries on
+        assertFalse(r.mic.conversing); assertTrue(r.playing); assertEquals(1, r.asked.size)
+    }
+
+    @Test fun aFollowUpIsAnsweredLikeTheFirstRequest() {
+        val r = Rig()
+        r.mic.press(); r.heard!!("what's this song")
+        r.answer!!(DjAskAnswer(DjAskDo.NONE, "It's Firestarter."))
+        r.runLater(); r.runLater(); r.heard!!("who sings it")
+        assertEquals(listOf("what's this song", "who sings it"), r.asked)
+        r.answer!!(DjAskAnswer(DjAskDo.NONE, "The Prodigy.", intent = "WhoSings"))
+        assertTrue(r.mic.conversing)
+    }
+
+    @Test fun theCapStopsListeningAgain() {
+        val r = Rig()
+        r.mic.press()
+        for (i in 1..DjConversation.MAX_TURNS) {
+            r.heard!!("what's this song"); r.answer!!(DjAskAnswer(DjAskDo.NONE, "It's Firestarter."))
+            if (i < DjConversation.MAX_TURNS) { r.runLater(); r.runLater() }
+        }
+        assertFalse(r.mic.conversing); assertTrue(r.playing)
+    }
+
+    @Test fun aGoodbyeIsAnsweredAnytimeAndEndsItWithTheMusicBack() {
+        val r = Rig()
+        r.mic.press(); r.heard!!("thanks")
+        assertEquals(listOf("thanks"), r.asked)                      // the server answers it with "Anytime." (made ahead in the voice)
+        r.answer!!(DjAskAnswer(DjAskDo.NONE, "Anytime.", intent = "Goodbye"))
+        assertFalse(r.mic.conversing); assertTrue(r.playing)
     }
 
     @Test fun whenTheDjAsksBackItListensAgainOnceItHasFinishedTalking() {
         val r = Rig()
         r.mic.press(); r.heard!!("play my favs")
         r.talking = true
-        r.answer!!(DjAskAnswer(DjAskDo.NONE, "Your hearted songs, or the ones you play most?", asked = true))
+        r.answer!!(DjAskAnswer(DjAskDo.NONE, "Your hearted songs, or the ones you play most?", asked = true, intent = "Clarify"))
         assertTrue(r.mic.conversing); assertEquals(1, r.listens)
         r.runLater(); assertEquals(1, r.listens)          // still talking: waits
         r.talking = false
         r.runLater(); r.runLater()
         assertEquals(2, r.listens); assertEquals(CarDjMic.State.LISTENING, r.mic.state)
+        assertEquals(DjConversation.ANSWER_WINDOW_MS, r.waits[1])   // a question back is given longer to be answered
     }
 
-    @Test fun nothingSaidOrAGoodbyeEndsItQuietly() {
+    @Test fun nothingSaidEndsItQuietly() {
         val r = Rig()
         r.mic.press(); r.heard!!(null)
-        assertFalse(r.mic.conversing); assertTrue(r.playing); assertTrue(r.asked.isEmpty())
-        r.mic.press(); r.heard!!("thanks")
         assertFalse(r.mic.conversing); assertTrue(r.playing); assertTrue(r.asked.isEmpty())
     }
 

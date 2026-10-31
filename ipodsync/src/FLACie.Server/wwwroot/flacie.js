@@ -1454,18 +1454,36 @@ window.flacie = (() => {
     // ---- "talk to the DJ" (DjMic.razor): the browser's own speech recogniser, listening only from a press until the person stops talking (or presses again).
     // Only the words it recognised go back to the page; no sound is kept or sent to FLACie. ----
     micAvailable() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); },
-    micStart(ref) {
+    // waitMs: how long to wait for the person to begin (0: the browser's own wait, for the first press); quietMs: how long after the last word means their turn is over
+    // (DjConversation.ListenWindowMs / EndOfSpeechMs). Nobody speaks within waitMs: it lets go quietly (Ended). The words so far go back once quietMs passes with nothing new,
+    // or when the browser ends the session itself.
+    micStart(ref, waitMs, quietMs) {
       const R = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!R) return false;
       if (micRec) { try { micRec.abort(); } catch { } }
       const rec = new R(); micRec = rec;
-      rec.lang = navigator.language || "en-GB"; rec.continuous = false; rec.interimResults = false; rec.maxAlternatives = 1;
-      let said = false;
-      rec.onresult = (e) => {
-        const r = e.results && e.results[0] && e.results[0][0];
-        if (r && r.transcript && !said) { said = true; ref.invokeMethodAsync("Heard", r.transcript).catch(() => { }); }
+      rec.lang = navigator.language || "en-GB"; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+      let said = false, text = "", waitT = 0, quietT = 0;
+      const clear = () => { clearTimeout(waitT); clearTimeout(quietT); };
+      const deliver = () => {
+        clear();
+        const t = text.trim();
+        if (said || !t) return;
+        said = true;
+        try { rec.stop(); } catch { }
+        ref.invokeMethodAsync("Heard", t).catch(() => { });
       };
-      const end = () => { if (micRec === rec) micRec = null; if (!said) ref.invokeMethodAsync("Ended").catch(() => { }); };
+      if (waitMs > 0) waitT = setTimeout(() => { if (!said && !text) { try { rec.abort(); } catch { } } }, waitMs);
+      rec.onresult = (e) => {
+        if (said) return;
+        clearTimeout(waitT);
+        let t = "";
+        for (let i = 0; i < e.results.length; i++) t += (i ? " " : "") + e.results[i][0].transcript;
+        text = t;
+        clearTimeout(quietT); quietT = setTimeout(deliver, quietMs > 0 ? quietMs : 1200);
+      };
+      rec.onspeechstart = () => clearTimeout(waitT);
+      const end = () => { clear(); if (micRec === rec) micRec = null; if (text.trim()) deliver(); else if (!said) ref.invokeMethodAsync("Ended").catch(() => { }); };
       rec.onend = end; rec.onerror = end;
       try { rec.start(); } catch { micRec = null; return false; }
       return true;

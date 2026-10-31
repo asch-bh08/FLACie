@@ -51,10 +51,11 @@ class PlaybackService : MediaLibraryService() {
     private val carMic: CarDjMic by lazy {
         val app = App.of(this)
         var rec: android.speech.SpeechRecognizer? = null
-        fun drop() { rec?.let { try { it.stopListening(); it.destroy() } catch (_: Exception) { } }; rec = null }
+        var giveUp: Runnable? = null
+        fun drop() { giveUp?.let { main.removeCallbacks(it) }; giveUp = null; rec?.let { try { it.stopListening(); it.destroy() } catch (_: Exception) { } }; rec = null }
         CarDjMic(
             ears = object : CarDjMic.Ears {
-                override fun listen(onHeard: (String?) -> Unit): Boolean {
+                override fun listen(waitMs: Long, onHeard: (String?) -> Unit): Boolean {
                     drop()
                     val r = com.ipodemu.player.MicSpeech.create(this@PlaybackService) ?: return false
                     rec = r
@@ -62,7 +63,7 @@ class PlaybackService : MediaLibraryService() {
                         override fun onResults(results: Bundle?) { drop(); onHeard(results?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.trim()) }
                         override fun onError(error: Int) { android.util.Log.w("FLACie", "car mic: recogniser error $error"); drop(); onHeard(null) }
                         override fun onReadyForSpeech(params: Bundle?) {}
-                        override fun onBeginningOfSpeech() {}
+                        override fun onBeginningOfSpeech() { giveUp?.let { main.removeCallbacks(it) }; giveUp = null }
                         override fun onRmsChanged(rmsdB: Float) {}
                         override fun onBufferReceived(buffer: ByteArray?) {}
                         override fun onEndOfSpeech() {}
@@ -70,6 +71,8 @@ class PlaybackService : MediaLibraryService() {
                         override fun onEvent(eventType: Int, params: Bundle?) {}
                     })
                     r.startListening(com.ipodemu.player.MicSpeech.intent(this@PlaybackService))
+                    // nobody began speaking in the follow-up window: it lets go quietly (the conversation ends)
+                    if (waitMs > 0) Runnable { if (rec === r) { drop(); onHeard(null) } }.also { giveUp = it; main.postDelayed(it, waitMs) }
                     return true
                 }
                 override fun stop() = drop()

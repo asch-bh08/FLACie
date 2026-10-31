@@ -303,6 +303,7 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
         "I don't know what you play most yet.", "Your most played, coming up.", "You've heard everything in your library. Impressive.",
         "Here's something you haven't heard yet.", "There's nothing in your library yet.", "Shuffling your library.",
         "I'm still loading your library. Try again in a moment.", "Can't find that one anywhere, sorry.", "Can't find that one, getting it now.",
+        DjConversation.Anytime,
     ];
 
     public const string DidntCatch = "Sorry, I didn't catch that.";
@@ -335,6 +336,8 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
     {
         if (string.IsNullOrWhiteSpace(text)) return DjAskAnswer.Said(DidntCatch);
         if (text.Length > 300) text = text[..300];
+        // "thanks", "bye", "that's all": the conversation is over, with a fixed reply that is already made in the voice (nothing to understand, no model)
+        if (DjConversation.IsGoodbye(text)) return DjAskAnswer.Said(DjConversation.Anytime, "Goodbye");
         var ctx = Contexts.For(u.Account);
         var cur = current is { Length: > 0 } ? u.Find(current) : null;
         var at = now();

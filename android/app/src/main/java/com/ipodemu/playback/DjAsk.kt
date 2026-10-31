@@ -17,6 +17,8 @@ data class DjAskAnswer(
     val replace: Boolean = false, val waitArtist: String? = null, val waitTitle: String? = null, val clip: String? = null, val deviceVoice: Boolean = false,
     /** The DJ asked the person something back (the server's intent "Clarify"): the mic listens for the reply. */
     val asked: Boolean = false,
+    /** The server's name for what it understood ("Answer", "Clarify", "Goodbye", "ThumbsDown"...): the conversation's turn-taking reads it. */
+    val intent: String = "",
 ) {
     companion object {
         val SORRY = DjAskAnswer(DjAskDo.NONE, "Sorry, I couldn't reach the DJ.")
@@ -29,7 +31,7 @@ data class DjAskAnswer(
             val w = o.optJSONObject("wait")
             return DjAskAnswer(d, o.optString("say"), songs, o.optString("title"), o.optBoolean("shuffle"), o.optBoolean("replace"),
                 w?.optString("artist"), w?.optString("title"), o.optString("clip").takeIf { it.isNotBlank() && it != "null" }, o.optBoolean("deviceVoice"),
-                o.optString("intent") == "Clarify")
+                o.optString("intent") == "Clarify", o.optString("intent"))
         }
 
         /** The request body: the words, the song playing (by title and artist: the server's paths are not the phone's), where, and the hour. */

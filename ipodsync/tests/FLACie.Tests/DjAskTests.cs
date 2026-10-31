@@ -218,6 +218,18 @@ public class DjAskTests
         Assert.Equal(DjAskEngine.DidntCatch, (await e.AnswerAsync(Standard(), "hmm hmm", null, [])).Say);
     }
 
+    // owner, 31 Oct: "thanks", "bye", "that's all" end a conversation with a quick fixed "Anytime." (made ahead in the voice, so it is instant)
+    [Theory]
+    [InlineData("thanks")] [InlineData("Thank you")] [InlineData("cheers")] [InlineData("bye")] [InlineData("that's all")] [InlineData("never mind")] [InlineData("nothing")]
+    public async Task A_goodbye_is_answered_anytime_without_asking_the_model(string said)
+    {
+        var model = new FakeModel((_, _) => Task.FromResult<string?>("{\"say\":\"should not be asked\"}"));
+        var a = await new DjAskEngine(model).AnswerAsync(Standard(), said, null, []);
+        Assert.Equal("Anytime.", a.Say); Assert.Equal(DjAskDo.None, a.Do); Assert.Equal("Goodbye", a.Intent); Assert.Equal(0, model.Calls);
+    }
+
+    [Fact] public void Anytime_is_made_ahead_in_the_voice() => Assert.Contains("Anytime.", DjAskEngine.FixedReplies);
+
     [Fact] public async Task NoModelIsSorry() => Assert.Equal(DjAskEngine.DidntCatch, (await new DjAskEngine().AnswerAsync(Standard(), "the weather", null, [])).Say);
 
     [Fact] public void TheModelsDefaultTimeoutIsTwoAndAHalfSeconds() => Assert.Equal(TimeSpan.FromSeconds(2.5), DjAskAi.Timeout);

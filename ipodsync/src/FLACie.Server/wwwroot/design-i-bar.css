@@ -77,7 +77,9 @@
   .player .bar-right { justify-content: flex-end; }
 }
 /* a narrow PC window (the Windows app, a half-screen browser): a shorter volume slider and no mini-player button, so the song and the controls keep their room */
-@media (min-width: 761px) and (max-width: 1100px) {
+/* up to a wide monitor the same, since the DJ and mic buttons joined the right-hand group: it outgrew its third of the bar and pushed Play about 100 px
+   left of the middle at 1440 wide (web suite, 31 Oct) */
+@media (min-width: 761px) and (max-width: 1600px) {
   .player .bar-right .vol input { width: 64px; }
   .player .bar-right .icon-btn[aria-label^="Mini player"] { display: none; }
 }

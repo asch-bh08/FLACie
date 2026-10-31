@@ -50,12 +50,13 @@ test('a Home song pointed at before it is pressed starts without waiting for its
   await page.locator('.player [aria-label="Stop playing and close the player"]').click().catch(() => {});
   await request.get(`${MOCK}/__stream?first=1500`);
   await page.goto('/');
-  const card = page.locator('button.pick').nth(3);   // a Quick pick: not one of the songs just played (their starts are kept already)
+  // a Quick pick: not one of the songs just played (their starts are kept already). The last one: the shelf holds as many as the engine finds (3 here)
+  const card = page.locator('section.shelf[aria-label="Quick picks"] button.pick').last();
   await card.hover();
   await page.waitForTimeout(2200);   // a person's pointer resting on it before the click
   const ms = await page.evaluate(async () => {
     const w = window as any; const before = w.__flaciePlayingAt || 0; const t0 = performance.now();
-    (document.querySelectorAll('button.pick')[3] as HTMLElement).click();
+    const picks = document.querySelectorAll('section.shelf[aria-label="Quick picks"] button.pick'); (picks[picks.length - 1] as HTMLElement).click();
     for (let i = 0; i < 100; i++) { await new Promise((r) => setTimeout(r, 50)); if ((w.__flaciePlayingAt || 0) > before) return w.__flaciePlayingAt - t0; }
     return 99999;
   });

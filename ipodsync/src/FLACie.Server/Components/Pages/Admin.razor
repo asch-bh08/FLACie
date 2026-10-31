@@ -198,7 +198,7 @@ else
     </section>
 
     <section class="admin-block panel set" id="dj" aria-label="AI DJ voice">
-        <div class="set-head"><h2>AI DJ voice</h2><p class="hint">The DJ's lines are spoken by Cloudflare Workers AI, on your own Cloudflare account (its free daily allowance). Only song facts are sent: titles, artists, albums, years, the time of day and why a song was picked (to write the line), then the line's words (to say it). Each person turns the DJ on in their own Settings.</p></div>
+        <div class="set-head"><h2>AI DJ voice</h2><p class="hint">The DJ's lines are spoken by Cloudflare Workers AI, on your own Cloudflare account (its free daily allowance). To write a line it is sent the songs (titles, artists, albums, years), the time of day and why a song was picked, and, to make it personal, the listener's first name, some playlist names and favourite artists, and what they asked the DJ (including what they said to it); then the line's words, to say it. Cloudflare's terms apply to what it is sent. Each person turns the DJ on in their own Settings.</p></div>
         <p class="hint">@DjUsageLine() · @(string.IsNullOrEmpty(DjVoice.LastResult) ? "Not asked for a clip yet" : "Last: " + DjVoice.LastResult + (DjVoice.LastAt is { } dla ? " · " + Ago(dla) : ""))@(DjVoice.LastWrite.Length > 0 ? " · Writing: " + DjVoice.LastWrite : "")</p>
         <div class="form">
             <label for="dja">Cloudflare account id</label><input id="dja" @bind="djCfg.AccountId" placeholder="32 letters and numbers" autocomplete="off" />

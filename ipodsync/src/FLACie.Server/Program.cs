@@ -220,7 +220,7 @@ app.Use((ctx, next) =>
 if (!app.Environment.IsDevelopment()) app.UseExceptionHandler("/error", createScopeForErrors: true);
 // an address nothing answers (and not a file or an API call) gets the FLACie "page not found" page instead of the browser's bare 404
 app.UseWhen(c => HttpMethods.IsGet(c.Request.Method) && c.Request.Headers.Accept.ToString().Contains("text/html", StringComparison.OrdinalIgnoreCase)
-        && !new[] { "/api", "/art", "/stream", "/auth", "/debug", "/_framework", "/_blazor", "/licenses" }.Any(p => c.Request.Path.StartsWithSegments(p)),
+        && !new[] { "/api", "/art", "/stream", "/auth", "/debug", "/_framework", "/_blazor", "/licenses", "/privacy" }.Any(p => c.Request.Path.StartsWithSegments(p)),
     b => b.UseStatusCodePagesWithReExecute("/not-found"));
 app.UseRouting();   // after the status pages, so a re-executed request is routed again
 app.UseAuthentication();
@@ -272,6 +272,8 @@ app.MapGet("/api/admin/load", (HttpContext ctx, SessionStore store, JellyfinClie
     : Results.Json(new { jellyfinCallsLastMinute = jf.Stats.LastMinute(), jellyfinCallsSinceStart = jf.Stats.Totals(), openStreams = act.OpenStreams, busy = act.Busy, probePending = probe.Pending, indexed = idx.Count, backingOff = idx.MissCount, desktopShell = ChartsService.InDesktopShell, gate = gate.Metrics(), cache = cache.Report() })).RequireAuthorization();
 app.MapGet("/healthz", () => Results.Ok("ok"));
 app.MapGet("/licenses", () => Results.Text(AppInfo.Licenses(), "text/plain; charset=utf-8"));
+app.MapGet("/licenses/{name}", (string name) => AppInfo.LicenseText(name) is { } t ? Results.Text(t, "text/plain; charset=utf-8") : Results.NotFound());
+app.MapGet("/privacy", () => Results.Text(AppInfo.Privacy(), "text/plain; charset=utf-8"));
 app.Lifetime.ApplicationStarted.Register(() => { var a = app.Services.GetRequiredService<ActivityLog>(); a.Add("server", "", "FLACie started"); _ = app.Services.GetRequiredService<Notifier>().NotifyAsync("started", "Server started", "FLACie is up again.", 2, "rocket"); });
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode().AddAdditionalAssemblies(typeof(FLACie.Server.Components.Pages.Ipod).Assembly, typeof(FLACie.Server.Components.Pages.Home).Assembly);   // the Retro page lives in FLACie.Retro, the library pages in FLACie.App
 app.Run();

@@ -63,7 +63,22 @@ test.describe('signed in', () => {
     await expect(lic).toBeVisible();
     const r = await page.request.get('/licenses');
     expect(r.status()).toBe(200);
-    expect(await r.text()).toMatch(/FLACie|licen[cs]e/i);
+    // the real notices ship with the app (a library from the list, FLACie's own MIT licence with its "as is" clause), not a pointer to the repository
+    const text = await r.text();
+    expect(text).toContain('SMBLibrary');
+    expect(text).toContain('MIT License');
+    expect(text).toContain('WITHOUT WARRANTY OF ANY KIND');
+    // the full licence texts the notices point at, and the privacy notice, are there too, and reachable without signing in
+    for (const f of ['LGPL-2.1.txt', 'LGPL-3.0.txt', 'GPL-3.0.txt', 'Apache-2.0.txt']) expect((await page.request.get('/licenses/' + f)).status()).toBe(200);
+    expect([400, 404]).toContain((await page.request.get('/licenses/..%2Fappsettings.json')).status());
+    expect((await page.request.get('/licenses/appsettings.json')).status()).toBe(404);
+    const priv = page.locator('#about a[href="/privacy"]');
+    await expect(priv).toBeVisible();
+    const anon = await page.context().browser()!.newContext();
+    const pr = await anon.request.get(new URL('/privacy', page.url()).toString());
+    expect(pr.status()).toBe(200);
+    expect(await pr.text()).toContain('What a FLACie server keeps');
+    await anon.close();
   });
 
   for (const [w, h] of [[900, 700], [1280, 600], [1400, 700], [375, 667], [360, 360]]) {

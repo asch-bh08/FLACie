@@ -156,7 +156,7 @@ public static class AlexaEndpoints
         <h2>What is not</h2>
         <ul>
         <li>Your Amazon password, recordings of your voice, or anything from other skills. Amazon turns speech into text; FLACie only receives the request.</li>
-        <li>Nothing is sold or shared with anyone. Songs reach your Echo through short-lived links from the server itself.</li>
+        <li>Nothing is sold. Songs reach your Echo through short-lived links from the server itself. When you ask for a song the library doesn't have, its title and artist are looked up in public music catalogues (Deezer, Apple's iTunes search); nothing about you is sent with them.</li>
         </ul>
         <h2>Removing it</h2>
         <p>Disable the skill in the Alexa app, or use <em>Revoke access</em> in FLACie's Settings &gt; Alexa: the link is deleted at once. Questions go to the person who runs your FLACie server.</p>

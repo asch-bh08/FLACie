@@ -1,7 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
-  <ItemGroup Condition="Exists('..\..\..\THIRD-PARTY-NOTICES.md')">
-    <Content Include="..\..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  <!-- FLACie's licence, the third-party notices, their full texts and the privacy notice, served at /licenses and /privacy. Copies of the files at the top of
+       the repository (the Docker image is built from ipodsync/src only); LegalFilesTests fails when they drift apart. -->
+  <ItemGroup>
+    <Content Include="legal\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

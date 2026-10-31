@@ -5,6 +5,7 @@
 <section class="panel set" id="downloads">
     <div class="set-head"><h2>Downloads</h2><p class="hint">Search finds new music and downloads it: Soulseek (slskd plus the file mover) first, Lidarr as the fallback. These are kept in your profile, so the phone's setup shows up here and the other way round. Keys stay on the server; leave a key empty to keep the saved one.</p></div>
     <div class="form">
+        <p class="hint dl-rights" role="note"><b>Only download music you own or have permission to download.</b> FLACie has no music sources of its own: these are services you run yourself, and copyright law applies to what you download with them.</p>
         <label for="sl">slskd address</label><input id="sl" @bind="slUrl" placeholder="https://host/slskd" />
         <label for="slk">slskd API key @(Session.Services.SlskdKey.Length > 0 ? "(saved)" : "")</label><input id="slk" type="password" @bind="slKey" autocomplete="new-password" />
         <label for="slp">slskd downloads folder <span class="opt">(as the file mover sees it)</span></label><input id="slp" @bind="slPath" placeholder="downloads" />

@@ -82,6 +82,9 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
         override fun onIsPlayingChanged(isPlaying: Boolean) { val l = line; if (isPlaying && l != null && !l.phoneVoice && !l.heard) heard(l) }
         override fun onPlaybackStateChanged(state: Int) {
             if (state == Player.STATE_READY && waitingForClip && line?.phoneVoice == false) { begin(); return }
+            // the clip ran dry part-way through on a weak signal: the line ends there and the music comes back up, rather than the song going on for
+            // seconds under a silent DJ, which in the car sounded like part of the song had gone (playback audit, 30 Oct)
+            if (state == Player.STATE_BUFFERING && line?.let { !it.phoneVoice && it.heard } == true) { stop(); return }
             if (state != Player.STATE_ENDED || line?.phoneVoice != false) return
             // the line is over: a song still held back under it starts now, from the top (talk before the song)
             if (holding) { handler.removeCallbacks(letGo); letGo.run() }
@@ -105,6 +108,8 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
     private fun player(): ExoPlayer = exo ?: ExoPlayer.Builder(ctx)
         // the same sources as the music: a FLACie Web address gets the account's token as a header (never in the URL)
         .setMediaSourceFactory(DefaultMediaSourceFactory(source))
+        // a clip is a few seconds of speech: it is only ready once all of it is in, so it never runs dry half-way through a line
+        .setLoadControl(androidx.media3.exoplayer.DefaultLoadControl.Builder().setBufferDurationsMs(60_000, 120_000, 60_000, 60_000).build())
         // false = no audio focus at all: requesting it would make the music player, which holds it, pause
         .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), false)
         .build().also { it.addListener(listener); it.volume = voiceLevel; exo = it; voiceFx(it.audioSessionId) }

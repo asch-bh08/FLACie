@@ -18,6 +18,17 @@ class ExploreEngineTest {
     private val songs: List<Track> = titles.mapIndexed { i, t -> song(i, t, artist = if (i % 3 == 0) "The Band" else "Solo $i", year = 1980 + i * 3, mtime = (i * 7919L) % 13, dur = 100_000L + (i * 37L) % 11) }
         .sortedBy { sortKey(it.title) }
 
+    @Test fun aJellyfinStreamWithNoServerPathHasNoExtensionNotAPieceOfTheUrl() {
+        val t = song(1, "Blow").copy(path = "http://100.114.148.48:8096/Audio/0123456789abcdef0123456789abcdef/stream?static=true", filePath = "", source = com.ipodemu.library.TrackSource.JELLYFIN)
+        assertEquals("", trackExt(t))
+    }
+
+    @Test fun extensionsStillComeFromTheFileName() {
+        assertEquals("flac", trackExt(song(1, "x")))
+        assertEquals("mp3", trackExt(song(1, "x").copy(filePath = "/media/A.B/Song.MP3")))
+        assertEquals("m4a", trackExt(song(1, "x").copy(filePath = "", path = "/sdcard/Music/a.m4a?x=1")))
+    }
+
     @Test fun descendingTitleSortMatchesTheOldSelectorSortIncludingTies() {
         assertEquals(songs.sortedByDescending { sortKey(it.title) }, ExploreEngine.sortSongs(songs, "za"))
     }

@@ -24,7 +24,16 @@ internal class ExploreQuery(
 internal class ExploreResult(val tab: String, val songs: List<Track>, val groups: List<Group>, val fuzzy: Boolean, val total: Int = 0)
 
 private val LOSSLESS_EXT = setOf("flac", "alac", "wav", "aiff", "aif", "ape", "wv", "dsf", "tta")
-internal fun trackExt(t: Track) = (t.filePath.ifEmpty { t.path.substringBefore('?') }).substringAfterLast('.', "").lowercase()
+/**
+ * The file extension shown on the mini bar's format chip ("flac"), or "" when there is no real one. It is only ever read from the LAST part of the path:
+ * a Jellyfin stream with no server path recorded ("http://100.114.148.48:8096/Audio/<id>/stream?static=true") has dots in its host but none in its file part,
+ * and the old text-after-the-last-dot read "48:8096/audio/<id>/stream" out of it, which the bar then showed in capitals beside the artist.
+ */
+internal fun trackExt(t: Track): String {
+    val last = (t.filePath.ifEmpty { t.path.substringBefore('?') }).replace('\\', '/').substringAfterLast('/')
+    val ext = last.substringAfterLast('.', "").lowercase()
+    return if (ext.length in 1..5 && ext.all { it.isLetterOrDigit() }) ext else ""
+}
 internal fun decadeOf(y: Int) = if (y >= 1900) "${y / 10 * 10}s" else ""
 
 internal fun rateBand(hz: Int, band: String) = when (band) {

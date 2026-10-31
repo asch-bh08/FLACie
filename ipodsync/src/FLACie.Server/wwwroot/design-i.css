@@ -10,7 +10,7 @@
 
 /* ---- the menu: quiet rows, the page you are on as a soft pill in the accent ---- */
 .rail a { border-radius: 12px; font-family: var(--sans); font-weight: 500; }
-.rail a.active { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); font-weight: 700; }
+.rail a.active { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent-text); font-weight: 700; }
 .rail a.active .ic { color: currentColor; }
 .rail-group + .rail-group { border-top: 0; }
 .rail-label { font-family: var(--mono); font-weight: 500; font-size: 10.5px; letter-spacing: .14em; }
@@ -63,7 +63,7 @@
 .topbar, body.np-open .topbar { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom: 0; }
 .top-brand .logo-mark { display: none; }
 .wordmark { font-family: var(--serif); font-weight: 400; font-size: 30px; letter-spacing: -.01em; }
-.wordmark i { font-style: italic; background: none; -webkit-text-fill-color: currentColor; color: var(--accent); transition: color 1.2s; }
+.wordmark i { font-style: italic; background: none; -webkit-text-fill-color: currentColor; color: var(--accent-text); transition: color 1.2s; }
 .top-search { border-radius: 23px; background: color-mix(in srgb, var(--bg) 94%, transparent); box-shadow: 0 6px 20px #00000059; }
 .avatar { background: var(--tone, #24525a); color: var(--tonefg, #e7f3f0); }
 .rail { border-right: 1px solid #f4efe60f; }

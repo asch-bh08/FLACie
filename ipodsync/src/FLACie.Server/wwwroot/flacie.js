@@ -1540,7 +1540,10 @@ window.flacieDl = (() => {
 // Personal look-and-feel tweaks (Settings > Look and feel), kept in this browser and applied on every page load
 window.flacieUi = (() => {
   const KEY = "flacie.ui";
-  const defaults = { accent: "", compact: false, badges: true, motion: true, artbg: true };
+  const defaults = { accent: "", compact: false, badges: true, motion: true, artbg: true, theme: "dark" };
+  // the theme: dark (the default), light, or system (follows the computer, and changes with it); App.razor's <head> sets it first, before the page is drawn
+  const dark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  const themeOf = p => p.theme === "light" ? "light" : p.theme === "system" ? (dark && !dark.matches ? "light" : "dark") : "dark";
   const read = () => { try { return { ...defaults, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch { return { ...defaults }; } };
   const lighter = hex => { const n = parseInt(hex.slice(1), 16); const m = c => Math.round(c + (255 - c) * 0.28); return "#" + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(m).map(v => v.toString(16).padStart(2, "0")).join(""); };
   const apply = p => {
@@ -1551,8 +1554,11 @@ window.flacieUi = (() => {
     r.classList.toggle("pref-nobadges", p.badges === false);
     r.classList.toggle("pref-calm", p.motion === false);
     r.classList.toggle("pref-noartbg", p.artbg === false);
+    r.dataset.theme = themeOf(p);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", r.dataset.theme === "light" ? "#f6f3ee" : "#0b0b0e");
   };
   apply(read());
+  if (dark) dark.addEventListener("change", () => apply(read()));
   return {
     get: () => JSON.stringify(read()),
     set(json) { try { localStorage.setItem(KEY, json); } catch { } apply(read()); },

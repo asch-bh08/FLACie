@@ -39,6 +39,8 @@ async function signIn(page: Page) {
 async function live(page: Page, url: string) {
   const ws = page.waitForEvent('websocket', { predicate: (w) => w.url().includes('_blazor'), timeout: 20_000 }).catch(() => null);
   await page.goto(url); await ws; await page.waitForTimeout(2000);
+  // a page still saying "Loading…" swaps that line for its result in a moment, and the new line fades in: judge it once it has settled
+  await page.waitForFunction(() => ![...document.querySelectorAll('.status')].some((e) => /^Loading/.test(e.textContent ?? '')), null, { timeout: 20_000 }).catch(() => null);
 }
 
 const scan = async (page: Page) => {

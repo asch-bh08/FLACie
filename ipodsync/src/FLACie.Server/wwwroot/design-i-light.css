@@ -1,0 +1,65 @@
+/* ==== The light theme (Settings → Appearance → Theme: Light, or System on a computer set to light). Loaded after the other design I files, so these win.
+   The page turns to warm paper with near-black ink; the accent stays the cover's colour, and wherever it is TEXT it is darkened (--accent-text) so it reads
+   on the light ground (WCAG AA). The bottom bar and the full-screen player keep their dark, cover-coloured look in either theme: they carry the song's
+   colours, and the cover reads best on a dark ground. Retro and the iPod have their own scenes and are not touched. ==== */
+
+:root, .ls, .player { --accent-text: var(--accent); }
+:root[data-theme="light"] {
+  --bg: #f6f3ee; --surface: #ffffff; --surface-2: #efebe5; --surface-3: #e4dfd7; --line: #d8d1c7;
+  --ink: #1a1714; --dim: #57514b; --faint: #6b655e; --i-line: #1a171452;
+  --ok: #1b7348; --warn: #8f5300; --danger: #b3261e; --blue: #1d5ea6;
+  --accent-text: color-mix(in srgb, var(--accent) 50%, #000);
+  color-scheme: light;
+}
+/* the full-screen player and the bottom bar: the dark ground and ink they were drawn for */
+:root[data-theme="light"] .ls, :root[data-theme="light"] .player {
+  --bg: #101416; --surface: #15151a; --surface-2: #1e1e25; --surface-3: #282832; --line: #2a2a33;
+  --ink: #f4efe6; --dim: #a9a6b3; --faint: #8c8996; --i-line: #f4efe659;
+  --ok: #6fd6a3; --warn: #ffb35c; --danger: #ff7a8a; --blue: #7cc4ff;
+  --accent-text: var(--accent);
+  color-scheme: dark;
+}
+
+/* ---- the colours written straight into the older rules (white tints for hover and rows, dark badge grounds, pale text): their light twins ---- */
+:root[data-theme="light"] .cover { background: linear-gradient(135deg, #e7e2da, #d9d2c8); }
+:root[data-theme="light"] .btn.danger { background: #fbe3e1; color: var(--danger); }
+:root[data-theme="light"] .badge { background: #fbe1e8; color: #8c1737; }
+:root[data-theme="light"] .badge.nas { background: #e1edf8; color: var(--blue); }
+:root[data-theme="light"] .badge.cloud, :root[data-theme="light"] .np-titles .pills .badge.cloud { background: #e2ebf9; color: #1c4c8c; }
+:root[data-theme="light"] .badge.fmt.lossless, :root[data-theme="light"] .fmt-big.lossless, :root[data-theme="light"] .track .badge.fmt.lossless, :root[data-theme="light"] .sr-hero .badge.fmt.lossless { background: #e0f0dc; color: #275f1c; }
+:root[data-theme="light"] .dl-src.soulseek { background: #dff1e6; color: #17603b; }
+:root[data-theme="light"] .dl-src.lidarr { background: #f5ecd6; color: #6c5100; }
+:root[data-theme="light"] .dl-src.ytdl, :root[data-theme="light"] .dl-src.failed { background: #fbe3e1; color: #9b1c16; }
+:root[data-theme="light"] .dl-src.archive, :root[data-theme="light"] .dl-src.audius, :root[data-theme="light"] .dl-src.jamendo { background: #e1ecf8; color: #1d5590; }
+:root[data-theme="light"] .btn.hires { color: #6d4c00; border-color: #b08a2a88; background: #ffc8571f; }
+:root[data-theme="light"] .btn.hires:hover:not(:disabled) { background: #ffc85740; }
+:root[data-theme="light"] .menu .menu-subtle:hover, :root[data-theme="light"] .dl-menu .hi { color: #6d4c00; }
+:root[data-theme="light"] .chip-pop button.danger { color: var(--danger); }
+:root[data-theme="light"] .chip-pop .stars button.star.on { color: #a06d00; }
+:root[data-theme="light"] .dev-chip { background: #1a17141a; }
+:root[data-theme="light"] .dev-chip.on { background: #1b734824; color: #17603b; }
+:root[data-theme="light"] .dev-bar { background: #1a17141f; }
+:root[data-theme="light"] .remote-now { background: #fffffff0; }
+:root[data-theme="light"] .check-chip input:checked + span { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
+:root[data-theme="light"] .swatch.on { border-color: var(--ink); }
+:root[data-theme="light"] .fact, :root[data-theme="light"] .tag { background: #1a17140f; }
+:root[data-theme="light"] .fact.choose:hover { background: #1a17141a; }
+:root[data-theme="light"] .kv-sec, :root[data-theme="light"] .src-row { border-color: #1a17141a; }
+:root[data-theme="light"] .bar-track { background: #1a171414; }
+:root[data-theme="light"] .bar-track i { background: #1a171459; }
+:root[data-theme="light"] .graph-box { background: #1a17140a; border-color: #1a171412; }
+:root[data-theme="light"] .topbar { border-bottom-color: #1a171412; }
+:root[data-theme="light"] .rail { border-right-color: #1a171414; }
+:root[data-theme="light"] .mood:hover, :root[data-theme="light"] .recent-searches .chip:hover, :root[data-theme="light"] .sp .subnav a:hover, :root[data-theme="light"] .sp .btn.ghost:hover, :root[data-theme="light"] .toast button:hover { background: #1a17140d; }
+:root[data-theme="light"] .top-search { box-shadow: 0 6px 20px #1a17141f; }
+:root[data-theme="light"] .welcome { background: #1a17140a; }
+:root[data-theme="light"] .kb-help .kb-box { background: var(--surface); }
+:root[data-theme="light"] .set-find input { background: var(--surface); }
+:root[data-theme="light"] .track.now .track-title { color: var(--accent-text); }
+:root[data-theme="light"] .sr-kinds .chip.on { color: var(--bg); }
+:root[data-theme="light"] .sp .panel, :root[data-theme="light"] .login-card { border-color: #1a171414; box-shadow: 0 14px 30px #1a171414; }
+:root[data-theme="light"] .sp .links li, :root[data-theme="light"] .sp .kv-sec { border-color: #1a17141a; }
+:root[data-theme="light"] .sp input, :root[data-theme="light"] .sp select, :root[data-theme="light"] .sp textarea { border-color: #1a171433; }
+:root[data-theme="light"] .sp .switch-row, :root[data-theme="light"] .sp .panel.set .switch-row, :root[data-theme="light"] .sp .set-row.sound-fade, :root[data-theme="light"] .sp .dj-level { background: #1a17140a; }
+:root[data-theme="light"] .sp .switch { background: #1a171438; }
+:root[data-theme="light"] .card .cover.square, :root[data-theme="light"] .pl-grid .card .cover.square { box-shadow: 0 12px 26px #1a171433; }

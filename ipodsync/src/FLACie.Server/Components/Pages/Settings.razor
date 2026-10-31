@@ -90,6 +90,15 @@
 <section class="panel set" id="look">
     <div class="set-head"><h2>Appearance</h2><p class="hint">Personal tweaks, saved in this browser only (your phone has its own in its Settings).</p></div>
     <div class="form">
+        <label>Theme</label>
+        <div class="seg" role="radiogroup" aria-label="Theme">
+            @foreach (var (id, name) in Themes)
+            {
+                var th = id;
+                <button type="button" role="radio" class="@(look.Theme == th ? "sel" : "")" aria-checked="@(look.Theme == th ? "true" : "false")" @onclick="() => SetLook(theme: th)">@name</button>
+            }
+        </div>
+        <small class="hint">System follows your computer's light or dark setting. The player keeps the colours of the cover in either.</small>
         <label>Accent colour</label>
         <div class="swatches" role="radiogroup" aria-label="Accent colour">
             @foreach (var (name, hex) in Accents)
@@ -158,8 +167,9 @@
 
     // ---- look and feel: kept in this browser (localStorage, applied by flacie.js on every page) ----
     [Inject] IJSRuntime Js { get; set; } = default!;
-    sealed record Look(string Accent, bool Compact, bool Badges, bool Motion, bool ArtBg);
+    sealed record Look(string Accent, bool Compact, bool Badges, bool Motion, bool ArtBg, string Theme = "dark");
     Look look = new("", false, true, true, true);
+    static readonly (string Id, string Name)[] Themes = [("dark", "Dark"), ("light", "Light"), ("system", "System")];
     static readonly (string Name, string Hex)[] Accents = [("Pink", ""), ("Red", "#ff4d4d"), ("Orange", "#ff8a3d"), ("Yellow", "#ffd23d"), ("Green", "#3ddc84"), ("Teal", "#2dd4bf"), ("Blue", "#4d9bff"), ("Purple", "#a566ff")];
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -171,17 +181,17 @@
         {
             if (System.Text.Json.Nodes.JsonNode.Parse(await Js.InvokeAsync<string>("flacieUi.get")) is { } j)
             {
-                look = new(j["accent"]?.GetValue<string>() ?? "", j["compact"]?.GetValue<bool>() ?? false, j["badges"]?.GetValue<bool>() ?? true, j["motion"]?.GetValue<bool>() ?? true, j["artbg"]?.GetValue<bool>() ?? true);
+                look = new(j["accent"]?.GetValue<string>() ?? "", j["compact"]?.GetValue<bool>() ?? false, j["badges"]?.GetValue<bool>() ?? true, j["motion"]?.GetValue<bool>() ?? true, j["artbg"]?.GetValue<bool>() ?? true, j["theme"]?.GetValue<string>() is "light" or "system" ? j["theme"]!.GetValue<string>() : "dark");
                 StateHasChanged();
             }
         }
         catch (Exception) { }
     }
 
-    void SetLook(string? accent = null, bool? compact = null, bool? badges = null, bool? motion = null, bool? artBg = null)
+    void SetLook(string? accent = null, bool? compact = null, bool? badges = null, bool? motion = null, bool? artBg = null, string? theme = null)
     {
-        look = new(accent ?? look.Accent, compact ?? look.Compact, badges ?? look.Badges, motion ?? look.Motion, artBg ?? look.ArtBg);
-        _ = Js.InvokeVoidAsync("flacieUi.set", System.Text.Json.JsonSerializer.Serialize(new { accent = look.Accent, compact = look.Compact, badges = look.Badges, motion = look.Motion, artbg = look.ArtBg }));
+        look = new(accent ?? look.Accent, compact ?? look.Compact, badges ?? look.Badges, motion ?? look.Motion, artBg ?? look.ArtBg, theme ?? look.Theme);
+        _ = Js.InvokeVoidAsync("flacieUi.set", System.Text.Json.JsonSerializer.Serialize(new { accent = look.Accent, compact = look.Compact, badges = look.Badges, motion = look.Motion, artbg = look.ArtBg, theme = look.Theme }));
     }
 
     void ResetLook() { look = new("", false, true, true, true); _ = Js.InvokeVoidAsync("flacieUi.set", "{}"); }

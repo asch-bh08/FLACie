@@ -240,6 +240,7 @@ public static class PeerRace
     public static bool GiveUp(long bytes, long sinceStartMs, long sinceMovedMs, bool othersToTry) =>
         othersToTry ? sinceMovedMs > 20_000 : bytes == 0 ? sinceStartMs > 60_000 : sinceMovedMs > 45_000;
 
-    public static bool StartAnother(int active, bool anySending, int waiting) =>
-        waiting > 0 && (active == 0 || (!anySending && active < MaxAtOnce));
+    /// <summary>[max]: three peers for a normal copy; a Hi-Res copy (several times the size) races two, so it does not take every slot slskd has.</summary>
+    public static bool StartAnother(int active, bool anySending, int waiting, int max = MaxAtOnce) =>
+        waiting > 0 && (active == 0 || (!anySending && active < max));
 }

@@ -7,8 +7,9 @@ namespace FLACie.Core;
 public enum DownloadStage { Requested, Searching, Downloading, Importing, Scanning, Done, Failed }
 
 /// <summary><see cref="NewTracks"/> are set on a Soulseek win's Done status: songs the caller can add to the library, playable at once
-/// through the file mover. Lidarr wins arrive through the Jellyfin scan.</summary>
-public sealed record DownloadStatus(DownloadStage Stage, string Message, string? Source = null, IReadOnlyList<Track>? NewTracks = null, bool Miss = false);
+/// through the file mover. Lidarr wins arrive through the Jellyfin scan. <see cref="HiRes"/> on a Done status: the copy that arrived is Hi-Res, so
+/// it needs no upgrade later (anything else that FLACie filed goes on the upgrade list).</summary>
+public sealed record DownloadStatus(DownloadStage Stage, string Message, string? Source = null, IReadOnlyList<Track>? NewTracks = null, bool Miss = false, bool HiRes = false);
 
 /// <summary>The download stack's addresses and keys, as the Android app keeps them in the shared profile (<c>services</c>). They stay
 /// on the server: the browser only ever sees progress messages.</summary>
@@ -41,25 +42,45 @@ public sealed record DownloadServices(string SlskdUrl, string SlskdKey, string S
     }
 }
 
-/// <summary>"Download this": Soulseek (slskd) first, since a live peer usually has a popular song right now, with Lidarr's indexer search
-/// as the fallback. A Soulseek file is moved by the file mover into the folder Jellyfin scans (<c>Artist/Artist - Title.ext</c>, or
-/// <c>Artist/Album/NN - Title.ext</c> for an album). Same behaviour as the Android DownloadCoordinator.</summary>
-public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, DownloadServices cfg, HttpClient? longHttp = null)
+/// <summary>"Download this", the quick way (smart downloads, docs/superpowers/specs/2026-11-01-smart-downloads-design.md): one Soulseek search ranked
+/// into normal and Hi-Res copies, YouTube where it is on, and the open sources all start at once, and the first copy that is filed and playable plays
+/// (a Hi-Res copy only a few seconds behind still wins, see <see cref="DownloadRace"/>). Lidarr's indexer search is the fallback when none of them has
+/// it. A Soulseek file is moved by the file mover into the folder Jellyfin scans (<c>Artist/Artist - Title.ext</c>, <c>Artist/Artist - Title [Hi-Res].ext</c>
+/// for a Hi-Res copy, or <c>Artist/Album/NN - Title.ext</c> for an album).</summary>
+public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, DownloadServices cfg, HttpClient? longHttp = null, IFileMover? fileMover = null)
 {
     SlskdClient Slskd => new(http, cfg.SlskdUrl, cfg.SlskdKey);
+    IFileMover Mover => fileMover ??= new FileMoverClient(http, cfg.FileMoverUrl, cfg.FileMoverKey);
 
     public async Task DownloadAsync(string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct = default)
     {
         on(new(DownloadStage.Requested, $"Requested \"{title}\""));
-        // the open finders (Internet Archive, Audius, Jamendo) look for the song while Soulseek searches; they only find, and nothing is downloaded from them unless Soulseek came up empty
-        using var finders = cfg.OpenReady ? OpenSources.Start(http, artist, title, (int)(durationMs / 1000), cfg.OpenCfg, TimeSpan.FromSeconds(25), ct) : null;
-        if (cfg.SoulseekReady)
+        var sec = (int)(durationMs / 1000);
+        // YouTube and the open sources can't be stopped once their file mover has started filing, so they only race when a copy that lost can be moved
+        // out of the library again (a file mover with /retire). With an older file mover they keep their old turn, after Soulseek, as before. The file
+        // mover is asked while Soulseek already searches: a slow answer never holds the download up.
+        var canRace = cfg.FileMoverUrl.Length > 0 && cfg.OpenReady ? Mover.CanRetireAsync(ct) : Task.FromResult(false);
+        using var finders = cfg.OpenReady ? OpenSources.Start(http, artist, title, sec, cfg.OpenCfg, TimeSpan.FromSeconds(25), ct) : null;
+        using var searching = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var entrants = new List<RaceEntrant>();
+        if (cfg.SoulseekReady) entrants.AddRange(SoulseekEntrants(artist, title, album, artUrl, sec, on, searching.Token, ct));
+        if (cfg.OpenReady) entrants.AddRange(OpenEntrants(canRace, finders, artist, title, album, artUrl, durationMs, on, ct));
+        var racing = false;
+        if (entrants.Count > 0)
         {
-            if (await Guard("Soulseek", "soulseek", on, ct, () => TrySoulseek(artist, title, album, artUrl, (int)(durationMs / 1000), on, ct))) return;
-            on(new(DownloadStage.Searching, "Soulseek had nothing it could finish", "soulseek", null, true));
+            RaceWin? win;
+            try { win = await DownloadRace.RunAsync(entrants, late => _ = RetireAsync(late), ct); }
+            finally { searching.Cancel(); }
+            racing = await canRace;
+            if (win is not null)
+            {
+                on(new(DownloadStage.Done, win.HiRes ? $"\"{title}\" is ready to play (Hi-Res)" : $"\"{title}\" is ready to play", win.Source, [win.Track], HiRes: win.HiRes));
+                return;
+            }
+            if (cfg.SoulseekReady) on(new(DownloadStage.Searching, racing ? "No source had a copy it could finish" : "Soulseek had nothing it could finish", "soulseek", null, true));
         }
-        // Soulseek had nothing: the open sources in the user's order, then Lidarr
-        if (cfg.OpenReady && await Guard("The open sources", "archive", on, ct, () => TryOpen(finders, artist, title, album, artUrl, durationMs, on, ct))) return;
+        // an older file mover: Soulseek had nothing, so the open sources in the user's order, then Lidarr
+        if (!racing && cfg.OpenReady && await Guard("The open sources", "archive", on, ct, () => TryOpen(finders, artist, title, album, artUrl, durationMs, on, ct))) return;
         if (!cfg.LidarrReady) { on(new(DownloadStage.Failed, cfg.SoulseekReady ? "Not found on Soulseek or the open sources" + Unreachable : cfg.OpenReady ? "Not found on the open sources" + Unreachable : "Downloads aren't set up (Settings > Downloads)")); return; }
         if (!await Guard("Lidarr", "lidarr", on, ct, () => new LidarrFlow(http, cfg).TryAsync(artist, title, album, on, ct))) on(new(DownloadStage.Failed, "Not found on Soulseek, the open sources or Lidarr" + Unreachable));
     }
@@ -82,6 +103,68 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
     /// <summary>Set when the YouTube service (the file mover) could not be reached, so a failure says that rather than only "not found": it was not a real "no".</summary>
     string? serviceDown;
     string Unreachable => serviceDown is null ? "" : $". {serviceDown}; try again in a minute";
+
+    /// <summary>
+    /// Soulseek's two runners in the race, sharing one search (spec section 1): normal copies (lossless or 320 kbps, up to three peers at once) and Hi-Res
+    /// copies (up to two peers), each from its own ranking of the same results. The search and the transfers stop when the race is settled ([search] and
+    /// the race's own token); filing a finished file into the library is not cut off half way ([ct]), and a copy filed that late is retired by the race.
+    /// </summary>
+    IEnumerable<RaceEntrant> SoulseekEntrants(string artist, string title, string album, string? artUrl, int durationSec, Action<DownloadStatus> on, CancellationToken search, CancellationToken ct)
+    {
+        var sl = Slskd;
+        var found = new Lazy<Task<List<SlskdFile>>>(() => SearchSong(sl, artist, title, durationSec, false, on, search), LazyThreadSafetyMode.ExecutionAndPublication);
+        async Task<Track?> Run(RaceEntrant e, bool hiRes, CancellationToken race)
+        {
+            using var both = CancellationTokenSource.CreateLinkedTokenSource(race, search);
+            var cands = SlskdClient.RankSong(await found.Value, artist, title, durationSec, hiRes);
+            if (cands.Count == 0) return null;
+            var hit = await FetchFirst(sl, cands, m => on(new(DownloadStage.Downloading, hiRes ? m.Replace("Downloading", "Downloading a Hi-Res copy") : m, "soulseek")), both.Token,
+                hiRes ? 2 : PeerRace.MaxAtOnce, hiRes ? (got, size) => e.Report(got, size) : null);
+            if (hit is null) return null;
+            on(new(DownloadStage.Importing, "Filing into the library...", "soulseek"));
+            return await FileAsync(hit, artist, title, album, 0, 0, durationSec * 1000L, $"{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}{(hiRes ? " [Hi-Res]" : "")}", null, artist, artUrl, ct);
+        }
+        on(new(DownloadStage.Searching, "Searching Soulseek...", "soulseek"));
+        yield return new RaceEntrant("soulseek", false, (e, race) => Run(e, false, race));
+        yield return new RaceEntrant("soulseek", true, (e, race) => Run(e, true, race));
+    }
+
+    /// <summary>YouTube (where it is on) and the open finders in the race. Each finder that has the song is fetched by the file mover; the first finder to
+    /// answer is taken (two at once would write the same file). Neither can be stopped once the file mover is filing, so that part runs on [ct] and a copy
+    /// that lands after the race is settled is retired. Both first wait for [canRace]: with an older file mover (no /retire) they step out of the race
+    /// with nothing, and run in their old turn after Soulseek instead.</summary>
+    IEnumerable<RaceEntrant> OpenEntrants(Task<bool> canRace, OpenSources.Finders? finders, string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct)
+    {
+        if (cfg.OpenCfg.Active.Contains(OpenSourceSettings.YtdlId))
+            yield return new RaceEntrant(OpenSourceSettings.YtdlId, false, async (_, race) => await canRace.WaitAsync(race) ? await YtdlAsync(artist, title, album, artUrl, durationMs, on, race, ct) : null);
+        if (finders is { Tasks.Count: > 0 })
+            yield return new RaceEntrant("open", false, async (e, race) =>
+            {
+                if (!await canRace.WaitAsync(race)) return null;
+                var left = finders.Tasks.Values.ToList();
+                while (left.Count > 0)
+                {
+                    var done = await Task.WhenAny(left).WaitAsync(race);
+                    left.Remove(done);
+                    if (await done is not { } hit || !OpenSources.Allowed(hit)) continue;
+                    on(new(DownloadStage.Downloading, $"Downloading from {hit.Label}...", hit.Source));
+                    var dest = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}.{hit.Ext}";
+                    if (!await FetchViaFileMover(hit.Url, dest, ct)) { on(new(DownloadStage.Searching, OpenSourceSettings.Name(hit.Source) + " had it, but the download failed", hit.Source, null, true)); continue; }
+                    e.Source = hit.Source;   // the job's label says which open source it was (Internet Archive, Audius, Jamendo)
+                    return OpenTrack(dest, title, artist, album, artUrl, durationMs > 0 ? durationMs : hit.DurationSec * 1000L);
+                }
+                return null;
+            });
+    }
+
+    /// <summary>A copy that lost the race but was filed anyway: moved out of the library by the file mover, so the song is not there twice.</summary>
+    async Task RetireAsync(RaceWin late)
+    {
+        if (FileOf(late.Track.Path) is { Length: > 0 } rel) try { await Mover.RetireAsync(rel); } catch (Exception) { }
+    }
+
+    /// <summary>The path under the file mover's root of a track that plays from <c>/file?path=</c>.</summary>
+    static string? FileOf(string path) { var i = path.IndexOf("/file?path=", StringComparison.Ordinal); return i < 0 ? null : Uri.UnescapeDataString(path[(i + "/file?path=".Length)..]); }
 
     /// <summary>The open sources in the user's order: a finder that already found the song (or finds it within a few seconds more; Soulseek's own search
     /// has usually given them time) is downloaded from, yt-dlp runs its own search and download when its turn comes. False when none had it.</summary>
@@ -126,13 +209,23 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
 
     async Task<bool> TryYtdl(string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct)
     {
+        if (await YtdlAsync(artist, title, album, artUrl, durationMs, on, ct, ct) is not { } track) return false;
+        on(new(DownloadStage.Done, $"\"{title}\" is ready to play", "ytdl", [track]));
+        return true;
+    }
+
+    /// <summary>YouTube's copy, filed and playable, or null. [before] stops it while it is still waiting for its turn (the race was settled elsewhere);
+    /// once the YouTube service is asked, only [ct] stops it, since the service files the song whatever happens to this request.</summary>
+    async Task<Track?> YtdlAsync(string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken before, CancellationToken ct)
+    {
         string why = "YouTube had no matching upload";
         try
         {
             on(new(DownloadStage.Searching, "Waiting for YouTube's turn...", "ytdl"));
-            await YtdlTurn.WaitAsync(ct);
+            await YtdlTurn.WaitAsync(before);
             try
             {
+                if (before.IsCancellationRequested) return null;
                 on(new(DownloadStage.Searching, "Looking on YouTube...", "ytdl"));
                 var noExt = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}";
                 for (var attempt = 0; attempt < 2; attempt++)
@@ -149,8 +242,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
                         {
                             on(new(DownloadStage.Importing, "Filing into the library...", "ytdl"));
                             var secs = j["durationSec"] is JsonValue d && d.TryGetValue<int>(out var n) ? n : 0;
-                            on(new(DownloadStage.Done, $"\"{title}\" is ready to play", "ytdl", [OpenTrack($"{noExt}.{ext}", title, artist, album, artUrl, durationMs > 0 ? durationMs : secs * 1000L)]));
-                            return true;
+                            return OpenTrack($"{noExt}.{ext}", title, artist, album, artUrl, durationMs > 0 ? durationMs : secs * 1000L);
                         }
                         // 404 = the search really found nothing usable; anything else is the YouTube service failing, worth one more try
                         var said = j?["error"]?.GetValue<string>() ?? "";
@@ -168,7 +260,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         catch (OperationCanceledException) { throw; }
         catch (Exception) { }
         on(new(DownloadStage.Searching, why, "ytdl", null, true));
-        return false;
+        return null;
     }
 
     /// <summary>Asks the file mover to download [url] straight into the library folder ([to], relative to its root).</summary>
@@ -225,28 +317,57 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         {
             on(new(DownloadStage.Searching, hiRes ? "Searching Soulseek for a Hi-Res copy..." : "Searching Soulseek...", "soulseek"));
             var sl = Slskd;
-            List<SlskdFile> found = [], cands = [];
-            var plan = SearchPlan(artist, title);
-            for (var i = 0; i < plan.Count; i++)
-            {
-                // the closing repeat of the first search is only worth its extra seconds when every earlier search came back completely empty
-                if (i == plan.Count - 1 && i > 0 && found.Count > 0) break;
-                found = await sl.SearchAsync(plan[i].Query, plan[i].TimeoutMs, ct: ct);
-                cands = SlskdClient.RankSong(found, artist, title, durationSec, hiRes);
-                if (cands.Count > 0) break;
-            }
-            if (cands.Count == 0 && !hiRes && SlskdClient.RankSong(found, artist, title, durationSec, hiRes: true).Count > 0)
-                on(new(DownloadStage.Searching, "Soulseek only has Hi-Res copies of this song. Use the Hi-Res download if you want one.", "soulseek", null, true));
+            var cands = SlskdClient.RankSong(await SearchSong(sl, artist, title, durationSec, hiRes, on, ct), artist, title, durationSec, hiRes);
             var hit = cands.Count == 0 ? null : await FetchFirst(sl, cands, m => on(new(DownloadStage.Downloading, m, "soulseek")), ct);
             if (hit is null) return false;
             on(new(DownloadStage.Importing, "Filing into the library...", "soulseek"));
             var track = await FileAsync(hit, artist, title, album, 0, 0, durationSec * 1000L, $"{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}{(hiRes ? " [Hi-Res]" : "")}", null, artist, artUrl, ct);
             if (track is null) { on(new(DownloadStage.Searching, "Soulseek sent the file but it could not be filed: " + (FileWhy.Value ?? "unknown reason"), "soulseek", null, true)); return false; }
-            on(new(DownloadStage.Done, hiRes ? $"\"{title}\" is ready to play (Hi-Res {HiResLabel(hit)})" : $"\"{title}\" is ready to play", "soulseek", [track]));
+            on(new(DownloadStage.Done, hiRes ? $"\"{title}\" is ready to play (Hi-Res {HiResLabel(hit)})" : $"\"{title}\" is ready to play", "soulseek", [track], HiRes: hiRes && hit.HiRes));
             return true;
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception) { return false; }
+    }
+
+    /// <summary>One song's Soulseek search, through <see cref="SearchPlan"/> until a query finds a usable copy: a Hi-Res one for [hiResOnly], otherwise a
+    /// normal or a Hi-Res one (the quick race ranks the same results both ways). Returns every file the last query found.</summary>
+    static async Task<List<SlskdFile>> SearchSong(SlskdClient sl, string artist, string title, int durationSec, bool hiResOnly, Action<DownloadStatus> on, CancellationToken ct)
+    {
+        List<SlskdFile> found = [];
+        var plan = SearchPlan(artist, title);
+        for (var i = 0; i < plan.Count; i++)
+        {
+            // the closing repeat of the first search is only worth its extra seconds when every earlier search came back completely empty
+            if (i == plan.Count - 1 && i > 0 && found.Count > 0) break;
+            found = await sl.SearchAsync(plan[i].Query, plan[i].TimeoutMs, ct: ct);
+            if (SlskdClient.RankSong(found, artist, title, durationSec, hiRes: true).Count > 0) break;
+            if (!hiResOnly && SlskdClient.RankSong(found, artist, title, durationSec).Count > 0) break;
+        }
+        return found;
+    }
+
+    /// <summary>
+    /// One look for a better copy of a song on the upgrade list (spec section 2): Soulseek's Hi-Res copies only, or for [lossless] (the step for a YouTube
+    /// or lossy copy) a CD-quality lossless one. A peer that is sending keeps going however long it takes; a peer that never starts still gives up
+    /// (<see cref="PeerRace"/>). The copy is filed next to [oldFile] in the same folder ("Artist - Title [Hi-Res].flac", or "Artist - Title.flac" for
+    /// the lossless step), never on top of it. Null when nobody had one or nobody delivered.
+    /// </summary>
+    public async Task<UpgradeCopy?> UpgradeAsync(string artist, string title, string album, long durationMs, string oldFile, bool lossless, CancellationToken ct = default)
+    {
+        if (!cfg.SoulseekReady) return null;
+        var sl = Slskd; var sec = (int)(durationMs / 1000);
+        var found = await SearchSong(sl, artist, title, sec, !lossless, _ => { }, ct);
+        var cands = lossless ? SlskdClient.RankSong(found, artist, title, sec).Where(f => f.Lossless).ToList() : SlskdClient.RankSong(found, artist, title, sec, hiRes: true);
+        if (cands.Count == 0) return null;
+        var hit = await FetchFirst(sl, cands, _ => { }, ct, maxAtOnce: 2, patient: true);
+        if (hit is null) return null;
+        var ext = hit.Leaf.Contains('.') ? hit.Leaf[(hit.Leaf.LastIndexOf('.') + 1)..] : "flac";
+        var folder = oldFile.Replace('\\', '/') is var o && o.Contains('/') ? o[..o.LastIndexOf('/')] : "";
+        var dest = (folder.Length > 0 ? folder + "/" : "") + $"{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}{(lossless ? "" : " [Hi-Res]")}.{ext}";
+        if (string.Equals(dest, oldFile, StringComparison.OrdinalIgnoreCase)) return null;   // never filed on top of the file it is meant to replace
+        var track = await FileAsync(hit, artist, title, album, 0, 0, durationMs, "", null, artist, null, ct, dest);
+        return track is null ? null : new UpgradeCopy(track, dest, hit.Size);
     }
 
     static string HiResLabel(SlskdFile f) => f.BitDepth is { } d && f.SampleRate is { } r ? $"{d}-bit / {r / 1000.0:0.#} kHz" : f.SampleRate is { } r2 ? $"{r2 / 1000.0:0.#} kHz" : f.BitDepth is { } d2 ? $"{d2}-bit" : "lossless";
@@ -330,12 +451,20 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         return tracks;
     }
 
-    /// <summary>Downloads one song from the best candidates: up to three peers at once until one is sending, a peer dropped when it fails or
-    /// goes silent (see <see cref="PeerRace"/>), the rest cancelled once one finishes. Null if none delivered.</summary>
-    static async Task<SlskdFile?> FetchFirst(SlskdClient sl, List<SlskdFile> cands, Action<string> progress, CancellationToken ct)
+    /// <summary>Downloads one song from the best candidates: up to [maxAtOnce] peers at once (three, two for Hi-Res) until one is sending, a peer dropped
+    /// when it fails or goes silent (see <see cref="PeerRace"/>), the rest cancelled once one finishes. Null if none delivered. [bytes] hears how the
+    /// leading transfer is going (the race estimates a Hi-Res copy from it). [patient] is the upgrade worker: no overall time limit while a peer is
+    /// sending. Cancelled (the race was settled elsewhere), the transfers still running are stopped in slskd too, not left to finish unseen.</summary>
+    static async Task<SlskdFile?> FetchFirst(SlskdClient sl, List<SlskdFile> cands, Action<string> progress, CancellationToken ct, int maxAtOnce = PeerRace.MaxAtOnce, Action<long, long>? bytes = null, bool patient = false)
+    {
+        var active = new List<Active>();
+        try { return await FetchFirstCore(sl, cands, progress, active, ct, maxAtOnce, bytes, patient); }
+        finally { foreach (var a in active.ToList()) { active.Remove(a); if (a.Id is not null) await sl.CancelAsync(a.F.Username, a.Id); } }
+    }
+
+    static async Task<SlskdFile?> FetchFirstCore(SlskdClient sl, List<SlskdFile> cands, Action<string> progress, List<Active> active, CancellationToken ct, int maxAtOnce, Action<long, long>? bytes, bool patient)
     {
         var queue = new Queue<SlskdFile>(cands.Take(8));
-        var active = new List<Active>();
         async Task Drop(Active a) { active.Remove(a); if (a.Id is not null) await sl.CancelAsync(a.F.Username, a.Id); }
         async Task StartNext()
         {
@@ -345,9 +474,9 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
                 try { await sl.DownloadAsync([f], ct); active.Add(new Active(f, Environment.TickCount64)); return; } catch (OperationCanceledException) { throw; } catch (Exception) { }
             }
         }
-        while (PeerRace.StartAnother(active.Count, false, queue.Count)) { var before = active.Count; await StartNext(); if (active.Count == before) break; }
+        while (PeerRace.StartAnother(active.Count, false, queue.Count, maxAtOnce)) { var before = active.Count; await StartNext(); if (active.Count == before) break; }
         var deadline = Environment.TickCount64 + 8 * 60_000;
-        while (active.Count > 0 && Environment.TickCount64 < deadline)
+        while (active.Count > 0 && (Environment.TickCount64 < deadline || (patient && active.Any(x => x.Bytes > 0))))
         {
             await Task.Delay(1000, ct);
             var now = Environment.TickCount64;
@@ -355,17 +484,20 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
             {
                 var t = (await sl.TransfersAsync(a.F.Username, ct)).GetValueOrDefault(a.F.Filename);
                 if (t is not null) a.Id = t.Id;
-                if (t?.Done == true) { foreach (var o in active.Where(x => x != a).ToList()) await Drop(o); return a.F; }
+                if (t?.Done == true) { active.Remove(a); bytes?.Invoke(a.F.Size, a.F.Size); foreach (var o in active.ToList()) await Drop(o); return a.F; }
                 if (t?.Done == false) await Drop(a);
                 else if (t is not null && t.Bytes > a.Bytes) { a.Bytes = t.Bytes; a.Moved = now; }
                 else if (PeerRace.GiveUp(a.Bytes, now - a.Started, now - a.Moved, queue.Count > 0 || active.Count > 1)) await Drop(a);
             }
             // more peers while none is sending yet, and a dropped one replaced
-            while (PeerRace.StartAnother(active.Count, active.Any(x => x.Bytes > 0), queue.Count)) { var before = active.Count; await StartNext(); if (active.Count == before) break; }
-            if (active.MaxBy(x => x.Bytes) is { } best) progress(best.Bytes == 0 ? "Waiting for a peer..." : $"Downloading {Math.Min(99, best.Bytes * 100 / Math.Max(1, best.F.Size))}%...");
+            while (PeerRace.StartAnother(active.Count, active.Any(x => x.Bytes > 0), queue.Count, maxAtOnce)) { var before = active.Count; await StartNext(); if (active.Count == before) break; }
+            if (active.MaxBy(x => x.Bytes) is { } best)
+            {
+                bytes?.Invoke(best.Bytes, best.F.Size);
+                progress(best.Bytes == 0 ? "Waiting for a peer..." : $"Downloading {Math.Min(99, best.Bytes * 100 / Math.Max(1, best.F.Size))}%...");
+            }
         }
-        foreach (var a in active.ToList()) await Drop(a);
-        return null;
+        return null;   // the transfers still running are stopped by FetchFirst
     }
 
     sealed class Active(SlskdFile f, long started) { public SlskdFile F = f; public long Started = started, Moved = started, Bytes; public string? Id; }
@@ -400,13 +532,14 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
     /// and returns a Track that plays from the file mover's <c>/file?path=</c> URL (before Jellyfin has scanned it). slskd keeps only the
     /// peer's immediate parent folder, which is how the inbox path is rebuilt.</summary>
     static readonly AsyncLocal<string?> FileWhy = new();
-    async Task<Track?> FileAsync(SlskdFile hit, string artist, string title, string album, int trackNo, int discNo, long durationMs, string name, string? albumFolder, string trackArtist, string? artUrl, CancellationToken ct)
+    async Task<Track?> FileAsync(SlskdFile hit, string artist, string title, string album, int trackNo, int discNo, long durationMs, string name, string? albumFolder, string trackArtist, string? artUrl, CancellationToken ct, string? destination = null)
     {
         var parts = hit.Filename.Replace('\\', '/').Split('/').Where(p => p.Trim().Length > 0).ToArray();
         var inbox = cfg.SlskdPath.Trim('/');
         var source = parts.Length >= 2 ? $"{inbox}/{parts[^2]}/{parts[^1]}" : $"{inbox}/{parts[^1]}";
         var ext = parts[^1].Contains('.') ? parts[^1][(parts[^1].LastIndexOf('.') + 1)..] : "mp3";
-        var dest = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist), albumFolder }.Where(x => !string.IsNullOrEmpty(x))) + $"/{name}.{ext}";
+        // an upgrade says exactly where (next to the file it replaces); everything else goes in the artist's folder
+        var dest = destination ?? string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist), albumFolder }.Where(x => !string.IsNullOrEmpty(x))) + $"/{name}.{ext}";
         try
         {
             // slskd reports a transfer complete a moment before it has moved the file from its incomplete folder into the downloads folder, so the first

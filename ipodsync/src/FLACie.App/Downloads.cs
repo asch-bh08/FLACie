@@ -27,6 +27,10 @@ public sealed class DownloadJob(string id, string label, string? artKey, string 
     /// <summary>The source that delivered it, once it is done.</summary>
     public string? Source { get; internal set; }
     public string? File { get; internal set; }
+    /// <summary>Where the song plays from once it is done (the file mover's <c>/file?path=</c> address).</summary>
+    public string? TrackPath { get; internal set; }
+    /// <summary>The copy that arrived is Hi-Res (it needs no upgrade later).</summary>
+    public bool HiRes { get; internal set; }
     public List<TrailStep> Trail { get; } = [];
     public bool Finished => Stage is DownloadStage.Done or DownloadStage.Failed;
 
@@ -36,7 +40,7 @@ public sealed class DownloadJob(string id, string label, string? artKey, string 
         lock (Trail)
         {
             if (!st.Miss) { Stage = st.Stage; Message = st.Message; if (st.Source is not null) Current = st.Source; }
-            if (st.Stage == DownloadStage.Done) { Source = st.Source; if (st.NewTracks is { Count: > 0 } t) File = FileOf(t[0].Path); }
+            if (st.Stage == DownloadStage.Done) { Source = st.Source; HiRes = st.HiRes; if (st.NewTracks is { Count: > 0 } t) { File = FileOf(t[0].Path); TrackPath = t[0].Path; } }
             if (Trail.Count == 0 || Trail[^1].Text != st.Message || Trail[^1].Source != st.Source) { Trail.Add(new(DateTime.UtcNow, st.Source, st.Message, st.Miss)); if (Trail.Count > 40) Trail.RemoveAt(1); }
         }
     }

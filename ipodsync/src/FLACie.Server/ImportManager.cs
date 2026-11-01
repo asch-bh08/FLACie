@@ -135,7 +135,8 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
             await Task.Delay(TimeSpan.FromMinutes(5), ct);
         }
         if (job.State == "waiting") { job.State = "running"; job.Note = null; }
-        var r = await downloads.FetchAsync(s, "Import", item.Artist, item.Title, item.Album, null, 0, ct);
+        // a playlist file is filled in the background: Hi-Res where it exists (smart downloads), the quick way where it does not
+        var r = await downloads.FetchAsync(s, "Import", item.Artist, item.Title, item.Album, null, 0, ct, DownloadMode.HiRes);
         if (r.Ok && r.Tracks.Count > 0) { foreach (var t in r.Tracks) s.AddToPlaylist(plId, t); item.State = "done"; }
         else if (r.Ok) { item.State = "requested"; item.Message = "Requested from Lidarr; it appears after the next scan"; }
         else { item.State = "failed"; item.Message = r.Message; }

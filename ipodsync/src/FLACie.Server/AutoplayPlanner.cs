@@ -36,7 +36,12 @@ public sealed class AutoplayPlanner(WebCatalog catalog, DownloadManager download
     }
 
     /// <summary>Starts fetching up to [max] of the songs the library doesn't have, [onEach] called as each arrives (or fails).</summary>
-    public void Prefetch(UserSession s, IEnumerable<CatalogSong> wanted, int max, Action onEach)
+    public void Prefetch(UserSession s, IEnumerable<CatalogSong> wanted, int max, Action onEach) => Prefetch(s, wanted, max, onEach, 0);
+
+    /// <summary>The same, with [placesBefore] songs of the queue still to play before the first of [wanted]. Each song's place decides how it is fetched
+    /// (smart downloads): the next song or the one after the quick way, so it is there in time; three or more places down in Hi-Res, which saves an
+    /// upgrade later (and falls back to the quick way when no Hi-Res copy exists).</summary>
+    public void Prefetch(UserSession s, IEnumerable<CatalogSong> wanted, int max, Action onEach, int placesBefore)
     {
         if (!states.For(s).Prefetch || !downloads.Ready(s)) return;
         var n = 0;
@@ -47,7 +52,8 @@ public sealed class AutoplayPlanner(WebCatalog catalog, DownloadManager download
             if (downloads.RecentlyFetched(s, song.Artist, song.Title)) continue;
             if (!guard.Ok(s)) break;
             n++;
-            _ = downloads.FetchAsync(s, "Autoplay", song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs)
+            var mode = SmartDownloads.ModeFor(placesBefore + n);
+            _ = downloads.FetchAsync(s, "Autoplay", song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs, default, mode)
                 .ContinueWith(_ => onEach(), TaskScheduler.Default);
         }
     }

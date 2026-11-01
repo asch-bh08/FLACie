@@ -195,7 +195,8 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
             var s = session;
             var missing = suggested.Where(x => lib.Find(x.Title, x.Artist) is null && Matching.MatchKey(x.Title, x.Artist) != Matching.MatchKey(seed)).Take(8);
             foreach (var m in missing) fetchedKeys.Add(Matching.MatchKey(m.Title, m.Artist));
-            planner.Prefetch(s, missing, 5, () => { RefreshSuggestions(); Changed?.Invoke(); });
+            // the suggestions play after what is left of the queue: how many songs come first decides quick or Hi-Res for each (smart downloads)
+            planner.Prefetch(s, missing, 5, () => { RefreshSuggestions(); Changed?.Invoke(); }, Math.Max(0, Queue.Count - 1 - Index));
         }
         catch (OperationCanceledException) { }
         catch (Exception) { }

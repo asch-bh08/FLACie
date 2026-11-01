@@ -22,6 +22,9 @@ public interface IAutoplayPlanner
     Task<List<CatalogSong>> RelatedAsync(Track seed, CancellationToken ct = default);
     IReadOnlyList<CatalogSong> Fetching(UserSession s, IEnumerable<CatalogSong> suggested);
     void Prefetch(UserSession s, IEnumerable<CatalogSong> wanted, int max, Action onEach);
+    /// <summary>The same, knowing that [placesBefore] songs of the queue still play before the first of [wanted]: a song three or more places down is
+    /// fetched in Hi-Res (smart downloads), a nearer one the quick way. A host without smart downloads fetches them as before.</summary>
+    void Prefetch(UserSession s, IEnumerable<CatalogSong> wanted, int max, Action onEach, int placesBefore) => Prefetch(s, wanted, max, onEach);
 }
 
 /// <summary>What a file really is (codec, rate, depth), for the desk's Now Playing card and the scenes' displays.</summary>

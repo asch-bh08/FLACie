@@ -8,7 +8,7 @@ namespace FLACie.Server;
 /// Every download on the server comes through here (Search, Download all, charts, imports, Autoplay, Alexa, the DJ), so this is also where the
 /// server-wide "Allow downloads" switch (<see cref="DownloadPolicy"/>) is checked: while it is off nothing is fetched, whoever or whatever asks.
 /// Without a policy (the tests) downloads are allowed.</summary>
-public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, DownloadLog log, JellyfinClient jf, DownloadDigest digest, DownloadPolicy? policy = null) : IDownloads
+public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, DownloadLog log, JellyfinClient jf, DownloadDigest digest, DownloadPolicy? policy = null, UpgradeStore? upgrades = null) : IDownloads
 {
     /// <summary>What a fetch answers while the server's downloads are switched off.</summary>
     public const string OffMessage = "Downloads are turned off on this server";
@@ -20,7 +20,7 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
     sealed class Jobs
     {
         public readonly List<DownloadJob> List = [];
-        public readonly Dictionary<string, Task<DownloadResult>> InFlight = [];
+        public readonly Dictionary<string, (Task<DownloadResult> Task, DownloadJob? Job)> InFlight = [];
         public readonly Dictionary<string, DateTime> Failed = [];
         public readonly RecentKeys Succeeded = new(500);
         /// <summary>For the tags under songs (see <see cref="DownloadManager.StatusOf"/>): the song downloads running now, and when each song last finished or failed
@@ -96,6 +96,18 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
         try { log.Add(job.ToRecord(s)); } catch (Exception) { }
         NoteFinished(jobs, job);
         if (job.Stage == DownloadStage.Done && job.File is not null) ScanSoon(s);
+        // smart downloads: a song that arrived below Hi-Res (YouTube, a 320, a CD-quality FLAC) goes on the upgrade list, once, and the background worker
+        // swaps it for a verified Hi-Res copy when one turns up. An album's songs and Lidarr's (no file of ours) are not on it.
+        if (job is { Stage: DownloadStage.Done, HiRes: false, IsAlbum: false, File: { Length: > 0 } file } && job.Title.Length > 0 && upgrades is not null)
+            try
+            {
+                upgrades.Add(new UpgradeEntry
+                {
+                    UserId = s.Id, Artist = job.Artist, Title = job.Title, Album = job.Album, DurationMs = job.DurationMs, File = file, Source = job.Source,
+                    Format = Path.GetExtension(file).TrimStart('.').ToLowerInvariant(),
+                });
+            }
+            catch (Exception) { }
         // "Dad downloaded ...": only what the user asked for (searches), not songs fetched ahead for the queue, charts or imports (those have their own messages)
         if (job.Stage == DownloadStage.Done && job.Kind == "Search") digest.Done(s.Id, s.DisplayName, job.Title.Length > 0 ? $"{job.Title} - {job.Artist}" : job.Label);
         jobs.Raise();
@@ -313,34 +325,47 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
     /// <summary>Fetches one song for [kind] and tells when it is done. A song already on its way is shared, not fetched twice.</summary>
     Task IDownloads.FetchSongAsync(UserSession s, string kind, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct) => FetchAsync(s, kind, artist, title, album, artUrl, durationMs, ct);
 
-    public Task<DownloadResult> FetchAsync(UserSession s, string kind, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct = default)
+    /// <param name="mode">Quick (every source at once, the first playable copy plays) or Hi-Res (Hi-Res copies only, quick when there is none): the
+    /// fetch ahead for songs further down a queue, Autoplay's look-ahead, imports and charts ask for Hi-Res, since nobody is waiting on them this minute.</param>
+    public Task<DownloadResult> FetchAsync(UserSession s, string kind, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct = default, DownloadMode mode = DownloadMode.Quick) =>
+        Begin(s, kind, artist, title, album, artUrl, durationMs, ct, mode).Task;
+
+    /// <summary>Starts fetching one song and hands back its job, so its progress can be followed by id (the phone's POST /api/download). A song already on
+    /// its way gives the job that is fetching it. Null while downloads are off.</summary>
+    public DownloadJob? Start(UserSession s, string kind, string artist, string title, string album, long durationMs, DownloadMode mode) =>
+        Begin(s, kind, artist, title, album, null, durationMs, default, mode).Job;
+
+    (Task<DownloadResult> Task, DownloadJob? Job) Begin(UserSession s, string kind, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct, DownloadMode mode)
     {
-        if (!Allowed) return Task.FromResult(new DownloadResult(false, [], OffMessage));
+        if (!Allowed) return (Task.FromResult(new DownloadResult(false, [], OffMessage)), null);
         var j = For(s); var key = Key(artist, title);
         lock (j.InFlight)
         {
-            if (kind == "Autoplay" && j.Succeeded.Contains(key)) return Task.FromResult(new DownloadResult(true, [], "Fetched recently"));
+            if (kind == "Autoplay" && j.Succeeded.Contains(key)) return (Task.FromResult(new DownloadResult(true, [], "Fetched recently")), null);
             if (j.InFlight.TryGetValue(key, out var running)) return running;
-            var task = Task.Run(() => FetchCore(s, j, kind, artist, title, album, artUrl, durationMs, ct));
-            j.InFlight[key] = task;
+            // the job is there before this returns, so whoever started it can follow it by id at once
+            var job = Add(s, $"{title} · {artist}", artUrl, kind, artist, title, album, durationMs);
+            var task = Task.Run(() => FetchCore(s, j, job, artist, title, album, artUrl, durationMs, ct, mode));
+            j.InFlight[key] = (task, job);
             _ = task.ContinueWith(_ => { lock (j.InFlight) j.InFlight.Remove(key); });
-            return task;
+            return (task, job);
         }
     }
 
-    async Task<DownloadResult> FetchCore(UserSession s, Jobs jobs, string kind, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct)
+    async Task<DownloadResult> FetchCore(UserSession s, Jobs jobs, DownloadJob job, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct, DownloadMode mode)
     {
-        var job = Add(s, $"{title} · {artist}", artUrl, kind, artist, title, album, durationMs);
         var coordinator = new DownloadCoordinator(hf.CreateClient("downloads"), catalog, s.Services, hf.CreateClient("downloads-long"));
         var got = new List<Track>(); string last = "";
         try
         {
-            await coordinator.DownloadAsync(artist, title, album, artUrl, durationMs, st =>
+            void On(DownloadStatus st)
             {
                 job.Apply(st); if (!st.Miss) last = st.Message;
                 if (st.NewTracks is { Count: > 0 } t) { got.AddRange(t); s.AddDownloaded(t); NoteDone(jobs, t); }
                 jobs.Raise();
-            }, ct);
+            }
+            if (mode == DownloadMode.HiRes) await coordinator.DownloadHiResAsync(artist, title, album, artUrl, durationMs, On, ct);
+            else await coordinator.DownloadAsync(artist, title, album, artUrl, durationMs, On, ct);
         }
         catch (OperationCanceledException) { job.Apply(new(DownloadStage.Failed, "Cancelled")); Finish(s, job, jobs); return new(false, [], "Cancelled"); }
         catch (Exception e) { job.Apply(new(DownloadStage.Failed, e.Message)); last = e.Message; }

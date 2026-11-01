@@ -224,6 +224,54 @@ public static class ApiEndpoints
             return Results.Json(new { ok = true, known });
         }).DisableAntiforgery();
 
+        // smart downloads, the phone's side (spec section 4): the phone hands a download to FLACie Web, which runs the race and the upgrades for it, and follows
+        // it by id. The same rules as the web's Download button: signed in, downloads allowed on this server, the person's
+        // download services set up (the phone proves who it is with its Jellyfin token, as every /api call here does); the "api" rate limit, and a song already on its way is shared, not fetched twice.
+        // POST { artist, title, album?, durationMs?, mode: "quick" | "hires" } -> { id }
+        app.MapPost("/api/download", async (HttpContext ctx, SessionStore store, JellyfinClient jf, DownloadManager downloads) =>
+        {
+            var s = await Who(ctx, store, jf);
+            if (s is null) return Results.Unauthorized();
+            if (!downloads.Allowed) return Results.Json(new { error = DownloadManager.OffMessage }, statusCode: 403);
+            if (!s.Services.Any) return Results.Json(new { error = "Downloads aren't set up on FLACie Web for this account (Settings > Downloads)." }, statusCode: 409);
+            const int MaxBody = 16 * 1024;
+            if (ctx.Request.ContentLength is > MaxBody) return Results.Json(new { error = "That request is too big." }, statusCode: 413);
+            if (ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit) limit.MaxRequestBodySize = MaxBody;
+            System.Text.Json.Nodes.JsonObject? body;
+            try { body = await System.Text.Json.Nodes.JsonNode.ParseAsync(ctx.Request.Body) as System.Text.Json.Nodes.JsonObject; }
+            catch (System.Text.Json.JsonException) { body = null; }
+            catch (Microsoft.AspNetCore.Http.BadHttpRequestException) { return Results.Json(new { error = "That request is too big." }, statusCode: 413); }
+            if (body is null) return Results.BadRequest(new { error = "Send a JSON object." });
+            string? Str(string k, int max) => body[k] is System.Text.Json.Nodes.JsonValue v && v.TryGetValue<string>(out var x) && x.Trim() is { Length: > 0 } t ? (t.Length > max ? t[..max] : t) : null;
+            var artist = Str("artist", 200); var title = Str("title", 200);
+            if (artist is null || title is null) return Results.BadRequest(new { error = "Say which song: artist and title." });
+            var durationMs = body["durationMs"] is System.Text.Json.Nodes.JsonValue dv && dv.TryGetValue<long>(out var d) && d is > 0 and <= 86_400_000 ? d : 0;
+            DownloadMode? mode = body["mode"] is null ? DownloadMode.Quick : Str("mode", 10)?.ToLowerInvariant() switch { "quick" => DownloadMode.Quick, "hires" => DownloadMode.HiRes, _ => null };
+            if (mode is null) return Results.BadRequest(new { error = "mode is \"quick\" or \"hires\"." });
+            // asked for by someone (quick) or fetched ahead for the phone's queue (hires): the job's kind says which on the Downloads page
+            var job = downloads.Start(s, mode == DownloadMode.HiRes ? "Autoplay" : "Search", artist, title, Str("album", 200) ?? "", durationMs, mode.Value);
+            return job is null ? Results.Json(new { error = DownloadManager.OffMessage }, statusCode: 403) : Results.Json(new { id = job.Id });
+        }).DisableAntiforgery();
+
+        // GET -> { stage, message, source, done, failed, path, format, hiRes }: stage is requested / searching / downloading / importing / scanning / done / failed;
+        // source is one of the usual ids (soulseek, ytdl, lidarr, archive, audius, jamendo); path is the file once done, relative to the file mover's root with
+        // the NAS folder in front (as the phone files its own downloads and the download log keeps them; null for Lidarr, which files it itself); format is the
+        // file's extension. Only the caller's own jobs: anyone else's id is 404, as an unknown one is.
+        app.MapGet("/api/download/{id}", async (HttpContext ctx, string id, SessionStore store, JellyfinClient jf, DownloadManager downloads) =>
+        {
+            var s = await Who(ctx, store, jf);
+            if (s is null) return Results.Unauthorized();
+            if (id.Length is 0 or > 64) return Results.NotFound();
+            if (downloads.JobsOf(s).FirstOrDefault(j => j.Id == id) is not { } job) return Results.NotFound();
+            var path = job.Stage == DownloadStage.Done ? job.File : null;
+            var format = job.File is { } f && Path.GetExtension(f) is { Length: > 1 } ext ? ext[1..].ToLowerInvariant() : null;
+            return Results.Json(new
+            {
+                stage = job.Stage.ToString().ToLowerInvariant(), message = job.Message, source = job.Source ?? job.Current, done = job.Stage == DownloadStage.Done,
+                failed = job.Stage == DownloadStage.Failed, path, format, hiRes = job.HiRes,
+            });
+        });
+
         // the real format of every song the server has read (ffprobe / Jellyfin, never guessed from the extension), keyed like the apps key a file
         // (the last three path segments): the phone uses it for the Hi-Res badge and the Explore quality filter. [codec, sampleRate, bitDepth, kbps]
         // an Apple Lossless song as WAV, for players (the phone app) that have no ALAC decoder: this server decodes it itself, with the caller's own Jellyfin sign-in

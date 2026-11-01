@@ -37,6 +37,8 @@ public sealed class GateOptions
     public TimeSpan CoolDown { get; set; } = TimeSpan.FromSeconds(15);
     public TimeSpan BaseBackoff { get; set; } = TimeSpan.FromMilliseconds(250);
     public TimeSpan MaxBackoff { get; set; } = TimeSpan.FromSeconds(8);
+    /// <summary>The longest Retry-After a retry waits for; a longer one sends the answer back at once instead of holding the caller.</summary>
+    public TimeSpan MaxRetryAfter { get; set; } = TimeSpan.FromSeconds(30);
     /// <summary>At most this many background requests run at once (and always one slot is left for the others).</summary>
     public int MaxBackground { get; set; } = 2;
     /// <summary>Minimum time between two shrinks, so one bad burst does not collapse the limit to 1.</summary>
@@ -108,6 +110,12 @@ public sealed class JellyfinGate
             {
                 if (thrown is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(thrown).Throw();
                 return result;   // a response the caller classified as bad: it gets the response itself
+            }
+            // a Retry-After longer than MaxRetryAfter ("come back in ten minutes") is not waited out holding the caller: the answer goes back at once
+            if (fail is JellyfinHttpException { RetryAfter: { } far } && far > Options.MaxRetryAfter)
+            {
+                if (thrown is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(thrown).Throw();
+                return result;
             }
             Interlocked.Increment(ref retries);
             var wait = Backoff(attempt);
@@ -286,7 +294,8 @@ public sealed class JellyfinGate
         JellyfinHttpException => true,
         TimeoutException => true,
         OperationCanceledException => true,   // not the caller's (that case is caught first): a request timeout
-        HttpRequestException h => h is not JellyfinUnavailableException && (h.StatusCode is null || (int)h.StatusCode >= 500 || h.StatusCode == HttpStatusCode.TooManyRequests),
+        // 408: Jellyfin (or a proxy on a weak link) gave up waiting for the request itself, so asking again is the cure
+        HttpRequestException h => h is not JellyfinUnavailableException && (h.StatusCode is null || (int)h.StatusCode >= 500 || h.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.RequestTimeout),
         _ => false,
     };
 

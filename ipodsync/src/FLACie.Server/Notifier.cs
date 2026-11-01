@@ -82,14 +82,20 @@ public sealed class Notifier
         if (!title.StartsWith(PlayTracker.TitlePrefix, StringComparison.Ordinal)) title = PlayTracker.TitlePrefix + title;
         try
         {
-            using var req = new HttpRequestMessage(HttpMethod.Post, c.Url);
             var body = new JsonObject { ["topic"] = c.Topic, ["title"] = title, ["message"] = message, ["priority"] = Math.Clamp(priority, 1, 5) };
             if (!string.IsNullOrWhiteSpace(tags)) body["tags"] = new JsonArray(tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(t => (JsonNode)t!).ToArray());
-            req.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
-            if (Unprotect(c.Token) is { Length: > 0 } tok) req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + tok);
+            var json = body.ToJsonString(); var tok = Unprotect(c.Token);
+            HttpRequestMessage Make()
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post, c.Url) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+                if (tok.Length > 0) req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + tok);
+                return req;
+            }
             using var http = hf.CreateClient("catalog");
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            using var res = await http.SendAsync(req, cts.Token);
+            // sent again only when it certainly did not arrive (refused connection, 429, 503: HttpRetry); after a 500 or a timeout it may have, and a
+            // notification twice is worse than once. All within the same ten seconds.
+            using var res = await HttpRetry.SendAsync(http, Make, RetryPolicy.Default, cts.Token);
             var ok = res.IsSuccessStatusCode;
             var msg = ok ? "Sent"
                 : res.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden ? "ntfy rejected the token (needs write access to this topic)"

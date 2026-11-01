@@ -139,8 +139,17 @@ public sealed class MusicBrainzClient(HttpClient http, string userAgent, string?
                 using var req = new HttpRequestMessage(HttpMethod.Get, url);
                 req.Headers.TryAddWithoutValidation("User-Agent", userAgent);
                 req.Headers.TryAddWithoutValidation("Accept", "application/json");
-                using var res = await http.SendAsync(req, ct);
-                return ((int)res.StatusCode, await res.Content.ReadAsStringAsync(ct), RetryAfter(res));
+                try
+                {
+                    using var res = await http.SendAsync(req, ct);
+                    return ((int)res.StatusCode, await res.Content.ReadAsStringAsync(ct), RetryAfter(res));
+                }
+                // a dropped connection or a timeout (not the caller giving up): asked again like a busy answer
+                catch (Exception e) when (e is HttpRequestException or IOException || (e is OperationCanceledException && !ct.IsCancellationRequested))
+                {
+                    if (attempt == 2) throw;
+                    return (0, "", (TimeSpan?)null);
+                }
             }, interactive, ct);
             if (code == 200)
             {
@@ -148,8 +157,9 @@ public sealed class MusicBrainzClient(HttpClient http, string userAgent, string?
                 Store(query, list);
                 return list;
             }
-            // too many requests / busy: wait as long as the server says (at most a minute), then try again; any other answer is a failure
-            if (code is 503 or 429 && attempt < 2) { gate.Pause(retry ?? TimeSpan.FromSeconds(2 + attempt * 3)); continue; }
+            // busy (503, 429; 502 and 504 from its proxy, 500, 408) or no answer at all: wait as long as the server says (at most a minute; else 2 s, then 5 s),
+            // then try again, still a second apart; any other answer is a failure
+            if ((code == 0 || HttpRetry.Transient((System.Net.HttpStatusCode)code)) && attempt < 2) { gate.Pause(retry ?? TimeSpan.FromSeconds(2 + attempt * 3)); continue; }
             throw new HttpRequestException($"MusicBrainz answered {code}");
         }
         throw new HttpRequestException("MusicBrainz is busy");

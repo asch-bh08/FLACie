@@ -37,6 +37,9 @@ export default defineConfig({
         // the cover cache only evicts when the disk is nearly full: a small test disk must not empty it in the middle of a run
         FLACIE_CACHE_MIN_FREE_MB: '1',
         FLACIE_CACHE_MIN_FREE_PERCENT: '0',
+        // the specs sign in hundreds of times from one address in a run: every rate limit is 50 times its default here (the sign-in throttle itself is
+        // not a rate limit and stays as it ships: 2-login.spec.ts trips it on purpose). Production defaults: docs/SELF-HOSTING.md, Rate limits.
+        FLACIE_RATE_SCALE: '50',
       },
       url: `http://127.0.0.1:${WEB}/healthz`,
       reuseExistingServer: !process.env.CI,

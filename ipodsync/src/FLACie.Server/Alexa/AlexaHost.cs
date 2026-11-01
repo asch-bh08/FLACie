@@ -159,8 +159,12 @@ public sealed class AlexaProactive(IHttpClientFactory hf, IConfiguration conf, I
             var http = hf.CreateClient("catalog");
             if (token is null || DateTime.UtcNow > tokenUntil)
             {
-                using var tr = await http.PostAsync("https://api.amazon.com/auth/o2/token", new FormUrlEncodedContent(new Dictionary<string, string>
-                { ["grant_type"] = "client_credentials", ["scope"] = "alexa::proactive_events", ["client_id"] = conf["FLACIE_ALEXA_CLIENT_ID"]!, ["client_secret"] = conf["FLACIE_ALEXA_CLIENT_SECRET"]! }));
+                // asking for a token changes nothing at Amazon, so a hiccup is simply asked again (HttpRetry, as a read)
+                using var tr = await HttpRetry.SendAsync(http, () => new HttpRequestMessage(HttpMethod.Post, "https://api.amazon.com/auth/o2/token")
+                {
+                    Content = new FormUrlEncodedContent(new Dictionary<string, string>
+                    { ["grant_type"] = "client_credentials", ["scope"] = "alexa::proactive_events", ["client_id"] = conf["FLACIE_ALEXA_CLIENT_ID"]!, ["client_secret"] = conf["FLACIE_ALEXA_CLIENT_SECRET"]! }),
+                }, RetryPolicy.Default, CancellationToken.None, idempotent: true);
                 if (!tr.IsSuccessStatusCode) { log.LogWarning("Alexa notification: could not get a token ({Status})", (int)tr.StatusCode); return false; }
                 var j = JsonNode.Parse(await tr.Content.ReadAsStringAsync());
                 token = (string?)j?["access_token"]; tokenUntil = DateTime.UtcNow.AddSeconds(((int?)j?["expires_in"] ?? 300) - 60);
@@ -174,9 +178,14 @@ public sealed class AlexaProactive(IHttpClientFactory hf, IConfiguration conf, I
                 ["timestamp"] = now.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"), ["referenceId"] = Guid.NewGuid().ToString("N"), ["expiryTime"] = now.AddHours(2).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"),
                 ["event"] = ev, ["relevantAudience"] = new JsonObject { ["type"] = "Unicast", ["payload"] = new JsonObject { ["user"] = alexaUserId } },
             };
-            using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.amazonalexa.com/v1/proactiveEvents/stages/development") { Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json") };
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            using var res = await http.SendAsync(req);
+            // the event itself is sent again only when it certainly did not arrive (refused connection, 429, 503): a notification twice is worse than once
+            var json = body.ToJsonString(); var bearer = token;
+            using var res = await HttpRetry.SendAsync(http, () =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Post, "https://api.amazonalexa.com/v1/proactiveEvents/stages/development") { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+                return req;
+            }, RetryPolicy.Default, CancellationToken.None);
             if (!res.IsSuccessStatusCode) log.LogWarning("Alexa notification was refused ({Status})", (int)res.StatusCode);
             return res.IsSuccessStatusCode;
         }

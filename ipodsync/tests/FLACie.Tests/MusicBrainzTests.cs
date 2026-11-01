@@ -140,6 +140,18 @@ public class MusicBrainzTests
         Assert.Single(bad.Seen);
     }
 
+    [Fact] public async Task ADroppedConnectionOrAGatewayErrorIsTriedAgainAtTheGatesPace()
+    {
+        // MusicBrainz behind its proxy answers 502 and 504 when it is overloaded, and a weak connection drops: both pass, so a person pressing "Find on
+        // MusicBrainz" gets the answer instead of an error (still at most three tries, still a second apart)
+        var n = 0;
+        var f = new Fake(_ => ++n switch { 1 => throw new HttpRequestException("reset"), 2 => new HttpResponseMessage(HttpStatusCode.BadGateway), _ => Ok() });
+        var c = new Clock();
+        var hits = await Client(f, c).SearchRecordingAsync(T());
+        Assert.Equal(3, hits.Count); Assert.Equal(3, f.Seen.Count);
+        Assert.All(c.Waits, w => Assert.True(w.TotalSeconds <= 10, w.ToString()));
+    }
+
     [Fact] public async Task TheSecondAskComesFromTheDiskCacheAndExpires()
     {
         var dir = Path.Combine(Path.GetTempPath(), "mb-" + Guid.NewGuid().ToString("N"));

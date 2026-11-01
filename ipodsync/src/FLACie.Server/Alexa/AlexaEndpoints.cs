@@ -33,15 +33,14 @@ public static class AlexaEndpoints
         // The skill's store page (to invite testers, or publish) links a privacy policy and two icons. Only /alexa is public on a server set up as docs/ALEXA.md
         // says, so they are here, and answer whether or not Alexa is switched on (Amazon reads them when the skill is set up).
         var web = app.Environment.WebRootPath;
-        app.MapGet("/alexa/icon-108.png", () => Results.File(Path.Combine(web, "icon-108.png"), "image/png"));
-        app.MapGet("/alexa/icon-512.png", () => Results.File(Path.Combine(web, "icon-512.png"), "image/png"));
-        app.MapGet("/alexa/privacy", () => Results.Content(PrivacyPage, "text/html; charset=utf-8"));
+        app.MapGet("/alexa/icon-108.png", () => Results.File(Path.Combine(web, "icon-108.png"), "image/png")).RateLimited("public");
+        app.MapGet("/alexa/icon-512.png", () => Results.File(Path.Combine(web, "icon-512.png"), "image/png")).RateLimited("public");
+        app.MapGet("/alexa/privacy", () => Results.Content(PrivacyPage, "text/html; charset=utf-8")).RateLimited("public");
 
-        app.MapPost("/alexa/skill", async (HttpContext ctx, AlexaStore store, AlexaGuards guards, AlexaPublic pub, AlexaSkill skill) =>
+        // counted by address before anything is read ("alexa", 120 a minute), and by linked Alexa account once the request is verified ("alexa-account", 30)
+        app.MapPost("/alexa/skill", async (HttpContext ctx, AlexaStore store, AlexaGuards guards, AlexaPublic pub, AlexaSkill skill, RateLimits limits) =>
         {
             if (!store.Config.Enabled) return Results.NotFound();
-            var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "?";
-            if (!guards.PerAddress.TryTake(ip)) { log.LogWarning("Alexa request refused: rate-limit"); return Results.StatusCode(429); }
             // read at most 1 MB
             if (ctx.Request.ContentLength is > AlexaRequestVerifier.MaxBodyBytes) { log.LogWarning("Alexa request refused: too-large"); return Results.StatusCode(413); }
             using var ms = new MemoryStream();
@@ -53,7 +52,7 @@ public static class AlexaEndpoints
             var v = await verifier.VerifyAsync(ctx.Request.Headers["SignatureCertChainUrl"].ToString(), ctx.Request.Headers["Signature-256"].ToString(), ctx.Request.Headers["Signature"].ToString(), body, ctx.RequestAborted);
             if (!v.Ok) { log.LogWarning("Alexa request refused: {Reason}", v.Reason); return Results.StatusCode(400); }
             var userId = (string?)v.Request!["context"]?["System"]?["user"]?["userId"] ?? (string?)v.Request["session"]?["user"]?["userId"] ?? "";
-            if (userId.Length > 0 && !guards.PerAccount.TryTake(AlexaStore.HashUser(userId))) return Results.StatusCode(429);
+            if (userId.Length > 0 && !limits.TryTake("alexa-account", RateKey.Of(AlexaStore.HashUser(userId)), out var wait)) { log.LogWarning("Alexa request refused: rate-limit"); throw new RateLimitedException(wait); }
             pub.Learn(ctx.Request);
             using var limit = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted); limit.CancelAfter(TimeSpan.FromSeconds(7));
             try { return Results.Json(await skill.HandleAsync(v.Request, limit.Token)); }
@@ -62,7 +61,7 @@ public static class AlexaEndpoints
                 log.LogWarning("Alexa request failed: {Kind}", e.GetType().Name);
                 return Results.Json(new JsonObject { ["version"] = "1.0", ["response"] = new JsonObject { ["outputSpeech"] = new JsonObject { ["type"] = "PlainText", ["text"] = "Sorry, something went wrong." }, ["shouldEndSession"] = true } });
             }
-        });
+        }).RateLimited("alexa");
 
         // a signed-in person asks for a pairing code (Settings does the same in process)
         app.MapPost("/api/alexa/code", (HttpContext ctx, AlexaStore store, SessionStore sessions) =>
@@ -139,7 +138,7 @@ public static class AlexaEndpoints
             var direct = string.Equals(Path.GetExtension(track.FilePath ?? ""), ".mp3", StringComparison.OrdinalIgnoreCase);
             using var sreq = jf.Authorized(a, direct ? jf.StreamUrl(a, track.JellyfinId) : $"{a.Server}/Audio/{track.JellyfinId}/stream.mp3?AudioCodec=mp3&AudioBitRate=256000&MaxAudioChannels=2");
             return await Proxy(sreq, "audio/mpeg");
-        });
+        }).RateLimited("stream");
     }
 
     /// <summary>The privacy policy the skill's store page links to: what the skill keeps, where, and how to remove it (docs/ALEXA.md, Security).</summary>
@@ -164,11 +163,9 @@ public static class AlexaEndpoints
         """;
 }
 
-/// <summary>The rate limiters and the verifier (rebuilt when the skill ids change in Settings).</summary>
+/// <summary>The verifier (rebuilt when the skill ids change in Settings). The rate limits are the server's own ("alexa" and "alexa-account" in <see cref="RateLimits"/>).</summary>
 public sealed class AlexaGuards
 {
-    public AlexaRateLimiter PerAddress { get; } = new(perMinute: 120);
-    public AlexaRateLimiter PerAccount { get; } = new(perMinute: 30);
     AlexaRequestVerifier? verifier; string ids = "\0";
     readonly object gate = new();
 

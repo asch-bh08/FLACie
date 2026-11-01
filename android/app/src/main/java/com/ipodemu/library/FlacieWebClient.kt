@@ -48,13 +48,18 @@ class FlacieWebClient(private val prefs: Prefs) {
     class AccountStats(val songs: Int, val albums: Int, val artists: Int, val playlists: Int, val favourites: Int, val admin: Boolean = false)
     class ChartSong(val rank: Int, val title: String, val artist: String, val art: String?)
 
-    private fun send(path: String, method: String, body: String? = null): String {
+    /** One call; a read (GET) that fails on the way is tried again at most twice ([WebRetry]: the server restarting, a weak signal, a busy server). */
+    private fun send(path: String, method: String, body: String? = null): String =
+        if (method == "GET" && body == null) WebRetry.run { once(path, method, null) } else once(path, method, body)
+
+    private fun once(path: String, method: String, body: String?): String {
         val c = open(path, method)
         try {
             if (body != null) { val b = body.toByteArray(); c.doOutput = true; c.setRequestProperty("Content-Type", "application/json"); c.setFixedLengthStreamingMode(b.size); c.outputStream.use { it.write(b) } }
             val code = c.responseCode
-            if (code == 401) throw java.io.IOException("FLACie Web doesn't know this account. Open FLACie Web in a browser once, signed in to the same Jellyfin.")
-            if (code !in 200..299) throw java.io.IOException("HTTP $code")
+            if (code == 401) throw WebRetry.Refused("FLACie Web doesn't know this account. Open FLACie Web in a browser once, signed in to the same Jellyfin.")
+            // "HTTP 429" and the like: FriendlyError turns it into words ("The server is busy just now ..."), WebRetry decides whether to ask again
+            if (code !in 200..299) throw WebRetry.HttpStatus(code, c.getHeaderField("Retry-After")?.trim()?.toLongOrNull())
             return c.inputStream.bufferedReader().use { it.readText() }
         } finally { c.disconnect() }
     }
@@ -169,12 +174,7 @@ class FlacieWebClient(private val prefs: Prefs) {
     fun chart(id: Int): List<ChartSong> { val a = JSONArray(send("/api/charts/$id", "GET")); return List(a.length()) { a.getJSONObject(it).let { o -> ChartSong(o.optInt("rank"), o.optString("title"), o.optString("artist"), o.optString("art").takeIf { s -> s.isNotBlank() && s != "null" }) } } }
 
     fun jobs(): List<Job> {
-        val c = open("/api/import", "GET")
-        try {
-            val code = c.responseCode
-            if (code !in 200..299) throw java.io.IOException("HTTP $code")
-            val a = JSONArray(c.inputStream.bufferedReader().use { it.readText() })
-            return List(a.length()) { parse(a.getJSONObject(it)) }
-        } finally { c.disconnect() }
+        val a = JSONArray(send("/api/import", "GET"))
+        return List(a.length()) { parse(a.getJSONObject(it)) }
     }
 }

@@ -22,6 +22,8 @@ public static class ApiEndpoints
         var fixedServer = app.Configuration["FLACIE_JELLYFIN_URL"];
         var whoFlights = new SingleFlight<TokenCache.Who?>();
 
+        var limits = app.Services.GetRequiredService<RateLimits>();
+
         async Task<UserSession?> Who(HttpContext ctx, SessionStore store, JellyfinClient jf)
         {
             var token = ctx.Request.Headers["X-Emby-Token"].FirstOrDefault() ?? ctx.Request.Headers.Authorization.ToString().Replace("Bearer ", "");
@@ -41,6 +43,9 @@ public static class ApiEndpoints
                 // calls arriving together while the answer is not known yet share one question to Jellyfin
                 known2 ??= await whoFlights.RunAsync(server + "|" + token, async () =>
                 {
+                    // each token nobody has checked in the last 45 s costs one call to Jellyfin: an address that sends made-up tokens is stopped here
+                    // ("token-check"), so it cannot turn this server into a way of hammering Jellyfin. A real phone is checked about once a minute.
+                    if (!limits.TryTake("token-check", RateKey.Of(ctx.Connection.RemoteIpAddress), out var wait)) throw new RateLimitedException(wait);
                     var me = await jf.GetAsync(new JellyfinAccount(server, "", "", token), "/Users/Me");
                     var id = me?["Id"]?.GetValue<string>();
                     if (id is null) return null;
@@ -52,6 +57,7 @@ public static class ApiEndpoints
                 return store.For(SessionStore.Principal(new JellyfinAccount(server, known2.UserId, known2.Name, token), null));
             }
             catch (UnauthorizedAccessException) { tokens.Invalidate(token); return null; }
+            catch (RateLimitedException) { throw; }   // answered 429 with Retry-After (RateLimiting), not "who are you"
             catch (Exception) { return null; }
         }
 
@@ -63,10 +69,14 @@ public static class ApiEndpoints
             lists = j.Lists.Select(l => new { name = l.Name, total = l.Items.Count, done = l.Items.Count(i => i.State != "pending") }),
         };
 
-        app.MapGet("/api/ping", () => Results.Ok(new { name = "FLACie Web", import = true }));
+        app.MapGet("/api/ping", () => Results.Ok(new { name = "FLACie Web", import = true })).RateLimited("public");
 
         app.MapPost("/api/import", async (HttpContext ctx, string? name, bool? replace, SessionStore store, JellyfinClient jf, ImportManager imports) =>
         {
+            // the server reads at most 2 MB of any other request (Program.cs). A file here may be up to 20 MB, and one a little over that still gets its
+            // "too big" answer: Kestrel can only let the phone finish sending an unread body that is within the limit, and otherwise drops the connection,
+            // which the phone would show as "can't reach the server"
+            if (ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } allow) allow.MaxRequestBodySize = 30 * 1024 * 1024;
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
             if (ctx.Request.ContentLength is > 20 * 1024 * 1024) return Results.BadRequest(new { error = "That file is too big (limit 20 MB)." });
             // a body sent in chunks has no length to check up front: the server stops reading at the limit
@@ -219,7 +229,7 @@ public static class ApiEndpoints
             if (id.Length != 32 || !id.All(Uri.IsHexDigit)) return Results.BadRequest();
             var t = new Track("alac:" + id, "", "", "", "", 0, 0, 0, 0, null, 0, TrackSource.Jellyfin, "x.m4a", id);
             return await AlacServe.TryServeAsync(ctx, s, t, jf, hf, alac) ? Results.Empty : Results.StatusCode(422);
-        }).DisableAntiforgery();
+        }).DisableAntiforgery().RateLimited("stream");
 
         app.MapGet("/api/audiofacts", async (HttpContext ctx, SessionStore store, JellyfinClient jf, FormatIndex index, FormatProbeService probe) =>
         {

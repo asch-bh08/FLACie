@@ -17,6 +17,8 @@ public sealed class CoverArtArchiveClient(HttpClient http, string userAgent, Mus
 {
     public const long MaxBytes = 12 * 1024 * 1024;
     public int RequestsMade { get; private set; }
+    /// <summary>How the archive is asked again when it hiccups (it and archive.org behind it often answer 502 or 503 for a moment): HttpRetry.</summary>
+    public RetryPolicy Retry { get; init; } = RetryPolicy.Default;
 
     public static IReadOnlyList<CaaImage> Parse(string json)
     {
@@ -46,9 +48,12 @@ public sealed class CoverArtArchiveClient(HttpClient http, string userAgent, Mus
             var (code, body) = await gate.RunAsync(async () =>
             {
                 RequestsMade++;
-                using var req = new HttpRequestMessage(HttpMethod.Get, url);
-                req.Headers.TryAddWithoutValidation("User-Agent", userAgent); req.Headers.TryAddWithoutValidation("Accept", "application/json");
-                using var res = await http.SendAsync(req, ct);
+                using var res = await HttpRetry.SendAsync(http, () =>
+                {
+                    var req = new HttpRequestMessage(HttpMethod.Get, url);
+                    req.Headers.TryAddWithoutValidation("User-Agent", userAgent); req.Headers.TryAddWithoutValidation("Accept", "application/json");
+                    return req;
+                }, Retry, ct);
                 return ((int)res.StatusCode, res.IsSuccessStatusCode ? await res.Content.ReadAsStringAsync(ct) : "");
             }, interactive: true, ct);
             if (code == 200) { var l = Parse(body); if (l.Count > 0) return l; }
@@ -61,9 +66,12 @@ public sealed class CoverArtArchiveClient(HttpClient http, string userAgent, Mus
     public async Task<byte[]?> FetchAsync(string url, CancellationToken ct = default)
     {
         if (!Uri.TryCreate(Https(url), UriKind.Absolute, out var u) || u.Scheme != Uri.UriSchemeHttps) return null;   // (http is upgraded above; nothing else, such as file: or ftp:, is ever fetched)
-        using var req = new HttpRequestMessage(HttpMethod.Get, u);
-        req.Headers.TryAddWithoutValidation("User-Agent", userAgent);
-        using var res = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+        using var res = await HttpRetry.SendAsync(http, () =>
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, u);
+            req.Headers.TryAddWithoutValidation("User-Agent", userAgent);
+            return req;
+        }, Retry, ct, completion: HttpCompletionOption.ResponseHeadersRead);
         if (!res.IsSuccessStatusCode || res.Content.Headers.ContentLength > MaxBytes) return null;
         await using var s = await res.Content.ReadAsStreamAsync(ct);
         using var ms = new MemoryStream();

@@ -103,6 +103,24 @@ class JellyfinGateTest {
         assertEquals(2L, r.gate.stats().retries)
     }
 
+    @Test fun aRequestTimeoutIsRetriedLikeABusyServer() = runTest {
+        // 408: the server (or a proxy on a weak signal) gave up waiting for the request; asking again is the cure
+        var calls = 0
+        val r = rig(GateConfig(breakerFailures = 100)) { calls++; resp(if (calls < 3) 408 else 200) }
+        assertEquals(200, r.gate.execute(req(), Priority.VISIBLE).code)
+        assertEquals(3, calls)
+    }
+
+    @Test fun aRetryAfterOfNothingStillWaitsTheBackoff() = runTest {
+        // "Retry-After: 0" must not turn into two tries at once in a tight loop
+        var calls = 0
+        val r = rig(GateConfig(breakerFailures = 100)) { calls++; resp(503, "retry-after" to "0") }
+        val t0 = currentTime
+        r.gate.execute(req(), Priority.VISIBLE)
+        assertEquals(3, calls)
+        assertTrue("waited at least half the first two backoffs (200 + 400 ms)", currentTime - t0 >= 600L)
+    }
+
     @Test fun networkErrorsAreRetriedTwiceThenThrown() = runTest {
         var calls = 0
         val r = rig(GateConfig(breakerFailures = 100)) { calls++; throw IOException("down") }

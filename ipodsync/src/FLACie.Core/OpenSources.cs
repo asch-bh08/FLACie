@@ -71,11 +71,15 @@ public static class OpenSources
         return wantSec <= 0 || gotSec <= 0 || Math.Abs(wantSec - gotSec) <= 8;
     }
 
+    /// <summary>A catalog's JSON, asked again after a hiccup (archive.org often answers 502 or 503 for a moment; HttpRetry, within the finder's own budget).</summary>
     static async Task<JsonNode?> GetJson(HttpClient http, string url, CancellationToken ct)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Get, url);
-        req.Headers.TryAddWithoutValidation("User-Agent", "FLACie/1.0 (personal music player)");
-        using var res = await http.SendAsync(req, ct);
+        using var res = await HttpRetry.SendAsync(http, () =>
+        {
+            var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.TryAddWithoutValidation("User-Agent", "FLACie/1.0 (personal music player)");
+            return req;
+        }, RetryPolicy.Quick, ct);
         if (!res.IsSuccessStatusCode) return null;
         return JsonNode.Parse(await res.Content.ReadAsStringAsync(ct));
     }

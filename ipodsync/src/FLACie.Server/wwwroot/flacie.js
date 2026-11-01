@@ -1026,7 +1026,8 @@ window.flacie = (() => {
       let polling = false;
       const poll = async () => {
         try { const r = await fetch("/healthz", { cache: "no-store" }); if (r.ok) { window.flacie.recoverReload(!audio.paused, audio.currentTime); return; } } catch { }
-        setTimeout(poll, 2500);
+        // every 2 to 3.5 s, at random, so the tabs and phones that lost the server together do not all knock in the same instant when it comes back
+        setTimeout(poll, 2000 + Math.random() * 1500);
       };
       const check = () => {
         const m = document.getElementById("components-reconnect-modal");

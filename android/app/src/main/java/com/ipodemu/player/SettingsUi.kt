@@ -346,17 +346,23 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                                 } catch (e: Exception) { msg = e.message ?: "Couldn't send the file" }
                             }
                         }
-                        SettingRow("Import a playlist file", if (web.available) "Choose" else "Needs FLACie Web", chevron = web.available) {
-                            if (web.available) pick.launch(arrayOf("*/*")) else msg = "Open FLACie Web in a browser, signed in to the same Jellyfin account, and this phone finds it by itself."
-                        }
-                        jobs.take(3).forEach { j ->
-                            SettingRow(j.file, when (j.state) { "done" -> "Done ${j.total - j.failed}/${j.total}"; "waiting" -> "Waiting for space"; "cancelled" -> "Stopped"; else -> "${j.done}/${j.total}" }) { }
-                        }
                         // the server's own settings, the same ones as FLACie Web's Settings page (they live on the server, so they apply on every device)
                         var srv by remember { mutableStateOf<com.ipodemu.library.FlacieWebClient.ServerSettings?>(null) }
                         androidx.compose.runtime.LaunchedEffect(web.available) {
                             if (web.available) srv = try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { web.settings() } } catch (_: Exception) { null }
                         }
+                        // what the server won't do isn't offered here: no import while it doesn't download or doesn't let this person import (FLACie Web's Dashboard)
+                        val serverDownloads = srv?.downloads != false
+                        if (serverDownloads && srv?.bulk != false) {
+                            SettingRow("Import a playlist file", if (web.available) "Choose" else "Needs FLACie Web", chevron = web.available) {
+                                if (web.available) pick.launch(arrayOf("*/*")) else msg = "Open FLACie Web in a browser, signed in to the same Jellyfin account, and this phone finds it by itself."
+                            }
+                            jobs.take(3).forEach { j ->
+                                SettingRow(j.file, when (j.state) { "done" -> "Done ${j.total - j.failed}/${j.total}"; "waiting" -> "Waiting for space"; "cancelled" -> "Stopped"; else -> "${j.done}/${j.total}" }) { }
+                            }
+                        }
+                        if (!serverDownloads) Txt("Downloads are turned off on this server. An administrator can turn them on in FLACie Web's Dashboard.",
+                            Modifier.padding(horizontal = 16.dp, vertical = 8.dp), size = 13f, color = sc.onBgDim, maxLines = 4)
                         fun change(block: () -> com.ipodemu.library.FlacieWebClient.ServerSettings) {
                             scope.launch(kotlinx.coroutines.Dispatchers.IO) { try { srv = block() } catch (e: Exception) { msg = e.message ?: "Couldn't reach FLACie Web" } }
                         }
@@ -374,7 +380,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             })
                         }
                         fun size(b: Long) = when { b >= 1L shl 40 -> "%.1f TB".format(b / 1099511627776.0); b >= 1L shl 30 -> "%.0f GB".format(b / 1073741824.0); else -> "%.0f MB".format(b / 1048576.0) }
-                        srv?.takeIf { it.admin }?.let { s ->
+                        srv?.takeIf { it.admin && it.downloads }?.let { s ->
                             val gbs = listOf(5, 10, 25, 50, 100, 200)
                             SettingRow("Keep free space", "${s.minFreeGb} GB") { val n = gbs.firstOrNull { it > s.minFreeGb } ?: gbs[0]; change { web.saveSettings(minFreeGb = n) } }
                             SettingRow("Daily charts", if (s.chartsOn) "On" else "Off") { change { web.saveSettings(chartsOn = !s.chartsOn) } }

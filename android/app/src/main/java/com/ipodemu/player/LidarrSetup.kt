@@ -64,7 +64,7 @@ fun LidarrSetupScreen() {
     var order by remember { mutableStateOf(app.prefs.openSources.fullOrder()) }
     var openRev by remember { mutableStateOf(0) }
     @Suppress("UNUSED_EXPRESSION") openRev
-    val openArchive = app.prefs.openArchive; val openAudius = app.prefs.openAudius; val openJamendo = app.prefs.openJamendo; val openYtdl = app.prefs.openYtdl
+    val openArchive = app.prefs.openArchive; val openAudius = app.prefs.openAudius; val openJamendo = app.prefs.openJamendo
     val scope = rememberCoroutineScope()
     val fr = remember { FocusRequester() }
 
@@ -130,24 +130,26 @@ fun LidarrSetupScreen() {
 
             Box(Modifier.padding(top = 8.dp)) { Txt("Open sources", size = 16f, weight = FontWeight.Bold) }
             Txt("A song Soulseek doesn't have is also looked up here before Lidarr, and fetched through the file mover. The free sources look while Soulseek searches and only download if it found nothing. The first source on the list that has the song is used: move one up to prefer it.", size = 12f, maxLines = 8)
-            for (id in order) {
-                val pos = order.indexOf(id)
-                val on = when (id) { OpenSourceSettings.ARCHIVE -> openArchive; OpenSourceSettings.AUDIUS -> openAudius; OpenSourceSettings.YTDL -> openYtdl; else -> openJamendo }
+            // the free sources only: the YouTube source is not offered here, and one already switched on keeps its place in the saved order (OpenSourceSettings.shown)
+            val shown = app.prefs.openSources.copy(order = order).shown()
+            for (id in shown) {
+                val pos = shown.indexOf(id)
+                val on = when (id) { OpenSourceSettings.ARCHIVE -> openArchive; OpenSourceSettings.AUDIUS -> openAudius; else -> openJamendo }
+                fun move(by: Int) { order = app.prefs.openSources.copy(order = order).moveShown(id, by); app.prefs.openOrder = order.joinToString(","); app.library.onServicesChanged?.invoke() }
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0x14FFFFFF)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Txt("${pos + 1}. " + when (id) { OpenSourceSettings.ARCHIVE -> "Internet Archive"; OpenSourceSettings.AUDIUS -> "Audius"; OpenSourceSettings.YTDL -> "YouTube (yt-dlp)"; else -> "Jamendo" }, size = 16f, weight = FontWeight.SemiBold)
+                    Txt("${pos + 1}. " + when (id) { OpenSourceSettings.ARCHIVE -> "Internet Archive"; OpenSourceSettings.AUDIUS -> "Audius"; else -> "Jamendo" }, size = 16f, weight = FontWeight.SemiBold)
                     Txt(when (id) {
                         OpenSourceSettings.ARCHIVE -> "Live Music Archive and netlabel collections only, never a general search. Needs nothing."
                         OpenSourceSettings.AUDIUS -> "The free Audius catalogue. Needs nothing."
-                        OpenSourceSettings.YTDL -> "Last resort for songs nothing else has: finds the official audio on YouTube and saves it (AAC, not lossless). Against YouTube's terms of service, so it is off until you switch it on. Needs the yt-dlp service next to the file mover."
                         else -> "Only tracks whose artist allows downloads. Needs the client id below."
                     }, size = 12f, maxLines = 7)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         GlossPill(if (on) "On" else "Off", {
-                            when (id) { OpenSourceSettings.ARCHIVE -> app.prefs.openArchive = !on; OpenSourceSettings.AUDIUS -> app.prefs.openAudius = !on; OpenSourceSettings.YTDL -> app.prefs.openYtdl = !on; else -> app.prefs.openJamendo = !on }
+                            when (id) { OpenSourceSettings.ARCHIVE -> app.prefs.openArchive = !on; OpenSourceSettings.AUDIUS -> app.prefs.openAudius = !on; else -> app.prefs.openJamendo = !on }
                             openRev++; app.library.onServicesChanged?.invoke()
                         }, primary = on, height = 38.dp)
-                        if (pos > 0) GlossPill("Move up", { order = order.toMutableList().also { java.util.Collections.swap(it, pos, pos - 1) }; app.prefs.openOrder = order.joinToString(","); app.library.onServicesChanged?.invoke() }, height = 38.dp)
-                        if (pos < order.size - 1) GlossPill("Move down", { order = order.toMutableList().also { java.util.Collections.swap(it, pos, pos + 1) }; app.prefs.openOrder = order.joinToString(","); app.library.onServicesChanged?.invoke() }, height = 38.dp)
+                        if (pos > 0) GlossPill("Move up", { move(-1) }, height = 38.dp)
+                        if (pos < shown.size - 1) GlossPill("Move down", { move(1) }, height = 38.dp)
                     }
                 }
             }

@@ -37,6 +37,18 @@ class OpenSourcesTest {
         assertEquals(listOf("ytdl", "archive"), OpenSourceSettings(true, false, false, "", listOf("ytdl"), true).active())
     }
 
+    /** The setup screen shows the free sources only: the YouTube source is offered nowhere, but a saved "on" keeps working in its place in the order. */
+    @Test fun youtubeIsNotShownButKeepsItsPlace() {
+        val saved = OpenSourceSettings(true, true, true, "id", listOf("ytdl", "jamendo", "archive"), ytdl = true)
+        assertEquals(listOf("jamendo", "archive", "audius"), saved.shown())
+        assertEquals(listOf("ytdl", "jamendo", "archive", "audius"), saved.active())          // still searched first, as saved
+        // moving a shown source past its shown neighbour leaves YouTube where it was
+        assertEquals(listOf("ytdl", "archive", "jamendo", "audius"), saved.moveShown("archive", -1))
+        assertEquals(listOf("ytdl", "jamendo", "audius", "archive"), saved.moveShown("archive", 1))
+        assertEquals(saved.fullOrder(), saved.moveShown("jamendo", -1))                         // already first of the shown ones
+        assertEquals(saved.fullOrder(), saved.moveShown("ytdl", 1))                             // not shown, so not moved
+    }
+
     /** Live APIs: only with FLACIE_NET_TESTS=1 (same songs as the FLACie Web probe). */
     @Test fun liveSources() = runBlocking {
         assumeTrue(System.getenv("FLACIE_NET_TESTS") == "1")

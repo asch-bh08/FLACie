@@ -30,6 +30,9 @@ object FriendlyError {
             when {
                 code == 401 || code == 403 -> "The server refused the sign-in. Check the user name and password."
                 code == 404 -> "The server doesn't have that. Check the address."
+                // the server answered, it is only busy (a rate limit) or gave up waiting for the request: not "can't reach the server"
+                code == 429 -> "The server is busy just now. Try again in a minute."
+                code == 408 -> "The server took too long to answer. Try again in a moment."
                 code != null && code >= 500 -> "The server had a problem answering. Try again in a moment."
                 code != null -> "Can't reach the server. Check the address and that it's switched on."
                 // a sentence FLACie wrote itself ("The code expired. Try again.")

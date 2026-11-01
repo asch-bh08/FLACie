@@ -187,14 +187,16 @@ class JellyfinGate(
             val dt = now() - t0
             val code = resp?.code ?: 0
             outcome(code, dt, req.heavy, resp?.retryAfterMs, probe, req.kind.startsWith("cover"))
-            val retryable = req.method == "GET" && (err != null || code == 429 || code in 500..599)
+            // 408: the server (or a proxy on a weak signal) gave up waiting for the request itself; asking again is the cure, as for 429 and 5xx
+            val retryable = req.method == "GET" && (err != null || code == 408 || code == 429 || code in 500..599)
             if (!retryable || attempt >= cfg.maxRetries) {
                 if (err != null) throw err
                 return resp!!
             }
             retries.incrementAndGet()
+            // the server's Retry-After (at most retryAfterMaxMs), but never shorter than the jittered backoff: "Retry-After: 0" must not become a tight loop
             val ra = resp?.retryAfterMs
-            sleep(if (ra != null) ra.coerceAtMost(cfg.retryAfterMaxMs) else backoffMs(attempt))
+            sleep(maxOf(backoffMs(attempt), ra?.coerceAtMost(cfg.retryAfterMaxMs) ?: 0L))
             attempt++
         }
     }

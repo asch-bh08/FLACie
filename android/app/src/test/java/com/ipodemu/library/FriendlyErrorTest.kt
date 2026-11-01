@@ -19,6 +19,12 @@ class FriendlyErrorTest {
         assertEquals("The server refused the sign-in. Check the user name and password.", FriendlyError.of(IOException("HTTP 401")))
     }
 
+    @Test fun a_busy_server_says_to_wait_not_that_it_cannot_be_reached() {
+        // a rate limit (429) or a request the server gave up waiting for (408) is not "can't reach the server": the server answered
+        assertEquals("The server is busy just now. Try again in a minute.", FriendlyError.of(IOException("HTTP 429")))
+        assertEquals("The server took too long to answer. Try again in a moment.", FriendlyError.of(IOException("HTTP 408")))
+    }
+
     @Test fun our_own_words_are_kept() = assertEquals("The code expired. Try again.", FriendlyError.of(IOException("The code expired. Try again.")))
 
     @Test fun anything_else_is_a_plain_line() = assertEquals("Something went wrong. Try again.", FriendlyError.of(NullPointerException("Attempt to invoke virtual method on a null object reference")))

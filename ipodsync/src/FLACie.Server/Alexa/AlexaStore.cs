@@ -10,7 +10,8 @@ namespace FLACie.Server.Alexa;
 public sealed class AlexaConfig
 {
     public bool Enabled { get; set; }
-    /// <summary>Alexa may ask FLACie to search and download songs that are not in the library.</summary>
+    /// <summary>Alexa may ask FLACie to search and download songs that are not in the library. True here only so that an alexa.json saved before this
+    /// switch existed reads as it worked then (on); a server with no alexa.json starts with it off (see the AlexaStore constructor).</summary>
     public bool Downloads { get; set; } = true;
     /// <summary>Skill ids (amzn1.ask.skill...) whose requests are accepted, comma separated. Empty = every request is refused.</summary>
     public string SkillIds { get; set; } = "";
@@ -54,6 +55,8 @@ public sealed class AlexaStore
     public AlexaStore(DataPaths paths, IDataProtectionProvider dp, IConfiguration conf, Func<DateTime>? clock = null)
     {
         file = Path.Combine(paths.Root, "alexa.json"); protector = dp.CreateProtector("FLACie.Alexa"); this.clock = clock ?? (() => DateTime.UtcNow);
+        // a server that never set Alexa up starts with Alexa's downloads off; one whose alexa.json was written before the switch existed had them on, and keeps them
+        if (!File.Exists(file)) cfg.Downloads = false;
         try
         {
             if (File.Exists(file) && JsonSerializer.Deserialize<State>(File.ReadAllText(file)) is { } s) { cfg = s.Config ?? new(); links = s.Links ?? []; }

@@ -84,7 +84,8 @@ public sealed class SessionAlexaUser(UserSession s, JellyfinClient jf, DownloadM
         var song = found.FirstOrDefault();
         if (song is null) return null;
         if (FindSong(song.Artist, song.Title) is { JellyfinId.Length: > 0 }) return new(song.Artist, song.Title, true);
-        if (s.Jellyfin is null && s.Nas is null) return null;
+        // not in the library and the server doesn't download: the same answer as a song that can't be found (Alexa and the DJ say so in their own words)
+        if ((s.Jellyfin is null && s.Nas is null) || !downloads.Allowed) return null;
         var task = downloads.FetchAsync(s, "Alexa", song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs);
         _ = task.ContinueWith(t => ended(song.Artist, song.Title, t.IsCompletedSuccessfully && t.Result.Ok, t.IsCompletedSuccessfully ? t.Result.Message : "Stopped"), TaskScheduler.Default);
         return new(song.Artist, song.Title);

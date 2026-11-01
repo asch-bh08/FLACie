@@ -190,12 +190,21 @@ public sealed record OpenSourceSettings(bool Archive, bool Audius, bool Jamendo,
 
     /// <summary>The saved order with anything unknown dropped and anything missing appended, so every source appears exactly once.</summary>
     public IReadOnlyList<string> FullOrder => Order.Where(AllIds.Contains).Distinct().Concat(AllIds.Except(Order)).ToList();
-    public bool IsOn(string id) => id switch { ArchiveId => Archive, AudiusId => Audius, YtdlId => Ytdl, _ => Jamendo };
+    // The YouTube source (yt-dlp behind the file mover) is not offered on any screen or in the docs any more. It still works, quietly, where the
+    // profile already had it switched on, or when the server is started with FLACIE_YOUTUBE=on (YtdlByHost); that switch is never written into a profile.
+    /// <summary>Set by the host (FLACIE_YOUTUBE=on), not saved: the YouTube source counts as on even though the profile says off.</summary>
+    public bool YtdlByHost { get; init; }
+    public bool IsOn(string id) => id switch { ArchiveId => Archive, AudiusId => Audius, YtdlId => Ytdl || YtdlByHost, _ => Jamendo };
     /// <summary>The sources that will actually be searched, best first.</summary>
     public IEnumerable<string> Active => FullOrder.Where(id => IsOn(id) && (id != JamendoSourceId || JamendoId.Length > 0));
     public bool Any => Active.Any();
 
-    public static OpenSourceSettings From(JsonObject? services, string? fallbackJamendoId = null)
+    /// <summary>What FLACIE_YOUTUBE says: on for "on", "true", "1" or "yes", otherwise off.</summary>
+    public static bool HostSwitch(string? value) => (value ?? "").Trim().ToLowerInvariant() is "on" or "true" or "1" or "yes";
+
+    public static OpenSourceSettings From(JsonObject? services, string? fallbackJamendoId = null, bool youtubeByHost = false) => Read(services, fallbackJamendoId) with { YtdlByHost = youtubeByHost };
+
+    static OpenSourceSettings Read(JsonObject? services, string? fallbackJamendoId)
     {
         var o = services?["opensources"] as JsonObject;
         bool B(string k, bool dflt = true) => o?[k] is JsonValue v && v.TryGetValue<bool>(out var b) ? b : dflt;

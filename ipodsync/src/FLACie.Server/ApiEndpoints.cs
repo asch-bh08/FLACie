@@ -78,6 +78,8 @@ public static class ApiEndpoints
             // which the phone would show as "can't reach the server"
             if (ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } allow) allow.MaxRequestBodySize = 30 * 1024 * 1024;
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
+            // administrators, or everyone when the Dashboard lets them, and only while the server downloads (DownloadPolicy.MayBulk; ImportManager checks it too)
+            if (!ctx.RequestServices.GetRequiredService<DownloadPolicy>().MayBulk(s)) return Results.Json(new { error = new ImportNotAllowedException().Message }, statusCode: 403);
             if (ctx.Request.ContentLength is > 20 * 1024 * 1024) return Results.BadRequest(new { error = "That file is too big (limit 20 MB)." });
             // a body sent in chunks has no length to check up front: the server stops reading at the limit
             if (ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit) limit.MaxRequestBodySize = 20 * 1024 * 1024;
@@ -105,10 +107,12 @@ public static class ApiEndpoints
         // the server-side settings and storage the phone shows next to its own (the same numbers as the web Settings page)
         object SettingsOf(UserSession s, UserStateStore states, StorageService storage)
         {
-            var st = states.For(s); var r = storage.Quick(s);
+            var st = states.For(s); var r = storage.Quick(s); var policy = app.Services.GetRequiredService<DownloadPolicy>();
             return new
             {
                 admin = AdminAccess.Is(s, app.Configuration), prefetch = st.Prefetch, minFreeGb = st.MinFreeGb,
+                // whether this server downloads at all, and whether this person may import playlists and use Download all: the phone hides what the server won't do
+                downloads = policy.Allowed, bulk = policy.MayBulk(s),
                 charts = new { enabled = st.Charts.Enabled, lists = st.Charts.Lists, perList = st.Charts.PerList, lastRun = st.Charts.LastRun, lastNote = st.Charts.LastNote },
                 available = ChartsService.Available.Select(c => new { id = c.Id, name = c.Name }),
                 storage = new { musicFree = r.Music?.Free ?? -1, musicTotal = r.Music?.Total ?? -1, nasSongs = r.NasSongs, nasBytes = r.NasBytes, diskFree = r.DiskFree, diskTotal = r.DiskTotal },

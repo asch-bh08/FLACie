@@ -6,6 +6,12 @@
 <div class="sp">
 <header class="page-head"><h1>Import <i>playlists</i></h1></header>
 
+@* only for those the server lets fetch whole lists (DownloadPolicy.MayBulk); the page is not linked for anyone else, and ImportManager refuses them too *@
+@if (!Policy.MayBulk(Session))
+{
+    <section class="panel wide"><p>Importing playlist files isn't turned on for your account on this server. Ask the person who runs it.</p></section>
+}
+else {
 <section class="panel wide">
     <h2>Drop in a playlist or library file</h2>
     <p class="hint">An iTunes <code>Library.xml</code>, an M3U playlist, a Spotify CSV, or a text file. In text, a line starting with <code>##</code> begins a playlist and every other line is <code>Artist - Title</code>. This server does the searching and downloading in the background, so it keeps going when you close this page and nothing is downloaded to this device. Songs already in your library are just added.</p>
@@ -17,6 +23,7 @@
     @if (error is not null) { <p class="form-error" role="alert">@error</p> }
     @if (!Session.Services.Any) { <p class="hint">Downloads aren't set up yet, so only songs you already have can be added. Set them up in the <a href="/dashboard#downloads">Dashboard</a> (administrators).</p> }
 </section>
+}
 
 @foreach (var job in Jobs)
 {
@@ -50,6 +57,7 @@
 
 @code {
     [Inject] ImportManager Imports { get; set; } = default!;
+    [Inject] DownloadPolicy Policy { get; set; } = default!;
     [Inject] UserStateStore States { get; set; } = default!;
     bool busy, replace; string? error;
     Action<UserSession>? onChange; Timer? tick;
@@ -74,6 +82,7 @@
             Imports.Start(Session, f.Name, ms.ToArray(), replace);
         }
         catch (InvalidDataException ex) { error = ex.Message; }
+        catch (ImportNotAllowedException ex) { error = ex.Message; }
         catch (IOException) { error = "That file is too big (limit 20 MB)."; }
         catch (Exception ex) { error = FriendlyError.Of(ex); }
         finally { busy = false; }

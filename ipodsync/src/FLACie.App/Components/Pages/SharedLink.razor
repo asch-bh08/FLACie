@@ -46,15 +46,16 @@ else
         @if (missing.Count > 0)
         {
             <section class="shelf missing-list" aria-label="Not in your library">
+                @* Download all is for administrators, or everyone when the Dashboard lets them; single songs for anyone, and nothing at all while the server doesn't download *@
                 <div class="shelf-head"><div><h2>Not in your library</h2><small>@(missing.Count == 1 ? "1 song" : missing.Count + " songs") you don't have yet</small></div>
-                    <button class="btn" disabled="@(!Session.Services.Any)" @onclick="() => Get(missing)"><Icon Name="download" Size="16" />Download all</button></div>
-                @if (!Session.Services.Any) { <p class="hint">Downloads aren't set up on this server, so these can't be fetched from here.</p> }
+                    @if (Downloads.MayBulk(Session)) { <button class="btn" disabled="@(!Session.Services.Any)" @onclick="() => Get(missing)"><Icon Name="download" Size="16" />Download all</button> }</div>
+                @if (Downloads.Allowed && !Session.Services.Any) { <p class="hint">Downloads aren't set up on this server, so these can't be fetched from here.</p> }
                 <ul class="tracks">
                     @foreach (var m in missing)
                     {
                         var e = m;
                         <li class="track gone"><span class="track-main"><Cover Size="44" /><span class="track-text"><span class="track-title">@e.Title</span><span class="track-sub">@e.Artist</span><DownloadTag Session="Session" Artist="@e.Artist" Title="@e.Title" /></span></span>
-                            <button class="btn" disabled="@(!Session.Services.Any || asked.Contains(Key(e)))" @onclick="() => Get([e])">@(asked.Contains(Key(e)) ? "Requested" : "Download")</button></li>
+                            @if (Downloads.Allowed) { <button class="btn" disabled="@(!Session.Services.Any || asked.Contains(Key(e)))" @onclick="() => Get([e])">@(asked.Contains(Key(e)) ? "Requested" : "Download")</button> }</li>
                     }
                 </ul>
             </section>
@@ -97,8 +98,9 @@ else
         saved = Session.Playlists.FirstOrDefault(p => p.Id == pl.Id);
     }
 
-    void Get(IEnumerable<PlaylistEntry> entries)
+    void Get(IReadOnlyCollection<PlaylistEntry> entries)
     {
+        if (entries.Count > 1 && !Downloads.MayBulk(Session)) return;
         foreach (var e in entries) if (asked.Add(Key(e))) _ = Downloads.FetchSongAsync(Session, "Shared", e.Artist, e.Title, "", null, 0);
     }
 }

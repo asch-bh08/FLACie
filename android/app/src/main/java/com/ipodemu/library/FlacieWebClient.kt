@@ -40,11 +40,25 @@ class FlacieWebClient(private val prefs: Prefs) {
         } finally { c.disconnect() }
     }
 
-    /** The server's own settings and storage, the same numbers as FLACie Web's Settings page. */
+    /** The server's own settings and storage, the same numbers as FLACie Web's Settings page. [downloads]: the server downloads at all (its Dashboard's
+     *  "Allow downloads"); [bulk]: this person may import playlist files there. A server from before those switches didn't send them, and it downloaded. */
     class ServerSettings(
         val admin: Boolean, val prefetch: Boolean, val minFreeGb: Int, val chartsOn: Boolean, val lists: List<Int>, val perList: Int, val lastRun: String, val lastNote: String,
         val available: List<Pair<Int, String>>, val musicFree: Long, val musicTotal: Long, val nasSongs: Int, val nasBytes: Long,
+        val downloads: Boolean = true, val bulk: Boolean = true,
     )
+
+    companion object {
+        fun parseSettings(t: String): ServerSettings {
+            val o = JSONObject(t); val ch = o.getJSONObject("charts"); val st = o.getJSONObject("storage")
+            val av = o.getJSONArray("available"); val ls = ch.getJSONArray("lists")
+            return ServerSettings(o.optBoolean("admin"), o.optBoolean("prefetch"), o.optInt("minFreeGb"), ch.optBoolean("enabled"), List(ls.length()) { ls.getInt(it) }, ch.optInt("perList", 10),
+                ch.optString("lastRun").takeIf { it != "null" } ?: "", ch.optString("lastNote").takeIf { it != "null" } ?: "",
+                List(av.length()) { av.getJSONObject(it).let { a -> a.getInt("id") to a.getString("name") } },
+                st.optLong("musicFree", -1), st.optLong("musicTotal", -1), st.optInt("nasSongs"), st.optLong("nasBytes"),
+                o.optBoolean("downloads", true), o.optBoolean("bulk", true))
+        }
+    }
     class AccountStats(val songs: Int, val albums: Int, val artists: Int, val playlists: Int, val favourites: Int, val admin: Boolean = false)
     class ChartSong(val rank: Int, val title: String, val artist: String, val art: String?)
 
@@ -62,15 +76,6 @@ class FlacieWebClient(private val prefs: Prefs) {
             if (code !in 200..299) throw WebRetry.HttpStatus(code, c.getHeaderField("Retry-After")?.trim()?.toLongOrNull())
             return c.inputStream.bufferedReader().use { it.readText() }
         } finally { c.disconnect() }
-    }
-
-    private fun parseSettings(t: String): ServerSettings {
-        val o = JSONObject(t); val ch = o.getJSONObject("charts"); val st = o.getJSONObject("storage")
-        val av = o.getJSONArray("available"); val ls = ch.getJSONArray("lists")
-        return ServerSettings(o.optBoolean("admin"), o.optBoolean("prefetch"), o.optInt("minFreeGb"), ch.optBoolean("enabled"), List(ls.length()) { ls.getInt(it) }, ch.optInt("perList", 10),
-            ch.optString("lastRun").takeIf { it != "null" } ?: "", ch.optString("lastNote").takeIf { it != "null" } ?: "",
-            List(av.length()) { av.getJSONObject(it).let { a -> a.getInt("id") to a.getString("name") } },
-            st.optLong("musicFree", -1), st.optLong("musicTotal", -1), st.optInt("nasSongs"), st.optLong("nasBytes"))
     }
 
     fun settings(): ServerSettings = parseSettings(send("/api/settings", "GET"))

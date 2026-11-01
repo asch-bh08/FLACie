@@ -181,4 +181,16 @@ data class OpenSourceSettings(val archive: Boolean, val audius: Boolean, val jam
     /** The sources that will actually be searched, best first. */
     fun active(): List<String> = fullOrder().filter { isOn(it) && (it != JAMENDO || jamendoId.isNotBlank()) }
     fun any() = active().isNotEmpty()
+
+    // The YouTube source is not offered on any screen. Where the profile already has it on it keeps working, quietly, in its place in the order:
+    // the setup screen shows and moves only the other sources, and writes the full order (YouTube included) back unchanged around them.
+    /** The sources the setup screen shows, in the saved order. */
+    fun shown(): List<String> = fullOrder().filter { it != YTDL }
+    /** The full order after moving shown source [id] past its shown neighbour ([by] = -1 up, 1 down); unchanged when it can't move. */
+    fun moveShown(id: String, by: Int): List<String> {
+        val full = fullOrder().toMutableList(); val shown = shown(); val k = shown.indexOf(id)
+        if (k < 0 || k + by !in shown.indices) return full
+        java.util.Collections.swap(full, full.indexOf(id), full.indexOf(shown[k + by]))
+        return full
+    }
 }

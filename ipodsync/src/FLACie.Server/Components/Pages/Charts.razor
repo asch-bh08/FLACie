@@ -15,7 +15,8 @@
 else if (songs.Count == 0) { <p class="status">The chart couldn't be loaded right now.</p> }
 else
 {
-    <p class="hint">@owned of @songs.Count are in your library. @(State.Charts.Enabled ? "New ones are added to your library every day." : "Daily downloads are off (Settings > Background downloads).")</p>
+    @* a list of what's popular: the daily download and the Download buttons only appear where the server downloads at all *@
+    <p class="hint">@owned of @songs.Count are in your library.@(!Downloads.Allowed ? "" : State.Charts.Enabled ? " New ones are added to your library every day." : " Daily downloads are off (Dashboard > Background downloads).")</p>
     <ol class="chart-list">
         @for (var i = 0; i < songs.Count; i++)
         {
@@ -26,7 +27,7 @@ else
                 <span class="chart-text"><b>@s.Title</b><small>@s.Artist</small>@if (jb is not null && have is null) { <span class="track-dl @(jb.Stage == DownloadStage.Failed ? "bad" : jb.Stage == DownloadStage.Done ? "ok" : "")"><i aria-hidden="true"></i>@jb.Message@(jb.Current is { } c && !jb.Finished ? " · " + OpenSourceSettings.Name(c) : jb.Source is { } src ? " · from " + OpenSourceSettings.Name(src) : "")</span> }
                     else if (have is not null) { <DownloadTag Session="Session" Artist="@have.Artist" Title="@have.Title" Track="have" /> }</span>
                 @if (have is not null) { <button class="btn" @onclick="() => Player.Play([have], 0, current_name)"><Icon Name="play" Size="16" />Play</button> }
-                else { <button class="btn" disabled="@(!Session.Services.Any || jb is { Finished: false })" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />@(jb is { Finished: false } ? "Downloading…" : jb is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button> }
+                else if (Downloads.Allowed) { <button class="btn" disabled="@(!Session.Services.Any || jb is { Finished: false })" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />@(jb is { Finished: false } ? "Downloading…" : jb is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button> }
             </li>
         }
     </ol>

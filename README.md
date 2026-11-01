@@ -59,9 +59,11 @@ Then `docker compose up -d` and open `http://<host>:8080`.
 `flacie.example.com { reverse_proxy flacie:8080 }`. With Tailscale Funnel on a host that already uses port 443, give it its own HTTPS port:
 `tailscale funnel --bg --https=8443 http://127.0.0.1:8080`.
 
-**Optional download tools.** FLACie can pass a request to download tools you run yourself, such as Lidarr or slskd. They are off until an
-administrator sets them up, and FLACie includes no music sources of its own. Only download music you own or have permission to download: copyright
-law applies to what you do with these tools, and you are responsible for it. The addresses and keys stay on the server; the browser only sees progress.
+**Optional download services.** Downloading is off on a new server. An administrator can switch on Dashboard > Downloads on this server > Allow
+downloads (or set `FLACIE_DOWNLOADS=on`) and point FLACie at download services they run themselves; Search then has Download buttons for music
+that isn't in the library. The addresses and keys are read from your profile and stay on the server; the browser only sees progress. FLACie includes no
+music sources of its own. Only download music you own or have permission to download: copyright law applies to what you do with these
+tools, and you are responsible for it.
 
 **Connect and Jams.** Signed in with Jellyfin, the browser appears as a device next to your phone: control it from the phone, take over what the
 phone plays, or start/join a Jam (Jellyfin SyncPlay; each user needs SyncPlay access in Dashboard > Users). A token that was borrowed from the
@@ -105,7 +107,9 @@ iTunes Search API for covers that your servers don't have. Signing in to an acco
 
 ## Background playlist import, charts and Autoplay (FLACie Web)
 
-- **Import:** FLACie Web's *Import* page (or Settings > Background downloads in the Android app) takes an iTunes `Library.xml`, an M3U, a Spotify CSV or a text file (`## Playlist (N tracks)` headings, `Artist - Title` lines). The server searches and downloads in the background (three songs at a time, paused while the music storage has less free space than Settings > Background says) and fills account playlists as songs arrive. The phone only sends the file (`POST /api/import`, authenticated with its Jellyfin token) and reads progress (`GET /api/import`).
-- **Daily charts:** Settings > Background downloads can follow iTunes charts (overall and by genre); with download tools set up, once a day it fetches songs you don't have while there is room, and rebuilds "Charts: ..." playlists (the same rule applies: only what you have the right to download). Nothing is ever deleted.
-- **Autoplay:** when the queue ends it adds different songs: the artist's others and those of similar artists (MusicBrainz + ListenBrainz listening data, songs from Deezer), and fetches the next few you lack.
+These need downloads to be allowed on the server (see above). Each is a switch, and the automatic ones (daily charts, Autoplay's fetching ahead, Alexa) start off for a new account.
+
+- **Import:** FLACie Web's *Import* page (or Settings > Background downloads in the Android app) takes an iTunes `Library.xml`, an M3U, a Spotify CSV or a text file (`## Playlist (N tracks)` headings, `Artist - Title` lines). Administrators can always import; Dashboard > "Let everyone use Download all and imports" opens it (and "Download all" on shared links and playlists) to everyone. The server searches and downloads in the background (three songs at a time, paused while the music storage has less free space than Settings > Background says) and fills account playlists as songs arrive. The phone only sends the file (`POST /api/import`, authenticated with its Jellyfin token) and reads progress (`GET /api/import`).
+- **Charts:** the Charts page is a list of what's popular right now (overall and by genre), showing which of the songs are already in your library. Daily auto-download is an optional switch (Dashboard > Background downloads > Daily charts, off unless you turn it on): once a day it fetches a few songs from the charts you pick that you don't have, while there is room. Nothing is ever deleted.
+- **Autoplay:** when the queue ends it adds different songs: the artist's others and those of similar artists (MusicBrainz + ListenBrainz listening data, songs from Deezer). Fetching the next few you lack ahead of time is an optional switch (Settings > Playback > Fetch ahead).
 - **Storage:** Settings > Storage shows the music storage's free space, the server's disk and data folder, and (on request) the Jellyfin library size.

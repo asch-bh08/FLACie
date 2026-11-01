@@ -78,6 +78,7 @@ builder.Services.AddSingleton(sp => { var n = sp.GetRequiredService<Notifier>();
 builder.Services.AddHostedService<PlayTrackerSweeper>();
 builder.Services.AddSingleton<StorageService>();
 builder.Services.AddSingleton<DownloadLog>();
+builder.Services.AddSingleton<DownloadPolicy>();   // the server-wide "Allow downloads" switch (off on a fresh install), checked by DownloadManager
 builder.Services.AddSingleton<DownloadManager>();
 builder.Services.AddSingleton<AutoplayPlanner>();
 builder.Services.AddSingleton<ImportManager>();

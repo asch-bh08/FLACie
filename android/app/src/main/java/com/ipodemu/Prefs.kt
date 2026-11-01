@@ -244,7 +244,6 @@ class Prefs(ctx: Context) {
     var openJamendo: Boolean
         get() = sp.getBoolean("openjamendo", true)
         set(v) = sp.edit().putBoolean("openjamendo", v).apply()
-    /** The last-resort yt-dlp (YouTube) source: off until the user switches it on. */
     /** Look and feel: an accent colour over the theme's own (0 = the theme's), tighter list rows, and the small source badges next to songs. */
     var accentColor: Int
         get() = sp.getInt("accentcolor", 0)
@@ -259,6 +258,7 @@ class Prefs(ctx: Context) {
     var showBadges: Boolean
         get() = sp.getBoolean("showbadges", true)
         set(v) = sp.edit().putBoolean("showbadges", v).apply()
+    /** The last-resort yt-dlp (YouTube) source. Not offered on any screen: it is only on where the account profile already had it on (synced in by AccountSync). */
     var openYtdl: Boolean
         get() = sp.getBoolean("openytdl", false)
         set(v) = sp.edit().putBoolean("openytdl", v).apply()

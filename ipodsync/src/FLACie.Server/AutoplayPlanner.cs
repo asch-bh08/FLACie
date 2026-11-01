@@ -38,7 +38,7 @@ public sealed class AutoplayPlanner(WebCatalog catalog, DownloadManager download
     /// <summary>Starts fetching up to [max] of the songs the library doesn't have, [onEach] called as each arrives (or fails).</summary>
     public void Prefetch(UserSession s, IEnumerable<CatalogSong> wanted, int max, Action onEach)
     {
-        if (!states.For(s).Prefetch || !s.Services.Any) return;
+        if (!states.For(s).Prefetch || !downloads.Ready(s)) return;
         var n = 0;
         foreach (var song in wanted)
         {

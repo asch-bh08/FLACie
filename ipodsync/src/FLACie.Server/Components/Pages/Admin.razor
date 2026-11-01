@@ -18,7 +18,8 @@
 <PageTitle>Dashboard · FLACie</PageTitle>
 <div class="sp">
 <header class="page-head"><h1><i>Dashboard</i></h1><p class="sub">What is playing, who is on, what the server is doing, and the server's settings</p></header>
-@if (allowed) { <nav class="subnav" aria-label="Dashboard sections"><a href="/downloads">Downloads</a><a href="/dashboard#downloads">Download services</a><a href="/dashboard#opensources">Open sources</a><a href="/dashboard#background">Background downloads</a><a href="/dashboard#storage">Storage</a><a href="/dashboard#notify">Notifications</a><a href="/dashboard#dj">AI DJ</a><a href="/downloads">Download log</a></nav> }
+@if (allowed && Downloads.Allowed) { <nav class="subnav" aria-label="Dashboard sections"><a href="/downloads">Downloads</a><a href="/dashboard#allow-downloads">Allow downloads</a><a href="/dashboard#downloads">Download services</a><a href="/dashboard#opensources">Open sources</a><a href="/dashboard#background">Background downloads</a><a href="/dashboard#storage">Storage</a><a href="/dashboard#notify">Notifications</a><a href="/dashboard#dj">AI DJ</a><a href="/downloads">Download log</a></nav> }
+else if (allowed) { <nav class="subnav" aria-label="Dashboard sections"><a href="/dashboard#allow-downloads">Downloads</a><a href="/dashboard#storage">Storage</a><a href="/dashboard#notify">Notifications</a><a href="/dashboard#dj">AI DJ</a></nav> }
 @if (!allowed)
 {
     <section class="panel"><p>This page is for the server's administrators. Ask the person who runs FLACie to make your account an administrator of the Jellyfin server, or to add you to <code>FLACIE_ADMINS</code>.</p></section>
@@ -83,8 +84,11 @@ else
             <button class="stat @(open == "accounts" ? "on" : "")" role="listitem" aria-expanded="@(open == "accounts")" @onclick='() => Toggle("accounts")'><b>@Store.Active.Count()</b><span>Accounts on</span></button>
             <button class="stat @(open == "songs" ? "on" : "")" role="listitem" aria-expanded="@(open == "songs")" @onclick='() => Toggle("songs")'><b>@Lib.Songs.Count.ToString("N0")</b><span>Songs in your library</span></button>
             <button class="stat @(open == "storage" ? "on" : "")" role="listitem" aria-expanded="@(open == "storage")" @onclick='() => Toggle("storage")'><b>@(space is { } sp ? StorageService.Bytes(sp.Free) : "?")</b><span>Music storage free</span></button>
-            <button class="stat @(open == "downloads" ? "on" : "")" role="listitem" aria-expanded="@(open == "downloads")" @onclick='() => Toggle("downloads")'><b>@activeDownloads</b><span>Downloads running</span></button>
-            <button class="stat @(open == "imports" ? "on" : "")" role="listitem" aria-expanded="@(open == "imports")" @onclick='() => Toggle("imports")'><b>@runningImports</b><span>Imports running</span></button>
+            @if (Downloads.Allowed)
+            {
+                <button class="stat @(open == "downloads" ? "on" : "")" role="listitem" aria-expanded="@(open == "downloads")" @onclick='() => Toggle("downloads")'><b>@activeDownloads</b><span>Downloads running</span></button>
+                <button class="stat @(open == "imports" ? "on" : "")" role="listitem" aria-expanded="@(open == "imports")" @onclick='() => Toggle("imports")'><b>@runningImports</b><span>Imports running</span></button>
+            }
         </div>
         <p class="hint" id="jf-calls">Calls to Jellyfin in the last minute: @string.Join(" · ", JfStats.Stats.LastMinute().Select(k => $"{k.Key} {k.Value}")). Open streams: @Activity.OpenStreams.</p>
         @if (open is not null)

@@ -118,6 +118,9 @@ public sealed class NoDownloads : IDownloads
     public void Song(UserSession s, CatalogSong song, bool hiRes = false, bool fallbackToNormal = true) { }
     public void Album(UserSession s, CatalogAlbum album) { }
     public Task FetchSongAsync(UserSession s, string kind, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct = default) => Task.CompletedTask;
+    public bool Allowed => false;
+    public bool Ready(UserSession s) => false;
+    public bool MayBulk(UserSession s) => false;
 }
 
 /// <summary>There is one player on the phone and no dashboard to list it on.</summary>

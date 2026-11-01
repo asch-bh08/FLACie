@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @inherits UserComponent
 @inject IConfiguration Conf
+@inject DownloadPolicy Policy
 <PageTitle>Account · FLACie</PageTitle>
 <div class="sp">
 
@@ -30,7 +31,9 @@
     <ul class="links">
         <li><i class="dot @(Session.Jellyfin is not null ? "on" : "")"></i><span><b>Jellyfin</b><small>@(Session.Jellyfin is { } j ? $"{j.UserName} on {j.Server}" : "Not connected")</small></span><a class="btn ghost" href="/settings#sources">@(Session.Jellyfin is null ? "Add" : "Manage")</a></li>
         <li><i class="dot @(Session.Nas is not null ? "on" : "")"></i><span><b>NAS</b><small>@(Session.Nas is { } n ? $"{n.Host}/{n.Share}{(n.Folder.Length > 0 ? "/" + n.Folder : "")}" : "Not connected")</small></span><a class="btn ghost" href="/settings#sources">@(Session.Nas is null ? "Add" : "Manage")</a></li>
+        @if (Policy.Allowed) {
         <li><i class="dot @(Session.Services.SoulseekReady || Session.Services.LidarrReady ? "on" : "")"></i><span><b>Downloads</b><small>@(Session.Services.SoulseekReady ? "Soulseek" : "") @(Session.Services.LidarrReady ? "Lidarr" : "")@(Session.Services.Any ? "" : "Not set up")</small></span>@if (AdminAccess.Is(Session, Conf)) { <a class="btn ghost" href="/dashboard#downloads">@(Session.Services.Any ? "Manage" : "Set up")</a> }</li>
+        }
         @if (Live is { } l) { <li><i class="dot @(l.Connect.Connected ? "on" : "")"></i><span><b>Devices</b><small>@(l.Connect.Connected ? "Connected for remote control and Jams" : "Connecting…")</small></span><a class="btn ghost" href="/devices">Open</a></li> }
     </ul>
 </section>
@@ -38,7 +41,7 @@
 <section class="panel set">
     <div class="set-head"><h2>Shortcuts</h2></div>
     <ul class="links">
-        <li><Icon Name="download" Size="20" /><span><b>Import playlists</b><small>Send an iTunes, M3U or text file and let the server fetch it</small></span><a class="btn ghost" href="/import">Open</a></li>
+        @if (Policy.MayBulk(Session)) { <li><Icon Name="download" Size="20" /><span><b>Import playlists</b><small>Send an iTunes, M3U or text file and let the server fetch it</small></span><a class="btn ghost" href="/import">Open</a></li> }
         <li><Icon Name="playlists" Size="20" /><span><b>Playlists</b><small>@Session.Playlists.Count playlists, kept in sync with your phone</small></span><a class="btn ghost" href="/playlists">Open</a></li>
         <li><Icon Name="jam" Size="20" /><span><b>Jam</b><small>Listen together, in sync</small></span><a class="btn ghost" href="/jam">Open</a></li>
     </ul>

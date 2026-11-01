@@ -182,7 +182,8 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
                 val list = r.songs
                 // "Playing from Songs" in the queue, as on the web
                 androidx.compose.runtime.DisposableEffect(Unit) { nav.playContext = "Songs"; onDispose { if (nav.playContext == "Songs") nav.playContext = null } }
-                if (list.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No songs yet")
+                if (ListLoad.of(list.isEmpty(), filtering, app.library.loaded) == ListLoad.PLACEHOLDERS) LoadingRows()
+                else if (list.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No songs yet")
                 else SongList(list, nav, snap, showArt = true, header = {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                         GlossPill("Shuffle", { app.player.play(list, list.indices.random(), true) }, icon = Glyph.SHUFFLE, primary = true, height = 34.dp)
@@ -190,9 +191,9 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
                     }
                 })
             }
-            "Albums" -> if (r.groups.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No albums yet") else AlbumGrid(r.groups, nav)
-            "Artists" -> if (r.groups.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No artists yet") else GroupList(r.groups, nav, circle = true) { Screen.Detail(DetailKind.ARTIST, it.name) }
-            else -> if (r.groups.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No genres yet") else GroupList(r.groups, nav, circle = false) { Screen.Detail(DetailKind.GENRE, it.name) }
+            "Albums" -> if (ListLoad.of(r.groups.isEmpty(), filtering, app.library.loaded) == ListLoad.PLACEHOLDERS) LoadingRows() else if (r.groups.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No albums yet") else AlbumGrid(r.groups, nav)
+            "Artists" -> if (ListLoad.of(r.groups.isEmpty(), filtering, app.library.loaded) == ListLoad.PLACEHOLDERS) LoadingRows() else if (r.groups.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No artists yet") else GroupList(r.groups, nav, circle = true) { Screen.Detail(DetailKind.ARTIST, it.name) }
+            else -> if (ListLoad.of(r.groups.isEmpty(), filtering, app.library.loaded) == ListLoad.PLACEHOLDERS) LoadingRows() else if (r.groups.isEmpty()) EmptyState(if (filtering) "Nothing matches these filters" else "No genres yet") else GroupList(r.groups, nav, circle = false) { Screen.Detail(DetailKind.GENRE, it.name) }
         }
         }
     }

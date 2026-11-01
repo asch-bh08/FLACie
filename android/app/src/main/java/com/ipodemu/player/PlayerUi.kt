@@ -1111,6 +1111,31 @@ private fun PlaylistsList(nav: PlayerNav) {
     }
 }
 
+/** What an empty list shows: the list itself, grey placeholders while the library is still loading, or "nothing here" once it has loaded (or a filter matches nothing). */
+enum class ListLoad {
+    LIST, PLACEHOLDERS, EMPTY;
+    companion object { fun of(empty: Boolean, filtering: Boolean, loaded: Boolean) = if (!empty) LIST else if (!filtering && !loaded) PLACEHOLDERS else EMPTY }
+}
+
+/** Grey shapes where song rows will be, while the library loads (the web's Skeleton.razor): still, never shimmering, with the words for TalkBack. */
+@Composable
+fun LoadingRows(text: String = "Loading your library…") {
+    val sc = LocalScheme.current
+    val shade = sc.onBg.copy(alpha = .09f)
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp).semantics(mergeDescendants = true) { contentDescription = text }, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Txt(text.uppercase(), size = 11f, color = sc.onBgDim)
+        repeat(8) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Box(Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).background(shade))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.fillMaxWidth(.62f).height(11.dp).clip(RoundedCornerShape(6.dp)).background(shade))
+                    Box(Modifier.fillMaxWidth(.38f).height(11.dp).clip(RoundedCornerShape(6.dp)).background(shade.copy(alpha = .06f)))
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun EmptyState(text: String) {
     val sc = LocalScheme.current

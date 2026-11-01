@@ -7,7 +7,7 @@ import org.junit.Test
 /** A favourite made on the web or another phone is kept under that device's path; Favourites lists this phone's copy (matched by title and
  * artist), but its heart looked only for this phone's path, so 3 of 4 favourites showed no heart (and tapping it added a second favourite). */
 class FavoriteMatchTest {
-    private val webPath = "https://hms-jellyfin.tailb05910.ts.net/Audio/abc/stream?static=true"
+    private val webPath = "https://jellyfin.example.ts.net/Audio/abc/stream?static=true"
     private val meta = mapOf(webPath to ("Chandelier" to "Sia"))
 
     @Test fun the_same_path_is_its_own_favourite() {

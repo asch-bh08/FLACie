@@ -420,7 +420,7 @@ tables, generated rather than copied, and compared equal to libgpod's in all
   cbk from Locations.itdb with the recovered (iv, random) pair is
   byte-identical** to the iTunes-written file.
 - `Signing/Hash58.cs` + `hash58-verify`: with FirewireGuid = USB serial
-  `000A27001E7D86AB`, HMAC over the compressed CDB with db id / 0x32 / hash58
+  (the iPod's own 16-digit serial), HMAC over the compressed CDB with db id / 0x32 / hash58
   zeroed **reproduces the original iTunes hash58 exactly**
   (`322B2633BB46E313…`). hash72 is computed with hash58 zeroed, hash58 with
   hash72 in place → sign hash72 first, hash58 last.

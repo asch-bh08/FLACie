@@ -75,7 +75,7 @@ Next steps need your go-ahead: deploy (restarts the server) and a release.
 - Cause: hms-jellyfin lost its 443 Funnel; the app gave up syncing after ~4 min, so playlists stayed empty until Sync now.
 - App: sync retries every 5 min until it works, and syncs again on return to screen when over 10 min old (not released yet).
 - frank: ops/entrance-watch installed (script + systemd units) but the timer is NOT enabled yet: owner runs `systemctl enable --now flacie-entrance-watch.timer` on frank.
-- The 443 Funnel must point to http://192.168.1.183:8096 (the Tailscale address hangs).
+- The 443 Funnel must point to frank's home address on port 8096 (the Tailscale address hangs).
 
 ## 2026-10-25 Recommend: offline evaluation gate (task 7)
 - RecEval (hit rate at 10) + tools/receval: replays listening on a read-only copy of frank's data; taste only from plays before each case.

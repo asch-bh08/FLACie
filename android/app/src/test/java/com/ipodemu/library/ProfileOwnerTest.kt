@@ -13,14 +13,14 @@ class ProfileOwnerTest {
         .put("history", JSONArray().also { a -> plays.forEach { a.put(JSONObject().put("p", "p$it").put("t", "T").put("a", "A").put("w", it)) } })
 
     @Test fun a_newer_NAS_copy_from_another_account_is_not_taken() {
-        val mine = copy("c3aaeb3c051b4f6593afef2947748e3d", 10, 1)
-        val dads = copy("3c4493eaa5244feb9b948a17db3fda45", 20, 2)
-        assertSame(mine, ProfileOwner.choose(mine, dads, "c3aaeb3c051b4f6593afef2947748e3d"))
+        val mine = copy("1111aaaa2222bbbb3333cccc4444dddd", 10, 1)
+        val dads = copy("5555eeee6666ffff7777aaaa8888bbbb", 20, 2)
+        assertSame(mine, ProfileOwner.choose(mine, dads, "1111aaaa2222bbbb3333cccc4444dddd"))
     }
 
     @Test fun the_account_id_matches_with_or_without_dashes_and_in_any_case() {
-        val nas = copy("C3AAEB3C-051B-4F65-93AF-EF2947748E3D", 20)
-        assertSame(nas, ProfileOwner.choose(copy("c3aaeb3c051b4f6593afef2947748e3d", 10), nas, "c3aaeb3c051b4f6593afef2947748e3d"))
+        val nas = copy("1111AAAA-2222-BBBB-3333-CCCC4444DDDD", 20)
+        assertSame(nas, ProfileOwner.choose(copy("1111aaaa2222bbbb3333cccc4444dddd", 10), nas, "1111aaaa2222bbbb3333cccc4444dddd"))
     }
 
     @Test fun a_NAS_copy_without_an_account_is_not_taken_by_a_Jellyfin_sign_in() {

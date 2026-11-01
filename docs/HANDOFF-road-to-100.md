@@ -5,7 +5,7 @@ Updated after every step, so another session can take over at any point. Newest 
 
 ## Now (2026-10-25, night)
 
-- **Alexa (2026-10-25 day):** skill FLACie, id amzn1.ask.skill.73ca72da-fd63-4f28-adba-da59842366a0, on the OWNER's developer account (vendor M1G9ATO29FYKFM), spoken name "flacky", models en-GB/US/AU/CA/IN; update with `alexa-skill\deploy.ps1 -PublicUrl https://frank.tailb05910.ts.net -SkillId <id>`. Public: Tailscale Funnel on frank 443 (root = ntfy, /slskd /lidarr /filemove, /alexa -> FLACie 5255). Simulator (`ask smapi simulate-skill`) answers in every locale; the owner's phone Alexa app did not reach it ("not sure how to help"; typing: "trouble connecting") -- likely the phone's Alexa language. Family: beta-test invites from the developer console (Distribution > Availability). Admin check now retries (was lost after restarts).
+- **Alexa (2026-10-25 day):** skill FLACie on the OWNER's developer account (ids in docs/private), spoken name "flacky", models en-GB/US/AU/CA/IN; update with `alexa-skill\deploy.ps1 -PublicUrl <frank's public address> -SkillId <id>`. Public: Tailscale Funnel on frank 443 (root = ntfy, /slskd /lidarr /filemove, /alexa -> FLACie 5255). Simulator (`ask smapi simulate-skill`) answers in every locale; the owner's phone Alexa app did not reach it ("not sure how to help"; typing: "trouble connecting") -- likely the phone's Alexa language. Family: beta-test invites from the developer console (Distribution > Availability). Admin check now retries (was lost after restarts).
 
 - **Beta 91 released** (speed): web on frank (rollback tag rollback-20261025-pre91), GitHub v1.0.0-beta91 with APK + MSI, Android code 106.
 
@@ -99,8 +99,8 @@ Updated after every step, so another session can take over at any point. Newest 
 6. Commit named files only (NEVER `git add` a directory: test data folders hold tokens and keys), check `git show --stat HEAD`, push the branch,
    `git push origin HEAD:main`.
 7. Web: `ssh root@frank 'docker tag flacie-web:local flacie-web:rollback-<date>-preN'`, then from `ipodsync/src`:
-   `tar --exclude=bin --exclude=obj -czf - FLACie.Core FLACie.Retro FLACie.App FLACie.Server | ssh -o BatchMode=yes root@frank 'rm -rf /tmp/fw && mkdir /tmp/fw && tar --no-same-owner -xzf - -C /tmp/fw && cd /tmp/fw && docker build -q -f FLACie.Server/Dockerfile -t flacie-web:local . && cd /home/hms/docker/flacie-web && docker compose up -d --force-recreate'`,
-   then `curl https://frank.tailb05910.ts.net:8443/healthz` must say "ok".
+   `tar --exclude=bin --exclude=obj -czf - FLACie.Core FLACie.Retro FLACie.App FLACie.Server | ssh -o BatchMode=yes root@frank 'rm -rf /tmp/fw && mkdir /tmp/fw && tar --no-same-owner -xzf - -C /tmp/fw && cd /tmp/fw && docker build -q -f FLACie.Server/Dockerfile -t flacie-web:local . && cd <flacie-web folder on frank> && docker compose up -d --force-recreate'`,
+   then `curl <frank's public address>:8443/healthz` must say "ok".
 8. Notes in `docs/private/release-bodies/v1.0.0-betaN.md` (git-ignored, plain words, owner-facing), then
    `gh release create v1.0.0-betaN --prerelease --target main --title "FLACie 1.0 beta N" --notes-file ... FLACie-1.0-betaN.apk`.
 9. One line in `docs/waves/log.md`, and update this file.

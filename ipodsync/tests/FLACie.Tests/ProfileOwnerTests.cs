@@ -21,17 +21,17 @@ public class ProfileOwnerTests
     [Fact]
     public void A_newer_NAS_copy_from_another_account_is_not_taken()
     {
-        var mine = Copy("c3aaeb3c051b4f6593afef2947748e3d", 10, 1);
-        var dads = Copy("3c4493eaa5244feb9b948a17db3fda45", 20, 2);
-        Assert.Same(mine, UserSession.ChooseProfile(mine, dads, "c3aaeb3c051b4f6593afef2947748e3d"));
+        var mine = Copy("1111aaaa2222bbbb3333cccc4444dddd", 10, 1);
+        var dads = Copy("5555eeee6666ffff7777aaaa8888bbbb", 20, 2);
+        Assert.Same(mine, UserSession.ChooseProfile(mine, dads, "1111aaaa2222bbbb3333cccc4444dddd"));
     }
 
     [Fact]
     public void The_account_id_matches_with_or_without_dashes_and_in_any_case()
     {
-        var mine = Copy("c3aaeb3c051b4f6593afef2947748e3d", 10);
-        var nas = Copy("C3AAEB3C-051B-4F65-93AF-EF2947748E3D", 20);
-        Assert.Same(nas, UserSession.ChooseProfile(mine, nas, "c3aaeb3c051b4f6593afef2947748e3d"));
+        var mine = Copy("1111aaaa2222bbbb3333cccc4444dddd", 10);
+        var nas = Copy("1111AAAA-2222-BBBB-3333-CCCC4444DDDD", 20);
+        Assert.Same(nas, UserSession.ChooseProfile(mine, nas, "1111aaaa2222bbbb3333cccc4444dddd"));
     }
 
     [Fact]

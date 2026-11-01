@@ -4,4 +4,6 @@ After=network-online.target tailscaled.service
 
 [Service]
 Type=oneshot
+# the real names and addresses (JF_HOST, JF_PUBLIC, JF_TARGET, WEB_PUBLIC, FLACIE_DATA): not in the repository
+EnvironmentFile=-/etc/default/flacie-entrance-watch
 ExecStart=/usr/local/bin/flacie-entrance-watch.sh

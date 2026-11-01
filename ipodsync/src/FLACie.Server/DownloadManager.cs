@@ -4,9 +4,19 @@ using FLACie.Core;
 namespace FLACie.Server;
 
 /// <summary>Runs downloads in the background for the signed-in user (they keep going when the tab closes) and keeps their progress for
-/// the page. The Soulseek and Lidarr addresses and keys come from the user's profile and never reach the browser.</summary>
-public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, DownloadLog log, JellyfinClient jf, DownloadDigest digest) : IDownloads
+/// the page. The Soulseek and Lidarr addresses and keys come from the user's profile and never reach the browser.
+/// Every download on the server comes through here (Search, Download all, charts, imports, Autoplay, Alexa, the DJ), so this is also where the
+/// server-wide "Allow downloads" switch (<see cref="DownloadPolicy"/>) is checked: while it is off nothing is fetched, whoever or whatever asks.
+/// Without a policy (the tests) downloads are allowed.</summary>
+public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, DownloadLog log, JellyfinClient jf, DownloadDigest digest, DownloadPolicy? policy = null) : IDownloads
 {
+    /// <summary>What a fetch answers while the server's downloads are switched off.</summary>
+    public const string OffMessage = "Downloads are turned off on this server";
+
+    public bool Allowed => policy?.Allowed ?? true;
+    public bool Ready(UserSession s) => Allowed && s.Services.Any;
+    public bool MayBulk(UserSession s) => policy?.MayBulk(s) ?? true;
+
     sealed class Jobs
     {
         public readonly List<DownloadJob> List = [];
@@ -234,12 +244,18 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
         j.Raise();
     }
 
-    public void Song(UserSession s, CatalogSong song, bool hiRes = false, bool fallbackToNormal = true) =>
+    public void Song(UserSession s, CatalogSong song, bool hiRes = false, bool fallbackToNormal = true)
+    {
+        if (!Allowed) return;
         Run(s, Add(s, $"{song.Title} · {song.Artist}{(hiRes ? " (Hi-Res)" : "")}", song.ArtUrl, "Search", song.Artist, song.Title, song.Album, song.DurationMs),
             (c, on) => hiRes ? c.DownloadHiResAsync(song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs, on, default, fallbackToNormal) : c.DownloadAsync(song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs, on));
+    }
 
-    public void Album(UserSession s, CatalogAlbum album) =>
+    public void Album(UserSession s, CatalogAlbum album)
+    {
+        if (!Allowed) return;
         Run(s, Add(s, $"{album.CleanTitle} · {album.Artist}", album.ArtUrl, "Search", album.Artist, album.CleanTitle, isAlbum: true), (c, on) => c.DownloadAlbumAsync(album, on));
+    }
 
     // ---- trying a failed download again ----
 
@@ -251,7 +267,7 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
     /// <summary>Asks for a failed song again, as a new download that starts now. Nothing happens when that song is already being fetched.</summary>
     public bool Retry(UserSession s, DownloadRecord r)
     {
-        if (!CanRetry(r) || JobFor(s, r.Artist, r.Title) is { Finished: false }) return false;
+        if (!Allowed || !CanRetry(r) || JobFor(s, r.Artist, r.Title) is { Finished: false }) return false;
         var j = For(s); lock (j.Failed) j.Failed.Remove(Key(r.Artist, r.Title));
         var job = Add(s, r.Label, r.ArtUrl, r.Kind == "Autoplay" ? "Autoplay" : "Search", r.Artist, r.Title, r.Album, r.DurationMs);
         Run(s, job, async (c, on) =>
@@ -299,6 +315,7 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
 
     public Task<DownloadResult> FetchAsync(UserSession s, string kind, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct = default)
     {
+        if (!Allowed) return Task.FromResult(new DownloadResult(false, [], OffMessage));
         var j = For(s); var key = Key(artist, title);
         lock (j.InFlight)
         {

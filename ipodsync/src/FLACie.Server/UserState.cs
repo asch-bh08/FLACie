@@ -44,7 +44,9 @@ public sealed class ImportJob
 
 public sealed class ChartSettings
 {
-    /// <summary>Stored as "turned off" so that a fresh or older file means on (the daily download is on unless switched off).</summary>
+    /// <summary>Stored as "turned off" because an account file from before 1.0 that leaves it out had the daily download on, and keeps it on.
+    /// A new account starts with it off (<see cref="UserState.NewAccount"/>): the charts page is a list of what's popular, and downloading the
+    /// songs on it every day is a switch the person turns on in the Dashboard.</summary>
     public bool Off { get; set; }
     [System.Text.Json.Serialization.JsonIgnore] public bool Enabled { get => !Off; set => Off = !value; }
     /// <summary>Deezer chart ids: 0 overall, 132 Pop, 116 Rap/Hip Hop, 152 Rock, 113 Dance, 165 R&amp;B.</summary>
@@ -57,8 +59,17 @@ public sealed class ChartSettings
 /// <summary>What this server remembers about one account besides the shared profile: background downloads and their limits.</summary>
 public sealed class UserState
 {
-    /// <summary>Fetch the songs Autoplay is about to need, so they are there when the queue gets to them.</summary>
+    /// <summary>1: the automatic downloads (daily charts, Autoplay's fetching ahead) are written out as they are, and a new account starts with them off.
+    /// A file without it (0) was saved before that, when leaving them out meant on: it is read as on and written straight back with a version, so it never flips.</summary>
+    public const int CurrentVersion = 1;
+    public int Version { get; set; }
+
+    /// <summary>Fetch the songs Autoplay is about to need, so they are there when the queue gets to them. True here only for an older file that leaves it
+    /// out (it was on then); a new account starts with it off.</summary>
     public bool Prefetch { get; set; } = true;
+
+    /// <summary>A person seen for the first time: nothing downloads by itself until they (or the server's administrator) switch it on.</summary>
+    public static UserState NewAccount() => new() { Version = CurrentVersion, Prefetch = false, Charts = new ChartSettings { Off = true } };
     /// <summary>Background downloads (autoplay, imports, charts) stop when the music storage has less than this much free.</summary>
     public int MinFreeGb { get; set; } = 10;
     public ChartSettings Charts { get; set; } = new();
@@ -78,8 +89,25 @@ public sealed class UserStateStore(DataPaths paths, Microsoft.AspNetCore.DataPro
 
     public UserState For(UserSession s) => cache.GetOrAdd(s.Id, _ =>
     {
-        try { var f = FileOf(s); if (File.Exists(f)) return JsonSerializer.Deserialize<UserState>(File.ReadAllText(f)) ?? new(); } catch (Exception) { }
-        return new UserState();
+        var existed = false;
+        try
+        {
+            var f = FileOf(s);
+            if (existed = File.Exists(f))
+            {
+                var st = JsonSerializer.Deserialize<UserState>(File.ReadAllText(f)) ?? new();
+                // an account from before 1.0: its switches stay what they were (on, if it never turned them off), now written out so they stay that way
+                if (st.Version < UserState.CurrentVersion)
+                {
+                    st.Version = UserState.CurrentVersion;
+                    lock (gate) { try { File.WriteAllText(f, JsonSerializer.Serialize(st, Json)); } catch (Exception) { } }
+                }
+                return st;
+            }
+        }
+        catch (Exception) { }
+        // a file that is there but can't be read is an existing account: it keeps working as it did (the next save writes it out afresh)
+        return existed ? new UserState() : UserState.NewAccount();
     });
 
 

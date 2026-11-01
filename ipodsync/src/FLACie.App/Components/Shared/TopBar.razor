@@ -1,5 +1,6 @@
 @inherits UserComponent
 @inject IConfiguration Conf
+@inject IDownloads Dls
 @implements IDisposable
 @* Along the top, like YT Music: the logo, one search box that works from every page, and the account at the right. *@
 <header class="topbar">
@@ -29,7 +30,7 @@
                 @if (AdminAccess.Is(Session, Conf))
                 {
                     <a role="menuitem" href="/dashboard" @onclick="() => open = false"><Icon Name="shield" Size="18" />Dashboard</a>
-                    <a role="menuitem" href="/downloads" @onclick="() => open = false"><Icon Name="download" Size="18" />Downloads</a>
+                    @if (Dls.Allowed) { <a role="menuitem" href="/downloads" @onclick="() => open = false"><Icon Name="download" Size="18" />Downloads</a> }
                 }
                 <a role="menuitem" href="/retro" @onclick="() => open = false"><Icon Name="retro" Size="18" />Retro</a>
                 <a role="menuitem" href="/settings" @onclick="() => open = false"><Icon Name="settings" Size="18" />Settings</a>

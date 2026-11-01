@@ -117,8 +117,8 @@ else
                             <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" />
                         </button>
                     }
-                    @* songs the person does not have yet: tagged New, and a press fetches one the way Search's Download does *@
-                    @foreach (var n in sh.New)
+                    @* songs the person does not have yet: tagged New, and a press fetches one the way Search's Download does (only where the server downloads at all) *@
+                    @foreach (var n in Downloads.Allowed ? sh.New : [])
                     {
                         var job = Downloads.JobFor(Session, n.Artist, n.Title);
                         <button class="card song-card new-song" @key="@("new:" + n.Artist + "|" + n.Title)" disabled="@(!Session.Services.Any || job is { Finished: false })" @onclick="() => Downloads.Song(Session, n)" aria-label="@("Get " + n.Title + " by " + n.Artist)">

@@ -46,7 +46,8 @@ else
     @if (webBusy || webSongs.Count > 0 || webAlbums.Count > 0)
     {
         <h2 class="section">More music @(webBusy ? "(searching…)" : "")</h2>
-        @if (!Session.Services.Any) { <p class="hint">To download these, set up Soulseek or Lidarr in the <a href="/dashboard#downloads">Dashboard</a> (administrators). Your phone's setup is picked up automatically.</p> }
+        @* with downloads off on this server (the Dashboard's "Allow downloads") these are only what exists: no download buttons and no "set up downloads" hint *@
+        @if (Downloads.Allowed && !Session.Services.Any) { <p class="hint">To download these, set up Soulseek or Lidarr in the <a href="/dashboard#downloads">Dashboard</a> (administrators). Your phone's setup is picked up automatically.</p> }
         @if (webAlbums.Count > 0)
         {
             <div class="row-scroll">
@@ -58,7 +59,7 @@ else
                         <span class="card-title">@a.CleanTitle</span>
                         <span class="card-sub">@a.Artist · @a.Kind</span>
                         @if (ja is not null) { <span class="track-dl @(ja.Stage == DownloadStage.Failed ? "bad" : ja.Stage == DownloadStage.Done ? "ok" : "")"><i aria-hidden="true"></i>@ja.Message@(ja.Current is { } ca && !ja.Finished ? " · " + OpenSourceSettings.Name(ca) : ja.Source is { } sa ? " · from " + OpenSourceSettings.Name(sa) : "")</span> }
-                        <button class="btn" disabled="@(!Session.Services.Any || ja is { Finished: false })" @onclick="() => Downloads.Album(Session, a)"><Icon Name="download" Size="16" />@(ja is { Finished: false } ? "Downloading…" : ja is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button>
+                        @if (Downloads.Allowed) { <button class="btn" disabled="@(!Session.Services.Any || ja is { Finished: false })" @onclick="() => Downloads.Album(Session, a)"><Icon Name="download" Size="16" />@(ja is { Finished: false } ? "Downloading…" : ja is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button> }
                     </div>
                 }
             </div>
@@ -78,15 +79,15 @@ else
                         </span>
                         <span class="track-time">@Time(s.DurationMs / 1000.0)</span>
                         <span class="track-actions">
-                        <button class="btn" disabled="@(!Session.Services.Any || jb is { Finished: false } || inLib)" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />@(jb is { Finished: false } ? "Downloading…" : inLib ? "In your library" : jb is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button>
+                        @if (Downloads.Allowed) { <button class="btn" disabled="@(!Session.Services.Any || jb is { Finished: false } || inLib)" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />@(jb is { Finished: false } ? "Downloading…" : inLib ? "In your library" : jb is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button> }
                         <span class="dl-more">
-                            <button class="icon-btn" aria-haspopup="menu" aria-expanded="@((dlMenu == hiKey) ? "true" : "false")" aria-label="More download options for @s.Title" @onclick="() => dlMenu = dlMenu == hiKey ? null : hiKey"><Icon Name="lines" Size="20" /></button>
+                            <button class="icon-btn" aria-haspopup="menu" aria-expanded="@((dlMenu == hiKey) ? "true" : "false")" aria-label="@MoreLabel(s.Title)" @onclick="() => dlMenu = dlMenu == hiKey ? null : hiKey"><Icon Name="lines" Size="20" /></button>
                             @if (dlMenu == hiKey)
                             {
                                 <button class="scrim" aria-label="Close" @onclick="() => dlMenu = null"></button>
                                 <div class="dl-menu" role="menu">
-                                    <button role="menuitem" disabled="@(!Session.Services.Any || jb is { Finished: false } || inLib)" @onclick="() => { dlMenu = null; Downloads.Song(Session, s); }"><Icon Name="download" Size="16" />Download</button>
-                                    @if (isAdmin && Session.Services.SoulseekReady) { <button role="menuitem" class="hi" disabled="@(jb is { Finished: false } || inLib)" @onclick="() => { dlMenu = null; hiAsk = hiKey; }"><span aria-hidden="true">✦</span> Hi-Res download…</button> }
+                                    @if (Downloads.Allowed) { <button role="menuitem" disabled="@(!Session.Services.Any || jb is { Finished: false } || inLib)" @onclick="() => { dlMenu = null; Downloads.Song(Session, s); }"><Icon Name="download" Size="16" />Download</button> }
+                                    @if (isAdmin && Downloads.Allowed && Session.Services.SoulseekReady) { <button role="menuitem" class="hi" disabled="@(jb is { Finished: false } || inLib)" @onclick="() => { dlMenu = null; hiAsk = hiKey; }"><span aria-hidden="true">✦</span> Hi-Res download…</button> }
                                     <a role="menuitem" href="https://www.youtube.com/results?search_query=@Uri.EscapeDataString(s.Artist + " " + s.Title)" target="_blank" rel="noopener" @onclick="() => dlMenu = null">Find on YouTube</a>
                                 </div>
                             }
@@ -103,6 +104,7 @@ else
     [Parameter, SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
     [Inject] WebCatalog Catalog { get; set; } = default!;
     [Inject] IDownloads Downloads { get; set; } = default!;
+    string MoreLabel(string title) => (Downloads.Allowed ? "More download options for " : "More options for ") + title;
     [Inject] IConfiguration Conf { get; set; } = default!;
     bool isAdmin => AdminAccess.Is(Session, Conf);
     string q = ""; string? hiAsk, dlMenu;

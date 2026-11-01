@@ -1,6 +1,7 @@
 @page "/playlists"
 @attribute [Authorize]
 @inherits UserComponent
+@inject IDownloads Downloads
 <PageTitle>Playlists · FLACie</PageTitle>
 <header class="page-head">
     <h1><i>Playlists</i></h1>
@@ -9,7 +10,7 @@
         <button class="btn primary" type="submit" disabled="@string.IsNullOrWhiteSpace(name)">Create</button>
     </form>
     @* importing a playlist (iTunes, M3U, a text list) lives here now, not in the menu *@
-    @if (AppHost.Server) { <a class="btn" href="/import"><Icon Name="download" Size="16" />Import a playlist</a> }
+    @if (AppHost.Server && Downloads.MayBulk(Session)) { <a class="btn" href="/import"><Icon Name="download" Size="16" />Import a playlist</a> }
 </header>
 @if (Session.Playlists.Count == 0)
 {

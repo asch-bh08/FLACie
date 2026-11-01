@@ -20,6 +20,13 @@ public interface IDownloads
     void Song(UserSession s, CatalogSong song, bool hiRes = false, bool fallbackToNormal = true);
     void Album(UserSession s, CatalogAlbum album);
     Task FetchSongAsync(UserSession s, string kind, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct = default);
+    /// <summary>This server downloads music at all (the Dashboard's "Allow downloads", see <see cref="DownloadPolicy"/>). When false the pages show no
+    /// download buttons and no "set up downloads" hints: to the person using it, FLACie is simply a player of the music they have.</summary>
+    bool Allowed { get; }
+    /// <summary>Downloads are allowed and this person has download services set up, so a download button does something.</summary>
+    bool Ready(UserSession s);
+    /// <summary>This person may use "Download all" and import playlist files (administrators, or everyone when the Dashboard says so).</summary>
+    bool MayBulk(UserSession s);
 }
 
 /// <summary>The player windows open on this account (the server lists them on the dashboard).</summary>

@@ -32,6 +32,9 @@ export default defineConfig({
         ASPNETCORE_ENVIRONMENT: 'Production',
         FLACIE_JELLYFIN_URL: `http://127.0.0.1:${MOCK}`,
         FLACIE_DATA: '.data-smoke',
+        // a fresh install has downloads off; the specs that look at download buttons, tags and imports need them on. 1z-downloads-switch.spec.ts has a
+        // block for a server started with FLACIE_DOWNLOADS=off (run it on its own ports, as that spec's header says)
+        FLACIE_DOWNLOADS: process.env.FLACIE_DOWNLOADS || 'on',
         // the public music catalogs are asked at the stand-in inside 1i-download-tags.spec.ts (127.0.0.1:8197) instead of the internet: refused outside that spec
         FLACIE_CATALOG_REDIRECT: `http://127.0.0.1:${process.env.FM_PORT || 8197}`,
         // the cover cache only evicts when the disk is nearly full: a small test disk must not empty it in the middle of a run

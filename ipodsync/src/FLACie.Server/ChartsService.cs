@@ -64,6 +64,7 @@ public sealed class ChartsService(SessionStore sessions, UserStateStore states, 
         if (!busy.TryAdd(s.Id, true)) return;
         try
         {
+            if (!downloads.Allowed) { cfg.LastNote = DownloadManager.OffMessage; states.Save(s); return; }
             if (!s.Services.Any) { cfg.LastNote = "Downloads aren't set up (Settings > Downloads)"; states.Save(s); return; }
             int fetched = 0, wanted = 0; var skippedForSpace = false;
             foreach (var id in cfg.Lists.Distinct())

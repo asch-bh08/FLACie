@@ -3,6 +3,9 @@ using FLACie.Core;
 
 namespace FLACie.Server;
 
+/// <summary>This person may not import playlist files on this server (see <see cref="DownloadPolicy.MayBulk"/>).</summary>
+public sealed class ImportNotAllowedException() : InvalidOperationException("Importing playlists is turned off for your account on this server. Ask the person who runs it.");
+
 /// <summary>
 /// Playlist import that runs entirely on the server. The phone or browser only hands over the file and later asks how far it got: the
 /// searching and downloading happen here, a few songs at a time, and the songs are put into the account's playlists as they arrive. A song
@@ -17,6 +20,8 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
     /// <summary>Reads the file and starts the import. Throws a message-carrying exception if nothing in it looks like songs.</summary>
     public ImportJob Start(UserSession s, string fileName, byte[] bytes, bool replace = false)
     {
+        // imports fetch whole lists: administrators may, and everyone else when the Dashboard lets them (and never while the server doesn't download)
+        if (!downloads.MayBulk(s)) throw new ImportNotAllowedException();
         List<ImportedPlaylist> lists;
         try { lists = PlaylistImport.Parse(fileName, bytes); }
         catch (Exception e) { throw new InvalidDataException("Couldn't read that file: " + e.Message); }
@@ -36,6 +41,7 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
     /// <summary>Picks up unfinished imports after a restart.</summary>
     public void Resume(UserSession s)
     {
+        if (!downloads.MayBulk(s)) return;   // left as they were: they carry on if the server lets this person import again
         foreach (var job in states.For(s).Imports.Where(j => j.State is "running" or "waiting").ToList()) Launch(s, job);
     }
 
@@ -120,6 +126,7 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
         var plId = EnsurePlaylist(s, list, job.Replace);
         var have = s.Library.Find(item.Title, item.Artist) ?? s.Library.FindLoose(item.Title, item.Artist);
         if (have is not null) { s.AddToPlaylist(plId, have); item.State = "owned"; Touch(s, job); return; }
+        if (!downloads.Allowed) { item.State = "failed"; item.Message = DownloadManager.OffMessage; Touch(s, job); return; }
         if (!s.Services.Any) { item.State = "failed"; item.Message = "Downloads aren't set up"; Touch(s, job); return; }
         // out of room: hold everything until there is some, instead of failing the rest of the file
         while (!guard.Ok(s))

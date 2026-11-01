@@ -1,7 +1,28 @@
 @inherits UserComponent
 @inject IConfiguration Conf
-@* The server-wide settings (download services, open sources, background downloads and charts, storage): administrators only, on the Dashboard. *@
+@inject DownloadPolicy Policy
+@* The server-wide settings (whether this server downloads at all, download services, open sources, background downloads and charts, storage): administrators
+   only, on the Dashboard. Downloading is off on a fresh install: the download sections only appear once "Allow downloads" is on, so a server that is just a
+   player shows nothing about them anywhere. *@
 @if (admin) {
+<section class="panel set" id="allow-downloads">
+    <div class="set-head"><h2>Downloads on this server</h2><p class="hint">FLACie plays the music you already have. It can also fetch songs that aren't in your library, through download services you run yourself. Only download music you own or have permission to download: you are responsible for what this server fetches.</p></div>
+    <label class="switch-row">
+        <span><b>Allow downloads</b><small>@(Policy.SetByHost ? "Set by FLACIE_DOWNLOADS on this server, so it can't be changed here." : "When this is off there are no download buttons, and nothing is fetched by the daily charts, imports, Autoplay, Alexa or the DJ.")</small></span>
+        <input type="checkbox" role="switch" checked="@Policy.Allowed" disabled="@Policy.SetByHost" @onchange="e => Policy.SetAllowed((bool)(e.Value ?? false))" />
+        <i class="switch" aria-hidden="true"></i>
+    </label>
+    @if (Policy.Allowed)
+    {
+        <label class="switch-row">
+            <span><b>Let everyone use Download all and imports</b><small>Administrators can always fetch a whole shared list or playlist with Download all, and import playlist files. With this on, everyone signed in to this server can too.</small></span>
+            <input type="checkbox" role="switch" checked="@Policy.EveryoneBulk" @onchange="e => Policy.SetEveryoneBulk((bool)(e.Value ?? false))" />
+            <i class="switch" aria-hidden="true"></i>
+        </label>
+    }
+</section>
+
+@if (Policy.Allowed) {
 <section class="panel set" id="downloads">
     <div class="set-head"><h2>Downloads</h2><p class="hint">Search finds new music and downloads it: Soulseek (slskd plus the file mover) first, Lidarr as the fallback. These are kept in your profile, so the phone's setup shows up here and the other way round. Keys stay on the server; leave a key empty to keep the saved one.</p></div>
     <div class="form">
@@ -18,13 +39,13 @@
 
 <section class="panel set" id="opensources">
     <div class="set-head"><h2>Open sources</h2><p class="hint">When Soulseek doesn't have a song, these sources are tried before Lidarr. The free ones look while Soulseek searches and only download if it found nothing. They need the file mover above. The first one on the list that has the song is used; move a source up to prefer it.</p></div>
-    @foreach (var id in osOrder)
+    @foreach (var id in osShown)
     {
         var sid = id;
         <div class="src-row">
             <div class="src-move">
-                <button class="btn icon" aria-label="Move up" disabled="@(osOrder.IndexOf(sid) == 0)" @onclick="() => MoveSource(sid, -1)">▲</button>
-                <button class="btn icon" aria-label="Move down" disabled="@(osOrder.IndexOf(sid) == osOrder.Count - 1)" @onclick="() => MoveSource(sid, 1)">▼</button>
+                <button class="btn icon" aria-label="Move up" disabled="@(osShown.IndexOf(sid) == 0)" @onclick="() => MoveSource(sid, -1)">▲</button>
+                <button class="btn icon" aria-label="Move down" disabled="@(osShown.IndexOf(sid) == osShown.Count - 1)" @onclick="() => MoveSource(sid, 1)">▼</button>
             </div>
             <label class="switch-row">
                 <span><b>@SourceName(sid)</b><small>@SourceHint(sid)</small></span>
@@ -47,7 +68,7 @@
         <div class="inline"><input id="minfree" type="number" min="0" max="2000" @bind="State.MinFreeGb" @bind:after="Persist" /><span class="hint">GB free</span></div>
     </div>
     <label class="switch-row">
-        <span><b>Daily charts</b><small>Every day, add new songs from the charts you choose to your library, like a Radarr list, while there is room. Nothing already on your storage is ever deleted.</small></span>
+        <span><b>Daily charts</b><small>Every day, download songs from the charts you choose that aren't in your library yet, while there is room. Nothing already on your storage is ever deleted.</small></span>
         <input type="checkbox" role="switch" checked="@State.Charts.Enabled" @onchange="e => { State.Charts.Enabled = (bool)(e.Value ?? false); Persist(); }" />
         <i class="switch" aria-hidden="true"></i>
     </label>
@@ -71,6 +92,7 @@
         <p class="hint">New songs are added to your library every day (lossless where Soulseek has it, about 25 to 35 MB each, so roughly @((State.Charts.Lists.Count * State.Charts.PerList * 30 / 1024.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)) GB a day, @((State.Charts.Lists.Count * State.Charts.PerList * 30 * 30 / 1024.0).ToString("0", System.Globalization.CultureInfo.InvariantCulture)) GB a month with these settings). The lists also appear as playlists called "Charts: …". It runs on its own, even after the server restarts.</p>
     }
 </section>
+}
 
 <section class="panel set" id="storage">
     <div class="set-head"><h2>Storage</h2><p class="hint">What this server and your music library use.</p></div>
@@ -121,22 +143,26 @@
 
 
     // ---- open sources (Internet Archive, Audius, Jamendo): on/off, order and the Jamendo client ID ----
+    // The YouTube source is not shown or offered here. A profile that already has it on keeps it on, in its place in the order: osOrder is the whole
+    // saved order (YouTube included) and ytOn the saved switch, both written back unchanged when the shown sources are saved.
     List<string> osOrder = [];
+    List<string> osShown => osOrder.Where(id => id != OpenSourceSettings.YtdlId).ToList();
     bool arOn = true, auOn = true, jmOn = true, ytOn, jmChecking; string jmId = ""; string? osNote;
-    static string SourceName(string id) => id switch { "archive" => "Internet Archive", "audius" => "Audius", "ytdl" => "YouTube (yt-dlp)", _ => "Jamendo" };
+    static string SourceName(string id) => id switch { "archive" => "Internet Archive", "audius" => "Audius", _ => "Jamendo" };
     static string SourceHint(string id) => id switch
     {
         "archive" => "Live Music Archive and netlabel collections only, never a general search. Needs nothing.",
         "audius" => "The free Audius catalogue. Needs nothing.",
-        "ytdl" => "Last resort for songs nothing else has: finds the official audio on YouTube and saves it (AAC, not lossless). Against YouTube's terms of service, so it is off until you switch it on. Needs the yt-dlp service next to the file mover.",
         _ => "Only tracks whose artist allows downloads. Needs the client ID below.",
     };
-    bool SourceOn(string id) => id switch { "archive" => arOn, "audius" => auOn, "ytdl" => ytOn, _ => jmOn };
-    void SetSource(string id, bool on) { if (id == "archive") arOn = on; else if (id == "audius") auOn = on; else if (id == "ytdl") ytOn = on; else jmOn = on; osNote = null; }
+    bool SourceOn(string id) => id switch { "archive" => arOn, "audius" => auOn, _ => jmOn };
+    void SetSource(string id, bool on) { if (id == "archive") arOn = on; else if (id == "audius") auOn = on; else jmOn = on; osNote = null; }
+    /// <summary>Moves a shown source past its shown neighbour (a hidden source between them stays where it is in the saved order).</summary>
     void MoveSource(string id, int by)
     {
-        var i = osOrder.IndexOf(id); var j = i + by;
-        if (i < 0 || j < 0 || j >= osOrder.Count) return;
+        var shown = osShown; var k = shown.IndexOf(id);
+        if (k < 0 || k + by < 0 || k + by >= shown.Count) return;
+        int i = osOrder.IndexOf(id), j = osOrder.IndexOf(shown[k + by]);
         (osOrder[i], osOrder[j]) = (osOrder[j], osOrder[i]); osNote = null;
     }
     void LoadOpenSources()

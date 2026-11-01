@@ -164,14 +164,18 @@ The Android app is a separate download (APK on the GitHub release page; enable i
 | `PUID`, `PGID` | `1654` | Docker only: run as this user/group so the files in the mounted folder belong to you (`id` shows yours). |
 | `FLACIE_PUBLIC_URL`, `FLACIE_ALEXA_SKILL_IDS`, `FLACIE_ALEXA_CLIENT_ID`, `FLACIE_ALEXA_CLIENT_SECRET` | (not set) | Only for the optional [Alexa](ALEXA.md) skill (off until switched on in Settings): the public https address Alexa reaches this server at, the allowed skill id(s), and the skill's Login with Amazon client id and secret for "your download is ready" notifications. |
 | `FLACIE_NTFY_URL`, `FLACIE_NTFY_TOPIC`, `FLACIE_NTFY_TOKEN` | (not set) | First-start defaults for push notifications through an [ntfy](https://ntfy.sh) server. Later changes are made in the dashboard. |
+| `FLACIE_DOWNLOADS` | (not set) | `on` or `off` overrides the dashboard's **Allow downloads** switch. Not set: the switch decides, and it is off on a new install (an install that had already downloaded something before this switch existed starts with it on). Off means no download buttons and nothing fetched by charts, imports, Autoplay, Alexa or the DJ. |
 | `FLACIE_JAMENDO_CLIENT_ID` | (not set) | Your own free [Jamendo](https://devportal.jamendo.com) client id, to offer Jamendo's artist-approved downloads. |
 | `FLACIE_DEBUG` | (not set) | `1` turns on local debug endpoints (loopback only). **Never set this on a server other people can reach.** |
 | `ASPNETCORE_URLS` | `http://+:8080` in Docker | Address and port the server listens on. |
 | `FLACIE_PARENT_PID` | (internal) | Set by the Windows app so its server stops with it. Not for Docker. |
 
-The optional download services (Soulseek through slskd, Lidarr, the open-source finders, YouTube through yt-dlp) are not installed by FLACie. Their addresses
-and keys are entered by an admin in the dashboard (Downloads) or in the phone app and stored in that person's profile. They are **off until set up**.
-Taking audio from YouTube or Soulseek can be against those services' terms or your local copyright law: using them is your decision and your responsibility.
+Downloading is **off on a new install**. An admin switches it on in the dashboard (Downloads on this server > Allow downloads) or with `FLACIE_DOWNLOADS=on`.
+The optional download services (Soulseek through slskd, Lidarr, the open-source finders) are not installed by FLACie. Their addresses and keys are entered
+by an admin in the dashboard (Download services) or in the phone app and stored in that person's profile. "Download all" and playlist imports are for admins
+unless the dashboard's "Let everyone use Download all and imports" is on. The automatic downloads (daily charts, Autoplay's Fetch ahead, Alexa) start off.
+Only download music you own or have permission to download: downloading copyrighted music without permission can be against the law where you live and
+against those services' terms. Using them is your decision and your responsibility.
 
 ## Troubleshooting
 

@@ -10,7 +10,13 @@ public static class AlexaEndpoints
     {
         services.AddSingleton<AlexaStore>();
         services.AddSingleton<AlexaQueues>();
-        services.AddSingleton(sp => new AlexaEngine(sp.GetRequiredService<AlexaQueues>(), () => sp.GetRequiredService<AlexaStore>().Config));
+        // Alexa's own "downloads" switch only counts while the server downloads at all (the Dashboard's "Allow downloads")
+        services.AddSingleton(sp => new AlexaEngine(sp.GetRequiredService<AlexaQueues>(), () =>
+        {
+            var c = sp.GetRequiredService<AlexaStore>().Config;
+            if (!sp.GetRequiredService<DownloadPolicy>().Allowed) c.Downloads = false;
+            return c;
+        }));
         services.AddSingleton<AlexaPublic>();
         services.AddSingleton<AlexaNow>();
         services.AddSingleton(new AlexaUrlSigner(AlexaUrlSigner.LoadOrCreateSecret(Path.Combine(dataDir, "alexa-url.key")), () => DateTime.UtcNow));

@@ -25,7 +25,7 @@ public sealed record DownloadServices(string SlskdUrl, string SlskdKey, string S
     {
         var s = profile["services"] as JsonObject;
         string V(string svc, string k) => s?[svc]?[k] is JsonValue v && v.TryGetValue<string>(out var x) ? x : "";
-        return new(V("slskd", "url"), V("slskd", "key"), V("slskd", "path") is { Length: > 0 } p ? p : "downloads", V("filemover", "url"), V("filemover", "key"), V("lidarr", "url"), V("lidarr", "key"), V("nas", "folder"), OpenSourceSettings.From(s, Environment.GetEnvironmentVariable("FLACIE_JAMENDO_CLIENT_ID")));
+        return new(V("slskd", "url"), V("slskd", "key"), V("slskd", "path") is { Length: > 0 } p ? p : "downloads", V("filemover", "url"), V("filemover", "key"), V("lidarr", "url"), V("lidarr", "key"), V("nas", "folder"), OpenSourceSettings.From(s, Environment.GetEnvironmentVariable("FLACIE_JAMENDO_CLIENT_ID"), OpenSourceSettings.HostSwitch(Environment.GetEnvironmentVariable("FLACIE_YOUTUBE"))));
     }
 
     /// <summary>Writes these settings into the profile's <c>services</c>, the same fields the phone reads.</summary>
@@ -119,7 +119,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
             artUrl is null ? Art.LookupKey(artist, album, title) : Art.ExternalKey(artUrl), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), TrackSource.Cloud);
 
     /// <summary>The last-resort source: the file mover forwards to the yt-dlp service, which finds the song on YouTube (official audio / Topic uploads
-    /// first, length and title checked) and files the audio itself. Off unless the user switched it on in Settings.</summary>
+    /// first, length and title checked) and files the audio itself. Not offered on any screen: it only runs where the profile already had it on, or when the server is started with FLACIE_YOUTUBE=on.</summary>
     // yt-dlp does two searches and a download per song (30 s or more), and its service takes two songs at a time: the queue is kept here so a song
     // waiting its turn is not counted as a failure, and the time limit only starts when it is actually being fetched
     static readonly SemaphoreSlim YtdlTurn = new(2);

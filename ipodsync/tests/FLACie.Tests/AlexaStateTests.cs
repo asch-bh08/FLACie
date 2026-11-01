@@ -95,9 +95,10 @@ public class AlexaStoreTests
     }
     static readonly JellyfinAccount Me = new("http://jf", "u1", "ash", "SECRET-TOKEN-123");
 
-    [Fact] public void OffByDefaultWithDownloadsOn()
+    // a server that never set Alexa up: Alexa off, and its downloads off too (before 1.0 they started on; see DownloadPolicyTests for a server that had them)
+    [Fact] public void OffByDefaultWithDownloadsOff()
     {
-        using var e = new Env(); var c = e.Open().Config; Assert.False(c.Enabled); Assert.True(c.Downloads); Assert.Equal("", c.SkillIds);
+        using var e = new Env(); var c = e.Open().Config; Assert.False(c.Enabled); Assert.False(c.Downloads); Assert.Equal("", c.SkillIds);
     }
 
     [Fact] public void PairingLinksAndLookupWorks()

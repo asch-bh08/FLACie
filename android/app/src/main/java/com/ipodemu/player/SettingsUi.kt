@@ -65,26 +65,38 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
     val limits = listOf(100, 85, 70, 50)
     val sleeps = listOf(0, 15, 30, 60, 90, 120)
 
+    /**
+     * Every setting is drawn the same way, as on the web (owner, 1 Nov: Settings had four kinds of buttons and two kinds of rows): the name in bold, what
+     * it does under it, then one of four controls. On or off: a switch ([toggle]). One of a few: all the choices side by side under it, the chosen one
+     * filled ([choices], the web's segmented buttons; a tap no longer steps through them blind). Something to do now: a button on the right ([action]).
+     * Somewhere to go: a chevron. A [value] alone is shown on the right.
+     */
     @Composable
-    fun SettingRow(title: String, value: String? = null, chevron: Boolean = false, toggle: Boolean = false, desc: String? = null, onClick: () -> Unit) {
-        if (desc != null) {
-            // the web's switch row: the name in bold and what it does under it, the switch on the right
-            Row(Modifier.fillMaxWidth().clickable { onClick(); rev++ }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    fun SettingRow(title: String, value: String? = null, chevron: Boolean = false, toggle: Boolean = false, desc: String? = null,
+                   choices: List<String>? = null, picked: Int = -1, onPick: ((Int) -> Unit)? = null, action: String? = null, onClick: () -> Unit = {}) {
+        val tapRow = choices == null && action == null
+        Column(Modifier.fillMaxWidth().then(if (tapRow) Modifier.clickable { onClick(); rev++ } else Modifier).padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                    Txt(title, size = 16f, weight = androidx.compose.ui.text.font.FontWeight.Bold, color = sc.onBg)
-                    Txt(desc, Modifier.padding(top = 2.dp), size = 13f, color = sc.onBgDim, maxLines = 4)
+                    Txt(title, size = 16f, weight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = sc.onBg, maxLines = 2)
+                    if (desc != null) Txt(desc, Modifier.padding(top = 2.dp), size = 13f, color = sc.onBgDim, maxLines = 4)
                 }
-                if (toggle) SwitchPill(value == "On") else if (value != null) Txt(value, size = 15f, color = sc.onBgDim)
+                when {
+                    toggle -> SwitchPill(value == "On")
+                    action != null -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (value != null) Txt(value, Modifier.widthIn(max = 120.dp), size = 13f, color = sc.onBgDim, maxLines = 2)
+                        DesignChip(action, false, { onClick(); rev++ })
+                    }
+                    else -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (value != null && choices == null) Txt(value, Modifier.widthIn(max = 150.dp), size = 15f, color = sc.onBgDim, maxLines = 1)
+                        if (chevron) GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), sc.onBgDim)
+                    }
+                }
             }
-            return
+            if (choices != null) Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                choices.forEachIndexed { i, c -> DesignChip(c, i == picked, { onPick?.invoke(i); rev++ }) }
+            }
         }
-        IpodRow({ onClick(); rev++ }, height = 58.dp, trailing = {
-            Row(Modifier.widthIn(max = 150.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (toggle) SwitchPill(value == "On")
-                else if (value != null) Txt(value, Modifier.weight(1f, fill = false), size = 15f, color = rowDim(), maxLines = 1)
-                if (chevron) GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), rowDim())
-            }
-        }) { hi -> Txt(title, size = 16f, weight = androidx.compose.ui.text.font.FontWeight.Medium, color = if (hi) Color.White else sc.onBg) }
     }
 
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -115,7 +127,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
             if (!dashboard) {
                 item(key = "subnav") {
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        for ((id, label) in listOf("playback" to "Playback", "dj" to "DJ (experimental)", "look" to "Appearance", "sources" to "Library", "account" to "Account", "about" to "About"))
+                        for ((id, label) in listOf("playback" to "Playback", "dj" to "DJ", "look" to "Appearance", "sources" to "Library", "account" to "Account", "about" to "About"))
                             DesignChip(label, false, { val n = list.layoutInfo.totalItemsCount; val i = when (id) { "account" -> n - 2; "about" -> n - 1; else -> at[id] ?: 0 }; scope.launch { list.animateScrollToItem(i.coerceAtLeast(0)) } })
                         if (canAdmin) DesignChip("Server admin", false, { nav.push(Screen.Dashboard) }, icon = Glyph.GEAR)
                     }
@@ -127,19 +139,17 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                         SettingRow("Fetch ahead", if (prefs.autoplayFetch) "On" else "Off", toggle = true, desc = "Download the next few Autoplay songs you don't have yet, so they are ready when needed") { prefs.autoplayFetch = !prefs.autoplayFetch }
                         SettingRow("Download on this phone when FLACie Web can't", if (prefs.downloadOnPhone) "On" else "Off", toggle = true, desc = "FLACie Web does your downloads when it is set up and reachable. With this on, this phone downloads the song itself when it isn't") { prefs.downloadOnPhone = !prefs.downloadOnPhone }
                         SettingRow("Offline music", if (app.offline.doneCount > 0) "${com.ipodemu.library.offline.OfflineMath.songs(app.offline.doneCount)}, ${com.ipodemu.library.offline.OfflineMath.formatBytes(app.offline.usedBytes)}" else "None", chevron = true) { nav.push(Screen.Offline) }
-                        SettingRow("Streaming quality", listOf("Automatic", "Always full", "Data saver")[prefs.streamQuality.coerceIn(0, 2)]) { prefs.streamQuality = (prefs.streamQuality + 1) % 3 }
+                        SettingRow("Streaming quality", desc = "Automatic and Always full play the original file. Data saver plays a smaller copy.", choices = listOf("Automatic", "Always full", "Data saver"), picked = prefs.streamQuality.coerceIn(0, 2), onPick = { prefs.streamQuality = it })
                         SettingRow("Equalizer", prefs.eq, chevron = true) {
                             nav.sheet = SheetSpec("Equalizer", prefs.eq, com.ipodemu.playback.PlayerController.EQ_NAMES.map { n ->
                                 SheetItem(if (prefs.eq == n) "$n  (on)" else n, if (prefs.eq == n) Glyph.CHECK else Glyph.LIST) { prefs.eq = n; app.player.applyEq() }
                             })
                         }
-                        SettingRow("Fade between songs", if (prefs.fadeSecs == 0) "Off" else "${prefs.fadeSecs} s") {
-                            prefs.fadeSecs = com.ipodemu.playback.FadeBetween.CHOICES[(com.ipodemu.playback.FadeBetween.CHOICES.indexOf(prefs.fadeSecs).coerceAtLeast(0) + 1) % com.ipodemu.playback.FadeBetween.CHOICES.size]; app.player.applyFade()
-                        }
+                        SettingRow("Fade between songs", desc = "The end of a song fades into the next. Not between the tracks of one album.", choices = com.ipodemu.playback.FadeBetween.CHOICES.map { if (it == 0) "Off" else "$it s" },
+                            picked = com.ipodemu.playback.FadeBetween.CHOICES.indexOf(prefs.fadeSecs), onPick = { prefs.fadeSecs = com.ipodemu.playback.FadeBetween.CHOICES[it]; app.player.applyFade() })
                         SettingRow("Even out volume", if (prefs.levelVolume) "On" else "Off", toggle = true) { prefs.levelVolume = !prefs.levelVolume; app.player.applyLeveling() }
-                        SettingRow("Volume limit", if (prefs.volumeLimit == 100) "Off" else "${prefs.volumeLimit}%") {
-                            prefs.volumeLimit = limits[(limits.indexOf(prefs.volumeLimit).coerceAtLeast(0) + 1) % limits.size]; app.player.applyVolumeLimit()
-                        }
+                        SettingRow("Volume limit", choices = limits.map { if (it == 100) "Off" else "$it%" }, picked = limits.indexOf(prefs.volumeLimit),
+                            onPick = { prefs.volumeLimit = limits[it]; app.player.applyVolumeLimit() })
                         val sleepLeft = rememberSleepLeft(app)
                         SettingRow("Sleep timer", sleepLeft ?: "Off", chevron = true) { nav.sheet = sleepSheet(app) }
                     }
@@ -181,16 +191,12 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             SettingRow("DJ", if (dj.enabled) "On" else "Off", toggle = true, desc = "Now and then, a few words about the next song before it starts. The DJ button on Now Playing turns it on or off for one queue.") {
                                 save(org.json.JSONObject().put("enabled", !dj.enabled), dj.copy(enabled = !dj.enabled))
                             }
-                            // Rare, Often, Every song: a tap moves to the next
-                            SettingRow("How chatty", dj.chatty.label, desc = "Rare: about 1 song in 7. Often: about 1 in 3. Every song: before each song (not songs under a minute, spoken word or ones marked never); it uses the most of the day's DJ allowance.") {
-                                val n = dj.chatty.next()
-                                save(org.json.JSONObject().put("chatty", n.wire), dj.copy(chatty = n))
-                            }
-                            // Classic radio, Chill, Hype: a tap moves to the next
-                            SettingRow("Style", dj.style.label, desc = "Classic radio is a friendly presenter. Chill is softer and talks a little less; Hype is livelier and talks a little more.") {
-                                val n = dj.style.next()
-                                save(org.json.JSONObject().put("style", n.wire), dj.copy(style = n))
-                            }
+                            SettingRow("How chatty", desc = "Rare: about 1 song in 7. Often: about 1 in 3. Every song: before each song (not songs under a minute, spoken word or ones marked never); it uses the most of the day's DJ allowance.",
+                                choices = com.ipodemu.playback.DjChatty.entries.map { it.label }, picked = dj.chatty.ordinal, onPick = { i ->
+                                    val n = com.ipodemu.playback.DjChatty.entries[i]; save(org.json.JSONObject().put("chatty", n.wire), dj.copy(chatty = n)) })
+                            SettingRow("Style", desc = "Classic radio is a friendly presenter. Chill is softer and talks a little less; Hype is livelier and talks a little more.",
+                                choices = com.ipodemu.playback.DjStyle.entries.map { it.label }, picked = dj.style.ordinal, onPick = { i ->
+                                    val n = com.ipodemu.playback.DjStyle.entries[i]; save(org.json.JSONObject().put("style", n.wire), dj.copy(style = n)) })
                             SettingRow("Talk after skips", if (dj.talkAfterSkips) "On" else "Off", toggle = true, desc = "Keep talking when you skip songs. Off: the DJ stays quiet for a couple of songs after a skip.") {
                                 save(org.json.JSONObject().put("talkAfterSkips", !dj.talkAfterSkips), dj.copy(talkAfterSkips = !dj.talkAfterSkips))
                             }
@@ -239,7 +245,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                         if (!ui.guest) SettingRow("Jellyfin", if (lib.jellyfinConnected) "Connected" else "Not connected", chevron = true) { ui.jellyfinSetupOpen = true }
                         if (!ui.guest) SettingRow("Plex", if (lib.plexConnected) "Connected" else "Not connected", chevron = true) { ui.plexSetupOpen = true }
                         if (!ui.guest) SettingRow("NAS", if (lib.nasConnected) "Connected" else "Not connected", chevron = true) { ui.nasSetupOpen = true }
-                        SettingRow("Reload library", if (lib.scanning) "Scanning ${lib.scanCount}..." else null, desc = "Reads this phone's music and the servers' song lists again") { lib.rescan() }
+                        SettingRow("Reload library", if (lib.scanning) "Scanning ${lib.scanCount}..." else null, desc = "Reads this phone's music and the servers' song lists again", action = "Reload") { lib.rescan() }
                         if (!ui.guest) SettingRow("Download log", "Open", chevron = true) { ui.downloadsOpen = true }
                         SettingRow("Headphone test", "Tones, bass, 3D", chevron = true) { ui.headphonesOpen = true }
                         SettingRow("iPod sync", lib.syncDeviceLabel ?: "Off", chevron = true) { ui.syncSetupOpen = true }
@@ -269,7 +275,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                         }
                         SettingRow("Retro", "Players, desk, scenes", chevron = true) { openRetro(ctx) }
                         if (ui.ipodTheme) SettingRow("Player appearance", modeName, chevron = true) { ui.pickerOpen = true }
-                        if (ui.ipodTheme) SettingRow("Light or dark", listOf("Dark", "Light", "System")[prefs.appearance.coerceIn(0, 2)]) { prefs.appearance = (prefs.appearance + 1) % 3; ui.refreshFromPrefs() }
+                        if (ui.ipodTheme) SettingRow("Light or dark", choices = listOf("Dark", "Light", "System"), picked = prefs.appearance.coerceIn(0, 2), onPick = { prefs.appearance = it; ui.refreshFromPrefs() })
                     }
                 }
             }
@@ -388,7 +394,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                                 val per = listOf(5, 10, 15, 25)
                                 SettingRow("Charts to follow", "${s.lists.size} chosen", chevron = true) { chartsSheet(s) }
                                 SettingRow("New songs per chart", "${s.perList} a day") { val n = per.firstOrNull { it > s.perList } ?: per[0]; change { web.saveSettings(perList = n) } }
-                                SettingRow("Run now", if (s.lastRun.isNotEmpty()) "Last ${s.lastRun}" else "Not run yet") { scope.launch(kotlinx.coroutines.Dispatchers.IO) { try { web.runCharts(); msg = "Started. New songs are added to your library on the server." } catch (e: Exception) { msg = e.message } } }
+                                SettingRow("Get today's chart songs", if (s.lastRun.isNotEmpty()) "Last ${s.lastRun}" else "Not run yet", action = "Run") { scope.launch(kotlinx.coroutines.Dispatchers.IO) { try { web.runCharts(); msg = "Started. New songs are added to your library on the server." } catch (e: Exception) { msg = e.message } } }
                                 Txt("About ${"%.1f".format(s.lists.size * s.perList * 30 / 1024.0)} GB a day with these settings, only while there is room. Nothing already stored is deleted." + (if (s.lastNote.isNotEmpty()) " Last run: ${s.lastNote}" else ""),
                                     Modifier.padding(horizontal = 16.dp, vertical = 8.dp), size = 13f, color = sc.onBgDim, maxLines = 5)
                             }
@@ -410,7 +416,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                         bytes = try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { app.cacheBytes() } } catch (_: Exception) { -1L }
                     }
                     SettingRow("Cache", if (bytes < 0) "Counting..." else cacheSizeLabel(bytes)) { }
-                    SettingRow("Clear cache", if (clearing) "Clearing..." else "Covers and saved audio") {
+                    SettingRow("Clear cache", if (clearing) "Clearing..." else null, desc = "Covers and saved audio", action = "Clear") {
                         if (!clearing) {
                             clearing = true
                             scope2.launch {
@@ -422,10 +428,10 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
             }
             item(key = "controls") {
                 SetPanel("Controls", "Swipes and game controllers.") {
-                    SettingRow("Swipe to go back", listOf("Anywhere", "Left edge", "Off")[prefs.swipeBack.coerceIn(0, 2)]) { prefs.swipeBack = (prefs.swipeBack + 1) % 3; ui.refreshFromPrefs() }
-                    SettingRow("Swipe track right", SWIPE_ACTIONS[prefs.swipeRowRight.coerceIn(0, 3)]) { prefs.swipeRowRight = (prefs.swipeRowRight + 1) % 4; ui.refreshFromPrefs() }
-                    SettingRow("Swipe track left", SWIPE_ACTIONS[prefs.swipeRowLeft.coerceIn(0, 3)]) { prefs.swipeRowLeft = (prefs.swipeRowLeft + 1) % 4; ui.refreshFromPrefs() }
-                    SettingRow("Face buttons", if (prefs.swapFaceButtons) "Nintendo" else "Xbox") { prefs.swapFaceButtons = !prefs.swapFaceButtons }
+                    SettingRow("Swipe to go back", choices = listOf("Anywhere", "Left edge", "Off"), picked = prefs.swipeBack.coerceIn(0, 2), onPick = { prefs.swipeBack = it; ui.refreshFromPrefs() })
+                    SettingRow("Swipe a song right", choices = SWIPE_ACTIONS, picked = prefs.swipeRowRight.coerceIn(0, 3), onPick = { prefs.swipeRowRight = it; ui.refreshFromPrefs() })
+                    SettingRow("Swipe a song left", choices = SWIPE_ACTIONS, picked = prefs.swipeRowLeft.coerceIn(0, 3), onPick = { prefs.swipeRowLeft = it; ui.refreshFromPrefs() })
+                    SettingRow("Face buttons", choices = listOf("Xbox", "Nintendo"), picked = if (prefs.swapFaceButtons) 1 else 0, onPick = { prefs.swapFaceButtons = it == 1 })
                 }
             }
             // what FLACie may ask the Android system for: music on this phone, notifications (Android 13+). Only shown while something is off.
@@ -449,7 +455,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             Modifier.padding(horizontal = 16.dp, vertical = 6.dp), size = 15f, maxLines = 3)
                         if (prefs.accountKind == "nas") SettingRow("Account details", "${prefs.nasHost}/${prefs.nasShare}", chevron = true) { ui.accountOpen = true }
                         else SettingRow("Account details", prefs.accountServer.removePrefix("https://").removePrefix("http://"), chevron = true) { ui.accountOpen = true }
-                        SettingRow("Sync now", acct.status ?: syncedLabel(prefs.accountSyncedAt)) { acct.sync() }
+                        SettingRow("Sync your profile", acct.status ?: syncedLabel(prefs.accountSyncedAt), action = "Sync") { acct.sync() }
                     } else SettingRow("Sign in", if (ui.guest) "Guest" else "Not signed in", chevron = true) { ui.accountOpen = true }
                 }
             }

@@ -101,6 +101,9 @@ builder.Services.AddHostedService(sp =>
 });
 builder.Services.AddSingleton<AutoplayPlanner>();
 builder.Services.AddSingleton<ImportManager>();
+// "Paste a link" on the Import page: Spotify's embed page wants a browser's name, Deezer's API doesn't mind
+builder.Services.AddHttpClient("playlistlinks", c => { c.Timeout = TimeSpan.FromSeconds(20); c.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"); });
+builder.Services.AddSingleton<PlaylistLinkReader>();
 builder.Services.AddSingleton<ChartsService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ChartsService>());
 builder.Services.AddSingleton(sp => InfoService.Current = new InfoService(sp.GetRequiredService<JellyfinClient>(), sp.GetRequiredService<IHttpClientFactory>(), sp.GetRequiredService<DownloadLog>()));

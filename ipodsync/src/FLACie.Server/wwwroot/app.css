@@ -422,6 +422,8 @@ button.song-card.new-song:disabled { opacity: .7; cursor: default; }
 
 /* ---- import, storage, charts ---- */
 .drop { display: flex; align-items: center; gap: 14px; padding: 18px; border: 1px dashed var(--line); border-radius: var(--radius); background: var(--surface-2); }
+.link-row { display: flex; gap: 10px; align-items: center; }
+.link-row input { flex: 1; min-width: 0; }
 .drop input[type=file] { color: var(--dim); }
 .drop input[type=file]::file-selector-button { border: 0; border-radius: 999px; padding: 9px 16px; margin-right: 12px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
 .import-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }

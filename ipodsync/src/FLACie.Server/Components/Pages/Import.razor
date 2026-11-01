@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @implements IDisposable
 @inherits UserComponent
+@inject PlaylistLinkReader Links
 <PageTitle>Import playlists · FLACie</PageTitle>
 <div class="sp">
 <header class="page-head"><h1>Import <i>playlists</i></h1></header>
@@ -20,6 +21,13 @@ else {
         <InputFile OnChange="Upload" accept=".xml,.m3u,.m3u8,.csv,.txt,.text" aria-label="Choose a playlist file" />
         @if (busy) { <span class="hint">Reading…</span> }
     </div>
+    @* or a link from another service (owner, 1 Nov): read on this server, then imported like a file *@
+    <h2>Or paste a playlist link</h2>
+    <p class="hint">A Spotify or Deezer playlist or album that anyone can open (Share, then Copy link). Spotify gives its first 100 songs.</p>
+    <form class="link-row" @onsubmit="FromLink" @onsubmit:preventDefault>
+        <input type="url" aria-label="Playlist link" placeholder="https://open.spotify.com/playlist/..." @bind="link" @bind:event="oninput" />
+        <button class="btn primary" type="submit" disabled="@(busy || string.IsNullOrWhiteSpace(link))">@(busy ? "Reading…" : "Import")</button>
+    </form>
     @if (error is not null) { <p class="form-error" role="alert">@error</p> }
     @if (!Session.Services.Any) { <p class="hint">Downloads aren't set up yet, so only songs you already have can be added. Set them up in the <a href="/dashboard#downloads">Server admin</a> (administrators).</p> }
 </section>
@@ -69,6 +77,22 @@ else {
         onChange = s => { if (ReferenceEquals(s, Session)) InvokeAsync(StateHasChanged); };
         Imports.Changed += onChange;
         tick = new Timer(_ => InvokeAsync(StateHasChanged), null, 2000, 2000);
+    }
+
+    string link = "";
+    async Task FromLink()
+    {
+        busy = true; error = null;
+        try
+        {
+            var list = await Links.ReadAsync(link.Trim());
+            Imports.StartLists(Session, list.Name, [list], replace);
+            link = "";
+        }
+        catch (InvalidDataException ex) { error = ex.Message; }
+        catch (ImportNotAllowedException ex) { error = ex.Message; }
+        catch (Exception ex) { error = FriendlyError.Of(ex); }
+        finally { busy = false; }
     }
 
     async Task Upload(InputFileChangeEventArgs e)

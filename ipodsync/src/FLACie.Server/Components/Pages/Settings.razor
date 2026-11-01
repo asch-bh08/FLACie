@@ -94,8 +94,9 @@
 
 <section class="panel set" id="look">
     <div class="set-head"><h2>Appearance</h2><p class="hint">Personal tweaks, saved in this browser only (your phone has its own in its Settings).</p></div>
-    <div class="form">
-        <label>Theme</label>
+    @* the same row as every other choice (and as the phone's Settings): the name and what it does, the choices under it *@
+    <div class="set-row sound-fade">
+        <span><b>Theme</b><small>System follows your computer's light or dark setting. The player keeps the colours of the cover in either.</small></span>
         <div class="seg" role="radiogroup" aria-label="Theme">
             @foreach (var (id, name) in Themes)
             {
@@ -103,7 +104,8 @@
                 <button type="button" role="radio" class="@(look.Theme == th ? "sel" : "")" aria-checked="@(look.Theme == th ? "true" : "false")" @onclick="() => SetLook(theme: th)">@name</button>
             }
         </div>
-        <small class="hint">System follows your computer's light or dark setting. The player keeps the colours of the cover in either.</small>
+    </div>
+    <div class="form">
         <label>Accent colour</label>
         <div class="swatches" role="radiogroup" aria-label="Accent colour">
             @foreach (var (name, hex) in Accents)

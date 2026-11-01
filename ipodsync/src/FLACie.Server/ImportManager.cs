@@ -26,6 +26,14 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
         try { lists = PlaylistImport.Parse(fileName, bytes); }
         catch (Exception e) { throw new InvalidDataException("Couldn't read that file: " + e.Message); }
         if (lists.Count == 0) throw new InvalidDataException("No songs found in that file. It can be an iTunes Library.xml, an M3U playlist, a Spotify CSV, or a text list with one \"Artist - Title\" per line.");
+        return StartLists(s, fileName, lists, replace);
+    }
+
+    /// <summary>Starts an import of lists already read (a playlist link from another service, PlaylistLinkReader). [title] names the job.</summary>
+    public ImportJob StartLists(UserSession s, string title, List<ImportedPlaylist> lists, bool replace = false)
+    {
+        if (!downloads.MayBulk(s)) throw new ImportNotAllowedException();
+        var fileName = title;
         var job = new ImportJob
         {
             File = fileName, Replace = replace,

@@ -19,7 +19,7 @@ powershell -NoProfile -File run-android-matrix.ps1 -Apk <merged build apk> -Labe
 `run-android.ps1 -Apk <path> -Label before|after -Profile fast|slow|flaky|ratelimit [-Window 120] [-Port 8296] [-Items 10000] [-Out file.json]
 [-Scenarios first-sync,scrolling,skip-burst,warm-start,kill-restore]`. A run takes about 8 to 10 minutes. It boots the emulator, so it must hold the
 machine-wide lock (`heavy.ps1`); it refuses to start when an emulator is already online (`-Reuse` drives that one instead).
-Needs: Android SDK (`%LOCALAPPDATA%\Android\Sdk`: platform-tools, emulator, AVD `flacie_phone`), Node 18+, the APK (any build of `com.ipodemu`).
+Needs: Android SDK (`%LOCALAPPDATA%\Android\Sdk`: platform-tools, emulator, AVD `flacie_phone`), Node 18+, the APK (any build of `app.flacie`).
 Screenshots go to `C:\wt\android-shots\<label>-<profile>\` (not committed).
 
 Driving the driver by hand (emulator already up and the app installed): `node run-android.mjs --label dev --profile fast --window 40 --port 8297 --scenarios scrolling`,

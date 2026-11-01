@@ -14,7 +14,7 @@
         <EnableDefaultCssItems>false</EnableDefaultCssItems>
 
         <ApplicationTitle>FLACie</ApplicationTitle>
-        <ApplicationId>dev.ashley.flacie.retro</ApplicationId>
+        <ApplicationId>app.flacie.retro</ApplicationId>
         <ApplicationDisplayVersion>1.0-beta70</ApplicationDisplayVersion>
         <ApplicationVersion>70</ApplicationVersion>
         <SupportedOSPlatformVersion>30.0</SupportedOSPlatformVersion>

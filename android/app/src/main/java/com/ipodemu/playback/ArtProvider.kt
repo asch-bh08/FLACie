@@ -47,7 +47,8 @@ class ArtProvider : ContentProvider() {
     override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?): Int = 0
 
     companion object {
-        const val AUTHORITY = "com.ipodemu.art"
+        // under the app's id (the manifest says ${applicationId}.art): two installed apps can't share one address
+        val AUTHORITY = com.ipodemu.BuildConfig.APPLICATION_ID + ".art"
         /** The address of a cover for other apps, or null when there is no key. */
         fun uri(key: String?): Uri? = key?.takeIf { it.isNotEmpty() }?.let { Uri.parse("content://$AUTHORITY/" + Uri.encode(it)) }
     }

@@ -9,7 +9,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > 0 ? process.argv[i + 1] : d; };
 const PORT = Number(arg('port', 8496)), SHOTS = arg('shots', '.');
 setAdb(arg('adb', ''));
-const PKG = 'com.ipodemu', MOCK = `http://127.0.0.1:${PORT}`, DEVICE_MOCK = `http://10.0.2.2:${PORT}`;
+const PKG = 'app.flacie', MOCK = `http://127.0.0.1:${PORT}`, DEVICE_MOCK = `http://10.0.2.2:${PORT}`;
 const S = (n) => path.join(SHOTS, n + '.png');
 
 const mock = spawn('node', [path.join(here, 'mock.mjs'), '--port', String(PORT), '--host', '127.0.0.1', '--items', '200', '--streamms', '300', ...(arg('audio') ? ['--audio', arg('audio')] : []), ...(arg('cover') ? ['--cover', arg('cover')] : [])], { stdio: 'ignore', windowsHide: true });
@@ -19,7 +19,7 @@ await fetch(`${MOCK}/__profile?name=fast`);
 
 sh(`am force-stop ${PKG}`); sh(`pm clear ${PKG}`);
 sh(`pm grant ${PKG} android.permission.POST_NOTIFICATIONS`, { quiet: true });
-sh(`am start -n ${PKG}/.ui.MainActivity`, { quiet: true });
+sh(`am start -n ${PKG}/com.ipodemu.ui.MainActivity`, { quiet: true });
 let ui = await waitUi((n) => has(n, 'Sign in with Jellyfin'), 120000, 2000);
 tapNode(find(ui, 'Sign in with Jellyfin'));
 ui = await waitUi((n) => has(n, 'Sign in with Quick Connect'), 30000, 1000);

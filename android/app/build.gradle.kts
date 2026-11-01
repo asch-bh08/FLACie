@@ -6,7 +6,8 @@ android {
     namespace = "com.ipodemu"
     compileSdk = 34
     defaultConfig {
-        applicationId = "com.ipodemu"
+        // FLACie's own id (FLACie Retro is app.flacie.retro). The code keeps its com.ipodemu packages: the iPod engine's native bridge is bound to them
+        applicationId = "app.flacie"
         minSdk = 30
         targetSdk = 33
         versionCode = 113
@@ -28,7 +29,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
 }
 // Retro (FLACie's iPods, the desk and the listening scenes: ui/RetroActivity.kt) is FLACie.Retro built for the browser: ipodsync/src/FLACie.RetroWasm,

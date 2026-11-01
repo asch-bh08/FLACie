@@ -23,7 +23,7 @@ class SimActivity : Activity() {
         val h = Handler(ht.looper)
         Thread {
             try {
-                val token = SessionToken(this, ComponentName("com.ipodemu", "com.ipodemu.playback.PlaybackService"))
+                val token = SessionToken(this, ComponentName("app.flacie", "com.ipodemu.playback.PlaybackService"))
                 val b = MediaBrowser.Builder(this, token).setApplicationLooper(ht.looper).buildAsync().get()
                 fun <T> call(block: () -> ListenableFuture<T>): T { val f = SettableFuture.create<T>(); h.post { try { f.setFuture(block()) } catch (e: Throwable) { f.setException(e) } }; return f.get() }
                 fun <T> onLooper(block: () -> T): T { val f = SettableFuture.create<T>(); h.post { try { f.set(block()) } catch (e: Throwable) { f.setException(e) } }; return f.get() }

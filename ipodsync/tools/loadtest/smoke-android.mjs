@@ -16,7 +16,7 @@ const PORT = Number(arg('port', 8296)), ITEMS = Number(arg('items', 10000));
 const OUT = arg('out', path.join(here, 'smoke-android.json'));
 const SHOTS = arg('shots', 'C:\\wt\\android-shots\\smoke');
 setAdb(arg('adb', ''));
-const PKG = 'com.ipodemu';
+const PKG = 'app.flacie';
 const MOCK = `http://127.0.0.1:${PORT}`, DEVICE_MOCK = `http://10.0.2.2:${PORT}`;
 const stats = async () => (await fetch(`${MOCK}/__stats`)).json();
 const checks = [];
@@ -32,7 +32,7 @@ async function startMock() {
 const stopMock = () => { if (mock) { try { mock.kill('SIGKILL'); } catch { } mock = null; } };
 process.on('exit', stopMock);
 
-const launch = () => sh(`am start -n ${PKG}/.ui.MainActivity`, { quiet: true });
+const launch = () => sh(`am start -n ${PKG}/com.ipodemu.ui.MainActivity`, { quiet: true });
 const songsCount = (nodes) => { if (!nodes) return -1; for (const n of nodes) { const m = /^([\d,]+) songs?\b/i.exec(label(n).trim()); if (m) return Number(m[1].replace(/,/g, '')); } return -1; };
 const titleOf = (d) => (d ?? '').split(',')[0].trim();
 // design I: the song list is Search's Songs chip (there is no Explore tab), and Settings is the gear at the top of Home
@@ -212,10 +212,10 @@ async function main() {
   // 9. crashes and ANRs
   const crash = sh('logcat -b crash -d', { quiet: true }).split('\n').filter((l) => l.trim() && !/^-+ beginning/.test(l));
   const procs = [...new Set(crash.map((l) => /Process: ([\w.:]+)/.exec(l)?.[1]).filter(Boolean))];
-  check('no crash of com.ipodemu in the crash buffer', !crash.some((l) => /com\.ipodemu/.test(l)), `processes in the crash buffer: ${procs.join(', ') || 'none'}`);
+  check('no crash of FLACie in the crash buffer', !crash.some((l) => /app\.flacie|com\.ipodemu/.test(l)), `processes in the crash buffer: ${procs.join(', ') || 'none'}`);
   check('crash buffer is completely clean (system processes included)', crash.length === 0, crash.slice(0, 4).join(' / '));
-  const anr = sh('logcat -d -b main,system', { quiet: true }).split('\n').filter((l) => /ANR in com\.ipodemu|isn't responding.*ipodemu/.test(l));
-  check('no ANR in com.ipodemu', anr.length === 0, anr.slice(0, 3).join(' / '));
+  const anr = sh('logcat -d -b main,system', { quiet: true }).split('\n').filter((l) => /ANR in app\.flacie|isn't responding.*app\.flacie/.test(l));
+  check('no ANR in FLACie', anr.length === 0, anr.slice(0, 3).join(' / '));
   const gate = sh('logcat -d -s FLACieGate', { quiet: true }).split('\n').filter((l) => /FLACieGate/.test(l));
   fs.writeFileSync(path.join(SHOTS, 'gate-smoke.txt'), gate.join('\n'));
   return { gateLines: gate.length, systemUiAnrDialogsDismissed: anrCount, versionName: ver };

@@ -70,7 +70,8 @@ try {
   # so the emulator's own sdcard files never mix into the mock's 10,000 songs)
   if ($Apk) {
     Log "installing $Apk"
-    Adb uninstall com.ipodemu 2>$null | Out-Null
+    Adb uninstall app.flacie 2>$null | Out-Null
+    Adb uninstall com.ipodemu 2>$null | Out-Null   # builds before the app id changed (1.0)
     $r = Adb install -r $Apk
     Log ("install: " + ($r -join ' '))
     if (($r -join ' ') -notmatch 'Success') { throw "install failed" }

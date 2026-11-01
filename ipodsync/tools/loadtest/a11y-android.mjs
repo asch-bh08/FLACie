@@ -10,7 +10,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > 0 ? process.argv[i + 1] : d; };
 const PORT = Number(arg('port', 8297)), ITEMS = Number(arg('items', 10000));
 setAdb(arg('adb', ''));
-const PKG = 'com.ipodemu';
+const PKG = 'app.flacie';
 const MOCK = `http://127.0.0.1:${PORT}`;
 
 const mock = spawn('node', [path.join(here, 'mock.mjs'), '--port', String(PORT), '--host', '127.0.0.1', '--items', String(ITEMS)], { stdio: 'ignore', windowsHide: true });
@@ -21,16 +21,24 @@ await fetch(`${MOCK}/__profile?name=fast`); await fetch(`${MOCK}/__reset`);
 sh(`am force-stop ${PKG}`); sh(`pm clear ${PKG}`);
 sh(`pm grant ${PKG} android.permission.POST_NOTIFICATIONS`, { quiet: true });
 sh(`pm revoke ${PKG} android.permission.READ_MEDIA_AUDIO`, { quiet: true });
-sh(`am start -n ${PKG}/.ui.MainActivity`, { quiet: true });
+sh(`am start -n ${PKG}/com.ipodemu.ui.MainActivity`, { quiet: true });
 let ui = await waitUi((n) => has(n, 'Sign in with Jellyfin'), 120000, 2000);
 tapNode(find(ui, 'Sign in with Jellyfin'));
 ui = await waitUi((n) => has(n, 'Sign in with Quick Connect'), 30000, 1000);
 const field = ui.find((n) => /EditText/.test(n.cls));
-tapAt(field.cx, field.cy); await sleep(600); typeText(`http://10.0.2.2:${PORT}`); await sleep(600); key('KEYCODE_BACK'); await sleep(800);
+// typed again until the box holds the whole address: a slow emulator keyboard sometimes keeps only "http"
+const addr = `http://10.0.2.2:${PORT}`;
+for (let i = 0; i < 4; i++) {
+  tapAt(field.cx, field.cy); await sleep(600); key('KEYCODE_MOVE_END'); key('--longpress KEYCODE_DEL'); await sleep(300);
+  for (let k = 0; k < 3; k++) key('KEYCODE_DEL ' + 'KEYCODE_DEL '.repeat(12));
+  typeText(addr); await sleep(1000);
+  if ((dump() || []).some((n) => /EditText/.test(n.cls) && n.text === addr)) break;
+}
+key('KEYCODE_BACK'); await sleep(800);
 ui = await waitUi((n) => has(n, 'Sign in with Quick Connect'), 20000, 1000);
 tapNode(find(ui, 'Sign in with Quick Connect'));
 const signedIn = await waitUi((n) => !has(n, 'Sign in with Quick Connect') && !has(n, 'Jellyfin server') && !has(n, 'Signing in'), 60000, 1500);
-if (!signedIn) { console.log('sign-in did not complete'); process.exit(1); }
+if (!signedIn) { console.log('sign-in did not complete'); shot('a11y-signin-failed.png'); process.exit(1); }
 await sleep(8000);
 
 let failed = false;
@@ -60,7 +68,9 @@ if (tab('Settings')) {
   await sleep(2500);
   for (let i = 0; i < 14 && !find(dump(), /^Licences$/); i++) { sh('input swipe 540 1700 540 500 300'); await sleep(700); }
   for (const [row, words] of [['Licences', /MIT License|Third-party software/], ['Privacy', /What a FLACie server keeps|Who is responsible/]]) {
-    const n = find(dump(), new RegExp('^' + row + '$'));
+    // scrolled to each row in turn: back from Licences, Settings may sit at another scroll, with Privacy just below the edge
+    let n = find(dump(), new RegExp('^' + row + '$'));
+    for (let i = 0; i < 14 && !n; i++) { sh('input swipe 540 1700 540 500 300'); await sleep(700); n = find(dump(), new RegExp('^' + row + '$')); }
     if (!n) { failed = true; console.log(row + ': row not found in Settings > About'); continue; }
     tapNode(n); await sleep(2500);
     const ok = (dump() || []).some((x) => words.test(label(x)));

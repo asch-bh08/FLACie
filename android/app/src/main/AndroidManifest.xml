@@ -71,7 +71,7 @@
             android:screenOrientation="user" />
         <!-- Android Auto finds this app by this entry, and reads covers from the provider below -->
         <meta-data android:name="com.google.android.gms.car.application" android:resource="@xml/automotive_app_desc" />
-        <provider android:name=".playback.ArtProvider" android:authorities="com.ipodemu.art" android:exported="true" />
+        <provider android:name=".playback.ArtProvider" android:authorities="${applicationId}.art" android:exported="true" />
         <service android:name=".library.offline.DownloadService" android:exported="false" android:foregroundServiceType="dataSync" />
         <service
             android:name=".playback.PlaybackService"

@@ -27,7 +27,7 @@ Requirements: JDK 17, Android SDK (compileSdk 34), a device with USB debugging.
 Stack: Kotlin 1.9.24, AGP 8.5.2, Gradle 8.7, minSdk 30 / targetSdk 33, Jetpack Compose (BOM 2024.06, compiler 1.5.14), Media3 1.4.1 (ExoPlayer + MediaSession), androidx Palette, coroutines.
 
 ## How the code works
-Package `com.ipodemu`:
+App id `app.flacie` (until 1.0 it was `com.ipodemu`, so older installs sit beside it as a separate app). The code stays in package `com.ipodemu`:
 
 | Path | Role |
 |---|---|

@@ -32,7 +32,7 @@ const SKIP_PARALLEL = process.argv.includes('--skip-parallel');
 const SKIP_SLEEP = arg('skip-sleep', '0.01'), COVER_RUNS = Number(arg('cover-runs', 3));
 const SCROLL_SECONDS = Number(arg('scroll-seconds', 40)), SKIPS = Number(arg('skips', 40));
 setAdb(arg('adb', ''));
-const PKG = 'com.ipodemu';
+const PKG = 'app.flacie';
 const MOCK = `http://127.0.0.1:${PORT}`, DEVICE_MOCK = `http://10.0.2.2:${PORT}`;
 
 const jget = async (u) => (await fetch(u)).json();
@@ -59,7 +59,7 @@ function stopMock() { if (mock) { try { mock.kill('SIGKILL'); } catch { } try { 
 process.on('exit', stopMock);
 
 // ---- device helpers ----
-const launch = () => sh(`am start -n ${PKG}/.ui.MainActivity`, { quiet: true });
+const launch = () => sh(`am start -n ${PKG}/com.ipodemu.ui.MainActivity`, { quiet: true });
 const forceStop = () => sh(`am force-stop ${PKG}`);
 function freshApp() {
   forceStop();
@@ -298,7 +298,7 @@ async function scenarioCovers() {
     forceStop(); await sleep(2000);
     sh('logcat -c', { quiet: true });
     await reset();
-    sh(`am start -W -n ${PKG}/.ui.MainActivity --ez clearcovers true`, { quiet: true });
+    sh(`am start -W -n ${PKG}/com.ipodemu.ui.MainActivity --ez clearcovers true`, { quiet: true });
     await sleep(16000);
     const lines = sh('logcat -d -s FLACieProbe FLACieBoot FLACieCover', { quiet: true }).split('\n');
     const at = {};

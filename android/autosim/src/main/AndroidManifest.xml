@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- the way a head unit app sees FLACie: by its package, over the media browser service -->
     <queries>
-        <package android:name="com.ipodemu" />
+        <package android:name="app.flacie" />
         <intent><action android:name="androidx.media3.session.MediaLibraryService" /></intent>
         <intent><action android:name="android.media.browse.MediaBrowserService" /></intent>
     </queries>

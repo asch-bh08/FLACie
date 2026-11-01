@@ -51,7 +51,7 @@ Cover Flow, per-item collage previews on menus, other Nano generations, Photos/V
 
 ## v0.4 performance / density / appearance (RG Rotate, release build)
 - `tools/jank.sh` (Songs scroll + swipes): debug 52% janky (median 28 ms, p99 900 ms) -> release 7-10% -> after recomposition fixes 4-7% (p99 44-73 ms). 5 track changes: p99 450 -> 93 ms after moving artwork to file URIs and saving user data off the main thread.
-- Baseline profile is hand-written wildcards + the libraries' own profiles (no Macrobenchmark: needs a rooted / Android 13+ device); `cmd package compile -m speed-profile -f com.ipodemu` after install to apply it immediately.
+- Baseline profile is hand-written wildcards + the libraries' own profiles (no Macrobenchmark: needs a rooted / Android 13+ device); `cmd package compile -m speed-profile -f app.flacie` after install to apply it immediately.
 - Verified: slim mini bar, Home Now Playing card, 56 dp rows, square Now Playing, Appearance screen (skin change restyles the whole app live, back gesture closes it), Player-in-body withheld with the reason shown.
 - Needs hands-on: Player in an iPod on a phone/tablet, wheel-view Appearance page, Brightness on device, fixed-colour swatches, light theme under "System".
 

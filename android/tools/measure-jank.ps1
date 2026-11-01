@@ -20,7 +20,7 @@
 .PARAMETER Device       adb serial (adb devices). Optional when only one device is connected.
 .PARAMETER Swipes       Number of swipes per run (default 12: two thirds forward, the rest back so the list never runs out).
 .PARAMETER Runs         Repeat the whole measurement this many times (default 1).
-.PARAMETER Package      Application id (default com.ipodemu).
+.PARAMETER Package      Application id (default app.flacie).
 .PARAMETER BottomReserve Fraction of the screen height kept free at the bottom (mini player + tab bar). Default 0.22.
 .PARAMETER SwipeMs      Duration of one swipe (default 180 ms: a brisk flick, same as tools/jank.sh).
 .PARAMETER PauseMs      Pause between swipes (default 250 ms).
@@ -33,7 +33,7 @@ param(
     [string]$Device = "",
     [int]$Swipes = 12,
     [int]$Runs = 1,
-    [string]$Package = "com.ipodemu",
+    [string]$Package = "app.flacie",
     [double]$BottomReserve = 0.22,
     [int]$SwipeMs = 180,
     [int]$PauseMs = 250,

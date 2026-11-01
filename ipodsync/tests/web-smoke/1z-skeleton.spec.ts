@@ -16,7 +16,9 @@ test('Home shows placeholder covers while the profile loads, then the real page'
     await page.locator('#jf-form button[type="submit"]').click();
     await page.waitForURL((u) => !u.pathname.startsWith('/login'));
     const skel = page.locator('.skel');
-    await expect(skel).toBeVisible({ timeout: 5_000 });
+    await expect(skel.first()).toBeVisible({ timeout: 5_000 });
+    // one set of placeholders, not the library's rows stacked over Home's covers (a first sign-in had both: full suite, 1 Nov)
+    await expect(skel).toHaveCount(1);
     await expect(skel).toHaveAttribute('role', 'status');
     await expect(skel).toContainText('Loading your music');
     expect(await skel.locator('.skel-card').count()).toBeGreaterThanOrEqual(4);

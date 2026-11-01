@@ -27,7 +27,7 @@
         </div>
     </div>
 </header>
-<LibraryStatus />
+<LibraryStatus ShowLoading="@(!Waiting)" />
 @if (Session.ProfileLoaded && !Session.Welcomed)
 {
     @* the first visit: where things are, in three lines; it goes for good with Got it (kept in the profile, so every device knows) *@

@@ -1,7 +1,10 @@
 @inherits UserComponent
 @if (Session.Loading && Lib.Songs.Count == 0)
 {
-    <Skeleton Label="Loading your library…" />
+    if (ShowLoading)
+    {
+        <Skeleton Label="Loading your library…" />
+    }
 }
 else if (Session.Problem is { } p)
 {
@@ -12,6 +15,8 @@ else if (!Session.Loading && Lib.Songs.Count == 0)
     <p class="status">No music found yet. Add a Jellyfin server or a NAS in <a href="/settings">Settings</a>.</p>
 }
 @code {
+    /// <summary>False where the page shows its own placeholders while it loads (Home's covers): one set on screen, not two stacked.</summary>
+    [Parameter] public bool ShowLoading { get; set; } = true;
     bool retrying;
     // the library could not be read (a server down, a network gone): ask again without a reload
     async Task Retry()

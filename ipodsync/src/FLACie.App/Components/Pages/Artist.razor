@@ -4,7 +4,7 @@
 @{ var a = Lib.Artists.FirstOrDefault(x => string.Equals(x.Name, Uri.UnescapeDataString(Name), StringComparison.OrdinalIgnoreCase)); }
 @if (a is null)
 {
-    <p class="status">@(Session.Loading ? "Loading…" : "This artist isn't in your library.")</p>
+    @if (Session.Loading) { <Skeleton Label="Loading…" /> } else { <p class="status">This artist isn't in your library.</p> }
 }
 else
 {

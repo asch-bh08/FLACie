@@ -82,6 +82,10 @@
 /* (the mini player button only goes in a narrow window: hiding it up to 1600 took it away from most laptops) */
 @media (min-width: 761px) and (max-width: 1600px) {
   .player .bar-right .vol input { width: 64px; }
+  /* with the DJ's two buttons and the mini player button the group still pushed Play 64 px left at 1440 (1 Nov): slimmer buttons (34 px, still well over
+     the 24 px a pointer target needs) and closer together give that back */
+  .player .bar-right { gap: 2px; }
+  .player .bar-right .icon-btn { width: 34px; height: 34px; }
 }
 @media (min-width: 761px) and (max-width: 1100px) {
   .player .bar-right .icon-btn[aria-label^="Mini player"] { display: none; }

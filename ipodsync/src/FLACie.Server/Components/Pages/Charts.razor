@@ -11,7 +11,7 @@
         <button role="tab" class="mood @(id == current ? "on" : "")" aria-selected="@((id == current) ? "true" : "false")" @onclick="() => Pick(id)">@c.Name</button>
     }
 </div>
-@if (loading) { <p class="status">Loading the chart…</p> }
+@if (loading) { <Skeleton Label="Loading the chart…" /> }
 else if (songs.Count == 0) { <p class="status">The chart couldn't be loaded right now.</p> }
 else
 {

@@ -45,3 +45,19 @@
 /* a narrow PC window: with the DJ and its mic the right-hand group no longer fits beside the play buttons, so the volume slider (its speaker stays)
    and the Retro link (in the account menu and Now Playing too) give way */
 @media (min-width: 761px) and (max-width: 1000px) { .player .bar-right .vol input, .player .bar-right .retro-link { display: none; } }
+
+/* ---- placeholders while a list loads (Skeleton.razor): soft shapes in the ink's own colour, so they suit the dark and the light theme; still, never shimmering ---- */
+.skel { display: grid; gap: 14px; margin: 8px 0 20px; }
+.skel-label { margin: 0; font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.skel i { display: block; background: color-mix(in srgb, var(--ink) 9%, transparent); }
+.skel-shapes { display: grid; gap: 10px; }
+.skel-cards .skel-shapes { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); grid-template-rows: auto; grid-auto-rows: 0; gap: 0 18px; overflow: hidden; }   /* one row of covers, however wide the page: the rest fold away */
+.skel-card { display: grid; gap: 8px; }
+.skel-card .skel-cover { aspect-ratio: 1; border-radius: 16px; }
+.skel-row { display: flex; align-items: center; gap: 14px; height: 56px; }
+.skel-row .skel-cover { width: 44px; height: 44px; flex: none; border-radius: 10px; }
+.skel-row > span { flex: 1; display: grid; gap: 8px; }
+.skel-line { height: 11px; border-radius: 6px; width: 70%; }
+.skel-line.short { width: 42%; opacity: .7; }
+.skel-card .skel-line { width: 80%; }
+.skel-card .skel-line.short { width: 50%; }

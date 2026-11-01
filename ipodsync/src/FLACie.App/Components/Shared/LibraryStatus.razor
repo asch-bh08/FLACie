@@ -1,7 +1,7 @@
 @inherits UserComponent
 @if (Session.Loading && Lib.Songs.Count == 0)
 {
-    <p class="status">Loading your library…</p>
+    <Skeleton Label="Loading your library…" />
 }
 else if (Session.Problem is { } p)
 {

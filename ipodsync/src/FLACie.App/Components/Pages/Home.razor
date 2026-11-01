@@ -42,7 +42,7 @@
         <button class="btn primary" @onclick="() => { Session.MarkWelcomed(); SaveProfile(); }">Got it</button>
     </section>
 }
-@if (Waiting) { <p class="status">Loading your music…</p> }
+@if (Waiting) { <Skeleton Label="Loading your music…" Kind="cards" Count="6" /> }
 else
 {
 @if (moods.Count > 0)

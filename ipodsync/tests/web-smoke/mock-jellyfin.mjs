@@ -95,6 +95,7 @@ const counts = { usersMe: 0, items: 0, item: 0, stream: 0, image: 0, streamAbort
 const images = new Map();
 // GET /__stream?delay=ms makes the song streams slow (ms between chunks), so a stream the server drops half way is visible as streamAborted
 let streamDelay = 0, firstByte = 0;
+let prefsDelay = 0;
 // the library listing carries MediaSources/MediaStreams when asked (Fields=MediaSources,MediaStreams), like Jellyfin: plain songs are CD-quality FLAC.
 // The Hi-Res lab songs are left out on purpose, so 1e-hires.spec.ts keeps exercising the per-song read (with its one HTTP 500).
 const withSources = (x) => (x.Id.startsWith('s') && x.Id !== 's1'
@@ -124,6 +125,8 @@ http
     if (p === '/__reset') { for (const k of Object.keys(counts)) counts[k] = 0; images.clear(); return json(res, 200, counts); }
     if (p === '/__images') return json(res, 200, { total: counts.image, distinct: images.size, repeats: counts.imageRepeats, variants: [...new Set([...images.keys()].map((k) => k.split('|').slice(2).join('|')))], urls: Object.fromEntries(images) });
     // first=ms: a wait before a song's first byte, like a real Jellyfin opening a big FLAC file from disk (1z-song-start)
+    // /__prefs?delay=ms: the profile (DisplayPreferences) answers this much later, like a busy Jellyfin just after sign-in (1z-skeleton)
+    if (p === '/__prefs') { prefsDelay = Number(q.get('delay') || 0); return json(res, 200, { delay: prefsDelay }); }
     if (p === '/__stream') { streamDelay = Number(q.get('delay') || 0); firstByte = Number(q.get('first') || 0); return json(res, 200, { delay: streamDelay, first: firstByte }); }
     // /__touch?id=s5&name=New title: the song was saved again (what a metadata edit does); the next MinDateLastSaved question returns it
     if (p === '/__touch') {
@@ -156,6 +159,7 @@ http
     if (p === '/QuickConnect/Initiate') return json(res, 401, {});
     if (p === '/Users/Me') return json(res, 200, me);
     if (p.startsWith('/DisplayPreferences/')) {
+      if (m !== 'POST' && prefsDelay > 0) await new Promise((r) => setTimeout(r, prefsDelay));
       if (m === 'POST') {
         prefs = JSON.parse((await readBody(req)) || '{}');
         return json(res, 204);

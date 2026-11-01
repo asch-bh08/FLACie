@@ -1,0 +1,25 @@
+@* What a list looks like while it loads: grey shapes where the covers or rows will be, so the page keeps its shape and the wait looks shorter than a bare
+   "Loading…" line. They stay still (no shimmer: nothing on the page may animate for ever), and the words are there for a screen reader and as a small label. *@
+<div class="skel skel-@Kind" role="status" aria-live="polite">
+    <p class="skel-label">@Label</p>
+    <div class="skel-shapes" aria-hidden="true">
+        @for (var i = 0; i < Count; i++)
+        {
+            if (Kind == "cards")
+            {
+                <div class="skel-card"><i class="skel-cover"></i><i class="skel-line"></i><i class="skel-line short"></i></div>
+            }
+            else
+            {
+                <div class="skel-row"><i class="skel-cover"></i><span><i class="skel-line"></i><i class="skel-line short"></i></span></div>
+            }
+        }
+    </div>
+</div>
+@code {
+    /// <summary>What is loading, in words ("Loading your library…").</summary>
+    [Parameter] public string Label { get; set; } = "Loading…";
+    /// <summary>"rows" (song lists, one under another) or "cards" (covers side by side, like Home's shelves).</summary>
+    [Parameter] public string Kind { get; set; } = "rows";
+    [Parameter] public int Count { get; set; } = 8;
+}

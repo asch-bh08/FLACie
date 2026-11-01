@@ -20,21 +20,21 @@
                 <i class="dm-spindle"></i>
             </div>
             <div class="dm-lid @(open ? "open" : "")" data-testid="dm-lid" aria-hidden="true">
-                <i class="ring"></i><span class="dm-brand">FLACIE<small>PORTABLE COMPACT DISC PLAYER · ESP</small></span>
+                <i class="ring"></i><span class="dm-brand">FLACIE<small>PORTABLE CD PLAYER · ANTI-SKIP</small></span>
             </div>
             <div class="dm-front">
                 <div class="dm-lcd" data-testid="dm-lcd" aria-label="Track and time">
                     <span class="cdtext rt-mq" data-testid="retro-title">@(Now is null ? "NO DISC" : $"{Now.Title} · {Now.Artist}")</span>
                     <small>TRACK</small><b class="seg">@(Now is null ? "--" : TrackNo.ToString("00"))</b>
                     <b class="seg time" data-testid="dm-time">@(Now is null ? "-:--" : Clock(Position))</b>
-                    <small class="bass @(Mega ? "on" : "")">MEGA BASS</small><small class="state">@(Playing ? "▶" : "❚❚")</small>
+                    <small class="bass @(Mega ? "on" : "")">BASS BOOST</small><small class="state">@(Playing ? "▶" : "❚❚")</small>
                 </div>
                 <div class="dm-keys">
                     <button type="button" data-ctl="prev" aria-label="Previous" @onclick="Prev">⏮</button>
                     <button type="button" data-ctl="play" class="big" aria-label="@(Playing ? "Pause" : "Play")" @onclick="Toggle">▶❚❚</button>
                     <button type="button" data-ctl="next" aria-label="Next" @onclick="Next">⏭</button>
                     <button type="button" data-ctl="stop" aria-label="Stop" @onclick="Stop">■</button>
-                    <button type="button" data-ctl="bass" class="bass @(Mega ? "on" : "")" aria-pressed="@(Mega ? "true" : "false")" aria-label="Mega Bass" @onclick="Bass">MEGA<br />BASS</button>
+                    <button type="button" data-ctl="bass" class="bass @(Mega ? "on" : "")" aria-pressed="@(Mega ? "true" : "false")" aria-label="Bass boost" @onclick="Bass">BASS<br />BOOST</button>
                 </div>
             </div>
             <button type="button" class="dm-open" data-ctl="open" aria-pressed="@(open ? "true" : "false")" aria-label="@(open ? "Close the lid" : "Open the lid")" @onclick="() => open = !open">OPEN</button>
@@ -45,7 +45,7 @@
         <svg class="dm-rcable" viewBox="0 0 100 80" aria-hidden="true"><path d="M98 78 C 94 40, 60 56, 44 28 S 10 6, 0 2" /></svg>
         <div class="rm-in">
         <div class="rm-lcd">
-            <div class="rm-l0"><span class="rt-mq" data-testid="retro-format">@(Now is null ? "NO DISC" : Format)</span><small class="@(Mega ? "on" : "")" data-testid="dm-remote-bass">MEGA BASS</small></div>
+            <div class="rm-l0"><span class="rt-mq" data-testid="retro-format">@(Now is null ? "NO DISC" : Format)</span><small class="@(Mega ? "on" : "")" data-testid="dm-remote-bass">BASS BOOST</small></div>
             @LyricsBox(Now?.Artist ?? "FLACIE", "rm-lyric")
             <div class="rm-l2"><span>@(Playing ? "▶" : "❚❚")</span><span data-testid="dm-vol">VOL @(VolPct / 5)</span></div>
         </div>

@@ -43,7 +43,7 @@ import kotlin.math.roundToInt
 import com.ipodemu.library.AudioFacts
 import com.ipodemu.theme.Themes
 
-private val VIEW_NAMES = listOf("iPod Player", "iPod Emulator", "Click Wheel Fullscreen", "iPod Emulator")
+private val VIEW_NAMES = listOf("Modern Player", "Device", "Wheel Fullscreen", "Device")
 
 @Composable
 fun SettingsScreen(nav: PlayerNav, dashboard: Boolean = false) {
@@ -259,16 +259,16 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                         SettingRow("Format and source badges", if (prefs.showBadges) "On" else "Off", toggle = true, desc = "The small FLAC / MP3 and NAS / Streaming labels next to songs.") { prefs.showBadges = !prefs.showBadges; ui.refreshFromPrefs() }
                         SettingRow("Animations", if (prefs.motion) "On" else "Off", toggle = true, desc = "Fades, the pulsing download dot and moving highlights. Turn off for a calmer, lighter app. Always off while the phone's Remove animations is on.") { prefs.motion = !prefs.motion; ui.refreshFromPrefs() }
                         // the phone's own looks: the mode (an explicit chooser, never a one-tap toggle: a stray tap used to flip the whole app into the iPod theme) and Retro
-                        SettingRow("Mode", if (ui.ipodTheme) "iPod" else "Modern", chevron = true) {
+                        SettingRow("Mode", if (ui.ipodTheme) "Classic" else "Modern", chevron = true) {
                             nav.sheet = SheetSpec("Mode", null, listOf(
                                 SheetItem("Modern", if (!ui.ipodTheme) Glyph.CHECK else Glyph.NOTE) { ui.changeTheme(0) },
-                                SheetItem("iPod (classic skins and click wheel)", if (ui.ipodTheme) Glyph.CHECK else Glyph.IPOD) { ui.changeTheme(1) },
+                                SheetItem("Classic (skins and wheel)", if (ui.ipodTheme) Glyph.CHECK else Glyph.IPOD) { ui.changeTheme(1) },
                                 SheetItem("Sync mode (edit a connected iPod)", Glyph.LIST) { ui.changeTheme(2) },
-                                SheetItem("Retro (iPods, the desk and listening scenes)", Glyph.CASSETTE) { openRetro(ctx) },
+                                SheetItem("Retro (classic players, the desk and listening scenes)", Glyph.CASSETTE) { openRetro(ctx) },
                             ))
                         }
-                        SettingRow("Retro", "iPods, desk, scenes", chevron = true) { openRetro(ctx) }
-                        if (ui.ipodTheme) SettingRow("iPod appearance", modeName, chevron = true) { ui.pickerOpen = true }
+                        SettingRow("Retro", "Players, desk, scenes", chevron = true) { openRetro(ctx) }
+                        if (ui.ipodTheme) SettingRow("Player appearance", modeName, chevron = true) { ui.pickerOpen = true }
                         if (ui.ipodTheme) SettingRow("Light or dark", listOf("Dark", "Light", "System")[prefs.appearance.coerceIn(0, 2)]) { prefs.appearance = (prefs.appearance + 1) % 3; ui.refreshFromPrefs() }
                     }
                 }

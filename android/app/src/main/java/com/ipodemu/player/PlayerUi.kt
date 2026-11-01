@@ -623,7 +623,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     val online = rememberOnline()
     Column(Modifier.fillMaxSize()) {
         val modern = LocalStyle.current.modern
-        if (!modern) TopBar(if (app.prefs.timeInTitle) clock else "iPod", nav, showBack = false) {
+        if (!modern) TopBar(if (app.prefs.timeInTitle) clock else "FLACie", nav, showBack = false) {
             TopAction(Glyph.SEARCH, "Search") { nav.push(Screen.Search) }
             TopAction(Glyph.GEAR, "Settings") { nav.push(Screen.Settings) }
         }
@@ -2088,7 +2088,7 @@ private fun WelcomeCard(onDone: () -> Unit) {
         SerifTitle("Welcome to FLACie", size = 28f, italicWords = 1)
         Txt("Home has what you played last and new picks every day.", size = 14.5f, color = sc.onBg, maxLines = 3)
         Txt("Search finds anything in your library, and anything you don't have yet, ready to download.", size = 14.5f, color = sc.onBg, maxLines = 3)
-        Txt("Library holds your favourites, playlists and Jam. Retro (the cassette in the player) plays your music on a classic iPod.", size = 14.5f, color = sc.onBg, maxLines = 4)
+        Txt("Library holds your favourites, playlists and Jam. Retro (the cassette in the player) plays your music on a classic-style music player.", size = 14.5f, color = sc.onBg, maxLines = 4)
         DesignChip("Got it", true, onDone)
     }
 }

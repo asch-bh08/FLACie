@@ -92,17 +92,17 @@ test.describe.serial('ipod mode', () => {
     await signIn(page);
     await page.setViewportSize({ width: 700, height: 900 });
     await openIpod(page, { model: 'ipod4' });
-    await expect(title(page)).toHaveText('iPod');
+    await expect(title(page)).toHaveText('FLACie');
     await expect.poll(() => labels(page), { timeout: 10_000 }).toEqual(['Playlists', 'Browse', 'Extras', 'Settings', 'Shuffle Songs']);
     await expect(page.locator('.ipod-lcd.fam-mono')).toBeVisible(); await expect(page.getByTestId('ipod-pane')).toHaveCount(0);
     const lcd = (await page.getByTestId('ipod-lcd').boundingBox())!; expect(lcd.width / lcd.height).toBeGreaterThan(1.1);
 
     await page.goto('about:blank'); await openIpod(page, { model: 'video5' });
-    await expect.poll(() => labels(page), { timeout: 10_000 }).toEqual(['Music', 'Cover Flow', 'Extras', 'Settings', 'Shuffle Songs']);
+    await expect.poll(() => labels(page), { timeout: 10_000 }).toEqual(['Music', 'Covers', 'Extras', 'Settings', 'Shuffle Songs']);
     await expect(page.getByTestId('ipod-pane')).toHaveCount(0);       // the colour video menus have no preview
 
     await page.goto('about:blank'); await openIpod(page, { model: 'classic6' });
-    await expect.poll(() => labels(page), { timeout: 10_000 }).toEqual(['Music', 'Cover Flow', 'Extras', 'Settings', 'Shuffle Songs']);
+    await expect.poll(() => labels(page), { timeout: 10_000 }).toEqual(['Music', 'Covers', 'Extras', 'Settings', 'Shuffle Songs']);
     await expect(page.getByTestId('ipod-pane')).toBeVisible();        // nano / classic: the preview tile beside the main menu
     await page.getByTestId('ipod-keys').focus();
     await page.keyboard.press('Enter');
@@ -156,14 +156,14 @@ test.describe.serial('ipod mode', () => {
     await expect(title(page)).toHaveText('Songs');
   });
 
-  test('Cover Flow, albums and artists', async ({ page }) => {
+  test('Covers, albums and artists', async ({ page }) => {
     test.setTimeout(150_000);
     await signIn(page);
     await page.setViewportSize({ width: 700, height: 900 });
     await openIpod(page, { model: 'classic6' });
     await page.getByTestId('ipod-keys').focus();
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
-    await expect(title(page)).toHaveText('Cover Flow');
+    await expect(title(page)).toHaveText('Covers');
     await expect(page.getByTestId('ipod-coverflow')).toBeVisible();
     await page.waitForTimeout(500); await shot(page, 'coverflow');
     const first = await page.getByTestId('ipod-cf-title').textContent();
@@ -210,12 +210,12 @@ test.describe.serial('ipod mode', () => {
     await page.keyboard.press('ArrowUp'); await page.keyboard.press('ArrowUp'); await page.keyboard.press('Enter');
     await expect(title(page)).toHaveText('Appearance');
     await expect.poll(() => labels(page), { timeout: 10_000 }).toEqual(['Model', 'Colour', 'Look', 'Display']);
-    await expect(sel(page).locator('.lcd-val')).toHaveText('iPod (4th gen)');
+    await expect(sel(page).locator('.lcd-val')).toHaveText('Classic (4th gen)');
     await page.keyboard.press('Enter');
     await expect(title(page)).toHaveText('Model');
-    await expect.poll(() => labels(page), { timeout: 10_000 }).toEqual(['iPod / classic', 'iPod mini', 'iPod nano', 'iPod touch']);
+    await expect.poll(() => labels(page), { timeout: 10_000 }).toEqual(['Classic', 'Mini', 'Nano', 'Touch']);
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
-    await expect(title(page)).toHaveText('iPod nano');
+    await expect(title(page)).toHaveText('Nano');
     expect(await labels(page)).toHaveLength(6);   // six of the seven nanos fit on the screen
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');   // nano 3rd gen
     await expect(stage(page)).toHaveAttribute('data-model', 'nano3');
@@ -246,12 +246,12 @@ test.describe.serial('ipod mode', () => {
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');    // Settings
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');    // Main Menu
     await expect(title(page)).toHaveText('Main Menu');
-    await expect.poll(() => labels(page), { timeout: 10_000 }).toEqual(['Cover Flow', 'Extras', 'Shuffle Songs']);
+    await expect.poll(() => labels(page), { timeout: 10_000 }).toEqual(['Covers', 'Extras', 'Shuffle Songs']);
     await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
     await expect(sel(page).locator('.lcd-tick')).toHaveText('');
     await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
     // read once the screen has slid back to the main menu (on a busy machine the slide is still running right after the key)
-    await expect.poll(() => labels(page), { timeout: 10_000 }).toEqual(['Music', 'Cover Flow', 'Settings', 'Shuffle Songs']);
+    await expect.poll(() => labels(page), { timeout: 10_000 }).toEqual(['Music', 'Covers', 'Settings', 'Shuffle Songs']);
     for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowUp');          // the highlight stays where it was, so start from the top
     for (let i = 0; i < 2; i++) await page.keyboard.press('ArrowDown');
     await expect(sel(page)).toContainText('Settings'); await page.keyboard.press('Enter');
@@ -289,7 +289,7 @@ test.describe.serial('ipod mode', () => {
     // holding MENU goes home
     const b = (await page.getByTestId('ipod-wheel').boundingBox())!;
     await page.mouse.move(b.x + b.width / 2, b.y + b.height * 0.1); await page.mouse.down(); await page.waitForTimeout(800); await page.mouse.up();
-    await expect(title(page)).toHaveText('iPod');
+    await expect(title(page)).toHaveText('FLACie');
   });
 
   test('the picker panel changes the model, colour and look, and touch models show the player', async ({ page }) => {

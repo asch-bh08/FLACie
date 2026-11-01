@@ -49,7 +49,7 @@ test.describe.serial('listening scenes', () => {
       await expect(page.getByTestId('scene-help')).toBeVisible();
       await expect(page.getByTestId('scene-help')).not.toContainText('click the middle');
     }
-    await expect(page.getByTestId('scene-help')).toContainText('MEGA BASS');
+    await expect(page.getByTestId('scene-help')).toContainText('BASS BOOST');
     await page.reload(); await expect(page.locator('[data-testid=retro][data-scene=discman]')).toBeVisible({ timeout: 20_000 });
     await page.locator('[data-testid=scene-options] [data-scene=ipod]').click();
     await expect(page.getByTestId('ipod-device')).toBeVisible();
@@ -195,7 +195,7 @@ test.describe.serial('listening scenes', () => {
     });
   }
 
-  test('discman: the album art printed on the disc; the lid opens to show it spinning; the LCD shows the track and time; stop, skip and MEGA BASS work', async ({ page }) => {
+  test('discman: the album art printed on the disc; the lid opens to show it spinning; the LCD shows the track and time; stop, skip and BASS BOOST work', async ({ page }) => {
     const errors = consoleErrors(page);
     await signIn(page);
     await playInScene(page, 'discman');
@@ -228,7 +228,7 @@ test.describe.serial('listening scenes', () => {
     expect(errors).toEqual([]);
   });
 
-  test('discman: the remote shows MEGA BASS as the real state (it survives a change of scene) and its VOL keys are the real volume', async ({ page }) => {
+  test('discman: the remote shows BASS BOOST as the real state (it survives a change of scene) and its VOL keys are the real volume', async ({ page }) => {
     const errors = consoleErrors(page);
     await signIn(page);
     await playInScene(page, 'discman');

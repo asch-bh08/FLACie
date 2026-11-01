@@ -79,7 +79,26 @@ builder.Services.AddHostedService<PlayTrackerSweeper>();
 builder.Services.AddSingleton<StorageService>();
 builder.Services.AddSingleton<DownloadLog>();
 builder.Services.AddSingleton<DownloadPolicy>();   // the server-wide "Allow downloads" switch (off on a fresh install), checked by DownloadManager
+// smart downloads: songs that arrived below Hi-Res (data/upgrades.json), and the one worker that swaps them for verified Hi-Res copies in the background
+builder.Services.AddSingleton<UpgradeStore>();
 builder.Services.AddSingleton<DownloadManager>();
+builder.Services.AddHostedService(sp =>
+{
+    var sessions = sp.GetRequiredService<SessionStore>(); var hf = sp.GetRequiredService<IHttpClientFactory>(); var policy = sp.GetRequiredService<DownloadPolicy>();
+    var guard = sp.GetRequiredService<StorageGuard>(); var jf = sp.GetRequiredService<JellyfinClient>(); var clients = sp.GetRequiredService<ClientRegistry>(); var catalog = sp.GetRequiredService<WebCatalog>();
+    return new UpgradeWorker(sp.GetRequiredService<UpgradeStore>(), sp.GetRequiredService<DownloadLog>(), () => policy.Allowed,
+        id => sessions.Active.FirstOrDefault(s => s.Id == id), guard.Ok,
+        s => new FileMoverClient(hf.CreateClient("downloads"), s.Services.FileMoverUrl, s.Services.FileMoverKey),
+        (s, e, lossless, ct) => new DownloadCoordinator(hf.CreateClient("downloads"), catalog, s.Services, hf.CreateClient("downloads-long")).UpgradeAsync(e.Artist, e.Title, e.Album, e.DurationMs, e.File, lossless, ct),
+        async s => { if (s.Jellyfin is { } a) await jf.PostAsync(a, "/Library/Refresh", null); },
+        // what is still to play in this person's open players (a song about to be heard is upgraded first)
+        s =>
+        {
+            try { return clients.All.Where(c => c.Session.Id == s.Id).SelectMany(c => c.Player.Queue.ToList().Skip(Math.Max(0, c.Player.Index))).Select(t => Matching.MatchKey(t)).ToHashSet(); }
+            catch (InvalidOperationException) { return new HashSet<string>(); }   // a queue changing under us: the next pass reads it again
+        },
+        sp.GetRequiredService<ILogger<UpgradeWorker>>());
+});
 builder.Services.AddSingleton<AutoplayPlanner>();
 builder.Services.AddSingleton<ImportManager>();
 builder.Services.AddSingleton<ChartsService>();

@@ -79,7 +79,8 @@ public sealed class ChartsService(SessionStore sessions, UserStateStore states, 
                 {
                     if (!guard.Ok(s)) { skippedForSpace = true; break; }
                     st.ChartSeen.Add(Matching.MatchKey(c.Title, c.Artist));
-                    var r = await downloads.FetchAsync(s, "Chart", c.Artist, c.Title, c.Album, c.ArtUrl, c.DurationMs, ct);
+                    // nobody is waiting on a chart song this minute: Hi-Res where it exists (smart downloads), the quick way where it does not
+                    var r = await downloads.FetchAsync(s, "Chart", c.Artist, c.Title, c.Album, c.ArtUrl, c.DurationMs, ct, DownloadMode.HiRes);
                     if (r.Ok) fetched++;
                 }
                 if (skippedForSpace) break;

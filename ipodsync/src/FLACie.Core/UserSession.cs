@@ -282,6 +282,21 @@ public sealed class UserSession
         Changed?.Invoke();
     }
 
+    /// <summary>A download's file was swapped for a better copy (the upgrade worker): the song plays from the new file at once, before Jellyfin has
+    /// looked again. [oldFile] is the old path under the file mover's root; a song that was not a new download here (Jellyfin has it) is left alone.</summary>
+    public void ReplaceDownloaded(string oldFile, Track now)
+    {
+        var tail = "/file?path=" + Uri.EscapeDataString(oldFile);
+        lock (downloaded)
+        {
+            var i = downloaded.FindIndex(t => t.Path.EndsWith(tail, StringComparison.Ordinal));
+            if (i < 0) return;
+            downloaded[i] = now;
+        }
+        Rebuild(l => new Library(l.Songs.Where(t => !t.Path.EndsWith(tail, StringComparison.Ordinal)).ToList()));
+        Changed?.Invoke();
+    }
+
     // every change to the library starts from the library as it is and ends with the downloads added, one at a time: two downloads landing together (Autoplay
     // fetches several) each rebuild it, and a rebuild that began before the other's finished would otherwise throw that other song away
     readonly object rebuilding = new();

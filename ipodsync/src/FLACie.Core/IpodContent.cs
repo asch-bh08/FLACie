@@ -49,7 +49,7 @@ public static class IpodContent
         "m:albums" => Groups("Albums", lib.Albums, "b:", true, IpodKind.Albums),
         "m:genres" => Groups("Genres", Genres(lib), "g:", false, IpodKind.Albums),
         "m:pl" => Groups("Playlists", playlists(), "p:", false, IpodKind.Albums),
-        "m:cover" => Groups("Cover Flow", lib.Albums, "c:", true, IpodKind.CoverFlow),
+        "m:cover" => Groups("Covers", lib.Albums, "c:", true, IpodKind.CoverFlow),
         _ => null,
     };
 

@@ -9,7 +9,7 @@ public sealed record IpodPlayback(bool Shuffle, int Repeat, double Speed, int Sl
 /// </summary>
 public static class IpodMenus
 {
-    public const string RootTitle = "iPod";
+    public const string RootTitle = "FLACie";
     static readonly string[] RepeatNames = ["Off", "All", "One"];
 
     /// <summary>The main menu of a family (hidden entries left out, "Now Playing" only while something is queued, as on the real device).</summary>
@@ -27,8 +27,8 @@ public static class IpodMenus
     public static IReadOnlyList<IpodRow> RootAll(IpodFamily family) => family switch
     {
         IpodFamily.Mono => [new("Playlists", "m:pl"), new("Browse", "m:browse"), new("Extras", "m:extras"), new("Settings", "m:settings"), new("Shuffle Songs", "m:shuffle", false)],
-        IpodFamily.Video => [new("Music", "m:music"), new("Cover Flow", "m:cover"), new("Extras", "m:extras"), new("Settings", "m:settings"), new("Shuffle Songs", "m:shuffle", false)],
-        _ => [new("Music", "m:music"), new("Cover Flow", "m:cover"), new("Extras", "m:extras"), new("Settings", "m:settings"), new("Shuffle Songs", "m:shuffle", false)],
+        IpodFamily.Video => [new("Music", "m:music"), new("Covers", "m:cover"), new("Extras", "m:extras"), new("Settings", "m:settings"), new("Shuffle Songs", "m:shuffle", false)],
+        _ => [new("Music", "m:music"), new("Covers", "m:cover"), new("Extras", "m:extras"), new("Settings", "m:settings"), new("Shuffle Songs", "m:shuffle", false)],
     };
 
     public static string MusicTitle(IpodFamily family) => family == IpodFamily.Mono ? "Browse" : "Music";
@@ -52,7 +52,7 @@ public static class IpodMenus
     ];
 
     /// <summary>The model picker: the four groups, like the Android picker.</summary>
-    public static IReadOnlyList<IpodRow> ModelGroups() => IpodModels.Groups.Select(g => new IpodRow(g == IpodModels.Classic ? "iPod / classic" : g == IpodModels.TouchGroup ? "iPod touch" : g == IpodModels.Mini ? "iPod mini" : "iPod nano", "m:group:" + g)).ToList();
+    public static IReadOnlyList<IpodRow> ModelGroups() => IpodModels.Groups.Select(g => new IpodRow(g == IpodModels.Classic ? "Classic" : g == IpodModels.TouchGroup ? "Touch" : g == IpodModels.Mini ? "Mini" : "Nano", "m:group:" + g)).ToList();
 
     public static string GroupTitle(string group) => ModelGroups().First(r => r.Id == "m:group:" + group).Label;
 

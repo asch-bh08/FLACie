@@ -10,7 +10,7 @@ public class IpodModelsTests
         Assert.Equal(23, IpodModels.All.Count);
         Assert.Equal(IpodModels.All.Count, IpodModels.All.Select(m => m.Id).Distinct().Count());
         Assert.Equal([7, 2, 7, 7], IpodModels.Groups.Select(g => IpodModels.InGroup(g).Count()).ToArray());
-        Assert.Equal("iPod (4th gen)", IpodModels.Get(IpodModels.DefaultId).Name);
+        Assert.Equal("Classic (4th gen)", IpodModels.Get(IpodModels.DefaultId).Name);
         Assert.Equal(IpodModels.DefaultId, IpodModels.Get("nonsense").Id);
         Assert.Equal("4th", IpodModels.Get("ipod4").GenLabel); Assert.Equal("2nd", IpodModels.Get("mini2").GenLabel); Assert.Equal("3rd", IpodModels.Get("nano3").GenLabel);
     }
@@ -60,7 +60,7 @@ public class IpodModelsTests
     {
         Assert.Equal(["Silver", "Black"], IpodModels.Get("classic6").Colors.Select(c => c.Name).ToArray());
         Assert.Equal(9, IpodModels.Get("nano4").Colors.Count); Assert.Equal(5, IpodModels.Get("mini").Colors.Count); Assert.Equal(4, IpodModels.Get("mini2").Colors.Count);
-        Assert.Equal(["White", "U2 Special"], IpodModels.Get("ipod4").Colors.Select(c => c.Name).ToArray());
+        Assert.Equal(["White", "Black & Red"], IpodModels.Get("ipod4").Colors.Select(c => c.Name).ToArray());
         Assert.Equal("#99BEE1", IpodModels.Get("nano2").Colors[1].Top);       // Blue, lightened like the Android metal()
         Assert.True(IpodModels.Get("classic6").Colors[1].Dark); Assert.False(IpodModels.Get("classic6").Colors[0].Dark);
         Assert.True(IpodModels.Get("ipod4").Colors[1].Dark);
@@ -165,18 +165,18 @@ public class IpodMenusTests
     [Fact] public void EachFamilyHasItsOwnMainMenu()
     {
         Assert.Equal(["Playlists", "Browse", "Extras", "Settings", "Shuffle Songs"], L(IpodMenus.Root(IpodFamily.Mono, None, false)));
-        Assert.Equal(["Music", "Cover Flow", "Extras", "Settings", "Shuffle Songs"], L(IpodMenus.Root(IpodFamily.Video, None, false)));
-        Assert.Equal(["Music", "Cover Flow", "Extras", "Settings", "Shuffle Songs", "Now Playing"], L(IpodMenus.Root(IpodFamily.Nano, None, true)));
-        Assert.Equal(["No Music", "Music", "Cover Flow", "Extras", "Settings", "Shuffle Songs"], L(IpodMenus.Root(IpodFamily.Video, None, false, anyMusic: false)));
-        Assert.Equal("iPod", IpodMenus.RootTitle);
+        Assert.Equal(["Music", "Covers", "Extras", "Settings", "Shuffle Songs"], L(IpodMenus.Root(IpodFamily.Video, None, false)));
+        Assert.Equal(["Music", "Covers", "Extras", "Settings", "Shuffle Songs", "Now Playing"], L(IpodMenus.Root(IpodFamily.Nano, None, true)));
+        Assert.Equal(["No Music", "Music", "Covers", "Extras", "Settings", "Shuffle Songs"], L(IpodMenus.Root(IpodFamily.Video, None, false, anyMusic: false)));
+        Assert.Equal("FLACie", IpodMenus.RootTitle);
     }
 
     [Fact] public void HiddenEntriesGoButTheFixedOnesStay()
     {
         var hide = new HashSet<string> { "Extras", "Settings", "Music", "Shuffle Songs" };
-        Assert.Equal(["Music", "Cover Flow", "Settings"], L(IpodMenus.Root(IpodFamily.Video, hide, false)));
+        Assert.Equal(["Music", "Covers", "Settings"], L(IpodMenus.Root(IpodFamily.Video, hide, false)));
         var mm = IpodMenus.MainMenu(IpodFamily.Video, new HashSet<string> { "Extras" });
-        Assert.Equal(["Cover Flow", "Extras", "Shuffle Songs"], L(mm)); Assert.Equal([true, false, true], mm.Select(r => r.Checked!.Value).ToArray());
+        Assert.Equal(["Covers", "Extras", "Shuffle Songs"], L(mm)); Assert.Equal([true, false, true], mm.Select(r => r.Checked!.Value).ToArray());
     }
 
     [Fact] public void MusicMenuDiffersForTheMonoModels()
@@ -190,7 +190,7 @@ public class IpodMenusTests
     {
         Assert.Equal(["Appearance", "Playback", "Controls", "Main Menu", "About", "Account", "FLACie Settings", "Reset Settings"], L(IpodMenus.Settings()));
         var p = new IpodPrefs(); p.ChooseModel("nano2"); p.Color = 1;
-        var ap = IpodMenus.Appearance(p); Assert.Equal(["iPod nano (2nd gen)", "Blue", "Device", "Title"], ap.Select(r => r.Value!).ToArray());
+        var ap = IpodMenus.Appearance(p); Assert.Equal(["Nano (2nd gen)", "Blue", "Device", "Title"], ap.Select(r => r.Value!).ToArray());
         Assert.Equal(["Medium", "Low", "Off", "Medium"], IpodMenus.Controls(p).Select(r => r.Value!).ToArray());
         var pb = IpodMenus.PlaybackPage(new IpodPlayback(true, 2, 1.25, 30, 4, true, 10, 2, "1.0"), p);
         Assert.Equal(["Songs", "One", "1.25x", "On", "4 s", "Off", "30 min"], pb.Select(r => r.Value!).ToArray());
@@ -202,11 +202,26 @@ public class IpodMenusTests
 
     [Fact] public void ThePickersListEveryModelAndColour()
     {
-        Assert.Equal(["iPod / classic", "iPod mini", "iPod nano", "iPod touch"], L(IpodMenus.ModelGroups()));
-        Assert.Equal("iPod nano", IpodMenus.GroupTitle("nano"));
+        Assert.Equal(["Classic", "Mini", "Nano", "Touch"], L(IpodMenus.ModelGroups()));
+        Assert.Equal("Nano", IpodMenus.GroupTitle("nano"));
         var nanos = IpodMenus.Models("nano", "nano3"); Assert.Equal(7, nanos.Count); Assert.Equal("set:model:nano3", nanos.Single(r => r.Checked == true).Id); Assert.Equal("2007", nanos[2].Value);
         var cols = IpodMenus.Colors(IpodModels.Get("nano4"), 2); Assert.Equal(9, cols.Count); Assert.Equal("Purple", cols.Single(r => r.Checked == true).Label); Assert.Equal("set:color:2", cols[2].Id);
         Assert.Equal(23, IpodMenus.ModelGroups().Sum(g => IpodMenus.Models(g.Id[8..], "").Count));
+    }
+
+    // Apple's and Sony's marks are not FLACie's own labels: nothing the Retro players draw or list may carry one
+    static readonly string[] Marks = ["iPod", "Cover Flow", "Click Wheel", "Apple", "U2", "PRODUCT", "Retina", "Siri", "App Store", "Discman", "MiniDisc", "Walkman", "MEGA BASS"];
+
+    [Fact] public void NoMenuModelColourOrSceneNameCarriesAnApplesOrSonysMark()
+    {
+        var shown = new List<string> { IpodMenus.RootTitle };
+        shown.AddRange(IpodPrefs.SceneNames);
+        shown.AddRange(IpodMenus.ModelGroups().Select(r => r.Label));
+        foreach (var f in new[] { IpodFamily.Mono, IpodFamily.Video, IpodFamily.Nano }) shown.AddRange(IpodMenus.Root(f, None, true).Select(r => r.Label));
+        foreach (var m in IpodModels.All) { shown.Add(m.Name); shown.Add(m.Blurb); shown.AddRange(m.Colors.Select(c => c.Name)); }
+        foreach (var s in shown) foreach (var mark in Marks) Assert.DoesNotContain(mark, s, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(["Black & Red"], IpodModels.Get("ipod4").Colors.Select(c => c.Name).Skip(1).ToArray());
+        Assert.Contains("Red", IpodModels.Get("touch5").Colors.Select(c => c.Name));
     }
 
     [Fact] public void TheAuditedModelsLookLikeTheRealOnes()

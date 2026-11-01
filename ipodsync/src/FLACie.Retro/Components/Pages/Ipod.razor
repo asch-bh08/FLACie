@@ -24,7 +24,7 @@ else
     }
     else { @Area() }
     <a class="ipod-exit" href="/" aria-label="Back to FLACie" title="Back to FLACie" data-testid="ipod-exit"><Icon Name="chevron-left" Size="18" /></a>
-    <button class="ipod-gear" type="button" tabindex="-1" aria-label="@(panel ? "Hide the panel" : "Show the panel")" title="Panel: pick an iPod, a scene, colour and look" data-testid="ipod-gear" @onclick="TogglePanel"><Icon Name="settings" Size="18" /></button>
+    <button class="ipod-gear" type="button" tabindex="-1" aria-label="@(panel ? "Hide the panel" : "Show the panel")" title="Panel: pick a model, a scene, colour and look" data-testid="ipod-gear" @onclick="TogglePanel"><Icon Name="settings" Size="18" /></button>
     <aside class="ipod-dock ipod-panel @(panel ? "open" : "")" data-testid="ipod-panel" aria-label="Retro panel" tabindex="0">
         <h2>Retro</h2>
         <section class="dock-np" data-testid="ipod-dock-np">
@@ -40,7 +40,7 @@ else
                     <button type="button" aria-label="Next" @onclick="() => Player.Next()" tabindex="-1"><Icon Name="next" Size="18" /></button>
                 </div>
             }
-            else { <p class="dock-empty">Nothing is playing. Pick a song on the iPod: Music &rsaquo; Songs, or Shuffle Songs.</p> }
+            else { <p class="dock-empty">Nothing is playing. Pick a song on the player: Music &rsaquo; Songs, or Shuffle Songs.</p> }
         </section>
         <section data-testid="scene-options">
             <h3>Scene</h3>
@@ -127,7 +127,7 @@ else
                 <li><b>Select</b>: click the middle, or Enter. <b>Back</b>: MENU, or Esc.</li>
                 <li><b>Next / previous</b>: the sides of the ring or the left/right keys; hold to seek.</li>
                 <li><b>Play / pause</b>: the bottom of the ring, or Space.</li>
-                <li>Everything is also in <b>Settings</b> on the iPod itself.</li>
+                <li>Everything is also in <b>Settings</b> on the player itself.</li>
             </ul>
             <p class="ipod-blurb">@model.Name · @model.Year. @model.Blurb</p>
         </section>
@@ -137,15 +137,15 @@ else
 }
 
 @code {
-    // the help for each retro scene (index = IpodPrefs.Scene; the iPod's own help is the list above)
+    // the help for each retro scene (index = IpodPrefs.Scene; the main player's own help is the list above)
     static readonly string[][] SceneHelp =
     [
         [],
         ["<b>Play / pause</b>, <b>next</b> and <b>previous</b>: the head unit's keys.", "<b>EQ</b> steps the sounds (flat, rock, pop, jazz...): the music itself changes, and the display names it.", "The display shows what the file is, the title and the line being sung.", "<b>Volume</b>: turn the knob (scroll or the arrow keys); press it to mute.", "<b>Presets 1–6</b>: stations made from your biggest genres (each shuffles its genre), then the albums coming up.", "<b>Eject</b> slides the CD out; click the slot to play on."],
         ["<b>Play / pause</b>: START · STOP on the turntable, or PHONO on the receiver.", "<b>BASS</b> and <b>TREBLE</b> are the music's own EQ bands and <b>VOLUME</b> the volume: drag a knob up or down, scroll it or use the arrow keys. The dial shows what the file is and the line being sung.", "<b>Next / previous</b>: ◀◀ and ▶▶ on the receiver. Turn the <b>tuning knob</b> (scroll) to seek.", "Click the <b>record</b> to drop the needle: nearer the middle goes further in.", "<b>Pitch</b>: the slider changes the speed. <b>Crate</b>: flip through and click the front sleeve."],
         ["<b>REW / FF</b>: previous and next. <b>▶ ❚❚</b>: play or pause.", "<b>Stop / eject</b> drops the door open; play shuts it.", "<b>Deck B</b> holds what comes next: click the tape to play it.", "The radio strip shows the line being sung; deck A says what the file is.", "The <b>EQ sliders</b> are the music's own EQ (100 Hz to 8 kHz): drag one, scroll it or use the arrow keys. <b>VOL</b> is the volume."],
-        ["<b>Jog dial</b>: turn it (scroll or the arrow keys) to skip; press the middle to play or pause.", "<b>Eject</b> pops the disc up; click it to put it back.", "The <b>MiniDiscs</b> on the desk are the albums coming up and your playlists."],
-        ["<b>▶❚❚</b> plays or pauses, <b>■</b> stops (back to the song's start), <b>⏮ ⏭</b> skip.", "<b>OPEN</b> lifts the lid: the disc, printed with the album's cover, spins inside while it plays.", "<b>MEGA BASS</b> lifts the bass of the music itself (its light is on while it does).", "The <b>remote</b> beside it shows what the file is and the line being sung, lights MEGA BASS while it is on, and has the <b>VOL</b> keys.", "The <b>CDs</b> beside it are the albums coming up."],
+        ["<b>Jog dial</b>: turn it (scroll or the arrow keys) to skip; press the middle to play or pause.", "<b>Eject</b> pops the disc up; click it to put it back.", "The <b>MDs</b> on the desk are the albums coming up and your playlists."],
+        ["<b>▶❚❚</b> plays or pauses, <b>■</b> stops (back to the song's start), <b>⏮ ⏭</b> skip.", "<b>OPEN</b> lifts the lid: the disc, printed with the album's cover, spins inside while it plays.", "<b>BASS BOOST</b> lifts the bass of the music itself (its light is on while it does).", "The <b>remote</b> beside it shows what the file is and the line being sung, lights BASS BOOST while it is on, and has the <b>VOL</b> keys.", "The <b>CDs</b> beside it are the albums coming up."],
     ];
 
     // ---------------------------------------------------------------- the iPod itself (on the stage, or lying on the desk)
@@ -503,7 +503,7 @@ else
     }
     static string GlyphFor(string label) => label switch
     {
-        "Music" or "Browse" => "note", "Playlists" => "playlists", "Artists" => "artists", "Albums" or "Cover Flow" or "Genres" => "albums", "Songs" => "songs", "Settings" => "settings",
+        "Music" or "Browse" => "note", "Playlists" => "playlists", "Artists" => "artists", "Albums" or "Covers" or "Genres" => "albums", "Songs" => "songs", "Settings" => "settings",
         "Shuffle Songs" => "shuffle", "Now Playing" => "play", "Voice Memos" or "Extras" => "wave", _ => "note",
     };
 

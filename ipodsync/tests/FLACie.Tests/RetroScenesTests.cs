@@ -25,7 +25,7 @@ public class RetroScenesTests
 
     [Fact] public void EverySceneHasAName()
     {
-        Assert.Equal(["iPod", "Car", "Hi-Fi", "Boombox", "MiniDisc", "Discman"], IpodPrefs.SceneNames);
+        Assert.Equal(["Player", "Car", "Hi-Fi", "Boombox", "MD player", "CD player"], IpodPrefs.SceneNames);
         Assert.Equal(["ipod", "car", "hifi", "boombox", "minidisc", "discman"], IpodPrefs.SceneKeys);
     }
 

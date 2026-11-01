@@ -69,7 +69,7 @@ test.describe.serial('the click-wheel iPods have their real controls', () => {
     await page.keyboard.press('Enter'); await expect(title(page)).toHaveText('Artists');
     const m = mid(await box(page, '[data-testid=ipod-keyrow] [data-testid=ipod-menu]'));
     await page.mouse.move(m.x, m.y); await page.mouse.down(); await page.waitForTimeout(800); await page.mouse.up();
-    await expect(title(page)).toHaveText('iPod');
+    await expect(title(page)).toHaveText('FLACie');
     // the wheel only scrolls (a tap on its ring is not a button: the buttons are the row); its middle still selects
     await page.keyboard.press('Enter'); await expect(title(page)).toHaveText('Browse');                // (home keeps the highlight on Browse)
     const c = mid(wheel), r = wheel.width / 2;
@@ -126,7 +126,7 @@ test.describe.serial('the click-wheel iPods have their real controls', () => {
       // the ring's buttons work: MENU at the top goes back
       await page.getByTestId('ipod-keys').focus();
       await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await expect(title(page)).toHaveText('Browse');
-      await page.mouse.click(at.menu.x, at.menu.y); await expect(title(page)).toHaveText('iPod');
+      await page.mouse.click(at.menu.x, at.menu.y); await expect(title(page)).toHaveText('FLACie');
     }
   });
 

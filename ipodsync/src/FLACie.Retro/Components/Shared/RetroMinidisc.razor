@@ -16,7 +16,7 @@
                 <div class="md-lcd" data-testid="md-lcd">
                     <div class="l0"><span class="rt-mq" data-testid="retro-format">@(Now is null ? "NO DISC" : Format)</span><span data-testid="md-eq-name">EQ @EqName</span></div>
                     <div class="l1 rt-mq" data-testid="retro-title">@Line1</div>
-                    @LyricsBox(Now?.Artist ?? "MINIDISC", "l2")
+                    @LyricsBox(Now?.Artist ?? "MD PLAYER", "l2")
                     <div class="l3"><span>@(Now is null ? "NO DISC" : ejected ? "OPEN" : $"TR {TrackNo:00}")</span><span>@(Now is null ? "--:--" : Clock(Position))</span><span data-testid="md-vol">VOL @(VolPct / 5)</span><span class="@(Playing && !ejected ? "on" : "")">▶</span></div>
                 </div>
                 <div class="md-jog" data-testid="md-jog" role="group" tabindex="0" aria-label="@("Jog dial: turn it or use the arrow keys to skip" + (Now is null ? "" : ". Now: " + Now.Title))" style="--r:@(jog)deg"

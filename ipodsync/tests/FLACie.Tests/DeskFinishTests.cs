@@ -52,10 +52,10 @@ public class DeskFinishTests
                 Assert.Equal(c.Bottom, f.Mid); Assert.Equal(c.Top, f.Light);
             }
         }
-        // a blue mini's edge is blue, a (PRODUCT)RED touch's red
+        // a blue mini's edge is blue, a red touch's red
         var blue = DeskFinishes.For(IpodModels.Get("mini"), Colour("mini", "Blue"));
         Assert.InRange(Hue(blue.Mid), 195, 225); Assert.InRange(Hue(blue.Dark), 195, 225);
-        var red = DeskFinishes.For(IpodModels.Get("touch5"), Colour("touch5", "(PRODUCT)RED"));
+        var red = DeskFinishes.For(IpodModels.Get("touch5"), Colour("touch5", "Red"));
         Assert.True(HueGap(Hue(red.Mid), 357) < 12);
     }
 
@@ -84,7 +84,7 @@ public class DeskFinishTests
 
     [Fact] public void TheU2IpodLendsTheDeskItsRedWheel()
     {
-        var a = DeskFinishes.For(IpodModels.Get("ipod4"), Colour("ipod4", "U2 Special")).Accent;
+        var a = DeskFinishes.For(IpodModels.Get("ipod4"), Colour("ipod4", "Black & Red")).Accent;
         Assert.NotNull(a); Assert.True(HueGap(Hue(a!), 357) < 10, a);
     }
 

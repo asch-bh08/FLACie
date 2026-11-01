@@ -12,7 +12,13 @@ import ipaddress
 import socket
 
 API_KEY = os.environ["API_KEY"]
-ROOT = "/data"
+# the music folder everything is filed into (the container mounts the library at /data); FILEMOVE_ROOT moves it for the tests
+ROOT = os.path.realpath(os.environ.get("FILEMOVE_ROOT", "/data"))
+# where /retire puts an old copy once its Hi-Res copy has been verified: inside the music folder, so it is a move, never a delete. The host empties it.
+REPLACED = ".flacie-replaced"
+# what this file mover can do, for GET /health: FLACie Web's upgrade worker only swaps files when "retire" is listed (an older file mover without it
+# would leave two copies of a song in the library)
+ROUTES = ["move", "fetch", "probe", "ytdl", "file", "retire"]
 MAX_FETCH = 700 * 1024 * 1024
 YTDL_BASE = "http://172.17.0.1:8091"
 
@@ -63,6 +69,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/fetch":
             self._fetch()
             return
+        if self.path == "/retire":
+            self._retire()
+            return
         if self.path != "/move":
             self._reply(404, {"error": "not found"})
             return
@@ -94,6 +103,40 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._reply(e.code, {"error": "yt-dlp service error"})
         except Exception as e:
             self._reply(502, {"error": "yt-dlp service unavailable: " + str(e)})
+
+    def _retire(self):
+        """POST /retire {"path": "Artist/Artist - Title.m4a"}: moves a file of the music folder into .flacie-replaced/ (same subfolders), for a song
+        whose better copy has been filed and verified. Nothing is deleted: the host empties .flacie-replaced when it likes. A file of the same name
+        already there keeps its place and this one gets a number. Paths outside the music folder, folders, the music folder itself and files already
+        in .flacie-replaced are refused."""
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            body = json.loads(self.rfile.read(length) or b"{}")
+            rel = str(body.get("path") or "").strip()
+            if rel.replace("\\", "/").strip("/") in ("", "."):
+                raise ValueError("missing path")
+            src = self._resolve(rel)
+            inside = os.path.relpath(src, ROOT).replace(os.sep, "/")
+            if inside == REPLACED or inside.startswith(REPLACED + "/"):
+                raise ValueError("already retired")
+        except Exception as e:
+            self._reply(400, {"error": str(e)})
+            return
+        if not os.path.isfile(src):
+            self._reply(404, {"error": f"not found: {rel}"})
+            return
+        try:
+            dst = os.path.join(ROOT, REPLACED, inside)
+            base, ext = os.path.splitext(dst)
+            n = 1
+            while os.path.exists(dst):
+                n += 1
+                dst = f"{base} ({n}){ext}"
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.move(src, dst)
+            self._reply(200, {"ok": True, "to": os.path.relpath(dst, ROOT).replace(os.sep, "/")})
+        except Exception as e:
+            self._reply(500, {"error": str(e)})
 
     def _fetch(self):
         """POST /fetch {"url": "https://...", "to": "relative/path.ext"}: downloads a public https file straight into the library.
@@ -136,6 +179,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self._authed():
             return
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/health":
+            self._reply(200, {"ok": True, "routes": ROUTES})
+            return
         if parsed.path != "/file":
             self._reply(404, {"error": "not found"})
             return
@@ -196,5 +242,6 @@ class ThreadingServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
 
 
-with ThreadingServer(("0.0.0.0", 8090), Handler) as httpd:
-    httpd.serve_forever()
+if __name__ == "__main__":
+    with ThreadingServer(("0.0.0.0", 8090), Handler) as httpd:
+        httpd.serve_forever()

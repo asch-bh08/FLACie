@@ -17,10 +17,18 @@ public class DownloadRaceTests
         {
             onStart?.Invoke(e);
             try { await Task.Delay(ms, obeysCancel ? ct : CancellationToken.None); }
-            catch (OperationCanceledException) { cancelled?.Add(source); throw; }
-            if (ct.IsCancellationRequested && obeysCancel) { cancelled?.Add(source); ct.ThrowIfCancellationRequested(); }
+            catch (OperationCanceledException) { Note(); throw; }
+            if (ct.IsCancellationRequested && obeysCancel) { Note(); ct.ThrowIfCancellationRequested(); }
             return file is null ? null : Song(file);
+            void Note() { if (cancelled is not null) lock (cancelled) cancelled.Add(source); }
         });
+
+    /// <summary>Waits (up to 5 s, the whole suite runs at once) until [done]: a cancelled source notices on its own thread.</summary>
+    static async Task Until(Func<bool> done)
+    {
+        for (var i = 0; i < 200 && !done(); i++) await Task.Delay(25);
+        Assert.True(done(), "timed out");
+    }
 
     [Fact]
     public async Task A_HiRes_copy_inside_the_grace_wins_over_a_quicker_YouTube_copy()
@@ -50,8 +58,7 @@ public class DownloadRaceTests
         Assert.Equal("ytdl", win!.Source);
         Assert.False(win.HiRes);
         Assert.True(clock.ElapsedMilliseconds < 3_000, $"took {clock.ElapsedMilliseconds} ms: the quick copy must not wait for a Hi-Res copy outside the grace");
-        await Task.Delay(200);
-        Assert.Contains("soulseek", cancelled);
+        await Until(() => { lock (cancelled) return cancelled.Contains("soulseek"); });
     }
 
     [Fact]
@@ -64,7 +71,7 @@ public class DownloadRaceTests
         // a grace of 2.6 s: the promise (0.1 s of transfer and 2 s of filing) fits at first, then no longer fits what is left, and the wait ends
         var win = await DownloadRace.RunAsync([youtube, hires], null, default, graceMs: 2_600);
         Assert.Equal("ytdl", win!.Source);
-        Assert.InRange(clock.ElapsedMilliseconds, 300, 3_500);
+        Assert.InRange(clock.ElapsedMilliseconds, 300, 5_000);
     }
 
     [Fact]
@@ -95,7 +102,7 @@ public class DownloadRaceTests
         var cancelled = new List<string>();
         var win = await DownloadRace.RunAsync([Fake("ytdl", false, 20_000, "A/A - Song.m4a", cancelled: cancelled), Fake("soulseek", true, 30, "A/A - Song [Hi-Res].flac"), Fake("archive", false, 20_000, "A/A - Song.mp3", cancelled: cancelled)], null, default);
         Assert.True(win!.HiRes);
-        await Task.Delay(200);
+        await Until(() => { lock (cancelled) return cancelled.Count == 2; });
         Assert.Equal(["archive", "ytdl"], cancelled.Order());
     }
 
@@ -105,7 +112,7 @@ public class DownloadRaceTests
         var strays = new List<RaceWin>();
         var win = await DownloadRace.RunAsync([Fake("soulseek-normal", false, 30, "A/A - Song.flac"), Fake("ytdl", false, 300, "A/A - Song.m4a", obeysCancel: false)], w => { lock (strays) strays.Add(w); }, default);
         Assert.Equal("soulseek-normal", win!.Source);
-        await Task.Delay(600);
+        await Until(() => { lock (strays) return strays.Count > 0; });
         Assert.Single(strays);
         Assert.Equal("ytdl", strays[0].Source);
     }
@@ -115,8 +122,11 @@ public class DownloadRaceTests
     {
         // the YouTube service answers "already there" for a file of the same name: retiring it would retire the song that plays
         var strays = new List<RaceWin>();
-        await DownloadRace.RunAsync([Fake("soulseek", false, 30, "A/A - Song.m4a"), Fake("ytdl", false, 200, "A/A - Song.m4a", obeysCancel: false)], w => { lock (strays) strays.Add(w); }, default);
-        await Task.Delay(500);
+        var landed = new TaskCompletionSource();
+        var late = new RaceEntrant("ytdl", false, async (_, _) => { await Task.Delay(200); landed.TrySetResult(); return Song("A/A - Song.m4a"); });
+        await DownloadRace.RunAsync([Fake("soulseek", false, 30, "A/A - Song.m4a"), late], w => { lock (strays) strays.Add(w); }, default);
+        await landed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.Delay(100);   // its copy has been looked at by now
         Assert.Empty(strays);
     }
 

@@ -5,7 +5,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { sh, sleep, setAdb, dump, has, find, tapNode, tapAt, typeText, key, waitUi, label } from './adbui.mjs';
+import { sh, sleep, setAdb, dump, has, find, tapNode, tapAt, typeText, key, waitUi, label, shot } from './adbui.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > 0 ? process.argv[i + 1] : d; };
 const PORT = Number(arg('port', 8297)), ITEMS = Number(arg('items', 10000));
@@ -54,5 +54,19 @@ const row = (dump() || []).find((n) => /^Song \d+/.test(label(n))); if (row) { t
 // the mini player is named by its song: open it by its left end, beside its Pause button
 const pause = (dump() || []).filter((n) => label(n) === 'Pause').sort((a, b) => b.cy - a.cy)[0];
 if (pause) { tapAt(200, pause.cy); await sleep(4000); report('Player'); } else { failed = true; console.log('Player: nothing playing (no Pause in the mini player)'); }
-key('KEYCODE_BACK');
+key('KEYCODE_BACK'); await sleep(1500);
+// Settings > About > Licences and Privacy (the legal files the build copies into the app): scroll down to About, open each, check it reads
+if (tab('Settings')) {
+  await sleep(2500);
+  for (let i = 0; i < 14 && !find(dump(), /^Licences$/); i++) { sh('input swipe 540 1700 540 500 300'); await sleep(700); }
+  for (const [row, words] of [['Licences', /MIT License|Third-party software/], ['Privacy', /What a FLACie server keeps|Who is responsible/]]) {
+    const n = find(dump(), new RegExp('^' + row + '$'));
+    if (!n) { failed = true; console.log(row + ': row not found in Settings > About'); continue; }
+    tapNode(n); await sleep(2500);
+    const ok = (dump() || []).some((x) => words.test(label(x)));
+    if (!ok) failed = true;
+    console.log(row + ': ' + (ok ? 'shows the text' : 'text missing')); report(row); shot(`a11y-${row.toLowerCase()}.png`);
+    key('KEYCODE_BACK'); await sleep(1500);
+  }
+}
 process.exit(failed ? 1 : 0);

@@ -28,10 +28,38 @@ object LegalDocs {
     /** Privacy: what a FLACie server keeps and sends, and what the app keeps on the phone. */
     val PRIVACY = listOf("Privacy" to "legal/PRIVACY.md")
 
-    /** A long text in paragraphs (split at blank lines), so a list draws only what is on screen. */
-    fun paragraphs(text: String): List<String> =
-        text.replace("\r\n", "\n").split(Regex("""\n\s*\n""")).map { it.trim('\n') }.filter { it.isNotBlank() }
-            .ifEmpty { listOf("This text isn't in this build of the app. It is in the FLACie source repository.") }
+    /** One paragraph of a legal file as the phone shows it: plain words, a heading drawn bold. */
+    data class Para(val text: String, val heading: Boolean = false)
+
+    private val LINK = Regex("""\[([^\]]+)]\([^)]*\)""")
+    private val TABLE_RULE = Regex("""^\|[\s:|-]+\|$""")
+    // a link reads as its words, code and bold as plain text
+    private fun inline(s: String) = LINK.replace(s) { it.groupValues[1] }.replace("**", "").replace("`", "")
+
+    /**
+     * A legal file in plain paragraphs, so a list draws only what is on screen. The files are Markdown (and hard-wrapped licence texts): wrapped lines join,
+     * "#" headings become bold headings, a table's rows become "a · b · c" lines (its rule line goes), "- " items become "• " lines.
+     */
+    fun paragraphs(text: String): List<Para> {
+        val out = mutableListOf<Para>()
+        for (block in text.replace("\r\n", "\n").split(Regex("""\n\s*\n"""))) {
+            val sb = StringBuilder()
+            fun flush() { if (sb.isNotBlank()) out += Para(sb.toString().trim()); sb.clear() }
+            fun newLine() { if (sb.isNotEmpty()) sb.append('\n') }
+            for (raw in block.split('\n')) {
+                val l = raw.trim()
+                when {
+                    l.isEmpty() || TABLE_RULE.matches(l) -> {}
+                    l.startsWith("#") -> { flush(); out += Para(inline(l.trimStart('#').trim()), heading = true) }
+                    l.startsWith("|") -> { newLine(); sb.append(l.trim('|').split('|').joinToString(" · ") { inline(it.trim()) }) }
+                    l.startsWith("- ") || l.startsWith("* ") -> { newLine(); sb.append("• ").append(inline(l.drop(2))) }
+                    else -> { if (sb.isNotEmpty() && !sb.endsWith('\n')) sb.append(' '); sb.append(inline(l)) }
+                }
+            }
+            flush()
+        }
+        return out.ifEmpty { listOf(Para("This text isn't in this build of the app. It is in the FLACie source repository.")) }
+    }
 }
 
 /** Settings > About > Licences or Privacy: the files, one after another, as plain text that scrolls. */
@@ -48,7 +76,11 @@ fun LegalScreen(nav: PlayerNav, title: String, docs: List<Pair<String, String>>)
             LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxSize(), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 40.dp)) {
                 for ((name, paras) in parts) {
                     item { SectionHeader(name) }
-                    items(paras) { p -> Txt(p, Modifier.fillMaxWidth().padding(bottom = 12.dp), size = 13f, color = sc.onBg, maxLines = Int.MAX_VALUE) }
+                    // the file's own title says the same as the section's: shown once
+                    items(paras.dropWhile { it.heading && it.text.equals(name, ignoreCase = true) }) { p ->
+                        if (p.heading) Txt(p.text, Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 8.dp), size = 15f, weight = FontWeight.Bold, color = sc.onBg, maxLines = Int.MAX_VALUE)
+                        else Txt(p.text, Modifier.fillMaxWidth().padding(bottom = 12.dp), size = 13f, color = sc.onBg, maxLines = Int.MAX_VALUE)
+                    }
                 }
                 item { Txt("FLACie is an independent project, not affiliated with Apple, Sony, Google, Amazon, Jellyfin or Plex.", Modifier.padding(top = 8.dp), size = 13f, weight = FontWeight.SemiBold, maxLines = Int.MAX_VALUE) }
             }

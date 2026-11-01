@@ -63,7 +63,7 @@ test.describe.serial('the DJ', () => {
     await expect(page.locator('.subnav a[href="/settings#dj"]')).toHaveText('DJ');
     await expect(dj(page).getByRole('heading', { name: /^DJ( Experimental)?$/ })).toBeVisible();
     // no Cloudflare on the test server: the note says who to ask, and that the DJ stays quiet unless the device voice is chosen
-    await expect(dj(page).getByRole('note')).toContainText("Cloudflare isn't set up yet. Ask the admin (Dashboard → DJ).");
+    await expect(dj(page).getByRole('note')).toContainText("Cloudflare isn't set up yet. Ask the admin (Server admin → DJ).");
     const onSwitch = row(page, 'Talk between songs').locator('input[role=switch]');
     const device = row(page, 'Device voice').locator('input[role=switch]');
     const volume = dj(page).locator('input.dj-volume'), duck = dj(page).locator('input.dj-duck');

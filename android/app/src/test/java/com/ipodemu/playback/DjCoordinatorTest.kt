@@ -247,6 +247,21 @@ class DjLineTest {
         assertFalse("it had started: a clip failing halfway just stops", heard.clipFailed(1_000))
     }
 
+    // a weak signal: the clip is still on its way when the song has started; the DJ used to say nothing (owner, 1 Nov: it spoke twice in a whole session)
+    @Test fun aSlowClipIsReadByThePhonesVoiceInstead() {
+        val l = DjLine.start(clip, 0, false)!!
+        assertEquals(DjLine.Late.PHONE, l.late(DjLine.START_WITHIN_MS))
+        assertTrue(l.phoneVoice)
+    }
+
+    @Test fun aSlowClipWithoutBackupVoiceIsWaitedForAFewSecondsMore() {
+        val l = DjLine.start(clip.copy(backup = false), 0, false)!!
+        assertEquals(DjLine.Late.WAIT, l.late(DjLine.START_WITHIN_MS)); assertEquals(DjLine.SLOW_CLIP_MS, l.stopAt)
+        assertEquals(DjLine.Late.GIVE_UP, l.late(DjLine.SLOW_CLIP_MS))
+        val heard = DjLine.start(clip, 0, false)!!.also { it.heard(800) }
+        assertEquals("a line that started and never ended just stops", DjLine.Late.GIVE_UP, heard.late(30_000))
+    }
+
     @Test fun aClipThatFailedWhileLoadingAheadGoesStraightToThePhonesVoice() {
         val l = DjLine.start(clip, 0, clipFailed = true)!!
         assertTrue(l.phoneVoice); assertEquals(DjLine.BACKUP_WITHIN_MS, l.stopAt)

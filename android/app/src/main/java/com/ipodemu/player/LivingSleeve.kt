@@ -212,6 +212,15 @@ fun LivingSleeveBody(snap: PlayerSnap, nav: PlayerNav) {
                         else -> SleevePane(id, snap, nav, t, palette) { pane = "art" }
                     }
                 }
+                // the first few times: say that the pages and the buttons below are there (owner, 1 Nov: his dad never knew about lyrics or swiping)
+                var tip by remember { mutableStateOf(app.prefs.playerTips < 3).also { if (it.value) app.prefs.playerTips = app.prefs.playerTips + 1 } }
+                if (tip && pane == "art") Row(
+                    Modifier.padding(horizontal = 14.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Glass).clickable { tip = false; app.prefs.playerTips = 3 }
+                        .padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SText("Swipe sideways for Lyrics, Song info and Up next, or tap the buttons below", Modifier.weight(1f), size = 12.5f, color = Ink, maxLines = 2)
+                    SText("OK", Modifier.padding(start = 10.dp), size = 13f, weight = FontWeight.Bold, color = Ink)
+                }
                 // Lyrics, Up next, Info and More: secondary actions, so they take the bottom strip (above the gesture bar) instead of leaving it empty
                 Box(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = maxDp(nav0 + 10.dp, 18.dp))) { SleeveActions(false, pane, toggle, addToPlaylist) { moreMode = "all" } }
             }
@@ -325,12 +334,16 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
             BoxWithConstraints(if (cramped) Modifier.fillMaxWidth().height(280.dp) else Modifier.fillMaxWidth().weight(1f).padding(top = 4.dp), contentAlignment = Alignment.Center) {
                 val side = minOf(maxWidth - 16.dp, maxHeight, 560.dp)
                 if (card == null) SleeveFrame(snap, t, p, side, pos, dur, scrub)
-                else SleeveCard(card, snap, t, p, side) { onOpen(card) }
+                // Lyrics and Info take all the room above the controls, not just the cover's square: on an S22 the graph and the lyrics were below the fold (owner, 1 Nov)
+                else SleeveCard(card, snap, t, p, Modifier.width(minOf(maxWidth - 16.dp, 560.dp)).fillMaxHeight()) { onOpen(card) }
             }
             if (card == null) SleeveTime(pos, dur, scrub) else SleeveSeekLine(pos, dur, p, Modifier.padding(horizontal = 22.dp))
             Spacer(Modifier.height(if (h < 700.dp) 8.dp else 14.dp))
-            SleeveTitle(nav, t, p, Modifier.padding(horizontal = 22.dp))
-            Spacer(Modifier.height(if (h < 700.dp) 10.dp else 16.dp))
+            // the card's header names the song, so the big title steps aside for it
+            if (card == null) {
+                SleeveTitle(nav, t, p, Modifier.padding(horizontal = 22.dp))
+                Spacer(Modifier.height(if (h < 700.dp) 10.dp else 16.dp))
+            }
             SleeveControls(snap, p, Modifier.padding(horizontal = 14.dp))
             Spacer(Modifier.height(12.dp))
             // on a phone the Lyrics / Up next / Info / More row sits at the foot of the screen, under every pane
@@ -631,14 +644,17 @@ private fun SleeveTime(pos: State<Long>, dur: State<Long>, scrub: State<Float>) 
     SText(text, Modifier.padding(top = 2.dp), family = SleeveFonts.mono, size = 15f, weight = FontWeight.Medium, align = TextAlign.Center)
 }
 
-/** Lyrics or Info in a card the size of the cover, with its name and a way back to the cover at the top; the content scrolls inside it. */
+/** Lyrics or Info in a card over the cover's place, with its name, the song and a way back to the cover at the top; the content scrolls inside it. */
 @Composable
-private fun SleeveCard(id: String, snap: PlayerSnap, t: Track, p: SleevePalette, side: Dp, onClose: () -> Unit) {
+private fun SleeveCard(id: String, snap: PlayerSnap, t: Track, p: SleevePalette, size: Modifier, onClose: () -> Unit) {
     val shape = RoundedCornerShape(28.dp)
-    Column(Modifier.size(side).clip(shape).background(Color(0x38000000)).border(1.dp, Color(0x1FF4EFE6), shape).padding(start = 18.dp, end = 8.dp, top = 6.dp)) {
+    Column(size.clip(shape).background(Color(0x38000000)).border(1.dp, Color(0x1FF4EFE6), shape).padding(start = 18.dp, end = 8.dp, top = 6.dp)) {
         Row(Modifier.fillMaxWidth().height(52.dp).semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically) {
             val title = if (id == "lyrics") "Lyrics" else "Song info"
-            SText(remember(title) { serifTitle(title) }, Modifier.weight(1f), family = SleeveFonts.serif, size = 24f, weight = FontWeight.Normal)
+            Column(Modifier.weight(1f)) {
+                SText(remember(title) { serifTitle(title) }, family = SleeveFonts.serif, size = 24f, weight = FontWeight.Normal)
+                SText(listOf(t.title, t.artist).filter { it.isNotEmpty() }.joinToString(" · "), size = 12f, color = InkDim, maxLines = 1)
+            }
             IconAction(Glyph.CLOSE, "Back to the cover", onClose, tint = Ink, size = 48.dp, iconScale = .45f)
         }
         Box(Modifier.weight(1f).fillMaxWidth().padding(end = 10.dp).fadeEdges(top = 12.dp, bottom = 28.dp)) {
@@ -688,26 +704,27 @@ private fun SleeveSeekLine(pos: State<Long>, dur: State<Long>, p: SleevePalette,
 
 @Composable
 private fun SleeveActions(wide: Boolean, tab: String?, onOpen: (String) -> Unit, onAdd: (() -> Unit)? = null, onMore: () -> Unit) {
-    // five equal slots, More in the middle: Lyrics, Up next | More | Info, Add to playlist. Each is 48 dp; the open pane's tab is solid cream
+    // five equal slots, More in the middle: Lyrics, Up next | More | Info, Add. Each is an icon over its word (icons alone, or words beside two bare icons,
+    // left the owner's dad not knowing there were lyrics; 1 Nov); the open pane's slot is solid cream
     Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         @Composable
-        fun Slot(label: String, on: Boolean, glyph: Glyph?, onClick: () -> Unit, round: Boolean = false) {
-            val shape = if (round) CircleShape else RoundedCornerShape(24.dp)
-            Box(
-                Modifier.weight(1f).height(48.dp).clip(shape).background(if (on) Ink else Glass).focusRing(shape)
-                    .semantics { contentDescription = label; role = if (glyph == null) Role.Tab else Role.Button; if (on) stateDescription = "Selected" }
+        fun Slot(label: String, word: String, on: Boolean, glyph: Glyph, onClick: () -> Unit, tab: Boolean = true) {
+            val shape = RoundedCornerShape(18.dp)
+            Column(
+                Modifier.weight(1f).height(58.dp).clip(shape).background(if (on) Ink else Glass).focusRing(shape)
+                    .semantics(mergeDescendants = true) { contentDescription = label; role = if (tab) Role.Tab else Role.Button; if (on) stateDescription = "Selected" }
                     .clickable(onClick = onClick),
-                contentAlignment = Alignment.Center,
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
             ) {
-                if (glyph != null) GlyphIcon(glyph, Modifier.size(22.dp), if (on) OnMain else Ink)
-                else SText(label, size = 14f, weight = FontWeight.SemiBold, color = if (on) OnMain else Ink)
+                GlyphIcon(glyph, Modifier.size(20.dp), if (on) OnMain else Ink)
+                SText(word, size = 11.5f, weight = FontWeight.SemiBold, color = if (on) OnMain else Ink)
             }
         }
-        Slot("Lyrics", tab == "lyrics", null, { onOpen("lyrics") })
-        Slot("Up next", tab == "queue", null, { onOpen("queue") })
-        Slot("More options", false, Glyph.MORE, onMore, round = false)
-        Slot("Info", tab == "info", null, { onOpen("info") })
-        Slot("Add to playlist", false, Glyph.PLUS, { onAdd?.invoke() })
+        Slot("Lyrics", "Lyrics", tab == "lyrics", Glyph.LYRICS, { onOpen("lyrics") })
+        Slot("Up next", "Up next", tab == "queue", Glyph.QUEUE, { onOpen("queue") })
+        Slot("More options", "More", false, Glyph.MORE, onMore, tab = false)
+        Slot("Song info", "Info", tab == "info", Glyph.INFO, { onOpen("info") })
+        Slot("Add to playlist", "Add", false, Glyph.PLUS, { onAdd?.invoke() }, tab = false)
     }
 }
 

@@ -75,7 +75,16 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
     /** The phrases still to show for the line being said. */
     private val captionSteps = ArrayList<Runnable>()
     /** A line not sounding in time (a slow clip, a voice that never starts) or never ending (a clip that stalls, a voice that never says it is done). */
-    private val watchdog = Runnable { val l = line; if (l != null) { if (SystemClock.uptimeMillis() >= l.stopAt) stop() else watch() } }
+    private val watchdog = Runnable {
+        val l = line ?: return@Runnable
+        val now = SystemClock.uptimeMillis()
+        if (now < l.stopAt) { watch(); return@Runnable }
+        when (l.late(now)) {
+            DjLine.Late.PHONE -> { quietClip(); speak(l); watch() }
+            DjLine.Late.WAIT -> watch()
+            DjLine.Late.GIVE_UP -> stop()
+        }
+    }
     private fun watch() { handler.removeCallbacks(watchdog); line?.let { handler.postAtTime(watchdog, it.stopAt) } }
 
     private val listener = object : Player.Listener {

@@ -97,7 +97,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
     val canAdmin = !ui.guest && (isAdmin || !adminWeb.available)
 
     Column(Modifier.fillMaxSize().background(Palette.bg)) {
-        TopBar(if (dashboard) "Dashboard" else "Settings", nav, showBack = true)
+        TopBar(if (dashboard) "Server admin" else "Settings", nav, showBack = true)
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         val list = androidx.compose.foundation.lazy.rememberLazyListState()
         val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -117,8 +117,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         for ((id, label) in listOf("playback" to "Playback", "dj" to "DJ (experimental)", "look" to "Appearance", "sources" to "Library", "account" to "Account", "about" to "About"))
                             DesignChip(label, false, { val n = list.layoutInfo.totalItemsCount; val i = when (id) { "account" -> n - 2; "about" -> n - 1; else -> at[id] ?: 0 }; scope.launch { list.animateScrollToItem(i.coerceAtLeast(0)) } })
-                        if (!ui.guest) DesignChip("Download log", false, { ui.downloadsOpen = true })
-                        if (canAdmin) DesignChip("Dashboard", false, { nav.push(Screen.Dashboard) })
+                        if (canAdmin) DesignChip("Server admin", false, { nav.push(Screen.Dashboard) }, icon = Glyph.GEAR)
                     }
                 }
                 at["playback"] = 1
@@ -127,7 +126,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                         SettingRow("Autoplay", if (prefs.autoplay) "On" else "Off", toggle = true, desc = "When the queue ends, carry on with different songs that go with what was playing") { prefs.autoplay = !prefs.autoplay }
                         SettingRow("Fetch ahead", if (prefs.autoplayFetch) "On" else "Off", toggle = true, desc = "Download the next few Autoplay songs you don't have yet, so they are ready when needed") { prefs.autoplayFetch = !prefs.autoplayFetch }
                         SettingRow("Download on this phone when FLACie Web can't", if (prefs.downloadOnPhone) "On" else "Off", toggle = true, desc = "FLACie Web does your downloads when it is set up and reachable. With this on, this phone downloads the song itself when it isn't") { prefs.downloadOnPhone = !prefs.downloadOnPhone }
-                        SettingRow("Offline and storage", if (app.offline.doneCount > 0) "${com.ipodemu.library.offline.OfflineMath.songs(app.offline.doneCount)}, ${com.ipodemu.library.offline.OfflineMath.formatBytes(app.offline.usedBytes)}" else "None", chevron = true) { nav.push(Screen.Offline) }
+                        SettingRow("Offline music", if (app.offline.doneCount > 0) "${com.ipodemu.library.offline.OfflineMath.songs(app.offline.doneCount)}, ${com.ipodemu.library.offline.OfflineMath.formatBytes(app.offline.usedBytes)}" else "None", chevron = true) { nav.push(Screen.Offline) }
                         SettingRow("Streaming quality", listOf("Automatic", "Always full", "Data saver")[prefs.streamQuality.coerceIn(0, 2)]) { prefs.streamQuality = (prefs.streamQuality + 1) % 3 }
                         SettingRow("Equalizer", prefs.eq, chevron = true) {
                             nav.sheet = SheetSpec("Equalizer", prefs.eq, com.ipodemu.playback.PlayerController.EQ_NAMES.map { n ->
@@ -321,7 +320,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                         }
                     }
                 }
-                if (!canAdmin) item { Txt("The Dashboard is for the server's administrators.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), size = 13f, color = sc.onBgDim, maxLines = 3) }
+                if (!canAdmin) item { Txt("Server admin is for whoever runs the server.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), size = 13f, color = sc.onBgDim, maxLines = 3) }
             }
             if (dashboard && canAdmin) {
                 item {
@@ -460,7 +459,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                         "Version" to remember { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "" },
                         "Server" to prefs.flacieWebUrl.ifBlank { "Not linked to FLACie Web" },
                     ))
-                    if (canAdmin) SettingRow("Dashboard", "Library, downloads, server", chevron = true) { nav.push(Screen.Dashboard) }
+                    if (canAdmin) SettingRow("Server admin", "Only for whoever runs the server", chevron = true) { nav.push(Screen.Dashboard) }
                     SettingRow("Licences", "FLACie is MIT licensed, provided as is; the software it uses", chevron = true) { nav.push(Screen.Legal(privacy = false)) }
                     SettingRow("Privacy", "What is kept and sent, and where", chevron = true) { nav.push(Screen.Legal(privacy = true)) }
                 }

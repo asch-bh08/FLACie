@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.derivedStateOf
@@ -101,7 +102,7 @@ fun OfflineScreen(nav: PlayerNav) {
                         }
                     }
                 }
-                item { SectionHeader("Downloads") }
+                item { SectionHeader("Offline music") }
                 if (entries.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(24.dp)) { Txt("Nothing yet. Open a song's menu and choose Download for offline, or switch on Keep favourites offline.", size = 14f, color = sc.onBgDim) } }
                 items(entries.sortedWith(compareBy({ it.state != OfflineState.DONE }, { -it.addedMs })), key = { it.key }) { e ->
                     OfflineEntryRow(e, onPlay = { play(app, entries, e) }, onRemove = { m.remove(e.path) })
@@ -140,8 +141,11 @@ private fun MarkIcon(mark: DownloadMark, size: Dp) {
     if (mark == DownloadMark.NONE) return
     val sc = LocalScheme.current
     val done = mark == DownloadMark.DOWNLOADED
-    // a finished song is the full accent; one on its way is the same shape, quieter, so a list does not flicker
-    GlyphIcon(Glyph.DOWNLOADED, Modifier.size(size).semantics { contentDescription = if (done) "Downloaded" else "Downloading" }, if (done) sc.accent else sc.onBgDim.copy(alpha = .7f))
+    // a finished song is the full accent with the word "Offline" (an arrow alone meant nothing to the owner's dad; 1 Nov); one on its way is the same shape, quieter, so a list does not flicker
+    Row(Modifier.semantics(mergeDescendants = true) { contentDescription = if (done) "Available offline" else "Getting it for offline" }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        GlyphIcon(Glyph.DOWNLOADED, Modifier.size(size), if (done) sc.accent else sc.onBgDim.copy(alpha = .7f))
+        if (done) Txt("Offline", size = 11f, weight = FontWeight.SemiBold, color = sc.accent, maxLines = 1)
+    }
 }
 
 /**
@@ -204,7 +208,9 @@ fun DownloadsScreen(nav: PlayerNav) {
         IpodRow({ nav.push(s.to) }, onLong = { rowSheet(s) }, height = 64.dp,
             leading = { ArtImage(s.list.artKey, Modifier.size(48.dp), thumb = true, corner = 8.dp) },
             trailing = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GlyphIcon(Glyph.DOWNLOADED, Modifier.size(16.dp), sc.accent)
+                // plays what is on the phone straight from here: the list's page needs the server for the songs not downloaded
+                Box(Modifier.size(44.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(50)).background(sc.accent).semantics { contentDescription = "Play ${s.list.name}" }
+                    .clickable { val t = tracksOf(s); if (t.isNotEmpty()) app.player.play(t, 0, context = s.list.name) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.PLAY, Modifier.size(20.dp), androidx.compose.ui.graphics.Color.Black) }
                 Box(Modifier.size(44.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(50)).semantics { contentDescription = "More for ${s.list.name}" }.clickable { rowSheet(s) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.MORE, Modifier.size(20.dp), rowDim()) }
             } }) { hi ->
             Column {
@@ -215,7 +221,7 @@ fun DownloadsScreen(nav: PlayerNav) {
     }
 
     Column(Modifier.fillMaxSize().background(Palette.bg)) {
-        TopBar("Downloads", nav, showBack = true) { TopAction(Glyph.GEAR, "Download settings") { nav.push(Screen.Offline) } }
+        TopBar("Offline music", nav, showBack = true) { TopAction(Glyph.GEAR, "Offline music settings") { nav.push(Screen.Offline) } }
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             LazyColumn(Modifier.widthIn(max = 620.dp).fillMaxSize(), contentPadding = PaddingValues(bottom = 30.dp)) {
                 item {
@@ -232,8 +238,8 @@ fun DownloadsScreen(nav: PlayerNav) {
                 else item {
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (songs.isNotEmpty()) {
-                            DesignChip("Play", false, { app.player.play(songs.map { it.toTrack() }, 0, context = "Downloads") }, icon = Glyph.PLAY)
-                            DesignChip("Shuffle", false, { app.player.play(songs.map { it.toTrack() }, songs.indices.random(), true, "Downloads") }, icon = Glyph.SHUFFLE)
+                            DesignChip("Play", false, { app.player.play(songs.map { it.toTrack() }, 0, context = "Offline music") }, icon = Glyph.PLAY)
+                            DesignChip("Shuffle", false, { app.player.play(songs.map { it.toTrack() }, songs.indices.random(), true, "Offline music") }, icon = Glyph.SHUFFLE)
                         }
                         if (failed > 0) DesignChip("Try again", false, { m.retryFailed() })
                     }
@@ -247,7 +253,7 @@ fun DownloadsScreen(nav: PlayerNav) {
                     if (trouble.size > 20) item { Box(Modifier.fillMaxWidth().padding(16.dp)) { Txt("and ${trouble.size - 20} more", size = 13f, color = sc.onBgDim) } }
                 }
                 if (songs.isNotEmpty()) item { SectionHeader("Songs") }
-                items(songs, key = { "s" + it.key }) { e -> OfflineEntryRow(e, onPlay = { play(app, songs, e, "Downloads") }, onRemove = { m.remove(e.path) }) }
+                items(songs, key = { "s" + it.key }) { e -> OfflineEntryRow(e, onPlay = { play(app, songs, e, "Offline music") }, onRemove = { m.remove(e.path) }) }
                 if (entries.isNotEmpty()) item { Card { OfflineRow("Remove all downloads") { nav.sheet = SheetSpec("Remove all downloads?", DownloadsOverview.storageLine(doneCount, m.usedBytes), listOf(
                     SheetItem("Yes, remove them all", Glyph.CLOSE) { m.removeAll() }, SheetItem("Keep them", Glyph.CHECK) { })) } } }
             }
@@ -255,7 +261,7 @@ fun DownloadsScreen(nav: PlayerNav) {
     }
 }
 
-private fun play(app: com.ipodemu.App, entries: List<OfflineEntry>, e: OfflineEntry, context: String = "Downloads") {
+private fun play(app: com.ipodemu.App, entries: List<OfflineEntry>, e: OfflineEntry, context: String = "Offline music") {
     val done = entries.filter { it.state == OfflineState.DONE }
     val i = done.indexOfFirst { it.key == e.key }
     if (i < 0) return
@@ -322,6 +328,12 @@ fun KeepOfflineChip(tracks: List<Track>, nav: PlayerNav, listId: String?, title:
                 ))
             }
         }, icon = if (st.kind == KeepStatus.Kind.DONE) Glyph.DOWNLOADED else Glyph.DOWN)
-        if (kept) Txt("Kept on this phone: new songs added to this playlist download too", size = 12f, color = sc.onBgDim)
+        // the tick for "new songs download too" (owner, 1 Nov: it should be an option you can see); on by default when a playlist is downloaded
+        if (listId != null && st.kind != KeepStatus.Kind.NONE) Row(Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp)).clickable {
+            m.setKept(listId, !kept); if (!kept) app.offlineSyncSoon()
+        }.semantics(mergeDescendants = true) { stateDescription = if (kept) "On" else "Off" }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SwitchPill(kept)
+            Txt("Download new songs added to this playlist", size = 13f, color = sc.onBgDim, maxLines = 2)
+        }
     }
 }

@@ -13,6 +13,10 @@ import java.net.URLEncoder
 object CoverLookup {
     class Song(val album: String, val artUrl: String?)
 
+    private val sizedPath = Regex("""/(\d{3,4})x(\d{3,4})(bb|-)""")
+    /** The same catalogue cover at 250 px (Deezer's and iTunes' addresses name the size): what a list row or a card shows, a twentieth of the bytes of the 1000 px one. */
+    fun small(url: String): String = sizedPath.replace(url) { m -> if (m.groupValues[1].toInt() > 250) "/250x250${m.groupValues[3]}" else m.value }
+
     fun key(artist: String, album: String, title: String): String? {
         if (artist.isBlank() || (album.isBlank() && title.isBlank())) return null
         val raw = "$artist\n$album\n$title".take(150)

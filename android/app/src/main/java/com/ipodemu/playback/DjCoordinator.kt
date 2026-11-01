@@ -131,7 +131,7 @@ class DjCoordinator {
             return if (left <= 0L) 0L else (left / speed.coerceAtLeast(0.25f)).toLong()
         }
         /** How long a line asked for after a skip may take to come; later, the song has gone on too far and the DJ stays quiet (the web's DjSkipWait). */
-        const val SKIP_WAIT_MS = 3_000L
+        const val SKIP_WAIT_MS = 5_000L   // 3 s was too short on a weak signal: the DJ went quiet after nearly every skip (owner, 1 Nov)
         /** A song left within this long of starting counts as skipped. */
         const val QUICK_SKIP_MS = 10_000L
         /** .NET's DayOfWeek, which the server reads: 0 = Sunday ... 6 = Saturday. */
@@ -205,12 +205,24 @@ class DjLine private constructor(val cue: DjCue, private val songAt: Long, phone
         return true
     }
 
+    enum class Late { PHONE, WAIT, GIVE_UP }
+    /** Its time ran out at [now]. Not heard yet: a slow clip (a weak signal) is read by the phone's voice when the cue allows it ([PHONE]), else waited for
+     *  until [SLOW_CLIP_MS] into the song ([WAIT]); a line already heard, or past that, stops ([GIVE_UP]). */
+    fun late(now: Long): Late = when {
+        heard || phoneVoice -> Late.GIVE_UP
+        clipFailed(now) -> Late.PHONE
+        now - songAt < SLOW_CLIP_MS -> { stopAt = songAt + SLOW_CLIP_MS; Late.WAIT }
+        else -> Late.GIVE_UP
+    }
+
     /** It is sounding from [now]. */
     fun heard(now: Long) { heard = true; stopAt = now + if (phoneVoice) speechMs(cue.text) else CLIP_MAX_MS }
 
     companion object {
         const val START_WITHIN_MS = 1_500L
         const val BACKUP_WITHIN_MS = 6_000L
+        /** The latest a slow clip may still start when the phone's voice can't stand in. */
+        const val SLOW_CLIP_MS = 4_000L
         const val CLIP_MAX_MS = 20_000L
         const val SPEECH_SLACK_MS = 3_000L
         /** How fast a line is read out, for its time limit (the server's estimate for the voice's cost too). */

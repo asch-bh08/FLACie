@@ -193,3 +193,34 @@ private fun RecordCard(r: DownloadRecord, open: Boolean, toggle: () -> Unit) {
         }
     }
 }
+
+/**
+ * One line above the mini player while anything is downloading: the song and how far it has got, or how many are left to save for offline
+ * ([com.ipodemu.library.DownloadActivity]). A tap opens the download log, or Offline music when only offline saving is going on.
+ * Looked at once a second (the downloads' own maps are not Compose state); nothing is drawn when all is quiet.
+ */
+@Composable
+fun DownloadActivityBar(onOpenOffline: () -> Unit) {
+    val app = com.ipodemu.player.LocalApp.current
+    val sc = LocalScheme.current
+    val state by androidx.compose.runtime.produceState<Pair<String, Boolean>?>(null) {
+        while (true) {
+            val fetching = app.library.runningDownloads.values.sortedBy { it.startedAt }.map { it.label to it.message }
+            val m = app.offline
+            val left = try { m.pendingCount } catch (_: Exception) { 0 }
+            val pc = if (left > 0) m.entries.firstOrNull { it.state == com.ipodemu.library.offline.OfflineState.DOWNLOADING }?.let { (it.progress * 100).toInt() } ?: -1 else -1
+            value = com.ipodemu.library.DownloadActivity.line(fetching, left, pc)?.let { it to fetching.isNotEmpty() }
+            delay(1000)
+        }
+    }
+    val (text, fetching) = state ?: return
+    Row(
+        Modifier.padding(horizontal = 12.dp, vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(sc.card)
+            .clickable { if (fetching) app.ui.downloadsOpen = true else onOpenOffline() }.padding(horizontal = 14.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        GlyphIcon(Glyph.DOWN, Modifier.size(16.dp), sc.accent)
+        Txt(text, Modifier.weight(1f), size = 13f, weight = FontWeight.Medium, color = sc.onBg, maxLines = 1)
+        Txt("See", size = 13f, weight = FontWeight.SemiBold, color = sc.accent)
+    }
+}

@@ -127,11 +127,11 @@
     /// <summary>What to say when the DJ's own voice can't be made where it is made (Cloudflare not set up there); null when it can, or while it isn't known yet.</summary>
     string? VoiceNote(FLACie.Core.IDjService dj, FLACie.Server.Dj.DjHome? where)
     {
-        if (home is null) return dj.VoiceReady ? null : "Cloudflare isn't set up yet. Ask the admin (Dashboard → DJ). Until then the DJ stays quiet, unless Device voice is on.";
+        if (home is null) return dj.VoiceReady ? null : "Cloudflare isn't set up yet. Ask the admin (Server admin → DJ). Until then the DJ stays quiet, unless Device voice is on.";
         if (where is { Reachable: null }) return null;
-        if (where is { Reachable: true }) return where.VoiceReady ? null : "Cloudflare isn't set up on FLACie Web yet. Ask its admin (Dashboard → DJ there). Until then the DJ stays quiet, unless Device voice is on.";
+        if (where is { Reachable: true }) return where.VoiceReady ? null : "Cloudflare isn't set up on FLACie Web yet. Ask its admin (Server admin → DJ there). Until then the DJ stays quiet, unless Device voice is on.";
         if (home.VoiceReadyFor(Session)) return null;
-        return where is null ? "Cloudflare isn't set up in this app (Dashboard → DJ). Until then the DJ stays quiet, unless Device voice is on."
+        return where is null ? "Cloudflare isn't set up in this app (Server admin → DJ). Until then the DJ stays quiet, unless Device voice is on."
             : "Without FLACie Web there is no DJ voice here, so the DJ stays quiet unless Device voice is on.";
     }
 

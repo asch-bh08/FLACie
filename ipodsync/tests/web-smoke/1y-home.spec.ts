@@ -20,7 +20,7 @@ test.describe('the menu', () => {
 
   test('is short: Home, Search, Favourites, Playlists, Devices, Jam, Headphone test and (for an administrator) Dashboard', async ({ page }) => {
     const links = (await page.locator('#main-rail a').allInnerTexts()).map((t) => t.trim());
-    expect(links).toEqual(['Home', 'Search', 'Favourites', 'Playlists', 'Devices', 'Jam', 'Headphone test', 'Dashboard']);
+    expect(links).toEqual(['Home', 'Search', 'Favourites', 'Playlists', 'Devices', 'Jam', 'Headphone test', 'Server admin']);
   });
 
   test('the logo reads "FLACie" with no gap before the "ie"', async ({ page }) => {

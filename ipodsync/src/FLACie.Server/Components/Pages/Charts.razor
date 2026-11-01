@@ -16,7 +16,7 @@ else if (songs.Count == 0) { <p class="status">The chart couldn't be loaded righ
 else
 {
     @* a list of what's popular: the daily download and the Download buttons only appear where the server downloads at all *@
-    <p class="hint">@owned of @songs.Count are in your library.@(!Downloads.Allowed ? "" : State.Charts.Enabled ? " New ones are added to your library every day." : " Daily downloads are off (Dashboard > Background downloads).")</p>
+    <p class="hint">@owned of @songs.Count are in your library.@(!Downloads.Allowed ? "" : State.Charts.Enabled ? " New ones are added to your library every day." : " Daily downloads are off (Server admin > Background downloads).")</p>
     <ol class="chart-list">
         @for (var i = 0; i < songs.Count; i++)
         {

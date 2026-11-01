@@ -18,6 +18,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -290,6 +291,8 @@ fun PlayerHost(nav: PlayerNav) {
             // while typing, the keyboard covers the bars below but their room was still kept: on a short phone (an S22 with display zoom up) the
             // results were cut off half way down an empty band. They step aside until the keyboard goes.
             val typing = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+            // what is downloading, above the mini player, wherever you are (owner, 1 Nov: it took ten menus to find out)
+            if (!typing && !nav.nowPlaying && modern && !LocalHardware.current && !app.ui.guest) DownloadActivityBar { nav.push(Screen.Downloads) }
             if (typing) Unit
             else if (remoteId != null && !snap.playing && !nav.nowPlaying && modern && !LocalHardware.current) {
                 AnimatedVisibility(remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }, enter = slideInVertically(androidx.compose.animation.core.spring(0.8f, 380f)) { it } + androidx.compose.animation.fadeIn(tween(160))) { RemoteMiniPlayer(remoteId!!) }
@@ -388,8 +391,11 @@ fun TrackRow(
     val tap = { focus.clearFocus(); keyboard?.hide(); if (picked != null && onPick != null) onPick() else if (isCurrent) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else onPlay() }
     IpodRow(onClick = tap, onLong = { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, height = if (tagged) 74.dp else 56.dp,
         leading = {
-            // choosing several songs: a tick in place of the cover or number
-            if (picked != null) Box(Modifier.size(42.dp).clip(CircleShape).background(if (picked) sc.accent else Color(0x22FFFFFF)).semantics { stateDescription = if (picked) "Selected" else "Not selected" }, contentAlignment = Alignment.Center) {
+            // choosing several songs: the cover stays, with a tick on it (an album's numbered list gets the tick alone)
+            if (picked != null && showArt) Box(Modifier.size(42.dp)) {
+                ArtImage(t.artKey, Modifier.fillMaxSize(), thumb = true, corner = 8.dp)
+                PickTick(picked, Modifier.align(Alignment.BottomEnd))
+            } else if (picked != null) Box(Modifier.size(42.dp).clip(CircleShape).background(if (picked) sc.accent else Color(0x22FFFFFF)).semantics { stateDescription = if (picked) "Selected" else "Not selected" }, contentAlignment = Alignment.Center) {
                 GlyphIcon(if (picked) Glyph.CHECK else Glyph.PLUS, Modifier.size(20.dp), if (picked) Color.Black else sc.onBg)
             } else if (showArt) Box(Modifier.size(42.dp)) {
                 ArtImage(t.artKey, Modifier.fillMaxSize(), thumb = true, corner = 8.dp)
@@ -579,6 +585,9 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     // when scrolling Home and when coming back to it after playing something) and kept, so the last ones show at once
     // the shelves of the last run are on disk (HomeSnapshot): a cold start draws Home from them at once
     var home by remember { androidx.compose.runtime.mutableStateOf(HomeCache.last ?: app.homeSnapshot?.let { HomeData(it.shelves, it.moods) }) }
+    // shelves already on screen never change under the person's thumb (they used to swap two or three times as the app opened: saved, phone, server):
+    // newer ones are kept and show the next time Home opens
+    fun offer(d: HomeData) { HomeCache.last = d; if (home == null) home = d }
     LaunchedEffect(libRev, hour, recentsKey) {
         // ...and works them out again only once the whole library has loaded, not after every step of loading it (each pass shuffles and sorts all of it)
         if (home != null && !lib.loaded) return@LaunchedEffect
@@ -588,7 +597,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             try { com.ipodemu.Boot.span("HomeShelves.build") { HomeData(com.ipodemu.library.HomeShelves.build(lib, app.userData, System.currentTimeMillis(), com.ipodemu.library.TasteData.jf, com.ipodemu.library.TasteData.hits), com.ipodemu.library.HomeShelves.moodsAvailable(lib)) } } catch (e: Exception) { android.util.Log.w("FLACie", "Home shelves failed", e); null }
         }
         if (d != null) {
-            HomeCache.last = d; home = d
+            offer(d)
             if (d.shelves.isNotEmpty()) kotlinx.coroutines.withContext(Dispatchers.IO) {
                 try { com.ipodemu.library.HomeSnapshot.write(java.io.File(app.filesDir, "home.json"), com.ipodemu.library.HomeSnapshot.Data(d.shelves, d.moods)) } catch (_: Exception) {}
             }
@@ -598,7 +607,10 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
         val served = web.available && d != null && run {
             val server = kotlinx.coroutines.withContext(Dispatchers.IO) { try { web.recommendHome() } catch (e: Exception) { android.util.Log.w("FLACie", "server Home failed: ${e.message}"); null } }
             val mixed = server?.let { sv -> kotlinx.coroutines.withContext(Dispatchers.Default) { try { com.ipodemu.library.HomeShelves.fromServer(sv, { p -> lib.resolve(p.path ?: "", p.title to p.artist) }, d!!.shelves) { a -> serverAlbum(lib, a) } } catch (_: Exception) { null } } }
-            if (mixed != null) { val d3 = HomeData(mixed, d!!.moods); HomeCache.last = d3; home = d3 }
+            if (mixed != null) {
+                val d3 = HomeData(mixed, d!!.moods); offer(d3)
+                kotlinx.coroutines.withContext(Dispatchers.IO) { try { com.ipodemu.library.HomeSnapshot.write(java.io.File(app.filesDir, "home.json"), com.ipodemu.library.HomeSnapshot.Data(d3.shelves, d3.moods)) } catch (_: Exception) {} }
+            }
             mixed != null
         }
         if (served) return@LaunchedEffect
@@ -609,7 +621,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             val d2 = kotlinx.coroutines.withContext(Dispatchers.Default) {
                 try { HomeData(com.ipodemu.library.HomeShelves.build(lib, app.userData, System.currentTimeMillis(), com.ipodemu.library.TasteData.jf, com.ipodemu.library.TasteData.hits), com.ipodemu.library.HomeShelves.moodsAvailable(lib)) } catch (e: Exception) { android.util.Log.w("FLACie", "Home shelves failed", e); null }
             }
-            if (d2 != null) { HomeCache.last = d2; home = d2 }
+            if (d2 != null) offer(d2)
         }
     }
     val gone = HomeCache.gone.toSet()
@@ -646,7 +658,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     DesignChip("Favourites", false, { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART)
                     DesignChip("Recent", false, { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK)
                     // "Downloads" is the songs kept for listening without signal; "Recently added" is new music fetched into the library
-                    DesignChip("Downloads", false, { nav.push(Screen.Downloads) }, icon = Glyph.DOWNLOADED)
+                    DesignChip("Offline music", false, { nav.push(Screen.Downloads) }, icon = Glyph.DOWNLOADED)
                     DesignChip("Recently added", false, { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.PLUS)
                 }
             } else item {
@@ -654,7 +666,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     GlossPill("Shuffle All", { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } }, icon = Glyph.SHUFFLE, height = 32.dp)
                     GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 32.dp)
                     GlossPill("Recent", { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK, height = 32.dp)
-                    GlossPill("Downloads", { nav.push(Screen.Downloads) }, icon = Glyph.DOWNLOADED, height = 32.dp)
+                    GlossPill("Offline music", { nav.push(Screen.Downloads) }, icon = Glyph.DOWNLOADED, height = 32.dp)
                     GlossPill("Recently added", { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.PLUS, height = 32.dp)
                     moodList.forEach { m -> GlossPill(m, { mood = if (mood == m) null else m }, height = 32.dp, primary = mood == m) }
                 }
@@ -1496,12 +1508,13 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                     val status = dl[app.library.songKey(s.artist, s.title)]
                     WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.let { st -> if (st.stage == DownloadStage.FAILED) st.message else com.ipodemu.library.DownloadTags.runningText(com.ipodemu.library.DownloadTags.stageText(st.stage, st.message)) } ?: "${s.artist} · ${s.album}", s.artUrl, owned, status,
                         onPlay = { searchFocus.clearFocus(); owned?.let { if (snap.track?.path == it.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(it), 0, null, from = "search") } } },
-                        onDownload = { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs) },
+                        // said at once: on a weak signal the row's status can take a while to change, and the tap looked like it did nothing (owner, 1 Nov)
+                        onDownload = { searchFocus.clearFocus(); app.library.requestDownload(s.artist, s.title, s.album, s.durationMs); app.ui.say("Getting \"${s.title}\"…") },
                         picked = picks?.contains(webId(s)), onPick = { picks = (picks ?: PickSet()).toggle(webId(s)) },
                         // the three-line menu: Download, Hi-Res (administrators, per song, after a confirmation: the files are several times the size), Find on YouTube
                         onHiRes = {
                             val items = ArrayList<SheetItem>()
-                            items += SheetItem("Download", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs) }
+                            items += SheetItem("Download", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs); app.ui.say("Getting \"${s.title}\"…") }
                             if (app.ui.isAdmin && app.prefs.slskdUrl.isNotBlank() && app.prefs.slskdApiKey.isNotBlank() && app.prefs.fileMoverUrl.isNotBlank()) items += SheetItem("✦ Hi-Res download…", Glyph.DOWN) {
                                 nav.sheet = SheetSpec("Download in Hi-Res?", "Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). Only \"${s.title}\" is downloaded, as a separate [Hi-Res] copy. If no Hi-Res copy exists you get the normal quality instead.", listOf(
                                     SheetItem("Yes, download \"${s.title}\" in Hi-Res", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, hiRes = true) },
@@ -1552,6 +1565,16 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             }
         }
         }
+    }
+}
+
+/** The tick on a cover while choosing songs: filled when picked, an empty ring when not. */
+@Composable
+private fun PickTick(picked: Boolean, modifier: Modifier) {
+    val sc = LocalScheme.current
+    Box(modifier.offset(4.dp, 4.dp).size(24.dp).clip(CircleShape).background(if (picked) sc.accent else Color(0xCC000000)).border(2.dp, if (picked) sc.accent else Color.White, CircleShape)
+        .semantics { stateDescription = if (picked) "Selected" else "Not selected" }, contentAlignment = Alignment.Center) {
+        if (picked) GlyphIcon(Glyph.CHECK, Modifier.size(14.dp), Color.Black)
     }
 }
 
@@ -1614,9 +1637,11 @@ private fun WebRow(title: String, subtitle: String, imageUrl: String?, owned: Tr
     // choosing several songs: a tick in place of the cover, and a tap ticks the row; a long press starts choosing
     IpodRow({ if (picked != null && onPick != null) onPick() else if (owned != null) onPlay() else if (!busy) onDownload() }, onLong = if (picked == null) onPick else null, height = if (tagged) 76.dp else 60.dp,
         leading = {
-            if (picked != null) Box(Modifier.size(42.dp).clip(CircleShape).background(if (picked) sc.accent else Color(0x22FFFFFF)).semantics { stateDescription = if (picked) "Selected" else "Not selected" }, contentAlignment = Alignment.Center) {
-                GlyphIcon(if (picked) Glyph.CHECK else Glyph.PLUS, Modifier.size(20.dp), if (picked) Color.Black else sc.onBg)
-            } else RemoteArtImage(imageUrl, Modifier.size(48.dp), corner = 8.dp)
+            // choosing keeps the cover, with the tick on it (the bare ticks made a cramped list you couldn't tell apart; owner, 1 Nov)
+            Box(Modifier.size(48.dp)) {
+                RemoteArtImage(imageUrl, Modifier.size(48.dp), corner = 8.dp)
+                if (picked != null) PickTick(picked, Modifier.align(Alignment.BottomEnd))
+            }
         },
         trailing = {
             if (picked == null) when {
@@ -1889,7 +1914,7 @@ private fun AccountMenu(name: String, onClose: () -> Unit, onPick: (AccountPick)
             for (pick in accountPicks(app.ui.isAdmin && !app.ui.guest, app.prefs.accountKind.isNotEmpty())) {
                 val (label, glyph) = when (pick) {
                     AccountPick.ACCOUNT -> "Account" to Glyph.ARTIST
-                    AccountPick.DASHBOARD -> "Dashboard" to Glyph.INFO
+                    AccountPick.DASHBOARD -> "Server admin" to Glyph.INFO
                     AccountPick.DOWNLOADS -> "Download log" to Glyph.DOWN
                     AccountPick.RETRO -> "Retro" to Glyph.CASSETTE
                     AccountPick.SETTINGS -> "Settings" to Glyph.GEAR
@@ -2010,7 +2035,7 @@ private fun SearchIdle(nav: PlayerNav) {
         androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 36.dp)
             GlossPill("Recent", { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK, height = 36.dp)
-            GlossPill("Downloads", { nav.push(Screen.Downloads) }, icon = Glyph.DOWNLOADED, height = 36.dp)
+            GlossPill("Offline music", { nav.push(Screen.Downloads) }, icon = Glyph.DOWNLOADED, height = 36.dp)
             GlossPill("Recently added", { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.PLUS, height = 36.dp)
             GlossPill("Albums", { nav.push(Screen.Lib(LibKind.ALBUMS)) }, icon = Glyph.ALBUM, height = 36.dp)
             GlossPill("Artists", { nav.push(Screen.Lib(LibKind.ARTISTS)) }, icon = Glyph.ARTIST, height = 36.dp)

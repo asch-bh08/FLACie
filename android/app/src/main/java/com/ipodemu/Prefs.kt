@@ -352,6 +352,10 @@ class Prefs(ctx: Context) {
     var downloadOnPhone: Boolean
         get() = sp.getBoolean("downloadOnPhone", true)
         set(v) = sp.edit().putBoolean("downloadOnPhone", v).apply()
+    /** How many times the full player has shown its "swipe for Lyrics" tip (it stops after three, or once dismissed). */
+    var playerTips: Int
+        get() = sp.getInt("playerTips", 0)
+        set(v) = sp.edit().putInt("playerTips", v).apply()
     /** Streaming quality: 0 = automatic (full quality, a lower bitrate only when the connection can't keep up), 1 = always full, 2 = always data saver. */
     var streamQuality: Int
         get() = sp.getInt("streamQuality", 0)

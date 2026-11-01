@@ -537,7 +537,7 @@ fun ArtImage(key: String?, modifier: Modifier = Modifier, thumb: Boolean = false
     }
 }
 
-private val remoteArtCache = object : LruCache<String, Bitmap>(8 * 1024 * 1024) {
+private val remoteArtCache = object : LruCache<String, Bitmap>(16 * 1024 * 1024) {
     override fun sizeOf(k: String, v: Bitmap) = v.byteCount
 }
 
@@ -552,7 +552,7 @@ fun RemoteArtImage(url: String?, modifier: Modifier = Modifier, corner: Dp = 8.d
         if (url == null || bmp != null) return@LaunchedEffect
         val loaded = withContext(Dispatchers.IO) {
             try {
-                val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                val conn = java.net.URL(com.ipodemu.library.CoverLookup.small(url)).openConnection() as java.net.HttpURLConnection
                 conn.connectTimeout = 5000; conn.readTimeout = 8000
                 conn.inputStream.use { BitmapFactory.decodeStream(it) }
             } catch (_: Exception) { null }

@@ -140,7 +140,7 @@ object BrowseTree {
     /** The Downloads folder, saying how many songs are on the phone (nothing in the subtitle when none are). */
     private fun downloadsFolder(src: BrowseSource, group: String?): BrowseNode {
         val n = src.downloaded().size
-        return BrowseNode(DOWNLOADED, "Downloads", if (n > 0) songs(n) else null, browsable = true, playable = false, artKey = null, group = group, icon = "ic_car_downloaded")
+        return BrowseNode(DOWNLOADED, "Offline music", if (n > 0) songs(n) else null, browsable = true, playable = false, artKey = null, group = group, icon = "ic_car_downloaded")
     }
 
     /** A playlist tile; [offline] ticks it when every song of it is on the phone. */

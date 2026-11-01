@@ -48,7 +48,7 @@ else
     {
         <h2 class="section">More music @(webBusy ? "(searching…)" : "")</h2>
         @* with downloads off on this server (the Dashboard's "Allow downloads") these are only what exists: no download buttons and no "set up downloads" hint *@
-        @if (Downloads.Allowed && !Session.Services.Any && isAdmin) { <p class="hint">These aren't in your library. Download services you run yourself can be set up in the <a href="/dashboard#downloads">Dashboard</a>; only download music you own or have permission to download.</p> }
+        @if (Downloads.Allowed && !Session.Services.Any && isAdmin) { <p class="hint">These aren't in your library. Download services you run yourself can be set up in the <a href="/dashboard#downloads">Server admin</a>; only download music you own or have permission to download.</p> }
         @if (webAlbums.Count > 0)
         {
             <div class="row-scroll">

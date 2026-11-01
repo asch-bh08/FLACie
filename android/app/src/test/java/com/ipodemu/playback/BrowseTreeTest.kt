@@ -44,7 +44,7 @@ class BrowseTreeTest {
         val src = Src(recents = (1..20).map { t(it) })
         val home = BrowseTree.children(BrowseTree.HOME, 0, 100, src)
         assertEquals("Shuffle all", home[0].title); assertTrue(home[0].playable && !home[0].browsable)
-        assertEquals(listOf("Favourites", "Downloads"), home.filter { it.group == "Your music" }.map { it.title })
+        assertEquals(listOf("Favourites", "Offline music"), home.filter { it.group == "Your music" }.map { it.title })
         assertTrue(home.filter { it.group == "Your music" }.all { it.browsable && it.icon != null })
         val recent = home.filter { it.group == "Recently played" }
         assertEquals(BrowseTree.HOME_RECENT, recent.size); assertEquals("Song 1", recent[0].title); assertTrue(recent.all { it.playable })
@@ -281,7 +281,7 @@ class BrowseTreeTest {
     @Test fun homeOffersDownloadsUnderYourMusicAndSaysHowMany() {
         val home = BrowseTree.children(BrowseTree.HOME, 0, 100, dl("p1" to listOf(t(1)), dlp = listOf("p1")))
         val d = home.first { it.id == BrowseTree.DOWNLOADED }
-        assertEquals("Downloads", d.title); assertEquals("2 songs", d.subtitle); assertTrue(d.browsable && d.icon != null)
+        assertEquals("Offline music", d.title); assertEquals("2 songs", d.subtitle); assertTrue(d.browsable && d.icon != null)
         assertEquals("Your music", d.group)
     }
 

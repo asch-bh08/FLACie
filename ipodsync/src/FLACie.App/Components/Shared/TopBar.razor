@@ -29,7 +29,7 @@
                 @if (AppHost.Server) { <a role="menuitem" href="/account" @onclick="() => open = false"><Icon Name="artists" Size="18" />Account</a> }
                 @if (AdminAccess.Is(Session, Conf))
                 {
-                    <a role="menuitem" href="/dashboard" @onclick="() => open = false"><Icon Name="shield" Size="18" />Dashboard</a>
+                    <a role="menuitem" href="/dashboard" @onclick="() => open = false"><Icon Name="shield" Size="18" />Server admin</a>
                     @if (Dls.Allowed) { <a role="menuitem" href="/downloads" @onclick="() => open = false"><Icon Name="download" Size="18" />Downloads</a> }
                 }
                 <a role="menuitem" href="/retro" @onclick="() => open = false"><Icon Name="retro" Size="18" />Retro</a>

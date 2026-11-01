@@ -190,6 +190,9 @@ public class DjRoundTwoTests : IDisposable
     [InlineData("ashley", "Ashley")]
     [InlineData("Mary Jane", "Mary")]
     [InlineData("jo.smith", "Jo")]
+    [InlineData("hms", "HMS")]       // no vowels: initials, said "H M S", not "herms" (owner, 1 Nov)
+    [InlineData("Hms", "HMS")]
+    [InlineData("lynn", "Lynn")]
     [InlineData("admin", null)]
     [InlineData("guest", null)]
     [InlineData("ash@example.com", null)]

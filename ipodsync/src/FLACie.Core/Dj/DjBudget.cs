@@ -143,6 +143,8 @@ public static class DjNames
     {
         var w = (accountName ?? "").Trim().Split([' ', '.', '_', '-'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
         if (w.Length is < 2 or > 20 || !w.All(char.IsLetter) || NotNames.Contains(w) || (accountName ?? "").Contains('@')) return null;
+        // a short name with no vowels is initials ("hms"): in capitals the voice spells it out instead of guessing a word ("herms")
+        if (w.Length <= 5 && !w.Any(c => "aeiouyAEIOUY".Contains(c))) return w.ToUpperInvariant();
         return w.All(char.IsLower) || w.All(char.IsUpper) ? char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant() : w;
     }
 }

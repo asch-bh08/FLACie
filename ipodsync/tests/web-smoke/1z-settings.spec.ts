@@ -22,7 +22,7 @@ async function openLive(page: Page, path: string) {
 }
 
 const pages: [string, string][] = [
-  ['/settings', 'Settings'], ['/account', 'Account'], ['/dashboard', 'Dashboard'], ['/downloads', 'Downloads'],
+  ['/settings', 'Settings'], ['/account', 'Account'], ['/dashboard', 'Server admin'], ['/downloads', 'Downloads'],
   ['/import', 'Import playlists'], ['/devices', 'Devices'], ['/jam', 'Jam'],
 ];
 

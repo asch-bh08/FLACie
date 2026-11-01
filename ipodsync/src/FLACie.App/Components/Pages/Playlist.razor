@@ -60,7 +60,7 @@ else
             @* the songs are listed either way; the buttons only where the server downloads, and Download all only for those it lets (see SharedLink) *@
             <div class="shelf-head"><div><h2>Not in your library</h2><small>@missing.Count song@(missing.Count == 1 ? "" : "s") from this playlist</small></div>
                 @if (Downloads.MayBulk(Session)) { <button class="btn" disabled="@(!Session.Services.Any)" @onclick="() => Get(missing)"><Icon Name="download" Size="16" />Download all</button> }</div>
-            @if (Downloads.Allowed && !Session.Services.Any) { <p class="hint">Set up downloads in <a href="/dashboard#downloads">the Dashboard</a> first.</p> }
+            @if (Downloads.Allowed && !Session.Services.Any) { <p class="hint">Set up downloads in <a href="/dashboard#downloads">Server admin</a> first.</p> }
             <ul class="tracks">
                 @foreach (var m in missing)
                 {

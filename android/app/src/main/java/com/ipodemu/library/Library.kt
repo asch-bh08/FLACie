@@ -426,10 +426,16 @@ class Library(ctx: Context, val art: ArtCache) {
     /** A song with this title whose credit is missing or the same artist spelled another way (a file with no artist tag), when the exact match finds nothing. */
     fun findLoose(title: String, artist: String): Track? {
         val nt = normTitle(title); val pa = primaryArtist(artist)
-        return derive().songs.firstOrNull { t ->
+        // the songs grouped by their cleaned title once per library, not every song's title cleaned again for each lookup: a playlist with songs not
+        // matched by path took 3 s to open (owner, 1 Nov)
+        val d = derive()
+        val byTitle = looseIndex?.takeIf { it.first === d }?.second ?: d.songs.groupBy { normTitle(it.title) }.also { looseIndex = d to it }
+        return byTitle[nt].orEmpty().firstOrNull { t ->
             normTitle(t.title) == nt && primaryArtist(t.artist).let { a -> a.isEmpty() || a == "unknown artist" || a == "unknown" || (pa.isNotEmpty() && (a.contains(pa) || pa.contains(a))) }
         }
     }
+
+    @Volatile private var looseIndex: Pair<Any, Map<String, List<Track>>>? = null
 
     /** Any track by file path (playlists and favourites store paths). */
     fun byPath(): Map<String, Track> = derive().byPath

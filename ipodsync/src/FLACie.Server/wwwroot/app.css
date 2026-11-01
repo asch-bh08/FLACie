@@ -932,7 +932,7 @@ body.np-open .player .bar, body.np-open .player .bar:hover { cursor: default; }
 }
 
 /* the three-line options button on a search result and its small menu (Download, Hi-Res for administrators, Find on YouTube) */
-.dl-more { position: relative; display: inline-flex; }
+.dl-more, .pl-more { position: relative; display: inline-flex; }
 .dl-menu { position: absolute; right: 0; top: 40px; z-index: 51; min-width: 210px; display: flex; flex-direction: column; padding: 6px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 16px 40px #000a; }
 .dl-menu button, .dl-menu a { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 0; border-radius: 8px; background: none; color: var(--ink); font: inherit; font-size: 14px; text-align: left; text-decoration: none; cursor: pointer; }
 .dl-menu button:hover:not(:disabled), .dl-menu a:hover { background: var(--surface-3); }

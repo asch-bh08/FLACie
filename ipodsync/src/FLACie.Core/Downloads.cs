@@ -592,6 +592,11 @@ public static class Art
         try { var p = Encoding.UTF8.GetString(Convert.FromBase64String(b)).Split('\n'); return p.Length >= 3 ? (p[0], p[1], p[2]) : null; } catch (Exception) { return null; }
     }
 
+    static readonly System.Text.RegularExpressions.Regex SizedPath = new(@"/(\d{3,4})x(\d{3,4})(bb|-)", System.Text.RegularExpressions.RegexOptions.Compiled);
+    /// <summary>The same catalogue cover at 250 px (Deezer's and iTunes' addresses name the size): what a list row or a card shows, a twentieth of the bytes of the
+    /// 1000 px one (covers took ages on a weak signal; owner, 1 Nov). The phone has the same rule (CoverLookup.small).</summary>
+    public static string SmallExternal(string url) => SizedPath.Replace(url, m => int.Parse(m.Groups[1].Value) > 250 ? "/250x250" + m.Groups[3].Value : m.Value);
+
     public static string? ExternalUrl(string key)
     {
         if (!key.StartsWith("ex")) return null;

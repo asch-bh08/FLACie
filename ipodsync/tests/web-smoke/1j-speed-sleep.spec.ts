@@ -61,7 +61,7 @@ test.describe.serial('speed and sleep', () => {
     await open(page, 'Sound'); await page.screenshot({ path: 'test-results/icons-sound.png' });
   });
 
-  test('speed changes the audio rate with the pitch kept, is remembered per song, and shows the long-item skips', async ({ page }) => {
+  test('speed changes the audio rate with the pitch kept, goes back to 1x for the next song (music never keeps a speed), and shows the long-item skips', async ({ page }) => {
     test.setTimeout(120_000);
     await signIn(page);
     await playLab(page);
@@ -73,14 +73,14 @@ test.describe.serial('speed and sleep', () => {
     expect(await page.evaluate(() => { const a = new Audio(); return 'preservesPitch' in a; })).toBe(true);
     await expect(page.getByRole('button', { name: 'Back 10 seconds' })).toBeVisible();      // a changed speed shows them
     await expect(page.getByRole('button', { name: 'Forward 30 seconds' })).toBeVisible();
-    // next song: back to 1x; back to the first song: its 1.5x is remembered
+    // next song: back to 1x; and back to the first song, music starts at 1x too: only audiobooks, podcasts and long items keep a speed (a song kept
+    // playing at 1.75x after a stray tap; owner, 1 Nov)
     await page.locator('.ls-transport').getByRole('button', { name: 'Next' }).click();
     await expect.poll(() => rate(page), { timeout: 15_000 }).toBe(1);
     // (Previous within the first 3 s goes to the previous song)
     await page.locator('.ls-transport').getByRole('button', { name: 'Previous' }).click();
-    await expect.poll(() => rate(page), { timeout: 15_000 }).toBe(1.5);
-    await pick(page, 'Speed', '1x');
-    await expect.poll(() => rate(page)).toBe(1);
+    await page.waitForTimeout(1500);
+    expect(await rate(page)).toBe(1);
   });
 
   test('the sleep timer can be set, shows what is left, extends and turns off', async ({ page }) => {

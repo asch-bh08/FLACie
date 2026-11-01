@@ -42,4 +42,10 @@ public class PlaylistLinksTests
         Assert.Equal("https://api.deezer.com/playlist/1/tracks?index=25", next);
         Assert.Null(PlaylistLinks.FromDeezer("""{"error":{"type":"DataException"}}""", out _));
     }
+
+    [Theory]
+    [InlineData("https://e-cdns-images.dzcdn.net/images/cover/abc/1000x1000-000000-80-0-0.jpg", "https://e-cdns-images.dzcdn.net/images/cover/abc/250x250-000000-80-0-0.jpg")]
+    [InlineData("https://is1-ssl.mzstatic.com/image/thumb/x/600x600bb.jpg", "https://is1-ssl.mzstatic.com/image/thumb/x/250x250bb.jpg")]
+    [InlineData("https://example.com/a.jpg", "https://example.com/a.jpg")]
+    public void A_catalogue_cover_for_a_row_is_asked_for_at_250_px(string big, string small) => Assert.Equal(small, Art.SmallExternal(big));
 }

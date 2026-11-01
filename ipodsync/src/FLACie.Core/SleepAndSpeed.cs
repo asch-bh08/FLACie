@@ -89,6 +89,11 @@ public static class SpeedPolicy
 
     public static bool IsSpoken(string? genre) => !string.IsNullOrWhiteSpace(genre) && SpokenWords.Any(w => genre.Contains(w, StringComparison.OrdinalIgnoreCase));
     public static bool IsLong(long durationMs) => durationMs >= LongItemMs;
+    /// <summary>Whether an item's speed is remembered at all: spoken word and long items. Music never is (a song kept playing at 1.75x after a stray tap; owner, 1 Nov).</summary>
+    public static bool Remembers(string? genre, long durationMs) => IsSpoken(genre) || IsLong(durationMs);
+    /// <summary>The speed an item starts at: music always 1x; spoken or long, its own remembered speed, else the spoken-word default (spoken), else 1x. As on Android.</summary>
+    public static double StartSpeed(double? saved, string? genre, long durationMs, double spokenDefault) =>
+        !Remembers(genre, durationMs) ? 1 : saved is { } v ? Clamp(v) : IsSpoken(genre) ? Clamp(spokenDefault) : 1;
     public static bool ShowLongItemControls(string? genre, long durationMs, double speed) => IsSpoken(genre) || IsLong(durationMs) || Math.Abs(speed - 1) > 0.001;
 
     /// <summary>The 32-hex Jellyfin item id when the path has one (stable across address changes), else the path.</summary>

@@ -97,3 +97,12 @@
 .bar-text:has(.bar-dj-caption.on) > small { display: none; }
 @keyframes dj-caption-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .bar-text .bar-dj-caption.on { animation: none; } }
+
+/* what is downloading: a pill just above the player bar (or the bottom of the window with nothing playing); a tap opens the download log */
+.dl-activity { position: fixed; z-index: 31; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabs) + 12px + env(safe-area-inset-bottom, 0px)); max-width: min(560px, calc(100vw - 32px));
+  display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-radius: 14px; background: #1b1f22f2; backdrop-filter: blur(14px); border: 1px solid var(--line);
+  color: #f4efe6; font-size: 13px; font-weight: 500; text-decoration: none; box-shadow: 0 8px 24px #0006; }
+.dl-activity span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dl-activity b, .dl-activity .icon { color: var(--accent, #ff9b6e); }
+body:has(.player) .dl-activity { bottom: calc(var(--tabs) + var(--bar) + 12px + env(safe-area-inset-bottom, 0px)); }
+body.np-open .dl-activity { display: none; }

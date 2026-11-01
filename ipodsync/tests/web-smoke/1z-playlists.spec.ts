@@ -72,13 +72,16 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
       const bg = await play.evaluate((e) => getComputedStyle(e).backgroundColor);
       const shuffleBg = await hero.getByRole('button', { name: 'Shuffle' }).evaluate((e) => getComputedStyle(e).backgroundColor);
       expect(bg).not.toBe(shuffleBg);
-      await expect(page.getByRole('button', { name: 'Rename' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible();
+      // Rename and Delete are behind More, never where a second click on the playlist lands (owner, 1 Nov)
+      await expect(page.getByRole('button', { name: 'Rename' })).toHaveCount(0);
+      await page.getByRole('button', { name: 'More for this playlist' }).click();
+      await expect(page.getByRole('menuitem', { name: 'Rename' })).toBeVisible();
+      await expect(page.getByRole('menuitem', { name: 'Delete' })).toBeVisible();
       expect(await noSideScroll(page)).toBe(true);
       await page.screenshot({ path: `test-results/shots/playlists-one-${name}.png` });
 
       // clean up so a rerun starts clean
-      await page.getByRole('button', { name: 'Delete' }).click();
+      await page.getByRole('menuitem', { name: 'Delete' }).click();
       await page.getByRole('button', { name: /^Delete "/ }).click();
       await page.waitForURL(/\/playlists$/);
 

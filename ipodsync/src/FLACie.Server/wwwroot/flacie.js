@@ -1005,8 +1005,11 @@ window.flacie = (() => {
     },
     npOpen(ref) {
       npRef = ref; document.body.classList.add("np-open");
+      // the "swipe for Lyrics" tip: the first three times the player opens in this browser, until OK
+      try { const n = +(localStorage.getItem("flacie.playerTips") || 0); if (n < 3) { localStorage.setItem("flacie.playerTips", n + 1); const tip = document.getElementById("ls-tip"); if (tip) tip.hidden = false; } } catch { }
       if (!npPushed) { history.pushState({ np: 1 }, "", location.pathname + location.search + "#now-playing"); npPushed = true; }
     },
+    playerTipDone() { try { localStorage.setItem("flacie.playerTips", 3); } catch { } const tip = document.getElementById("ls-tip"); if (tip) tip.hidden = true; },
     // a link inside the full-screen player: drop the player's #now-playing history entry (history.back), then go, so Back from the new page returns to the page under the player
     npGo(url) {
       const go = () => window.Blazor ? Blazor.navigateTo(url) : (location.href = url);
@@ -1433,7 +1436,13 @@ window.flacie = (() => {
           holding = true; djLetGo = letGo; duckTo(0, 0);
           setTimeout(() => { if (mine()) letGo(); }, songDelay);
         }
-        const watch = () => setTimeout(() => { if (mine() && !over && !started) djHalt(true); }, 1500);
+        // a clip still loading 1.5 s in (a weak signal) is read by the device's voice when Backup voice allows it, else waited for until 4 s in; the DJ
+        // used to go quiet instead (owner, 1 Nov: two lines in a whole session). As on Android (DjLine.late)
+        const watch = () => setTimeout(() => {
+          if (!mine() || over || started) return;
+          if (backup && text) { try { a.pause(); } catch { } failed(); }
+          else setTimeout(() => { if (mine() && !over && !started) djHalt(true); }, 2500);
+        }, 1500);
         if (clipAt > 0) setTimeout(() => { startClip(); watch(); }, Math.max(0, (clipAt - audio.currentTime * 1000) / (audio.playbackRate || 1)));
         else { dueAt = songAt; watch(); }
       };

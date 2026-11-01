@@ -219,10 +219,13 @@ else
         builtSlot = slot; builtSongs = Lib.Songs.Count; builtLast = last; builtRev = Session.ProfileRev;
         // the shelves of the last visit, while nothing they come from has changed: opening Home again shows them at once instead of working them out again
         var key = (slot, Lib.Songs.Count, last, Session.ProfileRev, hits?.Count ?? -1, Session.PlayStatsAt.Ticks);
-        if (built.TryGetValue(Session, out var b) && b.Key.Equals(key)) { shelves = b.Shelves; moods = b.Moods; return; }
-        shelves = HomeBuilder.Build(Lib, history, Session.Favorites, Session.Playlists, DateTime.UtcNow, Session.PlayStats, hits, AppHost.ListenLog(Session), AppHost.Vibe);
-        moods = HomeBuilder.MoodsAvailable(Lib);
-        built.AddOrUpdate(Session, new Built(key, shelves, moods));
+        // shelves already on screen never change under the person's pointer (Quick picks used to swap two or three times as Home opened: the library loading,
+        // then the play counts arriving; owner, 1 Nov): newer ones are kept and show the next time Home opens, as on Android
+        if (built.TryGetValue(Session, out var b) && b.Key.Equals(key)) { if (shelves.Count == 0) { shelves = b.Shelves; moods = b.Moods; } return; }
+        var fresh = HomeBuilder.Build(Lib, history, Session.Favorites, Session.Playlists, DateTime.UtcNow, Session.PlayStats, hits, AppHost.ListenLog(Session), AppHost.Vibe);
+        var freshMoods = HomeBuilder.MoodsAvailable(Lib);
+        built.AddOrUpdate(Session, new Built(key, fresh, freshMoods));
+        if (shelves.Count == 0) { shelves = fresh; moods = freshMoods; }
     }
     sealed record Built((long, int, long, int, int, long) Key, List<Shelf> Shelves, List<string> Moods);
     static readonly System.Runtime.CompilerServices.ConditionalWeakTable<UserSession, Built> built = new();

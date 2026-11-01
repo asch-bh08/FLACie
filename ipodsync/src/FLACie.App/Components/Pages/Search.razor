@@ -153,9 +153,9 @@ else
             var songs = await Catalog.SongsAsync(query, 20, ct);
             var albums = await Catalog.AlbumsWithTopAsync(query, songs.FirstOrDefault(), ct);
             // what the library already has isn't offered again
-            var have = Lib.Songs.Select(Matching.MatchKey).ToHashSet();
+            // (the library's own match index, not every song's key worked out again on each search)
             var haveAlbums = Lib.Albums.Select(a => a.Tracks[0].AlbumKey).ToHashSet();
-            webSongs = songs.Where(s => !have.Contains(Matching.MatchKey(s.Title, s.Artist))).ToList();
+            webSongs = songs.Where(s => Lib.Find(s.Title, s.Artist) is null).ToList();
             webAlbums = albums.Where(a => !haveAlbums.Contains(Matching.PrimaryArtist(a.Artist) + "|" + Matching.AlbumNorm(a.CleanTitle))).ToList();
             webBusy = false;
             await InvokeAsync(StateHasChanged);

@@ -75,6 +75,14 @@ object PrefetchPlan {
         else -> 3
     }
 
+    /** How many of the next songs get just their start fetched ([HEAD_BYTES]) while the playing one is still loading: a skip or a tap on the next song then
+     *  starts at once instead of from the network. Only once the playing song has [HEAD_AFTER_MS] in hand, so it never starves for them. */
+    fun heads(dataSaverPinned: Boolean, playerLoading: Boolean, bufferedAheadMs: Long): Int =
+        if (dataSaverPinned || !playerLoading || bufferedAheadMs < HEAD_AFTER_MS) 0 else 2
+    /** About 6 s of a lossless song, 30 s of a 320 kbps one: enough to start playing while the rest comes. */
+    const val HEAD_BYTES = 768L * 1024
+    const val HEAD_AFTER_MS = 15_000L
+
     /** The first [n] of the upcoming songs' real addresses that are worth caching (not a downloaded file, not a conversion's one-off pieces). */
     fun targets(upcoming: List<String>, n: Int, cacheable: (String) -> Boolean): List<String> = if (n <= 0) emptyList() else upcoming.filter(cacheable).take(n)
 

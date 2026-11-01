@@ -44,8 +44,18 @@ else
                         </button>
                     }
                     <button class="btn ghost" disabled="@(tracks.Count == 0)" @onclick='() => Sharing.ShareAsync(Session, "playlist", p.Name, tracks)'><Icon Name="share" Size="16" />Share</button>
-                    <button class="btn ghost" @onclick="() => { renaming = true; newName = p.Name; }">Rename</button>
-                    <button class="btn ghost" @onclick="() => confirm = true">Delete</button>
+                    @* Rename and Delete behind More, as on the phone: Rename sat where a second click on the playlist landed and renamed it by accident (owner, 1 Nov) *@
+                    <span class="pl-more">
+                        <button class="btn ghost" aria-haspopup="menu" aria-expanded="@(plMore ? "true" : "false")" aria-label="More for this playlist" @onclick="() => plMore = !plMore"><Icon Name="more" Size="16" />More</button>
+                        @if (plMore)
+                        {
+                            <button class="scrim" aria-label="Close" @onclick="() => plMore = false"></button>
+                            <div class="dl-menu" role="menu">
+                                <button role="menuitem" @onclick="() => { plMore = false; renaming = true; newName = p.Name; }">Rename</button>
+                                <button role="menuitem" @onclick="() => { plMore = false; confirm = true; }">Delete</button>
+                            </div>
+                        }
+                    </span>
                 }
             </div>
         </div>
@@ -93,6 +103,7 @@ else
         if (art != heroFor) { heroFor = art; try { await Js.InvokeVoidAsync("flacie.npAccent", heroEl, art); } catch (Exception) { } }
     }
     bool renaming; string newName = "";
+    bool plMore;
     void Rename(FLACie.Core.Playlist p) { var n = newName.Trim(); if (n.Length > 0) { Session.RenamePlaylist(p.Id, n); SaveProfile(); } renaming = false; }
     // the list shows only songs this library has; the playlist's own order also holds the ones it doesn't, so the move is made on the real entries
     void Move(FLACie.Core.Playlist p, IReadOnlyList<Track> tracks, int from, int to)

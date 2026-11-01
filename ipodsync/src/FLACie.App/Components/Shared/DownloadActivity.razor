@@ -1,0 +1,39 @@
+@inherits UserComponent
+@inject IDownloads Dls
+@* what is downloading right now, one line above the player bar, wherever you are (owner, 1 Nov: it took ten menus to find out); as on Android *@
+@if (Line() is { } line)
+{
+    <a class="dl-activity" href="/downloads" aria-live="polite"><Icon Name="download" Size="16" /><span>@line</span><b>See</b></a>
+}
+@code {
+    Action? onChanged; UserSession? subscribedTo; Timer? tick;
+
+    protected override void OnParametersSet()
+    {
+        if (Session is null || ReferenceEquals(subscribedTo, Session)) return;
+        if (subscribedTo is not null && onChanged is not null) Dls.Unsubscribe(subscribedTo, onChanged);
+        onChanged = () => _ = InvokeAsync(StateHasChanged);
+        Dls.Subscribe(Session, onChanged);
+        subscribedTo = Session;
+        // the percentage moves without a new stage: looked at again every two seconds while something is going on
+        tick ??= new Timer(_ => { if (Running().Count > 0) _ = InvokeAsync(StateHasChanged); }, null, 2000, 2000);
+    }
+
+    List<DownloadJob> Running() => Session is null || !Dls.Allowed ? [] : Dls.JobsOf(Session).Where(j => !j.Finished).OrderBy(j => j.At).ToList();
+
+    string? Line()
+    {
+        var run = Running();
+        if (run.Count == 0) return null;
+        var pc = System.Text.RegularExpressions.Regex.Match(run[0].Message, @"\d+\s?%").Value.Replace(" ", "");
+        var what = run.Count == 1 ? "Getting " + (run[0].Title.Length > 0 ? run[0].Title : run[0].Label) : $"Getting {run.Count} songs";
+        return pc.Length > 0 ? $"{what} · {pc}" : what;
+    }
+
+    public override void Dispose()
+    {
+        if (subscribedTo is not null && onChanged is not null) Dls.Unsubscribe(subscribedTo, onChanged);
+        tick?.Dispose();
+        base.Dispose();
+    }
+}

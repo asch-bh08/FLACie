@@ -262,7 +262,8 @@ test.describe.serial('the DJ', () => {
     await expect(page.locator('.pl-hero').getByRole('button', { name: /^DJ: / })).toHaveText(/DJ: Auto/);
     await page.screenshot({ path: 'test-results/shots/dj-playlist-chip.png' });
     // clean up so a rerun starts clean
-    await page.getByRole('button', { name: 'Delete' }).click();
+    await page.getByRole('button', { name: 'More for this playlist' }).click();
+    await page.getByRole('menuitem', { name: 'Delete' }).click();
     await page.getByRole('button', { name: /^Delete "/ }).click();
     await page.waitForURL(/\/playlists$/);
   });

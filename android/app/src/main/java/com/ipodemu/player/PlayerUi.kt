@@ -859,9 +859,9 @@ private fun LibraryScreen(kind: LibKind, nav: PlayerNav, snap: PlayerSnap) {
             LibKind.ARTISTS -> GroupList(lib.artists(), nav, circle = true) { Screen.Detail(DetailKind.ARTIST, it.name) }
             LibKind.GENRES -> GroupList(lib.genres(), nav, circle = false) { Screen.Detail(DetailKind.GENRE, it.name) }
             LibKind.PLAYLISTS -> PlaylistsList(nav)
-            LibKind.JELLYFIN -> SongList(lib.jellyfinTracks.sortedBy { sortKey(it.title) }, nav, snap, showArt = true, sections = 1)
-            LibKind.PLEX -> SongList(lib.plexTracks.sortedBy { sortKey(it.title) }, nav, snap, showArt = true, sections = 1)
-            LibKind.NAS -> SongList(lib.nasOnlyTracks().sortedBy { sortKey(it.title) }, nav, snap, showArt = true, sections = 1)
+            LibKind.JELLYFIN -> SongList(remember(LocalLibRev.current) { lib.jellyfinTracks.sortedBy { sortKey(it.title) } }, nav, snap, showArt = true, sections = 1)
+            LibKind.PLEX -> SongList(remember(LocalLibRev.current) { lib.plexTracks.sortedBy { sortKey(it.title) } }, nav, snap, showArt = true, sections = 1)
+            LibKind.NAS -> SongList(remember(LocalLibRev.current) { lib.nasOnlyTracks().sortedBy { sortKey(it.title) } }, nav, snap, showArt = true, sections = 1)
         }
     }
 }
@@ -1161,6 +1161,9 @@ fun EmptyState(text: String) {
 
 // ---- detail pages -------------------------------------------------------------------------------------------------
 
+/** The contents of a [DetailScreen], kept between redraws. */
+private class DetailPage { var filled = false; var title = ""; var subtitle = ""; var art: String? = null; var tracks: List<Track> = emptyList(); var userId: String? = null }
+
 @Composable
 private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
     LocalLibRev.current
@@ -1170,21 +1173,31 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
     ud.rev
     val libRev = LocalLibRev.current
     val by = lib.byPath()
-    var title = ""; var subtitle = ""; var art: String? = null
+    // what the page shows is worked out once per change of the library, the playlists or the downloads, not on every redraw (the page redraws with the
+    // player; an album page searched every album each time)
+    val page = remember(d.kind, d.id, libRev, ud.rev) { DetailPage() }
+    var title by page::title; var subtitle by page::subtitle; var art by page::art
     val mix = if (d.kind == DetailKind.MIX) remember(d.id, libRev) { com.ipodemu.library.Recommender.find(d.id, lib, ud) } else null
-    var tracks: List<Track> = emptyList()
-    var userId: String? = null
-    when (d.kind) {
+    var tracks by page::tracks
+    var userId by page::userId
+    // a hand-made playlist's songs, worked out once per change of the library or the playlists (not on every redraw), with the ones this library hasn't got
+    val userSongs = remember(d.kind, d.id, libRev, ud.rev) {
+        val pl = if (d.kind == DetailKind.USER) ud.playlists.firstOrNull { it.id == d.id } else null
+        if (pl == null) emptyList<Track>() to emptyList<Pair<String, String>>()
+        else ud.visiblePaths(pl.id).mapNotNull { p -> lib.resolve(p, ud.meta[p]) } to
+            (if (lib.loaded) pl.paths.filter { lib.resolve(it, ud.meta[it]) == null }.mapNotNull { ud.meta[it] }.filter { it.first.isNotBlank() } else emptyList())
+    }
+    if (!page.filled) { page.filled = true; when (d.kind) {
         DetailKind.ALBUM -> lib.albums().firstOrNull { it.tracks.firstOrNull()?.albumKey == d.id }?.let { title = it.name; tracks = it.tracks; art = it.artKey; subtitle = it.tracks.firstOrNull()?.artist ?: "" }
         DetailKind.ARTIST -> lib.artists().firstOrNull { it.name == d.id }?.let { title = it.name; tracks = it.tracks; art = it.artKey }
         DetailKind.GENRE -> lib.genres().firstOrNull { it.name == d.id }?.let { title = it.name; tracks = it.tracks; art = it.artKey }
         DetailKind.FOLDER -> lib.playlists().firstOrNull { it.name == d.id }?.let { title = it.name; tracks = it.tracks; art = it.artKey }
-        DetailKind.USER -> ud.playlists.firstOrNull { it.id == d.id }?.let { title = it.name; tracks = ud.visiblePaths(it.id).mapNotNull { p -> lib.resolve(p, ud.meta[p]) }; art = tracks.firstNotNullOfOrNull { t -> t.artKey }; userId = it.id }
+        DetailKind.USER -> ud.playlists.firstOrNull { it.id == d.id }?.let { title = it.name; tracks = userSongs.first; art = tracks.firstNotNullOfOrNull { t -> t.artKey }; userId = it.id }
         DetailKind.FAVORITES -> { title = "Favourites"; tracks = ud.favorites.mapNotNull { lib.resolve(it, ud.meta[it]) }.distinctBy { it.path }; art = tracks.firstNotNullOfOrNull { it.artKey } }
         DetailKind.RECENT -> { title = "Recently Played"; tracks = ud.recents.mapNotNull { by[it] ?: lib.resolve(it, ud.meta[it]) }; art = tracks.firstNotNullOfOrNull { it.artKey } }
         DetailKind.DOWNLOADS -> { title = "Recently Added"; tracks = recentDownloads(app); art = tracks.firstNotNullOfOrNull { it.artKey } }
         DetailKind.MIX -> mix?.let { title = it.title; subtitle = it.subtitle; tracks = it.tracks; art = it.artKey }
-    }
+    } }
     BackdropArt(nav, art)
     // the small mono label over the serif title (design I), saying what kind of page this is
     val kindLabel = when (d.kind) {
@@ -1202,7 +1215,7 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
         onDispose { if (nav.playContext == title) nav.playContext = null; if (nav.playContextId?.first == title) nav.playContextId = null }
     }
     val extra = if (userId != null) listOf(SheetItem("Remove from playlist", Glyph.CLOSE) { }) else emptyList()
-    val missing = if (userId != null && app.library.loaded) ud.playlists.firstOrNull { it.id == userId }?.paths.orEmpty().filter { lib.resolve(it, ud.meta[it]) == null }.mapNotNull { ud.meta[it] }.filter { it.first.isNotBlank() } else emptyList()
+    val missing = if (userId != null) userSongs.second else emptyList()
     Column(Modifier.fillMaxSize()) {
         val heroPage = LocalStyle.current.modern && (d.kind == DetailKind.ALBUM || d.kind == DetailKind.ARTIST || d.kind == DetailKind.USER || d.kind == DetailKind.FOLDER)
         TopBar(if (heroPage) "" else title.ifEmpty { "Playlist" }, nav, showBack = true)
@@ -1292,17 +1305,20 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
         }
     }
     if (playlistId != null) {
-        // editing: the playlist's own actions (songs have Move and Remove in their menu)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            DesignChip("Share", false, { shareSongs(app, "playlist", title, tracks) })
-            DesignChip("Rename", false, { nav.nameDialogRename = title; nav.nameDialog = { n -> app.userData.rename(playlistId, n); app.ui.say("Renamed to \"$n\"") } })
-            DesignChip("Remove dupes", false, {
-                val ud = app.userData
-                val n = ud.removeDuplicates(playlistId) { p -> app.library.resolve(p, ud.meta[p])?.matchKey ?: p }
-                app.ui.say(if (n == 0) "No duplicates in this playlist" else "Removed $n duplicate${if (n == 1) "" else "s"}", warn = n == 0)
-            })
-            DesignChip("Delete", false, { nav.sheet = SheetSpec("Delete this playlist?", null, listOf(SheetItem("Delete", Glyph.CLOSE) { app.userData.deletePlaylist(playlistId); nav.pop() }, SheetItem("Cancel", Glyph.BACK) {})) })
-        }
+        // the playlist's own actions behind one More button (songs have Move and Remove in their menu): Rename used to sit where a second tap on the
+        // playlist landed while its page opened, and renamed it by accident (owner, 1 Nov)
+        DesignChip("More", false, {
+            nav.sheet = SheetSpec(title, "Playlist", listOf(
+                SheetItem("Share", Glyph.LIST) { shareSongs(app, "playlist", title, tracks) },
+                SheetItem("Rename", Glyph.NOTE) { nav.nameDialogRename = title; nav.nameDialog = { n -> app.userData.rename(playlistId, n); app.ui.say("Renamed to \"$n\"") } },
+                SheetItem("Remove duplicates", Glyph.CHECK) {
+                    val ud = app.userData
+                    val n = ud.removeDuplicates(playlistId) { p -> app.library.resolve(p, ud.meta[p])?.matchKey ?: p }
+                    app.ui.say(if (n == 0) "No duplicates in this playlist" else "Removed $n duplicate${if (n == 1) "" else "s"}", warn = n == 0)
+                },
+                SheetItem("Delete playlist", Glyph.CLOSE) { nav.sheet = SheetSpec("Delete this playlist?", null, listOf(SheetItem("Delete", Glyph.CLOSE) { app.userData.deletePlaylist(playlistId); nav.pop() }, SheetItem("Cancel", Glyph.BACK) {})) },
+            ))
+        }, icon = Glyph.MORE)
         if (djKey != null && app.player.djAvailable) PlaylistDjChip(djKey)
     }
 }

@@ -552,7 +552,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     {
         await LoadSpeedMemoryAsync();
         var saved = speedMem.Get(SpeedPolicy.KeyOf(t.Path));
-        await ApplySpeedAsync(saved ?? (SpeedPolicy.IsSpoken(t.Genre) ? spokenSpeed : 1));
+        await ApplySpeedAsync(SpeedPolicy.StartSpeed(saved, t.Genre, t.DurationMs, spokenSpeed));
     }
 
     async Task ApplySpeedAsync(double s)
@@ -569,7 +569,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         if (Current is { } t)
         {
             var spoken = SpeedPolicy.IsSpoken(t.Genre);
-            speedMem.Set(SpeedPolicy.KeyOf(t.Path), spoken || Speed != 1 ? Speed : null);
+            speedMem.Set(SpeedPolicy.KeyOf(t.Path), SpeedPolicy.Remembers(t.Genre, t.DurationMs) && (spoken || Speed != 1) ? Speed : null);
             if (spoken) spokenSpeed = Speed;
             try
             {
@@ -851,7 +851,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     }
 
     /// <summary>How long a song reached by a skip waits for a line asked for only then: later than this, the listener is into the song and the DJ keeps quiet.</summary>
-    public static readonly TimeSpan DjSkipWait = TimeSpan.FromSeconds(3);
+    public static readonly TimeSpan DjSkipWait = TimeSpan.FromSeconds(5);   // 3 s was too short on a weak signal (owner, 1 Nov), as on Android
     int djGen;                  // goes up with every song start, pause and seek: a line asked for before it is never said after it
 
     /// <summary>A song started: the DJ speaks before it if [cue] (taken by <see cref="DjTake"/>) is about this very song and the player got here by itself, or by

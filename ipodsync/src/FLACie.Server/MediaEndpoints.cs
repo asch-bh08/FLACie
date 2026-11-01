@@ -158,7 +158,7 @@ public static class MediaEndpoints
             ? Path.Combine(waveDir, (t.JellyfinId is { Length: 32 } id && id.All(Uri.IsHexDigit) ? id : Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(t.Path)))) + ".bin")
             : JellyfinItem(p) is { } item ? Path.Combine(waveDir, item + ".bin") : null;
         // the song a shape is asked for, from the web's path or the app's Jellyfin address
-        Track? WaveTrack(UserSession s, string p) => s.FindByPath(p) ?? (JellyfinItem(p) is { } item ? s.Library.Songs.FirstOrDefault(x => string.Equals(x.JellyfinId, item, StringComparison.OrdinalIgnoreCase)) : null);
+        Track? WaveTrack(UserSession s, string p) => s.FindByPath(p) ?? (JellyfinItem(p) is { } item ? s.Library.ByJellyfinId(item) : null);
         // known=1: only a shape already worked out (the page looking ahead to the next songs): never read a whole file for it, or a burst of skips read dozens
         app.MapGet("/api/wave", async (HttpContext ctx, string p, string? known, SessionStore store, JellyfinClient jf, IHttpClientFactory hf) =>
         {
@@ -234,8 +234,10 @@ public static class MediaEndpoints
             }
             var isJf = key.StartsWith("jf");
             var tagged = isJf && key.Contains('~');
-            var full = isJf && ctx.Request.Query["s"] == "full";
-            var variant = !isJf ? CoverStore.Other : full ? CoverStore.Full : CoverStore.Row;
+            var external = Art.ExternalUrl(key);
+            // a catalogue cover comes in two sizes too: 250 px for rows and cards, the big one only for the player
+            var full = (isJf || external is not null) && ctx.Request.Query["s"] == "full";
+            var variant = !isJf && external is null ? CoverStore.Other : full ? CoverStore.Full : CoverStore.Row;
             var flightKey = key + "|" + variant;
             // tag-keyed and picture-URL-keyed covers never change; any other is kept a day by the browser (then a 304 from the saved copy). A missing one is remembered only briefly.
             var Kept = tagged || Art.ExternalUrl(key) is not null ? "private, max-age=31536000, immutable" : "private, max-age=86400, stale-while-revalidate=604800";
@@ -269,9 +271,9 @@ public static class MediaEndpoints
                         if (res.IsSuccessStatusCode) { bytes = await res.Content.ReadAsByteArrayAsync(ct); type = res.Content.Headers.ContentType?.MediaType ?? "image/jpeg"; }
                         else transient = (int)res.StatusCode >= 500 || res.StatusCode == System.Net.HttpStatusCode.TooManyRequests;   // Jellyfin is struggling: not "this cover does not exist"
                     }
-                    else if (Art.ExternalUrl(key) is { } external)
+                    else if (external is not null)
                     {
-                        using var res = await http.GetAsync(external, ct);
+                        using var res = await http.GetAsync(full ? external : Art.SmallExternal(external), ct);
                         if (res.IsSuccessStatusCode) bytes = await res.Content.ReadAsByteArrayAsync(ct);
                     }
                     else if (Art.ParseLookupKey(key) is var (la, lb, lt))

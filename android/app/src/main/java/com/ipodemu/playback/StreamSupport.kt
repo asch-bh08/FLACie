@@ -114,8 +114,8 @@ class Prefetcher(private val ctx: Context, private val newSource: () -> CacheDat
     @Volatile private var writer: CacheWriter? = null
     @Volatile var lastNote: String = ""; private set
 
-    /** Fetches [uris] in order (skipping what is already there). Replaces any earlier request. */
-    fun fetch(uris: List<Uri>) {
+    /** Fetches [uris] in order (skipping what is already there), each whole, or only its first [bytes] when given. Replaces any earlier request. */
+    fun fetch(uris: List<Uri>, bytes: Long = C.LENGTH_UNSET.toLong()) {
         cancelled = true; writer?.cancel(); job?.cancel(true)
         if (uris.isEmpty()) return
         cancelled = false
@@ -124,7 +124,7 @@ class Prefetcher(private val ctx: Context, private val newSource: () -> CacheDat
             for (u in mine) {
                 if (cancelled || Thread.currentThread().isInterrupted) return@submit
                 try {
-                    val w = CacheWriter(newSource(), DataSpec(u), null, null)
+                    val w = CacheWriter(newSource(), if (bytes > 0) DataSpec(u, 0, bytes) else DataSpec(u), null, null)
                     writer = w
                     if (cancelled) return@submit
                     lastNote = "caching ${u.lastPathSegment}"

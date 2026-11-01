@@ -159,4 +159,23 @@ class SleepAndSpeedTest {
         m.set("a", 1.5); m.set("b", 1.5); m.set("a", 2.0); m.set("c", 1.5)
         assertEquals(2.0, m.get("a")!!, 0.0); assertNull(m.get("b"))
     }
+
+    // a song started at 1.75x for no reason (owner, 1 Nov): the notification's Speed button had been tapped by accident and the song kept that speed
+    @Test fun musicAlwaysStartsAtNormalSpeed() {
+        assertEquals(1f, SpeedPolicy.startSpeed(1.75f, "Pop", 200_000, 1.5f), 0f)
+        assertEquals(1f, SpeedPolicy.startSpeed(null, "Pop", 200_000, 1.5f), 0f)
+    }
+
+    @Test fun spokenAndLongItemsKeepTheirSpeed() {
+        assertEquals(1.75f, SpeedPolicy.startSpeed(1.75f, "Audiobook", 200_000, 1.5f), 0f)
+        assertEquals(1.5f, SpeedPolicy.startSpeed(null, "Podcast", 200_000, 1.5f), 0f)
+        assertEquals(1.25f, SpeedPolicy.startSpeed(1.25f, "", 40 * 60_000L, 1.5f), 0f)
+        assertEquals(1f, SpeedPolicy.startSpeed(null, "", 40 * 60_000L, 1.5f), 0f)
+    }
+
+    @Test fun theSpeedButtonIsOnlyOfferedForSpokenOrLongItems() {
+        assertFalse(SpeedPolicy.speedButton("Pop", 200_000, 1f))
+        assertTrue("while a song is fast, the way back is there", SpeedPolicy.speedButton("Pop", 200_000, 1.25f))
+        assertTrue(SpeedPolicy.speedButton("Audiobook", 200_000, 1f))
+    }
 }

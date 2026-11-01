@@ -266,7 +266,10 @@ class PlaybackService : MediaLibraryService() {
         val last = if (app.player.carControllers > 0 && app.player.djAvailable) {
             val on = app.player.djOn
             CommandButton.Builder().setDisplayName(if (on) "DJ on" else "DJ off").setIconResId(if (on) R.drawable.ic_dj else R.drawable.ic_dj_off).setSessionCommand(djCommand).build()
-        } else CommandButton.Builder().setDisplayName("Speed " + SpeedPolicy.label(speed)).setIconResId(R.drawable.ic_speed).setSessionCommand(speedCommand).build()
+        } else app.player.current?.takeIf { SpeedPolicy.speedButton(it.genre, it.durationMs, speed) }?.let {
+            // only for audiobooks, podcasts and long items (or to get back to 1x): a stray tap on it in a pocket left songs at 1.75x (owner, 1 Nov)
+            CommandButton.Builder().setDisplayName("Speed " + SpeedPolicy.label(speed)).setIconResId(R.drawable.ic_speed).setSessionCommand(speedCommand).build()
+        }
         // the car's mic comes first, so it is one of the buttons the car shows beside play (the rest go under its "more" button)
         val talk = if (app.player.carControllers > 0 && app.player.djAvailable) {
             val m = carMic

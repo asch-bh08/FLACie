@@ -40,6 +40,21 @@ object SpeedPolicy {
 
     fun isLong(durationMs: Long): Boolean = durationMs >= LONG_ITEM_MS
 
+    /** Whether the speed is remembered per item at all: spoken word and long items. Music never is (an accidental tap on the notification's Speed button left
+     *  a song playing at 1.75x every time; owner, 1 Nov). */
+    fun remembers(genre: String, durationMs: Long): Boolean = isSpoken(genre) || isLong(durationMs)
+
+    /** The speed an item starts at: music always 1x; spoken or long, its own remembered speed, else the spoken-word default (spoken), else 1x. */
+    fun startSpeed(saved: Float?, genre: String, durationMs: Long, spokenDefault: Float): Float = when {
+        !remembers(genre, durationMs) -> 1f
+        saved != null -> clamp(saved)
+        isSpoken(genre) -> clamp(spokenDefault)
+        else -> 1f
+    }
+
+    /** The notification's and car's Speed button: only for spoken or long items, or while the speed is not 1x (so there is a way back). */
+    fun speedButton(genre: String, durationMs: Long, speed: Float): Boolean = remembers(genre, durationMs) || Math.abs(speed - 1f) > 0.001f
+
     /** The speed controls (skip 10 back / 30 forward, speed chip first) are shown for spoken or long items, or whenever the speed is not 1x. */
     fun showLongItemControls(genre: String, durationMs: Long, speed: Float): Boolean = isSpoken(genre) || isLong(durationMs) || Math.abs(speed - 1f) > 0.001f
 

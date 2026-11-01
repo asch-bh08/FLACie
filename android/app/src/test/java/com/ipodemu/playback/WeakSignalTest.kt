@@ -89,4 +89,13 @@ class WeakSignalTest {
         assertFalse(PrefetchPlan.streamNeedsLine(loading = true, wantsToPlay = false, networkNearby = true))
         assertFalse("downloaded songs need no line", PrefetchPlan.streamNeedsLine(loading = true, wantsToPlay = true, networkNearby = false))
     }
+
+    // a skip or a tap on the next song starts within a second (owner, 1 Nov): the first seconds of the next two songs are on the phone early, even while
+    // the playing song is still coming in on a weak signal
+    @Test fun theStartsOfTheNextSongsAreFetchedWhileThePlayingOneLoads() {
+        assertEquals(2, PrefetchPlan.heads(dataSaverPinned = false, playerLoading = true, bufferedAheadMs = 20_000))
+        assertEquals("not before the playing song has some in hand", 0, PrefetchPlan.heads(dataSaverPinned = false, playerLoading = true, bufferedAheadMs = 5_000))
+        assertEquals("the whole songs are fetched then", 0, PrefetchPlan.heads(dataSaverPinned = false, playerLoading = false, bufferedAheadMs = 60_000))
+        assertEquals(0, PrefetchPlan.heads(dataSaverPinned = true, playerLoading = true, bufferedAheadMs = 60_000))
+    }
 }

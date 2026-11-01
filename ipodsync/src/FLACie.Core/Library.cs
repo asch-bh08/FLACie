@@ -62,10 +62,14 @@ public sealed class Library
     public Track? Find(string title, string artist) => byMatch.GetValueOrDefault(Matching.MatchKey(title, artist));
 
     /// <summary>A song with this title whose credit is missing or the same artist spelled another way (a file with no artist tag), when the exact match finds nothing.</summary>
+    Dictionary<string, List<Track>>? byNormTitle;
     public Track? FindLoose(string title, string artist)
     {
         var nt = Matching.NormTitle(title); var pa = Matching.PrimaryArtist(artist);
-        return Songs.Where(t => Matching.NormTitle(t.Title) == nt).FirstOrDefault(t =>
+        // the songs grouped by their cleaned title once, not every title cleaned again for each lookup: a playlist with songs not matched by path was slow
+        // to open (owner, 1 Nov; the phone has the same index)
+        byNormTitle ??= Songs.GroupBy(t => Matching.NormTitle(t.Title)).ToDictionary(g => g.Key, g => g.ToList());
+        return (byNormTitle.GetValueOrDefault(nt) ?? []).FirstOrDefault(t =>
         {
             var a = Matching.PrimaryArtist(t.Artist);
             return a.Length == 0 || a is "unknown artist" or "unknown" || (pa.Length > 0 && (a.Contains(pa) || pa.Contains(a)));

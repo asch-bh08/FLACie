@@ -667,7 +667,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private val writer = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "queue-save").also { it.isDaemon = true } }
     private val persistSoon = Runnable { persistNow() }
     private val persistTick = object : Runnable {
-        override fun run() { persistNow(); if (exo.isPlaying) handler.postDelayed(this, 5_000L) }
+        // and, while a song is still coming in, starts fetching the next songs' starts once it has enough in hand (no loading change says so)
+        override fun run() { persistNow(); if (exo.isLoading) schedulePrefetch(); if (exo.isPlaying) handler.postDelayed(this, 5_000L) }
     }
     /** Writes the queue, the current song and the position (in the background). Never writes an empty queue: a cleared player keeps the last state. */
     fun persistNow() {
@@ -959,7 +960,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         applySpeed(s)
         current?.let { t ->
             val spoken = SpeedPolicy.isSpoken(t.genre)
-            speedMem.set(SpeedPolicy.keyOf(t.path), if (spoken || speed != 1f) speed.toDouble() else null)
+            speedMem.set(SpeedPolicy.keyOf(t.path), if (SpeedPolicy.remembers(t.genre, t.durationMs) && (spoken || speed != 1f)) speed.toDouble() else null)
             prefs.speedMemory = speedMem.encode()
             if (spoken) prefs.spokenSpeed = speed
         }
@@ -974,7 +975,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private fun startedItem(t: Track) {
         loud = levelFor(t); applyOutputVolume()
         val saved = speedMem.get(SpeedPolicy.keyOf(t.path))?.toFloat()
-        applySpeed(saved ?: if (SpeedPolicy.isSpoken(t.genre)) prefs.spokenSpeed else 1f)
+        applySpeed(SpeedPolicy.startSpeed(saved, t.genre, t.durationMs, prefs.spokenSpeed))
         if (!quietTransition && exo.currentPosition < 2_000L) {
             val at = SpeedPolicy.resumeAt(placeMem.get(SpeedPolicy.keyOf(t.path))?.toLong(), t.durationMs.takeIf { it > 0 } ?: exo.duration.coerceAtLeast(0L))
             if (at > 0L) selfSeekTo(exo.currentMediaItemIndex, at)
@@ -1266,10 +1267,18 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
      * took half the line from it on a weak signal. Songs on the phone are not fetched: the addresses are the queue's own, and a downloaded song's is
      * its file (by the server address, songs already downloaded were fetched again over mobile data).
      */
+    private var lastPrefetchAsk = ""
     private fun schedulePrefetch() {
         val n = PrefetchPlan.count(dataSaver, netWatch.metered, exo.isLoading)
         val ups = upNext(4).mapNotNull { (i, _) -> exo.getMediaItemAt(i).localConfiguration?.uri?.toString() }
-        prefetcher.fetch(PrefetchPlan.targets(ups, n) { StreamSupport.cacheable(Uri.parse(it)) }.map(Uri::parse))
+        val heads = PrefetchPlan.heads(dataSaver, exo.isLoading, exo.totalBufferedDuration)
+        // the same request again (the tick above asks every 5 s) would cancel the one under way and start it over
+        val ask = "$n|$heads|" + ups.joinToString("|")
+        if (ask == lastPrefetchAsk) return
+        lastPrefetchAsk = ask
+        // while the playing song still loads: just the starts of the next two (a skip then plays at once); once it has stopped: the whole songs
+        if (n == 0 && heads > 0) prefetcher.fetch(PrefetchPlan.targets(ups, heads) { StreamSupport.cacheable(Uri.parse(it)) }.map(Uri::parse), PrefetchPlan.HEAD_BYTES)
+        else prefetcher.fetch(PrefetchPlan.targets(ups, n) { StreamSupport.cacheable(Uri.parse(it)) }.map(Uri::parse))
     }
 
     /** The connection came back: an interrupted stream is restarted at once instead of after its timeout. */

@@ -194,7 +194,7 @@ private fun MicWhyDialog(onContinue: () -> Unit, onDismiss: () -> Unit) {
             verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp),
         ) {
             Txt("Talk to the DJ", size = 20f, weight = androidx.compose.ui.text.font.FontWeight.Bold)
-            Txt("FLACie listens only while the mic is lit, to hear what you ask. Only the words go to FLACie, never the sound.", size = 15f)
+            Txt("FLACie listens only while the mic is lit, to hear what you ask. Your phone's speech recogniser turns it into words, and only the words go to FLACie. Some phones do that on their own servers.", size = 15f)
             androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp), modifier = Modifier.align(Alignment.End)) {
                 GlossPill("Not now", onDismiss)
                 GlossPill("Continue", onContinue, primary = true)

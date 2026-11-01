@@ -257,7 +257,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                         SettingRow("Cover colours in the player", if (ui.dynamicColor) "On" else "Off", toggle = true, desc = "The full-screen player takes its background from the song's cover. Off gives a plain dark background.") { ui.changeDynamic(!ui.dynamicColor) }
                         SettingRow("Compact lists", if (prefs.compactLists) "On" else "Off", toggle = true, desc = "Tighter rows in song lists, so more fit on the screen.") { prefs.compactLists = !prefs.compactLists; ui.refreshFromPrefs() }
                         SettingRow("Format and source badges", if (prefs.showBadges) "On" else "Off", toggle = true, desc = "The small FLAC / MP3 and NAS / Streaming labels next to songs.") { prefs.showBadges = !prefs.showBadges; ui.refreshFromPrefs() }
-                        SettingRow("Animations", if (prefs.motion) "On" else "Off", toggle = true, desc = "Fades, the pulsing download dot and moving highlights. Turn off for a calmer, lighter app.") { prefs.motion = !prefs.motion; ui.refreshFromPrefs() }
+                        SettingRow("Animations", if (prefs.motion) "On" else "Off", toggle = true, desc = "Fades, the pulsing download dot and moving highlights. Turn off for a calmer, lighter app. Always off while the phone's Remove animations is on.") { prefs.motion = !prefs.motion; ui.refreshFromPrefs() }
                         // the phone's own looks: the mode (an explicit chooser, never a one-tap toggle: a stray tap used to flip the whole app into the iPod theme) and Retro
                         SettingRow("Mode", if (ui.ipodTheme) "iPod" else "Modern", chevron = true) {
                             nav.sheet = SheetSpec("Mode", null, listOf(

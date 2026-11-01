@@ -133,6 +133,9 @@ class MainActivity : ComponentActivity() {
     private fun hideSystemBars() = applySystemBars()
 
     override fun onResume() {
+        // the phone's "Remove animations" can be switched while FLACie is in the background: read it each time it comes back
+        val scale = try { android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) } catch (_: Exception) { 1f }
+        if (scale != com.ipodemu.player.Tweaks.systemScale) { com.ipodemu.player.Tweaks.systemScale = scale; app.ui.refreshFromPrefs() }
         idleHandler.removeCallbacks(idleCheck); idleHandler.postDelayed(idleCheck, 1000)
         applyBrightness()
         super.onResume()

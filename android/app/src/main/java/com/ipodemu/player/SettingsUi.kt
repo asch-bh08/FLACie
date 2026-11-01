@@ -93,7 +93,9 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                     }
                 }
             }
-            if (choices != null) Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // the choices wrap onto a second line on a narrow phone rather than run off the edge (a sideways scroll hid "Data saver" at 360 dp)
+            if (choices != null) @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class) androidx.compose.foundation.layout.FlowRow(
+                Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 choices.forEachIndexed { i, c -> DesignChip(c, i == picked, { onPick?.invoke(i); rev++ }) }
             }
         }

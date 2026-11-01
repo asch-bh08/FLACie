@@ -345,6 +345,13 @@ class Prefs(ctx: Context) {
     var autoplayFetch: Boolean
         get() = sp.getBoolean("autoplayFetch", true)
         set(v) = sp.edit().putBoolean("autoplayFetch", v).apply()
+    /**
+     * "Download on this phone when FLACie Web can't" (on by default). FLACie Web does the phone's downloads when it is set up and answers; with this on, the
+     * phone's own download code is the backup for when it isn't or doesn't. Off = no downloads from this phone without FLACie Web ("Downloads need FLACie Web").
+     */
+    var downloadOnPhone: Boolean
+        get() = sp.getBoolean("downloadOnPhone", true)
+        set(v) = sp.edit().putBoolean("downloadOnPhone", v).apply()
     /** Streaming quality: 0 = automatic (full quality, a lower bitrate only when the connection can't keep up), 1 = always full, 2 = always data saver. */
     var streamQuality: Int
         get() = sp.getInt("streamQuality", 0)

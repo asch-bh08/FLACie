@@ -126,6 +126,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                     SetPanel("Playback", "How this phone plays and what comes after the last song.") {
                         SettingRow("Autoplay", if (prefs.autoplay) "On" else "Off", toggle = true, desc = "When the queue ends, carry on with different songs that go with what was playing") { prefs.autoplay = !prefs.autoplay }
                         SettingRow("Fetch ahead", if (prefs.autoplayFetch) "On" else "Off", toggle = true, desc = "Download the next few Autoplay songs you don't have yet, so they are ready when needed") { prefs.autoplayFetch = !prefs.autoplayFetch }
+                        SettingRow("Download on this phone when FLACie Web can't", if (prefs.downloadOnPhone) "On" else "Off", toggle = true, desc = "FLACie Web does your downloads when it is set up and reachable. With this on, this phone downloads the song itself when it isn't") { prefs.downloadOnPhone = !prefs.downloadOnPhone }
                         SettingRow("Offline and storage", if (app.offline.doneCount > 0) "${com.ipodemu.library.offline.OfflineMath.songs(app.offline.doneCount)}, ${com.ipodemu.library.offline.OfflineMath.formatBytes(app.offline.usedBytes)}" else "None", chevron = true) { nav.push(Screen.Offline) }
                         SettingRow("Streaming quality", listOf("Automatic", "Always full", "Data saver")[prefs.streamQuality.coerceIn(0, 2)]) { prefs.streamQuality = (prefs.streamQuality + 1) % 3 }
                         SettingRow("Equalizer", prefs.eq, chevron = true) {

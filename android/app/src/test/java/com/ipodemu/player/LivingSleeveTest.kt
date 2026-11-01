@@ -36,16 +36,35 @@ class LivingSleeveTest {
     }
 
     @Test fun aVividPatchBeatsALargerGreyArea() {
-        // weights follow saturation cubed: a small saturated orange patch outweighs plenty of dull grey-blue
+        // grey-blue this dull counts as no colour at all, so the orange patch is the cover's colour
         val c = SleeveColours.extract(IntArray(24 * 24) { i -> if (i < 60) argb(255, 120, 0) else argb(120, 128, 140) })
         assertTrue("orange wins", r(c.main) > b(c.main) + 60)
     }
 
-    @Test fun nearBlackAndNearWhitePixelsAreIgnoredAndAnEmptyCoverFallsBack() {
+    @Test fun aBlackAndWhiteCoverGetsAPlainNeutralAndOnlyNoPictureFallsBack() {
+        // no colour in the cover: a grey, not FLACie's orange default (which looked like the cover's own colour)
         val c = SleeveColours.extract(IntArray(100) { if (it % 2 == 0) argb(0, 0, 0) else argb(255, 255, 255) })
-        assertFalse(c.fromCover)
-        assertEquals(SleeveColours.DEFAULT, c)
+        assertTrue(c.fromCover)
+        assertTrue("grey", r(c.main) == g(c.main) && g(c.main) == b(c.main))
         assertEquals(SleeveColours.DEFAULT, SleeveColours.extract(IntArray(0)))
+    }
+
+    // a black and green cover once got orange buttons (owner, 1 Nov): dark covers fell back to the orange default
+    @Test fun aBlackAndGreenCoverIsGreenEvenWithAnOrangeSpeck() {
+        val c = SleeveColours.extract(IntArray(24 * 24) { i -> when { i < 8 -> argb(255, 120, 0); i < 400 -> argb(5, 5, 5); else -> argb(40, 150, 70) } })
+        assertTrue(c.fromCover)
+        assertTrue("green leads", g(c.main) > r(c.main) + 40 && g(c.main) > b(c.main) + 20)
+    }
+
+    @Test fun aVeryDarkGreenCoverIsStillGreen() {
+        val c = SleeveColours.extract(IntArray(24 * 24) { i -> if (i < 240) argb(2, 2, 2) else argb(8, 42, 20) })
+        assertTrue(c.fromCover)
+        assertTrue("green leads", g(c.main) > r(c.main) + 40 && g(c.main) > b(c.main) + 20)
+    }
+
+    @Test fun theColourMostOfTheCoverIsBeatsABrighterCorner() {
+        val c = SleeveColours.extract(IntArray(24 * 24) { i -> if (i < 20) argb(255, 230, 0) else argb(50, 80, 160) })
+        assertTrue("blue leads", b(c.main) > r(c.main) + 40 && b(c.main) > g(c.main))
     }
 
     @Test fun oneHueOnlyUsesItForBothFields() {

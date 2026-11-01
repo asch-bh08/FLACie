@@ -954,21 +954,42 @@ window.flacie = (() => {
             try {
                 const c = document.createElement('canvas'); c.width = c.height = 24;
                 const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0, 24, 24);
-                const d = g.getImageData(0, 0, 24, 24).data, bins = new Map();
-                for (let i = 0; i < d.length; i += 4) {
-                    const [h, s, l] = flacie.hsl(d[i], d[i + 1], d[i + 2]);
-                    if (l < .12 || l > .92) continue;
-                    const k = Math.round(h / 30) % 12, w = .04 + s * s * s * 4, b = bins.get(k) ?? { w: 0, h: 0, s: 0, n: 0 };
-                    b.w += w; b.h += h; b.s += s; b.n++; bins.set(k, b);
-                }
-                const top = [...bins.values()].sort((x, y) => y.w - x.w);
-                if (!top.length) { fallback(); return; }
-                const col = (b, l, smax = .85) => { const [r, gg, bb] = flacie.rgbOf(b.h / b.n / 360, Math.min(smax, Math.max(.35, b.s / b.n)), l); return `rgb(${r}, ${gg}, ${bb})`; };
-                const two = top[1] ?? top[0];
-                set(col(top[0], .66), col(two, .32), 'cover', col(two, .16, .5), col(two, .26, .45), col(two, .92, .4));
+                const c2 = flacie.coverColours(g.getImageData(0, 0, 24, 24).data);
+                const col = (b, l, smax = .85) => { const [r, gg, bb] = flacie.rgbOf(b.h / 360, b.s ? Math.min(smax, b.s) : 0, l); return `rgb(${r}, ${gg}, ${bb})`; };
+                const [one, two] = c2;
+                set(col(one, .66), col(two, .32), 'cover', col(two, .16, .5), col(two, .26, .45), col(two, .92, .4));
             } catch { fallback(); }
         };
         img.src = url;
+    },
+    // The cover's main colour and a second one, as [{ h, s }, { h, s }] (s 0: a plain neutral). The colour most of the cover is wins, helped
+    // by how strong it is, so a small bright speck doesn't beat it (a black and green cover once got orange buttons). Hues are averaged round
+    // the colour wheel (reds either side of 0° used to average into cyan). Deep colours count too: a very dark green cover used to find
+    // nothing and keep the last song's colour. A cover with no real colour (black and white, greys) gets a neutral, not an invented hue.
+    coverColours(d) {
+        const BINS = 24, bins = Array.from({ length: BINS }, () => ({ w: 0, x: 0, y: 0, s: 0, n: 0 }));
+        let all = 0, coloured = 0;
+        for (let i = 0; i < d.length; i += 4) {
+            if (d[i + 3] < 128) continue;
+            all++;
+            const [h, s, l] = flacie.hsl(d[i], d[i + 1], d[i + 2]);
+            // near black, near white and greys have no colour of their own (s of a very dark pixel is unreliable, so its chroma is checked too)
+            const chroma = (Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2])) / 255;
+            if (l < .03 || l > .96 || s < .15 || chroma < .07) continue;
+            coloured++;
+            const w = (.15 + s) * (.15 + s) * (.5 + .5 * Math.min(1, l / .3)), b = bins[Math.floor(h / (360 / BINS)) % BINS], a = h * Math.PI / 180;
+            b.w += w; b.x += Math.cos(a) * w; b.y += Math.sin(a) * w; b.s += s; b.n++;
+        }
+        // a colour family: a bin with its two neighbours (a hue split across a bin edge stays one colour)
+        const family = (k) => [k - 1, k, k + 1].map((j) => bins[(j + BINS) % BINS]).reduce((o, b) => ({ w: o.w + b.w, x: o.x + b.x, y: o.y + b.y, s: o.s + b.s, n: o.n + b.n }), { w: 0, x: 0, y: 0, s: 0, n: 0 });
+        const hueOf = (f) => (Math.atan2(f.y, f.x) * 180 / Math.PI + 360) % 360;
+        const neutral = { h: 0, s: 0 };
+        if (!all || coloured / all < .04) return [neutral, neutral];
+        const fams = bins.map((_, k) => family(k)).map((f) => ({ h: hueOf(f), s: Math.max(.3, Math.min(.85, f.s / Math.max(1, f.n))), w: f.w })).sort((p, q) => q.w - p.w);
+        const one = fams[0];
+        const far = (p) => Math.min(Math.abs(p.h - one.h), 360 - Math.abs(p.h - one.h)) >= 45;
+        const next = fams.find((p) => p.w > one.w * .15 && far(p));
+        return [{ h: one.h, s: one.s }, next ? { h: next.h, s: next.s } : { h: one.h, s: one.s }];
     },
     hsl(r, g, b) {
         r /= 255; g /= 255; b /= 255;

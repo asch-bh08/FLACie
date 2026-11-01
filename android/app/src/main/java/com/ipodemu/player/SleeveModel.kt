@@ -3,9 +3,12 @@ package com.ipodemu.player
 import java.io.File
 import java.security.MessageDigest
 import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 /*
@@ -30,34 +33,52 @@ data class SleeveColours(
 
         /**
          * Reads the colours from the cover's pixels (ARGB ints; the caller shrinks the picture to about 24 by 24 first, so this costs nothing).
-         * Pixels are sorted into twelve hue bins of 30 degrees, each pixel counting by its saturation cubed (a vivid patch beats a big dull area);
-         * near-black and near-white pixels are ignored. The strongest bin gives [main], the next one [second] (the same bin when the cover has one hue).
+         * The colour most of the cover is wins, helped by how strong it is, so a small bright speck doesn't beat it; deep colours count too
+         * (a black and green cover once got the orange default: owner, 1 Nov). Hues are averaged round the colour wheel, in families of a
+         * 15-degree bin and its neighbours. A cover with no real colour (black and white, greys) gets a plain grey; only no picture at all
+         * gives [DEFAULT]. The strongest family gives [main], the next one at least 45 degrees away gives [second] (else the same hue).
+         * The same rules as flacie.js coverColours.
          */
         fun extract(pixels: IntArray): SleeveColours {
-            val w = DoubleArray(12); val hue = DoubleArray(12); val sat = DoubleArray(12); val n = IntArray(12)
+            val bins = 24
+            val w = DoubleArray(bins); val x = DoubleArray(bins); val y = DoubleArray(bins); val sat = DoubleArray(bins); val n = IntArray(bins)
+            var all = 0; var coloured = 0
             for (p in pixels) {
+                if ((p ushr 24) < 128) continue
+                all++
                 val r = ((p shr 16) and 255) / 255.0; val g = ((p shr 8) and 255) / 255.0; val b = (p and 255) / 255.0
                 val mx = max(r, max(g, b)); val mn = min(r, min(g, b)); val l = (mx + mn) / 2; val d = mx - mn
                 val s = if (d == 0.0) 0.0 else d / (1 - abs(2 * l - 1))
-                val h = if (d == 0.0) 0.0 else 60 * when (mx) { r -> ((g - b) / d + 6) % 6; g -> (b - r) / d + 2; else -> (r - g) / d + 4 }
-                if (l < .12 || l > .92) continue
-                val k = (Math.round(h / 30).toInt()) % 12
-                w[k] += .04 + s * s * s * 4
-                // the hue is kept as its distance from the bin's centre, so reds either side of 0 degrees average to red (not to cyan)
-                var off = h - k * 30.0; if (off > 180) off -= 360 else if (off < -180) off += 360
-                hue[k] += off; sat[k] += s; n[k]++
+                // near black, near white and greys have no colour of their own (a very dark pixel's saturation is unreliable, so its chroma is checked too)
+                if (l < .03 || l > .96 || s < .15 || d < .07) continue
+                coloured++
+                val h = 60 * when (mx) { r -> ((g - b) / d + 6) % 6; g -> (b - r) / d + 2; else -> (r - g) / d + 4 }
+                val k = (h / (360.0 / bins)).toInt() % bins
+                val wt = (.15 + s) * (.15 + s) * (.5 + .5 * min(1.0, l / .3)); val a = Math.toRadians(h)
+                w[k] += wt; x[k] += cos(a) * wt; y[k] += sin(a) * wt; sat[k] += s; n[k]++
             }
-            val top = (0 until 12).filter { n[it] > 0 }.sortedByDescending { w[it] }   // a stable sort: equal bins keep hue order
-            if (top.isEmpty()) return DEFAULT
-            fun col(k: Int, l: Double, smax: Double = .85): Int {
-                val h = ((k * 30.0 + hue[k] / n[k]) % 360 + 360) % 360
-                val s = min(smax, max(.35, sat[k] / n[k]))
-                val a = s * min(l, 1 - l)
+            if (all == 0) return DEFAULT
+            if (coloured < all * .04) return of(0.0, 0.0, 0.0, 0.0)
+            // a colour family: a bin and its two neighbours, so a hue split across a bin edge stays one colour
+            class Fam(val h: Double, val s: Double, val w: Double)
+            val fams = (0 until bins).map { k ->
+                var fw = 0.0; var fx = 0.0; var fy = 0.0; var fs = 0.0; var fn = 0
+                for (j in k - 1..k + 1) { val i = (j + bins) % bins; fw += w[i]; fx += x[i]; fy += y[i]; fs += sat[i]; fn += n[i] }
+                Fam((Math.toDegrees(atan2(fy, fx)) + 360) % 360, (fs / max(1, fn)).coerceIn(.3, .85), fw)
+            }.sortedByDescending { it.w }
+            val one = fams[0]
+            val two = fams.firstOrNull { f -> f.w > one.w * .15 && min(abs(f.h - one.h), 360 - abs(f.h - one.h)) >= 45 } ?: one
+            return of(one.h, one.s, two.h, two.s)
+        }
+
+        // the two colours at the lightnesses the screen uses (s 0: a grey)
+        private fun of(h1: Double, s1: Double, h2: Double, s2: Double): SleeveColours {
+            fun col(h: Double, s0: Double, l: Double, smax: Double = .85): Int {
+                val s = min(smax, s0); val a = s * min(l, 1 - l)
                 fun f(m: Int): Int { val kk = (m + h / 30) % 12; return (255 * (l - a * max(-1.0, min(min(kk - 3, 9 - kk), 1.0)))).roundToInt() }
                 return argb(f(0), f(8), f(4))
             }
-            val two = top.getOrElse(1) { top[0] }
-            return SleeveColours(col(top[0], .66), col(two, .32), true, col(two, .16, .5), col(two, .26, .45), col(two, .92, .4))
+            return SleeveColours(col(h1, s1, .66), col(h2, s2, .32), true, col(h2, s2, .16, .5), col(h2, s2, .26, .45), col(h2, s2, .92, .4))
         }
     }
 }

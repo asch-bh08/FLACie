@@ -138,10 +138,12 @@ class SlskdClient {
             // asked for explicitly: only Hi-Res files, the best quality first (24-bit before 16, higher sample rate first), then the better peer
             return matched.filter { it.hiRes }.sortedWith(compareByDescending<FileResult> { (it.bitDepth ?: 0) * 1_000_000L + (it.sampleRate ?: 0) }.thenByDescending { peerScore(it) }).distinctBy { it.username }
         }
-        // lossless whenever anyone has it, however slow; MP3/AAC (320 kbps) only when no peer has a lossless copy at all.
-        // Hi-Res files are never taken here (they are several times the size): they only come from the explicit Hi-Res download.
-        return matched.filter { it.lossless && !it.hiRes }.ifEmpty { matched.filter { !it.lossless && (it.bitRate ?: 0) >= 320 } }
-            .sortedByDescending { peerScore(it) }
+        // lossless and 320 kbps copies in one list: a peer that can send now (a free upload slot, nobody queued) first, then lossless before lossy,
+        // then the faster peer. Lossless used to be taken however slow, and a family download sat on "Waiting for a peer..." behind a long queue
+        // while a 320 copy was ready elsewhere (owner, 1 Nov). Hi-Res files are never taken here (they are several times the size): they only
+        // come from the explicit Hi-Res download. The same rules as the server's SlskdClient.RankSong.
+        return matched.filter { (it.lossless && !it.hiRes) || (!it.lossless && (it.bitRate ?: 0) >= 320) }
+            .sortedWith(compareByDescending<FileResult> { it.hasFreeUploadSlot && it.queueLength == 0 }.thenByDescending { it.lossless }.thenByDescending { peerScore(it) })
             .distinctBy { it.username }
     }
 

@@ -154,11 +154,13 @@ public sealed class SlskdClient(HttpClient http, string url, string apiKey)
             // asked for explicitly: only Hi-Res files, the best quality first (24-bit before 16, higher sample rate first), then the better peer
             return matched.Where(f => f.HiRes).OrderByDescending(f => (f.BitDepth ?? 0) * 1_000_000L + (f.SampleRate ?? 0)).ThenByDescending(PeerScore).DistinctBy(f => f.Username).ToList();
         }
-        // lossless whenever anyone has it, however slow; MP3/AAC (320 kbps) only when no peer has a lossless copy at all.
-        // Hi-Res files are never taken here (they are several times the size): they only come from the explicit Hi-Res download.
-        var pool = matched.Where(f => f.Lossless && !f.HiRes).ToList();
-        if (pool.Count == 0) pool = matched.Where(f => !f.Lossless && (f.BitRate ?? 0) >= 320).ToList();
-        return pool.OrderByDescending(PeerScore).DistinctBy(f => f.Username).ToList();
+        // lossless and 320 kbps copies in one list: a peer that can send now (a free upload slot, nobody queued) first, then lossless before lossy,
+        // then the faster peer. Lossless used to be taken however slow, and a family download sat on "Waiting for a peer..." behind a long queue
+        // while a 320 copy was ready elsewhere (owner, 1 Nov). Hi-Res files are never taken here (they are several times the size): they only
+        // come from the explicit Hi-Res download.
+        return matched.Where(f => (f.Lossless && !f.HiRes) || (!f.Lossless && (f.BitRate ?? 0) >= 320))
+            .OrderByDescending(f => f.HasFreeUploadSlot && f.QueueLength == 0).ThenByDescending(f => f.Lossless).ThenByDescending(PeerScore)
+            .DistinctBy(f => f.Username).ToList();
     }
 
     /// <summary>An album as whole folders from single peers: each candidate folder with, per tracklist entry, its best file.</summary>
@@ -223,4 +225,21 @@ public sealed class SlskdClient(HttpClient http, string url, string apiKey)
 
     /// <summary>Stops a transfer and clears it from slskd's list (a stalled peer is dropped for the next one).</summary>
     public async Task CancelAsync(string username, string id) { try { await Send(HttpMethod.Delete, $"/api/v0/transfers/downloads/{Enc(username)}/{Enc(id)}?remove=true"); } catch { } }
+}
+
+/// <summary>
+/// How long each peer gets while one song downloads from Soulseek (the same rules as the phone's PeerRace). Up to three peers are tried at once
+/// until one is sending. With someone else left to try, a silent peer is swapped after 20s. The last peer gets a minute to start sending and 45s
+/// if it stalls, then the download moves on to the next source; it used to keep its chance for 8 minutes of "Waiting for a peer...". A peer that
+/// is sending keeps going however long the song takes.
+/// </summary>
+public static class PeerRace
+{
+    public const int MaxAtOnce = 3;
+
+    public static bool GiveUp(long bytes, long sinceStartMs, long sinceMovedMs, bool othersToTry) =>
+        othersToTry ? sinceMovedMs > 20_000 : bytes == 0 ? sinceStartMs > 60_000 : sinceMovedMs > 45_000;
+
+    public static bool StartAnother(int active, bool anySending, int waiting) =>
+        waiting > 0 && (active == 0 || (!anySending && active < MaxAtOnce));
 }

@@ -267,7 +267,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
                 try { slskd.download(url, key, f); active.add(Active(f, System.currentTimeMillis())); return } catch (_: Exception) {}
             }
         }
-        startNext()
+        while (PeerRace.startAnother(active.size, false, queue.size)) { val before = active.size; startNext(); if (active.size == before) break }
         val deadline = System.currentTimeMillis() + 8 * 60_000
         while (active.isNotEmpty() && System.currentTimeMillis() < deadline) {
             delay(1000)
@@ -279,12 +279,11 @@ class DownloadCoordinator(private val prefs: Prefs) {
                     t?.done == true -> { active.filter { it !== a }.forEach { drop(it) }; return a.f }
                     t?.done == false -> drop(a)
                     t != null && t.bytes > a.bytes -> { a.bytes = t.bytes; a.moved = now }
-                    // a silent peer is swapped only when there is someone else to try; the last one keeps its chance
-                    now - a.moved > 20_000 && (queue.isNotEmpty() || active.size > 1) -> drop(a)
+                    PeerRace.giveUp(a.bytes, now - a.started, now - a.moved, queue.isNotEmpty() || active.size > 1) -> drop(a)
                 }
             }
-            // race a second peer while the first is still queued remotely or silent; replace a dropped one
-            if (queue.isNotEmpty() && (active.isEmpty() || (active.size == 1 && active[0].bytes == 0L && now - active[0].started > 6_000))) startNext()
+            // more peers while none is sending yet, and a dropped one replaced
+            while (PeerRace.startAnother(active.size, active.any { it.bytes > 0 }, queue.size)) { val before = active.size; startNext(); if (active.size == before) break }
             active.maxByOrNull { it.bytes }?.let { a ->
                 progress(if (a.bytes == 0L) "Waiting for a peer..." else "Downloading ${(a.bytes * 100 / a.f.size.coerceAtLeast(1)).coerceAtMost(99)}%...")
             }

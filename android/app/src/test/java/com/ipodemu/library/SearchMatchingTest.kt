@@ -25,6 +25,17 @@ class SearchMatchingTest {
     private fun f(name: String, mb: Long, len: Int, depth: Int? = null, rate: Int? = null, user: String = name) =
         SlskdClient.FileResult(user, "music/Kendrick Lamar/$name", mb * 1_048_576, true, null, 1_000_000, 0, len, depth, rate)
 
+    // a family download once hung on "Waiting for a peer...": lossless was taken however slow (owner, 1 Nov). A peer that can send now comes first.
+    private fun peer(user: String, ext: String, slot: Boolean = true, queue: Int = 0) =
+        SlskdClient.FileResult(user, "music/Artist/Artist - Song.$ext", if (ext == "flac") 30_000_000 else 8_000_000, slot, if (ext == "flac") null else 320, 2_000_000, queue, 200)
+
+    @Test fun aReadyCopyComesBeforeALosslessOneStuckInAQueue() {
+        val c = SlskdClient()
+        assertEquals(listOf("mp3-now", "flac-queued"), c.rankSong(listOf(peer("flac-queued", "flac", slot = false, queue = 40), peer("mp3-now", "mp3")), "Artist", "Song", 200).map { it.username })
+        // between peers that are equally ready, lossless still wins
+        assertEquals(listOf("flac-now", "mp3-now"), c.rankSong(listOf(peer("mp3-now", "mp3"), peer("flac-now", "flac")), "Artist", "Song", 200).map { it.username })
+    }
+
     @Test fun hiResDetectionAndRanking() {
         val cd = f("Kendrick Lamar - All The Stars.flac", 25, 232, 16, 44100)
         val hi = f("Kendrick Lamar - All The Stars (24-96).flac", 90, 232, 24, 96000)

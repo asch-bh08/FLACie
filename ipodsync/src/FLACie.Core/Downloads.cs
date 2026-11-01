@@ -330,8 +330,8 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         return tracks;
     }
 
-    /// <summary>Downloads one song from the best candidate: starts the top peer, adds the next if it hasn't sent anything after 6s, drops a
-    /// peer that stalls (nothing for 20s) or fails, and cancels the rest once one finishes. Null if none delivered.</summary>
+    /// <summary>Downloads one song from the best candidates: up to three peers at once until one is sending, a peer dropped when it fails or
+    /// goes silent (see <see cref="PeerRace"/>), the rest cancelled once one finishes. Null if none delivered.</summary>
     static async Task<SlskdFile?> FetchFirst(SlskdClient sl, List<SlskdFile> cands, Action<string> progress, CancellationToken ct)
     {
         var queue = new Queue<SlskdFile>(cands.Take(8));
@@ -345,7 +345,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
                 try { await sl.DownloadAsync([f], ct); active.Add(new Active(f, Environment.TickCount64)); return; } catch (OperationCanceledException) { throw; } catch (Exception) { }
             }
         }
-        await StartNext();
+        while (PeerRace.StartAnother(active.Count, false, queue.Count)) { var before = active.Count; await StartNext(); if (active.Count == before) break; }
         var deadline = Environment.TickCount64 + 8 * 60_000;
         while (active.Count > 0 && Environment.TickCount64 < deadline)
         {
@@ -358,11 +358,10 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
                 if (t?.Done == true) { foreach (var o in active.Where(x => x != a).ToList()) await Drop(o); return a.F; }
                 if (t?.Done == false) await Drop(a);
                 else if (t is not null && t.Bytes > a.Bytes) { a.Bytes = t.Bytes; a.Moved = now; }
-                // a silent peer is swapped only when there is someone else to try; the last one keeps its chance
-                else if (now - a.Moved > 20_000 && (queue.Count > 0 || active.Count > 1)) await Drop(a);
+                else if (PeerRace.GiveUp(a.Bytes, now - a.Started, now - a.Moved, queue.Count > 0 || active.Count > 1)) await Drop(a);
             }
-            // race a second peer while the first is still queued remotely or silent; replace a dropped one
-            if (queue.Count > 0 && (active.Count == 0 || (active.Count == 1 && active[0].Bytes == 0 && now - active[0].Started > 6_000))) await StartNext();
+            // more peers while none is sending yet, and a dropped one replaced
+            while (PeerRace.StartAnother(active.Count, active.Any(x => x.Bytes > 0), queue.Count)) { var before = active.Count; await StartNext(); if (active.Count == before) break; }
             if (active.MaxBy(x => x.Bytes) is { } best) progress(best.Bytes == 0 ? "Waiting for a peer..." : $"Downloading {Math.Min(99, best.Bytes * 100 / Math.Max(1, best.F.Size))}%...");
         }
         foreach (var a in active.ToList()) await Drop(a);

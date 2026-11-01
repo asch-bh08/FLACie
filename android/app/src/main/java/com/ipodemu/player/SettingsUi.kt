@@ -454,6 +454,8 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                         "Server" to prefs.flacieWebUrl.ifBlank { "Not linked to FLACie Web" },
                     ))
                     if (canAdmin) SettingRow("Dashboard", "Library, downloads, server", chevron = true) { nav.push(Screen.Dashboard) }
+                    SettingRow("Licences", "FLACie is MIT licensed, provided as is; the software it uses", chevron = true) { nav.push(Screen.Legal(privacy = false)) }
+                    SettingRow("Privacy", "What is kept and sent, and where", chevron = true) { nav.push(Screen.Legal(privacy = true)) }
                 }
             }
             }

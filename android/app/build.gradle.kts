@@ -56,6 +56,20 @@ val retroWasm by tasks.registering(Sync::class) {
 android.sourceSets.getByName("main").assets.srcDir(retroAssets)
 tasks.named("preBuild") { dependsOn(retroWasm) }
 
+// FLACie's licence, the third-party notices with the full texts they point to, and the privacy notice: copied from the top of the repository into
+// assets/legal for Settings > About > Licences and Privacy (LegalUi.kt). The APK carried none of them before the legal check (31 Oct).
+val legalAssets = layout.buildDirectory.dir("legal-assets")
+val legalFiles by tasks.registering(Sync::class) {
+    val top = rootProject.projectDir.resolve("..")
+    from(top.resolve("THIRD-PARTY-NOTICES.md"))
+    from(top.resolve("PRIVACY.md"))
+    from(top.resolve("LICENSE")) { rename { "LICENSE.txt" } }
+    from(top.resolve("licenses")) { into("licenses") }
+    into(legalAssets.map { it.dir("legal") })
+}
+android.sourceSets.getByName("main").assets.srcDir(legalAssets)
+tasks.named("preBuild") { dependsOn(legalFiles) }
+
 dependencies {
     // WebSocket for Jellyfin remote control (Connect) and SyncPlay (Jams)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

@@ -122,6 +122,8 @@ sealed interface Screen {
     data object Queue : Screen
     data object Settings : Screen
     data object Dashboard : Screen
+    /** Settings > About > Licences (privacy = false) or Privacy (privacy = true): LegalUi.kt. */
+    data class Legal(val privacy: Boolean) : Screen
     data object Offline : Screen
     /** The songs kept on the phone for playing without signal ("Downloads"), as against Settings > Offline and storage. */
     data object Downloads : Screen
@@ -329,6 +331,7 @@ private fun ScreenContent(screen: Screen, nav: PlayerNav, snap: PlayerSnap) {
         Screen.Queue -> QueueScreen(nav, snap)
         Screen.Settings -> SettingsScreen(nav)
         Screen.Dashboard -> SettingsScreen(nav, dashboard = true)
+        is Screen.Legal -> if (screen.privacy) LegalScreen(nav, "Privacy", LegalDocs.PRIVACY) else LegalScreen(nav, "Licences", LegalDocs.LICENCES)
         Screen.Offline -> OfflineScreen(nav)
         Screen.Downloads -> DownloadsScreen(nav)
         Screen.Music -> MusicMenu(nav)

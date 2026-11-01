@@ -44,6 +44,8 @@ class FlacieWebClient(private val prefs: Prefs) {
     class ServerSettings(
         val admin: Boolean, val prefetch: Boolean, val minFreeGb: Int, val chartsOn: Boolean, val lists: List<Int>, val perList: Int, val lastRun: String, val lastNote: String,
         val available: List<Pair<Int, String>>, val musicFree: Long, val musicTotal: Long, val nasSongs: Int, val nasBytes: Long,
+        /** Whether this server lets anyone download at all; an older server doesn't say, which counts as yes. */
+        val downloads: Boolean = true,
     )
     class AccountStats(val songs: Int, val albums: Int, val artists: Int, val playlists: Int, val favourites: Int, val admin: Boolean = false)
     class ChartSong(val rank: Int, val title: String, val artist: String, val art: String?)
@@ -59,13 +61,57 @@ class FlacieWebClient(private val prefs: Prefs) {
         } finally { c.disconnect() }
     }
 
-    private fun parseSettings(t: String): ServerSettings {
-        val o = JSONObject(t); val ch = o.getJSONObject("charts"); val st = o.getJSONObject("storage")
-        val av = o.getJSONArray("available"); val ls = ch.getJSONArray("lists")
-        return ServerSettings(o.optBoolean("admin"), o.optBoolean("prefetch"), o.optInt("minFreeGb"), ch.optBoolean("enabled"), List(ls.length()) { ls.getInt(it) }, ch.optInt("perList", 10),
-            ch.optString("lastRun").takeIf { it != "null" } ?: "", ch.optString("lastNote").takeIf { it != "null" } ?: "",
-            List(av.length()) { av.getJSONObject(it).let { a -> a.getInt("id") to a.getString("name") } },
-            st.optLong("musicFree", -1), st.optLong("musicTotal", -1), st.optInt("nasSongs"), st.optLong("nasBytes"))
+    /** How a download job stands on the server (`GET /api/download/{id}`). [path] and [format] are set once it is done. */
+    class JobStatus(val stage: String, val message: String, val source: String?, val done: Boolean, val failed: Boolean, val path: String?, val format: String?)
+    /** The server answered and said no (not allowed, too many downloads...): its words are shown, and the phone does not try the same download itself. */
+    class Refused(message: String) : java.io.IOException(message)
+    /** The server has no such job (it was restarted, or the id is not this person's). */
+    class JobGone : java.io.IOException("FLACie Web lost track of this download")
+
+    companion object {
+        fun parseSettings(t: String): ServerSettings {
+            val o = JSONObject(t); val ch = o.getJSONObject("charts"); val st = o.getJSONObject("storage")
+            val av = o.getJSONArray("available"); val ls = ch.getJSONArray("lists")
+            return ServerSettings(o.optBoolean("admin"), o.optBoolean("prefetch"), o.optInt("minFreeGb"), ch.optBoolean("enabled"), List(ls.length()) { ls.getInt(it) }, ch.optInt("perList", 10),
+                ch.optString("lastRun").takeIf { it != "null" } ?: "", ch.optString("lastNote").takeIf { it != "null" } ?: "",
+                List(av.length()) { av.getJSONObject(it).let { a -> a.getInt("id") to a.getString("name") } },
+                st.optLong("musicFree", -1), st.optLong("musicTotal", -1), st.optInt("nasSongs"), st.optLong("nasBytes"), o.optBoolean("downloads", true))
+        }
+        private fun text(o: JSONObject, k: String): String? = if (o.isNull(k)) null else o.optString(k).takeIf { it.isNotBlank() }
+        fun parseStarted(t: String): String = text(JSONObject(t), "id") ?: throw java.io.IOException("FLACie Web did not start the download")
+        fun parseJobStatus(t: String): JobStatus = JSONObject(t).let { JobStatus(it.optString("stage"), it.optString("message"), text(it, "source"), it.optBoolean("done"), it.optBoolean("failed"), text(it, "path"), text(it, "format")) }
+    }
+
+    /**
+     * Asks FLACie Web to download one song (`POST /api/download`); returns the job id to follow with [downloadStatus]. [mode] is "quick" (the quickest
+     * playable copy, upgraded later) or "hires" (Hi-Res only, quick as the fallback). Throws [Refused] when the server answers no, and any other
+     * IOException when it can't be reached or is broken, which tells the caller to download on the phone instead.
+     */
+    fun startDownload(artist: String, title: String, album: String, durationMs: Long, mode: String): String {
+        val c = open("/api/download", "POST")
+        c.connectTimeout = 6_000; c.readTimeout = 20_000
+        try {
+            val b = JSONObject().put("artist", artist).put("title", title).put("album", album).put("durationMs", durationMs).put("mode", mode).toString().toByteArray()
+            c.doOutput = true; c.setRequestProperty("Content-Type", "application/json"); c.setFixedLengthStreamingMode(b.size)
+            c.outputStream.use { it.write(b) }
+            val code = c.responseCode
+            val text = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() } ?: ""
+            if (code in 400..499 && code != 401 && code != 404 && code != 408) throw Refused(try { JSONObject(text).optString("error") } catch (_: Exception) { "" }.ifBlank { "FLACie Web said no (HTTP $code)" })
+            if (code !in 200..299) throw java.io.IOException("HTTP $code")
+            return parseStarted(text)
+        } finally { c.disconnect() }
+    }
+
+    /** How the job stands now; throws [JobGone] when the server doesn't know it. */
+    fun downloadStatus(id: String): JobStatus {
+        val c = open("/api/download/" + java.net.URLEncoder.encode(id, "UTF-8"), "GET")
+        c.connectTimeout = 6_000; c.readTimeout = 15_000
+        try {
+            val code = c.responseCode
+            if (code == 404) throw JobGone()
+            if (code !in 200..299) throw java.io.IOException("HTTP $code")
+            return parseJobStatus(c.inputStream.bufferedReader().use { it.readText() })
+        } finally { c.disconnect() }
     }
 
     fun settings(): ServerSettings = parseSettings(send("/api/settings", "GET"))

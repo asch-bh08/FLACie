@@ -7,6 +7,7 @@ import com.ipodemu.Prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import org.json.JSONArray
@@ -310,7 +311,9 @@ class Library(ctx: Context, val art: ArtCache) {
     fun albumKey(a: WebCatalog.Album) = "a|${a.id}"
 
     /** Search's per-song Download. Several can run at once; each reports under its own key. */
-    fun requestDownload(artist: String, title: String, album: String, durationMs: Long = 0, hiRes: Boolean = false, fallbackToNormal: Boolean = true, then: ((Track) -> Unit)? = null) {
+    fun requestDownload(artist: String, title: String, album: String, durationMs: Long = 0, hiRes: Boolean = false, fallbackToNormal: Boolean = true,
+                        /** How many places down the queue the song will play (fetch ahead): 3 or more asks FLACie Web for Hi-Res straight away, fewer for the quickest copy. */
+                        placesAhead: Int = 0, then: ((Track) -> Unit)? = null) {
         val key = songKey(artist, title)
         // what to do with the song once it is here (the car's "Download and play"), on the main thread
         if (then != null) thenPlay[key] = then
@@ -322,8 +325,30 @@ class Library(ctx: Context, val art: ArtCache) {
         scope.launch {
             val report: (DownloadStatus) -> Unit = { status -> onStatus(key, status, DownloadEntry(artist, title.ifBlank { album }, album, "", 0, ""), tagKey = if (title.isBlank()) null else matchKey(title, artist), durationMs = durationMs) }
             // always ends DONE or FAILED with a reason, and is stopped after 3 minutes without news (DownloadGuard)
-            DownloadGuard.run(report = report) { r -> if (hiRes) downloader.downloadHiRes(artist, title, album, durationMs, fallbackToNormal, r) else downloader.download(artist, title, album, durationMs, r) }
+            DownloadGuard.run(report = report) { r ->
+                // FLACie Web does it when it is set up, allows downloads and answers (it races the sources, picks the quickest copy and upgrades it to Hi-Res
+                // later, and the progress and source label below are the server's); otherwise this phone's own code does, unless the quiet switch is off.
+                // An explicit Hi-Res download that must not fall back to a normal copy stays on the phone: the server's Hi-Res mode would file a normal one.
+                // A request with no song title (an album or artist from search) also stays here: the server downloads songs.
+                val serverOk = web.available && serverAllowsDownloads()
+                val tryServer = serverOk && title.isNotBlank() && (!hiRes || fallbackToNormal)
+                val ask = SmartDownload.Ask(artist, title, album, durationMs, SmartDownload.modeFor(placesAhead, hiRes))
+                val handled = tryServer && SmartDownload.run(ask, prefs.fileMoverUrl, { web.startDownload(artist, title, album, durationMs, ask.mode) }, { web.downloadStatus(it) }, r)
+                when (SmartDownload.choose(serverOk, handled, prefs.downloadOnPhone)) {
+                    DownloadRoute.SERVER -> {}
+                    DownloadRoute.OFF -> r(DownloadStatus(DownloadStage.FAILED, SmartDownload.OFF_MESSAGE))
+                    DownloadRoute.PHONE -> if (hiRes) downloader.downloadHiRes(artist, title, album, durationMs, fallbackToNormal, r) else downloader.download(artist, title, album, durationMs, r)
+                }
+            }
         }
+    }
+
+    @Volatile private var serverDownloads: Pair<Long, Boolean>? = null
+    /** Whether FLACie Web lets downloads happen (its settings say so; asked at most every five minutes). Unknown or unreachable counts as yes: the start call then finds out. */
+    private suspend fun serverAllowsDownloads(): Boolean {
+        val c = serverDownloads
+        if (c != null && System.currentTimeMillis() - c.first < 300_000L) return c.second
+        return try { withContext(Dispatchers.IO) { web.settings().downloads }.also { serverDownloads = System.currentTimeMillis() to it } } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { true }
     }
 
     /** A whole album or EP from search. */
@@ -395,8 +420,8 @@ class Library(ctx: Context, val art: ArtCache) {
         return m[matchKey(title, artist)]
     }
 
-    /** Whether anything can download here: Soulseek with the file mover, or Lidarr. */
-    fun downloadsConfigured() = (prefs.slskdUrl.isNotBlank() && prefs.fileMoverUrl.isNotBlank()) || prefs.lidarrUrl.isNotBlank() || (prefs.fileMoverUrl.isNotBlank() && prefs.fileMoverApiKey.isNotBlank())
+    /** Whether anything can download here: FLACie Web (it does the downloading), Soulseek with the file mover on this phone, or Lidarr. */
+    fun downloadsConfigured() = web.available ||(prefs.slskdUrl.isNotBlank() && prefs.fileMoverUrl.isNotBlank()) || prefs.lidarrUrl.isNotBlank() || (prefs.fileMoverUrl.isNotBlank() && prefs.fileMoverApiKey.isNotBlank())
 
     /** A song with this title whose credit is missing or the same artist spelled another way (a file with no artist tag), when the exact match finds nothing. */
     fun findLoose(title: String, artist: String): Track? {

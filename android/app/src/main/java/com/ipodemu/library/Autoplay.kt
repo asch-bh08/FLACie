@@ -64,8 +64,8 @@ class Autoplay(private val app: App) {
             if (plan != null) {
                 val tracks = plan.tracks.filter { it.isMusic }.take(6)
                 synchronized(reasons) { tracks.forEach { t -> plan.why[t.path]?.let { reasons[t.path] = it } } }
-                if (tracks.isNotEmpty()) withContext(Dispatchers.Main) { mark(tracks); app.player.appendAutoplay(tracks) }
-                if (app.prefs.autoplayFetch && lib.downloadsConfigured()) request(plan.fresh.take(5).map { it.song() })
+                val ahead = withContext(Dispatchers.Main) { val n = app.player.upNext(50).size; if (tracks.isNotEmpty()) { mark(tracks); app.player.appendAutoplay(tracks) }; n + tracks.size }
+                if (app.prefs.autoplayFetch && lib.downloadsConfigured()) request(plan.fresh.take(5).map { it.song() }, ahead)
                 return
             }
         }
@@ -93,20 +93,21 @@ class Autoplay(private val app: App) {
         take(mates.shuffled().asSequence(), 3)
         if (seed.genre.isNotEmpty()) take(songs.asSequence().filter { it.genre.equals(seed.genre, true) }.shuffled(), 3)
         take(songs.asSequence().shuffled(), 6)
-        if (pick.isNotEmpty()) withContext(Dispatchers.Main) { mark(pick); app.player.appendAutoplay(pick) }
+        val ahead = withContext(Dispatchers.Main) { val n = app.player.upNext(50).size; if (pick.isNotEmpty()) { mark(pick); app.player.appendAutoplay(pick) }; n + pick.size }
 
         // songs the library lacks: ask for the next few now so they are there in time
         if (app.prefs.autoplayFetch && lib.downloadsConfigured())
-            request(suggestions.asSequence().filter { lib.findSong(it.title, it.artist) == null && it.matchKey !in seen }.take(5).toList())
+            request(suggestions.asSequence().filter { lib.findSong(it.title, it.artist) == null && it.matchKey !in seen }.take(5).toList(), ahead)
     }
 
-    private fun request(songs: List<WebCatalog.Song>) {
-        for (s in songs) {
+    /** [songsAhead] = songs between the one playing and the first of [songs] in the queue: each one further back is asked of FLACie Web for Hi-Res from the third place on (see SmartDownload.modeFor). */
+    private fun request(songs: List<WebCatalog.Song>, songsAhead: Int = 0) {
+        for ((i, s) in songs.withIndex()) {
             val k = matchKey(s.title, s.artist)
             val fresh = synchronized(waiting) { if (waiting.containsKey(k)) false else { waiting[k] = s; true } }
             if (!fresh) continue
             // the tag (and the Up next row) is there at once, before the job's first status arrives
-            app.library.requestDownload(s.artist, s.title, s.album, s.durationMs)
+            app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, placesAhead = songsAhead + i + 1)
             main.post { rev++ }
         }
     }

@@ -350,43 +350,7 @@ public class AlexaVerifierTests
         Assert.True(r.Reason.Length < 40);
     }
 
-    // ---- rate limiter ----
-
-    [Fact]
-    public void Limiter_allows_up_to_limit_then_blocks()
-    {
-        var t = Now; var l = new AlexaRateLimiter(() => t);
-        for (var i = 0; i < 30; i++) Assert.True(l.TryTake("a"));
-        Assert.False(l.TryTake("a"));
-        Assert.True(l.TryTake("b"));
-    }
-
-    [Fact]
-    public void Limiter_window_resets_after_a_minute()
-    {
-        var t = Now; var l = new AlexaRateLimiter(() => t, perMinute: 2);
-        Assert.True(l.TryTake("a")); Assert.True(l.TryTake("a")); Assert.False(l.TryTake("a"));
-        t = t.AddSeconds(59); Assert.False(l.TryTake("a"));
-        t = t.AddSeconds(2); Assert.True(l.TryTake("a"));
-    }
-
-    [Fact]
-    public void Limiter_memory_is_bounded()
-    {
-        var t = Now; var l = new AlexaRateLimiter(() => t);
-        for (var i = 0; i < 6000; i++) Assert.True(l.TryTake("k" + i));
-        Assert.True(l.KeyCount <= 5000, l.KeyCount.ToString());
-        t = t.AddMinutes(2);
-        Assert.True(l.TryTake("fresh"));
-        Assert.Equal(1, l.KeyCount);
-    }
-
-    [Fact]
-    public void Limiter_null_or_empty_key_shares_one_bucket()
-    {
-        var l = new AlexaRateLimiter(() => Now, perMinute: 1);
-        Assert.True(l.TryTake(null!)); Assert.False(l.TryTake(""));
-    }
+    // (the rate limits at the skill endpoint are the server's own: RateLimitTests)
 }
 
 public class AlexaVerifierFloodTests

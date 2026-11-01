@@ -202,8 +202,23 @@ public sealed class WebCatalog(HttpClient http)
     static string S(JsonNode? o, string k) => o?[k] is JsonValue v && v.TryGetValue<string>(out var s) ? s : "";
     static long L(JsonNode? o, string k) => o?[k] is JsonValue v ? (v.TryGetValue<long>(out var l) ? l : v.TryGetValue<double>(out var d) ? (long)d : 0) : 0;
 
+    /// <summary>How a catalog that hiccups is asked again (HttpRetry): twice at most, quickly, since a person is usually waiting (Search as they type).</summary>
+    public RetryPolicy Retry { get; init; } = RetryPolicy.Quick;
+
     async Task<JsonNode?> Json(string url, CancellationToken ct)
     {
-        try { return JsonNode.Parse(await http.GetStringAsync(url, ct)); } catch (Exception) { return null; }
+        try
+        {
+            var j = JsonNode.Parse(await HttpRetry.GetStringAsync(http, url, ct, Retry));
+            // Deezer answers its quota ("Quota limit exceeded": 50 requests in 5 seconds) with a 200 and an error object: a moment later it answers again,
+            // so it is asked once more before the search falls back to iTunes
+            if (j is JsonObject o && o["error"] is JsonObject err && err["code"] is JsonValue code && code.TryGetValue<int>(out var c) && c == 4)
+            {
+                await Retry.Delay(Retry.Backoff(2), ct);
+                j = JsonNode.Parse(await HttpRetry.GetStringAsync(http, url, ct, Retry));
+            }
+            return j;
+        }
+        catch (Exception) { return null; }
     }
 }

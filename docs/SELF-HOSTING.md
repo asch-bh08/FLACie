@@ -113,6 +113,53 @@ Rules of thumb
 - **Don't publish port 8080 to the internet directly.** Bind it to the proxy only (`ports: ["127.0.0.1:8080:8080"]`, or no `ports` and put the proxy in the same Docker network).
 - Sign-in only works over HTTPS (or plain HTTP on a trusted LAN). The cookie is HTTP-only, SameSite=Lax and "secure" whenever the page is served over HTTPS.
 
+## Rate limits and bot protection
+
+A server that is reachable from the internet gets knocked on by scripts. FLACie limits how often each door can be used, so a password guesser, a
+runaway app or a stolen session is stopped within a minute, while nobody using it normally ever meets a limit. There are no CAPTCHAs.
+
+**Rate limits.** Each limit is a number of requests a minute. Doors anyone can reach count the client's address (the real one only when it comes
+through a trusted proxy, see above: otherwise every visitor looks like the proxy and shares one count). Everything else counts the signed-in account,
+or the phone app by its device, so a household behind one address does not share a limit. A refused request gets `429 Too Many Requests` with a
+`Retry-After` header and a message saying how long to wait. Set any of them with `FLACIE_RATE_<NAME>` (the name in capitals, `-` as `_`; `0` or `off`
+switches that one off):
+
+| Name | Default a minute | Counted by | What it covers |
+|---|---|---|---|
+| `signin` | 10 | address | Password and NAS sign-in, starting Quick Connect |
+| `qc-poll` | 60 | address | The sign-in page asking whether a Quick Connect code was approved (it asks 24 times a minute) |
+| `public` | 600 | address | `/healthz`, `/robots.txt`, `/licenses`, `/api/ping`, the Alexa store page's policy and icons (each open tab asks `/healthz` every 2-3.5 s while the server is away) |
+| `token-check` | 20 | address | Phone-app tokens this server has not checked in the last 45 seconds (each costs one call to Jellyfin) |
+| `alexa` / `alexa-account` | 120 / 30 | address / Alexa account | The Alexa skill endpoint, before and after the request is verified |
+| `share-page` / `share` | 30 / 30 | account | Opening `/s/...` share links / making one |
+| `share-miss` | 10 | account | Share links that lead nowhere: past this, every link shows nothing for the rest of the minute, so ids cannot be guessed |
+| `art` | 30000 | account | Covers. Flinging through a 10,000-song list at full speed asks for about 11,600 a minute |
+| `stream` | 1200 | account | Starting or seeking a song (`/stream`, `/api/alac`, Alexa's links). 40 skips in a row open about 16 |
+| `wave` | 1200 | account | The seek bar's shapes. 40 skips in a row ask for about 80 |
+| `dj` / `dj-ask` | 60 / 20 | account | New DJ lines between songs / "talk to the DJ" questions for the text model. Past them the DJ stays quiet or answers from its quick rules: one client cannot spend the day's Cloudflare allowance |
+| `search` | 360 | account | Online catalog searches from the Search page (one per keystroke) |
+| `api` | 600 | account | Every other `/api` call |
+
+`FLACIE_RATE_SCALE` multiplies every default (a test server uses `50`); `FLACIE_RATE_LIMITS=off` switches them all off (only for a server nobody else
+can reach). Pages, static files, covers already in the browser and the live connection are never limited. The counters are in memory and bounded
+(at most 10,000 addresses or accounts per limit), so a flood from many addresses cannot grow the server's memory.
+
+**Sign-in.** On top of the `signin` rate limit, wrong passwords are counted:
+- 8 wrong passwords for one name from one address within 10 minutes stop that name from that address until the 10 minutes have passed (short, and
+  only there);
+- 30 failures of any names from one address within 15 minutes stop that address (someone working through a list of names);
+- guesses at one name from many addresses are never refused, but after 4 wrong ones each further try at that name waits 1, 2, 4, 8, then 16 seconds;
+- a browser that has signed in as that name before carries a signed "known device" cookie (only sent to `/auth`), and is not held up by anyone else's
+  guessing at all: however much a stranger guesses, the real person signs in at once from their own phone or laptop.
+Jellyfin has its own lockout as well (each user's setting for failed sign-ins before the account is locked; by default 3, and 5 for administrators),
+and FLACie passes each try on to Jellyfin, so set that the way you want it.
+
+**Other protections.** Every answer carries `X-Robots-Tag: noindex, nofollow` and `/robots.txt` disallows everything, so search engines do not list
+your server; `Content-Security-Policy` (no plugins, no framing by other sites, no foreign `<base>`, forms only to this server), `X-Frame-Options`,
+`X-Content-Type-Options: nosniff` and `Referrer-Policy: same-origin` are set; no request body over 2 MB is read (the playlist import allows 20 MB).
+Share links are 10 random characters (about 58 bits), only work for someone signed in to this server, and a wrong one says nothing about which
+links exist.
+
 ## Upgrading
 
 ```bash
@@ -160,6 +207,7 @@ The Android app is a separate download (APK on the GitHub release page; enable i
 | `FLACIE_ADMINS` | (not set) | Comma separated admins. With `FLACIE_JELLYFIN_URL` set: Jellyfin user names (`alice,bob`). Otherwise write `name@jellyfin-host:port` (or `name@nas-host`). Not set: the administrators of the locked Jellyfin. |
 | `FLACIE_TRUSTED_PROXIES` | loopback and private networks | Addresses or CIDR ranges (comma separated) whose `X-Forwarded-*` headers are believed. `*` trusts every sender (only if nothing but your proxy can reach the port). |
 | `FLACIE_SERVICE_ROUTES` | (not set) | Comma separated `public=>internal` pairs, for example `https://files.example.com/filemove=>http://127.0.0.1:8090`. This server sends its own requests for a download service's public address to the internal one, so a DNS or tunnel problem on the public name cannot stop downloads when the service runs on the same machine. The address saved in people's profiles (and used by the phone) is not changed. |
+| `FLACIE_RATE_<NAME>`, `FLACIE_RATE_SCALE`, `FLACIE_RATE_LIMITS` | see [Rate limits](#rate-limits-and-bot-protection) | Requests a minute for one limit (`0` or `off` switches it off); a multiplier for every default; `off` switches every limit off. |
 | `FLACIE_DATA` | `/data` in Docker | The data folder (see Backups). |
 | `PUID`, `PGID` | `1654` | Docker only: run as this user/group so the files in the mounted folder belong to you (`id` shows yours). |
 | `FLACIE_PUBLIC_URL`, `FLACIE_ALEXA_SKILL_IDS`, `FLACIE_ALEXA_CLIENT_ID`, `FLACIE_ALEXA_CLIENT_SECRET` | (not set) | Only for the optional [Alexa](ALEXA.md) skill (off until switched on in Settings): the public https address Alexa reaches this server at, the allowed skill id(s), and the skill's Login with Amazon client id and secret for "your download is ready" notifications. |
@@ -179,5 +227,9 @@ Taking audio from YouTube or Soulseek can be against those services' terms or yo
 - **Redirects go to `http://` after signing in:** the proxy isn't sending `X-Forwarded-Proto`, or its address is not in `FLACIE_TRUSTED_PROXIES`.
 - **"Couldn't reach …" when signing in:** the container can't reach that Jellyfin address; try `FLACIE_JELLYFIN_INTERNAL_URL` with a LAN address.
 - **Signed in but no songs:** Jellyfin's music library must be visible to that user; check the dashboard's "loading the library" line and `docker compose logs flacie`.
-- **"Too many failed attempts":** more than 8 wrong sign-ins from one client address in 15 minutes. Wait, or restart the container. Guessing at one user name never locks that user out: after a few wrong guesses at the same name each further try there is only held back 1, 2, 4, up to 8 seconds, from any address.
+- **"Too many failed attempts":** 8 wrong passwords for that name from this address in 10 minutes, or 30 failures from this address in 15 minutes; the
+  message says how long is left. Wait, or restart the container. Guessing at one user name never locks that user out (see
+  [Sign-in](#rate-limits-and-bot-protection)): elsewhere each further try is only held back, and a browser that signed in before is not held back at all.
+- **"Too many requests just now" (429):** a [rate limit](#rate-limits-and-bot-protection). If everyone hits it at once, your proxy's address is
+  probably not trusted (`FLACIE_TRUSTED_PROXIES`), so all visitors share one address; otherwise raise that limit with `FLACIE_RATE_<NAME>`.
 - **The NAS tab is missing:** set `FLACIE_ALLOW_NAS_LOGIN: "true"`.

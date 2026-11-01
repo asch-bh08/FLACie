@@ -89,6 +89,26 @@ public class GateTests
     }
 
     [Fact]
+    public async Task A_Retry_After_too_long_to_wait_out_is_not_waited_out()
+    {
+        // Jellyfin (or a proxy in front of it) saying "come back in ten minutes" must not hold a page's request for ten minutes: the answer goes back at once
+        var waits = new List<TimeSpan>();
+        var g = Gate(); g.Delay = (d, _) => { waits.Add(d); return Task.CompletedTask; };
+        var calls = 0;
+        await Assert.ThrowsAsync<JellyfinHttpException>(() => g.RunAsync<string>(GatePriority.Visible, _ => { calls++; throw new JellyfinHttpException(HttpStatusCode.ServiceUnavailable, "503", TimeSpan.FromMinutes(10)); }, default));
+        Assert.Equal(1, calls);
+        Assert.Empty(waits);
+    }
+
+    [Fact]
+    public async Task A_request_timeout_408_is_asked_again()
+    {
+        var g = Gate(); var calls = 0;
+        var res = await g.RunAsync(GatePriority.Visible, _ => ++calls == 1 ? throw new HttpRequestException("408", null, HttpStatusCode.RequestTimeout) : Task.FromResult("ok"), default);
+        Assert.Equal("ok", res); Assert.Equal(2, calls);
+    }
+
+    [Fact]
     public void The_back_off_is_jittered_doubles_and_is_capped()
     {
         var g = Gate(o => { o.BaseBackoff = TimeSpan.FromMilliseconds(100); o.MaxBackoff = TimeSpan.FromMilliseconds(500); });

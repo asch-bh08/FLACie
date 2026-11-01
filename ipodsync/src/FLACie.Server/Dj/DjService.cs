@@ -114,6 +114,8 @@ public sealed class DjService : IDjService
     public bool WarmPool { get; set; }
     /// <summary>The shared per-person context (the same one "talk to the DJ" reads): the lines see what was asked lately and the session so far. Null in tests that leave it out.</summary>
     public DjContexts? Contexts { get; set; }
+    /// <summary>The server's rate limits ("dj": new lines a minute per account). Null in tests that leave it out: no limit.</summary>
+    public RateLimits? Limits { get; set; }
     readonly ConcurrentDictionary<string, bool> warmed = new();
 
     /// <summary>The first name for the hello, from the account's name when it looks like one.</summary>
@@ -184,6 +186,9 @@ public sealed class DjService : IDjService
         if (line is null) return null;
         if (WarmPool && voice.Ready && voice.Current.Voice is var v && v != CloudflareVoice.MeloTts && warmed.TryAdd(v + "\n" + st.Style, true))
             _ = Task.Run(() => clips.WarmAsync(DjPool.All(st.Style)));
+        // a new line can cost a text-model call and a voice call: one runaway client (or a stolen session) asking about song after song must not spend the
+        // day's DJ allowance for everyone, so past the account's "dj" limit a minute the DJ stays quiet. An answer already decided is given again for free.
+        if (Limits is { } limits && !written.ContainsKey(key) && !limits.TryTake("dj", RateKey.Of(s.Id), out _)) return null;
         // the planner said when; the budget says whole or pooled; the text model says how (once per decision; the template line on any failure)
         var planned = line; var name = FirstNameOf(s);
         var (said, pooled) = await written.GetOrAdd(key, _ => (clock(), new Lazy<Task<(DjLine, bool)>>(async () =>

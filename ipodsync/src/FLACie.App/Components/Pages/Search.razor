@@ -43,6 +43,7 @@ else
 {
     <ExploreBar Compact="true" Changed="OnFilters" />
     <ResultSections Query="@q" Rev="@X.Version" Context="Search" ShowEmpty="@(!(webBusy || webSongs.Count > 0 || webAlbums.Count > 0))" OnQuery="Suggest" />
+    @if (webPaused) { <p class="hint" role="status">Online results are paused for a moment: that was a lot of searches in one minute. Your library's results are still here.</p> }
     @if (webBusy || webSongs.Count > 0 || webAlbums.Count > 0)
     {
         <h2 class="section">More music @(webBusy ? "(searching…)" : "")</h2>
@@ -104,13 +105,14 @@ else
     [Inject] WebCatalog Catalog { get; set; } = default!;
     [Inject] IDownloads Downloads { get; set; } = default!;
     [Inject] IConfiguration Conf { get; set; } = default!;
+    [Inject] IServiceProvider Provider { get; set; } = default!;
     bool isAdmin => AdminAccess.Is(Session, Conf);
     string q = ""; string? hiAsk, dlMenu;
     void OnFilters() { }
     void Suggest(string v) => Nav.NavigateTo("/search?q=" + Uri.EscapeDataString(v));
     List<CatalogSong> webSongs = [];
     List<CatalogAlbum> webAlbums = [];
-    bool webBusy;
+    bool webBusy, webPaused;
     CancellationTokenSource? pending;
     Action? onJobs;
 
@@ -128,8 +130,12 @@ else
         if (next == q) return;
         q = next;
         pending?.Cancel();
-        webSongs = []; webAlbums = [];
+        webSongs = []; webAlbums = []; webPaused = false;
         if (q.Length < 2) { webBusy = false; return; }
+        // one online catalog search per keystroke: past the account's "search" limit a minute (typing flat out for a whole minute stays under it) the online
+        // part is left out for now, so a runaway page or a stolen session cannot hammer the public catalogs from this server; the library's results are unaffected.
+        // (The Windows app's own copy has no limits registered: GetService gives null there.)
+        if (Provider.GetService(typeof(RateLimits)) is RateLimits limits && !limits.TryTake("search", RateKey.Of(Session.Id), out _)) { webBusy = false; webPaused = true; return; }
         var cts = pending = new CancellationTokenSource();
         // remembered once the person stops typing (the top box writes every keystroke into the address)
         var asked = q;

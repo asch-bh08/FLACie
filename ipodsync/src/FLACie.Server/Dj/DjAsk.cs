@@ -310,6 +310,8 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
     public TimeSpan AiTimeout { get; set; } = DjAskAi.Timeout;
     public TimeSpan QuestionTimeout { get; set; } = DjAskAi.QuestionTimeout;
     public DjContexts Contexts { get; } = contexts ?? new DjContexts();
+    /// <summary>The server's rate limits ("dj-ask": text-model asks a minute per account). Null: no limit (tests, the Windows app's own copy).</summary>
+    public RateLimits? Limits { get; set; }
     readonly Func<DateTime> now = clock ?? (() => DateTime.UtcNow);
 
     sealed class Index(IReadOnlyList<Track> songs, IReadOnlyList<Playlist> lists) { public readonly IReadOnlyList<Track> Songs = songs; public readonly IReadOnlyList<Playlist> Lists = lists; public readonly VoiceMatcher M = new(songs, lists); }
@@ -348,7 +350,9 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
         // doesn't, ask me"), and the quick rules are what's left when the model has no answer (not set up, over the cap, too slow)
         parse ??= DjAskRules.Instant(text);
         string? clarify = null;
-        if (parse is null && model is not null)
+        // past the account's "dj-ask" limit a minute (far beyond anyone talking to it) the model, a paid call, is left out as if it were not set up: the
+        // quick rules still answer, so "next", "pause" and plain requests keep working, and a runaway client cannot spend the day's allowance
+        if (parse is null && model is not null && (Limits is null || Limits.TryTake("dj-ask", RateKey.Of(u.Account), out _)))
         {
             var question = DjAskAi.LooksLikeQuestion(text);
             var ai = await DjAskAi.AskAsync(model, text, Facts(u, ctx, cur, text, localHour), ct, question ? QuestionTimeout : AiTimeout);

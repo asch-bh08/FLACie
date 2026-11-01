@@ -8,6 +8,9 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
+// no request body this server takes is anywhere near 2 MB (a listening batch of 500 is about 200 KB); the playlist import raises its own to 20 MB, Alexa's
+// stays at 1 MB. Kestrel's default would read 30 MB from anyone before a handler could say no.
+builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = MaxBody.Bytes);
 
 // Everything the server keeps (sign-in key ring, cover cache) lives in one folder: mount it as a volume in Docker.
 var dataDir = Directory.CreateDirectory(builder.Configuration["FLACIE_DATA"] ?? Path.Combine(AppContext.BaseDirectory, "data")).FullName;
@@ -137,6 +140,9 @@ builder.Services.AddRazorComponents()
 // ... but only a configured proxy is believed (FLACIE_TRUSTED_PROXIES; by default loopback and private networks, never the public internet)
 builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(o => ProxyTrust.Configure(o, builder.Configuration));
 builder.Services.AddSingleton<LoginThrottle>();
+builder.Services.AddSingleton<SignInDevices>();   // the known-device cookie: a browser that signed in as a name before is not held up by others guessing at it
+// the rate limits at every door (RateLimiting; FLACIE_RATE_* in docs/SELF-HOSTING.md): one table of limits, also used inside the DJ and the Search page
+builder.Services.AddSingleton(new RateLimits(k => builder.Configuration[k]));
 builder.Services.AddSingleton<AlacCache>();
 builder.Services.AddSingleton<HitsService>();
 // Alexa (off until switched on in Settings): the skill endpoint, signed stream links, pairing
@@ -207,16 +213,8 @@ app.Use((ctx, next) =>
     }
     return next();
 });
-app.Use((ctx, next) =>
-{
-    var h = ctx.Response.Headers;
-    h["X-Content-Type-Options"] = "nosniff";
-    h["Referrer-Policy"] = "same-origin";
-    h["X-Frame-Options"] = "SAMEORIGIN";
-    h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
-    if (ctx.Request.IsHttps) h["Strict-Transport-Security"] = "max-age=15552000";
-    return next();
-});
+// no indexing, no framing by other sites, no sniffing, the Content-Security-Policy (SecurityHeaders): on every answer, before anything else can answer
+app.Use((ctx, next) => { SecurityHeaders.Apply(ctx); return next(); });
 if (!app.Environment.IsDevelopment()) app.UseExceptionHandler("/error", createScopeForErrors: true);
 // an address nothing answers (and not a file or an API call) gets the FLACie "page not found" page instead of the browser's bare 404
 app.UseWhen(c => HttpMethods.IsGet(c.Request.Method) && c.Request.Headers.Accept.ToString().Contains("text/html", StringComparison.OrdinalIgnoreCase)
@@ -224,6 +222,8 @@ app.UseWhen(c => HttpMethods.IsGet(c.Request.Method) && c.Request.Headers.Accept
     b => b.UseStatusCodePagesWithReExecute("/not-found"));
 app.UseRouting();   // after the status pages, so a re-executed request is routed again
 app.UseAuthentication();
+// after sign-in is read (a signed-in person is counted by account, not by an address their whole household shares), before anything is done for the request
+app.UseRateLimits();
 app.UseAuthorization();
 app.UseAntiforgery();
 app.MapStaticAssets();
@@ -267,11 +267,17 @@ if (builder.Configuration["FLACIE_DEBUG"] == "1")
 // who and what is asking, for the admin dashboard (the address as the server sees it)
 app.MapGet("/api/whoami", (HttpContext ctx) => Results.Json(new { ip = ctx.Connection.RemoteIpAddress?.MapToIPv4().ToString() ?? "", ua = ctx.Request.Headers.UserAgent.ToString() })).RequireAuthorization();
 // what this server asks of Jellyfin, for the administrators: calls in the last minute by kind, so an overload can be traced next time
-app.MapGet("/api/admin/load", (HttpContext ctx, SessionStore store, JellyfinClient jf, PlaybackActivity act, FormatProbeService probe, FormatIndex idx, IConfiguration conf, JellyfinGate gate, CacheService cache) =>
+app.MapGet("/api/admin/load", (HttpContext ctx, SessionStore store, JellyfinClient jf, PlaybackActivity act, FormatProbeService probe, FormatIndex idx, IConfiguration conf, JellyfinGate gate, CacheService cache, RateLimits limits) =>
     !AdminAccess.Is(store.For(ctx.User), conf) ? Results.StatusCode(403)
-    : Results.Json(new { jellyfinCallsLastMinute = jf.Stats.LastMinute(), jellyfinCallsSinceStart = jf.Stats.Totals(), openStreams = act.OpenStreams, busy = act.Busy, probePending = probe.Pending, indexed = idx.Count, backingOff = idx.MissCount, desktopShell = ChartsService.InDesktopShell, gate = gate.Metrics(), cache = cache.Report() })).RequireAuthorization();
-app.MapGet("/healthz", () => Results.Ok("ok"));
-app.MapGet("/licenses", () => Results.Text(AppInfo.Licenses(), "text/plain; charset=utf-8"));
+    : Results.Json(new { jellyfinCallsLastMinute = jf.Stats.LastMinute(), jellyfinCallsSinceStart = jf.Stats.Totals(), openStreams = act.OpenStreams, busy = act.Busy, probePending = probe.Pending, indexed = idx.Count, backingOff = idx.MissCount, desktopShell = ChartsService.InDesktopShell, gate = gate.Metrics(), cache = cache.Report(),
+        rateLimitKeys = limits.KeyCounts() })).RequireAuthorization();   // (addresses and accounts each limit is counting right now: bounded, see RateLimits)
+app.MapGet("/healthz", () => Results.Ok("ok")).RateLimited("public");
+// a self-hosted music server has no place in search results (every answer also says X-Robots-Tag: noindex)
+app.MapGet("/robots.txt", () => Results.Text(SecurityHeaders.RobotsTxt, "text/plain; charset=utf-8")).RateLimited("public");
+app.MapGet("/licenses", () => Results.Text(AppInfo.Licenses(), "text/plain; charset=utf-8")).RateLimited("public");
 app.Lifetime.ApplicationStarted.Register(() => { var a = app.Services.GetRequiredService<ActivityLog>(); a.Add("server", "", "FLACie started"); _ = app.Services.GetRequiredService<Notifier>().NotifyAsync("started", "Server started", "FLACie is up again.", 2, "rocket"); });
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode().AddAdditionalAssemblies(typeof(FLACie.Server.Components.Pages.Ipod).Assembly, typeof(FLACie.Server.Components.Pages.Home).Assembly);   // the Retro page lives in FLACie.Retro, the library pages in FLACie.App
 app.Run();
+
+/// <summary>The largest request body the server reads, unless an endpoint raises its own (the playlist import).</summary>
+static class MaxBody { public const long Bytes = 2L << 20; }

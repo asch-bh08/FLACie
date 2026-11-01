@@ -141,7 +141,7 @@ public static class DjAskEndpoints
     {
         services.AddSingleton<IDjAskModel, CloudflareAskModel>();
         // one context per person, shared by the ask prompt and the lines between songs
-        services.AddSingleton(sp => new DjAskEngine(sp.GetRequiredService<IDjAskModel>(), sp.GetRequiredService<DjContexts>()));
+        services.AddSingleton(sp => new DjAskEngine(sp.GetRequiredService<IDjAskModel>(), sp.GetRequiredService<DjContexts>()) { Limits = sp.GetService<RateLimits>() });
         services.AddSingleton<DjAskService>();
     }
 

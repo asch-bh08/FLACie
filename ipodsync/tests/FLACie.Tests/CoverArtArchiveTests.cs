@@ -22,7 +22,21 @@ public class CoverArtArchiveTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage r, CancellationToken ct) { Seen.Add(r.RequestUri!.ToString()); return Task.FromResult(answer(r)); }
     }
 
-    static CoverArtArchiveClient Client(Fake f) => new(new HttpClient(f), "FLACie/test ( x )", new MusicBrainzGate(TimeSpan.Zero));
+    static readonly RetryPolicy NoWait = new() { Delay = (_, _) => Task.CompletedTask };
+    static CoverArtArchiveClient Client(Fake f) => new(new HttpClient(f), "FLACie/test ( x )", new MusicBrainzGate(TimeSpan.Zero)) { Retry = NoWait };
+
+    [Fact] public async Task AnOverloadedArchiveAndAFlakyPictureAreAskedAgain()
+    {
+        // the Cover Art Archive (and archive.org behind it) often answers 502 or 503 for a moment: the list and the picture come on the next try
+        var n = 0;
+        var list = new Fake(_ => ++n == 1 ? new HttpResponseMessage(HttpStatusCode.BadGateway) : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(Json) });
+        Assert.Equal(2, (await Client(list).ListAsync("rel", null)).Count);
+        Assert.Equal(2, list.Seen.Count);
+        var m = 0;
+        var img = new Fake(_ => ++m == 1 ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) : new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Png) });
+        Assert.Equal(Png, await Client(img).FetchAsync("https://coverartarchive.org/x.png"));
+        Assert.Equal(2, img.Seen.Count);
+    }
 
     [Fact] public void ParseOrdersFrontFirstUpgradesToHttpsAndSkipsBrokenOnes()
     {

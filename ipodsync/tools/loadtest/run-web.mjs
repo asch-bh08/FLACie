@@ -54,6 +54,27 @@ async function stopWeb() {
   web = null; await sleep(500);
 }
 
+// What the browser itself sends to FLACie (not what FLACie then asks of Jellyfin): requests by kind, and the busiest second and the busiest ten seconds of
+// each kind. These are the numbers the server's rate limits must stay well above (docs/SELF-HOSTING.md, Rate limits).
+const browserLog = [];
+const kindOf = (u) => { const p = new URL(u).pathname; return p.startsWith('/art/') ? 'art' : p === '/stream' ? 'stream' : p === '/api/wave' ? 'wave' : p.startsWith('/api/') ? 'api' : p.startsWith('/auth/') ? 'auth' : p.startsWith('/_blazor') || p.startsWith('/_framework') ? 'blazor' : 'other'; };
+const refused = [];   // 429s FLACie gave the browser (a rate limit met in normal use: there must be none)
+function watchBrowser(page) {
+  page.on('request', (r) => { if (r.url().startsWith(WEB)) browserLog.push({ t: Date.now(), kind: kindOf(r.url()) }); });
+  page.on('response', (r) => { if (r.url().startsWith(WEB) && r.status() === 429) refused.push({ t: Date.now(), kind: kindOf(r.url()) }); });
+}
+function browserSince(t0) {
+  const rows = browserLog.filter((x) => x.t >= t0), byKind = {}, peak1 = {}, peak10 = {};
+  const throttled = refused.filter((x) => x.t >= t0).length;
+  for (const r of rows) byKind[r.kind] = (byKind[r.kind] ?? 0) + 1;
+  for (const k of Object.keys(byKind)) {
+    const ts = rows.filter((r) => r.kind === k).map((r) => r.t);
+    const most = (w) => { let best = 0; for (let i = 0, j = 0; i < ts.length; i++) { while (ts[i] - ts[j] >= w) j++; best = Math.max(best, i - j + 1); } return best; };
+    peak1[k] = most(1000); peak10[k] = most(10_000);
+  }
+  return { total: rows.length, byKind, peakPerSecond: peak1, peakPer10Seconds: peak10, throttled };
+}
+
 const pick = (s) => ({ total: s.total, byKind: s.byKind, peakInFlight: s.peakInFlight, peakPerSecond: s.peakPerSecond, throttled: s.throttled, failed: s.failed,
   images: s.byKind.image ?? 0, imageUrls: s.imageUrls, imageRepeats: s.imageRepeats, imageVariants: s.imageVariants, notModified: s.notModified,
   streamsOpened: s.streamsOpened, streamsAborted: s.streamsAborted, streamsCompleted: s.streamsCompleted, itemsPages: s.itemsPages, itemsDeltas: s.itemsDeltas, avgLatencyMs: s.avgLatencyMs, maxLatencyMs: s.maxLatencyMs, seconds: Math.round(s.seconds) });
@@ -84,6 +105,7 @@ async function main() {
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await ctx.newPage();
+  watchBrowser(page);
 
   // ---- first sync (cold start: nothing saved anywhere) ----
   const t0 = Date.now();
@@ -109,6 +131,7 @@ async function main() {
     await page.goto(WEB + '/songs');
     await page.locator('.track').first().waitFor({ timeout: 60000 });
     await sleep(1500); await reset();
+    const scrollFrom = Date.now();
     const sc = await page.evaluate(async () => {
       const el = document.scrollingElement; const total = el.scrollHeight; let steps = 0; const t0 = performance.now();
       const stepPx = Math.max(900, Math.ceil(total / 330));
@@ -122,7 +145,7 @@ async function main() {
       okCovers = r.ok; allCovers = r.n; if (r.n > 0 && r.ok === r.n) break; await sleep(250);
     }
     const afterScroll = pick(await stats());
-    result.scenarios.scrolling = { ...sc, coversOnScreen: allCovers, coversLoaded: okCovers, settleMs: Date.now() - tStop, ...afterScroll };
+    result.scenarios.scrolling = { ...sc, coversOnScreen: allCovers, coversLoaded: okCovers, settleMs: Date.now() - tStop, ...afterScroll, browser: browserSince(scrollFrom) };
     console.error(`  scrolling: ${sc.steps} steps in ${sc.ms} ms, image requests ${afterScroll.images} (${afterScroll.imageUrls} distinct, ${afterScroll.imageRepeats} repeats), peak ${afterScroll.peakInFlight}, covers on screen ${okCovers}/${allCovers} after ${Date.now() - tStop} ms`);
 
     // ---- 40-skip burst ----
@@ -133,6 +156,7 @@ async function main() {
     await page.locator('.player').waitFor({ timeout: 20000 });
     await sleep(2500);
     await reset();
+    const burstFrom = Date.now();
     const next = page.getByRole('button', { name: 'Next' }).first();
     const tb = Date.now();
     for (let i = 0; i < 40; i++) { await next.click({ noWaitAfter: true, timeout: 5000 }).catch(() => { }); await sleep(60); }
@@ -145,7 +169,7 @@ async function main() {
     }
     await sleep(4000);   // let anything that was going to happen happen
     const sb = pick(await stats());
-    result.scenarios['skip-burst'] = { skips: 40, burstMs, lastSongReadyMs: playingMs, ...sb };
+    result.scenarios['skip-burst'] = { skips: 40, burstMs, lastSongReadyMs: playingMs, ...sb, browser: browserSince(burstFrom) };
     console.error(`  skip-burst: ready after ${playingMs} ms, requests ${sb.total} (streams ${sb.streamsOpened}, aborted ${sb.streamsAborted}), peak ${sb.peakInFlight}`);
   }
 

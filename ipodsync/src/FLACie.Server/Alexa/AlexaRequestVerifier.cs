@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json.Nodes;
+using FLACie.Core;
 
 namespace FLACie.Server.Alexa;
 
@@ -12,15 +13,17 @@ public record AlexaVerification(bool Ok, string Reason, JsonNode? Request);
 /// <summary>Where the signing certificate chain (PEM) comes from. Injectable so tests never touch the network.</summary>
 public interface IAlexaCertSource { Task<byte[]> FetchAsync(Uri url, CancellationToken ct); }
 
-/// <summary>Production source: plain HTTPS GET, 5 s timeout, at most 64 KB read. Pass the "catalog" client from IHttpClientFactory, or none.</summary>
+/// <summary>Production source: plain HTTPS GET, 5 s timeout, at most 64 KB read. Pass the "catalog" client from IHttpClientFactory, or none. A dropped
+/// connection or a busy answer is tried once more inside the same 5 s (HttpRetry): a failed fetch turns every Alexa request away for 30 seconds.</summary>
 public sealed class HttpAlexaCertSource(HttpClient? http = null) : IAlexaCertSource
 {
     readonly HttpClient http = http ?? new HttpClient();
+    public RetryPolicy Retry { get; init; } = RetryPolicy.Quick;
     public async Task<byte[]> FetchAsync(Uri url, CancellationToken ct)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(5));
-        using var resp = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+        using var resp = await HttpRetry.SendAsync(http, () => new HttpRequestMessage(HttpMethod.Get, url), Retry, cts.Token, completion: HttpCompletionOption.ResponseHeadersRead);
         resp.EnsureSuccessStatusCode();
         if (resp.Content.Headers.ContentLength > AlexaRequestVerifier.MaxCertBytes) throw new InvalidDataException("cert too large");
         await using var s = await resp.Content.ReadAsStreamAsync(cts.Token);
@@ -173,38 +176,5 @@ public sealed class AlexaRequestVerifier(IAlexaCertSource source, string? skillI
         }
         for (var i = 1; i < all.Count; i++) chain.ChainPolicy.ExtraStore.Add(all[i]);
         try { return chain.Build(leaf) ? null : "cert-untrusted"; } catch (Exception) { return "cert-untrusted"; }
-    }
-}
-
-/// <summary>Fixed one-minute window per key (default 30 requests); stale keys are dropped and at most 5000 are kept, so a flood of keys cannot grow memory.</summary>
-public sealed class AlexaRateLimiter(Func<DateTimeOffset>? clock = null, int perMinute = 30, int maxKeys = 5000)
-{
-    static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
-    readonly Func<DateTimeOffset> now = clock ?? (() => DateTimeOffset.UtcNow);
-    readonly Dictionary<string, (DateTimeOffset Start, int Count)> keys = [];
-    readonly object gate = new();
-
-    /// <summary>Keys currently tracked (for tests).</summary>
-    public int KeyCount { get { lock (gate) return keys.Count; } }
-
-    public bool TryTake(string key)
-    {
-        key ??= "";
-        lock (gate)
-        {
-            var t = now();
-            if (keys.TryGetValue(key, out var w) && t - w.Start < Window)
-            {
-                if (w.Count >= perMinute) return false;
-                keys[key] = (w.Start, w.Count + 1); return true;
-            }
-            if (!keys.ContainsKey(key) && keys.Count >= maxKeys)
-            {
-                foreach (var k in keys.Where(kv => t - kv.Value.Start >= Window).Select(kv => kv.Key).ToList()) keys.Remove(k);
-                if (keys.Count >= maxKeys) keys.Remove(keys.MinBy(kv => kv.Value.Start).Key);
-            }
-            keys[key] = (t, 1);
-            return true;
-        }
     }
 }

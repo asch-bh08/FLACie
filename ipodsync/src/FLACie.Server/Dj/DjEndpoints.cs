@@ -35,6 +35,7 @@ public static class DjEndpoints
             var facts = new DjFactsSource(sp.GetService<VibeIndex>(), sp.GetService<MusicBrainzClient>(), sp.GetService<ListenLogStore>());
             d.Facts = facts.Of;
             d.Contexts = sp.GetRequiredService<DjContexts>();
+            d.Limits = sp.GetService<RateLimits>();
             return d;
         });
         // the Windows app's copy of this server goes through the family's FLACie Web when the profile names one (HomeDj); FLACie Web itself is the DJ

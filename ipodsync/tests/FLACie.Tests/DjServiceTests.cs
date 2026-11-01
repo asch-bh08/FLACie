@@ -65,6 +65,21 @@ public class DjServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Past_the_accounts_limit_of_new_lines_a_minute_the_DJ_stays_quiet_but_a_line_already_decided_is_still_said()
+    {
+        // one runaway client (or a stolen session) asking about song after song must not spend the day's DJ allowance for everyone
+        var limits = new RateLimits(n => n == "FLACIE_RATE_DJ" ? "1" : null, () => new DateTimeOffset(now));
+        var r = Make(voice: false); r.Dj.Limits = limits; TurnOn(r, device: true);
+        var first = await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A));
+        Assert.NotNull(first);
+        Assert.Equal(first, await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Phone, B, A)));   // decided already: not counted again
+        var again = Make(voice: false); again.Dj.Limits = limits;   // a fresh server: the same first song change would speak, but this minute's line is used up
+        Assert.Null(await again.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A)));
+        now = now.AddMinutes(1);
+        Assert.NotNull(await again.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, B, A)));
+    }
+
+    [Fact]
     public async Task Off_or_this_queue_off_is_silent_even_for_a_decision_already_made()
     {
         var r = Make(voice: false);

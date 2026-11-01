@@ -3,8 +3,16 @@
 @inherits UserComponent
 @* A song or playlist someone shared with a link: the songs are found in the library of whoever opened it (by title and artist), so it plays from
    their own server; Save keeps it as one of their playlists, and the songs they don't have are listed, ready to download. *@
-@{ var sh = Shares.Get(Id); }
-@if (sh is null)
+@if (lookedUp is null)
+{
+    @* (the account is still being read: nothing yet, rather than a moment of "this link doesn't lead anywhere") *@
+}
+else if (guessing)
+{
+    <PageTitle>Shared · FLACie</PageTitle>
+    <p class="status">Several links that lead nowhere were opened just now. Wait a minute, then open the link again.</p>
+}
+else if (sh is null)
 {
     <PageTitle>Shared · FLACie</PageTitle>
     <p class="status">This link doesn't lead to anything. It may have been typed wrong, or made on another FLACie server.</p>
@@ -57,8 +65,24 @@ else
     [Parameter] public string Id { get; set; } = "";
     [Inject] ShareStore Shares { get; set; } = default!;
     [Inject] IDownloads Downloads { get; set; } = default!;
+    [Inject] IServiceProvider Provider { get; set; } = default!;
     FLACie.Core.Playlist? saved;
     readonly HashSet<string> asked = [];
+    Share? sh; string? lookedUp; bool guessing;
+
+    // the share is read once per link (not on every render). Ids are random (about 58 bits) and only a signed-in person can open one; on top of that,
+    // past the account's "share-miss" limit of links that lead nowhere a minute, every link shows nothing for the rest of that minute, so guessing ids
+    // is pointless. A real link that fails once was typed wrong; nobody opens ten of those in a minute.
+    protected override void OnParametersSet()
+    {
+        if (Id == lookedUp) return;
+        lookedUp = Id; saved = null; asked.Clear();
+        var limits = Provider.GetService(typeof(RateLimits)) as RateLimits;
+        var me = RateKey.Of(Session.Id);
+        guessing = limits?.Over("share-miss", me) == true;
+        sh = guessing ? null : Shares.Get(Id);
+        if (sh is null && !guessing) limits?.TryTake("share-miss", me, out _);
+    }
     static (string, string) SplitTitle(string n) { n = n.Trim(); var i = n.LastIndexOf(' '); return i < 0 ? ("", n) : (n[..(i + 1)], n[(i + 1)..]); }
     static string Key(PlaylistEntry e) => Matching.MatchKey(e.Title, e.Artist);
 

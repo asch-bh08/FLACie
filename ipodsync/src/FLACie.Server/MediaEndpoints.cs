@@ -145,7 +145,7 @@ public static class MediaEndpoints
                 return Results.Empty;
             }
             return Results.NotFound();
-        }).RequireAuthorization();
+        }).RequireAuthorization().RateLimited("stream");
 
         // the Living Sleeve seek bar's shape: how loud each part of a song is (200 bars, 0-255). Jellyfin servers can't always convert a song (transcoding off,
         // or no ffmpeg), so the first browser to play a song works the shape out from the audio it already decodes and sends it here; it is kept on disk
@@ -180,7 +180,7 @@ public static class MediaEndpoints
             if (!File.Exists(rough)) return Results.NotFound();
             ctx.Response.Headers["X-Wave"] = "rough";
             return Results.Json((await File.ReadAllBytesAsync(rough)).Select(b => (int)b));
-        });
+        }).RateLimited("wave");
         app.MapPost("/api/wave", async (HttpContext ctx, string p, SessionStore store, JellyfinClient jf) =>
         {
             if (await ApiEndpoints.CallerAsync(ctx, store, jf) is not { } caller) return Results.Unauthorized();
@@ -190,7 +190,7 @@ public static class MediaEndpoints
             if (bars is not { Length: 200 } || bars.Any(b => b is < 0 or > 255)) return Results.BadRequest();
             if (!File.Exists(file)) await File.WriteAllBytesAsync(file, bars.Select(b => (byte)b).ToArray());   // the first shape sent is kept
             return Results.NoContent();
-        }).DisableAntiforgery();
+        }).DisableAntiforgery().RateLimited("wave");
 
         // sharing a song or a playlist (the phone app asks here; the web makes shares itself): its songs by title and artist, kept under a random id, and
         // the link to send (/s/{id}); whoever opens it signs in as themselves and plays the songs from their own library
@@ -204,7 +204,7 @@ public static class MediaEndpoints
             if (r is null || entries.Count == 0) return Results.BadRequest(new { error = "Nothing to share." });
             var id = shares.Create(r.Kind ?? "playlist", string.IsNullOrWhiteSpace(r.Name) ? entries[0].Title : r.Name, s.Jellyfin?.UserName ?? ctx.User.Identity?.Name ?? "Someone", entries);
             return Results.Json(new { id, url = $"{ctx.Request.Scheme}://{ctx.Request.Host}/s/{id}" });
-        }).DisableAntiforgery();
+        }).DisableAntiforgery().RateLimited("share");
 
         // the iPod desk's disc pictures: a release's own "Medium" picture from the Cover Art Archive, fetched here (the browser only ever asks FLACie) and kept for
         // everyone; only for a release someone matched on MusicBrainz. No picture: 404, and the desk prints a disc from the cover.
@@ -216,7 +216,7 @@ public static class MediaEndpoints
             catch (OperationCanceledException) { return Results.Empty; }
             ctx.Response.Headers.CacheControl = pic is null ? "private, max-age=600" : "private, max-age=604800";
             return pic is null ? Results.NotFound() : Results.Bytes(pic.Bytes, pic.Mime);
-        }).RequireAuthorization();
+        }).RequireAuthorization().RateLimited("art");
 
         // covers, cached on disk by key (shared between users: a cover is the same picture for everyone). A Jellyfin cover's key carries Jellyfin's image tag
         // ("jf<item>~<tag>"), so the picture behind a key never changes: it is fetched once, kept for good and cached by the browser for good. Rows get one fixed
@@ -312,7 +312,7 @@ public static class MediaEndpoints
             if (got.File is not { } saved) return got.Transient ? Results.StatusCode(503) : Results.NotFound();
             ctx.Response.Headers.CacheControl = Kept;
             return Cover(saved);
-        }).RequireAuthorization();
+        }).RequireAuthorization().RateLimited("art");
     }
 
     /// <summary>How much of the next song the early read asks for: enough for it to start at once, nowhere near the whole file.</summary>
@@ -386,25 +386,37 @@ public static class MediaEndpoints
     {
         var hit = await OnlineAlbum(http, artist, album, title, ct);
         if (hit?.Cover is not { Length: > 0 } url) return null;
-        try { return await http.GetByteArrayAsync(url, ct); } catch { return null; }
+        try
+        {
+            using var res = await HttpRetry.SendAsync(http, () => new HttpRequestMessage(HttpMethod.Get, url), RetryPolicy.Quick, ct);
+            return res.IsSuccessStatusCode ? await res.Content.ReadAsByteArrayAsync(ct) : null;
+        }
+        catch { return null; }
     }
 
     static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Album, string Cover)?> albumCache = new();
 
-    /// <summary>The song's own album in the public catalog (title and cover), for songs whose file carries a compilation or a wrong album.</summary>
-    public static async Task<(string Album, string Cover)?> OnlineAlbum(HttpClient http, string artist, string album, string title, CancellationToken ct)
+    /// <summary>How long one catalog question may take: the "media" client has no time limit of its own (it carries audio), and a caller may pass none.</summary>
+    static readonly TimeSpan OnlineAsk = TimeSpan.FromSeconds(12);
+
+    /// <summary>The song's own album in the public catalog (title and cover), for songs whose file carries a compilation or a wrong album. A catalog that
+    /// hiccups is asked again (HttpRetry); one that could not be asked at all is not remembered as "no such album", so the next view asks again.</summary>
+    public static async Task<(string Album, string Cover)?> OnlineAlbum(HttpClient http, string artist, string album, string title, CancellationToken ct, RetryPolicy? retry = null)
     {
         var ck = Matching.MatchKey(title, artist) + "|" + Matching.AlbumNorm(album);
         if (albumCache.TryGetValue(ck, out var cached)) return cached;
-        var found = await OnlineAlbumUncached(http, artist, album, title, ct);
+        var (found, unasked) = await OnlineAlbumUncached(http, artist, album, title, ct, retry ?? RetryPolicy.Quick);
+        if (unasked) return found;
         if (albumCache.Count > 5000) albumCache.Clear();
         albumCache[ck] = found;
         return found;
     }
 
-    static async Task<(string Album, string Cover)?> OnlineAlbumUncached(HttpClient http, string artist, string album, string title, CancellationToken ct)
+    /// <summary>The album, and whether a catalog question could not be answered at all (then a "none" is not to be remembered).</summary>
+    static async Task<((string Album, string Cover)? Found, bool Unasked)> OnlineAlbumUncached(HttpClient http, string artist, string album, string title, CancellationToken ct, RetryPolicy retry)
     {
-        if (artist.Length == 0) return null;
+        if (artist.Length == 0) return (null, false);
+        var unasked = false;
         // "Me Against the World (1995)", "Album [Deluxe]": the bracketed part only hurts a catalog search
         album = System.Text.RegularExpressions.Regex.Replace(album, @"\s*[(\[][^)\]]*[)\]]", "").Trim();
         var want = Matching.PrimaryArtist(artist);
@@ -413,7 +425,8 @@ public static class MediaEndpoints
             if (q.Trim() == artist) continue;
             try
             {
-                var j = JsonNode.Parse(await http.GetStringAsync($"https://api.deezer.com/{ep}?q={Uri.EscapeDataString(q)}&limit=25", ct));
+                using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct); limit.CancelAfter(OnlineAsk);
+                var j = JsonNode.Parse(await HttpRetry.GetStringAsync(http, $"https://api.deezer.com/{ep}?q={Uri.EscapeDataString(q)}&limit=25", limit.Token, retry));
                 var mine = (j?["data"]?.AsArray() ?? []).OfType<JsonObject>()
                     .Where(o => Matching.PrimaryArtist(o["artist"]?["name"]?.GetValue<string>() ?? "") is { Length: > 0 } a && (a.Contains(want) || want.Contains(a))).ToList();
                 int Score(JsonObject o)
@@ -429,11 +442,13 @@ public static class MediaEndpoints
                 var hit = mine.Where(o => Score(o) >= 10 || (album.Length == 0 && ep == "search/album")).OrderByDescending(Score).FirstOrDefault();
                 var url = hit?["cover_big"]?.GetValue<string>() ?? hit?["album"]?["cover_big"]?.GetValue<string>();
                 var name = ep == "search" ? hit?["album"]?["title"]?.GetValue<string>() : hit?["title"]?.GetValue<string>();
-                if (!string.IsNullOrEmpty(url)) return (name ?? "", url);
+                if (!string.IsNullOrEmpty(url)) return ((name ?? "", url), false);
             }
+            // not a page that was read and had nothing: Deezer could not be asked (down, timed out, still busy after asking again, or the caller gave up)
+            catch (Exception e) when (e is HttpRequestException or OperationCanceledException or IOException) { unasked = true; }
             catch { }
         }
-        return null;
+        return (null, unasked);
     }
 }
 

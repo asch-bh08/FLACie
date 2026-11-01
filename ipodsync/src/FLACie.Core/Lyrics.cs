@@ -32,14 +32,29 @@ public sealed partial class LyricsService(HttpClient http, JellyfinClient jf, st
             if (cached.StartsWith("#none")) result = DateTime.UtcNow - File.GetLastWriteTimeUtc(file) > MissFor ? await Fetch(t, account, file, ct) : null;
             else { var nl = cached.IndexOf('\n'); result = Parse(cached[(nl + 1)..], cached[..nl]); }
         }
-        else result = await Fetch(t, account, file, ct);
+        else
+        {
+            var ask = new Ask();
+            result = await Fetch(t, account, file, ct, ask);
+            // LRCLIB could not be asked (down, or still busy after asking again): nothing is remembered, so the next look asks again (before, a minute of
+            // LRCLIB trouble meant "no lyrics" for that song for a week)
+            if (result is null && ask.Unanswered) return null;
+        }
         lock (mem) mem[key] = result;
         return result;
     }
 
-    async Task<Lyrics?> Fetch(Track t, JellyfinAccount? account, string file, CancellationToken ct)
+    /// <summary>How LRCLIB is asked again when it hiccups (HttpRetry); a lookup that still could not be made is not remembered as "no lyrics".</summary>
+    public RetryPolicy Retry { get; init; } = RetryPolicy.Quick;
+
+    /// <summary>One song's lookup: whether some question to LRCLIB got no real answer (then "none found" is not to be believed).</summary>
+    sealed class Ask { public bool Unanswered; }
+
+    async Task<Lyrics?> Fetch(Track t, JellyfinAccount? account, string file, CancellationToken ct, Ask? ask = null)
     {
-        var l = await FromJellyfin(t, account, ct) ?? await FromLrclib(t, ct);
+        ask ??= new Ask();
+        var l = await FromJellyfin(t, account, ct) ?? await FromLrclib(t, ct, ask);
+        if (l is null && ask.Unanswered) return null;
         try
         {
             File.WriteAllText(file, l is null ? "#none" : l.Source + "\n" + string.Join("\n", l.Lines.Select(x => l.Synced ? $"[{Stamp(x.TimeMs)}]{x.Text}" : x.Text)));
@@ -60,16 +75,16 @@ public sealed partial class LyricsService(HttpClient http, JellyfinClient jf, st
         catch (Exception) { return null; }
     }
 
-    async Task<Lyrics?> FromLrclib(Track t, CancellationToken ct)
+    async Task<Lyrics?> FromLrclib(Track t, CancellationToken ct, Ask ask)
     {
         var title = t.Title.Trim(); var artist = t.Artist.Trim();
         if (title.Length == 0) return null;
         static string Enc(string s) => Uri.EscapeDataString(s);
         var lead = LeadArtist(artist) is { Length: > 0 } l ? l : artist;
         var exact = $"{Lrclib}/get?track_name={Enc(title)}&artist_name={Enc(lead)}" + (t.Album.Length > 0 ? $"&album_name={Enc(t.Album)}" : "") + (t.DurationMs > 0 ? $"&duration={t.DurationMs / 1000}" : "");
-        if (await Http(exact, ct) is { } b && ParseJson(b) is { } hit) return FromJson(hit);
+        if (await Http(exact, ct, ask) is { } b && ParseJson(b) is { } hit) return FromJson(hit);
         // no exact match (another album/edition, or length off): search, and take the closest-length hit that has lyrics
-        if (await Http($"{Lrclib}/search?track_name={Enc(StripFeat(title))}&artist_name={Enc(lead)}", ct) is not { } q || ParseJson(q) is not JsonArray arr) return null;
+        if (await Http($"{Lrclib}/search?track_name={Enc(StripFeat(title))}&artist_name={Enc(lead)}", ct, ask) is not { } q || ParseJson(q) is not JsonArray arr) return null;
         var hits = arr.OfType<JsonObject>().Where(h => Has(h, "syncedLyrics") || Has(h, "plainLyrics")).ToList();
         var best = hits.MinBy(h => (t.DurationMs > 0 ? Math.Abs((h["duration"]?.GetValue<double>() ?? 0) - t.DurationMs / 1000.0) : 0) + (Has(h, "syncedLyrics") ? 0 : 5));
         if (best is null) return null;
@@ -88,16 +103,23 @@ public sealed partial class LyricsService(HttpClient http, JellyfinClient jf, st
         return Has(o, "plainLyrics") ? Parse(o["plainLyrics"]!.GetValue<string>(), "LRCLIB") : null;
     }
 
-    async Task<string?> Http(string url, CancellationToken ct)
+    /// <summary>The body of a good answer, else null. [ask] notes an answer that says nothing about the song (no connection, a timeout, a 5xx or 429 still
+    /// there after asking again), as opposed to a 404 ("no such song").</summary>
+    async Task<string?> Http(string url, CancellationToken ct, Ask ask)
     {
         try
         {
-            using var req = new HttpRequestMessage(HttpMethod.Get, url);
-            req.Headers.UserAgent.ParseAdd("FLACie/1.0 (web music player)");
-            using var res = await http.SendAsync(req, ct);
-            return res.IsSuccessStatusCode ? await res.Content.ReadAsStringAsync(ct) : null;
+            using var res = await HttpRetry.SendAsync(http, () =>
+            {
+                var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.UserAgent.ParseAdd("FLACie/1.0 (web music player)");
+                return req;
+            }, Retry, ct);
+            if (res.IsSuccessStatusCode) return await res.Content.ReadAsStringAsync(ct);
+            if (HttpRetry.Transient(res.StatusCode)) ask.Unanswered = true;
+            return null;
         }
-        catch (Exception) { return null; }
+        catch (Exception) { ask.Unanswered = true; return null; }
     }
 
     static string Stamp(long ms) => $"{ms / 60000:00}:{ms / 1000 % 60:00}.{ms % 1000 / 10:00}";

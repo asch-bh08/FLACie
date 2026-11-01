@@ -32,6 +32,19 @@ public class ShareStoreTests
         Assert.Matches("^[A-Za-z0-9]+$", a);
     }
 
+    [Fact]
+    public void Ids_cannot_be_guessed()
+    {
+        // ten characters from a 55-character alphabet, drawn by the system's cryptographic generator: about 58 bits. Only a signed-in person can open a link,
+        // and past ten links that lead nowhere a minute they see nothing at all (the "share-miss" limit), so guessing would take longer than the universe has.
+        var s = New();
+        var ids = Enumerable.Range(0, 200).Select(_ => s.Create("song", "x", "me", [new PlaylistEntry("p", "t", "a")])).ToList();
+        Assert.Equal(200, ids.Distinct().Count());
+        var alphabet = ids.SelectMany(i => i).Distinct().Count();
+        Assert.True(alphabet >= 50, alphabet.ToString());   // the whole alphabet is in use, not a few letters
+        Assert.True(ids.Min(i => i.Length) * Math.Log2(55) >= 56);
+    }
+
     [Theory]
     [InlineData("../keys/key")]
     [InlineData("nope")]

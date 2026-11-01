@@ -165,6 +165,22 @@ public class DjAskTests
         Assert.Equal(2, a.Paths!.Count);
     }
 
+    [Fact] public async Task PastTheAccountsAskLimitTheModelIsLeftOutAndTheQuickRulesAnswer()
+    {
+        // talking to the DJ twenty times a minute is far past anyone's use; past it the text model (a paid call) is not asked, as when it is not set up
+        var model = new FakeModel((_, _) => Task.FromResult<string?>("{\"action\": \"playlist\", \"query\": \"pop\"}"));
+        var e = new DjAskEngine(model) { Limits = new RateLimits(n => n == "FLACIE_RATE_DJ_ASK" ? "2" : null) };
+        var u = Standard();
+        for (var i = 0; i < 2; i++) await e.AnswerAsync(u, "I fancy that pop list of mine", null, []);
+        Assert.Equal(2, model.Calls);
+        await e.AnswerAsync(u, "I fancy that pop list of mine", null, []);
+        Assert.Equal(2, model.Calls);
+        Assert.Equal(DjAskDo.Next, (await e.AnswerAsync(u, "next", null, [])).Do);   // a plain control still works
+        var other = Standard(); other.Account = "kim";
+        await e.AnswerAsync(other, "I fancy that pop list of mine", null, []);
+        Assert.Equal(3, model.Calls);   // another account is not held up
+    }
+
     [Fact] public async Task TheModelIsNotAskedWhenARuleFits()
     {
         var model = new FakeModel((_, _) => Task.FromResult<string?>("{\"action\":\"pause\"}"));

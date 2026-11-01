@@ -111,6 +111,8 @@ public static class AuthEndpoints
         async Task SignIn(HttpContext ctx, JellyfinAccount? j, NasAccount? n)
         {
             var principal = SessionStore.Principal(j, n);
+            // this browser is now a known device for that name: someone else's guessing at it never holds this browser up (LoginThrottle)
+            if ((j?.UserName ?? n?.User) is { Length: > 0 } known) ctx.RequestServices.GetRequiredService<SignInDevices>().Remember(ctx, known);
             // a fresh sign-in brings a fresh token: drop any session kept from an earlier one, so it is not reused with the old (maybe dead) token
             ctx.RequestServices.GetRequiredService<SessionStore>().Forget(principal);
             await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal,
@@ -123,40 +125,44 @@ public static class AuthEndpoints
 
         static IResult Back(string error, string tab = "") => Results.Redirect("/login?error=" + Uri.EscapeDataString(error) + (tab.Length > 0 ? "&tab=" + tab : ""));
 
-        const string TooMany = "Too many failed attempts. Wait a few minutes and try again.";
+        // "Too many failed attempts" with how long, so nobody keeps trying (and adding to the count) while it lasts
+        static string TooMany(TimeSpan wait) => $"Too many failed attempts. Try again in {RateLimiting.Say(Math.Max(1, (int)Math.Ceiling(wait.TotalSeconds)))}.";
 
-        app.MapPost("/auth/jellyfin", async (HttpContext ctx, JellyfinClient jf, LoginThrottle throttle) =>
+        app.MapPost("/auth/jellyfin", async (HttpContext ctx, JellyfinClient jf, LoginThrottle throttle, SignInDevices devices) =>
         {
             var f = ctx.Request.Form;
             var server = fixedServer ?? f["server"].ToString();
             var user = f["user"].ToString().Trim();
             if (string.IsNullOrWhiteSpace(server) || user.Length == 0) return Back("Enter the server and your username.");
-            if (throttle.Blocked(ctx)) return Back(TooMany);
-            if (throttle.Delay(user) is { Ticks: > 0 } wait) await Task.Delay(wait, ctx.RequestAborted);
-            try { await SignIn(ctx, await jf.SignInAsync(server, user, f["password"].ToString()), null); throttle.Succeed(user); return Results.Redirect(LocalReturn(f["return"])); }
-            catch (UnauthorizedAccessException) { throttle.Fail(ctx, user); return Back("Wrong username or password."); }
+            // a browser that has signed in as this name before (its known-device cookie) is not held up by anyone else's guessing at it
+            var device = devices.Of(ctx, user);
+            if (throttle.Blocked(ctx, user, device) is { } blocked) return Back(TooMany(blocked));
+            if (throttle.Delay(user, device) is { Ticks: > 0 } wait) await Task.Delay(wait, ctx.RequestAborted);
+            try { await SignIn(ctx, await jf.SignInAsync(server, user, f["password"].ToString()), null); throttle.Succeed(ctx, user); return Results.Redirect(LocalReturn(f["return"])); }
+            catch (UnauthorizedAccessException) { throttle.Fail(ctx, user, device); return Back("Wrong username or password."); }
             catch (Exception e) { throttle.Fail(ctx); return Back(FriendlyError.Of(e, $"Couldn't sign in to {server}")); }
-        }).DisableAntiforgery();
+        }).DisableAntiforgery().RateLimited("signin");
 
-        app.MapPost("/auth/nas", async (HttpContext ctx, LoginThrottle throttle) =>
+        app.MapPost("/auth/nas", async (HttpContext ctx, LoginThrottle throttle, SignInDevices devices) =>
         {
             if (!allowNas) return Back("NAS sign-in is turned off on this server.");
-            if (throttle.Blocked(ctx)) return Back(TooMany, "nas");
             var f = ctx.Request.Form;
             var n = new NasAccount(f["host"].ToString().Trim(), f["share"].ToString().Trim(), f["folder"].ToString().Trim('/', ' '), f["user"].ToString().Trim(), f["password"].ToString());
+            var device = devices.Of(ctx, n.User);
+            if (throttle.Blocked(ctx, n.User, device) is { } blocked) return Back(TooMany(blocked), "nas");
             if (n.Host.Length == 0 || n.Share.Length == 0) return Back("Enter the NAS address and share.", "nas");
-            try { await Task.Run(() => NasClient.Test(n)); await SignIn(ctx, null, n); return Results.Redirect(LocalReturn(f["return"])); }
-            catch (Exception e) { throttle.Fail(ctx, n.User); return Back(FriendlyError.Of(e, "Couldn't sign in to the NAS"), "nas"); }
-        }).DisableAntiforgery();
+            try { await Task.Run(() => NasClient.Test(n)); await SignIn(ctx, null, n); throttle.Succeed(ctx, n.User); return Results.Redirect(LocalReturn(f["return"])); }
+            catch (Exception e) { throttle.Fail(ctx, n.User, device); return Back(FriendlyError.Of(e, "Couldn't sign in to the NAS"), "nas"); }
+        }).DisableAntiforgery().RateLimited("signin");
 
         // Quick Connect: the page polls until the code is approved in another Jellyfin app, then this signs in
         app.MapPost("/auth/qc/start", async (HttpContext ctx, QcStart body, JellyfinClient jf, LoginThrottle throttle) =>
         {
-            if (throttle.Blocked(ctx)) return Results.BadRequest(new { error = TooMany });
+            if (throttle.Blocked(ctx) is { } blocked) return Results.BadRequest(new { error = TooMany(blocked) });
             var server = fixedServer ?? body.Server;
             try { var (code, secret) = await jf.QuickConnectStartAsync(server); return Results.Ok(new { code, secret, server = JellyfinClient.Normalise(server) }); }
             catch (Exception e) { throttle.Fail(ctx); return Results.BadRequest(new { error = FriendlyError.Of(e, $"Quick Connect isn't available on {server}") }); }
-        }).DisableAntiforgery();
+        }).DisableAntiforgery().RateLimited("signin");
 
         app.MapPost("/auth/qc/poll", async (HttpContext ctx, QcPoll body, JellyfinClient jf) =>
         {
@@ -168,7 +174,7 @@ public static class AuthEndpoints
                 return Results.Ok(new { done = true });
             }
             catch (Exception e) { return Results.BadRequest(new { error = FriendlyError.Of(e) }); }
-        }).DisableAntiforgery();
+        }).DisableAntiforgery().RateLimited("qc-poll");
 
         app.MapPost("/auth/logout", async (HttpContext ctx, SessionStore store, JellyfinClient jf) =>
         {

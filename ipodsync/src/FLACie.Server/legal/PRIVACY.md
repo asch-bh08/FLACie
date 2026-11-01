@@ -73,8 +73,8 @@ FLACie Web, the phone's for the Android app.
 ## The Android and Windows apps
 
 - **Android** keeps on the phone: your library list, covers, lyrics, songs you download for offline listening, settings, recent searches, a copy of your
-  profile, and listening events waiting to be sent to FLACie Web. Android's cloud backup is turned off for the FLACie app, so none of this goes into a
-  Google backup (the separate FLACie Retro app still allows it). Signing out clears your favourites, playlists, play history, download-service settings
+  profile, and listening events waiting to be sent to FLACie Web. Android's cloud backup is turned off for the FLACie app and the separate FLACie Retro
+  app, so none of this goes into a Google backup. Signing out clears your favourites, playlists, play history, download-service settings
   and the waiting events from the phone. The app talks straight to your own servers and to the public look-ups above. It asks for the microphone only the
   first time you press the DJ mic.
 - **Windows** runs FLACie Web on the PC itself (it only listens on `127.0.0.1`), so everything above applies, kept in `%LOCALAPPDATA%\FLACie\web`.

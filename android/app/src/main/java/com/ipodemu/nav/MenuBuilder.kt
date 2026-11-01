@@ -27,7 +27,7 @@ class MenuBuilder(private val app: App, private val onThemeChosen: (String) -> U
         ListPage(title, kind) { ListSourceOf(items()) }
 
     /** The top-level menu; entries hidden in Settings > Main Menu are filtered out. */
-    fun rootPage(items: () -> List<Item>) = page("iPod") {
+    fun rootPage(items: () -> List<Item>) = page("FLACie") {
         val all = items()
         rootTitles = all.map { it.title }
         all.filter { it.title !in prefs.hiddenMenu }
@@ -63,7 +63,7 @@ class MenuBuilder(private val app: App, private val onThemeChosen: (String) -> U
     fun playlistsItem() = Item("Playlists", icon = Icon.PLAYLISTS) { it.push(playlistsPage()) }
     fun artistsItem() = Item("Artists", icon = Icon.ARTISTS) { it.push(artistsPage()) }
     /** Cover Flow: the albums as a row of covers, turned with the wheel; the middle one opens. */
-    fun coverFlowItem() = Item("Cover Flow", icon = Icon.ALBUMS) { it.push(groupPage("Cover Flow", Kind.COVERFLOW, { lib.albums() }, artistSub = true) { g -> songsPage(g.name, g.tracks) }) }
+    fun coverFlowItem() = Item("Covers", icon = Icon.ALBUMS) { it.push(groupPage("Covers", Kind.COVERFLOW, { lib.albums() }, artistSub = true) { g -> songsPage(g.name, g.tracks) }) }
     fun albumsItem() = Item("Albums", icon = Icon.ALBUMS) { it.push(albumsPage()) }
     fun songsItem() = Item("Songs", icon = Icon.SONGS) { it.push(songsPage("Songs", lib.songs())) }
     fun genresItem() = Item("Genres", icon = Icon.GENRES) { it.push(genresPage()) }

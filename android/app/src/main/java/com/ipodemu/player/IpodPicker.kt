@@ -56,9 +56,9 @@ import com.ipodemu.theme.Themes
 
 /** The three ways to use the app. Everything else on this screen (which iPod, colours) refines the chosen mode. */
 private enum class UseMode(val title: String, val tagline: String, val detail: String) {
-    MODERN("iPod Player", "Flat music app, iPod style", "Shelves, suggestions, search and swipes. No device body, no wheel."),
-    EMULATOR("iPod Emulator", "The device itself", "Full iPod body, screen and click wheel, faithful to the real hardware."),
-    WHEEL("Click Wheel Fullscreen", "Wheel UI, no body", "The iPod menus and click wheel filling the screen, without the device around it."),
+    MODERN("Modern Player", "Flat music app, classic style", "Shelves, suggestions, search and swipes. No device body, no wheel."),
+    EMULATOR("Device", "The device itself", "Full player body, screen and wheel, faithful to the real hardware."),
+    WHEEL("Wheel Fullscreen", "Wheel UI, no body", "The menus and wheel filling the screen, without the device around it."),
 }
 
 private fun modeOf(viewMode: Int): UseMode = when (viewMode) { 0 -> UseMode.MODERN; 2 -> UseMode.WHEEL; else -> UseMode.EMULATOR }
@@ -261,13 +261,13 @@ private fun Controls(model: Model, ci: Int) {
         Section("1  How do you want to use it?") {
             UseMode.values().forEach { md ->
                 val ok = !(md == UseMode.WHEEL && model.touch)
-                ModeCard(md, md == mode, ok, if (ok) null else "Touch iPods have no click wheel - pick a click-wheel iPod below first.", model, cw) {
+                ModeCard(md, md == mode, ok, if (ok) null else "Touch models have no wheel - pick a wheel model below first.", model, cw) {
                     ui.changeViewMode(viewModeFor(md, model))
                 }
             }
         }
 
-        Section("2  Which iPod?") {
+        Section("2  Which model?") {
             IpodCarousel(model, ci)
             Text_model_info(model)
             if (model.colors.size > 1) {
@@ -283,7 +283,7 @@ private fun Controls(model: Model, ci: Int) {
                 Chip("Fade with artwork", ui.dynamicColor && !lcd, enabled = !lcd) { ui.changeDynamic(true) }
                 Chip("Fixed", !ui.dynamicColor || lcd) { ui.changeDynamic(false) }
             }
-            if (lcd) Txt("LCD iPods keep their own colours.", size = 12f, color = Color(0xFF9AA1B1))
+            if (lcd) Txt("LCD models keep their own colours.", size = 12f, color = Color(0xFF9AA1B1))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val p = app.prefs
                 listOf("System", "Dark", "Light").forEachIndexed { i, n ->
@@ -295,7 +295,7 @@ private fun Controls(model: Model, ci: Int) {
 
         Section("4  Display") {
             val p = app.prefs
-            Txt("Click wheel layout", size = 14f, weight = FontWeight.SemiBold, color = Color.White)
+            Txt("Wheel layout", size = 14f, weight = FontWeight.SemiBold, color = Color.White)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(listOf(0 to "Auto (controller)", 1 to "Wheel shown", 2 to "Wheel hidden")) { (v, n) ->
                     Chip(n, p.layoutMode == v) { p.layoutMode = v; (ctx as? com.ipodemu.ui.MainActivity)?.ipodView?.refreshLayout(); ui.refreshFromPrefs() }

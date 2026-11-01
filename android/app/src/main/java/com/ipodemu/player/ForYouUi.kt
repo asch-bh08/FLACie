@@ -90,7 +90,7 @@ fun HardwareHome(nav: PlayerNav, snap: PlayerSnap) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     Column(Modifier.fillMaxSize()) {
-        TopBar("iPod", nav, showBack = false)
+        TopBar("FLACie", nav, showBack = false)
         LazyColumn(Modifier.fillMaxSize()) {
             item { HwRow("Music", true) { nav.push(Screen.Music) } }
             item { HwRow("Voice Memos", true) { nav.push(Screen.Lib(LibKind.MEMOS)) } }

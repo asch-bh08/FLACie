@@ -79,7 +79,7 @@ export async function waitUi(fn, timeoutMs = 60000, every = 1500) {
 // ---- playback state, from the media session (works while music plays: uiautomator does not) ----
 export function mediaSession() {
   const t = sh('dumpsys media_session', { quiet: true, timeout: 30000 });
-  const pkg = /package=com\.ipodemu[\s\S]{0,2500}/.exec(t)?.[0] ?? '';
+  const pkg = /package=(?:app\.flacie|com\.ipodemu)[\s\S]{0,2500}/.exec(t)?.[0] ?? '';
   const st = /PlaybackState \{state=(?:\w+\()?(\d+)/.exec(pkg), md = /metadata:.*?description=([^\n]*)/.exec(pkg), q = /queueTitle=([^\n]*)/.exec(pkg);
   const pos = /position=(\d+)/.exec(pkg);
   return { found: !!pkg, state: st ? Number(st[1]) : null, description: md ? md[1].trim() : null, position: pos ? Number(pos[1]) : null, queueTitle: q ? q[1].trim() : null };

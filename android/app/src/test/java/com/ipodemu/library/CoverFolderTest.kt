@@ -26,4 +26,12 @@ class CoverFolderTest {
         val own = t("Experience", "jf%032x".format(n + 1), "/music/The Prodigy/Experience")
         assertEquals(listOf("jfabc", "jfabc"), CoverVetting.vet(listOf(a, b, own)).take(2).map { it.artKey })
     }
+    @Test fun withoutFilePathsASharedPictureOfSeveralAlbumsStillGivesTheSongLookup() {
+        val a = t("The Final", "jfshared", folder = "").copy(filePath = ""); val b = t("21", "jfshared").copy(filePath = "")
+        assertEquals(CoverLookup.key(a.artist, "", a.title), CoverVetting.vet(listOf(a, b))[0].artKey)
+    }
+    @Test fun aSavedAlbumLookupForACompilationSongBecomesTheSongLookup() {
+        val t = t("The Final", null).copy(artist = "George Michael", albumArtist = "Wham!", title = "Careless Whisper").let { it.copy(artKey = CoverLookup.key("Wham!", "The Final", "")) }
+        assertEquals(CoverLookup.key("George Michael", "", "Careless Whisper"), CoverVetting.vet(listOf(t))[0].artKey)
+    }
 }

@@ -37,7 +37,11 @@ object CoverVetting {
         val out = ArrayList<Track>(tracks.size)
         for (t in tracks) {
             val k = t.artKey
-            if (k != null && t.source == TrackSource.JELLYFIN && k.startsWith("jf") && !isOwn(t, k) && (owner[k] != albumName(t) || mixed(t))) { out += t.copy(artKey = if (mixed(t)) songKey(t) else catalogKey(t)); changed = true }
+            // a saved album lookup for a song on someone else's album (a compilation): the song's own lookup instead, on every start-up (Careless Whisper kept
+            // "Wham! / The Final" from a list saved before, owner 2 Nov)
+            if (k != null && t.source == TrackSource.JELLYFIN && k.startsWith("it") && t.albumArtist.isNotBlank() && t.artist.isNotBlank()
+                && primaryArtist(t.artist).lowercase() != primaryArtist(t.albumArtist).lowercase() && k == CoverLookup.key(t.albumArtist, t.album, "")) { out += t.copy(artKey = songKey(t)); changed = true; continue }
+            if (k != null && t.source == TrackSource.JELLYFIN && k.startsWith("jf") && !isOwn(t, k) && (owner[k] != albumName(t) || mixed(t))) { out += t.copy(artKey = if (mixed(t) || (g[k]?.count { !blank(it) } ?: 0) > 1) songKey(t) else catalogKey(t)); changed = true }
             else out += t
         }
         return if (changed) out else tracks
@@ -52,6 +56,7 @@ object CoverVetting {
 
     /** The catalog cover of the song itself (its own artist and title), for a song in a playlist folder: its album tag is often a compilation's, and the
      *  album lookup showed a Wham! hits cover for George Michael's Careless Whisper (owner, 2 Nov). */
+    // (also when the songs sharing the picture name several albums: on the phone the file path may be missing, and the album lookup showed Wham! again)
     fun songKey(t: Track): String? = CoverLookup.key(t.artist.ifBlank { t.albumArtist }, "", t.title)
 
     /** A catalog lookup for a song the server has no usable picture for: one per album (its songs share the key and the one download), by title when there is no album name. */

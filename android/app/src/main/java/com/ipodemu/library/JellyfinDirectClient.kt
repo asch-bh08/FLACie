@@ -196,6 +196,10 @@ internal fun coverOf(o: JSONObject): CoverRef? {
             CoverRef(CoverLookup.key(songArtist, "", o.optString("Name"))!!, null)
         albumId.isNotEmpty() && albumTag != null -> CoverRef("jf$albumId", albumTag)
         // the server says neither the song nor its album has a picture: the public catalog (as the web does), one lookup per album, instead of a placeholder
+        // ... by the song itself when its own artist isn't the album's (a song on someone else's compilation: George Michael's Careless Whisper on Wham!'s
+        // The Final showed a Wham! cover, owner 2 Nov)
+        songArtist.isNotBlank() && o.optString("AlbumArtist").isNotBlank() && primaryArtist(songArtist).lowercase() != primaryArtist(o.optString("AlbumArtist")).lowercase() ->
+            CoverLookup.key(songArtist, "", o.optString("Name"))?.let { CoverRef(it, null) }
         else -> CoverLookup.key(o.optString("AlbumArtist").ifBlank { o.optJSONArray("Artists")?.optString(0).orEmpty() }, o.optString("Album"), if (o.optString("Album").isBlank()) o.optString("Name") else "")?.let { CoverRef(it, null) }
     }
 }

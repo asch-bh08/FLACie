@@ -144,6 +144,12 @@ class JellyfinListingTest {
         assertEquals("no song artist: the album artist", "Artist", JellyfinDirectClient.itemsOf(base, list(noArtists)).single().track.artist)
     }
 
+    @Test fun aSongWithNoPictureOnSomeoneElsesAlbumIsLookedUpByItself() {
+        val o = flac24.replace("\"AlbumArtist\":\"Artist\"", "\"AlbumArtist\":\"Wham!\"").replace("\"Artists\":[\"Artist\"]", "\"Artists\":[\"George Michael\"]")
+            .replace("\"ImageTags\":{\"Primary\":\"songtag1\"}", "\"ImageTags\":{}").replace(",\"AlbumPrimaryImageTag\":\"albumtag1\"", "")
+        assertEquals(CoverLookup.key("George Michael", "", "Song One"), JellyfinDirectClient.itemsOf(base, list(o)).single().track.artKey)
+    }
+
     @Test fun aCompilationKeepsEachSongsOwnPicture() {
         for (name in listOf("Various Artists", "various", "VA", "V.A.", "Compilations")) {
             // (with no picture of its own and no album picture)

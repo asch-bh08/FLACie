@@ -33,4 +33,9 @@ class CoverFreshTest {
         assertEquals("itabc.jpg", CoverLookup.fileName("itabc"))
         assertEquals("exabc.jpg", CoverLookup.fileName("exabc"))
     }
+    @Test fun anAlbumIsSearchedWithoutItsBracketedParts() {
+        assertEquals("Their Law: The Singles 1990-2005", CoverLookup.searchable("Their Law: The Singles 1990-2005 [CD1]"))
+        assertEquals("Experience", CoverLookup.searchable("Experience (Expanded)"))
+        assertEquals("(What's the Story)", CoverLookup.searchable("(What's the Story)"))
+    }
 }

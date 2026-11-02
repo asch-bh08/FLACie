@@ -17,6 +17,10 @@ object CoverLookup {
     /** The same catalogue cover at 250 px (Deezer's and iTunes' addresses name the size): what a list row or a card shows, a twentieth of the bytes of the 1000 px one. */
     fun small(url: String): String = sizedPath.replace(url) { m -> if (m.groupValues[1].toInt() > 250) "/250x250${m.groupValues[3]}" else m.value }
 
+    /** An album name as a catalog search wants it: "[CD1]", "(Deluxe)" and the like taken off, as the server does (owner, 2 Nov: Voodoo People had no cover,
+     *  "Their Law: The Singles 1990-2005 [CD1]" found nothing). */
+    fun searchable(album: String): String = album.replace(Regex("""\s*[(\[][^)\]]*[)\]]"""), "").trim().ifEmpty { album }
+
     /** The file a cover is kept in. */
     fun fileName(key: String): String {
         val k = key   // (not tied to the lookup rules: that made every catalog cover be fetched again at once, and Deezer's limit left many missing)
@@ -35,7 +39,7 @@ object CoverLookup {
         if (parts.size < 3) return null
         val (artist, album, title) = parts
         // Deezer first (generous rate limit); iTunes allows ~20 lookups a minute, which a screen of NAS songs used up
-        val url = (if (album.isNotBlank()) deezer("search/album", "$artist $album", artist) else null)
+        val url = (if (album.isNotBlank()) deezer("search/album", "$artist ${searchable(album)}", artist) else null)
             ?: (if (title.isNotBlank()) deezer("search", "$artist $title", artist, preferAlbum = title) else null)
             ?: (if (album.isNotBlank()) albumArt(artist, album) else null) ?: song(artist, title)?.artUrl ?: return null
         return bytes(url)

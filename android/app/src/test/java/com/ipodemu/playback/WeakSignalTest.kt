@@ -98,4 +98,11 @@ class WeakSignalTest {
         assertEquals("the whole songs are fetched then", 0, PrefetchPlan.heads(dataSaverPinned = false, playerLoading = false, bufferedAheadMs = 60_000))
         assertEquals(0, PrefetchPlan.heads(dataSaverPinned = true, playerLoading = true, bufferedAheadMs = 60_000))
     }
+
+    // owner, 2 Nov: a 50-song playlist in the car stopped after about 20; a song the server doesn't have stopped the whole queue (the message was on the phone, not the car)
+    @Test fun aSongTheServerDoesNotHaveIsSkippedButALostSignalStillWaits() {
+        assertTrue(NetPatience.skipsWhenGivingUp(hopeless = true, hasNext = true))
+        assertFalse("the last song: nothing to skip to", NetPatience.skipsWhenGivingUp(hopeless = true, hasNext = false))
+        assertFalse("no signal: skipping would run through the whole queue", NetPatience.skipsWhenGivingUp(hopeless = false, hasNext = true))
+    }
 }

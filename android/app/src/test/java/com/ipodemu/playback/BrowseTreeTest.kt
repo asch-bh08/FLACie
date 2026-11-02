@@ -339,4 +339,17 @@ class BrowseTreeTest {
         assertEquals(listOf(true, false), BrowseTree.children(BrowseTree.PLAYLISTS, 0, 50, src).map { it.offline })
         assertEquals(1, BrowseTree.children(BrowseTree.ALBUMS, 0, 50, src).count { it.offline })
     }
+
+    // owner, 2 Nov: a playlist started in the car got no "Shuffling Pop": the car's play request didn't say which list it was
+    @Test fun aCarPlayRequestNamesTheListItCameFrom() {
+        val a = t(1); val src = Src(songs = listOf(a, t(2, album = "Other")), pls = mapOf("p1" to listOf(a)))
+        assertEquals("Playlist p1", BrowseTree.listName("pl:p1", src))
+        assertEquals("Playlist p1", BrowseTree.listName("shuf:pl:p1", src))
+        assertEquals("Playlist p1", BrowseTree.listName(BrowseTree.songId("pl:p1", a.path), src))
+        assertEquals("Al", BrowseTree.listName("al:" + a.albumKey, src))
+        assertEquals("Ar", BrowseTree.listName("ar:Ar", src))
+        assertNull("Home's shelves aren't a list the listener named", BrowseTree.listName(BrowseTree.QUICK, src))
+        assertNull(BrowseTree.listName("pl:nope", src))
+        assertTrue(BrowseTree.shuffles("shuf:pl:p1")); assertFalse(BrowseTree.shuffles("pl:p1"))
+    }
 }

@@ -116,6 +116,23 @@ object BrowseTree {
         }
         return list.takeIf { it.startsWith("pl:") }?.removePrefix("pl:")?.takeIf { it.isNotEmpty() }
     }
+    /** The name of the playlist, album or artist a play request came from (what the DJ announces: "Shuffling Pop"), or null for Home's shelves, a search or an unknown id. */
+    fun listName(mediaId: String, src: BrowseSource): String? {
+        val list = when {
+            mediaId.startsWith("s:") -> mediaId.removePrefix("s:").substringBefore(SEP, "")
+            mediaId.startsWith("all:") -> mediaId.removePrefix("all:")
+            mediaId.startsWith("shuf:") -> mediaId.removePrefix("shuf:")
+            else -> mediaId
+        }
+        return when {
+            list.startsWith("pl:") -> list.removePrefix("pl:").let { id -> src.playlists().firstOrNull { it.first == id }?.second }
+            list.startsWith("al:") -> list.removePrefix("al:").let { key -> src.albums().firstOrNull { g -> g.tracks.firstOrNull()?.albumKey == key || g.name == key }?.name }
+            list.startsWith("ar:") -> list.removePrefix("ar:").takeIf { name -> src.artists().any { it.name == name } }
+            else -> null
+        }?.takeIf { it.isNotBlank() }
+    }
+    /** A "Shuffle" row of a list: its songs are played on shuffle. */
+    fun shuffles(mediaId: String) = mediaId.startsWith("shuf:")
     fun albumId(key: String) = "al:$key"
     fun artistId(name: String) = "ar:$name"
 

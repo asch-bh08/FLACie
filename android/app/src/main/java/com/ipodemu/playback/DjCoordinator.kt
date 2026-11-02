@@ -115,9 +115,9 @@ class DjCoordinator {
             .put("queueStart", true).put("queueName", name.trim()).put("shuffled", shuffled)
 
     companion object {
-        /** A new queue is announced when the listener started it from a named playlist or album page ([name], [from] null: not a home shelf or a search) on
-         *  shuffle. Pressing shuffle later, in the middle of a queue, is not a new queue and says nothing. */
-        fun announcesQueue(name: String?, from: String?, shuffled: Boolean): Boolean = shuffled && from == null && !name.isNullOrBlank()
+        /** A new queue is announced when the listener started it from a named playlist or album ([name], [from] null: not a home shelf or a search), on shuffle
+         *  ("Shuffling Pop") or in order ("Playing Pop"). Pressing shuffle later, in the middle of a queue, is not a new queue and says nothing. */
+        fun announcesQueue(name: String?, from: String?): Boolean = from == null && !name.isNullOrBlank()
         /** How long a queue start's line may take to come (the model, then the clip); later the song is too far on and the DJ stays quiet. Longer than after a
          *  skip: the listener has just pressed play and is waiting for something. */
         const val QUEUE_WAIT_MS = 6_000L

@@ -51,6 +51,10 @@ object NetPatience {
     /** An answer that no amount of waiting changes: not allowed, not there, gone, a range past the end. */
     fun hopeless(httpCode: Int): Boolean = httpCode in setOf(401, 403, 404, 410, 416)
 
+    /** After giving up on a song: one the server says isn't there is skipped, so the queue goes on (in the car the message on the phone went unseen and the
+     *  music just stopped); after a lost signal the player waits where it is, since every next song would fail the same way. */
+    fun skipsWhenGivingUp(hopeless: Boolean, hasNext: Boolean): Boolean = hopeless && hasNext
+
     /** The wait before preparing again after error number [attempt] (1, 2, 4, 8, 15, then 30 s), or null to give up. A [hopeless] error gets one more
      *  try (the server may have been restarting). */
     fun playerRetryDelayMs(attempt: Int, hopeless: Boolean): Long? = when {

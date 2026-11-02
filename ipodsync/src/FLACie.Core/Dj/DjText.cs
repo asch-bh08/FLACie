@@ -63,11 +63,37 @@ public static partial class DjText
     [GeneratedRegex(@"(?<=\p{L})!(?=\p{L})")] private static partial Regex BangInWord();
     [GeneratedRegex(@"(?<![\d+])\+(?![\d+])")] private static partial Regex Plus();
     [GeneratedRegex(@"\s+")] private static partial Regex Spaces();
+    // a pause ("...", "…") or a sentence's end with more to come; not the full stop of "Mr." and the like
+    [GeneratedRegex(@"\s*(?:\.{2,}|…)\s*|(?<!\b(?:Mr|Mrs|Ms|Dr|St|Jr|Sr|vs|Vol|No))[.!?]\s+(?=\S)")] private static partial Regex Break();
+    [GeneratedRegex(@"\s*,(?:\s*,)+")] private static partial Regex Commas();
 
     static readonly HashSet<string> Roman = ["II", "III", "IV", "VI", "VII", "VIII", "IX", "XI", "XII", "XIII", "XIV", "XV", "XX"];
 
     /// <summary>Whitespace collapsed, control characters gone.</summary>
     public static string Tidy(string? s) => s is null ? "" : Spaces().Replace(new string(s.Where(c => !char.IsControl(c)).ToArray()), " ").Trim();
+
+    /// <summary>Words that open a new sentence and carry on in lower case once the sentence is joined to the one before ("Enjoy" → ", enjoy"); names keep their capitals.</summary>
+    static readonly HashSet<string> Joiners = new(StringComparer.Ordinal)
+        { "Enjoy", "First", "Here", "Here's", "This", "That", "That's", "Now", "And", "So", "Okay", "Alright", "Right", "Next", "It's", "Let's", "Up", "Coming", "Starting",
+          "Playing", "Shuffling", "Kicking", "Easing", "Opening", "Then", "Just", "Over", "On", "With", "From", "Back", "Still", "Time", "Well", "Oh", "Yeah", "Hope", "Turn" };
+
+    /// <summary>
+    /// The line as one sentence, said in one breath: pauses ("...") and full stops, exclamation and question marks in the middle become commas, and it ends with a full stop
+    /// (or a question mark when it ended with one). The voice read each sentence on its own, and a short one ("Next.", "Enjoy.") came out in a different tone (owner, 2 Nov).
+    /// </summary>
+    public static string OneBreath(string? line)
+    {
+        var s = Tidy(line);
+        if (s.Length == 0) return s;
+        var question = s.TrimEnd().EndsWith('?');
+        s = Break().Replace(s, ", ");
+        s = Commas().Replace(s, ",");
+        s = Tidy(Regex.Replace(s, @"\s+,", ","));
+        // the word after a join goes to lower case when it is an everyday opener, not a name
+        s = Regex.Replace(s, @"(?<=, )(\p{Lu}[\p{L}']*)", m => Joiners.Contains(m.Value) ? char.ToLowerInvariant(m.Value[0]) + m.Value[1..] : m.Value);
+        s = s.TrimEnd(' ', ',', '.', '!', '?', ';', ':');
+        return s.Length == 0 ? s : s + (question ? "?" : ".");
+    }
 
     public static int WordCount(string s) => s.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
 

@@ -192,10 +192,13 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         }
         if (!isBrowseId(id)) return false
         browseExec.execute {
-            val r = try { BrowseTree.resolve(id, AppBrowseSource(App.of(ctx))) } catch (_: Exception) { null }
+            val src = AppBrowseSource(App.of(ctx))
+            val r = try { BrowseTree.resolve(id, src) } catch (_: Exception) { null }
+            // the list's name, so the DJ can say "Shuffling Pop" over its first song as it does for a list started on the phone
+            val name = try { BrowseTree.listName(id, src) } catch (_: Exception) { null }
             // a playlist picked in the car keeps its DJ switch (the key is the Jellyfin playlist id when it has one, as on the phone's own screens)
             val key = BrowseTree.playlistOf(id)?.let { pl -> try { App.of(ctx).userData.playlists.toList().firstOrNull { it.id == pl }?.let { it.jfId ?: it.id } } catch (_: Exception) { null } }
-            if (r != null) handler.post { play(r.tracks, r.index, contextId = key) }
+            if (r != null) handler.post { play(r.tracks, r.index, shuffle = if (BrowseTree.shuffles(id)) true else null, context = name, contextId = key) }
         }
         return true
     }
@@ -533,13 +536,13 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         djSayWhenAnswered(t, dj.skipRequest(djSurface, DjSong.of(t), before?.let(DjSong::of), contextId, now.hour, DjCoordinator.weekday(now.dayOfWeek), loved).toString(), DjCoordinator.SKIP_WAIT_MS)
     }
 
-    /** A new queue was started from the playlist or album [name] (on shuffle): the DJ is asked about its first song now, "Shuffling Pop... starting with
+    /** A new queue was started from the playlist or album [name]: the DJ is asked about its first song now, "Shuffling Pop... starting with
      *  Firework, Katy Perry", said over the start of that song if it comes within [DjCoordinator.QUEUE_WAIT_MS]. Once per queue, from [play] only. */
     private fun djQueueStart(first: Track, name: String) {
         if (!djOn || interceptor != null) return
         val now = java.time.LocalDateTime.now()
         val loved = try { App.of(ctx).userData.isFavorite(first) } catch (_: Exception) { false }
-        djSayWhenAnswered(first, dj.queueStartRequest(djSurface, DjSong.of(first), contextId, name, true, now.hour, DjCoordinator.weekday(now.dayOfWeek), loved).toString(), DjCoordinator.QUEUE_WAIT_MS)
+        djSayWhenAnswered(first, dj.queueStartRequest(djSurface, DjSong.of(first), contextId, name, prefs.shuffle, now.hour, DjCoordinator.weekday(now.dayOfWeek), loved).toString(), DjCoordinator.QUEUE_WAIT_MS)
     }
 
     private fun djSayWhenAnswered(t: Track, body: String, waitMs: Long) {
@@ -633,7 +636,10 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                 // (or many minutes of nothing) gives up, and says so. A pause pressed meanwhile is kept (prepare only; Play stays as the person left it).
                 val code = ((error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode) ?: 0
                 val wait = NetPatience.playerRetryDelayMs(retries, NetPatience.hopeless(code))
-                if (wait == null) android.widget.Toast.makeText(ctx, "Couldn't play \"${current?.title ?: "this song"}\" (${error.errorCodeName})", android.widget.Toast.LENGTH_LONG).show()
+                if (wait == null) {
+                    android.widget.Toast.makeText(ctx, "Couldn't play \"${current?.title ?: "this song"}\" (${error.errorCodeName})", android.widget.Toast.LENGTH_LONG).show()
+                    if (NetPatience.skipsWhenGivingUp(NetPatience.hopeless(code), exo.hasNextMediaItem())) { selfSeekTo(exo.nextMediaItemIndex, 0L); exo.prepare() }   // prepare only: a pause pressed meanwhile is kept
+                }
                 else { val at = exo.currentPosition; val idx = exo.currentMediaItemIndex; handler.postDelayed({ if (exo.currentMediaItemIndex == idx && exo.playerError != null) { selfSeekTo(idx, at); exo.prepare() } }, wait) }
                 fire()
             }
@@ -1060,8 +1066,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         exo.prepare()
         exo.play()
         djAsk()
-        // started from a playlist or album on shuffle: the DJ says so over the first song (once per queue start; a shuffle toggled later says nothing)
-        if (DjCoordinator.announcesQueue(context, from, prefs.shuffle)) djQueueStart(list[index.coerceIn(0, list.lastIndex)], context!!)
+        // started from a playlist or album: the DJ says so over the first song, "Shuffling Pop" or "Playing Pop" (once per queue start; a shuffle toggled later says nothing)
+        if (DjCoordinator.announcesQueue(context, from)) djQueueStart(list[index.coerceIn(0, list.lastIndex)], context!!)
         ctx.startService(Intent(ctx, PlaybackService::class.java))
         handler.postDelayed({ checkQueueLow() }, 1500)
     }

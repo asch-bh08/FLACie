@@ -60,6 +60,7 @@ public sealed class DjPronounce
         new("Nirvana", Kind.Artist, "Nir-vana", "nɪɹvˈɑːnə"),
         new("SOS", Kind.Title, "S O S", "ˈɛs ˈoʊ ˈɛs"),
         new("FLACie", Kind.Word, "Flacky", "flˈæki"),   // as the Alexa skill says it
+        new("HMS", Kind.Word, "H M S", "ˌeɪtʃ ˌɛm ˈɛs"),   // the owner's account name: said letter by letter, not "herms" (owner, 2 Nov)
     ];
 
     /// <summary>Changes whenever the sounds above do, so FLACie's voice makes its kept clips again (DjClips.Salt).</summary>

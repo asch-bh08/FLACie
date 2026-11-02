@@ -206,7 +206,7 @@ public class DjRoundTwoTests : IDisposable
     {
         var r = Make(voice: CloudflareVoice.MeloTts, ai: false);
         var cue = await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, Smack, LocalHour: 20, Weekday: 2));
-        Assert.StartsWith("Good evening, Ashley.", cue!.Caption);
+        Assert.StartsWith("Good evening, Ashley,", cue!.Caption);   // one sentence since 2 Nov (DjText.OneBreath)
     }
 
     // ---- segues and time of day, sometimes ----
@@ -324,11 +324,11 @@ public class DjRoundTwoTests : IDisposable
         var a = await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, Smack, LocalHour: 7, Weekday: 3));
         Assert.NotNull(a?.ClipUrl);
         Assert.Empty(Calls(r, CloudflareVoice.TextModel));
-        Assert.StartsWith("Good morning, Ashley. ", a.Caption);
+        Assert.StartsWith("Good morning, Ashley, ", a.Caption);
         Assert.True(a.Caption.Contains("Smack That, by Akon with Eminem."), a.Caption);
         Assert.NotNull(await r.Clips.WaitAsync(IdOf(a.ClipUrl), TimeSpan.FromSeconds(10)));
         var b = await r.Dj.PrepareAsync(bobby, new DjRequest(DjSurface.Phone, Smack, LocalHour: 7, Weekday: 3));
-        Assert.StartsWith("Good morning, Bobby. ", b!.Caption);
+        Assert.StartsWith("Good morning, Bobby, ", b!.Caption);
         Assert.NotNull(await r.Clips.WaitAsync(IdOf(b.ClipUrl!), TimeSpan.FromSeconds(10)));
         var said = Spoken(r);
         Assert.Equal(said.Count, said.Distinct().Count());   // nothing is ever made twice

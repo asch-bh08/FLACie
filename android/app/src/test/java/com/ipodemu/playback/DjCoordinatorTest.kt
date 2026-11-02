@@ -93,13 +93,13 @@ class DjCoordinatorTest {
         assertEquals("auto", q.getString("surface"))
     }
 
-    @Test fun onlyAShuffledStartFromANamedPlaylistOrAlbumPageIsAnnounced() {
-        assertTrue(DjCoordinator.announcesQueue("Pop", null, true))
-        assertFalse("not shuffled: nothing said", DjCoordinator.announcesQueue("Pop", null, false))
-        assertFalse("no name for the list", DjCoordinator.announcesQueue(null, null, true))
-        assertFalse(DjCoordinator.announcesQueue("  ", null, true))
-        assertFalse("a home shelf or a search is not a list the listener chose", DjCoordinator.announcesQueue("New Releases", "home", true))
-        assertFalse(DjCoordinator.announcesQueue("Pop", "search", true))
+    // owner, 2 Nov: "an announcement at the start of a playlist, like Shuffling Pop": in order too ("Playing Pop"), not only on shuffle
+    @Test fun aStartFromANamedPlaylistOrAlbumIsAnnouncedShuffledOrNot() {
+        assertTrue(DjCoordinator.announcesQueue("Pop", null))
+        assertFalse("no name for the list", DjCoordinator.announcesQueue(null, null))
+        assertFalse(DjCoordinator.announcesQueue("  ", null))
+        assertFalse("a home shelf or a search is not a list the listener chose", DjCoordinator.announcesQueue("New Releases", "home"))
+        assertFalse(DjCoordinator.announcesQueue("Pop", "search"))
         assertTrue("a queue line may take longer to come than a skip's", DjCoordinator.QUEUE_WAIT_MS > DjCoordinator.SKIP_WAIT_MS)
     }
 

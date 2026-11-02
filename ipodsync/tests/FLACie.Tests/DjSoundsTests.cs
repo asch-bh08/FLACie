@@ -8,6 +8,15 @@ namespace FLACie.Tests;
 /// written down goes to the voice as those sounds, wherever it is in what is said (lines, answers, stock replies), written or already respelt.</summary>
 public class DjSoundsTests
 {
+    // owner, 2 Nov (in the car): the DJ still said his name "hms" as "herms"; capitals alone don't make the voice spell it, so it is spelt for every voice
+    [Fact]
+    public void Hms_is_said_letter_by_letter()
+    {
+        var p = DjPronounce.Default;
+        Assert.Equal("Morning, [HMS](/ˌeɪtʃ ˌɛm ˈɛs/).", p.Sounds("Morning, HMS."));
+        Assert.Equal("Morning, H M S.", p.Phrases("Morning, HMS."));
+    }
+
     [Fact]
     public void A_known_name_goes_to_the_voice_as_its_sounds()
     {

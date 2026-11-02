@@ -197,13 +197,16 @@ public sealed class DjService : IDjService
             ctx?.Said(r.Line.Caption);
             return r;
         }))).Job.Value;
+        // one sentence, said in one breath: the voice read "Next." and "Enjoy." on their own, in another tone from the song's name (owner, 2 Nov)
+        said = said with { Text = DjText.OneBreath(said.Text), Caption = DjText.OneBreath(said.Caption) };
         // the person chose the device's own voice: every line is said by it, and no clip is made
         if (st.DeviceVoice) return new DjCue(said.Text, said.Caption, null, true, DjIntro.Usable(extra?.Vibe?.Intro));
         // one voice only: the line in the saved voice; when that can't be had (over today's cap, Cloudflare failing) the planned line, or its pooled form, from
         // clips already made in that same voice; otherwise the DJ stays quiet. Never another voice, never the device's.
         var id = pooled ? clips.RequestPooled(said.Parts!, s.Id) ?? clips.Request(said.Text) : clips.Request(said.Text);
         if (id is null && !ReferenceEquals(said, planned) && clips.Cached(planned.Text) is { } whole) { id = whole; said = planned; }
-        if (id is null && planned.Parts is { Count: > 0 } parts && planned.PooledCaption is { } pc && clips.CachedPooled(parts, s.Id) is { } kept)
+        // (never with Kokoro: it has no daily cap, and kept phrases joined to a name clip sound pieced together)
+        if (id is null && !CloudflareVoice.IsKokoro(voice.Current.Voice) && planned.Parts is { Count: > 0 } parts && planned.PooledCaption is { } pc && clips.CachedPooled(parts, s.Id) is { } kept)
         { id = kept; said = planned with { Text = DjPool.Join(parts), Caption = pc }; }
         if (id is null)
         {
@@ -232,7 +235,7 @@ public sealed class DjService : IDjService
     {
         var c = voice.Current;
         var ai = AiLines && c.AiLines && voice.Ready;
-        if (c.Voice != CloudflareVoice.MeloTts && voice.Ready && line.Parts is { Count: > 0 } parts && line.PooledCaption is { } pc)
+        if (c.Voice != CloudflareVoice.MeloTts && !CloudflareVoice.IsKokoro(c.Voice) && voice.Ready && line.Parts is { Count: > 0 } parts && line.PooledCaption is { } pc)
         {
             var whole = CloudflareVoice.EstimateNeurons(c.Voice, ai ? new string('x', DjBudget.WholeChars) : line.Text)
                 + (ai ? DjModels.Primary.Cost(DjBudget.PromptTokens, DjBudget.MaxTokens) : 0);

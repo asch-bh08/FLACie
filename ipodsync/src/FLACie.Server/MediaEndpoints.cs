@@ -438,6 +438,9 @@ public static class MediaEndpoints
                     if (album.Length > 0 && Matching.AlbumNorm(alTitle) == Matching.AlbumNorm(album)) s += 100;
                     if (Compilation.IsMatch(alTitle) && !Compilation.IsMatch(album)) s -= 50;
                     if (ep == "search" && Matching.NormTitle(o["title"]?.GetValue<string>() ?? "") == Matching.NormTitle(title)) s += 10;
+                    // looked up by the song itself: its own release (named after it) before a compilation it is also on, as the phone does (George Michael's
+                    // Careless Whisper came up on Wham!'s The Final first; owner, 2 Nov)
+                    if (ep == "search" && album.Length == 0 && Matching.NormTitle(title) is { Length: > 0 } nt && Matching.NormTitle(alTitle).StartsWith(nt)) s += 20;
                     return s;
                 }
                 // a result that matches neither the album nor the song is another release by the artist: no cover is better than a wrong one

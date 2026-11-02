@@ -623,6 +623,8 @@ class Library(ctx: Context, val art: ArtCache) {
                 // the first pass on this server pages through everything (at Background priority); later ones ask only for what changed since
                 jfSync.sync()
                 lastJfSyncAt = System.currentTimeMillis()
+                // reached the server: Connected, also when nothing had changed (Settings said "Not connected" over 11,680 songs, owner 2 Nov)
+                if (!jellyfinConnected) { jellyfinConnected = true; notifyChange() }
             } catch (_: Exception) { /* offline or unreachable -- keep showing what's already there */ }
         }
     }

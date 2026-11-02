@@ -17,6 +17,8 @@ public static class CoverVetting
     static bool IsOwn(Track t, string id) => string.Equals((t.JellyfinId ?? "").Replace("-", ""), id, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The same songs with the doubtful album fallbacks replaced (the list itself when nothing changes).</summary>
+    static string? FolderOf(Track t) => t.FilePath is { Length: > 0 } p && p.LastIndexOf('/') is > 0 and var i ? p[..i] : null;
+
     public static IReadOnlyList<Track> Vet(IReadOnlyList<Track> tracks)
     {
         // album picture item -> the album names of the songs that point at it as a fallback
@@ -31,11 +33,17 @@ public static class CoverVetting
         // the album every fallback picture is of: the one non-blank name its songs share, or none when they disagree
         var owner = new Dictionary<string, string>();
         foreach (var (id, names) in groups) { var real = names.Where(n => !Blank(n)).ToList(); if (real.Count == 1) owner[id] = real[0]; }
+        // the folders holding more than one album, counting every song in them (also those with a picture of their own): a playlist folder Jellyfin made one
+        // album of. A song there without its own picture was the only one pointing at the "album" picture, so nothing disagreed (owner, 2 Nov: Wham! with Sia's)
+        var folderNames = new Dictionary<string, HashSet<string>>();
+        foreach (var t in tracks)
+            if (t.Source == TrackSource.Jellyfin && FolderOf(t) is { } f && Matching.AlbumNorm(t.Album) is var n && !Blank(n)) { folderNames.TryAdd(f, []); folderNames[f].Add(n); }
+        bool Mixed(Track t) => FolderOf(t) is { } f && folderNames.TryGetValue(f, out var names) && names.Count > 1;
         var changed = false;
         var result = new List<Track>(tracks.Count);
         foreach (var t in tracks)
         {
-            if (t.Source == TrackSource.Jellyfin && JellyfinKeyId(t.ArtKey) is { } id && !IsOwn(t, id) && !(owner.TryGetValue(id, out var o) && o == Matching.AlbumNorm(t.Album)))
+            if (t.Source == TrackSource.Jellyfin && JellyfinKeyId(t.ArtKey) is { } id && !IsOwn(t, id) && (!(owner.TryGetValue(id, out var o) && o == Matching.AlbumNorm(t.Album)) || Mixed(t)))
             { result.Add(t with { ArtKey = Art.LookupKey(t.Artist, t.Album, t.Title) }); changed = true; }
             else result.Add(t);
         }

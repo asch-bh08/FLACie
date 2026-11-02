@@ -28,11 +28,16 @@ object CoverVetting {
         // the album every fallback picture is of: the one non-blank name its songs share, or none when they disagree
         val owner = HashMap<String, String>()
         for ((k, names) in g) { val real = names.filterNot { blank(it) }; if (real.size == 1) owner[k] = real[0] }
+        // the folders holding more than one album, counting every song in them (also those with a picture of their own): a playlist folder Jellyfin made one
+        // album of. A song there without its own picture was the only one pointing at the "album" picture, so nothing disagreed (owner, 2 Nov: Wham! with Sia's)
+        val folderNames = HashMap<String, HashSet<String>>()
+        for (t in tracks) if (t.source == TrackSource.JELLYFIN && t.filePath.isNotEmpty()) albumName(t).takeIf { !blank(it) }?.let { folderNames.getOrPut(t.filePath.substringBeforeLast('/')) { HashSet() }.add(it) }
+        fun mixed(t: Track) = t.filePath.isNotEmpty() && (folderNames[t.filePath.substringBeforeLast('/')]?.size ?: 0) > 1
         var changed = false
         val out = ArrayList<Track>(tracks.size)
         for (t in tracks) {
             val k = t.artKey
-            if (k != null && t.source == TrackSource.JELLYFIN && k.startsWith("jf") && !isOwn(t, k) && owner[k] != albumName(t)) { out += t.copy(artKey = catalogKey(t)); changed = true }
+            if (k != null && t.source == TrackSource.JELLYFIN && k.startsWith("jf") && !isOwn(t, k) && (owner[k] != albumName(t) || mixed(t))) { out += t.copy(artKey = catalogKey(t)); changed = true }
             else out += t
         }
         return if (changed) out else tracks

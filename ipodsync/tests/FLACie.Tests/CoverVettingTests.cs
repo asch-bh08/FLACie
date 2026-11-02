@@ -10,6 +10,22 @@ public class CoverVettingTests
     static Track Jf(int n, string album, string? key, string artist = "Artist") =>
         new($"http://jf/Audio/{Id(n)}/stream?static=true", $"Song {n}", artist, album, artist, n, 1, 1000, 2000, key, 0, TrackSource.Jellyfin, null, Id(n));
 
+    // owner's phone, 2 Nov: Careless Whisper (Wham!, The Final) showed Sia's cover; it was the only song in a playlist folder Jellyfin made one album of
+    // without a picture of its own, so nothing disagreed. Every song of the folder counts.
+    [Fact] public void TheOnlySongWithoutItsOwnPictureInAMixedFolderGetsTheCatalog()
+    {
+        const string pop = "/media/Movies/music/pop(LAC)/";
+        var careless = Jf(1, "The Final", "jfffb82c6d51a93f6ece1f7f22a8cd9108") with { FilePath = pop + "Careless Whisper.flac" };
+        var others = new[] { Jf(2, "21", "jf" + Id(2)) with { FilePath = pop + "a.flac" }, Jf(3, "1000 Forms Of Fear", "jf" + Id(3)) with { FilePath = pop + "b.flac" } };
+        Assert.StartsWith("it", CoverVetting.Vet([careless, .. others])[0].ArtKey);
+    }
+    [Fact] public void AnAlbumFolderKeepsItsPicture()
+    {
+        const string exp = "/music/The Prodigy/Experience/";
+        var a = Jf(1, "Experience", "jfabc") with { FilePath = exp + "1.flac" }; var b = Jf(2, "Experience", "jf" + Id(2)) with { FilePath = exp + "2.flac" };
+        Assert.Equal("jfabc", CoverVetting.Vet([a, b])[0].ArtKey);
+    }
+
     [Fact] public void ASongsOwnPictureIsAlwaysKept()
     {
         var ts = new List<Track> { Jf(1, "A", "jf" + Id(1) + "~t1"), Jf(2, "B", "jf" + Id(2) + "~t2"), Jf(3, "", "jf" + Id(3) + "~t3") };

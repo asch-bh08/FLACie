@@ -1233,7 +1233,7 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
             return@Column
         }
         // "Recommended songs" below the songs, only on the person's own playlists (PlaylistRecsUi.kt)
-        val recs: (@Composable () -> Unit)? = userId?.takeIf { d.kind == DetailKind.USER }?.let { id -> { PlaylistRecsSection(id, tracks, title) } }
+        val recs: (@Composable () -> Unit)? = userId?.takeIf { d.kind == DetailKind.USER }?.let { id -> @Composable { PlaylistRecsSection(id, tracks, title) } }
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val wide = maxWidth > 620.dp && maxWidth > maxHeight * 1.25f
             if (wide) {

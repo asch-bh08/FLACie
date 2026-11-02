@@ -63,7 +63,8 @@ object BrowseTree {
     private const val SEP = '\u001F'
     const val MAX_PAGE = 100
     /** A play request never queues more than this many songs (a 10,000-song list would be a bad thing to hand to anything). */
-    const val MAX_QUEUE = 300
+    // a car playlist of 356 songs was cut to 300 (owner, 2 Nov): room for big playlists, the car still only sees a window of it (QueueWindow)
+    const val MAX_QUEUE = 1000
     /** How many recent songs Home shows under its heading (all of them are in Recently played's own list). */
     const val HOME_RECENT = 12
     /** A playlist tile's cover: the first song (of the first 30) that has one, else the catalog cover of its first song; null for an empty playlist.

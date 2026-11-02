@@ -192,6 +192,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         }
         if (!isBrowseId(id)) return false
         browseExec.execute {
+            // a car that started FLACie cold: wait for the library (as its lists do) before turning a playlist into songs. Asked at once, only the
+            // songs a playlist had saved enough about survived: Shuffle on a 54-song playlist queued 20 (owner, 2 Nov)
+            CoverWait.until({ App.of(ctx).library.loaded }, 20_000)
             val src = AppBrowseSource(App.of(ctx))
             val r = try { BrowseTree.resolve(id, src) } catch (_: Exception) { null }
             // the list's name, so the DJ can say "Shuffling Pop" over its first song as it does for a list started on the phone

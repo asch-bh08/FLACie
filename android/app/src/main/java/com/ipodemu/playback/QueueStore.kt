@@ -11,7 +11,7 @@ import org.json.JSONObject
  */
 object QueueStore {
     /** At most this many songs are kept (a "play all" of ten thousand is not written out): a window around the current song. */
-    const val MAX = 300
+    const val MAX = 1000
     private const val BEHIND = 20
     const val VERSION = 1
 

@@ -52,7 +52,7 @@ class BrowseTreeTest {
     }
 
     @Test fun shuffleAllPlaysTheWholeLibraryCapped() {
-        val src = Src(songs = (1..500).map { t(it) })
+        val src = Src(songs = (1..BrowseTree.MAX_QUEUE + 200).map { t(it) })
         val r = BrowseTree.resolve(BrowseTree.SHUFFLE, src)!!
         assertEquals(BrowseTree.MAX_QUEUE, r.tracks.size); assertEquals(0, r.index)
         assertEquals(r.tracks.size, r.tracks.map { it.path }.toSet().size)
@@ -360,5 +360,12 @@ class BrowseTreeTest {
         assertEquals("play 5 star", BrowseTree.askWords("5 star"))
         val song = t(1).let { Track(it.path, "Smack My Bitch Up", "The Prodigy", it.album, "The Prodigy", "", 1, 1, 1000, 0, true, it.artKey, 0, 0, TrackSource.JELLYFIN) }
         assertEquals("Smack My Bitch Up", BrowseTree.searchPlay("smack my b**** up", Src(songs = listOf(song)))!!.tracks.first().title)
+    }
+
+    // owner, 2 Nov: the AA playlist has about 360 songs; a car queue (and the saved one) stopped at 300
+    @Test fun aBigPlaylistIsQueuedWholeFromTheCar() {
+        val songs = (1..360).map { t(it) }; val src = Src(songs = songs, pls = mapOf("aa" to songs))
+        assertEquals(360, BrowseTree.resolve("shuf:pl:aa", src)!!.tracks.size)
+        assertEquals(360, BrowseTree.resolve("all:pl:aa", src)!!.tracks.size)
     }
 }

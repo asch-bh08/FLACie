@@ -132,4 +132,9 @@ class QueueStoreTest {
         assertEquals(3, s.tracks.size)
         assertNull(QueueStore.decode(QueueStore.encode(tracks, 0, 0L, intArrayOf(0, 1)))!!.shuffleOrder)   // wrong length is not written
     }
+
+    @Test fun aBigPlaylistsQueueIsSavedWhole() {
+        val tracks = (0 until 360).map { t(it) }
+        assertEquals(360, QueueStore.decode(QueueStore.encode(tracks, 0, 0L))!!.tracks.size)
+    }
 }

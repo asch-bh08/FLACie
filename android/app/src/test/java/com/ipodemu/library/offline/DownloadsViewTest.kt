@@ -64,6 +64,22 @@ class DownloadsViewTest {
         assertEquals("2 songs · 10 MB", out[0].detail)
         assertEquals("ak1", out[0].artKey)
     }
+    // owner, 2 Nov: 5 songs of a playlist failed, so the playlist wasn't in Offline music at all; it shows with the ones that made it and says how many didn't
+    @Test fun aFinishedListWithSomeFailedSongsIsShownAndSaysHowManyFailed() {
+        val x = ix(1 to OfflineState.DONE, 2 to OfflineState.DONE, 3 to OfflineState.FAILED)
+        val out = DownloadsOverview.lists(listOf(ListSpec("p1", "Road trip", "Playlist", null, listOf(path(1), path(2), path(3))))) { x[OfflineMath.keyOf(it)] }
+        assertEquals(listOf("Road trip"), out.map { it.name })
+        assertEquals(2, out[0].songs); assertEquals(1, out[0].failed)
+        assertEquals("2 songs · 10 MB · 1 song could not download", out[0].detail)
+    }
+    @Test fun aListWhoseSongsAllFailedIsNotShown() {
+        val x = ix(1 to OfflineState.FAILED)
+        assertEquals(emptyList<String>(), DownloadsOverview.lists(listOf(ListSpec("p", "P", "", null, listOf(path(1))))) { x[OfflineMath.keyOf(it)] }.map { it.name })
+    }
+    @Test fun aListWithSongsStillOnTheirWayWaits() {
+        val x = ix(1 to OfflineState.DONE, 2 to OfflineState.FAILED, 3 to OfflineState.QUEUED)
+        assertEquals(emptyList<String>(), DownloadsOverview.lists(listOf(ListSpec("p", "P", "", null, listOf(path(1), path(2), path(3))))) { x[OfflineMath.keyOf(it)] }.map { it.name })
+    }
     @Test fun listsAreSortedByNameIgnoringCase() {
         val x = ix(1 to OfflineState.DONE)
         val specs = listOf(ListSpec("b", "beta", "", null, listOf(path(1))), ListSpec("a", "Alpha", "", null, listOf(path(1))), ListSpec("c", "Zed", "", null, listOf(path(1))))
@@ -72,6 +88,16 @@ class DownloadsViewTest {
     @Test fun oneSongIsSaidInTheSingular() {
         val x = ix(1 to OfflineState.DONE)
         assertEquals("1 song · 5 MB", DownloadsOverview.lists(listOf(ListSpec("a", "A", "", null, listOf(path(1))))) { x[OfflineMath.keyOf(it)] }[0].detail)
+    }
+
+    // ---- why a song failed, in words ----
+    @Test fun aFailedSongSaysWhyInWordsAndKeepsTheCode() {
+        assertEquals("Not on the server (http 404)", OfflineMath.whyFailed("http 404"))
+        assertEquals("The server said no (http 403)", OfflineMath.whyFailed("http 403"))
+        assertEquals("The server had a problem (http 502)", OfflineMath.whyFailed("http 502"))
+        assertEquals("The connection was too slow or dropped (timeout)", OfflineMath.whyFailed("timeout"))
+        assertEquals("unexpected end of stream", OfflineMath.whyFailed("unexpected end of stream"))
+        assertNull(OfflineMath.whyFailed(null))
     }
 
     // ---- the songs and the top line ----

@@ -291,7 +291,7 @@ private fun OfflineEntryRow(e: OfflineEntry, onPlay: () -> Unit, onRemove: () ->
         }) { hi ->
         Column {
             Txt(e.title, size = 15f, weight = FontWeight.SemiBold, color = if (hi) androidx.compose.ui.graphics.Color.White else sc.onBg)
-            Txt(e.artist.ifEmpty { e.album } + if (e.state == OfflineState.DONE) "" else (e.error?.let { "  -  $it" } ?: ""), size = 12.5f, color = rowDim())
+            Txt(e.artist.ifEmpty { e.album } + if (e.state == OfflineState.DONE) "" else (OfflineMath.whyFailed(e.error)?.let { "  -  $it" } ?: ""), size = 12.5f, color = rowDim())
         }
     }
 }

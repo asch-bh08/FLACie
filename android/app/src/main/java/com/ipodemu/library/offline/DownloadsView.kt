@@ -35,20 +35,27 @@ object DownloadMarks {
 /** A playlist or an album as the Downloads section sees it: its songs' paths and how to show it. [subtitle] is what the row says when it has nothing better ("Playlist", the artist). */
 class ListSpec(val id: String, val name: String, val subtitle: String, val artKey: String?, val paths: List<String>)
 
-/** A playlist or album with every song on the phone, ready to be a row. */
-class DownloadedList(val id: String, val name: String, val subtitle: String, val artKey: String?, val songs: Int, val bytes: Long) {
-    /** "12 songs · 380 MB" */
-    val detail: String get() = DownloadsOverview.storageLine(songs, bytes)
+/** A playlist or album whose download has finished, ready to be a row; [failed] songs of it could not download. */
+class DownloadedList(val id: String, val name: String, val subtitle: String, val artKey: String?, val songs: Int, val bytes: Long, val failed: Int = 0) {
+    /** "12 songs · 380 MB", and " · 5 songs could not download" when some failed */
+    val detail: String get() = DownloadsOverview.storageLine(songs, bytes) + (DownloadsOverview.failedLine(failed)?.let { " · $it" } ?: "")
 }
 
 /** What the Downloads section (phone and car) shows and says. Pure, unit-tested. */
 object DownloadsOverview {
-    /** The lists out of [specs] whose every downloadable song is finished, with their size, by name (case ignored). [entry] looks a song up by its path. */
+    /**
+     * The lists out of [specs] whose download has finished, with their size, by name (case ignored): every downloadable song is on the phone, or has failed and at least one
+     * made it (so a few failed songs don't hide a playlist from Offline music). [entry] looks a song up by its path.
+     */
     fun lists(specs: List<ListSpec>, entry: (String) -> OfflineEntry?): List<DownloadedList> =
         specs.mapNotNull { s ->
-            if (DownloadMarks.ofList(s.paths) { entry(it)?.state } != DownloadMark.DOWNLOADED) return@mapNotNull null
-            val done = s.paths.mapNotNull { entry(it) }.filter { it.state == OfflineState.DONE }.distinctBy { it.key }
-            DownloadedList(s.id, s.name, s.subtitle, s.artKey, done.size, done.sumOf { it.bytes })
+            val mine = s.paths.mapNotNull { entry(it) }.distinctBy { it.key }
+            val done = mine.filter { it.state == OfflineState.DONE }
+            val failed = mine.count { it.state == OfflineState.FAILED }
+            // a failed song counts as finished here: nothing more will come of it until someone taps Try again
+            val finished = DownloadMarks.ofList(s.paths) { p -> entry(p)?.state?.let { if (it == OfflineState.FAILED) OfflineState.DONE else it } } == DownloadMark.DOWNLOADED
+            if (!finished || done.isEmpty()) return@mapNotNull null
+            DownloadedList(s.id, s.name, s.subtitle, s.artKey, done.size, done.sumOf { it.bytes }, failed)
         }.sortedBy { it.name.lowercase() }
 
     /** Every finished song, by title. */

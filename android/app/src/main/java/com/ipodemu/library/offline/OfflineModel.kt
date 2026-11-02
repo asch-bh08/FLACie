@@ -186,6 +186,19 @@ object OfflineMath {
     /** "1 song", "3 songs". */
     fun songs(n: Int): String = if (n == 1) "1 song" else "$n songs"
 
+    /** A failed song's error in words a listener follows, keeping the code so it can be looked into ("Not on the server (http 404)"); other errors as they are. */
+    fun whyFailed(error: String?): String? {
+        if (error == null) return null
+        val code = Regex("""^http (\d{3})$""").find(error)?.groupValues?.get(1)?.toInt()
+        return when {
+            code == 404 -> "Not on the server ($error)"
+            code == 401 || code == 403 -> "The server said no ($error)"
+            code != null && code >= 500 -> "The server had a problem ($error)"
+            error.contains("timeout", ignoreCase = true) || error.contains("timed out", ignoreCase = true) -> "The connection was too slow or dropped ($error)"
+            else -> error
+        }
+    }
+
     /** "1.4 GB", "230 MB", "12 KB". */
     fun formatBytes(b: Long): String {
         val v = b.coerceAtLeast(0L).toDouble()

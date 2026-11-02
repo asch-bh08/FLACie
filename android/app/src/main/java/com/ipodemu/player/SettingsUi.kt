@@ -31,7 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -174,13 +174,17 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             } catch (_: Exception) { djMsg = "Couldn't reach FLACie Web: these are the settings this phone saw last." }
                         }
                         // shown at once, then as the server has it (or put back, with the reason, when it can't be saved)
+                        val saves = remember { LevelBar.Saves() }
                         fun save(patch: org.json.JSONObject, shown: com.ipodemu.playback.DjSettings) {
                             val was = dj; dj = shown
+                            // only the latest save's answer is shown: an older one coming back late moved the volume bar back (owner, 2 Nov)
+                            val n = saves.next()
                             djScope.launch {
                                 try {
                                     val s = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { web.saveDjSettings(patch) }
-                                    dj = s; djMsg = null; app.player.djSettingsChanged(s)
-                                } catch (e: Exception) { dj = was; djMsg = e.message ?: "Couldn't reach FLACie Web" }
+                                    if (saves.isLatest(n)) { dj = s; djMsg = null }
+                                    app.player.djSettingsChanged(s)
+                                } catch (e: Exception) { if (saves.isLatest(n)) { dj = was; djMsg = e.message ?: "Couldn't reach FLACie Web" } }
                             }
                         }
                         fun where(phone: Boolean, auto: Boolean, webOn: Boolean, windows: Boolean) =
@@ -534,9 +538,11 @@ fun SwitchPill(on: Boolean) {
 @Composable
 private fun DjLevelRow(title: String, desc: String, value: Int, onSet: (Int) -> Unit) {
     val sc = LocalScheme.current
-    var shown by remember(value) { mutableStateOf(value) }
-    var width by remember { mutableStateOf(1f) }
-    fun at(x: Float) = ((x / width).coerceIn(0f, 1f) * 20).roundToInt() * 5   // steps of 5 %
+    var dragging by remember { mutableStateOf(false) }
+    var shown by remember { mutableStateOf(value) }
+    // the saved value only moves the knob when the finger is not on it
+    androidx.compose.runtime.LaunchedEffect(value) { if (!dragging) shown = value }
+    val inset = with(androidx.compose.ui.platform.LocalDensity.current) { 10.dp.toPx() }
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -545,24 +551,27 @@ private fun DjLevelRow(title: String, desc: String, value: Int, onSet: (Int) -> 
             }
             Txt("$shown%", size = 14f, color = sc.onBgDim)
         }
-        androidx.compose.foundation.layout.Box(
+        androidx.compose.foundation.Canvas(
             Modifier.fillMaxWidth().height(40.dp)
                 .semantics {
                     contentDescription = title
                     progressBarRangeInfo = ProgressBarRangeInfo(shown.toFloat(), 0f..100f, 19)
-                    setProgress { v -> onSet((v / 5f).roundToInt().coerceIn(0, 20) * 5); true }
+                    setProgress { v -> shown = (v / 5f).roundToInt().coerceIn(0, 20) * 5; onSet(shown); true }
                 }
-                .pointerInput(Unit) { detectTapGestures { o -> shown = at(o.x); onSet(shown) } }
-                .pointerInput(Unit) { detectDragGestures(onDragEnd = { onSet(shown) }) { change, _ -> change.consume(); shown = at(change.position.x) } },
-            contentAlignment = Alignment.CenterStart,
+                .pointerInput(Unit) { detectTapGestures { o -> shown = LevelBar.at(o.x, size.width.toFloat(), inset); onSet(shown) } }
+                // sideways only, so a finger that drifts up or down doesn't scroll the page under it; saved once, when the finger lifts
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { o -> dragging = true; shown = LevelBar.at(o.x, size.width.toFloat(), inset) },
+                        onDragEnd = { dragging = false; onSet(shown) },
+                        onDragCancel = { dragging = false; onSet(shown) },
+                    ) { change, _ -> change.consume(); shown = LevelBar.at(change.position.x, size.width.toFloat(), inset) }
+                },
         ) {
-            androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(40.dp)) {
-                width = size.width
-                val y = size.height / 2; val f = shown / 100f
-                drawLine(sc.onBgDim.copy(alpha = 0.3f), androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Offset(size.width, y), strokeWidth = 5.dp.toPx())
-                drawLine(sc.accent, androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Offset(size.width * f, y), strokeWidth = 5.dp.toPx())
-                drawCircle(sc.accent, 10.dp.toPx(), androidx.compose.ui.geometry.Offset((size.width * f).coerceIn(10.dp.toPx(), size.width - 10.dp.toPx()), y))
-            }
+            val y = size.height / 2; val x = LevelBar.knobX(shown, size.width, inset)
+            drawLine(sc.onBgDim.copy(alpha = 0.3f), androidx.compose.ui.geometry.Offset(inset, y), androidx.compose.ui.geometry.Offset(size.width - inset, y), strokeWidth = 5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            drawLine(sc.accent, androidx.compose.ui.geometry.Offset(inset, y), androidx.compose.ui.geometry.Offset(x, y), strokeWidth = 5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            drawCircle(sc.accent, inset, androidx.compose.ui.geometry.Offset(x, y))
         }
     }
 }

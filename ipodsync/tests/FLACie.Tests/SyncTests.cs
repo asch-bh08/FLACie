@@ -15,6 +15,8 @@ sealed class FakeJellyfin : HttpMessageHandler
     public readonly List<string> Requests = [];
     public Func<HttpRequestMessage, Task>? Before;
     public bool FailDelta;
+    /** The id listing (no fields) answers with only this many ids: a partial page, a glitch. */
+    public int? IdsOnly;
     long clock = new DateTime(2026, 3, 1, 12, 0, 0, DateTimeKind.Utc).Ticks;
 
     public static string Hex(int n) => n.ToString("x32");
@@ -58,6 +60,7 @@ sealed class FakeJellyfin : HttpMessageHandler
                 set = set.Where(o => DateTime.Parse(o["DateLastSaved"]!.GetValue<string>(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) >= m);   // inclusive, like Jellyfin
             }
             var all = set.ToList();
+            if (IdsOnly is { } cut && q["Limit"] == "2000") all = all.Take(cut).ToList();
             var start = int.Parse(q["StartIndex"] ?? "0"); var limit = int.Parse(q["Limit"] ?? "100");
             var page = all.Skip(start).Take(limit).Select(o => (JsonNode)JsonNode.Parse(o.ToJsonString())!).ToList();
             if (q["Fields"] is { Length: 0 }) foreach (var p in page.Cast<JsonObject>()) { foreach (var k in p.Select(x => x.Key).Where(k => k != "Id").ToList()) p.Remove(k); }
@@ -241,6 +244,36 @@ public class SyncTests
         // a song Jellyfin has that this library never saw: the caller must list again
         fake.Items.Add(fake.Song(500)); fake.Items[^1]["DateLastSaved"] = "2001-01-01T00:00:00.0000000Z";   // older than the cursor: a delta would never bring it
         Assert.Equal(-1, await s.ReconcileAsync(jf));
+    }
+
+    [Fact]
+    public async Task Reconcile_finds_a_removed_song_even_when_the_count_still_matches()
+    {
+        // owner, 2 Nov: a song deleted on Jellyfin stayed. One song removed and one this library never saw: Jellyfin's count is unchanged
+        var fake = new FakeJellyfin(100);
+        var (s, jf, _) = Session(fake, Cache());
+        await s.LoadAsync(jf);
+        fake.Items.RemoveAll(o => o["Id"]!.GetValue<string>() == FakeJellyfin.Hex(1));
+        fake.Items.Add(fake.Song(500)); fake.Items[^1]["DateLastSaved"] = "2001-01-01T00:00:00.0000000Z";
+        Assert.Equal(-1, await s.ReconcileAsync(jf));               // the ids differ (before, the equal count hid it): the caller lists again
+    }
+
+    [Fact]
+    public async Task A_short_or_empty_id_listing_drops_nothing()
+    {
+        var fake = new FakeJellyfin(100);
+        var (s, jf, _) = Session(fake, Cache());
+        await s.LoadAsync(jf);
+        fake.Items.RemoveAll(o => o["Id"]!.GetValue<string>() == FakeJellyfin.Hex(1));
+        fake.IdsOnly = 40;                                          // the id listing stopped early (a glitch, a partial page)
+        Assert.Equal(0, await s.ReconcileAsync(jf));
+        Assert.Equal(100, s.Library.Songs.Count);
+        fake.IdsOnly = 0;
+        Assert.Equal(0, await s.ReconcileAsync(jf));
+        Assert.Equal(100, s.Library.Songs.Count);
+        fake.IdsOnly = null;                                        // a good listing: the removed song goes
+        Assert.Equal(1, await s.ReconcileAsync(jf));
+        Assert.Equal(99, s.Library.Songs.Count);
     }
 
     [Fact]

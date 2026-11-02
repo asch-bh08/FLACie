@@ -100,6 +100,15 @@ class App : Application() {
         player.onPlayEnded = { t, heard -> listened(com.ipodemu.library.ListenKind.PLAY, t, heard) }
         userData.onListen = { kind, path, playlist -> library.resolve(path, userData.meta[path])?.let { listened(kind, it, context = playlist) } }
         listenWriter.launch { sendListensSoon() }
+        // playback problems go to FLACie Web once a minute when there are any (kept while there is no signal)
+        listenWriter.launch {
+            val web = com.ipodemu.library.FlacieWebClient(prefs)
+            while (true) {
+                kotlinx.coroutines.delay(60_000)
+                if (prefs.flacieWebUrl.isBlank()) continue
+                while (true) { val (body, events) = com.ipodemu.playback.Diag.take() ?: break; try { web.diag(body) } catch (_: Exception) { com.ipodemu.playback.Diag.giveBack(events); break } }
+            }
+        }
         library.onDownloaded = { userData.recordDownload(it); autoplay.downloaded(it) }
         // downloads finished within the last hour (before a restart) keep their "Recently downloaded" tag
         library.tags.seed(userData.downloads.map { Triple(it.title, it.artist, it.time) }, System.currentTimeMillis())

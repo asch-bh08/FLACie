@@ -90,6 +90,11 @@ public static class ApiEndpoints
             catch (InvalidDataException e) { return Results.BadRequest(new { error = e.Message }); }
         }).DisableAntiforgery();
 
+        // a device's playback problems (stalls, errors, songs that never started, downloads that failed, what the DJ mic heard), so a bad drive can be read
+        // afterwards on the server (owner, 2 Nov)
+        app.MapPost("/api/diag", async (HttpContext ctx, DiagBody body, SessionStore store, JellyfinClient jf, DiagLogStore diag) =>
+            await Who(ctx, store, jf) is { } s ? Results.Ok(new { kept = diag.Add(s.Id, body.Events ?? []) }) : Results.Unauthorized()).DisableAntiforgery();
+
         // what the person listened to and liked on a device, for their recommendations; the first call also starts the log from what the server already knows
         app.MapPost("/api/listen", async (HttpContext ctx, ListenBody body, SessionStore store, JellyfinClient jf, ListenLogStore log) =>
         {

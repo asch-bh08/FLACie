@@ -201,6 +201,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             val name = try { BrowseTree.listName(id, src) } catch (_: Exception) { null }
             // a playlist picked in the car keeps its DJ switch (the key is the Jellyfin playlist id when it has one, as on the phone's own screens)
             val key = BrowseTree.playlistOf(id)?.let { pl -> try { App.of(ctx).userData.playlists.toList().firstOrNull { it.id == pl }?.let { it.jfId ?: it.id } } catch (_: Exception) { null } }
+            Diag.add("queue", "car: ${id.take(60)} -> ${r?.tracks?.size ?: 0} songs (library ${if (App.of(ctx).library.loaded) "loaded" else "NOT loaded"})")
             if (r != null) handler.post { play(r.tracks, r.index, shuffle = if (BrowseTree.shuffles(id)) true else null, context = name, contextId = key) }
         }
         return true
@@ -447,6 +448,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         val body = DjAskAnswer.body(text, cur?.title, cur?.artist, djSurface, java.time.LocalDateTime.now().hour, search)
         djExec.execute {
             val a = try { djWeb.djAsk(body) } catch (_: Exception) { null } ?: DjAskAnswer.SORRY
+            Diag.add("heard", "\"${text.take(120)}\" -> ${a.say.take(120)}")
             handler.post {
                 DjAskRunner.run(askPlayer, a)
                 if (a.say.isNotBlank() && (a.clip != null || a.deviceVoice)) try { voice().say(DjCue(a.say, a.say, a.clip, a.deviceVoice)) } catch (_: Exception) { }
@@ -647,6 +649,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                 // (or many minutes of nothing) gives up, and says so. A pause pressed meanwhile is kept (prepare only; Play stays as the person left it).
                 val code = ((error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode) ?: 0
                 val wait = NetPatience.playerRetryDelayMs(retries, NetPatience.hopeless(code))
+                Diag.add("error", "\"${current?.title}\" ${error.errorCodeName}${if (code > 0) " http $code" else ""} try $retries${if (wait == null) ", gave up" else ""} ${current?.path?.substringBefore("/Audio/")}")
                 if (wait == null) {
                     android.widget.Toast.makeText(ctx, "Couldn't play \"${current?.title ?: "this song"}\" (${error.errorCodeName})", android.widget.Toast.LENGTH_LONG).show()
                     if (NetPatience.skipsWhenGivingUp(NetPatience.hopeless(code), exo.hasNextMediaItem())) { selfSeekTo(exo.nextMediaItemIndex, 0L); exo.prepare() }   // prepare only: a pause pressed meanwhile is kept
@@ -1205,6 +1208,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         stalls.addLast(now)
         while (stalls.isNotEmpty() && now - stalls.first() > 120_000) stalls.removeFirst()
         android.util.Log.w("FLACie", "stream stall #${stalls.size} in 2 min at ${exo.currentPosition}ms on ${current?.title}, ${exo.totalBufferedDuration}ms buffered")
+        Diag.add("stall", "#${stalls.size} in 2 min at ${exo.currentPosition / 1000}s of \"${current?.title}\" (${exo.totalBufferedDuration}ms buffered)")
     }
 
     /** A streamed song (playing or next) is still coming in: the download queue (songs kept offline) holds back meanwhile, so the two don't share a
@@ -1272,6 +1276,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         when (StartWatch.act(loading, online(), startFreshTried, exo.hasNextMediaItem())) {
             StartWatch.Act.FRESH -> {
                 android.util.Log.w("FLACie", "\"${t.title}\" still loading at its start after ${loading}ms: fetching it fresh")
+                Diag.add("stuck", "\"${t.title}\" loading ${loading / 1000}s at its start: fetched fresh (${t.path.substringBefore("/Audio/")})")
                 startFreshTried = true; freshPaths.add(path)
                 // the saved start of it goes too, in case that is what it is stuck on
                 browseExec.execute { try { StreamSupport.cache(ctx).removeResource(path) } catch (_: Exception) { } }
@@ -1280,6 +1285,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             }
             StartWatch.Act.SKIP -> {
                 android.util.Log.w("FLACie", "\"${t.title}\" never started (${loading}ms): skipped")
+                Diag.add("skip", "\"${t.title}\" never started in ${loading / 1000}s: skipped")
                 android.widget.Toast.makeText(ctx, "Skipped \"${t.title}\": it wouldn't load", android.widget.Toast.LENGTH_LONG).show()
                 startLoad = null
                 selfSeekTo(exo.nextMediaItemIndex, 0L); exo.prepare()

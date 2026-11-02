@@ -250,7 +250,7 @@ class OfflineManager(private val ctx: Context, private val prefs: Prefs) {
                     val tries = failures.merge(e.key, 1, Int::plus) ?: 1
                     synchronized(lock) {
                         if (index[e.key] != null) {
-                            if (tries >= 3) { e.state = OfflineState.FAILED; e.error = ex.message?.take(120) ?: ex.javaClass.simpleName; failures.remove(e.key) } else e.state = OfflineState.QUEUED
+                            if (tries >= 3) { e.state = OfflineState.FAILED; e.error = ex.message?.take(120) ?: ex.javaClass.simpleName; failures.remove(e.key); com.ipodemu.playback.Diag.add("download", "\"${e.title}\" failed: ${e.error} (${e.path.substringBefore("/Audio/")})") } else e.state = OfflineState.QUEUED
                             save()
                         }
                     }

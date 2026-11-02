@@ -113,6 +113,7 @@ builder.Services.AddSingleton<PlaybackActivity>();
 builder.Services.AddSingleton<SongHeadCache>();
 builder.Services.AddSingleton<TokenCache>();
 builder.Services.AddSingleton<ListenLogStore>();   // each account's listening log (recommendations)
+builder.Services.AddSingleton<DiagLogStore>();   // each account's playback problems from its devices (stalls, errors, what the mic heard)
 builder.Services.AddSingleton<FormatProbeService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FormatProbeService>());
 builder.Services.AddSingleton<VibeIndex>();   // how each song feels (recommendations), filled in the background

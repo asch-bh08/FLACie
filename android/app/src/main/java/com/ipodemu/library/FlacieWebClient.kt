@@ -135,6 +135,8 @@ class FlacieWebClient(private val prefs: Prefs) {
 
     /** Hands a batch of listening events to the account's log (see [ListenQueue]); throws when they were not taken. */
     fun listen(body: String) { send("/api/listen", "POST", body) }
+    /** Playback problems for the server ([com.ipodemu.playback.Diag]). */
+    fun diag(body: String) { send("/api/diag", "POST", body) }
     /** What the engine would play after these songs (the last is playing now). */
     fun recommendNext(session: List<String>, n: Int = 10): List<RecPick> =
         RecPick.parseNext(send("/api/recommend/next?n=$n&session=" + java.net.URLEncoder.encode(session.joinToString(","), "UTF-8"), "GET"))

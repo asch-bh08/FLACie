@@ -273,12 +273,16 @@ class Library(ctx: Context, val art: ArtCache) {
     /** A playlist/favourite entry on this device: the exact file, or -- for an entry synced from another device --
      * this library's copy of the same song by title + artist. */
     fun resolve(path: String, meta: Pair<String, String>?): Track? =
-        byPath()[path] ?: meta?.let { byKey()[matchKey(it.first, it.second)] } ?: jellyfinByPath()[path] ?: meta?.let { findLoose(it.first, it.second) }
+        byPath()[path]
+            // the same Jellyfin song saved under the server's older address (Wild Ones, owner 2 Nov): matched by its id
+            ?: JellyfinPaths.idOf(path)?.let { jellyfinTrack(it) }
+            ?: meta?.let { byKey()[matchKey(it.first, it.second)] } ?: jellyfinByPath()[path] ?: meta?.let { findLoose(it.first, it.second) }
             // an entry saved when the song still showed its file name (see TrackTitles): the cleaned song remembers that title
             ?: meta?.let { m -> jellyfinByOrigTitle()[normTitle(m.first)]?.takeIf { m.second.isBlank() || primaryArtist(m.second) == primaryArtist(it.artist) || primaryArtist(m.second) in setOf("unknown", "unknown artist") } }
             // a Jellyfin stream the library hasn't listed (yet): still playable from what the playlist recorded
+            // (moved onto the server in use now: an older address may not be reachable any more)
             ?: if (meta != null && path.startsWith("http") && "/Audio/" in path) Track(
-                path = path, title = meta.first, artist = meta.second, album = "", albumArtist = meta.second, genre = "", trackNo = 0, discNo = 0,
+                path = JellyfinPaths.rebase(path, prefs.jellyfinUrl), title = meta.first, artist = meta.second, album = "", albumArtist = meta.second, genre = "", trackNo = 0, discNo = 0,
                 durationMs = 0, year = 0, isMusic = true, artKey = Regex("/Audio/([0-9a-fA-F]{32})/").find(path)?.let { "jf" + it.groupValues[1] },
                 mtime = 0, size = 0, source = TrackSource.JELLYFIN,
             ) else null

@@ -766,10 +766,14 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     fun appendAutoplay(list: List<Track>) {
         // Repeat switched on while Autoplay was choosing (or a song it asked for landed later): the playlist starts again instead, nothing is added
         if (list.isEmpty() || !hasQueue || !RepeatCycle.autoplayMayAdd(prefs.repeat)) return
-        exo.addMediaItems(list.map(::item)); queueChanged()
+        val before = if (exo.shuffleModeEnabled) playOrderNow() else null
+        exo.addMediaItems(list.map(::item))
+        // on shuffle they play after the rest, in the order Autoplay chose
+        if (before != null) setShuffleOrderQuiet(QueueEdit.appendOrder(before, list.size))
+        queueChanged()
     }
-    /** Autoplay fills the queue when at most one more song follows the current one (never with Repeat on: see [RepeatCycle]). */
-    fun checkQueueLow() { if (RepeatCycle.autoplayMayAdd(prefs.repeat) && exo.mediaItemCount > 0 && exo.mediaItemCount - exo.currentMediaItemIndex <= 2) onQueueLow?.invoke() }
+    /** Autoplay fills the queue when at most one more song follows the current one in play order (never with Repeat on: see [RepeatCycle]). */
+    fun checkQueueLow() { if (RepeatCycle.autoplayMayAdd(prefs.repeat) && exo.mediaItemCount > 0 && QueueEdit.nearEnd(playOrderNow(), exo.currentMediaItemIndex)) onQueueLow?.invoke() }
     /** Called as a song starts when at most one more is queued after it (Autoplay fills the queue). */
     var onQueueLow: (() -> Unit)? = null
 

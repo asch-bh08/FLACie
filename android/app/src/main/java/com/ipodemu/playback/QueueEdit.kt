@@ -73,6 +73,13 @@ object QueueEdit {
     }
 
     /** The songs that follow [current] in play order (queue indices). With repeat-all the ones before it follow too, after the wrap; never [current]. */
+    /** At most one song still to come after [current] in play [order] (not in list order: on shuffle the list position says nothing), so Autoplay should add more. */
+    fun nearEnd(order: IntArray, current: Int): Boolean = upcoming(order, current, false).size <= 1
+
+    /** The play order after [added] songs were put at the end of the list: they play after everything already in [order], not shuffled in among it
+     *  (the player's own shuffle put Autoplay's songs at random places, some already passed, and the music stopped). */
+    fun appendOrder(order: IntArray, added: Int): IntArray = IntArray(order.size + added) { if (it < order.size) order[it] else it }
+
     fun upcoming(order: IntArray, current: Int, repeatAll: Boolean): List<Int> {
         val p = order.indexOf(current)
         if (p < 0) return emptyList()

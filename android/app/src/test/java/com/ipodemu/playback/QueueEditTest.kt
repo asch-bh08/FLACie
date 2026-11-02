@@ -295,4 +295,17 @@ class QueueEditTest {
         assertTrue(QueueEdit.isPermutation(QueueEdit.placeAfter(intArrayOf(2, 0, 1, 3), 1, 9), 4))
         assertNotNull(QueueEdit.placeAfter(intArrayOf(0), 0, -1))
     }
+
+    // owner, 2 Nov: a shuffled Quick picks queue in the car stopped after its 20 songs; Autoplay looked at the list position (random on shuffle), not the play order
+    @Test fun nearTheEndIsCountedInPlayOrderOnShuffle() {
+        val shuffled = intArrayOf(3, 8, 1, 6, 0, 9, 4, 2, 7, 5)
+        assertTrue("the last song of the shuffle, at list position 5", QueueEdit.nearEnd(shuffled, 5))
+        assertTrue("one more to come", QueueEdit.nearEnd(shuffled, 7))
+        assertFalse("list position 9 but four still to come in play order", QueueEdit.nearEnd(shuffled, 9))
+        assertTrue(QueueEdit.nearEnd(IntArray(10) { it }, 9)); assertFalse(QueueEdit.nearEnd(IntArray(10) { it }, 3))
+    }
+    @Test fun autoplaySongsComeAfterTheShuffleNotInsideIt() {
+        assertArrayEquals(intArrayOf(2, 0, 1, 3, 4), QueueEdit.appendOrder(intArrayOf(2, 0, 1), 2))
+        assertArrayEquals(intArrayOf(0, 1), QueueEdit.appendOrder(intArrayOf(0), 1))
+    }
 }

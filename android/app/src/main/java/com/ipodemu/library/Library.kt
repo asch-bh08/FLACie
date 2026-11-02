@@ -559,7 +559,9 @@ class Library(ctx: Context, val art: ArtCache) {
         }
     }
 
-    fun rescan() = start()
+    /** Settings > Reload library: every song is read from the servers again (not only what changed), so a fix in how songs are read reaches the ones
+     *  already on the phone (owner, 2 Nov: compilation songs kept a wrong cover until a full read). */
+    fun rescan() { jfIndex.cursor = ""; start() }
 
     /** Look for a real iPod on the PC running ipodsync at `host` (e.g. "my-pc:5070"). */
     fun findSyncDevices(host: String) {

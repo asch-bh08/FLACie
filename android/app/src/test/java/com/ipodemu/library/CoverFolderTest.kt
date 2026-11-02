@@ -30,8 +30,4 @@ class CoverFolderTest {
         val a = t("The Final", "jfshared", folder = "").copy(filePath = ""); val b = t("21", "jfshared").copy(filePath = "")
         assertEquals(CoverLookup.key(a.artist, "", a.title), CoverVetting.vet(listOf(a, b))[0].artKey)
     }
-    @Test fun aSavedAlbumLookupForACompilationSongBecomesTheSongLookup() {
-        val t = t("The Final", null).copy(artist = "George Michael", albumArtist = "Wham!", title = "Careless Whisper").let { it.copy(artKey = CoverLookup.key("Wham!", "The Final", "")) }
-        assertEquals(CoverLookup.key("George Michael", "", "Careless Whisper"), CoverVetting.vet(listOf(t))[0].artKey)
-    }
 }

@@ -302,12 +302,16 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     }
 
     val current: Track? get() = ((if (burstTarget in 0 until exo.mediaItemCount) exo.getMediaItemAt(burstTarget) else exo.currentMediaItem)?.localConfiguration?.tag as? Track)?.let(::fresh)
+    private var coverNoted: String? = null
+    private fun coverNote(t: Track, inLib: Track?) { if (coverNoted != t.path) { coverNoted = t.path; android.util.Log.i("FLACieCover", "queued \"${t.title}\" key=${t.artKey?.take(48)} library=${if (inLib == null) "not found" else inLib.artKey?.take(48)}") } }
     /** A queued song with the cover key the library has for it now (a queue saved or built before the library loaded kept an unvetted key). */
     private fun fresh(t: Track): Track {
         if (t.source != com.ipodemu.library.TrackSource.JELLYFIN) return t
         val lib = App.of(ctx).library
         if (!lib.loaded) return t
-        return com.ipodemu.library.CoverVetting.fresh(t, com.ipodemu.library.JellyfinPaths.idOf(t.path)?.let { lib.jellyfinTrack(it) })
+        val inLib = com.ipodemu.library.JellyfinPaths.idOf(t.path)?.let { lib.jellyfinTrack(it) }
+        if (inLib == null || inLib.artKey != t.artKey) coverNote(t, inLib)
+        return com.ipodemu.library.CoverVetting.fresh(t, inLib)
     }
     val isPlaying: Boolean get() = exo.isPlaying
     /** Playing, or about to (loading after a seek, reconnecting): what the Play/Pause button shows and toggles. Showing Play

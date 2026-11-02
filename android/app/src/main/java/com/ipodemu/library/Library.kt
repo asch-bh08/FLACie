@@ -998,9 +998,11 @@ class Library(ctx: Context, val art: ArtCache) {
             }
             fun list(k: String) = parsed[k] ?: emptyList()
             com.ipodemu.Boot.mark("loadRemote: parsed")
-            if (jellyfinTracks.isNotEmpty()) jellyfinTracks = com.ipodemu.Boot.span("loadRemote: vet covers") { CoverVetting.vet(jellyfinTracks) }
             // the list was saved after cleaning: cleaning it again gives the same titles (about half a second of CPU for 10,000 songs), so only a list saved with older rules is cleaned
             if (jellyfinTracks.isEmpty()) jellyfinTracks = if (cleanedWith == TrackTitles.RULES) list("jf") else com.ipodemu.Boot.span("loadRemote: cleanAll") { TrackTitles.cleanAll(list("jf")) }
+            // the covers are vetted AFTER the saved list is read: before, this ran on the still-empty list, so every start-up showed the unvetted covers until a
+            // full sync (owner's phone, 2 Nov: Careless Whisper kept Sia's cover; the log showed Now Playing asking for the folder album's picture)
+            if (jellyfinTracks.isNotEmpty()) jellyfinTracks = com.ipodemu.Boot.span("loadRemote: vet covers") { CoverVetting.vet(jellyfinTracks) }
             // a list from before the stamp (or from older rules) is saved again once, stamped, so the next launch skips the cleaning
             if (cleanedWith != TrackTitles.RULES && jellyfinTracks.isNotEmpty()) remoteSaveJob = scope.launch { kotlinx.coroutines.delay(8_000); saveRemote() }
             com.ipodemu.Boot.span("loadRemote: facts") { AudioFacts.loadJellyfin(jfFactsFile) }

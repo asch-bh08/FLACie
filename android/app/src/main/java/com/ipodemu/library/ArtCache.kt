@@ -335,6 +335,10 @@ class ArtCache(private val dir: File) {
         if (key == null) return null
         val jf = isJf(key)
         val big = full && jf   // only Jellyfin covers have a second (Now Playing) size
+        // which picture Now Playing asks for (a wrong cover on the owner's phone could not be traced, 2 Nov)
+        if (full) android.util.Log.i("FLACieCover", "now playing asks ${key.take(48)} pinned=${pins?.file(key) != null} saved=${(if (big) fullFile(key) else file(key)).exists()}")
+        // which picture Now Playing asks for (a wrong cover on the owner's phone could not be traced, 2 Nov)
+        if (full) android.util.Log.i("FLACieCover", "now playing asks ${key.take(48)} pinned=${pins?.file(key) != null} saved=${(if (big) fullFile(key) else file(key)).exists()}")
         val ck = memKey(key, thumb, big)
         synchronized(this) { mem.get(ck)?.let { return it }; if (ck in missing) return null }
         // a cover the person chose wins over the one from the server or the catalog

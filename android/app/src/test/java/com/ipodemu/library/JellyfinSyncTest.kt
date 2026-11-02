@@ -27,15 +27,18 @@ class JellyfinSyncTest {
         val pages = ArrayList<Triple<Int, Int, String?>>()
         var counts = 0; var idCalls = 0; val byIdCalls = ArrayList<List<String>>()
         var failPageAt = -1
+        /** A page that comes back empty although the server has more (a glitch), and an id listing cut short. */
+        var emptyPageAt = -1; var idsOnly: Int? = null
         override suspend fun page(startIndex: Int, limit: Int, minSaved: String?): JellyfinDirectClient.Page {
             val fail = failPageAt == pages.size
             pages += Triple(startIndex, limit, minSaved)
             if (fail) throw java.io.IOException("down")
+            if (emptyPageAt == pages.size - 1) return JellyfinDirectClient.Page(emptyList(), items.size)
             val all = items.values.filter { minSaved == null || it.savedAt >= minSaved }.sortedBy { it.track.title }
             return JellyfinDirectClient.Page(all.drop(startIndex).take(limit), all.size)
         }
         override suspend fun count(): Int { counts++; return items.size }
-        override suspend fun allIds(): Set<String> { idCalls++; return items.keys.toSet() }
+        override suspend fun allIds(): Set<String> { idCalls++; return items.keys.let { k -> idsOnly?.let { k.take(it) } ?: k }.toSet() }
         override suspend fun byIds(ids: List<String>): List<JellyfinDirectClient.Item> { byIdCalls.add(ids); return ids.mapNotNull { items[it] } }
     }
 
@@ -131,14 +134,15 @@ class JellyfinSyncTest {
         s.idCalls = 0
         s.items.remove(id(2)); s.items.remove(id(4))
         sync.sync()
-        assertEquals("ids are compared only because the counts differ", 1, s.idCalls)
+        assertEquals("one light id listing", 1, s.idCalls)
         assertEquals(setOf(id(1), id(3), id(5), id(6)), ids(sink.last))
         assertEquals(4, sync.index.size)
         assertEquals("the facts of deleted songs are dropped", 2, sink.removedFacts.size)
         assertTrue(s.byIdCalls.isEmpty())
-        // nothing differs now: no id comparison again
-        s.idCalls = 0; sync.sync()
-        assertEquals(0, s.idCalls)
+        // nothing differs now: the ids are still compared (an equal count hid a deletion, see aDeletedSongGoesEvenWhenTheCountStillMatches), and nothing changes
+        s.idCalls = 0; val pubs = sink.published.size; sync.sync()
+        assertEquals(1, s.idCalls)
+        assertEquals("nothing published", pubs, sink.published.size)
     }
 
     @Test fun countMismatchFetchesSongsThePhoneMissed() = runBlocking {
@@ -205,5 +209,69 @@ class JellyfinSyncTest {
         val sync = JellyfinSync(s, JellyfinIndex(), sink, pageSize = 10)
         sync.sync(); s.pages.clear(); sync.sync()
         assertEquals(1, sync.fullPasses); assertEquals(1, sync.deltaPasses)
+    }
+
+    // ---- songs deleted on Jellyfin (owner, 2 Nov: Moves Like Jagger stayed on the phone after it was deleted on the server) ----
+
+    @Test fun aDeletedSongGoesEvenWhenTheCountStillMatches() = runBlocking {
+        val s = server(6); val sink = Sink()
+        val sync = JellyfinSync(s, JellyfinIndex(), sink, pageSize = 10, countEveryMs = 0)
+        sync.sync()
+        // one song deleted, and one the phone never saw (saved before the cursor, so no delta finds it): Jellyfin still counts 6
+        s.items.remove(id(2)); s.items[id(9)] = item(9, saved = 1)
+        sync.sync()
+        assertFalse("the deleted song is still listed", id(2) in ids(sink.last))
+        assertTrue(id(9) in ids(sink.last))
+        assertEquals(6, sync.index.size)
+    }
+
+    @Test fun aShortIdListingDropsNothing() = runBlocking {
+        val s = server(6); val sink = Sink()
+        val sync = JellyfinSync(s, JellyfinIndex(), sink, pageSize = 10, countEveryMs = 0)
+        sync.sync()
+        s.items.remove(id(6))
+        s.idsOnly = 2   // the id listing stopped after 2 of the 5 songs (a network glitch, a partial page)
+        sync.sync()
+        assertEquals("nothing is dropped on a listing shorter than the server's own count", 6, sync.index.size)
+        s.idsOnly = null; sync.wantCount(); sync.sync()
+        assertEquals("the next good listing drops the deleted one", setOf(id(1), id(2), id(3), id(4), id(5)), ids(sink.last))
+    }
+
+    @Test fun anEmptyIdListingDropsNothing() = runBlocking {
+        val s = server(6); val sink = Sink()
+        val sync = JellyfinSync(s, JellyfinIndex(), sink, pageSize = 10, countEveryMs = 0)
+        sync.sync()
+        s.items.remove(id(1)); s.idsOnly = 0
+        sync.sync()
+        assertEquals(6, sync.index.size)
+    }
+
+    @Test fun reloadDropsSongsDeletedOnTheServer() = runBlocking {
+        val s = server(6); val sink = Sink()
+        val sync = JellyfinSync(s, JellyfinIndex(), sink, pageSize = 2)
+        sync.sync()
+        s.items.remove(id(3)); sync.index.cursor = ""   // Settings > Reload library
+        sync.sync()
+        assertEquals(setOf(id(1), id(2), id(4), id(5), id(6)), ids(sink.last))
+    }
+
+    @Test fun aFullPassThatListsNothingKeepsTheOldList() = runBlocking {
+        val s = server(6); val sink = Sink()
+        val sync = JellyfinSync(s, JellyfinIndex(), sink, pageSize = 10)
+        sync.sync()
+        s.items.clear(); sync.index.cursor = ""
+        try { sync.sync() } catch (_: java.io.IOException) { }
+        assertEquals(6, sync.index.size)
+    }
+
+    @Test fun aFullPassWithAPageMissingKeepsTheOldList() = runBlocking {
+        val s = server(6); val sink = Sink()
+        val sync = JellyfinSync(s, JellyfinIndex(), sink, pageSize = 2)
+        sync.sync()
+        sync.index.cursor = ""   // Settings > Reload library
+        s.pages.clear(); s.emptyPageAt = 1   // the second page comes back empty although the server has 6 songs
+        try { sync.sync() } catch (_: java.io.IOException) { }
+        assertEquals("the library is not cut to the pages that arrived", 6, sync.index.size)
+        assertEquals(6, sink.last.size)
     }
 }

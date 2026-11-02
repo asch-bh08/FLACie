@@ -148,6 +148,8 @@ class JellyfinSync(
             report(p.items)
             start += p.items.size
             progress = "$start of ${p.total}"
+            // a page that came back empty before the server's own total: a glitch, not the end of the library (the list kept from before stays)
+            if (p.items.isEmpty() && start < p.total) throw java.io.IOException("The song list came back short ($start of ${p.total})")
             val done = p.items.isEmpty() || start >= p.total
             if (!done && !keepShowing && (pages <= 2 || clock() - lastPublish >= publishGapMs)) {
                 lastPublish = clock()
@@ -155,6 +157,8 @@ class JellyfinSync(
             }
             if (done) break
         }
+        // a server that suddenly lists nothing while the phone has songs is far more likely a glitch (a library being rescanned, a share offline) than an empty library
+        if (seen.isEmpty() && index.size > 0) throw java.io.IOException("The server listed no songs; the list kept from before stays")
         val cleaned = sink.clean(seen.values.map { it.track }, true)
         index.replaceAll(cleaned)
         index.cursor = ""; index.advance(maxSaved)
@@ -162,7 +166,7 @@ class JellyfinSync(
         fullPasses++
         sink.publish(index.tracks(), true); sink.persist(); sink.cursorChanged(index.cursor)
         // the pass itself is done and saved; a failing count check only means it is tried again with the next pass
-        try { checkCount(); sink.cursorChanged(index.cursor) } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+        try { checkCount(afterFullListing = true); sink.cursorChanged(index.cursor) } catch (e: CancellationException) { throw e } catch (_: Exception) { }
     }
 
     private suspend fun delta() {
@@ -196,13 +200,20 @@ class JellyfinSync(
         }
     }
 
-    /** The server's count differs from ours: something was deleted (or missed). Compare ids. */
-    private suspend fun checkCount() {
+    /**
+     * Compares the phone's songs with the ids the server has (a light listing: no fields, no pictures): what the server deleted goes, what the phone
+     * missed is fetched. Jellyfin's changed-since listing never reports deletions, and the count alone hid one when the phone also lacked a song
+     * (owner, 2 Nov: Moves Like Jagger stayed). Nothing is dropped when the id listing is shorter than the server's own count or empty (a glitch or a
+     * partial page): losing the library to a glitch is worse than one stale song; the next pass tries again.
+     */
+    private suspend fun checkCount(afterFullListing: Boolean = false) {
         countWanted = false
         val n = api.count()
         lastCountAt = clock()
-        if (n < 0 || n == index.size) return
+        // right after a full listing the list is the server's own: only a differing count (songs added while it paged) is worth an id listing
+        if (n < 0 || (afterFullListing && n == index.size)) return
         val ids = api.allIds()
+        if (!JellyfinSync.listingTrusted(ids.size, n, index.size)) return
         val gone = index.retainOnly(ids)
         val missing = index.missingFrom(ids)
         var fetched = emptyList<JellyfinDirectClient.Item>()
@@ -215,6 +226,12 @@ class JellyfinSync(
         }
         if (gone.isNotEmpty()) sink.facts(emptyMap(), gone.mapNotNull { it.fileKey })
         if (gone.isNotEmpty() || fetched.isNotEmpty()) { sink.publish(index.tracks(), true); sink.persist(); sink.cursorChanged(index.cursor) }
+    }
+
+    companion object {
+        /** Whether an id listing of [listed] songs can be trusted to drop songs: not empty while the phone has songs, and not shorter than the [count]
+         * the server gave for the same listing a moment before. */
+        fun listingTrusted(listed: Int, count: Int, have: Int): Boolean = !(listed == 0 && have > 0) && listed >= count
     }
 }
 

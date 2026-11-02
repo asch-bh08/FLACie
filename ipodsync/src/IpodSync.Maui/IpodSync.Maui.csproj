@@ -28,9 +28,9 @@
         <ApplicationId>dev.ashley.ipodsync</ApplicationId>
 
         <!-- Versions -->
-        <ApplicationDisplayVersion>1.0.103</ApplicationDisplayVersion>
+        <ApplicationDisplayVersion>1.0.104</ApplicationDisplayVersion>
         <!-- Android versionCode: must go up with every APK released, or phones refuse the update. -->
-        <ApplicationVersion>88</ApplicationVersion>
+        <ApplicationVersion>89</ApplicationVersion>
 
         <!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
         <WindowsPackageType>None</WindowsPackageType>

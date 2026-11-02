@@ -121,6 +121,7 @@ http
     const u = new URL(req.url, 'http://x');
     const p = u.pathname, q = u.searchParams, m = req.method;
     // request counter for the load tests: GET /__counts (totals by kind since the last POST /__reset). Not part of Jellyfin; no auth.
+    if (p === '/__mock') return json(res, 200, { mock: true });   // marker: every test harness checks this before it talks to a Jellyfin
     if (p === '/__counts') return json(res, 200, counts);
     if (p === '/__reset') { for (const k of Object.keys(counts)) counts[k] = 0; images.clear(); return json(res, 200, counts); }
     if (p === '/__images') return json(res, 200, { total: counts.image, distinct: images.size, repeats: counts.imageRepeats, variants: [...new Set([...images.keys()].map((k) => k.split('|').slice(2).join('|')))], urls: Object.fromEntries(images) });

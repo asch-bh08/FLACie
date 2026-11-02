@@ -19,7 +19,7 @@ class ExploreEngineTest {
         .sortedBy { sortKey(it.title) }
 
     @Test fun aJellyfinStreamWithNoServerPathHasNoExtensionNotAPieceOfTheUrl() {
-        val t = song(1, "Blow").copy(path = "http://100.64.0.10:8096/Audio/0123456789abcdef0123456789abcdef/stream?static=true", filePath = "", source = com.ipodemu.library.TrackSource.JELLYFIN)
+        val t = song(1, "Blow").copy(path = "http://192.0.2.10:8096/Audio/0123456789abcdef0123456789abcdef/stream?static=true", filePath = "", source = com.ipodemu.library.TrackSource.JELLYFIN)
         assertEquals("", trackExt(t))
     }
 

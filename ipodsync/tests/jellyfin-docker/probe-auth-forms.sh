@@ -1,6 +1,7 @@
 B='MediaBrowser Client="ct", Device="ct", DeviceId="ct9", Version="1"'
 for P in 8096 8097; do
 J=http://localhost:$P
+. "$(dirname "$0")/guard.sh"; require_test_jellyfin "$J"
 T=$(curl -s -X POST -H 'Content-Type: application/json' -H "Authorization: $B" -d '{"Username":"listener","Pw":"listen123"}' $J/Users/AuthenticateByName | jq -r .AccessToken)
 echo "== port $P $(curl -s $J/System/Info/Public | jq -r '.Version // .version')"
 echo "  Authorization header : $(curl -s -o /dev/null -w %{http_code} -H "Authorization: $B, Token=\"$T\"" $J/Users/Me)"

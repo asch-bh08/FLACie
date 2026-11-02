@@ -12,7 +12,24 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let ADB = process.env.ADB || path.join(process.env.LOCALAPPDATA || '', 'Android', 'Sdk', 'platform-tools', 'adb.exe');
 export const setAdb = (p) => { if (p) ADB = p; };
 
+/** Which device adb would talk to (ANDROID_SERIAL, or the only one attached). Refuses unless it is an emulator (emulator-NNNN): these drivers wipe the app
+ *  (pm clear / uninstall), which must never happen on the owner's phone. Called by every script that clears the app, and by adb() itself for those commands. */
+let emuOk = false;
+export function requireEmulator() {
+  if (emuOk) return;
+  let serial = '';
+  try { serial = execFileSync(ADB, ['get-serialno'], { encoding: 'utf8', timeout: 20000, stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { }
+  if (!/^emulator-\d+$/.test(serial)) {
+    console.error(`REFUSING TO RUN: the adb target is "${serial || 'none / ambiguous'}", not an emulator (emulator-NNNN). This tool clears the app's data; never run it on a phone. ` +
+      'Start the emulator and set ANDROID_SERIAL=emulator-5554.');
+    process.exit(3);
+  }
+  emuOk = true;
+}
+const WIPES_APP = /\bpm\s+(clear|uninstall)\b|(^|\s)uninstall\b/;
+
 export function adb(args, { buffer = false, timeout = 90000, quiet = false } = {}) {
+  if (WIPES_APP.test(args.join(' '))) requireEmulator();
   try { return execFileSync(ADB, args, { encoding: buffer ? 'buffer' : 'utf8', maxBuffer: 256 * 1024 * 1024, timeout, stdio: ['ignore', 'pipe', quiet ? 'ignore' : 'pipe'] }); }
   catch (e) { const out = e.stdout ? e.stdout.toString() : ''; if (quiet) return out; throw new Error(`adb ${args.join(' ')} failed: ${e.message}\n${out}`); }
 }

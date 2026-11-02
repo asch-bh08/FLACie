@@ -5,7 +5,8 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { sh, sleep, setAdb, dump, has, find, tapNode, tapAt, typeText, key, waitUi, label, shot } from './adbui.mjs';
+import { requireEmulator, sh, sleep, setAdb, dump, has, find, tapNode, tapAt, typeText, key, waitUi, label, shot } from './adbui.mjs';
+import { requireMock } from './require-mock.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > 0 ? process.argv[i + 1] : d; };
 const PORT = Number(arg('port', 8297)), ITEMS = Number(arg('items', 10000));
@@ -18,7 +19,7 @@ process.on('exit', () => { try { mock.kill('SIGKILL'); } catch { } });
 for (let i = 0; i < 100; i++) { try { if ((await fetch(`${MOCK}/System/Info/Public`)).ok) break; } catch { } await sleep(200); }
 await fetch(`${MOCK}/__profile?name=fast`); await fetch(`${MOCK}/__reset`);
 
-sh(`am force-stop ${PKG}`); sh(`pm clear ${PKG}`);
+requireEmulator(); await requireMock(MOCK); sh(`am force-stop ${PKG}`); sh(`pm clear ${PKG}`);
 sh(`pm grant ${PKG} android.permission.POST_NOTIFICATIONS`, { quiet: true });
 sh(`pm revoke ${PKG} android.permission.READ_MEDIA_AUDIO`, { quiet: true });
 sh(`am start -n ${PKG}/com.ipodemu.ui.MainActivity`, { quiet: true });

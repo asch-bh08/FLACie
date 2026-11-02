@@ -42,6 +42,9 @@ try {
     $emu = Start-Process -FilePath $emuExe -WindowStyle Hidden -PassThru -ArgumentList @('-avd', $Avd, '-no-window', '-no-audio', '-no-snapshot', '-no-boot-anim', '-gpu', 'swiftshader_indirect', '-memory', "$Memory", '-netfast')
   }
   & $adb wait-for-device
+  # this script uninstalls and clears the app: only ever on an emulator, never on a phone (even with -Reuse)
+  $serial = ((& $adb get-serialno 2>$null) -join '').Trim()
+  if ($serial -notmatch '^emulator-\d+$') { throw "the adb target is '$serial', not an emulator: refusing to uninstall/clear the app (set ANDROID_SERIAL=emulator-5554)" }
   $sw = [Diagnostics.Stopwatch]::StartNew()
   while ($true) {
     $b = (& $adb shell getprop sys.boot_completed 2>$null) -join ''

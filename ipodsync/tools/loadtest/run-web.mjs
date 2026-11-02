@@ -14,6 +14,7 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { requireMock } from './require-mock.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > 0 ? process.argv[i + 1] : d; };
@@ -41,7 +42,7 @@ process.on('exit', killAll);
 
 let web;
 function startWeb() {
-  const env = { ...process.env, ASPNETCORE_URLS: WEB, ASPNETCORE_ENVIRONMENT: 'Production', FLACIE_JELLYFIN_URL: MOCK, FLACIE_DATA: DATA, DOTNET_CLI_TELEMETRY_OPTOUT: '1' };
+  const env = { ...process.env, ASPNETCORE_URLS: WEB, ASPNETCORE_ENVIRONMENT: 'Production', FLACIE_JELLYFIN_URL: MOCK, FLACIE_JELLYFIN_INTERNAL_URL: MOCK, FLACIE_DATA: DATA, DOTNET_CLI_TELEMETRY_OPTOUT: '1' };
   if (SHELL === 'desktop') env.FLACIE_PARENT_PID = String(process.pid);   // what the Windows app sets: background jobs that belong to an always-on server stay off
   web = start('dotnet', ['FLACie.Server.dll'], { cwd: SERVER, env });
   web.stdout.on('data', (d) => fs.appendFileSync(DATA + '.server.log', d));
@@ -99,6 +100,7 @@ async function main() {
   const mock = start('node', [path.join(here, 'mock.mjs'), '--port', String(MOCK_PORT), '--host', '127.0.0.1', '--items', String(ITEMS), '--streamms', '1500']);
   mock.stderr.on('data', (d) => process.stderr.write(d));
   await waitUp(`${MOCK}/System/Info/Public`);
+  await requireMock(MOCK);   // refuses to run against anything that is not a mock
   await fetch(`${MOCK}/__profile?name=${PROFILE}`);
   await reset();
   await startWeb();

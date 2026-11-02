@@ -8,6 +8,10 @@ import * as path from 'node:path';
 // The user id is what SessionStore keys a Jellyfin sign-in by: SHA-256 of "jf|<server>|<user id>" (the mock's only user is u1).
 export default async function globalSetup() {
   const mock = `http://127.0.0.1:${process.env.MOCK_PORT || 8196}`;
+  // the marker check: the Jellyfin the whole run talks to must be the mock (mock-jellyfin.mjs answers GET /__mock with {"mock":true})
+  let isMock = false, why = '';
+  try { const r = await fetch(`${mock}/__mock`, { signal: AbortSignal.timeout(5000) }); isMock = r.ok && (await r.json())?.mock === true; why = `HTTP ${r.status}`; } catch (e) { why = String((e as Error)?.message ?? e); }
+  if (!isMock) throw new Error(`REFUSING TO RUN: the Jellyfin at ${mock} is not the mock (GET /__mock: ${why}). Tests must never talk to a real Jellyfin.`);
   const id = crypto.createHash('sha256').update(`jf|${mock}|u1`).digest('hex').toUpperCase();
   const dir = path.join(__dirname, '.pub-smoke', '.data-smoke', 'downloads');
   fs.mkdirSync(dir, { recursive: true });

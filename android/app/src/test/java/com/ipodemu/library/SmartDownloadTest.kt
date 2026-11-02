@@ -73,8 +73,8 @@ class SmartDownloadTest {
     }
     @Test fun aFinishedSongPlaysFromWhatTheServerFiled() {
         val j = FlacieWebClient.JobStatus("done", "ready", "soulseek", true, false, "Queen/Queen - Radio Ga Ga.flac", "FLAC")
-        val t = SmartDownload.trackFor("http://frank:8099/", j.path!!, "Queen", "Radio Ga Ga", "The Works", 346_000)
-        assertEquals("http://frank:8099/file?path=Queen%2FQueen+-+Radio+Ga+Ga.flac", t.path)
+        val t = SmartDownload.trackFor("http://filemover:8099/", j.path!!, "Queen", "Radio Ga Ga", "The Works", 346_000)
+        assertEquals("http://filemover:8099/file?path=Queen%2FQueen+-+Radio+Ga+Ga.flac", t.path)
         assertEquals("Radio Ga Ga", t.title); assertEquals(346_000L, t.durationMs)
         val s = SmartDownload.statusOf(j, t)
         assertEquals(listOf(t), s.newTracks)
@@ -87,7 +87,7 @@ class SmartDownloadTest {
     @Test fun followsAJobUntilItIsDone() {
         val seen = mutableListOf<DownloadStatus>()
         val script = ArrayDeque(listOf(job("searching", "Looking"), job("downloading", "Downloading"), job("done", "ready", done = true, path = "Queen/Queen - Radio Ga Ga.mp3")))
-        val handled = runBlocking { SmartDownload.run(ask, "http://frank:8099", { "j1" }, { script.removeFirst() }, { seen += it }, pollMs = 1, heartbeatMs = 1_000_000) }
+        val handled = runBlocking { SmartDownload.run(ask, "http://filemover:8099", { "j1" }, { script.removeFirst() }, { seen += it }, pollMs = 1, heartbeatMs = 1_000_000) }
         assertTrue(handled)
         assertEquals(listOf(DownloadStage.SEARCHING, DownloadStage.DOWNLOADING, DownloadStage.DONE), seen.map { it.stage })
         assertNotNull(seen.last().newTrack)

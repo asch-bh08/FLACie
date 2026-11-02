@@ -8,5 +8,7 @@ Helpers used to test FLACie against **real** Jellyfin servers (10.10.7 and 12.2)
 - `add-alac-songs.sh`: adds Apple Lossless songs to that library (it expects some real ALAC `.m4a` files next to it; edit the paths at the top) and rescans.
 - `probe-auth-forms.sh`: shows which auth forms each Jellyfin version accepts (`Authorization: MediaBrowser ... Token=`, `X-Emby-Token`, `api_key`, `ApiKey`, the socket).
 
+Guard: the containers are named "FLACie test <name>" (server name); `probe-auth-forms.sh`, `add-alac-songs.sh` and `../web-smoke/jf-compat.mjs` refuse any other Jellyfin (a real server, a tunnel on port 8096). Never run these on a machine that forwards the owner's Jellyfin to localhost.
+
 The paths inside were written for the machine they were first run on (`/mnt/c/Users/.../Temp`); change them to wherever you put the files. Run the web server against them with
 `FLACIE_JELLYFIN_URL=http://localhost:8096 FLACIE_DATA=/tmp/d dotnet FLACie.Server.dll --urls http://127.0.0.1:5301` and sign in as `admin`.

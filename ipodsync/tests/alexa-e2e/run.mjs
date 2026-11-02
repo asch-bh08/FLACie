@@ -9,6 +9,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { requireMock } from '../../tools/loadtest/require-mock.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const MOCK = 8396, CAT = 8397, WEB = 5490, SKILL = 'amzn1.ask.skill.e2e-test';
@@ -40,12 +41,16 @@ const catalog = http.createServer((req, res) => {
 
 const kids = [];
 const mock = spawn('node', ['mock-jellyfin.mjs'], { cwd: path.join(here, '..', 'web-smoke'), env: { ...process.env, PORT: String(MOCK) }, stdio: 'ignore' }); kids.push(mock);
+process.on('exit', () => { for (const k of kids) try { k.kill(); } catch { } });
+// the Jellyfin this run talks to must be the mock (GET /__mock -> {"mock":true}); anything else on that port stops the run
+for (let i = 0; i < 100; i++) { try { if ((await fetch(`http://127.0.0.1:${MOCK}/System/Info/Public`)).ok) break; } catch { } await new Promise((r) => setTimeout(r, 200)); }
+await requireMock(`http://127.0.0.1:${MOCK}`);
 
 fs.writeFileSync(path.join(data, 'alexa.json'), JSON.stringify({ Config: { Enabled: true, Downloads: true, SkillIds: SKILL }, Links: [] }));
 const dll = path.join(here, '..', '..', 'src', 'FLACie.Server', 'bin', 'Debug', 'net9.0');
 const web = spawn('dotnet', ['FLACie.Server.dll'], {
   cwd: dll, stdio: ['ignore', 'pipe', 'pipe'],
-  env: { ...process.env, ASPNETCORE_URLS: `http://127.0.0.1:${WEB}`, ASPNETCORE_ENVIRONMENT: 'Production', FLACIE_JELLYFIN_URL: `http://127.0.0.1:${MOCK}`, FLACIE_DATA: data,
+  env: { ...process.env, ASPNETCORE_URLS: `http://127.0.0.1:${WEB}`, ASPNETCORE_ENVIRONMENT: 'Production', FLACIE_JELLYFIN_URL: `http://127.0.0.1:${MOCK}`, FLACIE_JELLYFIN_INTERNAL_URL: `http://127.0.0.1:${MOCK}`, FLACIE_DATA: data,
     FLACIE_CATALOG_REDIRECT: `http://127.0.0.1:${CAT}`, FLACIE_ALEXA_TEST_ROOT: path.join(work, 'root.crt'), FLACIE_PUBLIC_URL: 'https://flacie.example.com' },
 }); kids.push(web);
 let log = ''; web.stdout.on('data', (d) => (log += d)); web.stderr.on('data', (d) => (log += d));

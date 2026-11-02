@@ -18,7 +18,8 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { adb, sh, sleep, setAdb, anrCount, dump, has, find, label, tapNode, tapAt, typeText, key, shot, waitUi, mediaSession } from './adbui.mjs';
+import { requireEmulator, adb, sh, sleep, setAdb, anrCount, dump, has, find, label, tapNode, tapAt, typeText, key, shot, waitUi, mediaSession } from './adbui.mjs';
+import { requireMock } from './require-mock.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > 0 ? process.argv[i + 1] : d; };
@@ -49,7 +50,7 @@ const pick = (s) => ({ total: s.total, byKind: s.byKind, peakInFlight: s.peakInF
 // ---- the mock ----
 let mock = null;
 async function startMock() {
-  if (process.env.MOCK_EXTERNAL) { await fetch(`${MOCK}/__profile?name=${PROFILE}`); await reset(); return; }   // a mock started by hand (e.g. with --wavsec 180)
+  if (process.env.MOCK_EXTERNAL) { await requireMock(MOCK); await fetch(`${MOCK}/__profile?name=${PROFILE}`); await reset(); return; }   // a mock started by hand (e.g. with --wavsec 180)
   mock = spawn('node', [path.join(here, 'mock.mjs'), '--port', String(PORT), '--host', '127.0.0.1', '--items', String(ITEMS), '--streamms', '1500'], { stdio: 'ignore', windowsHide: true });
   for (let i = 0; i < 100; i++) { try { if ((await fetch(`${MOCK}/System/Info/Public`)).ok) break; } catch { } await sleep(200); }
   await fetch(`${MOCK}/__profile?name=${PROFILE}`);

@@ -7,6 +7,7 @@ ffmpeg -v error -nostdin -y -t 20 -i "alac/Dark"*horse*.m4a -c:a alac -sample_fm
 ls "$M"
 B='MediaBrowser Client="ct", Device="ct", DeviceId="ct21", Version="1"'
 for P in 8096 8097; do J=http://localhost:$P
+  . "$(dirname "$0")/guard.sh"; require_test_jellyfin "$J"
   T=$(curl -s -X POST -H 'Content-Type: application/json' -H "Authorization: $B" -d '{"Username":"admin","Pw":"adminpw1"}' $J/Users/AuthenticateByName | jq -r .AccessToken)
   AT="Authorization: $B, Token=\"$T\""
   curl -s -X POST -H "$AT" $J/Library/Refresh -o /dev/null

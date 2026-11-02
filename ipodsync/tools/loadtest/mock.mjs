@@ -103,6 +103,7 @@ const authed = (req, u) => /Token="mock-token"/.test(req.headers.authorization |
 
 http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x'), p = u.pathname, q = u.searchParams, m = req.method;
+  if (p === '/__mock') return json(res, 200, { mock: true });   // marker: every test harness checks this before it talks to a Jellyfin
   if (p === '/__stats') return json(res, 200, { ...stats, config: cfg, seconds: (Date.now() - stats.since) / 1000, sockets: sockets.size, libraryCount: songs.length,
     avgLatencyMs: stats.latencyN ? Math.round(stats.latencyMsSum / stats.latencyN) : 0 });
   if (p === '/__reset') { resetStats(); return json(res, 200, { ok: true }); }

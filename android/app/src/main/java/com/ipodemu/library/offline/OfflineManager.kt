@@ -246,15 +246,20 @@ class OfflineManager(private val ctx: Context, private val prefs: Prefs) {
                 catch (ex: GaveWay) { synchronized(lock) { if (index[e.key] != null && e.state == OfflineState.DOWNLOADING) { e.state = OfflineState.QUEUED; save() } }; changed(); continue }
                 catch (ex: UserCancelled) { synchronized(lock) { if (index[e.key] != null && e.state == OfflineState.DOWNLOADING) { e.state = OfflineState.QUEUED; save() } }; changed(); continue }
                 catch (ex: Exception) {
+                    var lost: OfflineEntry? = null
                     // a dropped connection or a server hiccup: the .part file stays, the song goes to the back of the line after a pause; three misses in a row = failed
                     val tries = failures.merge(e.key, 1, Int::plus) ?: 1
                     synchronized(lock) {
                         if (index[e.key] != null) {
-                            if (tries >= 3) { e.state = OfflineState.FAILED; e.error = ex.message?.take(120) ?: ex.javaClass.simpleName; failures.remove(e.key); com.ipodemu.playback.Diag.add("download", "\"${e.title}\" failed: ${e.error} (${e.path.substringBefore("/Audio/")})") } else e.state = OfflineState.QUEUED
+                            if (tries >= 3) { e.state = OfflineState.FAILED; e.error = ex.message?.take(120) ?: ex.javaClass.simpleName; failures.remove(e.key); lost = e.takeIf { e.error == "http 404" }; com.ipodemu.playback.Diag.add("download", "\"${e.title}\" failed: ${e.error} (${e.path.substringBefore("/Audio/")})") } else e.state = OfflineState.QUEUED
                             save()
                         }
                     }
-                    changed(); delay(if (tries >= 3) 500L else 4_000L * tries)
+                    changed()
+                    // the server lost the song (Jellyfin gave the file a new id): the library's copy of it is downloaded instead, once (owner, 2 Nov: Moves Like Jagger)
+                    lost?.let { l -> relocate?.invoke(l)?.takeIf { OfflineMath.refetchAs(l.error, l.path, it.path) }?.let { t ->
+                        com.ipodemu.playback.Diag.add("download", "\"${l.title}\" lost on the server: fetching its new copy"); remove(l.path); enqueue(listOf(t), l.reason) } }
+                    delay(if (tries >= 3) 500L else 4_000L * tries)
                 }
             }
         } finally {
@@ -265,6 +270,8 @@ class OfflineManager(private val ctx: Context, private val prefs: Prefs) {
     }
 
     private val failures = HashMap<String, Int>()
+    /** Finds a song again in the library (by title and artist) when the server lost the downloaded one; set by the app. */
+    @Volatile var relocate: ((OfflineEntry) -> Track?)? = null
     /** The person removed the song that was downloading. */
     private class UserCancelled : Exception()
     /** A streamed song needs the line ([yieldTo]): the download stops for now and resumes from its .part file later. Holding the connection open

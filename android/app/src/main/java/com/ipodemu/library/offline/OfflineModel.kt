@@ -190,6 +190,9 @@ object OfflineMath {
     fun rowDetail(state: OfflineState, artist: String, album: String, error: String?): String =
         if (state == OfflineState.FAILED) whyFailed(error) ?: "Could not download" else artist.ifEmpty { album }
 
+    /** After [error] on [oldPath]: true when the library has the song under another Jellyfin item ([newPath]) worth downloading instead (the server lost the old one). */
+    fun refetchAs(error: String?, oldPath: String, newPath: String?): Boolean = error == "http 404" && newPath != null && keyOf(newPath) != keyOf(oldPath)
+
     /** A failed song's error in words a listener follows, keeping the code so it can be looked into ("Not on the server (http 404)"); other errors as they are. */
     fun whyFailed(error: String?): String? {
         if (error == null) return null

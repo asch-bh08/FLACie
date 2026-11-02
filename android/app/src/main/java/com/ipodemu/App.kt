@@ -97,6 +97,7 @@ class App : Application() {
         autoplay = com.ipodemu.library.Autoplay(this)
         plays = com.ipodemu.library.PlaysReporter(prefs, player, bg)
         player.onQueueLow = { autoplay.queueLow() }
+        offline.relocate = { e -> library.findSong(e.title, e.artist) ?: library.findLoose(e.title, e.artist) }
         player.onPlayEnded = { t, heard -> listened(com.ipodemu.library.ListenKind.PLAY, t, heard) }
         userData.onListen = { kind, path, playlist -> library.resolve(path, userData.meta[path])?.let { listened(kind, it, context = playlist) } }
         listenWriter.launch { sendListensSoon() }

@@ -125,6 +125,15 @@ class DownloadsViewTest {
         assertEquals("Al", OfflineMath.rowDetail(OfflineState.QUEUED, "", "Al", null))
     }
 
+    // owner's phone, 2 Nov: Moves Like Jagger failed "Not on the server (http 404)": Jellyfin gave the file a new id; the library's copy by title is fetched instead
+    @Test fun aSongTheServerLostIsFoundAgainByItsNewId() {
+        val old = path(1); val now = path(2)
+        assertEquals(true, OfflineMath.refetchAs("http 404", old, now))
+        assertEquals("same song, same id: nothing new to try", false, OfflineMath.refetchAs("http 404", old, old))
+        assertEquals("not a 404", false, OfflineMath.refetchAs("timeout", old, now))
+        assertEquals("not found in the library", false, OfflineMath.refetchAs("http 404", old, null))
+    }
+
     // ---- the songs and the top line ----
     @Test fun allSongsAreTheFinishedOnesByTitle() {
         val x = ix(3 to OfflineState.DONE, 1 to OfflineState.DONE, 2 to OfflineState.QUEUED)

@@ -10,8 +10,8 @@ android {
         applicationId = "app.flacie"
         minSdk = 30
         targetSdk = 33
-        versionCode = 117
-        versionName = "1.0 b102"
+        versionCode = 118
+        versionName = "1.0 b103"
         // on-device tests (src/androidTest): a stand-in car browses the playback service the way Android Auto does
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

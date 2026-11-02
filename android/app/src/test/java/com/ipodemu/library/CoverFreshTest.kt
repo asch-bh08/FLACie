@@ -29,4 +29,8 @@ class CoverFreshTest {
         assertEquals(true, CoverLookup.pickSingle("Careless Whisper EP", "Careless Whisper"))
         assertEquals(false, CoverLookup.pickSingle("The Final", "Careless Whisper"))
     }
+    @Test fun aCatalogCoversFileFollowsTheLookupRules() {
+        assertEquals("itabc.r${CoverLookup.RULES}.jpg", CoverLookup.fileName("itabc"))
+        assertEquals("exabc.jpg", CoverLookup.fileName("exabc"))
+    }
 }

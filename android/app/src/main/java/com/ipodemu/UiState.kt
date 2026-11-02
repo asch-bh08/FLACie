@@ -38,6 +38,9 @@ class UiState(private val prefs: Prefs) {
     /** The message at the bottom of the screen ("Added to X", with Undo), drawn by SnackHost. */
     var snack by mutableStateOf<com.ipodemu.player.Snack?>(null)
     fun say(text: String, actionLabel: String? = null, warn: Boolean = false, action: (() -> Unit)? = null) { snack = com.ipodemu.player.Snack(text, actionLabel, action, warn) }
+    /** A Spotify or Deezer playlist link shared to FLACie (MainActivity): Playlists opens its link box with it; null once taken. */
+    var sharedLink by mutableStateOf<String?>(null)
+    var sharedLinkRequest by mutableIntStateOf(0)
     var pickerOpen by mutableStateOf(false)
     /** Sync mode setup overlay (Settings > Sync), same pattern as [pickerOpen]. */
     var syncSetupOpen by mutableStateOf(false)

@@ -99,6 +99,12 @@ class MainActivity : ComponentActivity() {
             intent.action = null
             return
         }
+        // "Share" from Spotify or Deezer: only a playlist or album link is taken (anything else shared as text is ignored), and it is only put in the link box
+        if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
+            com.ipodemu.library.LinkImport.recognise(intent.getStringExtra(Intent.EXTRA_TEXT))?.let { app.ui.sharedLink = it; app.ui.sharedLinkRequest++ }
+            intent.action = null
+            return
+        }
         val data = intent?.data ?: return
         if (intent.action != Intent.ACTION_VIEW) return
         app.player.playUri(data)

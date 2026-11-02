@@ -90,6 +90,25 @@ public static class ApiEndpoints
             catch (InvalidDataException e) { return Results.BadRequest(new { error = e.Message }); }
         }).DisableAntiforgery();
 
+        // POST { "url": "<Spotify or Deezer playlist/album link>", "replace": false } -> the job (as POST /api/import), or { error } with the words the Import page shows
+        app.MapPost("/api/import/link", async (HttpContext ctx, SessionStore store, JellyfinClient jf, ImportManager imports, PlaylistLinkReader reader) =>
+        {
+            if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
+            if (!ctx.RequestServices.GetRequiredService<DownloadPolicy>().MayBulk(s)) return Results.Json(new { error = new ImportNotAllowedException().Message }, statusCode: 403);
+            const int MaxBody = 16 * 1024;
+            if (ctx.Request.ContentLength is > MaxBody) return Results.Json(new { error = "That request is too big." }, statusCode: 413);
+            if (ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit) limit.MaxRequestBodySize = MaxBody;
+            System.Text.Json.Nodes.JsonObject? body;
+            try { body = await System.Text.Json.Nodes.JsonNode.ParseAsync(ctx.Request.Body) as System.Text.Json.Nodes.JsonObject; }
+            catch (System.Text.Json.JsonException) { body = null; }
+            catch (Microsoft.AspNetCore.Http.BadHttpRequestException) { return Results.Json(new { error = "That request is too big." }, statusCode: 413); }
+            if (body is null) return Results.BadRequest(new { error = "Send a JSON object." });
+            var url = body["url"] is System.Text.Json.Nodes.JsonValue uv && uv.TryGetValue<string>(out var u) ? u : null;
+            var replace = body["replace"] is System.Text.Json.Nodes.JsonValue rv && rv.TryGetValue<bool>(out var r) && r;
+            try { return Results.Ok(Summary(await imports.StartLinkAsync(s, reader, url, replace, ctx.RequestAborted))); }
+            catch (Exception e) when (e is not OperationCanceledException) { var (status, msg) = LinkImport.Describe(e); return Results.Json(new { error = msg }, statusCode: status); }
+        }).DisableAntiforgery();
+
         // a device's playback problems (stalls, errors, songs that never started, downloads that failed, what the DJ mic heard), so a bad drive can be read
         // afterwards on the server (owner, 2 Nov)
         app.MapPost("/api/diag", async (HttpContext ctx, DiagBody body, SessionStore store, JellyfinClient jf, DiagLogStore diag) =>

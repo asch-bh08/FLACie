@@ -22,7 +22,7 @@ else {
         @if (busy) { <span class="hint">Reading…</span> }
     </div>
     @* or a link from another service (owner, 1 Nov): read on this server, then imported like a file *@
-    <h2>Or paste a playlist link</h2>
+    <h2>Paste a Spotify or Deezer link</h2>
     <p class="hint">A Spotify or Deezer playlist or album that anyone can open (Share, then Copy link). Spotify gives its first 100 songs.</p>
     <form class="link-row" @onsubmit="FromLink" @onsubmit:preventDefault>
         <input type="url" aria-label="Playlist link" placeholder="https://open.spotify.com/playlist/..." @bind="link" @bind:event="oninput" />
@@ -85,8 +85,7 @@ else {
         busy = true; error = null;
         try
         {
-            var list = await Links.ReadAsync(link.Trim());
-            Imports.StartLists(Session, list.Name, [list], replace);
+            await Imports.StartLinkAsync(Session, Links, link, replace);
             link = "";
         }
         catch (InvalidDataException ex) { error = ex.Message; }

@@ -1370,8 +1370,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** The queue item of [t]. Every queue is built through here (a list played on the phone, the car's lists and voice requests, Autoplay, a queue
      *  restored at start-up), so a downloaded song always plays from the phone. */
     private fun item(t: Track): MediaItem {
+        // (a song saved under the server's older address plays from the server in use: from the old one it went without the sign-in and never started)
         val uri = if (t.path.startsWith("content:") || t.path.startsWith("file:") || t.path.startsWith("http:") ||
-            t.path.startsWith("https:") || t.path.startsWith("smb:")) Uri.parse(t.path) else Uri.fromFile(File(t.path))
+            t.path.startsWith("https:") || t.path.startsWith("smb:")) Uri.parse(com.ipodemu.library.JellyfinPaths.rebase(t.path, prefs.jellyfinUrl)) else Uri.fromFile(File(t.path))
         val b = MediaItem.Builder().setMediaId(t.path).setTag(t).setMediaMetadata(metadataOf(t))
         when (sourceOf(t)) {
             PlaySource.From.OWN_ALAC -> b.setUri(ownAlacUri(t))

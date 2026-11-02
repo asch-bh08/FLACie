@@ -51,7 +51,7 @@ class DownloadsViewTest {
     }
 
     // ---- which lists the Downloads section shows ----
-    @Test fun onlyFullyDownloadedListsAreShownWithTheirSizeAndSongs() {
+    @Test fun listsWithASongOnThePhoneAreShownWithTheirSizeAndSongs() {
         val x = ix(1 to OfflineState.DONE, 2 to OfflineState.DONE, 3 to OfflineState.DONE, 4 to OfflineState.QUEUED)
         val specs = listOf(
             ListSpec("p1", "Road trip", "Playlist", "ak1", listOf(path(1), path(2))),
@@ -59,10 +59,12 @@ class DownloadsViewTest {
             ListSpec("p3", "Never", "Playlist", null, listOf(path(9))),
         )
         val out = DownloadsOverview.lists(specs) { x[OfflineMath.keyOf(it)] }
-        assertEquals(listOf("Road trip"), out.map { it.name })
-        assertEquals(2, out[0].songs); assertEquals(10_000_000L, out[0].bytes)
-        assertEquals("2 songs · 10 MB", out[0].detail)
-        assertEquals("ak1", out[0].artKey)
+        // owner, 2 Nov: "no playlists even though 90% of them are downloaded": a list half on the phone is shown too, saying what is still to come
+        assertEquals(listOf("Mixed", "Road trip"), out.map { it.name })
+        assertEquals("1 song · 5 MB · 1 still to come", out[0].detail)
+        assertEquals(2, out[1].songs); assertEquals(10_000_000L, out[1].bytes)
+        assertEquals("2 songs · 10 MB", out[1].detail)
+        assertEquals("ak1", out[1].artKey)
     }
     // owner, 2 Nov: 5 songs of a playlist failed, so the playlist wasn't in Offline music at all; it shows with the ones that made it and says how many didn't
     @Test fun aFinishedListWithSomeFailedSongsIsShownAndSaysHowManyFailed() {
@@ -72,13 +74,21 @@ class DownloadsViewTest {
         assertEquals(2, out[0].songs); assertEquals(1, out[0].failed)
         assertEquals("2 songs · 10 MB · 1 song could not download", out[0].detail)
     }
+    @Test fun anAlbumIsOnlyShownOnceNothingMoreIsComing() {
+        val x = ix(1 to OfflineState.DONE, 2 to OfflineState.QUEUED)
+        val spec = listOf(ListSpec("al", "Album", "", null, listOf(path(1), path(2))))
+        assertEquals(emptyList<String>(), DownloadsOverview.lists(spec, whole = true) { x[OfflineMath.keyOf(it)] }.map { it.name })
+        x[OfflineMath.keyOf(path(2))]!!.state = OfflineState.FAILED
+        assertEquals(listOf("Album"), DownloadsOverview.lists(spec, whole = true) { x[OfflineMath.keyOf(it)] }.map { it.name })
+    }
     @Test fun aListWhoseSongsAllFailedIsNotShown() {
         val x = ix(1 to OfflineState.FAILED)
         assertEquals(emptyList<String>(), DownloadsOverview.lists(listOf(ListSpec("p", "P", "", null, listOf(path(1))))) { x[OfflineMath.keyOf(it)] }.map { it.name })
     }
-    @Test fun aListWithSongsStillOnTheirWayWaits() {
+    @Test fun aListWithSongsStillOnTheirWayIsShownAndSaysSo() {
         val x = ix(1 to OfflineState.DONE, 2 to OfflineState.FAILED, 3 to OfflineState.QUEUED)
-        assertEquals(emptyList<String>(), DownloadsOverview.lists(listOf(ListSpec("p", "P", "", null, listOf(path(1), path(2), path(3))))) { x[OfflineMath.keyOf(it)] }.map { it.name })
+        val out = DownloadsOverview.lists(listOf(ListSpec("p", "P", "", null, listOf(path(1), path(2), path(3))))) { x[OfflineMath.keyOf(it)] }
+        assertEquals("1 song · 5 MB · 1 still to come · 1 song could not download", out.single().detail)
     }
     @Test fun listsAreSortedByNameIgnoringCase() {
         val x = ix(1 to OfflineState.DONE)

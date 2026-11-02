@@ -287,9 +287,12 @@ class OfflineManager(private val ctx: Context, private val prefs: Prefs) {
             changed()
             val part = partFor(e)
             val have = if (part.exists()) part.length() else 0L
-            val conn = URL(e.path).openConnection() as HttpURLConnection
+            // a song saved under the server's older address is fetched from the server in use, with its sign-in: from the old address it went without
+            // one, was refused, and failed every time, "Try again" too (owner, 2 Nov: 5 songs of a playlist never downloaded)
+            val url = com.ipodemu.library.JellyfinPaths.rebase(e.path, prefs.jellyfinUrl)
+            val conn = URL(url).openConnection() as HttpURLConnection
             conn.connectTimeout = 10_000; conn.readTimeout = 30_000; conn.instanceFollowRedirects = true
-            for ((k, v) in authFor(e.path)) conn.setRequestProperty(k, v)
+            for ((k, v) in authFor(url)) conn.setRequestProperty(k, v)
             OfflineMath.rangeHeader(have)?.let { conn.setRequestProperty("Range", it) }
             // a slot at the one gate while the connection is made (background priority: playback and the screen go first, and it holds back while the server is slow)
             val code = JellyfinNet.gate.withPermitBlocking(Priority.BACKGROUND, "download") { conn.connect(); conn.responseCode.also { c -> if (c >= 400 && c != 416) throw IOException("http $c") } }

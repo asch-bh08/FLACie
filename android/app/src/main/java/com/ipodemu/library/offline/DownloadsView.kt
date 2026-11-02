@@ -35,27 +35,28 @@ object DownloadMarks {
 /** A playlist or an album as the Downloads section sees it: its songs' paths and how to show it. [subtitle] is what the row says when it has nothing better ("Playlist", the artist). */
 class ListSpec(val id: String, val name: String, val subtitle: String, val artKey: String?, val paths: List<String>)
 
-/** A playlist or album whose download has finished, ready to be a row; [failed] songs of it could not download. */
-class DownloadedList(val id: String, val name: String, val subtitle: String, val artKey: String?, val songs: Int, val bytes: Long, val failed: Int = 0) {
-    /** "12 songs · 380 MB", and " · 5 songs could not download" when some failed */
-    val detail: String get() = DownloadsOverview.storageLine(songs, bytes) + (DownloadsOverview.failedLine(failed)?.let { " · $it" } ?: "")
+/** A playlist or album with songs on the phone, ready to be a row; [waiting] of its songs are still to come and [failed] could not download. */
+class DownloadedList(val id: String, val name: String, val subtitle: String, val artKey: String?, val songs: Int, val bytes: Long, val failed: Int = 0, val waiting: Int = 0) {
+    /** "12 songs · 380 MB", then " · 3 still to come" and " · 5 songs could not download" when so */
+    val detail: String get() = DownloadsOverview.storageLine(songs, bytes) + (if (waiting > 0) " · $waiting still to come" else "") +
+        (DownloadsOverview.failedLine(failed)?.let { " · $it" } ?: "")
 }
 
 /** What the Downloads section (phone and car) shows and says. Pure, unit-tested. */
 object DownloadsOverview {
     /**
-     * The lists out of [specs] whose download has finished, with their size, by name (case ignored): every downloadable song is on the phone, or has failed and at least one
-     * made it (so a few failed songs don't hide a playlist from Offline music). [entry] looks a song up by its path.
+     * The lists out of [specs] with at least one song on the phone ([whole]: every song finished or failed), with their size, by name (case ignored). Shown while the rest are still coming or have
+     * failed: a playlist 90% downloaded was missing from Offline music because a few songs never finished (owner, 2 Nov). [entry] looks a song up by its path.
      */
-    fun lists(specs: List<ListSpec>, entry: (String) -> OfflineEntry?): List<DownloadedList> =
+    fun lists(specs: List<ListSpec>, whole: Boolean = false, entry: (String) -> OfflineEntry?): List<DownloadedList> =
         specs.mapNotNull { s ->
             val mine = s.paths.mapNotNull { entry(it) }.distinctBy { it.key }
             val done = mine.filter { it.state == OfflineState.DONE }
-            val failed = mine.count { it.state == OfflineState.FAILED }
-            // a failed song counts as finished here: nothing more will come of it until someone taps Try again
-            val finished = DownloadMarks.ofList(s.paths) { p -> entry(p)?.state?.let { if (it == OfflineState.FAILED) OfflineState.DONE else it } } == DownloadMark.DOWNLOADED
-            if (!finished || done.isEmpty()) return@mapNotNull null
-            DownloadedList(s.id, s.name, s.subtitle, s.artKey, done.size, done.sumOf { it.bytes }, failed)
+            if (done.isEmpty()) return@mapNotNull null
+            // [whole] (albums): only once nothing more is coming, so the album of every song downloaded from a playlist doesn't fill the page
+            if (whole && DownloadMarks.ofList(s.paths) { p -> entry(p)?.state?.let { if (it == OfflineState.FAILED) OfflineState.DONE else it } } != DownloadMark.DOWNLOADED) return@mapNotNull null
+            DownloadedList(s.id, s.name, s.subtitle, s.artKey, done.size, done.sumOf { it.bytes },
+                failed = mine.count { it.state == OfflineState.FAILED }, waiting = mine.count { it.state == OfflineState.QUEUED || it.state == OfflineState.DOWNLOADING })
         }.sortedBy { it.name.lowercase() }
 
     /** Every finished song, by title. */

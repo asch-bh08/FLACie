@@ -188,7 +188,7 @@ fun DownloadsScreen(nav: PlayerNav) {
             val paths = g.tracks.map { it.path }
             if (!hasDone(paths)) continue
             val key = g.tracks.firstOrNull()?.albumKey ?: continue
-            DownloadsOverview.lists(listOf(ListSpec(key, g.name, g.tracks.firstOrNull()?.albumArtist ?: "", art(paths) ?: g.artKey, paths))) { m.peek(it) }
+            DownloadsOverview.lists(listOf(ListSpec(key, g.name, g.tracks.firstOrNull()?.albumArtist ?: "", art(paths) ?: g.artKey, paths)), whole = true) { m.peek(it) }
                 .forEach { albums += Shelf(it, Screen.Detail(DetailKind.ALBUM, key), paths, null) }
         }
         playlists to albums.sortedBy { it.list.name.lowercase() }

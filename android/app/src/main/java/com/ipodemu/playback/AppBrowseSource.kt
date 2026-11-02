@@ -14,11 +14,12 @@ class AppBrowseSource(private val app: App) : BrowseSource {
     override fun recent(): List<Track> = resolve(app.userData.recents.toList().take(100))
     override fun favorites(): List<Track> = resolve(app.userData.favorites.toList().asReversed().take(BrowseTree.MAX_QUEUE))
     override fun downloaded(): List<Track> = app.offline.entries.filter { it.state == OfflineState.DONE }.map { it.toTrack() }
-    /** The playlists whose every downloadable song is on the phone (in-memory look-ups only: a car asks for all the playlists at once). */
+    /** The playlists with songs on the phone, as Offline music shows them (in-memory look-ups only: a car asks for all the playlists at once). A playlist
+     *  90% downloaded used to be left out until its last songs came (owner, 2 Nov). */
     override fun downloadedPlaylists(): List<Pair<String, String>> {
         if (app.offline.doneCount == 0) return emptyList()
         val hidden = app.prefs.hiddenPlaylists
-        return app.userData.playlists.toList().filter { it.id !in hidden && DownloadMarks.ofList(it.paths) { p -> app.offline.stateOf(p) } == DownloadMark.DOWNLOADED }.map { it.id to it.name }
+        return app.userData.playlists.toList().filter { it.id !in hidden && it.paths.any { p -> app.offline.stateOf(p) == com.ipodemu.library.offline.OfflineState.DONE } }.map { it.id to it.name }
     }
     override fun downloadedAlbums(): List<Group> {
         if (app.offline.doneCount == 0) return emptyList()

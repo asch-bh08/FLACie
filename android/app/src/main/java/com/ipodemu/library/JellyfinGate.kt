@@ -53,6 +53,8 @@ class GateConfig(
     val maxRetries: Int = 2, val backoffBaseMs: Long = 400, val backoffMaxMs: Long = 15_000, val retryAfterMaxMs: Long = 30_000,
     val breakerFailures: Int = 6, val breakerCooldownMs: Long = 10_000, val breakerMaxCooldownMs: Long = 60_000,
     val backgroundPollMs: Long = 250,
+    /** The longest background work (a download) waits for a quiet moment: then one goes through anyway, so a busy, slow link can't hold it back for ever. */
+    val backgroundMaxWaitMs: Long = 20_000,
     /** Background work holds back while the average answer of ordinary requests is slower than this. */
     val slowServerMs: Long = 1200,
 )
@@ -85,7 +87,7 @@ class JellyfinGate(
     private val random: Random = Random.Default,
     private val busy: () -> Boolean = { false },
 ) {
-    private class Waiter(var priority: Priority, val seq: Long) {
+    private class Waiter(var priority: Priority, val seq: Long, val since: Long = 0L) {
         val granted = CompletableDeferred<Unit>()
         @Volatile var admitted = false
         var wasBackground = false
@@ -240,7 +242,7 @@ class JellyfinGate(
     private suspend fun acquire(box: PrioBox): Waiter {
         val w: Waiter
         synchronized(lock) {
-            w = Waiter(box.priority, ++seq); box.waiter = w
+            w = Waiter(box.priority, ++seq, now()); box.waiter = w
             queue.add(w); pumpLocked()
         }
         try {
@@ -274,7 +276,8 @@ class JellyfinGate(
                 else -> limit
             }
             if (inFlight >= cap) break
-            if (w.priority == Priority.BACKGROUND && !backgroundOkLocked()) break
+            // (one that has waited too long goes anyway, alone: owner, 2 Nov, downloads "just hang")
+            if (w.priority == Priority.BACKGROUND && !backgroundOkLocked() && !(inFlightBg == 0 && now() - w.since >= cfg.backgroundMaxWaitMs)) break
             queue.pollFirst()
             w.admitted = true; inFlight++
             if (w.priority == Priority.BACKGROUND) { inFlightBg++; w.wasBackground = true }

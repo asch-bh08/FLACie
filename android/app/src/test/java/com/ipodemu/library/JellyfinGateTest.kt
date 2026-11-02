@@ -276,6 +276,21 @@ class JellyfinGateTest {
         assertTrue(bgRan)
     }
 
+    // owner, 2 Nov: the last 10% of a playlist's downloads "just hangs". Over Tailscale with music streaming the server is busy and slow all the time, and
+    // background work (downloads) waited for a quiet moment that never came; after a long wait one goes through anyway
+    @Test fun backgroundIsNeverStarvedForEver() = runTest {
+        var bgRan = false
+        val r = rig(GateConfig(initialLimit = 4, slowMs = 100_000), busy = true) { if (it.kind == "bg") bgRan = true; delay(2000); resp() }
+        // a slow request every 2 s keeps the average slow and fresh
+        val keepBusy = launch { while (true) { r.gate.execute(req("http://x/v"), Priority.VISIBLE) } }
+        val bg = launch { r.gate.execute(GateRequest(url = "http://x/bg", kind = "bg"), Priority.BACKGROUND) }
+        advanceTimeBy(10_000); runCurrent()
+        assertFalse("still held back at first", bgRan)
+        advanceTimeBy(GateConfig().backgroundMaxWaitMs); runCurrent()
+        assertTrue("let through after the longest wait", bgRan)
+        bg.join(); keepBusy.cancel()
+    }
+
     @Test fun playingMayUseTheReserveWhenTheLimitIsFull() = runTest {
         val hold = CompletableDeferred<Unit>(); var started = 0
         val r = rig(GateConfig(initialLimit = 1, minLimit = 1, maxLimit = 1, playingReserve = 2)) { started++; hold.await(); resp() }

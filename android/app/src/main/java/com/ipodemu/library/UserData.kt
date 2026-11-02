@@ -193,8 +193,15 @@ class UserData(dir: File) {
         playlists.firstOrNull { it.id == id }?.let { if (it.paths.remove(path)) listened(ListenKind.PLAYLIST_REMOVE, path, it.jfId ?: it.id); it.mtime = System.currentTimeMillis(); changed() }
     }
 
+    /** The last [PlaylistMerge.BACKUPS] deleted playlists (name and songs), so one can be recovered by hand (no screen for it yet). */
+    private val backupFile = File(dir, "playlist-backups.json")
+    private fun backUp(p: UserPlaylist) {
+        try { backupFile.writeText(PlaylistMerge.withBackup(if (backupFile.exists()) backupFile.readText() else null, p.id, p.name, p.jfId, p.paths.toList(), System.currentTimeMillis())) } catch (_: Exception) { }
+    }
+
     fun deletePlaylist(id: String) {
         commitPending()
+        playlists.firstOrNull { it.id == id }?.let { backUp(it) }
         playlists.firstOrNull { it.id == id }?.jfId?.let { deletedPlaylistJf.add(it) }
         playlists.removeAll { it.id == id }; deletedPlaylists.add(id); changed()
     }
@@ -236,7 +243,12 @@ class UserData(dir: File) {
         favorites.clear(); favorites.addAll(now); refreshFavStates()
         favAt.clear(); keep.forEach { if (it.w > 0) favAt[it.p] = it.w }
         favGone.clear(); favGone.addAll(removed)
-        for (id in deleted) if (id !in deletedPlaylists) { deletedPlaylists.add(id); playlists.removeAll { it.id == id } }
+        // a playlist deleted on another device (FLACie Web only drops it from the profile): its Jellyfin copy is deleted from here, or the server's list would bring it back
+        for (id in deleted) if (id !in deletedPlaylists) {
+            playlists.firstOrNull { it.id == id }?.let { backUp(it) }
+            PlaylistMerge.jellyfinIdOfDeleted(id, playlists.firstOrNull { it.id == id })?.let { deletedPlaylistJf.add(it) }
+            deletedPlaylists.add(id); playlists.removeAll { it.id == id }
+        }
         for (r in lists) {
             if (r.id in deletedPlaylists) continue
             r.tracks.forEach { (p, t, a) -> note(p, t, a) }
@@ -251,17 +263,9 @@ class UserData(dir: File) {
 
     /** The account's own Jellyfin playlists (see AccountSync.pullJellyfinPlaylists): new ones are added, and ones not edited here
      * since the last sync take the server's name and tracks; ones deleted on the server go, unless edited here since. */
-    fun mergeJellyfin(server: List<Triple<String, String, List<Pair<String, Pair<String, String>>>>>, syncedAt: Long) {
-        val ids = server.mapTo(HashSet()) { it.first }
-        playlists.removeAll { it.jfId != null && it.jfId !in ids && it.mtime <= syncedAt }
-        for ((jf, name, tracks) in server) {
-            tracks.forEach { (p, ta) -> if (ta.first.isNotEmpty() && p !in meta) meta[p] = ta }
-            val paths = tracks.mapTo(ArrayList()) { it.first }
-            val mine = playlists.firstOrNull { it.jfId == jf }
-            if (mine == null) playlists.add(UserPlaylist("jf$jf", name, paths, syncedAt.coerceAtLeast(1), jf))
-            // the account profile is the master copy of a playlist it already holds (FLACie Web edits it without touching the Jellyfin playlist, which the next push brings up to date); the server only fills one that is empty here
-            else if (mine.paths.isEmpty()) { mine.name = name; mine.paths.addAll(paths) }
-        }
+    /** A playlist deleted here whose Jellyfin copy is still to delete is never brought back by it (owner, 2 Nov: the TEST-* playlists kept returning). */
+    fun mergeJellyfin(server: List<ServerList>, syncedAt: Long) {
+        PlaylistMerge.fromJellyfin(playlists, server, syncedAt, deletedPlaylists, synchronized(deletedPlaylistJf) { deletedPlaylistJf.toSet() }, meta)
         changed(sync = false)
     }
     /**

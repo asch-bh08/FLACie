@@ -105,4 +105,16 @@ class WeakSignalTest {
         assertFalse("the last song: nothing to skip to", NetPatience.skipsWhenGivingUp(hopeless = true, hasNext = false))
         assertFalse("no signal: skipping would run through the whole queue", NetPatience.skipsWhenGivingUp(hopeless = false, hasNext = true))
     }
+
+    // owner, 2 Nov: Wild Ones "stays silent, infinite loading", every time; the file is fine on the server. A song stuck loading at its start, with signal, is
+    // fetched fresh (not from a saved copy), and skipped if that doesn't start either; with no signal it waits as before
+    @Test fun aSongStuckLoadingAtItsStartIsFetchedFreshThenSkipped() {
+        assertEquals(StartWatch.Act.WAIT, StartWatch.act(loadingMs = 5_000, online = true, freshTried = false, hasNext = true))
+        assertEquals(StartWatch.Act.FRESH, StartWatch.act(loadingMs = StartWatch.FRESH_MS, online = true, freshTried = false, hasNext = true))
+        assertEquals(StartWatch.Act.WAIT, StartWatch.act(loadingMs = StartWatch.FRESH_MS + 1_000, online = true, freshTried = true, hasNext = true))
+        assertEquals(StartWatch.Act.SKIP, StartWatch.act(loadingMs = StartWatch.SKIP_MS, online = true, freshTried = true, hasNext = true))
+        assertEquals("the last song: nothing to skip to", StartWatch.Act.WAIT, StartWatch.act(loadingMs = StartWatch.SKIP_MS, online = true, freshTried = true, hasNext = false))
+        assertEquals("no signal: waiting is right", StartWatch.Act.WAIT, StartWatch.act(loadingMs = 600_000, online = false, freshTried = false, hasNext = true))
+        assertTrue(StartWatch.SKIP_MS > StartWatch.FRESH_MS)
+    }
 }

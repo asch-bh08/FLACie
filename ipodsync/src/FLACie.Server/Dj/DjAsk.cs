@@ -76,6 +76,9 @@ public static partial class DjAskRules
 
     [GeneratedRegex(@"^(?:play |put on |give me |i want |i need |id like |i would like )?(?:me |us )?(?:something|some|anything|a bit of|music|songs|tunes|stuff|a mix of|a playlist of|a playlist for)\b ?(.*)$")] private static partial Regex Vague();
     [GeneratedRegex(@"^(?:play|put on|listen to|i want to hear|start playing)\s+(.+)$")] private static partial Regex PlayRx();
+    [GeneratedRegex(@"^((?:play|put on|shuffle|give me)\s.+?)\s+and (?:then |also )?(?:play|put on)\s.+$")] private static partial Regex TwoAsks();
+    [GeneratedRegex(@"^(?:play |put on |give me |i want |i need |id like |i would like )?(?:me |us )?(?:some|a bit of)\s")] private static partial Regex SomeOf();
+    static readonly HashSet<string> VagueRest = ["new", "different", "else", "good", "other", "more", "random", "nice", "decent", "fresh", "old", "classic", "classics", "of it", "of that", "of this", "of them"];
     [GeneratedRegex(@"^(?:play |put on |shuffle )?(?:my |the )?(.+?)\s+playlist$|^(?:play |put on )?(?:my |the )?playlist (?:called |named )?(.+)$")] private static partial Regex PlaylistRx();
 
     [GeneratedRegex(@"(?:^|\s)(?:car|cars|drive|drives|driving|road|roads|b-road|b-roads|back-road|back-roads|backroad|backroads|motorway|motorways|commute|commuting|road trip)(?:\s|$)")] private static partial Regex CarWords();
@@ -88,10 +91,20 @@ public static partial class DjAskRules
     /// <summary>A control said plainly ("next", "turn it up", "what's this?"), done at once; null for anything the model should understand first.</summary>
     public static AskParse? Instant(string text) => Parse(text) is { } p && InstantIntents.Contains(p.Intent) ? p : null;
 
+    /// <summary>Swear words as the phone's speech recognition writes them ("b****", "f***") put back as said, so a title such as Smack My Bitch Up is found
+    /// (owner, 2 Nov: the car mic answered "sorry"). A word is only put back when its first letter and length fit one of these.</summary>
+    static readonly string[] Swears = ["bitch", "bitches", "fuck", "fucking", "fucked", "shit", "ass", "asshole", "damn", "dick", "bastard", "hell", "motherfucker", "pussy", "cunt", "nigga", "whore", "slut", "crap", "piss"];
+
+    public static string Uncensor(string text) =>
+        Regex.Replace(text ?? "", @"\b(\p{L})(\*+)", m =>
+            Swears.FirstOrDefault(w => w.Length == 1 + m.Groups[2].Length && char.ToLowerInvariant(w[0]) == char.ToLowerInvariant(m.Groups[1].Value[0])) ?? m.Value);
+
     public static AskParse? Parse(string text)
     {
-        var s = Normalise(text);
+        var s = Normalise(Uncensor(text));
         if (s.Length == 0 || s.Length > 200) return null;
+        // two asks in one breath ("play some Prodigy and play Smack My Bitch Up"): the first is done
+        if (TwoAsks().Match(s) is { Success: true } two) s = two.Groups[1].Value.Trim();
         foreach (var (rx, intent) in Fixed) if (rx.IsMatch(s)) return new(intent);
         if (PlaylistRx().Match(s) is { Success: true } pm)
         {
@@ -104,7 +117,9 @@ public static partial class DjAskRules
         if (Vague().Match(s) is { Success: true } vm)
         {
             var rest = vm.Groups[1].Value.Trim();
-            return IsMoody(s) ? new(AskIntent.Mood, rest.Length > 0 ? rest : s) : null;
+            if (IsMoody(s) || GenreWords.Contains(rest)) return new(AskIntent.Mood, rest.Length > 0 ? rest : s);
+            // "some Prodigy", "a bit of the Prodigy": a name (the library says whose); "something good", "anything new" are the model's
+            return SomeOf().IsMatch(s) && rest.Length > 1 && !VagueRest.Contains(rest) ? new(AskIntent.Play, rest) : null;
         }
         if (PlayRx().Match(s) is { Success: true } play)
         {
@@ -338,6 +353,8 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
     {
         if (string.IsNullOrWhiteSpace(text)) return DjAskAnswer.Said(DidntCatch);
         if (text.Length > 300) text = text[..300];
+        // "smack my b**** up" as the phone heard it: the words as said, for the rules and the model alike
+        text = DjAskRules.Uncensor(text);
         // "thanks", "bye", "that's all": the conversation is over, with a fixed reply that is already made in the voice (nothing to understand, no model)
         if (DjConversation.IsGoodbye(text)) return DjAskAnswer.Said(DjConversation.Anytime, "Goodbye");
         var ctx = Contexts.For(u.Account);

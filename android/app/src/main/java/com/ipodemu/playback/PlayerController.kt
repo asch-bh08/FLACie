@@ -600,6 +600,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                 // it got going again: the next dead zone gets the full patience (the count used to last the whole song, so a song with five dead zones in it
                 // gave up at the sixth)
                 if (state == Player.STATE_READY) { seeking = false; retries = 0 }
+                watchStart(state)
                 lastState = state
             }
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
@@ -1232,6 +1233,54 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
 
     /** Songs that failed to decode here and are played through the server's conversion from now on. */
     private val forceHls = HashSet<String>()
+
+    /** Songs fetched fresh after they never got going ([StartWatch]): they stream from the server, not from a downloaded file, for the rest of this run. */
+    private val freshPaths = HashSet<String>()
+    /** The song loading at its start, and since when (elapsed clock); null once it plays. */
+    private var startLoad: Pair<String, Long>? = null
+    private var startFreshTried = false
+    private val startCheck = Runnable { checkStart() }
+
+    /** Follows a song from the start of its loading until it plays (see [StartWatch]). */
+    private fun watchStart(state: Int) {
+        val path = current?.path
+        if (state == Player.STATE_BUFFERING && exo.playWhenReady && exo.currentPosition < 1000 && path != null) {
+            if (startLoad?.first != path) { startLoad = path to android.os.SystemClock.elapsedRealtime(); startFreshTried = false }
+            handler.removeCallbacks(startCheck); handler.postDelayed(startCheck, 2_000)
+        } else if (state != Player.STATE_BUFFERING) { startLoad = null; handler.removeCallbacks(startCheck) }
+    }
+
+    private fun checkStart() {
+        val (path, since) = startLoad ?: return
+        val t = current
+        if (t == null || t.path != path || exo.playbackState != Player.STATE_BUFFERING || exo.currentPosition >= 1000 || !exo.playWhenReady) { startLoad = null; return }
+        val loading = android.os.SystemClock.elapsedRealtime() - since
+        when (StartWatch.act(loading, online(), startFreshTried, exo.hasNextMediaItem())) {
+            StartWatch.Act.FRESH -> {
+                android.util.Log.w("FLACie", "\"${t.title}\" still loading at its start after ${loading}ms: fetching it fresh")
+                startFreshTried = true; freshPaths.add(path)
+                // the saved start of it goes too, in case that is what it is stuck on
+                browseExec.execute { try { StreamSupport.cache(ctx).removeResource(path) } catch (_: Exception) { } }
+                val idx = exo.currentMediaItemIndex
+                exo.replaceMediaItem(idx, item(t)); selfSeekTo(idx, 0L); exo.prepare()
+            }
+            StartWatch.Act.SKIP -> {
+                android.util.Log.w("FLACie", "\"${t.title}\" never started (${loading}ms): skipped")
+                android.widget.Toast.makeText(ctx, "Skipped \"${t.title}\": it wouldn't load", android.widget.Toast.LENGTH_LONG).show()
+                startLoad = null
+                selfSeekTo(exo.nextMediaItemIndex, 0L); exo.prepare()
+                return
+            }
+            StartWatch.Act.WAIT -> { }
+        }
+        handler.postDelayed(startCheck, 2_000)
+    }
+
+    /** The phone has a network that reaches the internet. */
+    private fun online(): Boolean = try {
+        val cm = ctx.getSystemService(android.net.ConnectivityManager::class.java)
+        cm.getNetworkCapabilities(cm.activeNetwork)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+    } catch (_: Exception) { true }
     private val hasAlacDecoder: Boolean by lazy {
         try { android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS).codecInfos.any { !it.isEncoder && it.supportedTypes.any { m -> m.equals("audio/alac", true) } } } catch (_: Exception) { true }
     }
@@ -1307,7 +1356,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         val own = ownAlacUri(t) != null
         val transcode = needsTranscode(t)
         // a song kept offline plays from its file (unless this phone needs the server to convert it): no network, no data used, no waiting
-        val local = !own && !transcode && App.of(ctx).offline.localFile(t) != null
+        val local = !own && !transcode && t.path !in freshPaths && App.of(ctx).offline.localFile(t) != null
         return PlaySource.choose(own, local, transcode, dataSaver, hlsUri(t) != null)
     }
 

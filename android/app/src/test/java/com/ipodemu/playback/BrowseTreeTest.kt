@@ -352,4 +352,13 @@ class BrowseTreeTest {
         assertNull(BrowseTree.listName("pl:nope", src))
         assertTrue(BrowseTree.shuffles("shuf:pl:p1")); assertFalse(BrowseTree.shuffles("pl:p1"))
     }
+
+    // owner, 2 Nov: "play Smack My Bitch Up" in the car came through speech recognition as "smack my b**** up" and nothing was found
+    @Test fun aCensoredWordIsPutBackBeforeSearching() {
+        assertEquals("play smack my bitch up", BrowseTree.askWords("smack my b**** up"))
+        assertEquals("play Fuck the Pain Away", BrowseTree.askWords("play F*** the Pain Away"))
+        assertEquals("play 5 star", BrowseTree.askWords("5 star"))
+        val song = t(1).let { Track(it.path, "Smack My Bitch Up", "The Prodigy", it.album, "The Prodigy", "", 1, 1, 1000, 0, true, it.artKey, 0, 0, TrackSource.JELLYFIN) }
+        assertEquals("Smack My Bitch Up", BrowseTree.searchPlay("smack my b**** up", Src(songs = listOf(song)))!!.tracks.first().title)
+    }
 }

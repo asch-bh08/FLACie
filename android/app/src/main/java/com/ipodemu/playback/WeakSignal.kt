@@ -94,3 +94,22 @@ object PrefetchPlan {
      *  stalled. [networkNearby]: the playing song or the next one is streamed. */
     fun streamNeedsLine(loading: Boolean, wantsToPlay: Boolean, networkNearby: Boolean): Boolean = loading && wantsToPlay && networkNearby
 }
+
+/**
+ * A song that never gets going: loading at its very start for [FRESH_MS] with signal is fetched again fresh (not from its downloaded file or the saved start of
+ * it), and one still loading at [SKIP_MS] is skipped, so the queue goes on. With no signal it waits (every song would fail the same way). Pure, unit-tested.
+ * (Owner, 2 Nov: Wild Ones stayed silent and loading for ever, every time, while the file played fine on the server.)
+ */
+object StartWatch {
+    const val FRESH_MS = 12_000L
+    const val SKIP_MS = 30_000L
+    enum class Act { WAIT, FRESH, SKIP }
+
+    /** [loadingMs]: how long this song has been loading at its start; [freshTried]: it was fetched fresh already. */
+    fun act(loadingMs: Long, online: Boolean, freshTried: Boolean, hasNext: Boolean): Act = when {
+        !online -> Act.WAIT
+        !freshTried && loadingMs >= FRESH_MS -> Act.FRESH
+        freshTried && loadingMs >= SKIP_MS && hasNext -> Act.SKIP
+        else -> Act.WAIT
+    }
+}

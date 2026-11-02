@@ -104,7 +104,13 @@ object BrowseTree {
     fun askId(query: String) = ASK + query.trim().take(300)
     fun parseAsk(id: String): String? = if (id.startsWith(ASK)) id.substring(ASK.length).takeIf { it.isNotBlank() } else null
     /** The car hands over what was said after "play" ("my pop playlist", "Smack That"): said back as a request. */
-    fun askWords(query: String): String { val q = query.trim(); return if (q.isEmpty() || Regex("^(play|put on|shuffle|skip|next|pause|resume)\\b",RegexOption.IGNORE_CASE).containsMatchIn(q)) q else "play $q" }
+    /** Swear words as speech recognition writes them ("b****") put back as said, so a title such as Smack My Bitch Up is found; only when the first letter and length fit. */
+    fun uncensor(text: String): String = Regex("""\b(\p{L})(\*+)""").replace(text) { m ->
+        SWEARS.firstOrNull { it.length == 1 + m.groupValues[2].length && it[0] == m.groupValues[1][0].lowercaseChar() }
+            ?.let { w -> if (m.groupValues[1][0].isUpperCase()) w.replaceFirstChar { it.uppercaseChar() } else w } ?: m.value
+    }
+    private val SWEARS = listOf("bitch", "bitches", "fuck", "fucking", "fucked", "shit", "ass", "asshole", "damn", "dick", "bastard", "hell", "motherfucker", "pussy", "cunt", "nigga", "whore", "slut", "crap", "piss")
+    fun askWords(query: String): String { val q = uncensor(query.trim()); return if (q.isEmpty() || Regex("^(play|put on|shuffle|skip|next|pause|resume)\\b",RegexOption.IGNORE_CASE).containsMatchIn(q)) q else "play $q" }
     fun playlistId(id: String) = "pl:$id"
     /** The app's playlist id behind a play request from a playlist (the playlist itself, Play all, Shuffle, or one of its songs); null for anything else. The DJ's per-playlist switch reads it. */
     fun playlistOf(mediaId: String): String? {
@@ -296,12 +302,12 @@ object BrowseTree {
      * songs), then the matching songs, then a playlist, artist or album whose name holds the words.
      */
     fun searchPlay(query: String, src: BrowseSource): Resolved? {
-        val q = query.trim().lowercase(); if (q.isEmpty()) return null
+        val q = uncensor(query.trim()).lowercase(); if (q.isEmpty()) return null
         fun play(id: String) = songsOf(id, src).takeIf { it.isNotEmpty() }?.let { window(it, 0) }
         src.playlists().firstOrNull { it.second.trim().lowercase() == q }?.let { play(playlistId(it.first))?.let { r -> return r } }
         mergedArtists(src).firstOrNull { it.name.trim().lowercase() == q }?.let { play(artistId(it.name))?.let { r -> return r } }
         src.albums().firstOrNull { it.name.trim().lowercase() == q }?.let { g -> play(albumId(g.tracks.firstOrNull()?.albumKey ?: g.name))?.let { r -> return r } }
-        src.search(query).takeIf { it.isNotEmpty() }?.let { return window(it, 0) }
+        src.search(uncensor(query.trim())).takeIf { it.isNotEmpty() }?.let { return window(it, 0) }
         src.playlists().firstOrNull { it.second.lowercase().contains(q) }?.let { play(playlistId(it.first))?.let { r -> return r } }
         mergedArtists(src).firstOrNull { it.name.lowercase().contains(q) }?.let { play(artistId(it.name))?.let { r -> return r } }
         return src.albums().firstOrNull { it.name.lowercase().contains(q) }?.let { g -> play(albumId(g.tracks.firstOrNull()?.albumKey ?: g.name)) }

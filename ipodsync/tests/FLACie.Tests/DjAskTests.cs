@@ -149,6 +149,35 @@ public class DjAskTests
     [InlineData("turn it upside down")]
     public void NearMissesAreLeftToTheModel(string said) => Assert.Null(DjAskRules.Parse(said));
 
+    // owner, 2 Nov (car mic): "play some Prodigy" and "play Smack My Bitch Up" both got "sorry"; the phone's speech recognition writes swear words as "b****"
+    [Theory]
+    [InlineData("play smack my b**** up", "smack my bitch up")]
+    [InlineData("play Smack My B**** Up by the prodigy", "smack my bitch up by the prodigy")]
+    [InlineData("play f*** the pain away", "fuck the pain away")]
+    [InlineData("play no s***", "no shit")]
+    public void ACensoredTitleIsHeardAsSung(string said, string what)
+    {
+        var p = DjAskRules.Parse(DjAskRules.Uncensor(said))!;
+        Assert.Equal(AskIntent.Play, p.Intent); Assert.Equal(what, p.What);
+    }
+    [Fact] public void UncensorLeavesOrdinaryWordsAlone() => Assert.Equal("play 5 star hotel", DjAskRules.Uncensor("play 5 star hotel"));
+
+    [Theory]
+    [InlineData("play some prodigy", "prodigy")]
+    [InlineData("can you play some prodigy", "prodigy")]
+    [InlineData("put on a bit of the prodigy", "the prodigy")]
+    [InlineData("play some prodigy and play smack my b**** up", "prodigy")]
+    [InlineData("play some prodigy and then play firestarter", "prodigy")]
+    public void SomeOfAnArtistIsAPlayAndTheFirstOfTwoAsksIsDone(string said, string what)
+    {
+        var p = DjAskRules.Parse(DjAskRules.Uncensor(said))!;
+        Assert.Equal(AskIntent.Play, p.Intent); Assert.Equal(what, p.What);
+    }
+    [Theory]
+    [InlineData("play some jazz")]
+    [InlineData("play something chill")]
+    public void SomeOfAGenreOrMoodIsStillAMood(string said) => Assert.Equal(AskIntent.Mood, DjAskRules.Parse(said)!.Intent);
+
     [Fact] public void ThumbsDownIsNotAPlay() => Assert.Equal(AskIntent.ThumbsDown, DjAskRules.Parse("dislike this")!.Intent);
     [Fact] public void ASongCalledPlaylistIsStillAPlaylistAsk() => Assert.Equal(AskIntent.Play, DjAskRules.Parse("play next to me")!.Intent);
 

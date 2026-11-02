@@ -38,6 +38,10 @@ object CoverVetting {
         return if (changed) out else tracks
     }
 
+    /** [saved] (a song kept in a queue, a list or a download) with the cover key the library has for the same song now, which is vetted; [saved] itself when the
+     *  library doesn't know it or agrees. A queue saved before the library corrected a key showed another album's cover (owner, 2 Nov: Wham! with Sia's). */
+    fun fresh(saved: Track, library: Track?): Track = if (library == null || library.artKey == saved.artKey) saved else saved.copy(artKey = library.artKey)
+
     /** A catalog lookup for a song the server has no usable picture for: one per album (its songs share the key and the one download), by title when there is no album name. */
     fun catalogKey(t: Track): String? = CoverLookup.key(t.albumArtist.ifBlank { t.artist }, if (blank(albumName(t))) "" else t.album, if (blank(albumName(t))) t.title else "")
 

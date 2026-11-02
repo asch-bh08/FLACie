@@ -168,8 +168,11 @@ class ArtCache(private val dir: File) {
         }
         if (r.code == 404) {
             // the server has no picture here: remembered (until its listing reports a tag, or a day passes), not asked for again on every scroll
+            // and a picture kept from before goes: the server saying "none" now means what was saved was wrong or is gone (a wrong cover stayed for good)
             index.noPicture(ik); saveIndexSoon()
-            return f.takeIf { exists }
+            if (exists) withContext(Dispatchers.IO) { f.delete() }
+            synchronized(this) { mem.remove(ik); mem.remove("t$key") }
+            return null
         }
         if (r.code in 200..299 && r.body.isNotEmpty()) {
             withContext(Dispatchers.IO) { CoverFiles.saveAtomically(f, r.body) }

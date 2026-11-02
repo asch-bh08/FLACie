@@ -300,7 +300,14 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         try { (ctx.getSystemService(Context.SENSOR_SERVICE) as android.hardware.SensorManager).unregisterListener(shakeListener) } catch (_: Exception) {}
     }
 
-    val current: Track? get() = (if (burstTarget in 0 until exo.mediaItemCount) exo.getMediaItemAt(burstTarget) else exo.currentMediaItem)?.localConfiguration?.tag as? Track
+    val current: Track? get() = ((if (burstTarget in 0 until exo.mediaItemCount) exo.getMediaItemAt(burstTarget) else exo.currentMediaItem)?.localConfiguration?.tag as? Track)?.let(::fresh)
+    /** A queued song with the cover key the library has for it now (a queue saved or built before the library loaded kept an unvetted key). */
+    private fun fresh(t: Track): Track {
+        if (t.source != com.ipodemu.library.TrackSource.JELLYFIN) return t
+        val lib = App.of(ctx).library
+        if (!lib.loaded) return t
+        return com.ipodemu.library.CoverVetting.fresh(t, com.ipodemu.library.JellyfinPaths.idOf(t.path)?.let { lib.jellyfinTrack(it) })
+    }
     val isPlaying: Boolean get() = exo.isPlaying
     /** Playing, or about to (loading after a seek, reconnecting): what the Play/Pause button shows and toggles. Showing Play
      * while it was only loading made a tap pause the reload instead of resuming. */
@@ -746,7 +753,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     }
 
     /** Tracks currently queued, in queue order (not shuffle order). */
-    fun queueTracks(): List<Track> = List(exo.mediaItemCount) { exo.getMediaItemAt(it).localConfiguration?.tag as? Track }.filterNotNull()
+    fun queueTracks(): List<Track> = List(exo.mediaItemCount) { (exo.getMediaItemAt(it).localConfiguration?.tag as? Track)?.let(::fresh) }.filterNotNull()
 
     /** While in a Jam, the transport and queue actions go to the group (which then drives this player) instead. */
     interface Interceptor {

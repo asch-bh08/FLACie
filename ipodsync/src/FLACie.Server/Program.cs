@@ -196,6 +196,7 @@ var app = builder.Build();
     RetroHost.DjAsk = (s, text, current, recent, ct) => djAsk.AskAsync(s, text, current, recent, ct, null, DjSurface.Web);
     RetroHost.DjLanded = (s, artist, title) => djAsk.Landed(s, artist, title);
     RetroHost.DjIsRequest = text => FLACie.Server.Dj.DjAskRules.Parse(text) is not null;
+    RetroHost.VibeOf = vibes.Of;
     RetroHost.RecommendNext = (s, played, n) =>
         RecommendApi.InputsOf(s, listens, vibes, related) is { } inputs
             ? RecommendApi.Picks(inputs, played, n, DateTime.UtcNow, Environment.TickCount64).Where(p => p.Track is not null).Select(p => (p.Track!, p.Why)).ToList()

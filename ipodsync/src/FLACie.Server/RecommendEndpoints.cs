@@ -16,6 +16,9 @@ public static class RecommendEndpoints
 
         app.MapGet("/api/recommend/home", async (HttpContext ctx, SessionStore store, JellyfinClient jf, ListenLogStore log, VibeIndex vibes, RelatedCache related) =>
             RecommendApi.Home(RecommendApi.InputsOf(await ApiEndpoints.CallerAsync(ctx, store, jf), log, vibes, related), DateTime.UtcNow));
+
+        app.MapGet("/api/recommend/playlist", async (HttpContext ctx, string? id, int? n, int? skip, SessionStore store, JellyfinClient jf, VibeIndex vibes) =>
+            PlaylistRecsApi.Get(await ApiEndpoints.CallerAsync(ctx, store, jf), id, n, skip, vibes.Of));
     }
 }
 

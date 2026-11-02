@@ -117,7 +117,14 @@ public sealed class CoverOverrides
     void Save() { try { Directory.CreateDirectory(dir); var f = Path.Combine(dir, "index.json"); File.WriteAllText(f + ".tmp", JsonSerializer.Serialize(map)); File.Move(f + ".tmp", f, true); } catch (Exception) { } }
 
     /// <summary>The key to show for [artKey]: the replacement's key, or [artKey] itself when nobody replaced it (and null stays null).</summary>
-    public static string? Map(string? artKey) => artKey is null ? null : Current?.Replacement(artKey) ?? artKey;
+    public static string? Map(string? artKey) => artKey is null ? null : Versioned(Current?.Replacement(artKey) ?? artKey);
+
+    /// <summary>The rules a catalog cover ("it" key) is found with; raise it whenever they change. It is in the cover's address ("~r2"), so browsers fetch the new
+    /// cover instead of keeping the old one for a day or more (owner, 2 Nov: Careless Whisper kept Wham!'s cover in the browser), and in the server's file name.</summary>
+    public const int CatalogRules = 2;
+    public static string Versioned(string key) => key.StartsWith("it", StringComparison.Ordinal) && !key.Contains("~r") ? key + "~r" + CatalogRules : key;
+    /// <summary>The key without the rules' mark the address carries.</summary>
+    public static string Unversioned(string key) => key.StartsWith("it", StringComparison.Ordinal) && key.LastIndexOf("~r", StringComparison.Ordinal) is > 0 and var i ? key[..i] : key;
     public string? Replacement(string artKey) { lock (lk) return Load().TryGetValue(artKey, out var e) ? e.Key : null; }
     public bool Has(string artKey) { lock (lk) return Load().ContainsKey(artKey); }
 

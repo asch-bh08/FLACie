@@ -226,6 +226,7 @@ public static class MediaEndpoints
         app.MapGet("/art/{key}", async (HttpContext ctx, string key, SessionStore store, JellyfinClient jf, IHttpClientFactory hf) =>
         {
             if (key.Length > 400 || key.Contains('/') || key.Contains('\\') || key.Contains("..")) return Results.BadRequest();
+            key = FLACie.Core.CoverOverrides.Unversioned(key);   // a catalog cover's address carries the lookup rules ("~r2"): the key itself does not
             // a cover a person chose (a new key every time, so it is kept for good)
             if (key.StartsWith("ov") && app.Services.GetRequiredService<CoverOverrides>().Find(key) is { } chosen)
             {

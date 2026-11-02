@@ -61,7 +61,8 @@ for (const size of sizes) {
   await tab('Library'); await tab('Library'); await tapLabel(/^Offline music$/); shot(S('offline-music' + tag));
   await back();
   // search: with the keyboard up (no band between the results and the keyboard), then after
-  await tab('Search'); { const u = dump(); const f = u && u.find((n) => /EditText/.test(n.cls)); if (f) tapNode(f); } await sleep(800);
+  // the search box: by its class, else by its hint text (Compose's field shows as a View until focused)
+  await tab('Search'); { const u = dump(); const f = u && (u.find((n) => /EditText/.test(n.cls)) || u.find((n) => /Songs, albums, artists/.test(label(n)))); if (f) tapNode(f); else console.log('no search box'); } await sleep(1200);
   typeText('Song 1'); await sleep(3000); shot(S('search-keyboard' + tag));
   await back(); await sleep(800); shot(S('search' + tag));
   // the full-screen player: open from the mini player (the song's title near the bottom), then its Lyrics and Info cards

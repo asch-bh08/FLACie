@@ -140,6 +140,9 @@ class FlacieWebClient(private val prefs: Prefs) {
     /** What the engine would play after these songs (the last is playing now). */
     fun recommendNext(session: List<String>, n: Int = 10): List<RecPick> =
         RecPick.parseNext(send("/api/recommend/next?n=$n&session=" + java.net.URLEncoder.encode(session.joinToString(","), "UTF-8"), "GET"))
+    /** "Recommended songs" for a playlist ([id]: its Jellyfin id when it has one, else the app's own); [skip] steps to the next set. */
+    fun recommendPlaylist(id: String, n: Int = PlaylistRecs.N, skip: Int = 0): List<PlaylistRecs.Pick> =
+        PlaylistRecs.parse(send("/api/recommend/playlist?n=$n&skip=$skip&id=" + java.net.URLEncoder.encode(id, "UTF-8"), "GET"))
     /** Home's shelves as the engine builds them. */
     fun recommendHome(): List<RecPick.Shelf> = RecPick.parseHome(send("/api/recommend/home", "GET"))
 

@@ -907,6 +907,7 @@ private fun SourceFilterChips(all: List<Track>, current: com.ipodemu.library.Tra
 fun SongList(
     tracks: List<Track>, nav: PlayerNav, snap: PlayerSnap, showArt: Boolean, numbered: Boolean = false,
     sheetExtra: List<SheetItem> = emptyList(), sheetExtraFor: ((Track) -> List<SheetItem>)? = null, header: (@Composable () -> Unit)? = null, sections: Int = 0, missing: List<Pair<String, String>> = emptyList(),
+    footer: (@Composable () -> Unit)? = null,
 ) {
     val app = LocalApp.current
     if (tracks.isEmpty() && missing.isEmpty()) { EmptyState("Nothing here yet"); return }
@@ -947,6 +948,7 @@ fun SongList(
                 }
             }
         }
+        if (footer != null) item(contentType = "footer") { footer() }
         if (chosen != null) item { Spacer(Modifier.height(140.dp)) }
     }
     chosen?.let { cur -> SelectBar(cur.sorted().map { tracks[it] }, nav, Modifier.align(Alignment.BottomCenter), allPicked = cur.size == tracks.size, onAll = { chosen = if (cur.size == tracks.size) emptySet() else tracks.indices.toSet() }) { chosen = null } }
@@ -1230,6 +1232,8 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
             }) }
             return@Column
         }
+        // "Recommended songs" below the songs, only on the person's own playlists (PlaylistRecsUi.kt)
+        val recs: (@Composable () -> Unit)? = userId?.takeIf { d.kind == DetailKind.USER }?.let { id -> { PlaylistRecsSection(id, tracks, title) } }
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val wide = maxWidth > 620.dp && maxWidth > maxHeight * 1.25f
             if (wide) {
@@ -1237,10 +1241,10 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
                     Column(Modifier.width(300.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey)
                     }
-                    SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing)
+                    SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, footer = recs)
                 }
             } else {
-                SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, header = {
+                SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, footer = recs, header = {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey)
                     }

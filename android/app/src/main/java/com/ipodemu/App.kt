@@ -97,7 +97,12 @@ class App : Application() {
         autoplay = com.ipodemu.library.Autoplay(this)
         plays = com.ipodemu.library.PlaysReporter(prefs, player, bg)
         player.onQueueLow = { autoplay.queueLow() }
-        offline.relocate = { e -> library.findSong(e.title, e.artist) ?: library.findLoose(e.title, e.artist) }
+        // another copy of a song the server lost: never the lost one itself (the phone's library can still list it: Moves Like Jagger, 2 Nov), else any song of that title
+        offline.relocate = { e ->
+            fun other(t: com.ipodemu.library.Track?) = t?.takeIf { com.ipodemu.library.offline.OfflineMath.keyOf(it.path) != e.key && it.path.startsWith("http") }
+            other(library.findSong(e.title, e.artist)) ?: other(library.findLoose(e.title, e.artist))
+                ?: library.songs().firstOrNull { it.title.equals(e.title, ignoreCase = true) && other(it) != null }
+        }
         player.onPlayEnded = { t, heard -> listened(com.ipodemu.library.ListenKind.PLAY, t, heard) }
         userData.onListen = { kind, path, playlist -> library.resolve(path, userData.meta[path])?.let { listened(kind, it, context = playlist) } }
         listenWriter.launch { sendListensSoon() }

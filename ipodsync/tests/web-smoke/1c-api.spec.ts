@@ -26,7 +26,7 @@ test.describe('anonymous callers', () => {
   const calls: [string, string][] = [
     ['GET', '/api/account'], ['GET', '/api/import'], ['POST', '/api/import'], ['GET', '/api/settings'], ['POST', '/api/settings'], ['POST', '/api/charts/run'],
     ['GET', '/api/charts/0'], ['POST', '/api/played'], ['GET', '/api/alac?id=00000000000000000000000000000000'], ['GET', '/api/audiofacts'], ['GET', '/api/downloads'], ['POST', '/api/downloaded'],
-    ['POST', '/api/import/abc/cancel'],
+    ['POST', '/api/import/abc/cancel'], ['POST', '/api/import/link'],
     // the AI DJ (docs/spec/ai-dj.md): settings are per person, and asking about the next song needs a caller too
     ['GET', '/api/dj/settings'], ['POST', '/api/dj/settings'], ['POST', '/api/dj/next'],
   ];
@@ -178,6 +178,16 @@ test.describe('signed in', () => {
     expect((await web.post('/api/import?name=a.m3u', { headers: { ...TOKEN, 'content-type': 'text/plain' }, data: '#EXTM3U\n#EXTINF:1,Nobody - Nothing Two\nx.mp3\n' })).status()).toBe(200);
     // an unknown import id is a harmless no-op, not an error and not somebody else's import
     expect((await web.post('/api/import/not-a-real-id/cancel', { headers: TOKEN })).status()).toBe(200);
+  });
+
+  test('/api/import/link: junk, a wrong body and a non-link are 400 JSON with the page\'s words; nothing is fetched', async () => {
+    const post = (data: string) => web.post('/api/import/link', { headers: { ...TOKEN, 'content-type': 'application/json' }, data });
+    for (const body of ['{bad', 'null', '[1]']) expect((await post(body)).status(), body).toBe(400);
+    for (const body of ['{}', '{"url":""}', '{"url":"hello"}', '{"url":5}', '{"url":"https://music.apple.com/gb/playlist/x/pl.1"}']) {
+      const r = await post(body);
+      expect(r.status(), body).toBe(400);
+      expect((await r.json()).error, body).toBe("That isn't a Spotify or Deezer playlist or album link. Copy it with Share > Copy link.");
+    }
   });
 
   test('/api/import: a body over 20 MB is refused with 413/400, with and without a length', async () => {

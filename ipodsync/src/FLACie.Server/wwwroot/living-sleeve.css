@@ -38,6 +38,7 @@
 .ls-icon:hover { background: var(--glass); }
 .ls-glass, .ls-tint { background: #00000047; color: #fff; }
 .ls-glass:hover, .ls-tint:hover { background: #00000066; }
+.ls-glass.ls-dj.on { color: var(--np-accent); }
 .ls-toolset { display: flex; align-items: center; gap: 2px; }
 .ls-toolset .speed-sleep { display: flex; align-items: center; gap: 2px; }
 .ls-toolset .icon-btn { color: var(--ink); }

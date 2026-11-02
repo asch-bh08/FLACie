@@ -126,27 +126,28 @@ test.describe.serial('the DJ', () => {
     for (const w of ['Phone', 'Android Auto', 'Web', 'Windows']) await pressed(seg(page, w), true);
   });
 
-  test('the DJ button beside Shuffle flips the DJ for this queue only, and a new queue starts on what Settings say', async ({ page }) => {
+  // in the top bar, before Options, on the same glass as the other top buttons: as on the phone (owner, 2 Nov: "I like the Android one better")
+  test('the DJ button in the top bar flips the DJ for this queue only, and a new queue starts on what Settings say', async ({ page }) => {
     test.setTimeout(120_000);
     await signIn(page);
     await reset(page);   // DJ off in Settings
     await playLab(page);
     await page.getByRole('button', { name: 'Open Now Playing' }).click();
-    const tr = page.locator('.ls-transport');
-    const btn = tr.getByRole('button', { name: 'DJ', exact: true });
+    const top = page.locator('.ls-top');
+    const btn = top.getByRole('button', { name: 'DJ', exact: true });
     await expect(btn).toBeVisible({ timeout: 20_000 });
-    await expect(btn).not.toHaveClass(/\bon\b/); await pressed(btn, false);
+    await expect(btn).not.toHaveClass(/on/); await pressed(btn, false);
     await expect(btn).toHaveAttribute('title', /Settings → DJ/);
-    // right beside Shuffle, on the same line, in the same plain style
-    // (both measured in one frame once Now Playing has finished sliding up: two separate reads can land on different frames of the slide)
-    const rects = () => tr.evaluate((t) => [t.querySelector('button[aria-label^="Shuffle"]')!, t.querySelector('button[aria-label="DJ"]')!]
+    await expect(page.locator('.ls-transport').getByRole('button', { name: 'DJ', exact: true })).toHaveCount(0);
+    // before Retro, on the same line (Options sits between them on a phone; on a wide screen it lives in the bar at the bottom)
+    const rects = () => top.evaluate((t) => [t.querySelector('button[aria-label="DJ"]')!, t.querySelector('[data-testid="np-retro"]')!]
       .map((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }));
     let last = -1;
     await expect.poll(async () => { const y = (await rects())[0].y, still = Math.abs(y - last) < 0.5; last = y; return still; }, { intervals: [150] }).toBe(true);
-    const [sh, b] = await rects();
-    expect(Math.abs((sh.y + sh.height / 2) - (b.y + b.height / 2))).toBeLessThanOrEqual(2);
-    expect(b.x).toBeGreaterThan(sh.x); expect(b.x - (sh.x + sh.width)).toBeLessThan(30);
-    expect(await btn.evaluate((e) => getComputedStyle(e).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+    const [b, retro] = await rects();
+    expect(Math.abs((b.y + b.height / 2) - (retro.y + retro.height / 2))).toBeLessThanOrEqual(2);
+    expect(b.x).toBeLessThan(retro.x);
+    expect(await btn.evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
     await btn.click();
     await expect(btn).toHaveClass(/\bon\b/); await pressed(btn, true);
     await btn.click();
@@ -156,26 +157,30 @@ test.describe.serial('the DJ', () => {
     expect((await settings(page)).enabled).toBe(false);   // only this queue: Settings are untouched
     // a new queue: back to what Settings say (off). (The Songs page always starts a new queue; a row of the album could be the song already playing.)
     await newQueue(page);
-    await expect(tr.getByRole('button', { name: 'DJ', exact: true })).not.toHaveClass(/\bon\b/, { timeout: 10_000 });
+    await expect(btn).not.toHaveClass(/\bon\b/, { timeout: 10_000 });
     // with the DJ on in Settings, the button shows on for a new queue
     expect((await page.request.post('/api/dj/settings', { data: { enabled: true } })).ok()).toBe(true);
     await newQueue(page, 1);
-    await expect(tr.getByRole('button', { name: 'DJ', exact: true })).toHaveClass(/\bon\b/, { timeout: 10_000 });
-    await tr.getByRole('button', { name: 'DJ', exact: true }).click();   // (off again, so nothing talks over the next specs)
-    await expect(tr.getByRole('button', { name: 'DJ', exact: true })).not.toHaveClass(/\bon\b/);
+    await expect(btn).toHaveClass(/\bon\b/, { timeout: 10_000 });
+    await btn.click();   // (off again, so nothing talks over the next specs)
+    await expect(btn).not.toHaveClass(/\bon\b/);
   });
 
   for (const [w, h] of [[360, 780], [390, 844]]) {
-    test(`on a ${w}px phone the controls (six, or seven with the mic) fit across the screen`, async ({ page }) => {
+    test(`on a ${w}px phone the controls (five, or six with the mic) and the top bar with the DJ fit across the screen`, async ({ page }) => {
       test.setTimeout(120_000);
       await page.setViewportSize({ width: w, height: h });
       await signIn(page);
       await playLab(page);
       await page.getByRole('button', { name: 'Open Now Playing' }).click();
       const tr = page.locator('.ls-transport');
-      await expect(tr.getByRole('button', { name: 'DJ', exact: true })).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator('.ls-top').getByRole('button', { name: 'DJ', exact: true })).toBeVisible({ timeout: 20_000 });
       const boxes = await tr.evaluate((el) => [...el.children].map((c) => { const r = c.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width }; }));
-      expect(boxes).toHaveLength(await tr.locator(".dj-mic").count() ? 7 : 6);
+      expect(boxes).toHaveLength(await tr.locator(".dj-mic").count() ? 6 : 5);
+      // the top bar: Close, DJ, Options and Retro all on screen, none on another
+      const top = await page.locator('.ls-top').evaluate((el) => [...el.querySelectorAll('button, a')].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 0).map((r) => ({ l: r.left, r: r.right })));
+      for (const x of top) { expect(x.l).toBeGreaterThanOrEqual(0); expect(x.r).toBeLessThanOrEqual(w); }
+      for (let i = 1; i < top.length; i++) expect(top[i].l).toBeGreaterThanOrEqual(top[i - 1].r - 0.5);
       for (const x of boxes) { expect(x.l).toBeGreaterThanOrEqual(0); expect(x.r).toBeLessThanOrEqual(w); expect(x.w).toBeGreaterThanOrEqual(38); }
       for (let i = 1; i < boxes.length; i++) expect(boxes[i].l).toBeGreaterThanOrEqual(boxes[i - 1].r - 0.5);   // none on top of another
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);

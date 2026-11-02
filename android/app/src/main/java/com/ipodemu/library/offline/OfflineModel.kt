@@ -186,6 +186,10 @@ object OfflineMath {
     /** "1 song", "3 songs". */
     fun songs(n: Int): String = if (n == 1) "1 song" else "$n songs"
 
+    /** The second line of a song's row in Offline music: the artist (else the album), or for a failed song why it failed, so the one-line row can't cut the reason off. */
+    fun rowDetail(state: OfflineState, artist: String, album: String, error: String?): String =
+        if (state == OfflineState.FAILED) whyFailed(error) ?: "Could not download" else artist.ifEmpty { album }
+
     /** A failed song's error in words a listener follows, keeping the code so it can be looked into ("Not on the server (http 404)"); other errors as they are. */
     fun whyFailed(error: String?): String? {
         if (error == null) return null

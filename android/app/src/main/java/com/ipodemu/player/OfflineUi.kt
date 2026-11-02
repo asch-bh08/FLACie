@@ -105,7 +105,7 @@ fun OfflineScreen(nav: PlayerNav) {
                 item { SectionHeader("Offline music") }
                 if (entries.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(24.dp)) { Txt("Nothing yet. Open a song's menu and choose Download for offline, or switch on Keep favourites offline.", size = 14f, color = sc.onBgDim) } }
                 items(entries.sortedWith(compareBy({ it.state != OfflineState.DONE }, { -it.addedMs })), key = { it.key }) { e ->
-                    OfflineEntryRow(e, onPlay = { play(app, entries, e) }, onRemove = { m.remove(e.path) })
+                    OfflineEntryRow(e, onPlay = { play(app, entries, e) }, onRemove = { m.remove(e.path) }, onRetry = { m.enqueue(listOf(e.toTrack()), e.reason) })
                 }
                 if (entries.isNotEmpty()) item { Card { OfflineRow("Remove all downloads") { nav.sheet = SheetSpec("Remove all downloads?", "${OfflineMath.songs(m.doneCount)}, ${OfflineMath.formatBytes(used)}", listOf(
                     SheetItem("Yes, remove them all", Glyph.CLOSE) { m.removeAll() }, SheetItem("Keep them", Glyph.CHECK) { })) } } }
@@ -249,7 +249,7 @@ fun DownloadsScreen(nav: PlayerNav) {
                 // songs still to come or that failed, at most a screenful (the top card says how many there are in all)
                 if (trouble.isNotEmpty()) {
                     item { SectionHeader(if (trouble.any { it.state == OfflineState.FAILED }) "Not finished" else "On their way") }
-                    items(trouble.take(20), key = { "t" + it.key }) { e -> OfflineEntryRow(e, onPlay = { }, onRemove = { m.remove(e.path) }) }
+                    items(trouble.take(20), key = { "t" + it.key }) { e -> OfflineEntryRow(e, onPlay = { }, onRemove = { m.remove(e.path) }, onRetry = { m.enqueue(listOf(e.toTrack()), e.reason) }) }
                     if (trouble.size > 20) item { Box(Modifier.fillMaxWidth().padding(16.dp)) { Txt("and ${trouble.size - 20} more", size = 13f, color = sc.onBgDim) } }
                 }
                 if (songs.isNotEmpty()) item { SectionHeader("Songs") }
@@ -276,9 +276,10 @@ private fun OfflineRow(title: String, value: String? = null, toggle: Boolean? = 
 }
 
 @Composable
-private fun OfflineEntryRow(e: OfflineEntry, onPlay: () -> Unit, onRemove: () -> Unit) {
+private fun OfflineEntryRow(e: OfflineEntry, onPlay: () -> Unit, onRemove: () -> Unit, onRetry: () -> Unit = { }) {
     val sc = LocalScheme.current
-    IpodRow(if (e.state == OfflineState.DONE) onPlay else onRemove, onLong = onRemove, height = 64.dp,
+    // a tap plays a finished song and tries a failed one again; a long press removes it
+    IpodRow(when (e.state) { OfflineState.DONE -> onPlay; OfflineState.FAILED -> onRetry; else -> onRemove }, onLong = onRemove, height = 64.dp,
         leading = { ArtImage(e.artKey, Modifier.size(44.dp), thumb = true, corner = 6.dp) },
         trailing = {
             val label = when (e.state) {
@@ -291,7 +292,7 @@ private fun OfflineEntryRow(e: OfflineEntry, onPlay: () -> Unit, onRemove: () ->
         }) { hi ->
         Column {
             Txt(e.title, size = 15f, weight = FontWeight.SemiBold, color = if (hi) androidx.compose.ui.graphics.Color.White else sc.onBg)
-            Txt(e.artist.ifEmpty { e.album } + if (e.state == OfflineState.DONE) "" else (OfflineMath.whyFailed(e.error)?.let { "  -  $it" } ?: ""), size = 12.5f, color = rowDim())
+            Txt(OfflineMath.rowDetail(e.state, e.artist, e.album, e.error), size = 12.5f, color = if (e.state == OfflineState.FAILED && !hi) sc.accent else rowDim())
         }
     }
 }

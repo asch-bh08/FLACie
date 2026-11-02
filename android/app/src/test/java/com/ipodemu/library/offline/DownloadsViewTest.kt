@@ -100,6 +100,14 @@ class DownloadsViewTest {
         assertNull(OfflineMath.whyFailed(null))
     }
 
+    // owner, 2 Nov: "they fail but I can't see the reason": it came after the artist and the one-line row cut it off; a failed song's line is now the reason itself
+    @Test fun aFailedSongsSecondLineIsTheReason() {
+        assertEquals("Not on the server (http 404)", OfflineMath.rowDetail(OfflineState.FAILED, "A very long artist name", "Al", "http 404"))
+        assertEquals("Could not download", OfflineMath.rowDetail(OfflineState.FAILED, "A", "Al", null))
+        assertEquals("A", OfflineMath.rowDetail(OfflineState.DONE, "A", "Al", null))
+        assertEquals("Al", OfflineMath.rowDetail(OfflineState.QUEUED, "", "Al", null))
+    }
+
     // ---- the songs and the top line ----
     @Test fun allSongsAreTheFinishedOnesByTitle() {
         val x = ix(3 to OfflineState.DONE, 1 to OfflineState.DONE, 2 to OfflineState.QUEUED)

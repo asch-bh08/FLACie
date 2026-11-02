@@ -31,11 +31,9 @@ public sealed class CoverStore
     /// <summary>A cover saved or looked at in the last few minutes is never evicted: it is on its way to a page (or is the one just fetched for the request being answered).</summary>
     public static readonly TimeSpan Protected = TimeSpan.FromMinutes(5);
 
-    /// <summary>The rules a catalog cover ("it" key: looked up by artist, album and title) was found with. Raise it whenever those rules change: the key stays
-    /// the same, so a cover found under the old rules was served for good (owner, 2 Nov: Careless Whisper kept Wham!'s The Final on the web after the lookup
-    /// learned to prefer the song's own single). Jellyfin covers need none: their key carries the picture's tag.</summary>
-    public const int CatalogRules = FLACie.Core.CoverOverrides.CatalogRules;
-    public static string Name(string key) => Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(key.StartsWith("it", StringComparison.Ordinal) ? key + "#rules" + CatalogRules : key)));
+    /// <summary>One file per key: the files are not tied to the lookup rules (owner, 2 Nov: tying them made every catalog cover be fetched again at once and
+    /// Deezer's limit left many missing). A cover found wrongly is deleted on its own; browsers are told by the address (CoverOverrides.CatalogRules).</summary>
+    public static string Name(string key) => Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(key)));
     static string Ext(string contentType) => contentType switch { "image/webp" => ".webp", "image/jpeg" => ".jpg", "image/png" => ".png", "image/gif" => ".gif", _ => ".img" };
     public static string TypeOf(string path) => Path.GetExtension(path) switch { ".webp" => "image/webp", ".png" => "image/png", ".gif" => "image/gif", _ => "image/jpeg" };
 

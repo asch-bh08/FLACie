@@ -430,6 +430,8 @@ public static class MediaEndpoints
             {
                 using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct); limit.CancelAfter(OnlineAsk);
                 var j = JsonNode.Parse(await HttpRetry.GetStringAsync(http, $"https://api.deezer.com/{ep}?q={Uri.EscapeDataString(q)}&limit=25", limit.Token, retry));
+                // Deezer says "too many requests" with a 200 and an error inside: not "no such album", so it is asked again later (owner, 2 Nov: covers went missing)
+                if (j?["error"] is not null) { unasked = true; continue; }
                 var mine = (j?["data"]?.AsArray() ?? []).OfType<JsonObject>()
                     .Where(o => Matching.PrimaryArtist(o["artist"]?["name"]?.GetValue<string>() ?? "") is { Length: > 0 } a && (a.Contains(want) || want.Contains(a))).ToList();
                 int Score(JsonObject o)

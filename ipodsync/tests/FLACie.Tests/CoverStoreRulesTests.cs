@@ -7,9 +7,10 @@ namespace FLACie.Tests;
 public class CoverStoreRulesTests
 {
     [Fact]
-    public void A_catalog_covers_file_follows_the_lookup_rules_and_a_Jellyfin_covers_does_not()
+    public void A_covers_file_is_named_by_its_key_alone()
     {
-        Assert.NotEqual(Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes("itR2VvcmdlIE1pY2hhZWwKCkNhcmVsZXNzIFdoaXNwZXI"))),
+        // the saved covers stay where they were (a rules change once made every one be fetched again)
+        Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes("itR2VvcmdlIE1pY2hhZWwKCkNhcmVsZXNzIFdoaXNwZXI"))),
             CoverStore.Name("itR2VvcmdlIE1pY2hhZWwKCkNhcmVsZXNzIFdoaXNwZXI"));
         Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes("jfabc~tag"))), CoverStore.Name("jfabc~tag"));
     }

@@ -17,13 +17,9 @@ object CoverLookup {
     /** The same catalogue cover at 250 px (Deezer's and iTunes' addresses name the size): what a list row or a card shows, a twentieth of the bytes of the 1000 px one. */
     fun small(url: String): String = sizedPath.replace(url) { m -> if (m.groupValues[1].toInt() > 250) "/250x250${m.groupValues[3]}" else m.value }
 
-    /** The rules a catalog cover was found with ([fetch]); raise it whenever they change, so covers found under the old rules are fetched again (the key
-     *  stays the same, so they were kept for good: Careless Whisper kept Wham!'s The Final on the web, owner 2 Nov). The server has the same (CoverStore.CatalogRules). */
-    const val RULES = 2
-
-    /** The file a cover is kept in: a catalog cover's name carries [RULES]. */
+    /** The file a cover is kept in. */
     fun fileName(key: String): String {
-        val k = if (key.startsWith("it")) "$key.r$RULES" else key
+        val k = key   // (not tied to the lookup rules: that made every catalog cover be fetched again at once, and Deezer's limit left many missing)
         return if (k.length <= 120) "$k.jpg" else "h" + java.security.MessageDigest.getInstance("SHA-1").digest(k.toByteArray()).joinToString("") { "%02x".format(it) } + ".jpg"
     }
 

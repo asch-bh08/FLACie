@@ -128,7 +128,7 @@ class Library(ctx: Context, val art: ArtCache) {
     }
     val jfSync = JellyfinSync(jfApi, jfIndex, jfSink)
 
-    private val STATE_VERSION = 3   // 3 (beta 57): songs with no picture on the server get an album lookup key: the saved list is listed once more
+    private val STATE_VERSION = 4   // 3 (beta 57): songs with no picture on the server get an album lookup key: the saved list is listed once more. 4 (2 Nov): a song's artist is its own, not the album artist
 
     private fun writeJfState(cursor: String) {
         try {

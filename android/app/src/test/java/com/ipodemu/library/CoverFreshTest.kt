@@ -21,4 +21,8 @@ class CoverFreshTest {
         assertSame(saved, CoverVetting.fresh(saved, t("itabc")))
         assertSame(saved, CoverVetting.fresh(saved, null))
     }
+    @Test fun theLibrarysArtistWinsToo() {
+        val saved = t("itabc").copy(artist = "Wham!")
+        assertEquals("George Michael", CoverVetting.fresh(saved, t("itabc")).artist)
+    }
 }

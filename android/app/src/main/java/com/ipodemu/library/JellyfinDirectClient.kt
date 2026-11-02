@@ -137,15 +137,16 @@ class JellyfinDirectClient {
             return List(arr.length()) { i ->
                 val o = arr.getJSONObject(i)
                 val id = o.getString("Id")
-                val artist = fixMojibake(if (!o.isNull("AlbumArtist") && o.optString("AlbumArtist").isNotEmpty()) o.optString("AlbumArtist")
-                    else o.optJSONArray("Artists")?.takeIf { it.length() > 0 }?.getString(0) ?: "")
+                // the song's own artist first, as the server does (Careless Whisper is George Michael's; Wham! is only The Final's album artist: owner, 2 Nov)
+                val albumArtist = if (o.isNull("AlbumArtist")) "" else fixMojibake(o.optString("AlbumArtist"))
+                val artist = fixMojibake(o.optJSONArray("Artists")?.takeIf { it.length() > 0 }?.getString(0)?.takeIf { it.isNotBlank() } ?: albumArtist)
                 val parsed = JellyfinFacts.parse(o)
                 val t = Track(
                     path = "$base/Audio/$id/stream?static=true",
                     title = str(o, "Name").ifEmpty { "(untitled)" },
                     artist = artist,
                     album = str(o, "Album"),
-                    albumArtist = artist,
+                    albumArtist = albumArtist.ifEmpty { artist },
                     genre = fixMojibake(o.optJSONArray("Genres")?.takeIf { it.length() > 0 }?.getString(0) ?: ""),
                     trackNo = 0,
                     discNo = 0,

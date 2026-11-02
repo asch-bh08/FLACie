@@ -135,6 +135,15 @@ class JellyfinListingTest {
         assertEquals("albumtag1", it.coverTag)
     }
 
+    // owner, 2 Nov: Careless Whisper showed "Wham!" (the album artist of The Final) instead of George Michael, while the web showed George Michael
+    @Test fun theSongsOwnArtistIsShownAndTheAlbumArtistIsKeptApart() {
+        val o = flac24.replace("\"AlbumArtist\":\"Artist\"", "\"AlbumArtist\":\"Wham!\"").replace("\"Artists\":[\"Artist\"]", "\"Artists\":[\"George Michael\"]")
+        val t = JellyfinDirectClient.itemsOf(base, list(o)).single().track
+        assertEquals("George Michael", t.artist); assertEquals("Wham!", t.albumArtist)
+        val noArtists = flac24.replace("\"Artists\":[\"Artist\"]", "\"Artists\":[]")
+        assertEquals("no song artist: the album artist", "Artist", JellyfinDirectClient.itemsOf(base, list(noArtists)).single().track.artist)
+    }
+
     @Test fun aCompilationKeepsEachSongsOwnPicture() {
         for (name in listOf("Various Artists", "various", "VA", "V.A.", "Compilations")) {
             // (with no picture of its own and no album picture)

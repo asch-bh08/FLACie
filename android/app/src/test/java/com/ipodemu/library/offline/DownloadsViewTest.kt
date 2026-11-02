@@ -75,11 +75,18 @@ class DownloadsViewTest {
         assertEquals("2 songs · 10 MB · 1 song could not download", out[0].detail)
     }
     @Test fun anAlbumIsOnlyShownOnceNothingMoreIsComing() {
-        val x = ix(1 to OfflineState.DONE, 2 to OfflineState.QUEUED)
-        val spec = listOf(ListSpec("al", "Album", "", null, listOf(path(1), path(2))))
+        val x = ix(1 to OfflineState.DONE, 2 to OfflineState.QUEUED, 3 to OfflineState.DONE)
+        val spec = listOf(ListSpec("al", "Album", "", null, listOf(path(1), path(2), path(3))))
         assertEquals(emptyList<String>(), DownloadsOverview.lists(spec, whole = true) { x[OfflineMath.keyOf(it)] }.map { it.name })
         x[OfflineMath.keyOf(path(2))]!!.state = OfflineState.FAILED
         assertEquals(listOf("Album"), DownloadsOverview.lists(spec, whole = true) { x[OfflineMath.keyOf(it)] }.map { it.name })
+    }
+    // owner's phone, 2 Nov: a song downloaded from a compilation ("2010s Bangers - 100 Hits", each song by another artist) made a one-song "album" each,
+    // dozens of rows; an album shows from two songs on the phone (one song is in Songs)
+    @Test fun aOneSongAlbumIsNotListed() {
+        val x = ix(1 to OfflineState.DONE)
+        assertEquals(emptyList<String>(), DownloadsOverview.lists(listOf(ListSpec("al", "2010s Bangers", "", null, listOf(path(1)))), whole = true) { x[OfflineMath.keyOf(it)] }.map { it.name })
+        assertEquals("a playlist of one still shows", listOf("P"), DownloadsOverview.lists(listOf(ListSpec("p", "P", "", null, listOf(path(1))))) { x[OfflineMath.keyOf(it)] }.map { it.name })
     }
     @Test fun aListWhoseSongsAllFailedIsNotShown() {
         val x = ix(1 to OfflineState.FAILED)

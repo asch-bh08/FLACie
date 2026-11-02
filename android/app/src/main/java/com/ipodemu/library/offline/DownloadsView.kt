@@ -54,6 +54,8 @@ object DownloadsOverview {
             val done = mine.filter { it.state == OfflineState.DONE }
             if (done.isEmpty()) return@mapNotNull null
             // [whole] (albums): only once nothing more is coming, so the album of every song downloaded from a playlist doesn't fill the page
+            // (and from two songs: one song of a compilation, each by another artist, made a one-song "album" per download)
+            if (whole && done.size < 2) return@mapNotNull null
             if (whole && DownloadMarks.ofList(s.paths) { p -> entry(p)?.state?.let { if (it == OfflineState.FAILED) OfflineState.DONE else it } } != DownloadMark.DOWNLOADED) return@mapNotNull null
             DownloadedList(s.id, s.name, s.subtitle, s.artKey, done.size, done.sumOf { it.bytes },
                 failed = mine.count { it.state == OfflineState.FAILED }, waiting = mine.count { it.state == OfflineState.QUEUED || it.state == OfflineState.DOWNLOADING })

@@ -30,19 +30,22 @@ object CoverLookup {
         val (artist, album, title) = parts
         // Deezer first (generous rate limit); iTunes allows ~20 lookups a minute, which a screen of NAS songs used up
         val url = (if (album.isNotBlank()) deezer("search/album", "$artist $album", artist) else null)
-            ?: (if (title.isNotBlank()) deezer("search", "$artist $title", artist) else null)
+            ?: (if (title.isNotBlank()) deezer("search", "$artist $title", artist, preferAlbum = title) else null)
             ?: (if (album.isNotBlank()) albumArt(artist, album) else null) ?: song(artist, title)?.artUrl ?: return null
         return bytes(url)
     }
 
     /** The first Deezer result by this artist: an album's cover, or a song's album cover. */
-    private fun deezer(endpoint: String, q: String, artist: String): String? {
+    private fun deezer(endpoint: String, q: String, artist: String, preferAlbum: String? = null): String? {
         val body = bytes("https://api.deezer.com/$endpoint?q=${URLEncoder.encode(q, "UTF-8")}&limit=10") ?: return null
         val arr = try { JSONObject(String(body)).optJSONArray("data") } catch (_: Exception) { null } ?: return null
         val a = norm(artist)
-        val hit = (0 until arr.length()).map { arr.getJSONObject(it) }.firstOrNull { o ->
+        val byArtist = (0 until arr.length()).map { arr.getJSONObject(it) }.filter { o ->
             val n = norm(o.optJSONObject("artist")?.optString("name").orEmpty()); n.isNotEmpty() && (n.contains(a) || a.contains(n))
-        } ?: return null
+        }
+        // a song's own release (its single, named after it) before a compilation it is also on: George Michael's Careless Whisper came up first on Wham!'s
+        // The Final and showed a Wham! cover (owner, 2 Nov)
+        val hit = preferAlbum?.let { p -> byArtist.firstOrNull { pickSingle(it.optJSONObject("album")?.optString("title").orEmpty(), p) } } ?: byArtist.firstOrNull() ?: return null
         return (hit.optString("cover_big").ifBlank { hit.optJSONObject("album")?.optString("cover_big").orEmpty() }).ifBlank { null }
     }
 
@@ -80,6 +83,8 @@ object CoverLookup {
         return big(best.optString("artworkUrl100"))
     }
 
+    /** [album] is the song [title]'s own release: named after it ("Careless Whisper EP", "Careless Whisper (Remastered)"). */
+    internal fun pickSingle(album: String, title: String): Boolean { val t = norm(title); return t.isNotEmpty() && norm(album).startsWith(t) }
     private fun norm(s: String) = s.lowercase().replace(Regex("[^a-z0-9]"), "")
     private fun big(u: String) = u.takeIf { it.isNotEmpty() }?.replace("100x100bb", "600x600bb")
 

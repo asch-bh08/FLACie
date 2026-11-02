@@ -37,7 +37,7 @@ object CoverVetting {
         val out = ArrayList<Track>(tracks.size)
         for (t in tracks) {
             val k = t.artKey
-            if (k != null && t.source == TrackSource.JELLYFIN && k.startsWith("jf") && !isOwn(t, k) && (owner[k] != albumName(t) || mixed(t))) { out += t.copy(artKey = catalogKey(t)); changed = true }
+            if (k != null && t.source == TrackSource.JELLYFIN && k.startsWith("jf") && !isOwn(t, k) && (owner[k] != albumName(t) || mixed(t))) { out += t.copy(artKey = if (mixed(t)) songKey(t) else catalogKey(t)); changed = true }
             else out += t
         }
         return if (changed) out else tracks
@@ -49,6 +49,10 @@ object CoverVetting {
         if (library == null || (library.artKey == saved.artKey && library.artist == saved.artist && library.albumArtist == saved.albumArtist)) saved
         // the names too: a queue saved before showed the album artist as the song's (Careless Whisper as Wham!, owner 2 Nov)
         else saved.copy(artKey = library.artKey, artist = library.artist, albumArtist = library.albumArtist)
+
+    /** The catalog cover of the song itself (its own artist and title), for a song in a playlist folder: its album tag is often a compilation's, and the
+     *  album lookup showed a Wham! hits cover for George Michael's Careless Whisper (owner, 2 Nov). */
+    fun songKey(t: Track): String? = CoverLookup.key(t.artist.ifBlank { t.albumArtist }, "", t.title)
 
     /** A catalog lookup for a song the server has no usable picture for: one per album (its songs share the key and the one download), by title when there is no album name. */
     fun catalogKey(t: Track): String? = CoverLookup.key(t.albumArtist.ifBlank { t.artist }, if (blank(albumName(t))) "" else t.album, if (blank(albumName(t))) t.title else "")

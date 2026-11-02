@@ -44,7 +44,8 @@ public static class CoverVetting
         foreach (var t in tracks)
         {
             if (t.Source == TrackSource.Jellyfin && JellyfinKeyId(t.ArtKey) is { } id && !IsOwn(t, id) && (!(owner.TryGetValue(id, out var o) && o == Matching.AlbumNorm(t.Album)) || Mixed(t)))
-            { result.Add(t with { ArtKey = Art.LookupKey(t.Artist, t.Album, t.Title) }); changed = true; }
+            // (a song in a playlist folder: by the song itself, its album tag is often a compilation's: George Michael's Careless Whisper got a Wham! cover)
+            { result.Add(t with { ArtKey = Mixed(t) ? Art.LookupKey(t.Artist, "", t.Title) : Art.LookupKey(t.Artist, t.Album, t.Title) }); changed = true; }
             else result.Add(t);
         }
         return changed ? result : tracks;

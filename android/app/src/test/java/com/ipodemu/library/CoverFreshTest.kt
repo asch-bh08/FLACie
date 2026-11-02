@@ -25,4 +25,8 @@ class CoverFreshTest {
         val saved = t("itabc").copy(artist = "Wham!")
         assertEquals("George Michael", CoverVetting.fresh(saved, t("itabc")).artist)
     }
+    @Test fun aSongsOwnReleaseIsPickedBeforeACompilation() {
+        assertEquals(true, CoverLookup.pickSingle("Careless Whisper EP", "Careless Whisper"))
+        assertEquals(false, CoverLookup.pickSingle("The Final", "Careless Whisper"))
+    }
 }

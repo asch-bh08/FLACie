@@ -18,7 +18,7 @@ class CoverFolderTest {
         val careless = t("The Final", "jfffb82c6d51a93f6ece1f7f22a8cd9108")
         val others = listOf(t("21", "jf%032x".format(n + 1)), t("1000 Forms Of Fear", "jf%032x".format(n + 2)), t("Teenage Dream", "jf%032x".format(n + 3)))
         val out = CoverVetting.vet(listOf(careless) + others)
-        assertTrue(out[0].artKey!!.startsWith("it"))
+        assertEquals("by the song itself, not its album", CoverLookup.key(careless.artist, "", careless.title), out[0].artKey)
     }
 
     @Test fun anAlbumFolderKeepsItsPicture() {

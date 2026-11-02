@@ -17,7 +17,7 @@ public class CoverVettingTests
         const string pop = "/media/Movies/music/pop(LAC)/";
         var careless = Jf(1, "The Final", "jfffb82c6d51a93f6ece1f7f22a8cd9108") with { FilePath = pop + "Careless Whisper.flac" };
         var others = new[] { Jf(2, "21", "jf" + Id(2)) with { FilePath = pop + "a.flac" }, Jf(3, "1000 Forms Of Fear", "jf" + Id(3)) with { FilePath = pop + "b.flac" } };
-        Assert.StartsWith("it", CoverVetting.Vet([careless, .. others])[0].ArtKey);
+        Assert.Equal(Art.LookupKey(careless.Artist, "", careless.Title), CoverVetting.Vet([careless, .. others])[0].ArtKey);
     }
     [Fact] public void AnAlbumFolderKeepsItsPicture()
     {

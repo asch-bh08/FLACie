@@ -369,6 +369,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             SettingRow("Import a playlist file", if (web.available) "Choose" else "Needs FLACie Web", chevron = web.available) {
                                 if (web.available) pick.launch(arrayOf("*/*")) else msg = "Open FLACie Web in a browser, signed in to the same Jellyfin account, and this phone finds it by itself."
                             }
+                            if (web.available) LinkImportBox(showProgress = false, onStarted = { scope.launch(kotlinx.coroutines.Dispatchers.IO) { jobs = try { web.jobs() } catch (_: Exception) { jobs } } })
                             jobs.take(3).forEach { j ->
                                 SettingRow(j.file, when (j.state) { "done" -> "Done ${j.total - j.failed}/${j.total}"; "waiting" -> "Waiting for space"; "cancelled" -> "Stopped"; else -> "${j.done}/${j.total}" }) { }
                             }

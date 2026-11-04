@@ -237,6 +237,8 @@ fun PlayerHost(nav: PlayerNav) {
     LaunchedEffect(app.connect.available) {
         while (app.connect.available) { if (app.connect.connected) app.connect.loadSessions(); delay(if (app.connect.remoteNow() != null) 3_000 else 8_000) }
     }
+    // a playlist link shared to FLACie: show Playlists, whose link box takes it (NewPlaylistRow)
+    LaunchedEffect(ui.sharedLinkRequest) { if (ui.sharedLinkRequest > 0) { nav.nowPlaying = false; nav.push(Screen.Lib(LibKind.PLAYLISTS)) } }
     LaunchedEffect(ui.nowPlayingRequest) { if (ui.nowPlayingRequest > 0 && app.player.hasQueue) nav.nowPlaying = true }
     val libRev = rememberLibRev(app.library)
 
@@ -1060,9 +1062,20 @@ private fun NewPlaylistRow(nav: PlayerNav) {
                 contentAlignment = Alignment.Center,
             ) { Txt("Create", size = 15f, weight = FontWeight.Bold, color = if (name.isBlank()) sc.onBg.copy(alpha = .5f) else sc.accent.readableInk()) }
         }
-        DesignChip("Import a playlist", false, {
-            if (web.available) pick.launch(arrayOf("*/*")) else app.ui.say("Importing needs FLACie Web: open it in a browser once, signed in to the same Jellyfin account.", warn = true)
-        }, icon = Glyph.DOWN)
+        // a link shared to FLACie (Spotify's or Deezer's Share) opens the link box with it filled in; nothing is imported until Import is pressed
+        val shared = app.ui.sharedLink
+        var linkOpen by remember { mutableStateOf(shared != null) }
+        LaunchedEffect(shared) { if (shared != null) linkOpen = true }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DesignChip("Import a playlist", false, {
+                if (web.available) pick.launch(arrayOf("*/*")) else app.ui.say(com.ipodemu.library.LinkImport.NEEDS_WEB, warn = true)
+            }, icon = Glyph.DOWN)
+            DesignChip("Paste a link", linkOpen, { linkOpen = !linkOpen })
+        }
+        if (linkOpen) {
+            LinkImportBox(startWith = shared, onStarted = { linkOpen = false })
+            LaunchedEffect(shared) { if (shared != null) app.ui.sharedLink = null }
+        }
     }
 }
 

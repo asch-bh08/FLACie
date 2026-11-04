@@ -8,7 +8,8 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { adb, sh, sleep, setAdb, anrCount, dump, has, find, label, tapNode, tapAt, typeText, key, shot, waitUi, mediaSession } from './adbui.mjs';
+import { requireEmulator, adb, sh, sleep, setAdb, anrCount, dump, has, find, label, tapNode, tapAt, typeText, key, shot, waitUi, mediaSession } from './adbui.mjs';
+import { requireMock } from './require-mock.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > 0 ? process.argv[i + 1] : d; };
@@ -57,7 +58,7 @@ async function main() {
   await startMock();
   const ver = /versionName=(\S+)/.exec(sh(`dumpsys package ${PKG}`, { quiet: true }))?.[1];
   check('installed build', !!ver, ver);
-  sh(`am force-stop ${PKG}`); sh(`pm clear ${PKG}`);
+  requireEmulator(); await requireMock(MOCK); sh(`am force-stop ${PKG}`); sh(`pm clear ${PKG}`);
   sh(`pm grant ${PKG} android.permission.POST_NOTIFICATIONS`, { quiet: true });
   sh(`pm revoke ${PKG} android.permission.READ_MEDIA_AUDIO`, { quiet: true });
   sh('logcat -c', { quiet: true });

@@ -425,12 +425,13 @@ class AccountSync(private val app: App) {
         val base = prefs.accountServer; val token = prefs.accountToken; val uid = prefs.accountUserId
         // the stored ids point at playlists on the account's server; a different Jellyfin can't be mirrored to
         val ud = app.userData
-        val hadDeletes = ud.deletedPlaylistJf.isNotEmpty()
-        for (dead in ud.deletedPlaylistJf.toList()) {
-            try { http("DELETE", "$base/Items/$dead", token, null) } catch (_: Exception) {}
-            ud.deletedPlaylistJf.remove(dead)
+        // each tombstone stays until Jellyfin says the playlist is gone (done or 404): one dropped after a failed delete let the next sync bring it back
+        val tombs = synchronized(ud.deletedPlaylistJf) { ud.deletedPlaylistJf.toList() }
+        if (tombs.isNotEmpty()) {
+            val left = PlaylistMerge.sendDeletes(tombs) { dead -> http("DELETE", "$base/Items/$dead", token, null).first }
+            synchronized(ud.deletedPlaylistJf) { ud.deletedPlaylistJf.removeAll(tombs.filter { it !in left }.toSet()) }
+            ud.touchedExternally()
         }
-        if (hadDeletes) ud.touchedExternally()
         val snapshot = synchronized(ud) { ud.playlists.map { Triple(it, it.name, it.paths.toList()) } }
         var mirrored = 0
         for ((pl, name, paths) in snapshot) {

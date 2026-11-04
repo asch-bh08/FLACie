@@ -8,6 +8,7 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { requireMock } from './require-mock.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const arg = (n, d) => { const i = process.argv.indexOf('--' + n); return i > 0 ? process.argv[i + 1] : d; };
@@ -31,7 +32,8 @@ try {
   fs.rmSync(DATA, { recursive: true, force: true }); fs.mkdirSync(path.dirname(DATA), { recursive: true });
   start('node', [path.join(here, 'mock.mjs'), '--port', String(MOCK_PORT), '--host', '127.0.0.1', '--items', '10000', '--streamms', '0']);
   await waitUp(`${MOCK}/System/Info/Public`);
-  const web = start('dotnet', ['FLACie.Server.dll'], { cwd: SERVER, env: { ...process.env, ASPNETCORE_URLS: WEB, ASPNETCORE_ENVIRONMENT: 'Production', FLACIE_JELLYFIN_URL: MOCK, FLACIE_DATA: DATA } });
+  await requireMock(MOCK);   // refuses to run against anything that is not a mock
+  const web = start('dotnet', ['FLACie.Server.dll'], { cwd: SERVER, env: { ...process.env, ASPNETCORE_URLS: WEB, ASPNETCORE_ENVIRONMENT: 'Production', FLACIE_JELLYFIN_URL: MOCK, FLACIE_JELLYFIN_INTERNAL_URL: MOCK, FLACIE_DATA: DATA } });
   const slog = arg('serverlog', ''); if (slog) { fs.writeFileSync(slog, ''); web.stdout.on('data', (d) => fs.appendFileSync(slog, d)); web.stderr.on('data', (d) => fs.appendFileSync(slog, d)); } else { web.stdout.on('data', () => { }); web.stderr.on('data', () => { }); }
   await waitUp(`${WEB}/healthz`);
   const browser = await chromium.launch();

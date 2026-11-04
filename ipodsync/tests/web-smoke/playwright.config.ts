@@ -3,6 +3,8 @@ import { defineConfig } from '@playwright/test';
 // Starts a fake Jellyfin (mock-jellyfin.mjs) and FLACie Web pointed at it, then drives the real pages in Chromium.
 // Needs the .NET 9 SDK. Run: npm ci && npx playwright install chromium && npm test
 // The last spec trips the login throttle on purpose, so a second local run needs a fresh server (stop the dotnet process first).
+// Only ever talks to the mock: global-setup.ts refuses to run unless the Jellyfin at MOCK_PORT answers GET /__mock with {"mock":true}
+// (so a tunnel to a real server on that port, or a stray process, stops the run). There is no way to point this at a real Jellyfin.
 // MOCK_PORT / WEB_PORT move both servers, so a second checkout can run its specs without reusing another run's servers (every spec follows them)
 const MOCK = Number(process.env.MOCK_PORT || 8196), WEB = Number(process.env.WEB_PORT || 5290);
 export default defineConfig({
@@ -31,6 +33,8 @@ export default defineConfig({
         ASPNETCORE_URLS: `http://127.0.0.1:${WEB}`,
         ASPNETCORE_ENVIRONMENT: 'Production',
         FLACIE_JELLYFIN_URL: `http://127.0.0.1:${MOCK}`,
+        // pinned too, so a value left in the shell can not send the server's own requests to another Jellyfin (global-setup.ts also checks the mock's /__mock marker)
+        FLACIE_JELLYFIN_INTERNAL_URL: `http://127.0.0.1:${MOCK}`,
         FLACIE_DATA: '.data-smoke',
         // a fresh install has downloads off; the specs that look at download buttons, tags and imports need them on. 1z-downloads-switch.spec.ts has a
         // block for a server started with FLACIE_DOWNLOADS=off (run it on its own ports, as that spec's header says)

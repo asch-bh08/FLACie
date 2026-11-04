@@ -177,9 +177,12 @@ public sealed class UserSession
             if (total >= 0 && total != ids.Count)
             {
                 var now = (await jf.ListAudioIdsAsync(a, ct)).Select(Norm).ToHashSet();
-                if (now.Any(id => !ids.Contains(id))) return null;   // songs this library never saw: list everything again
-                ids.IntersectWith(now);
-                merged = merged.Where(t => now.Contains(Norm(t.JellyfinId))).ToList();
+                if (ListingTrusted(now.Count, total, ids.Count))   // a short or empty id listing drops nothing (the 15-minute check asks again)
+                {
+                    if (now.Any(id => !ids.Contains(id))) return null;   // songs this library never saw: list everything again
+                    ids.IntersectWith(now);
+                    merged = merged.Where(t => now.Contains(Norm(t.JellyfinId))).ToList();
+                }
             }
             knownIds = ids;
             if (l.MaxSaved is not null) SyncCursor = l.MaxSaved;
@@ -227,15 +230,18 @@ public sealed class UserSession
         return listing.Tracks.Count + gone.Count;
     }
 
-    /// <summary>Checks that the songs this library knows are the ones Jellyfin has: one tiny count request, and only when it differs a listing of ids (no streams, no pictures).
-    /// Songs Jellyfin no longer has are dropped (their number is returned). -1 when Jellyfin has songs this library never saw (the caller lists again).</summary>
+    /// <summary>Checks that the songs this library knows are the ones Jellyfin has: one tiny count request and a listing of ids (no streams, no pictures). The ids are
+    /// listed even when the count matches: a song removed while another arrived unseen kept the count equal and the removed one listed (owner, 2 Nov).
+    /// Songs Jellyfin no longer has are dropped (their number is returned). -1 when Jellyfin has songs this library never saw (the caller lists again).
+    /// Nothing is dropped when the id listing is shorter than the count or empty (a glitch, a partial page): one stale song is better than a lost library.</summary>
     public async Task<int> ReconcileAsync(JellyfinClient jf, CancellationToken ct = default)
     {
         if (Jellyfin is not { } a || knownIds is not { } known || Loading) return 0;
         using var prio = JellyfinGate.Use(GatePriority.Background);
         var total = await JellyfinSongCountAsync(jf, ct);
-        if (total < 0 || total == known.Count) return 0;
+        if (total < 0) return 0;
         var now = (await jf.ListAudioIdsAsync(a, ct)).Select(Norm).ToHashSet();
+        if (!ListingTrusted(now.Count, total, known.Count)) return 0;
         if (now.Any(id => !known.Contains(id))) return -1;
         var gone = known.Where(id => !now.Contains(id)).ToList();
         if (gone.Count == 0) return 0;
@@ -243,6 +249,10 @@ public sealed class UserSession
         SaveCache();
         return gone.Count;
     }
+
+    /// <summary>Whether an id listing of <paramref name="listed"/> songs may drop songs: not empty while the library has songs, and not shorter than the
+    /// <paramref name="count"/> Jellyfin gave a moment before (the phone's JellyfinSync.listingTrusted is the same rule).</summary>
+    public static bool ListingTrusted(int listed, int count, int have) => !(listed == 0 && have > 0) && listed >= count;
 
     /// <summary>How many songs Jellyfin says the user has (one tiny request), to notice removals a socket message missed.</summary>
     public async Task<int> JellyfinSongCountAsync(JellyfinClient jf, CancellationToken ct = default)

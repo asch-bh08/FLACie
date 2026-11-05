@@ -819,13 +819,16 @@ private fun SleeveLyrics(t: Track, playing: Boolean, big: Boolean = false) {
             // the current line is a derived number: the list is only touched when the song moves on to the next line
             val current by remember(l) { derivedStateOf { if (!l.synced) -1 else l.lines.indexOfLast { it.timeMs <= pos.value + 250 } } }
             val list = rememberLazyListState()
+            // the first scroll after the lyrics open lands on the current line at once; only the moves after it glide (owner, 5 Nov)
+            var placed by remember(l) { androidx.compose.runtime.mutableStateOf(false) }
             LaunchedEffect(current) {
                 if (current >= 0) {
                     // the line's middle on the middle of the panel
                     val vh = list.layoutInfo.viewportSize.height
                     val h = list.layoutInfo.visibleItemsInfo.firstOrNull { it.index == current + 1 }?.size ?: 60
                     val offset = -(vh / 2 - h / 2)
-                    if (Tweaks.motion) list.animateScrollToItem(current + 1, offset) else list.scrollToItem(current + 1, offset)
+                    if (Tweaks.motion && placed) list.animateScrollToItem(current + 1, offset) else list.scrollToItem(current + 1, offset)
+                    placed = true
                 }
             }
             LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(top = 0.dp, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(if (big) 14.dp else 8.dp)) {

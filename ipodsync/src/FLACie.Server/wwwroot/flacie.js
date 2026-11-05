@@ -200,7 +200,9 @@ window.flacie = (() => {
           items.forEach((li, i) => { li.classList.toggle("cur", i === c); li.classList.toggle("past", i < c); });
           lyr.cur = c;
           const el = items[c], panel = document.querySelector(".ls-panel, .np-panel");
-          if (el && panel) panel.scrollTo({ top: el.offsetTop - panel.clientHeight / 2 + el.clientHeight / 2, behavior: "smooth" });
+          // the first line after the lyrics open (Info -> Lyrics, a new song) jumps straight to the current line: gliding down from the top took seconds (owner, 5 Nov)
+          if (el && panel) panel.scrollTo({ top: el.offsetTop - panel.clientHeight / 2 + el.clientHeight / 2, behavior: lyr.placed ? "smooth" : "instant" });
+          lyr.placed = true;
         }
       }
     }

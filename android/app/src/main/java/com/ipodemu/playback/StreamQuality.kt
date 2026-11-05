@@ -17,12 +17,18 @@ object StreamQuality {
     const val MIN_MEASURED_BYTES = 2L * 1024 * 1024
 
     /** The version to use from the measurement [bps] (bits per second; 0 or less: nothing measured), given the one in use. Not before [MIN_MEASURED_BYTES] were [measuredBytes]. */
-    fun pick(bps: Long, current: Pick, measuredBytes: Long = Long.MAX_VALUE): Pick = when {
-        bps <= 0 || measuredBytes < MIN_MEASURED_BYTES -> current
+    fun pick(bps: Long, current: Pick, measuredBytes: Long = Long.MAX_VALUE, heldAtBytes: Long = 0): Pick = when {
+        bps <= 0 || measuredBytes - heldAtBytes < MIN_MEASURED_BYTES -> current
         bps < LOW_BPS -> Pick.OPUS
         bps > HIGH_BPS -> Pick.FLAC
         else -> current
     }
+
+    /** Whether [uri] is the Opus conversion ([com.ipodemu.library.JellyfinPaths.opusUrl]). */
+    fun isOpusUri(uri: String) = uri.contains("/universal") && uri.contains("AudioCodec=opus")
+
+    /** A song on the Opus copy that failed to load or play is tried once more on the original stream; the copy is only a saving, never a reason to go silent. */
+    fun retryOnFlac(uri: String, alreadyRetried: Boolean) = isOpusUri(uri) && !alreadyRetried
 
     /** Whether streamed songs are converted to Opus now: only when Settings says Automatic (0) and the line is weak. */
     fun opusNow(setting: Int, auto: Pick): Boolean = setting == 0 && auto == Pick.OPUS

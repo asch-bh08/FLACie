@@ -664,6 +664,16 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             override fun onAudioSessionIdChanged(audioSessionId: Int) { applyEq() }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 android.util.Log.w("FLACie", "playback error at ${exo.currentPosition}ms: ${error.errorCodeName}", error)
+                // a song on the Opus copy that fails is tried once more on the original stream, from the same spot; the next songs stay full quality until the line is measured again
+                val cur1 = current
+                if (cur1 != null && StreamQuality.retryOnFlac(exo.currentMediaItem?.localConfiguration?.uri?.toString() ?: "", cur1.path in opusFailed)) {
+                    opusFailed.add(cur1.path)
+                    autoPick = StreamQuality.Pick.FLAC; opusHeldAt = measuredBytes.get()
+                    Diag.add("quality", "\"${cur1.title}\" would not play as Opus (${error.errorCodeName}): trying full quality")
+                    val idx = exo.currentMediaItemIndex; val at = exo.currentPosition
+                    exo.replaceMediaItem(idx, item(cur1)); selfSeekTo(idx, at); exo.prepare(); exo.play()
+                    adaptUpcoming(); fire(); return
+                }
                 // a song this phone cannot decode (no decoder for the format) is played through the server's conversion instead of going silent
                 val cur0 = current
                 if (cur0 != null && cur0.path !in forceHls && hlsUri(cur0) != null && !isHls(exo.currentMediaItem ?: return) && error.errorCode in setOf(
@@ -1355,8 +1365,11 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
 
     /** The version the next songs stream in when Streaming quality is Automatic (see [StreamQuality]); looked at only as one song changes to the next. */
     private var autoPick = StreamQuality.Pick.FLAC
+    /** Songs whose Opus copy failed (they stream the original), and the bytes streamed when that last happened: the meter must measure afresh after it. */
+    private val opusFailed = HashSet<String>()
+    private var opusHeldAt = 0L
     private fun reviewQuality() {
-        val p = StreamQuality.pick(bandwidth.bitrateEstimate, autoPick, measuredBytes.get())
+        val p = StreamQuality.pick(bandwidth.bitrateEstimate, autoPick, measuredBytes.get(), opusHeldAt)
         if (p == autoPick) return
         autoPick = p
         Diag.add("quality", "line ${bandwidth.bitrateEstimate / 1000} kbps: the next songs are ${if (p == StreamQuality.Pick.OPUS) "Opus 128k" else "full quality"}")
@@ -1439,7 +1452,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         val transcode = needsTranscode(t)
         // a song kept offline plays from its file (unless this phone needs the server to convert it): no network, no data used, no waiting
         val local = !own && !transcode && t.path !in freshPaths && App.of(ctx).offline.localFile(t) != null
-        val opusPossible = prefs.accountUserId.isNotBlank() && com.ipodemu.library.JellyfinPaths.idOf(t.path) != null
+        val opusPossible = prefs.accountUserId.isNotBlank() && com.ipodemu.library.JellyfinPaths.idOf(t.path) != null && t.path !in opusFailed
         return PlaySource.choose(own, local, transcode, dataSaver, hlsUri(t) != null, StreamQuality.opusNow(prefs.streamQuality, autoPick), opusPossible)
     }
 

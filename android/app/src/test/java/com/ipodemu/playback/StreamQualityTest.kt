@@ -62,6 +62,23 @@ class StreamQualityTest {
         for (part in listOf("UserId=u1", "DeviceId=dev1", "Container=opus", "AudioCodec=opus", "MaxStreamingBitrate=128000", "AudioBitRate=128000")) assertTrue(part, url.contains(part))
     }
 
+    @Test fun an_opus_song_that_fails_is_retried_once_on_flac() {
+        val opusUri = "https://jf/Audio/0123456789abcdef0123456789abcdef/universal?AudioCodec=opus&Container=opus"
+        val flacUri = "https://jf/Audio/0123456789abcdef0123456789abcdef/stream?static=true"
+        assertTrue(StreamQuality.isOpusUri(opusUri))
+        assertFalse(StreamQuality.isOpusUri(flacUri))
+        assertTrue(StreamQuality.retryOnFlac(opusUri, alreadyRetried = false))
+        assertFalse(StreamQuality.retryOnFlac(opusUri, alreadyRetried = true))
+        assertFalse(StreamQuality.retryOnFlac(flacUri, alreadyRetried = false))
+    }
+
+    @Test fun after_an_opus_failure_flac_stays_until_the_meter_has_measured_again() {
+        val heldAt = 10L * 1024 * 1024
+        // a weak figure straight after the failure does not send the next songs back to Opus
+        assertEquals(flac, StreamQuality.pick(300_000, flac, heldAt + StreamQuality.MIN_MEASURED_BYTES - 1, heldAt))
+        assertEquals(opus, StreamQuality.pick(300_000, flac, heldAt + StreamQuality.MIN_MEASURED_BYTES, heldAt))
+    }
+
     @Test fun no_opus_copy_for_other_addresses_or_without_a_sign_in() {
         assertNull(JellyfinPaths.opusUrl("/storage/emulated/0/Music/a.flac", "u1", "d"))
         assertNull(JellyfinPaths.opusUrl("http://nas/music/a.flac", "u1", "d"))

@@ -20,7 +20,7 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
         ("37i9dQZF1DXaKIA8E7WcJj", "All Out 60s", WebPlaylistKind.Decade, "1960s"), ("37i9dQZF1DWTJ7xPn4vNaz", "All Out 70s", WebPlaylistKind.Decade, "1970s"),
         ("37i9dQZF1DX4UtSsGT1Sbe", "All Out 80s", WebPlaylistKind.Decade, "1980s"), ("37i9dQZF1DXbTxeAdrVG2l", "All Out 90s", WebPlaylistKind.Decade, "1990s"),
         ("37i9dQZF1DX4o1oenSJRJd", "All Out 2000s", WebPlaylistKind.Decade, "2000s"), ("37i9dQZF1DX5Ejj0EkURtP", "All Out 2010s", WebPlaylistKind.Decade, "2010s"),
-        ("37i9dQZF1DXcBWIGoYBM5M", "Today's Top Hits", WebPlaylistKind.Chart, "Top Hits"), ("37i9dQZF1DXWXRqgorJj26U", "Rock Classics", WebPlaylistKind.Genre, "Rock"),
+        ("37i9dQZF1DXcBWIGoYBM5M", "Today's Top Hits", WebPlaylistKind.Chart, "Top Hits"), ("37i9dQZF1DWXRqgorJj26U", "Rock Classics", WebPlaylistKind.Genre, "Rock"),
         ("37i9dQZF1DWUa8ZRTfalHk", "Pop Rising", WebPlaylistKind.Genre, "Pop"), ("37i9dQZF1DX0XUsuxWHRQd", "RapCaviar", WebPlaylistKind.Genre, "Hip-Hop"),
         ("37i9dQZF1DX4dyzvuaRJ0n", "mint", WebPlaylistKind.Genre, "Dance"), ("37i9dQZF1DX1lVhptIYRda", "Hot Country", WebPlaylistKind.Genre, "Country"),
         ("37i9dQZF1DXbITWG1ZJKYt", "Jazz Classics", WebPlaylistKind.Genre, "Jazz"), ("37i9dQZF1DWWEJlAGA9gs0", "Classical Essentials", WebPlaylistKind.Genre, "Classical"),
@@ -111,6 +111,24 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested) { gate.Failed("spotify"); return store.Use("spotify", id); }
     }
 
+    /// <summary>
+    /// A Deezer editor's "100% X", "This Is X" or "Best of X" where X is exactly the artist: "100% Kay The Prodigy" and "100% Prodigy" (Mobb Deep)
+    /// sit beside "100% The Prodigy" in Deezer's answer, and fans' lists use the same names.
+    /// </summary>
+    public static bool IsEditorsBestOf(string title, string user, string artist)
+    {
+        if (!user.StartsWith("Deezer", StringComparison.OrdinalIgnoreCase)) return false;
+        var t = title.Trim();
+        var name = Matching.SearchWords(artist);
+        foreach (var prefix in new[] { "100%", "100 %", "This Is", "Best of" })
+            if (t.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var w = Matching.SearchWords(t[prefix.Length..]);   // "The" counts here (Matching.PrimaryArtist drops it): The Prodigy is not Prodigy
+                return w.Count > 0 && name.Take(w.Count).SequenceEqual(w) && (name.Count == w.Count || name[w.Count] is "feat" or "ft" or "featuring" or "with");
+            }
+        return false;
+    }
+
     /// <summary>Deezer's editorial best-of for an artist ("100% The Prodigy", or "This Is" / "Best of"), its first 100 songs; null when it has none.</summary>
     public async Task<WebPlaylist?> DeezerArtistAsync(string artist, CancellationToken ct)
     {
@@ -122,9 +140,7 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
         {
             var found = JsonNode.Parse(await http.GetStringAsync($"https://api.deezer.com/search/playlist?q={Uri.EscapeDataString(artist)}&limit=25", ct))?["data"] as JsonArray;
             static string S(JsonNode? n, string k) => n?[k] is JsonValue v && v.TryGetValue<string>(out var x) ? x : "";
-            var hit = found?.OfType<JsonObject>().FirstOrDefault(p => S(p["user"], "name").StartsWith("Deezer", StringComparison.OrdinalIgnoreCase)
-                && Matching.SearchWords(S(p, "title")) is var w && string.Join(' ', w).Contains(string.Join(' ', Matching.SearchWords(artist)))
-                && (S(p, "title").StartsWith("100%") || S(p, "title").StartsWith("This Is", StringComparison.OrdinalIgnoreCase) || S(p, "title").Contains("Best of", StringComparison.OrdinalIgnoreCase)));
+            var hit = found?.OfType<JsonObject>().FirstOrDefault(p => IsEditorsBestOf(S(p, "title"), S(p["user"], "name"), artist));
             if (hit?["id"] is not JsonValue idv || !idv.TryGetValue<long>(out var pid)) return null;
             if (!gate.TryTake("deezer")) await Task.Delay(WebSourceGate.Gap, ct);
             var tracks = (JsonNode.Parse(await http.GetStringAsync($"https://api.deezer.com/playlist/{pid}/tracks?limit={WebPlaylist.MaxTracks}", ct))?["data"] as JsonArray ?? [])

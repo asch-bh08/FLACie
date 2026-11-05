@@ -25,6 +25,38 @@ public sealed class SpotifyEmbedTests : IDisposable
     }
 
     [Fact]
+    public void A_real_embed_page_saved_from_spotify_parses()   // Today's Top Hits, saved by Local on 5 Nov 2026
+    {
+        var html = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAudio", "embed", "todays-top-hits-real.html"));
+        var (name, tracks) = SpotifyEmbed.Parse(html)!.Value;
+        Assert.Equal("Today’s Top Hits", name);
+        Assert.Equal(50, tracks.Count);
+        Assert.Equal(new WebTrack("Loser", "Tame Impala", 223069), tracks[0]);
+        Assert.All(tracks, t => Assert.False(string.IsNullOrEmpty(t.Title) || string.IsNullOrEmpty(t.Artist)));
+    }
+
+    [Fact]
+    public void Every_fixed_spotify_list_has_a_real_22_letter_id()   // Rock Classics had a 23rd letter and Spotify answered 500 (checked by Local, 5 Nov)
+    {
+        Assert.All(FLACie.Server.SpotifyPlaylists.Fixed, l => Assert.Matches("^[0-9A-Za-z]{22}$", l.Id));
+        Assert.Equal(FLACie.Server.SpotifyPlaylists.Fixed.Length, FLACie.Server.SpotifyPlaylists.Fixed.Select(l => l.Id).Distinct().Count());
+    }
+
+    [Fact]
+    public void Deezers_best_of_must_name_exactly_that_artist()   // real Deezer answers for "100% The Prodigy" (5 Nov) hold all of these
+    {
+        static bool Is(string title, string user, string artist) => FLACie.Server.SpotifyPlaylists.IsEditorsBestOf(title, user, artist);
+        Assert.True(Is("100% The Prodigy", "Deezer Artist Editor", "The Prodigy"));
+        Assert.True(Is("This Is Eminem", "Deezer Hip-Hop Editor", "Eminem"));
+        Assert.True(Is("Best of Black Eyed Peas", "Deezer Pop Editor", "Black Eyed Peas"));
+        Assert.True(Is("100% The Prodigy", "Deezer Artist Editor", "The Prodigy feat. Maxim"));   // the lead artist counts
+        Assert.False(Is("100% Kay The Prodigy", "Deezer Artist Editor", "The Prodigy"));        // another artist whose name holds theirs
+        Assert.False(Is("100% Prodigy", "Deezer Artist Editor", "The Prodigy"));                 // Prodigy of Mobb Deep
+        Assert.False(Is("100% the prodigy", "georgeryder12", "The Prodigy"));                    // a fan's list
+        Assert.False(Is("Eminem Workout", "Deezer Hip-Hop Editor", "Eminem"));                   // not a best-of
+    }
+
+    [Fact]
     public void Only_text_is_kept_capped_and_only_spotifys_own_ids_are_asked()
     {
         Assert.Equal(200, SpotifyEmbed.Clean(new string('x', 500)).Length);

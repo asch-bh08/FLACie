@@ -8,6 +8,7 @@
 - Merged cloud/round2 + all phone work; b106 web deployed (SoundCloud on, rollback flacie-web:rollback-20261105-pre-b106). APK held: smoke 21/23 (40-skip burst, pause state 7), being fixed.
 - Found and fixed a KeepAlive ping-pong in Connect.cs (311,539 msgs/min; web 150%->1% CPU, Jellyfin settles). Census line stays in the log for now.
 - New spec F24 (artist names fixed in Jellyfin after an approved dry-run list) is Cloud item 14.
+
 ## 2026-11-05 Cloud FINAL (cloud/round2): round 2 items 1-12 done
 - Unit suite 1794/1796: NoRealServerInTestsTests fails on android CoverSourceTest.kt:14,32 (names the owner's server; Local's file from the merge); PlayerListenTests "Songs just fetched for Autoplay..." fails only under full-suite load (passes alone), as PlayerDjLiveTests did once.
 - web-smoke on real .NET 9: every spec I touched or could affect is green (1c-api, 1g-burst, 1h-queue, 1m-ipod, 1n-search-typing, 1q-dj, 1r-retro-scenes, 1r-search-artist, 1z-made-playlists, 1z-song-start, mini-player); the rest of the 659 were not rerun after the fixes.

@@ -230,14 +230,15 @@ class ArtCache(private val dir: File) {
         val f = file(key)
         if (f.exists()) return f
         val fx = fetcher ?: return f
-        synchronized(this) { fetchFailed[key]?.let { if (System.currentTimeMillis() - it < 3 * 60_000) return f } }
+        synchronized(this) { fetchFailed[key]?.let { if (System.currentTimeMillis() - it < RETRY_MS) return f } }
         fetchSlots.acquire()
+        var busy = false
         try {
             if (f.exists()) return f // another request fetched it while this one waited
-            val bytes = try { fx(key) } catch (_: Exception) { null }
+            val bytes = try { fx(key) } catch (e: Exception) { busy = e is CoverLookup.CatalogBusy; null }
             if (bytes != null) try { save(key, bytes) } catch (_: Exception) {}
         } finally { fetchSlots.release() }
-        synchronized(this) { if (!f.exists()) fetchFailed[key] = System.currentTimeMillis() else fetchFailed.remove(key) }
+        synchronized(this) { if (!f.exists()) fetchFailed[key] = System.currentTimeMillis() - (RETRY_MS - retryAfterMs(busy)) else fetchFailed.remove(key) }
         return f
     }
 
@@ -418,6 +419,10 @@ class ArtCache(private val dir: File) {
     }
 
     companion object {
+    private const val RETRY_MS = 3 * 60_000L
+    /** How long a failed catalog fetch rests: the catalog's quota answer is "ask again in a moment" (owner, 5 Nov), anything else a few minutes. */
+    internal fun retryAfterMs(busy: Boolean): Long = if (busy) 30_000L else RETRY_MS
+
         const val MAX_PX = 320; const val FULL_KEEP = 30; const val SCROLLED_OFF_AFTER = 80
         /** Background and prefetch requests give up after this many failures and rest for [BACKGROUND_REST_MS]. */
         const val BACKGROUND_ATTEMPTS = 3; const val BACKGROUND_REST_MS = 30_000L

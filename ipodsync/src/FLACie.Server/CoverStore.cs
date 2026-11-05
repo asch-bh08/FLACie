@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using FLACie.Core;
 
 namespace FLACie.Server;
 
@@ -84,4 +85,59 @@ public sealed class CoverStore
         }
         return n;
     }
+}
+
+/// <summary>What the cover address answers when every source came up empty (F1).</summary>
+public enum CoverMiss { Generated, Fallback, TryAgain }
+
+/// <summary>
+/// F1: the last link of the cover chain, so a song never shows a blank: a picture made from the artist and title on the app's colours (an SVG, the same
+/// every time for the same song). Not saved: when a real cover turns up later it takes over.
+/// </summary>
+public static class GeneratedCover
+{
+    /// <summary>Kept briefly by the browser, so a real cover found later shows within the hour.</summary>
+    public const string CacheControl = "private, max-age=3600";
+
+    // the app's dark sleeve colours, one picked by the song's name
+    static readonly (string From, string To)[] Colours =
+        [("#1f2a44", "#3d5a80"), ("#2b193d", "#6b3fa0"), ("#13322b", "#2a9d8f"), ("#3a1c1c", "#c0392b"), ("#2d2a16", "#b5942a"), ("#1b263b", "#e07a5f")];
+
+    /// <summary>A cover that is gone for good gets a made one, unless the key carries a fallback picture; a lookup cut short is tried again.</summary>
+    public static CoverMiss Answer(bool transient, bool hasFallback) => transient ? CoverMiss.TryAgain : hasFallback ? CoverMiss.Fallback : CoverMiss.Generated;
+
+    /// <summary>The artist and title a cover key names (a catalog key, or a NAS folder key); empty when it names none (a Jellyfin key).</summary>
+    public static (string Artist, string Title) Names(string key)
+    {
+        if (Art.ParseLookupKey(key) is var (a, al, t)) return (a, t.Length > 0 ? t : al);
+        if (key.StartsWith("nf"))
+        {
+            try
+            {
+                var b = key[2..].Replace('-', '+').Replace('_', '/');
+                var parts = Encoding.UTF8.GetString(Convert.FromBase64String(b + new string('=', (4 - b.Length % 4) % 4))).Split('\n');
+                if (parts.Length >= 4) return (parts[1], parts[3].Length > 0 ? parts[3] : parts[2]);
+            }
+            catch (FormatException) { }
+        }
+        return ("", "");
+    }
+
+    public static string Svg(string artist, string title)
+    {
+        var (from, to) = Colours[(int)((uint)StableHash(artist + "\n" + title) % (uint)Colours.Length)];
+        var initials = string.Concat((artist.Length > 0 ? artist : title).Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => char.IsLetterOrDigit(w[0])).Take(2).Select(w => char.ToUpperInvariant(w[0])));
+        static string X(string s) => System.Security.SecurityElement.Escape(s.Length > 40 ? s[..39] + "…" : s);
+        var sb = new StringBuilder();
+        sb.Append("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 240 240\" width=\"240\" height=\"240\">");
+        sb.Append($"<defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"{from}\"/><stop offset=\"1\" stop-color=\"{to}\"/></linearGradient></defs>");
+        sb.Append("<rect width=\"240\" height=\"240\" fill=\"url(#g)\"/>");
+        sb.Append($"<text x=\"120\" y=\"130\" text-anchor=\"middle\" font-family=\"sans-serif\" font-size=\"84\" font-weight=\"700\" fill=\"#ffffff\" fill-opacity=\"0.9\">{X(initials.Length > 0 ? initials : "♪")}</text>");
+        if (title.Length > 0) sb.Append($"<text x=\"16\" y=\"196\" font-family=\"sans-serif\" font-size=\"17\" font-weight=\"600\" fill=\"#ffffff\">{X(title)}</text>");
+        if (artist.Length > 0) sb.Append($"<text x=\"16\" y=\"220\" font-family=\"sans-serif\" font-size=\"14\" fill=\"#ffffff\" fill-opacity=\"0.75\">{X(artist)}</text>");
+        sb.Append("</svg>");
+        return sb.ToString();
+    }
+
+    static int StableHash(string s) { var h = 17; foreach (var c in s) h = unchecked(h * 31 + c); return h; }
 }

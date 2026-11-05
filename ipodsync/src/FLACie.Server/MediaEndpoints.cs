@@ -238,8 +238,16 @@ public static class MediaEndpoints
             {
                 var (status, cache) = CoverAnswers.Missing(transient);
                 ctx.Response.Headers.CacheControl = cache;
-                if (!transient && fallback is not null) return Results.Redirect("/art/" + Uri.EscapeDataString(fallback) + "?v=3");
-                return status == 404 ? Results.NotFound() : Results.StatusCode(status);
+                switch (GeneratedCover.Answer(transient, fallback is not null))
+                {
+                    case CoverMiss.Fallback: return Results.Redirect("/art/" + Uri.EscapeDataString(fallback!) + "?v=3");
+                    case CoverMiss.Generated:
+                        // F1: every source failed: a cover made from the artist and title, never a blank or a 404
+                        ctx.Response.Headers.CacheControl = GeneratedCover.CacheControl;
+                        var (ga, gt) = GeneratedCover.Names(key);
+                        return Results.Text(GeneratedCover.Svg(ga, gt), "image/svg+xml");
+                    default: return Results.StatusCode(status);
+                }
             }
             // a cover a person chose (a new key every time, so it is kept for good)
             if (key.StartsWith("ov") && app.Services.GetRequiredService<CoverOverrides>().Find(key) is { } chosen)

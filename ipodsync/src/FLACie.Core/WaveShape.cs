@@ -55,6 +55,30 @@ public static class WaveShape
         return (levels, (double)total / starts.Count / rate);
     }
 
+    /// <summary>
+    /// Item 13: how loud a decoded song is (16-bit mono PCM at [rate], as ffmpeg gives any MP3, M4A, AAC, OGG, Opus or WMA file), in windows of
+    /// [window] seconds: each window's loudness in decibels, set between the song's own 2nd and 98th percentiles as the FLAC envelope is, so the vibe
+    /// and the DJ's intro read every format the same way. Null when there is under a second of sound.
+    /// </summary>
+    public static (float[] Levels, double SecondsPerLevel)? PcmLevels(ReadOnlySpan<byte> pcm, int rate, double window = 0.1)
+    {
+        var per = Math.Max(1, (int)(rate * window));
+        var samples = pcm.Length / 2;
+        if (rate <= 0 || samples < rate) return null;
+        var n = samples / per;
+        var db = new double[n];
+        for (var w = 0; w < n; w++)
+        {
+            double sum = 0;
+            for (var i = w * per; i < (w + 1) * per; i++) { var v = (short)(pcm[2 * i] | (pcm[2 * i + 1] << 8)) / 32768.0; sum += v * v; }
+            db[w] = 10 * Math.Log10(sum / per + 1e-10);
+        }
+        var sorted = db.OrderBy(v => v).ToArray();
+        double lo = sorted[(int)(n * .02)], hi = sorted[Math.Min(n - 1, (int)(n * .98))];
+        var levels = db.Select(v => hi - lo < 1e-6 ? 0.5f : (float)Math.Clamp((v - lo) / (hi - lo), 0, 1)).ToArray();
+        return (levels, (double)per / rate);
+    }
+
     /// <summary>Where each frame of a FLAC file starts and how many samples it holds, and the file's sample rate; null when it is not a FLAC file or holds fewer than two frames.</summary>
     static (List<int> Starts, List<int> Samples)? Frames(ReadOnlySpan<byte> f, out int rate)
     {

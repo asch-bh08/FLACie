@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round3: item 13 vibe pass for every format)
+- Done: VibeFillService takes FLAC, MP3, M4A, AAC, OGG/OGA, Opus, WMA, WebM, MP4 (AudioLevels.Readable); non-FLAC songs are decoded by ffmpeg (temp file, mono 8 kHz, 90 s limit) into WaveShape.PcmLevels (0.1 s windows, dB between the 2nd and 98th percentiles), then the same vibe and DJ intro.
+- Server Dockerfile installs ffmpeg in the runtime image (FLACIE_FFMPEG overrides the path). Without ffmpeg a song is simply left for later.
+- Proof: VibeAllFormatsTests (fixtures quiet-then-loud.mp3/m4a/ogg/opus/wma made from the FLAC fixture). Local: rebuild the web image (ffmpeg adds ~80 MB).
+
 ## 2026-11-05 Cloud (cloud/round3: F25.3 SoundCloud artists' own sets)
 - Done: an artist search asks flacie-ytdl /artist-sets (account named exactly like the artist, its sets; remembered 7 days, gate 1/s, 6 h rest); SoundCloudSets makes WebPlaylists (verified, names only, dups and owned albums dropped, remix/B-side sets their own lists beside a Spotify/Deezer best-of).
 - Songs are read (/playlist) only when a set is opened or played (IWebPlaylists.FillAsync; the list page fills it); then the F23 download policy applies.

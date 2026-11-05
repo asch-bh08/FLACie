@@ -51,6 +51,8 @@ public static class RetroHost
     public static Action<Exception>? DjFailed { get; set; }
     /// <summary>What the recommendation engine would play next for this person, given the paths played lately (the last is playing now); null when the host has no engine or it failed.</summary>
     public static Func<UserSession, IReadOnlyList<string>, int, IReadOnlyList<(Track Track, string Why)>?>? RecommendNext { get; set; }
+    /// <summary>The songs' vibes, for "Recommended songs" under a playlist (<see cref="PlaylistRecs"/>); null where the host has none (they are then left out).</summary>
+    public static Func<Track, Vibe?>? VibeOf { get; set; }
     /// <summary>"Talk to the DJ": the answer to the recognised words (the song playing, the last few played); null when the host has no DJ.</summary>
     public static Func<UserSession, string, string?, IReadOnlyList<string>, CancellationToken, Task<DjAskAnswer>>? DjAsk { get; set; }
     /// <summary>The path of a song fetched for a request once it can be played (artist, title), else null.</summary>

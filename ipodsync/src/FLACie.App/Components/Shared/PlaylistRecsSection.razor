@@ -1,0 +1,74 @@
+@* "Recommended songs" under one of the person's own playlists (as on the phone, player/PlaylistRecsUi.kt): about ten songs from the library that go with
+   it (FLACie.Core PlaylistRecs), each with a "+" that adds it to the end of the playlist; the row shows a tick, then leaves. Refresh shows the next ten.
+   Worked out after the songs show, never holding the page up; an empty playlist has no section, a failure hides it. *@
+@inherits UserComponent
+@if (List.Entries.Count > 0 && !failed)
+{
+    <section class="shelf pl-recs" aria-label="Recommended songs">
+        <div class="shelf-head"><div><h2>Recommended songs</h2><small>Based on the songs in this playlist</small></div></div>
+        @if (picks is null) { <Skeleton Label="Finding songs…" Count="4" /> }
+        else
+        {
+            var shown = picks.Where(t => ticked.Contains(t.Path) || !InList(t)).ToList();
+            <ul class="tracks">
+                @foreach (var t in shown)
+                {
+                    var s = t; var done = ticked.Contains(s.Path);
+                    <li class="track pl-rec">
+                        <button class="track-main" @onclick="() => Player.Play([s], 0, List.Name, null)" aria-label="Play @s.Title by @s.Artist">
+                            <Cover ArtKey="@s.ArtKey" Size="44" />
+                            <span class="track-text"><span class="track-title">@s.Title</span><span class="track-sub">@s.Artist</span></span>
+                        </button>
+                        <button class="btn ghost icon pl-rec-add" disabled="@done" aria-label="@(done ? "Added " + s.Title : "Add " + s.Title + " to this playlist")" @onclick="() => Add(s)">
+                            <Icon Name="@(done ? "check" : "plus")" Size="18" />
+                        </button>
+                    </li>
+                }
+            </ul>
+            <button class="btn pl-recs-refresh" @onclick="Refresh"><Icon Name="shuffle" Size="16" />Refresh</button>
+        }
+    </section>
+}
+@code {
+    [Parameter, EditorRequired] public FLACie.Core.Playlist List { get; set; } = default!;
+    [Inject] Toasts Toast { get; set; } = default!;
+    public const int N = 10;
+    List<Track>? picks; bool failed; int skip; string? loadedFor;
+    readonly HashSet<string> ticked = [];
+
+    bool InList(Track t) => Session.Playlists.FirstOrDefault(p => p.Id == List.Id) is { } p
+        && p.Entries.Any(e => e.Path == t.Path || Matching.MatchKey(e.Title, e.Artist) == Matching.MatchKey(t));
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (loadedFor == List.Id || List.Entries.Count == 0) return;
+        loadedFor = List.Id; skip = 0;
+        await Load();
+    }
+
+    async Task Load()
+    {
+        picks = null; failed = false; ticked.Clear();
+        try
+        {
+            var s = Session; var p = List; var at = skip;
+            picks = await Task.Run(() => FLACie.Core.PlaylistRecs.Pick(s.Library, s.Resolve(p.Entries), RetroHost.VibeOf, N, at));
+            if (picks.Count == 0) failed = true;   // nothing to suggest: no section
+        }
+        catch (Exception) { failed = true; }
+    }
+
+    async Task Refresh() { skip += N; await Load(); }
+
+    async Task Add(Track t)
+    {
+        if (Session.AddToPlaylist(List.Id, t) == UserSession.PlaylistAdd.NoPlaylist) return;
+        SaveProfile();
+        ticked.Add(t.Path);
+        Toast.Show($"Added “{t.Title}” to {List.Name}");
+        await Task.Delay(900);
+        ticked.Remove(t.Path);
+        picks?.Remove(t);
+        await InvokeAsync(StateHasChanged);
+    }
+}

@@ -1,5 +1,9 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round2: F11 real popularity)
+- Done: WebCatalog.SongRankAsync (Deezer track rank for the same title and lead artist); DjPickPopularity keeps ranks in data/dj/popularity.json on frank.
+- The DJ looks up the versions of a title before ranking (own plays first, then Deezer rank, then title); a lookup Deezer could not answer is not kept.
+
 ## 2026-11-05 Local
 - Merged cloud/dj-server and cloud/covers-search into ui/living-sleeve; full suite 1743 green on real .NET 9.
 - New split (TEAM.md Round 2): Cloud does all server and web work on cloud/round2; Local does Android, Android Auto, frank deploys, devices.

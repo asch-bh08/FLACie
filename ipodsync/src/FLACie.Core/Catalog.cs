@@ -158,6 +158,19 @@ public sealed class WebCatalog(HttpClient http)
 
     // ---- Deezer ----
 
+    /// <summary>F11: how well known a song is: Deezer's track "rank" (higher is better) for the hit with this title and lead artist; 0 when Deezer has it
+    /// unranked or has nothing, null when Deezer could not be asked (then nothing is to be remembered).</summary>
+    public async Task<long?> SongRankAsync(string artist, string title, CancellationToken ct = default)
+    {
+        var lead = Matching.PrimaryArtist(artist); var name = Matching.NormTitle(BaseTitle(title));
+        if (lead.Length == 0 || name.Length == 0) return 0;
+        if (await Json($"https://api.deezer.com/search?q={Enc($"artist:\"{artist}\" track:\"{BaseTitle(title)}\"")}&limit=25", ct) is not { } j) return null;
+        if (j["data"] is not JsonArray arr) return j["error"] is null ? 0 : null;
+        return arr.OfType<JsonObject>()
+            .Where(o => Matching.NormTitle(BaseTitle(S(o, "title"))) == name && Matching.PrimaryArtist(S(o["artist"], "name")) == lead)
+            .Select(o => L(o, "rank")).DefaultIfEmpty(0).Max();
+    }
+
     async Task<List<CatalogSong>?> DeezerSongs(string q, CancellationToken ct)
     {
         if (await Json($"https://api.deezer.com/search?q={Enc(q)}&limit=50", ct) is not { } j || j["data"] is not JsonArray arr) return null;

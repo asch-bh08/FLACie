@@ -6,8 +6,13 @@ using FLACie.Server.Alexa;
 namespace FLACie.Server.Dj;
 
 /// <summary>One signed-in person's FLACie for the DJ's request reader: their library, playlists, favourites, plays and downloads (the same download path as Alexa's).</summary>
-public sealed class SessionAskUser(UserSession s, SessionAlexaUser alexa, Func<RecommendApi.Inputs?> inputs, Func<Track, Vibe?> vibe, MusicBrainzClient? mb = null, ListenLogStore? listens = null) : IDjAskUser
+public sealed class SessionAskUser(UserSession s, SessionAlexaUser alexa, Func<RecommendApi.Inputs?> inputs, Func<Track, Vibe?> vibe, MusicBrainzClient? mb = null, ListenLogStore? listens = null,
+    DjPickPopularity? popularity = null) : IDjAskUser
 {
+    // F11: Deezer's rank, kept on frank (DjPickPopularity); capped to an int for the ranking
+    public int Popularity(Track t) => (int)Math.Min(int.MaxValue, popularity?.Of(t) ?? 0);
+    public Task LookUpPopularityAsync(IReadOnlyList<Track> songs, CancellationToken ct) => popularity?.LookUpAsync(songs, ct) ?? Task.CompletedTask;
+
     public UserSession Session => s;
     public string Account => s.Id;
     public bool Ready => alexa.Ready;
@@ -75,7 +80,7 @@ public sealed class SessionAskUser(UserSession s, SessionAlexaUser alexa, Func<R
 /// once a song fetched for a request can be played. Only the recognised words come here, never sound; they are not kept (a short debug log line at most).
 /// </summary>
 public sealed class DjAskService(DjAskEngine engine, DjService dj, DjClips clips, JellyfinClient jf, DownloadManager downloads, WebCatalog catalog,
-    ListenLogStore log, VibeIndex vibes, RelatedCache related, ILogger<DjAskService> logger, MusicBrainzClient? mb = null)
+    ListenLogStore log, VibeIndex vibes, RelatedCache related, ILogger<DjAskService> logger, MusicBrainzClient? mb = null, DjPickPopularity? popularity = null)
 {
     readonly ConditionalWeakTable<UserSession, SessionAskUser> users = new();
 
@@ -85,7 +90,7 @@ public sealed class DjAskService(DjAskEngine engine, DjService dj, DjClips clips
         {
             if (users.TryGetValue(s, out var have)) return have;
             var alexa = new SessionAlexaUser(s, jf, downloads, catalog, (_, _, _, _) => { });
-            var u = new SessionAskUser(s, alexa, () => RecommendApi.InputsOf(s, log, vibes, related), vibes.Of, mb, log);
+            var u = new SessionAskUser(s, alexa, () => RecommendApi.InputsOf(s, log, vibes, related), vibes.Of, mb, log, popularity);
             users.Add(s, u);
             return u;
         }
@@ -163,6 +168,7 @@ public static class DjAskEndpoints
         services.AddSingleton<IDjAskModel, CloudflareAskModel>();
         // one context per person, shared by the ask prompt and the lines between songs
         services.AddSingleton(sp => new DjAskEngine(sp.GetRequiredService<IDjAskModel>(), sp.GetRequiredService<DjContexts>()) { Limits = sp.GetService<RateLimits>() });
+        services.AddSingleton(sp => new DjPickPopularity(sp.GetRequiredService<WebCatalog>(), Path.Combine(sp.GetRequiredService<DataPaths>().Root, "dj", "popularity.json")));
         services.AddSingleton<DjAskService>();
     }
 

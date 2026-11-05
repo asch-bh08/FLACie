@@ -1,6 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
 ## 2026-11-05 Local
+- Merged phone rounds: F9 runner, F12 mic reopen, F14 mic pre-warm+beep, F15 switch, F17 captions by clip position, F13 toggle, F20 car, F4.1, F5. Android build+tests green.
+- Next Local: F2/F3 phone covers, F17.2 voice early, F6.3 phone search after Cloud F6.2.
+
+## 2026-11-05 Local
 - Merged cloud/dj-server and cloud/covers-search into ui/living-sleeve; full suite 1743 green on real .NET 9.
 - New split (TEAM.md Round 2): Cloud does all server and web work on cloud/round2; Local does Android, Android Auto, frank deploys, devices.
 

@@ -124,6 +124,8 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
             }
             // nothing said (no match, silence) ends the conversation quietly; anything else says so
             override fun onError(error: Int) {
+                // the on-device recogniser failed at once: the same turn again with the online one
+                if (!MicSpeech.onDeviceBroken && MicSpeech.retryOnline(error)) { MicSpeech.useOnline(ctx); listen(waitMs); return }
                 stop(); state = MicState.IDLE; end(DjTurn.END)
                 if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) app.ui.say("Sorry, I didn't catch that.")
             }
@@ -218,10 +220,25 @@ object MicSpeech {
     private var warm: SpeechRecognizer? = null
     private var armed = 0
 
+    /** The on-device recogniser failed at once this session: the online one is used from then on. */
+    @Volatile var onDeviceBroken = false
+
     private fun build(ctx: Context): SpeechRecognizer? = try {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && SpeechRecognizer.isOnDeviceRecognitionAvailable(ctx)) SpeechRecognizer.createOnDeviceSpeechRecognizer(ctx)
+        if (!onDeviceBroken && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && SpeechRecognizer.isOnDeviceRecognitionAvailable(ctx)) SpeechRecognizer.createOnDeviceSpeechRecognizer(ctx)
         else SpeechRecognizer.createSpeechRecognizer(ctx)
     } catch (_: Exception) { null }
+
+    /** Errors after which the turn is tried again with the online recogniser instead of giving up: the on-device one has no language pack, is busy or
+     *  lost its service (11 server disconnected, 12/13 language not supported/unavailable, 14 can't check support). Not: nothing said, no
+     *  microphone permission, no audio, no network (the online one needs it too). */
+    fun retryOnline(error: Int): Boolean = error in setOf(SpeechRecognizer.ERROR_SERVER, SpeechRecognizer.ERROR_CLIENT, SpeechRecognizer.ERROR_RECOGNIZER_BUSY, 11, 12, 13, 14)
+
+    /** The online recogniser from now on; the warm one (on-device) is let go. */
+    fun useOnline(ctx: Context) {
+        onDeviceBroken = true
+        warm?.let { try { it.destroy() } catch (_: Exception) { } }; warm = null
+        if (armed > 0) warm = build(ctx.applicationContext)
+    }
 
     /** The DJ screen or the car session is up: keep a recogniser made. Each [arm] is matched by a [disarm]. */
     fun arm(ctx: Context) { armed++; if (warm == null) warm = build(ctx.applicationContext) }

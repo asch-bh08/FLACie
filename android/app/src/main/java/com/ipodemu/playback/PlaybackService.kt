@@ -63,7 +63,12 @@ class PlaybackService : MediaLibraryService() {
                     rec = r
                     r.setRecognitionListener(object : android.speech.RecognitionListener {
                         override fun onResults(results: Bundle?) { drop(); onHeard(results?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.trim()) }
-                        override fun onError(error: Int) { android.util.Log.w("FLACie", "car mic: recogniser error $error"); drop(); onHeard(null) }
+                        override fun onError(error: Int) {
+                            android.util.Log.w("FLACie", "car mic: recogniser error $error")
+                            // the on-device recogniser failed at once: the same turn again with the online one, not "sorry"
+                            if (!com.ipodemu.player.MicSpeech.onDeviceBroken && com.ipodemu.player.MicSpeech.retryOnline(error)) { com.ipodemu.player.MicSpeech.useOnline(this@PlaybackService); drop(); listen(waitMs, onHeard); return }
+                            drop(); onHeard(null)
+                        }
                         override fun onReadyForSpeech(params: Bundle?) { timing.listening(); com.ipodemu.player.MicSpeech.beep() }
                         override fun onBeginningOfSpeech() { giveUp?.let { main.removeCallbacks(it) }; giveUp = null }
                         override fun onRmsChanged(rmsdB: Float) {}

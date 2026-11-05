@@ -9,7 +9,7 @@ using FLACie.Server.Alexa;
 namespace FLACie.Server.Dj;
 
 /// <summary>What a request to the DJ is about. The names (snake case) are also what the text model may answer with.</summary>
-public enum AskIntent { Play, Playlist, Favourites, Loved, MostPlayed, Unheard, ShuffleLibrary, Mood, Next, Pause, Resume, VolumeUp, VolumeDown, WhatsThis, WhoSings, MoreLike, LessLike, ThumbsDown, DjOn, DjOff, Situation, PlayFrom, AddToPlaylist }
+public enum AskIntent { Play, Playlist, Favourites, Loved, MostPlayed, Unheard, ShuffleLibrary, Mood, Next, Pause, Resume, VolumeUp, VolumeDown, WhatsThis, WhoSings, MoreLike, LessLike, ThumbsDown, DjOn, DjOff, Situation, PlayFrom, AddToPlaylist, OtherOne }
 
 /// <summary>A request understood: the intent, and what it is about (the song, artist or album for Play, the playlist's name, the mood's words, the
 /// situation: car, night, morning, workout, chill or none). [Key]: a learned request's phrase; [Vibe]: "high" or "low" when the words say.</summary>
@@ -82,6 +82,8 @@ public static partial class DjAskRules
     [GeneratedRegex(@"^(?:play|put on) (.+?) (?:from|off|out of|in) (?:my (.+?)(?: playlist)?|the (.+?) playlist)(?: (?:and )?(?:then )?(?:the rest|the rest of it|the rest of (?:it|them|the playlist)|keep going|carry on))?$")] private static partial Regex PlayFromRx();
     // "play rhythm of the night (and) add it to my pop playlist", "add rhythm of the night to pop and play it next", "add this to my pop playlist"
     [GeneratedRegex(@"^(play|put on) (.+?) (?:and )?(?:then )?add (?:it|that|this) to (?:my |the )?(.+?)(?: playlist)?$")] private static partial Regex PlayAddRx();
+    // F11: "not that one", "the other one", "the corona one"
+    [GeneratedRegex(@"^(?:no )?(?:not that one|not that|wrong one|the other one|the other version|other one|(?:play )?the (.+?) (?:one|version))$")] private static partial Regex OtherRx();
     [GeneratedRegex(@"^add (.+?) to (?:my |the )?(.+?)(?: playlist)?( (?:and |then )+(?:play it|put it on)(?: next| after this)?)?$")] private static partial Regex AddRx();
     [GeneratedRegex(@"^(?:play |put on |give me |i want |i need |id like |i would like )?(?:me |us )?(?:some|a bit of)\s")] private static partial Regex SomeOf();
     static readonly HashSet<string> VagueRest = ["new", "different", "else", "good", "other", "more", "random", "nice", "decent", "fresh", "old", "classic", "classics", "of it", "of that", "of this", "of them"];
@@ -92,7 +94,7 @@ public static partial class DjAskRules
 
     /// <summary>The controls that are never worth a wait for the model: they mean one thing whoever says them.</summary>
     static readonly HashSet<AskIntent> InstantIntents = [AskIntent.DjOn, AskIntent.DjOff, AskIntent.Next, AskIntent.Pause, AskIntent.Resume, AskIntent.VolumeUp,
-        AskIntent.VolumeDown, AskIntent.WhatsThis, AskIntent.WhoSings, AskIntent.MoreLike, AskIntent.LessLike, AskIntent.ThumbsDown, AskIntent.ShuffleLibrary];
+        AskIntent.VolumeDown, AskIntent.WhatsThis, AskIntent.WhoSings, AskIntent.MoreLike, AskIntent.LessLike, AskIntent.ThumbsDown, AskIntent.ShuffleLibrary, AskIntent.OtherOne];
 
     /// <summary>A control said plainly ("next", "turn it up", "what's this?"), done at once; null for anything the model should understand first.</summary>
     public static AskParse? Instant(string text) => Parse(text) is { } p && InstantIntents.Contains(p.Intent) ? p : null;
@@ -109,6 +111,7 @@ public static partial class DjAskRules
     {
         var s = Normalise(Uncensor(text));
         if (s.Length == 0 || s.Length > 200) return null;
+        if (OtherRx().Match(s) is { Success: true } oo) return new(AskIntent.OtherOne, oo.Groups[1].Success && oo.Groups[1].Value != "other" ? oo.Groups[1].Value.Trim() : null);
         if (PlayFromRx().Match(s) is { Success: true } pf)
             return new(AskIntent.PlayFrom, pf.Groups[1].Value.Trim(), Playlist: (pf.Groups[2].Success ? pf.Groups[2].Value : pf.Groups[3].Value).Trim());
         if (PlayAddRx().Match(s) is { Success: true } pa) return new(AskIntent.AddToPlaylist, pa.Groups[2].Value.Trim(), Playlist: pa.Groups[3].Value.Trim(), AndPlay: true);
@@ -318,6 +321,8 @@ public interface IDjAskUser
     /// <summary>The account's learned requests, oldest first.</summary>
     IReadOnlyList<PhraseAsk> Phrases => [];
     void NotePhrase(PhraseAsk p) { }
+    /// <summary>How well known the song is (higher is better; 0 when unknown), for picking between versions (F11).</summary>
+    int Popularity(Track t) => 0;
     /// <summary>More that FLACie holds for certain about a song (how often it was played, what the MusicBrainz cache says), as "key: value" lines; "" when nothing.</summary>
     string About(Track t) => "";
 }
@@ -351,6 +356,8 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
     /// <summary>The server's rate limits ("dj-ask": text-model asks a minute per account). Null: no limit (tests, the Windows app's own copy).</summary>
     public RateLimits? Limits { get; set; }
     readonly Func<DateTime> now = clock ?? (() => DateTime.UtcNow);
+    DjPick? pick;
+    DjPick Pick => pick ??= new(now);
 
     sealed class Index(IReadOnlyList<Track> songs, IReadOnlyList<Playlist> lists) { public readonly IReadOnlyList<Track> Songs = songs; public readonly IReadOnlyList<Playlist> Lists = lists; public readonly VoiceMatcher M = new(songs, lists); }
     readonly ConditionalWeakTable<IDjAskUser, Index> indexes = new();
@@ -587,6 +594,11 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
             case AskIntent.Playlist: return Playlist(u, p.What ?? "");
             case AskIntent.PlayFrom: return PlayFrom(u, p.What ?? "", p.Playlist ?? "", text);
             case AskIntent.AddToPlaylist: return AddTo(u, p, cur);
+            case AskIntent.OtherOne:
+            {
+                if (Pick.Other(u.Account, p.What) is { } o) return new(DjAskDo.Play, $"{T(o.Title)}, by {o.Artist}.", [o.Path], T(o.Title));
+                return p.What is { Length: > 0 } w ? await PlayAsync(u, w, cur, recent, ct) : DjAskAnswer.Said("That's the only one I've got.");
+            }
             default: return await PlayAsync(u, p.What ?? "", cur, recent, ct);
         }
     }
@@ -730,9 +742,13 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
             var best = m.Ranked[0];
             switch (best.Item)
             {
-                case Track t when Playable(t):
-                    var others = u.Songs.Where(x => x.Path != t.Path && Playable(x) && Matching.PrimaryArtist(x.Artist) == Matching.PrimaryArtist(t.Artist)).OrderBy(_ => Random.Shared.Next()).Take(25).Select(x => x.Path);
-                    return new(DjAskDo.Play, $"{T(t.Title)}, by {t.Artist}.", [t.Path, .. others], T(t.Title));
+                case Track t0 when Playable(t0):
+                    // F11: several versions match: own plays, popularity, then the title said; the rest kept for "not that one"
+                    var ranked = query.Artist is { Length: > 0 } ? [t0] : DjPick.Rank(u, DjPick.SameTitle(u, t0).Where(Playable).Prepend(t0), query.Title ?? what);
+                    var song = ranked[0];
+                    Pick.Keep(u.Account, ranked.Skip(1).ToList());
+                    var others = u.Songs.Where(x => x.Path != song.Path && Playable(x) && Matching.PrimaryArtist(x.Artist) == Matching.PrimaryArtist(song.Artist)).OrderBy(_ => Random.Shared.Next()).Take(25).Select(x => x.Path);
+                    return new(DjAskDo.Play, $"{T(song.Title)}, by {song.Artist}.", [song.Path, .. others], T(song.Title));
                 case Track t:
                     return DjAskAnswer.Said($"{T(t.Title)} is on its way into your library. Give it a minute.");
                 case FLACie.Core.Group g when best.Kind == MatchKind.Artist:

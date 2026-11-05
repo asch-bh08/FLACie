@@ -64,7 +64,7 @@ public class MadePlaylistsTests
         Assert.All(pop.Paths.Select(p => lib.ByPath(p)!).GroupBy(t => t.Artist), g => Assert.True(g.Count() <= 3));
         var big = new Library(Many(120, 2012, "Pop", "y"));
         Assert.Equal(50, MadePlaylists.Build(big, NoTaste(big)).Single(m => m.Id == "made:decade:2010").Paths.Count);
-        Assert.Equal(25, made.Single(m => m.Id == "made:artist:solo").Paths.Count);
+        Assert.Equal(20, made.Single(m => m.Id == "made:artist:solo").Paths.Count);   // F23.3: half their 40 songs
     }
 
     [Fact] public void OneCopyOfEachSong()
@@ -220,5 +220,22 @@ public class MadePlaylistsTests
         s.AddDownloaded(Many(15, 1985, "Pop", "p"));
         Assert.Contains(MadePlaylists.Cached(s, Log, Now.AddMinutes(5)), m => m.Id == "made:decade:1980");
         Assert.NotSame(a, MadePlaylists.Cached(s, Log, Now.AddMinutes(30)));
+    }
+
+    [Fact] public void BestOfKeepsOneVersionPerSongDropsInstrumentalsAndIsSizedToTheArtist()
+    {
+        // F23.3: 24 songs on albums, plus a radio edit, an instrumental and a single of songs already there
+        var album = Enumerable.Range(0, 24).Select(i => T($"Song {i}", "The Prodigy", 1997, "Electronic", album: "The Fat of the Land")).ToList();
+        var extra = new[] { T("Song 0 (Radio Edit)", "The Prodigy", 1997, "Electronic", album: "Song 0"), T("Song 1 (Instrumental)", "The Prodigy", 1997, "Electronic", album: "Song 1"),
+            T("Song 2", "The Prodigy", 1996, "Electronic", album: "Song 2 - Single") };
+        var lib = new Library([.. album, .. extra]);
+        var best = MadePlaylists.Build(lib, NoTaste(lib)).Single(m => m.Id == "made:artist:prodigy");
+        var titles = best.Paths.Select(p => lib.ByPath(p)!).ToList();
+        Assert.Equal(12, titles.Count);                                                  // half of 24 distinct songs
+        Assert.DoesNotContain(titles, t => t.Title.Contains("Instrumental"));
+        Assert.Equal(titles.Count, titles.Select(t => t.Title.Split(" (")[0]).Distinct().Count());
+        Assert.All(titles, t => Assert.Equal("The Fat of the Land", t.Album));          // the album versions
+        var few = new Library(Enumerable.Range(0, 9).Select(i => T($"Few {i}", "Small Band", 2001, "Rock", album: "One")).ToList());
+        Assert.Equal(9, MadePlaylists.Build(few, NoTaste(few)).Single(m => m.Id.StartsWith("made:artist:")).Paths.Count);   // at least 10, as many as there are
     }
 }

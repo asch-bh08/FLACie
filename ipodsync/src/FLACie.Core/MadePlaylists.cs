@@ -51,7 +51,7 @@ public static class MadePlaylists
         made.AddRange(genres);
 
         foreach (var g in ordered.Where(s => s.Lead.Length > 0).GroupBy(s => s.Lead).Where(g => g.Count() >= MinArtist).OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal))
-            made.Add(Make($"made:artist:{g.Key}", "Best of " + ArtistName(g.Select(s => s.T.Artist)), g, TakeArtist, int.MaxValue));
+            made.Add(BestOf(g.Key, g.ToList(), lib));
 
         // an artist's radio: their best songs, each followed by two from other artists in their genres
         foreach (var g in ordered.Where(s => s.Lead.Length > 0).GroupBy(s => s.Lead).Where(g => g.Count() >= MinArtist).OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal))
@@ -165,6 +165,26 @@ public static class MadePlaylists
     }
 
     static string Squash(string s) => string.Concat(Matching.SearchWords(s).Where(w => !Filler.Contains(w)));
+
+    static readonly System.Text.RegularExpressions.Regex NotTheSong = new(@"\b(instrumental|karaoke|a ?cappella|acapella|backing track)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    static readonly System.Text.RegularExpressions.Regex Version = new(@"\s*(?:[(\[][^)\]]*\b(?:edit|version|mix|remaster(?:ed)?|mono|stereo|live|demo)\b[^)\]]*[)\]]|\s-\s.*\b(?:edit|version|remaster(?:ed)?)\b.*)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// F23.3: the artist's Best of: one version of each song (the album version before a radio edit, a remaster or a single; never an instrumental),
+    /// hits first (the order the songs come in), sized to the artist: half their distinct songs, at least 10 and at most 50.
+    /// </summary>
+    static MadePlaylist BestOf(string lead, List<(Track T, string Lead)> theirs, Library lib)
+    {
+        static string Song(Track t) => Matching.NormTitle(Version.Replace(WebCatalog.BaseTitle(t.Title), ""));
+        int AlbumSize(Track t) => lib.Albums.FirstOrDefault(a => a.Tracks.Contains(t))?.Tracks.Count ?? 0;
+        var bySong = theirs.Where(s => !NotTheSong.IsMatch(s.T.Title) && !NotTheSong.IsMatch(s.T.Album)).GroupBy(s => Song(s.T)).ToList();
+        // the song's place is where its best scored version came; the version kept is the plain album one
+        var picked = bySong.Select(g => (First: theirs.IndexOf(g.First()), Pick: g.OrderBy(s => Version.IsMatch(s.T.Title) ? 1 : 0).ThenByDescending(s => AlbumSize(s.T)).First()))
+            .OrderBy(x => x.First).Select(x => x.Pick.T).ToList();
+        var size = Math.Clamp(picked.Count / 2, 10, 50);
+        var list = picked.Take(size).ToList();
+        return new MadePlaylist($"made:artist:{lead}", "Best of " + ArtistName(theirs.Select(s => s.T.Artist)), $"{list.Count} songs · made for you", list.Select(t => t.ArtKey).FirstOrDefault(), list.Select(t => t.Path).ToList());
+    }
 
     static MadePlaylist Make(string id, string name, IEnumerable<(Track T, string Lead)> songs, int take, int perArtist)
     {

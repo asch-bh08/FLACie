@@ -26,7 +26,8 @@ public sealed record DownloadServices(string SlskdUrl, string SlskdKey, string S
     {
         var s = profile["services"] as JsonObject;
         string V(string svc, string k) => s?[svc]?[k] is JsonValue v && v.TryGetValue<string>(out var x) ? x : "";
-        return new(V("slskd", "url"), V("slskd", "key"), V("slskd", "path") is { Length: > 0 } p ? p : "downloads", V("filemover", "url"), V("filemover", "key"), V("lidarr", "url"), V("lidarr", "key"), V("nas", "folder"), OpenSourceSettings.From(s, Environment.GetEnvironmentVariable("FLACIE_JAMENDO_CLIENT_ID"), OpenSourceSettings.HostSwitch(Environment.GetEnvironmentVariable("FLACIE_YOUTUBE"))));
+        return new(V("slskd", "url"), V("slskd", "key"), V("slskd", "path") is { Length: > 0 } p ? p : "downloads", V("filemover", "url"), V("filemover", "key"), V("lidarr", "url"), V("lidarr", "key"), V("nas", "folder"), OpenSourceSettings.From(s, Environment.GetEnvironmentVariable("FLACIE_JAMENDO_CLIENT_ID"), OpenSourceSettings.HostSwitch(Environment.GetEnvironmentVariable("FLACIE_YOUTUBE")))
+            with { SoundCloudByHost = OpenSourceSettings.HostSwitch(Environment.GetEnvironmentVariable("FLACIE_SOUNDCLOUD")) });
     }
 
     /// <summary>Writes these settings into the profile's <c>services</c>, the same fields the phone reads.</summary>
@@ -136,7 +137,11 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
     IEnumerable<RaceEntrant> OpenEntrants(Task<bool> canRace, OpenSources.Finders? finders, string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct)
     {
         if (cfg.OpenCfg.Active.Contains(OpenSourceSettings.YtdlId))
+        {
             yield return new RaceEntrant(OpenSourceSettings.YtdlId, false, async (_, race) => await canRace.WaitAsync(race) ? await YtdlAsync(artist, title, album, artUrl, durationMs, on, race, ct) : null);
+            // F7: SoundCloud through the same yt-dlp service (scsearch, the producer's original file when offered); the quickest copy plays, lossy ones go on the upgrade list
+            if (cfg.OpenCfg.SoundCloudByHost) yield return new RaceEntrant(SoundCloud.Id, false, async (_, race) => await canRace.WaitAsync(race) ? await YtdlAsync(artist, title, album, artUrl, durationMs, on, race, ct, SoundCloud.Id) : null);
+        }
         if (finders is { Tasks.Count: > 0 })
             yield return new RaceEntrant("open", false, async (e, race) =>
             {
@@ -216,23 +221,24 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
 
     /// <summary>YouTube's copy, filed and playable, or null. [before] stops it while it is still waiting for its turn (the race was settled elsewhere);
     /// once the YouTube service is asked, only [ct] stops it, since the service files the song whatever happens to this request.</summary>
-    async Task<Track?> YtdlAsync(string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken before, CancellationToken ct)
+    async Task<Track?> YtdlAsync(string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken before, CancellationToken ct, string source = "youtube")
     {
-        string why = "YouTube had no matching upload";
+        var sc = source == SoundCloud.Id; var name = sc ? "SoundCloud" : "YouTube"; var tag = sc ? SoundCloud.Id : "ytdl";
+        string why = name + " had no matching upload";
         try
         {
-            on(new(DownloadStage.Searching, "Waiting for YouTube's turn...", "ytdl"));
+            on(new(DownloadStage.Searching, $"Waiting for {name}'s turn...", tag));
             await YtdlTurn.WaitAsync(before);
             try
             {
                 if (before.IsCancellationRequested) return null;
-                on(new(DownloadStage.Searching, "Looking on YouTube...", "ytdl"));
-                var noExt = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}";
+                on(new(DownloadStage.Searching, $"Looking on {name}...", tag));
+                var noExt = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}" + (sc ? " (SoundCloud)" : "");   // its own file: both may be filing at once
                 for (var attempt = 0; attempt < 2; attempt++)
                 {
                     using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct); limit.CancelAfter(TimeSpan.FromSeconds(170));
                     using var req = new HttpRequestMessage(HttpMethod.Post, cfg.FileMoverUrl.TrimEnd('/') + "/ytdl")
-                    { Content = new StringContent(new JsonObject { ["artist"] = artist, ["title"] = WebCatalog.BaseTitle(title), ["durationSec"] = (int)(durationMs / 1000), ["to"] = noExt }.ToJsonString(), Encoding.UTF8, "application/json") };
+                    { Content = new StringContent(new JsonObject { ["artist"] = artist, ["title"] = WebCatalog.BaseTitle(title), ["durationSec"] = (int)(durationMs / 1000), ["to"] = noExt, ["source"] = source }.ToJsonString(), Encoding.UTF8, "application/json") };
                     req.Headers.TryAddWithoutValidation("X-Api-Key", cfg.FileMoverKey);
                     try
                     {
@@ -240,18 +246,18 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
                         var j = JsonNode.Parse(await res.Content.ReadAsStringAsync(limit.Token));
                         if (res.IsSuccessStatusCode && j?["ok"]?.GetValue<bool>() == true && j["ext"]?.GetValue<string>() is { Length: > 0 } ext)
                         {
-                            on(new(DownloadStage.Importing, "Filing into the library...", "ytdl"));
+                            on(new(DownloadStage.Importing, "Filing into the library...", tag));
                             var secs = j["durationSec"] is JsonValue d && d.TryGetValue<int>(out var n) ? n : 0;
                             return OpenTrack($"{noExt}.{ext}", title, artist, album, artUrl, durationMs > 0 ? durationMs : secs * 1000L);
                         }
                         // 404 = the search really found nothing usable; anything else is the YouTube service failing, worth one more try
                         var said = j?["error"]?.GetValue<string>() ?? "";
-                        if ((int)res.StatusCode == 404) { why = "YouTube had no matching upload"; break; }
-                        why = "YouTube failed: " + (said.Length > 0 ? said : "HTTP " + (int)res.StatusCode); serviceDown = null;
+                        if ((int)res.StatusCode == 404) { why = name + " had no matching upload"; break; }
+                        why = name + " failed: " + (said.Length > 0 ? said : "HTTP " + (int)res.StatusCode); serviceDown = null;
                     }
-                    catch (OperationCanceledException) when (!ct.IsCancellationRequested) { why = "YouTube took too long"; serviceDown = null; }
+                    catch (OperationCanceledException) when (!ct.IsCancellationRequested) { why = name + " took too long"; serviceDown = null; }
                     catch (OperationCanceledException) { throw; }
-                    catch (Exception e) { why = "YouTube service unreachable: " + e.Message; serviceDown = "YouTube was never asked: its service could not be reached"; }
+                    catch (Exception e) { why = name + " service unreachable: " + e.Message; serviceDown = name + " was never asked: its service could not be reached"; }
                     await Task.Delay(3_000, ct);
                 }
             }
@@ -259,7 +265,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception) { }
-        on(new(DownloadStage.Searching, why, "ytdl", null, true));
+        on(new(DownloadStage.Searching, why, tag, null, true));
         return null;
     }
 

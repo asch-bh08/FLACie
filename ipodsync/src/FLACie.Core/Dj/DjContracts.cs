@@ -62,6 +62,8 @@ public sealed class DjSettings
     public Dictionary<string, bool> Songs { get; set; } = new();
     /// <summary>Keep talking when the listener skips: a skip no longer silences the next two songs (off: the DJ keeps quiet while skipping goes on).</summary>
     public bool TalkAfterSkips { get; set; } = true;
+    /// <summary>F15: open a playlist or queue with "Shuffling Pop, starting with LoveGame" every time (off: never).</summary>
+    public bool FirstSong { get; set; } = true;
     /// <summary>Per-playlist switch: true = DJ on for that playlist, false = off; no entry = follow the rest. Key: the Jellyfin playlist id when it has one, else the app's own id.</summary>
     public Dictionary<string, bool> Playlists { get; set; } = new();
 

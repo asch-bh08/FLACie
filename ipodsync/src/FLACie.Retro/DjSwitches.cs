@@ -11,7 +11,7 @@ public static class DjSwitches
     /// <summary>A copy to change and then save (the service's own object is never changed in place).</summary>
     public static DjSettings Copy(DjSettings s) => new()
     {
-        Enabled = s.Enabled, Chatty = s.Chatty, Phone = s.Phone, Auto = s.Auto, Web = s.Web, Windows = s.Windows, Backup = s.Backup, TalkAfterSkips = s.TalkAfterSkips, Style = s.Style, Playlists = new(s.Playlists),
+        Enabled = s.Enabled, Chatty = s.Chatty, Phone = s.Phone, Auto = s.Auto, Web = s.Web, Windows = s.Windows, Backup = s.Backup, TalkAfterSkips = s.TalkAfterSkips, FirstSong = s.FirstSong, Style = s.Style, Playlists = new(s.Playlists),
         DeviceVoice = s.DeviceVoice, Volume = s.Volume, Duck = s.Duck, Songs = new(s.Songs ?? new()), LevelsVersion = s.LevelsVersion, Captions = s.Captions, Cue = s.Cue, Before = s.Before,
     };
 

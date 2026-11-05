@@ -1,4 +1,5 @@
 using FLACie.Core;
+using FLACie.Server.Dj;
 using Xunit;
 
 namespace FLACie.Tests;
@@ -77,5 +78,69 @@ public class DjConversationTests
     {
         Assert.True(DjConversation.ResumeAtEnd(true, DjTurn.End));
         Assert.False(DjConversation.ResumeAtEnd(false, DjTurn.End));
+    }
+
+    // ---- F12: the pending question (confirm a removal, offer a rename) ----
+
+    static DjAskUnderstandTests.User PopLibrary()
+    {
+        var u = new DjAskUnderstandTests.User();
+        u.Library.AddRange([DjAskUnderstandTests.T("Toxic", "Britney Spears"), DjAskUnderstandTests.T("Firework", "Katy Perry"), DjAskUnderstandTests.T("Roads", "Portishead")]);
+        u.Lists.Add(new("pl-pop", "Pop", 1, null, [new(u.Library[0].Path, "Toxic", "Britney Spears"), new(u.Library[1].Path, "Firework", "Katy Perry")]));
+        return u;
+    }
+
+    [Fact]
+    public async Task Remove_asks_first_and_removes_only_after_yes()
+    {
+        var u = PopLibrary(); var e = new DjAskEngine();
+        var q = await e.AnswerAsync(u, "remove this from the playlist", "/p/Britney Spears/Toxic", []);
+        Assert.DoesNotContain(q.AllSteps, s => s.Do == DjAskDo.RemoveFromPlaylist);
+        Assert.Contains(q.AllSteps, s => s.Do == DjAskDo.Ask);
+        Assert.Equal(DjTurn.ListenAgain, DjConversation.After(q.Do, true, 1, q.Intent));
+        var yes = await e.AnswerAsync(u, "yes", "/p/Britney Spears/Toxic", []);
+        var rm = Assert.Single(yes.AllSteps);
+        Assert.Equal(DjAskDo.RemoveFromPlaylist, rm.Do);
+        Assert.Equal("Pop", rm.Playlist);
+        Assert.Equal(["/p/Britney Spears/Toxic"], rm.Paths);
+    }
+
+    [Fact]
+    public async Task Remove_then_no_leaves_it()
+    {
+        var u = PopLibrary(); var e = new DjAskEngine();
+        await e.AnswerAsync(u, "remove this from my pop playlist", "/p/Britney Spears/Toxic", []);
+        var no = await e.AnswerAsync(u, "no", "/p/Britney Spears/Toxic", []);
+        Assert.Empty(no.AllSteps);
+        var later = await e.AnswerAsync(u, "yes", "/p/Britney Spears/Toxic", []);
+        Assert.DoesNotContain(later.AllSteps, s => s.Do == DjAskDo.RemoveFromPlaylist);
+    }
+
+    [Fact]
+    public async Task The_question_is_forgotten_after_a_minute()
+    {
+        var u = PopLibrary(); var t = new DateTime(2026, 11, 5, 12, 0, 0, DateTimeKind.Utc);
+        var e = new DjAskEngine(clock: () => t);
+        await e.AnswerAsync(u, "remove this from the playlist", "/p/Britney Spears/Toxic", []);
+        t += TimeSpan.FromSeconds(61);
+        var yes = await e.AnswerAsync(u, "yes", "/p/Britney Spears/Toxic", []);
+        Assert.DoesNotContain(yes.AllSteps, s => s.Do == DjAskDo.RemoveFromPlaylist);
+    }
+
+    [Fact]
+    public async Task Make_a_playlist_fills_and_names_it_then_offers_a_rename()
+    {
+        var u = PopLibrary(); var e = new DjAskEngine();
+        var a = await e.AnswerAsync(u, "make a backroads playlist", null, []);
+        var create = a.AllSteps[0];
+        Assert.Equal(DjAskDo.CreatePlaylist, create.Do);
+        Assert.Equal("Backroads", create.Playlist);
+        Assert.NotEmpty(create.Paths!);
+        Assert.Equal(DjAskDo.Ask, a.AllSteps[^1].Do);
+        var r = await e.AnswerAsync(u, "call it B-Road Bangers", null, []);
+        var rename = Assert.Single(r.AllSteps);
+        Assert.Equal(DjAskDo.RenamePlaylist, rename.Do);
+        Assert.Equal("Backroads", rename.Playlist);
+        Assert.Equal("B-Road Bangers", rename.Title);
     }
 }

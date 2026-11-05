@@ -194,6 +194,9 @@ public sealed record OpenSourceSettings(bool Archive, bool Audius, bool Jamendo,
     // profile already had it switched on, or when the server is started with FLACIE_YOUTUBE=on (YtdlByHost); that switch is never written into a profile.
     /// <summary>Set by the host (FLACIE_YOUTUBE=on), not saved: the YouTube source counts as on even though the profile says off.</summary>
     public bool YtdlByHost { get; init; }
+    /// <summary>F7: SoundCloud races beside YouTube when the host says so (FLACIE_SOUNDCLOUD=on), once its yt-dlp service knows "source": "soundcloud";
+    /// an older service would ignore it and fetch YouTube's copy twice.</summary>
+    public bool SoundCloudByHost { get; init; }
     public bool IsOn(string id) => id switch { ArchiveId => Archive, AudiusId => Audius, YtdlId => Ytdl || YtdlByHost, _ => Jamendo };
     /// <summary>The sources that will actually be searched, best first.</summary>
     public IEnumerable<string> Active => FullOrder.Where(id => IsOn(id) && (id != JamendoSourceId || JamendoId.Length > 0));

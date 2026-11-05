@@ -41,6 +41,8 @@ public static class DjPlanner
     {
         if (!DjRules.EffectiveOn(settings, req.Surface, req.PlaylistId, req.QueueDj)) return null;
         say ??= DjPronounce.Default;
+        // F15: the first-song setting off makes the queue start a song like any other
+        if (!settings.FirstSong && req.QueueStart) req = req with { QueueStart = false };
         // a session starts with the first song, or after 30 minutes without a question
         // (a queue that has just started has no song before it, but it is not a new session by that: the hello is for the first thing heard in half an hour)
         var open = (req.Prev is null && !req.QueueStart) || mem.LastRequest is not { } last || nowUtc - last >= SessionGap;
@@ -149,11 +151,15 @@ public static class DjPlanner
 
         var greet = open ? Greeting(req.LocalHour, req.Weekday, style, firstName) : null;
         var (sp, wr) = Values(f, heard, say);
+        // F16: when every wording was said lately, a second pass says the one said longest ago again rather than nothing
+        var lastUse = new Dictionary<string, int>();
+        for (var i = 0; i < mem.Lines.Count; i++) lastUse[mem.Lines[i].TemplateId] = i;
+        foreach (var reuse in new[] { false, true })
         foreach (var slot in order)
         {
             // the style's own wording first; once those were all said lately, the Classic ones of the slot
-            var ts = DjTemplates.Of(slot, style).Where(t => !recentIds.Contains(t.Id) && Met(t.Need, f)).ToList();
-            if (ts.Count == 0 && style != DjStyle.Classic) ts = DjTemplates.Of(slot, DjStyle.Classic).Where(t => !recentIds.Contains(t.Id) && Met(t.Need, f)).ToList();
+            var ts = DjTemplates.Of(slot, style).Where(t => (reuse || !recentIds.Contains(t.Id)) && Met(t.Need, f)).ToList();
+            if (ts.Count == 0 && style != DjStyle.Classic) ts = DjTemplates.Of(slot, DjStyle.Classic).Where(t => (reuse || !recentIds.Contains(t.Id)) && Met(t.Need, f)).ToList();
             // right after a song by the same artist the line leaves the name out ("Now Eminem, Without Me by Eminem" said it twice; owner, 30 Oct); only when every
             // such wording was said lately does the artist get a mention again, once
             if (f.NoArtist && slot != DjSlot.SameArtist)
@@ -162,8 +168,9 @@ public static class DjPlanner
                 if (quiet.Count > 0) ts = quiet;
             }
             for (var i = ts.Count - 1; i > 0; i--) { var j = rng.Next(i + 1); (ts[i], ts[j]) = (ts[j], ts[i]); }
-            // openings unlike the last 3 lines first
-            var tries = ts.Where(t => !recentOpeners.Contains(t.Opener)).Concat(ts.Where(t => recentOpeners.Contains(t.Opener))).ToList();
+            // openings unlike the last 3 lines first (on the second pass: oldest first)
+            var tries = reuse ? ts.OrderBy(t => lastUse.GetValueOrDefault(t.Id, -1)).ToList()
+                : ts.Where(t => !recentOpeners.Contains(t.Opener)).Concat(ts.Where(t => recentOpeners.Contains(t.Opener))).ToList();
             // a long "why": both parts first, then the first part only (over 18 words the line is not said)
             var variants = slot == DjSlot.Why && f.Why.Count > 1 ? 2 : 1;
             for (var v = 0; v < variants; v++)

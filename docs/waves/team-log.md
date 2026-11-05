@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round4: F26.1 many real playlists, ours last)
+- Done: SpotifyPlaylists.DeezerListsAsync: one Deezer playlist search per artist (kept a day): the editors' best-of with its songs, plus every fans'/editors' list whose name holds the artist (names, size, picture; songs read when opened via FillAsync).
+- WebPlaylistPick.ForArtist: real lists (title holds the artist, The kept, or holds 2+ of their songs; 8+ songs; SoundCloud own sets) editors first, then by their songs held, size; same words once; our own only under 4 real ones and after them; up to 15 (2 rows of cards on desktop).
+- Only the best-of downloads on an artist search (top half); other lists shown download nothing. Proof: SpotifyEmbedServiceTests (10-list Deezer fixture).
+
 ## 2026-11-05 Local (late)
 - F24 rules fixed after the owner read the dry-run list (bands split, Bob->B.o.B, P!nk->PNK, &amp;, "feat. Th", WizKid (4)); 323323ec. Not deployed yet: the owner must not approve the old list.
 - Web mic: Brave records straight away; speech/quiet judged against the room's noise (15 s recordings).

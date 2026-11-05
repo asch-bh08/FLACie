@@ -450,3 +450,6 @@
 .imp-job-text small { color: var(--dim); }
 .imp-job-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .imp-old summary { cursor: pointer; font-weight: 700; }
+
+/* F26.1: an artist search's playlists, up to 15: two rows of cards on a wide screen */
+@media (min-width: 900px) { .sr-lists { grid-template-rows: repeat(2, auto); grid-auto-flow: column; row-gap: 22px; } }

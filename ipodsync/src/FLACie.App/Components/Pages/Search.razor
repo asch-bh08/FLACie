@@ -170,7 +170,10 @@ else
         if (l.Source == "own" && MadePlaylists.Find(MadePlaylists.Cached(Session, () => AppHost.ListenLog(Session), DateTime.UtcNow), l.Id) is { } m) return m;
         var have = l.Tracks.Select(t => Lib.Find(t.Title, t.Artist)).OfType<Track>().ToList();
         var from = l.Source switch { "spotify" => "Spotify", "deezer" => "Deezer", "soundcloud" => "SoundCloud", _ => "FLACie" };
-        return new MadePlaylist($"web:{l.Source}:{l.Id}", l.Name, $"{l.Tracks.Count} songs · {from}", have.Select(t => t.ArtKey).FirstOrDefault(k => k is not null), have.Select(t => t.Path).ToList());
+        // a list read by name only (F26.1) shows its size and its own picture until it is opened
+        var size = Math.Max(l.Tracks.Count, l.Size);
+        var art = have.Select(t => t.ArtKey).FirstOrDefault(k => k is not null) ?? (l.Picture is { Length: > 0 } pic ? Art.ExternalKey(pic) : null);
+        return new MadePlaylist($"web:{l.Source}:{l.Id}", l.Name, $"{(size > 0 ? size + " songs · " : "")}{from}{(l.Editor ? " editors" : "")}", art, have.Select(t => t.Path).ToList());
     }
 
     List<MadePlaylist> Made() => q.Length < 2 || Lib.Songs.Count == 0 ? [] : MadePlaylists.Search(MadePlaylists.Cached(Session, () => AppHost.ListenLog(Session), DateTime.UtcNow), q);

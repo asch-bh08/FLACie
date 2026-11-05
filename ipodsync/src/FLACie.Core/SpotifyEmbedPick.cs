@@ -13,7 +13,9 @@ public enum PlaylistQueryKind { Playlists, Artist, Song }
 public static class WebPlaylistPick
 {
     public static readonly string[] SourceOrder = ["spotify", "deezer", "soundcloud", "own"];
-    public const int FullRow = 12, ArtistRow = 8, SongRow = 1, MinLikes = 1000;
+    public const int FullRow = 12, ArtistRow = 15, SongRow = 1, MinLikes = 1000;
+    /// <summary>F26.1: an artist search shows our own made lists only when it found fewer real lists than this (and always after them).</summary>
+    public const int RealEnough = 4, MinSize = 8;
     /// <summary>A list shows only with a relevance this share of the best one's or more.</summary>
     public const double Near = 0.6;
 
@@ -77,6 +79,50 @@ public static class WebPlaylistPick
         var n = l.Tracks.Count(t => Matching.SearchWords(t.Artist) is var w && w.Count >= name.Count && w.Take(name.Count).SequenceEqual(name)
             && (w.Count == name.Count || w[name.Count] is "feat" or "ft" or "featuring" or "with" or "x" or "and"));
         return n == 0 ? 0 : 0.9 + 0.05 * Math.Min(n, 6);
+    }
+
+    /// <summary>F26.1: the list's name holds the artist (exact words, "The" kept: "The Prodigy Mix", "Best of The Prodigy"; not "Prodigy Mixtape").</summary>
+    public static bool TitleHolds(string title, string artist)
+    {
+        var name = Matching.SearchWords(artist); var t = Matching.SearchWords(title);
+        if (name.Count == 0) return false;
+        for (var i = 0; i + name.Count <= t.Count; i++)
+            if (t.Skip(i).Take(name.Count).SequenceEqual(name) && (i == 0 || t[i - 1] != "the" || name[0] == "the")) return true;
+        return false;
+    }
+
+    /// <summary>How many of the artist's songs a list holds (as <see cref="Holds"/> matches them).</summary>
+    public static int HoldsCount(WebPlaylist l, string artist)
+    {
+        var name = Matching.SearchWords(artist);
+        return name.Count == 0 ? 0 : l.Tracks.Count(t => Matching.SearchWords(t.Artist) is var w && w.Count >= name.Count && w.Take(name.Count).SequenceEqual(name)
+            && (w.Count == name.Count || w[name.Count] is "feat" or "ft" or "featuring" or "with" or "x" or "and"));
+    }
+
+    /// <summary>
+    /// F26.1 (owner: "this is how many playlists we should have, and the made-for-you ones should be a last resort"): an artist search's lists.
+    /// Real lists (Spotify's, Deezer's fans' and editors', SoundCloud's) that name the artist or hold several of their songs, with at least
+    /// <see cref="MinSize"/> songs; the editors' first, then by how many of the artist's songs, then by size and fans; near-duplicate names once;
+    /// one best-of per artist (Spotify, then Deezer, then SoundCloud). Our own lists only when fewer than <see cref="RealEnough"/> real ones were
+    /// found, and after them. At most <see cref="ArtistRow"/>.
+    /// </summary>
+    public static List<WebPlaylist> ForArtist(IEnumerable<WebPlaylist> found, string artist, DateTime nowUtc)
+    {
+        var all = Candidates(found, nowUtc);
+        int Size(WebPlaylist l) => Math.Max(l.Size, l.Tracks.Count);
+        bool Relevant(WebPlaylist l) => TitleHolds(l.Name, artist) || TitleHolds(l.Subject, artist) || HoldsCount(l, artist) >= 2;
+        // a SoundCloud set of the artist's own account is theirs whatever its name; its songs are read only when it is opened
+        bool Big(WebPlaylist l) => Size(l) >= MinSize || (l.Source == "soundcloud" && l.Verified && l.Tracks.Count == 0);
+        // the same words in any order and case ("the prodigy all songs" / "THE PRODIGY ALL SONGS", "Best of The Prodigy" / "The Prodigy - Best Of")
+        static string Dup(string name) => string.Join(' ', Matching.SearchWords(name).Distinct().Order(StringComparer.Ordinal));
+        var real = all.Where(l => l.Source != "own" && (Relevant(l) || (l.Source == "soundcloud" && l.Verified)) && Big(l))
+            .OrderByDescending(l => l.Editor || l.Source == "spotify")
+            .ThenByDescending(l => l.Kind == WebPlaylistKind.Artist)
+            .ThenByDescending(l => HoldsCount(l, artist))
+            .ThenByDescending(l => Size(l) + l.Likes / 100)
+            .DistinctBy(l => Dup(l.Name)).ToList();
+        List<WebPlaylist> ours = real.Count >= RealEnough ? [] : all.Where(l => l.Source == "own" && Relevant(l)).OrderByDescending(l => l.Kind == WebPlaylistKind.Artist).ThenByDescending(l => HoldsCount(l, artist)).ToList();
+        return [.. real.Take(ArtistRow), .. ours.Take(Math.Max(0, ArtistRow - real.Count))];
     }
 
     /// <summary>The All view ([artist]: the artist an artist search found, for <see cref="Holds"/>): as many lists as the search is about, each near the best one's relevance, one per purpose, strongest first.</summary>

@@ -101,7 +101,8 @@
     {
         <section aria-label="Playlists" class="sr-section">
             <h2 class="section"><i>Playlists</i></h2>
-            <div class="row-scroll">
+            @* F26.1: up to 15 real lists: two rows of cards on a wide screen, one row to scroll on a phone *@
+            <div class="row-scroll sr-lists">
                 @foreach (var m in Made) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub">@m.Subtitle</span></a> }
                 @foreach (var p in plays)
                 {

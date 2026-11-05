@@ -884,15 +884,16 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     {
         try
         {
-            bool captions = false, cueSound = false;
+            var captions = false;
             if (dj is { } d && session is { } s && (cue.ClipUrl is { Length: > 0 } || cue.Backup))
             {
                 var st = d.Settings(s);
-                captions = st.Captions; cueSound = st.Cue;
+                captions = st.Captions;
                 await audio.DjLevelsAsync(DjRules.Clamp(st.Volume), DjRules.Clamp(st.Duck));
                 await audio.DjCueAsync(st.Cue);
             }
             var words = cue.Caption.Length > 0 ? cue.Caption : cue.Text;
+            djCaptionDue = null;
             if (cue.ClipUrl is { Length: > 0 } url)
             {
                 // timed to the song's intro when the server knows it: the clip's own length when the page has it, else a guess from its words
@@ -905,12 +906,13 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
                 // a line that comes once the song is under way (after a skip) talks over it: the song is not silenced and started again
                 plan = DjTiming.Started(plan, PositionMs);
                 await audio.DjPlayAsync(url, cue.Text, cue.Backup, plan.ClipAtMs, plan.SongDelayMs); djActive = true;
-                if (captions) _ = DjCaptionsAsync(words, plan.ClipAtMs + (cueSound ? DjCaptions.CueLeadMs : 0), length);
+                // F17: the caption shows when the voice is really heard (the page says so: OnDjSpeaking), not when the clip was asked for
+                if (captions) djCaptionDue = (words, length);
             }
             else if (cue.Backup && cue.Text.Length > 0)
             {
                 await audio.DjSayAsync(cue.Text); djActive = true;
-                if (captions) _ = DjCaptionsAsync(words, 0, DjTiming.EstimateMs(cue.Text));
+                if (captions) djCaptionDue = (words, DjTiming.EstimateMs(cue.Text));
             }
         }
         catch (Exception) { }
@@ -967,6 +969,16 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     /// <summary>How the captions wait for their next phrase (a test makes it step by hand).</summary>
     public Func<int, CancellationToken, Task> DjWait { get; set; } = (ms, ct) => Task.Delay(ms, ct);
     CancellationTokenSource? djCaptionCts;
+    /// <summary>The line waiting for its voice to be heard, and how long the voice is (F17).</summary>
+    (string Words, int ClipMs)? djCaptionDue;
+
+    /// <summary>The page: the DJ's voice has just started playing (the clip's first sound, after the cue; or the device's voice starting to speak).</summary>
+    [JSInvokable] public void OnDjSpeaking()
+    {
+        if (djCaptionDue is not { } due) return;
+        djCaptionDue = null;
+        _ = DjCaptionsAsync(due.Words, 0, due.ClipMs);
+    }
 
     /// <summary>Shows [text] in time with the clip: from [startInMs] (the clip's own start), phrase by phrase (<see cref="DjCaptions.Plan"/>), gone a moment
     /// after the clip's [clipMs]. A skip, a pause or a seek (<see cref="DjStopAsync"/>) takes it away at once.</summary>
@@ -995,6 +1007,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
 
     void DjCaptionOff()
     {
+        djCaptionDue = null;
         djCaptionCts?.Cancel(); djCaptionCts = null;
         if (DjCaption is null) return;
         DjCaption = null; Changed?.Invoke();

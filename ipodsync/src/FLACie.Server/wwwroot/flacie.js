@@ -1417,7 +1417,8 @@ window.flacie = (() => {
         if (backup && text && (!dueAt || performance.now() - dueAt < 6000)) window.flacie.djSay(text);
         else duckTo(1, 600);   // (nothing was ducked by this clip; this undoes one left over from a line it replaced)
       };
-      a.addEventListener("playing", () => { if (!mine() || over || started) return; started = true; if (!holding) duckTo(djDuck, 400); });
+      // F17: the caption is shown from this moment, when the voice is really heard
+      a.addEventListener("playing", () => { if (!mine() || over || started) return; started = true; send("OnDjSpeaking"); if (!holding) duckTo(djDuck, 400); });
       a.addEventListener("ended", done, { once: true });
       a.addEventListener("error", failed, { once: true });
       const startClip = () => {
@@ -1463,7 +1464,7 @@ window.flacie = (() => {
         const u = new SpeechSynthesisUtterance(text);
         const v = djVoice(); if (v) { u.voice = v; u.lang = v.lang; } else u.lang = "en-GB";
         u.volume = clipVol();
-        u.onstart = () => { if (tok === djTok && djSpeaking) duckTo(djDuck, 400); };
+        u.onstart = () => { if (tok === djTok && djSpeaking) { send("OnDjSpeaking"); duckTo(djDuck, 400); } };
         u.onend = done; u.onerror = done;
         djSpeaking = true;
         speechSynthesis.speak(u);

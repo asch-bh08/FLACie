@@ -190,12 +190,14 @@ public class DjClearTests : IDisposable
     static async Task Until(Func<bool> ok) { for (var i = 0; i < 200 && !ok(); i++) await Task.Delay(5); Assert.True(ok()); }
 
     [Fact]
-    public async Task A_caption_shows_from_the_clip_start_for_the_clip_length_then_goes()
+    public async Task A_caption_shows_when_the_voice_is_heard_for_the_clip_length_then_goes()
     {
         var (p, js, dj, waits) = Player();
         dj.S.Cue = false;
         await p.Play(Songs(3), 0);
-        await p.OnEnded();                                   // Song 1 by itself: the clip plays
+        await p.OnEnded();                                   // Song 1 by itself: the clip is asked for
+        Assert.Null(p.DjCaption);                            // F17: not ahead of the voice
+        p.OnDjSpeaking();                                    // the page: the clip is playing now
         Assert.Equal("Here's Song 1", p.DjCaption);
         // one wait for the clip's 4 s and the linger after it
         await Until(() => waits.Count == 1);
@@ -205,17 +207,29 @@ public class DjClearTests : IDisposable
     }
 
     [Fact]
-    public async Task With_the_cue_on_the_caption_waits_for_the_voice()
+    public async Task With_the_cue_on_the_caption_waits_for_the_voice_after_it()
     {
         var (p, js, dj, waits) = Player();
         await p.Play(Songs(3), 0);
         await p.OnEnded();
-        Assert.Null(p.DjCaption);
-        await Until(() => waits.Count == 1);
-        Assert.Equal(DjCaptions.CueLeadMs, waits[0].Ms);
         Assert.Contains(js.Calls, c => c.Id == "flacie.djCue" && (bool)c.Args[0]!);
-        waits[0].Go.SetResult();
-        await Until(() => p.DjCaption == "Here's Song 1");
+        Assert.Null(p.DjCaption); Assert.Empty(waits);       // the swoosh is playing: no words yet, and no guessed wait
+        p.OnDjSpeaking();
+        Assert.Equal("Here's Song 1", p.DjCaption);
+    }
+
+    [Fact]
+    public async Task A_voice_that_never_plays_shows_no_caption_and_a_skip_drops_the_waiting_one()
+    {
+        var (p, _, dj, _) = Player();
+        dj.S.Cue = false;
+        await p.Play(Songs(4), 0);
+        await p.OnEnded();
+        await Task.Delay(50);
+        Assert.Null(p.DjCaption);
+        await p.Next();                                      // skipped before the voice came
+        p.OnDjSpeaking();                                    // (a late "playing" from the old clip)
+        Assert.Null(p.DjCaption);
     }
 
     [Fact]
@@ -225,6 +239,7 @@ public class DjClearTests : IDisposable
         dj.S.Cue = false;
         await p.Play(Songs(4), 0);
         await p.OnEnded();
+        p.OnDjSpeaking();
         Assert.NotNull(p.DjCaption);
         await p.Next();
         Assert.Null(p.DjCaption);

@@ -190,6 +190,12 @@ test.describe.serial('the DJ', () => {
 
   test('a DJ line shows its words over the cover and in the bar, timed to it, and Captions off hides them', async ({ page }) => {
     test.setTimeout(120_000);
+    // headless Chromium has no speech engine: a stand-in voice "speaks" each line for 3 s, so the words show when it starts (F17), as on a real device
+    await page.addInitScript(() => {
+      const ss = window.speechSynthesis as any;
+      if (!ss) return;
+      ss.speak = (u: any) => { setTimeout(() => { u.onstart?.(); setTimeout(() => u.onend?.(), 3000); }, 50); };
+    });
     await signIn(page);
     await reset(page);
     // the device's voice says every line (the test server has no Cloudflare), so a line comes as soon as a 3 s song ends by itself

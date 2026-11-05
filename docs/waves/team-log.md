@@ -1,5 +1,9 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round2: F17 web captions)
+- Done: web captions start when the DJ's voice is really heard: flacie.js calls PlayerState.OnDjSpeaking on the clip's first "playing" (after the cue) or the device voice's onstart; no guessed lead, and a voice that never plays shows nothing.
+- Proof: DjClearTests (3 rewritten/new), web-smoke 1q-dj (8 green; a stand-in speech voice for headless Chromium).
+
 ## 2026-11-05 Cloud (cloud/round2: F4.2 web preload)
 - Done: the page's early read of the next song now covers its first 30 s (size x 30 s / length, 1-8 MiB; 4 MiB when unknown), kept by the server (SongHeadCache, 48 MiB for six songs), dropped when the queue moves on.
 - Proof: CacheTests (sizes, ranges), web-smoke 1z-song-start + 1g-burst green (the mock counts any bounded early read now).

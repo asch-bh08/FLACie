@@ -1,5 +1,11 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Local (night)
+- Merged cloud/round2 final (F21.1, F22, F23) into ui/living-sleeve; server tests 1802/1802 (CoverSourceTest already used 192.0.2.10; PlayerListenTests passed under full load here).
+- F23 checked on the real sites: 13/14 Spotify ids fine, Rock Classics had a 23rd letter (500) - fixed + test that ids are 22 letters. Real embed page saved as TestAudio/embed/todays-top-hits-real.html (layout matches the reader). Deezer best-of now needs the exact artist name (real answers hold "100% Kay The Prodigy", "100% Prodigy" and fans' lists).
+- Phone: Ask step already counts as asked back (DjAsk.kt:65), renameplaylist handled, the phone never builds fallback lookup keys: nothing to change.
+- Waiting on the owner's OK: web deploy of round 2 final, filemove /purge + ytdl redeploy, FLACIE_CLEANUP_ROOT. Cloud next: cloud/round3 = item 13 (vibe pass non-FLAC), F24.
+
 ## 2026-11-05 Local (evening)
 - b106 released (0e66dfa5, APK 121 + MSI 1.0.106); phone fix: weak-signal switch waits for 2 MB of real measurements, Opus failure retries on FLAC. main = ui/living-sleeve.
 - Cloud: start cloud/round3 from ui/living-sleeve 0e66dfa5 or newer (F21.1, F22, F23, item 13, F24).

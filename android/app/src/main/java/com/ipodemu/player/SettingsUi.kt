@@ -207,6 +207,9 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             SettingRow("Talk after skips", if (dj.talkAfterSkips) "On" else "Off", toggle = true, desc = "Keep talking when you skip songs. Off: the DJ stays quiet for a couple of songs after a skip.") {
                                 save(org.json.JSONObject().put("talkAfterSkips", !dj.talkAfterSkips), dj.copy(talkAfterSkips = !dj.talkAfterSkips))
                             }
+                            SettingRow("First song", if (dj.firstSong) "On" else "Off", toggle = true, desc = "When you start a playlist or queue, the DJ says its name and the first song, like \"Shuffling Pop, starting with Lovegame\".") {
+                                save(org.json.JSONObject().put("firstSong", !dj.firstSong), dj.copy(firstSong = !dj.firstSong))
+                            }
                             MonoLabel("Where", Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp))
                             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 val all = dj.phone && dj.auto && dj.web && dj.windows

@@ -458,8 +458,11 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             val a = try { djWeb.djAsk(body) } catch (_: Exception) { null } ?: DjAskAnswer.SORRY
             Diag.add("heard", "\"${text.take(120)}\" -> ${a.say.take(120)}")
             handler.post {
+                askedQuestion = null
                 DjAskRunner.run(askPlayer, a)
                 if (a.say.isNotBlank() && (a.clip != null || a.deviceVoice)) try { voice().say(DjCue(a.say, a.say, a.clip, a.deviceVoice)) } catch (_: Exception) { }
+                // an ask step's question the line did not already say: said in the phone's voice
+                askedQuestion?.takeIf { !it.trim().equals(a.say.trim(), ignoreCase = true) }?.let { djSay(it) }
                 done(a)
             }
             val artist = a.waitArtist; val title = a.waitTitle
@@ -490,7 +493,17 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         override fun resume() = this@PlayerController.resume()
         override fun nudgeVolume(delta: Float) { volume = (volume + delta).coerceIn(0f, 1f) }
         override fun setDj(on: Boolean) { if (djAvailable && djOn != on) flipDj() }
+        // the playlist steps go through the phone's own playlists, so they sync to FLACie Web as any edit does
+        private fun edits() = com.ipodemu.library.DjPlaylistEdits(App.of(ctx).userData)
+        override fun addToPlaylist(name: String, list: List<Track>) = edits().add(name, list.map { it.path })
+        override fun removeFromPlaylist(name: String, list: List<Track>) = edits().remove(name, list.map { it.path })
+        override fun createPlaylist(name: String, list: List<Track>) = edits().create(name, list.map { it.path })
+        override fun renamePlaylist(name: String, to: String) = edits().rename(name, to)
+        override fun ask(question: String) { askedQuestion = question }
+        override fun setShuffle(on: Boolean) { if (prefs.shuffle != on) { prefs.shuffle = on; applyModes() } }
     }
+    /** The question of an ask step in the answer being carried out; said only if the answer's own line was not it. */
+    private var askedQuestion: String? = null
 
     private fun djAsk() {
         if (!hasQueue || !exo.playWhenReady) return

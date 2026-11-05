@@ -54,7 +54,7 @@ class CarDjMic(
         ask(text) { a ->
             if (!conversing) return@ask
             state = State.IDLE
-            val how = if (goodbye) DjTurn.END else DjConversation.after(a.doThis, a.asked, ++turn, a.intent)
+            val how = if (goodbye) DjTurn.END else DjConversation.after(a.mainDo, a.asked, ++turn, a.intent)
             if (how != DjTurn.LISTEN_AGAIN) { end(how); return@ask }
             onChange()
             // the next turn once the DJ has finished talking (the mic would hear it otherwise), waiting a short while for a follow-up, longer after a question

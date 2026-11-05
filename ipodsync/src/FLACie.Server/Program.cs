@@ -256,6 +256,7 @@ app.MapAuth();
 app.MapMedia(dataDir);
 app.MapApi();
 app.MapRecommend();
+app.MapMade();
 app.MapAlexa();
 app.MapDj();
 app.MapDjAsk();

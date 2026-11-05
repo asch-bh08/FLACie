@@ -1,0 +1,72 @@
+@page "/made/{Id}"
+@attribute [Authorize]
+@inherits UserComponent
+@* a ready-made playlist found by Search ("2010s", "Rock", "Best of ..."), owner 2 Nov: play it as it is, or keep a copy among your own playlists *@
+@{ var m = List(); var songs = m is null ? [] : m.Paths.Select(Lib.ByPath).OfType<Track>().ToList(); }
+@if (m is null || songs.Count == 0)
+{
+    @if (Session.Loading) { <Skeleton Label="Loading…" /> } else { <p class="status">This playlist isn't there any more.</p> }
+}
+else
+{
+    <PageTitle>@m.Name · FLACie</PageTitle>
+    <header class="detail-head" @ref="headEl">
+        <Cover ArtKey="@m.ArtKey" Class="detail-cover" />
+        <div class="detail-text">
+            <p class="eyebrow">Made for you</p>
+            <h1>@Title(m.Name)</h1>
+            <p class="detail-facts">@Facts(songs)</p>
+            <div class="detail-actions">
+                <button class="detail-play" @onclick="() => Player.Play(songs, 0, m.Name)"><Icon Name="play" Size="22" />Play</button>
+                <button class="detail-shuffle" @onclick="() => Player.ShuffleAll(songs, m.Name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+                @if (savedId is { } sid)
+                {
+                    <a class="detail-shuffle made-added" href="/playlist/@sid" role="status"><Icon Name="check" Size="18" />Added</a>
+                }
+                else
+                {
+                    <button class="detail-shuffle made-save" @onclick="() => Save(m)"><Icon Name="plus" Size="18" />Add to my playlists</button>
+                }
+            </div>
+        </div>
+    </header>
+    <TrackList Tracks="songs" PlayContext="@m.Name" />
+}
+@code {
+    [Parameter] public string Id { get; set; } = "";
+    [Inject] IJSRuntime Js { get; set; } = default!;
+    ElementReference headEl; string? headFor = "";
+    string? savedId; string savedFor = "";
+
+    MadePlaylist? List() => Lib.Songs.Count == 0 ? null : MadePlaylists.Find(MadePlaylists.Cached(Session, () => AppHost.ListenLog(Session), DateTime.UtcNow), Uri.UnescapeDataString(Id));
+
+    protected override void OnParametersSet() { if (savedFor != Id) { savedFor = Id; savedId = null; } }
+
+    // a normal playlist of the account from now on (it no longer follows the made one); the button then says Added and leads to it
+    void Save(MadePlaylist m)
+    {
+        savedId = MadePlaylists.SaveTo(Session, m).Id;
+        SaveProfile();
+    }
+
+    // the hero takes the colours of the cover, once per cover, as Genre and Album do
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var k = List()?.ArtKey;
+        var art = k is not null ? "/art/" + Uri.EscapeDataString(CoverOverrides.Map(k) ?? k) : null;
+        if (art == headFor) return;
+        headFor = art;
+        try { await Js.InvokeVoidAsync("flacie.npAccent", headEl, art); } catch (Exception) { }
+    }
+    static MarkupString Title(string s)
+    {
+        var e = System.Net.WebUtility.HtmlEncode(s.Trim()); var i = e.LastIndexOf(' ');
+        return new MarkupString(i < 0 ? $"<i>{e}</i>" : $"{e[..(i + 1)]}<i>{e[(i + 1)..]}</i>");
+    }
+    static string Facts(IReadOnlyList<Track> ts)
+    {
+        var min = (int)Math.Round(ts.Sum(t => t.DurationMs) / 60000.0);
+        var len = min <= 0 ? "" : min >= 60 ? $"{min / 60} h {min % 60:00} min" : $"{min} min";
+        return string.Join(" · ", new[] { $"{ts.Count} {(ts.Count == 1 ? "song" : "songs")}", len, "made for you" }.Where(x => x.Length > 0));
+    }
+}

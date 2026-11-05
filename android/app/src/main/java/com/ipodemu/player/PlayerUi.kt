@@ -119,6 +119,8 @@ sealed interface Screen {
     data object Home : Screen
     data class Lib(val kind: LibKind) : Screen
     data class Detail(val kind: DetailKind, val id: String = "") : Screen
+    /** A ready-made playlist from FLACie Web (owner, 2 Nov): its id, and its name to show while it loads. */
+    data class Made(val id: String, val name: String) : Screen
     data object Search : Screen
     data object Queue : Screen
     data object Settings : Screen
@@ -332,6 +334,7 @@ private fun ScreenContent(screen: Screen, nav: PlayerNav, snap: PlayerSnap) {
         Screen.Home -> HomeScreen(nav, snap)
         is Screen.Lib -> LibraryScreen(screen.kind, nav, snap)
         is Screen.Detail -> DetailScreen(screen, nav, snap)
+        is Screen.Made -> MadeScreen(screen, nav, snap)
         Screen.Search -> SearchScreen(nav, snap)
         Screen.Queue -> QueueScreen(nav, snap)
         Screen.Settings -> SettingsScreen(nav)
@@ -1268,6 +1271,56 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
 }
 
 
+/** A ready-made playlist (owner, 2 Nov): its songs as this phone has them, Play, Shuffle and "Add to my playlists". */
+@Composable
+private fun MadeScreen(d: Screen.Made, nav: PlayerNav, snap: PlayerSnap) {
+    val app = LocalApp.current
+    val lib = app.library
+    val libRev = rememberLibRev(lib)
+    var full by remember(d.id) { mutableStateOf(com.ipodemu.library.MadeLists.opened[d.id]) }
+    var failed by remember(d.id) { mutableStateOf(false) }
+    var saving by remember(d.id) { mutableStateOf(false) }
+    val madeScope = androidx.compose.runtime.rememberCoroutineScope()
+    var added by remember(d.id) { mutableStateOf(d.id in com.ipodemu.library.MadeLists.saved) }
+    LaunchedEffect(d.id) {
+        val web = com.ipodemu.library.FlacieWebClient(app.prefs)
+        try { full = withContext(Dispatchers.IO) { web.made(d.id) }.also { com.ipodemu.library.MadeLists.opened[d.id] = it }; failed = false }
+        catch (e: Exception) { android.util.Log.w("FLACie", "made list failed: ${e.message}"); failed = full == null }
+    }
+    val tracks = remember(full, libRev) { full?.tracks.orEmpty().mapNotNull { p -> lib.resolve(p.path ?: "", p.title to p.artist) }.distinctBy { it.path } }
+    val art = tracks.firstNotNullOfOrNull { it.artKey }
+    BackdropArt(nav, art)
+    val title = full?.name ?: d.name
+    val info = DetailFacts.line(0, tracks.size, tracks.sumOf { it.durationMs }, emptyList())
+    Column(Modifier.fillMaxSize()) {
+        TopBar(if (LocalStyle.current.modern) "" else title, nav, showBack = true)
+        if (tracks.isEmpty()) {
+            Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState(if (failed) "Couldn't load this playlist. Check the connection and try again" else if (full == null) "Loading..." else "None of this playlist's songs are on this phone yet") }
+            return@Column
+        }
+        SongList(tracks, nav, snap, showArt = false, numbered = true, header = {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                DetailHeader(art, title, full?.subtitle.orEmpty(), info, tracks, nav, null, "Made for you", null)
+                DesignChip(if (added) "Added to my playlists" else if (saving) "Adding..." else "Add to my playlists", added, {
+                    if (!added && !saving) {
+                        saving = true
+                        madeScope.launch {
+                            try {
+                                withContext(Dispatchers.IO) { com.ipodemu.library.FlacieWebClient(app.prefs).saveMade(d.id) }
+                                com.ipodemu.library.MadeLists.saved.add(d.id); added = true
+                                // the server wrote it to the account; a sync brings it into the phone's playlists, as an import does
+                                app.account.sync()
+                                app.ui.say("Added \"$title\" to your playlists")
+                            } catch (e: Exception) { app.ui.say(com.ipodemu.library.FriendlyError.of(e, "Couldn't add the playlist"), warn = true) }
+                            saving = false
+                        }
+                    }
+                }, icon = if (added) Glyph.CHECK else Glyph.PLUS)
+            }
+        })
+    }
+}
+
 @Composable
 private fun DetailHeader(art: String?, title: String, line1: String, line2: String, tracks: List<Track>, nav: PlayerNav, playlistId: String? = null, kind: String = "", djKey: String? = null) {
     val app = LocalApp.current
@@ -1401,6 +1454,8 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
     var results by remember { mutableStateOf(Results(emptyList(), emptyList())) }
     var web by remember { mutableStateOf(WebResults(emptyList(), emptyList())) }
     var webLoading by remember { mutableStateOf(false) }
+    // "Playlists for you": the ready-made lists matching the query (owner, 2 Nov)
+    var made by remember { mutableStateOf<List<com.ipodemu.library.MadeLists.Summary>>(emptyList()) }
     val fr = remember { FocusRequester() }
     val searchFocus = androidx.compose.ui.platform.LocalFocusManager.current
     // no auto-focus: it popped the keyboard, whose first Back press hid it instead of leaving the screen (and trapped controller focus in the field)
@@ -1434,6 +1489,13 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         web = WebResults(songs, withContext(Dispatchers.IO) { WebCatalog.albumsWithTop(q, songs.firstOrNull()) })
         webLoading = false
     }
+    LaunchedEffect(query) {
+        val q = query.trim()
+        if (app.ui.guest || !com.ipodemu.library.MadeLists.worthAsking(q)) { made = emptyList(); return@LaunchedEffect }
+        delay(500)
+        val web = com.ipodemu.library.FlacieWebClient(app.prefs)
+        made = if (!web.available) emptyList() else withContext(Dispatchers.IO) { try { web.madeSearch(q) } catch (e: Exception) { android.util.Log.w("FLACie", "made search failed: ${e.message}"); emptyList() } }
+    }
     Column(Modifier.fillMaxSize().imePadding()) {
         // the big title goes while typing, so more results fit above the keyboard
         val imeUp = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
@@ -1458,7 +1520,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         val dl = remember(libRev) { HashMap(app.library.downloads) }
         val ownedSongs = remember(libRev) { app.library.songs().associateBy { com.ipodemu.library.matchKey(it.title, it.artist) } }
         val ownedAlbums = remember(libRev) { app.library.albums().associateBy { ownedAlbumKey(it.tracks.firstOrNull()?.artist.orEmpty(), it.name) } }
-        val nothingAtAll = r.songs.isEmpty() && r.albums.isEmpty() && w.songs.isEmpty() && w.albums.isEmpty() && !webLoading
+        val nothingAtAll = made.isEmpty() && r.songs.isEmpty() && r.albums.isEmpty() && w.songs.isEmpty() && w.albums.isEmpty() && !webLoading
         // Ranked simply: an exact title match beats a prefix match beats a loose contains/artist-only match.
         fun songScore(t: Track) = when {
             t.title.equals(q, true) -> 0
@@ -1507,6 +1569,22 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 }
             }
             fun shows(kind: String) = only == "" || only == kind
+            if (made.isNotEmpty() && only == "" && picks == null) {
+                item { SectionHeader("Playlists for you") }
+                item(key = "made") {
+                    androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(made, key = { it.id }) { m ->
+                            val cover = m.first?.let { f -> app.library.resolve(f.path ?: "", f.title to f.artist)?.artKey }
+                            Column(Modifier.width(132.dp).clip(RoundedCornerShape(10.dp)).clickable { searchFocus.clearFocus(); nav.push(Screen.Made(m.id, m.name)) }
+                                .semantics { contentDescription = "${m.name}, playlist for you. ${m.subtitle}" }) {
+                                ArtImage(cover, Modifier.size(132.dp), corner = 10.dp)
+                                Txt(m.name, Modifier.padding(top = 6.dp), size = 14f, weight = FontWeight.SemiBold, maxLines = 2)
+                                Txt(m.subtitle, size = 12f, color = LocalScheme.current.onBgDim, maxLines = 2)
+                            }
+                        }
+                    }
+                }
+            }
             // albums as one swipeable row of covers near the top, so they're visible with the keyboard up; a query naming an
             // album ("short n sweet") puts that row first, like YT Music
             val albumNamed = w.albums.firstOrNull()?.takeIf { it.kind != "Single" }?.let { a -> a.cleanTitle.lowercase().filter { it.isLetterOrDigit() } == q.lowercase().filter { it.isLetterOrDigit() } } == true

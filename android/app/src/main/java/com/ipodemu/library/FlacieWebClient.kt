@@ -146,6 +146,11 @@ class FlacieWebClient(private val prefs: Prefs) {
     /** Home's shelves as the engine builds them. */
     fun recommendHome(): List<RecPick.Shelf> = RecPick.parseHome(send("/api/recommend/home", "GET"))
 
+    /** Ready-made playlists (MadeLists): the ones matching a search, one with its songs, and "Add to my playlists". */
+    fun madeSearch(q: String): List<MadeLists.Summary> = MadeLists.parseSearch(send("/api/made?q=" + java.net.URLEncoder.encode(q.trim(), "UTF-8"), "GET"))
+    fun made(id: String): MadeLists.Full = MadeLists.parseOne(send(MadeLists.path(id), "GET"))
+    fun saveMade(id: String): MadeLists.Saved = MadeLists.parseSaved(send(MadeLists.path(id) + "/save", "POST", "{}"))
+
     /** What the server is downloading right now and the log of what it fetched for this account (searches on the web, Autoplay, charts, imports). */
     class ServerDownloads(val running: List<RunningRow>, val log: List<DownloadRecord>)
     class RunningRow(val id: String, val label: String, val kind: String, val startedAt: Long, val message: String, val current: String?, val artKey: String?)

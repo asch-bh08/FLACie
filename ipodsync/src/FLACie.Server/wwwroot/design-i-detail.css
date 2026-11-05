@@ -21,6 +21,8 @@
 .detail-play:hover { transform: scale(1.03); }
 .detail-shuffle { height: 56px; padding: 0 22px; border-radius: 999px; background: color-mix(in srgb, var(--np-accent) 22%, transparent); color: var(--ink); transition: background .3s; }
 .detail-shuffle:hover { background: color-mix(in srgb, var(--np-accent) 36%, transparent); }
+/* a made playlist's "Added" is a link to the saved copy, drawn as the button it replaced */
+a.detail-shuffle { text-decoration: none; }
 
 @media (max-width: 760px) {
   .detail-head { flex-direction: column; align-items: flex-start; padding-top: 28px; }

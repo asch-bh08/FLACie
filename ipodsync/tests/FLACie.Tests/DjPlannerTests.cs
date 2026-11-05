@@ -502,4 +502,17 @@ public class DjPlannerTests
         Assert.Equal(DjTemplates.All.Count, DjTemplates.All.Select(t => t.Id).Distinct().Count());
         Assert.DoesNotContain(DjTemplates.All, t => t.Text.Contains('!'));
     }
+
+    [Fact]
+    public void With_every_line_said_lately_the_oldest_is_said_again()
+    {
+        // F16: a song with no artist has one kind of line; once all of them were said in the last 12, the planner reuses the oldest instead of going quiet
+        var ids = DjTemplates.All.Where(t => t.Slot == DjSlot.TitleOnly && t.Style is null).Select(t => t.Id).ToList();
+        Assert.InRange(ids.Count, 1, 12);
+        var mem = new DjMemory { LastRequest = T0 - TimeSpan.FromMinutes(3) };
+        foreach (var id in ids) mem.Add(new(id, DjSlot.TitleOnly, "", "", T0 - TimeSpan.FromMinutes(3)));
+        var line = DjPlanner.Plan(On(DjChatty.Every), new DjRequest(DjSurface.Web, Song("Lose Yourself", ""), S(1)), mem, T0, new Random(1));
+        Assert.NotNull(line);
+        Assert.Equal(ids[0], line!.TemplateId);
+    }
 }

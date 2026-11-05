@@ -45,6 +45,19 @@ def base_title(t):
     return s or (t or "").strip()
 
 
+REMIX = re.compile(r"[\(\[]([^\)\]]*\b(?:remix|mix|edit|bootleg|vip|rework|flip|refix|dub)\b[^\)\]]*)[\)\]]|\s[-\u2013]\s([^-\u2013()\[\]]*\b(?:remix|mix|edit|bootleg|vip|rework|flip|refix|dub)\b[^-\u2013()\[\]]*)$", re.I)
+PLAIN_VERSION = re.compile(r"^\s*(?:official\s+)?(?:radio|album|single|original|extended)\s+(?:edit|mix|version)\s*$", re.I)
+
+
+def remix(t):
+    """The remix's name ('kryd hoodtrap remix'), or None (a radio edit or original mix is none). Same rules as RemixMatch in FLACie.Core."""
+    for m in REMIX.finditer(t or ""):
+        r = (m.group(1) or m.group(2) or "").strip()
+        if r and not PLAIN_VERSION.search(r):
+            return norm(r)
+    return None
+
+
 def norm(s):
     s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode().lower()
     s = re.sub(r"\s*[\(\[](feat\.?|ft\.?|featuring|with)\s[^\)\]]*[\)\]]", "", s)
@@ -65,8 +78,8 @@ def resolve(rel):
     return full
 
 
-def search(query, n=8):
-    p = subprocess.run(["yt-dlp", "--no-warnings", "--flat-playlist", "--dump-json", f"ytsearch{n}:{query}"], capture_output=True, text=True, timeout=45)
+def search(query, n=8, site="ytsearch"):
+    p = subprocess.run(["yt-dlp", "--no-warnings", "--flat-playlist", "--dump-json", f"{site}{n}:{query}"], capture_output=True, text=True, timeout=45)
     out = []
     for line in p.stdout.splitlines():
         try:
@@ -79,6 +92,8 @@ def search(query, n=8):
 def rank(cands, artist, title, dur, relaxed=False):
     a, t = lead_artist(artist), norm(base_title(title))
     tw = set(t.split())
+    want_remix = remix(title)
+    remixer = (want_remix or "").split(" ")[0] if want_remix else ""
     scored, seen = [], set()
     for c in cands:
         vid = c.get("id")
@@ -86,7 +101,10 @@ def rank(cands, artist, title, dur, relaxed=False):
             continue
         seen.add(vid)
         ct, chan = norm(c.get("title")), norm(c.get("channel") or c.get("uploader"))
-        if not ((tw <= set(ct.split())) if relaxed else (t in ct)) or not (a in ct or a in chan):
+        # a remix keeps its name: only that remix matches it, and an original never takes a remix (F7)
+        if remix(c.get("title") or "") != want_remix:
+            continue
+        if not ((tw <= set(ct.split())) if relaxed else (t in ct)) or not (a in ct or a in chan or (remixer and (remixer in ct or remixer in chan))):
             continue
         d = c.get("duration") or 0
         if dur > 0 and d > 0 and abs(d - dur) > 8:
@@ -131,9 +149,11 @@ def probe(rel):
     }
 
 
-def fetch_best(artist, title, dur, dest_noext):
+def fetch_best(artist, title, dur, dest_noext, source="youtube"):
     bt = base_title(title)
-    found = search(f"{artist} {bt} official audio") + search(f"{artist} - {bt} topic", 5)
+    sc = source == "soundcloud"
+    # SoundCloud (F7): scsearch, and the producer's original file ("download") when the track offers one
+    found = search(f"{artist} {bt}", 8, "scsearch") if sc else search(f"{artist} {bt} official audio") + search(f"{artist} - {bt} topic", 5)
     cands = rank(found, artist, title, dur) or rank(found, artist, title, dur, relaxed=True)
     if not cands:
         raise LookupError("no matching upload")
@@ -141,8 +161,9 @@ def fetch_best(artist, title, dur, dest_noext):
     for c in cands:
         tmp = tempfile.mkdtemp(prefix="ytdl-")
         try:
-            p = subprocess.run(["yt-dlp", "--no-warnings", "--no-playlist", "-f", "bestaudio[ext=m4a]/bestaudio", "--max-filesize", "80M",
-                                "-o", os.path.join(tmp, "a.%(ext)s"), f"https://www.youtube.com/watch?v={c['id']}"], capture_output=True, text=True, timeout=150)
+            url = c.get("webpage_url") or c.get("url") if sc else f"https://www.youtube.com/watch?v={c['id']}"
+            p = subprocess.run(["yt-dlp", "--no-warnings", "--no-playlist", "-f", "download/bestaudio" if sc else "bestaudio[ext=m4a]/bestaudio", "--max-filesize", "80M",
+                                "-o", os.path.join(tmp, "a.%(ext)s"), url], capture_output=True, text=True, timeout=150)
             files = [f for f in os.listdir(tmp) if f.startswith("a.")]
             if p.returncode != 0 or not files:
                 last = (p.stderr or "download failed").strip().splitlines()[-1][:200] if p.stderr.strip() else "download failed"
@@ -168,7 +189,7 @@ def fetch_best(artist, title, dur, dest_noext):
                 if os.path.exists(dest + ".part"):
                     os.remove(dest + ".part")
                 raise
-            return {"ok": True, "ext": ext, "bytes": size, "durationSec": c.get("duration") or 0, "channel": c.get("channel") or c.get("uploader") or ""}
+            return {"ok": True, "ext": ext, "source": source, "bytes": size, "durationSec": c.get("duration") or 0, "channel": c.get("channel") or c.get("uploader") or ""}
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
     raise RuntimeError(last)
@@ -204,12 +225,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             dest = resolve(str(body["to"]))
         except Exception as e:
             return self._reply(400, {"error": str(e)})
-        for ext in ("m4a", "opus", "mp3", "webm"):  # already there: nothing to do
+        source = "soundcloud" if str(body.get("source") or "") == "soundcloud" else "youtube"
+        for ext in ("m4a", "opus", "mp3", "webm", "wav", "flac", "aiff"):  # already there: nothing to do
             if os.path.exists(f"{dest}.{ext}"):
                 return self._reply(200, {"ok": True, "ext": ext, "existing": True, "bytes": os.path.getsize(f"{dest}.{ext}"), "durationSec": 0, "channel": ""})
         with GATE:
             try:
-                self._reply(200, fetch_best(artist, title, int(body.get("durationSec") or 0), dest))
+                self._reply(200, fetch_best(artist, title, int(body.get("durationSec") or 0), dest, source))
             except LookupError as e:
                 self._reply(404, {"error": str(e)})
             except Exception as e:

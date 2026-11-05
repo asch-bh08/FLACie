@@ -68,8 +68,11 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
     var explaining by remember { mutableStateOf(false) }
     val rec = remember { mutableStateOf<SpeechRecognizer?>(null) }
     val handler = remember { android.os.Handler(android.os.Looper.getMainLooper()) }
+    val timing = remember { com.ipodemu.playback.MicTiming() }
+    // a recogniser is kept made while this button is on screen, so listening starts at once
+    DisposableEffect(Unit) { MicSpeech.arm(ctx); onDispose { MicSpeech.disarm() } }
     val giveUp = remember { mutableStateOf<Runnable?>(null) }
-    fun stop() { giveUp.value?.let { handler.removeCallbacks(it) }; giveUp.value = null; rec.value?.let { try { it.stopListening(); it.destroy() } catch (_: Exception) { } }; rec.value = null }
+    fun stop() { giveUp.value?.let { handler.removeCallbacks(it) }; giveUp.value = null; rec.value?.let { try { it.stopListening(); it.destroy() } catch (_: Exception) { }; MicSpeech.recycle(ctx) }; rec.value = null }
     DisposableEffect(Unit) { onDispose { stop() } }
 
     // the conversation (DjConversation): on from a press until it ends; whether the mic paused the song (it carries on at the end); turns so far
@@ -96,7 +99,7 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
             if (a.doThis == DjAskDo.SEARCH) { end(DjTurn.END); onSearch?.invoke(text); return@askDj }
             // the answer is always shown; it is also said in the DJ's voice when it could be
             if (a.say.isNotBlank()) app.ui.say(a.say)
-            val how = if (goodbye) DjTurn.END else DjConversation.after(a.doThis, a.asked, ++turn, a.intent)
+            val how = if (goodbye) DjTurn.END else DjConversation.after(a.mainDo, a.asked, ++turn, a.intent)
             if (how != DjTurn.LISTEN_AGAIN || !conversing) { end(how); return@askDj }
             // the next turn once the DJ has finished saying the answer (the mic would hear it otherwise); a press meanwhile ends it. It waits a short
             // while for a follow-up (longer after a question back) and ends quietly if nobody speaks
@@ -110,6 +113,7 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
     /** One turn of listening. [waitMs]: how long to wait for the person to begin (0 on the first press, where the recogniser's own wait is used). */
     fun listen(waitMs: Long) {
         stop()
+        if (waitMs > 0) timing.press()
         val r = MicSpeech.create(ctx) ?: run { app.ui.say("Speech recognition isn't available here"); return }
         rec.value = r
         r.setRecognitionListener(object : RecognitionListener {
@@ -123,7 +127,7 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
                 stop(); state = MicState.IDLE; end(DjTurn.END)
                 if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) app.ui.say("Sorry, I didn't catch that.")
             }
-            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onReadyForSpeech(params: Bundle?) { timing.listening(); MicSpeech.beep() }
             override fun onBeginningOfSpeech() { giveUp.value?.let { handler.removeCallbacks(it) }; giveUp.value = null }
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
@@ -133,6 +137,7 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
         })
         state = MicState.LISTENING
         r.startListening(MicSpeech.intent(ctx))
+        timing.recogniserReady()
         // nobody began speaking in the follow-up window: let go quietly
         giveUp.value?.let { handler.removeCallbacks(it) }; giveUp.value = null
         if (waitMs > 0) Runnable { if (rec.value === r) { stop(); state = MicState.IDLE; end(DjTurn.END) } }.also { giveUp.value = it; handler.postDelayed(it, waitMs) }
@@ -149,6 +154,7 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
 
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) begin() else app.ui.say("FLACie needs the microphone to hear you") }
     fun press() {
+        if (state == MicState.IDLE && !conversing) timing.press()
         when (state) {
             MicState.LISTENING -> { stop(); state = MicState.IDLE; end(DjTurn.END) }
             MicState.THINKING -> {}
@@ -203,12 +209,42 @@ private fun MicWhyDialog(onContinue: () -> Unit, onDismiss: () -> Unit) {
     }
 }
 
-/** The platform's recogniser, on the device when it has one (Android 12 and later), so the sound need not leave the phone. */
+/**
+ * The platform's recogniser, on the device when it has one (Android 12 and later), so the sound need not leave the phone. Making one takes a second or
+ * two (it binds the speech service), so while the DJ screen or the car is up one is kept made ([arm]) and handed over by [create]; a new one is made
+ * ready again after each turn ([recycle]). All on the main thread.
+ */
 object MicSpeech {
-    fun create(ctx: Context): SpeechRecognizer? = try {
+    private var warm: SpeechRecognizer? = null
+    private var armed = 0
+
+    private fun build(ctx: Context): SpeechRecognizer? = try {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && SpeechRecognizer.isOnDeviceRecognitionAvailable(ctx)) SpeechRecognizer.createOnDeviceSpeechRecognizer(ctx)
         else SpeechRecognizer.createSpeechRecognizer(ctx)
     } catch (_: Exception) { null }
+
+    /** The DJ screen or the car session is up: keep a recogniser made. Each [arm] is matched by a [disarm]. */
+    fun arm(ctx: Context) { armed++; if (warm == null) warm = build(ctx.applicationContext) }
+
+    fun disarm() {
+        if (armed > 0) armed--
+        if (armed == 0) { warm?.let { try { it.destroy() } catch (_: Exception) { } }; warm = null }
+    }
+
+    /** A turn is over: make the next recogniser ready (when armed). */
+    fun recycle(ctx: Context) { if (armed > 0 && warm == null) warm = build(ctx.applicationContext) }
+
+    /** The pre-warmed recogniser if there is one, else a new one. */
+    fun create(ctx: Context): SpeechRecognizer? = warm?.also { warm = null } ?: build(ctx)
+
+    /** A short beep: the recogniser is really listening now. */
+    fun beep() {
+        try {
+            val tone = android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 60)
+            tone.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 80)
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ try { tone.release() } catch (_: Exception) { } }, 300)
+        } catch (_: Exception) { }
+    }
 
     fun intent(ctx: Context): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
         .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)

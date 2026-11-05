@@ -52,17 +52,19 @@ class PlaybackService : MediaLibraryService() {
         val app = App.of(this)
         var rec: android.speech.SpeechRecognizer? = null
         var giveUp: Runnable? = null
-        fun drop() { giveUp?.let { main.removeCallbacks(it) }; giveUp = null; rec?.let { try { it.stopListening(); it.destroy() } catch (_: Exception) { } }; rec = null }
+        val timing = MicTiming()
+        fun drop() { giveUp?.let { main.removeCallbacks(it) }; giveUp = null; rec?.let { try { it.stopListening(); it.destroy() } catch (_: Exception) { }; com.ipodemu.player.MicSpeech.recycle(this) }; rec = null }
         CarDjMic(
             ears = object : CarDjMic.Ears {
                 override fun listen(waitMs: Long, onHeard: (String?) -> Unit): Boolean {
                     drop()
+                    timing.press()
                     val r = com.ipodemu.player.MicSpeech.create(this@PlaybackService) ?: return false
                     rec = r
                     r.setRecognitionListener(object : android.speech.RecognitionListener {
                         override fun onResults(results: Bundle?) { drop(); onHeard(results?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.trim()) }
                         override fun onError(error: Int) { android.util.Log.w("FLACie", "car mic: recogniser error $error"); drop(); onHeard(null) }
-                        override fun onReadyForSpeech(params: Bundle?) {}
+                        override fun onReadyForSpeech(params: Bundle?) { timing.listening(); com.ipodemu.player.MicSpeech.beep() }
                         override fun onBeginningOfSpeech() { giveUp?.let { main.removeCallbacks(it) }; giveUp = null }
                         override fun onRmsChanged(rmsdB: Float) {}
                         override fun onBufferReceived(buffer: ByteArray?) {}
@@ -71,6 +73,7 @@ class PlaybackService : MediaLibraryService() {
                         override fun onEvent(eventType: Int, params: Bundle?) {}
                     })
                     r.startListening(com.ipodemu.player.MicSpeech.intent(this@PlaybackService))
+                    timing.recogniserReady()
                     // nobody began speaking in the follow-up window: it lets go quietly (the conversation ends)
                     if (waitMs > 0) Runnable { if (rec === r) { drop(); onHeard(null) } }.also { giveUp = it; main.postDelayed(it, waitMs) }
                     return true
@@ -255,8 +258,13 @@ class PlaybackService : MediaLibraryService() {
     /** How many car controllers are connected now (asked of the session, so a missed goodbye can't leave the phone thinking it is in the car). */
     private fun countCars() {
         val s = session ?: return
-        App.of(this).player.carControllers = s.connectedControllers.count { isCar(s, it) }
+        val cars = s.connectedControllers.count { isCar(s, it) }
+        App.of(this).player.carControllers = cars
+        // the car session starts: the speech recogniser is made ready, so the mic button listens at once
+        if (cars > 0 && !micWarm) { micWarm = true; com.ipodemu.player.MicSpeech.arm(this) }
+        else if (cars == 0 && micWarm) { micWarm = false; com.ipodemu.player.MicSpeech.disarm() }
     }
+    private var micWarm = false
 
     private fun layout(): ImmutableList<CommandButton> {
         val app = App.of(this)
@@ -321,6 +329,7 @@ class PlaybackService : MediaLibraryService() {
         unobserve?.invoke(); unobserve = null
         main.removeCallbacks(tellCar); scope.cancel()
         App.of(this).player.let { it.carControllers = 0; it.djRelease() }
+        if (micWarm) { micWarm = false; com.ipodemu.player.MicSpeech.disarm() }
         session?.release()
         session = null
         io.shutdown()

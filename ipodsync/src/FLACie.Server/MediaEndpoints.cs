@@ -226,14 +226,18 @@ public static class MediaEndpoints
         // small size (240 px WebP, quality 80, a request Jellyfin's own image cache can answer); only the Now Playing cover asks for the original (?s=full).
         var log = app.Logger;
         var covers = app.Services.GetRequiredService<CoverStore>();
+        var artistCatalog = app.Services.GetService<WebCatalog>();
+        Task<(string? Url, bool Unasked)> ArtistPicture(string artist, CancellationToken c) => artistCatalog?.ArtistPictureAsync(artist, c) ?? Task.FromResult<(string?, bool)>((null, false));
         app.MapGet("/art/{key}", async (HttpContext ctx, string key, SessionStore store, JellyfinClient jf, IHttpClientFactory hf) =>
         {
             if (key.Length > 400 || key.Contains('/') || key.Contains('\\') || key.Contains("..")) return Results.BadRequest();
             key = FLACie.Core.CoverOverrides.Unversioned(key);   // a catalog cover's address carries the lookup rules ("~r2"): the key itself does not
             // a catalog key may carry a Jellyfin picture for when the catalog has nothing (a hoodtrap remix in no catalog shows its folder's picture; owner, 5 Nov).
             // The lookup and the saved cover use the key without it.
-            var fallback = Art.LookupFallback(key);
-            if (fallback is not null) key = Art.LookupBase(key);
+            // F1: the chain (catalog, folder picture, artist photo) is planned from the key with its fallbacks; it is saved under the key without them
+            var chain = CoverChain.Plan(key);
+            string? fallback = chain.Count > 0 ? null : Art.LookupFallback(key);
+            if (Art.LookupFallbacks(key).Length > 0) key = Art.LookupBase(key);
             IResult Missing(bool transient)
             {
                 var (status, cache) = CoverAnswers.Missing(transient);
@@ -299,10 +303,43 @@ public static class MediaEndpoints
                         using var res = await http.GetAsync(full ? external : Art.SmallExternal(external), ct);
                         if (res.IsSuccessStatusCode) bytes = await res.Content.ReadAsByteArrayAsync(ct);
                     }
-                    else if (Art.ParseLookupKey(key) is var (la, lb, lt))
+                    else if (chain.Count > 0)
                     {
-                        await catalogSlots.WaitAsync(ct);
-                        try { (bytes, transient) = await OnlineCover(http, la, lb, lt, ct); } finally { catalogSlots.Release(); }
+                        // F1: the catalog, the folder's picture, the artist's photo on Jellyfin, then the catalog's photo of the artist
+                        async Task<(byte[]?, bool)> JfImage(string id, string? tag, CancellationToken c)
+                        {
+                            if (s.Jellyfin is not { } acc) return (null, false);
+                            using var req = jf.Authorized(acc, jf.ImageUrl(acc, id, full ? 0 : 240, tag, webp: !full));
+                            using var res = await http.SendAsync(req, c);
+                            if (res.IsSuccessStatusCode) return (await res.Content.ReadAsByteArrayAsync(c), false);
+                            return (null, (int)res.StatusCode >= 500 || res.StatusCode == System.Net.HttpStatusCode.TooManyRequests);
+                        }
+                        async Task<(byte[]?, bool)> Step(CoverStep st, CancellationToken c)
+                        {
+                            switch (st.Kind)
+                            {
+                                case CoverStep.Kinds.Catalog:
+                                    await catalogSlots.WaitAsync(c);
+                                    try { return await OnlineCover(http, st.Value, st.Album, st.Title, c); } finally { catalogSlots.Release(); }
+                                case CoverStep.Kinds.JellyfinPicture:
+                                    var pid = st.Value[2..]; string? ptag = null;
+                                    if (pid.IndexOf('~') is var px and > 0) { ptag = pid[(px + 1)..]; pid = pid[..px]; }
+                                    return await JfImage(pid, ptag, c);
+                                case CoverStep.Kinds.JellyfinArtist:
+                                    return await JfImage(st.Value, null, c);
+                                default:
+                                    await catalogSlots.WaitAsync(c);
+                                    try
+                                    {
+                                        var (url, unasked) = await ArtistPicture(st.Value, c);
+                                        if (url is null) return (null, unasked);
+                                        using var res = await http.GetAsync(url, c);
+                                        return res.IsSuccessStatusCode ? (await res.Content.ReadAsByteArrayAsync(c), false) : (null, true);
+                                    }
+                                    finally { catalogSlots.Release(); }
+                            }
+                        }
+                        (bytes, _, transient) = await CoverChain.RunAsync(chain, Step, ct);
                     }
                     else if (key.StartsWith("nf") && s.Nas is { } n)
                     {

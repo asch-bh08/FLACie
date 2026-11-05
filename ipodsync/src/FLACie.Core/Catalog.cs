@@ -158,6 +158,17 @@ public sealed class WebCatalog(HttpClient http)
 
     // ---- Deezer ----
 
+    /// <summary>F1: the catalog's photo of an artist (Deezer's picture for the artist of that name), or null; [unasked] when Deezer could not be asked.</summary>
+    public async Task<(string? Url, bool Unasked)> ArtistPictureAsync(string artist, CancellationToken ct = default)
+    {
+        var lead = Matching.PrimaryArtist(artist);
+        if (lead.Length == 0) return (null, false);
+        if (await Json($"https://api.deezer.com/search/artist?q={Enc(artist)}&limit=5", ct) is not { } j) return (null, true);
+        var hit = (j["data"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault(o => Matching.PrimaryArtist(S(o, "name")) == lead);
+        // Deezer's stand-in for an artist without a photo has an empty hash in its address (".../artist//...")
+        return (hit is not null && S(hit, "picture_xl") is { Length: > 0 } u && !u.Contains("/artist//") ? u : null, false);
+    }
+
     /// <summary>F11: how well known a song is: Deezer's track "rank" (higher is better) for the hit with this title and lead artist; 0 when Deezer has it
     /// unranked or has nothing, null when Deezer could not be asked (then nothing is to be remembered).</summary>
     public async Task<long?> SongRankAsync(string artist, string title, CancellationToken ct = default)

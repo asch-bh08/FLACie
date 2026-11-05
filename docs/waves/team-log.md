@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round2: F1 full cover chain)
+- Done: a song without its own picture: catalog (song, then album) -> folder picture (Jellyfin ParentPrimaryImage, else the folder item) -> artist photo on Jellyfin -> Deezer artist photo -> made cover.
+- The lookup key carries the fallbacks after the catalog part ("jf<id>~<tag>" | "jd<folder>" | "ja<artist>", "|" between); covers are saved under the key without them (LookupBase).
+- Local: if the phone builds or parses lookup keys itself, part 4 can now hold several fallbacks.
+
 ## 2026-11-05 Cloud (cloud/round2: F11 real popularity)
 - Done: WebCatalog.SongRankAsync (Deezer track rank for the same title and lead artist); DjPickPopularity keeps ranks in data/dj/popularity.json on frank.
 - The DJ looks up the versions of a title before ranking (own plays first, then Deezer rank, then title); a lookup Deezer could not answer is not kept.

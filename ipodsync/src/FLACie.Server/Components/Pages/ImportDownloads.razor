@@ -1,0 +1,59 @@
+@page "/imports/{JobId}/downloads"
+@attribute [Authorize]
+@implements IDisposable
+@inherits UserComponent
+@* F26.6: the downloads of one import only: each song, where it was found, its quality, its progress, and why it failed *@
+@{ var imp = AppHost.Imports?.ForJob(Session, JobId); }
+<div class="sp imp-dl">
+@if (imp is not { } im)
+{
+    <p class="status">This import isn't there any more.</p>
+}
+else
+{
+    <PageTitle>Downloads for @im.Name · FLACie</PageTitle>
+    <header class="page-head"><h1>Downloads for <i>@im.Name</i></h1>
+        @if (im.PlaylistId is { } pl) { <a class="btn ghost" href="/playlist/@pl">Open the playlist</a> }</header>
+    var rows = im.Songs.Select(s => (Song: s, Job: Downloads.JobFor(Session, s.Artist, s.Title))).ToList();
+    <p class="sub">@rows.Count(r => r.Song.State is "owned" or "done") of @rows.Count in the library · @rows.Count(r => Failed(r.Song, r.Job)) couldn't be found</p>
+    <ol class="imp-dl-list" data-testid="import-downloads">
+        @foreach (var (s, j) in rows)
+        {
+            var song = s; var failed = Failed(s, j);
+            <li class="imp-dl-row @(failed ? "failed" : "")" data-testid="import-download">
+                <span class="imp-dl-song"><b>@s.Title</b><small>@s.Artist</small></span>
+                <span class="imp-dl-state">@StateOf(s, j)</span>
+                <span class="imp-dl-src">@(j?.Source ?? j?.Current ?? (s.State == "owned" ? "Already in the library" : ""))</span>
+                <span class="imp-dl-q">@(j is { Stage: DownloadStage.Done } ? (j.HiRes ? "Hi-Res" : "FLAC") : "")</span>
+                @if (failed) { <span class="imp-dl-why">@(s.Message ?? j?.Message)</span><button class="btn" @onclick="() => Retry(song)">Retry</button> }
+            </li>
+        }
+    </ol>
+}
+</div>
+@code {
+    [Parameter] public string JobId { get; set; } = "";
+    [Inject] IDownloads Downloads { get; set; } = default!;
+    [Inject] ImportManager Imports { get; set; } = default!;
+    Action<UserSession>? onChange;
+    static bool Failed(ImportSong s, DownloadJob? j) => j is { Stage: DownloadStage.Failed } || (j is null or { Finished: true } && s.State == "failed" && j is not { Stage: DownloadStage.Done });
+    static string StateOf(ImportSong s, DownloadJob? j) => s.State switch
+    {
+        "owned" => "In the library",
+        "done" => "Downloaded",
+        _ when j is { Finished: false } => j.Message,
+        "requested" => "Requested from Lidarr",
+        "failed" => "Couldn't find it",
+        _ => j?.Message ?? "Waiting",
+    };
+    void Retry(ImportSong s) => Downloads.Song(Session, new CatalogSong(s.Artist, s.Title, s.Album, null, 0, 0, 0), kind: "Import");
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        Downloads.Subscribe(Session, OnJobs);
+        onChange = s => { if (ReferenceEquals(s, Session)) OnJobs(); };
+        Imports.Changed += onChange;
+    }
+    void OnJobs() => InvokeAsync(StateHasChanged);
+    public override void Dispose() { if (Session is not null) Downloads.Unsubscribe(Session, OnJobs); if (onChange is not null) Imports.Changed -= onChange; base.Dispose(); }
+}

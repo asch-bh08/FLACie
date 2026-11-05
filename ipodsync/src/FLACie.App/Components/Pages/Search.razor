@@ -42,32 +42,11 @@
 else
 {
     <ExploreBar Compact="true" Changed="OnFilters" />
-    @* F23: the Playlists filter: every playlist that matches (Spotify's, Deezer's, SoundCloud's, our own), best first, and a genre to narrow them.
-       Its chip sits in the All / Songs / Albums / Artists row (ResultSections' ExtraKinds); the genres open under it *@
-    <ResultSections Query="@q" Rev="@X.Version" Context="Search" Made="@lists" ShowEmpty="@(!(webBusy || webSongs.Count > 0 || webAlbums.Count > 0))" OnQuery="Suggest">
-        <ExtraKinds><button class="chip @(listsAll ? "on" : "")" aria-pressed="@(listsAll ? "true" : "false")" @onclick="ToggleLists">Playlists</button></ExtraKinds>
-        <UnderKinds>
-        @if (listsAll)
-        {
-            <div class="sr-kinds lists-filter" role="group" aria-label="Playlists by genre">
-                @foreach (var g in Genres())
-                {
-                    var genre = g;
-                    <button class="chip @(listGenre == genre ? "on" : "")" aria-pressed="@(listGenre == genre ? "true" : "false")" @onclick="() => PickGenre(genre)">@genre</button>
-                }
-            </div>
-            <section class="sr-section" aria-label="All playlists">
-                <h2 class="section"><i>Playlists</i>@(listGenre is null ? "" : " · " + listGenre)</h2>
-                @if (filterLists.Count == 0) { <p class="status">No playlists for this yet.</p> }
-                <div class="grid">
-                    @foreach (var m in filterLists) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub">@m.Subtitle</span></a> }
-                </div>
-            </section>
-        }
-        </UnderKinds>
-    </ResultSections>
+    @* F26.3: Playlists is one of the kind chips (one choice) and shows only playlists; genre and decade come from the Filters panel above *@
+    <ResultSections Query="@q" Rev="@X.Version" Context="Search" Made="@lists" ListsKind="true" AllLists="@filterLists" OnKind="KindPicked" ShowEmpty="@(!(webBusy || webSongs.Count > 0 || webAlbums.Count > 0))" OnQuery="Suggest" />
     @if (webPaused) { <p class="hint" role="status">Online results are paused for a moment: that was a lot of searches in one minute. Your library's results are still here.</p> }
-    @if (webBusy || webSongs.Count > 0 || webAlbums.Count > 0)
+    @* music to download is songs and albums: not shown while Playlists or Artists is picked (F26.3) *@
+    @if ((webBusy || webSongs.Count > 0 || webAlbums.Count > 0) && kind is "" or "songs" or "albums")
     {
         <h2 class="section">More music @(webBusy ? "(searching…)" : "")</h2>
         @* with downloads off on this server (the Dashboard's "Allow downloads") these are only what exists: no download buttons and no "set up downloads" hint *@
@@ -133,11 +112,13 @@ else
     [Inject] IServiceProvider Provider { get; set; } = default!;
     bool isAdmin => AdminAccess.Is(Session, Conf);
     string q = ""; string? hiAsk, dlMenu;
-    void OnFilters() { }
+    // the Filters panel changed: the Playlists view follows its genre and decade
+    async Task OnFilters() { if (kind == "playlists") { await LoadFilter(); StateHasChanged(); } }
+    string kind = "";
+    async Task KindPicked(string k) { kind = k; if (k == "playlists") await LoadFilter(); }
     // ---- F23: playlists from outside and our own, for the row and the Playlists filter ----
     IReadOnlyList<MadePlaylist> lists = [], filterLists = [];
-    bool listsAll; string? listGenre;
-    IEnumerable<string> Genres() => Lib.Songs.Where(t => t.Genre.Length > 0).GroupBy(t => t.Genre, StringComparer.OrdinalIgnoreCase).OrderByDescending(g => g.Count()).Take(10).Select(g => g.First().Genre);
+    bool listsAll => kind == "playlists";
 
     async Task LoadLists(string query, CancellationToken ct)
     {
@@ -157,12 +138,19 @@ else
 
     async Task LoadFilter(CancellationToken ct = default)
     {
-        if (AppHost.WebPlaylists is not { } w) { filterLists = Made(); return; }
-        filterLists = (await w.ForFilterAsync(Session, q, listGenre, ct)).Select(ToMade).ToList();
+        if (AppHost.WebPlaylists is not { } w)
+        {
+            // our own lists only (no outside playlists on this server): the genre and decade still narrow them, by their names
+            var own = MadePlaylists.Cached(Session, () => AppHost.ListenLog(Session), DateTime.UtcNow);
+            IEnumerable<MadePlaylist> pick = q.Trim().Length > 0 ? MadePlaylists.Search(own, q) : own;
+            if (X.Genre.Length > 0) pick = (q.Trim().Length > 0 ? pick.Concat(MadePlaylists.Search(own, X.Genre)) : pick).Where(m => m.Name.Contains(X.Genre, StringComparison.OrdinalIgnoreCase));
+            if (X.Decade.Length > 0) pick = pick.Concat(MadePlaylists.Search(own, X.Decade)).Where(m => m.Name.Contains(X.Decade, StringComparison.OrdinalIgnoreCase));
+            filterLists = pick.DistinctBy(m => m.Id).ToList();
+            return;
+        }
+        filterLists = (await w.ForFilterAsync(Session, q, X.Genre.Length > 0 ? X.Genre : null, ct, X.Decade.Length > 0 ? X.Decade : null)).Select(ToMade).ToList();
     }
 
-    async Task ToggleLists() { listsAll = !listsAll; if (listsAll) await LoadFilter(); }
-    async Task PickGenre(string g) { listGenre = listGenre == g ? null : g; await LoadFilter(); }
 
     /// <summary>A list as a card: our own keeps its page; one from outside opens as "web:source:id", with the songs the library has.</summary>
     MadePlaylist ToMade(WebPlaylist l)
@@ -170,7 +158,10 @@ else
         if (l.Source == "own" && MadePlaylists.Find(MadePlaylists.Cached(Session, () => AppHost.ListenLog(Session), DateTime.UtcNow), l.Id) is { } m) return m;
         var have = l.Tracks.Select(t => Lib.Find(t.Title, t.Artist)).OfType<Track>().ToList();
         var from = l.Source switch { "spotify" => "Spotify", "deezer" => "Deezer", "soundcloud" => "SoundCloud", _ => "FLACie" };
-        return new MadePlaylist($"web:{l.Source}:{l.Id}", l.Name, $"{l.Tracks.Count} songs · {from}", have.Select(t => t.ArtKey).FirstOrDefault(k => k is not null), have.Select(t => t.Path).ToList());
+        // a list read by name only (F26.1) shows its size and its own picture until it is opened
+        var size = Math.Max(l.Tracks.Count, l.Size);
+        var art = have.Select(t => t.ArtKey).FirstOrDefault(k => k is not null) ?? (l.Picture is { Length: > 0 } pic ? Art.ExternalKey(pic) : null);
+        return new MadePlaylist($"web:{l.Source}:{l.Id}", l.Name, $"{(size > 0 ? size + " songs · " : "")}{from}{(l.Editor ? " editors" : "")}", art, have.Select(t => t.Path).ToList());
     }
 
     List<MadePlaylist> Made() => q.Length < 2 || Lib.Songs.Count == 0 ? [] : MadePlaylists.Search(MadePlaylists.Cached(Session, () => AppHost.ListenLog(Session), DateTime.UtcNow), q);

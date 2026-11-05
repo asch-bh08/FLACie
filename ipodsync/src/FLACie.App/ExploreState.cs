@@ -170,9 +170,12 @@ public sealed class ExploreState
         return (Sort == "az" ? l.OrderBy(g => Matching.SortKey(g.Name)) : Sort == "za" ? l.OrderByDescending(g => Matching.SortKey(g.Name)) : l.OrderByDescending(g => g.Tracks.Count).ThenBy(g => g.Name)).ToList();
     }
 
+    /// <summary>F26.3: tags that are no genre ("Genre", "Other", "Unknown"...), never offered as one.</summary>
+    public static readonly HashSet<string> NoGenre = new(StringComparer.OrdinalIgnoreCase) { "genre", "other", "others", "unknown", "misc", "miscellaneous", "none", "n/a", "various", "default", "general" };
+
     /// <summary>Genres and decades to offer in the pickers, from what the library actually holds.</summary>
     public static (List<string> Genres, List<string> Decades) Choices(Library lib) => (
-        lib.Songs.Where(t => t.Genre.Length > 0).GroupBy(t => t.Genre.Trim(), StringComparer.OrdinalIgnoreCase).Where(g => g.Count() >= 3).OrderBy(g => g.Key).Select(g => g.Key).ToList(),
+        lib.Songs.Where(t => t.Genre.Length > 0 && !NoGenre.Contains(t.Genre.Trim())).GroupBy(t => t.Genre.Trim(), StringComparer.OrdinalIgnoreCase).Where(g => g.Count() >= 3).OrderBy(g => g.Key).Select(g => g.Key).ToList(),
         lib.Songs.Select(t => DecadeOf(t.Year)).Where(d => d.Length > 0).Distinct().OrderByDescending(d => d).ToList());
 }
 

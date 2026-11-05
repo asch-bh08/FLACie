@@ -15,6 +15,21 @@ public sealed class SpotifyEmbedServiceTests : IDisposable
 
     sealed class Web(bool spotifyUp) : HttpMessageHandler
     {
+        // Deezer's playlist search for "The Prodigy" (F26.1): the editors' best-of, fans' lists that name the band, and some that do not
+        public string DeezerSearch = """
+            {"data": [
+            {"id": 9001, "title": "100% The Prodigy", "nb_tracks": 40, "user": {"name": "Deezer Electro Editor"}, "picture_medium": "https://e-cdns-images.dzcdn.net/images/playlist/a/250x250.jpg"},
+            {"id": 11, "title": "The Prodigy - Best Of", "nb_tracks": 60, "user": {"name": "raver88"}},
+            {"id": 12, "title": "The Prodigy Mix", "nb_tracks": 50, "user": {"name": "Deezer Mixes"}},
+            {"id": 13, "title": "The Prodigy - Remixes", "nb_tracks": 25, "user": {"name": "dj k"}},
+            {"id": 14, "title": "the prodigy all songs", "nb_tracks": 120, "user": {"name": "fan"}},
+            {"id": 15, "title": "THE PRODIGY ALL SONGS", "nb_tracks": 118, "user": {"name": "fan2"}},
+            {"id": 16, "title": "The Prodigy tiny", "nb_tracks": 3, "user": {"name": "fan3"}},
+            {"id": 17, "title": "Oldschool Rave Anthems 88-94", "nb_tracks": 80, "user": {"name": "raver"}},
+            {"id": 18, "title": "Prodigy Mixtape (rap)", "nb_tracks": 30, "user": {"name": "hiphop"}},
+            {"id": 19, "title": "Breakbeat with The Prodigy", "nb_tracks": 40, "user": {"name": "bb"}}
+            ]}
+            """;
         public List<string> Hosts = []; readonly List<string> urls = [];
         public int Asked(string url) => urls.Count(u => u == url);
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage r, CancellationToken ct)
@@ -23,7 +38,7 @@ public sealed class SpotifyEmbedServiceTests : IDisposable
             var u = r.RequestUri.ToString();
             (HttpStatusCode, string) a = u.Contains("open.spotify.com/embed/playlist/")
                 ? spotifyUp ? (HttpStatusCode.OK, File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAudio", "embed", "this-is-the-prodigy.html")).Replace("This Is The Prodigy", "All Out 90s")) : (HttpStatusCode.TooManyRequests, "")
-                : u.Contains("api.deezer.com/search/playlist") ? (HttpStatusCode.OK, """{"data": [{"id": 9001, "title": "100% The Prodigy", "user": {"name": "Deezer Electro Editor"}}]}""")
+                : u.Contains("api.deezer.com/search/playlist") ? (HttpStatusCode.OK, DeezerSearch)
                 : u == "http://mover.test/artist-sets" ? (HttpStatusCode.OK, """{"account": "https://soundcloud.com/the-prodigy", "sets": [{"title": "Experience: Expanded (Remixes & B-sides)", "url": "https://soundcloud.com/the-prodigy/sets/experience-expanded"}]}""")
                 : u == "http://mover.test/playlist" ? (HttpStatusCode.OK, """{"name": "Experience: Expanded", "tracks": [{"title": "Charly", "artist": "The Prodigy"}, {"title": "Your Love", "artist": "The Prodigy"}]}""")
                 : u.Contains("api.deezer.com/playlist/9001/tracks") ? (HttpStatusCode.OK, """{"data": [{"title": "Firestarter", "duration": 280, "artist": {"name": "The Prodigy"}}, {"title": "Breathe", "duration": 335, "artist": {"name": "The Prodigy"}}, {"title": "Omen", "duration": 216, "artist": {"name": "The Prodigy"}}]}""")
@@ -124,5 +139,42 @@ public sealed class SpotifyEmbedServiceTests : IDisposable
         Assert.Equal(1, web.Asked("http://mover.test/artist-sets"));
         await svc.ForSearchAsync(me, "prodigy", default);
         Assert.Equal(1, web.Asked("http://mover.test/artist-sets"));               // the account and its sets are remembered for 7 days
+    }
+
+    [Fact]
+    public async Task An_artist_search_shows_many_real_lists_from_deezers_search_ours_only_when_under_4_and_last()
+    {
+        var (svc, web, dl, me, _) = Rig(spotifyUp: true);
+        var shown = await svc.ForSearchAsync(me, "prodigy", default);
+        var names = shown.Select(l => l.Name).ToList();
+        Assert.Equal("100% The Prodigy", names[0]);                                     // the editors' first
+        Assert.Contains("The Prodigy Mix", names); Assert.Contains("The Prodigy - Remixes", names); Assert.Contains("Breakbeat with The Prodigy", names);
+        Assert.Single(names, n => n.Equals("the prodigy all songs", StringComparison.OrdinalIgnoreCase));   // near-duplicates once
+        Assert.DoesNotContain("The Prodigy tiny", names);                               // under 8 songs
+        Assert.DoesNotContain("Oldschool Rave Anthems 88-94", names);                   // neither names them nor is known to hold them
+        Assert.DoesNotContain("Prodigy Mixtape (rap)", names);                          // Prodigy is not The Prodigy
+        Assert.DoesNotContain(shown, l => l.Source == "own");                           // 4 or more real lists: ours stay out
+        Assert.True(shown.Count <= WebPlaylistPick.ArtistRow);
+        Assert.Equal(["Breathe", "Omen"], dl.Asked);                                    // only the best-of downloads (its top half)
+        Assert.Equal(1, web.Asked("https://api.deezer.com/playlist/9001/tracks?limit=100"));
+        Assert.Equal(0, web.Hosts.Count(h => h == "api.deezer.com") - 2);               // one search, one best-of read: nothing else
+        // a fans' list is read when it is opened
+        var mix = shown.First(l => l.Name == "The Prodigy Mix");
+        Assert.Empty(mix.Tracks);
+        clock = clock.AddSeconds(2);
+        Assert.NotNull(await svc.FillAsync(me, mix, default));
+        Assert.Equal(1, web.Asked("https://api.deezer.com/playlist/12/tracks?limit=100"));
+    }
+
+    [Fact]
+    public async Task With_under_4_real_lists_our_own_come_after_them()
+    {
+        var (svc, web, _, me, _) = Rig(spotifyUp: true);
+        web.DeezerSearch = """{"data": [{"id": 9001, "title": "100% The Prodigy", "nb_tracks": 40, "user": {"name": "Deezer Electro Editor"}}]}""";
+        var shown = await svc.ForSearchAsync(me, "prodigy", default);
+        Assert.Equal("deezer", shown[0].Source);
+        Assert.Contains(shown, l => l.Source == "own");
+        var order = shown.Select(l => l.Source).ToList();
+        Assert.True(order.IndexOf("own") > order.FindLastIndex(x => x != "own"));
     }
 }

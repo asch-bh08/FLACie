@@ -27,6 +27,7 @@ else
     </header>
     <h2 class="section"><i>Albums</i></h2>
     <AlbumGrid Albums="albums" />
+    <ListsWithArtist Artist="@a.Name" />
 }
 @code {
     [Parameter] public string Name { get; set; } = "";

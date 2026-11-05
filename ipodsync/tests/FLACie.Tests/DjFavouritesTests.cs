@@ -39,9 +39,9 @@ public class DjFavouritesTests
         Assert.Equal(DjAskDo.Play, a.Do);
         var titles = a.Paths!.Select(x => u.Find(x)!.Title).ToList();
         Assert.Equal(["Track 03", "Track 05", "Track 07", "Track 09"], titles.Take(4));
-        Assert.Equal("Track 00", titles[^1]);
+        Assert.DoesNotContain("Track 00", titles);                                       // F26.4: skipped early twice: left out
         Assert.All(titles, t => Assert.StartsWith("Track", t));                           // only The Prodigy
-        Assert.True(titles.Count >= DjFavourites.Fill);
+        Assert.Equal(DjFavourites.Fill, titles.Count);
     }
 
     [Fact]
@@ -54,6 +54,7 @@ public class DjFavouritesTests
         Assert.Equal(15, titles.Count);
         Assert.Equal("Track 12", titles[0]);
         Assert.Equal(["Track 00", "Track 01", "Track 02"], titles.Skip(1).Take(3));     // then the best known
+        Assert.StartsWith("Your favourite The Prodigy song first, then their biggest hits", a.Say);
     }
 
     [Fact]
@@ -80,5 +81,29 @@ public class DjFavouritesTests
         var p = DjAskRules.Parse(said)!;
         Assert.Equal(AskIntent.FavouritesOf, p.Intent);
         Assert.Equal(what, p.What);
+    }
+
+    [Fact]
+    public async Task Jellyfins_play_counts_count_the_fill_is_hits_not_the_alphabet_and_the_dj_says_so()
+    {
+        var u = new DjAskUnderstandTests.User();
+        // twenty songs: titles in alphabetical order, none known to Deezer except two
+        var p = Enumerable.Range(0, 20).Select(i => T($"{(char)('A' + i)} Song", "The Prodigy", 1990 + i % 5)).ToList();
+        u.Library.AddRange(p);
+        u.JfPlays[p[17].Path] = 40; u.JfPlays[p[12].Path] = 9; u.JfPlays[p[4].Path] = 1;     // played in other apps, before FLACie's log
+        u.Pop[p[19].Path] = 900; u.Pop[p[15].Path] = 500;                                    // the hits Deezer knows
+        // Q Song is on a best-of too: a hit by the albums it is on
+        u.Library.Add(new Track("/p/The Prodigy/Q Song (best of)", "Q Song", "The Prodigy", "Their Law: The Singles", "The Prodigy", 1, 1, 200_000, 2005, null, 1, TrackSource.Jellyfin, JellyfinId: "x"));
+        u.Log.AddRange([Play(p[2], 10), Play(p[2], 8), Play(p[2], 12)]);                     // C Song skipped three times, never played
+        var a = await Ask(u, "play my favourite prodigy songs");
+        var titles = a.Paths!.Select(x => u.Find(x)!.Title).ToList();
+        Assert.Equal(["R Song", "M Song", "E Song"], titles.Take(3));                         // Jellyfin's counts: 40, 9, then the one play
+        Assert.Equal(["T Song", "P Song", "Q Song"], titles.Skip(3).Take(3));                 // hits: Deezer's, then on several albums
+        Assert.DoesNotContain("C Song", titles);
+        Assert.Equal(DjFavourites.Fill, titles.Count);
+        var rest = titles.Skip(6).ToList();                                                  // then by year, newest first: not A, B, D...
+        Assert.NotEqual(rest.Order(StringComparer.Ordinal), rest);
+        Assert.Equal(1994, u.Find(a.Paths![6])!.Year);
+        Assert.Equal("You've played 3 of their songs a lot; then their biggest hits.", a.Say);
     }
 }

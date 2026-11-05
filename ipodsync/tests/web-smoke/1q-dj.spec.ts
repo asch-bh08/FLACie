@@ -205,7 +205,7 @@ test.describe.serial('the DJ', () => {
     const cap = page.locator('.ls-art .np-dj-caption.on');
     await expect(cap).toBeVisible({ timeout: 30_000 });
     await expect(cap).not.toHaveText('');
-    await expect(page.locator('.player .bar-dj-caption.on')).toHaveCount(1);
+    await expect(page.getByTestId('dj-bar-caption')).toHaveCount(1);   // F26.5: the words moved from the player bar to the DJ bar above it
     await page.waitForTimeout(400);   // (the fade in)
     await page.screenshot({ path: '../../../docs/screens-new-look/dj-caption.png' });
     // a pause (like a skip) takes the words away at once (the songs here are 3 s long, so with "Every song" one line follows another)

@@ -1,0 +1,25 @@
+@inherits UserComponent
+@* F26.2: "Lists with <artist> in": lists FLACie has already read (Spotify's, Deezer's, SoundCloud sets) that hold this artist's songs without being
+   about them, each card saying which of their songs it holds. Our own take on Spotify's "Featuring", from what is known; nothing is fetched for it. *@
+@{ var lists = AppHost.WebPlaylists?.ListsWithArtist(Artist) ?? []; }
+@if (lists.Count > 0)
+{
+    <section aria-label="Lists with @Artist in" class="sr-section lists-with" data-testid="lists-with">
+        <h2 class="section">Lists with <i>@Artist</i> in</h2>
+        <div class="row-scroll">
+            @foreach (var (l, songs) in lists)
+            {
+                var art = songs.Select(t => Lib.Songs.FirstOrDefault(x => x.Title.Equals(t, StringComparison.OrdinalIgnoreCase))?.ArtKey).FirstOrDefault(k => k is not null)
+                    ?? (l.Picture is { Length: > 0 } pic ? Art.ExternalKey(pic) : null);
+                <a class="card" href="/made/@Uri.EscapeDataString($"web:{l.Source}:{l.Id}")">
+                    <Cover ArtKey="@art" Class="square" />
+                    <span class="card-title">@l.Name</span>
+                    <span class="card-sub" title="@string.Join(", ", songs)">@FLACie.Core.WebPlaylistPick.SongsLabel(songs)</span>
+                </a>
+            }
+        </div>
+    </section>
+}
+@code {
+    [Parameter] public string Artist { get; set; } = "";
+}

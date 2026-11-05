@@ -32,22 +32,27 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
 
     public WebPlaylist? Find(string source, string id) => store.Use(source, id);
 
+    public IReadOnlyList<(WebPlaylist List, IReadOnlyList<string> Songs)> ListsWithArtist(string artist) => WebPlaylistPick.WithArtistIn(store.All, artist);
+
     public async Task<IReadOnlyList<WebPlaylist>> ForSearchAsync(UserSession s, string query, CancellationToken ct)
     {
         var (found, kind) = await GatherAsync(s, query, ct);
         var artist = kind == PlaylistQueryKind.Artist ? SearchRankTop.Artist(Lib(s).Artists, query, s.PlayStats)?.Name : null;
-        var shown = WebPlaylistPick.ForAll(found, query, kind, now(), artist);
-        // what showed interest: the artist's best-of (an artist search), and popular lists shown (their first 2 songs, so they start at once). A list
-        // shown only because it holds the artist's songs (All Out 90s for The Prodigy) waits until it is opened or played
-        foreach (var l in shown.Where(l => l.Source != "own" && WebPlaylistPick.Relevance(l, query) > 0))
-            Interest(s, l, kind == PlaylistQueryKind.Artist && l.Kind == WebPlaylistKind.Artist ? FetchTrigger.ArtistSearch : FetchTrigger.Popular);
+        var shown = kind == PlaylistQueryKind.Artist && artist is not null ? WebPlaylistPick.ForArtist(found, artist, now()) : WebPlaylistPick.ForAll(found, query, kind, now(), artist);
+        // what showed interest (F26.1): on an artist search only the artist's best-of (its top half); on a playlist, genre or decade search the lists it
+        // names (their first 2 songs, so they start at once). Every other list shown downloads nothing until it is opened or played
+        foreach (var l in shown.Where(l => l.Source != "own"))
+        {
+            if (kind == PlaylistQueryKind.Artist) { if (l.Kind == WebPlaylistKind.Artist) Interest(s, l, FetchTrigger.ArtistSearch); }
+            else if (WebPlaylistPick.Relevance(l, query) > 0) Interest(s, l, FetchTrigger.Popular);
+        }
         return shown;
     }
 
-    public async Task<IReadOnlyList<WebPlaylist>> ForFilterAsync(UserSession s, string query, string? genre, CancellationToken ct)
+    public async Task<IReadOnlyList<WebPlaylist>> ForFilterAsync(UserSession s, string query, string? genre, CancellationToken ct, string? decade = null)
     {
-        var (found, _) = await GatherAsync(s, query.Trim().Length > 0 ? query : genre ?? "", ct);
-        return WebPlaylistPick.ForFilter(found.Concat(store.All).DistinctBy(l => l.Source + ":" + l.Id), query, genre, now());
+        var (found, _) = await GatherAsync(s, query.Trim().Length > 0 ? query : genre ?? decade ?? "", ct);
+        return WebPlaylistPick.ForFilter(found.Concat(store.All).DistinctBy(l => l.Source + ":" + l.Id), query, genre, now(), decade);
     }
 
     public void Interest(UserSession s, WebPlaylist list, FetchTrigger trigger, int from = 0)
@@ -97,8 +102,16 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
 
     public async Task<WebPlaylist> FillAsync(UserSession s, WebPlaylist list, CancellationToken ct)
     {
-        if (list.Tracks.Count > 0 || list.Source != "soundcloud" || s.Services.FileMoverUrl.Length == 0) return list;
+        if (list.Tracks.Count > 0) return list;
         if (store.Use(list.Source, list.Id) is { Tracks.Count: > 0 } have) return have;
+        // F26.1: a Deezer list found by name: its songs from Deezer's open API
+        if (list.Source == "deezer")
+        {
+            if (!gate.TryTake("deezer")) { await Task.Delay(WebSourceGate.Gap, ct); if (!gate.TryTake("deezer")) return list; }
+            try { var full = await DeezerTracksAsync(list, ct); if (full.Tracks.Count > 0) { store.Put(full); store.Save(); } return full; }
+            catch (Exception e) when (e is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException && !ct.IsCancellationRequested) { gate.Failed("deezer"); return list; }
+        }
+        if (list.Source != "soundcloud" || s.Services.FileMoverUrl.Length == 0) return list;
         if (!gate.TryTake("soundcloud")) { await Task.Delay(WebSourceGate.Gap, ct); if (!gate.TryTake("soundcloud")) return list; }
         try
         {
@@ -140,7 +153,10 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
         // an artist's best-of from Deezer's editors
         if (kind == PlaylistQueryKind.Artist && SearchRankTop.Artist(lib.Artists, query, s.PlayStats) is { } artist)
         {
-            if (await DeezerArtistAsync(artist.Name, ct) is { } d) found.Add(d);
+            // F26.1: Deezer's playlist search: the editors' best-of (with its songs) and the fans' and editors' lists that name the artist (names only)
+            found.AddRange(await DeezerListsAsync(artist.Name, ct));
+            // lists read before (opened, or Deezer's that were filled) that hold several of the artist's songs
+            found.AddRange(store.All.Where(l => l.Source == "deezer" && l.Tracks.Count > 0 && WebPlaylistPick.HoldsCount(l, artist.Name) >= 2 && found.All(f => f.Id != l.Id || f.Source != l.Source)));
             // F25.3: the artist's own SoundCloud sets, quietly (names only; songs read when one is opened)
             found.AddRange(await SoundCloudSetsAsync(s, artist.Name, lib, ct));
         }
@@ -212,27 +228,60 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
     }
 
     /// <summary>Deezer's editorial best-of for an artist ("100% The Prodigy", or "This Is" / "Best of"), its first 100 songs; null when it has none.</summary>
-    public async Task<WebPlaylist?> DeezerArtistAsync(string artist, CancellationToken ct)
+    public async Task<WebPlaylist?> DeezerArtistAsync(string artist, CancellationToken ct) =>
+        (await DeezerListsAsync(artist, ct)).FirstOrDefault(l => l.Kind == WebPlaylistKind.Artist && l.Tracks.Count > 0);
+
+    /// <summary>One Deezer playlist search per artist, kept a day.</summary>
+    public static readonly TimeSpan DeezerListsKept = TimeSpan.FromDays(1);
+    readonly Dictionary<string, (DateTime At, List<WebPlaylist> Lists)> deezerLists = [];
+
+    /// <summary>
+    /// F26.1: Deezer's playlist search for an artist (public, no key): the editors' best-of with its first 100 songs, and every list whose name holds
+    /// the artist (fans' "Best Of", "The Prodigy Mix", "... Remixes") by name, size and picture; their songs are read when one is opened.
+    /// </summary>
+    public async Task<List<WebPlaylist>> DeezerListsAsync(string artist, CancellationToken ct)
     {
-        var lead = Matching.PrimaryArtist(artist);
-        if (store.All.FirstOrDefault(l => l.Source == "deezer" && l.Kind == WebPlaylistKind.Artist && Matching.PrimaryArtist(l.Subject) == lead) is { } known
-            && !store.NeedsFetch("deezer", known.Id)) return store.Use("deezer", known.Id);
-        if (!gate.TryTake("deezer")) return null;
+        var key = string.Join(' ', Matching.SearchWords(artist));
+        lock (deezerLists) if (deezerLists.TryGetValue(key, out var known) && now() - known.At < DeezerListsKept) return known.Lists.Select(l => store.Use(l.Source, l.Id) ?? l).ToList();
+        if (!gate.TryTake("deezer")) { lock (deezerLists) return deezerLists.TryGetValue(key, out var old) ? old.Lists : []; }
+        static string S(JsonNode? n, string k) => n?[k] is JsonValue v && v.TryGetValue<string>(out var x) ? x : "";
+        static long L(JsonNode? n, string k) => n?[k] is JsonValue v && v.TryGetValue<long>(out var x) ? x : 0;
         try
         {
-            var found = JsonNode.Parse(await http.GetStringAsync($"https://api.deezer.com/search/playlist?q={Uri.EscapeDataString(artist)}&limit=25", ct))?["data"] as JsonArray;
-            static string S(JsonNode? n, string k) => n?[k] is JsonValue v && v.TryGetValue<string>(out var x) ? x : "";
-            var hit = found?.OfType<JsonObject>().FirstOrDefault(p => IsEditorsBestOf(S(p, "title"), S(p["user"], "name"), artist));
-            if (hit?["id"] is not JsonValue idv || !idv.TryGetValue<long>(out var pid)) return null;
-            if (!gate.TryTake("deezer")) await Task.Delay(WebSourceGate.Gap, ct);
-            var tracks = (JsonNode.Parse(await http.GetStringAsync($"https://api.deezer.com/playlist/{pid}/tracks?limit={WebPlaylist.MaxTracks}", ct))?["data"] as JsonArray ?? [])
-                .OfType<JsonObject>().Select(t => new WebTrack(SpotifyEmbed.Clean(S(t, "title")), SpotifyEmbed.Clean(S(t["artist"], "name")), (t["duration"] is JsonValue dv && dv.TryGetValue<long>(out var sec) ? sec : 0) * 1000))
-                .Where(t => t.Title.Length > 0).Take(WebPlaylist.MaxTracks).ToList();
-            if (tracks.Count == 0) return null;
-            var l = new WebPlaylist("deezer", pid.ToString(), SpotifyEmbed.Clean(S(hit, "title")), WebPlaylistKind.Artist, artist, tracks);
-            store.Put(l); store.Save();
-            return l;
+            var found = JsonNode.Parse(await http.GetStringAsync($"https://api.deezer.com/search/playlist?q={Uri.EscapeDataString(artist)}&limit=50", ct))?["data"] as JsonArray ?? [];
+            var lists = new List<WebPlaylist>();
+            foreach (var p in found.OfType<JsonObject>())
+            {
+                var title = SpotifyEmbed.Clean(S(p, "title")); var user = S(p["user"], "name"); var id = L(p, "id");
+                if (id <= 0 || title.Length == 0) continue;
+                var best = IsEditorsBestOf(title, user, artist);
+                if (!best && !WebPlaylistPick.TitleHolds(title, artist)) continue;
+                var editor = user.StartsWith("Deezer", StringComparison.OrdinalIgnoreCase);
+                var picture = S(p, "picture_medium") is { Length: > 0 } pic ? pic : null;
+                var l = new WebPlaylist("deezer", id.ToString(), title, best ? WebPlaylistKind.Artist : WebPlaylistKind.Other, artist, [], Editor: editor, Size: (int)L(p, "nb_tracks"), Picture: picture);
+                lists.Add(store.Use("deezer", l.Id) is { Tracks.Count: > 0 } have ? have with { Editor = editor, Size = l.Size, Picture = picture, Kind = l.Kind } : l);
+            }
+            // the editors' best-of with its songs (an artist search downloads its top half)
+            if (lists.FindIndex(l => l.Kind == WebPlaylistKind.Artist) is >= 0 and var b && lists[b].Tracks.Count == 0)
+            {
+                if (!gate.TryTake("deezer")) await Task.Delay(WebSourceGate.Gap, ct);
+                lists[b] = await DeezerTracksAsync(lists[b], ct);
+            }
+            foreach (var l in lists) if (store.Use(l.Source, l.Id) is not { Tracks.Count: > 0 } || l.Tracks.Count > 0) store.Put(l);
+            store.Save();
+            lock (deezerLists) deezerLists[key] = (now(), lists);
+            return lists;
         }
-        catch (Exception e) when (e is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException && !ct.IsCancellationRequested) { gate.Failed("deezer"); return null; }
+        catch (Exception e) when (e is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException && !ct.IsCancellationRequested) { gate.Failed("deezer"); return []; }
+    }
+
+    /// <summary>A Deezer list with its first 100 songs.</summary>
+    async Task<WebPlaylist> DeezerTracksAsync(WebPlaylist l, CancellationToken ct)
+    {
+        static string S(JsonNode? n, string k) => n?[k] is JsonValue v && v.TryGetValue<string>(out var x) ? x : "";
+        var tracks = (JsonNode.Parse(await http.GetStringAsync($"https://api.deezer.com/playlist/{l.Id}/tracks?limit={WebPlaylist.MaxTracks}", ct))?["data"] as JsonArray ?? [])
+            .OfType<JsonObject>().Select(t => new WebTrack(SpotifyEmbed.Clean(S(t, "title")), SpotifyEmbed.Clean(S(t["artist"], "name")), (t["duration"] is JsonValue dv && dv.TryGetValue<long>(out var sec) ? sec : 0) * 1000))
+            .Where(t => t.Title.Length > 0).Take(WebPlaylist.MaxTracks).ToList();
+        return l with { Tracks = tracks };
     }
 }

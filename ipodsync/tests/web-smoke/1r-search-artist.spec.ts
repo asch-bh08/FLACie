@@ -51,7 +51,7 @@ test('"prodigy" puts The Prodigy on top with their top 5 songs beside it, then t
   await expect(page.getByRole('region', { name: 'Other artists' }).getByRole('link', { name: 'Prodigy', exact: true })).toBeVisible();
   // the rows come in this order
   const order = await page.locator('section.sr-section').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
-  expect(order).toEqual(['Top result', 'Popular', 'Albums', 'Singles & EPs', 'Playlists', 'Other artists']);
+  expect(order).toEqual(['Top result', 'Playlists', 'Popular', 'Albums', 'Singles & EPs', 'Other artists']);   // the playlists straight under the Top result (Local, 5 Nov)
   expect(await noSideScroll(page)).toBe(true);
   await page.screenshot({ path: 'test-results/shots/search-prodigy-pc.png', fullPage: true });
 });

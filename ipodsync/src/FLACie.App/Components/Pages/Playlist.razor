@@ -9,6 +9,17 @@
 else
 {
     var tracks = Session.Resolve(p.Entries);
+    // F26.6: an imported playlist lists every song of the import in its order; the ones not here yet are greyed with their live state
+    var imp = AppHost.Imports?.ForPlaylist(Session, p.Id);
+    IReadOnlyList<WaitingSong>? waiting = null;
+    if (imp is { } im)
+    {
+        var have = tracks.GroupBy(t => Matching.MatchKey(t.Title, t.Artist)).ToDictionary(g => g.Key, g => g.First());
+        var (inOrder, wait) = ImportRows.Build(im.Songs, (a, t) => have.GetValueOrDefault(Matching.MatchKey(t, a)), (a, t) => Downloads.JobFor(Session, a, t));
+        var placed = inOrder.Select(t => t.Path).ToHashSet();
+        tracks = [.. inOrder, .. tracks.Where(t => !placed.Contains(t.Path))];
+        waiting = wait;
+    }
     <PageTitle>@p.Name · FLACie</PageTitle>
     @* design I: the first song's cover in its own colours (flacie.npAccent), a serif title with the last word in italics, mono facts, a big Play in the accent and a tinted Shuffle *@
     <header class="pl-hero" @ref="heroEl">
@@ -24,7 +35,8 @@ else
                 </form>
             }
             else { var (head, last) = SplitTitle(p.Name); <h1>@head<i>@last</i></h1> }
-            <p class="sub pl-facts">@tracks.Count @(tracks.Count == 1 ? "song" : "songs")@(Length(tracks) is { Length: > 0 } len ? " · " + len : "")@(tracks.Count < p.Entries.Count ? $" ({p.Entries.Count - tracks.Count} not in this library)" : "")</p>
+            <p class="sub pl-facts">@tracks.Count @(tracks.Count == 1 ? "song" : "songs")@(Length(tracks) is { Length: > 0 } len ? " · " + len : "")@(tracks.Count < p.Entries.Count ? $" ({p.Entries.Count - tracks.Count} not in this library)" : "")@(waiting is { Count: > 0 } ? $" · {waiting.Count} still to come" : "")</p>
+            @if (imp is { } im2) { <p class="pl-import"><a href="/imports/@im2.JobId/downloads" data-testid="pl-downloads"><Icon Name="download" Size="14" />Downloads for this playlist</a></p> }
             <div class="chips">
                 <button class="btn primary pl-play" @onclick="() => Player.Play(tracks, 0, p.Name, DjSwitches.KeyOf(p))" disabled="@(tracks.Count == 0)"><Icon Name="play" Size="18" />Play</button>
                 <button class="btn pl-shuffle" @onclick="() => Player.ShuffleAll(tracks, p.Name, DjSwitches.KeyOf(p))" disabled="@(tracks.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle</button>
@@ -61,9 +73,9 @@ else
         </div>
     </header>
     <div class="pl-main">
-    @if (tracks.Count == 0) { <p class="status">Nothing in this playlist yet. Use the ⋯ menu on any song and pick “Add to playlist”.</p> }
-    <TrackList Tracks="tracks" PlayContext="@p.Name" PlayContextId="@DjSwitches.KeyOf(p)" OnRemove="i => Remove(p, tracks, i)" OnMove="(a, b) => Move(p, tracks, a, b)" />
-    @{ var missing = Session.Loading || Lib.Songs.Count == 0 ? [] : p.Entries.Where(e => Session.ResolveEntry(e) is null && e.Title.Length > 0).ToList(); }
+    @if (tracks.Count == 0 && waiting is not { Count: > 0 }) { <p class="status">Nothing in this playlist yet. Use the ⋯ menu on any song and pick “Add to playlist”.</p> }
+    <TrackList Tracks="tracks" Waiting="waiting" OnRetry="Retry" PlayContext="@p.Name" PlayContextId="@DjSwitches.KeyOf(p)" OnRemove="i => Remove(p, tracks, i)" OnMove="(a, b) => Move(p, tracks, a, b)" />
+    @{ var missing = imp is not null || Session.Loading || Lib.Songs.Count == 0 ? [] : p.Entries.Where(e => Session.ResolveEntry(e) is null && e.Title.Length > 0).ToList(); }
     @if (missing.Count > 0)
     {
         <section class="shelf missing-list" aria-label="Not in your library">
@@ -114,6 +126,11 @@ else
         Session.MoveInPlaylist(p.Id, At(tracks[from]), At(tracks[to])); SaveProfile();
     }
     readonly HashSet<string> asked = [];
+    // a failed song of the import is tried again; its row follows the new job
+    void Retry(WaitingSong w) { Downloads.Song(Session, new CatalogSong(w.Artist, w.Title, "", null, 0, 0, 0), kind: "Import"); StateHasChanged(); }
+    protected override async Task OnInitializedAsync() { await base.OnInitializedAsync(); Downloads.Subscribe(Session, OnJobs); }
+    void OnJobs() => InvokeAsync(StateHasChanged);
+    public override void Dispose() { if (Session is not null) Downloads.Unsubscribe(Session, OnJobs); base.Dispose(); }
     [Inject] IDownloads Downloads { get; set; } = default!;
     static string Key(PlaylistEntry e) => Matching.MatchKey(e.Title, e.Artist);
     void Get(IReadOnlyCollection<PlaylistEntry> entries)

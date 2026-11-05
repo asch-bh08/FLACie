@@ -1,5 +1,35 @@
 # Team log (newest at the top; see TEAM.md)
 
+## Cloud · F26.6 imports show every song (cloud/round4)
+- An imported playlist lists every song of its import in order. Missing songs are greyed in their place, can't be played, and show Waiting, Searching, Downloading 40 %, Requested, or Couldn't find it with Retry. When a song lands it becomes a normal row in that place.
+- New /imports/{id}/downloads lists only that import's songs, with source, quality, progress and the reason for a failure. It is linked from the playlist page and from the Import row ("Downloads").
+- AppHost.Imports (IImports) is set on the server only (ServerImports); the phone app shows nothing new. Tests: ImportRowsTests, ServerImportsTests, smoke 1z-import-playlist.
+
+## 2026-11-05 Cloud (cloud/round4: F26.5 the DJ bar above the player)
+- Done: DjBar (MainLayout, in place of DownloadActivity, which joins it): Listening… with the mic's level (recorder's loudness, a wobble with the browser recogniser), Heard: "…" + what it does (DjBarWords: Finding your favourites…, Looking for X…, Making your playlist…, Thinking…), Downloading X…, then the DJ's words timed by its voice.
+- Captions moved from the player bar into it (the full-screen cover's caption stays); spoken answers are captioned too (PlayerState.DjAnswerAsync -> OnDjSpeaking). State: PlayerState.DjState/DjHeard/DjDoing (DjBarState).
+- Proof: DjBarTests, web-smoke 1z-dj-bar.spec.ts (stand-in recogniser and voice), 1q-dj/mini-player/1i green. Local: phone and car are yours (spec).
+
+## 2026-11-05 Cloud (cloud/round4: F26.4 the DJ's real favourites)
+- Done: DjFavourites.Pick counts max(FLACie's real plays, Jellyfin's play count: IDjAskUser.JellyfinPlays from s.PlayStats); hearted and 2+ plays first, then 1 play; fill to 15 with hits: Deezer popularity (15 looked up first), then songs on several of their albums, then newest; songs skipped more than played are left out.
+- The DJ says what it did ("You've played 3 of their songs a lot; then their biggest hits.").
+- Proof: DjFavouritesTests (Jellyfin counts, hits not the alphabet, skipped out, the line).
+
+## 2026-11-05 Cloud (cloud/round4: F26.3 filters that filter)
+- Done: the kind chips (All, Songs, Albums, Artists, Playlists) are one choice (radio group in ResultSections); Playlists shows only playlists (every matching list + the person's own; "More music" hidden), Albums only albums.
+- Genre and decade come from the Filters panel and narrow the Playlists view (ForFilter decade added; without outside lists our own are narrowed by name); the genre chips under Playlists are gone; "Genre"/"Other"/"Unknown"... are never offered as genres (ExploreState.NoGenre).
+- Proof: web-smoke 1z-search-filter.spec.ts (2 green). Also fixed 1r-search-artist's expected order for Local's "playlists under the Top result" (it failed on ui/living-sleeve).
+
+## 2026-11-05 Cloud (cloud/round4: F26.2 "Lists with <artist> in")
+- Done: WebPlaylistPick.WithArtistIn: lists already read (Spotify's, Deezer's read ones, SoundCloud sets with songs) that hold the artist's songs but are not about them, most of their songs first; SongsLabel "Firestarter, Breathe + 2".
+- Shown by the new ListsWithArtist component on the artist search (after Playlists) and on the artist page (after Albums). Nothing is fetched for it (IWebPlaylists.ListsWithArtist reads the store).
+- Proof: SpotifyEmbedTests (The Prodigy vs Prodigy, lists about them left out, unread sets left out).
+
+## 2026-11-05 Cloud (cloud/round4: F26.1 many real playlists, ours last)
+- Done: SpotifyPlaylists.DeezerListsAsync: one Deezer playlist search per artist (kept a day): the editors' best-of with its songs, plus every fans'/editors' list whose name holds the artist (names, size, picture; songs read when opened via FillAsync).
+- WebPlaylistPick.ForArtist: real lists (title holds the artist, The kept, or holds 2+ of their songs; 8+ songs; SoundCloud own sets) editors first, then by their songs held, size; same words once; our own only under 4 real ones and after them; up to 15 (2 rows of cards on desktop).
+- Only the best-of downloads on an artist search (top half); other lists shown download nothing. Proof: SpotifyEmbedServiceTests (10-list Deezer fixture).
+
 ## 2026-11-05 Local (late)
 - F24 rules fixed after the owner read the dry-run list (bands split, Bob->B.o.B, P!nk->PNK, &amp;, "feat. Th", WizKid (4)); 323323ec. Not deployed yet: the owner must not approve the old list.
 - Web mic: Brave records straight away; speech/quiet judged against the room's noise (15 s recordings).

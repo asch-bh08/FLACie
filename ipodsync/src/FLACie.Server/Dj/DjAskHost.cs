@@ -11,6 +11,13 @@ public sealed class SessionAskUser(UserSession s, SessionAlexaUser alexa, Func<R
 {
     // F11: Deezer's rank, kept on frank (DjPickPopularity); capped to an int for the ranking
     public int Popularity(Track t) => (int)Math.Min(int.MaxValue, popularity?.Of(t) ?? 0);
+    // F26.4: Jellyfin's own play count (every app), by the song's Jellyfin id
+    Dictionary<string, int>? jfPlays; IReadOnlyList<JfPlay>? jfPlaysFor;
+    public int JellyfinPlays(Track t)
+    {
+        if (!ReferenceEquals(jfPlaysFor, s.PlayStats)) { jfPlaysFor = s.PlayStats; jfPlays = s.PlayStats.GroupBy(p => p.Id).ToDictionary(g => g.Key, g => g.Max(p => p.Plays)); }
+        return t.JellyfinId is { } id && jfPlays!.TryGetValue(id, out var n) ? n : 0;
+    }
     public Task LookUpPopularityAsync(IReadOnlyList<Track> songs, CancellationToken ct) => popularity?.LookUpAsync(songs, ct) ?? Task.CompletedTask;
 
     public UserSession Session => s;

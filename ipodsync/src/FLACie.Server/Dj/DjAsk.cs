@@ -338,6 +338,8 @@ public interface IDjAskUser
     void NotePhrase(PhraseAsk p) { }
     /// <summary>How well known the song is (higher is better; 0 when unknown), for picking between versions (F11).</summary>
     int Popularity(Track t) => 0;
+    /// <summary>F26.4: how often Jellyfin says the song was played (every app, from before FLACie's own log began); 0 when unknown.</summary>
+    int JellyfinPlays(Track t) => 0;
     /// <summary>Finds out how well known these songs are, before <see cref="Popularity"/> is asked about them.</summary>
     Task LookUpPopularityAsync(IReadOnlyList<Track> songs, CancellationToken ct) => Task.CompletedTask;
     /// <summary>More that FLACie holds for certain about a song (how often it was played, what the MusicBrainz cache says), as "key: value" lines; "" when nothing.</summary>
@@ -765,9 +767,12 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
         { scope = byGenre; name = Capital(what); }
         else return DjAskAnswer.Said($"I can't find {what} in your library.");
         // how well known each is, for filling up with their most popular songs (a few looked up; the rest as already known)
-        await u.LookUpPopularityAsync(scope.Where(t => u.Popularity(t) == 0).Take(8).ToList(), ct);
-        var ranked = DjFavourites.Rank(u, scope, now());
-        return new(DjAskDo.Play, $"Your favourite {name} songs.", ranked.Select(t => t.Path).ToList(), $"Your favourite {name}");
+        // the hits to fill up with: a handful of Deezer asks for the scope's songs, kept on frank (F26.4)
+        await u.LookUpPopularityAsync(scope.Where(t => u.Popularity(t) == 0).DistinctBy(Matching.MatchKey).Take(15).ToList(), ct);
+        var pick = DjFavourites.Pick(u, scope, now());
+        if (pick.Songs.Count == 0) return DjAskAnswer.Said($"I couldn't find {name} songs you'd want to hear.");
+        return new(DjAskDo.Play, DjFavourites.Say(pick, name, byArtist: scope.Count > 0 && scope.All(t => Key(Matching.PrimaryArtist(t.Artist)) == Key(Matching.PrimaryArtist(scope[0].Artist)))),
+            pick.Songs.Select(t => t.Path).ToList(), $"Your favourite {name}");
     }
 
     /// <summary>F12: "remove this from the playlist" asks first; the removal is done on a yes within a minute.</summary>

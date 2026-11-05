@@ -15,7 +15,7 @@ public enum WebPlaylistKind { Artist, Decade, Genre, Chart, Other }
 /// purpose is about (the artist's name, "1990", "rock", the chart's name). SoundCloud's [Likes], [Plays], [Reposts], [PostedUtc] and [Verified] rank it.
 /// </summary>
 public sealed record WebPlaylist(string Source, string Id, string Name, WebPlaylistKind Kind, string Subject, IReadOnlyList<WebTrack> Tracks,
-    long Likes = 0, long Plays = 0, long Reposts = 0, DateTime? PostedUtc = null, bool Verified = false)
+    long Likes = 0, long Plays = 0, long Reposts = 0, DateTime? PostedUtc = null, bool Verified = false, bool Editor = false, int Size = 0, string? Picture = null)
 {
     public const int MaxText = 200, MaxTracks = 100;
     /// <summary>What it is for: one list per purpose is shown (<see cref="WebPlaylistPick.OnePerPurpose"/>).</summary>

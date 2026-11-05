@@ -204,6 +204,7 @@ var app = builder.Build();
     var vibes = app.Services.GetRequiredService<VibeIndex>();
     AppHost.ListenLog = s => listens.Exists(s) ? listens.Read(s) : null;
     AppHost.Vibe = vibes.Of;
+    AppHost.Imports = new ServerImports(app.Services.GetRequiredService<UserStateStore>());
     // FLACIE_WEB_PLAYLISTS=off: only FLACie's own lists (the web-smoke tests set it, so they never reach Spotify or Deezer)
     if (!string.Equals(app.Configuration["FLACIE_WEB_PLAYLISTS"], "off", StringComparison.OrdinalIgnoreCase)) AppHost.WebPlaylists = app.Services.GetRequiredService<SpotifyPlaylists>();
     var related = app.Services.GetRequiredService<RelatedCache>();

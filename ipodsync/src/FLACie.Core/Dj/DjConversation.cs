@@ -50,6 +50,13 @@ public static partial class DjConversation
         _ => DjTurn.End,
     };
 
+    /// <summary>The DJ asked something back (F12: an Ask step, or the model's question): the mic listens again, with the longer window.</summary>
+    public static bool AskedBack(DjAskAnswer a) => a.Intent == "Clarify" || a.AllSteps.Any(s => s.Do == DjAskDo.Ask);
+
+    /// <summary><see cref="After(DjAskDo, bool, int, string?)"/> for a whole answer: one that asks back always listens again, whatever else it did.</summary>
+    public static DjTurn After(DjAskAnswer a, int turn) =>
+        AskedBack(a) ? (turn < MaxTurns ? DjTurn.ListenAgain : DjTurn.End) : After(a.Do, false, turn, a.Intent);
+
     /// <summary>At the end: the song paused by the mic carries on, unless the conversation chose what the music does.</summary>
     public static bool ResumeAtEnd(bool pausedByMic, DjTurn how) => pausedByMic && how != DjTurn.EndMusicChosen;
 }

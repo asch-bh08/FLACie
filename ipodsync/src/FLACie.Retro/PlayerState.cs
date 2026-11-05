@@ -1006,8 +1006,6 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     public bool CanAskDj => RetroHost.DjAsk is not null && session is not null;
     /// <summary>A line that comes later (a song asked for has landed and is playing): the page shows it as a toast.</summary>
     public event Action<string>? DjAskSaid;
-    /// <summary>The DJ asked something back (an Ask step): the mic opens again for the answer.</summary>
-    public event Action<string>? DjAskAgain;
 
     public async Task<DjAskAnswer?> AskDjAsync(string text, CancellationToken ct = default)
     {
@@ -1083,7 +1081,8 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
             return Task.CompletedTask;
         }
         public Task CreatePlaylistAsync(string name, IReadOnlyList<string> paths) { s.ReplacePlaylistTracks(s.PlaylistNamed(name).Id, Tracks(paths)); return Task.CompletedTask; }
-        public Task AskAsync(string question) { p.DjAskAgain?.Invoke(question); return Task.CompletedTask; }
+        // the question is the answer's own line (said by DjAnswerAsync); the mic's conversation loop opens again for the reply (DjConversation.AskedBack)
+        public Task AskAsync(string question) => Task.CompletedTask;
         public Task ShuffleAsync(bool on) { if (p.Shuffle != on) p.ToggleShuffle(); return Task.CompletedTask; }
         public Task RenamePlaylistAsync(string playlist, string name)
         {

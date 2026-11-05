@@ -1,5 +1,9 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round2: F12 end to end on the web)
+- Done: DjConversationWebTests drive the real PlayerState + UserSession: remove asks, "no" keeps, "yes" removes; "make a backroads playlist" then "call it Country Roads"; "not that one" across turns; every step kind runs.
+- DjConversation.AskedBack(answer) / After(answer, turn): an answer with an Ask step listens again with the long window (DjMic uses it). Local: same rule in the phone's DjConversation.kt.
+
 ## 2026-11-05 Cloud (cloud/round2: F1 full cover chain)
 - Done: a song without its own picture: catalog (song, then album) -> folder picture (Jellyfin ParentPrimaryImage, else the folder item) -> artist photo on Jellyfin -> Deezer artist photo -> made cover.
 - The lookup key carries the fallbacks after the catalog part ("jf<id>~<tag>" | "jd<folder>" | "ja<artist>", "|" between); covers are saved under the key without them (LookupBase).

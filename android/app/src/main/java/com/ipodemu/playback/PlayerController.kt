@@ -363,8 +363,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     @OptIn(UnstableApi::class)
     private fun voice(): DjPlayer = djVoice ?: DjPlayer(ctx, upstream, prefs, onLevel = { level -> duck = level; applyOutputVolume() },
         // a song held back under a long line (DjTiming) starts again from its beginning; one the listener has moved on in is left alone
-        onRestart = { held -> if (exo.currentPosition < held + 3_000L) selfSeekTo(exo.currentMediaItemIndex, 0L) }, settings = { djSettings },
-        onCaption = { c -> if (c != djCaption) { djCaption = c; fire() } }).also { djVoice = it }
+        // (only while it is still the held song: owner, 5 Nov, a bounce back to the song before)
+        onRestart = { held, path -> if (DeferredSeek.stillMeant(path, current?.path) && exo.currentPosition < held + 3_000L) selfSeekTo(exo.currentMediaItemIndex, 0L) }, settings = { djSettings },
+        onCaption = { c -> if (c != djCaption) { djCaption = c; fire() } }, songPath = { current?.path }).also { djVoice = it }
     /** The DJ is saying something now (a line or an answer): a conversation waits for it before listening again. */
     val djTalking: Boolean get() = djVoice?.speaking == true
     /** The DJ's words showing now (Settings → DJ → Captions), or null. */
@@ -658,7 +659,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                     android.widget.Toast.makeText(ctx, "Couldn't play \"${current?.title ?: "this song"}\" (${error.errorCodeName})", android.widget.Toast.LENGTH_LONG).show()
                     if (NetPatience.skipsWhenGivingUp(NetPatience.hopeless(code), exo.hasNextMediaItem())) { selfSeekTo(exo.nextMediaItemIndex, 0L); exo.prepare() }   // prepare only: a pause pressed meanwhile is kept
                 }
-                else { val at = exo.currentPosition; val idx = exo.currentMediaItemIndex; handler.postDelayed({ if (exo.currentMediaItemIndex == idx && exo.playerError != null) { selfSeekTo(idx, at); exo.prepare() } }, wait) }
+                else { val at = exo.currentPosition; val idx = exo.currentMediaItemIndex; val meant = current?.path; handler.postDelayed({ if (exo.currentMediaItemIndex == idx && DeferredSeek.stillMeant(meant, current?.path) && exo.playerError != null) { selfSeekTo(idx, at); exo.prepare() } }, wait) }
                 fire()
             }
         })

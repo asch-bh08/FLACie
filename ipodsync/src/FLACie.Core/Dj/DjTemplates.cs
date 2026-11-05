@@ -12,7 +12,7 @@ public enum DjNeed { None = 0, TenYearsOld = 1, SameAlbum = 2, Soundtrack = 4, S
 /// <summary>
 /// One line pattern. Placeholders, filled with the spoken or the written form: {T}/{A} the next song's title and artist, {pT}/{pA} the previous song's, {eT} a song by the
 /// same artist heard earlier, {Al} album, {Q} the playlist or album a queue has just started from, {Y} year, {D} decade, {AD} "A seventies" / "An eighties", {G} genre, {M} minutes, {W} the "why", {w} the same starting in lower case,
-/// {W1}/{w1} its first part only, {Day} Saturday or Sunday, {ToD}/{tod} a notable time ("Monday morning", "late night"), {F}/{f} the song's feel ("a big one").
+/// {W1}/{w1} its first part only, {Day} Saturday or Sunday, {ToD}/{tod} the time of day in one of several wordings ("This morning", "on a Wednesday morning", "early on": DjPlanner.TimePhrases), {F}/{f} the song's feel ("a big one").
 /// [Style]: null for Classic (and for every style when that style has no template of the slot); Chill or Hype for their own wording.
 /// </summary>
 public sealed record DjTemplate(string Id, DjSlot Slot, string Text, DjNeed Need = DjNeed.None, DjStyle? Style = null)
@@ -105,7 +105,7 @@ public static class DjTemplates
         new("seg2", DjSlot.Segue, "{pT}, from {pA}... okay, now, {T}."),
         new("seg3", DjSlot.Segue, "That was {pA}... and now, {A}, with {T}."),
         new("time1", DjSlot.Time, "{ToD}... so here's {T} by {A}."),
-        new("time2", DjSlot.Time, "Okay, for a {tod}... {T} by {A}."),
+        new("time2", DjSlot.Time, "Okay, {tod}... {T} by {A}."),
         new("feel1", DjSlot.Feel, "{F} now... {T} by {A}."),
         new("feel2", DjSlot.Feel, "Alright, here's {T} by {A}... {f}."),
 

@@ -116,23 +116,23 @@ public sealed class DjContext
             req = request is { } r && now - r.At < TalkLife ? r.Words : null;
             subj = subject is { } s && now - s.At < TalkLife ? s.Artist : null;
         }
-        Put("Listening on", surf switch { DjSurface.Auto => "the car", DjSurface.Phone => "their phone", DjSurface.Web => "the web player", DjSurface.Windows => "their computer", _ => null });
+        Put("Listening on", surf switch { DjSurface.Auto => "the car", DjSurface.Phone => "the listener's phone", DjSurface.Web => "the web player", DjSurface.Windows => "the listener's computer", _ => null });
         Put("Time of day", localHour switch { >= 5 and <= 11 => "morning", >= 12 and <= 17 => "afternoon", >= 18 and <= 22 => "evening", null => null, _ => "late at night" });
         if (from is { } f && now - f >= TimeSpan.FromMinutes(5)) Put("Listening for", Math.Round((now - f).TotalMinutes).ToString(CultureInfo.InvariantCulture) + " minutes");
         if (ss.Count > 0)
             Put("Last songs (oldest first)", string.Join("; ", ss.Select(x => (x.Title.Length > 0 ? x.Title : "?") + (x.Artist.Length > 0 ? " by " + x.Artist : "") + (x.Skipped && engineChose ? " (skipped)" : ""))));
         if (engineChose) Put("Energy", Trend(ss));
-        Put("They asked for", req);
+        Put("The listener asked for", req);
         Put("Talking about", subj);
         if (Taste?.Invoke() is { } taste)
         {
-            Put("Their top artists", string.Join(", ", taste.Artists.Take(5)));
-            Put("What they play most", string.Join("; ", taste.Songs.Take(3)));
+            Put("The listener's top artists", string.Join(", ", taste.Artists.Take(5)));
+            Put("What the listener plays most", string.Join("; ", taste.Songs.Take(3)));
         }
         if (withTalk && ts.Count > 0)
         {
             sb.Append("- Recent conversation:\n");
-            foreach (var t in ts) sb.Append("  - They said: ").Append(t.Asked).Append(" / You answered: ").Append(t.Answered).Append('\n');
+            foreach (var t in ts) sb.Append("  - The listener said: ").Append(t.Asked).Append(" / You answered: ").Append(t.Answered).Append('\n');
         }
         if (ls.Count > 0) Put("Your last lines (never repeat them)", string.Join(" | ", ls));
         return sb.ToString();

@@ -5,10 +5,11 @@ namespace FLACie.Core;
 /// <summary>A line the DJ will say: [Text] for the voice (years and minutes in words, names respelt), [Caption] for screens (the real spellings).
 /// [Parts]/[PooledCaption]: the same moment as a pooled line (kept phrases and a name clip, see <see cref="DjPool"/>), said instead when the day's allowance
 /// needs it; null when the song has no title and artist to name.</summary>
-public sealed record DjLine(DjSlot Slot, string TemplateId, string Text, string Caption, IReadOnlyList<DjPart>? Parts = null, string? PooledCaption = null)
+/// [TimePhrase]: the words for the time of day this line may use ("early on"), or null when it must not mention the time at all (<see cref="DjPlanner.TimeEvery"/>).
+public sealed record DjLine(DjSlot Slot, string TemplateId, string Text, string Caption, IReadOnlyList<DjPart>? Parts = null, string? PooledCaption = null, string? TimePhrase = null)
 {
     public bool Equals(DjLine? o) => o is not null && Slot == o.Slot && TemplateId == o.TemplateId && Text == o.Text && Caption == o.Caption
-        && PooledCaption == o.PooledCaption && (Parts is null ? o.Parts is null : o.Parts is not null && Parts.SequenceEqual(o.Parts));
+        && PooledCaption == o.PooledCaption && TimePhrase == o.TimePhrase && (Parts is null ? o.Parts is null : o.Parts is not null && Parts.SequenceEqual(o.Parts));
     public override int GetHashCode() => HashCode.Combine(Slot, TemplateId, Text, Caption);
 }
 
@@ -30,6 +31,9 @@ public static class DjPlanner
     public static double Chance(DjChatty c, DjStyle s) => Chance(c) * (s switch { DjStyle.Chill => 0.8, DjStyle.Hype => 1.2, _ => 1.0 });
     /// <summary>The chance of the opening line of a session: always when Often, half the time when Rare.</summary>
     public static double OpenChance(DjChatty c) => c == DjChatty.Rare ? 0.5 : 1.0;
+    /// <summary>The time of day is offered to the first line of a session and then to one line in this many at most (owner, 5 Nov: "on this Wednesday
+    /// morning" every time it spoke; "mix it up a bit, still keep that").</summary>
+    public const int TimeEvery = 6;
 
     /// <summary>The line before [req.Next], or null to stay quiet. The switches (<see cref="DjRules.EffectiveOn"/>) come first; when they say off, the memory is not touched.
     /// [firstName]: for the hello at the start of a session; [extra]: what the server knows about the song (its feel).</summary>
@@ -54,7 +58,8 @@ public static class DjPlanner
         if (f.ArtistKey.Length > 0) mem.Artists[f.ArtistKey] = new(nowUtc, song, f.HasTitle ? f.TitleWritten : "");
 
         f.Feel = DjFeel.Of(extra?.Vibe, extra?.PrevVibe, f.Picked);
-        f.Colour = Colour(req.LocalHour, req.Weekday);
+        // the time of day: at the start of a session, then one line in [TimeEvery] at most, each time in other words than the last (owner, 5 Nov)
+        f.Colour = open || mem.SinceTime >= TimeEvery - 1 ? PickTime(req.LocalHour, req.Weekday, mem.LastTimePhrase, rng) : null;
         // the person's own choice for this song beats the chance, the forced silence and the quiet rules (but not the switches above)
         var choice = DjRules.SongChoice(settings, req.Next.Title, req.Next.Artist);
         // "Every song": a line before each song, without the draw or the forced silence; only the songs it must never talk over stay quiet
@@ -72,6 +77,8 @@ public static class DjPlanner
                 ? Write(req, mem, f, open, reset, heard, song, nowUtc, rng, say, settings.Style, firstName) : null;
         if (line is null) { mem.SilentRun = Math.Min(mem.SilentRun, DjMemory.Long) + 1; return null; }
         mem.SilentRun = 0;
+        if (f.Colour is { } tp) { mem.SinceTime = 0; mem.LastTimePhrase = tp; line = line with { TimePhrase = tp }; }
+        else mem.SinceTime = Math.Min(mem.SinceTime, DjMemory.Long) + 1;
         mem.Add(new(line.TemplateId, line.Slot, DjTemplates.All.First(t => t.Id == line.TemplateId).Opener, line.Text, nowUtc, line.Caption));
         return line;
     }
@@ -212,6 +219,35 @@ public static class DjPlanner
         return null;
     }
 
+    /// <summary>The ways of saying the time of day where the listener is ([weekday]: 0 = Sunday .. 6, as <see cref="Greeting(int?, int?)"/>): "this morning",
+    /// "on a Wednesday morning", "early on", "for your Wednesday"... Empty when the hour is not known.</summary>
+    public static IReadOnlyList<string> TimePhrases(int? hour, int? weekday)
+    {
+        if (hour is not { } h) return [];
+        var day = weekday is { } w and >= 0 and <= 7 ? ((DayOfWeek)(w % 7)).ToString() : null;
+        var (part, plain) = h switch
+        {
+            >= 5 and <= 11 => ("morning", new[] { "this morning", "early on" }),
+            >= 12 and <= 17 => ("afternoon", new[] { "this afternoon", "for the afternoon" }),
+            >= 18 and <= 22 => ("evening", new[] { "this evening", "tonight" }),
+            _ => ("night", new[] { "late on", "at this hour" }),
+        };
+        var res = new List<string>(plain);
+        if (day is not null)
+        {
+            res.Insert(1, part == "night" ? "late on a " + day : "on a " + day + " " + part);
+            res.Add(part == "night" ? "for a late " + day : "for your " + day);
+        }
+        return res;
+    }
+
+    /// <summary>One of <see cref="TimePhrases"/>, never [last] again; null when the time is not known.</summary>
+    static string? PickTime(int? hour, int? weekday, string? last, Random rng)
+    {
+        var all = TimePhrases(hour, weekday).Where(p => !string.Equals(p, last, StringComparison.OrdinalIgnoreCase)).ToList();
+        return all.Count == 0 ? null : all[rng.Next(all.Count)];
+    }
+
     static bool Met(DjNeed n, Facts f) =>
         (!n.HasFlag(DjNeed.TenYearsOld) || f.YearAge >= 10) && (!n.HasFlag(DjNeed.SameAlbum) || f.SameAlbum)
         && (!n.HasFlag(DjNeed.Soundtrack) || f.Soundtrack) && (!n.HasFlag(DjNeed.SameGenre) || f.SameGenre)
@@ -270,7 +306,7 @@ public static class DjPlanner
         }
         if (f.Genre is { } g) Put("G", g.Say, g.Write);
         if (f.Minutes > 0) Put("M", DjNumbers.Words(f.Minutes), f.Minutes.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        if (f.Colour is { } c) { Put("ToD", c, c); var lc = c.StartsWith("Late") ? c.ToLowerInvariant() : c; Put("tod", lc, lc); }
+        if (f.Colour is { } c) { var up = char.ToUpperInvariant(c[0]) + c[1..]; Put("ToD", up, up); Put("tod", c, c); }
         if (f.Feel.Length > 0) { var up = char.ToUpperInvariant(f.Feel[0]) + f.Feel[1..]; Put("F", up, up); Put("f", f.Feel, f.Feel); }
         SetWhy(sp, wr, f, f.Why.Count);
         return (sp, wr);

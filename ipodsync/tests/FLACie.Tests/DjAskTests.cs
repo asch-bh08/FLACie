@@ -333,7 +333,7 @@ public class DjAskTests
         string? prompt = null;
         var e2 = new DjAskEngine(new FakeModel((p, _) => { prompt = p; return Task.FromResult<string?>("{\"answer\": \"Not sure.\"}"); }), e.Contexts);
         await e2.AnswerAsync(u, "what else have they done?", null, []);
-        Assert.Contains("They said: who are the prodigy?", prompt);
+        Assert.Contains("The listener said: who are the prodigy?", prompt);
         Assert.Contains("Talking about: The Prodigy", prompt);
     }
 

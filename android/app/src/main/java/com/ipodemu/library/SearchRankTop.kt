@@ -25,13 +25,13 @@ object SearchRankTop {
 
 /**
  * What the phone's search shows for an artist (the same split as FLACie Web's ArtistPage): their top 5 songs under the Top result, then Popular (the next
- * most played), Albums and Singles & EPs (each newest first). A release of 6 songs or fewer, or one named EP or Single, is a single.
+ * most played), Albums and Singles & EPs (each newest first). A release of 3 songs or fewer, or one named EP or Single, is a single (as on the web).
  */
 class ArtistPage(val top: List<Track>, val popular: List<Track>, val albums: List<Group>, val singles: List<Group>) {
     companion object {
         const val TOP = 5
         const val POPULAR = 10
-        const val SINGLE_MAX = 6
+        const val SINGLE_MAX = 3
         private val named = Regex("""[(\[\s-](?:ep|single)[)\]]?\s*$""", RegexOption.IGNORE_CASE)
 
         fun of(artist: Group, albums: List<Group>, plays: Map<String, Int>): ArtistPage {

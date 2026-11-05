@@ -1,5 +1,6 @@
 package com.ipodemu.library
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -50,11 +51,11 @@ class SearchRankTopTest {
 
     @Test fun theAlbumSingleSplit() {
         fun g(name: String, count: Int) = group(name, List(count) { s("t$it", "A", name, 2000) })
-        assertTrue(ArtistPage.isSingle(g("Hit", 1))); assertTrue(ArtistPage.isSingle(g("Six", 6)))
+        assertTrue(ArtistPage.isSingle(g("Hit", 1))); assertTrue(ArtistPage.isSingle(g("Three", 3))); assertFalse(ArtistPage.isSingle(g("Four", 4)))
         assertTrue("seven songs is an album", !ArtistPage.isSingle(g("Seven", 7)))
         assertTrue("the title says Single", ArtistPage.isSingle(g("Big Hit (Single)", 9)))
         assertTrue("the title says EP", ArtistPage.isSingle(g("Remixes EP", 8)))
         assertTrue("Deep is not EP", !ArtistPage.isSingle(g("Deep", 9)))
-        assertEquals("Single", ArtistPage.kind(g("Hit", 1))); assertEquals("EP", ArtistPage.kind(g("Mini", 4))); assertEquals("Album", ArtistPage.kind(g("Big", 12)))
+        assertEquals("Single", ArtistPage.kind(g("Hit", 1))); assertEquals("EP", ArtistPage.kind(g("Mini", 3))); assertEquals("Album", ArtistPage.kind(g("Big", 12)))
     }
 }

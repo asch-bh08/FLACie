@@ -438,7 +438,17 @@ test.describe.serial('ipod mode', () => {
       const out: string[] = [];
       const box = (e: Element) => e.getBoundingClientRect();
       // the rectangle the letters really occupy (an element can be wider than its text)
-      const ink = (e: Element) => { if (e.matches('.ios-back, .ios-now')) return box(e); const r = document.createRange(); r.selectNodeContents(e); return r.getBoundingClientRect(); };
+      // a one-line text held to its box (cut with an ellipsis, or a scrolling line's inner text held by its parent): only the part of its letters inside
+      // that box is on screen
+      const clipped = (e: Element) => { const cs = getComputedStyle(e); return cs.overflowX === 'hidden' && cs.whiteSpace === 'nowrap'; };
+      const cut = (r: DOMRect, c: DOMRect) => new DOMRect(Math.max(r.left, c.left), Math.max(r.top, c.top), Math.max(0, Math.min(r.right, c.right) - Math.max(r.left, c.left)), Math.max(0, Math.min(r.bottom, c.bottom) - Math.max(r.top, c.top)));
+      const ink = (e: Element) => {
+        if (e.matches('.ios-back, .ios-now')) return box(e);
+        const rg = document.createRange(); rg.selectNodeContents(e); const r = rg.getBoundingClientRect();
+        if (clipped(e)) return cut(r, box(e));
+        if (e.matches('.mq-in') && e.parentElement) return cut(r, box(e.parentElement));
+        return r;
+      };
       const area = box(document.querySelector('[data-testid=ipod-keys]')!), dev = box(document.querySelector('[data-testid=ipod-device]')!);
       if (dev.left < area.left - 1 || dev.right > area.right + 1 || dev.top < area.top - 1 || dev.bottom > area.bottom + 1) out.push('device outside the free area');
       if (dev.width < 40 || dev.height < 60) out.push('device tiny');
@@ -449,7 +459,7 @@ test.describe.serial('ipod mode', () => {
         if (!own) continue;
         const r = ink(e);
         if (r.width === 0 || r.height === 0) continue;
-        if (r.left < screen.left - 1.5 || r.right > screen.right + 1.5 || r.top < screen.top - 1.5 || r.bottom > screen.bottom + 1.5) out.push('text outside the screen: ' + (e.textContent || '').trim().slice(0, 24));
+        if (r.left < screen.left - 1.5 || r.right > screen.right + 1.5 || r.top < screen.top - 1.5 || r.bottom > screen.bottom + 1.5) out.push('text outside the screen: ' + (e.textContent || '').trim().slice(0, 24) + ' (' + e.tagName.toLowerCase() + '.' + [...e.classList].join('.') + ')');
       }
       const hasText = (e: Element) => [...e.childNodes].some((n) => n.nodeType === 3 && (n.textContent || '').trim().length > 0);
       const texts = [...root.querySelectorAll('*')].filter((e) => !e.closest('.cf-item, svg') && (e.matches('.ios-back, .ios-now') || hasText(e)) && box(e).width > 0);

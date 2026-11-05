@@ -111,7 +111,8 @@ test.describe.serial('Up next editing', () => {
     await expect(page.locator('.toast')).toContainText('Saved the queue as');
     await page.goto('/playlists');
     await page.getByRole('link', { name: /Lab Album/ }).first().click();
-    await expect.poll(() => page.locator('.tracks .track-title').allInnerTexts().then((a) => a.map((x) => x.trim())), { timeout: 20_000 })
+    await expect.poll(() => page.locator('.tracks .track:not(.pl-rec) .track-title').allInnerTexts()   // (not the Recommended songs below the list)
+      .then((a) => a.map((x) => x.trim())), { timeout: 20_000 })
       .toEqual(['Lab 1', 'Lab 5', 'Lab 2', 'Lab 3', 'Lab 4', 'Lab 6', 'Lab 7', 'Lab 8']);
   });
 });

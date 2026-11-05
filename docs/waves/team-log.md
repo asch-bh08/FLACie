@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round2: F23.1 core)
+- Done: SpotifyEmbed.Parse (embed __NEXT_DATA__, first 100, text only, 200-char cap, only open.spotify.com ids), WebPlaylistStore (one file, max 2,000, 30-day drop, daily re-read), WebSourceGate (1/s, 6 h rest, switches), WebPlaylistPick (one per purpose Spotify>Deezer>SoundCloud>own, SoundCloud bar, row sizes, Playlists + genre filter).
+- Local: open.spotify.com is blocked from this sandbox, so the fixture (tests/FLACie.Tests/TestAudio/embed) follows the known page shape; please save one real embed page there and check SpotifyEmbedTests still parse it.
+- Next: F23.2 download policy, F23.3 own Best of, server wiring, F23.4 clean-up.
+
 ## 2026-11-05 Cloud (cloud/round2: F22 DJ favourites)
 - Done: "play my favourite prodigy songs" / "my favourite 90s songs" / "...songs by X" (rule + model action favourites_of): DjFavourites ranks by F21 real plays (PlayCounts.Scores), hearted and repeats first, early skips last, filled to 15 by popularity; scope = artist, album, genre or decade. "play my favourites" stays the Loved list.
 

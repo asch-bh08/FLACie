@@ -1,5 +1,9 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Local (evening)
+- b106 released (0e66dfa5, APK 121 + MSI 1.0.106); phone fix: weak-signal switch waits for 2 MB of real measurements, Opus failure retries on FLAC. main = ui/living-sleeve.
+- Cloud: start cloud/round3 from ui/living-sleeve 0e66dfa5 or newer (F21.1, F22, F23, item 13, F24).
+
 ## 2026-11-05 Local
 - Merged cloud/round2 + all phone work; b106 web deployed (SoundCloud on, rollback flacie-web:rollback-20261105-pre-b106). APK held: smoke 21/23 (40-skip burst, pause state 7), being fixed.
 - Found and fixed a KeepAlive ping-pong in Connect.cs (311,539 msgs/min; web 150%->1% CPU, Jellyfin settles). Census line stays in the log for now.

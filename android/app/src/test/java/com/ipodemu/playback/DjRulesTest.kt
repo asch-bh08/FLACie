@@ -68,6 +68,15 @@ class DjRulesTest {
         assertEquals("written and read back the same", quiet, DjSettings.parse(quiet.toJson().toString()))
     }
 
+    @Test fun firstSongIsOnUnlessTheServerSaysOffAndIsSentBack() {
+        assertTrue(DjSettings().firstSong)
+        assertTrue(DjSettings.parse("""{"enabled":true}""").firstSong)
+        val off = DjSettings.parse("""{"enabled":true,"firstSong":false}""")
+        assertFalse(off.firstSong)
+        assertFalse(off.toJson().getBoolean("firstSong"))
+        assertTrue(DjSettings().toJson().getBoolean("firstSong"))
+    }
+
     @Test fun theStyleIsClassicUnlessTheServerSaysOtherwise() {
         assertEquals(DjStyle.CLASSIC, DjSettings().style)
         assertEquals(DjStyle.CLASSIC, DjSettings.parse("""{"enabled":true}""").style)

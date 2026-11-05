@@ -52,6 +52,8 @@ data class DjSettings(
     val cue: Boolean = true,
     /** Talk before the song: the song waits (silently) until the line has been said, then starts from the top, instead of the line going over its intro. */
     val before: Boolean = false,
+    /** Open a playlist or queue with a line like "Shuffling Pop, starting with Lovegame" (on unless the person turns it off). */
+    val firstSong: Boolean = true,
 ) {
     /** The clip player's volume (0..1). */
     val voiceLevel: Float get() = volume.coerceIn(0, 100) / 100f
@@ -63,7 +65,7 @@ data class DjSettings(
     fun toJson(): JSONObject = JSONObject().put("enabled", enabled).put("chatty", chatty.wire).put("phone", phone).put("auto", auto).put("web", web)
         .put("windows", windows).put("backup", backup).put("talkAfterSkips", talkAfterSkips).put("style", style.wire).put("playlists", JSONObject().also { o -> playlists.forEach { (k, v) -> o.put(k, v) } })
         .put("deviceVoice", deviceVoice).put("volume", volume).put("duck", duck).put("songs", JSONObject().also { o -> songs.forEach { (k, v) -> o.put(k, if (v) "always" else "never") } })
-        .put("voiceReady", voiceReady).put("captions", captions).put("cue", cue).put("before", before)
+        .put("voiceReady", voiceReady).put("captions", captions).put("cue", cue).put("before", before).put("firstSong", firstSong)
 
     companion object {
         const val DEFAULT_VOLUME = 90
@@ -89,6 +91,7 @@ data class DjSettings(
                 o.optBoolean("captions", d.captions),
                 o.optBoolean("cue", d.cue),
                 o.optBoolean("before", d.before),
+                o.optBoolean("firstSong", d.firstSong),
             )
         }
         /** The cached copy, or the defaults (DJ off) when there is none or it can't be read. */

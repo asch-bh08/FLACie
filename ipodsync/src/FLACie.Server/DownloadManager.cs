@@ -256,10 +256,10 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
         j.Raise();
     }
 
-    public void Song(UserSession s, CatalogSong song, bool hiRes = false, bool fallbackToNormal = true)
+    public void Song(UserSession s, CatalogSong song, bool hiRes = false, bool fallbackToNormal = true, string kind = "Search")
     {
         if (!Allowed) return;
-        Run(s, Add(s, $"{song.Title} · {song.Artist}{(hiRes ? " (Hi-Res)" : "")}", song.ArtUrl, "Search", song.Artist, song.Title, song.Album, song.DurationMs),
+        Run(s, Add(s, $"{song.Title} · {song.Artist}{(hiRes ? " (Hi-Res)" : "")}", song.ArtUrl, kind, song.Artist, song.Title, song.Album, song.DurationMs),
             (c, on) => hiRes ? c.DownloadHiResAsync(song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs, on, default, fallbackToNormal) : c.DownloadAsync(song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs, on));
     }
 

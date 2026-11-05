@@ -30,14 +30,14 @@ public sealed class SpotifyEmbedServiceTests : IDisposable
 
     sealed class Dl : FLACie.Server.IDownloads
     {
-        public List<string> Asked = [];
+        public List<string> Asked = [], Kinds = [];
         public IReadOnlyList<DownloadJob> JobsOf(UserSession s) => [];
         public void Subscribe(UserSession s, Action a) { }
         public void Unsubscribe(UserSession s, Action a) { }
         public void DismissFinished(UserSession s) { }
         public DownloadJob? JobFor(UserSession s, string artist, string title) => null;
         public DownloadTagStatus StatusOfKey(UserSession s, string key, long cloudAddedMs = 0, long? nowMs = null) => DownloadTagStatus.None;
-        public void Song(UserSession s, CatalogSong song, bool hiRes = false, bool fallbackToNormal = true) => Asked.Add(song.Title);
+        public void Song(UserSession s, CatalogSong song, bool hiRes = false, bool fallbackToNormal = true, string kind = "Search") { Asked.Add(song.Title); Kinds.Add(kind); }
         public void Album(UserSession s, CatalogAlbum album) { }
         public Task FetchSongAsync(UserSession s, string kind, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct = default) => Task.CompletedTask;
         public bool Allowed => true;
@@ -89,6 +89,7 @@ public sealed class SpotifyEmbedServiceTests : IDisposable
         Assert.Equal("100% The Prodigy", shown[0].Name);
         Assert.DoesNotContain(shown, l => l.Source == "own" && l.Kind == WebPlaylistKind.Artist);
         Assert.Equal(["Breathe", "Omen"], dl.Asked);
+        Assert.All(dl.Kinds, k => Assert.Equal("Playlist", k));   // downloads made as interest shows stay out of Search's Downloads panel (owner, 5 Nov: a search filled the screen with 20 of them)
         // opening it again within the hour queues nothing twice
         svc.Interest(me, shown[0], FetchTrigger.ArtistSearch);
         Assert.Equal(2, dl.Asked.Count);

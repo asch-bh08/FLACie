@@ -17,7 +17,8 @@ public interface IDownloads
     void DismissFinished(UserSession s);
     DownloadJob? JobFor(UserSession s, string artist, string title);
     DownloadTagStatus StatusOfKey(UserSession s, string key, long cloudAddedMs = 0, long? nowMs = null);
-    void Song(UserSession s, CatalogSong song, bool hiRes = false, bool fallbackToNormal = true);
+    /// <summary>[kind] "Playlist": asked for as interest shows (F23), not by the person: kept out of Search's Downloads panel and the done digest.</summary>
+    void Song(UserSession s, CatalogSong song, bool hiRes = false, bool fallbackToNormal = true, string kind = "Search");
     void Album(UserSession s, CatalogAlbum album);
     Task FetchSongAsync(UserSession s, string kind, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct = default);
     /// <summary>This server downloads music at all (the Dashboard's "Allow downloads", see <see cref="DownloadPolicy"/>). When false the pages show no

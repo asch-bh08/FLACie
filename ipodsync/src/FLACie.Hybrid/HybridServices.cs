@@ -115,7 +115,7 @@ public sealed class NoDownloads : IDownloads
     public void DismissFinished(UserSession s) { }
     public DownloadJob? JobFor(UserSession s, string artist, string title) => null;
     public DownloadTagStatus StatusOfKey(UserSession s, string key, long cloudAddedMs = 0, long? nowMs = null) => DownloadTagStatus.None;
-    public void Song(UserSession s, CatalogSong song, bool hiRes = false, bool fallbackToNormal = true) { }
+    public void Song(UserSession s, CatalogSong song, bool hiRes = false, bool fallbackToNormal = true, string kind = "Search") { }
     public void Album(UserSession s, CatalogAlbum album) { }
     public Task FetchSongAsync(UserSession s, string kind, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct = default) => Task.CompletedTask;
     public bool Allowed => false;

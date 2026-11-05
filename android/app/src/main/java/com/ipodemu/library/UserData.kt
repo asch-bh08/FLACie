@@ -324,12 +324,13 @@ class UserData(dir: File) {
     // Saving used to serialise and write the whole file on the main thread at every track start (a visible hitch).
     // Now: snapshot the data here (cheap), write it on a background thread, and coalesce bursts of changes.
     private val ioThread = java.util.concurrent.Executors.newSingleThreadExecutor()
-    private val main by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
+    // (null in a JVM unit test, where there is no main thread: the save then runs straight away)
+    private val main by lazy { try { android.os.Handler(android.os.Looper.getMainLooper()) } catch (_: RuntimeException) { null } }
     private var savePending = false
     private fun save() {
         if (savePending) return
         savePending = true
-        main.postDelayed(Runnable {
+        val write = Runnable {
             savePending = false
             val o = try {
                 JSONObject().also { o ->
@@ -348,7 +349,8 @@ class UserData(dir: File) {
                 }
             } catch (_: Exception) { return@Runnable }
             ioThread.execute { try { file.writeText(o.toString()) } catch (_: Exception) {} }
-        }, 800)
+        }
+        main?.postDelayed(write, 800) ?: write.run()
     }
 }
 

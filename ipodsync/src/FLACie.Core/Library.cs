@@ -69,12 +69,20 @@ public sealed class Library
         // the songs grouped by their cleaned title once, not every title cleaned again for each lookup: a playlist with songs not matched by path was slow
         // to open (owner, 1 Nov; the phone has the same index)
         byNormTitle ??= Songs.GroupBy(t => Matching.NormTitle(t.Title)).ToDictionary(g => g.Key, g => g.ToList());
-        return (byNormTitle.GetValueOrDefault(nt) ?? []).FirstOrDefault(t =>
+        bool SameArtist(Track t)
         {
             var a = Matching.PrimaryArtist(t.Artist);
             return a.Length == 0 || a is "unknown artist" or "unknown" || (pa.Length > 0 && (a.Contains(pa) || pa.Contains(a)));
-        });
+        }
+        if ((byNormTitle.GetValueOrDefault(nt) ?? []).FirstOrDefault(SameArtist) is { } hit) return hit;
+        // then the song's own name on both sides: Spotify lists "More And More - Single Version", "Freed From Desire - Radio Edit", "Scatman
+        // (ski-ba-bop-ba-dop-bop)" and the files downloaded for them are plain "More And More" (owner, 5 Nov: shown as not in the library after
+        // downloading). A remix or live recording keeps its word, so it never stands in for the original
+        var bt = Matching.NormTitle(WebCatalog.BaseTitle(title));
+        byBaseTitle ??= Songs.GroupBy(t => Matching.NormTitle(WebCatalog.BaseTitle(t.Title))).ToDictionary(g => g.Key, g => g.ToList());
+        return bt.Length == 0 ? null : (byBaseTitle.GetValueOrDefault(bt) ?? []).FirstOrDefault(SameArtist);
     }
+    Dictionary<string, List<Track>>? byBaseTitle;
 
     /// <summary>Jellyfin songs, then NAS songs Jellyfin doesn't have, de-duplicated.</summary>
     public static Library Merge(IReadOnlyList<Track> jellyfin, IReadOnlyList<Track> nas)

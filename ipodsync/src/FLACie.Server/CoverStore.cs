@@ -106,6 +106,9 @@ public static class GeneratedCover
     /// <summary>A cover that is gone for good gets a made one, unless the key carries a fallback picture; a lookup cut short is tried again.</summary>
     public static CoverMiss Answer(bool transient, bool hasFallback) => transient ? CoverMiss.TryAgain : hasFallback ? CoverMiss.Fallback : CoverMiss.Generated;
 
+    /// <summary>Whether a missing cover for [key] gets a made one: a song's cover key (catalog "it", Jellyfin "jf", NAS "nf"), never an outside picture's address.</summary>
+    public static bool ForKey(string key) => key.StartsWith("it", StringComparison.Ordinal) || key.StartsWith("jf", StringComparison.Ordinal) || key.StartsWith("nf", StringComparison.Ordinal);
+
     /// <summary>The artist and title a cover key names (a catalog key, or a NAS folder key); empty when it names none (a Jellyfin key).</summary>
     public static (string Artist, string Title) Names(string key)
     {

@@ -242,6 +242,8 @@ public static class MediaEndpoints
             {
                 var (status, cache) = CoverAnswers.Missing(transient);
                 ctx.Response.Headers.CacheControl = cache;
+                // a made cover only for a key that names a song's cover (a catalog, Jellyfin or NAS key); any other address that came to nothing is a 404
+                if (!transient && fallback is null && !GeneratedCover.ForKey(key)) return Results.NotFound();
                 switch (GeneratedCover.Answer(transient, fallback is not null))
                 {
                     case CoverMiss.Fallback: return Results.Redirect("/art/" + Uri.EscapeDataString(fallback!) + "?v=3");

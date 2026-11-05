@@ -32,7 +32,7 @@ public static class MadeEndpoints
     }
 
     static List<MadePlaylist>? Lists(UserSession? s, ListenLogStore log) =>
-        s is null ? null : MadePlaylists.For(s, log.Exists(s) ? log.Read(s) : null, DateTime.UtcNow);
+        s is null ? null : MadePlaylists.Cached(s, () => log.Exists(s) ? log.Read(s) : null, DateTime.UtcNow);
 }
 
 /// <summary>The bodies of /api/made, kept apart from the web plumbing. [lists] is null when nobody is signed in.</summary>

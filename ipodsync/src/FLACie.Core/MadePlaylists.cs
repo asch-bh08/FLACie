@@ -62,6 +62,24 @@ public static class MadePlaylists
         Build(s.Library, HomeBuilder.Taste(s.Library, s.History, s.Favorites, s.Playlists, utcNow, s.PlayStats, null, events));
 
     /// <summary>
+    /// As <see cref="For"/>, kept for ten minutes while the library stays the same: Search asks on every keystroke, and working out the taste reads the whole
+    /// listening log. A changed library (a sync, a download) builds them again at once.
+    /// </summary>
+    public static List<MadePlaylist> Cached(UserSession s, Func<IReadOnlyList<ListenEvent>?> events, DateTime utcNow)
+    {
+        lock (cache)
+        {
+            if (cache.TryGetValue(s, out var c) && ReferenceEquals(c.Lib, s.Library) && utcNow - c.At < TimeSpan.FromMinutes(10)) return c.Lists;
+        }
+        var lib = s.Library;
+        var lists = For(s, events(), utcNow);
+        lock (cache) cache.AddOrUpdate(s, new Built(lib, utcNow, lists));
+        return lists;
+    }
+    sealed record Built(Library Lib, DateTime At, List<MadePlaylist> Lists);
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<UserSession, Built> cache = new();
+
+    /// <summary>
     /// "Add to my playlists": a normal playlist of the account holding the list's songs as they are now, named like the list ("Rock", or "Rock 2" when
     /// "Rock" is taken, as saving the queue does). From then on it is the person's own and does not change when the made list does. The caller saves the profile.
     /// </summary>

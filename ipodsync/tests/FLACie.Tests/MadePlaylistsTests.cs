@@ -185,4 +185,17 @@ public class MadePlaylistsTests
         MadePlaylists.SaveTo(s, rock);
         Assert.Equal("Rock 2", MadePlaylists.SaveTo(s, rock).Name);
     }
+
+    [Fact] public void TheListsAreKeptUntilTheLibraryChanges()
+    {
+        var s = Session(Many(20, 2013, "Rock", "r"));
+        var reads = 0;
+        IReadOnlyList<ListenEvent>? Log() { reads++; return null; }
+        var a = MadePlaylists.Cached(s, Log, Now);
+        Assert.Same(a, MadePlaylists.Cached(s, Log, Now.AddMinutes(5)));
+        Assert.Equal(1, reads);
+        s.AddDownloaded(Many(15, 1985, "Pop", "p"));
+        Assert.Contains(MadePlaylists.Cached(s, Log, Now.AddMinutes(5)), m => m.Id == "made:decade:1980");
+        Assert.NotSame(a, MadePlaylists.Cached(s, Log, Now.AddMinutes(30)));
+    }
 }
